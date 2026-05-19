@@ -9,6 +9,7 @@ todo
 reqs/
 *.log
 .env
+.dev/
 .DS_Store
 chat
 
