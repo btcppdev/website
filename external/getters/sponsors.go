@@ -36,6 +36,7 @@ func parseOrg(pageID string, props map[string]notion.PropertyValue) *types.Org {
 func parseSponsorship(ctx *config.AppContext, pageID string, props map[string]notion.PropertyValue, orgs []*types.Org) *types.Sponsorship {
 	sp := &types.Sponsorship{
 		Ref:      pageID,
+		Name:     parseRichText("Name", props),
 		Level:    parseSelect("Level", props),
 		Label:    parseRichText("Label", props),
 		Status:   parseSelect("Status", props),
@@ -241,6 +242,51 @@ func ListSponsorships(ctx *config.AppContext, confRef string) ([]*types.Sponsors
 		for _, page := range pages {
 			sp := parseSponsorship(ctx, page.ID, page.Properties, cachedOrgs)
 			sponsorships = append(sponsorships, sp)
+		}
+	}
+
+	return sponsorships, nil
+}
+
+func parseSponsorshipOnly(pageID string, props map[string]notion.PropertyValue) *types.Sponsorship {
+	sp := &types.Sponsorship{
+		Ref:      pageID,
+		Name:     parseRichText("Name", props),
+		Level:    parseSelect("Level", props),
+		Label:    parseRichText("Label", props),
+		Status:   parseSelect("Status", props),
+		IsVendor: parseCheckbox(props["IsVendor"].Checkbox),
+		Notes:    parseRichText("Notes", props),
+	}
+	for _, ref := range props["org"].Relation {
+		sp.Org = &types.Org{Ref: ref.ID}
+		break
+	}
+	for _, ref := range props["event"].Relation {
+		sp.Confs = append(sp.Confs, &types.Conf{Ref: ref.ID})
+	}
+	return sp
+}
+
+func ListSponsorshipsOnly(n *types.Notion) ([]*types.Sponsorship, error) {
+	var sponsorships []*types.Sponsorship
+
+	hasMore := true
+	nextCursor := ""
+	for hasMore {
+		var err error
+		var pages []*notion.Page
+
+		pages, nextCursor, hasMore, err = n.Client.QueryDatabase(context.Background(),
+			n.Config.SponsorshipsDb, notion.QueryDatabaseParam{
+				StartCursor: nextCursor,
+			})
+
+		if err != nil {
+			return nil, err
+		}
+		for _, page := range pages {
+			sponsorships = append(sponsorships, parseSponsorshipOnly(page.ID, page.Properties))
 		}
 	}
 
