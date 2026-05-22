@@ -269,7 +269,11 @@ func (c *Client) withBrowser(parent context.Context, profileDir string, fn func(
 	opts := chromeOptions(profileDir, c.cfg.Headed)
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancelAlloc()
-	bctx, cancelBrowser := chromedp.NewContext(allocCtx)
+	bctx, cancelBrowser := chromedp.NewContext(
+		allocCtx,
+		chromedp.WithLogf(discardChromedpLogf),
+		chromedp.WithErrorf(discardChromedpLogf),
+	)
 	if err := installBrowserShims(bctx); err != nil {
 		cancelBrowser()
 		return wrapBrowserTimeout(err, timeout, c.cfg.Headed)
@@ -280,6 +284,8 @@ func (c *Client) withBrowser(parent context.Context, profileDir string, fn func(
 	}
 	return wrapBrowserTimeout(err, timeout, c.cfg.Headed)
 }
+
+func discardChromedpLogf(string, ...interface{}) {}
 
 func wrapBrowserTimeout(err error, timeout time.Duration, headed bool) error {
 	if err == nil {
