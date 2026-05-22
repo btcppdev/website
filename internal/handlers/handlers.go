@@ -590,6 +590,11 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		return r, err
 	}
 
+	err = addFaviconRoutes(r)
+	if err != nil {
+		return r, err
+	}
+
 	/* Handle 404s */
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handle404(w, r, app)
@@ -1222,11 +1227,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	// stale assets within the hour via conditional GET / 304s.
 	fs := http.FileServer(http.Dir("static"))
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticCache(fs)))
-	err = addFaviconRoutes(r)
-
-	if err != nil {
-		return r, err
-	}
 
 	return requestLog(app, noIndexRobots(r)), nil
 }
