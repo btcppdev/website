@@ -116,7 +116,7 @@ func New(cfg Config) (*Client, error) {
 
 func (c *Client) AuthStatus(ctx context.Context) (string, error) {
 	var status string
-	err := c.withProfile(ctx, false, func(profileDir string) error {
+	err := c.withProfile(ctx, false, false, func(profileDir string) error {
 		return c.withBrowser(ctx, profileDir, func(bctx context.Context) error {
 			s, err := detectLogin(bctx)
 			status = s
@@ -135,7 +135,7 @@ func (c *Client) Bootstrap(ctx context.Context) error {
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, c.cfg.AuthWait)
 	defer cancel()
-	return c.withProfile(waitCtx, true, func(profileDir string) error {
+	return c.withProfile(waitCtx, true, true, func(profileDir string) error {
 		return c.withBrowser(waitCtx, profileDir, func(bctx context.Context) error {
 			if err := chromedp.Run(bctx, chromedp.Navigate("https://x.com/home")); err != nil {
 				return err
@@ -168,7 +168,7 @@ func (c *Client) Post(ctx context.Context, p PostParams) (PostResult, error) {
 		return PostResult{}, fmt.Errorf("x video path: %w", err)
 	}
 	var result PostResult
-	err := c.withProfile(ctx, false, func(profileDir string) error {
+	err := c.withProfile(ctx, false, true, func(profileDir string) error {
 		return c.withBrowser(ctx, profileDir, func(bctx context.Context) error {
 			if err := ensureLoggedIn(bctx); err != nil {
 				return err
@@ -207,7 +207,7 @@ func (c *Client) Schedule(ctx context.Context, p ScheduleParams) error {
 	if _, err := os.Stat(p.VideoPath); err != nil {
 		return fmt.Errorf("x video path: %w", err)
 	}
-	return c.withProfile(ctx, false, func(profileDir string) error {
+	return c.withProfile(ctx, false, true, func(profileDir string) error {
 		return c.withBrowser(ctx, profileDir, func(bctx context.Context) error {
 			if err := ensureLoggedIn(bctx); err != nil {
 				return err
@@ -217,7 +217,7 @@ func (c *Client) Schedule(ctx context.Context, p ScheduleParams) error {
 	})
 }
 
-func (c *Client) withProfile(ctx context.Context, allowCreate bool, fn func(profileDir string) error) error {
+func (c *Client) withProfile(ctx context.Context, allowCreate, saveOnSuccess bool, fn func(profileDir string) error) error {
 	profileMu.Lock()
 	defer profileMu.Unlock()
 
@@ -241,6 +241,9 @@ func (c *Client) withProfile(ctx context.Context, allowCreate bool, fn func(prof
 	}
 	if err := fn(profileDir); err != nil {
 		return err
+	}
+	if !saveOnSuccess {
+		return nil
 	}
 	archived, err := archiveDir(profileDir)
 	if err != nil {
