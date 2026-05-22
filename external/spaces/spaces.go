@@ -245,6 +245,32 @@ func SaveJSONMap(key string, m map[string]string) error {
 	return err
 }
 
+// ListKeys returns all object keys under prefix. It follows S3 pagination
+// so callers can safely use it for large asset folders.
+func ListKeys(prefix string) ([]string, error) {
+	if client == nil {
+		return nil, fmt.Errorf("spaces not configured")
+	}
+	var keys []string
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix),
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		for _, obj := range page.Contents {
+			if obj.Key == nil {
+				continue
+			}
+			keys = append(keys, *obj.Key)
+		}
+	}
+	return keys, nil
+}
+
 // Get fetches an object's raw bytes by key. Used by the admin
 // social-cards download to stream a zip of the per-conf 1080p PNGs
 // without going through the public CDN. Returns a 404-style error
