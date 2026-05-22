@@ -3,11 +3,11 @@ package emails
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"text/template"
 	"time"
 
 	"btcpp-web/internal/config"

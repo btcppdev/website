@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	texttemplate "text/template"
 	"time"
 
 	"btcpp-web/external/buffer"
@@ -272,7 +272,7 @@ func run(env *types.EnvConfig) error {
 
 	// Initialize the application configuration
 	app.InProduction = env.Prod
-	app.EmailCache = make(map[string]*template.Template)
+	app.EmailCache = make(map[string]*texttemplate.Template)
 
 	app.Infos.Println("")
 	app.Infos.Println("~~~~app restarted, here we go~~~~~")
