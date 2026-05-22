@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -18,33 +18,23 @@ import (
 )
 
 var (
-	cardHashes    = make(map[string]string)
-	cardHashesMu  sync.Mutex
+	cardHashes     = make(map[string]string)
+	cardHashesMu   sync.Mutex
 	refreshRunning int32
 
-	// In-memory cache of the talks/_manifest.json blob, refreshed
-	// lazily on a TTL. The manifest maps clipart filename →
-	// sha256(content), maintained by upload-talk-cliparts. Card
-	// hashing reads from this instead of the filesystem now that
-	// static/img/talks/ is moving to Spaces.
-	talkManifestMu        sync.RWMutex
-	talkManifest          map[string]string
-	talkManifestFetchedAt time.Time
+	// In-memory caches of Spaces manifests, refreshed lazily on a
+	// TTL. The manifests map bare asset filename → sha256(content),
+	// which lets card hashing detect media changes without requiring
+	// the original files to exist under static/img locally.
+	talkManifestMu           sync.RWMutex
+	talkManifest             map[string]string
+	talkManifestFetchedAt    time.Time
+	speakerManifestMu        sync.RWMutex
+	speakerManifest          map[string]string
+	speakerManifestFetchedAt time.Time
 )
 
 const talkManifestTTL = 5 * time.Minute
-
-// readFileHead reads up to the first 1000 bytes of a file
-func readFileHead(path string) []byte {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-	buf := make([]byte, 1000)
-	n, _ := f.Read(buf)
-	return buf[:n]
-}
 
 // InvalidateTalkManifest forces the next talkClipartFingerprint call
 // to re-fetch from Spaces. Used by the clipart-upload admin handler
@@ -94,6 +84,35 @@ func talkClipartFingerprint(filename string) string {
 	return fresh[filename]
 }
 
+func InvalidateSpeakerManifest() {
+	speakerManifestMu.Lock()
+	speakerManifest = nil
+	speakerManifestFetchedAt = time.Time{}
+	speakerManifestMu.Unlock()
+}
+
+func speakerPhotoFingerprint(filename string) string {
+	if filename == "" {
+		return ""
+	}
+	speakerManifestMu.RLock()
+	stale := speakerManifest == nil || time.Since(speakerManifestFetchedAt) > talkManifestTTL
+	cur := speakerManifest[filename]
+	speakerManifestMu.RUnlock()
+	if !stale {
+		return cur
+	}
+	fresh, err := spaces.LoadJSONMap(spaces.SpeakerManifestKey)
+	if err != nil {
+		return cur
+	}
+	speakerManifestMu.Lock()
+	speakerManifest = fresh
+	speakerManifestFetchedAt = time.Now()
+	speakerManifestMu.Unlock()
+	return fresh[filename]
+}
+
 func speakerCardHash(speaker *types.Speaker, talk *types.Talk) string {
 	h := sha256.New()
 	h.Write([]byte(speaker.Name))
@@ -104,7 +123,7 @@ func speakerCardHash(speaker *types.Speaker, talk *types.Talk) string {
 	// Name / Company / Twitter handle), but the talk's clipart
 	// is still the card's background so it stays in the hash.
 	h.Write([]byte(talk.Clipart))
-	h.Write(readFileHead("static/img/speakers/" + speaker.Photo))
+	h.Write([]byte(speakerPhotoFingerprint(speaker.Photo)))
 	h.Write([]byte(talkClipartFingerprint(talk.Clipart)))
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
 }
@@ -123,9 +142,26 @@ func talkCardHash(talk *types.Talk) string {
 	for _, s := range talk.Speakers {
 		h.Write([]byte(s.Name))
 		h.Write([]byte(s.Photo))
-		h.Write(readFileHead("static/img/speakers/" + s.Photo))
+		h.Write([]byte(speakerPhotoFingerprint(s.Photo)))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
+}
+
+func updateSpeakerManifest(filename string, raw []byte) {
+	filename = strings.TrimSpace(filename)
+	if filename == "" || len(raw) == 0 || !spaces.IsConfigured() {
+		return
+	}
+	manifest, err := spaces.LoadJSONMap(spaces.SpeakerManifestKey)
+	if err != nil {
+		return
+	}
+	sum := sha256.Sum256(raw)
+	manifest[filename] = hex.EncodeToString(sum[:])
+	if err := spaces.SaveJSONMap(spaces.SpeakerManifestKey, manifest); err != nil {
+		return
+	}
+	InvalidateSpeakerManifest()
 }
 
 func generateAndUploadSpeakerPng(ctx *config.AppContext, confTag, card string, speaker *types.Speaker, talk *types.Talk) (string, error) {
@@ -158,7 +194,7 @@ func generateAndUploadSpeakerPngOpt(ctx *config.AppContext, confTag, card string
 		}
 	}
 
-        ctx.Infos.Printf("generating speaker media %s (%s)", key, hash)
+	ctx.Infos.Printf("generating speaker media %s (%s)", key, hash)
 	png, err := helpers.MakeSpeakerPng(ctx, confTag, card, speaker.ID, talk.ID)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate speaker png %s/%s: %w", speaker.Name, card, err)
@@ -457,7 +493,7 @@ func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive
 }
 
 func RefreshSpeakerCards(ctx *config.AppContext, speakers []*types.Speaker) {
-        ctx.Infos.Printf("skipping speaker cards")
+	ctx.Infos.Printf("skipping speaker cards")
 }
 
 // PreloadCardHashes pulls the persisted card-hash index from Spaces into the

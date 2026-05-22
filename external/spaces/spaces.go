@@ -191,6 +191,11 @@ func SaveHashes(hashes map[string]string) error {
 // available locally.
 const TalkManifestKey = "talks/_manifest.json"
 
+// SpeakerManifestKey is the location of the per-speaker-photo
+// fingerprint manifest. Maintained by the speaker photo upload path so
+// media-card hashing can stop depending on static/img/speakers.
+const SpeakerManifestKey = "speakers/_manifest.json"
+
 // LoadJSONMap reads a JSON map (string→string) from the given Spaces
 // key. Returns an empty map when the key doesn't exist yet (so a
 // caller can use it to bootstrap a fresh manifest without special-
