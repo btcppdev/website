@@ -174,6 +174,10 @@ func generateAndUploadSpeakerPng(ctx *config.AppContext, confTag, card string, s
 // full re-render sweep (e.g. when a template style change should
 // propagate to every existing card without bumping per-talk inputs).
 func generateAndUploadSpeakerPngOpt(ctx *config.AppContext, confTag, card string, speaker *types.Speaker, talk *types.Talk, force bool) (string, error) {
+	return generateAndUploadSpeakerPngWithRenderer(ctx, nil, confTag, card, speaker, talk, force)
+}
+
+func generateAndUploadSpeakerPngWithRenderer(ctx *config.AppContext, renderer *helpers.MediaRenderer, confTag, card string, speaker *types.Speaker, talk *types.Talk, force bool) (string, error) {
 	key := fmt.Sprintf("%s/speakers/%s-%s-%s.png", confTag, talk.ID, speaker.ID, card)
 	hash := speakerCardHash(speaker, talk)
 
@@ -195,7 +199,13 @@ func generateAndUploadSpeakerPngOpt(ctx *config.AppContext, confTag, card string
 	}
 
 	ctx.Infos.Printf("generating speaker media %s (%s)", key, hash)
-	png, err := helpers.MakeSpeakerPng(ctx, confTag, card, speaker.ID, talk.ID)
+	var png []byte
+	var err error
+	if renderer != nil {
+		png, err = renderer.MakeSpeakerPng(confTag, card, speaker.ID, talk.ID)
+	} else {
+		png, err = helpers.MakeSpeakerPng(ctx, confTag, card, speaker.ID, talk.ID)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate speaker png %s/%s: %w", speaker.Name, card, err)
 	}
@@ -220,6 +230,10 @@ func generateAndUploadTalkPng(ctx *config.AppContext, confTag, card string, talk
 // generateAndUploadTalkPngOpt is the force-aware variant. See the
 // speaker-side companion for the rationale.
 func generateAndUploadTalkPngOpt(ctx *config.AppContext, confTag, card string, talk *types.Talk, force bool) (string, error) {
+	return generateAndUploadTalkPngWithRenderer(ctx, nil, confTag, card, talk, force)
+}
+
+func generateAndUploadTalkPngWithRenderer(ctx *config.AppContext, renderer *helpers.MediaRenderer, confTag, card string, talk *types.Talk, force bool) (string, error) {
 	key := fmt.Sprintf("%s/talks/%s-%s.png", confTag, talk.ID, card)
 	hash := talkCardHash(talk)
 
@@ -244,7 +258,13 @@ func generateAndUploadTalkPngOpt(ctx *config.AppContext, confTag, card string, t
 	}
 
 	ctx.Infos.Printf("generating talks media %s (%s)", key, hash)
-	png, err := helpers.MakeTalkPng(ctx, confTag, card, talk.ID)
+	var png []byte
+	var err error
+	if renderer != nil {
+		png, err = renderer.MakeTalkPng(confTag, card, talk.ID)
+	} else {
+		png, err = helpers.MakeTalkPng(ctx, confTag, card, talk.ID)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate talk png %s/%s: %w", talk.Name, card, err)
 	}
@@ -301,6 +321,10 @@ func generateAndUploadSponsorPng(ctx *config.AppContext, confTag, card string, s
 // admin needs to push a regen even though the cached hash matches (e.g.
 // the org's logo file content changed but the filename didn't).
 func generateAndUploadSponsorPngOpt(ctx *config.AppContext, confTag, card string, sp *types.Sponsorship, force bool) (string, error) {
+	return generateAndUploadSponsorPngWithRenderer(ctx, nil, confTag, card, sp, force)
+}
+
+func generateAndUploadSponsorPngWithRenderer(ctx *config.AppContext, renderer *helpers.MediaRenderer, confTag, card string, sp *types.Sponsorship, force bool) (string, error) {
 	key := fmt.Sprintf("%s/sponsors/%s-%s.png", confTag, sp.Ref, card)
 	hash := sponsorCardHash(sp)
 
@@ -324,7 +348,13 @@ func generateAndUploadSponsorPngOpt(ctx *config.AppContext, confTag, card string
 	}
 
 	ctx.Infos.Printf("generating sponsor media %s (%s)", key, hash)
-	png, err := helpers.MakeSponsorPng(ctx, confTag, card, sp.Ref)
+	var png []byte
+	var err error
+	if renderer != nil {
+		png, err = renderer.MakeSponsorPng(confTag, card, sp.Ref)
+	} else {
+		png, err = helpers.MakeSponsorPng(ctx, confTag, card, sp.Ref)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate sponsor png %s/%s: %w", sp.Ref, card, err)
 	}
@@ -360,6 +390,8 @@ func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, org
 	if conf == nil {
 		return
 	}
+	renderer := helpers.NewMediaRenderer(ctx)
+	defer renderer.Close()
 	sponsorships, err := getters.ListSponsorships(ctx, conf.Ref)
 	if err != nil {
 		ctx.Err.Printf("media refresh sponsors: failed to fetch sponsorships for %s: %s", conf.Tag, err)
@@ -376,7 +408,7 @@ func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, org
 		}
 		matched++
 		for _, card := range []string{"1080p", "insta", "social"} {
-			if _, err := generateAndUploadSponsorPngOpt(ctx, conf.Tag, card, sp, force); err != nil {
+			if _, err := generateAndUploadSponsorPngWithRenderer(ctx, renderer, conf.Tag, card, sp, force); err != nil {
 				ctx.Err.Printf("media refresh sponsors: %s", err)
 			}
 		}
@@ -446,6 +478,8 @@ func RefreshTalkCardsForceOpt(ctx *config.AppContext, talks []*types.Talk, force
 func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive, force bool) {
 	confs, _ := getters.FetchConfsCached(ctx)
 	confset := helpers.ConfTagSet(confs)
+	renderer := helpers.NewMediaRenderer(ctx)
+	defer renderer.Close()
 
 	card := "1080p"
 	for _, talk := range talks {
@@ -462,7 +496,7 @@ func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive
 		// use Clipart only as a background image; the speaker info
 		// still renders without it, so let those generate regardless.
 		if talk.Clipart != "" {
-			if _, err := generateAndUploadTalkPngOpt(ctx, talk.Event, card, talk, force); err != nil {
+			if _, err := generateAndUploadTalkPngWithRenderer(ctx, renderer, talk.Event, card, talk, force); err != nil {
 				ctx.Err.Printf("media refresh talks: %s", err)
 			}
 		}
@@ -472,7 +506,7 @@ func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive
 				continue
 			}
 			for _, cardtype := range []string{card, "insta", "social"} {
-				if _, err := generateAndUploadSpeakerPngOpt(ctx, talk.Event, cardtype, speaker, talk, force); err != nil {
+				if _, err := generateAndUploadSpeakerPngWithRenderer(ctx, renderer, talk.Event, cardtype, speaker, talk, force); err != nil {
 					ctx.Err.Printf("media refresh speakers: %s", err)
 				}
 			}
