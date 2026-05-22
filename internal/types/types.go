@@ -35,6 +35,7 @@ type (
 		BufferAPI         string
 		Spaces            SpacesConfig
 		CacheTTLSec       int
+		NotionRequestLogs bool
 		YouTube           YouTubeConfig
 		Recordings        RecordingsConfig
 	}

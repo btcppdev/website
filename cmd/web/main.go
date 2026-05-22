@@ -104,6 +104,7 @@ func loadConfig() *types.EnvConfig {
 				config.CacheTTLSec = v
 			}
 		}
+		config.NotionRequestLogs = envBool("NOTION_REQUEST_LOGS")
 
 		// YouTube OAuth — uploader is disabled when any of these are
 		// blank; main flow stays alive so the rest of the app keeps
@@ -303,9 +304,13 @@ func run(env *types.EnvConfig) error {
 	app.Notion = &types.Notion{Config: &env.Notion}
 	app.Notion.Setup(env.Notion.Token)
 
-	// Per-request Notion timing → app log. Stays off in CLIs that build
-	// their own ad-hoc Notion clients without calling SetNotionRequestLogger.
-	types.SetNotionRequestLogger(app.Infos.Printf)
+	// Per-request Notion timing is noisy in production, so keep it opt-in.
+	// Recent-call tracking for /api/cache-stats remains enabled separately.
+	if env.NotionRequestLogs {
+		types.SetNotionRequestLogger(app.Infos.Printf)
+	} else {
+		types.SetNotionRequestLogger(nil)
+	}
 
 	return nil
 }
