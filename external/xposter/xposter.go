@@ -42,6 +42,8 @@ type Client struct {
 
 var profileMu sync.Mutex
 
+const xDesktopUserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+
 type PostParams struct {
 	Text      string
 	ReplyText string
@@ -319,6 +321,7 @@ func chromeOptions(profileDir string, headed bool) []chromedp.ExecAllocatorOptio
 			chromedp.UserDataDir(profileDir),
 			chromedp.NoFirstRun,
 			chromedp.NoDefaultBrowserCheck,
+			chromedp.UserAgent(xDesktopUserAgent),
 			chromedp.Flag("headless", false),
 			chromedp.Flag("enable-automation", false),
 			chromedp.Flag("disable-blink-features", "AutomationControlled"),
@@ -331,6 +334,7 @@ func chromeOptions(profileDir string, headed bool) []chromedp.ExecAllocatorOptio
 		chromedp.UserDataDir(profileDir),
 		chromedp.NoFirstRun,
 		chromedp.NoDefaultBrowserCheck,
+		chromedp.UserAgent(xDesktopUserAgent),
 		chromedp.Flag("headless", true),
 		chromedp.Flag("enable-automation", false),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
@@ -342,7 +346,11 @@ func chromeOptions(profileDir string, headed bool) []chromedp.ExecAllocatorOptio
 func installBrowserShims(ctx context.Context) error {
 	return chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
 		_, err := page.AddScriptToEvaluateOnNewDocument(`
-Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+(() => {
+  const webdriverDescriptor = { get: () => undefined, configurable: true };
+  Object.defineProperty(navigator, 'webdriver', webdriverDescriptor);
+  Object.defineProperty(Navigator.prototype, 'webdriver', webdriverDescriptor);
+})();
 `).Do(ctx)
 		return err
 	}))
