@@ -124,6 +124,8 @@ func loadConfig() *types.EnvConfig {
 				Enabled:        envBool("X_UPLOADER_ENABLED"),
 				ProfileObject:  os.Getenv("X_PROFILE_ARCHIVE_OBJECT"),
 				Headed:         envBool("X_BROWSER_HEADED"),
+				LoginUsername:  os.Getenv("X_LOGIN_USERNAME"),
+				LoginPassword:  os.Getenv("X_LOGIN_PASSWORD"),
 				PostTimeoutSec: envInt("X_POST_TIMEOUT_SEC", 0),
 				AuthWaitSec:    envInt("X_AUTH_WAIT_SEC", 0),
 			},

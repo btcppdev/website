@@ -76,7 +76,6 @@ type RecordingsAdminListPage struct {
 	AutopublishEnabled bool
 	XUploaderEnabled   bool
 	XProfileObject     string
-	InProduction       bool
 	FlashMessage       string
 	FlashError         string
 	Year               uint
@@ -244,7 +243,6 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 		AutopublishEnabled: ctx.Env.Recordings.AutopublishEnabled,
 		XUploaderEnabled:   ctx.Env.Recordings.X.Enabled,
 		XProfileObject:     ctx.Env.Recordings.X.ProfileObject,
-		InProduction:       ctx.InProduction,
 		Year:               uint(time.Now().Year()),
 	}
 	if !youtubepkg.IsConfigured() {

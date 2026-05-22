@@ -987,9 +987,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/recordings/x/auth-check", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminXAuthCheck(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/{conf}/admin/recordings/x/bootstrap", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminXBootstrap(w, r, app)
-	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminDetail(w, r, app)
 	}).Methods("GET")

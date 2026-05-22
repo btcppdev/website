@@ -69,6 +69,8 @@ type (
 		Enabled        bool
 		ProfileObject  string
 		Headed         bool
+		LoginUsername  string
+		LoginPassword  string
 		PostTimeoutSec int
 		AuthWaitSec    int
 	}
