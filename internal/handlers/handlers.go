@@ -977,6 +977,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/comp-tickets", func(w http.ResponseWriter, r *http.Request) {
 		AdminCompTickets(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/{conf}/admin/discounts", func(w http.ResponseWriter, r *http.Request) {
+		AdminDiscounts(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/{conf}/admin/recordings", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminList(w, r, app)
 	}).Methods("GET")
