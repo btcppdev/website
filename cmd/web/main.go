@@ -298,6 +298,10 @@ func run(env *types.EnvConfig) error {
 	}
 	app.Session = scs.New()
 	app.Session.Lifetime = 4 * 24 * time.Hour
+	// Use an app-specific cookie name. The SCS default is "session",
+	// which is easy for another localhost service to overwrite because
+	// browser cookies are scoped by host, not port.
+	app.Session.Cookie.Name = "btcpp_session"
 	app.Session.Cookie.Persist = true
 	app.Session.Cookie.SameSite = http.SameSiteLaxMode
 	app.Session.Cookie.Secure = app.InProduction
