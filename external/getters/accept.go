@@ -72,13 +72,15 @@ type SpeakerUpdate struct {
 // case (existing speaker), we still take the cache hit and skip the
 // Notion call.
 func GetSpeakersByEmail(n *types.Notion, email string) ([]*types.Speaker, error) {
+	email = strings.TrimSpace(email)
 	if email == "" {
 		return nil, nil
 	}
 	if cached := cacheSpeakers; len(cached) > 0 {
 		var hits []*types.Speaker
 		for _, s := range cached {
-			if s != nil && strings.EqualFold(s.Email, email) {
+			if s != nil && strings.EqualFold(strings.TrimSpace(s.Email), email) {
+				s.Email = strings.TrimSpace(s.Email)
 				hits = append(hits, s)
 			}
 		}
@@ -93,7 +95,7 @@ func GetSpeakersByEmail(n *types.Notion, email string) ([]*types.Speaker, error)
 			Filter: &notion.Filter{
 				Property: "Email",
 				Text: &notion.TextFilterCondition{
-					Equals: email,
+					Contains: email,
 				},
 			},
 		})
@@ -101,7 +103,10 @@ func GetSpeakersByEmail(n *types.Notion, email string) ([]*types.Speaker, error)
 		return nil, err
 	}
 	for _, page := range pages {
-		speakers = append(speakers, parseSpeaker(page.ID, page.Properties))
+		speaker := parseSpeaker(page.ID, page.Properties)
+		if speaker != nil && strings.EqualFold(strings.TrimSpace(speaker.Email), email) {
+			speakers = append(speakers, speaker)
+		}
 	}
 	return speakers, nil
 }

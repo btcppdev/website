@@ -180,7 +180,7 @@ func parseSpeaker(pageID string, props map[string]notion.PropertyValue) *types.S
 		ID:            pageID,
 		Name:          parseRichText("Name", props),
 		Photo:         parseRichText("NormPhoto", props),
-		Email:         props["Email"].Email,
+		Email:         strings.TrimSpace(props["Email"].Email),
 		Phone:         parseRichText("Phone", props),
 		Signal:        parseRichText("Signal", props),
 		Telegram:      parseRichText("Telegram", props),
