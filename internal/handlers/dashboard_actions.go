@@ -1159,6 +1159,7 @@ func handleInviteSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		w.Write([]byte(helpers.ErrSpeakerApp("Unable to register you: form parsing error")))
 		return
 	}
+	trimTalkApp(&talkapp)
 	talkapp.ParseAvailability("days-", r.PostForm)
 	talkapp.DinnerRSVP = r.PostForm.Get("DinnerOpt") == "Yes"
 	talkapp.OtherEvents = helpers.ParseFormConfs("conf-", r.PostForm, confs)

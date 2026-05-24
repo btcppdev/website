@@ -89,6 +89,9 @@ func getStructFields(v interface{}) []string {
 func newFormDecoder() *schema.Decoder {
 	dec := schema.NewDecoder()
 	dec.IgnoreUnknownKeys(true)
+	dec.RegisterConverter("", func(value string) reflect.Value {
+		return reflect.ValueOf(strings.TrimSpace(value))
+	})
 	dec.RegisterConverter(types.Twitter{}, func(value string) reflect.Value {
 		return reflect.ValueOf(types.ParseTwitter(value))
 	})
@@ -1916,6 +1919,7 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 			w.Write([]byte(helpers.ErrSpeakerApp("Unable to register you: form parsing error")))
 			return
 		}
+		trimTalkApp(&talkapp)
 
 		/* ten divided by two is five */
 		if talkapp.Captcha != 5 {
@@ -2117,6 +2121,7 @@ func RenderVolunteerConf(w http.ResponseWriter, r *http.Request, ctx *config.App
 			w.Write([]byte(helpers.ErrVolApp("Unable to register you.")))
 			return
 		}
+		trimVolunteer(&vol)
 
 		/* ten divided by two is five */
 		if vol.Captcha != 5 {
@@ -2375,20 +2380,20 @@ func SponsorPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 			return
 		}
 
-		name := r.FormValue("Name")
-		phone := r.FormValue("Phone")
-		email := r.FormValue("Email")
-		signal := r.FormValue("Signal")
-		telegram := r.FormValue("Telegram")
-		contactAt := r.FormValue("ContactAt")
-		org := r.FormValue("Org")
-		orgSite := r.FormValue("OrgSite")
-		orgTwitter := r.FormValue("OrgTwitter")
-		orgNostr := r.FormValue("OrgNostr")
-		budget := r.FormValue("Budget")
-		discoveredVia := r.FormValue("DiscoveredVia")
-		comments := r.FormValue("Comments")
-		captcha := r.FormValue("Captcha")
+		name := strings.TrimSpace(r.FormValue("Name"))
+		phone := strings.TrimSpace(r.FormValue("Phone"))
+		email := strings.TrimSpace(r.FormValue("Email"))
+		signal := strings.TrimSpace(r.FormValue("Signal"))
+		telegram := strings.TrimSpace(r.FormValue("Telegram"))
+		contactAt := strings.TrimSpace(r.FormValue("ContactAt"))
+		org := strings.TrimSpace(r.FormValue("Org"))
+		orgSite := strings.TrimSpace(r.FormValue("OrgSite"))
+		orgTwitter := types.ParseTwitter(r.FormValue("OrgTwitter")).Handle
+		orgNostr := strings.TrimSpace(r.FormValue("OrgNostr"))
+		budget := strings.TrimSpace(r.FormValue("Budget"))
+		discoveredVia := strings.TrimSpace(r.FormValue("DiscoveredVia"))
+		comments := strings.TrimSpace(r.FormValue("Comments"))
+		captcha := strings.TrimSpace(r.FormValue("Captcha"))
 
 		if captcha != "5" {
 			w.Write([]byte(helpers.ErrApp("Incorrect captcha. The answer is 5.", "sponsors")))

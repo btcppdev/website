@@ -16,7 +16,7 @@ func parseOrg(pageID string, props map[string]notion.PropertyValue) *types.Org {
 	return &types.Org{
 		Ref:       pageID,
 		Name:      parseRichText("Name", props),
-		Tagline:      parseRichText("Tagline", props),
+		Tagline:   parseRichText("Tagline", props),
 		LogoLight: props["LogoLight"].URL,
 		LogoDark:  props["LogoDark"].URL,
 		Email:     props["Email"].Email,
@@ -24,7 +24,7 @@ func parseOrg(pageID string, props map[string]notion.PropertyValue) *types.Org {
 		Website:   props["Website"].URL,
 		Twitter:   types.ParseTwitter(parseRichText("Twitter", props)),
 		Nostr:     parseRichText("Nostr", props),
-		Matrix:   parseRichText("Matrix", props),
+		Matrix:    parseRichText("Matrix", props),
 		LinkedIn:  props["LinkedIn"].URL,
 		Instagram: props["Instagram"].URL,
 		Youtube:   props["Youtube"].URL,
@@ -35,14 +35,14 @@ func parseOrg(pageID string, props map[string]notion.PropertyValue) *types.Org {
 
 func parseSponsorship(ctx *config.AppContext, pageID string, props map[string]notion.PropertyValue, orgs []*types.Org) *types.Sponsorship {
 	sp := &types.Sponsorship{
-		Ref:           pageID,
-		Level:         parseSelect("Level", props),
-		Label:         parseRichText("Label", props),
-		Status:        parseSelect("Status", props),
-		IsVendor:      parseCheckbox(props["IsVendor"].Checkbox),
-		Notes:         parseRichText("Notes", props),
-                Confs:         parseConfList(ctx, "event", props),
-                Org:           parseOrgOne(ctx, "org", props),
+		Ref:      pageID,
+		Level:    parseSelect("Level", props),
+		Label:    parseRichText("Label", props),
+		Status:   parseSelect("Status", props),
+		IsVendor: parseCheckbox(props["IsVendor"].Checkbox),
+		Notes:    parseRichText("Notes", props),
+		Confs:    parseConfList(ctx, "event", props),
+		Org:      parseOrgOne(ctx, "org", props),
 	}
 
 	return sp
@@ -151,8 +151,8 @@ func GetOrg(n *types.Notion, ref string) (*types.Org, error) {
 // in-memory map until TTL. TTL is short enough that admin-side
 // sponsor edits land within a few minutes.
 var (
-	sponsorshipsCacheMu  sync.Mutex
-	sponsorshipsByConf   map[string][]*types.Sponsorship
+	sponsorshipsCacheMu   sync.Mutex
+	sponsorshipsByConf    map[string][]*types.Sponsorship
 	sponsorshipsFetchedAt time.Time
 )
 
@@ -232,7 +232,7 @@ func ListSponsorships(ctx *config.AppContext, confRef string) ([]*types.Sponsors
 		pages, nextCursor, hasMore, err = n.Client.QueryDatabase(context.Background(),
 			n.Config.SponsorshipsDb, notion.QueryDatabaseParam{
 				StartCursor: nextCursor,
-                                Filter:      filter,
+				Filter:      filter,
 			})
 
 		if err != nil {
@@ -254,6 +254,7 @@ func richText(s string) []*notion.RichText {
 }
 
 func RegisterOrg(n *types.Notion, org *types.Org) (string, error) {
+	normalizeOrgInput(org)
 	props := map[string]*notion.PropertyValue{
 		"Name": notion.NewTitlePropertyValue(richText(org.Name)...),
 	}
@@ -320,6 +321,7 @@ type OrgUpdate struct {
 }
 
 func UpdateOrg(n *types.Notion, orgID string, up OrgUpdate) error {
+	up = normalizeOrgUpdate(up)
 	props := map[string]*notion.PropertyValue{}
 	if up.Website != "" {
 		props["Website"] = notion.NewURLPropertyValue(up.Website)
@@ -344,6 +346,36 @@ func UpdateOrg(n *types.Notion, orgID string, up OrgUpdate) error {
 	}
 	_, err := n.Client.UpdatePageProperties(context.Background(), orgID, props)
 	return err
+}
+
+func normalizeOrgInput(org *types.Org) {
+	if org == nil {
+		return
+	}
+	org.Name = strings.TrimSpace(org.Name)
+	org.Tagline = strings.TrimSpace(org.Tagline)
+	org.LogoLight = strings.TrimSpace(org.LogoLight)
+	org.LogoDark = strings.TrimSpace(org.LogoDark)
+	org.Email = strings.TrimSpace(org.Email)
+	org.Website = strings.TrimSpace(org.Website)
+	org.LinkedIn = strings.TrimSpace(org.LinkedIn)
+	org.Instagram = strings.TrimSpace(org.Instagram)
+	org.Youtube = strings.TrimSpace(org.Youtube)
+	org.Github = strings.TrimSpace(org.Github)
+	org.Twitter = types.ParseTwitter(org.Twitter.Handle)
+	org.Nostr = strings.TrimSpace(org.Nostr)
+	org.Matrix = strings.TrimSpace(org.Matrix)
+	org.Notes = strings.TrimSpace(org.Notes)
+}
+
+func normalizeOrgUpdate(up OrgUpdate) OrgUpdate {
+	up.Website = strings.TrimSpace(up.Website)
+	up.Twitter = types.ParseTwitter(up.Twitter).Handle
+	up.Nostr = strings.TrimSpace(up.Nostr)
+	up.Github = strings.TrimSpace(up.Github)
+	up.LogoLight = strings.TrimSpace(up.LogoLight)
+	up.LogoDark = strings.TrimSpace(up.LogoDark)
+	return up
 }
 
 // FindOrg returns the first Org whose Website matches `website` (preferred),
