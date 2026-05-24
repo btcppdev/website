@@ -240,11 +240,16 @@ func TemplatedMissivesSchedule(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadFileBytes)
+	if err := r.ParseMultipartForm(maxUploadFileBytes); err != nil {
 		redirectTemplatedMissivesErr(w, r, "Bad form: "+err.Error())
 		return
 	}
-	uid, err := strconv.ParseUint(strings.TrimSpace(r.FormValue("UID")), 10, 64)
+	uidValue := strings.TrimSpace(r.FormValue("UID"))
+	if uidValue == "" {
+		uidValue = strings.TrimSpace(r.URL.Query().Get("uid"))
+	}
+	uid, err := strconv.ParseUint(uidValue, 10, 64)
 	if err != nil || uid == 0 {
 		redirectTemplatedMissivesErr(w, r, "Save the missive before scheduling it")
 		return
