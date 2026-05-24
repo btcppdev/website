@@ -869,8 +869,26 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/api/speakers/{speakerID}/roles", func(w http.ResponseWriter, r *http.Request) {
 		SpeakerRolesGet(w, r, app)
 	}).Methods("GET")
-	r.HandleFunc("/dashboard/admin/roles", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/admin", func(w http.ResponseWriter, r *http.Request) {
+		GlobalAdminDashboard(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/roles", func(w http.ResponseWriter, r *http.Request) {
 		SpeakerRolesUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/missives", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesAdmin(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/missives", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesSave(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/missives/upload-image", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesUploadImage(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/missives/test-send", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesTestSend(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/missives/schedule", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesSchedule(w, r, app)
 	}).Methods("POST")
 
 	r.HandleFunc("/api/cache-stats", func(w http.ResponseWriter, r *http.Request) {
