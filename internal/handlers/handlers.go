@@ -1337,11 +1337,11 @@ func affiliateSessionKey(confTag string) string {
 // outputs share a single unit — sats in this codebase, but the math
 // is unit-agnostic. preDiscountPerTicket is the per-ticket list
 // price BEFORE any discount; paidTotal is what the buyer actually
-// paid; count is the number of tickets. The 20% ceiling is fixed:
-// affiliates earn whatever's left after the buyer's actual savings
-// come out of that ceiling. Both outputs are floored at zero to
-// avoid negatives leaking into Notion (rounding noise from currency
-// conversion / fee math).
+// paid; count is the number of tickets. Inputs should be in the same
+// unit, usually fiat cents. The 20% ceiling is fixed: affiliates earn
+// whatever's left after the buyer's actual savings come out of that
+// ceiling. Both outputs are floored at zero to avoid negatives leaking
+// into Notion.
 func affiliateMath(preDiscountPerTicket, count, paidTotal int64) (saved, earned int64) {
 	original := preDiscountPerTicket * count
 	ceiling := original * 20 / 100
@@ -1359,10 +1359,10 @@ func affiliateMath(preDiscountPerTicket, count, paidTotal int64) (saved, earned 
 // recordAffiliateUsageFromCheckout writes one AffiliateUsage row to
 // Notion when a successful checkout consumed a discount code that
 // has an AffiliateEmail set. The list price + paid total arrive in
-// fiat cents (whatever currency the tier was priced in); both are
-// converted to sats at the live BTC spot rate before the math runs,
-// so the stored Saved/Earned values are BTC-denominated and stable
-// across multi-currency events.
+// fiat cents (whatever currency the tier was priced in). Saved/Earned
+// are split in fiat cents first, then converted to sats. Doing the
+// split before BTC conversion keeps a %20 buyer discount from leaving
+// tiny EarnedSats remainders due to spot-price or rounding drift.
 //
 // preDiscountCentsStr is a string from webhook metadata (Stripe map
 // / OpenNode struct); missing or unparseable means we skip recording
@@ -1394,17 +1394,17 @@ func recordAffiliateUsageFromCheckout(ctx *config.AppContext, conf *types.Conf, 
 		ctx.Err.Printf("affiliate usage skip %s: empty entry.Currency", disc.CodeName)
 		return
 	}
-	preDiscountSats, err := coingecko.CentsToSats(preDiscountCents, currency)
+	savedCents, earnedCents := affiliateMath(preDiscountCents, count, entry.Total)
+	savedSats, err := coingecko.CentsToSats(savedCents, currency)
 	if err != nil {
-		ctx.Err.Printf("affiliate usage skip %s: coingecko cents→sats (%s): %s", disc.CodeName, currency, err)
+		ctx.Err.Printf("affiliate usage skip %s: coingecko saved cents→sats (%s): %s", disc.CodeName, currency, err)
 		return
 	}
-	paidSats, err := coingecko.CentsToSats(entry.Total, currency)
+	earnedSats, err := coingecko.CentsToSats(earnedCents, currency)
 	if err != nil {
-		ctx.Err.Printf("affiliate usage skip %s: coingecko paid→sats (%s): %s", disc.CodeName, currency, err)
+		ctx.Err.Printf("affiliate usage skip %s: coingecko earned cents→sats (%s): %s", disc.CodeName, currency, err)
 		return
 	}
-	savedSats, earnedSats := affiliateMath(preDiscountSats, count, paidSats)
 	err = getters.RecordAffiliateUsage(ctx, getters.AffiliateUsageInput{
 		CodeName:       disc.CodeName,
 		AffiliateEmail: disc.AffiliateEmail,
