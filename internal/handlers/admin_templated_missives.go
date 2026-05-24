@@ -468,12 +468,14 @@ func templatedMissiveTestLetter(form TemplatedMissiveForm) *mtypes.Letter {
 	if len(newsletters) == 0 {
 		newsletters = []string{"newsletter"}
 	}
+	testForm := form
+	testForm.SendAt = "now"
 	return &mtypes.Letter{
 		UID:         uid,
 		Title:       "[TEST] " + strings.TrimSpace(form.Title),
 		Newsletters: newsletters,
 		OnlyFor:     mtypes.OnlyForTemplated,
-		Markdown:    buildTemplatedMissiveMarkdown(form),
+		Markdown:    buildTemplatedMissiveMarkdown(testForm),
 		SendAt:      "now",
 	}
 }

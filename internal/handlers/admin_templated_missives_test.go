@@ -109,6 +109,12 @@ func TestTemplatedMissiveTestLetterUsesCurrentFormWithoutSchedulingState(t *test
 	if letter.SendAt != "now" {
 		t.Fatalf("SendAt = %q, want now", letter.SendAt)
 	}
+	if !strings.Contains(letter.Markdown, `date: "`) {
+		t.Fatalf("Markdown missing display date: %q", letter.Markdown)
+	}
+	if strings.Contains(letter.Markdown, `date: "JUN 12, 2026"`) {
+		t.Fatalf("test markdown should use test-send date, not scheduled SendAt: %q", letter.Markdown)
+	}
 	if letter.OnlyFor != mtypes.OnlyForTemplated {
 		t.Fatalf("OnlyFor = %q", letter.OnlyFor)
 	}
