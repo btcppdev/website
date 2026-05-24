@@ -509,7 +509,6 @@ func buildTemplatedMissiveMarkdown(form TemplatedMissiveForm) string {
 	writeFrontmatter(&b, "template", firstNonEmpty(form.Template, "roundup"))
 	writeFrontmatter(&b, "palette", firstNonEmpty(form.Palette, "ember"))
 	writeFrontmatter(&b, "issue", form.Issue)
-	writeFrontmatter(&b, "date", templatedMissiveDisplayDate(form.SendAt))
 	writeFrontmatter(&b, "hero", form.Hero)
 	if form.Ticker != "" {
 		b.WriteString("ticker:\n")
@@ -619,30 +618,6 @@ func parseOptionalDate(value string) (*time.Time, error) {
 		return nil, err
 	}
 	return &t, nil
-}
-
-func templatedMissiveDisplayDate(sendAt string) string {
-	sendAt = strings.TrimSpace(sendAt)
-	if sendAt == "" || sendAt == "now" || sendAt == "onsub" {
-		return time.Now().UTC().Format("JAN 02, 2006")
-	}
-	if strings.HasPrefix(sendAt, "+") {
-		days, err := strconv.Atoi(strings.TrimPrefix(sendAt, "+"))
-		if err == nil {
-			sendDate := time.Now().AddDate(0, 0, days)
-			switch sendDate.Weekday() {
-			case time.Sunday:
-				days += 1
-			case time.Saturday:
-				days += 2
-			}
-			return time.Now().AddDate(0, 0, days).UTC().Format("JAN 02, 2006")
-		}
-	}
-	if t, err := time.Parse("1/2/2006", sendAt); err == nil {
-		return t.UTC().Format("JAN 02, 2006")
-	}
-	return time.Now().UTC().Format("JAN 02, 2006")
 }
 
 func splitCommaList(value string) []string {

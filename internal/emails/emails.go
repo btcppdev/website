@@ -422,7 +422,7 @@ func SendNewsletterMissive(ctx *config.AppContext, sub *mtypes.Subscriber, lette
 	var htmlBody []byte
 	textBody := buf.Bytes()
 	if letter.OnlyFor == mtypes.OnlyForTemplated {
-		htmlBody, textBody, err = BuildTemplatedNewsletterEmail(ctx, letter.ImgRef(), buf.Bytes(), subToken)
+		htmlBody, textBody, err = BuildTemplatedNewsletterEmailAt(ctx, letter.ImgRef(), buf.Bytes(), subToken, sendAt)
 		if err != nil {
 			return nil, err
 		}

@@ -259,6 +259,10 @@ type templatedNewsletterEmail struct {
 }
 
 func BuildTemplatedNewsletterEmail(ctx *config.AppContext, imgRef string, markdown []byte, unsubscribe string) ([]byte, []byte, error) {
+	return BuildTemplatedNewsletterEmailAt(ctx, imgRef, markdown, unsubscribe, time.Time{})
+}
+
+func BuildTemplatedNewsletterEmailAt(ctx *config.AppContext, imgRef string, markdown []byte, unsubscribe string, displayTime time.Time) ([]byte, []byte, error) {
 	cfg, body := parseTemplatedNewsletterFrontmatter(string(markdown))
 	if cfg.Template == "" {
 		cfg.Template = "roundup"
@@ -269,8 +273,10 @@ func BuildTemplatedNewsletterEmail(ctx *config.AppContext, imgRef string, markdo
 	if cfg.Issue == "" {
 		cfg.Issue = "NEWSLETTER"
 	}
-	if cfg.Date == "" {
-		cfg.Date = time.Now().UTC().Format("JAN 02, 2006")
+	if !displayTime.IsZero() {
+		cfg.Date = formatTemplatedNewsletterDate(displayTime)
+	} else if cfg.Date == "" {
+		cfg.Date = formatTemplatedNewsletterDate(time.Now())
 	}
 	if cfg.Hero == "" {
 		cfg.Hero = imgRef
@@ -291,6 +297,10 @@ func BuildTemplatedNewsletterEmail(ctx *config.AppContext, imgRef string, markdo
 	}
 
 	return email.Bytes(), []byte(body), nil
+}
+
+func formatTemplatedNewsletterDate(t time.Time) string {
+	return strings.ToUpper(t.UTC().Format("Jan 02, 2006"))
 }
 
 func parseTemplatedNewsletterFrontmatter(input string) (templatedNewsletterConfig, string) {
@@ -330,8 +340,6 @@ func parseTemplatedNewsletterFrontmatter(input string) (templatedNewsletterConfi
 			cfg.Palette = value
 		case "issue":
 			cfg.Issue = value
-		case "date":
-			cfg.Date = value
 		case "hero":
 			cfg.Hero = value
 		case "ticker":

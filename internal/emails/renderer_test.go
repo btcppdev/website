@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	texttemplate "text/template"
+	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/mtypes"
@@ -52,7 +53,6 @@ func TestTemplatedNewsletterFrontmatterAndShortcodes(t *testing.T) {
 template: roundup
 palette: signal
 issue: "42"
-date: "APR 18, 2026"
 hero: "https://btcpp.dev/hero.png"
 ticker:
   - VIENNA TICKETS LIVE
@@ -95,5 +95,36 @@ ticker:
 	}
 	if strings.Contains(string(textBody), "---") {
 		t.Fatalf("text body should not include frontmatter: %q", textBody)
+	}
+}
+
+func TestTemplatedNewsletterDisplayDateCanUseSendAt(t *testing.T) {
+	ctx := &config.AppContext{
+		Env: &types.EnvConfig{Host: "btcpp.dev", Prod: true},
+	}
+	rebrandTmpl, err := os.ReadFile("../../templates/emails/rebrand.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx.TemplateCache = htmltemplate.Must(htmltemplate.New("").New("emails/rebrand.tmpl").Parse(string(rebrandTmpl)))
+	markdown := []byte(`---
+template: roundup
+issue: "42"
+date: "JAN 24, 2026"
+---
+
+Body.
+`)
+	sendAt := time.Date(2026, time.May, 25, 9, 0, 0, 0, time.UTC)
+	htmlBody, _, err := BuildTemplatedNewsletterEmailAt(ctx, "/static/img/newsletter/logo_blk.svg", markdown, "", sendAt)
+	if err != nil {
+		t.Fatalf("build templated newsletter: %v", err)
+	}
+	html := string(htmlBody)
+	if !strings.Contains(html, "MAY 25, 2026") {
+		t.Fatalf("rendered email did not use sendAt date: %s", html)
+	}
+	if strings.Contains(html, "JAN 24, 2026") {
+		t.Fatalf("rendered email used stale frontmatter date: %s", html)
 	}
 }
