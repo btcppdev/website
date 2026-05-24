@@ -8,7 +8,7 @@
     @media (min-width: 1280px) {
       .missive-page-grid {
         display: grid;
-        grid-template-columns: minmax(620px, 1fr) minmax(560px, 1fr);
+        grid-template-columns: minmax(720px, 65fr) minmax(360px, 35fr);
         gap: 1.5rem;
       }
       .missive-page-grid > main {
@@ -21,7 +21,7 @@
       }
       .missive-form-grid {
         display: grid;
-        grid-template-columns: minmax(620px, 1fr) minmax(560px, 1fr);
+        grid-template-columns: minmax(720px, 65fr) minmax(360px, 35fr);
         gap: 1.5rem;
         align-items: start;
       }
@@ -118,7 +118,7 @@
             </div>
             <div class="flex flex-wrap justify-end gap-2">
               {{ if not .IsNew }}
-              <button type="submit" formaction="/admin/missives/schedule" formmethod="POST"
+              <button type="submit" formaction="/admin/missives/schedule?uid={{ .Form.UID }}" formmethod="POST"
                       onclick="return confirm('Schedule this saved missive using its current SendAt and audience settings?')"
                       class="rounded-md border border-amber-700 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50">
                 Schedule saved missive
@@ -142,7 +142,7 @@
             <p class="mt-2 text-xs text-indigo-900">Sends the current editor contents immediately without saving the missive or changing its scheduled delivery state.</p>
           </section>
 
-          <section class="grid gap-4 md:grid-cols-2 xl:col-start-2">
+          <section class="grid gap-4 xl:col-start-2">
             <label class="block">
               <span class="text-xs font-medium text-gray-700">Title</span>
               <input name="Title" value="{{ .Form.Title }}" required class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
