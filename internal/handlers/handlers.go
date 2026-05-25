@@ -1074,6 +1074,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/orgs/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		OrgDetail(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/orgs/{ref}", func(w http.ResponseWriter, r *http.Request) {
+		OrgSave(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/sponsors", func(w http.ResponseWriter, r *http.Request) {
 		SponsorshipsList(w, r, app)
