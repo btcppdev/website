@@ -2489,7 +2489,7 @@ func SponsorPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 
 		mail := &emails.Mail{
 			JobKey:   fmt.Sprintf("sponsor-%s-%d", email, time.Now().Unix()),
-			Email:    "sponsors@btcpp.dev",
+			Email:    "sponsor@btcpp.dev",
 			ReplyTo:  email,
 			Title:    fmt.Sprintf("Sponsor Inquiry: %s (%s)", org, name),
 			SendAt:   time.Now(),
@@ -2508,7 +2508,7 @@ func SponsorPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		copyMail := &emails.Mail{
 			JobKey:   fmt.Sprintf("sponsor-copy-%s-%d", email, time.Now().Unix()),
 			Email:    email,
-			ReplyTo:  "sponsors@btcpp.dev",
+			ReplyTo:  "sponsor@btcpp.dev",
 			Title:    fmt.Sprintf("Your Sponsor Inquiry: %s", org),
 			SendAt:   time.Now(),
 			HTMLBody: []byte("<p>Thanks for your interest in sponsoring bitcoin++! Here's a copy of your inquiry:</p><hr/>" + htmlBody),
