@@ -5726,7 +5726,7 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 			})
 			if row.CardURL == "" {
 				if ct := getters.FetchConfTalkByProposal(p.ID); ct != nil {
-					row.CardURL = SpeakerCardURL(ctx, conf.Tag, "1080p", sp.ID, ct.ID)
+					row.CardURL = SpeakerCardURL(ctx, conf.Tag, "insta", sp.ID, ct.ID)
 				}
 			}
 		}
@@ -5902,7 +5902,7 @@ func AdminSpeakerRefreshCards(w http.ResponseWriter, r *http.Request, ctx *confi
 		return
 	}
 	if len(talks) == 0 {
-		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=No+scheduled+cards+for+speaker", conf.Tag), http.StatusSeeOther)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=No+social+cards+for+speaker", conf.Tag), http.StatusSeeOther)
 		return
 	}
 	RefreshTalkCardsForceOpt(ctx, talks, true)
@@ -6496,23 +6496,62 @@ func talkForProposalMediaRefresh(ctx *config.AppContext, conf *types.Conf, propo
 }
 
 func talksForSpeakerMediaRefresh(ctx *config.AppContext, conf *types.Conf, speakerID string) ([]*types.Talk, error) {
-	talks, err := getters.LoadTalksFromConfTalks(ctx, conf.Tag)
-	if err != nil {
-		return nil, fmt.Errorf("load talks: %w", err)
-	}
 	var out []*types.Talk
-	for _, talk := range talks {
-		if talk == nil {
+	for _, p := range loadConfProposals(ctx, conf) {
+		if p == nil {
 			continue
 		}
-		for _, speaker := range talk.Speakers {
-			if speaker != nil && speaker.ID == speakerID {
-				out = append(out, talk)
+		var matched bool
+		for _, sc := range resolveProposalSpeakers(p) {
+			if sc != nil && sc.Speaker != nil && sc.Speaker.ID == speakerID {
+				matched = true
 				break
 			}
 		}
+		if !matched {
+			continue
+		}
+		ct := getters.FetchConfTalkByProposal(p.ID)
+		if ct == nil {
+			continue
+		}
+		out = append(out, talkForAdminMediaRefresh(conf, p, ct))
 	}
 	return out, nil
+}
+
+func talkForAdminMediaRefresh(conf *types.Conf, proposal *types.Proposal, ct *types.ConfTalk) *types.Talk {
+	talk := &types.Talk{
+		ID:          ct.ID,
+		Name:        proposal.Title,
+		Description: proposal.Description,
+		Type:        proposal.TalkType,
+		Status:      proposal.Status,
+		Event:       conf.Tag,
+		Clipart:     ct.Clipart,
+		Sched:       ct.Sched,
+		Venue:       ct.Venue,
+		Section:     ct.Section,
+		CalNotif:    ct.CalNotif,
+		TalkCardURL: ct.SocialCard,
+	}
+	if talk.Sched != nil {
+		talk.TimeDesc = talk.Sched.Desc()
+	}
+	for _, sc := range resolveProposalSpeakers(proposal) {
+		if sc == nil || sc.Speaker == nil {
+			continue
+		}
+		view := *sc.Speaker
+		if sc.Company != "" {
+			view.Company = sc.Company
+		}
+		if sc.OrgPhoto != "" {
+			view.OrgLogo = sc.OrgPhoto
+		}
+		talk.Speakers = append(talk.Speakers, &view)
+	}
+	return talk
 }
 
 func speakerName(sp *types.Speaker) string {
