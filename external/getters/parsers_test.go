@@ -2,6 +2,7 @@ package getters
 
 import (
 	"testing"
+	"time"
 
 	notion "github.com/niftynei/go-notion"
 )
@@ -63,6 +64,37 @@ func TestParseSpeakerTrimsURLFields(t *testing.T) {
 	}
 	if speaker.LinkedIn != "linkedin.com/in/anita" {
 		t.Fatalf("speaker.LinkedIn = %q, want trimmed value", speaker.LinkedIn)
+	}
+}
+
+func TestParseConfTimezoneFromRichText(t *testing.T) {
+	conf := parseConf("conf-id", map[string]notion.PropertyValue{
+		"Name":           richTextProp("vienna"),
+		"Active":         {},
+		"Desc":           richTextProp("Vienna"),
+		"OG_Flavor":      {},
+		"Emoji":          {},
+		"Tagline":        {},
+		"DateDesc":       {},
+		"Location":       {},
+		"Venue":          {},
+		"VenueMap":       {},
+		"VenueWebsite":   {},
+		"Show Hacks":     {},
+		"Has Satellites": {},
+		"OrientCalNotif": {},
+		"StartDate": {
+			Date: &notion.Date{Start: time.Date(2026, 4, 17, 0, 0, 0, 0, time.UTC)},
+		},
+		"EndDate":  {},
+		"Timezone": richTextProp("Europe/Vienna"),
+	})
+
+	if conf.Timezone != "Europe/Vienna" {
+		t.Fatalf("conf.Timezone = %q, want Europe/Vienna", conf.Timezone)
+	}
+	if got := conf.Loc().String(); got != "Europe/Vienna" {
+		t.Fatalf("conf.Loc = %q, want Europe/Vienna", got)
 	}
 }
 

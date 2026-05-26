@@ -363,10 +363,7 @@ func parseConf(pageID string, props map[string]notion.PropertyValue) *types.Conf
 	// for an enum-shaped IANA name) and fall back to rich_text
 	// so either schema choice round-trips. Unparseable values
 	// leave TZ nil; callers fall back via Loc().
-	conf.Timezone = strings.TrimSpace(parseSelect("Timezone", props))
-	if conf.Timezone == "" {
-		conf.Timezone = strings.TrimSpace(parseRichText("Timezone", props))
-	}
+	conf.Timezone = strings.TrimSpace(parseSelectOrText("Timezone", props))
 	if conf.Timezone != "" {
 		if loc, err := time.LoadLocation(conf.Timezone); err == nil {
 			conf.TZ = loc
