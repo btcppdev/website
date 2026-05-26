@@ -604,6 +604,9 @@ type EditSpeakerPage struct {
 	EmailPlain   string // not base64 — used as the value for the create-mode email field
 	Mode         string // "edit" | "create"
 	FlashMessage string
+	IsAdmin      bool
+	BackURL      string
+	FormAction   string
 	Year         uint
 }
 
@@ -620,8 +623,11 @@ type EditSpeakerConfPage struct {
 	// RSVPFor is the speakers'-dinner date label ("Mon. Jan 5, 2026"),
 	// shown next to the DinnerRSVP toggle so the user knows which day
 	// they're agreeing to attend. Set from conf.DaysList()[0].
-	RSVPFor string
-	Year    uint
+	RSVPFor    string
+	IsAdmin    bool
+	BackURL    string
+	FormAction string
+	Year       uint
 }
 
 type ShiftDisplay struct {

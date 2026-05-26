@@ -138,14 +138,12 @@
                     {{ end }}
 
                     <div class="mt-1 flex items-center gap-3 text-[11px]">
-                        <a href="https://www.notion.so/{{ .ID }}"
-                           target="_blank" rel="noopener noreferrer"
+                        <a href="/{{ $.Conf.Tag }}/admin/speakers/{{ .ID }}/edit"
                            class="text-indigo-600 hover:text-indigo-700">
                             Speaker &rarr;
                         </a>
                         {{ if .SpeakerConfID }}
-                        <a href="https://www.notion.so/{{ .SpeakerConfID }}"
-                           target="_blank" rel="noopener noreferrer"
+                        <a href="/{{ $.Conf.Tag }}/admin/speakerconfs/{{ .SpeakerConfID }}/edit"
                            class="text-indigo-600 hover:text-indigo-700">
                             SpeakerConf &rarr;
                         </a>
