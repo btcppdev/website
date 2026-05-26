@@ -181,6 +181,7 @@ func loadTemplates(ctx *config.AppContext) error {
 			return false
 		},
 		"hasPrefix": strings.HasPrefix,
+		"trim":      strings.TrimSpace,
 		// dict builds a map[string]any from variadic key/value pairs
 		// — enables passing named params to template blocks (e.g.
 		// {{ template "cal_picker" (dict "Title" .Name "Start" ...) }}).
