@@ -711,11 +711,12 @@ type GiftRow struct {
 }
 
 type SpeakerRow struct {
-	ID     string
-	Name   string
-	Email  string
-	Signal string
-	Photo  string // bare filename in Spaces speakers/, "" if unset
+	ID      string
+	Name    string
+	Email   string
+	Signal  string
+	Photo   string // bare filename in Spaces speakers/, "" if unset
+	CardURL string
 	// Per-conf info from the matching SpeakerConf row. Empty
 	// when the speaker has no SpeakerConf for this conf yet
 	// (admin-imported speaker, freshly attached, etc.).
@@ -784,7 +785,8 @@ type ProposalAdminRow struct {
 	//   "none"    — scheduled but no CalNotif yet ("Send cal invite")
 	//   "fresh"   — CalNotif present, hash matches ("Resend cal invite")
 	//   "stale"   — CalNotif present, hash differs ("Update cal invite")
-	CalState string
+	CalState    string
+	TalkCardURL string
 }
 
 type ProposalAdminPage struct {

@@ -1099,6 +1099,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		SpeakerAdmin(w, r, app)
 	}).Methods("GET")
 
+	r.HandleFunc("/{conf}/admin/speakers/{speakerID}/refresh-cards", func(w http.ResponseWriter, r *http.Request) {
+		AdminSpeakerRefreshCards(w, r, app)
+	}).Methods("POST")
+
 	r.HandleFunc("/{conf}/admin/speakers/{speakerID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		SpeakerAdminEdit(w, r, app)
 	}).Methods("GET", "POST")
@@ -1215,6 +1219,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/applicants/{proposalID}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		AdminCancelTalk(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/applicants/{proposalID}/refresh-card", func(w http.ResponseWriter, r *http.Request) {
+		AdminProposalRefreshCard(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/proposals/{proposalID}/sendcal", func(w http.ResponseWriter, r *http.Request) {
 		AdminProposalSendCal(w, r, app)
@@ -5717,6 +5724,11 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 				Title:      p.Title,
 				Status:     p.Status,
 			})
+			if row.CardURL == "" {
+				if ct := getters.FetchConfTalkByProposal(p.ID); ct != nil {
+					row.CardURL = SpeakerCardURL(ctx, conf.Tag, "1080p", sp.ID, ct.ID)
+				}
+			}
 		}
 	}
 	rows := make([]*SpeakerRow, 0, len(rowByID))
@@ -5867,6 +5879,34 @@ func SpeakerAdminBulkEmail(w http.ResponseWriter, r *http.Request, ctx *config.A
 
 	flash := fmt.Sprintf("Sent+to+%d+of+%d+speakers", sent, len(speakerRefs))
 	http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, flash), http.StatusSeeOther)
+}
+
+func AdminSpeakerRefreshCards(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	speakerID := strings.TrimSpace(mux.Vars(r)["speakerID"])
+	if speakerID == "" {
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=Missing+speaker", conf.Tag), http.StatusSeeOther)
+		return
+	}
+	talks, err := talksForSpeakerMediaRefresh(ctx, conf, speakerID)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/speakers/%s/refresh-cards: %s", conf.Tag, speakerID, err)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape("Refresh failed: "+err.Error())), http.StatusSeeOther)
+		return
+	}
+	if len(talks) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=No+scheduled+cards+for+speaker", conf.Tag), http.StatusSeeOther)
+		return
+	}
+	RefreshTalkCardsForceOpt(ctx, talks, true)
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape(fmt.Sprintf("Force refreshed %d talk(s) for speaker.", len(talks)))), http.StatusSeeOther)
 }
 
 func SpeakerAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -6352,6 +6392,7 @@ func loadProposalRowsForConf(ctx *config.AppContext, conf *types.Conf) ([]*Propo
 		// the proposal isn't in the schedule yet.
 		if ct := getters.FetchConfTalkByProposal(p.ID); ct != nil {
 			row.ConfTalk = ct
+			row.TalkCardURL = TalkCardURL(ctx, conf.Tag, "1080p", ct.ID)
 			if ct.Sched != nil {
 				row.StartLabel = ct.Sched.Start.In(loc).Format("Mon Jan 2 · 3:04 PM")
 				if ct.Sched.End != nil {
@@ -6385,6 +6426,93 @@ func computeCalState(ct *types.ConfTalk, p *types.Proposal, conf *types.Conf) st
 		return "fresh"
 	}
 	return "stale"
+}
+
+func AdminProposalRefreshCard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	proposalID := strings.TrimSpace(mux.Vars(r)["proposalID"])
+	talk, err := talkForProposalMediaRefresh(ctx, conf, proposalID)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/applicants/%s/refresh-card: %s", conf.Tag, proposalID, err)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/applicants?flash=%s", conf.Tag, url.QueryEscape("Refresh failed: "+err.Error())), http.StatusSeeOther)
+		return
+	}
+	RefreshTalkCardsForceOpt(ctx, []*types.Talk{talk}, true)
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/applicants?flash=%s", conf.Tag, url.QueryEscape("Force refreshed card for "+talk.Name)), http.StatusSeeOther)
+}
+
+func talkForProposalMediaRefresh(ctx *config.AppContext, conf *types.Conf, proposalID string) (*types.Talk, error) {
+	if proposalID == "" {
+		return nil, fmt.Errorf("missing proposal")
+	}
+	proposals, err := getters.ListProposals(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list proposals: %w", err)
+	}
+	proposalMap := make(map[string]*types.Proposal, len(proposals))
+	for _, p := range proposals {
+		if p != nil {
+			proposalMap[p.ID] = p
+		}
+	}
+	proposal := proposalMap[proposalID]
+	if proposal == nil {
+		return nil, fmt.Errorf("proposal not found")
+	}
+	if proposal.ScheduleFor == nil || proposal.ScheduleFor.Ref != conf.Ref {
+		return nil, fmt.Errorf("proposal is not attached to %s", conf.Tag)
+	}
+	confTalks, err := getters.ListConfTalks(ctx, proposalMap)
+	if err != nil {
+		return nil, fmt.Errorf("list conf talks: %w", err)
+	}
+	var target *types.ConfTalk
+	for _, ct := range confTalks {
+		if ct != nil && ct.Proposal != nil && ct.Proposal.ID == proposalID {
+			target = ct
+			break
+		}
+	}
+	if target == nil {
+		return nil, fmt.Errorf("proposal is not scheduled yet")
+	}
+	talks, err := getters.LoadTalksFromConfTalks(ctx, conf.Tag)
+	if err != nil {
+		return nil, fmt.Errorf("load talks: %w", err)
+	}
+	for _, talk := range talks {
+		if talk != nil && talk.ID == target.ID {
+			return talk, nil
+		}
+	}
+	return nil, fmt.Errorf("scheduled talk card source not found")
+}
+
+func talksForSpeakerMediaRefresh(ctx *config.AppContext, conf *types.Conf, speakerID string) ([]*types.Talk, error) {
+	talks, err := getters.LoadTalksFromConfTalks(ctx, conf.Tag)
+	if err != nil {
+		return nil, fmt.Errorf("load talks: %w", err)
+	}
+	var out []*types.Talk
+	for _, talk := range talks {
+		if talk == nil {
+			continue
+		}
+		for _, speaker := range talk.Speakers {
+			if speaker != nil && speaker.ID == speakerID {
+				out = append(out, talk)
+				break
+			}
+		}
+	}
+	return out, nil
 }
 
 func speakerName(sp *types.Speaker) string {
