@@ -6640,7 +6640,7 @@ func loadProposalRowsForConf(ctx *config.AppContext, conf *types.Conf) ([]*Propo
 		return nil, nil
 	}
 
-	speakers, err := getters.ListSpeakers(ctx.Notion)
+	speakers, err := getters.ListSpeakers(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list speakers: %w", err)
 	}
