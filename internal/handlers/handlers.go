@@ -1793,7 +1793,7 @@ func processFileUpload(ctx *config.AppContext, r *http.Request, field string) (s
 	filename := handler.Filename
 	contentType := contentTypeFromFilename(filename)
 
-	return getters.UploadFile(ctx.Notion, contentType, filename, fileData)
+	return getters.UploadFile(ctx, contentType, filename, fileData)
 }
 
 // readMultipartFile reads a single named file from a multipart form and
@@ -1899,7 +1899,7 @@ func uploadSpeakerPic(ctx *config.AppContext, r *http.Request) (notionID string,
 		ext = ".jpg"
 	}
 
-	notionID, err = getters.UploadFile(ctx.Notion, contentType, filename, raw)
+	notionID, err = getters.UploadFile(ctx, contentType, filename, raw)
 	return notionID, raw, contentType, ext, err
 }
 
