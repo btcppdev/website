@@ -1008,6 +1008,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/recordings/oauth/youtube/start", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsYTOAuthStart(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/recordings/oauth/youtube/callback", func(w http.ResponseWriter, r *http.Request) {
+		RecordingsYTOAuthCallback(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/recordings/oauth/youtube/callback", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsYTOAuthCallback(w, r, app)
 	}).Methods("GET")

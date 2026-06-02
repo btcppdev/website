@@ -5,15 +5,22 @@
 // every upload reuses the refresh token to mint short-lived access
 // tokens automatically.
 //
-// We only need the upload scope — list/read endpoints are not used.
+// Upload needs youtube.upload; admin maintenance commands can also use
+// the persisted token to list the authenticated channel's uploaded videos.
 package youtube
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	_ "image/png"
 	"io"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -21,14 +28,16 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	youtubeapi "google.golang.org/api/youtube/v3"
 )
 
 const (
 	tokenKey = "youtube"
-	scope    = youtubeapi.YoutubeUploadScope
 )
+
+const maxThumbnailBytes = 2 * 1024 * 1024
 
 var (
 	cfg   *oauth2.Config
@@ -49,8 +58,12 @@ func Init(clientID, clientSecret, redirectURL string) {
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURL,
-		Scopes:       []string{scope},
-		Endpoint:     google.Endpoint,
+		Scopes: []string{
+			youtubeapi.YoutubeUploadScope,
+			youtubeapi.YoutubeReadonlyScope,
+			youtubeapi.YoutubeForceSslScope,
+		},
+		Endpoint: google.Endpoint,
 	}
 }
 
@@ -282,4 +295,77 @@ func Upload(ctx context.Context, p UploadParams, src io.Reader, size int64) (str
 		return "", fmt.Errorf("youtube: videos.insert returned no id: %s", string(raw))
 	}
 	return fmt.Sprintf("https://youtu.be/%s", resp.Id), nil
+}
+
+// SetThumbnail uploads a custom thumbnail for an existing video.
+func SetThumbnail(ctx context.Context, videoID, filename string, src io.Reader) error {
+	if videoID == "" {
+		return fmt.Errorf("youtube thumbnail: videoID is required")
+	}
+	client, err := httpClient(ctx)
+	if err != nil {
+		return err
+	}
+	svc, err := youtubeapi.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return fmt.Errorf("youtube: new service: %w", err)
+	}
+	contentType := mime.TypeByExtension(filepath.Ext(filename))
+	if contentType == "" {
+		contentType = "image/png"
+	}
+	_, err = svc.Thumbnails.Set(videoID).Media(src, googleapi.ContentType(contentType)).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("youtube thumbnails.set: %w", err)
+	}
+	return nil
+}
+
+// SetThumbnailBytes uploads a custom thumbnail, transcoding oversized PNGs
+// to JPEG so they fit YouTube's 2 MiB thumbnail limit.
+func SetThumbnailBytes(ctx context.Context, videoID, filename string, data []byte) error {
+	prepared, contentType, err := PrepareThumbnail(filename, data)
+	if err != nil {
+		return err
+	}
+	if videoID == "" {
+		return fmt.Errorf("youtube thumbnail: videoID is required")
+	}
+	client, err := httpClient(ctx)
+	if err != nil {
+		return err
+	}
+	svc, err := youtubeapi.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return fmt.Errorf("youtube: new service: %w", err)
+	}
+	_, err = svc.Thumbnails.Set(videoID).Media(bytes.NewReader(prepared), googleapi.ContentType(contentType)).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("youtube thumbnails.set: %w", err)
+	}
+	return nil
+}
+
+func PrepareThumbnail(filename string, data []byte) ([]byte, string, error) {
+	contentType := mime.TypeByExtension(filepath.Ext(filename))
+	if contentType == "" {
+		contentType = "image/png"
+	}
+	if len(data) <= maxThumbnailBytes {
+		return data, contentType, nil
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", fmt.Errorf("decode thumbnail %s: %w", filename, err)
+	}
+	for _, quality := range []int{92, 88, 84, 80, 76, 72, 68, 64, 60, 56, 52, 48, 44, 40} {
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
+			return nil, "", fmt.Errorf("encode thumbnail jpeg: %w", err)
+		}
+		if buf.Len() <= maxThumbnailBytes {
+			return buf.Bytes(), "image/jpeg", nil
+		}
+	}
+	return nil, "", fmt.Errorf("thumbnail %s remains larger than 2 MiB after JPEG compression", filename)
 }
