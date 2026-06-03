@@ -1105,6 +1105,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		SpeakerAdmin(w, r, app)
 	}).Methods("GET")
 
+	r.HandleFunc("/{conf}/admin/speakers/new", func(w http.ResponseWriter, r *http.Request) {
+		SpeakerAdminNew(w, r, app)
+	}).Methods("GET", "POST")
+
 	r.HandleFunc("/{conf}/admin/speakers/{speakerID}/refresh-cards", func(w http.ResponseWriter, r *http.Request) {
 		AdminSpeakerRefreshCards(w, r, app)
 	}).Methods("POST")
@@ -5919,6 +5923,84 @@ func AdminSpeakerRefreshCards(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 	RefreshTalkCardsForceOpt(ctx, talks, true)
 	http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape(fmt.Sprintf("Force refreshed %d talk(s) for speaker.", len(talks)))), http.StatusSeeOther)
+}
+
+func SpeakerAdminNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	backURL := fmt.Sprintf("/%s/admin/speakers", conf.Tag)
+	formAction := fmt.Sprintf("/%s/admin/speakers/new", conf.Tag)
+	if r.Method == http.MethodPost {
+		adminCreateSpeakerPOST(w, r, ctx, conf, backURL)
+		return
+	}
+	page := &EditSpeakerPage{
+		Mode:       "create",
+		IsAdmin:    true,
+		BackURL:    backURL,
+		FormAction: formAction,
+		Year:       helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_edit_speaker.tmpl", page); err != nil {
+		ctx.Err.Printf("/%s/admin/speakers/new render: %s", conf.Tag, err)
+		http.Error(w, "render failed", http.StatusInternalServerError)
+	}
+}
+
+func adminCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, backURL string) {
+	limitRequestBody(w, r, maxMultipartBodyBytes)
+	if err := r.ParseMultipartForm(maxUploadFileBytes); err != nil {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+	}
+	name := strings.TrimSpace(r.FormValue("Name"))
+	email := strings.TrimSpace(r.FormValue("Email"))
+	if name == "" || email == "" {
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Name and email are required.")), http.StatusSeeOther)
+		return
+	}
+	picRaw, picContentType, picExt, picErr := readMultipartFile(r, "PicFile")
+	hasNewPic := picErr == nil && len(picRaw) > 0
+	if picErr != nil && picErr != http.ErrMissingFile {
+		ctx.Err.Printf("/%s/admin/speakers/new read pic: %s", conf.Tag, picErr)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Photo upload failed.")), http.StatusSeeOther)
+		return
+	}
+	in := getters.SpeakerInput{
+		Name:      name,
+		Email:     email,
+		Phone:     strings.TrimSpace(r.FormValue("Phone")),
+		Signal:    strings.TrimSpace(r.FormValue("Signal")),
+		Telegram:  strings.TrimSpace(r.FormValue("Telegram")),
+		Twitter:   strings.TrimSpace(r.FormValue("Twitter")),
+		Nostr:     strings.TrimSpace(r.FormValue("Nostr")),
+		Github:    strings.TrimSpace(r.FormValue("Github")),
+		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
+		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
+		Website:   strings.TrimSpace(r.FormValue("Website")),
+		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
+	}
+	if hasNewPic {
+		in.Photo = imgproc.ShortID(picRaw) + picExt
+	}
+	speakerID, err := getters.CreateSpeaker(ctx.Notion, in)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/speakers/new create %s: %s", conf.Tag, email, err)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Create failed: "+err.Error())), http.StatusSeeOther)
+		return
+	}
+	if hasNewPic {
+		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
+	}
+	http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Speaker created. Attach them to a proposal from the proposal editor. ID: "+speakerID), http.StatusSeeOther)
 }
 
 func SpeakerAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
