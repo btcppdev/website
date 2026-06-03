@@ -671,6 +671,8 @@ type VolAdminPage struct {
 	FlashMessage           string
 	Year                   uint
 	EmailCompose           *EmailComposeData
+	DeclineTitle           string
+	DeclineBody            string
 	Stats                  *VolAdminStats
 }
 

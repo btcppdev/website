@@ -823,6 +823,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		VolAdminBulkEmail(w, r, app)
 	}).Methods("POST")
 
+	r.HandleFunc("/{conf}/volcoord/decline-selected", func(w http.ResponseWriter, r *http.Request) {
+		VolAdminDeclineSelected(w, r, app)
+	}).Methods("POST")
+
 	r.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		Dashboard(w, r, app)
 	}).Methods("GET", "POST")
@@ -4365,6 +4369,8 @@ func VolAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		Missives:               missiveList,
 		FlashMessage:           r.URL.Query().Get("flash"),
 		Year:                   helpers.CurrentYear(),
+		DeclineTitle:           defaultVolDeclineTitle(conf),
+		DeclineBody:            defaultVolDeclineBody(),
 		Stats:                  stats,
 		EmailCompose: &EmailComposeData{
 			Title:            "Email Selected Volunteers",
@@ -4528,19 +4534,7 @@ func VolunteerDecline(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if err != nil {
 		ctx.Err.Printf("/vols/shift/%s/decline failed to load shifts: %s", confTag, err.Error())
 	} else {
-		selectedShifts := getSelectedShifts(vol, confShifts)
-		for _, shift := range selectedShifts {
-			err = getters.RemoveVolunteerFromShift(ctx, vol.Ref, shift.Ref)
-			if err != nil {
-				ctx.Err.Printf("/vols/shift/%s/decline failed to remove shift %s: %s", confTag, shift.Name, err.Error())
-				continue
-			}
-			// CANCEL ICS so the dropped shift vanishes from
-			// the volunteer's calendar.
-			if dErr := DispatchShiftICSCancelForVol(ctx, shift, conf, vol.Email, vol.Name); dErr != nil {
-				ctx.Err.Printf("/vols/shift/%s/decline cancel-cal %q: %s", confTag, shift.Name, dErr)
-			}
-		}
+		releaseVolunteerShifts(ctx, conf, vol, confShifts, "vols/shift/decline")
 	}
 
 	// Update status to Declined
@@ -5147,6 +5141,188 @@ func VolAdminBulkEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 
 	flash := fmt.Sprintf("Sent+to+%d+of+%d+volunteers", sent, len(targets))
 	http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, flash), http.StatusSeeOther)
+}
+
+func defaultVolDeclineTitle(conf *types.Conf) string {
+	return fmt.Sprintf("Volunteer update for %s", conf.Desc)
+}
+
+func defaultVolDeclineBody() string {
+	return "Hi {{ .Volunteer.Name }},\n\nThank you again for applying to volunteer at {{ .Conf.Desc }}. We had more volunteer interest than available shifts this time, so we are not able to add you to the volunteer roster for this event.\n\nWe would still love to have you join us as an attendee. You can use discount code `{{ .DiscountCode.CodeName }}` for a discounted ticket.\n\nThank you for being willing to help make bitcoin++ happen.\n\n- bitcoin++"
+}
+
+func VolAdminDeclineSelected(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfVolcoord(w, r, ctx); id == nil {
+		return
+	}
+
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	volRefs := r.Form["vol_refs"]
+	testEmail := strings.TrimSpace(r.FormValue("decline_test_email"))
+	isTest := r.FormValue("decline_send_test") == "1"
+	if isTest && testEmail == "" {
+		http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape("Test email is required")), http.StatusSeeOther)
+		return
+	}
+	if len(volRefs) == 0 && !isTest {
+		http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape("No volunteers selected")), http.StatusSeeOther)
+		return
+	}
+
+	title := strings.TrimSpace(r.FormValue("decline_title"))
+	body := strings.TrimSpace(r.FormValue("decline_body"))
+	if title == "" || body == "" {
+		http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape("Decline title and body are required")), http.StatusSeeOther)
+		return
+	}
+
+	discount, err := validateVolDeclineDiscount(ctx, conf, r.FormValue("decline_discount_code"))
+	if err != nil {
+		http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape(err.Error())), http.StatusSeeOther)
+		return
+	}
+
+	allVols, err := getters.ListVolunteersForConf(ctx, conf.Ref)
+	if err != nil {
+		http.Error(w, "Unable to load volunteers", http.StatusInternalServerError)
+		return
+	}
+
+	shifts, err := getters.GetShiftsForConf(ctx, conf.Tag)
+	if err != nil {
+		ctx.Err.Printf("/%s/volcoord/decline-selected failed to load shifts: %s", conf.Tag, err.Error())
+	}
+
+	refSet := make(map[string]bool, len(volRefs))
+	for _, ref := range volRefs {
+		refSet[ref] = true
+	}
+
+	var targets []*types.Volunteer
+	var firstEligible *types.Volunteer
+	for _, v := range allVols {
+		if !volBulkDeclineStatusAllowed(v.Status) {
+			continue
+		}
+		v.WorkShifts = getSelectedShifts(v, shifts)
+		if firstEligible == nil {
+			firstEligible = v
+		}
+		if refSet[v.Ref] {
+			targets = append(targets, v)
+		}
+	}
+
+	volinfo, err := getters.GetVolInfo(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/%s/volcoord/decline-selected failed to load volinfo: %s", conf.Tag, err.Error())
+	}
+
+	if isTest {
+		testVol := firstEligible
+		if len(targets) > 0 {
+			testVol = targets[0]
+		}
+		if testVol == nil {
+			http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape("No Applied or Pending Shifts volunteers available for test")), http.StatusSeeOther)
+			return
+		}
+		tv := *testVol
+		tv.Email = testEmail
+		if _, err := emails.SendCustomToVolWithDiscount(ctx, &tv, conf, volinfo, discount, title, body); err != nil {
+			ctx.Err.Printf("/%s/volcoord/decline-selected test -> %s failed: %s", conf.Tag, testEmail, err)
+			http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape("Test decline email failed")), http.StatusSeeOther)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape("Test decline email sent to "+testEmail)), http.StatusSeeOther)
+		return
+	}
+
+	sent := 0
+	declined := 0
+	for _, v := range targets {
+		if _, err := emails.SendCustomToVolWithDiscount(ctx, v, conf, volinfo, discount, title, body); err != nil {
+			ctx.Err.Printf("/%s/volcoord/decline-selected custom -> %s failed: %s", conf.Tag, v.Email, err)
+			continue
+		}
+		sent++
+
+		releaseVolunteerShifts(ctx, conf, v, shifts, "volcoord/decline-selected")
+		if err := getters.UpdateVolunteerStatus(ctx, v.Ref, "Declined"); err != nil {
+			ctx.Err.Printf("/%s/volcoord/decline-selected status %s failed: %s", conf.Tag, v.Email, err)
+			continue
+		}
+		declined++
+	}
+
+	flash := fmt.Sprintf("Sent decline email to %d of %d selected volunteers. Moved %d to Declined.", sent, len(targets), declined)
+	http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape(flash)), http.StatusSeeOther)
+}
+
+func volBulkDeclineStatusAllowed(status string) bool {
+	return status == "Applied" || status == "PendingShifts"
+}
+
+func validateVolDeclineDiscount(ctx *config.AppContext, conf *types.Conf, code string) (*types.DiscountCode, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, fmt.Errorf("Discount code is required")
+	}
+	discount, err := getters.FindDiscount(ctx, code)
+	if err != nil {
+		return nil, fmt.Errorf("Discount lookup failed: %w", err)
+	}
+	if discount == nil {
+		return nil, fmt.Errorf("Discount code %q was not found", code)
+	}
+	if len(discount.ConfRef) > 0 {
+		found := false
+		for _, ref := range discount.ConfRef {
+			if ref == conf.Ref {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("Discount code %q is not valid for %s", discount.CodeName, conf.Desc)
+		}
+	}
+	if discount.MaxUses > 0 && discount.UsesCount >= discount.MaxUses {
+		return nil, fmt.Errorf("Discount code %q has been fully redeemed", discount.CodeName)
+	}
+	if discount.IsDateExpired(time.Now().UTC()) {
+		return nil, fmt.Errorf("Discount code %q is not active today", discount.CodeName)
+	}
+	return discount, nil
+}
+
+func releaseVolunteerShifts(ctx *config.AppContext, conf *types.Conf, vol *types.Volunteer, shifts []*types.WorkShift, label string) {
+	selectedShifts := vol.WorkShifts
+	if selectedShifts == nil {
+		selectedShifts = getSelectedShifts(vol, shifts)
+	}
+	for _, shift := range selectedShifts {
+		if shift == nil {
+			continue
+		}
+		if err := getters.RemoveVolunteerFromShift(ctx, vol.Ref, shift.Ref); err != nil {
+			ctx.Err.Printf("/%s/%s remove shift %s for %s failed: %s", conf.Tag, label, shift.Name, vol.Email, err)
+			continue
+		}
+		if dErr := DispatchShiftICSCancelForVol(ctx, shift, conf, vol.Email, vol.Name); dErr != nil {
+			ctx.Err.Printf("/%s/%s cancel-cal %q for %s: %s", conf.Tag, label, shift.Name, vol.Email, dErr)
+		}
+	}
 }
 
 // parseShiftFormTimes turns a date (YYYY-MM-DD or 01/02/2006) plus two HH:MM
