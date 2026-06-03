@@ -34,8 +34,8 @@
             {{ if .VolInfo }}
             <section id="orientation" class="mb-6">
                 <div class="rounded-lg bg-indigo-50 border border-indigo-200 shadow px-4 py-4">
-                    <div class="flex items-start justify-between">
-                        <div>
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="min-w-0">
                             <h4 class="text-sm font-semibold text-indigo-900">Volunteer Orientation</h4>
                             {{ if .VolInfo.OrientTimes }}
                             <p class="mt-1 text-sm text-indigo-800">{{ .VolInfo.OrientTimes.FmtRange }}</p>
@@ -45,25 +45,51 @@
                             {{ if .VolInfo.Notes }}
                             <p class="mt-1 text-xs text-indigo-700">{{ .VolInfo.Notes }}</p>
                             {{ end }}
+                            {{ if .VolInfo.OrientLink }}
+                            <p class="mt-1 text-xs text-indigo-700 break-all">Location: <a href="{{ .VolInfo.OrientLink }}" target="_blank" rel="noopener noreferrer" class="underline">{{ .VolInfo.OrientLink }}</a></p>
+                            {{ end }}
+                            <p class="mt-2 text-xs text-indigo-700">Invites go to Scheduled volunteers plus event staff, admins, and volunteer coordinators. Current recipient count: {{ .OrientationRecipientCt }}.</p>
                         </div>
-                        <div class="ml-4 shrink-0 flex flex-col items-end gap-2">
+                        <div class="shrink-0 flex flex-col items-start lg:items-end gap-2">
                           {{ if .VolInfo.OrientLink }}
                           <a href="{{ .VolInfo.OrientLink }}" target="_blank" rel="noopener noreferrer"
                              class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700">
                               Join Orientation
                           </a>
                           {{ end }}
-                          {{ if and .VolInfo.OrientTimes .VolInfo.OrientTimes.End }}
-                          <form method="POST" action="/{{ .Conf.Tag }}/volcoord/send-orientation">
-                              <button type="submit"
-                                      class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300"
-                                      onclick="return confirm('Re-send the orientation calendar invite to every Scheduled volunteer at {{ .Conf.Desc }}? Use this after editing the orientation time so the change lands in their calendars.');">
-                                  📅 Resend orientation invite
-                              </button>
-                          </form>
-                          {{ end }}
                         </div>
                     </div>
+                    <form method="POST" action="/{{ .Conf.Tag }}/volcoord/orientation" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                        <label class="block text-xs font-medium text-indigo-900">
+                            Starts
+                            <input type="datetime-local" name="start" required value="{{ .OrientationStartInput }}"
+                                   class="mt-1 block w-full rounded-md border-indigo-200 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        </label>
+                        <label class="block text-xs font-medium text-indigo-900">
+                            Ends
+                            <input type="datetime-local" name="end" required value="{{ .OrientationEndInput }}"
+                                   class="mt-1 block w-full rounded-md border-indigo-200 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        </label>
+                        <label class="block text-xs font-medium text-indigo-900 md:col-span-2">
+                            Online link
+                            <input type="url" name="orient_link" required value="{{ .VolInfo.OrientLink }}"
+                                   class="mt-1 block w-full rounded-md border-indigo-200 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        </label>
+                        <div class="md:col-span-2 lg:col-span-4 flex flex-wrap items-center gap-2">
+                            <button type="submit"
+                                    class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md text-white bg-indigo-700 hover:bg-indigo-800"
+                                    onclick="return confirm('Save the volunteer orientation and send calendar invites to Scheduled volunteers plus staff/admin/volcoord recipients?');">
+                                {{ if .VolInfo.OrientTimes }}Reschedule orientation{{ else }}Schedule orientation{{ end }}
+                            </button>
+                            {{ if and .VolInfo.OrientTimes .VolInfo.OrientTimes.End }}
+                            <button type="submit" formaction="/{{ .Conf.Tag }}/volcoord/send-orientation"
+                                    class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300"
+                                    onclick="return confirm('Re-send the current orientation calendar invite to Scheduled volunteers plus staff/admin/volcoord recipients?');">
+                                Resend current invite
+                            </button>
+                            {{ end }}
+                        </div>
+                    </form>
                 </div>
             </section>
             {{ end }}
