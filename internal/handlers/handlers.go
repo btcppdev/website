@@ -5967,6 +5967,18 @@ func adminCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Name and email are required.")), http.StatusSeeOther)
 		return
 	}
+	existing, err := getters.GetSpeakersByEmail(ctx.Notion, email)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/speakers/new lookup %s: %s", conf.Tag, email, err)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Speaker lookup failed: "+err.Error())), http.StatusSeeOther)
+		return
+	}
+	if len(existing) > 0 && existing[0] != nil {
+		sp := existing[0]
+		flash := "Speaker already exists for " + email + ". Edit the existing profile, then attach them to a proposal."
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/%s/edit?flash=%s", conf.Tag, sp.ID, url.QueryEscape(flash)), http.StatusSeeOther)
+		return
+	}
 	picRaw, picContentType, picExt, picErr := readMultipartFile(r, "PicFile")
 	hasNewPic := picErr == nil && len(picRaw) > 0
 	if picErr != nil && picErr != http.ErrMissingFile {
