@@ -63,6 +63,10 @@ type RecordingRow struct {
 	YTError           string
 	XError            string
 	XErrorFingerprint string
+	YTPrivacyStatus   string
+	YTUploadStatus    string
+	YTPublishAt       *time.Time
+	YTStatusError     string
 	HasFile           bool
 	HasYT             bool
 	HasX              bool
@@ -221,6 +225,7 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 		ctx.Err.Printf("/%s/admin/recordings socialposts: %s", conf.Tag, err)
 	}
 	rows := recordingRowsForConf(ctx, conf.Tag)
+	enrichRowsWithYouTubeStatus(ctx, rows)
 	sort.SliceStable(rows, func(i, j int) bool {
 		return rowSortKey(rows[i]) > rowSortKey(rows[j])
 	})
@@ -295,6 +300,31 @@ func recordingRowsFromList(recs []*types.Recording, confTag string) []*Recording
 	return rows
 }
 
+func enrichRowsWithYouTubeStatus(ctx *config.AppContext, rows []*RecordingRow) {
+	if !youtubepkg.IsConfigured() || !youtubepkg.IsConnected() {
+		return
+	}
+	for _, row := range rows {
+		if row == nil || row.Recording == nil || strings.TrimSpace(row.Recording.YTLink) == "" {
+			continue
+		}
+		videoID := youtubeVideoID(row.Recording.YTLink)
+		if videoID == "" {
+			row.YTStatusError = "could not parse video ID"
+			continue
+		}
+		status, err := youtubepkg.GetVideoStatus(context.Background(), videoID)
+		if err != nil {
+			row.YTStatusError = err.Error()
+			ctx.Err.Printf("recording youtube status recording=%s video=%s: %s", row.Recording.ID, videoID, err)
+			continue
+		}
+		row.YTPrivacyStatus = status.PrivacyStatus
+		row.YTUploadStatus = status.UploadStatus
+		row.YTPublishAt = status.PublishAt
+	}
+}
+
 // rowSortKey returns a string that, when sorted descending, puts the
 // newest talks first. Falls back to title when the ConfTalk has no
 // scheduled time (e.g., past talk imported without a timestamp).
@@ -314,6 +344,7 @@ func RecordingsAdminDetail(w http.ResponseWriter, r *http.Request, ctx *config.A
 	}
 
 	ytTitle, ytBody := defaultYouTubeCopy(ctx, row)
+	enrichRowsWithYouTubeStatus(ctx, []*RecordingRow{row})
 	xBody := recordingXMainCopy(ctx, row)
 	xReplyBody := defaultXReplyCopy(ctx, row)
 	intentURL := "https://x.com/intent/post?" + url.Values{"text": []string{xBody}}.Encode()
@@ -535,6 +566,10 @@ func RecordingsAdminSchedule(w http.ResponseWriter, r *http.Request, ctx *config
 			redirectWithErr(w, r, conf.Tag, recordingID, "couldn't parse publish time: "+err.Error())
 			return
 		}
+		if strings.TrimSpace(rec.YTLink) != "" && !when.After(time.Now()) {
+			redirectWithErr(w, r, conf.Tag, recordingID, "YouTube scheduled publish time must be in the future")
+			return
+		}
 		publishAt = &when
 	}
 
@@ -543,11 +578,47 @@ func RecordingsAdminSchedule(w http.ResponseWriter, r *http.Request, ctx *config
 		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update PublishAt: "+err.Error())
 		return
 	}
+	ytScheduleResult, err := updateRecordingYouTubeSchedule(ctx, rec, publishAt)
+	if err != nil {
+		ctx.Err.Printf("recording youtube schedule recording=%s: %s", recordingID, err)
+		redirectWithErr(w, r, conf.Tag, recordingID, "saved Notion PublishAt, but couldn't update YouTube schedule: "+err.Error())
+		return
+	}
 	flash := "Schedule cleared"
 	if publishAt != nil {
 		flash = "Schedule saved"
+		if ytScheduleResult == "updated" {
+			flash = "Schedule saved and YouTube updated"
+		} else if ytScheduleResult == "public" {
+			flash = "Schedule saved. YouTube is already public, so it was not changed."
+		}
+	} else if ytScheduleResult == "updated" {
+		flash = "Schedule cleared and YouTube set to unlisted"
+	} else if ytScheduleResult == "public" {
+		flash = "Schedule cleared. YouTube is already public, so it was not changed."
 	}
 	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash="+url.QueryEscape(flash), http.StatusSeeOther)
+}
+
+func updateRecordingYouTubeSchedule(ctx *config.AppContext, rec *types.Recording, publishAt *time.Time) (string, error) {
+	if rec == nil || strings.TrimSpace(rec.YTLink) == "" || !youtubepkg.IsConfigured() || !youtubepkg.IsConnected() {
+		return "", nil
+	}
+	videoID := youtubeVideoID(rec.YTLink)
+	if videoID == "" {
+		return "", fmt.Errorf("could not parse video ID from %q", rec.YTLink)
+	}
+	status, err := youtubepkg.GetVideoStatus(context.Background(), videoID)
+	if err != nil {
+		return "", err
+	}
+	if status.PrivacyStatus == "public" {
+		return "public", nil
+	}
+	if publishAt != nil {
+		return "updated", youtubepkg.ScheduleExistingVideo(context.Background(), videoID, *publishAt)
+	}
+	return "updated", youtubepkg.ClearExistingVideoSchedule(context.Background(), videoID)
 }
 
 func RecordingsAdminSaveXCopy(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -694,6 +765,11 @@ func RecordingsAdminScheduleX(w http.ResponseWriter, r *http.Request, ctx *confi
 		}
 		rec.PublishAt = publishAt
 		row.Recording.PublishAt = publishAt
+	}
+	if _, err := updateRecordingYouTubeSchedule(ctx, rec, publishAt); err != nil {
+		ctx.Err.Printf("schedule x youtube recording=%s: %s", recordingID, err)
+		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update YouTube schedule: "+err.Error())
+		return
 	}
 
 	status := recordingStatusScheduling

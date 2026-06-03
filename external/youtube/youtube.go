@@ -21,6 +21,7 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -247,6 +248,98 @@ type UploadParams struct {
 	// PublishAt, when non-zero, schedules the video to go public at the
 	// given UTC time. Requires PrivacyStatus to be "private".
 	PublishAt time.Time
+}
+
+type VideoStatus struct {
+	ID            string
+	PrivacyStatus string
+	UploadStatus  string
+	PublishAt     *time.Time
+}
+
+func GetVideoStatus(ctx context.Context, videoID string) (*VideoStatus, error) {
+	if videoID == "" {
+		return nil, fmt.Errorf("youtube video status: videoID is required")
+	}
+	client, err := httpClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	svc, err := youtubeapi.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, fmt.Errorf("youtube: new service: %w", err)
+	}
+	resp, err := svc.Videos.List([]string{"status"}).Id(videoID).Context(ctx).Do()
+	if err != nil {
+		return nil, fmt.Errorf("youtube videos.list: %w", err)
+	}
+	if resp == nil || len(resp.Items) == 0 || resp.Items[0].Status == nil {
+		return nil, fmt.Errorf("youtube video %s not found", videoID)
+	}
+	st := resp.Items[0].Status
+	out := &VideoStatus{
+		ID:            videoID,
+		PrivacyStatus: st.PrivacyStatus,
+		UploadStatus:  st.UploadStatus,
+	}
+	if strings.TrimSpace(st.PublishAt) != "" {
+		if t, err := time.Parse(time.RFC3339, st.PublishAt); err == nil {
+			out.PublishAt = &t
+		}
+	}
+	return out, nil
+}
+
+func ScheduleExistingVideo(ctx context.Context, videoID string, publishAt time.Time) error {
+	if videoID == "" {
+		return fmt.Errorf("youtube schedule: videoID is required")
+	}
+	if publishAt.IsZero() {
+		return fmt.Errorf("youtube schedule: publishAt is required")
+	}
+	client, err := httpClient(ctx)
+	if err != nil {
+		return err
+	}
+	svc, err := youtubeapi.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return fmt.Errorf("youtube: new service: %w", err)
+	}
+	video := &youtubeapi.Video{
+		Id: videoID,
+		Status: &youtubeapi.VideoStatus{
+			PrivacyStatus: "private",
+			PublishAt:     publishAt.UTC().Format(time.RFC3339),
+		},
+	}
+	if _, err := svc.Videos.Update([]string{"status"}, video).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("youtube videos.update schedule: %w", err)
+	}
+	return nil
+}
+
+func ClearExistingVideoSchedule(ctx context.Context, videoID string) error {
+	if videoID == "" {
+		return fmt.Errorf("youtube clear schedule: videoID is required")
+	}
+	client, err := httpClient(ctx)
+	if err != nil {
+		return err
+	}
+	svc, err := youtubeapi.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return fmt.Errorf("youtube: new service: %w", err)
+	}
+	video := &youtubeapi.Video{
+		Id: videoID,
+		Status: &youtubeapi.VideoStatus{
+			PrivacyStatus: "unlisted",
+		},
+	}
+	if _, err := svc.Videos.Update([]string{"status"}, video).Context(ctx).Do(); err != nil {
+		return fmt.Errorf("youtube videos.update clear schedule: %w", err)
+	}
+	return nil
 }
 
 // Upload streams the source video bytes into YouTube via a resumable
