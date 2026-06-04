@@ -157,6 +157,9 @@ func main() {
 			log.Fatal(err)
 		}
 		log.Printf("fetched %d registrations from Notion", len(registrations))
+		if dupes := duplicateRegistrationRefCount(registrations); dupes > 0 {
+			log.Printf("found %d duplicate registration RefIDs in Notion; Postgres keeps one row per RefID", dupes)
+		}
 	}
 
 	var affiliateUsages []*affiliateUsageImportRow

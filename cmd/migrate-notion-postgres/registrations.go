@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -136,10 +137,63 @@ func validateRegistrations(ctx context.Context, pool *pgxpool.Pool, rows []*regi
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM registrations`).Scan(&count); err != nil {
 		return fmt.Errorf("count registrations: %w", err)
 	}
-	if count < len(rows) {
-		return fmt.Errorf("postgres registration count %d is less than Notion count %d", count, len(rows))
+	refs := uniqueRegistrationRefIDs(rows)
+	if count < len(refs) {
+		return fmt.Errorf("postgres registration count %d is less than Notion unique RefID count %d", count, len(refs))
+	}
+	for _, refID := range sortedRegistrationRefIDs(refs) {
+		var exists bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM registrations WHERE ref_id = $1)`, refID).Scan(&exists); err != nil {
+			return fmt.Errorf("validate registration %q: %w", refID, err)
+		}
+		if !exists {
+			return fmt.Errorf("missing registration RefID %q in Postgres", refID)
+		}
 	}
 	return nil
+}
+
+func uniqueRegistrationRefIDs(rows []*registrationImportRow) map[string]struct{} {
+	refs := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		refID := strings.TrimSpace(row.refID)
+		if refID == "" {
+			continue
+		}
+		refs[refID] = struct{}{}
+	}
+	return refs
+}
+
+func sortedRegistrationRefIDs(refs map[string]struct{}) []string {
+	out := make([]string, 0, len(refs))
+	for refID := range refs {
+		out = append(out, refID)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func duplicateRegistrationRefCount(rows []*registrationImportRow) int {
+	counts := make(map[string]int, len(rows))
+	total := 0
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		refID := strings.TrimSpace(row.refID)
+		if refID == "" {
+			continue
+		}
+		counts[refID]++
+		if counts[refID] == 2 {
+			total++
+		}
+	}
+	return total
 }
 
 func parseTextTimestamp(value string) *time.Time {
