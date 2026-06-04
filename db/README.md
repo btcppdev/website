@@ -31,6 +31,19 @@ To rebuild the local database from scratch:
 btcpp_pg_reset
 ```
 
+To replace the local database with a sanitized copy of production:
+
+```sh
+PROD_DATABASE_URL='postgres://...' make db-pull-sanitized
+```
+
+This target must be run inside `nix develop`. It dumps production to a
+temporary custom-format archive, drops and recreates the local database,
+restores the archive into the local Postgres instance, then runs
+`db/sanitize.sql` to remove contact details, live invite tokens, calendar
+notification IDs, source media URIs, notes, coupon codes, and ticket checkout
+IDs.
+
 ## Notion Import
 
 The migration command imports the Notion-backed dataset into Postgres:
