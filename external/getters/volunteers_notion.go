@@ -2,12 +2,33 @@ package getters
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 	"github.com/niftynei/go-notion"
 )
+
+func UpdateVolInfoOrientationNotion(ctx *config.AppContext, volInfoRef string, start, end time.Time, orientLink string) error {
+	if strings.TrimSpace(volInfoRef) == "" {
+		return fmt.Errorf("volinfo ref is required")
+	}
+	endCopy := end
+	props := map[string]*notion.PropertyValue{
+		"OrientTimes": notion.NewDatePropertyValue(&notion.Date{
+			Start: start,
+			End:   &endCopy,
+		}),
+		"OrientLink": notion.NewURLPropertyValue(strings.TrimSpace(orientLink)),
+	}
+	_, err := ctx.Notion.Client.UpdatePageProperties(context.Background(), volInfoRef, props)
+	if err != nil {
+		return fmt.Errorf("notion update VolInfo orientation: %w", err)
+	}
+	return nil
+}
 
 func UpdateVolunteerStatusNotion(ctx *config.AppContext, volRef, status string) error {
 	n := ctx.Notion

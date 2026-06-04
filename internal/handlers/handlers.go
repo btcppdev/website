@@ -6161,7 +6161,7 @@ func adminCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Name and email are required.")), http.StatusSeeOther)
 		return
 	}
-	existing, err := getters.GetSpeakersByEmail(ctx.Notion, email)
+	existing, err := getters.GetSpeakersByEmail(ctx, email)
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/speakers/new lookup %s: %s", conf.Tag, email, err)
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Speaker lookup failed: "+err.Error())), http.StatusSeeOther)
@@ -6197,7 +6197,7 @@ func adminCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 	if hasNewPic {
 		in.Photo = imgproc.ShortID(picRaw) + picExt
 	}
-	speakerID, err := getters.CreateSpeaker(ctx.Notion, in)
+	speakerID, err := getters.CreateSpeaker(ctx, in)
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/speakers/new create %s: %s", conf.Tag, email, err)
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Create failed: "+err.Error())), http.StatusSeeOther)
