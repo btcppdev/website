@@ -121,6 +121,80 @@ func TestPostgresSmokeVolunteerInfoOrientationUpdate(t *testing.T) {
 	}
 }
 
+func TestPostgresSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	tag := "smoke-nairobi-" + postgresSmokeSuffix()
+
+	var confID string
+	err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO conferences (
+			tag, active, description, date_desc, start_date, end_date, timezone, location, venue
+		)
+		VALUES (
+			$1, true, 'Nairobi Smoke Test Conf', 'July 1-2, 2026',
+			'2026-07-01 00:00:00+03', '2026-07-02 23:59:00+03',
+			'Africa/Nairobi', 'Nairobi', 'Smoke Venue'
+		)
+		RETURNING id::text
+	`, tag).Scan(&confID)
+	if err != nil {
+		t.Fatalf("insert nairobi conference: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM conferences WHERE id::text = $1 OR tag = $2`, confID, tag)
+	})
+
+	var confTalkID string
+	err = ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO conf_talks (conference_id, scheduled_start, scheduled_end, venue)
+		VALUES ($1::uuid, '2026-07-01 10:00:00+03', '2026-07-01 10:45:00+03', 'Mainstage')
+		RETURNING id::text
+	`, confID).Scan(&confTalkID)
+	if err != nil {
+		t.Fatalf("insert nairobi conf talk: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM conf_talks WHERE id::text = $1`, confTalkID)
+	})
+
+	originalConfs := confs
+	originalLastConfsFetch := lastConfsFetch
+	t.Cleanup(func() {
+		confs = originalConfs
+		lastConfsFetch = originalLastConfsFetch
+	})
+	confs, err = listConferencesPostgres(ctx)
+	if err != nil {
+		t.Fatalf("listConferencesPostgres: %v", err)
+	}
+	lastConfsFetch = time.Now()
+
+	talks, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.id::text = $1", []interface{}{confTalkID}, map[string]*types.Proposal{})
+	if err != nil {
+		t.Fatalf("queryConfTalksPostgres: %v", err)
+	}
+	if len(talks) != 1 {
+		t.Fatalf("queryConfTalksPostgres returned %d talks, want 1", len(talks))
+	}
+
+	sched := talks[0].Sched
+	if sched == nil || sched.End == nil {
+		t.Fatalf("schedule missing: %+v", talks[0])
+	}
+	if got := sched.Start.Location().String(); got != "Africa/Nairobi" {
+		t.Fatalf("start location = %q, want Africa/Nairobi", got)
+	}
+	if sched.Start.Hour() != 10 || sched.Start.Minute() != 0 {
+		t.Fatalf("start time = %s, want 10:00 Africa/Nairobi", sched.Start)
+	}
+	if got := sched.End.Location().String(); got != "Africa/Nairobi" {
+		t.Fatalf("end location = %q, want Africa/Nairobi", got)
+	}
+	if sched.End.Hour() != 10 || sched.End.Minute() != 45 {
+		t.Fatalf("end time = %s, want 10:45 Africa/Nairobi", *sched.End)
+	}
+}
+
 func postgresSmokeContext(t *testing.T) *config.AppContext {
 	t.Helper()
 	if os.Getenv("BTCPP_POSTGRES_SMOKE") != "1" {

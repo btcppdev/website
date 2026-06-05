@@ -172,9 +172,11 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 		ct.Conf = confByID[confID]
 		ct.Proposal = proposalMap[proposalID]
 		if scheduledStart.Valid {
-			ct.Sched = &types.Times{Start: scheduledStart.Time}
+			start := confTalkTimeInConference(scheduledStart.Time, ct.Conf)
+			ct.Sched = &types.Times{Start: start}
 			if scheduledEnd.Valid {
-				ct.Sched.End = &scheduledEnd.Time
+				end := confTalkTimeInConference(scheduledEnd.Time, ct.Conf)
+				ct.Sched.End = &end
 			}
 		}
 		out = append(out, &ct)
@@ -209,7 +211,9 @@ func updateConfTalkSchedulePostgres(ctx *config.AppContext, confTalkID, venue st
 		if ct == nil || ct.ID != confTalkID {
 			continue
 		}
-		ct.Sched = &types.Times{Start: start, End: &endCopy}
+		cacheStart := confTalkTimeInConference(start, ct.Conf)
+		cacheEnd := confTalkTimeInConference(endCopy, ct.Conf)
+		ct.Sched = &types.Times{Start: cacheStart, End: &cacheEnd}
 		if venue != "" {
 			ct.Venue = venue
 		}
@@ -218,6 +222,13 @@ func updateConfTalkSchedulePostgres(ctx *config.AppContext, confTalkID, venue st
 	confTalkCacheMu.Unlock()
 	InvalidateTalksCache()
 	return nil
+}
+
+func confTalkTimeInConference(t time.Time, conf *types.Conf) time.Time {
+	if conf == nil {
+		return t
+	}
+	return t.In(conf.Loc())
 }
 
 func deleteConfTalkPostgres(ctx *config.AppContext, confTalkID string) error {

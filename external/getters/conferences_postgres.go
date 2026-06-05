@@ -88,16 +88,16 @@ func listConferencesOnlyPostgres(ctx *config.AppContext) ([]*types.Conf, error) 
 		if publicUID != nil {
 			conf.UID = uint64(*publicUID)
 		}
-		if startDate.Valid {
-			conf.StartDate = startDate.Time
-		}
-		if endDate.Valid {
-			conf.EndDate = endDate.Time
-		}
 		if conf.Timezone != "" {
 			if loc, err := time.LoadLocation(conf.Timezone); err == nil {
 				conf.TZ = loc
 			}
+		}
+		if startDate.Valid {
+			conf.StartDate = startDate.Time.In(conf.Loc())
+		}
+		if endDate.Valid {
+			conf.EndDate = endDate.Time.In(conf.Loc())
 		}
 		confs = append(confs, &conf)
 	}
