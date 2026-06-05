@@ -349,5 +349,13 @@ func mediaRendererAvailable() bool {
 			return true
 		}
 	}
+	for _, path := range []string{
+		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		"/Applications/Chromium.app/Contents/MacOS/Chromium",
+	} {
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return true
+		}
+	}
 	return false
 }
