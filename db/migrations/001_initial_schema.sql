@@ -323,6 +323,46 @@ CREATE TRIGGER social_posts_set_updated_at
 BEFORE UPDATE ON social_posts
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+CREATE TABLE youtube_publish_slots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  channel text NOT NULL DEFAULT 'youtube',
+  weekday integer NOT NULL,
+  publish_time time NOT NULL,
+  timezone text NOT NULL DEFAULT 'America/Chicago',
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (channel, weekday, publish_time, timezone),
+  CHECK (channel <> ''),
+  CHECK (weekday >= 0 AND weekday <= 6),
+  CHECK (timezone <> '')
+);
+
+CREATE TRIGGER youtube_publish_slots_set_updated_at
+BEFORE UPDATE ON youtube_publish_slots
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+INSERT INTO youtube_publish_slots (channel, weekday, publish_time, timezone)
+VALUES
+  ('youtube', 1, '10:05', 'America/Chicago'),
+  ('youtube', 1, '14:04', 'America/Chicago'),
+  ('youtube', 1, '19:00', 'America/Chicago'),
+  ('youtube', 2, '10:05', 'America/Chicago'),
+  ('youtube', 2, '14:04', 'America/Chicago'),
+  ('youtube', 2, '19:00', 'America/Chicago'),
+  ('youtube', 3, '10:05', 'America/Chicago'),
+  ('youtube', 3, '14:04', 'America/Chicago'),
+  ('youtube', 3, '19:00', 'America/Chicago'),
+  ('youtube', 4, '10:05', 'America/Chicago'),
+  ('youtube', 4, '14:04', 'America/Chicago'),
+  ('youtube', 4, '19:00', 'America/Chicago'),
+  ('youtube', 5, '10:05', 'America/Chicago'),
+  ('youtube', 5, '14:04', 'America/Chicago'),
+  ('youtube', 5, '19:00', 'America/Chicago'),
+  ('youtube', 6, '14:05', 'America/Chicago'),
+  ('youtube', 0, '17:45', 'America/Chicago')
+ON CONFLICT DO NOTHING;
+
 CREATE TABLE hotels (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   conference_id uuid NOT NULL REFERENCES conferences(id) ON DELETE CASCADE,

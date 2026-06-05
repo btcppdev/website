@@ -366,6 +366,15 @@ type (
 		NotifiedAt       *time.Time
 	}
 
+	YouTubePublishSlot struct {
+		ID        string
+		Channel   string
+		Weekday   time.Weekday
+		TimeOfDay string
+		Timezone  string
+		Active    bool
+	}
+
 	Talk struct {
 		ID          string
 		Name        string

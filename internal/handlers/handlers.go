@@ -1027,6 +1027,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/recordings/x/auth-check", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminXAuthCheck(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/recordings/autoschedule", func(w http.ResponseWriter, r *http.Request) {
+		RecordingsAdminAutoschedulePreview(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/admin/recordings/autoschedule", func(w http.ResponseWriter, r *http.Request) {
+		RecordingsAdminAutoscheduleApply(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/recordings/youtube-slots", func(w http.ResponseWriter, r *http.Request) {
+		RecordingsYouTubeSlots(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminDetail(w, r, app)
 	}).Methods("GET")
