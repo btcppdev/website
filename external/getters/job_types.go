@@ -35,6 +35,29 @@ func FetchJobsCached(ctx *config.AppContext) ([]*types.JobType, error) {
 	return jobs, nil
 }
 
+func ListJobTypes(ctx *config.AppContext) ([]*types.JobType, error) {
+	if UsePostgresBackend(ctx) {
+		return listJobsPostgres(ctx)
+	}
+	return FetchJobsCached(ctx)
+}
+
+func GetJobByTag(ctx *config.AppContext, tag string) (*types.JobType, error) {
+	if UsePostgresBackend(ctx) {
+		return getJobByTagPostgres(ctx, tag)
+	}
+	jobs, err := FetchJobsCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, j := range jobs {
+		if j != nil && j.Tag == tag {
+			return j, nil
+		}
+	}
+	return nil, nil
+}
+
 func ListJobs(n *types.Notion) ([]*types.JobType, error) {
 	return ListJobsNotion(n)
 }

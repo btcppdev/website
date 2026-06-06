@@ -1440,7 +1440,7 @@ func listVolunteerConfs(w http.ResponseWriter, ctx *config.AppContext) []*types.
 func listJobs(w http.ResponseWriter, ctx *config.AppContext) []*types.JobType {
 	var jobs types.JobsList
 	var err error
-	jobs, err = getters.FetchJobsCached(ctx)
+	jobs, err = getters.ListJobTypes(ctx)
 	if err != nil {
 		// FIXME add an internal error page
 		http.Error(w, "Unable to load jobs, please try again later", http.StatusInternalServerError)
@@ -5482,7 +5482,7 @@ func parseShiftFormTimes(conf *types.Conf, dayStr, startStr, endStr string) (tim
 	return start, end, nil
 }
 
-// findJobByTag locates a JobType by its Tag from the cached job list.
+// findJobByTag locates a JobType by its Tag from a loaded job list.
 func findJobByTag(jobs []*types.JobType, tag string) *types.JobType {
 	for _, j := range jobs {
 		if j.Tag == tag {
@@ -5510,7 +5510,7 @@ func VolAdminShifts(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
-	jobs, err := getters.FetchJobsCached(ctx)
+	jobs, err := getters.ListJobTypes(ctx)
 	if err != nil {
 		ctx.Err.Printf("/%s/volcoord/shifts failed to fetch jobs: %s", conf.Tag, err.Error())
 	}
@@ -5703,8 +5703,7 @@ func VolAdminCreateShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 
-	jobs, _ := getters.FetchJobsCached(ctx)
-	jobType := findJobByTag(jobs, jobTag)
+	jobType, _ := getters.GetJobByTag(ctx, jobTag)
 
 	err = getters.CreateShift(ctx, conf, jobType, name, start, end, uint(maxVols), uint(priority))
 	if err != nil {
@@ -5753,8 +5752,7 @@ func VolAdminUpdateShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 
-	jobs, _ := getters.FetchJobsCached(ctx)
-	jobType := findJobByTag(jobs, jobTag)
+	jobType, _ := getters.GetJobByTag(ctx, jobTag)
 
 	err = getters.UpdateShift(ctx, shiftRef, name, jobType, start, end, uint(maxVols), uint(priority))
 	if err != nil {
