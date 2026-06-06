@@ -112,7 +112,7 @@ func AdminEditProposal(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 				Proposal:  proposal,
 				TalkTypes: adminTalkTypes(proposal.TalkType),
 				Durations: adminTalkDurations,
-				Speakers:  resolveProposalSpeakers(proposal),
+				Speakers:  resolveProposalSpeakers(proposal, ctx),
 				InviteURL: inviteURL,
 				FlashErr:  "Couldn't save — see server logs.",
 				ReturnURL: returnURL,
@@ -135,7 +135,7 @@ func AdminEditProposal(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		Proposal:  proposal,
 		TalkTypes: adminTalkTypes(proposal.TalkType),
 		Durations: adminTalkDurations,
-		Speakers:  resolveProposalSpeakers(proposal),
+		Speakers:  resolveProposalSpeakers(proposal, ctx),
 		InviteURL: inviteURL,
 		Flash:     r.URL.Query().Get("flash"),
 		FlashErr:  r.URL.Query().Get("error"),
@@ -256,8 +256,10 @@ func AdminEditProposalAttachSpeaker(w http.ResponseWriter, r *http.Request, ctx 
 		// Re-fetch the proposal so SpeakerConfRefs has the
 		// new attachment.
 		if fresh, ferr := getters.GetProposal(ctx, proposalID); ferr == nil && fresh != nil {
-			speakers := proposalSpeakers(fresh)
-			if dErr := DispatchTalkICSForProposal(ctx, fresh, conf, speakers, true); dErr != nil {
+			speakers, serr := proposalSpeakers(ctx, fresh)
+			if serr != nil {
+				ctx.Err.Printf("/%s/admin/proposal/%s/speakers/attach speakers: %s", conf.Tag, proposalID, serr)
+			} else if dErr := DispatchTalkICSForProposal(ctx, fresh, conf, speakers, true); dErr != nil {
 				ctx.Err.Printf("/%s/admin/proposal/%s/speakers/attach cal-fire: %s", conf.Tag, proposalID, dErr)
 			}
 		}

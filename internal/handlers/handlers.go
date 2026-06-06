@@ -1757,7 +1757,11 @@ func acceptedSpeakersForConf(ctx *config.AppContext, confTag string, talks []*ty
 			continue
 		}
 		for _, ref := range p.SpeakerConfRefs {
-			sc := getters.FetchSpeakerConfByID(ref)
+			sc, err := getters.GetSpeakerConfByID(ctx, ref)
+			if err != nil {
+				ctx.Err.Printf("acceptedSpeakersForConf %s speakerconf %s: %s", confTag, ref, err)
+				continue
+			}
 			if sc == nil || sc.Speaker == nil {
 				continue
 			}
@@ -6048,7 +6052,7 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		if p == nil {
 			continue
 		}
-		for _, sc := range resolveProposalSpeakers(p) {
+		for _, sc := range resolveProposalSpeakers(p, ctx) {
 			if sc == nil || sc.Speaker == nil {
 				continue
 			}
@@ -6613,7 +6617,7 @@ func adminUpdateSpeakerConfPOST(w http.ResponseWriter, r *http.Request, ctx *con
 
 func speakerIsOnConf(ctx *config.AppContext, conf *types.Conf, speakerID string) bool {
 	for _, p := range loadConfProposals(ctx, conf) {
-		for _, sc := range resolveProposalSpeakers(p) {
+		for _, sc := range resolveProposalSpeakers(p, ctx) {
 			if sc != nil && sc.Speaker != nil && sc.Speaker.ID == speakerID {
 				return true
 			}
@@ -7056,7 +7060,7 @@ func talksForSpeakerMediaRefresh(ctx *config.AppContext, conf *types.Conf, speak
 			continue
 		}
 		var matched bool
-		for _, sc := range resolveProposalSpeakers(p) {
+		for _, sc := range resolveProposalSpeakers(p, ctx) {
 			if sc != nil && sc.Speaker != nil && sc.Speaker.ID == speakerID {
 				matched = true
 				break
@@ -7072,12 +7076,12 @@ func talksForSpeakerMediaRefresh(ctx *config.AppContext, conf *types.Conf, speak
 		if ct == nil {
 			continue
 		}
-		out = append(out, talkForAdminMediaRefresh(conf, p, ct))
+		out = append(out, talkForAdminMediaRefresh(ctx, conf, p, ct))
 	}
 	return out, nil
 }
 
-func talkForAdminMediaRefresh(conf *types.Conf, proposal *types.Proposal, ct *types.ConfTalk) *types.Talk {
+func talkForAdminMediaRefresh(ctx *config.AppContext, conf *types.Conf, proposal *types.Proposal, ct *types.ConfTalk) *types.Talk {
 	talk := &types.Talk{
 		ID:          ct.ID,
 		Name:        proposal.Title,
@@ -7095,7 +7099,7 @@ func talkForAdminMediaRefresh(conf *types.Conf, proposal *types.Proposal, ct *ty
 	if talk.Sched != nil {
 		talk.TimeDesc = talk.Sched.Desc()
 	}
-	for _, sc := range resolveProposalSpeakers(proposal) {
+	for _, sc := range resolveProposalSpeakers(proposal, ctx) {
 		if sc == nil || sc.Speaker == nil {
 			continue
 		}
@@ -7235,7 +7239,15 @@ func AdminProposalSendCal(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
-	speakers := proposalSpeakers(proposal)
+	speakers, err := proposalSpeakers(ctx, proposal)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/proposals/%s/sendcal speakers: %s", conf.Tag, proposalID, err)
+		http.Redirect(w, r,
+			fmt.Sprintf("/%s/admin/applicants?flash=%s",
+				conf.Tag, url.QueryEscape("Cal invite failed: "+err.Error())),
+			http.StatusSeeOther)
+		return
+	}
 	if err := DispatchTalkICSForProposal(ctx, proposal, conf, speakers, true); err != nil {
 		ctx.Err.Printf("/%s/admin/proposals/%s/sendcal: %s", conf.Tag, proposalID, err)
 		http.Redirect(w, r,
@@ -7263,25 +7275,26 @@ func AdminProposalSendCal(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.StatusSeeOther)
 }
 
-// proposalSpeakers walks proposal.SpeakerConfRefs through the
-// warm SpeakerConf cache and returns the *Speaker for each. Used
-// by per-proposal cal-invite dispatch where the page-level
-// speakers map isn't already in scope. Distinct from
-// resolveProposalSpeakers (admin_review.go), which returns
-// SpeakerConf wrappers — here we only need the bare Speaker.
-func proposalSpeakers(proposal *types.Proposal) []*types.Speaker {
+// proposalSpeakers walks proposal.SpeakerConfRefs and returns the *Speaker for
+// each. Used by per-proposal cal-invite dispatch where the page-level speakers
+// map isn't already in scope. Distinct from resolveProposalSpeakers
+// (admin_review.go), which returns SpeakerConf wrappers.
+func proposalSpeakers(ctx *config.AppContext, proposal *types.Proposal) ([]*types.Speaker, error) {
 	if proposal == nil {
-		return nil
+		return nil, nil
 	}
 	out := make([]*types.Speaker, 0, len(proposal.SpeakerConfRefs))
 	for _, ref := range proposal.SpeakerConfRefs {
-		sc := getters.FetchSpeakerConfByID(ref)
+		sc, err := getters.GetSpeakerConfByID(ctx, ref)
+		if err != nil {
+			return nil, fmt.Errorf("speaker conf %s: %w", ref, err)
+		}
 		if sc == nil || sc.Speaker == nil {
 			continue
 		}
 		out = append(out, sc.Speaker)
 	}
-	return out
+	return out, nil
 }
 
 func ProposalAdminBulkEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

@@ -119,7 +119,11 @@ func fanoutAcceptedProposal(ctx *config.AppContext, proposal *types.Proposal, co
 	}
 	now := time.Now()
 	for _, ref := range proposal.SpeakerConfRefs {
-		sc := getters.FetchSpeakerConfByID(ref)
+		sc, err := getters.GetSpeakerConfByID(ctx, ref)
+		if err != nil {
+			ctx.Err.Printf("fanoutAcceptedProposal %s: speakerconf %s: %s", proposal.ID, ref, err)
+			continue
+		}
 		if sc == nil || sc.Speaker == nil || sc.Speaker.Email == "" {
 			continue
 		}

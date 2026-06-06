@@ -260,14 +260,16 @@ func SendOnlyForProposal(ctx *config.AppContext, onlyFor string, proposal *types
 
 	// Resolve all SpeakerConfs (and their Speakers) for the proposal.
 	// proposal.Speakers is populated by the dashboard enricher but
-	// may be empty in admin paths — fall back to FetchSpeakerConfByID
-	// on the cached lookup.
+	// may be empty in admin paths, so resolve refs directly.
 	scs := make([]*types.SpeakerConf, 0, len(proposal.SpeakerConfRefs))
 	speakers := make([]*types.Speaker, 0, len(proposal.SpeakerConfRefs))
 	for _, ref := range proposal.SpeakerConfRefs {
-		sc := getters.FetchSpeakerConfByID(ref)
+		sc, err := getters.GetSpeakerConfByID(ctx, ref)
+		if err != nil {
+			return fmt.Errorf("speaker conf %s: %w", ref, err)
+		}
 		if sc == nil {
-			ctx.Err.Printf("SendOnlyForProposal: SpeakerConf %s not in cache — skip", ref)
+			ctx.Err.Printf("SendOnlyForProposal: SpeakerConf %s not found — skip", ref)
 			continue
 		}
 		scs = append(scs, sc)

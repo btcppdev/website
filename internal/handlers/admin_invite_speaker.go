@@ -208,7 +208,12 @@ func AdminInviteSpeakerSent(w http.ResponseWriter, r *http.Request, ctx *config.
 	var recipient *types.Speaker
 	var latest *time.Time
 	for _, ref := range proposal.SpeakerConfRefs {
-		sc := getters.FetchSpeakerConfByID(ref)
+		sc, err := getters.GetSpeakerConfByID(ctx, ref)
+		if err != nil {
+			ctx.Err.Printf("/%s/admin/invite-speaker/sent speakerconf %s: %s", conf.Tag, ref, err)
+			http.Error(w, "render failed", http.StatusInternalServerError)
+			return
+		}
 		if sc == nil || sc.Speaker == nil {
 			continue
 		}

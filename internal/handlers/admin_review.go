@@ -163,7 +163,7 @@ func ReviewProposals(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	}
 	if current != nil {
 		page.Current = current
-		page.Speakers = resolveProposalSpeakers(current)
+		page.Speakers = resolveProposalSpeakers(current, ctx)
 		// Pre-compute the next URL so the action POSTs can simply pick
 		// it off the page; saves recomputing in each handler.
 		if next := nextProposalAfter(pending, current.ID); next != nil {
@@ -232,8 +232,10 @@ func ReviewProposalAction(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		// when the proposal has no ConfTalk or no CalNotif —
 		// nothing was ever invited, nothing to cancel.
 		if action.Status == "WeDecline" || action.Status == "TheyDecline" || action.Status == "Rejected" {
-			speakers := proposalSpeakers(proposal)
-			if cancelErr := DispatchTalkICSCancelForProposal(ctx, proposal, conf, speakers); cancelErr != nil {
+			speakers, serr := proposalSpeakers(ctx, proposal)
+			if serr != nil {
+				ctx.Err.Printf("/%s/admin/review %s speakers %q: %s", conf.Tag, action.Status, proposal.Title, serr)
+			} else if cancelErr := DispatchTalkICSCancelForProposal(ctx, proposal, conf, speakers); cancelErr != nil {
 				ctx.Err.Printf("/%s/admin/review %s cancel-cal %q: %s", conf.Tag, action.Status, proposal.Title, cancelErr)
 			}
 		}
@@ -347,8 +349,10 @@ func AdminCancelTalk(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	// Pull the talk off attendees' calendars. Silent no-op when
 	// CalNotif is empty (talk was Accepted but never had its
 	// invite fanned out).
-	speakers := proposalSpeakers(proposal)
-	if cancelErr := DispatchTalkICSCancelForProposal(ctx, proposal, conf, speakers); cancelErr != nil {
+	speakers, serr := proposalSpeakers(ctx, proposal)
+	if serr != nil {
+		ctx.Err.Printf("/%s/admin/applicants/%s/cancel speakers: %s", conf.Tag, proposalID, serr)
+	} else if cancelErr := DispatchTalkICSCancelForProposal(ctx, proposal, conf, speakers); cancelErr != nil {
 		ctx.Err.Printf("/%s/admin/applicants/%s/cancel cancel-cal: %s", conf.Tag, proposalID, cancelErr)
 	}
 
@@ -387,7 +391,12 @@ func AdminResendSpeakerTickets(w http.ResponseWriter, r *http.Request, ctx *conf
 			continue
 		}
 		for _, ref := range p.SpeakerConfRefs {
-			sc := getters.FetchSpeakerConfByID(ref)
+			sc, err := getters.GetSpeakerConfByID(ctx, ref)
+			if err != nil {
+				ctx.Err.Printf("/%s/admin/review/speaker-tickets speakerconf %s: %s", conf.Tag, ref, err)
+				failed++
+				continue
+			}
 			if sc == nil || sc.Speaker == nil || sc.Speaker.Email == "" {
 				continue
 			}
@@ -512,7 +521,9 @@ func AdminProposalRemoveSpeaker(w http.ResponseWriter, r *http.Request, ctx *con
 	// "you've been removed" calendar update; the remaining-
 	// speaker REQUEST below still fires).
 	var removedEmail, removedName string
-	if sc := getters.FetchSpeakerConfByID(speakerConfID); sc != nil && sc.Speaker != nil {
+	if sc, err := getters.GetSpeakerConfByID(ctx, speakerConfID); err != nil {
+		ctx.Err.Printf("/%s/admin/proposal/%s remove speaker %s lookup: %s", conf.Tag, proposalID, speakerConfID, err)
+	} else if sc != nil && sc.Speaker != nil {
 		removedEmail = sc.Speaker.Email
 		removedName = sc.Speaker.Name
 	}
@@ -546,8 +557,10 @@ func AdminProposalRemoveSpeaker(w http.ResponseWriter, r *http.Request, ctx *con
 	// removal we just landed. Pass the trimmed slice into the
 	// dispatch helper as the "remaining" attendees.
 	if proposal, perr := getters.GetProposal(ctx, proposalID); perr == nil && proposal != nil {
-		remaining := proposalSpeakers(proposal)
-		if dErr := DispatchTalkICSRemoved(ctx, proposal, conf, removedEmail, removedName, remaining); dErr != nil {
+		remaining, serr := proposalSpeakers(ctx, proposal)
+		if serr != nil {
+			ctx.Err.Printf("/%s/admin/proposal/%s remove-speaker speakers: %s", conf.Tag, proposalID, serr)
+		} else if dErr := DispatchTalkICSRemoved(ctx, proposal, conf, removedEmail, removedName, remaining); dErr != nil {
 			ctx.Err.Printf("/%s/admin/proposal/%s remove-speaker cal-fire: %s", conf.Tag, proposalID, dErr)
 		}
 	}
@@ -628,16 +641,32 @@ func nextProposalAfter(pending []*types.Proposal, fromID string) *types.Proposal
 	return nil
 }
 
-// resolveProposalSpeakers returns the SpeakerConf objects for every
-// speaker on the proposal, fully resolved (Speaker pointer attached).
-// Reads from the warm SpeakerConf cache; misses are skipped.
-func resolveProposalSpeakers(p *types.Proposal) []*types.SpeakerConf {
+// resolveProposalSpeakers returns the SpeakerConf objects for every speaker on
+// the proposal, fully resolved (Speaker pointer attached). When ctx is supplied
+// and Postgres is active, it uses direct reads; no-context callers keep the
+// legacy cache-backed behavior.
+func resolveProposalSpeakers(p *types.Proposal, ctxs ...*config.AppContext) []*types.SpeakerConf {
 	if p == nil {
 		return nil
 	}
+	var ctx *config.AppContext
+	if len(ctxs) > 0 {
+		ctx = ctxs[0]
+	}
 	out := make([]*types.SpeakerConf, 0, len(p.SpeakerConfRefs))
 	for _, ref := range p.SpeakerConfRefs {
-		if sc := getters.FetchSpeakerConfByID(ref); sc != nil {
+		var sc *types.SpeakerConf
+		if ctx != nil {
+			var err error
+			sc, err = getters.GetSpeakerConfByID(ctx, ref)
+			if err != nil {
+				ctx.Err.Printf("resolveProposalSpeakers %s speakerconf %s: %s", p.ID, ref, err)
+				continue
+			}
+		} else {
+			sc = getters.FetchSpeakerConfByID(ref)
+		}
+		if sc != nil {
 			out = append(out, sc)
 		}
 	}

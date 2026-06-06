@@ -87,6 +87,13 @@ func FetchSpeakerConfByID(id string) *types.SpeakerConf {
 	return speakerConfByID[id]
 }
 
+func GetSpeakerConfByID(ctx *config.AppContext, id string) (*types.SpeakerConf, error) {
+	if UsePostgresBackend(ctx) {
+		return fetchSpeakerConfWithSpeakerPostgres(ctx, id)
+	}
+	return FetchSpeakerConfByID(id), nil
+}
+
 func InvalidateSpeakerConfsCache() {
 	speakerConfCacheMu.Lock()
 	lastSpeakerConfFetch = time.Time{}

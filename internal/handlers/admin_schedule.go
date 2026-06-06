@@ -89,7 +89,12 @@ func ScheduleSendCalUpdates(w http.ResponseWriter, r *http.Request, ctx *config.
 			skippedClean++
 			continue
 		}
-		speakers := proposalSpeakers(p)
+		speakers, err := proposalSpeakers(ctx, p)
+		if err != nil {
+			ctx.Err.Printf("/%s/admin/schedule/sendcal-updates speakers %q: %s", conf.Tag, p.Title, err)
+			failed++
+			continue
+		}
 		if err := DispatchTalkICSForProposal(ctx, p, conf, speakers, false); err != nil {
 			ctx.Err.Printf("/%s/admin/schedule/sendcal-updates %q: %s", conf.Tag, p.Title, err)
 			failed++
@@ -588,7 +593,7 @@ func buildSchedulePage(ctx *config.AppContext, conf *types.Conf) (*AdminSchedule
 		if !schedulableStatuses[p.Status] {
 			continue
 		}
-		sp := newScheduleProposal(p)
+		sp := newScheduleProposal(ctx, p)
 		sp.AvailDays, sp.NoAvail = intersectAvailability(sp.Speakers, conf)
 		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
 		if err != nil {
@@ -654,7 +659,7 @@ func buildSchedulePage(ctx *config.AppContext, conf *types.Conf) (*AdminSchedule
 // get a Q&A buffer; everything else == DesiredMin). Once placed, the
 // schedule handler overwrites ActualMin with whatever the
 // ConfTalk.Sched range says.
-func newScheduleProposal(p *types.Proposal) *ScheduleProposal {
+func newScheduleProposal(ctx *config.AppContext, p *types.Proposal) *ScheduleProposal {
 	desired := p.DesiredDuration
 	if desired <= 0 {
 		desired = 30
@@ -665,7 +670,7 @@ func newScheduleProposal(p *types.Proposal) *ScheduleProposal {
 	}
 	return &ScheduleProposal{
 		Proposal:   p,
-		Speakers:   resolveProposalSpeakers(p),
+		Speakers:   resolveProposalSpeakers(p, ctx),
 		DesiredMin: desired,
 		ActualMin:  actual,
 	}
