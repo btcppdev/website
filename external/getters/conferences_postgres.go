@@ -11,7 +11,7 @@ import (
 )
 
 func listConferencesPostgres(ctx *config.AppContext) ([]*types.Conf, error) {
-	confs, err := listConferencesOnlyPostgres(ctx)
+	confs, err := queryConferencesOnlyPostgres(ctx, "conferences", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,64 @@ func listConferencesPostgres(ctx *config.AppContext) ([]*types.Conf, error) {
 	return confs, nil
 }
 
+func getConferenceByTagPostgres(ctx *config.AppContext, tag string) (*types.Conf, error) {
+	confs, err := queryConferencesOnlyPostgres(ctx, "conference by tag", "WHERE tag = $1", []any{tag})
+	if err != nil || len(confs) == 0 {
+		return nil, err
+	}
+	if err := hydrateConferenceTicketsPostgres(ctx, confs); err != nil {
+		return nil, err
+	}
+	return confs[0], nil
+}
+
+func getConferenceByRefPostgres(ctx *config.AppContext, ref string) (*types.Conf, error) {
+	confs, err := queryConferencesOnlyPostgres(ctx, "conference by ref", "WHERE id::text = $1", []any{ref})
+	if err != nil || len(confs) == 0 {
+		return nil, err
+	}
+	if err := hydrateConferenceTicketsPostgres(ctx, confs); err != nil {
+		return nil, err
+	}
+	return confs[0], nil
+}
+
+func hydrateConferenceTicketsPostgres(ctx *config.AppContext, confs []*types.Conf) error {
+	refs := make([]string, 0, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			refs = append(refs, conf.Ref)
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	tickets, err := queryConfTicketsPostgres(ctx, "conference tickets for conferences", "WHERE conference_id::text = ANY($1::text[])", []any{refs})
+	if err != nil {
+		return err
+	}
+	confByID := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			confByID[conf.Ref] = conf
+		}
+	}
+	for _, ticket := range tickets {
+		if ticket == nil {
+			continue
+		}
+		if conf := confByID[ticket.ConfRef]; conf != nil {
+			conf.Tickets = append(conf.Tickets, ticket)
+		}
+	}
+	return nil
+}
+
 func listConferencesOnlyPostgres(ctx *config.AppContext) ([]*types.Conf, error) {
+	return queryConferencesOnlyPostgres(ctx, "conferences", "", nil)
+}
+
+func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL string, args []any) ([]*types.Conf, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
@@ -48,10 +105,11 @@ func listConferencesOnlyPostgres(ctx *config.AppContext) ([]*types.Conf, error) 
 			venue_map_url, venue_website_url, show_hackathon, has_satellites,
 			orient_cal_notif
 		FROM conferences
+		`+whereSQL+`
 		ORDER BY start_date NULLS LAST, tag
-	`)
+	`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query conferences: %w", err)
+		return nil, fmt.Errorf("query %s: %w", label, err)
 	}
 	defer rows.Close()
 
@@ -83,7 +141,7 @@ func listConferencesOnlyPostgres(ctx *config.AppContext) ([]*types.Conf, error) 
 			&conf.OrientCalNotif,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("scan conference: %w", err)
+			return nil, fmt.Errorf("scan %s: %w", label, err)
 		}
 		if publicUID != nil {
 			conf.UID = uint64(*publicUID)
@@ -102,12 +160,16 @@ func listConferencesOnlyPostgres(ctx *config.AppContext) ([]*types.Conf, error) 
 		confs = append(confs, &conf)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate conferences: %w", err)
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
 	}
 	return confs, nil
 }
 
 func listConfTicketsPostgres(ctx *config.AppContext) ([]*types.ConfTicket, error) {
+	return queryConfTicketsPostgres(ctx, "conference tickets", "", nil)
+}
+
+func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL string, args []any) ([]*types.ConfTicket, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
@@ -115,10 +177,11 @@ func listConfTicketsPostgres(ctx *config.AppContext) ([]*types.ConfTicket, error
 		SELECT id::text, conference_id::text, tier, local_price, btc_price, usd_price,
 			expires_start, expires_end, max_count, currency, symbol, post_symbol
 		FROM conference_tickets
+		`+whereSQL+`
 		ORDER BY expires_start NULLS LAST, tier
-	`)
+	`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query conference tickets: %w", err)
+		return nil, fmt.Errorf("query %s: %w", label, err)
 	}
 	defer rows.Close()
 
@@ -143,7 +206,7 @@ func listConfTicketsPostgres(ctx *config.AppContext) ([]*types.ConfTicket, error
 			&ticket.PostSymbol,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("scan conference ticket: %w", err)
+			return nil, fmt.Errorf("scan %s: %w", label, err)
 		}
 		ticket.Local = uint(localPrice)
 		ticket.BTC = uint(btcPrice)
@@ -159,7 +222,7 @@ func listConfTicketsPostgres(ctx *config.AppContext) ([]*types.ConfTicket, error
 		tickets = append(tickets, &ticket)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate conference tickets: %w", err)
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
 	}
 	return tickets, nil
 }

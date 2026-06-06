@@ -52,6 +52,38 @@ func FetchConfsCached(ctx *config.AppContext) ([]*types.Conf, error) {
 	return confs, nil
 }
 
+func GetConfByTag(ctx *config.AppContext, tag string) (*types.Conf, error) {
+	if UsePostgresBackend(ctx) {
+		return getConferenceByTagPostgres(ctx, tag)
+	}
+	confs, err := FetchConfsCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, conf := range confs {
+		if conf != nil && conf.Tag == tag {
+			return conf, nil
+		}
+	}
+	return nil, nil
+}
+
+func GetConfByRef(ctx *config.AppContext, ref string) (*types.Conf, error) {
+	if UsePostgresBackend(ctx) {
+		return getConferenceByRefPostgres(ctx, ref)
+	}
+	confs, err := FetchConfsCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, conf := range confs {
+		if conf != nil && conf.Ref == ref {
+			return conf, nil
+		}
+	}
+	return nil, nil
+}
+
 func ListConfTickets(n *types.Notion) ([]*types.ConfTicket, error) {
 	return ListConfTicketsNotion(n)
 }

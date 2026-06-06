@@ -220,14 +220,12 @@ func FindConf(r *http.Request, app *config.AppContext) (*types.Conf, error) {
 	params := mux.Vars(r)
 	confTag := params["conf"]
 
-	confs, err := getters.FetchConfsCached(app)
+	conf, err := getters.GetConfByTag(app, confTag)
 	if err != nil {
 		return nil, err
 	}
-	for _, conf := range confs {
-		if conf.Tag == confTag {
-			return conf, nil
-		}
+	if conf != nil {
+		return conf, nil
 	}
 
 	return nil, fmt.Errorf("'%s' not found (url: %s)", confTag, r.URL.String())
