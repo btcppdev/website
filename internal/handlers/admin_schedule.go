@@ -70,7 +70,12 @@ func ScheduleSendCalUpdates(w http.ResponseWriter, r *http.Request, ctx *config.
 		if p.Status != StatusAccepted && p.Status != StatusScheduled {
 			continue
 		}
-		ct := getters.FetchConfTalkByProposal(p.ID)
+		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+		if err != nil {
+			ctx.Err.Printf("/%s/admin/schedule/sendcal-updates lookup %q: %s", conf.Tag, p.Title, err)
+			failed++
+			continue
+		}
 		// Only act on talks that are placed on the grid —
 		// no Sched means no event to invite anyone to.
 		if ct == nil || ct.Sched == nil {
@@ -215,15 +220,11 @@ func SchedulePlace(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		dur = 30 // fallback when the applicant didn't specify
 	}
 	confTalkID := ""
-	existing := getters.FetchConfTalkByProposal(req.ProposalID)
-	if existing == nil {
-		var lookupErr error
-		existing, lookupErr = getters.GetConfTalkByProposal(ctx, req.ProposalID)
-		if lookupErr != nil {
-			ctx.Err.Printf("/%s/admin/schedule lookup conftalk: %s", conf.Tag, lookupErr)
-			http.Error(w, "lookup failed", http.StatusInternalServerError)
-			return
-		}
+	existing, err := getters.GetConfTalkByProposal(ctx, req.ProposalID)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/schedule lookup existing: %s", conf.Tag, err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
 	}
 	if existing != nil {
 		confTalkID = existing.ID
@@ -263,7 +264,11 @@ func SchedulePlace(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	// Scheduled talks). Drift is surfaced visually via the
 	// orange tint on each card.
 	hasDrift := false
-	if ct, err := getters.GetConfTalkByProposal(ctx, req.ProposalID); err == nil && ct != nil {
+	if ct, err := getters.GetConfTalkByProposal(ctx, req.ProposalID); err != nil {
+		ctx.Err.Printf("/%s/admin/schedule lookup updated: %s", conf.Tag, err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	} else if ct != nil {
 		hasDrift = computeScheduleDrift(ct, proposal, conf)
 	}
 
@@ -307,7 +312,12 @@ func ScheduleResize(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
-	ct := getters.FetchConfTalkByProposal(req.ProposalID)
+	ct, err := getters.GetConfTalkByProposal(ctx, req.ProposalID)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/schedule resize lookup: %s", conf.Tag, err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	}
 	if ct == nil || ct.Sched == nil {
 		http.Error(w, "talk isn't currently scheduled", http.StatusConflict)
 		return
@@ -323,7 +333,11 @@ func ScheduleResize(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	// No auto-fire — drift is surfaced visually; updates
 	// propagate via the explicit "Send Cal Updates" button.
 	hasDrift := false
-	if updated := getters.FetchConfTalkByProposal(req.ProposalID); updated != nil {
+	if updated, err := getters.GetConfTalkByProposal(ctx, req.ProposalID); err != nil {
+		ctx.Err.Printf("/%s/admin/schedule resize updated lookup: %s", conf.Tag, err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	} else if updated != nil {
 		if proposal, perr := getters.GetProposal(ctx, req.ProposalID); perr == nil && proposal != nil {
 			hasDrift = computeScheduleDrift(updated, proposal, conf)
 		}
@@ -362,7 +376,12 @@ func ScheduleUnplace(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return
 	}
 
-	ct := getters.FetchConfTalkByProposal(req.ProposalID)
+	ct, err := getters.GetConfTalkByProposal(ctx, req.ProposalID)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/schedule unplace lookup: %s", conf.Tag, err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	}
 	if ct == nil {
 		// Already not on the grid — nothing to do, idempotent OK.
 		w.WriteHeader(http.StatusOK)
@@ -571,7 +590,10 @@ func buildSchedulePage(ctx *config.AppContext, conf *types.Conf) (*AdminSchedule
 		}
 		sp := newScheduleProposal(p)
 		sp.AvailDays, sp.NoAvail = intersectAvailability(sp.Speakers, conf)
-		ct := getters.FetchConfTalkByProposal(p.ID)
+		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("lookup conftalk for proposal %s: %w", p.ID, err)
+		}
 		if ct == nil || ct.Sched == nil || ct.Venue == "" {
 			unscheduled = append(unscheduled, sp)
 			continue

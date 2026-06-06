@@ -58,7 +58,12 @@ func AdminCliparts(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		if p == nil {
 			continue
 		}
-		ct := getters.FetchConfTalkByProposal(p.ID)
+		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+		if err != nil {
+			ctx.Err.Printf("/%s/admin/cliparts conftalk %s: %s", conf.Tag, p.ID, err)
+			http.Error(w, "Unable to load cliparts", http.StatusInternalServerError)
+			return
+		}
 		switch p.Status {
 		case StatusAccepted, StatusScheduled:
 			// always include — ConfTalk may not exist yet
@@ -164,7 +169,12 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 	// scheduling, so accept the cost of a CreateConfTalk here when
 	// the row doesn't exist yet.
 	confTalkID := ""
-	if ct := getters.FetchConfTalkByProposal(proposalID); ct != nil {
+	ct, err := getters.GetConfTalkByProposal(ctx, proposalID)
+	if err != nil {
+		bail("Couldn't load talk: " + err.Error())
+		return
+	}
+	if ct != nil {
 		confTalkID = ct.ID
 	}
 	if confTalkID == "" {

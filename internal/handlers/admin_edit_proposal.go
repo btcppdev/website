@@ -250,7 +250,9 @@ func AdminEditProposalAttachSpeaker(w http.ResponseWriter, r *http.Request, ctx 
 	// rest of the speaker cohort. force=true bumps SEQUENCE so
 	// existing-speaker calendars treat the same event as having
 	// a new attendee list.
-	if ct := getters.FetchConfTalkByProposal(proposalID); ct != nil && ct.CalNotif != "" {
+	if ct, err := getters.GetConfTalkByProposal(ctx, proposalID); err != nil {
+		ctx.Err.Printf("/%s/admin/proposal/%s/speakers/attach conftalk lookup: %s", conf.Tag, proposalID, err)
+	} else if ct != nil && ct.CalNotif != "" {
 		// Re-fetch the proposal so SpeakerConfRefs has the
 		// new attachment.
 		if fresh, ferr := getters.GetProposal(ctx, proposalID); ferr == nil && fresh != nil {

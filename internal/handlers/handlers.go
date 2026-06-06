@@ -6085,9 +6085,15 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 			if p.Status == StatusScheduled {
 				row.Scheduled = true
 			}
-			if ct := getters.FetchConfTalkByProposal(p.ID); ct != nil {
-				row.Scheduled = true
-				if row.CardURL == "" {
+			if row.CardURL == "" {
+				ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+				if err != nil {
+					ctx.Err.Printf("/%s/speakers conftalk %s: %s", conf.Tag, p.ID, err)
+					http.Error(w, "Unable to load speakers", http.StatusInternalServerError)
+					return
+				}
+				if ct != nil {
+					row.Scheduled = true
 					row.CardURL = SpeakerCardURL(ctx, conf.Tag, "insta", sp.ID, ct.ID)
 				}
 			}
@@ -6933,9 +6939,12 @@ func loadProposalRowsForConf(ctx *config.AppContext, conf *types.Conf) ([]*Propo
 		}
 
 		// Pull the ConfTalk if this proposal has been scheduled.
-		// FetchConfTalkByProposal hits the warm cache; nil when
-		// the proposal isn't in the schedule yet.
-		if ct := getters.FetchConfTalkByProposal(p.ID); ct != nil {
+		// Nil means the proposal isn't in the schedule yet.
+		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("lookup conftalk for proposal %s: %w", p.ID, err)
+		}
+		if ct != nil {
 			row.ConfTalk = ct
 			row.TalkCardURL = TalkCardURL(ctx, conf.Tag, "1080p", ct.ID)
 			if ct.Sched != nil {
@@ -7056,7 +7065,10 @@ func talksForSpeakerMediaRefresh(ctx *config.AppContext, conf *types.Conf, speak
 		if !matched {
 			continue
 		}
-		ct := getters.FetchConfTalkByProposal(p.ID)
+		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("lookup conftalk for proposal %s: %w", p.ID, err)
+		}
 		if ct == nil {
 			continue
 		}
