@@ -238,14 +238,15 @@ func AdminInviteSpeakerSent(w http.ResponseWriter, r *http.Request, ctx *config.
 func resolveOrCreateSpeaker(ctx *config.AppContext, speakerID, name, email string) (*types.Speaker, error) {
 	if speakerID != "" {
 		// Autocomplete supplied an ID; trust it but fall back to lookup
-		// if cache misses.
-		for _, s := range getters.SearchSpeakersByNameOrEmail(email, 10) {
-			if s != nil && s.ID == speakerID {
-				return s, nil
-			}
+		// if the row disappeared.
+		speaker, err := getters.FetchSpeakerByID(ctx, speakerID)
+		if err != nil {
+			return nil, fmt.Errorf("lookup by id: %w", err)
 		}
-		// Fall through — the picked speaker disappeared from cache for
-		// some reason; treat as if no ID was picked.
+		if speaker != nil {
+			return speaker, nil
+		}
+		// Fall through: treat as if no ID was picked.
 	}
 	matches, err := getters.GetSpeakersByEmail(ctx, email)
 	if err != nil {

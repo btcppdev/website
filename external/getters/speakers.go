@@ -97,11 +97,15 @@ func GetSpeakersByEmail(ctx *config.AppContext, email string) ([]*types.Speaker,
 }
 
 // SearchSpeakersByNameOrEmail returns up to limit Speakers whose Name or Email
-// contains q (case-insensitive substring). Cache-only.
-func SearchSpeakersByNameOrEmail(q string, limit int) []*types.Speaker {
+// contains q (case-insensitive substring).
+func SearchSpeakersByNameOrEmail(ctx *config.AppContext, q string, limit int) ([]*types.Speaker, error) {
+	if UsePostgresBackend(ctx) {
+		return searchSpeakersByNameOrEmailPostgres(ctx, q, limit)
+	}
+
 	q = strings.TrimSpace(strings.ToLower(q))
 	if q == "" {
-		return nil
+		return nil, nil
 	}
 	out := make([]*types.Speaker, 0, limit)
 	for _, s := range cacheSpeakers {
@@ -116,7 +120,7 @@ func SearchSpeakersByNameOrEmail(q string, limit int) []*types.Speaker {
 			}
 		}
 	}
-	return out
+	return out, nil
 }
 
 func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
@@ -250,9 +254,32 @@ func patchCachedSpeaker(speakerID string, up SpeakerUpdate) {
 	}
 }
 
-// AllCachedSpeakers returns the in-memory Speaker slice. Don't mutate it.
-func AllCachedSpeakers() []*types.Speaker {
-	return cacheSpeakers
+func ListSpeakersWithRole(ctx *config.AppContext, role string) ([]*types.Speaker, error) {
+	if UsePostgresBackend(ctx) {
+		return listSpeakersWithRolePostgres(ctx, role)
+	}
+
+	role = strings.TrimSpace(role)
+	if role == "" {
+		return nil, nil
+	}
+	speakers, err := FetchSpeakersCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []*types.Speaker
+	for _, speaker := range speakers {
+		if speaker == nil {
+			continue
+		}
+		for _, speakerRole := range speaker.Roles {
+			if strings.EqualFold(strings.TrimSpace(speakerRole), role) {
+				out = append(out, speaker)
+				break
+			}
+		}
+	}
+	return out, nil
 }
 
 func FetchSpeakerByID(ctx *config.AppContext, speakerID string) (*types.Speaker, error) {

@@ -10,62 +10,7 @@ import (
 )
 
 func listSpeakersPostgres(ctx *config.AppContext) ([]*types.Speaker, error) {
-	if ctx == nil || ctx.DB == nil {
-		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
-	}
-	rows, err := ctx.DB.Query(context.Background(), `
-		SELECT id::text, name, coalesce(email::text, ''), norm_photo_path, phone,
-			signal, telegram, twitter_handle, nostr, github_url, instagram,
-			linkedin, website_url, company, org_logo_path, avail_to_hire,
-			looking_to_hire, tshirt
-		FROM people
-		ORDER BY lower(name), id
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("query people: %w", err)
-	}
-	defer rows.Close()
-
-	var speakers []*types.Speaker
-	speakerByID := map[string]*types.Speaker{}
-	for rows.Next() {
-		var speaker types.Speaker
-		var twitter string
-		err := rows.Scan(
-			&speaker.ID,
-			&speaker.Name,
-			&speaker.Email,
-			&speaker.Photo,
-			&speaker.Phone,
-			&speaker.Signal,
-			&speaker.Telegram,
-			&twitter,
-			&speaker.Nostr,
-			&speaker.Github,
-			&speaker.Instagram,
-			&speaker.LinkedIn,
-			&speaker.Website,
-			&speaker.Company,
-			&speaker.OrgLogo,
-			&speaker.AvailToHire,
-			&speaker.LookingToHire,
-			&speaker.TShirt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scan person: %w", err)
-		}
-		speaker.Twitter = types.ParseTwitter(twitter)
-		speakers = append(speakers, &speaker)
-		speakerByID[speaker.ID] = &speaker
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate people: %w", err)
-	}
-
-	if err := loadSpeakerRolesPostgres(ctx, speakerByID); err != nil {
-		return nil, err
-	}
-	return speakers, nil
+	return querySpeakersPostgres(ctx, "people", "ORDER BY lower(people.name), people.id")
 }
 
 func getSpeakersByEmailPostgres(ctx *config.AppContext, email string) ([]*types.Speaker, error) {
@@ -73,7 +18,7 @@ func getSpeakersByEmailPostgres(ctx *config.AppContext, email string) ([]*types.
 	if email == "" {
 		return nil, nil
 	}
-	return querySpeakersPostgres(ctx, "WHERE email = $1", email)
+	return querySpeakersPostgres(ctx, "people by email", "WHERE people.email = $1 ORDER BY lower(people.name), people.id", email)
 }
 
 func fetchSpeakerByIDPostgres(ctx *config.AppContext, speakerID string) (*types.Speaker, error) {
@@ -81,7 +26,7 @@ func fetchSpeakerByIDPostgres(ctx *config.AppContext, speakerID string) (*types.
 	if speakerID == "" {
 		return nil, nil
 	}
-	speakers, err := querySpeakersPostgres(ctx, "WHERE id::text = $1", speakerID)
+	speakers, err := querySpeakersPostgres(ctx, "person by id", "WHERE people.id::text = $1 ORDER BY lower(people.name), people.id", speakerID)
 	if err != nil {
 		return nil, err
 	}
@@ -91,21 +36,49 @@ func fetchSpeakerByIDPostgres(ctx *config.AppContext, speakerID string) (*types.
 	return speakers[0], nil
 }
 
-func querySpeakersPostgres(ctx *config.AppContext, where string, args ...interface{}) ([]*types.Speaker, error) {
+func searchSpeakersByNameOrEmailPostgres(ctx *config.AppContext, q string, limit int) ([]*types.Speaker, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	pattern := "%" + q + "%"
+	return querySpeakersPostgres(ctx, "speaker search", `
+		WHERE people.name ILIKE $1 OR people.email::text ILIKE $1
+		ORDER BY lower(people.name), people.id
+		LIMIT $2
+	`, pattern, limit)
+}
+
+func listSpeakersWithRolePostgres(ctx *config.AppContext, role string) ([]*types.Speaker, error) {
+	scope, position, ok := splitRoleScopePosition(role)
+	if !ok {
+		return nil, nil
+	}
+	return querySpeakersPostgres(ctx, "speakers by role", `
+		JOIN people_roles ON people_roles.person_id = people.id
+		WHERE people_roles.scope = $1 AND people_roles.position = $2
+		ORDER BY lower(people.name), people.id
+	`, scope, position)
+}
+
+func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, args ...interface{}) ([]*types.Speaker, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 	rows, err := ctx.DB.Query(context.Background(), `
-		SELECT id::text, name, coalesce(email::text, ''), norm_photo_path, phone,
-			signal, telegram, twitter_handle, nostr, github_url, instagram,
-			linkedin, website_url, company, org_logo_path, avail_to_hire,
-			looking_to_hire, tshirt
+		SELECT people.id::text, people.name, coalesce(people.email::text, ''),
+			people.norm_photo_path, people.phone, people.signal, people.telegram,
+			people.twitter_handle, people.nostr, people.github_url, people.instagram,
+			people.linkedin, people.website_url, people.company, people.org_logo_path,
+			people.avail_to_hire, people.looking_to_hire, people.tshirt
 		FROM people
-		`+where+`
-		ORDER BY lower(name), id
+		`+clause+`
 	`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query people: %w", err)
+		return nil, fmt.Errorf("query %s: %w", label, err)
 	}
 	defer rows.Close()
 
@@ -135,14 +108,14 @@ func querySpeakersPostgres(ctx *config.AppContext, where string, args ...interfa
 			&speaker.TShirt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("scan person: %w", err)
+			return nil, fmt.Errorf("scan %s: %w", label, err)
 		}
 		speaker.Twitter = types.ParseTwitter(twitter)
 		speakers = append(speakers, &speaker)
 		speakerByID[speaker.ID] = &speaker
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate people: %w", err)
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
 	}
 	if err := loadSpeakerRolesPostgres(ctx, speakerByID); err != nil {
 		return nil, err
@@ -258,11 +231,20 @@ func splitRoleScopePosition(role string) (string, string, bool) {
 }
 
 func loadSpeakerRolesPostgres(ctx *config.AppContext, speakerByID map[string]*types.Speaker) error {
+	ids := make([]string, 0, len(speakerByID))
+	for id := range speakerByID {
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT person_id::text, scope, position
 		FROM people_roles
+		WHERE person_id::text = ANY($1::text[])
 		ORDER BY scope, position
-	`)
+	`, ids)
 	if err != nil {
 		return fmt.Errorf("query people roles: %w", err)
 	}

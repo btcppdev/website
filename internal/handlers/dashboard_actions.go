@@ -69,7 +69,12 @@ func SpeakerSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		return
 	}
 	q := r.URL.Query().Get("q")
-	speakers := getters.SearchSpeakersByNameOrEmail(q, 10)
+	speakers, err := getters.SearchSpeakersByNameOrEmail(ctx, q, 10)
+	if err != nil {
+		ctx.Err.Printf("/api/speakers/search: %s", err)
+		http.Error(w, "search failed", http.StatusInternalServerError)
+		return
+	}
 	type speakerHit struct {
 		ID      string `json:"id"`
 		Name    string `json:"name"`
@@ -97,12 +102,16 @@ func SpeakerRolesGet(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return
 	}
 	speakerID := mux.Vars(r)["speakerID"]
-	for _, s := range getters.AllCachedSpeakers() {
-		if s != nil && s.ID == speakerID {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{"roles": s.Roles})
-			return
-		}
+	speaker, err := getters.FetchSpeakerByID(ctx, speakerID)
+	if err != nil {
+		ctx.Err.Printf("/api/speakers/%s/roles: %s", speakerID, err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	}
+	if speaker != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"roles": speaker.Roles})
+		return
 	}
 	http.Error(w, "not found", http.StatusNotFound)
 }
