@@ -2,7 +2,6 @@ package getters
 
 import (
 	"fmt"
-	"strings"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
@@ -43,61 +42,6 @@ func ArchiveAffiliateCode(ctx *config.AppContext, codeID string) error {
 		return archiveAffiliateCodePostgres(ctx, codeID)
 	}
 	return archiveAffiliateCodeNotion(ctx, codeID)
-}
-
-// GetDiscountByRef looks up a DiscountCode by ID against the warm cache.
-func GetDiscountByRef(ctx *config.AppContext, ref string) (*types.DiscountCode, error) {
-	if ref == "" {
-		return nil, nil
-	}
-	discounts, err := FetchDiscountsCached(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, d := range discounts {
-		if d != nil && d.Ref == ref {
-			return d, nil
-		}
-	}
-	return nil, nil
-}
-
-// FindAffiliateCodeByEmail returns the live discount code an affiliate owns,
-// or nil if they don't have one. Reads from the warm cache.
-func FindAffiliateCodeByEmail(ctx *config.AppContext, email string) (*types.DiscountCode, error) {
-	if email == "" {
-		return nil, nil
-	}
-	discounts, err := FetchDiscountsCached(ctx)
-	if err != nil {
-		return nil, err
-	}
-	target := strings.ToLower(email)
-	for _, d := range discounts {
-		if d != nil && strings.ToLower(d.AffiliateEmail) == target {
-			return d, nil
-		}
-	}
-	return nil, nil
-}
-
-// IsCodeNameAvailable returns true when no live discount currently uses the
-// given name. Case-insensitive. Cache-only; callers should still handle races.
-func IsCodeNameAvailable(ctx *config.AppContext, codeName string) (bool, error) {
-	if codeName == "" {
-		return false, nil
-	}
-	discounts, err := FetchDiscountsCached(ctx)
-	if err != nil {
-		return false, err
-	}
-	target := strings.ToUpper(codeName)
-	for _, d := range discounts {
-		if d != nil && strings.ToUpper(d.CodeName) == target {
-			return false, nil
-		}
-	}
-	return true, nil
 }
 
 // AffiliateUsageInput is the data needed to record one redemption.

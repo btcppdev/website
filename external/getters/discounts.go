@@ -48,12 +48,71 @@ func FetchDiscountsCached(ctx *config.AppContext) ([]*types.DiscountCode, error)
 	return discounts, nil
 }
 
+func listDiscountsCached(ctx *config.AppContext) ([]*types.DiscountCode, error) {
+	return FetchDiscountsCached(ctx)
+}
+
 func ListDiscounts(n *types.Notion) ([]*types.DiscountCode, error) {
 	return ListDiscountsNotion(n)
 }
 
+func ListDiscountsForConf(ctx *config.AppContext, confRef string) ([]*types.DiscountCode, error) {
+	if UsePostgresBackend(ctx) {
+		return listDiscountsForConfPostgres(ctx, confRef)
+	}
+	discounts, err := listDiscountsCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []*types.DiscountCode
+	for _, discount := range discounts {
+		if discount == nil {
+			continue
+		}
+		for _, ref := range discount.ConfRef {
+			if ref == confRef {
+				out = append(out, discount)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func GetDiscountByCode(ctx *config.AppContext, code string) (*types.DiscountCode, error) {
+	if UsePostgresBackend(ctx) {
+		return getDiscountByCodePostgres(ctx, code)
+	}
+	return findDiscountCached(ctx, code)
+}
+
 func FindDiscount(ctx *config.AppContext, code string) (*types.DiscountCode, error) {
-	discounts, err := FetchDiscountsCached(ctx)
+	return GetDiscountByCode(ctx, code)
+}
+
+func GetDiscountByRef(ctx *config.AppContext, ref string) (*types.DiscountCode, error) {
+	if UsePostgresBackend(ctx) {
+		return getDiscountByRefPostgres(ctx, ref)
+	}
+	return getDiscountByRefCached(ctx, ref)
+}
+
+func FindAffiliateCodeByEmail(ctx *config.AppContext, email string) (*types.DiscountCode, error) {
+	if UsePostgresBackend(ctx) {
+		return getDiscountByAffiliateEmailPostgres(ctx, email)
+	}
+	return findAffiliateCodeByEmailCached(ctx, email)
+}
+
+func IsCodeNameAvailable(ctx *config.AppContext, codeName string) (bool, error) {
+	if UsePostgresBackend(ctx) {
+		return isCodeNameAvailablePostgres(ctx, codeName)
+	}
+	return isCodeNameAvailableCached(ctx, codeName)
+}
+
+func findDiscountCached(ctx *config.AppContext, code string) (*types.DiscountCode, error) {
+	discounts, err := listDiscountsCached(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -65,6 +124,56 @@ func FindDiscount(ctx *config.AppContext, code string) (*types.DiscountCode, err
 		}
 	}
 	return nil, nil
+}
+
+func getDiscountByRefCached(ctx *config.AppContext, ref string) (*types.DiscountCode, error) {
+	if ref == "" {
+		return nil, nil
+	}
+	discounts, err := listDiscountsCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range discounts {
+		if d != nil && d.Ref == ref {
+			return d, nil
+		}
+	}
+	return nil, nil
+}
+
+func findAffiliateCodeByEmailCached(ctx *config.AppContext, email string) (*types.DiscountCode, error) {
+	if email == "" {
+		return nil, nil
+	}
+	discounts, err := listDiscountsCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	target := strings.ToLower(email)
+	for _, d := range discounts {
+		if d != nil && strings.ToLower(d.AffiliateEmail) == target {
+			return d, nil
+		}
+	}
+	return nil, nil
+}
+
+func isCodeNameAvailableCached(ctx *config.AppContext, codeName string) (bool, error) {
+	if codeName == "" {
+		return false, nil
+	}
+	discounts, err := listDiscountsCached(ctx)
+	if err != nil {
+		return false, err
+	}
+	target := strings.ToUpper(codeName)
+	for _, d := range discounts {
+		if d != nil && strings.ToUpper(d.CodeName) == target {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func CalcDiscount(ctx *config.AppContext, confRef string, code string, tixPrice uint, count uint) (uint, *types.DiscountCode, error) {

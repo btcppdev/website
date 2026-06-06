@@ -25,6 +25,90 @@ func createDiscountPostgres(ctx *config.AppContext, in DiscountInput) (string, e
 }
 
 func listDiscountsPostgres(ctx *config.AppContext) ([]*types.DiscountCode, error) {
+	return queryDiscountsPostgres(ctx, "all discounts", `
+		discounts.archived_at IS NULL
+	`)
+}
+
+func listDiscountsForConfPostgres(ctx *config.AppContext, confRef string) ([]*types.DiscountCode, error) {
+	confRef = strings.TrimSpace(confRef)
+	if confRef == "" {
+		return nil, nil
+	}
+	return queryDiscountsPostgres(ctx, "discounts for conf", `
+		discounts.archived_at IS NULL
+			AND conferences.id::text = $1
+	`, confRef)
+}
+
+func getDiscountByCodePostgres(ctx *config.AppContext, code string) (*types.DiscountCode, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, nil
+	}
+	out, err := queryDiscountsPostgres(ctx, "discount by code", `
+		discounts.archived_at IS NULL
+			AND discounts.code_name = $1
+	`, code)
+	if err != nil || len(out) == 0 {
+		return nil, err
+	}
+	return out[0], nil
+}
+
+func getDiscountByRefPostgres(ctx *config.AppContext, ref string) (*types.DiscountCode, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return nil, nil
+	}
+	out, err := queryDiscountsPostgres(ctx, "discount by ref", `
+		discounts.archived_at IS NULL
+			AND discounts.id::text = $1
+	`, ref)
+	if err != nil || len(out) == 0 {
+		return nil, err
+	}
+	return out[0], nil
+}
+
+func getDiscountByAffiliateEmailPostgres(ctx *config.AppContext, email string) (*types.DiscountCode, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, nil
+	}
+	out, err := queryDiscountsPostgres(ctx, "discount by affiliate email", `
+		discounts.archived_at IS NULL
+			AND discounts.affiliate_email = $1
+	`, email)
+	if err != nil || len(out) == 0 {
+		return nil, err
+	}
+	return out[0], nil
+}
+
+func isCodeNameAvailablePostgres(ctx *config.AppContext, codeName string) (bool, error) {
+	if ctx == nil || ctx.DB == nil {
+		return false, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	codeName = strings.TrimSpace(codeName)
+	if codeName == "" {
+		return false, nil
+	}
+	var exists bool
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT EXISTS (
+			SELECT 1
+			FROM discounts
+			WHERE archived_at IS NULL
+				AND code_name = $1
+		)
+	`, codeName).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check discount code availability %q: %w", codeName, err)
+	}
+	return !exists, nil
+}
+
+func queryDiscountsPostgres(ctx *config.AppContext, label string, whereSQL string, args ...any) ([]*types.DiscountCode, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
@@ -35,11 +119,11 @@ func listDiscountsPostgres(ctx *config.AppContext) ([]*types.DiscountCode, error
 		FROM discounts
 		LEFT JOIN discounts_conferences ON discounts_conferences.discount_id = discounts.id
 		LEFT JOIN conferences ON conferences.id = discounts_conferences.conference_id
-		WHERE discounts.archived_at IS NULL
+		WHERE `+whereSQL+`
 		ORDER BY discounts.code_name, conferences.tag
-	`)
+	`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query discounts: %w", err)
+		return nil, fmt.Errorf("query %s: %w", label, err)
 	}
 	defer rows.Close()
 
@@ -59,7 +143,7 @@ func listDiscountsPostgres(ctx *config.AppContext) ([]*types.DiscountCode, error
 			&confRef,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("scan discount: %w", err)
+			return nil, fmt.Errorf("scan %s: %w", label, err)
 		}
 
 		existing := byID[id]
@@ -76,7 +160,7 @@ func listDiscountsPostgres(ctx *config.AppContext) ([]*types.DiscountCode, error
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate discounts: %w", err)
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
 	}
 	return out, nil
 }

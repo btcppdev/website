@@ -67,11 +67,8 @@ func TestPostgresSmokeDiscountScopedToConference(t *testing.T) {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM discounts WHERE id::text = $1 OR code_name = $2`, discountID, code)
 	})
 
-	discounts, err = listDiscountsPostgres(ctx)
-	if err != nil {
-		t.Fatalf("listDiscountsPostgres: %v", err)
-	}
-	lastDiscountFetch = time.Now()
+	discounts = nil
+	lastDiscountFetch = time.Time{}
 
 	found, err := FindDiscount(ctx, strings.ToLower(code))
 	if err != nil {
