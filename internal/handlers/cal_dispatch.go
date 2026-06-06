@@ -37,7 +37,10 @@ func DispatchTalkICSForProposal(ctx *config.AppContext, proposal *types.Proposal
 	if proposal == nil {
 		return fmt.Errorf("dispatchTalkICSForProposal: nil proposal")
 	}
-	ct := getters.FetchConfTalkByProposal(proposal.ID)
+	ct, err := getters.GetConfTalkByProposal(ctx, proposal.ID)
+	if err != nil {
+		return err
+	}
 	if ct == nil {
 		return nil // not scheduled — no calendar-side state to update
 	}
@@ -66,7 +69,10 @@ func DispatchTalkICSCancelForProposal(ctx *config.AppContext, proposal *types.Pr
 	if proposal == nil {
 		return nil
 	}
-	ct := getters.FetchConfTalkByProposal(proposal.ID)
+	ct, err := getters.GetConfTalkByProposal(ctx, proposal.ID)
+	if err != nil {
+		return err
+	}
 	if ct == nil || ct.CalNotif == "" {
 		return nil
 	}
@@ -108,7 +114,10 @@ func DispatchTalkICSRemoved(ctx *config.AppContext, proposal *types.Proposal, co
 	if proposal == nil {
 		return nil
 	}
-	ct := getters.FetchConfTalkByProposal(proposal.ID)
+	ct, err := getters.GetConfTalkByProposal(ctx, proposal.ID)
+	if err != nil {
+		return err
+	}
 	if ct == nil || ct.CalNotif == "" {
 		return nil
 	}
@@ -144,7 +153,10 @@ func DispatchTalkICSRemoved(ctx *config.AppContext, proposal *types.Proposal, co
 	if len(remaining) == 0 {
 		return nil
 	}
-	updatedCT := getters.FetchConfTalkByProposal(proposal.ID)
+	updatedCT, err := getters.GetConfTalkByProposal(ctx, proposal.ID)
+	if err != nil {
+		return err
+	}
 	if updatedCT == nil {
 		updatedCT = ct
 	}
