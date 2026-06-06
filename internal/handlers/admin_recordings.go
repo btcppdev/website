@@ -1115,7 +1115,12 @@ func scopedRecordingFromRequest(w http.ResponseWriter, r *http.Request, ctx *con
 		return nil, nil, nil, false
 	}
 	recordingID := mux.Vars(r)["id"]
-	rec := getters.FetchRecordingByID(recordingID)
+	rec, err := getters.GetRecordingByID(ctx, recordingID)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/recordings/%s recording: %s", conf.Tag, recordingID, err)
+		http.Error(w, "Unable to load recording", http.StatusInternalServerError)
+		return nil, nil, nil, false
+	}
 	if rec == nil {
 		handle404(w, r, ctx)
 		return nil, nil, nil, false

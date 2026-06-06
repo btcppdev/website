@@ -43,6 +43,14 @@ func listRecordingsPostgres(ctx *config.AppContext) ([]*types.Recording, error) 
 }
 
 func getRecordingByConfTalkPostgres(ctx *config.AppContext, confTalkID string) (*types.Recording, error) {
+	return queryRecordingPostgres(ctx, "recording by conf talk", "WHERE conf_talk_id = $1::uuid", confTalkID)
+}
+
+func getRecordingByIDPostgres(ctx *config.AppContext, recordingID string) (*types.Recording, error) {
+	return queryRecordingPostgres(ctx, "recording by id", "WHERE id = $1::uuid", recordingID)
+}
+
+func queryRecordingPostgres(ctx *config.AppContext, label string, whereSQL string, arg string) (*types.Recording, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
@@ -50,14 +58,14 @@ func getRecordingByConfTalkPostgres(ctx *config.AppContext, confTalkID string) (
 		SELECT id::text, conf_talk_id::text, talk_name, youtube_url, x_url,
 			x_reply_url, file_uri, publish_at
 		FROM recordings
-		WHERE conf_talk_id = $1::uuid
-	`, confTalkID)
+		`+whereSQL+`
+	`, arg)
 	rec, err := scanRecording(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", label, err)
 	}
 	return rec, nil
 }

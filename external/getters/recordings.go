@@ -52,17 +52,16 @@ func FetchRecordingByConfTalk(confTalkID string) *types.Recording {
 }
 
 // GetRecordingByConfTalk fetches the Recording row whose talk relation points
-// at confTalkID. Cache-first; when warm, a missing entry means no recording
-// exists and avoids a backend query.
+// at confTalkID.
 func GetRecordingByConfTalk(ctx *config.AppContext, confTalkID string) (*types.Recording, error) {
+	if UsePostgresBackend(ctx) {
+		return getRecordingByConfTalkPostgres(ctx, confTalkID)
+	}
 	if r := FetchRecordingByConfTalk(confTalkID); r != nil {
 		return r, nil
 	}
 	if cacheRecordingsWarm() {
 		return nil, nil
-	}
-	if UsePostgresBackend(ctx) {
-		return getRecordingByConfTalkPostgres(ctx, confTalkID)
 	}
 	return getRecordingByConfTalkNotion(ctx, confTalkID)
 }
@@ -79,6 +78,13 @@ func FetchRecordingByID(recordingID string) *types.Recording {
 		}
 	}
 	return nil
+}
+
+func GetRecordingByID(ctx *config.AppContext, recordingID string) (*types.Recording, error) {
+	if UsePostgresBackend(ctx) {
+		return getRecordingByIDPostgres(ctx, recordingID)
+	}
+	return FetchRecordingByID(recordingID), nil
 }
 
 // ListRecordingsCached returns the warm Recordings slice. Returns nil before
