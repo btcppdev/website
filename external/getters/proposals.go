@@ -172,8 +172,7 @@ func AddSpeakerConfToProposal(ctx *config.AppContext, proposalID, speakerConfID 
 	return addSpeakerConfToProposalNotion(ctx, proposalID, speakerConfID)
 }
 
-// GetProposal loads a single Proposal page by ID. Reads from the in-memory
-// cache when warm; only hits the selected backend on a cold miss.
+// GetProposal loads a single Proposal page by ID.
 func GetProposal(ctx *config.AppContext, proposalID string) (*types.Proposal, error) {
 	return FetchProposalByID(ctx, proposalID)
 }
@@ -216,17 +215,17 @@ func FetchProposalsCached(ctx *config.AppContext) ([]*types.Proposal, error) {
 }
 
 // FetchProposalByID is the hot-path lookup used by per-proposal handlers
-// (GetProposal, dashboard auth, etc.). O(1) map read; falls back to a direct
-// backend read only if the cache is empty.
+// (GetProposal, dashboard auth, etc.).
 func FetchProposalByID(ctx *config.AppContext, id string) (*types.Proposal, error) {
+	if UsePostgresBackend(ctx) {
+		return getProposalPostgres(ctx, id)
+	}
+
 	proposalCacheMu.RLock()
 	p := proposalByID[id]
 	proposalCacheMu.RUnlock()
 	if p != nil {
 		return p, nil
-	}
-	if UsePostgresBackend(ctx) {
-		return getProposalPostgres(ctx, id)
 	}
 	return fetchProposalByIDNotion(ctx, id)
 }

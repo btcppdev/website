@@ -62,10 +62,15 @@ func upsertSpeakerConfPostgres(ctx *config.AppContext, in SpeakerConfInput) (str
 		return "", err
 	}
 
+	speaker, err := FetchSpeakerByID(ctx, in.SpeakerID)
+	if err != nil {
+		return "", fmt.Errorf("fetch speaker %s: %w", in.SpeakerID, err)
+	}
+
 	sc := &types.SpeakerConf{
 		ID:           speakerConfID,
 		ComingFrom:   in.ComingFrom,
-		Speaker:      CacheSpeakerByID(in.SpeakerID),
+		Speaker:      speaker,
 		Availability: availability,
 		RecordOK:     in.RecordOK,
 		Visa:         in.Visa,
@@ -108,14 +113,14 @@ func getSpeakerConfsByEmailPostgres(ctx *config.AppContext, email string) ([]*ty
 		return nil, nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 
-	speakers, err := listSpeakersPostgres(ctx)
+	speakers, err := GetSpeakersByEmail(ctx, email)
 	if err != nil {
 		return nil, nil, fmt.Errorf("speakers by email: %w", err)
 	}
 	speakerMap := make(map[string]*types.Speaker)
 	ids := []string{}
 	for _, sp := range speakers {
-		if sp == nil || !strings.EqualFold(strings.TrimSpace(sp.Email), email) {
+		if sp == nil {
 			continue
 		}
 		speakerMap[sp.ID] = sp
@@ -280,7 +285,7 @@ func hydrateSpeakerConfOtherEventsPostgres(ctx *config.AppContext, ids []string,
 	if len(ids) == 0 {
 		return nil
 	}
-	confs, err := FetchConfsCached(ctx)
+	confs, err := listConferencesOnlyPostgres(ctx)
 	if err != nil {
 		return err
 	}

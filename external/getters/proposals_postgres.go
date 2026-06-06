@@ -55,7 +55,7 @@ func queryProposalsPostgres(ctx *config.AppContext, where string, args ...interf
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
-	confs, err := FetchConfsCached(ctx)
+	confs, err := listConferencesOnlyPostgres(ctx)
 	if err != nil {
 		return nil, err
 	}

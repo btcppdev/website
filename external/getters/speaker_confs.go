@@ -13,20 +13,23 @@ import (
 func getSpeakerConfs(ctx *config.AppContext) {
 	ctx.Infos.Printf("getting speaker confs...")
 
-	speakerMap := make(map[string]*types.Speaker, len(cacheSpeakers))
-	for _, s := range cacheSpeakers {
-		if s != nil {
-			speakerMap[s.ID] = s
+	var speakerMap map[string]*types.Speaker
+	var pmap map[string]*types.Proposal
+	if !UsePostgresBackend(ctx) {
+		speakerMap = make(map[string]*types.Speaker, len(cacheSpeakers))
+		for _, s := range cacheSpeakers {
+			if s != nil {
+				speakerMap[s.ID] = s
+			}
 		}
-	}
 
-	proposalCacheMu.RLock()
-	pmap := make(map[string]*types.Proposal, len(proposalByID))
-	for k, v := range proposalByID {
-		pmap[k] = v
+		proposalCacheMu.RLock()
+		pmap = make(map[string]*types.Proposal, len(proposalByID))
+		for k, v := range proposalByID {
+			pmap[k] = v
+		}
+		proposalCacheMu.RUnlock()
 	}
-	proposalCacheMu.RUnlock()
-
 	scs, err := ListSpeakerConfs(ctx, speakerMap, pmap)
 	if err != nil {
 		ctx.Err.Printf("error fetching speakerconfs %s", err)
@@ -161,13 +164,13 @@ func GetSpeakerConfsByEmail(ctx *config.AppContext, email string) ([]*types.Spea
 }
 
 // FetchSpeakerConfWithSpeaker reads a SpeakerConf by ID with its speaker
-// relation resolved. Cache-first; backend-specific fallback only runs on misses.
+// relation resolved.
 func FetchSpeakerConfWithSpeaker(ctx *config.AppContext, speakerConfID string) (*types.SpeakerConf, error) {
-	if sc := FetchSpeakerConfByID(speakerConfID); sc != nil {
-		return sc, nil
-	}
 	if UsePostgresBackend(ctx) {
 		return fetchSpeakerConfWithSpeakerPostgres(ctx, speakerConfID)
+	}
+	if sc := FetchSpeakerConfByID(speakerConfID); sc != nil {
+		return sc, nil
 	}
 	return fetchSpeakerConfWithSpeakerNotion(ctx, speakerConfID)
 }
