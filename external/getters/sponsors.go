@@ -1,7 +1,6 @@
 package getters
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -81,6 +80,9 @@ func listOrgsCached(ctx *config.AppContext) ([]*types.Org, error) {
 // info editor. Backed by listOrgsCached so rapid keystrokes don't hammer
 // Notion.
 func SearchOrgsByName(ctx *config.AppContext, q string, limit int) ([]*types.Org, error) {
+	if UsePostgresBackend(ctx) {
+		return searchOrgsByNamePostgres(ctx, q, limit)
+	}
 	q = strings.TrimSpace(strings.ToLower(q))
 	if q == "" {
 		return nil, nil
@@ -106,16 +108,7 @@ func SearchOrgsByName(ctx *config.AppContext, q string, limit int) ([]*types.Org
 
 func GetOrg(ctx *config.AppContext, ref string) (*types.Org, error) {
 	if UsePostgresBackend(ctx) {
-		orgs, err := listOrgsPostgres(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, org := range orgs {
-			if org != nil && org.Ref == ref {
-				return org, nil
-			}
-		}
-		return nil, fmt.Errorf("org %s not found", ref)
+		return getOrgPostgres(ctx, ref)
 	}
 	return GetOrgNotion(ctx.Notion, ref)
 }

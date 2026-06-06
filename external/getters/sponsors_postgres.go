@@ -44,18 +44,54 @@ func registerOrgPostgres(ctx *config.AppContext, org *types.Org) (string, error)
 }
 
 func listOrgsPostgres(ctx *config.AppContext) ([]*types.Org, error) {
+	return queryOrgsPostgres(ctx, "organizations", "", nil, 0)
+}
+
+func getOrgPostgres(ctx *config.AppContext, ref string) (*types.Org, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return nil, fmt.Errorf("org ref is required")
+	}
+	orgs, err := queryOrgsPostgres(ctx, "organization", "WHERE id::text = $1", []any{ref}, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(orgs) == 0 {
+		return nil, fmt.Errorf("org %s not found", ref)
+	}
+	return orgs[0], nil
+}
+
+func searchOrgsByNamePostgres(ctx *config.AppContext, q string, limit int) ([]*types.Org, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	return queryOrgsPostgres(ctx, "organization search", "WHERE name ILIKE '%' || $1 || '%'", []any{q}, limit)
+}
+
+func queryOrgsPostgres(ctx *config.AppContext, label string, whereSQL string, args []any, limit int) ([]*types.Org, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	sql := `
 		SELECT id::text, name, tagline, logo_light_url, logo_dark_url,
 			coalesce(email::text, ''), website_url, github_url, twitter_handle,
 			nostr, matrix, linkedin_url, instagram_url, youtube_url, hiring, notes
 		FROM organizations
+		` + whereSQL + `
 		ORDER BY name
-	`)
+	`
+	if limit > 0 {
+		args = append(args, limit)
+		sql += fmt.Sprintf(" LIMIT $%d", len(args))
+	}
+	rows, err := ctx.DB.Query(context.Background(), sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query organizations: %w", err)
+		return nil, fmt.Errorf("query %s: %w", label, err)
 	}
 	defer rows.Close()
 
@@ -81,13 +117,13 @@ func listOrgsPostgres(ctx *config.AppContext) ([]*types.Org, error) {
 			&org.Hiring,
 			&org.Notes,
 		); err != nil {
-			return nil, fmt.Errorf("scan organization: %w", err)
+			return nil, fmt.Errorf("scan %s: %w", label, err)
 		}
 		org.Twitter = types.ParseTwitter(twitterHandle)
 		out = append(out, &org)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate organizations: %w", err)
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
 	}
 	return out, nil
 }
@@ -98,25 +134,30 @@ func findOrgPostgres(ctx *config.AppContext, website, name string) (*types.Org, 
 	if wantSite == "" && wantName == "" {
 		return nil, nil
 	}
-	orgs, err := listOrgsPostgres(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if wantSite != "" {
-		for _, org := range orgs {
-			if org != nil && normalizeWebsite(org.Website) == wantSite {
-				return org, nil
-			}
+		orgs, err := queryOrgsPostgres(ctx, "organization by website", `
+			WHERE lower(trim(trailing '/' from website_url)) = $1
+		`, []any{wantSite}, 1)
+		if err != nil || len(orgs) > 0 {
+			return firstOrg(orgs), err
 		}
 	}
 	if wantName != "" {
-		for _, org := range orgs {
-			if org != nil && normalizeName(org.Name) == wantName {
-				return org, nil
-			}
+		orgs, err := queryOrgsPostgres(ctx, "organization by name", `
+			WHERE lower(name) = $1
+		`, []any{wantName}, 1)
+		if err != nil || len(orgs) > 0 {
+			return firstOrg(orgs), err
 		}
 	}
 	return nil, nil
+}
+
+func firstOrg(orgs []*types.Org) *types.Org {
+	if len(orgs) == 0 {
+		return nil
+	}
+	return orgs[0]
 }
 
 func updateOrgPostgres(ctx *config.AppContext, orgID string, up OrgUpdate) error {
@@ -244,7 +285,7 @@ func listSponsorshipsPostgres(ctx *config.AppContext, confRef string) ([]*types.
 	}
 	defer rows.Close()
 
-	orgs, err := FetchOrgsCached(ctx)
+	orgs, err := ListOrgs(ctx)
 	if err != nil {
 		return nil, err
 	}
