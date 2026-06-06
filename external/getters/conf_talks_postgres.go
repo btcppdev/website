@@ -66,16 +66,14 @@ func createConfTalkPostgres(ctx *config.AppContext, in ConfTalkInput) (string, e
 
 	ct := &types.ConfTalk{ID: confTalkID}
 	if in.ProposalID != "" {
-		proposalCacheMu.RLock()
-		ct.Proposal = proposalByID[in.ProposalID]
-		proposalCacheMu.RUnlock()
-	}
-	confs, _ := FetchConfsCached(ctx)
-	for _, conf := range confs {
-		if conf != nil && conf.Ref == *confID {
-			ct.Conf = conf
-			break
+		ct.Proposal, err = GetProposal(ctx, in.ProposalID)
+		if err != nil {
+			return "", fmt.Errorf("fetch proposal %s: %w", in.ProposalID, err)
 		}
+	}
+	ct.Conf, err = GetConfByRef(ctx, *confID)
+	if err != nil {
+		return "", fmt.Errorf("fetch conference %s: %w", *confID, err)
 	}
 	cacheConfTalkPostgres(ct)
 	return confTalkID, nil
@@ -157,7 +155,7 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 		}
 	}
 
-	confs, err := FetchConfsCached(ctx)
+	confs, err := listConferencesOnlyPostgres(ctx)
 	if err != nil {
 		return nil, err
 	}

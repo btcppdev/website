@@ -79,17 +79,17 @@ func cacheConfTalksWarm() bool {
 	return cacheConfTalks != nil
 }
 
-// GetConfTalkByProposal looks up the ConfTalk linked to a proposal. Cache-first:
-// when the ConfTalks cache is warm, a missing entry is authoritative.
+// GetConfTalkByProposal looks up the ConfTalk linked to a proposal.
 func GetConfTalkByProposal(ctx *config.AppContext, proposalID string) (*types.ConfTalk, error) {
+	if UsePostgresBackend(ctx) {
+		return getConfTalkByProposalPostgres(ctx, proposalID)
+	}
+
 	if ct := FetchConfTalkByProposal(proposalID); ct != nil {
 		return ct, nil
 	}
 	if cacheConfTalksWarm() {
 		return nil, nil
-	}
-	if UsePostgresBackend(ctx) {
-		return getConfTalkByProposalPostgres(ctx, proposalID)
 	}
 	return getConfTalkByProposalNotion(ctx, proposalID)
 }
