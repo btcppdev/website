@@ -23,7 +23,6 @@ func getOrgs(ctx *config.AppContext) {
 		ctx.Err.Printf("error fetching orgs %s", err)
 	} else {
 		ctx.Infos.Printf("Loaded %d orgs!", len(orgs))
-		writeCache("orgs", orgs)
 	}
 }
 

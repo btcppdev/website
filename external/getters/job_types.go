@@ -20,7 +20,6 @@ func getJobs(ctx *config.AppContext) {
 		ctx.Err.Printf("error fetching jobs %s", err)
 	} else {
 		ctx.Infos.Printf("Loaded %d jobs!", len(jobs))
-		writeCache("jobs", jobs)
 	}
 }
 

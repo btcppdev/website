@@ -38,7 +38,6 @@ func getConfs(ctx *config.AppContext) {
 		ctx.Err.Printf("error fetching confs %s", err)
 	} else {
 		ctx.Infos.Printf("Loaded %d confs!", len(confs))
-		writeCache("confs", confs)
 	}
 }
 

@@ -62,7 +62,6 @@ func getSpeakers(ctx *config.AppContext) {
 		ctx.Err.Printf("error fetching speakers %s", err)
 	} else {
 		ctx.Infos.Printf("Loaded %d speakers!", len(cacheSpeakers))
-		writeCache("speakers", cacheSpeakers)
 		ctx.Infos.Printf("there are %d callbacks", len(onSpeakersRefresh))
 		for _, cb := range onSpeakersRefresh {
 			cb(ctx, cacheSpeakers)

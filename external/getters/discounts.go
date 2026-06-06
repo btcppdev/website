@@ -32,7 +32,6 @@ func getDiscounts(ctx *config.AppContext) {
 		ctx.Err.Printf("error fetching discounts %s", err)
 	} else {
 		ctx.Infos.Printf("Loaded %d discounts!", len(discounts))
-		writeCache("discounts", discounts)
 	}
 }
 

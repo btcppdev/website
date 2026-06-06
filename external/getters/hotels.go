@@ -36,7 +36,6 @@ func getHotels(ctx *config.AppContext) {
 		ctx.Err.Printf("error fetching hotels %s", err)
 	} else {
 		ctx.Infos.Printf("Loaded %d hotels!", len(hotels))
-		writeCache("hotels", hotels)
 	}
 }
 

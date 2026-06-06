@@ -20,7 +20,6 @@ func getShifts(ctx *config.AppContext) {
 		ctx.Err.Printf("error fetching shifts %s", err)
 	} else {
 		ctx.Infos.Printf("Loaded %d shifts!", len(shifts))
-		writeCache("shifts", shifts)
 	}
 }
 
@@ -118,7 +117,6 @@ func refreshShiftCache(ctx *config.AppContext, caller string) {
 	if err == nil {
 		shifts = fresh
 		lastShiftFetch = time.Now()
-		writeCache("shifts", shifts)
 		return
 	}
 	ctx.Err.Printf("%s: cache reload (continuing): %s", caller, err)

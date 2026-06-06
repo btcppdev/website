@@ -17,7 +17,6 @@ func getTalks(ctx *config.AppContext) {
 		ctx.Err.Printf("error fetching talks %s", err)
 	} else {
 		ctx.Infos.Printf("Loaded %d talks!", len(talks))
-		writeCache("talks", talks)
 		for _, cb := range onTalksRefresh {
 			cb(ctx, talks)
 		}

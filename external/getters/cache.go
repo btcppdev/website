@@ -122,90 +122,27 @@ func CloseWorkPool() {
 	close(taskChan)
 }
 
-func loadFromCache() bool {
-	loaded := true
-	if !readCache("confs", &confs) {
-		loaded = false
-	}
-	if !readCache("speakers", &cacheSpeakers) {
-		loaded = false
-	}
-	if !readCache("talks", &talks) {
-		loaded = false
-	}
-	if !readCache("discounts", &discounts) {
-		loaded = false
-	}
-	if !readCache("hotels", &hotels) {
-		loaded = false
-	}
-	if !readCache("jobs", &jobs) {
-		loaded = false
-	}
-	if !readCache("shifts", &shifts) {
-		loaded = false
-	}
-	if !readCache("orgs", &orgs) {
-		loaded = false
-	}
-
-	if loaded {
-		now := time.Now()
-		lastConfsFetch = now
-		lastSpeakerFetch = now
-		lastTalksFetch = now
-		lastDiscountFetch = now
-		lastHotelFetch = now
-		lastJobTypeFetch = now
-		lastShiftFetch = now
-		lastOrgFetch = now
-		return true
-	}
-
-	return false
-}
-
-// diskCacheBootstrapped tracks whether we've already attempted to bootstrap
-// from the on-disk cache. The disk cache is a startup convenience only; once
-// the process has booted, every subsequent WaitFetch goes straight to live
-// data. This makes /conf-reload always re-fetch live rows.
-var diskCacheBootstrapped = false
-
 func WaitFetch(ctx *config.AppContext) {
 	cacheTTL = time.Duration(ctx.Env.CacheTTLSec) * time.Second
 
-	if !ctx.InProduction {
-		EnableDiskCache()
-	}
+	ctx.Infos.Printf("Fetching legacy types...")
+	var wg sync.WaitGroup
+	wg.Add(6)
+	go func() { defer wg.Done(); runJob(ctx, JobConfs); lastConfsFetch = time.Now() }()
+	go func() { defer wg.Done(); runJob(ctx, JobSpeakers); lastSpeakerFetch = time.Now() }()
+	go func() { defer wg.Done(); runJob(ctx, JobDiscounts); lastDiscountFetch = time.Now() }()
+	go func() { defer wg.Done(); runJob(ctx, JobHotels); lastHotelFetch = time.Now() }()
+	go func() { defer wg.Done(); runJob(ctx, JobJobs); lastJobTypeFetch = time.Now() }()
+	go func() { defer wg.Done(); runJob(ctx, JobOrgs); lastOrgFetch = time.Now() }()
+	wg.Wait()
 
-	loadedFromDisk := false
-	if !diskCacheBootstrapped && diskCacheEnabled && loadFromCache() {
-		ctx.Infos.Printf("Loaded legacy data from disk cache!")
-		loadedFromDisk = true
-	}
-	diskCacheBootstrapped = true
-
-	if !loadedFromDisk {
-		ctx.Infos.Printf("Fetching legacy types...")
-		var wg sync.WaitGroup
-		wg.Add(6)
-		go func() { defer wg.Done(); runJob(ctx, JobConfs); lastConfsFetch = time.Now() }()
-		go func() { defer wg.Done(); runJob(ctx, JobSpeakers); lastSpeakerFetch = time.Now() }()
-		go func() { defer wg.Done(); runJob(ctx, JobDiscounts); lastDiscountFetch = time.Now() }()
-		go func() { defer wg.Done(); runJob(ctx, JobHotels); lastHotelFetch = time.Now() }()
-		go func() { defer wg.Done(); runJob(ctx, JobJobs); lastJobTypeFetch = time.Now() }()
-		go func() { defer wg.Done(); runJob(ctx, JobOrgs); lastOrgFetch = time.Now() }()
-		wg.Wait()
-
-		wg.Add(2)
-		go func() { defer wg.Done(); runJob(ctx, JobTalks); lastTalksFetch = time.Now() }()
-		go func() { defer wg.Done(); runJob(ctx, JobShifts); lastShiftFetch = time.Now() }()
-		wg.Wait()
-	}
+	wg.Add(2)
+	go func() { defer wg.Done(); runJob(ctx, JobTalks); lastTalksFetch = time.Now() }()
+	go func() { defer wg.Done(); runJob(ctx, JobShifts); lastShiftFetch = time.Now() }()
+	wg.Wait()
 
 	ctx.Infos.Printf("Fetching new-DB types...")
 
-	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() { defer wg.Done(); runJob(ctx, JobProposals); lastProposalFetch = time.Now() }()
 	go func() { defer wg.Done(); runJob(ctx, JobRecordings); lastRecordingFetch = time.Now() }()
