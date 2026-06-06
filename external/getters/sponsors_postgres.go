@@ -206,7 +206,6 @@ func updateOrgPostgres(ctx *config.AppContext, orgID string, up OrgUpdate) error
 		return fmt.Errorf("org %s not found", orgID)
 	}
 	queueRefresh(JobOrgs)
-	InvalidateSponsorshipsCache()
 	return nil
 }
 
@@ -249,7 +248,6 @@ func updateOrgDetailsPostgres(ctx *config.AppContext, org *types.Org) error {
 		return fmt.Errorf("org %s not found", org.Ref)
 	}
 	queueRefresh(JobOrgs)
-	InvalidateSponsorshipsCache()
 	return nil
 }
 
@@ -332,7 +330,7 @@ func hydrateSponsorshipConfsPostgres(ctx *config.AppContext, ids []string, byID 
 	if len(ids) == 0 {
 		return nil
 	}
-	confs, err := FetchConfsCached(ctx)
+	confs, err := listConferencesOnlyPostgres(ctx)
 	if err != nil {
 		return err
 	}
@@ -420,7 +418,6 @@ func registerSponsorshipPostgres(ctx *config.AppContext, sp *types.Sponsorship) 
 	}
 	sp.Ref = sponsorshipID
 	sp.Name = name
-	InvalidateSponsorshipsCache()
 	return nil
 }
 
@@ -439,6 +436,5 @@ func updateSponsorshipStatusPostgres(ctx *config.AppContext, ref string, status 
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("sponsorship %s not found", ref)
 	}
-	InvalidateSponsorshipsCache()
 	return nil
 }

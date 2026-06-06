@@ -113,66 +113,6 @@ func GetOrg(ctx *config.AppContext, ref string) (*types.Org, error) {
 	return GetOrgNotion(ctx.Notion, ref)
 }
 
-// sponsorshipsCache memoizes ListSponsorships across requests so the
-// public conf page doesn't re-query Notion on every hit. We fetch the
-// full Sponsorships DB once, bucket by conf.Ref, and serve from the
-// in-memory map until TTL. TTL is short enough that admin-side
-// sponsor edits land within a few minutes.
-var (
-	sponsorshipsCacheMu   sync.Mutex
-	sponsorshipsByConf    map[string][]*types.Sponsorship
-	sponsorshipsFetchedAt time.Time
-)
-
-const sponsorshipsCacheTTL = 5 * time.Minute
-
-// FetchSponsorshipsForConfCached returns the Sponsorship rows for a
-// given conf.Ref, served from a 5-min memoized cache. The first call
-// (or first call after the TTL) fetches every Sponsorship row from
-// Notion and buckets by conf; subsequent calls within TTL hit the
-// in-memory map.
-func FetchSponsorshipsForConfCached(ctx *config.AppContext, confRef string) ([]*types.Sponsorship, error) {
-	sponsorshipsCacheMu.Lock()
-	if sponsorshipsByConf != nil && time.Since(sponsorshipsFetchedAt) < sponsorshipsCacheTTL {
-		out := sponsorshipsByConf[confRef]
-		sponsorshipsCacheMu.Unlock()
-		return out, nil
-	}
-	sponsorshipsCacheMu.Unlock()
-
-	all, err := ListSponsorships(ctx, "")
-	if err != nil {
-		return nil, err
-	}
-	byConf := map[string][]*types.Sponsorship{}
-	for _, sp := range all {
-		if sp == nil {
-			continue
-		}
-		for _, c := range sp.Confs {
-			if c == nil {
-				continue
-			}
-			byConf[c.Ref] = append(byConf[c.Ref], sp)
-		}
-	}
-	sponsorshipsCacheMu.Lock()
-	sponsorshipsByConf = byConf
-	sponsorshipsFetchedAt = time.Now()
-	sponsorshipsCacheMu.Unlock()
-	return byConf[confRef], nil
-}
-
-// InvalidateSponsorshipsCache forces the next FetchSponsorshipsForConfCached
-// call to refresh from Notion. Wire this into any admin-side write
-// path that mutates Sponsorships (RegisterSponsorship,
-// UpdateSponsorshipStatus, etc.) so admin edits show up promptly.
-func InvalidateSponsorshipsCache() {
-	sponsorshipsCacheMu.Lock()
-	sponsorshipsFetchedAt = time.Time{}
-	sponsorshipsCacheMu.Unlock()
-}
-
 func ListSponsorships(ctx *config.AppContext, confRef string) ([]*types.Sponsorship, error) {
 	if UsePostgresBackend(ctx) {
 		return listSponsorshipsPostgres(ctx, confRef)

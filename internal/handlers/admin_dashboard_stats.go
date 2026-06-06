@@ -202,7 +202,7 @@ func loadOrganizerStats(ctx *config.AppContext, conf *types.Conf, proposals []*t
 	// (Paid / InProgress / Committed) so organizers can see the
 	// pipeline at a glance. Other statuses (Pending, Invoiced, …)
 	// don't fit any of the three buckets and are silently skipped.
-	if sps, err := getters.FetchSponsorshipsForConfCached(ctx, conf.Ref); err == nil {
+	if sps, err := getters.ListSponsorships(ctx, conf.Ref); err == nil {
 		for _, sp := range sps {
 			if sp == nil {
 				continue

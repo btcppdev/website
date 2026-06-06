@@ -295,7 +295,6 @@ func UpdateOrgDetailsNotion(n *types.Notion, org *types.Org) error {
 		return err
 	}
 	queueRefresh(JobOrgs)
-	InvalidateSponsorshipsCache()
 	return nil
 }
 
