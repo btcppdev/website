@@ -43,6 +43,10 @@ func ListWorkShifts(ctx *config.AppContext) ([]*types.WorkShift, error) {
 }
 
 func GetShiftsForConf(ctx *config.AppContext, confTag string) ([]*types.WorkShift, error) {
+	if UsePostgresBackend(ctx) {
+		return listWorkShiftsForConfPostgres(ctx, confTag)
+	}
+
 	allShifts, err := FetchShiftsCached(ctx)
 	if err != nil {
 		return nil, err
@@ -55,6 +59,23 @@ func GetShiftsForConf(ctx *config.AppContext, confTag string) ([]*types.WorkShif
 		}
 	}
 	return filtered, nil
+}
+
+func GetWorkShiftByRef(ctx *config.AppContext, shiftRef string) (*types.WorkShift, error) {
+	if UsePostgresBackend(ctx) {
+		return getWorkShiftByRefPostgres(ctx, shiftRef)
+	}
+
+	allShifts, err := FetchShiftsCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, shift := range allShifts {
+		if shift != nil && shift.Ref == shiftRef {
+			return shift, nil
+		}
+	}
+	return nil, nil
 }
 
 func ShiftUpdateCalNotif(ctx *config.AppContext, shiftID string, calnotif string) error {

@@ -8,15 +8,12 @@ import (
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func listWorkShiftsPostgres(ctx *config.AppContext) ([]*types.WorkShift, error) {
-	if ctx == nil || ctx.DB == nil {
-		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
-	}
-
-	confs, err := FetchConfsCached(ctx)
+	confs, err := listConferencesOnlyPostgres(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +24,7 @@ func listWorkShiftsPostgres(ctx *config.AppContext) ([]*types.WorkShift, error) 
 		}
 	}
 
-	jobTypes, err := FetchJobsCached(ctx)
+	jobTypes, err := ListJobTypes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -36,6 +33,78 @@ func listWorkShiftsPostgres(ctx *config.AppContext) ([]*types.WorkShift, error) 
 		if job != nil {
 			jobByID[job.Ref] = job
 		}
+	}
+
+	return queryWorkShiftsPostgres(ctx, "work shifts", "", "", nil, confByID, jobByID)
+}
+
+func listWorkShiftsForConfPostgres(ctx *config.AppContext, confTag string) ([]*types.WorkShift, error) {
+	conf, err := GetConfByTag(ctx, confTag)
+	if err != nil || conf == nil {
+		return nil, err
+	}
+
+	jobTypes, err := ListJobTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	jobByID := make(map[string]*types.JobType, len(jobTypes))
+	for _, job := range jobTypes {
+		if job != nil {
+			jobByID[job.Ref] = job
+		}
+	}
+
+	return queryWorkShiftsPostgres(ctx, "work shifts for conference", "JOIN conferences ON conferences.id = work_shifts.conference_id", "WHERE conferences.tag = $1", []any{confTag}, map[string]*types.Conf{conf.Ref: conf}, jobByID)
+}
+
+func getWorkShiftByRefPostgres(ctx *config.AppContext, shiftRef string) (*types.WorkShift, error) {
+	conf, err := getWorkShiftConferencePostgres(ctx, shiftRef)
+	if err != nil || conf == nil {
+		return nil, err
+	}
+
+	jobTypes, err := ListJobTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	jobByID := make(map[string]*types.JobType, len(jobTypes))
+	for _, job := range jobTypes {
+		if job != nil {
+			jobByID[job.Ref] = job
+		}
+	}
+
+	shifts, err := queryWorkShiftsPostgres(ctx, "work shift by ref", "", "WHERE work_shifts.id::text = $1", []any{shiftRef}, map[string]*types.Conf{conf.Ref: conf}, jobByID)
+	if err != nil || len(shifts) == 0 {
+		return nil, err
+	}
+	return shifts[0], nil
+}
+
+func getWorkShiftConferencePostgres(ctx *config.AppContext, shiftRef string) (*types.Conf, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	var confTag string
+	err := ctx.DB.QueryRow(context.Background(), `
+		SELECT conferences.tag
+		FROM work_shifts
+		JOIN conferences ON conferences.id = work_shifts.conference_id
+		WHERE work_shifts.id::text = $1
+	`, shiftRef).Scan(&confTag)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query work shift conference: %w", err)
+	}
+	return GetConfByTag(ctx, confTag)
+}
+
+func queryWorkShiftsPostgres(ctx *config.AppContext, label string, joinSQL string, whereSQL string, args []any, confByID map[string]*types.Conf, jobByID map[string]*types.JobType) ([]*types.WorkShift, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 
 	rows, err := ctx.DB.Query(context.Background(), `
@@ -48,12 +117,14 @@ func listWorkShiftsPostgres(ctx *config.AppContext) ([]*types.WorkShift, error) 
 			coalesce(max(work_shifts_volunteers.volunteer_id::text)
 				FILTER (WHERE work_shifts_volunteers.role = 'leader'), '')
 		FROM work_shifts
+		`+joinSQL+`
 		LEFT JOIN work_shifts_volunteers ON work_shifts_volunteers.shift_id = work_shifts.id
+		`+whereSQL+`
 		GROUP BY work_shifts.id
 		ORDER BY work_shifts.shift_start NULLS LAST, work_shifts.priority, work_shifts.name
-	`)
+	`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query work shifts: %w", err)
+		return nil, fmt.Errorf("query %s: %w", label, err)
 	}
 	defer rows.Close()
 
@@ -79,7 +150,7 @@ func listWorkShiftsPostgres(ctx *config.AppContext) ([]*types.WorkShift, error) 
 			&shift.ShiftLeaderRef,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("scan work shift: %w", err)
+			return nil, fmt.Errorf("scan %s: %w", label, err)
 		}
 
 		shift.MaxVols = uint(maxVols)
@@ -100,7 +171,7 @@ func listWorkShiftsPostgres(ctx *config.AppContext) ([]*types.WorkShift, error) 
 		out = append(out, &shift)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate work shifts: %w", err)
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
 	}
 	return out, nil
 }

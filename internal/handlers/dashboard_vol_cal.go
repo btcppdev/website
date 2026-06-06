@@ -41,18 +41,11 @@ func DashboardVolShiftICS(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
-	allShifts, err := getters.FetchShiftsCached(ctx)
+	shift, err := getters.GetWorkShiftByRef(ctx, shiftRef)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/vol/%s/calendar.ics shifts: %s", shiftRef, err)
 		http.Error(w, "Unable to load shifts", http.StatusInternalServerError)
 		return
-	}
-	var shift *types.WorkShift
-	for _, s := range allShifts {
-		if s != nil && s.Ref == shiftRef {
-			shift = s
-			break
-		}
 	}
 	if shift == nil || shift.Conf == nil || shift.ShiftTime == nil || shift.ShiftTime.End == nil {
 		http.NotFound(w, r)
@@ -199,4 +192,3 @@ func DashboardVolShiftsResend(w http.ResponseWriter, r *http.Request, ctx *confi
 	flash := fmt.Sprintf("Re-sent %d shift cal invite(s) to %s.", sent, vol.Email)
 	http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, flash), http.StatusSeeOther)
 }
-
