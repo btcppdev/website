@@ -168,7 +168,9 @@ func HotelsAdminSave(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		}
 	}
 
-	getters.RefreshHotelsCache()
+	if !getters.UsePostgresBackend(ctx) {
+		getters.RefreshHotelsCache()
+	}
 
 	dest := fmt.Sprintf("/%s/admin/hotels", conf.Tag)
 	if firstErr != nil {

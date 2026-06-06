@@ -28,11 +28,22 @@ func createHotelPostgres(ctx *config.AppContext, in HotelInput) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("insert hotel %q: %w", in.Name, err)
 	}
-	RefreshHotelsCache()
 	return hotelID, nil
 }
 
 func listHotelsPostgres(ctx *config.AppContext) ([]*types.Hotel, error) {
+	return queryHotelsPostgres(ctx, "hotels", "", nil)
+}
+
+func listHotelsForConfPostgres(ctx *config.AppContext, confRef string) ([]*types.Hotel, error) {
+	confRef = strings.TrimSpace(confRef)
+	if confRef == "" {
+		return nil, nil
+	}
+	return queryHotelsPostgres(ctx, "hotels for conf", "AND hotels.conference_id::text = $1", []any{confRef})
+}
+
+func queryHotelsPostgres(ctx *config.AppContext, label string, whereSQL string, args []any) ([]*types.Hotel, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
@@ -42,10 +53,11 @@ func listHotelsPostgres(ctx *config.AppContext) ([]*types.Hotel, error) {
 		FROM hotels
 		JOIN conferences ON conferences.id = hotels.conference_id
 		WHERE hotels.archived_at IS NULL
+		`+whereSQL+`
 		ORDER BY conferences.start_date NULLS LAST, hotels.display_order, hotels.name
-	`)
+	`, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query hotels: %w", err)
+		return nil, fmt.Errorf("query %s: %w", label, err)
 	}
 	defer rows.Close()
 
@@ -63,12 +75,12 @@ func listHotelsPostgres(ctx *config.AppContext) ([]*types.Hotel, error) {
 			&hotel.Order,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("scan hotel: %w", err)
+			return nil, fmt.Errorf("scan %s: %w", label, err)
 		}
 		hotels = append(hotels, &hotel)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate hotels: %w", err)
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
 	}
 	return hotels, nil
 }
@@ -97,7 +109,6 @@ func updateHotelPostgres(ctx *config.AppContext, hotelID string, in HotelInput) 
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("hotel %s not found", hotelID)
 	}
-	RefreshHotelsCache()
 	return nil
 }
 
@@ -116,6 +127,5 @@ func archiveHotelPostgres(ctx *config.AppContext, hotelID string) error {
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("hotel %s not found", hotelID)
 	}
-	RefreshHotelsCache()
 	return nil
 }

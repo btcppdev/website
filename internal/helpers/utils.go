@@ -202,16 +202,10 @@ func ConfTagSet(confs []*types.Conf) map[string]*types.Conf {
 }
 
 func HotelsForConf(ctx *config.AppContext, conf *types.Conf) []*types.Hotel {
-	hotels := make([]*types.Hotel, 0)
-	allhotels, err := getters.FetchHotelsCached(ctx)
+	hotels, err := getters.ListHotelsForConf(ctx, conf.Ref)
 	if err != nil {
 		ctx.Err.Printf("error fetching hotels: %s", err)
 		return nil
-	}
-	for _, hotel := range allhotels {
-		if hotel.ConfRef == conf.Ref {
-			hotels = append(hotels, hotel)
-		}
 	}
 	// Sort by the Order field (smaller first). Stable sort so two
 	// hotels at the same Order value keep their cache-arrival

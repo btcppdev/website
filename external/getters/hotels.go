@@ -55,6 +55,23 @@ func ListHotels(n *types.Notion) ([]*types.Hotel, error) {
 	return ListHotelsNotion(n)
 }
 
+func ListHotelsForConf(ctx *config.AppContext, confRef string) ([]*types.Hotel, error) {
+	if UsePostgresBackend(ctx) {
+		return listHotelsForConfPostgres(ctx, confRef)
+	}
+	allHotels, err := FetchHotelsCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hotels := make([]*types.Hotel, 0)
+	for _, hotel := range allHotels {
+		if hotel != nil && hotel.ConfRef == confRef {
+			hotels = append(hotels, hotel)
+		}
+	}
+	return hotels, nil
+}
+
 // CreateHotel inserts a new row into the Hotels DB and returns the
 // new page ID. ConfRef is required (no orphan hotels); everything
 // else is optional and gets written when non-empty.
