@@ -86,6 +86,13 @@ func GetTalksFor(ctx *config.AppContext, event string) ([]*types.Talk, error) {
 	return ListTalksForConf(ctx, event)
 }
 
+func ListTalks(ctx *config.AppContext) ([]*types.Talk, error) {
+	if UsePostgresBackend(ctx) {
+		return LoadTalksFromConfTalks(ctx, "")
+	}
+	return FetchTalksCached(ctx)
+}
+
 func ListTalksForConf(ctx *config.AppContext, event string) ([]*types.Talk, error) {
 	if UsePostgresBackend(ctx) {
 		return LoadTalksFromConfTalks(ctx, event)

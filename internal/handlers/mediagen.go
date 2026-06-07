@@ -573,7 +573,7 @@ func InitMediaRefresh(ctx *config.AppContext) {
 	ctx.Infos.Println("Media card refresh callbacks registered")
 
 	// Do an initial refresh with the data already loaded by WaitFetch
-	talks, err := getters.FetchTalksCached(ctx)
+	talks, err := getters.ListTalks(ctx)
 	if err == nil && talks != nil {
 		ctx.Infos.Println("Running initial media card refresh...")
 		RefreshTalkCards(ctx, talks)
