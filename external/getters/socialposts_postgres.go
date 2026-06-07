@@ -101,9 +101,6 @@ func upsertSocialPostPostgres(ctx *config.AppContext, up SocialPostUpdate) (*typ
 }
 
 func findSocialPostByRefPostgres(ctx *config.AppContext, ref string) (*types.SocialPost, error) {
-	if cached := findCachedSocialPostByRef(ref); cached != nil {
-		return cached, nil
-	}
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}

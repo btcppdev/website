@@ -32,10 +32,8 @@ type SocialPostUpdate struct {
 }
 
 var (
-	socialPostCacheMu   sync.RWMutex
-	cacheSocialPosts    []*types.SocialPost
-	socialPostByRef     map[string]*types.SocialPost
-	lastSocialPostFetch time.Time
+	socialPostCacheMu sync.RWMutex
+	socialPostByRef   map[string]*types.SocialPost
 )
 
 // ListPostedRefs returns a set of all Ref values that have been posted
@@ -53,28 +51,7 @@ func RecordSocialPost(ctx *config.AppContext, ref, text, platform string, posted
 	return recordSocialPostNotion(ctx, ref, text, platform, postedAt)
 }
 
-func FetchSocialPostsCached(ctx *config.AppContext) ([]*types.SocialPost, error) {
-	ttl := cacheTTL
-	if ttl <= 0 {
-		ttl = time.Minute
-	}
-	socialPostCacheMu.RLock()
-	if cacheSocialPosts != nil && time.Since(lastSocialPostFetch) < ttl {
-		out := append([]*types.SocialPost(nil), cacheSocialPosts...)
-		socialPostCacheMu.RUnlock()
-		return out, nil
-	}
-	socialPostCacheMu.RUnlock()
-
-	posts, err := ListSocialPosts(ctx)
-	if err != nil {
-		return nil, err
-	}
-	replaceSocialPostCache(posts)
-	return append([]*types.SocialPost(nil), posts...), nil
-}
-
-func FetchSocialPostByRef(ref string) *types.SocialPost {
+func findCachedSocialPostByRef(ref string) *types.SocialPost {
 	socialPostCacheMu.RLock()
 	defer socialPostCacheMu.RUnlock()
 	post := socialPostByRef[ref]
@@ -102,18 +79,11 @@ func UpsertSocialPost(ctx *config.AppContext, up SocialPostUpdate) (*types.Socia
 	return upsertSocialPostNotion(ctx, up)
 }
 
-func findSocialPostByRef(ctx *config.AppContext, ref string) (*types.SocialPost, error) {
+func GetSocialPostByRef(ctx *config.AppContext, ref string) (*types.SocialPost, error) {
 	if UsePostgresBackend(ctx) {
 		return findSocialPostByRefPostgres(ctx, ref)
 	}
 	return findSocialPostByRefNotion(ctx, ref)
-}
-
-func findCachedSocialPostByRef(ref string) *types.SocialPost {
-	if cached := FetchSocialPostByRef(ref); cached != nil {
-		return cached
-	}
-	return nil
 }
 
 func applySocialPostUpdate(post *types.SocialPost, up SocialPostUpdate) *types.SocialPost {
@@ -182,20 +152,6 @@ func socialPostSuppressesRef(post *types.SocialPost) bool {
 	}
 }
 
-func replaceSocialPostCache(posts []*types.SocialPost) {
-	byRef := make(map[string]*types.SocialPost, len(posts))
-	for _, post := range posts {
-		if post != nil && post.Ref != "" {
-			byRef[post.Ref] = post
-		}
-	}
-	socialPostCacheMu.Lock()
-	cacheSocialPosts = posts
-	socialPostByRef = byRef
-	lastSocialPostFetch = time.Now()
-	socialPostCacheMu.Unlock()
-}
-
 func cacheSocialPost(post *types.SocialPost) {
 	if post == nil || post.Ref == "" {
 		return
@@ -206,13 +162,4 @@ func cacheSocialPost(post *types.SocialPost) {
 		socialPostByRef = map[string]*types.SocialPost{}
 	}
 	socialPostByRef[post.Ref] = post
-	for i, existing := range cacheSocialPosts {
-		if existing != nil && existing.Ref == post.Ref {
-			cacheSocialPosts[i] = post
-			lastSocialPostFetch = time.Now()
-			return
-		}
-	}
-	cacheSocialPosts = append(cacheSocialPosts, post)
-	lastSocialPostFetch = time.Now()
 }

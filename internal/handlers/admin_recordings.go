@@ -221,9 +221,6 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 
-	if _, err := getters.FetchSocialPostsCached(ctx); err != nil {
-		ctx.Err.Printf("/%s/admin/recordings socialposts: %s", conf.Tag, err)
-	}
 	rows := recordingRowsForConf(ctx, conf.Tag)
 	enrichRowsWithYouTubeStatus(ctx, rows)
 	sort.SliceStable(rows, func(i, j int) bool {
@@ -1107,9 +1104,6 @@ func scopedRecordingFromRequest(w http.ResponseWriter, r *http.Request, ctx *con
 		handle404(w, r, ctx)
 		return nil, nil, nil, false
 	}
-	if _, err := getters.FetchSocialPostsCached(ctx); err != nil {
-		ctx.Err.Printf("/%s/admin/recordings/%s socialposts: %s", conf.Tag, recordingID, err)
-	}
 	row := buildRecordingRow(ctx, rec)
 	if !recordingRowBelongsToConf(row, conf.Tag) {
 		handle404(w, r, ctx)
@@ -1192,7 +1186,7 @@ func upsertRecordingSocialPost(ctx *config.AppContext, row *RecordingRow, platfo
 	}
 	_, err := getters.UpsertSocialPost(ctx, up)
 	if err == nil {
-		attachRecordingSocialPosts(row)
+		attachRecordingSocialPosts(ctx, row)
 		row.HasYT = row.YTURL != ""
 		row.HasX = row.XURL != ""
 	}
@@ -1217,7 +1211,7 @@ func buildRecordingRow(ctx *config.AppContext, rec *types.Recording) *RecordingR
 			row.Speakers = recordingSpeakersForProposal(row.ConfTalk.Proposal, ctx)
 		}
 	}
-	attachRecordingSocialPosts(row)
+	attachRecordingSocialPosts(ctx, row)
 	if !recordingStatusIsError(row.YTStatus) {
 		row.YTError = ""
 	}
@@ -1238,12 +1232,12 @@ func recordingStatusIsError(status string) bool {
 	}
 }
 
-func attachRecordingSocialPosts(row *RecordingRow) {
+func attachRecordingSocialPosts(ctx *config.AppContext, row *RecordingRow) {
 	if row == nil || row.Recording == nil {
 		return
 	}
-	row.YTSocialPost = getters.FetchSocialPostByRef(recordingSocialPostRef(row.Recording, recordingPlatformYouTube))
-	row.XSocialPost = getters.FetchSocialPostByRef(recordingSocialPostRef(row.Recording, recordingPlatformX))
+	row.YTSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformYouTube)
+	row.XSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformX)
 	if row.YTSocialPost != nil {
 		if row.YTSocialPost.URL != "" {
 			row.YTURL = row.YTSocialPost.URL
@@ -1272,6 +1266,16 @@ func attachRecordingSocialPosts(row *RecordingRow) {
 			row.XErrorFingerprint = row.XSocialPost.ErrorFingerprint
 		}
 	}
+}
+
+func recordingSocialPostByRef(ctx *config.AppContext, rec *types.Recording, platform string) *types.SocialPost {
+	ref := recordingSocialPostRef(rec, platform)
+	post, err := getters.GetSocialPostByRef(ctx, ref)
+	if err != nil {
+		ctx.Err.Printf("recording row %s socialpost %s: %s", rec.ID, ref, err)
+		return nil
+	}
+	return post
 }
 
 func recordingSpeakersForProposal(proposal *types.Proposal, ctxs ...*config.AppContext) []*types.Speaker {

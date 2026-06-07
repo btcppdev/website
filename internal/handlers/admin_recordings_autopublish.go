@@ -64,9 +64,6 @@ func runRecordingAutopublishTick(ctx *config.AppContext) {
 	if len(recs) == 0 {
 		return
 	}
-	if _, err := getters.FetchSocialPostsCached(ctx); err != nil {
-		ctx.Err.Printf("recording autopublisher socialposts: %s", err)
-	}
 	youtubeReady := youtubepkg.IsConfigured() && youtubepkg.IsConnected()
 	var xClient *xposter.Client
 	var xInitErr error
