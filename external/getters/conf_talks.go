@@ -134,7 +134,7 @@ func resolveProposalSpeakers(p *types.Proposal, speakerConfMap map[string]*types
 // talkFromConfTalk denormalizes a (ConfTalk, Proposal) pair plus the proposal's
 // resolved Speakers list into the legacy *types.Talk shape used by templates,
 // media generation, and social publishing.
-func talkFromConfTalk(ct *types.ConfTalk, proposal *types.Proposal) *types.Talk {
+func talkFromConfTalk(ctx *config.AppContext, ct *types.ConfTalk, proposal *types.Proposal) *types.Talk {
 	talk := &types.Talk{
 		ID:          ct.ID,
 		Clipart:     ct.Clipart,
@@ -150,8 +150,10 @@ func talkFromConfTalk(ct *types.ConfTalk, proposal *types.Proposal) *types.Talk 
 	if talk.Sched != nil {
 		talk.TimeDesc = talk.Sched.Desc()
 	}
-	if rec := FetchRecordingByConfTalk(ct.ID); rec != nil {
+	if rec, err := GetRecordingByConfTalk(ctx, ct.ID); err == nil && rec != nil {
 		talk.YTLink = rec.YTLink
+	} else if err != nil && ctx != nil && ctx.Err != nil {
+		ctx.Err.Printf("talk %s recording lookup: %s", ct.ID, err)
 	}
 	if proposal != nil {
 		talk.Name = proposal.Title
@@ -199,6 +201,10 @@ func recordingEmojiForRecordOK(recordOK string) string {
 // ConfTalk -> Proposal -> speakers chain for a given conf tag. Pass an empty
 // string to load talks for every conf.
 func LoadTalksFromConfTalks(ctx *config.AppContext, confTag string) ([]*types.Talk, error) {
+	if UsePostgresBackend(ctx) && confTag != "" {
+		return loadTalksFromConfTalksForConfPostgres(ctx, confTag)
+	}
+
 	proposals, err := ListProposals(ctx)
 	if err != nil {
 		return nil, err
@@ -226,6 +232,13 @@ func LoadTalksFromConfTalks(ctx *config.AppContext, confTag string) ([]*types.Ta
 		return nil, nil
 	}
 
+	return talksFromConfTalks(ctx, confTalks, proposalMap)
+}
+
+func talksFromConfTalks(ctx *config.AppContext, confTalks []*types.ConfTalk, proposalMap map[string]*types.Proposal) ([]*types.Talk, error) {
+	if len(confTalks) == 0 {
+		return nil, nil
+	}
 	speakers, err := listSpeakersForBackend(ctx)
 	if err != nil {
 		return nil, err
@@ -250,7 +263,7 @@ func LoadTalksFromConfTalks(ctx *config.AppContext, confTag string) ([]*types.Ta
 
 	talks := make([]*types.Talk, 0, len(confTalks))
 	for _, ct := range confTalks {
-		talks = append(talks, talkFromConfTalk(ct, ct.Proposal))
+		talks = append(talks, talkFromConfTalk(ctx, ct, ct.Proposal))
 	}
 	return talks, nil
 }

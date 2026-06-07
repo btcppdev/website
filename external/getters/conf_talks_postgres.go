@@ -133,7 +133,7 @@ func loadTalkFromConfTalkPostgres(ctx *config.AppContext, confTalkID string) (*t
 	}
 	ct := rows[0]
 	if ct.Proposal == nil {
-		return talkFromConfTalk(ct, nil), nil
+		return talkFromConfTalk(ctx, ct, nil), nil
 	}
 
 	proposalMap := map[string]*types.Proposal{ct.Proposal.ID: ct.Proposal}
@@ -146,7 +146,34 @@ func loadTalkFromConfTalkPostgres(ctx *config.AppContext, confTalkID string) (*t
 		speakerConfMap[sc.ID] = sc
 	}
 	resolveProposalSpeakers(ct.Proposal, speakerConfMap)
-	return talkFromConfTalk(ct, ct.Proposal), nil
+	return talkFromConfTalk(ctx, ct, ct.Proposal), nil
+}
+
+func loadTalksFromConfTalksForConfPostgres(ctx *config.AppContext, confTag string) ([]*types.Talk, error) {
+	conf, err := getConferenceByTagPostgres(ctx, confTag)
+	if err != nil {
+		return nil, err
+	}
+	if conf == nil {
+		return nil, nil
+	}
+
+	proposals, err := listProposalsForConfPostgres(ctx, conf.Ref)
+	if err != nil {
+		return nil, err
+	}
+	proposalMap := make(map[string]*types.Proposal, len(proposals))
+	for _, proposal := range proposals {
+		if proposal != nil {
+			proposalMap[proposal.ID] = proposal
+		}
+	}
+
+	confTalks, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.conference_id::text = $1", []interface{}{conf.Ref}, proposalMap)
+	if err != nil {
+		return nil, err
+	}
+	return talksFromConfTalks(ctx, confTalks, proposalMap)
 }
 
 func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interface{}, proposalMap map[string]*types.Proposal) ([]*types.ConfTalk, error) {

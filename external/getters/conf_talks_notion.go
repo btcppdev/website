@@ -57,7 +57,7 @@ func loadTalkFromConfTalkNotion(ctx *config.AppContext, confTalkID string) (*typ
 
 	proposalID := parseRef(page.Properties, "proposal")
 	if proposalID == "" {
-		return talkFromConfTalk(ct, nil), nil
+		return talkFromConfTalk(ctx, ct, nil), nil
 	}
 	proposalPage, err := ctx.Notion.Client.RetrievePage(context.Background(), proposalID)
 	if err != nil {
@@ -83,7 +83,7 @@ func loadTalkFromConfTalkNotion(ctx *config.AppContext, confTalkID string) (*typ
 		speakerConfMap[sc.ID] = sc
 	}
 	resolveProposalSpeakers(proposal, speakerConfMap)
-	return talkFromConfTalk(ct, proposal), nil
+	return talkFromConfTalk(ctx, ct, proposal), nil
 }
 
 func talkUpdateCalNotifNotion(n *types.Notion, talkID string, calnotif string) error {
