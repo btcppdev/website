@@ -195,6 +195,94 @@ func TestPostgresSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
 	}
 }
 
+func TestPostgresSmokeWorkShiftScheduleUsesConferenceTimezone(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	tag := "smoke-shift-nairobi-" + postgresSmokeSuffix()
+
+	var confID string
+	err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO conferences (
+			tag, active, description, date_desc, start_date, end_date, timezone, location, venue
+		)
+		VALUES (
+			$1, true, 'Nairobi Shift Smoke Test Conf', 'July 1-2, 2026',
+			'2026-07-01 00:00:00+03', '2026-07-02 23:59:00+03',
+			'Africa/Nairobi', 'Nairobi', 'Smoke Venue'
+		)
+		RETURNING id::text
+	`, tag).Scan(&confID)
+	if err != nil {
+		t.Fatalf("insert nairobi conference: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM conferences WHERE id::text = $1 OR tag = $2`, confID, tag)
+	})
+
+	var shiftID string
+	err = ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO work_shifts (conference_id, name, max_vols, shift_start, shift_end, priority)
+		VALUES ($1::uuid, 'Registration Desk', 2, '2026-07-01 10:00:00+03', '2026-07-01 11:30:00+03', 1)
+		RETURNING id::text
+	`, confID).Scan(&shiftID)
+	if err != nil {
+		t.Fatalf("insert nairobi work shift: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM work_shifts WHERE id::text = $1`, shiftID)
+	})
+
+	originalConfs := confs
+	originalLastConfsFetch := lastConfsFetch
+	originalJobs := jobs
+	originalLastJobTypeFetch := lastJobTypeFetch
+	t.Cleanup(func() {
+		confs = originalConfs
+		lastConfsFetch = originalLastConfsFetch
+		jobs = originalJobs
+		lastJobTypeFetch = originalLastJobTypeFetch
+	})
+	confs, err = listConferencesPostgres(ctx)
+	if err != nil {
+		t.Fatalf("listConferencesPostgres: %v", err)
+	}
+	lastConfsFetch = time.Now()
+	jobs = nil
+	lastJobTypeFetch = time.Now()
+
+	shifts, err := listWorkShiftsPostgres(ctx)
+	if err != nil {
+		t.Fatalf("listWorkShiftsPostgres: %v", err)
+	}
+	var got *types.WorkShift
+	for _, shift := range shifts {
+		if shift.Ref == shiftID {
+			got = shift
+			break
+		}
+	}
+	if got == nil {
+		t.Fatalf("shift %s not returned", shiftID)
+	}
+	if got.ShiftTime == nil || got.ShiftTime.End == nil {
+		t.Fatalf("shift time missing: %+v", got)
+	}
+	if loc := got.ShiftTime.Start.Location().String(); loc != "Africa/Nairobi" {
+		t.Fatalf("start location = %q, want Africa/Nairobi", loc)
+	}
+	if got.ShiftTime.Start.Hour() != 10 || got.ShiftTime.Start.Minute() != 0 {
+		t.Fatalf("start time = %s, want 10:00 Africa/Nairobi", got.ShiftTime.Start)
+	}
+	if loc := got.ShiftTime.End.Location().String(); loc != "Africa/Nairobi" {
+		t.Fatalf("end location = %q, want Africa/Nairobi", loc)
+	}
+	if got.ShiftTime.End.Hour() != 11 || got.ShiftTime.End.Minute() != 30 {
+		t.Fatalf("end time = %s, want 11:30 Africa/Nairobi", *got.ShiftTime.End)
+	}
+	if desc := got.TimeDesc(); desc != "10:00am - 11:30am" {
+		t.Fatalf("TimeDesc = %q, want local Nairobi time", desc)
+	}
+}
+
 func postgresSmokeContext(t *testing.T) *config.AppContext {
 	t.Helper()
 	if os.Getenv("BTCPP_POSTGRES_SMOKE") != "1" {

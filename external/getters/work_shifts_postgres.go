@@ -87,9 +87,14 @@ func listWorkShiftsPostgres(ctx *config.AppContext) ([]*types.WorkShift, error) 
 		shift.Conf = confByID[confID]
 		shift.Type = jobByID[jobTypeID]
 		if shiftStart.Valid {
-			shift.ShiftTime = &types.Times{Start: shiftStart.Time}
+			loc := time.Local
+			if shift.Conf != nil {
+				loc = shift.Conf.Loc()
+			}
+			shift.ShiftTime = &types.Times{Start: shiftStart.Time.In(loc)}
 			if shiftEnd.Valid {
-				shift.ShiftTime.End = &shiftEnd.Time
+				end := shiftEnd.Time.In(loc)
+				shift.ShiftTime.End = &end
 			}
 		}
 		out = append(out, &shift)
