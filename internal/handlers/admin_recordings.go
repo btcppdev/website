@@ -260,39 +260,21 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 }
 
 func recordingRowsForConf(ctx *config.AppContext, confTag string) []*RecordingRow {
-	recs := getters.ListRecordingsCached()
-	rows := recordingRowsFromList(recs, confTag)
-	if len(rows) > 0 || len(recs) > 0 {
-		return rows
-	}
-
-	// The admin page is a control surface; if the warm cache missed at
-	// startup, do a synchronous refresh instead of rendering an empty page
-	// that suggests the Notion DB itself has no rows.
-	ctx.Infos.Printf("/%s/admin/recordings cache empty; refreshing Notion caches", confTag)
-	getters.WaitFetch(ctx)
-	recs = getters.ListRecordingsCached()
-	rows = recordingRowsFromList(recs, confTag)
-	if len(rows) > 0 || len(recs) > 0 {
-		return rows
-	}
-
-	live, err := getters.ListRecordings(ctx)
+	recs, err := getters.ListRecordings(ctx)
 	if err != nil {
-		ctx.Err.Printf("/%s/admin/recordings live recordings fetch failed: %s", confTag, err)
-		return rows
+		ctx.Err.Printf("/%s/admin/recordings recordings fetch failed: %s", confTag, err)
+		return nil
 	}
-	ctx.Infos.Printf("/%s/admin/recordings live recordings fallback loaded %d rows", confTag, len(live))
-	return recordingRowsFromList(live, confTag)
+	return recordingRowsFromList(ctx, recs, confTag)
 }
 
-func recordingRowsFromList(recs []*types.Recording, confTag string) []*RecordingRow {
+func recordingRowsFromList(ctx *config.AppContext, recs []*types.Recording, confTag string) []*RecordingRow {
 	rows := make([]*RecordingRow, 0, len(recs))
 	for _, rec := range recs {
 		if rec == nil {
 			continue
 		}
-		row := buildRecordingRow(rec)
+		row := buildRecordingRow(ctx, rec)
 		if recordingRowBelongsToConf(row, confTag) {
 			rows = append(rows, row)
 		}
@@ -803,7 +785,7 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 			setJobStatus(recordingID, "failed", fmt.Sprintf("internal error: %v", rec))
 		}
 	}()
-	row := buildRecordingRow(rec)
+	row := buildRecordingRow(ctx, rec)
 	status := recordingStatusUploading
 	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
 		Text:   &body,
@@ -947,7 +929,7 @@ func RecordingsAdminSaveXLink(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 	status := recordingStatusPosted
 	now := time.Now()
-	if err := upsertRecordingSocialPost(ctx, buildRecordingRow(rec), recordingPlatformX, getters.SocialPostUpdate{
+	if err := upsertRecordingSocialPost(ctx, buildRecordingRow(ctx, rec), recordingPlatformX, getters.SocialPostUpdate{
 		URL:      &xURL,
 		Status:   &status,
 		PostedAt: &now,
@@ -1128,7 +1110,7 @@ func scopedRecordingFromRequest(w http.ResponseWriter, r *http.Request, ctx *con
 	if _, err := getters.FetchSocialPostsCached(ctx); err != nil {
 		ctx.Err.Printf("/%s/admin/recordings/%s socialposts: %s", conf.Tag, recordingID, err)
 	}
-	row := buildRecordingRow(rec)
+	row := buildRecordingRow(ctx, rec)
 	if !recordingRowBelongsToConf(row, conf.Tag) {
 		handle404(w, r, ctx)
 		return nil, nil, nil, false
@@ -1217,7 +1199,7 @@ func upsertRecordingSocialPost(ctx *config.AppContext, row *RecordingRow, platfo
 	return err
 }
 
-func buildRecordingRow(rec *types.Recording) *RecordingRow {
+func buildRecordingRow(ctx *config.AppContext, rec *types.Recording) *RecordingRow {
 	row := &RecordingRow{
 		Recording: rec,
 		YTURL:     rec.YTLink,
@@ -1226,9 +1208,13 @@ func buildRecordingRow(rec *types.Recording) *RecordingRow {
 		HasFile:   rec.FileURI != "",
 	}
 	if rec.ConfTalkID != "" {
-		row.ConfTalk = getters.FetchConfTalkByID(rec.ConfTalkID)
+		ct, err := getters.GetConfTalkByID(ctx, rec.ConfTalkID)
+		if err != nil {
+			ctx.Err.Printf("recording row %s conftalk %s: %s", rec.ID, rec.ConfTalkID, err)
+		}
+		row.ConfTalk = ct
 		if row.ConfTalk != nil && row.ConfTalk.Proposal != nil {
-			row.Speakers = recordingSpeakersForProposal(row.ConfTalk.Proposal)
+			row.Speakers = recordingSpeakersForProposal(row.ConfTalk.Proposal, ctx)
 		}
 	}
 	attachRecordingSocialPosts(row)
@@ -1288,9 +1274,13 @@ func attachRecordingSocialPosts(row *RecordingRow) {
 	}
 }
 
-func recordingSpeakersForProposal(proposal *types.Proposal) []*types.Speaker {
+func recordingSpeakersForProposal(proposal *types.Proposal, ctxs ...*config.AppContext) []*types.Speaker {
 	if proposal == nil {
 		return nil
+	}
+	var ctx *config.AppContext
+	if len(ctxs) > 0 {
+		ctx = ctxs[0]
 	}
 	seen := map[string]bool{}
 	out := make([]*types.Speaker, 0, len(proposal.SpeakerConfRefs))
@@ -1302,11 +1292,10 @@ func recordingSpeakersForProposal(proposal *types.Proposal) []*types.Speaker {
 		out = append(out, sc.Speaker)
 	}
 
-	// Cached proposals generally carry raw SpeakerConfRefs; the
-	// Speakers slice is only filled by specific enrichers. Resolve
-	// through the warm SpeakerConf cache so recordings get names even
-	// when the proposal has not been enriched in this request.
-	for _, sc := range resolveProposalSpeakers(proposal) {
+	// Proposals generally carry raw SpeakerConfRefs; the Speakers slice is
+	// only filled by specific enrichers. Resolve refs so recordings get names
+	// even when the proposal has not been enriched in this request.
+	for _, sc := range resolveProposalSpeakers(proposal, ctx) {
 		appendSpeakerConf(sc)
 	}
 	for _, sc := range proposal.Speakers {

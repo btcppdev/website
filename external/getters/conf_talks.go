@@ -67,6 +67,13 @@ func FetchConfTalkByID(id string) *types.ConfTalk {
 	return nil
 }
 
+func GetConfTalkByID(ctx *config.AppContext, id string) (*types.ConfTalk, error) {
+	if UsePostgresBackend(ctx) {
+		return getConfTalkByIDPostgres(ctx, id)
+	}
+	return FetchConfTalkByID(id), nil
+}
+
 func InvalidateConfTalksCache() {
 	confTalkCacheMu.Lock()
 	lastConfTalkFetch = time.Time{}

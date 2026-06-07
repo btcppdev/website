@@ -87,20 +87,6 @@ func GetRecordingByID(ctx *config.AppContext, recordingID string) (*types.Record
 	return FetchRecordingByID(recordingID), nil
 }
 
-// ListRecordingsCached returns the warm Recordings slice. Returns nil before
-// the first fetch completes; callers can treat that as still booting and render
-// an empty list rather than a hard error.
-func ListRecordingsCached() []*types.Recording {
-	recordingCacheMu.RLock()
-	defer recordingCacheMu.RUnlock()
-	if cacheRecordings == nil {
-		return nil
-	}
-	out := make([]*types.Recording, len(cacheRecordings))
-	copy(out, cacheRecordings)
-	return out
-}
-
 // FetchYTLinkForTalk bridges the legacy Talks-DB renderer (which uses Talk.ID =
 // Talks-DB page ID) to the Recording cache (keyed by ConfTalk.ID).
 func FetchYTLinkForTalk(confTag, name string) string {

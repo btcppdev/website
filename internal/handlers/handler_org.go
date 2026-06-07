@@ -67,7 +67,7 @@ func pickSessions(days []*Day, dayref string) ([]types.SessionTime, error) {
 }
 
 func talkDays(ctx *config.AppContext, conf *types.Conf, talks types.TalkTime) ([]*Day, error) {
-	buckets, err := bucketTalks(conf, talks)
+	buckets, err := bucketTalks(ctx, conf, talks)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func talkDays(ctx *config.AppContext, conf *types.Conf, talks types.TalkTime) ([
 	return days, nil
 }
 
-func talkToSession(talk *types.Talk, conf *types.Conf) *types.Session {
+func talkToSession(ctx *config.AppContext, talk *types.Talk, conf *types.Conf) *types.Session {
 	sesh := &types.Session{
 		Name:      talk.Name,
 		Speakers:  talk.Speakers,
@@ -145,7 +145,9 @@ func talkToSession(talk *types.Talk, conf *types.Conf) *types.Session {
 	// First try a direct ConfTalk.ID lookup (cheap when talks come from
 	// LoadTalksFromConfTalks); fall back to the (tag, title) bridge for
 	// the legacy Talks-DB renderer where talk.ID is a Talks-DB page ID.
-	if rec := getters.FetchRecordingByConfTalk(talk.ID); rec != nil {
+	if rec, err := getters.GetRecordingByConfTalk(ctx, talk.ID); err != nil {
+		ctx.Err.Printf("talkToSession recording lookup %s: %s", talk.ID, err)
+	} else if rec != nil {
 		sesh.YTLink = rec.YTLink
 	} else {
 		sesh.YTLink = getters.FetchYTLinkForTalk(conf.Tag, talk.Name)
@@ -154,12 +156,12 @@ func talkToSession(talk *types.Talk, conf *types.Conf) *types.Session {
 	return sesh
 }
 
-func bucketTalks(conf *types.Conf, talks types.TalkTime) (map[string]types.SessionTime, error) {
+func bucketTalks(ctx *config.AppContext, conf *types.Conf, talks types.TalkTime) (map[string]types.SessionTime, error) {
 	sort.Sort(talks)
 
 	sessions := make(map[string]types.SessionTime)
 	for _, talk := range talks {
-		session := talkToSession(talk, conf)
+		session := talkToSession(ctx, talk, conf)
 		section, ok := sessions[talk.Section]
 		if !ok {
 			section = make(types.SessionTime, 0)

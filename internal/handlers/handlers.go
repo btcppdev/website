@@ -2422,7 +2422,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 
 	soldCount := getters.SoldTixCached(ctx, conf)
 
-	buckets, err := bucketTalks(conf, talks)
+	buckets, err := bucketTalks(ctx, conf, talks)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("Unable to bucket '%s' talks from Notion!! %s", conf.Tag, err.Error())
@@ -2445,7 +2445,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	} else {
 		infosByDay = confInfosByDay(cis)
 	}
-	agendaDays := buildAgendaDays(conf, talks, infosByDay)
+	agendaDays := buildAgendaDays(ctx, conf, talks, infosByDay)
 
 	// Flatten AgendaDays into a single chrono-ordered slice for the
 	// JSON-LD subEvent[] emission. Each day's .All is already

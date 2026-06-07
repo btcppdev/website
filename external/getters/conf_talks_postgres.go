@@ -112,6 +112,17 @@ func getConfTalkByProposalPostgres(ctx *config.AppContext, proposalID string) (*
 	return rows[0], nil
 }
 
+func getConfTalkByIDPostgres(ctx *config.AppContext, confTalkID string) (*types.ConfTalk, error) {
+	rows, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.id::text = $1", []interface{}{confTalkID}, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return rows[0], nil
+}
+
 func loadTalkFromConfTalkPostgres(ctx *config.AppContext, confTalkID string) (*types.Talk, error) {
 	rows, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.id::text = $1", []interface{}{confTalkID}, nil)
 	if err != nil {

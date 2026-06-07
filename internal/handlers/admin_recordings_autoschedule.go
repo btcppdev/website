@@ -323,7 +323,7 @@ func occupiedYouTubePublishTimes(ctx *config.AppContext, currentRows []*Recordin
 	all, err := getters.ListRecordings(ctx)
 	if err != nil {
 		ctx.Err.Printf("autoschedule list recordings for occupied slots: %s", err)
-		all = getters.ListRecordingsCached()
+		return occupied
 	}
 	for _, rec := range all {
 		if rec == nil || rec.PublishAt == nil || rec.PublishAt.Before(time.Now()) {

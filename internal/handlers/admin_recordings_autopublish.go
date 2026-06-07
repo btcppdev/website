@@ -56,7 +56,11 @@ func StartRecordingAutopublisher(ctx *config.AppContext) {
 
 func runRecordingAutopublishTick(ctx *config.AppContext) {
 	now := time.Now()
-	recs := getters.ListRecordingsCached()
+	recs, err := getters.ListRecordings(ctx)
+	if err != nil {
+		ctx.Err.Printf("recording autopublisher recordings: %s", err)
+		return
+	}
 	if len(recs) == 0 {
 		return
 	}
@@ -79,7 +83,7 @@ func runRecordingAutopublishTick(ctx *config.AppContext) {
 		if rec == nil || rec.PublishAt == nil || rec.FileURI == "" {
 			continue
 		}
-		row := buildRecordingRow(rec)
+		row := buildRecordingRow(ctx, rec)
 		if youtubeReady && shouldUploadRecordingToYouTube(row) {
 			runScheduledYouTubeUpload(ctx, row)
 		}
@@ -306,7 +310,7 @@ func recordingXProgressReporter(recordingID string) xposter.ProgressFunc {
 }
 
 func runXSchedule(ctx *config.AppContext, rec *types.Recording, conf *types.Conf, mainText string) {
-	row := buildRecordingRow(rec)
+	row := buildRecordingRow(ctx, rec)
 	setXJobStage(rec.ID, "prepare", "Preparing X schedule")
 	if rec.PublishAt == nil {
 		recordXFailure(ctx, row, recordingStatusFailed, "PublishAt is required before scheduling on X")
@@ -490,7 +494,7 @@ func sendXFailureEmail(ctx *config.AppContext, rec *types.Recording, status, msg
 	if to == "" {
 		return nil
 	}
-	row := buildRecordingRow(rec)
+	row := buildRecordingRow(ctx, rec)
 	title := rec.TalkName
 	if row.ConfTalk != nil && row.ConfTalk.Proposal != nil && row.ConfTalk.Proposal.Title != "" {
 		title = row.ConfTalk.Proposal.Title
