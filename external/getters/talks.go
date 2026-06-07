@@ -104,6 +104,9 @@ func ListTalksForConf(ctx *config.AppContext, event string) ([]*types.Talk, erro
 }
 
 func GetTalk(ctx *config.AppContext, talkID string) (*types.Talk, error) {
+	if UsePostgresBackend(ctx) {
+		return LoadTalkFromConfTalk(ctx, talkID)
+	}
 	talks, err := FetchTalksCached(ctx)
 	if err != nil {
 		return nil, err
