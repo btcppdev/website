@@ -103,6 +103,10 @@ func refreshAdminDashboardProposalSnapshot(ctx *config.AppContext, key string, c
 }
 
 func loadAdminDashboardCountdownCached(ctx *config.AppContext, conf *types.Conf) (start *time.Time, end *time.Time, ok bool) {
+	if getters.UsePostgresBackend(ctx) {
+		return loadAdminDashboardCountdown(ctx, conf)
+	}
+
 	key := adminDashboardCacheKey(conf)
 	if key == "" {
 		return nil, nil, false
@@ -137,16 +141,28 @@ func loadAdminDashboardCountdownCached(ctx *config.AppContext, conf *types.Conf)
 	return start, end, ok
 }
 
-func refreshAdminDashboardCountdown(ctx *config.AppContext, key string, conf *types.Conf) {
-	started := time.Now()
+func loadAdminDashboardCountdown(ctx *config.AppContext, conf *types.Conf) (start *time.Time, end *time.Time, ok bool) {
+	if conf == nil {
+		return nil, nil, false
+	}
 	confCopy := *conf
 	var infosByDay map[int]*types.ConfInfo
-	if cis, err := getters.ListConfInfos(ctx, conf.Tag); err == nil {
-		infosByDay = confInfosByDay(cis)
-	} else if ctx.Err != nil {
-		ctx.Err.Printf("/%s/admin countdown refresh: %s", conf.Tag, err)
+	cis, err := getters.ListConfInfos(ctx, conf.Tag)
+	if err != nil {
+		if ctx != nil && ctx.Err != nil {
+			ctx.Err.Printf("/%s/admin countdown: %s", conf.Tag, err)
+		}
+		start, end = computeCountdownBounds(&confCopy, nil)
+		return start, end, false
 	}
-	start, end := computeCountdownBounds(&confCopy, infosByDay)
+	infosByDay = confInfosByDay(cis)
+	start, end = computeCountdownBounds(&confCopy, infosByDay)
+	return start, end, true
+}
+
+func refreshAdminDashboardCountdown(ctx *config.AppContext, key string, conf *types.Conf) {
+	started := time.Now()
+	start, end, _ := loadAdminDashboardCountdown(ctx, conf)
 
 	adminDashboardCountdownMu.Lock()
 	entry := adminDashboardCountdownCache[key]

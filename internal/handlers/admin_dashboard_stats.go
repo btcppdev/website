@@ -67,6 +67,10 @@ func loadOrganizerStatsCached(ctx *config.AppContext, conf *types.Conf, proposal
 	if conf == nil {
 		return nil
 	}
+	if getters.UsePostgresBackend(ctx) {
+		return loadOrganizerStats(ctx, conf, proposals, pendingCount)
+	}
+
 	key := conf.Ref
 	if key == "" {
 		key = conf.Tag
