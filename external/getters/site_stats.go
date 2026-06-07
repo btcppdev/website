@@ -58,9 +58,18 @@ func siteStatsAttendees(ctx *config.AppContext) (int, error) {
 	return siteStatsAttendeesNotion(ctx)
 }
 
-// FetchSiteStats returns the cached about-page counters and queues a
-// background refresh on TTL expiry.
+// FetchSiteStats returns about-page counters. Postgres-backed requests read
+// the aggregate directly; Notion fallback keeps the old background cache.
 func FetchSiteStats(ctx *config.AppContext) SiteStatsValues {
+	if UsePostgresBackend(ctx) {
+		s, err := siteStatsPostgres(ctx)
+		if err != nil {
+			ctx.Err.Printf("site stats aggregate: %s", err)
+		} else {
+			return s
+		}
+	}
+
 	siteStatsMu.RLock()
 	s := siteStats
 	stale := lastSiteStatsFetch.Before(time.Now().Add(-cacheTTL))
