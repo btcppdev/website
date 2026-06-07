@@ -2420,7 +2420,10 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	evSpeakers = acceptedSpeakersForConf(ctx, conf.Tag, talks)
 	sort.Sort(evSpeakers)
 
-	soldCount := getters.SoldTixCached(ctx, conf)
+	soldCount, err := getters.SoldTix(ctx, conf)
+	if err != nil {
+		ctx.Err.Printf("Unable to fetch sold ticket count for '%s': %s", conf.Tag, err.Error())
+	}
 
 	buckets, err := bucketTalks(ctx, conf, talks)
 	if err != nil {

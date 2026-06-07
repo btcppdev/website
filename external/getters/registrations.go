@@ -35,11 +35,21 @@ func normalizeRegistrationEmails(emails []string) []string {
 	return clean
 }
 
-func SoldTixCached(ctx *config.AppContext, conf *types.Conf) uint {
-	/* update the sold tix cache every time */
+func SoldTix(ctx *config.AppContext, conf *types.Conf) (uint, error) {
+	if conf == nil {
+		return 0, nil
+	}
+	if UsePostgresBackend(ctx) {
+		soldTixCount, err := SoldTixCount(ctx, conf.Ref)
+		if err != nil {
+			return conf.TixSold, err
+		}
+		return soldTixCount, nil
+	}
+
 	go UpdateSoldTix(ctx, conf)
 
-	return conf.TixSold
+	return conf.TixSold, nil
 }
 
 func UpdateSoldTix(ctx *config.AppContext, conf *types.Conf) {
