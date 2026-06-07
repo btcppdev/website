@@ -791,6 +791,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		VolAdminUpdateShift(w, r, app)
 	}).Methods("POST")
 
+	r.HandleFunc("/{conf}/volcoord/shifts/{shiftRef}/delete", func(w http.ResponseWriter, r *http.Request) {
+		VolAdminDeleteShift(w, r, app)
+	}).Methods("POST")
+
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}", func(w http.ResponseWriter, r *http.Request) {
 		VolAdminDetails(w, r, app)
 	}).Methods("GET")
@@ -5664,6 +5668,48 @@ func VolAdminUpdateShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 	if err != nil {
 		ctx.Err.Printf("/%s/volcoord/shifts/%s/update failed: %s", conf.Tag, shiftRef, err.Error())
 		http.Error(w, "Failed to update shift: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	volAdminShiftsRedirect(w, r, conf)
+}
+
+func VolAdminDeleteShift(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfVolcoord(w, r, ctx); id == nil {
+		return
+	}
+
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+
+	shiftRef := mux.Vars(r)["shiftRef"]
+	if shiftRef == "" {
+		http.Error(w, "shift required", http.StatusBadRequest)
+		return
+	}
+	shifts, err := getters.GetShiftsForConf(ctx, conf.Tag)
+	if err != nil {
+		ctx.Err.Printf("/%s/volcoord/shifts/%s/delete load shifts failed: %s", conf.Tag, shiftRef, err.Error())
+		http.Error(w, "Unable to load shifts", http.StatusInternalServerError)
+		return
+	}
+	found := false
+	for _, shift := range shifts {
+		if shift != nil && shift.Ref == shiftRef {
+			found = true
+			break
+		}
+	}
+	if !found {
+		http.Error(w, "shift not found", http.StatusNotFound)
+		return
+	}
+	if err := getters.DeleteShift(ctx, shiftRef); err != nil {
+		ctx.Err.Printf("/%s/volcoord/shifts/%s/delete failed: %s", conf.Tag, shiftRef, err.Error())
+		http.Error(w, "Failed to delete shift: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 

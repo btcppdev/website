@@ -145,6 +145,15 @@ func UpdateShiftNotion(ctx *config.AppContext, shiftRef, name string, jobType *t
 	return nil
 }
 
+func DeleteShiftNotion(ctx *config.AppContext, shiftRef string) error {
+	body := map[string]interface{}{"archived": true}
+	if err := notionPagePost(ctx.Notion.Config.Token, "PATCH", "/"+shiftRef, body); err != nil {
+		return err
+	}
+	invalidateShiftCache()
+	return nil
+}
+
 func AssignVolunteerToShiftNotion(ctx *config.AppContext, volRef, shiftRef string) error {
 	n := ctx.Notion
 

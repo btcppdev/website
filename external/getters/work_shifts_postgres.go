@@ -227,6 +227,24 @@ func updateShiftPostgres(ctx *config.AppContext, shiftRef, name string, jobType 
 	return nil
 }
 
+func deleteShiftPostgres(ctx *config.AppContext, shiftRef string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		DELETE FROM work_shifts
+		WHERE id = $1
+	`, shiftRef)
+	if err != nil {
+		return fmt.Errorf("delete work shift %s: %w", shiftRef, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("work shift %s not found", shiftRef)
+	}
+	invalidateShiftCache()
+	return nil
+}
+
 func assignVolunteerToShiftPostgres(ctx *config.AppContext, volRef, shiftRef string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")

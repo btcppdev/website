@@ -86,6 +86,13 @@ func UpdateShift(ctx *config.AppContext, shiftRef, name string, jobType *types.J
 	return UpdateShiftNotion(ctx, shiftRef, name, jobType, start, end, maxVols, priority)
 }
 
+func DeleteShift(ctx *config.AppContext, shiftRef string) error {
+	if UsePostgresBackend(ctx) {
+		return deleteShiftPostgres(ctx, shiftRef)
+	}
+	return DeleteShiftNotion(ctx, shiftRef)
+}
+
 func AssignVolunteerToShift(ctx *config.AppContext, volRef, shiftRef string) error {
 	if UsePostgresBackend(ctx) {
 		return assignVolunteerToShiftPostgres(ctx, volRef, shiftRef)
