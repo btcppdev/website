@@ -48,6 +48,12 @@ func adminDashboardCacheKey(conf *types.Conf) string {
 }
 
 func loadAdminDashboardProposalSnapshotCached(ctx *config.AppContext, conf *types.Conf) (pendingCount int, decisionedCount int, proposals []*types.Proposal, ok bool) {
+	if getters.UsePostgresBackend(ctx) {
+		proposals = loadConfProposals(ctx, conf)
+		pending, decisioned := splitProposalsByPending(proposals)
+		return len(pending), len(decisioned), proposals, true
+	}
+
 	key := adminDashboardCacheKey(conf)
 	if key == "" {
 		return 0, 0, nil, false

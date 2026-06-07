@@ -568,20 +568,20 @@ func AdminProposalRemoveSpeaker(w http.ResponseWriter, r *http.Request, ctx *con
 	finish("Speaker removed from proposal.")
 }
 
-// loadConfProposals returns every Proposal whose ScheduleFor matches
-// conf, sorted by ID for stable walkthrough order.
+// loadConfProposals returns every Proposal for conf, sorted by ID for stable
+// walkthrough order.
 func loadConfProposals(ctx *config.AppContext, conf *types.Conf) []*types.Proposal {
-	all, err := getters.ListProposals(ctx)
+	if conf == nil {
+		return nil
+	}
+	all, err := getters.ListProposalsForConf(ctx, conf.Ref)
 	if err != nil {
 		ctx.Err.Printf("loadConfProposals %s: %s", conf.Tag, err)
 		return nil
 	}
 	var out []*types.Proposal
 	for _, p := range all {
-		if p == nil || p.ScheduleFor == nil {
-			continue
-		}
-		if p.ScheduleFor.Ref == conf.Ref {
+		if p != nil {
 			out = append(out, p)
 		}
 	}

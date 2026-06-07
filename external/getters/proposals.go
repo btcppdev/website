@@ -239,6 +239,26 @@ func ListProposals(ctx *config.AppContext) ([]*types.Proposal, error) {
 	return ListProposalsNotion(ctx)
 }
 
+func ListProposalsForConf(ctx *config.AppContext, confRef string) ([]*types.Proposal, error) {
+	if UsePostgresBackend(ctx) {
+		return listProposalsForConfPostgres(ctx, confRef)
+	}
+	props, err := ListProposalsNotion(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []*types.Proposal
+	for _, p := range props {
+		if p == nil || p.ScheduleFor == nil {
+			continue
+		}
+		if p.ScheduleFor.Ref == confRef {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
 func ListProposalsOnly(n *types.Notion) ([]*types.Proposal, error) {
 	return ListProposalsOnlyNotion(n)
 }

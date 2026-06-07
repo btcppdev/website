@@ -40,6 +40,13 @@ func listProposalsPostgres(ctx *config.AppContext) ([]*types.Proposal, error) {
 	return queryProposalsPostgres(ctx, "")
 }
 
+func listProposalsForConfPostgres(ctx *config.AppContext, confRef string) ([]*types.Proposal, error) {
+	if strings.TrimSpace(confRef) == "" {
+		return nil, nil
+	}
+	return queryProposalsPostgres(ctx, "WHERE proposals.conference_id::text = $1", confRef)
+}
+
 func getProposalPostgres(ctx *config.AppContext, id string) (*types.Proposal, error) {
 	proposals, err := queryProposalsPostgres(ctx, "WHERE proposals.id::text = $1", id)
 	if err != nil {
