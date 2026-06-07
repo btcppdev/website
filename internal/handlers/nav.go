@@ -17,12 +17,12 @@ type NavConfList struct {
 	Past     []*types.Conf
 }
 
-// buildNavConfList pulls the warm conf cache, drops inactive rows, and
-// splits by HasEnded(). Sort order is "next event soonest" for
+// buildNavConfList loads conferences, drops inactive rows, and splits by
+// HasEnded(). Sort order is "next event soonest" for
 // upcoming and "most recently ended" for past so the freshest items
 // land at the top of each list.
 func buildNavConfList(ctx *config.AppContext) NavConfList {
-	confs, err := getters.FetchConfsCached(ctx)
+	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		ctx.Err.Printf("navConfs: %s", err)
 		return NavConfList{}

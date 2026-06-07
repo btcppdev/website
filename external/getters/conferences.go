@@ -52,6 +52,13 @@ func FetchConfsCached(ctx *config.AppContext) ([]*types.Conf, error) {
 	return confs, nil
 }
 
+func ListConfs(ctx *config.AppContext) ([]*types.Conf, error) {
+	if UsePostgresBackend(ctx) {
+		return listConferencesPostgres(ctx)
+	}
+	return FetchConfsCached(ctx)
+}
+
 func GetConfByTag(ctx *config.AppContext, tag string) (*types.Conf, error) {
 	if UsePostgresBackend(ctx) {
 		return getConferenceByTagPostgres(ctx, tag)
