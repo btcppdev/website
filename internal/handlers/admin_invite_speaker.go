@@ -115,9 +115,10 @@ func AdminInviteSpeakerSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 
 	// 3. Upsert SpeakerConf linking speaker → conf → proposal.
 	scID, err := getters.UpsertSpeakerConf(ctx, getters.SpeakerConfInput{
-		SpeakerID:  speaker.ID,
-		ConfTag:    conf.Tag,
-		ProposalID: proposal.ID,
+		SpeakerID:    speaker.ID,
+		ConfTag:      conf.Tag,
+		ProposalID:   proposal.ID,
+		Availability: fullSpeakerAvailability(conf),
 	})
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/invite-speaker upsert speakerconf: %s", conf.Tag, err)
@@ -167,6 +168,20 @@ func AdminInviteSpeakerSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		fmt.Sprintf("/%s/admin/invite-speaker/sent?proposal=%s&existing=%t",
 			conf.Tag, proposal.ID, attachedToExisting),
 		http.StatusSeeOther)
+}
+
+func fullSpeakerAvailability(conf *types.Conf) []string {
+	if conf == nil {
+		return nil
+	}
+	days := conf.DaysList("", false)
+	out := make([]string, 0, len(days))
+	for _, day := range days {
+		if strings.TrimSpace(day.ItemID) != "" {
+			out = append(out, day.ItemID)
+		}
+	}
+	return out
 }
 
 // AdminInviteSpeakerSent renders the post-invite confirmation page

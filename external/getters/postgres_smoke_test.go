@@ -195,7 +195,7 @@ func TestPostgresSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
 	}
 }
 
-func TestPostgresSmokeInviteSpeakerConfAllowsEmptyAvailability(t *testing.T) {
+func TestPostgresSmokeUpsertSpeakerConfNormalizesNilAvailability(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	confID, tag := insertSmokeConference(t, ctx)
 	suffix := postgresSmokeSuffix()
@@ -233,7 +233,7 @@ func TestPostgresSmokeInviteSpeakerConfAllowsEmptyAvailability(t *testing.T) {
 		ProposalID: proposalID,
 	})
 	if err != nil {
-		t.Fatalf("UpsertSpeakerConf with empty availability: %v", err)
+		t.Fatalf("UpsertSpeakerConf with nil availability: %v", err)
 	}
 	t.Cleanup(func() {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM speaker_confs WHERE id::text = $1`, scID)
