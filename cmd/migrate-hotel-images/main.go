@@ -35,14 +35,12 @@ import (
 	"strings"
 
 	"btcpp-web/external/spaces"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
-
-const configFile = "config.toml"
 
 func main() {
 	dry := flag.Bool("dry-run", false, "log what would be uploaded but don't write to Spaces or Notion")
@@ -53,7 +51,7 @@ func main() {
 	n.Setup(notionCfg.Token)
 	spaces.Init(spacesCfg)
 	if !spaces.IsConfigured() {
-		log.Fatal("spaces config missing — fill in [spaces] in config.toml")
+		log.Fatal("spaces config missing — fill in SPACES_* env vars")
 	}
 
 	confTags, err := loadConfTags(n, notionCfg.ConfsDb)
@@ -258,46 +256,24 @@ func extFromURL(u string) string {
 
 // ──────────────────────────────── CONFIG ──────────────────────────
 
-type cfgFile struct {
-	Notion struct {
-		Token    string `toml:"token"`
-		ConfsDb  string `toml:"confsdb"`
-		HotelsDb string `toml:"hotelsdb"`
-	} `toml:"notion"`
-	Spaces struct {
-		Endpoint string `toml:"endpoint"`
-		Region   string `toml:"region"`
-		Bucket   string `toml:"bucket"`
-		Key      string `toml:"key"`
-		Secret   string `toml:"secret"`
-	} `toml:"spaces"`
-}
-
 func loadCfg() (*types.NotionConfig, types.SpacesConfig) {
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
 	mustVal := func(v, name string) {
 		if v == "" {
-			log.Fatalf("missing %s in %s", name, configFile)
+			log.Fatalf("missing %s", name)
 		}
 	}
-	mustVal(c.Notion.Token, "notion.token")
-	mustVal(c.Notion.ConfsDb, "notion.confsdb")
-	mustVal(c.Notion.HotelsDb, "notion.hotelsdb")
-	mustVal(c.Spaces.Bucket, "spaces.bucket")
+	mustVal(c.Notion.Token, "NOTION_TOKEN")
+	mustVal(c.Notion.ConfsDb, "NOTION_CONFS_DB")
+	mustVal(c.Notion.HotelsDb, "NOTION_HOTEL_DB")
+	mustVal(c.Spaces.Bucket, "SPACES_BUCKET")
 	notionCfg := &types.NotionConfig{
 		Token:    c.Notion.Token,
 		ConfsDb:  c.Notion.ConfsDb,
 		HotelsDb: c.Notion.HotelsDb,
 	}
-	spacesCfg := types.SpacesConfig{
-		Endpoint: c.Spaces.Endpoint,
-		Region:   c.Spaces.Region,
-		Bucket:   c.Spaces.Bucket,
-		Key:      c.Spaces.Key,
-		Secret:   c.Spaces.Secret,
-	}
-	return notionCfg, spacesCfg
+	return notionCfg, c.Spaces
 }

@@ -17,33 +17,23 @@ import (
 	"strings"
 	"time"
 
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
-
-const configFile = "config.toml"
-
-type cfgFile struct {
-	Notion struct {
-		Token         string `toml:"token"`
-		SpeakersDb    string `toml:"speakersdb"`
-		SpeakerConfDb string `toml:"speakerconfdb"`
-	} `toml:"notion"`
-}
 
 func main() {
 	dryRun := flag.Bool("dry-run", false, "Log what we'd write but don't hit Notion")
 	force := flag.Bool("force", false, "Overwrite SpeakerName even when already populated")
 	flag.Parse()
 
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
 	if c.Notion.Token == "" || c.Notion.SpeakersDb == "" || c.Notion.SpeakerConfDb == "" {
-		log.Fatalf("missing notion.token / speakersdb / speakerconfdb in %s", configFile)
+		log.Fatal("missing NOTION_TOKEN / NOTION_SPEAKERS_DB / NOTION_SPEAKER_CONF_DB")
 	}
 
 	n := &types.Notion{Config: &types.NotionConfig{Token: c.Notion.Token}}

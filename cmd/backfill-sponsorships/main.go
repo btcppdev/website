@@ -41,13 +41,11 @@ import (
 	"strings"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
-
-const configFile = "config.toml"
 
 // canonicalTier maps the raw <h3> header text from the legacy
 // templates onto our canonical Level vocabulary. Anything not in this
@@ -471,31 +469,21 @@ func hostOnly(raw string) string {
 
 // ──────────────────────────────── CONFIG ──────────────────────────────
 
-type cfgFile struct {
-	Notion struct {
-		Token          string `toml:"token"`
-		ConfsDb        string `toml:"confsdb"`
-		ConfsTixDb     string `toml:"confstixdb"`
-		OrgDb          string `toml:"orgdb"`
-		SponsorshipsDb string `toml:"sponsorshipsdb"`
-	} `toml:"notion"`
-}
-
 func loadCfg() *types.NotionConfig {
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
 	mustVal := func(v, name string) {
 		if v == "" {
-			log.Fatalf("missing %s in %s", name, configFile)
+			log.Fatalf("missing %s", name)
 		}
 	}
-	mustVal(c.Notion.Token, "notion.token")
-	mustVal(c.Notion.ConfsDb, "notion.confsdb")
-	mustVal(c.Notion.ConfsTixDb, "notion.confstixdb")
-	mustVal(c.Notion.OrgDb, "notion.orgdb")
-	mustVal(c.Notion.SponsorshipsDb, "notion.sponsorshipsdb")
+	mustVal(c.Notion.Token, "NOTION_TOKEN")
+	mustVal(c.Notion.ConfsDb, "NOTION_CONFS_DB")
+	mustVal(c.Notion.ConfsTixDb, "NOTION_CONFSTIX_DB")
+	mustVal(c.Notion.OrgDb, "NOTION_ORG_DB")
+	mustVal(c.Notion.SponsorshipsDb, "NOTION_SPONSORSHIPS_DB")
 	return &types.NotionConfig{
 		Token:          c.Notion.Token,
 		ConfsDb:        c.Notion.ConfsDb,

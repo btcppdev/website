@@ -6,10 +6,11 @@
 // Idempotent via ./migrate-recordings-state.json — re-runs skip TalksDB
 // rows already processed.
 //
-// Required config.toml additions:
+// Required env vars:
 //
-//	[notion]
-//	recordingsdb = "<page id>"
+//	NOTION_TOKEN="..."
+//	NOTION_TALKS_DB="<page id>"
+//	NOTION_RECORDINGS_DB="<page id>"
 package main
 
 import (
@@ -20,25 +21,16 @@ import (
 	"os"
 	"strings"
 
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
 
 const (
-	configFile         = "config.toml"
 	talksStateFile     = "migrate-talks-state.json"
 	recordingStateFile = "migrate-recordings-state.json"
 )
-
-type cfgFile struct {
-	Notion struct {
-		Token        string `toml:"token"`
-		TalksDb      string `toml:"talksdb"`
-		RecordingsDb string `toml:"recordingsdb"`
-	} `toml:"notion"`
-}
 
 type talksState struct {
 	Completed map[string]struct {
@@ -57,12 +49,13 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "Preview without writing")
 	flag.Parse()
 
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
-	if c.Notion.Token == "" || c.Notion.TalksDb == "" || c.Notion.RecordingsDb == "" {
-		log.Fatalf("missing notion.token / talksdb / recordingsdb in %s", configFile)
+	talksDb := os.Getenv("NOTION_TALKS_DB")
+	if c.Notion.Token == "" || talksDb == "" || c.Notion.RecordingsDb == "" {
+		log.Fatal("missing NOTION_TOKEN / NOTION_TALKS_DB / NOTION_RECORDINGS_DB")
 	}
 
 	n := &types.Notion{Config: &types.NotionConfig{Token: c.Notion.Token}}
@@ -86,7 +79,7 @@ func main() {
 	log.Printf("loaded %d (talksID → confTalkID) mappings", len(confTalkByTalksID))
 
 	// Load YTLink + Talk Name for every Talks DB row.
-	talks, err := loadTalkInfo(n.Client, c.Notion.TalksDb)
+	talks, err := loadTalkInfo(n.Client, talksDb)
 	if err != nil {
 		log.Fatalf("load talks: %s", err)
 	}
@@ -249,4 +242,3 @@ func saveRecState(state *recState) {
 		log.Printf("WARN: write state: %s", err)
 	}
 }
-

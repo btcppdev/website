@@ -5,7 +5,6 @@ go 1.25.0
 toolchain go1.25.10
 
 require (
-	github.com/BurntSushi/toml v1.2.1
 	github.com/alexedwards/scs/boltstore v0.0.0-20251002162104-209de6e426de
 	github.com/alexedwards/scs/v2 v2.5.1
 	github.com/aws/aws-sdk-go-v2 v1.41.7

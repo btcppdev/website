@@ -18,43 +18,24 @@ import (
 	"strings"
 
 	"btcpp-web/external/spaces"
-	"btcpp-web/internal/types"
-
-	"github.com/BurntSushi/toml"
+	"btcpp-web/internal/envconfig"
 )
 
 const (
-	configFile = "config.toml"
-	keyPrefix  = "speakers/"
+	keyPrefix = "speakers/"
 )
-
-type cfgFile struct {
-	Spaces struct {
-		Endpoint string `toml:"endpoint"`
-		Region   string `toml:"region"`
-		Bucket   string `toml:"bucket"`
-		Key      string `toml:"key"`
-		Secret   string `toml:"secret"`
-	} `toml:"spaces"`
-}
 
 func main() {
 	dryRun := flag.Bool("dry-run", false, "Hash objects and report changes without writing the manifest")
 	flag.Parse()
 
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
-	spaces.Init(types.SpacesConfig{
-		Endpoint: c.Spaces.Endpoint,
-		Region:   c.Spaces.Region,
-		Bucket:   c.Spaces.Bucket,
-		Key:      c.Spaces.Key,
-		Secret:   c.Spaces.Secret,
-	})
+	spaces.Init(c.Spaces)
 	if !spaces.IsConfigured() {
-		log.Fatalf("spaces not configured (check [spaces] in %s)", configFile)
+		log.Fatal("spaces not configured (check SPACES_* env vars)")
 	}
 
 	manifest, err := spaces.LoadJSONMap(spaces.SpeakerManifestKey)

@@ -7,11 +7,10 @@
 // already exists. Safe to re-run after editing templates — only new
 // (conf, day) pairs are created.
 //
-// Required config.toml additions:
+// Required env vars:
 //
-//	[notion]
-//	token       = "..."
-//	confinfodb  = "<page id>"
+//	NOTION_TOKEN="..."
+//	NOTION_CONFINFO_DB="<page id>"
 package main
 
 import (
@@ -26,23 +25,15 @@ import (
 	"strconv"
 	"strings"
 
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
 
 const (
-	configFile  = "config.toml"
 	templateDir = "templates/conf"
 )
-
-type cfgFile struct {
-	Notion struct {
-		Token      string `toml:"token"`
-		ConfInfoDb string `toml:"confinfodb"`
-	} `toml:"notion"`
-}
 
 // dayPlan is one row's worth of data extracted from a template. Doors is
 // a single military "HH:MM"; Lunch and Coffee are "HH:MM,HH:MM" ranges.
@@ -59,12 +50,12 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "Preview without writing")
 	flag.Parse()
 
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
 	if c.Notion.Token == "" || c.Notion.ConfInfoDb == "" {
-		log.Fatalf("missing notion.token / confinfodb in %s", configFile)
+		log.Fatal("missing NOTION_TOKEN / NOTION_CONFINFO_DB")
 	}
 
 	n := &types.Notion{}

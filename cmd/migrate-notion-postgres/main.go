@@ -2,17 +2,15 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/db"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
-	"github.com/BurntSushi/toml"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -710,7 +708,7 @@ func main() {
 
 func parseFlags() options {
 	var opts options
-	flag.StringVar(&opts.configPath, "config", "config.toml", "config.toml path; env-only when the default file is absent")
+	flag.StringVar(&opts.configPath, "config", ".env", "env file path")
 	flag.StringVar(&opts.databaseURL, "database-url", "", "Postgres connection string; defaults to config DatabaseURL or DATABASE_URL")
 	flag.BoolVar(&opts.dryRun, "dry-run", false, "fetch and print planned imports without writing Postgres")
 	flag.BoolVar(&opts.reset, "reset", false, "truncate imported tables before writing")
@@ -739,87 +737,7 @@ func parseFlags() options {
 }
 
 func loadConfig(path string) (*types.EnvConfig, error) {
-	var env types.EnvConfig
-	if path != "" {
-		if _, err := os.Stat(path); err == nil {
-			if _, err := toml.DecodeFile(path, &env); err != nil {
-				return nil, fmt.Errorf("decode %s: %w", path, err)
-			}
-		} else if !errors.Is(err, os.ErrNotExist) || path != "config.toml" {
-			return nil, fmt.Errorf("stat %s: %w", path, err)
-		}
-	}
-
-	if v := os.Getenv("DATABASE_URL"); v != "" {
-		env.DatabaseURL = v
-	}
-	if v := os.Getenv("NOTION_TOKEN"); v != "" {
-		env.Notion.Token = v
-	}
-	if v := os.Getenv("NOTION_CONFS_DB"); v != "" {
-		env.Notion.ConfsDb = v
-	}
-	if v := os.Getenv("NOTION_CONFSTIX_DB"); v != "" {
-		env.Notion.ConfsTixDb = v
-	}
-	if v := os.Getenv("NOTION_DISCOUNT_DB"); v != "" {
-		env.Notion.DiscountsDb = v
-	}
-	if v := os.Getenv("NOTION_PURCHASES_DB"); v != "" {
-		env.Notion.PurchasesDb = v
-	}
-	if v := os.Getenv("NOTION_ORGS_DB"); v != "" {
-		env.Notion.OrgDb = v
-	}
-	if v := os.Getenv("NOTION_SPONSORSHIPS_DB"); v != "" {
-		env.Notion.SponsorshipsDb = v
-	}
-	if v := os.Getenv("NOTION_SPEAKERS_DB"); v != "" {
-		env.Notion.SpeakersDb = v
-	}
-	if v := os.Getenv("NOTION_PROPOSAL_DB"); v != "" {
-		env.Notion.ProposalDb = v
-	}
-	if v := os.Getenv("NOTION_SPEAKER_CONF_DB"); v != "" {
-		env.Notion.SpeakerConfDb = v
-	}
-	if v := os.Getenv("NOTION_CONFTALK_DB"); v != "" {
-		env.Notion.ConfTalkDb = v
-	}
-	if v := os.Getenv("NOTION_CONFINFO_DB"); v != "" {
-		env.Notion.ConfInfoDb = v
-	}
-	if v := os.Getenv("NOTION_RECORDINGS_DB"); v != "" {
-		env.Notion.RecordingsDb = v
-	}
-	if v := os.Getenv("NOTION_SOCIAL_POSTS_DB"); v != "" {
-		env.Notion.SocialPostsDb = v
-	}
-	if v := os.Getenv("NOTION_AFFILIATE_USE_DB"); v != "" {
-		env.Notion.AffiliateUsageDb = v
-	}
-	if v := os.Getenv("NOTION_HOTEL_DB"); v != "" {
-		env.Notion.HotelsDb = v
-	}
-	if v := os.Getenv("NOTION_JOBTYPE_DB"); v != "" {
-		env.Notion.JobTypeDb = v
-	}
-	if v := os.Getenv("NOTION_VOLUNTEER_DB"); v != "" {
-		env.Notion.VolunteerDb = v
-	}
-	if v := os.Getenv("NOTION_VOLINFO_DB"); v != "" {
-		env.Notion.VolInfoDb = v
-	}
-	if v := os.Getenv("NOTION_SHIFTS_DB"); v != "" {
-		env.Notion.ShiftDb = v
-	}
-	if v := os.Getenv("NOTION_NEWSLETTER_DB"); v != "" {
-		env.Notion.NewsletterDb = v
-	}
-	if v := os.Getenv("NOTION_MISSIVES_DB"); v != "" {
-		env.Notion.MissivesDb = v
-	}
-	return &env, nil
+	return envconfig.Load(path)
 }
 
 func validateConfig(env *types.EnvConfig, needDB, importConfDays, importTickets, importDiscounts, importRegistrations, importAffiliateUse, importHotels, importJobTypes, importVolunteers, importVolunteerInfo, importWorkShifts, importSponsors, importSpeakers, importProposals, importSpeakerConfs, importConfTalks, importRecordings, importSocialPosts, importSubscribers, importMissives bool) error {
@@ -861,7 +779,7 @@ func validateConfig(env *types.EnvConfig, needDB, importConfDays, importTickets,
 		missing = append(missing, "NOTION_SHIFTS_DB")
 	}
 	if importSponsors && strings.TrimSpace(env.Notion.OrgDb) == "" {
-		missing = append(missing, "NOTION_ORGS_DB")
+		missing = append(missing, "NOTION_ORG_DB")
 	}
 	if importSponsors && strings.TrimSpace(env.Notion.SponsorshipsDb) == "" {
 		missing = append(missing, "NOTION_SPONSORSHIPS_DB")

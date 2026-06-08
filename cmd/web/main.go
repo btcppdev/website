@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strconv"
 	texttemplate "text/template"
 	"time"
 
@@ -19,167 +18,31 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/db"
 	"btcpp-web/internal/emails"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/handlers"
 	"btcpp-web/internal/types"
-	"github.com/BurntSushi/toml"
 	"github.com/alexedwards/scs/boltstore"
 	"github.com/alexedwards/scs/v2"
 	bolt "go.etcd.io/bbolt"
 )
 
-const configFile = "config.toml"
-
 var app config.AppContext
 
 func loadConfig() *types.EnvConfig {
-	var config types.EnvConfig
-
-	if _, err := os.Stat("config.toml"); err == nil {
-		_, err = toml.DecodeFile(configFile, &config)
-		if err != nil {
-			log.Fatal(err)
-		}
-		config.Prod = false
-		if config.DatabaseURL == "" {
-			config.DatabaseURL = os.Getenv("DATABASE_URL")
-		}
-		if dataBackend := os.Getenv("DATA_BACKEND"); dataBackend != "" {
-			config.DataBackend = dataBackend
-		}
-
-		config.HMACKey, err = types.DeriveHMACKey(config.HMACSecret)
-		if err != nil {
-			log.Fatal(err)
-		}
-		config.HMACSecret = ""
-	} else {
-		config.Port = os.Getenv("PORT")
-		config.Prod = true
-
-		config.Host = os.Getenv("HOST")
-		config.DatabaseURL = os.Getenv("DATABASE_URL")
-		config.DataBackend = os.Getenv("DATA_BACKEND")
-		config.MailerSecret = os.Getenv("MAILER_SECRET")
-		config.MailEndpoint = os.Getenv("MAILER_ENDPOINT")
-		config.MailOff = false
-
-		mailSec, err := strconv.ParseInt(os.Getenv("MAILER_JOB_SEC"), 10, 32)
-		if err != nil {
-			log.Fatal(err)
-			return nil
-		}
-		config.MailerJob = int(mailSec)
-
-		config.OpenNode.Key = os.Getenv("OPENNODE_KEY")
-		config.OpenNode.Endpoint = os.Getenv("OPENNODE_ENDPOINT")
-
-		config.StripeKey = os.Getenv("STRIPE_KEY")
-		config.StripeEndpointSec = os.Getenv("STRIPE_END_SECRET")
-		config.RegistryPin = os.Getenv("REGISTRY_PIN")
-		config.Notion = types.NotionConfig{
-			Token:            os.Getenv("NOTION_TOKEN"),
-			PurchasesDb:      os.Getenv("NOTION_PURCHASES_DB"),
-			SpeakersDb:       os.Getenv("NOTION_SPEAKERS_DB"),
-			ConfsDb:          os.Getenv("NOTION_CONFS_DB"),
-			ConfsTixDb:       os.Getenv("NOTION_CONFSTIX_DB"),
-			DiscountsDb:      os.Getenv("NOTION_DISCOUNT_DB"),
-			NewsletterDb:     os.Getenv("NOTION_NEWSLETTER_DB"),
-			MissivesDb:       os.Getenv("NOTION_MISSIVES_DB"),
-			HotelsDb:         os.Getenv("NOTION_HOTEL_DB"),
-			VolunteerDb:      os.Getenv("NOTION_VOLUNTEER_DB"),
-			JobTypeDb:        os.Getenv("NOTION_JOBTYPE_DB"),
-			ProposalDb:       os.Getenv("NOTION_PROPOSAL_DB"),
-			SpeakerConfDb:    os.Getenv("NOTION_SPEAKER_CONF_DB"),
-			ConfTalkDb:       os.Getenv("NOTION_CONFTALK_DB"),
-			RecordingsDb:     os.Getenv("NOTION_RECORDINGS_DB"),
-			ConfInfoDb:       os.Getenv("NOTION_CONFINFO_DB"),
-			ShiftDb:          os.Getenv("NOTION_SHIFTS_DB"),
-			VolInfoDb:        os.Getenv("NOTION_VOLINFO_DB"),
-			OrgDb:            os.Getenv("NOTION_ORG_DB"),
-			SponsorshipsDb:   os.Getenv("NOTION_SPONSORSHIPS_DB"),
-			SocialPostsDb:    os.Getenv("NOTION_SOCIAL_POSTS_DB"),
-			AffiliateUsageDb: os.Getenv("NOTION_AFFILIATE_USE_DB"),
-		}
-		config.BufferAPI = os.Getenv("BUFFER_KEY")
-
-		config.Spaces = types.SpacesConfig{
-			Endpoint: os.Getenv("SPACES_ENDPOINT"),
-			Region:   os.Getenv("SPACES_REGION"),
-			Bucket:   os.Getenv("SPACES_BUCKET"),
-			Key:      os.Getenv("SPACES_KEY"),
-			Secret:   os.Getenv("SPACES_SECRET"),
-		}
-
-		if ttl := os.Getenv("CACHE_TTL_SEC"); ttl != "" {
-			if v, err := strconv.Atoi(ttl); err == nil {
-				config.CacheTTLSec = v
-			}
-		}
-		config.NotionRequestLogs = envBool("NOTION_REQUEST_LOGS")
-
-		// YouTube OAuth — uploader is disabled when any of these are
-		// blank; main flow stays alive so the rest of the app keeps
-		// running.
-		config.YouTube = types.YouTubeConfig{
-			ClientID:     os.Getenv("YOUTUBE_CLIENT_ID"),
-			ClientSecret: os.Getenv("YOUTUBE_CLIENT_SECRET"),
-			RedirectURL:  os.Getenv("YOUTUBE_REDIRECT_URL"),
-		}
-		config.Recordings = types.RecordingsConfig{
-			AutopublishEnabled: envBool("RECORDINGS_AUTOPUBLISH_ENABLED"),
-			PollSec:            envInt("RECORDINGS_AUTOPUBLISH_POLL_SEC", 0),
-			NotifyEmail:        os.Getenv("RECORDINGS_NOTIFY_EMAIL"),
-			EncryptionKey:      firstNonEmpty(os.Getenv("SOCIAL_STATE_KEY"), os.Getenv("X_PROFILE_ARCHIVE_KEY")),
-			YouTubeTokenObject: os.Getenv("YOUTUBE_TOKEN_OBJECT"),
-			X: types.XUploaderConfig{
-				Enabled:        envBool("X_UPLOADER_ENABLED"),
-				ProfileObject:  os.Getenv("X_PROFILE_ARCHIVE_OBJECT"),
-				Headed:         envBool("X_BROWSER_HEADED"),
-				LoginUsername:  os.Getenv("X_LOGIN_USERNAME"),
-				LoginPassword:  os.Getenv("X_LOGIN_PASSWORD"),
-				PostTimeoutSec: envInt("X_POST_TIMEOUT_SEC", 0),
-				AuthWaitSec:    envInt("X_AUTH_WAIT_SEC", 0),
-			},
-		}
-
-		config.HMACKey, err = types.DeriveHMACKey(os.Getenv("HMAC_SECRET"))
-		if err != nil {
-			log.Fatal(err)
-		}
+	config, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
+	}
+	config.HMACKey, err = types.DeriveHMACKey(os.Getenv("HMAC_SECRET"))
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {
 		log.Fatal(err)
 	}
 
-	return &config
-}
-
-func envBool(name string) bool {
-	v, err := strconv.ParseBool(os.Getenv(name))
-	return err == nil && v
-}
-
-func envInt(name string, fallback int) int {
-	raw := os.Getenv(name)
-	if raw == "" {
-		return fallback
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil {
-		return fallback
-	}
-	return v
-}
-
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
+	return config
 }
 
 /* Every XX seconds, try to send new ticket emails. */
@@ -194,7 +57,7 @@ func RunNewMails(ctx *config.AppContext) {
 }
 
 func main() {
-	/* Load configs from config.toml */
+	/* Load config from environment / .env */
 	app.Env = loadConfig()
 	err := run(app.Env)
 	if err != nil {

@@ -105,8 +105,7 @@ func AuthCodeURL(state string) string {
 
 // AuthCodeURLForRedirect builds a consent URL with a request-specific
 // redirect URI. This lets event-scoped admin pages keep OAuth callbacks
-// under /{conf}/admin/recordings without needing one static redirect in
-// config.toml.
+// under /{conf}/admin/recordings without needing one static redirect env var.
 func AuthCodeURLForRedirect(state, redirectURL string) string {
 	c := configForRedirect(redirectURL)
 	if c == nil {

@@ -5,21 +5,13 @@ import (
 	"fmt"
 	"log"
 
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
-
-	"github.com/BurntSushi/toml"
 )
 
-type C struct {
-	Notion struct {
-		Token      string `toml:"token"`
-		ConfTalkDb string `toml:"conftalkdb"`
-	} `toml:"notion"`
-}
-
 func main() {
-	var c C
-	if _, err := toml.DecodeFile("config.toml", &c); err != nil {
+	c, err := envconfig.Load(".env")
+	if err != nil {
 		log.Fatal(err)
 	}
 	n := &types.Notion{}

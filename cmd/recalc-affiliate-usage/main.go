@@ -22,20 +22,9 @@ import (
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
-
-	"github.com/BurntSushi/toml"
 )
-
-const configFile = "config.toml"
-
-type cfgFile struct {
-	Notion struct {
-		Token            string `toml:"token"`
-		DiscountsDb      string `toml:"discountsdb"`
-		AffiliateUsageDb string `toml:"affiliateusagedb"`
-	} `toml:"notion"`
-}
 
 func main() {
 	write := flag.Bool("write", false, "Apply updates to Notion. Without this flag, only logs the proposed changes.")
@@ -44,12 +33,12 @@ func main() {
 	emailFilter := flag.String("email", "", "Only process this affiliate email")
 	flag.Parse()
 
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
 	if c.Notion.Token == "" || c.Notion.DiscountsDb == "" || c.Notion.AffiliateUsageDb == "" {
-		log.Fatalf("missing notion.token / discountsdb / affiliateusagedb in %s", configFile)
+		log.Fatal("missing NOTION_TOKEN / NOTION_DISCOUNT_DB / NOTION_AFFILIATE_USE_DB")
 	}
 
 	n := &types.Notion{Config: &types.NotionConfig{

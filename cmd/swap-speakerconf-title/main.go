@@ -34,21 +34,11 @@ import (
 	"strings"
 	"time"
 
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
-
-const configFile = "config.toml"
-
-type cfgFile struct {
-	Notion struct {
-		Token         string `toml:"token"`
-		SpeakersDb    string `toml:"speakersdb"`
-		SpeakerConfDb string `toml:"speakerconfdb"`
-	} `toml:"notion"`
-}
 
 func main() {
 	mode := flag.String("mode", "", "snapshot | restore")
@@ -237,15 +227,15 @@ func runRestore(client notion.API, speakerConfDb, speakersDb, inPath string, dry
 
 // ──────────────────────────────── HELPERS ────────────────────────────
 
-func loadCfg() *cfgFile {
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+func loadCfg() *types.EnvConfig {
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
 	if c.Notion.Token == "" || c.Notion.SpeakersDb == "" || c.Notion.SpeakerConfDb == "" {
-		log.Fatalf("missing notion.token / speakersdb / speakerconfdb in %s", configFile)
+		log.Fatal("missing NOTION_TOKEN / NOTION_SPEAKERS_DB / NOTION_SPEAKER_CONF_DB")
 	}
-	return &c
+	return c
 }
 
 func lookupProperty(client notion.API, dbID, name string) (string, error) {

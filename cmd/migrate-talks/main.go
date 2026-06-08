@@ -33,30 +33,15 @@ import (
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
 
 const (
-	configFile = "config.toml"
-	stateFile  = "migrate-talks-state.json"
+	stateFile = "migrate-talks-state.json"
 )
-
-type cfgFile struct {
-	Notion struct {
-		Token         string `toml:"token"`
-		TalksDb       string `toml:"talksdb"`
-		SpeakersDb    string `toml:"speakersdb"`
-		ConfsDb       string `toml:"confsdb"`
-		ConfsTixDb    string `toml:"confstixdb"`
-		OrgDb         string `toml:"orgdb"`
-		ProposalDb    string `toml:"proposaldb"`
-		SpeakerConfDb string `toml:"speakerconfdb"`
-		ConfTalkDb    string `toml:"conftalkdb"`
-	} `toml:"notion"`
-}
 
 type doneRow struct {
 	ProposalID         string   `json:"proposal_id"`
@@ -90,22 +75,23 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "Preview without writing")
 	flag.Parse()
 
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
+	talksDb := os.Getenv("NOTION_TALKS_DB")
 	for k, v := range map[string]string{
-		"notion.token":         c.Notion.Token,
-		"notion.talksdb":       c.Notion.TalksDb,
-		"notion.speakersdb":    c.Notion.SpeakersDb,
-		"notion.confsdb":       c.Notion.ConfsDb,
-		"notion.confstixdb":    c.Notion.ConfsTixDb,
-		"notion.proposaldb":    c.Notion.ProposalDb,
-		"notion.speakerconfdb": c.Notion.SpeakerConfDb,
-		"notion.conftalkdb":    c.Notion.ConfTalkDb,
+		"NOTION_TOKEN":           c.Notion.Token,
+		"NOTION_TALKS_DB":        talksDb,
+		"NOTION_SPEAKERS_DB":     c.Notion.SpeakersDb,
+		"NOTION_CONFS_DB":        c.Notion.ConfsDb,
+		"NOTION_CONFSTIX_DB":     c.Notion.ConfsTixDb,
+		"NOTION_PROPOSAL_DB":     c.Notion.ProposalDb,
+		"NOTION_SPEAKER_CONF_DB": c.Notion.SpeakerConfDb,
+		"NOTION_CONFTALK_DB":     c.Notion.ConfTalkDb,
 	} {
 		if v == "" {
-			log.Fatalf("missing %s in %s", k, configFile)
+			log.Fatalf("missing %s", k)
 		}
 	}
 
@@ -161,7 +147,7 @@ func main() {
 	}
 	log.Printf("loaded %d speakers", len(speakers))
 
-	talks, err := loadTalks(n, c.Notion.TalksDb, speakerMap)
+	talks, err := loadTalks(n, talksDb, speakerMap)
 	if err != nil {
 		log.Fatalf("load talks: %s", err)
 	}

@@ -17,9 +17,9 @@ import (
 	"time"
 
 	"btcpp-web/external/spaces"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
 
@@ -30,20 +30,6 @@ const (
 )
 
 var socialZipSlugRe = regexp.MustCompile(`[^a-z0-9]+`)
-
-type cfgFile struct {
-	Notion struct {
-		Token        string `toml:"token"`
-		RecordingsDb string `toml:"recordingsdb"`
-	} `toml:"notion"`
-	Spaces struct {
-		Endpoint string `toml:"endpoint"`
-		Region   string `toml:"region"`
-		Bucket   string `toml:"bucket"`
-		Key      string `toml:"key"`
-		Secret   string `toml:"secret"`
-	} `toml:"spaces"`
-}
 
 type sourceFile struct {
 	Name       string
@@ -77,7 +63,7 @@ type migrationResult struct {
 }
 
 func main() {
-	configFile := flag.String("config", "config.toml", "Path to TOML config file")
+	configFile := flag.String("config", ".env", "Path to env file")
 	talksCache := flag.String("talks-cache", "_cache/talks.json", "Path to talks cache JSON")
 	confsCache := flag.String("confs-cache", "_cache/confs.json", "Path to confs cache JSON")
 	stateFile := flag.String("state", "migrate-vienna-recordings-state.json", "Path to resumable migration state JSON")
@@ -106,7 +92,7 @@ func main() {
 		Secret:   cfg.Spaces.Secret,
 	})
 	if !spaces.IsConfigured() {
-		log.Fatalf("spaces not configured (check [spaces] in %s)", *configFile)
+		log.Fatalf("spaces not configured (check SPACES_* in %s)", *configFile)
 	}
 
 	for i := range plans {
@@ -224,13 +210,13 @@ func totalPlanBytes(plans []migrationPlan) int64 {
 	return total
 }
 
-func loadCfg(configFile string) cfgFile {
-	var cfg cfgFile
-	if _, err := toml.DecodeFile(configFile, &cfg); err != nil {
+func loadCfg(configFile string) *types.EnvConfig {
+	cfg, err := envconfig.Load(configFile)
+	if err != nil {
 		log.Fatalf("read %s: %s", configFile, err)
 	}
 	if cfg.Notion.Token == "" || cfg.Notion.RecordingsDb == "" {
-		log.Fatalf("missing notion.token / notion.recordingsdb in %s", configFile)
+		log.Fatalf("missing NOTION_TOKEN / NOTION_RECORDINGS_DB in %s", configFile)
 	}
 	return cfg
 }

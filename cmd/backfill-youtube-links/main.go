@@ -20,9 +20,9 @@ import (
 	"btcpp-web/external/tokens"
 	youtubepkg "btcpp-web/external/youtube"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -35,44 +35,6 @@ const tokenKey = "youtube"
 
 var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
 
-type cfgFile struct {
-	Notion struct {
-		Token          string `toml:"token"`
-		PurchasesDb    string `toml:"purchasesdb"`
-		SpeakersDb     string `toml:"speakersdb"`
-		ConfsDb        string `toml:"confsdb"`
-		ConfsTixDb     string `toml:"confstixdb"`
-		DiscountsDb    string `toml:"discountsdb"`
-		HotelsDb       string `toml:"hotelsdb"`
-		VolunteerDb    string `toml:"volunteerdb"`
-		JobTypeDb      string `toml:"jobtypedb"`
-		ProposalDb     string `toml:"proposaldb"`
-		SpeakerConfDb  string `toml:"speakerconfdb"`
-		ConfTalkDb     string `toml:"conftalkdb"`
-		RecordingsDb   string `toml:"recordingsdb"`
-		ShiftDb        string `toml:"shiftdb"`
-		OrgDb          string `toml:"orgdb"`
-		SocialPostsDb  string `toml:"socialpostsdb"`
-		SponsorshipsDb string `toml:"sponsorshipsdb"`
-	} `toml:"notion"`
-	Spaces struct {
-		Endpoint string `toml:"endpoint"`
-		Region   string `toml:"region"`
-		Bucket   string `toml:"bucket"`
-		Key      string `toml:"key"`
-		Secret   string `toml:"secret"`
-	} `toml:"spaces"`
-	YouTube struct {
-		ClientID     string `toml:"clientID"`
-		ClientSecret string `toml:"clientSecret"`
-		RedirectURL  string `toml:"redirectURL"`
-	} `toml:"youtube"`
-	Recordings struct {
-		EncryptionKey      string `toml:"encryptionKey"`
-		YouTubeTokenObject string `toml:"youtubeTokenObject"`
-	} `toml:"recordings"`
-}
-
 type video struct {
 	ID            string
 	Title         string
@@ -82,7 +44,7 @@ type video struct {
 }
 
 func main() {
-	configFile := flag.String("config", "config.toml", "Path to TOML config file")
+	configFile := flag.String("config", ".env", "Path to env file")
 	tokenDB := flag.String("tokens", "tokens.bolt", "Path to local OAuth token bolt DB")
 	confTag := flag.String("conf", "vienna", "Conference tag to match in FileURI")
 	listFilter := flag.String("list-videos", "", "Print fetched YouTube videos whose normalized title contains this text, then exit")
@@ -175,50 +137,32 @@ func main() {
 	fmt.Printf("done: matched=%d ambiguous=%d missing=%d already=%d videos=%d apply=%v\n", matched, ambiguous, missing, already, len(videos), *apply)
 }
 
-func loadCfg(configFile string) cfgFile {
-	var cfg cfgFile
-	if _, err := toml.DecodeFile(configFile, &cfg); err != nil {
+func loadCfg(configFile string) *types.EnvConfig {
+	cfg, err := envconfig.Load(configFile)
+	if err != nil {
 		log.Fatalf("read %s: %s", configFile, err)
 	}
 	if cfg.Notion.Token == "" || cfg.Notion.RecordingsDb == "" {
-		log.Fatalf("missing notion.token / notion.recordingsdb in %s", configFile)
+		log.Fatalf("missing NOTION_TOKEN / NOTION_RECORDINGS_DB in %s", configFile)
 	}
 	if cfg.YouTube.ClientID == "" || cfg.YouTube.ClientSecret == "" {
-		log.Fatalf("missing youtube.clientID / youtube.clientSecret in %s", configFile)
+		log.Fatalf("missing YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET in %s", configFile)
 	}
 	return cfg
 }
 
-func appContext(cfg cfgFile) *config.AppContext {
-	n := &types.Notion{Config: &types.NotionConfig{
-		Token:          cfg.Notion.Token,
-		PurchasesDb:    cfg.Notion.PurchasesDb,
-		SpeakersDb:     cfg.Notion.SpeakersDb,
-		ConfsDb:        cfg.Notion.ConfsDb,
-		ConfsTixDb:     cfg.Notion.ConfsTixDb,
-		DiscountsDb:    cfg.Notion.DiscountsDb,
-		HotelsDb:       cfg.Notion.HotelsDb,
-		VolunteerDb:    cfg.Notion.VolunteerDb,
-		JobTypeDb:      cfg.Notion.JobTypeDb,
-		ProposalDb:     cfg.Notion.ProposalDb,
-		SpeakerConfDb:  cfg.Notion.SpeakerConfDb,
-		ConfTalkDb:     cfg.Notion.ConfTalkDb,
-		RecordingsDb:   cfg.Notion.RecordingsDb,
-		ShiftDb:        cfg.Notion.ShiftDb,
-		OrgDb:          cfg.Notion.OrgDb,
-		SocialPostsDb:  cfg.Notion.SocialPostsDb,
-		SponsorshipsDb: cfg.Notion.SponsorshipsDb,
-	}}
+func appContext(cfg *types.EnvConfig) *config.AppContext {
+	n := &types.Notion{Config: &cfg.Notion}
 	n.Setup(cfg.Notion.Token)
 	return &config.AppContext{
-		Env:    &types.EnvConfig{CacheTTLSec: 60},
+		Env:    cfg,
 		Notion: n,
 		Err:    log.New(os.Stderr, "", log.LstdFlags),
 		Infos:  log.New(os.Stdout, "", log.LstdFlags),
 	}
 }
 
-func youtubeService(cfg cfgFile, tokenDB string) *youtubeapi.Service {
+func youtubeService(cfg *types.EnvConfig, tokenDB string) *youtubeapi.Service {
 	if err := tokens.Init(tokenDB); err != nil {
 		log.Fatalf("open tokens: %s", err)
 	}
@@ -321,17 +265,11 @@ func listYouTubeVideos(svc *youtubeapi.Service) []video {
 	return out
 }
 
-func initRemoteTokenStore(cfg cfgFile) {
+func initRemoteTokenStore(cfg *types.EnvConfig) {
 	if cfg.Spaces.Endpoint == "" || cfg.Spaces.Bucket == "" || cfg.Spaces.Key == "" || cfg.Spaces.Secret == "" {
 		return
 	}
-	spaces.Init(types.SpacesConfig{
-		Endpoint: cfg.Spaces.Endpoint,
-		Region:   cfg.Spaces.Region,
-		Bucket:   cfg.Spaces.Bucket,
-		Key:      cfg.Spaces.Key,
-		Secret:   cfg.Spaces.Secret,
-	})
+	spaces.Init(cfg.Spaces)
 	if !spaces.IsConfigured() || cfg.Recordings.YouTubeTokenObject == "" || cfg.Recordings.EncryptionKey == "" {
 		return
 	}

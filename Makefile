@@ -16,6 +16,9 @@ export BTCPP_PGROOT BTCPP_PGDATA BTCPP_PGRUN BTCPP_PGLOG PGHOST PGPORT PGDATABAS
 dev-run: build-all db-start
 	air -build.bin target/$(APP_NAME) -build.cmd="make build-all"
 
+.PHONY: run-dev
+run-dev: dev-run
+
 .PHONY: db-start
 db-start:
 	@command -v initdb >/dev/null || (echo "initdb not found; run this inside nix develop"; exit 1)

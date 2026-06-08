@@ -18,7 +18,7 @@
 //
 // Usage:
 //
-//	cd /path/to/btcpp-web   # config.toml must be in cwd
+//	cd /path/to/btcpp-web   # .env must be in cwd
 //	go run ./cmd/migrate-talkapps [-dry-run]
 package main
 
@@ -40,39 +40,16 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
 
 const (
-	configFile = "config.toml"
-	stateFile  = "migrate-talkapps-state.json"
+	stateFile = "migrate-talkapps-state.json"
 )
-
-// migrateConfig captures only the [notion] section keys this tool needs.
-// Field names match the lowercase TOML keys via tags.
-type migrateConfig struct {
-	Notion struct {
-		Token         string `toml:"token"`
-		ConfsDb       string `toml:"confsdb"`
-		ConfsTixDb    string `toml:"confstixdb"`
-		SpeakersDb    string `toml:"speakersdb"`
-		OrgDb         string `toml:"orgdb"`
-		TalkAppDb     string `toml:"talkappdb"`
-		ProposalDb    string `toml:"proposaldb"`
-		SpeakerConfDb string `toml:"speakerconfdb"`
-	} `toml:"notion"`
-	Spaces struct {
-		Endpoint string `toml:"endpoint"`
-		Region   string `toml:"region"`
-		Bucket   string `toml:"bucket"`
-		Key      string `toml:"key"`
-		Secret   string `toml:"secret"`
-	} `toml:"spaces"`
-}
 
 type migrationState struct {
 	Completed map[string]migrationResult `json:"completed"`
@@ -131,41 +108,35 @@ func main() {
 	backfillSPCompanies := flag.Bool("backfill-sp-companies", false, "One-shot: for SpeakerProposals with empty Company, fill from linked Speaker.Company; if Company is set and org relation is empty, link to Orgs DB row matching that name")
 	flag.Parse()
 
-	var mc migrateConfig
-	if _, err := toml.DecodeFile(configFile, &mc); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	env, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
-	mustVal(mc.Notion.Token, "notion.token")
-	mustVal(mc.Notion.ConfsDb, "notion.confsdb")
-	mustVal(mc.Notion.ConfsTixDb, "notion.confstixdb")
-	mustVal(mc.Notion.SpeakersDb, "notion.speakersdb")
-	mustVal(mc.Notion.OrgDb, "notion.orgdb")
-	mustVal(mc.Notion.TalkAppDb, "notion.talkappdb")
-	mustVal(mc.Notion.ProposalDb, "notion.proposaldb")
-	mustVal(mc.Notion.SpeakerConfDb, "notion.speakerconfdb")
+	talkAppDB := os.Getenv("NOTION_TALKAPP_DB")
+	mustVal(env.Notion.Token, "NOTION_TOKEN")
+	mustVal(env.Notion.ConfsDb, "NOTION_CONFS_DB")
+	mustVal(env.Notion.ConfsTixDb, "NOTION_CONFSTIX_DB")
+	mustVal(env.Notion.SpeakersDb, "NOTION_SPEAKERS_DB")
+	mustVal(env.Notion.OrgDb, "NOTION_ORG_DB")
+	mustVal(talkAppDB, "NOTION_TALKAPP_DB")
+	mustVal(env.Notion.ProposalDb, "NOTION_PROPOSAL_DB")
+	mustVal(env.Notion.SpeakerConfDb, "NOTION_SPEAKER_CONF_DB")
 
-	talkAppDB := mc.Notion.TalkAppDb
 	cfg := &types.NotionConfig{
-		Token:         mc.Notion.Token,
-		ConfsDb:       mc.Notion.ConfsDb,
-		ConfsTixDb:    mc.Notion.ConfsTixDb,
-		SpeakersDb:    mc.Notion.SpeakersDb,
-		OrgDb:         mc.Notion.OrgDb,
-		ProposalDb:    mc.Notion.ProposalDb,
-		SpeakerConfDb: mc.Notion.SpeakerConfDb,
+		Token:         env.Notion.Token,
+		ConfsDb:       env.Notion.ConfsDb,
+		ConfsTixDb:    env.Notion.ConfsTixDb,
+		SpeakersDb:    env.Notion.SpeakersDb,
+		OrgDb:         env.Notion.OrgDb,
+		ProposalDb:    env.Notion.ProposalDb,
+		SpeakerConfDb: env.Notion.SpeakerConfDb,
 	}
 	n := &types.Notion{Config: cfg}
 	n.Setup(cfg.Token)
 
-	spaces.Init(types.SpacesConfig{
-		Endpoint: mc.Spaces.Endpoint,
-		Region:   mc.Spaces.Region,
-		Bucket:   mc.Spaces.Bucket,
-		Key:      mc.Spaces.Key,
-		Secret:   mc.Spaces.Secret,
-	})
+	spaces.Init(env.Spaces)
 	if !spaces.IsConfigured() {
-		log.Fatal("spaces is not configured (check [spaces] in config.toml)")
+		log.Fatal("spaces is not configured (check SPACES_* env vars)")
 	}
 
 	if *backfillPhotos {
@@ -633,7 +604,7 @@ func confTagsOf(ids []string, confTagByID map[string]string) []string {
 
 func mustVal(v, name string) {
 	if v == "" {
-		log.Fatalf("missing %s in %s", name, configFile)
+		log.Fatalf("missing %s", name)
 	}
 }
 

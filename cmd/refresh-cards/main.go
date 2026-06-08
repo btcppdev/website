@@ -29,36 +29,10 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/handlers"
 	"btcpp-web/internal/types"
-
-	"github.com/BurntSushi/toml"
 )
-
-const configFile = "config.toml"
-
-type cfgFile struct {
-	Port   string `toml:"port"`
-	Host   string `toml:"host"`
-	Notion struct {
-		Token          string `toml:"token"`
-		ConfsDb        string `toml:"confsdb"`
-		ConfsTixDb     string `toml:"confstixdb"`
-		SpeakersDb     string `toml:"speakersdb"`
-		OrgDb          string `toml:"orgdb"`
-		ProposalDb     string `toml:"proposaldb"`
-		SpeakerConfDb  string `toml:"speakerconfdb"`
-		ConfTalkDb     string `toml:"conftalkdb"`
-		SponsorshipsDb string `toml:"sponsorshipsdb"`
-	} `toml:"notion"`
-	Spaces struct {
-		Endpoint string `toml:"endpoint"`
-		Region   string `toml:"region"`
-		Bucket   string `toml:"bucket"`
-		Key      string `toml:"key"`
-		Secret   string `toml:"secret"`
-	} `toml:"spaces"`
-}
 
 func main() {
 	confTag := flag.String("conf", "", "Restrict to talks where Talk.Event matches this conf tag")
@@ -81,47 +55,37 @@ func main() {
 		log.Fatalf("-sponsors-only is incompatible with -speaker")
 	}
 
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	env, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
 	for k, v := range map[string]string{
-		"notion.token":         c.Notion.Token,
-		"notion.confsdb":       c.Notion.ConfsDb,
-		"notion.confstixdb":    c.Notion.ConfsTixDb,
-		"notion.speakersdb":    c.Notion.SpeakersDb,
-		"notion.proposaldb":    c.Notion.ProposalDb,
-		"notion.speakerconfdb": c.Notion.SpeakerConfDb,
-		"notion.conftalkdb":    c.Notion.ConfTalkDb,
+		"NOTION_TOKEN":           env.Notion.Token,
+		"NOTION_CONFS_DB":        env.Notion.ConfsDb,
+		"NOTION_CONFSTIX_DB":     env.Notion.ConfsTixDb,
+		"NOTION_SPEAKERS_DB":     env.Notion.SpeakersDb,
+		"NOTION_PROPOSAL_DB":     env.Notion.ProposalDb,
+		"NOTION_SPEAKER_CONF_DB": env.Notion.SpeakerConfDb,
+		"NOTION_CONFTALK_DB":     env.Notion.ConfTalkDb,
 	} {
 		if v == "" {
-			log.Fatalf("missing %s in %s", k, configFile)
+			log.Fatalf("missing %s", k)
 		}
 	}
 
-	nc := &types.NotionConfig{
-		Token:          c.Notion.Token,
-		ConfsDb:        c.Notion.ConfsDb,
-		ConfsTixDb:     c.Notion.ConfsTixDb,
-		SpeakersDb:     c.Notion.SpeakersDb,
-		OrgDb:          c.Notion.OrgDb,
-		ProposalDb:     c.Notion.ProposalDb,
-		SpeakerConfDb:  c.Notion.SpeakerConfDb,
-		ConfTalkDb:     c.Notion.ConfTalkDb,
-		SponsorshipsDb: c.Notion.SponsorshipsDb,
-	}
+	nc := &env.Notion
 	n := &types.Notion{Config: nc}
-	n.Setup(c.Notion.Token)
+	n.Setup(env.Notion.Token)
 
-	if c.Host == "" || c.Port == "" {
-		log.Fatalf("missing host/port in %s — Chrome needs a reachable URL to render card templates. Run `make dev-run` first.", configFile)
+	if env.Host == "" || env.Port == "" {
+		log.Fatal("missing HOST / PORT — Chrome needs a reachable URL to render card templates. Run `make dev-run` first.")
 	}
 	appCtx := &config.AppContext{
 		Env: &types.EnvConfig{
 			Notion:      *nc,
 			CacheTTLSec: 300,
-			Host:        c.Host,
-			Port:        c.Port,
+			Host:        env.Host,
+			Port:        env.Port,
 			Prod:        false, // local: GetURI builds http://host:port
 		},
 		Notion:       n,
@@ -136,15 +100,9 @@ func main() {
 	defer getters.CloseWorkPool()
 	getters.WaitFetch(appCtx)
 
-	spaces.Init(types.SpacesConfig{
-		Endpoint: c.Spaces.Endpoint,
-		Region:   c.Spaces.Region,
-		Bucket:   c.Spaces.Bucket,
-		Key:      c.Spaces.Key,
-		Secret:   c.Spaces.Secret,
-	})
+	spaces.Init(env.Spaces)
 	if !spaces.IsConfigured() {
-		log.Fatal("spaces is not configured (check [spaces] in config.toml)")
+		log.Fatal("spaces is not configured (check SPACES_* env vars)")
 	}
 
 	// Pull the existing hash index so unchanged cards short-circuit.

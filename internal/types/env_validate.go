@@ -19,8 +19,8 @@ func DeriveHMACKey(secret string) ([32]byte, error) {
 	return sha256.Sum256([]byte(secret)), nil
 }
 
-// ApplyDefaults fills operational defaults that are safe in both local
-// config.toml development and production env-var config.
+// ApplyDefaults fills operational defaults that are safe in both local .env
+// development and production env-var config.
 func (env *EnvConfig) ApplyDefaults() {
 	if env.CacheTTLSec == 0 {
 		env.CacheTTLSec = 300

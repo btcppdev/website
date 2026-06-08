@@ -6,10 +6,10 @@
 //
 //   - Sort deterministically by page ID; first becomes canonical.
 //   - Merge fields with first-nonempty:
-//       strings, selects: first non-empty
-//       multi-selects (Avails, OtherEvents): first non-empty list
-//       booleans (FirstEvent, DinnerRSVP, Sponsor): first true
-//       relation (org): first non-empty
+//     strings, selects: first non-empty
+//     multi-selects (Avails, OtherEvents): first non-empty list
+//     booleans (FirstEvent, DinnerRSVP, Sponsor): first true
+//     relation (org): first non-empty
 //   - `talk` relation = union of every row's linked proposals (the whole
 //     point of the rename).
 //   - Update canonical with the merged values.
@@ -34,27 +34,18 @@ import (
 	"strings"
 	"time"
 
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
 
 const (
-	configFile = "config.toml"
-	stateFile  = "migrate-speakerconfs-state.json"
+	stateFile = "migrate-speakerconfs-state.json"
 
 	notionAPI     = "https://api.notion.com/v1"
 	notionVersion = "2022-06-28"
 )
-
-type cfgFile struct {
-	Notion struct {
-		Token             string `toml:"token"`
-		ProposalDb        string `toml:"proposaldb"`
-		SpeakerConfDb string `toml:"speakerconfdb"`
-	} `toml:"notion"`
-}
 
 type spRow struct {
 	ID          string
@@ -87,12 +78,12 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "Preview without writing or archiving")
 	flag.Parse()
 
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
 	if c.Notion.Token == "" || c.Notion.ProposalDb == "" || c.Notion.SpeakerConfDb == "" {
-		log.Fatalf("missing notion.token / proposaldb / speakerproposaldb in %s", configFile)
+		log.Fatal("missing NOTION_TOKEN / NOTION_PROPOSAL_DB / NOTION_SPEAKER_CONF_DB")
 	}
 
 	n := &types.Notion{Config: &types.NotionConfig{Token: c.Notion.Token}}

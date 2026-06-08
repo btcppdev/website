@@ -1,6 +1,8 @@
 This is the code for the [bitcoin++ website](https://btcpp.dev). (Conference [X Account](https://x.com/btcplusplus))
 
-All of the configuration values live in a `config.toml` file, which is missing from this repo on purpose.
+Configuration is loaded from environment variables. For local development,
+the app also reads `.env` from the repo root without overwriting variables
+already exported in the shell.
 
 
 ## Setup Dependencies
@@ -68,7 +70,6 @@ doctl app dev build
 
 Then follow the instructions to run.
 
-FIXME: currently it picks up the config.toml file; remove this and use .env.
-
-
-Let's add an example fixme!
+The Docker image uses environment variables in App Platform. For local
+build testing, make sure the needed values are present in `.env` or exported
+in your shell.

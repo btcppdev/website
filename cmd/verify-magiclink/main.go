@@ -8,7 +8,7 @@
 //
 //	go run ./cmd/verify-magiclink -url 'http://localhost:8888/auth?em=...&hr=...'
 //
-// Reads config.toml from the cwd to pull HMACSecret. No network
+// Reads .env from the cwd to pull HMAC_SECRET. No network
 // calls. No Notion writes.
 package main
 
@@ -22,15 +22,10 @@ import (
 	"strings"
 
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/types"
-	"github.com/BurntSushi/toml"
 )
-
-type cfgFile struct {
-	HMACSecret      string `toml:"hmacsecret"`
-	HMACSecretSnake string `toml:"hmac_secret"`
-}
 
 func main() {
 	rawURL := flag.String("url", "", "magic-link URL to verify (required)")
@@ -39,15 +34,12 @@ func main() {
 		log.Fatal("required: -url")
 	}
 
-	var c cfgFile
-	if _, err := toml.DecodeFile("config.toml", &c); err != nil {
-		log.Fatalf("read config.toml: %s", err)
+	if err := envconfig.LoadDotEnv(".env"); err != nil && !os.IsNotExist(err) {
+		log.Fatal(err)
 	}
-	if c.HMACSecret == "" {
-		c.HMACSecret = c.HMACSecretSnake
-	}
-	if c.HMACSecret == "" {
-		log.Fatal("config.toml is missing hmac_secret — refusing to verify against a zero-byte key")
+	hmacSecret := os.Getenv("HMAC_SECRET")
+	if hmacSecret == "" {
+		log.Fatal(".env or environment is missing HMAC_SECRET — refusing to verify against a zero-byte key")
 	}
 
 	u, err := url.Parse(*rawURL)
@@ -71,7 +63,7 @@ func main() {
 	email := string(emailBytes)
 	token := string(tokenBytes)
 
-	key, err := types.DeriveHMACKey(c.HMACSecret)
+	key, err := types.DeriveHMACKey(hmacSecret)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,7 +85,7 @@ func main() {
 		fmt.Println("The token is not the current v1 expiring-token format.")
 	default:
 		fmt.Println("Most likely: the link expired, was minted against a different HMACSecret")
-		fmt.Println("(prod vs local config.toml mismatch, or the secret rotated since the link was generated).")
+		fmt.Println("(prod vs local .env mismatch, or the secret rotated since the link was generated).")
 	}
 	os.Exit(1)
 }

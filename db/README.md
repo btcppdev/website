@@ -72,6 +72,6 @@ go run ./cmd/migrate-notion-postgres -skip-speaker-confs -validate
 go run ./cmd/migrate-notion-postgres -skip-conf-talks -skip-recordings -skip-social-posts -validate
 ```
 
-The app can use Postgres locally by setting `dataBackend = "postgres"` in
-`config.toml` or by exporting `DATA_BACKEND=postgres`. The environment variable
-overrides `config.toml` when both are present.
+The app can use Postgres locally by setting `DATA_BACKEND=postgres` in `.env`
+or by exporting it in the shell. Exported shell variables take priority over
+values loaded from `.env`.

@@ -21,23 +21,15 @@ import (
 	"os"
 	"strings"
 
+	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 
-	"github.com/BurntSushi/toml"
 	notion "github.com/niftynei/go-notion"
 )
 
 const (
-	configFile     = "config.toml"
 	talksStateFile = "migrate-talks-state.json"
 )
-
-type cfgFile struct {
-	Notion struct {
-		Token          string `toml:"token"`
-		SocialPostsDb  string `toml:"socialpostsdb"`
-	} `toml:"notion"`
-}
 
 type talksState struct {
 	Completed map[string]struct {
@@ -49,12 +41,12 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "Preview without writing")
 	flag.Parse()
 
-	var c cfgFile
-	if _, err := toml.DecodeFile(configFile, &c); err != nil {
-		log.Fatalf("read %s: %s", configFile, err)
+	c, err := envconfig.Load(".env")
+	if err != nil {
+		log.Fatal(err)
 	}
 	if c.Notion.Token == "" || c.Notion.SocialPostsDb == "" {
-		log.Fatalf("missing notion.token / socialpostsdb in %s", configFile)
+		log.Fatal("missing NOTION_TOKEN / NOTION_SOCIAL_POSTS_DB")
 	}
 
 	n := &types.Notion{Config: &types.NotionConfig{
