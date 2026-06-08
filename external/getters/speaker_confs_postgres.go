@@ -33,6 +33,11 @@ func upsertSpeakerConfPostgres(ctx *config.AppContext, in SpeakerConfInput) (str
 		return existingID, nil
 	}
 
+	availability := in.Availability
+	if availability == nil {
+		availability = []string{}
+	}
+
 	var speakerConfID string
 	err = ctx.DB.QueryRow(context.Background(), `
 		INSERT INTO speaker_confs (
@@ -43,7 +48,7 @@ func upsertSpeakerConfPostgres(ctx *config.AppContext, in SpeakerConfInput) (str
 		)
 		RETURNING id::text
 	`, strings.TrimSpace(in.SpeakerID), strings.TrimSpace(in.OrgID), in.ComingFrom,
-		in.Availability, in.RecordOK, in.Visa, in.FirstEvent, in.DinnerRSVP,
+		availability, in.RecordOK, in.Visa, in.FirstEvent, in.DinnerRSVP,
 		in.Sponsor, in.Company, in.OrgPhoto).Scan(&speakerConfID)
 	if err != nil {
 		return "", fmt.Errorf("insert speaker conf for speaker %q: %w", in.SpeakerID, err)
@@ -61,7 +66,7 @@ func upsertSpeakerConfPostgres(ctx *config.AppContext, in SpeakerConfInput) (str
 		ID:           speakerConfID,
 		ComingFrom:   in.ComingFrom,
 		Speaker:      CacheSpeakerByID(in.SpeakerID),
-		Availability: in.Availability,
+		Availability: availability,
 		RecordOK:     in.RecordOK,
 		Visa:         in.Visa,
 		FirstEvent:   in.FirstEvent,

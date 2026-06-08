@@ -195,6 +195,68 @@ func TestPostgresSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
 	}
 }
 
+func TestPostgresSmokeInviteSpeakerConfAllowsEmptyAvailability(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	confID, tag := insertSmokeConference(t, ctx)
+	suffix := postgresSmokeSuffix()
+
+	var speakerID string
+	err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO people (name, email)
+		VALUES ($1, $2)
+		RETURNING id::text
+	`, "Smoke SpeakerConf "+suffix, "speakerconf-"+suffix+"@example.test").Scan(&speakerID)
+	if err != nil {
+		t.Fatalf("insert person: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, speakerID)
+	})
+
+	proposalID, err := CreateProposal(ctx, ProposalInput{
+		Title:          "Invited Talk " + suffix,
+		Description:    "Placeholder",
+		Status:         "Invited",
+		ScheduleForTag: tag,
+		TalkType:       "Talk",
+	})
+	if err != nil {
+		t.Fatalf("CreateProposal: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM proposals WHERE id::text = $1`, proposalID)
+	})
+
+	scID, err := UpsertSpeakerConf(ctx, SpeakerConfInput{
+		SpeakerID:  speakerID,
+		ConfTag:    tag,
+		ProposalID: proposalID,
+	})
+	if err != nil {
+		t.Fatalf("UpsertSpeakerConf with empty availability: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM speaker_confs WHERE id::text = $1`, scID)
+	})
+
+	var availability []string
+	err = ctx.DB.QueryRow(context.Background(), `
+		SELECT availability
+		FROM speaker_confs
+		WHERE id::text = $1 AND EXISTS (
+			SELECT 1
+			FROM conferences
+			WHERE id::text = $2
+		)
+	`, scID, confID).Scan(&availability)
+	if err != nil {
+		t.Fatalf("select speaker_conf availability: %v", err)
+	}
+	if len(availability) != 0 {
+		t.Fatalf("availability = %v, want empty array", availability)
+	}
+}
+
 func TestPostgresSmokeWorkShiftScheduleUsesConferenceTimezone(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	tag := "smoke-shift-nairobi-" + postgresSmokeSuffix()
