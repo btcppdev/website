@@ -226,9 +226,13 @@ func parseProposal(ctx *config.AppContext, pageID string, props map[string]notio
 	return prop
 }
 
-// lookupConfByTag finds a Conf by its tag in the cached Confs list. Returns
-// nil if the tag isn't recognized — callers must handle that case.
+// lookupConfByTag finds a Conf by its tag. Returns nil if the tag isn't
+// recognized — callers must handle that case.
 func lookupConfByTag(ctx *config.AppContext, tag string) *types.Conf {
+	if UsePostgresBackend(ctx) {
+		conf, _ := GetConfByTag(ctx, tag)
+		return conf
+	}
 	confs, err := FetchConfsCached(ctx)
 	if err != nil {
 		return nil
@@ -441,6 +445,16 @@ func parseSelectList(field string, props map[string]notion.PropertyValue) []stri
 func parseConfOne(ctx *config.AppContext, field string, props map[string]notion.PropertyValue) *types.Conf {
 	objRefs := props[field].Relation
 
+	if UsePostgresBackend(ctx) {
+		for _, ref := range objRefs {
+			conf, _ := GetConfByRef(ctx, ref.ID)
+			if conf != nil {
+				return conf
+			}
+		}
+		return nil
+	}
+
 	confs, _ := FetchConfsCached(ctx)
 	for _, ref := range objRefs {
 		for _, c := range confs {
@@ -456,6 +470,16 @@ func parseConfOne(ctx *config.AppContext, field string, props map[string]notion.
 func parseConfList(ctx *config.AppContext, field string, props map[string]notion.PropertyValue) []*types.Conf {
 	var list []*types.Conf
 	objRefs := props[field].Relation
+
+	if UsePostgresBackend(ctx) {
+		for _, ref := range objRefs {
+			conf, _ := GetConfByRef(ctx, ref.ID)
+			if conf != nil {
+				list = append(list, conf)
+			}
+		}
+		return list
+	}
 
 	confs, _ := FetchConfsCached(ctx)
 	for _, ref := range objRefs {
