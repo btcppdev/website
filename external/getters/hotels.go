@@ -107,8 +107,7 @@ func ArchiveHotel(ctx *config.AppContext, hotelID string) error {
 }
 
 // RefreshHotelsCache forces the next FetchHotelsCached call to fetch
-// fresh data from Notion. Called after every CRUD op so the
-// /{conf}/admin/hotels page reflects edits immediately.
+// fresh data for Notion-backed hotel CRUD flows.
 func RefreshHotelsCache() {
 	queueRefresh(JobHotels)
 }
