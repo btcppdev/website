@@ -337,7 +337,7 @@ func hydrateVolunteerRelationsPostgres(ctx *config.AppContext, vols []*types.Vol
 		return err
 	}
 
-	jobs, err := FetchJobsCached(ctx)
+	jobs, err := ListJobTypes(ctx)
 	if err != nil {
 		return err
 	}
