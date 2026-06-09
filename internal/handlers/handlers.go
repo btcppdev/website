@@ -444,7 +444,7 @@ func contains(list []string, item string) bool {
 }
 
 func findTicket(app *config.AppContext, tixID string) (*types.ConfTicket, *types.Conf) {
-	confs, err := getters.FetchConfsCached(app)
+	confs, err := getters.ListConfs(app)
 	if err != nil {
 		app.Err.Printf("unable to find ticket?? %s", err)
 		return nil, nil
@@ -1411,7 +1411,7 @@ func addFaviconRoutes(r *mux.Router) error {
 func listConfs(w http.ResponseWriter, ctx *config.AppContext) []*types.Conf {
 	var confs types.ConfList
 	var err error
-	confs, err = getters.FetchConfsCached(ctx)
+	confs, err = getters.ListConfs(ctx)
 	if err != nil {
 		// FIXME add an internal error page
 		http.Error(w, "Unable to load confereneces, please try again later", http.StatusInternalServerError)
@@ -2377,7 +2377,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		}
 		ctx.Session.Put(r.Context(), stashKey(conf.Tag), code)
 		if disc != nil {
-			allConfs, _ := getters.FetchConfsCached(ctx)
+			allConfs, _ := getters.ListConfs(ctx)
 			if len(disc.ConfRef) > 0 {
 				// Code is pinned to specific confs — stash
 				// for each one in the list.
@@ -2842,14 +2842,13 @@ func Ticket(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		tixType = "general"
 	}
 
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByRef(ctx, confRef)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("/ticket-pdf unable to load confs! %s", err)
+		ctx.Err.Printf("/ticket-pdf unable to load conf! %s", err)
 		return
 	}
 
-	conf := helpers.FindConfByRef(confs, confRef)
 	if conf == nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/ticket-pdf unable to find conf! %s", confRef)
@@ -2916,13 +2915,8 @@ func TicketPDF(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	// Friendly filename: ticket-{conf-tag}-{first8ofref}.pdf
 	confName := "btcpp"
 	if confRef != "" {
-		if confs, _ := getters.FetchConfsCached(ctx); confs != nil {
-			for _, c := range confs {
-				if c != nil && c.Ref == confRef && c.Tag != "" {
-					confName = c.Tag
-					break
-				}
-			}
+		if conf, _ := getters.GetConfByRef(ctx, confRef); conf != nil && conf.Tag != "" {
+			confName = conf.Tag
 		}
 	}
 	shortRef := ticket
@@ -3170,14 +3164,18 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	}
 
 	/* Add to mailing list + schedule mails */
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByRef(ctx, entry.ConfRef)
 	if err != nil {
-		ctx.Err.Printf("opennode callback: unable to load confs! %s", err)
+		ctx.Err.Printf("opennode callback: unable to load conf! %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	conf := helpers.FindConfByRef(confs, entry.ConfRef)
+	if conf == nil {
+		ctx.Err.Printf("opennode callback: unable to find conf %s", entry.ConfRef)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	err = missives.NewTicketSub(ctx, entry.Email, conf.Tag, tixType, charge.Metadata.Subscribe)
 
 	if err != nil {
@@ -3615,13 +3613,12 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			return
 		}
 
-		confs, err := getters.FetchConfsCached(ctx)
+		conf, err := getters.GetConfByRef(ctx, confRef)
 		if err != nil {
-			ctx.Err.Printf("Stripe callback: unable to load confs! %s", err)
+			ctx.Err.Printf("Stripe callback: unable to load conf! %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		conf := helpers.FindConfByRef(confs, confRef)
 		if conf == nil {
 			ctx.Err.Printf("Couldn't find conf %s", confRef)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -4180,17 +4177,10 @@ func cancelShiftCalForVol(ctx *config.AppContext, vol *types.Volunteer, shiftRef
 	if vol == nil || vol.Email == "" {
 		return
 	}
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByTag(ctx, confTag)
 	if err != nil {
-		ctx.Err.Printf("cancelShiftCalForVol confs: %s", err)
+		ctx.Err.Printf("cancelShiftCalForVol conf: %s", err)
 		return
-	}
-	var conf *types.Conf
-	for _, c := range confs {
-		if c != nil && c.Tag == confTag {
-			conf = c
-			break
-		}
 	}
 	if conf == nil {
 		return

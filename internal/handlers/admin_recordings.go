@@ -1471,7 +1471,7 @@ func nextTicketConf(ctx *config.AppContext, current *types.Conf) *types.Conf {
 	if ctx == nil {
 		return nil
 	}
-	confs, err := getters.FetchConfsCached(ctx)
+	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		return nil
 	}

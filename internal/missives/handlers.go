@@ -224,7 +224,7 @@ func ConfirmEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 	}
 
 	var confs types.ConfList
-	confs, _ = getters.FetchConfsCached(ctx)
+	confs, _ = getters.ListConfs(ctx)
 	sort.Sort(confs)
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "emails/subscribe_ok.tmpl", &SubscribePage{
@@ -288,7 +288,7 @@ func UnsubscribeEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 
 	// Render the template with the data
 	var confs types.ConfList
-	confs, _ = getters.FetchConfsCached(ctx)
+	confs, _ = getters.ListConfs(ctx)
 	sort.Sort(confs)
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "emails/unsubscribe_ok.tmpl", &SubscribePage{

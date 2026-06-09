@@ -427,7 +427,7 @@ func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, org
 }
 
 func RefreshSponsorCards(ctx *config.AppContext) {
-	confs, err := getters.FetchConfsCached(ctx)
+	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		ctx.Err.Printf("media refresh sponsors: failed to fetch confs: %s", err)
 		return
@@ -482,7 +482,7 @@ func RefreshTalkCardsForceOpt(ctx *config.AppContext, talks []*types.Talk, force
 }
 
 func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive, force bool) {
-	confs, _ := getters.FetchConfsCached(ctx)
+	confs, _ := getters.ListConfs(ctx)
 	confset := helpers.ConfTagSet(confs)
 	renderer := helpers.NewMediaRenderer(ctx)
 	defer renderer.Close()
