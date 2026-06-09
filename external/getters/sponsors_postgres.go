@@ -39,7 +39,6 @@ func registerOrgPostgres(ctx *config.AppContext, org *types.Org) (string, error)
 		return "", fmt.Errorf("insert org %q: %w", org.Name, err)
 	}
 	org.Ref = orgID
-	queueRefresh(JobOrgs)
 	return orgID, nil
 }
 
@@ -205,7 +204,6 @@ func updateOrgPostgres(ctx *config.AppContext, orgID string, up OrgUpdate) error
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("org %s not found", orgID)
 	}
-	queueRefresh(JobOrgs)
 	return nil
 }
 
@@ -247,7 +245,6 @@ func updateOrgDetailsPostgres(ctx *config.AppContext, org *types.Org) error {
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("org %s not found", org.Ref)
 	}
-	queueRefresh(JobOrgs)
 	return nil
 }
 
