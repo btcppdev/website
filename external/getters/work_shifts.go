@@ -127,7 +127,8 @@ func RemoveVolunteerFromShift(ctx *config.AppContext, volRef, shiftRef string) e
 	return RemoveVolunteerFromShiftNotion(ctx, volRef, shiftRef)
 }
 
-// invalidateShiftCache forces the next FetchShiftsCached call to refetch.
+// invalidateShiftCache forces the next FetchShiftsCached call to refetch for
+// Notion-backed work-shift writes.
 func invalidateShiftCache() {
 	shifts = nil
 	lastShiftFetch = time.Time{}

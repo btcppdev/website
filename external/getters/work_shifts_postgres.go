@@ -191,12 +191,6 @@ func shiftUpdateCalNotifPostgres(ctx *config.AppContext, shiftID string, calnoti
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("work shift %s not found", shiftID)
 	}
-	for _, shift := range shifts {
-		if shift != nil && shift.Ref == shiftID {
-			shift.CalNotif = calnotif
-			break
-		}
-	}
 	return nil
 }
 
@@ -232,7 +226,6 @@ func createShiftPostgres(ctx *config.AppContext, conf *types.Conf, jobType *type
 	if err != nil {
 		return fmt.Errorf("create work shift %q: %w", name, err)
 	}
-	invalidateShiftCache()
 	return nil
 }
 
@@ -258,7 +251,6 @@ func updateShiftTimesPostgres(ctx *config.AppContext, shiftRef string, start, en
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("work shift %s not found", shiftRef)
 	}
-	refreshShiftCache(ctx, "UpdateShiftTimes")
 	return nil
 }
 
@@ -294,7 +286,6 @@ func updateShiftPostgres(ctx *config.AppContext, shiftRef, name string, jobType 
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("work shift %s not found", shiftRef)
 	}
-	invalidateShiftCache()
 	return nil
 }
 
@@ -312,7 +303,6 @@ func deleteShiftPostgres(ctx *config.AppContext, shiftRef string) error {
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("work shift %s not found", shiftRef)
 	}
-	invalidateShiftCache()
 	return nil
 }
 
@@ -328,14 +318,6 @@ func assignVolunteerToShiftPostgres(ctx *config.AppContext, volRef, shiftRef str
 	if err != nil {
 		return fmt.Errorf("assign volunteer %s to shift %s: %w", volRef, shiftRef, err)
 	}
-	patchShiftAssigneeCache(shiftRef, func(refs []string) []string {
-		for _, ref := range refs {
-			if ref == volRef {
-				return refs
-			}
-		}
-		return append(refs, volRef)
-	})
 	return nil
 }
 
@@ -350,15 +332,6 @@ func removeVolunteerFromShiftPostgres(ctx *config.AppContext, volRef, shiftRef s
 	if err != nil {
 		return fmt.Errorf("remove volunteer %s from shift %s: %w", volRef, shiftRef, err)
 	}
-	patchShiftAssigneeCache(shiftRef, func(refs []string) []string {
-		next := make([]string, 0, len(refs))
-		for _, ref := range refs {
-			if ref != volRef {
-				next = append(next, ref)
-			}
-		}
-		return next
-	})
 	return nil
 }
 
@@ -367,13 +340,4 @@ func nullableShiftTime(t time.Time) any {
 		return nil
 	}
 	return t
-}
-
-func patchShiftAssigneeCache(shiftRef string, patch func([]string) []string) {
-	for _, shift := range shifts {
-		if shift != nil && shift.Ref == shiftRef {
-			shift.AssigneesRef = patch(shift.AssigneesRef)
-			return
-		}
-	}
 }
