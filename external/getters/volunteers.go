@@ -28,7 +28,7 @@ func GetVolInfoMap(ctx *config.AppContext) (map[string]*types.VolInfo, error) {
 		return vmap, err
 	}
 
-	confs, err := FetchConfsCached(ctx)
+	confs, err := ListConfs(ctx)
 	if err != nil {
 		return vmap, err
 	}

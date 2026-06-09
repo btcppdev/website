@@ -105,19 +105,15 @@ func ticketMatch(tickets []string, rez *types.Registration) bool {
 }
 
 func checkActive(ctx *config.AppContext, confRef string) bool {
-	confs, err := FetchConfsCached(ctx)
+	conf, err := GetConfByRef(ctx, confRef)
 	if err != nil {
-		ctx.Err.Printf("couldn't fetch confs?? %s", err)
+		ctx.Err.Printf("couldn't fetch conf %s: %s", confRef, err)
 		return false
 	}
-
-	for _, conf := range confs {
-		if confRef == conf.Ref {
-			return conf.Active
-		}
+	if conf == nil {
+		return false
 	}
-
-	return false
+	return conf.Active
 }
 
 func FetchRegistrationsConf(ctx *config.AppContext, confRef string) ([]*types.Registration, error) {

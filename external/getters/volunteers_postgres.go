@@ -323,7 +323,7 @@ func hydrateVolunteerRelationsPostgres(ctx *config.AppContext, vols []*types.Vol
 		ids = append(ids, vol.Ref)
 	}
 
-	confs, err := FetchConfsCached(ctx)
+	confs, err := listConferencesOnlyPostgres(ctx)
 	if err != nil {
 		return err
 	}
