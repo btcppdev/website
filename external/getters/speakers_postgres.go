@@ -144,7 +144,6 @@ func createSpeakerPostgres(ctx *config.AppContext, in SpeakerInput) (string, err
 	if err != nil {
 		return "", fmt.Errorf("create person: %w", err)
 	}
-	CacheSpeakerInsert(speakerFromInput(id, in))
 	return id, nil
 }
 
@@ -177,7 +176,6 @@ func updateSpeakerPostgres(ctx *config.AppContext, speakerID string, up SpeakerU
 	if err != nil {
 		return fmt.Errorf("update person %s: %w", speakerID, err)
 	}
-	patchCachedSpeaker(speakerID, up)
 	return nil
 }
 
@@ -209,12 +207,6 @@ func updateSpeakerRolesPostgres(ctx *config.AppContext, speakerID string, roles 
 	}
 	if err := tx.Commit(context.Background()); err != nil {
 		return fmt.Errorf("commit speaker role update: %w", err)
-	}
-	for _, s := range cacheSpeakers {
-		if s != nil && s.ID == speakerID {
-			s.Roles = append(s.Roles[:0], roles...)
-			break
-		}
 	}
 	return nil
 }

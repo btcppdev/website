@@ -7600,7 +7600,7 @@ func scheduledVolunteerAttendees(vols []*types.Volunteer) []ics.Attendee {
 }
 
 func orientationStaffRecipients(ctx *config.AppContext, confTag string) []ics.Attendee {
-	speakers, err := getters.FetchSpeakersCached(ctx)
+	speakers, err := getters.ListSpeakers(ctx)
 	if err != nil || len(speakers) == 0 {
 		return nil
 	}

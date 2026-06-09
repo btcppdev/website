@@ -206,9 +206,8 @@ func InvalidateProposalsCache() {
 	proposalCacheMu.Unlock()
 }
 
-// CacheSpeakerInsert appends a Speaker to the in-memory speakers cache. Used
-// after CreateSpeaker so the just-written row is findable without waiting for
-// the periodic refresh tick.
+// CacheSpeakerInsert appends a Speaker to the in-memory speakers cache for
+// Notion-backed create flows that still read from the warm speaker slice.
 func CacheSpeakerInsert(s *types.Speaker) {
 	if s == nil {
 		return
