@@ -135,11 +135,10 @@ func SendMail(ctx *config.AppContext, rez *types.Registration) error {
 	if err != nil {
 		return err
 	}
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByRef(ctx, rez.ConfRef)
 	if err != nil {
 		return err
 	}
-	conf := helpers.FindConfByRef(confs, rez.ConfRef)
 	if conf == nil {
 		return fmt.Errorf("SendMail: no conf for ref %s", rez.ConfRef)
 	}
@@ -162,11 +161,10 @@ func TicketCheck(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 /* Send a request to our mailer to send a ticket at time */
 func SendTickets(ctx *config.AppContext, tickets []*types.Ticket, confRef, email string, sendAt time.Time) error {
 	/* Send the ticket email! */
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByRef(ctx, confRef)
 	if err != nil {
 		return err
 	}
-	conf := helpers.FindConfByRef(confs, confRef)
 	if conf == nil {
 		return fmt.Errorf("No conference found for ref %s", confRef)
 	}
@@ -515,17 +513,10 @@ func SendMailTest(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		email = "niftynei@gmail.com"
 	}
 
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByTag(ctx, confTag)
 	if err != nil {
-		http.Error(w, "load confs: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "load conf: "+err.Error(), http.StatusInternalServerError)
 		return
-	}
-	var conf *types.Conf
-	for _, c := range confs {
-		if c != nil && c.Tag == confTag {
-			conf = c
-			break
-		}
 	}
 	if conf == nil {
 		http.Error(w, "unknown conf tag: "+confTag, http.StatusNotFound)

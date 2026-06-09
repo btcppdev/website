@@ -7,7 +7,6 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/ics"
-	"btcpp-web/internal/types"
 
 	"github.com/gorilla/mux"
 )
@@ -142,18 +141,11 @@ func DashboardVolShiftsResend(w http.ResponseWriter, r *http.Request, ctx *confi
 		return
 	}
 
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByTag(ctx, confTag)
 	if err != nil {
-		ctx.Err.Printf("/dashboard/vol/%s/shifts/resend-invites confs: %s", confTag, err)
+		ctx.Err.Printf("/dashboard/vol/%s/shifts/resend-invites conf: %s", confTag, err)
 		http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "Lookup failed"), http.StatusSeeOther)
 		return
-	}
-	var conf *types.Conf
-	for _, c := range confs {
-		if c != nil && c.Tag == confTag {
-			conf = c
-			break
-		}
 	}
 	if conf == nil {
 		http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "Unknown conf"), http.StatusSeeOther)

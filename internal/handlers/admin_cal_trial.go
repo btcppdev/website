@@ -43,17 +43,10 @@ func TrialCalInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		email = "niftynei@gmail.com"
 	}
 
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByTag(ctx, confTag)
 	if err != nil {
-		http.Error(w, "load confs: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "load conf: "+err.Error(), http.StatusInternalServerError)
 		return
-	}
-	var conf *types.Conf
-	for _, c := range confs {
-		if c != nil && c.Tag == confTag {
-			conf = c
-			break
-		}
 	}
 	if conf == nil {
 		http.Error(w, "unknown conf: "+confTag, http.StatusNotFound)
@@ -104,11 +97,11 @@ func TrialCalInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	html, _ := emails.BuildHTMLEmail(ctx, []byte(body))
 
 	mail := &emails.Mail{
-		JobKey:  fmt.Sprintf("trial-cal-%d", time.Now().UTC().Unix()),
-		Email:   email,
-		Title:   fmt.Sprintf("[trial] %s calendar invite", conf.Desc),
-		SendAt:  time.Now(),
-		ReplyTo: ics.ReplyToTalk,
+		JobKey:   fmt.Sprintf("trial-cal-%d", time.Now().UTC().Unix()),
+		Email:    email,
+		Title:    fmt.Sprintf("[trial] %s calendar invite", conf.Desc),
+		SendAt:   time.Now(),
+		ReplyTo:  ics.ReplyToTalk,
 		TextBody: []byte(body),
 		HTMLBody: html,
 		Files: []*emails.EmailFile{{
