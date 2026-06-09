@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
@@ -177,13 +176,6 @@ func incrementDiscountUsesPostgres(ctx *config.AppContext, discountRef string, a
 	if err != nil {
 		return fmt.Errorf("increment discount uses: %w", err)
 	}
-	for _, d := range discounts {
-		if d != nil && d.Ref == discountRef {
-			d.UsesCount += addCount
-			break
-		}
-	}
-	lastDiscountFetch = time.Time{}
 	return nil
 }
 
@@ -248,12 +240,6 @@ func insertDiscountPostgres(ctx *config.AppContext, codeName, discountExpr, affi
 		return "", fmt.Errorf("commit discount insert: %w", err)
 	}
 
-	discount.Ref = discountID
-	discount.ConfRef = append([]string(nil), confRefs...)
-	if discounts != nil {
-		discounts = append(discounts, discount)
-	}
-	queueRefresh(JobDiscounts)
 	return discountID, nil
 }
 
@@ -326,8 +312,6 @@ func updateDiscountRowPostgres(ctx *config.AppContext, discountID, codeName, dis
 	if err := tx.Commit(context.Background()); err != nil {
 		return fmt.Errorf("commit discount update: %w", err)
 	}
-	patchDiscountCacheAfterUpdate(discountID, discount, confRefs, affiliateEmail)
-	queueRefresh(JobDiscounts)
 	return nil
 }
 
@@ -346,16 +330,6 @@ func archiveDiscountRowPostgres(ctx *config.AppContext, discountID string) error
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("discount %s not found", discountID)
 	}
-	if discounts != nil {
-		filtered := discounts[:0]
-		for _, d := range discounts {
-			if d == nil || d.Ref != discountID {
-				filtered = append(filtered, d)
-			}
-		}
-		discounts = filtered
-	}
-	queueRefresh(JobDiscounts)
 	return nil
 }
 
@@ -400,29 +374,4 @@ func nullableUintPtr(value uint) *int {
 	}
 	out := int(value)
 	return &out
-}
-
-func patchDiscountCacheAfterUpdate(discountID string, patch *types.DiscountCode, confRefs []string, affiliateEmail *string) {
-	if discounts == nil || patch == nil {
-		return
-	}
-	for _, d := range discounts {
-		if d == nil || d.Ref != discountID {
-			continue
-		}
-		d.CodeName = patch.CodeName
-		d.Discount = patch.Discount
-		d.ConfRef = append([]string(nil), confRefs...)
-		if affiliateEmail != nil {
-			d.AffiliateEmail = patch.AffiliateEmail
-		}
-		d.DiscType = 0
-		d.Amount = 0
-		d.MaxUses = 0
-		d.ExtraQty = 0
-		d.ValidFrom = nil
-		d.ValidUntil = nil
-		_ = d.ParseDiscountExpr()
-		break
-	}
 }
