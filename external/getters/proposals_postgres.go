@@ -223,7 +223,6 @@ func updateProposalStatusPostgres(ctx *config.AppContext, proposalID, status str
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("proposal %s not found", proposalID)
 	}
-	InvalidateSpeakerConfsCache()
 	return nil
 }
 

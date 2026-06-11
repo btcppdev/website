@@ -61,31 +61,6 @@ func upsertSpeakerConfPostgres(ctx *config.AppContext, in SpeakerConfInput) (str
 	if err := replaceSpeakerConfOtherEventsPostgres(ctx, speakerConfID, in.OtherEventTags); err != nil {
 		return "", err
 	}
-
-	speaker, err := FetchSpeakerByID(ctx, in.SpeakerID)
-	if err != nil {
-		return "", fmt.Errorf("fetch speaker %s: %w", in.SpeakerID, err)
-	}
-
-	sc := &types.SpeakerConf{
-		ID:           speakerConfID,
-		ComingFrom:   in.ComingFrom,
-		Speaker:      speaker,
-		Availability: availability,
-		RecordOK:     in.RecordOK,
-		Visa:         in.Visa,
-		FirstEvent:   in.FirstEvent,
-		DinnerRSVP:   in.DinnerRSVP,
-		Sponsor:      in.Sponsor,
-		Company:      in.Company,
-		OrgPhoto:     in.OrgPhoto,
-	}
-	if in.ProposalID != "" {
-		if p, _ := GetProposal(ctx, in.ProposalID); p != nil {
-			sc.Proposals = append(sc.Proposals, p)
-		}
-	}
-	CacheSpeakerConfInsert(sc)
 	return speakerConfID, nil
 }
 
@@ -376,30 +351,6 @@ func updateSpeakerConfPostgres(ctx *config.AppContext, speakerConfID string, in 
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("speaker conf %s not found", speakerConfID)
 	}
-	InvalidateSpeakerConfsCache()
-	if cached := FetchSpeakerConfByID(speakerConfID); cached != nil {
-		cached.FirstEvent = in.FirstEvent
-		cached.DinnerRSVP = in.DinnerRSVP
-		cached.Sponsor = in.Sponsor
-		if in.ComingFrom != "" {
-			cached.ComingFrom = in.ComingFrom
-		}
-		if in.Company != "" {
-			cached.Company = in.Company
-		}
-		if in.RecordOK != "" {
-			cached.RecordOK = in.RecordOK
-		}
-		if in.Visa != "" {
-			cached.Visa = in.Visa
-		}
-		if in.Availability != nil {
-			cached.Availability = in.Availability
-		}
-		if in.OrgPhoto != "" {
-			cached.OrgPhoto = in.OrgPhoto
-		}
-	}
 	return nil
 }
 
@@ -413,21 +364,6 @@ func addSpeakerConfToProposalPostgres(ctx *config.AppContext, proposalID, speake
 		ON CONFLICT (proposal_id, speaker_conf_id) DO NOTHING
 	`, proposalID, speakerConfID); err != nil {
 		return fmt.Errorf("link speaker conf %s to proposal %s: %w", speakerConfID, proposalID, err)
-	}
-	InvalidateSpeakerConfsCache()
-	if cached := FetchSpeakerConfByID(speakerConfID); cached != nil {
-		alreadyHas := false
-		for _, p := range cached.Proposals {
-			if p != nil && p.ID == proposalID {
-				alreadyHas = true
-				break
-			}
-		}
-		if !alreadyHas {
-			if p, _ := GetProposal(ctx, proposalID); p != nil {
-				cached.Proposals = append(cached.Proposals, p)
-			}
-		}
 	}
 	return nil
 }
@@ -443,30 +379,12 @@ func removeProposalFromSpeakerConfPostgres(ctx *config.AppContext, speakerConfID
 	`, proposalID, speakerConfID); err != nil {
 		return fmt.Errorf("unlink speaker conf %s from proposal %s: %w", speakerConfID, proposalID, err)
 	}
-	InvalidateSpeakerConfsCache()
-	if cached := FetchSpeakerConfByID(speakerConfID); cached != nil {
-		out := cached.Proposals[:0]
-		for _, p := range cached.Proposals {
-			if p != nil && p.ID != proposalID {
-				out = append(out, p)
-			}
-		}
-		cached.Proposals = out
-	}
 	return nil
 }
 
 func setSpeakerConfDatePostgres(ctx *config.AppContext, speakerConfID, column string, when time.Time, onlyIfEmpty bool) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
-	}
-	if onlyIfEmpty {
-		if sc := FetchSpeakerConfByID(speakerConfID); sc != nil {
-			already := scTimestampPostgres(sc, column)
-			if already != nil {
-				return nil
-			}
-		}
 	}
 	query := `
 		UPDATE speaker_confs
@@ -482,18 +400,6 @@ func setSpeakerConfDatePostgres(ctx *config.AppContext, speakerConfID, column st
 	}
 	if commandTag.RowsAffected() == 0 && !onlyIfEmpty {
 		return fmt.Errorf("speaker conf %s not found", speakerConfID)
-	}
-	InvalidateSpeakerConfsCache()
-	if cached := FetchSpeakerConfByID(speakerConfID); cached != nil {
-		w := when
-		switch column {
-		case "invited_at":
-			cached.InvitedAt = &w
-		case "viewed_at":
-			cached.ViewedAt = &w
-		case "accepted_at":
-			cached.AcceptedAt = &w
-		}
 	}
 	return nil
 }
@@ -545,18 +451,6 @@ func replaceSpeakerConfOtherEventsPostgres(ctx *config.AppContext, speakerConfID
 		`, speakerConfID, *confID); err != nil {
 			return fmt.Errorf("insert speaker conf other event %s/%s: %w", speakerConfID, tag, err)
 		}
-	}
-	return nil
-}
-
-func scTimestampPostgres(sc *types.SpeakerConf, column string) *time.Time {
-	switch column {
-	case "invited_at":
-		return sc.InvitedAt
-	case "viewed_at":
-		return sc.ViewedAt
-	case "accepted_at":
-		return sc.AcceptedAt
 	}
 	return nil
 }

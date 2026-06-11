@@ -63,9 +63,9 @@ func ListSpeakerConfs(ctx *config.AppContext, speakerMap map[string]*types.Speak
 	return ListSpeakerConfsNotion(ctx, speakerMap, proposalMap)
 }
 
-// FetchSpeakerConfsForSpeaker returns the cached SpeakerConf rows linked to
-// speakerID. Triggers an async refresh on TTL expiry but returns stale data
-// immediately rather than blocking.
+// FetchSpeakerConfsForSpeaker returns cached SpeakerConf rows for Notion-backed
+// callers linked to speakerID. It triggers an async refresh on TTL expiry but
+// returns stale data immediately rather than blocking.
 func FetchSpeakerConfsForSpeaker(ctx *config.AppContext, speakerID string) []*types.SpeakerConf {
 	deadline := time.Now().Add(-cacheTTL)
 	speakerConfCacheMu.RLock()
@@ -79,8 +79,8 @@ func FetchSpeakerConfsForSpeaker(ctx *config.AppContext, speakerID string) []*ty
 	return out
 }
 
-// FetchSpeakerConfByID returns the cached SpeakerConf for the given ID, or nil
-// if not in cache.
+// FetchSpeakerConfByID returns the cached SpeakerConf for Notion-backed or
+// no-context callers, or nil if not in cache.
 func FetchSpeakerConfByID(id string) *types.SpeakerConf {
 	speakerConfCacheMu.RLock()
 	defer speakerConfCacheMu.RUnlock()
@@ -100,10 +100,8 @@ func InvalidateSpeakerConfsCache() {
 	speakerConfCacheMu.Unlock()
 }
 
-// CacheSpeakerConfInsert adds a fresh SpeakerConf to the in-memory caches
-// (slice + by-ID + by-speakerID indexes) so the next
-// FetchSpeakerConfsForSpeaker call sees it. Used after a successful
-// UpsertSpeakerConf create.
+// CacheSpeakerConfInsert adds a fresh SpeakerConf to the in-memory caches for
+// Notion-backed create flows that still read from the warm speaker-conf slice.
 //
 // Idempotent on ID: calling twice with the same row replaces the previous entry
 // rather than duplicating it.
