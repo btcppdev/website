@@ -11,7 +11,7 @@ import (
 func getTalks(ctx *config.AppContext) {
 	var err error
 	ctx.Infos.Printf("getting talks...")
-	talks, err = listTalks(ctx, cacheSpeakers)
+	talks, err = listTalks(ctx)
 
 	if err != nil {
 		ctx.Err.Printf("error fetching talks %s", err)
@@ -71,9 +71,8 @@ func patchTalksStatusForProposal(proposalID, status string) {
 // ConfTalk -> Proposal -> SpeakerConf[] -> Speaker[] chain. Talk.ID is the
 // ConfTalk page ID in Notion and the conf_talks.id value in Postgres.
 //
-// The speakers param is unused. It is kept on the signature to match the cache
-// job runner; SpeakerConf joins handle speaker resolution internally.
-func listTalks(ctx *config.AppContext, _ []*types.Speaker) ([]*types.Talk, error) {
+// SpeakerConf joins handle speaker resolution internally.
+func listTalks(ctx *config.AppContext) ([]*types.Talk, error) {
 	talks, err := LoadTalksFromConfTalks(ctx, "")
 	if err != nil {
 		return nil, err
