@@ -300,7 +300,9 @@ func resolveOrCreateInvitedProposal(ctx *config.AppContext, conf *types.Conf, sp
 	if err != nil {
 		return nil, false, fmt.Errorf("create proposal: %w", err)
 	}
-	getters.InvalidateProposalsCache()
+	if !getters.UsePostgresBackend(ctx) {
+		getters.InvalidateProposalsCache()
+	}
 	p, err := getters.GetProposal(ctx, pid)
 	if err != nil || p == nil {
 		// Worst case — fabricate a minimal Proposal so the rest of the

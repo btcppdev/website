@@ -1708,9 +1708,12 @@ func ReloadConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 // per-conf SpeakerConf row so templates referencing Speaker.Company
 // render the conf-specific affiliation rather than the stale top-
 // level Speaker.Company.
-func acceptedSpeakersForConf(ctx *config.AppContext, confTag string, talks []*types.Talk) types.Speakers {
+func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*types.Talk) types.Speakers {
 	var speakers types.Speakers
 	seen := make(map[string]bool)
+	if conf == nil {
+		return speakers
+	}
 
 	// Source 1: speakers from ConfTalk-backed Talks (the existing
 	// pipeline). Talks already carry conf-overlaid Speaker views
@@ -1732,18 +1735,18 @@ func acceptedSpeakersForConf(ctx *config.AppContext, confTag string, talks []*ty
 	}
 
 	// Source 2: Accepted/Scheduled proposals scheduled for this conf.
-	// Best-effort — if the proposals cache read errors we still
+	// Best-effort — if the scoped proposal read errors we still
 	// return the talks-derived list rather than blanking the page.
 	//
-	// Cached Proposals only have SpeakerConfRefs (raw page IDs) — the
+	// Proposals only have SpeakerConfRefs (raw page IDs) — the
 	// Speakers []*SpeakerConf slice is populated only by callers that
 	// run resolveProposalSpeakers (e.g. LoadTalksFromConfTalks). Walk
 	// the refs directly via the SpeakerConf cache so this works on
 	// proposals that haven't been provisioned a ConfTalk yet (which
 	// is exactly the case this source is meant to catch).
-	proposals, err := getters.FetchProposalsCached(ctx)
+	proposals, err := getters.ListProposalsForConf(ctx, conf.Ref)
 	if err != nil {
-		ctx.Err.Printf("acceptedSpeakersForConf %s proposals: %s", confTag, err)
+		ctx.Err.Printf("acceptedSpeakersForConf %s proposals: %s", conf.Tag, err)
 		return speakers
 	}
 	for _, p := range proposals {
@@ -1753,13 +1756,13 @@ func acceptedSpeakersForConf(ctx *config.AppContext, confTag string, talks []*ty
 		if p.Status != StatusAccepted && p.Status != "Scheduled" {
 			continue
 		}
-		if p.ScheduleFor == nil || p.ScheduleFor.Tag != confTag {
+		if p.ScheduleFor == nil || p.ScheduleFor.Tag != conf.Tag {
 			continue
 		}
 		for _, ref := range p.SpeakerConfRefs {
 			sc, err := getters.GetSpeakerConfByID(ctx, ref)
 			if err != nil {
-				ctx.Err.Printf("acceptedSpeakersForConf %s speakerconf %s: %s", confTag, ref, err)
+				ctx.Err.Printf("acceptedSpeakersForConf %s speakerconf %s: %s", conf.Tag, ref, err)
 				continue
 			}
 			if sc == nil || sc.Speaker == nil {
@@ -1806,7 +1809,7 @@ func RenderTalks(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	}
 
 	var evSpeakers types.Speakers
-	evSpeakers = acceptedSpeakersForConf(ctx, conf.Tag, talks)
+	evSpeakers = acceptedSpeakersForConf(ctx, conf, talks)
 
 	sort.Sort(talks)
 	sort.Sort(evSpeakers)
@@ -2417,7 +2420,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 
 	var evSpeakers types.Speakers
-	evSpeakers = acceptedSpeakersForConf(ctx, conf.Tag, talks)
+	evSpeakers = acceptedSpeakersForConf(ctx, conf, talks)
 	sort.Sort(evSpeakers)
 
 	soldCount, err := getters.SoldTix(ctx, conf)

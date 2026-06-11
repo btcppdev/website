@@ -414,7 +414,6 @@ func addSpeakerConfToProposalPostgres(ctx *config.AppContext, proposalID, speake
 	`, proposalID, speakerConfID); err != nil {
 		return fmt.Errorf("link speaker conf %s to proposal %s: %w", speakerConfID, proposalID, err)
 	}
-	InvalidateProposalsCache()
 	InvalidateSpeakerConfsCache()
 	if cached := FetchSpeakerConfByID(speakerConfID); cached != nil {
 		alreadyHas := false
@@ -430,20 +429,6 @@ func addSpeakerConfToProposalPostgres(ctx *config.AppContext, proposalID, speake
 			}
 		}
 	}
-	proposalCacheMu.Lock()
-	if p := proposalByID[proposalID]; p != nil {
-		alreadyHas := false
-		for _, ref := range p.SpeakerConfRefs {
-			if ref == speakerConfID {
-				alreadyHas = true
-				break
-			}
-		}
-		if !alreadyHas {
-			p.SpeakerConfRefs = append(p.SpeakerConfRefs, speakerConfID)
-		}
-	}
-	proposalCacheMu.Unlock()
 	return nil
 }
 
@@ -458,7 +443,6 @@ func removeProposalFromSpeakerConfPostgres(ctx *config.AppContext, speakerConfID
 	`, proposalID, speakerConfID); err != nil {
 		return fmt.Errorf("unlink speaker conf %s from proposal %s: %w", speakerConfID, proposalID, err)
 	}
-	InvalidateProposalsCache()
 	InvalidateSpeakerConfsCache()
 	if cached := FetchSpeakerConfByID(speakerConfID); cached != nil {
 		out := cached.Proposals[:0]
@@ -469,17 +453,6 @@ func removeProposalFromSpeakerConfPostgres(ctx *config.AppContext, speakerConfID
 		}
 		cached.Proposals = out
 	}
-	proposalCacheMu.Lock()
-	if p := proposalByID[proposalID]; p != nil {
-		out := p.SpeakerConfRefs[:0]
-		for _, ref := range p.SpeakerConfRefs {
-			if ref != speakerConfID {
-				out = append(out, ref)
-			}
-		}
-		p.SpeakerConfRefs = out
-	}
-	proposalCacheMu.Unlock()
 	return nil
 }
 

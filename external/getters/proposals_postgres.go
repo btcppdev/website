@@ -32,7 +32,6 @@ func createProposalPostgres(ctx *config.AppContext, in ProposalInput) (string, e
 	if err != nil {
 		return "", fmt.Errorf("insert proposal %q: %w", in.Title, err)
 	}
-	InvalidateProposalsCache()
 	return proposalID, nil
 }
 
@@ -206,7 +205,6 @@ func updateProposalPostgres(ctx *config.AppContext, proposalID string, in Propos
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("proposal %s not found", proposalID)
 	}
-	InvalidateProposalsCache()
 	return nil
 }
 
@@ -225,14 +223,7 @@ func updateProposalStatusPostgres(ctx *config.AppContext, proposalID, status str
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("proposal %s not found", proposalID)
 	}
-	InvalidateProposalsCache()
 	InvalidateSpeakerConfsCache()
-	proposalCacheMu.Lock()
-	if p := proposalByID[proposalID]; p != nil {
-		p.Status = status
-	}
-	proposalCacheMu.Unlock()
-	patchTalksStatusForProposal(proposalID, status)
 	return nil
 }
 
@@ -254,7 +245,6 @@ func setProposalInviteTokenPostgres(ctx *config.AppContext, proposalID, token st
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("proposal %s not found", proposalID)
 	}
-	InvalidateProposalsCache()
 	return nil
 }
 
