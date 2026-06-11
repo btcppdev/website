@@ -63,19 +63,6 @@ func createConfTalkPostgres(ctx *config.AppContext, in ConfTalkInput) (string, e
 		}
 		return "", fmt.Errorf("insert conf talk for proposal %q: %w", in.ProposalID, err)
 	}
-
-	ct := &types.ConfTalk{ID: confTalkID}
-	if in.ProposalID != "" {
-		ct.Proposal, err = GetProposal(ctx, in.ProposalID)
-		if err != nil {
-			return "", fmt.Errorf("fetch proposal %s: %w", in.ProposalID, err)
-		}
-	}
-	ct.Conf, err = GetConfByRef(ctx, *confID)
-	if err != nil {
-		return "", fmt.Errorf("fetch conference %s: %w", *confID, err)
-	}
-	cacheConfTalkPostgres(ct)
 	return confTalkID, nil
 }
 
@@ -281,22 +268,6 @@ func updateConfTalkSchedulePostgres(ctx *config.AppContext, confTalkID, venue st
 		return fmt.Errorf("conf talk %s not found", confTalkID)
 	}
 
-	endCopy := end
-	confTalkCacheMu.Lock()
-	for _, ct := range cacheConfTalks {
-		if ct == nil || ct.ID != confTalkID {
-			continue
-		}
-		cacheStart := confTalkTimeInConference(start, ct.Conf)
-		cacheEnd := confTalkTimeInConference(endCopy, ct.Conf)
-		ct.Sched = &types.Times{Start: cacheStart, End: &cacheEnd}
-		if venue != "" {
-			ct.Venue = venue
-		}
-	}
-	lastConfTalkFetch = time.Time{}
-	confTalkCacheMu.Unlock()
-	InvalidateTalksCache()
 	return nil
 }
 
@@ -323,44 +294,22 @@ func deleteConfTalkPostgres(ctx *config.AppContext, confTalkID string) error {
 		return fmt.Errorf("conf talk %s not found", confTalkID)
 	}
 
-	confTalkCacheMu.Lock()
-	for proposalID, ct := range confTalkByProposal {
-		if ct != nil && ct.ID == confTalkID {
-			delete(confTalkByProposal, proposalID)
-		}
-	}
-	out := cacheConfTalks[:0]
-	for _, ct := range cacheConfTalks {
-		if ct != nil && ct.ID != confTalkID {
-			out = append(out, ct)
-		}
-	}
-	cacheConfTalks = out
-	lastConfTalkFetch = time.Time{}
-	confTalkCacheMu.Unlock()
-	InvalidateTalksCache()
 	return nil
 }
 
 func confTalkSetSocialCardPostgres(ctx *config.AppContext, confTalkID, path string) error {
-	return updateConfTalkStringPostgres(ctx, confTalkID, "social_card_path", path, func(ct *types.ConfTalk) {
-		ct.SocialCard = path
-	})
+	return updateConfTalkStringPostgres(ctx, confTalkID, "social_card_path", path)
 }
 
 func confTalkSetClipartPostgres(ctx *config.AppContext, confTalkID, filename string) error {
-	return updateConfTalkStringPostgres(ctx, confTalkID, "clipart_path", filename, func(ct *types.ConfTalk) {
-		ct.Clipart = filename
-	})
+	return updateConfTalkStringPostgres(ctx, confTalkID, "clipart_path", filename)
 }
 
 func talkUpdateCalNotifPostgres(ctx *config.AppContext, talkID string, calnotif string) error {
-	return updateConfTalkStringPostgres(ctx, talkID, "cal_notif", calnotif, func(ct *types.ConfTalk) {
-		ct.CalNotif = calnotif
-	})
+	return updateConfTalkStringPostgres(ctx, talkID, "cal_notif", calnotif)
 }
 
-func updateConfTalkStringPostgres(ctx *config.AppContext, confTalkID, column, value string, patch func(*types.ConfTalk)) error {
+func updateConfTalkStringPostgres(ctx *config.AppContext, confTalkID, column, value string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
@@ -375,15 +324,6 @@ func updateConfTalkStringPostgres(ctx *config.AppContext, confTalkID, column, va
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("conf talk %s not found", confTalkID)
 	}
-	confTalkCacheMu.Lock()
-	for _, ct := range cacheConfTalks {
-		if ct != nil && ct.ID == confTalkID {
-			patch(ct)
-			break
-		}
-	}
-	confTalkCacheMu.Unlock()
-	InvalidateTalksCache()
 	return nil
 }
 
@@ -402,31 +342,4 @@ func proposalConferenceIDForProposalPostgres(ctx *config.AppContext, proposalID 
 		return nil, fmt.Errorf("query proposal conference %q: %w", proposalID, err)
 	}
 	return &id, nil
-}
-
-func cacheConfTalkPostgres(ct *types.ConfTalk) {
-	if ct == nil {
-		return
-	}
-	confTalkCacheMu.Lock()
-	defer confTalkCacheMu.Unlock()
-	if confTalkByProposal == nil {
-		confTalkByProposal = make(map[string]*types.ConfTalk)
-	}
-	replaced := false
-	for i, existing := range cacheConfTalks {
-		if existing == nil || existing.ID != ct.ID {
-			continue
-		}
-		cacheConfTalks[i] = ct
-		replaced = true
-		break
-	}
-	if !replaced {
-		cacheConfTalks = append(cacheConfTalks, ct)
-	}
-	if ct.Proposal != nil {
-		confTalkByProposal[ct.Proposal.ID] = ct
-	}
-	lastConfTalkFetch = time.Time{}
 }

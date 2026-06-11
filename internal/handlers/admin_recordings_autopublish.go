@@ -166,7 +166,7 @@ func runScheduledYouTubeUpload(ctx *config.AppContext, row *RecordingRow) {
 		return
 	}
 	rec.YTLink = ytURL
-	if err := uploadRecordingYouTubeThumbnail(context.Background(), rec); err != nil {
+	if err := uploadRecordingYouTubeThumbnail(ctx, context.Background(), rec); err != nil {
 		ctx.Err.Printf("recording autopublish thumbnail recording=%s: %s", rec.ID, err)
 	}
 	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{

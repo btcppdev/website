@@ -187,7 +187,9 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 			return
 		}
 		confTalkID = newID
-		getters.InvalidateConfTalksCache()
+		if !getters.UsePostgresBackend(ctx) {
+			getters.InvalidateConfTalksCache()
+		}
 	}
 
 	limitRequestBody(w, r, maxMultipartBodyBytes)
@@ -252,12 +254,11 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 		bail("Patch Notion ConfTalk.Clipart: " + err.Error())
 		return
 	}
-	// Bust both caches: the underlying ConfTalk index AND the
-	// derived legacy talks slice that GetTalksFor reads from on
-	// the cliparts GET. Without the second one, the redirect
-	// would show the stale clipart from before the upload.
-	getters.InvalidateConfTalksCache()
-	getters.InvalidateTalksCache()
+	// Notion-backed cliparts reads still use warm caches on redirect.
+	if !getters.UsePostgresBackend(ctx) {
+		getters.InvalidateConfTalksCache()
+		getters.InvalidateTalksCache()
+	}
 
 	http.Redirect(w, r,
 		fmt.Sprintf("/%s/admin/cliparts?flash=%s",

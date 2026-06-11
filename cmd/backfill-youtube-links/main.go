@@ -355,7 +355,12 @@ func updateDraftVideoThumbnails(ctx *config.AppContext, svc *youtubeapi.Service,
 			skipped++
 			continue
 		}
-		key := recordingCardKey(rec)
+		key, err := recordingCardKey(ctx, rec)
+		if err != nil {
+			fmt.Printf("SKIP  %s | %s | load conf talk: %s\n", rec.ID, rec.TalkName, err)
+			skipped++
+			continue
+		}
 		if key == "" {
 			fmt.Printf("SKIP  %s | %s | no talk card key\n", rec.ID, rec.TalkName)
 			skipped++
@@ -484,7 +489,10 @@ func fixRecordingForFile(ctx *config.AppContext, svc *youtubeapi.Service, confTa
 	if title == "" || body == "" {
 		log.Fatalf("could not generate dashboard YouTube copy for %s", ct.ID)
 	}
-	key := recordingCardKey(&corrected)
+	key, err := recordingCardKey(ctx, &corrected)
+	if err != nil {
+		log.Fatalf("load conf talk %s: %s", corrected.ConfTalkID, err)
+	}
 	var thumb []byte
 	var thumbType string
 	if key != "" {
@@ -545,21 +553,24 @@ func recordingIsMainStage(rec *types.Recording) bool {
 	return strings.Contains(fileURI, "/01main") || strings.Contains(fileURI, "/02main")
 }
 
-func recordingCardKey(rec *types.Recording) string {
+func recordingCardKey(ctx *config.AppContext, rec *types.Recording) (string, error) {
 	if rec == nil || rec.ConfTalkID == "" {
-		return ""
+		return "", nil
 	}
-	ct := getters.FetchConfTalkByID(rec.ConfTalkID)
+	ct, err := getters.GetConfTalkByID(ctx, rec.ConfTalkID)
+	if err != nil {
+		return "", err
+	}
 	if ct == nil {
-		return ""
+		return "", nil
 	}
 	if strings.TrimSpace(ct.SocialCard) != "" {
-		return strings.TrimPrefix(strings.TrimSpace(ct.SocialCard), "/")
+		return strings.TrimPrefix(strings.TrimSpace(ct.SocialCard), "/"), nil
 	}
 	if ct.Conf == nil || ct.Conf.Tag == "" {
-		return ""
+		return "", nil
 	}
-	return fmt.Sprintf("%s/talks/%s-1080p.png", ct.Conf.Tag, ct.ID)
+	return fmt.Sprintf("%s/talks/%s-1080p.png", ct.Conf.Tag, ct.ID), nil
 }
 
 func findPlaylistByTitle(svc *youtubeapi.Service, contains string) *youtubeapi.Playlist {
@@ -873,8 +884,8 @@ func dashboardYouTubeCopy(ctx *config.AppContext, rec *types.Recording) (string,
 	var recordedOn string
 	var speakers []*types.Speaker
 	if rec.ConfTalkID != "" {
-		ct := getters.FetchConfTalkByID(rec.ConfTalkID)
-		if ct != nil {
+		ct, err := getters.GetConfTalkByID(ctx, rec.ConfTalkID)
+		if err == nil && ct != nil {
 			conf = ct.Conf
 			if ct.Proposal != nil {
 				if ct.Proposal.Title != "" {

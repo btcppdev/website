@@ -824,7 +824,7 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 		return
 	}
 	rec.YTLink = ytURL
-	if err := uploadRecordingYouTubeThumbnail(context.Background(), rec); err != nil {
+	if err := uploadRecordingYouTubeThumbnail(ctx, context.Background(), rec); err != nil {
 		ctx.Err.Printf("youtube upload: thumbnail recording=%s: %s", recordingID, err)
 	}
 	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
@@ -837,7 +837,7 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 	setJobStatus(recordingID, "succeeded", ytURL)
 }
 
-func uploadRecordingYouTubeThumbnail(ctx context.Context, rec *types.Recording) error {
+func uploadRecordingYouTubeThumbnail(appCtx *config.AppContext, ctx context.Context, rec *types.Recording) error {
 	if rec == nil || rec.YTLink == "" || rec.ConfTalkID == "" {
 		return nil
 	}
@@ -845,7 +845,10 @@ func uploadRecordingYouTubeThumbnail(ctx context.Context, rec *types.Recording) 
 	if videoID == "" {
 		return fmt.Errorf("could not parse video ID from %q", rec.YTLink)
 	}
-	key := recordingTalkCardKey(rec.ConfTalkID)
+	key, err := recordingTalkCardKey(appCtx, rec.ConfTalkID)
+	if err != nil {
+		return err
+	}
 	if key == "" {
 		return nil
 	}
@@ -856,18 +859,21 @@ func uploadRecordingYouTubeThumbnail(ctx context.Context, rec *types.Recording) 
 	return youtubepkg.SetThumbnailBytes(ctx, videoID, filepath.Base(key), data)
 }
 
-func recordingTalkCardKey(confTalkID string) string {
-	ct := getters.FetchConfTalkByID(confTalkID)
+func recordingTalkCardKey(ctx *config.AppContext, confTalkID string) (string, error) {
+	ct, err := getters.GetConfTalkByID(ctx, confTalkID)
+	if err != nil {
+		return "", err
+	}
 	if ct == nil {
-		return ""
+		return "", nil
 	}
 	if strings.TrimSpace(ct.SocialCard) != "" {
-		return strings.TrimPrefix(strings.TrimSpace(ct.SocialCard), "/")
+		return strings.TrimPrefix(strings.TrimSpace(ct.SocialCard), "/"), nil
 	}
 	if ct.Conf == nil || ct.Conf.Tag == "" {
-		return ""
+		return "", nil
 	}
-	return fmt.Sprintf("%s/talks/%s-1080p.png", ct.Conf.Tag, ct.ID)
+	return fmt.Sprintf("%s/talks/%s-1080p.png", ct.Conf.Tag, ct.ID), nil
 }
 
 func youtubeVideoID(raw string) string {
