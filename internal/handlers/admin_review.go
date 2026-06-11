@@ -80,7 +80,7 @@ func OrganizerDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	var reviewCountsReady bool
 	proposalsStarted := time.Now()
 	if isAdmin {
-		pendingCount, decisionedCount, confProposals, reviewCountsReady = loadAdminDashboardProposalSnapshotCached(ctx, conf)
+		pendingCount, decisionedCount, confProposals, reviewCountsReady = loadAdminDashboardProposalSnapshot(ctx, conf)
 	}
 	proposalsDur := time.Since(proposalsStarted)
 
@@ -93,7 +93,7 @@ func OrganizerDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		statsPending = -1
 	}
 	statsStarted := time.Now()
-	stats := loadOrganizerStatsCached(ctx, conf, confProposals, statsPending)
+	stats := loadOrganizerStats(ctx, conf, confProposals, statsPending)
 	statsDur := time.Since(statsStarted)
 
 	// Populate countdown bounds (doors-open / doors-close) on a
@@ -101,7 +101,7 @@ func OrganizerDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	// Drives the countdown widget at the top of conf_dashboard.
 	confCopy := *conf
 	countdownStarted := time.Now()
-	confCopy.CountdownStart, confCopy.CountdownEnd, _ = loadAdminDashboardCountdownCached(ctx, &confCopy)
+	confCopy.CountdownStart, confCopy.CountdownEnd, _ = loadAdminDashboardCountdown(ctx, &confCopy)
 	countdownDur := time.Since(countdownStarted)
 
 	if ctx.Infos != nil {

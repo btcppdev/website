@@ -3,8 +3,6 @@ package handlers
 import (
 	"sort"
 	"strings"
-	"sync"
-	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
@@ -46,82 +44,8 @@ type AffiliateRow struct {
 	TicketsSold int
 }
 
-const organizerStatsCacheTTL = time.Minute
-
-type organizerStatsCacheEntry struct {
-	stats      *OrganizerStats
-	fetchedAt  time.Time
-	refreshing bool
-}
-
-var (
-	organizerStatsCacheMu sync.Mutex
-	organizerStatsCache   = map[string]*organizerStatsCacheEntry{}
-)
-
-// loadOrganizerStatsCached returns a fresh-enough stats snapshot when
-// one is available and kicks off a background refresh on cache misses
-// or stale entries. The dashboard should never wait on the slow
-// Notion queries needed for this panel.
-func loadOrganizerStatsCached(ctx *config.AppContext, conf *types.Conf, proposals []*types.Proposal, pendingCount int) *OrganizerStats {
-	if conf == nil {
-		return nil
-	}
-	if getters.UsePostgresBackend(ctx) {
-		return loadOrganizerStats(ctx, conf, proposals, pendingCount)
-	}
-
-	key := conf.Ref
-	if key == "" {
-		key = conf.Tag
-	}
-
-	now := time.Now()
-	organizerStatsCacheMu.Lock()
-	entry := organizerStatsCache[key]
-	if entry != nil && entry.stats != nil && now.Sub(entry.fetchedAt) < organizerStatsCacheTTL {
-		stats := entry.stats
-		organizerStatsCacheMu.Unlock()
-		return stats
-	}
-	if entry == nil {
-		entry = &organizerStatsCacheEntry{}
-		organizerStatsCache[key] = entry
-	}
-	stats := entry.stats
-	if !entry.refreshing {
-		entry.refreshing = true
-		go refreshOrganizerStats(ctx, key, conf, proposals, pendingCount)
-	}
-	organizerStatsCacheMu.Unlock()
-	return stats
-}
-
-func refreshOrganizerStats(ctx *config.AppContext, key string, conf *types.Conf, proposals []*types.Proposal, pendingCount int) {
-	start := time.Now()
-	stats := loadOrganizerStats(ctx, conf, proposals, pendingCount)
-
-	organizerStatsCacheMu.Lock()
-	entry := organizerStatsCache[key]
-	if entry == nil {
-		entry = &organizerStatsCacheEntry{}
-		organizerStatsCache[key] = entry
-	}
-	entry.stats = stats
-	entry.fetchedAt = time.Now()
-	entry.refreshing = false
-	organizerStatsCacheMu.Unlock()
-
-	if ctx.Infos != nil {
-		ctx.Infos.Printf("/%s/admin stats refresh: %s", conf.Tag, time.Since(start).Round(time.Millisecond))
-	}
-}
-
 // loadOrganizerStats gathers everything for the panel. Synchronous
-// and intentionally called only by the background cache refresher:
-// it does live Notion reads for registrations and affiliate usage,
-// plus cached reads for shifts and sponsorships. On a busy conf the
-// live PurchasesDb scan usually dominates.
+// and intentionally uncached on the cache-remove branch.
 //
 // pendingCount is passed in because the caller already has it from
 // splitProposalsByPending; saves re-loading the proposals slice.
