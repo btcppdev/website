@@ -137,6 +137,25 @@ func loadTalkFromConfTalkPostgres(ctx *config.AppContext, confTalkID string) (*t
 }
 
 func loadTalksFromConfTalksForConfPostgres(ctx *config.AppContext, confTag string) ([]*types.Talk, error) {
+	if strings.TrimSpace(confTag) == "" {
+		proposals, err := listProposalsPostgres(ctx)
+		if err != nil {
+			return nil, err
+		}
+		proposalMap := make(map[string]*types.Proposal, len(proposals))
+		for _, proposal := range proposals {
+			if proposal != nil {
+				proposalMap[proposal.ID] = proposal
+			}
+		}
+
+		confTalks, err := queryConfTalksPostgres(ctx, "", nil, proposalMap)
+		if err != nil {
+			return nil, err
+		}
+		return talksFromConfTalks(ctx, confTalks, proposalMap)
+	}
+
 	conf, err := getConferenceByTagPostgres(ctx, confTag)
 	if err != nil {
 		return nil, err
