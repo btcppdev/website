@@ -43,8 +43,8 @@ func ListRecordings(ctx *config.AppContext) ([]*types.Recording, error) {
 	return ListRecordingsNotion(ctx)
 }
 
-// FetchRecordingByConfTalk returns the cached Recording linked to confTalkID,
-// or nil if none.
+// FetchRecordingByConfTalk returns the cached Notion/fallback Recording linked
+// to confTalkID, or nil if none.
 func FetchRecordingByConfTalk(confTalkID string) *types.Recording {
 	recordingCacheMu.RLock()
 	defer recordingCacheMu.RUnlock()
@@ -66,9 +66,9 @@ func GetRecordingByConfTalk(ctx *config.AppContext, confTalkID string) (*types.R
 	return getRecordingByConfTalkNotion(ctx, confTalkID)
 }
 
-// FetchRecordingByID returns the cached Recording with the given page ID, or
-// nil. The Recordings cache is by-ConfTalkID; this helper walks the slice so
-// the admin-recordings page can address rows by their own ID.
+// FetchRecordingByID returns the cached Notion/fallback Recording with the
+// given page ID, or nil. The Recordings cache is by-ConfTalkID, so this helper
+// walks the slice for legacy no-context callers.
 func FetchRecordingByID(recordingID string) *types.Recording {
 	recordingCacheMu.RLock()
 	defer recordingCacheMu.RUnlock()

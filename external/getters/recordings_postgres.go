@@ -100,9 +100,6 @@ func updateRecordingYTLinkPostgres(ctx *config.AppContext, recordingID, ytLink s
 	if err := updateRecordingColumnPostgres(ctx, recordingID, "youtube_url", ytLink); err != nil {
 		return err
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		r.YTLink = ytLink
-	})
 	return nil
 }
 
@@ -110,9 +107,6 @@ func updateRecordingXLinkPostgres(ctx *config.AppContext, recordingID, xLink str
 	if err := updateRecordingColumnPostgres(ctx, recordingID, "x_url", xLink); err != nil {
 		return err
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		r.XLink = xLink
-	})
 	return nil
 }
 
@@ -123,9 +117,6 @@ func updateRecordingFileURIPostgres(ctx *config.AppContext, recordingID, fileURI
 	if err := updateRecordingColumnPostgres(ctx, recordingID, "file_uri", fileURI); err != nil {
 		return err
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		r.FileURI = fileURI
-	})
 	return nil
 }
 
@@ -133,14 +124,6 @@ func updateRecordingPublishAtPostgres(ctx *config.AppContext, recordingID string
 	if err := updateRecordingColumnPostgres(ctx, recordingID, "publish_at", publishAt); err != nil {
 		return err
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		if publishAt == nil {
-			r.PublishAt = nil
-			return
-		}
-		when := *publishAt
-		r.PublishAt = &when
-	})
 	return nil
 }
 
@@ -176,17 +159,6 @@ func updateRecordingPublishingPostgres(ctx *config.AppContext, recordingID strin
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("recording %s not found", recordingID)
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		if up.YTLink != nil {
-			r.YTLink = *up.YTLink
-		}
-		if up.XLink != nil {
-			r.XLink = *up.XLink
-		}
-		if up.XReplyLink != nil {
-			r.XReplyLink = *up.XReplyLink
-		}
-	})
 	return nil
 }
 
