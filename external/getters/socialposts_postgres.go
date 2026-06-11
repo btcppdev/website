@@ -44,13 +44,6 @@ func recordSocialPostPostgres(ctx *config.AppContext, ref, text, platform string
 	if err != nil {
 		return fmt.Errorf("insert social post: %w", err)
 	}
-	cacheSocialPost(&types.SocialPost{
-		ID:       id,
-		Ref:      ref,
-		Text:     text,
-		PostedTo: platform,
-		PostedAt: &postedAt,
-	})
 	return nil
 }
 
@@ -121,7 +114,6 @@ func findSocialPostByRefPostgres(ctx *config.AppContext, ref string) (*types.Soc
 	if err != nil {
 		return nil, err
 	}
-	cacheSocialPost(post)
 	return post, nil
 }
 
@@ -144,7 +136,6 @@ func insertSocialPostPostgres(ctx *config.AppContext, post *types.SocialPost) (*
 	if err != nil {
 		return nil, fmt.Errorf("insert social post %s: %w", post.Ref, err)
 	}
-	cacheSocialPost(post)
 	return post, nil
 }
 
@@ -177,7 +168,6 @@ func updateSocialPostPostgres(ctx *config.AppContext, post *types.SocialPost) (*
 	if tag.RowsAffected() == 0 {
 		return nil, fmt.Errorf("social post %s not found", post.ID)
 	}
-	cacheSocialPost(post)
 	return post, nil
 }
 

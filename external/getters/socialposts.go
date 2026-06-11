@@ -51,6 +51,8 @@ func RecordSocialPost(ctx *config.AppContext, ref, text, platform string, posted
 	return recordSocialPostNotion(ctx, ref, text, platform, postedAt)
 }
 
+// findCachedSocialPostByRef returns the Notion/fallback cached SocialPost for
+// ref. Postgres callers should use GetSocialPostByRef.
 func findCachedSocialPostByRef(ref string) *types.SocialPost {
 	socialPostCacheMu.RLock()
 	defer socialPostCacheMu.RUnlock()
@@ -152,6 +154,7 @@ func socialPostSuppressesRef(post *types.SocialPost) bool {
 	}
 }
 
+// cacheSocialPost updates the Notion/fallback social-post cache.
 func cacheSocialPost(post *types.SocialPost) {
 	if post == nil || post.Ref == "" {
 		return
