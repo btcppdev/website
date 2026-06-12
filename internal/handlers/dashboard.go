@@ -57,6 +57,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	//      still hand-build URLs (talks, vol shifts, etc.) keep
 	//      working.
 	email, encodedHMAC, err := validateVolEmail(r, ctx)
+	validatedByLink := err == nil
 	encodedEmail := r.URL.Query().Get("em")
 	if err != nil {
 		// Fall back to the SCS session before giving up.
@@ -73,13 +74,14 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 
-	// The magic-link URL HMAC is itself proof of identity — stamp
-	// the session so admin pages (gated on auth.RequireRole, which
-	// reads the session) treat this as a logged-in user without
-	// asking for another login. One magic-link click → access to
-	// every page their role covers.
-	if err := auth.LoginEmail(ctx, r, email); err != nil {
-		ctx.Err.Printf("/dashboard session stamp for %s: %s", email, err)
+	// The magic-link URL HMAC is itself proof of identity — stamp the
+	// session only when this request actually carried a valid link.
+	// If we already fell back to the session, renewing the token again
+	// on every dashboard page load just churns cookies.
+	if validatedByLink {
+		if err := auth.LoginEmail(ctx, r, email); err != nil {
+			ctx.Err.Printf("/dashboard session stamp for %s: %s", email, err)
+		}
 	}
 
 	dashStart := time.Now()
