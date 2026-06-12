@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Hackathons - Admin - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+</head>
+<body class="bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <a href="/admin" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Back to admin</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Hackathons</h1>
+        <p class="mt-1 text-sm text-gray-600">Create and update competition setup before opening project registration.</p>
+      </div>
+      <a href="/admin/hackathons/new" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+        New hackathon
+      </a>
+    </div>
+
+    {{ if .FlashMessage }}
+    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    {{ end }}
+
+    <section class="overflow-hidden rounded-lg bg-white shadow">
+      <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+        <h2 class="text-sm font-semibold text-gray-900">Competitions</h2>
+      </div>
+      {{ if .Competitions }}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr>
+              <th scope="col" class="px-4 py-3">Title</th>
+              <th scope="col" class="px-4 py-3">Slug</th>
+              <th scope="col" class="px-4 py-3">Status</th>
+              <th scope="col" class="px-4 py-3">Conference</th>
+              <th scope="col" class="px-4 py-3">Team size</th>
+              <th scope="col" class="px-4 py-3">Submissions close</th>
+              <th scope="col" class="px-4 py-3">Gallery</th>
+              <th scope="col" class="px-4 py-3"><span class="sr-only">Edit</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {{ range .Competitions }}
+            <tr>
+              <td class="whitespace-nowrap px-4 py-3 font-medium text-gray-900">{{ .Title }}</td>
+              <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-600">{{ .Slug }}</td>
+              <td class="whitespace-nowrap px-4 py-3">
+                <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{{ .Status }}</span>
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-gray-600">
+                {{ $.ConfLabel .ConferenceID }}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-gray-600">
+                {{ with .MaxTeamSize }}{{ . }}{{ else }}Open{{ end }}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-gray-600">
+                {{ with .SubmissionsCloseAt }}{{ .Format "2006-01-02 15:04" }}{{ else }}Unset{{ end }}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-gray-600">
+                {{ with .PublicGalleryAt }}{{ .Format "2006-01-02 15:04" }}{{ else }}Deadline{{ end }}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-right">
+                <a href="/admin/hackathons/{{ .ID }}" class="font-medium text-indigo-600 hover:text-indigo-500">Edit</a>
+              </td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+      {{ else }}
+      <div class="px-4 py-10 text-center sm:px-6">
+        <p class="text-sm text-gray-600">No hackathons have been created yet.</p>
+        <a href="/admin/hackathons/new" class="mt-4 inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+          New hackathon
+        </a>
+      </div>
+      {{ end }}
+    </section>
+  </div>
+</body>
+</html>

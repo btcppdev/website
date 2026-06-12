@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ if .IsNew }}New hackathon{{ else }}{{ .Competition.Title }}{{ end }} - Admin - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+</head>
+<body class="bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Back to hackathons</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}New hackathon{{ else }}{{ .Competition.Title }}{{ end }}</h1>
+      </div>
+    </div>
+
+    {{ if .FlashMessage }}
+    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    {{ end }}
+
+    <form method="POST" action="{{ if .IsNew }}/admin/hackathons{{ else }}/admin/hackathons/{{ .Competition.ID }}{{ end }}" class="rounded-lg bg-white shadow">
+      <div class="space-y-6 px-4 py-5 sm:p-6">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="Title" class="block text-sm font-medium text-gray-700">Title</label>
+            <input id="Title" name="Title" type="text" required value="{{ .Competition.Title }}"
+                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+          </div>
+          <div>
+            <label for="Slug" class="block text-sm font-medium text-gray-700">Slug</label>
+            <input id="Slug" name="Slug" type="text" required value="{{ .Competition.Slug }}"
+                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 font-mono text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label for="ConferenceID" class="block text-sm font-medium text-gray-700">Conference</label>
+            <select id="ConferenceID" name="ConferenceID"
+                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              <option value="">Standalone</option>
+              {{ range .Confs }}
+              <option value="{{ .Ref }}" {{ if eq $.Competition.ConferenceID .Ref }}selected{{ end }}>{{ .Tag }} - {{ .Desc }}</option>
+              {{ end }}
+            </select>
+          </div>
+          <div>
+            <label for="Status" class="block text-sm font-medium text-gray-700">Status</label>
+            <select id="Status" name="Status" required
+                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              <option value="draft" {{ if eq .Competition.Status "draft" }}selected{{ end }}>draft</option>
+              <option value="scheduled" {{ if eq .Competition.Status "scheduled" }}selected{{ end }}>scheduled</option>
+              <option value="open" {{ if eq .Competition.Status "open" }}selected{{ end }}>open</option>
+              <option value="submissions_closed" {{ if eq .Competition.Status "submissions_closed" }}selected{{ end }}>submissions_closed</option>
+              <option value="judging" {{ if eq .Competition.Status "judging" }}selected{{ end }}>judging</option>
+              <option value="closed" {{ if eq .Competition.Status "closed" }}selected{{ end }}>closed</option>
+            </select>
+          </div>
+          <div>
+            <label for="MaxTeamSize" class="block text-sm font-medium text-gray-700">Max team size</label>
+            <input id="MaxTeamSize" name="MaxTeamSize" type="number" min="1" {{ with .Competition.MaxTeamSize }}value="{{ . }}"{{ end }}
+                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label for="SubmissionsOpenAt" class="block text-sm font-medium text-gray-700">Submissions open</label>
+            <input id="SubmissionsOpenAt" name="SubmissionsOpenAt" type="datetime-local" {{ with .Competition.SubmissionsOpenAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+          </div>
+          <div>
+            <label for="SubmissionsCloseAt" class="block text-sm font-medium text-gray-700">Submissions close</label>
+            <input id="SubmissionsCloseAt" name="SubmissionsCloseAt" type="datetime-local" {{ with .Competition.SubmissionsCloseAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+          </div>
+          <div>
+            <label for="PublicGalleryAt" class="block text-sm font-medium text-gray-700">Public gallery</label>
+            <input id="PublicGalleryAt" name="PublicGalleryAt" type="datetime-local" {{ with .Competition.PublicGalleryAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+          </div>
+        </div>
+
+        <div>
+          <label for="Description" class="block text-sm font-medium text-gray-700">Description</label>
+          <textarea id="Description" name="Description" rows="6"
+                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">{{ .Competition.Description }}</textarea>
+        </div>
+      </div>
+      <div class="flex items-center justify-end gap-3 border-t border-gray-200 px-4 py-4 sm:px-6">
+        <a href="/admin/hackathons" class="rounded-md px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">Cancel</a>
+        <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

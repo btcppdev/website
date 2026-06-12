@@ -57,6 +57,48 @@ func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (str
 	return id, nil
 }
 
+func updateCompetitionPostgres(ctx *config.AppContext, competitionID string, in CompetitionInput) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	in = normalizeCompetitionInput(in)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if in.Slug == "" {
+		return fmt.Errorf("competition slug is required")
+	}
+	if in.Title == "" {
+		return fmt.Errorf("competition title is required")
+	}
+	if in.Status == "" {
+		in.Status = CompetitionStatusDraft
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE competitions
+		SET conference_id = NULLIF($2, '')::uuid,
+			slug = $3,
+			title = $4,
+			description = $5,
+			status = $6,
+			max_team_size = $7,
+			submissions_open_at = $8,
+			submissions_close_at = $9,
+			public_gallery_at = $10
+		WHERE id = $1
+	`, competitionID, in.ConferenceID, in.Slug, in.Title, in.Description,
+		in.Status, in.MaxTeamSize, in.SubmissionsOpenAt, in.SubmissionsCloseAt,
+		in.PublicGalleryAt)
+	if err != nil {
+		return fmt.Errorf("update competition %s: %w", competitionID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("competition %s not found", competitionID)
+	}
+	return nil
+}
+
 func getCompetitionByIDPostgres(ctx *config.AppContext, competitionID string) (*types.HackathonCompetition, error) {
 	competitionID = strings.TrimSpace(competitionID)
 	if competitionID == "" {
