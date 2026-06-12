@@ -57,6 +57,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	//      still hand-build URLs (talks, vol shifts, etc.) keep
 	//      working.
 	email, encodedHMAC, err := validateVolEmail(r, ctx)
+	validatedByLink := err == nil
 	encodedEmail := r.URL.Query().Get("em")
 	if err != nil {
 		// Fall back to the SCS session before giving up.
@@ -73,13 +74,14 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 
-	// The magic-link URL HMAC is itself proof of identity — stamp
-	// the session so admin pages (gated on auth.RequireRole, which
-	// reads the session) treat this as a logged-in user without
-	// asking for another login. One magic-link click → access to
-	// every page their role covers.
-	if err := auth.LoginEmail(ctx, r, email); err != nil {
-		ctx.Err.Printf("/dashboard session stamp for %s: %s", email, err)
+	// The magic-link URL HMAC is itself proof of identity — stamp the
+	// session only when this request actually carried a valid link.
+	// If we already fell back to the session, renewing the token again
+	// on every dashboard page load just churns cookies.
+	if validatedByLink {
+		if err := auth.LoginEmail(ctx, r, email); err != nil {
+			ctx.Err.Printf("/dashboard session stamp for %s: %s", email, err)
+		}
 	}
 
 	dashStart := time.Now()
@@ -577,117 +579,117 @@ func enrichProposal(ctx *config.AppContext, p *types.Proposal, scCache map[strin
 // it doesn't get a block; those confs surface via EligibleConfs /
 // BuyableConfs in the discover section instead.
 func buildEventBlocks(
-        speakerConfs []*types.SpeakerConf,
-        volApps []*types.Volunteer,
-        tickets []*UserTicket,
-        regs []*types.Registration,
-        confs []*types.Conf,
-        volInfos map[string]*types.VolInfo,
+	speakerConfs []*types.SpeakerConf,
+	volApps []*types.Volunteer,
+	tickets []*UserTicket,
+	regs []*types.Registration,
+	confs []*types.Conf,
+	volInfos map[string]*types.VolInfo,
 ) (active, past []*EventBlock) {
-        byTag := make(map[string]*EventBlock)
-        confByTag := make(map[string]*types.Conf, len(confs))
-        for _, c := range confs {
-                if c != nil {
-                        confByTag[c.Tag] = c
-                }
-        }
+	byTag := make(map[string]*EventBlock)
+	confByTag := make(map[string]*types.Conf, len(confs))
+	for _, c := range confs {
+		if c != nil {
+			confByTag[c.Tag] = c
+		}
+	}
 
-        block := func(conf *types.Conf) *EventBlock {
-                if conf == nil {
-                        return nil
-                }
-                if eb, ok := byTag[conf.Tag]; ok {
-                        return eb
-                }
-                eb := &EventBlock{
-                        Conf:   conf,
-                        CanBuy: conf.Active && conf.InFuture(),
-                }
-                byTag[conf.Tag] = eb
-                return eb
-        }
+	block := func(conf *types.Conf) *EventBlock {
+		if conf == nil {
+			return nil
+		}
+		if eb, ok := byTag[conf.Tag]; ok {
+			return eb
+		}
+		eb := &EventBlock{
+			Conf:   conf,
+			CanBuy: conf.Active && conf.InFuture(),
+		}
+		byTag[conf.Tag] = eb
+		return eb
+	}
 
-        for _, sc := range speakerConfs {
-                conf := speakerConfConf(sc)
-                if eb := block(conf); eb != nil {
-                        eb.SpeakerConf = sc
-                }
-        }
+	for _, sc := range speakerConfs {
+		conf := speakerConfConf(sc)
+		if eb := block(conf); eb != nil {
+			eb.SpeakerConf = sc
+		}
+	}
 
-        for _, vol := range volApps {
-                if len(vol.ScheduleFor) == 0 {
-                        continue
-                }
-                conf := vol.ScheduleFor[0]
-                if eb := block(conf); eb != nil {
-                        eb.VolApp = vol
-                        if vi, ok := volInfos[conf.Tag]; ok {
-                                eb.VolInfo = vi
-                        }
-                }
-        }
+	for _, vol := range volApps {
+		if len(vol.ScheduleFor) == 0 {
+			continue
+		}
+		conf := vol.ScheduleFor[0]
+		if eb := block(conf); eb != nil {
+			eb.VolApp = vol
+			if vi, ok := volInfos[conf.Tag]; ok {
+				eb.VolInfo = vi
+			}
+		}
+	}
 
-        // Tickets are scoped via the resolved Conf on each UserTicket.
-        // upcomingTickets already filtered out past confs, so to also
-        // surface tickets for ended confs in the past block we walk
-        // the raw regs slice independently.
-        for _, t := range tickets {
-                if eb := block(t.Conf); eb != nil {
-                        eb.Tickets = append(eb.Tickets, t.Reg)
-                }
-        }
-        for _, r := range regs {
-                if r == nil || r.RefID == "" {
-                        continue
-                }
-                conf := confByRef(confByTag, r.ConfRef)
-                if conf == nil {
-                        continue
-                }
-                eb := block(conf)
-                if eb == nil {
-                        continue
-                }
-                // Avoid double-add when upcomingTickets already covered it.
-                if !containsTicket(eb.Tickets, r) {
-                        eb.Tickets = append(eb.Tickets, r)
-                }
-        }
+	// Tickets are scoped via the resolved Conf on each UserTicket.
+	// upcomingTickets already filtered out past confs, so to also
+	// surface tickets for ended confs in the past block we walk
+	// the raw regs slice independently.
+	for _, t := range tickets {
+		if eb := block(t.Conf); eb != nil {
+			eb.Tickets = append(eb.Tickets, t.Reg)
+		}
+	}
+	for _, r := range regs {
+		if r == nil || r.RefID == "" {
+			continue
+		}
+		conf := confByRef(confByTag, r.ConfRef)
+		if conf == nil {
+			continue
+		}
+		eb := block(conf)
+		if eb == nil {
+			continue
+		}
+		// Avoid double-add when upcomingTickets already covered it.
+		if !containsTicket(eb.Tickets, r) {
+			eb.Tickets = append(eb.Tickets, r)
+		}
+	}
 
-        for _, eb := range byTag {
-                if eb.Conf != nil && eb.Conf.HasEnded() {
-                        past = append(past, eb)
-                } else {
-                        active = append(active, eb)
-                }
-        }
-        sort.Slice(active, func(i, j int) bool {
-                return active[i].Conf.StartDate.Before(active[j].Conf.StartDate)
-        })
-        sort.Slice(past, func(i, j int) bool {
-                return past[i].Conf.StartDate.After(past[j].Conf.StartDate)
-        })
-        return active, past
+	for _, eb := range byTag {
+		if eb.Conf != nil && eb.Conf.HasEnded() {
+			past = append(past, eb)
+		} else {
+			active = append(active, eb)
+		}
+	}
+	sort.Slice(active, func(i, j int) bool {
+		return active[i].Conf.StartDate.Before(active[j].Conf.StartDate)
+	})
+	sort.Slice(past, func(i, j int) bool {
+		return past[i].Conf.StartDate.After(past[j].Conf.StartDate)
+	})
+	return active, past
 }
 
 // confByRef finds a Conf by Notion page-ID (the value stored on
 // PurchasesDb rows). Linear scan over the typically-small confs map.
 func confByRef(byTag map[string]*types.Conf, ref string) *types.Conf {
-        for _, c := range byTag {
-                if c != nil && c.Ref == ref {
-                        return c
-                }
-        }
-        return nil
+	for _, c := range byTag {
+		if c != nil && c.Ref == ref {
+			return c
+		}
+	}
+	return nil
 }
 
 func containsTicket(list []*types.Registration, r *types.Registration) bool {
-        for _, t := range list {
-                if t != nil && t.RefID == r.RefID {
-                        return true
-                }
-        }
-        return false
+	for _, t := range list {
+		if t != nil && t.RefID == r.RefID {
+			return true
+		}
+	}
+	return false
 }
 
 // excludeConfsInBlocks filters a candidate slice (e.g. EligibleConfs)
@@ -695,23 +697,23 @@ func containsTicket(list []*types.Registration, r *types.Registration) bool {
 // list at the bottom of the dashboard shouldn't repeat events the
 // user is already engaged with.
 func excludeConfsInBlocks(candidates []*types.Conf, blocks []*EventBlock) []*types.Conf {
-        if len(blocks) == 0 {
-                return candidates
-        }
-        seen := make(map[string]bool, len(blocks))
-        for _, eb := range blocks {
-                if eb != nil && eb.Conf != nil {
-                        seen[eb.Conf.Tag] = true
-                }
-        }
-        out := make([]*types.Conf, 0, len(candidates))
-        for _, c := range candidates {
-                if c == nil || seen[c.Tag] {
-                        continue
-                }
-                out = append(out, c)
-        }
-        return out
+	if len(blocks) == 0 {
+		return candidates
+	}
+	seen := make(map[string]bool, len(blocks))
+	for _, eb := range blocks {
+		if eb != nil && eb.Conf != nil {
+			seen[eb.Conf.Tag] = true
+		}
+	}
+	out := make([]*types.Conf, 0, len(candidates))
+	for _, c := range candidates {
+		if c == nil || seen[c.Tag] {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 // upcomingTickets joins the user's PurchasesDb rows with the confs cache
