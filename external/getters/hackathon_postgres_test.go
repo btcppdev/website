@@ -42,6 +42,58 @@ func TestHackathonCompetitionCreateStandaloneAndConferenceLinked(t *testing.T) {
 	}
 }
 
+func TestHackathonCompetitionUpdate(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "update-" + postgresSmokeSuffix(),
+		Title: "Original Hackathon",
+	})
+	confID, _ := insertSmokeConference(t, ctx)
+	maxTeamSize := 4
+	openAt := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	closeAt := openAt.Add(48 * time.Hour)
+	galleryAt := closeAt.Add(time.Hour)
+	updatedSlug := "updated-" + postgresSmokeSuffix()
+	if err := UpdateCompetition(ctx, competitionID, CompetitionInput{
+		ConferenceID:       confID,
+		Slug:               updatedSlug,
+		Title:              "Updated Hackathon",
+		Description:        "Updated description",
+		Status:             "open",
+		MaxTeamSize:        &maxTeamSize,
+		SubmissionsOpenAt:  &openAt,
+		SubmissionsCloseAt: &closeAt,
+		PublicGalleryAt:    &galleryAt,
+	}); err != nil {
+		t.Fatalf("UpdateCompetition: %v", err)
+	}
+
+	updated, err := GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("GetCompetitionByID updated: %v", err)
+	}
+	if updated.ConferenceID != confID {
+		t.Fatalf("ConferenceID = %q, want %q", updated.ConferenceID, confID)
+	}
+	if updated.Slug != updatedSlug || updated.Title != "Updated Hackathon" || updated.Description != "Updated description" || updated.Status != "open" {
+		t.Fatalf("updated fields mismatch: %+v", updated)
+	}
+	if updated.MaxTeamSize == nil || *updated.MaxTeamSize != maxTeamSize {
+		t.Fatalf("MaxTeamSize = %v, want %d", updated.MaxTeamSize, maxTeamSize)
+	}
+	if updated.SubmissionsOpenAt == nil || !updated.SubmissionsOpenAt.Equal(openAt) {
+		t.Fatalf("SubmissionsOpenAt = %v, want %v", updated.SubmissionsOpenAt, openAt)
+	}
+	if updated.SubmissionsCloseAt == nil || !updated.SubmissionsCloseAt.Equal(closeAt) {
+		t.Fatalf("SubmissionsCloseAt = %v, want %v", updated.SubmissionsCloseAt, closeAt)
+	}
+	if updated.PublicGalleryAt == nil || !updated.PublicGalleryAt.Equal(galleryAt) {
+		t.Fatalf("PublicGalleryAt = %v, want %v", updated.PublicGalleryAt, galleryAt)
+	}
+}
+
 func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)

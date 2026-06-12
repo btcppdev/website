@@ -42,6 +42,13 @@ func CreateCompetition(ctx *config.AppContext, in CompetitionInput) (string, err
 	return "", unsupportedPostgresBackend("hackathon competitions")
 }
 
+func UpdateCompetition(ctx *config.AppContext, competitionID string, in CompetitionInput) error {
+	if UsePostgresBackend(ctx) {
+		return updateCompetitionPostgres(ctx, competitionID, in)
+	}
+	return unsupportedPostgresBackend("hackathon competitions")
+}
+
 func GetCompetitionByID(ctx *config.AppContext, competitionID string) (*types.HackathonCompetition, error) {
 	if UsePostgresBackend(ctx) {
 		return getCompetitionByIDPostgres(ctx, competitionID)
