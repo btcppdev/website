@@ -9,6 +9,9 @@ btcpp_pg_migrate
 btcpp_pg_psql
 ```
 
+`btcpp_pg_migrate` applies every SQL file in `db/migrations` in filename
+order.
+
 The default local connection string is exported as:
 
 ```sh
