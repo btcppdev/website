@@ -55,6 +55,17 @@ func queryProposalsPostgres(ctx *config.AppContext, where string, args ...interf
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
+	confs, err := FetchConfsCached(ctx)
+	if err != nil {
+		return nil, err
+	}
+	confByID := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			confByID[conf.Ref] = conf
+		}
+	}
+
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT proposals.id::text, proposals.title, proposals.description,
 			proposals.setup, proposals.comments, proposals.talk_type,
@@ -69,17 +80,6 @@ func queryProposalsPostgres(ctx *config.AppContext, where string, args ...interf
 		return nil, fmt.Errorf("query proposals: %w", err)
 	}
 	defer rows.Close()
-
-	confs, err := FetchConfsCached(ctx)
-	if err != nil {
-		return nil, err
-	}
-	confByID := make(map[string]*types.Conf, len(confs))
-	for _, conf := range confs {
-		if conf != nil {
-			confByID[conf.Ref] = conf
-		}
-	}
 
 	var out []*types.Proposal
 	byID := map[string]*types.Proposal{}
@@ -110,6 +110,7 @@ func queryProposalsPostgres(ctx *config.AppContext, where string, args ...interf
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate proposals: %w", err)
 	}
+	rows.Close()
 	if err := hydrateProposalSpeakerConfRefsPostgres(ctx, ids, byID); err != nil {
 		return nil, err
 	}
