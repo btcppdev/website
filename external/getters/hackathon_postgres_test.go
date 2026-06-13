@@ -398,11 +398,24 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)
 
-	maxAwardees := 2
+	maxAwardees := 1
 	poolPercentage := 12.5
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
 		Slug:  "awards-" + postgresSmokeSuffix(),
 		Title: "Awards Hackathon",
+	})
+	ownerID := insertSmokePerson(t, ctx, "award-owner")
+	projectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID:     competitionID,
+		CreatedByPersonID: ownerID,
+		Slug:              "award-project-" + postgresSmokeSuffix(),
+		Title:             "Winning Project",
+	})
+	secondProjectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID:     competitionID,
+		CreatedByPersonID: ownerID,
+		Slug:              "award-second-project-" + postgresSmokeSuffix(),
+		Title:             "Second Project",
 	})
 	awardID, err := CreateAward(ctx, AwardInput{
 		CompetitionID: competitionID,
@@ -449,6 +462,44 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	}
 	if len(prizes) != 1 || prizes[0].ID != prizeID || prizes[0].AwardID != awardID || prizes[0].PoolPercentage == nil || *prizes[0].PoolPercentage != poolPercentage {
 		t.Fatalf("prizes mismatch: %+v", prizes)
+	}
+
+	if err := AssignProjectAward(ctx, awardID, projectID); err != nil {
+		t.Fatalf("AssignProjectAward: %v", err)
+	}
+	projectAwards, err := ListProjectAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListProjectAwardsForCompetition: %v", err)
+	}
+	if len(projectAwards) != 1 || projectAwards[0].AwardID != awardID || projectAwards[0].ProjectID != projectID || projectAwards[0].ProjectTitle != "Winning Project" {
+		t.Fatalf("project awards mismatch: %+v", projectAwards)
+	}
+	awards, err = ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListAwardsForCompetition after assign: %v", err)
+	}
+	if awards[0].Status != AwardStatusAwarded {
+		t.Fatalf("award status after assign = %q, want %q", awards[0].Status, AwardStatusAwarded)
+	}
+	if err := AssignProjectAward(ctx, awardID, secondProjectID); err == nil {
+		t.Fatalf("AssignProjectAward over max succeeded")
+	}
+	if err := RemoveProjectAward(ctx, awardID, projectID); err != nil {
+		t.Fatalf("RemoveProjectAward: %v", err)
+	}
+	projectAwards, err = ListProjectAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListProjectAwardsForCompetition after remove: %v", err)
+	}
+	if len(projectAwards) != 0 {
+		t.Fatalf("project awards after remove = %+v, want empty", projectAwards)
+	}
+	awards, err = ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListAwardsForCompetition after remove: %v", err)
+	}
+	if awards[0].Status != AwardStatusUnawarded {
+		t.Fatalf("award status after remove = %q, want %q", awards[0].Status, AwardStatusUnawarded)
 	}
 }
 

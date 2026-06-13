@@ -1108,6 +1108,182 @@ func listPrizesForCompetitionPostgres(ctx *config.AppContext, competitionID stri
 	return out, nil
 }
 
+func assignProjectAwardPostgres(ctx *config.AppContext, awardID, projectID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	awardID = strings.TrimSpace(awardID)
+	projectID = strings.TrimSpace(projectID)
+	if awardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	if projectID == "" {
+		return fmt.Errorf("project id is required")
+	}
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin assign project award: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+
+	var awardCompetitionID string
+	var maxAwardees sql.NullInt64
+	if err := tx.QueryRow(context.Background(), `
+		SELECT competition_id::text, max_awardees
+		FROM awards
+		WHERE id::text = $1
+		FOR UPDATE
+	`, awardID).Scan(&awardCompetitionID, &maxAwardees); err != nil {
+		return fmt.Errorf("load award %s: %w", awardID, err)
+	}
+	var projectCompetitionID string
+	if err := tx.QueryRow(context.Background(), `
+		SELECT competition_id::text
+		FROM projects
+		WHERE id::text = $1
+	`, projectID).Scan(&projectCompetitionID); err != nil {
+		return fmt.Errorf("load project %s: %w", projectID, err)
+	}
+	if projectCompetitionID != awardCompetitionID {
+		return fmt.Errorf("project and award must belong to the same competition")
+	}
+	var alreadyAssigned bool
+	if err := tx.QueryRow(context.Background(), `
+		SELECT EXISTS (
+			SELECT 1 FROM project_awards
+			WHERE award_id::text = $1 AND project_id::text = $2
+		)
+	`, awardID, projectID).Scan(&alreadyAssigned); err != nil {
+		return fmt.Errorf("check project award %s/%s: %w", awardID, projectID, err)
+	}
+	if !alreadyAssigned && maxAwardees.Valid {
+		var assignedCount int64
+		if err := tx.QueryRow(context.Background(), `
+			SELECT count(*)
+			FROM project_awards
+			WHERE award_id::text = $1
+		`, awardID).Scan(&assignedCount); err != nil {
+			return fmt.Errorf("count awardees %s: %w", awardID, err)
+		}
+		if assignedCount >= maxAwardees.Int64 {
+			return fmt.Errorf("award already has the maximum number of awardees")
+		}
+	}
+	if !alreadyAssigned {
+		if _, err := tx.Exec(context.Background(), `
+			INSERT INTO project_awards (project_id, award_id)
+			VALUES ($1, $2)
+		`, projectID, awardID); err != nil {
+			return fmt.Errorf("assign project award %s/%s: %w", awardID, projectID, err)
+		}
+	}
+	if _, err := tx.Exec(context.Background(), `
+		UPDATE awards
+		SET status = $2
+		WHERE id::text = $1
+	`, awardID, AwardStatusAwarded); err != nil {
+		return fmt.Errorf("mark award awarded %s: %w", awardID, err)
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return fmt.Errorf("commit assign project award: %w", err)
+	}
+	return nil
+}
+
+func removeProjectAwardPostgres(ctx *config.AppContext, awardID, projectID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	awardID = strings.TrimSpace(awardID)
+	projectID = strings.TrimSpace(projectID)
+	if awardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	if projectID == "" {
+		return fmt.Errorf("project id is required")
+	}
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin remove project award: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+	var lockedAwardID string
+	if err := tx.QueryRow(context.Background(), `
+		SELECT id::text
+		FROM awards
+		WHERE id::text = $1
+		FOR UPDATE
+	`, awardID).Scan(&lockedAwardID); err != nil {
+		return fmt.Errorf("lock award %s: %w", awardID, err)
+	}
+	commandTag, err := tx.Exec(context.Background(), `
+		DELETE FROM project_awards
+		WHERE award_id::text = $1 AND project_id::text = $2
+	`, awardID, projectID)
+	if err != nil {
+		return fmt.Errorf("remove project award %s/%s: %w", awardID, projectID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("project award %s/%s not found", awardID, projectID)
+	}
+	var remaining int64
+	if err := tx.QueryRow(context.Background(), `
+		SELECT count(*)
+		FROM project_awards
+		WHERE award_id::text = $1
+	`, awardID).Scan(&remaining); err != nil {
+		return fmt.Errorf("count remaining awardees %s: %w", awardID, err)
+	}
+	if remaining == 0 {
+		if _, err := tx.Exec(context.Background(), `
+			UPDATE awards
+			SET status = $2
+			WHERE id::text = $1 AND status = $3
+		`, awardID, AwardStatusUnawarded, AwardStatusAwarded); err != nil {
+			return fmt.Errorf("mark award unawarded %s: %w", awardID, err)
+		}
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return fmt.Errorf("commit remove project award: %w", err)
+	}
+	return nil
+}
+
+func listProjectAwardsForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.ProjectAward, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("project award competition id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT project_awards.project_id::text, project_awards.award_id::text,
+			projects.title, projects.project_number, project_awards.awarded_at
+		FROM project_awards
+		JOIN awards ON awards.id = project_awards.award_id
+		JOIN projects ON projects.id = project_awards.project_id
+		WHERE awards.competition_id::text = $1
+		ORDER BY awards.title, projects.project_number NULLS LAST, projects.title, project_awards.awarded_at
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("list project awards for competition %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+	var out []*types.ProjectAward
+	for rows.Next() {
+		award, err := scanProjectAward(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan project award: %w", err)
+		}
+		out = append(out, award)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate project awards for competition %s: %w", competitionID, err)
+	}
+	return out, nil
+}
+
 func projectIsPublicPostgres(ctx *config.AppContext, project *types.HackathonProject) bool {
 	if project == nil {
 		return false
@@ -1359,6 +1535,25 @@ func scanPrize(rows pgx.Rows) (*types.Prize, error) {
 	prize.PrizeType = normalizePrizeType(prize.PrizeType)
 	prize.Status = normalizePrizeStatus(prize.Status)
 	return &prize, nil
+}
+
+func scanProjectAward(rows pgx.Rows) (*types.ProjectAward, error) {
+	var award types.ProjectAward
+	var projectNumber sql.NullInt64
+	if err := rows.Scan(
+		&award.ProjectID,
+		&award.AwardID,
+		&award.ProjectTitle,
+		&projectNumber,
+		&award.AwardedAt,
+	); err != nil {
+		return nil, err
+	}
+	if projectNumber.Valid {
+		n := int(projectNumber.Int64)
+		award.ProjectNumber = &n
+	}
+	return &award, nil
 }
 
 func pgTimePtr(value pgtype.Timestamptz) *time.Time {

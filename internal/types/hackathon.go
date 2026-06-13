@@ -138,6 +138,14 @@ type Prize struct {
 	UpdatedAt      time.Time
 }
 
+type ProjectAward struct {
+	ProjectID     string
+	AwardID       string
+	ProjectTitle  string
+	ProjectNumber *int
+	AwardedAt     time.Time
+}
+
 type HackathonViewer struct {
 	PersonID    string
 	Admin       bool
