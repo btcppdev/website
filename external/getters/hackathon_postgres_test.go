@@ -261,6 +261,66 @@ func TestHackathonProjectVisibility(t *testing.T) {
 	}
 }
 
+func TestHackathonJudgingSetup(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	startsAt := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	endsAt := startsAt.Add(time.Hour)
+	startingProjectNumber := 10
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "judging-" + postgresSmokeSuffix(),
+		Title: "Judging Hackathon",
+	})
+	eventID, err := CreateJudgeEvent(ctx, JudgeEventInput{
+		CompetitionID:         competitionID,
+		Name:                  "Expo judging",
+		PlaybookType:          JudgeTypeExpo,
+		Ordering:              2,
+		StartsAt:              &startsAt,
+		EndsAt:                &endsAt,
+		StartingProjectNumber: &startingProjectNumber,
+	})
+	if err != nil {
+		t.Fatalf("CreateJudgeEvent: %v", err)
+	}
+	if eventID == "" {
+		t.Fatalf("CreateJudgeEvent returned empty id")
+	}
+	events, err := ListJudgeEvents(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListJudgeEvents: %v", err)
+	}
+	if len(events) != 1 || events[0].Name != "Expo judging" || events[0].PlaybookType != JudgeTypeExpo {
+		t.Fatalf("judge events mismatch: %+v", events)
+	}
+	if events[0].StartingProjectNumber == nil || *events[0].StartingProjectNumber != startingProjectNumber {
+		t.Fatalf("starting project number = %v, want %d", events[0].StartingProjectNumber, startingProjectNumber)
+	}
+
+	judgeID := insertSmokePerson(t, ctx, "judge")
+	if err := AddCompetitionJudge(ctx, competitionID, judgeID, JudgeTypeFinals); err != nil {
+		t.Fatalf("AddCompetitionJudge: %v", err)
+	}
+	judges, err := ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudges: %v", err)
+	}
+	if len(judges) != 1 || judges[0].PersonID != judgeID || judges[0].JudgeType != JudgeTypeFinals {
+		t.Fatalf("judges mismatch: %+v", judges)
+	}
+	if err := RemoveCompetitionJudge(ctx, competitionID, judgeID, JudgeTypeFinals); err != nil {
+		t.Fatalf("RemoveCompetitionJudge: %v", err)
+	}
+	judges, err = ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudges after remove: %v", err)
+	}
+	if len(judges) != 0 {
+		t.Fatalf("judges after remove = %+v, want empty", judges)
+	}
+}
+
 func requireHackathonSchema(t *testing.T, ctx *config.AppContext) {
 	t.Helper()
 	var schemaReady bool

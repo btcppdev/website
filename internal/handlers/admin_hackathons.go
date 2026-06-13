@@ -21,6 +21,8 @@ type HackathonAdminPage struct {
 	Competition  *types.HackathonCompetition
 	Projects     []*types.HackathonProject
 	ProjectTeams map[string][]*types.ProjectMember
+	JudgeEvents  []*types.JudgeEvent
+	Judges       []*types.CompetitionJudge
 	IsNew        bool
 	FlashMessage string
 	FlashError   string
@@ -61,6 +63,13 @@ func (p *HackathonAdminPage) ProjectsURL(competition *types.HackathonCompetition
 		return "/admin/hackathons"
 	}
 	return "/admin/hackathons/" + url.PathEscape(competition.ID) + "/projects"
+}
+
+func (p *HackathonAdminPage) JudgingURL(competition *types.HackathonCompetition) string {
+	if competition == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(competition.ID) + "/judging"
 }
 
 func (p *HackathonAdminPage) HackathonURL(competition *types.HackathonCompetition) string {
@@ -138,6 +147,19 @@ func (p *HackathonAdminPage) ProjectStatusLabel(status string) string {
 	return hackathonStatusLabel(status)
 }
 
+func (p *HackathonAdminPage) JudgeTypeLabel(judgeType string) string {
+	switch strings.TrimSpace(judgeType) {
+	case getters.JudgeTypeExpo:
+		return "Expo"
+	case getters.JudgeTypeFinals:
+		return "Finals"
+	case getters.JudgeTypeCoordinator:
+		return "Coordinator"
+	default:
+		return strings.TrimSpace(judgeType)
+	}
+}
+
 func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
@@ -208,6 +230,116 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 		ctx.Err.Printf("/admin/hackathons/%s/projects template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
+}
+
+func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	events, err := getters.ListJudgeEvents(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging events: %s", competitionID, err)
+		http.Error(w, "Unable to load judge events", http.StatusInternalServerError)
+		return
+	}
+	judges, err := getters.ListCompetitionJudges(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging judges: %s", competitionID, err)
+		http.Error(w, "Unable to load judges", http.StatusInternalServerError)
+		return
+	}
+	page := &HackathonAdminPage{
+		Competition:  competition,
+		JudgeEvents:  events,
+		Judges:       judges,
+		FlashMessage: r.URL.Query().Get("flash"),
+		FlashError:   r.URL.Query().Get("error"),
+		Year:         helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_judging.tmpl", page); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging template: %s", competitionID, err)
+		http.Error(w, "Unable to load page", http.StatusInternalServerError)
+	}
+}
+
+func HackathonAdminCreateJudgeEvent(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging"
+	in, err := judgeEventInputFromRequest(w, r, competitionID)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if _, err := getters.CreateJudgeEvent(ctx, in); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/events create: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge event added"), http.StatusSeeOther)
+}
+
+func HackathonAdminAddJudge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	email := strings.TrimSpace(r.FormValue("Email"))
+	personID, err := getters.GetPersonIDByEmail(ctx, email)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("No person found for "+email), http.StatusSeeOther)
+		return
+	}
+	judgeType, err := judgeTypeFromForm(r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := getters.AddCompetitionJudge(ctx, competitionID, personID, judgeType); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/judges add: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge added"), http.StatusSeeOther)
+}
+
+func HackathonAdminRemoveJudge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	personID := strings.TrimSpace(r.FormValue("PersonID"))
+	judgeType, err := judgeTypeFromForm(r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := getters.RemoveCompetitionJudge(ctx, competitionID, personID, judgeType); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/judges remove: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge removed"), http.StatusSeeOther)
 }
 
 func HackathonAdminNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -358,6 +490,47 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 	return in, nil
 }
 
+func judgeEventInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string) (getters.JudgeEventInput, error) {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		return getters.JudgeEventInput{}, fmt.Errorf("bad form")
+	}
+	playbookType, err := judgeEventTypeFromForm(r)
+	if err != nil {
+		return getters.JudgeEventInput{}, err
+	}
+	ordering := 0
+	if raw := strings.TrimSpace(r.FormValue("Ordering")); raw != "" {
+		ordering, err = strconv.Atoi(raw)
+		if err != nil || ordering < 0 {
+			return getters.JudgeEventInput{}, fmt.Errorf("ordering must be zero or greater")
+		}
+	}
+	in := getters.JudgeEventInput{
+		CompetitionID: strings.TrimSpace(competitionID),
+		Name:          strings.TrimSpace(r.FormValue("Name")),
+		PlaybookType:  playbookType,
+		Ordering:      ordering,
+	}
+	if in.Name == "" {
+		return getters.JudgeEventInput{}, fmt.Errorf("judge event name is required")
+	}
+	if raw := strings.TrimSpace(r.FormValue("StartingProjectNumber")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			return getters.JudgeEventInput{}, fmt.Errorf("starting project number must be positive")
+		}
+		in.StartingProjectNumber = &n
+	}
+	if in.StartsAt, err = parseAdminLocalTime(r.FormValue("StartsAt")); err != nil {
+		return getters.JudgeEventInput{}, fmt.Errorf("starts at: %w", err)
+	}
+	if in.EndsAt, err = parseAdminLocalTime(r.FormValue("EndsAt")); err != nil {
+		return getters.JudgeEventInput{}, fmt.Errorf("ends at: %w", err)
+	}
+	return in, nil
+}
+
 func hackathonVisibilityFromForm(r *http.Request) (string, error) {
 	visibility := strings.TrimSpace(r.FormValue("Visibility"))
 	switch visibility {
@@ -365,6 +538,26 @@ func hackathonVisibilityFromForm(r *http.Request) (string, error) {
 		return visibility, nil
 	default:
 		return "", fmt.Errorf("visibility must be Hidden or Public")
+	}
+}
+
+func judgeEventTypeFromForm(r *http.Request) (string, error) {
+	value := strings.TrimSpace(r.FormValue("PlaybookType"))
+	switch value {
+	case getters.JudgeTypeExpo, getters.JudgeTypeFinals:
+		return value, nil
+	default:
+		return "", fmt.Errorf("judge event type must be Expo or Finals")
+	}
+}
+
+func judgeTypeFromForm(r *http.Request) (string, error) {
+	value := strings.TrimSpace(r.FormValue("JudgeType"))
+	switch value {
+	case getters.JudgeTypeExpo, getters.JudgeTypeFinals, getters.JudgeTypeCoordinator:
+		return value, nil
+	default:
+		return "", fmt.Errorf("judge type must be Expo, Finals, or Coordinator")
 	}
 }
 

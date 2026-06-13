@@ -25,6 +25,9 @@ const (
 	ProjectStatusSubmitted      = "submitted"
 	ProjectMemberRoleOwner      = "owner"
 	ProjectMemberRoleMember     = "member"
+	JudgeTypeExpo               = "expo"
+	JudgeTypeFinals             = "finals"
+	JudgeTypeCoordinator        = "coordinator"
 )
 
 func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (string, error) {
@@ -687,6 +690,162 @@ func canViewProjectLoadedPostgres(ctx *config.AppContext, project *types.Hackath
 	return allowed, nil
 }
 
+func createJudgeEventPostgres(ctx *config.AppContext, in JudgeEventInput) (string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	in = normalizeJudgeEventInput(in)
+	if in.CompetitionID == "" {
+		return "", fmt.Errorf("judge event competition id is required")
+	}
+	if in.Name == "" {
+		return "", fmt.Errorf("judge event name is required")
+	}
+	if in.PlaybookType == "" {
+		return "", fmt.Errorf("judge event type must be expo or finals")
+	}
+	var id string
+	err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO judge_events (
+			competition_id, name, playbook_type, ordering, starts_at, ends_at,
+			starting_project_number
+		) VALUES (
+			$1::uuid, $2, $3, $4, $5, $6, $7
+		)
+		RETURNING id::text
+	`, in.CompetitionID, in.Name, in.PlaybookType, in.Ordering, in.StartsAt,
+		in.EndsAt, in.StartingProjectNumber).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("insert judge event %q: %w", in.Name, err)
+	}
+	return id, nil
+}
+
+func listJudgeEventsPostgres(ctx *config.AppContext, competitionID string) ([]*types.JudgeEvent, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("competition id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT id::text, competition_id::text, name, playbook_type, ordering,
+			starts_at, ends_at, starting_project_number, created_at, updated_at
+		FROM judge_events
+		WHERE competition_id::text = $1
+		ORDER BY ordering, starts_at NULLS LAST, created_at, name
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("query judge events for competition %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+
+	var out []*types.JudgeEvent
+	for rows.Next() {
+		event, err := scanJudgeEvent(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan judge event for competition %s: %w", competitionID, err)
+		}
+		out = append(out, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate judge events for competition %s: %w", competitionID, err)
+	}
+	return out, nil
+}
+
+func addCompetitionJudgePostgres(ctx *config.AppContext, competitionID, personID, judgeType string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	personID = strings.TrimSpace(personID)
+	judgeType = normalizeJudgeType(judgeType)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if personID == "" {
+		return fmt.Errorf("person id is required")
+	}
+	if judgeType == "" {
+		return fmt.Errorf("judge type must be expo, finals, or coordinator")
+	}
+	_, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO competition_judges (competition_id, person_id, judge_type)
+		VALUES ($1::uuid, $2::uuid, $3)
+		ON CONFLICT (competition_id, person_id, judge_type) DO NOTHING
+	`, competitionID, personID, judgeType)
+	if err != nil {
+		return fmt.Errorf("insert competition judge %s/%s/%s: %w", competitionID, personID, judgeType, err)
+	}
+	return nil
+}
+
+func removeCompetitionJudgePostgres(ctx *config.AppContext, competitionID, personID, judgeType string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	personID = strings.TrimSpace(personID)
+	judgeType = normalizeJudgeType(judgeType)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if personID == "" {
+		return fmt.Errorf("person id is required")
+	}
+	if judgeType == "" {
+		return fmt.Errorf("judge type must be expo, finals, or coordinator")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		DELETE FROM competition_judges
+		WHERE competition_id::text = $1 AND person_id::text = $2 AND judge_type = $3
+	`, competitionID, personID, judgeType)
+	if err != nil {
+		return fmt.Errorf("remove competition judge %s/%s/%s: %w", competitionID, personID, judgeType, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("competition judge %s/%s/%s not found", competitionID, personID, judgeType)
+	}
+	return nil
+}
+
+func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string) ([]*types.CompetitionJudge, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("competition id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT competition_judges.competition_id::text, competition_judges.person_id::text,
+			coalesce(people.name, ''), coalesce(people.email::text, ''),
+			competition_judges.judge_type, competition_judges.created_at
+		FROM competition_judges
+		LEFT JOIN people ON people.id = competition_judges.person_id
+		WHERE competition_judges.competition_id::text = $1
+		ORDER BY competition_judges.judge_type, lower(people.name), people.id
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("query competition judges %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+	var out []*types.CompetitionJudge
+	for rows.Next() {
+		var judge types.CompetitionJudge
+		if err := rows.Scan(&judge.CompetitionID, &judge.PersonID, &judge.Name, &judge.Email, &judge.JudgeType, &judge.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan competition judge %s: %w", competitionID, err)
+		}
+		out = append(out, &judge)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate competition judges %s: %w", competitionID, err)
+	}
+	return out, nil
+}
+
 func projectIsPublicPostgres(ctx *config.AppContext, project *types.HackathonProject) bool {
 	if project == nil {
 		return false
@@ -809,6 +968,34 @@ func scanProject(rows pgx.Rows) (*types.HackathonProject, error) {
 	return &project, nil
 }
 
+func scanJudgeEvent(rows pgx.Rows) (*types.JudgeEvent, error) {
+	var event types.JudgeEvent
+	var startsAt, endsAt pgtype.Timestamptz
+	var startingProjectNumber sql.NullInt64
+	if err := rows.Scan(
+		&event.ID,
+		&event.CompetitionID,
+		&event.Name,
+		&event.PlaybookType,
+		&event.Ordering,
+		&startsAt,
+		&endsAt,
+		&startingProjectNumber,
+		&event.CreatedAt,
+		&event.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	event.StartsAt = pgTimePtr(startsAt)
+	event.EndsAt = pgTimePtr(endsAt)
+	if startingProjectNumber.Valid {
+		n := int(startingProjectNumber.Int64)
+		event.StartingProjectNumber = &n
+	}
+	event.PlaybookType = normalizeJudgeType(event.PlaybookType)
+	return &event, nil
+}
+
 func pgTimePtr(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil
@@ -860,10 +1047,41 @@ func normalizeProjectInput(in ProjectInput) ProjectInput {
 	return in
 }
 
+func normalizeJudgeEventInput(in JudgeEventInput) JudgeEventInput {
+	in.CompetitionID = strings.TrimSpace(in.CompetitionID)
+	in.Name = strings.TrimSpace(in.Name)
+	in.PlaybookType = normalizeJudgeEventType(in.PlaybookType)
+	return in
+}
+
 func normalizeSlug(slug string) string {
 	slug = strings.TrimSpace(strings.ToLower(slug))
 	slug = strings.ReplaceAll(slug, " ", "-")
 	return slug
+}
+
+func normalizeJudgeEventType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case JudgeTypeExpo:
+		return JudgeTypeExpo
+	case JudgeTypeFinals:
+		return JudgeTypeFinals
+	default:
+		return ""
+	}
+}
+
+func normalizeJudgeType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case JudgeTypeExpo:
+		return JudgeTypeExpo
+	case JudgeTypeFinals:
+		return JudgeTypeFinals
+	case JudgeTypeCoordinator:
+		return JudgeTypeCoordinator
+	default:
+		return ""
+	}
 }
 
 func normalizeProjectMemberRole(role string) string {

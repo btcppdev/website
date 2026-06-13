@@ -71,6 +71,28 @@ type ProjectInvite struct {
 	CreatedAt          time.Time
 }
 
+type CompetitionJudge struct {
+	CompetitionID string
+	PersonID      string
+	Name          string
+	Email         string
+	JudgeType     string
+	CreatedAt     time.Time
+}
+
+type JudgeEvent struct {
+	ID                    string
+	CompetitionID         string
+	Name                  string
+	PlaybookType          string
+	Ordering              int
+	StartsAt              *time.Time
+	EndsAt                *time.Time
+	StartingProjectNumber *int
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
 type HackathonViewer struct {
 	PersonID    string
 	Admin       bool

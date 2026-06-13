@@ -35,6 +35,16 @@ type ProjectInput struct {
 	Tags              []string
 }
 
+type JudgeEventInput struct {
+	CompetitionID         string
+	Name                  string
+	PlaybookType          string
+	Ordering              int
+	StartsAt              *time.Time
+	EndsAt                *time.Time
+	StartingProjectNumber *int
+}
+
 func CreateCompetition(ctx *config.AppContext, in CompetitionInput) (string, error) {
 	if UsePostgresBackend(ctx) {
 		return createCompetitionPostgres(ctx, in)
@@ -159,4 +169,39 @@ func CanViewProject(ctx *config.AppContext, projectID string, viewer types.Hacka
 		return canViewProjectPostgres(ctx, projectID, viewer)
 	}
 	return false, unsupportedPostgresBackend("hackathon project visibility")
+}
+
+func CreateJudgeEvent(ctx *config.AppContext, in JudgeEventInput) (string, error) {
+	if UsePostgresBackend(ctx) {
+		return createJudgeEventPostgres(ctx, in)
+	}
+	return "", unsupportedPostgresBackend("hackathon judge events")
+}
+
+func ListJudgeEvents(ctx *config.AppContext, competitionID string) ([]*types.JudgeEvent, error) {
+	if UsePostgresBackend(ctx) {
+		return listJudgeEventsPostgres(ctx, competitionID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon judge events")
+}
+
+func AddCompetitionJudge(ctx *config.AppContext, competitionID, personID, judgeType string) error {
+	if UsePostgresBackend(ctx) {
+		return addCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
+	}
+	return unsupportedPostgresBackend("hackathon judges")
+}
+
+func RemoveCompetitionJudge(ctx *config.AppContext, competitionID, personID, judgeType string) error {
+	if UsePostgresBackend(ctx) {
+		return removeCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
+	}
+	return unsupportedPostgresBackend("hackathon judges")
+}
+
+func ListCompetitionJudges(ctx *config.AppContext, competitionID string) ([]*types.CompetitionJudge, error) {
+	if UsePostgresBackend(ctx) {
+		return listCompetitionJudgesPostgres(ctx, competitionID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon judges")
 }
