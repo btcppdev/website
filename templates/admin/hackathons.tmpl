@@ -48,10 +48,10 @@
             {{ range .Competitions }}
             <tr>
               <td class="whitespace-nowrap px-4 py-3 font-medium text-gray-900">
-                <a href="{{ $.EditURL . }}" class="text-indigo-600 hover:text-indigo-500">{{ .Title }}</a>
+                <a href="{{ $.HackathonURL . }}" class="text-indigo-600 hover:text-indigo-500">{{ .Title }}</a>
               </td>
               <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-600">
-                <a href="{{ $.HackathonURL . }}" class="text-indigo-600 hover:text-indigo-500">{{ .Slug }}</a>
+                {{ .Slug }}
               </td>
               <td class="whitespace-nowrap px-4 py-3">
                 <form method="POST" action="{{ $.VisibilityURL . }}" class="flex items-center gap-2">
