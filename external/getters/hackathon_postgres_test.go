@@ -61,7 +61,7 @@ func TestHackathonCompetitionUpdate(t *testing.T) {
 		Slug:               updatedSlug,
 		Title:              "Updated Hackathon",
 		Description:        "Updated description",
-		Status:             "open",
+		Visibility:         CompetitionVisibilityPublic,
 		MaxTeamSize:        &maxTeamSize,
 		SubmissionsOpenAt:  &openAt,
 		SubmissionsCloseAt: &closeAt,
@@ -77,7 +77,7 @@ func TestHackathonCompetitionUpdate(t *testing.T) {
 	if updated.ConferenceID != confID {
 		t.Fatalf("ConferenceID = %q, want %q", updated.ConferenceID, confID)
 	}
-	if updated.Slug != updatedSlug || updated.Title != "Updated Hackathon" || updated.Description != "Updated description" || updated.Status != "open" {
+	if updated.Slug != updatedSlug || updated.Title != "Updated Hackathon" || updated.Description != "Updated description" || updated.Visibility != CompetitionVisibilityPublic {
 		t.Fatalf("updated fields mismatch: %+v", updated)
 	}
 	if updated.MaxTeamSize == nil || *updated.MaxTeamSize != maxTeamSize {

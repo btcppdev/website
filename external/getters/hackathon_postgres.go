@@ -18,11 +18,12 @@ import (
 )
 
 const (
-	CompetitionStatusDraft  = "draft"
-	ProjectStatusCreated    = "created"
-	ProjectStatusSubmitted  = "submitted"
-	ProjectMemberRoleOwner  = "owner"
-	ProjectMemberRoleMember = "member"
+	CompetitionVisibilityHidden = "hidden"
+	CompetitionVisibilityPublic = "public"
+	ProjectStatusCreated        = "created"
+	ProjectStatusSubmitted      = "submitted"
+	ProjectMemberRoleOwner      = "owner"
+	ProjectMemberRoleMember     = "member"
 )
 
 func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (string, error) {
@@ -36,20 +37,20 @@ func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (str
 	if in.Title == "" {
 		return "", fmt.Errorf("competition title is required")
 	}
-	if in.Status == "" {
-		in.Status = CompetitionStatusDraft
+	if in.Visibility == "" {
+		in.Visibility = CompetitionVisibilityHidden
 	}
 
 	var id string
 	err := ctx.DB.QueryRow(context.Background(), `
 		INSERT INTO competitions (
-			conference_id, slug, title, description, status, max_team_size,
+			conference_id, slug, title, description, visibility, max_team_size,
 			submissions_open_at, submissions_close_at, public_gallery_at
 		) VALUES (
 			NULLIF($1, '')::uuid, $2, $3, $4, $5, $6, $7, $8, $9
 		)
 		RETURNING id::text
-	`, in.ConferenceID, in.Slug, in.Title, in.Description, in.Status, in.MaxTeamSize,
+	`, in.ConferenceID, in.Slug, in.Title, in.Description, in.Visibility, in.MaxTeamSize,
 		in.SubmissionsOpenAt, in.SubmissionsCloseAt, in.PublicGalleryAt).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("insert competition %q: %w", in.Slug, err)
@@ -72,8 +73,8 @@ func updateCompetitionPostgres(ctx *config.AppContext, competitionID string, in 
 	if in.Title == "" {
 		return fmt.Errorf("competition title is required")
 	}
-	if in.Status == "" {
-		in.Status = CompetitionStatusDraft
+	if in.Visibility == "" {
+		in.Visibility = CompetitionVisibilityHidden
 	}
 	commandTag, err := ctx.DB.Exec(context.Background(), `
 		UPDATE competitions
@@ -81,17 +82,43 @@ func updateCompetitionPostgres(ctx *config.AppContext, competitionID string, in 
 			slug = $3,
 			title = $4,
 			description = $5,
-			status = $6,
+			visibility = $6,
 			max_team_size = $7,
 			submissions_open_at = $8,
 			submissions_close_at = $9,
 			public_gallery_at = $10
 		WHERE id = $1
 	`, competitionID, in.ConferenceID, in.Slug, in.Title, in.Description,
-		in.Status, in.MaxTeamSize, in.SubmissionsOpenAt, in.SubmissionsCloseAt,
+		in.Visibility, in.MaxTeamSize, in.SubmissionsOpenAt, in.SubmissionsCloseAt,
 		in.PublicGalleryAt)
 	if err != nil {
 		return fmt.Errorf("update competition %s: %w", competitionID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("competition %s not found", competitionID)
+	}
+	return nil
+}
+
+func updateCompetitionVisibilityPostgres(ctx *config.AppContext, competitionID, visibility string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	visibility = normalizeCompetitionVisibility(visibility)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if visibility == "" {
+		return fmt.Errorf("competition visibility is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE competitions
+		SET visibility = $2
+		WHERE id = $1
+	`, competitionID, visibility)
+	if err != nil {
+		return fmt.Errorf("update competition %s visibility: %w", competitionID, err)
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("competition %s not found", competitionID)
@@ -139,7 +166,7 @@ func queryCompetitionsPostgres(ctx *config.AppContext, label, whereSQL string, a
 	}
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, coalesce(conference_id::text, ''), slug, title, description,
-			status, max_team_size, submissions_open_at, submissions_close_at,
+			visibility, max_team_size, submissions_open_at, submissions_close_at,
 			public_gallery_at, hacking_starts_at, hacking_ends_at, judges_meeting_at,
 			expo_starts_at, expo_ends_at, expo_judging_starts_at, expo_judging_ends_at,
 			finals_starts_at, finals_ends_at, finals_judging_starts_at,
@@ -647,7 +674,7 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 		&competition.Slug,
 		&competition.Title,
 		&competition.Description,
-		&competition.Status,
+		&competition.Visibility,
 		&maxTeamSize,
 		&submissionsOpenAt,
 		&submissionsCloseAt,
@@ -673,6 +700,7 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 		n := int(maxTeamSize.Int64)
 		competition.MaxTeamSize = &n
 	}
+	competition.Visibility = normalizeCompetitionVisibility(competition.Visibility)
 	competition.SubmissionsOpenAt = pgTimePtr(submissionsOpenAt)
 	competition.SubmissionsCloseAt = pgTimePtr(submissionsCloseAt)
 	competition.PublicGalleryAt = pgTimePtr(publicGalleryAt)
@@ -742,8 +770,19 @@ func normalizeCompetitionInput(in CompetitionInput) CompetitionInput {
 	in.Slug = normalizeSlug(in.Slug)
 	in.Title = strings.TrimSpace(in.Title)
 	in.Description = strings.TrimSpace(in.Description)
-	in.Status = strings.TrimSpace(in.Status)
+	in.Visibility = normalizeCompetitionVisibility(in.Visibility)
 	return in
+}
+
+func normalizeCompetitionVisibility(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "draft", "hidden":
+		return CompetitionVisibilityHidden
+	case "public", "published", "scheduled", "open", "submissions_closed", "judging", "closed":
+		return CompetitionVisibilityPublic
+	default:
+		return ""
+	}
 }
 
 func normalizeProjectInput(in ProjectInput) ProjectInput {

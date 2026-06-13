@@ -47,6 +47,60 @@ func (p *HackathonAdminPage) ConfLabel(confID string) string {
 	return confID
 }
 
+func (p *HackathonAdminPage) VisibilityLabel(visibility string) string {
+	return hackathonVisibilityLabel(visibility)
+}
+
+func (p *HackathonAdminPage) EditURL(competition *types.HackathonCompetition) string {
+	if competition == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(competition.ID)
+}
+
+func (p *HackathonAdminPage) HackathonURL(competition *types.HackathonCompetition) string {
+	return hackathonURL(competition)
+}
+
+func (p *HackathonAdminPage) ConfURL(confID string) string {
+	confID = strings.TrimSpace(confID)
+	if confID == "" {
+		return ""
+	}
+	for _, conf := range p.Confs {
+		if conf == nil || conf.Ref != confID || strings.TrimSpace(conf.Tag) == "" {
+			continue
+		}
+		return "/" + url.PathEscape(conf.Tag)
+	}
+	return ""
+}
+
+func (p *HackathonAdminPage) VisibilityURL(competition *types.HackathonCompetition) string {
+	if competition == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(competition.ID) + "/visibility"
+}
+
+func (p *HackathonAdminPage) TimelineLabel(competition *types.HackathonCompetition) string {
+	label, _ := hackathonNextMilestone(competition)
+	return label
+}
+
+func (p *HackathonAdminPage) TimelineValue(competition *types.HackathonCompetition) string {
+	_, value := hackathonNextMilestone(competition)
+	return value
+}
+
+func (p *HackathonAdminPage) TimelineIsScheduleLink(competition *types.HackathonCompetition) bool {
+	return hackathonMilestoneIsScheduleLink(competition)
+}
+
+func (p *HackathonAdminPage) ScheduleURL(competition *types.HackathonCompetition) string {
+	return hackathonScheduleURL(competition)
+}
+
 func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
@@ -88,7 +142,7 @@ func HackathonAdminNew(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 	page := &HackathonAdminPage{
 		Confs:        confs,
-		Competition:  &types.HackathonCompetition{Status: getters.CompetitionStatusDraft},
+		Competition:  &types.HackathonCompetition{Visibility: getters.CompetitionVisibilityHidden},
 		IsNew:        true,
 		FlashMessage: r.URL.Query().Get("flash"),
 		FlashError:   r.URL.Query().Get("error"),
@@ -163,7 +217,30 @@ func HackathonAdminUpdate(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Hackathon saved"), http.StatusSeeOther)
+	http.Redirect(w, r, "/admin/hackathons?flash="+url.QueryEscape("Hackathon saved"), http.StatusSeeOther)
+}
+
+func HackathonAdminUpdateVisibility(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, "/admin/hackathons?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	visibility, err := hackathonVisibilityFromForm(r)
+	if err != nil {
+		http.Redirect(w, r, "/admin/hackathons?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := getters.UpdateCompetitionVisibility(ctx, competitionID, visibility); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s visibility: %s", competitionID, err)
+		http.Redirect(w, r, "/admin/hackathons?error="+url.QueryEscape("Unable to update visibility"), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/admin/hackathons?flash="+url.QueryEscape("Visibility saved"), http.StatusSeeOther)
 }
 
 func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request) (getters.CompetitionInput, error) {
@@ -171,12 +248,16 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 	if err := r.ParseForm(); err != nil {
 		return getters.CompetitionInput{}, fmt.Errorf("bad form")
 	}
+	visibility, err := hackathonVisibilityFromForm(r)
+	if err != nil {
+		return getters.CompetitionInput{}, err
+	}
 	in := getters.CompetitionInput{
 		ConferenceID: strings.TrimSpace(r.FormValue("ConferenceID")),
 		Slug:         strings.TrimSpace(r.FormValue("Slug")),
 		Title:        strings.TrimSpace(r.FormValue("Title")),
 		Description:  strings.TrimSpace(r.FormValue("Description")),
-		Status:       strings.TrimSpace(r.FormValue("Status")),
+		Visibility:   visibility,
 	}
 	if maxTeamRaw := strings.TrimSpace(r.FormValue("MaxTeamSize")); maxTeamRaw != "" {
 		maxTeamSize, err := strconv.Atoi(maxTeamRaw)
@@ -185,7 +266,6 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 		}
 		in.MaxTeamSize = &maxTeamSize
 	}
-	var err error
 	if in.SubmissionsOpenAt, err = parseAdminLocalTime(r.FormValue("SubmissionsOpenAt")); err != nil {
 		return getters.CompetitionInput{}, fmt.Errorf("submissions open: %w", err)
 	}
@@ -196,6 +276,16 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 		return getters.CompetitionInput{}, fmt.Errorf("public gallery: %w", err)
 	}
 	return in, nil
+}
+
+func hackathonVisibilityFromForm(r *http.Request) (string, error) {
+	visibility := strings.TrimSpace(r.FormValue("Visibility"))
+	switch visibility {
+	case getters.CompetitionVisibilityHidden, getters.CompetitionVisibilityPublic:
+		return visibility, nil
+	default:
+		return "", fmt.Errorf("visibility must be Hidden or Public")
+	}
 }
 
 func parseAdminLocalTime(value string) (*time.Time, error) {

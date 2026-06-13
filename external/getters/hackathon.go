@@ -12,7 +12,7 @@ type CompetitionInput struct {
 	Slug               string
 	Title              string
 	Description        string
-	Status             string
+	Visibility         string
 	MaxTeamSize        *int
 	SubmissionsOpenAt  *time.Time
 	SubmissionsCloseAt *time.Time
@@ -47,6 +47,13 @@ func UpdateCompetition(ctx *config.AppContext, competitionID string, in Competit
 		return updateCompetitionPostgres(ctx, competitionID, in)
 	}
 	return unsupportedPostgresBackend("hackathon competitions")
+}
+
+func UpdateCompetitionVisibility(ctx *config.AppContext, competitionID, visibility string) error {
+	if UsePostgresBackend(ctx) {
+		return updateCompetitionVisibilityPostgres(ctx, competitionID, visibility)
+	}
+	return unsupportedPostgresBackend("hackathon competition visibility")
 }
 
 func GetCompetitionByID(ctx *config.AppContext, competitionID string) (*types.HackathonCompetition, error) {
