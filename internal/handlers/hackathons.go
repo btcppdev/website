@@ -20,6 +20,7 @@ type HackathonPage struct {
 	Conf          *types.Conf
 	Projects      []*types.HackathonProject
 	Project       *types.HackathonProject
+	Members       []*types.ProjectMember
 	Viewer        *auth.Identity
 	ViewerPerson  string
 	OwnedProjects map[string]bool
@@ -340,10 +341,17 @@ func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 	canEdit := id != nil && projectEditableByDeadline(competition)
 	canSubmit := canEdit && project.Status != getters.ProjectStatusSubmitted
+	members, err := getters.ListProjectMembers(ctx, project.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s members: %s", competition.Slug, project.ID, err)
+		http.Error(w, "Unable to load project members", http.StatusInternalServerError)
+		return
+	}
 	page := &HackathonPage{
 		Competition:  competition,
 		Conf:         conf,
 		Project:      project,
+		Members:      members,
 		Viewer:       id,
 		ViewerPerson: hackathonViewerPersonID(id),
 		CanEdit:      canEdit,
@@ -397,6 +405,64 @@ func HackathonProjectSubmit(w http.ResponseWriter, r *http.Request, ctx *config.
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project submitted"), http.StatusSeeOther)
+}
+
+func HackathonProjectInviteCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	competition, _, _, project, err := loadEditableHackathonProject(w, r, ctx)
+	if err != nil {
+		return
+	}
+	dest := hackathonURL(competition) + "/projects/" + url.PathEscape(project.ID)
+	if !projectEditableByDeadline(competition) {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project edits are closed."), http.StatusSeeOther)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	token, _, err := getters.CreateProjectInvite(ctx, project.ID, r.FormValue("Email"), nil)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s invite: %s", competition.Slug, project.ID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	inviteURL := absoluteURL(r, "/hackathons/invites/"+url.PathEscape(token))
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Invite link: "+inviteURL), http.StatusSeeOther)
+}
+
+func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
+	if email == "" {
+		redirectHackathonLogin(w, r)
+		return
+	}
+	personID, err := getters.GetPersonIDByEmail(ctx, email)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/invites person %s: %s", email, err)
+		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("Your account needs a person profile before you can join a project."), http.StatusSeeOther)
+		return
+	}
+	invite, err := getters.AcceptProjectInvite(ctx, mux.Vars(r)["token"], personID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/invites accept: %s", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	project, err := getters.GetProjectByID(ctx, invite.ProjectID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/invites project %s: %s", invite.ProjectID, err)
+		http.Error(w, "Unable to load project", http.StatusInternalServerError)
+		return
+	}
+	competition, err := getters.GetCompetitionByID(ctx, project.CompetitionID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/invites competition %s: %s", project.CompetitionID, err)
+		http.Error(w, "Unable to load hackathon", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, hackathonURL(competition)+"/projects/"+url.PathEscape(project.ID)+"?flash="+url.QueryEscape("Joined project"), http.StatusSeeOther)
 }
 
 func loadHackathonPageData(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.HackathonCompetition, *types.Conf, *auth.Identity, []*types.HackathonProject, error) {
@@ -455,8 +521,8 @@ func loadEditableHackathonProject(w http.ResponseWriter, r *http.Request, ctx *c
 		}
 		return nil, nil, nil, nil, err
 	}
-	if !viewerOwnsProject(ctx, project.ID, hackathonViewerPersonID(id)) {
-		http.Redirect(w, r, hackathonURL(competition)+"?error="+url.QueryEscape("Only the project owner can edit that project."), http.StatusSeeOther)
+	if !viewerCanManageProject(ctx, project.ID, hackathonViewerPersonID(id)) {
+		http.Redirect(w, r, hackathonURL(competition)+"?error="+url.QueryEscape("Only project members can edit that project."), http.StatusSeeOther)
 		return nil, nil, nil, nil, fmt.Errorf("viewer cannot edit project %s", project.ID)
 	}
 	return competition, conf, id, project, nil
@@ -544,7 +610,7 @@ func projectEditableByDeadline(competition *types.HackathonCompetition) bool {
 	return competition.SubmissionsCloseAt == nil || competition.SubmissionsCloseAt.After(time.Now())
 }
 
-func viewerOwnsProject(ctx *config.AppContext, projectID, personID string) bool {
+func viewerCanManageProject(ctx *config.AppContext, projectID, personID string) bool {
 	personID = strings.TrimSpace(personID)
 	if personID == "" {
 		return false
@@ -555,7 +621,7 @@ func viewerOwnsProject(ctx *config.AppContext, projectID, personID string) bool 
 		return false
 	}
 	for _, member := range members {
-		if member != nil && member.PersonID == personID && member.Role == getters.ProjectMemberRoleOwner {
+		if member != nil && member.PersonID == personID {
 			return true
 		}
 	}
@@ -569,11 +635,22 @@ func ownedProjectMap(ctx *config.AppContext, projects []*types.HackathonProject,
 	}
 	out := make(map[string]bool)
 	for _, project := range projects {
-		if project != nil && viewerOwnsProject(ctx, project.ID, personID) {
+		if project != nil && viewerCanManageProject(ctx, project.ID, personID) {
 			out[project.ID] = true
 		}
 	}
 	return out
+}
+
+func absoluteURL(r *http.Request, path string) string {
+	scheme := r.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		scheme = "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+	}
+	return scheme + "://" + r.Host + path
 }
 
 func redirectHackathonLogin(w http.ResponseWriter, r *http.Request) {

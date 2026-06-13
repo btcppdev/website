@@ -55,6 +55,8 @@ type HackathonProject struct {
 type ProjectMember struct {
 	ProjectID string
 	PersonID  string
+	Name      string
+	Email     string
 	Role      string
 	CreatedAt time.Time
 }
