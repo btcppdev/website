@@ -31,3 +31,44 @@ func TestLoadTemplates(t *testing.T) {
 		}
 	}
 }
+
+func TestHackathonScoreSummaries(t *testing.T) {
+	n1, n2 := 1, 2
+	ideaHigh, execHigh, impactHigh, rankTwo := 5, 4, 3, 2
+	ideaLow, execLow, impactLow, rankOne := 3, 3, 3, 1
+	projects := []*types.HackathonProject{
+		{ID: "low", Title: "Low Project", ProjectNumber: &n2},
+		{ID: "high", Title: "High Project", ProjectNumber: &n1},
+		{ID: "empty", Title: "Empty Project"},
+	}
+	scorecards := []*types.Scorecard{
+		{
+			ProjectID:      "low",
+			IdeaScore:      &ideaLow,
+			ExecutionScore: &execLow,
+			ImpactScore:    &impactLow,
+			Rank:           &rankOne,
+		},
+		{
+			ProjectID:      "high",
+			IdeaScore:      &ideaHigh,
+			ExecutionScore: &execHigh,
+			ImpactScore:    &impactHigh,
+			Rank:           &rankTwo,
+		},
+		{ProjectID: "high", NoShow: true},
+	}
+	summaries := hackathonScoreSummaries(projects, scorecards)
+	if len(summaries) != 3 {
+		t.Fatalf("summaries len = %d, want 3", len(summaries))
+	}
+	if summaries[0].ProjectID != "high" || summaries[0].TotalAverage != "12.0" || summaries[0].NoShows != 1 {
+		t.Fatalf("first summary = %+v, want high score with one no-show", summaries[0])
+	}
+	if summaries[1].ProjectID != "low" || summaries[1].RankAverage != "1.0" || summaries[1].BestRank != "1" {
+		t.Fatalf("second summary = %+v, want low project rank data", summaries[1])
+	}
+	if summaries[2].ProjectID != "empty" || summaries[2].TotalAverage != "-" || summaries[2].Scorecards != 0 {
+		t.Fatalf("third summary = %+v, want empty project last", summaries[2])
+	}
+}

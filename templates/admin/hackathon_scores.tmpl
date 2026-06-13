@@ -27,6 +27,61 @@
     <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
     {{ end }}
 
+    <section class="mb-8 overflow-hidden rounded-lg bg-white shadow">
+      <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-sm font-semibold text-gray-900">Rankings</h2>
+          <span class="text-sm text-gray-500">{{ len .ScoreSummaries }} projects</span>
+        </div>
+      </div>
+      {{ if .ScoreSummaries }}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
+          <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th scope="col" class="px-4 py-3">Project</th>
+              <th scope="col" class="px-4 py-3">#</th>
+              <th scope="col" class="px-4 py-3">Scorecards</th>
+              <th scope="col" class="px-4 py-3">Avg total</th>
+              <th scope="col" class="px-4 py-3">Idea</th>
+              <th scope="col" class="px-4 py-3">Execution</th>
+              <th scope="col" class="px-4 py-3">Impact</th>
+              <th scope="col" class="px-4 py-3">Avg rank</th>
+              <th scope="col" class="px-4 py-3">Best rank</th>
+              <th scope="col" class="px-4 py-3">No-shows</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {{ range .ScoreSummaries }}
+            <tr>
+              <td class="px-4 py-3 font-medium text-gray-900">{{ .ProjectTitle }}</td>
+              <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-600">{{ .ProjectNumber }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ .ScoredScorecards }} / {{ .Scorecards }}</td>
+              <td class="px-4 py-3 font-medium text-gray-900">{{ .TotalAverage }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ .IdeaAverage }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ .ExecutionAverage }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ .ImpactAverage }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ .RankAverage }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ .BestRank }}</td>
+              <td class="px-4 py-3">
+                {{ if .NoShows }}
+                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">{{ .NoShows }}</span>
+                {{ else }}
+                <span class="text-gray-400">-</span>
+                {{ end }}
+              </td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+      {{ else }}
+      <div class="px-4 py-10 text-center sm:px-6">
+        <p class="text-sm text-gray-600">No projects are available to rank yet.</p>
+      </div>
+      {{ end }}
+    </section>
+
     <section class="overflow-hidden rounded-lg bg-white shadow">
       <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
