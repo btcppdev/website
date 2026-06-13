@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Schedule - {{ .Competition.Title }} - bitcoin++ hackathon</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <a href="/hackathons/{{ .Competition.Slug }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Back to hackathon</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Schedule</h1>
+        <p class="mt-1 text-sm text-gray-600">{{ .Competition.Title }}</p>
+      </div>
+      <div>
+        <label for="HackathonTimezone" class="block text-xs font-medium uppercase tracking-wide text-gray-500">Timezone</label>
+        <select id="HackathonTimezone" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+          {{ range .TimezoneOptions }}
+          <option value="{{ . }}">{{ . }}</option>
+          {{ end }}
+        </select>
+      </div>
+    </div>
+
+    <section class="rounded-lg bg-white shadow">
+      <div class="divide-y divide-gray-100">
+        {{ range .ScheduleEvents }}
+        <div class="grid gap-2 px-4 py-4 sm:grid-cols-3 sm:px-6">
+          <div class="text-sm font-medium text-gray-900">{{ .Label }}</div>
+          <div class="sm:col-span-2 text-sm text-gray-700">
+            {{ if .Time }}
+            <time class="hackathon-schedule-time" datetime="{{ .Time.Format "2006-01-02T15:04:05Z07:00" }}">{{ .Time.Format "2006-01-02 15:04" }}</time>
+            {{ else }}
+            TBA
+            {{ end }}
+          </div>
+        </div>
+        {{ end }}
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const select = document.getElementById('HackathonTimezone');
+      const times = Array.prototype.slice.call(document.querySelectorAll('.hackathon-schedule-time'));
+      if (!select || times.length === 0) return;
+
+      const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (localTZ && !Array.prototype.some.call(select.options, function (opt) { return opt.value === localTZ; })) {
+        const opt = document.createElement('option');
+        opt.value = localTZ;
+        opt.textContent = localTZ;
+        select.insertBefore(opt, select.firstChild);
+      }
+      if (localTZ) select.value = localTZ;
+
+      function render() {
+        const tz = select.value || localTZ || 'UTC';
+        for (const el of times) {
+          const value = el.getAttribute('datetime');
+          if (!value) continue;
+          const date = new Date(value);
+          el.textContent = new Intl.DateTimeFormat(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: tz,
+            timeZoneName: 'short'
+          }).format(date);
+        }
+      }
+      select.addEventListener('change', render);
+      render();
+    })();
+  </script>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

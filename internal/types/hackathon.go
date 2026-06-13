@@ -8,7 +8,7 @@ type HackathonCompetition struct {
 	Slug                  string
 	Title                 string
 	Description           string
-	Status                string
+	Visibility            string
 	MaxTeamSize           *int
 	SubmissionsOpenAt     *time.Time
 	SubmissionsCloseAt    *time.Time

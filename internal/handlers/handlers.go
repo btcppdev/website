@@ -1173,6 +1173,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminEdit(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/visibility", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdateVisibility(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdate(w, r, app)
 	}).Methods("POST")
@@ -1190,6 +1193,28 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/admin/missives/schedule", func(w http.ResponseWriter, r *http.Request) {
 		TemplatedMissivesSchedule(w, r, app)
+	}).Methods("POST")
+
+	r.HandleFunc("/hackathons/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		HackathonShow(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/hackathons/{slug}/schedule", func(w http.ResponseWriter, r *http.Request) {
+		HackathonSchedule(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/hackathons/{slug}/projects/new", func(w http.ResponseWriter, r *http.Request) {
+		HackathonProjectNew(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/hackathons/{slug}/projects", func(w http.ResponseWriter, r *http.Request) {
+		HackathonProjectCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/hackathons/{slug}/projects/{projectID}/submit", func(w http.ResponseWriter, r *http.Request) {
+		HackathonProjectSubmit(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/hackathons/{slug}/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
+		HackathonProjectEdit(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/hackathons/{slug}/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
+		HackathonProjectUpdate(w, r, app)
 	}).Methods("POST")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/edit", func(w http.ResponseWriter, r *http.Request) {

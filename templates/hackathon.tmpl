@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ .Competition.Title }} - bitcoin++ hackathon</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p class="text-sm font-medium text-indigo-600">Hackathon</p>
+        <h1 class="mt-1 text-3xl font-semibold tracking-tight">{{ .Competition.Title }}</h1>
+        {{ if .ConferenceLabel }}
+        <p class="mt-2 text-sm text-gray-600">{{ .ConferenceLabel }}</p>
+        {{ end }}
+      </div>
+      <div class="flex flex-wrap gap-2">
+        {{ if .CanAdminEdit }}
+        <a href="{{ .AdminEditURL }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Edit Hackathon</a>
+        {{ end }}
+        {{ if .CanCreate }}
+        <a href="/hackathons/{{ .Competition.Slug }}/projects/new" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">New project</a>
+        {{ else if not .Viewer }}
+        <a href="/login?next=/hackathons/{{ .Competition.Slug }}" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Sign in</a>
+        {{ end }}
+      </div>
+    </div>
+
+    {{ if .FlashMessage }}
+    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    {{ end }}
+
+    <section class="mb-8 rounded-lg bg-white shadow">
+      <div class="grid gap-6 px-4 py-5 sm:grid-cols-3 sm:p-6">
+        <div class="sm:col-span-2">
+          <h2 class="text-sm font-semibold text-gray-900">Description</h2>
+          {{ if .Competition.Description }}
+          <p class="mt-3 whitespace-pre-line text-sm leading-6 text-gray-700">{{ .Competition.Description }}</p>
+          {{ else }}
+          <p class="mt-3 text-sm text-gray-500">Details are still being finalized.</p>
+          {{ end }}
+        </div>
+        <div class="space-y-3 text-sm">
+          <div>
+            <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Status</div>
+            <div class="mt-1 font-medium text-gray-900">{{ .CompetitionStatusLabel }}</div>
+          </div>
+          <div>
+            <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Team size</div>
+            <div class="mt-1 text-gray-900">{{ with .Competition.MaxTeamSize }}Up to {{ . }}{{ else }}Unlimited{{ end }}</div>
+          </div>
+          <div>
+            <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
+              {{ if .NextMilestoneIsScheduleLink }}
+              <a href="{{ .ScheduleURL }}" class="text-indigo-600 hover:text-indigo-500">View schedule</a>
+              {{ else if .NextMilestoneLabel }}
+              {{ .NextMilestoneLabel }}
+              {{ else }}
+              Timeline
+              {{ end }}
+            </div>
+            <div class="mt-1 text-gray-900">
+              {{ if .NextMilestoneValue }}
+              {{ .NextMilestoneValue }}
+              {{ else }}
+              TBA
+              {{ end }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="mb-4 flex items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold text-gray-900">Projects</h2>
+      </div>
+      {{ if .Projects }}
+      <div class="grid gap-4 md:grid-cols-2">
+        {{ range .Projects }}
+        <article class="rounded-lg bg-white p-5 shadow">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h3 class="text-base font-semibold text-gray-900">{{ .Title }}</h3>
+              <p class="mt-1 text-sm text-gray-600">{{ .ShortDescription }}</p>
+            </div>
+            <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{{ $.ProjectStatusLabel .Status }}</span>
+          </div>
+          {{ if .Description }}
+          <p class="mt-4 line-clamp-4 whitespace-pre-line text-sm leading-6 text-gray-700">{{ .Description }}</p>
+          {{ end }}
+          {{ if .Tags }}
+          <div class="mt-4 flex flex-wrap gap-2">
+            {{ range .Tags }}
+            <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">{{ . }}</span>
+            {{ end }}
+          </div>
+          {{ end }}
+          <div class="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+            {{ if .GitHubURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .GitHubURL }}">GitHub</a>{{ end }}
+            {{ if .DemoURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .DemoURL }}">Demo</a>{{ end }}
+            {{ if .VideoURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .VideoURL }}">Video</a>{{ end }}
+            {{ if .SlidesURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .SlidesURL }}">Slides</a>{{ end }}
+            {{ if .DocsURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .DocsURL }}">Docs</a>{{ end }}
+            {{ if $.CanManageProject .ID }}
+            <a class="font-medium text-gray-700 hover:text-gray-900" href="/hackathons/{{ $.Competition.Slug }}/projects/{{ .ID }}">Manage</a>
+            {{ end }}
+          </div>
+        </article>
+        {{ end }}
+      </div>
+      {{ else }}
+      <div class="rounded-lg bg-white px-4 py-10 text-center shadow">
+        <p class="text-sm text-gray-600">No visible projects yet.</p>
+        {{ if .CanCreate }}
+        <a href="/hackathons/{{ .Competition.Slug }}/projects/new" class="mt-4 inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">New project</a>
+        {{ end }}
+      </div>
+      {{ end }}
+    </section>
+  </main>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

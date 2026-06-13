@@ -26,12 +26,12 @@
       <div class="space-y-6 px-4 py-5 sm:p-6">
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
-            <label for="Title" class="block text-sm font-medium text-gray-700">Title</label>
+            <label for="Title" class="block text-sm font-medium text-gray-700">Title *</label>
             <input id="Title" name="Title" type="text" required value="{{ .Competition.Title }}"
                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
           </div>
           <div>
-            <label for="Slug" class="block text-sm font-medium text-gray-700">Slug</label>
+            <label for="Slug" class="block text-sm font-medium text-gray-700">Slug *</label>
             <input id="Slug" name="Slug" type="text" required value="{{ .Competition.Slug }}"
                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 font-mono text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
           </div>
@@ -49,15 +49,11 @@
             </select>
           </div>
           <div>
-            <label for="Status" class="block text-sm font-medium text-gray-700">Status</label>
-            <select id="Status" name="Status" required
+            <label for="Visibility" class="block text-sm font-medium text-gray-700">Visibility *</label>
+            <select id="Visibility" name="Visibility" required
                     class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-              <option value="draft" {{ if eq .Competition.Status "draft" }}selected{{ end }}>draft</option>
-              <option value="scheduled" {{ if eq .Competition.Status "scheduled" }}selected{{ end }}>scheduled</option>
-              <option value="open" {{ if eq .Competition.Status "open" }}selected{{ end }}>open</option>
-              <option value="submissions_closed" {{ if eq .Competition.Status "submissions_closed" }}selected{{ end }}>submissions_closed</option>
-              <option value="judging" {{ if eq .Competition.Status "judging" }}selected{{ end }}>judging</option>
-              <option value="closed" {{ if eq .Competition.Status "closed" }}selected{{ end }}>closed</option>
+              <option value="hidden" {{ if eq .Competition.Visibility "hidden" }}selected{{ end }}>Hidden</option>
+              <option value="public" {{ if eq .Competition.Visibility "public" }}selected{{ end }}>Public</option>
             </select>
           </div>
           <div>
@@ -79,7 +75,7 @@
                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
           </div>
           <div>
-            <label for="PublicGalleryAt" class="block text-sm font-medium text-gray-700">Public gallery</label>
+            <label for="PublicGalleryAt" class="block text-sm font-medium text-gray-700">Submissions go public</label>
             <input id="PublicGalleryAt" name="PublicGalleryAt" type="datetime-local" {{ with .Competition.PublicGalleryAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
           </div>
