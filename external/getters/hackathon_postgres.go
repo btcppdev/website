@@ -20,6 +20,7 @@ import (
 const (
 	CompetitionVisibilityHidden = "hidden"
 	CompetitionVisibilityPublic = "public"
+	ProjectInviteDefaultTTL     = 24 * time.Hour
 	ProjectStatusCreated        = "created"
 	ProjectStatusSubmitted      = "submitted"
 	ProjectMemberRoleOwner      = "owner"
@@ -532,6 +533,10 @@ func createProjectInvitePostgres(ctx *config.AppContext, projectID, email string
 	if ctx == nil || ctx.DB == nil {
 		return "", nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
+	if expiresAt == nil {
+		defaultExpiresAt := time.Now().Add(ProjectInviteDefaultTTL)
+		expiresAt = &defaultExpiresAt
+	}
 	token, tokenHash, err := newInviteToken()
 	if err != nil {
 		return "", nil, err
@@ -608,6 +613,22 @@ func acceptProjectInvitePostgres(ctx *config.AppContext, token, personID string)
 	}
 	if invite.ExpiresAt != nil && time.Now().After(*invite.ExpiresAt) {
 		return nil, fmt.Errorf("project invite expired")
+	}
+	if invite.Email != "" {
+		var personEmail string
+		if err := tx.QueryRow(context.Background(), `
+			SELECT coalesce(email::text, '')
+			FROM people
+			WHERE id::text = $1
+		`, personID).Scan(&personEmail); err != nil {
+			if err == pgx.ErrNoRows {
+				return nil, fmt.Errorf("person %s not found", personID)
+			}
+			return nil, fmt.Errorf("load invite recipient %s: %w", personID, err)
+		}
+		if !strings.EqualFold(strings.TrimSpace(invite.Email), strings.TrimSpace(personEmail)) {
+			return nil, fmt.Errorf("project invite is for %s", invite.Email)
+		}
 	}
 	if err := addProjectMemberTx(ctx, tx, invite.ProjectID, personID, ProjectMemberRoleMember); err != nil {
 		return nil, err
