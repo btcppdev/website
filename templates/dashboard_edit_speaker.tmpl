@@ -73,7 +73,7 @@
                class="mt-1 block w-full rounded-md py-2 px-3 outline outline-1 -outline-offset-1 outline-gray-300" />
       </div>
       <div>
-        <label class="block text-sm font-semibold text-gray-900">Email</label>
+        <label class="block text-sm font-semibold text-gray-900">Email {{ if .IsAdmin }}*{{ end }}</label>
         {{ if .IsAdmin }}
         <input id="Email" name="Email" type="email" required
                class="mt-1 block w-full rounded-md py-2 px-3 outline outline-1 -outline-offset-1 outline-gray-300" />
@@ -100,8 +100,8 @@
 
       <div class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
         <div>
-          <label for="Phone" class="block text-sm font-semibold text-gray-900">Phone</label>
-          <input id="Phone" name="Phone" type="tel" value="{{ if .Speaker }}{{ .Speaker.Phone }}{{ end }}" class="mt-1 block w-full rounded-md py-2 px-3 outline outline-1 -outline-offset-1 outline-gray-300" />
+          <label for="Phone" class="block text-sm font-semibold text-gray-900">Phone {{ if not .IsAdmin }}*{{ end }}</label>
+          <input id="Phone" name="Phone" type="tel" {{ if not .IsAdmin }}required{{ end }} value="{{ if .Speaker }}{{ .Speaker.Phone }}{{ end }}" class="mt-1 block w-full rounded-md py-2 px-3 outline outline-1 -outline-offset-1 outline-gray-300" />
         </div>
         <div>
           <label for="Signal" class="block text-sm font-semibold text-gray-900">Signal {{ if not .IsAdmin }}*{{ end }}</label>
