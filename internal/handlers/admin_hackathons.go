@@ -19,6 +19,8 @@ type HackathonAdminPage struct {
 	Competitions []*types.HackathonCompetition
 	Confs        []*types.Conf
 	Competition  *types.HackathonCompetition
+	Projects     []*types.HackathonProject
+	ProjectTeams map[string][]*types.ProjectMember
 	IsNew        bool
 	FlashMessage string
 	FlashError   string
@@ -56,6 +58,13 @@ func (p *HackathonAdminPage) EditURL(competition *types.HackathonCompetition) st
 		return "/admin/hackathons"
 	}
 	return "/admin/hackathons/" + url.PathEscape(competition.ID)
+}
+
+func (p *HackathonAdminPage) ProjectsURL(competition *types.HackathonCompetition) string {
+	if competition == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(competition.ID) + "/projects"
 }
 
 func (p *HackathonAdminPage) HackathonURL(competition *types.HackathonCompetition) string {
@@ -101,6 +110,38 @@ func (p *HackathonAdminPage) ScheduleURL(competition *types.HackathonCompetition
 	return hackathonScheduleURL(competition)
 }
 
+func (p *HackathonAdminPage) ProjectPublicURL(project *types.HackathonProject) string {
+	if p == nil || p.Competition == nil || project == nil {
+		return "/hackathons"
+	}
+	return hackathonURL(p.Competition) + "#project-" + url.PathEscape(project.ID)
+}
+
+func (p *HackathonAdminPage) ProjectManageURL(project *types.HackathonProject) string {
+	if p == nil || p.Competition == nil || project == nil {
+		return "/hackathons"
+	}
+	return hackathonURL(p.Competition) + "/projects/" + url.PathEscape(project.ID)
+}
+
+func (p *HackathonAdminPage) ProjectMembers(project *types.HackathonProject) []*types.ProjectMember {
+	if p == nil || p.ProjectTeams == nil || project == nil {
+		return nil
+	}
+	return p.ProjectTeams[project.ID]
+}
+
+func (p *HackathonAdminPage) ProjectNumberLabel(project *types.HackathonProject) string {
+	if project == nil || project.ProjectNumber == nil {
+		return "TBA"
+	}
+	return strconv.Itoa(*project.ProjectNumber)
+}
+
+func (p *HackathonAdminPage) ProjectStatusLabel(status string) string {
+	return hackathonStatusLabel(status)
+}
+
 func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
@@ -126,6 +167,49 @@ func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathons.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons template: %s", err)
+		http.Error(w, "Unable to load page", http.StatusInternalServerError)
+	}
+}
+
+func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, types.HackathonViewer{Admin: true})
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects list: %s", competitionID, err)
+		http.Error(w, "Unable to load projects", http.StatusInternalServerError)
+		return
+	}
+	teams := make(map[string][]*types.ProjectMember, len(projects))
+	for _, project := range projects {
+		if project == nil {
+			continue
+		}
+		members, err := getters.ListProjectMembers(ctx, project.ID)
+		if err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/projects/%s members: %s", competitionID, project.ID, err)
+			http.Error(w, "Unable to load project members", http.StatusInternalServerError)
+			return
+		}
+		teams[project.ID] = members
+	}
+	page := &HackathonAdminPage{
+		Competition:  competition,
+		Projects:     projects,
+		ProjectTeams: teams,
+		FlashMessage: r.URL.Query().Get("flash"),
+		FlashError:   r.URL.Query().Get("error"),
+		Year:         helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_projects.tmpl", page); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
 }

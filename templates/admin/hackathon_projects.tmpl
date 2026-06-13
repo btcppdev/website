@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ .Competition.Title }} Projects - Admin - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+</head>
+<body class="bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Back to hackathons</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} projects</h1>
+        <p class="mt-1 text-sm text-gray-600">All submitted and in-progress projects for this hackathon.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
+        <a href="{{ .EditURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Edit hackathon</a>
+      </div>
+    </div>
+
+    {{ if .FlashMessage }}
+    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    {{ end }}
+
+    <section class="overflow-hidden rounded-lg bg-white shadow">
+      <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+        <h2 class="text-sm font-semibold text-gray-900">Projects</h2>
+      </div>
+      {{ if .Projects }}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+          <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr>
+              <th scope="col" class="px-4 py-3">#</th>
+              <th scope="col" class="px-4 py-3">Project</th>
+              <th scope="col" class="px-4 py-3">Team</th>
+              <th scope="col" class="px-4 py-3">Status</th>
+              <th scope="col" class="px-4 py-3">Submitted</th>
+              <th scope="col" class="px-4 py-3">Links</th>
+              <th scope="col" class="px-4 py-3">Updated</th>
+              <th scope="col" class="px-4 py-3"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {{ range .Projects }}
+            <tr class="align-top">
+              <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-600">{{ $.ProjectNumberLabel . }}</td>
+              <td class="px-4 py-3">
+                <a href="{{ $.ProjectPublicURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">{{ .Title }}</a>
+                <div class="mt-1 font-mono text-xs text-gray-500">{{ .Slug }}</div>
+                {{ if .ShortDescription }}<div class="mt-1 max-w-md text-xs leading-5 text-gray-600">{{ .ShortDescription }}</div>{{ end }}
+              </td>
+              <td class="px-4 py-3">
+                {{ $members := $.ProjectMembers . }}
+                {{ if $members }}
+                <ul class="space-y-1">
+                  {{ range $members }}
+                  <li>
+                    <span class="font-medium text-gray-900">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</span>
+                    <span class="text-xs text-gray-500">({{ .Role }})</span>
+                    {{ if .Email }}<div class="text-xs text-gray-500">{{ .Email }}</div>{{ end }}
+                  </li>
+                  {{ end }}
+                </ul>
+                {{ else }}
+                <span class="text-gray-500">No members</span>
+                {{ end }}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3">
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{{ $.ProjectStatusLabel .Status }}</span>
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-gray-600">
+                {{ with .SubmittedAt }}{{ .Format "Jan 2, 2006 3:04 PM" }}{{ else }}Not submitted{{ end }}
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex flex-wrap gap-x-3 gap-y-1">
+                  {{ if .GitHubURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .GitHubURL }}">GitHub</a>{{ end }}
+                  {{ if .DemoURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .DemoURL }}">Demo</a>{{ end }}
+                  {{ if .VideoURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .VideoURL }}">Video</a>{{ end }}
+                  {{ if .SlidesURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .SlidesURL }}">Slides</a>{{ end }}
+                  {{ if .DocsURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .DocsURL }}">Docs</a>{{ end }}
+                  {{ if and (not .GitHubURL) (not .DemoURL) (not .VideoURL) (not .SlidesURL) (not .DocsURL) }}<span class="text-gray-500">None</span>{{ end }}
+                </div>
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-gray-600">{{ .UpdatedAt.Format "Jan 2, 2006 3:04 PM" }}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-right">
+                <div class="flex justify-end gap-3">
+                  <a href="{{ $.ProjectPublicURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">View</a>
+                  <a href="{{ $.ProjectManageURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">Manage</a>
+                </div>
+              </td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+      {{ else }}
+      <div class="px-4 py-10 text-center sm:px-6">
+        <p class="text-sm text-gray-600">No projects have been created for this hackathon yet.</p>
+      </div>
+      {{ end }}
+    </section>
+  </div>
+</body>
+</html>

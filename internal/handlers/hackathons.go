@@ -523,7 +523,8 @@ func loadEditableHackathonProject(w http.ResponseWriter, r *http.Request, ctx *c
 		}
 		return nil, nil, nil, nil, err
 	}
-	if !viewerCanManageProject(ctx, project.ID, hackathonViewerPersonID(id)) {
+	viewer := hackathonViewerFromIdentity(id, conf)
+	if !viewer.Admin && !viewer.Coordinator && !viewerCanManageProject(ctx, project.ID, viewer.PersonID) {
 		http.Redirect(w, r, hackathonURL(competition)+"?error="+url.QueryEscape("Only project members can edit that project."), http.StatusSeeOther)
 		return nil, nil, nil, nil, fmt.Errorf("viewer cannot edit project %s", project.ID)
 	}

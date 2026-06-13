@@ -13,6 +13,11 @@
         <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Back to hackathons</a>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}New hackathon{{ else }}{{ .Competition.Title }}{{ end }}</h1>
       </div>
+      {{ if not .IsNew }}
+      <a href="{{ .ProjectsURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+        Projects
+      </a>
+      {{ end }}
     </div>
 
     {{ if .FlashMessage }}
