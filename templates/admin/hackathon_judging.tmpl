@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ .Competition.Title }} Judging - Admin - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+</head>
+<body class="bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Back to hackathons</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} judging</h1>
+        <p class="mt-1 text-sm text-gray-600">Set up judge groups and judging events before scoring opens.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ .ProjectsURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Projects</a>
+        <a href="{{ .EditURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Edit hackathon</a>
+      </div>
+    </div>
+
+    {{ if .FlashMessage }}
+    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    {{ end }}
+
+    <div class="grid gap-6 lg:grid-cols-2">
+      <section class="overflow-hidden rounded-lg bg-white shadow">
+        <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+          <h2 class="text-sm font-semibold text-gray-900">Judge events</h2>
+        </div>
+        <div class="px-4 py-5 sm:p-6">
+          {{ if .JudgeEvents }}
+          <ul class="mb-6 divide-y divide-gray-100 rounded-md border border-gray-200">
+            {{ range .JudgeEvents }}
+            <li class="px-3 py-3 text-sm">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="font-medium text-gray-900">{{ .Name }}</div>
+                  <div class="mt-1 text-xs text-gray-500">{{ $.JudgeTypeLabel .PlaybookType }}{{ if .StartingProjectNumber }} · starts at #{{ .StartingProjectNumber }}{{ end }}</div>
+                </div>
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">Order {{ .Ordering }}</span>
+              </div>
+              {{ if or .StartsAt .EndsAt }}
+              <div class="mt-2 text-xs text-gray-600">
+                {{ with .StartsAt }}{{ .Format "Jan 2, 2006 3:04 PM" }}{{ end }}{{ if and .StartsAt .EndsAt }} - {{ end }}{{ with .EndsAt }}{{ .Format "Jan 2, 2006 3:04 PM" }}{{ end }}
+              </div>
+              {{ end }}
+            </li>
+            {{ end }}
+          </ul>
+          {{ else }}
+          <p class="mb-6 text-sm text-gray-600">No judge events yet.</p>
+          {{ end }}
+
+          <form method="POST" action="{{ .JudgingURL .Competition }}/events" class="grid gap-4">
+            <div>
+              <label for="Name" class="block text-sm font-medium text-gray-700">Name *</label>
+              <input id="Name" name="Name" type="text" required
+                     class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+            </div>
+            <div class="grid gap-4 sm:grid-cols-3">
+              <div>
+                <label for="PlaybookType" class="block text-sm font-medium text-gray-700">Type *</label>
+                <select id="PlaybookType" name="PlaybookType" required
+                        class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                  <option value="expo">Expo</option>
+                  <option value="finals">Finals</option>
+                </select>
+              </div>
+              <div>
+                <label for="Ordering" class="block text-sm font-medium text-gray-700">Order</label>
+                <input id="Ordering" name="Ordering" type="number" min="0" value="0"
+                       class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              </div>
+              <div>
+                <label for="StartingProjectNumber" class="block text-sm font-medium text-gray-700">Start #</label>
+                <input id="StartingProjectNumber" name="StartingProjectNumber" type="number" min="1"
+                       class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              </div>
+            </div>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label for="StartsAt" class="block text-sm font-medium text-gray-700">Starts</label>
+                <input id="StartsAt" name="StartsAt" type="datetime-local"
+                       class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              </div>
+              <div>
+                <label for="EndsAt" class="block text-sm font-medium text-gray-700">Ends</label>
+                <input id="EndsAt" name="EndsAt" type="datetime-local"
+                       class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Add event</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="overflow-hidden rounded-lg bg-white shadow">
+        <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+          <h2 class="text-sm font-semibold text-gray-900">Judges</h2>
+        </div>
+        <div class="px-4 py-5 sm:p-6">
+          {{ if .Judges }}
+          <ul class="mb-6 divide-y divide-gray-100 rounded-md border border-gray-200">
+            {{ range .Judges }}
+            <li class="flex items-center justify-between gap-3 px-3 py-3 text-sm">
+              <div>
+                <div class="font-medium text-gray-900">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</div>
+                <div class="mt-1 text-xs text-gray-500">{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }} · {{ $.JudgeTypeLabel .JudgeType }}</div>
+              </div>
+              <form method="POST" action="{{ $.JudgingURL $.Competition }}/judges/remove">
+                <input type="hidden" name="PersonID" value="{{ .PersonID }}">
+                <input type="hidden" name="JudgeType" value="{{ .JudgeType }}">
+                <button type="submit" class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+              </form>
+            </li>
+            {{ end }}
+          </ul>
+          {{ else }}
+          <p class="mb-6 text-sm text-gray-600">No judges assigned yet.</p>
+          {{ end }}
+
+          <form method="POST" action="{{ .JudgingURL .Competition }}/judges" class="grid gap-4">
+            <div>
+              <label for="Email" class="block text-sm font-medium text-gray-700">Judge email *</label>
+              <input id="Email" name="Email" type="email" required
+                     class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+            </div>
+            <div>
+              <label for="JudgeType" class="block text-sm font-medium text-gray-700">Judge type *</label>
+              <select id="JudgeType" name="JudgeType" required
+                      class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                <option value="expo">Expo</option>
+                <option value="finals">Finals</option>
+                <option value="coordinator">Coordinator</option>
+              </select>
+            </div>
+            <div class="flex justify-end">
+              <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Add judge</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

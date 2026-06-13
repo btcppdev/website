@@ -1176,6 +1176,18 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/projects", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminProjects(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminJudging(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminCreateJudgeEvent(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminAddJudge(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges/remove", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminRemoveJudge(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/visibility", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateVisibility(w, r, app)
 	}).Methods("POST")
