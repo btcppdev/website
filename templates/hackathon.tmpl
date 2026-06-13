@@ -19,6 +19,9 @@
         {{ if .CanAdminEdit }}
         <a href="{{ .AdminEditURL }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Edit Hackathon</a>
         {{ end }}
+        {{ if .CanJudge }}
+        <a href="{{ .JudgingURL }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Judging</a>
+        {{ end }}
         {{ if .CanCreate }}
         <a href="/hackathons/{{ .Competition.Slug }}/projects/new" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">New project</a>
         {{ else if not .Viewer }}

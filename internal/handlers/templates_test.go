@@ -25,7 +25,7 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
-	for _, name := range []string{"hackathon.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl"} {
+	for _, name := range []string{"hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl"} {
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
 		}

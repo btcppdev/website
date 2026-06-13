@@ -1216,6 +1216,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/hackathons/{slug}/schedule", func(w http.ResponseWriter, r *http.Request) {
 		HackathonSchedule(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/hackathons/{slug}/judging", func(w http.ResponseWriter, r *http.Request) {
+		HackathonJudging(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/hackathons/{slug}/projects/new", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectNew(w, r, app)
 	}).Methods("GET")
