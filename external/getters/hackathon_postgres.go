@@ -28,6 +28,19 @@ const (
 	JudgeTypeExpo               = "expo"
 	JudgeTypeFinals             = "finals"
 	JudgeTypeCoordinator        = "coordinator"
+	AwardStatusDraft            = "draft"
+	AwardStatusAvailable        = "available"
+	AwardStatusUnawarded        = "unawarded"
+	AwardStatusAwarded          = "awarded"
+	PrizeTypeSats               = "sats"
+	PrizeTypeInKind             = "in_kind"
+	PrizeTypeTickets            = "tickets"
+	PrizeTypePooled             = "pooled"
+	PrizeTypeTrophy             = "trophy"
+	PrizeStatusAvailable        = "available"
+	PrizeStatusNeedsFunds       = "needs_funds"
+	PrizeStatusAwarded          = "awarded"
+	PrizeStatusPaid             = "paid"
 )
 
 func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (string, error) {
@@ -973,6 +986,128 @@ func listScorecardsForCompetitionPostgres(ctx *config.AppContext, competitionID 
 	return out, nil
 }
 
+func createAwardPostgres(ctx *config.AppContext, in AwardInput) (string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	in = normalizeAwardInput(in)
+	if in.CompetitionID == "" {
+		return "", fmt.Errorf("award competition id is required")
+	}
+	if in.Title == "" {
+		return "", fmt.Errorf("award title is required")
+	}
+	var id string
+	err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO awards (
+			competition_id, title, description, photo_url, max_awardees, opt_in_required, status
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id::text
+	`, in.CompetitionID, in.Title, in.Description, in.PhotoURL, in.MaxAwardees, in.OptInRequired, in.Status).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("create award %q: %w", in.Title, err)
+	}
+	return id, nil
+}
+
+func listAwardsForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.Award, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("award competition id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT id::text, competition_id::text, coalesce(sponsored_by_org_id::text, ''),
+			title, description, photo_url, max_awardees, opt_in_required, status, created_at, updated_at
+		FROM awards
+		WHERE competition_id::text = $1
+		ORDER BY title, id
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("list awards for competition %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+	var out []*types.Award
+	for rows.Next() {
+		award, err := scanAward(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan award: %w", err)
+		}
+		out = append(out, award)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate awards for competition %s: %w", competitionID, err)
+	}
+	return out, nil
+}
+
+func createPrizePostgres(ctx *config.AppContext, in PrizeInput) (string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	in = normalizePrizeInput(in)
+	if in.AwardID == "" {
+		return "", fmt.Errorf("prize award id is required")
+	}
+	if in.Title == "" {
+		return "", fmt.Errorf("prize title is required")
+	}
+	if in.PrizeType == "" {
+		return "", fmt.Errorf("prize type is required")
+	}
+	var id string
+	err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO prizes (
+			award_id, prize_type, title, description, value_text,
+			pool_percentage, pool_url, status, comments
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id::text
+	`, in.AwardID, in.PrizeType, in.Title, in.Description, in.ValueText, in.PoolPercentage, in.PoolURL, in.Status, in.Comments).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("create prize %q: %w", in.Title, err)
+	}
+	return id, nil
+}
+
+func listPrizesForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.Prize, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("prize competition id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT prizes.id::text, prizes.award_id::text, prizes.prize_type, prizes.title,
+			prizes.description, prizes.value_text, prizes.pool_percentage, prizes.pool_url,
+			prizes.status, prizes.comments, prizes.created_at, prizes.updated_at
+		FROM prizes
+		JOIN awards ON awards.id = prizes.award_id
+		WHERE awards.competition_id::text = $1
+		ORDER BY awards.title, prizes.title, prizes.id
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("list prizes for competition %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+	var out []*types.Prize
+	for rows.Next() {
+		prize, err := scanPrize(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan prize: %w", err)
+		}
+		out = append(out, prize)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate prizes for competition %s: %w", competitionID, err)
+	}
+	return out, nil
+}
+
 func projectIsPublicPostgres(ctx *config.AppContext, project *types.HackathonProject) bool {
 	if project == nil {
 		return false
@@ -1168,6 +1303,64 @@ func scanScorecard(row scanner) (*types.Scorecard, error) {
 	return &scorecard, nil
 }
 
+func scanAward(rows pgx.Rows) (*types.Award, error) {
+	var award types.Award
+	var maxAwardees sql.NullInt64
+	if err := rows.Scan(
+		&award.ID,
+		&award.CompetitionID,
+		&award.SponsoredByOrgID,
+		&award.Title,
+		&award.Description,
+		&award.PhotoURL,
+		&maxAwardees,
+		&award.OptInRequired,
+		&award.Status,
+		&award.CreatedAt,
+		&award.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	if maxAwardees.Valid {
+		n := int(maxAwardees.Int64)
+		award.MaxAwardees = &n
+	}
+	award.Status = normalizeAwardStatus(award.Status)
+	return &award, nil
+}
+
+func scanPrize(rows pgx.Rows) (*types.Prize, error) {
+	var prize types.Prize
+	var poolPercentage pgtype.Numeric
+	if err := rows.Scan(
+		&prize.ID,
+		&prize.AwardID,
+		&prize.PrizeType,
+		&prize.Title,
+		&prize.Description,
+		&prize.ValueText,
+		&poolPercentage,
+		&prize.PoolURL,
+		&prize.Status,
+		&prize.Comments,
+		&prize.CreatedAt,
+		&prize.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	if poolPercentage.Valid {
+		value, err := poolPercentage.Float64Value()
+		if err != nil {
+			return nil, err
+		}
+		n := value.Float64
+		prize.PoolPercentage = &n
+	}
+	prize.PrizeType = normalizePrizeType(prize.PrizeType)
+	prize.Status = normalizePrizeStatus(prize.Status)
+	return &prize, nil
+}
+
 func pgTimePtr(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil
@@ -1234,6 +1427,27 @@ func normalizeScorecardInput(in ScorecardInput) ScorecardInput {
 	return in
 }
 
+func normalizeAwardInput(in AwardInput) AwardInput {
+	in.CompetitionID = strings.TrimSpace(in.CompetitionID)
+	in.Title = strings.TrimSpace(in.Title)
+	in.Description = strings.TrimSpace(in.Description)
+	in.PhotoURL = strings.TrimSpace(in.PhotoURL)
+	in.Status = normalizeAwardStatus(in.Status)
+	return in
+}
+
+func normalizePrizeInput(in PrizeInput) PrizeInput {
+	in.AwardID = strings.TrimSpace(in.AwardID)
+	in.PrizeType = normalizePrizeType(in.PrizeType)
+	in.Title = strings.TrimSpace(in.Title)
+	in.Description = strings.TrimSpace(in.Description)
+	in.ValueText = strings.TrimSpace(in.ValueText)
+	in.PoolURL = strings.TrimSpace(in.PoolURL)
+	in.Status = normalizePrizeStatus(in.Status)
+	in.Comments = strings.TrimSpace(in.Comments)
+	return in
+}
+
 func normalizeSlug(slug string) string {
 	slug = strings.TrimSpace(strings.ToLower(slug))
 	slug = strings.ReplaceAll(slug, " ", "-")
@@ -1261,6 +1475,49 @@ func normalizeJudgeType(value string) string {
 		return JudgeTypeCoordinator
 	default:
 		return ""
+	}
+}
+
+func normalizeAwardStatus(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case AwardStatusAvailable:
+		return AwardStatusAvailable
+	case AwardStatusUnawarded:
+		return AwardStatusUnawarded
+	case AwardStatusAwarded:
+		return AwardStatusAwarded
+	default:
+		return AwardStatusDraft
+	}
+}
+
+func normalizePrizeType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case PrizeTypeSats:
+		return PrizeTypeSats
+	case PrizeTypeInKind:
+		return PrizeTypeInKind
+	case PrizeTypeTickets:
+		return PrizeTypeTickets
+	case PrizeTypePooled:
+		return PrizeTypePooled
+	case PrizeTypeTrophy:
+		return PrizeTypeTrophy
+	default:
+		return ""
+	}
+}
+
+func normalizePrizeStatus(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case PrizeStatusNeedsFunds:
+		return PrizeStatusNeedsFunds
+	case PrizeStatusAwarded:
+		return PrizeStatusAwarded
+	case PrizeStatusPaid:
+		return PrizeStatusPaid
+	default:
+		return PrizeStatusAvailable
 	}
 }
 

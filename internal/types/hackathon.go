@@ -109,6 +109,35 @@ type Scorecard struct {
 	UpdatedAt      time.Time
 }
 
+type Award struct {
+	ID               string
+	CompetitionID    string
+	SponsoredByOrgID string
+	Title            string
+	Description      string
+	PhotoURL         string
+	MaxAwardees      *int
+	OptInRequired    bool
+	Status           string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type Prize struct {
+	ID             string
+	AwardID        string
+	PrizeType      string
+	Title          string
+	Description    string
+	ValueText      string
+	PoolPercentage *float64
+	PoolURL        string
+	Status         string
+	Comments       string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type HackathonViewer struct {
 	PersonID    string
 	Admin       bool

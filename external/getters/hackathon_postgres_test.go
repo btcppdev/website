@@ -394,6 +394,64 @@ func TestHackathonJudgingSetup(t *testing.T) {
 	}
 }
 
+func TestHackathonAwardsAndPrizes(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	maxAwardees := 2
+	poolPercentage := 12.5
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "awards-" + postgresSmokeSuffix(),
+		Title: "Awards Hackathon",
+	})
+	awardID, err := CreateAward(ctx, AwardInput{
+		CompetitionID: competitionID,
+		Title:         "Best Overall",
+		Description:   "Top project",
+		MaxAwardees:   &maxAwardees,
+		OptInRequired: true,
+		Status:        AwardStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreateAward: %v", err)
+	}
+	if awardID == "" {
+		t.Fatalf("CreateAward returned empty id")
+	}
+	awards, err := ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListAwardsForCompetition: %v", err)
+	}
+	if len(awards) != 1 || awards[0].ID != awardID || awards[0].MaxAwardees == nil || *awards[0].MaxAwardees != maxAwardees || !awards[0].OptInRequired {
+		t.Fatalf("awards mismatch: %+v", awards)
+	}
+
+	prizeID, err := CreatePrize(ctx, PrizeInput{
+		AwardID:        awardID,
+		PrizeType:      PrizeTypePooled,
+		Title:          "Prize pool",
+		Description:    "Shared sats pool",
+		ValueText:      "1,000,000 sats",
+		PoolPercentage: &poolPercentage,
+		PoolURL:        "https://example.com/pool",
+		Status:         PrizeStatusNeedsFunds,
+		Comments:       "confirm sponsor",
+	})
+	if err != nil {
+		t.Fatalf("CreatePrize: %v", err)
+	}
+	if prizeID == "" {
+		t.Fatalf("CreatePrize returned empty id")
+	}
+	prizes, err := ListPrizesForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListPrizesForCompetition: %v", err)
+	}
+	if len(prizes) != 1 || prizes[0].ID != prizeID || prizes[0].AwardID != awardID || prizes[0].PoolPercentage == nil || *prizes[0].PoolPercentage != poolPercentage {
+		t.Fatalf("prizes mismatch: %+v", prizes)
+	}
+}
+
 func requireHackathonSchema(t *testing.T, ctx *config.AppContext) {
 	t.Helper()
 	var schemaReady bool

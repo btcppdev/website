@@ -16,6 +16,7 @@
       {{ if not .IsNew }}
       <div class="flex flex-wrap gap-2">
         <a href="{{ .ProjectsURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Projects</a>
+        <a href="{{ .AwardsURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Awards</a>
         <a href="{{ .JudgingURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Judging</a>
       </div>
       {{ end }}

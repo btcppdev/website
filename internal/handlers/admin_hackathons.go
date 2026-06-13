@@ -26,6 +26,8 @@ type HackathonAdminPage struct {
 	Judges         []*types.CompetitionJudge
 	Scorecards     []*types.Scorecard
 	ScoreSummaries []*HackathonScoreSummary
+	Awards         []*types.Award
+	PrizesByAward  map[string][]*types.Prize
 	IsNew          bool
 	FlashMessage   string
 	FlashError     string
@@ -116,6 +118,13 @@ func (p *HackathonAdminPage) ScoreReviewURL(competition *types.HackathonCompetit
 		return "/admin/hackathons"
 	}
 	return "/admin/hackathons/" + url.PathEscape(competition.ID) + "/judging/scores"
+}
+
+func (p *HackathonAdminPage) AwardsURL(competition *types.HackathonCompetition) string {
+	if competition == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(competition.ID) + "/awards"
 }
 
 func (p *HackathonAdminPage) HackathonURL(competition *types.HackathonCompetition) string {
@@ -264,6 +273,74 @@ func (p *HackathonAdminPage) ScoreTotal(scorecard *types.Scorecard) string {
 	return strconv.Itoa(total)
 }
 
+func (p *HackathonAdminPage) AwardStatusLabel(status string) string {
+	switch strings.TrimSpace(status) {
+	case getters.AwardStatusDraft:
+		return "Draft"
+	case getters.AwardStatusAvailable:
+		return "Available"
+	case getters.AwardStatusUnawarded:
+		return "Unawarded"
+	case getters.AwardStatusAwarded:
+		return "Awarded"
+	default:
+		return strings.TrimSpace(status)
+	}
+}
+
+func (p *HackathonAdminPage) PrizeTypeLabel(prizeType string) string {
+	switch strings.TrimSpace(prizeType) {
+	case getters.PrizeTypeSats:
+		return "Sats"
+	case getters.PrizeTypeInKind:
+		return "In-kind"
+	case getters.PrizeTypeTickets:
+		return "Tickets"
+	case getters.PrizeTypePooled:
+		return "Pooled"
+	case getters.PrizeTypeTrophy:
+		return "Trophy"
+	default:
+		return strings.TrimSpace(prizeType)
+	}
+}
+
+func (p *HackathonAdminPage) PrizeStatusLabel(status string) string {
+	switch strings.TrimSpace(status) {
+	case getters.PrizeStatusAvailable:
+		return "Available"
+	case getters.PrizeStatusNeedsFunds:
+		return "Needs funds"
+	case getters.PrizeStatusAwarded:
+		return "Awarded"
+	case getters.PrizeStatusPaid:
+		return "Paid"
+	default:
+		return strings.TrimSpace(status)
+	}
+}
+
+func (p *HackathonAdminPage) AwardPrizes(award *types.Award) []*types.Prize {
+	if p == nil || p.PrizesByAward == nil || award == nil {
+		return nil
+	}
+	return p.PrizesByAward[award.ID]
+}
+
+func (p *HackathonAdminPage) OptionalIntLabel(value *int) string {
+	if value == nil {
+		return "Unlimited"
+	}
+	return strconv.Itoa(*value)
+}
+
+func (p *HackathonAdminPage) PercentLabel(value *float64) string {
+	if value == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*value, 'f', -1, 64) + "%"
+}
+
 func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
@@ -385,6 +462,90 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		ctx.Err.Printf("/admin/hackathons/%s/judging/scores template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
+}
+
+func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	awards, err := getters.ListAwardsForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list awards: %s", competitionID, err)
+		http.Error(w, "Unable to load awards", http.StatusInternalServerError)
+		return
+	}
+	prizes, err := getters.ListPrizesForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list prizes: %s", competitionID, err)
+		http.Error(w, "Unable to load prizes", http.StatusInternalServerError)
+		return
+	}
+	prizesByAward := make(map[string][]*types.Prize)
+	for _, prize := range prizes {
+		if prize != nil {
+			prizesByAward[prize.AwardID] = append(prizesByAward[prize.AwardID], prize)
+		}
+	}
+	page := &HackathonAdminPage{
+		Competition:   competition,
+		Awards:        awards,
+		PrizesByAward: prizesByAward,
+		FlashMessage:  r.URL.Query().Get("flash"),
+		FlashError:    r.URL.Query().Get("error"),
+		Year:          helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_awards.tmpl", page); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards template: %s", competitionID, err)
+		http.Error(w, "Unable to load page", http.StatusInternalServerError)
+	}
+}
+
+func HackathonAdminCreateAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	in, err := awardInputFromRequest(w, r, competitionID)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if _, err := getters.CreateAward(ctx, in); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards create: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award added"), http.StatusSeeOther)
+}
+
+func HackathonAdminCreatePrize(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	in, err := prizeInputFromRequest(w, r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if !awardBelongsToCompetition(ctx, competitionID, in.AwardID) {
+		handle404(w, r, ctx)
+		return
+	}
+	if _, err := getters.CreatePrize(ctx, in); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards/prizes create: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Prize added"), http.StatusSeeOther)
 }
 
 func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -713,6 +874,124 @@ func judgeTypeFromForm(r *http.Request) (string, error) {
 		return value, nil
 	default:
 		return "", fmt.Errorf("judge type must be Expo, Finals, or Coordinator")
+	}
+}
+
+func awardBelongsToCompetition(ctx *config.AppContext, competitionID, awardID string) bool {
+	competitionID = strings.TrimSpace(competitionID)
+	awardID = strings.TrimSpace(awardID)
+	if competitionID == "" || awardID == "" {
+		return false
+	}
+	awards, err := getters.ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		ctx.Err.Printf("list awards for competition %s: %s", competitionID, err)
+		return false
+	}
+	for _, award := range awards {
+		if award != nil && award.ID == awardID {
+			return true
+		}
+	}
+	return false
+}
+
+func awardInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string) (getters.AwardInput, error) {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		return getters.AwardInput{}, fmt.Errorf("bad form")
+	}
+	status, err := awardStatusFromForm(r)
+	if err != nil {
+		return getters.AwardInput{}, err
+	}
+	in := getters.AwardInput{
+		CompetitionID: strings.TrimSpace(competitionID),
+		Title:         strings.TrimSpace(r.FormValue("Title")),
+		Description:   strings.TrimSpace(r.FormValue("Description")),
+		PhotoURL:      strings.TrimSpace(r.FormValue("PhotoURL")),
+		OptInRequired: r.FormValue("OptInRequired") != "",
+		Status:        status,
+	}
+	if in.Title == "" {
+		return getters.AwardInput{}, fmt.Errorf("award title is required")
+	}
+	if raw := strings.TrimSpace(r.FormValue("MaxAwardees")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			return getters.AwardInput{}, fmt.Errorf("max awardees must be positive")
+		}
+		in.MaxAwardees = &n
+	}
+	return in, nil
+}
+
+func prizeInputFromRequest(w http.ResponseWriter, r *http.Request) (getters.PrizeInput, error) {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		return getters.PrizeInput{}, fmt.Errorf("bad form")
+	}
+	prizeType, err := prizeTypeFromForm(r)
+	if err != nil {
+		return getters.PrizeInput{}, err
+	}
+	status, err := prizeStatusFromForm(r)
+	if err != nil {
+		return getters.PrizeInput{}, err
+	}
+	in := getters.PrizeInput{
+		AwardID:     strings.TrimSpace(r.FormValue("AwardID")),
+		PrizeType:   prizeType,
+		Title:       strings.TrimSpace(r.FormValue("Title")),
+		Description: strings.TrimSpace(r.FormValue("Description")),
+		ValueText:   strings.TrimSpace(r.FormValue("ValueText")),
+		PoolURL:     strings.TrimSpace(r.FormValue("PoolURL")),
+		Status:      status,
+		Comments:    strings.TrimSpace(r.FormValue("Comments")),
+	}
+	if in.AwardID == "" {
+		return getters.PrizeInput{}, fmt.Errorf("award is required")
+	}
+	if in.Title == "" {
+		return getters.PrizeInput{}, fmt.Errorf("prize title is required")
+	}
+	if raw := strings.TrimSpace(r.FormValue("PoolPercentage")); raw != "" {
+		n, err := strconv.ParseFloat(raw, 64)
+		if err != nil || n < 0 || n > 100 {
+			return getters.PrizeInput{}, fmt.Errorf("pool percentage must be between 0 and 100")
+		}
+		in.PoolPercentage = &n
+	}
+	return in, nil
+}
+
+func awardStatusFromForm(r *http.Request) (string, error) {
+	value := strings.TrimSpace(r.FormValue("Status"))
+	switch value {
+	case getters.AwardStatusDraft, getters.AwardStatusAvailable, getters.AwardStatusUnawarded, getters.AwardStatusAwarded:
+		return value, nil
+	default:
+		return "", fmt.Errorf("award status is invalid")
+	}
+}
+
+func prizeTypeFromForm(r *http.Request) (string, error) {
+	value := strings.TrimSpace(r.FormValue("PrizeType"))
+	switch value {
+	case getters.PrizeTypeSats, getters.PrizeTypeInKind, getters.PrizeTypeTickets, getters.PrizeTypePooled, getters.PrizeTypeTrophy:
+		return value, nil
+	default:
+		return "", fmt.Errorf("prize type is invalid")
+	}
+}
+
+func prizeStatusFromForm(r *http.Request) (string, error) {
+	value := strings.TrimSpace(r.FormValue("Status"))
+	switch value {
+	case getters.PrizeStatusAvailable, getters.PrizeStatusNeedsFunds, getters.PrizeStatusAwarded, getters.PrizeStatusPaid:
+		return value, nil
+	default:
+		return "", fmt.Errorf("prize status is invalid")
 	}
 }
 
