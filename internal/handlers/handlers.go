@@ -1173,6 +1173,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminEdit(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/projects", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminProjects(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/visibility", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateVisibility(w, r, app)
 	}).Methods("POST")

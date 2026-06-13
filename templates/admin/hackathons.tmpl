@@ -41,7 +41,7 @@
               <th scope="col" class="px-4 py-3">Conference</th>
               <th scope="col" class="px-4 py-3">Team size</th>
               <th scope="col" class="px-4 py-3">Schedule</th>
-              <th scope="col" class="px-4 py-3"><span class="sr-only">Edit</span></th>
+              <th scope="col" class="px-4 py-3"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 bg-white">
@@ -89,7 +89,10 @@
                 </div>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-right">
-                <a href="/admin/hackathons/{{ .ID }}" class="font-medium text-indigo-600 hover:text-indigo-500">Edit</a>
+                <div class="flex justify-end gap-3">
+                  <a href="{{ $.ProjectsURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">Projects</a>
+                  <a href="/admin/hackathons/{{ .ID }}" class="font-medium text-indigo-600 hover:text-indigo-500">Edit</a>
+                </div>
               </td>
             </tr>
             {{ end }}
