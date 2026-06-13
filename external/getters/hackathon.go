@@ -57,6 +57,28 @@ type ScorecardInput struct {
 	Comments       string
 }
 
+type AwardInput struct {
+	CompetitionID string
+	Title         string
+	Description   string
+	PhotoURL      string
+	MaxAwardees   *int
+	OptInRequired bool
+	Status        string
+}
+
+type PrizeInput struct {
+	AwardID        string
+	PrizeType      string
+	Title          string
+	Description    string
+	ValueText      string
+	PoolPercentage *float64
+	PoolURL        string
+	Status         string
+	Comments       string
+}
+
 func CreateCompetition(ctx *config.AppContext, in CompetitionInput) (string, error) {
 	if UsePostgresBackend(ctx) {
 		return createCompetitionPostgres(ctx, in)
@@ -237,4 +259,32 @@ func ListScorecardsForCompetition(ctx *config.AppContext, competitionID string) 
 		return listScorecardsForCompetitionPostgres(ctx, competitionID)
 	}
 	return nil, unsupportedPostgresBackend("hackathon scorecards")
+}
+
+func CreateAward(ctx *config.AppContext, in AwardInput) (string, error) {
+	if UsePostgresBackend(ctx) {
+		return createAwardPostgres(ctx, in)
+	}
+	return "", unsupportedPostgresBackend("hackathon awards")
+}
+
+func ListAwardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Award, error) {
+	if UsePostgresBackend(ctx) {
+		return listAwardsForCompetitionPostgres(ctx, competitionID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon awards")
+}
+
+func CreatePrize(ctx *config.AppContext, in PrizeInput) (string, error) {
+	if UsePostgresBackend(ctx) {
+		return createPrizePostgres(ctx, in)
+	}
+	return "", unsupportedPostgresBackend("hackathon prizes")
+}
+
+func ListPrizesForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Prize, error) {
+	if UsePostgresBackend(ctx) {
+		return listPrizesForCompetitionPostgres(ctx, competitionID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon prizes")
 }
