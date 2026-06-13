@@ -288,3 +288,24 @@ func ListPrizesForCompetition(ctx *config.AppContext, competitionID string) ([]*
 	}
 	return nil, unsupportedPostgresBackend("hackathon prizes")
 }
+
+func AssignProjectAward(ctx *config.AppContext, awardID, projectID string) error {
+	if UsePostgresBackend(ctx) {
+		return assignProjectAwardPostgres(ctx, awardID, projectID)
+	}
+	return unsupportedPostgresBackend("hackathon project awards")
+}
+
+func RemoveProjectAward(ctx *config.AppContext, awardID, projectID string) error {
+	if UsePostgresBackend(ctx) {
+		return removeProjectAwardPostgres(ctx, awardID, projectID)
+	}
+	return unsupportedPostgresBackend("hackathon project awards")
+}
+
+func ListProjectAwardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.ProjectAward, error) {
+	if UsePostgresBackend(ctx) {
+		return listProjectAwardsForCompetitionPostgres(ctx, competitionID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon project awards")
+}

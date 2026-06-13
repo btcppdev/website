@@ -17,21 +17,22 @@ import (
 )
 
 type HackathonAdminPage struct {
-	Competitions   []*types.HackathonCompetition
-	Confs          []*types.Conf
-	Competition    *types.HackathonCompetition
-	Projects       []*types.HackathonProject
-	ProjectTeams   map[string][]*types.ProjectMember
-	JudgeEvents    []*types.JudgeEvent
-	Judges         []*types.CompetitionJudge
-	Scorecards     []*types.Scorecard
-	ScoreSummaries []*HackathonScoreSummary
-	Awards         []*types.Award
-	PrizesByAward  map[string][]*types.Prize
-	IsNew          bool
-	FlashMessage   string
-	FlashError     string
-	Year           uint
+	Competitions    []*types.HackathonCompetition
+	Confs           []*types.Conf
+	Competition     *types.HackathonCompetition
+	Projects        []*types.HackathonProject
+	ProjectTeams    map[string][]*types.ProjectMember
+	JudgeEvents     []*types.JudgeEvent
+	Judges          []*types.CompetitionJudge
+	Scorecards      []*types.Scorecard
+	ScoreSummaries  []*HackathonScoreSummary
+	Awards          []*types.Award
+	PrizesByAward   map[string][]*types.Prize
+	AwardeesByAward map[string][]*types.ProjectAward
+	IsNew           bool
+	FlashMessage    string
+	FlashError      string
+	Year            uint
 }
 
 type HackathonScoreSummary struct {
@@ -327,6 +328,30 @@ func (p *HackathonAdminPage) AwardPrizes(award *types.Award) []*types.Prize {
 	return p.PrizesByAward[award.ID]
 }
 
+func (p *HackathonAdminPage) Awardees(award *types.Award) []*types.ProjectAward {
+	if p == nil || p.AwardeesByAward == nil || award == nil {
+		return nil
+	}
+	return p.AwardeesByAward[award.ID]
+}
+
+func (p *HackathonAdminPage) ProjectSelectLabel(project *types.HackathonProject) string {
+	if project == nil {
+		return ""
+	}
+	if project.ProjectNumber != nil {
+		return "#" + strconv.Itoa(*project.ProjectNumber) + " - " + project.Title
+	}
+	return project.Title
+}
+
+func (p *HackathonAdminPage) ProjectAwardNumber(award *types.ProjectAward) string {
+	if award == nil || award.ProjectNumber == nil {
+		return "TBA"
+	}
+	return strconv.Itoa(*award.ProjectNumber)
+}
+
 func (p *HackathonAdminPage) OptionalIntLabel(value *int) string {
 	if value == nil {
 		return "Unlimited"
@@ -486,19 +511,39 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "Unable to load prizes", http.StatusInternalServerError)
 		return
 	}
+	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, types.HackathonViewer{Admin: true})
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list projects: %s", competitionID, err)
+		http.Error(w, "Unable to load projects", http.StatusInternalServerError)
+		return
+	}
+	projectAwards, err := getters.ListProjectAwardsForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list awardees: %s", competitionID, err)
+		http.Error(w, "Unable to load awardees", http.StatusInternalServerError)
+		return
+	}
 	prizesByAward := make(map[string][]*types.Prize)
 	for _, prize := range prizes {
 		if prize != nil {
 			prizesByAward[prize.AwardID] = append(prizesByAward[prize.AwardID], prize)
 		}
 	}
+	awardeesByAward := make(map[string][]*types.ProjectAward)
+	for _, award := range projectAwards {
+		if award != nil {
+			awardeesByAward[award.AwardID] = append(awardeesByAward[award.AwardID], award)
+		}
+	}
 	page := &HackathonAdminPage{
-		Competition:   competition,
-		Awards:        awards,
-		PrizesByAward: prizesByAward,
-		FlashMessage:  r.URL.Query().Get("flash"),
-		FlashError:    r.URL.Query().Get("error"),
-		Year:          helpers.CurrentYear(),
+		Competition:     competition,
+		Projects:        projects,
+		Awards:          awards,
+		PrizesByAward:   prizesByAward,
+		AwardeesByAward: awardeesByAward,
+		FlashMessage:    r.URL.Query().Get("flash"),
+		FlashError:      r.URL.Query().Get("error"),
+		Year:            helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_awards.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards template: %s", competitionID, err)
@@ -546,6 +591,52 @@ func HackathonAdminCreatePrize(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Prize added"), http.StatusSeeOther)
+}
+
+func HackathonAdminAssignAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	awardID, projectID, err := awardAssignmentFromRequest(w, r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if !awardBelongsToCompetition(ctx, competitionID, awardID) || !projectBelongsToCompetition(ctx, competitionID, projectID) {
+		handle404(w, r, ctx)
+		return
+	}
+	if err := getters.AssignProjectAward(ctx, awardID, projectID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards/assign: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award assigned"), http.StatusSeeOther)
+}
+
+func HackathonAdminRemoveAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	awardID, projectID, err := awardAssignmentFromRequest(w, r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if !awardBelongsToCompetition(ctx, competitionID, awardID) || !projectBelongsToCompetition(ctx, competitionID, projectID) {
+		handle404(w, r, ctx)
+		return
+	}
+	if err := getters.RemoveProjectAward(ctx, awardID, projectID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards/remove: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award removed"), http.StatusSeeOther)
 }
 
 func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -894,6 +985,36 @@ func awardBelongsToCompetition(ctx *config.AppContext, competitionID, awardID st
 		}
 	}
 	return false
+}
+
+func projectBelongsToCompetition(ctx *config.AppContext, competitionID, projectID string) bool {
+	competitionID = strings.TrimSpace(competitionID)
+	projectID = strings.TrimSpace(projectID)
+	if competitionID == "" || projectID == "" {
+		return false
+	}
+	project, err := getters.GetProjectByID(ctx, projectID)
+	if err != nil {
+		ctx.Err.Printf("get project %s: %s", projectID, err)
+		return false
+	}
+	return project != nil && project.CompetitionID == competitionID
+}
+
+func awardAssignmentFromRequest(w http.ResponseWriter, r *http.Request) (string, string, error) {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		return "", "", fmt.Errorf("bad form")
+	}
+	awardID := strings.TrimSpace(r.FormValue("AwardID"))
+	projectID := strings.TrimSpace(r.FormValue("ProjectID"))
+	if awardID == "" {
+		return "", "", fmt.Errorf("award is required")
+	}
+	if projectID == "" {
+		return "", "", fmt.Errorf("project is required")
+	}
+	return awardID, projectID, nil
 }
 
 func awardInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string) (getters.AwardInput, error) {
