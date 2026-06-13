@@ -1207,6 +1207,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/hackathons/{slug}/projects", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectCreate(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/hackathons/invites/{token}", func(w http.ResponseWriter, r *http.Request) {
+		HackathonProjectInviteAccept(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/hackathons/{slug}/projects/{projectID}/invites", func(w http.ResponseWriter, r *http.Request) {
+		HackathonProjectInviteCreate(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/hackathons/{slug}/projects/{projectID}/submit", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectSubmit(w, r, app)
 	}).Methods("POST")

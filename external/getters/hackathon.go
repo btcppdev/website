@@ -133,6 +133,13 @@ func ListProjectMembers(ctx *config.AppContext, projectID string) ([]*types.Proj
 	return nil, unsupportedPostgresBackend("hackathon project members")
 }
 
+func GetPersonIDByEmail(ctx *config.AppContext, email string) (string, error) {
+	if UsePostgresBackend(ctx) {
+		return getPersonIDByEmailPostgres(ctx, email)
+	}
+	return "", unsupportedPostgresBackend("people")
+}
+
 func CreateProjectInvite(ctx *config.AppContext, projectID, email string, expiresAt *time.Time) (string, *types.ProjectInvite, error) {
 	if UsePostgresBackend(ctx) {
 		return createProjectInvitePostgres(ctx, projectID, email, expiresAt)

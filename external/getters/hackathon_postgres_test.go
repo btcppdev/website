@@ -138,6 +138,20 @@ func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 	}
 }
 
+func TestGetPersonIDByEmail(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	personID := insertSmokePerson(t, ctx, "invite-email")
+	got, err := GetPersonIDByEmail(ctx, "invite-email@example.test")
+	if err != nil {
+		t.Fatalf("GetPersonIDByEmail: %v", err)
+	}
+	if got != personID {
+		t.Fatalf("person id = %q, want %q", got, personID)
+	}
+}
+
 func TestHackathonProjectVisibility(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)

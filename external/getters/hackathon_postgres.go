@@ -440,8 +440,12 @@ func addProjectMemberTx(ctx *config.AppContext, tx pgx.Tx, projectID, personID, 
 	_, err := tx.Exec(context.Background(), `
 		INSERT INTO project_members (project_id, person_id, role)
 		VALUES ($1, $2, $3)
-		ON CONFLICT (project_id, person_id) DO UPDATE SET role = EXCLUDED.role
-	`, projectID, personID, role)
+		ON CONFLICT (project_id, person_id) DO UPDATE
+		SET role = CASE
+			WHEN project_members.role = $4 THEN project_members.role
+			ELSE EXCLUDED.role
+		END
+	`, projectID, personID, role, ProjectMemberRoleOwner)
 	if err != nil {
 		return fmt.Errorf("insert project member %s/%s: %w", projectID, personID, err)
 	}
@@ -474,10 +478,13 @@ func listProjectMembersPostgres(ctx *config.AppContext, projectID string) ([]*ty
 		return nil, fmt.Errorf("project id is required")
 	}
 	rows, err := ctx.DB.Query(context.Background(), `
-		SELECT project_id::text, person_id::text, role, created_at
+		SELECT project_members.project_id::text, project_members.person_id::text,
+			coalesce(people.name, ''), coalesce(people.email::text, ''),
+			project_members.role, project_members.created_at
 		FROM project_members
-		WHERE project_id::text = $1
-		ORDER BY created_at, person_id::text
+		LEFT JOIN people ON people.id = project_members.person_id
+		WHERE project_members.project_id::text = $1
+		ORDER BY project_members.created_at, project_members.person_id::text
 	`, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("query project members %s: %w", projectID, err)
@@ -486,7 +493,7 @@ func listProjectMembersPostgres(ctx *config.AppContext, projectID string) ([]*ty
 	var out []*types.ProjectMember
 	for rows.Next() {
 		var member types.ProjectMember
-		if err := rows.Scan(&member.ProjectID, &member.PersonID, &member.Role, &member.CreatedAt); err != nil {
+		if err := rows.Scan(&member.ProjectID, &member.PersonID, &member.Name, &member.Email, &member.Role, &member.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan project member %s: %w", projectID, err)
 		}
 		out = append(out, &member)
@@ -495,6 +502,30 @@ func listProjectMembersPostgres(ctx *config.AppContext, projectID string) ([]*ty
 		return nil, fmt.Errorf("iterate project members %s: %w", projectID, err)
 	}
 	return out, nil
+}
+
+func getPersonIDByEmailPostgres(ctx *config.AppContext, email string) (string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return "", fmt.Errorf("email is required")
+	}
+	var personID string
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT id::text
+		FROM people
+		WHERE email = $1::citext
+		ORDER BY created_at
+		LIMIT 1
+	`, email).Scan(&personID); err != nil {
+		if err == pgx.ErrNoRows {
+			return "", fmt.Errorf("person not found for %s", email)
+		}
+		return "", fmt.Errorf("lookup person by email %s: %w", email, err)
+	}
+	return personID, nil
 }
 
 func createProjectInvitePostgres(ctx *config.AppContext, projectID, email string, expiresAt *time.Time) (string, *types.ProjectInvite, error) {
