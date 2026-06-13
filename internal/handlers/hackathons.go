@@ -28,6 +28,7 @@ type HackathonPage struct {
 	CanCreate     bool
 	CanEdit       bool
 	CanSubmit     bool
+	InviteLink    string
 	FlashMessage  string
 	FlashError    string
 	Year          uint
@@ -356,6 +357,7 @@ func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		ViewerPerson: hackathonViewerPersonID(id),
 		CanEdit:      canEdit,
 		CanSubmit:    canSubmit,
+		InviteLink:   strings.TrimSpace(r.URL.Query().Get("invite")),
 		FlashMessage: r.URL.Query().Get("flash"),
 		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
@@ -429,7 +431,7 @@ func HackathonProjectInviteCreate(w http.ResponseWriter, r *http.Request, ctx *c
 		return
 	}
 	inviteURL := absoluteURL(r, "/hackathons/invites/"+url.PathEscape(token))
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Invite link: "+inviteURL), http.StatusSeeOther)
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Invite link created")+"&invite="+url.QueryEscape(inviteURL), http.StatusSeeOther)
 }
 
 func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

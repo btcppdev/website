@@ -103,6 +103,17 @@
         <h2 class="text-sm font-semibold text-gray-900">Team</h2>
       </div>
       <div class="space-y-6 px-4 py-5 sm:p-6">
+        {{ if .InviteLink }}
+        <div class="rounded-md border border-green-200 bg-green-50 px-4 py-3">
+          <label for="InviteLink" class="block text-sm font-medium text-green-900">Invite link created</label>
+          <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input id="InviteLink" type="url" readonly value="{{ .InviteLink }}"
+                   class="block w-full rounded-md bg-white px-3 py-2 font-mono text-xs text-gray-900 outline outline-1 outline-green-300">
+            <a href="{{ .InviteLink }}" class="inline-flex items-center justify-center rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800">Open</a>
+          </div>
+        </div>
+        {{ end }}
+
         <div>
           {{ if .Members }}
           <ul class="divide-y divide-gray-100 rounded-md border border-gray-200">
