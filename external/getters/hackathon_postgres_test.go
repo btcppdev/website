@@ -113,12 +113,25 @@ func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 	})
 
 	secondID := insertSmokePerson(t, ctx, "second")
-	token, invite, err := CreateProjectInvite(ctx, projectID, "second@example.test", nil)
+	secondEmail := smokePersonEmail(t, ctx, secondID)
+	beforeInvite := time.Now()
+	token, invite, err := CreateProjectInvite(ctx, projectID, secondEmail, nil)
 	if err != nil {
 		t.Fatalf("CreateProjectInvite: %v", err)
 	}
 	if token == "" || invite == nil || invite.ProjectID != projectID {
 		t.Fatalf("bad invite token/invite: token=%q invite=%+v", token, invite)
+	}
+	if invite.Email != secondEmail {
+		t.Fatalf("invite email = %q, want %q", invite.Email, secondEmail)
+	}
+	if invite.ExpiresAt == nil {
+		t.Fatalf("invite ExpiresAt is nil")
+	}
+	minExpiresAt := beforeInvite.Add(ProjectInviteDefaultTTL - time.Minute)
+	maxExpiresAt := beforeInvite.Add(ProjectInviteDefaultTTL + time.Minute)
+	if invite.ExpiresAt.Before(minExpiresAt) || invite.ExpiresAt.After(maxExpiresAt) {
+		t.Fatalf("invite ExpiresAt = %v, want about %v", invite.ExpiresAt, beforeInvite.Add(ProjectInviteDefaultTTL))
 	}
 	accepted, err := AcceptProjectInvite(ctx, token, secondID)
 	if err != nil {
@@ -136,6 +149,27 @@ func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 	if !strings.Contains(err.Error(), "max team size") {
 		t.Fatalf("AddProjectMember third err = %v, want max team size", err)
 	}
+
+	otherCompetitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "email-invite-" + postgresSmokeSuffix(),
+		Title: "Email Invite Hackathon",
+	})
+	otherProjectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID:     otherCompetitionID,
+		CreatedByPersonID: ownerID,
+		Slug:              "email-invite-project-" + postgresSmokeSuffix(),
+		Title:             "Email Invite Project",
+	})
+	mismatchToken, _, err := CreateProjectInvite(ctx, otherProjectID, secondEmail, nil)
+	if err != nil {
+		t.Fatalf("CreateProjectInvite mismatch: %v", err)
+	}
+	mismatchID := insertSmokePerson(t, ctx, "mismatch")
+	if _, err := AcceptProjectInvite(ctx, mismatchToken, mismatchID); err == nil {
+		t.Fatalf("AcceptProjectInvite mismatch succeeded, want email error")
+	} else if !strings.Contains(err.Error(), "project invite is for") {
+		t.Fatalf("AcceptProjectInvite mismatch err = %v, want invite email", err)
+	}
 }
 
 func TestGetPersonIDByEmail(t *testing.T) {
@@ -143,7 +177,8 @@ func TestGetPersonIDByEmail(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	personID := insertSmokePerson(t, ctx, "invite-email")
-	got, err := GetPersonIDByEmail(ctx, "invite-email@example.test")
+	personEmail := smokePersonEmail(t, ctx, personID)
+	got, err := GetPersonIDByEmail(ctx, personEmail)
 	if err != nil {
 		t.Fatalf("GetPersonIDByEmail: %v", err)
 	}
@@ -274,4 +309,17 @@ func insertSmokePerson(t *testing.T, ctx *config.AppContext, label string) strin
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, id)
 	})
 	return id
+}
+
+func smokePersonEmail(t *testing.T, ctx *config.AppContext, personID string) string {
+	t.Helper()
+	var email string
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT email::text
+		FROM people
+		WHERE id::text = $1
+	`, personID).Scan(&email); err != nil {
+		t.Fatalf("lookup person email %s: %v", personID, err)
+	}
+	return email
 }

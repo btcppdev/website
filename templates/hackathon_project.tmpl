@@ -109,7 +109,7 @@
           <div class="mt-2 flex flex-col gap-2 sm:flex-row">
             <input id="InviteLink" type="url" readonly value="{{ .InviteLink }}"
                    class="block w-full rounded-md bg-white px-3 py-2 font-mono text-xs text-gray-900 outline outline-1 outline-green-300">
-            <button type="button" data-copy-target="InviteLink" class="inline-flex items-center justify-center rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800">Copy</button>
+            <button type="button" data-copy-target="InviteLink" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Copy</button>
           </div>
         </div>
         {{ end }}
@@ -138,8 +138,9 @@
             <label for="Email" class="block text-sm font-medium text-gray-700">Invite email</label>
             <input id="Email" name="Email" type="email"
                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+            <p class="mt-1 text-xs text-gray-500">Links expire after 24 hours. Add an email to restrict the invite to that address.</p>
           </div>
-          <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create invite</button>
+          <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Generate one-time invite</button>
         </form>
         {{ end }}
       </div>
