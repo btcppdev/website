@@ -93,6 +93,22 @@ type JudgeEvent struct {
 	UpdatedAt             time.Time
 }
 
+type Scorecard struct {
+	ID             string
+	JudgeEventID   string
+	ProjectID      string
+	JudgePersonID  string
+	IdeaScore      *int
+	ExecutionScore *int
+	ImpactScore    *int
+	Rank           *int
+	NoShow         bool
+	Comments       string
+	SubmittedAt    *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type HackathonViewer struct {
 	PersonID    string
 	Admin       bool

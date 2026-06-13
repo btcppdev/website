@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,8 @@ type HackathonPage struct {
 	Project       *types.HackathonProject
 	Members       []*types.ProjectMember
 	JudgeEvents   []*types.JudgeEvent
+	Scorecards    []*types.Scorecard
+	JudgeTypes    map[string]bool
 	Viewer        *auth.Identity
 	OwnedProjects map[string]bool
 	IsNew         bool
@@ -29,6 +32,7 @@ type HackathonPage struct {
 	CanEdit       bool
 	CanSubmit     bool
 	CanJudge      bool
+	CanScoreAll   bool
 	InviteLink    string
 	FlashMessage  string
 	FlashError    string
@@ -114,6 +118,35 @@ func (p *HackathonPage) JudgeTypeLabel(judgeType string) string {
 	default:
 		return strings.TrimSpace(judgeType)
 	}
+}
+
+func (p *HackathonPage) Scorecard(projectID, judgeEventID string) *types.Scorecard {
+	if p == nil {
+		return nil
+	}
+	for _, scorecard := range p.Scorecards {
+		if scorecard != nil && scorecard.ProjectID == projectID && scorecard.JudgeEventID == judgeEventID {
+			return scorecard
+		}
+	}
+	return nil
+}
+
+func (p *HackathonPage) ScoreValue(value *int) string {
+	if value == nil {
+		return ""
+	}
+	return strconv.Itoa(*value)
+}
+
+func (p *HackathonPage) CanScoreJudgeEvent(event *types.JudgeEvent) bool {
+	if p == nil || event == nil {
+		return false
+	}
+	if p.CanScoreAll {
+		return true
+	}
+	return p.JudgeTypes[getters.JudgeTypeCoordinator] || p.JudgeTypes[event.PlaybookType]
 }
 
 func (p *HackathonPage) NextMilestoneLabel() string {
@@ -305,6 +338,16 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 	viewer := hackathonViewerFromIdentity(id, conf)
+	var scorecards []*types.Scorecard
+	if viewer.PersonID != "" {
+		scorecards, err = getters.ListScorecardsForJudge(ctx, competition.ID, viewer.PersonID)
+		if err != nil {
+			ctx.Err.Printf("/hackathons/%s/judging scorecards: %s", competition.Slug, err)
+			http.Error(w, "Unable to load scorecards", http.StatusInternalServerError)
+			return
+		}
+	}
+	judgeTypes := judgeTypesForPerson(ctx, competition.ID, viewer.PersonID)
 	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, viewer)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s/judging list projects: %s", competition.Slug, err)
@@ -316,7 +359,10 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		Conf:         conf,
 		Projects:     projects,
 		JudgeEvents:  events,
+		Scorecards:   scorecards,
+		JudgeTypes:   judgeTypes,
 		Viewer:       id,
+		CanScoreAll:  viewer.Admin || viewer.Coordinator,
 		FlashMessage: r.URL.Query().Get("flash"),
 		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
@@ -325,6 +371,55 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		ctx.Err.Printf("/hackathons/%s/judging template: %s", competition.Slug, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
+}
+
+func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	competition, conf, id, events, err := loadHackathonJudgingAccess(w, r, ctx)
+	if err != nil {
+		return
+	}
+	dest := hackathonURL(competition) + "/judging"
+	viewer := hackathonViewerFromIdentity(id, conf)
+	if viewer.PersonID == "" {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Your account needs a person profile before you can score projects."), http.StatusSeeOther)
+		return
+	}
+	in, err := scorecardInputFromRequest(w, r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	event := judgeEventByID(events, in.JudgeEventID)
+	if event == nil {
+		handle404(w, r, ctx)
+		return
+	}
+	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeType(ctx, competition.ID, viewer.PersonID, event.PlaybookType) {
+		handle404(w, r, ctx)
+		return
+	}
+	project, err := getters.GetProjectByID(ctx, in.ProjectID)
+	if err != nil || project.CompetitionID != competition.ID {
+		handle404(w, r, ctx)
+		return
+	}
+	ok, err := getters.CanViewProject(ctx, project.ID, viewer)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/judging project access %s: %s", competition.Slug, project.ID, err)
+		http.Error(w, "Unable to score project", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		handle404(w, r, ctx)
+		return
+	}
+	in.JudgePersonID = viewer.PersonID
+	if _, err := getters.UpsertScorecard(ctx, in); err != nil {
+		ctx.Err.Printf("/hackathons/%s/judging scorecard: %s", competition.Slug, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Scorecard saved")+"#project-"+url.PathEscape(project.ID), http.StatusSeeOther)
 }
 
 func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -646,6 +741,64 @@ func projectInputFromRequest(w http.ResponseWriter, r *http.Request, competition
 	return in, nil
 }
 
+func scorecardInputFromRequest(w http.ResponseWriter, r *http.Request) (getters.ScorecardInput, error) {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		return getters.ScorecardInput{}, fmt.Errorf("bad form")
+	}
+	ideaScore, err := optionalIntFromForm(r, "IdeaScore", "idea score", 1, 5)
+	if err != nil {
+		return getters.ScorecardInput{}, err
+	}
+	executionScore, err := optionalIntFromForm(r, "ExecutionScore", "execution score", 1, 5)
+	if err != nil {
+		return getters.ScorecardInput{}, err
+	}
+	impactScore, err := optionalIntFromForm(r, "ImpactScore", "impact score", 1, 5)
+	if err != nil {
+		return getters.ScorecardInput{}, err
+	}
+	rank, err := optionalIntFromForm(r, "Rank", "rank", 1, 0)
+	if err != nil {
+		return getters.ScorecardInput{}, err
+	}
+	in := getters.ScorecardInput{
+		JudgeEventID:   strings.TrimSpace(r.FormValue("JudgeEventID")),
+		ProjectID:      strings.TrimSpace(r.FormValue("ProjectID")),
+		IdeaScore:      ideaScore,
+		ExecutionScore: executionScore,
+		ImpactScore:    impactScore,
+		Rank:           rank,
+		NoShow:         r.FormValue("NoShow") != "",
+		Comments:       strings.TrimSpace(r.FormValue("Comments")),
+	}
+	if in.JudgeEventID == "" {
+		return getters.ScorecardInput{}, fmt.Errorf("judge event is required")
+	}
+	if in.ProjectID == "" {
+		return getters.ScorecardInput{}, fmt.Errorf("project is required")
+	}
+	return in, nil
+}
+
+func optionalIntFromForm(r *http.Request, field, label string, min, max int) (*int, error) {
+	raw := strings.TrimSpace(r.FormValue(field))
+	if raw == "" {
+		return nil, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return nil, fmt.Errorf("%s must be a number", label)
+	}
+	if n < min {
+		return nil, fmt.Errorf("%s must be at least %d", label, min)
+	}
+	if max > 0 && n > max {
+		return nil, fmt.Errorf("%s must be at most %d", label, max)
+	}
+	return &n, nil
+}
+
 func splitProjectTags(raw string) []string {
 	parts := strings.Split(raw, ",")
 	tags := make([]string, 0, len(parts))
@@ -735,6 +888,57 @@ func viewerCanJudgeCompetition(ctx *config.AppContext, competitionID, personID s
 		}
 	}
 	return false
+}
+
+func viewerCanJudgeType(ctx *config.AppContext, competitionID, personID, judgeType string) bool {
+	personID = strings.TrimSpace(personID)
+	judgeType = strings.TrimSpace(judgeType)
+	if personID == "" || judgeType == "" {
+		return false
+	}
+	judges, err := getters.ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		ctx.Err.Printf("list competition judges %s: %s", competitionID, err)
+		return false
+	}
+	for _, judge := range judges {
+		if judge == nil || judge.PersonID != personID {
+			continue
+		}
+		if judge.JudgeType == getters.JudgeTypeCoordinator || judge.JudgeType == judgeType {
+			return true
+		}
+	}
+	return false
+}
+
+func judgeTypesForPerson(ctx *config.AppContext, competitionID, personID string) map[string]bool {
+	personID = strings.TrimSpace(personID)
+	out := map[string]bool{}
+	if personID == "" {
+		return out
+	}
+	judges, err := getters.ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		ctx.Err.Printf("list competition judges %s: %s", competitionID, err)
+		return out
+	}
+	for _, judge := range judges {
+		if judge != nil && judge.PersonID == personID {
+			out[judge.JudgeType] = true
+		}
+	}
+	return out
+}
+
+func judgeEventByID(events []*types.JudgeEvent, eventID string) *types.JudgeEvent {
+	eventID = strings.TrimSpace(eventID)
+	for _, event := range events {
+		if event != nil && event.ID == eventID {
+			return event
+		}
+	}
+	return nil
 }
 
 func ownedProjectMap(ctx *config.AppContext, projects []*types.HackathonProject, personID string) map[string]bool {

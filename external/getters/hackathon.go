@@ -45,6 +45,18 @@ type JudgeEventInput struct {
 	StartingProjectNumber *int
 }
 
+type ScorecardInput struct {
+	JudgeEventID   string
+	ProjectID      string
+	JudgePersonID  string
+	IdeaScore      *int
+	ExecutionScore *int
+	ImpactScore    *int
+	Rank           *int
+	NoShow         bool
+	Comments       string
+}
+
 func CreateCompetition(ctx *config.AppContext, in CompetitionInput) (string, error) {
 	if UsePostgresBackend(ctx) {
 		return createCompetitionPostgres(ctx, in)
@@ -204,4 +216,18 @@ func ListCompetitionJudges(ctx *config.AppContext, competitionID string) ([]*typ
 		return listCompetitionJudgesPostgres(ctx, competitionID)
 	}
 	return nil, unsupportedPostgresBackend("hackathon judges")
+}
+
+func UpsertScorecard(ctx *config.AppContext, in ScorecardInput) (*types.Scorecard, error) {
+	if UsePostgresBackend(ctx) {
+		return upsertScorecardPostgres(ctx, in)
+	}
+	return nil, unsupportedPostgresBackend("hackathon scorecards")
+}
+
+func ListScorecardsForJudge(ctx *config.AppContext, competitionID, judgePersonID string) ([]*types.Scorecard, error) {
+	if UsePostgresBackend(ctx) {
+		return listScorecardsForJudgePostgres(ctx, competitionID, judgePersonID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon scorecards")
 }
