@@ -231,3 +231,10 @@ func ListScorecardsForJudge(ctx *config.AppContext, competitionID, judgePersonID
 	}
 	return nil, unsupportedPostgresBackend("hackathon scorecards")
 }
+
+func ListScorecardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Scorecard, error) {
+	if UsePostgresBackend(ctx) {
+		return listScorecardsForCompetitionPostgres(ctx, competitionID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon scorecards")
+}

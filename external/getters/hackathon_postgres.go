@@ -936,6 +936,43 @@ func listScorecardsForJudgePostgres(ctx *config.AppContext, competitionID, judge
 	return out, nil
 }
 
+func listScorecardsForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.Scorecard, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("scorecard competition id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT scorecards.id::text, scorecards.judge_event_id::text,
+			scorecards.project_id::text, scorecards.judge_person_id::text,
+			scorecards.idea_score, scorecards.execution_score, scorecards.impact_score,
+			scorecards.rank, scorecards.no_show, scorecards.comments,
+			scorecards.submitted_at, scorecards.created_at, scorecards.updated_at
+		FROM scorecards
+		JOIN judge_events ON judge_events.id = scorecards.judge_event_id
+		WHERE judge_events.competition_id::text = $1
+		ORDER BY scorecards.project_id, judge_events.ordering, judge_events.name, scorecards.judge_person_id
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("list scorecards for competition %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+	var out []*types.Scorecard
+	for rows.Next() {
+		scorecard, err := scanScorecard(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan scorecard: %w", err)
+		}
+		out = append(out, scorecard)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate scorecards for competition %s: %w", competitionID, err)
+	}
+	return out, nil
+}
+
 func projectIsPublicPostgres(ctx *config.AppContext, project *types.HackathonProject) bool {
 	if project == nil {
 		return false
