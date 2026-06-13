@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -16,18 +17,55 @@ import (
 )
 
 type HackathonAdminPage struct {
-	Competitions []*types.HackathonCompetition
-	Confs        []*types.Conf
-	Competition  *types.HackathonCompetition
-	Projects     []*types.HackathonProject
-	ProjectTeams map[string][]*types.ProjectMember
-	JudgeEvents  []*types.JudgeEvent
-	Judges       []*types.CompetitionJudge
-	Scorecards   []*types.Scorecard
-	IsNew        bool
-	FlashMessage string
-	FlashError   string
-	Year         uint
+	Competitions   []*types.HackathonCompetition
+	Confs          []*types.Conf
+	Competition    *types.HackathonCompetition
+	Projects       []*types.HackathonProject
+	ProjectTeams   map[string][]*types.ProjectMember
+	JudgeEvents    []*types.JudgeEvent
+	Judges         []*types.CompetitionJudge
+	Scorecards     []*types.Scorecard
+	ScoreSummaries []*HackathonScoreSummary
+	IsNew          bool
+	FlashMessage   string
+	FlashError     string
+	Year           uint
+}
+
+type HackathonScoreSummary struct {
+	ProjectID        string
+	ProjectTitle     string
+	ProjectNumber    string
+	Scorecards       int
+	ScoredScorecards int
+	NoShows          int
+	IdeaAverage      string
+	ExecutionAverage string
+	ImpactAverage    string
+	TotalAverage     string
+	RankAverage      string
+	BestRank         string
+
+	sortTitle       string
+	totalAverage    float64
+	rankAverage     float64
+	hasTotalAverage bool
+	hasRankAverage  bool
+}
+
+type scoreSummaryAccumulator struct {
+	summary     *HackathonScoreSummary
+	ideaSum     int
+	ideaCount   int
+	execSum     int
+	execCount   int
+	impactSum   int
+	impactCount int
+	totalSum    int
+	totalCount  int
+	rankSum     int
+	rankCount   int
+	bestRank    int
 }
 
 func (p *HackathonAdminPage) ConfLabel(confID string) string {
@@ -333,14 +371,15 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 	page := &HackathonAdminPage{
-		Competition:  competition,
-		Projects:     projects,
-		JudgeEvents:  events,
-		Judges:       judges,
-		Scorecards:   scorecards,
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		Year:         helpers.CurrentYear(),
+		Competition:    competition,
+		Projects:       projects,
+		JudgeEvents:    events,
+		Judges:         judges,
+		Scorecards:     scorecards,
+		ScoreSummaries: hackathonScoreSummaries(projects, scorecards),
+		FlashMessage:   r.URL.Query().Get("flash"),
+		FlashError:     r.URL.Query().Get("error"),
+		Year:           helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_scores.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/scores template: %s", competitionID, err)
@@ -675,6 +714,157 @@ func judgeTypeFromForm(r *http.Request) (string, error) {
 	default:
 		return "", fmt.Errorf("judge type must be Expo, Finals, or Coordinator")
 	}
+}
+
+func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*types.Scorecard) []*HackathonScoreSummary {
+	accs := map[string]*scoreSummaryAccumulator{}
+	order := make([]*scoreSummaryAccumulator, 0, len(projects))
+	for _, project := range projects {
+		if project == nil {
+			continue
+		}
+		acc := &scoreSummaryAccumulator{
+			summary: &HackathonScoreSummary{
+				ProjectID:        project.ID,
+				ProjectTitle:     project.Title,
+				ProjectNumber:    adminProjectNumberLabel(project),
+				IdeaAverage:      "-",
+				ExecutionAverage: "-",
+				ImpactAverage:    "-",
+				TotalAverage:     "-",
+				RankAverage:      "-",
+				BestRank:         "-",
+				sortTitle:        strings.ToLower(project.Title),
+			},
+		}
+		accs[project.ID] = acc
+		order = append(order, acc)
+	}
+	for _, scorecard := range scorecards {
+		if scorecard == nil {
+			continue
+		}
+		acc := accs[scorecard.ProjectID]
+		if acc == nil {
+			acc = &scoreSummaryAccumulator{
+				summary: &HackathonScoreSummary{
+					ProjectID:        scorecard.ProjectID,
+					ProjectTitle:     scorecard.ProjectID,
+					ProjectNumber:    "TBA",
+					IdeaAverage:      "-",
+					ExecutionAverage: "-",
+					ImpactAverage:    "-",
+					TotalAverage:     "-",
+					RankAverage:      "-",
+					BestRank:         "-",
+					sortTitle:        strings.ToLower(scorecard.ProjectID),
+				},
+			}
+			accs[scorecard.ProjectID] = acc
+			order = append(order, acc)
+		}
+		acc.add(scorecard)
+	}
+	summaries := make([]*HackathonScoreSummary, 0, len(order))
+	for _, acc := range order {
+		acc.finish()
+		summaries = append(summaries, acc.summary)
+	}
+	sort.SliceStable(summaries, func(i, j int) bool {
+		a, b := summaries[i], summaries[j]
+		if a.hasTotalAverage != b.hasTotalAverage {
+			return a.hasTotalAverage
+		}
+		if a.hasTotalAverage && a.totalAverage != b.totalAverage {
+			return a.totalAverage > b.totalAverage
+		}
+		if a.hasRankAverage != b.hasRankAverage {
+			return a.hasRankAverage
+		}
+		if a.hasRankAverage && a.rankAverage != b.rankAverage {
+			return a.rankAverage < b.rankAverage
+		}
+		if a.ScoredScorecards != b.ScoredScorecards {
+			return a.ScoredScorecards > b.ScoredScorecards
+		}
+		return a.sortTitle < b.sortTitle
+	})
+	return summaries
+}
+
+func (a *scoreSummaryAccumulator) add(scorecard *types.Scorecard) {
+	a.summary.Scorecards++
+	if scorecard.NoShow {
+		a.summary.NoShows++
+		return
+	}
+	total := 0
+	totalParts := 0
+	if scorecard.IdeaScore != nil {
+		a.ideaSum += *scorecard.IdeaScore
+		a.ideaCount++
+		total += *scorecard.IdeaScore
+		totalParts++
+	}
+	if scorecard.ExecutionScore != nil {
+		a.execSum += *scorecard.ExecutionScore
+		a.execCount++
+		total += *scorecard.ExecutionScore
+		totalParts++
+	}
+	if scorecard.ImpactScore != nil {
+		a.impactSum += *scorecard.ImpactScore
+		a.impactCount++
+		total += *scorecard.ImpactScore
+		totalParts++
+	}
+	if totalParts > 0 {
+		a.summary.ScoredScorecards++
+		a.totalSum += total
+		a.totalCount++
+	}
+	if scorecard.Rank != nil {
+		a.rankSum += *scorecard.Rank
+		a.rankCount++
+		if a.bestRank == 0 || *scorecard.Rank < a.bestRank {
+			a.bestRank = *scorecard.Rank
+		}
+	}
+}
+
+func (a *scoreSummaryAccumulator) finish() {
+	s := a.summary
+	if a.ideaCount > 0 {
+		s.IdeaAverage = formatScoreAverage(float64(a.ideaSum) / float64(a.ideaCount))
+	}
+	if a.execCount > 0 {
+		s.ExecutionAverage = formatScoreAverage(float64(a.execSum) / float64(a.execCount))
+	}
+	if a.impactCount > 0 {
+		s.ImpactAverage = formatScoreAverage(float64(a.impactSum) / float64(a.impactCount))
+	}
+	if a.totalCount > 0 {
+		s.totalAverage = float64(a.totalSum) / float64(a.totalCount)
+		s.TotalAverage = formatScoreAverage(s.totalAverage)
+		s.hasTotalAverage = true
+	}
+	if a.rankCount > 0 {
+		s.rankAverage = float64(a.rankSum) / float64(a.rankCount)
+		s.RankAverage = formatScoreAverage(s.rankAverage)
+		s.BestRank = strconv.Itoa(a.bestRank)
+		s.hasRankAverage = true
+	}
+}
+
+func adminProjectNumberLabel(project *types.HackathonProject) string {
+	if project == nil || project.ProjectNumber == nil {
+		return "TBA"
+	}
+	return strconv.Itoa(*project.ProjectNumber)
+}
+
+func formatScoreAverage(value float64) string {
+	return strconv.FormatFloat(value, 'f', 1, 64)
 }
 
 func parseAdminLocalTime(value string) (*time.Time, error) {
