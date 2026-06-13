@@ -662,10 +662,10 @@ func canViewProjectLoadedPostgres(ctx *config.AppContext, project *types.Hackath
 	if project == nil {
 		return false, nil
 	}
-	if projectIsPublicPostgres(ctx, project) {
+	if viewer.Admin || viewer.Coordinator {
 		return true, nil
 	}
-	if viewer.Admin || viewer.Coordinator {
+	if projectIsPublicPostgres(ctx, project) {
 		return true, nil
 	}
 	viewer.PersonID = strings.TrimSpace(viewer.PersonID)

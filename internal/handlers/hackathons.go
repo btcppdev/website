@@ -22,7 +22,6 @@ type HackathonPage struct {
 	Project       *types.HackathonProject
 	Members       []*types.ProjectMember
 	Viewer        *auth.Identity
-	ViewerPerson  string
 	OwnedProjects map[string]bool
 	IsNew         bool
 	CanCreate     bool
@@ -234,13 +233,13 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	if err != nil {
 		return
 	}
+	personID := hackathonViewerPersonID(id)
 	page := &HackathonPage{
 		Competition:   competition,
 		Conf:          conf,
 		Projects:      projects,
 		Viewer:        id,
-		ViewerPerson:  hackathonViewerPersonID(id),
-		OwnedProjects: ownedProjectMap(ctx, projects, hackathonViewerPersonID(id)),
+		OwnedProjects: ownedProjectMap(ctx, projects, personID),
 		CanCreate:     id != nil && competitionAcceptsProjects(competition),
 		FlashMessage:  r.URL.Query().Get("flash"),
 		FlashError:    r.URL.Query().Get("error"),
@@ -258,11 +257,10 @@ func HackathonSchedule(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		return
 	}
 	page := &HackathonPage{
-		Competition:  competition,
-		Conf:         conf,
-		Viewer:       id,
-		ViewerPerson: hackathonViewerPersonID(id),
-		Year:         helpers.CurrentYear(),
+		Competition: competition,
+		Conf:        conf,
+		Viewer:      id,
+		Year:        helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_schedule.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/schedule template: %s", competition.Slug, err)
@@ -288,7 +286,6 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 		Conf:         conf,
 		Project:      &types.HackathonProject{CompetitionID: competition.ID},
 		Viewer:       id,
-		ViewerPerson: hackathonViewerPersonID(id),
 		IsNew:        true,
 		CanEdit:      true,
 		CanSubmit:    false,
@@ -354,7 +351,6 @@ func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		Project:      project,
 		Members:      members,
 		Viewer:       id,
-		ViewerPerson: hackathonViewerPersonID(id),
 		CanEdit:      canEdit,
 		CanSubmit:    canSubmit,
 		InviteLink:   strings.TrimSpace(r.URL.Query().Get("invite")),
@@ -665,17 +661,6 @@ func hackathonURL(competition *types.HackathonCompetition) string {
 		return "/hackathons"
 	}
 	return "/hackathons/" + url.PathEscape(competition.Slug)
-}
-
-func hackathonVisibilityLabel(visibility string) string {
-	switch strings.TrimSpace(visibility) {
-	case getters.CompetitionVisibilityHidden:
-		return "Hidden"
-	case getters.CompetitionVisibilityPublic:
-		return "Public"
-	default:
-		return strings.TrimSpace(visibility)
-	}
 }
 
 func hackathonLifecycleLabel(competition *types.HackathonCompetition) string {

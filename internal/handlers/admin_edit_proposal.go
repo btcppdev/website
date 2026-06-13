@@ -26,8 +26,8 @@ type AdminEditProposalPage struct {
 	TalkTypes []string
 	Durations []int
 	// Speakers is the SpeakerConf rows attached to this proposal,
-	// resolved from the warm cache so the edit page can show
-	// who's on the talk + offer per-row Remove buttons.
+	// resolved for display so the edit page can show who's on the
+	// talk + offer per-row Remove buttons.
 	Speakers []*types.SpeakerConf
 	// InviteURL is the share-a-link URL admins can copy and send
 	// to a new speaker. Empty when the proposal has no

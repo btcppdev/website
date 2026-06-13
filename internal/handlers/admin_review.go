@@ -516,10 +516,8 @@ func AdminProposalRemoveSpeaker(w http.ResponseWriter, r *http.Request, ctx *con
 
 	// Resolve the removed speaker's email + name BEFORE the
 	// removal lands so we can address them in the CANCEL ICS.
-	// Cache lookup: if the speaker isn't in the warm cache we
-	// silently skip the CANCEL (the speaker won't get an
-	// "you've been removed" calendar update; the remaining-
-	// speaker REQUEST below still fires).
+	// If the speaker row cannot be loaded, skip the CANCEL; the
+	// remaining-speaker REQUEST below still fires.
 	var removedEmail, removedName string
 	if sc, err := getters.GetSpeakerConfByID(ctx, speakerConfID); err != nil {
 		ctx.Err.Printf("/%s/admin/proposal/%s remove speaker %s lookup: %s", conf.Tag, proposalID, speakerConfID, err)
