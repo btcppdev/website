@@ -21,12 +21,14 @@ type HackathonPage struct {
 	Projects      []*types.HackathonProject
 	Project       *types.HackathonProject
 	Members       []*types.ProjectMember
+	JudgeEvents   []*types.JudgeEvent
 	Viewer        *auth.Identity
 	OwnedProjects map[string]bool
 	IsNew         bool
 	CanCreate     bool
 	CanEdit       bool
 	CanSubmit     bool
+	CanJudge      bool
 	InviteLink    string
 	FlashMessage  string
 	FlashError    string
@@ -76,6 +78,13 @@ func (p *HackathonPage) AdminEditURL() string {
 	return "/admin/hackathons/" + url.PathEscape(p.Competition.ID)
 }
 
+func (p *HackathonPage) JudgingURL() string {
+	if p == nil || p.Competition == nil {
+		return "/hackathons"
+	}
+	return hackathonURL(p.Competition) + "/judging"
+}
+
 func (p *HackathonPage) CompetitionStatusLabel() string {
 	if p == nil || p.Competition == nil {
 		return ""
@@ -85,6 +94,26 @@ func (p *HackathonPage) CompetitionStatusLabel() string {
 
 func (p *HackathonPage) ProjectStatusLabel(status string) string {
 	return hackathonStatusLabel(status)
+}
+
+func (p *HackathonPage) ProjectNumberLabel(project *types.HackathonProject) string {
+	if project == nil || project.ProjectNumber == nil {
+		return "Unassigned"
+	}
+	return fmt.Sprintf("#%d", *project.ProjectNumber)
+}
+
+func (p *HackathonPage) JudgeTypeLabel(judgeType string) string {
+	switch strings.TrimSpace(judgeType) {
+	case getters.JudgeTypeExpo:
+		return "Expo"
+	case getters.JudgeTypeFinals:
+		return "Finals"
+	case getters.JudgeTypeCoordinator:
+		return "Coordinator"
+	default:
+		return strings.TrimSpace(judgeType)
+	}
 }
 
 func (p *HackathonPage) NextMilestoneLabel() string {
@@ -234,6 +263,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		return
 	}
 	personID := hackathonViewerPersonID(id)
+	viewer := hackathonViewerFromIdentity(id, conf)
 	page := &HackathonPage{
 		Competition:   competition,
 		Conf:          conf,
@@ -241,6 +271,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Viewer:        id,
 		OwnedProjects: ownedProjectMap(ctx, projects, personID),
 		CanCreate:     id != nil && competitionAcceptsProjects(competition),
+		CanJudge:      viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
 		FlashMessage:  r.URL.Query().Get("flash"),
 		FlashError:    r.URL.Query().Get("error"),
 		Year:          helpers.CurrentYear(),
@@ -264,6 +295,34 @@ func HackathonSchedule(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_schedule.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/schedule template: %s", competition.Slug, err)
+		http.Error(w, "Unable to load page", http.StatusInternalServerError)
+	}
+}
+
+func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	competition, conf, id, events, err := loadHackathonJudgingAccess(w, r, ctx)
+	if err != nil {
+		return
+	}
+	viewer := hackathonViewerFromIdentity(id, conf)
+	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, viewer)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/judging list projects: %s", competition.Slug, err)
+		http.Error(w, "Unable to load projects", http.StatusInternalServerError)
+		return
+	}
+	page := &HackathonPage{
+		Competition:  competition,
+		Conf:         conf,
+		Projects:     projects,
+		JudgeEvents:  events,
+		Viewer:       id,
+		FlashMessage: r.URL.Query().Get("flash"),
+		FlashError:   r.URL.Query().Get("error"),
+		Year:         helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_judging.tmpl", page); err != nil {
+		ctx.Err.Printf("/hackathons/%s/judging template: %s", competition.Slug, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
 }
@@ -501,6 +560,39 @@ func loadHackathonCompetition(w http.ResponseWriter, r *http.Request, ctx *confi
 	return competition, conf, id, nil
 }
 
+func loadHackathonJudgingAccess(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.HackathonCompetition, *types.Conf, *auth.Identity, []*types.JudgeEvent, error) {
+	slug := mux.Vars(r)["slug"]
+	competition, err := getters.GetCompetitionBySlug(ctx, slug)
+	if err != nil {
+		handle404(w, r, ctx)
+		return nil, nil, nil, nil, err
+	}
+	var conf *types.Conf
+	if competition.ConferenceID != "" {
+		conf, err = getters.GetConfByRef(ctx, competition.ConferenceID)
+		if err != nil {
+			ctx.Err.Printf("/hackathons/%s conf %s: %s", competition.Slug, competition.ConferenceID, err)
+		}
+	}
+	id := auth.RequireOptional(r, ctx)
+	if id == nil {
+		redirectHackathonLogin(w, r)
+		return nil, nil, nil, nil, fmt.Errorf("not logged in")
+	}
+	events, err := getters.ListJudgeEvents(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/judging events: %s", competition.Slug, err)
+		http.Error(w, "Unable to load judge events", http.StatusInternalServerError)
+		return nil, nil, nil, nil, err
+	}
+	viewer := hackathonViewerFromIdentity(id, conf)
+	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID) {
+		handle404(w, r, ctx)
+		return nil, nil, nil, nil, fmt.Errorf("viewer cannot judge competition %s", competition.ID)
+	}
+	return competition, conf, id, events, nil
+}
+
 func loadEditableHackathonProject(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.HackathonCompetition, *types.Conf, *auth.Identity, *types.HackathonProject, error) {
 	competition, conf, id, err := loadHackathonCompetition(w, r, ctx)
 	if err != nil {
@@ -621,6 +713,24 @@ func viewerCanManageProject(ctx *config.AppContext, projectID, personID string) 
 	}
 	for _, member := range members {
 		if member != nil && member.PersonID == personID {
+			return true
+		}
+	}
+	return false
+}
+
+func viewerCanJudgeCompetition(ctx *config.AppContext, competitionID, personID string) bool {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return false
+	}
+	judges, err := getters.ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		ctx.Err.Printf("list competition judges %s: %s", competitionID, err)
+		return false
+	}
+	for _, judge := range judges {
+		if judge != nil && judge.PersonID == personID {
 			return true
 		}
 	}
