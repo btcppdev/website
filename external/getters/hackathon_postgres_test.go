@@ -358,6 +358,13 @@ func TestHackathonJudgingSetup(t *testing.T) {
 	if len(scorecards) != 1 || scorecards[0].ID != scorecard.ID {
 		t.Fatalf("scorecards mismatch: %+v", scorecards)
 	}
+	competitionScorecards, err := ListScorecardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListScorecardsForCompetition: %v", err)
+	}
+	if len(competitionScorecards) != 1 || competitionScorecards[0].ID != scorecard.ID {
+		t.Fatalf("competition scorecards mismatch: %+v", competitionScorecards)
+	}
 	otherCompetitionID := createSmokeCompetition(t, ctx, CompetitionInput{
 		Slug:  "score-other-" + postgresSmokeSuffix(),
 		Title: "Other Scoring Hackathon",

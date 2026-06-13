@@ -23,6 +23,7 @@ type HackathonAdminPage struct {
 	ProjectTeams map[string][]*types.ProjectMember
 	JudgeEvents  []*types.JudgeEvent
 	Judges       []*types.CompetitionJudge
+	Scorecards   []*types.Scorecard
 	IsNew        bool
 	FlashMessage string
 	FlashError   string
@@ -70,6 +71,13 @@ func (p *HackathonAdminPage) JudgingURL(competition *types.HackathonCompetition)
 		return "/admin/hackathons"
 	}
 	return "/admin/hackathons/" + url.PathEscape(competition.ID) + "/judging"
+}
+
+func (p *HackathonAdminPage) ScoreReviewURL(competition *types.HackathonCompetition) string {
+	if competition == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(competition.ID) + "/judging/scores"
 }
 
 func (p *HackathonAdminPage) HackathonURL(competition *types.HackathonCompetition) string {
@@ -160,6 +168,64 @@ func (p *HackathonAdminPage) JudgeTypeLabel(judgeType string) string {
 	}
 }
 
+func (p *HackathonAdminPage) JudgeEventName(eventID string) string {
+	for _, event := range p.JudgeEvents {
+		if event != nil && event.ID == eventID {
+			return event.Name
+		}
+	}
+	return eventID
+}
+
+func (p *HackathonAdminPage) ProjectTitle(projectID string) string {
+	for _, project := range p.Projects {
+		if project != nil && project.ID == projectID {
+			return project.Title
+		}
+	}
+	return projectID
+}
+
+func (p *HackathonAdminPage) JudgeName(personID string) string {
+	for _, judge := range p.Judges {
+		if judge == nil || judge.PersonID != personID {
+			continue
+		}
+		if judge.Name != "" {
+			return judge.Name
+		}
+		if judge.Email != "" {
+			return judge.Email
+		}
+	}
+	return personID
+}
+
+func (p *HackathonAdminPage) ScoreValue(value *int) string {
+	if value == nil {
+		return "-"
+	}
+	return strconv.Itoa(*value)
+}
+
+func (p *HackathonAdminPage) ScoreTotal(scorecard *types.Scorecard) string {
+	if scorecard == nil || scorecard.NoShow {
+		return "-"
+	}
+	total := 0
+	count := 0
+	for _, value := range []*int{scorecard.IdeaScore, scorecard.ExecutionScore, scorecard.ImpactScore} {
+		if value != nil {
+			total += *value
+			count++
+		}
+	}
+	if count == 0 {
+		return "-"
+	}
+	return strconv.Itoa(total)
+}
+
 func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
@@ -228,6 +294,56 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_projects.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/projects template: %s", competitionID, err)
+		http.Error(w, "Unable to load page", http.StatusInternalServerError)
+	}
+}
+
+func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, types.HackathonViewer{Admin: true})
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/scores projects: %s", competitionID, err)
+		http.Error(w, "Unable to load projects", http.StatusInternalServerError)
+		return
+	}
+	events, err := getters.ListJudgeEvents(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/scores events: %s", competitionID, err)
+		http.Error(w, "Unable to load judge events", http.StatusInternalServerError)
+		return
+	}
+	judges, err := getters.ListCompetitionJudges(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/scores judges: %s", competitionID, err)
+		http.Error(w, "Unable to load judges", http.StatusInternalServerError)
+		return
+	}
+	scorecards, err := getters.ListScorecardsForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/scores scorecards: %s", competitionID, err)
+		http.Error(w, "Unable to load scorecards", http.StatusInternalServerError)
+		return
+	}
+	page := &HackathonAdminPage{
+		Competition:  competition,
+		Projects:     projects,
+		JudgeEvents:  events,
+		Judges:       judges,
+		Scorecards:   scorecards,
+		FlashMessage: r.URL.Query().Get("flash"),
+		FlashError:   r.URL.Query().Get("error"),
+		Year:         helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_scores.tmpl", page); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/scores template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
 }

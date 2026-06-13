@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ .Competition.Title }} Scores - Admin - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+</head>
+<body class="bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <a href="{{ .JudgingURL .Competition }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Back to judging setup</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} scores</h1>
+        <p class="mt-1 text-sm text-gray-600">Review submitted judge scorecards.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ .ProjectsURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Projects</a>
+        <a href="{{ .JudgingURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Judging setup</a>
+      </div>
+    </div>
+
+    {{ if .FlashMessage }}
+    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    {{ end }}
+
+    <section class="overflow-hidden rounded-lg bg-white shadow">
+      <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-sm font-semibold text-gray-900">Scorecards</h2>
+          <span class="text-sm text-gray-500">{{ len .Scorecards }} submitted</span>
+        </div>
+      </div>
+      {{ if .Scorecards }}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
+          <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+            <tr>
+              <th scope="col" class="px-4 py-3">Project</th>
+              <th scope="col" class="px-4 py-3">Event</th>
+              <th scope="col" class="px-4 py-3">Judge</th>
+              <th scope="col" class="px-4 py-3">Idea</th>
+              <th scope="col" class="px-4 py-3">Execution</th>
+              <th scope="col" class="px-4 py-3">Impact</th>
+              <th scope="col" class="px-4 py-3">Total</th>
+              <th scope="col" class="px-4 py-3">Rank</th>
+              <th scope="col" class="px-4 py-3">Flags</th>
+              <th scope="col" class="px-4 py-3">Submitted</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {{ range .Scorecards }}
+            <tr>
+              <td class="px-4 py-3 font-medium text-gray-900">{{ $.ProjectTitle .ProjectID }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ $.JudgeEventName .JudgeEventID }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ $.JudgeName .JudgePersonID }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .IdeaScore }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .ExecutionScore }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .ImpactScore }}</td>
+              <td class="px-4 py-3 font-medium text-gray-900">{{ $.ScoreTotal . }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .Rank }}</td>
+              <td class="px-4 py-3">
+                {{ if .NoShow }}
+                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">No-show</span>
+                {{ else }}
+                <span class="text-gray-400">-</span>
+                {{ end }}
+              </td>
+              <td class="whitespace-nowrap px-4 py-3 text-gray-600">{{ with .SubmittedAt }}{{ .Format "Jan 2, 2006 3:04 PM" }}{{ else }}-{{ end }}</td>
+            </tr>
+            {{ if .Comments }}
+            <tr class="bg-gray-50">
+              <td class="px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500">Comments</td>
+              <td colspan="9" class="px-4 py-3 text-sm text-gray-700">{{ .Comments }}</td>
+            </tr>
+            {{ end }}
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+      {{ else }}
+      <div class="px-4 py-10 text-center sm:px-6">
+        <p class="text-sm text-gray-600">No scorecards have been submitted yet.</p>
+      </div>
+      {{ end }}
+    </section>
+  </div>
+</body>
+</html>
