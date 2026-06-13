@@ -760,10 +760,7 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	}
 	invalidateWhoIsDirectoryCache()
 	if hasNewPic {
-		// Patch the cached Speaker so the dashboard's next render
-		// reflects the new photo without waiting for a periodic
-		// refresh, then fire-and-forget the Spaces upload.
-		sp.Photo = up.Photo
+		// Persisted above; mirror the uploaded photo in the background.
 		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
 	}
 	http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "Speaker info updated."), http.StatusSeeOther)

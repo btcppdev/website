@@ -19,8 +19,7 @@
 //   - Identity is established by clicking a magic link that carries
 //     an HMAC of the user's email; the login handler stamps the
 //     authed email into the session, so subsequent requests look up
-//     the Speaker by that email and read fresh Roles from the cache
-//     (revocation just-works on the next refresh tick).
+//     the Speaker by that email and read fresh Roles.
 //
 // Handlers replace `helpers.CheckPin(...)` with
 // `auth.RequireRole(w, r, ctx, auth.Spec{Conf: tag, Role: "admin"})`

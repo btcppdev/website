@@ -538,7 +538,7 @@ func RefreshSpeakerCards(ctx *config.AppContext, speakers []*types.Speaker) {
 // PreloadCardHashes pulls the persisted card-hash index from Spaces into the
 // in-memory dedup cache. CLI tools can call this before RefreshTalkCards to
 // get the same dedup behavior the prod server uses, without InitMediaRefresh's
-// callback wiring or full-cache refresh.
+// callback wiring.
 func PreloadCardHashes(ctx *config.AppContext) {
 	hashes, err := spaces.LoadHashes()
 	if err != nil {

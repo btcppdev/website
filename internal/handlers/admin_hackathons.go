@@ -49,10 +49,6 @@ func (p *HackathonAdminPage) ConfLabel(confID string) string {
 	return confID
 }
 
-func (p *HackathonAdminPage) VisibilityLabel(visibility string) string {
-	return hackathonVisibilityLabel(visibility)
-}
-
 func (p *HackathonAdminPage) EditURL(competition *types.HackathonCompetition) string {
 	if competition == nil {
 		return "/admin/hackathons"
