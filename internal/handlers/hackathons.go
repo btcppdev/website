@@ -17,26 +17,29 @@ import (
 )
 
 type HackathonPage struct {
-	Competition   *types.HackathonCompetition
-	Conf          *types.Conf
-	Projects      []*types.HackathonProject
-	Project       *types.HackathonProject
-	Members       []*types.ProjectMember
-	JudgeEvents   []*types.JudgeEvent
-	Scorecards    []*types.Scorecard
-	JudgeTypes    map[string]bool
-	Viewer        *auth.Identity
-	OwnedProjects map[string]bool
-	IsNew         bool
-	CanCreate     bool
-	CanEdit       bool
-	CanSubmit     bool
-	CanJudge      bool
-	CanScoreAll   bool
-	InviteLink    string
-	FlashMessage  string
-	FlashError    string
-	Year          uint
+	Competition     *types.HackathonCompetition
+	Conf            *types.Conf
+	Projects        []*types.HackathonProject
+	Project         *types.HackathonProject
+	Members         []*types.ProjectMember
+	JudgeEvents     []*types.JudgeEvent
+	Scorecards      []*types.Scorecard
+	JudgeTypes      map[string]bool
+	Awards          []*types.Award
+	PrizesByAward   map[string][]*types.Prize
+	AwardeesByAward map[string][]*types.ProjectAward
+	Viewer          *auth.Identity
+	OwnedProjects   map[string]bool
+	IsNew           bool
+	CanCreate       bool
+	CanEdit         bool
+	CanSubmit       bool
+	CanJudge        bool
+	CanScoreAll     bool
+	InviteLink      string
+	FlashMessage    string
+	FlashError      string
+	Year            uint
 }
 
 type HackathonScheduleEvent struct {
@@ -147,6 +150,51 @@ func (p *HackathonPage) CanScoreJudgeEvent(event *types.JudgeEvent) bool {
 		return true
 	}
 	return p.JudgeTypes[getters.JudgeTypeCoordinator] || p.JudgeTypes[event.PlaybookType]
+}
+
+func (p *HackathonPage) Awardees(award *types.Award) []*types.ProjectAward {
+	if p == nil || p.AwardeesByAward == nil || award == nil {
+		return nil
+	}
+	return p.AwardeesByAward[award.ID]
+}
+
+func (p *HackathonPage) AwardPrizes(award *types.Award) []*types.Prize {
+	if p == nil || p.PrizesByAward == nil || award == nil {
+		return nil
+	}
+	return p.PrizesByAward[award.ID]
+}
+
+func (p *HackathonPage) ProjectAwardNumber(award *types.ProjectAward) string {
+	if award == nil || award.ProjectNumber == nil {
+		return "TBA"
+	}
+	return strconv.Itoa(*award.ProjectNumber)
+}
+
+func (p *HackathonPage) PrizeTypeLabel(prizeType string) string {
+	switch strings.TrimSpace(prizeType) {
+	case getters.PrizeTypeSats:
+		return "Sats"
+	case getters.PrizeTypeInKind:
+		return "In-kind"
+	case getters.PrizeTypeTickets:
+		return "Tickets"
+	case getters.PrizeTypePooled:
+		return "Pooled"
+	case getters.PrizeTypeTrophy:
+		return "Trophy"
+	default:
+		return strings.TrimSpace(prizeType)
+	}
+}
+
+func (p *HackathonPage) PercentLabel(value *float64) string {
+	if value == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*value, 'f', -1, 64) + "%"
 }
 
 func (p *HackathonPage) NextMilestoneLabel() string {
@@ -297,17 +345,26 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 	personID := hackathonViewerPersonID(id)
 	viewer := hackathonViewerFromIdentity(id, conf)
+	awards, prizesByAward, awardeesByAward, err := loadPublicHackathonAwards(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s awards: %s", competition.Slug, err)
+		http.Error(w, "Unable to load awards", http.StatusInternalServerError)
+		return
+	}
 	page := &HackathonPage{
-		Competition:   competition,
-		Conf:          conf,
-		Projects:      projects,
-		Viewer:        id,
-		OwnedProjects: ownedProjectMap(ctx, projects, personID),
-		CanCreate:     id != nil && competitionAcceptsProjects(competition),
-		CanJudge:      viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
-		FlashMessage:  r.URL.Query().Get("flash"),
-		FlashError:    r.URL.Query().Get("error"),
-		Year:          helpers.CurrentYear(),
+		Competition:     competition,
+		Conf:            conf,
+		Projects:        projects,
+		Awards:          awards,
+		PrizesByAward:   prizesByAward,
+		AwardeesByAward: awardeesByAward,
+		Viewer:          id,
+		OwnedProjects:   ownedProjectMap(ctx, projects, personID),
+		CanCreate:       id != nil && competitionAcceptsProjects(competition),
+		CanJudge:        viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
+		FlashMessage:    r.URL.Query().Get("flash"),
+		FlashError:      r.URL.Query().Get("error"),
+		Year:            helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s template: %s", competition.Slug, err)
@@ -615,6 +672,47 @@ func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *c
 		return
 	}
 	http.Redirect(w, r, hackathonURL(competition)+"/projects/"+url.PathEscape(project.ID)+"?flash="+url.QueryEscape("Joined project"), http.StatusSeeOther)
+}
+
+func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string) ([]*types.Award, map[string][]*types.Prize, map[string][]*types.ProjectAward, error) {
+	awards, err := getters.ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	prizes, err := getters.ListPrizesForCompetition(ctx, competitionID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	projectAwards, err := getters.ListProjectAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	awardeesByAward := make(map[string][]*types.ProjectAward)
+	for _, projectAward := range projectAwards {
+		if projectAward != nil {
+			awardeesByAward[projectAward.AwardID] = append(awardeesByAward[projectAward.AwardID], projectAward)
+		}
+	}
+	publicAwardIDs := map[string]bool{}
+	publicAwards := make([]*types.Award, 0, len(awards))
+	for _, award := range awards {
+		if award == nil || award.Status != getters.AwardStatusAwarded || len(awardeesByAward[award.ID]) == 0 {
+			continue
+		}
+		publicAwardIDs[award.ID] = true
+		publicAwards = append(publicAwards, award)
+	}
+	prizesByAward := make(map[string][]*types.Prize)
+	for _, prize := range prizes {
+		if prize != nil && publicAwardIDs[prize.AwardID] {
+			prizesByAward[prize.AwardID] = append(prizesByAward[prize.AwardID], prize)
+		}
+	}
+	publicAwardeesByAward := make(map[string][]*types.ProjectAward)
+	for awardID := range publicAwardIDs {
+		publicAwardeesByAward[awardID] = awardeesByAward[awardID]
+	}
+	return publicAwards, prizesByAward, publicAwardeesByAward, nil
 }
 
 func loadHackathonPageData(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.HackathonCompetition, *types.Conf, *auth.Identity, []*types.HackathonProject, error) {
