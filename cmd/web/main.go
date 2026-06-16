@@ -21,9 +21,8 @@ import (
 	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/handlers"
 	"btcpp-web/internal/types"
-	"github.com/alexedwards/scs/boltstore"
+	"github.com/alexedwards/scs/pgxstore"
 	"github.com/alexedwards/scs/v2"
-	bolt "go.etcd.io/bbolt"
 )
 
 var app config.AppContext
@@ -156,24 +155,21 @@ func run(env *types.EnvConfig) error {
 	app.Infos.Println("~~~~app restarted, here we go~~~~~")
 	app.Infos.Println("Running in prod?", env.Prod)
 
-	// Initialize the session manager backed by a BoltDB file so
-	// admin/dashboard logins survive app restarts. Default
-	// memstore wipes every session when the process exits — fine
-	// for the legacy CheckPin model (one shared PIN, re-typed
-	// after every restart) but a regression for the magic-link
-	// auth flow where a restart silently logs everyone out.
-	// No defer Close — the DB lives for the lifetime of the
-	// process. A defer here would fire when run() returns (i.e.
-	// before the HTTP server even starts handling requests),
-	// shuttering the store and breaking every session-touching
-	// route with "database not open." On process exit the OS
-	// reclaims the file handle; bbolt's mmap+commit format is
-	// crash-consistent, so an unclean shutdown is recoverable on
-	// the next open.
-	sessDB, err := bolt.Open("sessions.bolt", 0600, &bolt.Options{Timeout: 5 * time.Second})
+	app.Notion = &types.Notion{Config: &env.Notion}
+	app.Notion.Setup(env.Notion.Token)
+	pool, err := db.Open(context.Background(), env.DatabaseURL)
 	if err != nil {
-		app.Err.Fatalf("open sessions.bolt: %s", err)
+		return err
 	}
+	app.DB = pool
+	applied, err := db.Migrate(context.Background(), pool, app.Infos)
+	if err != nil {
+		return fmt.Errorf("run database migrations: %w", err)
+	}
+	if applied == 0 {
+		app.Infos.Println("database migrations up to date")
+	}
+
 	app.Session = scs.New()
 	app.Session.Lifetime = 4 * 24 * time.Hour
 	// Use an app-specific cookie name. The SCS default is "session",
@@ -183,24 +179,8 @@ func run(env *types.EnvConfig) error {
 	app.Session.Cookie.Persist = true
 	app.Session.Cookie.SameSite = http.SameSiteLaxMode
 	app.Session.Cookie.Secure = app.InProduction
-	app.Session.Store = boltstore.New(sessDB)
-
-	app.Notion = &types.Notion{Config: &env.Notion}
-	app.Notion.Setup(env.Notion.Token)
-	if getters.UsePostgresBackend(&app) {
-		pool, err := db.Open(context.Background(), env.DatabaseURL)
-		if err != nil {
-			return err
-		}
-		app.DB = pool
-		applied, err := db.Migrate(context.Background(), pool, app.Infos)
-		if err != nil {
-			return fmt.Errorf("run database migrations: %w", err)
-		}
-		if applied == 0 {
-			app.Infos.Println("database migrations up to date")
-		}
-	}
+	app.Session.Store = pgxstore.New(app.DB)
+	app.Infos.Println("using postgres session store")
 
 	// Per-request Notion timing is noisy in production, so keep it opt-in.
 	// Recent-call tracking for /api/cache-stats remains enabled separately.

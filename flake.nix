@@ -19,7 +19,7 @@
             air
             ffmpeg
             git
-            postgresql
+            postgresql_18
             rclone
           ];
           shellHook = ''

@@ -15,6 +15,9 @@ The default local connection string is exported as:
 DATABASE_URL=postgres://btcpp@127.0.0.1:55432/btcpp_dev?sslmode=disable
 ```
 
+The app now requires a working `DATABASE_URL` at startup because HTTP sessions
+are stored in Postgres rather than a local Bolt file.
+
 Data lives under `$XDG_DATA_HOME/btcpp-web/postgres` or
 `$HOME/.local/share/btcpp-web/postgres` by default. This avoids permission
 problems when the repo is checked out on a Windows-mounted WSL path. Override
@@ -68,7 +71,22 @@ temporary custom-format archive, drops and recreates the local database,
 restores the archive into the local Postgres instance, then runs
 `db/sanitize.sql` to remove contact details, live invite tokens, calendar
 notification IDs, source media URIs, notes, coupon codes, and ticket checkout
-IDs.
+IDs. After the restore, it also applies any newer local migrations from
+`db/migrations` and clears the local `_cache` directory so the next app start
+fetches fresh data from the restored database.
+
+To replace the local database with an unsanitized copy, you must provide the
+admin secret whose SHA-256 matches the hardcoded allowlist digest:
+
+```sh
+PROD_DATABASE_URL='postgres://...' \
+ADMIN_BYPASS='...' \
+make db-pull-unsanitized
+```
+
+This skips `db/sanitize.sql` entirely and restores the production data as-is.
+It still applies any newer local migrations from `db/migrations` and clears the
+local `_cache` directory after restore. Use it carefully.
 
 ## Notion Import
 

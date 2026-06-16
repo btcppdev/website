@@ -82,7 +82,39 @@ db-pull-sanitized: db-start
 	pg_restore --exit-on-error --no-owner --no-privileges --dbname "$$DATABASE_URL" "$$dump_file"; \
 	echo "Sanitizing local copy..."; \
 	psql "$$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/sanitize.sql; \
-	echo "Local database refreshed and sanitized."
+	echo "Applying local migrations..."; \
+	$(GO_ENV) go run ./cmd/db-migrate; \
+	echo "Clearing local disk cache..."; \
+	rm -rf _cache; \
+	echo "Local database refreshed, sanitized, migrated, and cache-cleared."
+
+.PHONY: db-pull-unsanitized
+db-pull-unsanitized: db-start
+	@test -n "$$PROD_DATABASE_URL" || (echo "PROD_DATABASE_URL is required"; exit 1)
+	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required; run this inside nix develop"; exit 1)
+	@test -n "$$PGHOST" || (echo "PGHOST is required; run this inside nix develop"; exit 1)
+	@test -n "$$PGPORT" || (echo "PGPORT is required; run this inside nix develop"; exit 1)
+	@test -n "$$PGUSER" || (echo "PGUSER is required; run this inside nix develop"; exit 1)
+	@test -n "$$PGDATABASE" || (echo "PGDATABASE is required; run this inside nix develop"; exit 1)
+	@test -n "$$ADMIN_BYPASS" || (echo "ADMIN_BYPASS is required"; exit 1)
+	@command -v pg_dump >/dev/null || (echo "pg_dump not found; run this inside nix develop"; exit 1)
+	@command -v pg_restore >/dev/null || (echo "pg_restore not found; run this inside nix develop"; exit 1)
+	@$(GO_ENV) go run ./cmd/check-secret -value "$$ADMIN_BYPASS" >/dev/null
+	@set -e; \
+	dump_file="$${TMPDIR:-/tmp}/btcpp-prod-$$(date +%Y%m%d%H%M%S).dump"; \
+	trap 'rm -f "$$dump_file"' EXIT INT TERM; \
+	echo "Dumping production database..."; \
+	pg_dump "$$PROD_DATABASE_URL" --format=custom --no-owner --no-privileges --file "$$dump_file"; \
+	echo "Resetting local database..."; \
+	dropdb --if-exists --host "$$PGHOST" --port "$$PGPORT" --username "$$PGUSER" "$$PGDATABASE"; \
+	createdb --host "$$PGHOST" --port "$$PGPORT" --username "$$PGUSER" "$$PGDATABASE"; \
+	echo "Restoring local copy without sanitization..."; \
+	pg_restore --exit-on-error --no-owner --no-privileges --dbname "$$DATABASE_URL" "$$dump_file"; \
+	echo "Applying local migrations..."; \
+	$(GO_ENV) go run ./cmd/db-migrate; \
+	echo "Clearing local disk cache..."; \
+	rm -rf _cache; \
+	echo "Local database refreshed without sanitization, migrated, and cache-cleared."
 
 .PHONY: clean
 clean:
