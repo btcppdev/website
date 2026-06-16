@@ -21,7 +21,9 @@ import (
 
 type HackathonPage struct {
 	Competition     *types.HackathonCompetition
+	Competitions    []*types.HackathonCompetition
 	Conf            *types.Conf
+	Confs           []*types.Conf
 	Projects        []*types.HackathonProject
 	Project         *types.HackathonProject
 	Members         []*types.ProjectMember
@@ -61,6 +63,99 @@ func (p *HackathonPage) ConferenceLabel() string {
 		return p.Conf.Desc
 	}
 	return p.Conf.Tag
+}
+
+func (p *HackathonPage) CompetitionConferenceLabel(competition *types.HackathonCompetition) string {
+	conf := p.competitionConf(competition)
+	if conf == nil {
+		return ""
+	}
+	if conf.Tag != "" && conf.Desc != "" {
+		return conf.Tag + " - " + conf.Desc
+	}
+	if conf.Desc != "" {
+		return conf.Desc
+	}
+	return conf.Tag
+}
+
+func (p *HackathonPage) CompetitionURL(competition *types.HackathonCompetition) string {
+	return hackathonURL(competition)
+}
+
+func (p *HackathonPage) CompetitionScheduleURL(competition *types.HackathonCompetition) string {
+	return hackathonScheduleURL(competition)
+}
+
+func (p *HackathonPage) CompetitionStatusLabelFor(competition *types.HackathonCompetition) string {
+	return hackathonLifecycleLabel(competition)
+}
+
+func (p *HackathonPage) CompetitionTimelineLabel(competition *types.HackathonCompetition) string {
+	label, _ := hackathonNextMilestone(competition)
+	if label == "View schedule" {
+		return "Timeline"
+	}
+	if label == "" {
+		return "Timeline"
+	}
+	return label
+}
+
+func (p *HackathonPage) CompetitionTimelineValue(competition *types.HackathonCompetition) string {
+	_, value := hackathonNextMilestone(competition)
+	if value == "" {
+		return "TBA"
+	}
+	return value
+}
+
+func (p *HackathonPage) CompetitionAcceptsProjects(competition *types.HackathonCompetition) bool {
+	return competitionAcceptsProjects(competition)
+}
+
+func (p *HackathonPage) CompetitionAdminEditURL(competition *types.HackathonCompetition) string {
+	if competition == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(competition.ID)
+}
+
+func (p *HackathonPage) CompetitionVisibleToAdmin(competition *types.HackathonCompetition) bool {
+	if competition == nil || competition.Visibility == getters.CompetitionVisibilityPublic {
+		return false
+	}
+	return p.CompetitionCanAdminEdit(competition)
+}
+
+func (p *HackathonPage) CompetitionCanAdminEdit(competition *types.HackathonCompetition) bool {
+	if competition == nil {
+		return false
+	}
+	if p == nil {
+		return false
+	}
+	viewer := hackathonViewerFromIdentity(p.Viewer, p.competitionConf(competition))
+	return viewer.Admin || viewer.Coordinator
+}
+
+func (p *HackathonPage) competitionConf(competition *types.HackathonCompetition) *types.Conf {
+	if p == nil {
+		return nil
+	}
+	return confForHackathon(p.Confs, competition)
+}
+
+func confForHackathon(confs []*types.Conf, competition *types.HackathonCompetition) *types.Conf {
+	if competition == nil || strings.TrimSpace(competition.ConferenceID) == "" {
+		return nil
+	}
+	for _, conf := range confs {
+		if conf != nil && conf.Ref == competition.ConferenceID {
+			return conf
+		}
+	}
+	return nil
 }
 
 func (p *HackathonPage) ProjectTagsCSV() string {
@@ -430,6 +525,43 @@ func safeHackathonHref(node *html.Node) string {
 		}
 	}
 	return ""
+}
+
+func HackathonIndex(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	competitions, err := getters.ListCompetitions(ctx)
+	if err != nil {
+		ctx.Err.Printf("/hackathons list competitions: %s", err)
+		http.Error(w, "Unable to load hackathons", http.StatusInternalServerError)
+		return
+	}
+	confs, err := getters.ListConfs(ctx)
+	if err != nil {
+		ctx.Err.Printf("/hackathons list confs: %s", err)
+		http.Error(w, "Unable to load conferences", http.StatusInternalServerError)
+		return
+	}
+	id := auth.RequireOptional(r, ctx)
+	visible := make([]*types.HackathonCompetition, 0, len(competitions))
+	for _, competition := range competitions {
+		if competition == nil {
+			continue
+		}
+		conf := confForHackathon(confs, competition)
+		viewer := hackathonViewerFromIdentity(id, conf)
+		if competition.Visibility == getters.CompetitionVisibilityPublic || viewer.Admin || viewer.Coordinator {
+			visible = append(visible, competition)
+		}
+	}
+	page := &HackathonPage{
+		Competitions: visible,
+		Confs:        confs,
+		Viewer:       id,
+		Year:         helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathons.tmpl", page); err != nil {
+		ctx.Err.Printf("/hackathons template: %s", err)
+		http.Error(w, "Unable to load page", http.StatusInternalServerError)
+	}
 }
 
 func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

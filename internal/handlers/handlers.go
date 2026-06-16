@@ -1228,6 +1228,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		TemplatedMissivesSchedule(w, r, app)
 	}).Methods("POST")
 
+	r.HandleFunc("/hackathons", func(w http.ResponseWriter, r *http.Request) {
+		HackathonIndex(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/hackathons/{slug}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonShow(w, r, app)
 	}).Methods("GET")
