@@ -80,9 +80,6 @@ func (p *HackathonAdminPage) ConfLabel(confID string) string {
 		if conf == nil || conf.Ref != confID {
 			continue
 		}
-		if conf.Tag != "" && conf.Desc != "" {
-			return conf.Tag + " - " + conf.Desc
-		}
 		if conf.Tag != "" {
 			return conf.Tag
 		}

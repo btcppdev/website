@@ -58,9 +58,7 @@
           </div>
           <div>
             <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
-              {{ if .NextMilestoneIsScheduleLink }}
-              <a href="{{ .ScheduleURL }}" class="text-indigo-600 hover:text-indigo-500">View schedule</a>
-              {{ else if .NextMilestoneLabel }}
+              {{ if and .NextMilestoneLabel (not .NextMilestoneIsScheduleLink) }}
               {{ .NextMilestoneLabel }}
               {{ else }}
               Timeline
@@ -73,6 +71,7 @@
               TBA
               {{ end }}
             </div>
+            <a href="{{ .ScheduleURL }}" class="mt-1 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-500">View schedule</a>
           </div>
         </div>
       </div>
