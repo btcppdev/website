@@ -32,7 +32,7 @@
       <p class="mt-1 text-sm text-gray-500">No proposals waiting for review on {{ .Conf.Desc }}.</p>
       <a href="/{{ .Conf.Tag }}/admin"
          class="mt-6 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-        Back to dashboard
+        &larr; Dashboard
       </a>
     </div>
     {{ else }}
@@ -166,7 +166,7 @@
     </article>
 
     <div class="mt-4 flex items-center justify-between">
-      <a href="/{{ .Conf.Tag }}/admin" class="text-sm text-gray-500 hover:text-gray-700">&larr; Back to dashboard</a>
+      <a href="/{{ .Conf.Tag }}/admin" class="text-sm text-gray-500 hover:text-gray-700">&larr; Dashboard</a>
       {{ if .NextID }}
       <a href="/{{ .Conf.Tag }}/admin/review?id={{ .NextID }}"
          class="text-sm text-gray-500 hover:text-gray-700">Skip &rarr;</a>

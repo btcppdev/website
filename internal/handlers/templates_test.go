@@ -32,6 +32,42 @@ func TestLoadTemplates(t *testing.T) {
 	}
 }
 
+func TestHackathonRichTextHTML(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "allowed formatting",
+			input: `<p>Hello <strong>world</strong><br><a href="https://example.com" onclick="bad()">link</a></p>`,
+			want:  `<p>Hello <strong>world</strong><br><a href="https://example.com" rel="noopener noreferrer">link</a></p>`,
+		},
+		{
+			name:  "unsafe tags removed",
+			input: `<p>Safe</p><script>alert("bad")</script><style>body{display:none}</style>`,
+			want:  `<p>Safe</p>`,
+		},
+		{
+			name:  "unsafe links lose href",
+			input: `<a href="javascript:alert(1)">bad</a> <a href="/hackathons/test">good</a>`,
+			want:  `<a>bad</a> <a href="/hackathons/test" rel="noopener noreferrer">good</a>`,
+		},
+		{
+			name:  "plain text is escaped",
+			input: `2 < 3 & 4 > 1`,
+			want:  `2 &lt; 3 &amp; 4 &gt; 1`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := string(hackathonRichTextHTML(tt.input)); got != tt.want {
+				t.Fatalf("hackathonRichTextHTML() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHackathonScoreSummaries(t *testing.T) {
 	n1, n2 := 1, 2
 	ideaHigh, execHigh, impactHigh, rankTwo := 5, 4, 3, 2

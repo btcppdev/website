@@ -42,7 +42,7 @@
         <div class="sm:col-span-2">
           <h2 class="text-sm font-semibold text-gray-900">Description</h2>
           {{ if .Competition.Description }}
-          <p class="mt-3 whitespace-pre-line text-sm leading-6 text-gray-700">{{ .Competition.Description }}</p>
+          <div class="mt-3 whitespace-pre-line text-sm leading-6 text-gray-700">{{ .RichText .Competition.Description }}</div>
           {{ else }}
           <p class="mt-3 text-sm text-gray-500">Details are still being finalized.</p>
           {{ end }}
@@ -89,7 +89,7 @@
           <div>
             <h3 class="text-base font-semibold text-gray-900">{{ .Title }}</h3>
             {{ if .Description }}
-            <p class="mt-2 whitespace-pre-line text-sm leading-6 text-gray-700">{{ .Description }}</p>
+            <div class="mt-2 whitespace-pre-line text-sm leading-6 text-gray-700">{{ $.RichText .Description }}</div>
             {{ end }}
           </div>
           {{ $awardees := $.Awardees . }}
@@ -115,7 +115,7 @@
               <li class="text-sm text-gray-700">
                 <span class="font-medium text-gray-900">{{ .Title }}</span>
                 <span class="text-gray-500"> · {{ $.PrizeTypeLabel .PrizeType }}{{ if .ValueText }} · {{ .ValueText }}{{ end }}{{ if .PoolPercentage }} · {{ $.PercentLabel .PoolPercentage }} pool{{ end }}</span>
-                {{ if .Description }}<p class="mt-1 text-gray-600">{{ .Description }}</p>{{ end }}
+                {{ if .Description }}<div class="mt-1 text-gray-600">{{ $.RichText .Description }}</div>{{ end }}
                 {{ if .PoolURL }}<a href="{{ .PoolURL }}" class="mt-1 inline-block font-medium text-indigo-600 hover:text-indigo-500">Pool</a>{{ end }}
               </li>
               {{ end }}
@@ -144,7 +144,7 @@
             <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{{ $.ProjectStatusLabel .Status }}</span>
           </div>
           {{ if .Description }}
-          <p class="mt-4 line-clamp-4 whitespace-pre-line text-sm leading-6 text-gray-700">{{ .Description }}</p>
+          <div class="mt-4 line-clamp-4 whitespace-pre-line text-sm leading-6 text-gray-700">{{ $.RichText .Description }}</div>
           {{ end }}
           {{ if .Tags }}
           <div class="mt-4 flex flex-wrap gap-2">
