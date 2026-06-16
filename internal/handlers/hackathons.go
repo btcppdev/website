@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"fmt"
+	stdhtml "html"
+	"html/template"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/types"
 	"github.com/gorilla/mux"
+	"golang.org/x/net/html"
 )
 
 type HackathonPage struct {
@@ -197,6 +200,10 @@ func (p *HackathonPage) PercentLabel(value *float64) string {
 	return strconv.FormatFloat(*value, 'f', -1, 64) + "%"
 }
 
+func (p *HackathonPage) RichText(value string) template.HTML {
+	return hackathonRichTextHTML(value)
+}
+
 func (p *HackathonPage) NextMilestoneLabel() string {
 	if p == nil {
 		return ""
@@ -334,6 +341,93 @@ func completedHackathonScheduleValue(competition *types.HackathonCompetition) st
 	}
 	if competition.SubmissionsOpenAt != nil {
 		return formatHackathonTime(competition.SubmissionsOpenAt)
+	}
+	return ""
+}
+
+func hackathonRichTextHTML(value string) template.HTML {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	nodes, err := html.ParseFragment(strings.NewReader(value), nil)
+	if err != nil {
+		return template.HTML(stdhtml.EscapeString(value))
+	}
+	var b strings.Builder
+	for _, node := range nodes {
+		renderHackathonHTMLNode(&b, node)
+	}
+	return template.HTML(b.String())
+}
+
+func renderHackathonHTMLNode(b *strings.Builder, node *html.Node) {
+	if node == nil {
+		return
+	}
+	switch node.Type {
+	case html.TextNode:
+		b.WriteString(stdhtml.EscapeString(node.Data))
+	case html.ElementNode:
+		tag := strings.ToLower(node.Data)
+		if tag == "script" || tag == "style" {
+			return
+		}
+		if !hackathonAllowedHTMLTag(tag) {
+			for child := node.FirstChild; child != nil; child = child.NextSibling {
+				renderHackathonHTMLNode(b, child)
+			}
+			return
+		}
+		b.WriteByte('<')
+		b.WriteString(tag)
+		if tag == "a" {
+			href := safeHackathonHref(node)
+			if href != "" {
+				b.WriteString(` href="`)
+				b.WriteString(stdhtml.EscapeString(href))
+				b.WriteString(`" rel="noopener noreferrer"`)
+			}
+		}
+		b.WriteByte('>')
+		if !hackathonVoidHTMLTag(tag) {
+			for child := node.FirstChild; child != nil; child = child.NextSibling {
+				renderHackathonHTMLNode(b, child)
+			}
+			b.WriteString("</")
+			b.WriteString(tag)
+			b.WriteByte('>')
+		}
+	case html.DocumentNode:
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			renderHackathonHTMLNode(b, child)
+		}
+	}
+}
+
+func hackathonAllowedHTMLTag(tag string) bool {
+	switch tag {
+	case "a", "b", "br", "code", "em", "h2", "h3", "h4", "i", "li", "ol", "p", "pre", "strong", "u", "ul":
+		return true
+	default:
+		return false
+	}
+}
+
+func hackathonVoidHTMLTag(tag string) bool {
+	return tag == "br"
+}
+
+func safeHackathonHref(node *html.Node) string {
+	for _, attr := range node.Attr {
+		if strings.ToLower(attr.Key) != "href" {
+			continue
+		}
+		href := strings.TrimSpace(attr.Val)
+		lower := strings.ToLower(href)
+		if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "mailto:") || strings.HasPrefix(href, "/") || strings.HasPrefix(href, "#") {
+			return href
+		}
 	}
 	return ""
 }

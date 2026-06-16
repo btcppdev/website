@@ -10,9 +10,9 @@
   <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
     <div class="mb-6">
       {{ if .BackURL }}
-      <a href="{{ .BackURL }}" class="text-sm text-indigo-600 hover:text-indigo-700">&larr; Back to speakers</a>
+      <a href="{{ .BackURL }}" class="text-sm text-indigo-600 hover:text-indigo-700">&larr; Speakers</a>
       {{ else }}
-      <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}" class="text-sm text-indigo-600 hover:text-indigo-700">&larr; Back to dashboard</a>
+      <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}" class="text-sm text-indigo-600 hover:text-indigo-700">&larr; Dashboard</a>
       {{ end }}
     </div>
 
