@@ -178,6 +178,26 @@ type (
 	}
 	ConfTickets []*ConfTicket
 
+	SatelliteEvent struct {
+		ID             string
+		ConfRef        string
+		Title          string
+		Description    string
+		EventURL       string
+		EventType      string
+		StartsAt       *time.Time
+		EndsAt         *time.Time
+		Location       string
+		ImageURL       string
+		HostName       string
+		HostURL        string
+		HostLogoURL    string
+		SubmitterEmail string
+		Status         string
+		Notes          string
+		PublishedAt    *time.Time
+	}
+
 	TixForm struct {
 		Email         string
 		Subscribe     bool

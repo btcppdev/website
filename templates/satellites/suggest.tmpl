@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Suggest a satellite event · {{ .Conf.Desc }}</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" .Conf }}
+</head>
+<body class="bg-gray-50">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+    <a href="/{{ .Conf.Tag }}#satellites" class="text-xs text-gray-500 hover:text-gray-700">&larr; {{ .Conf.Desc }}</a>
+    <h1 class="mt-1 text-2xl font-bold text-gray-900">Suggest a Satellite Event</h1>
+    <p class="mt-2 text-sm text-gray-600">Share the details and we'll review it before listing it on the event page. We'll follow up using your logged-in email.</p>
+
+    {{ if .FlashMessage }}
+    <div class="mt-6 rounded-md bg-green-50 border border-green-200 px-4 py-3">
+      <p class="text-sm text-green-800">{{ .FlashMessage }}</p>
+    </div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="mt-6 rounded-md bg-red-50 border border-red-200 px-4 py-3">
+      <p class="text-sm text-red-800">{{ .FlashError }}</p>
+    </div>
+    {{ end }}
+
+    <form method="POST" action="/{{ .Conf.Tag }}/satellites/new" class="mt-8 bg-white shadow rounded-lg p-6 space-y-5">
+      <input type="hidden" name="Timezone" value="{{ .Conf.Timezone }}">
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Event title</label>
+        <input required type="text" name="Title" value="{{ satelliteFormValue .Form .Event "Title" }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Event URL</label>
+          <input type="url" name="EventURL" value="{{ satelliteFormValue .Form .Event "EventURL" }}" placeholder="https://..." class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Type</label>
+          <input type="text" name="EventType" value="{{ satelliteFormValue .Form .Event "EventType" }}" placeholder="Hackathon, meetup, party..." class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Starts at</label>
+          <input type="datetime-local" name="StartsAt" value="{{ satelliteFormStartsAt .Form .Event .Conf }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Ends at</label>
+          <input type="datetime-local" name="EndsAt" value="{{ satelliteFormEndsAt .Form .Event .Conf }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Location</label>
+        <input type="text" name="Location" value="{{ satelliteFormValue .Form .Event "Location" }}" placeholder="Venue name or neighborhood" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Description</label>
+        <textarea name="Description" rows="4" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">{{ satelliteFormValue .Form .Event "Description" }}</textarea>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <span class="block text-sm font-medium text-gray-700">Event image</span>
+          {{ $imageURL := satelliteFormValue .Form .Event "ImageURL" }}
+          <input type="hidden" id="sat-image" name="ImageURL" value="{{ $imageURL }}">
+          <div class="mt-1 flex items-center gap-3">
+            <button type="button" data-target="sat-image" data-kind="event" class="sat-upload-trigger inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Upload</button>
+            <img id="sat-image-preview" alt="" class="{{ if $imageURL }}{{ else }}hidden {{ end }}h-16 w-24 rounded bg-gray-50 object-cover" src="{{ if $imageURL }}{{ spacesURL $imageURL }}{{ end }}">
+          </div>
+        </div>
+        <div>
+          <span class="block text-sm font-medium text-gray-700">Host logo</span>
+          {{ $hostLogoURL := satelliteFormValue .Form .Event "HostLogoURL" }}
+          <input type="hidden" id="sat-logo" name="HostLogoURL" value="{{ $hostLogoURL }}">
+          <div class="mt-1 flex items-center gap-3">
+            <button type="button" data-target="sat-logo" data-kind="logo" class="sat-upload-trigger inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Upload</button>
+            <img id="sat-logo-preview" alt="" class="{{ if $hostLogoURL }}{{ else }}hidden {{ end }}h-12 w-12 rounded-full bg-gray-50 object-cover" src="{{ if $hostLogoURL }}{{ spacesURL $hostLogoURL }}{{ end }}">
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Host name</label>
+          <input type="text" name="HostName" value="{{ satelliteFormValue .Form .Event "HostName" }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Host URL</label>
+          <input type="url" name="HostURL" value="{{ satelliteFormValue .Form .Event "HostURL" }}" placeholder="https://..." class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <a href="/{{ .Conf.Tag }}#satellites" class="text-sm text-gray-600 hover:text-gray-800">Cancel</a>
+        <button type="submit" class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Submit suggestion</button>
+      </div>
+    </form>
+  </div>
+  <input type="file" id="SatelliteImagePicker" accept="image/*" class="hidden">
+  <script>
+    (function () {
+      const uploadURL = '/{{ .Conf.Tag }}/satellites/upload-img';
+      const picker = document.getElementById('SatelliteImagePicker');
+      let active = null;
+      document.querySelectorAll('.sat-upload-trigger').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          active = { target: btn.dataset.target, kind: btn.dataset.kind || 'event' };
+          picker.value = '';
+          picker.click();
+        });
+      });
+      picker.addEventListener('change', function () {
+        if (!active || !picker.files || picker.files.length === 0) return;
+        const input = document.getElementById(active.target);
+        const preview = document.getElementById(active.target + '-preview');
+        const fd = new FormData();
+        fd.append('file', picker.files[0]);
+        fd.append('kind', active.kind);
+        fetch(uploadURL, { method: 'POST', body: fd, credentials: 'same-origin' })
+          .then(function (r) {
+            if (!r.ok) return r.text().then(function (t) { throw new Error(t || ('HTTP ' + r.status)); });
+            return r.json();
+          })
+          .then(function (data) {
+            input.value = data.path;
+            preview.src = data.url;
+            preview.classList.remove('hidden');
+          })
+          .catch(function (err) {
+            alert('Upload failed: ' + (err.message || err));
+          })
+          .finally(function () { active = null; });
+      });
+    })();
+  </script>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

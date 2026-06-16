@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Satellite Events · {{ .Conf.Desc }}</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" .Conf }}
+</head>
+<body class="bg-gray-50">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
+    <div>
+      <a href="/{{ .Conf.Tag }}/admin" class="text-xs text-gray-500 hover:text-gray-700">&larr; {{ .Conf.Desc }} dashboard</a>
+      <h1 class="mt-1 text-xl font-bold text-gray-900">Satellite Events</h1>
+      <p class="mt-1 text-sm text-gray-500">Approved events render on the public conference page. Pending events are attendee suggestions waiting for review.</p>
+    </div>
+
+    {{ if .FlashMessage }}
+    <div class="mt-6 rounded-md bg-green-50 border border-green-200 px-4 py-3">
+      <p class="text-sm text-green-800">{{ .FlashMessage }}</p>
+    </div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="mt-6 rounded-md bg-red-50 border border-red-200 px-4 py-3">
+      <p class="text-sm text-red-800">{{ .FlashError }}</p>
+    </div>
+    {{ end }}
+
+    <div class="mt-8 space-y-5">
+      {{ range .Events }}
+      <form method="POST" action="/{{ $.Conf.Tag }}/admin/satellites" class="bg-white shadow rounded-lg p-5">
+        <input type="hidden" name="id" value="{{ .ID }}">
+        <input type="hidden" name="Timezone" value="{{ $.Conf.Timezone }}">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ if eq .Status "published" }}bg-green-50 text-green-700{{ else if eq .Status "submitted" }}bg-yellow-50 text-yellow-800{{ else }}bg-gray-100 text-gray-700{{ end }}">{{ .Status }}</span>
+            {{ if .PublishedAt }}<span class="ml-2 text-xs text-gray-500">Published {{ .PublishedAt.Format "Jan 2, 2006 15:04" }}</span>{{ end }}
+            {{ if .SubmitterEmail }}<span class="ml-2 text-xs text-gray-500">Suggested by {{ .SubmitterEmail }}</span>{{ end }}
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="submit" name="action" value="update" class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">Save</button>
+            <button type="submit" name="action" value="delete" class="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Delete</button>
+          </div>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-6 gap-4">
+          <div class="md:col-span-3">
+            <label class="block text-xs font-medium text-gray-700">Title</label>
+            <input required type="text" name="Title" value="{{ .Title }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700">Status</label>
+            <select name="Status" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+              <option value="draft" {{ if eq .Status "draft" }}selected{{ end }}>draft</option>
+              <option value="submitted" {{ if eq .Status "submitted" }}selected{{ end }}>submitted</option>
+              <option value="published" {{ if eq .Status "published" }}selected{{ end }}>published</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700">Type</label>
+            <input type="text" name="EventType" value="{{ .EventType }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+          </div>
+
+          <div class="md:col-span-3">
+            <label class="block text-xs font-medium text-gray-700">Event URL</label>
+            <input type="url" name="EventURL" value="{{ .EventURL }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+          </div>
+          <div class="md:col-span-3">
+            <label class="block text-xs font-medium text-gray-700">Location</label>
+            <input type="text" name="Location" value="{{ .Location }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-700">Starts at</label>
+            <input type="datetime-local" name="StartsAt" value="{{ satelliteInputTime .StartsAt $.Conf }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700">Ends at</label>
+            <input type="datetime-local" name="EndsAt" value="{{ satelliteInputTime .EndsAt $.Conf }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+          </div>
+
+          <div class="md:col-span-6">
+            <label class="block text-xs font-medium text-gray-700">Description</label>
+            <textarea name="Description" rows="2" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">{{ .Description }}</textarea>
+          </div>
+
+          <div class="md:col-span-2">
+            <span class="block text-xs font-medium text-gray-700">Image</span>
+            <input type="hidden" id="sat-{{ .ID }}-image" name="ImageURL" value="{{ .ImageURL }}">
+            <div class="mt-1 flex items-center gap-2">
+              <button type="button" data-target="sat-{{ .ID }}-image" data-kind="event" class="sat-upload-trigger inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Upload</button>
+              <img id="sat-{{ .ID }}-image-preview" alt="" class="{{ if .ImageURL }}{{ else }}hidden {{ end }}h-10 w-16 rounded bg-gray-50 object-cover" src="{{ if .ImageURL }}{{ spacesURL .ImageURL }}{{ end }}">
+            </div>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-medium text-gray-700">Host name</label>
+            <input type="text" name="HostName" value="{{ .HostName }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-medium text-gray-700">Host URL</label>
+            <input type="url" name="HostURL" value="{{ .HostURL }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+          </div>
+          <div class="md:col-span-2">
+            <span class="block text-xs font-medium text-gray-700">Host logo</span>
+            <input type="hidden" id="sat-{{ .ID }}-logo" name="HostLogoURL" value="{{ .HostLogoURL }}">
+            <div class="mt-1 flex items-center gap-2">
+              <button type="button" data-target="sat-{{ .ID }}-logo" data-kind="logo" class="sat-upload-trigger inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Upload</button>
+              <img id="sat-{{ .ID }}-logo-preview" alt="" class="{{ if .HostLogoURL }}{{ else }}hidden {{ end }}h-10 w-10 rounded-full bg-gray-50 object-cover" src="{{ if .HostLogoURL }}{{ spacesURL .HostLogoURL }}{{ end }}">
+            </div>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-medium text-gray-700">Submitter email</label>
+            <input type="email" name="SubmitterEmail" value="{{ .SubmitterEmail }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+          </div>
+          <div class="md:col-span-6">
+            <label class="block text-xs font-medium text-gray-700">Internal notes</label>
+            <textarea name="Notes" rows="2" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">{{ .Notes }}</textarea>
+          </div>
+        </div>
+      </form>
+      {{ else }}
+      <div class="rounded-lg bg-white shadow p-6 text-sm text-gray-600">No satellite events have been submitted yet.</div>
+      {{ end }}
+    </div>
+
+    <form method="POST" action="/{{ .Conf.Tag }}/admin/satellites" class="mt-10 bg-white shadow rounded-lg p-5">
+      <input type="hidden" name="action" value="create">
+      <input type="hidden" name="Status" value="draft">
+      <input type="hidden" name="Timezone" value="{{ .Conf.Timezone }}">
+      <h2 class="text-base font-semibold text-gray-900">Add a draft event</h2>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div class="md:col-span-3">
+          <label class="block text-xs font-medium text-gray-700">Title</label>
+          <input required type="text" name="Title" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700">Type</label>
+          <input type="text" name="EventType" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div class="md:col-span-3">
+          <label class="block text-xs font-medium text-gray-700">Event URL</label>
+          <input type="url" name="EventURL" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div class="md:col-span-3">
+          <label class="block text-xs font-medium text-gray-700">Location</label>
+          <input type="text" name="Location" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700">Starts at</label>
+          <input type="datetime-local" name="StartsAt" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700">Ends at</label>
+          <input type="datetime-local" name="EndsAt" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div class="md:col-span-6">
+          <label class="block text-xs font-medium text-gray-700">Description</label>
+          <textarea name="Description" rows="2" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin"></textarea>
+        </div>
+        <div class="md:col-span-2">
+          <span class="block text-xs font-medium text-gray-700">Image</span>
+          <input type="hidden" id="sat-new-image" name="ImageURL">
+          <div class="mt-1 flex items-center gap-2">
+            <button type="button" data-target="sat-new-image" data-kind="event" class="sat-upload-trigger inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Upload</button>
+            <img id="sat-new-image-preview" alt="" class="hidden h-10 w-16 rounded bg-gray-50 object-cover">
+          </div>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700">Host name</label>
+          <input type="text" name="HostName" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700">Host URL</label>
+          <input type="url" name="HostURL" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        </div>
+        <div class="md:col-span-2">
+          <span class="block text-xs font-medium text-gray-700">Host logo</span>
+          <input type="hidden" id="sat-new-logo" name="HostLogoURL">
+          <div class="mt-1 flex items-center gap-2">
+            <button type="button" data-target="sat-new-logo" data-kind="logo" class="sat-upload-trigger inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Upload</button>
+            <img id="sat-new-logo-preview" alt="" class="hidden h-10 w-10 rounded-full bg-gray-50 object-cover">
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 flex justify-end">
+        <button type="submit" class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Add event</button>
+      </div>
+    </form>
+  </div>
+  <input type="file" id="SatelliteImagePicker" accept="image/*" class="hidden">
+  <script>
+    (function () {
+      const uploadURL = '/{{ .Conf.Tag }}/admin/satellites/upload-img';
+      const picker = document.getElementById('SatelliteImagePicker');
+      let active = null;
+      document.querySelectorAll('.sat-upload-trigger').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          active = { target: btn.dataset.target, kind: btn.dataset.kind || 'event' };
+          picker.value = '';
+          picker.click();
+        });
+      });
+      picker.addEventListener('change', function () {
+        if (!active || !picker.files || picker.files.length === 0) return;
+        const input = document.getElementById(active.target);
+        const preview = document.getElementById(active.target + '-preview');
+        const fd = new FormData();
+        fd.append('file', picker.files[0]);
+        fd.append('kind', active.kind);
+        fetch(uploadURL, { method: 'POST', body: fd, credentials: 'same-origin' })
+          .then(function (r) {
+            if (!r.ok) return r.text().then(function (t) { throw new Error(t || ('HTTP ' + r.status)); });
+            return r.json();
+          })
+          .then(function (data) {
+            input.value = data.path;
+            preview.src = data.url;
+            preview.classList.remove('hidden');
+          })
+          .catch(function (err) {
+            alert('Upload failed: ' + (err.message || err));
+          })
+          .finally(function () { active = null; });
+      });
+    })();
+  </script>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

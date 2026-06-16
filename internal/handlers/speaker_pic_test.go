@@ -45,6 +45,10 @@ func (f *fakeSpaces) Upload(key string, data []byte, _ string, _ string) (string
 	return "https://fake/" + key, nil
 }
 
+func (f *fakeSpaces) PublicURL(key string) string {
+	return "https://fake/" + key
+}
+
 type pipelineRecorder struct {
 	avifSizes []int
 	avifErr   map[int]error
@@ -219,6 +223,80 @@ func TestMirrorOrgLogoToSpaces_DedupeOnExists(t *testing.T) {
 
 	if len(sp.uploads) != 0 {
 		t.Errorf("should not re-upload when key already exists; got %v", mapKeys(sp.uploads))
+	}
+}
+
+func TestUploadSatelliteImage_PNGReturnsAVIFDisplayAsset(t *testing.T) {
+	sp := newFakeSpaces()
+	p, rec := newRecordingPipeline(t, sp)
+	raw := []byte("satellite png")
+	shortID := imgproc.ShortID(raw)
+
+	key, publicURL, err := p.uploadSatelliteImage("nairobi", "event", raw, "image/png", ".png")
+	if err != nil {
+		t.Fatalf("uploadSatelliteImage: %s", err)
+	}
+
+	wantKey := "nairobi/satellites/event-" + shortID + ".avif"
+	if key != wantKey {
+		t.Fatalf("key = %q, want %q", key, wantKey)
+	}
+	if publicURL != "https://fake/"+wantKey {
+		t.Fatalf("publicURL = %q, want %q", publicURL, "https://fake/"+wantKey)
+	}
+	if _, ok := sp.uploads["nairobi/satellites/event-"+shortID+".png"]; !ok {
+		t.Fatalf("missing original PNG upload; got %v", mapKeys(sp.uploads))
+	}
+	if _, ok := sp.uploads[wantKey]; !ok {
+		t.Fatalf("missing AVIF upload; got %v", mapKeys(sp.uploads))
+	}
+	if want := []int{0}; !intsEqual(rec.avifSizes, want) {
+		t.Fatalf("avif sizes = %v, want %v", rec.avifSizes, want)
+	}
+}
+
+func TestUploadSatelliteImage_JPEGStaysOriginal(t *testing.T) {
+	sp := newFakeSpaces()
+	p, rec := newRecordingPipeline(t, sp)
+	raw := []byte("satellite jpg")
+	shortID := imgproc.ShortID(raw)
+
+	key, publicURL, err := p.uploadSatelliteImage("nairobi", "logo", raw, "image/jpeg", ".jpg")
+	if err != nil {
+		t.Fatalf("uploadSatelliteImage: %s", err)
+	}
+
+	wantKey := "nairobi/satellites/logo-" + shortID + ".jpg"
+	if key != wantKey {
+		t.Fatalf("key = %q, want %q", key, wantKey)
+	}
+	if publicURL != "https://fake/"+wantKey {
+		t.Fatalf("publicURL = %q, want %q", publicURL, "https://fake/"+wantKey)
+	}
+	if _, ok := sp.uploads[wantKey]; !ok {
+		t.Fatalf("missing JPEG upload; got %v", mapKeys(sp.uploads))
+	}
+	if len(sp.uploads) != 1 {
+		t.Fatalf("uploads = %v, want exactly one original upload", mapKeys(sp.uploads))
+	}
+	if len(rec.avifSizes) != 0 {
+		t.Fatalf("unexpected AVIF encode calls: %v", rec.avifSizes)
+	}
+}
+
+func TestUploadSatelliteImage_PNGEncodeFailureStopsUpload(t *testing.T) {
+	sp := newFakeSpaces()
+	p, rec := newRecordingPipeline(t, sp)
+	rec.avifErr[0] = errors.New("ffmpeg failed")
+
+	if _, _, err := p.uploadSatelliteImage("nairobi", "event", []byte("satellite png"), "image/png", ".png"); err == nil {
+		t.Fatal("expected AVIF encode failure")
+	}
+	if len(sp.uploads) != 0 {
+		t.Fatalf("uploads = %v, want none when AVIF encode fails", mapKeys(sp.uploads))
+	}
+	if want := []int{0}; !intsEqual(rec.avifSizes, want) {
+		t.Fatalf("avif sizes = %v, want %v", rec.avifSizes, want)
 	}
 }
 

@@ -358,9 +358,14 @@ func loadTemplates(ctx *config.AppContext) error {
 		"spacesURL": func(key string) string {
 			return spaces.PublicURL(key)
 		},
-		"formatHourMin":  FormatHourMin,
-		"hourLabels":     HourLabels,
-		"venueChipClass": VenueChipClasses,
+		"satelliteTimeLabel":    satelliteEventTimeLabel,
+		"satelliteInputTime":    satelliteEventInputTime,
+		"satelliteFormValue":    satelliteFormValue,
+		"satelliteFormStartsAt": satelliteFormStartsAt,
+		"satelliteFormEndsAt":   satelliteFormEndsAt,
+		"formatHourMin":         FormatHourMin,
+		"hourLabels":            HourLabels,
+		"venueChipClass":        VenueChipClasses,
 		"venueLabel": func(raw string) string {
 			// Resolves the raw venue slug ("one" / "two" / "three")
 			// to the human-readable stage label. Falls back to the
@@ -948,6 +953,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/speaker", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditSpeaker(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
+		DashboardSatelliteEventEdit(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
+		DashboardSatelliteEventSave(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/satellites/{eventID}/upload-img", func(w http.ResponseWriter, r *http.Request) {
+		DashboardSatelliteEventImageUpload(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/invite-speaker/{proposalID}", func(w http.ResponseWriter, r *http.Request) {
 		InviteSpeaker(w, r, app)
@@ -1198,6 +1212,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/hotels/upload-img", func(w http.ResponseWriter, r *http.Request) {
 		HotelImageUpload(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/satellites", func(w http.ResponseWriter, r *http.Request) {
+		SatelliteEventsAdmin(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/admin/satellites", func(w http.ResponseWriter, r *http.Request) {
+		SatelliteEventsAdminSave(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/satellites/upload-img", func(w http.ResponseWriter, r *http.Request) {
+		SatelliteEventsAdminImageUpload(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/schedule", func(w http.ResponseWriter, r *http.Request) {
 		ScheduleConf(w, r, app)
@@ -1280,6 +1303,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}", func(w http.ResponseWriter, r *http.Request) {
 		RenderConf(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/{conf}/satellites/new", func(w http.ResponseWriter, r *http.Request) {
+		SatelliteEventSuggest(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/satellites/new", func(w http.ResponseWriter, r *http.Request) {
+		SatelliteEventSuggestSubmit(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/satellites/upload-img", func(w http.ResponseWriter, r *http.Request) {
+		SatelliteEventSuggestImageUpload(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/{conf}/talks", func(w http.ResponseWriter, r *http.Request) {
 		RenderTalks(w, r, app)
 	}).Methods("GET")
@@ -2380,6 +2412,13 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	conf = &confCopy
 
 	confHotels := helpers.HotelsForConf(ctx, conf)
+	satelliteEvents, err := getters.ListSatelliteEvents(ctx, conf.Ref, false)
+	if err != nil {
+		ctx.Err.Printf("/%s satellite events load failed (continuing): %s", conf.Tag, err)
+	}
+	if len(satelliteEvents) > 0 {
+		confCopy.HasSatellites = true
+	}
 
 	currTix := findCurrTix(conf, soldCount)
 	maxTix := findMaxTix(conf)
@@ -2404,6 +2443,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		Days:              days,
 		AgendaDays:        agendaDays,
 		ScheduledSessions: scheduledSessions,
+		SatelliteEvents:   satelliteEvents,
 		Year:              helpers.CurrentYear(),
 	})
 	if err != nil {

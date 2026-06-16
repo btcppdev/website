@@ -14,6 +14,7 @@ type photoSpaces interface {
 	IsConfigured() bool
 	Exists(key string) bool
 	Upload(key string, data []byte, contentType, hash string) (string, error)
+	PublicURL(key string) string
 }
 
 type spacesPkgAdapter struct{}
@@ -23,6 +24,7 @@ func (spacesPkgAdapter) Exists(key string) bool { return spaces.Exists(key) }
 func (spacesPkgAdapter) Upload(key string, data []byte, ct, hash string) (string, error) {
 	return spaces.Upload(key, data, ct, hash)
 }
+func (spacesPkgAdapter) PublicURL(key string) string { return spaces.PublicURL(key) }
 
 // photoPipeline carries the side-effecting collaborators used by the photo
 // upload methods. Production code calls newPhotoPipeline; tests construct
@@ -103,4 +105,46 @@ func (p photoPipeline) mirrorOrgLogoToSpaces(raw []byte, contentType, ext string
 	if _, err := p.spaces.Upload(key, raw, contentType, ""); err != nil {
 		p.logf("org logo spaces upload failed (%s): %s", shortID, err)
 	}
+}
+
+// uploadSatelliteImage stores the original satellite image. When the upload is
+// a PNG, it also generates an AVIF derivative and returns that AVIF key as the
+// canonical display asset so public pages serve the converted image.
+func (p photoPipeline) uploadSatelliteImage(confTag string, kind string, raw []byte, contentType string, ext string) (string, string, error) {
+	if !p.spaces.IsConfigured() {
+		return "", "", fmt.Errorf("spaces not configured")
+	}
+
+	shortID := imgproc.ShortID(raw)
+	origKey := fmt.Sprintf("%s/satellites/%s-%s%s", confTag, kind, shortID, ext)
+	displayKey := origKey
+	displayData := raw
+	displayType := contentType
+
+	if contentType == "image/png" {
+		displayKey = fmt.Sprintf("%s/satellites/%s-%s.avif", confTag, kind, shortID)
+		displayType = "image/avif"
+		if !p.spaces.Exists(displayKey) {
+			avif, err := p.makeAVIF(raw, 0)
+			if err != nil {
+				return "", "", fmt.Errorf("satellite avif encode: %w", err)
+			}
+			displayData = avif
+		} else {
+			displayData = nil
+		}
+	}
+
+	if !p.spaces.Exists(origKey) {
+		if _, err := p.spaces.Upload(origKey, raw, contentType, ""); err != nil {
+			return "", "", fmt.Errorf("satellite orig upload: %w", err)
+		}
+	}
+	if displayData != nil && !p.spaces.Exists(displayKey) {
+		if _, err := p.spaces.Upload(displayKey, displayData, displayType, ""); err != nil {
+			return "", "", fmt.Errorf("satellite display upload: %w", err)
+		}
+	}
+
+	return displayKey, p.spaces.PublicURL(displayKey), nil
 }

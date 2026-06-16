@@ -189,6 +189,12 @@
           <span class="shrink-0 text-xs opacity-80 group-hover:opacity-100 hidden sm:inline">View conf &rarr;</span>
         </div>
       </a>
+      {{ if $eb.SatelliteEvents }}
+      <a href="#satellites-{{ $conf.Tag }}"
+         class="absolute top-2 left-2 inline-flex items-center rounded-md bg-white/90 backdrop-blur px-2.5 py-1 text-xs font-semibold text-gray-900 shadow hover:bg-white">
+        Satellite events ({{ len $eb.SatelliteEvents }})
+      </a>
+      {{ end }}
       {{ if $eb.AdminRole }}
       <a href="{{ if eq $eb.AdminRole "admin" }}/{{ $conf.Tag }}/admin{{ else }}/{{ $conf.Tag }}/volcoord{{ end }}"
          class="absolute top-2 right-2 inline-flex items-center gap-1 rounded-md bg-white/90 backdrop-blur px-2.5 py-1 text-xs font-semibold text-gray-900 shadow hover:bg-white">
@@ -198,7 +204,7 @@
       {{ end }}
     </div>
 
-    {{ if or $eb.SpeakerConf $eb.VolApp $eb.Tickets $eb.CanBuy $.AffiliateCode }}
+    {{ if or $eb.SpeakerConf $eb.VolApp $eb.Tickets $eb.SatelliteEvents $eb.CanBuy $.AffiliateCode }}
     <div class="px-4 py-5 sm:p-6">
       {{ if $.AffiliateCode }}
       <div class="flex items-center justify-between gap-2 mb-3 rounded-md bg-indigo-50 border border-indigo-200 px-3 py-2 text-xs">
@@ -388,6 +394,35 @@
            class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700">
           + Propose a talk for {{ $conf.Desc }}
         </a>
+      </div>
+      {{ end }}
+
+      {{ if $eb.SatelliteEvents }}
+      <div id="satellites-{{ $conf.Tag }}" class="mt-5">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Satellite events</h3>
+        <ul class="space-y-2">
+          {{ range $eb.SatelliteEvents }}
+          <li class="flex items-center justify-between gap-3 rounded-md bg-gray-50/50 border border-gray-100 px-3 py-2">
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-gray-900 truncate">{{ .Title }}</p>
+              <div class="mt-1 flex flex-wrap items-center gap-2">
+                {{ if eq .Status "published" }}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">published</span>
+                {{ else if eq .Status "submitted" }}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">submitted</span>
+                {{ else }}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">draft</span>
+                {{ end }}
+                {{ $satTime := satelliteTimeLabel . $conf }}{{ if $satTime }}<span class="text-xs text-gray-500">{{ $satTime }}</span>{{ end }}
+              </div>
+            </div>
+            <a href="/dashboard/satellites/{{ .ID }}/edit?hr={{ $.HMAC }}&em={{ $.Email }}"
+               class="shrink-0 inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+              Edit
+            </a>
+          </li>
+          {{ end }}
+        </ul>
       </div>
       {{ end }}
 

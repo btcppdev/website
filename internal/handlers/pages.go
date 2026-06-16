@@ -62,6 +62,12 @@ type ConfPage struct {
 	// range gymnastics. Nil when no talks are Scheduled yet.
 	ScheduledSessions []*types.Session
 
+	// SatelliteEvents are database-backed side events published for
+	// the public conf page. Historical conf templates may still carry
+	// hard-coded satellite sections; this list is for new/admin-added
+	// rows and attendee suggestions that have been approved.
+	SatelliteEvents []*types.SatelliteEvent
+
 	Year uint
 }
 
@@ -524,11 +530,12 @@ type ScheduleProposal struct {
 // a single conference. Any non-empty field renders its own subsection
 // on the dashboard; empty fields are skipped.
 type EventBlock struct {
-	Conf        *types.Conf
-	SpeakerConf *types.SpeakerConf // nil = not a speaker at this conf
-	VolApp      *types.Volunteer   // nil = not a volunteer at this conf
-	VolInfo     *types.VolInfo     // orientation info (when VolApp != nil)
-	Tickets     []*types.Registration
+	Conf            *types.Conf
+	SpeakerConf     *types.SpeakerConf // nil = not a speaker at this conf
+	VolApp          *types.Volunteer   // nil = not a volunteer at this conf
+	VolInfo         *types.VolInfo     // orientation info (when VolApp != nil)
+	Tickets         []*types.Registration
+	SatelliteEvents []*types.SatelliteEvent
 	// CanBuy when the conf is still selling tickets (Active +
 	// future). Used to show a "Buy more tickets" / "Get a ticket"
 	// CTA inside the block alongside any tickets the user already
@@ -833,6 +840,39 @@ type SponsorFormPage struct {
 	ConfItems   []types.CheckItem
 	SponsorOpps []types.CheckItem
 	Year        uint
+}
+
+type SatelliteEventFormPage struct {
+	Conf         *types.Conf
+	FlashMessage string
+	FlashError   string
+	Event        *types.SatelliteEvent
+	Form         *SatelliteEventFormValues
+	HMAC         string
+	Email        string
+	Year         uint
+}
+
+type SatelliteEventFormValues struct {
+	Title       string
+	Description string
+	EventURL    string
+	EventType   string
+	StartsAt    string
+	EndsAt      string
+	Location    string
+	ImageURL    string
+	HostName    string
+	HostURL     string
+	HostLogoURL string
+}
+
+type SatelliteEventAdminPage struct {
+	Conf         *types.Conf
+	Events       []*types.SatelliteEvent
+	FlashMessage string
+	FlashError   string
+	Year         uint
 }
 
 type SocialSpeakerRow struct {
