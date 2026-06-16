@@ -510,7 +510,7 @@ func requireHackathonSchema(t *testing.T, ctx *config.AppContext) {
 		t.Fatalf("check hackathon schema: %v", err)
 	}
 	if !schemaReady {
-		t.Fatalf("hackathon schema is not migrated; run db/migrations/002_hackathon_schema.sql")
+		t.Fatalf("hackathon schema is not migrated; run db/migrations/018_hackathon_schema.sql")
 	}
 }
 
