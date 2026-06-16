@@ -143,8 +143,9 @@ func allowMediaGeneration(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 }
 
 type TalkCard struct {
-	ConfTag string
-	Talk    *types.Talk
+	ConfTag      string
+	Talk         *types.Talk
+	DisplayTitle string
 }
 
 type SpeakerCard struct {
@@ -336,7 +337,8 @@ func PreviewTalkCard(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	}
 
 	err := ctx.TemplateCache.ExecuteTemplate(w, template, &TalkCard{
-		ConfTag: confTag,
+		ConfTag:      confTag,
+		DisplayTitle: socialCardTalkTitle("This is a very long talk Name: one that goes way too far"),
 		Talk: &types.Talk{
 			Clipart:  "riga_clock.png",
 			Name:     "This is a very long talk Name: one that goes way too far",
@@ -369,8 +371,9 @@ func MakeTalkCard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		tmplName = "media/talk_1080p.tmpl"
 	}
 	err = ctx.TemplateCache.ExecuteTemplate(w, tmplName, &TalkCard{
-		ConfTag: confTag,
-		Talk:    talk,
+		ConfTag:      confTag,
+		Talk:         talk,
+		DisplayTitle: socialCardTalkTitle(talk.Name),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)

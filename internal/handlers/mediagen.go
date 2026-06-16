@@ -130,7 +130,7 @@ func speakerCardHash(speaker *types.Speaker, talk *types.Talk) string {
 
 func talkCardHash(talk *types.Talk) string {
 	h := sha256.New()
-	h.Write([]byte(talk.Name))
+	h.Write([]byte(socialCardTalkTitle(talk.Name)))
 	h.Write([]byte(talk.Clipart))
 	// Clipart fingerprint comes from the Spaces manifest now that
 	// static/img/talks/ is gone — see talkClipartFingerprint.
@@ -145,6 +145,16 @@ func talkCardHash(talk *types.Talk) string {
 		h.Write([]byte(speakerPhotoFingerprint(s.Photo)))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
+}
+
+func socialCardTalkTitle(title string) string {
+	title = strings.TrimSpace(title)
+	if before, _, ok := strings.Cut(title, ":"); ok {
+		if trimmed := strings.TrimSpace(before); trimmed != "" {
+			return trimmed
+		}
+	}
+	return title
 }
 
 func updateSpeakerManifest(filename string, raw []byte) {
