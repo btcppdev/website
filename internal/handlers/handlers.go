@@ -605,6 +605,19 @@ func requestLog(ctx *config.AppContext, h http.Handler) http.Handler {
 	})
 }
 
+func redirectTrailingSlash(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if (r.Method == http.MethodGet || r.Method == http.MethodHead) && r.URL.Path != "/" && strings.HasSuffix(r.URL.Path, "/") {
+			target := *r.URL
+			target.Path = strings.TrimRight(r.URL.Path, "/")
+			target.RawPath = ""
+			http.Redirect(w, r, target.String(), http.StatusPermanentRedirect)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 func Routes(app *config.AppContext) (http.Handler, error) {
 	r := mux.NewRouter()
 
@@ -1369,7 +1382,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	fs := http.FileServer(http.Dir("static"))
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticCache(fs)))
 
-	return requestLog(app, noIndexRobots(r)), nil
+	return requestLog(app, redirectTrailingSlash(noIndexRobots(r))), nil
 }
 
 func getFaviconHandler(name string) func(http.ResponseWriter, *http.Request) {
