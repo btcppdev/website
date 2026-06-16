@@ -31,6 +31,32 @@ To rebuild the local database from scratch:
 btcpp_pg_reset
 ```
 
+## Schema Migrations
+
+Migration files live in `db/migrations` and are applied in numeric prefix
+order. The web app runs pending migrations automatically on startup when
+`DATA_BACKEND=postgres`.
+
+Applied migrations are tracked in the database in `schema_migrations`. Existing
+databases that already have the initial schema are baselined as migration `001`
+on first startup, then later migrations are applied normally. Migration SQL is
+read from disk at runtime; deploys must include the checked-in `db/migrations`
+directory alongside the app.
+
+To run the same migration path manually:
+
+```sh
+make db-migrate
+```
+
+This repo includes a tracked pre-commit hook that rejects duplicate migration
+number prefixes, such as adding a second `002_*.sql`. Enable it in a checkout
+with:
+
+```sh
+git config core.hooksPath githooks
+```
+
 To replace the local database with a sanitized copy of production:
 
 ```sh

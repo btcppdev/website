@@ -36,6 +36,10 @@ db-start:
 	fi
 	@createdb -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" "$$PGDATABASE" >/dev/null 2>&1 || true
 
+.PHONY: db-migrate
+db-migrate: db-start
+	$(GO_ENV) go run ./cmd/db-migrate
+
 .PHONY: build
 build:
 	$(GO_ENV) go build -v -o target/$(APP_NAME) ./cmd/web/main.go

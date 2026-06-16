@@ -193,6 +193,13 @@ func run(env *types.EnvConfig) error {
 			return err
 		}
 		app.DB = pool
+		applied, err := db.Migrate(context.Background(), pool, app.Infos)
+		if err != nil {
+			return fmt.Errorf("run database migrations: %w", err)
+		}
+		if applied == 0 {
+			app.Infos.Println("database migrations up to date")
+		}
 	}
 
 	// Per-request Notion timing is noisy in production, so keep it opt-in.

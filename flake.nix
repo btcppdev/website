@@ -82,7 +82,7 @@
 
             btcpp_pg_migrate() {
               btcpp_pg_start
-              psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/001_initial_schema.sql
+              GOSUMDB=sum.golang.org go run ./cmd/db-migrate
             }
 
             btcpp_pg_reset() {
