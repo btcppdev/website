@@ -30,6 +30,26 @@ func createConfTalkPostgres(ctx *config.AppContext, in ConfTalkInput) (string, e
 		return "", fmt.Errorf("CreateConfTalk: conference required")
 	}
 
+	proposalID := strings.TrimSpace(in.ProposalID)
+	if proposalID != "" {
+		var existingID string
+		err := ctx.DB.QueryRow(context.Background(), `
+			SELECT id::text
+			FROM conf_talks
+			WHERE proposal_id = $1::uuid
+				AND archived_at IS NULL
+			ORDER BY scheduled_start IS NULL, scheduled_start NULLS LAST, updated_at DESC, id
+			LIMIT 1
+		`, proposalID).Scan(&existingID)
+		if err == nil {
+			InvalidateConfTalksCache()
+			return existingID, nil
+		}
+		if err != pgx.ErrNoRows {
+			return "", fmt.Errorf("lookup conf talk for proposal %q: %w", in.ProposalID, err)
+		}
+	}
+
 	var confTalkID string
 	err = ctx.DB.QueryRow(context.Background(), `
 		INSERT INTO conf_talks (conference_id, proposal_id)
@@ -37,7 +57,7 @@ func createConfTalkPostgres(ctx *config.AppContext, in ConfTalkInput) (string, e
 		ON CONFLICT (proposal_id, scheduled_start) DO UPDATE SET
 			conference_id = EXCLUDED.conference_id
 		RETURNING id::text
-	`, *confID, strings.TrimSpace(in.ProposalID)).Scan(&confTalkID)
+	`, *confID, proposalID).Scan(&confTalkID)
 	if err != nil {
 		return "", fmt.Errorf("insert conf talk for proposal %q: %w", in.ProposalID, err)
 	}

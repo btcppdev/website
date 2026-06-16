@@ -195,6 +195,61 @@ func TestPostgresSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
 	}
 }
 
+func TestPostgresSmokeCreateConfTalkReusesScheduledProposalRow(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	confID, tag := insertSmokeConference(t, ctx)
+	suffix := postgresSmokeSuffix()
+
+	var proposalID string
+	err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO proposals (conference_id, title, status)
+		VALUES ($1::uuid, $2, 'Accepted')
+		RETURNING id::text
+	`, confID, "Scheduled Proposal "+suffix).Scan(&proposalID)
+	if err != nil {
+		t.Fatalf("insert proposal: %v", err)
+	}
+
+	start := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	end := start.Add(30 * time.Minute)
+	var scheduledID string
+	err = ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO conf_talks (conference_id, proposal_id, scheduled_start, scheduled_end, venue)
+		VALUES ($1::uuid, $2::uuid, $3, $4, 'Mainstage')
+		RETURNING id::text
+	`, confID, proposalID, start, end).Scan(&scheduledID)
+	if err != nil {
+		t.Fatalf("insert scheduled conf talk: %v", err)
+	}
+
+	gotID, err := CreateConfTalk(ctx, ConfTalkInput{
+		ConfTag:    tag,
+		ProposalID: proposalID,
+	})
+	if err != nil {
+		t.Fatalf("CreateConfTalk: %v", err)
+	}
+	if gotID != scheduledID {
+		t.Fatalf("CreateConfTalk returned %s, want existing scheduled row %s", gotID, scheduledID)
+	}
+	if err := UpdateConfTalkSchedule(ctx, gotID, "Mainstage", start, end); err != nil {
+		t.Fatalf("UpdateConfTalkSchedule existing row: %v", err)
+	}
+
+	var count int
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT count(*)
+		FROM conf_talks
+		WHERE proposal_id = $1::uuid
+			AND archived_at IS NULL
+	`, proposalID).Scan(&count); err != nil {
+		t.Fatalf("count conf talks: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("active conf_talks for proposal = %d, want 1", count)
+	}
+}
+
 func TestPostgresSmokeUpsertSpeakerConfNormalizesNilAvailability(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	confID, tag := insertSmokeConference(t, ctx)

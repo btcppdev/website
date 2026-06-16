@@ -26,7 +26,10 @@ func getConfTalks(ctx *config.AppContext) {
 	byProp := make(map[string]*types.ConfTalk, len(cts))
 	for _, ct := range cts {
 		if ct != nil && ct.Proposal != nil {
-			byProp[ct.Proposal.ID] = ct
+			existing := byProp[ct.Proposal.ID]
+			if existing == nil || (existing.Sched == nil && ct.Sched != nil) {
+				byProp[ct.Proposal.ID] = ct
+			}
 		}
 	}
 	confTalkCacheMu.Lock()
