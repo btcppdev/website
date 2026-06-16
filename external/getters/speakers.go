@@ -32,6 +32,8 @@ type SpeakerInput struct {
 // SpeakerUpdate is a sparse update for an existing speaker/person row. Empty
 // strings mean "leave this field alone".
 type SpeakerUpdate struct {
+	Name      string
+	Email     string
 	Photo     string
 	Phone     string
 	Signal    string
@@ -177,6 +179,8 @@ func normalizeSpeakerInput(in SpeakerInput) SpeakerInput {
 }
 
 func normalizeSpeakerUpdate(up SpeakerUpdate) SpeakerUpdate {
+	up.Name = strings.TrimSpace(up.Name)
+	up.Email = strings.TrimSpace(up.Email)
 	up.Photo = strings.TrimSpace(up.Photo)
 	up.Phone = strings.TrimSpace(up.Phone)
 	up.Signal = strings.TrimSpace(up.Signal)
@@ -200,6 +204,12 @@ func patchCachedSpeaker(speakerID string, up SpeakerUpdate) {
 		}
 		if up.Photo != "" {
 			s.Photo = up.Photo
+		}
+		if up.Name != "" {
+			s.Name = up.Name
+		}
+		if up.Email != "" {
+			s.Email = up.Email
 		}
 		if up.Phone != "" {
 			s.Phone = up.Phone

@@ -6325,7 +6325,33 @@ func adminUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Photo upload failed."), http.StatusSeeOther)
 		return
 	}
+	name := strings.TrimSpace(r.FormValue("Name"))
+	if name == "" {
+		http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Name is required."), http.StatusSeeOther)
+		return
+	}
+	email := strings.TrimSpace(r.FormValue("Email"))
+	if email == "" {
+		http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Email is required."), http.StatusSeeOther)
+		return
+	}
+	if !strings.EqualFold(email, sp.Email) {
+		existing, err := getters.GetSpeakersByEmail(ctx, email)
+		if err != nil {
+			ctx.Err.Printf("/%s/admin/speakers/%s/edit email lookup %s: %s", conf.Tag, sp.ID, email, err)
+			http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Email lookup failed: "+err.Error()), http.StatusSeeOther)
+			return
+		}
+		for _, other := range existing {
+			if other != nil && other.ID != sp.ID {
+				http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Email already belongs to another speaker."), http.StatusSeeOther)
+				return
+			}
+		}
+	}
 	up := getters.SpeakerUpdate{
+		Name:      name,
+		Email:     email,
 		Phone:     strings.TrimSpace(r.FormValue("Phone")),
 		Signal:    strings.TrimSpace(r.FormValue("Signal")),
 		Telegram:  strings.TrimSpace(r.FormValue("Telegram")),

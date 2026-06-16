@@ -194,11 +194,13 @@ func updateSpeakerPostgres(ctx *config.AppContext, speakerID string, up SpeakerU
 			website_url = CASE WHEN $11 <> '' THEN $11 ELSE website_url END,
 			company = CASE WHEN $12 <> '' THEN $12 ELSE company END,
 			org_logo_path = CASE WHEN $13 <> '' THEN $13 ELSE org_logo_path END,
-			tshirt = CASE WHEN $14 <> '' THEN $14 ELSE tshirt END
+			tshirt = CASE WHEN $14 <> '' THEN $14 ELSE tshirt END,
+			email = CASE WHEN $15 <> '' THEN $15::citext ELSE email END,
+			name = CASE WHEN $16 <> '' THEN $16 ELSE name END
 		WHERE id = $1::uuid
 	`, speakerID, up.Photo, up.Phone, up.Signal, up.Telegram, up.Twitter,
 		up.Nostr, up.Github, up.Instagram, up.LinkedIn, up.Website, up.Company,
-		up.OrgLogo, up.TShirt)
+		up.OrgLogo, up.TShirt, up.Email, up.Name)
 	if err != nil {
 		return fmt.Errorf("update person %s: %w", speakerID, err)
 	}

@@ -182,6 +182,12 @@ func speakerCreateProps(in SpeakerInput) map[string]*notion.PropertyValue {
 
 func speakerUpdateProps(up SpeakerUpdate) map[string]*notion.PropertyValue {
 	props := map[string]*notion.PropertyValue{}
+	if up.Name != "" {
+		props["Name"] = titleValue(up.Name)
+	}
+	if up.Email != "" {
+		props["Email"] = notion.NewEmailPropertyValue(up.Email)
+	}
 	if up.Photo != "" {
 		props["NormPhoto"] = richTextValue(up.Photo)
 	}
