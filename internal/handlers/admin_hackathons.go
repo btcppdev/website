@@ -32,6 +32,8 @@ type HackathonAdminPage struct {
 	IsNew           bool
 	FlashMessage    string
 	FlashError      string
+	SearchQuery     string
+	Sort            string
 	Year            uint
 }
 
@@ -367,6 +369,7 @@ func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
 	}
+	searchQuery, sortMode := hackathonListControls(r)
 	competitions, err := getters.ListCompetitions(ctx)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons list competitions: %s", err)
@@ -379,11 +382,14 @@ func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		http.Error(w, "Unable to load conferences", http.StatusInternalServerError)
 		return
 	}
+	competitions = applyHackathonListControls(competitions, confs, searchQuery, sortMode)
 	page := &HackathonAdminPage{
 		Competitions: competitions,
 		Confs:        confs,
 		FlashMessage: r.URL.Query().Get("flash"),
 		FlashError:   r.URL.Query().Get("error"),
+		SearchQuery:  searchQuery,
+		Sort:         sortMode,
 		Year:         helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathons.tmpl", page); err != nil {
