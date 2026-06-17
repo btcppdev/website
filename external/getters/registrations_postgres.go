@@ -84,7 +84,7 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 	sql := `
 		SELECT r.ref_id, coalesce(r.conference_id::text, ''), r.type,
 			r.email::text, r.item_bought, coalesce(r.amount_paid, 0),
-			r.currency, r.revoked
+			r.currency, r.revoked, r.checked_in_at
 		FROM registrations r
 	`
 	args := []any{}
@@ -111,6 +111,7 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 	var out []*types.Registration
 	for rows.Next() {
 		var registration types.Registration
+		var checkedInAt pgtype.Timestamptz
 		err := rows.Scan(
 			&registration.RefID,
 			&registration.ConfRef,
@@ -120,9 +121,13 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 			&registration.Amount,
 			&registration.Currency,
 			&registration.Revoked,
+			&checkedInAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan registration: %w", err)
+		}
+		if checkedInAt.Valid {
+			registration.CheckedInAt = &checkedInAt.Time
 		}
 		out = append(out, &registration)
 	}

@@ -17,6 +17,7 @@ import (
 // rather than blanking the whole panel.
 type OrganizerStats struct {
 	TicketsSold         int
+	CheckedInAttendees  int
 	RevenueByCurrency   []CurrencyTotal // sorted by amount desc
 	SpeakersConfirmed   int
 	PendingApplications int
@@ -135,6 +136,9 @@ func loadOrganizerStats(ctx *config.AppContext, conf *types.Conf, proposals []*t
 		for _, r := range regs {
 			if r == nil {
 				continue
+			}
+			if r.CheckedInAt != nil {
+				stats.CheckedInAttendees++
 			}
 			cur := strings.ToUpper(strings.TrimSpace(r.Currency))
 			if cur == "" || r.Amount <= 0 {

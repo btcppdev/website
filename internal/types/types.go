@@ -463,7 +463,8 @@ type (
 		// and should be hidden from the buyer's dashboard. Stays in
 		// the cache so admin-side reporting / staffing decisions
 		// can still see it.
-		Revoked bool
+		Revoked     bool
+		CheckedInAt *time.Time
 	}
 
 	Item struct {
