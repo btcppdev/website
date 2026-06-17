@@ -2,6 +2,7 @@ package getters
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -32,15 +34,7 @@ func createConfTalkPostgres(ctx *config.AppContext, in ConfTalkInput) (string, e
 
 	proposalID := strings.TrimSpace(in.ProposalID)
 	if proposalID != "" {
-		var existingID string
-		err := ctx.DB.QueryRow(context.Background(), `
-			SELECT id::text
-			FROM conf_talks
-			WHERE proposal_id = $1::uuid
-				AND archived_at IS NULL
-			ORDER BY scheduled_start IS NULL, scheduled_start NULLS LAST, updated_at DESC, id
-			LIMIT 1
-		`, proposalID).Scan(&existingID)
+		existingID, err := activeConfTalkIDForProposalPostgres(ctx, proposalID)
 		if err == nil {
 			InvalidateConfTalksCache()
 			return existingID, nil
@@ -59,6 +53,14 @@ func createConfTalkPostgres(ctx *config.AppContext, in ConfTalkInput) (string, e
 		RETURNING id::text
 	`, *confID, proposalID).Scan(&confTalkID)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if proposalID != "" && errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			existingID, lookupErr := activeConfTalkIDForProposalPostgres(ctx, proposalID)
+			if lookupErr == nil {
+				InvalidateConfTalksCache()
+				return existingID, nil
+			}
+		}
 		return "", fmt.Errorf("insert conf talk for proposal %q: %w", in.ProposalID, err)
 	}
 
@@ -77,6 +79,24 @@ func createConfTalkPostgres(ctx *config.AppContext, in ConfTalkInput) (string, e
 	}
 	cacheConfTalkPostgres(ct)
 	return confTalkID, nil
+}
+
+func activeConfTalkIDForProposalPostgres(ctx *config.AppContext, proposalID string) (string, error) {
+	var existingID string
+	err := ctx.DB.QueryRow(context.Background(), `
+		SELECT id::text
+		FROM conf_talks
+		WHERE proposal_id = $1::uuid
+			AND archived_at IS NULL
+		ORDER BY
+			(cal_notif <> '') DESC,
+			(scheduled_start IS NOT NULL) DESC,
+			updated_at DESC,
+			created_at DESC,
+			id DESC
+		LIMIT 1
+	`, proposalID).Scan(&existingID)
+	return existingID, err
 }
 
 func listConfTalksPostgres(ctx *config.AppContext, proposalMap map[string]*types.Proposal) ([]*types.ConfTalk, error) {

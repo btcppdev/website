@@ -216,6 +216,15 @@ func SchedulePlace(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 	confTalkID := ""
 	existing := getters.FetchConfTalkByProposal(req.ProposalID)
+	if existing == nil {
+		var lookupErr error
+		existing, lookupErr = getters.GetConfTalkByProposal(ctx, req.ProposalID)
+		if lookupErr != nil {
+			ctx.Err.Printf("/%s/admin/schedule lookup conftalk: %s", conf.Tag, lookupErr)
+			http.Error(w, "lookup failed", http.StatusInternalServerError)
+			return
+		}
+	}
 	if existing != nil {
 		confTalkID = existing.ID
 		if existing.Sched != nil && existing.Sched.End != nil {
@@ -254,7 +263,7 @@ func SchedulePlace(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	// Scheduled talks). Drift is surfaced visually via the
 	// orange tint on each card.
 	hasDrift := false
-	if ct := getters.FetchConfTalkByProposal(req.ProposalID); ct != nil {
+	if ct, err := getters.GetConfTalkByProposal(ctx, req.ProposalID); err == nil && ct != nil {
 		hasDrift = computeScheduleDrift(ct, proposal, conf)
 	}
 
