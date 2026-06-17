@@ -31,29 +31,32 @@
     <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
     {{ end }}
 
-    <form method="GET" action="/admin/hackathons" class="mb-6 rounded-lg bg-white p-4 shadow">
-      <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_auto] md:items-end">
-        <div>
-          <label for="HackathonSearch" class="block text-xs font-medium uppercase tracking-wide text-gray-500">Search</label>
-          <input id="HackathonSearch" name="q" type="search" value="{{ .SearchQuery }}" placeholder="Search title or conference" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600">
+    <details class="mb-6 rounded-lg bg-white shadow" {{ if or .SearchQuery (ne .Sort "newest") }}open{{ end }}>
+      <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-900 hover:bg-gray-50">Filter and sort</summary>
+      <form method="GET" action="/admin/hackathons" class="border-t border-gray-100 p-4">
+        <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_auto] md:items-end">
+          <div>
+            <label for="HackathonSearch" class="block text-xs font-medium uppercase tracking-wide text-gray-500">Search</label>
+            <input id="HackathonSearch" name="q" type="search" value="{{ .SearchQuery }}" placeholder="Search title or conference" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600">
+          </div>
+          <div>
+            <label for="HackathonSort" class="block text-xs font-medium uppercase tracking-wide text-gray-500">Sort</label>
+            <select id="HackathonSort" name="sort" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600">
+              <option value="newest" {{ if eq .Sort "newest" }}selected{{ end }}>Newest</option>
+              <option value="oldest" {{ if eq .Sort "oldest" }}selected{{ end }}>Oldest</option>
+              <option value="title" {{ if eq .Sort "title" }}selected{{ end }}>Title A-Z</option>
+              <option value="conference" {{ if eq .Sort "conference" }}selected{{ end }}>Conference</option>
+            </select>
+          </div>
+          <div class="flex gap-2">
+            <button type="submit" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Apply</button>
+            {{ if .SearchQuery }}
+            <a href="/admin/hackathons{{ if ne .Sort "newest" }}?sort={{ .Sort }}{{ end }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 outline outline-1 -outline-offset-1 outline-gray-300 hover:bg-gray-50">Clear</a>
+            {{ end }}
+          </div>
         </div>
-        <div>
-          <label for="HackathonSort" class="block text-xs font-medium uppercase tracking-wide text-gray-500">Sort</label>
-          <select id="HackathonSort" name="sort" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600">
-            <option value="newest" {{ if eq .Sort "newest" }}selected{{ end }}>Newest</option>
-            <option value="oldest" {{ if eq .Sort "oldest" }}selected{{ end }}>Oldest</option>
-            <option value="title" {{ if eq .Sort "title" }}selected{{ end }}>Title A-Z</option>
-            <option value="conference" {{ if eq .Sort "conference" }}selected{{ end }}>Conference</option>
-          </select>
-        </div>
-        <div class="flex gap-2">
-          <button type="submit" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Apply</button>
-          {{ if .SearchQuery }}
-          <a href="/admin/hackathons{{ if ne .Sort "newest" }}?sort={{ .Sort }}{{ end }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 outline outline-1 -outline-offset-1 outline-gray-300 hover:bg-gray-50">Clear</a>
-          {{ end }}
-        </div>
-      </div>
-    </form>
+      </form>
+    </details>
 
     <section class="overflow-hidden rounded-lg bg-white shadow">
       <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
