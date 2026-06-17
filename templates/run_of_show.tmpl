@@ -44,26 +44,27 @@
       </div>
     </div>
 
-    {{ if not .Stages }}
-    <div class="mt-8 bg-white shadow rounded-lg px-4 py-5 sm:p-6 text-center text-gray-500">
-      Nothing scheduled yet.
-    </div>
-    {{ else }}
-    <div class="print:hidden mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Stages">
-      {{ range $i, $stage := .Stages }}
-      <a href="#{{ $stage.Venue.Tag }}"
-              data-stage-tab="{{ $stage.Venue.Tag }}"
-              class="stage-tab rounded-md border px-3 py-1.5 text-sm font-semibold {{ if eq $i 0 }}border-gray-900 bg-gray-900 text-white{{ else }}border-gray-300 bg-white text-gray-700 hover:bg-gray-50{{ end }}">
-        {{ $stage.Venue.Label }}
-      </a>
-      {{ end }}
-    </div>
+    <div id="ros-content">
+      {{ if not .Stages }}
+      <div class="mt-8 bg-white shadow rounded-lg px-4 py-5 sm:p-6 text-center text-gray-500">
+        Nothing scheduled yet.
+      </div>
+      {{ else }}
+      <div class="print:hidden mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Stages">
+        {{ range $i, $stage := .Stages }}
+        <a href="#{{ $stage.Venue.Tag }}"
+                data-stage-tab="{{ $stage.Venue.Tag }}"
+                class="stage-tab rounded-md border px-3 py-1.5 text-sm font-semibold {{ if eq $i 0 }}border-gray-900 bg-gray-900 text-white{{ else }}border-gray-300 bg-white text-gray-700 hover:bg-gray-50{{ end }}">
+          {{ $stage.Venue.Label }}
+        </a>
+        {{ end }}
+      </div>
 
-    {{ range $i, $stage := .Stages }}
-    <div id="{{ $stage.Venue.Tag }}" data-stage-panel="{{ $stage.Venue.Tag }}" class="stage-panel {{ if ne $i 0 }}hidden{{ end }}">
-      <h2 class="mt-8 text-lg font-semibold text-gray-900">{{ $stage.Venue.Label }}</h2>
-      {{ range $stage.Days }}
-      <section class="mt-5">
+      {{ range $i, $stage := .Stages }}
+      <div id="{{ $stage.Venue.Tag }}" data-stage-panel="{{ $stage.Venue.Tag }}" class="stage-panel {{ if ne $i 0 }}hidden{{ end }}">
+        <h2 class="mt-8 text-lg font-semibold text-gray-900">{{ $stage.Venue.Label }}</h2>
+        {{ range $stage.Days }}
+        <section class="mt-5">
         <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500">
           {{ if le .Idx 0 }}Setup · {{ end }}{{ .Date.Format "Mon, Jan 2" }}
         </h3>
@@ -135,18 +136,22 @@
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
+        {{ end }}
+      </div>
+      {{ end }}
       {{ end }}
     </div>
-    {{ end }}
-    {{ end }}
   </main>
 
   <script>
     (function () {
-      var tabs = document.querySelectorAll('[data-stage-tab]');
-      var panels = document.querySelectorAll('[data-stage-panel]');
-      function selectStage(stage) {
+      function stageFromHash() {
+        return decodeURIComponent(window.location.hash.replace(/^#/, ''));
+      }
+      window.rosSelectStage = function (stage) {
+        var tabs = document.querySelectorAll('[data-stage-tab]');
+        var panels = document.querySelectorAll('[data-stage-panel]');
         var active = stage || (tabs[0] && tabs[0].dataset.stageTab);
         var found = false;
         tabs.forEach(function (btn) {
@@ -169,25 +174,25 @@
         panels.forEach(function (panel) {
           panel.classList.toggle('hidden', panel.dataset.stagePanel !== active);
         });
-      }
-      function stageFromHash() {
-        return decodeURIComponent(window.location.hash.replace(/^#/, ''));
-      }
-      tabs.forEach(function (tab) {
-        tab.addEventListener('click', function () {
-          selectStage(tab.dataset.stageTab);
-          if (window.rosFollowNow) {
-            window.setTimeout(window.rosFollowNow, 50);
-          }
+      };
+      window.rosInitStageTabs = function () {
+        document.querySelectorAll('[data-stage-tab]').forEach(function (tab) {
+          tab.addEventListener('click', function () {
+            window.rosSelectStage(tab.dataset.stageTab);
+            if (window.rosFollowNow) {
+              window.setTimeout(window.rosFollowNow, 50);
+            }
+          });
         });
-      });
+        window.rosSelectStage(stageFromHash());
+      };
       window.addEventListener('hashchange', function () {
-        selectStage(stageFromHash());
+        window.rosSelectStage(stageFromHash());
         if (window.rosFollowNow) {
           window.setTimeout(window.rosFollowNow, 50);
         }
       });
-      selectStage(stageFromHash());
+      window.rosInitStageTabs();
     })();
   </script>
   <script>
@@ -240,10 +245,63 @@
       window.addEventListener('load', function () {
         window.setTimeout(window.rosFollowNow, 150);
       });
+      function preserveMediaImages(nextRoot) {
+        var current = {};
+        document.querySelectorAll('#ros-content img[src]').forEach(function (img) {
+          var src = img.getAttribute('src');
+          if (!current[src]) {
+            current[src] = [];
+          }
+          current[src].push(img);
+        });
+        nextRoot.querySelectorAll('img[src]').forEach(function (img) {
+          var src = img.getAttribute('src');
+          var existing = current[src] && current[src].shift();
+          if (existing) {
+            img.replaceWith(existing);
+          }
+        });
+      }
+      var refreshInFlight = false;
+      function softRefreshRunOfShow() {
+        if (refreshInFlight) {
+          return;
+        }
+        refreshInFlight = true;
+        fetch(window.location.href, {
+          headers: { 'X-Requested-With': 'run-of-show-refresh' },
+          cache: 'no-store'
+        }).then(function (response) {
+          if (!response.ok) {
+            throw new Error('refresh failed');
+          }
+          return response.text();
+        }).then(function (html) {
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          var currentRoot = document.getElementById('ros-content');
+          var nextRoot = doc.getElementById('ros-content');
+          if (!currentRoot || !nextRoot) {
+            window.location.reload();
+            return;
+          }
+          preserveMediaImages(nextRoot);
+          currentRoot.replaceWith(nextRoot);
+          if (window.rosInitStageTabs) {
+            window.rosInitStageTabs();
+          }
+          if (window.rosFollowNow) {
+            window.setTimeout(window.rosFollowNow, 50);
+          }
+        }).catch(function () {
+          window.location.reload();
+        }).finally(function () {
+          refreshInFlight = false;
+        });
+      }
       if (window.EventSource) {
         var events = new EventSource('/{{ .Conf.Tag }}/run-of-show/events');
         events.addEventListener('reload', function () {
-          window.location.reload();
+          softRefreshRunOfShow();
         });
       }
     })();
