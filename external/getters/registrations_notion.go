@@ -3,6 +3,7 @@ package getters
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"btcpp-web/internal/config"
@@ -51,6 +52,42 @@ func CheckInNotion(n *types.Notion, ticket string) (string, bool, error) {
 	}
 
 	return "", true, fmt.Errorf("Already checked in")
+}
+
+func bulkCheckInRegistrationsNotion(ctx *config.AppContext, confRef string, emails []string) (int64, error) {
+	wanted := normalizeRegistrationEmails(emails)
+	if len(wanted) == 0 {
+		return 0, nil
+	}
+	selected := make(map[string]bool, len(wanted))
+	for _, email := range wanted {
+		selected[email] = true
+	}
+
+	regs, err := FetchRegistrationsNotion(ctx, confRef)
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	for _, reg := range regs {
+		if reg == nil || reg.CheckedInAt != nil {
+			continue
+		}
+		if !selected[strings.ToLower(strings.TrimSpace(reg.Email))] {
+			continue
+		}
+		_, ok, err := CheckInNotion(ctx.Notion, reg.RefID)
+		if err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "already checked in") {
+				continue
+			}
+			return count, err
+		}
+		if ok {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func SoldTixCountNotion(n *types.Notion, confRef string) (uint, error) {

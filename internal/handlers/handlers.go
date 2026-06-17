@@ -1171,6 +1171,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		RegistrationsAdminBulkEmail(w, r, app)
 	}).Methods("POST")
 
+	r.HandleFunc("/{conf}/admin/registrations/check-in", func(w http.ResponseWriter, r *http.Request) {
+		RegistrationsAdminBulkCheckIn(w, r, app)
+	}).Methods("POST")
+
 	r.HandleFunc("/{conf}/admin/applicants", func(w http.ResponseWriter, r *http.Request) {
 		ProposalAdmin(w, r, app)
 	}).Methods("GET")
@@ -6708,6 +6712,38 @@ func RegistrationsAdminBulkEmail(w http.ResponseWriter, r *http.Request, ctx *co
 	}
 
 	flash := fmt.Sprintf("Sent+to+%d+of+%d+attendees", sent, len(selectedEmails))
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=%s", conf.Tag, flash), http.StatusSeeOther)
+}
+
+func RegistrationsAdminBulkCheckIn(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	selectedEmails := r.Form["reg_emails"]
+	if len(selectedEmails) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=No+attendees+selected", conf.Tag), http.StatusSeeOther)
+		return
+	}
+
+	count, err := getters.BulkCheckInRegistrations(ctx, conf.Ref, selectedEmails)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/registrations/check-in failed: %s", conf.Tag, err)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=Check-in+failed", conf.Tag), http.StatusSeeOther)
+		return
+	}
+	flash := url.QueryEscape(fmt.Sprintf("Marked %d attendee(s) checked in", count))
 	http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=%s", conf.Tag, flash), http.StatusSeeOther)
 }
 

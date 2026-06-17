@@ -40,6 +40,23 @@
             {{ if .IsConfAdmin }}<form method="POST" action="/{{ .Conf.Tag }}/admin/registrations/email">{{ end }}
             <section id="registrations-table" class="mb-6">
                 <div class="bg-white shadow rounded-lg overflow-hidden">
+                    {{ if .IsConfAdmin }}
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 sm:px-6">
+                        <label class="inline-flex items-center gap-2 text-xs text-gray-700">
+                            <input type="checkbox" onclick="toggleAll(this)" class="rounded border-gray-300">
+                            Select visible attendees
+                        </label>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs text-gray-500">Already checked-in tickets are ignored.</span>
+                            <button type="submit"
+                                    formaction="/{{ .Conf.Tag }}/admin/registrations/check-in"
+                                    formmethod="POST"
+                                    class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                Mark checked in
+                            </button>
+                        </div>
+                    </div>
+                    {{ end }}
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>

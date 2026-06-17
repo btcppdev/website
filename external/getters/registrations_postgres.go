@@ -50,6 +50,31 @@ func checkInPostgres(ctx *config.AppContext, ticket string) (string, bool, error
 	return ticketType, true, nil
 }
 
+func bulkCheckInRegistrationsPostgres(ctx *config.AppContext, confRef string, emails []string) (int64, error) {
+	if ctx == nil || ctx.DB == nil {
+		return 0, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	if strings.TrimSpace(confRef) == "" {
+		return 0, fmt.Errorf("conference ref is required")
+	}
+	clean := normalizeRegistrationEmails(emails)
+	if len(clean) == 0 {
+		return 0, nil
+	}
+	tag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE registrations
+		SET checked_in_at = now()
+		WHERE conference_id = $1::uuid
+			AND lower(email::text) = ANY($2::text[])
+			AND checked_in_at IS NULL
+			AND revoked = false
+	`, confRef, clean)
+	if err != nil {
+		return 0, fmt.Errorf("bulk check in registrations: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 func soldTixCountPostgres(ctx *config.AppContext, confRef string) (uint, error) {
 	if ctx == nil || ctx.DB == nil {
 		return 0, fmt.Errorf("postgres backend selected but AppContext.DB is nil")

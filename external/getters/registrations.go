@@ -14,6 +14,27 @@ func CheckIn(ctx *config.AppContext, ticket string) (string, bool, error) {
 	return CheckInNotion(ctx.Notion, ticket)
 }
 
+func BulkCheckInRegistrations(ctx *config.AppContext, confRef string, emails []string) (int64, error) {
+	if UsePostgresBackend(ctx) {
+		return bulkCheckInRegistrationsPostgres(ctx, confRef, emails)
+	}
+	return bulkCheckInRegistrationsNotion(ctx, confRef, emails)
+}
+
+func normalizeRegistrationEmails(emails []string) []string {
+	seen := make(map[string]bool, len(emails))
+	clean := make([]string, 0, len(emails))
+	for _, email := range emails {
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email == "" || seen[email] {
+			continue
+		}
+		seen[email] = true
+		clean = append(clean, email)
+	}
+	return clean
+}
+
 func SoldTixCached(ctx *config.AppContext, conf *types.Conf) uint {
 	/* update the sold tix cache every time */
 	go UpdateSoldTix(ctx, conf)
