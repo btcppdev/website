@@ -797,13 +797,18 @@ type SpeakerRowTalk struct {
 
 type RegistrationsAdminPage struct {
 	Conf          *types.Conf
-	Registrations []*types.Registration
+	Registrations []*RegistrationAdminRow
 	FlashMessage  string
 	// IsConfAdmin gates the email composer. Staff get the
 	// attendee roster (read-only) but no bulk-email power.
 	IsConfAdmin  bool
 	Year         uint
 	EmailCompose *EmailComposeData
+}
+
+type RegistrationAdminRow struct {
+	*types.Registration
+	CheckedInLabel string
 }
 
 // ProposalAdminRow is one card on /{conf}/admin/applicants. The

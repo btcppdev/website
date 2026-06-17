@@ -6566,11 +6566,16 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 
 	// Deduplicate by email
 	seen := make(map[string]bool)
-	var unique []*types.Registration
+	var unique []*RegistrationAdminRow
+	loc := conf.Loc()
 	for _, r := range regs {
 		if r.Email != "" && !seen[r.Email] {
 			seen[r.Email] = true
-			unique = append(unique, r)
+			row := &RegistrationAdminRow{Registration: r}
+			if r.CheckedInAt != nil && !r.CheckedInAt.IsZero() {
+				row.CheckedInLabel = r.CheckedInAt.In(loc).Format("Jan 2, 3:04 PM")
+			}
+			unique = append(unique, row)
 		}
 	}
 
