@@ -271,6 +271,9 @@ type (
 		AvailToHire   bool
 		LookingToHire bool
 		TShirt        string
+		// RecordingEmoji is populated on Talk speaker views from the
+		// per-conf SpeakerConf.RecordOK value. Empty means recording OK.
+		RecordingEmoji string
 		// Roles drives admin-panel access. Each entry is the raw
 		// multi-select tag from the Speakers DB Roles column —
 		// e.g. "vienna-admin", "global-volcoord". Parsed by the
@@ -419,6 +422,12 @@ type (
 		// this talk's ConfTalk. Drives the "Watch" badge on the
 		// agenda + /talks pages.
 		YTLink string
+		// RecordingRestricted is true when at least one attached
+		// SpeakerConf has RecordOK set to a no-recording style value.
+		// RecordingAudioOnly is true when at least one speaker allows
+		// audio but not video. Used by admin production views.
+		RecordingRestricted bool
+		RecordingAudioOnly  bool
 	}
 
 	Session struct {
@@ -865,10 +874,32 @@ func datesBetween(start, end time.Time) []time.Time {
 // have a Timezone yet — same behavior as before this field existed.
 // Always non-nil so callers can use it directly with time.Date.
 func (c *Conf) Loc() *time.Location {
+	if loc := knownConfLocation(c); loc != nil && (c.TZ == nil || c.TZ == time.UTC || strings.EqualFold(strings.TrimSpace(c.Timezone), "UTC")) {
+		return loc
+	}
 	if c.TZ != nil {
 		return c.TZ
 	}
 	return c.StartDate.Location()
+}
+
+func knownConfLocation(c *Conf) *time.Location {
+	if c == nil {
+		return nil
+	}
+	name := ""
+	switch strings.ToLower(strings.TrimSpace(c.Tag)) {
+	case "nairobi":
+		name = "Africa/Nairobi"
+	}
+	if name == "" {
+		return nil
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return nil
+	}
+	return loc
 }
 
 func (c *Conf) InFuture() bool {

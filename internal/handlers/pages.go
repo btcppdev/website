@@ -337,6 +337,20 @@ type RunOfShowPage struct {
 	Year         uint
 }
 
+// PublicRunOfShowPage drives /{conf}/run-of-show. Unlike the admin
+// view, it omits volunteer/staffing rows and groups talks into one
+// tab per stage, with venue-info rows repeated in each tab.
+type PublicRunOfShowPage struct {
+	Conf   *types.Conf
+	Stages []*RunOfShowStage
+	Year   uint
+}
+
+type RunOfShowStage struct {
+	Venue VenueOption
+	Days  []*RunOfShowDay
+}
+
 // VenueOption pairs a raw venue tag (the Notion select value used
 // on ConfTalk.Venue) with its human-readable display label and a
 // hex color for the run-of-show Where column. Colors cycle through
@@ -379,9 +393,10 @@ type ClipartRow struct {
 // Conf.StartDate); zero or negative for setup days that fall before
 // the first event day.
 type RunOfShowDay struct {
-	Idx  int
-	Date time.Time
-	Rows []*RunOfShowRow
+	Idx            int
+	Date           time.Time
+	Rows           []*RunOfShowRow
+	NowMarkerAfter bool
 }
 
 // RunOfShowRow is one timeline row. Kind drives row styling
@@ -393,12 +408,23 @@ type RunOfShowDay struct {
 // What ("Title (30m)") rather than a separate end row, since talks
 // pack densely on the page.
 type RunOfShowRow struct {
-	Start    time.Time
-	Kind     string
-	What     string
-	Who      string
-	Where    string // human-readable label (post-venueLabel translation)
-	VenueTag string // raw venue tag for per-venue visibility toggle
+	Start           time.Time
+	End             *time.Time
+	Kind            string
+	What            string
+	Who             string
+	Crew            []RunOfShowCrew
+	Where           string // human-readable label (post-venueLabel translation)
+	VenueTag        string // raw venue tag for per-venue visibility toggle
+	IsCurrent       bool
+	NowMarkerBefore bool
+}
+
+// RunOfShowCrew is production staffing that should ride on a talk row
+// even when the separate volunteer-shift rows are hidden.
+type RunOfShowCrew struct {
+	Label string
+	Names string
 }
 
 // ReviewProposalPage drives /admin/{tag}/review — the

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Run of Show · {{ .Conf.Desc }}</title>
+  {{ block "header" . }} {{ end }}
+  <style>
+    @media print {
+      .print\:hidden { display: none !important; }
+      body { background: #fff; }
+      .stage-panel { display: block !important; page-break-before: always; }
+      .stage-panel:first-of-type { page-break-before: auto; }
+      section > div {
+        overflow: visible !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+      }
+      tr { page-break-inside: avoid; }
+      thead { display: table-header-group; }
+      body, table, tr, td {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div class="print:hidden">{{ block "mainnav" . }} {{ end }}</div>
+  <main class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-xl font-bold text-gray-900">Run of Show</h1>
+        <p class="text-sm text-gray-500">{{ .Conf.Desc }} &mdash; {{ .Conf.DateDesc }}</p>
+      </div>
+      <button type="button" onclick="window.print()"
+              class="print:hidden inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 shrink-0">
+        Print
+      </button>
+    </div>
+
+    {{ if not .Stages }}
+    <div class="mt-8 bg-white shadow rounded-lg px-4 py-5 sm:p-6 text-center text-gray-500">
+      Nothing scheduled yet.
+    </div>
+    {{ else }}
+    <div class="print:hidden mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Stages">
+      {{ range $i, $stage := .Stages }}
+      <a href="#{{ $stage.Venue.Tag }}"
+              data-stage-tab="{{ $stage.Venue.Tag }}"
+              class="stage-tab rounded-md border px-3 py-1.5 text-sm font-semibold {{ if eq $i 0 }}border-gray-900 bg-gray-900 text-white{{ else }}border-gray-300 bg-white text-gray-700 hover:bg-gray-50{{ end }}">
+        {{ $stage.Venue.Label }}
+      </a>
+      {{ end }}
+    </div>
+
+    {{ range $i, $stage := .Stages }}
+    <div id="{{ $stage.Venue.Tag }}" data-stage-panel="{{ $stage.Venue.Tag }}" class="stage-panel {{ if ne $i 0 }}hidden{{ end }}">
+      <h2 class="mt-8 text-lg font-semibold text-gray-900">{{ $stage.Venue.Label }}</h2>
+      {{ range $stage.Days }}
+      <section class="mt-5">
+        <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500">
+          {{ if le .Idx 0 }}Setup · {{ end }}{{ .Date.Format "Mon, Jan 2" }}
+        </h3>
+        <div class="mt-2 bg-white shadow rounded-lg overflow-hidden">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Time</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">What</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Who</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              {{ range .Rows }}
+              {{ if .NowMarkerBefore }}
+              <tr class="ros-now-marker">
+                <td colspan="3" class="px-4 py-1 bg-green-50 text-green-800">
+                  <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                    <span class="h-px flex-1 bg-green-300"></span>
+                    <span>Now</span>
+                    <span class="h-px flex-1 bg-green-300"></span>
+                  </div>
+                </td>
+              </tr>
+              {{ end }}
+              <tr class="{{ if .IsCurrent }}bg-green-50 ring-2 ring-inset ring-green-400{{ else if eq .Kind "info" }}bg-amber-50{{ end }}">
+                <td class="px-4 py-2 text-sm text-gray-700 font-mono whitespace-nowrap align-top">
+                  <div>{{ formatTime .Start }}</div>
+                  {{ if .IsCurrent }}<div class="mt-1 inline-flex rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-800">Now</div>{{ end }}
+                </td>
+                <td class="px-4 py-2 text-sm text-gray-900 align-top">
+                  {{ if eq .Kind "talk" }}<span class="font-semibold">{{ .What }}</span>{{ else }}{{ .What }}{{ end }}
+                </td>
+                <td class="px-4 py-2 text-sm text-gray-700 align-top">
+                  {{ if .Who }}<div>{{ .Who }}</div>{{ end }}
+                  {{ if .Crew }}
+                  <div class="{{ if .Who }}mt-1 {{ end }}space-y-0.5 text-xs leading-5">
+                    {{ range .Crew }}
+                    <div><span class="font-semibold text-gray-500 uppercase tracking-wide">{{ .Label }}:</span> <span class="text-gray-800">{{ .Names }}</span></div>
+                    {{ end }}
+                  </div>
+                  {{ end }}
+                </td>
+              </tr>
+              {{ end }}
+              {{ if .NowMarkerAfter }}
+              <tr class="ros-now-marker">
+                <td colspan="3" class="px-4 py-1 bg-green-50 text-green-800">
+                  <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                    <span class="h-px flex-1 bg-green-300"></span>
+                    <span>Now</span>
+                    <span class="h-px flex-1 bg-green-300"></span>
+                  </div>
+                </td>
+              </tr>
+              {{ end }}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {{ end }}
+    </div>
+    {{ end }}
+    {{ end }}
+  </main>
+
+  <script>
+    (function () {
+      var tabs = document.querySelectorAll('[data-stage-tab]');
+      var panels = document.querySelectorAll('[data-stage-panel]');
+      function selectStage(stage) {
+        var active = stage || (tabs[0] && tabs[0].dataset.stageTab);
+        var found = false;
+        tabs.forEach(function (btn) {
+          if (btn.dataset.stageTab === active) {
+            found = true;
+          }
+        });
+        if (!found && tabs[0]) {
+          active = tabs[0].dataset.stageTab;
+        }
+        tabs.forEach(function (btn) {
+          var selected = btn.dataset.stageTab === active;
+          btn.classList.toggle('border-gray-900', selected);
+          btn.classList.toggle('bg-gray-900', selected);
+          btn.classList.toggle('text-white', selected);
+          btn.classList.toggle('border-gray-300', !selected);
+          btn.classList.toggle('bg-white', !selected);
+          btn.classList.toggle('text-gray-700', !selected);
+        });
+        panels.forEach(function (panel) {
+          panel.classList.toggle('hidden', panel.dataset.stagePanel !== active);
+        });
+      }
+      function stageFromHash() {
+        return decodeURIComponent(window.location.hash.replace(/^#/, ''));
+      }
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          selectStage(tab.dataset.stageTab);
+        });
+      });
+      window.addEventListener('hashchange', function () {
+        selectStage(stageFromHash());
+      });
+      selectStage(stageFromHash());
+    })();
+  </script>
+</body>
+</html>

@@ -1238,6 +1238,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/run-of-show", func(w http.ResponseWriter, r *http.Request) {
 		RunOfShowAdmin(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/{conf}/run-of-show", func(w http.ResponseWriter, r *http.Request) {
+		RunOfShowPublic(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/schedule/sendcal-updates", func(w http.ResponseWriter, r *http.Request) {
 		ScheduleSendCalUpdates(w, r, app)
 	}).Methods("POST")

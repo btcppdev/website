@@ -56,10 +56,16 @@
         <h1 class="text-xl font-bold text-gray-900">Run of Show</h1>
         <p class="text-sm text-gray-500">{{ .Conf.Desc }} &mdash; {{ .Conf.DateDesc }}</p>
       </div>
-      <button type="button" onclick="window.print()"
-              class="print:hidden inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 shrink-0">
-        Print
-      </button>
+      <div class="print:hidden flex items-center gap-2 shrink-0">
+        <a href="/{{ .Conf.Tag }}/run-of-show" target="_blank" rel="noopener noreferrer"
+           class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+          Public link
+        </a>
+        <button type="button" onclick="window.print()"
+                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+          Print
+        </button>
+      </div>
     </div>
 
     {{ if .Days }}
@@ -117,13 +123,47 @@
           </thead>
           <tbody class="divide-y divide-gray-100">
             {{ range .Rows }}
-            <tr class="ros-row ros-row-{{ .Kind }} {{ if eq .Kind "info" }}bg-amber-50{{ else if eq .Kind "shift" }}bg-indigo-50{{ end }}"{{ if .VenueTag }} data-venue="{{ .VenueTag }}"{{ end }}>
-              <td class="px-4 py-2 text-sm text-gray-700 font-mono whitespace-nowrap align-top">{{ formatTime .Start }}</td>
+            {{ if .NowMarkerBefore }}
+            <tr class="ros-row ros-now-marker ros-row-{{ .Kind }}"{{ if .VenueTag }} data-venue="{{ .VenueTag }}"{{ end }}>
+              <td colspan="4" class="px-4 py-1 bg-green-50 text-green-800">
+                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                  <span class="h-px flex-1 bg-green-300"></span>
+                  <span>Now</span>
+                  <span class="h-px flex-1 bg-green-300"></span>
+                </div>
+              </td>
+            </tr>
+            {{ end }}
+            <tr class="ros-row ros-row-{{ .Kind }} {{ if .IsCurrent }}bg-green-50 ring-2 ring-inset ring-green-400{{ else if eq .Kind "info" }}bg-amber-50{{ else if eq .Kind "shift" }}bg-indigo-50{{ end }}"{{ if .VenueTag }} data-venue="{{ .VenueTag }}"{{ end }}>
+              <td class="px-4 py-2 text-sm text-gray-700 font-mono whitespace-nowrap align-top">
+                <div>{{ formatTime .Start }}</div>
+                {{ if .IsCurrent }}<div class="mt-1 inline-flex rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-800">Now</div>{{ end }}
+              </td>
               <td class="px-4 py-2 text-sm text-gray-900 align-top">
                 {{ if eq .Kind "talk" }}<span class="font-semibold">{{ .What }}</span>{{ else }}{{ .What }}{{ end }}
               </td>
-              <td class="px-4 py-2 text-sm text-gray-700 align-top">{{ .Who }}</td>
+              <td class="px-4 py-2 text-sm text-gray-700 align-top">
+                {{ if .Who }}<div>{{ .Who }}</div>{{ end }}
+                {{ if .Crew }}
+                <div class="{{ if .Who }}mt-1 {{ end }}space-y-0.5 text-xs leading-5">
+                  {{ range .Crew }}
+                  <div><span class="font-semibold text-gray-500 uppercase tracking-wide">{{ .Label }}:</span> <span class="text-gray-800">{{ .Names }}</span></div>
+                  {{ end }}
+                </div>
+                {{ end }}
+              </td>
               <td class="px-4 py-2 text-sm text-gray-700 align-top">{{ .Where }}</td>
+            </tr>
+            {{ end }}
+            {{ if .NowMarkerAfter }}
+            <tr class="ros-now-marker">
+              <td colspan="4" class="px-4 py-1 bg-green-50 text-green-800">
+                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                  <span class="h-px flex-1 bg-green-300"></span>
+                  <span>Now</span>
+                  <span class="h-px flex-1 bg-green-300"></span>
+                </div>
+              </td>
             </tr>
             {{ end }}
           </tbody>

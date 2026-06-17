@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"strings"
 	"time"
 
 	"btcpp-web/internal/config"
@@ -151,16 +152,40 @@ func talkFromConfTalk(ct *types.ConfTalk, proposal *types.Proposal) *types.Talk 
 		talk.Type = proposal.TalkType
 		talk.Status = proposal.Status
 		for _, sc := range proposal.Speakers {
-			if sc == nil || sc.Speaker == nil {
+			if sc == nil {
+				continue
+			}
+			switch recordingEmojiForRecordOK(sc.RecordOK) {
+			case "":
+			case "🔇":
+				talk.RecordingAudioOnly = true
+			case "🛑":
+				talk.RecordingRestricted = true
+			}
+			if sc.Speaker == nil {
 				continue
 			}
 			view := *sc.Speaker
 			view.Company = sc.Company
 			view.OrgLogo = sc.OrgPhoto
+			view.RecordingEmoji = recordingEmojiForRecordOK(sc.RecordOK)
 			talk.Speakers = append(talk.Speakers, &view)
 		}
 	}
 	return talk
+}
+
+func recordingEmojiForRecordOK(recordOK string) string {
+	switch strings.ToLower(strings.TrimSpace(recordOK)) {
+	case "", "recordok", "recordingok":
+		return ""
+	case "audioonly", "audio only":
+		return "🔇"
+	case "norecord", "norecording", "no recording", "noface", "no face":
+		return "🛑"
+	default:
+		return ""
+	}
 }
 
 // LoadTalksFromConfTalks returns Talk-shaped values populated from the new
