@@ -416,6 +416,7 @@ type RunOfShowRow struct {
 	Kind              string
 	What              string
 	MediaURL          string
+	MediaAVIFURL      string
 	Who               string
 	Crew              []RunOfShowCrew
 	Where             string // human-readable label (post-venueLabel translation)

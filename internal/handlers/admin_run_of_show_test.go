@@ -156,6 +156,9 @@ func TestRowsFromTalkCarriesMediaURL(t *testing.T) {
 	if got, want := rows[0].MediaURL, "/social-cards/media-talk.png"; got != want {
 		t.Fatalf("MediaURL = %q, want %q", got, want)
 	}
+	if got, want := rows[0].MediaAVIFURL, "/social-cards/media-talk.avif"; got != want {
+		t.Fatalf("MediaAVIFURL = %q, want %q", got, want)
+	}
 }
 
 func TestRowsFromTalkDefaultsMediaURLToSpacesKeyPath(t *testing.T) {
@@ -173,6 +176,9 @@ func TestRowsFromTalkDefaultsMediaURLToSpacesKeyPath(t *testing.T) {
 	}
 	if got, want := rows[0].MediaURL, "/nairobi/talks/talk-1-1080p.png"; got != want {
 		t.Fatalf("MediaURL = %q, want %q", got, want)
+	}
+	if got, want := rows[0].MediaAVIFURL, "/nairobi/talks/talk-1-1080p.avif"; got != want {
+		t.Fatalf("MediaAVIFURL = %q, want %q", got, want)
 	}
 }
 

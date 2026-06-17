@@ -242,7 +242,7 @@ func generateAndUploadTalkPngWithRenderer(ctx *config.AppContext, renderer *help
 
 	if !force {
 		cardHashesMu.Lock()
-		if cardHashes[key] == hash && talkCardAVIFReady(key) {
+		if cardHashes[key] == hash {
 			cardHashesMu.Unlock()
 			writeSocialCardPath(ctx, talk.ID, key, card)
 			return spaces.PublicURL(key), nil
@@ -282,11 +282,6 @@ func talkCardAVIFKey(key string) string {
 		return ""
 	}
 	return key[:len(key)-4] + ".avif"
-}
-
-func talkCardAVIFReady(key string) bool {
-	avifKey := talkCardAVIFKey(key)
-	return avifKey == "" || !spaces.IsConfigured() || spaces.Exists(avifKey)
 }
 
 func uploadTalkCardAVIF(ctx *config.AppContext, key string, png []byte, hash string) {

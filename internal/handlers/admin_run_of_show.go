@@ -819,12 +819,14 @@ func rowsFromTalk(confTag string, t *types.Talk, crew []RunOfShowCrew) []*RunOfS
 	} else if t.RecordingAudioOnly {
 		label = "🔇 " + label
 	}
+	mediaURL := runOfShowTalkMediaURL(confTag, t)
 	return []*RunOfShowRow{{
 		Start:          t.Sched.Start,
 		End:            t.Sched.End,
 		Kind:           "talk",
 		What:           label,
-		MediaURL:       runOfShowTalkMediaURL(confTag, t),
+		MediaURL:       mediaURL,
+		MediaAVIFURL:   runOfShowAVIFSiblingURL(mediaURL),
 		Who:            strings.Join(names, ", "),
 		Crew:           crew,
 		Where:          venueLabel(confTag, t.Venue),
@@ -845,9 +847,6 @@ func runOfShowTalkMediaURL(confTag string, t *types.Talk) string {
 		return raw
 	}
 	if spaces.IsConfigured() {
-		if avifKey := talkCardAVIFKey(key); avifKey != "" && spaces.Exists(avifKey) {
-			return spaces.PublicURL(avifKey)
-		}
 		return spaces.PublicURL(key)
 	}
 	if raw != "" {
@@ -877,6 +876,13 @@ func runOfShowTalkMediaKey(confTag, talkID, raw string) string {
 		return ""
 	}
 	return fmt.Sprintf("%s/talks/%s-1080p.png", confTag, talkID)
+}
+
+func runOfShowAVIFSiblingURL(mediaURL string) string {
+	if !strings.HasSuffix(strings.ToLower(mediaURL), ".png") {
+		return ""
+	}
+	return mediaURL[:len(mediaURL)-4] + ".avif"
 }
 
 func stageCrewForTalk(confTag string, t *types.Talk, shifts []*types.WorkShift, volByRef map[string]*types.Volunteer) []RunOfShowCrew {
