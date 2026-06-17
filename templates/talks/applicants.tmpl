@@ -117,8 +117,11 @@
                                class="app-checkbox mt-1 rounded border-gray-300 shrink-0">
                         {{ if .TalkCardURL }}
                         <a href="{{ .TalkCardURL }}" target="_blank" rel="noopener noreferrer" class="shrink-0">
-                            <img src="{{ .TalkCardURL }}" alt="" loading="lazy"
-                                 class="aspect-video w-28 rounded-md object-cover bg-gray-100 ring-1 ring-gray-200" />
+                            <picture>
+                                {{ if avifSibling .TalkCardURL }}<source srcset="{{ avifSibling .TalkCardURL | safeURL }}" type="image/avif">{{ end }}
+                                <img src="{{ .TalkCardURL }}" alt="" loading="lazy"
+                                     class="aspect-video w-28 rounded-md object-cover bg-gray-100 ring-1 ring-gray-200" />
+                            </picture>
                         </a>
                         {{ end }}
                         <div class="min-w-0 flex-1">

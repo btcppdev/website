@@ -20,10 +20,13 @@
       <h2 class="sr-only">Upcoming events</h2>
       <ul role="list" class="-mt-6 divide-y divide-gray-900/5 border-b border-gray-900/5">
       {{ range .Confs }}
-  	{{ if .Active }}
+      {{ if .Active }}
       <li class="relative flex gap-x-6 py-6">
         <div class="flex size-10 flex-none items-center justify-center rounded-lg shadow-xs outline-1 outline-gray-900/10">
-   <img src="/static/img/{{ .Tag }}/leading.png" height="350px" width="350px"/>
+          <picture>
+            <source srcset="/static/img/{{ .Tag }}/leading.avif" type="image/avif">
+            <img src="/static/img/{{ .Tag }}/leading.png" height="350px" width="350px"/>
+          </picture>
         </div>
         <div class="flex-auto">
           <h3 class="text-sm/6 font-semibold text-gray-900">

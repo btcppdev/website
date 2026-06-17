@@ -35,7 +35,10 @@
     </div>
     <div class="rounded-2xl absolute inset-0 z-10 bg-gradient-to-t from-gray-900 via-gray-900/40 lg:hidden"></div>
     <div class="bg-gray-50 absolute inset-0 lg:z-10 lg:inset-y-0 lg:left-auto lg:right-0 lg:w-2/3">
-      <img class="aspect-[3/2] object-cover lg:aspect-auto h-full w-full rounded-2xl lg:rounded-r-2xl" src="/static/img/{{ .Tag }}/leading.png" alt="">
+      <picture>
+        <source srcset="/static/img/{{ .Tag }}/leading.avif" type="image/avif">
+        <img class="aspect-[3/2] object-cover lg:aspect-auto h-full w-full rounded-2xl lg:rounded-r-2xl" src="/static/img/{{ .Tag }}/leading.png" alt="">
+      </picture>
     </div>
   </div>
 {{ end }}

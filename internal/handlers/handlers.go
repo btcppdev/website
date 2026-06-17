@@ -148,6 +148,13 @@ func loadTemplates(ctx *config.AppContext) error {
 				return ""
 			}
 		},
+		"avifSibling": func(s string) string {
+			u := strings.TrimSpace(s)
+			if !strings.HasSuffix(strings.ToLower(u), ".png") {
+				return ""
+			}
+			return u[:len(u)-4] + ".avif"
+		},
 		"css": func(s string) template.HTML {
 			return template.HTML(fmt.Sprintf(`<style type="text/css">%s</style>`, s))
 		},
