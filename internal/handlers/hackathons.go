@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -56,13 +57,17 @@ func (p *HackathonPage) ConferenceLabel() string {
 	if p == nil || p.Conf == nil {
 		return ""
 	}
-	if p.Conf.Tag != "" && p.Conf.Desc != "" {
-		return p.Conf.Tag + " - " + p.Conf.Desc
-	}
 	if p.Conf.Desc != "" {
-		return p.Conf.Desc
+		return publicHackathonConferenceName(p.Conf.Desc)
 	}
 	return p.Conf.Tag
+}
+
+func (p *HackathonPage) ConferenceURL() string {
+	if p == nil || p.Conf == nil || strings.TrimSpace(p.Conf.Tag) == "" {
+		return ""
+	}
+	return "/" + url.PathEscape(p.Conf.Tag)
 }
 
 func (p *HackathonPage) CompetitionConferenceLabel(competition *types.HackathonCompetition) string {
@@ -70,11 +75,131 @@ func (p *HackathonPage) CompetitionConferenceLabel(competition *types.HackathonC
 	if conf == nil {
 		return ""
 	}
-	if conf.Tag != "" && conf.Desc != "" {
-		return conf.Tag + " - " + conf.Desc
+	if conf.Desc != "" {
+		return publicHackathonConferenceName(conf.Desc)
+	}
+	return conf.Tag
+}
+
+func (p *HackathonPage) CompetitionConferenceURL(competition *types.HackathonCompetition) string {
+	conf := p.competitionConf(competition)
+	if conf == nil || strings.TrimSpace(conf.Tag) == "" {
+		return ""
+	}
+	return "/" + url.PathEscape(conf.Tag)
+}
+
+func publicHackathonConferenceName(name string) string {
+	name = strings.TrimSpace(name)
+	for _, prefix := range []string{"bitcoin++", "Bitcoin++", "BITCOIN++"} {
+		if strings.HasPrefix(name, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(name, prefix))
+		}
+	}
+	return name
+}
+
+const (
+	hackathonSortNewest     = "newest"
+	hackathonSortOldest     = "oldest"
+	hackathonSortTitle      = "title"
+	hackathonSortConference = "conference"
+)
+
+func normalizeHackathonSort(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case hackathonSortOldest:
+		return hackathonSortOldest
+	case hackathonSortTitle:
+		return hackathonSortTitle
+	case hackathonSortConference:
+		return hackathonSortConference
+	default:
+		return hackathonSortNewest
+	}
+}
+
+func hackathonListControls(r *http.Request) (string, string) {
+	return strings.TrimSpace(r.URL.Query().Get("q")), normalizeHackathonSort(r.URL.Query().Get("sort"))
+}
+
+func applyHackathonListControls(competitions []*types.HackathonCompetition, confs []*types.Conf, query, sortMode string) []*types.HackathonCompetition {
+	competitions = filterHackathonCompetitions(competitions, confs, query)
+	sortHackathonCompetitions(competitions, confs, sortMode)
+	return competitions
+}
+
+func filterHackathonCompetitions(competitions []*types.HackathonCompetition, confs []*types.Conf, query string) []*types.HackathonCompetition {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return competitions
+	}
+	filtered := make([]*types.HackathonCompetition, 0, len(competitions))
+	for _, competition := range competitions {
+		if hackathonCompetitionMatches(competition, confs, query) {
+			filtered = append(filtered, competition)
+		}
+	}
+	return filtered
+}
+
+func hackathonCompetitionMatches(competition *types.HackathonCompetition, confs []*types.Conf, query string) bool {
+	if competition == nil {
+		return false
+	}
+	fields := []string{competition.Title, competition.Slug}
+	if conf := confForHackathon(confs, competition); conf != nil {
+		fields = append(fields, publicHackathonConferenceName(conf.Desc), conf.Tag)
+	}
+	for _, field := range fields {
+		if strings.Contains(strings.ToLower(field), query) {
+			return true
+		}
+	}
+	return false
+}
+
+func sortHackathonCompetitions(competitions []*types.HackathonCompetition, confs []*types.Conf, mode string) {
+	sort.SliceStable(competitions, func(i, j int) bool {
+		left := competitions[i]
+		right := competitions[j]
+		if left == nil {
+			return false
+		}
+		if right == nil {
+			return true
+		}
+		switch mode {
+		case hackathonSortOldest:
+			if !left.CreatedAt.Equal(right.CreatedAt) {
+				return left.CreatedAt.Before(right.CreatedAt)
+			}
+		case hackathonSortTitle:
+			if compare := strings.Compare(strings.ToLower(left.Title), strings.ToLower(right.Title)); compare != 0 {
+				return compare < 0
+			}
+		case hackathonSortConference:
+			leftConf := strings.ToLower(publicHackathonCompetitionConferenceName(confs, left))
+			rightConf := strings.ToLower(publicHackathonCompetitionConferenceName(confs, right))
+			if compare := strings.Compare(leftConf, rightConf); compare != 0 {
+				return compare < 0
+			}
+		default:
+			if !left.CreatedAt.Equal(right.CreatedAt) {
+				return left.CreatedAt.After(right.CreatedAt)
+			}
+		}
+		return strings.ToLower(left.Title) < strings.ToLower(right.Title)
+	})
+}
+
+func publicHackathonCompetitionConferenceName(confs []*types.Conf, competition *types.HackathonCompetition) string {
+	conf := confForHackathon(confs, competition)
+	if conf == nil {
+		return ""
 	}
 	if conf.Desc != "" {
-		return conf.Desc
+		return publicHackathonConferenceName(conf.Desc)
 	}
 	return conf.Tag
 }
@@ -552,6 +677,7 @@ func HackathonIndex(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			visible = append(visible, competition)
 		}
 	}
+	sortHackathonCompetitions(visible, confs, hackathonSortNewest)
 	page := &HackathonPage{
 		Competitions: visible,
 		Confs:        confs,
