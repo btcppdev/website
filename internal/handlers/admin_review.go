@@ -210,6 +210,7 @@ func ReviewProposalAction(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "proposal not found", http.StatusNotFound)
 		return
 	}
+	action = reviewActionForProposal(action, proposal)
 
 	freshAccept := false
 	if action.RunAcceptPipeline {
@@ -230,7 +231,7 @@ func ReviewProposalAction(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		// pull the talk off attendees' calendars. Silent no-op
 		// when the proposal has no ConfTalk or no CalNotif —
 		// nothing was ever invited, nothing to cancel.
-		if action.Status == "WeDecline" || action.Status == "Rejected" {
+		if action.Status == "WeDecline" || action.Status == "TheyDecline" || action.Status == "Rejected" {
 			speakers := proposalSpeakers(proposal)
 			if cancelErr := DispatchTalkICSCancelForProposal(ctx, proposal, conf, speakers); cancelErr != nil {
 				ctx.Err.Printf("/%s/admin/review %s cancel-cal %q: %s", conf.Tag, action.Status, proposal.Title, cancelErr)
@@ -248,12 +249,17 @@ func ReviewProposalAction(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		// Every other status change (Invite / Waitlist / Decline /
 		// Reject) fires its own letter. Best-effort — admin can
 		// re-fire from the email composer if the send blips.
-		if err := emails.SendOnlyForProposal(ctx, action.Letter, proposal, conf, ""); err != nil {
-			ctx.Err.Printf("/%s/admin/review send %s (continuing): %s", conf.Tag, action.Letter, err)
+		if action.Letter != "" {
+			if err := emails.SendOnlyForProposal(ctx, action.Letter, proposal, conf, ""); err != nil {
+				ctx.Err.Printf("/%s/admin/review send %s (continuing): %s", conf.Tag, action.Letter, err)
+			}
 		}
 	}
 
-	flash := fmt.Sprintf("%s — letter %q queued.", action.Label, action.Letter)
+	flash := action.Label + "."
+	if action.Letter != "" {
+		flash = fmt.Sprintf("%s — letter %q queued.", action.Label, action.Letter)
+	}
 
 	// When the action came from the applicants table (or any other
 	// page that wants to stay in place), the form supplies a
@@ -281,6 +287,15 @@ func ReviewProposalAction(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	http.Redirect(w, r,
 		fmt.Sprintf("/%s/admin/?flash=%s", conf.Tag, url.QueryEscape(flash+" Queue is now empty.")),
 		http.StatusSeeOther)
+}
+
+func reviewActionForProposal(action reviewAction, proposal *types.Proposal) reviewAction {
+	if proposal != nil && proposal.Status == "Invited" && action.Status == "WeDecline" {
+		action.Label = "Speaker declined"
+		action.Status = "TheyDecline"
+		action.Letter = ""
+	}
+	return action
 }
 
 // AdminCancelTalk flips an Accepted proposal back to TheyDecline —
