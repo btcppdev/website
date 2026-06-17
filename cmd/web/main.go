@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	texttemplate "text/template"
 	"time"
 
@@ -89,10 +90,18 @@ func main() {
 	if err != nil {
 		app.Err.Fatal(err)
 	}
+	sessionHandler := app.Session.LoadAndSave(routes)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/run-of-show/events") {
+			routes.ServeHTTP(w, r)
+			return
+		}
+		sessionHandler.ServeHTTP(w, r)
+	})
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%s", app.Env.Port),
-		Handler:           app.Session.LoadAndSave(routes),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      2 * time.Minute,

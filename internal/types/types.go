@@ -562,6 +562,18 @@ type (
 		CalNotif       string
 	}
 
+	RunOfShowAdjustment struct {
+		ID              string
+		ConfTag         string
+		VenueTag        string
+		AnchorKind      string
+		AnchorID        string
+		DelayMinutes    int
+		PropagationMode string
+		Note            string
+		CreatedAt       time.Time
+	}
+
 	JobType struct {
 		Ref          string
 		Tag          string

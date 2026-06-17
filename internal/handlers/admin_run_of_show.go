@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"btcpp-web/external/getters"
@@ -12,6 +14,7 @@ import (
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/ics"
 	"btcpp-web/internal/types"
+	"github.com/gorilla/mux"
 )
 
 // venuePalette is the cycle of hex colors assigned to venues for the
@@ -26,6 +29,50 @@ var venuePalette = []string{
 	"#be123c", // rose-700
 	"#b45309", // amber-700
 	"#0e7490", // cyan-700
+}
+
+const (
+	runOfShowPolicyFlex  = "flex"
+	runOfShowPolicyFixed = "fixed"
+)
+
+var runOfShowEvents = &runOfShowEventBroker{
+	subscribers: map[string]map[chan string]bool{},
+}
+
+type runOfShowEventBroker struct {
+	mu          sync.Mutex
+	subscribers map[string]map[chan string]bool
+}
+
+func (b *runOfShowEventBroker) subscribe(confTag string) (chan string, func()) {
+	ch := make(chan string, 1)
+	b.mu.Lock()
+	if b.subscribers[confTag] == nil {
+		b.subscribers[confTag] = map[chan string]bool{}
+	}
+	b.subscribers[confTag][ch] = true
+	b.mu.Unlock()
+	return ch, func() {
+		b.mu.Lock()
+		delete(b.subscribers[confTag], ch)
+		if len(b.subscribers[confTag]) == 0 {
+			delete(b.subscribers, confTag)
+		}
+		b.mu.Unlock()
+		close(ch)
+	}
+}
+
+func (b *runOfShowEventBroker) publish(confTag, event string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for ch := range b.subscribers[confTag] {
+		select {
+		case ch <- event:
+		default:
+		}
+	}
 }
 
 // venueLabels maps the raw Notion venue tags (the multi-select values
@@ -88,6 +135,12 @@ func RunOfShowAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		http.Error(w, "Unable to load run of show", http.StatusInternalServerError)
 		return
 	}
+	adjustments, err := getters.ListRunOfShowAdjustments(ctx, conf.Tag)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/run-of-show list adjustments: %s", conf.Tag, err)
+		http.Error(w, "Unable to load run of show", http.StatusInternalServerError)
+		return
+	}
 	// Resolve volunteer page-IDs → names so the Who column can show
 	// readable assignee lists. Best-effort: a list error degrades to
 	// empty Who cells rather than failing the page.
@@ -102,10 +155,13 @@ func RunOfShowAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		}
 	}
 
-	confForRun, days, venues := buildRunOfShowData(conf, infos, talks, shifts, volByRef, true)
+	confForRun, days, venues := buildRunOfShowData(conf, infos, talks, shifts, volByRef, adjustments, true)
+	stages := buildAdminRunOfShowStages(days, venues)
+	markRunOfShowStagesProgress(stages, time.Now().In(runOfShowLocation(confForRun)))
 	page := &RunOfShowPage{
 		Conf:         confForRun,
 		Days:         days,
+		Stages:       stages,
 		Venues:       venues,
 		FlashMessage: r.URL.Query().Get("flash"),
 		Year:         helpers.CurrentYear(),
@@ -141,6 +197,12 @@ func RunOfShowPublic(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		http.Error(w, "Unable to load run of show", http.StatusInternalServerError)
 		return
 	}
+	adjustments, err := getters.ListRunOfShowAdjustments(ctx, conf.Tag)
+	if err != nil {
+		ctx.Err.Printf("/%s/run-of-show list adjustments: %s", conf.Tag, err)
+		http.Error(w, "Unable to load run of show", http.StatusInternalServerError)
+		return
+	}
 	volByRef := map[string]*types.Volunteer{}
 	if vols, err := getters.ListVolunteersForConf(ctx, conf.Ref); err != nil {
 		ctx.Err.Printf("/%s/run-of-show list volunteers (continuing): %s", conf.Tag, err)
@@ -152,7 +214,7 @@ func RunOfShowPublic(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		}
 	}
 
-	confForRun, days, venues := buildRunOfShowData(conf, infos, talks, shifts, volByRef, false)
+	confForRun, days, venues := buildRunOfShowData(conf, infos, talks, shifts, volByRef, adjustments, false)
 	stages := buildPublicRunOfShowStages(days, venues)
 	markRunOfShowStagesProgress(stages, time.Now().In(runOfShowLocation(confForRun)))
 	page := &PublicRunOfShowPage{
@@ -166,7 +228,112 @@ func RunOfShowPublic(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	}
 }
 
-func buildRunOfShowData(conf *types.Conf, infos []*types.ConfInfo, talks []*types.Talk, shifts []*types.WorkShift, volByRef map[string]*types.Volunteer, includeVolunteers bool) (*types.Conf, []*RunOfShowDay, []VenueOption) {
+func RunOfShowEvents(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	confTag := strings.TrimSpace(mux.Vars(r)["conf"])
+	if confTag == "" {
+		http.Error(w, "missing conf", http.StatusBadRequest)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	events, unsubscribe := runOfShowEvents.subscribe(confTag)
+	defer unsubscribe()
+
+	fmt.Fprintf(w, "event: ready\ndata: %s\n\n", time.Now().UTC().Format(time.RFC3339Nano))
+	flusher.Flush()
+
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case event := <-events:
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, time.Now().UTC().Format(time.RFC3339Nano))
+			flusher.Flush()
+		case <-heartbeat.C:
+			fmt.Fprintf(w, ": keepalive %s\n\n", time.Now().UTC().Format(time.RFC3339Nano))
+			flusher.Flush()
+		}
+	}
+}
+
+func RunOfShowAdjust(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfStaff(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	anchorKind := strings.TrimSpace(r.FormValue("anchor_kind"))
+	anchorID := strings.TrimSpace(r.FormValue("anchor_id"))
+	if anchorKind == "" || anchorID == "" {
+		http.Error(w, "missing adjustment anchor", http.StatusBadRequest)
+		return
+	}
+	if r.FormValue("action") == "clear" {
+		if err := getters.ArchiveRunOfShowAdjustment(ctx, conf.Tag, anchorKind, anchorID); err != nil {
+			ctx.Err.Printf("/%s/admin/run-of-show/adjust clear: %s", conf.Tag, err)
+			http.Error(w, "unable to clear adjustment", http.StatusInternalServerError)
+			return
+		}
+		runOfShowEvents.publish(conf.Tag, "reload")
+		http.Redirect(w, r, "/"+conf.Tag+"/admin/run-of-show?flash=Adjustment+cleared", http.StatusSeeOther)
+		return
+	}
+
+	delay := 0
+	if r.FormValue("action") == "resume" {
+		currentDelay, err := strconv.Atoi(strings.TrimSpace(r.FormValue("current_delay_minutes")))
+		if err != nil {
+			http.Error(w, "invalid current delay", http.StatusBadRequest)
+			return
+		}
+		delay = -currentDelay
+	} else {
+		var err error
+		delay, err = strconv.Atoi(strings.TrimSpace(r.FormValue("delay_minutes")))
+		if err != nil {
+			http.Error(w, "invalid delay", http.StatusBadRequest)
+			return
+		}
+	}
+	mode := strings.TrimSpace(r.FormValue("propagation_mode"))
+	if mode == "" {
+		mode = getters.RunOfShowAdjustUntilNextAnchor
+	}
+	if err := getters.UpsertRunOfShowAdjustment(ctx, getters.RunOfShowAdjustmentInput{
+		ConfTag:         conf.Tag,
+		VenueTag:        strings.TrimSpace(r.FormValue("venue_tag")),
+		AnchorKind:      anchorKind,
+		AnchorID:        anchorID,
+		DelayMinutes:    delay,
+		PropagationMode: mode,
+		Note:            r.FormValue("note"),
+	}); err != nil {
+		ctx.Err.Printf("/%s/admin/run-of-show/adjust save: %s", conf.Tag, err)
+		http.Error(w, "unable to save adjustment", http.StatusInternalServerError)
+		return
+	}
+	runOfShowEvents.publish(conf.Tag, "reload")
+	http.Redirect(w, r, "/"+conf.Tag+"/admin/run-of-show?flash=Adjustment+saved", http.StatusSeeOther)
+}
+
+func buildRunOfShowData(conf *types.Conf, infos []*types.ConfInfo, talks []*types.Talk, shifts []*types.WorkShift, volByRef map[string]*types.Volunteer, adjustments []*types.RunOfShowAdjustment, includeVolunteers bool) (*types.Conf, []*RunOfShowDay, []VenueOption) {
 	loc := runOfShowLocation(conf)
 	confForRun := *conf
 	confForRun.TZ = loc
@@ -201,6 +368,13 @@ func buildRunOfShowData(conf *types.Conf, infos []*types.ConfInfo, talks []*type
 				continue
 			}
 			row.Start = row.Start.In(loc)
+			row.OriginalStart = row.Start
+			if row.End != nil {
+				localEnd := row.End.In(loc)
+				row.End = &localEnd
+				originalEnd := localEnd
+				row.OriginalEnd = &originalEnd
+			}
 			idx := dayIndexFor(&confForRun, row.Start)
 			dayFor(idx).Rows = append(dayFor(idx).Rows, row)
 		}
@@ -231,6 +405,12 @@ func buildRunOfShowData(conf *types.Conf, infos []*types.ConfInfo, talks []*type
 		days = append(days, d)
 	}
 	sort.Slice(days, func(i, j int) bool { return days[i].Idx < days[j].Idx })
+	applyRunOfShowAdjustments(days, adjustments)
+	for _, d := range days {
+		sort.SliceStable(d.Rows, func(i, j int) bool {
+			return d.Rows[i].Start.Before(d.Rows[j].Start)
+		})
+	}
 	markRunOfShowProgress(days, time.Now().In(loc))
 
 	// Collect unique non-empty venue tags across every talk row so
@@ -258,6 +438,53 @@ func buildRunOfShowData(conf *types.Conf, infos []*types.ConfInfo, talks []*type
 	}
 
 	return &confForRun, days, venues
+}
+
+func buildAdminRunOfShowStages(days []*RunOfShowDay, venues []VenueOption) []*RunOfShowStage {
+	stages := make([]*RunOfShowStage, 0, len(venues))
+	for _, venue := range venues {
+		stage := &RunOfShowStage{Venue: venue}
+		for _, day := range days {
+			if day == nil {
+				continue
+			}
+			stageDay := &RunOfShowDay{Idx: day.Idx, Date: day.Date}
+			for _, row := range day.Rows {
+				if row == nil {
+					continue
+				}
+				if row.Kind != "talk" || row.VenueTag == venue.Tag {
+					stageDay.Rows = append(stageDay.Rows, cloneRunOfShowRow(row))
+				}
+			}
+			if len(stageDay.Rows) > 0 {
+				stage.Days = append(stage.Days, stageDay)
+			}
+		}
+		stages = append(stages, stage)
+	}
+	if len(stages) > 0 {
+		return stages
+	}
+	stage := &RunOfShowStage{Venue: VenueOption{Tag: "schedule", Label: "Schedule"}}
+	for _, day := range days {
+		if day == nil {
+			continue
+		}
+		stageDay := &RunOfShowDay{Idx: day.Idx, Date: day.Date}
+		for _, row := range day.Rows {
+			if row != nil {
+				stageDay.Rows = append(stageDay.Rows, cloneRunOfShowRow(row))
+			}
+		}
+		if len(stageDay.Rows) > 0 {
+			stage.Days = append(stage.Days, stageDay)
+		}
+	}
+	if len(stage.Days) == 0 {
+		return nil
+	}
+	return []*RunOfShowStage{stage}
 }
 
 func buildPublicRunOfShowStages(days []*RunOfShowDay, venues []VenueOption) []*RunOfShowStage {
@@ -315,6 +542,106 @@ func cloneRunOfShowRow(row *RunOfShowRow) *RunOfShowRow {
 	copied.IsCurrent = false
 	copied.NowMarkerBefore = false
 	return &copied
+}
+
+func applyRunOfShowAdjustments(days []*RunOfShowDay, adjustments []*types.RunOfShowAdjustment) {
+	if len(adjustments) == 0 {
+		return
+	}
+	byAnchor := map[string]*types.RunOfShowAdjustment{}
+	for _, adj := range adjustments {
+		if adj == nil || adj.AnchorKind == "" || adj.AnchorID == "" || adj.DelayMinutes == 0 {
+			continue
+		}
+		byAnchor[runOfShowAnchorKey(adj.AnchorKind, adj.AnchorID)] = adj
+	}
+	if len(byAnchor) == 0 {
+		return
+	}
+
+	for _, day := range days {
+		if day == nil {
+			continue
+		}
+		for i, row := range day.Rows {
+			if row == nil {
+				continue
+			}
+			adj := byAnchor[runOfShowAnchorKey(row.AnchorKind, row.AnchorID)]
+			if adj == nil {
+				continue
+			}
+			mode := strings.TrimSpace(adj.PropagationMode)
+			if mode == "" {
+				mode = getters.RunOfShowAdjustUntilNextAnchor
+			}
+			applyRunOfShowDelay(row, adj.DelayMinutes)
+			row.AdjustmentID = adj.ID
+			row.HasAdjustment = true
+			row.AdjustmentMinutes = adj.DelayMinutes
+			row.PropagationMode = mode
+			if mode == getters.RunOfShowAdjustItemOnly {
+				continue
+			}
+			for j := i + 1; j < len(day.Rows); j++ {
+				next := day.Rows[j]
+				if next == nil {
+					continue
+				}
+				if mode == getters.RunOfShowAdjustUntilNextAnchor && runOfShowAdjustmentStopsAtRow(adj, next) {
+					break
+				}
+				if !runOfShowAdjustmentAppliesToRow(adj, next) {
+					continue
+				}
+				if next.SchedulePolicy != runOfShowPolicyFlex {
+					continue
+				}
+				applyRunOfShowDelay(next, adj.DelayMinutes)
+			}
+		}
+	}
+}
+
+func runOfShowAnchorKey(kind, id string) string {
+	if kind == "" || id == "" {
+		return ""
+	}
+	return kind + ":" + id
+}
+
+func runOfShowAdjustmentAppliesToRow(adj *types.RunOfShowAdjustment, row *RunOfShowRow) bool {
+	if adj == nil || row == nil {
+		return false
+	}
+	if adj.VenueTag == "" {
+		return true
+	}
+	return row.VenueTag == adj.VenueTag
+}
+
+func runOfShowAdjustmentStopsAtRow(adj *types.RunOfShowAdjustment, row *RunOfShowRow) bool {
+	if adj == nil || row == nil {
+		return false
+	}
+	if row.Kind == "info" && row.SchedulePolicy == runOfShowPolicyFixed {
+		return true
+	}
+	return row.SchedulePolicy != runOfShowPolicyFlex && runOfShowAdjustmentAppliesToRow(adj, row)
+}
+
+func applyRunOfShowDelay(row *RunOfShowRow, minutes int) {
+	if row == nil || minutes == 0 {
+		return
+	}
+	delta := time.Duration(minutes) * time.Minute
+	row.Start = row.Start.Add(delta)
+	if row.End != nil && row.SchedulePolicy == runOfShowPolicyFlex {
+		shifted := row.End.Add(delta)
+		row.End = &shifted
+	}
+	row.DelayMinutes += minutes
+	row.Adjusted = row.DelayMinutes != 0
 }
 
 func markRunOfShowProgress(days []*RunOfShowDay, now time.Time) {
@@ -398,23 +725,27 @@ func runOfShowTalkVisible(t *types.Talk) bool {
 // startRow carries the full content (Who / Where); the end row keeps
 // only the labelled What so the timeline doesn't repeat speaker /
 // venue info on the closing line.
-func rangedRows(t *types.Times, kind, label, who, where string) []*RunOfShowRow {
+func rangedRows(t *types.Times, kind, label, who, where, anchorKind, anchorID, policy string) []*RunOfShowRow {
 	if t == nil {
 		return nil
 	}
 	rows := []*RunOfShowRow{{
-		Start: t.Start,
-		End:   t.End,
-		Kind:  kind,
-		What:  label,
-		Who:   who,
-		Where: where,
+		Start:          t.Start,
+		End:            t.End,
+		Kind:           kind,
+		What:           label,
+		Who:            who,
+		Where:          where,
+		AnchorKind:     anchorKind,
+		AnchorID:       anchorID,
+		SchedulePolicy: policy,
 	}}
 	if t.End != nil && t.End.After(t.Start) {
 		rows = append(rows, &RunOfShowRow{
-			Start: *t.End,
-			Kind:  kind,
-			What:  "End: " + label,
+			Start:          *t.End,
+			Kind:           kind,
+			What:           "End: " + label,
+			SchedulePolicy: runOfShowPolicyFixed,
 		})
 	}
 	return rows
@@ -432,22 +763,26 @@ func rowsFromConfInfo(ci *types.ConfInfo) []*RunOfShowRow {
 	// "Doors close" rather than "Doors" / "End: Doors".
 	if ci.Doors != nil {
 		rows = append(rows, &RunOfShowRow{
-			Start: ci.Doors.Start,
-			End:   ci.Doors.End,
-			Kind:  "info",
-			What:  "Doors open",
+			Start:          ci.Doors.Start,
+			End:            ci.Doors.End,
+			Kind:           "info",
+			What:           "Doors open",
+			AnchorKind:     "info",
+			AnchorID:       ci.ID + ":doors",
+			SchedulePolicy: runOfShowPolicyFixed,
 		})
 		if ci.Doors.End != nil && ci.Doors.End.After(ci.Doors.Start) {
 			rows = append(rows, &RunOfShowRow{
-				Start: *ci.Doors.End,
-				Kind:  "info",
-				What:  "Doors close",
+				Start:          *ci.Doors.End,
+				Kind:           "info",
+				What:           "Doors close",
+				SchedulePolicy: runOfShowPolicyFixed,
 			})
 		}
 	}
-	rows = append(rows, rangedRows(ci.Breakfast, "info", "Breakfast", "", "")...)
-	rows = append(rows, rangedRows(ci.Coffee, "info", "Coffee", "", "")...)
-	rows = append(rows, rangedRows(ci.Lunch, "info", "Lunch", "", "")...)
+	rows = append(rows, rangedRows(ci.Breakfast, "info", "Breakfast", "", "", "info", ci.ID+":breakfast", runOfShowPolicyFixed)...)
+	rows = append(rows, rangedRows(ci.Coffee, "info", "Coffee", "", "", "info", ci.ID+":coffee", runOfShowPolicyFixed)...)
+	rows = append(rows, rangedRows(ci.Lunch, "info", "Lunch", "", "", "info", ci.ID+":lunch", runOfShowPolicyFixed)...)
 	return rows
 }
 
@@ -483,14 +818,18 @@ func rowsFromTalk(confTag string, t *types.Talk, crew []RunOfShowCrew) []*RunOfS
 		label = "🔇 " + label
 	}
 	return []*RunOfShowRow{{
-		Start:    t.Sched.Start,
-		End:      t.Sched.End,
-		Kind:     "talk",
-		What:     label,
-		Who:      strings.Join(names, ", "),
-		Crew:     crew,
-		Where:    venueLabel(confTag, t.Venue),
-		VenueTag: t.Venue,
+		Start:          t.Sched.Start,
+		End:            t.Sched.End,
+		Kind:           "talk",
+		What:           label,
+		MediaURL:       t.TalkCardURL,
+		Who:            strings.Join(names, ", "),
+		Crew:           crew,
+		Where:          venueLabel(confTag, t.Venue),
+		VenueTag:       t.Venue,
+		AnchorKind:     "talk",
+		AnchorID:       t.ID,
+		SchedulePolicy: runOfShowPolicyFlex,
 	}}
 }
 
@@ -610,7 +949,7 @@ func rowsFromShift(s *types.WorkShift, volByRef map[string]*types.Volunteer) []*
 		included[ref] = true
 	}
 	whoLabel := strings.Join(who, ", ")
-	rows := rangedRows(s.ShiftTime, "shift", shiftLabel(s), whoLabel, "")
+	rows := rangedRows(s.ShiftTime, "shift", shiftLabel(s), whoLabel, "", "", "", runOfShowPolicyFixed)
 	if len(rows) > 1 {
 		rows[1].Who = whoLabel
 	}
@@ -664,4 +1003,11 @@ func runOfShowLocation(conf *types.Conf) *time.Location {
 // into the template funcMap as `formatTime` (see handlers.go).
 func formatRunOfShowTime(t time.Time) string {
 	return t.Format("3:04 PM")
+}
+
+func formatSignedMinutes(minutes int) string {
+	if minutes >= 0 {
+		return fmt.Sprintf("+%dm", minutes)
+	}
+	return fmt.Sprintf("%dm", minutes)
 }

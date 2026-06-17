@@ -327,8 +327,9 @@ type OrganizerDashboardPage struct {
 // volunteer shifts, and conference talks. Days are emitted in
 // chronological order; only days with at least one row appear.
 type RunOfShowPage struct {
-	Conf *types.Conf
-	Days []*RunOfShowDay
+	Conf   *types.Conf
+	Days   []*RunOfShowDay
+	Stages []*RunOfShowStage
 	// Venues is the deduped list of talk venues across the conf,
 	// alphabetized by display Label. Drives the per-venue
 	// visibility checkboxes at the top of the page.
@@ -408,16 +409,28 @@ type RunOfShowDay struct {
 // What ("Title (30m)") rather than a separate end row, since talks
 // pack densely on the page.
 type RunOfShowRow struct {
-	Start           time.Time
-	End             *time.Time
-	Kind            string
-	What            string
-	Who             string
-	Crew            []RunOfShowCrew
-	Where           string // human-readable label (post-venueLabel translation)
-	VenueTag        string // raw venue tag for per-venue visibility toggle
-	IsCurrent       bool
-	NowMarkerBefore bool
+	Start             time.Time
+	End               *time.Time
+	OriginalStart     time.Time
+	OriginalEnd       *time.Time
+	Kind              string
+	What              string
+	MediaURL          string
+	Who               string
+	Crew              []RunOfShowCrew
+	Where             string // human-readable label (post-venueLabel translation)
+	VenueTag          string // raw venue tag for per-venue visibility toggle
+	AnchorKind        string
+	AnchorID          string
+	SchedulePolicy    string
+	AdjustmentID      string
+	HasAdjustment     bool
+	AdjustmentMinutes int
+	DelayMinutes      int
+	PropagationMode   string
+	Adjusted          bool
+	IsCurrent         bool
+	NowMarkerBefore   bool
 }
 
 // RunOfShowCrew is production staffing that should ride on a talk row

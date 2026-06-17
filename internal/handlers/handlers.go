@@ -414,7 +414,8 @@ func loadTemplates(ctx *config.AppContext) error {
 			}
 			return helpers.InviteLink(ctx, p.ID, p.InviteToken)
 		},
-		"formatTime": formatRunOfShowTime,
+		"formatTime":    formatRunOfShowTime,
+		"signedMinutes": formatSignedMinutes,
 		"inDev": func() bool {
 			return !ctx.Env.Prod
 		},
@@ -575,6 +576,12 @@ type statusRecorder struct {
 func (s *statusRecorder) WriteHeader(code int) {
 	s.status = code
 	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusRecorder) Flush() {
+	if flusher, ok := s.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 // requestLog is a middleware that logs each incoming request's start
@@ -1238,8 +1245,14 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/run-of-show", func(w http.ResponseWriter, r *http.Request) {
 		RunOfShowAdmin(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/{conf}/admin/run-of-show/adjust", func(w http.ResponseWriter, r *http.Request) {
+		RunOfShowAdjust(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/{conf}/run-of-show", func(w http.ResponseWriter, r *http.Request) {
 		RunOfShowPublic(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/run-of-show/events", func(w http.ResponseWriter, r *http.Request) {
+		RunOfShowEvents(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/schedule/sendcal-updates", func(w http.ResponseWriter, r *http.Request) {
 		ScheduleSendCalUpdates(w, r, app)

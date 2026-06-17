@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/types"
 )
 
@@ -22,6 +23,19 @@ func TestRowsFromTalkPrefixesRestrictedRecording(t *testing.T) {
 	}
 	if got, want := rows[0].What, "🛑 Privacy Talk (30m)"; got != want {
 		t.Fatalf("What = %q, want %q", got, want)
+	}
+}
+
+func TestFormatSignedMinutes(t *testing.T) {
+	cases := map[int]string{
+		20:  "+20m",
+		0:   "+0m",
+		-20: "-20m",
+	}
+	for minutes, want := range cases {
+		if got := formatSignedMinutes(minutes); got != want {
+			t.Fatalf("formatSignedMinutes(%d) = %q, want %q", minutes, got, want)
+		}
 	}
 }
 
@@ -125,6 +139,25 @@ func TestRowsFromTalkUsesReadableVenueLabel(t *testing.T) {
 	}
 }
 
+func TestRowsFromTalkCarriesMediaURL(t *testing.T) {
+	start := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	end := start.Add(30 * time.Minute)
+
+	rows := rowsFromTalk("nairobi", &types.Talk{
+		ID:          "talk-1",
+		Name:        "Media Talk",
+		TalkCardURL: "/social-cards/media-talk.png",
+		Sched:       &types.Times{Start: start, End: &end},
+	}, nil)
+
+	if len(rows) != 1 {
+		t.Fatalf("rows len = %d, want 1", len(rows))
+	}
+	if got, want := rows[0].MediaURL, "/social-cards/media-talk.png"; got != want {
+		t.Fatalf("MediaURL = %q, want %q", got, want)
+	}
+}
+
 func TestRunOfShowLocationFallsBackForNairobi(t *testing.T) {
 	loc := runOfShowLocation(&types.Conf{
 		Tag:       "nairobi",
@@ -186,6 +219,46 @@ func TestBuildPublicRunOfShowStagesGroupsByVenueAndRepeatsInfo(t *testing.T) {
 	}
 }
 
+func TestBuildAdminRunOfShowStagesRepeatsInfoAndShifts(t *testing.T) {
+	start := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
+	days := []*RunOfShowDay{
+		{
+			Idx:  1,
+			Date: start,
+			Rows: []*RunOfShowRow{
+				{Start: start, Kind: "info", What: "Doors open"},
+				{Start: start.Add(time.Hour), Kind: "talk", What: "Main talk", VenueTag: "one"},
+				{Start: start.Add(2 * time.Hour), Kind: "talk", What: "Workshop", VenueTag: "three"},
+				{Start: start.Add(3 * time.Hour), Kind: "shift", What: "Volunteer shift", Who: "Vera"},
+			},
+		},
+	}
+	venues := []VenueOption{
+		{Tag: "one", Label: "Main Stage"},
+		{Tag: "three", Label: "Workshops Stage"},
+	}
+
+	stages := buildAdminRunOfShowStages(days, venues)
+	if len(stages) != 2 {
+		t.Fatalf("stages len = %d, want 2", len(stages))
+	}
+	if got := len(stages[0].Days[0].Rows); got != 3 {
+		t.Fatalf("stage 0 rows len = %d, want 3", got)
+	}
+	if got, want := stages[0].Days[0].Rows[1].What, "Main talk"; got != want {
+		t.Fatalf("stage 0 talk row = %q, want %q", got, want)
+	}
+	if got, want := stages[0].Days[0].Rows[2].What, "Volunteer shift"; got != want {
+		t.Fatalf("stage 0 shift row = %q, want %q", got, want)
+	}
+	if got := len(stages[1].Days[0].Rows); got != 3 {
+		t.Fatalf("stage 1 rows len = %d, want 3", got)
+	}
+	if got, want := stages[1].Days[0].Rows[1].What, "Workshop"; got != want {
+		t.Fatalf("stage 1 talk row = %q, want %q", got, want)
+	}
+}
+
 func TestMarkRunOfShowProgressHighlightsCurrentRow(t *testing.T) {
 	loc := time.FixedZone("TEST", 3*60*60)
 	start := time.Date(2026, 6, 17, 10, 0, 0, 0, loc)
@@ -233,6 +306,116 @@ func TestMarkRunOfShowProgressPlacesMarkerBeforeNextRow(t *testing.T) {
 	}
 	if !days[0].Rows[1].NowMarkerBefore {
 		t.Fatalf("second row NowMarkerBefore = false, want true")
+	}
+}
+
+func TestApplyRunOfShowAdjustmentsStopsAtFixedBreak(t *testing.T) {
+	start := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
+	talkAEnd := start.Add(30 * time.Minute)
+	talkBStart := start.Add(45 * time.Minute)
+	talkBEnd := talkBStart.Add(30 * time.Minute)
+	breakStart := start.Add(90 * time.Minute)
+	talkCStart := start.Add(2 * time.Hour)
+	talkCEnd := talkCStart.Add(30 * time.Minute)
+	days := []*RunOfShowDay{
+		{
+			Idx:  1,
+			Date: start,
+			Rows: []*RunOfShowRow{
+				{Start: start, End: &talkAEnd, Kind: "talk", What: "Talk A", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-a", SchedulePolicy: runOfShowPolicyFlex},
+				{Start: talkBStart, End: &talkBEnd, Kind: "talk", What: "Talk B", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-b", SchedulePolicy: runOfShowPolicyFlex},
+				{Start: breakStart, Kind: "info", What: "Coffee", AnchorKind: "info", AnchorID: "day-1:coffee", SchedulePolicy: runOfShowPolicyFixed},
+				{Start: talkCStart, End: &talkCEnd, Kind: "talk", What: "Talk C", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-c", SchedulePolicy: runOfShowPolicyFlex},
+			},
+		},
+	}
+
+	applyRunOfShowAdjustments(days, []*types.RunOfShowAdjustment{
+		{ID: "adj-1", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-a", DelayMinutes: 8, PropagationMode: getters.RunOfShowAdjustUntilNextAnchor},
+	})
+
+	if got, want := days[0].Rows[0].Start, start.Add(8*time.Minute); !got.Equal(want) {
+		t.Fatalf("talk A start = %s, want %s", got, want)
+	}
+	if got, want := days[0].Rows[1].Start, talkBStart.Add(8*time.Minute); !got.Equal(want) {
+		t.Fatalf("talk B start = %s, want %s", got, want)
+	}
+	if got, want := days[0].Rows[2].Start, breakStart; !got.Equal(want) {
+		t.Fatalf("break start = %s, want unchanged %s", got, want)
+	}
+	if got, want := days[0].Rows[3].Start, talkCStart; !got.Equal(want) {
+		t.Fatalf("talk C start = %s, want unchanged after break %s", got, want)
+	}
+}
+
+func TestApplyRunOfShowAdjustmentsCanResumeOnTime(t *testing.T) {
+	start := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
+	talkAEnd := start.Add(30 * time.Minute)
+	talkBStart := start.Add(45 * time.Minute)
+	talkBEnd := talkBStart.Add(30 * time.Minute)
+	talkCStart := start.Add(90 * time.Minute)
+	talkCEnd := talkCStart.Add(30 * time.Minute)
+	days := []*RunOfShowDay{
+		{
+			Idx:  1,
+			Date: start,
+			Rows: []*RunOfShowRow{
+				{Start: start, End: &talkAEnd, Kind: "talk", What: "Talk A", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-a", SchedulePolicy: runOfShowPolicyFlex},
+				{Start: talkBStart, End: &talkBEnd, Kind: "talk", What: "Talk B", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-b", SchedulePolicy: runOfShowPolicyFlex},
+				{Start: talkCStart, End: &talkCEnd, Kind: "talk", What: "Talk C", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-c", SchedulePolicy: runOfShowPolicyFlex},
+			},
+		},
+	}
+
+	applyRunOfShowAdjustments(days, []*types.RunOfShowAdjustment{
+		{ID: "adj-1", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-a", DelayMinutes: 10, PropagationMode: getters.RunOfShowAdjustUntilNextAnchor},
+		{ID: "adj-2", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-c", DelayMinutes: -10, PropagationMode: getters.RunOfShowAdjustUntilNextAnchor},
+	})
+
+	if got, want := days[0].Rows[1].Start, talkBStart.Add(10*time.Minute); !got.Equal(want) {
+		t.Fatalf("talk B start = %s, want %s", got, want)
+	}
+	if got, want := days[0].Rows[2].Start, talkCStart; !got.Equal(want) {
+		t.Fatalf("talk C start = %s, want resumed %s", got, want)
+	}
+	if days[0].Rows[2].Adjusted {
+		t.Fatalf("talk C Adjusted = true, want false for net-zero resume")
+	}
+	if !days[0].Rows[2].HasAdjustment {
+		t.Fatalf("talk C HasAdjustment = false, want true so it can be cleared")
+	}
+	if got, want := days[0].Rows[2].AdjustmentMinutes, -10; got != want {
+		t.Fatalf("talk C AdjustmentMinutes = %d, want %d", got, want)
+	}
+}
+
+func TestApplyRunOfShowAdjustmentsInfoItemOnlyCompressesBreak(t *testing.T) {
+	start := time.Date(2026, 6, 17, 11, 30, 0, 0, time.UTC)
+	end := start.Add(30 * time.Minute)
+	next := end
+	days := []*RunOfShowDay{
+		{
+			Idx:  1,
+			Date: start,
+			Rows: []*RunOfShowRow{
+				{Start: start, End: &end, Kind: "info", What: "Coffee", AnchorKind: "info", AnchorID: "day-1:coffee", SchedulePolicy: runOfShowPolicyFixed},
+				{Start: next, Kind: "talk", What: "Next talk", VenueTag: "one", AnchorKind: "talk", AnchorID: "talk-next", SchedulePolicy: runOfShowPolicyFlex},
+			},
+		},
+	}
+
+	applyRunOfShowAdjustments(days, []*types.RunOfShowAdjustment{
+		{ID: "adj-1", AnchorKind: "info", AnchorID: "day-1:coffee", DelayMinutes: 8, PropagationMode: getters.RunOfShowAdjustItemOnly},
+	})
+
+	if got, want := days[0].Rows[0].Start, start.Add(8*time.Minute); !got.Equal(want) {
+		t.Fatalf("coffee start = %s, want %s", got, want)
+	}
+	if got, want := *days[0].Rows[0].End, end; !got.Equal(want) {
+		t.Fatalf("coffee end = %s, want unchanged %s", got, want)
+	}
+	if got, want := days[0].Rows[1].Start, next; !got.Equal(want) {
+		t.Fatalf("next talk start = %s, want unchanged %s", got, want)
 	}
 }
 
