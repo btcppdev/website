@@ -14,6 +14,7 @@
             poppler-utils
             bashInteractive
             jq
+            ripgrep
             go
             tailwindcss
             air
