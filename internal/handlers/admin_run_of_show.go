@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/external/spaces"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/ics"
@@ -822,7 +824,7 @@ func rowsFromTalk(confTag string, t *types.Talk, crew []RunOfShowCrew) []*RunOfS
 		End:            t.Sched.End,
 		Kind:           "talk",
 		What:           label,
-		MediaURL:       t.TalkCardURL,
+		MediaURL:       runOfShowTalkMediaURL(confTag, t),
 		Who:            strings.Join(names, ", "),
 		Crew:           crew,
 		Where:          venueLabel(confTag, t.Venue),
@@ -831,6 +833,50 @@ func rowsFromTalk(confTag string, t *types.Talk, crew []RunOfShowCrew) []*RunOfS
 		AnchorID:       t.ID,
 		SchedulePolicy: runOfShowPolicyFlex,
 	}}
+}
+
+func runOfShowTalkMediaURL(confTag string, t *types.Talk) string {
+	if t == nil {
+		return ""
+	}
+	raw := strings.TrimSpace(t.TalkCardURL)
+	key := runOfShowTalkMediaKey(confTag, t.ID, raw)
+	if key == "" {
+		return raw
+	}
+	if spaces.IsConfigured() {
+		if avifKey := talkCardAVIFKey(key); avifKey != "" && spaces.Exists(avifKey) {
+			return spaces.PublicURL(avifKey)
+		}
+		return spaces.PublicURL(key)
+	}
+	if raw != "" {
+		return raw
+	}
+	return "/" + key
+}
+
+func runOfShowTalkMediaKey(confTag, talkID, raw string) string {
+	raw = strings.TrimSpace(raw)
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			return ""
+		}
+		key := strings.TrimPrefix(parsed.Path, "/")
+		if key != "" && (strings.HasPrefix(key, strings.Trim(confTag, "/")+"/talks/") || strings.HasPrefix(key, "talks/")) {
+			return key
+		}
+		return ""
+	}
+	key := strings.TrimPrefix(raw, "/")
+	if key != "" {
+		return key
+	}
+	if confTag == "" || talkID == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/talks/%s-1080p.png", confTag, talkID)
 }
 
 func stageCrewForTalk(confTag string, t *types.Talk, shifts []*types.WorkShift, volByRef map[string]*types.Volunteer) []RunOfShowCrew {

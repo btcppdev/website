@@ -14,6 +14,7 @@ import (
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
+	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/types"
 )
 
@@ -241,7 +242,7 @@ func generateAndUploadTalkPngWithRenderer(ctx *config.AppContext, renderer *help
 
 	if !force {
 		cardHashesMu.Lock()
-		if cardHashes[key] == hash {
+		if cardHashes[key] == hash && talkCardAVIFReady(key) {
 			cardHashesMu.Unlock()
 			writeSocialCardPath(ctx, talk.ID, key, card)
 			return spaces.PublicURL(key), nil
@@ -265,6 +266,7 @@ func generateAndUploadTalkPngWithRenderer(ctx *config.AppContext, renderer *help
 	if err != nil {
 		return "", err
 	}
+	uploadTalkCardAVIF(ctx, key, png, hash)
 
 	cardHashesMu.Lock()
 	cardHashes[key] = hash
@@ -273,6 +275,33 @@ func generateAndUploadTalkPngWithRenderer(ctx *config.AppContext, renderer *help
 
 	ctx.Infos.Printf("media refresh: uploaded %s", key)
 	return url, nil
+}
+
+func talkCardAVIFKey(key string) string {
+	if !strings.HasSuffix(strings.ToLower(key), ".png") {
+		return ""
+	}
+	return key[:len(key)-4] + ".avif"
+}
+
+func talkCardAVIFReady(key string) bool {
+	avifKey := talkCardAVIFKey(key)
+	return avifKey == "" || !spaces.IsConfigured() || spaces.Exists(avifKey)
+}
+
+func uploadTalkCardAVIF(ctx *config.AppContext, key string, png []byte, hash string) {
+	avifKey := talkCardAVIFKey(key)
+	if avifKey == "" {
+		return
+	}
+	avif, err := imgproc.MakeAVIF(png, 0)
+	if err != nil {
+		ctx.Err.Printf("media refresh: failed to generate AVIF %s: %s", avifKey, err)
+		return
+	}
+	if _, err := spaces.Upload(avifKey, avif, "image/avif", hash); err != nil {
+		ctx.Err.Printf("media refresh: failed to upload AVIF %s: %s", avifKey, err)
+	}
 }
 
 // writeSocialCardPath records the freshly-generated card's path on the

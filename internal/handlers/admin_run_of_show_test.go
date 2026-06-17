@@ -158,6 +158,31 @@ func TestRowsFromTalkCarriesMediaURL(t *testing.T) {
 	}
 }
 
+func TestRowsFromTalkDefaultsMediaURLToSpacesKeyPath(t *testing.T) {
+	start := time.Date(2026, 6, 16, 9, 0, 0, 0, time.UTC)
+	end := start.Add(30 * time.Minute)
+
+	rows := rowsFromTalk("nairobi", &types.Talk{
+		ID:    "talk-1",
+		Name:  "Media Talk",
+		Sched: &types.Times{Start: start, End: &end},
+	}, nil)
+
+	if len(rows) != 1 {
+		t.Fatalf("rows len = %d, want 1", len(rows))
+	}
+	if got, want := rows[0].MediaURL, "/nairobi/talks/talk-1-1080p.png"; got != want {
+		t.Fatalf("MediaURL = %q, want %q", got, want)
+	}
+}
+
+func TestRunOfShowTalkMediaKeyExtractsWebsitePath(t *testing.T) {
+	got := runOfShowTalkMediaKey("nairobi", "talk-1", "https://btcpp.dev/nairobi/talks/talk-1-1080p.png")
+	if want := "nairobi/talks/talk-1-1080p.png"; got != want {
+		t.Fatalf("key = %q, want %q", got, want)
+	}
+}
+
 func TestRunOfShowLocationFallsBackForNairobi(t *testing.T) {
 	loc := runOfShowLocation(&types.Conf{
 		Tag:       "nairobi",
