@@ -1080,7 +1080,152 @@ func createAwardPostgres(ctx *config.AppContext, in AwardInput) (string, error) 
 	return id, nil
 }
 
+func updateAwardPostgres(ctx *config.AppContext, awardID string, in AwardInput) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	awardID = strings.TrimSpace(awardID)
+	in = normalizeAwardInput(in)
+	if awardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	if in.CompetitionID == "" {
+		return fmt.Errorf("award competition id is required")
+	}
+	if in.Title == "" {
+		return fmt.Errorf("award title is required")
+	}
+
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin update award: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+
+	commandTag, err := tx.Exec(context.Background(), `
+		UPDATE awards
+		SET title = $3,
+			description = $4,
+			photo_url = $5,
+			max_awardees = $6,
+			opt_in_required = $7,
+			status = $8
+		WHERE id::text = $1
+			AND competition_id::text = $2
+			AND archived_at IS NULL
+	`, awardID, in.CompetitionID, in.Title, in.Description, in.PhotoURL, in.MaxAwardees, in.OptInRequired, in.Status)
+	if err != nil {
+		return fmt.Errorf("update award %s: %w", awardID, err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		return fmt.Errorf("award %s not found", awardID)
+	}
+	if !in.OptInRequired {
+		if _, err := tx.Exec(context.Background(), `
+			DELETE FROM project_award_opt_ins
+			WHERE award_id::text = $1
+		`, awardID); err != nil {
+			return fmt.Errorf("clear award opt-ins %s: %w", awardID, err)
+		}
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return fmt.Errorf("commit update award: %w", err)
+	}
+	return nil
+}
+
+func archiveAwardPostgres(ctx *config.AppContext, competitionID, awardID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	awardID = strings.TrimSpace(awardID)
+	if competitionID == "" {
+		return fmt.Errorf("award competition id is required")
+	}
+	if awardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE awards
+		SET archived_at = now()
+		WHERE id::text = $1
+			AND competition_id::text = $2
+			AND archived_at IS NULL
+	`, awardID, competitionID)
+	if err != nil {
+		return fmt.Errorf("archive award %s: %w", awardID, err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		return fmt.Errorf("award %s not found", awardID)
+	}
+	return nil
+}
+
+func restoreAwardPostgres(ctx *config.AppContext, competitionID, awardID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	awardID = strings.TrimSpace(awardID)
+	if competitionID == "" {
+		return fmt.Errorf("award competition id is required")
+	}
+	if awardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE awards
+		SET archived_at = NULL
+		WHERE id::text = $1
+			AND competition_id::text = $2
+			AND archived_at IS NOT NULL
+	`, awardID, competitionID)
+	if err != nil {
+		return fmt.Errorf("restore award %s: %w", awardID, err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		return fmt.Errorf("archived award %s not found", awardID)
+	}
+	return nil
+}
+
+func deleteArchivedAwardPostgres(ctx *config.AppContext, competitionID, awardID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	awardID = strings.TrimSpace(awardID)
+	if competitionID == "" {
+		return fmt.Errorf("award competition id is required")
+	}
+	if awardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		DELETE FROM awards
+		WHERE id::text = $1
+			AND competition_id::text = $2
+			AND archived_at IS NOT NULL
+	`, awardID, competitionID)
+	if err != nil {
+		return fmt.Errorf("delete archived award %s: %w", awardID, err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		return fmt.Errorf("archived award %s not found", awardID)
+	}
+	return nil
+}
+
 func listAwardsForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.Award, error) {
+	return listAwardsForCompetitionByArchiveStatePostgres(ctx, competitionID, false)
+}
+
+func listArchivedAwardsForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.Award, error) {
+	return listAwardsForCompetitionByArchiveStatePostgres(ctx, competitionID, true)
+}
+
+func listAwardsForCompetitionByArchiveStatePostgres(ctx *config.AppContext, competitionID string, archived bool) ([]*types.Award, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
@@ -1088,13 +1233,22 @@ func listAwardsForCompetitionPostgres(ctx *config.AppContext, competitionID stri
 	if competitionID == "" {
 		return nil, fmt.Errorf("award competition id is required")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	archivePredicate := "archived_at IS NULL"
+	orderBy := "title, id"
+	if archived {
+		archivePredicate = "archived_at IS NOT NULL"
+		orderBy = "archived_at DESC, title, id"
+	}
+	query := fmt.Sprintf(`
 		SELECT id::text, competition_id::text, coalesce(sponsored_by_org_id::text, ''),
-			title, description, photo_url, max_awardees, opt_in_required, status, created_at, updated_at
+			title, description, photo_url, max_awardees, opt_in_required, status,
+			created_at, updated_at, archived_at
 		FROM awards
 		WHERE competition_id::text = $1
-		ORDER BY title, id
-	`, competitionID)
+			AND %s
+		ORDER BY %s
+	`, archivePredicate, orderBy)
+	rows, err := ctx.DB.Query(context.Background(), query, competitionID)
 	if err != nil {
 		return nil, fmt.Errorf("list awards for competition %s: %w", competitionID, err)
 	}
@@ -1152,6 +1306,7 @@ func setProjectAwardOptInsPostgres(ctx *config.AppContext, projectID string, awa
 				AND awards.competition_id::text = $3
 				AND awards.opt_in_required
 				AND awards.status = $4
+				AND awards.archived_at IS NULL
 		`, projectID, awardID, competitionID, AwardStatusAvailable)
 		if err != nil {
 			return fmt.Errorf("set project award opt-in %s/%s: %w", projectID, awardID, err)
@@ -1181,6 +1336,7 @@ func listProjectAwardOptInsForProjectPostgres(ctx *config.AppContext, projectID 
 		JOIN projects ON projects.id = opt_ins.project_id
 		JOIN awards ON awards.id = opt_ins.award_id
 		WHERE opt_ins.project_id::text = $1
+			AND awards.archived_at IS NULL
 		ORDER BY awards.title, awards.id
 	`, projectID)
 	if err != nil {
@@ -1205,6 +1361,7 @@ func listProjectAwardOptInsForCompetitionPostgres(ctx *config.AppContext, compet
 		JOIN projects ON projects.id = opt_ins.project_id
 		JOIN awards ON awards.id = opt_ins.award_id
 		WHERE awards.competition_id::text = $1
+			AND awards.archived_at IS NULL
 		ORDER BY projects.project_number NULLS LAST, projects.title, awards.title, opt_ins.opted_in_at
 	`, competitionID)
 	if err != nil {
@@ -1258,6 +1415,7 @@ func listPrizesForCompetitionPostgres(ctx *config.AppContext, competitionID stri
 		FROM prizes
 		JOIN awards ON awards.id = prizes.award_id
 		WHERE awards.competition_id::text = $1
+			AND awards.archived_at IS NULL
 		ORDER BY awards.title, prizes.title, prizes.id
 	`, competitionID)
 	if err != nil {
@@ -1302,6 +1460,7 @@ func assignProjectAwardPostgres(ctx *config.AppContext, awardID, projectID strin
 		SELECT competition_id::text, max_awardees
 		FROM awards
 		WHERE id::text = $1
+			AND archived_at IS NULL
 		FOR UPDATE
 	`, awardID).Scan(&awardCompetitionID, &maxAwardees); err != nil {
 		return fmt.Errorf("load award %s: %w", awardID, err)
@@ -1382,6 +1541,7 @@ func removeProjectAwardPostgres(ctx *config.AppContext, awardID, projectID strin
 		SELECT id::text
 		FROM awards
 		WHERE id::text = $1
+			AND archived_at IS NULL
 		FOR UPDATE
 	`, awardID).Scan(&lockedAwardID); err != nil {
 		return fmt.Errorf("lock award %s: %w", awardID, err)
@@ -1434,6 +1594,7 @@ func listProjectAwardsForCompetitionPostgres(ctx *config.AppContext, competition
 		JOIN awards ON awards.id = project_awards.award_id
 		JOIN projects ON projects.id = project_awards.project_id
 		WHERE awards.competition_id::text = $1
+			AND awards.archived_at IS NULL
 		ORDER BY awards.title, projects.project_number NULLS LAST, projects.title, project_awards.awarded_at
 	`, competitionID)
 	if err != nil {
@@ -1652,6 +1813,7 @@ func scanScorecard(row scanner) (*types.Scorecard, error) {
 func scanAward(rows pgx.Rows) (*types.Award, error) {
 	var award types.Award
 	var maxAwardees sql.NullInt64
+	var archivedAt pgtype.Timestamptz
 	if err := rows.Scan(
 		&award.ID,
 		&award.CompetitionID,
@@ -1664,6 +1826,7 @@ func scanAward(rows pgx.Rows) (*types.Award, error) {
 		&award.Status,
 		&award.CreatedAt,
 		&award.UpdatedAt,
+		&archivedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -1672,6 +1835,7 @@ func scanAward(rows pgx.Rows) (*types.Award, error) {
 		award.MaxAwardees = &n
 	}
 	award.Status = normalizeAwardStatus(award.Status)
+	award.ArchivedAt = pgTimePtr(archivedAt)
 	return &award, nil
 }
 

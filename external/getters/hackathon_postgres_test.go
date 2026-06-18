@@ -448,6 +448,43 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	if len(projectOptIns) != 1 || projectOptIns[0].ProjectID != projectID || projectOptIns[0].AwardID != awardID || projectOptIns[0].AwardTitle != "Best Overall" {
 		t.Fatalf("project opt-ins mismatch: %+v", projectOptIns)
 	}
+	if err := UpdateAward(ctx, awardID, AwardInput{
+		CompetitionID: competitionID,
+		Title:         "Best Overall Updated",
+		Description:   "Updated top project",
+		MaxAwardees:   &maxAwardees,
+		OptInRequired: false,
+		Status:        AwardStatusAvailable,
+	}); err != nil {
+		t.Fatalf("UpdateAward: %v", err)
+	}
+	awards, err = ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListAwardsForCompetition after update: %v", err)
+	}
+	if len(awards) != 1 || awards[0].ID != awardID || awards[0].Title != "Best Overall Updated" || awards[0].Description != "Updated top project" || awards[0].OptInRequired {
+		t.Fatalf("awards after update mismatch: %+v", awards)
+	}
+	projectOptIns, err = ListProjectAwardOptInsForProject(ctx, projectID)
+	if err != nil {
+		t.Fatalf("ListProjectAwardOptInsForProject after opt-in disabled: %v", err)
+	}
+	if len(projectOptIns) != 0 {
+		t.Fatalf("project opt-ins after opt-in disabled = %+v, want empty", projectOptIns)
+	}
+	if err := UpdateAward(ctx, awardID, AwardInput{
+		CompetitionID: competitionID,
+		Title:         "Best Overall",
+		Description:   "Top project",
+		MaxAwardees:   &maxAwardees,
+		OptInRequired: true,
+		Status:        AwardStatusAvailable,
+	}); err != nil {
+		t.Fatalf("UpdateAward restore opt-in: %v", err)
+	}
+	if err := SetProjectAwardOptIns(ctx, projectID, []string{awardID}); err != nil {
+		t.Fatalf("SetProjectAwardOptIns after opt-in restore: %v", err)
+	}
 	competitionOptIns, err := ListProjectAwardOptInsForCompetition(ctx, competitionID)
 	if err != nil {
 		t.Fatalf("ListProjectAwardOptInsForCompetition: %v", err)
@@ -536,6 +573,77 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	}
 	if awards[0].Status != AwardStatusUnawarded {
 		t.Fatalf("award status after remove = %q, want %q", awards[0].Status, AwardStatusUnawarded)
+	}
+	if err := ArchiveAward(ctx, competitionID, awardID); err != nil {
+		t.Fatalf("ArchiveAward: %v", err)
+	}
+	awards, err = ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListAwardsForCompetition after archive: %v", err)
+	}
+	for _, award := range awards {
+		if award != nil && award.ID == awardID {
+			t.Fatalf("archived award still listed: %+v", awards)
+		}
+	}
+	archivedAwards, err := ListArchivedAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListArchivedAwardsForCompetition: %v", err)
+	}
+	if len(archivedAwards) != 1 || archivedAwards[0].ID != awardID || archivedAwards[0].ArchivedAt == nil {
+		t.Fatalf("archived awards mismatch: %+v", archivedAwards)
+	}
+	prizes, err = ListPrizesForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListPrizesForCompetition after archive: %v", err)
+	}
+	for _, prize := range prizes {
+		if prize != nil && prize.AwardID == awardID {
+			t.Fatalf("archived award prize still listed: %+v", prizes)
+		}
+	}
+	competitionOptIns, err = ListProjectAwardOptInsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListProjectAwardOptInsForCompetition after archive: %v", err)
+	}
+	for _, optIn := range competitionOptIns {
+		if optIn != nil && optIn.AwardID == awardID {
+			t.Fatalf("archived award opt-in still listed: %+v", competitionOptIns)
+		}
+	}
+	if err := RestoreAward(ctx, competitionID, awardID); err != nil {
+		t.Fatalf("RestoreAward: %v", err)
+	}
+	awards, err = ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListAwardsForCompetition after restore: %v", err)
+	}
+	var restored bool
+	for _, award := range awards {
+		if award != nil && award.ID == awardID && award.ArchivedAt == nil {
+			restored = true
+		}
+	}
+	if !restored {
+		t.Fatalf("restored award not listed: %+v", awards)
+	}
+	if err := ArchiveAward(ctx, competitionID, awardID); err != nil {
+		t.Fatalf("ArchiveAward before delete: %v", err)
+	}
+	if err := DeleteArchivedAward(ctx, competitionID, awardID); err != nil {
+		t.Fatalf("DeleteArchivedAward: %v", err)
+	}
+	archivedAwards, err = ListArchivedAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListArchivedAwardsForCompetition after delete: %v", err)
+	}
+	for _, award := range archivedAwards {
+		if award != nil && award.ID == awardID {
+			t.Fatalf("deleted award still archived: %+v", archivedAwards)
+		}
+	}
+	if err := DeleteArchivedAward(ctx, competitionID, generalAwardID); err == nil {
+		t.Fatalf("DeleteArchivedAward deleted active award")
 	}
 }
 

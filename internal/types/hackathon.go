@@ -121,6 +121,7 @@ type Award struct {
 	Status           string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	ArchivedAt       *time.Time
 }
 
 type Prize struct {

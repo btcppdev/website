@@ -27,6 +27,7 @@ type HackathonAdminPage struct {
 	Scorecards           []*types.Scorecard
 	ScoreSummaries       []*HackathonScoreSummary
 	Awards               []*types.Award
+	ArchivedAwards       []*types.Award
 	PrizesByAward        map[string][]*types.Prize
 	AwardeesByAward      map[string][]*types.ProjectAward
 	AwardOptInsByProject map[string][]*types.ProjectAwardOptIn
@@ -342,6 +343,13 @@ func (p *HackathonAdminPage) AwardPrizes(award *types.Award) []*types.Prize {
 	return p.PrizesByAward[award.ID]
 }
 
+func (p *HackathonAdminPage) AwardArchivedAtLabel(award *types.Award) string {
+	if award == nil || award.ArchivedAt == nil {
+		return ""
+	}
+	return award.ArchivedAt.Format("Jan 2, 2006 3:04 PM")
+}
+
 func (p *HackathonAdminPage) Awardees(award *types.Award) []*types.ProjectAward {
 	if p == nil || p.AwardeesByAward == nil || award == nil {
 		return nil
@@ -602,6 +610,12 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "Unable to load awards", http.StatusInternalServerError)
 		return
 	}
+	archivedAwards, err := getters.ListArchivedAwardsForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list archived awards: %s", competitionID, err)
+		http.Error(w, "Unable to load archived awards", http.StatusInternalServerError)
+		return
+	}
 	prizes, err := getters.ListPrizesForCompetition(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards list prizes: %s", competitionID, err)
@@ -642,6 +656,7 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		Competition:          competition,
 		Projects:             projects,
 		Awards:               awards,
+		ArchivedAwards:       archivedAwards,
 		PrizesByAward:        prizesByAward,
 		AwardeesByAward:      awardeesByAward,
 		AwardOptInsByProject: projectAwardOptInsByProject(optIns),
@@ -682,6 +697,92 @@ func HackathonAdminCreateAward(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award added"), http.StatusSeeOther)
+}
+
+func HackathonAdminUpdateAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	in, err := awardInputFromRequest(w, r, competitionID)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	awardID := strings.TrimSpace(r.FormValue("AwardID"))
+	if awardID == "" {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("award is required"), http.StatusSeeOther)
+		return
+	}
+	if err := getters.UpdateAward(ctx, awardID, in); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards/update: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award saved"), http.StatusSeeOther)
+}
+
+func HackathonAdminArchiveAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	awardID := strings.TrimSpace(r.FormValue("AwardID"))
+	if awardID == "" {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("award is required"), http.StatusSeeOther)
+		return
+	}
+	if err := getters.ArchiveAward(ctx, competitionID, awardID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards/archive: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award archived"), http.StatusSeeOther)
+}
+
+func HackathonAdminRestoreAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	awardID, err := awardIDFromRequest(w, r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := getters.RestoreAward(ctx, competitionID, awardID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards/restore: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award restored"), http.StatusSeeOther)
+}
+
+func HackathonAdminDeleteArchivedAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	awardID, err := awardIDFromRequest(w, r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := getters.DeleteArchivedAward(ctx, competitionID, awardID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards/delete: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award deleted"), http.StatusSeeOther)
 }
 
 func HackathonAdminCreatePrize(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1129,6 +1230,18 @@ func awardAssignmentFromRequest(w http.ResponseWriter, r *http.Request) (string,
 		return "", "", fmt.Errorf("project is required")
 	}
 	return awardID, projectID, nil
+}
+
+func awardIDFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		return "", fmt.Errorf("bad form")
+	}
+	awardID := strings.TrimSpace(r.FormValue("AwardID"))
+	if awardID == "" {
+		return "", fmt.Errorf("award is required")
+	}
+	return awardID, nil
 }
 
 func awardInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string) (getters.AwardInput, error) {
