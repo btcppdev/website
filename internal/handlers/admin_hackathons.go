@@ -597,6 +597,12 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		http.Error(w, "Unable to load scorecards", http.StatusInternalServerError)
 		return
 	}
+	awards, err := getters.ListAwardsForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/scores awards: %s", competitionID, err)
+		http.Error(w, "Unable to load awards", http.StatusInternalServerError)
+		return
+	}
 	page := &HackathonAdminPage{
 		Competition:    competition,
 		Projects:       projects,
@@ -604,6 +610,7 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		Judges:         judges,
 		Scorecards:     scorecards,
 		ScoreSummaries: hackathonScoreSummaries(projects, scorecards),
+		Awards:         awards,
 		ActiveTab:      "scores",
 		ScoreMode:      hackathonScoreModeAll,
 		FlashMessage:   r.URL.Query().Get("flash"),
@@ -907,8 +914,9 @@ func HackathonAdminAssignAward(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
-	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	defaultDest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
 	awardID, projectID, err := awardAssignmentFromRequest(w, r)
+	dest := awardAssignmentRedirectURL(competitionID, r.FormValue("Source"), defaultDest)
 	if err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
@@ -923,6 +931,15 @@ func HackathonAdminAssignAward(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award assigned"), http.StatusSeeOther)
+}
+
+func awardAssignmentRedirectURL(competitionID, source, defaultDest string) string {
+	switch strings.TrimSpace(source) {
+	case "scores":
+		return "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging/scores"
+	default:
+		return defaultDest
+	}
 }
 
 func HackathonAdminRemoveAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
