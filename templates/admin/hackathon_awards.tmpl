@@ -40,6 +40,7 @@
           {{ if .Awards }}
           <div class="space-y-4">
             {{ range .Awards }}
+            {{ $award := . }}
             <article class="rounded-md border border-gray-200 px-4 py-4">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -88,7 +89,7 @@
                             class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
                       <option value="">Select project</option>
                       {{ range $.Projects }}
-                      <option value="{{ .ID }}">{{ $.ProjectSelectLabel . }}</option>
+                      <option value="{{ .ID }}">{{ $.ProjectSelectLabelForAward . $award }}</option>
                       {{ end }}
                     </select>
                   </div>

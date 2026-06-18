@@ -438,6 +438,42 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	if len(awards) != 1 || awards[0].ID != awardID || awards[0].MaxAwardees == nil || *awards[0].MaxAwardees != maxAwardees || !awards[0].OptInRequired {
 		t.Fatalf("awards mismatch: %+v", awards)
 	}
+	if err := SetProjectAwardOptIns(ctx, projectID, []string{awardID, awardID, ""}); err != nil {
+		t.Fatalf("SetProjectAwardOptIns: %v", err)
+	}
+	projectOptIns, err := ListProjectAwardOptInsForProject(ctx, projectID)
+	if err != nil {
+		t.Fatalf("ListProjectAwardOptInsForProject: %v", err)
+	}
+	if len(projectOptIns) != 1 || projectOptIns[0].ProjectID != projectID || projectOptIns[0].AwardID != awardID || projectOptIns[0].AwardTitle != "Best Overall" {
+		t.Fatalf("project opt-ins mismatch: %+v", projectOptIns)
+	}
+	competitionOptIns, err := ListProjectAwardOptInsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListProjectAwardOptInsForCompetition: %v", err)
+	}
+	if len(competitionOptIns) != 1 || competitionOptIns[0].ProjectID != projectID || competitionOptIns[0].AwardID != awardID {
+		t.Fatalf("competition opt-ins mismatch: %+v", competitionOptIns)
+	}
+	generalAwardID, err := CreateAward(ctx, AwardInput{
+		CompetitionID: competitionID,
+		Title:         "General Award",
+		OptInRequired: false,
+		Status:        AwardStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreateAward general: %v", err)
+	}
+	if err := SetProjectAwardOptIns(ctx, projectID, []string{generalAwardID}); err == nil {
+		t.Fatalf("SetProjectAwardOptIns accepted non-opt-in award")
+	}
+	projectOptIns, err = ListProjectAwardOptInsForProject(ctx, projectID)
+	if err != nil {
+		t.Fatalf("ListProjectAwardOptInsForProject after invalid: %v", err)
+	}
+	if len(projectOptIns) != 1 || projectOptIns[0].AwardID != awardID {
+		t.Fatalf("project opt-ins after invalid = %+v, want original opt-in", projectOptIns)
+	}
 
 	prizeID, err := CreatePrize(ctx, PrizeInput{
 		AwardID:        awardID,

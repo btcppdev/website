@@ -1113,6 +1113,107 @@ func listAwardsForCompetitionPostgres(ctx *config.AppContext, competitionID stri
 	return out, nil
 }
 
+func setProjectAwardOptInsPostgres(ctx *config.AppContext, projectID string, awardIDs []string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return fmt.Errorf("project id is required")
+	}
+	awardIDs = normalizedUniqueStrings(awardIDs)
+
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin project award opt-ins: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+
+	var competitionID string
+	if err := tx.QueryRow(context.Background(), `
+		SELECT competition_id::text
+		FROM projects
+		WHERE id::text = $1
+	`, projectID).Scan(&competitionID); err != nil {
+		return fmt.Errorf("load project %s: %w", projectID, err)
+	}
+	if _, err := tx.Exec(context.Background(), `
+		DELETE FROM project_award_opt_ins
+		WHERE project_id::text = $1
+	`, projectID); err != nil {
+		return fmt.Errorf("clear project award opt-ins %s: %w", projectID, err)
+	}
+	for _, awardID := range awardIDs {
+		commandTag, err := tx.Exec(context.Background(), `
+			INSERT INTO project_award_opt_ins (project_id, award_id)
+			SELECT $1, awards.id
+			FROM awards
+			WHERE awards.id::text = $2
+				AND awards.competition_id::text = $3
+				AND awards.opt_in_required
+				AND awards.status = $4
+		`, projectID, awardID, competitionID, AwardStatusAvailable)
+		if err != nil {
+			return fmt.Errorf("set project award opt-in %s/%s: %w", projectID, awardID, err)
+		}
+		if commandTag.RowsAffected() != 1 {
+			return fmt.Errorf("award opt-in %s is not available for this project", awardID)
+		}
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return fmt.Errorf("commit project award opt-ins: %w", err)
+	}
+	return nil
+}
+
+func listProjectAwardOptInsForProjectPostgres(ctx *config.AppContext, projectID string) ([]*types.ProjectAwardOptIn, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("project id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT opt_ins.project_id::text, opt_ins.award_id::text,
+			projects.title, projects.project_number, awards.title, opt_ins.opted_in_at
+		FROM project_award_opt_ins opt_ins
+		JOIN projects ON projects.id = opt_ins.project_id
+		JOIN awards ON awards.id = opt_ins.award_id
+		WHERE opt_ins.project_id::text = $1
+		ORDER BY awards.title, awards.id
+	`, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("list project award opt-ins for project %s: %w", projectID, err)
+	}
+	defer rows.Close()
+	return scanProjectAwardOptIns(rows, "project "+projectID)
+}
+
+func listProjectAwardOptInsForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.ProjectAwardOptIn, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("award opt-in competition id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT opt_ins.project_id::text, opt_ins.award_id::text,
+			projects.title, projects.project_number, awards.title, opt_ins.opted_in_at
+		FROM project_award_opt_ins opt_ins
+		JOIN projects ON projects.id = opt_ins.project_id
+		JOIN awards ON awards.id = opt_ins.award_id
+		WHERE awards.competition_id::text = $1
+		ORDER BY projects.project_number NULLS LAST, projects.title, awards.title, opt_ins.opted_in_at
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("list project award opt-ins for competition %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+	return scanProjectAwardOptIns(rows, "competition "+competitionID)
+}
+
 func createPrizePostgres(ctx *config.AppContext, in PrizeInput) (string, error) {
 	if ctx == nil || ctx.DB == nil {
 		return "", fmt.Errorf("postgres backend selected but AppContext.DB is nil")
@@ -1623,6 +1724,55 @@ func scanProjectAward(rows pgx.Rows) (*types.ProjectAward, error) {
 		award.ProjectNumber = &n
 	}
 	return &award, nil
+}
+
+func scanProjectAwardOptIns(rows pgx.Rows, label string) ([]*types.ProjectAwardOptIn, error) {
+	var out []*types.ProjectAwardOptIn
+	for rows.Next() {
+		optIn, err := scanProjectAwardOptIn(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan project award opt-in: %w", err)
+		}
+		out = append(out, optIn)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate project award opt-ins for %s: %w", label, err)
+	}
+	return out, nil
+}
+
+func scanProjectAwardOptIn(rows pgx.Rows) (*types.ProjectAwardOptIn, error) {
+	var optIn types.ProjectAwardOptIn
+	var projectNumber sql.NullInt64
+	if err := rows.Scan(
+		&optIn.ProjectID,
+		&optIn.AwardID,
+		&optIn.ProjectTitle,
+		&projectNumber,
+		&optIn.AwardTitle,
+		&optIn.OptedInAt,
+	); err != nil {
+		return nil, err
+	}
+	if projectNumber.Valid {
+		n := int(projectNumber.Int64)
+		optIn.ProjectNumber = &n
+	}
+	return &optIn, nil
+}
+
+func normalizedUniqueStrings(values []string) []string {
+	seen := make(map[string]bool, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
 }
 
 func pgTimePtr(value pgtype.Timestamptz) *time.Time {

@@ -85,8 +85,32 @@
     </form>
 
     {{ if and (not .IsNew) .CanSubmit }}
-    <form method="POST" action="/hackathons/{{ .Competition.Slug }}/projects/{{ .Project.ID }}/submit" class="mt-4 flex justify-end">
-      <button type="submit" class="rounded-md bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Submit project</button>
+    <form method="POST" action="/hackathons/{{ .Competition.Slug }}/projects/{{ .Project.ID }}/submit" class="mt-4 rounded-lg bg-white shadow">
+      <div class="space-y-4 px-4 py-5 sm:p-6">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">Submission</h2>
+          {{ if .OptInAwards }}
+          <p class="mt-1 text-sm text-gray-600">Award opt-ins</p>
+          {{ end }}
+        </div>
+        {{ if .OptInAwards }}
+        <fieldset class="space-y-3">
+          {{ range .OptInAwards }}
+          <label class="flex gap-3 rounded-md border border-gray-200 px-3 py-3">
+            <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }}
+                   class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
+            <span>
+              <span class="block text-sm font-medium text-gray-900">{{ .Title }}</span>
+              {{ if .Description }}<span class="mt-1 block text-sm text-gray-600">{{ .Description }}</span>{{ end }}
+            </span>
+          </label>
+          {{ end }}
+        </fieldset>
+        {{ end }}
+      </div>
+      <div class="flex justify-end border-t border-gray-200 px-4 py-4 sm:px-6">
+        <button type="submit" class="rounded-md bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Submit project</button>
+      </div>
     </form>
     {{ end }}
 

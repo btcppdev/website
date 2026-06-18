@@ -142,6 +142,27 @@ func SubmitProject(ctx *config.AppContext, projectID string) error {
 	return unsupportedPostgresBackend("hackathon projects")
 }
 
+func SetProjectAwardOptIns(ctx *config.AppContext, projectID string, awardIDs []string) error {
+	if UsePostgresBackend(ctx) {
+		return setProjectAwardOptInsPostgres(ctx, projectID, awardIDs)
+	}
+	return unsupportedPostgresBackend("hackathon project award opt-ins")
+}
+
+func ListProjectAwardOptInsForProject(ctx *config.AppContext, projectID string) ([]*types.ProjectAwardOptIn, error) {
+	if UsePostgresBackend(ctx) {
+		return listProjectAwardOptInsForProjectPostgres(ctx, projectID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon project award opt-ins")
+}
+
+func ListProjectAwardOptInsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.ProjectAwardOptIn, error) {
+	if UsePostgresBackend(ctx) {
+		return listProjectAwardOptInsForCompetitionPostgres(ctx, competitionID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon project award opt-ins")
+}
+
 func UpdateProjectAdminFields(ctx *config.AppContext, competitionID, projectID, status string, projectNumber *int) error {
 	if UsePostgresBackend(ctx) {
 		return updateProjectAdminFieldsPostgres(ctx, competitionID, projectID, status, projectNumber)
