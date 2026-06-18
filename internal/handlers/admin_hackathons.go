@@ -184,6 +184,20 @@ func (p *HackathonAdminPage) ProjectManageURL(project *types.HackathonProject) s
 	return hackathonURL(p.Competition) + "/projects/" + url.PathEscape(project.ID)
 }
 
+func (p *HackathonAdminPage) ProjectAdminURL(project *types.HackathonProject) string {
+	if p == nil || p.Competition == nil || project == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(p.Competition.ID) + "/projects/" + url.PathEscape(project.ID)
+}
+
+func (p *HackathonAdminPage) AssignProjectNumbersURL() string {
+	if p == nil || p.Competition == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(p.Competition.ID) + "/projects/assign-numbers"
+}
+
 func (p *HackathonAdminPage) ProjectMembers(project *types.HackathonProject) []*types.ProjectMember {
 	if p == nil || p.ProjectTeams == nil || project == nil {
 		return nil
@@ -439,6 +453,51 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 		ctx.Err.Printf("/admin/hackathons/%s/projects template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
+}
+
+func HackathonAdminUpdateProject(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	vars := mux.Vars(r)
+	competitionID := vars["competitionID"]
+	projectID := vars["projectID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/projects"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	projectNumber, err := optionalIntFromForm(r, "ProjectNumber", "project number", 1, 0)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := getters.UpdateProjectAdminFields(ctx, competitionID, projectID, r.FormValue("Status"), projectNumber); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects/%s update: %s", competitionID, projectID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project updated"), http.StatusSeeOther)
+}
+
+func HackathonAdminAssignProjectNumbers(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/projects"
+	count, err := getters.AssignMissingProjectNumbers(ctx, competitionID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects assign numbers: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	message := fmt.Sprintf("Assigned %d project number", count)
+	if count != 1 {
+		message += "s"
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(message), http.StatusSeeOther)
 }
 
 func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

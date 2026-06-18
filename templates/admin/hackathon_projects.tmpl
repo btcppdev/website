@@ -15,6 +15,9 @@
         <p class="mt-1 text-sm text-gray-600">All submitted and in-progress projects for this hackathon.</p>
       </div>
       <div class="flex flex-wrap gap-2">
+        <form method="POST" action="{{ .AssignProjectNumbersURL }}">
+          <button type="submit" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Assign missing numbers</button>
+        </form>
         <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
         <a href="{{ .EditURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Edit hackathon</a>
       </div>
@@ -49,10 +52,12 @@
           <tbody class="divide-y divide-gray-100 bg-white">
             {{ range .Projects }}
             <tr class="align-top">
-              <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-600">{{ $.ProjectNumberLabel . }}</td>
+              <td class="whitespace-nowrap px-4 py-3">
+                <input form="ProjectAdmin-{{ .ID }}" name="ProjectNumber" type="number" min="1" {{ with .ProjectNumber }}value="{{ . }}"{{ end }}
+                       class="block w-20 rounded-md bg-white px-2 py-1 font-mono text-xs text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              </td>
               <td class="px-4 py-3">
                 <a href="{{ $.ProjectPublicURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">{{ .Title }}</a>
-                <div class="mt-1 font-mono text-xs text-gray-500">{{ .Slug }}</div>
                 {{ if .ShortDescription }}<div class="mt-1 max-w-md text-xs leading-5 text-gray-600">{{ .ShortDescription }}</div>{{ end }}
               </td>
               <td class="px-4 py-3">
@@ -72,7 +77,16 @@
                 {{ end }}
               </td>
               <td class="whitespace-nowrap px-4 py-3">
-                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{{ $.ProjectStatusLabel .Status }}</span>
+                <select form="ProjectAdmin-{{ .ID }}" name="Status"
+                        class="block rounded-md bg-white px-2 py-1 text-xs text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                  <option value="created" {{ if eq .Status "created" }}selected{{ end }}>Created</option>
+                  <option value="submitted" {{ if eq .Status "submitted" }}selected{{ end }}>Submitted</option>
+                  <option value="withdrawn" {{ if eq .Status "withdrawn" }}selected{{ end }}>Withdrawn</option>
+                  <option value="noshow" {{ if eq .Status "noshow" }}selected{{ end }}>No-show</option>
+                  <option value="finalist" {{ if eq .Status "finalist" }}selected{{ end }}>Finalist</option>
+                  <option value="disqualified" {{ if eq .Status "disqualified" }}selected{{ end }}>Disqualified</option>
+                  <option value="shipped" {{ if eq .Status "shipped" }}selected{{ end }}>Shipped</option>
+                </select>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-gray-600">
                 {{ with .SubmittedAt }}{{ .Format "Jan 2, 2006 3:04 PM" }}{{ else }}Not submitted{{ end }}
@@ -90,6 +104,9 @@
               <td class="whitespace-nowrap px-4 py-3 text-gray-600">{{ .UpdatedAt.Format "Jan 2, 2006 3:04 PM" }}</td>
               <td class="whitespace-nowrap px-4 py-3 text-right">
                 <div class="flex justify-end gap-3">
+                  <form id="ProjectAdmin-{{ .ID }}" method="POST" action="{{ $.ProjectAdminURL . }}">
+                    <button type="submit" class="font-medium text-indigo-600 hover:text-indigo-500">Save</button>
+                  </form>
                   <a href="{{ $.ProjectPublicURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">View</a>
                   <a href="{{ $.ProjectManageURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">Manage</a>
                 </div>

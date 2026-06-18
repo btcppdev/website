@@ -142,6 +142,20 @@ func SubmitProject(ctx *config.AppContext, projectID string) error {
 	return unsupportedPostgresBackend("hackathon projects")
 }
 
+func UpdateProjectAdminFields(ctx *config.AppContext, competitionID, projectID, status string, projectNumber *int) error {
+	if UsePostgresBackend(ctx) {
+		return updateProjectAdminFieldsPostgres(ctx, competitionID, projectID, status, projectNumber)
+	}
+	return unsupportedPostgresBackend("hackathon project admin fields")
+}
+
+func AssignMissingProjectNumbers(ctx *config.AppContext, competitionID string) (int, error) {
+	if UsePostgresBackend(ctx) {
+		return assignMissingProjectNumbersPostgres(ctx, competitionID)
+	}
+	return 0, unsupportedPostgresBackend("hackathon project numbers")
+}
+
 func GetProjectByID(ctx *config.AppContext, projectID string) (*types.HackathonProject, error) {
 	if UsePostgresBackend(ctx) {
 		return getProjectByIDPostgres(ctx, projectID)
