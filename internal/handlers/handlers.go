@@ -1203,6 +1203,18 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminCreateAward(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/update", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdateAward(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/archive", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminArchiveAward(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/restore", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminRestoreAward(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/delete", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminDeleteArchivedAward(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/prizes", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminCreatePrize(w, r, app)
 	}).Methods("POST")

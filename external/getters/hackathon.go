@@ -303,9 +303,44 @@ func CreateAward(ctx *config.AppContext, in AwardInput) (string, error) {
 	return "", unsupportedPostgresBackend("hackathon awards")
 }
 
+func UpdateAward(ctx *config.AppContext, awardID string, in AwardInput) error {
+	if UsePostgresBackend(ctx) {
+		return updateAwardPostgres(ctx, awardID, in)
+	}
+	return unsupportedPostgresBackend("hackathon awards")
+}
+
+func ArchiveAward(ctx *config.AppContext, competitionID, awardID string) error {
+	if UsePostgresBackend(ctx) {
+		return archiveAwardPostgres(ctx, competitionID, awardID)
+	}
+	return unsupportedPostgresBackend("hackathon awards")
+}
+
+func RestoreAward(ctx *config.AppContext, competitionID, awardID string) error {
+	if UsePostgresBackend(ctx) {
+		return restoreAwardPostgres(ctx, competitionID, awardID)
+	}
+	return unsupportedPostgresBackend("hackathon awards")
+}
+
+func DeleteArchivedAward(ctx *config.AppContext, competitionID, awardID string) error {
+	if UsePostgresBackend(ctx) {
+		return deleteArchivedAwardPostgres(ctx, competitionID, awardID)
+	}
+	return unsupportedPostgresBackend("hackathon awards")
+}
+
 func ListAwardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Award, error) {
 	if UsePostgresBackend(ctx) {
 		return listAwardsForCompetitionPostgres(ctx, competitionID)
+	}
+	return nil, unsupportedPostgresBackend("hackathon awards")
+}
+
+func ListArchivedAwardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Award, error) {
+	if UsePostgresBackend(ctx) {
+		return listArchivedAwardsForCompetitionPostgres(ctx, competitionID)
 	}
 	return nil, unsupportedPostgresBackend("hackathon awards")
 }
