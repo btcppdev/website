@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
@@ -106,5 +107,41 @@ func TestHackathonScoreSummaries(t *testing.T) {
 	}
 	if summaries[2].ProjectID != "empty" || summaries[2].TotalAverage != "-" || summaries[2].Scorecards != 0 {
 		t.Fatalf("third summary = %+v, want empty project last", summaries[2])
+	}
+}
+
+func TestHackathonFinalistSelections(t *testing.T) {
+	n1, n2, n3 := 1, 2, 3
+	ideaFive, execFive, impactFive := 5, 5, 5
+	ideaFour, execFour, impactFour := 4, 4, 4
+	ideaThree, execThree, impactThree := 3, 3, 3
+	projects := []*types.HackathonProject{
+		{ID: "winner", Title: "Winner", ProjectNumber: &n1, Status: getters.ProjectStatusSubmitted},
+		{ID: "runner-up", Title: "Runner Up", ProjectNumber: &n2, Status: getters.ProjectStatusShipped},
+		{ID: "created", Title: "Created", ProjectNumber: &n3, Status: getters.ProjectStatusCreated},
+	}
+	events := []*types.JudgeEvent{
+		{ID: "expo", PlaybookType: getters.JudgeTypeExpo},
+		{ID: "finals", PlaybookType: getters.JudgeTypeFinals},
+	}
+	scorecards := []*types.Scorecard{
+		{ProjectID: "winner", JudgeEventID: "expo", IdeaScore: &ideaFive, ExecutionScore: &execFive, ImpactScore: &impactFive},
+		{ProjectID: "runner-up", JudgeEventID: "expo", IdeaScore: &ideaFour, ExecutionScore: &execFour, ImpactScore: &impactFour},
+		{ProjectID: "created", JudgeEventID: "expo", IdeaScore: &ideaFive, ExecutionScore: &execFive, ImpactScore: &impactFive},
+		{ProjectID: "runner-up", JudgeEventID: "finals", IdeaScore: &ideaThree, ExecutionScore: &execThree, ImpactScore: &impactThree},
+	}
+
+	expoFinalists := hackathonFinalistSelections(projects, scorecards, events, hackathonScoreModeExpo, 2)
+	if len(expoFinalists) != 2 || expoFinalists[0].ID != "winner" || expoFinalists[1].ID != "runner-up" {
+		t.Fatalf("expo finalists = %+v, want winner then runner-up", expoFinalists)
+	}
+
+	finalsFinalists := hackathonFinalistSelections(projects, scorecards, events, hackathonScoreModeFinals, 2)
+	if len(finalsFinalists) != 1 || finalsFinalists[0].ID != "runner-up" {
+		t.Fatalf("finals finalists = %+v, want runner-up only", finalsFinalists)
+	}
+
+	if finalists := hackathonFinalistSelections(projects, scorecards, events, hackathonScoreModeExpo, 0); len(finalists) != 0 {
+		t.Fatalf("zero finalist count returned %+v, want empty", finalists)
 	}
 }
