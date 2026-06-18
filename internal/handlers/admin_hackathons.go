@@ -26,6 +26,7 @@ type HackathonAdminPage struct {
 	Judges               []*types.CompetitionJudge
 	Scorecards           []*types.Scorecard
 	ScoreSummaries       []*HackathonScoreSummary
+	ScoreMode            string
 	Awards               []*types.Award
 	ArchivedAwards       []*types.Award
 	PrizesByAward        map[string][]*types.Prize
@@ -38,6 +39,12 @@ type HackathonAdminPage struct {
 	Sort                 string
 	Year                 uint
 }
+
+const (
+	hackathonScoreModeAll    = "all"
+	hackathonScoreModeExpo   = getters.JudgeTypeExpo
+	hackathonScoreModeFinals = getters.JudgeTypeFinals
+)
 
 type HackathonScoreSummary struct {
 	ProjectID        string
@@ -269,6 +276,17 @@ func (p *HackathonAdminPage) ScoreValue(value *int) string {
 		return "-"
 	}
 	return strconv.Itoa(*value)
+}
+
+func (p *HackathonAdminPage) ScoreModeLabel(mode string) string {
+	switch normalizeHackathonScoreMode(mode) {
+	case hackathonScoreModeExpo:
+		return "Expo"
+	case hackathonScoreModeFinals:
+		return "Finals"
+	default:
+		return "All scorecards"
+	}
 }
 
 func (p *HackathonAdminPage) ScoreTotal(scorecard *types.Scorecard) string {
@@ -584,6 +602,7 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		Judges:         judges,
 		Scorecards:     scorecards,
 		ScoreSummaries: hackathonScoreSummaries(projects, scorecards),
+		ScoreMode:      hackathonScoreModeAll,
 		FlashMessage:   r.URL.Query().Get("flash"),
 		FlashError:     r.URL.Query().Get("error"),
 		Year:           helpers.CurrentYear(),
@@ -592,6 +611,77 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		ctx.Err.Printf("/admin/hackathons/%s/judging/scores template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
+}
+
+func HackathonAdminAdvanceFinalists(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging/scores"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	topN, err := optionalIntFromForm(r, "TopN", "finalist count", 1, 0)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if topN == nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("finalist count is required"), http.StatusSeeOther)
+		return
+	}
+	mode := normalizeHackathonScoreMode(r.FormValue("ScoreMode"))
+	if mode == "" {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("scoring mode is invalid"), http.StatusSeeOther)
+		return
+	}
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, types.HackathonViewer{Admin: true})
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/finalists projects: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load projects"), http.StatusSeeOther)
+		return
+	}
+	events, err := getters.ListJudgeEvents(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/finalists events: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load judge events"), http.StatusSeeOther)
+		return
+	}
+	scorecards, err := getters.ListScorecardsForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/finalists scorecards: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load scorecards"), http.StatusSeeOther)
+		return
+	}
+	finalists := hackathonFinalistSelections(projects, scorecards, events, mode, *topN)
+	if len(finalists) == 0 {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("No scored eligible projects found for "+scoreModeLabel(mode)+"."), http.StatusSeeOther)
+		return
+	}
+	for _, project := range finalists {
+		if project == nil {
+			continue
+		}
+		if err := getters.UpdateProjectAdminFields(ctx, competition.ID, project.ID, getters.ProjectStatusFinalist, project.ProjectNumber); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/judging/finalists project %s: %s", competitionID, project.ID, err)
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+			return
+		}
+	}
+	message := fmt.Sprintf("Advanced %d finalist", len(finalists))
+	if len(finalists) != 1 {
+		message += "s"
+	}
+	message += " using " + scoreModeLabel(mode)
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(message), http.StatusSeeOther)
 }
 
 func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1417,6 +1507,97 @@ func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*t
 		return a.sortTitle < b.sortTitle
 	})
 	return summaries
+}
+
+func hackathonFinalistSelections(projects []*types.HackathonProject, scorecards []*types.Scorecard, events []*types.JudgeEvent, mode string, topN int) []*types.HackathonProject {
+	if topN <= 0 {
+		return nil
+	}
+	projectByID := make(map[string]*types.HackathonProject, len(projects))
+	var eligibleProjects []*types.HackathonProject
+	for _, project := range projects {
+		if project == nil {
+			continue
+		}
+		projectByID[project.ID] = project
+		if projectEligibleForFinalist(project) {
+			eligibleProjects = append(eligibleProjects, project)
+		}
+	}
+	filteredScorecards := filterHackathonScorecardsByMode(scorecards, events, mode)
+	summaries := hackathonScoreSummaries(eligibleProjects, filteredScorecards)
+	finalists := make([]*types.HackathonProject, 0, min(topN, len(summaries)))
+	for _, summary := range summaries {
+		if summary == nil || summary.ScoredScorecards == 0 {
+			continue
+		}
+		project := projectByID[summary.ProjectID]
+		if project == nil || !projectEligibleForFinalist(project) {
+			continue
+		}
+		finalists = append(finalists, project)
+		if len(finalists) >= topN {
+			break
+		}
+	}
+	return finalists
+}
+
+func filterHackathonScorecardsByMode(scorecards []*types.Scorecard, events []*types.JudgeEvent, mode string) []*types.Scorecard {
+	mode = normalizeHackathonScoreMode(mode)
+	if mode == hackathonScoreModeAll {
+		return scorecards
+	}
+	eventMode := make(map[string]string, len(events))
+	for _, event := range events {
+		if event != nil {
+			eventMode[event.ID] = event.PlaybookType
+		}
+	}
+	filtered := make([]*types.Scorecard, 0, len(scorecards))
+	for _, scorecard := range scorecards {
+		if scorecard == nil || eventMode[scorecard.JudgeEventID] != mode {
+			continue
+		}
+		filtered = append(filtered, scorecard)
+	}
+	return filtered
+}
+
+func projectEligibleForFinalist(project *types.HackathonProject) bool {
+	if project == nil {
+		return false
+	}
+	switch project.Status {
+	case getters.ProjectStatusSubmitted, getters.ProjectStatusShipped, getters.ProjectStatusFinalist:
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeHackathonScoreMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", hackathonScoreModeAll:
+		return hackathonScoreModeAll
+	case hackathonScoreModeExpo:
+		return hackathonScoreModeExpo
+	case hackathonScoreModeFinals:
+		return hackathonScoreModeFinals
+	default:
+		return ""
+	}
+}
+
+func scoreModeLabel(mode string) string {
+	switch normalizeHackathonScoreMode(mode) {
+	case hackathonScoreModeExpo:
+		return "Expo scorecards"
+	case hackathonScoreModeFinals:
+		return "Finals scorecards"
+	default:
+		return "All scorecards"
+	}
 }
 
 func (a *scoreSummaryAccumulator) add(scorecard *types.Scorecard) {

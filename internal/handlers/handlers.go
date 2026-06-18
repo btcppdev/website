@@ -1188,6 +1188,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/scores", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminScoreReview(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/finalists", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminAdvanceFinalists(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminCreateJudgeEvent(w, r, app)
 	}).Methods("POST")
