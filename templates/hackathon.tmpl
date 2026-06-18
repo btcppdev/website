@@ -29,7 +29,7 @@
         <a href="{{ .JudgingURL }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Judging</a>
         {{ end }}
         {{ if .CanCreate }}
-        <a href="/hackathons/{{ .Competition.Slug }}/projects/new" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">New project</a>
+        <a href="/hackathons/{{ .Competition.Slug }}/projects/new" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</a>
         {{ else if not .Viewer }}
         <a href="/login?next=/hackathons/{{ .Competition.Slug }}" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Sign in</a>
         {{ end }}
@@ -175,7 +175,7 @@
       <div class="rounded-lg bg-white px-4 py-10 text-center shadow">
         <p class="text-sm text-gray-600">No visible projects yet.</p>
         {{ if .CanCreate }}
-        <a href="/hackathons/{{ .Competition.Slug }}/projects/new" class="mt-4 inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">New project</a>
+        <a href="/hackathons/{{ .Competition.Slug }}/projects/new" class="mt-4 inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</a>
         {{ end }}
       </div>
       {{ end }}
