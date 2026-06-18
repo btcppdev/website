@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	stdhtml "html"
 	"html/template"
@@ -886,6 +888,12 @@ func HackathonProjectCreate(w http.ResponseWriter, r *http.Request, ctx *config.
 		return
 	}
 	in.CreatedByPersonID = personID
+	in.Slug, err = generatedProjectSlug()
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s create project slug: %s", competition.Slug, err)
+		http.Redirect(w, r, hackathonURL(competition)+"/projects/new?error="+url.QueryEscape("Unable to create project ID"), http.StatusSeeOther)
+		return
+	}
 	projectID, err := getters.CreateProject(ctx, in)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s create project: %s", competition.Slug, err)
@@ -942,6 +950,7 @@ func HackathonProjectUpdate(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
+	in.Slug = project.Slug
 	if err := getters.UpdateProject(ctx, project.ID, in); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s update: %s", competition.Slug, project.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
@@ -1171,7 +1180,6 @@ func projectInputFromRequest(w http.ResponseWriter, r *http.Request, competition
 	}
 	in := getters.ProjectInput{
 		CompetitionID:    competitionID,
-		Slug:             strings.TrimSpace(r.FormValue("Slug")),
 		Title:            strings.TrimSpace(r.FormValue("Title")),
 		ShortDescription: strings.TrimSpace(r.FormValue("ShortDescription")),
 		Description:      strings.TrimSpace(r.FormValue("Description")),
@@ -1185,10 +1193,15 @@ func projectInputFromRequest(w http.ResponseWriter, r *http.Request, competition
 	if in.Title == "" {
 		return getters.ProjectInput{}, fmt.Errorf("project title is required")
 	}
-	if in.Slug == "" {
-		return getters.ProjectInput{}, fmt.Errorf("project slug is required")
-	}
 	return in, nil
+}
+
+func generatedProjectSlug() (string, error) {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return "project-" + hex.EncodeToString(b[:]), nil
 }
 
 func scorecardInputFromRequest(w http.ResponseWriter, r *http.Request) (getters.ScorecardInput, error) {

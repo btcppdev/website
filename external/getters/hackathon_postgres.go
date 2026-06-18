@@ -23,6 +23,11 @@ const (
 	ProjectInviteDefaultTTL     = 24 * time.Hour
 	ProjectStatusCreated        = "created"
 	ProjectStatusSubmitted      = "submitted"
+	ProjectStatusWithdrawn      = "withdrawn"
+	ProjectStatusNoShow         = "noshow"
+	ProjectStatusFinalist       = "finalist"
+	ProjectStatusDisqualified   = "disqualified"
+	ProjectStatusShipped        = "shipped"
 	ProjectMemberRoleOwner      = "owner"
 	ProjectMemberRoleMember     = "member"
 	JudgeTypeExpo               = "expo"
@@ -322,6 +327,70 @@ func submitProjectPostgres(ctx *config.AppContext, projectID string) error {
 		return fmt.Errorf("project %s not found", projectID)
 	}
 	return nil
+}
+
+func updateProjectAdminFieldsPostgres(ctx *config.AppContext, competitionID, projectID, status string, projectNumber *int) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	projectID = strings.TrimSpace(projectID)
+	status = normalizeProjectStatus(status)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if projectID == "" {
+		return fmt.Errorf("project id is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE projects
+		SET status = $3,
+			project_number = $4,
+			submitted_at = CASE WHEN $3 = $5 THEN coalesce(submitted_at, now()) ELSE submitted_at END,
+			shipped_at = CASE WHEN $3 = $6 THEN coalesce(shipped_at, now()) ELSE shipped_at END
+		WHERE id = $1 AND competition_id = $2
+	`, projectID, competitionID, status, projectNumber, ProjectStatusSubmitted, ProjectStatusShipped)
+	if err != nil {
+		return fmt.Errorf("update project admin fields %s: %w", projectID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("project %s not found in competition %s", projectID, competitionID)
+	}
+	return nil
+}
+
+func assignMissingProjectNumbersPostgres(ctx *config.AppContext, competitionID string) (int, error) {
+	if ctx == nil || ctx.DB == nil {
+		return 0, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return 0, fmt.Errorf("competition id is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		WITH numbered AS (
+			SELECT id,
+				coalesce((
+					SELECT max(project_number)
+					FROM projects
+					WHERE competition_id = $1
+				), 0) + row_number() OVER (
+					ORDER BY coalesce(submitted_at, created_at), created_at, title, id
+				) AS project_number
+			FROM projects
+			WHERE competition_id = $1
+				AND project_number IS NULL
+				AND status IN ($2, $3, $4, $5)
+		)
+		UPDATE projects
+		SET project_number = numbered.project_number
+		FROM numbered
+		WHERE projects.id = numbered.id
+	`, competitionID, ProjectStatusSubmitted, ProjectStatusFinalist, ProjectStatusNoShow, ProjectStatusShipped)
+	if err != nil {
+		return 0, fmt.Errorf("assign missing project numbers for competition %s: %w", competitionID, err)
+	}
+	return int(commandTag.RowsAffected()), nil
 }
 
 func getProjectByIDPostgres(ctx *config.AppContext, projectID string) (*types.HackathonProject, error) {
@@ -1605,6 +1674,25 @@ func normalizeProjectInput(in ProjectInput) ProjectInput {
 	}
 	in.Tags = tags
 	return in
+}
+
+func normalizeProjectStatus(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case ProjectStatusSubmitted:
+		return ProjectStatusSubmitted
+	case ProjectStatusWithdrawn:
+		return ProjectStatusWithdrawn
+	case ProjectStatusNoShow:
+		return ProjectStatusNoShow
+	case ProjectStatusFinalist:
+		return ProjectStatusFinalist
+	case ProjectStatusDisqualified:
+		return ProjectStatusDisqualified
+	case ProjectStatusShipped:
+		return ProjectStatusShipped
+	default:
+		return ProjectStatusCreated
+	}
 }
 
 func normalizeJudgeEventInput(in JudgeEventInput) JudgeEventInput {
