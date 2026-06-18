@@ -10,17 +10,13 @@
   <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathons</a>
+        <a href="{{ .EditURL .Competition }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathon</a>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} judging</h1>
         <p class="mt-1 text-sm text-gray-600">Set up judge groups and judging events before scoring opens.</p>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <a href="{{ .ProjectsURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Projects</a>
-        <a href="{{ .AwardsURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Awards</a>
-        <a href="{{ .ScoreReviewURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Scores</a>
-        <a href="{{ .EditURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Edit hackathon</a>
-      </div>
+      <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
     </div>
+    {{ template "admin_hackathon_tabs" . }}
 
     {{ if .FlashMessage }}
     <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>

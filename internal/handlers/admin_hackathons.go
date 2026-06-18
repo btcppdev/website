@@ -22,6 +22,7 @@ type HackathonAdminPage struct {
 	Competition          *types.HackathonCompetition
 	Projects             []*types.HackathonProject
 	ProjectTeams         map[string][]*types.ProjectMember
+	ActiveTab            string
 	JudgeEvents          []*types.JudgeEvent
 	Judges               []*types.CompetitionJudge
 	Scorecards           []*types.Scorecard
@@ -505,6 +506,7 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 		Competition:          competition,
 		Projects:             projects,
 		ProjectTeams:         teams,
+		ActiveTab:            "projects",
 		AwardOptInsByProject: projectAwardOptInsByProject(optIns),
 		FlashMessage:         r.URL.Query().Get("flash"),
 		FlashError:           r.URL.Query().Get("error"),
@@ -602,6 +604,7 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		Judges:         judges,
 		Scorecards:     scorecards,
 		ScoreSummaries: hackathonScoreSummaries(projects, scorecards),
+		ActiveTab:      "scores",
 		ScoreMode:      hackathonScoreModeAll,
 		FlashMessage:   r.URL.Query().Get("flash"),
 		FlashError:     r.URL.Query().Get("error"),
@@ -745,6 +748,7 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	page := &HackathonAdminPage{
 		Competition:          competition,
 		Projects:             projects,
+		ActiveTab:            "awards",
 		Awards:               awards,
 		ArchivedAwards:       archivedAwards,
 		PrizesByAward:        prizesByAward,
@@ -968,6 +972,7 @@ func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.A
 	}
 	page := &HackathonAdminPage{
 		Competition:  competition,
+		ActiveTab:    "judging",
 		JudgeEvents:  events,
 		Judges:       judges,
 		FlashMessage: r.URL.Query().Get("flash"),
@@ -1115,6 +1120,7 @@ func HackathonAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	page := &HackathonAdminPage{
 		Confs:        confs,
 		Competition:  competition,
+		ActiveTab:    "main",
 		FlashMessage: r.URL.Query().Get("flash"),
 		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
