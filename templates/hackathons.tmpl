@@ -66,7 +66,7 @@
             </div>
             <div class="flex flex-wrap gap-2 lg:justify-end" onclick="event.stopPropagation()">
               {{ if $.CompetitionAcceptsProjects . }}
-              <a href="{{ $.CompetitionURL . }}/projects/new" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">New project</a>
+              <a href="{{ $.CompetitionURL . }}/projects/new" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</a>
               {{ end }}
               {{ if $.CompetitionCanAdminEdit . }}
               <a href="{{ $.CompetitionAdminEditURL . }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Edit</a>

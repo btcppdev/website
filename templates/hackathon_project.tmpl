@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <title>{{ if .IsNew }}New project{{ else }}{{ .Project.Title }}{{ end }} - {{ .Competition.Title }}</title>
+  <title>{{ if .IsNew }}Create project{{ else }}{{ .Project.Title }}{{ end }} - {{ .Competition.Title }}</title>
   {{ block "header" . }} {{ end }}
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -9,7 +9,7 @@
   <main class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="mb-6">
       <a href="/hackathons/{{ .Competition.Slug }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathon</a>
-      <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}New project{{ else }}{{ .Project.Title }}{{ end }}</h1>
+      <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}Create project{{ else }}{{ .Project.Title }}{{ end }}</h1>
       <p class="mt-1 text-sm text-gray-600">{{ .Competition.Title }}</p>
     </div>
 
