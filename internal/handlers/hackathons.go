@@ -34,6 +34,8 @@ type HackathonPage struct {
 	Scorecards      []*types.Scorecard
 	JudgeTypes      map[string]bool
 	Awards          []*types.Award
+	OptInAwards     []*types.Award
+	AwardOptIns     map[string]bool
 	PrizesByAward   map[string][]*types.Prize
 	AwardeesByAward map[string][]*types.ProjectAward
 	Viewer          *auth.Identity
@@ -389,6 +391,13 @@ func (p *HackathonPage) AwardPrizes(award *types.Award) []*types.Prize {
 		return nil
 	}
 	return p.PrizesByAward[award.ID]
+}
+
+func (p *HackathonPage) AwardOptedIn(award *types.Award) bool {
+	if p == nil || p.AwardOptIns == nil || award == nil {
+		return false
+	}
+	return p.AwardOptIns[award.ID]
 }
 
 func (p *HackathonPage) ProjectAwardNumber(award *types.ProjectAward) string {
@@ -916,11 +925,19 @@ func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "Unable to load project members", http.StatusInternalServerError)
 		return
 	}
+	optInAwards, awardOptIns, err := loadProjectAwardOptInState(ctx, competition.ID, project.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s award opt-ins: %s", competition.Slug, project.ID, err)
+		http.Error(w, "Unable to load project award opt-ins", http.StatusInternalServerError)
+		return
+	}
 	page := &HackathonPage{
 		Competition:  competition,
 		Conf:         conf,
 		Project:      project,
 		Members:      members,
+		OptInAwards:  optInAwards,
+		AwardOptIns:  awardOptIns,
 		Viewer:       id,
 		CanEdit:      canEdit,
 		CanSubmit:    canSubmit,
@@ -969,12 +986,52 @@ func HackathonProjectSubmit(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project submissions are closed."), http.StatusSeeOther)
 		return
 	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	if err := getters.SetProjectAwardOptIns(ctx, project.ID, r.Form["AwardID"]); err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s award opt-ins: %s", competition.Slug, project.ID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
 	if err := getters.SubmitProject(ctx, project.ID); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s submit: %s", competition.Slug, project.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project submitted"), http.StatusSeeOther)
+}
+
+func loadProjectAwardOptInState(ctx *config.AppContext, competitionID, projectID string) ([]*types.Award, map[string]bool, error) {
+	awards, err := getters.ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		return nil, nil, err
+	}
+	optInAwards := availableOptInAwards(awards)
+	optIns, err := getters.ListProjectAwardOptInsForProject(ctx, projectID)
+	if err != nil {
+		return nil, nil, err
+	}
+	awardOptIns := make(map[string]bool, len(optIns))
+	for _, optIn := range optIns {
+		if optIn != nil {
+			awardOptIns[optIn.AwardID] = true
+		}
+	}
+	return optInAwards, awardOptIns, nil
+}
+
+func availableOptInAwards(awards []*types.Award) []*types.Award {
+	var out []*types.Award
+	for _, award := range awards {
+		if award == nil || !award.OptInRequired || award.Status != getters.AwardStatusAvailable {
+			continue
+		}
+		out = append(out, award)
+	}
+	return out
 }
 
 func HackathonProjectInviteCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

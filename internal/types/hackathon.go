@@ -146,6 +146,15 @@ type ProjectAward struct {
 	AwardedAt     time.Time
 }
 
+type ProjectAwardOptIn struct {
+	ProjectID     string
+	AwardID       string
+	ProjectTitle  string
+	ProjectNumber *int
+	AwardTitle    string
+	OptedInAt     time.Time
+}
+
 type HackathonViewer struct {
 	PersonID    string
 	Admin       bool

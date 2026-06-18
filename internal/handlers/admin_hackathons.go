@@ -17,24 +17,25 @@ import (
 )
 
 type HackathonAdminPage struct {
-	Competitions    []*types.HackathonCompetition
-	Confs           []*types.Conf
-	Competition     *types.HackathonCompetition
-	Projects        []*types.HackathonProject
-	ProjectTeams    map[string][]*types.ProjectMember
-	JudgeEvents     []*types.JudgeEvent
-	Judges          []*types.CompetitionJudge
-	Scorecards      []*types.Scorecard
-	ScoreSummaries  []*HackathonScoreSummary
-	Awards          []*types.Award
-	PrizesByAward   map[string][]*types.Prize
-	AwardeesByAward map[string][]*types.ProjectAward
-	IsNew           bool
-	FlashMessage    string
-	FlashError      string
-	SearchQuery     string
-	Sort            string
-	Year            uint
+	Competitions         []*types.HackathonCompetition
+	Confs                []*types.Conf
+	Competition          *types.HackathonCompetition
+	Projects             []*types.HackathonProject
+	ProjectTeams         map[string][]*types.ProjectMember
+	JudgeEvents          []*types.JudgeEvent
+	Judges               []*types.CompetitionJudge
+	Scorecards           []*types.Scorecard
+	ScoreSummaries       []*HackathonScoreSummary
+	Awards               []*types.Award
+	PrizesByAward        map[string][]*types.Prize
+	AwardeesByAward      map[string][]*types.ProjectAward
+	AwardOptInsByProject map[string][]*types.ProjectAwardOptIn
+	IsNew                bool
+	FlashMessage         string
+	FlashError           string
+	SearchQuery          string
+	Sort                 string
+	Year                 uint
 }
 
 type HackathonScoreSummary struct {
@@ -358,6 +359,33 @@ func (p *HackathonAdminPage) ProjectSelectLabel(project *types.HackathonProject)
 	return project.Title
 }
 
+func (p *HackathonAdminPage) ProjectSelectLabelForAward(project *types.HackathonProject, award *types.Award) string {
+	label := p.ProjectSelectLabel(project)
+	if award != nil && award.OptInRequired && p.ProjectOptedIntoAward(project, award) {
+		label += " (opted in)"
+	}
+	return label
+}
+
+func (p *HackathonAdminPage) ProjectAwardOptIns(project *types.HackathonProject) []*types.ProjectAwardOptIn {
+	if p == nil || p.AwardOptInsByProject == nil || project == nil {
+		return nil
+	}
+	return p.AwardOptInsByProject[project.ID]
+}
+
+func (p *HackathonAdminPage) ProjectOptedIntoAward(project *types.HackathonProject, award *types.Award) bool {
+	if project == nil || award == nil {
+		return false
+	}
+	for _, optIn := range p.ProjectAwardOptIns(project) {
+		if optIn != nil && optIn.AwardID == award.ID {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *HackathonAdminPage) ProjectAwardNumber(award *types.ProjectAward) string {
 	if award == nil || award.ProjectNumber == nil {
 		return "TBA"
@@ -441,13 +469,20 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 		}
 		teams[project.ID] = members
 	}
+	optIns, err := getters.ListProjectAwardOptInsForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects award opt-ins: %s", competitionID, err)
+		http.Error(w, "Unable to load project award opt-ins", http.StatusInternalServerError)
+		return
+	}
 	page := &HackathonAdminPage{
-		Competition:  competition,
-		Projects:     projects,
-		ProjectTeams: teams,
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		Year:         helpers.CurrentYear(),
+		Competition:          competition,
+		Projects:             projects,
+		ProjectTeams:         teams,
+		AwardOptInsByProject: projectAwardOptInsByProject(optIns),
+		FlashMessage:         r.URL.Query().Get("flash"),
+		FlashError:           r.URL.Query().Get("error"),
+		Year:                 helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_projects.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/projects template: %s", competitionID, err)
@@ -585,6 +620,12 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "Unable to load awardees", http.StatusInternalServerError)
 		return
 	}
+	optIns, err := getters.ListProjectAwardOptInsForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list opt-ins: %s", competitionID, err)
+		http.Error(w, "Unable to load award opt-ins", http.StatusInternalServerError)
+		return
+	}
 	prizesByAward := make(map[string][]*types.Prize)
 	for _, prize := range prizes {
 		if prize != nil {
@@ -598,19 +639,30 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		}
 	}
 	page := &HackathonAdminPage{
-		Competition:     competition,
-		Projects:        projects,
-		Awards:          awards,
-		PrizesByAward:   prizesByAward,
-		AwardeesByAward: awardeesByAward,
-		FlashMessage:    r.URL.Query().Get("flash"),
-		FlashError:      r.URL.Query().Get("error"),
-		Year:            helpers.CurrentYear(),
+		Competition:          competition,
+		Projects:             projects,
+		Awards:               awards,
+		PrizesByAward:        prizesByAward,
+		AwardeesByAward:      awardeesByAward,
+		AwardOptInsByProject: projectAwardOptInsByProject(optIns),
+		FlashMessage:         r.URL.Query().Get("flash"),
+		FlashError:           r.URL.Query().Get("error"),
+		Year:                 helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_awards.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
+}
+
+func projectAwardOptInsByProject(optIns []*types.ProjectAwardOptIn) map[string][]*types.ProjectAwardOptIn {
+	byProject := make(map[string][]*types.ProjectAwardOptIn)
+	for _, optIn := range optIns {
+		if optIn != nil {
+			byProject[optIn.ProjectID] = append(byProject[optIn.ProjectID], optIn)
+		}
+	}
+	return byProject
 }
 
 func HackathonAdminCreateAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

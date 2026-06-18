@@ -59,6 +59,14 @@
               <td class="px-4 py-3">
                 <a href="{{ $.ProjectPublicURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">{{ .Title }}</a>
                 {{ if .ShortDescription }}<div class="mt-1 max-w-md text-xs leading-5 text-gray-600">{{ .ShortDescription }}</div>{{ end }}
+                {{ $optIns := $.ProjectAwardOptIns . }}
+                {{ if $optIns }}
+                <div class="mt-2 flex max-w-md flex-wrap gap-1">
+                  {{ range $optIns }}
+                  <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">{{ .AwardTitle }}</span>
+                  {{ end }}
+                </div>
+                {{ end }}
               </td>
               <td class="px-4 py-3">
                 {{ $members := $.ProjectMembers . }}
