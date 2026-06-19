@@ -330,6 +330,10 @@ func (p *HackathonPage) ProjectStatusLabel(status string) string {
 	return hackathonStatusLabel(status)
 }
 
+func (p *HackathonPage) ProjectIsFinalist(project *types.HackathonProject) bool {
+	return project != nil && project.Status == getters.ProjectStatusFinalist
+}
+
 func (p *HackathonPage) ProjectNumberLabel(project *types.HackathonProject) string {
 	if project == nil || project.ProjectNumber == nil {
 		return "Unassigned"
@@ -384,6 +388,22 @@ func (p *HackathonPage) Awardees(award *types.Award) []*types.ProjectAward {
 		return nil
 	}
 	return p.AwardeesByAward[award.ID]
+}
+
+func (p *HackathonPage) ProjectWinningAwards(project *types.HackathonProject) []*types.Award {
+	if p == nil || project == nil {
+		return nil
+	}
+	var awards []*types.Award
+	for _, award := range p.Awards {
+		for _, awardee := range p.Awardees(award) {
+			if awardee != nil && awardee.ProjectID == project.ID {
+				awards = append(awards, award)
+				break
+			}
+		}
+	}
+	return awards
 }
 
 func (p *HackathonPage) AwardPrizes(award *types.Award) []*types.Prize {
