@@ -6056,8 +6056,15 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 				Title:      p.Title,
 				Status:     p.Status,
 			})
-			if row.CardURL == "" {
-				if ct := getters.FetchConfTalkByProposal(p.ID); ct != nil {
+			if mostAdvancedProposalStatus(p.Status, row.MostAdvancedStatus) == p.Status {
+				row.MostAdvancedStatus = p.Status
+			}
+			if p.Status == StatusScheduled {
+				row.Scheduled = true
+			}
+			if ct := getters.FetchConfTalkByProposal(p.ID); ct != nil {
+				row.Scheduled = true
+				if row.CardURL == "" {
 					row.CardURL = SpeakerCardURL(ctx, conf.Tag, "insta", sp.ID, ct.ID)
 				}
 			}
@@ -6108,6 +6115,36 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 	if err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/talks/speakers template failed: %s", err.Error())
+	}
+}
+
+func mostAdvancedProposalStatus(a, b string) string {
+	if proposalStatusRank(a) >= proposalStatusRank(b) {
+		return a
+	}
+	return b
+}
+
+func proposalStatusRank(status string) int {
+	switch status {
+	case StatusScheduled:
+		return 70
+	case StatusAccepted:
+		return 60
+	case "Invited":
+		return 50
+	case "Waitlisted", "Waitlist":
+		return 40
+	case "InReview":
+		return 30
+	case "Applied":
+		return 20
+	case "TheyDecline", "WeDecline", "Rejected", "Declined":
+		return 10
+	case "":
+		return 0
+	default:
+		return 1
 	}
 }
 

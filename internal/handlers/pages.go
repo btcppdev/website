@@ -779,6 +779,13 @@ type SpeakerRow struct {
 	// Talks on this conf that the speaker is on. One entry per
 	// proposal, with the per-talk status pill source.
 	Talks []*SpeakerRowTalk
+	// Scheduled is true when any attached proposal is already marked
+	// Scheduled or has an active ConfTalk row. This is exported in the
+	// speaker CSV as a simple Y/N roster flag.
+	Scheduled bool
+	// MostAdvancedStatus is the highest-ranked status among this
+	// speaker's proposals for the conf, used by the speaker CSV.
+	MostAdvancedStatus string
 	// OnlySoftStatuses is true when the speaker has at least
 	// one talk AND every one of those talks is in {Waitlisted,
 	// Invited}. Drives the admin filter "hide speakers with

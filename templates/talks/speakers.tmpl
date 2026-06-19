@@ -87,6 +87,8 @@
                 <article class="speaker-card bg-white shadow rounded-lg p-4 flex flex-col gap-2"
                          data-speaker-name="{{ .Name }}"
                          data-speaker-email="{{ .Email }}"
+                         data-speaker-scheduled="{{ if .Scheduled }}Y{{ else }}N{{ end }}"
+                         data-speaker-status="{{ .MostAdvancedStatus }}"
                          data-only-soft="{{ if .OnlySoftStatuses }}1{{ else }}0{{ end }}"
                          data-search="{{ .Name }} {{ .Email }} {{ .Company }} {{ .ComingFrom }}">
                     <div class="flex items-start gap-2">
@@ -192,13 +194,18 @@
     <script>
     function downloadCSV() {
         var cards = document.querySelectorAll('.speaker-card');
-        var csv = 'Name,Email\n';
+        var csv = 'Name,Email,Scheduled,Most Advanced Status\n';
+        function csvCell(value) {
+            return '"' + (value || '').replace(/"/g, '""') + '"';
+        }
         cards.forEach(function(card) {
             // data-speaker-* attrs are on each card so the CSV
             // doesn't have to peer into the markup of the row.
-            var name = '"' + (card.dataset.speakerName || '').replace(/"/g, '""') + '"';
-            var email = '"' + (card.dataset.speakerEmail || '').replace(/"/g, '""') + '"';
-            csv += name + ',' + email + '\n';
+            var name = csvCell(card.dataset.speakerName);
+            var email = csvCell(card.dataset.speakerEmail);
+            var scheduled = csvCell(card.dataset.speakerScheduled);
+            var status = csvCell(card.dataset.speakerStatus);
+            csv += name + ',' + email + ',' + scheduled + ',' + status + '\n';
         });
         var blob = new Blob([csv], {type: 'text/csv'});
         var a = document.createElement('a');
