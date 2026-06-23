@@ -80,309 +80,177 @@ type PrizeInput struct {
 }
 
 func CreateCompetition(ctx *config.AppContext, in CompetitionInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createCompetitionPostgres(ctx, in)
-	}
-	return "", unsupportedPostgresBackend("hackathon competitions")
+	return createCompetitionPostgres(ctx, in)
 }
 
 func UpdateCompetition(ctx *config.AppContext, competitionID string, in CompetitionInput) error {
-	if UsePostgresBackend(ctx) {
-		return updateCompetitionPostgres(ctx, competitionID, in)
-	}
-	return unsupportedPostgresBackend("hackathon competitions")
+	return updateCompetitionPostgres(ctx, competitionID, in)
 }
 
 func UpdateCompetitionVisibility(ctx *config.AppContext, competitionID, visibility string) error {
-	if UsePostgresBackend(ctx) {
-		return updateCompetitionVisibilityPostgres(ctx, competitionID, visibility)
-	}
-	return unsupportedPostgresBackend("hackathon competition visibility")
+	return updateCompetitionVisibilityPostgres(ctx, competitionID, visibility)
 }
 
 func GetCompetitionByID(ctx *config.AppContext, competitionID string) (*types.HackathonCompetition, error) {
-	if UsePostgresBackend(ctx) {
-		return getCompetitionByIDPostgres(ctx, competitionID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon competitions")
+	return getCompetitionByIDPostgres(ctx, competitionID)
 }
 
 func GetCompetitionBySlug(ctx *config.AppContext, slug string) (*types.HackathonCompetition, error) {
-	if UsePostgresBackend(ctx) {
-		return getCompetitionBySlugPostgres(ctx, slug)
-	}
-	return nil, unsupportedPostgresBackend("hackathon competitions")
+	return getCompetitionBySlugPostgres(ctx, slug)
 }
 
 func ListCompetitions(ctx *config.AppContext) ([]*types.HackathonCompetition, error) {
-	if UsePostgresBackend(ctx) {
-		return listCompetitionsPostgres(ctx)
-	}
-	return nil, unsupportedPostgresBackend("hackathon competitions")
+	return listCompetitionsPostgres(ctx)
 }
 
 func CreateProject(ctx *config.AppContext, in ProjectInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createProjectPostgres(ctx, in)
-	}
-	return "", unsupportedPostgresBackend("hackathon projects")
+	return createProjectPostgres(ctx, in)
 }
 
 func UpdateProject(ctx *config.AppContext, projectID string, in ProjectInput) error {
-	if UsePostgresBackend(ctx) {
-		return updateProjectPostgres(ctx, projectID, in)
-	}
-	return unsupportedPostgresBackend("hackathon projects")
+	return updateProjectPostgres(ctx, projectID, in)
 }
 
 func SubmitProject(ctx *config.AppContext, projectID string) error {
-	if UsePostgresBackend(ctx) {
-		return submitProjectPostgres(ctx, projectID)
-	}
-	return unsupportedPostgresBackend("hackathon projects")
+	return submitProjectPostgres(ctx, projectID)
 }
 
 func SetProjectAwardOptIns(ctx *config.AppContext, projectID string, awardIDs []string) error {
-	if UsePostgresBackend(ctx) {
-		return setProjectAwardOptInsPostgres(ctx, projectID, awardIDs)
-	}
-	return unsupportedPostgresBackend("hackathon project award opt-ins")
+	return setProjectAwardOptInsPostgres(ctx, projectID, awardIDs)
 }
 
 func ListProjectAwardOptInsForProject(ctx *config.AppContext, projectID string) ([]*types.ProjectAwardOptIn, error) {
-	if UsePostgresBackend(ctx) {
-		return listProjectAwardOptInsForProjectPostgres(ctx, projectID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon project award opt-ins")
+	return listProjectAwardOptInsForProjectPostgres(ctx, projectID)
 }
 
 func ListProjectAwardOptInsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.ProjectAwardOptIn, error) {
-	if UsePostgresBackend(ctx) {
-		return listProjectAwardOptInsForCompetitionPostgres(ctx, competitionID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon project award opt-ins")
+	return listProjectAwardOptInsForCompetitionPostgres(ctx, competitionID)
 }
 
 func UpdateProjectAdminFields(ctx *config.AppContext, competitionID, projectID, status string, projectNumber *int) error {
-	if UsePostgresBackend(ctx) {
-		return updateProjectAdminFieldsPostgres(ctx, competitionID, projectID, status, projectNumber)
-	}
-	return unsupportedPostgresBackend("hackathon project admin fields")
+	return updateProjectAdminFieldsPostgres(ctx, competitionID, projectID, status, projectNumber)
 }
 
 func AssignMissingProjectNumbers(ctx *config.AppContext, competitionID string) (int, error) {
-	if UsePostgresBackend(ctx) {
-		return assignMissingProjectNumbersPostgres(ctx, competitionID)
-	}
-	return 0, unsupportedPostgresBackend("hackathon project numbers")
+	return assignMissingProjectNumbersPostgres(ctx, competitionID)
 }
 
 func GetProjectByID(ctx *config.AppContext, projectID string) (*types.HackathonProject, error) {
-	if UsePostgresBackend(ctx) {
-		return getProjectByIDPostgres(ctx, projectID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon projects")
+	return getProjectByIDPostgres(ctx, projectID)
 }
 
 func ListProjectsForCompetition(ctx *config.AppContext, competitionID string, viewer types.HackathonViewer) ([]*types.HackathonProject, error) {
-	if UsePostgresBackend(ctx) {
-		return listProjectsForCompetitionPostgres(ctx, competitionID, viewer)
-	}
-	return nil, unsupportedPostgresBackend("hackathon projects")
+	return listProjectsForCompetitionPostgres(ctx, competitionID, viewer)
 }
 
 func AddProjectMember(ctx *config.AppContext, projectID, personID, role string) error {
-	if UsePostgresBackend(ctx) {
-		return addProjectMemberPostgres(ctx, projectID, personID, role)
-	}
-	return unsupportedPostgresBackend("hackathon project members")
+	return addProjectMemberPostgres(ctx, projectID, personID, role)
 }
 
 func RemoveProjectMember(ctx *config.AppContext, projectID, personID string) error {
-	if UsePostgresBackend(ctx) {
-		return removeProjectMemberPostgres(ctx, projectID, personID)
-	}
-	return unsupportedPostgresBackend("hackathon project members")
+	return removeProjectMemberPostgres(ctx, projectID, personID)
 }
 
 func ListProjectMembers(ctx *config.AppContext, projectID string) ([]*types.ProjectMember, error) {
-	if UsePostgresBackend(ctx) {
-		return listProjectMembersPostgres(ctx, projectID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon project members")
+	return listProjectMembersPostgres(ctx, projectID)
 }
 
 func GetPersonIDByEmail(ctx *config.AppContext, email string) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return getPersonIDByEmailPostgres(ctx, email)
-	}
-	return "", unsupportedPostgresBackend("people")
+	return getPersonIDByEmailPostgres(ctx, email)
 }
 
 func CreateProjectInvite(ctx *config.AppContext, projectID, email string, expiresAt *time.Time) (string, *types.ProjectInvite, error) {
-	if UsePostgresBackend(ctx) {
-		return createProjectInvitePostgres(ctx, projectID, email, expiresAt)
-	}
-	return "", nil, unsupportedPostgresBackend("hackathon project invites")
+	return createProjectInvitePostgres(ctx, projectID, email, expiresAt)
 }
 
 func AcceptProjectInvite(ctx *config.AppContext, token, personID string) (*types.ProjectInvite, error) {
-	if UsePostgresBackend(ctx) {
-		return acceptProjectInvitePostgres(ctx, token, personID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon project invites")
+	return acceptProjectInvitePostgres(ctx, token, personID)
 }
 
 func CanViewProject(ctx *config.AppContext, projectID string, viewer types.HackathonViewer) (bool, error) {
-	if UsePostgresBackend(ctx) {
-		return canViewProjectPostgres(ctx, projectID, viewer)
-	}
-	return false, unsupportedPostgresBackend("hackathon project visibility")
+	return canViewProjectPostgres(ctx, projectID, viewer)
 }
 
 func CreateJudgeEvent(ctx *config.AppContext, in JudgeEventInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createJudgeEventPostgres(ctx, in)
-	}
-	return "", unsupportedPostgresBackend("hackathon judge events")
+	return createJudgeEventPostgres(ctx, in)
 }
 
 func ListJudgeEvents(ctx *config.AppContext, competitionID string) ([]*types.JudgeEvent, error) {
-	if UsePostgresBackend(ctx) {
-		return listJudgeEventsPostgres(ctx, competitionID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon judge events")
+	return listJudgeEventsPostgres(ctx, competitionID)
 }
 
 func DeleteJudgeEvent(ctx *config.AppContext, competitionID, judgeEventID string) error {
-	if UsePostgresBackend(ctx) {
-		return deleteJudgeEventPostgres(ctx, competitionID, judgeEventID)
-	}
-	return unsupportedPostgresBackend("hackathon judge events")
+	return deleteJudgeEventPostgres(ctx, competitionID, judgeEventID)
 }
 
 func AddCompetitionJudge(ctx *config.AppContext, competitionID, personID, judgeType string) error {
-	if UsePostgresBackend(ctx) {
-		return addCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
-	}
-	return unsupportedPostgresBackend("hackathon judges")
+	return addCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
 }
 
 func RemoveCompetitionJudge(ctx *config.AppContext, competitionID, personID, judgeType string) error {
-	if UsePostgresBackend(ctx) {
-		return removeCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
-	}
-	return unsupportedPostgresBackend("hackathon judges")
+	return removeCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
 }
 
 func ListCompetitionJudges(ctx *config.AppContext, competitionID string) ([]*types.CompetitionJudge, error) {
-	if UsePostgresBackend(ctx) {
-		return listCompetitionJudgesPostgres(ctx, competitionID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon judges")
+	return listCompetitionJudgesPostgres(ctx, competitionID)
 }
 
 func UpsertScorecard(ctx *config.AppContext, in ScorecardInput) (*types.Scorecard, error) {
-	if UsePostgresBackend(ctx) {
-		return upsertScorecardPostgres(ctx, in)
-	}
-	return nil, unsupportedPostgresBackend("hackathon scorecards")
+	return upsertScorecardPostgres(ctx, in)
 }
 
 func ListScorecardsForJudge(ctx *config.AppContext, competitionID, judgePersonID string) ([]*types.Scorecard, error) {
-	if UsePostgresBackend(ctx) {
-		return listScorecardsForJudgePostgres(ctx, competitionID, judgePersonID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon scorecards")
+	return listScorecardsForJudgePostgres(ctx, competitionID, judgePersonID)
 }
 
 func ListScorecardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Scorecard, error) {
-	if UsePostgresBackend(ctx) {
-		return listScorecardsForCompetitionPostgres(ctx, competitionID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon scorecards")
+	return listScorecardsForCompetitionPostgres(ctx, competitionID)
 }
 
 func CreateAward(ctx *config.AppContext, in AwardInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createAwardPostgres(ctx, in)
-	}
-	return "", unsupportedPostgresBackend("hackathon awards")
+	return createAwardPostgres(ctx, in)
 }
 
 func UpdateAward(ctx *config.AppContext, awardID string, in AwardInput) error {
-	if UsePostgresBackend(ctx) {
-		return updateAwardPostgres(ctx, awardID, in)
-	}
-	return unsupportedPostgresBackend("hackathon awards")
+	return updateAwardPostgres(ctx, awardID, in)
 }
 
 func ArchiveAward(ctx *config.AppContext, competitionID, awardID string) error {
-	if UsePostgresBackend(ctx) {
-		return archiveAwardPostgres(ctx, competitionID, awardID)
-	}
-	return unsupportedPostgresBackend("hackathon awards")
+	return archiveAwardPostgres(ctx, competitionID, awardID)
 }
 
 func RestoreAward(ctx *config.AppContext, competitionID, awardID string) error {
-	if UsePostgresBackend(ctx) {
-		return restoreAwardPostgres(ctx, competitionID, awardID)
-	}
-	return unsupportedPostgresBackend("hackathon awards")
+	return restoreAwardPostgres(ctx, competitionID, awardID)
 }
 
 func DeleteArchivedAward(ctx *config.AppContext, competitionID, awardID string) error {
-	if UsePostgresBackend(ctx) {
-		return deleteArchivedAwardPostgres(ctx, competitionID, awardID)
-	}
-	return unsupportedPostgresBackend("hackathon awards")
+	return deleteArchivedAwardPostgres(ctx, competitionID, awardID)
 }
 
 func ListAwardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Award, error) {
-	if UsePostgresBackend(ctx) {
-		return listAwardsForCompetitionPostgres(ctx, competitionID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon awards")
+	return listAwardsForCompetitionPostgres(ctx, competitionID)
 }
 
 func ListArchivedAwardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Award, error) {
-	if UsePostgresBackend(ctx) {
-		return listArchivedAwardsForCompetitionPostgres(ctx, competitionID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon awards")
+	return listArchivedAwardsForCompetitionPostgres(ctx, competitionID)
 }
 
 func CreatePrize(ctx *config.AppContext, in PrizeInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createPrizePostgres(ctx, in)
-	}
-	return "", unsupportedPostgresBackend("hackathon prizes")
+	return createPrizePostgres(ctx, in)
 }
 
 func ListPrizesForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Prize, error) {
-	if UsePostgresBackend(ctx) {
-		return listPrizesForCompetitionPostgres(ctx, competitionID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon prizes")
+	return listPrizesForCompetitionPostgres(ctx, competitionID)
 }
 
 func AssignProjectAward(ctx *config.AppContext, awardID, projectID string) error {
-	if UsePostgresBackend(ctx) {
-		return assignProjectAwardPostgres(ctx, awardID, projectID)
-	}
-	return unsupportedPostgresBackend("hackathon project awards")
+	return assignProjectAwardPostgres(ctx, awardID, projectID)
 }
 
 func RemoveProjectAward(ctx *config.AppContext, awardID, projectID string) error {
-	if UsePostgresBackend(ctx) {
-		return removeProjectAwardPostgres(ctx, awardID, projectID)
-	}
-	return unsupportedPostgresBackend("hackathon project awards")
+	return removeProjectAwardPostgres(ctx, awardID, projectID)
 }
 
 func ListProjectAwardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.ProjectAward, error) {
-	if UsePostgresBackend(ctx) {
-		return listProjectAwardsForCompetitionPostgres(ctx, competitionID)
-	}
-	return nil, unsupportedPostgresBackend("hackathon project awards")
+	return listProjectAwardsForCompetitionPostgres(ctx, competitionID)
 }
