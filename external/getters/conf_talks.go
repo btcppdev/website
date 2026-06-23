@@ -79,10 +79,12 @@ func talkFromConfTalk(ctx *config.AppContext, ct *types.ConfTalk, proposal *type
 	if talk.Sched != nil {
 		talk.TimeDesc = talk.Sched.Desc()
 	}
-	if rec, err := GetRecordingByConfTalk(ctx, ct.ID); err == nil && rec != nil {
-		talk.YTLink = rec.YTLink
-	} else if err != nil && ctx != nil && ctx.Err != nil {
-		ctx.Err.Printf("talk %s recording lookup: %s", ct.ID, err)
+	if ctx != nil {
+		if rec, err := GetRecordingByConfTalk(ctx, ct.ID); err == nil && rec != nil {
+			talk.YTLink = rec.YTLink
+		} else if err != nil && ctx.Err != nil {
+			ctx.Err.Printf("talk %s recording lookup: %s", ct.ID, err)
+		}
 	}
 	if proposal != nil {
 		talk.Name = proposal.Title

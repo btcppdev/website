@@ -36,7 +36,6 @@ func createConfTalkPostgres(ctx *config.AppContext, in ConfTalkInput) (string, e
 	if proposalID != "" {
 		existingID, err := activeConfTalkIDForProposalPostgres(ctx, proposalID)
 		if err == nil {
-			InvalidateConfTalksCache()
 			return existingID, nil
 		}
 		if err != pgx.ErrNoRows {
@@ -57,7 +56,6 @@ func createConfTalkPostgres(ctx *config.AppContext, in ConfTalkInput) (string, e
 		if proposalID != "" && errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			existingID, lookupErr := activeConfTalkIDForProposalPostgres(ctx, proposalID)
 			if lookupErr == nil {
-				InvalidateConfTalksCache()
 				return existingID, nil
 			}
 		}
