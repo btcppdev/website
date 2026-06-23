@@ -254,6 +254,13 @@ func ListJudgeEvents(ctx *config.AppContext, competitionID string) ([]*types.Jud
 	return nil, unsupportedPostgresBackend("hackathon judge events")
 }
 
+func DeleteJudgeEvent(ctx *config.AppContext, competitionID, judgeEventID string) error {
+	if UsePostgresBackend(ctx) {
+		return deleteJudgeEventPostgres(ctx, competitionID, judgeEventID)
+	}
+	return unsupportedPostgresBackend("hackathon judge events")
+}
+
 func AddCompetitionJudge(ctx *config.AppContext, competitionID, personID, judgeType string) error {
 	if UsePostgresBackend(ctx) {
 		return addCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)

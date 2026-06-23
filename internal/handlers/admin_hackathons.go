@@ -1021,6 +1021,26 @@ func HackathonAdminCreateJudgeEvent(w http.ResponseWriter, r *http.Request, ctx 
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge event added"), http.StatusSeeOther)
 }
 
+func HackathonAdminDeleteJudgeEvent(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	judgeEventID := strings.TrimSpace(r.FormValue("JudgeEventID"))
+	if err := getters.DeleteJudgeEvent(ctx, competitionID, judgeEventID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/events/delete: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge event deleted"), http.StatusSeeOther)
+}
+
 func HackathonAdminAddJudge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
