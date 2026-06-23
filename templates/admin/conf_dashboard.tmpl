@@ -175,6 +175,16 @@
 
     <h2 class="mt-10 text-xs font-semibold uppercase tracking-wider text-gray-500">Other event tools</h2>
     <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {{ if .IsGlobalAdmin }}
+      <a href="/{{ .Conf.Tag }}/admin/details"
+         class="flex items-center gap-3 bg-white shadow rounded-lg px-4 py-3 hover:bg-gray-50">
+        <div class="text-2xl">&#9881;</div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium text-gray-900">Event details</p>
+          <p class="text-xs text-gray-500">State, venue hours, stages, breaks</p>
+        </div>
+      </a>
+      {{ end }}
       <a href="/{{ .Conf.Tag }}/admin/run-of-show"
          class="flex items-center gap-3 bg-white shadow rounded-lg px-4 py-3 hover:bg-gray-50">
         <div class="text-2xl">&#127916;</div>

@@ -1,15 +1,49 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
+	"btcpp-web/internal/types"
 )
 
 type GlobalAdminDashboardPage struct {
 	FlashMessage string
 	Year         uint
+}
+
+type EventDetailsPage struct {
+	Conf         *types.Conf
+	FlashMessage string
+	Days         []*EventDetailsDay
+	Venues       []string
+	StartInput   string
+	EndInput     string
+	NextDay      int
+	Year         uint
+}
+
+type EventDetailsDay struct {
+	Info           *types.ConfInfo
+	DateLabel      string
+	StageCount     int
+	DoorsStart     string
+	DoorsEnd       string
+	BreakfastStart string
+	BreakfastEnd   string
+	LunchStart     string
+	LunchEnd       string
+	CoffeeStart    string
+	CoffeeEnd      string
+	VenuesText     string
 }
 
 func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -24,4 +58,294 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/admin template failed: %s", err)
 	}
+}
+
+func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+
+	infos, err := getters.ListConfInfos(ctx, conf.Tag)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/details conf info failed: %s", conf.Tag, err)
+		http.Error(w, "Unable to load event details", http.StatusInternalServerError)
+		return
+	}
+	sort.SliceStable(infos, func(i, j int) bool {
+		if infos[i] == nil {
+			return false
+		}
+		if infos[j] == nil {
+			return true
+		}
+		return infos[i].Day < infos[j].Day
+	})
+
+	venueSet := make(map[string]bool)
+	days := make([]*EventDetailsDay, 0, len(infos))
+	nextDay := 1
+	for _, info := range infos {
+		if info == nil {
+			continue
+		}
+		if info.Day >= nextDay {
+			nextDay = info.Day + 1
+		}
+		for _, venue := range info.Venues {
+			if venue != "" {
+				venueSet[venue] = true
+			}
+		}
+		days = append(days, &EventDetailsDay{
+			Info:           info,
+			DateLabel:      conf.StartDate.In(conf.Loc()).AddDate(0, 0, info.Day-1).Format("Mon, Jan 2"),
+			StageCount:     len(info.Venues),
+			DoorsStart:     timeInputStart(info.Doors),
+			DoorsEnd:       timeInputEnd(info.Doors),
+			BreakfastStart: timeInputStart(info.Breakfast),
+			BreakfastEnd:   timeInputEnd(info.Breakfast),
+			LunchStart:     timeInputStart(info.Lunch),
+			LunchEnd:       timeInputEnd(info.Lunch),
+			CoffeeStart:    timeInputStart(info.Coffee),
+			CoffeeEnd:      timeInputEnd(info.Coffee),
+			VenuesText:     strings.Join(info.Venues, ", "),
+		})
+	}
+	venues := make([]string, 0, len(venueSet))
+	for venue := range venueSet {
+		venues = append(venues, venue)
+	}
+	sort.Strings(venues)
+
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/event_details.tmpl", &EventDetailsPage{
+		Conf:         conf,
+		FlashMessage: r.URL.Query().Get("flash"),
+		Days:         days,
+		Venues:       venues,
+		StartInput:   datetimeLocalInput(conf.StartDate),
+		EndInput:     datetimeLocalInput(conf.EndDate),
+		NextDay:      nextDay,
+		Year:         helpers.CurrentYear(),
+	}); err != nil {
+		ctx.Err.Printf("/%s/admin/details template failed: %s", conf.Tag, err)
+		http.Error(w, "Unable to load page", http.StatusInternalServerError)
+	}
+}
+
+func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+
+	timezoneName := strings.TrimSpace(r.FormValue("timezone"))
+	loc := conf.Loc()
+	if timezoneName != "" {
+		if loaded, err := time.LoadLocation(timezoneName); err == nil {
+			loc = loaded
+		}
+	}
+	start, err := parseOptionalDatetimeLocal(r.FormValue("start_date"), loc)
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Invalid start date.")
+		return
+	}
+	end, err := parseOptionalDatetimeLocal(r.FormValue("end_date"), loc)
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Invalid end date.")
+		return
+	}
+	if start != nil && end != nil && end.Before(*start) {
+		redirectEventDetails(w, r, conf, "End date must be after start date.")
+		return
+	}
+
+	in := getters.ConfDetailsInput{
+		Description:   strings.TrimSpace(r.FormValue("description")),
+		OGFlavor:      strings.TrimSpace(r.FormValue("og_flavor")),
+		Emoji:         strings.TrimSpace(r.FormValue("emoji")),
+		Tagline:       strings.TrimSpace(r.FormValue("tagline")),
+		DateDesc:      strings.TrimSpace(r.FormValue("date_desc")),
+		StartDate:     start,
+		EndDate:       end,
+		Timezone:      timezoneName,
+		Location:      strings.TrimSpace(r.FormValue("location")),
+		Venue:         strings.TrimSpace(r.FormValue("venue")),
+		VenueMap:      strings.TrimSpace(r.FormValue("venue_map")),
+		VenueWebsite:  strings.TrimSpace(r.FormValue("venue_website")),
+		ShowHackathon: r.FormValue("show_hackathon") == "1",
+		HasSatellites: r.FormValue("has_satellites") == "1",
+	}
+	if err := getters.UpdateConfDetails(ctx, conf.Ref, in); err != nil {
+		ctx.Err.Printf("/%s/admin/details update failed: %s", conf.Tag, err)
+		redirectEventDetails(w, r, conf, "Could not update event details.")
+		return
+	}
+	redirectEventDetails(w, r, conf, "Event details updated.")
+}
+
+func GlobalAdminUpdateConfInfo(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+
+	day, err := strconv.Atoi(strings.TrimSpace(r.FormValue("day")))
+	if err != nil || day < 1 {
+		redirectEventDetails(w, r, conf, "Day must be a positive number.")
+		return
+	}
+	in := getters.ConfInfoInput{
+		ID:             strings.TrimSpace(r.FormValue("id")),
+		Day:            day,
+		DoorsStart:     strings.TrimSpace(r.FormValue("doors_start")),
+		DoorsEnd:       strings.TrimSpace(r.FormValue("doors_end")),
+		BreakfastStart: strings.TrimSpace(r.FormValue("breakfast_start")),
+		BreakfastEnd:   strings.TrimSpace(r.FormValue("breakfast_end")),
+		LunchStart:     strings.TrimSpace(r.FormValue("lunch_start")),
+		LunchEnd:       strings.TrimSpace(r.FormValue("lunch_end")),
+		CoffeeStart:    strings.TrimSpace(r.FormValue("coffee_start")),
+		CoffeeEnd:      strings.TrimSpace(r.FormValue("coffee_end")),
+		Venues:         parseVenueList(r.FormValue("venues")),
+	}
+	if err := validateTimeInputs(in.DoorsStart, in.DoorsEnd, in.BreakfastStart, in.BreakfastEnd, in.LunchStart, in.LunchEnd, in.CoffeeStart, in.CoffeeEnd); err != nil {
+		redirectEventDetails(w, r, conf, err.Error())
+		return
+	}
+	if err := getters.UpsertConfInfo(ctx, conf.Ref, in); err != nil {
+		ctx.Err.Printf("/%s/admin/details/confinfo update failed: %s", conf.Tag, err)
+		redirectEventDetails(w, r, conf, "Could not update venue schedule.")
+		return
+	}
+	redirectEventDetails(w, r, conf, "Venue schedule updated.")
+}
+
+func GlobalAdminUpdateConfState(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+
+	state := r.FormValue("state")
+	var active bool
+	switch state {
+	case "active":
+		active = true
+	case "inactive":
+		active = false
+	default:
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Unknown event state.")), http.StatusSeeOther)
+		return
+	}
+
+	if err := getters.UpdateConfActive(ctx, conf.Ref, active); err != nil {
+		ctx.Err.Printf("/%s/admin/state failed: %s", conf.Tag, err)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Could not update event state.")), http.StatusSeeOther)
+		return
+	}
+
+	label := "inactive"
+	if active {
+		label = "active"
+	}
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Event marked "+label+".")), http.StatusSeeOther)
+}
+
+func redirectEventDetails(w http.ResponseWriter, r *http.Request, conf *types.Conf, msg string) {
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape(msg)), http.StatusSeeOther)
+}
+
+func datetimeLocalInput(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format("2006-01-02T15:04")
+}
+
+func timeInputStart(t *types.Times) string {
+	if t == nil {
+		return ""
+	}
+	return t.Start.Format("15:04")
+}
+
+func timeInputEnd(t *types.Times) string {
+	if t == nil || t.End == nil {
+		return ""
+	}
+	return t.End.Format("15:04")
+}
+
+func parseOptionalDatetimeLocal(raw string, loc *time.Location) (*time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	t, err := time.ParseInLocation("2006-01-02T15:04", raw, loc)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+func parseVenueList(raw string) []string {
+	fields := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\r'
+	})
+	out := make([]string, 0, len(fields))
+	seen := make(map[string]bool)
+	for _, field := range fields {
+		venue := strings.TrimSpace(field)
+		if venue == "" || seen[venue] {
+			continue
+		}
+		seen[venue] = true
+		out = append(out, venue)
+	}
+	return out
+}
+
+func validateTimeInputs(values ...string) error {
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if _, err := time.Parse("15:04", value); err != nil {
+			return fmt.Errorf("Invalid time %q.", value)
+		}
+	}
+	return nil
 }

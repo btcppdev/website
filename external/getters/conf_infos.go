@@ -1,11 +1,26 @@
 package getters
 
 import (
+	"fmt"
 	"sort"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
+
+type ConfInfoInput struct {
+	ID             string
+	Day            int
+	DoorsStart     string
+	DoorsEnd       string
+	BreakfastStart string
+	BreakfastEnd   string
+	LunchStart     string
+	LunchEnd       string
+	CoffeeStart    string
+	CoffeeEnd      string
+	Venues         []string
+}
 
 // ListConfInfos fetches every row in ConfInfoDb/conference_days, optionally
 // filtered to a single conf by tag.
@@ -37,4 +52,11 @@ func GetConfInfoMap(ctx *config.AppContext) (map[string][]*types.ConfInfo, error
 		})
 	}
 	return out, nil
+}
+
+func UpsertConfInfo(ctx *config.AppContext, confRef string, in ConfInfoInput) error {
+	if UsePostgresBackend(ctx) {
+		return upsertConfInfoPostgres(ctx, confRef, in)
+	}
+	return fmt.Errorf("UpsertConfInfo requires postgres backend")
 }

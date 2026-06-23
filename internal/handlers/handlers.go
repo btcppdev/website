@@ -1192,6 +1192,18 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/", func(w http.ResponseWriter, r *http.Request) {
 		OrganizerDashboard(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/{conf}/admin/details", func(w http.ResponseWriter, r *http.Request) {
+		GlobalAdminEventDetails(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/admin/details", func(w http.ResponseWriter, r *http.Request) {
+		GlobalAdminUpdateConfDetails(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/details/confinfo", func(w http.ResponseWriter, r *http.Request) {
+		GlobalAdminUpdateConfInfo(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/state", func(w http.ResponseWriter, r *http.Request) {
+		GlobalAdminUpdateConfState(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/review", func(w http.ResponseWriter, r *http.Request) {
 		ReviewProposals(w, r, app)
 	}).Methods("GET")

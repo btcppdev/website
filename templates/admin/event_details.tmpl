@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ .Conf.Desc }} · event details</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" .Conf }}
+</head>
+<body class="bg-gray-50">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
+    <a href="/{{ .Conf.Tag }}/admin" class="text-xs text-gray-500 hover:text-gray-700">&larr; {{ .Conf.Desc }} dashboard</a>
+
+    <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-3xl">{{ .Conf.EmojiOrDefault }}</span>
+          <h1 class="text-2xl font-bold text-gray-900">{{ .Conf.Desc }}</h1>
+        </div>
+        <p class="mt-1 text-sm text-gray-500">{{ .Conf.Tag }} · {{ .Conf.DateDesc }}</p>
+      </div>
+      <form method="POST" action="/{{ .Conf.Tag }}/admin/state">
+        {{ if .Conf.Active }}
+        <input type="hidden" name="state" value="inactive">
+        <button type="submit"
+                onclick="return confirm('Mark {{ .Conf.Desc }} inactive?')"
+                class="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-red-700">
+          Mark inactive
+        </button>
+        {{ else }}
+        <input type="hidden" name="state" value="active">
+        <button type="submit"
+                onclick="return confirm('Mark {{ .Conf.Desc }} active?')"
+                class="inline-flex items-center rounded-md bg-green-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-green-700">
+          Mark active
+        </button>
+        {{ end }}
+      </form>
+    </div>
+
+    {{ if .FlashMessage }}
+    <div class="mt-6 rounded-md bg-green-50 border border-green-200 px-4 py-3">
+      <p class="text-sm text-green-800">{{ .FlashMessage }}</p>
+    </div>
+    {{ end }}
+
+    <section class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-4">
+      <form method="POST" action="/{{ .Conf.Tag }}/admin/details">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Conference record</h2>
+        <button type="submit" class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-gray-800">Save details</button>
+      </div>
+      <dl class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">State</dt>
+          <dd class="mt-1">{{ if .Conf.Active }}<span class="font-semibold text-green-700">Active</span>{{ else }}<span class="font-semibold text-gray-700">Inactive</span>{{ end }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">UID</dt>
+          <dd class="mt-1 font-mono text-gray-800">{{ .Conf.UID }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Database ID</dt>
+          <dd class="mt-1 font-mono text-xs text-gray-800 break-all">{{ .Conf.Ref }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Tag</dt>
+          <dd class="mt-1 font-mono text-gray-800">{{ .Conf.Tag }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Description</dt>
+          <dd class="mt-1"><input type="text" name="description" value="{{ .Conf.Desc }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Emoji</dt>
+          <dd class="mt-1"><input type="text" name="emoji" value="{{ .Conf.Emoji }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Start</dt>
+          <dd class="mt-1"><input type="datetime-local" name="start_date" value="{{ .StartInput }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">End</dt>
+          <dd class="mt-1"><input type="datetime-local" name="end_date" value="{{ .EndInput }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Date description</dt>
+          <dd class="mt-1"><input type="text" name="date_desc" value="{{ .Conf.DateDesc }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Location</dt>
+          <dd class="mt-1"><input type="text" name="location" value="{{ .Conf.Location }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Venue</dt>
+          <dd class="mt-1"><input type="text" name="venue" value="{{ .Conf.Venue }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Timezone</dt>
+          <dd class="mt-1"><input type="text" name="timezone" value="{{ .Conf.Timezone }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Flags</dt>
+          <dd class="mt-2 flex flex-wrap gap-4 text-gray-800">
+            <label class="inline-flex items-center gap-2"><input type="checkbox" name="show_hackathon" value="1" {{ if .Conf.ShowHackathon }}checked{{ end }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"> Hackathon</label>
+            <label class="inline-flex items-center gap-2"><input type="checkbox" name="has_satellites" value="1" {{ if .Conf.HasSatellites }}checked{{ end }} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"> Satellites</label>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">OG flavor</dt>
+          <dd class="mt-1"><input type="text" name="og_flavor" value="{{ .Conf.OGFlavor }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Tagline</dt>
+          <dd class="mt-1"><input type="text" name="tagline" value="{{ .Conf.Tagline }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Venue website</dt>
+          <dd class="mt-1"><input type="url" name="venue_website" value="{{ .Conf.VenueWebsite }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Venue map</dt>
+          <dd class="mt-1"><input type="url" name="venue_map" value="{{ .Conf.VenueMap }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+      </dl>
+      </form>
+    </section>
+
+    <section class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-4">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Venue schedule</h2>
+          <p class="mt-1 text-sm text-gray-600">{{ len .Days }} day{{ if ne (len .Days) 1 }}s{{ end }} · {{ len .Venues }} unique stage{{ if ne (len .Venues) 1 }}s{{ end }}</p>
+        </div>
+        {{ if .Venues }}
+        <p class="text-xs text-gray-500">{{ range $i, $venue := .Venues }}{{ if $i }} · {{ end }}{{ $venue }}{{ end }}</p>
+        {{ end }}
+      </div>
+
+      <div class="mt-4 space-y-4">
+        {{ range .Days }}
+        <form method="POST" action="/{{ $.Conf.Tag }}/admin/details/confinfo" class="rounded-md border border-gray-100 bg-gray-50 px-3 py-3">
+          <input type="hidden" name="id" value="{{ .Info.ID }}">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-sm font-semibold text-gray-900">Day {{ .Info.Day }} <span class="font-normal text-gray-500">{{ .DateLabel }}</span></h3>
+              <p class="mt-0.5 text-xs text-gray-500">{{ .StageCount }} stage{{ if ne .StageCount 1 }}s{{ end }}</p>
+            </div>
+            <button type="submit" class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-gray-800">Save day</button>
+          </div>
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Day number
+              <input type="number" min="1" name="day" value="{{ .Info.Day }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Doors start
+              <input type="time" name="doors_start" value="{{ .DoorsStart }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Doors end
+              <input type="time" name="doors_end" value="{{ .DoorsEnd }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Breakfast start
+              <input type="time" name="breakfast_start" value="{{ .BreakfastStart }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Breakfast end
+              <input type="time" name="breakfast_end" value="{{ .BreakfastEnd }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Lunch start
+              <input type="time" name="lunch_start" value="{{ .LunchStart }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Lunch end
+              <input type="time" name="lunch_end" value="{{ .LunchEnd }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Coffee start
+              <input type="time" name="coffee_start" value="{{ .CoffeeStart }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Coffee end
+              <input type="time" name="coffee_end" value="{{ .CoffeeEnd }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="sm:col-span-2 lg:col-span-4 text-xs font-medium uppercase tracking-wider text-gray-500">Venues
+              <textarea name="venues" rows="2" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .VenuesText }}</textarea>
+            </label>
+          </div>
+        </form>
+        {{ else }}
+        <p class="text-sm text-amber-700">No ConfInfo rows found for this event.</p>
+        {{ end }}
+
+        <form method="POST" action="/{{ .Conf.Tag }}/admin/details/confinfo" class="rounded-md border border-dashed border-gray-300 bg-white px-3 py-3">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h3 class="text-sm font-semibold text-gray-900">Add or replace a day</h3>
+            <button type="submit" class="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-indigo-700">Save new day</button>
+          </div>
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Day number
+              <input type="number" min="1" name="day" value="{{ .NextDay }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Doors start
+              <input type="time" name="doors_start" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Doors end
+              <input type="time" name="doors_end" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Breakfast start
+              <input type="time" name="breakfast_start" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Breakfast end
+              <input type="time" name="breakfast_end" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Lunch start
+              <input type="time" name="lunch_start" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Lunch end
+              <input type="time" name="lunch_end" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Coffee start
+              <input type="time" name="coffee_start" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Coffee end
+              <input type="time" name="coffee_end" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="sm:col-span-2 lg:col-span-4 text-xs font-medium uppercase tracking-wider text-gray-500">Venues
+              <textarea name="venues" rows="2" placeholder="mainstage, workshop" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></textarea>
+            </label>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
