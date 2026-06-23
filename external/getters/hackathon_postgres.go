@@ -837,6 +837,31 @@ func listJudgeEventsPostgres(ctx *config.AppContext, competitionID string) ([]*t
 	return out, nil
 }
 
+func deleteJudgeEventPostgres(ctx *config.AppContext, competitionID, judgeEventID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	judgeEventID = strings.TrimSpace(judgeEventID)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if judgeEventID == "" {
+		return fmt.Errorf("judge event is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		DELETE FROM judge_events
+		WHERE competition_id::text = $1 AND id::text = $2
+	`, competitionID, judgeEventID)
+	if err != nil {
+		return fmt.Errorf("delete judge event %s: %w", judgeEventID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("judge event not found")
+	}
+	return nil
+}
+
 func addCompetitionJudgePostgres(ctx *config.AppContext, competitionID, personID, judgeType string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
