@@ -12,9 +12,8 @@ import (
 
 /* application configuration settings */
 type AppContext struct {
-	Env    *types.EnvConfig
-	Notion *types.Notion
-	DB     *pgxpool.Pool
+	Env *types.EnvConfig
+	DB  *pgxpool.Pool
 
 	InProduction  bool
 	Err           *log.Logger

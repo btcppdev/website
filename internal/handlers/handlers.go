@@ -1775,7 +1775,7 @@ func RenderTalks(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	allTalks, err := getters.GetTalksFor(ctx, conf.Tag)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to fetch talks from Notion!! %s", err.Error())
+		ctx.Err.Printf("Unable to fetch talks: %s", err.Error())
 		return
 	}
 
@@ -1965,10 +1965,10 @@ func extForImageContentType(contentType string) string {
 	}
 }
 
-// uploadSpeakerPic uploads PicFile to Notion (returning the file ID) and also
+// uploadSpeakerPic uploads PicFile (returning the stored file ID) and also
 // returns the raw bytes + content type + extension so the caller can mirror
 // the original to Spaces and generate AVIF derivatives.
-func uploadSpeakerPic(ctx *config.AppContext, r *http.Request) (notionID string, raw []byte, contentType string, ext string, err error) {
+func uploadSpeakerPic(ctx *config.AppContext, r *http.Request) (fileID string, raw []byte, contentType string, ext string, err error) {
 	file, handler, err := r.FormFile("PicFile")
 	if err != nil {
 		return "", nil, "", "", err
@@ -1987,8 +1987,8 @@ func uploadSpeakerPic(ctx *config.AppContext, r *http.Request) (notionID string,
 		ext = ".jpg"
 	}
 
-	notionID, err = getters.UploadFile(ctx, contentType, filename, raw)
-	return notionID, raw, contentType, ext, err
+	fileID, err = getters.UploadFile(ctx, contentType, filename, raw)
+	return fileID, raw, contentType, ext, err
 }
 
 func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2399,7 +2399,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	talks, err := getters.GetTalksFor(ctx, conf.Tag)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to fetch talks from Notion!! %s", err.Error())
+		ctx.Err.Printf("Unable to fetch talks: %s", err.Error())
 		return
 	}
 
@@ -2415,14 +2415,14 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	buckets, err := bucketTalks(ctx, conf, talks)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to bucket '%s' talks from Notion!! %s", conf.Tag, err.Error())
+		ctx.Err.Printf("Unable to bucket '%s' talks: %s", conf.Tag, err.Error())
 		return
 	}
 
 	days, err := talkDays(ctx, conf, talks)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to make days '%s' from talks from Notion!! %s", conf.Tag, err.Error())
+		ctx.Err.Printf("Unable to make days '%s' from talks: %s", conf.Tag, err.Error())
 		return
 	}
 
@@ -2934,7 +2934,7 @@ func SendCals(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	talks, err := getters.GetTalksFor(ctx, conf.Tag)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to fetch talks from Notion!! %s", err.Error())
+		ctx.Err.Printf("Unable to fetch talks: %s", err.Error())
 		return
 	}
 

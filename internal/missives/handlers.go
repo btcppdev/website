@@ -269,10 +269,10 @@ func UnsubscribeEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	changed := subscriber.RmSubscription(subToken.Newsletter)
 	if changed {
 
-		/* Update on Notion */
+		/* Update subscriber preferences */
 		err := getters.UpdateSubs(ctx, subscriber)
 		if err != nil {
-			ctx.Infos.Printf("notion error: unsubscribing %s from %s: %s", subscriber.Email, subToken.Newsletter, err)
+			ctx.Infos.Printf("subscriber update error: unsubscribing %s from %s: %s", subscriber.Email, subToken.Newsletter, err)
 		}
 
 		/* Update with mailer */

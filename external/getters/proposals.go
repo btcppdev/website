@@ -1,10 +1,13 @@
 package getters
 
 import (
-	"time"
-
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"context"
+	"fmt"
+	"github.com/jackc/pgx/v5"
+	"strings"
+	"time"
 )
 
 // ProposalInput is the data needed to create a Proposal DB row from a form
@@ -60,116 +63,16 @@ type SpeakerConfFields struct {
 	Sponsor      bool
 }
 
-func CreateProposal(ctx *config.AppContext, in ProposalInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createProposalPostgres(ctx, in)
-	}
-	return createProposalNotion(ctx.Notion, in)
-}
-
-func UpsertSpeakerConf(ctx *config.AppContext, in SpeakerConfInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return upsertSpeakerConfPostgres(ctx, in)
-	}
-	return upsertSpeakerConfNotion(ctx, in)
-}
-
-func CreateConfTalk(ctx *config.AppContext, in ConfTalkInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createConfTalkPostgres(ctx, in)
-	}
-	return createConfTalkNotion(ctx.Notion, in)
-}
-
-func UpdateConfTalkSchedule(ctx *config.AppContext, confTalkID, venue string, start, end time.Time) error {
-	if UsePostgresBackend(ctx) {
-		return updateConfTalkSchedulePostgres(ctx, confTalkID, venue, start, end)
-	}
-	return updateConfTalkScheduleNotion(ctx, confTalkID, venue, start, end)
-}
-
-func DeleteConfTalk(ctx *config.AppContext, confTalkID string) error {
-	if UsePostgresBackend(ctx) {
-		return deleteConfTalkPostgres(ctx, confTalkID)
-	}
-	return deleteConfTalkNotion(ctx, confTalkID)
-}
-
-func UpdateSpeakerConf(ctx *config.AppContext, speakerConfID string, in SpeakerConfFields) error {
-	if UsePostgresBackend(ctx) {
-		return updateSpeakerConfPostgres(ctx, speakerConfID, in)
-	}
-	return updateSpeakerConfNotion(ctx, speakerConfID, in)
-}
-
-func ConfTalkSetSocialCard(ctx *config.AppContext, confTalkID, path string) error {
-	if UsePostgresBackend(ctx) {
-		return confTalkSetSocialCardPostgres(ctx, confTalkID, path)
-	}
-	return confTalkSetSocialCardNotion(ctx.Notion, confTalkID, path)
-}
-
-func ConfTalkSetClipart(ctx *config.AppContext, confTalkID, filename string) error {
-	if UsePostgresBackend(ctx) {
-		return confTalkSetClipartPostgres(ctx, confTalkID, filename)
-	}
-	return confTalkSetClipartNotion(ctx.Notion, confTalkID, filename)
-}
-
-func UpdateProposal(ctx *config.AppContext, proposalID string, in ProposalInput) error {
-	if UsePostgresBackend(ctx) {
-		return updateProposalPostgres(ctx, proposalID, in)
-	}
-	return updateProposalNotion(ctx, proposalID, in)
-}
-
-func UpdateProposalStatus(ctx *config.AppContext, proposalID, status string) error {
-	if UsePostgresBackend(ctx) {
-		return updateProposalStatusPostgres(ctx, proposalID, status)
-	}
-	return updateProposalStatusNotion(ctx, proposalID, status)
-}
-
-func RemoveProposalFromSpeakerConf(ctx *config.AppContext, speakerConfID, proposalID string) error {
-	if UsePostgresBackend(ctx) {
-		return removeProposalFromSpeakerConfPostgres(ctx, speakerConfID, proposalID)
-	}
-	return removeProposalFromSpeakerConfNotion(ctx, speakerConfID, proposalID)
-}
-
-func SetProposalInviteToken(ctx *config.AppContext, proposalID, token string) error {
-	if UsePostgresBackend(ctx) {
-		return setProposalInviteTokenPostgres(ctx, proposalID, token)
-	}
-	return setProposalInviteTokenNotion(ctx, proposalID, token)
-}
-
 func SetSpeakerConfInvitedAt(ctx *config.AppContext, speakerConfID string, when time.Time) error {
-	if UsePostgresBackend(ctx) {
-		return setSpeakerConfDatePostgres(ctx, speakerConfID, "invited_at", when, false)
-	}
-	return setSpeakerConfInvitedAtNotion(ctx, speakerConfID, when)
+	return setSpeakerConfDate(ctx, speakerConfID, "invited_at", when, false)
 }
 
 func SetSpeakerConfViewedAt(ctx *config.AppContext, speakerConfID string, when time.Time) error {
-	if UsePostgresBackend(ctx) {
-		return setSpeakerConfDatePostgres(ctx, speakerConfID, "viewed_at", when, true)
-	}
-	return setSpeakerConfViewedAtNotion(ctx, speakerConfID, when)
+	return setSpeakerConfDate(ctx, speakerConfID, "viewed_at", when, true)
 }
 
 func SetSpeakerConfAcceptedAt(ctx *config.AppContext, speakerConfID string, when time.Time) error {
-	if UsePostgresBackend(ctx) {
-		return setSpeakerConfDatePostgres(ctx, speakerConfID, "accepted_at", when, true)
-	}
-	return setSpeakerConfAcceptedAtNotion(ctx, speakerConfID, when)
-}
-
-func AddSpeakerConfToProposal(ctx *config.AppContext, proposalID, speakerConfID string) error {
-	if UsePostgresBackend(ctx) {
-		return addSpeakerConfToProposalPostgres(ctx, proposalID, speakerConfID)
-	}
-	return addSpeakerConfToProposalNotion(ctx, proposalID, speakerConfID)
+	return setSpeakerConfDate(ctx, speakerConfID, "accepted_at", when, true)
 }
 
 // GetProposal loads a single Proposal page by ID.
@@ -179,43 +82,264 @@ func GetProposal(ctx *config.AppContext, proposalID string) (*types.Proposal, er
 
 // FetchProposalByID is the hot-path lookup used by per-proposal handlers
 // (GetProposal, dashboard auth, etc.).
-func FetchProposalByID(ctx *config.AppContext, id string) (*types.Proposal, error) {
-	if UsePostgresBackend(ctx) {
-		return getProposalPostgres(ctx, id)
-	}
-
-	return fetchProposalByIDNotion(ctx, id)
-}
 
 // ListProposals fetches every Proposal page. Callers filter by conf in memory,
 // matching the existing pattern used for talk apps.
-func ListProposals(ctx *config.AppContext) ([]*types.Proposal, error) {
-	if UsePostgresBackend(ctx) {
-		return listProposalsPostgres(ctx)
+
+func CreateProposal(ctx *config.AppContext, in ProposalInput) (string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", fmt.Errorf("database is not configured")
 	}
-	return ListProposalsNotion(ctx)
+	confID, err := proposalConferenceIDPostgres(ctx, in.ScheduleForTag)
+	if err != nil {
+		return "", err
+	}
+	var proposalID string
+	err = ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO proposals (
+			conference_id, title, description, setup, comments, talk_type,
+			status, desired_duration_min, avail_duration_min
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9
+		)
+		RETURNING id::text
+	`, confID, strings.TrimSpace(in.Title), in.Description, in.Setup, in.Comments,
+		in.TalkType, in.Status, in.DesiredDuration, in.AvailDuration).Scan(&proposalID)
+	if err != nil {
+		return "", fmt.Errorf("insert proposal %q: %w", in.Title, err)
+	}
+	return proposalID, nil
+}
+
+func ListProposals(ctx *config.AppContext) ([]*types.Proposal, error) {
+	return queryProposalsPostgres(ctx, "")
 }
 
 func ListProposalsForConf(ctx *config.AppContext, confRef string) ([]*types.Proposal, error) {
-	if UsePostgresBackend(ctx) {
-		return listProposalsForConfPostgres(ctx, confRef)
+	if strings.TrimSpace(confRef) == "" {
+		return nil, nil
 	}
-	props, err := ListProposalsNotion(ctx)
+	return queryProposalsPostgres(ctx, "WHERE proposals.conference_id::text = $1", confRef)
+}
+
+func FetchProposalByID(ctx *config.AppContext, id string) (*types.Proposal, error) {
+	proposals, err := queryProposalsPostgres(ctx, "WHERE proposals.id::text = $1", id)
 	if err != nil {
 		return nil, err
 	}
+	if len(proposals) == 0 {
+		return nil, fmt.Errorf("proposal %s not found", id)
+	}
+	return proposals[0], nil
+}
+
+func queryProposalsPostgres(ctx *config.AppContext, where string, args ...interface{}) ([]*types.Proposal, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	confs, err := listConferencesOnlyPostgres(ctx)
+	if err != nil {
+		return nil, err
+	}
+	confByID := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			confByID[conf.Ref] = conf
+		}
+	}
+
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT proposals.id::text, proposals.title, proposals.description,
+			proposals.setup, proposals.comments, proposals.talk_type,
+			proposals.status, proposals.desired_duration_min,
+			proposals.avail_duration_min, proposals.invite_token,
+			coalesce(proposals.conference_id::text, '')
+		FROM proposals
+		`+where+`
+		ORDER BY proposals.created_at DESC, proposals.title
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query proposals: %w", err)
+	}
+	defer rows.Close()
+
 	var out []*types.Proposal
-	for _, p := range props {
-		if p == nil || p.ScheduleFor == nil {
-			continue
+	byID := map[string]*types.Proposal{}
+	ids := []string{}
+	for rows.Next() {
+		var proposal types.Proposal
+		var confID string
+		if err := rows.Scan(
+			&proposal.ID,
+			&proposal.Title,
+			&proposal.Description,
+			&proposal.Setup,
+			&proposal.Comments,
+			&proposal.TalkType,
+			&proposal.Status,
+			&proposal.DesiredDuration,
+			&proposal.AvailDuration,
+			&proposal.InviteToken,
+			&confID,
+		); err != nil {
+			return nil, fmt.Errorf("scan proposal: %w", err)
 		}
-		if p.ScheduleFor.Ref == confRef {
-			out = append(out, p)
-		}
+		proposal.ScheduleFor = confByID[confID]
+		out = append(out, &proposal)
+		byID[proposal.ID] = &proposal
+		ids = append(ids, proposal.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate proposals: %w", err)
+	}
+	rows.Close()
+	if err := hydrateProposalSpeakerConfRefsPostgres(ctx, ids, byID); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
 
-func ListProposalsOnly(n *types.Notion) ([]*types.Proposal, error) {
-	return ListProposalsOnlyNotion(n)
+func hydrateProposalSpeakerConfRefsPostgres(ctx *config.AppContext, ids []string, byID map[string]*types.Proposal) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT proposal_id::text, speaker_conf_id::text
+		FROM proposals_speaker_confs
+		WHERE proposal_id::text = ANY($1::text[])
+	`, ids)
+	if err != nil {
+		return fmt.Errorf("query proposal speaker-conf links: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var proposalID string
+		var speakerConfID string
+		if err := rows.Scan(&proposalID, &speakerConfID); err != nil {
+			return fmt.Errorf("scan proposal speaker-conf link: %w", err)
+		}
+		if proposal := byID[proposalID]; proposal != nil {
+			proposal.SpeakerConfRefs = append(proposal.SpeakerConfRefs, speakerConfID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate proposal speaker-conf links: %w", err)
+	}
+	return nil
+}
+
+func UpdateProposal(ctx *config.AppContext, proposalID string, in ProposalInput) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	if strings.TrimSpace(proposalID) == "" {
+		return fmt.Errorf("UpdateProposal: empty proposalID")
+	}
+
+	setParts := []string{}
+	args := []interface{}{}
+	addSet := func(column string, value interface{}) {
+		args = append(args, value)
+		setParts = append(setParts, fmt.Sprintf("%s = $%d", column, len(args)))
+	}
+
+	if in.Title != "" {
+		addSet("title", strings.TrimSpace(in.Title))
+	}
+	if in.Description != "" {
+		addSet("description", in.Description)
+	}
+	if in.Setup != "" {
+		addSet("setup", in.Setup)
+	}
+	if in.Comments != "" {
+		addSet("comments", in.Comments)
+	}
+	if in.TalkType != "" {
+		addSet("talk_type", in.TalkType)
+	}
+	if in.DesiredDuration > 0 {
+		addSet("desired_duration_min", in.DesiredDuration)
+	}
+	if in.AvailDuration > 0 {
+		addSet("avail_duration_min", in.AvailDuration)
+	}
+	if len(setParts) == 0 {
+		return nil
+	}
+
+	args = append(args, proposalID)
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE proposals
+		SET `+strings.Join(setParts, ", ")+`
+		WHERE id = $`+fmt.Sprint(len(args))+`
+	`, args...)
+	if err != nil {
+		return fmt.Errorf("update proposal %s: %w", proposalID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("proposal %s not found", proposalID)
+	}
+	return nil
+}
+
+func UpdateProposalStatus(ctx *config.AppContext, proposalID, status string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE proposals
+		SET status = $2
+		WHERE id = $1
+	`, proposalID, status)
+	if err != nil {
+		return fmt.Errorf("update proposal status %s: %w", proposalID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("proposal %s not found", proposalID)
+	}
+	return nil
+}
+
+func SetProposalInviteToken(ctx *config.AppContext, proposalID, token string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	if token == "" {
+		return fmt.Errorf("SetProposalInviteToken: empty token")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE proposals
+		SET invite_token = $2
+		WHERE id = $1
+	`, proposalID, token)
+	if err != nil {
+		return fmt.Errorf("set invite token on %s: %w", proposalID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("proposal %s not found", proposalID)
+	}
+	return nil
+}
+
+func proposalConferenceIDPostgres(ctx *config.AppContext, tag string) (*string, error) {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return nil, nil
+	}
+	var id string
+	err := ctx.DB.QueryRow(context.Background(), `
+		SELECT id::text
+		FROM conferences
+		WHERE tag = $1
+		LIMIT 1
+	`, tag).Scan(&id)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("conference %q not found", tag)
+		}
+		return nil, fmt.Errorf("query conference %q: %w", tag, err)
+	}
+	return &id, nil
 }

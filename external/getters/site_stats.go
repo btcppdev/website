@@ -1,6 +1,11 @@
 package getters
 
-import "btcpp-web/internal/config"
+import (
+	"context"
+	"fmt"
+
+	"btcpp-web/internal/config"
+)
 
 // SiteStatsValues holds the raw counts behind the about-page numbers.
 // Format-for-display is left to callers.
@@ -47,24 +52,53 @@ func siteStatsDirect(ctx *config.AppContext) (SiteStatsValues, error) {
 }
 
 func siteStatsAttendees(ctx *config.AppContext) (int, error) {
-	if UsePostgresBackend(ctx) {
-		return siteStatsAttendeesPostgres(ctx)
+	if ctx == nil || ctx.DB == nil {
+		return 0, fmt.Errorf("database is not configured")
 	}
-	return siteStatsAttendeesNotion(ctx)
+	var count int
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT count(*)
+		FROM registrations
+	`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count registrations: %w", err)
+	}
+	return count, nil
+}
+
+func siteStatsFromDatabase(ctx *config.AppContext) (SiteStatsValues, error) {
+	if ctx == nil || ctx.DB == nil {
+		return SiteStatsValues{}, fmt.Errorf("database is not configured")
+	}
+	var s SiteStatsValues
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT
+			(SELECT count(*) FROM conferences WHERE end_date IS NOT NULL AND end_date < now()),
+			(
+				SELECT count(*)
+				FROM conf_talks ct
+				JOIN conferences c ON c.id = ct.conference_id
+				JOIN proposals p ON p.id = ct.proposal_id
+				WHERE c.end_date IS NOT NULL
+					AND c.end_date < now()
+					AND p.status = 'Accepted'
+			),
+			(SELECT count(*) FROM registrations)
+	`).Scan(&s.PastConfs, &s.PastTalks, &s.Attendees); err != nil {
+		return SiteStatsValues{}, fmt.Errorf("query site stats: %w", err)
+	}
+	return s, nil
 }
 
 // FetchSiteStats returns about-page counters.
 func FetchSiteStats(ctx *config.AppContext) SiteStatsValues {
-	if UsePostgresBackend(ctx) {
-		s, err := siteStatsPostgres(ctx)
-		if err != nil {
-			ctx.Err.Printf("site stats aggregate: %s", err)
-		} else {
-			return s
-		}
+	s, err := siteStatsFromDatabase(ctx)
+	if err != nil {
+		ctx.Err.Printf("site stats aggregate: %s", err)
+	} else {
+		return s
 	}
 
-	s, err := siteStatsDirect(ctx)
+	s, err = siteStatsDirect(ctx)
 	if err != nil {
 		ctx.Err.Printf("site stats direct: %s", err)
 	}

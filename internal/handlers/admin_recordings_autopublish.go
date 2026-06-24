@@ -250,7 +250,7 @@ func runXPost(ctx *config.AppContext, row *RecordingRow, client *xposter.Client,
 		XReplyLink: &result.ReplyURL,
 	}); err != nil {
 		ctx.Err.Printf("recording autopublish persist x recording=%s: %s", rec.ID, err)
-		setXJobStatus(rec.ID, "failed", "posted to X but failed to update Notion: "+err.Error())
+		setXJobStatus(rec.ID, "failed", "posted to X but failed to update the recording row: "+err.Error())
 		return
 	}
 	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
@@ -606,7 +606,7 @@ func RecordingsAdminRetryX(w http.ResponseWriter, r *http.Request, ctx *config.A
 		Error:            &clear,
 		ErrorFingerprint: &clear,
 	}); err != nil {
-		redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't update Notion: "+err.Error())
+		redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't update the recording row: "+err.Error())
 		return
 	}
 	http.Redirect(w, r, recordingDetailPath(conf.Tag, rec.ID)+"?flash=X+post+queued+for+retry", http.StatusSeeOther)

@@ -159,8 +159,6 @@ func run(env *types.EnvConfig) error {
 	app.Infos.Println("~~~~app restarted, here we go~~~~~")
 	app.Infos.Println("Running in prod?", env.Prod)
 
-	app.Notion = &types.Notion{Config: &env.Notion}
-	app.Notion.Setup(env.Notion.Token)
 	pool, err := db.Open(context.Background(), env.DatabaseURL)
 	if err != nil {
 		return err
@@ -185,14 +183,6 @@ func run(env *types.EnvConfig) error {
 	app.Session.Cookie.Secure = app.InProduction
 	app.Session.Store = pgxstore.New(app.DB)
 	app.Infos.Println("using postgres session store")
-
-	// Per-request Notion timing is noisy in production, so keep it opt-in.
-	// Recent-call tracking for /api/cache-stats remains enabled separately.
-	if env.NotionRequestLogs {
-		types.SetNotionRequestLogger(app.Infos.Printf)
-	} else {
-		types.SetNotionRequestLogger(nil)
-	}
 
 	return nil
 }

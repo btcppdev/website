@@ -33,7 +33,7 @@ This will put all the files necessary to serve the site into `target/`
 
 ## Recording autopublisher
 
-The per-event recordings dashboard lives at `/{conf}/admin/recordings` and can auto-publish Notion Recording rows that have `FileURI` and `PublishAt` set. Enable the background worker with:
+The per-event recordings dashboard lives at `/{conf}/admin/recordings` and can auto-publish recording rows that have `FileURI` and `PublishAt` set. Enable the background worker with:
 
 ```
 RECORDINGS_AUTOPUBLISH_ENABLED=true

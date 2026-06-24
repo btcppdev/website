@@ -132,7 +132,7 @@ func AdminCliparts(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 //     aren't all square).
 //  5. Upload PNG + AVIF to talks/<name>.{png,avif} in Spaces.
 //  6. Load → mutate → save talks/_manifest.json with content hashes.
-//  7. Patch Notion ConfTalk.Clipart = "<name>.png".
+//  7. Patch ConfTalk.Clipart = "<name>.png".
 //  8. Invalidate the in-memory talk-manifest cache so card-hash
 //     fingerprints pick up the new entry immediately (vs waiting on
 //     the 5-min TTL).
@@ -248,7 +248,7 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 	InvalidateTalkManifest()
 
 	if err := getters.ConfTalkSetClipart(ctx, confTalkID, clean+".png"); err != nil {
-		bail("Patch Notion ConfTalk.Clipart: " + err.Error())
+		bail("Update ConfTalk clipart: " + err.Error())
 		return
 	}
 	http.Redirect(w, r,

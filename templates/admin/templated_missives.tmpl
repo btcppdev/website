@@ -114,7 +114,7 @@
           <div class="flex items-center justify-between gap-4 border-b border-gray-200 pb-4 xl:col-start-2">
             <div>
               <h2 class="text-lg font-semibold">{{ if .IsNew }}New templated missive{{ else }}Edit MISS-{{ .Form.UID }}{{ end }}</h2>
-              <p class="mt-1 text-sm text-gray-500">Saving updates the Notion missive row. Delivery still depends on SendAt, Expiry, SentAt, and subscriber list matching.</p>
+              <p class="mt-1 text-sm text-gray-500">Saving updates the missive row. Delivery still depends on SendAt, Expiry, SentAt, and subscriber list matching.</p>
             </div>
             <div class="flex flex-wrap justify-end gap-2">
               {{ if not .IsNew }}
@@ -354,7 +354,7 @@
             <div class="flex items-center justify-between gap-4">
               <div>
                 <h3 class="text-sm font-semibold">Live preview</h3>
-                <p class="mt-1 text-xs text-gray-500">Updates as you type. Save still writes the missive to Notion.</p>
+                <p class="mt-1 text-xs text-gray-500">Updates as you type. Save still writes the missive.</p>
               </div>
               <span class="rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">approximate inbox render</span>
             </div>

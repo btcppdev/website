@@ -53,7 +53,7 @@ func TrialCalInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
-	// Synthetic talk — we don't read or write any Notion row. The
+	// Synthetic talk — we don't read or write any database row. The
 	// time is "tomorrow at 14:00 in conf's local time"; venue is
 	// "one" so it resolves to "Main Stage" via MapVenue.
 	loc := conf.Loc()

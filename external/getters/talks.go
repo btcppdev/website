@@ -1,15 +1,13 @@
 package getters
 
 import (
-	"fmt"
-
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
 
 // listTalks loads every Talk-shaped row across all confs, sourced from the
 // ConfTalk -> Proposal -> SpeakerConf[] -> Speaker[] chain. Talk.ID is the
-// ConfTalk page ID in Notion and the conf_talks.id value in Postgres.
+// conf_talks.id value.
 //
 // SpeakerConf joins handle speaker resolution internally.
 func listTalks(ctx *config.AppContext) ([]*types.Talk, error) {
@@ -26,41 +24,13 @@ func GetTalksFor(ctx *config.AppContext, event string) ([]*types.Talk, error) {
 }
 
 func ListTalks(ctx *config.AppContext) ([]*types.Talk, error) {
-	if UsePostgresBackend(ctx) {
-		return LoadTalksFromConfTalks(ctx, "")
-	}
-	return listTalks(ctx)
+	return LoadTalksFromConfTalks(ctx, "")
 }
 
 func ListTalksForConf(ctx *config.AppContext, event string) ([]*types.Talk, error) {
-	if UsePostgresBackend(ctx) {
-		return LoadTalksFromConfTalks(ctx, event)
-	}
-	talks, err := listTalks(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var filtered []*types.Talk
-	for _, talk := range talks {
-		if talk.Event == event {
-			filtered = append(filtered, talk)
-		}
-	}
-	return filtered, nil
+	return LoadTalksFromConfTalks(ctx, event)
 }
 
 func GetTalk(ctx *config.AppContext, talkID string) (*types.Talk, error) {
-	if UsePostgresBackend(ctx) {
-		return LoadTalkFromConfTalk(ctx, talkID)
-	}
-	talks, err := listTalks(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, talk := range talks {
-		if talk.ID == talkID {
-			return talk, nil
-		}
-	}
-	return nil, fmt.Errorf("Talk %s not found", talkID)
+	return LoadTalkFromConfTalk(ctx, talkID)
 }

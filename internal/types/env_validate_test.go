@@ -32,7 +32,6 @@ func TestEnvConfigValidateRequiresProdSecrets(t *testing.T) {
 		t.Fatal("Validate returned nil error")
 	}
 	for _, want := range []string{
-		"NOTION_TOKEN",
 		"MAILER_SECRET",
 		"MAILER_ENDPOINT",
 		"STRIPE_KEY",
@@ -57,9 +56,6 @@ func TestEnvConfigValidateAllowsCompleteProdConfig(t *testing.T) {
 		StripeKey:         "stripe",
 		StripeEndpointSec: "stripe-webhook",
 		RegistryPin:       "pin",
-		Notion: NotionConfig{
-			Token: "notion",
-		},
 		OpenNode: OpenNodeConfig{
 			Key:      "opennode",
 			Endpoint: "https://opennode.example.test",

@@ -18,7 +18,6 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/schema v1.4.1
 	github.com/jackc/pgx/v5 v5.9.2
-	github.com/niftynei/go-notion v0.2.9
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stripe/stripe-go/v76 v76.3.0
 	go.etcd.io/bbolt v1.4.3

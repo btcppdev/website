@@ -413,10 +413,10 @@ func RecordingsAdminUploadSourceFile(w http.ResponseWriter, r *http.Request, ctx
 
 	if spaces.Exists(key) {
 		if err := getters.UpdateRecordingFileURI(ctx, rec.ID, key); err != nil {
-			redirectRecordingsListErr(w, r, conf.Tag, "file already exists in Spaces, but couldn't update Notion: "+err.Error())
+			redirectRecordingsListErr(w, r, conf.Tag, "file already exists in Spaces, but couldn't update the recording row: "+err.Error())
 			return
 		}
-		redirectRecordingsList(w, r, conf.Tag, "Recording file already existed in Spaces; linked it in Notion")
+		redirectRecordingsList(w, r, conf.Tag, "Recording file already existed in Spaces; linked it to the recording row")
 		return
 	}
 	if _, err := spaces.UploadStream(key, file, contentType, handler.Size); err != nil {
@@ -424,7 +424,7 @@ func RecordingsAdminUploadSourceFile(w http.ResponseWriter, r *http.Request, ctx
 		return
 	}
 	if err := getters.UpdateRecordingFileURI(ctx, rec.ID, key); err != nil {
-		redirectRecordingsListErr(w, r, conf.Tag, "uploaded to Spaces, but couldn't update Notion FileURI: "+err.Error())
+		redirectRecordingsListErr(w, r, conf.Tag, "uploaded to Spaces, but couldn't update FileURI: "+err.Error())
 		return
 	}
 	redirectRecordingsList(w, r, conf.Tag, "Recording file uploaded")
@@ -501,7 +501,7 @@ func RecordingsAdminUploadYT(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 	if rec.FileURI == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI — set the Spaces key in Notion first")
+		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI - set the Spaces key first")
 		return
 	}
 	if !youtubepkg.IsConfigured() {
@@ -560,7 +560,7 @@ func RecordingsAdminSchedule(w http.ResponseWriter, r *http.Request, ctx *config
 	ytScheduleResult, err := updateRecordingYouTubeSchedule(ctx, rec, publishAt)
 	if err != nil {
 		ctx.Err.Printf("recording youtube schedule recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "saved Notion PublishAt, but couldn't update YouTube schedule: "+err.Error())
+		redirectWithErr(w, r, conf.Tag, recordingID, "saved PublishAt, but couldn't update YouTube schedule: "+err.Error())
 		return
 	}
 	flash := "Schedule cleared"
@@ -644,7 +644,7 @@ func RecordingsAdminPostXNow(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 	if rec.FileURI == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI — set the Spaces key in Notion first")
+		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI - set the Spaces key first")
 		return
 	}
 	if row.XURL != "" {
@@ -703,7 +703,7 @@ func RecordingsAdminScheduleX(w http.ResponseWriter, r *http.Request, ctx *confi
 		return
 	}
 	if rec.FileURI == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI — set the Spaces key in Notion first")
+		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI - set the Spaces key first")
 		return
 	}
 	publishAt := rec.PublishAt
@@ -820,7 +820,7 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 	status = recordingStatusUploaded
 	if err := getters.UpdateRecordingYTLink(ctx, recordingID, ytURL); err != nil {
 		ctx.Err.Printf("youtube upload: persist YTLink: %s", err)
-		setJobStatus(recordingID, "failed", "uploaded to YouTube but failed to update Notion: "+err.Error())
+		setJobStatus(recordingID, "failed", "uploaded to YouTube but failed to update the recording row: "+err.Error())
 		return
 	}
 	rec.YTLink = ytURL
@@ -927,7 +927,7 @@ func RecordingsAdminSaveXLink(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 	if err := getters.UpdateRecordingXLink(ctx, recordingID, xURL); err != nil {
 		ctx.Err.Printf("save xlink recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update Notion: "+err.Error())
+		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update the recording row: "+err.Error())
 		return
 	}
 	status := recordingStatusPosted

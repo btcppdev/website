@@ -17,22 +17,10 @@ region: nyc
 services:
 - environment_slug: go
   envs:
-  - key: NOTION_TOKEN
-    scope: RUN_AND_BUILD_TIME
-    type: SECRET
-    value: EV[1:sayy1sf/By9Y08tXx0UbLl3ywY4JtRow:c2n2sRJpP0O1u9x7J+z7b+y1FFgjag6gQoKD5qUlkb1V4SS5/VsZ7lXb3T55B2Ed1y/1oNerkldFeq0Z0+Dz0UYj]
-  - key: NOTION_TALKS_DB
-    scope: RUN_AND_BUILD_TIME
-    type: SECRET
-    value: EV[1:29gIXhGdYkYNtHQNLG4OgjEKVCBJ0aj3:bJyXmq/w0oL6FNSc6Y64E5qIm2SwNWej1oiX1y1+HRHUrwjX+8hhKJNoT5fNn97w]
   - key: GOOGLE_KEY
     scope: RUN_AND_BUILD_TIME
     type: SECRET
     value: EV[1:B7HniJ8Z7tJPXMvJpPRQ9EKiK2sF0rmB:IGCV8h4Bm3thyQAZgE06U0/Ydvp9cZiEB/Lcx7e6hRmP/c1SfVx3UMO1/Un425Hz/6qia2pZgA==]
-  - key: NOTION_PURCHASES_DB
-    scope: RUN_AND_BUILD_TIME
-    type: SECRET
-    value: EV[1:CKh5ELYw4lOPIkOalFOgQAAFfTXl0Eno:SSxWyTscz/4k8VgGBe0fWCS1fhor08+6W24nQKUjwPHodNbbu7EIJCOtdzpvX4YD]
   - key: REGISTRY_PIN
     scope: RUN_AND_BUILD_TIME
     type: SECRET

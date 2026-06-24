@@ -1,100 +1,343 @@
 package getters
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func ListWorkShifts(ctx *config.AppContext) ([]*types.WorkShift, error) {
-	if UsePostgresBackend(ctx) {
-		return listWorkShiftsPostgres(ctx)
+	confs, err := listConferencesOnlyPostgres(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return ListWorkShiftsNotion(ctx)
+	confByID := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			confByID[conf.Ref] = conf
+		}
+	}
+
+	jobTypes, err := ListJobTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	jobByID := make(map[string]*types.JobType, len(jobTypes))
+	for _, job := range jobTypes {
+		if job != nil {
+			jobByID[job.Ref] = job
+		}
+	}
+
+	return queryWorkShiftsPostgres(ctx, "work shifts", "", "", nil, confByID, jobByID)
 }
 
 func GetShiftsForConf(ctx *config.AppContext, confTag string) ([]*types.WorkShift, error) {
-	if UsePostgresBackend(ctx) {
-		return listWorkShiftsForConfPostgres(ctx, confTag)
-	}
-
-	allShifts, err := ListWorkShifts(ctx)
-	if err != nil {
+	conf, err := GetConfByTag(ctx, confTag)
+	if err != nil || conf == nil {
 		return nil, err
 	}
 
-	var filtered []*types.WorkShift
-	for _, shift := range allShifts {
-		if shift.Conf != nil && shift.Conf.Tag == confTag {
-			filtered = append(filtered, shift)
+	jobTypes, err := ListJobTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	jobByID := make(map[string]*types.JobType, len(jobTypes))
+	for _, job := range jobTypes {
+		if job != nil {
+			jobByID[job.Ref] = job
 		}
 	}
-	return filtered, nil
+
+	return queryWorkShiftsPostgres(ctx, "work shifts for conference", "JOIN conferences ON conferences.id = work_shifts.conference_id", "WHERE conferences.tag = $1", []any{confTag}, map[string]*types.Conf{conf.Ref: conf}, jobByID)
 }
 
 func GetWorkShiftByRef(ctx *config.AppContext, shiftRef string) (*types.WorkShift, error) {
-	if UsePostgresBackend(ctx) {
-		return getWorkShiftByRefPostgres(ctx, shiftRef)
+	conf, err := getWorkShiftConferencePostgres(ctx, shiftRef)
+	if err != nil || conf == nil {
+		return nil, err
 	}
 
-	allShifts, err := ListWorkShifts(ctx)
+	jobTypes, err := ListJobTypes(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for _, shift := range allShifts {
-		if shift != nil && shift.Ref == shiftRef {
-			return shift, nil
+	jobByID := make(map[string]*types.JobType, len(jobTypes))
+	for _, job := range jobTypes {
+		if job != nil {
+			jobByID[job.Ref] = job
 		}
 	}
-	return nil, nil
+
+	shifts, err := queryWorkShiftsPostgres(ctx, "work shift by ref", "", "WHERE work_shifts.id::text = $1", []any{shiftRef}, map[string]*types.Conf{conf.Ref: conf}, jobByID)
+	if err != nil || len(shifts) == 0 {
+		return nil, err
+	}
+	return shifts[0], nil
+}
+
+func getWorkShiftConferencePostgres(ctx *config.AppContext, shiftRef string) (*types.Conf, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	var confTag string
+	err := ctx.DB.QueryRow(context.Background(), `
+		SELECT conferences.tag
+		FROM work_shifts
+		JOIN conferences ON conferences.id = work_shifts.conference_id
+		WHERE work_shifts.id::text = $1
+	`, shiftRef).Scan(&confTag)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("query work shift conference: %w", err)
+	}
+	return GetConfByTag(ctx, confTag)
+}
+
+func queryWorkShiftsPostgres(ctx *config.AppContext, label string, joinSQL string, whereSQL string, args []any, confByID map[string]*types.Conf, jobByID map[string]*types.JobType) ([]*types.WorkShift, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT work_shifts.id::text, work_shifts.conference_id::text,
+			coalesce(work_shifts.job_type_id::text, ''), work_shifts.name,
+			work_shifts.max_vols, work_shifts.shift_start, work_shifts.shift_end,
+			work_shifts.priority, work_shifts.cal_notif,
+			coalesce(array_agg(work_shifts_volunteers.volunteer_id::text)
+				FILTER (WHERE work_shifts_volunteers.role = 'assignee'), '{}'),
+			coalesce(max(work_shifts_volunteers.volunteer_id::text)
+				FILTER (WHERE work_shifts_volunteers.role = 'leader'), '')
+		FROM work_shifts
+		`+joinSQL+`
+		LEFT JOIN work_shifts_volunteers ON work_shifts_volunteers.shift_id = work_shifts.id
+		`+whereSQL+`
+		GROUP BY work_shifts.id
+		ORDER BY work_shifts.shift_start NULLS LAST, work_shifts.priority, work_shifts.name
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query %s: %w", label, err)
+	}
+	defer rows.Close()
+
+	var out []*types.WorkShift
+	for rows.Next() {
+		var shift types.WorkShift
+		var confID string
+		var jobTypeID string
+		var maxVols, priority int64
+		var shiftStart pgtype.Timestamptz
+		var shiftEnd pgtype.Timestamptz
+		err := rows.Scan(
+			&shift.Ref,
+			&confID,
+			&jobTypeID,
+			&shift.Name,
+			&maxVols,
+			&shiftStart,
+			&shiftEnd,
+			&priority,
+			&shift.CalNotif,
+			&shift.AssigneesRef,
+			&shift.ShiftLeaderRef,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan %s: %w", label, err)
+		}
+
+		shift.MaxVols = uint(maxVols)
+		shift.Priority = uint(priority)
+		shift.Conf = confByID[confID]
+		shift.Type = jobByID[jobTypeID]
+		if shiftStart.Valid {
+			loc := time.Local
+			if shift.Conf != nil {
+				loc = shift.Conf.Loc()
+			}
+			shift.ShiftTime = &types.Times{Start: shiftStart.Time.In(loc)}
+			if shiftEnd.Valid {
+				end := shiftEnd.Time.In(loc)
+				shift.ShiftTime.End = &end
+			}
+		}
+		out = append(out, &shift)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
+	}
+	return out, nil
 }
 
 func ShiftUpdateCalNotif(ctx *config.AppContext, shiftID string, calnotif string) error {
-	if UsePostgresBackend(ctx) {
-		return shiftUpdateCalNotifPostgres(ctx, shiftID, calnotif)
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
 	}
-	return shiftUpdateCalNotifNotion(ctx.Notion, shiftID, calnotif)
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE work_shifts
+		SET cal_notif = $2
+		WHERE id = $1
+	`, shiftID, calnotif)
+	if err != nil {
+		return fmt.Errorf("update work shift %s cal notif: %w", shiftID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("work shift %s not found", shiftID)
+	}
+	return nil
 }
 
 func CreateShift(ctx *config.AppContext, conf *types.Conf, jobType *types.JobType, name string, start, end time.Time, maxVols, priority uint) error {
-	if UsePostgresBackend(ctx) {
-		return createShiftPostgres(ctx, conf, jobType, name, start, end, maxVols, priority)
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
 	}
-	return CreateShiftNotion(ctx, conf, jobType, name, start, end, maxVols, priority)
+	if conf == nil || conf.Ref == "" {
+		return fmt.Errorf("CreateShift: conf is nil or has empty ref")
+	}
+	var jobTypeID any
+	if jobType != nil {
+		if jobType.Ref == "" {
+			return fmt.Errorf("CreateShift: job type has empty ref")
+		}
+		jobTypeID = jobType.Ref
+	}
+
+	var shiftStart any
+	if !start.IsZero() {
+		shiftStart = start
+	}
+	var shiftEnd any
+	if !end.IsZero() {
+		shiftEnd = end
+	}
+
+	_, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO work_shifts (
+			conference_id, job_type_id, name, max_vols, shift_start, shift_end, priority
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, conf.Ref, jobTypeID, name, int64(maxVols), shiftStart, shiftEnd, int64(priority))
+	if err != nil {
+		return fmt.Errorf("create work shift %q: %w", name, err)
+	}
+	return nil
 }
 
 func UpdateShiftTimes(ctx *config.AppContext, shiftRef string, start, end time.Time) error {
-	if UsePostgresBackend(ctx) {
-		return updateShiftTimesPostgres(ctx, shiftRef, start, end)
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
 	}
-	return UpdateShiftTimesNotion(ctx, shiftRef, start, end)
+	if start.IsZero() {
+		return fmt.Errorf("UpdateShiftTimes: start required")
+	}
+	var shiftEnd any
+	if !end.IsZero() {
+		shiftEnd = end
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE work_shifts
+		SET shift_start = $2, shift_end = $3
+		WHERE id = $1
+	`, shiftRef, start, shiftEnd)
+	if err != nil {
+		return fmt.Errorf("update work shift %s times: %w", shiftRef, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("work shift %s not found", shiftRef)
+	}
+	return nil
 }
 
 func UpdateShift(ctx *config.AppContext, shiftRef, name string, jobType *types.JobType, start, end time.Time, maxVols, priority uint) error {
-	if UsePostgresBackend(ctx) {
-		return updateShiftPostgres(ctx, shiftRef, name, jobType, start, end, maxVols, priority)
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
 	}
-	return UpdateShiftNotion(ctx, shiftRef, name, jobType, start, end, maxVols, priority)
+
+	args := []any{shiftRef, name, int64(maxVols), int64(priority)}
+	sets := []string{"name = $2", "max_vols = $3", "priority = $4"}
+	if jobType != nil {
+		if jobType.Ref == "" {
+			return fmt.Errorf("UpdateShift: job type has empty ref")
+		}
+		args = append(args, jobType.Ref)
+		sets = append(sets, fmt.Sprintf("job_type_id = $%d", len(args)))
+	}
+	if !start.IsZero() {
+		args = append(args, start)
+		sets = append(sets, fmt.Sprintf("shift_start = $%d", len(args)))
+		args = append(args, nullableShiftTime(end))
+		sets = append(sets, fmt.Sprintf("shift_end = $%d", len(args)))
+	}
+
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE work_shifts
+		SET `+strings.Join(sets, ", ")+`
+		WHERE id = $1
+	`, args...)
+	if err != nil {
+		return fmt.Errorf("update work shift %s: %w", shiftRef, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("work shift %s not found", shiftRef)
+	}
+	return nil
 }
 
 func DeleteShift(ctx *config.AppContext, shiftRef string) error {
-	if UsePostgresBackend(ctx) {
-		return deleteShiftPostgres(ctx, shiftRef)
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
 	}
-	return DeleteShiftNotion(ctx, shiftRef)
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		DELETE FROM work_shifts
+		WHERE id = $1
+	`, shiftRef)
+	if err != nil {
+		return fmt.Errorf("delete work shift %s: %w", shiftRef, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("work shift %s not found", shiftRef)
+	}
+	return nil
 }
 
 func AssignVolunteerToShift(ctx *config.AppContext, volRef, shiftRef string) error {
-	if UsePostgresBackend(ctx) {
-		return assignVolunteerToShiftPostgres(ctx, volRef, shiftRef)
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
 	}
-	return AssignVolunteerToShiftNotion(ctx, volRef, shiftRef)
+	_, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO work_shifts_volunteers (shift_id, volunteer_id, role)
+		VALUES ($1, $2, 'assignee')
+		ON CONFLICT DO NOTHING
+	`, shiftRef, volRef)
+	if err != nil {
+		return fmt.Errorf("assign volunteer %s to shift %s: %w", volRef, shiftRef, err)
+	}
+	return nil
 }
 
 func RemoveVolunteerFromShift(ctx *config.AppContext, volRef, shiftRef string) error {
-	if UsePostgresBackend(ctx) {
-		return removeVolunteerFromShiftPostgres(ctx, volRef, shiftRef)
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
 	}
-	return RemoveVolunteerFromShiftNotion(ctx, volRef, shiftRef)
+	_, err := ctx.DB.Exec(context.Background(), `
+		DELETE FROM work_shifts_volunteers
+		WHERE shift_id = $1 AND volunteer_id = $2 AND role = 'assignee'
+	`, shiftRef, volRef)
+	if err != nil {
+		return fmt.Errorf("remove volunteer %s from shift %s: %w", volRef, shiftRef, err)
+	}
+	return nil
+}
+
+func nullableShiftTime(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t
 }

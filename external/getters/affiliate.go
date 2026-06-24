@@ -1,48 +1,23 @@
 package getters
 
 import (
-	"fmt"
-
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"context"
+	"fmt"
+	"strings"
+	"time"
 )
 
 // CreateAffiliateCode mints a new DiscountCode row owned by the
 // dashboard user. Caller is responsible for uniqueness; see
 // IsCodeNameAvailable.
-func CreateAffiliateCode(ctx *config.AppContext, email, codeName string, buyerPct uint, confRefs []string) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createAffiliateCodePostgres(ctx, email, codeName, buyerPct, confRefs)
-	}
-	if email == "" {
-		return "", fmt.Errorf("CreateAffiliateCode: empty email")
-	}
-	if codeName == "" {
-		return "", fmt.Errorf("CreateAffiliateCode: empty codeName")
-	}
-	return createAffiliateCodeNotion(ctx.Notion, email, codeName, buyerPct, confRefs)
-}
 
 // UpdateAffiliateCode patches an existing DiscountCode row owned by
 // an affiliate.
-func UpdateAffiliateCode(ctx *config.AppContext, codeID, codeName string, buyerPct uint, confRefs []string) error {
-	if UsePostgresBackend(ctx) {
-		return updateAffiliateCodePostgres(ctx, codeID, codeName, buyerPct, confRefs)
-	}
-	if codeID == "" {
-		return fmt.Errorf("UpdateAffiliateCode: empty codeID")
-	}
-	return updateAffiliateCodeNotion(ctx, codeID, codeName, buyerPct, confRefs)
-}
 
 // ArchiveAffiliateCode soft-deletes the DiscountCode row. Past
 // AffiliateUsage rows stay put.
-func ArchiveAffiliateCode(ctx *config.AppContext, codeID string) error {
-	if UsePostgresBackend(ctx) {
-		return archiveAffiliateCodePostgres(ctx, codeID)
-	}
-	return archiveAffiliateCodeNotion(ctx, codeID)
-}
 
 // AffiliateUsageInput is the data needed to record one redemption.
 type AffiliateUsageInput struct {
@@ -54,48 +29,17 @@ type AffiliateUsageInput struct {
 	TicketsCount   uint
 }
 
-func RecordAffiliateUsage(ctx *config.AppContext, in AffiliateUsageInput) error {
-	if UsePostgresBackend(ctx) {
-		return recordAffiliateUsagePostgres(ctx, in)
-	}
-	return recordAffiliateUsageNotion(ctx, in)
-}
-
 // ListAffiliateUsage issues a live paginated query for every AffiliateUsageDb
 // row. This is intended for admin/backfill jobs, not request paths.
-func ListAffiliateUsage(ctx *config.AppContext) ([]*types.AffiliateUsage, error) {
-	if UsePostgresBackend(ctx) {
-		return listAffiliateUsagePostgres(ctx)
-	}
-	return listAffiliateUsageNotion(ctx)
-}
 
 // UpdateAffiliateUsageSats rewrites the stored sats split on an existing
 // AffiliateUsage row.
-func UpdateAffiliateUsageSats(ctx *config.AppContext, usageID string, savedSats, earnedSats int64) error {
-	if UsePostgresBackend(ctx) {
-		return updateAffiliateUsageSatsPostgres(ctx, usageID, savedSats, earnedSats)
-	}
-	return updateAffiliateUsageSatsNotion(ctx, usageID, savedSats, earnedSats)
-}
 
 // QueryAffiliateUsageByEmail issues a live query against AffiliateUsageDb
 // filtering on the AffiliateEmail field.
-func QueryAffiliateUsageByEmail(ctx *config.AppContext, email string) ([]*types.AffiliateUsage, error) {
-	if UsePostgresBackend(ctx) {
-		return queryAffiliateUsageByEmailPostgres(ctx, email)
-	}
-	return queryAffiliateUsageByEmailNotion(ctx, email)
-}
 
 // QueryAffiliateUsageByConf issues a live query against AffiliateUsageDb
 // filtering on Conference == confTag.
-func QueryAffiliateUsageByConf(ctx *config.AppContext, confTag string) ([]*types.AffiliateUsage, error) {
-	if UsePostgresBackend(ctx) {
-		return queryAffiliateUsageByConfPostgres(ctx, confTag)
-	}
-	return queryAffiliateUsageByConfNotion(ctx, confTag)
-}
 
 // AffiliateStatsTotals are the aggregate numbers shown on the dashboard's
 // affiliate section.
@@ -121,4 +65,144 @@ func SumAffiliateStatsByEmail(ctx *config.AppContext, email string) (AffiliateSt
 		totals.EarnedSats += r.EarnedSats
 	}
 	return totals, nil
+}
+
+func CreateAffiliateCode(ctx *config.AppContext, email, codeName string, buyerPct uint, confRefs []string) (string, error) {
+	if strings.TrimSpace(email) == "" {
+		return "", fmt.Errorf("CreateAffiliateCode: empty email")
+	}
+	if strings.TrimSpace(codeName) == "" {
+		return "", fmt.Errorf("CreateAffiliateCode: empty codeName")
+	}
+	return insertDiscountPostgres(ctx, codeName, fmt.Sprintf("%%%d", buyerPct), email, confRefs)
+}
+
+func UpdateAffiliateCode(ctx *config.AppContext, codeID, codeName string, buyerPct uint, confRefs []string) error {
+	if strings.TrimSpace(codeID) == "" {
+		return fmt.Errorf("UpdateAffiliateCode: empty codeID")
+	}
+	return updateDiscountRowPostgres(ctx, codeID, codeName, fmt.Sprintf("%%%d", buyerPct), nil, confRefs)
+}
+
+func ArchiveAffiliateCode(ctx *config.AppContext, codeID string) error {
+	return archiveDiscountRowPostgres(ctx, codeID)
+}
+
+func RecordAffiliateUsage(ctx *config.AppContext, in AffiliateUsageInput) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	_, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO affiliate_usages (
+			discount_id, conference_id, code_name_snapshot, affiliate_email,
+			saved_sats, earned_sats, tickets_count
+		)
+		VALUES (
+			(SELECT id FROM discounts WHERE code_name = $1 LIMIT 1),
+			(SELECT id FROM conferences WHERE tag = $2 LIMIT 1),
+			$1, $3, $4, $5, $6
+		)
+	`, in.CodeName, in.ConfTag, in.AffiliateEmail, in.SavedSats, in.EarnedSats, int(in.TicketsCount))
+	if err != nil {
+		return fmt.Errorf("insert affiliate usage: %w", err)
+	}
+	return nil
+}
+
+func ListAffiliateUsage(ctx *config.AppContext) ([]*types.AffiliateUsage, error) {
+	return queryAffiliateUsagePostgres(ctx, "", "")
+}
+
+func QueryAffiliateUsageByEmail(ctx *config.AppContext, email string) ([]*types.AffiliateUsage, error) {
+	if email == "" {
+		return nil, nil
+	}
+	return queryAffiliateUsagePostgres(ctx, "email", email)
+}
+
+func QueryAffiliateUsageByConf(ctx *config.AppContext, confTag string) ([]*types.AffiliateUsage, error) {
+	if confTag == "" {
+		return nil, nil
+	}
+	return queryAffiliateUsagePostgres(ctx, "conf", confTag)
+}
+
+func queryAffiliateUsagePostgres(ctx *config.AppContext, filter string, value string) ([]*types.AffiliateUsage, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	sql := `
+		SELECT au.id::text, au.code_name_snapshot::text, au.affiliate_email::text,
+			coalesce(c.tag, ''), au.saved_sats, au.earned_sats,
+			au.tickets_count, au.created_at
+		FROM affiliate_usages au
+		LEFT JOIN conferences c ON c.id = au.conference_id
+	`
+	args := []any{}
+	switch filter {
+	case "email":
+		sql += " WHERE au.affiliate_email = $1"
+		args = append(args, value)
+	case "conf":
+		sql += " WHERE c.tag = $1"
+		args = append(args, value)
+	case "":
+	default:
+		return nil, fmt.Errorf("unknown affiliate usage filter %q", filter)
+	}
+	sql += " ORDER BY au.created_at DESC, au.id"
+
+	rows, err := ctx.DB.Query(context.Background(), sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query affiliate usages: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*types.AffiliateUsage
+	for rows.Next() {
+		var usage types.AffiliateUsage
+		var ticketsCount int
+		var created time.Time
+		err := rows.Scan(
+			&usage.ID,
+			&usage.CodeName,
+			&usage.AffiliateEmail,
+			&usage.ConfTag,
+			&usage.SavedSats,
+			&usage.EarnedSats,
+			&ticketsCount,
+			&created,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan affiliate usage: %w", err)
+		}
+		usage.TicketsCount = uint(ticketsCount)
+		usage.Created = &created
+		out = append(out, &usage)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate affiliate usages: %w", err)
+	}
+	return out, nil
+}
+
+func UpdateAffiliateUsageSats(ctx *config.AppContext, usageID string, savedSats, earnedSats int64) error {
+	if usageID == "" {
+		return fmt.Errorf("UpdateAffiliateUsageSats: usageID is required")
+	}
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	tag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE affiliate_usages
+		SET saved_sats = $2, earned_sats = $3
+		WHERE id = $1
+	`, usageID, savedSats, earnedSats)
+	if err != nil {
+		return fmt.Errorf("update affiliate usage sats: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("affiliate usage %s not found", usageID)
+	}
+	return nil
 }
