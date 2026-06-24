@@ -233,6 +233,7 @@ func querySpeakerConfsPostgres(ctx *config.AppContext, where string, args []inte
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate speaker confs: %w", err)
 	}
+	rows.Close()
 
 	if err := hydrateSpeakerConfProposalsPostgres(ctx, ids, byID, proposalMap); err != nil {
 		return nil, err

@@ -240,6 +240,11 @@ func SendTickets(ctx *config.AppContext, tickets []*types.Ticket, confRef, email
 }
 
 func ComposeAndSendMail(ctx *config.AppContext, mail *Mail) error {
+	if ctx.Env.MailOff {
+		ctx.Infos.Printf("Mailer off; skipping send to %s with job %s", mail.Email, mail.JobKey)
+		return nil
+	}
+
 	var attaches mailer.AttachSet
 
 	attaches = make([]*mailer.Attachment, len(mail.Files))
