@@ -2,43 +2,10 @@ package getters
 
 import (
 	"strings"
-	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
-
-// getConfTalks refreshes the ConfTalk cache. Depends on Proposals being cached
-// so backend readers can attach linked Proposal pointers.
-func getConfTalks(ctx *config.AppContext) {
-	ctx.Infos.Printf("getting conftalks...")
-	proposalCacheMu.RLock()
-	pmap := make(map[string]*types.Proposal, len(proposalByID))
-	for k, v := range proposalByID {
-		pmap[k] = v
-	}
-	proposalCacheMu.RUnlock()
-
-	cts, err := ListConfTalks(ctx, pmap)
-	if err != nil {
-		ctx.Err.Printf("error fetching conftalks %s", err)
-		return
-	}
-	byProp := make(map[string]*types.ConfTalk, len(cts))
-	for _, ct := range cts {
-		if ct != nil && ct.Proposal != nil {
-			existing := byProp[ct.Proposal.ID]
-			if existing == nil || (existing.Sched == nil && ct.Sched != nil) {
-				byProp[ct.Proposal.ID] = ct
-			}
-		}
-	}
-	confTalkCacheMu.Lock()
-	cacheConfTalks = cts
-	confTalkByProposal = byProp
-	confTalkCacheMu.Unlock()
-	ctx.Infos.Printf("Loaded %d conftalks!", len(cts))
-}
 
 func ListConfTalks(ctx *config.AppContext, proposalMap map[string]*types.Proposal) ([]*types.ConfTalk, error) {
 	if UsePostgresBackend(ctx) {
@@ -47,43 +14,11 @@ func ListConfTalks(ctx *config.AppContext, proposalMap map[string]*types.Proposa
 	return listConfTalksNotion(ctx, proposalMap)
 }
 
-// FetchConfTalkByProposal returns the cached ConfTalk for proposalID, or nil if
-// no ConfTalk exists yet (or if the cache is empty).
-func FetchConfTalkByProposal(proposalID string) *types.ConfTalk {
-	confTalkCacheMu.RLock()
-	defer confTalkCacheMu.RUnlock()
-	return confTalkByProposal[proposalID]
-}
-
-// FetchConfTalkByID walks the warm cache for a ConfTalk with the given ID.
-func FetchConfTalkByID(id string) *types.ConfTalk {
-	confTalkCacheMu.RLock()
-	defer confTalkCacheMu.RUnlock()
-	for _, ct := range cacheConfTalks {
-		if ct != nil && ct.ID == id {
-			return ct
-		}
-	}
-	return nil
-}
-
 func GetConfTalkByID(ctx *config.AppContext, id string) (*types.ConfTalk, error) {
 	if UsePostgresBackend(ctx) {
 		return getConfTalkByIDPostgres(ctx, id)
 	}
-	return FetchConfTalkByID(id), nil
-}
-
-func InvalidateConfTalksCache() {
-	confTalkCacheMu.Lock()
-	lastConfTalkFetch = time.Time{}
-	confTalkCacheMu.Unlock()
-}
-
-func cacheConfTalksWarm() bool {
-	confTalkCacheMu.RLock()
-	defer confTalkCacheMu.RUnlock()
-	return cacheConfTalks != nil
+	return getConfTalkByIDNotion(ctx, id)
 }
 
 // GetConfTalkByProposal looks up the ConfTalk linked to a proposal.
@@ -92,12 +27,6 @@ func GetConfTalkByProposal(ctx *config.AppContext, proposalID string) (*types.Co
 		return getConfTalkByProposalPostgres(ctx, proposalID)
 	}
 
-	if ct := FetchConfTalkByProposal(proposalID); ct != nil {
-		return ct, nil
-	}
-	if cacheConfTalksWarm() {
-		return nil, nil
-	}
 	return getConfTalkByProposalNotion(ctx, proposalID)
 }
 

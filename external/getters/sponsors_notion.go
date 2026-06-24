@@ -86,7 +86,7 @@ func GetOrgNotion(n *types.Notion, ref string) (*types.Org, error) {
 
 func ListSponsorshipsNotion(ctx *config.AppContext, confRef string) ([]*types.Sponsorship, error) {
 	n := ctx.Notion
-	cachedOrgs, err := FetchOrgsCached(ctx)
+	orgs, err := ListOrgs(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func ListSponsorshipsNotion(ctx *config.AppContext, confRef string) ([]*types.Sp
 			return nil, err
 		}
 		for _, page := range pages {
-			sp := parseSponsorship(ctx, page.ID, page.Properties, cachedOrgs)
+			sp := parseSponsorship(ctx, page.ID, page.Properties, orgs)
 			sponsorships = append(sponsorships, sp)
 		}
 	}
@@ -294,7 +294,6 @@ func UpdateOrgDetailsNotion(n *types.Notion, org *types.Org) error {
 	if err := notionPagePost(n.Config.Token, "PATCH", "/"+org.Ref, body); err != nil {
 		return err
 	}
-	queueRefresh(JobOrgs)
 	return nil
 }
 

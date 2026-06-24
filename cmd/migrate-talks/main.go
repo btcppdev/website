@@ -108,11 +108,6 @@ func main() {
 	n := &types.Notion{Config: nc}
 	n.Setup(c.Notion.Token)
 
-	// Several getters (ListProposals, parseProposal → lookupConfByTag) walk
-	// the cached `confs` slice and refresh it via the worker pool when
-	// stale. We need to spin that pool up and synchronously warm the cache
-	// before any parser runs, otherwise FetchConfsCached deadlocks sending
-	// to taskChan with no consumer.
 	appCtx := &config.AppContext{
 		Env: &types.EnvConfig{
 			Notion:      *nc,
@@ -123,9 +118,6 @@ func main() {
 		Err:          log.New(os.Stderr, "ERR ", log.LstdFlags),
 		Infos:        log.New(os.Stdout, "INFO ", log.LstdFlags),
 	}
-	getters.StartWorkPool(appCtx)
-	defer getters.CloseWorkPool()
-	getters.WaitFetch(appCtx)
 
 	confs, err := getters.ListConferences(n)
 	if err != nil {

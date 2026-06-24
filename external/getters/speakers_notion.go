@@ -39,18 +39,6 @@ func getSpeakersByEmailNotion(n *types.Notion, email string) ([]*types.Speaker, 
 	if email == "" {
 		return nil, nil
 	}
-	if cached := cacheSpeakers; len(cached) > 0 {
-		var hits []*types.Speaker
-		for _, s := range cached {
-			if s != nil && strings.EqualFold(strings.TrimSpace(s.Email), email) {
-				s.Email = strings.TrimSpace(s.Email)
-				hits = append(hits, s)
-			}
-		}
-		if len(hits) > 0 {
-			return hits, nil
-		}
-	}
 	var speakers []*types.Speaker
 	pages, _, _, err := n.Client.QueryDatabase(context.Background(),
 		n.Config.SpeakersDb, notion.QueryDatabaseParam{
@@ -80,7 +68,6 @@ func createSpeakerNotion(n *types.Notion, in SpeakerInput) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	CacheSpeakerInsert(speakerFromInput(page.ID, in))
 	return page.ID, nil
 }
 
@@ -93,7 +80,6 @@ func updateSpeakerNotion(n *types.Notion, speakerID string, up SpeakerUpdate) er
 	if _, err := n.Client.UpdatePageProperties(context.Background(), speakerID, props); err != nil {
 		return err
 	}
-	patchCachedSpeaker(speakerID, up)
 	return nil
 }
 
@@ -101,11 +87,6 @@ func fetchSpeakerByIDNotion(n *types.Notion, speakerID string) (*types.Speaker, 
 	speakerID = strings.TrimSpace(speakerID)
 	if speakerID == "" {
 		return nil, nil
-	}
-	for _, s := range cacheSpeakers {
-		if s != nil && s.ID == speakerID {
-			return s, nil
-		}
 	}
 	page, err := n.Client.RetrievePage(context.Background(), speakerID)
 	if err != nil {
@@ -121,12 +102,6 @@ func updateSpeakerRolesNotion(n *types.Notion, speakerID string, roles []string)
 		})
 	if err != nil {
 		return err
-	}
-	for _, s := range cacheSpeakers {
-		if s != nil && s.ID == speakerID {
-			s.Roles = append(s.Roles[:0], roles...)
-			break
-		}
 	}
 	return nil
 }

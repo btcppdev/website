@@ -94,12 +94,6 @@ func main() {
 		Infos:        log.New(os.Stdout, "INFO ", log.LstdFlags),
 	}
 
-	// Confs cache must be warm for parseProposal/parseConfTalk to resolve
-	// tag → *Conf via lookupConfByTag.
-	getters.StartWorkPool(appCtx)
-	defer getters.CloseWorkPool()
-	getters.WaitFetch(appCtx)
-
 	spaces.Init(env.Spaces)
 	if !spaces.IsConfigured() {
 		log.Fatal("spaces is not configured (check SPACES_* env vars)")
@@ -109,7 +103,7 @@ func main() {
 	handlers.PreloadCardHashes(appCtx)
 
 	if *activeOnly {
-		confs, _ := getters.FetchConfsCached(appCtx)
+		confs, _ := getters.ListConfs(appCtx)
 		var refreshed int
 		for _, c := range confs {
 			if c == nil || !c.Active || !c.InFuture() {
@@ -132,7 +126,7 @@ func main() {
 	// Sponsor-only mode skips the talk/speaker pass and refreshes
 	// matching sponsors for the named conf.
 	if *sponsorsOnly || *orgQ != "" {
-		confs, _ := getters.FetchConfsCached(appCtx)
+		confs, _ := getters.ListConfs(appCtx)
 		var hit *types.Conf
 		for _, c := range confs {
 			if c != nil && c.Tag == *confTag {
@@ -169,7 +163,7 @@ func main() {
 	// ambient RefreshSponsorCards (called from the running web app)
 	// covers active/future confs already.
 	if *confTag != "" && *speakerQ == "" {
-		confs, _ := getters.FetchConfsCached(appCtx)
+		confs, _ := getters.ListConfs(appCtx)
 		for _, c := range confs {
 			if c != nil && c.Tag == *confTag {
 				handlers.RefreshSponsorCardsForConfOpt(appCtx, c, "", *force)

@@ -67,9 +67,6 @@ func TestPostgresSmokeDiscountScopedToConference(t *testing.T) {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM discounts WHERE id::text = $1 OR code_name = $2`, discountID, code)
 	})
 
-	discounts = nil
-	lastDiscountFetch = time.Time{}
-
 	found, err := FindDiscount(ctx, strings.ToLower(code))
 	if err != nil {
 		t.Fatalf("FindDiscount postgres: %v", err)
@@ -153,18 +150,6 @@ func TestPostgresSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM conf_talks WHERE id::text = $1`, confTalkID)
 	})
-
-	originalConfs := confs
-	originalLastConfsFetch := lastConfsFetch
-	t.Cleanup(func() {
-		confs = originalConfs
-		lastConfsFetch = originalLastConfsFetch
-	})
-	confs, err = listConferencesPostgres(ctx)
-	if err != nil {
-		t.Fatalf("listConferencesPostgres: %v", err)
-	}
-	lastConfsFetch = time.Now()
 
 	talks, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.id::text = $1", []interface{}{confTalkID}, map[string]*types.Proposal{})
 	if err != nil {
@@ -344,24 +329,6 @@ func TestPostgresSmokeWorkShiftScheduleUsesConferenceTimezone(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM work_shifts WHERE id::text = $1`, shiftID)
 	})
-
-	originalConfs := confs
-	originalLastConfsFetch := lastConfsFetch
-	originalJobs := jobs
-	originalLastJobTypeFetch := lastJobTypeFetch
-	t.Cleanup(func() {
-		confs = originalConfs
-		lastConfsFetch = originalLastConfsFetch
-		jobs = originalJobs
-		lastJobTypeFetch = originalLastJobTypeFetch
-	})
-	confs, err = listConferencesPostgres(ctx)
-	if err != nil {
-		t.Fatalf("listConferencesPostgres: %v", err)
-	}
-	lastConfsFetch = time.Now()
-	jobs = nil
-	lastJobTypeFetch = time.Now()
 
 	shifts, err := listWorkShiftsPostgres(ctx)
 	if err != nil {

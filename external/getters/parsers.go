@@ -233,7 +233,7 @@ func lookupConfByTag(ctx *config.AppContext, tag string) *types.Conf {
 		conf, _ := GetConfByTag(ctx, tag)
 		return conf
 	}
-	confs, err := FetchConfsCached(ctx)
+	confs, err := ListConfs(ctx)
 	if err != nil {
 		return nil
 	}
@@ -455,7 +455,7 @@ func parseConfOne(ctx *config.AppContext, field string, props map[string]notion.
 		return nil
 	}
 
-	confs, _ := FetchConfsCached(ctx)
+	confs, _ := ListConfs(ctx)
 	for _, ref := range objRefs {
 		for _, c := range confs {
 			if c.Ref == ref.ID {
@@ -481,7 +481,7 @@ func parseConfList(ctx *config.AppContext, field string, props map[string]notion
 		return list
 	}
 
-	confs, _ := FetchConfsCached(ctx)
+	confs, _ := ListConfs(ctx)
 	for _, ref := range objRefs {
 		for _, c := range confs {
 			if c.Ref == ref.ID {
@@ -496,7 +496,7 @@ func parseConfList(ctx *config.AppContext, field string, props map[string]notion
 func parseOrgOne(ctx *config.AppContext, field string, props map[string]notion.PropertyValue) *types.Org {
 	objRefs := props[field].Relation
 
-	orgs, _ := FetchOrgsCached(ctx)
+	orgs, _ := ListOrgs(ctx)
 	for _, ref := range objRefs {
 		for _, org := range orgs {
 			if org.Ref == ref.ID {
@@ -512,7 +512,7 @@ func parseJobList(ctx *config.AppContext, field string, props map[string]notion.
 	var list []*types.JobType
 	objRefs := props[field].Relation
 
-	jobs, _ := FetchJobsCached(ctx)
+	jobs, _ := ListJobTypes(ctx)
 	for _, ref := range objRefs {
 		for _, j := range jobs {
 			if j.Ref == ref.ID {

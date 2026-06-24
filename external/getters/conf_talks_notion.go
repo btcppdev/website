@@ -2,6 +2,7 @@ package getters
 
 import (
 	"context"
+	"fmt"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
@@ -46,6 +47,14 @@ func getConfTalkByProposalNotion(ctx *config.AppContext, proposalID string) (*ty
 		return nil, nil
 	}
 	return parseConfTalk(ctx, pages[0].ID, pages[0].Properties, nil), nil
+}
+
+func getConfTalkByIDNotion(ctx *config.AppContext, confTalkID string) (*types.ConfTalk, error) {
+	page, err := ctx.Notion.Client.RetrievePage(context.Background(), confTalkID)
+	if err != nil {
+		return nil, fmt.Errorf("retrieve conf talk %s: %w", confTalkID, err)
+	}
+	return parseConfTalk(ctx, page.ID, page.Properties, nil), nil
 }
 
 func loadTalkFromConfTalkNotion(ctx *config.AppContext, confTalkID string) (*types.Talk, error) {
@@ -101,13 +110,5 @@ func talkUpdateCalNotifNotion(n *types.Notion, talkID string, calnotif string) e
 	if err != nil {
 		return err
 	}
-	confTalkCacheMu.Lock()
-	for _, ct := range cacheConfTalks {
-		if ct != nil && ct.ID == talkID {
-			ct.CalNotif = calnotif
-			break
-		}
-	}
-	confTalkCacheMu.Unlock()
 	return nil
 }

@@ -187,9 +187,6 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 			return
 		}
 		confTalkID = newID
-		if !getters.UsePostgresBackend(ctx) {
-			getters.InvalidateConfTalksCache()
-		}
 	}
 
 	limitRequestBody(w, r, maxMultipartBodyBytes)
@@ -254,12 +251,6 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 		bail("Patch Notion ConfTalk.Clipart: " + err.Error())
 		return
 	}
-	// Notion-backed cliparts reads still use warm caches on redirect.
-	if !getters.UsePostgresBackend(ctx) {
-		getters.InvalidateConfTalksCache()
-		getters.InvalidateTalksCache()
-	}
-
 	http.Redirect(w, r,
 		fmt.Sprintf("/%s/admin/cliparts?flash=%s",
 			conf.Tag, url.QueryEscape("Uploaded "+clean+".png + .avif")),

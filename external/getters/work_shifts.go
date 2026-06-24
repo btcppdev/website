@@ -7,34 +7,6 @@ import (
 	"btcpp-web/internal/types"
 )
 
-func getShifts(ctx *config.AppContext) {
-	var err error
-	ctx.Infos.Printf("getting shifts...")
-	if UsePostgresBackend(ctx) {
-		shifts, err = listWorkShiftsPostgres(ctx)
-	} else {
-		shifts, err = ListWorkShiftsNotion(ctx)
-	}
-
-	if err != nil {
-		ctx.Err.Printf("error fetching shifts %s", err)
-	} else {
-		ctx.Infos.Printf("Loaded %d shifts!", len(shifts))
-	}
-}
-
-/* This may return nil */
-func FetchShiftsCached(ctx *config.AppContext) ([]*types.WorkShift, error) {
-	now := time.Now()
-	deadline := now.Add(-cacheTTL)
-	if shifts == nil || lastShiftFetch.Before(deadline) {
-		lastShiftFetch = time.Now()
-		queueRefresh(JobShifts)
-	}
-
-	return shifts, nil
-}
-
 func ListWorkShifts(ctx *config.AppContext) ([]*types.WorkShift, error) {
 	if UsePostgresBackend(ctx) {
 		return listWorkShiftsPostgres(ctx)
@@ -47,7 +19,7 @@ func GetShiftsForConf(ctx *config.AppContext, confTag string) ([]*types.WorkShif
 		return listWorkShiftsForConfPostgres(ctx, confTag)
 	}
 
-	allShifts, err := FetchShiftsCached(ctx)
+	allShifts, err := ListWorkShifts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +38,7 @@ func GetWorkShiftByRef(ctx *config.AppContext, shiftRef string) (*types.WorkShif
 		return getWorkShiftByRefPostgres(ctx, shiftRef)
 	}
 
-	allShifts, err := FetchShiftsCached(ctx)
+	allShifts, err := ListWorkShifts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -125,21 +97,4 @@ func RemoveVolunteerFromShift(ctx *config.AppContext, volRef, shiftRef string) e
 		return removeVolunteerFromShiftPostgres(ctx, volRef, shiftRef)
 	}
 	return RemoveVolunteerFromShiftNotion(ctx, volRef, shiftRef)
-}
-
-// invalidateShiftCache forces the next FetchShiftsCached call to refetch for
-// Notion-backed work-shift writes.
-func invalidateShiftCache() {
-	shifts = nil
-	lastShiftFetch = time.Time{}
-}
-
-func refreshShiftCache(ctx *config.AppContext, caller string) {
-	fresh, err := ListWorkShifts(ctx)
-	if err == nil {
-		shifts = fresh
-		lastShiftFetch = time.Now()
-		return
-	}
-	ctx.Err.Printf("%s: cache reload (continuing): %s", caller, err)
 }

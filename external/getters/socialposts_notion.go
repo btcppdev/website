@@ -65,17 +65,8 @@ func recordSocialPostNotion(ctx *config.AppContext, ref, text, platform string, 
 		),
 	}
 
-	page, err := n.Client.CreatePage(context.Background(),
+	_, err := n.Client.CreatePage(context.Background(),
 		notion.NewDatabaseParent(n.Config.SocialPostsDb), props)
-	if err == nil {
-		cacheSocialPost(&types.SocialPost{
-			ID:       page.ID,
-			Ref:      ref,
-			Text:     text,
-			PostedTo: platform,
-			PostedAt: &postedAt,
-		})
-	}
 	return err
 }
 
@@ -119,7 +110,6 @@ func upsertSocialPostNotion(ctx *config.AppContext, up SocialPostUpdate) (*types
 			return nil, fmt.Errorf("notion update social post %s: %w", up.Ref, err)
 		}
 		updated := applySocialPostUpdate(existing, up)
-		cacheSocialPost(updated)
 		return updated, nil
 	}
 	page, err := ctx.Notion.Client.CreatePage(context.Background(),
@@ -128,14 +118,10 @@ func upsertSocialPostNotion(ctx *config.AppContext, up SocialPostUpdate) (*types
 		return nil, fmt.Errorf("notion create social post %s: %w", up.Ref, err)
 	}
 	created := applySocialPostUpdate(&types.SocialPost{ID: page.ID}, up)
-	cacheSocialPost(created)
 	return created, nil
 }
 
 func findSocialPostByRefNotion(ctx *config.AppContext, ref string) (*types.SocialPost, error) {
-	if cached := findCachedSocialPostByRef(ref); cached != nil {
-		return cached, nil
-	}
 	pages, _, _, err := ctx.Notion.Client.QueryDatabase(context.Background(),
 		ctx.Notion.Config.SocialPostsDb, notion.QueryDatabaseParam{
 			Filter: &notion.Filter{
@@ -149,9 +135,7 @@ func findSocialPostByRefNotion(ctx *config.AppContext, ref string) (*types.Socia
 	if len(pages) == 0 {
 		return nil, nil
 	}
-	post := parseSocialPost(pages[0])
-	cacheSocialPost(post)
-	return post, nil
+	return parseSocialPost(pages[0]), nil
 }
 
 func socialPostUpdateProps(up SocialPostUpdate, includeRef bool) map[string]*notion.PropertyValue {

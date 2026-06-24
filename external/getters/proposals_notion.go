@@ -73,11 +73,6 @@ func upsertSpeakerConfNotion(ctx *config.AppContext, in SpeakerConfInput) (strin
 			if err != nil {
 				return "", fmt.Errorf("append talk to %s: %w", existingID, err)
 			}
-			if cached := FetchSpeakerConfByID(existingID); cached != nil {
-				if p, _ := GetProposal(ctx, in.ProposalID); p != nil {
-					cached.Proposals = append(cached.Proposals, p)
-				}
-			}
 		}
 		return existingID, nil
 	}
@@ -123,7 +118,6 @@ func upsertSpeakerConfNotion(ctx *config.AppContext, in SpeakerConfInput) (strin
 	sc := &types.SpeakerConf{
 		ID:           page.ID,
 		ComingFrom:   in.ComingFrom,
-		Speaker:      CacheSpeakerByID(in.SpeakerID),
 		Availability: in.Availability,
 		RecordOK:     in.RecordOK,
 		Visa:         in.Visa,
@@ -133,12 +127,12 @@ func upsertSpeakerConfNotion(ctx *config.AppContext, in SpeakerConfInput) (strin
 		Company:      in.Company,
 		OrgPhoto:     in.OrgPhoto,
 	}
+	sc.Speaker, _ = FetchSpeakerByID(ctx, in.SpeakerID)
 	if in.ProposalID != "" {
 		if p, _ := GetProposal(ctx, in.ProposalID); p != nil {
 			sc.Proposals = append(sc.Proposals, p)
 		}
 	}
-	CacheSpeakerConfInsert(sc)
 	return page.ID, nil
 }
 
@@ -202,23 +196,6 @@ func createConfTalkNotion(n *types.Notion, in ConfTalkInput) (string, error) {
 		return "", err
 	}
 
-	ct := &types.ConfTalk{ID: page.ID}
-	if in.ProposalID != "" {
-		proposalCacheMu.RLock()
-		ct.Proposal = proposalByID[in.ProposalID]
-		proposalCacheMu.RUnlock()
-	}
-	confTalkCacheMu.Lock()
-	cacheConfTalks = append(cacheConfTalks, ct)
-	if confTalkByProposal == nil {
-		confTalkByProposal = make(map[string]*types.ConfTalk)
-	}
-	if in.ProposalID != "" {
-		confTalkByProposal[in.ProposalID] = ct
-	}
-	lastConfTalkFetch = time.Time{}
-	confTalkCacheMu.Unlock()
-
 	return page.ID, nil
 }
 
@@ -238,16 +215,6 @@ func updateConfTalkScheduleNotion(ctx *config.AppContext, confTalkID, venue stri
 		return fmt.Errorf("update conftalk %s schedule: %w", confTalkID, err)
 	}
 
-	confTalkCacheMu.Lock()
-	for _, ct := range cacheConfTalks {
-		if ct == nil || ct.ID != confTalkID {
-			continue
-		}
-		ct.Sched = &types.Times{Start: start, End: &endCopy}
-		ct.Venue = venue
-	}
-	lastConfTalkFetch = time.Time{}
-	confTalkCacheMu.Unlock()
 	return nil
 }
 
@@ -277,21 +244,6 @@ func deleteConfTalkNotion(ctx *config.AppContext, confTalkID string) error {
 		return fmt.Errorf("notion archive %s: %v", confTalkID, errResp)
 	}
 
-	confTalkCacheMu.Lock()
-	for proposalID, ct := range confTalkByProposal {
-		if ct != nil && ct.ID == confTalkID {
-			delete(confTalkByProposal, proposalID)
-		}
-	}
-	out := cacheConfTalks[:0]
-	for _, ct := range cacheConfTalks {
-		if ct != nil && ct.ID != confTalkID {
-			out = append(out, ct)
-		}
-	}
-	cacheConfTalks = out
-	lastConfTalkFetch = time.Time{}
-	confTalkCacheMu.Unlock()
 	return nil
 }
 
@@ -394,9 +346,6 @@ func updateSpeakerConfNotion(ctx *config.AppContext, speakerConfID string, in Sp
 		vals["org"] = relationValue([]string{in.OrgID})
 	}
 	_, err := ctx.Notion.Client.UpdatePageProperties(context.Background(), speakerConfID, vals)
-	if err == nil {
-		InvalidateSpeakerConfsCache()
-	}
 	return err
 }
 
@@ -439,14 +388,6 @@ func confTalkSetClipartNotion(n *types.Notion, confTalkID, filename string) erro
 	if err != nil {
 		return err
 	}
-	confTalkCacheMu.Lock()
-	for _, ct := range cacheConfTalks {
-		if ct != nil && ct.ID == confTalkID {
-			ct.Clipart = filename
-			break
-		}
-	}
-	confTalkCacheMu.Unlock()
 	return nil
 }
 
@@ -480,7 +421,6 @@ func updateProposalNotion(ctx *config.AppContext, proposalID string, in Proposal
 	if err != nil {
 		return err
 	}
-	InvalidateProposalsCache()
 	return nil
 }
 
@@ -489,16 +429,6 @@ func updateProposalStatusNotion(ctx *config.AppContext, proposalID, status strin
 		map[string]*notion.PropertyValue{
 			"Status": selectValue(status),
 		})
-	if err == nil {
-		InvalidateProposalsCache()
-		InvalidateSpeakerConfsCache()
-		proposalCacheMu.Lock()
-		if p := proposalByID[proposalID]; p != nil {
-			p.Status = status
-		}
-		proposalCacheMu.Unlock()
-		patchTalksStatusForProposal(proposalID, status)
-	}
 	return err
 }
 
@@ -527,27 +457,6 @@ func removeProposalFromSpeakerConfNotion(ctx *config.AppContext, speakerConfID, 
 			return fmt.Errorf("update speakerconf %s: %w", speakerConfID, err)
 		}
 	}
-	InvalidateSpeakerConfsCache()
-	if cached := FetchSpeakerConfByID(speakerConfID); cached != nil {
-		out := cached.Proposals[:0]
-		for _, p := range cached.Proposals {
-			if p != nil && p.ID != proposalID {
-				out = append(out, p)
-			}
-		}
-		cached.Proposals = out
-	}
-	proposalCacheMu.Lock()
-	if p := proposalByID[proposalID]; p != nil {
-		out := p.SpeakerConfRefs[:0]
-		for _, ref := range p.SpeakerConfRefs {
-			if ref != speakerConfID {
-				out = append(out, ref)
-			}
-		}
-		p.SpeakerConfRefs = out
-	}
-	proposalCacheMu.Unlock()
 	return nil
 }
 
@@ -562,13 +471,12 @@ func setProposalInviteTokenNotion(ctx *config.AppContext, proposalID, token stri
 	if err != nil {
 		return fmt.Errorf("set invite token on %s: %w", proposalID, err)
 	}
-	InvalidateProposalsCache()
 	return nil
 }
 
 func setSpeakerConfDate(ctx *config.AppContext, speakerConfID, field string, when time.Time, onlyIfEmpty bool) error {
 	if onlyIfEmpty {
-		if sc := FetchSpeakerConfByID(speakerConfID); sc != nil {
+		if sc, _ := GetSpeakerConfByID(ctx, speakerConfID); sc != nil {
 			already := scTimestamp(sc, field)
 			if already != nil {
 				return nil
@@ -581,18 +489,6 @@ func setSpeakerConfDate(ctx *config.AppContext, speakerConfID, field string, whe
 		})
 	if err != nil {
 		return fmt.Errorf("set %s on speakerconf %s: %w", field, speakerConfID, err)
-	}
-	InvalidateSpeakerConfsCache()
-	if cached := FetchSpeakerConfByID(speakerConfID); cached != nil {
-		w := when
-		switch field {
-		case "InvitedAt":
-			cached.InvitedAt = &w
-		case "ViewedAt":
-			cached.ViewedAt = &w
-		case "AcceptedAt":
-			cached.AcceptedAt = &w
-		}
 	}
 	return nil
 }
@@ -644,21 +540,6 @@ func addSpeakerConfToProposalNotion(ctx *config.AppContext, proposalID, speakerC
 	if err != nil {
 		return fmt.Errorf("update proposal %s: %w", proposalID, err)
 	}
-	InvalidateProposalsCache()
-	proposalCacheMu.Lock()
-	if p := proposalByID[proposalID]; p != nil {
-		alreadyHas := false
-		for _, ref := range p.SpeakerConfRefs {
-			if ref == speakerConfID {
-				alreadyHas = true
-				break
-			}
-		}
-		if !alreadyHas {
-			p.SpeakerConfRefs = append(p.SpeakerConfRefs, speakerConfID)
-		}
-	}
-	proposalCacheMu.Unlock()
 	return nil
 }
 

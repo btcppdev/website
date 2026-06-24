@@ -27,7 +27,6 @@ func createAffiliateCodeNotion(n *types.Notion, email, codeName string, buyerPct
 	if err != nil {
 		return "", err
 	}
-	queueRefresh(JobDiscounts)
 	return page.ID, nil
 }
 
@@ -48,7 +47,6 @@ func updateAffiliateCodeNotion(ctx *config.AppContext, codeID, codeName string, 
 			return err
 		}
 	}
-	queueRefresh(JobDiscounts)
 	return nil
 }
 
@@ -77,7 +75,6 @@ func archiveAffiliateCodeNotion(ctx *config.AppContext, codeID string) error {
 		_ = json.NewDecoder(resp.Body).Decode(&errResp)
 		return fmt.Errorf("notion archive discount %s: %v", codeID, errResp)
 	}
-	queueRefresh(JobDiscounts)
 	return nil
 }
 

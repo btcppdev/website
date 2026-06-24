@@ -642,9 +642,7 @@ func nextProposalAfter(pending []*types.Proposal, fromID string) *types.Proposal
 }
 
 // resolveProposalSpeakers returns the SpeakerConf objects for every speaker on
-// the proposal, fully resolved (Speaker pointer attached). When ctx is supplied
-// and Postgres is active, it uses direct reads; no-context callers keep the
-// legacy cache-backed behavior.
+// the proposal, fully resolved (Speaker pointer attached).
 func resolveProposalSpeakers(p *types.Proposal, ctxs ...*config.AppContext) []*types.SpeakerConf {
 	if p == nil {
 		return nil
@@ -655,16 +653,13 @@ func resolveProposalSpeakers(p *types.Proposal, ctxs ...*config.AppContext) []*t
 	}
 	out := make([]*types.SpeakerConf, 0, len(p.SpeakerConfRefs))
 	for _, ref := range p.SpeakerConfRefs {
-		var sc *types.SpeakerConf
-		if ctx != nil {
-			var err error
-			sc, err = getters.GetSpeakerConfByID(ctx, ref)
-			if err != nil {
-				ctx.Err.Printf("resolveProposalSpeakers %s speakerconf %s: %s", p.ID, ref, err)
-				continue
-			}
-		} else {
-			sc = getters.FetchSpeakerConfByID(ref)
+		if ctx == nil {
+			continue
+		}
+		sc, err := getters.GetSpeakerConfByID(ctx, ref)
+		if err != nil {
+			ctx.Err.Printf("resolveProposalSpeakers %s speakerconf %s: %s", p.ID, ref, err)
+			continue
 		}
 		if sc != nil {
 			out = append(out, sc)

@@ -2,7 +2,6 @@ package getters
 
 import (
 	"fmt"
-	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
@@ -23,32 +22,11 @@ type HotelInput struct {
 	ConfRef string // Conference page ID for the `conf` relation
 }
 
-func getHotels(ctx *config.AppContext) {
-	var err error
-	ctx.Infos.Printf("getting hotels...")
+func listHotels(ctx *config.AppContext) ([]*types.Hotel, error) {
 	if UsePostgresBackend(ctx) {
-		hotels, err = listHotelsPostgres(ctx)
-	} else {
-		hotels, err = ListHotelsNotion(ctx.Notion)
+		return listHotelsPostgres(ctx)
 	}
-
-	if err != nil {
-		ctx.Err.Printf("error fetching hotels %s", err)
-	} else {
-		ctx.Infos.Printf("Loaded %d hotels!", len(hotels))
-	}
-}
-
-/* This may return nil */
-func FetchHotelsCached(ctx *config.AppContext) ([]*types.Hotel, error) {
-	now := time.Now()
-	deadline := now.Add(-cacheTTL)
-	if hotels == nil || lastHotelFetch.Before(deadline) {
-		lastHotelFetch = time.Now()
-		queueRefresh(JobHotels)
-	}
-
-	return hotels, nil
+	return ListHotelsNotion(ctx.Notion)
 }
 
 func ListHotels(n *types.Notion) ([]*types.Hotel, error) {
@@ -59,7 +37,7 @@ func ListHotelsForConf(ctx *config.AppContext, confRef string) ([]*types.Hotel, 
 	if UsePostgresBackend(ctx) {
 		return listHotelsForConfPostgres(ctx, confRef)
 	}
-	allHotels, err := FetchHotelsCached(ctx)
+	allHotels, err := listHotels(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -104,10 +82,4 @@ func ArchiveHotel(ctx *config.AppContext, hotelID string) error {
 		return archiveHotelPostgres(ctx, hotelID)
 	}
 	return archiveHotelNotion(ctx, hotelID)
-}
-
-// RefreshHotelsCache forces the next FetchHotelsCached call to fetch
-// fresh data for Notion-backed hotel CRUD flows.
-func RefreshHotelsCache() {
-	queueRefresh(JobHotels)
 }

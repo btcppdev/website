@@ -479,9 +479,6 @@ func ScheduleAddTalk(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		flash("Couldn't add talk: " + err.Error())
 		return
 	}
-	if !getters.UsePostgresBackend(ctx) {
-		getters.InvalidateProposalsCache()
-	}
 	flash(fmt.Sprintf("Added %q (%d min %s) to the sidebar.", title, dur, talkType))
 }
 
@@ -545,10 +542,6 @@ func ScheduleAddHackathon(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		}
 		added++
 	}
-	if !getters.UsePostgresBackend(ctx) {
-		getters.InvalidateProposalsCache()
-	}
-
 	flash := fmt.Sprintf("Added %d hackathon proposal(s).", added)
 	if added == 0 {
 		flash = "Hackathon proposals already exist for this conf — nothing added."

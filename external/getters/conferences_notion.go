@@ -118,17 +118,11 @@ func confUpdateOrientCalNotifNotion(n *types.Notion, confRef string, calnotif st
 	if err != nil {
 		return err
 	}
-	for _, c := range confs {
-		if c != nil && c.Ref == confRef {
-			c.OrientCalNotif = calnotif
-			break
-		}
-	}
 	return nil
 }
 
 func ListConfInfosNotion(ctx *config.AppContext, confTag string) ([]*types.ConfInfo, error) {
-	confs, err := FetchConfsCached(ctx)
+	confs, err := ListConfs(ctx)
 	if err != nil {
 		return nil, err
 	}

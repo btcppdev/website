@@ -295,11 +295,8 @@ func runUpload(inPath string, dry bool) {
 
 	// Existing sponsorships keyed by (confRef, orgRef) so re-runs
 	// (and overlaps with manually-entered Notion rows) are
-	// idempotent. Bypass the production parseSponsorship path —
-	// it walks the FetchConfsCached / FetchOrgsCached pipelines
-	// which only populate via background cache jobs the CLI
-	// doesn't run. Just query the Sponsorships DB raw and pull
-	// the "event" + "org" relation page IDs.
+	// idempotent. Query the Sponsorships DB raw and pull the
+	// "event" + "org" relation page IDs.
 	existing, npairs, err := preflightExistingPairs(n)
 	if err != nil {
 		log.Fatalf("preflight list sponsorships: %s", err)

@@ -19,37 +19,11 @@ type DiscountInput struct {
 	AffiliateEmail string
 }
 
-func getDiscounts(ctx *config.AppContext) {
-	var err error
-	ctx.Infos.Printf("getting discounts...")
+func listDiscounts(ctx *config.AppContext) ([]*types.DiscountCode, error) {
 	if UsePostgresBackend(ctx) {
-		discounts, err = listDiscountsPostgres(ctx)
-	} else {
-		discounts, err = ListDiscountsNotion(ctx.Notion)
+		return listDiscountsPostgres(ctx)
 	}
-
-	if err != nil {
-		ctx.Err.Printf("error fetching discounts %s", err)
-	} else {
-		ctx.Infos.Printf("Loaded %d discounts!", len(discounts))
-	}
-}
-
-/* This may return nil */
-func FetchDiscountsCached(ctx *config.AppContext) ([]*types.DiscountCode, error) {
-	now := time.Now()
-	deadline := now.Add(-cacheTTL)
-	if discounts == nil || lastDiscountFetch.Before(deadline) {
-		/* Set last fetch to now even if there's errors */
-		lastDiscountFetch = time.Now()
-		queueRefresh(JobDiscounts)
-	}
-
-	return discounts, nil
-}
-
-func listDiscountsCached(ctx *config.AppContext) ([]*types.DiscountCode, error) {
-	return FetchDiscountsCached(ctx)
+	return ListDiscountsNotion(ctx.Notion)
 }
 
 func ListDiscounts(n *types.Notion) ([]*types.DiscountCode, error) {
@@ -60,7 +34,7 @@ func ListDiscountsForConf(ctx *config.AppContext, confRef string) ([]*types.Disc
 	if UsePostgresBackend(ctx) {
 		return listDiscountsForConfPostgres(ctx, confRef)
 	}
-	discounts, err := listDiscountsCached(ctx)
+	discounts, err := listDiscounts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +57,7 @@ func GetDiscountByCode(ctx *config.AppContext, code string) (*types.DiscountCode
 	if UsePostgresBackend(ctx) {
 		return getDiscountByCodePostgres(ctx, code)
 	}
-	return findDiscountCached(ctx, code)
+	return findDiscount(ctx, code)
 }
 
 func FindDiscount(ctx *config.AppContext, code string) (*types.DiscountCode, error) {
@@ -94,25 +68,25 @@ func GetDiscountByRef(ctx *config.AppContext, ref string) (*types.DiscountCode, 
 	if UsePostgresBackend(ctx) {
 		return getDiscountByRefPostgres(ctx, ref)
 	}
-	return getDiscountByRefCached(ctx, ref)
+	return getDiscountByRef(ctx, ref)
 }
 
 func FindAffiliateCodeByEmail(ctx *config.AppContext, email string) (*types.DiscountCode, error) {
 	if UsePostgresBackend(ctx) {
 		return getDiscountByAffiliateEmailPostgres(ctx, email)
 	}
-	return findAffiliateCodeByEmailCached(ctx, email)
+	return findAffiliateCodeByEmail(ctx, email)
 }
 
 func IsCodeNameAvailable(ctx *config.AppContext, codeName string) (bool, error) {
 	if UsePostgresBackend(ctx) {
 		return isCodeNameAvailablePostgres(ctx, codeName)
 	}
-	return isCodeNameAvailableCached(ctx, codeName)
+	return isCodeNameAvailable(ctx, codeName)
 }
 
-func findDiscountCached(ctx *config.AppContext, code string) (*types.DiscountCode, error) {
-	discounts, err := listDiscountsCached(ctx)
+func findDiscount(ctx *config.AppContext, code string) (*types.DiscountCode, error) {
+	discounts, err := listDiscounts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -126,11 +100,11 @@ func findDiscountCached(ctx *config.AppContext, code string) (*types.DiscountCod
 	return nil, nil
 }
 
-func getDiscountByRefCached(ctx *config.AppContext, ref string) (*types.DiscountCode, error) {
+func getDiscountByRef(ctx *config.AppContext, ref string) (*types.DiscountCode, error) {
 	if ref == "" {
 		return nil, nil
 	}
-	discounts, err := listDiscountsCached(ctx)
+	discounts, err := listDiscounts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -142,11 +116,11 @@ func getDiscountByRefCached(ctx *config.AppContext, ref string) (*types.Discount
 	return nil, nil
 }
 
-func findAffiliateCodeByEmailCached(ctx *config.AppContext, email string) (*types.DiscountCode, error) {
+func findAffiliateCodeByEmail(ctx *config.AppContext, email string) (*types.DiscountCode, error) {
 	if email == "" {
 		return nil, nil
 	}
-	discounts, err := listDiscountsCached(ctx)
+	discounts, err := listDiscounts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -159,11 +133,11 @@ func findAffiliateCodeByEmailCached(ctx *config.AppContext, email string) (*type
 	return nil, nil
 }
 
-func isCodeNameAvailableCached(ctx *config.AppContext, codeName string) (bool, error) {
+func isCodeNameAvailable(ctx *config.AppContext, codeName string) (bool, error) {
 	if codeName == "" {
 		return false, nil
 	}
-	discounts, err := listDiscountsCached(ctx)
+	discounts, err := listDiscounts(ctx)
 	if err != nil {
 		return false, err
 	}

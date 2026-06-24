@@ -242,12 +242,6 @@ func confUpdateOrientCalNotifPostgres(ctx *config.AppContext, confRef string, ca
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("conference %s not found", confRef)
 	}
-	for _, conf := range confs {
-		if conf != nil && conf.Ref == confRef {
-			conf.OrientCalNotif = calnotif
-			break
-		}
-	}
 	return nil
 }
 

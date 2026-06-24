@@ -14,7 +14,7 @@ func ListWorkShiftsNotion(ctx *config.AppContext) ([]*types.WorkShift, error) {
 	var shiftList []*types.WorkShift
 	n := ctx.Notion
 
-	jobtypes, err := FetchJobsCached(ctx)
+	jobtypes, err := ListJobTypes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,6 @@ func CreateShiftNotion(ctx *config.AppContext, conf *types.Conf, jobType *types.
 		return err
 	}
 
-	invalidateShiftCache()
 	return nil
 }
 
@@ -123,7 +122,6 @@ func UpdateShiftTimesNotion(ctx *config.AppContext, shiftRef string, start, end 
 	if err := notionPagePost(ctx.Notion.Config.Token, "PATCH", "/"+shiftRef, body); err != nil {
 		return err
 	}
-	refreshShiftCache(ctx, "UpdateShiftTimes")
 	return nil
 }
 
@@ -141,7 +139,6 @@ func UpdateShiftNotion(ctx *config.AppContext, shiftRef, name string, jobType *t
 		return err
 	}
 
-	invalidateShiftCache()
 	return nil
 }
 
@@ -150,14 +147,13 @@ func DeleteShiftNotion(ctx *config.AppContext, shiftRef string) error {
 	if err := notionPagePost(ctx.Notion.Config.Token, "PATCH", "/"+shiftRef, body); err != nil {
 		return err
 	}
-	invalidateShiftCache()
 	return nil
 }
 
 func AssignVolunteerToShiftNotion(ctx *config.AppContext, volRef, shiftRef string) error {
 	n := ctx.Notion
 
-	allShifts, err := FetchShiftsCached(ctx)
+	allShifts, err := ListWorkShifts(ctx)
 	if err != nil {
 		return err
 	}
@@ -199,17 +195,13 @@ func AssignVolunteerToShiftNotion(ctx *config.AppContext, volRef, shiftRef strin
 			},
 		})
 
-	if err == nil {
-		shift.AssigneesRef = append(shift.AssigneesRef, volRef)
-	}
-
 	return err
 }
 
 func RemoveVolunteerFromShiftNotion(ctx *config.AppContext, volRef, shiftRef string) error {
 	n := ctx.Notion
 
-	allShifts, err := FetchShiftsCached(ctx)
+	allShifts, err := ListWorkShifts(ctx)
 	if err != nil {
 		return err
 	}
@@ -226,14 +218,12 @@ func RemoveVolunteerFromShiftNotion(ctx *config.AppContext, volRef, shiftRef str
 	}
 
 	newAssignees := make([]*notion.ObjectReference, 0)
-	newAssigneesRef := make([]string, 0)
 	for _, ref := range shift.AssigneesRef {
 		if ref != volRef {
 			newAssignees = append(newAssignees, &notion.ObjectReference{
 				Object: notion.ObjectPage,
 				ID:     ref,
 			})
-			newAssigneesRef = append(newAssigneesRef, ref)
 		}
 	}
 
@@ -247,10 +237,6 @@ func RemoveVolunteerFromShiftNotion(ctx *config.AppContext, volRef, shiftRef str
 					Relation: newAssignees,
 				},
 			})
-	}
-
-	if err == nil {
-		shift.AssigneesRef = newAssigneesRef
 	}
 
 	return err
@@ -270,12 +256,6 @@ func shiftUpdateCalNotifNotion(n *types.Notion, shiftID string, calnotif string)
 		})
 	if err != nil {
 		return err
-	}
-	for _, s := range shifts {
-		if s != nil && s.Ref == shiftID {
-			s.CalNotif = calnotif
-			break
-		}
 	}
 	return nil
 }

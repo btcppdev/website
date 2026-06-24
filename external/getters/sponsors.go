@@ -2,40 +2,10 @@ package getters
 
 import (
 	"strings"
-	"sync"
-	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
-
-func getOrgs(ctx *config.AppContext) {
-	var err error
-	ctx.Infos.Printf("getting orgs...")
-	if UsePostgresBackend(ctx) {
-		orgs, err = listOrgsPostgres(ctx)
-	} else {
-		orgs, err = ListOrgsNotion(ctx.Notion)
-	}
-
-	if err != nil {
-		ctx.Err.Printf("error fetching orgs %s", err)
-	} else {
-		ctx.Infos.Printf("Loaded %d orgs!", len(orgs))
-	}
-}
-
-/* This may return nil */
-func FetchOrgsCached(ctx *config.AppContext) ([]*types.Org, error) {
-	now := time.Now()
-	deadline := now.Add(-cacheTTL)
-	if orgs == nil || lastOrgFetch.Before(deadline) {
-		lastOrgFetch = time.Now()
-		queueRefresh(JobOrgs)
-	}
-
-	return orgs, nil
-}
 
 func ListOrgs(ctx *config.AppContext) ([]*types.Org, error) {
 	if UsePostgresBackend(ctx) {
@@ -44,41 +14,9 @@ func ListOrgs(ctx *config.AppContext) ([]*types.Org, error) {
 	return ListOrgsNotion(ctx.Notion)
 }
 
-// orgListCache memoizes ListOrgs for the autocomplete endpoint, which can
-// fire several times per second as the user types. The TTL is short
-// enough that admin-side org additions show up promptly.
-var (
-	orgListCacheMu  sync.Mutex
-	orgListCached   []*types.Org
-	orgListCachedAt time.Time
-)
-
-const orgListCacheTTL = 5 * time.Minute
-
-func listOrgsCached(ctx *config.AppContext) ([]*types.Org, error) {
-	orgListCacheMu.Lock()
-	if orgListCached != nil && time.Since(orgListCachedAt) < orgListCacheTTL {
-		out := orgListCached
-		orgListCacheMu.Unlock()
-		return out, nil
-	}
-	orgListCacheMu.Unlock()
-
-	orgs, err := ListOrgs(ctx)
-	if err != nil {
-		return nil, err
-	}
-	orgListCacheMu.Lock()
-	orgListCached = orgs
-	orgListCachedAt = time.Now()
-	orgListCacheMu.Unlock()
-	return orgs, nil
-}
-
 // SearchOrgsByName returns up to limit orgs whose name contains q
-// (case-insensitive substring). Used by the autocomplete on the speaker
-// info editor. Backed by listOrgsCached so rapid keystrokes don't hammer
-// Notion.
+// (case-insensitive substring). Used by the autocomplete on the speaker info
+// editor.
 func SearchOrgsByName(ctx *config.AppContext, q string, limit int) ([]*types.Org, error) {
 	if UsePostgresBackend(ctx) {
 		return searchOrgsByNamePostgres(ctx, q, limit)
@@ -87,7 +25,7 @@ func SearchOrgsByName(ctx *config.AppContext, q string, limit int) ([]*types.Org
 	if q == "" {
 		return nil, nil
 	}
-	orgs, err := listOrgsCached(ctx)
+	orgs, err := ListOrgs(ctx)
 	if err != nil {
 		return nil, err
 	}

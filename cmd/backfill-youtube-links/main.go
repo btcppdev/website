@@ -279,7 +279,6 @@ func initRemoteTokenStore(cfg *types.EnvConfig) {
 }
 
 func updateDraftVideoMetadata(ctx *config.AppContext, svc *youtubeapi.Service, confTag string, apply bool) {
-	getters.WaitFetch(ctx)
 	recs, err := getters.ListRecordings(ctx)
 	if err != nil {
 		log.Fatalf("list recordings: %s", err)
@@ -339,7 +338,6 @@ func updateDraftVideoMetadata(ctx *config.AppContext, svc *youtubeapi.Service, c
 }
 
 func updateDraftVideoThumbnails(ctx *config.AppContext, svc *youtubeapi.Service, confTag string, apply bool) {
-	getters.WaitFetch(ctx)
 	recs, err := getters.ListRecordings(ctx)
 	if err != nil {
 		log.Fatalf("list recordings: %s", err)
@@ -393,7 +391,6 @@ func updateDraftVideoThumbnails(ctx *config.AppContext, svc *youtubeapi.Service,
 }
 
 func addDraftsToPlaylistByTitle(ctx *config.AppContext, svc *youtubeapi.Service, confTag, playlistTitleContains string, apply bool) {
-	getters.WaitFetch(ctx)
 	playlist := findPlaylistByTitle(svc, playlistTitleContains)
 	if playlist == nil || playlist.Id == "" || playlist.Snippet == nil {
 		log.Fatalf("no playlist found whose title contains %q", playlistTitleContains)
@@ -455,7 +452,6 @@ func fixRecordingForFile(ctx *config.AppContext, svc *youtubeapi.Service, confTa
 	if strings.TrimSpace(talkTitle) == "" {
 		log.Fatalf("--fix-talk-title is required with --fix-recording-file")
 	}
-	getters.WaitFetch(ctx)
 	recs, err := getters.ListRecordings(ctx)
 	if err != nil {
 		log.Fatalf("list recordings: %s", err)
@@ -724,9 +720,9 @@ func slug(s string) string {
 
 func findConfTalkByProposalTitle(ctx *config.AppContext, title, confTag string) *types.ConfTalk {
 	want := normalizeTitle(title)
-	props, err := getters.FetchProposalsCached(ctx)
+	props, err := getters.ListProposals(ctx)
 	if err != nil {
-		log.Fatalf("fetch cached proposals: %s", err)
+		log.Fatalf("fetch proposals: %s", err)
 	}
 	var foundProposal *types.Proposal
 	for _, prop := range props {
@@ -744,7 +740,11 @@ func findConfTalkByProposalTitle(ctx *config.AppContext, title, confTag string) 
 	if foundProposal == nil {
 		return nil
 	}
-	return getters.FetchConfTalkByProposal(foundProposal.ID)
+	ct, err := getters.GetConfTalkByProposal(ctx, foundProposal.ID)
+	if err != nil {
+		log.Fatalf("fetch conf talk for proposal %s: %s", foundProposal.ID, err)
+	}
+	return ct
 }
 
 func updateRecordingTalk(ctx *config.AppContext, recordingID, confTalkID, talkName, fileURI string) error {
@@ -892,7 +892,7 @@ func dashboardYouTubeCopy(ctx *config.AppContext, rec *types.Recording) (string,
 					talkName = ct.Proposal.Title
 				}
 				talkDesc = ct.Proposal.Description
-				speakers = recordingSpeakersForProposal(ct.Proposal)
+				speakers = recordingSpeakersForProposal(ctx, ct.Proposal)
 			}
 			if ct.Sched != nil && !ct.Sched.Start.IsZero() {
 				recordedOn = ct.Sched.Start.Format("January 2, 2006")
@@ -914,7 +914,7 @@ func dashboardYouTubeCopy(ctx *config.AppContext, rec *types.Recording) (string,
 	return title, strings.TrimSpace(buf.String()) + "\n"
 }
 
-func recordingSpeakersForProposal(proposal *types.Proposal) []*types.Speaker {
+func recordingSpeakersForProposal(ctx *config.AppContext, proposal *types.Proposal) []*types.Speaker {
 	if proposal == nil {
 		return nil
 	}
@@ -928,7 +928,10 @@ func recordingSpeakersForProposal(proposal *types.Proposal) []*types.Speaker {
 		out = append(out, sc.Speaker)
 	}
 	for _, ref := range proposal.SpeakerConfRefs {
-		appendSpeakerConf(getters.FetchSpeakerConfByID(ref))
+		sc, err := getters.GetSpeakerConfByID(ctx, ref)
+		if err == nil {
+			appendSpeakerConf(sc)
+		}
 	}
 	for _, sc := range proposal.Speakers {
 		appendSpeakerConf(sc)

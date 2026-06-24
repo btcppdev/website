@@ -935,20 +935,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		TemplatedMissivesSchedule(w, r, app)
 	}).Methods("POST")
 
-	r.HandleFunc("/api/cache-stats", func(w http.ResponseWriter, r *http.Request) {
-		id := auth.RequireOptional(r, app)
-		if id == nil || !id.IsGlobalAdmin() {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		out := map[string]interface{}{
-			"caches":       getters.CacheStats(),
-			"recent_calls": types.RecentNotionCalls(),
-		}
-		json.NewEncoder(w).Encode(out)
-	}).Methods("GET")
-
 	r.HandleFunc("/dashboard/talks/{proposalID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditProposal(w, r, app)
 	}).Methods("GET", "POST")
@@ -1670,9 +1656,7 @@ func ReloadConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		return
 	}
 
-	/* Refresh the confs */
-	getters.WaitFetch(ctx)
-	confs, err := getters.FetchConfsCached(ctx)
+	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		http.Error(w, "Unable to load confereneces, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/conf-reload conf load failed ! %s", err.Error())
@@ -2465,9 +2449,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 
 	// Populate countdown bounds + HasAgenda for the conf_nav widget
-	// + agenda section. Shallow-copy first so we don't mutate the
-	// cached Conf seen by other readers (FetchConfsCached returns a
-	// shared slice).
+	// + agenda section without mutating the loaded Conf.
 	confCopy := *conf
 	confCopy.CountdownStart, confCopy.CountdownEnd = computeCountdownBounds(&confCopy, infosByDay)
 	confCopy.HasAgenda = anyScheduledTalk(talks)
@@ -2796,8 +2778,7 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 	}
 
 	// Shallow-copy each conf before populating the runtime-only
-	// CountdownStart/End fields so the shared FetchConfsCached
-	// slice stays untouched.
+	// CountdownStart/End fields.
 	enriched := make([]*types.Conf, 0, len(confList))
 	for _, c := range confList {
 		if c == nil {

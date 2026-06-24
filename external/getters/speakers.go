@@ -2,7 +2,6 @@ package getters
 
 import (
 	"strings"
-	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
@@ -49,39 +48,6 @@ type SpeakerUpdate struct {
 	TShirt    string
 }
 
-func getSpeakers(ctx *config.AppContext) {
-	var err error
-	ctx.Infos.Printf("getting speakers...")
-	if UsePostgresBackend(ctx) {
-		cacheSpeakers, err = listSpeakersPostgres(ctx)
-	} else {
-		cacheSpeakers, err = ListSpeakersNotion(ctx.Notion)
-	}
-
-	if err != nil {
-		ctx.Err.Printf("error fetching speakers %s", err)
-	} else {
-		ctx.Infos.Printf("Loaded %d speakers!", len(cacheSpeakers))
-		ctx.Infos.Printf("there are %d callbacks", len(onSpeakersRefresh))
-		for _, cb := range onSpeakersRefresh {
-			cb(ctx, cacheSpeakers)
-		}
-	}
-}
-
-/* This may return nil */
-func FetchSpeakersCached(ctx *config.AppContext) ([]*types.Speaker, error) {
-	now := time.Now()
-	deadline := now.Add(-cacheTTL)
-	if cacheSpeakers == nil || lastSpeakerFetch.Before(deadline) {
-		/* Set last fetch to now even if there's errors */
-		lastSpeakerFetch = time.Now()
-		queueRefresh(JobSpeakers)
-	}
-
-	return cacheSpeakers, nil
-}
-
 func ListSpeakers(ctx *config.AppContext) ([]*types.Speaker, error) {
 	if UsePostgresBackend(ctx) {
 		return listSpeakersPostgres(ctx)
@@ -108,7 +74,11 @@ func SearchSpeakersByNameOrEmail(ctx *config.AppContext, q string, limit int) ([
 		return nil, nil
 	}
 	out := make([]*types.Speaker, 0, limit)
-	for _, s := range cacheSpeakers {
+	speakers, err := ListSpeakers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range speakers {
 		if s == nil {
 			continue
 		}
@@ -128,31 +98,6 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 		return createSpeakerPostgres(ctx, in)
 	}
 	return createSpeakerNotion(ctx.Notion, in)
-}
-
-// speakerFromInput builds a *types.Speaker from a SpeakerInput + row ID for
-// cache insertion. Fields not in SpeakerInput stay zero-valued until refresh.
-func speakerFromInput(id string, in SpeakerInput) *types.Speaker {
-	return &types.Speaker{
-		ID:            id,
-		Name:          in.Name,
-		Email:         in.Email,
-		Photo:         in.Photo,
-		Phone:         in.Phone,
-		Signal:        in.Signal,
-		Telegram:      in.Telegram,
-		Twitter:       types.ParseTwitter(in.Twitter),
-		Nostr:         in.Nostr,
-		Github:        in.Github,
-		Instagram:     in.Instagram,
-		LinkedIn:      in.LinkedIn,
-		Website:       in.Website,
-		Company:       in.Company,
-		OrgLogo:       in.OrgLogo,
-		AvailToHire:   in.AvailToHire,
-		LookingToHire: in.LookingToHire,
-		TShirt:        in.TShirt,
-	}
 }
 
 func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) error {
@@ -200,60 +145,6 @@ func normalizeSpeakerUpdate(up SpeakerUpdate) SpeakerUpdate {
 	return up
 }
 
-func patchCachedSpeaker(speakerID string, up SpeakerUpdate) {
-	for _, s := range cacheSpeakers {
-		if s == nil || s.ID != speakerID {
-			continue
-		}
-		if up.Photo != "" {
-			s.Photo = up.Photo
-		}
-		if up.Name != "" {
-			s.Name = up.Name
-		}
-		if up.Email != "" {
-			s.Email = up.Email
-		}
-		if up.Phone != "" {
-			s.Phone = up.Phone
-		}
-		if up.Signal != "" {
-			s.Signal = up.Signal
-		}
-		if up.Telegram != "" {
-			s.Telegram = up.Telegram
-		}
-		if up.Twitter != "" {
-			s.Twitter = types.ParseTwitter(up.Twitter)
-		}
-		if up.Nostr != "" {
-			s.Nostr = up.Nostr
-		}
-		if up.Github != "" {
-			s.Github = up.Github
-		}
-		if up.Instagram != "" {
-			s.Instagram = up.Instagram
-		}
-		if up.LinkedIn != "" {
-			s.LinkedIn = up.LinkedIn
-		}
-		if up.Website != "" {
-			s.Website = up.Website
-		}
-		if up.Company != "" {
-			s.Company = up.Company
-		}
-		if up.OrgLogo != "" {
-			s.OrgLogo = up.OrgLogo
-		}
-		if up.TShirt != "" {
-			s.TShirt = up.TShirt
-		}
-		return
-	}
-}
-
 func ListSpeakersWithRole(ctx *config.AppContext, role string) ([]*types.Speaker, error) {
 	if UsePostgresBackend(ctx) {
 		return listSpeakersWithRolePostgres(ctx, role)
@@ -263,7 +154,7 @@ func ListSpeakersWithRole(ctx *config.AppContext, role string) ([]*types.Speaker
 	if role == "" {
 		return nil, nil
 	}
-	speakers, err := FetchSpeakersCached(ctx)
+	speakers, err := ListSpeakers(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -1,10 +1,6 @@
 package getters
 
-import (
-	"time"
-
-	"btcpp-web/internal/config"
-)
+import "btcpp-web/internal/config"
 
 // SiteStatsValues holds the raw counts behind the about-page numbers.
 // Format-for-display is left to callers.
@@ -14,41 +10,40 @@ type SiteStatsValues struct {
 	Attendees int // total registration rows, rough attendee count
 }
 
-// getSiteStats recomputes the about-page aggregate counters from the already
-// warm Confs / ConfTalks caches plus a backend attendee count.
-func getSiteStats(ctx *config.AppContext) {
-	ctx.Infos.Printf("getting site stats...")
+func siteStatsDirect(ctx *config.AppContext) (SiteStatsValues, error) {
 	var s SiteStatsValues
 
+	confs, err := ListConfs(ctx)
+	if err != nil {
+		return s, err
+	}
+	ended := map[string]bool{}
 	for _, c := range confs {
 		if c != nil && c.HasEnded() {
 			s.PastConfs++
+			ended[c.Tag] = true
 		}
 	}
 
-	confTalkCacheMu.RLock()
-	for _, ct := range cacheConfTalks {
-		if ct == nil || ct.Conf == nil || !ct.Conf.HasEnded() {
+	talks, err := ListTalks(ctx)
+	if err != nil {
+		return s, err
+	}
+	for _, talk := range talks {
+		if talk == nil || !ended[talk.Event] {
 			continue
 		}
-		if ct.Proposal != nil && ct.Proposal.Status == "Accepted" {
+		if talk.Status == "Accepted" {
 			s.PastTalks++
 		}
 	}
-	confTalkCacheMu.RUnlock()
 
 	attendees, err := siteStatsAttendees(ctx)
 	if err != nil {
-		ctx.Err.Printf("site stats registrations scan: %s", err)
-	} else {
-		s.Attendees = attendees
+		return s, err
 	}
-
-	siteStatsMu.Lock()
-	siteStats = s
-	siteStatsMu.Unlock()
-	ctx.Infos.Printf("Loaded site stats: confs=%d talks=%d attendees=%d",
-		s.PastConfs, s.PastTalks, s.Attendees)
+	s.Attendees = attendees
+	return s, nil
 }
 
 func siteStatsAttendees(ctx *config.AppContext) (int, error) {
@@ -58,8 +53,7 @@ func siteStatsAttendees(ctx *config.AppContext) (int, error) {
 	return siteStatsAttendeesNotion(ctx)
 }
 
-// FetchSiteStats returns about-page counters. Postgres-backed requests read
-// the aggregate directly; Notion fallback keeps the old background cache.
+// FetchSiteStats returns about-page counters.
 func FetchSiteStats(ctx *config.AppContext) SiteStatsValues {
 	if UsePostgresBackend(ctx) {
 		s, err := siteStatsPostgres(ctx)
@@ -70,13 +64,9 @@ func FetchSiteStats(ctx *config.AppContext) SiteStatsValues {
 		}
 	}
 
-	siteStatsMu.RLock()
-	s := siteStats
-	stale := lastSiteStatsFetch.Before(time.Now().Add(-cacheTTL))
-	siteStatsMu.RUnlock()
-	if stale {
-		lastSiteStatsFetch = time.Now()
-		queueRefresh(JobSiteStats)
+	s, err := siteStatsDirect(ctx)
+	if err != nil {
+		ctx.Err.Printf("site stats direct: %s", err)
 	}
 	return s
 }

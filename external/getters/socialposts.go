@@ -3,7 +3,6 @@ package getters
 import (
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"btcpp-web/internal/config"
@@ -31,11 +30,6 @@ type SocialPostUpdate struct {
 	NotifiedAt       *time.Time
 }
 
-var (
-	socialPostCacheMu sync.RWMutex
-	socialPostByRef   map[string]*types.SocialPost
-)
-
 // ListPostedRefs returns a set of all Ref values that have been posted
 func ListPostedRefs(ctx *config.AppContext, conf *types.Conf) (map[string]bool, error) {
 	if UsePostgresBackend(ctx) {
@@ -49,19 +43,6 @@ func RecordSocialPost(ctx *config.AppContext, ref, text, platform string, posted
 		return recordSocialPostPostgres(ctx, ref, text, platform, postedAt)
 	}
 	return recordSocialPostNotion(ctx, ref, text, platform, postedAt)
-}
-
-// findCachedSocialPostByRef returns the Notion/fallback cached SocialPost for
-// ref. Postgres callers should use GetSocialPostByRef.
-func findCachedSocialPostByRef(ref string) *types.SocialPost {
-	socialPostCacheMu.RLock()
-	defer socialPostCacheMu.RUnlock()
-	post := socialPostByRef[ref]
-	if post == nil {
-		return nil
-	}
-	cp := *post
-	return &cp
 }
 
 func ListSocialPosts(ctx *config.AppContext) ([]*types.SocialPost, error) {
@@ -152,17 +133,4 @@ func socialPostSuppressesRef(post *types.SocialPost) bool {
 	default:
 		return false
 	}
-}
-
-// cacheSocialPost updates the Notion/fallback social-post cache.
-func cacheSocialPost(post *types.SocialPost) {
-	if post == nil || post.Ref == "" {
-		return
-	}
-	socialPostCacheMu.Lock()
-	defer socialPostCacheMu.Unlock()
-	if socialPostByRef == nil {
-		socialPostByRef = map[string]*types.SocialPost{}
-	}
-	socialPostByRef[post.Ref] = post
 }

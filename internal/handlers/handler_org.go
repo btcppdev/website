@@ -149,8 +149,6 @@ func talkToSession(ctx *config.AppContext, talk *types.Talk, conf *types.Conf) *
 		ctx.Err.Printf("talkToSession recording lookup %s: %s", talk.ID, err)
 	} else if rec != nil {
 		sesh.YTLink = rec.YTLink
-	} else {
-		sesh.YTLink = getters.FetchYTLinkForTalk(conf.Tag, talk.Name)
 	}
 
 	return sesh

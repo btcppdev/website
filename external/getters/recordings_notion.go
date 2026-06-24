@@ -11,8 +11,6 @@ import (
 	notion "github.com/niftynei/go-notion"
 )
 
-// ListRecordings fetches every row in RecordingsDb. Used by the warm-cache
-// bootstrap; callers should normally read from cacheRecordings instead.
 func ListRecordingsNotion(ctx *config.AppContext) ([]*types.Recording, error) {
 	n := ctx.Notion
 	if n.Config.RecordingsDb == "" {
@@ -57,6 +55,14 @@ func getRecordingByConfTalkNotion(ctx *config.AppContext, confTalkID string) (*t
 	return parseRecording(pages[0].ID, pages[0].Properties), nil
 }
 
+func getRecordingByIDNotion(ctx *config.AppContext, recordingID string) (*types.Recording, error) {
+	page, err := ctx.Notion.Client.RetrievePage(context.Background(), recordingID)
+	if err != nil {
+		return nil, fmt.Errorf("notion get recording %s: %w", recordingID, err)
+	}
+	return parseRecording(page.ID, page.Properties), nil
+}
+
 func updateRecordingYTLinkNotion(ctx *config.AppContext, recordingID, ytLink string) error {
 	n := ctx.Notion
 	_, err := n.Client.UpdatePageProperties(context.Background(), recordingID,
@@ -66,9 +72,6 @@ func updateRecordingYTLinkNotion(ctx *config.AppContext, recordingID, ytLink str
 	if err != nil {
 		return fmt.Errorf("notion update YTLink: %w", err)
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		r.YTLink = ytLink
-	})
 	return nil
 }
 
@@ -81,9 +84,6 @@ func updateRecordingXLinkNotion(ctx *config.AppContext, recordingID, xLink strin
 	if err != nil {
 		return fmt.Errorf("notion update XLink: %w", err)
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		r.XLink = xLink
-	})
 	return nil
 }
 
@@ -104,14 +104,6 @@ func updateRecordingPublishAtNotion(ctx *config.AppContext, recordingID string, 
 	if err := notionPagePost(ctx.Notion.Config.Token, "PATCH", "/"+recordingID, body); err != nil {
 		return fmt.Errorf("notion update PublishAt: %w", err)
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		if publishAt == nil {
-			r.PublishAt = nil
-		} else {
-			when := *publishAt
-			r.PublishAt = &when
-		}
-	})
 	return nil
 }
 
@@ -126,9 +118,6 @@ func updateRecordingFileURINotion(ctx *config.AppContext, recordingID, fileURI s
 	if err != nil {
 		return fmt.Errorf("notion update FileURI: %w", err)
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		r.FileURI = fileURI
-	})
 	return nil
 }
 
@@ -149,16 +138,5 @@ func updateRecordingPublishingNotion(ctx *config.AppContext, recordingID string,
 	if _, err := ctx.Notion.Client.UpdatePageProperties(context.Background(), recordingID, props); err != nil {
 		return fmt.Errorf("notion update recording publishing fields: %w", err)
 	}
-	patchRecordingCache(recordingID, func(r *types.Recording) {
-		if up.YTLink != nil {
-			r.YTLink = *up.YTLink
-		}
-		if up.XLink != nil {
-			r.XLink = *up.XLink
-		}
-		if up.XReplyLink != nil {
-			r.XReplyLink = *up.XReplyLink
-		}
-	})
 	return nil
 }

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"btcpp-web/external/buffer"
-	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
 	"btcpp-web/external/tokens"
 	youtubepkg "btcpp-web/external/youtube"
@@ -77,10 +76,6 @@ func main() {
 		}
 	}
 	youtubepkg.Init(app.Env.YouTube.ClientID, app.Env.YouTube.ClientSecret, app.Env.YouTube.RedirectURL)
-
-	/* Load cached data */
-	getters.WaitFetch(&app)
-	getters.StartWorkPool(&app)
 
 	/* Start up Buffer */
 	buffer.Init(app.Env.BufferAPI)

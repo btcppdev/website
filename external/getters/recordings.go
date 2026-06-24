@@ -15,40 +15,11 @@ type RecordingPublishingUpdate struct {
 	XReplyLink *string
 }
 
-// getRecordings refreshes the Recording cache + by-ConfTalk index.
-func getRecordings(ctx *config.AppContext) {
-	ctx.Infos.Printf("getting recordings...")
-	recs, err := ListRecordings(ctx)
-	if err != nil {
-		ctx.Err.Printf("error fetching recordings %s", err)
-		return
-	}
-	byCT := make(map[string]*types.Recording, len(recs))
-	for _, r := range recs {
-		if r != nil && r.ConfTalkID != "" {
-			byCT[r.ConfTalkID] = r
-		}
-	}
-	recordingCacheMu.Lock()
-	cacheRecordings = recs
-	recordingByConfTalk = byCT
-	recordingCacheMu.Unlock()
-	ctx.Infos.Printf("Loaded %d recordings!", len(recs))
-}
-
 func ListRecordings(ctx *config.AppContext) ([]*types.Recording, error) {
 	if UsePostgresBackend(ctx) {
 		return listRecordingsPostgres(ctx)
 	}
 	return ListRecordingsNotion(ctx)
-}
-
-// FetchRecordingByConfTalk returns the cached Notion/fallback Recording linked
-// to confTalkID, or nil if none.
-func FetchRecordingByConfTalk(confTalkID string) *types.Recording {
-	recordingCacheMu.RLock()
-	defer recordingCacheMu.RUnlock()
-	return recordingByConfTalk[confTalkID]
 }
 
 // GetRecordingByConfTalk fetches the Recording row whose talk relation points
@@ -57,73 +28,14 @@ func GetRecordingByConfTalk(ctx *config.AppContext, confTalkID string) (*types.R
 	if UsePostgresBackend(ctx) {
 		return getRecordingByConfTalkPostgres(ctx, confTalkID)
 	}
-	if r := FetchRecordingByConfTalk(confTalkID); r != nil {
-		return r, nil
-	}
-	if cacheRecordingsWarm() {
-		return nil, nil
-	}
 	return getRecordingByConfTalkNotion(ctx, confTalkID)
-}
-
-// FetchRecordingByID returns the cached Notion/fallback Recording with the
-// given page ID, or nil. The Recordings cache is by-ConfTalkID, so this helper
-// walks the slice for legacy no-context callers.
-func FetchRecordingByID(recordingID string) *types.Recording {
-	recordingCacheMu.RLock()
-	defer recordingCacheMu.RUnlock()
-	for _, r := range cacheRecordings {
-		if r != nil && r.ID == recordingID {
-			return r
-		}
-	}
-	return nil
 }
 
 func GetRecordingByID(ctx *config.AppContext, recordingID string) (*types.Recording, error) {
 	if UsePostgresBackend(ctx) {
 		return getRecordingByIDPostgres(ctx, recordingID)
 	}
-	return FetchRecordingByID(recordingID), nil
-}
-
-// FetchYTLinkForTalk bridges the legacy Talks-DB renderer (which uses Talk.ID =
-// Talks-DB page ID) to the Recording cache (keyed by ConfTalk.ID).
-func FetchYTLinkForTalk(confTag, name string) string {
-	if confTag == "" || name == "" {
-		return ""
-	}
-	confTalkCacheMu.RLock()
-	var matchID string
-	for _, ct := range cacheConfTalks {
-		if ct == nil || ct.Conf == nil || ct.Proposal == nil {
-			continue
-		}
-		if ct.Conf.Tag == confTag && ct.Proposal.Title == name {
-			matchID = ct.ID
-			break
-		}
-	}
-	confTalkCacheMu.RUnlock()
-	if matchID == "" {
-		return ""
-	}
-	if rec := FetchRecordingByConfTalk(matchID); rec != nil {
-		return rec.YTLink
-	}
-	return ""
-}
-
-func cacheRecordingsWarm() bool {
-	recordingCacheMu.RLock()
-	defer recordingCacheMu.RUnlock()
-	return cacheRecordings != nil
-}
-
-func InvalidateRecordingsCache() {
-	recordingCacheMu.Lock()
-	lastRecordingFetch = time.Time{}
-	recordingCacheMu.Unlock()
+	return getRecordingByIDNotion(ctx, recordingID)
 }
 
 func UpdateRecordingYTLink(ctx *config.AppContext, recordingID, ytLink string) error {
@@ -159,15 +71,4 @@ func UpdateRecordingPublishing(ctx *config.AppContext, recordingID string, up Re
 		return updateRecordingPublishingPostgres(ctx, recordingID, up)
 	}
 	return updateRecordingPublishingNotion(ctx, recordingID, up)
-}
-
-func patchRecordingCache(recordingID string, patch func(*types.Recording)) {
-	recordingCacheMu.Lock()
-	defer recordingCacheMu.Unlock()
-	for _, r := range cacheRecordings {
-		if r != nil && r.ID == recordingID {
-			patch(r)
-			return
-		}
-	}
 }
