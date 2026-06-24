@@ -33,6 +33,10 @@ type HackathonAdminPage struct {
 	PrizesByAward        map[string][]*types.Prize
 	AwardeesByAward      map[string][]*types.ProjectAward
 	AwardOptInsByProject map[string][]*types.ProjectAwardOptIn
+	ProjectCount         int
+	JudgeEventCount      int
+	ScoreProjectCount    int
+	AwardCount           int
 	IsNew                bool
 	FlashMessage         string
 	FlashError           string
@@ -434,6 +438,47 @@ func (p *HackathonAdminPage) PercentLabel(value *float64) string {
 	return strconv.FormatFloat(*value, 'f', -1, 64) + "%"
 }
 
+func populateAdminHackathonCounts(ctx *config.AppContext, page *HackathonAdminPage) {
+	if page == nil || page.Competition == nil {
+		return
+	}
+	competitionID := page.Competition.ID
+	projects := page.Projects
+	if projects == nil {
+		var err error
+		projects, err = getters.ListProjectsForCompetition(ctx, competitionID, types.HackathonViewer{Admin: true})
+		if err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s count projects: %s", competitionID, err)
+		}
+	}
+	page.ProjectCount = len(projects)
+	if page.ScoreSummaries != nil {
+		page.ScoreProjectCount = len(page.ScoreSummaries)
+	} else {
+		page.ScoreProjectCount = len(projects)
+	}
+
+	events := page.JudgeEvents
+	if events == nil {
+		var err error
+		events, err = getters.ListJudgeEvents(ctx, competitionID)
+		if err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s count judge events: %s", competitionID, err)
+		}
+	}
+	page.JudgeEventCount = len(events)
+
+	awards := page.Awards
+	if awards == nil {
+		var err error
+		awards, err = getters.ListAwardsForCompetition(ctx, competitionID)
+		if err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s count awards: %s", competitionID, err)
+		}
+	}
+	page.AwardCount = len(awards)
+}
+
 func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
@@ -512,6 +557,7 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 		FlashError:           r.URL.Query().Get("error"),
 		Year:                 helpers.CurrentYear(),
 	}
+	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_projects.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/projects template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -617,6 +663,7 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		FlashError:     r.URL.Query().Get("error"),
 		Year:           helpers.CurrentYear(),
 	}
+	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_scores.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/scores template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -765,6 +812,7 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		FlashError:           r.URL.Query().Get("error"),
 		Year:                 helpers.CurrentYear(),
 	}
+	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_awards.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -996,6 +1044,7 @@ func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.A
 		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
 	}
+	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_judging.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -1162,6 +1211,7 @@ func HackathonAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
 	}
+	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_detail.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s template: %s", competitionID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
