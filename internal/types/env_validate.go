@@ -68,7 +68,6 @@ func (env *EnvConfig) Validate() error {
 	}
 	if env.Prod {
 		required := map[string]string{
-			"NOTION_TOKEN":      env.Notion.Token,
 			"MAILER_SECRET":     env.MailerSecret,
 			"MAILER_ENDPOINT":   env.MailEndpoint,
 			"STRIPE_KEY":        env.StripeKey,

@@ -224,7 +224,7 @@ func ConfirmEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 	}
 
 	var confs types.ConfList
-	confs, _ = getters.FetchConfsCached(ctx)
+	confs, _ = getters.ListConfs(ctx)
 	sort.Sort(confs)
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "emails/subscribe_ok.tmpl", &SubscribePage{
@@ -269,10 +269,10 @@ func UnsubscribeEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	changed := subscriber.RmSubscription(subToken.Newsletter)
 	if changed {
 
-		/* Update on Notion */
+		/* Update subscriber preferences */
 		err := getters.UpdateSubs(ctx, subscriber)
 		if err != nil {
-			ctx.Infos.Printf("notion error: unsubscribing %s from %s: %s", subscriber.Email, subToken.Newsletter, err)
+			ctx.Infos.Printf("subscriber update error: unsubscribing %s from %s: %s", subscriber.Email, subToken.Newsletter, err)
 		}
 
 		/* Update with mailer */
@@ -288,7 +288,7 @@ func UnsubscribeEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 
 	// Render the template with the data
 	var confs types.ConfList
-	confs, _ = getters.FetchConfsCached(ctx)
+	confs, _ = getters.ListConfs(ctx)
 	sort.Sort(confs)
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "emails/unsubscribe_ok.tmpl", &SubscribePage{

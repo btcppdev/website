@@ -139,7 +139,7 @@ func Robots(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 }
 
 // Sitemap serves /sitemap.xml — rebuilt on each request from the
-// confs cache so newly-created event pages are discoverable quickly.
+// conference list so newly-created event pages are discoverable quickly.
 // Inactive and past confs stay in the map because their public pages
 // are still useful archives; active upcoming confs get a higher
 // priority so crawl budget skews to current campaigns.
@@ -149,7 +149,7 @@ func Robots(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 // the nav-bar link, so the sitemap never points at a soft-empty
 // page.
 func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	confs, err := getters.FetchConfsCached(ctx)
+	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		ctx.Err.Printf("/sitemap.xml confs: %s", err)
 		http.Error(w, "Unable to load confs", http.StatusInternalServerError)

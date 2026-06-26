@@ -72,7 +72,7 @@ func SponsorTiersForConf(ctx *config.AppContext, confRef string) []*SponsorTier 
 	if confRef == "" {
 		return nil
 	}
-	all, err := getters.FetchSponsorshipsForConfCached(ctx, confRef)
+	all, err := getters.ListSponsorships(ctx, confRef)
 	if err != nil {
 		ctx.Err.Printf("SponsorTiersForConf %s: %s", confRef, err)
 		return nil

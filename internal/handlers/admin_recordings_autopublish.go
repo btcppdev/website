@@ -56,12 +56,13 @@ func StartRecordingAutopublisher(ctx *config.AppContext) {
 
 func runRecordingAutopublishTick(ctx *config.AppContext) {
 	now := time.Now()
-	recs := getters.ListRecordingsCached()
-	if len(recs) == 0 {
+	recs, err := getters.ListRecordings(ctx)
+	if err != nil {
+		ctx.Err.Printf("recording autopublisher recordings: %s", err)
 		return
 	}
-	if _, err := getters.FetchSocialPostsCached(ctx); err != nil {
-		ctx.Err.Printf("recording autopublisher socialposts: %s", err)
+	if len(recs) == 0 {
+		return
 	}
 	youtubeReady := youtubepkg.IsConfigured() && youtubepkg.IsConnected()
 	var xClient *xposter.Client
@@ -79,7 +80,7 @@ func runRecordingAutopublishTick(ctx *config.AppContext) {
 		if rec == nil || rec.PublishAt == nil || rec.FileURI == "" {
 			continue
 		}
-		row := buildRecordingRow(rec)
+		row := buildRecordingRow(ctx, rec)
 		if youtubeReady && shouldUploadRecordingToYouTube(row) {
 			runScheduledYouTubeUpload(ctx, row)
 		}
@@ -165,7 +166,7 @@ func runScheduledYouTubeUpload(ctx *config.AppContext, row *RecordingRow) {
 		return
 	}
 	rec.YTLink = ytURL
-	if err := uploadRecordingYouTubeThumbnail(context.Background(), rec); err != nil {
+	if err := uploadRecordingYouTubeThumbnail(ctx, context.Background(), rec); err != nil {
 		ctx.Err.Printf("recording autopublish thumbnail recording=%s: %s", rec.ID, err)
 	}
 	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
@@ -249,7 +250,7 @@ func runXPost(ctx *config.AppContext, row *RecordingRow, client *xposter.Client,
 		XReplyLink: &result.ReplyURL,
 	}); err != nil {
 		ctx.Err.Printf("recording autopublish persist x recording=%s: %s", rec.ID, err)
-		setXJobStatus(rec.ID, "failed", "posted to X but failed to update Notion: "+err.Error())
+		setXJobStatus(rec.ID, "failed", "posted to X but failed to update the recording row: "+err.Error())
 		return
 	}
 	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
@@ -306,7 +307,7 @@ func recordingXProgressReporter(recordingID string) xposter.ProgressFunc {
 }
 
 func runXSchedule(ctx *config.AppContext, rec *types.Recording, conf *types.Conf, mainText string) {
-	row := buildRecordingRow(rec)
+	row := buildRecordingRow(ctx, rec)
 	setXJobStage(rec.ID, "prepare", "Preparing X schedule")
 	if rec.PublishAt == nil {
 		recordXFailure(ctx, row, recordingStatusFailed, "PublishAt is required before scheduling on X")
@@ -490,7 +491,7 @@ func sendXFailureEmail(ctx *config.AppContext, rec *types.Recording, status, msg
 	if to == "" {
 		return nil
 	}
-	row := buildRecordingRow(rec)
+	row := buildRecordingRow(ctx, rec)
 	title := rec.TalkName
 	if row.ConfTalk != nil && row.ConfTalk.Proposal != nil && row.ConfTalk.Proposal.Title != "" {
 		title = row.ConfTalk.Proposal.Title
@@ -605,7 +606,7 @@ func RecordingsAdminRetryX(w http.ResponseWriter, r *http.Request, ctx *config.A
 		Error:            &clear,
 		ErrorFingerprint: &clear,
 	}); err != nil {
-		redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't update Notion: "+err.Error())
+		redirectWithErr(w, r, conf.Tag, rec.ID, "couldn't update the recording row: "+err.Error())
 		return
 	}
 	http.Redirect(w, r, recordingDetailPath(conf.Tag, rec.ID)+"?flash=X+post+queued+for+retry", http.StatusSeeOther)

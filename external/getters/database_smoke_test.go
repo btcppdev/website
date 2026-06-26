@@ -14,9 +14,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestPostgresSmokeSpeakerCreateAndLookup(t *testing.T) {
-	ctx := postgresSmokeContext(t)
-	suffix := postgresSmokeSuffix()
+func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	suffix := databaseSmokeSuffix()
 	email := "speaker-" + suffix + "@example.test"
 
 	speakerID, err := CreateSpeaker(ctx, SpeakerInput{
@@ -50,10 +50,10 @@ func TestPostgresSmokeSpeakerCreateAndLookup(t *testing.T) {
 	}
 }
 
-func TestPostgresSmokeDiscountScopedToConference(t *testing.T) {
-	ctx := postgresSmokeContext(t)
+func TestDatabaseSmokeDiscountScopedToConference(t *testing.T) {
+	ctx := databaseSmokeContext(t)
 	confID, tag := insertSmokeConference(t, ctx)
-	code := "SMOKE" + strings.ToUpper(postgresSmokeSuffix())
+	code := "SMOKE" + strings.ToUpper(databaseSmokeSuffix())
 
 	discountID, err := CreateDiscount(ctx, DiscountInput{
 		CodeName:     code,
@@ -66,12 +66,6 @@ func TestPostgresSmokeDiscountScopedToConference(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM discounts WHERE id::text = $1 OR code_name = $2`, discountID, code)
 	})
-
-	discounts, err = listDiscountsPostgres(ctx)
-	if err != nil {
-		t.Fatalf("listDiscountsPostgres: %v", err)
-	}
-	lastDiscountFetch = time.Now()
 
 	found, err := FindDiscount(ctx, strings.ToLower(code))
 	if err != nil {
@@ -88,8 +82,8 @@ func TestPostgresSmokeDiscountScopedToConference(t *testing.T) {
 	}
 }
 
-func TestPostgresSmokeVolunteerInfoOrientationUpdate(t *testing.T) {
-	ctx := postgresSmokeContext(t)
+func TestDatabaseSmokeVolunteerInfoOrientationUpdate(t *testing.T) {
+	ctx := databaseSmokeContext(t)
 	confID, _ := insertSmokeConference(t, ctx)
 
 	var volInfoID string
@@ -104,7 +98,7 @@ func TestPostgresSmokeVolunteerInfoOrientationUpdate(t *testing.T) {
 
 	start := time.Date(2026, 7, 1, 14, 0, 0, 0, time.UTC)
 	end := start.Add(90 * time.Minute)
-	link := "https://example.test/orientation/" + postgresSmokeSuffix()
+	link := "https://example.test/orientation/" + databaseSmokeSuffix()
 	if err := UpdateVolInfoOrientation(ctx, volInfoID, start, end, link); err != nil {
 		t.Fatalf("UpdateVolInfoOrientation postgres: %v", err)
 	}
@@ -121,9 +115,9 @@ func TestPostgresSmokeVolunteerInfoOrientationUpdate(t *testing.T) {
 	}
 }
 
-func TestPostgresSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
-	ctx := postgresSmokeContext(t)
-	tag := "smoke-nairobi-" + postgresSmokeSuffix()
+func TestDatabaseSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	tag := "smoke-nairobi-" + databaseSmokeSuffix()
 
 	var confID string
 	err := ctx.DB.QueryRow(context.Background(), `
@@ -157,18 +151,6 @@ func TestPostgresSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM conf_talks WHERE id::text = $1`, confTalkID)
 	})
 
-	originalConfs := confs
-	originalLastConfsFetch := lastConfsFetch
-	t.Cleanup(func() {
-		confs = originalConfs
-		lastConfsFetch = originalLastConfsFetch
-	})
-	confs, err = listConferencesPostgres(ctx)
-	if err != nil {
-		t.Fatalf("listConferencesPostgres: %v", err)
-	}
-	lastConfsFetch = time.Now()
-
 	talks, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.id::text = $1", []interface{}{confTalkID}, map[string]*types.Proposal{})
 	if err != nil {
 		t.Fatalf("queryConfTalksPostgres: %v", err)
@@ -195,10 +177,10 @@ func TestPostgresSmokeConfTalkScheduleUsesConferenceTimezone(t *testing.T) {
 	}
 }
 
-func TestPostgresSmokeCreateConfTalkReusesScheduledProposalRow(t *testing.T) {
-	ctx := postgresSmokeContext(t)
+func TestDatabaseSmokeCreateConfTalkReusesScheduledProposalRow(t *testing.T) {
+	ctx := databaseSmokeContext(t)
 	confID, tag := insertSmokeConference(t, ctx)
-	suffix := postgresSmokeSuffix()
+	suffix := databaseSmokeSuffix()
 
 	var proposalID string
 	err := ctx.DB.QueryRow(context.Background(), `
@@ -250,10 +232,10 @@ func TestPostgresSmokeCreateConfTalkReusesScheduledProposalRow(t *testing.T) {
 	}
 }
 
-func TestPostgresSmokeUpsertSpeakerConfNormalizesNilAvailability(t *testing.T) {
-	ctx := postgresSmokeContext(t)
+func TestDatabaseSmokeUpsertSpeakerConfNormalizesNilAvailability(t *testing.T) {
+	ctx := databaseSmokeContext(t)
 	confID, tag := insertSmokeConference(t, ctx)
-	suffix := postgresSmokeSuffix()
+	suffix := databaseSmokeSuffix()
 
 	var speakerID string
 	err := ctx.DB.QueryRow(context.Background(), `
@@ -312,9 +294,9 @@ func TestPostgresSmokeUpsertSpeakerConfNormalizesNilAvailability(t *testing.T) {
 	}
 }
 
-func TestPostgresSmokeWorkShiftScheduleUsesConferenceTimezone(t *testing.T) {
-	ctx := postgresSmokeContext(t)
-	tag := "smoke-shift-nairobi-" + postgresSmokeSuffix()
+func TestDatabaseSmokeWorkShiftScheduleUsesConferenceTimezone(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	tag := "smoke-shift-nairobi-" + databaseSmokeSuffix()
 
 	var confID string
 	err := ctx.DB.QueryRow(context.Background(), `
@@ -348,27 +330,9 @@ func TestPostgresSmokeWorkShiftScheduleUsesConferenceTimezone(t *testing.T) {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM work_shifts WHERE id::text = $1`, shiftID)
 	})
 
-	originalConfs := confs
-	originalLastConfsFetch := lastConfsFetch
-	originalJobs := jobs
-	originalLastJobTypeFetch := lastJobTypeFetch
-	t.Cleanup(func() {
-		confs = originalConfs
-		lastConfsFetch = originalLastConfsFetch
-		jobs = originalJobs
-		lastJobTypeFetch = originalLastJobTypeFetch
-	})
-	confs, err = listConferencesPostgres(ctx)
+	shifts, err := ListWorkShifts(ctx)
 	if err != nil {
-		t.Fatalf("listConferencesPostgres: %v", err)
-	}
-	lastConfsFetch = time.Now()
-	jobs = nil
-	lastJobTypeFetch = time.Now()
-
-	shifts, err := listWorkShiftsPostgres(ctx)
-	if err != nil {
-		t.Fatalf("listWorkShiftsPostgres: %v", err)
+		t.Fatalf("ListWorkShifts: %v", err)
 	}
 	var got *types.WorkShift
 	for _, shift := range shifts {
@@ -400,14 +364,14 @@ func TestPostgresSmokeWorkShiftScheduleUsesConferenceTimezone(t *testing.T) {
 	}
 }
 
-func postgresSmokeContext(t *testing.T) *config.AppContext {
+func databaseSmokeContext(t *testing.T) *config.AppContext {
 	t.Helper()
 	if os.Getenv("BTCPP_POSTGRES_SMOKE") != "1" {
-		t.Skip("set BTCPP_POSTGRES_SMOKE=1 to run local Postgres smoke tests")
+		t.Skip("set BTCPP_POSTGRES_SMOKE=1 to run local database smoke tests")
 	}
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		t.Skip("DATABASE_URL is required for local Postgres smoke tests")
+		t.Skip("DATABASE_URL is required for local database smoke tests")
 	}
 
 	pool, err := pgxpool.New(context.Background(), databaseURL)
@@ -429,7 +393,7 @@ func postgresSmokeContext(t *testing.T) *config.AppContext {
 	}
 
 	return &config.AppContext{
-		Env:   &types.EnvConfig{DataBackend: dataBackendPostgres},
+		Env:   &types.EnvConfig{},
 		DB:    pool,
 		Err:   log.New(io.Discard, "", 0),
 		Infos: log.New(io.Discard, "", 0),
@@ -438,7 +402,7 @@ func postgresSmokeContext(t *testing.T) *config.AppContext {
 
 func insertSmokeConference(t *testing.T, app *config.AppContext) (string, string) {
 	t.Helper()
-	tag := "smoke-" + postgresSmokeSuffix()
+	tag := "smoke-" + databaseSmokeSuffix()
 	var id string
 	err := app.DB.QueryRow(context.Background(), `
 		INSERT INTO conferences (
@@ -460,6 +424,6 @@ func insertSmokeConference(t *testing.T, app *config.AppContext) (string, string
 	return id, tag
 }
 
-func postgresSmokeSuffix() string {
+func databaseSmokeSuffix() string {
 	return strings.ToLower(strings.ReplaceAll(time.Now().UTC().Format("20060102T150405.000000000"), ".", ""))
 }

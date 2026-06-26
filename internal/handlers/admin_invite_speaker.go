@@ -208,7 +208,12 @@ func AdminInviteSpeakerSent(w http.ResponseWriter, r *http.Request, ctx *config.
 	var recipient *types.Speaker
 	var latest *time.Time
 	for _, ref := range proposal.SpeakerConfRefs {
-		sc := getters.FetchSpeakerConfByID(ref)
+		sc, err := getters.GetSpeakerConfByID(ctx, ref)
+		if err != nil {
+			ctx.Err.Printf("/%s/admin/invite-speaker/sent speakerconf %s: %s", conf.Tag, ref, err)
+			http.Error(w, "render failed", http.StatusInternalServerError)
+			return
+		}
 		if sc == nil || sc.Speaker == nil {
 			continue
 		}
@@ -238,14 +243,15 @@ func AdminInviteSpeakerSent(w http.ResponseWriter, r *http.Request, ctx *config.
 func resolveOrCreateSpeaker(ctx *config.AppContext, speakerID, name, email string) (*types.Speaker, error) {
 	if speakerID != "" {
 		// Autocomplete supplied an ID; trust it but fall back to lookup
-		// if cache misses.
-		for _, s := range getters.SearchSpeakersByNameOrEmail(email, 10) {
-			if s != nil && s.ID == speakerID {
-				return s, nil
-			}
+		// if the row disappeared.
+		speaker, err := getters.FetchSpeakerByID(ctx, speakerID)
+		if err != nil {
+			return nil, fmt.Errorf("lookup by id: %w", err)
 		}
-		// Fall through — the picked speaker disappeared from cache for
-		// some reason; treat as if no ID was picked.
+		if speaker != nil {
+			return speaker, nil
+		}
+		// Fall through: treat as if no ID was picked.
 	}
 	matches, err := getters.GetSpeakersByEmail(ctx, email)
 	if err != nil {
@@ -294,7 +300,6 @@ func resolveOrCreateInvitedProposal(ctx *config.AppContext, conf *types.Conf, sp
 	if err != nil {
 		return nil, false, fmt.Errorf("create proposal: %w", err)
 	}
-	getters.InvalidateProposalsCache()
 	p, err := getters.GetProposal(ctx, pid)
 	if err != nil || p == nil {
 		// Worst case — fabricate a minimal Proposal so the rest of the

@@ -27,13 +27,13 @@ func staffSpeakersForConf(ctx *config.AppContext, confTag string) []*types.Speak
 	if confTag == "" {
 		return nil
 	}
-	all, err := getters.FetchSpeakersCached(ctx)
-	if err != nil || len(all) == 0 {
+	want := strings.ToLower(strings.TrimSpace(confTag)) + "-" + auth.RoleStaff
+	staff, err := getters.ListSpeakersWithRole(ctx, want)
+	if err != nil || len(staff) == 0 {
 		return nil
 	}
-	want := strings.ToLower(strings.TrimSpace(confTag)) + "-" + auth.RoleStaff
 	out := make([]*types.Speaker, 0)
-	for _, sp := range all {
+	for _, sp := range staff {
 		if sp == nil {
 			continue
 		}

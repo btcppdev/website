@@ -69,7 +69,12 @@ func SpeakerSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		return
 	}
 	q := r.URL.Query().Get("q")
-	speakers := getters.SearchSpeakersByNameOrEmail(q, 10)
+	speakers, err := getters.SearchSpeakersByNameOrEmail(ctx, q, 10)
+	if err != nil {
+		ctx.Err.Printf("/api/speakers/search: %s", err)
+		http.Error(w, "search failed", http.StatusInternalServerError)
+		return
+	}
 	type speakerHit struct {
 		ID      string `json:"id"`
 		Name    string `json:"name"`
@@ -97,12 +102,16 @@ func SpeakerRolesGet(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return
 	}
 	speakerID := mux.Vars(r)["speakerID"]
-	for _, s := range getters.AllCachedSpeakers() {
-		if s != nil && s.ID == speakerID {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{"roles": s.Roles})
-			return
-		}
+	speaker, err := getters.FetchSpeakerByID(ctx, speakerID)
+	if err != nil {
+		ctx.Err.Printf("/api/speakers/%s/roles: %s", speakerID, err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	}
+	if speaker != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"roles": speaker.Roles})
+		return
 	}
 	http.Error(w, "not found", http.StatusNotFound)
 }
@@ -214,7 +223,7 @@ func DashboardTalkDetails(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	page := &TalkDetailsPage{
 		Proposal: proposal,
 		Conf:     proposal.ScheduleFor,
-		Speakers: resolveProposalSpeakers(proposal),
+		Speakers: resolveProposalSpeakers(proposal, ctx),
 		HMAC:     encHMAC,
 		Email:    encEmail,
 		Year:     helpers.CurrentYear(),
@@ -687,8 +696,10 @@ func DashboardWithdraw(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		// trimmed speaker list is what we send the update with.
 		if conf != nil {
 			if updated, perr := getters.GetProposal(ctx, proposalID); perr == nil && updated != nil {
-				remaining := proposalSpeakers(updated)
-				if dErr := DispatchTalkICSRemoved(ctx, updated, conf, leavingEmail, leavingName, remaining); dErr != nil {
+				remaining, serr := proposalSpeakers(ctx, updated)
+				if serr != nil {
+					ctx.Err.Printf("/dashboard withdraw panel speakers: %s", serr)
+				} else if dErr := DispatchTalkICSRemoved(ctx, updated, conf, leavingEmail, leavingName, remaining); dErr != nil {
 					ctx.Err.Printf("/dashboard withdraw panel cal-fire: %s", dErr)
 				}
 			}
@@ -703,8 +714,10 @@ func DashboardWithdraw(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		// Solo talk withdrawn: pull the event off every
 		// attendee's calendar.
 		if conf != nil {
-			speakers := proposalSpeakers(proposal)
-			if dErr := DispatchTalkICSCancelForProposal(ctx, proposal, conf, speakers); dErr != nil {
+			speakers, serr := proposalSpeakers(ctx, proposal)
+			if serr != nil {
+				ctx.Err.Printf("/dashboard withdraw solo speakers: %s", serr)
+			} else if dErr := DispatchTalkICSCancelForProposal(ctx, proposal, conf, speakers); dErr != nil {
 				ctx.Err.Printf("/dashboard withdraw solo cal-fire: %s", dErr)
 			}
 		}
@@ -766,7 +779,9 @@ func DashboardRemoveCoSpeaker(w http.ResponseWriter, r *http.Request, ctx *confi
 	// dropped — after RemoveProposalFromSpeakerConf the cache may
 	// not link them back if they had only the one proposal.
 	var removedEmail, removedName string
-	if sc := getters.FetchSpeakerConfByID(targetSpeakerConfID); sc != nil && sc.Speaker != nil {
+	if sc, err := getters.GetSpeakerConfByID(ctx, targetSpeakerConfID); err != nil {
+		ctx.Err.Printf("/dashboard remove co-speaker target speakerconf: %s", err)
+	} else if sc != nil && sc.Speaker != nil {
 		removedEmail = sc.Speaker.Email
 		removedName = sc.Speaker.Name
 	}
@@ -781,8 +796,10 @@ func DashboardRemoveCoSpeaker(w http.ResponseWriter, r *http.Request, ctx *confi
 	// the remaining co-speakers so their attendee list updates.
 	if proposal.ScheduleFor != nil {
 		if updated, perr := getters.GetProposal(ctx, proposalID); perr == nil && updated != nil {
-			remaining := proposalSpeakers(updated)
-			if dErr := DispatchTalkICSRemoved(ctx, updated, proposal.ScheduleFor, removedEmail, removedName, remaining); dErr != nil {
+			remaining, serr := proposalSpeakers(ctx, updated)
+			if serr != nil {
+				ctx.Err.Printf("/dashboard remove co-speaker speakers: %s", serr)
+			} else if dErr := DispatchTalkICSRemoved(ctx, updated, proposal.ScheduleFor, removedEmail, removedName, remaining); dErr != nil {
 				ctx.Err.Printf("/dashboard remove co-speaker cal-fire: %s", dErr)
 			}
 		}
@@ -1006,7 +1023,12 @@ func InviteSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	// fields we already know.
 	var inviteeSC *types.SpeakerConf
 	for _, ref := range proposal.SpeakerConfRefs {
-		sc := getters.FetchSpeakerConfByID(ref)
+		sc, err := getters.GetSpeakerConfByID(ctx, ref)
+		if err != nil {
+			ctx.Err.Printf("/invite-speaker speakerconf %s: %s", ref, err)
+			http.Error(w, "Unable to load invite", http.StatusInternalServerError)
+			return
+		}
 		if sc == nil || sc.InvitedAt == nil {
 			continue
 		}
@@ -1218,8 +1240,10 @@ func handleInviteSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	// Silent no-op when no ConfTalk yet (most invite-speaker
 	// flows hit before scheduling).
 	if updated, perr := getters.GetProposal(ctx, proposal.ID); perr == nil && updated != nil {
-		updatedSpeakers := proposalSpeakers(updated)
-		if dErr := DispatchTalkICSForProposal(ctx, updated, conf, updatedSpeakers, true); dErr != nil {
+		updatedSpeakers, serr := proposalSpeakers(ctx, updated)
+		if serr != nil {
+			ctx.Err.Printf("/invite-speaker co-speaker speakers: %s", serr)
+		} else if dErr := DispatchTalkICSForProposal(ctx, updated, conf, updatedSpeakers, true); dErr != nil {
 			ctx.Err.Printf("/invite-speaker co-speaker cal-fire: %s", dErr)
 		}
 	}

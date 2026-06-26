@@ -7,7 +7,6 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/ics"
-	"btcpp-web/internal/types"
 
 	"github.com/gorilla/mux"
 )
@@ -41,18 +40,11 @@ func DashboardVolShiftICS(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
-	allShifts, err := getters.FetchShiftsCached(ctx)
+	shift, err := getters.GetWorkShiftByRef(ctx, shiftRef)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/vol/%s/calendar.ics shifts: %s", shiftRef, err)
 		http.Error(w, "Unable to load shifts", http.StatusInternalServerError)
 		return
-	}
-	var shift *types.WorkShift
-	for _, s := range allShifts {
-		if s != nil && s.Ref == shiftRef {
-			shift = s
-			break
-		}
 	}
 	if shift == nil || shift.Conf == nil || shift.ShiftTime == nil || shift.ShiftTime.End == nil {
 		http.NotFound(w, r)
@@ -149,18 +141,11 @@ func DashboardVolShiftsResend(w http.ResponseWriter, r *http.Request, ctx *confi
 		return
 	}
 
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByTag(ctx, confTag)
 	if err != nil {
-		ctx.Err.Printf("/dashboard/vol/%s/shifts/resend-invites confs: %s", confTag, err)
+		ctx.Err.Printf("/dashboard/vol/%s/shifts/resend-invites conf: %s", confTag, err)
 		http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "Lookup failed"), http.StatusSeeOther)
 		return
-	}
-	var conf *types.Conf
-	for _, c := range confs {
-		if c != nil && c.Tag == confTag {
-			conf = c
-			break
-		}
 	}
 	if conf == nil {
 		http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "Unknown conf"), http.StatusSeeOther)
@@ -199,4 +184,3 @@ func DashboardVolShiftsResend(w http.ResponseWriter, r *http.Request, ctx *confi
 	flash := fmt.Sprintf("Re-sent %d shift cal invite(s) to %s.", sent, vol.Email)
 	http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, flash), http.StatusSeeOther)
 }
-

@@ -303,7 +303,7 @@ func dashboardURLForEmail(ctx *config.AppContext, email, flash, errMsg string) s
 // — see CalcDiscount's wildcard handling — so this list is purely
 // informational, not a binding.
 func activeConfTagNames(ctx *config.AppContext) []string {
-	confs, err := getters.FetchConfsCached(ctx)
+	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		return nil
 	}

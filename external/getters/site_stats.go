@@ -1,7 +1,8 @@
 package getters
 
 import (
-	"time"
+	"context"
+	"fmt"
 
 	"btcpp-web/internal/config"
 )
@@ -14,60 +15,92 @@ type SiteStatsValues struct {
 	Attendees int // total registration rows, rough attendee count
 }
 
-// getSiteStats recomputes the about-page aggregate counters from the already
-// warm Confs / ConfTalks caches plus a backend attendee count.
-func getSiteStats(ctx *config.AppContext) {
-	ctx.Infos.Printf("getting site stats...")
+func siteStatsDirect(ctx *config.AppContext) (SiteStatsValues, error) {
 	var s SiteStatsValues
 
+	confs, err := ListConfs(ctx)
+	if err != nil {
+		return s, err
+	}
+	ended := map[string]bool{}
 	for _, c := range confs {
 		if c != nil && c.HasEnded() {
 			s.PastConfs++
+			ended[c.Tag] = true
 		}
 	}
 
-	confTalkCacheMu.RLock()
-	for _, ct := range cacheConfTalks {
-		if ct == nil || ct.Conf == nil || !ct.Conf.HasEnded() {
+	talks, err := ListTalks(ctx)
+	if err != nil {
+		return s, err
+	}
+	for _, talk := range talks {
+		if talk == nil || !ended[talk.Event] {
 			continue
 		}
-		if ct.Proposal != nil && ct.Proposal.Status == "Accepted" {
+		if talk.Status == "Accepted" {
 			s.PastTalks++
 		}
 	}
-	confTalkCacheMu.RUnlock()
 
 	attendees, err := siteStatsAttendees(ctx)
 	if err != nil {
-		ctx.Err.Printf("site stats registrations scan: %s", err)
-	} else {
-		s.Attendees = attendees
+		return s, err
 	}
-
-	siteStatsMu.Lock()
-	siteStats = s
-	siteStatsMu.Unlock()
-	ctx.Infos.Printf("Loaded site stats: confs=%d talks=%d attendees=%d",
-		s.PastConfs, s.PastTalks, s.Attendees)
+	s.Attendees = attendees
+	return s, nil
 }
 
 func siteStatsAttendees(ctx *config.AppContext) (int, error) {
-	if UsePostgresBackend(ctx) {
-		return siteStatsAttendeesPostgres(ctx)
+	if ctx == nil || ctx.DB == nil {
+		return 0, fmt.Errorf("database is not configured")
 	}
-	return siteStatsAttendeesNotion(ctx)
+	var count int
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT count(*)
+		FROM registrations
+	`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count registrations: %w", err)
+	}
+	return count, nil
 }
 
-// FetchSiteStats returns the cached about-page counters and queues a
-// background refresh on TTL expiry.
+func siteStatsFromDatabase(ctx *config.AppContext) (SiteStatsValues, error) {
+	if ctx == nil || ctx.DB == nil {
+		return SiteStatsValues{}, fmt.Errorf("database is not configured")
+	}
+	var s SiteStatsValues
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT
+			(SELECT count(*) FROM conferences WHERE end_date IS NOT NULL AND end_date < now()),
+			(
+				SELECT count(*)
+				FROM conf_talks ct
+				JOIN conferences c ON c.id = ct.conference_id
+				JOIN proposals p ON p.id = ct.proposal_id
+				WHERE c.end_date IS NOT NULL
+					AND c.end_date < now()
+					AND p.status = 'Accepted'
+			),
+			(SELECT count(*) FROM registrations)
+	`).Scan(&s.PastConfs, &s.PastTalks, &s.Attendees); err != nil {
+		return SiteStatsValues{}, fmt.Errorf("query site stats: %w", err)
+	}
+	return s, nil
+}
+
+// FetchSiteStats returns about-page counters.
 func FetchSiteStats(ctx *config.AppContext) SiteStatsValues {
-	siteStatsMu.RLock()
-	s := siteStats
-	stale := lastSiteStatsFetch.Before(time.Now().Add(-cacheTTL))
-	siteStatsMu.RUnlock()
-	if stale {
-		lastSiteStatsFetch = time.Now()
-		queueRefresh(JobSiteStats)
+	s, err := siteStatsFromDatabase(ctx)
+	if err != nil {
+		ctx.Err.Printf("site stats aggregate: %s", err)
+	} else {
+		return s
+	}
+
+	s, err = siteStatsDirect(ctx)
+	if err != nil {
+		ctx.Err.Printf("site stats direct: %s", err)
 	}
 	return s
 }

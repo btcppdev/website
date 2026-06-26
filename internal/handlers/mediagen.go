@@ -427,7 +427,7 @@ func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, org
 }
 
 func RefreshSponsorCards(ctx *config.AppContext) {
-	confs, err := getters.FetchConfsCached(ctx)
+	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		ctx.Err.Printf("media refresh sponsors: failed to fetch confs: %s", err)
 		return
@@ -453,9 +453,8 @@ func RefreshSponsorCards(ctx *config.AppContext) {
 }
 
 // RefreshTalkCards is the periodic / on-demand refresher used by the live
-// server. It enforces the atomic-running guard (so OnTalksRefresh callbacks
-// don't pile up) and skips talks attached to inactive confs (which are past
-// events and don't need fresh cards).
+// server. It enforces the atomic-running guard and skips talks attached to
+// inactive confs (which are past events and don't need fresh cards).
 func RefreshTalkCards(ctx *config.AppContext, talks []*types.Talk) {
 	if !atomic.CompareAndSwapInt32(&refreshRunning, 0, 1) {
 		ctx.Infos.Printf("media refresh: skipping, already running")
@@ -482,7 +481,7 @@ func RefreshTalkCardsForceOpt(ctx *config.AppContext, talks []*types.Talk, force
 }
 
 func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive, force bool) {
-	confs, _ := getters.FetchConfsCached(ctx)
+	confs, _ := getters.ListConfs(ctx)
 	confset := helpers.ConfTagSet(confs)
 	renderer := helpers.NewMediaRenderer(ctx)
 	defer renderer.Close()
@@ -561,19 +560,8 @@ func InitMediaRefresh(ctx *config.AppContext) {
 	ctx.Infos.Println("InitMediaRefresh: loading hashes from spaces...")
 	PreloadCardHashes(ctx)
 
-	// Register callbacks so cards refresh when data changes
-	getters.OnTalksRefresh(func(ctx *config.AppContext, talks []*types.Talk) {
-		RefreshTalkCards(ctx, talks)
-	})
-
-	getters.OnSpeakersRefresh(func(ctx *config.AppContext, speakers []*types.Speaker) {
-		RefreshSpeakerCards(ctx, speakers)
-	})
-
-	ctx.Infos.Println("Media card refresh callbacks registered")
-
-	// Do an initial refresh with the data already loaded by WaitFetch
-	talks, err := getters.FetchTalksCached(ctx)
+	// Do an initial refresh from direct getters.
+	talks, err := getters.ListTalks(ctx)
 	if err == nil && talks != nil {
 		ctx.Infos.Println("Running initial media card refresh...")
 		RefreshTalkCards(ctx, talks)

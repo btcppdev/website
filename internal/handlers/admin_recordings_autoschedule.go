@@ -224,9 +224,6 @@ func recordingsYouTubeSlotsSave(w http.ResponseWriter, r *http.Request, ctx *con
 }
 
 func buildRecordingAutoschedulePreview(ctx *config.AppContext, conf *types.Conf, rescheduleExisting bool) ([]*RecordingAutoscheduleItem, []*RecordingAutoscheduleItem, []*types.YouTubePublishSlot, error) {
-	if _, err := getters.FetchSocialPostsCached(ctx); err != nil {
-		ctx.Err.Printf("/%s/admin/recordings/autoschedule socialposts: %s", conf.Tag, err)
-	}
 	rows := recordingRowsForConf(ctx, conf.Tag)
 	enrichRowsWithYouTubeStatus(ctx, rows)
 	sort.SliceStable(rows, func(i, j int) bool {
@@ -323,7 +320,7 @@ func occupiedYouTubePublishTimes(ctx *config.AppContext, currentRows []*Recordin
 	all, err := getters.ListRecordings(ctx)
 	if err != nil {
 		ctx.Err.Printf("autoschedule list recordings for occupied slots: %s", err)
-		all = getters.ListRecordingsCached()
+		return occupied
 	}
 	for _, rec := range all {
 		if rec == nil || rec.PublishAt == nil || rec.PublishAt.Before(time.Now()) {
@@ -331,7 +328,7 @@ func occupiedYouTubePublishTimes(ctx *config.AppContext, currentRows []*Recordin
 		}
 		occupied[rec.PublishAt.UTC().Unix()] = true
 	}
-	posts, err := getters.FetchSocialPostsCached(ctx)
+	posts, err := getters.ListSocialPosts(ctx)
 	if err == nil {
 		for _, post := range posts {
 			if post == nil || post.ScheduledAt == nil || post.ScheduledAt.Before(time.Now()) {
@@ -341,6 +338,8 @@ func occupiedYouTubePublishTimes(ctx *config.AppContext, currentRows []*Recordin
 				occupied[post.ScheduledAt.UTC().Unix()] = true
 			}
 		}
+	} else {
+		ctx.Err.Printf("autoschedule list social posts for occupied slots: %s", err)
 	}
 	if rescheduleExisting {
 		for _, row := range currentRows {

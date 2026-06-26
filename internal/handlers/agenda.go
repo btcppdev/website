@@ -4,6 +4,7 @@ import (
 	"sort"
 	"time"
 
+	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
 
@@ -42,7 +43,7 @@ type AgendaDay struct {
 //
 // infosByDay is indexed by 1-based Day matching ConfInfo.Day; days
 // without an entry leave AgendaDay.Info nil.
-func buildAgendaDays(conf *types.Conf, talks []*types.Talk, infosByDay map[int]*types.ConfInfo) []*AgendaDay {
+func buildAgendaDays(ctx *config.AppContext, conf *types.Conf, talks []*types.Talk, infosByDay map[int]*types.ConfInfo) []*AgendaDay {
 	if conf == nil {
 		return nil
 	}
@@ -73,7 +74,7 @@ func buildAgendaDays(conf *types.Conf, talks []*types.Talk, infosByDay map[int]*
 		sortTalksForAgenda(dayTalks)
 		sessions := make([]*types.Session, 0, len(dayTalks))
 		for _, t := range dayTalks {
-			sessions = append(sessions, talkToSession(t, conf))
+			sessions = append(sessions, talkToSession(ctx, t, conf))
 		}
 
 		ad := &AgendaDay{

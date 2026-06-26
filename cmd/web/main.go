@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"btcpp-web/external/buffer"
-	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
 	"btcpp-web/external/tokens"
 	youtubepkg "btcpp-web/external/youtube"
@@ -77,10 +76,6 @@ func main() {
 		}
 	}
 	youtubepkg.Init(app.Env.YouTube.ClientID, app.Env.YouTube.ClientSecret, app.Env.YouTube.RedirectURL)
-
-	/* Load cached data */
-	getters.WaitFetch(&app)
-	getters.StartWorkPool(&app)
 
 	/* Start up Buffer */
 	buffer.Init(app.Env.BufferAPI)
@@ -164,8 +159,6 @@ func run(env *types.EnvConfig) error {
 	app.Infos.Println("~~~~app restarted, here we go~~~~~")
 	app.Infos.Println("Running in prod?", env.Prod)
 
-	app.Notion = &types.Notion{Config: &env.Notion}
-	app.Notion.Setup(env.Notion.Token)
 	pool, err := db.Open(context.Background(), env.DatabaseURL)
 	if err != nil {
 		return err
@@ -190,14 +183,6 @@ func run(env *types.EnvConfig) error {
 	app.Session.Cookie.Secure = app.InProduction
 	app.Session.Store = pgxstore.New(app.DB)
 	app.Infos.Println("using postgres session store")
-
-	// Per-request Notion timing is noisy in production, so keep it opt-in.
-	// Recent-call tracking for /api/cache-stats remains enabled separately.
-	if env.NotionRequestLogs {
-		types.SetNotionRequestLogger(app.Infos.Printf)
-	} else {
-		types.SetNotionRequestLogger(nil)
-	}
 
 	return nil
 }

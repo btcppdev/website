@@ -1,18 +1,16 @@
 package getters
 
 import (
-	"fmt"
-	"time"
-
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"context"
+	"fmt"
+	"strings"
 )
 
-// HotelInput is the shape every Hotel write goes through. Empty
-// strings mean "leave the field unset" on create and "clear it" on
-// update — Notion-side validation is loose, mirroring how
-// ProposalInput is handled. Order is always written (zero is a
-// real, valid display rank).
+// HotelInput is the shape every Hotel write goes through. Empty strings mean
+// "leave the field unset" on create and "clear it" on update. Order is always
+// written (zero is a real, valid display rank).
 type HotelInput struct {
 	Name    string
 	URL     string
@@ -23,76 +21,133 @@ type HotelInput struct {
 	ConfRef string // Conference page ID for the `conf` relation
 }
 
-func getHotels(ctx *config.AppContext) {
-	var err error
-	ctx.Infos.Printf("getting hotels...")
-	if UsePostgresBackend(ctx) {
-		hotels, err = listHotelsPostgres(ctx)
-	} else {
-		hotels, err = ListHotelsNotion(ctx.Notion)
-	}
-
-	if err != nil {
-		ctx.Err.Printf("error fetching hotels %s", err)
-	} else {
-		ctx.Infos.Printf("Loaded %d hotels!", len(hotels))
-		writeCache("hotels", hotels)
-	}
-}
-
-/* This may return nil */
-func FetchHotelsCached(ctx *config.AppContext) ([]*types.Hotel, error) {
-	now := time.Now()
-	deadline := now.Add(-cacheTTL)
-	if hotels == nil || lastHotelFetch.Before(deadline) {
-		lastHotelFetch = time.Now()
-		queueRefresh(JobHotels)
-	}
-
-	return hotels, nil
-}
-
-func ListHotels(n *types.Notion) ([]*types.Hotel, error) {
-	return ListHotelsNotion(n)
-}
-
 // CreateHotel inserts a new row into the Hotels DB and returns the
 // new page ID. ConfRef is required (no orphan hotels); everything
 // else is optional and gets written when non-empty.
-func CreateHotel(ctx *config.AppContext, in HotelInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createHotelPostgres(ctx, in)
-	}
-	if in.ConfRef == "" {
-		return "", fmt.Errorf("CreateHotel: ConfRef is required")
-	}
-	return createHotelNotion(ctx.Notion, in)
-}
 
 // UpdateHotel patches an existing Hotel row. Empty fields are left
 // untouched on update so a partial form post doesn't accidentally
 // blank a field the admin didn't intend to clear.
+
+// ArchiveHotel soft-deletes a Hotel row.
+
+func CreateHotel(ctx *config.AppContext, in HotelInput) (string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", fmt.Errorf("database is not configured")
+	}
+	if strings.TrimSpace(in.ConfRef) == "" {
+		return "", fmt.Errorf("CreateHotel: ConfRef is required")
+	}
+	var hotelID string
+	err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO hotels (
+			conference_id, name, url, img_path, type, description, display_order
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7
+		)
+		RETURNING id::text
+	`, in.ConfRef, in.Name, in.URL, in.Img, in.Type, in.Desc, in.Order).Scan(&hotelID)
+	if err != nil {
+		return "", fmt.Errorf("insert hotel %q: %w", in.Name, err)
+	}
+	return hotelID, nil
+}
+
+func listHotels(ctx *config.AppContext) ([]*types.Hotel, error) {
+	return queryHotelsPostgres(ctx, "hotels", "", nil)
+}
+
+func ListHotelsForConf(ctx *config.AppContext, confRef string) ([]*types.Hotel, error) {
+	confRef = strings.TrimSpace(confRef)
+	if confRef == "" {
+		return nil, nil
+	}
+	return queryHotelsPostgres(ctx, "hotels for conf", "AND hotels.conference_id::text = $1", []any{confRef})
+}
+
+func queryHotelsPostgres(ctx *config.AppContext, label string, whereSQL string, args []any) ([]*types.Hotel, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT hotels.id::text, hotels.conference_id::text, hotels.name, hotels.url,
+			hotels.img_path, hotels.type, hotels.description, hotels.display_order
+		FROM hotels
+		JOIN conferences ON conferences.id = hotels.conference_id
+		WHERE hotels.archived_at IS NULL
+		`+whereSQL+`
+		ORDER BY conferences.start_date NULLS LAST, hotels.display_order, hotels.name
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query %s: %w", label, err)
+	}
+	defer rows.Close()
+
+	var hotels []*types.Hotel
+	for rows.Next() {
+		var hotel types.Hotel
+		err := rows.Scan(
+			&hotel.ID,
+			&hotel.ConfRef,
+			&hotel.Name,
+			&hotel.URL,
+			&hotel.Img,
+			&hotel.Type,
+			&hotel.Desc,
+			&hotel.Order,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan %s: %w", label, err)
+		}
+		hotels = append(hotels, &hotel)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
+	}
+	return hotels, nil
+}
+
 func UpdateHotel(ctx *config.AppContext, hotelID string, in HotelInput) error {
-	if UsePostgresBackend(ctx) {
-		return updateHotelPostgres(ctx, hotelID, in)
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
 	}
-	return updateHotelNotion(ctx, hotelID, in)
+	if strings.TrimSpace(hotelID) == "" {
+		return fmt.Errorf("UpdateHotel: hotelID is required")
+	}
+	setParts := []string{"display_order = $2", "url = $3", "img_path = $4", "type = $5", "description = $6"}
+	args := []interface{}{hotelID, in.Order, in.URL, in.Img, in.Type, in.Desc}
+	if in.Name != "" {
+		args = append(args, in.Name)
+		setParts = append(setParts, fmt.Sprintf("name = $%d", len(args)))
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE hotels
+		SET `+strings.Join(setParts, ", ")+`
+		WHERE id = $1
+	`, args...)
+	if err != nil {
+		return fmt.Errorf("update hotel %s: %w", hotelID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("hotel %s not found", hotelID)
+	}
+	return nil
 }
 
-// ArchiveHotel soft-deletes a Hotel row (Notion archive — recoverable
-// from the trash for 30 days). Goes through raw HTTP PATCH because
-// the go-notion library doesn't expose the `archived` flag on its
-// UpdatePageProperties wrapper, mirroring DeleteConfTalk.
 func ArchiveHotel(ctx *config.AppContext, hotelID string) error {
-	if UsePostgresBackend(ctx) {
-		return archiveHotelPostgres(ctx, hotelID)
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
 	}
-	return archiveHotelNotion(ctx, hotelID)
-}
-
-// RefreshHotelsCache forces the next FetchHotelsCached call to fetch
-// fresh data from Notion. Called after every CRUD op so the
-// /{conf}/admin/hotels page reflects edits immediately.
-func RefreshHotelsCache() {
-	queueRefresh(JobHotels)
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE hotels
+		SET archived_at = now()
+		WHERE id = $1
+	`, hotelID)
+	if err != nil {
+		return fmt.Errorf("archive hotel %s: %w", hotelID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("hotel %s not found", hotelID)
+	}
+	return nil
 }

@@ -198,37 +198,28 @@ func adminDiscountForConf(ctx *config.AppContext, conf *types.Conf, discountID s
 	if strings.TrimSpace(discountID) == "" {
 		return nil, fmt.Errorf("Discount ID is required.")
 	}
-	discounts, err := getters.FetchDiscountsCached(ctx)
+	discount, err := getters.GetDiscountByRef(ctx, discountID)
 	if err != nil {
 		return nil, err
 	}
-	for _, d := range discounts {
-		if d == nil || d.Ref != discountID {
-			continue
-		}
-		for _, ref := range d.ConfRef {
-			if ref == conf.Ref {
-				return d, nil
-			}
-		}
+	if discount == nil {
 		return nil, nil
+	}
+	for _, ref := range discount.ConfRef {
+		if ref == conf.Ref {
+			return discount, nil
+		}
 	}
 	return nil, nil
 }
 
 func codeNameAvailableForUpdate(ctx *config.AppContext, discountID, codeName string) error {
-	discounts, err := getters.FetchDiscountsCached(ctx)
+	discount, err := getters.GetDiscountByCode(ctx, codeName)
 	if err != nil {
 		return fmt.Errorf("Couldn't check whether that code already exists.")
 	}
-	target := strings.ToUpper(strings.TrimSpace(codeName))
-	for _, d := range discounts {
-		if d == nil || d.Ref == discountID {
-			continue
-		}
-		if strings.ToUpper(d.CodeName) == target {
-			return fmt.Errorf("That code already exists. Pick another code name.")
-		}
+	if discount != nil && discount.Ref != discountID {
+		return fmt.Errorf("That code already exists. Pick another code name.")
 	}
 	return nil
 }
@@ -313,29 +304,17 @@ func parseDiscountAdminDate(raw string) (string, error) {
 }
 
 func discountsForConf(ctx *config.AppContext, conf *types.Conf) []AdminDiscountRow {
-	discounts, err := getters.FetchDiscountsCached(ctx)
+	discounts, err := getters.ListDiscountsForConf(ctx, conf.Ref)
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/discounts fetch: %s", conf.Tag, err)
 		return nil
 	}
-	matches := make([]*types.DiscountCode, 0)
-	for _, d := range discounts {
-		if d == nil {
-			continue
-		}
-		for _, ref := range d.ConfRef {
-			if ref == conf.Ref {
-				matches = append(matches, d)
-				break
-			}
-		}
-	}
-	sort.Slice(matches, func(i, j int) bool {
-		return strings.ToUpper(matches[i].CodeName) < strings.ToUpper(matches[j].CodeName)
+	sort.Slice(discounts, func(i, j int) bool {
+		return strings.ToUpper(discounts[i].CodeName) < strings.ToUpper(discounts[j].CodeName)
 	})
 
-	out := make([]AdminDiscountRow, 0, len(matches))
-	for _, d := range matches {
+	out := make([]AdminDiscountRow, 0, len(discounts))
+	for _, d := range discounts {
 		out = append(out, adminDiscountRow(d))
 	}
 	return out

@@ -356,7 +356,7 @@ func dashboardSatelliteEventForOwner(r *http.Request, ctx *config.AppContext, em
 }
 
 func satelliteConfByRef(ctx *config.AppContext, confRef string) *types.Conf {
-	confs, _ := getters.FetchConfsCached(ctx)
+	confs, _ := getters.ListConfs(ctx)
 	for _, conf := range confs {
 		if conf != nil && conf.Ref == confRef {
 			return conf
@@ -457,13 +457,8 @@ func sendSatellitePublishedNotification(ctx *config.AppContext, conf *types.Conf
 
 func satelliteAdminEmails(ctx *config.AppContext, conf *types.Conf) []string {
 	var speakers []*types.Speaker
-	if cached, err := getters.FetchSpeakersCached(ctx); err == nil {
-		speakers = cached
-	}
-	if len(speakers) == 0 {
-		if listed, err := getters.ListSpeakers(ctx); err == nil {
-			speakers = listed
-		}
+	if listed, err := getters.ListSpeakers(ctx); err == nil {
+		speakers = listed
 	}
 	seen := map[string]bool{}
 	var out []string

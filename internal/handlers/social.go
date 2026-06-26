@@ -152,10 +152,8 @@ func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		return
 	}
 
-	// Kick off a card-refresh in the background. The OnTalksRefresh wiring
-	// only fires on Talks-DB updates, which won't happen for ConfTalk-sourced
-	// data — so we trigger it here. Hash and spaces.Exists checks make
-	// re-runs cheap when nothing's changed.
+	// Kick off a card-refresh in the background. Hash and spaces.Exists checks
+	// make re-runs cheap when nothing's changed.
 	go RefreshTalkCards(ctx, talks)
 
 	// Build a map of speaker ID -> their talks

@@ -444,7 +444,7 @@ func contains(list []string, item string) bool {
 }
 
 func findTicket(app *config.AppContext, tixID string) (*types.ConfTicket, *types.Conf) {
-	confs, err := getters.FetchConfsCached(app)
+	confs, err := getters.ListConfs(app)
 	if err != nil {
 		app.Err.Printf("unable to find ticket?? %s", err)
 		return nil, nil
@@ -602,6 +602,19 @@ func requestLog(ctx *config.AppContext, h http.Handler) http.Handler {
 		sr := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		h.ServeHTTP(sr, r)
 		ctx.Infos.Printf("← %s %s [%d] %s", r.Method, r.URL.Path, sr.status, time.Since(start))
+	})
+}
+
+func redirectTrailingSlash(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if (r.Method == http.MethodGet || r.Method == http.MethodHead) && r.URL.Path != "/" && strings.HasSuffix(r.URL.Path, "/") {
+			target := *r.URL
+			target.Path = strings.TrimRight(r.URL.Path, "/")
+			target.RawPath = ""
+			http.Redirect(w, r, target.String(), http.StatusPermanentRedirect)
+			return
+		}
+		h.ServeHTTP(w, r)
 	})
 }
 
@@ -921,20 +934,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/missives/schedule", func(w http.ResponseWriter, r *http.Request) {
 		TemplatedMissivesSchedule(w, r, app)
 	}).Methods("POST")
-
-	r.HandleFunc("/api/cache-stats", func(w http.ResponseWriter, r *http.Request) {
-		id := auth.RequireOptional(r, app)
-		if id == nil || !id.IsGlobalAdmin() {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		out := map[string]interface{}{
-			"caches":       getters.CacheStats(),
-			"recent_calls": types.RecentNotionCalls(),
-		}
-		json.NewEncoder(w).Encode(out)
-	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditProposal(w, r, app)
@@ -1369,7 +1368,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	fs := http.FileServer(http.Dir("static"))
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticCache(fs)))
 
-	return requestLog(app, noIndexRobots(r)), nil
+	return requestLog(app, redirectTrailingSlash(noIndexRobots(r))), nil
 }
 
 func getFaviconHandler(name string) func(http.ResponseWriter, *http.Request) {
@@ -1398,7 +1397,7 @@ func addFaviconRoutes(r *mux.Router) error {
 func listConfs(w http.ResponseWriter, ctx *config.AppContext) []*types.Conf {
 	var confs types.ConfList
 	var err error
-	confs, err = getters.FetchConfsCached(ctx)
+	confs, err = getters.ListConfs(ctx)
 	if err != nil {
 		// FIXME add an internal error page
 		http.Error(w, "Unable to load confereneces, please try again later", http.StatusInternalServerError)
@@ -1427,7 +1426,7 @@ func listVolunteerConfs(w http.ResponseWriter, ctx *config.AppContext) []*types.
 func listJobs(w http.ResponseWriter, ctx *config.AppContext) []*types.JobType {
 	var jobs types.JobsList
 	var err error
-	jobs, err = getters.FetchJobsCached(ctx)
+	jobs, err = getters.ListJobTypes(ctx)
 	if err != nil {
 		// FIXME add an internal error page
 		http.Error(w, "Unable to load jobs, please try again later", http.StatusInternalServerError)
@@ -1657,9 +1656,7 @@ func ReloadConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		return
 	}
 
-	/* Refresh the confs */
-	getters.WaitFetch(ctx)
-	confs, err := getters.FetchConfsCached(ctx)
+	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		http.Error(w, "Unable to load confereneces, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/conf-reload conf load failed ! %s", err.Error())
@@ -1695,9 +1692,12 @@ func ReloadConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 // per-conf SpeakerConf row so templates referencing Speaker.Company
 // render the conf-specific affiliation rather than the stale top-
 // level Speaker.Company.
-func acceptedSpeakersForConf(ctx *config.AppContext, confTag string, talks []*types.Talk) types.Speakers {
+func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*types.Talk) types.Speakers {
 	var speakers types.Speakers
 	seen := make(map[string]bool)
+	if conf == nil {
+		return speakers
+	}
 
 	// Source 1: speakers from ConfTalk-backed Talks (the existing
 	// pipeline). Talks already carry conf-overlaid Speaker views
@@ -1719,18 +1719,18 @@ func acceptedSpeakersForConf(ctx *config.AppContext, confTag string, talks []*ty
 	}
 
 	// Source 2: Accepted/Scheduled proposals scheduled for this conf.
-	// Best-effort — if the proposals cache read errors we still
+	// Best-effort — if the scoped proposal read errors we still
 	// return the talks-derived list rather than blanking the page.
 	//
-	// Cached Proposals only have SpeakerConfRefs (raw page IDs) — the
+	// Proposals only have SpeakerConfRefs (raw page IDs) — the
 	// Speakers []*SpeakerConf slice is populated only by callers that
 	// run resolveProposalSpeakers (e.g. LoadTalksFromConfTalks). Walk
 	// the refs directly via the SpeakerConf cache so this works on
 	// proposals that haven't been provisioned a ConfTalk yet (which
 	// is exactly the case this source is meant to catch).
-	proposals, err := getters.FetchProposalsCached(ctx)
+	proposals, err := getters.ListProposalsForConf(ctx, conf.Ref)
 	if err != nil {
-		ctx.Err.Printf("acceptedSpeakersForConf %s proposals: %s", confTag, err)
+		ctx.Err.Printf("acceptedSpeakersForConf %s proposals: %s", conf.Tag, err)
 		return speakers
 	}
 	for _, p := range proposals {
@@ -1740,11 +1740,15 @@ func acceptedSpeakersForConf(ctx *config.AppContext, confTag string, talks []*ty
 		if p.Status != StatusAccepted && p.Status != "Scheduled" {
 			continue
 		}
-		if p.ScheduleFor == nil || p.ScheduleFor.Tag != confTag {
+		if p.ScheduleFor == nil || p.ScheduleFor.Tag != conf.Tag {
 			continue
 		}
 		for _, ref := range p.SpeakerConfRefs {
-			sc := getters.FetchSpeakerConfByID(ref)
+			sc, err := getters.GetSpeakerConfByID(ctx, ref)
+			if err != nil {
+				ctx.Err.Printf("acceptedSpeakersForConf %s speakerconf %s: %s", conf.Tag, ref, err)
+				continue
+			}
 			if sc == nil || sc.Speaker == nil {
 				continue
 			}
@@ -1771,7 +1775,7 @@ func RenderTalks(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	allTalks, err := getters.GetTalksFor(ctx, conf.Tag)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to fetch talks from Notion!! %s", err.Error())
+		ctx.Err.Printf("Unable to fetch talks: %s", err.Error())
 		return
 	}
 
@@ -1789,7 +1793,7 @@ func RenderTalks(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	}
 
 	var evSpeakers types.Speakers
-	evSpeakers = acceptedSpeakersForConf(ctx, conf.Tag, talks)
+	evSpeakers = acceptedSpeakersForConf(ctx, conf, talks)
 
 	sort.Sort(talks)
 	sort.Sort(evSpeakers)
@@ -1961,10 +1965,10 @@ func extForImageContentType(contentType string) string {
 	}
 }
 
-// uploadSpeakerPic uploads PicFile to Notion (returning the file ID) and also
+// uploadSpeakerPic uploads PicFile (returning the stored file ID) and also
 // returns the raw bytes + content type + extension so the caller can mirror
 // the original to Spaces and generate AVIF derivatives.
-func uploadSpeakerPic(ctx *config.AppContext, r *http.Request) (notionID string, raw []byte, contentType string, ext string, err error) {
+func uploadSpeakerPic(ctx *config.AppContext, r *http.Request) (fileID string, raw []byte, contentType string, ext string, err error) {
 	file, handler, err := r.FormFile("PicFile")
 	if err != nil {
 		return "", nil, "", "", err
@@ -1983,8 +1987,8 @@ func uploadSpeakerPic(ctx *config.AppContext, r *http.Request) (notionID string,
 		ext = ".jpg"
 	}
 
-	notionID, err = getters.UploadFile(ctx, contentType, filename, raw)
-	return notionID, raw, contentType, ext, err
+	fileID, err = getters.UploadFile(ctx, contentType, filename, raw)
+	return fileID, raw, contentType, ext, err
 }
 
 func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2360,7 +2364,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		}
 		ctx.Session.Put(r.Context(), stashKey(conf.Tag), code)
 		if disc != nil {
-			allConfs, _ := getters.FetchConfsCached(ctx)
+			allConfs, _ := getters.ListConfs(ctx)
 			if len(disc.ConfRef) > 0 {
 				// Code is pinned to specific confs — stash
 				// for each one in the list.
@@ -2395,27 +2399,30 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	talks, err := getters.GetTalksFor(ctx, conf.Tag)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to fetch talks from Notion!! %s", err.Error())
+		ctx.Err.Printf("Unable to fetch talks: %s", err.Error())
 		return
 	}
 
 	var evSpeakers types.Speakers
-	evSpeakers = acceptedSpeakersForConf(ctx, conf.Tag, talks)
+	evSpeakers = acceptedSpeakersForConf(ctx, conf, talks)
 	sort.Sort(evSpeakers)
 
-	soldCount := getters.SoldTixCached(ctx, conf)
+	soldCount, err := getters.SoldTix(ctx, conf)
+	if err != nil {
+		ctx.Err.Printf("Unable to fetch sold ticket count for '%s': %s", conf.Tag, err.Error())
+	}
 
-	buckets, err := bucketTalks(conf, talks)
+	buckets, err := bucketTalks(ctx, conf, talks)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to bucket '%s' talks from Notion!! %s", conf.Tag, err.Error())
+		ctx.Err.Printf("Unable to bucket '%s' talks: %s", conf.Tag, err.Error())
 		return
 	}
 
 	days, err := talkDays(ctx, conf, talks)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to make days '%s' from talks from Notion!! %s", conf.Tag, err.Error())
+		ctx.Err.Printf("Unable to make days '%s' from talks: %s", conf.Tag, err.Error())
 		return
 	}
 
@@ -2428,7 +2435,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	} else {
 		infosByDay = confInfosByDay(cis)
 	}
-	agendaDays := buildAgendaDays(conf, talks, infosByDay)
+	agendaDays := buildAgendaDays(ctx, conf, talks, infosByDay)
 
 	// Flatten AgendaDays into a single chrono-ordered slice for the
 	// JSON-LD subEvent[] emission. Each day's .All is already
@@ -2442,9 +2449,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 
 	// Populate countdown bounds + HasAgenda for the conf_nav widget
-	// + agenda section. Shallow-copy first so we don't mutate the
-	// cached Conf seen by other readers (FetchConfsCached returns a
-	// shared slice).
+	// + agenda section without mutating the loaded Conf.
 	confCopy := *conf
 	confCopy.CountdownStart, confCopy.CountdownEnd = computeCountdownBounds(&confCopy, infosByDay)
 	confCopy.HasAgenda = anyScheduledTalk(talks)
@@ -2773,8 +2778,7 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 	}
 
 	// Shallow-copy each conf before populating the runtime-only
-	// CountdownStart/End fields so the shared FetchConfsCached
-	// slice stays untouched.
+	// CountdownStart/End fields.
 	enriched := make([]*types.Conf, 0, len(confList))
 	for _, c := range confList {
 		if c == nil {
@@ -2822,14 +2826,13 @@ func Ticket(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		tixType = "general"
 	}
 
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByRef(ctx, confRef)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("/ticket-pdf unable to load confs! %s", err)
+		ctx.Err.Printf("/ticket-pdf unable to load conf! %s", err)
 		return
 	}
 
-	conf := helpers.FindConfByRef(confs, confRef)
 	if conf == nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/ticket-pdf unable to find conf! %s", confRef)
@@ -2896,13 +2899,8 @@ func TicketPDF(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	// Friendly filename: ticket-{conf-tag}-{first8ofref}.pdf
 	confName := "btcpp"
 	if confRef != "" {
-		if confs, _ := getters.FetchConfsCached(ctx); confs != nil {
-			for _, c := range confs {
-				if c != nil && c.Ref == confRef && c.Tag != "" {
-					confName = c.Tag
-					break
-				}
-			}
+		if conf, _ := getters.GetConfByRef(ctx, confRef); conf != nil && conf.Tag != "" {
+			confName = conf.Tag
 		}
 	}
 	shortRef := ticket
@@ -2936,7 +2934,7 @@ func SendCals(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	talks, err := getters.GetTalksFor(ctx, conf.Tag)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to fetch talks from Notion!! %s", err.Error())
+		ctx.Err.Printf("Unable to fetch talks: %s", err.Error())
 		return
 	}
 
@@ -3150,14 +3148,18 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	}
 
 	/* Add to mailing list + schedule mails */
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByRef(ctx, entry.ConfRef)
 	if err != nil {
-		ctx.Err.Printf("opennode callback: unable to load confs! %s", err)
+		ctx.Err.Printf("opennode callback: unable to load conf! %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	conf := helpers.FindConfByRef(confs, entry.ConfRef)
+	if conf == nil {
+		ctx.Err.Printf("opennode callback: unable to find conf %s", entry.ConfRef)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	err = missives.NewTicketSub(ctx, entry.Email, conf.Tag, tixType, charge.Metadata.Subscribe)
 
 	if err != nil {
@@ -3595,13 +3597,12 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			return
 		}
 
-		confs, err := getters.FetchConfsCached(ctx)
+		conf, err := getters.GetConfByRef(ctx, confRef)
 		if err != nil {
-			ctx.Err.Printf("Stripe callback: unable to load confs! %s", err)
+			ctx.Err.Printf("Stripe callback: unable to load conf! %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		conf := helpers.FindConfByRef(confs, confRef)
 		if conf == nil {
 			ctx.Err.Printf("Couldn't find conf %s", confRef)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -4160,17 +4161,10 @@ func cancelShiftCalForVol(ctx *config.AppContext, vol *types.Volunteer, shiftRef
 	if vol == nil || vol.Email == "" {
 		return
 	}
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByTag(ctx, confTag)
 	if err != nil {
-		ctx.Err.Printf("cancelShiftCalForVol confs: %s", err)
+		ctx.Err.Printf("cancelShiftCalForVol conf: %s", err)
 		return
-	}
-	var conf *types.Conf
-	for _, c := range confs {
-		if c != nil && c.Tag == confTag {
-			conf = c
-			break
-		}
 	}
 	if conf == nil {
 		return
@@ -5469,7 +5463,7 @@ func parseShiftFormTimes(conf *types.Conf, dayStr, startStr, endStr string) (tim
 	return start, end, nil
 }
 
-// findJobByTag locates a JobType by its Tag from the cached job list.
+// findJobByTag locates a JobType by its Tag from a loaded job list.
 func findJobByTag(jobs []*types.JobType, tag string) *types.JobType {
 	for _, j := range jobs {
 		if j.Tag == tag {
@@ -5497,7 +5491,7 @@ func VolAdminShifts(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
-	jobs, err := getters.FetchJobsCached(ctx)
+	jobs, err := getters.ListJobTypes(ctx)
 	if err != nil {
 		ctx.Err.Printf("/%s/volcoord/shifts failed to fetch jobs: %s", conf.Tag, err.Error())
 	}
@@ -5690,8 +5684,7 @@ func VolAdminCreateShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 
-	jobs, _ := getters.FetchJobsCached(ctx)
-	jobType := findJobByTag(jobs, jobTag)
+	jobType, _ := getters.GetJobByTag(ctx, jobTag)
 
 	err = getters.CreateShift(ctx, conf, jobType, name, start, end, uint(maxVols), uint(priority))
 	if err != nil {
@@ -5740,8 +5733,7 @@ func VolAdminUpdateShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 
-	jobs, _ := getters.FetchJobsCached(ctx)
-	jobType := findJobByTag(jobs, jobTag)
+	jobType, _ := getters.GetJobByTag(ctx, jobTag)
 
 	err = getters.UpdateShift(ctx, shiftRef, name, jobType, start, end, uint(maxVols), uint(priority))
 	if err != nil {
@@ -6037,7 +6029,7 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		if p == nil {
 			continue
 		}
-		for _, sc := range resolveProposalSpeakers(p) {
+		for _, sc := range resolveProposalSpeakers(p, ctx) {
 			if sc == nil || sc.Speaker == nil {
 				continue
 			}
@@ -6074,9 +6066,15 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 			if p.Status == StatusScheduled {
 				row.Scheduled = true
 			}
-			if ct := getters.FetchConfTalkByProposal(p.ID); ct != nil {
-				row.Scheduled = true
-				if row.CardURL == "" {
+			if row.CardURL == "" {
+				ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+				if err != nil {
+					ctx.Err.Printf("/%s/speakers conftalk %s: %s", conf.Tag, p.ID, err)
+					http.Error(w, "Unable to load speakers", http.StatusInternalServerError)
+					return
+				}
+				if ct != nil {
+					row.Scheduled = true
 					row.CardURL = SpeakerCardURL(ctx, conf.Tag, "insta", sp.ID, ct.ID)
 				}
 			}
@@ -6596,7 +6594,7 @@ func adminUpdateSpeakerConfPOST(w http.ResponseWriter, r *http.Request, ctx *con
 
 func speakerIsOnConf(ctx *config.AppContext, conf *types.Conf, speakerID string) bool {
 	for _, p := range loadConfProposals(ctx, conf) {
-		for _, sc := range resolveProposalSpeakers(p) {
+		for _, sc := range resolveProposalSpeakers(p, ctx) {
 			if sc != nil && sc.Speaker != nil && sc.Speaker.ID == speakerID {
 				return true
 			}
@@ -6922,9 +6920,12 @@ func loadProposalRowsForConf(ctx *config.AppContext, conf *types.Conf) ([]*Propo
 		}
 
 		// Pull the ConfTalk if this proposal has been scheduled.
-		// FetchConfTalkByProposal hits the warm cache; nil when
-		// the proposal isn't in the schedule yet.
-		if ct := getters.FetchConfTalkByProposal(p.ID); ct != nil {
+		// Nil means the proposal isn't in the schedule yet.
+		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("lookup conftalk for proposal %s: %w", p.ID, err)
+		}
+		if ct != nil {
 			row.ConfTalk = ct
 			row.TalkCardURL = TalkCardURL(ctx, conf.Tag, "1080p", ct.ID)
 			if ct.Sched != nil {
@@ -7036,7 +7037,7 @@ func talksForSpeakerMediaRefresh(ctx *config.AppContext, conf *types.Conf, speak
 			continue
 		}
 		var matched bool
-		for _, sc := range resolveProposalSpeakers(p) {
+		for _, sc := range resolveProposalSpeakers(p, ctx) {
 			if sc != nil && sc.Speaker != nil && sc.Speaker.ID == speakerID {
 				matched = true
 				break
@@ -7045,16 +7046,19 @@ func talksForSpeakerMediaRefresh(ctx *config.AppContext, conf *types.Conf, speak
 		if !matched {
 			continue
 		}
-		ct := getters.FetchConfTalkByProposal(p.ID)
+		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+		if err != nil {
+			return nil, fmt.Errorf("lookup conftalk for proposal %s: %w", p.ID, err)
+		}
 		if ct == nil {
 			continue
 		}
-		out = append(out, talkForAdminMediaRefresh(conf, p, ct))
+		out = append(out, talkForAdminMediaRefresh(ctx, conf, p, ct))
 	}
 	return out, nil
 }
 
-func talkForAdminMediaRefresh(conf *types.Conf, proposal *types.Proposal, ct *types.ConfTalk) *types.Talk {
+func talkForAdminMediaRefresh(ctx *config.AppContext, conf *types.Conf, proposal *types.Proposal, ct *types.ConfTalk) *types.Talk {
 	talk := &types.Talk{
 		ID:          ct.ID,
 		Name:        proposal.Title,
@@ -7072,7 +7076,7 @@ func talkForAdminMediaRefresh(conf *types.Conf, proposal *types.Proposal, ct *ty
 	if talk.Sched != nil {
 		talk.TimeDesc = talk.Sched.Desc()
 	}
-	for _, sc := range resolveProposalSpeakers(proposal) {
+	for _, sc := range resolveProposalSpeakers(proposal, ctx) {
 		if sc == nil || sc.Speaker == nil {
 			continue
 		}
@@ -7212,7 +7216,15 @@ func AdminProposalSendCal(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
-	speakers := proposalSpeakers(proposal)
+	speakers, err := proposalSpeakers(ctx, proposal)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/proposals/%s/sendcal speakers: %s", conf.Tag, proposalID, err)
+		http.Redirect(w, r,
+			fmt.Sprintf("/%s/admin/applicants?flash=%s",
+				conf.Tag, url.QueryEscape("Cal invite failed: "+err.Error())),
+			http.StatusSeeOther)
+		return
+	}
 	if err := DispatchTalkICSForProposal(ctx, proposal, conf, speakers, true); err != nil {
 		ctx.Err.Printf("/%s/admin/proposals/%s/sendcal: %s", conf.Tag, proposalID, err)
 		http.Redirect(w, r,
@@ -7240,25 +7252,26 @@ func AdminProposalSendCal(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.StatusSeeOther)
 }
 
-// proposalSpeakers walks proposal.SpeakerConfRefs through the
-// warm SpeakerConf cache and returns the *Speaker for each. Used
-// by per-proposal cal-invite dispatch where the page-level
-// speakers map isn't already in scope. Distinct from
-// resolveProposalSpeakers (admin_review.go), which returns
-// SpeakerConf wrappers — here we only need the bare Speaker.
-func proposalSpeakers(proposal *types.Proposal) []*types.Speaker {
+// proposalSpeakers walks proposal.SpeakerConfRefs and returns the *Speaker for
+// each. Used by per-proposal cal-invite dispatch where the page-level speakers
+// map isn't already in scope. Distinct from resolveProposalSpeakers
+// (admin_review.go), which returns SpeakerConf wrappers.
+func proposalSpeakers(ctx *config.AppContext, proposal *types.Proposal) ([]*types.Speaker, error) {
 	if proposal == nil {
-		return nil
+		return nil, nil
 	}
 	out := make([]*types.Speaker, 0, len(proposal.SpeakerConfRefs))
 	for _, ref := range proposal.SpeakerConfRefs {
-		sc := getters.FetchSpeakerConfByID(ref)
+		sc, err := getters.GetSpeakerConfByID(ctx, ref)
+		if err != nil {
+			return nil, fmt.Errorf("speaker conf %s: %w", ref, err)
+		}
 		if sc == nil || sc.Speaker == nil {
 			continue
 		}
 		out = append(out, sc.Speaker)
 	}
-	return out
+	return out, nil
 }
 
 func ProposalAdminBulkEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -7571,7 +7584,7 @@ func scheduledVolunteerAttendees(vols []*types.Volunteer) []ics.Attendee {
 }
 
 func orientationStaffRecipients(ctx *config.AppContext, confTag string) []ics.Attendee {
-	speakers, err := getters.FetchSpeakersCached(ctx)
+	speakers, err := getters.ListSpeakers(ctx)
 	if err != nil || len(speakers) == 0 {
 		return nil
 	}

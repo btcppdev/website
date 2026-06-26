@@ -1,11 +1,11 @@
 package getters
 
 import (
-	"strings"
-	"time"
-
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"context"
+	"fmt"
+	"strings"
 )
 
 // SpeakerInput is the data needed to create a Speakers/People row.
@@ -49,115 +49,8 @@ type SpeakerUpdate struct {
 	TShirt    string
 }
 
-func getSpeakers(ctx *config.AppContext) {
-	var err error
-	ctx.Infos.Printf("getting speakers...")
-	if UsePostgresBackend(ctx) {
-		cacheSpeakers, err = listSpeakersPostgres(ctx)
-	} else {
-		cacheSpeakers, err = ListSpeakersNotion(ctx.Notion)
-	}
-
-	if err != nil {
-		ctx.Err.Printf("error fetching speakers %s", err)
-	} else {
-		ctx.Infos.Printf("Loaded %d speakers!", len(cacheSpeakers))
-		writeCache("speakers", cacheSpeakers)
-		ctx.Infos.Printf("there are %d callbacks", len(onSpeakersRefresh))
-		for _, cb := range onSpeakersRefresh {
-			cb(ctx, cacheSpeakers)
-		}
-	}
-}
-
-/* This may return nil */
-func FetchSpeakersCached(ctx *config.AppContext) ([]*types.Speaker, error) {
-	now := time.Now()
-	deadline := now.Add(-cacheTTL)
-	if cacheSpeakers == nil || lastSpeakerFetch.Before(deadline) {
-		/* Set last fetch to now even if there's errors */
-		lastSpeakerFetch = time.Now()
-		queueRefresh(JobSpeakers)
-	}
-
-	return cacheSpeakers, nil
-}
-
-func ListSpeakers(ctx *config.AppContext) ([]*types.Speaker, error) {
-	if UsePostgresBackend(ctx) {
-		return listSpeakersPostgres(ctx)
-	}
-	return ListSpeakersNotion(ctx.Notion)
-}
-
-func GetSpeakersByEmail(ctx *config.AppContext, email string) ([]*types.Speaker, error) {
-	if UsePostgresBackend(ctx) {
-		return getSpeakersByEmailPostgres(ctx, email)
-	}
-	return getSpeakersByEmailNotion(ctx.Notion, email)
-}
-
 // SearchSpeakersByNameOrEmail returns up to limit Speakers whose Name or Email
-// contains q (case-insensitive substring). Cache-only.
-func SearchSpeakersByNameOrEmail(q string, limit int) []*types.Speaker {
-	q = strings.TrimSpace(strings.ToLower(q))
-	if q == "" {
-		return nil
-	}
-	out := make([]*types.Speaker, 0, limit)
-	for _, s := range cacheSpeakers {
-		if s == nil {
-			continue
-		}
-		if strings.Contains(strings.ToLower(s.Name), q) ||
-			strings.Contains(strings.ToLower(s.Email), q) {
-			out = append(out, s)
-			if len(out) >= limit {
-				break
-			}
-		}
-	}
-	return out
-}
-
-func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
-	if UsePostgresBackend(ctx) {
-		return createSpeakerPostgres(ctx, in)
-	}
-	return createSpeakerNotion(ctx.Notion, in)
-}
-
-// speakerFromInput builds a *types.Speaker from a SpeakerInput + row ID for
-// cache insertion. Fields not in SpeakerInput stay zero-valued until refresh.
-func speakerFromInput(id string, in SpeakerInput) *types.Speaker {
-	return &types.Speaker{
-		ID:            id,
-		Name:          in.Name,
-		Email:         in.Email,
-		Photo:         in.Photo,
-		Phone:         in.Phone,
-		Signal:        in.Signal,
-		Telegram:      in.Telegram,
-		Twitter:       types.ParseTwitter(in.Twitter),
-		Nostr:         in.Nostr,
-		Github:        in.Github,
-		Instagram:     in.Instagram,
-		LinkedIn:      in.LinkedIn,
-		Website:       in.Website,
-		Company:       in.Company,
-		OrgLogo:       in.OrgLogo,
-		AvailToHire:   in.AvailToHire,
-		LookingToHire: in.LookingToHire,
-		TShirt:        in.TShirt,
-	}
-}
-
-func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) error {
-	if UsePostgresBackend(ctx) {
-		return updateSpeakerPostgres(ctx, speakerID, up)
-	}
-	return updateSpeakerNotion(ctx.Notion, speakerID, up)
-}
+// contains q (case-insensitive substring).
 
 func normalizeSpeakerInput(in SpeakerInput) SpeakerInput {
 	in.Name = strings.TrimSpace(in.Name)
@@ -197,79 +90,6 @@ func normalizeSpeakerUpdate(up SpeakerUpdate) SpeakerUpdate {
 	return up
 }
 
-func patchCachedSpeaker(speakerID string, up SpeakerUpdate) {
-	for _, s := range cacheSpeakers {
-		if s == nil || s.ID != speakerID {
-			continue
-		}
-		if up.Photo != "" {
-			s.Photo = up.Photo
-		}
-		if up.Name != "" {
-			s.Name = up.Name
-		}
-		if up.Email != "" {
-			s.Email = up.Email
-		}
-		if up.Phone != "" {
-			s.Phone = up.Phone
-		}
-		if up.Signal != "" {
-			s.Signal = up.Signal
-		}
-		if up.Telegram != "" {
-			s.Telegram = up.Telegram
-		}
-		if up.Twitter != "" {
-			s.Twitter = types.ParseTwitter(up.Twitter)
-		}
-		if up.Nostr != "" {
-			s.Nostr = up.Nostr
-		}
-		if up.Github != "" {
-			s.Github = up.Github
-		}
-		if up.Instagram != "" {
-			s.Instagram = up.Instagram
-		}
-		if up.LinkedIn != "" {
-			s.LinkedIn = up.LinkedIn
-		}
-		if up.Website != "" {
-			s.Website = up.Website
-		}
-		if up.Company != "" {
-			s.Company = up.Company
-		}
-		if up.OrgLogo != "" {
-			s.OrgLogo = up.OrgLogo
-		}
-		if up.TShirt != "" {
-			s.TShirt = up.TShirt
-		}
-		return
-	}
-}
-
-// AllCachedSpeakers returns the in-memory Speaker slice. Don't mutate it.
-func AllCachedSpeakers() []*types.Speaker {
-	return cacheSpeakers
-}
-
-func FetchSpeakerByID(ctx *config.AppContext, speakerID string) (*types.Speaker, error) {
-	if UsePostgresBackend(ctx) {
-		return fetchSpeakerByIDPostgres(ctx, speakerID)
-	}
-	return fetchSpeakerByIDNotion(ctx.Notion, speakerID)
-}
-
-func UpdateSpeakerRoles(ctx *config.AppContext, speakerID string, roles []string) error {
-	if UsePostgresBackend(ctx) {
-		return updateSpeakerRolesPostgres(ctx, speakerID, roles)
-	}
-	return updateSpeakerRolesNotion(ctx.Notion, speakerID, roles)
-}
-
 // MergeUniqueTags returns existing followed by additions not already present.
 func MergeUniqueTags(existing, additions []string) []string {
 	seen := make(map[string]struct{}, len(existing)+len(additions))
@@ -289,4 +109,254 @@ func MergeUniqueTags(existing, additions []string) []string {
 		out = append(out, s)
 	}
 	return out
+}
+
+func ListSpeakers(ctx *config.AppContext) ([]*types.Speaker, error) {
+	return querySpeakersPostgres(ctx, "people", "ORDER BY lower(people.name), people.id")
+}
+
+func GetSpeakersByEmail(ctx *config.AppContext, email string) ([]*types.Speaker, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, nil
+	}
+	return querySpeakersPostgres(ctx, "people by email", "WHERE people.email = $1 ORDER BY lower(people.name), people.id", email)
+}
+
+func FetchSpeakerByID(ctx *config.AppContext, speakerID string) (*types.Speaker, error) {
+	speakerID = strings.TrimSpace(speakerID)
+	if speakerID == "" {
+		return nil, nil
+	}
+	speakers, err := querySpeakersPostgres(ctx, "person by id", "WHERE people.id::text = $1 ORDER BY lower(people.name), people.id", speakerID)
+	if err != nil {
+		return nil, err
+	}
+	if len(speakers) == 0 {
+		return nil, nil
+	}
+	return speakers[0], nil
+}
+
+func SearchSpeakersByNameOrEmail(ctx *config.AppContext, q string, limit int) ([]*types.Speaker, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	pattern := "%" + q + "%"
+	return querySpeakersPostgres(ctx, "speaker search", `
+		WHERE people.name ILIKE $1 OR people.email::text ILIKE $1
+		ORDER BY lower(people.name), people.id
+		LIMIT $2
+	`, pattern, limit)
+}
+
+func ListSpeakersWithRole(ctx *config.AppContext, role string) ([]*types.Speaker, error) {
+	scope, position, ok := splitRoleScopePosition(role)
+	if !ok {
+		return nil, nil
+	}
+	return querySpeakersPostgres(ctx, "speakers by role", `
+		JOIN people_roles ON people_roles.person_id = people.id
+		WHERE people_roles.scope = $1 AND people_roles.position = $2
+		ORDER BY lower(people.name), people.id
+	`, scope, position)
+}
+
+func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, args ...interface{}) ([]*types.Speaker, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT people.id::text, people.name, coalesce(people.email::text, ''),
+			people.norm_photo_path, people.phone, people.signal, people.telegram,
+			people.twitter_handle, people.nostr, people.github_url, people.instagram,
+			people.linkedin, people.website_url, people.company, people.org_logo_path,
+			people.avail_to_hire, people.looking_to_hire, people.tshirt
+		FROM people
+		`+clause+`
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query %s: %w", label, err)
+	}
+	defer rows.Close()
+
+	var speakers []*types.Speaker
+	speakerByID := map[string]*types.Speaker{}
+	for rows.Next() {
+		var speaker types.Speaker
+		var twitter string
+		err := rows.Scan(
+			&speaker.ID,
+			&speaker.Name,
+			&speaker.Email,
+			&speaker.Photo,
+			&speaker.Phone,
+			&speaker.Signal,
+			&speaker.Telegram,
+			&twitter,
+			&speaker.Nostr,
+			&speaker.Github,
+			&speaker.Instagram,
+			&speaker.LinkedIn,
+			&speaker.Website,
+			&speaker.Company,
+			&speaker.OrgLogo,
+			&speaker.AvailToHire,
+			&speaker.LookingToHire,
+			&speaker.TShirt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan %s: %w", label, err)
+		}
+		speaker.Twitter = types.ParseTwitter(twitter)
+		speakers = append(speakers, &speaker)
+		speakerByID[speaker.ID] = &speaker
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate %s: %w", label, err)
+	}
+	if err := loadSpeakerRolesPostgres(ctx, speakerByID); err != nil {
+		return nil, err
+	}
+	return speakers, nil
+}
+
+func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", fmt.Errorf("database is not configured")
+	}
+	in = normalizeSpeakerInput(in)
+	var id string
+	err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO people (
+			name, email, norm_photo_path, phone, signal, telegram, twitter_handle,
+			nostr, github_url, instagram, linkedin, website_url, company,
+			org_logo_path, avail_to_hire, looking_to_hire, tshirt
+		)
+		VALUES ($1, NULLIF($2, '')::citext, $3, $4, $5, $6, $7, $8, $9, $10,
+			$11, $12, $13, $14, $15, $16, $17)
+		RETURNING id::text
+	`, in.Name, in.Email, in.Photo, in.Phone, in.Signal, in.Telegram, in.Twitter,
+		in.Nostr, in.Github, in.Instagram, in.LinkedIn, in.Website, in.Company,
+		in.OrgLogo, in.AvailToHire, in.LookingToHire, in.TShirt).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("create person: %w", err)
+	}
+	return id, nil
+}
+
+func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	up = normalizeSpeakerUpdate(up)
+	_, err := ctx.DB.Exec(context.Background(), `
+		UPDATE people
+		SET norm_photo_path = CASE WHEN $2 <> '' THEN $2 ELSE norm_photo_path END,
+			phone = CASE WHEN $3 <> '' THEN $3 ELSE phone END,
+			signal = CASE WHEN $4 <> '' THEN $4 ELSE signal END,
+			telegram = CASE WHEN $5 <> '' THEN $5 ELSE telegram END,
+			twitter_handle = CASE WHEN $6 <> '' THEN $6 ELSE twitter_handle END,
+			nostr = CASE WHEN $7 <> '' THEN $7 ELSE nostr END,
+			github_url = CASE WHEN $8 <> '' THEN $8 ELSE github_url END,
+			instagram = CASE WHEN $9 <> '' THEN $9 ELSE instagram END,
+			linkedin = CASE WHEN $10 <> '' THEN $10 ELSE linkedin END,
+			website_url = CASE WHEN $11 <> '' THEN $11 ELSE website_url END,
+			company = CASE WHEN $12 <> '' THEN $12 ELSE company END,
+			org_logo_path = CASE WHEN $13 <> '' THEN $13 ELSE org_logo_path END,
+			tshirt = CASE WHEN $14 <> '' THEN $14 ELSE tshirt END,
+			email = CASE WHEN $15 <> '' THEN $15::citext ELSE email END,
+			name = CASE WHEN $16 <> '' THEN $16 ELSE name END
+		WHERE id = $1::uuid
+	`, speakerID, up.Photo, up.Phone, up.Signal, up.Telegram, up.Twitter,
+		up.Nostr, up.Github, up.Instagram, up.LinkedIn, up.Website, up.Company,
+		up.OrgLogo, up.TShirt, up.Email, up.Name)
+	if err != nil {
+		return fmt.Errorf("update person %s: %w", speakerID, err)
+	}
+	return nil
+}
+
+func UpdateSpeakerRoles(ctx *config.AppContext, speakerID string, roles []string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin speaker role update: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+
+	if _, err := tx.Exec(context.Background(), `DELETE FROM people_roles WHERE person_id = $1::uuid`, speakerID); err != nil {
+		return fmt.Errorf("delete speaker roles: %w", err)
+	}
+	for _, role := range roles {
+		scope, position, ok := splitRoleScopePosition(role)
+		if !ok {
+			continue
+		}
+		if _, err := tx.Exec(context.Background(), `
+			INSERT INTO people_roles (person_id, scope, position)
+			VALUES ($1::uuid, $2, $3)
+			ON CONFLICT DO NOTHING
+		`, speakerID, scope, position); err != nil {
+			return fmt.Errorf("insert speaker role %q: %w", role, err)
+		}
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return fmt.Errorf("commit speaker role update: %w", err)
+	}
+	return nil
+}
+
+func splitRoleScopePosition(role string) (string, string, bool) {
+	role = strings.TrimSpace(role)
+	parts := strings.SplitN(role, "-", 2)
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	scope := strings.TrimSpace(parts[0])
+	position := strings.TrimSpace(parts[1])
+	return scope, position, scope != "" && position != ""
+}
+
+func loadSpeakerRolesPostgres(ctx *config.AppContext, speakerByID map[string]*types.Speaker) error {
+	ids := make([]string, 0, len(speakerByID))
+	for id := range speakerByID {
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT person_id::text, scope, position
+		FROM people_roles
+		WHERE person_id::text = ANY($1::text[])
+		ORDER BY scope, position
+	`, ids)
+	if err != nil {
+		return fmt.Errorf("query people roles: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var personID string
+		var scope string
+		var position string
+		if err := rows.Scan(&personID, &scope, &position); err != nil {
+			return fmt.Errorf("scan people role: %w", err)
+		}
+		if speaker := speakerByID[personID]; speaker != nil {
+			speaker.Roles = append(speaker.Roles, scope+"-"+position)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate people roles: %w", err)
+	}
+	return nil
 }

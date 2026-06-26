@@ -25,7 +25,6 @@ type (
 		StripeEndpointSec string
 		RegistryPin       string
 		LogFile           string
-		Notion            NotionConfig
 		SendGrid          SendGridConfig
 		OpenNode          OpenNodeConfig
 		Host              string
@@ -33,11 +32,9 @@ type (
 		HMACSecret        string
 		HMACKey           [32]byte
 		DatabaseURL       string
-		DataBackend       string
 		BufferAPI         string
 		Spaces            SpacesConfig
 		CacheTTLSec       int
-		NotionRequestLogs bool
 		YouTube           YouTubeConfig
 		Recordings        RecordingsConfig
 	}

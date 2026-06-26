@@ -37,8 +37,7 @@ btcpp_pg_reset
 ## Schema Migrations
 
 Migration files live in `db/migrations` and are applied in numeric prefix
-order. The web app runs pending migrations automatically on startup when
-`DATA_BACKEND=postgres`.
+order. The web app runs pending migrations automatically on startup.
 
 Applied migrations are tracked in the database in `schema_migrations`. Existing
 databases that already have the initial schema are baselined as migration `001`
@@ -87,35 +86,3 @@ make db-pull-unsanitized
 This skips `db/sanitize.sql` entirely and restores the production data as-is.
 It still applies any newer local migrations from `db/migrations` and clears the
 local `_cache` directory after restore. Use it carefully.
-
-## Notion Import
-
-The migration command imports the Notion-backed dataset into Postgres:
-
-```sh
-go run ./cmd/migrate-notion-postgres -reset -validate
-```
-
-Current import coverage includes conferences, conference days, ticket tiers,
-discounts, registrations, affiliate usage, hotels, job types, volunteers,
-volunteer info, work shifts, organizations, sponsorships, people, proposals,
-speaker conference rows, scheduled conference talks, recordings, social posts,
-newsletter subscribers, and missives.
-
-`-reset` truncates the imported root tables and cascades through their child
-and join tables before writing. Keep using it while iterating on migration data
-so generated-UUID tables such as sponsorships, people, volunteers, work shifts,
-hotels, and affiliate usages do not accumulate duplicate import rows.
-
-Useful flags:
-
-```sh
-go run ./cmd/migrate-notion-postgres -dry-run
-go run ./cmd/migrate-notion-postgres -database-url "$DATABASE_URL" -validate
-go run ./cmd/migrate-notion-postgres -skip-speaker-confs -validate
-go run ./cmd/migrate-notion-postgres -skip-conf-talks -skip-recordings -skip-social-posts -validate
-```
-
-The app can use Postgres locally by setting `DATA_BACKEND=postgres` in `.env`
-or by exporting it in the shell. Exported shell variables take priority over
-values loaded from `.env`.

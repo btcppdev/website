@@ -221,9 +221,6 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 
-	if _, err := getters.FetchSocialPostsCached(ctx); err != nil {
-		ctx.Err.Printf("/%s/admin/recordings socialposts: %s", conf.Tag, err)
-	}
 	rows := recordingRowsForConf(ctx, conf.Tag)
 	enrichRowsWithYouTubeStatus(ctx, rows)
 	sort.SliceStable(rows, func(i, j int) bool {
@@ -260,39 +257,21 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 }
 
 func recordingRowsForConf(ctx *config.AppContext, confTag string) []*RecordingRow {
-	recs := getters.ListRecordingsCached()
-	rows := recordingRowsFromList(recs, confTag)
-	if len(rows) > 0 || len(recs) > 0 {
-		return rows
-	}
-
-	// The admin page is a control surface; if the warm cache missed at
-	// startup, do a synchronous refresh instead of rendering an empty page
-	// that suggests the Notion DB itself has no rows.
-	ctx.Infos.Printf("/%s/admin/recordings cache empty; refreshing Notion caches", confTag)
-	getters.WaitFetch(ctx)
-	recs = getters.ListRecordingsCached()
-	rows = recordingRowsFromList(recs, confTag)
-	if len(rows) > 0 || len(recs) > 0 {
-		return rows
-	}
-
-	live, err := getters.ListRecordings(ctx)
+	recs, err := getters.ListRecordings(ctx)
 	if err != nil {
-		ctx.Err.Printf("/%s/admin/recordings live recordings fetch failed: %s", confTag, err)
-		return rows
+		ctx.Err.Printf("/%s/admin/recordings recordings fetch failed: %s", confTag, err)
+		return nil
 	}
-	ctx.Infos.Printf("/%s/admin/recordings live recordings fallback loaded %d rows", confTag, len(live))
-	return recordingRowsFromList(live, confTag)
+	return recordingRowsFromList(ctx, recs, confTag)
 }
 
-func recordingRowsFromList(recs []*types.Recording, confTag string) []*RecordingRow {
+func recordingRowsFromList(ctx *config.AppContext, recs []*types.Recording, confTag string) []*RecordingRow {
 	rows := make([]*RecordingRow, 0, len(recs))
 	for _, rec := range recs {
 		if rec == nil {
 			continue
 		}
-		row := buildRecordingRow(rec)
+		row := buildRecordingRow(ctx, rec)
 		if recordingRowBelongsToConf(row, confTag) {
 			rows = append(rows, row)
 		}
@@ -434,10 +413,10 @@ func RecordingsAdminUploadSourceFile(w http.ResponseWriter, r *http.Request, ctx
 
 	if spaces.Exists(key) {
 		if err := getters.UpdateRecordingFileURI(ctx, rec.ID, key); err != nil {
-			redirectRecordingsListErr(w, r, conf.Tag, "file already exists in Spaces, but couldn't update Notion: "+err.Error())
+			redirectRecordingsListErr(w, r, conf.Tag, "file already exists in Spaces, but couldn't update the recording row: "+err.Error())
 			return
 		}
-		redirectRecordingsList(w, r, conf.Tag, "Recording file already existed in Spaces; linked it in Notion")
+		redirectRecordingsList(w, r, conf.Tag, "Recording file already existed in Spaces; linked it to the recording row")
 		return
 	}
 	if _, err := spaces.UploadStream(key, file, contentType, handler.Size); err != nil {
@@ -445,7 +424,7 @@ func RecordingsAdminUploadSourceFile(w http.ResponseWriter, r *http.Request, ctx
 		return
 	}
 	if err := getters.UpdateRecordingFileURI(ctx, rec.ID, key); err != nil {
-		redirectRecordingsListErr(w, r, conf.Tag, "uploaded to Spaces, but couldn't update Notion FileURI: "+err.Error())
+		redirectRecordingsListErr(w, r, conf.Tag, "uploaded to Spaces, but couldn't update FileURI: "+err.Error())
 		return
 	}
 	redirectRecordingsList(w, r, conf.Tag, "Recording file uploaded")
@@ -522,7 +501,7 @@ func RecordingsAdminUploadYT(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 	if rec.FileURI == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI — set the Spaces key in Notion first")
+		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI - set the Spaces key first")
 		return
 	}
 	if !youtubepkg.IsConfigured() {
@@ -581,7 +560,7 @@ func RecordingsAdminSchedule(w http.ResponseWriter, r *http.Request, ctx *config
 	ytScheduleResult, err := updateRecordingYouTubeSchedule(ctx, rec, publishAt)
 	if err != nil {
 		ctx.Err.Printf("recording youtube schedule recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "saved Notion PublishAt, but couldn't update YouTube schedule: "+err.Error())
+		redirectWithErr(w, r, conf.Tag, recordingID, "saved PublishAt, but couldn't update YouTube schedule: "+err.Error())
 		return
 	}
 	flash := "Schedule cleared"
@@ -665,7 +644,7 @@ func RecordingsAdminPostXNow(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 	if rec.FileURI == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI — set the Spaces key in Notion first")
+		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI - set the Spaces key first")
 		return
 	}
 	if row.XURL != "" {
@@ -724,7 +703,7 @@ func RecordingsAdminScheduleX(w http.ResponseWriter, r *http.Request, ctx *confi
 		return
 	}
 	if rec.FileURI == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI — set the Spaces key in Notion first")
+		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI - set the Spaces key first")
 		return
 	}
 	publishAt := rec.PublishAt
@@ -803,7 +782,7 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 			setJobStatus(recordingID, "failed", fmt.Sprintf("internal error: %v", rec))
 		}
 	}()
-	row := buildRecordingRow(rec)
+	row := buildRecordingRow(ctx, rec)
 	status := recordingStatusUploading
 	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
 		Text:   &body,
@@ -841,11 +820,11 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 	status = recordingStatusUploaded
 	if err := getters.UpdateRecordingYTLink(ctx, recordingID, ytURL); err != nil {
 		ctx.Err.Printf("youtube upload: persist YTLink: %s", err)
-		setJobStatus(recordingID, "failed", "uploaded to YouTube but failed to update Notion: "+err.Error())
+		setJobStatus(recordingID, "failed", "uploaded to YouTube but failed to update the recording row: "+err.Error())
 		return
 	}
 	rec.YTLink = ytURL
-	if err := uploadRecordingYouTubeThumbnail(context.Background(), rec); err != nil {
+	if err := uploadRecordingYouTubeThumbnail(ctx, context.Background(), rec); err != nil {
 		ctx.Err.Printf("youtube upload: thumbnail recording=%s: %s", recordingID, err)
 	}
 	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
@@ -858,7 +837,7 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 	setJobStatus(recordingID, "succeeded", ytURL)
 }
 
-func uploadRecordingYouTubeThumbnail(ctx context.Context, rec *types.Recording) error {
+func uploadRecordingYouTubeThumbnail(appCtx *config.AppContext, ctx context.Context, rec *types.Recording) error {
 	if rec == nil || rec.YTLink == "" || rec.ConfTalkID == "" {
 		return nil
 	}
@@ -866,7 +845,10 @@ func uploadRecordingYouTubeThumbnail(ctx context.Context, rec *types.Recording) 
 	if videoID == "" {
 		return fmt.Errorf("could not parse video ID from %q", rec.YTLink)
 	}
-	key := recordingTalkCardKey(rec.ConfTalkID)
+	key, err := recordingTalkCardKey(appCtx, rec.ConfTalkID)
+	if err != nil {
+		return err
+	}
 	if key == "" {
 		return nil
 	}
@@ -877,18 +859,21 @@ func uploadRecordingYouTubeThumbnail(ctx context.Context, rec *types.Recording) 
 	return youtubepkg.SetThumbnailBytes(ctx, videoID, filepath.Base(key), data)
 }
 
-func recordingTalkCardKey(confTalkID string) string {
-	ct := getters.FetchConfTalkByID(confTalkID)
+func recordingTalkCardKey(ctx *config.AppContext, confTalkID string) (string, error) {
+	ct, err := getters.GetConfTalkByID(ctx, confTalkID)
+	if err != nil {
+		return "", err
+	}
 	if ct == nil {
-		return ""
+		return "", nil
 	}
 	if strings.TrimSpace(ct.SocialCard) != "" {
-		return strings.TrimPrefix(strings.TrimSpace(ct.SocialCard), "/")
+		return strings.TrimPrefix(strings.TrimSpace(ct.SocialCard), "/"), nil
 	}
 	if ct.Conf == nil || ct.Conf.Tag == "" {
-		return ""
+		return "", nil
 	}
-	return fmt.Sprintf("%s/talks/%s-1080p.png", ct.Conf.Tag, ct.ID)
+	return fmt.Sprintf("%s/talks/%s-1080p.png", ct.Conf.Tag, ct.ID), nil
 }
 
 func youtubeVideoID(raw string) string {
@@ -942,12 +927,12 @@ func RecordingsAdminSaveXLink(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 	if err := getters.UpdateRecordingXLink(ctx, recordingID, xURL); err != nil {
 		ctx.Err.Printf("save xlink recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update Notion: "+err.Error())
+		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update the recording row: "+err.Error())
 		return
 	}
 	status := recordingStatusPosted
 	now := time.Now()
-	if err := upsertRecordingSocialPost(ctx, buildRecordingRow(rec), recordingPlatformX, getters.SocialPostUpdate{
+	if err := upsertRecordingSocialPost(ctx, buildRecordingRow(ctx, rec), recordingPlatformX, getters.SocialPostUpdate{
 		URL:      &xURL,
 		Status:   &status,
 		PostedAt: &now,
@@ -1115,15 +1100,17 @@ func scopedRecordingFromRequest(w http.ResponseWriter, r *http.Request, ctx *con
 		return nil, nil, nil, false
 	}
 	recordingID := mux.Vars(r)["id"]
-	rec := getters.FetchRecordingByID(recordingID)
+	rec, err := getters.GetRecordingByID(ctx, recordingID)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/recordings/%s recording: %s", conf.Tag, recordingID, err)
+		http.Error(w, "Unable to load recording", http.StatusInternalServerError)
+		return nil, nil, nil, false
+	}
 	if rec == nil {
 		handle404(w, r, ctx)
 		return nil, nil, nil, false
 	}
-	if _, err := getters.FetchSocialPostsCached(ctx); err != nil {
-		ctx.Err.Printf("/%s/admin/recordings/%s socialposts: %s", conf.Tag, recordingID, err)
-	}
-	row := buildRecordingRow(rec)
+	row := buildRecordingRow(ctx, rec)
 	if !recordingRowBelongsToConf(row, conf.Tag) {
 		handle404(w, r, ctx)
 		return nil, nil, nil, false
@@ -1205,14 +1192,14 @@ func upsertRecordingSocialPost(ctx *config.AppContext, row *RecordingRow, platfo
 	}
 	_, err := getters.UpsertSocialPost(ctx, up)
 	if err == nil {
-		attachRecordingSocialPosts(row)
+		attachRecordingSocialPosts(ctx, row)
 		row.HasYT = row.YTURL != ""
 		row.HasX = row.XURL != ""
 	}
 	return err
 }
 
-func buildRecordingRow(rec *types.Recording) *RecordingRow {
+func buildRecordingRow(ctx *config.AppContext, rec *types.Recording) *RecordingRow {
 	row := &RecordingRow{
 		Recording: rec,
 		YTURL:     rec.YTLink,
@@ -1221,12 +1208,16 @@ func buildRecordingRow(rec *types.Recording) *RecordingRow {
 		HasFile:   rec.FileURI != "",
 	}
 	if rec.ConfTalkID != "" {
-		row.ConfTalk = getters.FetchConfTalkByID(rec.ConfTalkID)
+		ct, err := getters.GetConfTalkByID(ctx, rec.ConfTalkID)
+		if err != nil {
+			ctx.Err.Printf("recording row %s conftalk %s: %s", rec.ID, rec.ConfTalkID, err)
+		}
+		row.ConfTalk = ct
 		if row.ConfTalk != nil && row.ConfTalk.Proposal != nil {
-			row.Speakers = recordingSpeakersForProposal(row.ConfTalk.Proposal)
+			row.Speakers = recordingSpeakersForProposal(row.ConfTalk.Proposal, ctx)
 		}
 	}
-	attachRecordingSocialPosts(row)
+	attachRecordingSocialPosts(ctx, row)
 	if !recordingStatusIsError(row.YTStatus) {
 		row.YTError = ""
 	}
@@ -1247,12 +1238,12 @@ func recordingStatusIsError(status string) bool {
 	}
 }
 
-func attachRecordingSocialPosts(row *RecordingRow) {
+func attachRecordingSocialPosts(ctx *config.AppContext, row *RecordingRow) {
 	if row == nil || row.Recording == nil {
 		return
 	}
-	row.YTSocialPost = getters.FetchSocialPostByRef(recordingSocialPostRef(row.Recording, recordingPlatformYouTube))
-	row.XSocialPost = getters.FetchSocialPostByRef(recordingSocialPostRef(row.Recording, recordingPlatformX))
+	row.YTSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformYouTube)
+	row.XSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformX)
 	if row.YTSocialPost != nil {
 		if row.YTSocialPost.URL != "" {
 			row.YTURL = row.YTSocialPost.URL
@@ -1283,9 +1274,23 @@ func attachRecordingSocialPosts(row *RecordingRow) {
 	}
 }
 
-func recordingSpeakersForProposal(proposal *types.Proposal) []*types.Speaker {
+func recordingSocialPostByRef(ctx *config.AppContext, rec *types.Recording, platform string) *types.SocialPost {
+	ref := recordingSocialPostRef(rec, platform)
+	post, err := getters.GetSocialPostByRef(ctx, ref)
+	if err != nil {
+		ctx.Err.Printf("recording row %s socialpost %s: %s", rec.ID, ref, err)
+		return nil
+	}
+	return post
+}
+
+func recordingSpeakersForProposal(proposal *types.Proposal, ctxs ...*config.AppContext) []*types.Speaker {
 	if proposal == nil {
 		return nil
+	}
+	var ctx *config.AppContext
+	if len(ctxs) > 0 {
+		ctx = ctxs[0]
 	}
 	seen := map[string]bool{}
 	out := make([]*types.Speaker, 0, len(proposal.SpeakerConfRefs))
@@ -1297,11 +1302,10 @@ func recordingSpeakersForProposal(proposal *types.Proposal) []*types.Speaker {
 		out = append(out, sc.Speaker)
 	}
 
-	// Cached proposals generally carry raw SpeakerConfRefs; the
-	// Speakers slice is only filled by specific enrichers. Resolve
-	// through the warm SpeakerConf cache so recordings get names even
-	// when the proposal has not been enriched in this request.
-	for _, sc := range resolveProposalSpeakers(proposal) {
+	// Proposals generally carry raw SpeakerConfRefs; the Speakers slice is
+	// only filled by specific enrichers. Resolve refs so recordings get names
+	// even when the proposal has not been enriched in this request.
+	for _, sc := range resolveProposalSpeakers(proposal, ctx) {
 		appendSpeakerConf(sc)
 	}
 	for _, sc := range proposal.Speakers {
@@ -1473,7 +1477,7 @@ func nextTicketConf(ctx *config.AppContext, current *types.Conf) *types.Conf {
 	if ctx == nil {
 		return nil
 	}
-	confs, err := getters.FetchConfsCached(ctx)
+	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		return nil
 	}

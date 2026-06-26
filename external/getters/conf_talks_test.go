@@ -7,7 +7,7 @@ import (
 )
 
 func TestTalkFromConfTalkMarksRecordingRestricted(t *testing.T) {
-	talk := talkFromConfTalk(&types.ConfTalk{ID: "ct-1"}, &types.Proposal{
+	talk := talkFromConfTalk(nil, &types.ConfTalk{ID: "ct-1"}, &types.Proposal{
 		Title: "No Camera Please",
 		Speakers: []*types.SpeakerConf{
 			{RecordOK: "RecordingOK", Speaker: &types.Speaker{ID: "sp-1", Name: "Ada"}},
@@ -23,7 +23,7 @@ func TestTalkFromConfTalkMarksRecordingRestricted(t *testing.T) {
 func TestTalkFromConfTalkMarksNoRecordingAliasesRestricted(t *testing.T) {
 	for _, recordOK := range []string{"NoRecord", "NoRecording", "No Recording", "NoFace", "No Face"} {
 		t.Run(recordOK, func(t *testing.T) {
-			talk := talkFromConfTalk(&types.ConfTalk{ID: "ct-1"}, &types.Proposal{
+			talk := talkFromConfTalk(nil, &types.ConfTalk{ID: "ct-1"}, &types.Proposal{
 				Title: "No Recording Please",
 				Speakers: []*types.SpeakerConf{
 					{RecordOK: recordOK, Speaker: &types.Speaker{ID: "sp-1", Name: "Ada"}},
@@ -41,7 +41,7 @@ func TestTalkFromConfTalkMarksNoRecordingAliasesRestricted(t *testing.T) {
 }
 
 func TestTalkFromConfTalkMarksAudioOnly(t *testing.T) {
-	talk := talkFromConfTalk(&types.ConfTalk{ID: "ct-1"}, &types.Proposal{
+	talk := talkFromConfTalk(nil, &types.ConfTalk{ID: "ct-1"}, &types.Proposal{
 		Title: "Audio Please",
 		Speakers: []*types.SpeakerConf{
 			{RecordOK: "AudioOnly", Speaker: &types.Speaker{ID: "sp-1", Name: "Ada"}},
@@ -62,7 +62,7 @@ func TestTalkFromConfTalkMarksAudioOnly(t *testing.T) {
 func TestTalkFromConfTalkLeavesRecordingOKUnflagged(t *testing.T) {
 	for _, recordOK := range []string{"RecordOK", "RecordingOK", ""} {
 		t.Run(recordOK, func(t *testing.T) {
-			talk := talkFromConfTalk(&types.ConfTalk{ID: "ct-1"}, &types.Proposal{
+			talk := talkFromConfTalk(nil, &types.ConfTalk{ID: "ct-1"}, &types.Proposal{
 				Title: "Recording OK",
 				Speakers: []*types.SpeakerConf{
 					{RecordOK: recordOK, Speaker: &types.Speaker{ID: "sp-1", Name: "Ada"}},
@@ -83,7 +83,7 @@ func TestTalkFromConfTalkLeavesRecordingOKUnflagged(t *testing.T) {
 }
 
 func TestTalkFromConfTalkIgnoresBlankRecordingConsent(t *testing.T) {
-	talk := talkFromConfTalk(&types.ConfTalk{ID: "ct-1"}, &types.Proposal{
+	talk := talkFromConfTalk(nil, &types.ConfTalk{ID: "ct-1"}, &types.Proposal{
 		Title: "Legacy Talk",
 		Speakers: []*types.SpeakerConf{
 			{RecordOK: "", Speaker: &types.Speaker{ID: "sp-1", Name: "Ada"}},

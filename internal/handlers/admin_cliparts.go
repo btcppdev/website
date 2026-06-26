@@ -58,7 +58,12 @@ func AdminCliparts(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		if p == nil {
 			continue
 		}
-		ct := getters.FetchConfTalkByProposal(p.ID)
+		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
+		if err != nil {
+			ctx.Err.Printf("/%s/admin/cliparts conftalk %s: %s", conf.Tag, p.ID, err)
+			http.Error(w, "Unable to load cliparts", http.StatusInternalServerError)
+			return
+		}
 		switch p.Status {
 		case StatusAccepted, StatusScheduled:
 			// always include — ConfTalk may not exist yet
@@ -127,7 +132,7 @@ func AdminCliparts(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 //     aren't all square).
 //  5. Upload PNG + AVIF to talks/<name>.{png,avif} in Spaces.
 //  6. Load → mutate → save talks/_manifest.json with content hashes.
-//  7. Patch Notion ConfTalk.Clipart = "<name>.png".
+//  7. Patch ConfTalk.Clipart = "<name>.png".
 //  8. Invalidate the in-memory talk-manifest cache so card-hash
 //     fingerprints pick up the new entry immediately (vs waiting on
 //     the 5-min TTL).
@@ -164,7 +169,12 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 	// scheduling, so accept the cost of a CreateConfTalk here when
 	// the row doesn't exist yet.
 	confTalkID := ""
-	if ct := getters.FetchConfTalkByProposal(proposalID); ct != nil {
+	ct, err := getters.GetConfTalkByProposal(ctx, proposalID)
+	if err != nil {
+		bail("Couldn't load talk: " + err.Error())
+		return
+	}
+	if ct != nil {
 		confTalkID = ct.ID
 	}
 	if confTalkID == "" {
@@ -177,7 +187,6 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 			return
 		}
 		confTalkID = newID
-		getters.InvalidateConfTalksCache()
 	}
 
 	limitRequestBody(w, r, maxMultipartBodyBytes)
@@ -239,16 +248,9 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 	InvalidateTalkManifest()
 
 	if err := getters.ConfTalkSetClipart(ctx, confTalkID, clean+".png"); err != nil {
-		bail("Patch Notion ConfTalk.Clipart: " + err.Error())
+		bail("Update ConfTalk clipart: " + err.Error())
 		return
 	}
-	// Bust both caches: the underlying ConfTalk index AND the
-	// derived legacy talks slice that GetTalksFor reads from on
-	// the cliparts GET. Without the second one, the redirect
-	// would show the stale clipart from before the upload.
-	getters.InvalidateConfTalksCache()
-	getters.InvalidateTalksCache()
-
 	http.Redirect(w, r,
 		fmt.Sprintf("/%s/admin/cliparts?flash=%s",
 			conf.Tag, url.QueryEscape("Uploaded "+clean+".png + .avif")),

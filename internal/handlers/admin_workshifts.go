@@ -16,14 +16,14 @@ import (
 // MakeWorkShifts bulk-creates the canonical roster of volunteer
 // shifts for a conference based on its ConfInfo per-day strip:
 //
-//   * Setup crew (day before Day 1, 10:00 → 14:00, 6 people).
-//   * Each event day:
-//       - Check-in AM: 30m before doors open → +4h, 3 people.
-//       - Check-in PM: 30m before AM check-in ends → +4h, 3 people.
-//       - Per venue × {Showrunner, A/V Monitor}:
-//           AM: doors open → 13:30, 1 person each.
-//           PM: 13:00 → doors close − 1h, 1 person each.
-//   * Teardown crew on the last day (doors close − 2h → doors
+//   - Setup crew (day before Day 1, 10:00 → 14:00, 6 people).
+//   - Each event day:
+//   - Check-in AM: 30m before doors open → +4h, 3 people.
+//   - Check-in PM: 30m before AM check-in ends → +4h, 3 people.
+//   - Per venue × {Showrunner, A/V Monitor}:
+//     AM: doors open → 13:30, 1 person each.
+//     PM: 13:00 → doors close − 1h, 1 person each.
+//   - Teardown crew on the last day (doors close − 2h → doors
 //     close, 6 people).
 //
 // All times anchor in conf.Loc() so the resulting Notion rows show
@@ -60,7 +60,7 @@ func MakeWorkShifts(ctx *config.AppContext, conf *types.Conf) (int, error) {
 	}
 	sortConfInfosByDay(clean)
 
-	jobs, err := getters.FetchJobsCached(ctx)
+	jobs, err := getters.ListJobTypes(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("fetch jobs: %w", err)
 	}

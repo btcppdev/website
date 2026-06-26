@@ -40,18 +40,11 @@ func TalkPublicICS(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		return
 	}
 
-	confs, err := getters.FetchConfsCached(ctx)
+	conf, err := getters.GetConfByTag(ctx, confTag)
 	if err != nil {
-		ctx.Err.Printf("/%s/talk/%s/calendar.ics confs: %s", confTag, anchor, err)
+		ctx.Err.Printf("/%s/talk/%s/calendar.ics conf: %s", confTag, anchor, err)
 		http.Error(w, "Unable to load conference", http.StatusInternalServerError)
 		return
-	}
-	var conf *types.Conf
-	for _, c := range confs {
-		if c != nil && c.Tag == confTag {
-			conf = c
-			break
-		}
 	}
 	if conf == nil {
 		http.NotFound(w, r)
