@@ -57,6 +57,13 @@ type HackathonScheduleEvent struct {
 	Time  *time.Time
 }
 
+type HackathonTimelineView struct {
+	Label         string
+	Value         string
+	HasCountdown  bool
+	CountdownUnix int64
+}
+
 func (p *HackathonPage) ConferenceLabel() string {
 	if p == nil || p.Conf == nil {
 		return ""
@@ -93,6 +100,38 @@ func (p *HackathonPage) CompetitionConferenceURL(competition *types.HackathonCom
 	return "/" + url.PathEscape(conf.Tag)
 }
 
+func (p *HackathonPage) CompetitionConferenceDate(competition *types.HackathonCompetition) string {
+	conf := p.competitionConf(competition)
+	if conf == nil {
+		return ""
+	}
+	return strings.TrimSpace(conf.DateDesc)
+}
+
+func (p *HackathonPage) CompetitionConferenceTag(competition *types.HackathonCompetition) string {
+	conf := p.competitionConf(competition)
+	if conf == nil {
+		return ""
+	}
+	return strings.TrimSpace(conf.Tag)
+}
+
+func (p *HackathonPage) CompetitionImagePNG(competition *types.HackathonCompetition) string {
+	conf := p.competitionConf(competition)
+	if conf == nil || strings.TrimSpace(conf.Tag) == "" {
+		return "/static/img/berlin_hack_day.png"
+	}
+	return "/static/img/" + url.PathEscape(conf.Tag) + "/leading.png"
+}
+
+func (p *HackathonPage) CompetitionImageAVIF(competition *types.HackathonCompetition) string {
+	conf := p.competitionConf(competition)
+	if conf == nil || strings.TrimSpace(conf.Tag) == "" {
+		return ""
+	}
+	return "/static/img/" + url.PathEscape(conf.Tag) + "/leading.avif"
+}
+
 func publicHackathonConferenceName(name string) string {
 	name = strings.TrimSpace(name)
 	for _, prefix := range []string{"bitcoin++", "Bitcoin++", "BITCOIN++"} {
@@ -101,6 +140,13 @@ func publicHackathonConferenceName(name string) string {
 		}
 	}
 	return name
+}
+
+func lowerFirst(value string) string {
+	if value == "" {
+		return ""
+	}
+	return strings.ToLower(value[:1]) + value[1:]
 }
 
 const (
@@ -220,23 +266,29 @@ func (p *HackathonPage) CompetitionStatusLabelFor(competition *types.HackathonCo
 	return hackathonLifecycleLabel(competition)
 }
 
-func (p *HackathonPage) CompetitionTimelineLabel(competition *types.HackathonCompetition) string {
-	label, _ := hackathonNextMilestone(competition)
+func (p *HackathonPage) CompetitionTimeline(competition *types.HackathonCompetition) HackathonTimelineView {
+	label, milestoneAt := hackathonNextMilestoneTime(competition)
+	if milestoneAt != nil {
+		return HackathonTimelineView{
+			Label:         lowerFirst(label) + " in",
+			Value:         formatHackathonRelativeDuration(time.Until(*milestoneAt)),
+			HasCountdown:  true,
+			CountdownUnix: milestoneAt.Unix(),
+		}
+	}
 	if label == "View schedule" {
-		return "Timeline"
+		value := completedHackathonScheduleValue(competition)
+		if value != "" {
+			return HackathonTimelineView{
+				Label: "Schedule",
+				Value: value,
+			}
+		}
 	}
-	if label == "" {
-		return "Timeline"
+	return HackathonTimelineView{
+		Label: "Timeline",
+		Value: "TBA",
 	}
-	return label
-}
-
-func (p *HackathonPage) CompetitionTimelineValue(competition *types.HackathonCompetition) string {
-	_, value := hackathonNextMilestone(competition)
-	if value == "" {
-		return "TBA"
-	}
-	return value
 }
 
 func (p *HackathonPage) CompetitionAcceptsProjects(competition *types.HackathonCompetition) bool {
@@ -527,23 +579,34 @@ func (p *HackathonPage) TimezoneOptions() []string {
 }
 
 func hackathonNextMilestone(competition *types.HackathonCompetition) (string, string) {
+	label, milestoneAt := hackathonNextMilestoneTime(competition)
+	if milestoneAt != nil {
+		return label, formatHackathonTime(milestoneAt)
+	}
+	if label == "View schedule" {
+		return label, completedHackathonScheduleValue(competition)
+	}
+	return "", ""
+}
+
+func hackathonNextMilestoneTime(competition *types.HackathonCompetition) (string, *time.Time) {
 	if competition == nil {
-		return "", ""
+		return "", nil
 	}
 	now := time.Now()
 	if competition.SubmissionsOpenAt != nil && competition.SubmissionsOpenAt.After(now) {
-		return "Submissions open", formatHackathonTime(competition.SubmissionsOpenAt)
+		return "Submissions open", competition.SubmissionsOpenAt
 	}
 	if competition.SubmissionsCloseAt != nil && competition.SubmissionsCloseAt.After(now) {
-		return "Submissions close", formatHackathonTime(competition.SubmissionsCloseAt)
+		return "Submissions close", competition.SubmissionsCloseAt
 	}
 	if competition.PublicGalleryAt != nil && competition.PublicGalleryAt.After(now) {
-		return "Submissions go public", formatHackathonTime(competition.PublicGalleryAt)
+		return "Submissions go public", competition.PublicGalleryAt
 	}
 	if hackathonMilestoneIsScheduleLink(competition) {
-		return "View schedule", completedHackathonScheduleValue(competition)
+		return "View schedule", nil
 	}
-	return "", ""
+	return "", nil
 }
 
 func hackathonMilestoneIsScheduleLink(competition *types.HackathonCompetition) bool {
@@ -575,6 +638,34 @@ func formatHackathonTime(t *time.Time) string {
 		return ""
 	}
 	return t.Format("2006-01-02 15:04")
+}
+
+func formatHackathonRelativeDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return "less than a minute"
+	case d < time.Hour:
+		return pluralizeDurationUnit(int(d.Round(time.Minute)/time.Minute), "minute")
+	case d < 48*time.Hour:
+		return pluralizeDurationUnit(int(d.Round(time.Hour)/time.Hour), "hour")
+	case d < 60*24*time.Hour:
+		return pluralizeDurationUnit(int(d.Round(24*time.Hour)/(24*time.Hour)), "day")
+	default:
+		return pluralizeDurationUnit(int(d.Round(30*24*time.Hour)/(30*24*time.Hour)), "month")
+	}
+}
+
+func pluralizeDurationUnit(value int, unit string) string {
+	if value < 1 {
+		value = 1
+	}
+	if value == 1 {
+		return fmt.Sprintf("1 %s", unit)
+	}
+	return fmt.Sprintf("%d %ss", value, unit)
 }
 
 func completedHackathonScheduleValue(competition *types.HackathonCompetition) string {
@@ -708,7 +799,7 @@ func HackathonIndex(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			visible = append(visible, competition)
 		}
 	}
-	sortHackathonCompetitions(visible, confs, hackathonSortNewest)
+	sortHackathonCompetitions(visible, confs, hackathonSortOldest)
 	page := &HackathonPage{
 		Competitions: visible,
 		Confs:        confs,

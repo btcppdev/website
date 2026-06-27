@@ -91,13 +91,13 @@ function toggleNavFlyout(el, targetId) {
 	return true;
 }
 
-// Conf-page countdown ticker. Each .conf-countdown element carries
-// data-start / data-end as Unix seconds (rendered by the
-// conf_countdown template). Before doors open: positive countdown.
-// Between doors open and close, and after doors close: 0d 00h 00m 00s.
-// Runs site-wide; no-ops on pages without any
-// .conf-countdown elements.
+// Countdown ticker. Each countdown element carries data-start / data-end
+// as Unix seconds. Before start: positive countdown. Between start and
+// end: 0d 00h 00m 00s. After end: negative count. Optional
+// data-before-prefix / data-during-prefix / data-after-prefix attributes
+// override the default conference wording.
 (function () {
+	var countdownSelector = '.conf-countdown, .hackathon-countdown';
 	function pad(n) { return String(n).padStart(2, '0'); }
 	function tick(el) {
 		var startSec = Number(el.dataset.start);
@@ -105,14 +105,17 @@ function toggleNavFlyout(el, targetId) {
 		var valueEl  = el.querySelector('[data-cd-value]');
 		var prefixEl = el.querySelector('[data-cd-prefix]');
 		var now = Date.now() / 1000;
-		var sign, abs;
+		var prefix, sign, abs;
 		if (now < startSec) {
+			prefix = el.dataset.beforePrefix || 'doors open in';
 			sign = '';
 			abs = startSec - now;
 		} else if (now > endSec) {
-			sign = '';
-			abs = 0;
+			prefix = el.dataset.afterPrefix || 'doors closed';
+			sign = '-';
+			abs = now - endSec;
 		} else {
+			prefix = el.dataset.duringPrefix || 'happening now ·';
 			sign = '';
 			abs = 0;
 		}
@@ -120,7 +123,7 @@ function toggleNavFlyout(el, targetId) {
 		var h = Math.floor((abs % 86400) / 3600);
 		var m = Math.floor((abs % 3600) / 60);
 		var s = Math.floor(abs % 60);
-		if (prefixEl) prefixEl.textContent = '';
+		if (prefixEl) prefixEl.textContent = prefix || '';
 		if (valueEl) {
 			valueEl.innerHTML = [
 				sign + pad(d), '<span class="conf-countdown__unit">d</span>',
@@ -131,10 +134,10 @@ function toggleNavFlyout(el, targetId) {
 		}
 	}
 	function tickAll() {
-		document.querySelectorAll('.conf-countdown').forEach(tick);
+		document.querySelectorAll(countdownSelector).forEach(tick);
 	}
 	function init() {
-		var els = document.querySelectorAll('.conf-countdown');
+		var els = document.querySelectorAll(countdownSelector);
 		if (els.length === 0) return;
 		tickAll();
 		setInterval(tickAll, 1000);
