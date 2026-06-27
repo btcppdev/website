@@ -44,10 +44,10 @@
 
         <div class="grid gap-4 sm:grid-cols-3">
           <div>
-            <label for="ConferenceID" class="block text-sm font-medium text-gray-700">Conference</label>
-            <select id="ConferenceID" name="ConferenceID"
+            <label for="ConferenceID" class="block text-sm font-medium text-gray-700">Conference *</label>
+            <select id="ConferenceID" name="ConferenceID" required
                     class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-              <option value="">Standalone</option>
+              <option value="">Select a conference</option>
               {{ range .Confs }}
               <option value="{{ .Ref }}" {{ if eq $.Competition.ConferenceID .Ref }}selected{{ end }}>{{ .Tag }} - {{ .Desc }}</option>
               {{ end }}
