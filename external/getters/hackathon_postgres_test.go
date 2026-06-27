@@ -10,35 +10,31 @@ import (
 	"btcpp-web/internal/types"
 )
 
-func TestHackathonCompetitionCreateStandaloneAndConferenceLinked(t *testing.T) {
+func TestHackathonCompetitionRequiresConference(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)
 
-	standaloneID := createSmokeCompetition(t, ctx, CompetitionInput{
-		Slug:  "standalone-" + postgresSmokeSuffix(),
-		Title: "Standalone Hackathon",
+	_, err := CreateCompetition(ctx, CompetitionInput{
+		Slug:  "missing-conf-" + postgresSmokeSuffix(),
+		Title: "Missing Conference Hackathon",
 	})
-
-	standalone, err := GetCompetitionByID(ctx, standaloneID)
-	if err != nil {
-		t.Fatalf("GetCompetitionByID standalone: %v", err)
+	if err == nil {
+		t.Fatalf("CreateCompetition without conference succeeded")
 	}
-	if standalone.ConferenceID != "" {
-		t.Fatalf("standalone competition conference id = %q, want empty", standalone.ConferenceID)
+	if !strings.Contains(err.Error(), "conference is required") {
+		t.Fatalf("CreateCompetition without conference err = %v, want conference required", err)
 	}
 
-	confID, _ := insertSmokeConference(t, ctx)
 	linkedID := createSmokeCompetition(t, ctx, CompetitionInput{
-		ConferenceID: confID,
-		Slug:         "linked-" + postgresSmokeSuffix(),
-		Title:        "Conference Hackathon",
+		Slug:  "linked-" + postgresSmokeSuffix(),
+		Title: "Conference Hackathon",
 	})
 	linked, err := GetCompetitionByID(ctx, linkedID)
 	if err != nil {
 		t.Fatalf("GetCompetitionByID linked: %v", err)
 	}
-	if linked.ConferenceID != confID {
-		t.Fatalf("linked competition conference id = %q, want %q", linked.ConferenceID, confID)
+	if linked.ConferenceID == "" {
+		t.Fatalf("linked competition conference id is empty")
 	}
 }
 
@@ -660,6 +656,9 @@ func requireHackathonSchema(t *testing.T, ctx *config.AppContext) {
 
 func createSmokeCompetition(t *testing.T, ctx *config.AppContext, in CompetitionInput) string {
 	t.Helper()
+	if strings.TrimSpace(in.ConferenceID) == "" {
+		in.ConferenceID, _ = insertSmokeConference(t, ctx)
+	}
 	id, err := CreateCompetition(ctx, in)
 	if err != nil {
 		t.Fatalf("CreateCompetition: %v", err)

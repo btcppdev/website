@@ -1175,12 +1175,11 @@ func loadHackathonCompetition(w http.ResponseWriter, r *http.Request, ctx *confi
 		handle404(w, r, ctx)
 		return nil, nil, nil, err
 	}
-	var conf *types.Conf
-	if competition.ConferenceID != "" {
-		conf, err = getters.GetConfByRef(ctx, competition.ConferenceID)
-		if err != nil {
-			ctx.Err.Printf("/hackathons/%s conf %s: %s", competition.Slug, competition.ConferenceID, err)
-		}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s conf %s: %s", competition.Slug, competition.ConferenceID, err)
+		handle404(w, r, ctx)
+		return nil, nil, nil, err
 	}
 	id := auth.RequireOptional(r, ctx)
 	viewer := hackathonViewerFromIdentity(id, conf)
@@ -1198,12 +1197,11 @@ func loadHackathonJudgingAccess(w http.ResponseWriter, r *http.Request, ctx *con
 		handle404(w, r, ctx)
 		return nil, nil, nil, nil, err
 	}
-	var conf *types.Conf
-	if competition.ConferenceID != "" {
-		conf, err = getters.GetConfByRef(ctx, competition.ConferenceID)
-		if err != nil {
-			ctx.Err.Printf("/hackathons/%s conf %s: %s", competition.Slug, competition.ConferenceID, err)
-		}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s conf %s: %s", competition.Slug, competition.ConferenceID, err)
+		handle404(w, r, ctx)
+		return nil, nil, nil, nil, err
 	}
 	id := auth.RequireOptional(r, ctx)
 	if id == nil {

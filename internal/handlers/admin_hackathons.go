@@ -90,7 +90,7 @@ type scoreSummaryAccumulator struct {
 func (p *HackathonAdminPage) ConfLabel(confID string) string {
 	confID = strings.TrimSpace(confID)
 	if confID == "" {
-		return "Standalone"
+		return "Unknown conference"
 	}
 	for _, conf := range p.Confs {
 		if conf == nil || conf.Ref != confID {
@@ -104,6 +104,16 @@ func (p *HackathonAdminPage) ConfLabel(confID string) string {
 		}
 	}
 	return confID
+}
+
+func activeHackathonConfs(confs []*types.Conf) []*types.Conf {
+	active := make([]*types.Conf, 0, len(confs))
+	for _, conf := range confs {
+		if conf != nil && conf.Active {
+			active = append(active, conf)
+		}
+	}
+	return active
 }
 
 func (p *HackathonAdminPage) EditURL(competition *types.HackathonCompetition) string {
@@ -1156,7 +1166,7 @@ func HackathonAdminNew(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		return
 	}
 	page := &HackathonAdminPage{
-		Confs:        confs,
+		Confs:        activeHackathonConfs(confs),
 		Competition:  &types.HackathonCompetition{Visibility: getters.CompetitionVisibilityHidden},
 		IsNew:        true,
 		FlashMessage: r.URL.Query().Get("flash"),
@@ -1204,7 +1214,7 @@ func HackathonAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		return
 	}
 	page := &HackathonAdminPage{
-		Confs:        confs,
+		Confs:        activeHackathonConfs(confs),
 		Competition:  competition,
 		ActiveTab:    "main",
 		FlashMessage: r.URL.Query().Get("flash"),
@@ -1275,6 +1285,9 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 		Title:        strings.TrimSpace(r.FormValue("Title")),
 		Description:  strings.TrimSpace(r.FormValue("Description")),
 		Visibility:   visibility,
+	}
+	if in.ConferenceID == "" {
+		return getters.CompetitionInput{}, fmt.Errorf("conference is required")
 	}
 	if maxTeamRaw := strings.TrimSpace(r.FormValue("MaxTeamSize")); maxTeamRaw != "" {
 		maxTeamSize, err := strconv.Atoi(maxTeamRaw)

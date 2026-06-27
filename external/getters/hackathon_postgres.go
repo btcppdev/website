@@ -59,6 +59,9 @@ func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (str
 	if in.Title == "" {
 		return "", fmt.Errorf("competition title is required")
 	}
+	if in.ConferenceID == "" {
+		return "", fmt.Errorf("competition conference is required")
+	}
 	if in.Visibility == "" {
 		in.Visibility = CompetitionVisibilityHidden
 	}
@@ -69,7 +72,7 @@ func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (str
 			conference_id, slug, title, description, visibility, max_team_size,
 			submissions_open_at, submissions_close_at, public_gallery_at
 		) VALUES (
-			NULLIF($1, '')::uuid, $2, $3, $4, $5, $6, $7, $8, $9
+			$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9
 		)
 		RETURNING id::text
 	`, in.ConferenceID, in.Slug, in.Title, in.Description, in.Visibility, in.MaxTeamSize,
@@ -95,12 +98,15 @@ func updateCompetitionPostgres(ctx *config.AppContext, competitionID string, in 
 	if in.Title == "" {
 		return fmt.Errorf("competition title is required")
 	}
+	if in.ConferenceID == "" {
+		return fmt.Errorf("competition conference is required")
+	}
 	if in.Visibility == "" {
 		in.Visibility = CompetitionVisibilityHidden
 	}
 	commandTag, err := ctx.DB.Exec(context.Background(), `
 		UPDATE competitions
-		SET conference_id = NULLIF($2, '')::uuid,
+		SET conference_id = $2::uuid,
 			slug = $3,
 			title = $4,
 			description = $5,
