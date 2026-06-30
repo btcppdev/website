@@ -16,7 +16,11 @@
       </div>
       <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
     </div>
+    {{ if eq .SetupStep 3 }}
+    {{ template "admin_hackathon_setup_steps" . }}
+    {{ else }}
     {{ template "admin_hackathon_tabs" . }}
+    {{ end }}
 
     {{ if .FlashMessage }}
     <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>

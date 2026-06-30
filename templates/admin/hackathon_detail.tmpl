@@ -11,14 +11,16 @@
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathons</a>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}New hackathon{{ else }}{{ .Competition.Title }}{{ end }}</h1>
-        {{ if not .IsNew }}<p class="mt-1 text-sm text-gray-600">Main settings and schedule.</p>{{ end }}
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}New hackathon{{ else if eq .SetupStep 1 }}Set basics{{ else if eq .SetupStep 2 }}Set timeline and schedule{{ else }}{{ .Competition.Title }}{{ end }}</h1>
+        <p class="mt-1 text-sm text-gray-600">
+          {{ if or .IsNew (eq .SetupStep 1) }}Create the public page and access settings.{{ else if eq .SetupStep 2 }}Add submission timing and conference schedule blocks.{{ else }}Main settings and schedule.{{ end }}
+        </p>
       </div>
-      {{ if not .IsNew }}
+      {{ if and (not .IsNew) (eq .SetupStep 0) }}
       <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
       {{ end }}
     </div>
-    {{ if not .IsNew }}{{ template "admin_hackathon_tabs" . }}{{ end }}
+    {{ if and (not .IsNew) (eq .SetupStep 0) }}{{ template "admin_hackathon_tabs" . }}{{ end }}
 
     {{ if .FlashMessage }}
     <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
@@ -27,8 +29,38 @@
     <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
     {{ end }}
 
-    <form method="POST" action="{{ if .IsNew }}/admin/hackathons{{ else }}/admin/hackathons/{{ .Competition.ID }}{{ end }}" class="rounded-lg bg-white shadow">
+    {{ if or .IsNew (gt .SetupStep 0) }}
+    {{ template "admin_hackathon_setup_steps" . }}
+    {{ end }}
+
+    <form id="HackathonSetupForm" method="POST" action="{{ if .IsNew }}/admin/hackathons{{ else }}/admin/hackathons/{{ .Competition.ID }}{{ if gt .SetupStep 0 }}?setup={{ .SetupStep }}{{ end }}{{ end }}" class="mt-6 rounded-lg bg-white shadow">
+      {{ if gt .SetupStep 0 }}
+      <input type="hidden" name="SetupStep" value="{{ .SetupStep }}">
+      {{ end }}
+      {{ if eq .SetupStep 2 }}
+      <input type="hidden" name="Title" value="{{ .Competition.Title }}">
+      <input type="hidden" name="Slug" value="{{ .Competition.Slug }}">
+      <input type="hidden" name="ConferenceID" value="{{ .Competition.ConferenceID }}">
+      <input type="hidden" name="Visibility" value="{{ .Competition.Visibility }}">
+      {{ with .Competition.MaxTeamSize }}<input type="hidden" name="MaxTeamSize" value="{{ . }}">{{ end }}
+      <textarea name="Description" class="hidden">{{ .Competition.Description }}</textarea>
+      {{ end }}
+      {{ if .IsNew }}
+      <input type="hidden" name="SetupFromSchedule" value="{{ if .SetupFromSchedule }}1{{ end }}">
+      {{ end }}
+
       <div class="space-y-6 px-4 py-5 sm:p-6">
+        {{ if or .IsNew (eq .SetupStep 1) }}
+        <div class="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+          <h2 class="text-sm font-semibold text-gray-900">Step 1: Basics</h2>
+          <p class="mt-1 text-sm text-gray-600">{{ if .IsNew }}Create the hackathon shell.{{ else }}Update the hackathon shell.{{ end }} Timeline, schedule, and awards come next.</p>
+          {{ if .SetupFromSchedule }}
+          <p class="mt-2 text-xs font-medium text-amber-800">Opened from the conference schedule. The conference is preselected.</p>
+          {{ end }}
+        </div>
+        {{ end }}
+
+        {{ if ne .SetupStep 2 }}
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <label for="Title" class="block text-sm font-medium text-gray-700">Title *</label>
@@ -67,36 +99,393 @@
                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
           </div>
         </div>
+        {{ end }}
 
-        <div class="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label for="SubmissionsOpenAt" class="block text-sm font-medium text-gray-700">Submissions open</label>
-            <input id="SubmissionsOpenAt" name="SubmissionsOpenAt" type="datetime-local" {{ with .Competition.SubmissionsOpenAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+        {{ if eq .SetupStep 2 }}
+        <div data-segment-builder>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-gray-900">Step 2: Schedule segments</h2>
+              <p class="mt-1 text-sm text-gray-600">Add the hackathon blocks that should appear in the conference scheduler. Times and rooms are assigned on the conference schedule page.</p>
+            </div>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <label class="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                Add segment
+                <select data-segment-select class="mt-1 block w-full min-w-48 rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                  <option value="">Choose segment</option>
+                  <option value="kickoff" data-title="Kickoff" data-duration="30">Kickoff</option>
+                  <option value="hacking" data-title="Hacking time" data-duration="120">Hacking time</option>
+                  <option value="judges-meeting" data-title="Judges meeting" data-duration="30">Judges meeting</option>
+                  <option value="expo" data-title="Project expo" data-duration="120">Project expo</option>
+                  <option value="finals" data-title="Finals" data-duration="60">Finals</option>
+                  <option value="awards" data-title="Awards" data-duration="45">Awards</option>
+                  <option value="custom" data-title="Custom segment" data-duration="30">Custom</option>
+                </select>
+              </label>
+              <button type="button" data-segment-add class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Add</button>
+            </div>
           </div>
-          <div>
-            <label for="SubmissionsCloseAt" class="block text-sm font-medium text-gray-700">Submissions close</label>
-            <input id="SubmissionsCloseAt" name="SubmissionsCloseAt" type="datetime-local" {{ with .Competition.SubmissionsCloseAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+
+          <div data-segment-list class="mt-4 flex gap-3 overflow-x-auto pb-3">
+            {{ range .ScheduleSegments }}
+            <div data-segment-row class="w-72 shrink-0 rounded-md border border-gray-200 bg-gray-50 p-3">
+              <input type="hidden" name="SegmentID" value="{{ .ID }}">
+              <input type="hidden" name="SegmentType" value="{{ .SegmentType }}">
+              <div class="space-y-3">
+                <label class="block text-sm font-medium text-gray-700">
+                  Segment
+                  <input name="SegmentTitle" type="text" required value="{{ .Title }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </label>
+                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                  <label class="block text-sm font-medium text-gray-700">
+                    Minutes
+                    <input name="SegmentDuration" type="number" min="1" step="1" required value="{{ .DefaultDurationMinutes }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                  </label>
+                  <button type="button" data-segment-remove class="rounded-md px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <button type="button" data-segment-up class="rounded-md bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Up</button>
+                  <button type="button" data-segment-down class="rounded-md bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Down</button>
+                </div>
+              </div>
+            </div>
+            {{ end }}
           </div>
-          <div>
-            <label for="PublicGalleryAt" class="block text-sm font-medium text-gray-700">Submissions go public</label>
-            <input id="PublicGalleryAt" name="PublicGalleryAt" type="datetime-local" {{ with .Competition.PublicGalleryAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-          </div>
+          <p data-segment-empty class="{{ if .ScheduleSegments }}hidden {{ end }}mt-4 rounded-md border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500">No schedule segments yet.</p>
         </div>
 
+        <template data-segment-template>
+          <div data-segment-row class="w-72 shrink-0 rounded-md border border-gray-200 bg-gray-50 p-3">
+            <input type="hidden" name="SegmentID" value="">
+            <input type="hidden" name="SegmentType" value="custom">
+            <div class="space-y-3">
+              <label class="block text-sm font-medium text-gray-700">
+                Segment
+                <input name="SegmentTitle" type="text" required value="" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              </label>
+              <div class="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                <label class="block text-sm font-medium text-gray-700">
+                  Minutes
+                  <input name="SegmentDuration" type="number" min="1" step="1" required value="30" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </label>
+                <button type="button" data-segment-remove class="rounded-md px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" data-segment-up class="rounded-md bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Up</button>
+                <button type="button" data-segment-down class="rounded-md bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Down</button>
+              </div>
+            </div>
+          </div>
+        </template>
+        {{ end }}
+
+        {{ if false }}
+        <div data-timeline-builder>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-gray-900">{{ if eq .SetupStep 2 }}Step 2: Timeline and schedule{{ else }}Timeline{{ end }}</h2>
+              <p class="mt-1 text-sm text-gray-600">{{ if eq .SetupStep 2 }}Add only the timing segments this hackathon needs.{{ else }}Add or update timing segments.{{ end }}</p>
+            </div>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <label class="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                Add segment
+                <select data-timeline-select class="mt-1 block w-full min-w-48 rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                  <option value="">Choose segment</option>
+                  <option value="submissions">Submissions</option>
+                  <option value="hacking">Hacking</option>
+                  <option value="judges-meeting">Judges meeting</option>
+                  <option value="expo">Expo</option>
+                  <option value="finals">Finals</option>
+                  <option value="awards">Awards ceremony</option>
+                </select>
+              </label>
+              <button type="button" data-timeline-add class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Add</button>
+            </div>
+          </div>
+
+          <div class="mt-4 space-y-4">
+            <section data-timeline-segment="submissions" class="{{ if or .Competition.SubmissionsOpenAt .Competition.SubmissionsCloseAt .Competition.PublicGalleryAt }}{{ else }}hidden{{ end }} rounded-md border border-gray-200 bg-gray-50 p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-gray-900">Submissions</h3>
+                <button type="button" data-timeline-remove class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+              </div>
+              <div class="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label for="SubmissionsOpenAt" class="block text-sm font-medium text-gray-700">Open</label>
+                  <input id="SubmissionsOpenAt" name="SubmissionsOpenAt" type="datetime-local" {{ with .Competition.SubmissionsOpenAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+                <div>
+                  <label for="SubmissionsCloseAt" class="block text-sm font-medium text-gray-700">Close</label>
+                  <input id="SubmissionsCloseAt" name="SubmissionsCloseAt" type="datetime-local" {{ with .Competition.SubmissionsCloseAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+                <div>
+                  <label for="PublicGalleryAt" class="block text-sm font-medium text-gray-700">Go public</label>
+                  <input id="PublicGalleryAt" name="PublicGalleryAt" type="datetime-local" {{ with .Competition.PublicGalleryAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+              </div>
+            </section>
+
+            <section data-timeline-segment="hacking" class="{{ if or .Competition.HackingStartsAt .Competition.HackingEndsAt }}{{ else }}hidden{{ end }} rounded-md border border-gray-200 bg-gray-50 p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-gray-900">Hacking</h3>
+                <button type="button" data-timeline-remove class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+              </div>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label for="HackingStartsAt" class="block text-sm font-medium text-gray-700">Starts</label>
+                  <input id="HackingStartsAt" name="HackingStartsAt" type="datetime-local" {{ with .Competition.HackingStartsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+                <div>
+                  <label for="HackingEndsAt" class="block text-sm font-medium text-gray-700">Ends</label>
+                  <input id="HackingEndsAt" name="HackingEndsAt" type="datetime-local" {{ with .Competition.HackingEndsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+              </div>
+            </section>
+
+            <section data-timeline-segment="judges-meeting" class="{{ if .Competition.JudgesMeetingAt }}{{ else }}hidden{{ end }} rounded-md border border-gray-200 bg-gray-50 p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-gray-900">Judges meeting</h3>
+                <button type="button" data-timeline-remove class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+              </div>
+              <div class="max-w-sm">
+                <label for="JudgesMeetingAt" class="block text-sm font-medium text-gray-700">Time</label>
+                <input id="JudgesMeetingAt" name="JudgesMeetingAt" type="datetime-local" {{ with .Competition.JudgesMeetingAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                       class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              </div>
+            </section>
+
+            <section data-timeline-segment="expo" class="{{ if or .Competition.ExpoStartsAt .Competition.ExpoEndsAt .Competition.ExpoJudgingStartsAt .Competition.ExpoJudgingEndsAt }}{{ else }}hidden{{ end }} rounded-md border border-gray-200 bg-gray-50 p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-gray-900">Expo</h3>
+                <button type="button" data-timeline-remove class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+              </div>
+              <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label for="ExpoStartsAt" class="block text-sm font-medium text-gray-700">Starts</label>
+                  <input id="ExpoStartsAt" name="ExpoStartsAt" type="datetime-local" {{ with .Competition.ExpoStartsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+                <div>
+                  <label for="ExpoEndsAt" class="block text-sm font-medium text-gray-700">Ends</label>
+                  <input id="ExpoEndsAt" name="ExpoEndsAt" type="datetime-local" {{ with .Competition.ExpoEndsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+                <div>
+                  <label for="ExpoJudgingStartsAt" class="block text-sm font-medium text-gray-700">Judging starts</label>
+                  <input id="ExpoJudgingStartsAt" name="ExpoJudgingStartsAt" type="datetime-local" {{ with .Competition.ExpoJudgingStartsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+                <div>
+                  <label for="ExpoJudgingEndsAt" class="block text-sm font-medium text-gray-700">Judging ends</label>
+                  <input id="ExpoJudgingEndsAt" name="ExpoJudgingEndsAt" type="datetime-local" {{ with .Competition.ExpoJudgingEndsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+              </div>
+            </section>
+
+            <section data-timeline-segment="finals" class="{{ if or .Competition.FinalsStartsAt .Competition.FinalsEndsAt .Competition.FinalsJudgingStartsAt .Competition.FinalsJudgingEndsAt }}{{ else }}hidden{{ end }} rounded-md border border-gray-200 bg-gray-50 p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-gray-900">Finals</h3>
+                <button type="button" data-timeline-remove class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+              </div>
+              <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label for="FinalsStartsAt" class="block text-sm font-medium text-gray-700">Starts</label>
+                  <input id="FinalsStartsAt" name="FinalsStartsAt" type="datetime-local" {{ with .Competition.FinalsStartsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+                <div>
+                  <label for="FinalsEndsAt" class="block text-sm font-medium text-gray-700">Ends</label>
+                  <input id="FinalsEndsAt" name="FinalsEndsAt" type="datetime-local" {{ with .Competition.FinalsEndsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+                <div>
+                  <label for="FinalsJudgingStartsAt" class="block text-sm font-medium text-gray-700">Judging starts</label>
+                  <input id="FinalsJudgingStartsAt" name="FinalsJudgingStartsAt" type="datetime-local" {{ with .Competition.FinalsJudgingStartsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+                <div>
+                  <label for="FinalsJudgingEndsAt" class="block text-sm font-medium text-gray-700">Judging ends</label>
+                  <input id="FinalsJudgingEndsAt" name="FinalsJudgingEndsAt" type="datetime-local" {{ with .Competition.FinalsJudgingEndsAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                </div>
+              </div>
+            </section>
+
+            <section data-timeline-segment="awards" class="{{ if .Competition.AwardsCeremonyAt }}{{ else }}hidden{{ end }} rounded-md border border-gray-200 bg-gray-50 p-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-gray-900">Awards ceremony</h3>
+                <button type="button" data-timeline-remove class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+              </div>
+              <div class="max-w-sm">
+                <label for="AwardsCeremonyAt" class="block text-sm font-medium text-gray-700">Time</label>
+                <input id="AwardsCeremonyAt" name="AwardsCeremonyAt" type="datetime-local" {{ with .Competition.AwardsCeremonyAt }}value="{{ .Format "2006-01-02T15:04" }}"{{ end }}
+                       class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              </div>
+            </section>
+          </div>
+        </div>
+        {{ end }}
+
+        {{ if false }}
+        <div class="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+          <label class="flex gap-3 text-sm text-gray-700">
+            <input type="checkbox" name="SeedScheduleBlocks" value="1" {{ if .SeedScheduleBlocks }}checked{{ end }}
+                   class="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
+            <span>
+              <span class="block font-medium text-gray-900">Add standard schedule blocks</span>
+              <span class="block text-gray-600">Creates sidebar items for kickoff, hacking time, expo, finals, and awards on the selected conference schedule.</span>
+            </span>
+          </label>
+        </div>
+        {{ end }}
+
+        {{ if ne .SetupStep 2 }}
         <div>
           <label for="Description" class="block text-sm font-medium text-gray-700">Description</label>
           <textarea id="Description" name="Description" rows="6"
                     class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">{{ .Competition.Description }}</textarea>
         </div>
+        {{ end }}
       </div>
       <div class="flex items-center justify-end gap-3 border-t border-gray-200 px-4 py-4 sm:px-6">
-        <a href="/admin/hackathons" class="rounded-md px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">Cancel</a>
-        <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save</button>
+        <a href="{{ if gt .SetupStep 0 }}/admin/hackathons/{{ .Competition.ID }}{{ else }}/admin/hackathons{{ end }}" class="rounded-md px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">Cancel</a>
+        <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ if .IsNew }}Continue{{ else if eq .SetupStep 1 }}Save and continue to timeline{{ else if eq .SetupStep 2 }}Save and continue to awards{{ else }}Save{{ end }}</button>
       </div>
     </form>
   </div>
+  <script>
+  document.querySelectorAll('[data-segment-builder]').forEach(function (builder) {
+    var select = builder.querySelector('[data-segment-select]');
+    var addButton = builder.querySelector('[data-segment-add]');
+    var list = builder.querySelector('[data-segment-list]');
+    var template = document.querySelector('[data-segment-template]');
+    var empty = builder.querySelector('[data-segment-empty]');
+
+    function updateEmptyState() {
+      if (!empty || !list) return;
+      empty.classList.toggle('hidden', !!list.querySelector('[data-segment-row]'));
+    }
+
+    function addSegment(option) {
+      if (!option || !option.value || !template || !list) return;
+      var fragment = template.content.cloneNode(true);
+      var row = fragment.querySelector('[data-segment-row]');
+      row.querySelector('input[name="SegmentType"]').value = option.value;
+      row.querySelector('input[name="SegmentTitle"]').value = option.dataset.title || option.textContent.trim();
+      row.querySelector('input[name="SegmentDuration"]').value = option.dataset.duration || '30';
+      list.appendChild(fragment);
+      updateEmptyState();
+      row.querySelector('input[name="SegmentTitle"]').focus();
+    }
+
+    if (addButton && select && list) {
+      addButton.addEventListener('click', function () {
+        addSegment(select.selectedOptions[0]);
+        select.value = '';
+      });
+    }
+
+    builder.addEventListener('click', function (event) {
+      var row = event.target.closest('[data-segment-row]');
+      if (!row || !list) return;
+      if (event.target.closest('[data-segment-remove]')) {
+        row.remove();
+        updateEmptyState();
+      } else if (event.target.closest('[data-segment-up]')) {
+        var previous = row.previousElementSibling;
+        if (previous) list.insertBefore(row, previous);
+      } else if (event.target.closest('[data-segment-down]')) {
+        var next = row.nextElementSibling;
+        if (next) list.insertBefore(next, row);
+      }
+    });
+
+    updateEmptyState();
+  });
+  </script>
 </body>
 </html>
+
+{{ define "admin_hackathon_setup_steps" }}
+<div class="mb-6 grid max-w-2xl gap-3 sm:grid-cols-3">
+  {{ $step1URL := .SetupStep1URL }}
+  {{ if and (eq .SetupStep 2) (not .IsNew) }}
+  <button type="submit" form="HackathonSetupForm" name="NextSetupStep" value="1" class="rounded-lg border border-gray-200 bg-white px-3 py-3 text-left hover:border-indigo-200 hover:bg-indigo-50">
+    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Step 1</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Basics</div>
+  </button>
+  {{ else if eq .SetupStep 1 }}
+  <button type="submit" form="HackathonSetupForm" name="NextSetupStep" value="1" class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3 text-left">
+    <div class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Step 1</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Basics</div>
+  </button>
+  {{ else if $step1URL }}
+  <a href="{{ $step1URL }}" class="rounded-lg border {{ if or .IsNew (eq .SetupStep 1) }}border-indigo-200 bg-indigo-50{{ else }}border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50{{ end }} px-3 py-3">
+    <div class="text-xs font-semibold uppercase tracking-wide {{ if or .IsNew (eq .SetupStep 1) }}text-indigo-700{{ else }}text-gray-500{{ end }}">Step 1</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Basics</div>
+  </a>
+  {{ else }}
+  <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 opacity-70">
+    <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Step 1</div>
+    <div class="mt-1 text-sm font-semibold text-gray-500">Basics</div>
+  </div>
+  {{ end }}
+
+  {{ $step2URL := .SetupStep2URL }}
+  {{ if .IsNew }}
+  <button type="submit" form="HackathonSetupForm" name="NextSetupStep" value="2" class="rounded-lg border border-gray-200 bg-white px-3 py-3 text-left hover:border-indigo-200 hover:bg-indigo-50">
+    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Step 2</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Timeline</div>
+  </button>
+  {{ else if eq .SetupStep 2 }}
+  <button type="submit" form="HackathonSetupForm" name="NextSetupStep" value="2" class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3 text-left">
+    <div class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Step 2</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Timeline</div>
+  </button>
+  {{ else if eq .SetupStep 1 }}
+  <button type="submit" form="HackathonSetupForm" name="NextSetupStep" value="2" class="rounded-lg border border-gray-200 bg-white px-3 py-3 text-left hover:border-indigo-200 hover:bg-indigo-50">
+    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Step 2</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Timeline</div>
+  </button>
+  {{ else if $step2URL }}
+  <a href="{{ $step2URL }}" class="rounded-lg border {{ if eq .SetupStep 2 }}border-indigo-200 bg-indigo-50{{ else }}border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50{{ end }} px-3 py-3">
+    <div class="text-xs font-semibold uppercase tracking-wide {{ if eq .SetupStep 2 }}text-indigo-700{{ else }}text-gray-500{{ end }}">Step 2</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Timeline</div>
+  </a>
+  {{ else }}
+  <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 opacity-70">
+    <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Step 2</div>
+    <div class="mt-1 text-sm font-semibold text-gray-500">Timeline</div>
+  </div>
+  {{ end }}
+
+  {{ $step3URL := .SetupStep3URL }}
+  {{ if .IsNew }}
+  <button type="submit" form="HackathonSetupForm" name="NextSetupStep" value="3" class="rounded-lg border border-gray-200 bg-white px-3 py-3 text-left hover:border-indigo-200 hover:bg-indigo-50">
+    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Step 3</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Awards</div>
+  </button>
+  {{ else if or (eq .SetupStep 1) (eq .SetupStep 2) }}
+  <button type="submit" form="HackathonSetupForm" name="NextSetupStep" value="3" class="rounded-lg border border-gray-200 bg-white px-3 py-3 text-left hover:border-indigo-200 hover:bg-indigo-50">
+    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Step 3</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Awards</div>
+  </button>
+  {{ else if $step3URL }}
+  <a href="{{ $step3URL }}" class="rounded-lg border {{ if eq .SetupStep 3 }}border-indigo-200 bg-indigo-50{{ else }}border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50{{ end }} px-3 py-3">
+    <div class="text-xs font-semibold uppercase tracking-wide {{ if eq .SetupStep 3 }}text-indigo-700{{ else }}text-gray-500{{ end }}">Step 3</div>
+    <div class="mt-1 text-sm font-semibold text-gray-900">Awards</div>
+  </a>
+  {{ else }}
+  <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 opacity-70">
+    <div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Step 3</div>
+    <div class="mt-1 text-sm font-semibold text-gray-500">Awards</div>
+  </div>
+  {{ end }}
+</div>
+{{ end }}

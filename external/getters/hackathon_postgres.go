@@ -128,6 +128,21 @@ func updateCompetitionPostgres(ctx *config.AppContext, competitionID string, in 
 	return nil
 }
 
+func getCompetitionByConferenceIDPostgres(ctx *config.AppContext, conferenceID string) (*types.HackathonCompetition, error) {
+	conferenceID = strings.TrimSpace(conferenceID)
+	if conferenceID == "" {
+		return nil, fmt.Errorf("competition conference is required")
+	}
+	competitions, err := queryCompetitionsPostgres(ctx, "competition by conference", "WHERE conference_id::text = $1", []any{conferenceID})
+	if err != nil {
+		return nil, err
+	}
+	if len(competitions) == 0 {
+		return nil, nil
+	}
+	return competitions[0], nil
+}
+
 func updateCompetitionVisibilityPostgres(ctx *config.AppContext, competitionID, visibility string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
@@ -152,6 +167,265 @@ func updateCompetitionVisibilityPostgres(ctx *config.AppContext, competitionID, 
 		return fmt.Errorf("competition %s not found", competitionID)
 	}
 	return nil
+}
+
+func listCompetitionScheduleSegmentsPostgres(ctx *config.AppContext, competitionID string) ([]*types.CompetitionScheduleSegment, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("competition id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT id::text, competition_id::text, coalesce(proposal_id::text, ''),
+			coalesce(conf_talk_id::text, ''), segment_type, title,
+			default_duration_minutes, ordering, created_at, updated_at
+		FROM competition_schedule_segments
+		WHERE competition_id = $1::uuid
+		ORDER BY ordering, created_at, id
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("list competition schedule segments %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+
+	var segments []*types.CompetitionScheduleSegment
+	for rows.Next() {
+		segment := &types.CompetitionScheduleSegment{}
+		if err := rows.Scan(
+			&segment.ID,
+			&segment.CompetitionID,
+			&segment.ProposalID,
+			&segment.ConfTalkID,
+			&segment.SegmentType,
+			&segment.Title,
+			&segment.DefaultDurationMinutes,
+			&segment.Ordering,
+			&segment.CreatedAt,
+			&segment.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		segments = append(segments, segment)
+	}
+	return segments, rows.Err()
+}
+
+func listCompetitionScheduleSegmentsForConferencePostgres(ctx *config.AppContext, conferenceID string) ([]*types.CompetitionScheduleSegment, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	conferenceID = strings.TrimSpace(conferenceID)
+	if conferenceID == "" {
+		return nil, fmt.Errorf("conference id is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT css.id::text, css.competition_id::text, coalesce(css.proposal_id::text, ''),
+			coalesce(css.conf_talk_id::text, ''), css.segment_type, css.title,
+			css.default_duration_minutes, css.ordering, css.created_at, css.updated_at
+		FROM competition_schedule_segments css
+		JOIN competitions c ON c.id = css.competition_id
+		WHERE c.conference_id = $1::uuid
+		ORDER BY c.created_at DESC, c.title, css.ordering, css.created_at, css.id
+	`, conferenceID)
+	if err != nil {
+		return nil, fmt.Errorf("list conference schedule segments %s: %w", conferenceID, err)
+	}
+	defer rows.Close()
+
+	var segments []*types.CompetitionScheduleSegment
+	for rows.Next() {
+		segment := &types.CompetitionScheduleSegment{}
+		if err := rows.Scan(
+			&segment.ID,
+			&segment.CompetitionID,
+			&segment.ProposalID,
+			&segment.ConfTalkID,
+			&segment.SegmentType,
+			&segment.Title,
+			&segment.DefaultDurationMinutes,
+			&segment.Ordering,
+			&segment.CreatedAt,
+			&segment.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		segments = append(segments, segment)
+	}
+	return segments, rows.Err()
+}
+
+func replaceCompetitionScheduleSegmentsPostgres(ctx *config.AppContext, competitionID string, inputs []CompetitionScheduleSegmentInput) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	competition, err := getCompetitionByIDPostgres(ctx, competitionID)
+	if err != nil {
+		return err
+	}
+	conf, err := GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		return err
+	}
+	if conf == nil {
+		return fmt.Errorf("competition conference not found")
+	}
+	existing, err := listCompetitionScheduleSegmentsPostgres(ctx, competitionID)
+	if err != nil {
+		return err
+	}
+	existingByID := make(map[string]*types.CompetitionScheduleSegment, len(existing))
+	for _, segment := range existing {
+		if segment != nil {
+			existingByID[segment.ID] = segment
+		}
+	}
+
+	kept := map[string]bool{}
+	for i, input := range inputs {
+		input = normalizeCompetitionScheduleSegmentInput(input, i)
+		if input.Title == "" {
+			continue
+		}
+		segment := existingByID[input.ID]
+		proposalID := ""
+		confTalkID := ""
+		if segment != nil {
+			kept[segment.ID] = true
+			proposalID = segment.ProposalID
+			confTalkID = segment.ConfTalkID
+		}
+
+		schedulerTitle := competitionScheduleSegmentProposalTitle(competition.Title, input.Title)
+		if proposalID == "" {
+			proposalID, err = CreateProposal(ctx, ProposalInput{
+				Title:           schedulerTitle,
+				TalkType:        "hackathon",
+				DesiredDuration: input.DefaultDurationMinutes,
+				AvailDuration:   input.DefaultDurationMinutes,
+				ScheduleForTag:  conf.Tag,
+				Status:          "Accepted",
+			})
+			if err != nil {
+				return fmt.Errorf("create schedule segment proposal %q: %w", input.Title, err)
+			}
+		} else {
+			if err := UpdateProposal(ctx, proposalID, ProposalInput{
+				Title:           schedulerTitle,
+				TalkType:        "hackathon",
+				DesiredDuration: input.DefaultDurationMinutes,
+				AvailDuration:   input.DefaultDurationMinutes,
+			}); err != nil {
+				return fmt.Errorf("update schedule segment proposal %s: %w", proposalID, err)
+			}
+			if err := UpdateProposalStatus(ctx, proposalID, "Accepted"); err != nil {
+				return fmt.Errorf("reactivate schedule segment proposal %s: %w", proposalID, err)
+			}
+		}
+		if confTalkID == "" {
+			confTalkID, err = CreateConfTalk(ctx, ConfTalkInput{
+				ConfTag:    conf.Tag,
+				ProposalID: proposalID,
+			})
+			if err != nil {
+				return fmt.Errorf("create schedule segment conf talk %q: %w", input.Title, err)
+			}
+		}
+		if err := updatePlacedScheduleSegmentDuration(ctx, confTalkID, input.DefaultDurationMinutes); err != nil {
+			return fmt.Errorf("update schedule segment duration %q: %w", input.Title, err)
+		}
+
+		if segment == nil {
+			if _, err := ctx.DB.Exec(context.Background(), `
+				INSERT INTO competition_schedule_segments (
+					competition_id, proposal_id, conf_talk_id, segment_type, title,
+					default_duration_minutes, ordering
+				) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7)
+			`, competitionID, proposalID, confTalkID, input.SegmentType, input.Title,
+				input.DefaultDurationMinutes, input.Ordering); err != nil {
+				return fmt.Errorf("insert schedule segment %q: %w", input.Title, err)
+			}
+			continue
+		}
+		if _, err := ctx.DB.Exec(context.Background(), `
+			UPDATE competition_schedule_segments
+			SET proposal_id = $2::uuid,
+				conf_talk_id = $3::uuid,
+				segment_type = $4,
+				title = $5,
+				default_duration_minutes = $6,
+				ordering = $7
+			WHERE id = $1::uuid
+		`, segment.ID, proposalID, confTalkID, input.SegmentType, input.Title,
+			input.DefaultDurationMinutes, input.Ordering); err != nil {
+			return fmt.Errorf("update schedule segment %s: %w", segment.ID, err)
+		}
+	}
+
+	for _, segment := range existing {
+		if segment == nil || kept[segment.ID] {
+			continue
+		}
+		if segment.ProposalID != "" {
+			if err := UpdateProposalStatus(ctx, segment.ProposalID, "TheyDecline"); err != nil {
+				return fmt.Errorf("hide removed schedule segment proposal %s: %w", segment.ProposalID, err)
+			}
+		}
+		if segment.ConfTalkID != "" {
+			if err := DeleteConfTalk(ctx, segment.ConfTalkID); err != nil {
+				return fmt.Errorf("archive removed schedule segment conf talk %s: %w", segment.ConfTalkID, err)
+			}
+		}
+		if _, err := ctx.DB.Exec(context.Background(), `DELETE FROM competition_schedule_segments WHERE id = $1::uuid`, segment.ID); err != nil {
+			return fmt.Errorf("delete schedule segment %s: %w", segment.ID, err)
+		}
+	}
+	return nil
+}
+
+func updatePlacedScheduleSegmentDuration(ctx *config.AppContext, confTalkID string, durationMinutes int) error {
+	if strings.TrimSpace(confTalkID) == "" || durationMinutes <= 0 {
+		return nil
+	}
+	confTalk, err := GetConfTalkByID(ctx, confTalkID)
+	if err != nil {
+		return err
+	}
+	if confTalk == nil || confTalk.Sched == nil || confTalk.Sched.End == nil || strings.TrimSpace(confTalk.Venue) == "" {
+		return nil
+	}
+	return UpdateConfTalkSchedule(ctx, confTalk.ID, confTalk.Venue, confTalk.Sched.Start, confTalk.Sched.Start.Add(time.Duration(durationMinutes)*time.Minute))
+}
+
+func normalizeCompetitionScheduleSegmentInput(in CompetitionScheduleSegmentInput, index int) CompetitionScheduleSegmentInput {
+	in.ID = strings.TrimSpace(in.ID)
+	in.SegmentType = strings.TrimSpace(strings.ToLower(in.SegmentType))
+	if in.SegmentType == "" {
+		in.SegmentType = "custom"
+	}
+	in.Title = strings.TrimSpace(in.Title)
+	if in.DefaultDurationMinutes <= 0 {
+		in.DefaultDurationMinutes = 30
+	}
+	in.Ordering = index
+	return in
+}
+
+func competitionScheduleSegmentProposalTitle(competitionTitle, segmentTitle string) string {
+	competitionTitle = strings.TrimSpace(competitionTitle)
+	segmentTitle = strings.TrimSpace(segmentTitle)
+	if competitionTitle == "" {
+		return segmentTitle
+	}
+	if segmentTitle == "" {
+		return competitionTitle
+	}
+	return competitionTitle + ": " + segmentTitle
 }
 
 func getCompetitionByIDPostgres(ctx *config.AppContext, competitionID string) (*types.HackathonCompetition, error) {

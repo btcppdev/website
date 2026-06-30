@@ -29,6 +29,19 @@ type HackathonCompetition struct {
 	UpdatedAt             time.Time
 }
 
+type CompetitionScheduleSegment struct {
+	ID                     string
+	CompetitionID          string
+	ProposalID             string
+	ConfTalkID             string
+	SegmentType            string
+	Title                  string
+	DefaultDurationMinutes int
+	Ordering               int
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
 type HackathonProject struct {
 	ID                string
 	CompetitionID     string

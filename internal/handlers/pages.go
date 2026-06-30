@@ -598,13 +598,15 @@ type AdminInviteSpeakerSentPage struct {
 // AdminSchedulePage drives /admin/{tag}/schedule — the drag-and-drop
 // schedule editor.
 type AdminSchedulePage struct {
-	Conf         *types.Conf
-	Days         []*ScheduleDay
-	Unscheduled  []*ScheduleProposal
-	PxPerMin     int // vertical scale for the grid + sidebar
-	SnapMin      int // drop-position rounding step (e.g. 5min)
-	FlashMessage string
-	Year         uint
+	Conf              *types.Conf
+	Days              []*ScheduleDay
+	Unscheduled       []*ScheduleProposal
+	PxPerMin          int // vertical scale for the grid + sidebar
+	SnapMin           int // drop-position rounding step (e.g. 5min)
+	HackathonSetupURL string
+	HackathonButton   string
+	FlashMessage      string
+	Year              uint
 }
 
 // ScheduleDay is one day's grid: venue columns, time bounds, and the

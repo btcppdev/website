@@ -19,6 +19,14 @@ type CompetitionInput struct {
 	PublicGalleryAt    *time.Time
 }
 
+type CompetitionScheduleSegmentInput struct {
+	ID                     string
+	SegmentType            string
+	Title                  string
+	DefaultDurationMinutes int
+	Ordering               int
+}
+
 type ProjectInput struct {
 	CompetitionID     string
 	CreatedByPersonID string
@@ -93,6 +101,22 @@ func UpdateCompetitionVisibility(ctx *config.AppContext, competitionID, visibili
 
 func GetCompetitionByID(ctx *config.AppContext, competitionID string) (*types.HackathonCompetition, error) {
 	return getCompetitionByIDPostgres(ctx, competitionID)
+}
+
+func GetCompetitionByConferenceID(ctx *config.AppContext, conferenceID string) (*types.HackathonCompetition, error) {
+	return getCompetitionByConferenceIDPostgres(ctx, conferenceID)
+}
+
+func ListCompetitionScheduleSegments(ctx *config.AppContext, competitionID string) ([]*types.CompetitionScheduleSegment, error) {
+	return listCompetitionScheduleSegmentsPostgres(ctx, competitionID)
+}
+
+func ListCompetitionScheduleSegmentsForConference(ctx *config.AppContext, conferenceID string) ([]*types.CompetitionScheduleSegment, error) {
+	return listCompetitionScheduleSegmentsForConferencePostgres(ctx, conferenceID)
+}
+
+func ReplaceCompetitionScheduleSegments(ctx *config.AppContext, competitionID string, segments []CompetitionScheduleSegmentInput) error {
+	return replaceCompetitionScheduleSegmentsPostgres(ctx, competitionID, segments)
 }
 
 func GetCompetitionBySlug(ctx *config.AppContext, slug string) (*types.HackathonCompetition, error) {
