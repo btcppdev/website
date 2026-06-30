@@ -497,21 +497,14 @@ var hackathonProposals = []struct {
 	{"Hackathon Awards", 45},
 }
 
-// ScheduleAddHackathon seeds five hackathon-shaped proposals against
-// the given conf so they show up in the schedule sidebar ready to be
-// placed. Idempotent: re-clicking only creates titles that don't
-// already exist on the conf, so admins can add new ones (after a
-// rename, say) without piling on duplicates of the rest.
-func ScheduleAddHackathon(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireConfAdmin(w, r, ctx); id == nil {
-		return
+// seedHackathonScheduleProposals seeds five hackathon-shaped
+// proposal-backed schedule blocks against the given conf so they show
+// up in the existing schedule sidebar ready to be placed. Idempotent:
+// re-clicking only creates titles that don't already exist on the conf.
+func seedHackathonScheduleProposals(ctx *config.AppContext, conf *types.Conf) (int, error) {
+	if conf == nil {
+		return 0, fmt.Errorf("conference is required")
 	}
-	conf, err := helpers.FindConf(r, ctx)
-	if err != nil {
-		handle404(w, r, ctx)
-		return
-	}
-
 	existing := map[string]bool{}
 	for _, p := range loadConfProposals(ctx, conf) {
 		if p != nil {
@@ -533,22 +526,50 @@ func ScheduleAddHackathon(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 			Status:          StatusAccepted,
 		})
 		if err != nil {
-			ctx.Err.Printf("/%s/admin/schedule add-hackathon %s: %s", conf.Tag, h.Title, err)
-			http.Redirect(w, r,
-				fmt.Sprintf("/%s/admin/schedule?flash=%s", conf.Tag,
-					url.QueryEscape("Couldn't add "+h.Title+": "+err.Error())),
-				http.StatusSeeOther)
-			return
+			return added, fmt.Errorf("add %s: %w", h.Title, err)
 		}
 		added++
 	}
-	flash := fmt.Sprintf("Added %d hackathon proposal(s).", added)
-	if added == 0 {
-		flash = "Hackathon proposals already exist for this conf — nothing added."
+	return added, nil
+}
+
+// ScheduleAddHackathon now routes admins through the real hackathon
+// setup wizard instead of silently creating disconnected schedule
+// stubs. Kept as a route-level compatibility shim for old forms/links.
+func ScheduleAddHackathon(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	competition, err := getters.GetCompetitionByConferenceID(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/schedule/add-hackathon lookup: %s", conf.Tag, err)
+		http.Redirect(w, r,
+			fmt.Sprintf("/%s/admin/schedule?flash=%s", conf.Tag, url.QueryEscape("Unable to load hackathon.")),
+			http.StatusSeeOther)
+		return
+	}
+	if competition != nil {
+		http.Redirect(w, r,
+			"/admin/hackathons/"+url.PathEscape(competition.ID)+"?setup=1",
+			http.StatusSeeOther)
+		return
 	}
 	http.Redirect(w, r,
-		fmt.Sprintf("/%s/admin/schedule?flash=%s", conf.Tag, url.QueryEscape(flash)),
+		fmt.Sprintf("/admin/hackathons/new?conf=%s&schedule=1", url.QueryEscape(conf.Tag)),
 		http.StatusSeeOther)
+}
+
+func scheduleHackathonSeedFlash(added int) string {
+	flash := fmt.Sprintf("Added %d hackathon schedule block(s).", added)
+	if added == 0 {
+		flash = "Hackathon schedule blocks already exist for this conference."
+	}
+	return flash
 }
 
 // buildSchedulePage gathers the data the schedule template needs:
@@ -622,9 +643,21 @@ func buildSchedulePage(ctx *config.AppContext, conf *types.Conf) (*AdminSchedule
 		d.Placed[ct.Venue] = append(d.Placed[ct.Venue], sp)
 	}
 
+	hackathonSegmentOrder := hackathonScheduleSegmentOrder(ctx, conf)
+
 	// Sidebar order: status (Accepted/Invited first → already-actionable
 	// at the top), then by title.
 	sort.Slice(unscheduled, func(i, j int) bool {
+		leftHackathonOrder, leftHackathonSegment := hackathonSegmentOrder[unscheduled[i].Proposal.ID]
+		rightHackathonOrder, rightHackathonSegment := hackathonSegmentOrder[unscheduled[j].Proposal.ID]
+		if leftHackathonSegment || rightHackathonSegment {
+			if leftHackathonSegment != rightHackathonSegment {
+				return leftHackathonSegment
+			}
+			if leftHackathonOrder != rightHackathonOrder {
+				return leftHackathonOrder < rightHackathonOrder
+			}
+		}
 		ai := statusSortRank(unscheduled[i].Proposal.Status)
 		aj := statusSortRank(unscheduled[j].Proposal.Status)
 		if ai != aj {
@@ -640,13 +673,63 @@ func buildSchedulePage(ctx *config.AppContext, conf *types.Conf) (*AdminSchedule
 	}
 
 	return &AdminSchedulePage{
-		Conf:        conf,
-		Days:        days,
-		Unscheduled: unscheduled,
-		PxPerMin:    schedulePxPerMin,
-		SnapMin:     scheduleSnapMin,
-		Year:        helpers.CurrentYear(),
+		Conf:              conf,
+		Days:              days,
+		Unscheduled:       unscheduled,
+		PxPerMin:          schedulePxPerMin,
+		SnapMin:           scheduleSnapMin,
+		HackathonSetupURL: scheduleHackathonSetupURL(ctx, conf),
+		HackathonButton:   scheduleHackathonButtonLabel(ctx, conf),
+		Year:              helpers.CurrentYear(),
 	}, nil
+}
+
+func scheduleHackathonSetupURL(ctx *config.AppContext, conf *types.Conf) string {
+	if conf == nil {
+		return "/admin/hackathons/new"
+	}
+	competition, err := getters.GetCompetitionByConferenceID(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/schedule hackathon lookup: %s", conf.Tag, err)
+		return "/admin/hackathons/new?conf=" + url.QueryEscape(conf.Tag) + "&schedule=1"
+	}
+	if competition != nil {
+		return "/admin/hackathons/" + url.PathEscape(competition.ID) + "?setup=1"
+	}
+	return "/admin/hackathons/new?conf=" + url.QueryEscape(conf.Tag) + "&schedule=1"
+}
+
+func scheduleHackathonButtonLabel(ctx *config.AppContext, conf *types.Conf) string {
+	if conf == nil {
+		return "+ Add hackathon"
+	}
+	competition, err := getters.GetCompetitionByConferenceID(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/schedule hackathon label lookup: %s", conf.Tag, err)
+		return "+ Add hackathon"
+	}
+	if competition != nil {
+		return "Hackathon setup"
+	}
+	return "+ Add hackathon"
+}
+
+func hackathonScheduleSegmentOrder(ctx *config.AppContext, conf *types.Conf) map[string]int {
+	if conf == nil {
+		return nil
+	}
+	segments, err := getters.ListCompetitionScheduleSegmentsForConference(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/schedule hackathon segment order: %s", conf.Tag, err)
+		return nil
+	}
+	order := make(map[string]int, len(segments))
+	for i, segment := range segments {
+		if segment != nil && segment.ProposalID != "" {
+			order[segment.ProposalID] = i
+		}
+	}
+	return order
 }
 
 // newScheduleProposal builds the per-talk render shape. DesiredMin

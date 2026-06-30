@@ -37,7 +37,7 @@ CREATE TABLE competitions (
   CHECK (finals_judging_ends_at IS NULL OR finals_judging_starts_at IS NULL OR finals_judging_ends_at >= finals_judging_starts_at)
 );
 
-CREATE INDEX competitions_conference_idx ON competitions (conference_id);
+CREATE UNIQUE INDEX competitions_conference_idx ON competitions (conference_id);
 CREATE INDEX competitions_visibility_idx ON competitions (visibility);
 
 CREATE TRIGGER competitions_set_updated_at
@@ -58,6 +58,33 @@ CREATE INDEX competition_hackers_person_idx ON competition_hackers (person_id);
 
 CREATE TRIGGER competition_hackers_set_updated_at
 BEFORE UPDATE ON competition_hackers
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE competition_schedule_segments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  competition_id uuid NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  proposal_id uuid REFERENCES proposals(id) ON DELETE SET NULL,
+  conf_talk_id uuid REFERENCES conf_talks(id) ON DELETE SET NULL,
+  segment_type text NOT NULL DEFAULT 'custom',
+  title text NOT NULL,
+  default_duration_minutes integer NOT NULL DEFAULT 30,
+  ordering integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (segment_type <> ''),
+  CHECK (title <> ''),
+  CHECK (default_duration_minutes > 0),
+  CHECK (ordering >= 0)
+);
+
+CREATE INDEX competition_schedule_segments_competition_idx
+ON competition_schedule_segments (competition_id, ordering);
+
+CREATE INDEX competition_schedule_segments_proposal_idx
+ON competition_schedule_segments (proposal_id);
+
+CREATE TRIGGER competition_schedule_segments_set_updated_at
+BEFORE UPDATE ON competition_schedule_segments
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE TABLE projects (

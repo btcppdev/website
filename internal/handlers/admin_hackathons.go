@@ -33,11 +33,15 @@ type HackathonAdminPage struct {
 	PrizesByAward        map[string][]*types.Prize
 	AwardeesByAward      map[string][]*types.ProjectAward
 	AwardOptInsByProject map[string][]*types.ProjectAwardOptIn
+	ScheduleSegments     []*types.CompetitionScheduleSegment
 	ProjectCount         int
 	JudgeEventCount      int
 	ScoreProjectCount    int
 	AwardCount           int
 	IsNew                bool
+	SetupFromSchedule    bool
+	SetupStep            int
+	SeedScheduleBlocks   bool
 	FlashMessage         string
 	FlashError           string
 	SearchQuery          string
@@ -116,11 +120,95 @@ func activeHackathonConfs(confs []*types.Conf) []*types.Conf {
 	return active
 }
 
+func availableHackathonConfs(ctx *config.AppContext, confs []*types.Conf, currentCompetitionID string) []*types.Conf {
+	active := activeHackathonConfs(confs)
+	competitions, err := getters.ListCompetitions(ctx)
+	if err != nil {
+		ctx.Err.Printf("available hackathon confs: %s", err)
+		return active
+	}
+	competitionByConf := make(map[string]string, len(competitions))
+	for _, competition := range competitions {
+		if competition != nil {
+			competitionByConf[competition.ConferenceID] = competition.ID
+		}
+	}
+	filtered := make([]*types.Conf, 0, len(active))
+	for _, conf := range active {
+		if conf == nil {
+			continue
+		}
+		competitionID := competitionByConf[conf.Ref]
+		if competitionID == "" || competitionID == currentCompetitionID {
+			filtered = append(filtered, conf)
+		}
+	}
+	return filtered
+}
+
+func hackathonSetupConf(confs []*types.Conf, raw string) *types.Conf {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	for _, conf := range confs {
+		if conf == nil {
+			continue
+		}
+		if conf.Ref == raw || conf.Tag == raw {
+			return conf
+		}
+	}
+	return nil
+}
+
+func (p *HackathonAdminPage) SetupStep1Complete() bool {
+	if p == nil || p.Competition == nil {
+		return false
+	}
+	return strings.TrimSpace(p.Competition.ID) != "" &&
+		strings.TrimSpace(p.Competition.Title) != "" &&
+		strings.TrimSpace(p.Competition.Slug) != "" &&
+		strings.TrimSpace(p.Competition.ConferenceID) != "" &&
+		strings.TrimSpace(p.Competition.Visibility) != ""
+}
+
+func (p *HackathonAdminPage) SetupStep1URL() string {
+	if p == nil || p.Competition == nil || strings.TrimSpace(p.Competition.ID) == "" {
+		if p != nil && p.IsNew {
+			return "/admin/hackathons/new"
+		}
+		return ""
+	}
+	return "/admin/hackathons/" + url.PathEscape(p.Competition.ID) + "?setup=1"
+}
+
+func (p *HackathonAdminPage) SetupStep2URL() string {
+	if !p.SetupStep1Complete() {
+		return ""
+	}
+	return "/admin/hackathons/" + url.PathEscape(p.Competition.ID) + "?setup=2"
+}
+
+func (p *HackathonAdminPage) SetupStep3URL() string {
+	if !p.SetupStep1Complete() {
+		return ""
+	}
+	return "/admin/hackathons/" + url.PathEscape(p.Competition.ID) + "/awards?setup=3"
+}
+
 func (p *HackathonAdminPage) EditURL(competition *types.HackathonCompetition) string {
 	if competition == nil {
 		return "/admin/hackathons"
 	}
 	return "/admin/hackathons/" + url.PathEscape(competition.ID)
+}
+
+func (p *HackathonAdminPage) SetupURL(competition *types.HackathonCompetition) string {
+	if competition == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(competition.ID) + "?setup=1"
 }
 
 func (p *HackathonAdminPage) ProjectsURL(competition *types.HackathonCompetition) string {
@@ -566,6 +654,10 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 		FlashMessage:         r.URL.Query().Get("flash"),
 		FlashError:           r.URL.Query().Get("error"),
 		Year:                 helpers.CurrentYear(),
+	}
+	if r.URL.Query().Get("setup") == "3" {
+		page.SetupStep = 3
+		page.ActiveTab = ""
 	}
 	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_projects.tmpl", page); err != nil {
@@ -1165,13 +1257,31 @@ func HackathonAdminNew(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		http.Error(w, "Unable to load conferences", http.StatusInternalServerError)
 		return
 	}
+	setupFromSchedule := r.URL.Query().Get("schedule") == "1"
+	competition := &types.HackathonCompetition{Visibility: getters.CompetitionVisibilityHidden}
+	if conf := hackathonSetupConf(confs, r.URL.Query().Get("conf")); conf != nil {
+		existing, err := getters.GetCompetitionByConferenceID(ctx, conf.Ref)
+		if err != nil {
+			ctx.Err.Printf("/admin/hackathons/new conf %s hackathon lookup: %s", conf.Tag, err)
+			http.Error(w, "Unable to load hackathon", http.StatusInternalServerError)
+			return
+		}
+		if existing != nil {
+			http.Redirect(w, r, "/admin/hackathons/"+url.PathEscape(existing.ID)+"?setup=1", http.StatusSeeOther)
+			return
+		}
+		competition.ConferenceID = conf.Ref
+	}
 	page := &HackathonAdminPage{
-		Confs:        activeHackathonConfs(confs),
-		Competition:  &types.HackathonCompetition{Visibility: getters.CompetitionVisibilityHidden},
-		IsNew:        true,
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		Year:         helpers.CurrentYear(),
+		Confs:              availableHackathonConfs(ctx, confs, ""),
+		Competition:        competition,
+		IsNew:              true,
+		SetupFromSchedule:  setupFromSchedule,
+		SetupStep:          1,
+		SeedScheduleBlocks: setupFromSchedule,
+		FlashMessage:       r.URL.Query().Get("flash"),
+		FlashError:         r.URL.Query().Get("error"),
+		Year:               helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_detail.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/new template: %s", err)
@@ -1188,13 +1298,73 @@ func HackathonAdminCreate(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Redirect(w, r, "/admin/hackathons/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
+	if existing, err := getters.GetCompetitionByConferenceID(ctx, in.ConferenceID); err != nil {
+		ctx.Err.Printf("/admin/hackathons create conference lookup: %s", err)
+		http.Redirect(w, r, "/admin/hackathons/new?error="+url.QueryEscape("Unable to check conference hackathon"), http.StatusSeeOther)
+		return
+	} else if existing != nil {
+		http.Redirect(w, r, "/admin/hackathons/"+url.PathEscape(existing.ID)+"?setup=1&flash="+url.QueryEscape("That conference already has a hackathon"), http.StatusSeeOther)
+		return
+	}
 	id, err := getters.CreateCompetition(ctx, in)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons create: %s", err)
 		http.Redirect(w, r, "/admin/hackathons/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, "/admin/hackathons/"+url.PathEscape(id)+"?flash="+url.QueryEscape("Hackathon created"), http.StatusSeeOther)
+	dest := "/admin/hackathons/" + url.PathEscape(id) + "?setup=2"
+	if r.PostFormValue("NextSetupStep") == "3" {
+		dest = "/admin/hackathons/" + url.PathEscape(id) + "/awards?setup=3"
+	} else if r.PostFormValue("SetupFromSchedule") == "1" {
+		dest += "&schedule=1"
+	}
+	http.Redirect(w, r, dest, http.StatusSeeOther)
+}
+
+func seedCompetitionScheduleBlocks(ctx *config.AppContext, in getters.CompetitionInput) (string, error) {
+	if strings.TrimSpace(in.ConferenceID) == "" {
+		return "", fmt.Errorf("conference is required")
+	}
+	confs, err := getters.ListConfs(ctx)
+	if err != nil {
+		return "", fmt.Errorf("list conferences: %w", err)
+	}
+	conf := helpers.FindConfByRef(confs, in.ConferenceID)
+	if conf == nil {
+		return "", fmt.Errorf("conference schedule not found")
+	}
+	added, err := seedHackathonScheduleProposals(ctx, conf)
+	if err != nil {
+		return "", err
+	}
+	return scheduleHackathonSeedFlash(added), nil
+}
+
+func handleHackathonSetupStep2(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, competitionID string, in getters.CompetitionInput) bool {
+	if r.PostFormValue("SetupStep") != "2" {
+		return false
+	}
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID)
+	flash := "Timeline saved"
+	segments, err := competitionScheduleSegmentInputsFromRequest(r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?setup=2&error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return true
+	}
+	if err := getters.ReplaceCompetitionScheduleSegments(ctx, competitionID, segments); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s setup schedule segments: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?setup=2&error="+url.QueryEscape("Timeline saved, but schedule segments could not be saved"), http.StatusSeeOther)
+		return true
+	}
+	switch r.PostFormValue("NextSetupStep") {
+	case "1":
+		http.Redirect(w, r, dest+"?setup=1&flash="+url.QueryEscape(flash), http.StatusSeeOther)
+	case "2":
+		http.Redirect(w, r, dest+"?setup=2&flash="+url.QueryEscape(flash), http.StatusSeeOther)
+	default:
+		http.Redirect(w, r, "/admin/hackathons/"+url.PathEscape(competitionID)+"/awards?setup=3&flash="+url.QueryEscape(flash), http.StatusSeeOther)
+	}
+	return true
 }
 
 func HackathonAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1214,13 +1384,22 @@ func HackathonAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		return
 	}
 	page := &HackathonAdminPage{
-		Confs:        activeHackathonConfs(confs),
+		Confs:        availableHackathonConfs(ctx, confs, competition.ID),
 		Competition:  competition,
 		ActiveTab:    "main",
+		SetupStep:    0,
 		FlashMessage: r.URL.Query().Get("flash"),
 		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
 	}
+	if r.URL.Query().Get("setup") == "2" {
+		page.SetupStep = 2
+		page.ActiveTab = ""
+	} else if r.URL.Query().Get("setup") == "1" {
+		page.SetupStep = 1
+		page.ActiveTab = ""
+	}
+	page.ScheduleSegments = loadCompetitionScheduleSegments(ctx, competitionID)
 	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_detail.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s template: %s", competitionID, err)
@@ -1239,9 +1418,32 @@ func HackathonAdminUpdate(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
+	if existing, err := getters.GetCompetitionByConferenceID(ctx, in.ConferenceID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s update conference lookup: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to check conference hackathon"), http.StatusSeeOther)
+		return
+	} else if existing != nil && existing.ID != competitionID {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("That conference already has a hackathon"), http.StatusSeeOther)
+		return
+	}
 	if err := getters.UpdateCompetition(ctx, competitionID, in); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s update: %s", competitionID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if handleHackathonSetupStep2(w, r, ctx, competitionID, in) {
+		return
+	}
+	if r.PostFormValue("SetupStep") == "1" {
+		dest := "/admin/hackathons/" + url.PathEscape(competitionID)
+		switch r.PostFormValue("NextSetupStep") {
+		case "1":
+			http.Redirect(w, r, dest+"?setup=1&flash="+url.QueryEscape("Basics saved"), http.StatusSeeOther)
+		case "3":
+			http.Redirect(w, r, dest+"/awards?setup=3&flash="+url.QueryEscape("Basics saved"), http.StatusSeeOther)
+		default:
+			http.Redirect(w, r, dest+"?setup=2&flash="+url.QueryEscape("Basics saved"), http.StatusSeeOther)
+		}
 		return
 	}
 	http.Redirect(w, r, "/admin/hackathons?flash="+url.QueryEscape("Hackathon saved"), http.StatusSeeOther)
@@ -1306,6 +1508,53 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 		return getters.CompetitionInput{}, fmt.Errorf("public gallery: %w", err)
 	}
 	return in, nil
+}
+
+func loadCompetitionScheduleSegments(ctx *config.AppContext, competitionID string) []*types.CompetitionScheduleSegment {
+	segments, err := getters.ListCompetitionScheduleSegments(ctx, competitionID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s schedule segments: %s", competitionID, err)
+		return nil
+	}
+	return segments
+}
+
+func competitionScheduleSegmentInputsFromRequest(r *http.Request) ([]getters.CompetitionScheduleSegmentInput, error) {
+	ids := r.PostForm["SegmentID"]
+	types := r.PostForm["SegmentType"]
+	titles := r.PostForm["SegmentTitle"]
+	durations := r.PostForm["SegmentDuration"]
+	segments := make([]getters.CompetitionScheduleSegmentInput, 0, len(titles))
+	for i, title := range titles {
+		title = strings.TrimSpace(title)
+		if title == "" {
+			continue
+		}
+		duration := 30
+		if i < len(durations) && strings.TrimSpace(durations[i]) != "" {
+			parsed, err := strconv.Atoi(strings.TrimSpace(durations[i]))
+			if err != nil || parsed <= 0 {
+				return nil, fmt.Errorf("segment duration must be a positive number")
+			}
+			duration = parsed
+		}
+		segmentType := "custom"
+		if i < len(types) && strings.TrimSpace(types[i]) != "" {
+			segmentType = strings.TrimSpace(types[i])
+		}
+		id := ""
+		if i < len(ids) {
+			id = strings.TrimSpace(ids[i])
+		}
+		segments = append(segments, getters.CompetitionScheduleSegmentInput{
+			ID:                     id,
+			SegmentType:            segmentType,
+			Title:                  title,
+			DefaultDurationMinutes: duration,
+			Ordering:               len(segments),
+		})
+	}
+	return segments, nil
 }
 
 func judgeEventInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string) (getters.JudgeEventInput, error) {

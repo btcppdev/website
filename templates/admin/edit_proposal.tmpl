@@ -152,6 +152,11 @@
         </div>
         <div>
           <label for="DesiredDuration" class="block text-sm font-semibold text-gray-900">Duration (min)</label>
+          {{ if eq .Proposal.TalkType "hackathon" }}
+          <input id="DesiredDuration" name="DesiredDuration" type="number" min="1" step="1" required
+                 value="{{ .Proposal.DesiredDuration }}"
+                 class="mt-1 block w-full rounded-md py-2 px-3 outline outline-1 -outline-offset-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin" />
+          {{ else }}
           <select id="DesiredDuration" name="DesiredDuration" required
                   class="mt-1 block w-full rounded-md py-2 pl-3 pr-7 outline outline-1 -outline-offset-1 outline-gray-300">
             {{ $cur := .Proposal.DesiredDuration }}
@@ -159,6 +164,7 @@
             <option value="{{ . }}" {{ if eq . $cur }}selected{{ end }}>{{ . }}</option>
             {{ end }}
           </select>
+          {{ end }}
         </div>
       </div>
 
