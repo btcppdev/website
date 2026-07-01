@@ -261,6 +261,11 @@ func SchedulePlace(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		http.Error(w, "update failed", http.StatusInternalServerError)
 		return
 	}
+	if err := getters.SyncScheduleSegmentJudgeEventByProposal(ctx, req.ProposalID); err != nil {
+		ctx.Err.Printf("/%s/admin/schedule sync hackathon judge event: %s", conf.Tag, err)
+		http.Error(w, "sync failed", http.StatusInternalServerError)
+		return
+	}
 
 	// No auto-fire. Schedule edits are draft-mode work; the
 	// admin commits to attendees by clicking "Send Cal Invite"
@@ -334,6 +339,11 @@ func ScheduleResize(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		http.Error(w, "update failed", http.StatusInternalServerError)
 		return
 	}
+	if err := getters.SyncScheduleSegmentJudgeEventByProposal(ctx, req.ProposalID); err != nil {
+		ctx.Err.Printf("/%s/admin/schedule resize sync hackathon judge event: %s", conf.Tag, err)
+		http.Error(w, "sync failed", http.StatusInternalServerError)
+		return
+	}
 
 	// No auto-fire — drift is surfaced visually; updates
 	// propagate via the explicit "Send Cal Updates" button.
@@ -405,6 +415,11 @@ func ScheduleUnplace(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	if err := getters.DeleteConfTalk(ctx, ct.ID); err != nil {
 		ctx.Err.Printf("/%s/admin/schedule delete %s: %s", conf.Tag, ct.ID, err)
 		http.Error(w, "delete failed", http.StatusInternalServerError)
+		return
+	}
+	if err := getters.SyncScheduleSegmentJudgeEventByProposal(ctx, req.ProposalID); err != nil {
+		ctx.Err.Printf("/%s/admin/schedule unplace sync hackathon judge event: %s", conf.Tag, err)
+		http.Error(w, "sync failed", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

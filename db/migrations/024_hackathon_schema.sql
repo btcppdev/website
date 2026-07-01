@@ -168,6 +168,7 @@ CREATE INDEX competition_judges_person_idx ON competition_judges (person_id);
 CREATE TABLE judge_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   competition_id uuid NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  schedule_segment_id uuid REFERENCES competition_schedule_segments(id) ON DELETE SET NULL,
   name text NOT NULL,
   playbook_type text NOT NULL,
   ordering integer NOT NULL DEFAULT 0,
@@ -185,6 +186,10 @@ CREATE TABLE judge_events (
 );
 
 CREATE INDEX judge_events_competition_idx ON judge_events (competition_id, ordering);
+
+CREATE UNIQUE INDEX judge_events_schedule_segment_idx
+ON judge_events (schedule_segment_id)
+WHERE schedule_segment_id IS NOT NULL;
 
 CREATE TRIGGER judge_events_set_updated_at
 BEFORE UPDATE ON judge_events

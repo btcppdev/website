@@ -115,6 +115,10 @@ func ListCompetitionScheduleSegmentsForConference(ctx *config.AppContext, confer
 	return listCompetitionScheduleSegmentsForConferencePostgres(ctx, conferenceID)
 }
 
+func SyncScheduleSegmentJudgeEventByProposal(ctx *config.AppContext, proposalID string) error {
+	return syncScheduleSegmentJudgeEventByProposalPostgres(ctx, proposalID)
+}
+
 func ReplaceCompetitionScheduleSegments(ctx *config.AppContext, competitionID string, segments []CompetitionScheduleSegmentInput) error {
 	return replaceCompetitionScheduleSegmentsPostgres(ctx, competitionID, segments)
 }

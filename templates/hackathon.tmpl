@@ -72,7 +72,11 @@
             </div>
             <div class="mt-1 text-gray-900">
               {{ if .NextMilestoneValue }}
-              {{ .NextMilestoneValue }}
+              {{ with .NextMilestoneTime }}
+              <time class="hackathon-detail-time" datetime="{{ .Format "2006-01-02T15:04:05Z07:00" }}">{{ $.NextMilestoneValue }}</time>
+              {{ else }}
+              {{ $.NextMilestoneValue }}
+              {{ end }}
               {{ else }}
               TBA
               {{ end }}
@@ -197,6 +201,27 @@
       {{ end }}
     </section>
   </main>
+  <script>
+    (function () {
+      const times = Array.prototype.slice.call(document.querySelectorAll('.hackathon-detail-time'));
+      if (times.length === 0) return;
+      const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      for (const el of times) {
+        const value = el.getAttribute('datetime');
+        if (!value) continue;
+        const date = new Date(value);
+        el.textContent = new Intl.DateTimeFormat(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZone: localTZ,
+          timeZoneName: 'short'
+        }).format(date);
+      }
+    })();
+  </script>
   {{ block "footer" . }} {{ end }}
 </body>
 </html>
