@@ -256,6 +256,31 @@ func listCompetitionScheduleSegmentsForConferencePostgres(ctx *config.AppContext
 	return segments, rows.Err()
 }
 
+func getCompetitionScheduleSegmentByProposalPostgres(ctx *config.AppContext, proposalID string) (*types.CompetitionScheduleSegment, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	proposalID = strings.TrimSpace(proposalID)
+	if proposalID == "" {
+		return nil, nil
+	}
+	row := ctx.DB.QueryRow(context.Background(), `
+		SELECT id::text, competition_id::text, coalesce(proposal_id::text, ''),
+			coalesce(conf_talk_id::text, ''), segment_type, title,
+			default_duration_minutes, ordering, created_at, updated_at
+		FROM competition_schedule_segments
+		WHERE proposal_id::text = $1
+	`, proposalID)
+	segment, err := scanCompetitionScheduleSegment(row)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get schedule segment by proposal %s: %w", proposalID, err)
+	}
+	return segment, nil
+}
+
 func replaceCompetitionScheduleSegmentsPostgres(ctx *config.AppContext, competitionID string, inputs []CompetitionScheduleSegmentInput) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
@@ -341,14 +366,28 @@ func replaceCompetitionScheduleSegmentsPostgres(ctx *config.AppContext, competit
 		}
 
 		if segment == nil {
-			if _, err := ctx.DB.Exec(context.Background(), `
+			var segmentID string
+			if err := ctx.DB.QueryRow(context.Background(), `
 				INSERT INTO competition_schedule_segments (
 					competition_id, proposal_id, conf_talk_id, segment_type, title,
 					default_duration_minutes, ordering
 				) VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7)
+				RETURNING id::text
 			`, competitionID, proposalID, confTalkID, input.SegmentType, input.Title,
-				input.DefaultDurationMinutes, input.Ordering); err != nil {
+				input.DefaultDurationMinutes, input.Ordering).Scan(&segmentID); err != nil {
 				return fmt.Errorf("insert schedule segment %q: %w", input.Title, err)
+			}
+			if err := syncScheduleSegmentJudgeEventPostgres(ctx, &types.CompetitionScheduleSegment{
+				ID:                     segmentID,
+				CompetitionID:          competitionID,
+				ProposalID:             proposalID,
+				ConfTalkID:             confTalkID,
+				SegmentType:            input.SegmentType,
+				Title:                  input.Title,
+				DefaultDurationMinutes: input.DefaultDurationMinutes,
+				Ordering:               input.Ordering,
+			}); err != nil {
+				return fmt.Errorf("sync schedule segment judge event %q: %w", input.Title, err)
 			}
 			continue
 		}
@@ -365,11 +404,26 @@ func replaceCompetitionScheduleSegmentsPostgres(ctx *config.AppContext, competit
 			input.DefaultDurationMinutes, input.Ordering); err != nil {
 			return fmt.Errorf("update schedule segment %s: %w", segment.ID, err)
 		}
+		if err := syncScheduleSegmentJudgeEventPostgres(ctx, &types.CompetitionScheduleSegment{
+			ID:                     segment.ID,
+			CompetitionID:          competitionID,
+			ProposalID:             proposalID,
+			ConfTalkID:             confTalkID,
+			SegmentType:            input.SegmentType,
+			Title:                  input.Title,
+			DefaultDurationMinutes: input.DefaultDurationMinutes,
+			Ordering:               input.Ordering,
+		}); err != nil {
+			return fmt.Errorf("sync schedule segment judge event %q: %w", input.Title, err)
+		}
 	}
 
 	for _, segment := range existing {
 		if segment == nil || kept[segment.ID] {
 			continue
+		}
+		if _, err := ctx.DB.Exec(context.Background(), `DELETE FROM judge_events WHERE schedule_segment_id = $1::uuid`, segment.ID); err != nil {
+			return fmt.Errorf("delete schedule segment judge event %s: %w", segment.ID, err)
 		}
 		if segment.ProposalID != "" {
 			if err := UpdateProposalStatus(ctx, segment.ProposalID, "TheyDecline"); err != nil {
@@ -386,6 +440,102 @@ func replaceCompetitionScheduleSegmentsPostgres(ctx *config.AppContext, competit
 		}
 	}
 	return nil
+}
+
+func syncScheduleSegmentJudgeEventByProposalPostgres(ctx *config.AppContext, proposalID string) error {
+	segment, err := getCompetitionScheduleSegmentByProposalPostgres(ctx, proposalID)
+	if err != nil || segment == nil {
+		return err
+	}
+	return syncScheduleSegmentJudgeEventPostgres(ctx, segment)
+}
+
+func syncScheduleSegmentJudgeEventsPostgres(ctx *config.AppContext, competitionID string) error {
+	segments, err := listCompetitionScheduleSegmentsPostgres(ctx, competitionID)
+	if err != nil {
+		return err
+	}
+	for _, segment := range segments {
+		if err := syncScheduleSegmentJudgeEventPostgres(ctx, segment); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func syncScheduleSegmentJudgeEventPostgres(ctx *config.AppContext, segment *types.CompetitionScheduleSegment) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	if segment == nil || strings.TrimSpace(segment.ID) == "" {
+		return nil
+	}
+	playbookType := normalizeJudgeEventType(segment.SegmentType)
+	if playbookType == "" {
+		_, err := ctx.DB.Exec(context.Background(), `DELETE FROM judge_events WHERE schedule_segment_id = $1::uuid`, segment.ID)
+		return err
+	}
+	startsAt, endsAt, err := scheduleSegmentTimes(ctx, segment)
+	if err != nil {
+		return err
+	}
+	var existingID string
+	err = ctx.DB.QueryRow(context.Background(), `
+		SELECT id::text
+		FROM judge_events
+		WHERE schedule_segment_id = $1::uuid
+	`, segment.ID).Scan(&existingID)
+	if err != nil && err != pgx.ErrNoRows {
+		return fmt.Errorf("lookup judge event for schedule segment %s: %w", segment.ID, err)
+	}
+	if existingID == "" {
+		_, err = ctx.DB.Exec(context.Background(), `
+			INSERT INTO judge_events (
+				competition_id, schedule_segment_id, name, playbook_type, ordering,
+				starts_at, ends_at
+			) VALUES (
+				$1::uuid, $2::uuid, $3, $4, $5, $6, $7
+			)
+		`, segment.CompetitionID, segment.ID, segment.Title, playbookType, segment.Ordering, startsAt, endsAt)
+		if err != nil {
+			return fmt.Errorf("insert judge event for schedule segment %s: %w", segment.ID, err)
+		}
+		return nil
+	}
+	_, err = ctx.DB.Exec(context.Background(), `
+		UPDATE judge_events
+		SET name = $2,
+			playbook_type = $3,
+			ordering = $4,
+			starts_at = $5,
+			ends_at = $6
+		WHERE id = $1::uuid
+	`, existingID, segment.Title, playbookType, segment.Ordering, startsAt, endsAt)
+	if err != nil {
+		return fmt.Errorf("update judge event for schedule segment %s: %w", segment.ID, err)
+	}
+	return nil
+}
+
+func scheduleSegmentTimes(ctx *config.AppContext, segment *types.CompetitionScheduleSegment) (*time.Time, *time.Time, error) {
+	confTalk, err := scheduleSegmentConfTalk(ctx, segment)
+	if err != nil || confTalk == nil || confTalk.Sched == nil {
+		return nil, nil, err
+	}
+	return &confTalk.Sched.Start, confTalk.Sched.End, nil
+}
+
+func scheduleSegmentConfTalk(ctx *config.AppContext, segment *types.CompetitionScheduleSegment) (*types.ConfTalk, error) {
+	if segment == nil {
+		return nil, nil
+	}
+	if strings.TrimSpace(segment.ConfTalkID) != "" {
+		return GetConfTalkByID(ctx, segment.ConfTalkID)
+	}
+	if strings.TrimSpace(segment.ProposalID) != "" {
+		return GetConfTalkByProposal(ctx, segment.ProposalID)
+	}
+	return nil, nil
 }
 
 func updatePlacedScheduleSegmentDuration(ctx *config.AppContext, confTalkID string, durationMinutes int) error {
@@ -1091,8 +1241,12 @@ func listJudgeEventsPostgres(ctx *config.AppContext, competitionID string) ([]*t
 	if competitionID == "" {
 		return nil, fmt.Errorf("competition id is required")
 	}
+	if err := syncScheduleSegmentJudgeEventsPostgres(ctx, competitionID); err != nil {
+		return nil, fmt.Errorf("sync schedule segment judge events for competition %s: %w", competitionID, err)
+	}
 	rows, err := ctx.DB.Query(context.Background(), `
-		SELECT id::text, competition_id::text, name, playbook_type, ordering,
+		SELECT id::text, competition_id::text, coalesce(schedule_segment_id::text, ''),
+			name, playbook_type, ordering,
 			starts_at, ends_at, starting_project_number, created_at, updated_at
 		FROM judge_events
 		WHERE competition_id::text = $1
@@ -2042,6 +2196,29 @@ func scanProject(rows pgx.Rows) (*types.HackathonProject, error) {
 	return &project, nil
 }
 
+type pgScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanCompetitionScheduleSegment(row pgScanner) (*types.CompetitionScheduleSegment, error) {
+	var segment types.CompetitionScheduleSegment
+	if err := row.Scan(
+		&segment.ID,
+		&segment.CompetitionID,
+		&segment.ProposalID,
+		&segment.ConfTalkID,
+		&segment.SegmentType,
+		&segment.Title,
+		&segment.DefaultDurationMinutes,
+		&segment.Ordering,
+		&segment.CreatedAt,
+		&segment.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	return &segment, nil
+}
+
 func scanJudgeEvent(rows pgx.Rows) (*types.JudgeEvent, error) {
 	var event types.JudgeEvent
 	var startsAt, endsAt pgtype.Timestamptz
@@ -2049,6 +2226,7 @@ func scanJudgeEvent(rows pgx.Rows) (*types.JudgeEvent, error) {
 	if err := rows.Scan(
 		&event.ID,
 		&event.CompetitionID,
+		&event.ScheduleSegmentID,
 		&event.Name,
 		&event.PlaybookType,
 		&event.Ordering,

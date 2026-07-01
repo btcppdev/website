@@ -13,14 +13,6 @@
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">Schedule</h1>
         <p class="mt-1 text-sm text-gray-600">{{ .Competition.Title }}</p>
       </div>
-      <div>
-        <label for="HackathonTimezone" class="block text-xs font-medium uppercase tracking-wide text-gray-500">Timezone</label>
-        <select id="HackathonTimezone" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-          {{ range .TimezoneOptions }}
-          <option value="{{ . }}">{{ . }}</option>
-          {{ end }}
-        </select>
-      </div>
     </div>
 
     <section class="rounded-lg bg-white shadow">
@@ -30,10 +22,11 @@
           <div class="text-sm font-medium text-gray-900">{{ .Label }}</div>
           <div class="sm:col-span-2 text-sm text-gray-700">
             {{ if .Time }}
-            <time class="hackathon-schedule-time" datetime="{{ .Time.Format "2006-01-02T15:04:05Z07:00" }}">{{ .Time.Format "2006-01-02 15:04" }}</time>
+            <time class="hackathon-schedule-time" datetime="{{ .Time.Format "2006-01-02T15:04:05Z07:00" }}">{{ .Time.Format "2006-01-02 15:04" }}</time>{{ if .End }} - <time class="hackathon-schedule-time" datetime="{{ .End.Format "2006-01-02T15:04:05Z07:00" }}">{{ .End.Format "2006-01-02 15:04" }}</time>{{ end }}
             {{ else }}
             TBA
             {{ end }}
+            {{ if .Venue }}<div class="mt-1 text-xs text-gray-500">{{ .Venue }}</div>{{ end }}
           </div>
         </div>
         {{ end }}
@@ -43,35 +36,24 @@
 
   <script>
     (function () {
-      const select = document.getElementById('HackathonTimezone');
       const times = Array.prototype.slice.call(document.querySelectorAll('.hackathon-schedule-time'));
-      if (!select || times.length === 0) return;
+      if (times.length === 0) return;
 
-      const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (localTZ && !Array.prototype.some.call(select.options, function (opt) { return opt.value === localTZ; })) {
-        const opt = document.createElement('option');
-        opt.value = localTZ;
-        opt.textContent = localTZ;
-        select.insertBefore(opt, select.firstChild);
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      for (const el of times) {
+        const value = el.getAttribute('datetime');
+        if (!value) continue;
+        const date = new Date(value);
+        el.textContent = new Intl.DateTimeFormat(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZone: tz,
+          timeZoneName: 'short'
+        }).format(date);
       }
-      if (localTZ) select.value = localTZ;
-
-      function render() {
-        const tz = select.value || localTZ || 'UTC';
-        for (const el of times) {
-          const value = el.getAttribute('datetime');
-          if (!value) continue;
-          const date = new Date(value);
-          el.textContent = new Intl.DateTimeFormat(undefined, {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-            timeZone: tz,
-            timeZoneName: 'short'
-          }).format(date);
-        }
-      }
-      select.addEventListener('change', render);
-      render();
     })();
   </script>
   {{ block "footer" . }} {{ end }}

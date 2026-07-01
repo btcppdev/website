@@ -96,6 +96,7 @@ type CompetitionJudge struct {
 type JudgeEvent struct {
 	ID                    string
 	CompetitionID         string
+	ScheduleSegmentID     string
 	Name                  string
 	PlaybookType          string
 	Ordering              int

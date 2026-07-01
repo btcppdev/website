@@ -23,38 +23,43 @@ import (
 )
 
 type HackathonPage struct {
-	Competition     *types.HackathonCompetition
-	Competitions    []*types.HackathonCompetition
-	Conf            *types.Conf
-	Confs           []*types.Conf
-	Projects        []*types.HackathonProject
-	Project         *types.HackathonProject
-	Members         []*types.ProjectMember
-	JudgeEvents     []*types.JudgeEvent
-	Scorecards      []*types.Scorecard
-	JudgeTypes      map[string]bool
-	Awards          []*types.Award
-	OptInAwards     []*types.Award
-	AwardOptIns     map[string]bool
-	PrizesByAward   map[string][]*types.Prize
-	AwardeesByAward map[string][]*types.ProjectAward
-	Viewer          *auth.Identity
-	OwnedProjects   map[string]bool
-	IsNew           bool
-	CanCreate       bool
-	CanEdit         bool
-	CanSubmit       bool
-	CanJudge        bool
-	CanScoreAll     bool
-	InviteLink      string
-	FlashMessage    string
-	FlashError      string
-	Year            uint
+	Competition                 *types.HackathonCompetition
+	Competitions                []*types.HackathonCompetition
+	Conf                        *types.Conf
+	Confs                       []*types.Conf
+	Projects                    []*types.HackathonProject
+	Project                     *types.HackathonProject
+	Members                     []*types.ProjectMember
+	JudgeEvents                 []*types.JudgeEvent
+	Scorecards                  []*types.Scorecard
+	JudgeTypes                  map[string]bool
+	Awards                      []*types.Award
+	OptInAwards                 []*types.Award
+	AwardOptIns                 map[string]bool
+	PrizesByAward               map[string][]*types.Prize
+	AwardeesByAward             map[string][]*types.ProjectAward
+	ScheduleEventsByCompetition map[string][]HackathonScheduleEvent
+	ScheduleEventList           []HackathonScheduleEvent
+	Viewer                      *auth.Identity
+	OwnedProjects               map[string]bool
+	IsNew                       bool
+	CanCreate                   bool
+	CanEdit                     bool
+	CanSubmit                   bool
+	CanJudge                    bool
+	CanScoreAll                 bool
+	InviteLink                  string
+	FlashMessage                string
+	FlashError                  string
+	Year                        uint
 }
 
 type HackathonScheduleEvent struct {
-	Label string
-	Time  *time.Time
+	Label       string
+	Time        *time.Time
+	End         *time.Time
+	Venue       string
+	SegmentType string
 }
 
 type HackathonTimelineView struct {
@@ -267,6 +272,14 @@ func (p *HackathonPage) CompetitionStatusLabelFor(competition *types.HackathonCo
 }
 
 func (p *HackathonPage) CompetitionTimeline(competition *types.HackathonCompetition) HackathonTimelineView {
+	if event := nextHackathonScheduleEvent(p.scheduleEventsForCompetition(competition)); event != nil {
+		return HackathonTimelineView{
+			Label:         lowerFirst(event.Label) + " in",
+			Value:         formatHackathonRelativeDuration(time.Until(*event.Time)),
+			HasCountdown:  true,
+			CountdownUnix: event.Time.Unix(),
+		}
+	}
 	label, milestoneAt := hackathonNextMilestoneTime(competition)
 	if milestoneAt != nil {
 		return HackathonTimelineView{
@@ -503,6 +516,13 @@ func (p *HackathonPage) PercentLabel(value *float64) string {
 	return strconv.FormatFloat(*value, 'f', -1, 64) + "%"
 }
 
+func (p *HackathonPage) JudgeEventTimeRange(event *types.JudgeEvent) string {
+	if p == nil {
+		return formatJudgeEventTimeRange(event, nil)
+	}
+	return formatJudgeEventTimeRange(event, p.Conf)
+}
+
 func (p *HackathonPage) RichText(value string) template.HTML {
 	return hackathonRichTextHTML(value)
 }
@@ -510,6 +530,9 @@ func (p *HackathonPage) RichText(value string) template.HTML {
 func (p *HackathonPage) NextMilestoneLabel() string {
 	if p == nil {
 		return ""
+	}
+	if event := nextHackathonScheduleEvent(p.ScheduleEventList); event != nil {
+		return event.Label
 	}
 	label, _ := hackathonNextMilestone(p.Competition)
 	return label
@@ -519,13 +542,36 @@ func (p *HackathonPage) NextMilestoneValue() string {
 	if p == nil {
 		return ""
 	}
+	if event := nextHackathonScheduleEvent(p.ScheduleEventList); event != nil {
+		return formatHackathonScheduleEventTime(event)
+	}
+	if value := completedHackathonScheduledEventRange(p.ScheduleEventList); value != "" {
+		return value
+	}
 	_, value := hackathonNextMilestone(p.Competition)
 	return value
+}
+
+func (p *HackathonPage) NextMilestoneTime() *time.Time {
+	if p == nil {
+		return nil
+	}
+	if event := nextHackathonScheduleEvent(p.ScheduleEventList); event != nil {
+		return event.Time
+	}
+	_, milestoneAt := hackathonNextMilestoneTime(p.Competition)
+	return milestoneAt
 }
 
 func (p *HackathonPage) NextMilestoneIsScheduleLink() bool {
 	if p == nil {
 		return false
+	}
+	if nextHackathonScheduleEvent(p.ScheduleEventList) != nil {
+		return false
+	}
+	if len(p.ScheduleEventList) > 0 {
+		return true
 	}
 	return hackathonMilestoneIsScheduleLink(p.Competition)
 }
@@ -541,6 +587,9 @@ func (p *HackathonPage) ScheduleEvents() []HackathonScheduleEvent {
 	if p == nil || p.Competition == nil {
 		return nil
 	}
+	if len(p.ScheduleEventList) > 0 {
+		return p.ScheduleEventList
+	}
 	competition := p.Competition
 	publicAt := competition.PublicGalleryAt
 	if publicAt == nil {
@@ -553,29 +602,14 @@ func (p *HackathonPage) ScheduleEvents() []HackathonScheduleEvent {
 	}
 }
 
-func (p *HackathonPage) TimezoneOptions() []string {
-	options := []string{}
-	seen := map[string]bool{}
-	add := func(tz string) {
-		tz = strings.TrimSpace(tz)
-		if tz == "" || seen[tz] {
-			return
-		}
-		seen[tz] = true
-		options = append(options, tz)
+func (p *HackathonPage) scheduleEventsForCompetition(competition *types.HackathonCompetition) []HackathonScheduleEvent {
+	if p == nil || competition == nil {
+		return nil
 	}
-	if p != nil && p.Conf != nil {
-		add(p.Conf.Timezone)
+	if p.ScheduleEventsByCompetition == nil {
+		return nil
 	}
-	add("UTC")
-	add("America/New_York")
-	add("America/Chicago")
-	add("America/Denver")
-	add("America/Los_Angeles")
-	add("Europe/London")
-	add("Europe/Berlin")
-	add("Asia/Tokyo")
-	return options
+	return p.ScheduleEventsByCompetition[competition.ID]
 }
 
 func hackathonNextMilestone(competition *types.HackathonCompetition) (string, string) {
@@ -587,6 +621,75 @@ func hackathonNextMilestone(competition *types.HackathonCompetition) (string, st
 		return label, completedHackathonScheduleValue(competition)
 	}
 	return "", ""
+}
+
+func nextHackathonScheduleEvent(events []HackathonScheduleEvent) *HackathonScheduleEvent {
+	now := time.Now()
+	var next *HackathonScheduleEvent
+	for i := range events {
+		event := &events[i]
+		if event.Time == nil || !event.Time.After(now) {
+			continue
+		}
+		if next == nil || event.Time.Before(*next.Time) {
+			next = event
+		}
+	}
+	return next
+}
+
+func formatHackathonScheduleEventTime(event *HackathonScheduleEvent) string {
+	if event == nil || event.Time == nil {
+		return ""
+	}
+	if event.End != nil {
+		return event.Time.Format("2006-01-02 15:04") + " - " + event.End.Format("15:04")
+	}
+	return formatHackathonTime(event.Time)
+}
+
+func completedHackathonScheduledEventRange(events []HackathonScheduleEvent) string {
+	var first, last *time.Time
+	for i := range events {
+		event := events[i]
+		if event.Time != nil && (first == nil || event.Time.Before(*first)) {
+			first = event.Time
+		}
+		if event.End != nil && (last == nil || event.End.After(*last)) {
+			last = event.End
+		} else if event.Time != nil && (last == nil || event.Time.After(*last)) {
+			last = event.Time
+		}
+	}
+	if first == nil || last == nil {
+		return ""
+	}
+	if first.Format("2006-01-02") == last.Format("2006-01-02") {
+		return first.Format("2006-01-02 15:04") + " - " + last.Format("15:04")
+	}
+	return first.Format("2006-01-02 15:04") + " - " + last.Format("2006-01-02 15:04")
+}
+
+func formatJudgeEventTimeRange(event *types.JudgeEvent, conf *types.Conf) string {
+	if event == nil || (event.StartsAt == nil && event.EndsAt == nil) {
+		return ""
+	}
+	loc := time.Local
+	if conf != nil {
+		loc = conf.Loc()
+	}
+	if event.StartsAt == nil {
+		return event.EndsAt.In(loc).Format("Jan 2, 2006 3:04 PM MST")
+	}
+	if event.EndsAt == nil {
+		return event.StartsAt.In(loc).Format("Jan 2, 2006 3:04 PM MST")
+	}
+	start := event.StartsAt.In(loc)
+	end := event.EndsAt.In(loc)
+	if start.Format("2006-01-02") == end.Format("2006-01-02") {
+		return start.Format("Jan 2, 2006 3:04 PM") + " - " + end.Format("3:04 PM MST")
+	}
+	return start.Format("Jan 2, 2006 3:04 PM MST") + " - " + end.Format("Jan 2, 2006 3:04 PM MST")
 }
 
 func hackathonNextMilestoneTime(competition *types.HackathonCompetition) (string, *time.Time) {
@@ -774,6 +877,49 @@ func safeHackathonHref(node *html.Node) string {
 	return ""
 }
 
+func loadHackathonScheduleEvents(ctx *config.AppContext, competitionID string) ([]HackathonScheduleEvent, error) {
+	segments, err := getters.ListCompetitionScheduleSegments(ctx, competitionID)
+	if err != nil {
+		return nil, err
+	}
+	events := make([]HackathonScheduleEvent, 0, len(segments))
+	for _, segment := range segments {
+		if segment == nil {
+			continue
+		}
+		event := HackathonScheduleEvent{
+			Label:       segment.Title,
+			SegmentType: segment.SegmentType,
+		}
+		confTalk, err := confTalkForHackathonScheduleSegment(ctx, segment)
+		if err != nil {
+			return nil, err
+		}
+		if confTalk != nil {
+			event.Venue = strings.TrimSpace(confTalk.Venue)
+			if confTalk.Sched != nil {
+				event.Time = &confTalk.Sched.Start
+				event.End = confTalk.Sched.End
+			}
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+func confTalkForHackathonScheduleSegment(ctx *config.AppContext, segment *types.CompetitionScheduleSegment) (*types.ConfTalk, error) {
+	if segment == nil {
+		return nil, nil
+	}
+	if strings.TrimSpace(segment.ConfTalkID) != "" {
+		return getters.GetConfTalkByID(ctx, segment.ConfTalkID)
+	}
+	if strings.TrimSpace(segment.ProposalID) != "" {
+		return getters.GetConfTalkByProposal(ctx, segment.ProposalID)
+	}
+	return nil, nil
+}
+
 func HackathonIndex(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	competitions, err := getters.ListCompetitions(ctx)
 	if err != nil {
@@ -800,11 +946,23 @@ func HackathonIndex(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		}
 	}
 	sortHackathonCompetitions(visible, confs, hackathonSortOldest)
+	scheduleEventsByCompetition := make(map[string][]HackathonScheduleEvent, len(visible))
+	for _, competition := range visible {
+		events, err := loadHackathonScheduleEvents(ctx, competition.ID)
+		if err != nil {
+			ctx.Err.Printf("/hackathons schedule events %s: %s", competition.ID, err)
+			continue
+		}
+		if len(events) > 0 {
+			scheduleEventsByCompetition[competition.ID] = events
+		}
+	}
 	page := &HackathonPage{
-		Competitions: visible,
-		Confs:        confs,
-		Viewer:       id,
-		Year:         helpers.CurrentYear(),
+		Competitions:                visible,
+		Confs:                       confs,
+		ScheduleEventsByCompetition: scheduleEventsByCompetition,
+		Viewer:                      id,
+		Year:                        helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathons.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons template: %s", err)
@@ -825,20 +983,27 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		http.Error(w, "Unable to load awards", http.StatusInternalServerError)
 		return
 	}
+	scheduleEvents, err := loadHackathonScheduleEvents(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s schedule events: %s", competition.Slug, err)
+		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
+		return
+	}
 	page := &HackathonPage{
-		Competition:     competition,
-		Conf:            conf,
-		Projects:        projects,
-		Awards:          awards,
-		PrizesByAward:   prizesByAward,
-		AwardeesByAward: awardeesByAward,
-		Viewer:          id,
-		OwnedProjects:   ownedProjectMap(ctx, projects, personID),
-		CanCreate:       id != nil && competitionAcceptsProjects(competition),
-		CanJudge:        viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
-		FlashMessage:    r.URL.Query().Get("flash"),
-		FlashError:      r.URL.Query().Get("error"),
-		Year:            helpers.CurrentYear(),
+		Competition:       competition,
+		Conf:              conf,
+		Projects:          projects,
+		Awards:            awards,
+		PrizesByAward:     prizesByAward,
+		AwardeesByAward:   awardeesByAward,
+		ScheduleEventList: scheduleEvents,
+		Viewer:            id,
+		OwnedProjects:     ownedProjectMap(ctx, projects, personID),
+		CanCreate:         id != nil && competitionAcceptsProjects(competition),
+		CanJudge:          viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
+		FlashMessage:      r.URL.Query().Get("flash"),
+		FlashError:        r.URL.Query().Get("error"),
+		Year:              helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s template: %s", competition.Slug, err)
@@ -851,11 +1016,18 @@ func HackathonSchedule(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	if err != nil {
 		return
 	}
+	scheduleEvents, err := loadHackathonScheduleEvents(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/schedule events: %s", competition.Slug, err)
+		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
+		return
+	}
 	page := &HackathonPage{
-		Competition: competition,
-		Conf:        conf,
-		Viewer:      id,
-		Year:        helpers.CurrentYear(),
+		Competition:       competition,
+		Conf:              conf,
+		ScheduleEventList: scheduleEvents,
+		Viewer:            id,
+		Year:              helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_schedule.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/schedule template: %s", competition.Slug, err)

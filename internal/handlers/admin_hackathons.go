@@ -18,6 +18,7 @@ import (
 
 type HackathonAdminPage struct {
 	Competitions         []*types.HackathonCompetition
+	Conf                 *types.Conf
 	Confs                []*types.Conf
 	Competition          *types.HackathonCompetition
 	Projects             []*types.HackathonProject
@@ -257,6 +258,17 @@ func (p *HackathonAdminPage) ConfURL(confID string) string {
 	return ""
 }
 
+func (p *HackathonAdminPage) ConferenceSchedulerURL(competition *types.HackathonCompetition) string {
+	if p == nil || competition == nil {
+		return ""
+	}
+	confURL := p.ConfURL(competition.ConferenceID)
+	if confURL == "" {
+		return ""
+	}
+	return confURL + "/admin/schedule"
+}
+
 func (p *HackathonAdminPage) VisibilityURL(competition *types.HackathonCompetition) string {
 	if competition == nil {
 		return "/admin/hackathons"
@@ -348,6 +360,10 @@ func (p *HackathonAdminPage) JudgeEventName(eventID string) string {
 		}
 	}
 	return eventID
+}
+
+func (p *HackathonAdminPage) JudgeEventTimeRange(event *types.JudgeEvent) string {
+	return formatJudgeEventTimeRange(event, p.Conf)
 }
 
 func (p *HackathonAdminPage) ProjectTitle(projectID string) string {
@@ -1125,6 +1141,12 @@ func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.A
 		handle404(w, r, ctx)
 		return
 	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging conf: %s", competitionID, err)
+		http.Error(w, "Unable to load conference", http.StatusInternalServerError)
+		return
+	}
 	events, err := getters.ListJudgeEvents(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging events: %s", competitionID, err)
@@ -1139,6 +1161,7 @@ func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.A
 	}
 	page := &HackathonAdminPage{
 		Competition:  competition,
+		Conf:         conf,
 		ActiveTab:    "judging",
 		JudgeEvents:  events,
 		Judges:       judges,
@@ -1159,7 +1182,18 @@ func HackathonAdminCreateJudgeEvent(w http.ResponseWriter, r *http.Request, ctx 
 	}
 	competitionID := mux.Vars(r)["competitionID"]
 	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging"
-	in, err := judgeEventInputFromRequest(w, r, competitionID)
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/events conf: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load conference"), http.StatusSeeOther)
+		return
+	}
+	in, err := judgeEventInputFromRequest(w, r, competitionID, conf.Loc())
 	if err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
@@ -1557,7 +1591,7 @@ func competitionScheduleSegmentInputsFromRequest(r *http.Request) ([]getters.Com
 	return segments, nil
 }
 
-func judgeEventInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string) (getters.JudgeEventInput, error) {
+func judgeEventInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string, loc *time.Location) (getters.JudgeEventInput, error) {
 	limitRequestBody(w, r, maxFormBodyBytes)
 	if err := r.ParseForm(); err != nil {
 		return getters.JudgeEventInput{}, fmt.Errorf("bad form")
@@ -1589,10 +1623,10 @@ func judgeEventInputFromRequest(w http.ResponseWriter, r *http.Request, competit
 		}
 		in.StartingProjectNumber = &n
 	}
-	if in.StartsAt, err = parseAdminLocalTime(r.FormValue("StartsAt")); err != nil {
+	if in.StartsAt, err = parseAdminLocalTimeInLocation(r.FormValue("StartsAt"), loc); err != nil {
 		return getters.JudgeEventInput{}, fmt.Errorf("starts at: %w", err)
 	}
-	if in.EndsAt, err = parseAdminLocalTime(r.FormValue("EndsAt")); err != nil {
+	if in.EndsAt, err = parseAdminLocalTimeInLocation(r.FormValue("EndsAt"), loc); err != nil {
 		return getters.JudgeEventInput{}, fmt.Errorf("ends at: %w", err)
 	}
 	return in, nil
@@ -2031,12 +2065,19 @@ func formatScoreAverage(value float64) string {
 }
 
 func parseAdminLocalTime(value string) (*time.Time, error) {
+	return parseAdminLocalTimeInLocation(value, time.Local)
+}
+
+func parseAdminLocalTimeInLocation(value string, loc *time.Location) (*time.Time, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil, nil
 	}
+	if loc == nil {
+		loc = time.Local
+	}
 	for _, layout := range []string{"2006-01-02T15:04", time.RFC3339} {
-		t, err := time.ParseInLocation(layout, value, time.Local)
+		t, err := time.ParseInLocation(layout, value, loc)
 		if err == nil {
 			return &t, nil
 		}

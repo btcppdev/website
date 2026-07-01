@@ -17,7 +17,10 @@
         </p>
       </div>
       {{ if and (not .IsNew) (eq .SetupStep 0) }}
-      <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
+      <div class="flex flex-wrap items-center gap-2">
+        <a href="{{ .SetupURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Setup</a>
+        <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
+      </div>
       {{ end }}
     </div>
     {{ if and (not .IsNew) (eq .SetupStep 0) }}{{ template "admin_hackathon_tabs" . }}{{ end }}
@@ -109,6 +112,10 @@
               <p class="mt-1 text-sm text-gray-600">Add the hackathon blocks that should appear in the conference scheduler. Times and rooms are assigned on the conference schedule page.</p>
             </div>
             <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+              {{ $schedulerURL := .ConferenceSchedulerURL .Competition }}
+              {{ if $schedulerURL }}
+              <a href="{{ $schedulerURL }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Go to scheduler</a>
+              {{ end }}
               <label class="block text-xs font-medium uppercase tracking-wide text-gray-500">
                 Add segment
                 <select data-segment-select class="mt-1 block w-full min-w-48 rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
