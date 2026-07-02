@@ -2460,9 +2460,6 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	if err != nil {
 		ctx.Err.Printf("/%s satellite events load failed (continuing): %s", conf.Tag, err)
 	}
-	if len(satelliteEvents) > 0 {
-		confCopy.HasSatellites = true
-	}
 
 	currTix := findCurrTix(conf, soldCount)
 	maxTix := findMaxTix(conf)

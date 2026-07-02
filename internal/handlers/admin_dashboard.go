@@ -188,7 +188,6 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		VenueMap:      strings.TrimSpace(r.FormValue("venue_map")),
 		VenueWebsite:  strings.TrimSpace(r.FormValue("venue_website")),
 		ShowHackathon: r.FormValue("show_hackathon") == "1",
-		HasSatellites: r.FormValue("has_satellites") == "1",
 	}
 	if err := getters.UpdateConfDetails(ctx, conf.Ref, in); err != nil {
 		ctx.Err.Printf("/%s/admin/details update failed: %s", conf.Tag, err)

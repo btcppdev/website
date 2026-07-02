@@ -104,7 +104,6 @@ type (
 		// "talks" links and the per-conf-template agenda section.
 		HasAgenda     bool
 		ShowHackathon bool
-		HasSatellites bool
 		Tickets       []*ConfTicket
 		TixSold       uint
 		OGFlavor      string

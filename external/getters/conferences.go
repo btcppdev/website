@@ -24,7 +24,6 @@ type ConfDetailsInput struct {
 	VenueMap      string
 	VenueWebsite  string
 	ShowHackathon bool
-	HasSatellites bool
 }
 
 func ListConfs(ctx *config.AppContext) ([]*types.Conf, error) {
@@ -119,8 +118,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, tag, public_uid, active, description, og_flavor, emoji,
 			tagline, date_desc, start_date, end_date, timezone, location, venue,
-			venue_map_url, venue_website_url, show_hackathon, has_satellites,
-			orient_cal_notif
+			venue_map_url, venue_website_url, show_hackathon, orient_cal_notif
 		FROM conferences
 		`+whereSQL+`
 		ORDER BY start_date NULLS LAST, tag
@@ -154,7 +152,6 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.VenueMap,
 			&conf.VenueWebsite,
 			&conf.ShowHackathon,
-			&conf.HasSatellites,
 			&conf.OrientCalNotif,
 		)
 		if err != nil {
@@ -298,12 +295,11 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 			venue = $11,
 			venue_map_url = $12,
 			venue_website_url = $13,
-			show_hackathon = $14,
-			has_satellites = $15
+			show_hackathon = $14
 		WHERE id = $1
 	`, confRef, in.Description, in.OGFlavor, in.Emoji, in.Tagline, in.DateDesc,
 		in.StartDate, in.EndDate, in.Timezone, in.Location, in.Venue,
-		in.VenueMap, in.VenueWebsite, in.ShowHackathon, in.HasSatellites)
+		in.VenueMap, in.VenueWebsite, in.ShowHackathon)
 	if err != nil {
 		return fmt.Errorf("update conference %s details: %w", confRef, err)
 	}
