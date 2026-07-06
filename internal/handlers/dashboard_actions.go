@@ -396,7 +396,7 @@ func DashboardEditSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *confi
 		}
 		// Optional org logo upload — present only if the user picked a
 		// file. Empty fields.OrgPhoto leaves the existing filename intact.
-		logoRaw, logoContentType, logoExt, logoErr := readMultipartFile(r, "OrgLogoFile")
+		logoRaw, logoContentType, logoExt, logoErr := readMultipartLogoFile(r, "OrgLogoFile")
 		hasLogo := logoErr == nil && len(logoRaw) > 0
 		if logoErr != nil && logoErr != http.ErrMissingFile {
 			ctx.Err.Printf("/dashboard edit-conf read logo: %s", logoErr)
@@ -1203,7 +1203,7 @@ func handleInviteSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		talkapp.NormPhoto = imgproc.ShortID(picRaw) + picExt
 	}
 
-	logoRaw, logoContentType, logoExt, logoErr := readMultipartFile(r, "OrgLogoFile")
+	logoRaw, logoContentType, logoExt, logoErr := readMultipartLogoFile(r, "OrgLogoFile")
 	hasLogo := logoErr == nil && len(logoRaw) > 0
 	if logoErr != nil && logoErr != http.ErrMissingFile {
 		ctx.Err.Printf("/invite-speaker read logo: %s", logoErr)

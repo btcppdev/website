@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -1890,6 +1891,14 @@ func processFileUpload(ctx *config.AppContext, r *http.Request, field string) (s
 // http.ErrMissingFile when the field is absent (typical for optional
 // uploads).
 func readMultipartFile(r *http.Request, field string) (raw []byte, contentType string, ext string, err error) {
+	return readMultipartImageFile(r, field, false)
+}
+
+func readMultipartLogoFile(r *http.Request, field string) (raw []byte, contentType string, ext string, err error) {
+	return readMultipartImageFile(r, field, true)
+}
+
+func readMultipartImageFile(r *http.Request, field string, allowSVG bool) (raw []byte, contentType string, ext string, err error) {
 	file, handler, err := r.FormFile(field)
 	if err != nil {
 		return nil, "", "", err
@@ -1906,7 +1915,7 @@ func readMultipartFile(r *http.Request, field string) (raw []byte, contentType s
 		return nil, "", "", errors.New("empty upload")
 	}
 	filename := handler.Filename
-	contentType = detectedImageContentType(raw, filename)
+	contentType = detectedImageContentType(raw, filename, allowSVG)
 	if contentType == "" {
 		return nil, "", "", errors.New("unsupported image type")
 	}
@@ -1917,13 +1926,16 @@ func readMultipartFile(r *http.Request, field string) (raw []byte, contentType s
 	return raw, contentType, ext, nil
 }
 
-func detectedImageContentType(raw []byte, filename string) string {
+func detectedImageContentType(raw []byte, filename string, allowSVG bool) string {
 	detected := http.DetectContentType(raw)
 	if allowedUploadImageType(detected) {
 		return detected
 	}
 	if strings.EqualFold(filepath.Ext(filename), ".avif") && isAVIF(raw) {
 		return "image/avif"
+	}
+	if allowSVG && strings.EqualFold(filepath.Ext(filename), ".svg") && isSVG(raw) {
+		return "image/svg+xml"
 	}
 	return ""
 }
@@ -1950,6 +1962,19 @@ func allowedUploadImageType(contentType string) bool {
 	}
 }
 
+func isSVG(raw []byte) bool {
+	s := bytes.TrimSpace(raw)
+	s = bytes.TrimPrefix(s, []byte{0xef, 0xbb, 0xbf})
+	lower := bytes.ToLower(s)
+	if bytes.Contains(lower, []byte("<script")) ||
+		bytes.Contains(lower, []byte("javascript:")) ||
+		bytes.Contains(lower, []byte(" onload=")) {
+		return false
+	}
+	return bytes.HasPrefix(lower, []byte("<svg")) ||
+		bytes.HasPrefix(lower, []byte("<?xml")) && bytes.Contains(lower[:min(len(lower), 512)], []byte("<svg"))
+}
+
 func extForImageContentType(contentType string) string {
 	switch strings.ToLower(contentType) {
 	case "image/png":
@@ -1960,6 +1985,8 @@ func extForImageContentType(contentType string) string {
 		return ".webp"
 	case "image/avif":
 		return ".avif"
+	case "image/svg+xml":
+		return ".svg"
 	default:
 		return ".jpg"
 	}
@@ -2102,7 +2129,7 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		}
 
 		/* Read OrgLogoFile if present (optional). */
-		logoRaw, logoContentType, logoExt, logoErr := readMultipartFile(r, "OrgLogoFile")
+		logoRaw, logoContentType, logoExt, logoErr := readMultipartLogoFile(r, "OrgLogoFile")
 		hasLogo := logoErr == nil && len(logoRaw) > 0
 		if logoErr != nil && logoErr != http.ErrMissingFile {
 			ctx.Err.Printf("/talk/{conf} unable to read org logo %s", logoErr)
@@ -6568,7 +6595,7 @@ func adminUpdateSpeakerConfPOST(w http.ResponseWriter, r *http.Request, ctx *con
 		DinnerRSVP:   r.PostForm.Get("DinnerRSVP") == "on",
 		Sponsor:      r.PostForm.Get("Sponsor") == "on",
 	}
-	logoRaw, logoContentType, logoExt, logoErr := readMultipartFile(r, "OrgLogoFile")
+	logoRaw, logoContentType, logoExt, logoErr := readMultipartLogoFile(r, "OrgLogoFile")
 	hasLogo := logoErr == nil && len(logoRaw) > 0
 	if logoErr != nil && logoErr != http.ErrMissingFile {
 		ctx.Err.Printf("/%s/admin/speakerconfs/%s/edit read logo: %s", conf.Tag, sc.ID, logoErr)

@@ -8,10 +8,14 @@ import (
 )
 
 func multipartUploadRequest(t *testing.T, filename string, body []byte) *http.Request {
+	return multipartUploadRequestForField(t, "photo", filename, body)
+}
+
+func multipartUploadRequestForField(t *testing.T, field string, filename string, body []byte) *http.Request {
 	t.Helper()
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-	part, err := writer.CreateFormFile("photo", filename)
+	part, err := writer.CreateFormFile(field, filename)
 	if err != nil {
 		t.Fatalf("CreateFormFile: %s", err)
 	}
@@ -83,5 +87,36 @@ func TestReadMultipartFileAcceptsAVIFByBrand(t *testing.T) {
 	}
 	if ext != ".avif" {
 		t.Fatalf("ext = %q, want .avif", ext)
+	}
+}
+
+func TestReadMultipartFileRejectsSVGByDefault(t *testing.T) {
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>`)
+	req := multipartUploadRequest(t, "logo.svg", svg)
+
+	if err := req.ParseMultipartForm(maxUploadFileBytes); err != nil {
+		t.Fatalf("ParseMultipartForm: %s", err)
+	}
+	if _, _, _, err := readMultipartFile(req, "photo"); err == nil {
+		t.Fatal("expected generic image upload to reject SVG")
+	}
+}
+
+func TestReadMultipartLogoFileAcceptsSVG(t *testing.T) {
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>`)
+	req := multipartUploadRequestForField(t, "logo", "logo.svg", svg)
+
+	if err := req.ParseMultipartForm(maxUploadFileBytes); err != nil {
+		t.Fatalf("ParseMultipartForm: %s", err)
+	}
+	_, contentType, ext, err := readMultipartLogoFile(req, "logo")
+	if err != nil {
+		t.Fatalf("readMultipartLogoFile: %s", err)
+	}
+	if contentType != "image/svg+xml" {
+		t.Fatalf("contentType = %q, want image/svg+xml", contentType)
+	}
+	if ext != ".svg" {
+		t.Fatalf("ext = %q, want .svg", ext)
 	}
 }

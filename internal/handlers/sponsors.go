@@ -147,7 +147,7 @@ func OrgLogoUpload(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		return
 	}
 	limitRequestBody(w, r, maxMultipartBodyBytes)
-	raw, contentType, ext, err := readMultipartFile(r, "file")
+	raw, contentType, ext, err := readMultipartLogoFile(r, "file")
 	if err != nil {
 		http.Error(w, "missing or unreadable file", http.StatusBadRequest)
 		return
