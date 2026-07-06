@@ -1137,6 +1137,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/sponsors/new", func(w http.ResponseWriter, r *http.Request) {
 		SponsorshipCreate(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/sponsors/{ref}", func(w http.ResponseWriter, r *http.Request) {
+		SponsorshipUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/sponsors/{ref}/delete", func(w http.ResponseWriter, r *http.Request) {
+		SponsorshipDelete(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/social", func(w http.ResponseWriter, r *http.Request) {
 		SocialAdmin(w, r, app)

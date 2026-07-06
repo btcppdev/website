@@ -381,3 +381,93 @@ func SponsorshipCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 
 	http.Redirect(w, r, "/"+conf.Tag+"/admin/sponsors"+"?flash=Sponsorship+created", http.StatusFound)
 }
+
+func SponsorshipUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+
+	ref := strings.TrimSpace(mux.Vars(r)["ref"])
+	if ref == "" {
+		handle404(w, r, ctx)
+		return
+	}
+
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+
+	orgRef := strings.TrimSpace(r.FormValue("OrgRef"))
+	level := strings.TrimSpace(r.FormValue("Level"))
+	status := strings.TrimSpace(r.FormValue("Status"))
+	if orgRef == "" || level == "" {
+		http.Error(w, "Org and level are required", http.StatusBadRequest)
+		return
+	}
+	if status == "" {
+		status = "Pending"
+	}
+
+	org, err := getters.GetOrg(ctx, orgRef)
+	if err != nil {
+		http.Error(w, "Org not found", http.StatusBadRequest)
+		return
+	}
+
+	sp := &types.Sponsorship{
+		Ref:      ref,
+		Org:      org,
+		Level:    level,
+		Label:    strings.TrimSpace(r.FormValue("Label")),
+		Status:   status,
+		IsVendor: r.FormValue("IsVendor") == "on",
+		Notes:    strings.TrimSpace(r.FormValue("Notes")),
+	}
+	if err := getters.UpdateSponsorship(ctx, conf.Ref, sp); err != nil {
+		ctx.Err.Printf("/%s/admin/sponsors/%s update failed: %s", conf.Tag, ref, err.Error())
+		http.Error(w, "Failed to update sponsorship", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/"+conf.Tag+"/admin/sponsors"+"?flash=Sponsorship+updated", http.StatusFound)
+}
+
+func SponsorshipDelete(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+
+	ref := strings.TrimSpace(mux.Vars(r)["ref"])
+	if ref == "" {
+		handle404(w, r, ctx)
+		return
+	}
+
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+
+	if err := getters.DeleteSponsorship(ctx, conf.Ref, ref); err != nil {
+		ctx.Err.Printf("/%s/admin/sponsors/%s delete failed: %s", conf.Tag, ref, err.Error())
+		http.Error(w, "Failed to remove sponsorship", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/"+conf.Tag+"/admin/sponsors"+"?flash=Sponsorship+removed", http.StatusFound)
+}

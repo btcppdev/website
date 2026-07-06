@@ -432,6 +432,52 @@ func RegisterSponsorship(ctx *config.AppContext, sp *types.Sponsorship) error {
 	return nil
 }
 
+func UpdateSponsorship(ctx *config.AppContext, confRef string, sp *types.Sponsorship) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	if sp == nil || strings.TrimSpace(sp.Ref) == "" {
+		return fmt.Errorf("UpdateSponsorship: sponsorship ref is required")
+	}
+	confRef = strings.TrimSpace(confRef)
+	if confRef == "" {
+		return fmt.Errorf("UpdateSponsorship: conference ref is required")
+	}
+	name := sp.Level + " Sponsorship"
+	var orgID string
+	if sp.Org != nil {
+		name = sp.Org.Name + " @ " + sp.Level
+		orgID = strings.TrimSpace(sp.Org.Ref)
+	}
+
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE sponsorships
+		SET organization_id = NULLIF($3, '')::uuid,
+			name = $4,
+			level = $5,
+			label = $6,
+			status = $7,
+			is_vendor = $8,
+			notes = $9
+		WHERE id = $1
+			AND archived_at IS NULL
+			AND EXISTS (
+				SELECT 1
+				FROM sponsorships_conferences sc
+				WHERE sc.sponsorship_id = sponsorships.id
+					AND sc.conference_id::text = $2
+			)
+	`, sp.Ref, confRef, orgID, name, sp.Level, sp.Label, sp.Status, sp.IsVendor, sp.Notes)
+	if err != nil {
+		return fmt.Errorf("update sponsorship %s: %w", sp.Ref, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("sponsorship %s not found for conference %s", sp.Ref, confRef)
+	}
+	sp.Name = name
+	return nil
+}
+
 func UpdateSponsorshipStatus(ctx *config.AppContext, ref string, status string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
@@ -446,6 +492,34 @@ func UpdateSponsorshipStatus(ctx *config.AppContext, ref string, status string) 
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("sponsorship %s not found", ref)
+	}
+	return nil
+}
+
+func DeleteSponsorship(ctx *config.AppContext, confRef string, ref string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	confRef = strings.TrimSpace(confRef)
+	ref = strings.TrimSpace(ref)
+	if confRef == "" || ref == "" {
+		return fmt.Errorf("DeleteSponsorship: conference ref and sponsorship ref are required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		DELETE FROM sponsorships
+		WHERE id = $1
+			AND EXISTS (
+				SELECT 1
+				FROM sponsorships_conferences sc
+				WHERE sc.sponsorship_id = sponsorships.id
+					AND sc.conference_id::text = $2
+			)
+	`, ref, confRef)
+	if err != nil {
+		return fmt.Errorf("delete sponsorship %s: %w", ref, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("sponsorship %s not found for conference %s", ref, confRef)
 	}
 	return nil
 }

@@ -51,11 +51,16 @@
                             <select name="Level" id="Level" required
                                 class="rounded-md border border-gray-300 px-3 py-1.5 text-sm">
                                 <option value="">-- select --</option>
+                                <option value="Headline">Headline</option>
                                 <option value="Title">Title</option>
                                 <option value="Diamond">Diamond</option>
+                                <option value="Workshop">Workshop</option>
+                                <option value="Hackathon">Hackathon</option>
                                 <option value="Gold">Gold</option>
                                 <option value="Silver">Silver</option>
                                 <option value="Bronze">Bronze</option>
+                                <option value="Networking">Networking</option>
+                                <option value="Media">Media</option>
                                 <option value="Community">Community</option>
                             </select>
                         </div>
@@ -77,6 +82,8 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -91,7 +98,8 @@
                                 </td>
                                 <td class="px-6 py-4 text-sm">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                        {{ if eq .Level "Title" }}bg-purple-100 text-purple-800
+                                        {{ if eq .Level "Headline" }}bg-purple-100 text-purple-800
+                                        {{ else if eq .Level "Title" }}bg-purple-100 text-purple-800
                                         {{ else if eq .Level "Diamond" }}bg-blue-100 text-blue-800
                                         {{ else if eq .Level "Gold" }}bg-yellow-100 text-yellow-800
                                         {{ else if eq .Level "Silver" }}bg-gray-100 text-gray-800
@@ -99,17 +107,94 @@
                                         {{ else }}bg-green-100 text-green-800{{ end }}">
                                         {{ .Level }}
                                     </span>
+                                    {{ if .Label }}<div class="mt-1 text-xs text-gray-500">{{ .Label }}</div>{{ end }}
                                 </td>
                                 <td class="px-6 py-4 text-sm">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                         {{ if eq .Status "Paid" }}bg-green-100 text-green-800
+                                        {{ else if eq .Status "Committed" }}bg-blue-100 text-blue-800
                                         {{ else if eq .Status "InvoiceSent" }}bg-yellow-100 text-yellow-800
+                                        {{ else if eq .Status "InProgress" }}bg-indigo-100 text-indigo-800
                                         {{ else }}bg-red-100 text-red-800{{ end }}">
                                         {{ .Status }}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-500">
                                     {{ if .IsVendor }}Yes{{ end }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500">
+                                    {{ if .Notes }}{{ .Notes }}{{ else }}&mdash;{{ end }}
+                                </td>
+                                <td class="px-6 py-4 text-right text-sm">
+                                    <button type="button" data-edit-target="sponsorship-{{ .Ref }}-edit"
+                                        class="sponsorship-edit-trigger rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Edit</button>
+                                    <form method="POST" action="/{{ $.Conf.Tag }}/admin/sponsors/{{ .Ref }}/delete" class="ml-2 inline-block"
+                                        onsubmit="return confirm('Remove this sponsorship?')">
+                                        <button type="submit" class="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <tr id="sponsorship-{{ .Ref }}-edit" class="hidden bg-gray-50">
+                                <td colspan="6" class="px-6 py-4">
+                                    <form method="POST" action="/{{ $.Conf.Tag }}/admin/sponsors/{{ .Ref }}" class="grid grid-cols-1 gap-4 md:grid-cols-6">
+                                        <div class="md:col-span-2">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Organization</label>
+                                            <select name="OrgRef" required class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                                                <option value="">-- select --</option>
+                                                {{ $spOrg := .Org }}
+                                                {{ range $.Orgs }}
+                                                <option value="{{ .Ref }}" {{ if and $spOrg (eq .Ref $spOrg.Ref) }}selected{{ end }}>{{ .Name }}</option>
+                                                {{ end }}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Level</label>
+                                            <select name="Level" required class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                                                <option value="Headline" {{ if eq .Level "Headline" }}selected{{ end }}>Headline</option>
+                                                <option value="Title" {{ if eq .Level "Title" }}selected{{ end }}>Title</option>
+                                                <option value="Diamond" {{ if eq .Level "Diamond" }}selected{{ end }}>Diamond</option>
+                                                <option value="Workshop" {{ if eq .Level "Workshop" }}selected{{ end }}>Workshop</option>
+                                                <option value="Hackathon" {{ if eq .Level "Hackathon" }}selected{{ end }}>Hackathon</option>
+                                                <option value="Gold" {{ if eq .Level "Gold" }}selected{{ end }}>Gold</option>
+                                                <option value="Silver" {{ if eq .Level "Silver" }}selected{{ end }}>Silver</option>
+                                                <option value="Bronze" {{ if eq .Level "Bronze" }}selected{{ end }}>Bronze</option>
+                                                <option value="Networking" {{ if eq .Level "Networking" }}selected{{ end }}>Networking</option>
+                                                <option value="Media" {{ if eq .Level "Media" }}selected{{ end }}>Media</option>
+                                                <option value="Community" {{ if eq .Level "Community" }}selected{{ end }}>Community</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                                            <select name="Status" class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                                                <option value="Pending" {{ if eq .Status "Pending" }}selected{{ end }}>Pending</option>
+                                                <option value="InProgress" {{ if eq .Status "InProgress" }}selected{{ end }}>InProgress</option>
+                                                <option value="InvoiceSent" {{ if eq .Status "InvoiceSent" }}selected{{ end }}>InvoiceSent</option>
+                                                <option value="Committed" {{ if eq .Status "Committed" }}selected{{ end }}>Committed</option>
+                                                <option value="Paid" {{ if eq .Status "Paid" }}selected{{ end }}>Paid</option>
+                                                <option value="Declined" {{ if eq .Status "Declined" }}selected{{ end }}>Declined</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Vendor</label>
+                                            <label class="inline-flex h-[34px] items-center gap-2 text-sm text-gray-700">
+                                                <input type="checkbox" name="IsVendor" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {{ if .IsVendor }}checked{{ end }}>
+                                                Yes
+                                            </label>
+                                        </div>
+                                        <div class="md:col-span-3">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Label</label>
+                                            <input type="text" name="Label" value="{{ .Label }}" class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="Optional section label">
+                                        </div>
+                                        <div class="md:col-span-3">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+                                            <input type="text" name="Notes" value="{{ .Notes }}" class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="Internal notes">
+                                        </div>
+                                        <div class="flex items-center gap-3 md:col-span-6">
+                                            <button type="submit" class="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">Save changes</button>
+                                            <button type="button" data-edit-target="sponsorship-{{ .Ref }}-edit"
+                                                class="sponsorship-edit-trigger text-xs font-medium text-gray-600 hover:text-gray-900">Cancel</button>
+                                        </div>
+                                    </form>
                                 </td>
                             </tr>
                             {{ end }}
@@ -129,5 +214,15 @@
             {{ end }}
         </div>
     </div>
+    <script>
+      (function () {
+        document.querySelectorAll('.sponsorship-edit-trigger').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            const row = document.getElementById(btn.dataset.editTarget);
+            if (row) row.classList.toggle('hidden');
+          });
+        });
+      })();
+    </script>
   </body>
 </html>
