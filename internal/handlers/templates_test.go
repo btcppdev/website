@@ -71,64 +71,58 @@ func TestHackathonRichTextHTML(t *testing.T) {
 
 func TestHackathonScoreSummaries(t *testing.T) {
 	n1, n2 := 1, 2
-	ideaHigh, execHigh, impactHigh, rankTwo := 5, 4, 3, 2
-	ideaLow, execLow, impactLow, rankOne := 3, 3, 3, 1
+	rankOne, rankTwo := 1, 2
 	projects := []*types.HackathonProject{
 		{ID: "low", Title: "Low Project", ProjectNumber: &n2},
 		{ID: "high", Title: "High Project", ProjectNumber: &n1},
 		{ID: "empty", Title: "Empty Project"},
 	}
+	events := []*types.JudgeEvent{{ID: "expo", PlaybookType: getters.JudgeTypeExpo, RankLimit: 4}}
 	scorecards := []*types.Scorecard{
 		{
-			ProjectID:      "low",
-			IdeaScore:      &ideaLow,
-			ExecutionScore: &execLow,
-			ImpactScore:    &impactLow,
-			Rank:           &rankOne,
+			ProjectID:    "low",
+			JudgeEventID: "expo",
+			Rank:         &rankTwo,
 		},
 		{
-			ProjectID:      "high",
-			IdeaScore:      &ideaHigh,
-			ExecutionScore: &execHigh,
-			ImpactScore:    &impactHigh,
-			Rank:           &rankTwo,
+			ProjectID:    "high",
+			JudgeEventID: "expo",
+			Rank:         &rankOne,
 		},
 		{ProjectID: "high", NoShow: true},
 	}
-	summaries := hackathonScoreSummaries(projects, scorecards)
+	summaries := hackathonScoreSummaries(projects, scorecards, events)
 	if len(summaries) != 3 {
 		t.Fatalf("summaries len = %d, want 3", len(summaries))
 	}
-	if summaries[0].ProjectID != "high" || summaries[0].TotalAverage != "12.0" || summaries[0].NoShows != 1 {
+	if summaries[0].ProjectID != "high" || summaries[0].Points != 4 || summaries[0].NoShows != 1 {
 		t.Fatalf("first summary = %+v, want high score with one no-show", summaries[0])
 	}
-	if summaries[1].ProjectID != "low" || summaries[1].RankAverage != "1.0" || summaries[1].BestRank != "1" {
+	if summaries[1].ProjectID != "low" || summaries[1].Points != 3 || summaries[1].RankAverage != "2.0" || summaries[1].BestRank != "2" {
 		t.Fatalf("second summary = %+v, want low project rank data", summaries[1])
 	}
-	if summaries[2].ProjectID != "empty" || summaries[2].TotalAverage != "-" || summaries[2].Scorecards != 0 {
+	if summaries[2].ProjectID != "empty" || summaries[2].PointsLabel != "-" || summaries[2].Scorecards != 0 {
 		t.Fatalf("third summary = %+v, want empty project last", summaries[2])
 	}
 }
 
 func TestHackathonFinalistSelections(t *testing.T) {
 	n1, n2, n3 := 1, 2, 3
-	ideaFive, execFive, impactFive := 5, 5, 5
-	ideaFour, execFour, impactFour := 4, 4, 4
-	ideaThree, execThree, impactThree := 3, 3, 3
+	rankOne, rankTwo := 1, 2
 	projects := []*types.HackathonProject{
 		{ID: "winner", Title: "Winner", ProjectNumber: &n1, Status: getters.ProjectStatusSubmitted},
 		{ID: "runner-up", Title: "Runner Up", ProjectNumber: &n2, Status: getters.ProjectStatusShipped},
 		{ID: "created", Title: "Created", ProjectNumber: &n3, Status: getters.ProjectStatusCreated},
 	}
 	events := []*types.JudgeEvent{
-		{ID: "expo", PlaybookType: getters.JudgeTypeExpo},
-		{ID: "finals", PlaybookType: getters.JudgeTypeFinals},
+		{ID: "expo", PlaybookType: getters.JudgeTypeExpo, RankLimit: 4},
+		{ID: "finals", PlaybookType: getters.JudgeTypeFinals, RankLimit: 4},
 	}
 	scorecards := []*types.Scorecard{
-		{ProjectID: "winner", JudgeEventID: "expo", IdeaScore: &ideaFive, ExecutionScore: &execFive, ImpactScore: &impactFive},
-		{ProjectID: "runner-up", JudgeEventID: "expo", IdeaScore: &ideaFour, ExecutionScore: &execFour, ImpactScore: &impactFour},
-		{ProjectID: "created", JudgeEventID: "expo", IdeaScore: &ideaFive, ExecutionScore: &execFive, ImpactScore: &impactFive},
-		{ProjectID: "runner-up", JudgeEventID: "finals", IdeaScore: &ideaThree, ExecutionScore: &execThree, ImpactScore: &impactThree},
+		{ProjectID: "winner", JudgeEventID: "expo", Rank: &rankOne},
+		{ProjectID: "runner-up", JudgeEventID: "expo", Rank: &rankTwo},
+		{ProjectID: "created", JudgeEventID: "expo", Rank: &rankOne},
+		{ProjectID: "runner-up", JudgeEventID: "finals", Rank: &rankOne},
 	}
 
 	expoFinalists := hackathonFinalistSelections(projects, scorecards, events, hackathonScoreModeExpo, 2)
