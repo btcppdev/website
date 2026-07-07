@@ -14,11 +14,33 @@ We use nix for this. Installs go + tailwindcss + air dependencies for Makefile.
 ```
 
 
-## To run for development
+## Local Dev Harness
+
+From a clean checkout, enter the Nix shell and start the full local harness:
 
 ```
-	make dev-run
+	nix develop
+	just dev-up
 ```
+
+When the server reports that it is listening, open:
+
+```
+	http://localhost:8888
+```
+
+`just dev-up` bootstraps `.env`, starts local Postgres, applies migrations,
+seeds realistic local fixture data, prints a local admin login URL, and runs
+the app in the foreground. Stop the foreground process with `Ctrl-C`.
+
+To stop local harness services:
+
+```
+	just dev-down
+```
+
+`just dev-down` stops the local Postgres service. For lower-level app-only live
+reload, use `make dev-run`.
 
 
 ## To build
