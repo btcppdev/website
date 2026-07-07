@@ -15,6 +15,7 @@
             bashInteractive
             jq
             ripgrep
+            just
             go
             tailwindcss
             air
