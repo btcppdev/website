@@ -103,24 +103,22 @@ type JudgeEvent struct {
 	StartsAt              *time.Time
 	EndsAt                *time.Time
 	StartingProjectNumber *int
+	RankLimit             int
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
 
 type Scorecard struct {
-	ID             string
-	JudgeEventID   string
-	ProjectID      string
-	JudgePersonID  string
-	IdeaScore      *int
-	ExecutionScore *int
-	ImpactScore    *int
-	Rank           *int
-	NoShow         bool
-	Comments       string
-	SubmittedAt    *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID            string
+	JudgeEventID  string
+	ProjectID     string
+	JudgePersonID string
+	Rank          *int
+	NoShow        bool
+	Comments      string
+	SubmittedAt   *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Award struct {

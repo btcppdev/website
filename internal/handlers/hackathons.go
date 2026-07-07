@@ -438,6 +438,27 @@ func (p *HackathonPage) ScoreValue(value *int) string {
 	return strconv.Itoa(*value)
 }
 
+func (p *HackathonPage) RankLimit(event *types.JudgeEvent) int {
+	return judgeEventRankLimit(event)
+}
+
+func (p *HackathonPage) RankOptions(event *types.JudgeEvent) []int {
+	limit := judgeEventRankLimit(event)
+	options := make([]int, limit)
+	for i := range options {
+		options[i] = i + 1
+	}
+	return options
+}
+
+func (p *HackathonPage) RankOptionLabel(event *types.JudgeEvent, rank int) string {
+	points := rankPoints(event, rank)
+	if points == 1 {
+		return fmt.Sprintf("%s (%d point)", ordinal(rank), points)
+	}
+	return fmt.Sprintf("%s (%d points)", ordinal(rank), points)
+}
+
 func (p *HackathonPage) CanScoreJudgeEvent(event *types.JudgeEvent) bool {
 	if p == nil || event == nil {
 		return false
@@ -1087,7 +1108,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Your account needs a person profile before you can score projects."), http.StatusSeeOther)
 		return
 	}
-	in, err := scorecardInputFromRequest(w, r)
+	in, err := scorecardRankingsInputFromRequest(w, r)
 	if err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
@@ -1101,28 +1122,17 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		handle404(w, r, ctx)
 		return
 	}
-	project, err := getters.GetProjectByID(ctx, in.ProjectID)
-	if err != nil || project.CompetitionID != competition.ID {
-		handle404(w, r, ctx)
-		return
-	}
-	ok, err := getters.CanViewProject(ctx, project.ID, viewer)
-	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging project access %s: %s", competition.Slug, project.ID, err)
-		http.Error(w, "Unable to score project", http.StatusInternalServerError)
-		return
-	}
-	if !ok {
-		handle404(w, r, ctx)
-		return
-	}
-	in.JudgePersonID = viewer.PersonID
-	if _, err := getters.UpsertScorecard(ctx, in); err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging scorecard: %s", competition.Slug, err)
+	if err := validateScorecardRankings(ctx, competition, viewer, event, in.Rankings); err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Scorecard saved")+"#project-"+url.PathEscape(project.ID), http.StatusSeeOther)
+	in.JudgePersonID = viewer.PersonID
+	if err := getters.ReplaceScorecardRankings(ctx, in); err != nil {
+		ctx.Err.Printf("/hackathons/%s/judging scorecard rankings: %s", competition.Slug, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Rankings saved")+"#event-"+url.PathEscape(event.ID), http.StatusSeeOther)
 }
 
 func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1542,44 +1552,72 @@ func generatedProjectSlug() (string, error) {
 	return "project-" + hex.EncodeToString(b[:]), nil
 }
 
-func scorecardInputFromRequest(w http.ResponseWriter, r *http.Request) (getters.ScorecardInput, error) {
+func scorecardRankingsInputFromRequest(w http.ResponseWriter, r *http.Request) (getters.ScorecardRankingsInput, error) {
 	limitRequestBody(w, r, maxFormBodyBytes)
 	if err := r.ParseForm(); err != nil {
-		return getters.ScorecardInput{}, fmt.Errorf("bad form")
+		return getters.ScorecardRankingsInput{}, fmt.Errorf("bad form")
 	}
-	ideaScore, err := optionalIntFromForm(r, "IdeaScore", "idea score", 1, 5)
-	if err != nil {
-		return getters.ScorecardInput{}, err
-	}
-	executionScore, err := optionalIntFromForm(r, "ExecutionScore", "execution score", 1, 5)
-	if err != nil {
-		return getters.ScorecardInput{}, err
-	}
-	impactScore, err := optionalIntFromForm(r, "ImpactScore", "impact score", 1, 5)
-	if err != nil {
-		return getters.ScorecardInput{}, err
-	}
-	rank, err := optionalIntFromForm(r, "Rank", "rank", 1, 0)
-	if err != nil {
-		return getters.ScorecardInput{}, err
-	}
-	in := getters.ScorecardInput{
-		JudgeEventID:   strings.TrimSpace(r.FormValue("JudgeEventID")),
-		ProjectID:      strings.TrimSpace(r.FormValue("ProjectID")),
-		IdeaScore:      ideaScore,
-		ExecutionScore: executionScore,
-		ImpactScore:    impactScore,
-		Rank:           rank,
-		NoShow:         r.FormValue("NoShow") != "",
-		Comments:       strings.TrimSpace(r.FormValue("Comments")),
+	in := getters.ScorecardRankingsInput{
+		JudgeEventID: strings.TrimSpace(r.FormValue("JudgeEventID")),
 	}
 	if in.JudgeEventID == "" {
-		return getters.ScorecardInput{}, fmt.Errorf("judge event is required")
+		return getters.ScorecardRankingsInput{}, fmt.Errorf("judge event is required")
 	}
-	if in.ProjectID == "" {
-		return getters.ScorecardInput{}, fmt.Errorf("project is required")
+	projectIDs := r.PostForm["ProjectID"]
+	for _, projectID := range projectIDs {
+		projectID = strings.TrimSpace(projectID)
+		if projectID == "" {
+			continue
+		}
+		rawRank := strings.TrimSpace(r.FormValue("Rank_" + projectID))
+		if rawRank == "" {
+			continue
+		}
+		rank, err := strconv.Atoi(rawRank)
+		if err != nil || rank <= 0 {
+			return getters.ScorecardRankingsInput{}, fmt.Errorf("rank must be a positive number")
+		}
+		in.Rankings = append(in.Rankings, getters.ScorecardRankingInput{
+			ProjectID: projectID,
+			Rank:      rank,
+		})
 	}
 	return in, nil
+}
+
+func validateScorecardRankings(ctx *config.AppContext, competition *types.HackathonCompetition, viewer types.HackathonViewer, event *types.JudgeEvent, rankings []getters.ScorecardRankingInput) error {
+	seenRanks := map[int]bool{}
+	seenProjects := map[string]bool{}
+	limit := judgeEventRankLimit(event)
+	for _, ranking := range rankings {
+		projectID := strings.TrimSpace(ranking.ProjectID)
+		if projectID == "" {
+			continue
+		}
+		if ranking.Rank > limit {
+			return fmt.Errorf("rank must be between 1 and %d", limit)
+		}
+		if seenRanks[ranking.Rank] {
+			return fmt.Errorf("each rank can only be used once")
+		}
+		if seenProjects[projectID] {
+			return fmt.Errorf("each project can only be ranked once")
+		}
+		seenRanks[ranking.Rank] = true
+		seenProjects[projectID] = true
+		project, err := getters.GetProjectByID(ctx, projectID)
+		if err != nil || competition == nil || project.CompetitionID != competition.ID {
+			return fmt.Errorf("project is invalid")
+		}
+		ok, err := getters.CanViewProject(ctx, project.ID, viewer)
+		if err != nil {
+			return fmt.Errorf("unable to score project")
+		}
+		if !ok {
+			return fmt.Errorf("project is not visible")
+		}
+	}
+	return nil
 }
 
 func optionalIntFromForm(r *http.Request, field, label string, min, max int) (*int, error) {

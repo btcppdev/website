@@ -57,10 +57,7 @@
               <th scope="col" class="px-4 py-3">Project</th>
               <th scope="col" class="px-4 py-3">#</th>
               <th scope="col" class="px-4 py-3">Scorecards</th>
-              <th scope="col" class="px-4 py-3">Avg total</th>
-              <th scope="col" class="px-4 py-3">Idea</th>
-              <th scope="col" class="px-4 py-3">Execution</th>
-              <th scope="col" class="px-4 py-3">Impact</th>
+              <th scope="col" class="px-4 py-3">Points</th>
               <th scope="col" class="px-4 py-3">Avg rank</th>
               <th scope="col" class="px-4 py-3">Best rank</th>
               <th scope="col" class="px-4 py-3">No-shows</th>
@@ -73,10 +70,7 @@
               <td class="px-4 py-3 font-medium text-gray-900">{{ .ProjectTitle }}</td>
               <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-600">{{ .ProjectNumber }}</td>
               <td class="px-4 py-3 text-gray-700">{{ .ScoredScorecards }} / {{ .Scorecards }}</td>
-              <td class="px-4 py-3 font-medium text-gray-900">{{ .TotalAverage }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ .IdeaAverage }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ .ExecutionAverage }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ .ImpactAverage }}</td>
+              <td class="px-4 py-3 font-medium text-gray-900">{{ .PointsLabel }}</td>
               <td class="px-4 py-3 text-gray-700">{{ .RankAverage }}</td>
               <td class="px-4 py-3 text-gray-700">{{ .BestRank }}</td>
               <td class="px-4 py-3">
@@ -131,11 +125,8 @@
               <th scope="col" class="px-4 py-3">Project</th>
               <th scope="col" class="px-4 py-3">Event</th>
               <th scope="col" class="px-4 py-3">Judge</th>
-              <th scope="col" class="px-4 py-3">Idea</th>
-              <th scope="col" class="px-4 py-3">Execution</th>
-              <th scope="col" class="px-4 py-3">Impact</th>
-              <th scope="col" class="px-4 py-3">Total</th>
               <th scope="col" class="px-4 py-3">Rank</th>
+              <th scope="col" class="px-4 py-3">Points</th>
               <th scope="col" class="px-4 py-3">Flags</th>
               <th scope="col" class="px-4 py-3">Submitted</th>
             </tr>
@@ -146,11 +137,8 @@
               <td class="px-4 py-3 font-medium text-gray-900">{{ $.ProjectTitle .ProjectID }}</td>
               <td class="px-4 py-3 text-gray-700">{{ $.JudgeEventName .JudgeEventID }}</td>
               <td class="px-4 py-3 text-gray-700">{{ $.JudgeName .JudgePersonID }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .IdeaScore }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .ExecutionScore }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .ImpactScore }}</td>
-              <td class="px-4 py-3 font-medium text-gray-900">{{ $.ScoreTotal . }}</td>
               <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .Rank }}</td>
+              <td class="px-4 py-3 font-medium text-gray-900">{{ $.ScorecardPoints . }}</td>
               <td class="px-4 py-3">
                 {{ if .NoShow }}
                 <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">No-show</span>
@@ -163,7 +151,7 @@
             {{ if .Comments }}
             <tr class="bg-gray-50">
               <td class="px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500">Comments</td>
-              <td colspan="9" class="px-4 py-3 text-sm text-gray-700">{{ .Comments }}</td>
+              <td colspan="6" class="px-4 py-3 text-sm text-gray-700">{{ .Comments }}</td>
             </tr>
             {{ end }}
             {{ end }}

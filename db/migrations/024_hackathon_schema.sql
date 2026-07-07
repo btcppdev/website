@@ -175,6 +175,7 @@ CREATE TABLE judge_events (
   starts_at timestamptz,
   ends_at timestamptz,
   starting_project_number integer,
+  rank_limit integer NOT NULL DEFAULT 4,
   cal_notif text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -182,6 +183,7 @@ CREATE TABLE judge_events (
   CHECK (playbook_type IN ('expo', 'finals')),
   CHECK (ordering >= 0),
   CHECK (starting_project_number IS NULL OR starting_project_number > 0),
+  CHECK (rank_limit > 0),
   CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at >= starts_at)
 );
 
@@ -200,9 +202,6 @@ CREATE TABLE scorecards (
   judge_event_id uuid NOT NULL REFERENCES judge_events(id) ON DELETE CASCADE,
   project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   judge_person_id uuid NOT NULL REFERENCES people(id) ON DELETE CASCADE,
-  idea_score integer,
-  execution_score integer,
-  impact_score integer,
   rank integer,
   no_show boolean NOT NULL DEFAULT false,
   comments text NOT NULL DEFAULT '',
@@ -210,9 +209,6 @@ CREATE TABLE scorecards (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (judge_event_id, project_id, judge_person_id),
-  CHECK (idea_score IS NULL OR idea_score BETWEEN 1 AND 5),
-  CHECK (execution_score IS NULL OR execution_score BETWEEN 1 AND 5),
-  CHECK (impact_score IS NULL OR impact_score BETWEEN 1 AND 5),
   CHECK (rank IS NULL OR rank > 0)
 );
 

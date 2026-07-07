@@ -312,53 +312,63 @@ func TestHackathonJudgingSetup(t *testing.T) {
 		Slug:              "score-project-" + postgresSmokeSuffix(),
 		Title:             "Scored Project",
 	})
-	ideaScore := 4
-	executionScore := 5
-	impactScore := 3
+	secondProjectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID:     competitionID,
+		CreatedByPersonID: ownerID,
+		Slug:              "score-project-two-" + postgresSmokeSuffix(),
+		Title:             "Second Scored Project",
+	})
 	rank := 1
 	scorecard, err := UpsertScorecard(ctx, ScorecardInput{
-		JudgeEventID:   eventID,
-		ProjectID:      projectID,
-		JudgePersonID:  judgeID,
-		IdeaScore:      &ideaScore,
-		ExecutionScore: &executionScore,
-		ImpactScore:    &impactScore,
-		Rank:           &rank,
-		Comments:       "strong demo",
+		JudgeEventID:  eventID,
+		ProjectID:     projectID,
+		JudgePersonID: judgeID,
+		Rank:          &rank,
+		Comments:      "strong demo",
 	})
 	if err != nil {
 		t.Fatalf("UpsertScorecard: %v", err)
 	}
-	if scorecard.ID == "" || scorecard.SubmittedAt == nil || scorecard.IdeaScore == nil || *scorecard.IdeaScore != ideaScore {
+	if scorecard.ID == "" || scorecard.SubmittedAt == nil || scorecard.Rank == nil || *scorecard.Rank != rank {
 		t.Fatalf("scorecard mismatch: %+v", scorecard)
 	}
-	ideaScore = 5
+	rank = 2
 	scorecard, err = UpsertScorecard(ctx, ScorecardInput{
 		JudgeEventID:  eventID,
 		ProjectID:     projectID,
 		JudgePersonID: judgeID,
-		IdeaScore:     &ideaScore,
+		Rank:          &rank,
 		NoShow:        true,
 		Comments:      "updated",
 	})
 	if err != nil {
 		t.Fatalf("UpsertScorecard update: %v", err)
 	}
-	if scorecard.IdeaScore == nil || *scorecard.IdeaScore != ideaScore || !scorecard.NoShow || scorecard.Comments != "updated" {
+	if scorecard.Rank == nil || *scorecard.Rank != rank || !scorecard.NoShow || scorecard.Comments != "updated" {
 		t.Fatalf("updated scorecard mismatch: %+v", scorecard)
+	}
+	if err := ReplaceScorecardRankings(ctx, ScorecardRankingsInput{
+		JudgeEventID:  eventID,
+		JudgePersonID: judgeID,
+		Rankings: []ScorecardRankingInput{
+			{ProjectID: projectID, Rank: 1},
+			{ProjectID: secondProjectID, Rank: 2},
+		},
+	}); err != nil {
+		t.Fatalf("ReplaceScorecardRankings: %v", err)
 	}
 	scorecards, err := ListScorecardsForJudge(ctx, competitionID, judgeID)
 	if err != nil {
 		t.Fatalf("ListScorecardsForJudge: %v", err)
 	}
-	if len(scorecards) != 1 || scorecards[0].ID != scorecard.ID {
+	if len(scorecards) != 2 {
 		t.Fatalf("scorecards mismatch: %+v", scorecards)
 	}
 	competitionScorecards, err := ListScorecardsForCompetition(ctx, competitionID)
 	if err != nil {
 		t.Fatalf("ListScorecardsForCompetition: %v", err)
 	}
-	if len(competitionScorecards) != 1 || competitionScorecards[0].ID != scorecard.ID {
+	if len(competitionScorecards) != 2 {
 		t.Fatalf("competition scorecards mismatch: %+v", competitionScorecards)
 	}
 	otherCompetitionID := createSmokeCompetition(t, ctx, CompetitionInput{

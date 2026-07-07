@@ -63,33 +63,22 @@ type HackathonScoreSummary struct {
 	Scorecards       int
 	ScoredScorecards int
 	NoShows          int
-	IdeaAverage      string
-	ExecutionAverage string
-	ImpactAverage    string
-	TotalAverage     string
+	Points           int
+	PointsLabel      string
 	RankAverage      string
 	BestRank         string
 
-	sortTitle       string
-	totalAverage    float64
-	rankAverage     float64
-	hasTotalAverage bool
-	hasRankAverage  bool
+	sortTitle      string
+	rankAverage    float64
+	hasRankAverage bool
 }
 
 type scoreSummaryAccumulator struct {
-	summary     *HackathonScoreSummary
-	ideaSum     int
-	ideaCount   int
-	execSum     int
-	execCount   int
-	impactSum   int
-	impactCount int
-	totalSum    int
-	totalCount  int
-	rankSum     int
-	rankCount   int
-	bestRank    int
+	summary   *HackathonScoreSummary
+	events    map[string]*types.JudgeEvent
+	rankSum   int
+	rankCount int
+	bestRank  int
 }
 
 func (p *HackathonAdminPage) ConfLabel(confID string) string {
@@ -354,12 +343,19 @@ func (p *HackathonAdminPage) JudgeTypeLabel(judgeType string) string {
 }
 
 func (p *HackathonAdminPage) JudgeEventName(eventID string) string {
-	for _, event := range p.JudgeEvents {
-		if event != nil && event.ID == eventID {
-			return event.Name
-		}
+	if event := p.JudgeEvent(eventID); event != nil {
+		return event.Name
 	}
 	return eventID
+}
+
+func (p *HackathonAdminPage) JudgeEvent(eventID string) *types.JudgeEvent {
+	for _, event := range p.JudgeEvents {
+		if event != nil && event.ID == eventID {
+			return event
+		}
+	}
+	return nil
 }
 
 func (p *HackathonAdminPage) JudgeEventTimeRange(event *types.JudgeEvent) string {
@@ -408,22 +404,19 @@ func (p *HackathonAdminPage) ScoreModeLabel(mode string) string {
 	}
 }
 
-func (p *HackathonAdminPage) ScoreTotal(scorecard *types.Scorecard) string {
+func (p *HackathonAdminPage) ScorecardPoints(scorecard *types.Scorecard) string {
 	if scorecard == nil || scorecard.NoShow {
 		return "-"
 	}
-	total := 0
-	count := 0
-	for _, value := range []*int{scorecard.IdeaScore, scorecard.ExecutionScore, scorecard.ImpactScore} {
-		if value != nil {
-			total += *value
-			count++
-		}
-	}
-	if count == 0 {
+	if scorecard.Rank == nil {
 		return "-"
 	}
-	return strconv.Itoa(total)
+	event := p.JudgeEvent(scorecard.JudgeEventID)
+	points := rankPoints(event, *scorecard.Rank)
+	if points <= 0 {
+		return "-"
+	}
+	return strconv.Itoa(points)
 }
 
 func (p *HackathonAdminPage) AwardStatusLabel(status string) string {
@@ -737,6 +730,12 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		handle404(w, r, ctx)
 		return
 	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/scores conf: %s", competitionID, err)
+		http.Error(w, "Unable to load conference", http.StatusInternalServerError)
+		return
+	}
 	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, types.HackathonViewer{Admin: true})
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/scores projects: %s", competitionID, err)
@@ -769,11 +768,12 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 	}
 	page := &HackathonAdminPage{
 		Competition:    competition,
+		Conf:           conf,
 		Projects:       projects,
 		JudgeEvents:    events,
 		Judges:         judges,
 		Scorecards:     scorecards,
-		ScoreSummaries: hackathonScoreSummaries(projects, scorecards),
+		ScoreSummaries: hackathonScoreSummaries(projects, scorecards, events),
 		Awards:         awards,
 		ActiveTab:      "scores",
 		ScoreMode:      hackathonScoreModeAll,
@@ -1612,6 +1612,7 @@ func judgeEventInputFromRequest(w http.ResponseWriter, r *http.Request, competit
 		Name:          strings.TrimSpace(r.FormValue("Name")),
 		PlaybookType:  playbookType,
 		Ordering:      ordering,
+		RankLimit:     4,
 	}
 	if in.Name == "" {
 		return getters.JudgeEventInput{}, fmt.Errorf("judge event name is required")
@@ -1622,6 +1623,13 @@ func judgeEventInputFromRequest(w http.ResponseWriter, r *http.Request, competit
 			return getters.JudgeEventInput{}, fmt.Errorf("starting project number must be positive")
 		}
 		in.StartingProjectNumber = &n
+	}
+	if raw := strings.TrimSpace(r.FormValue("RankLimit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			return getters.JudgeEventInput{}, fmt.Errorf("rank count must be positive")
+		}
+		in.RankLimit = n
 	}
 	if in.StartsAt, err = parseAdminLocalTimeInLocation(r.FormValue("StartsAt"), loc); err != nil {
 		return getters.JudgeEventInput{}, fmt.Errorf("starts at: %w", err)
@@ -1822,7 +1830,13 @@ func prizeStatusFromForm(r *http.Request) (string, error) {
 	}
 }
 
-func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*types.Scorecard) []*HackathonScoreSummary {
+func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*types.Scorecard, events []*types.JudgeEvent) []*HackathonScoreSummary {
+	eventByID := make(map[string]*types.JudgeEvent, len(events))
+	for _, event := range events {
+		if event != nil {
+			eventByID[event.ID] = event
+		}
+	}
 	accs := map[string]*scoreSummaryAccumulator{}
 	order := make([]*scoreSummaryAccumulator, 0, len(projects))
 	for _, project := range projects {
@@ -1830,17 +1844,15 @@ func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*t
 			continue
 		}
 		acc := &scoreSummaryAccumulator{
+			events: eventByID,
 			summary: &HackathonScoreSummary{
-				ProjectID:        project.ID,
-				ProjectTitle:     project.Title,
-				ProjectNumber:    adminProjectNumberLabel(project),
-				IdeaAverage:      "-",
-				ExecutionAverage: "-",
-				ImpactAverage:    "-",
-				TotalAverage:     "-",
-				RankAverage:      "-",
-				BestRank:         "-",
-				sortTitle:        strings.ToLower(project.Title),
+				ProjectID:     project.ID,
+				ProjectTitle:  project.Title,
+				ProjectNumber: adminProjectNumberLabel(project),
+				PointsLabel:   "-",
+				RankAverage:   "-",
+				BestRank:      "-",
+				sortTitle:     strings.ToLower(project.Title),
 			},
 		}
 		accs[project.ID] = acc
@@ -1853,17 +1865,15 @@ func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*t
 		acc := accs[scorecard.ProjectID]
 		if acc == nil {
 			acc = &scoreSummaryAccumulator{
+				events: eventByID,
 				summary: &HackathonScoreSummary{
-					ProjectID:        scorecard.ProjectID,
-					ProjectTitle:     scorecard.ProjectID,
-					ProjectNumber:    "TBA",
-					IdeaAverage:      "-",
-					ExecutionAverage: "-",
-					ImpactAverage:    "-",
-					TotalAverage:     "-",
-					RankAverage:      "-",
-					BestRank:         "-",
-					sortTitle:        strings.ToLower(scorecard.ProjectID),
+					ProjectID:     scorecard.ProjectID,
+					ProjectTitle:  scorecard.ProjectID,
+					ProjectNumber: "TBA",
+					PointsLabel:   "-",
+					RankAverage:   "-",
+					BestRank:      "-",
+					sortTitle:     strings.ToLower(scorecard.ProjectID),
 				},
 			}
 			accs[scorecard.ProjectID] = acc
@@ -1878,11 +1888,11 @@ func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*t
 	}
 	sort.SliceStable(summaries, func(i, j int) bool {
 		a, b := summaries[i], summaries[j]
-		if a.hasTotalAverage != b.hasTotalAverage {
-			return a.hasTotalAverage
+		if (a.Points > 0) != (b.Points > 0) {
+			return a.Points > 0
 		}
-		if a.hasTotalAverage && a.totalAverage != b.totalAverage {
-			return a.totalAverage > b.totalAverage
+		if a.Points != b.Points {
+			return a.Points > b.Points
 		}
 		if a.hasRankAverage != b.hasRankAverage {
 			return a.hasRankAverage
@@ -1914,7 +1924,7 @@ func hackathonFinalistSelections(projects []*types.HackathonProject, scorecards 
 		}
 	}
 	filteredScorecards := filterHackathonScorecardsByMode(scorecards, events, mode)
-	summaries := hackathonScoreSummaries(eligibleProjects, filteredScorecards)
+	summaries := hackathonScoreSummaries(eligibleProjects, filteredScorecards, events)
 	finalists := make([]*types.HackathonProject, 0, min(topN, len(summaries)))
 	for _, summary := range summaries {
 		if summary == nil || summary.ScoredScorecards == 0 {
@@ -1995,32 +2005,13 @@ func (a *scoreSummaryAccumulator) add(scorecard *types.Scorecard) {
 		a.summary.NoShows++
 		return
 	}
-	total := 0
-	totalParts := 0
-	if scorecard.IdeaScore != nil {
-		a.ideaSum += *scorecard.IdeaScore
-		a.ideaCount++
-		total += *scorecard.IdeaScore
-		totalParts++
-	}
-	if scorecard.ExecutionScore != nil {
-		a.execSum += *scorecard.ExecutionScore
-		a.execCount++
-		total += *scorecard.ExecutionScore
-		totalParts++
-	}
-	if scorecard.ImpactScore != nil {
-		a.impactSum += *scorecard.ImpactScore
-		a.impactCount++
-		total += *scorecard.ImpactScore
-		totalParts++
-	}
-	if totalParts > 0 {
-		a.summary.ScoredScorecards++
-		a.totalSum += total
-		a.totalCount++
-	}
 	if scorecard.Rank != nil {
+		points := rankPoints(a.events[scorecard.JudgeEventID], *scorecard.Rank)
+		if points <= 0 {
+			return
+		}
+		a.summary.Points += points
+		a.summary.ScoredScorecards++
 		a.rankSum += *scorecard.Rank
 		a.rankCount++
 		if a.bestRank == 0 || *scorecard.Rank < a.bestRank {
@@ -2031,25 +2022,48 @@ func (a *scoreSummaryAccumulator) add(scorecard *types.Scorecard) {
 
 func (a *scoreSummaryAccumulator) finish() {
 	s := a.summary
-	if a.ideaCount > 0 {
-		s.IdeaAverage = formatScoreAverage(float64(a.ideaSum) / float64(a.ideaCount))
-	}
-	if a.execCount > 0 {
-		s.ExecutionAverage = formatScoreAverage(float64(a.execSum) / float64(a.execCount))
-	}
-	if a.impactCount > 0 {
-		s.ImpactAverage = formatScoreAverage(float64(a.impactSum) / float64(a.impactCount))
-	}
-	if a.totalCount > 0 {
-		s.totalAverage = float64(a.totalSum) / float64(a.totalCount)
-		s.TotalAverage = formatScoreAverage(s.totalAverage)
-		s.hasTotalAverage = true
+	if s.Points > 0 {
+		s.PointsLabel = strconv.Itoa(s.Points)
 	}
 	if a.rankCount > 0 {
 		s.rankAverage = float64(a.rankSum) / float64(a.rankCount)
 		s.RankAverage = formatScoreAverage(s.rankAverage)
 		s.BestRank = strconv.Itoa(a.bestRank)
 		s.hasRankAverage = true
+	}
+}
+
+func judgeEventRankLimit(event *types.JudgeEvent) int {
+	if event == nil || event.RankLimit <= 0 {
+		return 4
+	}
+	return event.RankLimit
+}
+
+func rankPoints(event *types.JudgeEvent, rank int) int {
+	if rank <= 0 {
+		return 0
+	}
+	limit := judgeEventRankLimit(event)
+	if rank > limit {
+		return 0
+	}
+	return limit - rank + 1
+}
+
+func ordinal(n int) string {
+	if n%100 >= 11 && n%100 <= 13 {
+		return strconv.Itoa(n) + "th"
+	}
+	switch n % 10 {
+	case 1:
+		return strconv.Itoa(n) + "st"
+	case 2:
+		return strconv.Itoa(n) + "nd"
+	case 3:
+		return strconv.Itoa(n) + "rd"
+	default:
+		return strconv.Itoa(n) + "th"
 	}
 }
 

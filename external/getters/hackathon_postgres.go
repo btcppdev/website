@@ -1218,15 +1218,15 @@ func createJudgeEventPostgres(ctx *config.AppContext, in JudgeEventInput) (strin
 	}
 	var id string
 	err := ctx.DB.QueryRow(context.Background(), `
-		INSERT INTO judge_events (
-			competition_id, name, playbook_type, ordering, starts_at, ends_at,
-			starting_project_number
-		) VALUES (
-			$1::uuid, $2, $3, $4, $5, $6, $7
-		)
-		RETURNING id::text
+			INSERT INTO judge_events (
+				competition_id, name, playbook_type, ordering, starts_at, ends_at,
+				starting_project_number, rank_limit
+			) VALUES (
+				$1::uuid, $2, $3, $4, $5, $6, $7, $8
+			)
+			RETURNING id::text
 	`, in.CompetitionID, in.Name, in.PlaybookType, in.Ordering, in.StartsAt,
-		in.EndsAt, in.StartingProjectNumber).Scan(&id)
+		in.EndsAt, in.StartingProjectNumber, in.RankLimit).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("insert judge event %q: %w", in.Name, err)
 	}
@@ -1247,7 +1247,7 @@ func listJudgeEventsPostgres(ctx *config.AppContext, competitionID string) ([]*t
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, competition_id::text, coalesce(schedule_segment_id::text, ''),
 			name, playbook_type, ordering,
-			starts_at, ends_at, starting_project_number, created_at, updated_at
+			starts_at, ends_at, starting_project_number, rank_limit, created_at, updated_at
 		FROM judge_events
 		WHERE competition_id::text = $1
 		ORDER BY ordering, starts_at NULLS LAST, created_at, name
@@ -1404,28 +1404,25 @@ func upsertScorecardPostgres(ctx *config.AppContext, in ScorecardInput) (*types.
 	scorecard, err := scanScorecard(ctx.DB.QueryRow(context.Background(), `
 		INSERT INTO scorecards (
 			judge_event_id, project_id, judge_person_id,
-			idea_score, execution_score, impact_score, rank, no_show, comments, submitted_at
+			rank, no_show, comments, submitted_at
 		)
 		SELECT judge_events.id, projects.id, $3,
-			$4, $5, $6, $7, $8, $9, now()
+			$4, $5, $6, now()
 		FROM judge_events
 		JOIN projects ON projects.id::text = $2
 			AND projects.competition_id = judge_events.competition_id
 		WHERE judge_events.id::text = $1
 		ON CONFLICT (judge_event_id, project_id, judge_person_id)
 		DO UPDATE SET
-			idea_score = EXCLUDED.idea_score,
-			execution_score = EXCLUDED.execution_score,
-			impact_score = EXCLUDED.impact_score,
 			rank = EXCLUDED.rank,
 			no_show = EXCLUDED.no_show,
 			comments = EXCLUDED.comments,
 			submitted_at = EXCLUDED.submitted_at,
 			updated_at = now()
 		RETURNING id::text, judge_event_id::text, project_id::text, judge_person_id::text,
-			idea_score, execution_score, impact_score, rank, no_show, comments,
+			rank, no_show, comments,
 			submitted_at, created_at, updated_at
-	`, in.JudgeEventID, in.ProjectID, in.JudgePersonID, in.IdeaScore, in.ExecutionScore, in.ImpactScore, in.Rank, in.NoShow, in.Comments))
+	`, in.JudgeEventID, in.ProjectID, in.JudgePersonID, in.Rank, in.NoShow, in.Comments))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("scorecard project and judge event must belong to the same competition")
@@ -1433,6 +1430,56 @@ func upsertScorecardPostgres(ctx *config.AppContext, in ScorecardInput) (*types.
 		return nil, fmt.Errorf("upsert scorecard: %w", err)
 	}
 	return scorecard, nil
+}
+
+func replaceScorecardRankingsPostgres(ctx *config.AppContext, in ScorecardRankingsInput) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	in = normalizeScorecardRankingsInput(in)
+	if in.JudgeEventID == "" {
+		return fmt.Errorf("scorecard judge event id is required")
+	}
+	if in.JudgePersonID == "" {
+		return fmt.Errorf("scorecard judge person id is required")
+	}
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin scorecard rankings transaction: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+
+	if _, err := tx.Exec(context.Background(), `
+		DELETE FROM scorecards
+		WHERE judge_event_id::text = $1 AND judge_person_id::text = $2
+	`, in.JudgeEventID, in.JudgePersonID); err != nil {
+		return fmt.Errorf("clear scorecard rankings: %w", err)
+	}
+	for _, ranking := range in.Rankings {
+		if strings.TrimSpace(ranking.ProjectID) == "" || ranking.Rank <= 0 {
+			continue
+		}
+		commandTag, err := tx.Exec(context.Background(), `
+			INSERT INTO scorecards (
+				judge_event_id, project_id, judge_person_id, rank, no_show, comments, submitted_at
+			)
+			SELECT judge_events.id, projects.id, $3, $4, false, '', now()
+			FROM judge_events
+			JOIN projects ON projects.id::text = $2
+				AND projects.competition_id = judge_events.competition_id
+			WHERE judge_events.id::text = $1
+		`, in.JudgeEventID, ranking.ProjectID, in.JudgePersonID, ranking.Rank)
+		if err != nil {
+			return fmt.Errorf("insert scorecard ranking for project %s: %w", ranking.ProjectID, err)
+		}
+		if commandTag.RowsAffected() == 0 {
+			return fmt.Errorf("scorecard project and judge event must belong to the same competition")
+		}
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return fmt.Errorf("commit scorecard rankings: %w", err)
+	}
+	return nil
 }
 
 func listScorecardsForJudgePostgres(ctx *config.AppContext, competitionID, judgePersonID string) ([]*types.Scorecard, error) {
@@ -1450,7 +1497,6 @@ func listScorecardsForJudgePostgres(ctx *config.AppContext, competitionID, judge
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT scorecards.id::text, scorecards.judge_event_id::text,
 			scorecards.project_id::text, scorecards.judge_person_id::text,
-			scorecards.idea_score, scorecards.execution_score, scorecards.impact_score,
 			scorecards.rank, scorecards.no_show, scorecards.comments,
 			scorecards.submitted_at, scorecards.created_at, scorecards.updated_at
 		FROM scorecards
@@ -1488,7 +1534,6 @@ func listScorecardsForCompetitionPostgres(ctx *config.AppContext, competitionID 
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT scorecards.id::text, scorecards.judge_event_id::text,
 			scorecards.project_id::text, scorecards.judge_person_id::text,
-			scorecards.idea_score, scorecards.execution_score, scorecards.impact_score,
 			scorecards.rank, scorecards.no_show, scorecards.comments,
 			scorecards.submitted_at, scorecards.created_at, scorecards.updated_at
 		FROM scorecards
@@ -2233,6 +2278,7 @@ func scanJudgeEvent(rows pgx.Rows) (*types.JudgeEvent, error) {
 		&startsAt,
 		&endsAt,
 		&startingProjectNumber,
+		&event.RankLimit,
 		&event.CreatedAt,
 		&event.UpdatedAt,
 	); err != nil {
@@ -2245,6 +2291,9 @@ func scanJudgeEvent(rows pgx.Rows) (*types.JudgeEvent, error) {
 		event.StartingProjectNumber = &n
 	}
 	event.PlaybookType = normalizeJudgeType(event.PlaybookType)
+	if event.RankLimit <= 0 {
+		event.RankLimit = 4
+	}
 	return &event, nil
 }
 
@@ -2254,16 +2303,13 @@ type scanner interface {
 
 func scanScorecard(row scanner) (*types.Scorecard, error) {
 	var scorecard types.Scorecard
-	var ideaScore, executionScore, impactScore, rank sql.NullInt64
+	var rank sql.NullInt64
 	var submittedAt pgtype.Timestamptz
 	if err := row.Scan(
 		&scorecard.ID,
 		&scorecard.JudgeEventID,
 		&scorecard.ProjectID,
 		&scorecard.JudgePersonID,
-		&ideaScore,
-		&executionScore,
-		&impactScore,
 		&rank,
 		&scorecard.NoShow,
 		&scorecard.Comments,
@@ -2272,18 +2318,6 @@ func scanScorecard(row scanner) (*types.Scorecard, error) {
 		&scorecard.UpdatedAt,
 	); err != nil {
 		return nil, err
-	}
-	if ideaScore.Valid {
-		n := int(ideaScore.Int64)
-		scorecard.IdeaScore = &n
-	}
-	if executionScore.Valid {
-		n := int(executionScore.Int64)
-		scorecard.ExecutionScore = &n
-	}
-	if impactScore.Valid {
-		n := int(impactScore.Int64)
-		scorecard.ImpactScore = &n
 	}
 	if rank.Valid {
 		n := int(rank.Int64)
@@ -2496,6 +2530,9 @@ func normalizeJudgeEventInput(in JudgeEventInput) JudgeEventInput {
 	in.CompetitionID = strings.TrimSpace(in.CompetitionID)
 	in.Name = strings.TrimSpace(in.Name)
 	in.PlaybookType = normalizeJudgeEventType(in.PlaybookType)
+	if in.RankLimit <= 0 {
+		in.RankLimit = 4
+	}
 	return in
 }
 
@@ -2504,6 +2541,20 @@ func normalizeScorecardInput(in ScorecardInput) ScorecardInput {
 	in.ProjectID = strings.TrimSpace(in.ProjectID)
 	in.JudgePersonID = strings.TrimSpace(in.JudgePersonID)
 	in.Comments = strings.TrimSpace(in.Comments)
+	return in
+}
+
+func normalizeScorecardRankingsInput(in ScorecardRankingsInput) ScorecardRankingsInput {
+	in.JudgeEventID = strings.TrimSpace(in.JudgeEventID)
+	in.JudgePersonID = strings.TrimSpace(in.JudgePersonID)
+	rankings := make([]ScorecardRankingInput, 0, len(in.Rankings))
+	for _, ranking := range in.Rankings {
+		ranking.ProjectID = strings.TrimSpace(ranking.ProjectID)
+		if ranking.ProjectID != "" && ranking.Rank > 0 {
+			rankings = append(rankings, ranking)
+		}
+	}
+	in.Rankings = rankings
 	return in
 }
 

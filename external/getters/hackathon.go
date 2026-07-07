@@ -51,18 +51,27 @@ type JudgeEventInput struct {
 	StartsAt              *time.Time
 	EndsAt                *time.Time
 	StartingProjectNumber *int
+	RankLimit             int
 }
 
 type ScorecardInput struct {
-	JudgeEventID   string
-	ProjectID      string
-	JudgePersonID  string
-	IdeaScore      *int
-	ExecutionScore *int
-	ImpactScore    *int
-	Rank           *int
-	NoShow         bool
-	Comments       string
+	JudgeEventID  string
+	ProjectID     string
+	JudgePersonID string
+	Rank          *int
+	NoShow        bool
+	Comments      string
+}
+
+type ScorecardRankingInput struct {
+	ProjectID string
+	Rank      int
+}
+
+type ScorecardRankingsInput struct {
+	JudgeEventID  string
+	JudgePersonID string
+	Rankings      []ScorecardRankingInput
 }
 
 type AwardInput struct {
@@ -225,6 +234,10 @@ func ListCompetitionJudges(ctx *config.AppContext, competitionID string) ([]*typ
 
 func UpsertScorecard(ctx *config.AppContext, in ScorecardInput) (*types.Scorecard, error) {
 	return upsertScorecardPostgres(ctx, in)
+}
+
+func ReplaceScorecardRankings(ctx *config.AppContext, in ScorecardRankingsInput) error {
+	return replaceScorecardRankingsPostgres(ctx, in)
 }
 
 func ListScorecardsForJudge(ctx *config.AppContext, competitionID, judgePersonID string) ([]*types.Scorecard, error) {
