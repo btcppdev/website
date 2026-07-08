@@ -25,6 +25,58 @@
     <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
     {{ end }}
 
+    <section class="mb-6 overflow-hidden rounded-lg bg-white shadow">
+      <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+        <h2 class="text-sm font-semibold text-gray-900">Admin add project</h2>
+        <p class="mt-1 text-sm text-gray-600">Create a project directly, even if public submissions are closed.</p>
+      </div>
+      <form method="POST" action="{{ .ProjectsURL .Competition }}" class="grid gap-4 px-4 py-5 sm:grid-cols-6 sm:p-6">
+        <div class="sm:col-span-2">
+          <label for="AdminProjectTitle" class="block text-sm font-medium text-gray-700">Title *</label>
+          <input id="AdminProjectTitle" name="Title" type="text" required
+                 class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+        </div>
+        <div class="sm:col-span-2">
+          <label for="AdminProjectShortDescription" class="block text-sm font-medium text-gray-700">Short description</label>
+          <input id="AdminProjectShortDescription" name="ShortDescription" type="text"
+                 class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+        </div>
+        <div>
+          <label for="AdminProjectNumber" class="block text-sm font-medium text-gray-700">#</label>
+          <input id="AdminProjectNumber" name="ProjectNumber" type="number" min="1"
+                 class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+        </div>
+        <div>
+          <label for="AdminProjectStatus" class="block text-sm font-medium text-gray-700">Status</label>
+          <select id="AdminProjectStatus" name="Status"
+                  class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+            <option value="submitted" selected>Submitted</option>
+            <option value="created">Created</option>
+            <option value="shipped">Shipped</option>
+            <option value="finalist">Finalist</option>
+          </select>
+        </div>
+        <div class="sm:col-span-2">
+          <label for="AdminProjectOwnerEmail" class="block text-sm font-medium text-gray-700">Owner email</label>
+          <input id="AdminProjectOwnerEmail" name="OwnerEmail" type="email"
+                 class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+        </div>
+        <div class="sm:col-span-2">
+          <label for="AdminProjectDemoURL" class="block text-sm font-medium text-gray-700">Demo URL</label>
+          <input id="AdminProjectDemoURL" name="DemoURL" type="url"
+                 class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+        </div>
+        <div class="sm:col-span-2">
+          <label for="AdminProjectGitHubURL" class="block text-sm font-medium text-gray-700">GitHub URL</label>
+          <input id="AdminProjectGitHubURL" name="GitHubURL" type="url"
+                 class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+        </div>
+        <div class="sm:col-span-6 flex justify-end">
+          <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</button>
+        </div>
+      </form>
+    </section>
+
     <section class="overflow-hidden rounded-lg bg-white shadow">
       <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div class="flex flex-wrap items-center justify-between gap-3">

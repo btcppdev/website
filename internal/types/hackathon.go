@@ -9,6 +9,10 @@ type HackathonCompetition struct {
 	Title                 string
 	Description           string
 	Visibility            string
+	LifecycleOverride     string
+	PublicGalleryEnabled  bool
+	AllowLateSubmissions  bool
+	PublicTablesEnabled   bool
 	MaxTeamSize           *int
 	SubmissionsOpenAt     *time.Time
 	SubmissionsCloseAt    *time.Time

@@ -18,34 +18,40 @@ import (
 )
 
 const (
-	CompetitionVisibilityHidden = "hidden"
-	CompetitionVisibilityPublic = "public"
-	ProjectInviteDefaultTTL     = 24 * time.Hour
-	ProjectStatusCreated        = "created"
-	ProjectStatusSubmitted      = "submitted"
-	ProjectStatusWithdrawn      = "withdrawn"
-	ProjectStatusNoShow         = "noshow"
-	ProjectStatusFinalist       = "finalist"
-	ProjectStatusDisqualified   = "disqualified"
-	ProjectStatusShipped        = "shipped"
-	ProjectMemberRoleOwner      = "owner"
-	ProjectMemberRoleMember     = "member"
-	JudgeTypeExpo               = "expo"
-	JudgeTypeFinals             = "finals"
-	JudgeTypeCoordinator        = "coordinator"
-	AwardStatusDraft            = "draft"
-	AwardStatusAvailable        = "available"
-	AwardStatusUnawarded        = "unawarded"
-	AwardStatusAwarded          = "awarded"
-	PrizeTypeSats               = "sats"
-	PrizeTypeInKind             = "in_kind"
-	PrizeTypeTickets            = "tickets"
-	PrizeTypePooled             = "pooled"
-	PrizeTypeTrophy             = "trophy"
-	PrizeStatusAvailable        = "available"
-	PrizeStatusNeedsFunds       = "needs_funds"
-	PrizeStatusAwarded          = "awarded"
-	PrizeStatusPaid             = "paid"
+	CompetitionVisibilityHidden           = "hidden"
+	CompetitionVisibilityPublic           = "public"
+	CompetitionLifecycleAuto              = ""
+	CompetitionLifecycleUpcoming          = "upcoming"
+	CompetitionLifecycleOpen              = "open"
+	CompetitionLifecycleSubmissionsClosed = "submissions_closed"
+	CompetitionLifecyclePublicGallery     = "public_gallery"
+	CompetitionLifecycleClosed            = "closed"
+	ProjectInviteDefaultTTL               = 24 * time.Hour
+	ProjectStatusCreated                  = "created"
+	ProjectStatusSubmitted                = "submitted"
+	ProjectStatusWithdrawn                = "withdrawn"
+	ProjectStatusNoShow                   = "noshow"
+	ProjectStatusFinalist                 = "finalist"
+	ProjectStatusDisqualified             = "disqualified"
+	ProjectStatusShipped                  = "shipped"
+	ProjectMemberRoleOwner                = "owner"
+	ProjectMemberRoleMember               = "member"
+	JudgeTypeExpo                         = "expo"
+	JudgeTypeFinals                       = "finals"
+	JudgeTypeCoordinator                  = "coordinator"
+	AwardStatusDraft                      = "draft"
+	AwardStatusAvailable                  = "available"
+	AwardStatusUnawarded                  = "unawarded"
+	AwardStatusAwarded                    = "awarded"
+	PrizeTypeSats                         = "sats"
+	PrizeTypeInKind                       = "in_kind"
+	PrizeTypeTickets                      = "tickets"
+	PrizeTypePooled                       = "pooled"
+	PrizeTypeTrophy                       = "trophy"
+	PrizeStatusAvailable                  = "available"
+	PrizeStatusNeedsFunds                 = "needs_funds"
+	PrizeStatusAwarded                    = "awarded"
+	PrizeStatusPaid                       = "paid"
 )
 
 func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (string, error) {
@@ -69,13 +75,13 @@ func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (str
 	var id string
 	err := ctx.DB.QueryRow(context.Background(), `
 		INSERT INTO competitions (
-			conference_id, slug, title, description, visibility, max_team_size,
+			conference_id, slug, title, description, visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size,
 			submissions_open_at, submissions_close_at, public_gallery_at
 		) VALUES (
-			$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9
+			$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 		)
 		RETURNING id::text
-	`, in.ConferenceID, in.Slug, in.Title, in.Description, in.Visibility, in.MaxTeamSize,
+	`, in.ConferenceID, in.Slug, in.Title, in.Description, in.Visibility, in.LifecycleOverride, in.PublicGalleryEnabled, in.AllowLateSubmissions, in.PublicTablesEnabled, in.MaxTeamSize,
 		in.SubmissionsOpenAt, in.SubmissionsCloseAt, in.PublicGalleryAt).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("insert competition %q: %w", in.Slug, err)
@@ -111,13 +117,17 @@ func updateCompetitionPostgres(ctx *config.AppContext, competitionID string, in 
 			title = $4,
 			description = $5,
 			visibility = $6,
-			max_team_size = $7,
-			submissions_open_at = $8,
-			submissions_close_at = $9,
-			public_gallery_at = $10
+			lifecycle_override = $7,
+			public_gallery_enabled = $8,
+			allow_late_submissions = $9,
+			public_tables_enabled = $10,
+			max_team_size = $11,
+			submissions_open_at = $12,
+			submissions_close_at = $13,
+			public_gallery_at = $14
 		WHERE id = $1
 	`, competitionID, in.ConferenceID, in.Slug, in.Title, in.Description,
-		in.Visibility, in.MaxTeamSize, in.SubmissionsOpenAt, in.SubmissionsCloseAt,
+		in.Visibility, in.LifecycleOverride, in.PublicGalleryEnabled, in.AllowLateSubmissions, in.PublicTablesEnabled, in.MaxTeamSize, in.SubmissionsOpenAt, in.SubmissionsCloseAt,
 		in.PublicGalleryAt)
 	if err != nil {
 		return fmt.Errorf("update competition %s: %w", competitionID, err)
@@ -439,7 +449,7 @@ func replaceCompetitionScheduleSegmentsPostgres(ctx *config.AppContext, competit
 			return fmt.Errorf("delete schedule segment %s: %w", segment.ID, err)
 		}
 	}
-	return nil
+	return reorderCompetitionScheduleSegmentsBySchedulePostgres(ctx, competitionID)
 }
 
 func syncScheduleSegmentJudgeEventByProposalPostgres(ctx *config.AppContext, proposalID string) error {
@@ -447,7 +457,79 @@ func syncScheduleSegmentJudgeEventByProposalPostgres(ctx *config.AppContext, pro
 	if err != nil || segment == nil {
 		return err
 	}
-	return syncScheduleSegmentJudgeEventPostgres(ctx, segment)
+	if err := syncScheduleSegmentConfTalkLinkPostgres(ctx, segment); err != nil {
+		return err
+	}
+	if err := syncScheduleSegmentJudgeEventPostgres(ctx, segment); err != nil {
+		return err
+	}
+	return reorderCompetitionScheduleSegmentsBySchedulePostgres(ctx, segment.CompetitionID)
+}
+
+func syncScheduleSegmentConfTalkLinkPostgres(ctx *config.AppContext, segment *types.CompetitionScheduleSegment) error {
+	if ctx == nil || ctx.DB == nil || segment == nil || strings.TrimSpace(segment.ID) == "" {
+		return nil
+	}
+	confTalkID := ""
+	if strings.TrimSpace(segment.ProposalID) != "" {
+		confTalk, err := GetConfTalkByProposal(ctx, segment.ProposalID)
+		if err != nil {
+			return err
+		}
+		if confTalk != nil {
+			confTalkID = confTalk.ID
+		}
+	}
+	if confTalkID == segment.ConfTalkID {
+		return nil
+	}
+	_, err := ctx.DB.Exec(context.Background(), `
+		UPDATE competition_schedule_segments
+		SET conf_talk_id = nullif($2, '')::uuid
+		WHERE id = $1::uuid
+	`, segment.ID, confTalkID)
+	if err != nil {
+		return fmt.Errorf("sync schedule segment conf talk %s: %w", segment.ID, err)
+	}
+	segment.ConfTalkID = confTalkID
+	return nil
+}
+
+func reorderCompetitionScheduleSegmentsBySchedulePostgres(ctx *config.AppContext, competitionID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil
+	}
+	_, err := ctx.DB.Exec(context.Background(), `
+		WITH ordered AS (
+			SELECT css.id,
+				row_number() OVER (
+					ORDER BY
+						(ct.scheduled_start IS NULL),
+						ct.scheduled_start,
+						css.ordering,
+						css.created_at,
+						css.id
+				) - 1 AS next_ordering
+			FROM competition_schedule_segments css
+			LEFT JOIN conf_talks ct
+				ON ct.id = css.conf_talk_id
+				AND ct.archived_at IS NULL
+			WHERE css.competition_id = $1::uuid
+		)
+		UPDATE competition_schedule_segments css
+		SET ordering = ordered.next_ordering
+		FROM ordered
+		WHERE css.id = ordered.id
+			AND css.ordering IS DISTINCT FROM ordered.next_ordering
+	`, competitionID)
+	if err != nil {
+		return fmt.Errorf("reorder competition schedule segments %s: %w", competitionID, err)
+	}
+	return nil
 }
 
 func syncScheduleSegmentJudgeEventsPostgres(ctx *config.AppContext, competitionID string) error {
@@ -530,7 +612,10 @@ func scheduleSegmentConfTalk(ctx *config.AppContext, segment *types.CompetitionS
 		return nil, nil
 	}
 	if strings.TrimSpace(segment.ConfTalkID) != "" {
-		return GetConfTalkByID(ctx, segment.ConfTalkID)
+		confTalk, err := GetConfTalkByID(ctx, segment.ConfTalkID)
+		if err != nil || confTalk != nil {
+			return confTalk, err
+		}
 	}
 	if strings.TrimSpace(segment.ProposalID) != "" {
 		return GetConfTalkByProposal(ctx, segment.ProposalID)
@@ -618,7 +703,7 @@ func queryCompetitionsPostgres(ctx *config.AppContext, label, whereSQL string, a
 	}
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, coalesce(conference_id::text, ''), slug, title, description,
-			visibility, max_team_size, submissions_open_at, submissions_close_at,
+			visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size, submissions_open_at, submissions_close_at,
 			public_gallery_at, hacking_starts_at, hacking_ends_at, judges_meeting_at,
 			expo_starts_at, expo_ends_at, expo_judging_starts_at, expo_judging_ends_at,
 			finals_starts_at, finals_ends_at, finals_judging_starts_at,
@@ -798,19 +883,37 @@ func assignMissingProjectNumbersPostgres(ctx *config.AppContext, competitionID s
 		return 0, fmt.Errorf("competition id is required")
 	}
 	commandTag, err := ctx.DB.Exec(context.Background(), `
-		WITH numbered AS (
+		WITH targets AS (
 			SELECT id,
-				coalesce((
-					SELECT max(project_number)
-					FROM projects
-					WHERE competition_id = $1
-				), 0) + row_number() OVER (
+				row_number() OVER (
 					ORDER BY coalesce(submitted_at, created_at), created_at, title, id
-				) AS project_number
+				) AS rn
 			FROM projects
 			WHERE competition_id = $1
 				AND project_number IS NULL
 				AND status IN ($2, $3, $4, $5)
+		), used_numbers AS (
+			SELECT DISTINCT project_number
+			FROM projects
+			WHERE competition_id = $1
+				AND project_number IS NOT NULL
+		), available_numbers AS (
+			SELECT n AS project_number,
+				row_number() OVER (ORDER BY n) AS rn
+			FROM generate_series(1, (
+				SELECT coalesce(max(project_number), 0) + (SELECT count(*) FROM targets)
+				FROM projects
+				WHERE competition_id = $1
+			)) AS n
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM used_numbers
+				WHERE used_numbers.project_number = n
+			)
+		), numbered AS (
+			SELECT targets.id, available_numbers.project_number
+			FROM targets
+			JOIN available_numbers ON available_numbers.rn = targets.rn
 		)
 		UPDATE projects
 		SET project_number = numbered.project_number
@@ -2129,19 +2232,15 @@ func projectIsPublicPostgres(ctx *config.AppContext, project *types.HackathonPro
 	if project.Status == ProjectStatusCreated || project.Status == "withdrawn" || project.Status == "disqualified" {
 		return false
 	}
-	var closeAt, galleryAt pgtype.Timestamptz
+	var publicGalleryEnabled bool
 	if err := ctx.DB.QueryRow(context.Background(), `
-		SELECT submissions_close_at, public_gallery_at
+		SELECT public_gallery_enabled
 		FROM competitions
 		WHERE id = $1
-	`, project.CompetitionID).Scan(&closeAt, &galleryAt); err != nil {
+	`, project.CompetitionID).Scan(&publicGalleryEnabled); err != nil {
 		return false
 	}
-	now := time.Now()
-	if galleryAt.Valid && !galleryAt.Time.After(now) {
-		return true
-	}
-	return closeAt.Valid && !closeAt.Time.After(now)
+	return publicGalleryEnabled
 }
 
 func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
@@ -2159,6 +2258,10 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 		&competition.Title,
 		&competition.Description,
 		&competition.Visibility,
+		&competition.LifecycleOverride,
+		&competition.PublicGalleryEnabled,
+		&competition.AllowLateSubmissions,
+		&competition.PublicTablesEnabled,
 		&maxTeamSize,
 		&submissionsOpenAt,
 		&submissionsCloseAt,
@@ -2185,6 +2288,7 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 		competition.MaxTeamSize = &n
 	}
 	competition.Visibility = normalizeCompetitionVisibility(competition.Visibility)
+	competition.LifecycleOverride = normalizeCompetitionLifecycleOverride(competition.LifecycleOverride)
 	competition.SubmissionsOpenAt = pgTimePtr(submissionsOpenAt)
 	competition.SubmissionsCloseAt = pgTimePtr(submissionsCloseAt)
 	competition.PublicGalleryAt = pgTimePtr(publicGalleryAt)
@@ -2470,6 +2574,7 @@ func normalizeCompetitionInput(in CompetitionInput) CompetitionInput {
 	in.Title = strings.TrimSpace(in.Title)
 	in.Description = strings.TrimSpace(in.Description)
 	in.Visibility = normalizeCompetitionVisibility(in.Visibility)
+	in.LifecycleOverride = normalizeCompetitionLifecycleOverride(in.LifecycleOverride)
 	return in
 }
 
@@ -2481,6 +2586,25 @@ func normalizeCompetitionVisibility(value string) string {
 		return CompetitionVisibilityPublic
 	default:
 		return ""
+	}
+}
+
+func normalizeCompetitionLifecycleOverride(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "auto", "automatic":
+		return CompetitionLifecycleAuto
+	case CompetitionLifecycleUpcoming, "scheduled":
+		return CompetitionLifecycleUpcoming
+	case CompetitionLifecycleOpen:
+		return CompetitionLifecycleOpen
+	case CompetitionLifecycleSubmissionsClosed, "closed_to_submissions":
+		return CompetitionLifecycleSubmissionsClosed
+	case CompetitionLifecyclePublicGallery, "submissions_public", "public", "gallery":
+		return CompetitionLifecyclePublicGallery
+	case CompetitionLifecycleClosed:
+		return CompetitionLifecycleClosed
+	default:
+		return CompetitionLifecycleAuto
 	}
 }
 

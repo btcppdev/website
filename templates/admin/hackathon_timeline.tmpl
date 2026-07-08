@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ .Competition.Title }} Timeline - Admin - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+</head>
+<body class="bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathons</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} timeline</h1>
+        <p class="mt-1 text-sm text-gray-600">Manage schedule blocks and judging windows for this hackathon.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
+      </div>
+    </div>
+    {{ template "admin_hackathon_tabs" . }}
+
+    {{ if .FlashMessage }}
+    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    {{ end }}
+
+    <div class="space-y-6">
+      <form method="POST" action="{{ .TimelineURL .Competition }}" autocomplete="off" class="overflow-hidden rounded-lg bg-white shadow">
+        <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-gray-900">Schedule blocks</h2>
+              <p class="mt-1 text-sm text-gray-600">Add the blocks that should appear in the conference scheduler.</p>
+            </div>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+              {{ $schedulerURL := .ConferenceSchedulerURL .Competition }}
+              {{ if $schedulerURL }}
+              <a href="{{ $schedulerURL }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Go to scheduler</a>
+              {{ end }}
+            </div>
+          </div>
+        </div>
+        <div data-segment-builder class="px-4 py-5 sm:p-6">
+          <div data-segment-list class="flex gap-3 overflow-x-auto pb-3">
+            {{ range .ScheduleSegments }}
+            <div data-segment-row class="w-60 shrink-0 rounded-md border border-gray-200 bg-gray-50 p-3">
+              <input type="hidden" name="SegmentID" value="{{ .ID }}">
+              <input type="hidden" name="SegmentTitle" value="{{ .Title }}" data-segment-title>
+              <div class="space-y-3">
+                <label class="block text-sm font-medium text-gray-700">
+                  Type
+                  <select name="SegmentType" data-segment-type data-current-type="{{ .SegmentType }}" autocomplete="off" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                    <option value="kickoff" data-title="Kickoff" {{ if eq .SegmentType "kickoff" }}selected{{ end }}>Kickoff</option>
+                    <option value="hacking" data-title="Hacking time" {{ if eq .SegmentType "hacking" }}selected{{ end }}>Hacking time</option>
+                    <option value="judges-meeting" data-title="Judges meeting" {{ if eq .SegmentType "judges-meeting" }}selected{{ end }}>Judges meeting</option>
+                    <option value="expo" data-title="Project expo" {{ if eq .SegmentType "expo" }}selected{{ end }}>Project expo</option>
+                    <option value="finals" data-title="Finals" {{ if eq .SegmentType "finals" }}selected{{ end }}>Finals</option>
+                    <option value="awards" data-title="Awards" {{ if eq .SegmentType "awards" }}selected{{ end }}>Awards</option>
+                    <option value="custom" data-title="Custom segment" {{ if eq .SegmentType "custom" }}selected{{ end }}>Custom</option>
+                  </select>
+                </label>
+                <div class="rounded-md bg-white px-3 py-2 text-xs text-gray-600 ring-1 ring-gray-200">
+                  <div class="font-medium text-gray-900">{{ $.ScheduleSegmentTimeRange . }}</div>
+                  {{ with $.ScheduleSegmentVenue . }}<div class="mt-1">Venue: {{ . }}</div>{{ end }}
+                </div>
+                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                  <label class="block text-sm font-medium text-gray-700">
+                    Desired minutes
+                    <input name="SegmentDuration" type="number" min="1" step="1" required value="{{ .DefaultDurationMinutes }}" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                  </label>
+                  <button type="button" data-segment-remove class="rounded-md px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+                </div>
+              </div>
+            </div>
+            {{ end }}
+            <div data-segment-add-slot class="flex w-24 shrink-0 items-center justify-center">
+              <button type="button" data-segment-add class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">Add</button>
+            </div>
+          </div>
+          <p data-segment-empty class="{{ if .ScheduleSegments }}hidden {{ end }}rounded-md border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500">No schedule blocks yet.</p>
+        </div>
+        <div class="flex justify-end border-t border-gray-200 px-4 py-4 sm:px-6">
+          <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save timeline</button>
+        </div>
+      </form>
+
+    </div>
+
+    <template data-segment-template>
+      <div data-segment-row class="w-60 shrink-0 rounded-md border border-gray-200 bg-gray-50 p-3">
+        <input type="hidden" name="SegmentID" value="">
+        <input type="hidden" name="SegmentTitle" value="Custom segment" data-segment-title>
+        <div class="space-y-3">
+          <label class="block text-sm font-medium text-gray-700">
+            Type
+            <select name="SegmentType" data-segment-type class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              <option value="kickoff" data-title="Kickoff">Kickoff</option>
+              <option value="hacking" data-title="Hacking time">Hacking time</option>
+              <option value="judges-meeting" data-title="Judges meeting">Judges meeting</option>
+              <option value="expo" data-title="Project expo">Project expo</option>
+              <option value="finals" data-title="Finals">Finals</option>
+              <option value="awards" data-title="Awards">Awards</option>
+              <option value="custom" data-title="Custom segment" selected>Custom</option>
+            </select>
+          </label>
+          <div class="rounded-md bg-white px-3 py-2 text-xs text-gray-600 ring-1 ring-gray-200">
+            <div class="font-medium text-gray-900">Not scheduled</div>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+            <label class="block text-sm font-medium text-gray-700">
+              Desired minutes
+              <input name="SegmentDuration" type="number" min="1" step="1" required value="30" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+            </label>
+            <button type="button" data-segment-remove class="rounded-md px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+  <script>
+  document.querySelectorAll('[data-segment-builder]').forEach(function (builder) {
+    var addButton = builder.querySelector('[data-segment-add]');
+    var addSlot = addButton ? addButton.closest('[data-segment-add-slot]') : null;
+    var list = builder.querySelector('[data-segment-list]');
+    var template = document.querySelector('[data-segment-template]');
+    var empty = builder.querySelector('[data-segment-empty]');
+
+    function updateEmptyState() {
+      if (!empty || !list) return;
+      empty.classList.toggle('hidden', !!list.querySelector('[data-segment-row]'));
+    }
+
+    function restoreSegmentType(row) {
+      var typeSelect = row.querySelector('[data-segment-type]');
+      if (!typeSelect || !typeSelect.dataset.currentType) return;
+      typeSelect.value = typeSelect.dataset.currentType;
+    }
+
+    function syncSegmentTitle(row) {
+      var typeSelect = row.querySelector('[data-segment-type]');
+      var titleInput = row.querySelector('[data-segment-title]');
+      if (!typeSelect || !titleInput) return;
+      var option = typeSelect.selectedOptions[0];
+      titleInput.value = (option && option.dataset.title) || (option ? option.textContent.trim() : '');
+    }
+
+    function addSegment() {
+      if (!template || !list || !addSlot) return;
+      var fragment = template.content.cloneNode(true);
+      var row = fragment.querySelector('[data-segment-row]');
+      list.insertBefore(fragment, addSlot);
+      updateEmptyState();
+      row.querySelector('[data-segment-type]').focus();
+    }
+
+    if (addButton && list) {
+      addButton.addEventListener('click', function () {
+        addSegment();
+      });
+    }
+
+    builder.addEventListener('click', function (event) {
+      var row = event.target.closest('[data-segment-row]');
+      if (!row || !list) return;
+      if (event.target.closest('[data-segment-remove]')) {
+        row.remove();
+        updateEmptyState();
+      }
+    });
+
+    builder.addEventListener('change', function (event) {
+      var row = event.target.closest('[data-segment-row]');
+      if (!row) return;
+      if (event.target.closest('[data-segment-type]')) syncSegmentTitle(row);
+    });
+
+    list.querySelectorAll('[data-segment-row]').forEach(function (row) {
+      restoreSegmentType(row);
+      syncSegmentTitle(row);
+    });
+    updateEmptyState();
+  });
+  </script>
+</body>
+</html>

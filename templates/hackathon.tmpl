@@ -43,6 +43,17 @@
     <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
     {{ end }}
 
+    <nav class="mb-6 overflow-x-auto rounded-lg bg-white px-4 shadow sm:px-6" aria-label="Hackathon sections">
+      <div class="flex min-w-max gap-6">
+        <button type="button" data-hackathon-tab="overview" class="border-b-2 border-indigo-600 px-1 py-3 text-sm font-medium text-indigo-600">Overview</button>
+        <button type="button" data-hackathon-tab="projects" class="border-b-2 border-transparent px-1 py-3 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">Projects</button>
+        {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}
+        <button type="button" data-hackathon-tab="tables" class="border-b-2 border-transparent px-1 py-3 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">Project tables</button>
+        {{ end }}
+      </div>
+    </nav>
+
+    <div data-hackathon-tab-panel="overview">
     <section class="mb-8 rounded-lg bg-white shadow">
       <div class="grid gap-6 px-4 py-5 sm:grid-cols-3 sm:p-6">
         <div class="sm:col-span-2">
@@ -136,8 +147,9 @@
       </div>
     </section>
     {{ end }}
+    </div>
 
-    <section>
+    <section data-hackathon-tab-panel="projects" class="hidden">
       <div class="mb-4 flex items-center justify-between gap-4">
         <h2 class="text-lg font-semibold text-gray-900">Projects</h2>
       </div>
@@ -200,8 +212,94 @@
       </div>
       {{ end }}
     </section>
+
+    {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}
+    <section data-hackathon-tab-panel="tables" class="hidden">
+      <div class="mb-4 flex items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold text-gray-900">Project tables</h2>
+      </div>
+      {{ if .Projects }}
+      <div class="overflow-hidden rounded-lg bg-white shadow">
+        <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
+          <thead class="bg-gray-50">
+            <tr>
+              <th scope="col" class="px-3 py-2 font-semibold text-gray-900">Project</th>
+              <th scope="col" class="px-3 py-2 font-semibold text-gray-900">Table</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {{ range .Projects }}
+            <tr>
+              <td class="px-3 py-1.5">
+                <a href="#project-{{ .ID }}" class="font-medium text-indigo-600 hover:text-indigo-500">{{ .Title }}</a>
+              </td>
+              <td class="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-gray-600">{{ $.ProjectNumberLabel . }}</td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+      {{ else }}
+      <div class="rounded-lg bg-white px-4 py-10 text-center shadow">
+        <p class="text-sm text-gray-600">No visible projects yet.</p>
+      </div>
+      {{ end }}
+    </section>
+    {{ end }}
   </main>
   <script>
+    (function () {
+      const tabs = Array.prototype.slice.call(document.querySelectorAll('[data-hackathon-tab]'));
+      const panels = Array.prototype.slice.call(document.querySelectorAll('[data-hackathon-tab-panel]'));
+      if (tabs.length === 0 || panels.length === 0) return;
+
+      function setTab(name) {
+        for (const tab of tabs) {
+          const active = tab.dataset.hackathonTab === name;
+          tab.classList.toggle('border-indigo-600', active);
+          tab.classList.toggle('text-indigo-600', active);
+          tab.classList.toggle('border-transparent', !active);
+          tab.classList.toggle('text-gray-500', !active);
+          tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        }
+        for (const panel of panels) {
+          panel.classList.toggle('hidden', panel.dataset.hackathonTabPanel !== name);
+        }
+      }
+
+      function tabFromHash() {
+        if (window.location.hash === '#projects') return 'projects';
+        if (window.location.hash === '#tables') return 'tables';
+        if (window.location.hash.indexOf('#project-') === 0) return 'projects';
+        return 'overview';
+      }
+
+      for (const tab of tabs) {
+        tab.addEventListener('click', function () {
+          const name = tab.dataset.hackathonTab;
+          setTab(name);
+          if (name === 'overview') {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+          } else {
+            history.replaceState(null, '', '#' + name);
+          }
+        });
+      }
+
+      function showHashTarget() {
+        setTab(tabFromHash());
+        if (window.location.hash.indexOf('#project-') !== 0) return;
+        const target = document.getElementById(window.location.hash.slice(1));
+        if (target) target.scrollIntoView({ block: 'start' });
+      }
+
+      window.addEventListener('hashchange', showHashTarget);
+      setTab(tabFromHash());
+      if (window.location.hash.indexOf('#project-') === 0) {
+        window.setTimeout(showHashTarget, 0);
+      }
+    })();
+
     (function () {
       const times = Array.prototype.slice.call(document.querySelectorAll('.hackathon-detail-time'));
       if (times.length === 0) return;
