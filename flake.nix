@@ -66,7 +66,11 @@
                 pg_ctl -D "$BTCPP_PGDATA" \
                   -l "$BTCPP_PGLOG" \
                   -o "-k $BTCPP_PGRUN -p $PGPORT -c listen_addresses=127.0.0.1" \
-                  start
+                  start || {
+                    echo ""
+                    echo "If local Postgres data is incompatible or corrupt, run: just dev-reset-db"
+                    return 1
+                  }
               fi
               createdb -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$PGDATABASE" >/dev/null 2>&1 || true
             }
