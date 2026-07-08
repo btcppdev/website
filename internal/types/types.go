@@ -665,7 +665,10 @@ func (p *Proposal) Desc() string {
 }
 
 func (t *Talk) AnchorTag() string {
-	return clipartAnchorTag(t.Clipart)
+	if len(t.Clipart) <= 4 {
+		return t.Clipart
+	}
+	return t.Clipart[:len(t.Clipart)-4]
 }
 
 // AnchorTag returns the same value as Talk.AnchorTag would for
@@ -673,15 +676,13 @@ func (t *Talk) AnchorTag() string {
 // templates that have the ConfTalk handy but not the derived
 // Talk struct.
 func (ct *ConfTalk) AnchorTag() string {
-	if ct == nil {
-		return ""
+	if ct == nil || len(ct.Clipart) <= 4 {
+		if ct == nil {
+			return ""
+		}
+		return ct.Clipart
 	}
-	return clipartAnchorTag(ct.Clipart)
-}
-
-func clipartAnchorTag(clipart string) string {
-	name := filepath.Base(clipart)
-	return strings.TrimSuffix(name, filepath.Ext(name))
+	return ct.Clipart[:len(ct.Clipart)-4]
 }
 
 // TypeLongDesc returns this shift's JobType.LongDesc when set, "" otherwise.

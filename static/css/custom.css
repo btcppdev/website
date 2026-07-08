@@ -52,24 +52,6 @@
 	outline-color: #ae5a29;
 }
 
-.dev26 {
-	color: #fff;
-	background-color: #2563eb;
-}
-
-.dev26:hover {
-	color: #1e3a8a;
-	background-color: #93c5fd;
-}
-
-.dev26-color {
-	color: #2563eb;
-}
-
-.dev26:focus-visible {
-	outline-color: #93c5fd;
-}
-
 
 .vegas, .vienna, .toronto, .berlin26, .seoul {
 	color: #fff;
@@ -217,14 +199,6 @@
                 color: #ae5a29;
 	}
 
-        .dev26-text {
-	        color: #2563eb;
-	}
-
-        .dev26-text:hover {
-                color: #93c5fd;
-	}
-
 	.riga-text {
 		color: rgb(245 158 11/var(--tw-bg-opacity,1));
 	}
@@ -318,3 +292,4 @@
 .conf-countdown-on-dark .conf-countdown [data-cd-value] {
 	color: white;
 }
+
