@@ -13,33 +13,6 @@ default:
 dev:
   make dev-run
 
-# Create a local .env from the tracked dev-safe example, if needed.
-dev-bootstrap:
-  @if [ -f .env ]; then \
-    echo ".env already exists; leaving it unchanged"; \
-  else \
-    cp .env.local.example .env; \
-    echo "Created .env from .env.local.example"; \
-  fi
-
-# Bootstrap, migrate, seed, print a dev login link, and run the app.
-dev-up:
-  just dev-bootstrap
-  make db-start
-  {{goenv}} go run ./cmd/db-migrate
-  {{goenv}} go run ./cmd/dev-seed
-  {{goenv}} go run ./cmd/dev-login
-  @echo ""
-  @echo "Local dev harness starting."
-  @echo "Open http://localhost:8888 once the server reports it is listening."
-  @echo "Use the login URL printed above for admin access."
-  @echo ""
-  make dev-run
-
-# Stop local services used by the dev harness.
-dev-down:
-  just db-stop
-
 # Alias for `dev`.
 run:
   make dev-run
