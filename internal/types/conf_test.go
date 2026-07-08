@@ -37,3 +37,36 @@ func TestConfLocUsesKnownConferenceTimezoneFallback(t *testing.T) {
 		})
 	}
 }
+
+func TestTalkAnchorTagUsesClipartBasename(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		clipart string
+		want    string
+	}{
+		{
+			name:    "plain filename",
+			clipart: "package-relay.png",
+			want:    "package-relay",
+		},
+		{
+			name:    "local fixture path",
+			clipart: "../static/img/floripa26/leading.png",
+			want:    "leading",
+		},
+		{
+			name:    "empty",
+			clipart: "",
+			want:    "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := (&Talk{Clipart: tc.clipart}).AnchorTag(); got != tc.want {
+				t.Fatalf("Talk.AnchorTag() = %q, want %q", got, tc.want)
+			}
+			if got := (&ConfTalk{Clipart: tc.clipart}).AnchorTag(); got != tc.want {
+				t.Fatalf("ConfTalk.AnchorTag() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

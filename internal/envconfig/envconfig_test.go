@@ -34,6 +34,7 @@ func TestLoadDoesNotDefaultMailerOffWhenDotEnvMissing(t *testing.T) {
 }
 
 func TestLoadRespectsExplicitMailerOff(t *testing.T) {
+	t.Setenv("MAILER_OFF", "")
 	path := filepath.Join(t.TempDir(), ".env")
 	if err := os.WriteFile(path, []byte("MAILER_OFF=false\n"), 0o600); err != nil {
 		t.Fatal(err)
