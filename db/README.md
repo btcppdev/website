@@ -22,17 +22,29 @@ Data lives under `$XDG_DATA_HOME/btcpp-web/postgres` or
 `$HOME/.local/share/btcpp-web/postgres` by default. This avoids permission
 problems when the repo is checked out on a Windows-mounted WSL path. Override
 `BTCPP_PGDATA`, `BTCPP_PGRUN`, or `BTCPP_PGLOG` if you want a different local
-location. Stop the local server with:
+location.
+
+Stop the local server with:
 
 ```sh
 btcpp_pg_stop
 ```
 
-To rebuild the local database from scratch:
+To drop, recreate, and migrate the local database while Postgres is healthy:
 
 ```sh
 btcpp_pg_reset
 ```
+
+If Postgres itself cannot start because the local data directory is stale or
+corrupt, explicitly rebuild the local dev database with:
+
+```sh
+just dev-reset-db
+```
+
+This moves the previous local data directory aside with a `.reset-<timestamp>`
+suffix before creating a fresh one.
 
 ## Schema Migrations
 

@@ -42,6 +42,16 @@ To stop local harness services:
 `just dev-down` stops the local Postgres service. For lower-level app-only live
 reload, use `make dev-run`.
 
+If local Postgres fails to start because the dev data directory is stale or
+corrupt, explicitly rebuild the local dev database with:
+
+```
+	just dev-reset-db
+```
+
+This moves the previous local data directory aside with a `.reset-<timestamp>`
+suffix before creating a fresh one.
+
 
 ## To build
 

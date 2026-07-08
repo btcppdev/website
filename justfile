@@ -40,6 +40,30 @@ dev-up:
 dev-down:
   just db-stop
 
+# Rebuild the local dev Postgres data directory, then migrate, seed, and print a login link.
+dev-reset-db:
+  @BTCPP_PGROOT="${BTCPP_PGROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/btcpp-web/postgres}"; \
+  BTCPP_PGDATA="${BTCPP_PGDATA:-$BTCPP_PGROOT/data}"; \
+  if [ -z "$BTCPP_PGDATA" ] || [ "$BTCPP_PGDATA" = "/" ]; then \
+    echo "Refusing to reset unsafe BTCPP_PGDATA: $BTCPP_PGDATA"; \
+    exit 1; \
+  fi; \
+  echo "Stopping local Postgres if it is running..."; \
+  if command -v pg_ctl >/dev/null && [ -d "$BTCPP_PGDATA" ]; then \
+    pg_ctl -D "$BTCPP_PGDATA" stop >/dev/null 2>&1 || true; \
+  fi; \
+  if [ -e "$BTCPP_PGDATA" ]; then \
+    backup="$BTCPP_PGDATA.reset-$(date +%Y%m%d%H%M%S)"; \
+    echo "Moving local dev database data to $backup"; \
+    mv "$BTCPP_PGDATA" "$backup"; \
+  else \
+    echo "No local dev database data found at $BTCPP_PGDATA"; \
+  fi
+  make db-start
+  {{goenv}} go run ./cmd/db-migrate
+  {{goenv}} go run ./cmd/dev-seed
+  {{goenv}} go run ./cmd/dev-login
+
 # Alias for `dev`.
 run:
   make dev-run
@@ -58,7 +82,7 @@ build-all:
 
 # Run the compiled binary after building everything.
 serve: build-all db-start
-  DATABASE_URL="$${DATABASE_URL:-{{dev_database_url}}}" ./target/{{app}}
+  DATABASE_URL="${DATABASE_URL:-{{dev_database_url}}}" ./target/{{app}}
 
 # Run all Go tests.
 test:
@@ -101,34 +125,34 @@ db-start:
 
 # Show local dev Postgres status.
 db-status:
-  @BTCPP_PGROOT="$${BTCPP_PGROOT:-$${XDG_DATA_HOME:-$$HOME/.local/share}/btcpp-web/postgres}"; \
-  BTCPP_PGDATA="$${BTCPP_PGDATA:-$$BTCPP_PGROOT/data}"; \
-  pg_ctl -D "$$BTCPP_PGDATA" status
+  @BTCPP_PGROOT="${BTCPP_PGROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/btcpp-web/postgres}"; \
+  BTCPP_PGDATA="${BTCPP_PGDATA:-$BTCPP_PGROOT/data}"; \
+  pg_ctl -D "$BTCPP_PGDATA" status
 
 # Stop the local dev Postgres database.
 db-stop:
-  @BTCPP_PGROOT="$${BTCPP_PGROOT:-$${XDG_DATA_HOME:-$$HOME/.local/share}/btcpp-web/postgres}"; \
-  BTCPP_PGDATA="$${BTCPP_PGDATA:-$$BTCPP_PGROOT/data}"; \
-  if pg_ctl -D "$$BTCPP_PGDATA" status >/dev/null 2>&1; then \
-    pg_ctl -D "$$BTCPP_PGDATA" stop; \
+  @BTCPP_PGROOT="${BTCPP_PGROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/btcpp-web/postgres}"; \
+  BTCPP_PGDATA="${BTCPP_PGDATA:-$BTCPP_PGROOT/data}"; \
+  if pg_ctl -D "$BTCPP_PGDATA" status >/dev/null 2>&1; then \
+    pg_ctl -D "$BTCPP_PGDATA" stop; \
   else \
-    echo "Postgres is not running at $$BTCPP_PGDATA"; \
+    echo "Postgres is not running at $BTCPP_PGDATA"; \
   fi
 
 # Open psql against the local dev database.
 db-psql: db-start
-  DATABASE_URL="$${DATABASE_URL:-{{dev_database_url}}}"; psql "$$DATABASE_URL"
+  DATABASE_URL="${DATABASE_URL:-{{dev_database_url}}}"; psql "$DATABASE_URL"
 
 # Drop, recreate, and migrate the local dev database.
 db-reset: db-start
-  @PGHOST="$${PGHOST:-127.0.0.1}"; \
-  PGPORT="$${PGPORT:-55432}"; \
-  PGUSER="$${PGUSER:-btcpp}"; \
-  PGDATABASE="$${PGDATABASE:-btcpp_dev}"; \
-  DATABASE_URL="$${DATABASE_URL:-postgres://$$PGUSER@$$PGHOST:$$PGPORT/$$PGDATABASE?sslmode=disable}"; \
-  dropdb -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" --if-exists --force "$$PGDATABASE"; \
-  createdb -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" "$$PGDATABASE"; \
-  DATABASE_URL="$$DATABASE_URL" {{goenv}} go run ./cmd/db-migrate
+  @PGHOST="${PGHOST:-127.0.0.1}"; \
+  PGPORT="${PGPORT:-55432}"; \
+  PGUSER="${PGUSER:-btcpp}"; \
+  PGDATABASE="${PGDATABASE:-btcpp_dev}"; \
+  DATABASE_URL="${DATABASE_URL:-postgres://$PGUSER@$PGHOST:$PGPORT/$PGDATABASE?sslmode=disable}"; \
+  dropdb -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" --if-exists --force "$PGDATABASE"; \
+  createdb -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$PGDATABASE"; \
+  DATABASE_URL="$DATABASE_URL" {{goenv}} go run ./cmd/db-migrate
 
 # Apply local database migrations.
 db-migrate:

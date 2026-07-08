@@ -14,7 +14,7 @@ export BTCPP_PGROOT BTCPP_PGDATA BTCPP_PGRUN BTCPP_PGLOG PGHOST PGPORT PGDATABAS
 
 .PHONY: dev-run
 dev-run: build-all db-start
-	air -build.bin target/$(APP_NAME) -build.cmd="make build-all"
+	air -build.entrypoint="./target/$(APP_NAME)" -build.cmd="make build-all"
 
 .PHONY: run-dev
 run-dev: dev-run
@@ -32,7 +32,11 @@ db-start:
 		pg_ctl -D "$$BTCPP_PGDATA" \
 			-l "$$BTCPP_PGLOG" \
 			-o "-k $$BTCPP_PGRUN -p $$PGPORT -c listen_addresses=127.0.0.1" \
-			start; \
+			start || { \
+				echo ""; \
+				echo "If local Postgres data is incompatible or corrupt, run: just dev-reset-db"; \
+				exit 1; \
+			}; \
 	fi
 	@createdb -h "$$PGHOST" -p "$$PGPORT" -U "$$PGUSER" "$$PGDATABASE" >/dev/null 2>&1 || true
 
