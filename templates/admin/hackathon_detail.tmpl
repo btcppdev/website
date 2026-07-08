@@ -45,6 +45,10 @@
       <input type="hidden" name="Slug" value="{{ .Competition.Slug }}">
       <input type="hidden" name="ConferenceID" value="{{ .Competition.ConferenceID }}">
       <input type="hidden" name="Visibility" value="{{ .Competition.Visibility }}">
+      <input type="hidden" name="LifecycleOverride" value="{{ .Competition.LifecycleOverride }}">
+      {{ if .Competition.PublicGalleryEnabled }}<input type="hidden" name="PublicGalleryEnabled" value="1">{{ end }}
+      {{ if .Competition.AllowLateSubmissions }}<input type="hidden" name="AllowLateSubmissions" value="1">{{ end }}
+      {{ if .Competition.PublicTablesEnabled }}<input type="hidden" name="PublicTablesEnabled" value="1">{{ end }}
       {{ with .Competition.MaxTeamSize }}<input type="hidden" name="MaxTeamSize" value="{{ . }}">{{ end }}
       <textarea name="Description" class="hidden">{{ .Competition.Description }}</textarea>
       {{ end }}
@@ -77,7 +81,7 @@
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-3">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label for="ConferenceID" class="block text-sm font-medium text-gray-700">Conference *</label>
             <select id="ConferenceID" name="ConferenceID" required
@@ -97,9 +101,47 @@
             </select>
           </div>
           <div>
+            <label for="LifecycleOverride" class="block text-sm font-medium text-gray-700">State override</label>
+            <select id="LifecycleOverride" name="LifecycleOverride"
+                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              <option value="" {{ if eq .Competition.LifecycleOverride "" }}selected{{ end }}>Automatic</option>
+              <option value="upcoming" {{ if eq .Competition.LifecycleOverride "upcoming" }}selected{{ end }}>Upcoming</option>
+              <option value="open" {{ if eq .Competition.LifecycleOverride "open" }}selected{{ end }}>Submissions open</option>
+              <option value="submissions_closed" {{ if eq .Competition.LifecycleOverride "submissions_closed" }}selected{{ end }}>Submissions closed</option>
+              <option value="public_gallery" {{ if eq .Competition.LifecycleOverride "public_gallery" }}selected{{ end }}>Public gallery</option>
+              <option value="closed" {{ if eq .Competition.LifecycleOverride "closed" }}selected{{ end }}>Closed</option>
+            </select>
+          </div>
+          <div>
             <label for="MaxTeamSize" class="block text-sm font-medium text-gray-700">Max team size</label>
             <input id="MaxTeamSize" name="MaxTeamSize" type="number" min="1" {{ with .Competition.MaxTeamSize }}value="{{ . }}"{{ end }}
                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+          </div>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-3">
+          <div>
+            <label for="PublicGalleryEnabled" class="block text-sm font-medium text-gray-700">Public gallery</label>
+            <label class="mt-1 flex min-h-10 items-center gap-2 rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300">
+              <input id="PublicGalleryEnabled" name="PublicGalleryEnabled" type="checkbox" value="1" {{ if .Competition.PublicGalleryEnabled }}checked{{ end }}
+                     class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
+              Show submitted projects publicly
+            </label>
+          </div>
+          <div>
+            <label for="AllowLateSubmissions" class="block text-sm font-medium text-gray-700">Late submissions</label>
+            <label class="mt-1 flex min-h-10 items-center gap-2 rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300">
+              <input id="AllowLateSubmissions" name="AllowLateSubmissions" type="checkbox" value="1" {{ if .Competition.AllowLateSubmissions }}checked{{ end }}
+                     class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
+              Allow submissions after close
+            </label>
+          </div>
+          <div>
+            <label for="PublicTablesEnabled" class="block text-sm font-medium text-gray-700">Project tables</label>
+            <label class="mt-1 flex min-h-10 items-center gap-2 rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300">
+              <input id="PublicTablesEnabled" name="PublicTablesEnabled" type="checkbox" value="1" {{ if .Competition.PublicTablesEnabled }}checked{{ end }}
+                     class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
+              Show table list publicly
+            </label>
           </div>
         </div>
         {{ end }}
@@ -150,10 +192,6 @@
                   </label>
                   <button type="button" data-segment-remove class="rounded-md px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <button type="button" data-segment-up class="rounded-md bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Up</button>
-                  <button type="button" data-segment-down class="rounded-md bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Down</button>
-                </div>
               </div>
             </div>
             {{ end }}
@@ -176,10 +214,6 @@
                   <input name="SegmentDuration" type="number" min="1" step="1" required value="30" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
                 </label>
                 <button type="button" data-segment-remove class="rounded-md px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <button type="button" data-segment-up class="rounded-md bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Up</button>
-                <button type="button" data-segment-down class="rounded-md bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Down</button>
               </div>
             </div>
           </div>
@@ -404,12 +438,6 @@
       if (event.target.closest('[data-segment-remove]')) {
         row.remove();
         updateEmptyState();
-      } else if (event.target.closest('[data-segment-up]')) {
-        var previous = row.previousElementSibling;
-        if (previous) list.insertBefore(row, previous);
-      } else if (event.target.closest('[data-segment-down]')) {
-        var next = row.nextElementSibling;
-        if (next) list.insertBefore(next, row);
       }
     });
 

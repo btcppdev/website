@@ -55,6 +55,7 @@ type HackathonPage struct {
 }
 
 type HackathonScheduleEvent struct {
+	SegmentID   string
 	Label       string
 	Time        *time.Time
 	End         *time.Time
@@ -909,6 +910,7 @@ func loadHackathonScheduleEvents(ctx *config.AppContext, competitionID string) (
 			continue
 		}
 		event := HackathonScheduleEvent{
+			SegmentID:   segment.ID,
 			Label:       segment.Title,
 			SegmentType: segment.SegmentType,
 		}
@@ -933,7 +935,10 @@ func confTalkForHackathonScheduleSegment(ctx *config.AppContext, segment *types.
 		return nil, nil
 	}
 	if strings.TrimSpace(segment.ConfTalkID) != "" {
-		return getters.GetConfTalkByID(ctx, segment.ConfTalkID)
+		confTalk, err := getters.GetConfTalkByID(ctx, segment.ConfTalkID)
+		if err != nil || confTalk != nil {
+			return confTalk, err
+		}
 	}
 	if strings.TrimSpace(segment.ProposalID) != "" {
 		return getters.GetConfTalkByProposal(ctx, segment.ProposalID)
@@ -1676,6 +1681,14 @@ func competitionAcceptsProjects(competition *types.HackathonCompetition) bool {
 	if competition == nil || competition.Visibility != getters.CompetitionVisibilityPublic {
 		return false
 	}
+	switch competition.LifecycleOverride {
+	case getters.CompetitionLifecycleOpen:
+		return true
+	case getters.CompetitionLifecycleSubmissionsClosed, getters.CompetitionLifecyclePublicGallery:
+		return competition.AllowLateSubmissions
+	case getters.CompetitionLifecycleUpcoming, getters.CompetitionLifecycleClosed:
+		return false
+	}
 	if competition.SubmissionsOpenAt == nil {
 		return false
 	}
@@ -1689,6 +1702,17 @@ func competitionAcceptsProjects(competition *types.HackathonCompetition) bool {
 func projectEditableByDeadline(competition *types.HackathonCompetition) bool {
 	if competition == nil {
 		return false
+	}
+	switch competition.LifecycleOverride {
+	case getters.CompetitionLifecycleOpen:
+		return true
+	case getters.CompetitionLifecycleSubmissionsClosed, getters.CompetitionLifecyclePublicGallery:
+		return competition.AllowLateSubmissions
+	case getters.CompetitionLifecycleUpcoming, getters.CompetitionLifecycleClosed:
+		return false
+	}
+	if competition.AllowLateSubmissions {
+		return true
 	}
 	return competition.SubmissionsCloseAt == nil || competition.SubmissionsCloseAt.After(time.Now())
 }
@@ -1820,6 +1844,9 @@ func hackathonLifecycleLabel(competition *types.HackathonCompetition) string {
 	if competition == nil {
 		return ""
 	}
+	if label := hackathonLifecycleOverrideLabel(competition.LifecycleOverride); label != "" {
+		return label
+	}
 	now := time.Now()
 	if competition.SubmissionsOpenAt == nil {
 		return "Schedule TBA"
@@ -1830,14 +1857,27 @@ func hackathonLifecycleLabel(competition *types.HackathonCompetition) string {
 	if competition.SubmissionsCloseAt == nil || competition.SubmissionsCloseAt.After(now) {
 		return "Open"
 	}
-	publicAt := competition.PublicGalleryAt
-	if publicAt == nil {
-		publicAt = competition.SubmissionsCloseAt
+	if competition.PublicGalleryEnabled {
+		return "Submissions public"
 	}
-	if publicAt != nil && publicAt.After(now) {
+	return "Submissions closed"
+}
+
+func hackathonLifecycleOverrideLabel(value string) string {
+	switch strings.TrimSpace(value) {
+	case getters.CompetitionLifecycleUpcoming:
+		return "Upcoming"
+	case getters.CompetitionLifecycleOpen:
+		return "Submissions open"
+	case getters.CompetitionLifecycleSubmissionsClosed:
 		return "Submissions closed"
+	case getters.CompetitionLifecyclePublicGallery:
+		return "Public gallery"
+	case getters.CompetitionLifecycleClosed:
+		return "Closed"
+	default:
+		return ""
 	}
-	return "Submissions public"
 }
 
 func hackathonStatusLabel(status string) string {

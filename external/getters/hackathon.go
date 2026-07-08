@@ -8,15 +8,19 @@ import (
 )
 
 type CompetitionInput struct {
-	ConferenceID       string
-	Slug               string
-	Title              string
-	Description        string
-	Visibility         string
-	MaxTeamSize        *int
-	SubmissionsOpenAt  *time.Time
-	SubmissionsCloseAt *time.Time
-	PublicGalleryAt    *time.Time
+	ConferenceID         string
+	Slug                 string
+	Title                string
+	Description          string
+	Visibility           string
+	LifecycleOverride    string
+	PublicGalleryEnabled bool
+	AllowLateSubmissions bool
+	PublicTablesEnabled  bool
+	MaxTeamSize          *int
+	SubmissionsOpenAt    *time.Time
+	SubmissionsCloseAt   *time.Time
+	PublicGalleryAt      *time.Time
 }
 
 type CompetitionScheduleSegmentInput struct {
