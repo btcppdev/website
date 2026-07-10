@@ -5,6 +5,7 @@ import (
 	"btcpp-web/internal/types"
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"strings"
 	"time"
 )
@@ -74,7 +75,63 @@ func CreateAffiliateCode(ctx *config.AppContext, email, codeName string, buyerPc
 	if strings.TrimSpace(codeName) == "" {
 		return "", fmt.Errorf("CreateAffiliateCode: empty codeName")
 	}
-	return insertDiscountPostgres(ctx, codeName, fmt.Sprintf("%%%d", buyerPct), email, confRefs)
+	discountExpr := fmt.Sprintf("%%%d", buyerPct)
+	if id, restored, err := reactivateArchivedAffiliateCodePostgres(ctx, email, codeName, discountExpr, confRefs); err != nil {
+		return "", err
+	} else if restored {
+		return id, nil
+	}
+	return insertDiscountPostgres(ctx, codeName, discountExpr, email, confRefs)
+}
+
+func reactivateArchivedAffiliateCodePostgres(ctx *config.AppContext, email, codeName, discountExpr string, confRefs []string) (string, bool, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", false, fmt.Errorf("database is not configured")
+	}
+	discount, err := discountForWrite(codeName, discountExpr, email)
+	if err != nil {
+		return "", false, err
+	}
+
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return "", false, fmt.Errorf("begin affiliate reactivation: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+
+	discType := string(discount.DiscType)
+	var discountID string
+	err = tx.QueryRow(context.Background(), `
+		UPDATE discounts
+		SET archived_at = NULL,
+			discount_expr = $3,
+			affiliate_email = NULLIF($2, '')::citext,
+			disc_type = $4,
+			amount = $5,
+			max_uses = $6,
+			extra_qty = $7,
+			valid_from = $8,
+			valid_until = $9
+		WHERE code_name = $1
+			AND affiliate_email = $2
+			AND archived_at IS NOT NULL
+		RETURNING id::text
+	`, discount.CodeName, discount.AffiliateEmail, discount.Discount, discType,
+		nullableUintPtr(discount.Amount), nullableUintPtr(discount.MaxUses),
+		int(discount.ExtraQty), discount.ValidFrom, discount.ValidUntil).Scan(&discountID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("reactivate affiliate discount %q: %w", discount.CodeName, err)
+	}
+	if err := replaceDiscountConferenceLinksPostgres(tx, discountID, confRefs); err != nil {
+		return "", false, err
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return "", false, fmt.Errorf("commit affiliate reactivation: %w", err)
+	}
+	return discountID, true, nil
 }
 
 func UpdateAffiliateCode(ctx *config.AppContext, codeID, codeName string, buyerPct uint, confRefs []string) error {
