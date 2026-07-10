@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>your bitcoin++ archive</title>
+  {{ block "header" . }} {{ end }}
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#10024;</text></svg>">
+</head>
+<body class="btcpp-admin-page btcpp-dashboard-page">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="dashboard-archive-page">
+    <section class="dashboard-archive-hero">
+      <div class="dashboard-archive-hero__grid">
+        <div>
+          <div class="dashboard-kicker">§ Your permanent record</div>
+          <h1>Everywhere <span>you've shown up.</span></h1>
+        </div>
+        <p>{{ if .ArchiveYears }}{{ len .PastBlocks }} edition{{ if ne (len .PastBlocks) 1 }}s{{ end }} across {{ len .ArchiveYears }} year{{ if ne (len .ArchiveYears) 1 }}s{{ end }}, newest first.{{ else }}Past editions will appear here after your talks, volunteer shifts, satellite events, or tickets are connected to this email.{{ end }}</p>
+      </div>
+      <div class="dashboard-archive-metrics">
+        <div><strong>{{ len .PastBlocks }}</strong><span>Editions</span></div>
+        <div><strong>{{ .ArchiveSessions }}</strong><span>Sessions</span></div>
+        <div><strong>{{ len .ArchiveYears }}</strong><span>Years</span></div>
+        <nav aria-label="Archive years">
+          {{ range .ArchiveYears }}<a href="#y{{ .Year }}">{{ .Year }}</a>{{ end }}
+        </nav>
+        <a class="dashboard-archive-back" href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}">Dashboard &rarr;</a>
+      </div>
+    </section>
+
+    {{ if .ArchiveYears }}
+    {{ range .ArchiveYears }}
+    <section id="y{{ .Year }}" class="dashboard-archive-year">
+      <header class="dashboard-archive-year__head">
+        <strong>{{ .Year }}</strong>
+        <span>{{ len .Blocks }} edition{{ if ne (len .Blocks) 1 }}s{{ end }} · {{ .SessionCount }} session{{ if ne .SessionCount 1 }}s{{ end }}</span>
+      </header>
+      {{ range .Blocks }}
+      {{ $eb := . }}
+      {{ $conf := .Conf }}
+      <article class="dashboard-archive-entry">
+        <div class="dashboard-archive-entry__identity">
+          <div class="dashboard-archive-entry__title">
+            <span>{{ $conf.EmojiOrDefault }}</span>
+            <div>
+              <h2>{{ $conf.ArchiveTitle }}</h2>
+              {{ if $conf.ArchiveEdition }}<h3>{{ $conf.ArchiveEdition }}</h3>{{ end }}
+            </div>
+          </div>
+          <p>{{ $conf.DateDesc }}<br>{{ $conf.Location }}</p>
+          <div class="dashboard-archive-entry__roles">
+            {{ if $eb.SpeakerConf }}<span class="is-filled">Speaker</span>{{ end }}
+            {{ if $eb.VolApp }}<span>Volunteer</span>{{ end }}
+            {{ if $eb.Tickets }}<span>Attended</span>{{ end }}
+            {{ if $eb.SatelliteEvents }}<span>Satellite host</span>{{ end }}
+          </div>
+        </div>
+        <div class="dashboard-archive-entry__sessions">
+          <div class="dashboard-kicker">Your sessions</div>
+          {{ $archiveTalks := archiveTalks $eb.SpeakerConf }}
+          {{ if $archiveTalks }}
+          {{ range $archiveTalks }}
+          <div class="dashboard-archive-session">
+            <div class="dashboard-archive-session__main">
+              {{ if and .ConfTalk .ConfTalk.Clipart }}
+              <picture class="dashboard-archive-session__clipart">
+                <source srcset="{{ talkClipart .ConfTalk.ClipartAvif }}" type="image/avif" />
+                <img src="{{ talkClipart .ConfTalk.Clipart }}" alt="" loading="lazy" />
+              </picture>
+              {{ end }}
+              <strong>{{ .Title }}</strong>
+            </div>
+            {{ if and .Recording .Recording.YTLink }}
+            <a href="{{ .Recording.YTLink }}" target="_blank" rel="noopener noreferrer">▶ Watch</a>
+            {{ else }}
+            <span class="dashboard-archive-session__empty">-</span>
+            {{ end }}
+            <em class="{{ if or (eq .Status "Accepted") (eq .Status "Scheduled") }}is-positive{{ end }}">{{ .Status }}</em>
+          </div>
+          {{ end }}
+          {{ else }}
+          <p class="dashboard-archive-muted">No accepted or scheduled speaker sessions attached to this edition.</p>
+          {{ end }}
+        </div>
+      </article>
+      {{ end }}
+    </section>
+    {{ end }}
+    {{ else }}
+    <section class="dashboard-empty-card">
+      <h2>No archive yet</h2>
+      <p>Past editions will appear here after you attend, speak, volunteer, or host a satellite event.</p>
+      <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}">Back to dashboard</a>
+    </section>
+    {{ end }}
+  </main>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

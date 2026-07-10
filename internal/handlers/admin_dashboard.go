@@ -16,8 +16,9 @@ import (
 )
 
 type GlobalAdminDashboardPage struct {
-	FlashMessage string
-	Year         uint
+	FlashMessage         string
+	Year                 uint
+	FeaturedSpeakerSlots []*types.Speaker
 }
 
 type EventDetailsPage struct {
@@ -51,13 +52,46 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
+	featured, err := getters.ListHomepageFeaturedSpeakers(ctx)
+	if err != nil {
+		ctx.Err.Printf("/admin homepage featured speakers failed: %s", err)
+		featured = nil
+	}
+
+	slots := make([]*types.Speaker, 8)
+	for i := 0; i < len(featured) && i < len(slots); i++ {
+		slots[i] = featured[i]
+	}
+
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/dashboard.tmpl", &GlobalAdminDashboardPage{
-		FlashMessage: r.URL.Query().Get("flash"),
-		Year:         helpers.CurrentYear(),
+		FlashMessage:         r.URL.Query().Get("flash"),
+		Year:                 helpers.CurrentYear(),
+		FeaturedSpeakerSlots: slots,
 	}); err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/admin template failed: %s", err)
 	}
+}
+
+func GlobalAdminHomepageSpeakersUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	ids := make([]string, 0, 8)
+	for i := 1; i <= 8; i++ {
+		ids = append(ids, r.FormValue(fmt.Sprintf("speaker_%d_id", i)))
+	}
+	if err := getters.ReplaceHomepageFeaturedSpeakers(ctx, ids); err != nil {
+		ctx.Err.Printf("/admin/homepage-speakers update failed: %s", err)
+		http.Redirect(w, r, "/admin?flash="+url.QueryEscape("Could not update homepage speakers."), http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, "/admin?flash="+url.QueryEscape("Homepage speakers updated."), http.StatusFound)
 }
 
 func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -175,19 +209,39 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 	}
 
 	in := getters.ConfDetailsInput{
-		Description:   strings.TrimSpace(r.FormValue("description")),
-		OGFlavor:      strings.TrimSpace(r.FormValue("og_flavor")),
-		Emoji:         strings.TrimSpace(r.FormValue("emoji")),
-		Tagline:       strings.TrimSpace(r.FormValue("tagline")),
-		DateDesc:      strings.TrimSpace(r.FormValue("date_desc")),
-		StartDate:     start,
-		EndDate:       end,
-		Timezone:      timezoneName,
-		Location:      strings.TrimSpace(r.FormValue("location")),
-		Venue:         strings.TrimSpace(r.FormValue("venue")),
-		VenueMap:      strings.TrimSpace(r.FormValue("venue_map")),
-		VenueWebsite:  strings.TrimSpace(r.FormValue("venue_website")),
-		ShowHackathon: r.FormValue("show_hackathon") == "1",
+		Description:     strings.TrimSpace(r.FormValue("description")),
+		EditionType:     strings.TrimSpace(r.FormValue("edition_type")),
+		OGFlavor:        strings.TrimSpace(r.FormValue("og_flavor")),
+		Emoji:           strings.TrimSpace(r.FormValue("emoji")),
+		Tagline:         strings.TrimSpace(r.FormValue("tagline")),
+		DateDesc:        strings.TrimSpace(r.FormValue("date_desc")),
+		StartDate:       start,
+		EndDate:         end,
+		Timezone:        timezoneName,
+		Location:        strings.TrimSpace(r.FormValue("location")),
+		Venue:           strings.TrimSpace(r.FormValue("venue")),
+		VenueMap:        strings.TrimSpace(r.FormValue("venue_map")),
+		VenueWebsite:    strings.TrimSpace(r.FormValue("venue_website")),
+		ShowHackathon:   r.FormValue("show_hackathon") == "1",
+		HeroTitle:       strings.TrimSpace(r.FormValue("hero_title")),
+		HeroCaption:     strings.TrimSpace(r.FormValue("hero_caption")),
+		AboutTitle:      strings.TrimSpace(r.FormValue("about_title")),
+		AboutBody:       strings.TrimSpace(r.FormValue("about_body")),
+		AboutBody2:      strings.TrimSpace(r.FormValue("about_body_2")),
+		VenueTitle:      strings.TrimSpace(r.FormValue("venue_title")),
+		VenueSubtitle:   strings.TrimSpace(r.FormValue("venue_subtitle")),
+		VenueBody:       strings.TrimSpace(r.FormValue("venue_body")),
+		HotelsIntro:     strings.TrimSpace(r.FormValue("hotels_intro")),
+		LocalTicketBody: strings.TrimSpace(r.FormValue("local_ticket_body")),
+		SpeakersTitle:   strings.TrimSpace(r.FormValue("speakers_title")),
+		SpeakersBody:    strings.TrimSpace(r.FormValue("speakers_body")),
+		MapEmbedURL:     strings.TrimSpace(r.FormValue("map_embed_url")),
+		MapLatitude:     parseOptionalFloat(r.FormValue("map_latitude")),
+		MapLongitude:    parseOptionalFloat(r.FormValue("map_longitude")),
+		MapXPercent:     parseOptionalFloat(r.FormValue("map_x_percent")),
+		MapYPercent:     parseOptionalFloat(r.FormValue("map_y_percent")),
+		MapLabel:        strings.TrimSpace(r.FormValue("map_label")),
+		MapLabelSide:    normalizeMapLabelSide(r.FormValue("map_label_side")),
 	}
 	if err := getters.UpdateConfDetails(ctx, conf.Ref, in); err != nil {
 		ctx.Err.Printf("/%s/admin/details update failed: %s", conf.Tag, err)
@@ -258,33 +312,42 @@ func GlobalAdminUpdateConfState(w http.ResponseWriter, r *http.Request, ctx *con
 		return
 	}
 
-	state := r.FormValue("state")
-	var active bool
-	switch state {
-	case "active":
-		active = true
-	case "inactive":
-		active = false
+	status := strings.TrimSpace(r.FormValue("state"))
+	switch status {
+	case "published", "draft":
 	default:
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Unknown event state.")), http.StatusSeeOther)
 		return
 	}
 
-	if err := getters.UpdateConfActive(ctx, conf.Ref, active); err != nil {
+	if err := getters.UpdateConfPublicationStatus(ctx, conf.Ref, status); err != nil {
 		ctx.Err.Printf("/%s/admin/state failed: %s", conf.Tag, err)
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Could not update event state.")), http.StatusSeeOther)
 		return
 	}
 
-	label := "inactive"
-	if active {
-		label = "active"
-	}
-	http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Event marked "+label+".")), http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Event marked "+status+".")), http.StatusSeeOther)
 }
 
 func redirectEventDetails(w http.ResponseWriter, r *http.Request, conf *types.Conf, msg string) {
 	http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape(msg)), http.StatusSeeOther)
+}
+
+func parseOptionalFloat(raw string) float64 {
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+func normalizeMapLabelSide(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "left", "right", "top", "bottom":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return "right"
+	}
 }
 
 func datetimeLocalInput(t time.Time) string {

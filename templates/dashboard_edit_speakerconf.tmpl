@@ -5,7 +5,7 @@
   {{ block "header" . }} {{ end }}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#10024;</text></svg>">
 </head>
-<body>
+<body class="btcpp-admin-page">
   {{ block "mainnav" . }} {{ end }}
   <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
     <div class="mb-6">
@@ -16,7 +16,23 @@
       {{ end }}
     </div>
 
-    {{ if .Conf }}{{ template "conf_hero" .Conf }}{{ end }}
+    {{ if .Conf }}
+    <div class="dashboard-ledger-card dashboard-edit-conf-card">
+      <div class="dashboard-ledger-card__hero-wrap">
+        <a href="/{{ .Conf.Tag }}" class="dashboard-ledger-card__hero">
+          <picture>
+            <source srcset="/static/img/{{ .Conf.Tag }}/leading.avif" type="image/avif" />
+            <img src="/static/img/{{ .Conf.Tag }}/leading.png" alt="{{ .Conf.Desc }}" />
+          </picture>
+          <div class="dashboard-ledger-card__scrim"></div>
+          <div class="dashboard-ledger-card__hero-copy">
+            <div class="dashboard-ledger-card__meta">{{ .Conf.DateDesc }} · {{ .Conf.Location }}</div>
+            <h2><span>{{ .Conf.EmojiOrDefault }}</span>{{ .Conf.Desc }}</h2>
+          </div>
+        </a>
+      </div>
+    </div>
+    {{ end }}
 
     <h1 class="mt-6 text-2xl font-bold text-gray-900">Edit speaker info</h1>
     <p class="text-xs text-gray-500 mt-1">These apply across all your talks at this conference.</p>
@@ -72,6 +88,16 @@
           <label for="Sponsor" class="text-sm/6 text-gray-600">My company would like to sponsor</label>
         </div>
       </div>
+
+      {{ if .IsAdmin }}
+      <div>
+        <label for="FeaturedRank" class="block text-sm font-semibold text-gray-900">Featured speaker slot</label>
+        <p class="mt-0.5 text-xs text-gray-500">Optional. Use 1-6 to promote this speaker on the public conference page; lower numbers appear first. Leave blank to show them in the regular speaker grid.</p>
+        <input id="FeaturedRank" name="FeaturedRank" type="number" min="1" max="6"
+               value="{{ if gt .SpeakerConf.FeaturedRank 0 }}{{ .SpeakerConf.FeaturedRank }}{{ end }}"
+               class="mt-1 block w-32 rounded-md py-2 px-3 outline outline-1 -outline-offset-1 outline-gray-300" />
+      </div>
+      {{ end }}
 
       <fieldset>
         <legend class="block text-sm font-semibold text-gray-900">Days I'm available</legend>

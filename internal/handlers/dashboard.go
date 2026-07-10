@@ -153,6 +153,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		}
 		regs = live
 	}
+	attachRegistrationQRCodes(ctx, regs)
 
 	if scErr != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -278,17 +279,8 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if topSpeaker != nil {
 		id.Email = topSpeaker.Email
 	}
-	for _, b := range activeBlocks {
-		if b == nil || b.Conf == nil {
-			continue
-		}
-		switch {
-		case id.HasRoleForConf(b.Conf.Tag, auth.RoleAdmin):
-			b.AdminRole = auth.RoleAdmin
-		case id.HasRoleForConf(b.Conf.Tag, auth.RoleVolcoord):
-			b.AdminRole = auth.RoleVolcoord
-		}
-	}
+	attachDashboardAdminRoles(activeBlocks, id)
+	attachDashboardAdminRoles(pastBlocks, id)
 	// Synthesize event blocks for confs the user can admin but has no
 	// other relationship with (the global-admin case, or per-conf
 	// admins watching events they're not personally speaking at).
@@ -428,6 +420,280 @@ func renderDashboardLogin(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/dashboard render login failed: %s", err)
+	}
+}
+
+// DashboardArchive renders the personal archive linked from the dashboard's
+// past-conferences strip. It intentionally reuses the dashboard's magic-link
+// auth model so the archive remains scoped to the signed-in email.
+func DashboardArchive(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email, encodedHMAC, err := validateVolEmail(r, ctx)
+	encodedEmail := r.URL.Query().Get("em")
+	if err != nil {
+		if sessEmail := ctx.Session.GetString(r.Context(), auth.SessionEmailKey); sessEmail != "" {
+			email = sessEmail
+			encodedHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
+			encodedEmail = base64.RawURLEncoding.EncodeToString([]byte(email))
+			err = nil
+		}
+	}
+	if err != nil {
+		ctx.Infos.Printf("/dashboard/archive HMAC validation failed: %s", err)
+		renderDashboardLogin(w, r, ctx)
+		return
+	}
+
+	var (
+		speakers     []*types.Speaker
+		speakerConfs []*types.SpeakerConf
+		volapps      []*types.Volunteer
+		regs         []*types.Registration
+		satEvents    []*types.SatelliteEvent
+		scErr        error
+		volErr       error
+		regErr       error
+		satErr       error
+	)
+	var wg sync.WaitGroup
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		speakers, speakerConfs, scErr = getters.GetSpeakerConfsByEmail(ctx, email)
+	}()
+	go func() {
+		defer wg.Done()
+		volapps, volErr = getters.ListVolunteerApps(ctx, email)
+	}()
+	go func() {
+		defer wg.Done()
+		regs, regErr = getters.ListRegistrationsByEmail(ctx, email)
+	}()
+	go func() {
+		defer wg.Done()
+		satEvents, satErr = getters.ListSatelliteEventsBySubmitter(ctx, email)
+	}()
+	wg.Wait()
+	if scErr != nil {
+		http.Error(w, "Unable to load archive, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/dashboard/archive speakerconfs failed: %s", scErr)
+		return
+	}
+	if volErr != nil {
+		http.Error(w, "Unable to load archive, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/dashboard/archive listvolunteerapps failed: %s", volErr)
+		return
+	}
+	if regErr != nil {
+		ctx.Err.Printf("/dashboard/archive listregs failed (continuing): %s", regErr)
+	}
+	if satErr != nil {
+		ctx.Err.Printf("/dashboard/archive satellites failed (continuing): %s", satErr)
+	}
+	if len(regs) > 0 {
+		live := regs[:0]
+		for _, r := range regs {
+			if r != nil && !r.Revoked {
+				live = append(live, r)
+			}
+		}
+		regs = live
+	}
+
+	name, hometown := dashboardIdentity(speakers, speakerConfs, volapps)
+	var photo string
+	var topSpeaker *types.Speaker
+	if len(speakers) > 0 {
+		topSpeaker = speakers[0]
+		photo = speakers[0].Photo
+	}
+	confs := listConfs(w, ctx)
+	confs = appendLegacyArchiveConfs(confs)
+	enrichDashboardProposals(ctx, speakerConfs)
+	tickets := upcomingTickets(regs, confs)
+	_, pastBlocks := buildEventBlocks(speakerConfs, volapps, tickets, regs, confs, nil)
+	_, pastBlocks = attachSatelliteEventBlocks(nil, pastBlocks, satEvents, confs)
+	archiveYears, archiveSessions := dashboardArchiveYears(pastBlocks)
+
+	page := &DashboardPage{
+		Name:            name,
+		Hometown:        hometown,
+		Photo:           photo,
+		Email:           encodedEmail,
+		HMAC:            encodedHMAC,
+		Speaker:         topSpeaker,
+		Stats:           calcDashboardStats(speakerConfs, volapps),
+		Confs:           confs,
+		PastBlocks:      pastBlocks,
+		ArchiveYears:    archiveYears,
+		ArchiveSessions: archiveSessions,
+		FlashMessage:    r.URL.Query().Get("flash"),
+		FlashError:      r.URL.Query().Get("error"),
+		BaseURI:         ctx.Env.GetURI(),
+		Year:            helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_archive.tmpl", page); err != nil {
+		http.Error(w, "Unable to load archive, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/dashboard/archive ExecuteTemplate failed: %s", err)
+	}
+}
+
+func attachDashboardAdminRoles(blocks []*EventBlock, id *auth.Identity) {
+	if id == nil {
+		return
+	}
+	for _, b := range blocks {
+		if b == nil || b.Conf == nil {
+			continue
+		}
+		switch {
+		case id.HasRoleForConf(b.Conf.Tag, auth.RoleAdmin):
+			b.AdminRole = auth.RoleAdmin
+		case id.HasRoleForConf(b.Conf.Tag, auth.RoleVolcoord):
+			b.AdminRole = auth.RoleVolcoord
+		}
+	}
+}
+
+func attachRegistrationQRCodes(ctx *config.AppContext, regs []*types.Registration) {
+	for _, reg := range regs {
+		if reg == nil || reg.RefID == "" || reg.QRCodeURI != "" {
+			continue
+		}
+		qr, err := ticketQRCodeURI(ctx, reg.RefID)
+		if err != nil {
+			ctx.Err.Printf("dashboard ticket qr %s: %s", reg.RefID, err)
+			continue
+		}
+		reg.QRCodeURI = qr
+	}
+}
+
+func archiveTalks(sc *types.SpeakerConf) []*types.Proposal {
+	if sc == nil {
+		return nil
+	}
+	out := make([]*types.Proposal, 0, len(sc.Proposals))
+	for _, proposal := range sc.Proposals {
+		if proposal == nil {
+			continue
+		}
+		if proposal.Status == StatusAccepted || proposal.Status == StatusScheduled {
+			out = append(out, proposal)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		left := out[i]
+		right := out[j]
+		leftSched := left != nil && left.ConfTalk != nil && left.ConfTalk.Sched != nil
+		rightSched := right != nil && right.ConfTalk != nil && right.ConfTalk.Sched != nil
+		if leftSched && rightSched {
+			if !left.ConfTalk.Sched.Start.Equal(right.ConfTalk.Sched.Start) {
+				return left.ConfTalk.Sched.Start.Before(right.ConfTalk.Sched.Start)
+			}
+			return left.Title < right.Title
+		}
+		if leftSched != rightSched {
+			return leftSched
+		}
+		return false
+	})
+	return out
+}
+
+func dashboardArchiveYears(blocks []*EventBlock) ([]*DashboardArchiveYear, int) {
+	byYear := map[int]*DashboardArchiveYear{}
+	totalSessions := 0
+	for _, block := range blocks {
+		if block == nil || block.Conf == nil {
+			continue
+		}
+		year := block.Conf.StartDate.In(block.Conf.Loc()).Year()
+		if year == 0 {
+			continue
+		}
+		bucket := byYear[year]
+		if bucket == nil {
+			bucket = &DashboardArchiveYear{Year: year}
+			byYear[year] = bucket
+		}
+		sessions := 0
+		if block.SpeakerConf != nil {
+			for _, proposal := range block.SpeakerConf.Proposals {
+				if proposal == nil {
+					continue
+				}
+				if proposal.Status == StatusAccepted || proposal.Status == StatusScheduled {
+					sessions++
+				}
+			}
+		}
+		bucket.SessionCount += sessions
+		totalSessions += sessions
+		bucket.Blocks = append(bucket.Blocks, block)
+	}
+
+	years := make([]int, 0, len(byYear))
+	for year := range byYear {
+		years = append(years, year)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(years)))
+
+	out := make([]*DashboardArchiveYear, 0, len(years))
+	for _, year := range years {
+		bucket := byYear[year]
+		sort.SliceStable(bucket.Blocks, func(i, j int) bool {
+			return bucket.Blocks[i].Conf.StartDate.After(bucket.Blocks[j].Conf.StartDate)
+		})
+		out = append(out, bucket)
+	}
+	return out, totalSessions
+}
+
+func appendLegacyArchiveConfs(confs []*types.Conf) []*types.Conf {
+	seen := make(map[string]bool, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			seen[conf.Tag] = true
+		}
+	}
+	for _, conf := range legacyArchiveConfs() {
+		if conf != nil && !seen[conf.Tag] {
+			confs = append(confs, conf)
+			seen[conf.Tag] = true
+		}
+	}
+	return confs
+}
+
+func legacyArchiveConfs() []*types.Conf {
+	return []*types.Conf{
+		{
+			Ref:       "atx22",
+			Tag:       "atx22",
+			Desc:      "bitcoin++ Austin",
+			DateDesc:  "2022",
+			StartDate: time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC),
+			Location:  "Austin, Texas",
+		},
+		{
+			Ref:       "cdmx22",
+			Tag:       "cdmx22",
+			Desc:      "bitcoin++ Mexico City",
+			DateDesc:  "2022",
+			StartDate: time.Date(2022, 2, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2022, 2, 2, 0, 0, 0, 0, time.UTC),
+			Location:  "Mexico City, Mexico",
+		},
+		{
+			Ref:       "berlin23",
+			Tag:       "berlin23",
+			Desc:      "bitcoin++ Berlin",
+			DateDesc:  "2023",
+			StartDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC),
+			Location:  "Berlin, Germany",
+		},
 	}
 }
 
@@ -692,6 +958,7 @@ func attachSatelliteEventBlocks(active, past []*EventBlock, events []*types.Sate
 	for _, c := range confs {
 		if c != nil {
 			confByRef[c.Ref] = c
+			confByRef[c.Tag] = c
 		}
 	}
 	byTag := make(map[string]*EventBlock, len(active)+len(past))
@@ -741,7 +1008,7 @@ func attachSatelliteEventBlocks(active, past []*EventBlock, events []*types.Sate
 // PurchasesDb rows). Linear scan over the typically-small confs map.
 func confByRef(byTag map[string]*types.Conf, ref string) *types.Conf {
 	for _, c := range byTag {
-		if c != nil && c.Ref == ref {
+		if c != nil && (c.Ref == ref || c.Tag == ref) {
 			return c
 		}
 	}
@@ -792,6 +1059,7 @@ func upcomingTickets(regs []*types.Registration, allConfs []*types.Conf) []*User
 	for _, c := range allConfs {
 		if c != nil {
 			confByRef[c.Ref] = c
+			confByRef[c.Tag] = c
 		}
 	}
 	var out []*UserTicket
