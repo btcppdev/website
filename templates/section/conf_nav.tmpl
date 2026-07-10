@@ -12,10 +12,10 @@
       <div class="site-nav__links">
         <a href="/{{ .Tag }}#about">about/</a>
         <a href="/{{ .Tag }}#venue">venue/</a>
-        <a href="/{{ .Tag }}#speakers">speakers/</a>
         {{ if .ShowHackathon }}
         <a href="/{{ .Tag }}#hackathon">hackathon/</a>
         {{ end }}
+        <a href="/{{ .Tag }}#speakers">speakers/</a>
         {{ if .HasSchedule }}
         <a href="/{{ .Tag }}#schedule">schedule/</a>
         {{ end }}

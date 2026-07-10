@@ -264,6 +264,84 @@ func (p *HackathonPage) CompetitionURL(competition *types.HackathonCompetition) 
 	return hackathonURL(competition)
 }
 
+func (p *ConfPage) HackathonURL() string {
+	if p == nil {
+		return "/hackathons"
+	}
+	return hackathonURL(p.Hackathon)
+}
+
+func (p *ConfPage) HackathonScheduleURL() string {
+	if p == nil {
+		return "/hackathons"
+	}
+	return hackathonScheduleURL(p.Hackathon)
+}
+
+func (p *ConfPage) HackathonCreateProjectURL() string {
+	if p == nil || p.Hackathon == nil {
+		return "/hackathons"
+	}
+	return hackathonURL(p.Hackathon) + "/projects/new"
+}
+
+func (p *ConfPage) HackathonAdminURL() string {
+	if p == nil || p.Hackathon == nil {
+		return "/admin/hackathons"
+	}
+	return "/admin/hackathons/" + url.PathEscape(p.Hackathon.ID)
+}
+
+func (p *ConfPage) HackathonStatusLabel() string {
+	if p == nil {
+		return ""
+	}
+	return hackathonLifecycleLabel(p.Hackathon)
+}
+
+func (p *ConfPage) HackathonAcceptsProjects() bool {
+	if p == nil {
+		return false
+	}
+	return competitionAcceptsProjects(p.Hackathon)
+}
+
+func (p *ConfPage) HackathonTimeline() HackathonTimelineView {
+	if p == nil {
+		return HackathonTimelineView{Label: "Timeline", Value: "TBA"}
+	}
+	if event := nextHackathonScheduleEvent(p.HackathonScheduleEvents); event != nil {
+		return HackathonTimelineView{
+			Label:         lowerFirst(event.Label) + " in",
+			Value:         formatHackathonRelativeDuration(time.Until(*event.Time)),
+			HasCountdown:  true,
+			CountdownUnix: event.Time.Unix(),
+		}
+	}
+	label, milestoneAt := hackathonNextMilestoneTime(p.Hackathon)
+	if milestoneAt != nil {
+		return HackathonTimelineView{
+			Label:         lowerFirst(label) + " in",
+			Value:         formatHackathonRelativeDuration(time.Until(*milestoneAt)),
+			HasCountdown:  true,
+			CountdownUnix: milestoneAt.Unix(),
+		}
+	}
+	if label == "View schedule" {
+		value := completedHackathonScheduleValue(p.Hackathon)
+		if value != "" {
+			return HackathonTimelineView{
+				Label: "Schedule",
+				Value: value,
+			}
+		}
+	}
+	return HackathonTimelineView{
+		Label: "Timeline",
+		Value: "TBA",
+	}
+}
+
 func (p *HackathonPage) CompetitionScheduleURL(competition *types.HackathonCompetition) string {
 	return hackathonScheduleURL(competition)
 }
