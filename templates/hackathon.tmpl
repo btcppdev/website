@@ -4,86 +4,126 @@
   <title>{{ .Competition.Title }} - bitcoin++ hackathon</title>
   {{ block "header" . }} {{ end }}
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="hack-redesign">
   {{ block "mainnav" . }} {{ end }}
-  <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-    {{ if .ConferenceURL }}
-    <a href="{{ .ConferenceURL }}" class="mb-4 inline-flex text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ if .ConferenceLabel }}{{ .ConferenceLabel }}{{ else }}Conference{{ end }}</a>
-    {{ end }}
-    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <h1 class="text-3xl font-semibold tracking-tight">{{ .Competition.Title }}</h1>
-        {{ if .ConferenceLabel }}
-        <p class="mt-2 text-sm text-gray-600">
-          {{ if .ConferenceURL }}
-          <a href="{{ .ConferenceURL }}" class="font-medium text-indigo-600 hover:text-indigo-500">{{ .ConferenceLabel }}</a>
-          {{ else }}
-          {{ .ConferenceLabel }}
-          {{ end }}
-        </p>
-        {{ end }}
-      </div>
-      <div class="flex flex-wrap gap-2">
-        {{ if .CanAdminEdit }}
-        <a href="{{ .AdminEditURL }}" class="inline-flex items-center justify-center rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Edit Hackathon</a>
-        {{ end }}
-        {{ if .CanJudge }}
-        <a href="{{ .JudgingURL }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Judging</a>
-        {{ end }}
-        {{ if .CanCreate }}
-        <a href="{{ .ProjectNewURL }}" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</a>
-        {{ else if not .Viewer }}
-        <a href="{{ .LoginURL }}" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Sign in</a>
-        {{ end }}
-      </div>
+  <main class="hack-shell">
+    <div class="hack-ticker" aria-label="Hackathon highlights">
+      <span class="hack-ticker__live">▶ Live</span>
+      <span>{{ .Competition.Title }}</span>
+      <span>•</span>
+      <span>{{ .CompetitionStatusLabel }}</span>
+      <span>•</span>
+      <span>{{ with .Competition.MaxTeamSize }}Up to {{ . }} builders per team{{ else }}Unlimited team size{{ end }}</span>
+      {{ if .ConferenceLabel }}<span>•</span><span>{{ .ConferenceLabel }}</span>{{ end }}
     </div>
 
+    <header class="hack-header">
+      <div>
+        <a href="/" class="hack-brand">bitcoin<span>++</span></a>
+        <div class="hack-header__meta">[ {{ if .ConferenceLabel }}{{ .ConferenceLabel }} · {{ end }}Hackathon ]</div>
+      </div>
+      <nav class="hack-header__nav" aria-label="Hackathon links">
+        <a href="#overview">overview/</a>
+        <a href="#projects">projects/</a>
+        {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<a href="#tables">tables/</a>{{ end }}
+        <a href="{{ .ScheduleURL }}">schedule/</a>
+        {{ if .ConferenceURL }}<a href="{{ .ConferenceURL }}">← conf</a>{{ end }}
+      </nav>
+    </header>
+
+    <section class="hack-hero">
+      <img src="/static/img/rebrand/hero-hackathon.png" alt="">
+      <div class="hack-hero__content">
+        <div class="hack-hero__top">
+          <div>The hackathon</div>
+          <div>{{ if .ConferenceLabel }}{{ .ConferenceLabel }}{{ else }}bitcoin++{{ end }}</div>
+        </div>
+        <div>
+          <div class="hack-hero__label"><strong>Hack</strong> Build · Ship · Demo</div>
+          <h1>{{ .Competition.Title }}</h1>
+          <div class="hack-hero__deck">
+            {{ if .Competition.Description }}
+            {{ .Competition.Description }}
+            {{ else }}
+            Build something real alongside the conference, submit your project, and put it in front of judges and the bitcoin++ community.
+            {{ end }}
+          </div>
+          <div class="hack-actions">
+            {{ if .CanCreate }}
+            <a href="{{ .ProjectNewURL }}" class="hack-button hack-button--accent">Create project →</a>
+            {{ else if not .Viewer }}
+            <a href="{{ .LoginURL }}" class="hack-button hack-button--accent">Sign in →</a>
+            {{ end }}
+            <a href="#projects" class="hack-button hack-button--light">View projects →</a>
+            <a href="{{ .ScheduleURL }}" class="hack-button hack-button--light">View schedule →</a>
+            {{ if .CanJudge }}<a href="{{ .JudgingURL }}" class="hack-button hack-button--light">Judging →</a>{{ end }}
+            {{ if .CanAdminEdit }}<a href="{{ .AdminEditURL }}" class="hack-button hack-button--light">Edit hackathon →</a>{{ end }}
+          </div>
+        </div>
+      </div>
+    </section>
+
     {{ if .FlashMessage }}
-    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    <div class="mx-6 mt-6 border border-green-700 bg-green-50 px-4 py-3 text-sm text-green-900">{{ .FlashMessage }}</div>
     {{ end }}
     {{ if .FlashError }}
-    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    <div class="mx-6 mt-6 border border-red-700 bg-red-50 px-4 py-3 text-sm text-red-900">{{ .FlashError }}</div>
     {{ end }}
 
-    <nav class="mb-6 overflow-x-auto rounded-lg bg-white px-4 shadow sm:px-6" aria-label="Hackathon sections">
-      <div class="flex min-w-max gap-6">
-        <button type="button" data-hackathon-tab="overview" class="border-b-2 border-indigo-600 px-1 py-3 text-sm font-medium text-indigo-600">Overview</button>
-        <button type="button" data-hackathon-tab="projects" class="border-b-2 border-transparent px-1 py-3 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">Projects</button>
-        {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}
-        <button type="button" data-hackathon-tab="tables" class="border-b-2 border-transparent px-1 py-3 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-700">Project tables</button>
-        {{ end }}
-      </div>
-    </nav>
-
-    <div data-hackathon-tab-panel="overview">
-    <section class="mb-8 rounded-lg bg-white shadow">
-      <div class="grid gap-6 px-4 py-5 sm:grid-cols-3 sm:p-6">
-        <div class="sm:col-span-2">
-          <h2 class="text-sm font-semibold text-gray-900">Description</h2>
-          {{ if .Competition.Description }}
-          <div class="mt-3 whitespace-pre-line text-sm leading-6 text-gray-700">{{ .RichText .Competition.Description }}</div>
-          {{ else }}
-          <p class="mt-3 text-sm text-gray-500">Details are still being finalized.</p>
-          {{ end }}
+    <section class="hack-section" id="overview">
+      <div class="hack-stat-grid">
+        <div class="hack-stat">
+          <div class="hack-stat__value">{{ .CompetitionStatusLabel }}</div>
+          <div class="hack-stat__label">Status</div>
         </div>
-        <div class="space-y-3 text-sm">
-          <div>
-            <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Status</div>
-            <div class="mt-1 font-medium text-gray-900">{{ .CompetitionStatusLabel }}</div>
+        <div class="hack-stat">
+          <div class="hack-stat__value">{{ with .Competition.MaxTeamSize }}{{ . }}{{ else }}∞{{ end }}</div>
+          <div class="hack-stat__label">{{ with .Competition.MaxTeamSize }}Max builders per team{{ else }}Team size{{ end }}</div>
+        </div>
+        <div class="hack-stat">
+          <div class="hack-stat__value">{{ len .Projects }}</div>
+          <div class="hack-stat__label">Visible projects</div>
+        </div>
+        <div class="hack-stat">
+          <div class="hack-stat__value">{{ len .Awards }}</div>
+          <div class="hack-stat__label">Awards</div>
+        </div>
+      </div>
+
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§01 · Overview</div>
+          <h2>Build in <span class="hack-serif">public.</span></h2>
+        </div>
+        <div class="hack-section__deck">
+          Projects stay private until organizers open the public gallery. Judges and admins can review submissions while the event is running.
+        </div>
+      </div>
+
+      <div class="hack-overview-grid">
+        <div class="hack-copy">
+          <div class="hack-copy__body">
+            {{ if .Competition.Description }}
+            {{ .RichText .Competition.Description }}
+            {{ else }}
+            Details are still being finalized.
+            {{ end }}
           </div>
-          <div>
-            <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Team size</div>
-            <div class="mt-1 text-gray-900">{{ with .Competition.MaxTeamSize }}Up to {{ . }}{{ else }}Unlimited{{ end }}</div>
-          </div>
-          <div>
-            <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
-              {{ if and .NextMilestoneLabel (not .NextMilestoneIsScheduleLink) }}
-              {{ .NextMilestoneLabel }}
+        </div>
+        <dl class="hack-side">
+          <div class="hack-side-row">
+            <dt>Conference</dt>
+            <dd>
+              {{ if .ConferenceLabel }}
+              {{ if .ConferenceURL }}<a href="{{ .ConferenceURL }}">{{ .ConferenceLabel }}</a>{{ else }}{{ .ConferenceLabel }}{{ end }}
               {{ else }}
-              Timeline
+              TBA
               {{ end }}
-            </div>
-            <div class="mt-1 text-gray-900">
+            </dd>
+          </div>
+          <div class="hack-side-row">
+            <dt>{{ if and .NextMilestoneLabel (not .NextMilestoneIsScheduleLink) }}{{ .NextMilestoneLabel }}{{ else }}Timeline{{ end }}</dt>
+            <dd>
               {{ if .NextMilestoneValue }}
               {{ with .NextMilestoneTime }}
               <time class="hackathon-detail-time" datetime="{{ .Format "2006-01-02T15:04:05Z07:00" }}">{{ $.NextMilestoneValue }}</time>
@@ -93,158 +133,147 @@
               {{ else }}
               TBA
               {{ end }}
-            </div>
-            <a href="{{ .ScheduleURL }}" class="mt-1 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-500">View schedule</a>
+            </dd>
+            <a href="{{ .ScheduleURL }}">View schedule →</a>
           </div>
+          <div class="hack-side-row">
+            <dt>Team size</dt>
+            <dd>{{ with .Competition.MaxTeamSize }}Up to {{ . }}{{ else }}Unlimited{{ end }}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <nav class="hack-tabs" aria-label="Hackathon sections">
+      <button type="button" data-hackathon-tab="projects" class="hack-tab" aria-selected="true">Projects · {{ len .Projects }}</button>
+      {{ if .Awards }}<button type="button" data-hackathon-tab="awards" class="hack-tab" aria-selected="false">Winners · {{ len .Awards }}</button>{{ end }}
+      {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<button type="button" data-hackathon-tab="tables" class="hack-tab" aria-selected="false">Tables</button>{{ end }}
+    </nav>
+
+    <section data-hackathon-tab-panel="projects" class="hack-panel" id="projects">
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§02 · Projects</div>
+          <h2>What got <span class="hack-serif">built.</span></h2>
         </div>
-      </div>
-    </section>
-
-    {{ if .Awards }}
-    <section class="mb-8">
-      <div class="mb-4 flex items-center justify-between gap-4">
-        <h2 class="text-lg font-semibold text-gray-900">Winners</h2>
-      </div>
-      <div class="grid gap-4 md:grid-cols-2">
-        {{ range .Awards }}
-        <article class="rounded-lg bg-white p-5 shadow">
-          <div>
-            <h3 class="text-base font-semibold text-gray-900">{{ .Title }}</h3>
-            {{ if .Description }}
-            <div class="mt-2 whitespace-pre-line text-sm leading-6 text-gray-700">{{ $.RichText .Description }}</div>
-            {{ end }}
-          </div>
-          {{ $awardees := $.Awardees . }}
-          {{ if $awardees }}
-          <div class="mt-4">
-            <h4 class="text-xs font-medium uppercase tracking-wide text-gray-500">Winning project{{ if gt (len $awardees) 1 }}s{{ end }}</h4>
-            <ul class="mt-2 space-y-2">
-              {{ range $awardees }}
-              <li class="rounded-md border border-gray-200 px-3 py-2">
-                <a href="#project-{{ .ProjectID }}" class="font-medium text-indigo-600 hover:text-indigo-500">{{ .ProjectTitle }}</a>
-                <div class="mt-1 text-xs text-gray-500">#{{ $.ProjectAwardNumber . }}</div>
-              </li>
-              {{ end }}
-            </ul>
-          </div>
-          {{ end }}
-          {{ $prizes := $.AwardPrizes . }}
-          {{ if $prizes }}
-          <div class="mt-4 border-t border-gray-100 pt-4">
-            <h4 class="text-xs font-medium uppercase tracking-wide text-gray-500">Prizes</h4>
-            <ul class="mt-2 space-y-2">
-              {{ range $prizes }}
-              <li class="text-sm text-gray-700">
-                <span class="font-medium text-gray-900">{{ .Title }}</span>
-                <span class="text-gray-500"> · {{ $.PrizeTypeLabel .PrizeType }}{{ if .ValueText }} · {{ .ValueText }}{{ end }}{{ if .PoolPercentage }} · {{ $.PercentLabel .PoolPercentage }} pool{{ end }}</span>
-                {{ if .Description }}<div class="mt-1 text-gray-600">{{ $.RichText .Description }}</div>{{ end }}
-                {{ if .PoolURL }}<a href="{{ .PoolURL }}" class="mt-1 inline-block font-medium text-indigo-600 hover:text-indigo-500">Pool</a>{{ end }}
-              </li>
-              {{ end }}
-            </ul>
-          </div>
-          {{ end }}
-        </article>
-        {{ end }}
-      </div>
-    </section>
-    {{ end }}
-    </div>
-
-    <section data-hackathon-tab-panel="projects" class="hidden">
-      <div class="mb-4 flex items-center justify-between gap-4">
-        <h2 class="text-lg font-semibold text-gray-900">Projects</h2>
+        <div class="hack-section__deck">Every visible project from this hackathon, sorted by the current platform rules.</div>
       </div>
       {{ if .Projects }}
-      <div class="grid gap-4 md:grid-cols-2">
-        {{ range .Projects }}
-        {{ $winningAwards := $.ProjectWinningAwards . }}
-        <article id="project-{{ .ID }}" class="rounded-lg bg-white p-5 shadow">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <h3 class="text-base font-semibold text-gray-900">{{ .Title }}</h3>
-              <p class="mt-1 text-sm text-gray-600">{{ .ShortDescription }}</p>
+      <div class="hack-card-grid">
+        {{ range $index, $project := .Projects }}
+        {{ $winningAwards := $.ProjectWinningAwards $project }}
+        <article id="project-{{ $project.ID }}" class="hack-card">
+          <div class="hack-card__media" data-initials="++">
+            {{ if $winningAwards }}<span class="hack-badge" style="position:absolute;top:12px;left:12px;z-index:1;">★ Winner</span>{{ end }}
+          </div>
+          <div class="hack-card__body">
+            <div class="hack-card__top">
+              <h3>{{ $project.Title }}</h3>
+              <div class="hack-card__number">{{ $.ProjectNumberLabel $project }}</div>
             </div>
-            <div class="flex shrink-0 flex-wrap justify-end gap-2">
-              {{ if $winningAwards }}
-              <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Winner</span>
-              {{ end }}
-              {{ if $.ProjectIsFinalist . }}
-              <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">Finalist</span>
-              {{ else if not $winningAwards }}
-              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{{ $.ProjectStatusLabel .Status }}</span>
-              {{ end }}
+            {{ if $project.ShortDescription }}<div class="hack-card__desc">{{ $project.ShortDescription }}</div>{{ end }}
+            {{ if $winningAwards }}
+            <div class="hack-tags">
+              {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
             </div>
-          </div>
-          {{ if $winningAwards }}
-          <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            <span class="font-medium">Won</span>
-            {{ range $index, $award := $winningAwards }}{{ if $index }}, {{ end }}{{ $award.Title }}{{ end }}
-          </div>
-          {{ end }}
-          {{ if .Description }}
-          <div class="mt-4 line-clamp-4 whitespace-pre-line text-sm leading-6 text-gray-700">{{ $.RichText .Description }}</div>
-          {{ end }}
-          {{ if .Tags }}
-          <div class="mt-4 flex flex-wrap gap-2">
-            {{ range .Tags }}
-            <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">{{ . }}</span>
+            {{ else if $.ProjectIsFinalist $project }}
+            <div class="hack-tags"><span class="hack-badge">Finalist</span></div>
             {{ end }}
-          </div>
-          {{ end }}
-          <div class="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-            {{ if .GitHubURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .GitHubURL }}">GitHub</a>{{ end }}
-            {{ if .DemoURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .DemoURL }}">Demo</a>{{ end }}
-            {{ if .VideoURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .VideoURL }}">Video</a>{{ end }}
-            {{ if .SlidesURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .SlidesURL }}">Slides</a>{{ end }}
-            {{ if .DocsURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .DocsURL }}">Docs</a>{{ end }}
-            {{ if $.CanManageProject .ID }}
-            <a class="font-medium text-gray-700 hover:text-gray-900" href="{{ $.ProjectURL . }}">Manage</a>
+            {{ if $project.Description }}
+            <div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ $.RichText $project.Description }}</div>
             {{ end }}
+            {{ if $project.Tags }}
+            <div class="hack-tags">
+              {{ range $project.Tags }}<span class="hack-tag">{{ . }}</span>{{ end }}
+            </div>
+            {{ end }}
+            <div class="hack-card__links">
+              {{ if $project.GitHubURL }}<a href="{{ $project.GitHubURL }}">GitHub</a>{{ end }}
+              {{ if $project.DemoURL }}<a href="{{ $project.DemoURL }}">Demo</a>{{ end }}
+              {{ if $project.VideoURL }}<a href="{{ $project.VideoURL }}">Video</a>{{ end }}
+              {{ if $project.SlidesURL }}<a href="{{ $project.SlidesURL }}">Slides</a>{{ end }}
+              {{ if $project.DocsURL }}<a href="{{ $project.DocsURL }}">Docs</a>{{ end }}
+              {{ if $.CanManageProject $project.ID }}<a href="{{ $.ProjectURL $project }}">Manage</a>{{ end }}
+            </div>
           </div>
         </article>
         {{ end }}
       </div>
       {{ else }}
-      <div class="rounded-lg bg-white px-4 py-10 text-center shadow">
-        <p class="text-sm text-gray-600">No visible projects yet.</p>
-        {{ if .CanCreate }}
-        <a href="{{ .ProjectNewURL }}" class="mt-4 inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</a>
-        {{ end }}
+      <div class="hack-empty">
+        <p>No visible projects yet.</p>
+        {{ if .CanCreate }}<a href="{{ .ProjectNewURL }}" class="hack-button hack-button--accent">Create project →</a>{{ end }}
       </div>
       {{ end }}
     </section>
 
+    {{ if .Awards }}
+    <section data-hackathon-tab-panel="awards" class="hack-panel hidden hack-awards" id="awards">
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§03 · Winners</div>
+          <h2>Prize <span class="hack-serif">record.</span></h2>
+        </div>
+        <div class="hack-section__deck">Ranked awards, bounties, and assigned winning projects.</div>
+      </div>
+      <div class="hack-card-grid">
+        {{ range .Awards }}
+        <article class="hack-card hack-award-card">
+          <div class="hack-card__body">
+            <div class="hack-label">★ Award</div>
+            <h3>{{ .Title }}</h3>
+            {{ if .Description }}<div class="hack-card__desc">{{ $.RichText .Description }}</div>{{ end }}
+            {{ $awardees := $.Awardees . }}
+            {{ if $awardees }}
+            <div class="hack-tags">
+              {{ range $awardees }}<a href="#project-{{ .ProjectID }}" class="hack-badge">{{ .ProjectTitle }}</a>{{ end }}
+            </div>
+            {{ end }}
+            {{ $prizes := $.AwardPrizes . }}
+            {{ if $prizes }}
+            <div class="hack-card__links">
+              {{ range $prizes }}
+              <span>{{ .Title }}{{ if .ValueText }} · {{ .ValueText }}{{ end }}</span>
+              {{ end }}
+            </div>
+            {{ end }}
+          </div>
+        </article>
+        {{ end }}
+      </div>
+    </section>
+    {{ end }}
+
     {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}
-    <section data-hackathon-tab-panel="tables" class="hidden">
-      <div class="mb-4 flex items-center justify-between gap-4">
-        <h2 class="text-lg font-semibold text-gray-900">Project tables</h2>
+    <section data-hackathon-tab-panel="tables" class="hack-panel hidden" id="tables">
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§04 · Tables</div>
+          <h2>Find the <span class="hack-serif">projects.</span></h2>
+        </div>
+        <div class="hack-section__deck">Public project table assignments for demos and expo-style review.</div>
       </div>
       {{ if .Projects }}
-      <div class="overflow-hidden rounded-lg bg-white shadow">
-        <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
-          <thead class="bg-gray-50">
+      <div class="hack-table-wrap">
+        <table class="hack-table">
+          <thead>
             <tr>
-              <th scope="col" class="px-3 py-2 font-semibold text-gray-900">Project</th>
-              <th scope="col" class="px-3 py-2 font-semibold text-gray-900">Table</th>
+              <th scope="col">Table</th>
+              <th scope="col">Project</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100 bg-white">
+          <tbody>
             {{ range .Projects }}
             <tr>
-              <td class="px-3 py-1.5">
-                <a href="#project-{{ .ID }}" class="font-medium text-indigo-600 hover:text-indigo-500">{{ .Title }}</a>
-              </td>
-              <td class="whitespace-nowrap px-3 py-1.5 font-mono text-xs text-gray-600">{{ $.ProjectNumberLabel . }}</td>
+              <td>{{ $.ProjectNumberLabel . }}</td>
+              <td><a href="#project-{{ .ID }}">{{ .Title }}</a></td>
             </tr>
             {{ end }}
           </tbody>
         </table>
       </div>
       {{ else }}
-      <div class="rounded-lg bg-white px-4 py-10 text-center shadow">
-        <p class="text-sm text-gray-600">No visible projects yet.</p>
-      </div>
+      <div class="hack-empty"><p>No visible projects yet.</p></div>
       {{ end }}
     </section>
     {{ end }}
@@ -256,12 +285,10 @@
       if (tabs.length === 0 || panels.length === 0) return;
 
       function setTab(name) {
+        const exists = tabs.some(tab => tab.dataset.hackathonTab === name);
+        if (!exists) name = 'projects';
         for (const tab of tabs) {
           const active = tab.dataset.hackathonTab === name;
-          tab.classList.toggle('border-indigo-600', active);
-          tab.classList.toggle('text-indigo-600', active);
-          tab.classList.toggle('border-transparent', !active);
-          tab.classList.toggle('text-gray-500', !active);
           tab.setAttribute('aria-selected', active ? 'true' : 'false');
         }
         for (const panel of panels) {
@@ -270,21 +297,17 @@
       }
 
       function tabFromHash() {
-        if (window.location.hash === '#projects') return 'projects';
+        if (window.location.hash === '#awards') return 'awards';
         if (window.location.hash === '#tables') return 'tables';
         if (window.location.hash.indexOf('#project-') === 0) return 'projects';
-        return 'overview';
+        return 'projects';
       }
 
       for (const tab of tabs) {
         tab.addEventListener('click', function () {
           const name = tab.dataset.hackathonTab;
           setTab(name);
-          if (name === 'overview') {
-            history.replaceState(null, '', window.location.pathname + window.location.search);
-          } else {
-            history.replaceState(null, '', '#' + name);
-          }
+          history.replaceState(null, '', '#' + name);
         });
       }
 
@@ -292,14 +315,11 @@
         setTab(tabFromHash());
         if (window.location.hash.indexOf('#project-') !== 0) return;
         const target = document.getElementById(window.location.hash.slice(1));
-        if (target) target.scrollIntoView({ block: 'start' });
+        if (target) window.setTimeout(() => target.scrollIntoView({ block: 'start' }), 0);
       }
 
       window.addEventListener('hashchange', showHashTarget);
-      setTab(tabFromHash());
-      if (window.location.hash.indexOf('#project-') === 0) {
-        window.setTimeout(showHashTarget, 0);
-      }
+      showHashTarget();
     })();
 
     (function () {

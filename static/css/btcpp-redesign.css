@@ -433,6 +433,97 @@ body.btcpp-rebrand-page {
   color: var(--rebrand-accent);
 }
 
+.btcpp-rebrand-page .conf-hackathon-redesign {
+  border-bottom: 1px solid var(--rebrand-ink);
+  background: var(--rebrand-paper);
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__inner {
+  padding: 72px 56px 88px;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, .55fr);
+  gap: 56px;
+  align-items: end;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign h2 {
+  margin: 0;
+  color: var(--rebrand-ink);
+  font-size: clamp(48px, 6vw, 72px);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: .95;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__summary {
+  margin: 0;
+  color: #333;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: end;
+  margin-top: 40px;
+  padding: 28px 32px;
+  border: 1px solid var(--rebrand-ink);
+  background: var(--rebrand-paper);
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  min-width: 0;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__meta > div {
+  min-width: 0;
+  padding-right: 24px;
+  border-right: 1px solid var(--rebrand-ink);
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__meta > div:last-child {
+  border-right: 0;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__meta > div > span {
+  display: block;
+  color: var(--rebrand-accent);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__meta strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--rebrand-ink);
+  font-size: clamp(20px, 2.2vw, 30px);
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__actions .rebrand-button {
+  padding: 14px 24px;
+}
+
 .rebrand-masthead p {
   margin: 0;
   font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
@@ -3290,6 +3381,28 @@ body.btcpp-rebrand-page {
     grid-row: 1;
     padding: 10px 12px;
     font-size: 11px;
+  }
+
+  .btcpp-rebrand-page .conf-hackathon-redesign__intro,
+  .btcpp-rebrand-page .conf-hackathon-redesign__panel,
+  .btcpp-rebrand-page .conf-hackathon-redesign__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .btcpp-rebrand-page .conf-hackathon-redesign__actions {
+    justify-content: flex-start;
+  }
+
+  .btcpp-rebrand-page .conf-hackathon-redesign__meta > div {
+    padding-right: 0;
+    padding-bottom: 18px;
+    border-right: 0;
+    border-bottom: 1px solid var(--rebrand-ink);
+  }
+
+  .btcpp-rebrand-page .conf-hackathon-redesign__meta > div:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
   }
 
   .rebrand-nav__links {

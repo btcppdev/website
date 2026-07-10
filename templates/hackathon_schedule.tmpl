@@ -4,33 +4,65 @@
   <title>Schedule - {{ .Competition.Title }} - bitcoin++ hackathon</title>
   {{ block "header" . }} {{ end }}
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="hack-redesign">
   {{ block "mainnav" . }} {{ end }}
-  <main class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div>
-        <a href="{{ .HackathonURL }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathon</a>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Schedule</h1>
-        <p class="mt-1 text-sm text-gray-600">{{ .Competition.Title }}</p>
-      </div>
+  <main class="hack-shell">
+    <div class="hack-ticker" aria-label="Hackathon schedule">
+      <span class="hack-ticker__live">▶ Schedule</span>
+      <span>{{ .Competition.Title }}</span>
+      <span>•</span>
+      <span>local browser time</span>
     </div>
 
-    <section class="rounded-lg bg-white shadow">
-      <div class="divide-y divide-gray-100">
-        {{ range .ScheduleEvents }}
-        <div class="grid gap-2 px-4 py-4 sm:grid-cols-3 sm:px-6">
-          <div class="text-sm font-medium text-gray-900">{{ .Label }}</div>
-          <div class="sm:col-span-2 text-sm text-gray-700">
-            {{ if .Time }}
-            <time class="hackathon-schedule-time" datetime="{{ .Time.Format "2006-01-02T15:04:05Z07:00" }}">{{ .Time.Format "2006-01-02 15:04" }}</time>{{ if .End }} - <time class="hackathon-schedule-time" datetime="{{ .End.Format "2006-01-02T15:04:05Z07:00" }}">{{ .End.Format "2006-01-02 15:04" }}</time>{{ end }}
-            {{ else }}
-            TBA
-            {{ end }}
-            {{ if .Venue }}<div class="mt-1 text-xs text-gray-500">{{ .Venue }}</div>{{ end }}
-          </div>
-        </div>
-        {{ end }}
+    <header class="hack-header">
+      <div>
+        <a href="/" class="hack-brand">bitcoin<span>++</span></a>
+        <div class="hack-header__meta">[ {{ .Competition.Title }} · Schedule ]</div>
       </div>
+      <nav class="hack-header__nav" aria-label="Schedule links">
+        <a href="{{ .HackathonURL }}">← hackathon</a>
+      </nav>
+    </header>
+
+    <section class="hack-section">
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§ Schedule</div>
+          <h1 style="margin:0;font-size:clamp(48px,7vw,88px);font-weight:700;line-height:.92;">Hackathon <span class="hack-serif">schedule.</span></h1>
+        </div>
+        <div class="hack-section__deck">Times are shown in your browser timezone.</div>
+      </div>
+
+      {{ if .ScheduleEvents }}
+      <div class="hack-table-wrap">
+        <table class="hack-table">
+          <thead>
+            <tr>
+              <th scope="col">Event</th>
+              <th scope="col">Time</th>
+              <th scope="col">Venue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .ScheduleEvents }}
+            <tr>
+              <td>{{ .Label }}</td>
+              <td>
+                {{ if .Time }}
+                <time class="hackathon-schedule-time" datetime="{{ .Time.Format "2006-01-02T15:04:05Z07:00" }}">{{ .Time.Format "2006-01-02 15:04" }}</time>{{ if .End }} - <time class="hackathon-schedule-time" datetime="{{ .End.Format "2006-01-02T15:04:05Z07:00" }}">{{ .End.Format "2006-01-02 15:04" }}</time>{{ end }}
+                {{ else }}
+                TBA
+                {{ end }}
+              </td>
+              <td>{{ if .Venue }}{{ .Venue }}{{ else }}TBA{{ end }}</td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+      {{ else }}
+      <div class="hack-empty">Schedule details are still being finalized.</div>
+      {{ end }}
     </section>
   </main>
 
