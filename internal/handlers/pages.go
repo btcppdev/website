@@ -75,8 +75,10 @@ type ConfPage struct {
 }
 
 type SuccessPage struct {
-	Conf *types.Conf
-	Year uint
+	Conf      *types.Conf
+	Ticket    *types.Registration
+	Sponsored bool
+	Year      uint
 }
 
 type HomePageData struct {
@@ -128,14 +130,18 @@ type HomeSponsor struct {
 }
 
 type TixFormPage struct {
-	Conf          *types.Conf
-	Tix           *types.ConfTicket
-	TixSlug       string
-	Count         uint
-	TixPrice      uint
-	Discount      string
-	DiscountPrice uint
-	DiscountRef   string
+	Conf            *types.Conf
+	Tix             *types.ConfTicket
+	TixSlug         string
+	Count           uint
+	TixPrice        uint
+	Discount        string
+	DiscountPrice   uint
+	CardPrice       uint
+	CardSurcharge   uint
+	DiscountRef     string
+	TicketKind      string
+	SponsorCheckout bool
 	// AffiliateCode is the silent (`%0`) referral code stashed
 	// from a /{tag}?code= visit. Carried through the form
 	// as a hidden input — the visible Discount field stays empty
@@ -146,7 +152,7 @@ type TixFormPage struct {
 	HMAC          string
 	Err           string
 	Year          uint
-	PaymentMethod string // "btc" or "fiat"
+	PaymentMethod string // "btc" or "card"
 }
 
 type SchedulePage struct {
@@ -836,6 +842,11 @@ type SpeakerRow struct {
 	Company       string
 	OrgLogo       string // bare filename in Spaces sponsors/, "" if unset
 	FeaturedRank  int
+	// FeaturedEligible is true when this speaker has at least one
+	// accepted/scheduled proposal for the conf, which is the set the
+	// public featured-speaker section renders from.
+	FeaturedEligible  bool
+	FeaturedTalkTitle string
 	// Talks on this conf that the speaker is on. One entry per
 	// proposal, with the per-talk status pill source.
 	Talks []*SpeakerRowTalk
@@ -922,15 +933,21 @@ type ProposalAdminPage struct {
 }
 
 type SpeakerAdminPage struct {
-	Conf         *types.Conf
-	Rows         []*SpeakerRow
-	FlashMessage string
+	Conf          *types.Conf
+	Rows          []*SpeakerRow
+	FeaturedSlots []*FeaturedSpeakerSlot
+	FlashMessage  string
 	// IsConfAdmin gates the email composer + send-calendar
 	// buttons. Staff (read-only) see the speaker roster but
 	// can't email or fan out calendar invites.
 	IsConfAdmin  bool
 	Year         uint
 	EmailCompose *EmailComposeData
+}
+
+type FeaturedSpeakerSlot struct {
+	Slot                  int
+	SelectedSpeakerConfID string
 }
 
 type EmailFieldGroup struct {

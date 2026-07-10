@@ -148,6 +148,7 @@
       {{ template "generic_conf_tickets" (dict "Page" $p "LocalTicketBody" $localTicketBody) }}
       {{ template "satellites_section" $p }}
       {{ template "sponsors_section" $p }}
+      {{ template "generic_conf_newsletter" $p }}
     </main>
 
     {{ template "generic_conf_footer" $p }}
@@ -172,7 +173,7 @@
 {{ $page := .Page }}
 <div class="rebrand-ticker__items">
   {{ if $page }}
-    {{ if $page.Tix }}<strong>{{ $page.Tix.Symbol }}{{ $page.Tix.BTC }}{{ $page.Tix.PostSymbol }} {{ $page.Tix.Currency }} BTC / {{ $page.Tix.Symbol }}{{ $page.Tix.USD }}{{ $page.Tix.PostSymbol }} {{ $page.Tix.Currency }} FIAT</strong><b>•</b>{{ end }}
+    {{ if $page.Tix }}<strong>{{ $page.Tix.Symbol }}{{ $page.Tix.StandardPrice }}{{ $page.Tix.PostSymbol }} {{ $page.Tix.Currency }} / CARD {{ $page.Tix.Symbol }}{{ $page.Tix.CardPrice false }}{{ $page.Tix.PostSymbol }}</strong><b>•</b>{{ end }}
     {{ if and $page.Tix (le $page.TixLeft 99) }}<em>{{ $page.TixLeft }} SEATS LEFT</em><b>•</b>{{ end }}
   {{ end }}
   <em>{{ $conf.DateDesc }}</em><b>•</b>
@@ -228,8 +229,9 @@
 <article class="rebrand-featured-card">
   <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
   <div>
-    <p>★ KEYNOTE #{{ printf "%02d" (add .Idx 1) }}</p>
+    <p>★ FEAT #{{ printf "%02d" (add .Idx 1) }}</p>
     <h3>{{ $s.Name }}</h3>
+    {{ if $s.FeaturedTalkTitle }}<strong class="rebrand-featured-card__talk">{{ $s.FeaturedTalkTitle }}</strong>{{ end }}
     {{ if $s.Company }}<span>{{ $s.Company }}</span>{{ end }}
   </div>
 </article>
@@ -246,8 +248,22 @@
     {{ if $s.OrgLogo }}
     <img class="rebrand-speaker-directory-card__logo" loading="lazy" src="{{ spacesURL (printf "sponsors/%s" $s.OrgLogo) }}" alt="{{ if $s.Company }}{{ $s.Company }}{{ else }}{{ $s.Name }}{{ end }} logo">
     {{ end }}
+    {{ template "generic_conf_speaker_links" $s }}
   </div>
 </article>
+{{ end }}
+
+{{ define "generic_conf_speaker_links" }}
+{{ if or .Website .Nostr .Twitter.Handle .Github .Instagram .LinkedIn }}
+<div class="rebrand-speaker-directory-card__links" aria-label="Speaker links">
+  {{ if .Website }}<a href="{{ websiteURL .Website }}" target="_blank" rel="noopener noreferrer">web</a>{{ end }}
+  {{ if .Nostr }}<a href="https://njump.me/{{ .Nostr }}" target="_blank" rel="noopener noreferrer">nostr</a>{{ end }}
+  {{ if .Twitter.Handle }}<a href="{{ .Twitter.Link }}" target="_blank" rel="noopener noreferrer">x.com</a>{{ end }}
+  {{ if .Github }}<a href="{{ githubURL .Github }}" target="_blank" rel="noopener noreferrer">github</a>{{ end }}
+  {{ if .Instagram }}<a href="{{ instagramURL .Instagram }}" target="_blank" rel="noopener noreferrer">instagram</a>{{ end }}
+  {{ if .LinkedIn }}<a href="{{ linkedinURL .LinkedIn }}" target="_blank" rel="noopener noreferrer">linkedin</a>{{ end }}
+</div>
+{{ end }}
 {{ end }}
 
 {{ define "generic_conf_hotels" }}
@@ -516,7 +532,7 @@
       </div>
       <div class="rebrand-tickets__note">
     {{ if $p.Tix }}
-      {{ if eq $p.Tix.USD $p.MaxTix.USD }}
+      {{ if eq $p.Tix.StandardPrice $p.MaxTix.StandardPrice }}
         {{ if le $p.TixLeft 99 }}Only <strong>{{ $p.TixLeft }}</strong> tickets are left.{{ else }}All conference access. One pass for talks, workshops, and side programming.{{ end }}
       {{ else }}
         {{ if showTicketPriceIncreaseDate $conf $p.Tix }}
@@ -537,18 +553,32 @@
     {{ if $p.Tix }}
       <article class="event-redesign-ticket is-featured">
         <div>
-          <p class="event-redesign-ticket__eyebrow">Standard pass</p>
+          <p class="event-redesign-ticket__eyebrow">Pay with bitcoin</p>
           <div class="event-redesign-ticket__price">
-            {{ if and $p.MaxTix (ne $p.MaxTix.BTC $p.Tix.BTC) }}
-            <span class="event-redesign-ticket__compare">{{ $p.Tix.Symbol }}{{ $p.MaxTix.BTC }}{{ $p.Tix.PostSymbol }}</span>
+            {{ if and $p.MaxTix (ne $p.MaxTix.StandardPrice $p.Tix.StandardPrice) }}
+            <span class="event-redesign-ticket__compare">{{ $p.Tix.Symbol }}{{ $p.MaxTix.StandardPrice }}{{ $p.Tix.PostSymbol }}</span>
             {{ end }}
-            <strong>{{ $p.Tix.Symbol }}{{ $p.Tix.BTC }}{{ $p.Tix.PostSymbol }}</strong>
+            <strong>{{ $p.Tix.Symbol }}{{ $p.Tix.StandardPrice }}{{ $p.Tix.PostSymbol }}</strong>
             <span>{{ $p.Tix.Currency }} / ticket</span>
           </div>
-          <p class="event-redesign-ticket__summary">All conference pass for {{ $conf.Desc }}.</p>
+          <p class="event-redesign-ticket__summary">All conference pass for {{ $conf.Desc }}. Lightning or on-chain checkout with no card surcharge.</p>
         </div>
         <div class="event-redesign-ticket__actions">
-          <a href="/tix/{{ $p.Tix.ID }}+default+btc" class="redesign-button">Buy ticket →</a>
+          <a href="/tix/{{ $p.Tix.ID }}/checkout" class="redesign-button">Checkout (BTC) →</a>
+        </div>
+      </article>
+
+      <article class="event-redesign-ticket event-redesign-ticket--card">
+        <div>
+          <p class="event-redesign-ticket__eyebrow">Pay with card</p>
+          <div class="event-redesign-ticket__price">
+            <strong>{{ $p.Tix.Symbol }}{{ $p.Tix.CardPrice false }}{{ $p.Tix.PostSymbol }}</strong>
+            <span>{{ $p.Tix.Currency }} / ticket</span>
+          </div>
+          <p class="event-redesign-ticket__summary">Same all conference pass, processed through Stripe. Includes the payment processor surcharge.</p>
+        </div>
+        <div class="event-redesign-ticket__actions">
+          <a href="/tix/{{ $p.Tix.ID }}/checkout?payment=card" class="redesign-button">Checkout (card) →</a>
         </div>
       </article>
 
@@ -564,7 +594,7 @@
           <p>{{ if .LocalTicketBody }}{{ .LocalTicketBody }}{{ else }}Full conference access at a discounted rate for local attendees and students. Verification may be required at check-in.{{ end }}</p>
         </div>
         <div class="event-redesign-ticket__actions">
-          <a href="/tix/{{ $p.Tix.ID }}+local+btc" class="redesign-button">Use rate →</a>
+          <a href="/tix/{{ $p.Tix.ID }}+local/checkout" class="redesign-button">Use rate →</a>
         </div>
       </article>
       {{ end }}
@@ -604,6 +634,32 @@
 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
   <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
 </svg>
+{{ end }}
+
+{{ define "generic_conf_newsletter" }}
+<section id="newsletter" class="rebrand-newsletter">
+  <div class="rebrand-newsletter__inner">
+    <div>
+      <p class="rebrand-section-label">§06 · Newsletter</p>
+      <h2>Don't miss a <span>thing.</span></h2>
+      <p>Join the list for ticket drops, agenda updates, speaker announcements, and field notes from {{ .Conf.Location }}.</p>
+    </div>
+    <form hx-post="/newsletter/subscribe" hx-target="#newsletter-subscribe-result" hx-swap="innerHTML">
+      <label for="newsletter-email" class="rebrand-newsletter__sr">Email address</label>
+      <input id="newsletter-email"
+        type="email"
+        name="newsletter-email"
+        required
+        placeholder="email@you.dev"
+        autocomplete="email"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false">
+      <button type="submit">Join the list →</button>
+      <div id="newsletter-subscribe-result" class="rebrand-newsletter__result" aria-live="polite"></div>
+    </form>
+  </div>
+</section>
 {{ end }}
 
 {{ define "generic_conf_footer" }}

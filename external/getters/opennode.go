@@ -14,13 +14,17 @@ import (
 
 const CHARGES_ENDPOINT string = "/charges"
 
-func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uint, tix *types.ConfTicket, conf *types.Conf, isLocal bool, count uint, email string, discountRef string, subNewsletter bool) (*types.OpenNodePayment, error) {
+func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uint, tix *types.ConfTicket, conf *types.Conf, ticketKind string, count uint, email string, discountRef string, subNewsletter bool) (*types.OpenNodePayment, error) {
+	if ticketKind == "" {
+		ticketKind = types.TicketTypeGeneral
+	}
 
 	metadata := &types.OpenNodeMetadata{
 		Email:       email,
 		Quantity:    float64(count),
 		ConfRef:     conf.Ref,
-		TixLocal:    isLocal,
+		TixLocal:    ticketKind == types.TicketTypeLocal,
+		TicketKind:  ticketKind,
 		DiscountRef: discountRef,
 		/* We have to save it b/c OpenNode doesnt */
 		Currency:  tix.Currency,
@@ -33,7 +37,7 @@ func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uin
 
 	domain := ctx.Env.GetURI()
 	onReq := &types.OpenNodeRequest{
-		Amount:        float64(tixPrice),
+		Amount:        float64(tixPrice * count),
 		Description:   conf.Desc,
 		Currency:      tix.Currency,
 		CallbackURL:   domain + "/callback/opennode",

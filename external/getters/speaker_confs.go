@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"strings"
 	"time"
@@ -388,6 +389,43 @@ func UpdateSpeakerConf(ctx *config.AppContext, speakerConfID string, in SpeakerC
 	`, args...)
 	if err != nil {
 		return fmt.Errorf("update speaker conf %s: %w", speakerConfID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("speaker conf %s not found", speakerConfID)
+	}
+	return nil
+}
+
+func UpdateSpeakerConfFeaturedRank(ctx *config.AppContext, speakerConfID string, rank int) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	if strings.TrimSpace(speakerConfID) == "" {
+		return fmt.Errorf("UpdateSpeakerConfFeaturedRank: empty speakerConfID")
+	}
+	if rank < 0 || rank > 6 {
+		return fmt.Errorf("featured rank must be between 1 and 6, or blank")
+	}
+
+	var (
+		commandTag pgconn.CommandTag
+		err        error
+	)
+	if rank == 0 {
+		commandTag, err = ctx.DB.Exec(context.Background(), `
+			UPDATE speaker_confs
+			SET featured_rank = NULL
+			WHERE id = $1
+		`, speakerConfID)
+	} else {
+		commandTag, err = ctx.DB.Exec(context.Background(), `
+			UPDATE speaker_confs
+			SET featured_rank = $2
+			WHERE id = $1
+		`, speakerConfID, rank)
+	}
+	if err != nil {
+		return fmt.Errorf("update speaker conf featured rank %s: %w", speakerConfID, err)
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("speaker conf %s not found", speakerConfID)

@@ -63,7 +63,7 @@ func TestShouldNoIndexPath(t *testing.T) {
 		{"/logout", true},
 		{"/invite-speaker/proposal-id", true},
 		{"/ticket/abc", true},
-		{"/tix/ticket+default+fiat", true},
+		{"/tix/ticket/checkout", true},
 		{"/conf/berlin26/success", true},
 		{"/berlin26/admin/applicants", true},
 		{"/berlin26/volcoord", true},

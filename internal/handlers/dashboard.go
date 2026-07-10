@@ -139,15 +139,13 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if satErr != nil {
 		ctx.Err.Printf("/dashboard satellite events failed (continuing): %s", satErr)
 	}
-	// Drop revoked tickets — refunds / chargebacks / admin reversals
-	// stay in the cache for staff reporting but shouldn't show on the
-	// buyer's own dashboard. Filter once here so every downstream
-	// helper (upcomingTickets, buildEventBlocks, ...) sees the
-	// already-clean slice.
+	// Drop revoked tickets and sponsored-builder purchases. Both stay
+	// in the database for staff reporting, but neither is an attendee
+	// admission QR for the buyer dashboard.
 	if len(regs) > 0 {
 		live := regs[:0]
 		for _, r := range regs {
-			if r != nil && !r.Revoked {
+			if r != nil && !r.Revoked && !types.IsSponsoredTicketType(r.Type) {
 				live = append(live, r)
 			}
 		}
@@ -307,7 +305,11 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			default:
 				continue
 			}
-			activeBlocks = append(activeBlocks, &EventBlock{Conf: c, AdminRole: role})
+			activeBlocks = append(activeBlocks, &EventBlock{
+				Conf:      c,
+				CanBuy:    c.Active && c.InFuture(),
+				AdminRole: role,
+			})
 		}
 		// Discover cards filter against activeBlocks via
 		// excludeConfsInBlocks above, so re-run it now that we've
@@ -556,7 +558,7 @@ func attachDashboardAdminRoles(blocks []*EventBlock, id *auth.Identity) {
 
 func attachRegistrationQRCodes(ctx *config.AppContext, regs []*types.Registration) {
 	for _, reg := range regs {
-		if reg == nil || reg.RefID == "" || reg.QRCodeURI != "" {
+		if reg == nil || reg.RefID == "" || reg.QRCodeURI != "" || types.IsSponsoredTicketType(reg.Type) {
 			continue
 		}
 		qr, err := ticketQRCodeURI(ctx, reg.RefID)

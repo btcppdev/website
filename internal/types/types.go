@@ -11,6 +11,16 @@ import (
 	"time"
 )
 
+const (
+	TicketTypeGeneral   = "genpop"
+	TicketTypeLocal     = "local"
+	TicketTypeSponsored = "sponsored"
+)
+
+func IsSponsoredTicketType(ticketType string) bool {
+	return strings.EqualFold(strings.TrimSpace(ticketType), TicketTypeSponsored)
+}
+
 type (
 
 	/* Configs for the app! */
@@ -181,17 +191,19 @@ type (
 	}
 
 	ConfTicket struct {
-		ID         string
-		ConfRef    string
-		Tier       string
-		Local      uint
-		BTC        uint
-		USD        uint
-		Expires    *Times
-		Max        uint
-		Currency   string
-		Symbol     string
-		PostSymbol string
+		ID               string
+		ConfRef          string
+		Tier             string
+		Local            uint
+		BTC              uint
+		USD              uint
+		BasePrice        uint
+		CardSurchargeBPS uint
+		Expires          *Times
+		Max              uint
+		Currency         string
+		Symbol           string
+		PostSymbol       string
 	}
 	ConfTickets []*ConfTicket
 
@@ -229,7 +241,7 @@ type (
 		AffiliateCode string
 		DiscountRef   string
 		HMAC          string
-		PaymentMethod string // "btc" or "fiat"
+		PaymentMethod string // "btc" or "card"
 	}
 
 	DiscountCode struct {
@@ -291,6 +303,9 @@ type (
 		// RecordingEmoji is populated on Talk speaker views from the
 		// per-conf SpeakerConf.RecordOK value. Empty means recording OK.
 		RecordingEmoji string
+		// FeaturedTalkTitle is populated on conference featured speaker
+		// cards from an accepted/scheduled proposal for that event.
+		FeaturedTalkTitle string
 		// Roles drives admin-panel access. Each entry is the raw
 		// multi-select tag from the Speakers DB Roles column —
 		// e.g. "vienna-admin", "global-volcoord". Parsed by the
@@ -1216,6 +1231,50 @@ func ParseShirtSize(str string) (ShirtSize, bool) {
 /* FIXME: make this nicer?? */
 func (c Conf) HasSchedule() bool {
 	return c.Tag == "durham" || c.Tag == "berlin25"
+}
+
+func (t *ConfTicket) StandardPrice() uint {
+	if t == nil {
+		return 0
+	}
+	if t.BasePrice > 0 {
+		return t.BasePrice
+	}
+	if t.BTC > 0 {
+		return t.BTC
+	}
+	return t.USD
+}
+
+func (t *ConfTicket) Price(local bool) uint {
+	if t == nil {
+		return 0
+	}
+	if local && t.Local > 0 {
+		return t.Local
+	}
+	return t.StandardPrice()
+}
+
+func (t *ConfTicket) CardPrice(local bool) uint {
+	price := t.Price(local)
+	if price == 0 {
+		return 0
+	}
+	bps := t.CardSurchargeBPS
+	if bps == 0 {
+		bps = 1000
+	}
+	return uint((uint64(price)*uint64(10000+bps) + 9999) / 10000)
+}
+
+func (t *ConfTicket) CardSurcharge(local bool) uint {
+	card := t.CardPrice(local)
+	base := t.Price(local)
+	if card <= base {
+		return 0
+	}
+	return card - base
 }
 
 /* Functions to sort conference tickets */

@@ -37,8 +37,8 @@
   }{{ if .Tix }},
   "offers": {
     "@type": "Offer",
-    "url": {{ jsonStr (printf "https://btcpp.dev/tix/%s+default+fiat" .Tix.ID) }},
-    "price": {{ .Tix.USD }},
+    "url": {{ jsonStr (printf "https://btcpp.dev/tix/%s/checkout" .Tix.ID) }},
+    "price": {{ .Tix.StandardPrice }},
     "priceCurrency": {{ jsonStr (or .Tix.Currency "USD") }},
     "availability": "https://schema.org/{{ if gt .TixLeft 0 }}InStock{{ else }}SoldOut{{ end }}"
   }{{ end }}{{ if .EventSpeakers }},
