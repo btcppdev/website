@@ -74,6 +74,30 @@ func TestCheckoutQuantityUsesPerTicketDiscountAndSurcharge(t *testing.T) {
 	}
 }
 
+func TestStripePerTicketAmount(t *testing.T) {
+	tests := []struct {
+		name      string
+		lineTotal int64
+		quantity  int64
+		want      []int64
+	}{
+		{"single", 11000, 1, []int64{11000}},
+		{"even split", 33000, 3, []int64{11000, 11000, 11000}},
+		{"distributes cents", 10000, 3, []int64{3334, 3333, 3333}},
+		{"zero quantity fallback", 12345, 0, []int64{12345}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for i, want := range tt.want {
+				if got := stripePerTicketAmount(tt.lineTotal, tt.quantity, int64(i)); got != want {
+					t.Fatalf("stripePerTicketAmount(%d, %d, %d) = %d, want %d", tt.lineTotal, tt.quantity, i, got, want)
+				}
+			}
+		})
+	}
+}
+
 func TestConfTicketCanonicalPrices(t *testing.T) {
 	ticket := &types.ConfTicket{
 		BasePrice:        140,
@@ -90,6 +114,24 @@ func TestConfTicketCanonicalPrices(t *testing.T) {
 	}
 	if got := ticket.CardSurcharge(false); got != 14 {
 		t.Fatalf("CardSurcharge(false) = %d, want 14", got)
+	}
+}
+
+func TestValidateCheckoutDiscountPriceWithoutCode(t *testing.T) {
+	ref, price, err := validateCheckoutDiscountPrice(nil, &types.Conf{Ref: "conf"}, 125, "", 125)
+	if err != nil {
+		t.Fatalf("validateCheckoutDiscountPrice exact price error: %s", err)
+	}
+	if ref != "" || price != 125 {
+		t.Fatalf("validateCheckoutDiscountPrice exact = (%q, %d), want empty ref and 125", ref, price)
+	}
+
+	_, price, err = validateCheckoutDiscountPrice(nil, &types.Conf{Ref: "conf"}, 125, "", 100)
+	if err == nil {
+		t.Fatalf("validateCheckoutDiscountPrice stale price returned nil error")
+	}
+	if price != 125 {
+		t.Fatalf("validateCheckoutDiscountPrice stale price = %d, want 125", price)
 	}
 }
 
