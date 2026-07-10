@@ -7,25 +7,25 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
 </head>
 {{ if eq .TicketType "sponsor" }}
-<body class="h-full bg-red-300">
+<body class="btcpp-admin-page h-full bg-red-300">
 {{ end }}
 {{ if eq .TicketType "genpop" }}
-<body class="h-full bg-blue-600">
+<body class="btcpp-admin-page h-full bg-blue-600">
 {{ end }}
 {{ if eq .TicketType "local" }}
-<body class="h-full bg-blue-300">
+<body class="btcpp-admin-page h-full bg-blue-300">
 {{ end }}
 {{ if eq .TicketType "volunteer" }}
-<body class="h-full bg-green-600">
+<body class="btcpp-admin-page h-full bg-green-600">
 {{ end }}
 {{ if eq .TicketType "speaker" }}
-<body class="h-full bg-orange-300">
+<body class="btcpp-admin-page h-full bg-orange-300">
 {{ end }}
 {{ if eq .TicketType "" }}
   {{ if .NeedsPin }}
-    <body class="h-full">
+    <body class="btcpp-admin-page h-full">
   {{ end }}
-    <body class="h-full bg-red-500">
+    <body class="btcpp-admin-page h-full bg-red-500">
 {{ end }}
 {{ block "mainnav" . }} {{ end }}
 <!-- can i get tailwind to pick up these colors? -->

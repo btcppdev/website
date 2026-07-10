@@ -3,58 +3,33 @@
 <head>
   <title>Run of Show · {{ .Conf.Desc }}</title>
   {{ block "header" . }} {{ end }}
-  <style>
-    @media print {
-      .print\:hidden { display: none !important; }
-      body { background: #fff; }
-      .stage-panel { display: block !important; page-break-before: always; }
-      .stage-panel:first-of-type { page-break-before: auto; }
-      section > div {
-        overflow: visible !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-      }
-      tr { page-break-inside: avoid; }
-      thead { display: table-header-group; }
-      body, table, tr, td {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        color-adjust: exact !important;
-      }
-    }
-  </style>
 </head>
-<body class="bg-gray-50">
-  <div class="print:hidden">{{ block "mainnav" . }} {{ end }}</div>
-  <main class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <h1 class="text-xl font-bold text-gray-900">Run of Show</h1>
-        <p class="text-sm text-gray-500">{{ .Conf.Desc }} &mdash; {{ .Conf.DateDesc }}</p>
+<body class="btcpp-admin-page btcpp-run-of-show-page">
+  <div class="ros-print-hidden">{{ block "mainnav" . }} {{ end }}</div>
+  <main class="ros-shell">
+    <section class="ros-hero">
+      <div class="ros-hero__copy">
+        <div class="dashboard-kicker">§ Run of show</div>
+        <h1>{{ .Conf.ArchiveTitle }}{{ if .Conf.ArchiveEdition }} <span>{{ .Conf.ArchiveEdition }}</span>{{ end }}</h1>
+        <p>{{ .Conf.DateDesc }} · {{ .Conf.Location }}{{ if .Conf.Venue }} · {{ .Conf.Venue }}{{ end }}</p>
       </div>
-      <div class="print:hidden flex items-center gap-2 shrink-0">
-        <button type="button" data-ros-follow-toggle
-                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-          Follow now
-        </button>
-        <button type="button" onclick="window.print()"
-                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-          Print
-        </button>
+      <div class="ros-hero__actions ros-print-hidden">
+        <button type="button" data-ros-follow-toggle>Follow now</button>
+        <button type="button" onclick="window.print()">Print</button>
       </div>
-    </div>
+    </section>
 
     <div id="ros-content">
       {{ if not .Stages }}
-      <div class="mt-8 bg-white shadow rounded-lg px-4 py-5 sm:p-6 text-center text-gray-500">
+      <section class="ros-empty">
         Nothing scheduled yet.
-      </div>
+      </section>
       {{ else }}
-      <div class="print:hidden mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Stages">
+      <div class="ros-stage-tabs ros-print-hidden" role="tablist" aria-label="Stages">
         {{ range $i, $stage := .Stages }}
         <a href="#{{ $stage.Venue.Tag }}"
-                data-stage-tab="{{ $stage.Venue.Tag }}"
-                class="stage-tab rounded-md border px-3 py-1.5 text-sm font-semibold {{ if eq $i 0 }}border-gray-900 bg-gray-900 text-white{{ else }}border-gray-300 bg-white text-gray-700 hover:bg-gray-50{{ end }}">
+           data-stage-tab="{{ $stage.Venue.Tag }}"
+           class="stage-tab {{ if eq $i 0 }}is-active{{ end }}">
           {{ $stage.Venue.Label }}
         </a>
         {{ end }}
@@ -62,63 +37,59 @@
 
       {{ range $i, $stage := .Stages }}
       <div id="{{ $stage.Venue.Tag }}" data-stage-panel="{{ $stage.Venue.Tag }}" class="stage-panel {{ if ne $i 0 }}hidden{{ end }}">
-        <h2 class="mt-8 text-lg font-semibold text-gray-900">{{ $stage.Venue.Label }}</h2>
+        <header class="ros-stage-head">
+          <h2>{{ $stage.Venue.Label }}</h2>
+        </header>
         {{ range $stage.Days }}
-        <section class="mt-5">
-        <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500">
-          {{ if le .Idx 0 }}Setup · {{ end }}{{ .Date.Format "Mon, Jan 2" }}
-        </h3>
-        <div class="mt-2 bg-white shadow rounded-lg overflow-hidden">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+        <section class="ros-day">
+        <h3>{{ if le .Idx 0 }}Setup · {{ end }}{{ .Date.Format "Mon, Jan 2" }}</h3>
+        <div class="ros-table-wrap">
+          <table class="ros-table">
+            <thead>
               <tr>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Time</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Media</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">What</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Who</th>
+                <th class="ros-col-time">Time</th>
+                <th class="ros-col-media">Media</th>
+                <th>What</th>
+                <th>Who</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100">
+            <tbody>
               {{ range .Rows }}
               {{ if .NowMarkerBefore }}
               <tr class="ros-now-marker ros-current-target">
-                <td colspan="4" class="px-4 py-1 bg-green-50 text-green-800">
-                  <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
-                    <span class="h-px flex-1 bg-green-300"></span>
-                    <span>Now</span>
-                    <span class="h-px flex-1 bg-green-300"></span>
-                  </div>
+                <td colspan="4">
+                  <div><span></span><strong>Now</strong><span></span></div>
                 </td>
               </tr>
               {{ end }}
-              <tr class="{{ if .IsCurrent }}ros-current-target bg-green-50 ring-2 ring-inset ring-green-400{{ else if eq .Kind "info" }}bg-amber-50{{ end }}">
-                <td class="px-4 py-2 text-sm text-gray-700 font-mono whitespace-nowrap align-top">
+              <tr class="ros-row {{ if .IsCurrent }}ros-current-target is-current{{ else if eq .Kind "info" }}is-info{{ end }}">
+                <td class="ros-time" data-label="Time">
                   {{ if and .Adjusted (eq .Kind "talk") }}
-                  <div class="text-xs text-gray-400">was <span class="line-through">{{ formatTime .OriginalStart }}</span></div>
+                  <div class="ros-was">was <span>{{ formatTime .OriginalStart }}</span></div>
                   {{ end }}
                   <div>{{ formatTime .Start }}</div>
-                  {{ if .Adjusted }}<div class="mt-1 text-[10px] font-semibold uppercase tracking-wider text-green-700">updated · {{ signedMinutes .DelayMinutes }}</div>{{ end }}
-                  {{ if .IsCurrent }}<div class="mt-1 inline-flex rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-800">Now</div>{{ end }}
+                  {{ if .Adjusted }}<div class="ros-updated">updated · {{ signedMinutes .DelayMinutes }}</div>{{ end }}
+                  {{ if .IsCurrent }}<div class="ros-now-pill">Now</div>{{ end }}
                 </td>
-                <td class="px-4 py-2 align-top">
+                <td class="ros-media {{ if not (and (eq .Kind "talk") .MediaURL) }}is-empty{{ end }}" data-label="Media">
                   {{ if and (eq .Kind "talk") .MediaURL }}
-                  <a href="{{ .MediaURL }}" target="_blank" rel="noopener noreferrer" class="block w-24 overflow-hidden rounded border border-gray-200 bg-gray-100">
+                  <a href="{{ .MediaURL }}" target="_blank" rel="noopener noreferrer">
                     <picture>
                       {{ if .MediaAVIFURL }}<source srcset="{{ .MediaAVIFURL }}" type="image/avif">{{ end }}
-                      <img src="{{ .MediaURL }}" alt="" loading="lazy" class="aspect-video w-full object-cover">
+                      <img src="{{ .MediaURL }}" alt="" loading="lazy">
                     </picture>
                   </a>
                   {{ end }}
                 </td>
-                <td class="px-4 py-2 text-sm text-gray-900 align-top">
-                  {{ if eq .Kind "talk" }}<span class="font-semibold">{{ .What }}</span>{{ else }}{{ .What }}{{ end }}
+                <td class="ros-what" data-label="What">
+                  {{ if eq .Kind "talk" }}<strong>{{ .What }}</strong>{{ else }}{{ .What }}{{ end }}
                 </td>
-                <td class="px-4 py-2 text-sm text-gray-700 align-top">
+                <td class="ros-who" data-label="Who">
                   {{ if .Who }}<div>{{ .Who }}</div>{{ end }}
                   {{ if .Crew }}
-                  <div class="{{ if .Who }}mt-1 {{ end }}space-y-0.5 text-xs leading-5">
+                  <div class="ros-crew">
                     {{ range .Crew }}
-                    <div><span class="font-semibold text-gray-500 uppercase tracking-wide">{{ .Label }}:</span> <span class="text-gray-800">{{ .Names }}</span></div>
+                    <div><span>{{ .Label }}:</span> {{ .Names }}</div>
                     {{ end }}
                   </div>
                   {{ end }}
@@ -127,12 +98,8 @@
               {{ end }}
               {{ if .NowMarkerAfter }}
               <tr class="ros-now-marker ros-current-target">
-                <td colspan="4" class="px-4 py-1 bg-green-50 text-green-800">
-                  <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
-                    <span class="h-px flex-1 bg-green-300"></span>
-                    <span>Now</span>
-                    <span class="h-px flex-1 bg-green-300"></span>
-                  </div>
+                <td colspan="4">
+                  <div><span></span><strong>Now</strong><span></span></div>
                 </td>
               </tr>
               {{ end }}
@@ -146,6 +113,7 @@
       {{ end }}
     </div>
   </main>
+  <div class="ros-print-hidden">{{ block "footer" . }} {{ end }}</div>
 
   <script>
     (function () {
@@ -167,12 +135,7 @@
         }
         tabs.forEach(function (btn) {
           var selected = btn.dataset.stageTab === active;
-          btn.classList.toggle('border-gray-900', selected);
-          btn.classList.toggle('bg-gray-900', selected);
-          btn.classList.toggle('text-white', selected);
-          btn.classList.toggle('border-gray-300', !selected);
-          btn.classList.toggle('bg-white', !selected);
-          btn.classList.toggle('text-gray-700', !selected);
+          btn.classList.toggle('is-active', selected);
         });
         panels.forEach(function (panel) {
           panel.classList.toggle('hidden', panel.dataset.stagePanel !== active);
@@ -220,12 +183,7 @@
           return;
         }
         followBtn.textContent = follow ? 'Following now' : 'Follow now';
-        followBtn.classList.toggle('border-green-600', follow);
-        followBtn.classList.toggle('bg-green-50', follow);
-        followBtn.classList.toggle('text-green-800', follow);
-        followBtn.classList.toggle('border-gray-300', !follow);
-        followBtn.classList.toggle('bg-white', !follow);
-        followBtn.classList.toggle('text-gray-700', !follow);
+        followBtn.classList.toggle('is-following', follow);
       }
       window.rosFollowNow = function () {
         if (!follow) {
