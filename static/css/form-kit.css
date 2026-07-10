@@ -260,6 +260,8 @@ body.btcpp-form-page {
 
 .btcpp-form-page .btcpp-form-panel {
   max-width: 760px;
+  padding-right: 18px;
+  box-sizing: border-box;
 }
 
 .btcpp-form-page .btcpp-form-heading::before,
@@ -649,6 +651,10 @@ body.btcpp-form-page {
 @media (max-width: 900px) {
   .btcpp-form-page .btcpp-form-layout {
     display: block;
+  }
+
+  .btcpp-form-page .btcpp-form-panel {
+    padding-right: 0;
   }
 
   .btcpp-form-page form.btcpp-form-kit,

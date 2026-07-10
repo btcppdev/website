@@ -26,10 +26,19 @@ type EventDetailsPage struct {
 	FlashMessage string
 	Days         []*EventDetailsDay
 	Venues       []string
+	Tickets      []*EventDetailsTicket
 	StartInput   string
 	EndInput     string
 	NextDay      int
 	Year         uint
+}
+
+type EventDetailsTicket struct {
+	Ticket        *types.ConfTicket
+	ExpiresStart  string
+	ExpiresEnd    string
+	CardPrice     uint
+	CardSurcharge uint
 }
 
 type EventDetailsDay struct {
@@ -156,11 +165,31 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 	}
 	sort.Strings(venues)
 
+	tickets := make([]*EventDetailsTicket, 0, len(conf.Tickets))
+	for _, ticket := range conf.Tickets {
+		if ticket == nil {
+			continue
+		}
+		row := &EventDetailsTicket{
+			Ticket:        ticket,
+			CardPrice:     ticket.CardPrice(false),
+			CardSurcharge: ticket.CardSurcharge(false),
+		}
+		if ticket.Expires != nil {
+			row.ExpiresStart = datetimeLocalInput(ticket.Expires.Start)
+			if ticket.Expires.End != nil {
+				row.ExpiresEnd = datetimeLocalInput(*ticket.Expires.End)
+			}
+		}
+		tickets = append(tickets, row)
+	}
+
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/event_details.tmpl", &EventDetailsPage{
 		Conf:         conf,
 		FlashMessage: r.URL.Query().Get("flash"),
 		Days:         days,
 		Venues:       venues,
+		Tickets:      tickets,
 		StartInput:   datetimeLocalInput(conf.StartDate),
 		EndInput:     datetimeLocalInput(conf.EndDate),
 		NextDay:      nextDay,
@@ -296,6 +325,87 @@ func GlobalAdminUpdateConfInfo(w http.ResponseWriter, r *http.Request, ctx *conf
 	redirectEventDetails(w, r, conf, "Venue schedule updated.")
 }
 
+func GlobalAdminUpdateConfTicket(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+
+	basePrice, err := parseUintFormValue(r.FormValue("base_price"))
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Base price must be a non-negative whole number.")
+		return
+	}
+	localPrice, err := parseUintFormValue(r.FormValue("local_price"))
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Local price must be a non-negative whole number.")
+		return
+	}
+	cardSurchargeBPS, err := parseUintFormValue(r.FormValue("card_surcharge_bps"))
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Card surcharge must be a non-negative basis-point value.")
+		return
+	}
+	maxCount, err := parseUintFormValue(r.FormValue("max_count"))
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Max count must be a non-negative whole number.")
+		return
+	}
+
+	loc := conf.Loc()
+	expiresStart, err := parseOptionalDatetimeLocal(r.FormValue("expires_start"), loc)
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Invalid ticket start date.")
+		return
+	}
+	expiresEnd, err := parseOptionalDatetimeLocal(r.FormValue("expires_end"), loc)
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Invalid ticket end date.")
+		return
+	}
+	if expiresStart != nil && expiresEnd != nil && expiresEnd.Before(*expiresStart) {
+		redirectEventDetails(w, r, conf, "Ticket end date must be after ticket start date.")
+		return
+	}
+
+	in := getters.ConfTicketInput{
+		ID:               strings.TrimSpace(r.FormValue("ticket_id")),
+		Tier:             strings.TrimSpace(r.FormValue("tier")),
+		LocalPrice:       localPrice,
+		BasePrice:        basePrice,
+		CardSurchargeBPS: cardSurchargeBPS,
+		Max:              maxCount,
+		Currency:         strings.ToUpper(strings.TrimSpace(r.FormValue("currency"))),
+		Symbol:           strings.TrimSpace(r.FormValue("symbol")),
+		PostSymbol:       strings.TrimSpace(r.FormValue("post_symbol")),
+		ExpiresStart:     expiresStart,
+		ExpiresEnd:       expiresEnd,
+	}
+	if in.Tier == "" {
+		redirectEventDetails(w, r, conf, "Ticket tier is required.")
+		return
+	}
+	if in.Currency == "" {
+		redirectEventDetails(w, r, conf, "Ticket currency is required.")
+		return
+	}
+	if err := getters.UpdateConfTicket(ctx, conf.Ref, in); err != nil {
+		ctx.Err.Printf("/%s/admin/details/ticket update failed: %s", conf.Tag, err)
+		redirectEventDetails(w, r, conf, "Could not update ticket pricing.")
+		return
+	}
+	redirectEventDetails(w, r, conf, "Ticket pricing updated.")
+}
+
 func GlobalAdminUpdateConfState(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
@@ -339,6 +449,18 @@ func parseOptionalFloat(raw string) float64 {
 		return 0
 	}
 	return v
+}
+
+func parseUintFormValue(raw string) (uint, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	return uint(value), nil
 }
 
 func normalizeMapLabelSide(raw string) string {

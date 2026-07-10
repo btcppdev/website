@@ -27,6 +27,40 @@
             </section>
             {{ end }}
 
+            {{ if and .Rows .IsConfAdmin }}
+            <section id="featured-speakers" class="mb-6">
+                <form method="POST" action="/{{ .Conf.Tag }}/admin/speakers/featured" class="bg-white shadow rounded-lg px-4 py-5 sm:p-6">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-900">Featured speakers</h2>
+                            <p class="text-sm text-gray-500">Choose up to six accepted or scheduled speakers for the public event page.</p>
+                        </div>
+                        <button type="submit" class="mt-3 inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 sm:mt-0">
+                            Save featured lineup
+                        </button>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {{ range .FeaturedSlots }}
+                        {{ $slot := . }}
+                        <label class="block rounded-md border border-gray-200 bg-gray-50 p-3">
+                            <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Slot {{ .Slot }}</span>
+                            <select name="featured_slot_{{ .Slot }}" class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-2 focus:outline-bitcoin">
+                                <option value="">No featured speaker</option>
+                                {{ range $.Rows }}
+                                {{ if and .FeaturedEligible .SpeakerConfID }}
+                                <option value="{{ .SpeakerConfID }}" {{ if eq .SpeakerConfID $slot.SelectedSpeakerConfID }}selected{{ end }}>
+                                    {{ .Name }}{{ if .FeaturedTalkTitle }} - {{ .FeaturedTalkTitle }}{{ end }}
+                                </option>
+                                {{ end }}
+                                {{ end }}
+                            </select>
+                        </label>
+                        {{ end }}
+                    </div>
+                </form>
+            </section>
+            {{ end }}
+
             <section id="controls" class="mb-6">
                 <div class="bg-white shadow rounded-lg px-4 py-4 sm:px-6">
                     <div class="flex items-center gap-2">

@@ -153,6 +153,15 @@ func loadTemplates(ctx *config.AppContext) error {
 		"instagramURL": func(s string) template.URL {
 			return template.URL(instagramURL(s))
 		},
+		"githubURL": func(s string) template.URL {
+			return template.URL(profileURL(s, "github.com"))
+		},
+		"linkedinURL": func(s string) template.URL {
+			return template.URL(profileURL(s, "linkedin.com/in"))
+		},
+		"websiteURL": func(s string) template.URL {
+			return template.URL(websiteURL(s))
+		},
 		"confImage": func(tag, base string) template.URL {
 			return template.URL(confImagePath(tag, base))
 		},
@@ -184,6 +193,12 @@ func loadTemplates(ctx *config.AppContext) error {
 			return a / b
 		},
 		"sub": func(a, b int) int {
+			return a - b
+		},
+		"usub": func(a, b uint) uint {
+			if b >= a {
+				return 0
+			}
 			return a - b
 		},
 		"add": func(a, b int) int {
@@ -501,38 +516,45 @@ func findTicket(app *config.AppContext, tixID string) (*types.ConfTicket, *types
 	return nil, nil
 }
 
-func determineTixPrice(ctx *config.AppContext, tixSlug string) (*types.Conf, *types.ConfTicket, uint, bool, error) {
-
+func determineTixKind(tixSlug string) (string, string, error) {
 	tixParts := strings.Split(tixSlug, "+")
-	if len(tixParts) != 3 {
-		return nil, nil, 0, false, fmt.Errorf("not enough ticket parts?? needed 3. %s", tixSlug)
+	if len(tixParts) != 1 && len(tixParts) != 2 {
+		return "", "", fmt.Errorf("invalid ticket slug %s", tixSlug)
 	}
+	if len(tixParts) == 1 {
+		return tixParts[0], types.TicketTypeGeneral, nil
+	}
+	switch tixParts[1] {
+	case types.TicketTypeLocal:
+		return tixParts[0], types.TicketTypeLocal, nil
+	case "sponsor", types.TicketTypeSponsored:
+		return tixParts[0], types.TicketTypeSponsored, nil
+	default:
+		return "", "", fmt.Errorf("type %s is not supported", tixParts[1])
+	}
+}
 
-	tix, conf := findTicket(ctx, tixParts[0])
+func determineTixSelection(ctx *config.AppContext, tixSlug string) (*types.Conf, *types.ConfTicket, string, error) {
+	tixID, ticketKind, err := determineTixKind(tixSlug)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	tix, conf := findTicket(ctx, tixID)
 	if tix == nil {
-		return nil, nil, 0, false, fmt.Errorf("Unable to find tix %s", tixParts[0])
+		return nil, nil, "", fmt.Errorf("Unable to find tix %s", tixID)
 	}
-	tixTypeOpts := []string{"default", "local"}
-	if !contains(tixTypeOpts, tixParts[1]) {
-		return nil, nil, 0, false, fmt.Errorf("type %s not in list %v", tixParts[1], tixTypeOpts)
-	}
-	isLocal := tixParts[1] == "local"
+	return conf, tix, ticketKind, nil
+}
 
-	currencyTypeOpts := []string{"btc", "fiat"}
-	if !contains(currencyTypeOpts, tixParts[2]) {
-		return nil, nil, 0, false, fmt.Errorf("type %s not in list %v", tixParts[2], currencyTypeOpts)
+func determineTixPrice(ctx *config.AppContext, tixSlug string) (*types.Conf, *types.ConfTicket, uint, string, error) {
+	conf, tix, ticketKind, err := determineTixSelection(ctx, tixSlug)
+	if err != nil {
+		return nil, nil, 0, "", err
 	}
-	if tixParts[2] == "btc" {
-		if isLocal {
-			return conf, tix, tix.Local, true, nil
-		}
-		return conf, tix, tix.BTC, true, nil
+	if ticketKind == types.TicketTypeLocal {
+		return conf, tix, tix.Price(true), ticketKind, nil
 	}
-
-	if isLocal {
-		return conf, tix, tix.Local, false, nil
-	}
-	return conf, tix, tix.USD, false, nil
+	return conf, tix, tix.Price(false), ticketKind, nil
 }
 
 /* Find ticket where current sold + date > inputs */
@@ -567,7 +589,7 @@ func findMaxTix(conf *types.Conf) *types.ConfTicket {
 
 	maxTix := tixs[0]
 	for _, tix := range tixs {
-		if tix.USD > maxTix.USD {
+		if tix.StandardPrice() > maxTix.StandardPrice() {
 			maxTix = tix
 		}
 	}
@@ -845,9 +867,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/tix/{tix}/apply-discount", func(w http.ResponseWriter, r *http.Request) {
 		HandleDiscount(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/tix/{tix}", func(w http.ResponseWriter, r *http.Request) {
-		HandleTixSelection(w, r, app)
-	}).Methods("GET")
 	r.HandleFunc("/conf-reload", func(w http.ResponseWriter, r *http.Request) {
 		ReloadConf(w, r, app)
 	}).Methods("GET")
@@ -1274,6 +1293,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		SpeakerAdmin(w, r, app)
 	}).Methods("GET")
 
+	r.HandleFunc("/{conf}/admin/speakers/featured", func(w http.ResponseWriter, r *http.Request) {
+		SpeakerAdminFeatured(w, r, app)
+	}).Methods("POST")
+
 	r.HandleFunc("/{conf}/admin/speakers/new", func(w http.ResponseWriter, r *http.Request) {
 		SpeakerAdminNew(w, r, app)
 	}).Methods("GET", "POST")
@@ -1324,6 +1347,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/details/confinfo", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminUpdateConfInfo(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/details/ticket", func(w http.ResponseWriter, r *http.Request) {
+		GlobalAdminUpdateConfTicket(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/state", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminUpdateConfState(w, r, app)
@@ -1593,6 +1619,10 @@ func discountSessionKey(confTag string) string {
 // gets credit.
 func affiliateSessionKey(confTag string) string {
 	return "aff:" + confTag
+}
+
+func checkoutEmailSessionKey(confTag string) string {
+	return "checkout-email:" + confTag
 }
 
 // affiliateMath returns (saved, earned) for one checkout. Inputs +
@@ -1951,6 +1981,7 @@ func splitFeaturedSpeakersForConf(ctx *config.AppContext, confTag string, speake
 			if sc.OrgPhoto != "" {
 				view.OrgLogo = sc.OrgPhoto
 			}
+			view.FeaturedTalkTitle = strings.TrimSpace(proposal.Title)
 			seenFeatured[sc.Speaker.ID] = true
 			candidates = append(candidates, featuredSpeakerCandidate{
 				rank:    sc.FeaturedRank,
@@ -2066,10 +2097,61 @@ func RenderConfSuccess(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	// stay put.
 	ctx.Session.Remove(r.Context(), discountSessionKey(conf.Tag))
 	ctx.Session.Remove(r.Context(), affiliateSessionKey(conf.Tag))
+	var ticket *types.Registration
+	sponsored := false
+	attachQR := func(reg *types.Registration) *types.Registration {
+		if reg == nil || reg.Revoked || reg.ConfRef != conf.Ref {
+			return nil
+		}
+		if types.IsSponsoredTicketType(reg.Type) {
+			sponsored = true
+			return nil
+		}
+		if reg.QRCodeURI == "" {
+			qr, err := ticketQRCodeURI(ctx, reg.RefID)
+			if err != nil {
+				ctx.Err.Printf("/%s/success ticket qr %s: %s", conf.Tag, reg.RefID, err)
+			} else {
+				reg.QRCodeURI = qr
+			}
+		}
+		return reg
+	}
+
+	checkoutID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	if checkoutID != "" {
+		regs, err := getters.ListRegistrationsByCheckoutID(ctx, checkoutID)
+		if err != nil {
+			ctx.Err.Printf("/%s/success checkout lookup %s: %s", conf.Tag, checkoutID, err)
+		}
+		for _, reg := range regs {
+			if ticket = attachQR(reg); ticket != nil {
+				break
+			}
+		}
+	}
+
+	email := ctx.Session.GetString(r.Context(), checkoutEmailSessionKey(conf.Tag))
+	if ticket == nil && email != "" {
+		regs, err := getters.ListRegistrationsByEmail(ctx, email)
+		if err != nil {
+			ctx.Err.Printf("/%s/success ticket lookup %s: %s", conf.Tag, email, err)
+		}
+		for _, reg := range regs {
+			if ticket = attachQR(reg); ticket != nil {
+				break
+			}
+		}
+	}
+	if ticket != nil {
+		ctx.Session.Remove(r.Context(), checkoutEmailSessionKey(conf.Tag))
+	}
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "success.tmpl", &SuccessPage{
-		Conf: conf,
-		Year: helpers.CurrentYear(),
+		Conf:      conf,
+		Ticket:    ticket,
+		Sponsored: sponsored,
+		Year:      helpers.CurrentYear(),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -2228,6 +2310,50 @@ func instagramURL(raw string) string {
 	}
 
 	return "https://www.instagram.com/" + raw
+}
+
+func profileURL(raw string, hostPath string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	lower := strings.ToLower(raw)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return raw
+	}
+	raw = strings.TrimPrefix(raw, "@")
+	raw = strings.Trim(raw, " /")
+	if raw == "" {
+		return ""
+	}
+	hostPath = strings.Trim(hostPath, "/")
+	prefixes := []string{hostPath + "/", "www." + hostPath + "/"}
+	if slash := strings.Index(hostPath, "/"); slash > 0 {
+		host := hostPath[:slash]
+		prefixes = append(prefixes, host+"/", "www."+host+"/")
+	}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(strings.ToLower(raw), prefix) {
+			raw = strings.Trim(raw[len(prefix):], " /")
+			break
+		}
+	}
+	if raw == "" {
+		return ""
+	}
+	return "https://" + hostPath + "/" + raw
+}
+
+func websiteURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	lower := strings.ToLower(raw)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return raw
+	}
+	return "https://" + strings.TrimLeft(raw, "/")
 }
 
 func isSVG(raw []byte) bool {
@@ -3731,13 +3857,19 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 
-	tixType := "genpop"
-	if charge.Metadata.TixLocal {
-		tixType = "local"
+	tixType := types.TicketTypeGeneral
+	if charge.Metadata.TicketKind != "" {
+		tixType = charge.Metadata.TicketKind
+	} else if charge.Metadata.TixLocal {
+		tixType = types.TicketTypeLocal
+	}
+	itemTotal := int64(charge.FiatVal * 100)
+	if charge.Metadata.Quantity > 0 {
+		itemTotal = itemTotal / int64(charge.Metadata.Quantity)
 	}
 	for i := 0; i < int(charge.Metadata.Quantity); i++ {
 		item := types.Item{
-			Total: int64(charge.FiatVal * 100),
+			Total: itemTotal,
 			Desc:  charge.Description,
 			Type:  tixType,
 		}
@@ -3771,12 +3903,13 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	err = missives.NewTicketSub(ctx, entry.Email, conf.Tag, tixType, charge.Metadata.Subscribe)
-
-	if err != nil {
-		ctx.Err.Printf("!!! Unable to subscribe to newsletter %s: %v", err, entry)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	if !types.IsSponsoredTicketType(tixType) {
+		err = missives.NewTicketSub(ctx, entry.Email, conf.Tag, tixType, charge.Metadata.Subscribe)
+		if err != nil {
+			ctx.Err.Printf("!!! Unable to subscribe to newsletter %s: %v", err, entry)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Increment discount usage counter
@@ -3796,22 +3929,24 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandleTixSelection(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	params := mux.Vars(r)
-	tixSlug := params["tix"]
-
-	if tixSlug == "" {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
-
-	// Both fiat and btc go to the same checkout page
-	http.Redirect(w, r, fmt.Sprintf("/tix/%s/checkout", tixSlug), http.StatusSeeOther)
-}
-
 func getPrice(pricestr string) (uint, error) {
 	price, err := strconv.ParseUint(pricestr, 10, 32)
 	return uint(price), err
+}
+
+func checkoutDefaultPaymentMethod(r *http.Request) string {
+	if r == nil {
+		return "btc"
+	}
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("payment"))) {
+	case "card", "fiat", "stripe":
+		return "card"
+	}
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("pay"))) {
+	case "card", "fiat", "stripe":
+		return "card"
+	}
+	return "btc"
 }
 
 func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -3825,6 +3960,10 @@ func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	}
 	discountCode := r.Form.Get("Discount")
 	affiliateCode := r.Form.Get("AffiliateCode")
+	count, err := getPrice(r.Form.Get("Count"))
+	if err != nil || count < 1 {
+		count = 1
+	}
 	discountPrice, err := getPrice(r.Form.Get("DiscountPrice"))
 	if err != nil {
 		ctx.Err.Printf("/tix/%s/apply-discount massively blew up: %s", tixSlug, err)
@@ -3837,11 +3976,11 @@ func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
-	conf, tix, tixPrice, _, err := determineTixPrice(ctx, tixSlug)
+	conf, tix, tixPrice, ticketKind, err := determineTixPrice(ctx, tixSlug)
 	if err != nil {
 		/* FIXME: have this return an error message, not a status code error */
 		ctx.Err.Printf("/tix/%s/apply-discount unable to determine tix price: %s", tixSlug, err)
-		w.WriteHeader(http.StatusInternalServerError)
+		http.NotFound(w, r)
 		return
 	}
 
@@ -3875,18 +4014,22 @@ func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 	w.Header().Set("Content-Type", "text/html")
 	err = ctx.TemplateCache.ExecuteTemplate(w, "tix_details.tmpl", &TixFormPage{
-		Conf:          conf,
-		Tix:           tix,
-		TixSlug:       tixSlug,
-		TixPrice:      tixPrice,
-		Discount:      discountCode,
-		AffiliateCode: affiliateCode,
-		DiscountPrice: discountPrice,
-		DiscountRef:   discountRef,
-		Err:           errStr,
-		HMAC:          calcTixHMAC(ctx, conf, tixPrice, discountPrice, effectiveCode),
-		Count:         uint(1),
-		Year:          helpers.CurrentYear(),
+		Conf:            conf,
+		Tix:             tix,
+		TixSlug:         tixSlug,
+		TixPrice:        tixPrice,
+		Discount:        discountCode,
+		AffiliateCode:   affiliateCode,
+		DiscountPrice:   discountPrice,
+		CardPrice:       cardSurchargePrice(discountPrice, tix.CardSurchargeBPS),
+		CardSurcharge:   cardSurchargePrice(discountPrice, tix.CardSurchargeBPS) - discountPrice,
+		DiscountRef:     discountRef,
+		TicketKind:      ticketKind,
+		SponsorCheckout: ticketKind == types.TicketTypeSponsored,
+		Err:             errStr,
+		HMAC:            calcTixHMAC(ctx, conf, tixPrice, discountPrice, effectiveCode),
+		Count:           count,
+		Year:            helpers.CurrentYear(),
 	})
 
 	if err != nil {
@@ -3905,17 +4048,11 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
-	conf, tix, tixPrice, processBTC, err := determineTixPrice(ctx, tixSlug)
+	conf, tix, tixPrice, ticketKind, err := determineTixPrice(ctx, tixSlug)
 	if err != nil {
 		ctx.Err.Printf("/tix/%s/checkout unable to determine tix price: %s", tixSlug, err)
-		w.WriteHeader(http.StatusInternalServerError)
+		http.NotFound(w, r)
 		return
-	}
-
-	// Determine payment method from the slug
-	paymentMethod := "fiat"
-	if processBTC {
-		paymentMethod = "btc"
 	}
 
 	switch r.Method {
@@ -3973,19 +4110,23 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			}
 		}
 		err = ctx.TemplateCache.ExecuteTemplate(w, "collect-email.tmpl", &TixFormPage{
-			Conf:          conf,
-			Tix:           tix,
-			TixSlug:       tixSlug,
-			TixPrice:      tixPrice,
-			Discount:      discountCode,
-			AffiliateCode: affiliateCode,
-			DiscountPrice: discountPrice,
-			DiscountRef:   discountRef,
-			Err:           errStr,
-			HMAC:          calcTixHMAC(ctx, conf, tixPrice, discountPrice, effective),
-			Count:         uint(1),
-			Year:          helpers.CurrentYear(),
-			PaymentMethod: paymentMethod,
+			Conf:            conf,
+			Tix:             tix,
+			TixSlug:         tixSlug,
+			TixPrice:        tixPrice,
+			Discount:        discountCode,
+			AffiliateCode:   affiliateCode,
+			DiscountPrice:   discountPrice,
+			CardPrice:       cardSurchargePrice(discountPrice, tix.CardSurchargeBPS),
+			CardSurcharge:   cardSurchargePrice(discountPrice, tix.CardSurchargeBPS) - discountPrice,
+			DiscountRef:     discountRef,
+			TicketKind:      ticketKind,
+			SponsorCheckout: ticketKind == types.TicketTypeSponsored,
+			Err:             errStr,
+			HMAC:            calcTixHMAC(ctx, conf, tixPrice, discountPrice, effective),
+			Count:           uint(1),
+			Year:            helpers.CurrentYear(),
+			PaymentMethod:   checkoutDefaultPaymentMethod(r),
 		})
 		if err != nil {
 			http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -4049,12 +4190,13 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		// downstream Stripe metadata + entry.DiscountRef agree.
 		form.Discount = effectiveCode
 
-		isLocal := tixPrice == tix.Local
+		ctx.Session.Put(r.Context(), checkoutEmailSessionKey(conf.Tag), strings.ToLower(strings.TrimSpace(form.Email)))
 
-		if form.PaymentMethod == "btc" {
-			OpenNodeInit(w, r, ctx, conf, tix, form.DiscountPrice, tixPrice, &form, isLocal)
+		if form.PaymentMethod == "card" {
+			cardPrice := cardSurchargePrice(form.DiscountPrice, tix.CardSurchargeBPS)
+			StripeInitWithDiscount(w, r, ctx, conf, tix, cardPrice, tixPrice, form.DiscountPrice, &form, ticketKind)
 		} else {
-			StripeInitWithDiscount(w, r, ctx, conf, tix, form.DiscountPrice, tixPrice, &form, isLocal)
+			OpenNodeInit(w, r, ctx, conf, tix, form.DiscountPrice, tixPrice, &form, ticketKind)
 		}
 		return
 	default:
@@ -4063,8 +4205,8 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	}
 }
 
-func OpenNodeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice uint, tixForm *types.TixForm, isLocal bool) {
-	payment, err := getters.InitOpenNodeCheckout(ctx, tixPrice, preDiscountPrice, tix, conf, isLocal, tixForm.Count, tixForm.Email, tixForm.DiscountRef, tixForm.Subscribe)
+func OpenNodeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice uint, tixForm *types.TixForm, ticketKind string) {
+	payment, err := getters.InitOpenNodeCheckout(ctx, tixPrice, preDiscountPrice, tix, conf, ticketKind, tixForm.Count, tixForm.Email, tixForm.DiscountRef, tixForm.Subscribe)
 
 	if err != nil {
 		http.Error(w, "unable to init btc payment", http.StatusInternalServerError)
@@ -4077,7 +4219,20 @@ func OpenNodeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 	http.Redirect(w, r, payment.HostedCheckoutURL, http.StatusSeeOther)
 }
 
-func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice uint, form *types.TixForm, isLocal bool) {
+func cardSurchargePrice(basePrice, surchargeBPS uint) uint {
+	if basePrice == 0 {
+		return 0
+	}
+	if surchargeBPS == 0 {
+		surchargeBPS = 1000
+	}
+	return uint((uint64(basePrice)*uint64(10000+surchargeBPS) + 9999) / 10000)
+}
+
+func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice, discountedBasePrice uint, form *types.TixForm, ticketKind string) {
+	if ticketKind == "" {
+		ticketKind = types.TicketTypeGeneral
+	}
 	domain := ctx.Env.GetURI()
 	priceAsCents := int64(tixPrice * 100)
 	confDesc := fmt.Sprintf("%d ticket(s) for %s", form.Count, conf.Desc)
@@ -4093,7 +4248,11 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 	// the buyer selected, NOT the `tixPrice` arg, because callers pass
 	// tixPrice = form.DiscountPrice (the *post*-discount value).
 	metadata["pre-discount-cents"] = strconv.FormatInt(int64(preDiscountPrice)*100, 10)
-	if isLocal {
+	metadata["discounted-base-cents"] = strconv.FormatInt(int64(discountedBasePrice)*100, 10)
+	metadata["card-surcharge-cents"] = strconv.FormatInt((int64(tixPrice)-int64(discountedBasePrice))*100, 10)
+	metadata["payment-method"] = "card"
+	metadata["ticket-kind"] = ticketKind
+	if ticketKind == types.TicketTypeLocal {
 		metadata["tix-local"] = "yes"
 	}
 	params := &stripe.CheckoutSessionParams{
@@ -4113,7 +4272,7 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 			}},
 		Metadata:     metadata,
 		Mode:         stripe.String(string(stripe.CheckoutSessionModePayment)),
-		SuccessURL:   stripe.String(domain + "/" + conf.Tag + "/success"),
+		SuccessURL:   stripe.String(domain + "/" + conf.Tag + "/success?session_id={CHECKOUT_SESSION_ID}"),
 		CancelURL:    stripe.String(domain + "/" + conf.Tag),
 		AutomaticTax: &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(true)},
 	}
@@ -4157,7 +4316,7 @@ func StripeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 			}},
 		Metadata:            metadata,
 		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
-		SuccessURL:          stripe.String(domain + "/" + conf.Tag + "/success"),
+		SuccessURL:          stripe.String(domain + "/" + conf.Tag + "/success?session_id={CHECKOUT_SESSION_ID}"),
 		CancelURL:           stripe.String(domain + "/" + conf.Tag),
 		AutomaticTax:        &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(true)},
 		AllowPromotionCodes: stripe.Bool(true),
@@ -4236,12 +4395,13 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			Session: stripe.String(checkout.ID),
 		}
 
-		_, isLocal := checkout.Metadata["tix-local"]
-		var tixType string
-		if isLocal {
-			tixType = "local"
-		} else {
-			tixType = "genpop"
+		tixType := checkout.Metadata["ticket-kind"]
+		if tixType == "" {
+			if _, isLocal := checkout.Metadata["tix-local"]; isLocal {
+				tixType = types.TicketTypeLocal
+			} else {
+				tixType = types.TicketTypeGeneral
+			}
 		}
 		items := session.ListLineItems(itemParams)
 		for items.Next() {
@@ -4284,16 +4444,21 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			if err != nil {
 				ctx.Err.Printf("Failed to increment discount uses: %s", err)
 			}
-			recordAffiliateUsageFromCheckout(ctx, conf, &entry, checkout.Metadata["pre-discount-cents"])
+			affiliateEntry := entry
+			if discountedBaseCents, err := strconv.ParseInt(strings.TrimSpace(checkout.Metadata["discounted-base-cents"]), 10, 64); err == nil && discountedBaseCents > 0 {
+				affiliateEntry.Total = discountedBaseCents * int64(len(entry.Items))
+			}
+			recordAffiliateUsageFromCheckout(ctx, conf, &affiliateEntry, checkout.Metadata["pre-discount-cents"])
 		}
 
 		/* Add to mailing list + send mails */
-		err = missives.NewTicketSub(ctx, entry.Email, conf.Tag, tixType, false)
-
-		if err != nil {
-			ctx.Err.Printf("!!! Unable to subscribe to newsletter %s: %v", err, entry)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
+		if !types.IsSponsoredTicketType(tixType) {
+			err = missives.NewTicketSub(ctx, entry.Email, conf.Tag, tixType, false)
+			if err != nil {
+				ctx.Err.Printf("!!! Unable to subscribe to newsletter %s: %v", err, entry)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
 
 	default:
@@ -6615,25 +6780,11 @@ func AdminGifts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 }
 
-func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id := requireConfStaff(w, r, ctx)
-	if id == nil {
-		return
-	}
-
-	conf, err := helpers.FindConf(r, ctx)
-	if err != nil {
-		handle404(w, r, ctx)
-		return
-	}
-
+func speakerAdminRows(ctx *config.AppContext, conf *types.Conf) ([]*SpeakerRow, error) {
 	// Iterate Proposals (filtered to this conf) so each row carries
-	// the proposal IDs directly — Talk struct doesn't expose the
-	// underlying Proposal.ID, and the admin edit-talk route needs
-	// it. Each SpeakerConf on a proposal contributes one (speaker,
-	// talk) pair; first-seen also pulls per-conf overrides from the
-	// SpeakerConf (ComingFrom, Company, OrgPhoto override the
-	// Speaker-level values).
+	// the proposal IDs directly. Each SpeakerConf on a proposal
+	// contributes one (speaker, talk) pair; first-seen also pulls
+	// per-conf overrides from the SpeakerConf.
 	proposals := loadConfProposals(ctx, conf)
 	rowByID := make(map[string]*SpeakerRow)
 	for _, p := range proposals {
@@ -6672,6 +6823,12 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 				Title:      p.Title,
 				Status:     p.Status,
 			})
+			if p.Status == StatusAccepted || p.Status == StatusScheduled {
+				row.FeaturedEligible = true
+				if row.FeaturedTalkTitle == "" {
+					row.FeaturedTalkTitle = p.Title
+				}
+			}
 			if mostAdvancedProposalStatus(p.Status, row.MostAdvancedStatus) == p.Status {
 				row.MostAdvancedStatus = p.Status
 			}
@@ -6681,9 +6838,7 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 			if row.CardURL == "" {
 				ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
 				if err != nil {
-					ctx.Err.Printf("/%s/speakers conftalk %s: %s", conf.Tag, p.ID, err)
-					http.Error(w, "Unable to load speakers", http.StatusInternalServerError)
-					return
+					return nil, fmt.Errorf("conftalk %s: %w", p.ID, err)
 				}
 				if ct != nil {
 					row.Scheduled = true
@@ -6695,10 +6850,7 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 	rows := make([]*SpeakerRow, 0, len(rowByID))
 	for _, r := range rowByID {
 		// Mark speakers whose only attachments are soft statuses
-		// so the page-level filter can collapse them. Zero-talk
-		// rows stay onlySoft=false — they're a distinct edge
-		// case (admin-imported but unattached) that we surface
-		// separately via the "No talks attached" tag.
+		// so the page-level filter can collapse them.
 		if len(r.Talks) > 0 {
 			allSoft := true
 			for _, t := range r.Talks {
@@ -6715,13 +6867,49 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 	sort.SliceStable(rows, func(i, j int) bool {
 		return rows[i].Name < rows[j].Name
 	})
+	return rows, nil
+}
+
+func featuredSpeakerSlots(rows []*SpeakerRow) []*FeaturedSpeakerSlot {
+	slots := make([]*FeaturedSpeakerSlot, 6)
+	for i := range slots {
+		slots[i] = &FeaturedSpeakerSlot{Slot: i + 1}
+	}
+	for _, row := range rows {
+		if row == nil || row.FeaturedRank < 1 || row.FeaturedRank > 6 {
+			continue
+		}
+		slots[row.FeaturedRank-1].SelectedSpeakerConfID = row.SpeakerConfID
+	}
+	return slots
+}
+
+func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireConfStaff(w, r, ctx)
+	if id == nil {
+		return
+	}
+
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+
+	rows, err := speakerAdminRows(ctx, conf)
+	if err != nil {
+		ctx.Err.Printf("/%s/speakers load rows: %s", conf.Tag, err)
+		http.Error(w, "Unable to load speakers", http.StatusInternalServerError)
+		return
+	}
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "talks/speakers.tmpl", &SpeakerAdminPage{
-		Conf:         conf,
-		Rows:         rows,
-		FlashMessage: r.URL.Query().Get("flash"),
-		IsConfAdmin:  id.HasRoleForConf(conf.Tag, auth.RoleAdmin),
-		Year:         helpers.CurrentYear(),
+		Conf:          conf,
+		Rows:          rows,
+		FeaturedSlots: featuredSpeakerSlots(rows),
+		FlashMessage:  r.URL.Query().Get("flash"),
+		IsConfAdmin:   id.HasRoleForConf(conf.Tag, auth.RoleAdmin),
+		Year:          helpers.CurrentYear(),
 		EmailCompose: &EmailComposeData{
 			Title:            "Email Selected Speakers",
 			Description:      "Write a one-off email to speakers. Uses Go template syntax.",
@@ -6738,6 +6926,77 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/talks/speakers template failed: %s", err.Error())
 	}
+}
+
+func SpeakerAdminFeatured(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape("Unable to read featured speaker form.")), http.StatusSeeOther)
+		return
+	}
+
+	rows, err := speakerAdminRows(ctx, conf)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/speakers/featured load rows: %s", conf.Tag, err)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape("Unable to load speakers.")), http.StatusSeeOther)
+		return
+	}
+
+	allSpeakerConfs := make(map[string]bool, len(rows))
+	eligibleSpeakerConfs := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		if row == nil || row.SpeakerConfID == "" {
+			continue
+		}
+		allSpeakerConfs[row.SpeakerConfID] = true
+		if row.FeaturedEligible {
+			eligibleSpeakerConfs[row.SpeakerConfID] = true
+		}
+	}
+
+	selectedBySlot := make(map[int]string, 6)
+	seen := map[string]int{}
+	for slot := 1; slot <= 6; slot++ {
+		field := fmt.Sprintf("featured_slot_%d", slot)
+		speakerConfID := strings.TrimSpace(r.PostForm.Get(field))
+		if speakerConfID == "" {
+			continue
+		}
+		if !eligibleSpeakerConfs[speakerConfID] {
+			http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape("Featured speakers must have an accepted or scheduled proposal for this event.")), http.StatusSeeOther)
+			return
+		}
+		if prevSlot, ok := seen[speakerConfID]; ok {
+			http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape(fmt.Sprintf("The same speaker is selected for slots %d and %d.", prevSlot, slot))), http.StatusSeeOther)
+			return
+		}
+		seen[speakerConfID] = slot
+		selectedBySlot[slot] = speakerConfID
+	}
+
+	for speakerConfID := range allSpeakerConfs {
+		if err := getters.UpdateSpeakerConfFeaturedRank(ctx, speakerConfID, 0); err != nil {
+			ctx.Err.Printf("/%s/admin/speakers/featured clear %s: %s", conf.Tag, speakerConfID, err)
+			http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape("Unable to clear existing featured speakers.")), http.StatusSeeOther)
+			return
+		}
+	}
+	for slot, speakerConfID := range selectedBySlot {
+		if err := getters.UpdateSpeakerConfFeaturedRank(ctx, speakerConfID, slot); err != nil {
+			ctx.Err.Printf("/%s/admin/speakers/featured set %s -> %d: %s", conf.Tag, speakerConfID, slot, err)
+			http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape("Unable to save featured speaker slots.")), http.StatusSeeOther)
+			return
+		}
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape("Featured speakers updated.")), http.StatusSeeOther)
 }
 
 func mostAdvancedProposalStatus(a, b string) string {

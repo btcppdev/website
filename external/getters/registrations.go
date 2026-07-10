@@ -95,6 +95,9 @@ func FetchBtcppRegistrations(ctx *config.AppContext, activeOnly bool) ([]*types.
 		if r.RefID == "" {
 			continue
 		}
+		if types.IsSponsoredTicketType(r.Type) {
+			continue
+		}
 
 		if activeOnly && !checkActive(ctx, r.ConfRef) {
 			continue
@@ -126,6 +129,9 @@ func CheckIn(ctx *config.AppContext, ticket string) (string, bool, error) {
 	}
 	if revoked {
 		return "", true, fmt.Errorf("Ticket was revoked")
+	}
+	if types.IsSponsoredTicketType(ticketType) {
+		return "", true, fmt.Errorf("Sponsored builder passes must be distributed before check-in")
 	}
 	if checkedInAt.Valid {
 		return "", true, fmt.Errorf("Already checked in")
@@ -162,6 +168,7 @@ func BulkCheckInRegistrations(ctx *config.AppContext, confRef string, emails []s
 			AND lower(email::text) = ANY($2::text[])
 			AND checked_in_at IS NULL
 			AND revoked = false
+			AND lower(type) <> 'sponsored'
 	`, confRef, clean)
 	if err != nil {
 		return 0, fmt.Errorf("bulk check in registrations: %w", err)
@@ -178,6 +185,8 @@ func SoldTixCount(ctx *config.AppContext, confRef string) (uint, error) {
 		SELECT count(*)
 		FROM registrations
 		WHERE conference_id = $1::uuid
+			AND lower(type) <> 'sponsored'
+			AND revoked = false
 	`, confRef).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count registrations: %w", err)
@@ -194,6 +203,13 @@ func ListRegistrationsByEmail(ctx *config.AppContext, email string) ([]*types.Re
 		return nil, nil
 	}
 	return queryRegistrationsPostgres(ctx, "email", email)
+}
+
+func ListRegistrationsByCheckoutID(ctx *config.AppContext, checkoutID string) ([]*types.Registration, error) {
+	if strings.TrimSpace(checkoutID) == "" {
+		return nil, nil
+	}
+	return queryRegistrationsPostgres(ctx, "checkout", checkoutID)
 }
 
 func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value string) ([]*types.Registration, error) {
@@ -215,6 +231,9 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 		}
 	case "email":
 		sql += " WHERE r.email = $1"
+		args = append(args, value)
+	case "checkout":
+		sql += " WHERE r.checkout_id = $1"
 		args = append(args, value)
 	default:
 		return nil, fmt.Errorf("unknown registrations filter %q", filter)

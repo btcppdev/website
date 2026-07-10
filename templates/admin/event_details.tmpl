@@ -206,6 +206,69 @@
     <section class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-4">
       <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Ticket pricing</h2>
+          <p class="mt-1 text-sm text-gray-600">Base price is the bitcoin checkout price. Card checkout adds the surcharge in basis points. Local price controls the student/local rate; set it to 0 to hide that option.</p>
+        </div>
+        <p class="text-xs text-gray-500">{{ len .Tickets }} ticket tier{{ if ne (len .Tickets) 1 }}s{{ end }}</p>
+      </div>
+
+      <div class="mt-4 space-y-4">
+        {{ range .Tickets }}
+        <form method="POST" action="/{{ $.Conf.Tag }}/admin/details/ticket" class="rounded-md border border-gray-100 bg-gray-50 px-3 py-3">
+          <input type="hidden" name="ticket_id" value="{{ .Ticket.ID }}">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-sm font-semibold text-gray-900">{{ .Ticket.Tier }}</h3>
+              <p class="mt-0.5 text-xs text-gray-500">
+                BTC {{ .Ticket.Symbol }}{{ .Ticket.StandardPrice }}{{ .Ticket.PostSymbol }}
+                · card {{ .Ticket.Symbol }}{{ .CardPrice }}{{ .Ticket.PostSymbol }}
+                · surcharge {{ .Ticket.Symbol }}{{ .CardSurcharge }}{{ .Ticket.PostSymbol }}
+              </p>
+            </div>
+            <button type="submit" class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-gray-800">Save ticket</button>
+          </div>
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Tier label
+              <input type="text" name="tier" value="{{ .Ticket.Tier }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Base price
+              <input type="number" min="0" step="1" name="base_price" value="{{ .Ticket.StandardPrice }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Local/student price
+              <input type="number" min="0" step="1" name="local_price" value="{{ .Ticket.Local }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Currency
+              <input type="text" name="currency" value="{{ .Ticket.Currency }}" placeholder="USD" class="mt-1 block w-full rounded-md border-gray-300 text-sm uppercase tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Card surcharge BPS
+              <input type="number" min="0" step="1" name="card_surcharge_bps" value="{{ .Ticket.CardSurchargeBPS }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Symbol prefix
+              <input type="text" name="symbol" value="{{ .Ticket.Symbol }}" placeholder="$" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Symbol suffix
+              <input type="text" name="post_symbol" value="{{ .Ticket.PostSymbol }}" placeholder=" USD" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Max count
+              <input type="number" min="0" step="1" name="max_count" value="{{ .Ticket.Max }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Checkout opens
+              <input type="datetime-local" name="expires_start" value="{{ .ExpiresStart }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Checkout closes
+              <input type="datetime-local" name="expires_end" value="{{ .ExpiresEnd }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+          </div>
+        </form>
+        {{ else }}
+        <p class="text-sm text-amber-700">No ticket tiers found for this event.</p>
+        {{ end }}
+      </div>
+    </section>
+
+    <section class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-4">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
           <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Venue schedule</h2>
           <p class="mt-1 text-sm text-gray-600">{{ len .Days }} day{{ if ne (len .Days) 1 }}s{{ end }} · {{ len .Venues }} unique stage{{ if ne (len .Venues) 1 }}s{{ end }}</p>
         </div>

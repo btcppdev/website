@@ -191,35 +191,20 @@
       {{ if .Tix }}
       <div class="relative isolate bg-white pb-24 px-6 sm:pb-32 lg:px-16">
         <div class="mx-auto max-w-4xl lg:max-w-7xl">
-          <div class="isolate mx-auto mt-16 grid max-w-md grid-cols-1 gap-y-8 sm:mt-20 lg:mx-0 lg:max-w-none lg:grid-cols-2">
-            <div class="flex flex-col justify-between rounded-3xl bg-white p-8 ring-1 ring-gray-200 xl:p-10 lg:z-10 lg:rounded-b-none">
+          <div class="isolate mx-auto mt-16 grid max-w-md grid-cols-1 gap-y-8 sm:mt-20">
+            <div class="flex flex-col justify-between rounded-3xl bg-white p-8 ring-1 ring-gray-200 xl:p-10">
               <div>
-                <h3 id="tier-bitcoin" class="text-base font-semibold leading-7 text-bitcoin">Pay with Bitcoin</h3>
+                <h3 id="tier-ticket" class="text-base font-semibold leading-7 text-bitcoin">Standard Pass</h3>
                 <p class="mt-4 flex items-baseline gap-x-2">
-                  {{ if and .MaxTix (ne .MaxTix.BTC .Tix.BTC) }}
-                  <span class="line-through text-3xl font-bold tracking-tight text-gray-300">{{ .Tix.Symbol }}{{ .MaxTix.BTC }} {{ .Tix.Currency }}</span>
+                  {{ if and .MaxTix (ne .MaxTix.StandardPrice .Tix.StandardPrice) }}
+                  <span class="line-through text-3xl font-bold tracking-tight text-gray-300">{{ .Tix.Symbol }}{{ .MaxTix.StandardPrice }} {{ .Tix.Currency }}</span>
                   {{ end }}
-                  <span class="text-3xl font-bold tracking-tight text-gray-900">{{ .Tix.Symbol }}{{ .Tix.BTC }} {{ .Tix.Currency }}</span>
+                  <span class="text-3xl font-bold tracking-tight text-gray-900">{{ .Tix.Symbol }}{{ .Tix.StandardPrice }} {{ .Tix.Currency }}</span>
                   <span class="text-base text-gray-500">/ticket</span>
                 </p>
-                <p class="mt-6 text-base leading-7 text-gray-600">Spend bitcoin, save money, and exercise the OpenNode checkout path locally.</p>
+                <p class="mt-6 text-base leading-7 text-gray-600">Pay this price with bitcoin, or {{ .Tix.Symbol }}{{ .Tix.CardPrice false }} {{ .Tix.Currency }} by card after the payment processor surcharge.</p>
               </div>
-              <a href="/tix/{{ .Tix.ID }}+default+btc" aria-describedby="tier-bitcoin" class="mt-8 block rounded-md py-2.5 px-3.5 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:mt-10 bg-bitcoin" style="background: #FF8A00">{{ block "btcbutton" . }} {{ end }}</a>
-            </div>
-
-            <div class="flex flex-col justify-between rounded-3xl bg-white p-8 ring-1 ring-gray-200 xl:p-10 lg:mt-8 lg:rounded-l-none">
-              <div>
-                <h3 id="tier-fiat" class="text-base font-semibold leading-7 {{ .Conf.Tag }}-color">Pay with Fiat</h3>
-                <p class="mt-4 flex items-baseline gap-x-2">
-                  {{ if and .MaxTix (ne .MaxTix.USD .Tix.USD) }}
-                  <span class="line-through text-3xl font-bold tracking-tight text-gray-300">{{ .Tix.Symbol }}{{ .MaxTix.USD }} {{ .Tix.Currency }}</span>
-                  {{ end }}
-                  <span class="text-3xl font-bold tracking-tight text-gray-900">{{ .Tix.Symbol }}{{ .Tix.USD }} {{ .Tix.Currency }}</span>
-                  <span class="text-base text-gray-500">/ticket</span>
-                </p>
-                <p class="mt-6 text-base leading-7 text-gray-600">Get your <span class="font-bitcoin">bitcoin++</span> ticket using the Stripe checkout path.</p>
-              </div>
-              <a href="/tix/{{ .Tix.ID }}+default+fiat" aria-describedby="tier-fiat" class="mt-8 block rounded-md py-2.5 px-3.5 text-center text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:mt-10 {{ .Conf.Tag }}">Checkout</a>
+              <a href="/tix/{{ .Tix.ID }}/checkout" aria-describedby="tier-ticket" class="mt-8 block rounded-md py-2.5 px-3.5 text-center font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 sm:mt-10 bg-bitcoin" style="background: #FF8A00">Checkout</a>
             </div>
           </div>
         </div>

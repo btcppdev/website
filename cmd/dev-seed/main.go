@@ -35,6 +35,7 @@ const (
 	devVolInfoID            = "00000000-0000-4000-8000-000000000041"
 	devHomepagePerson7ID    = "00000000-0000-4000-8000-000000000042"
 	devHomepagePerson8ID    = "00000000-0000-4000-8000-000000000043"
+	devVolLoginMissiveID    = "00000000-0000-4000-8000-000000000044"
 )
 
 type daySeed struct {
@@ -475,12 +476,42 @@ func main() {
 	seedSatelliteEvents(ctx, tx, confID)
 	seedHomepageFeaturedSpeakers(ctx, tx)
 	seedDashboardFixtures(ctx, tx, confID, pastConfID)
+	seedMissives(ctx, tx)
 
 	if err := tx.Commit(ctx); err != nil {
 		log.Fatal(err)
 	}
 
 	log.Printf("seeded local dev conferences and dashboard fixture for dev-admin@example.test")
+}
+
+func seedMissives(ctx context.Context, tx pgx.Tx) {
+	markdown := `Hi,
+
+Use this secure link to sign in to your bitcoin++ account:
+
+[Sign in to bitcoin++]({{ .VolShiftLink }})
+
+If you did not ask for this link, you can ignore this email.
+
+— bitcoin++`
+
+	mustExec(ctx, tx, "seed vollogin missive", `
+		INSERT INTO missives (
+			id, public_uid, title, newsletters, only_for, markdown, send_at_expr, expiry
+		)
+		VALUES (
+			$1::uuid, 260044, 'Your bitcoin++ sign-in link', '{}'::text[], 'vollogin', $2, '', NULL
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			public_uid = EXCLUDED.public_uid,
+			title = EXCLUDED.title,
+			newsletters = EXCLUDED.newsletters,
+			only_for = EXCLUDED.only_for,
+			markdown = EXCLUDED.markdown,
+			send_at_expr = EXCLUDED.send_at_expr,
+			expiry = EXCLUDED.expiry
+	`, devVolLoginMissiveID, markdown)
 }
 
 func seedConference(ctx context.Context, tx pgx.Tx) string {
@@ -754,17 +785,19 @@ func seedTickets(ctx context.Context, tx pgx.Tx, confID string) {
 		mustExec(ctx, tx, "seed ticket", `
 			INSERT INTO conference_tickets (
 				id, conference_id, ticket_key, tier, local_price, btc_price, usd_price,
-				expires_start, max_count, currency, symbol, post_symbol
+				base_price, card_surcharge_bps, expires_start, max_count, currency, symbol, post_symbol
 			)
 			VALUES (
 				$1::uuid, $2::uuid, $3, $4, $5, $6, $7,
-				$8::timestamptz, $9, $10, $11, $12
+				$6, 1000, $8::timestamptz, $9, $10, $11, $12
 			)
 			ON CONFLICT (conference_id, ticket_key) DO UPDATE SET
 				tier = EXCLUDED.tier,
 				local_price = EXCLUDED.local_price,
 				btc_price = EXCLUDED.btc_price,
 				usd_price = EXCLUDED.usd_price,
+				base_price = EXCLUDED.base_price,
+				card_surcharge_bps = EXCLUDED.card_surcharge_bps,
 				expires_start = EXCLUDED.expires_start,
 				max_count = EXCLUDED.max_count,
 				currency = EXCLUDED.currency,

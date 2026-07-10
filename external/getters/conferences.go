@@ -46,6 +46,20 @@ type ConfDetailsInput struct {
 	MapLabelSide    string
 }
 
+type ConfTicketInput struct {
+	ID               string
+	Tier             string
+	LocalPrice       uint
+	BasePrice        uint
+	CardSurchargeBPS uint
+	Max              uint
+	Currency         string
+	Symbol           string
+	PostSymbol       string
+	ExpiresStart     *time.Time
+	ExpiresEnd       *time.Time
+}
+
 func ListConfs(ctx *config.AppContext) ([]*types.Conf, error) {
 	confs, err := queryConferencesOnlyPostgres(ctx, "conferences", "", nil)
 	if err != nil {
@@ -264,8 +278,17 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
+	basePriceSelect := "CASE WHEN btc_price > 0 THEN btc_price ELSE usd_price END AS base_price"
+	if postgresColumnExists(ctx, "conference_tickets", "base_price") {
+		basePriceSelect = "base_price"
+	}
+	cardSurchargeSelect := "1000 AS card_surcharge_bps"
+	if postgresColumnExists(ctx, "conference_tickets", "card_surcharge_bps") {
+		cardSurchargeSelect = "card_surcharge_bps"
+	}
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, conference_id::text, tier, local_price, btc_price, usd_price,
+			`+basePriceSelect+`, `+cardSurchargeSelect+`,
 			expires_start, expires_end, max_count, currency, symbol, post_symbol
 		FROM conference_tickets
 		`+whereSQL+`
@@ -281,7 +304,7 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 		var ticket types.ConfTicket
 		var expiresStart pgtype.Timestamptz
 		var expiresEnd pgtype.Timestamptz
-		var localPrice, btcPrice, usdPrice, maxCount int64
+		var localPrice, btcPrice, usdPrice, basePrice, cardSurchargeBPS, maxCount int64
 		err := rows.Scan(
 			&ticket.ID,
 			&ticket.ConfRef,
@@ -289,6 +312,8 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 			&localPrice,
 			&btcPrice,
 			&usdPrice,
+			&basePrice,
+			&cardSurchargeBPS,
 			&expiresStart,
 			&expiresEnd,
 			&maxCount,
@@ -302,6 +327,8 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 		ticket.Local = uint(localPrice)
 		ticket.BTC = uint(btcPrice)
 		ticket.USD = uint(usdPrice)
+		ticket.BasePrice = uint(basePrice)
+		ticket.CardSurchargeBPS = uint(cardSurchargeBPS)
 		ticket.Max = uint(maxCount)
 		ticket.Expires = &types.Times{}
 		if expiresStart.Valid {
@@ -458,6 +485,40 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 		`, confRef); err != nil {
 			return fmt.Errorf("update conference %s active lifecycle: %w", confRef, err)
 		}
+	}
+	return nil
+}
+
+func UpdateConfTicket(ctx *config.AppContext, confRef string, in ConfTicketInput) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	if in.ID == "" {
+		return fmt.Errorf("ticket id is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE conference_tickets
+		SET tier = $3,
+			local_price = $4,
+			base_price = $5,
+			card_surcharge_bps = $6,
+			max_count = $7,
+			currency = $8,
+			symbol = $9,
+			post_symbol = $10,
+			expires_start = $11,
+			expires_end = $12,
+			btc_price = $5,
+			usd_price = $5
+		WHERE id = $1::uuid
+		  AND conference_id = $2::uuid
+	`, in.ID, confRef, in.Tier, int64(in.LocalPrice), int64(in.BasePrice), int64(in.CardSurchargeBPS),
+		int64(in.Max), in.Currency, in.Symbol, in.PostSymbol, in.ExpiresStart, in.ExpiresEnd)
+	if err != nil {
+		return fmt.Errorf("update conference ticket %s: %w", in.ID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("conference ticket %s not found", in.ID)
 	}
 	return nil
 }

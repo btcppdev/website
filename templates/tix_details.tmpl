@@ -1,21 +1,39 @@
-<div id="discount_result" name="hidden_stuffs">
-  {{ if ne .TixPrice .DiscountPrice }}
-  <div class="text-gray-300 mt-4 mb-2"> 
-    <span class="font-semibold">{{ .Discount }}</span> Applied! Ticket is now <span class="text-orange-300 font-semibold">${{ .DiscountPrice }}USD</span> <span class="line-through">${{ .TixPrice }}USD</span>
+<div id="discount_result" name="hidden_stuffs" class="checkout-summary">
+  <div class="checkout-summary__lines">
+    <div>
+      <span>{{ if .SponsorCheckout }}Sponsor a builder{{ else }}{{ .Tix.Tier }}{{ end }} · {{ .Count }} {{ if .SponsorCheckout }}pass{{ else }}ticket{{ end }}{{ if ne .Count 1 }}s{{ end }}</span>
+      <strong>{{ .Tix.Symbol }}{{ .TixPrice }}{{ .Tix.PostSymbol }} ea</strong>
+    </div>
+    {{ if ne .TixPrice .DiscountPrice }}
+    <div class="is-discount">
+      <span>{{ .Discount }} applied</span>
+      <strong>-{{ .Tix.Symbol }}{{ usub .TixPrice .DiscountPrice }}{{ .Tix.PostSymbol }}</strong>
+    </div>
+    {{ end }}
+    <div class="is-total">
+      <span>Bitcoin price</span>
+      <strong>{{ .Tix.Symbol }}{{ .DiscountPrice }}{{ .Tix.PostSymbol }} ea</strong>
+    </div>
+    <div>
+      <span>Card surcharge</span>
+      <strong>{{ .Tix.Symbol }}{{ .CardSurcharge }}{{ .Tix.PostSymbol }}</strong>
+    </div>
+    <div class="is-card">
+      <span>Card price</span>
+      <strong>{{ .Tix.Symbol }}{{ .CardPrice }}{{ .Tix.PostSymbol }} ea</strong>
+    </div>
   </div>
-  {{ end }}
+
   {{ if .Err }}
     {{ if .Discount }}
-  <div class="text-red-300 mt-4 mb-2"> 
-   {{ .Err}}
-  </div>
+  <div class="checkout-summary__error">{{ .Err }}</div>
     {{ end }}
   {{ end }}
-  <input class="rounded-md" type="hidden" name="Tix" value="{{ .Tix }}" required>
-  <input class="rounded-md" type="hidden" name="HMAC" value="{{ .HMAC }}" required>
-  <input class="rounded-md" type="hidden" name="TixPrice" value="{{ .TixPrice }}" required>
-  <input class="rounded-md" type="hidden" name="DiscountPrice" value="{{ .DiscountPrice }}" required>
-  <input class="rounded-md" type="hidden" name="DiscountRef" value="{{ .DiscountRef }}" required>
-  <input class="rounded-md" type="hidden" name="AffiliateCode" value="{{ .AffiliateCode }}">
-  <input class="rounded-md" type="hidden" name="Count" value="{{ .Count }}" required>
+
+  <input type="hidden" name="Tix" value="{{ .Tix }}" required>
+  <input type="hidden" name="HMAC" value="{{ .HMAC }}" required>
+  <input type="hidden" name="TixPrice" value="{{ .TixPrice }}" required>
+  <input type="hidden" name="DiscountPrice" value="{{ .DiscountPrice }}" required>
+  <input type="hidden" name="DiscountRef" value="{{ .DiscountRef }}" required>
+  <input type="hidden" name="AffiliateCode" value="{{ .AffiliateCode }}">
 </div>
