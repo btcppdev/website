@@ -3949,6 +3949,26 @@ func checkoutDefaultPaymentMethod(r *http.Request) string {
 	return "btc"
 }
 
+func validateCheckoutDiscountPrice(ctx *config.AppContext, conf *types.Conf, tixPrice uint, effectiveCode string, submittedDiscountPrice uint) (string, uint, error) {
+	if strings.TrimSpace(effectiveCode) == "" {
+		if submittedDiscountPrice != tixPrice {
+			return "", tixPrice, fmt.Errorf("checkout price changed; please refresh and try again")
+		}
+		return "", tixPrice, nil
+	}
+	currentDiscountPrice, discount, err := getters.CalcDiscount(ctx, conf.Ref, effectiveCode, tixPrice, 1)
+	if err != nil {
+		return "", tixPrice, err
+	}
+	if currentDiscountPrice != submittedDiscountPrice {
+		return "", currentDiscountPrice, fmt.Errorf("checkout price changed; please refresh and try again")
+	}
+	if discount == nil {
+		return "", currentDiscountPrice, nil
+	}
+	return discount.Ref, currentDiscountPrice, nil
+}
+
 func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	params := mux.Vars(r)
 	tixSlug := params["tix"]
@@ -4172,20 +4192,35 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			return
 		}
 
-		// Webhook side reads form.DiscountRef to decide whether
-		// to fire RecordAffiliateUsage. Make sure it points at
-		// the EFFECTIVE code's row, not whatever the GET render
-		// originally stamped (a buyer who switched codes mid-
-		// checkout should produce a discount-ref tied to their
-		// chosen code, not to the silent affiliate they walked in
-		// with).
-		if effectiveCode != "" {
-			if disc, derr := getters.FindDiscount(ctx, effectiveCode); derr == nil && disc != nil {
-				form.DiscountRef = disc.Ref
+		discountRef, currentDiscountPrice, err := validateCheckoutDiscountPrice(ctx, conf, tixPrice, effectiveCode, form.DiscountPrice)
+		if err != nil {
+			ctx.Err.Printf("/tix/%s/checkout discount revalidation failed: %s", tixSlug, err)
+			err = ctx.TemplateCache.ExecuteTemplate(w, "collect-email.tmpl", &TixFormPage{
+				Conf:            conf,
+				Tix:             tix,
+				TixSlug:         tixSlug,
+				TixPrice:        tixPrice,
+				Discount:        form.Discount,
+				AffiliateCode:   form.AffiliateCode,
+				DiscountPrice:   currentDiscountPrice,
+				CardPrice:       cardSurchargePrice(currentDiscountPrice, tix.CardSurchargeBPS),
+				CardSurcharge:   cardSurchargePrice(currentDiscountPrice, tix.CardSurchargeBPS) - currentDiscountPrice,
+				DiscountRef:     "",
+				TicketKind:      ticketKind,
+				SponsorCheckout: ticketKind == types.TicketTypeSponsored,
+				Err:             err.Error(),
+				HMAC:            calcTixHMAC(ctx, conf, tixPrice, currentDiscountPrice, effectiveCode),
+				Count:           form.Count,
+				Year:            helpers.CurrentYear(),
+				PaymentMethod:   form.PaymentMethod,
+			})
+			if err != nil {
+				http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
+				ctx.Err.Printf("/tix/%s/checkout stale discount templ exec failed %s", tixSlug, err.Error())
 			}
-		} else {
-			form.DiscountRef = ""
+			return
 		}
+		form.DiscountRef = discountRef
 		// Keep form.Discount in sync with the effective code so
 		// downstream Stripe metadata + entry.DiscountRef agree.
 		form.Discount = effectiveCode
@@ -4227,6 +4262,18 @@ func cardSurchargePrice(basePrice, surchargeBPS uint) uint {
 		surchargeBPS = 1000
 	}
 	return uint((uint64(basePrice)*uint64(10000+surchargeBPS) + 9999) / 10000)
+}
+
+func stripePerTicketAmount(lineTotal int64, quantity int64, index int64) int64 {
+	if quantity <= 0 {
+		return lineTotal
+	}
+	amount := lineTotal / quantity
+	remainder := lineTotal % quantity
+	if remainder > 0 && index < remainder {
+		amount++
+	}
+	return amount
 }
 
 func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice, discountedBasePrice uint, form *types.TixForm, ticketKind string) {
@@ -4409,7 +4456,7 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			var i int64
 			for i = 0; i < si.Quantity; i++ {
 				item := types.Item{
-					Total: si.AmountTotal,
+					Total: stripePerTicketAmount(si.AmountTotal, si.Quantity, i),
 					Desc:  si.Description,
 					Type:  tixType,
 				}
