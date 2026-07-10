@@ -239,7 +239,7 @@ func (p *HackathonAdminPage) AwardsURL(competition *types.HackathonCompetition) 
 }
 
 func (p *HackathonAdminPage) HackathonURL(competition *types.HackathonCompetition) string {
-	return hackathonURL(competition)
+	return hackathonURLForConf(p.confForCompetition(competition))
 }
 
 func (p *HackathonAdminPage) ConfURL(confID string) string {
@@ -254,6 +254,21 @@ func (p *HackathonAdminPage) ConfURL(confID string) string {
 		return "/" + url.PathEscape(conf.Tag)
 	}
 	return ""
+}
+
+func (p *HackathonAdminPage) confForCompetition(competition *types.HackathonCompetition) *types.Conf {
+	if p == nil || competition == nil {
+		return nil
+	}
+	for _, conf := range p.Confs {
+		if conf != nil && conf.Ref == competition.ConferenceID {
+			return conf
+		}
+	}
+	if p.Conf != nil && p.Conf.Ref == competition.ConferenceID {
+		return p.Conf
+	}
+	return nil
 }
 
 func (p *HackathonAdminPage) ConferenceSchedulerURL(competition *types.HackathonCompetition) string {
@@ -289,21 +304,21 @@ func (p *HackathonAdminPage) TimelineIsScheduleLink(competition *types.Hackathon
 }
 
 func (p *HackathonAdminPage) ScheduleURL(competition *types.HackathonCompetition) string {
-	return hackathonScheduleURL(competition)
+	return hackathonScheduleURLForConf(p.confForCompetition(competition))
 }
 
 func (p *HackathonAdminPage) ProjectPublicURL(project *types.HackathonProject) string {
 	if p == nil || p.Competition == nil || project == nil {
-		return "/hackathons"
+		return ""
 	}
-	return hackathonURL(p.Competition) + "#project-" + url.PathEscape(project.ID)
+	return hackathonURLForConf(p.confForCompetition(p.Competition)) + "#project-" + url.PathEscape(project.ID)
 }
 
 func (p *HackathonAdminPage) ProjectManageURL(project *types.HackathonProject) string {
 	if p == nil || p.Competition == nil || project == nil {
-		return "/hackathons"
+		return ""
 	}
-	return hackathonURL(p.Competition) + "/projects/" + url.PathEscape(project.ID)
+	return hackathonURLForConf(p.confForCompetition(p.Competition)) + "/projects/" + url.PathEscape(project.ID)
 }
 
 func (p *HackathonAdminPage) ProjectAdminURL(project *types.HackathonProject) string {

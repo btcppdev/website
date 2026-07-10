@@ -9,8 +9,6 @@
   <main class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
     {{ if .ConferenceURL }}
     <a href="{{ .ConferenceURL }}" class="mb-4 inline-flex text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ if .ConferenceLabel }}{{ .ConferenceLabel }}{{ else }}Conference{{ end }}</a>
-    {{ else }}
-    <a href="/hackathons" class="mb-4 inline-flex text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathons</a>
     {{ end }}
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
@@ -33,9 +31,9 @@
         <a href="{{ .JudgingURL }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Judging</a>
         {{ end }}
         {{ if .CanCreate }}
-        <a href="/hackathons/{{ .Competition.Slug }}/projects/new" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</a>
+        <a href="{{ .ProjectNewURL }}" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</a>
         {{ else if not .Viewer }}
-        <a href="/login?next=/hackathons/{{ .Competition.Slug }}" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Sign in</a>
+        <a href="{{ .LoginURL }}" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Sign in</a>
         {{ end }}
       </div>
     </div>
@@ -201,7 +199,7 @@
             {{ if .SlidesURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .SlidesURL }}">Slides</a>{{ end }}
             {{ if .DocsURL }}<a class="font-medium text-indigo-600 hover:text-indigo-500" href="{{ .DocsURL }}">Docs</a>{{ end }}
             {{ if $.CanManageProject .ID }}
-            <a class="font-medium text-gray-700 hover:text-gray-900" href="/hackathons/{{ $.Competition.Slug }}/projects/{{ .ID }}">Manage</a>
+            <a class="font-medium text-gray-700 hover:text-gray-900" href="{{ $.ProjectURL . }}">Manage</a>
             {{ end }}
           </div>
         </article>
@@ -211,7 +209,7 @@
       <div class="rounded-lg bg-white px-4 py-10 text-center shadow">
         <p class="text-sm text-gray-600">No visible projects yet.</p>
         {{ if .CanCreate }}
-        <a href="/hackathons/{{ .Competition.Slug }}/projects/new" class="mt-4 inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</a>
+        <a href="{{ .ProjectNewURL }}" class="mt-4 inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</a>
         {{ end }}
       </div>
       {{ end }}

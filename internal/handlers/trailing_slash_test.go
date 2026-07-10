@@ -21,16 +21,16 @@ func TestRedirectTrailingSlash(t *testing.T) {
 		{
 			name:     "get redirects and preserves query",
 			method:   http.MethodGet,
-			target:   "/hackathons/?next=1",
+			target:   "/nairobi/hackathon/?next=1",
 			code:     http.StatusPermanentRedirect,
-			location: "/hackathons?next=1",
+			location: "/nairobi/hackathon?next=1",
 		},
 		{
 			name:     "head redirects",
 			method:   http.MethodHead,
-			target:   "/hackathons/",
+			target:   "/nairobi/hackathon/",
 			code:     http.StatusPermanentRedirect,
-			location: "/hackathons",
+			location: "/nairobi/hackathon",
 		},
 		{
 			name:   "root is unchanged",
@@ -41,7 +41,7 @@ func TestRedirectTrailingSlash(t *testing.T) {
 		{
 			name:   "post is unchanged",
 			method: http.MethodPost,
-			target: "/hackathons/",
+			target: "/nairobi/hackathon/",
 			code:   http.StatusNoContent,
 		},
 		{
