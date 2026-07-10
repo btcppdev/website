@@ -4,160 +4,182 @@
   <title>{{ if .IsNew }}Create project{{ else }}{{ .Project.Title }}{{ end }} - {{ .Competition.Title }}</title>
   {{ block "header" . }} {{ end }}
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="hack-redesign">
   {{ block "mainnav" . }} {{ end }}
-  <main class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-    <div class="mb-6">
-      <a href="{{ .HackathonURL }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathon</a>
-      <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}Create project{{ else }}{{ .Project.Title }}{{ end }}</h1>
-      <p class="mt-1 text-sm text-gray-600">{{ .Competition.Title }}</p>
+  <main class="hack-shell">
+    <div class="hack-ticker" aria-label="Project editor">
+      <span class="hack-ticker__live">▶ Project</span>
+      <span>{{ .Competition.Title }}</span>
+      <span>•</span>
+      <span>{{ if .IsNew }}Create project{{ else }}Edit project{{ end }}</span>
     </div>
 
+    <header class="hack-header">
+      <div>
+        <a href="/" class="hack-brand">bitcoin<span>++</span></a>
+        <div class="hack-header__meta">[ {{ .Competition.Title }} · Project ]</div>
+      </div>
+      <nav class="hack-header__nav" aria-label="Project links">
+        <a href="{{ .HackathonURL }}">← hackathon</a>
+      </nav>
+    </header>
+
+    <section class="hack-section">
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§ Project submission</div>
+          <h1 style="margin:0;font-size:clamp(48px,7vw,88px);font-weight:700;line-height:.92;">{{ if .IsNew }}Create <span class="hack-serif">project.</span>{{ else }}{{ .Project.Title }}{{ end }}</h1>
+        </div>
+        <div class="hack-section__deck">
+          Add the links judges and organizers need. File uploads are intentionally deferred; use project, demo, video, slide, or docs links.
+        </div>
+      </div>
+    </section>
+
     {{ if .FlashMessage }}
-    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    <div class="hack-alert hack-alert--success">{{ .FlashMessage }}</div>
     {{ end }}
     {{ if .FlashError }}
-    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    <div class="hack-alert hack-alert--error">{{ .FlashError }}</div>
     {{ end }}
 
-    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectURL .Project }}{{ end }}" class="rounded-lg bg-white shadow">
-      <div class="space-y-6 px-4 py-5 sm:p-6">
+    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectURL .Project }}{{ end }}" class="hack-form">
+      <div class="hack-form__body">
         {{ if not .CanEdit }}
-        <div class="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Project edits are closed.</div>
+        <div class="hack-alert hack-alert--warning" style="margin:0;">Project edits are closed.</div>
         {{ end }}
-        <div>
-          <label for="Title" class="block text-sm font-medium text-gray-700">Title</label>
-          <input id="Title" name="Title" type="text" required value="{{ .Project.Title }}" {{ if not .CanEdit }}disabled{{ end }}
-                 class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600 disabled:bg-gray-100">
+
+        <div class="hack-field">
+          <label for="Title">Title</label>
+          <input id="Title" name="Title" type="text" required value="{{ .Project.Title }}" {{ if not .CanEdit }}disabled{{ end }}>
         </div>
 
-        <div>
-          <label for="ShortDescription" class="block text-sm font-medium text-gray-700">Short description</label>
-          <input id="ShortDescription" name="ShortDescription" type="text" value="{{ .Project.ShortDescription }}" {{ if not .CanEdit }}disabled{{ end }}
-                 class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600 disabled:bg-gray-100">
+        <div class="hack-field">
+          <label for="ShortDescription">Short description</label>
+          <input id="ShortDescription" name="ShortDescription" type="text" value="{{ .Project.ShortDescription }}" {{ if not .CanEdit }}disabled{{ end }}>
         </div>
 
-        <div>
-          <label for="Description" class="block text-sm font-medium text-gray-700">Description</label>
-          <textarea id="Description" name="Description" rows="7" {{ if not .CanEdit }}disabled{{ end }}
-                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600 disabled:bg-gray-100">{{ .Project.Description }}</textarea>
+        <div class="hack-field">
+          <label for="Description">Description</label>
+          <textarea id="Description" name="Description" rows="7" {{ if not .CanEdit }}disabled{{ end }}>{{ .Project.Description }}</textarea>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label for="GitHubURL" class="block text-sm font-medium text-gray-700">GitHub URL</label>
-            <input id="GitHubURL" name="GitHubURL" type="url" value="{{ .Project.GitHubURL }}" {{ if not .CanEdit }}disabled{{ end }}
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600 disabled:bg-gray-100">
+        <div class="hack-form__grid">
+          <div class="hack-field">
+            <label for="GitHubURL">GitHub URL</label>
+            <input id="GitHubURL" name="GitHubURL" type="url" value="{{ .Project.GitHubURL }}" {{ if not .CanEdit }}disabled{{ end }}>
           </div>
-          <div>
-            <label for="DemoURL" class="block text-sm font-medium text-gray-700">Demo URL</label>
-            <input id="DemoURL" name="DemoURL" type="url" value="{{ .Project.DemoURL }}" {{ if not .CanEdit }}disabled{{ end }}
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600 disabled:bg-gray-100">
+          <div class="hack-field">
+            <label for="DemoURL">Demo URL</label>
+            <input id="DemoURL" name="DemoURL" type="url" value="{{ .Project.DemoURL }}" {{ if not .CanEdit }}disabled{{ end }}>
           </div>
-          <div>
-            <label for="VideoURL" class="block text-sm font-medium text-gray-700">Video URL</label>
-            <input id="VideoURL" name="VideoURL" type="url" value="{{ .Project.VideoURL }}" {{ if not .CanEdit }}disabled{{ end }}
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600 disabled:bg-gray-100">
+          <div class="hack-field">
+            <label for="VideoURL">Video URL</label>
+            <input id="VideoURL" name="VideoURL" type="url" value="{{ .Project.VideoURL }}" {{ if not .CanEdit }}disabled{{ end }}>
           </div>
-          <div>
-            <label for="SlidesURL" class="block text-sm font-medium text-gray-700">Slides URL</label>
-            <input id="SlidesURL" name="SlidesURL" type="url" value="{{ .Project.SlidesURL }}" {{ if not .CanEdit }}disabled{{ end }}
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600 disabled:bg-gray-100">
+          <div class="hack-field">
+            <label for="SlidesURL">Slides URL</label>
+            <input id="SlidesURL" name="SlidesURL" type="url" value="{{ .Project.SlidesURL }}" {{ if not .CanEdit }}disabled{{ end }}>
           </div>
-          <div>
-            <label for="DocsURL" class="block text-sm font-medium text-gray-700">Docs URL</label>
-            <input id="DocsURL" name="DocsURL" type="url" value="{{ .Project.DocsURL }}" {{ if not .CanEdit }}disabled{{ end }}
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600 disabled:bg-gray-100">
+          <div class="hack-field">
+            <label for="DocsURL">Docs URL</label>
+            <input id="DocsURL" name="DocsURL" type="url" value="{{ .Project.DocsURL }}" {{ if not .CanEdit }}disabled{{ end }}>
           </div>
-          <div>
-            <label for="Tags" class="block text-sm font-medium text-gray-700">Tags</label>
-            <input id="Tags" name="Tags" type="text" value="{{ .ProjectTagsCSV }}" {{ if not .CanEdit }}disabled{{ end }}
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600 disabled:bg-gray-100">
+          <div class="hack-field">
+            <label for="Tags">Tags</label>
+            <input id="Tags" name="Tags" type="text" value="{{ .ProjectTagsCSV }}" {{ if not .CanEdit }}disabled{{ end }}>
           </div>
         </div>
       </div>
-      <div class="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 px-4 py-4 sm:px-6">
-        <a href="{{ .HackathonURL }}" class="rounded-md px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">Cancel</a>
+      <div class="hack-form__actions">
+        <a href="{{ .HackathonURL }}" class="hack-button">Cancel</a>
         {{ if .CanEdit }}
-        <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save</button>
+        <button type="submit" class="hack-button hack-button--accent">Save →</button>
         {{ end }}
       </div>
     </form>
 
     {{ if and (not .IsNew) .CanSubmit }}
-    <form method="POST" action="{{ .ProjectSubmitURL .Project }}" class="mt-4 rounded-lg bg-white shadow">
-      <div class="space-y-4 px-4 py-5 sm:p-6">
+    <form method="POST" action="{{ .ProjectSubmitURL .Project }}" class="hack-form">
+      <div class="hack-form__body">
         <div>
-          <h2 class="text-sm font-semibold text-gray-900">Submission</h2>
-          {{ if .OptInAwards }}
-          <p class="mt-1 text-sm text-gray-600">Award opt-ins</p>
-          {{ end }}
+          <div class="hack-label">§ Submission</div>
+          {{ if .OptInAwards }}<div class="hack-section__deck">Choose the awards or bounties this project should be considered for.</div>{{ end }}
         </div>
         {{ if .OptInAwards }}
-        <fieldset class="space-y-3">
-          {{ range .OptInAwards }}
-          <label class="flex gap-3 rounded-md border border-gray-200 px-3 py-3">
-            <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }}
-                   class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
-            <span>
-              <span class="block text-sm font-medium text-gray-900">{{ .Title }}</span>
-              {{ if .Description }}<span class="mt-1 block text-sm text-gray-600">{{ .Description }}</span>{{ end }}
-            </span>
-          </label>
-          {{ end }}
+        <fieldset class="hack-field">
+          <legend>Award opt-ins</legend>
+          <div class="hack-list">
+            {{ range .OptInAwards }}
+            <label class="hack-list__row">
+              <span>
+                <span style="display:block;font-weight:700;">{{ .Title }}</span>
+                {{ if .Description }}<span class="hack-list__meta">{{ .Description }}</span>{{ end }}
+              </span>
+              <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }}>
+            </label>
+            {{ end }}
+          </div>
         </fieldset>
         {{ end }}
       </div>
-      <div class="flex justify-end border-t border-gray-200 px-4 py-4 sm:px-6">
-        <button type="submit" class="rounded-md bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">Submit project</button>
+      <div class="hack-form__actions">
+        <button type="submit" class="hack-button hack-button--accent">Submit project →</button>
       </div>
     </form>
     {{ end }}
 
     {{ if not .IsNew }}
-    <section class="mt-6 rounded-lg bg-white shadow">
-      <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
-        <h2 class="text-sm font-semibold text-gray-900">Team</h2>
+    <section class="hack-section">
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§ Team</div>
+          <h2>Project <span class="hack-serif">crew.</span></h2>
+        </div>
+        <div class="hack-section__deck">Generate one-time invites for additional project members. Links expire after 24 hours.</div>
       </div>
-      <div class="space-y-6 px-4 py-5 sm:p-6">
+
+      <div class="hack-form__body">
         {{ if .InviteLink }}
-        <div class="rounded-md border border-green-200 bg-green-50 px-4 py-3">
-          <label for="InviteLink" class="block text-sm font-medium text-green-900">Invite link created</label>
-          <div class="mt-2 flex flex-col gap-2 sm:flex-row">
-            <input id="InviteLink" type="url" readonly value="{{ .InviteLink }}"
-                   class="block w-full rounded-md bg-white px-3 py-2 font-mono text-xs text-gray-900 outline outline-1 outline-green-300">
-            <button type="button" data-copy-target="InviteLink" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Copy</button>
+        <div class="hack-alert hack-alert--success" style="margin:0;">
+          <label for="InviteLink" class="hack-label" style="margin-bottom:8px;">Invite link created</label>
+          <div class="hack-form__grid" style="grid-template-columns:minmax(0,1fr) auto;">
+            <div class="hack-field">
+              <input id="InviteLink" type="url" readonly value="{{ .InviteLink }}">
+            </div>
+            <button type="button" data-copy-target="InviteLink" class="hack-button hack-button--accent">Copy</button>
           </div>
         </div>
         {{ end }}
 
         <div>
           {{ if .Members }}
-          <ul class="divide-y divide-gray-100 rounded-md border border-gray-200">
+          <div class="hack-list">
             {{ range .Members }}
-            <li class="flex items-center justify-between gap-4 px-3 py-2 text-sm">
+            <div class="hack-list__row">
               <span>
-                <span class="block font-medium text-gray-900">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</span>
-                <span class="block text-xs text-gray-500">{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</span>
+                <span style="display:block;font-weight:700;">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</span>
+                <span class="hack-list__meta">{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</span>
               </span>
-              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{{ .Role }}</span>
-            </li>
+              <span class="hack-tag">{{ .Role }}</span>
+            </div>
             {{ end }}
-          </ul>
+          </div>
           {{ else }}
-          <p class="text-sm text-gray-600">No team members yet.</p>
+          <p class="hack-card__desc">No team members yet.</p>
           {{ end }}
         </div>
 
         {{ if .CanEdit }}
-        <form method="POST" action="{{ .ProjectInviteURL .Project }}" class="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-          <div>
-            <label for="Email" class="block text-sm font-medium text-gray-700">Invite email</label>
-            <input id="Email" name="Email" type="email"
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-            <p class="mt-1 text-xs text-gray-500">Links expire after 24 hours. Add an email to restrict the invite to that address.</p>
+        <form method="POST" action="{{ .ProjectInviteURL .Project }}" class="hack-form" style="border-top:0;">
+          <div class="hack-form__grid" style="align-items:end;">
+            <div class="hack-field">
+              <label for="Email">Invite email</label>
+              <input id="Email" name="Email" type="email">
+              <p class="hack-field__help">Add an email to restrict the invite to that address.</p>
+            </div>
+            <button type="submit" class="hack-button hack-button--accent">Generate one-time invite →</button>
           </div>
-          <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Generate one-time invite</button>
         </form>
         {{ end }}
       </div>
