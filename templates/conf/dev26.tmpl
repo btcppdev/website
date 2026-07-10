@@ -115,6 +115,7 @@
         </div>
       </div>
     </section>
+{{ template "conf_hackathon_section" . }}
 
     <section id="speakers">
       <div class="bg-white py-32">
@@ -144,33 +145,6 @@
           {{ else }}
             {{ template "agenda_active" . }}
           {{ end }}
-        </div>
-      </div>
-    </section>
-    {{ end }}
-
-    {{ if .Conf.ShowHackathon }}
-    <section id="hackathon">
-      <div class="bg-white py-24 sm:py-32">
-        <div class="mx-auto max-w-7xl px-6 lg:px-8">
-          <div class="mx-auto max-w-2xl lg:mx-0">
-            <h2 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Hack the Harness</h2>
-            <p class="mt-6 text-lg leading-8 text-gray-600">The hackathon copy is local-only, but the section keeps the same public event shape: a focused build prompt, a venue tie-in, and enough content for nav and layout testing.</p>
-          </div>
-          <div class="mx-auto mt-16 grid max-w-2xl grid-cols-1 gap-8 lg:mx-0 lg:max-w-none lg:grid-cols-3">
-            <div class="rounded-2xl bg-gray-50 p-8">
-              <h3 class="text-lg font-semibold leading-8 tracking-tight text-gray-900">Checkout Flow</h3>
-              <p class="mt-2 text-sm leading-6 text-gray-600">Test ticket purchase states, discounts, magic links, and attendee dashboard entry points.</p>
-            </div>
-            <div class="rounded-2xl bg-gray-50 p-8">
-              <h3 class="text-lg font-semibold leading-8 tracking-tight text-gray-900">Program Tools</h3>
-              <p class="mt-2 text-sm leading-6 text-gray-600">Exercise speaker applications, scheduled talks, venue chips, and calendar links.</p>
-            </div>
-            <div class="rounded-2xl bg-gray-50 p-8">
-              <h3 class="text-lg font-semibold leading-8 tracking-tight text-gray-900">Admin Surfaces</h3>
-              <p class="mt-2 text-sm leading-6 text-gray-600">Use the dev admin login to review sponsors, hotels, satellites, and conference controls.</p>
-            </div>
-          </div>
         </div>
       </div>
     </section>

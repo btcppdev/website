@@ -3705,13 +3705,36 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	confCopy := *conf
 	confCopy.CountdownStart, confCopy.CountdownEnd = computeCountdownBounds(&confCopy, infosByDay)
 	confCopy.HasAgenda = anyScheduledTalk(&confCopy, talks)
-	conf = &confCopy
 
 	confHotels := helpers.HotelsForConf(ctx, conf)
 	satelliteEvents, err := getters.ListSatelliteEvents(ctx, conf.Ref, false)
 	if err != nil {
 		ctx.Err.Printf("/%s satellite events load failed (continuing): %s", conf.Tag, err)
 	}
+
+	viewer := auth.RequireOptional(r, ctx)
+	hackathonCanAdmin := false
+	hackathon, err := getters.GetCompetitionByConferenceID(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/%s hackathon load failed (continuing): %s", conf.Tag, err)
+	}
+	var hackathonScheduleEvents []HackathonScheduleEvent
+	if hackathon != nil {
+		hackathonViewer := hackathonViewerFromIdentity(viewer, conf)
+		hackathonCanAdmin = hackathonViewer.Admin || hackathonViewer.Coordinator
+		if hackathon.Visibility != getters.CompetitionVisibilityPublic && !hackathonCanAdmin {
+			hackathon = nil
+			hackathonCanAdmin = false
+		}
+	}
+	if hackathon != nil {
+		hackathonScheduleEvents, err = loadHackathonScheduleEvents(ctx, hackathon.ID)
+		if err != nil {
+			ctx.Err.Printf("/%s hackathon schedule events %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
+		}
+	}
+	confCopy.ShowHackathon = hackathon != nil
+	conf = &confCopy
 
 	currTix := findCurrTix(conf, soldCount)
 	maxTix := findMaxTix(conf)
@@ -3724,23 +3747,26 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 	tmplTag := "conf/generic.tmpl"
 	err = ctx.TemplateCache.ExecuteTemplate(w, tmplTag, &ConfPage{
-		Conf:              conf,
-		Hotels:            confHotels,
-		Tix:               currTix,
-		MaxTix:            maxTix,
-		Sold:              soldCount,
-		TixLeft:           tixLeft,
-		Talks:             talks,
-		EventSpeakers:     evSpeakers,
-		FeaturedSpeakers:  featuredSpeakers,
-		CommunitySpeakers: communitySpeakers,
-		Buckets:           buckets,
-		Days:              days,
-		AgendaDays:        agendaDays,
-		ConfInfos:         confInfos,
-		ScheduledSessions: scheduledSessions,
-		SatelliteEvents:   satelliteEvents,
-		Year:              helpers.CurrentYear(),
+		Conf:                    conf,
+		Hotels:                  confHotels,
+		Tix:                     currTix,
+		MaxTix:                  maxTix,
+		Sold:                    soldCount,
+		TixLeft:                 tixLeft,
+		Talks:                   talks,
+		EventSpeakers:           evSpeakers,
+		FeaturedSpeakers:        featuredSpeakers,
+		CommunitySpeakers:       communitySpeakers,
+		Buckets:                 buckets,
+		Days:                    days,
+		AgendaDays:              agendaDays,
+		ConfInfos:               confInfos,
+		ScheduledSessions:       scheduledSessions,
+		SatelliteEvents:         satelliteEvents,
+		Hackathon:               hackathon,
+		HackathonScheduleEvents: hackathonScheduleEvents,
+		HackathonCanAdmin:       hackathonCanAdmin,
+		Year:                    helpers.CurrentYear(),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -4120,8 +4146,10 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		}
 	}
 
+	hackathonConfs := publicHackathonConfs(ctx, page)
+
 	// Shallow-copy each conf before populating the runtime-only
-	// CountdownStart/End fields.
+	// CountdownStart/End and hackathon link fields.
 	enriched := make([]*types.Conf, 0, len(confList))
 	for _, c := range confList {
 		if c == nil {
@@ -4129,6 +4157,10 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		}
 		copy := *c
 		copy.CountdownStart, copy.CountdownEnd = computeCountdownBounds(&copy, infosByTag[copy.Tag])
+		if hackathonConfs[copy.Ref] {
+			copy.ShowHackathon = true
+			copy.HackathonURL = "/" + url.PathEscape(copy.Tag) + "#hackathon"
+		}
 		enriched = append(enriched, &copy)
 	}
 
@@ -4364,6 +4396,22 @@ func homeSponsorRank(level string) int {
 	default:
 		return 2
 	}
+}
+
+func publicHackathonConfs(ctx *config.AppContext, page string) map[string]bool {
+	competitions, err := getters.ListCompetitions(ctx)
+	if err != nil {
+		ctx.Err.Printf("/%s ListCompetitions for index hackathon links (continuing): %s", page, err)
+		return nil
+	}
+	confs := make(map[string]bool, len(competitions))
+	for _, competition := range competitions {
+		if competition == nil || competition.Visibility != getters.CompetitionVisibilityPublic || competition.ConferenceID == "" {
+			continue
+		}
+		confs[competition.ConferenceID] = true
+	}
+	return confs
 }
 
 type TicketTmpl struct {

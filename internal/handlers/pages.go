@@ -71,6 +71,10 @@ type ConfPage struct {
 	// rows and attendee suggestions that have been approved.
 	SatelliteEvents []*types.SatelliteEvent
 
+	Hackathon               *types.HackathonCompetition
+	HackathonScheduleEvents []HackathonScheduleEvent
+	HackathonCanAdmin       bool
+
 	Year uint
 }
 

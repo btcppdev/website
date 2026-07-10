@@ -141,6 +141,9 @@ type (
 		MapLabelSide         string
 		YouTubePlaylistID    string
 		YouTubePlaylistTitle string
+		// HackathonURL is runtime-only, populated for list/card views
+		// when the conf has a public linked hackathon.
+		HackathonURL string
 		// Timezone is the IANA name of the conference venue's local
 		// time (e.g. "Europe/Vienna", "America/Toronto"). Read from
 		// the Notion ConfsDb "Timezone" field. Empty when the field
