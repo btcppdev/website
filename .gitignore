@@ -17,7 +17,7 @@ chat
 credentials.json
 sessions.bolt
 tokens.bolt
-
+bitcoin++\ rebrand.zip
 # one-shot migration CLI binaries + their state files (output of cmd/migrate-*)
 /migrate-*
 /refresh-cards
