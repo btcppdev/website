@@ -17,7 +17,6 @@
             ripgrep
             just
             go
-            tailwindcss
             air
             ffmpeg
             git
