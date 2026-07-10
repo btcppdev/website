@@ -14,7 +14,7 @@ export BTCPP_PGROOT BTCPP_PGDATA BTCPP_PGRUN BTCPP_PGLOG PGHOST PGPORT PGDATABAS
 
 .PHONY: dev-run
 dev-run: build-all db-start
-	air -build.entrypoint="./target/$(APP_NAME)" -build.cmd="make build-all"
+	MAILER_OFF=true air -build.entrypoint="./target/$(APP_NAME)" -build.cmd="make build-all"
 
 .PHONY: run-dev
 run-dev: dev-run
@@ -50,14 +50,14 @@ build:
 
 .PHONY: css-build
 css-build:
-	tailwindcss -i templates/css/input.css -o static/css/mini.css --minify
+	@echo "mini.css is checked in as a legacy stylesheet; no CSS build step is required."
 
 .PHONY: png-conv
 png-conv:
 	cd media && ./convert.sh $(conf) $(subdir) && rm $(conf)/$(subdir)/*.pdf && cd ..
 
 .PHONY: build-all
-build-all: build css-build
+build-all: build
 
 .PHONY: test
 test:
