@@ -166,6 +166,51 @@ func ListSpeakersWithRole(ctx *config.AppContext, role string) ([]*types.Speaker
 	`, scope, position)
 }
 
+func ListHomepageFeaturedSpeakers(ctx *config.AppContext) ([]*types.Speaker, error) {
+	return querySpeakersPostgres(ctx, "homepage featured speakers", `
+		JOIN homepage_featured_speakers hfs ON hfs.person_id = people.id
+		ORDER BY hfs.position
+	`)
+}
+
+func ReplaceHomepageFeaturedSpeakers(ctx *config.AppContext, speakerIDs []string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin homepage featured speakers update: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+
+	if _, err := tx.Exec(context.Background(), `DELETE FROM homepage_featured_speakers`); err != nil {
+		return fmt.Errorf("delete homepage featured speakers: %w", err)
+	}
+	position := 1
+	seen := map[string]bool{}
+	for _, id := range speakerIDs {
+		id = strings.TrimSpace(id)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		if position > 8 {
+			break
+		}
+		if _, err := tx.Exec(context.Background(), `
+			INSERT INTO homepage_featured_speakers (position, person_id)
+			VALUES ($1, $2::uuid)
+		`, position, id); err != nil {
+			return fmt.Errorf("insert homepage featured speaker %d/%s: %w", position, id, err)
+		}
+		position++
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return fmt.Errorf("commit homepage featured speakers update: %w", err)
+	}
+	return nil
+}
+
 func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, args ...interface{}) ([]*types.Speaker, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")

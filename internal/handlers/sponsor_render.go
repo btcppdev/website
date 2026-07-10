@@ -12,22 +12,16 @@ import (
 // SponsorTier captures everything the sponsor-section template needs
 // to know about a single tier on a conf page: canonical Level (the
 // stored value), display Label (themed-per-conf — e.g. "Satoshi
-// Level Sponsors"), the rendered list of sponsorships in display
-// order, and the layout hints. Each tier renders in its own
-// flex-wrap container so partial rows + single-sponsor tiers
-// center naturally rather than left-aligning into an empty cell.
+// Level Sponsors"), and the rendered list of sponsorships in display
+// order.
 type SponsorTier struct {
 	Level    string
 	Label    string
 	Sponsors []*types.Sponsorship
-	// HeightClass is the Tailwind max-height utility (e.g. "max-h-32")
-	// applied to each <img> in this tier. Higher tier = taller logo.
-	HeightClass string
-	// FullRow signals that each tile in the tier should occupy a
-	// full row by itself (one sponsor per row). True for the most
-	// prominent tiers — Diamond, Title, Workshop. Other tiers wrap
-	// at 2 / 3 / 4 per row depending on viewport.
-	FullRow bool
+	// WebflowStackClass and WebflowImageClass mirror the sponsor
+	// layouts from the redesigned event pages.
+	WebflowStackClass string
+	WebflowImageClass string
 }
 
 // tierConfig stores the per-tier render hints. Order in this slice
@@ -36,9 +30,7 @@ type SponsorTier struct {
 // hand-styled layout; canonical Level names map onto themed labels
 // like "Satoshi Level Sponsors" via the per-row Label field.
 var tierConfig = []struct {
-	Level   string
-	Height  string
-	FullRow bool
+	Level string
 }{
 	// Headline + Diamond are the same render tier; both are at the
 	// top of the page and equally large. Stored as separate Level
@@ -46,17 +38,17 @@ var tierConfig = []struct {
 	// visually grouped without splitting on Diamond. Order in this
 	// slice is on-page render order — Headline first, then
 	// everything else.
-	{"Headline", "max-h-36", true},
-	{"Diamond", "max-h-36", true},
-	{"Title", "max-h-32", true},
-	{"Gold", "max-h-24", false},
-	{"Workshop", "max-h-24", true},
-	{"Hackathon", "max-h-24", false},
-	{"Silver", "max-h-20", false},
-	{"Bronze", "max-h-16", false},
-	{"Networking", "max-h-20", false},
-	{"Media", "max-h-24", false},
-	{"Community", "max-h-20", false},
+	{"Headline"},
+	{"Diamond"},
+	{"Title"},
+	{"Gold"},
+	{"Workshop"},
+	{"Hackathon"},
+	{"Silver"},
+	{"Bronze"},
+	{"Networking"},
+	{"Media"},
+	{"Community"},
 }
 
 // SponsorTiersForConf groups every Sponsorship attached to confRef
@@ -117,10 +109,10 @@ func groupSponsorTiers(all []*types.Sponsorship) []*SponsorTier {
 		t, ok := buckets[k]
 		if !ok {
 			t = &SponsorTier{
-				Level:       level,
-				Label:       label,
-				HeightClass: heightForLevel(level),
-				FullRow:     fullRowForLevel(level),
+				Level:             level,
+				Label:             label,
+				WebflowStackClass: webflowSponsorStackClass(level),
+				WebflowImageClass: webflowSponsorImageClass(level),
 			}
 			buckets[k] = t
 		}
@@ -191,22 +183,45 @@ func tierRank(level string) int {
 	return len(tierConfig)
 }
 
-func heightForLevel(level string) string {
-	for _, c := range tierConfig {
-		if c.Level == level {
-			return c.Height
-		}
+func sponsorDisplayRank(level string) int {
+	switch normalizeLevel(level) {
+	case "Headline", "Diamond":
+		return 1
+	case "Title", "Gold":
+		return 2
+	case "Workshop", "Hackathon", "Silver":
+		return 3
+	case "Media", "Community":
+		return 5
+	default:
+		return 4
 	}
-	return "max-h-16"
 }
 
-func fullRowForLevel(level string) bool {
-	for _, c := range tierConfig {
-		if c.Level == level {
-			return c.FullRow
-		}
+func webflowSponsorStackClass(level string) string {
+	switch level {
+	case "Headline", "Diamond", "Title":
+		return "sponsor-stack-satoshi"
+	case "Gold", "Workshop":
+		return "sponsor-stack-finney"
+	default:
+		return "sponsor-stack-wuille"
 	}
-	return false
+}
+
+func webflowSponsorImageClass(level string) string {
+	switch level {
+	case "Headline", "Diamond", "Title":
+		return "sponsor-image-satoshi"
+	case "Gold", "Workshop", "Hackathon", "Silver", "Networking":
+		return "sponsor-image-finney"
+	case "Media":
+		return "sponsor-image-media"
+	case "Community":
+		return "sponsor-image-community"
+	default:
+		return "sponsor-image-wuille"
+	}
 }
 
 // defaultLabelForLevel is the fallback heading when a Sponsorship

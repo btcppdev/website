@@ -61,6 +61,7 @@ type SpeakerConfFields struct {
 	FirstEvent   bool
 	DinnerRSVP   bool
 	Sponsor      bool
+	FeaturedRank *int // nil = leave existing; 0 = clear; 1-6 = feature order
 }
 
 func SetSpeakerConfInvitedAt(ctx *config.AppContext, speakerConfID string, when time.Time) error {

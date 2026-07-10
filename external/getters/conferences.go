@@ -11,19 +11,39 @@ import (
 )
 
 type ConfDetailsInput struct {
-	Description   string
-	OGFlavor      string
-	Emoji         string
-	Tagline       string
-	DateDesc      string
-	StartDate     *time.Time
-	EndDate       *time.Time
-	Timezone      string
-	Location      string
-	Venue         string
-	VenueMap      string
-	VenueWebsite  string
-	ShowHackathon bool
+	Description     string
+	EditionType     string
+	OGFlavor        string
+	Emoji           string
+	Tagline         string
+	DateDesc        string
+	StartDate       *time.Time
+	EndDate         *time.Time
+	Timezone        string
+	Location        string
+	Venue           string
+	VenueMap        string
+	VenueWebsite    string
+	ShowHackathon   bool
+	HeroTitle       string
+	HeroCaption     string
+	AboutTitle      string
+	AboutBody       string
+	AboutBody2      string
+	VenueTitle      string
+	VenueSubtitle   string
+	VenueBody       string
+	HotelsIntro     string
+	LocalTicketBody string
+	SpeakersTitle   string
+	SpeakersBody    string
+	MapEmbedURL     string
+	MapLatitude     float64
+	MapLongitude    float64
+	MapXPercent     float64
+	MapYPercent     float64
+	MapLabel        string
+	MapLabelSide    string
 }
 
 func ListConfs(ctx *config.AppContext) ([]*types.Conf, error) {
@@ -115,10 +135,23 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
+	editionTypeSelect := "'global' AS edition_type"
+	if postgresColumnExists(ctx, "conferences", "edition_type") {
+		editionTypeSelect = "edition_type"
+	}
+	publicationStatusSelect := "CASE WHEN active THEN 'published' ELSE 'draft' END AS publication_status"
+	hasPublicationStatus := postgresColumnExists(ctx, "conferences", "publication_status")
+	if hasPublicationStatus {
+		publicationStatusSelect = "publication_status"
+	}
 	rows, err := ctx.DB.Query(context.Background(), `
-		SELECT id::text, tag, public_uid, active, description, og_flavor, emoji,
+		SELECT id::text, tag, public_uid, active, `+publicationStatusSelect+`, description, `+editionTypeSelect+`, og_flavor, emoji,
 			tagline, date_desc, start_date, end_date, timezone, location, venue,
-			venue_map_url, venue_website_url, show_hackathon, orient_cal_notif
+			venue_map_url, venue_website_url, show_hackathon, orient_cal_notif,
+			hero_title, hero_caption, about_title, about_body, about_body_2,
+			venue_title, venue_subtitle, venue_body, hotels_intro, local_ticket_body,
+			speakers_title, speakers_body, map_embed_url,
+			map_latitude, map_longitude, map_x_percent, map_y_percent, map_label, map_label_side
 		FROM conferences
 		`+whereSQL+`
 		ORDER BY start_date NULLS LAST, tag
@@ -139,7 +172,9 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.Tag,
 			&publicUID,
 			&conf.Active,
+			&conf.PublicationStatus,
 			&conf.Desc,
+			&conf.EditionType,
 			&conf.OGFlavor,
 			&conf.Emoji,
 			&conf.Tagline,
@@ -153,6 +188,25 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.VenueWebsite,
 			&conf.ShowHackathon,
 			&conf.OrientCalNotif,
+			&conf.HeroTitle,
+			&conf.HeroCaption,
+			&conf.AboutTitle,
+			&conf.AboutBody,
+			&conf.AboutBody2,
+			&conf.VenueTitle,
+			&conf.VenueSubtitle,
+			&conf.VenueBody,
+			&conf.HotelsIntro,
+			&conf.LocalTicketBody,
+			&conf.SpeakersTitle,
+			&conf.SpeakersBody,
+			&conf.MapEmbedURL,
+			&conf.MapLatitude,
+			&conf.MapLongitude,
+			&conf.MapXPercent,
+			&conf.MapYPercent,
+			&conf.MapLabel,
+			&conf.MapLabelSide,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)
@@ -171,12 +225,35 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 		if endDate.Valid {
 			conf.EndDate = endDate.Time.In(conf.Loc())
 		}
+		if conf.PublicationStatus != "published" {
+			conf.PublicationStatus = "draft"
+		}
+		if hasPublicationStatus {
+			conf.Active = conf.IsCurrentlyActive()
+		}
 		confs = append(confs, &conf)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate %s: %w", label, err)
 	}
 	return confs, nil
+}
+
+func postgresColumnExists(ctx *config.AppContext, tableName, columnName string) bool {
+	if ctx == nil || ctx.DB == nil {
+		return false
+	}
+	var exists bool
+	err := ctx.DB.QueryRow(context.Background(), `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'public'
+			  AND table_name = $1
+			  AND column_name = $2
+		)
+	`, tableName, columnName).Scan(&exists)
+	return err == nil && exists
 }
 
 func listConfTicketsPostgres(ctx *config.AppContext) ([]*types.ConfTicket, error) {
@@ -259,10 +336,44 @@ func ConfUpdateOrientCalNotif(ctx *config.AppContext, confRef string, calnotif s
 	return nil
 }
 
+func normalizeEditionType(v string) string {
+	if v == "local" {
+		return "local"
+	}
+	return "global"
+}
+
 func UpdateConfActive(ctx *config.AppContext, confRef string, active bool) error {
+	status := "draft"
+	if active {
+		status = "published"
+	}
+	return UpdateConfPublicationStatus(ctx, confRef, status)
+}
+
+func UpdateConfPublicationStatus(ctx *config.AppContext, confRef string, status string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
+	if status != "published" {
+		status = "draft"
+	}
+	if postgresColumnExists(ctx, "conferences", "publication_status") {
+		commandTag, err := ctx.DB.Exec(context.Background(), `
+			UPDATE conferences
+			SET publication_status = $2,
+				active = $2 = 'published' AND (end_date IS NULL OR end_date >= now())
+			WHERE id = $1
+		`, confRef, status)
+		if err != nil {
+			return fmt.Errorf("update conference %s publication status: %w", confRef, err)
+		}
+		if commandTag.RowsAffected() == 0 {
+			return fmt.Errorf("conference %s not found", confRef)
+		}
+		return nil
+	}
+	active := status == "published"
 	commandTag, err := ctx.DB.Exec(context.Background(), `
 		UPDATE conferences
 		SET active = $2
@@ -295,16 +406,58 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 			venue = $11,
 			venue_map_url = $12,
 			venue_website_url = $13,
-			show_hackathon = $14
+			show_hackathon = $14,
+			hero_title = $15,
+			hero_caption = $16,
+			about_title = $17,
+			about_body = $18,
+			about_body_2 = $19,
+			venue_title = $20,
+			venue_subtitle = $21,
+			venue_body = $22,
+			hotels_intro = $23,
+			local_ticket_body = $24,
+			speakers_title = $25,
+			speakers_body = $26,
+			map_embed_url = $27,
+			map_latitude = $28,
+			map_longitude = $29,
+			map_x_percent = $30,
+			map_y_percent = $31,
+			map_label = $32,
+			map_label_side = $33
 		WHERE id = $1
 	`, confRef, in.Description, in.OGFlavor, in.Emoji, in.Tagline, in.DateDesc,
 		in.StartDate, in.EndDate, in.Timezone, in.Location, in.Venue,
-		in.VenueMap, in.VenueWebsite, in.ShowHackathon)
+		in.VenueMap, in.VenueWebsite, in.ShowHackathon, in.HeroTitle,
+		in.HeroCaption, in.AboutTitle, in.AboutBody, in.AboutBody2,
+		in.VenueTitle, in.VenueSubtitle, in.VenueBody, in.HotelsIntro,
+		in.LocalTicketBody, in.SpeakersTitle, in.SpeakersBody, in.MapEmbedURL,
+		in.MapLatitude, in.MapLongitude, in.MapXPercent, in.MapYPercent,
+		in.MapLabel, in.MapLabelSide)
 	if err != nil {
 		return fmt.Errorf("update conference %s details: %w", confRef, err)
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("conference %s not found", confRef)
+	}
+	if postgresColumnExists(ctx, "conferences", "edition_type") {
+		if _, err := ctx.DB.Exec(context.Background(), `
+			UPDATE conferences
+			SET edition_type = $2
+			WHERE id = $1
+		`, confRef, normalizeEditionType(in.EditionType)); err != nil {
+			return fmt.Errorf("update conference %s edition type: %w", confRef, err)
+		}
+	}
+	if postgresColumnExists(ctx, "conferences", "publication_status") {
+		if _, err := ctx.DB.Exec(context.Background(), `
+			UPDATE conferences
+			SET active = publication_status = 'published' AND (end_date IS NULL OR end_date >= now())
+			WHERE id = $1
+		`, confRef); err != nil {
+			return fmt.Errorf("update conference %s active lifecycle: %w", confRef, err)
+		}
 	}
 	return nil
 }

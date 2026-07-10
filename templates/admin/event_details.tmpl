@@ -5,7 +5,7 @@
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" .Conf }}
 </head>
-<body class="bg-gray-50">
+<body class="btcpp-admin-page bg-gray-50">
   {{ block "mainnav" . }} {{ end }}
   <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
     <a href="/{{ .Conf.Tag }}/admin" class="text-xs text-gray-500 hover:text-gray-700">&larr; {{ .Conf.Desc }} dashboard</a>
@@ -19,19 +19,19 @@
         <p class="mt-1 text-sm text-gray-500">{{ .Conf.Tag }} · {{ .Conf.DateDesc }}</p>
       </div>
       <form method="POST" action="/{{ .Conf.Tag }}/admin/state">
-        {{ if .Conf.Active }}
-        <input type="hidden" name="state" value="inactive">
+        {{ if .Conf.IsPublished }}
+        <input type="hidden" name="state" value="draft">
         <button type="submit"
-                onclick="return confirm('Mark {{ .Conf.Desc }} inactive?')"
+                onclick="return confirm('Move {{ .Conf.Desc }} back to draft?')"
                 class="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-red-700">
-          Mark inactive
+          Mark draft
         </button>
         {{ else }}
-        <input type="hidden" name="state" value="active">
+        <input type="hidden" name="state" value="published">
         <button type="submit"
-                onclick="return confirm('Mark {{ .Conf.Desc }} active?')"
+                onclick="return confirm('Publish {{ .Conf.Desc }}?')"
                 class="inline-flex items-center rounded-md bg-green-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-green-700">
-          Mark active
+          Publish
         </button>
         {{ end }}
       </form>
@@ -51,8 +51,12 @@
       </div>
       <dl class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
         <div>
-          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">State</dt>
-          <dd class="mt-1">{{ if .Conf.Active }}<span class="font-semibold text-green-700">Active</span>{{ else }}<span class="font-semibold text-gray-700">Inactive</span>{{ end }}</dd>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Publication</dt>
+          <dd class="mt-1">{{ if .Conf.IsPublished }}<span class="font-semibold text-green-700">Published</span>{{ else }}<span class="font-semibold text-gray-700">Draft</span>{{ end }}</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Lifecycle</dt>
+          <dd class="mt-1">{{ if .Conf.Active }}<span class="font-semibold text-green-700">Active</span>{{ else if .Conf.HasEnded }}<span class="font-semibold text-gray-700">Ended</span>{{ else }}<span class="font-semibold text-amber-700">Not public</span>{{ end }}</dd>
         </div>
         <div>
           <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">UID</dt>
@@ -121,6 +125,81 @@
           <dd class="mt-1"><input type="url" name="venue_map" value="{{ .Conf.VenueMap }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
         </div>
       </dl>
+
+      <div class="mt-8 border-t border-gray-200 pt-5">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Event page copy</h3>
+        <p class="mt-1 text-sm text-gray-600">Controls the redesigned public event page. HTML is allowed for small inline styling like <code>&lt;span class="font-bitcoin"&gt;</code>.</p>
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Hero title
+            <input type="text" name="hero_title" value="{{ .Conf.HeroTitle }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Hero caption
+            <input type="text" name="hero_caption" value="{{ .Conf.HeroCaption }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">About title
+            <input type="text" name="about_title" value="{{ .Conf.AboutTitle }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Venue title
+            <input type="text" name="venue_title" value="{{ .Conf.VenueTitle }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">About body
+            <textarea name="about_body" rows="4" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.AboutBody }}</textarea>
+          </label>
+          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">About body secondary
+            <textarea name="about_body_2" rows="2" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.AboutBody2 }}</textarea>
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Venue subtitle
+            <input type="text" name="venue_subtitle" value="{{ .Conf.VenueSubtitle }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Edition type
+            <select name="edition_type" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="global" {{ if or (eq .Conf.EditionType "") (eq .Conf.EditionType "global") }}selected{{ end }}>Global edition</option>
+              <option value="local" {{ if eq .Conf.EditionType "local" }}selected{{ end }}>Local edition</option>
+            </select>
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Map embed URL
+            <input type="url" name="map_embed_url" value="{{ .Conf.MapEmbedURL }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Map latitude
+            <input type="number" step="0.000001" name="map_latitude" value="{{ .Conf.MapLatitude }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="e.g. -1.286389">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Map longitude
+            <input type="number" step="0.000001" name="map_longitude" value="{{ .Conf.MapLongitude }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="e.g. 36.817223">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Map X percent
+            <input type="number" step="0.01" min="0" max="100" name="map_x_percent" value="{{ .Conf.MapXPercent }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional precise SVG position">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Map Y percent
+            <input type="number" step="0.01" min="0" max="100" name="map_y_percent" value="{{ .Conf.MapYPercent }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Optional precise SVG position">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Map marker label
+            <input type="text" name="map_label" value="{{ .Conf.MapLabel }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="{{ .Conf.Desc }}">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Map label side
+            <select name="map_label_side" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="right" {{ if or (eq .Conf.MapLabelSide "") (eq .Conf.MapLabelSide "right") }}selected{{ end }}>Right</option>
+              <option value="left" {{ if eq .Conf.MapLabelSide "left" }}selected{{ end }}>Left</option>
+              <option value="top" {{ if eq .Conf.MapLabelSide "top" }}selected{{ end }}>Top</option>
+              <option value="bottom" {{ if eq .Conf.MapLabelSide "bottom" }}selected{{ end }}>Bottom</option>
+            </select>
+          </label>
+          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Venue body
+            <textarea name="venue_body" rows="3" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.VenueBody }}</textarea>
+          </label>
+          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Hotels intro
+            <textarea name="hotels_intro" rows="2" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.HotelsIntro }}</textarea>
+          </label>
+          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Local/student ticket copy
+            <textarea name="local_ticket_body" rows="2" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.LocalTicketBody }}</textarea>
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Speakers title
+            <input type="text" name="speakers_title" value="{{ .Conf.SpeakersTitle }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Speakers body
+            <textarea name="speakers_body" rows="3" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.SpeakersBody }}</textarea>
+          </label>
+        </div>
+      </div>
       </form>
     </section>
 

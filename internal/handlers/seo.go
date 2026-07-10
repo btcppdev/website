@@ -15,10 +15,10 @@ import (
 // Last-Modified, so a deploy invalidates stale assets via a
 // conditional GET → 304 cycle once the hour elapses.
 //
-// Short max-age (3600s) is deliberate: mini.css has no content-hash
-// in the filename, so a longer window could leave visitors on stale
-// CSS after a Tailwind rebuild. Move to a fingerprinted-filename
-// strategy if we want to push max-age much higher.
+// Short max-age (3600s) is deliberate: the legacy CSS files have no
+// content hash in the filename, so a longer window could leave visitors
+// on stale CSS after a deploy. Move to a fingerprinted-filename strategy
+// if we want to push max-age much higher.
 func staticCache(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "public, max-age=3600")
@@ -35,6 +35,19 @@ func redirectStripConfPrefix(w http.ResponseWriter, r *http.Request) {
 	if target == "" || target[0] != '/' {
 		target = "/" + target
 	}
+	if r.URL.RawQuery != "" {
+		target = target + "?" + r.URL.RawQuery
+	}
+	http.Redirect(w, r, target, http.StatusMovedPermanently)
+}
+
+func redirectToConfAgenda(w http.ResponseWriter, r *http.Request, confTag string) {
+	confTag = strings.Trim(strings.TrimSpace(confTag), "/")
+	if confTag == "" {
+		http.Redirect(w, r, "/", http.StatusMovedPermanently)
+		return
+	}
+	target := "/" + confTag + "/agenda"
 	if r.URL.RawQuery != "" {
 		target = target + "?" + r.URL.RawQuery
 	}
@@ -139,15 +152,14 @@ func Robots(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 }
 
 // Sitemap serves /sitemap.xml — rebuilt on each request from the
-// conference list so newly-created event pages are discoverable quickly.
-// Inactive and past confs stay in the map because their public pages
+// conference list so newly-published event pages are discoverable quickly.
+// Published past confs stay in the map because their public pages
 // are still useful archives; active upcoming confs get a higher
 // priority so crawl budget skews to current campaigns.
 //
-// Conf-talks page (`/{tag}/talks`) is only included when at
+// Conf-agenda page (`/{tag}/agenda`) is only included when at
 // least one of the conf's talks is Status=Scheduled — same gate as
-// the nav-bar link, so the sitemap never points at a soft-empty
-// page.
+// the nav-bar link, so the sitemap never points at a soft-empty page.
 func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	confs, err := getters.ListConfs(ctx)
 	if err != nil {
@@ -178,7 +190,7 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 
 	for _, c := range confs {
-		if c == nil || c.Tag == "" {
+		if c == nil || c.Tag == "" || !c.IsPublished() {
 			continue
 		}
 		prio := "0.6"
@@ -188,12 +200,12 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			freq = "daily"
 		}
 		writeSitemapURL(w, SEOHost+"/"+c.Tag, "", freq, prio)
-		// Talks page is gated on Conf.HasAgenda — populated at
+		// Agenda page is gated on Conf.HasAgenda — populated at
 		// render time, not on the cached Conf, so compute it here
 		// against the live talks slice.
 		talks, _ := getters.GetTalksFor(ctx, c.Tag)
-		if anyScheduledTalk(talks) {
-			writeSitemapURL(w, SEOHost+"/"+c.Tag+"/talks", "", freq, "0.6")
+		if anyScheduledTalk(c, talks) {
+			writeSitemapURL(w, SEOHost+"/"+c.Tag+"/agenda", "", freq, "0.6")
 		}
 	}
 

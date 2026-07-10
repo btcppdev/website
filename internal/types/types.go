@@ -75,17 +75,19 @@ type (
 	}
 
 	Conf struct {
-		Ref       string
-		UID       uint64
-		Tag       string
-		Active    bool
-		Desc      string
-		Tagline   string
-		DateDesc  string
-		StartDate time.Time
-		EndDate   time.Time
-		Location  string
-		Venue     string
+		Ref               string
+		UID               uint64
+		Tag               string
+		Active            bool
+		PublicationStatus string
+		Desc              string
+		EditionType       string
+		Tagline           string
+		DateDesc          string
+		StartDate         time.Time
+		EndDate           time.Time
+		Location          string
+		Venue             string
 		// VenueMap is a Google Maps / OpenStreetMap link to the
 		// venue's location; rendered in the ticket email.
 		VenueMap string
@@ -102,12 +104,31 @@ type (
 		// request time (shallow-copy + set in RenderConf / RenderTalks),
 		// never stored in Notion. Drives both the nav-bar "agenda" /
 		// "talks" links and the per-conf-template agenda section.
-		HasAgenda     bool
-		ShowHackathon bool
-		Tickets       []*ConfTicket
-		TixSold       uint
-		OGFlavor      string
-		Emoji         string
+		HasAgenda       bool
+		ShowHackathon   bool
+		Tickets         []*ConfTicket
+		TixSold         uint
+		OGFlavor        string
+		Emoji           string
+		HeroTitle       string
+		HeroCaption     string
+		AboutTitle      string
+		AboutBody       string
+		AboutBody2      string
+		VenueTitle      string
+		VenueSubtitle   string
+		VenueBody       string
+		HotelsIntro     string
+		LocalTicketBody string
+		SpeakersTitle   string
+		SpeakersBody    string
+		MapEmbedURL     string
+		MapLatitude     float64
+		MapLongitude    float64
+		MapXPercent     float64
+		MapYPercent     float64
+		MapLabel        string
+		MapLabelSide    string
 		// Timezone is the IANA name of the conference venue's local
 		// time (e.g. "Europe/Vienna", "America/Toronto"). Read from
 		// the Notion ConfsDb "Timezone" field. Empty when the field
@@ -321,6 +342,7 @@ type (
 		FirstEvent   bool
 		DinnerRSVP   bool
 		Sponsor      bool
+		FeaturedRank int
 		Company      string
 		OrgPhoto     string
 		OtherEvents  []*Conf
@@ -427,17 +449,18 @@ type (
 	}
 
 	Session struct {
-		Name      string
-		Speakers  []*Speaker
-		TalkPhoto string
-		Sched     *Times
-		StartTime string
-		Len       string
-		Type      string
-		Venue     string
-		AnchorTag string
-		ConfTag   string
-		YTLink    string // populated when a Recording row exists for this talk
+		Name        string
+		Description string
+		Speakers    []*Speaker
+		TalkPhoto   string
+		Sched       *Times
+		StartTime   string
+		Len         string
+		Type        string
+		Venue       string
+		AnchorTag   string
+		ConfTag     string
+		YTLink      string // populated when a Recording row exists for this talk
 	}
 
 	Ticket struct {
@@ -470,6 +493,7 @@ type (
 		// can still see it.
 		Revoked     bool
 		CheckedInAt *time.Time
+		QRCodeURI   string
 	}
 
 	Item struct {
@@ -875,6 +899,27 @@ func datesBetween(start, end time.Time) []time.Time {
 	return dates
 }
 
+// EventDayCount returns the inclusive number of calendar days covered by
+// StartDate and EndDate in the conference's local timezone.
+func (c *Conf) EventDayCount() int {
+	if c == nil || c.StartDate.IsZero() {
+		return 1
+	}
+	loc := c.Loc()
+	start := c.StartDate.In(loc)
+	end := c.EndDate.In(loc)
+	if c.EndDate.IsZero() || end.Before(start) {
+		end = start
+	}
+	startDay := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, loc)
+	endDay := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, loc)
+	days := int(endDay.Sub(startDay).Hours()/24) + 1
+	if days < 1 {
+		return 1
+	}
+	return days
+}
+
 // Loc returns the conference's local timezone. Prefers the explicit
 // Timezone field (parsed into TZ at parseConf time); falls back to
 // StartDate.Location() when the conf row hasn't been migrated to
@@ -917,13 +962,29 @@ func (c *Conf) WithinTwoWeeks() bool {
 	return time.Until(c.StartDate) <= 12*24*time.Hour
 }
 
+func (c *Conf) IsPublished() bool {
+	return c != nil && c.PublicationStatus == "published"
+}
+
+func (c *Conf) IsDraft() bool {
+	return c == nil || c.PublicationStatus != "published"
+}
+
 // HasEnded reports whether the conf is over (EndDate is in the past).
 // Used by the dashboard to fold past confs into a collapsed section.
 func (c *Conf) HasEnded() bool {
-	if c.EndDate.IsZero() {
+	return c.HasEndedAt(time.Now())
+}
+
+func (c *Conf) HasEndedAt(now time.Time) bool {
+	if c == nil || c.EndDate.IsZero() {
 		return false
 	}
-	return c.EndDate.Before(time.Now())
+	return c.EndDate.Before(now)
+}
+
+func (c *Conf) IsCurrentlyActive() bool {
+	return c.IsPublished() && !c.HasEnded()
 }
 
 // CanInvite reports whether co-speaker invites are still meaningful for
@@ -931,7 +992,7 @@ func (c *Conf) HasEnded() bool {
 // that window the schedule is locked and adding speakers creates more
 // problems than it solves.
 func (c *Conf) CanInvite() bool {
-	return c.Active && time.Until(c.StartDate) > 4*24*time.Hour
+	return c.IsCurrentlyActive() && time.Until(c.StartDate) > 4*24*time.Hour
 }
 
 // TalksDueDays returns the number of days before StartDate at which talk
@@ -954,7 +1015,7 @@ func (c *Conf) TalksDueDate() time.Time {
 // TalksOpen reports whether talk applications are currently being accepted
 // for this conf — Active and before TalksDueDate.
 func (c *Conf) TalksOpen() bool {
-	return c.Active && time.Now().Before(c.TalksDueDate())
+	return c.IsCurrentlyActive() && time.Now().Before(c.TalksDueDate())
 }
 
 // VolunteerOpen reports whether public volunteer applications should be
@@ -963,7 +1024,7 @@ func (c *Conf) VolunteerOpen() bool {
 	if c.Tag == "nairobi" {
 		return false
 	}
-	return c.Active && c.InFuture()
+	return c.IsCurrentlyActive() && c.InFuture()
 }
 
 // EmojiOrDefault returns the conf's emoji, or a sparkles fallback when
@@ -973,6 +1034,66 @@ func (c *Conf) EmojiOrDefault() string {
 		return "✨"
 	}
 	return c.Emoji
+}
+
+// ArchiveTitle returns the compact event title used by the personal archive.
+// It turns "bitcoin++ Austin 2024, bitcoin script edition" into "Austin".
+func (c *Conf) ArchiveTitle() string {
+	title, _ := c.archiveTitleParts()
+	return title
+}
+
+// ArchiveEdition returns the quoted edition phrase used by the personal
+// archive, such as "bitcoin script edition".
+func (c *Conf) ArchiveEdition() string {
+	_, edition := c.archiveTitleParts()
+	return edition
+}
+
+func (c *Conf) archiveTitleParts() (string, string) {
+	if c == nil {
+		return "", ""
+	}
+	desc := strings.TrimSpace(strings.TrimPrefix(c.Desc, "bitcoin++"))
+	desc = strings.TrimSpace(desc)
+	if desc == "" {
+		return strings.TrimSpace(c.Location), ""
+	}
+
+	head, edition, hasEdition := strings.Cut(desc, ",")
+	head = strings.TrimSpace(head)
+	edition = strings.TrimSpace(edition)
+
+	if hasEdition && strings.EqualFold(head, "local edition") {
+		return edition, head
+	}
+
+	title := stripTrailingYear(head)
+	if title == "" {
+		title = head
+	}
+	return title, edition
+}
+
+func stripTrailingYear(s string) string {
+	parts := strings.Fields(strings.TrimSpace(s))
+	if len(parts) == 0 {
+		return ""
+	}
+	last := parts[len(parts)-1]
+	if len(last) == 4 {
+		allDigits := true
+		for _, r := range last {
+			if r < '0' || r > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits {
+			parts = parts[:len(parts)-1]
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func (c *Conf) DateBeforeStart(daysbefore int) string {

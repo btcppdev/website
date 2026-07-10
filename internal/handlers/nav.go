@@ -17,7 +17,7 @@ type NavConfList struct {
 	Past     []*types.Conf
 }
 
-// buildNavConfList loads conferences, drops inactive rows, and splits by
+// buildNavConfList loads published conferences and splits by
 // HasEnded(). Sort order is "next event soonest" for
 // upcoming and "most recently ended" for past so the freshest items
 // land at the top of each list.
@@ -40,13 +40,12 @@ func buildNavConfList(ctx *config.AppContext) NavConfList {
 		if hardcodedPast[c.Tag] {
 			continue
 		}
-		// Past confs ignore the Active flag — once an event has ended,
-		// the row is typically flipped to inactive in Notion, but we
-		// still want it on the public archive list. Upcoming confs
-		// keep the Active gate so unpublished drafts don't leak.
+		if !c.IsPublished() {
+			continue
+		}
 		if c.HasEnded() {
 			past = append(past, c)
-		} else if c.Active {
+		} else {
 			upcoming = append(upcoming, c)
 		}
 	}

@@ -40,21 +40,24 @@ func (d *Day) Venues() []string {
 }
 
 type ConfPage struct {
-	Conf          *types.Conf
-	Hotels        []*types.Hotel
-	Tix           *types.ConfTicket
-	MaxTix        *types.ConfTicket
-	Sold          uint
-	TixLeft       uint
-	Talks         []*types.Talk
-	EventSpeakers []*types.Speaker
-	Buckets       map[string]types.SessionTime
-	Days          []*Day
+	Conf              *types.Conf
+	Hotels            []*types.Hotel
+	Tix               *types.ConfTicket
+	MaxTix            *types.ConfTicket
+	Sold              uint
+	TixLeft           uint
+	Talks             []*types.Talk
+	EventSpeakers     []*types.Speaker
+	FeaturedSpeakers  []*types.Speaker
+	CommunitySpeakers []*types.Speaker
+	Buckets           map[string]types.SessionTime
+	Days              []*Day
 
 	// AgendaDays drives the post-section-letter agenda rendering: per-day
 	// bucketed talks + ConfInfo time strip. Empty when the conf has no
 	// scheduled talks yet.
 	AgendaDays []*AgendaDay
+	ConfInfos  []*types.ConfInfo
 
 	// ScheduledSessions is AgendaDays' .All flattened into a single
 	// chrono-ordered slice — used by the JSON-LD Event subEvent[]
@@ -74,6 +77,54 @@ type ConfPage struct {
 type SuccessPage struct {
 	Conf *types.Conf
 	Year uint
+}
+
+type HomePageData struct {
+	Confs            []*types.Conf
+	Upcoming         []*types.Conf
+	Past             []*types.Conf
+	Years            []*HomeTimelineYear
+	Sponsors         []*HomeSponsor
+	FeaturedSpeakers []*types.Speaker
+	MapMarkers       []*HomeMapMarker
+	Year             uint
+}
+
+func (h HomePageData) NextConf() *types.Conf {
+	if len(h.Upcoming) == 0 {
+		return nil
+	}
+	return h.Upcoming[0]
+}
+
+type HomeTimelineYear struct {
+	Year  int
+	Confs []*types.Conf
+}
+
+type HomeMapMarker struct {
+	Conf      *types.Conf
+	Label     string
+	Style     string
+	LabelSide string
+	Upcoming  bool
+	Editions  []*HomeMapEdition
+}
+
+type HomeMapEdition struct {
+	Conf        *types.Conf
+	Label       string
+	Date        string
+	EditionType string
+	Upcoming    bool
+}
+
+type HomeSponsor struct {
+	Name      string
+	Level     string
+	LogoDark  string
+	LogoLight string
+	URL       string
 }
 
 type TixFormPage struct {
@@ -250,8 +301,10 @@ type DashboardPage struct {
 	// the user has any kind of relationship with (speaker, volunteer,
 	// or ticket-holder). Replaces the old activity-typed sections —
 	// talks / volunteer / tickets are nested inside each block.
-	ActiveBlocks []*EventBlock
-	PastBlocks   []*EventBlock
+	ActiveBlocks    []*EventBlock
+	PastBlocks      []*EventBlock
+	ArchiveYears    []*DashboardArchiveYear
+	ArchiveSessions int
 
 	// HasUpcomingTalk / HasUpcomingVol gate the per-channel "Need
 	// help?" block in the footer. True when at least one
@@ -595,6 +648,12 @@ type DashboardStats struct {
 	ShiftsBooked  int
 }
 
+type DashboardArchiveYear struct {
+	Year         int
+	Blocks       []*EventBlock
+	SessionCount int
+}
+
 // UserTicket bundles a Registration with its resolved Conf for
 // dashboard rendering.
 type UserTicket struct {
@@ -776,6 +835,7 @@ type SpeakerRow struct {
 	ComingFrom    string
 	Company       string
 	OrgLogo       string // bare filename in Spaces sponsors/, "" if unset
+	FeaturedRank  int
 	// Talks on this conf that the speaker is on. One entry per
 	// proposal, with the per-talk status pill source.
 	Talks []*SpeakerRowTalk
