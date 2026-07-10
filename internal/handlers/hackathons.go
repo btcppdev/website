@@ -261,28 +261,28 @@ func publicHackathonCompetitionConferenceName(confs []*types.Conf, competition *
 }
 
 func (p *HackathonPage) CompetitionURL(competition *types.HackathonCompetition) string {
-	return hackathonURL(competition)
+	return hackathonURLForConf(p.competitionConf(competition))
 }
 
 func (p *ConfPage) HackathonURL() string {
 	if p == nil {
-		return "/hackathons"
+		return ""
 	}
-	return hackathonURL(p.Hackathon)
+	return hackathonURLForConf(p.Conf)
 }
 
 func (p *ConfPage) HackathonScheduleURL() string {
 	if p == nil {
-		return "/hackathons"
+		return ""
 	}
-	return hackathonScheduleURL(p.Hackathon)
+	return hackathonScheduleURLForConf(p.Conf)
 }
 
 func (p *ConfPage) HackathonCreateProjectURL() string {
 	if p == nil || p.Hackathon == nil {
-		return "/hackathons"
+		return ""
 	}
-	return hackathonURL(p.Hackathon) + "/projects/new"
+	return hackathonURLForConf(p.Conf) + "/projects/new"
 }
 
 func (p *ConfPage) HackathonAdminURL() string {
@@ -343,7 +343,7 @@ func (p *ConfPage) HackathonTimeline() HackathonTimelineView {
 }
 
 func (p *HackathonPage) CompetitionScheduleURL(competition *types.HackathonCompetition) string {
-	return hackathonScheduleURL(competition)
+	return hackathonScheduleURLForConf(p.competitionConf(competition))
 }
 
 func (p *HackathonPage) CompetitionStatusLabelFor(competition *types.HackathonCompetition) string {
@@ -438,6 +438,73 @@ func (p *HackathonPage) ProjectTagsCSV() string {
 	return strings.Join(p.Project.Tags, ", ")
 }
 
+func (p *HackathonPage) HackathonURL() string {
+	if p == nil {
+		return ""
+	}
+	return hackathonURLForConf(p.Conf)
+}
+
+func (p *HackathonPage) ProjectNewURL() string {
+	if p == nil {
+		return ""
+	}
+	base := p.HackathonURL()
+	if base == "" {
+		return ""
+	}
+	return base + "/projects/new"
+}
+
+func (p *HackathonPage) ProjectCreateURL() string {
+	if p == nil {
+		return ""
+	}
+	base := p.HackathonURL()
+	if base == "" {
+		return ""
+	}
+	return base + "/projects"
+}
+
+func (p *HackathonPage) ProjectURL(project *types.HackathonProject) string {
+	if p == nil || project == nil {
+		return ""
+	}
+	base := p.HackathonURL()
+	if base == "" {
+		return ""
+	}
+	return base + "/projects/" + url.PathEscape(project.ID)
+}
+
+func (p *HackathonPage) ProjectSubmitURL(project *types.HackathonProject) string {
+	projectURL := p.ProjectURL(project)
+	if projectURL == "" {
+		return ""
+	}
+	return projectURL + "/submit"
+}
+
+func (p *HackathonPage) ProjectInviteURL(project *types.HackathonProject) string {
+	projectURL := p.ProjectURL(project)
+	if projectURL == "" {
+		return ""
+	}
+	return projectURL + "/invites"
+}
+
+func (p *HackathonPage) LoginURL() string {
+	if p == nil {
+		return "/login"
+	}
+	next := p.HackathonURL()
+	if next == "" {
+		return "/login"
+	}
+	return "/login?next=" + url.QueryEscape(next)
+}
+
 func (p *HackathonPage) CanManageProject(projectID string) bool {
 	return p != nil && p.OwnedProjects != nil && p.OwnedProjects[projectID]
 }
@@ -457,10 +524,10 @@ func (p *HackathonPage) AdminEditURL() string {
 }
 
 func (p *HackathonPage) JudgingURL() string {
-	if p == nil || p.Competition == nil {
-		return "/hackathons"
+	if p == nil || p.Competition == nil || p.Conf == nil {
+		return ""
 	}
-	return hackathonURL(p.Competition) + "/judging"
+	return hackathonURLForConf(p.Conf) + "/judging"
 }
 
 func (p *HackathonPage) CompetitionStatusLabel() string {
@@ -678,9 +745,9 @@ func (p *HackathonPage) NextMilestoneIsScheduleLink() bool {
 
 func (p *HackathonPage) ScheduleURL() string {
 	if p == nil {
-		return hackathonScheduleURL(nil)
+		return ""
 	}
-	return hackathonScheduleURL(p.Competition)
+	return hackathonScheduleURLForConf(p.Conf)
 }
 
 func (p *HackathonPage) ScheduleEvents() []HackathonScheduleEvent {
@@ -827,13 +894,6 @@ func hackathonMilestoneIsScheduleLink(competition *types.HackathonCompetition) b
 		return false
 	}
 	return competition.SubmissionsOpenAt != nil || competition.SubmissionsCloseAt != nil || competition.PublicGalleryAt != nil
-}
-
-func hackathonScheduleURL(competition *types.HackathonCompetition) string {
-	if competition == nil {
-		return "/hackathons"
-	}
-	return hackathonURL(competition) + "/schedule"
 }
 
 func formatHackathonTime(t *time.Time) string {
@@ -1024,56 +1084,6 @@ func confTalkForHackathonScheduleSegment(ctx *config.AppContext, segment *types.
 	return nil, nil
 }
 
-func HackathonIndex(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	competitions, err := getters.ListCompetitions(ctx)
-	if err != nil {
-		ctx.Err.Printf("/hackathons list competitions: %s", err)
-		http.Error(w, "Unable to load hackathons", http.StatusInternalServerError)
-		return
-	}
-	confs, err := getters.ListConfs(ctx)
-	if err != nil {
-		ctx.Err.Printf("/hackathons list confs: %s", err)
-		http.Error(w, "Unable to load conferences", http.StatusInternalServerError)
-		return
-	}
-	id := auth.RequireOptional(r, ctx)
-	visible := make([]*types.HackathonCompetition, 0, len(competitions))
-	for _, competition := range competitions {
-		if competition == nil {
-			continue
-		}
-		conf := confForHackathon(confs, competition)
-		viewer := hackathonViewerFromIdentity(id, conf)
-		if competition.Visibility == getters.CompetitionVisibilityPublic || viewer.Admin || viewer.Coordinator {
-			visible = append(visible, competition)
-		}
-	}
-	sortHackathonCompetitions(visible, confs, hackathonSortOldest)
-	scheduleEventsByCompetition := make(map[string][]HackathonScheduleEvent, len(visible))
-	for _, competition := range visible {
-		events, err := loadHackathonScheduleEvents(ctx, competition.ID)
-		if err != nil {
-			ctx.Err.Printf("/hackathons schedule events %s: %s", competition.ID, err)
-			continue
-		}
-		if len(events) > 0 {
-			scheduleEventsByCompetition[competition.ID] = events
-		}
-	}
-	page := &HackathonPage{
-		Competitions:                visible,
-		Confs:                       confs,
-		ScheduleEventsByCompetition: scheduleEventsByCompetition,
-		Viewer:                      id,
-		Year:                        helpers.CurrentYear(),
-	}
-	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathons.tmpl", page); err != nil {
-		ctx.Err.Printf("/hackathons template: %s", err)
-		http.Error(w, "Unable to load page", http.StatusInternalServerError)
-	}
-}
-
 func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	competition, conf, id, projects, err := loadHackathonPageData(w, r, ctx)
 	if err != nil {
@@ -1185,7 +1195,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 	if err != nil {
 		return
 	}
-	dest := hackathonURL(competition) + "/judging"
+	dest := hackathonURLForConf(conf) + "/judging"
 	viewer := hackathonViewerFromIdentity(id, conf)
 	if viewer.PersonID == "" {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Your account needs a person profile before you can score projects."), http.StatusSeeOther)
@@ -1228,7 +1238,7 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 	if !competitionAcceptsProjects(competition) {
-		http.Redirect(w, r, hackathonURL(competition)+"?error="+url.QueryEscape("Project submissions are not open."), http.StatusSeeOther)
+		http.Redirect(w, r, hackathonURLForConf(conf)+"?error="+url.QueryEscape("Project submissions are not open."), http.StatusSeeOther)
 		return
 	}
 	page := &HackathonPage{
@@ -1250,42 +1260,43 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 }
 
 func HackathonProjectCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	competition, _, id, err := loadHackathonCompetition(w, r, ctx)
+	competition, conf, id, err := loadHackathonCompetition(w, r, ctx)
 	if err != nil {
 		return
 	}
+	base := hackathonURLForConf(conf)
 	if id == nil {
 		redirectHackathonLogin(w, r)
 		return
 	}
 	if !competitionAcceptsProjects(competition) {
-		http.Redirect(w, r, hackathonURL(competition)+"?error="+url.QueryEscape("Project submissions are not open."), http.StatusSeeOther)
+		http.Redirect(w, r, base+"?error="+url.QueryEscape("Project submissions are not open."), http.StatusSeeOther)
 		return
 	}
 	personID := hackathonViewerPersonID(id)
 	if personID == "" {
-		http.Redirect(w, r, hackathonURL(competition)+"?error="+url.QueryEscape("Your account needs a person profile before you can create a project."), http.StatusSeeOther)
+		http.Redirect(w, r, base+"?error="+url.QueryEscape("Your account needs a person profile before you can create a project."), http.StatusSeeOther)
 		return
 	}
 	in, err := projectInputFromRequest(w, r, competition.ID)
 	if err != nil {
-		http.Redirect(w, r, hackathonURL(competition)+"/projects/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, base+"/projects/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
 	in.CreatedByPersonID = personID
 	in.Slug, err = generatedProjectSlug()
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s create project slug: %s", competition.Slug, err)
-		http.Redirect(w, r, hackathonURL(competition)+"/projects/new?error="+url.QueryEscape("Unable to create project ID"), http.StatusSeeOther)
+		http.Redirect(w, r, base+"/projects/new?error="+url.QueryEscape("Unable to create project ID"), http.StatusSeeOther)
 		return
 	}
 	projectID, err := getters.CreateProject(ctx, in)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s create project: %s", competition.Slug, err)
-		http.Redirect(w, r, hackathonURL(competition)+"/projects/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, base+"/projects/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, hackathonURL(competition)+"/projects/"+url.PathEscape(projectID)+"?flash="+url.QueryEscape("Project created"), http.StatusSeeOther)
+	http.Redirect(w, r, base+"/projects/"+url.PathEscape(projectID)+"?flash="+url.QueryEscape("Project created"), http.StatusSeeOther)
 }
 
 func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1329,11 +1340,11 @@ func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 }
 
 func HackathonProjectUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	competition, _, _, project, err := loadEditableHackathonProject(w, r, ctx)
+	competition, conf, _, project, err := loadEditableHackathonProject(w, r, ctx)
 	if err != nil {
 		return
 	}
-	dest := hackathonURL(competition) + "/projects/" + url.PathEscape(project.ID)
+	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID)
 	if !projectEditableByDeadline(competition) {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project edits are closed."), http.StatusSeeOther)
 		return
@@ -1353,11 +1364,11 @@ func HackathonProjectUpdate(w http.ResponseWriter, r *http.Request, ctx *config.
 }
 
 func HackathonProjectSubmit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	competition, _, _, project, err := loadEditableHackathonProject(w, r, ctx)
+	competition, conf, _, project, err := loadEditableHackathonProject(w, r, ctx)
 	if err != nil {
 		return
 	}
-	dest := hackathonURL(competition) + "/projects/" + url.PathEscape(project.ID)
+	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID)
 	if !projectEditableByDeadline(competition) {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project submissions are closed."), http.StatusSeeOther)
 		return
@@ -1411,11 +1422,11 @@ func availableOptInAwards(awards []*types.Award) []*types.Award {
 }
 
 func HackathonProjectInviteCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	competition, _, _, project, err := loadEditableHackathonProject(w, r, ctx)
+	competition, conf, _, project, err := loadEditableHackathonProject(w, r, ctx)
 	if err != nil {
 		return
 	}
-	dest := hackathonURL(competition) + "/projects/" + url.PathEscape(project.ID)
+	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID)
 	if !projectEditableByDeadline(competition) {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project edits are closed."), http.StatusSeeOther)
 		return
@@ -1465,7 +1476,13 @@ func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *c
 		http.Error(w, "Unable to load hackathon", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, hackathonURL(competition)+"/projects/"+url.PathEscape(project.ID)+"?flash="+url.QueryEscape("Joined project"), http.StatusSeeOther)
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/invites conf %s: %s", competition.ConferenceID, err)
+		http.Error(w, "Unable to load conference", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, hackathonURLForConf(conf)+"/projects/"+url.PathEscape(project.ID)+"?flash="+url.QueryEscape("Joined project"), http.StatusSeeOther)
 }
 
 func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string) ([]*types.Award, map[string][]*types.Prize, map[string][]*types.ProjectAward, error) {
@@ -1525,21 +1542,29 @@ func loadHackathonPageData(w http.ResponseWriter, r *http.Request, ctx *config.A
 }
 
 func loadHackathonCompetition(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.HackathonCompetition, *types.Conf, *auth.Identity, error) {
-	slug := mux.Vars(r)["slug"]
-	competition, err := getters.GetCompetitionBySlug(ctx, slug)
+	confTag := strings.TrimSpace(mux.Vars(r)["conf"])
+	conf, err := getters.GetConfByTag(ctx, confTag)
 	if err != nil {
 		handle404(w, r, ctx)
 		return nil, nil, nil, err
 	}
-	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if conf == nil {
+		handle404(w, r, ctx)
+		return nil, nil, nil, fmt.Errorf("conference %s not found", confTag)
+	}
+	competition, err := getters.GetCompetitionByConferenceID(ctx, conf.Ref)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s conf %s: %s", competition.Slug, competition.ConferenceID, err)
+		ctx.Err.Printf("/%s/hackathon competition: %s", conf.Tag, err)
 		handle404(w, r, ctx)
 		return nil, nil, nil, err
+	}
+	if competition == nil {
+		handle404(w, r, ctx)
+		return nil, nil, nil, fmt.Errorf("conference %s has no hackathon", conf.Tag)
 	}
 	id := auth.RequireOptional(r, ctx)
 	viewer := hackathonViewerFromIdentity(id, conf)
-	if competition.Visibility != getters.CompetitionVisibilityPublic && !viewer.Admin {
+	if competition.Visibility != getters.CompetitionVisibilityPublic && !viewer.Admin && !viewer.Coordinator {
 		handle404(w, r, ctx)
 		return nil, nil, nil, fmt.Errorf("hidden competition %s", competition.Slug)
 	}
@@ -1547,19 +1572,10 @@ func loadHackathonCompetition(w http.ResponseWriter, r *http.Request, ctx *confi
 }
 
 func loadHackathonJudgingAccess(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.HackathonCompetition, *types.Conf, *auth.Identity, []*types.JudgeEvent, error) {
-	slug := mux.Vars(r)["slug"]
-	competition, err := getters.GetCompetitionBySlug(ctx, slug)
+	competition, conf, id, err := loadHackathonCompetition(w, r, ctx)
 	if err != nil {
-		handle404(w, r, ctx)
 		return nil, nil, nil, nil, err
 	}
-	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
-	if err != nil {
-		ctx.Err.Printf("/hackathons/%s conf %s: %s", competition.Slug, competition.ConferenceID, err)
-		handle404(w, r, ctx)
-		return nil, nil, nil, nil, err
-	}
-	id := auth.RequireOptional(r, ctx)
 	if id == nil {
 		redirectHackathonLogin(w, r)
 		return nil, nil, nil, nil, fmt.Errorf("not logged in")
@@ -1598,7 +1614,7 @@ func loadEditableHackathonProject(w http.ResponseWriter, r *http.Request, ctx *c
 	}
 	viewer := hackathonViewerFromIdentity(id, conf)
 	if !viewer.Admin && !viewer.Coordinator && !viewerCanManageProject(ctx, project.ID, viewer.PersonID) {
-		http.Redirect(w, r, hackathonURL(competition)+"?error="+url.QueryEscape("Only project members can edit that project."), http.StatusSeeOther)
+		http.Redirect(w, r, hackathonURLForConf(conf)+"?error="+url.QueryEscape("Only project members can edit that project."), http.StatusSeeOther)
 		return nil, nil, nil, nil, fmt.Errorf("viewer cannot edit project %s", project.ID)
 	}
 	return competition, conf, id, project, nil
@@ -1911,11 +1927,19 @@ func redirectHackathonLogin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
 }
 
-func hackathonURL(competition *types.HackathonCompetition) string {
-	if competition == nil {
-		return "/hackathons"
+func hackathonURLForConf(conf *types.Conf) string {
+	if conf == nil || strings.TrimSpace(conf.Tag) == "" {
+		return ""
 	}
-	return "/hackathons/" + url.PathEscape(competition.Slug)
+	return "/" + url.PathEscape(conf.Tag) + "/hackathon"
+}
+
+func hackathonScheduleURLForConf(conf *types.Conf) string {
+	base := hackathonURLForConf(conf)
+	if base == "" {
+		return ""
+	}
+	return base + "/schedule"
 }
 
 func hackathonLifecycleLabel(competition *types.HackathonCompetition) string {

@@ -1261,40 +1261,37 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		TemplatedMissivesSchedule(w, r, app)
 	}).Methods("POST")
 
-	r.HandleFunc("/hackathons", func(w http.ResponseWriter, r *http.Request) {
-		HackathonIndex(w, r, app)
-	}).Methods("GET")
-	r.HandleFunc("/hackathons/{slug}", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon", func(w http.ResponseWriter, r *http.Request) {
 		HackathonShow(w, r, app)
 	}).Methods("GET")
-	r.HandleFunc("/hackathons/{slug}/schedule", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/schedule", func(w http.ResponseWriter, r *http.Request) {
 		HackathonSchedule(w, r, app)
 	}).Methods("GET")
-	r.HandleFunc("/hackathons/{slug}/judging", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/judging", func(w http.ResponseWriter, r *http.Request) {
 		HackathonJudging(w, r, app)
 	}).Methods("GET")
-	r.HandleFunc("/hackathons/{slug}/judging/scorecards", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/judging/scorecards", func(w http.ResponseWriter, r *http.Request) {
 		HackathonScorecardSubmit(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/hackathons/{slug}/projects/new", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/projects/new", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectNew(w, r, app)
 	}).Methods("GET")
-	r.HandleFunc("/hackathons/{slug}/projects", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/projects", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectCreate(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/hackathons/invites/{token}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectInviteAccept(w, r, app)
 	}).Methods("GET")
-	r.HandleFunc("/hackathons/{slug}/projects/{projectID}/invites", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/invites", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectInviteCreate(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/hackathons/{slug}/projects/{projectID}/submit", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/submit", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectSubmit(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/hackathons/{slug}/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectEdit(w, r, app)
 	}).Methods("GET")
-	r.HandleFunc("/hackathons/{slug}/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectUpdate(w, r, app)
 	}).Methods("POST")
 
