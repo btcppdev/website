@@ -1,4 +1,14 @@
 /* Shared public chrome for pages that should not load legacy Tailwind CSS. */
+@font-face {
+	font-family: "Ubuntu-BoldItalic";
+	src: url("../fonts/Ubuntu-BoldItalic.ttf") format("truetype");
+	font-display: swap;
+}
+
+.font-bitcoin {
+	font-family: "Ubuntu-BoldItalic", sans-serif;
+}
+
 :root {
 	--btcpp-anchor-offset: 112px;
 }

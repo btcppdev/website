@@ -1,61 +1,55 @@
 {{ define "satellites_section" }}
-<section id="satellites">
-  <div class="bg-white py-32">
-    <div class="rebrand-satellites__intro mx-auto max-w-7xl px-6 lg:px-8">
+<section id="satellites" class="rebrand-satellites">
+  <div class="rebrand-satellites__inner">
+    <div class="rebrand-satellites__intro">
       <div>
         <p class="rebrand-section-label">§05 · Satellites</p>
-        <h2 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Satellite Events</h2>
+        <h2>Satellite Events</h2>
       </div>
-      <p class="mt-2 text-lg leading-8 text-gray-600">Other bitcoin events happening around {{ .Conf.Location }}. Additional ticket or registration may be necessary.</p>
+      <p>Other bitcoin events happening around {{ .Conf.Location }}. Additional ticket or registration may be necessary.</p>
     </div>
 
-    <div class="mx-auto max-w-7xl px-6 text-center lg:px-8">
+    <div class="rebrand-satellites__content">
       {{ if .SatelliteEvents }}
-      <div class="mt-16 space-y-20 lg:mt-20 lg:space-y-20">
+      <div class="rebrand-satellites__list">
         {{ range .SatelliteEvents }}
-        <article class="relative isolate flex flex-col gap-8 text-left lg:flex-row">
+        <article class="rebrand-satellite-card{{ if not .ImageURL }} rebrand-satellite-card--no-image{{ end }}">
           {{ if .ImageURL }}
-          <div class="satellite-event__image relative aspect-square w-full lg:w-64 lg:shrink-0">
-            <img src="{{ spacesURL .ImageURL }}" alt="" class="satellite-event__image-img absolute inset-0 h-full w-full rounded-2xl bg-gray-50 object-cover">
-            <div class="absolute inset-0 rounded-2xl ring-1 ring-inset ring-gray-900/10"></div>
+          <div class="satellite-event__image">
+            <img src="{{ spacesURL .ImageURL }}" alt="" class="satellite-event__image-img">
           </div>
           {{ end }}
-          <div>
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-              {{ $timeLabel := satelliteTimeLabel . $.Conf }}{{ if $timeLabel }}<time class="text-gray-500">{{ $timeLabel }}</time>{{ end }}
-              {{ if .EventType }}<span class="relative z-10 rounded-full bg-gray-50 px-3 py-1.5 font-medium text-gray-600">{{ .EventType }}</span>{{ end }}
-              {{ if .Location }}<span class="text-gray-500">{{ .Location }}</span>{{ end }}
+          <div class="rebrand-satellite-card__body">
+            <div class="rebrand-satellite-card__meta">
+              {{ $timeLabel := satelliteTimeLabel . $.Conf }}{{ if $timeLabel }}<time>{{ $timeLabel }}</time>{{ end }}
+              {{ if .EventType }}<span>{{ .EventType }}</span>{{ end }}
+              {{ if .Location }}<span>{{ .Location }}</span>{{ end }}
             </div>
-            <div class="group relative max-w-xl">
-              <h3 class="mt-3 text-lg font-semibold leading-6 text-gray-900 group-hover:text-gray-600">
+            <div class="rebrand-satellite-card__copy">
+              <h3>
                 {{ if .EventURL }}
                 <a target="_blank" href="{{ safeURL .EventURL }}">
-                  <span class="absolute inset-0"></span>
                   {{ .Title }}
                 </a>
                 {{ else }}
                 {{ .Title }}
                 {{ end }}
               </h3>
-              {{ if .Description }}<p class="mt-5 text-sm leading-6 text-gray-600">{{ .Description }}</p>{{ end }}
+              {{ if .Description }}<p>{{ .Description }}</p>{{ end }}
             </div>
             {{ if or .HostName .HostLogoURL }}
-            <div class="mt-6 flex border-t border-gray-900/5 pt-6">
-              <div class="relative flex items-center gap-x-4">
-                {{ if .HostLogoURL }}<img src="{{ spacesURL .HostLogoURL }}" alt="" class="h-10 w-10 rounded-full bg-gray-50 object-cover">{{ end }}
+            <div class="rebrand-satellite-card__host">
+              <div>
+                {{ if .HostLogoURL }}<img src="{{ spacesURL .HostLogoURL }}" alt="">{{ end }}
                 {{ if .HostName }}
-                <div class="text-sm leading-6">
-                  <p class="font-semibold text-gray-900">
-                    {{ if .HostURL }}
-                    <a target="_blank" href="{{ safeURL .HostURL }}">
-                      <span class="absolute inset-0"></span>
-                      {{ .HostName }}
-                    </a>
-                    {{ else }}
-                    {{ .HostName }}
-                    {{ end }}
-                  </p>
-                </div>
+                <p>
+                  <span>Hosted by</span>
+                  {{ if .HostURL }}
+                  <a target="_blank" href="{{ safeURL .HostURL }}">{{ .HostName }}</a>
+                  {{ else }}
+                  {{ .HostName }}
+                  {{ end }}
+                </p>
                 {{ end }}
               </div>
             </div>
@@ -65,12 +59,12 @@
         {{ end }}
       </div>
       {{ else }}
-      <p class="mx-auto mt-12 max-w-2xl text-sm leading-6 text-gray-600">Know of another bitcoin event happening nearby? Send it over and we'll review it for this page.</p>
+      <p class="rebrand-satellites__empty">Know of another bitcoin event happening nearby? Send it over and we'll review it for this page.</p>
       {{ end }}
 
       {{ if .Conf.Active }}
-      <div class="mt-12">
-        <a href="/{{ .Conf.Tag }}/satellites/new" class="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700">Suggest a satellite event</a>
+      <div class="rebrand-satellites__cta">
+        <a href="/{{ .Conf.Tag }}/satellites/new">Suggest a satellite event</a>
       </div>
       {{ end }}
     </div>

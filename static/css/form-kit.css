@@ -21,17 +21,45 @@ body.btcpp-form-page {
 .btcpp-form-page .block { display: block; }
 .btcpp-form-page .inline-flex { display: inline-flex; }
 .btcpp-form-page .flex { display: flex; }
+.btcpp-form-page .inline { display: inline; }
 .btcpp-form-page .grid { display: grid; }
 .btcpp-form-page .hidden { display: none; }
+.btcpp-form-page .relative { position: relative; }
+.btcpp-form-page .absolute { position: absolute; }
+.btcpp-form-page .inset-0 { inset: 0; }
 .btcpp-form-page .w-full { width: 100%; }
+.btcpp-form-page .w-8 { width: 2rem; }
+.btcpp-form-page .w-12 { width: 3rem; }
+.btcpp-form-page .w-24 { width: 6rem; }
+.btcpp-form-page .h-6 { height: 1.5rem; }
+.btcpp-form-page .h-12 { height: 3rem; }
+.btcpp-form-page .h-16 { height: 4rem; }
+.btcpp-form-page .h-24 { height: 6rem; }
+.btcpp-form-page .size-4 { width: 1rem; height: 1rem; }
+.btcpp-form-page .size-full { width: 100%; height: 100%; }
+.btcpp-form-page .max-w-2xl { max-width: 42rem; }
+.btcpp-form-page .max-w-3xl { max-width: 48rem; }
 .btcpp-form-page .max-w-xl { max-width: 36rem; }
 .btcpp-form-page .items-center { align-items: center; }
 .btcpp-form-page .items-start { align-items: flex-start; }
+.btcpp-form-page .justify-end { justify-content: flex-end; }
+.btcpp-form-page .justify-center { justify-content: center; }
 .btcpp-form-page .justify-between { justify-content: space-between; }
+.btcpp-form-page .flex-wrap { flex-wrap: wrap; }
+.btcpp-form-page .flex-col { flex-direction: column; }
+.btcpp-form-page .flex-none { flex: none; }
+.btcpp-form-page .shrink-0 { flex-shrink: 0; }
+.btcpp-form-page .self-start { align-self: flex-start; }
+.btcpp-form-page .gap-2 { gap: .5rem; }
 .btcpp-form-page .gap-3 { gap: .75rem; }
+.btcpp-form-page .gap-4 { gap: 1rem; }
 .btcpp-form-page .gap-x-4 { column-gap: 1rem; }
 .btcpp-form-page .gap-x-8 { column-gap: 2rem; }
 .btcpp-form-page .gap-y-6 { row-gap: 1.5rem; }
+.btcpp-form-page .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.btcpp-form-page .col-start-1 { grid-column-start: 1; }
+.btcpp-form-page .row-start-1 { grid-row-start: 1; }
+.btcpp-form-page .mx-auto { margin-left: auto; margin-right: auto; }
 .btcpp-form-page .mt-1 { margin-top: .25rem; }
 .btcpp-form-page .mt-2 { margin-top: .5rem; }
 .btcpp-form-page .mt-2\.5 { margin-top: .625rem; }
@@ -40,35 +68,130 @@ body.btcpp-form-page {
 .btcpp-form-page .mt-8 { margin-top: 2rem; }
 .btcpp-form-page .mt-10 { margin-top: 2.5rem; }
 .btcpp-form-page .mt-16 { margin-top: 4rem; }
+.btcpp-form-page .p-3 { padding: .75rem; }
+.btcpp-form-page .p-6 { padding: 1.5rem; }
+.btcpp-form-page .p-px { padding: 1px; }
+.btcpp-form-page .px-2\.5 { padding-left: .625rem; padding-right: .625rem; }
+.btcpp-form-page .px-3 { padding-left: .75rem; padding-right: .75rem; }
+.btcpp-form-page .px-3\.5 { padding-left: .875rem; padding-right: .875rem; }
 .btcpp-form-page .px-4 { padding-left: 1rem; padding-right: 1rem; }
+.btcpp-form-page .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.btcpp-form-page .py-1 { padding-top: .25rem; padding-bottom: .25rem; }
+.btcpp-form-page .py-1\.5 { padding-top: .375rem; padding-bottom: .375rem; }
+.btcpp-form-page .py-2 { padding-top: .5rem; padding-bottom: .5rem; }
+.btcpp-form-page .py-2\.5 { padding-top: .625rem; padding-bottom: .625rem; }
 .btcpp-form-page .py-3 { padding-top: .75rem; padding-bottom: .75rem; }
 .btcpp-form-page .py-12 { padding-top: 3rem; padding-bottom: 3rem; }
+.btcpp-form-page .py-24 { padding-top: 6rem; padding-bottom: 6rem; }
+.btcpp-form-page .pl-3\.5 { padding-left: .875rem; }
+.btcpp-form-page .pr-7 { padding-right: 1.75rem; }
+.btcpp-form-page .pt-2 { padding-top: .5rem; }
 .btcpp-form-page .text-center { text-align: center; }
 .btcpp-form-page .text-xs { font-size: .75rem; line-height: 1rem; }
 .btcpp-form-page .text-sm { font-size: .875rem; line-height: 1.25rem; }
+.btcpp-form-page .text-sm\/6 { font-size: .875rem; line-height: 1.5rem; }
 .btcpp-form-page .text-base { font-size: 1rem; line-height: 1.5rem; }
+.btcpp-form-page .text-lg\/8 { font-size: 1.125rem; line-height: 2rem; }
+.btcpp-form-page .text-2xl { font-size: 1.5rem; line-height: 2rem; }
+.btcpp-form-page .text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
+.btcpp-form-page .text-balance { text-wrap: balance; }
+.btcpp-form-page .font-medium { font-weight: 500; }
 .btcpp-form-page .font-semibold { font-weight: 600; }
 .btcpp-form-page .font-bold { font-weight: 700; }
+.btcpp-form-page .tracking-tight { letter-spacing: 0; }
+.btcpp-form-page .uppercase { text-transform: uppercase; }
+.btcpp-form-page .appearance-none { appearance: none; }
+.btcpp-form-page .object-cover { object-fit: cover; }
+.btcpp-form-page .overflow-hidden { overflow: hidden; }
 .btcpp-form-page .rounded-full { border-radius: 9999px; }
+.btcpp-form-page .rounded-lg,
+.btcpp-form-page .rounded-md,
+.btcpp-form-page .rounded {
+  border-radius: 0;
+}
+.btcpp-form-page .border { border: 1px solid var(--fk-ink); }
+.btcpp-form-page .border-gray-200,
+.btcpp-form-page .border-gray-300,
+.btcpp-form-page .border-green-200,
+.btcpp-form-page .border-red-200 {
+  border-color: var(--fk-ink);
+}
+.btcpp-form-page .shadow,
+.btcpp-form-page .shadow-sm {
+  box-shadow: none;
+}
 .btcpp-form-page .bg-gray-50,
 .btcpp-form-page .bg-gray-100,
 .btcpp-form-page .bg-white {
   background-color: var(--fk-bg);
 }
 .btcpp-form-page .bg-green-50 { background-color: #ecfdf3; }
+.btcpp-form-page .bg-red-50 { background-color: #fff0ed; }
 .btcpp-form-page .bg-yellow-50 { background-color: #fffaeb; }
+.btcpp-form-page .bg-indigo-600,
+.btcpp-form-page .bg-green-600,
+.btcpp-form-page .bg-bitcoin {
+  background-color: var(--fk-accent);
+}
 .btcpp-form-page .text-gray-500,
 .btcpp-form-page .text-gray-600,
 .btcpp-form-page .text-gray-700 {
   color: var(--fk-muted);
 }
 .btcpp-form-page .text-gray-900,
+.btcpp-form-page .text-green-800,
 .btcpp-form-page .text-green-700,
 .btcpp-form-page .text-yellow-800 {
   color: var(--fk-ink);
 }
+.btcpp-form-page .text-red-700 { color: var(--fk-error); }
+.btcpp-form-page .text-white { color: var(--fk-ink); }
+.btcpp-form-page .outline,
+.btcpp-form-page .focus\:outline:focus,
+.btcpp-form-page .focus-visible\:outline:focus-visible {
+  outline-style: solid;
+}
+.btcpp-form-page .outline-1 { outline-width: 1px; }
+.btcpp-form-page .outline-2,
+.btcpp-form-page .focus\:outline-2:focus,
+.btcpp-form-page .focus-visible\:outline-2:focus-visible {
+  outline-width: 2px;
+}
+.btcpp-form-page .outline-gray-300,
+.btcpp-form-page .outline-bitcoin,
+.btcpp-form-page .focus\:outline-bitcoin:focus,
+.btcpp-form-page .focus-visible\:outline-bitcoin:focus-visible,
+.btcpp-form-page .focus-visible\:outline-green-600:focus-visible {
+  outline-color: var(--fk-ink);
+}
+.btcpp-form-page .-outline-offset-1,
+.btcpp-form-page .focus\:-outline-offset-2:focus {
+  outline-offset: -1px;
+}
+.btcpp-form-page .focus-visible\:outline-offset-2:focus-visible {
+  outline-offset: 2px;
+}
+.btcpp-form-page .focus\:outline-none:focus {
+  outline: 0;
+}
+.btcpp-form-page .disabled\:opacity-60:disabled { opacity: .6; }
+.btcpp-form-page .disabled\:cursor-wait:disabled { cursor: wait; }
 .btcpp-form-page .hover\:text-gray-700:hover {
   color: var(--fk-ink);
+}
+.btcpp-form-page .hover\:text-gray-800:hover,
+.btcpp-form-page .hover\:bg-gray-50:hover,
+.btcpp-form-page .hover\:bg-red-100:hover,
+.btcpp-form-page .hover\:bg-indigo-700:hover,
+.btcpp-form-page .hover\:bg-green-700:hover,
+.btcpp-form-page .hover\:bg-bitcoin:hover {
+  color: var(--fk-ink);
+}
+.btcpp-form-page .space-y-5 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 1.25rem;
+}
+.btcpp-form-page .scroll-mt-24 {
+  scroll-margin-top: 6rem;
 }
 
 @media (min-width: 640px) {
@@ -83,6 +206,25 @@ body.btcpp-form-page {
   .btcpp-form-page .sm\:px-6 {
     padding-left: 1.5rem;
     padding-right: 1.5rem;
+  }
+
+  .btcpp-form-page .sm\:mt-20 {
+    margin-top: 5rem;
+  }
+
+  .btcpp-form-page .sm\:py-32 {
+    padding-top: 8rem;
+    padding-bottom: 8rem;
+  }
+
+  .btcpp-form-page .sm\:text-5xl {
+    font-size: 3rem;
+    line-height: 1;
+  }
+
+  .btcpp-form-page .sm\:text-sm\/6 {
+    font-size: .875rem;
+    line-height: 1.5rem;
   }
 }
 
@@ -600,6 +742,10 @@ body.btcpp-notfound-page {
   font-size: clamp(18px, 2.8vw, 22px);
   font-style: italic;
   line-height: 1.45;
+}
+
+.btcpp-notfound__action {
+  margin-top: 2rem;
 }
 
 .btcpp-editorial-button {

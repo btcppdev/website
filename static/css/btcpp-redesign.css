@@ -1891,16 +1891,16 @@ body.btcpp-rebrand-page {
   text-align: center;
 }
 
-.btcpp-rebrand-page #satellites {
+.btcpp-rebrand-page .rebrand-satellites {
   border-bottom: 1px solid var(--rebrand-ink);
   background: var(--rebrand-paper);
 }
 
-.btcpp-rebrand-page #satellites .bg-white {
-  background: var(--rebrand-paper);
+.rebrand-satellites__inner {
+  padding: 0 0 88px;
 }
 
-.btcpp-rebrand-page #satellites .rebrand-satellites__intro {
+.rebrand-satellites__intro {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(280px, .55fr);
   gap: 56px;
@@ -1909,14 +1909,14 @@ body.btcpp-rebrand-page {
   text-align: left;
 }
 
-.btcpp-rebrand-page #satellites h2 {
+.rebrand-satellites__intro h2 {
   margin: 0;
   color: var(--rebrand-ink);
   font-size: clamp(48px, 6vw, 72px);
   line-height: .95;
 }
 
-.btcpp-rebrand-page #satellites .rebrand-satellites__intro p:not(.rebrand-section-label) {
+.rebrand-satellites__intro p:not(.rebrand-section-label) {
   margin: 0;
   color: #333;
   font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
@@ -1925,31 +1925,182 @@ body.btcpp-rebrand-page {
   line-height: 1.45;
 }
 
-.btcpp-rebrand-page #satellites article {
+.rebrand-satellites__content {
+  padding: 0 56px;
+}
+
+.rebrand-satellites__list {
+  display: grid;
+  gap: 48px;
+  margin-top: 56px;
+}
+
+.rebrand-satellite-card {
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
   border-top: 1px solid var(--rebrand-ink);
   padding-top: 24px;
+  text-align: left;
 }
 
-.btcpp-rebrand-page #satellites .satellite-event__image {
+.rebrand-satellite-card--no-image {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.satellite-event__image {
   aspect-ratio: 1 / 1;
   overflow: hidden;
-}
-
-.btcpp-rebrand-page #satellites img {
+  background: var(--rebrand-warm);
   border: 1px solid var(--rebrand-ink);
 }
 
-.btcpp-rebrand-page #satellites .satellite-event__image-img {
+.satellite-event__image-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.btcpp-rebrand-page #satellites a.inline-flex {
+.rebrand-satellite-card__body {
+  min-width: 0;
+}
+
+.rebrand-satellite-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+  color: var(--rebrand-muted);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.rebrand-satellite-card__meta time,
+.rebrand-satellite-card__meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid rgba(28, 28, 30, .28);
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, .24);
+}
+
+.rebrand-satellite-card__meta span:first-of-type {
+  border-color: var(--rebrand-ink);
+  background: var(--rebrand-accent);
+  color: #000;
+  font-weight: 700;
+}
+
+.rebrand-satellite-card__copy {
+  max-width: 760px;
+}
+
+.rebrand-satellite-card__copy h3 {
+  margin: 0;
+  color: var(--rebrand-ink);
+  font-size: clamp(28px, 3.5vw, 48px);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.rebrand-satellite-card__copy h3 a {
+  text-decoration: none;
+}
+
+.rebrand-satellite-card__copy h3 a:hover,
+.rebrand-satellite-card__copy h3 a:focus-visible {
+  color: var(--rebrand-accent);
+}
+
+.rebrand-satellite-card__copy p {
+  max-width: 680px;
+  margin: 18px 0 0;
+  color: #333;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.rebrand-satellite-card__host {
+  margin-top: 24px;
+  border-top: 1px solid rgba(28, 28, 30, .24);
+  padding-top: 18px;
+}
+
+.rebrand-satellite-card__host > div {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.rebrand-satellite-card__host img {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border: 1px solid var(--rebrand-ink);
+  object-fit: cover;
+}
+
+.rebrand-satellite-card__host p {
+  margin: 0;
+  color: var(--rebrand-ink);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.rebrand-satellite-card__host span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--rebrand-muted);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.rebrand-satellite-card__host a:hover,
+.rebrand-satellite-card__host a:focus-visible {
+  color: var(--rebrand-accent);
+}
+
+.rebrand-satellites__empty {
+  max-width: 680px;
+  margin: 48px auto 0;
+  color: #333;
+  font-size: 17px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.rebrand-satellites__cta {
+  display: flex;
+  justify-content: center;
+  margin-top: 48px;
+}
+
+.rebrand-satellites__cta a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--rebrand-accent);
   color: #000;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 14px 18px;
+  text-decoration: none;
   text-transform: uppercase;
+}
+
+.rebrand-satellites__cta a:hover,
+.rebrand-satellites__cta a:focus-visible {
+  background: var(--rebrand-ink);
+  color: var(--rebrand-paper);
 }
 
 .btcpp-rebrand-page .redesign-footer {
@@ -2022,7 +2173,8 @@ body.btcpp-rebrand-page {
   .rebrand-agenda__intro,
   .rebrand-agenda-browser__intro,
   .rebrand-tickets__intro,
-  .btcpp-rebrand-page #satellites .rebrand-satellites__intro,
+  .rebrand-satellites__intro,
+  .rebrand-satellite-card,
   .rebrand-sponsors__intro,
   .rebrand-sponsor-tier,
   .rebrand-featured-speakers,
@@ -2046,10 +2198,27 @@ body.btcpp-rebrand-page {
   .rebrand-agenda__intro,
   .rebrand-agenda-panel,
   .rebrand-agenda-browser__intro,
-  .btcpp-rebrand-page #satellites .rebrand-satellites__intro,
+  .rebrand-satellites__intro,
   .rebrand-sponsors__intro,
   .btcpp-rebrand-page .redesign-section {
     padding: 40px 24px;
+  }
+
+  .rebrand-satellites__inner {
+    padding-bottom: 56px;
+  }
+
+  .rebrand-satellites__content {
+    padding: 0 24px;
+  }
+
+  .rebrand-satellites__list {
+    gap: 40px;
+    margin-top: 16px;
+  }
+
+  .satellite-event__image {
+    max-width: 340px;
   }
 
   .btcpp-rebrand-page #tickets {
@@ -2218,6 +2387,40 @@ body.btcpp-rebrand-page {
   }
 
   .btcpp-rebrand-page .conf-countdown {
+    width: 100%;
+  }
+
+  .rebrand-satellites__intro {
+    gap: 22px;
+  }
+
+  .rebrand-satellites__intro h2 {
+    font-size: 42px;
+  }
+
+  .rebrand-satellite-card {
+    gap: 20px;
+  }
+
+  .satellite-event__image {
+    max-width: none;
+  }
+
+  .rebrand-satellite-card__meta time,
+  .rebrand-satellite-card__meta span {
+    max-width: 100%;
+  }
+
+  .rebrand-satellite-card__copy h3 {
+    font-size: 30px;
+    overflow-wrap: anywhere;
+  }
+
+  .rebrand-satellites__cta {
+    justify-content: stretch;
+  }
+
+  .rebrand-satellites__cta a {
     width: 100%;
   }
 
