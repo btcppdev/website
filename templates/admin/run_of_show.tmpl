@@ -6,9 +6,9 @@
   {{ template "admin_favicon" .Conf }}
   <style>
     @media print {
-      .print\:hidden { display: none !important; }
+      .print\:hidden { display: none; }
       body { background: #fff; }
-      .stage-panel { display: block !important; page-break-before: always; }
+      .stage-panel { display: block; page-break-before: always; }
       .stage-panel:first-of-type { page-break-before: auto; }
 
       /* One day per printed page. */
@@ -24,9 +24,9 @@
          let content flow through the wrapper, drop visual flourishes
          that don't add value on paper. */
       section > div {
-        overflow: visible !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
+        overflow: visible;
+        box-shadow: none;
+        border-radius: 0;
       }
 
       /* Don't split a row mid-page; repeat column headers on each
@@ -39,14 +39,14 @@
          default ("color-adjust: economy") to save toner; opt in
          explicitly. -webkit- prefix for Chrome/Safari. */
       body, table, tr, td {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        color-adjust: exact !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        color-adjust: exact;
       }
     }
   </style>
 </head>
-<body class="bg-gray-50">
+<body class="btcpp-admin-page bg-gray-50">
   <div class="print:hidden">{{ block "mainnav" . }} {{ end }}</div>
   <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
     <div class="print:hidden">
