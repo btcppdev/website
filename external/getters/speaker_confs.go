@@ -188,7 +188,7 @@ func querySpeakerConfsPostgres(ctx *config.AppContext, where string, args []inte
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, speaker_id::text, coming_from, availability, record_ok,
 			visa, first_event, dinner_rsvp, sponsor, company, org_photo_path,
-			invited_at, viewed_at, accepted_at
+			invited_at, viewed_at, accepted_at, COALESCE(featured_rank, 0)
 		FROM speaker_confs
 		`+where+`
 		ORDER BY created_at DESC, id
@@ -222,6 +222,7 @@ func querySpeakerConfsPostgres(ctx *config.AppContext, where string, args []inte
 			&invitedAt,
 			&viewedAt,
 			&acceptedAt,
+			&sc.FeaturedRank,
 		); err != nil {
 			return nil, fmt.Errorf("scan speaker conf: %w", err)
 		}
@@ -367,6 +368,17 @@ func UpdateSpeakerConf(ctx *config.AppContext, speakerConfID string, in SpeakerC
 	if in.OrgID != "" {
 		args = append(args, in.OrgID)
 		setParts = append(setParts, fmt.Sprintf("organization_id = NULLIF($%d, '')::uuid", len(args)))
+	}
+	if in.FeaturedRank != nil {
+		rank := *in.FeaturedRank
+		if rank < 0 || rank > 6 {
+			return fmt.Errorf("featured rank must be between 1 and 6, or blank")
+		}
+		if rank == 0 {
+			setParts = append(setParts, "featured_rank = NULL")
+		} else {
+			addSet("featured_rank", rank)
+		}
 	}
 
 	commandTag, err := ctx.DB.Exec(context.Background(), `

@@ -37,6 +37,7 @@ type OrgNewPage struct {
 	// so the admin lands back on the page they came from.
 	ReturnTo     string
 	FlashMessage string
+	SpacesReady  bool
 	Year         uint
 }
 
@@ -126,6 +127,7 @@ func OrgNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	page := &OrgNewPage{
 		ReturnTo:     safeReturnTo(r.URL.Query().Get("return")),
 		FlashMessage: r.URL.Query().Get("flash"),
+		SpacesReady:  spaces.IsConfigured(),
 		Year:         helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "sponsors/org_new.tmpl", page); err != nil {

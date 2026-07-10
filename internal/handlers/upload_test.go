@@ -103,7 +103,7 @@ func TestReadMultipartFileRejectsSVGByDefault(t *testing.T) {
 }
 
 func TestReadMultipartLogoFileAcceptsSVG(t *testing.T) {
-	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>`)
+	svg := []byte(`<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10H0z"/></svg>`)
 	req := multipartUploadRequestForField(t, "logo", "logo.svg", svg)
 
 	if err := req.ParseMultipartForm(maxUploadFileBytes); err != nil {
