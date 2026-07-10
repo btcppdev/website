@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{ template "rebrand_header" . }}
+    {{ block "conf_seo" . }} {{ end }}
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
+  </head>
+  <body class="btcpp-redesign btcpp-rebrand-page">
+    {{ template "generic_conf_ticker" (dict "Label" "SPEAKERS" "Conf" .Conf "Count" (len .EventSpeakers)) }}
+
+    {{ template "generic_conf_nav" .Conf }}
+
+    <main class="rebrand-page">
+      <section class="rebrand-speaker-directory">
+        <div class="rebrand-agenda-browser__intro">
+          <div>
+            <p class="rebrand-section-label">Who's coming</p>
+            <h1>{{ .Conf.Desc }}</h1>
+          </div>
+          <div>
+            <p>Meet the builders, maintainers, researchers, and contributors who will be in attendance.</p>
+            <a href="/{{ .Conf.Tag }}#speakers" class="rebrand-agenda-browser__back">← Back to event page</a>
+          </div>
+        </div>
+
+        {{ if .EventSpeakers }}
+        <div class="rebrand-speaker-directory__grid">
+          {{ range $idx, $speaker := .EventSpeakers }}
+            {{ template "generic_conf_large_speaker" (dict "Speaker" $speaker "Idx" $idx) }}
+          {{ end }}
+        </div>
+        {{ else }}
+        <div class="rebrand-agenda-browser__empty">
+          The speaker list has not been published yet.
+        </div>
+        {{ end }}
+      </section>
+    </main>
+
+    {{ template "generic_conf_footer" . }}
+  </body>
+</html>

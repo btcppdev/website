@@ -2,28 +2,32 @@
 <html>
 <head>
   <title>Suggest a satellite event · {{ .Conf.Desc }}</title>
-  {{ block "header" . }} {{ end }}
+  {{ template "form_page_header" . }}
   {{ template "admin_favicon" .Conf }}
 </head>
-<body class="bg-gray-50">
+<body class="btcpp-form-page bg-gray-50">
   {{ block "mainnav" . }} {{ end }}
-  <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+  <div class="btcpp-form-wrap mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+    <div class="btcpp-form-layout">
+    <div class="btcpp-form-heading">
     <a href="/{{ .Conf.Tag }}#satellites" class="text-xs text-gray-500 hover:text-gray-700">&larr; {{ .Conf.Desc }}</a>
     <h1 class="mt-1 text-2xl font-bold text-gray-900">Suggest a Satellite Event</h1>
     <p class="mt-2 text-sm text-gray-600">Share the details and we'll review it before listing it on the event page. We'll follow up using your logged-in email.</p>
+    </div>
 
+    <div class="btcpp-form-panel">
     {{ if .FlashMessage }}
-    <div class="mt-6 rounded-md bg-green-50 border border-green-200 px-4 py-3">
+    <div class="btcpp-form-alert btcpp-form-alert--success mt-6 rounded-md bg-green-50 border border-green-200 px-4 py-3">
       <p class="text-sm text-green-800">{{ .FlashMessage }}</p>
     </div>
     {{ end }}
     {{ if .FlashError }}
-    <div class="mt-6 rounded-md bg-red-50 border border-red-200 px-4 py-3">
+    <div class="btcpp-form-alert btcpp-form-alert--error mt-6 rounded-md bg-red-50 border border-red-200 px-4 py-3">
       <p class="text-sm text-red-800">{{ .FlashError }}</p>
     </div>
     {{ end }}
 
-    <form method="POST" action="/{{ .Conf.Tag }}/satellites/new" class="mt-8 bg-white shadow rounded-lg p-6 space-y-5">
+    <form method="POST" action="/{{ .Conf.Tag }}/satellites/new" class="btcpp-form-kit mt-8 bg-white shadow rounded-lg p-6 space-y-5">
       <input type="hidden" name="Timezone" value="{{ .Conf.Timezone }}">
       <div>
         <label class="block text-sm font-medium text-gray-700">Event title</label>
@@ -88,10 +92,12 @@
         </div>
       </div>
       <div class="flex justify-end gap-3 pt-2">
-        <a href="/{{ .Conf.Tag }}#satellites" class="text-sm text-gray-600 hover:text-gray-800">Cancel</a>
+        <a href="/{{ .Conf.Tag }}#satellites" class="btcpp-form-button-secondary inline-flex items-center px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</a>
         <button type="submit" class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Submit suggestion</button>
       </div>
     </form>
+    </div>
+    </div>
   </div>
   <input type="file" id="SatelliteImagePicker" accept="image/*" class="hidden">
   <script>

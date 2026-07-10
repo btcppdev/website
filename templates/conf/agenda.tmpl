@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{ template "rebrand_header" . }}
+    {{ block "conf_seo" . }} {{ end }}
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
+  </head>
+  <body class="btcpp-redesign btcpp-rebrand-page">
+    {{ template "generic_conf_ticker" (dict "Label" "AGENDA" "Conf" .Conf) }}
+
+    {{ template "generic_conf_nav" .Conf }}
+
+    <main class="rebrand-page">
+      <section class="rebrand-agenda-browser">
+        <div class="rebrand-agenda-browser__intro">
+          <div>
+            <p class="rebrand-section-label">Agenda browser</p>
+            <h1>{{ .Conf.Desc }}</h1>
+          </div>
+          <div>
+            <p>Browse the schedule by room to spot conflicts and follow what comes next in each track.</p>
+            <a href="/{{ .Conf.Tag }}#agenda" class="rebrand-agenda-browser__back">← Back to event page</a>
+          </div>
+        </div>
+
+        {{ if .AgendaDays }}
+        <div class="tabs rebrand-agenda-tabs rebrand-schedule-tabs">
+          <div class="tabs-menu rebrand-agenda-tabs__menu" role="tablist">
+            {{ range .AgendaDays }}
+            <a href="#agenda-day-{{ .Idx }}" class="rebrand-agenda-tab w-tab-link {{ if eq .Idx 1 }}w--current{{ end }}" data-agenda-tab="{{ .Idx }}" aria-controls="agenda-day-{{ .Idx }}" aria-selected="{{ if eq .Idx 1 }}true{{ else }}false{{ end }}">
+              <span>Day {{ .Idx }}</span>
+              <strong>{{ .Date.Format "Mon · Jan 2" }}</strong>
+            </a>
+            {{ end }}
+          </div>
+          <div class="tabs-content rebrand-agenda-tabs__content">
+            {{ range .AgendaDays }}
+              {{ template "public_conf_agenda_grid_day" . }}
+            {{ end }}
+          </div>
+        </div>
+        {{ else }}
+        <div class="rebrand-agenda-browser__empty">
+          The agenda has not been published yet.
+        </div>
+        {{ end }}
+      </section>
+    </main>
+
+    {{ template "generic_conf_footer" . }}
+  </body>
+</html>
+
+{{ define "public_conf_agenda_grid_day" }}
+<div id="agenda-day-{{ .Idx }}" class="rebrand-schedule-panel w-tab-pane {{ if eq .Idx 1 }}w--tab-active{{ end }}" data-agenda-panel="{{ .Idx }}">
+  {{ if .Info }}
+  <div class="rebrand-agenda-strip">
+    {{ if .Info.Doors }}<div><span>Doors</span><strong>{{ formatTime .Info.Doors.Start }}</strong></div>{{ end }}
+    {{ if .Info.Breakfast }}<div><span>Breakfast</span><strong>{{ formatTime .Info.Breakfast.Start }}</strong></div>{{ end }}
+    {{ if .Info.Lunch }}<div><span>Lunch</span><strong>{{ formatTime .Info.Lunch.Start }}</strong></div>{{ end }}
+    {{ if .Info.Coffee }}<div><span>Coffee</span><strong>{{ formatTime .Info.Coffee.Start }}</strong></div>{{ end }}
+  </div>
+  {{ end }}
+  {{ if and .Info .Info.Venues }}
+  <div class="rebrand-schedule-scroll">
+    <div class="rebrand-schedule-grid" style="grid-template-columns: 76px repeat({{ len .Info.Venues }}, minmax(220px, 1fr)); min-width: calc(76px + {{ len .Info.Venues }} * 220px);">
+      <div class="rebrand-schedule-head rebrand-schedule-head--time">Time</div>
+      {{ range .Info.Venues }}
+      <div class="rebrand-schedule-head">{{ mapVenue . }}</div>
+      {{ end }}
+
+      <div class="rebrand-schedule-time-rail" style="height: {{ printf "%.0f" (agendaDayHeight .) }}px;">
+        {{ range agendaHourMarks . }}
+        <div class="rebrand-schedule-hour" style="top: {{ printf "%.0f" .Top }}px;">{{ .Label }}</div>
+        {{ end }}
+      </div>
+
+      {{ range .Info.Venues }}
+      {{ $venue := . }}
+      <div class="rebrand-schedule-venue" style="height: {{ printf "%.0f" (agendaDayHeight $) }}px;">
+        {{ range agendaHourMarks $ }}
+        <div class="rebrand-schedule-line" style="top: {{ printf "%.0f" .Top }}px;"></div>
+        {{ end }}
+        {{ range agendaSessionsForVenue $ $venue }}
+          {{ template "public_conf_agenda_grid_session" (dict "Day" $ "Session" .) }}
+        {{ end }}
+      </div>
+      {{ end }}
+    </div>
+  </div>
+  {{ else }}
+  <div class="rebrand-agenda-browser__empty">No venue tracks are configured for this day.</div>
+  {{ end }}
+</div>
+{{ end }}
+
+{{ define "public_conf_agenda_grid_session" }}
+{{ $s := .Session }}
+{{ $dialogID := printf "agenda-dialog-%s" $s.AnchorTag }}
+<div id="{{ $s.AnchorTag }}" class="rebrand-schedule-card" style="top: {{ printf "%.0f" (agendaSessionTop .Day $s) }}px; height: {{ printf "%.0f" (agendaSessionHeight $s) }}px;">
+  <button type="button" class="rebrand-schedule-card__open" data-agenda-dialog-open="{{ $dialogID }}">
+    <span class="rebrand-schedule-card__time">{{ if $s.Sched }}{{ $s.Sched.Start.Format "3:04 PM" }}{{ if $s.Sched.End }} – {{ $s.Sched.End.Format "3:04 PM" }}{{ end }}{{ else }}{{ $s.StartTime }}{{ end }}</span>
+    <strong>{{ $s.Name }}</strong>
+    {{ if $s.Speakers }}
+    <span class="rebrand-schedule-card__speakers">{{ range $idx, $speaker := $s.Speakers }}{{ if $idx }}, {{ end }}{{ $speaker.Name }}{{ end }}</span>
+    {{ end }}
+    {{ if $s.Type }}<span class="rebrand-schedule-card__type">{{ agendaTypeLabel $s.Type }}</span>{{ end }}
+  </button>
+  {{ if $s.YTLink }}
+  <a class="rebrand-schedule-card__watch" href="{{ $s.YTLink }}" target="_blank" rel="noopener noreferrer">Watch</a>
+  {{ end }}
+</div>
+{{ template "generic_conf_agenda_dialog" $s }}
+{{ end }}

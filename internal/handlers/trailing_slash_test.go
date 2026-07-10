@@ -44,6 +44,12 @@ func TestRedirectTrailingSlash(t *testing.T) {
 			target: "/hackathons/",
 			code:   http.StatusNoContent,
 		},
+		{
+			name:   "static directory slash is unchanged",
+			method: http.MethodGet,
+			target: "/static/atx23/",
+			code:   http.StatusNoContent,
+		},
 	}
 
 	for _, tt := range tests {

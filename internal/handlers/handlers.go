@@ -40,14 +40,12 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
 
-	qrcode "github.com/skip2/go-qrcode"
-
 	stripe "github.com/stripe/stripe-go/v76"
 	"github.com/stripe/stripe-go/v76/checkout/session"
 	"github.com/stripe/stripe-go/v76/webhook"
 )
 
-var pages []string = []string{"index", "vegas25", "terms", "privacy"}
+var pages []string = []string{"index", "timeline", "vegas25", "terms", "privacy"}
 
 const (
 	maxFormBodyBytes      = 1 << 20  // 1 MiB
@@ -149,6 +147,17 @@ func loadTemplates(ctx *config.AppContext) error {
 				return ""
 			}
 		},
+		"safeCSS": func(s string) template.CSS {
+			return template.CSS(s)
+		},
+		"instagramURL": func(s string) template.URL {
+			return template.URL(instagramURL(s))
+		},
+		"confImage": func(tag, base string) template.URL {
+			return template.URL(confImagePath(tag, base))
+		},
+		"confVenueImages": confVenueImages,
+		"archiveTalks":    archiveTalks,
 		"avifSibling": func(s string) string {
 			u := strings.TrimSpace(s)
 			if !strings.HasSuffix(strings.ToLower(u), ".png") {
@@ -189,7 +198,28 @@ func loadTemplates(ctx *config.AppContext) error {
 			return false
 		},
 		"hasPrefix": strings.HasPrefix,
+		"lower":     strings.ToLower,
 		"trim":      strings.TrimSpace,
+		"truncateText": func(s string, limit int) string {
+			s = strings.TrimSpace(s)
+			if limit <= 0 || len([]rune(s)) <= limit {
+				return s
+			}
+			r := []rune(s)
+			return strings.TrimSpace(string(r[:limit])) + "..."
+		},
+		"limitHotels": func(hotels []*types.Hotel, limit int) []*types.Hotel {
+			if limit < 0 || len(hotels) <= limit {
+				return hotels
+			}
+			return hotels[:limit]
+		},
+		"limitSpeakers": func(speakers []*types.Speaker, limit int) []*types.Speaker {
+			if limit < 0 || len(speakers) <= limit {
+				return speakers
+			}
+			return speakers[:limit]
+		},
 		// dict builds a map[string]any from variadic key/value pairs
 		// — enables passing named params to template blocks (e.g.
 		// {{ template "cal_picker" (dict "Title" .Name "Start" ...) }}).
@@ -385,6 +415,13 @@ func loadTemplates(ctx *config.AppContext) error {
 			}
 			return raw
 		},
+		"agendaSessionsForVenue": agendaSessionsForVenue,
+		"agendaTypeClass":        agendaTypeClass,
+		"agendaTypeLabel":        agendaTypeLabel,
+		"agendaDayHeight":        agendaDayHeight,
+		"agendaSessionTop":       agendaSessionTop,
+		"agendaSessionHeight":    agendaSessionHeight,
+		"agendaHourMarks":        agendaHourMarks,
 		"navConfs": func() NavConfList {
 			return buildNavConfList(ctx)
 		},
@@ -394,6 +431,8 @@ func loadTemplates(ctx *config.AppContext) error {
 			}
 			return SponsorTiersForConf(ctx, conf.Ref)
 		},
+		"sponsorDisplayRank":          sponsorDisplayRank,
+		"showTicketPriceIncreaseDate": showTicketPriceIncreaseDate,
 		"sponsorBanner": func(conf *types.Conf) []*types.Sponsorship {
 			if conf == nil {
 				return nil
@@ -536,6 +575,68 @@ func findMaxTix(conf *types.Conf) *types.ConfTicket {
 	return maxTix
 }
 
+func showTicketPriceIncreaseDate(conf *types.Conf, tix *types.ConfTicket) bool {
+	if conf == nil || tix == nil || tix.Expires == nil {
+		return false
+	}
+	return tix.Expires.Start.Before(conf.StartDate)
+}
+
+func confImagePath(tag, base string) string {
+	tag = strings.Trim(strings.TrimSpace(tag), "/")
+	base = strings.Trim(strings.TrimSpace(base), "/")
+	if tag == "" || base == "" {
+		return ""
+	}
+
+	for _, ext := range []string{"avif", "png", "jpg", "jpeg", "webp"} {
+		path := filepath.Join("static", "img", tag, base+"."+ext)
+		if _, err := os.Stat(path); err == nil {
+			return "/" + filepath.ToSlash(path)
+		}
+	}
+
+	if base == "leading" {
+		if fallback := confHeroFallback(tag); fallback != "" {
+			return fallback
+		}
+		return "/static/img/rebrand/light-sketch-bg.avif"
+	}
+	return ""
+}
+
+func confVenueImages(tag string) []string {
+	images := make([]string, 0, 4)
+	for _, base := range []string{"one", "two", "three", "four"} {
+		if src := confImagePath(tag, base); src != "" {
+			images = append(images, src)
+		}
+	}
+	return images
+}
+
+func confHeroFallback(tag string) string {
+	switch tag {
+	case "atx22":
+		return "/static/img/atx22/leading.png"
+	case "atx24":
+		return "/static/img/atx24.png"
+	case "atx25":
+		return "/static/img/atx25_promo.png"
+	case "cdmx22":
+		return "/static/img/cdmx22/leading.png"
+	case "berlin24":
+		return "/static/img/berlin24/leading.png"
+	case "berlin25":
+		return "/static/img/berlin/leading.png"
+	case "floripa":
+		return "/static/img/floripa/exterior_one.avif"
+	case "istanbul":
+		return "/static/img/istanbul/leading.png"
+	}
+	return ""
+}
+
 // Routes sets up the routes for the application
 // siteStatsView is the about-page-friendly shape of the cached site
 // stats, exposed to templates via the {{ siteStats }} function.
@@ -608,7 +709,7 @@ func requestLog(ctx *config.AppContext, h http.Handler) http.Handler {
 
 func redirectTrailingSlash(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if (r.Method == http.MethodGet || r.Method == http.MethodHead) && r.URL.Path != "/" && strings.HasSuffix(r.URL.Path, "/") {
+		if (r.Method == http.MethodGet || r.Method == http.MethodHead) && r.URL.Path != "/" && !strings.HasPrefix(r.URL.Path, "/static/") && strings.HasSuffix(r.URL.Path, "/") {
 			target := *r.URL
 			target.Path = strings.TrimRight(r.URL.Path, "/")
 			target.RawPath = ""
@@ -681,6 +782,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/talks", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}).Methods("GET")
+	r.HandleFunc("/atx23", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/static/atx23", http.StatusMovedPermanently)
+	}).Methods("GET")
+	r.HandleFunc("/cdmx22", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://www.youtube.com/watch?v=kCON4wuecOw&list=PLHhfnB1Uefkor98E-ikci_sUtUKKYYSDA", http.StatusFound)
+	}).Methods("GET")
+	r.HandleFunc("/atx22", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://www.youtube.com/watch?v=gI6CeAGhFjE&list=PLHhfnB1Uefkolyc9z03BKsWsnzvZoKYKf", http.StatusFound)
+	}).Methods("GET")
 
 	/* /conf/* legacy paths — 301 to the new short form. Captures
 	   /conf/{tag}, /conf/{tag}/talks, /conf/{tag}/talk/{anchor}/calendar.ics,
@@ -692,7 +802,8 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		redirectStripConfPrefix(w, r)
 	}).Methods("GET")
 	r.HandleFunc("/conf/{conf}/talks", func(w http.ResponseWriter, r *http.Request) {
-		redirectStripConfPrefix(w, r)
+		params := mux.Vars(r)
+		redirectToConfAgenda(w, r, params["conf"])
 	}).Methods("GET")
 	r.HandleFunc("/conf/{conf}/talk/{anchor}/calendar.ics", func(w http.ResponseWriter, r *http.Request) {
 		redirectStripConfPrefix(w, r)
@@ -900,6 +1011,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		AffiliateDisable(w, r, app)
 	}).Methods("POST")
 
+	r.HandleFunc("/dashboard/archive", func(w http.ResponseWriter, r *http.Request) {
+		DashboardArchive(w, r, app)
+	}).Methods("GET")
+
 	r.HandleFunc("/dashboard/{confTag}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditSpeakerConf(w, r, app)
 	}).Methods("GET", "POST")
@@ -919,6 +1034,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/admin/roles", func(w http.ResponseWriter, r *http.Request) {
 		SpeakerRolesUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/homepage-speakers", func(w http.ResponseWriter, r *http.Request) {
+		GlobalAdminHomepageSpeakersUpdate(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/admin/missives", func(w http.ResponseWriter, r *http.Request) {
 		TemplatedMissivesAdmin(w, r, app)
@@ -1345,6 +1463,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	// (/dashboard, /login, /talk, /sponsor, /privacy, the theme
 	// aliases, ...) win first. Unknown {conf} falls through to a
 	// clean 404 via the handlers' FindConf branch.
+	r.HandleFunc("/{conf}/agenda", func(w http.ResponseWriter, r *http.Request) {
+		RenderConfAgenda(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/speakers", func(w http.ResponseWriter, r *http.Request) {
+		RenderConfSpeakers(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/{conf}", func(w http.ResponseWriter, r *http.Request) {
 		RenderConf(w, r, app)
 	}).Methods("GET")
@@ -1358,7 +1482,8 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		SatelliteEventSuggestImageUpload(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/talks", func(w http.ResponseWriter, r *http.Request) {
-		RenderTalks(w, r, app)
+		params := mux.Vars(r)
+		redirectToConfAgenda(w, r, params["conf"])
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/talk/{anchor}/calendar.ics", func(w http.ResponseWriter, r *http.Request) {
 		TalkPublicICS(w, r, app)
@@ -1772,6 +1897,110 @@ func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*
 	return speakers
 }
 
+type featuredSpeakerCandidate struct {
+	rank    int
+	speaker *types.Speaker
+}
+
+func splitFeaturedSpeakersForConf(ctx *config.AppContext, confTag string, speakers types.Speakers) ([]*types.Speaker, []*types.Speaker) {
+	speakerByID := make(map[string]*types.Speaker, len(speakers))
+	for _, speaker := range speakers {
+		if speaker != nil {
+			speakerByID[speaker.ID] = speaker
+		}
+	}
+
+	proposals, err := getters.ListProposals(ctx)
+	if err != nil {
+		ctx.Err.Printf("splitFeaturedSpeakersForConf %s proposals: %s", confTag, err)
+		return splitFeaturedSpeakersFallback(speakers)
+	}
+
+	seenFeatured := map[string]bool{}
+	var candidates []featuredSpeakerCandidate
+	for _, proposal := range proposals {
+		if proposal == nil {
+			continue
+		}
+		if proposal.Status != StatusAccepted && proposal.Status != StatusScheduled {
+			continue
+		}
+		if proposal.ScheduleFor == nil || proposal.ScheduleFor.Tag != confTag {
+			continue
+		}
+		for _, ref := range proposal.SpeakerConfRefs {
+			sc, err := getters.GetSpeakerConfByID(ctx, ref)
+			if err != nil {
+				ctx.Err.Printf("splitFeaturedSpeakersForConf %s speakerconf %s: %s", confTag, ref, err)
+				continue
+			}
+			if sc == nil || sc.Speaker == nil || sc.FeaturedRank <= 0 || sc.FeaturedRank > 6 {
+				continue
+			}
+			if seenFeatured[sc.Speaker.ID] {
+				continue
+			}
+			base := speakerByID[sc.Speaker.ID]
+			if base == nil {
+				base = sc.Speaker
+			}
+			view := *base
+			if sc.Company != "" {
+				view.Company = sc.Company
+			}
+			if sc.OrgPhoto != "" {
+				view.OrgLogo = sc.OrgPhoto
+			}
+			seenFeatured[sc.Speaker.ID] = true
+			candidates = append(candidates, featuredSpeakerCandidate{
+				rank:    sc.FeaturedRank,
+				speaker: &view,
+			})
+		}
+	}
+
+	if len(candidates) == 0 {
+		return splitFeaturedSpeakersFallback(speakers)
+	}
+
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].rank != candidates[j].rank {
+			return candidates[i].rank < candidates[j].rank
+		}
+		return strings.ToLower(candidates[i].speaker.Name) < strings.ToLower(candidates[j].speaker.Name)
+	})
+	if len(candidates) > 6 {
+		candidates = candidates[:6]
+	}
+
+	featuredIDs := map[string]bool{}
+	featured := make([]*types.Speaker, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.speaker == nil {
+			continue
+		}
+		featuredIDs[candidate.speaker.ID] = true
+		featured = append(featured, candidate.speaker)
+	}
+
+	community := make([]*types.Speaker, 0, len(speakers)-len(featured))
+	for _, speaker := range speakers {
+		if speaker == nil || featuredIDs[speaker.ID] {
+			continue
+		}
+		community = append(community, speaker)
+	}
+	return featured, community
+}
+
+func splitFeaturedSpeakersFallback(speakers types.Speakers) ([]*types.Speaker, []*types.Speaker) {
+	const fallbackFeaturedCount = 6
+	if len(speakers) <= fallbackFeaturedCount {
+		return append([]*types.Speaker(nil), speakers...), nil
+	}
+	return append([]*types.Speaker(nil), speakers[:fallbackFeaturedCount]...), append([]*types.Speaker(nil), speakers[fallbackFeaturedCount:]...)
+}
+
 func RenderTalks(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	conf, err := helpers.FindConf(r, ctx)
 	if err != nil {
@@ -1806,7 +2035,7 @@ func RenderTalks(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	sort.Sort(evSpeakers)
 
 	confCopy := *conf
-	confCopy.HasAgenda = anyScheduledTalk(allTalks)
+	confCopy.HasAgenda = anyScheduledTalk(&confCopy, allTalks)
 	conf = &confCopy
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "sched.tmpl", &ConfPage{
@@ -1961,11 +2190,44 @@ func isAVIF(raw []byte) bool {
 
 func allowedUploadImageType(contentType string) bool {
 	switch strings.ToLower(strings.TrimSpace(contentType)) {
-	case "image/png", "image/jpeg", "image/gif", "image/webp", "image/avif":
+	case "image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/svg+xml":
 		return true
 	default:
 		return false
 	}
+}
+
+func instagramURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(raw)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return raw
+	}
+
+	raw = strings.TrimPrefix(raw, "@")
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "/")
+	if raw == "" {
+		return ""
+	}
+
+	for _, prefix := range []string{"www.instagram.com/", "instagram.com/"} {
+		if strings.HasPrefix(strings.ToLower(raw), prefix) {
+			raw = raw[len(prefix):]
+			break
+		}
+	}
+	raw = strings.TrimPrefix(raw, "@")
+	raw = strings.TrimPrefix(raw, "/")
+	if raw == "" {
+		return ""
+	}
+
+	return "https://www.instagram.com/" + raw
 }
 
 func isSVG(raw []byte) bool {
@@ -2369,6 +2631,10 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		handle404(w, r, ctx)
 		return
 	}
+	if !conf.IsPublished() {
+		handle404(w, r, ctx)
+		return
+	}
 
 	// Stash a ?code= query in the session so the checkout page
 	// can apply it without the visitor copy-pasting. The slot
@@ -2439,6 +2705,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	var evSpeakers types.Speakers
 	evSpeakers = acceptedSpeakersForConf(ctx, conf, talks)
 	sort.Sort(evSpeakers)
+	featuredSpeakers, communitySpeakers := splitFeaturedSpeakersForConf(ctx, conf.Tag, evSpeakers)
 
 	soldCount, err := getters.SoldTix(ctx, conf)
 	if err != nil {
@@ -2463,9 +2730,11 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	// — a fetch failure leaves AgendaDays without time strips, which the
 	// template handles by collapsing to chrono-only.
 	var infosByDay map[int]*types.ConfInfo
+	var confInfos []*types.ConfInfo
 	if cis, err := getters.ListConfInfos(ctx, conf.Tag); err != nil {
 		ctx.Err.Printf("/%s ListConfInfos failed (continuing): %s", conf.Tag, err)
 	} else {
+		confInfos = cis
 		infosByDay = confInfosByDay(cis)
 	}
 	agendaDays := buildAgendaDays(ctx, conf, talks, infosByDay)
@@ -2485,7 +2754,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	// + agenda section without mutating the loaded Conf.
 	confCopy := *conf
 	confCopy.CountdownStart, confCopy.CountdownEnd = computeCountdownBounds(&confCopy, infosByDay)
-	confCopy.HasAgenda = anyScheduledTalk(talks)
+	confCopy.HasAgenda = anyScheduledTalk(&confCopy, talks)
 	conf = &confCopy
 
 	confHotels := helpers.HotelsForConf(ctx, conf)
@@ -2503,7 +2772,11 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	} else {
 		tixLeft = currTix.Max - soldCount
 	}
-	tmplTag := fmt.Sprintf("conf/%s.tmpl", conf.Tag)
+	tmplTag := "conf/generic.tmpl"
+	switch conf.Tag {
+	case "berlin23":
+		tmplTag = "conf/berlin23.tmpl"
+	}
 	err = ctx.TemplateCache.ExecuteTemplate(w, tmplTag, &ConfPage{
 		Conf:              conf,
 		Hotels:            confHotels,
@@ -2513,9 +2786,12 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		TixLeft:           tixLeft,
 		Talks:             talks,
 		EventSpeakers:     evSpeakers,
+		FeaturedSpeakers:  featuredSpeakers,
+		CommunitySpeakers: communitySpeakers,
 		Buckets:           buckets,
 		Days:              days,
 		AgendaDays:        agendaDays,
+		ConfInfos:         confInfos,
 		ScheduledSessions: scheduledSessions,
 		SatelliteEvents:   satelliteEvents,
 		Year:              helpers.CurrentYear(),
@@ -2523,6 +2799,97 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s ExecuteTemplate failed ! %s", conf.Tag, err.Error())
+		return
+	}
+}
+
+func RenderConfAgenda(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	if !conf.IsPublished() {
+		handle404(w, r, ctx)
+		return
+	}
+
+	talks, err := getters.GetTalksFor(ctx, conf.Tag)
+	if err != nil {
+		http.Error(w, "Unable to load agenda, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/%s/agenda unable to fetch talks: %s", conf.Tag, err.Error())
+		return
+	}
+
+	var infosByDay map[int]*types.ConfInfo
+	var confInfos []*types.ConfInfo
+	if cis, err := getters.ListConfInfos(ctx, conf.Tag); err != nil {
+		ctx.Err.Printf("/%s/agenda ListConfInfos failed (continuing): %s", conf.Tag, err)
+	} else {
+		confInfos = cis
+		infosByDay = confInfosByDay(cis)
+	}
+	agendaDays := buildAgendaDays(ctx, conf, talks, infosByDay)
+
+	confCopy := *conf
+	confCopy.CountdownStart, confCopy.CountdownEnd = computeCountdownBounds(&confCopy, infosByDay)
+	confCopy.HasAgenda = anyScheduledTalk(&confCopy, talks)
+	conf = &confCopy
+
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "conf/agenda.tmpl", &ConfPage{
+		Conf:       conf,
+		Talks:      talks,
+		AgendaDays: agendaDays,
+		ConfInfos:  confInfos,
+		Year:       helpers.CurrentYear(),
+	}); err != nil {
+		http.Error(w, "Unable to load agenda, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/%s/agenda ExecuteTemplate failed: %s", conf.Tag, err.Error())
+		return
+	}
+}
+
+func RenderConfSpeakers(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	if !conf.IsPublished() {
+		handle404(w, r, ctx)
+		return
+	}
+
+	talks, err := getters.GetTalksFor(ctx, conf.Tag)
+	if err != nil {
+		http.Error(w, "Unable to load speakers, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/%s/speakers unable to fetch talks: %s", conf.Tag, err.Error())
+		return
+	}
+
+	evSpeakers := acceptedSpeakersForConf(ctx, conf, talks)
+	sort.Sort(evSpeakers)
+
+	var infosByDay map[int]*types.ConfInfo
+	if cis, err := getters.ListConfInfos(ctx, conf.Tag); err != nil {
+		ctx.Err.Printf("/%s/speakers ListConfInfos failed (continuing): %s", conf.Tag, err)
+	} else {
+		infosByDay = confInfosByDay(cis)
+	}
+
+	confCopy := *conf
+	confCopy.CountdownStart, confCopy.CountdownEnd = computeCountdownBounds(&confCopy, infosByDay)
+	confCopy.HasAgenda = anyScheduledTalk(&confCopy, talks)
+	conf = &confCopy
+
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "conf/speakers.tmpl", &ConfPage{
+		Conf:          conf,
+		Talks:         talks,
+		EventSpeakers: evSpeakers,
+		Year:          helpers.CurrentYear(),
+	}); err != nil {
+		http.Error(w, "Unable to load speakers, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/%s/speakers ExecuteTemplate failed: %s", conf.Tag, err.Error())
 		return
 	}
 }
@@ -2819,12 +3186,15 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		enriched = append(enriched, &copy)
 	}
 
-	data := struct {
-		Confs []*types.Conf
-		Year  uint
-	}{
-		Confs: enriched,
-		Year:  helpers.CurrentYear(),
+	data := HomePageData{
+		Confs:            enriched,
+		Upcoming:         homeUpcomingConfs(enriched),
+		Past:             homePastConfs(enriched),
+		Years:            homeTimelineYears(enriched),
+		Sponsors:         homeSponsors(ctx, enriched, time.Now()),
+		FeaturedSpeakers: homeFeaturedSpeakers(ctx),
+		MapMarkers:       homeMapMarkers(enriched),
+		Year:             helpers.CurrentYear(),
 	}
 
 	template := fmt.Sprintf("embeds/%s.tmpl", page)
@@ -2833,6 +3203,220 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s ExecuteTemplate failed ! %s", page, err.Error())
+	}
+}
+
+func homeFeaturedSpeakers(ctx *config.AppContext) []*types.Speaker {
+	speakers, err := getters.ListHomepageFeaturedSpeakers(ctx)
+	if err != nil {
+		ctx.Err.Printf("/ homepage featured speakers (continuing): %s", err)
+		return nil
+	}
+	return speakers
+}
+
+func homeUpcomingConfs(confs []*types.Conf) []*types.Conf {
+	out := make([]*types.Conf, 0, len(confs))
+	for _, c := range confs {
+		if c != nil && c.IsPublished() && !c.HasEnded() {
+			out = append(out, c)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].StartDate.Before(out[j].StartDate)
+	})
+	return out
+}
+
+func homePastConfs(confs []*types.Conf) []*types.Conf {
+	out := make([]*types.Conf, 0, len(confs))
+	for _, c := range confs {
+		if c != nil && c.IsPublished() && c.HasEnded() {
+			out = append(out, c)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].StartDate.After(out[j].StartDate)
+	})
+	return out
+}
+
+func homeTimelineYears(confs []*types.Conf) []*HomeTimelineYear {
+	byYear := map[int][]*types.Conf{}
+	for _, c := range confs {
+		if c == nil || !c.IsPublished() || c.StartDate.IsZero() {
+			continue
+		}
+		year := c.StartDate.In(c.Loc()).Year()
+		byYear[year] = append(byYear[year], c)
+	}
+	years := make([]int, 0, len(byYear))
+	for y := range byYear {
+		years = append(years, y)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(years)))
+	out := make([]*HomeTimelineYear, 0, len(years))
+	for _, y := range years {
+		items := byYear[y]
+		sort.SliceStable(items, func(i, j int) bool {
+			return items[i].StartDate.After(items[j].StartDate)
+		})
+		out = append(out, &HomeTimelineYear{Year: y, Confs: items})
+	}
+	return out
+}
+
+func homeMapMarkers(confs []*types.Conf) []*HomeMapMarker {
+	type markerGroup struct {
+		x      float64
+		y      float64
+		marker *HomeMapMarker
+	}
+	groups := map[string]*markerGroup{}
+	for _, conf := range confs {
+		if conf == nil || !conf.IsPublished() {
+			continue
+		}
+		x, y, ok := homeMapPosition(conf)
+		if !ok {
+			continue
+		}
+		label := strings.TrimSpace(conf.MapLabel)
+		if label == "" {
+			label = conf.Desc
+		}
+		side := normalizeMapLabelSide(conf.MapLabelSide)
+		key := fmt.Sprintf("%.2f|%.2f|%s", x, y, strings.ToLower(label))
+		group := groups[key]
+		if group == nil {
+			group = &markerGroup{
+				x: x,
+				y: y,
+				marker: &HomeMapMarker{
+					Conf:      conf,
+					Label:     label,
+					Style:     fmt.Sprintf("left: %.2f%%; top: %.2f%%;", x, y),
+					LabelSide: side,
+				},
+			}
+			groups[key] = group
+		}
+		if !conf.HasEnded() {
+			group.marker.Upcoming = true
+		}
+		group.marker.Editions = append(group.marker.Editions, &HomeMapEdition{
+			Conf:        conf,
+			Label:       conf.Desc,
+			Date:        conf.DateDesc,
+			EditionType: conf.EditionType,
+			Upcoming:    !conf.HasEnded(),
+		})
+		if group.marker.Conf == nil || conf.StartDate.Before(group.marker.Conf.StartDate) {
+			group.marker.Conf = conf
+		}
+	}
+	out := make([]*HomeMapMarker, 0, len(groups))
+	for _, group := range groups {
+		sort.SliceStable(group.marker.Editions, func(i, j int) bool {
+			return group.marker.Editions[i].Conf.StartDate.After(group.marker.Editions[j].Conf.StartDate)
+		})
+		out = append(out, group.marker)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Upcoming != out[j].Upcoming {
+			return !out[i].Upcoming
+		}
+		return out[i].Conf.StartDate.Before(out[j].Conf.StartDate)
+	})
+	return out
+}
+
+func homeMapPosition(conf *types.Conf) (float64, float64, bool) {
+	if conf.MapXPercent > 0 && conf.MapYPercent > 0 {
+		return clampPercent(conf.MapXPercent), clampPercent(conf.MapYPercent), true
+	}
+	if conf.MapLatitude == 0 && conf.MapLongitude == 0 {
+		return 0, 0, false
+	}
+	x := (conf.MapLongitude + 180) / 360 * 100
+	y := (90 - conf.MapLatitude) / 180 * 100
+	return clampPercent(x), clampPercent(y), true
+}
+
+func clampPercent(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 100 {
+		return 100
+	}
+	return v
+}
+
+func homeSponsors(ctx *config.AppContext, confs []*types.Conf, now time.Time) []*HomeSponsor {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	currentYear := now.Year()
+	keepLevels := map[string]bool{
+		"Headline": true,
+		"Workshop": true,
+	}
+	seen := map[string]bool{}
+	var out []*HomeSponsor
+	for _, conf := range confs {
+		if conf == nil || conf.Ref == "" || conf.StartDate.IsZero() {
+			continue
+		}
+		year := conf.StartDate.In(conf.Loc()).Year()
+		if year < currentYear-1 || year > currentYear {
+			continue
+		}
+		for _, tier := range SponsorTiersForConf(ctx, conf.Ref) {
+			if tier == nil || !keepLevels[tier.Level] {
+				continue
+			}
+			for _, sp := range tier.Sponsors {
+				if sp == nil || sp.Org == nil {
+					continue
+				}
+				key := strings.ToLower(strings.TrimSpace(sp.Org.Ref + "|" + tier.Level))
+				if key == "|"+strings.ToLower(tier.Level) {
+					key = strings.ToLower(strings.TrimSpace(sp.Org.Name + "|" + tier.Level))
+				}
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				out = append(out, &HomeSponsor{
+					Name:      sp.Org.Name,
+					Level:     tier.Level,
+					LogoDark:  strings.TrimSpace(sp.Org.LogoDark),
+					LogoLight: strings.TrimSpace(sp.Org.LogoLight),
+					URL:       strings.TrimSpace(sp.Org.Website),
+				})
+			}
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		ri := homeSponsorRank(out[i].Level)
+		rj := homeSponsorRank(out[j].Level)
+		if ri != rj {
+			return ri < rj
+		}
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	return out
+}
+
+func homeSponsorRank(level string) int {
+	switch normalizeLevel(level) {
+	case "Headline":
+		return 0
+	case "Workshop":
+		return 1
+	default:
+		return 2
 	}
 }
 
@@ -2869,15 +3453,12 @@ func Ticket(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 
-	/* URL */
-	url := fmt.Sprintf("%s/check-in/%s", ctx.Env.GetURI(), ticket)
-
-	/* Turn the URL into a QR code! */
-	qrpng, err := qrcode.Encode(url, qrcode.Medium, 256)
-	qrcode := base64.StdEncoding.EncodeToString(qrpng)
-
-	/* Turn the QR code into a data URI! */
-	dataURI := fmt.Sprintf("data:image/png;base64,%s", qrcode)
+	dataURI, err := ticketQRCodeURI(ctx, ticket)
+	if err != nil {
+		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/ticket-pdf unable to render qr for %s: %s", ticket, err)
+		return
+	}
 
 	tix := &TicketTmpl{
 		QRCodeURI: dataURI,
@@ -6076,6 +6657,7 @@ func SpeakerAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 					OrgLogo:       sp.OrgLogo,
 					SpeakerConfID: sc.ID,
 					ComingFrom:    sc.ComingFrom,
+					FeaturedRank:  sc.FeaturedRank,
 				}
 				if sc.Company != "" {
 					row.Company = sc.Company
@@ -6600,6 +7182,18 @@ func adminUpdateSpeakerConfPOST(w http.ResponseWriter, r *http.Request, ctx *con
 		FirstEvent:   r.PostForm.Get("FirstEvent") == "on",
 		DinnerRSVP:   r.PostForm.Get("DinnerRSVP") == "on",
 		Sponsor:      r.PostForm.Get("Sponsor") == "on",
+	}
+	featuredRankRaw := strings.TrimSpace(r.PostForm.Get("FeaturedRank"))
+	if featuredRankRaw == "" {
+		clearRank := 0
+		fields.FeaturedRank = &clearRank
+	} else {
+		featuredRank, err := strconv.Atoi(featuredRankRaw)
+		if err != nil || featuredRank < 1 || featuredRank > 6 {
+			http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Featured speaker slot must be blank or a number from 1 to 6."), http.StatusSeeOther)
+			return
+		}
+		fields.FeaturedRank = &featuredRank
 	}
 	logoRaw, logoContentType, logoExt, logoErr := readMultipartLogoFile(r, "OrgLogoFile")
 	hasLogo := logoErr == nil && len(logoRaw) > 0

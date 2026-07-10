@@ -2,17 +2,22 @@
 <html lang="en">
   <head>
     {{ template "site_seo" (dict "Title" "Privacy Policy · bitcoin++" "Description" "Privacy Policy for bitcoin++ conferences operated by btcplusplus LLC." "Path" "/privacy" "Image" "/static/img/atxpromo.png") }}
-    {{ block "header" . }} {{ end }}
+    {{ template "rebrand_header" . }}
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#128274;</text></svg>">
   </head>
-  <body class="bg-white">
+  <body class="btcpp-legal-page">
     {{ block "mainnav" . }} {{ end }}
 
-    <main class="mx-auto max-w-3xl px-6 py-12 lg:px-8 lg:py-16">
-      <h1 class="text-3xl font-bold tracking-tight text-gray-900">Privacy Policy</h1>
-      <p class="mt-2 text-sm text-gray-500">Last updated: May 16, 2026</p>
+    <main class="btcpp-legal">
+      <section class="btcpp-legal__hero">
+        <div>
+          <p class="btcpp-legal__kicker">§ Legal</p>
+          <h1>Privacy Policy</h1>
+        </div>
+        <p class="btcpp-legal__updated">Last updated: May 16, 2026</p>
+      </section>
 
-      <div class="prose prose-sm sm:prose mt-8 max-w-none text-gray-800 leading-relaxed space-y-6">
+      <div class="btcpp-legal__content">
 
         <section>
           <p>
@@ -164,7 +169,7 @@
             us to correct inaccurate fields, or ask us to delete your
             records (subject to the retention obligations above) by
             emailing
-            <a href="mailto:hello@btcpp.dev" class="text-indigo-600 hover:text-indigo-700">hello@btcpp.dev</a>.
+            <a href="mailto:hello@btcpp.dev">hello@btcpp.dev</a>.
             We'll respond within 30 days.
           </p>
         </section>
@@ -184,9 +189,9 @@
           <h2 class="text-lg font-semibold text-gray-900">9. Contact</h2>
           <p class="mt-2">
             Privacy questions, deletion requests, and general feedback:
-            <a href="mailto:hello@btcpp.dev" class="text-indigo-600 hover:text-indigo-700">hello@btcpp.dev</a>.
+            <a href="mailto:hello@btcpp.dev">hello@btcpp.dev</a>.
             See also our
-            <a href="/terms" class="text-indigo-600 hover:text-indigo-700">Terms of Service</a>.
+            <a href="/terms">Terms of Service</a>.
           </p>
         </section>
       </div>
