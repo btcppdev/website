@@ -2,20 +2,41 @@
 <html lang="en">
   <head>
     {{ template "site_seo" (dict "Title" (printf "Volunteer at %s" .Conf.Desc) "Description" (printf "Apply to volunteer at %s, %s." .Conf.Desc .Conf.DateDesc) "Path" (printf "/volunteer/%s" .Conf.Tag) "Image" (confSocialImage .Conf.Tag "standard")) }}
-    {{ block "header" . }} {{ end }}
+    {{ template "form_page_header" . }}
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
   </head>
-  <body>
+  <body class="btcpp-form-page">
     {{ block "mainnav" . }} {{ end }}
+    <main class="btcpp-apply-page">
     <section id="form">
         <div class="isolate bg-white px-6 py-24 sm:py-32 lg:px-8">
-            <div class="mx-auto max-w-2xl text-center">
-                <h2 class="text-balance text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">Volunteer Registration</h2>
-                <p class="mt-2 text-lg/8 text-gray-600">Sign up to volunteer at {{ .Conf.Desc }}.</p>
+            <div class="btcpp-form-layout">
+            <div class="mx-auto max-w-2xl text-center" data-form-kicker="§00 · VOLUNTEER CREW">
+                <h2 class="text-balance text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">Volunteer Signup</h2>
+                <p class="mt-2 text-lg/8 text-gray-600">Register to volunteer at {{ .Conf.Desc }}.</p>
+                <div class="btcpp-form-meta">
+                    <div class="btcpp-form-meta__item">
+                        <span class="btcpp-form-meta__label">Edition</span>
+                        <span class="btcpp-form-meta__value">{{ .Conf.Desc }}</span>
+                    </div>
+                    {{ if .Conf.DateDesc }}
+                    <div class="btcpp-form-meta__item">
+                        <span class="btcpp-form-meta__label">Dates</span>
+                        <span class="btcpp-form-meta__value">{{ .Conf.DateDesc }}</span>
+                    </div>
+                    {{ end }}
+                    {{ if .Conf.Venue }}
+                    <div class="btcpp-form-meta__item">
+                        <span class="btcpp-form-meta__label">Venue</span>
+                        <span class="btcpp-form-meta__value">{{ .Conf.Venue }}</span>
+                    </div>
+                    {{ end }}
+                </div>
             </div>
+            <div class="btcpp-form-panel">
             <form action="#" 
             hx-post="/volunteer/{{ .Conf.Tag }}"
-            class="mx-auto mt-16 max-w-xl sm:mt-20"
+            class="btcpp-form-kit mx-auto mt-16 max-w-xl sm:mt-20"
             hx-target="#post_result"
             hx-swap="innerHTML show:#post_result:top"
             hx-validate="true"
@@ -255,11 +276,11 @@
             </form>
             <div id="post_result" name="hidden_stuffs" class="mt-5 mx-auto max-w-xl scroll-mt-24">
             </div>
+            </div>
+            </div>
         </div>
     </section>
-    <section id="about">
-    {{ block "about" . }} {{ end }}
-    </section>
-    {{ block "footer" . }} {{ end }}
+    </main>
+    {{ template "generic_conf_footer" . }}
   </body>
 </html>

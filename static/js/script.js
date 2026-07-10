@@ -94,8 +94,8 @@ function toggleNavFlyout(el, targetId) {
 // Conf-page countdown ticker. Each .conf-countdown element carries
 // data-start / data-end as Unix seconds (rendered by the
 // conf_countdown template). Before doors open: positive countdown.
-// Between doors open and close: 0d 00h 00m 00s. After doors close:
-// negative count. Runs site-wide; no-ops on pages without any
+// Between doors open and close, and after doors close: 0d 00h 00m 00s.
+// Runs site-wide; no-ops on pages without any
 // .conf-countdown elements.
 (function () {
 	function pad(n) { return String(n).padStart(2, '0'); }
@@ -105,17 +105,14 @@ function toggleNavFlyout(el, targetId) {
 		var valueEl  = el.querySelector('[data-cd-value]');
 		var prefixEl = el.querySelector('[data-cd-prefix]');
 		var now = Date.now() / 1000;
-		var prefix, sign, abs;
+		var sign, abs;
 		if (now < startSec) {
-			prefix = 'doors open in';
 			sign = '';
 			abs = startSec - now;
 		} else if (now > endSec) {
-			prefix = 'doors closed';
-			sign = '-';
-			abs = now - endSec;
+			sign = '';
+			abs = 0;
 		} else {
-			prefix = 'happening now ·';
 			sign = '';
 			abs = 0;
 		}
@@ -123,8 +120,15 @@ function toggleNavFlyout(el, targetId) {
 		var h = Math.floor((abs % 86400) / 3600);
 		var m = Math.floor((abs % 3600) / 60);
 		var s = Math.floor(abs % 60);
-		if (prefixEl) prefixEl.textContent = prefix;
-		if (valueEl)  valueEl.textContent  = sign + d + 'd ' + pad(h) + 'h ' + pad(m) + 'm ' + pad(s) + 's';
+		if (prefixEl) prefixEl.textContent = '';
+		if (valueEl) {
+			valueEl.innerHTML = [
+				sign + pad(d), '<span class="conf-countdown__unit">d</span>',
+				' ', pad(h), '<span class="conf-countdown__unit">h</span>',
+				' ', pad(m), '<span class="conf-countdown__unit">m</span>',
+				' ', pad(s), '<span class="conf-countdown__unit">s</span>'
+			].join('');
+		}
 	}
 	function tickAll() {
 		document.querySelectorAll('.conf-countdown').forEach(tick);

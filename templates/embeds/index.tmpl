@@ -1,66 +1,307 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    {{ template "site_seo" (dict "Title" "bitcoin++ · Technical Bitcoin Conferences" "Description" "bitcoin++ hosts technical conferences, workshops, and hackathons for bitcoin developers and builders around the world." "Path" "/" "Image" "/static/img/atxpromo.png") }}
-    {{ block "header" . }} {{ end }}
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{ template "site_seo" (dict "Title" "bitcoin++ · Developing the frontier of bitcoin" "Description" "bitcoin++ hosts technical conferences, workshops, and hackathons for bitcoin developers and builders around the world." "Path" "/" "Image" "/static/img/rebrand/breakthroughs.jpg") }}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,600&family=IBM+Plex+Mono:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/home-redesign.css">
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
   </head>
-  <body>
-    {{ block "mainnav" . }} {{ end }}
-    <!-- no top banner
-    <section id="top_banner">
-      <div class="bg-orange-300">
-        <div class="mx-auto max-w-7xl mt-8 px-6 py-8 lg:flex lg:items-center lg:justify-between lg:px-8">
-          <p class="max-w-2xl text-lg font-semibold tracking-tight text-gray-900">Join <span class="font-bitcoin">bitcoin++</span> to compete in the Bitcoin Games at Vegas 2025!</p>
-          <div class="mt-10 flex items-center gap-x-6 lg:mt-0 lg:shrink-0">
-            <a href="https://btcpp.dev/vegas25" class="text-sm/6 font-semibold text-orange-900" target="_blank">Register now<span aria-hidden="true">→</span></a>
+  <body class="btcpp-home">
+    <div class="home-page">
+      {{ $next := .NextConf }}
+      <div class="home-ticker" aria-label="bitcoin++ updates">
+        <span class="home-ticker__label">bitcoin++</span>
+        <div class="home-ticker__viewport">
+          <div class="home-ticker__track">
+            <div class="home-ticker__items">
+              <em>NEXT</em><b>•</b>{{ if $next }}<strong>{{ $next.Desc }}</strong><b>•</b><em>{{ $next.DateDesc }}</em><b>•</b><a href="/{{ $next.Tag }}#tickets">GET TICKETS</a>{{ else }}<em>WATCH FOR THE NEXT EDITION</em>{{ end }}<b>•</b>
+              <em>TECHNICAL BITCOIN CONFERENCES</em><b>•</b>
+              <strong>{{ len .Past }} EDITIONS IN THE ARCHIVE</strong><b>•</b><a href="/timeline">BROWSE THE ARCHIVE</a><b>•</b>
+              <em>INSIDER EDITION</em><b>•</b><a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">NEW DISPATCHES WEEKLY</a>
+            </div>
+            <div class="home-ticker__items">
+              <em>NEXT</em><b>•</b>{{ if $next }}<strong>{{ $next.Desc }}</strong><b>•</b><em>{{ $next.DateDesc }}</em><b>•</b><a href="/{{ $next.Tag }}#tickets">GET TICKETS</a>{{ else }}<em>WATCH FOR THE NEXT EDITION</em>{{ end }}<b>•</b>
+              <em>TECHNICAL BITCOIN CONFERENCES</em><b>•</b>
+              <strong>{{ len .Past }} EDITIONS IN THE ARCHIVE</strong><b>•</b><a href="/timeline">BROWSE THE ARCHIVE</a><b>•</b>
+              <em>INSIDER EDITION</em><b>•</b><a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">NEW DISPATCHES WEEKLY</a>
+            </div>
           </div>
         </div>
       </div>
-    </section>
-    -->
-    <section id="confs">
-      <div class="bg-white py-8 sm:py-16">
-        <div class="mx-auto max-w-7xl px-6 lg:px-0">
-          <div class="mx-auto max-w-2xl text-center">
-            <h1 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Discover the cutting edge of bitcoin</h1>
-            <p class="mt-2 text-lg leading-8 text-gray-600">Upcoming Events</p>
+
+      <nav class="home-nav" aria-label="Primary navigation">
+        <div class="home-nav__inner">
+          <a href="/" class="home-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
+          <input class="home-nav__toggle" type="checkbox" id="home-nav-toggle" aria-label="Toggle navigation">
+          <div class="home-nav__controls">
+            <a class="home-button is-accent home-nav__cta" href="{{ if $next }}/{{ $next.Tag }}#tickets{{ else }}#events{{ end }}">GET TICKETS</a>
+            <label class="home-nav__menu" for="home-nav-toggle" aria-label="Toggle navigation">
+              <span></span><span></span><span></span>
+            </label>
           </div>
-          <!-- begins -->
-	  {{ range .Confs }}
-	    {{ if .Active }}
-	      {{ block "front_page_conf" . }} {{ end }}
-	    {{ end }}
-	  {{ end }}
-          <!-- ends -->
+          <div class="home-nav__links">
+            <a href="#events">events/</a>
+            <a href="/timeline">timeline/</a>
+            <a href="/dashboard">dashboard/</a>
+            <a href="https://shop.btcpp.dev/" target="_blank" rel="noopener noreferrer">shop/</a>
+            <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">insider/</a>
+          </div>
         </div>
-      </div>
-    </section>
-    {{ block "mailing" . }} {{ end }}
-    <section id="sponsors">
-      <div class="bg-white py-8">
-        <div class="mx-auto max-w-7xl px-6 lg:px-8">
-          <div class="mx-auto grid max-w-lg grid-cols-1 items-center gap-x-8 gap-y-12 sm:max-w-xl sm:grid-cols-1 sm:gap-x-10 sm:gap-y-14 lg:mx-0 lg:max-w-none lg:grid-cols-1">
-            <a href="https://www.nydig.com/" target="_blank" class="p-4 sm:p-12"
-             style="grid-column: span 2">
-              <img class="max-h-36 w-full object-contain object-center" src="/static/img/sponsors/nydig_dark.svg" alt="NYDIG" width="150" height="auto">
+      </nav>
+
+      <main>
+        <section class="home-hero">
+          <div class="home-hero__grid">
+            <div>
+              <p class="home-section-label">§00 · What this is</p>
+              <h1>Developing the <span class="home-serif">frontier</span> of bitcoin.</h1>
+            </div>
+            <div>
+              <p class="home-deck">Join the builders shaping Bitcoin's next chapter. Attend live, or get the insider's view: stories, updates, and signals from the frontier.</p>
+              <div class="home-actions">
+                <a href="#events" class="home-button">Upcoming events</a>
+                <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer" class="home-button is-outline">Read insider</a>
+              </div>
+            </div>
+          </div>
+          <div class="home-stats">
+            <div class="home-stat"><strong>{{ len .Confs }}</strong><span>Editions and counting</span></div>
+            <div class="home-stat"><strong>{{ len .Years }}</strong><span>Years of events</span></div>
+            <div class="home-stat"><strong>{{ len .Upcoming }}</strong><span>Upcoming stops</span></div>
+            <div class="home-stat"><strong>{{ len .Past }}</strong><span>Archived editions</span></div>
+          </div>
+        </section>
+
+        {{ if $next }}
+        <section class="home-next">
+          <div>
+            <p class="home-section-label">§01 · Coming up next</p>
+            <h2>{{ $next.Desc }}, <span class="home-serif">{{ if $next.Tagline }}{{ $next.Tagline }}{{ else }}technical edition{{ end }}.</span></h2>
+            <p class="home-deck">{{ $next.OGFlavor }}</p>
+            <div class="home-next__meta">{{ $next.DateDesc }} · {{ $next.Location }}</div>
+            <div class="home-actions">
+              <a href="/{{ $next.Tag }}" class="home-button is-accent">The full program</a>
+              <a href="/{{ $next.Tag }}#tickets" class="home-button">GET TICKETS</a>
+            </div>
+          </div>
+          <a href="/{{ $next.Tag }}" class="home-next__image">
+            <img src="{{ confImage $next.Tag "leading" }}" alt="{{ $next.Desc }}">
+          </a>
+        </section>
+        {{ end }}
+
+        <section id="events">
+          <div class="home-section-head">
+            <div>
+              <p class="home-section-label">§02 · BTC++</p>
+              <h2 class="home-section-title">Choose your next stop.</h2>
+            </div>
+            <div class="home-section-copy">We're bringing bitcoin++ around the globe. Each city is picked for its role in bitcoin's story.</div>
+          </div>
+          <div class="home-card-grid">
+            {{ range .Upcoming }}
+            <a href="/{{ .Tag }}" class="home-card">
+              <span class="home-card__image">
+                <img src="{{ confImage .Tag "leading" }}" alt="{{ .Desc }}">
+                <span class="home-card__badge {{ if eq .Tag $next.Tag }}is-live{{ end }}">{{ if eq .Tag $next.Tag }}NEXT UP{{ else }}TICKETS LIVE{{ end }}</span>
+              </span>
+              <span class="home-card__body">
+                <span><span class="home-card__city">{{ .Desc }}</span><span class="home-card__theme">{{ if .Tagline }}{{ .Tagline }}{{ else }}Technical edition{{ end }}</span></span>
+                <span class="home-card__date">{{ .DateDesc }}</span>
+              </span>
             </a>
-            <a href="https://hrf.org" class="col-span-1 max-h-24 w-full lg:col-span-1" target="_blank" >
-              <img class="max-h-24 w-full object-contain" src="/static/img/hrf.svg" alt="Human Rights Foundation" width="158" height="48">
+            {{ end }}
+          </div>
+        </section>
+
+        <section class="home-map">
+          <div class="home-section-head" style="padding:0 0 40px">
+            <div>
+              <p class="home-section-label">§03 · Where we've been</p>
+              <h2 class="home-section-title">Cities across <span class="home-serif">the map.</span></h2>
+            </div>
+            <div class="home-section-copy">Every edition leaves a dot in the archive. The next stops keep moving.</div>
+          </div>
+          <div class="home-map__frame">
+            <img src="/static/img/home/worldmap.svg" alt="bitcoin++ event map">
+            {{ if .MapMarkers }}
+            <div class="home-map__markers" aria-label="bitcoin++ event locations">
+              {{ range .MapMarkers }}
+              {{ if gt (len .Editions) 1 }}
+              <details class="home-map-marker home-map-marker--multi {{ if .Upcoming }}is-upcoming{{ else }}is-past{{ end }} is-label-{{ .LabelSide }}" style="{{ .Style | safeCSS }}">
+                <summary>
+                  <span class="home-map-marker__dot"></span>
+                  <span class="home-map-marker__label">{{ .Label }} <b>{{ len .Editions }}</b></span>
+                </summary>
+                <span class="home-map-marker__menu">
+                  {{ range .Editions }}
+                  <a href="/{{ .Conf.Tag }}" class="{{ if .Upcoming }}is-upcoming{{ else }}is-past{{ end }}">
+                    <strong>{{ .Label }}{{ if .Upcoming }} <em>Upcoming</em>{{ end }}</strong>
+                    <span>{{ .Date }}{{ if eq .EditionType "local" }} · Local edition{{ end }}</span>
+                  </a>
+                  {{ end }}
+                </span>
+              </details>
+              {{ else }}
+              <a href="/{{ .Conf.Tag }}" class="home-map-marker {{ if .Upcoming }}is-upcoming{{ else }}is-past{{ end }} is-label-{{ .LabelSide }}" style="{{ .Style | safeCSS }}">
+                <span class="home-map-marker__dot"></span>
+                <span class="home-map-marker__label">{{ .Label }}{{ if and .Conf (eq .Conf.EditionType "local") }} <b>local</b>{{ end }}</span>
+              </a>
+              {{ end }}
+              {{ end }}
+            </div>
+            {{ end }}
+            <div class="home-map__legend">
+              <span>Past editions · {{ len .Past }}</span>
+              <span>Upcoming editions · {{ len .Upcoming }}</span>
+              <span>{{ len .Years }} years · 2022-present</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="home-split is-tinted">
+          <a href="https://foss.devpost.com/" target="_blank" rel="noopener noreferrer" class="home-split__media"><img src="/static/img/home/hackathon.avif" alt="Developers working during a bitcoin hackathon"></a>
+          <div>
+            <p class="home-section-label">§04 · Hackathons</p>
+            <h2 class="home-section-title">Code. Collaborate. <span style="color:var(--home-accent)">Claim the glory.</span></h2>
+            <p class="home-deck">Every bitcoin++ hosts a hackathon: builders team up, ship fast, and push bitcoin tech forward. The best projects become part of the record.</p>
+            <div class="home-actions">
+              <a href="https://foss.devpost.com/" target="_blank" rel="noopener noreferrer" class="home-button">Past winners</a>
+              <a href="{{ if $next }}/{{ $next.Tag }}{{ else }}/{{ end }}" class="home-button is-outline">Next edition</a>
+            </div>
+          </div>
+        </section>
+
+        <section class="home-speakers">
+          <div class="home-section-head" style="padding:0 0 8px">
+            <div>
+              <p class="home-section-label">§05 · Expert speakers</p>
+              <h2 class="home-section-title">Direct access to bitcoin's <span class="home-serif">brightest minds.</span></h2>
+            </div>
+            <a href="/timeline" class="home-button is-outline">Talk archive</a>
+          </div>
+          <p class="home-deck" style="max-width:640px">Long-form technical sessions, workshops, and hallway time with the people writing the code.</p>
+          <div class="home-speaker-strip">
+            {{ if .FeaturedSpeakers }}
+            {{ range .FeaturedSpeakers }}
+            <div class="home-speaker">
+              <div class="home-speaker__portrait">
+                {{ if .Photo }}
+                <img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}">
+                {{ else }}
+                <span>{{ printf "%.1s" .Name }}</span>
+                {{ end }}
+              </div>
+              <div class="home-speaker__name">{{ .Name }}</div>
+            </div>
+            {{ end }}
+            {{ else }}
+            <div class="home-speaker"><div class="home-speaker__portrait">n</div><div class="home-speaker__name">niftynei</div></div>
+            <div class="home-speaker"><div class="home-speaker__portrait">P</div><div class="home-speaker__name">Peter Todd</div></div>
+            <div class="home-speaker"><div class="home-speaker__portrait">J</div><div class="home-speaker__name">Jeremy Rubin</div></div>
+            <div class="home-speaker"><div class="home-speaker__portrait">Y</div><div class="home-speaker__name">Ying Tong</div></div>
+            <div class="home-speaker"><div class="home-speaker__portrait">S</div><div class="home-speaker__name">Salvatore Ingala</div></div>
+            <div class="home-speaker"><div class="home-speaker__portrait">L</div><div class="home-speaker__name">Liam Eagen</div></div>
+            <div class="home-speaker"><div class="home-speaker__portrait">H</div><div class="home-speaker__name">Hunter Beast</div></div>
+            <div class="home-speaker"><div class="home-speaker__portrait">B</div><div class="home-speaker__name">Bianca Motta</div></div>
+            {{ end }}
+          </div>
+        </section>
+
+        <section id="insider" class="home-split is-dark">
+          <div>
+            <p class="home-section-label">§06 · Insider edition</p>
+            <h2 class="home-section-title" style="color:var(--home-paper)">Your front-row seat to bitcoin's <span class="home-serif" style="color:var(--home-accent)">build.</span></h2>
+            <p class="home-deck">Our independent media arm: long-form reporting, sharp analysis, and interviews with the builders shaping bitcoin's future.</p>
+            <div class="home-actions"><a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer" class="home-button is-accent">Subscribe on Substack</a></div>
+          </div>
+          <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer" class="home-split__media"><img src="/static/img/home/insider.avif" alt="bitcoin++ Insider Edition"></a>
+        </section>
+
+        <section class="home-shop">
+          <div class="home-section-head">
+            <div>
+              <p class="home-section-label">§07 · The shop</p>
+              <h2 class="home-section-title">Wear the <span class="home-serif">evidence.</span></h2>
+            </div>
+            <a href="https://shop.btcpp.dev/" target="_blank" rel="noopener noreferrer" class="home-button is-outline">Full shop</a>
+          </div>
+          <div class="home-shop__grid">
+            <div class="home-shop__item"><div class="home-shop__mock">Conference tee</div><div class="home-shop__body"><strong>Edition shirts</strong><a href="https://shop.btcpp.dev/">Shop</a></div></div>
+            <div class="home-shop__item"><div class="home-shop__mock">Sticker pack</div><div class="home-shop__body"><strong>Protocol stickers</strong><a href="https://shop.btcpp.dev/">Shop</a></div></div>
+            <div class="home-shop__item"><div class="home-shop__mock">Poster</div><div class="home-shop__body"><strong>Event prints</strong><a href="https://shop.btcpp.dev/">Shop</a></div></div>
+          </div>
+        </section>
+
+        <section class="home-sponsors">
+          <div class="home-section-head" style="padding:0 0 28px">
+            <div>
+              <p class="home-section-label">§08 · Our sponsors</p>
+              <h2 class="home-section-title">Builders backing <span class="home-serif">the frontier.</span></h2>
+            </div>
+            <div class="home-section-actions">
+              <div class="home-section-copy">Headline and workshop sponsors from current and past-year editions.</div>
+              <a href="/sponsor" class="home-button is-accent">Sponsor bitcoin++</a>
+            </div>
+          </div>
+          {{ if .Sponsors }}
+          <div class="home-sponsor-grid">
+            {{ range .Sponsors }}
+              {{ if .URL }}<a href="{{ .URL | safeURL }}" target="_blank" rel="noopener noreferrer" class="home-sponsor-card home-sponsor-card--{{ .Level | lower }}">{{ else }}<div class="home-sponsor-card home-sponsor-card--{{ .Level | lower }}">{{ end }}
+                <span class="home-sponsor-card__tier">{{ .Level }}</span>
+                {{ $logo := .LogoLight }}{{ if not $logo }}{{ $logo = .LogoDark }}{{ end }}
+                {{ if $logo }}
+                  <img src="{{ $logo | safeURL }}" alt="{{ .Name }}">
+                {{ else }}
+                  <span class="home-sponsor-card__name">{{ .Name }}</span>
+                {{ end }}
+              {{ if .URL }}</a>{{ else }}</div>{{ end }}
+            {{ end }}
+          </div>
+          {{ else }}
+          <div class="home-sponsor-row">
+            <a href="/sponsor">Your logo here</a>
+          </div>
+          {{ end }}
+        </section>
+
+        <section class="home-subscribe">
+          <div>
+            <h2>Don't miss a single <span class="home-serif" style="color:var(--home-accent)">moment.</span></h2>
+            <p>Event announcements and Insider dispatches, direct to your inbox.</p>
+          </div>
+          <form hx-post="/subscribe" hx-swap="outerHTML">
+            <input type="email" name="email" placeholder="hello@example.com" aria-label="Email address">
+            <button type="submit">Subscribe</button>
+          </form>
+        </section>
+
+        <section class="home-journey">
+          <div class="home-section-head" style="padding:0 0 40px">
+            <div>
+              <p class="home-section-label">§09 · Our journey</p>
+              <h2 class="home-section-title">bitcoin++ through the <span class="home-serif">years.</span></h2>
+            </div>
+            <a href="/timeline" class="home-button is-outline">The full timeline</a>
+          </div>
+          <div class="home-year-grid">
+            {{ range .Years }}
+            <a href="/timeline#y{{ .Year }}" class="home-year">
+              <strong>{{ .Year }}</strong>
+              <p>{{ len .Confs }} edition{{ if ne (len .Confs) 1 }}s{{ end }} in the permanent record.</p>
             </a>
+            {{ end }}
           </div>
-          <div class="mt-16 flex justify-center">
-            <p class="relative rounded-full bg-gray-50 px-4 py-1.5 text-sm/6 text-gray-600 ring-1 ring-inset ring-gray-900/5">
-              <span class="hidden md:inline">Our sponsors are bringing the frontier of bitcoin within reach.</span>
-              <a href="/sponsor" class="font-semibold text-gray-800"><span class="absolute inset-0" aria-hidden="true"></span>Join them<span aria-hidden="true">&rarr;</span></a>
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-    <section id="about">
-    {{ block "about" . }} {{ end }}
-    </section>
-    {{ block "footer" . }} {{ end }}
+        </section>
+      </main>
+
+      {{ template "generic_conf_footer" . }}
+    </div>
   </body>
 </html>

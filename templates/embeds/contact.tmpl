@@ -2,20 +2,32 @@
 <html lang="en">
   <head>
     {{ template "site_seo" (dict "Title" "Contact bitcoin++" "Description" "Contact the bitcoin++ team about events, sponsorships, speaking, volunteering, and technical bitcoin programming." "Path" "/contact" "Image" "/static/img/atxpromo.png") }}
-    {{ block "header" . }} {{ end }}
+    {{ template "form_page_header" . }}
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#10024;</text></svg>">
   </head>
-  <body>
+  <body class="btcpp-form-page">
     {{ block "mainnav" . }} {{ end }}
     <section id="form">
         <div class="isolate bg-white px-6 py-24 sm:py-32 lg:px-8">
-            <div class="mx-auto max-w-2xl text-center">
+            <div class="btcpp-form-layout">
+            <div class="mx-auto max-w-2xl text-center" data-form-kicker="§00 · CONTACT">
                 <h2 class="text-balance text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">Contact Us</h2>
                 <p class="mt-2 text-lg/8 text-gray-600">Have a question or want to get in touch? Drop us a message!</p>
+                <div class="btcpp-form-meta">
+                    <div class="btcpp-form-meta__item">
+                        <span class="btcpp-form-meta__label">Email</span>
+                        <span class="btcpp-form-meta__value">hello@btcpp.dev</span>
+                    </div>
+                    <div class="btcpp-form-meta__item">
+                        <span class="btcpp-form-meta__label">Topics</span>
+                        <span class="btcpp-form-meta__value">Events · speaking · sponsorship</span>
+                    </div>
+                </div>
             </div>
+            <div class="btcpp-form-panel">
             <form action="#"
             hx-post="/contact"
-            class="mx-auto mt-16 max-w-xl sm:mt-20"
+            class="btcpp-form-kit mx-auto mt-16 max-w-xl sm:mt-20"
             hx-validate="true"
             hx-target="#result"
             hx-swap="innerHTML show:#result:top"
@@ -100,10 +112,9 @@
             </form>
             <div id="result" class="mt-5 mx-auto max-w-xl text-red-700 scroll-mt-24">
             </div>
+            </div>
+            </div>
         </div>
-    </section>
-    <section id="about">
-    {{ block "about" . }} {{ end }}
     </section>
     {{ block "footer" . }} {{ end }}
   </body>

@@ -14,11 +14,11 @@
 {{ define "sponsor_banner" }}
 {{ $sponsors := sponsorBanner .Conf }}
 {{ if $sponsors }}
-<section id="sponsor-banner" class="bg-white border-y border-gray-100 py-6 overflow-hidden">
-  <p class="mx-auto max-w-7xl px-6 lg:px-8 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
+<section id="sponsor-banner" class="sponsor-banner bg-white border-y border-gray-100 py-6 overflow-hidden">
+  <p class="sponsor-banner__label mx-auto max-w-7xl px-6 lg:px-8 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
     Supported by
   </p>
-  <div class="sponsor-marquee relative">
+  <div class="sponsor-marquee sponsor-banner__viewport relative">
     {{/* Track contains exactly 2 copies of the sponsor list so
          translateX(-50%) lands the second copy where the first
          started — the loop is seamless. Spacing lives on each
@@ -33,24 +33,6 @@
     </div>
   </div>
 </section>
-<style>
-  @keyframes sponsor-marquee-scroll {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
-  }
-  .sponsor-marquee-track {
-    width: max-content;
-    animation: sponsor-marquee-scroll 40s linear infinite;
-  }
-  .sponsor-marquee-track img {
-    filter: grayscale(100%);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .sponsor-marquee-track {
-      animation: none;
-    }
-  }
-</style>
 {{ end }}
 {{ end }}
 
@@ -64,15 +46,15 @@
 {{ if $org }}
 <a href="{{ if $org.Website }}{{ $org.Website }}{{ else }}#{{ end }}"
    {{ if $org.Website }}target="_blank" rel="noopener noreferrer"{{ end }}
-   class="shrink-0 flex items-center justify-center px-4 mr-12 sm:mr-16">
+   class="sponsor-banner__item shrink-0 flex items-center justify-center px-4 mr-12 sm:mr-16">
   {{ if $org.LogoLight }}
   <img src="{{ $org.LogoLight }}" alt="{{ $org.Name }}"
-       class="h-20 w-auto max-w-[10rem] object-contain object-center" />
+       class="sponsor-banner__logo h-20 w-auto max-w-[10rem] object-contain object-center" />
   {{ else if $org.LogoDark }}
   <img src="{{ $org.LogoDark }}" alt="{{ $org.Name }}"
-       class="h-20 w-auto max-w-[10rem] object-contain object-center" />
+       class="sponsor-banner__logo h-20 w-auto max-w-[10rem] object-contain object-center" />
   {{ else }}
-  <span class="text-sm font-semibold text-gray-700 whitespace-nowrap">{{ $org.Name }}</span>
+  <span class="sponsor-banner__name text-sm font-semibold text-gray-700 whitespace-nowrap">{{ $org.Name }}</span>
   {{ end }}
 </a>
 {{ end }}

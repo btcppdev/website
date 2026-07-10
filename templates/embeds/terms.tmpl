@@ -2,23 +2,28 @@
 <html lang="en">
   <head>
     {{ template "site_seo" (dict "Title" "Terms of Service · bitcoin++" "Description" "Terms of Service for bitcoin++ conferences operated by btcplusplus LLC." "Path" "/terms" "Image" "/static/img/atxpromo.png") }}
-    {{ block "header" . }} {{ end }}
+    {{ template "rebrand_header" . }}
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#9989;</text></svg>">
   </head>
-  <body class="bg-white">
+  <body class="btcpp-legal-page">
     {{ block "mainnav" . }} {{ end }}
 
-    <main class="mx-auto max-w-3xl px-6 py-12 lg:px-8 lg:py-16">
-      <h1 class="text-3xl font-bold tracking-tight text-gray-900">Terms of Service</h1>
-      <p class="mt-2 text-sm text-gray-500">Last updated: May 16, 2026</p>
+    <main class="btcpp-legal">
+      <section class="btcpp-legal__hero">
+        <div>
+          <p class="btcpp-legal__kicker">§ Legal</p>
+          <h1>Terms of Service</h1>
+        </div>
+        <p class="btcpp-legal__updated">Last updated: May 16, 2026</p>
+      </section>
 
-      <div class="prose prose-sm sm:prose mt-8 max-w-none text-gray-800 leading-relaxed space-y-6">
+      <div class="btcpp-legal__content">
 
         <section>
           <p>
             These Terms of Service ("Terms") govern your use of the
             <span class="font-bitcoin">bitcoin++</span> website at
-            <a href="https://btcpp.dev" class="text-indigo-600 hover:text-indigo-700">btcpp.dev</a>
+            <a href="https://btcpp.dev">btcpp.dev</a>
             and your attendance at conferences and related events organized
             by btcplusplus LLC ("we", "us"). By purchasing a ticket,
             applying to speak, applying to volunteer, or otherwise
@@ -95,7 +100,7 @@
             and physical violence are grounds for removal from the
             event without refund and a ban from future events. Reports
             can be sent to
-            <a href="mailto:hello@btcpp.dev" class="text-indigo-600 hover:text-indigo-700">hello@btcpp.dev</a>.
+            <a href="mailto:hello@btcpp.dev">hello@btcpp.dev</a>.
           </p>
         </section>
 
@@ -153,9 +158,9 @@
           <h2 class="text-lg font-semibold text-gray-900">8. Contact</h2>
           <p class="mt-2">
             Questions about these Terms can be sent to
-            <a href="mailto:hello@btcpp.dev" class="text-indigo-600 hover:text-indigo-700">hello@btcpp.dev</a>.
+            <a href="mailto:hello@btcpp.dev">hello@btcpp.dev</a>.
             Privacy-specific questions are addressed in our
-            <a href="/privacy" class="text-indigo-600 hover:text-indigo-700">Privacy Policy</a>.
+            <a href="/privacy">Privacy Policy</a>.
           </p>
         </section>
       </div>

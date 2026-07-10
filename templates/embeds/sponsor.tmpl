@@ -2,20 +2,22 @@
 <html lang="en">
   <head>
     {{ template "site_seo" (dict "Title" "Sponsor bitcoin++" "Description" "Sponsor bitcoin++ conferences, workshops, and hackathons for technical bitcoin builders." "Path" "/sponsor" "Image" "/static/img/atxpromo.png") }}
-    {{ block "header" . }} {{ end }}
+    {{ template "form_page_header" . }}
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
   </head>
-  <body>
+  <body class="btcpp-form-page">
     {{ block "mainnav" . }} {{ end }}
     <section id="form">
         <div class="isolate bg-white px-6 py-24 sm:py-32 lg:px-8">
+            <div class="btcpp-form-layout">
             <div class="mx-auto max-w-2xl text-center">
                 <h2 class="text-balance text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">Sponsor Inquiry</h2>
                 <p class="mt-2 text-lg/8 text-gray-600">Support development at the cutting edge with a sponsorship for one of our upcoming events or hackathons</p>
             </div>
+            <div class="btcpp-form-panel">
             <form action="#" 
             hx-post="/sponsor"
-            class="mx-auto mt-16 max-w-xl sm:mt-20"
+            class="btcpp-form-kit mx-auto mt-16 max-w-xl sm:mt-20"
             hx-target="#post_result"
             hx-swap="innerHTML show:#post_result:top"
             hx-validate="true"
@@ -247,11 +249,10 @@
             </form>
             <div id="post_result" name="hidden_stuffs" class="mt-5 mx-auto max-w-xl scroll-mt-24">
             </div>
+            </div>
+            </div>
         </div>
     </section>
-    <section id="about">
-    {{ block "about" . }} {{ end }}
-    </section>
-    {{ block "footer" . }} {{ end }}
+    {{ template "generic_conf_footer" . }}
   </body>
 </html>

@@ -1,72 +1,31 @@
 {{ define "conf_nav" }}
-  <header class="bg-white sticky top-0 z-20">
-    <nav class="mx-auto flex max-w-7xl items-center justify-between p-6 lg:px-8" aria-label="Global">
-      <div class="flex lg:flex-1">
-        <a href="/" class="-m-1.5 p-1.5"><span class="sr-only">bitcoin++</span> <img class="h-8 w-auto" src="/static/img/logo_blk.svg" alt=""></a>
+  <header class="site-nav site-nav--conference">
+    <nav class="site-nav__inner" aria-label="Event navigation">
+      <a href="/" class="site-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
+      <input class="site-nav__toggle" type="checkbox" id="conf-nav-toggle" aria-label="Toggle navigation">
+      <div class="site-nav__controls">
+        <a href="/{{ .Tag }}#tickets" class="site-button is-accent site-nav__cta">GET TICKETS</a>
+        <label class="site-nav__menu" for="conf-nav-toggle" aria-label="Toggle navigation">
+          <span></span><span></span><span></span>
+        </label>
       </div>
-      <div class="flex lg:hidden">
-        <button type="button" onclick="toggleMenu(this)" class="-m-2.5 inline-flex items-center justify-center rounded-md p-2.5 text-gray-700"><span class="sr-only">Open main menu</span> <svg class="h-6 w-6" fill="none" viewbox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"></path></svg></button>
-      </div>
-      <div class="hidden lg:flex lg:gap-x-12">
-        <a href="/{{ .Tag }}#about" class="text-sm font-semibold leading-6 text-gray-900">about</a>
-	      <a href="/{{ .Tag }}#venue" class="text-sm font-semibold leading-6 text-gray-900">venue</a>
-	      <a href="/{{ .Tag }}#speakers" class="text-sm font-semibold leading-6 text-gray-900">speakers</a>
+      <div class="site-nav__links">
+        <a href="/{{ .Tag }}#about">about/</a>
+        <a href="/{{ .Tag }}#venue">venue/</a>
+        <a href="/{{ .Tag }}#speakers">speakers/</a>
         {{ if .ShowHackathon }}
-	      <a href="/{{ .Tag }}#hackathon" class="text-sm font-semibold leading-6 text-gray-900">hackathon</a>
+        <a href="/{{ .Tag }}#hackathon">hackathon/</a>
         {{ end }}
         {{ if .HasSchedule }}
-	      <a href="/{{ .Tag }}#schedule" class="text-sm font-semibold leading-6 text-gray-900">schedule</a>
+        <a href="/{{ .Tag }}#schedule">schedule/</a>
         {{ end }}
         {{ if .HasAgenda }}
-	      <a href="/{{ .Tag }}#agenda" class="text-sm font-semibold leading-6 text-gray-900">agenda</a>
-	      <a href="/{{ .Tag }}/talks" class="text-sm font-semibold leading-6 text-gray-900">talks</a>
+        <a href="/{{ .Tag }}#agenda">agenda/</a>
+        <a href="/{{ .Tag }}/agenda">full agenda/</a>
         {{ end }}
-        <a href="/{{ .Tag }}#satellites" class="text-sm font-semibold leading-6 text-gray-900">satellite events</a>
-        <a href="/{{ .Tag }}#sponsors" class="text-sm font-semibold leading-6 text-gray-900">sponsors</a>
+        <a href="/{{ .Tag }}#satellites">satellite events/</a>
+        <a href="/{{ .Tag }}#sponsors">sponsors/</a>
       </div>
-      <div class="hidden lg:flex lg:flex-1 lg:justify-end">
-        <a href="/{{ .Tag }}#tickets" class="rounded-md px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 {{ .Tag }}">Buy Tickets</a>
-      </div>
-    </nav><!-- Mobile menu, show/hide based on menu open state. -->
-    <div class="hidden lg:hidden" role="nav-dialog" aria-modal="true">
-      <!-- Background backdrop, show/hide based on slide-over state. -->
-      <div class="fixed inset-0 z-20"></div>
-      <div class="fixed inset-y-0 right-0 z-20 w-full overflow-y-auto bg-white px-6 py-6 sm:max-w-sm sm:ring-1 sm:ring-gray-900/10">
-        <div class="flex items-center justify-between">
-          <a href="/" class="-m-1.5 p-1.5"><span class="sr-only">bitcoin++</span> <img class="h-8 w-auto" src="/static/img/btcpp.svg" alt=""></a> 
-	  <button type="button" onclick="closeMenu(this)" class="-m-2.5 rounded-md p-2.5 text-gray-700">
-	    <span class="sr-only">Close menu</span> 
-	    <svg class="h-6 w-6" fill="none" viewbox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"> <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg>
-	 </button>
-        </div>
-        <div class="mt-6 flow-root">
-          <div class="-my-6 divide-y divide-gray-500/10">
-            <div class="space-y-2 py-6">
-              <div class="">
-		            <a onclick="toggleMenu(this)" href="/{{ .Tag }}#about" class="-mx-3 block rounded-lg py-2 px-3 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50">about</a>
-		            <a onclick="toggleMenu(this)" href="/{{ .Tag }}#venue" class="-mx-3 block rounded-lg py-2 px-3 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50">venue</a>
-		            <a onclick="toggleMenu(this)" href="/{{ .Tag }}#speakers" class="-mx-3 block rounded-lg py-2 px-3 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50">speakers</a>
-                  {{ if .ShowHackathon }}
-		            <a onclick="toggleMenu(this)" href="/{{ .Tag }}#hackathon" class="-mx-3 block rounded-lg py-2 px-3 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50">hackathon</a>
-                  {{ end }}
-                  {{ if .HasSchedule }}
-		            <a onclick="toggleMenu(this)" href="/{{ .Tag }}#schedule" class="-mx-3 block rounded-lg py-2 px-3 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50">schedule</a>
-                  {{ end }}
-                {{ if .HasAgenda }}
-	              <a onclick="toggleMenu(this)" href="/{{ .Tag }}#agenda" class="-mx-3 block rounded-lg py-2 px-3 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50">agenda</a>
-                <a onclick="toggleMenu(this)" href="/{{ .Tag }}/talks" class="-mx-3 block rounded-lg py-2 px-3 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50">talks</a>
-                {{ end }}
-		            <a onclick="toggleMenu(this)" href="/{{ .Tag }}#satellites" class="-mx-3 block rounded-lg py-2 px-3 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50">satellite events</a>
-		            <a onclick="toggleMenu(this)" href="/{{ .Tag }}#sponsors" class="-mx-3 block rounded-lg py-2 px-3 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50">sponsors</a>
-              </div>
-              <div class="py-6">
-                <a onclick="toggleMenu(this)" href="/{{ .Tag }}#tickets" class="rounded-md px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 {{ .Tag }}">Buy Tickets</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </nav>
   </header>
 {{ end }}

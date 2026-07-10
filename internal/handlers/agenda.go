@@ -2,11 +2,15 @@ package handlers
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
+
+const agendaPixelsPerMinute = 2.6
+const agendaMinSessionHeight = 236.0
 
 // AgendaDay is one day's slice of the rendered agenda. Talks come
 // pre-sorted (Sched.Start, then Venue) and pre-bucketed against the
@@ -36,10 +40,9 @@ type AgendaDay struct {
 // dropped — a 4-day conf with talks only on days 1/2/4 yields 3
 // AgendaDays, not 4.
 //
-// Only Status=="Scheduled" talks contribute. Accepted-but-not-yet-
-// Scheduled talks may have a draft Sched on the schedule grid; they
-// stay off the public agenda until cal invites go out (which is
-// what flips Status to Scheduled).
+// Status=="Scheduled" talks contribute for active/future events.
+// Past events also render Accepted talks with a scheduled time, because
+// older imported schedules predate the explicit Scheduled status flip.
 //
 // infosByDay is indexed by 1-based Day matching ConfInfo.Day; days
 // without an entry leave AgendaDay.Info nil.
@@ -52,7 +55,7 @@ func buildAgendaDays(ctx *config.AppContext, conf *types.Conf, talks []*types.Ta
 
 	byDay := make(map[int][]*types.Talk)
 	for _, t := range talks {
-		if t == nil || t.Sched == nil || t.Status != StatusScheduled {
+		if !publicAgendaTalk(conf, t) {
 			continue
 		}
 		idx := dayIndex(startDate, t.Sched.Start, loc)
@@ -179,16 +182,181 @@ func bucketByBreaks(ad *AgendaDay, sessions []*types.Session) {
 	}
 }
 
-// anyScheduledTalk reports whether at least one talk in the slice has
-// Status=="Scheduled". Drives Conf.HasAgenda — once a single talk
-// reaches that state, the conf's public agenda + /talks page light up.
-func anyScheduledTalk(talks []*types.Talk) bool {
+func agendaSessionsForVenue(day *AgendaDay, venue string) []*types.Session {
+	if day == nil {
+		return nil
+	}
+	out := make([]*types.Session, 0)
+	for _, session := range day.All {
+		if session != nil && session.Venue == venue {
+			out = append(out, session)
+			continue
+		}
+		if venue == "three" && session != nil && session.Venue != "one" && session.Venue != "two" {
+			out = append(out, session)
+		}
+	}
+	return out
+}
+
+func agendaTypeClass(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	switch s {
+	case "keynote":
+		return "keynote"
+	case "panel", "45panel":
+		return "panel"
+	case "workshop":
+		return "workshop"
+	case "hackathon":
+		return "hackathon"
+	case "break", "lunch", "coffee":
+		return "break"
+	default:
+		return "talk"
+	}
+}
+
+func agendaTypeLabel(raw string) string {
+	s := strings.TrimSpace(raw)
+	if label := mapPresTypeToTalkType(strings.ToLower(s)); label != "" {
+		return label
+	}
+	return s
+}
+
+type agendaHourMark struct {
+	Label string
+	Top   float64
+}
+
+func agendaDayStartMinute(day *AgendaDay) int {
+	minute := -1
+	if day != nil && day.Info != nil && day.Info.Doors != nil {
+		minute = day.Info.Doors.Start.Hour()*60 + day.Info.Doors.Start.Minute()
+	}
+	for _, session := range agendaAllSessions(day) {
+		if session.Sched == nil {
+			continue
+		}
+		start := session.Sched.Start.Hour()*60 + session.Sched.Start.Minute()
+		if minute < 0 || start < minute {
+			minute = start
+		}
+	}
+	if minute < 0 {
+		return 9 * 60
+	}
+	return (minute / 30) * 30
+}
+
+func agendaDayEndMinute(day *AgendaDay) int {
+	minute := -1
+	if day != nil && day.Info != nil && day.Info.Doors != nil && day.Info.Doors.End != nil {
+		minute = day.Info.Doors.End.Hour()*60 + day.Info.Doors.End.Minute()
+	}
+	for _, session := range agendaAllSessions(day) {
+		if session.Sched == nil {
+			continue
+		}
+		end := session.Sched.Start.Add(45 * time.Minute)
+		if session.Sched.End != nil {
+			end = *session.Sched.End
+		}
+		endMin := end.Hour()*60 + end.Minute()
+		if minute < 0 || endMin > minute {
+			minute = endMin
+		}
+	}
+	if minute < 0 {
+		return 18 * 60
+	}
+	return ((minute + 29) / 30) * 30
+}
+
+func agendaDayHeight(day *AgendaDay) float64 {
+	minutes := agendaDayEndMinute(day) - agendaDayStartMinute(day)
+	if minutes < 60 {
+		minutes = 60
+	}
+	return float64(minutes) * agendaPixelsPerMinute
+}
+
+func agendaSessionTop(day *AgendaDay, session *types.Session) float64 {
+	if day == nil || session == nil || session.Sched == nil {
+		return 0
+	}
+	start := session.Sched.Start.Hour()*60 + session.Sched.Start.Minute()
+	top := float64(start-agendaDayStartMinute(day)) * agendaPixelsPerMinute
+	if top < 0 {
+		return 0
+	}
+	return top
+}
+
+func agendaSessionHeight(session *types.Session) float64 {
+	if session == nil || session.Sched == nil {
+		return agendaMinSessionHeight
+	}
+	end := session.Sched.Start.Add(45 * time.Minute)
+	if session.Sched.End != nil {
+		end = *session.Sched.End
+	}
+	minutes := end.Sub(session.Sched.Start).Minutes()
+	if minutes <= 0 {
+		minutes = 45
+	}
+	height := minutes * agendaPixelsPerMinute
+	if height < agendaMinSessionHeight {
+		return agendaMinSessionHeight
+	}
+	return height
+}
+
+func agendaHourMarks(day *AgendaDay) []agendaHourMark {
+	start := agendaDayStartMinute(day)
+	end := agendaDayEndMinute(day)
+	firstHour := ((start + 59) / 60) * 60
+	marks := make([]agendaHourMark, 0)
+	for minute := firstHour; minute <= end; minute += 60 {
+		t := time.Date(2000, 1, 1, minute/60, minute%60, 0, 0, time.Local)
+		marks = append(marks, agendaHourMark{
+			Label: t.Format("3PM"),
+			Top:   float64(minute-start) * agendaPixelsPerMinute,
+		})
+	}
+	return marks
+}
+
+func agendaAllSessions(day *AgendaDay) []*types.Session {
+	if day == nil {
+		return nil
+	}
+	return day.All
+}
+
+// anyScheduledTalk reports whether at least one talk should appear on
+// the public agenda. For active/future events, the explicit Scheduled
+// status is required; for ended events, Accepted talks with scheduled
+// times are included to preserve older archives whose proposal status
+// was never flipped after import.
+func anyScheduledTalk(conf *types.Conf, talks []*types.Talk) bool {
 	for _, t := range talks {
-		if t != nil && t.Status == StatusScheduled {
+		if publicAgendaTalk(conf, t) {
 			return true
 		}
 	}
 	return false
+}
+
+func publicAgendaTalk(conf *types.Conf, talk *types.Talk) bool {
+	if talk == nil || talk.Sched == nil {
+		return false
+	}
+	if talk.Status == StatusScheduled {
+		return true
+	}
+	return conf != nil && conf.HasEnded() && talk.Status == StatusAccepted
 }
 
 // confInfosByDay flattens a tag-keyed map (the dashboard's existing

@@ -2,12 +2,14 @@
 <html>
 <head>
   <title>Edit satellite event · {{ .Conf.Desc }}</title>
-  {{ block "header" . }} {{ end }}
+  {{ template "form_page_header" . }}
   {{ template "admin_favicon" .Conf }}
 </head>
-<body class="bg-gray-50">
+<body class="btcpp-form-page bg-gray-50">
   {{ block "mainnav" . }} {{ end }}
-  <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+  <div class="btcpp-form-wrap mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
+    <div class="btcpp-form-layout">
+    <div class="btcpp-form-heading">
     <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}" class="text-xs text-gray-500 hover:text-gray-700">&larr; dashboard</a>
     <div class="mt-1 flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -16,19 +18,21 @@
       </div>
       <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ if eq .Event.Status "published" }}bg-green-50 text-green-700{{ else if eq .Event.Status "submitted" }}bg-yellow-50 text-yellow-800{{ else }}bg-gray-100 text-gray-700{{ end }}">{{ .Event.Status }}</span>
     </div>
+    </div>
 
+    <div class="btcpp-form-panel">
     {{ if .FlashMessage }}
-    <div class="mt-6 rounded-md bg-green-50 border border-green-200 px-4 py-3">
+    <div class="btcpp-form-alert btcpp-form-alert--success mt-6 rounded-md bg-green-50 border border-green-200 px-4 py-3">
       <p class="text-sm text-green-800">{{ .FlashMessage }}</p>
     </div>
     {{ end }}
     {{ if .FlashError }}
-    <div class="mt-6 rounded-md bg-red-50 border border-red-200 px-4 py-3">
+    <div class="btcpp-form-alert btcpp-form-alert--error mt-6 rounded-md bg-red-50 border border-red-200 px-4 py-3">
       <p class="text-sm text-red-800">{{ .FlashError }}</p>
     </div>
     {{ end }}
 
-    <form method="POST" action="/dashboard/satellites/{{ .Event.ID }}/edit?hr={{ .HMAC }}&em={{ .Email }}" class="mt-8 bg-white shadow rounded-lg p-6 space-y-5">
+    <form method="POST" action="/dashboard/satellites/{{ .Event.ID }}/edit?hr={{ .HMAC }}&em={{ .Email }}" class="btcpp-form-kit mt-8 bg-white shadow rounded-lg p-6 space-y-5">
       <input type="hidden" name="Timezone" value="{{ .Conf.Timezone }}">
       <input type="hidden" name="Status" value="{{ .Event.Status }}">
 
@@ -98,13 +102,15 @@
       </div>
 
       <div class="flex flex-wrap justify-end gap-3 pt-2">
-        <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}" class="text-sm text-gray-600 hover:text-gray-800">Cancel</a>
+        <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}" class="btcpp-form-button-secondary inline-flex items-center px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</a>
         {{ if eq .Event.Status "draft" }}
-        <button type="submit" name="action" value="save" class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Save draft</button>
+        <button type="submit" name="action" value="save" class="btcpp-form-button-secondary inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Save draft</button>
         {{ end }}
         <button type="submit" name="action" value="submit" class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ if eq .Event.Status "published" }}Submit changes for review{{ else }}Submit for review{{ end }}</button>
       </div>
     </form>
+    </div>
+    </div>
   </div>
 
   <input type="file" id="SatelliteImagePicker" accept="image/*" class="hidden">
