@@ -57,7 +57,7 @@ type ticketSeed struct {
 type speakerSeed struct {
 	personID, speakerConfID, proposalID, talkID string
 	name, email, photo                          string
-	company, twitter, github, website           string
+	company, twitter, github, leetcode, website string
 	comingFrom                                  string
 	title, description, talkType                string
 	start, end, venue, clipart                  string
@@ -164,6 +164,7 @@ var devSpeakers = []speakerSeed{
 		company:       "Signet Systems",
 		twitter:       "mara_signet",
 		github:        "https://github.com/example/mara-signet",
+		leetcode:      "mara-signet",
 		website:       "https://example.test/mara",
 		comingFrom:    "Vancouver, Canada",
 		title:         "Package Relay in Practice",
@@ -837,12 +838,12 @@ func seedProgram(ctx context.Context, tx pgx.Tx, confID string) {
 		mustExec(ctx, tx, "seed speaker person", `
 			INSERT INTO people (
 				id, name, email, norm_photo_path, phone, signal, telegram, twitter_handle,
-				nostr, github_url, instagram, linkedin, website_url, company,
+				nostr, github_url, instagram, linkedin, leetcode, website_url, company,
 				org_logo_path, avail_to_hire, looking_to_hire, tshirt
 			)
 			VALUES (
 				$1::uuid, $2, NULLIF($3, '')::citext, $4, '', '', '', $5,
-				'', $6, '', '', $7, $8, '', false, false, ''
+				'', $6, '', '', $7, $8, $9, '', false, false, ''
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				name = EXCLUDED.name,
@@ -850,9 +851,10 @@ func seedProgram(ctx context.Context, tx pgx.Tx, confID string) {
 				norm_photo_path = EXCLUDED.norm_photo_path,
 				twitter_handle = EXCLUDED.twitter_handle,
 				github_url = EXCLUDED.github_url,
+				leetcode = EXCLUDED.leetcode,
 				website_url = EXCLUDED.website_url,
 				company = EXCLUDED.company
-		`, sp.personID, sp.name, sp.email, sp.photo, sp.twitter, sp.github, sp.website, sp.company)
+		`, sp.personID, sp.name, sp.email, sp.photo, sp.twitter, sp.github, sp.leetcode, sp.website, sp.company)
 
 		mustExec(ctx, tx, "seed speaker conf", `
 			INSERT INTO speaker_confs (

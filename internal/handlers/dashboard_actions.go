@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/external/spaces"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
@@ -234,6 +235,192 @@ func DashboardTalkDetails(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 }
 
+func DashboardTalkResources(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	proposalID := mux.Vars(r)["proposalID"]
+	proposal, _, encHMAC, encEmail, err := dashboardAuthForProposal(w, r, ctx, proposalID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard talk resources auth: %s", err)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, ""), http.StatusSeeOther)
+		return
+	}
+
+	confTalk, err := getters.GetConfTalkByProposal(ctx, proposalID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard talk resources get conftalk: %s", err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	}
+	if confTalk == nil {
+		http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "Resources can be added once the talk is accepted."), http.StatusSeeOther)
+		return
+	}
+	confTag := ""
+	if proposal.ScheduleFor != nil {
+		confTag = proposal.ScheduleFor.Tag
+	}
+	if confTag == "" && confTalk.Conf != nil {
+		confTag = confTalk.Conf.Tag
+	}
+	saveDashboardTalkResources(w, r, ctx, confTalk, confTag, proposal.Title, encHMAC, encEmail)
+}
+
+func DashboardConfTalkResources(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	confTalkID := strings.TrimSpace(mux.Vars(r)["confTalkID"])
+	email, encHMAC, err := validateVolEmail(r, ctx)
+	if err != nil {
+		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+		ctx.Err.Printf("/dashboard conftalk resources auth: %s", err)
+		return
+	}
+	encEmail := r.URL.Query().Get("em")
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, dashboardResourceRedirect(r, encHMAC, encEmail, ""), http.StatusSeeOther)
+		return
+	}
+	confTalk, err := getters.GetConfTalkByID(ctx, confTalkID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard conftalk resources get conftalk: %s", err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	}
+	if confTalk == nil {
+		http.Error(w, "talk not found", http.StatusNotFound)
+		return
+	}
+	ok, title, err := emailCanEditConfTalkResources(ctx, email, confTalkID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard conftalk resources ownership: %s", err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		http.Error(w, "you don't have access to this talk", http.StatusForbidden)
+		return
+	}
+	confTag := ""
+	if confTalk.Conf != nil {
+		confTag = confTalk.Conf.Tag
+	}
+	saveDashboardTalkResources(w, r, ctx, confTalk, confTag, title, encHMAC, encEmail)
+}
+
+func saveDashboardTalkResources(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, confTalk *types.ConfTalk, confTag, title, encHMAC, encEmail string) {
+	if confTalk == nil {
+		http.Error(w, "talk not found", http.StatusNotFound)
+		return
+	}
+	limitRequestBody(w, r, maxPresentationBodyBytes)
+	if err := r.ParseMultipartForm(maxPresentationBytes); err != nil {
+		ctx.Err.Printf("/dashboard talk resources parseform: %s", err)
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+
+	githubURL := strings.TrimSpace(r.PostForm.Get("GithubRepoURL"))
+	slidesURL := confTalk.SlidesURL
+	slidesObjectKey := confTalk.SlidesObjectKey
+	removeSlides := r.PostForm.Get("RemoveSlides") == "1"
+	if removeSlides {
+		if slidesObjectKey != "" {
+			if err := spaces.Delete(slidesObjectKey); err != nil {
+				ctx.Err.Printf("/dashboard talk resources delete slides %s: %s", slidesObjectKey, err)
+				http.Error(w, "slides delete failed", http.StatusInternalServerError)
+				return
+			}
+		}
+		slidesURL = ""
+		slidesObjectKey = ""
+	} else if _, ok := r.PostForm["SlidesURL"]; ok {
+		slidesURL = strings.TrimSpace(r.PostForm.Get("SlidesURL"))
+		slidesObjectKey = ""
+	}
+	if githubURL != "" && !isGithubRepoURL(githubURL) {
+		http.Error(w, "GitHub URL must be a github.com link", http.StatusBadRequest)
+		return
+	}
+	if slidesURL != "" && !isHTTPURL(slidesURL) {
+		http.Error(w, "slides link must be an http(s) URL", http.StatusBadRequest)
+		return
+	}
+
+	raw, contentType, ext, uploadErr := readMultipartPresentationFile(r, "SlidesFile")
+	if uploadErr != nil && uploadErr != http.ErrMissingFile {
+		ctx.Err.Printf("/dashboard talk resources read slides: %s", uploadErr)
+		http.Error(w, "slides upload failed", http.StatusBadRequest)
+		return
+	}
+	if uploadErr == nil && len(raw) > 0 && !removeSlides {
+		if !spaces.IsConfigured() {
+			http.Error(w, "slides upload is not configured", http.StatusServiceUnavailable)
+			return
+		}
+		if confTag == "" {
+			confTag = "unknown"
+		}
+		base := sanitizeClipartName(title)
+		if base == "" {
+			base = "presentation"
+		}
+		key := fmt.Sprintf("%s/presentations/%s-%d-%s%s", confTag, base, time.Now().UTC().UnixNano(), imgproc.ShortID(raw), ext)
+		uploadedURL, uploadErr := spaces.Upload(key, raw, contentType, "")
+		if uploadErr != nil {
+			ctx.Err.Printf("/dashboard talk resources upload slides: %s", uploadErr)
+			http.Error(w, "slides upload failed", http.StatusInternalServerError)
+			return
+		}
+		slidesURL = uploadedURL
+		slidesObjectKey = key
+	}
+
+	if err := getters.UpdateConfTalkResources(ctx, confTalk.ID, githubURL, slidesURL, slidesObjectKey); err != nil {
+		ctx.Err.Printf("/dashboard talk resources update: %s", err)
+		http.Error(w, "update failed", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, dashboardResourceRedirect(r, encHMAC, encEmail, "Talk resources updated."), http.StatusSeeOther)
+}
+
+func emailCanEditConfTalkResources(ctx *config.AppContext, email, confTalkID string) (bool, string, error) {
+	people, err := buildWhoIsDirectory(ctx)
+	if err != nil {
+		return false, "", err
+	}
+	for _, person := range people {
+		if person == nil || person.Speaker == nil || !strings.EqualFold(strings.TrimSpace(person.Speaker.Email), strings.TrimSpace(email)) {
+			continue
+		}
+		for _, row := range person.Talks {
+			if row == nil || row.Talk == nil {
+				continue
+			}
+			if row.Talk.ID == confTalkID {
+				return true, row.Talk.Name, nil
+			}
+		}
+	}
+	return false, "", nil
+}
+
+func isHTTPURL(raw string) bool {
+	u, err := url.ParseRequestURI(strings.TrimSpace(raw))
+	if err != nil || u == nil {
+		return false
+	}
+	return u.Scheme == "http" || u.Scheme == "https"
+}
+
+func isGithubRepoURL(raw string) bool {
+	u, err := url.ParseRequestURI(strings.TrimSpace(raw))
+	if err != nil || u == nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return (u.Scheme == "http" || u.Scheme == "https") && (host == "github.com" || host == "www.github.com")
+}
+
 // DashboardEditProposal renders / handles the speaker-side proposal editor.
 //
 // GET: load the proposal, check the edit-lock, render the edit form.
@@ -253,6 +440,7 @@ func DashboardEditProposal(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Error(w, "lookup failed", http.StatusInternalServerError)
 		return
 	}
+	proposal.ConfTalk = confTalk
 	locked, lockReason := proposalEditLocked(proposal, confTalk)
 
 	if r.Method == http.MethodPost {
@@ -518,6 +706,9 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		FlashMessage: r.URL.Query().Get("flash"),
 		Year:         helpers.CurrentYear(),
 	}
+	if hasPublicWhoIsProfile(ctx, sp) {
+		page.PublicURL = "/whois/" + publicSpeakerSlug(sp)
+	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_edit_speaker.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/speaker render: %s", err)
 		http.Error(w, "render failed", http.StatusInternalServerError)
@@ -549,7 +740,10 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		Github:    strings.TrimSpace(r.FormValue("Github")),
 		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
 		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:  strings.TrimSpace(r.FormValue("LeetCode")),
 		Website:   strings.TrimSpace(r.FormValue("Website")),
+		Bio:       strings.TrimSpace(r.FormValue("Bio")),
+		BioSet:    true,
 		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
 	if hasNewPic {
@@ -611,7 +805,9 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		Github:    strings.TrimSpace(r.FormValue("Github")),
 		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
 		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:  strings.TrimSpace(r.FormValue("LeetCode")),
 		Website:   strings.TrimSpace(r.FormValue("Website")),
+		Bio:       strings.TrimSpace(r.FormValue("Bio")),
 		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
 	if missing := firstMissingProfileField(in.Phone, in.Signal, hasNewPic); missing != "" {
@@ -1407,4 +1603,42 @@ func dashboardRedirect(encHMAC, encEmail, flash string) string {
 		q.Set("flash", flash)
 	}
 	return "/dashboard?" + q.Encode()
+}
+
+func dashboardResourceRedirect(r *http.Request, encHMAC, encEmail, flash string) string {
+	returnTo := strings.TrimSpace(r.FormValue("ReturnTo"))
+	if returnTo == "whois_archive" {
+		dest := safeReturnTo(strings.TrimSpace(r.FormValue("ReturnArchivePath")))
+		if dest != "" {
+			q := url.Values{}
+			if flash != "" {
+				q.Set("flash", flash)
+			}
+			if len(q) == 0 {
+				return dest
+			}
+			sep := "?"
+			if strings.Contains(dest, "?") {
+				sep = "&"
+			}
+			return dest + sep + q.Encode()
+		}
+	}
+	if returnTo == "edit" {
+		proposalID := strings.TrimSpace(r.FormValue("ReturnProposalID"))
+		if proposalID != "" {
+			q := url.Values{}
+			if encHMAC != "" {
+				q.Set("hr", encHMAC)
+			}
+			if encEmail != "" {
+				q.Set("em", encEmail)
+			}
+			if flash != "" {
+				q.Set("flash", flash)
+			}
+			return "/dashboard/talks/" + url.PathEscape(proposalID) + "/edit?" + q.Encode()
+		}
+	}
+	return dashboardRedirect(encHMAC, encEmail, flash)
 }

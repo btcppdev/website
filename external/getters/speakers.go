@@ -21,8 +21,10 @@ type SpeakerInput struct {
 	Github        string
 	Instagram     string
 	LinkedIn      string
+	LeetCode      string
 	Website       string
 	Company       string
+	Bio           string
 	OrgLogo       string
 	AvailToHire   bool
 	LookingToHire bool
@@ -43,8 +45,11 @@ type SpeakerUpdate struct {
 	Github    string
 	Instagram string
 	LinkedIn  string
+	LeetCode  string
 	Website   string
 	Company   string
+	Bio       string
+	BioSet    bool
 	OrgLogo   string
 	TShirt    string
 }
@@ -64,8 +69,10 @@ func normalizeSpeakerInput(in SpeakerInput) SpeakerInput {
 	in.Github = strings.TrimSpace(in.Github)
 	in.Instagram = strings.TrimSpace(in.Instagram)
 	in.LinkedIn = strings.TrimSpace(in.LinkedIn)
+	in.LeetCode = strings.TrimSpace(in.LeetCode)
 	in.Website = strings.TrimSpace(in.Website)
 	in.Company = strings.TrimSpace(in.Company)
+	in.Bio = strings.TrimSpace(in.Bio)
 	in.OrgLogo = strings.TrimSpace(in.OrgLogo)
 	in.TShirt = strings.TrimSpace(in.TShirt)
 	return in
@@ -83,8 +90,10 @@ func normalizeSpeakerUpdate(up SpeakerUpdate) SpeakerUpdate {
 	up.Github = strings.TrimSpace(up.Github)
 	up.Instagram = strings.TrimSpace(up.Instagram)
 	up.LinkedIn = strings.TrimSpace(up.LinkedIn)
+	up.LeetCode = strings.TrimSpace(up.LeetCode)
 	up.Website = strings.TrimSpace(up.Website)
 	up.Company = strings.TrimSpace(up.Company)
+	up.Bio = strings.TrimSpace(up.Bio)
 	up.OrgLogo = strings.TrimSpace(up.OrgLogo)
 	up.TShirt = strings.TrimSpace(up.TShirt)
 	return up
@@ -219,8 +228,8 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 		SELECT people.id::text, people.name, coalesce(people.email::text, ''),
 			people.norm_photo_path, people.phone, people.signal, people.telegram,
 			people.twitter_handle, people.nostr, people.github_url, people.instagram,
-			people.linkedin, people.website_url, people.company, people.org_logo_path,
-			people.avail_to_hire, people.looking_to_hire, people.tshirt
+			people.linkedin, people.leetcode, people.website_url, people.company, people.org_logo_path,
+			people.bio, people.avail_to_hire, people.looking_to_hire, people.tshirt
 		FROM people
 		`+clause+`
 	`, args...)
@@ -247,9 +256,11 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 			&speaker.Github,
 			&speaker.Instagram,
 			&speaker.LinkedIn,
+			&speaker.LeetCode,
 			&speaker.Website,
 			&speaker.Company,
 			&speaker.OrgLogo,
+			&speaker.Bio,
 			&speaker.AvailToHire,
 			&speaker.LookingToHire,
 			&speaker.TShirt,
@@ -279,15 +290,15 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 	err := ctx.DB.QueryRow(context.Background(), `
 		INSERT INTO people (
 			name, email, norm_photo_path, phone, signal, telegram, twitter_handle,
-			nostr, github_url, instagram, linkedin, website_url, company,
-			org_logo_path, avail_to_hire, looking_to_hire, tshirt
+			nostr, github_url, instagram, linkedin, leetcode, website_url, company,
+			org_logo_path, bio, avail_to_hire, looking_to_hire, tshirt
 		)
 		VALUES ($1, NULLIF($2, '')::citext, $3, $4, $5, $6, $7, $8, $9, $10,
-			$11, $12, $13, $14, $15, $16, $17)
+			$11, $12, $13, $14, $15, $16, $17, $18, $19)
 		RETURNING id::text
 	`, in.Name, in.Email, in.Photo, in.Phone, in.Signal, in.Telegram, in.Twitter,
-		in.Nostr, in.Github, in.Instagram, in.LinkedIn, in.Website, in.Company,
-		in.OrgLogo, in.AvailToHire, in.LookingToHire, in.TShirt).Scan(&id)
+		in.Nostr, in.Github, in.Instagram, in.LinkedIn, in.LeetCode, in.Website, in.Company,
+		in.OrgLogo, in.Bio, in.AvailToHire, in.LookingToHire, in.TShirt).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("create person: %w", err)
 	}
@@ -310,16 +321,18 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 			github_url = CASE WHEN $8 <> '' THEN $8 ELSE github_url END,
 			instagram = CASE WHEN $9 <> '' THEN $9 ELSE instagram END,
 			linkedin = CASE WHEN $10 <> '' THEN $10 ELSE linkedin END,
-			website_url = CASE WHEN $11 <> '' THEN $11 ELSE website_url END,
-			company = CASE WHEN $12 <> '' THEN $12 ELSE company END,
-			org_logo_path = CASE WHEN $13 <> '' THEN $13 ELSE org_logo_path END,
-			tshirt = CASE WHEN $14 <> '' THEN $14 ELSE tshirt END,
-			email = CASE WHEN $15 <> '' THEN $15::citext ELSE email END,
-			name = CASE WHEN $16 <> '' THEN $16 ELSE name END
+			leetcode = CASE WHEN $11 <> '' THEN $11 ELSE leetcode END,
+			website_url = CASE WHEN $12 <> '' THEN $12 ELSE website_url END,
+			company = CASE WHEN $13 <> '' THEN $13 ELSE company END,
+			org_logo_path = CASE WHEN $14 <> '' THEN $14 ELSE org_logo_path END,
+			tshirt = CASE WHEN $15 <> '' THEN $15 ELSE tshirt END,
+			email = CASE WHEN $16 <> '' THEN $16::citext ELSE email END,
+			name = CASE WHEN $17 <> '' THEN $17 ELSE name END,
+			bio = CASE WHEN $18 THEN $19 ELSE bio END
 		WHERE id = $1::uuid
 	`, speakerID, up.Photo, up.Phone, up.Signal, up.Telegram, up.Twitter,
-		up.Nostr, up.Github, up.Instagram, up.LinkedIn, up.Website, up.Company,
-		up.OrgLogo, up.TShirt, up.Email, up.Name)
+		up.Nostr, up.Github, up.Instagram, up.LinkedIn, up.LeetCode, up.Website, up.Company,
+		up.OrgLogo, up.TShirt, up.Email, up.Name, up.BioSet, up.Bio)
 	if err != nil {
 		return fmt.Errorf("update person %s: %w", speakerID, err)
 	}

@@ -37,13 +37,16 @@ func resolveProposalSpeakers(p *types.Proposal, speakerConfMap map[string]*types
 // media generation, and social publishing.
 func talkFromConfTalk(ctx *config.AppContext, ct *types.ConfTalk, proposal *types.Proposal) *types.Talk {
 	talk := &types.Talk{
-		ID:          ct.ID,
-		Clipart:     ct.Clipart,
-		Sched:       ct.Sched,
-		Venue:       ct.Venue,
-		Section:     ct.Section,
-		CalNotif:    ct.CalNotif,
-		TalkCardURL: ct.SocialCard,
+		ID:              ct.ID,
+		Clipart:         ct.Clipart,
+		Sched:           ct.Sched,
+		Venue:           ct.Venue,
+		Section:         ct.Section,
+		CalNotif:        ct.CalNotif,
+		TalkCardURL:     ct.SocialCard,
+		GithubRepoURL:   ct.GithubRepoURL,
+		SlidesURL:       ct.SlidesURL,
+		SlidesObjectKey: ct.SlidesObjectKey,
 	}
 	if ct.Conf != nil {
 		talk.Event = ct.Conf.Tag
@@ -374,7 +377,8 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, conference_id::text, coalesce(proposal_id::text, ''),
 			clipart_path, scheduled_start, scheduled_end, production_notes,
-			venue, section, cal_notif, social_card_path
+			venue, section, cal_notif, social_card_path,
+			github_repo_url, slides_url, slides_object_key
 		FROM conf_talks
 		`+where+`
 		ORDER BY scheduled_start NULLS LAST, id
@@ -403,6 +407,9 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 			&ct.Section,
 			&ct.CalNotif,
 			&ct.SocialCard,
+			&ct.GithubRepoURL,
+			&ct.SlidesURL,
+			&ct.SlidesObjectKey,
 		); err != nil {
 			return nil, fmt.Errorf("scan conf talk: %w", err)
 		}
@@ -481,6 +488,26 @@ func ConfTalkSetClipart(ctx *config.AppContext, confTalkID, filename string) err
 
 func TalkUpdateCalNotif(ctx *config.AppContext, talkID string, calnotif string) error {
 	return updateConfTalkStringPostgres(ctx, talkID, "cal_notif", calnotif)
+}
+
+func UpdateConfTalkResources(ctx *config.AppContext, confTalkID, githubRepoURL, slidesURL, slidesObjectKey string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE conf_talks
+		SET github_repo_url = $2,
+			slides_url = $3,
+			slides_object_key = $4
+		WHERE id = $1
+	`, confTalkID, strings.TrimSpace(githubRepoURL), strings.TrimSpace(slidesURL), strings.TrimSpace(slidesObjectKey))
+	if err != nil {
+		return fmt.Errorf("update conf talk %s resources: %w", confTalkID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("conf talk %s not found", confTalkID)
+	}
+	return nil
 }
 
 func updateConfTalkStringPostgres(ctx *config.AppContext, confTalkID, column, value string) error {

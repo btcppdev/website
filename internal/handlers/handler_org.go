@@ -127,15 +127,17 @@ func talkDays(ctx *config.AppContext, conf *types.Conf, talks types.TalkTime) ([
 
 func talkToSession(ctx *config.AppContext, talk *types.Talk, conf *types.Conf) *types.Session {
 	sesh := &types.Session{
-		Name:        talk.Name,
-		Description: talk.Description,
-		Speakers:    talk.Speakers,
-		TalkPhoto:   talk.Clipart,
-		Sched:       talk.Sched,
-		Type:        talk.Type,
-		Venue:       talk.Venue,
-		AnchorTag:   talk.AnchorTag(),
-		ConfTag:     conf.Tag,
+		Name:          talk.Name,
+		Description:   talk.Description,
+		Speakers:      talk.Speakers,
+		TalkPhoto:     talk.Clipart,
+		Sched:         talk.Sched,
+		Type:          talk.Type,
+		Venue:         talk.Venue,
+		AnchorTag:     talk.AnchorTag(),
+		ConfTag:       conf.Tag,
+		GithubRepoURL: talk.GithubRepoURL,
+		SlidesURL:     talk.SlidesURL,
 	}
 
 	if talk.Sched != nil {

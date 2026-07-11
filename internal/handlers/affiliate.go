@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -28,14 +29,33 @@ var AffiliateBuyerPctOptions = []uint{0, 5, 10, 15, 20}
 type AffiliatePage struct {
 	Code         *types.DiscountCode
 	IsEdit       bool
+	IsLanding    bool
 	BuyerPctOpts []uint
 	ConfNames    []string
+	Stats        *AffiliateStats
+	CampaignRows []*AffiliateCampaignRow
+	BaseURI      string
 	Form         struct {
 		CodeName string
 		BuyerPct uint
 	}
 	FormError string
 	Year      uint
+}
+
+// AffiliateLanding is the dedicated affiliate management page linked from the
+// dashboard CTA. It shows the program explanation, current code, totals, and
+// campaign rows in one place.
+func AffiliateLanding(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email, ok := affiliateAuthAndGate(w, r, ctx)
+	if !ok {
+		return
+	}
+	page := buildAffiliatePage(ctx, email, false, "")
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_affiliate.tmpl", page); err != nil {
+		ctx.Err.Printf("/dashboard/affiliate render: %s", err)
+		http.Error(w, "render failed", http.StatusInternalServerError)
+	}
 }
 
 // AffiliateNew renders the create-code form.
@@ -46,15 +66,10 @@ func AffiliateNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 	}
 	// One-code-per-user: bounce to /edit when they already have one.
 	if existing, _ := getters.FindAffiliateCodeByEmail(ctx, email); existing != nil {
-		http.Redirect(w, r, "/dashboard/affiliate/edit", http.StatusSeeOther)
+		http.Redirect(w, r, "/dashboard/affiliate", http.StatusSeeOther)
 		return
 	}
-	page := &AffiliatePage{
-		IsEdit:       false,
-		BuyerPctOpts: AffiliateBuyerPctOptions,
-		ConfNames:    activeConfTagNames(ctx),
-		Year:         helpers.CurrentYear(),
-	}
+	page := buildAffiliatePage(ctx, email, false, "")
 	page.Form.BuyerPct = 10 // sensible default
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_affiliate.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/affiliate/new render: %s", err)
@@ -77,13 +92,7 @@ func AffiliateCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	buyerPct := parseBuyerPct(r.FormValue("BuyerPct"))
 
 	formErr := func(msg string) {
-		page := &AffiliatePage{
-			IsEdit:       false,
-			BuyerPctOpts: AffiliateBuyerPctOptions,
-			ConfNames:    activeConfTagNames(ctx),
-			FormError:    msg,
-			Year:         helpers.CurrentYear(),
-		}
+		page := buildAffiliatePage(ctx, email, false, msg)
 		page.Form.CodeName = codeName
 		page.Form.BuyerPct = buyerPct
 		if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_affiliate.tmpl", page); err != nil {
@@ -124,7 +133,7 @@ func AffiliateCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return
 	}
 	http.Redirect(w, r,
-		dashboardURLForEmail(ctx, email, "Affiliate code "+codeName+" created.", ""),
+		affiliateURLForEmail(ctx, email, "Affiliate code "+codeName+" created.", ""),
 		http.StatusSeeOther)
 }
 
@@ -145,13 +154,8 @@ func AffiliateEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		http.Redirect(w, r, "/dashboard/affiliate/new", http.StatusSeeOther)
 		return
 	}
-	page := &AffiliatePage{
-		Code:         code,
-		IsEdit:       true,
-		BuyerPctOpts: AffiliateBuyerPctOptions,
-		ConfNames:    activeConfTagNames(ctx),
-		Year:         helpers.CurrentYear(),
-	}
+	page := buildAffiliatePage(ctx, email, true, "")
+	page.Code = code
 	page.Form.CodeName = code.CodeName
 	page.Form.BuyerPct = code.Amount
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_affiliate.tmpl", page); err != nil {
@@ -180,14 +184,8 @@ func AffiliateUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	buyerPct := parseBuyerPct(r.FormValue("BuyerPct"))
 
 	formErr := func(msg string) {
-		page := &AffiliatePage{
-			Code:         code,
-			IsEdit:       true,
-			BuyerPctOpts: AffiliateBuyerPctOptions,
-			ConfNames:    activeConfTagNames(ctx),
-			FormError:    msg,
-			Year:         helpers.CurrentYear(),
-		}
+		page := buildAffiliatePage(ctx, email, true, msg)
+		page.Code = code
 		page.Form.CodeName = codeName
 		page.Form.BuyerPct = buyerPct
 		if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_affiliate.tmpl", page); err != nil {
@@ -223,7 +221,7 @@ func AffiliateUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return
 	}
 	http.Redirect(w, r,
-		dashboardURLForEmail(ctx, email, "Affiliate code updated.", ""),
+		affiliateURLForEmail(ctx, email, "Affiliate code updated.", ""),
 		http.StatusSeeOther)
 }
 
@@ -240,12 +238,112 @@ func AffiliateDisable(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	}
 	if err := getters.ArchiveAffiliateCode(ctx, code.Ref); err != nil {
 		ctx.Err.Printf("/dashboard/affiliate/disable archive: %s", err)
-		http.Redirect(w, r, dashboardURLForEmail(ctx, email, "", "Couldn't disable the code."), http.StatusSeeOther)
+		http.Redirect(w, r, affiliateURLForEmail(ctx, email, "", "Couldn't disable the code."), http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r,
-		dashboardURLForEmail(ctx, email, "Affiliate code "+code.CodeName+" disabled.", ""),
+		affiliateURLForEmail(ctx, email, "Affiliate code "+code.CodeName+" disabled.", ""),
 		http.StatusSeeOther)
+}
+
+func buildAffiliatePage(ctx *config.AppContext, email string, isEdit bool, formErr string) *AffiliatePage {
+	code := loadAffiliateCode(ctx, email, true)
+	page := &AffiliatePage{
+		Code:         code,
+		IsEdit:       isEdit,
+		IsLanding:    !isEdit && code != nil,
+		BuyerPctOpts: AffiliateBuyerPctOptions,
+		ConfNames:    activeConfTagNames(ctx),
+		Stats:        loadAffiliateStats(ctx, email, true),
+		CampaignRows: affiliateCampaignRows(ctx, email),
+		BaseURI:      ctx.Env.GetURI(),
+		FormError:    formErr,
+		Year:         helpers.CurrentYear(),
+	}
+	if code != nil {
+		page.Form.CodeName = code.CodeName
+		page.Form.BuyerPct = code.Amount
+	} else {
+		page.Form.BuyerPct = 10
+	}
+	return page
+}
+
+func affiliateCampaignRows(ctx *config.AppContext, email string) []*AffiliateCampaignRow {
+	usages, err := getters.QueryAffiliateUsageByEmail(ctx, email)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/affiliate usages %s: %s", email, err)
+		return nil
+	}
+	confs, err := getters.ListConfs(ctx)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/affiliate confs %s: %s", email, err)
+	}
+	confByTag := map[string]*types.Conf{}
+	for _, conf := range confs {
+		if conf != nil {
+			confByTag[conf.Tag] = conf
+		}
+	}
+	byTag := map[string]*AffiliateCampaignRow{}
+	for _, usage := range usages {
+		if usage == nil {
+			continue
+		}
+		tag := strings.TrimSpace(usage.ConfTag)
+		if tag == "" {
+			tag = "all"
+		}
+		row := byTag[tag]
+		if row == nil {
+			conf := confByTag[tag]
+			row = &AffiliateCampaignRow{
+				Conf:     conf,
+				CodeName: usage.CodeName,
+				When:     "all editions",
+				Tense:    "past",
+			}
+			if conf != nil {
+				row.When = conf.DateDesc
+				row.Tense = "past"
+				if conf.InFuture() {
+					row.Tense = "upcoming"
+				}
+			}
+			byTag[tag] = row
+		}
+		if row.CodeName == "" {
+			row.CodeName = usage.CodeName
+		}
+		row.TicketsSold += int(usage.TicketsCount)
+		row.SavedSats += usage.SavedSats
+		row.EarnedSats += usage.EarnedSats
+	}
+	rows := make([]*AffiliateCampaignRow, 0, len(byTag))
+	for _, row := range byTag {
+		rows = append(rows, row)
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		left, right := rows[i], rows[j]
+		if left.Conf != nil && right.Conf != nil && !left.Conf.StartDate.Equal(right.Conf.StartDate) {
+			return left.Conf.StartDate.After(right.Conf.StartDate)
+		}
+		return affiliateCampaignTitle(left) < affiliateCampaignTitle(right)
+	})
+	return rows
+}
+
+func affiliateCampaignTitle(row *AffiliateCampaignRow) string {
+	if row == nil {
+		return ""
+	}
+	if row.Conf != nil {
+		return row.Conf.ArchiveTitle()
+	}
+	if row.CodeName != "" {
+		return row.CodeName
+	}
+	return "all editions"
 }
 
 // affiliateAuthAndGate resolves the authed email from the SCS
@@ -294,6 +392,14 @@ func dashboardURLForEmail(ctx *config.AppContext, email, flash, errMsg string) s
 		q.Set("error", errMsg)
 	}
 	return "/dashboard?" + q.Encode()
+}
+
+func affiliateURLForEmail(ctx *config.AppContext, email, flash, errMsg string) string {
+	u := dashboardURLForEmail(ctx, email, flash, errMsg)
+	if strings.HasPrefix(u, "/dashboard?") {
+		return "/dashboard/affiliate?" + strings.TrimPrefix(u, "/dashboard?")
+	}
+	return "/dashboard/affiliate"
 }
 
 // activeConfTagNames returns the tag names of every Active conf,

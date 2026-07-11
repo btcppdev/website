@@ -1,0 +1,2 @@
+ALTER TABLE people
+  ADD COLUMN bio text NOT NULL DEFAULT '';

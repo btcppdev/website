@@ -20,6 +20,7 @@ func TestNormalizeSpeakerInput(t *testing.T) {
 		LinkedIn:  " https://linkedin.com/in/alice ",
 		Website:   " https://alice.example ",
 		Company:   " ACME ",
+		Bio:       " Building quiet bitcoin tools. ",
 		OrgLogo:   " logo.png ",
 		TShirt:    " MM ",
 	})
@@ -27,7 +28,7 @@ func TestNormalizeSpeakerInput(t *testing.T) {
 	if in.Email != "alice@example.com" || in.Phone != "+15551234567" || in.Signal != "alice.99" {
 		t.Fatalf("contact fields not trimmed: %+v", in)
 	}
-	if in.Twitter != "alice" || in.Website != "https://alice.example" || in.Company != "ACME" {
+	if in.Twitter != "alice" || in.Website != "https://alice.example" || in.Company != "ACME" || in.Bio != "Building quiet bitcoin tools." {
 		t.Fatalf("social/org fields not trimmed: %+v", in)
 	}
 }

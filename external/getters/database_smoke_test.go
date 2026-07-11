@@ -26,6 +26,7 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 		Signal:   "smoke." + suffix,
 		Twitter:  "smoketest",
 		Website:  "https://example.test/smoke",
+		Bio:      "Smoke-test profile text.",
 		TShirt:   "MM",
 		Photo:    "smoke.jpg",
 		Telegram: "smoke_tg",
@@ -45,7 +46,7 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 		t.Fatalf("GetSpeakersByEmail returned %d speakers, want 1", len(speakers))
 	}
 	got := speakers[0]
-	if got.ID != speakerID || got.Email != email || got.Signal != "smoke."+suffix || got.TShirt != "MM" {
+	if got.ID != speakerID || got.Email != email || got.Signal != "smoke."+suffix || got.TShirt != "MM" || got.Bio != "Smoke-test profile text." {
 		t.Fatalf("speaker mismatch: %+v", got)
 	}
 }

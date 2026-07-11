@@ -120,3 +120,32 @@ func TestReadMultipartLogoFileAcceptsSVG(t *testing.T) {
 		t.Fatalf("ext = %q, want .svg", ext)
 	}
 }
+
+func TestReadMultipartPresentationFileAcceptsPDF(t *testing.T) {
+	req := multipartUploadRequestForField(t, "slides", "deck.pdf", []byte("%PDF-1.7\n"))
+
+	if err := req.ParseMultipartForm(maxPresentationBytes); err != nil {
+		t.Fatalf("ParseMultipartForm: %s", err)
+	}
+	_, contentType, ext, err := readMultipartPresentationFile(req, "slides")
+	if err != nil {
+		t.Fatalf("readMultipartPresentationFile: %s", err)
+	}
+	if contentType != "application/pdf" {
+		t.Fatalf("contentType = %q, want application/pdf", contentType)
+	}
+	if ext != ".pdf" {
+		t.Fatalf("ext = %q, want .pdf", ext)
+	}
+}
+
+func TestReadMultipartPresentationFileRejectsUnsupportedExtension(t *testing.T) {
+	req := multipartUploadRequestForField(t, "slides", "deck.txt", []byte("slides"))
+
+	if err := req.ParseMultipartForm(maxPresentationBytes); err != nil {
+		t.Fatalf("ParseMultipartForm: %s", err)
+	}
+	if _, _, _, err := readMultipartPresentationFile(req, "slides"); err == nil {
+		t.Fatal("expected unsupported presentation extension to fail")
+	}
+}

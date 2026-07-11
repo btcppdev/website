@@ -121,6 +121,35 @@ type HomeMapEdition struct {
 	Upcoming    bool
 }
 
+type WhoIsPage struct {
+	People       []*WhoIsPerson
+	AllCount     int
+	TalkCount    int
+	EditionCount int
+	Query        string
+	Topic        string
+	Source       string
+	Year         uint
+}
+
+type WhoIsProfilePage struct {
+	Person           *WhoIsPerson
+	UpdateProfileURL string
+	Year             uint
+}
+
+type WhoIsPerson struct {
+	PublicID string
+	Speaker  *types.Speaker
+	Talks    []*WhoIsTalk
+	Editions []*types.Conf
+}
+
+type WhoIsTalk struct {
+	Talk *types.Talk
+	Conf *types.Conf
+}
+
 type HomeSponsor struct {
 	Name      string
 	Level     string
@@ -270,7 +299,8 @@ type DashboardPage struct {
 	// hasn't added themselves to the speakers DB yet — the
 	// dashboard renders a "Create speaker profile" CTA in that
 	// case.
-	Speaker *types.Speaker
+	Speaker          *types.Speaker
+	HasPublicProfile bool
 
 	// Speaker side, split by whether the linked conf has ended.
 	SpeakerConfs     []*types.SpeakerConf
@@ -307,10 +337,14 @@ type DashboardPage struct {
 	// the user has any kind of relationship with (speaker, volunteer,
 	// or ticket-holder). Replaces the old activity-typed sections —
 	// talks / volunteer / tickets are nested inside each block.
-	ActiveBlocks    []*EventBlock
-	PastBlocks      []*EventBlock
-	ArchiveYears    []*DashboardArchiveYear
-	ArchiveSessions int
+	ActiveBlocks     []*EventBlock
+	PastBlocks       []*EventBlock
+	ArchiveYears     []*DashboardArchiveYear
+	ArchiveSessions  int
+	ArchiveOwnerName string
+	ArchiveOwnerPath string
+	ArchiveIsPublic  bool
+	CanEditArchive   bool
 
 	// HasUpcomingTalk / HasUpcomingVol gate the per-channel "Need
 	// help?" block in the footer. True when at least one
@@ -354,6 +388,16 @@ type AffiliateStats struct {
 	TicketsSold int
 	SavedSats   int64
 	EarnedSats  int64
+}
+
+type AffiliateCampaignRow struct {
+	Conf        *types.Conf
+	CodeName    string
+	TicketsSold int
+	SavedSats   int64
+	EarnedSats  int64
+	When        string
+	Tense       string
 }
 
 // OrganizerDashboardPage drives /admin/{tag}/ — the per-event
@@ -719,6 +763,7 @@ type EditSpeakerPage struct {
 	IsAdmin      bool
 	BackURL      string
 	FormAction   string
+	PublicURL    string
 	Year         uint
 }
 

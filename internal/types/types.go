@@ -294,8 +294,10 @@ type (
 		Github        string
 		Instagram     string
 		LinkedIn      string
+		LeetCode      string
 		Website       string
 		Company       string
+		Bio           string
 		OrgLogo       string
 		AvailToHire   bool
 		LookingToHire bool
@@ -382,6 +384,9 @@ type (
 		Section         string
 		CalNotif        string
 		SocialCard      string
+		GithubRepoURL   string
+		SlidesURL       string
+		SlidesObjectKey string
 	}
 
 	// Recording is a row in RecordingsDb — one per ConfTalk that has
@@ -455,6 +460,11 @@ type (
 		// this talk's ConfTalk. Drives the "Watch" badge on the
 		// agenda + /talks pages.
 		YTLink string
+		// GithubRepoURL and SlidesURL are public resources attached by
+		// speakers after a talk is accepted/scheduled.
+		GithubRepoURL   string
+		SlidesURL       string
+		SlidesObjectKey string
 		// RecordingRestricted is true when at least one attached
 		// SpeakerConf has RecordOK set to a no-recording style value.
 		// RecordingAudioOnly is true when at least one speaker allows
@@ -464,18 +474,21 @@ type (
 	}
 
 	Session struct {
-		Name        string
-		Description string
-		Speakers    []*Speaker
-		TalkPhoto   string
-		Sched       *Times
-		StartTime   string
-		Len         string
-		Type        string
-		Venue       string
-		AnchorTag   string
-		ConfTag     string
-		YTLink      string // populated when a Recording row exists for this talk
+		Name            string
+		Description     string
+		Speakers        []*Speaker
+		TalkPhoto       string
+		Sched           *Times
+		StartTime       string
+		Len             string
+		Type            string
+		Venue           string
+		AnchorTag       string
+		ConfTag         string
+		YTLink          string // populated when a Recording row exists for this talk
+		GithubRepoURL   string
+		SlidesURL       string
+		SlidesObjectKey string
 	}
 
 	Ticket struct {
@@ -632,6 +645,7 @@ type (
 		Twitter       Twitter
 		Nostr         string
 		Github        string
+		LeetCode      string
 		Website       string
 		Visa          string
 		Pic           string
@@ -1049,6 +1063,81 @@ func (c *Conf) EmojiOrDefault() string {
 		return "✨"
 	}
 	return c.Emoji
+}
+
+// BadgeEmoji returns the event-art emoji used by compact archive/profile
+// badges. Some legacy/imported rows store "++" in Emoji as a bitcoin++
+// mark rather than an event emoji, so badge surfaces fall back by tag/city.
+func (c *Conf) BadgeEmoji() string {
+	if c == nil {
+		return "✨"
+	}
+	emoji := strings.TrimSpace(c.Emoji)
+	if emoji != "" && emoji != "++" {
+		return emoji
+	}
+	tag := strings.ToLower(strings.TrimSpace(c.Tag))
+	tagEmoji := map[string]string{
+		"atx22":     "🤠",
+		"atx23":     "🧡",
+		"atx24":     "📜",
+		"atx25":     "👙",
+		"archive24": "📜",
+		"berlin23":  "🧪",
+		"berlin24":  "🥷",
+		"berlin25":  "⚡",
+		"berlin26":  "⚡",
+		"cdmx22":    "🌮",
+		"durham":    "🏠",
+		"local25":   "🏠",
+		"floripa":   "🌴",
+		"floripa26": "🔑",
+		"istanbul":  "🌉",
+		"nairobi":   "🦒",
+		"riga":      "⛪",
+		"seoul":     "🧭",
+		"taipei":    "🧨",
+		"toronto":   "🍁",
+		"vegas":     "🦫",
+		"vienna":    "🏛️",
+		"dev26":     "🧪",
+	}
+	if value := tagEmoji[tag]; value != "" {
+		return value
+	}
+	title := strings.ToLower(c.ArchiveTitle())
+	switch {
+	case strings.Contains(title, "austin"):
+		if strings.Contains(strings.ToLower(c.ArchiveEdition()), "script") {
+			return "📜"
+		}
+		return "👙"
+	case strings.Contains(title, "berlin"):
+		return "⚡"
+	case strings.Contains(title, "floripa"), strings.Contains(title, "florian"):
+		return "🌴"
+	case strings.Contains(title, "nairobi"):
+		return "🦒"
+	case strings.Contains(title, "vienna"):
+		return "🏛️"
+	case strings.Contains(title, "las vegas"), strings.Contains(title, "vegas"):
+		return "🦫"
+	case strings.Contains(title, "taipei"):
+		return "🧨"
+	case strings.Contains(title, "istanbul"):
+		return "🌉"
+	case strings.Contains(title, "riga"):
+		return "⛪"
+	case strings.Contains(title, "toronto"):
+		return "🍁"
+	case strings.Contains(title, "seoul"):
+		return "🧭"
+	case strings.Contains(title, "durham"):
+		return "🏠"
+	case strings.Contains(title, "local dev"):
+		return "🧪"
+	}
+	return "✨"
 }
 
 // ArchiveTitle returns the compact event title used by the personal archive.

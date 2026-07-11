@@ -297,6 +297,7 @@ func speakerInputFromTalkApp(app *types.TalkApp) getters.SpeakerInput {
 		Twitter:  app.Twitter.Handle,
 		Nostr:    app.Nostr,
 		Github:   app.Github,
+		LeetCode: app.LeetCode,
 		Website:  app.Website,
 		TShirt:   validShirtCode(app.Shirt),
 	}
@@ -326,6 +327,9 @@ func buildSpeakerUpdateFromForm(sp *types.Speaker, app *types.TalkApp) getters.S
 	}
 	if sp.Github == "" && app.Github != "" {
 		up.Github = app.Github
+	}
+	if sp.LeetCode == "" && app.LeetCode != "" {
+		up.LeetCode = app.LeetCode
 	}
 	if sp.Website == "" && app.Website != "" {
 		up.Website = app.Website

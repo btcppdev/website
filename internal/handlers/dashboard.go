@@ -251,6 +251,11 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if len(speakers) > 0 {
 		topSpeaker = speakers[0]
 	}
+	hasPublicProfile := hasPublicWhoIsProfile(ctx, topSpeaker)
+	archiveOwnerPath := ""
+	if hasPublicProfile && topSpeaker != nil {
+		archiveOwnerPath = "/whois/" + publicSpeakerSlug(topSpeaker) + "/archive"
+	}
 	// Decorate event blocks with the user's admin role for each conf
 	// — drives the "Admin" / "Vol coord" link on conf cards. Union
 	// the Roles tags across every Speaker row that matches this
@@ -381,6 +386,8 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		Email:            encodedEmail,
 		HMAC:             encodedHMAC,
 		Speaker:          topSpeaker,
+		HasPublicProfile: hasPublicProfile,
+		ArchiveOwnerPath: archiveOwnerPath,
 		SpeakerConfs:     activeSC,
 		PastSpeakerConfs: pastSC,
 		VolApps:          activeVol,
@@ -425,118 +432,21 @@ func renderDashboardLogin(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 }
 
-// DashboardArchive renders the personal archive linked from the dashboard's
-// past-conferences strip. It intentionally reuses the dashboard's magic-link
-// auth model so the archive remains scoped to the signed-in email.
-func DashboardArchive(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	email, encodedHMAC, err := validateVolEmail(r, ctx)
-	encodedEmail := r.URL.Query().Get("em")
+func hasPublicWhoIsProfile(ctx *config.AppContext, speaker *types.Speaker) bool {
+	if speaker == nil || speaker.ID == "" {
+		return false
+	}
+	people, err := buildWhoIsDirectory(ctx)
 	if err != nil {
-		if sessEmail := ctx.Session.GetString(r.Context(), auth.SessionEmailKey); sessEmail != "" {
-			email = sessEmail
-			encodedHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
-			encodedEmail = base64.RawURLEncoding.EncodeToString([]byte(email))
-			err = nil
+		ctx.Err.Printf("/dashboard whois profile check failed: %s", err)
+		return false
+	}
+	for _, person := range people {
+		if person != nil && person.Speaker != nil && person.Speaker.ID == speaker.ID {
+			return true
 		}
 	}
-	if err != nil {
-		ctx.Infos.Printf("/dashboard/archive HMAC validation failed: %s", err)
-		renderDashboardLogin(w, r, ctx)
-		return
-	}
-
-	var (
-		speakers     []*types.Speaker
-		speakerConfs []*types.SpeakerConf
-		volapps      []*types.Volunteer
-		regs         []*types.Registration
-		satEvents    []*types.SatelliteEvent
-		scErr        error
-		volErr       error
-		regErr       error
-		satErr       error
-	)
-	var wg sync.WaitGroup
-	wg.Add(4)
-	go func() {
-		defer wg.Done()
-		speakers, speakerConfs, scErr = getters.GetSpeakerConfsByEmail(ctx, email)
-	}()
-	go func() {
-		defer wg.Done()
-		volapps, volErr = getters.ListVolunteerApps(ctx, email)
-	}()
-	go func() {
-		defer wg.Done()
-		regs, regErr = getters.ListRegistrationsByEmail(ctx, email)
-	}()
-	go func() {
-		defer wg.Done()
-		satEvents, satErr = getters.ListSatelliteEventsBySubmitter(ctx, email)
-	}()
-	wg.Wait()
-	if scErr != nil {
-		http.Error(w, "Unable to load archive, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("/dashboard/archive speakerconfs failed: %s", scErr)
-		return
-	}
-	if volErr != nil {
-		http.Error(w, "Unable to load archive, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("/dashboard/archive listvolunteerapps failed: %s", volErr)
-		return
-	}
-	if regErr != nil {
-		ctx.Err.Printf("/dashboard/archive listregs failed (continuing): %s", regErr)
-	}
-	if satErr != nil {
-		ctx.Err.Printf("/dashboard/archive satellites failed (continuing): %s", satErr)
-	}
-	if len(regs) > 0 {
-		live := regs[:0]
-		for _, r := range regs {
-			if r != nil && !r.Revoked {
-				live = append(live, r)
-			}
-		}
-		regs = live
-	}
-
-	name, hometown := dashboardIdentity(speakers, speakerConfs, volapps)
-	var photo string
-	var topSpeaker *types.Speaker
-	if len(speakers) > 0 {
-		topSpeaker = speakers[0]
-		photo = speakers[0].Photo
-	}
-	confs := listConfs(w, ctx)
-	confs = appendLegacyArchiveConfs(confs)
-	enrichDashboardProposals(ctx, speakerConfs)
-	tickets := upcomingTickets(regs, confs)
-	_, pastBlocks := buildEventBlocks(speakerConfs, volapps, tickets, regs, confs, nil)
-	_, pastBlocks = attachSatelliteEventBlocks(nil, pastBlocks, satEvents, confs)
-	archiveYears, archiveSessions := dashboardArchiveYears(pastBlocks)
-
-	page := &DashboardPage{
-		Name:            name,
-		Hometown:        hometown,
-		Photo:           photo,
-		Email:           encodedEmail,
-		HMAC:            encodedHMAC,
-		Speaker:         topSpeaker,
-		Stats:           calcDashboardStats(speakerConfs, volapps),
-		Confs:           confs,
-		PastBlocks:      pastBlocks,
-		ArchiveYears:    archiveYears,
-		ArchiveSessions: archiveSessions,
-		FlashMessage:    r.URL.Query().Get("flash"),
-		FlashError:      r.URL.Query().Get("error"),
-		BaseURI:         ctx.Env.GetURI(),
-		Year:            helpers.CurrentYear(),
-	}
-	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_archive.tmpl", page); err != nil {
-		http.Error(w, "Unable to load archive, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("/dashboard/archive ExecuteTemplate failed: %s", err)
-	}
+	return false
 }
 
 func attachDashboardAdminRoles(blocks []*EventBlock, id *auth.Identity) {
@@ -1180,7 +1090,8 @@ func speakerConfConf(sc *types.SpeakerConf) *types.Conf {
 }
 
 // calcDashboardStats counts unique proposals (by ID — a proposal can appear
-// under multiple SpeakerConfs in multi-speaker setups) and shift signups.
+// under multiple SpeakerConfs in multi-speaker setups), volunteer conferences,
+// and selected shifts.
 func calcDashboardStats(speakerConfs []*types.SpeakerConf, volapps []*types.Volunteer) *DashboardStats {
 	s := &DashboardStats{}
 	seen := make(map[string]bool)
@@ -1191,16 +1102,14 @@ func calcDashboardStats(speakerConfs []*types.SpeakerConf, volapps []*types.Volu
 			}
 			seen[p.ID] = true
 			s.TalksApplied++
-			if p.Status == StatusAccepted {
+			if p.Status == StatusAccepted || p.Status == StatusScheduled {
 				s.TalksAccepted++
 			}
 		}
 	}
 	for _, v := range volapps {
 		s.ShiftsApplied++
-		if v.Status == "Scheduled" {
-			s.ShiftsBooked++
-		}
+		s.ShiftsBooked += len(v.WorkShifts)
 	}
 	return s
 }

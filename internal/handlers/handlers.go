@@ -48,10 +48,12 @@ import (
 var pages []string = []string{"index", "timeline", "vegas25", "terms", "privacy"}
 
 const (
-	maxFormBodyBytes      = 1 << 20  // 1 MiB
-	maxMultipartBodyBytes = 12 << 20 // 12 MiB
-	maxUploadFileBytes    = 10 << 20 // 10 MiB
-	maxWebhookBodyBytes   = 1 << 20  // 1 MiB
+	maxFormBodyBytes         = 1 << 20  // 1 MiB
+	maxMultipartBodyBytes    = 12 << 20 // 12 MiB
+	maxUploadFileBytes       = 10 << 20 // 10 MiB
+	maxPresentationBytes     = 40 << 20 // 40 MiB
+	maxPresentationBodyBytes = 42 << 20 // 42 MiB
+	maxWebhookBodyBytes      = 1 << 20  // 1 MiB
 )
 
 var errUploadTooLarge = errors.New("uploaded file is too large")
@@ -159,8 +161,17 @@ func loadTemplates(ctx *config.AppContext) error {
 		"linkedinURL": func(s string) template.URL {
 			return template.URL(profileURL(s, "linkedin.com/in"))
 		},
+		"leetcodeURL": func(s string) template.URL {
+			return template.URL(profileURL(s, "leetcode.com"))
+		},
 		"websiteURL": func(s string) template.URL {
 			return template.URL(websiteURL(s))
+		},
+		"speakerPublicPath": func(s *types.Speaker) template.URL {
+			if s == nil {
+				return ""
+			}
+			return template.URL("/whois/" + publicSpeakerSlug(s))
 		},
 		"confImage": func(tag, base string) template.URL {
 			return template.URL(confImagePath(tag, base))
@@ -185,6 +196,20 @@ func loadTemplates(ctx *config.AppContext) error {
 		},
 		"mul": func(a, b int) int {
 			return a * b
+		},
+		"int": func(v interface{}) int {
+			switch n := v.(type) {
+			case int:
+				return n
+			case uint:
+				return int(n)
+			case int64:
+				return int(n)
+			case uint64:
+				return int(n)
+			default:
+				return 0
+			}
 		},
 		"div": func(a, b int) int {
 			if b == 0 {
@@ -850,6 +875,16 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		RenderSpeakerConf(w, r, app)
 	}).Methods("GET", "POST")
 
+	r.HandleFunc("/whois", func(w http.ResponseWriter, r *http.Request) {
+		RenderWhoIs(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/whois/{speaker}/archive", func(w http.ResponseWriter, r *http.Request) {
+		RenderWhoIsArchive(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/whois/{speaker}", func(w http.ResponseWriter, r *http.Request) {
+		RenderWhoIsProfile(w, r, app)
+	}).Methods("GET")
+
 	r.HandleFunc("/contact", func(w http.ResponseWriter, r *http.Request) {
 		ContactPage(w, r, app)
 	}).Methods("GET", "POST")
@@ -1014,6 +1049,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	// route (confTag="affiliate" → DashboardEditSpeakerConf can't
 	// find the conf, silently bounces the visitor back to
 	// /dashboard with no flash).
+	r.HandleFunc("/dashboard/affiliate", func(w http.ResponseWriter, r *http.Request) {
+		AffiliateLanding(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/dashboard/affiliate/new", func(w http.ResponseWriter, r *http.Request) {
 		AffiliateNew(w, r, app)
 	}).Methods("GET")
@@ -1029,10 +1067,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/affiliate/disable", func(w http.ResponseWriter, r *http.Request) {
 		AffiliateDisable(w, r, app)
 	}).Methods("POST")
-
-	r.HandleFunc("/dashboard/archive", func(w http.ResponseWriter, r *http.Request) {
-		DashboardArchive(w, r, app)
-	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/{confTag}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditSpeakerConf(w, r, app)
@@ -1080,6 +1114,13 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/talks/{proposalID}/details", func(w http.ResponseWriter, r *http.Request) {
 		DashboardTalkDetails(w, r, app)
 	}).Methods("GET")
+
+	r.HandleFunc("/dashboard/talks/{proposalID}/resources", func(w http.ResponseWriter, r *http.Request) {
+		DashboardTalkResources(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/conftalks/{confTalkID}/resources", func(w http.ResponseWriter, r *http.Request) {
+		DashboardConfTalkResources(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/withdraw", func(w http.ResponseWriter, r *http.Request) {
 		DashboardWithdraw(w, r, app)
@@ -1832,6 +1873,611 @@ func ReloadConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	people, err := buildWhoIsDirectory(ctx)
+	if err != nil {
+		http.Error(w, "Unable to load speaker directory, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/whois build directory failed: %s", err)
+		return
+	}
+	allCount := len(people)
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	topic := slugifyPublicID(r.URL.Query().Get("topic"))
+	source := slugifyPublicID(r.URL.Query().Get("source"))
+	if query != "" || topic != "" || source != "" {
+		people = filterWhoIsPeople(people, query, topic, source)
+	}
+	talkCount, editionCount := whoIsTotals(people)
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois.tmpl", &WhoIsPage{
+		People:       people,
+		AllCount:     allCount,
+		TalkCount:    talkCount,
+		EditionCount: editionCount,
+		Query:        query,
+		Topic:        topic,
+		Source:       source,
+		Year:         helpers.CurrentYear(),
+	}); err != nil {
+		http.Error(w, "Unable to load speaker directory, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/whois ExecuteTemplate failed: %s", err.Error())
+		return
+	}
+}
+
+func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	slug := strings.TrimSpace(mux.Vars(r)["speaker"])
+	if slug == "" {
+		handle404(w, r, ctx)
+		return
+	}
+	person, err := findWhoIsPerson(ctx, slug)
+	if err != nil {
+		http.Error(w, "Unable to load speaker profile, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/whois/%s build directory failed: %s", slug, err)
+		return
+	}
+	if person == nil {
+		handle404(w, r, ctx)
+		return
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois_profile.tmpl", &WhoIsProfilePage{
+		Person:           person,
+		UpdateProfileURL: whoIsProfileEditURL(ctx, r, person),
+		Year:             helpers.CurrentYear(),
+	}); err != nil {
+		http.Error(w, "Unable to load speaker profile, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/whois/%s ExecuteTemplate failed: %s", slug, err.Error())
+	}
+}
+
+func RenderWhoIsArchive(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	slug := strings.TrimSpace(mux.Vars(r)["speaker"])
+	if slug == "" {
+		handle404(w, r, ctx)
+		return
+	}
+	person, err := findWhoIsPerson(ctx, slug)
+	if err != nil {
+		http.Error(w, "Unable to load speaker archive, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/whois/%s/archive build directory failed: %s", slug, err)
+		return
+	}
+	if person == nil {
+		handle404(w, r, ctx)
+		return
+	}
+
+	pastBlocks := whoIsArchiveBlocks(person)
+	archiveYears, archiveSessions := dashboardArchiveYears(pastBlocks)
+	photo := ""
+	name := ""
+	if person.Speaker != nil {
+		photo = person.Speaker.Photo
+		name = person.Speaker.Name
+	}
+	var encodedEmail, encodedHMAC string
+	canEdit := false
+	if person.Speaker != nil && person.Speaker.Email != "" {
+		email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
+		if email != "" && strings.EqualFold(email, person.Speaker.Email) {
+			encodedEmail = base64.RawURLEncoding.EncodeToString([]byte(email))
+			encodedHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
+			canEdit = true
+		}
+	}
+	page := &DashboardPage{
+		Name:             name,
+		Photo:            photo,
+		Email:            encodedEmail,
+		HMAC:             encodedHMAC,
+		Speaker:          person.Speaker,
+		PastBlocks:       pastBlocks,
+		ArchiveYears:     archiveYears,
+		ArchiveSessions:  archiveSessions,
+		ArchiveOwnerName: name,
+		ArchiveOwnerPath: "/whois/" + person.PublicID,
+		ArchiveIsPublic:  true,
+		CanEditArchive:   canEdit,
+		FlashMessage:     r.URL.Query().Get("flash"),
+		FlashError:       r.URL.Query().Get("error"),
+		BaseURI:          ctx.Env.GetURI(),
+		Year:             helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_archive.tmpl", page); err != nil {
+		http.Error(w, "Unable to load speaker archive, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("/whois/%s/archive ExecuteTemplate failed: %s", slug, err)
+	}
+}
+
+func findWhoIsPerson(ctx *config.AppContext, slug string) (*WhoIsPerson, error) {
+	people, err := buildWhoIsDirectory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, person := range people {
+		if person != nil && person.PublicID == slug {
+			return person, nil
+		}
+	}
+	return nil, nil
+}
+
+func whoIsArchiveBlocks(person *WhoIsPerson) []*EventBlock {
+	if person == nil {
+		return nil
+	}
+	byTag := map[string]*EventBlock{}
+	block := func(conf *types.Conf) *EventBlock {
+		if conf == nil || conf.Tag == "" {
+			return nil
+		}
+		if existing := byTag[conf.Tag]; existing != nil {
+			return existing
+		}
+		eb := &EventBlock{Conf: conf}
+		byTag[conf.Tag] = eb
+		return eb
+	}
+	for _, conf := range person.Editions {
+		block(conf)
+	}
+	for _, row := range person.Talks {
+		if row == nil || row.Talk == nil || row.Conf == nil {
+			continue
+		}
+		eb := block(row.Conf)
+		if eb == nil {
+			continue
+		}
+		if eb.SpeakerConf == nil {
+			eb.SpeakerConf = &types.SpeakerConf{Speaker: person.Speaker}
+		}
+		proposal := &types.Proposal{
+			ID:              row.Talk.ID,
+			Title:           row.Talk.Name,
+			Description:     row.Talk.Description,
+			TalkType:        row.Talk.Type,
+			Status:          row.Talk.Status,
+			ScheduleFor:     row.Conf,
+			DesiredDuration: talkDurationMinutes(row.Talk),
+			ConfTalk: &types.ConfTalk{
+				ID:            row.Talk.ID,
+				Conf:          row.Conf,
+				Clipart:       row.Talk.Clipart,
+				Sched:         row.Talk.Sched,
+				Venue:         row.Talk.Venue,
+				GithubRepoURL: row.Talk.GithubRepoURL,
+				SlidesURL:     row.Talk.SlidesURL,
+			},
+		}
+		if row.Talk.YTLink != "" {
+			proposal.Recording = &types.Recording{YTLink: row.Talk.YTLink}
+		}
+		if proposal.Status == "" {
+			proposal.Status = StatusAccepted
+		}
+		eb.SpeakerConf.Proposals = append(eb.SpeakerConf.Proposals, proposal)
+	}
+
+	blocks := make([]*EventBlock, 0, len(byTag))
+	for _, eb := range byTag {
+		if eb == nil || eb.Conf == nil {
+			continue
+		}
+		if eb.SpeakerConf == nil {
+			eb.Tickets = []*types.Registration{{ConfRef: eb.Conf.Ref, Type: types.TicketTypeGeneral}}
+		}
+		blocks = append(blocks, eb)
+	}
+	sort.SliceStable(blocks, func(i, j int) bool {
+		return blocks[i].Conf.StartDate.After(blocks[j].Conf.StartDate)
+	})
+	return blocks
+}
+
+func talkDurationMinutes(talk *types.Talk) int {
+	if talk == nil || talk.Sched == nil || talk.Sched.End == nil {
+		return 0
+	}
+	return int(talk.Sched.End.Sub(talk.Sched.Start).Minutes())
+}
+
+func whoIsProfileEditURL(ctx *config.AppContext, r *http.Request, person *WhoIsPerson) string {
+	if ctx == nil || r == nil || person == nil || person.Speaker == nil {
+		return ""
+	}
+	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
+	if email == "" || !strings.EqualFold(email, person.Speaker.Email) {
+		return ""
+	}
+	encodedEmail := base64.RawURLEncoding.EncodeToString([]byte(email))
+	encodedHMAC := base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
+	return "/dashboard/speaker?hr=" + url.QueryEscape(encodedHMAC) + "&em=" + url.QueryEscape(encodedEmail)
+}
+
+func filterWhoIsPeople(people []*WhoIsPerson, query, topic, source string) []*WhoIsPerson {
+	needle := strings.ToLower(strings.TrimSpace(query))
+	topic = strings.ToLower(strings.TrimSpace(topic))
+	source = strings.ToLower(strings.TrimSpace(source))
+	if needle == "" && topic == "" && source == "" {
+		return people
+	}
+	var filtered []*WhoIsPerson
+	for _, person := range people {
+		if whoIsPersonMatches(person, needle, topic, source) {
+			filtered = append(filtered, person)
+		}
+	}
+	return filtered
+}
+
+func whoIsPersonMatches(person *WhoIsPerson, needle, topic, source string) bool {
+	if person == nil || person.Speaker == nil {
+		return false
+	}
+	s := person.Speaker
+	hay := []string{
+		person.PublicID,
+		s.Name,
+		s.Company,
+		s.Bio,
+		s.Twitter.Handle,
+		s.Github,
+		s.Website,
+	}
+	for _, talk := range person.Talks {
+		if talk == nil {
+			continue
+		}
+		if talk.Talk != nil {
+			hay = append(hay, talk.Talk.Name, talk.Talk.Description)
+		}
+		if talk.Conf != nil {
+			hay = append(hay, talk.Conf.Tag, talk.Conf.Desc, talk.Conf.Location, talk.Conf.DateDesc)
+		}
+	}
+	haystack := strings.ToLower(strings.Join(hay, " "))
+	if needle != "" && !strings.Contains(haystack, needle) {
+		return false
+	}
+	if topic != "" && !strings.Contains(haystack, topic) {
+		return false
+	}
+	if source != "" {
+		matched := false
+		for _, talk := range person.Talks {
+			if talk == nil || talk.Talk == nil {
+				continue
+			}
+			status := strings.ToLower(strings.TrimSpace(talk.Talk.Status))
+			switch source {
+			case "accepted":
+				if status == strings.ToLower(StatusAccepted) || status == "" {
+					matched = true
+				}
+			case "scheduled":
+				if status == strings.ToLower(StatusScheduled) {
+					matched = true
+				}
+			default:
+				matched = true
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
+}
+
+func whoIsTotals(people []*WhoIsPerson) (int, int) {
+	talks := map[string]bool{}
+	editions := map[string]bool{}
+	for _, person := range people {
+		if person == nil {
+			continue
+		}
+		for _, edition := range person.Editions {
+			if edition == nil || edition.Tag == "" {
+				continue
+			}
+			editions[edition.Tag] = true
+		}
+		for _, talk := range person.Talks {
+			if talk != nil && talk.Talk != nil && talk.Talk.ID != "" {
+				talks[talk.Talk.ID] = true
+			}
+		}
+	}
+	return len(talks), len(editions)
+}
+
+func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
+	talks, err := getters.ListTalks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	confs, err := getters.ListConfs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	confByTag := make(map[string]*types.Conf, len(confs))
+	confByID := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			confByTag[conf.Tag] = conf
+			confByID[conf.Ref] = conf
+		}
+	}
+
+	peopleByID := map[string]*WhoIsPerson{}
+	attendanceBySpeakerID := map[string]map[string]*types.Conf{}
+	for _, talk := range talks {
+		if talk == nil || strings.TrimSpace(talk.Name) == "" {
+			continue
+		}
+		if talk.Status != "" && talk.Status != StatusAccepted && talk.Status != StatusScheduled {
+			continue
+		}
+		conf := confByTag[talk.Event]
+		if conf == nil || !conf.IsPublished() {
+			continue
+		}
+		for _, speaker := range talk.Speakers {
+			if speaker == nil || speaker.ID == "" {
+				continue
+			}
+			person := peopleByID[speaker.ID]
+			if person == nil {
+				view := *speaker
+				person = &WhoIsPerson{Speaker: &view}
+				peopleByID[speaker.ID] = person
+			}
+			person.Talks = append(person.Talks, &WhoIsTalk{Talk: talk, Conf: conf})
+			addWhoIsAttendance(attendanceBySpeakerID, speaker.ID, conf)
+		}
+	}
+
+	addWhoIsRegistrationAttendance(ctx, peopleByID, attendanceBySpeakerID, confByID)
+
+	people := make([]*WhoIsPerson, 0, len(peopleByID))
+	for _, person := range peopleByID {
+		dedupeWhoIsTalks(person)
+		sortWhoIsTalks(person.Talks)
+		setWhoIsEditions(person, attendanceBySpeakerID[person.Speaker.ID])
+		people = append(people, person)
+	}
+	sort.Slice(people, func(i, j int) bool {
+		a := strings.ToLower(people[i].Speaker.Name)
+		b := strings.ToLower(people[j].Speaker.Name)
+		if a == b {
+			return people[i].Speaker.ID < people[j].Speaker.ID
+		}
+		return a < b
+	})
+	assignWhoIsPublicIDs(people)
+	return people, nil
+}
+
+func addWhoIsRegistrationAttendance(ctx *config.AppContext, peopleByID map[string]*WhoIsPerson, attendanceBySpeakerID map[string]map[string]*types.Conf, confByID map[string]*types.Conf) {
+	regs, err := getters.FetchRegistrations(ctx, "")
+	if err != nil {
+		if ctx != nil && ctx.Err != nil {
+			ctx.Err.Printf("/whois registration attendance failed: %s", err)
+		}
+		return
+	}
+	speakerIDsByEmail := map[string][]string{}
+	for speakerID, person := range peopleByID {
+		if person == nil || person.Speaker == nil {
+			continue
+		}
+		email := strings.ToLower(strings.TrimSpace(person.Speaker.Email))
+		if email == "" {
+			continue
+		}
+		speakerIDsByEmail[email] = append(speakerIDsByEmail[email], speakerID)
+	}
+	for _, reg := range regs {
+		if reg == nil || reg.Revoked {
+			continue
+		}
+		conf := confByID[reg.ConfRef]
+		if conf == nil || !conf.IsPublished() {
+			continue
+		}
+		for _, speakerID := range speakerIDsByEmail[strings.ToLower(strings.TrimSpace(reg.Email))] {
+			addWhoIsAttendance(attendanceBySpeakerID, speakerID, conf)
+		}
+	}
+}
+
+func addWhoIsAttendance(attendanceBySpeakerID map[string]map[string]*types.Conf, speakerID string, conf *types.Conf) {
+	if attendanceBySpeakerID == nil || strings.TrimSpace(speakerID) == "" || conf == nil || conf.Tag == "" {
+		return
+	}
+	byTag := attendanceBySpeakerID[speakerID]
+	if byTag == nil {
+		byTag = map[string]*types.Conf{}
+		attendanceBySpeakerID[speakerID] = byTag
+	}
+	byTag[conf.Tag] = conf
+}
+
+func dedupeWhoIsTalks(person *WhoIsPerson) {
+	if person == nil || len(person.Talks) == 0 {
+		return
+	}
+	seen := map[string]bool{}
+	out := person.Talks[:0]
+	for _, row := range person.Talks {
+		if row == nil || row.Talk == nil || row.Talk.ID == "" || seen[row.Talk.ID] {
+			continue
+		}
+		seen[row.Talk.ID] = true
+		out = append(out, row)
+	}
+	person.Talks = out
+}
+
+func setWhoIsEditions(person *WhoIsPerson, attendance map[string]*types.Conf) {
+	if person == nil {
+		return
+	}
+	seen := map[string]bool{}
+	var editions []*types.Conf
+	for _, conf := range attendance {
+		if conf == nil || conf.Tag == "" || seen[conf.Tag] {
+			continue
+		}
+		seen[conf.Tag] = true
+		editions = append(editions, conf)
+	}
+	for _, row := range person.Talks {
+		if row == nil || row.Conf == nil || row.Conf.Tag == "" || seen[row.Conf.Tag] {
+			continue
+		}
+		seen[row.Conf.Tag] = true
+		editions = append(editions, row.Conf)
+	}
+	sort.Slice(editions, func(i, j int) bool {
+		a, b := editions[i], editions[j]
+		if !a.StartDate.IsZero() && !b.StartDate.IsZero() && !a.StartDate.Equal(b.StartDate) {
+			return a.StartDate.After(b.StartDate)
+		}
+		return a.Tag > b.Tag
+	})
+	person.Editions = editions
+}
+
+func sortWhoIsTalks(talks []*WhoIsTalk) {
+	sort.Slice(talks, func(i, j int) bool {
+		a, b := talks[i], talks[j]
+		at, aok := whoIsTalkTime(a)
+		bt, bok := whoIsTalkTime(b)
+		if aok && bok && !at.Equal(bt) {
+			return at.After(bt)
+		}
+		if aok != bok {
+			return aok
+		}
+		an, bn := "", ""
+		if a != nil && a.Talk != nil {
+			an = strings.ToLower(a.Talk.Name)
+		}
+		if b != nil && b.Talk != nil {
+			bn = strings.ToLower(b.Talk.Name)
+		}
+		return an < bn
+	})
+}
+
+func whoIsTalkTime(row *WhoIsTalk) (time.Time, bool) {
+	if row != nil && row.Talk != nil && row.Talk.Sched != nil {
+		return row.Talk.Sched.Start, true
+	}
+	if row != nil && row.Conf != nil && !row.Conf.StartDate.IsZero() {
+		return row.Conf.StartDate, true
+	}
+	return time.Time{}, false
+}
+
+func assignWhoIsPublicIDs(people []*WhoIsPerson) {
+	used := map[string]bool{}
+	for _, person := range people {
+		if person == nil || person.Speaker == nil {
+			continue
+		}
+		base := publicSpeakerSlug(person.Speaker)
+		slug := base
+		if used[slug] {
+			suffix := strings.ReplaceAll(person.Speaker.ID, "-", "")
+			if len(suffix) > 8 {
+				suffix = suffix[:8]
+			}
+			slug = strings.Trim(base+"-"+suffix, "-")
+			for n := 2; used[slug]; n++ {
+				slug = fmt.Sprintf("%s-%d", strings.Trim(base, "-"), n)
+			}
+		}
+		used[slug] = true
+		person.PublicID = slug
+	}
+}
+
+func publicSpeakerSlug(speaker *types.Speaker) string {
+	if speaker == nil {
+		return "speaker"
+	}
+	for _, raw := range []string{
+		profileHandleForSlug(speaker.Github, "github.com"),
+		speaker.Twitter.Handle,
+		speaker.Name,
+	} {
+		if slug := slugifyPublicID(raw); slug != "" {
+			return slug
+		}
+	}
+	id := strings.ReplaceAll(speaker.ID, "-", "")
+	if len(id) > 8 {
+		id = id[:8]
+	}
+	if id == "" {
+		return "speaker"
+	}
+	return "speaker-" + id
+}
+
+func profileHandleForSlug(raw string, host string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	raw = strings.TrimPrefix(raw, "@")
+	host = strings.TrimPrefix(strings.ToLower(host), "www.")
+	if strings.HasPrefix(strings.ToLower(raw), "http://") || strings.HasPrefix(strings.ToLower(raw), "https://") {
+		u, err := url.Parse(raw)
+		if err == nil {
+			uHost := strings.TrimPrefix(strings.ToLower(u.Host), "www.")
+			if uHost == host {
+				parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+				if len(parts) > 0 {
+					raw = parts[0]
+				}
+			}
+		}
+	} else {
+		lower := strings.TrimPrefix(strings.ToLower(raw), "www.")
+		if strings.HasPrefix(lower, host+"/") {
+			raw = raw[len(host)+1:]
+		}
+	}
+	raw = strings.Trim(raw, " /")
+	if idx := strings.IndexAny(raw, "/?#"); idx >= 0 {
+		raw = raw[:idx]
+	}
+	return raw
+}
+
+func slugifyPublicID(raw string) string {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	var b strings.Builder
+	lastDash := false
+	for _, r := range raw {
+		isAlphaNum := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		if isAlphaNum {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash && b.Len() > 0 {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
 // acceptedSpeakersForConf returns the deduped speaker list for the
 // conf page's "Who's Coming" section. Unions two sources so the list
 // is complete even when one side is sparsely populated:
@@ -2209,6 +2855,40 @@ func processFileUpload(ctx *config.AppContext, r *http.Request, field string) (s
 // uploads).
 func readMultipartFile(r *http.Request, field string) (raw []byte, contentType string, ext string, err error) {
 	return readMultipartImageFile(r, field, false)
+}
+
+func readMultipartPresentationFile(r *http.Request, field string) (raw []byte, contentType string, ext string, err error) {
+	file, handler, err := r.FormFile(field)
+	if err != nil {
+		return nil, "", "", err
+	}
+	defer file.Close()
+	raw, err = ioutil.ReadAll(io.LimitReader(file, maxPresentationBytes+1))
+	if err != nil {
+		return nil, "", "", err
+	}
+	if int64(len(raw)) > maxPresentationBytes {
+		return nil, "", "", errUploadTooLarge
+	}
+	if len(raw) == 0 {
+		return nil, "", "", errors.New("empty upload")
+	}
+	ext = strings.ToLower(filepath.Ext(handler.Filename))
+	switch ext {
+	case ".pdf":
+		contentType = "application/pdf"
+	case ".ppt":
+		contentType = "application/vnd.ms-powerpoint"
+	case ".pptx":
+		contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	case ".key":
+		contentType = "application/vnd.apple.keynote"
+	case ".odp":
+		contentType = "application/vnd.oasis.opendocument.presentation"
+	default:
+		return nil, "", "", errors.New("unsupported presentation type")
+	}
+	return raw, contentType, ext, nil
 }
 
 func readMultipartLogoFile(r *http.Request, field string) (raw []byte, contentType string, ext string, err error) {
@@ -7278,7 +7958,9 @@ func adminCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		Github:    strings.TrimSpace(r.FormValue("Github")),
 		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
 		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:  strings.TrimSpace(r.FormValue("LeetCode")),
 		Website:   strings.TrimSpace(r.FormValue("Website")),
+		Bio:       strings.TrimSpace(r.FormValue("Bio")),
 		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
 	if hasNewPic {
@@ -7336,6 +8018,9 @@ func SpeakerAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		FormAction:   formAction,
 		Year:         helpers.CurrentYear(),
 	}
+	if hasPublicWhoIsProfile(ctx, sp) {
+		page.PublicURL = "/whois/" + publicSpeakerSlug(sp)
+	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_edit_speaker.tmpl", page); err != nil {
 		ctx.Err.Printf("/%s/admin/speakers/%s/edit render: %s", conf.Tag, speakerID, err)
 		http.Error(w, "render failed", http.StatusInternalServerError)
@@ -7392,7 +8077,10 @@ func adminUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		Github:    strings.TrimSpace(r.FormValue("Github")),
 		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
 		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:  strings.TrimSpace(r.FormValue("LeetCode")),
 		Website:   strings.TrimSpace(r.FormValue("Website")),
+		Bio:       strings.TrimSpace(r.FormValue("Bio")),
+		BioSet:    true,
 		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
 	if hasNewPic {
