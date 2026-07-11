@@ -28,6 +28,7 @@ const agendaMinSessionHeight = 236.0
 type AgendaDay struct {
 	Idx       int              // 1-based day index (Day 1 = conf.StartDate)
 	Date      time.Time        // for the "Sat, Nov 15th" day header
+	Active    bool             // first rendered day; may not be Idx==1 for legacy imports
 	Info      *types.ConfInfo  // doors / breakfast / lunch / coffee — nil ok
 	Morning   []*types.Session // before Lunch (or all-day if no Lunch info)
 	Afternoon []*types.Session // between Lunch and Coffee
@@ -81,10 +82,11 @@ func buildAgendaDays(ctx *config.AppContext, conf *types.Conf, talks []*types.Ta
 		}
 
 		ad := &AgendaDay{
-			Idx:  idx,
-			Date: startDate.AddDate(0, 0, idx-1),
-			Info: infosByDay[idx],
-			All:  sessions,
+			Idx:    idx,
+			Date:   startDate.AddDate(0, 0, idx-1),
+			Active: len(out) == 0,
+			Info:   infosByDay[idx],
+			All:    sessions,
 		}
 		bucketByBreaks(ad, sessions)
 		out = append(out, ad)

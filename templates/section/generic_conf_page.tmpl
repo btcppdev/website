@@ -315,7 +315,7 @@
   <div class="tabs rebrand-agenda-tabs">
     <div class="tabs-menu rebrand-agenda-tabs__menu" role="tablist">
       {{ range .AgendaDays }}
-      <a href="#agenda-day-{{ .Idx }}" class="rebrand-agenda-tab w-tab-link {{ if eq .Idx 1 }}w--current{{ end }}" data-agenda-tab="{{ .Idx }}" aria-controls="agenda-day-{{ .Idx }}" aria-selected="{{ if eq .Idx 1 }}true{{ else }}false{{ end }}">
+      <a href="#agenda-day-{{ .Idx }}" class="rebrand-agenda-tab w-tab-link {{ if .Active }}w--current{{ end }}" data-agenda-tab="{{ .Idx }}" aria-controls="agenda-day-{{ .Idx }}" aria-selected="{{ if .Active }}true{{ else }}false{{ end }}">
         <span>Day {{ .Idx }}</span>
         <strong>{{ .Date.Format "Mon · Jan 2" }}</strong>
       </a>
@@ -332,7 +332,7 @@
 {{ end }}
 
 {{ define "generic_conf_agenda_day_rows" }}
-<div id="agenda-day-{{ .Idx }}" class="rebrand-agenda-panel w-tab-pane {{ if eq .Idx 1 }}w--tab-active{{ end }}" data-agenda-panel="{{ .Idx }}">
+<div id="agenda-day-{{ .Idx }}" class="rebrand-agenda-panel w-tab-pane {{ if .Active }}w--tab-active{{ end }}" data-agenda-panel="{{ .Idx }}">
   {{ if .Info }}
   <div class="rebrand-agenda-strip">
     {{ if .Info.Doors }}<div><span>Doors</span><strong>{{ formatTime .Info.Doors.Start }}</strong></div>{{ end }}
@@ -387,7 +387,7 @@
 {{ $main := agendaSessionsForVenue . "one" }}
 {{ $talks := agendaSessionsForVenue . "two" }}
 {{ $workshops := agendaSessionsForVenue . "three" }}
-<div id="agenda-day-{{ .Idx }}" class="tab-pane w-tab-pane {{ if eq .Idx 1 }}w--tab-active{{ end }}" data-agenda-panel="{{ .Idx }}">
+<div id="agenda-day-{{ .Idx }}" class="tab-pane w-tab-pane {{ if .Active }}w--tab-active{{ end }}" data-agenda-panel="{{ .Idx }}">
   <div class="spacer-60"></div>
   <section class="agenda-day-class">
     <div class="agenda-wrap btcpp-agenda-wrap">
