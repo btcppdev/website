@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>your bitcoin++ archive</title>
+  <title>{{ if .ArchiveOwnerName }}{{ .ArchiveOwnerName }}'s bitcoin++ archive{{ else }}your bitcoin++ archive{{ end }}</title>
   {{ block "header" . }} {{ end }}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#10024;</text></svg>">
 </head>
@@ -12,9 +12,13 @@
       <div class="dashboard-archive-hero__grid">
         <div>
           <div class="dashboard-kicker">§ Your permanent record</div>
+          {{ if .ArchiveOwnerName }}
+          <h1>{{ .ArchiveOwnerName }}'s <span>bitcoin++ archive.</span></h1>
+          {{ else }}
           <h1>Everywhere <span>you've shown up.</span></h1>
+          {{ end }}
         </div>
-        <p>{{ if .ArchiveYears }}{{ len .PastBlocks }} edition{{ if ne (len .PastBlocks) 1 }}s{{ end }} across {{ len .ArchiveYears }} year{{ if ne (len .ArchiveYears) 1 }}s{{ end }}, newest first.{{ else }}Past editions will appear here after your talks, volunteer shifts, satellite events, or tickets are connected to this email.{{ end }}</p>
+        <p>{{ if .ArchiveYears }}{{ len .PastBlocks }} edition{{ if ne (len .PastBlocks) 1 }}s{{ end }} across {{ len .ArchiveYears }} year{{ if ne (len .ArchiveYears) 1 }}s{{ end }}, newest first.{{ else }}{{ if .ArchiveIsPublic }}Public editions will appear here after talks or attendance records are connected to this profile.{{ else }}Past editions will appear here after your talks, volunteer shifts, satellite events, or tickets are connected to this email.{{ end }}{{ end }}</p>
       </div>
       <div class="dashboard-archive-metrics">
         <div><strong>{{ len .PastBlocks }}</strong><span>Editions</span></div>
@@ -23,9 +27,23 @@
         <nav aria-label="Archive years">
           {{ range .ArchiveYears }}<a href="#y{{ .Year }}">{{ .Year }}</a>{{ end }}
         </nav>
+        {{ if .ArchiveOwnerPath }}
+        <a class="dashboard-archive-back" href="{{ .ArchiveOwnerPath }}">Profile &rarr;</a>
+        {{ else }}
         <a class="dashboard-archive-back" href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}">Dashboard &rarr;</a>
+        {{ end }}
       </div>
     </section>
+    {{ if .FlashMessage }}
+    <div class="dashboard-flash is-success">
+      <p>{{ .FlashMessage }}</p>
+    </div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="dashboard-flash is-error">
+      <p>{{ .FlashError }}</p>
+    </div>
+    {{ end }}
 
     {{ if .ArchiveYears }}
     {{ range .ArchiveYears }}
@@ -69,12 +87,48 @@
               {{ end }}
               <strong>{{ .Title }}</strong>
             </div>
-            {{ if and .Recording .Recording.YTLink }}
-            <a href="{{ .Recording.YTLink }}" target="_blank" rel="noopener noreferrer">▶ Watch</a>
-            {{ else }}
-            <span class="dashboard-archive-session__empty">-</span>
+            <div class="dashboard-archive-session__links">
+              {{ if and .Recording .Recording.YTLink }}<a class="is-watch" href="{{ .Recording.YTLink }}" target="_blank" rel="noopener noreferrer">▶ Watch</a>{{ end }}
+              {{ if and .ConfTalk .ConfTalk.SlidesURL }}<a href="{{ .ConfTalk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">Slides</a>{{ end }}
+              {{ if and .ConfTalk .ConfTalk.GithubRepoURL }}<a href="{{ .ConfTalk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">Repo</a>{{ end }}
+              {{ if not (or (and .Recording .Recording.YTLink) (and .ConfTalk .ConfTalk.SlidesURL) (and .ConfTalk .ConfTalk.GithubRepoURL)) }}<span class="dashboard-archive-session__empty">-</span>{{ end }}
+            </div>
+            {{ if and $.CanEditArchive .ConfTalk }}
+            <form class="dashboard-talk-resources dashboard-talk-resources--archive" method="POST" enctype="multipart/form-data" action="/dashboard/conftalks/{{ .ConfTalk.ID }}/resources?hr={{ $.HMAC }}&em={{ $.Email }}">
+              <input type="hidden" name="ReturnTo" value="whois_archive">
+              <input type="hidden" name="ReturnArchivePath" value="{{ $.ArchiveOwnerPath }}/archive">
+              <div class="dashboard-talk-resources__head">
+                <span>Add post-talk resources</span>
+                <small>Public on your archive and the agenda.</small>
+              </div>
+              <label>
+                <span>GitHub repo</span>
+                <input type="url" name="GithubRepoURL" value="{{ .ConfTalk.GithubRepoURL }}" placeholder="https://github.com/org/repo">
+              </label>
+              <label>
+                <span>Slides link</span>
+                {{ if .ConfTalk.SlidesURL }}
+                <a href="{{ .ConfTalk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">View current slides</a>
+                {{ else }}
+                <input type="url" name="SlidesURL" value="{{ .ConfTalk.SlidesURL }}" placeholder="https://example.com/slides.pdf">
+                {{ end }}
+              </label>
+              {{ if .ConfTalk.SlidesURL }}
+              <label class="dashboard-talk-resources__remove">
+                <span>Remove slides</span>
+                <input type="checkbox" name="RemoveSlides" value="1">
+              </label>
+              {{ else }}
+              <label>
+                <span>Upload slides</span>
+                <input type="file" name="SlidesFile" accept=".pdf,.ppt,.pptx,.key,.odp">
+              </label>
+              {{ end }}
+              <div class="dashboard-talk-resources__actions">
+                <button type="submit" class="dashboard-inline-action is-primary">Save resources</button>
+              </div>
+            </form>
             {{ end }}
-            <em class="{{ if or (eq .Status "Accepted") (eq .Status "Scheduled") }}is-positive{{ end }}">{{ .Status }}</em>
           </div>
           {{ end }}
           {{ else }}
@@ -88,8 +142,8 @@
     {{ else }}
     <section class="dashboard-empty-card">
       <h2>No archive yet</h2>
-      <p>Past editions will appear here after you attend, speak, volunteer, or host a satellite event.</p>
-      <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}">Back to dashboard</a>
+      <p>{{ if .ArchiveIsPublic }}Public editions will appear here after this profile is connected to talks or attendance records.{{ else }}Past editions will appear here after you attend, speak, volunteer, or host a satellite event.{{ end }}</p>
+      {{ if .ArchiveOwnerPath }}<a href="{{ .ArchiveOwnerPath }}">Back to profile</a>{{ else }}<a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}">Back to dashboard</a>{{ end }}
     </section>
     {{ end }}
   </main>

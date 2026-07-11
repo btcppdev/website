@@ -43,67 +43,62 @@
           </div>
           <div class="dashboard-topline__actions">
             <a href="/dashboard/speaker?hr={{ .HMAC }}&em={{ .Email }}">{{ if .Speaker }}Edit profile{{ else }}Create profile{{ end }}</a>
+            {{ if and .Speaker .HasPublicProfile }}
+            <a href="{{ speakerPublicPath .Speaker }}">View profile</a>
+            {{ end }}
             <form method="POST" action="/logout"><button type="submit">Sign out</button></form>
           </div>
         </div>
-        <div class="dashboard-stat-grid">
-          <div class="dashboard-stat"><strong>{{ .Stats.TalksApplied }}</strong><span>Talks submitted</span></div>
-          <div class="dashboard-stat is-accent"><strong>{{ .Stats.TalksAccepted }}</strong><span>Talks accepted</span></div>
-          <div class="dashboard-stat"><strong>{{ .Stats.ShiftsApplied }}</strong><span>Vol. confs</span></div>
-          <div class="dashboard-stat"><strong>{{ .Stats.ShiftsBooked }}</strong><span>Shifts booked</span></div>
+        <div class="dashboard-stat-grid dashboard-stat-grid--ledger" aria-label="Dashboard stats">
+          <div class="dashboard-stat-group">
+            <div class="dashboard-stat-group__legend">Speaking</div>
+            <div class="dashboard-stat-group__cells">
+              <div class="dashboard-stat"><span>Talks submitted</span><strong>{{ .Stats.TalksApplied }}</strong></div>
+              <div class="dashboard-stat is-accent"><span>Talks accepted</span><strong>{{ .Stats.TalksAccepted }}</strong></div>
+            </div>
+          </div>
+          <div class="dashboard-stat-group">
+            <div class="dashboard-stat-group__legend">Volunteering</div>
+            <div class="dashboard-stat-group__cells">
+              <div class="dashboard-stat"><span>Conferences volunteered</span><strong>{{ .Stats.ShiftsApplied }}</strong></div>
+              <div class="dashboard-stat"><span>Upcoming shifts</span><strong>{{ .Stats.ShiftsBooked }}</strong></div>
+            </div>
+          </div>
         </div>
       </section>
 
 {{/* ---- Affiliate ---- */}}
 {{ if .HasAnyTicket }}
-<section id="affiliate" class="dashboard-affiliate">
-  <div class="dashboard-affiliate__head">
+<section id="affiliate" class="dashboard-affiliate dashboard-affiliate-cta">
+  <a class="dashboard-affiliate-cta__link" href="/dashboard/affiliate" aria-label="Open affiliate program">
     <div class="dashboard-affiliate__copy">
       <div class="dashboard-kicker">§ Affiliate</div>
       <div class="dashboard-affiliate__title">
         {{ if .AffiliateCode }}
-        <h2>Your code</h2>
+        <h2>Bring your crew. Get paid in sats.</h2>
         <code>{{ .AffiliateCode.CodeName }}</code>
-        <span>— buyer saves {{ .AffiliateCode.Amount }}%</span>
+        <span>buyer saves {{ .AffiliateCode.Amount }}% · you keep {{ usub 20 .AffiliateCode.Amount }}%</span>
         {{ else }}
-        <h2>No active code</h2>
-        <span class="dashboard-affiliate__status">disabled</span>
+        <h2>Create an affiliate code.</h2>
+        <span>Choose how the 20% pool splits between you and your friends.</span>
         {{ end }}
       </div>
-      {{ if not .AffiliateCode }}
-      <p>Your previous redemption stats stay below. Create a new code when you want to start sharing an affiliate link again.</p>
+      <p>{{ if .AffiliateCode }}Track sales, copy your referral link, and adjust future buyer discounts from your affiliate page.{{ else }}Affiliate codes are available to ticket holders and work across active bitcoin++ editions.{{ end }}</p>
+    </div>
+    <div class="dashboard-affiliate-cta__side">
+      {{ if .AffiliateStats }}
+      <div class="dashboard-affiliate-cta__mini">
+        <strong>{{ .AffiliateStats.TicketsSold }}</strong>
+        <span>tickets sold</span>
+      </div>
+      <div class="dashboard-affiliate-cta__mini">
+        <strong>{{ sats .AffiliateStats.EarnedSats }}</strong>
+        <span>sats earned</span>
+      </div>
       {{ end }}
+      <span class="dashboard-affiliate-cta__button">{{ if .AffiliateCode }}Open affiliate dashboard{{ else }}Create affiliate code{{ end }} →</span>
     </div>
-    {{ if .AffiliateCode }}
-    <div class="dashboard-affiliate__actions">
-      <a href="/dashboard/affiliate/edit">Update code</a>
-      <form method="POST" action="/dashboard/affiliate/disable">
-        <button type="submit"
-                onclick="return confirm('Disable {{ .AffiliateCode.CodeName }}? Past redemption stats stay; the code stops working immediately.');">Disable</button>
-      </form>
-    </div>
-    {{ else }}
-    <div class="dashboard-affiliate__actions">
-      <a href="/dashboard/affiliate/new">Create code</a>
-    </div>
-    {{ end }}
-  </div>
-  {{ if .AffiliateStats }}
-  <div class="dashboard-affiliate__stats">
-    <div>
-      <span>Tickets sold</span>
-      <strong>{{ .AffiliateStats.TicketsSold }}</strong>
-    </div>
-    <div>
-      <span>Buyers saved</span>
-      <strong class="is-saved">{{ satsBitcoin .AffiliateStats.SavedSats }} BTC</strong>
-    </div>
-    <div>
-      <span>You earned</span>
-      <strong class="is-earned">{{ satsBitcoin .AffiliateStats.EarnedSats }} BTC</strong>
-    </div>
-  </div>
-  {{ end }}
+  </a>
 </section>
 {{ end }}
 
@@ -211,8 +206,8 @@
             <span class="dashboard-action__hint">Code {{ $.AffiliateCode.CodeName }}</span>
           </button>
           {{ else if $.HasAnyTicket }}
-          <a href="/dashboard/affiliate/new" class="dashboard-action">
-            <span class="dashboard-action__label">Create affiliate link</span>
+          <a href="/dashboard/affiliate" class="dashboard-action">
+            <span class="dashboard-action__label">Create affiliate code</span>
             <span class="dashboard-action__hint">Share discounts and earn on ticket sales</span>
           </a>
           {{ end }}
@@ -419,6 +414,42 @@
                 </form>
                 {{ end }}
               </div>
+
+              {{ if .ConfTalk }}
+              <form class="dashboard-talk-resources" method="POST" enctype="multipart/form-data" action="/dashboard/talks/{{ .ID }}/resources?hr={{ $.HMAC }}&em={{ $.Email }}">
+                <div class="dashboard-talk-resources__head">
+                  <span>Talk resources</span>
+                  <small>Add public links for the agenda and speaker archive.</small>
+                </div>
+                <label>
+                  <span>GitHub repo</span>
+                  <input type="url" name="GithubRepoURL" value="{{ .ConfTalk.GithubRepoURL }}" placeholder="https://github.com/org/repo">
+                </label>
+                <label>
+                  <span>Slides link</span>
+                  {{ if .ConfTalk.SlidesURL }}
+                  <a href="{{ .ConfTalk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">View current slides</a>
+                  {{ else }}
+                  <input type="url" name="SlidesURL" value="{{ .ConfTalk.SlidesURL }}" placeholder="https://example.com/slides.pdf">
+                  {{ end }}
+                </label>
+                {{ if .ConfTalk.SlidesURL }}
+                <label class="dashboard-talk-resources__remove">
+                  <span>Remove slides</span>
+                  <input type="checkbox" name="RemoveSlides" value="1">
+                </label>
+                {{ else }}
+                <label>
+                  <span>Upload slides</span>
+                  <input type="file" name="SlidesFile" accept=".pdf,.ppt,.pptx,.key,.odp">
+                </label>
+                {{ end }}
+                <div class="dashboard-talk-resources__actions">
+                  {{ if .ConfTalk.GithubRepoURL }}<a href="{{ .ConfTalk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">View repo</a>{{ end }}
+                  <button type="submit" class="dashboard-inline-action is-primary">Save resources</button>
+                </div>
+              </form>
+              {{ end }}
             </div>
           </article>
           {{ end }}
@@ -678,8 +709,8 @@
             <span class="dashboard-action__hint">Code {{ $.AffiliateCode.CodeName }}</span>
           </button>
           {{ else if $.HasAnyTicket }}
-          <a href="/dashboard/affiliate/new" class="dashboard-action">
-            <span class="dashboard-action__label">Create affiliate link</span>
+          <a href="/dashboard/affiliate" class="dashboard-action">
+            <span class="dashboard-action__label">Create affiliate code</span>
             <span class="dashboard-action__hint">Share discounts and earn on ticket sales</span>
           </a>
           {{ end }}
@@ -715,7 +746,7 @@
 <section id="past" class="dashboard-past-ledger">
   <div class="dashboard-past-ledger__head">
     <div class="dashboard-kicker">§ Past conferences · {{ len .PastBlocks }}</div>
-    <a href="/dashboard/archive?hr={{ .HMAC }}&em={{ .Email }}">show all {{ len .PastBlocks }} &rarr;</a>
+    {{ if .ArchiveOwnerPath }}<a href="{{ .ArchiveOwnerPath }}">show all {{ len .PastBlocks }} &rarr;</a>{{ end }}
   </div>
   <div class="dashboard-past-ledger__rows">
       {{ range $i, $eb := .PastBlocks }}

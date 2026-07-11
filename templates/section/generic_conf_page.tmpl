@@ -215,10 +215,12 @@
 {{ define "generic_conf_speaker" }}
 {{ $s := .Speaker }}
 <article class="rebrand-speaker-card">
-  <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+  <a class="rebrand-speaker-card__profile" href="{{ speakerPublicPath $s }}">
+    <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+  </a>
   <div>
     <span>#{{ printf "%02d" (add .Idx 1) }}</span>
-    <h3>{{ $s.Name }}</h3>
+    <h3><a href="{{ speakerPublicPath $s }}">{{ $s.Name }}</a></h3>
     {{ if $s.Company }}<p>{{ $s.Company }}</p>{{ end }}
   </div>
 </article>
@@ -227,10 +229,12 @@
 {{ define "generic_conf_featured_speaker" }}
 {{ $s := .Speaker }}
 <article class="rebrand-featured-card">
-  <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+  <a class="rebrand-featured-card__profile" href="{{ speakerPublicPath $s }}">
+    <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+  </a>
   <div>
     <p>★ FEAT #{{ printf "%02d" (add .Idx 1) }}</p>
-    <h3>{{ $s.Name }}</h3>
+    <h3><a href="{{ speakerPublicPath $s }}">{{ $s.Name }}</a></h3>
     {{ if $s.FeaturedTalkTitle }}<strong class="rebrand-featured-card__talk">{{ $s.FeaturedTalkTitle }}</strong>{{ end }}
     {{ if $s.Company }}<span>{{ $s.Company }}</span>{{ end }}
   </div>
@@ -240,10 +244,12 @@
 {{ define "generic_conf_large_speaker" }}
 {{ $s := .Speaker }}
 <article class="rebrand-featured-card rebrand-speaker-directory-card">
-  <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+  <a class="rebrand-featured-card__profile" href="{{ speakerPublicPath $s }}">
+    <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
+  </a>
   <div>
     <p>ATTENDEE #{{ printf "%02d" (add .Idx 1) }}</p>
-    <h3>{{ $s.Name }}</h3>
+    <h3><a href="{{ speakerPublicPath $s }}">{{ $s.Name }}</a></h3>
     {{ if $s.Company }}<span>{{ $s.Company }}</span>{{ end }}
     {{ if $s.OrgLogo }}
     <img class="rebrand-speaker-directory-card__logo" loading="lazy" src="{{ spacesURL (printf "sponsors/%s" $s.OrgLogo) }}" alt="{{ if $s.Company }}{{ $s.Company }}{{ else }}{{ $s.Name }}{{ end }} logo">
@@ -254,14 +260,15 @@
 {{ end }}
 
 {{ define "generic_conf_speaker_links" }}
-{{ if or .Website .Nostr .Twitter.Handle .Github .Instagram .LinkedIn }}
+{{ if or .Website .Nostr .Twitter.Handle .Github .Instagram .LinkedIn .LeetCode }}
 <div class="rebrand-speaker-directory-card__links" aria-label="Speaker links">
-  {{ if .Website }}<a href="{{ websiteURL .Website }}" target="_blank" rel="noopener noreferrer">web</a>{{ end }}
-  {{ if .Nostr }}<a href="https://njump.me/{{ .Nostr }}" target="_blank" rel="noopener noreferrer">nostr</a>{{ end }}
-  {{ if .Twitter.Handle }}<a href="{{ .Twitter.Link }}" target="_blank" rel="noopener noreferrer">x.com</a>{{ end }}
-  {{ if .Github }}<a href="{{ githubURL .Github }}" target="_blank" rel="noopener noreferrer">github</a>{{ end }}
-  {{ if .Instagram }}<a href="{{ instagramURL .Instagram }}" target="_blank" rel="noopener noreferrer">instagram</a>{{ end }}
-  {{ if .LinkedIn }}<a href="{{ linkedinURL .LinkedIn }}" target="_blank" rel="noopener noreferrer">linkedin</a>{{ end }}
+  {{ if .Website }}<a href="{{ websiteURL .Website }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--website" aria-hidden="true"></span><span>web</span></a>{{ end }}
+  {{ if .Nostr }}<a href="https://njump.me/{{ .Nostr }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--nostr" aria-hidden="true"></span><span>nostr</span></a>{{ end }}
+  {{ if .Twitter.Handle }}<a href="{{ .Twitter.Link }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--x" aria-hidden="true"></span><span>x.com</span></a>{{ end }}
+  {{ if .Github }}<a href="{{ githubURL .Github }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--github" aria-hidden="true"></span><span>github</span></a>{{ end }}
+  {{ if .Instagram }}<a href="{{ instagramURL .Instagram }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--instagram" aria-hidden="true"></span><span>instagram</span></a>{{ end }}
+  {{ if .LinkedIn }}<a href="{{ linkedinURL .LinkedIn }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--linkedin" aria-hidden="true"></span><span>linkedin</span></a>{{ end }}
+  {{ if .LeetCode }}<a href="{{ leetcodeURL .LeetCode }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--leetcode" aria-hidden="true"></span><span>leetcode</span></a>{{ end }}
 </div>
 {{ end }}
 {{ end }}
@@ -471,7 +478,7 @@
         {{ if .Len }}<div><dt>Duration</dt><dd>{{ .Len }}</dd></div>{{ end }}
       </dl>
       {{ $showCal := and .Sched .AnchorTag (isFuture .Sched.Start) }}
-      {{ if or $showCal .YTLink }}
+      {{ if or $showCal .YTLink .SlidesURL .GithubRepoURL }}
       <div class="btcpp-agenda-dialog__actions">
         {{ if $showCal }}
         {{ template "cal_picker" (dict
@@ -485,6 +492,12 @@
         {{ end }}
         {{ if .YTLink }}
         <a class="btcpp-agenda-dialog__recording" href="{{ .YTLink }}" target="_blank" rel="noopener noreferrer">Watch recording</a>
+        {{ end }}
+        {{ if .SlidesURL }}
+        <a class="btcpp-agenda-dialog__resource" href="{{ .SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">View slides</a>
+        {{ end }}
+        {{ if .GithubRepoURL }}
+        <a class="btcpp-agenda-dialog__resource" href="{{ .GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">GitHub repo</a>
         {{ end }}
       </div>
       {{ end }}
@@ -511,12 +524,13 @@
 
 {{ define "generic_conf_agenda_speaker_links" }}
 <div class="btcpp-agenda-dialog__speaker-links">
-  {{ if .Twitter.Handle }}<a href="{{ .Twitter.Link }}" target="_blank" rel="noopener noreferrer">X</a>{{ end }}
-  {{ if .Nostr }}<a href="https://njump.me/{{ .Nostr }}" target="_blank" rel="noopener noreferrer">Nostr</a>{{ end }}
-  {{ if .Github }}<a href="{{ .Github }}" target="_blank" rel="noopener noreferrer">GitHub</a>{{ end }}
-  {{ if .LinkedIn }}<a href="{{ .LinkedIn }}" target="_blank" rel="noopener noreferrer">LinkedIn</a>{{ end }}
-  {{ if .Instagram }}<a href="{{ instagramURL .Instagram }}" target="_blank" rel="noopener noreferrer">Instagram</a>{{ end }}
-  {{ if .Website }}<a href="{{ .Website }}" target="_blank" rel="noopener noreferrer">Website</a>{{ end }}
+  {{ if .Twitter.Handle }}<a href="{{ .Twitter.Link }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--x" aria-hidden="true"></span><span>X</span></a>{{ end }}
+  {{ if .Nostr }}<a href="https://njump.me/{{ .Nostr }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--nostr" aria-hidden="true"></span><span>Nostr</span></a>{{ end }}
+  {{ if .Github }}<a href="{{ githubURL .Github }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--github" aria-hidden="true"></span><span>GitHub</span></a>{{ end }}
+  {{ if .LinkedIn }}<a href="{{ linkedinURL .LinkedIn }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--linkedin" aria-hidden="true"></span><span>LinkedIn</span></a>{{ end }}
+  {{ if .Instagram }}<a href="{{ instagramURL .Instagram }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--instagram" aria-hidden="true"></span><span>Instagram</span></a>{{ end }}
+  {{ if .LeetCode }}<a href="{{ leetcodeURL .LeetCode }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--leetcode" aria-hidden="true"></span><span>LeetCode</span></a>{{ end }}
+  {{ if .Website }}<a href="{{ websiteURL .Website }}" target="_blank" rel="noopener noreferrer"><span class="speaker-link-icon speaker-link-icon--website" aria-hidden="true"></span><span>Website</span></a>{{ end }}
 </div>
 {{ end }}
 

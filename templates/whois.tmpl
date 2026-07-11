@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{ template "rebrand_header" . }}
+    {{ template "site_seo" (dict "Title" "whois @ bitcoin++" "Description" "A directory of bitcoin++ speakers and builders who have presented at bitcoin++ events." "Path" "/whois" "Image" "/static/img/rebrand/breakthroughs.jpg") }}
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
+  </head>
+  <body class="btcpp-redesign btcpp-rebrand-page whois-page">
+    <div class="whois-ticker" aria-hidden="true">
+      <span>▶ DIRECTORY</span>
+      <b>{{ .AllCount }} SPEAKERS</b>
+      <i>•</i>
+      <b>{{ .TalkCount }} TALKS</b>
+      <i>•</i>
+      <b>{{ .EditionCount }} EDITIONS</b>
+      <i>•</i>
+      <b>PUBLIC PROFILES FOR PEOPLE WHO HAVE TAKEN THE BITCOIN++ STAGE</b>
+    </div>
+
+    {{ template "mainnav" . }}
+
+    <main class="whois-shell">
+      <section class="whois-hero">
+        <div>
+          <p class="whois-section-tag">§ WHO'S HERE</p>
+          <h1>The <span>people</span> of bitcoin++.</h1>
+        </div>
+        <p class="whois-hero__copy">{{ .AllCount }} builders, researchers, and hackers who have taken the stage at bitcoin++ events. Find a co-speaker, collaborator, or someone who runs what you run.</p>
+        <form class="whois-search" action="/whois" method="GET" role="search">
+          <label for="whois-q">⌕</label>
+          <input id="whois-q" type="search" name="q" value="{{ .Query }}" placeholder="Search people, talks, cities, handles...">
+          <button type="submit">SEARCH</button>
+          {{ if .Query }}<a href="/whois">CLEAR</a>{{ end }}
+        </form>
+      </section>
+
+      <section class="whois-directory" aria-label="Speaker directory">
+        <aside class="whois-rail">
+          <div>
+            <p>Topic</p>
+            <a class="{{ if eq .Topic "protocol" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=protocol{{ if .Source }}&source={{ .Source }}{{ end }}">protocol</a>
+            <a class="{{ if eq .Topic "privacy" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=privacy{{ if .Source }}&source={{ .Source }}{{ end }}">privacy</a>
+            <a class="{{ if eq .Topic "scaling" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=scaling{{ if .Source }}&source={{ .Source }}{{ end }}">scaling</a>
+            <a class="{{ if eq .Topic "operations" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=operations{{ if .Source }}&source={{ .Source }}{{ end }}">operations</a>
+          </div>
+          <div>
+            <p>Source</p>
+            <a class="{{ if eq .Source "accepted" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}{{ if .Topic }}topic={{ .Topic }}&{{ end }}source=accepted">accepted talks</a>
+            <a class="{{ if eq .Source "scheduled" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}{{ if .Topic }}topic={{ .Topic }}&{{ end }}source=scheduled">scheduled talks</a>
+          </div>
+          {{ if or .Query .Topic .Source }}<a class="whois-rail__clear" href="/whois">clear filters</a>{{ end }}
+          <small>Hackathon profiles and project history will join this directory after the hackathon system lands.</small>
+        </aside>
+
+        <div class="whois-results">
+          <div class="whois-results__bar">
+            <strong>{{ len .People }} MEMBER{{ if ne (len .People) 1 }}S{{ end }}{{ if or .Query .Topic .Source }} · FILTERED{{ end }}</strong>
+            <span>◇ = SPEAKER PROFILE · CLICK A CARD FOR THE FULL ARCHIVE</span>
+          </div>
+
+          {{ if .People }}
+          <div class="whois-grid">
+            {{ range .People }}
+            <a class="whois-card" href="/whois/{{ .PublicID }}">
+              <div class="whois-card__top">
+                <img loading="lazy" src="{{ speakerPhoto .Speaker.Photo }}" alt="{{ .Speaker.Name }}">
+                <div>
+                  <p>@{{ .PublicID }}</p>
+                  <h2>{{ .Speaker.Name }}</h2>
+                  <span>{{ if .Speaker.Company }}{{ .Speaker.Company }}{{ else }}bitcoin++ speaker{{ end }}</span>
+                </div>
+              </div>
+              <div class="whois-card__tags">
+                {{ range .Editions }}
+                <span>{{ .Tag }}</span>
+                {{ end }}
+              </div>
+              <div class="whois-card__stats">
+                <span><b>{{ len .Editions }}</b> ED</span>
+                <span><b>{{ len .Talks }}</b> TALKS</span>
+                <span><b>0</b> PROJ</span>
+              </div>
+            </a>
+            {{ end }}
+          </div>
+          {{ else }}
+          <div class="whois-empty">
+            <h2>No members match.</h2>
+            <p>Try removing a search term or broadening the query.</p>
+          </div>
+          {{ end }}
+        </div>
+      </section>
+    </main>
+
+    {{ template "generic_conf_footer" . }}
+  </body>
+</html>

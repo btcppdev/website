@@ -1,114 +1,187 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>{{ if .IsEdit }}Edit{{ else }}Create{{ end }} affiliate code · bitcoin++</title>
+  <title>affiliate program · bitcoin++</title>
   {{ block "header" . }} {{ end }}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#127991;</text></svg>">
 </head>
-<body class="btcpp-admin-page bg-gray-50">
+<body class="btcpp-dashboard-page btcpp-affiliate-page">
   {{ block "mainnav" . }} {{ end }}
-  <div class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8 py-12">
-    <a href="/dashboard" class="text-xs text-gray-500 hover:text-gray-700">&larr; Back to dashboard</a>
-    <h1 class="mt-1 text-xl font-bold text-gray-900">
-      {{ if .IsEdit }}Edit your affiliate code{{ else }}Create an affiliate code{{ end }}
-    </h1>
-    <p class="mt-1 text-sm text-gray-500">
-      {{ if .IsEdit }}
-      Pick a new name or change your slider. The 20% reference cap is fixed — whatever you don't give the buyer, you keep.
-      {{ else }}
-      Pick a unique code name + a buyer-discount %. Out of a fixed 20% ceiling, whatever you don't give the buyer is yours per ticket sold via this code.
-      {{ end }}
-    </p>
+  <main class="affiliate-shell">
+    <section class="affiliate-hero">
+      <a class="affiliate-back" href="/dashboard">&larr; back to dashboard</a>
+      <div class="dashboard-kicker">§ Affiliate program</div>
+      <h1>Get paid to bring your <span>crew.</span></h1>
+      <p>Every ticket sold through your code carries a <strong>20% discount pool</strong>. You decide how it splits: keep it as your cut in sats, or pass it on so your friends pay less.</p>
+    </section>
 
     {{ if .FormError }}
-    <div class="mt-6 rounded-md bg-red-50 border border-red-200 px-4 py-3">
-      <p class="text-sm text-red-800">{{ .FormError }}</p>
+    <div class="dashboard-flash is-error">
+      <p>{{ .FormError }}</p>
     </div>
     {{ end }}
 
-    <form method="POST" action="{{ if .IsEdit }}/dashboard/affiliate/edit{{ else }}/dashboard/affiliate/new{{ end }}"
-          class="mt-6 bg-white shadow rounded-lg p-6 space-y-6">
-
+    <section class="affiliate-payout">
       <div>
-        <label for="CodeName" class="block text-sm font-semibold text-gray-900">Code name</label>
-        <p class="mt-1 text-xs text-gray-500">Letters and numbers only. Uppercased automatically. Must be unique.</p>
-        <input type="text" id="CodeName" name="CodeName" required
-               value="{{ .Form.CodeName }}"
-               placeholder="MYNAME20"
-               maxlength="32"
-               style="text-transform: uppercase"
-               class="mt-2 block w-full rounded-md bg-white px-3 py-2 text-sm font-mono text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-bitcoin">
+        <div class="dashboard-kicker">§ Available for payout</div>
+        <strong>{{ if .Stats }}{{ sats .Stats.EarnedSats }}{{ else }}0{{ end }}<span>sats</span></strong>
+        <p>Cash-out support is coming soon. For now, this tracks lifetime unpaid affiliate earnings from completed ticket purchases.</p>
       </div>
+      <div class="affiliate-payout__stats">
+        <div><span>Lifetime earned</span><b>{{ if .Stats }}{{ sats .Stats.EarnedSats }}{{ else }}0{{ end }} sats</b></div>
+        <div><span>Tickets sold</span><b>{{ if .Stats }}{{ .Stats.TicketsSold }}{{ else }}0{{ end }}</b></div>
+        <div><span>Buyers saved</span><b>{{ if .Stats }}{{ sats .Stats.SavedSats }}{{ else }}0{{ end }} sats</b></div>
+      </div>
+    </section>
 
-      <div>
-        <label class="block text-sm font-semibold text-gray-900">Buyer discount</label>
-        <p class="mt-1 text-xs text-gray-500">Slide right to give the buyer a bigger break (and earn less per sale yourself). 0% means the code is silent — no buyer-facing discount but you still earn the full 20%.</p>
-        <div class="mt-3 grid grid-cols-5 gap-2">
-          {{ range .BuyerPctOpts }}
-          <label class="cursor-pointer">
-            <input type="radio" name="BuyerPct" value="{{ . }}"
-                   {{ if eq $.Form.BuyerPct . }}checked{{ end }}
-                   class="peer sr-only" onchange="updatePctPreview()">
-            <span class="block rounded-md border border-gray-300 bg-white py-3 text-center text-sm font-semibold text-gray-700 peer-checked:bg-green-100 peer-checked:text-green-800 peer-checked:border-green-600 peer-checked:ring-2 peer-checked:ring-green-600">
-              {{ . }}%
-            </span>
-          </label>
-          {{ end }}
-        </div>
-        <p id="PctPreview" class="mt-3 text-xs text-gray-600"></p>
-        <div class="mt-3 grid grid-cols-2 gap-2 rounded-md bg-gray-50 px-3 py-2 text-xs">
-          <div>
-            <div class="text-gray-500 uppercase tracking-wider">Buyer pays</div>
-            <div id="ExampleBuyerPays" class="mt-0.5 text-sm font-semibold text-gray-900"></div>
-          </div>
-          <div>
-            <div class="text-gray-500 uppercase tracking-wider">You earn</div>
-            <div id="ExampleYouEarn" class="mt-0.5 text-sm font-semibold text-green-700"></div>
-          </div>
-          <div class="col-span-2 text-[11px] text-gray-400">
-            On a $100 ticket.
-          </div>
+    <section class="affiliate-split">
+      <div class="affiliate-section-head">
+        <div>
+          <div class="dashboard-kicker">§ How the split works</div>
+          <h2>You choose how the 20% is shared.</h2>
+          <p>Five settings per code. Keep more for yourself, or turn the whole pool into a deeper discount to get more of your crew through the door.</p>
         </div>
       </div>
+      <div class="affiliate-split-grid">
+        {{ range .BuyerPctOpts }}
+        {{ $you := usub 20 . }}
+        <div class="affiliate-split-option">
+          <b>{{ $you }} / {{ . }}</b>
+          <div class="affiliate-split-bar" aria-hidden="true">
+            <span class="is-you" style="width: {{ mul (int $you) 5 }}%;"></span>
+            <span class="is-buyer" style="width: {{ mul (int .) 5 }}%;"></span>
+          </div>
+          <em>you {{ $you }}% · crew {{ . }}%</em>
+        </div>
+        {{ end }}
+      </div>
+    </section>
 
-      <div class="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
-        Works at any active bitcoin++ event{{ if .ConfNames }} (currently {{ range $idx, $tag := .ConfNames }}{{ if $idx }}, {{ end }}<span class="font-mono">{{ $tag }}</span>{{ end }}){{ end }}.
+    <section class="affiliate-code-panel">
+      <div class="affiliate-section-head">
+        <div>
+          <div class="dashboard-kicker">§ Your code</div>
+          <h2>{{ if .Code }}{{ .Code.CodeName }}{{ else }}Create affiliate code{{ end }}</h2>
+        </div>
+        {{ if .Code }}
+        <span>One code per member · works at every edition</span>
+        {{ end }}
       </div>
 
-      <div class="flex items-center justify-end gap-3 pt-2">
-        <a href="/dashboard" class="text-sm text-gray-600 hover:text-gray-800">Cancel</a>
-        <button type="submit"
-                class="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
-          {{ if .IsEdit }}Save changes{{ else }}Create code{{ end }}
-        </button>
+      {{ if .Code }}
+      <div class="affiliate-code-card">
+        <div class="affiliate-code-card__head">
+          <div>
+            <code>{{ .Code.CodeName }}</code>
+            <span>Active · buyer saves {{ .Code.Amount }}% · you keep {{ usub 20 .Code.Amount }}%</span>
+          </div>
+          <div class="affiliate-code-card__actions">
+            <button type="button" class="affiliate-copy-btn" data-share-url="{{ .BaseURI }}/?code={{ .Code.CodeName }}">Copy link</button>
+            <a href="/dashboard/affiliate/edit#affiliate-form">Edit split</a>
+            <form method="POST" action="/dashboard/affiliate/disable">
+              <button type="submit" onclick="return confirm('Disable {{ .Code.CodeName }}? Past redemption stats stay; the code stops working immediately.');">Pause</button>
+            </form>
+          </div>
+        </div>
+        <div class="affiliate-code-card__split">
+          <div class="affiliate-code-card__split-label">
+            <span style="color:#f7931a;">you keep {{ usub 20 .Code.Amount }}%</span>
+            <span style="color:#1f8a5b;">buyer saves {{ .Code.Amount }}%</span>
+          </div>
+          <div class="affiliate-split-bar is-large" aria-hidden="true">
+            <span class="is-you" style="width: {{ mul (int (usub 20 .Code.Amount)) 5 }}%;"></span>
+            <span class="is-buyer" style="width: {{ mul (int .Code.Amount) 5 }}%;"></span>
+          </div>
+        </div>
       </div>
-    </form>
-  </div>
+      {{ end }}
 
+      {{ if or (not .Code) .IsEdit }}
+      <form id="affiliate-form" method="POST" action="{{ if .IsEdit }}/dashboard/affiliate/edit{{ else }}/dashboard/affiliate/new{{ end }}" class="affiliate-form">
+        <label>
+          <span>Code name</span>
+          <input type="text" id="CodeName" name="CodeName" required value="{{ .Form.CodeName }}" placeholder="MYNAME20" maxlength="32">
+        </label>
+        <fieldset>
+          <legend>Buyer discount</legend>
+          <p>Whatever the buyer does not receive out of the 20% pool becomes your affiliate cut.</p>
+          <div class="affiliate-split-control">
+            {{ range .BuyerPctOpts }}
+            <label>
+              <input type="radio" name="BuyerPct" value="{{ . }}" {{ if eq $.Form.BuyerPct . }}checked{{ end }} onchange="updatePctPreview()">
+              <span>{{ . }}%</span>
+            </label>
+            {{ end }}
+          </div>
+          <p id="PctPreview" class="affiliate-form__preview"></p>
+        </fieldset>
+        <div class="affiliate-form__meta">
+          Works at any active bitcoin++ event{{ if .ConfNames }}: {{ range $idx, $tag := .ConfNames }}{{ if $idx }}, {{ end }}<code>{{ $tag }}</code>{{ end }}{{ end }}.
+        </div>
+        <div class="affiliate-form__actions">
+          {{ if .IsEdit }}<a href="/dashboard/affiliate">Cancel</a>{{ end }}
+          <button type="submit">{{ if .IsEdit }}Save changes{{ else }}Create affiliate code{{ end }}</button>
+        </div>
+      </form>
+      {{ end }}
+    </section>
+
+    <section class="affiliate-campaign">
+      <div class="affiliate-section-head">
+        <div>
+          <div class="dashboard-kicker">§ Campaign by edition</div>
+          <h2>How your code is performing.</h2>
+        </div>
+      </div>
+      {{ if .CampaignRows }}
+      <div class="affiliate-campaign-table">
+        <div class="affiliate-campaign-table__head">
+          <span>Edition</span><span>Tickets sold</span><span>Sats earned</span><span>Buyers saved</span>
+        </div>
+        {{ range .CampaignRows }}
+        <div class="affiliate-campaign-row">
+          <div>
+            <strong>{{ if .Conf }}{{ .Conf.ArchiveTitle }}{{ else }}All editions{{ end }}</strong>
+            {{ if and .Conf .Conf.ArchiveEdition }}<em>{{ .Conf.ArchiveEdition }}</em>{{ end }}
+            <small>{{ .When }} · {{ .Tense }}</small>
+          </div>
+          <b>{{ .TicketsSold }}</b>
+          <b class="is-earned">{{ sats .EarnedSats }}</b>
+          <b class="is-saved">{{ sats .SavedSats }}</b>
+        </div>
+        {{ end }}
+      </div>
+      {{ else }}
+      <p class="affiliate-empty">No completed affiliate ticket sales yet.</p>
+      {{ end }}
+    </section>
+  </main>
+  {{ block "footer" . }} {{ end }}
   <script>
     function updatePctPreview() {
       const el = document.querySelector('input[name="BuyerPct"]:checked');
-      if (!el) return;
+      const out = document.getElementById('PctPreview');
+      if (!el || !out) return;
       const buyer = parseInt(el.value, 10);
-      const aff   = 20 - buyer;
-      const out   = document.getElementById('PctPreview');
-      if (buyer === 0) {
-        out.textContent = 'Silent code — buyer sees no discount, you earn ' + aff + '% per ticket.';
-      } else {
-        out.textContent = 'Buyer saves ' + buyer + '% per ticket. You earn ' + aff + '% per ticket.';
-      }
-      // $100-ticket worked example so the percentage abstractly
-      // turns into a number the user can sanity-check against.
-      // The 20% slider stop pays the affiliate nothing — replace
-      // the $0.00 with $BRAGGING.RIGHTS so the cell still feels
-      // like a win.
-      const buyerPays = 100 - buyer;
-      const youEarn   = aff;
-      document.getElementById('ExampleBuyerPays').textContent = '$' + buyerPays.toFixed(2);
-      document.getElementById('ExampleYouEarn').textContent   = youEarn === 0 ? '$BRAGGING.RIGHTS' : '$' + youEarn.toFixed(2);
+      const aff = 20 - buyer;
+      out.textContent = buyer === 0
+        ? 'Silent code: buyer sees no discount, you earn 20% per ticket.'
+        : 'Buyer saves ' + buyer + '% per ticket. You earn ' + aff + '% per ticket.';
     }
-    document.addEventListener('DOMContentLoaded', updatePctPreview);
+    document.addEventListener('DOMContentLoaded', function () {
+      updatePctPreview();
+      document.querySelectorAll('.affiliate-copy-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const url = btn.getAttribute('data-share-url');
+          if (!url) return;
+          navigator.clipboard.writeText(url).then(function () {
+            const old = btn.textContent;
+            btn.textContent = 'Copied';
+            setTimeout(function () { btn.textContent = old; }, 1400);
+          });
+        });
+      });
+    });
   </script>
-  {{ block "footer" . }} {{ end }}
 </body>
 </html>

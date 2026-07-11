@@ -5,7 +5,7 @@
   {{ block "header" . }} {{ end }}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#10024;</text></svg>">
 </head>
-<body class="btcpp-admin-page">
+<body class="btcpp-admin-page btcpp-dashboard-page">
   {{ block "mainnav" . }} {{ end }}
   <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
     <div class="mb-6">
@@ -21,6 +21,44 @@
       <p class="text-sm text-yellow-900"><strong>Edits are locked.</strong> {{ .LockReason }}.</p>
       <p class="mt-1 text-xs text-yellow-800">Need to change something? Email <a href="mailto:speak@btcpp.dev" class="underline">speak@btcpp.dev</a>.</p>
     </div>
+    {{ end }}
+
+    {{ if .Proposal.ConfTalk }}
+    <form class="dashboard-talk-resources" method="POST" enctype="multipart/form-data" action="/dashboard/talks/{{ .Proposal.ID }}/resources?hr={{ .HMAC }}&em={{ .Email }}">
+      <input type="hidden" name="ReturnTo" value="edit">
+      <input type="hidden" name="ReturnProposalID" value="{{ .Proposal.ID }}">
+      <div class="dashboard-talk-resources__head">
+        <span>Post-talk resources</span>
+        <small>Public on your archive and the agenda. Available after talk edits lock.</small>
+      </div>
+      <label>
+        <span>GitHub repo</span>
+        <input type="url" name="GithubRepoURL" value="{{ .Proposal.ConfTalk.GithubRepoURL }}" placeholder="https://github.com/org/repo">
+      </label>
+      <label>
+        <span>Slides link</span>
+        {{ if .Proposal.ConfTalk.SlidesURL }}
+        <a href="{{ .Proposal.ConfTalk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">View current slides</a>
+        {{ else }}
+        <input type="url" name="SlidesURL" value="{{ .Proposal.ConfTalk.SlidesURL }}" placeholder="https://example.com/slides.pdf">
+        {{ end }}
+      </label>
+      {{ if .Proposal.ConfTalk.SlidesURL }}
+      <label class="dashboard-talk-resources__remove">
+        <span>Remove slides</span>
+        <input type="checkbox" name="RemoveSlides" value="1">
+      </label>
+      {{ else }}
+      <label>
+        <span>Upload slides</span>
+        <input type="file" name="SlidesFile" accept=".pdf,.ppt,.pptx,.key,.odp">
+      </label>
+      {{ end }}
+      <div class="dashboard-talk-resources__actions">
+        {{ if .Proposal.ConfTalk.GithubRepoURL }}<a href="{{ .Proposal.ConfTalk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">View repo</a>{{ end }}
+        <button type="submit" class="dashboard-inline-action is-primary">Save resources</button>
+      </div>
+    </form>
     {{ end }}
 
     <form method="POST" action="/dashboard/talks/{{ .Proposal.ID }}/edit?hr={{ .HMAC }}&em={{ .Email }}"

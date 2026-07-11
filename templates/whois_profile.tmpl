@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{ template "rebrand_header" . }}
+    {{ template "site_seo" (dict "Title" (printf "%s @ bitcoin++" .Person.Speaker.Name) "Description" "Speaker profile and bitcoin++ talk archive." "Path" (printf "/whois/%s" .Person.PublicID) "Image" "/static/img/rebrand/breakthroughs.jpg") }}
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
+  </head>
+  <body class="btcpp-redesign btcpp-rebrand-page whois-page">
+    <div class="whois-ticker" aria-hidden="true">
+      <span>▶ PROFILE</span>
+      <b>{{ len .Person.Editions }} EDITIONS</b>
+      <i>•</i>
+      <b>{{ len .Person.Talks }} TALKS</b>
+      <i>•</i>
+      <b>EVERY BUILDER DESERVES A PERMANENT RECORD</b>
+    </div>
+
+    {{ template "mainnav" . }}
+
+    <main class="whois-shell">
+      <div class="whois-profile-breadcrumb">
+        <a href="/whois">← browse profiles</a>
+      </div>
+
+      <section class="whois-profile-hero">
+        <div class="whois-profile-portrait">
+          <img loading="lazy" src="{{ speakerPhoto .Person.Speaker.Photo }}" alt="{{ .Person.Speaker.Name }}">
+          {{ if .Person.Editions }}
+          {{ $firstEdition := index .Person.Editions (sub (len .Person.Editions) 1) }}
+          <span>MEMBER SINCE {{ $firstEdition.StartDate.Format "2006" }}</span>
+          {{ end }}
+        </div>
+        <div class="whois-profile-main">
+          <p class="whois-section-tag">§ COMMUNITY PROFILE</p>
+          <div class="whois-profile-title">
+            <h1>{{ .Person.Speaker.Name }}</h1>
+            <span>@{{ .Person.PublicID }}</span>
+          </div>
+          {{ if .Person.Speaker.Company }}<p class="whois-profile-company">{{ .Person.Speaker.Company }}</p>{{ end }}
+          {{ if .Person.Speaker.Bio }}<p class="whois-profile-bio-copy">{{ .Person.Speaker.Bio }}</p>{{ end }}
+          {{ template "generic_conf_speaker_links" .Person.Speaker }}
+          {{ if .UpdateProfileURL }}
+          <a class="whois-profile-edit" href="{{ .UpdateProfileURL }}">UPDATE PROFILE →</a>
+          {{ end }}
+          <div class="whois-profile-stats">
+            <div><strong>{{ len .Person.Editions }}</strong><span>editions</span></div>
+            <div><strong>{{ len .Person.Talks }}</strong><span>talks</span></div>
+            <div><strong>0</strong><span>projects</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="whois-profile-section">
+        <div class="whois-section-head">
+          <div>
+            <p class="whois-section-tag">§01 · EVENT BADGES</p>
+            <h2>{{ len .Person.Editions }} edition{{ if ne (len .Person.Editions) 1 }}s{{ end }} attended.</h2>
+          </div>
+        </div>
+        {{ if .Person.Editions }}
+        <div class="whois-event-badges">
+          {{ range .Person.Editions }}
+          <a class="whois-event-badge" href="/{{ .Tag }}">
+            <div>
+              <span>{{ .BadgeEmoji }}</span>
+              {{ if not .StartDate.IsZero }}<b>’{{ .StartDate.Format "06" }}</b>{{ end }}
+            </div>
+            <strong>{{ .ArchiveTitle }}</strong>
+            {{ if .ArchiveEdition }}<em>{{ .ArchiveEdition }}</em>{{ else if .Tagline }}<em>{{ .Tagline }}</em>{{ end }}
+          </a>
+          {{ end }}
+        </div>
+        {{ else }}
+        <p class="whois-profile-empty">No event attendance records are connected to this profile yet.</p>
+        {{ end }}
+      </section>
+
+      <section class="whois-profile-section">
+        <div class="whois-section-head">
+          <div>
+            <p class="whois-section-tag">§02 · TALKS & PANELS</p>
+            <h2>On stage.</h2>
+          </div>
+          {{ if .Person.Editions }}<a href="/whois/{{ .Person.PublicID }}/archive">Full archive →</a>{{ end }}
+        </div>
+        <div class="whois-talk-list">
+          {{ range $idx, $row := .Person.Talks }}
+          {{ $dialogID := printf "whois-talk-dialog-%d" $idx }}
+          <article class="whois-talk-row" role="button" tabindex="0" data-agenda-dialog-open="{{ $dialogID }}" aria-controls="{{ $dialogID }}">
+            <span class="whois-talk-row__type">{{ if .Talk.Type }}{{ .Talk.Type }}{{ else }}talk{{ end }}</span>
+            <div class="whois-talk-row__title">
+              {{ if .Talk.Clipart }}
+              <img class="whois-talk-row__clipart" loading="lazy" src="{{ talkClipart .Talk.Clipart }}" alt="">
+              {{ else }}
+              <div class="whois-talk-row__mark" aria-hidden="true">++</div>
+              {{ end }}
+              <div>
+                <h3>{{ .Talk.Name }}</h3>
+                {{ if .Talk.Description }}<p>{{ .Talk.Description }}</p>{{ end }}
+              </div>
+            </div>
+            {{ if .Conf }}<a class="whois-talk-row__event" href="/{{ .Conf.Tag }}">{{ .Conf.ArchiveTitle }}{{ if not .Conf.StartDate.IsZero }} {{ .Conf.StartDate.Format "2006" }}{{ end }}</a>{{ end }}
+            <div class="whois-talk-row__actions">
+              {{ if .Talk.Duration }}<span>{{ .Talk.Duration }}</span>{{ end }}
+              {{ if and .Conf .Talk.ID }}<a href="/{{ .Conf.Tag }}/agenda#talk-{{ .Talk.ID }}">agenda</a>{{ end }}
+              {{ if .Talk.YTLink }}<a class="is-watch" href="{{ .Talk.YTLink | safeURL }}" target="_blank" rel="noopener noreferrer">▶ watch</a>{{ end }}
+              {{ if .Talk.SlidesURL }}<a href="{{ .Talk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">slides</a>{{ end }}
+              {{ if .Talk.GithubRepoURL }}<a href="{{ .Talk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">repo</a>{{ end }}
+            </div>
+          </article>
+          {{ template "whois_talk_dialog" (dict "DialogID" $dialogID "Talk" .Talk "Conf" .Conf) }}
+          {{ end }}
+        </div>
+      </section>
+    </main>
+
+    {{ template "generic_conf_footer" . }}
+  </body>
+</html>
+
+{{ define "whois_talk_dialog" }}
+{{ $talk := .Talk }}
+{{ $conf := .Conf }}
+<div id="{{ .DialogID }}" class="btcpp-agenda-dialog whois-talk-dialog" aria-hidden="true">
+  <button type="button" class="btcpp-agenda-dialog__backdrop" data-agenda-dialog-close aria-label="Close talk details"></button>
+  <article class="btcpp-agenda-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="{{ .DialogID }}-title">
+    <button type="button" class="btcpp-agenda-dialog__close" data-agenda-dialog-close aria-label="Close talk details">×</button>
+    <div class="btcpp-agenda-dialog__art"{{ if $talk.Clipart }} style="background-image: url('{{ talkClipart $talk.Clipart }}');"{{ end }}></div>
+    <div class="btcpp-agenda-dialog__body">
+      <div class="btcpp-agenda-dialog__headline">
+        {{ if $talk.Type }}<div class="btcpp-agenda-dialog__type">{{ agendaTypeLabel $talk.Type }}</div>{{ end }}
+        <h2 id="{{ .DialogID }}-title">{{ $talk.Name }}</h2>
+        {{ if $talk.Speakers }}
+        <div class="btcpp-agenda-dialog__speaker-summary">
+          <div class="btcpp-agenda-dialog__speaker-avatars" aria-hidden="true">
+            {{ range $talk.Speakers }}
+            <img src="{{ speakerPhoto .Photo }}" alt="">
+            {{ end }}
+          </div>
+          <div>{{ range $idx, $speaker := $talk.Speakers }}{{ if $idx }}, {{ end }}{{ $speaker.Name }}{{ end }}</div>
+        </div>
+        {{ end }}
+      </div>
+      <dl class="btcpp-agenda-dialog__meta">
+        {{ if $conf }}<div><dt>Edition</dt><dd>{{ $conf.ArchiveTitle }}{{ if $conf.ArchiveEdition }} · {{ $conf.ArchiveEdition }}{{ end }}</dd></div>{{ end }}
+        {{ if $talk.Sched }}<div><dt>Time</dt><dd>{{ $talk.Sched.Start.Format "Mon, Jan 2 · 3:04 PM" }}{{ if $talk.Sched.End }} – {{ $talk.Sched.End.Format "3:04 PM" }}{{ end }}</dd></div>{{ end }}
+        {{ if $talk.Venue }}<div><dt>Location</dt><dd>{{ mapVenue $talk.Venue }}</dd></div>{{ end }}
+        {{ if $talk.Type }}<div><dt>Type</dt><dd>{{ agendaTypeLabel $talk.Type }}</dd></div>{{ end }}
+        {{ if $talk.Duration }}<div><dt>Duration</dt><dd>{{ $talk.Duration }}</dd></div>{{ end }}
+      </dl>
+      <div class="btcpp-agenda-dialog__actions">
+        {{ if and $conf $talk.ID }}<a class="btcpp-agenda-dialog__resource" href="/{{ $conf.Tag }}/agenda#talk-{{ $talk.ID }}">Open agenda</a>{{ end }}
+        {{ if $talk.YTLink }}<a class="btcpp-agenda-dialog__recording" href="{{ $talk.YTLink | safeURL }}" target="_blank" rel="noopener noreferrer">Watch recording</a>{{ end }}
+        {{ if $talk.SlidesURL }}<a class="btcpp-agenda-dialog__resource" href="{{ $talk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">View slides</a>{{ end }}
+        {{ if $talk.GithubRepoURL }}<a class="btcpp-agenda-dialog__resource" href="{{ $talk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">GitHub repo</a>{{ end }}
+      </div>
+      {{ if $talk.Description }}<p class="btcpp-agenda-dialog__description">{{ $talk.Description }}</p>{{ end }}
+      {{ if $talk.Speakers }}
+      <div class="btcpp-agenda-dialog__speakers">
+        <h3 class="btcpp-agenda-dialog__section-title">Speakers</h3>
+        {{ range $talk.Speakers }}
+        <div class="btcpp-agenda-dialog__speaker">
+          <img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}">
+          <div>
+            <div class="btcpp-agenda-dialog__speaker-name">{{ .Name }}</div>
+            {{ if .Company }}<div class="btcpp-agenda-dialog__speaker-company">{{ .Company }}</div>{{ end }}
+            {{ template "generic_conf_agenda_speaker_links" . }}
+          </div>
+        </div>
+        {{ end }}
+      </div>
+      {{ end }}
+    </div>
+  </article>
+</div>
+{{ end }}
