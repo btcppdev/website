@@ -1437,7 +1437,7 @@ body.btcpp-rebrand-page {
 
 .whois-talk-row {
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr) 160px auto;
+  grid-template-columns: 86px minmax(0, 1fr) 160px 220px;
   gap: 20px;
   align-items: center;
   padding: 16px 40px;
@@ -1536,6 +1536,7 @@ body.btcpp-rebrand-page {
   gap: 8px;
   flex-wrap: wrap;
   justify-self: end;
+  width: 100%;
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 

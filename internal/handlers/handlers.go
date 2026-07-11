@@ -1873,9 +1873,10 @@ func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	allCount := len(people)
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	topic := slugifyPublicID(r.URL.Query().Get("topic"))
-	source := slugifyPublicID(r.URL.Query().Get("source"))
-	if query != "" || topic != "" || source != "" {
-		people = filterWhoIsPeople(people, query, topic, source)
+	event := slugifyPublicID(r.URL.Query().Get("event"))
+	eventOptions := whoIsEventOptions(people)
+	if query != "" || topic != "" || event != "" {
+		people = filterWhoIsPeople(people, query, topic, event)
 	}
 	talkCount, editionCount := whoIsTotals(people)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois.tmpl", &WhoIsPage{
@@ -1885,7 +1886,8 @@ func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		EditionCount: editionCount,
 		Query:        query,
 		Topic:        topic,
-		Source:       source,
+		Event:        event,
+		EventOptions: eventOptions,
 		Year:         helpers.CurrentYear(),
 	}); err != nil {
 		http.Error(w, "Unable to load speaker directory, please try again later", http.StatusInternalServerError)
@@ -2085,23 +2087,23 @@ func whoIsProfileEditURL(ctx *config.AppContext, r *http.Request, person *WhoIsP
 	return "/dashboard/speaker?hr=" + url.QueryEscape(encodedHMAC) + "&em=" + url.QueryEscape(encodedEmail)
 }
 
-func filterWhoIsPeople(people []*WhoIsPerson, query, topic, source string) []*WhoIsPerson {
+func filterWhoIsPeople(people []*WhoIsPerson, query, topic, event string) []*WhoIsPerson {
 	needle := strings.ToLower(strings.TrimSpace(query))
 	topic = strings.ToLower(strings.TrimSpace(topic))
-	source = strings.ToLower(strings.TrimSpace(source))
-	if needle == "" && topic == "" && source == "" {
+	event = strings.ToLower(strings.TrimSpace(event))
+	if needle == "" && topic == "" && event == "" {
 		return people
 	}
 	var filtered []*WhoIsPerson
 	for _, person := range people {
-		if whoIsPersonMatches(person, needle, topic, source) {
+		if whoIsPersonMatches(person, needle, topic, event) {
 			filtered = append(filtered, person)
 		}
 	}
 	return filtered
 }
 
-func whoIsPersonMatches(person *WhoIsPerson, needle, topic, source string) bool {
+func whoIsPersonMatches(person *WhoIsPerson, needle, topic, event string) bool {
 	if person == nil || person.Speaker == nil {
 		return false
 	}
@@ -2133,31 +2135,64 @@ func whoIsPersonMatches(person *WhoIsPerson, needle, topic, source string) bool 
 	if topic != "" && !strings.Contains(haystack, topic) {
 		return false
 	}
-	if source != "" {
-		matched := false
-		for _, talk := range person.Talks {
-			if talk == nil || talk.Talk == nil {
-				continue
-			}
-			status := strings.ToLower(strings.TrimSpace(talk.Talk.Status))
-			switch source {
-			case "accepted":
-				if status == strings.ToLower(StatusAccepted) || status == "" {
-					matched = true
-				}
-			case "scheduled":
-				if status == strings.ToLower(StatusScheduled) {
-					matched = true
-				}
-			default:
-				matched = true
-			}
-		}
-		if !matched {
+	if event != "" {
+		if !whoIsPersonHasEvent(person, event) {
 			return false
 		}
 	}
 	return true
+}
+
+func whoIsPersonHasEvent(person *WhoIsPerson, event string) bool {
+	if person == nil || event == "" {
+		return false
+	}
+	for _, edition := range person.Editions {
+		if edition != nil && strings.EqualFold(edition.Tag, event) {
+			return true
+		}
+	}
+	for _, talk := range person.Talks {
+		if talk == nil || talk.Conf == nil {
+			continue
+		}
+		if strings.EqualFold(talk.Conf.Tag, event) {
+			return true
+		}
+	}
+	return false
+}
+
+func whoIsEventOptions(people []*WhoIsPerson) []*types.Conf {
+	byTag := map[string]*types.Conf{}
+	for _, person := range people {
+		if person == nil {
+			continue
+		}
+		for _, edition := range person.Editions {
+			if edition != nil && edition.Tag != "" {
+				byTag[edition.Tag] = edition
+			}
+		}
+		for _, talk := range person.Talks {
+			if talk == nil || talk.Conf == nil || talk.Conf.Tag == "" {
+				continue
+			}
+			byTag[talk.Conf.Tag] = talk.Conf
+		}
+	}
+	out := make([]*types.Conf, 0, len(byTag))
+	for _, conf := range byTag {
+		out = append(out, conf)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if !a.StartDate.IsZero() && !b.StartDate.IsZero() && !a.StartDate.Equal(b.StartDate) {
+			return a.StartDate.After(b.StartDate)
+		}
+		return a.Tag > b.Tag
+	})
+	return out
 }
 
 func whoIsTotals(people []*WhoIsPerson) (int, int) {

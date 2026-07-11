@@ -128,7 +128,8 @@ type WhoIsPage struct {
 	EditionCount int
 	Query        string
 	Topic        string
-	Source       string
+	Event        string
+	EventOptions []*types.Conf
 	Year         uint
 }
 

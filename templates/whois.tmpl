@@ -39,23 +39,24 @@
         <aside class="whois-rail">
           <div>
             <p>Topic</p>
-            <a class="{{ if eq .Topic "protocol" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=protocol{{ if .Source }}&source={{ .Source }}{{ end }}">protocol</a>
-            <a class="{{ if eq .Topic "privacy" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=privacy{{ if .Source }}&source={{ .Source }}{{ end }}">privacy</a>
-            <a class="{{ if eq .Topic "scaling" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=scaling{{ if .Source }}&source={{ .Source }}{{ end }}">scaling</a>
-            <a class="{{ if eq .Topic "operations" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=operations{{ if .Source }}&source={{ .Source }}{{ end }}">operations</a>
+            <a class="{{ if eq .Topic "protocol" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=protocol{{ if .Event }}&event={{ .Event }}{{ end }}">protocol</a>
+            <a class="{{ if eq .Topic "privacy" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=privacy{{ if .Event }}&event={{ .Event }}{{ end }}">privacy</a>
+            <a class="{{ if eq .Topic "scaling" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=scaling{{ if .Event }}&event={{ .Event }}{{ end }}">scaling</a>
+            <a class="{{ if eq .Topic "operations" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=operations{{ if .Event }}&event={{ .Event }}{{ end }}">operations</a>
           </div>
           <div>
-            <p>Source</p>
-            <a class="{{ if eq .Source "accepted" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}{{ if .Topic }}topic={{ .Topic }}&{{ end }}source=accepted">accepted talks</a>
-            <a class="{{ if eq .Source "scheduled" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}{{ if .Topic }}topic={{ .Topic }}&{{ end }}source=scheduled">scheduled talks</a>
+            <p>Event</p>
+            {{ range .EventOptions }}
+            <a class="{{ if eq $.Event .Tag }}is-active{{ end }}" href="/whois?{{ if $.Query }}q={{ $.Query }}&{{ end }}{{ if $.Topic }}topic={{ $.Topic }}&{{ end }}event={{ .Tag }}">{{ .ArchiveTitle }}</a>
+            {{ end }}
           </div>
-          {{ if or .Query .Topic .Source }}<a class="whois-rail__clear" href="/whois">clear filters</a>{{ end }}
+          {{ if or .Query .Topic .Event }}<a class="whois-rail__clear" href="/whois">clear filters</a>{{ end }}
           <small>Hackathon profiles and project history will join this directory after the hackathon system lands.</small>
         </aside>
 
         <div class="whois-results">
           <div class="whois-results__bar">
-            <strong>{{ len .People }} MEMBER{{ if ne (len .People) 1 }}S{{ end }}{{ if or .Query .Topic .Source }} · FILTERED{{ end }}</strong>
+            <strong>{{ len .People }} MEMBER{{ if ne (len .People) 1 }}S{{ end }}{{ if or .Query .Topic .Event }} · FILTERED{{ end }}</strong>
             <span>◇ = SPEAKER PROFILE · CLICK A CARD FOR THE FULL ARCHIVE</span>
           </div>
 
