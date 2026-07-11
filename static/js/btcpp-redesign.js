@@ -49,7 +49,9 @@
   }
 
   document.querySelectorAll("[data-agenda-dialog-open]").forEach(function (trigger) {
-    trigger.addEventListener("click", function () {
+    trigger.addEventListener("click", function (event) {
+      const interactive = event.target.closest("a, button, input, select, textarea, label");
+      if (interactive && interactive !== trigger) return;
       const id = trigger.getAttribute("data-agenda-dialog-open");
       const dialog = document.getElementById(id);
       if (!dialog) return;
@@ -59,6 +61,11 @@
       document.body.classList.add("btcpp-agenda-dialog-open");
       const closeButton = dialog.querySelector("[data-agenda-dialog-close]");
       if (closeButton) closeButton.focus({ preventScroll: true });
+    });
+    trigger.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      trigger.click();
     });
   });
 
