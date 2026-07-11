@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
+	"time"
 	"unicode"
 
 	"btcpp-web/external/getters"
@@ -24,6 +26,53 @@ func sessionDay(key string) (int, error) {
 	}
 
 	return strconv.Atoi(index)
+}
+
+func isLegacySessionKey(key string) bool {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return false
+	}
+	last := key[len(key)-1]
+	if last != '+' && last != '=' && last != '-' {
+		return false
+	}
+	_, err := sessionDay(key)
+	return err == nil
+}
+
+func talkSectionKey(conf *types.Conf, talk *types.Talk) string {
+	if talk == nil {
+		return ""
+	}
+	if isLegacySessionKey(talk.Section) {
+		return strings.TrimSpace(talk.Section)
+	}
+	if talk.Sched == nil {
+		return ""
+	}
+	loc := time.UTC
+	if conf != nil {
+		loc = conf.Loc()
+	}
+	start := talk.Sched.Start.In(loc)
+	confStart := start
+	if conf != nil && !conf.StartDate.IsZero() {
+		confStart = conf.StartDate.In(loc)
+	}
+	startDay := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, loc)
+	confDay := time.Date(confStart.Year(), confStart.Month(), confStart.Day(), 0, 0, 0, 0, loc)
+	day := int(startDay.Sub(confDay).Hours()/24) + 1
+	if day < 1 {
+		day = 1
+	}
+	marker := "+"
+	if start.Hour() >= 17 {
+		marker = "-"
+	} else if start.Hour() >= 12 {
+		marker = "="
+	}
+	return fmt.Sprintf("%d%s", day, marker)
 }
 
 func filterSessions(days []*Day, dayref, venue string) ([]*types.Session, error) {
@@ -162,13 +211,17 @@ func bucketTalks(ctx *config.AppContext, conf *types.Conf, talks types.TalkTime)
 
 	sessions := make(map[string]types.SessionTime)
 	for _, talk := range talks {
+		key := talkSectionKey(conf, talk)
+		if key == "" {
+			continue
+		}
 		session := talkToSession(ctx, talk, conf)
-		section, ok := sessions[talk.Section]
+		section, ok := sessions[key]
 		if !ok {
 			section = make(types.SessionTime, 0)
 		}
 		section = append(section, session)
-		sessions[talk.Section] = section
+		sessions[key] = section
 	}
 	return sessions, nil
 }

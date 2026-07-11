@@ -829,16 +829,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/talks", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}).Methods("GET")
-	r.HandleFunc("/atx23", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/static/atx23", http.StatusMovedPermanently)
-	}).Methods("GET")
-	r.HandleFunc("/cdmx22", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "https://www.youtube.com/watch?v=kCON4wuecOw&list=PLHhfnB1Uefkor98E-ikci_sUtUKKYYSDA", http.StatusFound)
-	}).Methods("GET")
-	r.HandleFunc("/atx22", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "https://www.youtube.com/watch?v=gI6CeAGhFjE&list=PLHhfnB1Uefkolyc9z03BKsWsnzvZoKYKf", http.StatusFound)
-	}).Methods("GET")
-
 	/* /conf/* legacy paths — 301 to the new short form. Captures
 	   /conf/{tag}, /conf/{tag}/talks, /conf/{tag}/talk/{anchor}/calendar.ics,
 	   /conf/{tag}/success. The handler relocates the leading "/conf"
@@ -3579,10 +3569,6 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		tixLeft = currTix.Max - soldCount
 	}
 	tmplTag := "conf/generic.tmpl"
-	switch conf.Tag {
-	case "berlin23":
-		tmplTag = "conf/berlin23.tmpl"
-	}
 	err = ctx.TemplateCache.ExecuteTemplate(w, tmplTag, &ConfPage{
 		Conf:              conf,
 		Hotels:            confHotels,
