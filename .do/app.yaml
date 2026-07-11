@@ -39,10 +39,10 @@ services:
   github:
     branch: master
     deploy_on_push: true
-    repo: base58btc/btcpp-web
+    repo: btcppdev/website
   http_port: 8080
   instance_count: 1
   instance_size_slug: professional-xs
   name: btcpp-web
-  run_command: bin/web
+  run_command: ./target/btcpp-web
   source_dir: /
