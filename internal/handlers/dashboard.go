@@ -86,8 +86,9 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 
 	dashStart := time.Now()
+	reqID := requestID(r)
 	defer func() {
-		ctx.Infos.Printf("/dashboard total: %s", time.Since(dashStart))
+		ctx.Infos.Printf("/dashboard id=%s total=%s", reqID, time.Since(dashStart))
 	}()
 
 	// Top-level fan-out: speakerconfs + volunteer apps + user's tickets
@@ -132,8 +133,8 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		satDur = time.Since(s)
 	}()
 	topWg.Wait()
-	ctx.Infos.Printf("/dashboard fetch wall=%s (sc=%s vol=%s reg=%s sat=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d",
-		time.Since(t1), scDur, volDur, regDur, satDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents))
+	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d",
+		reqID, time.Since(t1), scDur, volDur, regDur, satDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents))
 	if regErr != nil {
 		ctx.Err.Printf("/dashboard listregs failed (continuing): %s", regErr)
 	}
@@ -205,8 +206,8 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 				maxShift = d
 			}
 		}
-		ctx.Infos.Printf("/dashboard fetch (vol) wall=%s (volinfo=%s slowest-shift=%s of %d)",
-			time.Since(t2), volInfoDur, maxShift, len(volapps))
+		ctx.Infos.Printf("/dashboard id=%s fetch-vol wall=%s (volinfo=%s slowest-shift=%s of %d)",
+			reqID, time.Since(t2), volInfoDur, maxShift, len(volapps))
 		if volInfoErr != nil {
 			http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 			ctx.Err.Printf("/dashboard getvolinfomap failed: %s", volInfoErr)
@@ -223,16 +224,16 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 
 	tConfs := time.Now()
 	confs := listConfs(w, ctx)
-	ctx.Infos.Printf("/dashboard listConfs: %s", time.Since(tConfs))
+	ctx.Infos.Printf("/dashboard id=%s listConfs=%s", reqID, time.Since(tConfs))
 
 	t3 := time.Now()
 	enrichDashboardProposals(ctx, speakerConfs)
-	ctx.Infos.Printf("/dashboard enrich proposals: %s", time.Since(t3))
+	ctx.Infos.Printf("/dashboard id=%s enrich-proposals=%s", reqID, time.Since(t3))
 
 	activeSC, pastSC := splitSpeakerConfsByEnded(speakerConfs)
 	activeVol, pastVol := splitVolAppsByEnded(volapps)
-	ctx.Infos.Printf("/dashboard split → activeSC=%d pastSC=%d activeVol=%d pastVol=%d",
-		len(activeSC), len(pastSC), len(activeVol), len(pastVol))
+	ctx.Infos.Printf("/dashboard id=%s split activeSC=%d pastSC=%d activeVol=%d pastVol=%d",
+		reqID, len(activeSC), len(pastSC), len(activeVol), len(pastVol))
 	eligible := eligibleApplyConfs(confs, speakerConfs)
 	buyable := buyableConfs(confs)
 	tickets := upcomingTickets(regs, confs)
@@ -244,8 +245,8 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	// an event block is filtered out so we don't list it twice.
 	eligible = excludeConfsInBlocks(eligible, activeBlocks)
 	buyable = excludeConfsInBlocks(buyable, activeBlocks)
-	ctx.Infos.Printf("/dashboard blocks → active=%d past=%d eligible=%d buyable=%d",
-		len(activeBlocks), len(pastBlocks), len(eligible), len(buyable))
+	ctx.Infos.Printf("/dashboard id=%s blocks active=%d past=%d eligible=%d buyable=%d",
+		reqID, len(activeBlocks), len(pastBlocks), len(eligible), len(buyable))
 
 	tRender := time.Now()
 	var topSpeaker *types.Speaker
@@ -418,7 +419,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		ctx.Err.Printf("/dashboard ExecuteTemplate failed: %s", err)
 		return
 	}
-	ctx.Infos.Printf("/dashboard render: %s", time.Since(tRender))
+	ctx.Infos.Printf("/dashboard id=%s render=%s", reqID, time.Since(tRender))
 }
 
 func renderDashboardLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

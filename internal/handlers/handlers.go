@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -22,6 +23,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"btcpp-web/external/coingecko"
@@ -727,12 +729,27 @@ func formatRoundedDownPlus(n int) string {
 // we default to 200 (matching net/http's behavior).
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
+	status      int
+	bytes       int64
+	wroteHeader bool
 }
 
 func (s *statusRecorder) WriteHeader(code int) {
+	if s.wroteHeader {
+		return
+	}
 	s.status = code
+	s.wroteHeader = true
 	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusRecorder) Write(b []byte) (int, error) {
+	if !s.wroteHeader {
+		s.WriteHeader(http.StatusOK)
+	}
+	n, err := s.ResponseWriter.Write(b)
+	s.bytes += int64(n)
+	return n, err
 }
 
 func (s *statusRecorder) Flush() {
@@ -741,18 +758,72 @@ func (s *statusRecorder) Flush() {
 	}
 }
 
+type requestIDContextKey struct{}
+
+var requestCounter uint64
+
+func nextRequestID() string {
+	n := atomic.AddUint64(&requestCounter, 1)
+	return fmt.Sprintf("%x-%06x", time.Now().UnixNano(), n)
+}
+
+func requestID(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	id, _ := r.Context().Value(requestIDContextKey{}).(string)
+	return id
+}
+
 // requestLog is a middleware that logs each incoming request's start
-// and completion (method, path, status, duration). Combined with the
-// per-Notion-call timing emitted by the rate-limited transport, this
-// gives a full timeline for any slow request.
+// and completion (method, path, status, duration). It also emits watchdog
+// messages while a request is still running so hung requests are visible
+// even when they never reach completion logging.
 func requestLog(ctx *config.AppContext, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		ctx.Infos.Printf("→ %s %s", r.Method, r.URL.Path)
+		id := nextRequestID()
+		r = r.WithContext(context.WithValue(r.Context(), requestIDContextKey{}, id))
+		done := make(chan struct{})
+		go requestWatchdog(ctx, r, id, start, done)
+
+		remote := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+		if remote == "" {
+			remote = r.RemoteAddr
+		} else if idx := strings.Index(remote, ","); idx >= 0 {
+			remote = strings.TrimSpace(remote[:idx])
+		}
+		ctx.Infos.Printf("→ request id=%s method=%s path=%s remote=%s", id, r.Method, r.URL.Path, remote)
 		sr := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		defer func() {
+			close(done)
+			ctx.Infos.Printf("← request id=%s method=%s path=%s status=%d bytes=%d duration=%s", id, r.Method, r.URL.Path, sr.status, sr.bytes, time.Since(start))
+		}()
 		h.ServeHTTP(sr, r)
-		ctx.Infos.Printf("← %s %s [%d] %s", r.Method, r.URL.Path, sr.status, time.Since(start))
 	})
+}
+
+func requestWatchdog(ctx *config.AppContext, r *http.Request, id string, start time.Time, done <-chan struct{}) {
+	for _, threshold := range []time.Duration{10 * time.Second, 30 * time.Second, 60 * time.Second} {
+		timer := time.NewTimer(time.Until(start.Add(threshold)))
+		select {
+		case <-done:
+			timer.Stop()
+			return
+		case <-timer.C:
+			ctx.Err.Printf("request still running id=%s method=%s path=%s duration=%s", id, r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
+		}
+	}
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-ticker.C:
+			ctx.Err.Printf("request still running id=%s method=%s path=%s duration=%s", id, r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
+		}
+	}
 }
 
 func redirectTrailingSlash(h http.Handler) http.Handler {

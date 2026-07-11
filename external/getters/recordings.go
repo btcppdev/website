@@ -49,6 +49,42 @@ func ListRecordings(ctx *config.AppContext) ([]*types.Recording, error) {
 	return out, nil
 }
 
+func ListRecordingsForConf(ctx *config.AppContext, confTag string) ([]*types.Recording, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	confTag = strings.TrimSpace(confTag)
+	if confTag == "" {
+		return nil, fmt.Errorf("conference tag is required")
+	}
+	rows, err := ctx.DB.Query(context.Background(), `
+		SELECT r.id::text, r.conf_talk_id::text, r.talk_name, r.youtube_url, r.x_url,
+			r.x_reply_url, r.file_uri, r.publish_at
+		FROM recordings r
+		JOIN conf_talks ct ON ct.id = r.conf_talk_id
+		JOIN conferences c ON c.id = ct.conference_id
+		WHERE c.tag = $1
+		ORDER BY r.publish_at NULLS LAST, r.talk_name, r.id
+	`, confTag)
+	if err != nil {
+		return nil, fmt.Errorf("query recordings for %s: %w", confTag, err)
+	}
+	defer rows.Close()
+
+	var out []*types.Recording
+	for rows.Next() {
+		rec, err := scanRecording(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate recordings for %s: %w", confTag, err)
+	}
+	return out, nil
+}
+
 func GetRecordingByConfTalk(ctx *config.AppContext, confTalkID string) (*types.Recording, error) {
 	return queryRecordingPostgres(ctx, "recording by conf talk", "WHERE conf_talk_id = $1::uuid", confTalkID)
 }

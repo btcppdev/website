@@ -27,6 +27,8 @@ import (
 
 var app config.AppContext
 
+const mailerStartupDelay = 8 * time.Minute
+
 func loadConfig() *types.EnvConfig {
 	config, err := envconfig.Load(".env")
 	if err != nil {
@@ -47,7 +49,8 @@ func loadConfig() *types.EnvConfig {
 /* Every XX seconds, try to send new ticket emails. */
 func RunNewMails(ctx *config.AppContext) {
 	/* Wait a bit, so server can start up */
-	time.Sleep(4 * time.Second)
+	ctx.Infos.Printf("Mailer job waiting %s before first run...", mailerStartupDelay)
+	time.Sleep(mailerStartupDelay)
 	ctx.Infos.Println("Starting up mailer job...")
 	for true {
 		emails.CheckForNewMails(ctx)

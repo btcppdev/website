@@ -113,6 +113,7 @@ type RecordingsBulkUploadPage struct {
 	Eligible             []*RecordingRow
 	Skipped              []*RecordingBulkUploadSkip
 	YouTubeReady         bool
+	YouTubeAuthURL       string
 	YouTubePlaylists     []youtubepkg.Playlist
 	DefaultPlaylistTitle string
 	FlashMessage         string
@@ -244,8 +245,10 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 
+	start := time.Now()
+	reqID := requestID(r)
 	rows := recordingRowsForConf(ctx, conf.Tag)
-	enrichRowsWithYouTubeStatus(ctx, rows)
+	ctx.Infos.Printf("/%s/admin/recordings id=%s rows=%d load=%s", conf.Tag, reqID, len(rows), time.Since(start))
 	sort.SliceStable(rows, func(i, j int) bool {
 		return rowSortKey(rows[i]) > rowSortKey(rows[j])
 	})
@@ -273,14 +276,16 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 		page.FlashError = flashErr
 	}
 
+	renderStart := time.Now()
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/recordings.tmpl", page); err != nil {
 		ctx.Err.Printf("/%s/admin/recordings render: %s", conf.Tag, err)
 		http.Error(w, "render failed", http.StatusInternalServerError)
 	}
+	ctx.Infos.Printf("/%s/admin/recordings id=%s render=%s total=%s", conf.Tag, reqID, time.Since(renderStart), time.Since(start))
 }
 
 func recordingRowsForConf(ctx *config.AppContext, confTag string) []*RecordingRow {
-	recs, err := getters.ListRecordings(ctx)
+	recs, err := getters.ListRecordingsForConf(ctx, confTag)
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/recordings recordings fetch failed: %s", confTag, err)
 		return nil
@@ -289,17 +294,117 @@ func recordingRowsForConf(ctx *config.AppContext, confTag string) []*RecordingRo
 }
 
 func recordingRowsFromList(ctx *config.AppContext, recs []*types.Recording, confTag string) []*RecordingRow {
+	start := time.Now()
+	confTalksByID := recordingConfTalksByID(ctx, recs)
+	confTalksDur := time.Since(start)
+	socialStart := time.Now()
+	socialPostsByRef := recordingSocialPostsByRef(ctx, recs)
+	socialDur := time.Since(socialStart)
+	buildStart := time.Now()
 	rows := make([]*RecordingRow, 0, len(recs))
 	for _, rec := range recs {
 		if rec == nil {
 			continue
 		}
-		row := buildRecordingRow(ctx, rec)
+		row := buildRecordingRowFromMaps(ctx, rec, confTalksByID, socialPostsByRef)
 		if recordingRowBelongsToConf(row, confTag) {
 			rows = append(rows, row)
 		}
 	}
+	ctx.Infos.Printf("/%s/admin/recordings batch recs=%d conftalks=%d conftalksDur=%s socialposts=%d socialDur=%s build=%s",
+		confTag, len(recs), len(confTalksByID), confTalksDur, len(socialPostsByRef), socialDur, time.Since(buildStart))
 	return rows
+}
+
+func recordingConfTalksByID(ctx *config.AppContext, recs []*types.Recording) map[string]*types.ConfTalk {
+	ids := make(map[string]bool, len(recs))
+	for _, rec := range recs {
+		if rec != nil && strings.TrimSpace(rec.ConfTalkID) != "" {
+			ids[rec.ConfTalkID] = true
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	proposals, err := getters.ListProposals(ctx)
+	if err != nil {
+		ctx.Err.Printf("recording rows proposals batch: %s", err)
+		return nil
+	}
+	proposalMap := make(map[string]*types.Proposal, len(proposals))
+	for _, proposal := range proposals {
+		if proposal != nil {
+			proposalMap[proposal.ID] = proposal
+		}
+	}
+	speakerConfs, err := getters.ListSpeakerConfs(ctx, nil, proposalMap)
+	if err != nil {
+		ctx.Err.Printf("recording rows speakerconfs batch: %s", err)
+	} else {
+		speakerConfMap := make(map[string]*types.SpeakerConf, len(speakerConfs))
+		for _, sc := range speakerConfs {
+			if sc != nil {
+				speakerConfMap[sc.ID] = sc
+			}
+		}
+		for _, proposal := range proposalMap {
+			attachBatchedProposalSpeakers(proposal, speakerConfMap)
+		}
+	}
+	confTalks, err := getters.ListConfTalks(ctx, proposalMap)
+	if err != nil {
+		ctx.Err.Printf("recording rows conftalks batch: %s", err)
+		return nil
+	}
+	out := make(map[string]*types.ConfTalk, len(ids))
+	for _, ct := range confTalks {
+		if ct != nil && ids[ct.ID] {
+			out[ct.ID] = ct
+		}
+	}
+	return out
+}
+
+func attachBatchedProposalSpeakers(proposal *types.Proposal, speakerConfMap map[string]*types.SpeakerConf) {
+	if proposal == nil {
+		return
+	}
+	proposal.Speakers = proposal.Speakers[:0]
+	for _, ref := range proposal.SpeakerConfRefs {
+		if sc := speakerConfMap[ref]; sc != nil {
+			proposal.Speakers = append(proposal.Speakers, sc)
+		}
+	}
+}
+
+func recordingSocialPostsByRef(ctx *config.AppContext, recs []*types.Recording) map[string]*types.SocialPost {
+	refs := make(map[string]bool, len(recs)*2)
+	for _, rec := range recs {
+		if rec == nil {
+			continue
+		}
+		refs[recordingSocialPostRef(rec, recordingPlatformYouTube)] = true
+		refs[recordingSocialPostRef(rec, recordingPlatformX)] = true
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	posts, err := getters.ListSocialPosts(ctx)
+	if err != nil {
+		ctx.Err.Printf("recording rows socialposts batch: %s", err)
+		return nil
+	}
+	out := make(map[string]*types.SocialPost, len(refs))
+	for _, post := range posts {
+		if post == nil || !refs[post.Ref] {
+			continue
+		}
+		if _, exists := out[post.Ref]; exists {
+			continue
+		}
+		out[post.Ref] = post
+	}
+	return out
 }
 
 func enrichRowsWithYouTubeStatus(ctx *config.AppContext, rows []*RecordingRow) {
@@ -315,7 +420,9 @@ func enrichRowsWithYouTubeStatus(ctx *config.AppContext, rows []*RecordingRow) {
 			row.YTStatusError = "could not parse video ID"
 			continue
 		}
-		status, err := youtubepkg.GetVideoStatus(context.Background(), videoID)
+		statusCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		status, err := youtubepkg.GetVideoStatus(statusCtx, videoID)
+		cancel()
 		if err != nil {
 			row.YTStatusError = err.Error()
 			ctx.Err.Printf("recording youtube status recording=%s video=%s: %s", row.Recording.ID, videoID, err)
@@ -512,7 +619,12 @@ func RecordingsAdminBulkUploadYTPreview(w http.ResponseWriter, r *http.Request, 
 		playlists, err = youtubepkg.ListPlaylists(r.Context())
 		if err != nil {
 			ctx.Err.Printf("/%s/admin/recordings/upload-youtube playlists: %s", conf.Tag, err)
-			playlistErr = "Could not load YouTube playlists: " + err.Error()
+			if isYouTubeInvalidGrant(err) {
+				youtubeReady = false
+				playlistErr = "YouTube authorization has expired or was revoked. Re-authorize YouTube before bulk uploading."
+			} else {
+				playlistErr = "Could not load YouTube playlists: " + err.Error()
+			}
 		}
 	}
 	page := &RecordingsBulkUploadPage{
@@ -520,6 +632,7 @@ func RecordingsAdminBulkUploadYTPreview(w http.ResponseWriter, r *http.Request, 
 		Eligible:             eligible,
 		Skipped:              skipped,
 		YouTubeReady:         youtubeReady,
+		YouTubeAuthURL:       recordingsAdminPath(conf.Tag, "/oauth/youtube/start"),
 		YouTubePlaylists:     playlists,
 		DefaultPlaylistTitle: defaultRecordingPlaylistTitle(conf),
 		FlashMessage:         r.URL.Query().Get("flash"),
@@ -538,6 +651,14 @@ func RecordingsAdminBulkUploadYTPreview(w http.ResponseWriter, r *http.Request, 
 		ctx.Err.Printf("/%s/admin/recordings/upload-youtube render: %s", conf.Tag, err)
 		http.Error(w, "render failed", http.StatusInternalServerError)
 	}
+}
+
+func isYouTubeInvalidGrant(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "invalid_grant")
 }
 
 func RecordingsAdminBulkUploadYTApply(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -560,6 +681,9 @@ func RecordingsAdminBulkUploadYTApply(w http.ResponseWriter, r *http.Request, ct
 	}
 	playlistID, playlistTitle, err := resolveBulkUploadPlaylist(r.Context(), ctx, conf, r.FormValue("playlist_mode"), r.FormValue("playlist_id"), r.FormValue("playlist_title"))
 	if err != nil {
+		if isYouTubeInvalidGrant(err) {
+			err = fmt.Errorf("YouTube authorization has expired or was revoked. Re-authorize YouTube before bulk uploading.")
+		}
 		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?err="+url.QueryEscape(err.Error())), http.StatusSeeOther)
 		return
 	}
@@ -675,7 +799,6 @@ func recordingPlaylistDescription(conf *types.Conf) string {
 
 func recordingBulkUploadCandidates(ctx *config.AppContext, confTag string) ([]*RecordingRow, []*RecordingBulkUploadSkip) {
 	rows := recordingRowsForConf(ctx, confTag)
-	enrichRowsWithYouTubeStatus(ctx, rows)
 	sort.SliceStable(rows, func(i, j int) bool {
 		return recordingBulkUploadSortKey(rows[i]) < recordingBulkUploadSortKey(rows[j])
 	})
@@ -854,7 +977,9 @@ func updateRecordingYouTubeSchedule(ctx *config.AppContext, rec *types.Recording
 	if videoID == "" {
 		return "", fmt.Errorf("could not parse video ID from %q", rec.YTLink)
 	}
-	status, err := youtubepkg.GetVideoStatus(context.Background(), videoID)
+	statusCtx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	status, err := youtubepkg.GetVideoStatus(statusCtx, videoID)
+	cancel()
 	if err != nil {
 		return "", err
 	}
@@ -1290,7 +1415,9 @@ func RecordingsYTOAuthStart(w http.ResponseWriter, r *http.Request, ctx *config.
 	}
 	state := mintState(conf.Tag)
 	ctx.Session.Put(r.Context(), youtubeOAuthStateKey, state)
-	http.Redirect(w, r, youtubepkg.AuthCodeURLForRedirect(state, recordingsOAuthRedirectURL(ctx)), http.StatusSeeOther)
+	redirectURL := recordingsOAuthRedirectURL(ctx)
+	ctx.Infos.Printf("/%s/admin/recordings/oauth/youtube/start redirect_uri=%s", conf.Tag, redirectURL)
+	http.Redirect(w, r, youtubepkg.AuthCodeURLForRedirect(state, redirectURL), http.StatusSeeOther)
 }
 
 func RecordingsYTOAuthCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1423,6 +1550,9 @@ func recordingDetailPath(confTag, recordingID string) string {
 }
 
 func recordingsOAuthRedirectURL(ctx *config.AppContext) string {
+	if ctx != nil && ctx.Env != nil && strings.TrimSpace(ctx.Env.YouTube.RedirectURL) != "" {
+		return strings.TrimSpace(ctx.Env.YouTube.RedirectURL)
+	}
 	return strings.TrimRight(ctx.Env.GetURI(), "/") + "/admin/recordings/oauth/youtube/callback"
 }
 
@@ -1515,6 +1645,35 @@ func buildRecordingRow(ctx *config.AppContext, rec *types.Recording) *RecordingR
 	return row
 }
 
+func buildRecordingRowFromMaps(ctx *config.AppContext, rec *types.Recording, confTalksByID map[string]*types.ConfTalk, socialPostsByRef map[string]*types.SocialPost) *RecordingRow {
+	row := &RecordingRow{
+		Recording: rec,
+		YTURL:     rec.YTLink,
+		XURL:      rec.XLink,
+		XReplyURL: rec.XReplyLink,
+		HasFile:   rec.FileURI != "",
+	}
+	if rec.ConfTalkID != "" {
+		row.ConfTalk = confTalksByID[rec.ConfTalkID]
+		if row.ConfTalk == nil {
+			ctx.Err.Printf("recording row %s missing batched conftalk %s", rec.ID, rec.ConfTalkID)
+		}
+		if row.ConfTalk != nil && row.ConfTalk.Proposal != nil {
+			row.Speakers = recordingSpeakersForProposal(row.ConfTalk.Proposal, ctx)
+		}
+	}
+	attachRecordingSocialPostsFromMap(row, socialPostsByRef)
+	if !recordingStatusIsError(row.YTStatus) {
+		row.YTError = ""
+	}
+	if !recordingStatusIsError(row.XStatus) {
+		row.XError = ""
+	}
+	row.HasYT = row.YTURL != ""
+	row.HasX = row.XURL != ""
+	return row
+}
+
 func recordingStatusIsError(status string) bool {
 	switch strings.TrimSpace(strings.ToLower(status)) {
 	case recordingStatusFailed, recordingStatusAuthRequired:
@@ -1530,6 +1689,19 @@ func attachRecordingSocialPosts(ctx *config.AppContext, row *RecordingRow) {
 	}
 	row.YTSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformYouTube)
 	row.XSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformX)
+	applyRecordingSocialPosts(row)
+}
+
+func attachRecordingSocialPostsFromMap(row *RecordingRow, socialPostsByRef map[string]*types.SocialPost) {
+	if row == nil || row.Recording == nil {
+		return
+	}
+	row.YTSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformYouTube)]
+	row.XSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformX)]
+	applyRecordingSocialPosts(row)
+}
+
+func applyRecordingSocialPosts(row *RecordingRow) {
 	if row.YTSocialPost != nil {
 		if row.YTSocialPost.URL != "" {
 			row.YTURL = row.YTSocialPost.URL

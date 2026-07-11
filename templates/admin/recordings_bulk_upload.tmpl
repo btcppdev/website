@@ -20,7 +20,7 @@
               {{ if .YouTubeReady }}
                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">YouTube connected</span>
               {{ else }}
-                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">YouTube not ready</span>
+                <a href="{{ .YouTubeAuthURL }}" class="px-3 py-1.5 text-sm rounded-md text-white bg-red-600 hover:bg-red-700">Authorize YouTube</a>
               {{ end }}
             </div>
           </div>
