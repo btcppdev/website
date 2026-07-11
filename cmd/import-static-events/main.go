@@ -74,7 +74,6 @@ func main() {
 	csvPath := flag.String("csv", "", "write parsed rows to CSV path, or '-' for stdout")
 	dryRun := flag.Bool("dry-run", false, "parse and report without writing")
 	rollback := flag.Bool("rollback", false, "run database import and roll back instead of committing")
-	createConfs := flag.Bool("create-confs", false, "create missing legacy conference records before importing talks")
 	skipUpload := flag.Bool("skip-upload", false, "do not upload photos or cliparts to Spaces")
 	flag.Parse()
 
@@ -164,7 +163,7 @@ func main() {
 	}
 	defer tx.Rollback(context.Background())
 
-	if err := importTalks(context.Background(), tx, talks, !*skipUpload, *createConfs); err != nil {
+	if err := importTalks(context.Background(), tx, talks, !*skipUpload); err != nil {
 		log.Fatal(err)
 	}
 	if *rollback {
@@ -953,12 +952,7 @@ func parseATXTime(raw string, loc *time.Location) (time.Time, error) {
 	return time.ParseInLocation("Mon. Jan 2, 2006 @ 3:04 pm", raw, loc)
 }
 
-func importTalks(ctx context.Context, tx pgx.Tx, talks []staticTalk, uploadAssets bool, createConfs bool) error {
-	if createConfs {
-		if err := ensureLegacyConferences(ctx, tx, talks); err != nil {
-			return err
-		}
-	}
+func importTalks(ctx context.Context, tx pgx.Tx, talks []staticTalk, uploadAssets bool) error {
 	confIDs := map[string]string{}
 	for _, talk := range talks {
 		if _, ok := confIDs[talk.Event]; ok {
@@ -1013,26 +1007,6 @@ func importTalks(ctx context.Context, tx pgx.Tx, talks []staticTalk, uploadAsset
 		log.Printf("imported %s: %s (%s)", talk.Event, talk.Title, strings.Join(importedSpeakers, ", "))
 	}
 	return nil
-}
-
-type legacyConferenceMeta struct {
-	Tag          string
-	Description  string
-	Emoji        string
-	Tagline      string
-	DateDesc     string
-	Start        string
-	End          string
-	Timezone     string
-	Location     string
-	Venue        string
-	EditionType  string
-	MapLatitude  float64
-	MapLongitude float64
-	MapXPercent  float64
-	MapYPercent  float64
-	MapLabel     string
-	MapLabelSide string
 }
 
 type staticSponsor struct {
@@ -1260,131 +1234,6 @@ func upsertStaticSponsorship(ctx context.Context, tx pgx.Tx, confID, orgID strin
 		return fmt.Errorf("link atx23 sponsorship %q: %w", sponsor.Name, err)
 	}
 	return nil
-}
-
-func ensureLegacyConferences(ctx context.Context, tx pgx.Tx, talks []staticTalk) error {
-	seen := map[string]bool{}
-	for _, talk := range talks {
-		if talk.Event == "" || seen[talk.Event] {
-			continue
-		}
-		seen[talk.Event] = true
-		meta, ok := legacyConferenceMetadata(talk.Event)
-		if !ok {
-			continue
-		}
-		start, err := parseOptionalTime(meta.Start)
-		if err != nil {
-			return fmt.Errorf("%s conference start: %w", meta.Tag, err)
-		}
-		end, err := parseOptionalTime(meta.End)
-		if err != nil {
-			return fmt.Errorf("%s conference end: %w", meta.Tag, err)
-		}
-		_, err = tx.Exec(ctx, `
-			INSERT INTO conferences (
-				id, tag, active, publication_status, description, edition_type,
-				emoji, tagline, date_desc, start_date, end_date, timezone,
-				location, venue, map_latitude, map_longitude, map_x_percent,
-				map_y_percent, map_label, map_label_side
-			)
-			VALUES (
-				$1::uuid, $2, false, 'published', $3, $4,
-				$5, $6, $7, $8::timestamptz, $9::timestamptz, $10,
-				$11, $12, $13, $14, $15, $16, $17, $18
-			)
-			ON CONFLICT (tag) DO UPDATE SET
-				publication_status = 'published',
-				description = CASE WHEN conferences.description = '' THEN EXCLUDED.description ELSE conferences.description END,
-				edition_type = CASE WHEN conferences.edition_type = '' THEN EXCLUDED.edition_type ELSE conferences.edition_type END,
-				emoji = CASE WHEN conferences.emoji = '' THEN EXCLUDED.emoji ELSE conferences.emoji END,
-				tagline = CASE WHEN conferences.tagline = '' THEN EXCLUDED.tagline ELSE conferences.tagline END,
-				date_desc = CASE WHEN conferences.date_desc = '' THEN EXCLUDED.date_desc ELSE conferences.date_desc END,
-				start_date = COALESCE(conferences.start_date, EXCLUDED.start_date),
-				end_date = COALESCE(conferences.end_date, EXCLUDED.end_date),
-				timezone = CASE WHEN conferences.timezone = '' THEN EXCLUDED.timezone ELSE conferences.timezone END,
-				location = CASE WHEN conferences.location = '' THEN EXCLUDED.location ELSE conferences.location END,
-				venue = CASE WHEN conferences.venue = '' THEN EXCLUDED.venue ELSE conferences.venue END,
-				map_latitude = CASE WHEN conferences.map_latitude = 0 THEN EXCLUDED.map_latitude ELSE conferences.map_latitude END,
-				map_longitude = CASE WHEN conferences.map_longitude = 0 THEN EXCLUDED.map_longitude ELSE conferences.map_longitude END,
-				map_x_percent = CASE WHEN conferences.map_x_percent = 0 THEN EXCLUDED.map_x_percent ELSE conferences.map_x_percent END,
-				map_y_percent = CASE WHEN conferences.map_y_percent = 0 THEN EXCLUDED.map_y_percent ELSE conferences.map_y_percent END,
-				map_label = CASE WHEN conferences.map_label = '' THEN EXCLUDED.map_label ELSE conferences.map_label END,
-				map_label_side = CASE WHEN conferences.map_label_side = '' THEN EXCLUDED.map_label_side ELSE conferences.map_label_side END
-		`, stableID("static-event:conference:"+meta.Tag), meta.Tag, meta.Description, meta.EditionType,
-			meta.Emoji, meta.Tagline, meta.DateDesc, start, end, meta.Timezone,
-			meta.Location, meta.Venue, meta.MapLatitude, meta.MapLongitude, meta.MapXPercent,
-			meta.MapYPercent, meta.MapLabel, meta.MapLabelSide)
-		if err != nil {
-			return fmt.Errorf("upsert conference %s: %w", meta.Tag, err)
-		}
-		log.Printf("ensured legacy conference %s", meta.Tag)
-	}
-	return nil
-}
-
-func legacyConferenceMetadata(tag string) (legacyConferenceMeta, bool) {
-	metas := map[string]legacyConferenceMeta{
-		"atx22": {
-			Tag:          "atx22",
-			Description:  "bitcoin++ Austin 2022, lightning edition",
-			Emoji:        "\U0001F920",
-			Tagline:      "Lightning developer edition",
-			DateDesc:     "June 6 - 10, 2022",
-			Start:        "2022-06-06T09:00:00-05:00",
-			End:          "2022-06-10T18:00:00-05:00",
-			Timezone:     "America/Chicago",
-			Location:     "Austin, TX, USA",
-			Venue:        "Austin, TX",
-			EditionType:  "global",
-			MapLatitude:  30.2672,
-			MapLongitude: -97.7431,
-			MapXPercent:  18.43,
-			MapYPercent:  50.13,
-			MapLabel:     "Austin",
-			MapLabelSide: "right",
-		},
-		"atx23": {
-			Tag:          "atx23",
-			Description:  "bitcoin++ Austin 2023, bitcoin script edition",
-			Emoji:        "\U0001F9E1",
-			Tagline:      "Bitcoin script edition",
-			DateDesc:     "April 28 - 30, 2023",
-			Start:        "2023-04-28T09:00:00-05:00",
-			End:          "2023-04-30T18:00:00-05:00",
-			Timezone:     "America/Chicago",
-			Location:     "Austin, TX, USA",
-			Venue:        "PlebLab",
-			EditionType:  "global",
-			MapLatitude:  30.2672,
-			MapLongitude: -97.7431,
-			MapXPercent:  18.43,
-			MapYPercent:  50.13,
-			MapLabel:     "Austin",
-			MapLabelSide: "right",
-		},
-		"cdmx22": {
-			Tag:          "cdmx22",
-			Description:  "bitcoin++ CDMX 2022, privacy edition",
-			Emoji:        "\U0001F1F2\U0001F1FD",
-			Tagline:      "Privacy edition",
-			DateDesc:     "December 7 - 11, 2022",
-			Start:        "2022-12-07T09:00:00-06:00",
-			End:          "2022-12-11T18:00:00-06:00",
-			Timezone:     "America/Mexico_City",
-			Location:     "Mexico City, CDMX, Mexico",
-			Venue:        "Mexico City",
-			EditionType:  "global",
-			MapLatitude:  19.4326,
-			MapLongitude: -99.1332,
-			MapXPercent:  18.0,
-			MapYPercent:  55.0,
-			MapLabel:     "CDMX",
-			MapLabelSide: "right",
-		},
-	}
-	meta, ok := metas[tag]
-	return meta, ok
 }
 
 type existingPerson struct {
