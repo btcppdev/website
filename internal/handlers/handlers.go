@@ -176,8 +176,9 @@ func loadTemplates(ctx *config.AppContext) error {
 		"confImage": func(tag, base string) template.URL {
 			return template.URL(confImagePath(tag, base))
 		},
-		"confVenueImages": confVenueImages,
-		"archiveTalks":    archiveTalks,
+		"confVenueImages":         confVenueImages,
+		"archiveTalks":            archiveTalks,
+		"archiveResourcesAllowed": archiveResourcesAllowed,
 		"avifSibling": func(s string) string {
 			u := strings.TrimSpace(s)
 			if !strings.HasSuffix(strings.ToLower(u), ".png") {

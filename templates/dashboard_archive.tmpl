@@ -93,7 +93,7 @@
               {{ if and .ConfTalk .ConfTalk.GithubRepoURL }}<a href="{{ .ConfTalk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">Repo</a>{{ end }}
               {{ if not (or (and .Recording .Recording.YTLink) (and .ConfTalk .ConfTalk.SlidesURL) (and .ConfTalk .ConfTalk.GithubRepoURL)) }}<span class="dashboard-archive-session__empty">-</span>{{ end }}
             </div>
-            {{ if and $.CanEditArchive .ConfTalk }}
+            {{ if and $.CanEditArchive .ConfTalk (archiveResourcesAllowed .) }}
             <form class="dashboard-talk-resources dashboard-talk-resources--archive" method="POST" enctype="multipart/form-data" action="/dashboard/conftalks/{{ .ConfTalk.ID }}/resources?hr={{ $.HMAC }}&em={{ $.Email }}">
               <input type="hidden" name="ReturnTo" value="whois_archive">
               <input type="hidden" name="ReturnArchivePath" value="{{ $.ArchiveOwnerPath }}/archive">

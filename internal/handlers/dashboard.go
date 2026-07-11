@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -510,6 +511,18 @@ func archiveTalks(sc *types.SpeakerConf) []*types.Proposal {
 		return false
 	})
 	return out
+}
+
+func archiveResourcesAllowed(proposal *types.Proposal) bool {
+	if proposal == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(proposal.TalkType)) {
+	case "talk", "workshop", "keynote":
+		return true
+	default:
+		return false
+	}
 }
 
 func dashboardArchiveYears(blocks []*EventBlock) ([]*DashboardArchiveYear, int) {
