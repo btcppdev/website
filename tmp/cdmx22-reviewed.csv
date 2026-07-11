@@ -1,0 +1,219 @@
+event,talk_index,talk_anchor,proposal_id,conf_talk_id,speaker_person_id,speaker_name,speaker_email,speaker_company,speaker_twitter,speaker_github_url,speaker_website_url,speaker_nostr,speaker_photo_source,talk_title,talk_description,talk_category,talk_type,venue,scheduled_start,scheduled_end,duration_min,clipart_source,youtube_url
+cdmx22,1,kCON4wuecOw,76bf045b-d886-5ca6-8457-98331753fa49,94de855b-d6fd-5e7b-bb62-fa634523686c,43697130-ec12-54b4-b993-a7d293dfef11,Bitcoin Mechanic,bitcoinmechanicCA@protonmail.com ,,,,,,https://unavatar.io/x/GrassFedBitcoin,Privacy is a Subset of Sovereignty,"Start9's @bitcoinmechanic gives a high level discussion of how a person can resist financial surveillance.
+
+Speaker twitter: https://twitter.com/GrassFedBitcoin
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewj5/privacy-as-a-subset-of-sovereignty
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+Recorded at btcpp cdmx, 10 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-10T10:30:00-06:00,2022-12-10T11:00:00-06:00,30,https://i.ytimg.com/vi/kCON4wuecOw/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgVihKMA8=&rs=AOn4CLB2OFYXE_kN8AjEmqTN6QzMq8jykg,https://www.youtube.com/watch?v=kCON4wuecOw
+cdmx22,2,dYZ1-r36h7g,5b1f3ff6-a42a-5c26-894e-867c88bee5bb,dd638e9f-7ea5-5403-bd73-d4be7884c0c7,43697130-ec12-54b4-b993-a7d293dfef11,Javier ₿astard,javier.bastardo@tether.to ,,,,,,https://avatars.sched.co/8/55/16942379/avatar.jpg?51b,Who tf Cares About Privacy in Developing Markets?,"There is a myth around how useful Bitcoin could be in developing markets... But is it beyond its utility as a value rail? Do people care about the cypherpunk ethos or whatever we call the need of privacy while using this technology? We're going to dig into that.
+
+
+Speaker twitter: https://twitter.com/criptobastardo
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1EwjZ/who-tf-cares-about-privacy-in-developing-markets
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T16:30:00-06:00,2022-12-09T17:00:00-06:00,30,https://i.ytimg.com/vi/dYZ1-r36h7g/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgWyhiMA8=&rs=AOn4CLDN_1pRRQ_QNhlxAayU50zTtJu5dA,https://www.youtube.com/watch?v=dYZ1-r36h7g
+cdmx22,3,ugwDIAtxtVA,e6bbfef1-a999-5619-809f-1d8019c646cf,b246b3ad-fd73-5154-a307-8c29f7bbb1e5,43697130-ec12-54b4-b993-a7d293dfef11,Yuval Kogman,nothingmuch@woobling.org ,,,,,,,"Privacy, an In-Depth Discussion","Yuval Kogman gives an in-depth overview of threats, attacks and mitigations related to Bitcoin privacy.
+
+
+Speaker twitter: https://twitter.com/not_nothingmuch
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1EwjK/privacy-an-in-depth-discussion
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T14:00:00-06:00,2022-12-09T15:30:00-06:00,90,https://i.ytimg.com/vi/ugwDIAtxtVA/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGQgZChkMA8=&rs=AOn4CLCEFZfscy0C5f68uzuYO8lLAtsG3g,https://www.youtube.com/watch?v=ugwDIAtxtVA
+cdmx22,4,F6qPuhsM5Ng,ffbfde8f-967f-57fc-8fbe-6e6eb3bee1d0,2cba39fa-4ca4-5c1e-9442-60601f7a3c6f,43697130-ec12-54b4-b993-a7d293dfef11,Peter Todd,peter.todd@gmail.com,,,,,,https://unavatar.io/x/peterktodd,Teach the Controversy (mempoolfullrbf),"Peter Todd talks mempool policy.
+
+Mempoolfullrbf=1
+
+Speaker twitter: https://twitter.com/peterktodd
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1EwjH/teach-the-controversy-full-replace-by-fee
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T15:30:00-06:00,2022-12-09T16:00:00-06:00,30,https://i.ytimg.com/vi/F6qPuhsM5Ng/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGDcgLih_MA8=&rs=AOn4CLCA4zRvRDXa3cRfhPBELHMXJ2XMtw,https://www.youtube.com/watch?v=F6qPuhsM5Ng
+cdmx22,5,OFMU1xV5uQk,5bb806e8-3724-5efe-b5f5-c91c3627611b,cd5f2af0-37e8-55f1-b63b-109840e56eed,43697130-ec12-54b4-b993-a7d293dfef11, niftynei,nifty@btcpp.dev,,,,,,/static/atx23/img/speakers/nifty_unified.png,Let's Talk About Dual-Funding: Protocol Overview,"Wouldn’t it be cool to be able to have ‘payjoins’ in lightning? Let’s talk about how this works.
+
+
+Speaker twitter: https://twitter.com/niftynei
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1EwjT/lets-talk-about-dual-funding-protocol-overview
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T10:30:00-06:00,2022-12-09T11:00:00-06:00,30,https://i.ytimg.com/vi/OFMU1xV5uQk/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgYShbMA8=&rs=AOn4CLBBTBeQEkBUDPreD8pilWrOoHvRKA,https://www.youtube.com/watch?v=OFMU1xV5uQk
+cdmx22,6,R1rmT7ue1HA,cb382953-7f2c-5db8-92d8-7c073f7e6cb3,a088c202-ee73-593a-bc36-f06c9bd22f59,43697130-ec12-54b4-b993-a7d293dfef11,Randy Naar,rnd.naar@gmail.com ,,,,,,,Default Fee Rates and Wallet Privacy,"Blockstream's Randy Naar aims to bring awareness to how using a wallet's default fee rate might leak information about what wallet software was used to construct a transaction.
+
+
+Speaker: Randy Naar
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewiq/default-fee-rates-and-wallet-privacy
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T11:00:00-06:00,2022-12-09T11:30:00-06:00,30,https://i.ytimg.com/vi/R1rmT7ue1HA/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgZShlMA8=&rs=AOn4CLCuza8_OqlKg-UN-uJJb_YS_y0XIw,https://www.youtube.com/watch?v=R1rmT7ue1HA
+cdmx22,7,XgUlRGb_nG8,0d0d17a3-a490-5e44-8dea-15547a69aaa2,2500a101-5862-5f99-8c09-39e13dee6f42,43697130-ec12-54b4-b993-a7d293dfef11,Alejandro Espejo and Sandro,sandro.martinez@spiralis.com.mx ,,,,,,https://unavatar.io/x/alejandro217,Lightning in Context: Cell Networks in El Salvador,"Come and see simple lightning projects with huge impact. Top up cell w BTC in Claro El Salvador/BTC PoS/BTC Street Sell.
+
+Speakers: Alejandro Espejo and Sandro (Spiralis)
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1FAgG/lightning-in-context-cell-networks-in-el-salvador
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T16:30:00-06:00,2022-12-09T17:00:00-06:00,30,https://i.ytimg.com/vi/XgUlRGb_nG8/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGMgYyhjMA8=&rs=AOn4CLB1uzidYzMh0U2tO-ZH56QeMPKKog,https://www.youtube.com/watch?v=XgUlRGb_nG8
+cdmx22,8,SLYfyr7I8P4,d9aeff4a-af06-5a25-a6ef-aba5263c2c8b,49604a5f-c0fc-556c-aa5b-490dedc8c78b,43697130-ec12-54b4-b993-a7d293dfef11,Chris Guida,chrisguida@gmail.com,,,,,,/static/atx23/img/speakers/guida_unified.png,"Lightning, All About Static","Start9's  Chris Guida talks us through why the Lightning Network is like natural lightning. A quick round table discussion about how bitcoin lightning is natural lightning-like.
+
+Speaker twitter: https://twitter.com/cguida6
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1FLQq/lightning-all-about-static
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T16:00:00-06:00,2022-12-09T16:30:00-06:00,30,https://i.ytimg.com/vi/SLYfyr7I8P4/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgZShlMA8=&rs=AOn4CLDlBf0tVdsxIeexVSJ_FKLjYvVsAw,https://www.youtube.com/watch?v=SLYfyr7I8P4
+cdmx22,9,khmLiM9xhwk,962bc15b-fa2b-5bce-a182-fcd2bdeddafa,1251303c-ad63-5bef-afd7-bf01634c01e0,43697130-ec12-54b4-b993-a7d293dfef11,Adam Gibson,ekaggata@gmail.com,,,,,,https://unavatar.io/x/waxwing,"Coinjoin Done Right: the onchain/offchain mix, and anti-Sybil with Riddles","Adam Gibson aka waxwing talks trustless information sharing in an adversarial world, what coinjoins might look like in an on/off chain future
+
+
+
+Speaker twitter: https://x0f.org/@waxwing
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewjx/coinjoin-done-right-the-onchainoffchain-mix-and-anti-sybil-with-riddles
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-10T11:30:00-06:00,2022-12-10T13:00:00-06:00,90,https://i.ytimg.com/vi/khmLiM9xhwk/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGFcgWyhlMA8=&rs=AOn4CLBNMb1kwg1XQL3ANp1muVZplEbQ7A,https://www.youtube.com/watch?v=khmLiM9xhwk
+cdmx22,10,HefMJduXRUs,a1e0f9cd-746f-52d4-85c9-91be77f86daa,19638f2f-a16b-5c73-b651-a1f9e560a4e7,43697130-ec12-54b4-b993-a7d293dfef11,Asher Pembroke,apembroke@gmail.com ,,,,,,/static/atx23/img/speakers/asherp.jpeg,Elliptic Curve Cryptography for the Rest of Us,"Asher Pembroke gives an introduction to elliptic curve cryptography.
+
+Speaker twitter: https://twitter.com/asherp
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewjo/elliptic-curve-cryptography-for-the-rest-of-us
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T11:30:00-06:00,2022-12-09T12:15:00-06:00,45,https://i.ytimg.com/vi/HefMJduXRUs/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGEQgUChlMA8=&rs=AOn4CLBknxxgcsiz5rs_ANrLKFCKQ5DFDA,https://www.youtube.com/watch?v=HefMJduXRUs
+cdmx22,11,dF8sNwp7XiY,cc8ad2a4-b36c-5460-9f35-2f3af7a7e135,ba0abd88-4503-5c32-95e3-4c341b4e84a1,43697130-ec12-54b4-b993-a7d293dfef11,Max Hillebrand,max@towardsliberty.com,,,,,,,Autonomous Blockspace Accountants,"Wasabi Wallet's Max Hillebrand leads a discussion to try to figure out how to build smart software to autonomously adapt the users utxo set to his preference regarding privacy, speed and cost.
+
+Speaker twitter: https://twitter.com/HillebrandMax
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1EwjN/autonomous-blockspace-accountants
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+Recorded at btcpp cdmx, 10 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-10T10:00:00-06:00,2022-12-10T11:30:00-06:00,90,https://i.ytimg.com/vi/dF8sNwp7XiY/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgZShlMA8=&rs=AOn4CLDdlty-d28zif1aSiZOhQ8Rh1OPZw,https://www.youtube.com/watch?v=dF8sNwp7XiY
+cdmx22,12,9CMXu1d5ly8,48b45446-d167-5f96-8de3-6b359b90cc29,380697ec-2bd4-5afd-9aad-b6e31bd749d4,43697130-ec12-54b4-b993-a7d293dfef11,Tony Giorgio,tonygiorgio@protonmail.com ,,,,,,https://unavatar.io/x/TonyGiorgio,Alternative On-Chain Privacy Solutions,"You may have heard of coinjoin solutions like Samourai, Wasabi, or JoinMarket, but have you heard of Vortex? What about coinswap or even better, the poor man's coinswap? What if you could offload custody to a federation to achieve privacy? Let's explore all of these alternatives to coinjoins!
+
+Speaker: Tony Giorgio of Voltage
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1EwjB/alternative-on-chain-privacy-solutions
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T12:15:00-06:00,2022-12-09T13:00:00-06:00,45,https://i.ytimg.com/vi/9CMXu1d5ly8/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgXChTMA8=&rs=AOn4CLAyrFQfD7HBM3pXT9UbYwYWisjNSg,https://www.youtube.com/watch?v=9CMXu1d5ly8
+cdmx22,13,EIqa4jAVdug,61f43d48-db4b-5136-8708-6d991a2ebc86,aec1245b-7cb4-53df-b901-fc19827df596,43697130-ec12-54b4-b993-a7d293dfef11,CoinsureNZ,rigel00@protonmail.com,,,,,,https://unavatar.io/x/CoinsureNZ,How to Create and Destroy with Bitcoin,"Software is not just a tool but also a means to imagine and articulate a better world than the one we have. Bitcoin is not just a monetary protocol but an opportunity to redefine our assumptions about privacy and sovereignty.
+
+Speaker twitter: https://twitter.com/CoinsureNZ
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewiz/how-to-create-and-destroy-with-bitcoin
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 10 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-10T10:00:00-06:00,2022-12-10T10:30:00-06:00,30,https://i.ytimg.com/vi/EIqa4jAVdug/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgWChTMA8=&rs=AOn4CLChg_lfLauBGoLozmoDCaErB793dg,https://www.youtube.com/watch?v=EIqa4jAVdug
+cdmx22,14,AdQO7LjCZX4,6976225b-4e2e-509c-b1ad-b1f7a8c2b263,10a519fd-759d-5d4c-b569-dfdb1275d08b,43697130-ec12-54b4-b993-a7d293dfef11,Javier Vargas,javier@clobig.com,,,,,,https://unavatar.io/x/javiervargas,Break Chain Analysis with Taproot,"Javier Vargas of Clobig.com shows us how to create a P2TR output from the command line. Breaking chainalysis with taproot.
+
+Speaker twitter: https://twitter.com/javiervargas
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewjr/break-chainalysis-with-taproot
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 10 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-10T11:00:00-06:00,2022-12-10T12:00:00-06:00,60,https://i.ytimg.com/vi/AdQO7LjCZX4/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGFcgZShfMA8=&rs=AOn4CLCxAxJz81XwinoyoxjoP3zSaBfUqA,https://www.youtube.com/watch?v=AdQO7LjCZX4
+cdmx22,15,d1HIBE4fCmE,6a51237c-a69d-5849-8002-49c0dd97de64,b713d9ba-05b3-5ab3-ad3c-bf274a454440,43697130-ec12-54b4-b993-a7d293dfef11,Ben Carman,benthecarman@live.com,,,,,,https://unavatar.io/x/benthecarman,Vortex: ZeroLink for Lightning Opens,"Ben Carman of the Bitcoin Company on what is Vortex, the lightning coin-join-to-open app?
+
+Speaker twitter: https://twitter.com/benthecarman
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewji/vortex-zerolink-for-lightning-opens
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T11:00:00-06:00,2022-12-09T12:15:00-06:00,75,https://i.ytimg.com/vi/d1HIBE4fCmE/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgXChUMA8=&rs=AOn4CLCh-Q3TEsNxW8myvr0QKMxIaRniTw,https://www.youtube.com/watch?v=d1HIBE4fCmE
+cdmx22,16,yq_cOVHr8Pg,b07be084-d961-56cb-9418-9db0e3b29b64,8dce0beb-760a-5eef-9986-445155549d9d,43697130-ec12-54b4-b993-a7d293dfef11,David Vorick,david.vorick@gmail.com,,,,,,https://unavatar.io/x/DavidVorick,Monero and the Privacy Doom Principle,"David Vorick starts with an overview of the privacy doom principle: if a protocol does not provide users with perfect anonymity, all users will over sufficient time be fully de-anonymized. Then he provides a new theoretical model for crypto wallets called 'stream wallets'. This model formalizes standard user behavior and makes privacy analysis substantially easier. Finally he uses this model to show that partial privacy protocols like Monero are completely broken, and offer users no anonymity against sufficiently powerful on-chain analysis.
+
+
+Speaker twitter: https://twitter.com/DavidVorick
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1EwjQ/monero-and-the-privacy-doom-principle-remote
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T14:00:00-06:00,2022-12-09T15:00:00-06:00,60,https://i.ytimg.com/vi/yq_cOVHr8Pg/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgXChTMA8=&rs=AOn4CLBvkQBCSqwva9VXoJzf_45T4_Q9fw,https://www.youtube.com/watch?v=yq_cOVHr8Pg
+cdmx22,17,SOKNRHyGRvQ,20db4945-2a68-55a5-9ce7-86c911b65b0f,c44c6f75-15e9-543a-84a0-7c39b2afdfc6,43697130-ec12-54b4-b993-a7d293dfef11,Dusty Dettmer,dustinpaystaxes@gmail.com,,,,,,/static/atx23/img/speakers/dustin_unified.png,"Splicing, Lightning's Multiparty Future","Core Lightning Dev Dusty Dettmer explains how splicing: a lightning protocol proposal which will totally unlock decentralized multiparty transactions.
+
+Speaker twitter: https://twitter.com/dusty_daemon
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1EwjW/splicing-lightnings-multiparty-future
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T15:30:00-06:00,2022-12-09T16:00:00-06:00,30,https://i.ytimg.com/vi/SOKNRHyGRvQ/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGE4gWyhlMA8=&rs=AOn4CLCIF6qe87t95nixhHX72shWn9KAjQ,https://www.youtube.com/watch?v=SOKNRHyGRvQ
+cdmx22,18,4Fw_22JhjEc,c64c3bfe-9fcd-58ed-b32c-922ca4252c3a,4c3c36bd-8e2d-5cb7-9317-74f01f5e12b2,43697130-ec12-54b4-b993-a7d293dfef11,Nico Preti,nicopreti@gmail.com,,,,,,/static/atx23/img/speakers/nico_unified.png,Rigly: Recycling Coins with P2P Mining Agreements,"Nico Preti of Rigly describes how to trade old coins for new ones from the coinbase to your xpub and secured against rug pulls with multisig.
+
+Speaker twitter: https://twitter.com/NicoP2010
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewjc/rigly-recycling-coins-with-p2p-mining-agreements
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T16:00:00-06:00,2022-12-09T16:30:00-06:00,30,https://i.ytimg.com/vi/4Fw_22JhjEc/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGFwgXChcMA8=&rs=AOn4CLD60LqQP4_TwZF2q-uNoNkRCZoLGw,https://www.youtube.com/watch?v=4Fw_22JhjEc
+cdmx22,19,J3BgDmwsPY4,36b99e37-9ffd-5a41-ab56-eb76d38e415c,a8471ef0-c288-5803-bfae-ecbe2a71dcd6,43697130-ec12-54b4-b993-a7d293dfef11,Juan Carlos,jcb@spiralis.com.mx,,,,,,https://unavatar.io/x/belair6909,Sparrow Wallet + Whirlpool,"Juan Carlos of Spiralis shows broadly the advantages of Sparrow with HW and with Whirlpool.
+
+Speaker twitter: https://twitter.com/belair6909
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewj8/sparrow-wallet-whirlpool
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 9 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-09T12:15:00-06:00,2022-12-09T13:00:00-06:00,45,https://i.ytimg.com/vi/J3BgDmwsPY4/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgZShlMA8=&rs=AOn4CLAvC3zeD0rqxRmhLPD4UT9cNbY8fA,https://www.youtube.com/watch?v=J3BgDmwsPY4
+cdmx22,20,_yzT2ADThsI,8878b9f1-a68a-534c-911c-b96a3c33694b,8e56596e-d9f5-57dd-b18c-0588ee7e2894,43697130-ec12-54b4-b993-a7d293dfef11,Turbolay,turbolay@zksnacks.com ,,,,,,/static/atx23/img/speakers/turbolay_unified.png,Towards Fungibility: Automatic Coin Selection,"Wasabi Wallet's Turbolay asks: Would you trust an autopilot for your privacy? The road to make private bitcoin fungible.
+
+Speaker twitter: https://twitter.com/Turbolay
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewiw/toward-fungibility-automatic-coin-selection
+
+
+btcpp website: https://btcplusplus.dev/
+btcpp twitter: https://twitter.com/btcplusplus
+
+
+Recorded at btcpp cdmx, 10 Dec 2023 at the Hotel Benidorm, Roma Norte, Mexico City.",YouTube Playlist,talk,"Mexico City, CDMX, Mexico",2022-12-10T14:00:00-06:00,2022-12-10T14:30:00-06:00,30,https://i.ytimg.com/vi/_yzT2ADThsI/maxresdefault.jpg?sqp=-oaymwEmCIAKENAF8quKqQMa8AEB-AH-CYAC0AWKAgwIABABGGUgZShlMA8=&rs=AOn4CLCOweeJpbobL4yE4Bar0coLPGkq0w,https://www.youtube.com/watch?v=_yzT2ADThsI
+cdmx22,21,aCyQ629OB9M,0491110f-f463-59f5-b52d-39767434c2e4,f2f01d26-0e71-5f01-8a0f-e994837f3b21,43697130-ec12-54b4-b993-a7d293dfef11,,,,,,,,/static/atx23/img/speakers/hack_prize_unified.png,"hackathon (presentations, judging, prizes)","Hackathon presentations and judging for bitcoin++ CDMX on Onchain Privacy.
+
+Judges: JC Belair (Spiralis), Peter Todd (btc), Dulce Villareal (Libreria de Satoshi)
+
+Event Schedule: https://bitcoincdmx2022.sched.com/event/1Ewne/hackathon-presentations",YouTube Playlist,hackathon,Hotel Benidorm – GUELGAZUETA,2022-12-11T15:45:00-06:00,2022-12-11T16:30:00-06:00,45,https://i.ytimg.com/vi/aCyQ629OB9M/hqdefault.jpg?sqp=-oaymwE9CNACELwBSFryq4qpAy8IARUAAAAAGAElAADIQj0AgKJDeAHwAQH4Af4JgALQBYoCDAgAEAEYZSBlKFYwDw==&rs=AOn4CLDLiNUk6AAmfKmsnR0bBdN-AR-W2g,https://www.youtube.com/watch?v=aCyQ629OB9M

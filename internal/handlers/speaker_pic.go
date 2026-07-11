@@ -6,6 +6,7 @@ import (
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/imgproc"
+	"btcpp-web/internal/speakerphotos"
 )
 
 // photoSpaces is the subset of the spaces package the photo pipeline needs.
@@ -54,40 +55,22 @@ func newPhotoPipeline(ctx *config.AppContext) photoPipeline {
 // Designed to be called from a goroutine; failures are logged and do not
 // abort. Each upload is gated by spaces.Exists so re-runs are idempotent.
 func (p photoPipeline) mirrorPicToSpaces(raw []byte, contentType, ext string) {
-	if !p.spaces.IsConfigured() {
-		return
-	}
+	_ = speakerphotos.Pipeline{
+		Spaces:              speakerPhotoSpacesAdapter{p.spaces},
+		MakeAVIF:            p.makeAVIF,
+		Logf:                p.logf,
+		AfterManifestUpdate: InvalidateSpeakerManifest,
+	}.Mirror(raw, contentType, ext)
+}
 
-	shortID := imgproc.ShortID(raw)
-	normPhoto := shortID + ext
-	origKey := "speakers/" + normPhoto
+type speakerPhotoSpacesAdapter struct{ photoSpaces }
 
-	if !p.spaces.Exists(origKey) {
-		if _, err := p.spaces.Upload(origKey, raw, contentType, ""); err != nil {
-			p.logf("speaker pic spaces orig upload failed (%s): %s", shortID, err)
-			return
-		}
-	}
-	updateSpeakerManifest(normPhoto, raw)
+func (a speakerPhotoSpacesAdapter) LoadJSONMap(key string) (map[string]string, error) {
+	return spaces.LoadJSONMap(key)
+}
 
-	for _, size := range []int{800, 400} {
-		key := fmt.Sprintf("speakers/%s-%d.avif", shortID, size)
-		filename := fmt.Sprintf("%s-%d.avif", shortID, size)
-		if p.spaces.Exists(key) {
-			updateSpeakerManifest(filename, raw)
-			continue
-		}
-		avif, err := p.makeAVIF(raw, size)
-		if err != nil {
-			p.logf("speaker pic avif%d generation failed (%s): %s", size, shortID, err)
-			continue
-		}
-		if _, err := p.spaces.Upload(key, avif, "image/avif", ""); err != nil {
-			p.logf("speaker pic spaces avif%d upload failed (%s): %s", size, shortID, err)
-			continue
-		}
-		updateSpeakerManifest(filename, raw)
-	}
+func (a speakerPhotoSpacesAdapter) SaveJSONMap(key string, m map[string]string) error {
+	return spaces.SaveJSONMap(key, m)
 }
 
 // mirrorOrgLogoToSpaces uploads the org-logo as-is (no crop, no resize, no
