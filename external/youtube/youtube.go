@@ -256,6 +256,129 @@ type VideoStatus struct {
 	PublishAt     *time.Time
 }
 
+type Playlist struct {
+	ID    string
+	Title string
+}
+
+func ListPlaylists(ctx context.Context) ([]Playlist, error) {
+	client, err := httpClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	svc, err := youtubeapi.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, fmt.Errorf("youtube: new service: %w", err)
+	}
+	var playlists []Playlist
+	call := svc.Playlists.List([]string{"id", "snippet"}).Mine(true).MaxResults(50)
+	for {
+		resp, err := call.Context(ctx).Do()
+		if err != nil {
+			return nil, fmt.Errorf("youtube playlists.list: %w", err)
+		}
+		for _, item := range resp.Items {
+			if item == nil || item.Id == "" || item.Snippet == nil {
+				continue
+			}
+			playlists = append(playlists, Playlist{ID: item.Id, Title: item.Snippet.Title})
+		}
+		if resp.NextPageToken == "" {
+			break
+		}
+		call.PageToken(resp.NextPageToken)
+	}
+	return playlists, nil
+}
+
+func EnsurePlaylist(ctx context.Context, title, description string) (Playlist, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return Playlist{}, fmt.Errorf("youtube playlist title is required")
+	}
+	playlists, err := ListPlaylists(ctx)
+	if err != nil {
+		return Playlist{}, err
+	}
+	for _, playlist := range playlists {
+		if strings.EqualFold(strings.TrimSpace(playlist.Title), title) {
+			return playlist, nil
+		}
+	}
+	return CreatePlaylist(ctx, title, description)
+}
+
+func CreatePlaylist(ctx context.Context, title, description string) (Playlist, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return Playlist{}, fmt.Errorf("youtube playlist title is required")
+	}
+	client, err := httpClient(ctx)
+	if err != nil {
+		return Playlist{}, err
+	}
+	svc, err := youtubeapi.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return Playlist{}, fmt.Errorf("youtube: new service: %w", err)
+	}
+	resp, err := svc.Playlists.Insert([]string{"snippet", "status"}, &youtubeapi.Playlist{
+		Snippet: &youtubeapi.PlaylistSnippet{
+			Title:       title,
+			Description: description,
+		},
+		Status: &youtubeapi.PlaylistStatus{
+			PrivacyStatus: "public",
+		},
+	}).Context(ctx).Do()
+	if err != nil {
+		return Playlist{}, fmt.Errorf("youtube playlists.insert: %w", err)
+	}
+	if resp == nil || resp.Id == "" {
+		raw, _ := json.Marshal(resp)
+		return Playlist{}, fmt.Errorf("youtube playlists.insert returned no id: %s", string(raw))
+	}
+	return Playlist{ID: resp.Id, Title: title}, nil
+}
+
+func AddVideoToPlaylist(ctx context.Context, playlistID, videoID string) error {
+	playlistID = strings.TrimSpace(playlistID)
+	videoID = strings.TrimSpace(videoID)
+	if playlistID == "" {
+		return fmt.Errorf("youtube playlist id is required")
+	}
+	if videoID == "" {
+		return fmt.Errorf("youtube video id is required")
+	}
+	client, err := httpClient(ctx)
+	if err != nil {
+		return err
+	}
+	svc, err := youtubeapi.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return fmt.Errorf("youtube: new service: %w", err)
+	}
+	existing, err := svc.PlaylistItems.List([]string{"id"}).PlaylistId(playlistID).VideoId(videoID).MaxResults(1).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("youtube playlistItems.list: %w", err)
+	}
+	if existing != nil && len(existing.Items) > 0 {
+		return nil
+	}
+	_, err = svc.PlaylistItems.Insert([]string{"snippet"}, &youtubeapi.PlaylistItem{
+		Snippet: &youtubeapi.PlaylistItemSnippet{
+			PlaylistId: playlistID,
+			ResourceId: &youtubeapi.ResourceId{
+				Kind:    "youtube#video",
+				VideoId: videoID,
+			},
+		},
+	}).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("youtube playlistItems.insert: %w", err)
+	}
+	return nil
+}
+
 func GetVideoStatus(ctx context.Context, videoID string) (*VideoStatus, error) {
 	if videoID == "" {
 		return nil, fmt.Errorf("youtube video status: videoID is required")

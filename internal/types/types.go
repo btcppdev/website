@@ -114,31 +114,33 @@ type (
 		// request time (shallow-copy + set in RenderConf / RenderTalks),
 		// never stored in Notion. Drives both the nav-bar "agenda" /
 		// "talks" links and the per-conf-template agenda section.
-		HasAgenda       bool
-		ShowHackathon   bool
-		Tickets         []*ConfTicket
-		TixSold         uint
-		OGFlavor        string
-		Emoji           string
-		HeroTitle       string
-		HeroCaption     string
-		AboutTitle      string
-		AboutBody       string
-		AboutBody2      string
-		VenueTitle      string
-		VenueSubtitle   string
-		VenueBody       string
-		HotelsIntro     string
-		LocalTicketBody string
-		SpeakersTitle   string
-		SpeakersBody    string
-		MapEmbedURL     string
-		MapLatitude     float64
-		MapLongitude    float64
-		MapXPercent     float64
-		MapYPercent     float64
-		MapLabel        string
-		MapLabelSide    string
+		HasAgenda            bool
+		ShowHackathon        bool
+		Tickets              []*ConfTicket
+		TixSold              uint
+		OGFlavor             string
+		Emoji                string
+		HeroTitle            string
+		HeroCaption          string
+		AboutTitle           string
+		AboutBody            string
+		AboutBody2           string
+		VenueTitle           string
+		VenueSubtitle        string
+		VenueBody            string
+		HotelsIntro          string
+		LocalTicketBody      string
+		SpeakersTitle        string
+		SpeakersBody         string
+		MapEmbedURL          string
+		MapLatitude          float64
+		MapLongitude         float64
+		MapXPercent          float64
+		MapYPercent          float64
+		MapLabel             string
+		MapLabelSide         string
+		YouTubePlaylistID    string
+		YouTubePlaylistTitle string
 		// Timezone is the IANA name of the conference venue's local
 		// time (e.g. "Europe/Vienna", "America/Toronto"). Read from
 		// the Notion ConfsDb "Timezone" field. Empty when the field

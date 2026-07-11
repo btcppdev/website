@@ -108,6 +108,29 @@ type RecordingsAdminDetailPage struct {
 	Year             uint
 }
 
+type RecordingsBulkUploadPage struct {
+	Conf                 *types.Conf
+	Eligible             []*RecordingRow
+	Skipped              []*RecordingBulkUploadSkip
+	YouTubeReady         bool
+	YouTubePlaylists     []youtubepkg.Playlist
+	DefaultPlaylistTitle string
+	FlashMessage         string
+	FlashError           string
+	Now                  time.Time
+	Year                 uint
+}
+
+type RecordingBulkUploadSkip struct {
+	Row    *RecordingRow
+	Reason string
+}
+
+type recordingBulkUploadJob struct {
+	Row        *RecordingRow
+	PlaylistID string
+}
+
 // ---- job tracker -------------------------------------------------------
 
 // uploadJob captures the state of an in-flight YouTube upload, keyed
@@ -475,6 +498,250 @@ func slugPathSegment(s string) string {
 
 // ---- upload to YouTube ------------------------------------------------
 
+func RecordingsAdminBulkUploadYTPreview(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	conf, ok := requireRecordingsConfAdmin(w, r, ctx)
+	if !ok {
+		return
+	}
+	eligible, skipped := recordingBulkUploadCandidates(ctx, conf.Tag)
+	youtubeReady := youtubepkg.IsConfigured() && youtubepkg.IsConnected()
+	var playlists []youtubepkg.Playlist
+	var playlistErr string
+	if youtubeReady {
+		var err error
+		playlists, err = youtubepkg.ListPlaylists(r.Context())
+		if err != nil {
+			ctx.Err.Printf("/%s/admin/recordings/upload-youtube playlists: %s", conf.Tag, err)
+			playlistErr = "Could not load YouTube playlists: " + err.Error()
+		}
+	}
+	page := &RecordingsBulkUploadPage{
+		Conf:                 conf,
+		Eligible:             eligible,
+		Skipped:              skipped,
+		YouTubeReady:         youtubeReady,
+		YouTubePlaylists:     playlists,
+		DefaultPlaylistTitle: defaultRecordingPlaylistTitle(conf),
+		FlashMessage:         r.URL.Query().Get("flash"),
+		FlashError:           r.URL.Query().Get("err"),
+		Now:                  time.Now(),
+		Year:                 uint(time.Now().Year()),
+	}
+	if !youtubepkg.IsConfigured() {
+		page.FlashError = "YouTube OAuth env vars (YOUTUBE_CLIENT_ID/SECRET) are not set."
+	} else if !youtubepkg.IsConnected() {
+		page.FlashError = "YouTube is configured but not connected. Authorize YouTube before bulk uploading."
+	} else if playlistErr != "" && page.FlashError == "" {
+		page.FlashError = playlistErr
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/recordings_bulk_upload.tmpl", page); err != nil {
+		ctx.Err.Printf("/%s/admin/recordings/upload-youtube render: %s", conf.Tag, err)
+		http.Error(w, "render failed", http.StatusInternalServerError)
+	}
+}
+
+func RecordingsAdminBulkUploadYTApply(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	conf, ok := requireRecordingsConfAdmin(w, r, ctx)
+	if !ok {
+		return
+	}
+	if !youtubepkg.IsConfigured() {
+		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?err="+url.QueryEscape("YouTube OAuth is not configured")), http.StatusSeeOther)
+		return
+	}
+	if !youtubepkg.IsConnected() {
+		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?err="+url.QueryEscape("YouTube is not connected")), http.StatusSeeOther)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?err="+url.QueryEscape("Could not parse form: "+err.Error())), http.StatusSeeOther)
+		return
+	}
+	playlistID, playlistTitle, err := resolveBulkUploadPlaylist(r.Context(), ctx, conf, r.FormValue("playlist_mode"), r.FormValue("playlist_id"), r.FormValue("playlist_title"))
+	if err != nil {
+		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?err="+url.QueryEscape(err.Error())), http.StatusSeeOther)
+		return
+	}
+	eligible, _ := recordingBulkUploadCandidates(ctx, conf.Tag)
+	if len(eligible) == 0 {
+		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?flash="+url.QueryEscape("No eligible recordings to upload")), http.StatusSeeOther)
+		return
+	}
+	queued := make([]recordingBulkUploadJob, 0, len(eligible))
+	for _, row := range eligible {
+		if row == nil || row.Recording == nil {
+			continue
+		}
+		if !claimJob(row.Recording.ID) {
+			continue
+		}
+		queued = append(queued, recordingBulkUploadJob{Row: row, PlaylistID: playlistID})
+	}
+	if len(queued) == 0 {
+		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?flash="+url.QueryEscape("No recordings queued; uploads may already be running")), http.StatusSeeOther)
+		return
+	}
+	go runBulkYouTubeUploadQueue(ctx, queued)
+	flash := fmt.Sprintf("Queued %d YouTube upload(s)", len(queued))
+	if playlistTitle != "" {
+		flash += " for playlist " + playlistTitle
+	}
+	http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?flash="+url.QueryEscape(flash)), http.StatusSeeOther)
+}
+
+func resolveBulkUploadPlaylist(reqCtx context.Context, appCtx *config.AppContext, conf *types.Conf, mode, playlistID, playlistTitle string) (string, string, error) {
+	mode = strings.TrimSpace(mode)
+	playlistID = strings.TrimSpace(playlistID)
+	playlistTitle = strings.TrimSpace(playlistTitle)
+	if mode == "" {
+		mode = "saved"
+	}
+	switch mode {
+	case "none":
+		return "", "", nil
+	case "saved":
+		if strings.TrimSpace(conf.YouTubePlaylistID) == "" {
+			return "", "", nil
+		}
+		return strings.TrimSpace(conf.YouTubePlaylistID), strings.TrimSpace(conf.YouTubePlaylistTitle), nil
+	case "existing":
+		if playlistID == "" {
+			return "", "", fmt.Errorf("choose an existing YouTube playlist")
+		}
+		playlists, err := youtubepkg.ListPlaylists(reqCtx)
+		if err != nil {
+			return "", "", err
+		}
+		for _, playlist := range playlists {
+			if playlist.ID == playlistID {
+				playlistTitle = playlist.Title
+				break
+			}
+		}
+		if playlistTitle == "" {
+			return "", "", fmt.Errorf("selected YouTube playlist was not found")
+		}
+	case "create":
+		if playlistTitle == "" {
+			playlistTitle = defaultRecordingPlaylistTitle(conf)
+		}
+		playlist, err := youtubepkg.EnsurePlaylist(reqCtx, playlistTitle, recordingPlaylistDescription(conf))
+		if err != nil {
+			return "", "", err
+		}
+		playlistID = playlist.ID
+		playlistTitle = playlist.Title
+	default:
+		return "", "", fmt.Errorf("unknown playlist mode %q", mode)
+	}
+	if err := getters.UpdateConfYouTubePlaylist(appCtx, conf.Ref, playlistID, playlistTitle); err != nil {
+		return "", "", err
+	}
+	conf.YouTubePlaylistID = playlistID
+	conf.YouTubePlaylistTitle = playlistTitle
+	return playlistID, playlistTitle, nil
+}
+
+func defaultRecordingPlaylistTitle(conf *types.Conf) string {
+	if conf == nil {
+		return "bitcoin++ recordings"
+	}
+	if strings.TrimSpace(conf.YouTubePlaylistTitle) != "" {
+		return strings.TrimSpace(conf.YouTubePlaylistTitle)
+	}
+	if strings.TrimSpace(conf.Desc) != "" {
+		return "bitcoin++ " + strings.TrimSpace(conf.Desc)
+	}
+	if strings.TrimSpace(conf.Tag) != "" {
+		return "bitcoin++ " + strings.TrimSpace(conf.Tag)
+	}
+	return "bitcoin++ recordings"
+}
+
+func recordingPlaylistDescription(conf *types.Conf) string {
+	if conf == nil {
+		return "Talk recordings from bitcoin++."
+	}
+	title := strings.TrimSpace(conf.Desc)
+	if title == "" {
+		title = strings.TrimSpace(conf.Tag)
+	}
+	if title == "" {
+		return "Talk recordings from bitcoin++."
+	}
+	return "Talk recordings from " + title + " by bitcoin++."
+}
+
+func recordingBulkUploadCandidates(ctx *config.AppContext, confTag string) ([]*RecordingRow, []*RecordingBulkUploadSkip) {
+	rows := recordingRowsForConf(ctx, confTag)
+	enrichRowsWithYouTubeStatus(ctx, rows)
+	sort.SliceStable(rows, func(i, j int) bool {
+		return recordingBulkUploadSortKey(rows[i]) < recordingBulkUploadSortKey(rows[j])
+	})
+	var eligible []*RecordingRow
+	var skipped []*RecordingBulkUploadSkip
+	for _, row := range rows {
+		if reason := recordingBulkUploadSkipReason(row); reason != "" {
+			skipped = append(skipped, &RecordingBulkUploadSkip{Row: row, Reason: reason})
+			continue
+		}
+		eligible = append(eligible, row)
+	}
+	return eligible, skipped
+}
+
+func recordingBulkUploadSkipReason(row *RecordingRow) string {
+	if row == nil || row.Recording == nil {
+		return "missing recording"
+	}
+	if strings.TrimSpace(row.Recording.FileURI) == "" {
+		return "missing source file"
+	}
+	if strings.TrimSpace(row.YTURL) != "" {
+		return "already has YouTube URL"
+	}
+	if job := getJob(row.Recording.ID); job != nil && job.Status == "running" {
+		return "upload already running"
+	}
+	if row.YTStatus != "" && !statusAllowsRetry(row.YTStatus) {
+		return "YouTube status is " + row.YTStatus
+	}
+	return ""
+}
+
+func recordingBulkUploadSortKey(row *RecordingRow) string {
+	if row == nil || row.ConfTalk == nil || row.ConfTalk.Sched == nil {
+		return "9999"
+	}
+	title := ""
+	if row.ConfTalk.Proposal != nil {
+		title = row.ConfTalk.Proposal.Title
+	}
+	return row.ConfTalk.Sched.Start.Format(time.RFC3339) + "|" + title
+}
+
+func runBulkYouTubeUploadQueue(ctx *config.AppContext, jobs []recordingBulkUploadJob) {
+	for _, job := range jobs {
+		row := job.Row
+		if row == nil || row.Recording == nil {
+			continue
+		}
+		rec := row.Recording
+		title, body := defaultYouTubeCopy(ctx, row)
+		if title == "" {
+			title = rec.TalkName
+		}
+		privacy := "unlisted"
+		var publishAt time.Time
+		if rec.PublishAt != nil && rec.PublishAt.After(time.Now()) {
+			privacy = "private"
+			publishAt = rec.PublishAt.UTC()
+		}
+		runYouTubeUpload(ctx, rec, title, body, privacy, publishAt, job.PlaylistID)
+	}
+}
+
 func RecordingsAdminUploadYT(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	conf, rec, _, ok := scopedRecordingFromRequest(w, r, ctx)
 	if !ok {
@@ -516,7 +783,7 @@ func RecordingsAdminUploadYT(w http.ResponseWriter, r *http.Request, ctx *config
 		redirectWithErr(w, r, conf.Tag, recordingID, "An upload is already in progress for this recording")
 		return
 	}
-	go runYouTubeUpload(ctx, rec, title, body, privacy, publishAt)
+	go runYouTubeUpload(ctx, rec, title, body, privacy, publishAt, conf.YouTubePlaylistID)
 
 	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash=Upload+started", http.StatusSeeOther)
 }
@@ -774,7 +1041,7 @@ func RecordingsAdminScheduleX(w http.ResponseWriter, r *http.Request, ctx *confi
 // YouTube's resumable-upload endpoint, then writes the resulting URL
 // back to the Notion Recording row. Uses a fresh context.Background()
 // because the HTTP request that kicked us off has already returned.
-func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body, privacy string, publishAt time.Time) {
+func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body, privacy string, publishAt time.Time, playlistID string) {
 	recordingID := rec.ID
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -827,6 +1094,9 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 	if err := uploadRecordingYouTubeThumbnail(ctx, context.Background(), rec); err != nil {
 		ctx.Err.Printf("youtube upload: thumbnail recording=%s: %s", recordingID, err)
 	}
+	if err := addRecordingToYouTubePlaylist(context.Background(), recordingID, ytURL, playlistID); err != nil {
+		ctx.Err.Printf("youtube upload: playlist recording=%s playlist=%s: %s", recordingID, playlistID, err)
+	}
 	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
 		URL:      &ytURL,
 		Status:   &status,
@@ -857,6 +1127,22 @@ func uploadRecordingYouTubeThumbnail(appCtx *config.AppContext, ctx context.Cont
 		return fmt.Errorf("load talk card %s: %w", key, err)
 	}
 	return youtubepkg.SetThumbnailBytes(ctx, videoID, filepath.Base(key), data)
+}
+
+func addRecordingToYouTubePlaylist(ctx context.Context, recordingID, ytURL, playlistID string) error {
+	playlistID = strings.TrimSpace(playlistID)
+	if playlistID == "" || strings.TrimSpace(ytURL) == "" {
+		return nil
+	}
+	videoID := youtubeVideoID(ytURL)
+	if videoID == "" {
+		return fmt.Errorf("could not parse video ID from %q", ytURL)
+	}
+	if err := youtubepkg.AddVideoToPlaylist(ctx, playlistID, videoID); err != nil {
+		return err
+	}
+	setJobStatus(recordingID, "running", "Uploaded to YouTube and added to playlist")
+	return nil
 }
 
 func recordingTalkCardKey(ctx *config.AppContext, confTalkID string) (string, error) {

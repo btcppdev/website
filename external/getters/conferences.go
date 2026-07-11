@@ -3,6 +3,7 @@ package getters
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"btcpp-web/internal/config"
@@ -158,6 +159,14 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 	if hasPublicationStatus {
 		publicationStatusSelect = "publication_status"
 	}
+	youtubePlaylistIDSelect := "'' AS youtube_playlist_id"
+	if postgresColumnExists(ctx, "conferences", "youtube_playlist_id") {
+		youtubePlaylistIDSelect = "youtube_playlist_id"
+	}
+	youtubePlaylistTitleSelect := "'' AS youtube_playlist_title"
+	if postgresColumnExists(ctx, "conferences", "youtube_playlist_title") {
+		youtubePlaylistTitleSelect = "youtube_playlist_title"
+	}
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, tag, public_uid, active, `+publicationStatusSelect+`, description, `+editionTypeSelect+`, og_flavor, emoji,
 			tagline, date_desc, start_date, end_date, timezone, location, venue,
@@ -165,7 +174,8 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			hero_title, hero_caption, about_title, about_body, about_body_2,
 			venue_title, venue_subtitle, venue_body, hotels_intro, local_ticket_body,
 			speakers_title, speakers_body, map_embed_url,
-			map_latitude, map_longitude, map_x_percent, map_y_percent, map_label, map_label_side
+			map_latitude, map_longitude, map_x_percent, map_y_percent, map_label, map_label_side,
+			`+youtubePlaylistIDSelect+`, `+youtubePlaylistTitleSelect+`
 		FROM conferences
 		`+whereSQL+`
 		ORDER BY start_date NULLS LAST, tag
@@ -221,6 +231,8 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.MapYPercent,
 			&conf.MapLabel,
 			&conf.MapLabelSide,
+			&conf.YouTubePlaylistID,
+			&conf.YouTubePlaylistTitle,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)
@@ -356,6 +368,28 @@ func ConfUpdateOrientCalNotif(ctx *config.AppContext, confRef string, calnotif s
 	`, confRef, calnotif)
 	if err != nil {
 		return fmt.Errorf("update conference %s orientation cal notif: %w", confRef, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("conference %s not found", confRef)
+	}
+	return nil
+}
+
+func UpdateConfYouTubePlaylist(ctx *config.AppContext, confRef, playlistID, playlistTitle string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	if !postgresColumnExists(ctx, "conferences", "youtube_playlist_id") || !postgresColumnExists(ctx, "conferences", "youtube_playlist_title") {
+		return fmt.Errorf("conference youtube playlist columns are not migrated")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE conferences
+		SET youtube_playlist_id = $2,
+			youtube_playlist_title = $3
+		WHERE id = $1
+	`, confRef, strings.TrimSpace(playlistID), strings.TrimSpace(playlistTitle))
+	if err != nil {
+		return fmt.Errorf("update conference %s youtube playlist: %w", confRef, err)
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("conference %s not found", confRef)

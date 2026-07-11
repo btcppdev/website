@@ -1234,6 +1234,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/recordings/autoschedule", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminAutoscheduleApply(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/recordings/upload-youtube", func(w http.ResponseWriter, r *http.Request) {
+		RecordingsAdminBulkUploadYTPreview(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/admin/recordings/upload-youtube", func(w http.ResponseWriter, r *http.Request) {
+		RecordingsAdminBulkUploadYTApply(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/youtube-slots", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsYouTubeSlots(w, r, app)
 	}).Methods("GET", "POST")
