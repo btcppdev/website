@@ -10,6 +10,7 @@ reqs/
 *.log
 .env
 .dev/
+.direnv/
 .DS_Store
 chat
 
