@@ -15,16 +15,16 @@
 */}}
 {{ define "pic_cropper" }}
 <link rel="stylesheet" href="/static/css/cropper-1.6.2.min.css" />
-<div id="CropperModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4">
-    <div class="w-full max-w-2xl rounded-lg bg-white p-4 shadow-xl">
-        <div class="mb-3 text-lg font-semibold text-gray-900">Crop your photo</div>
-        <div class="text-sm text-gray-600 mb-3">Drag the box to position your face. Square crop, please.</div>
-        <div class="max-h-[60vh] overflow-hidden">
-            <img id="CropperImg" alt="" class="block max-w-full" />
+<div id="CropperModal" class="btcpp-cropper-modal hidden" role="dialog" aria-modal="true" aria-labelledby="CropperTitle">
+    <div class="btcpp-cropper-panel">
+        <div id="CropperTitle" class="btcpp-cropper-title">Crop your photo</div>
+        <div class="btcpp-cropper-help">Drag the box to position your face. Square crop, please.</div>
+        <div class="btcpp-cropper-stage">
+            <img id="CropperImg" alt="" class="btcpp-cropper-img" />
         </div>
-        <div class="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button type="button" id="CropperCancel" class="min-h-[44px] rounded-md bg-gray-100 px-5 py-3 text-base font-semibold text-gray-700 hover:bg-gray-200 sm:py-2.5 sm:text-sm">Cancel</button>
-            <button type="button" id="CropperConfirm" class="min-h-[44px] rounded-md bg-bitcoin px-5 py-3 text-base font-semibold text-white hover:opacity-90 sm:py-2.5 sm:text-sm">Crop &amp; use</button>
+        <div class="btcpp-cropper-actions">
+            <button type="button" id="CropperCancel" class="btcpp-cropper-button btcpp-cropper-button--secondary">Cancel</button>
+            <button type="button" id="CropperConfirm" class="btcpp-cropper-button btcpp-cropper-button--primary">Crop &amp; use</button>
         </div>
     </div>
 </div>
@@ -61,11 +61,21 @@
     var cropper = null;
     var pendingFile = null;
     var lastObjectURL = null;
+    var previouslyFocused = null;
+
+    function focusableModalControls() {
+        return Array.prototype.slice.call(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+            .filter(function (el) { return !el.disabled && el.offsetParent !== null; });
+    }
 
     function showModal() {
+        previouslyFocused = document.activeElement;
         modal.classList.remove('hidden');
         modal.classList.add('flex');
         document.body.style.overflow = 'hidden';
+        window.setTimeout(function () {
+            if (confirmBtn) confirmBtn.focus();
+        }, 0);
     }
     function hideModal() {
         modal.classList.add('hidden');
@@ -73,6 +83,10 @@
         document.body.style.overflow = '';
         if (cropper) { cropper.destroy(); cropper = null; }
         if (lastObjectURL) { URL.revokeObjectURL(lastObjectURL); lastObjectURL = null; }
+        if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+            previouslyFocused.focus();
+        }
+        previouslyFocused = null;
     }
 
     function openCropperWith(file) {
@@ -126,6 +140,29 @@
         input.value = '';
         if (preview) preview.classList.add('hidden');
         hideModal();
+    });
+
+    modal.addEventListener('keydown', function (e) {
+        if (modal.classList.contains('hidden')) return;
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            input.value = '';
+            if (preview) preview.classList.add('hidden');
+            hideModal();
+            return;
+        }
+        if (e.key !== 'Tab') return;
+        var controls = focusableModalControls();
+        if (!controls.length) return;
+        var first = controls[0];
+        var last = controls[controls.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
     });
 
     confirmBtn.addEventListener('click', function () {

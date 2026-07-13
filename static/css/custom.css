@@ -1125,6 +1125,87 @@
 	font-size: 13px;
 }
 
+.btcpp-cropper-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	align-items: center;
+	justify-content: center;
+	background: rgba(10, 10, 10, .68);
+	padding: 20px;
+}
+
+.btcpp-cropper-modal.hidden {
+	display: none;
+}
+
+.btcpp-cropper-modal.flex {
+	display: flex;
+}
+
+.btcpp-cropper-panel {
+	width: min(100%, 720px);
+	max-height: calc(100vh - 40px);
+	overflow: auto;
+	border: 1px solid #0a0a0a;
+	background: #f6f3ee;
+	padding: 20px;
+	box-shadow: 8px 8px 0 #0a0a0a;
+}
+
+.btcpp-cropper-title {
+	color: #0a0a0a;
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 14px;
+	font-weight: 800;
+	letter-spacing: 1.4px;
+	text-transform: uppercase;
+}
+
+.btcpp-cropper-help {
+	margin-top: 8px;
+	color: #666;
+	font-size: 14px;
+	line-height: 1.45;
+}
+
+.btcpp-cropper-stage {
+	margin-top: 16px;
+	max-height: min(60vh, 540px);
+	overflow: hidden;
+	background: #fff;
+}
+
+.btcpp-cropper-img {
+	display: block;
+	max-width: 100%;
+}
+
+.btcpp-cropper-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	margin-top: 18px;
+}
+
+.btcpp-cropper-button {
+	min-height: 44px;
+	border: 1px solid #0a0a0a;
+	background: #fff;
+	color: #0a0a0a;
+	padding: 10px 16px;
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 1.2px;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+
+.btcpp-cropper-button--primary {
+	background: #f7931a;
+}
+
 .profile-edit-locked {
 	display: flex;
 	min-height: 42px;
@@ -1271,6 +1352,24 @@
 
 	.profile-edit-add button em {
 		margin-left: 0;
+	}
+
+	.btcpp-cropper-modal {
+		padding: 14px;
+	}
+
+	.btcpp-cropper-panel {
+		max-height: calc(100vh - 28px);
+		padding: 16px;
+		box-shadow: 5px 5px 0 #0a0a0a;
+	}
+
+	.btcpp-cropper-actions {
+		flex-direction: column-reverse;
+	}
+
+	.btcpp-cropper-button {
+		width: 100%;
 	}
 }
 
