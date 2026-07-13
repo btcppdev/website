@@ -435,67 +435,84 @@ body.btcpp-rebrand-page {
 
 .btcpp-rebrand-page .conf-hackathon-redesign {
   border-bottom: 1px solid var(--rebrand-ink);
-  background: var(--rebrand-paper);
+  background: var(--rebrand-warm);
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__inner {
-  padding: 72px 56px 88px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr);
+  gap: 64px;
+  align-items: start;
+  padding: 72px 56px 48px;
 }
 
-.btcpp-rebrand-page .conf-hackathon-redesign__intro {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(280px, .55fr);
-  gap: 56px;
-  align-items: end;
+.btcpp-rebrand-page .conf-hackathon-redesign__copy {
+  min-width: 0;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__edition {
+  margin: 0 0 18px;
+  color: var(--rebrand-muted);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign h2 {
   margin: 0;
   color: var(--rebrand-ink);
-  font-size: clamp(48px, 6vw, 72px);
+  font-size: clamp(56px, 7vw, 96px);
   font-weight: 700;
   letter-spacing: 0;
   line-height: .95;
 }
 
-.btcpp-rebrand-page .conf-hackathon-redesign__summary {
-  margin: 0;
-  color: #333;
-  font-size: 17px;
-  line-height: 1.55;
-}
-
-.btcpp-rebrand-page .conf-hackathon-redesign__panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 28px;
-  align-items: end;
-  margin-top: 40px;
-  padding: 28px 32px;
-  border: 1px solid var(--rebrand-ink);
-  background: var(--rebrand-paper);
-}
-
-.btcpp-rebrand-page .conf-hackathon-redesign__meta {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
-  min-width: 0;
-}
-
-.btcpp-rebrand-page .conf-hackathon-redesign__meta > div {
-  min-width: 0;
-  padding-right: 24px;
-  border-right: 1px solid var(--rebrand-ink);
-}
-
-.btcpp-rebrand-page .conf-hackathon-redesign__meta > div:last-child {
-  border-right: 0;
-}
-
-.btcpp-rebrand-page .conf-hackathon-redesign__meta > div > span {
-  display: block;
+.btcpp-rebrand-page .conf-hackathon-redesign h2 span {
   color: var(--rebrand-accent);
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__summary {
+  max-width: 520px;
+  margin: 24px 0 0;
+  color: #555;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size: 21px;
+  font-style: italic;
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 34px;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__actions .rebrand-button {
+  border-color: var(--rebrand-ink);
+  background: var(--rebrand-ink);
+  color: var(--rebrand-paper);
+  padding: 16px 28px;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__actions .rebrand-button.is-secondary {
+  border-color: var(--rebrand-ink);
+  background: transparent;
+  color: var(--rebrand-ink);
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__proof {
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__proof-kicker {
+  margin: 0 0 14px;
+  color: var(--rebrand-muted);
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
   font-weight: 700;
@@ -504,24 +521,119 @@ body.btcpp-rebrand-page {
   text-transform: uppercase;
 }
 
-.btcpp-rebrand-page .conf-hackathon-redesign__meta strong {
-  display: block;
-  margin-top: 8px;
+.btcpp-rebrand-page .conf-hackathon-redesign__rows {
+  border-top: 1px solid var(--rebrand-ink);
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 20px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--rebrand-ink);
   color: var(--rebrand-ink);
-  font-size: clamp(20px, 2.2vw, 30px);
+  text-decoration: none;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__place {
+  color: #888;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
   font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__row:first-child .conf-hackathon-redesign__place {
+  color: var(--rebrand-accent);
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__project {
+  display: block;
+  min-width: 0;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__project strong {
+  display: block;
+  min-width: 0;
+  color: var(--rebrand-ink);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0;
   line-height: 1.05;
 }
 
-.btcpp-rebrand-page .conf-hackathon-redesign__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: flex-end;
+.btcpp-rebrand-page .conf-hackathon-redesign__project em {
+  min-width: 0;
+  margin-top: 4px;
+  color: #555;
+  display: -webkit-box;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1.35;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.btcpp-rebrand-page .conf-hackathon-redesign__actions .rebrand-button {
-  padding: 14px 24px;
+.btcpp-rebrand-page .conf-hackathon-redesign__all {
+  display: inline-block;
+  margin-top: 20px;
+  color: var(--rebrand-accent);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-transform: uppercase;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__judges {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 40px;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__avatars {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__avatars span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -10px;
+  border: 1px solid var(--rebrand-ink);
+  border-radius: 50%;
+  background: var(--rebrand-paper);
+  color: var(--rebrand-ink);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__avatars span:first-child {
+  margin-left: 0;
+  background: var(--rebrand-accent);
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__judges p {
+  margin: 0;
+  color: var(--rebrand-muted);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .rebrand-masthead p {
@@ -3383,26 +3495,13 @@ body.btcpp-rebrand-page {
     font-size: 11px;
   }
 
-  .btcpp-rebrand-page .conf-hackathon-redesign__intro,
-  .btcpp-rebrand-page .conf-hackathon-redesign__panel,
-  .btcpp-rebrand-page .conf-hackathon-redesign__meta {
+  .btcpp-rebrand-page .conf-hackathon-redesign__inner {
     grid-template-columns: 1fr;
+    gap: 40px;
   }
 
   .btcpp-rebrand-page .conf-hackathon-redesign__actions {
     justify-content: flex-start;
-  }
-
-  .btcpp-rebrand-page .conf-hackathon-redesign__meta > div {
-    padding-right: 0;
-    padding-bottom: 18px;
-    border-right: 0;
-    border-bottom: 1px solid var(--rebrand-ink);
-  }
-
-  .btcpp-rebrand-page .conf-hackathon-redesign__meta > div:last-child {
-    padding-bottom: 0;
-    border-bottom: 0;
   }
 
   .rebrand-nav__links {

@@ -1,60 +1,65 @@
 {{ define "conf_hackathon_section" }}
 {{ if .Hackathon }}
-{{ $timeline := .HackathonTimeline }}
+{{ $sectionLabel := .Conf.HackathonSectionLabel }}{{ if not $sectionLabel }}{{ $sectionLabel = "§06 · The hackathon" }}{{ end }}
+{{ $headline := .Conf.HackathonHeadline }}{{ if not $headline }}{{ $headline = "Don't just talk. <span>Build.</span>" }}{{ end }}
+{{ $judgesNote := .Conf.HackathonJudgesNote }}{{ if not $judgesNote }}{{ $judgesNote = "Judged by five of the lineup · no appeals" }}{{ end }}
+{{ $proofLabel := .Conf.HackathonProofLabel }}{{ if not $proofLabel }}{{ $proofLabel = "Last edition · 37 projects · 90 hackers" }}{{ end }}
 <section id="hackathon" class="conf-hackathon-redesign">
   <div class="conf-hackathon-redesign__inner">
-    <div class="conf-hackathon-redesign__intro">
-      <div>
-        <p class="rebrand-section-label">Hackathon</p>
-        <h2>{{ .Hackathon.Title }}</h2>
-      </div>
-      <div class="conf-hackathon-redesign__summary">
+    <div class="conf-hackathon-redesign__copy">
+      <p class="rebrand-section-label">{{ $sectionLabel }}</p>
+      <p class="conf-hackathon-redesign__edition">{{ .Hackathon.Title }}</p>
+      <h2>{{ ishtml $headline }}</h2>
+      <p class="conf-hackathon-redesign__summary">
         {{ if .Hackathon.Description }}
         {{ .Hackathon.Description }}
         {{ else }}
         Build and submit projects tied to {{ .Conf.Desc }}.
         {{ end }}
+      </p>
+      <div class="conf-hackathon-redesign__actions">
+        <a href="{{ .HackathonURL }}" class="rebrand-button">Explore the hackathon →</a>
+        <a href="{{ .HackathonURL }}#projects" class="rebrand-button is-secondary">Past projects →</a>
+      </div>
+      <div class="conf-hackathon-redesign__judges" aria-label="Hackathon judges">
+        <div class="conf-hackathon-redesign__avatars" aria-hidden="true">
+          <span>N</span>
+          <span>JR</span>
+          <span>YT</span>
+          <span>PT</span>
+          <span>BP</span>
+        </div>
+        <p>{{ $judgesNote }}</p>
       </div>
     </div>
 
-    <article class="conf-hackathon-redesign__panel">
-      <div class="conf-hackathon-redesign__meta" aria-label="Hackathon details">
-        <div>
-          <span>Status</span>
-          <strong>{{ .HackathonStatusLabel }}</strong>
-        </div>
-        <div>
-          <span>{{ $timeline.Label }}</span>
-          <strong>
-        {{ if $timeline.HasCountdown }}
-            <span class="hackathon-countdown"
-                  data-start="{{ $timeline.CountdownUnix }}"
-                  data-end="{{ $timeline.CountdownUnix }}"
-                  data-before-prefix="{{ $timeline.Label }}"
-                  data-after-prefix="{{ $timeline.Label }}">
-              <span data-cd-value>{{ $timeline.Value }}</span>
-            </span>
-        {{ else }}
-            {{ $timeline.Value }}
-        {{ end }}
-          </strong>
-        </div>
-        <div>
-          <span>{{ with .Hackathon.MaxTeamSize }}Max builders per team{{ else }}Team size{{ end }}</span>
-          <strong>{{ with .Hackathon.MaxTeamSize }}{{ . }}{{ else }}Unlimited{{ end }}</strong>
-        </div>
+    <aside class="conf-hackathon-redesign__proof" aria-label="Last edition hackathon highlights">
+      <p class="conf-hackathon-redesign__proof-kicker">{{ $proofLabel }}</p>
+      <div class="conf-hackathon-redesign__rows">
+        <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__row">
+          <span class="conf-hackathon-redesign__place">★ 1ST</span>
+          <span class="conf-hackathon-redesign__project">
+            <strong>KwachaBridge</strong>
+            <em>Kwacha → bitcoin over Lightning, spendable worldwide.</em>
+          </span>
+        </a>
+        <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__row">
+          <span class="conf-hackathon-redesign__place">★ 2ND</span>
+          <span class="conf-hackathon-redesign__project">
+            <strong>P2Pesa</strong>
+            <em>Zap-backed agent reputation on Nostr.</em>
+          </span>
+        </a>
+        <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__row">
+          <span class="conf-hackathon-redesign__place">★ 3RD</span>
+          <span class="conf-hackathon-redesign__project">
+            <strong>Core-gate</strong>
+            <em>Automatic PR triage for Bitcoin Core.</em>
+          </span>
+        </a>
       </div>
-      <div class="conf-hackathon-redesign__actions">
-        <a href="{{ .HackathonURL }}" class="rebrand-button">View hackathon →</a>
-        {{ if .HackathonAcceptsProjects }}
-        <a href="{{ .HackathonCreateProjectURL }}" class="rebrand-button is-secondary">Create project</a>
-        {{ end }}
-        <a href="{{ .HackathonScheduleURL }}" class="rebrand-button is-secondary">View schedule</a>
-        {{ if .HackathonCanAdmin }}
-        <a href="{{ .HackathonAdminURL }}" class="rebrand-button is-secondary">Admin</a>
-        {{ end }}
-      </div>
-    </article>
+      <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__all">See all 37 projects →</a>
+    </aside>
   </div>
 </section>
 {{ end }}
