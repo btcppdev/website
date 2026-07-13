@@ -2009,6 +2009,22 @@ body.btcpp-rebrand-page {
   border-bottom: 1px solid var(--rebrand-ink);
 }
 
+.w-tab-link {
+  display: block;
+}
+
+.w-tab-pane {
+  display: none;
+}
+
+.w-tab-pane.w--tab-active {
+  display: block;
+}
+
+.w-layout-grid {
+  display: grid;
+}
+
 .rebrand-agenda-tab {
   display: block;
   border-right: 1px solid var(--rebrand-ink);

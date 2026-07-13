@@ -2070,6 +2070,21 @@ body.btcpp-admin-page {
 	max-width: 1180px;
 }
 
+.btcpp-admin-page .admin-schedule-shell {
+	width: min(100%, 1600px);
+	max-width: none;
+}
+
+.btcpp-admin-page .admin-schedule-main {
+	width: 100%;
+	max-width: none;
+}
+
+.btcpp-admin-page .admin-schedule-sidebar {
+	top: calc(var(--btcpp-anchor-offset, 112px) + 12px);
+	max-height: calc(100vh - var(--btcpp-anchor-offset, 112px) - 24px);
+}
+
 .btcpp-admin-page h1,
 .btcpp-admin-page h2,
 .btcpp-admin-page h3 {

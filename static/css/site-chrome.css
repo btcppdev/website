@@ -451,6 +451,23 @@ body.btcpp-legal-page {
 	text-transform: uppercase;
 }
 
+.btcpp-legal-page .text-lg {
+	font-size: 1.125rem;
+	line-height: 1.75rem;
+}
+
+.btcpp-legal-page .list-disc {
+	list-style-type: disc;
+}
+
+.btcpp-legal-page .pl-6 {
+	padding-left: 1.5rem;
+}
+
+.btcpp-legal-page .space-y-1 > :not([hidden]) ~ :not([hidden]) {
+	margin-top: .25rem;
+}
+
 .btcpp-legal__content p,
 .btcpp-legal__content li {
 	margin: 0;

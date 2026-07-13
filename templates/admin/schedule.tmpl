@@ -36,7 +36,7 @@
 </head>
 <body class="btcpp-admin-page bg-gray-50">
   {{ block "mainnav" . }} {{ end }}
-  <div class="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 py-8"
+  <div class="admin-schedule-shell mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8 py-8"
        data-conf-tag="{{ .Conf.Tag }}"
        data-px-per-min="{{ .PxPerMin }}"
        data-snap-min="{{ .SnapMin }}">
@@ -110,7 +110,7 @@
 
       {{/* ---- Sidebar: unscheduled talks ---- */}}
       <aside id="schedule-sidebar"
-             class="schedule-sidebar bg-white shadow rounded-lg p-4 self-start sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
+             class="schedule-sidebar admin-schedule-sidebar bg-white shadow rounded-lg p-4 self-start sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
         <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
           Unscheduled <span class="text-gray-400">({{ len .Unscheduled }})</span>
         </h2>
@@ -124,7 +124,7 @@
       </aside>
 
       {{/* ---- Day grids ---- */}}
-      <main>
+      <main class="admin-schedule-main">
         {{ range .Days }}
         {{ $day := . }}
         <section class="mb-8 bg-white shadow rounded-lg overflow-hidden">

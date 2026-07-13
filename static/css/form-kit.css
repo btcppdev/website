@@ -71,6 +71,7 @@ body.btcpp-form-page {
 .btcpp-form-page .mt-2 { margin-top: .5rem; }
 .btcpp-form-page .mt-2\.5 { margin-top: .625rem; }
 .btcpp-form-page .mt-4 { margin-top: 1rem; }
+.btcpp-form-page .mt-5 { margin-top: 1.25rem; }
 .btcpp-form-page .mt-6 { margin-top: 1.5rem; }
 .btcpp-form-page .mt-8 { margin-top: 2rem; }
 .btcpp-form-page .mt-10 { margin-top: 2.5rem; }
@@ -129,6 +130,7 @@ body.btcpp-form-page {
 }
 .btcpp-form-page .bg-gray-50,
 .btcpp-form-page .bg-gray-100,
+.btcpp-form-page .bg-gray-200,
 .btcpp-form-page .bg-white {
   background-color: var(--fk-bg);
 }
@@ -152,6 +154,7 @@ body.btcpp-form-page {
   color: var(--fk-ink);
 }
 .btcpp-form-page .text-red-700 { color: var(--fk-error); }
+.btcpp-form-page .text-bitcoin { color: var(--fk-accent); }
 .btcpp-form-page .text-white { color: var(--fk-ink); }
 .btcpp-form-page .outline,
 .btcpp-form-page .focus\:outline:focus,
@@ -171,6 +174,9 @@ body.btcpp-form-page {
 .btcpp-form-page .focus-visible\:outline-green-600:focus-visible {
   outline-color: var(--fk-ink);
 }
+.btcpp-form-page .outline-offset-2 {
+  outline-offset: 2px;
+}
 .btcpp-form-page .-outline-offset-1,
 .btcpp-form-page .focus\:-outline-offset-2:focus {
   outline-offset: -1px;
@@ -181,6 +187,7 @@ body.btcpp-form-page {
 .btcpp-form-page .focus\:outline-none:focus {
   outline: 0;
 }
+.btcpp-form-page .disabled\:opacity-25:disabled { opacity: .25; }
 .btcpp-form-page .disabled\:opacity-60:disabled { opacity: .6; }
 .btcpp-form-page .disabled\:cursor-wait:disabled { cursor: wait; }
 .btcpp-form-page .hover\:text-gray-700:hover {
@@ -197,6 +204,21 @@ body.btcpp-form-page {
 .btcpp-form-page .space-y-5 > :not([hidden]) ~ :not([hidden]) {
   margin-top: 1.25rem;
 }
+.btcpp-form-page .opacity-25 { opacity: .25; }
+.btcpp-form-page .opacity-75 { opacity: .75; }
+.btcpp-form-page .transition-colors { transition-property: color, background-color, border-color, text-decoration-color, fill, stroke; }
+.btcpp-form-page .transition-transform { transition-property: transform; }
+.btcpp-form-page .duration-200 { transition-duration: 200ms; }
+.btcpp-form-page .ease-in-out { transition-timing-function: ease-in-out; }
+.btcpp-form-page .ring-1 { box-shadow: 0 0 0 1px var(--fk-soft-line); }
+.btcpp-form-page .ring-inset { box-shadow: inset 0 0 0 1px var(--fk-soft-line); }
+.btcpp-form-page .ring-gray-300,
+.btcpp-form-page .ring-gray-900\/5 { box-shadow: 0 0 0 1px var(--fk-soft-line); }
+.btcpp-form-page .has-\[\:checked\]\:bg-bitcion:has(:checked),
+.btcpp-form-page .has-\[\:checked\]\:bg-bitcoin:has(:checked) { background: var(--fk-accent); }
+.btcpp-form-page .has-\[\:focus-visible\]\:outline:has(:focus-visible) { outline-style: solid; }
+.btcpp-form-page .has-\[\:focus-visible\]\:outline-2:has(:focus-visible) { outline-width: 2px; }
+.btcpp-form-page .group:has(:checked) .group-has-\[\:checked\]\:translate-x-3\.5 { transform: translateX(.875rem); }
 .btcpp-form-page .scroll-mt-24 {
   scroll-margin-top: 6rem;
 }
@@ -435,6 +457,10 @@ body.btcpp-form-page {
 
 .btcpp-form-page input::placeholder,
 .btcpp-form-page textarea::placeholder {
+  color: #8B857B;
+}
+
+.btcpp-form-page .placeholder\:text-gray-400::placeholder {
   color: #8B857B;
 }
 
