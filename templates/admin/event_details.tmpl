@@ -198,6 +198,18 @@
           <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Speakers body
             <textarea name="speakers_body" rows="3" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.SpeakersBody }}</textarea>
           </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Hackathon section label
+            <input type="text" name="hackathon_section_label" value="{{ .Conf.HackathonSectionLabel }}" placeholder="§06 · The hackathon" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Hackathon proof label
+            <input type="text" name="hackathon_proof_label" value="{{ .Conf.HackathonProofLabel }}" placeholder="Last edition · 37 projects · 90 hackers" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Hackathon headline
+            <input type="text" name="hackathon_headline" value="{{ .Conf.HackathonHeadline }}" placeholder="Don't just talk. &lt;span&gt;Build.&lt;/span&gt;" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
+          <label class="sm:col-span-2 text-xs font-medium uppercase tracking-wider text-gray-500">Hackathon judges note
+            <input type="text" name="hackathon_judges_note" value="{{ .Conf.HackathonJudgesNote }}" placeholder="Judged by five of the lineup · no appeals" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </label>
         </div>
       </div>
       </form>

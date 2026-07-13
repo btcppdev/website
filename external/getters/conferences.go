@@ -11,39 +11,43 @@ import (
 )
 
 type ConfDetailsInput struct {
-	Description     string
-	EditionType     string
-	OGFlavor        string
-	Emoji           string
-	Tagline         string
-	DateDesc        string
-	StartDate       *time.Time
-	EndDate         *time.Time
-	Timezone        string
-	Location        string
-	Venue           string
-	VenueMap        string
-	VenueWebsite    string
-	ShowHackathon   bool
-	HeroTitle       string
-	HeroCaption     string
-	AboutTitle      string
-	AboutBody       string
-	AboutBody2      string
-	VenueTitle      string
-	VenueSubtitle   string
-	VenueBody       string
-	HotelsIntro     string
-	LocalTicketBody string
-	SpeakersTitle   string
-	SpeakersBody    string
-	MapEmbedURL     string
-	MapLatitude     float64
-	MapLongitude    float64
-	MapXPercent     float64
-	MapYPercent     float64
-	MapLabel        string
-	MapLabelSide    string
+	Description           string
+	EditionType           string
+	OGFlavor              string
+	Emoji                 string
+	Tagline               string
+	DateDesc              string
+	StartDate             *time.Time
+	EndDate               *time.Time
+	Timezone              string
+	Location              string
+	Venue                 string
+	VenueMap              string
+	VenueWebsite          string
+	ShowHackathon         bool
+	HeroTitle             string
+	HeroCaption           string
+	AboutTitle            string
+	AboutBody             string
+	AboutBody2            string
+	VenueTitle            string
+	VenueSubtitle         string
+	VenueBody             string
+	HotelsIntro           string
+	LocalTicketBody       string
+	SpeakersTitle         string
+	SpeakersBody          string
+	HackathonSectionLabel string
+	HackathonHeadline     string
+	HackathonJudgesNote   string
+	HackathonProofLabel   string
+	MapEmbedURL           string
+	MapLatitude           float64
+	MapLongitude          float64
+	MapXPercent           float64
+	MapYPercent           float64
+	MapLabel              string
+	MapLabelSide          string
 }
 
 type ConfTicketInput struct {
@@ -172,7 +176,9 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			venue_map_url, venue_website_url, show_hackathon, orient_cal_notif,
 			hero_title, hero_caption, about_title, about_body, about_body_2,
 			venue_title, venue_subtitle, venue_body, hotels_intro, local_ticket_body,
-			speakers_title, speakers_body, map_embed_url,
+			speakers_title, speakers_body, hackathon_section_label,
+			hackathon_headline, hackathon_judges_note, hackathon_proof_label,
+			map_embed_url,
 			map_latitude, map_longitude, map_x_percent, map_y_percent, map_label, map_label_side,
 			`+youtubePlaylistIDSelect+`, `+youtubePlaylistTitleSelect+`
 		FROM conferences
@@ -223,6 +229,10 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.LocalTicketBody,
 			&conf.SpeakersTitle,
 			&conf.SpeakersBody,
+			&conf.HackathonSectionLabel,
+			&conf.HackathonHeadline,
+			&conf.HackathonJudgesNote,
+			&conf.HackathonProofLabel,
 			&conf.MapEmbedURL,
 			&conf.MapLatitude,
 			&conf.MapLongitude,
@@ -479,20 +489,26 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 			local_ticket_body = $24,
 			speakers_title = $25,
 			speakers_body = $26,
-			map_embed_url = $27,
-			map_latitude = $28,
-			map_longitude = $29,
-			map_x_percent = $30,
-			map_y_percent = $31,
-			map_label = $32,
-			map_label_side = $33
+			hackathon_section_label = $27,
+			hackathon_headline = $28,
+			hackathon_judges_note = $29,
+			hackathon_proof_label = $30,
+			map_embed_url = $31,
+			map_latitude = $32,
+			map_longitude = $33,
+			map_x_percent = $34,
+			map_y_percent = $35,
+			map_label = $36,
+			map_label_side = $37
 		WHERE id = $1
 	`, confRef, in.Description, in.OGFlavor, in.Emoji, in.Tagline, in.DateDesc,
 		in.StartDate, in.EndDate, in.Timezone, in.Location, in.Venue,
 		in.VenueMap, in.VenueWebsite, in.ShowHackathon, in.HeroTitle,
 		in.HeroCaption, in.AboutTitle, in.AboutBody, in.AboutBody2,
 		in.VenueTitle, in.VenueSubtitle, in.VenueBody, in.HotelsIntro,
-		in.LocalTicketBody, in.SpeakersTitle, in.SpeakersBody, in.MapEmbedURL,
+		in.LocalTicketBody, in.SpeakersTitle, in.SpeakersBody,
+		in.HackathonSectionLabel, in.HackathonHeadline,
+		in.HackathonJudgesNote, in.HackathonProofLabel, in.MapEmbedURL,
 		in.MapLatitude, in.MapLongitude, in.MapXPercent, in.MapYPercent,
 		in.MapLabel, in.MapLabelSide)
 	if err != nil {
