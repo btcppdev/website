@@ -1712,6 +1712,7 @@ func loadHackathonJudgingAccess(w http.ResponseWriter, r *http.Request, ctx *con
 		http.Error(w, "Unable to load judge events", http.StatusInternalServerError)
 		return nil, nil, nil, nil, err
 	}
+	events = timelineJudgeEvents(events)
 	viewer := hackathonViewerFromIdentity(id, conf)
 	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID) {
 		handle404(w, r, ctx)

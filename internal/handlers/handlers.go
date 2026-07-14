@@ -1151,6 +1151,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/api/speakers/search", func(w http.ResponseWriter, r *http.Request) {
 		SpeakerSearch(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/api/people/search", func(w http.ResponseWriter, r *http.Request) {
+		PersonSearch(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/api/speakers/{speakerID}/roles", func(w http.ResponseWriter, r *http.Request) {
 		SpeakerRolesGet(w, r, app)
 	}).Methods("GET")
@@ -1204,6 +1207,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminCreateJudgeEvent(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events/ranks", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdateJudgeEventRanks(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events/delete", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminDeleteJudgeEvent(w, r, app)

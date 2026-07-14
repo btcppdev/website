@@ -395,6 +395,10 @@ func (p *HackathonAdminPage) JudgeEventTimeRange(event *types.JudgeEvent) string
 	return formatJudgeEventTimeRange(event, p.Conf)
 }
 
+func (p *HackathonAdminPage) RankLimit(event *types.JudgeEvent) int {
+	return judgeEventRankLimit(event)
+}
+
 func (p *HackathonAdminPage) ScheduleSegmentTimeRange(segment *types.CompetitionScheduleSegment) string {
 	if p == nil || segment == nil {
 		return "Not scheduled"
@@ -669,6 +673,7 @@ func populateAdminHackathonCounts(ctx *config.AppContext, page *HackathonAdminPa
 			ctx.Err.Printf("/admin/hackathons/%s count judge events: %s", competitionID, err)
 		}
 	}
+	events = timelineJudgeEvents(events)
 	page.JudgeEventCount = len(events)
 
 	awards := page.Awards
@@ -787,14 +792,14 @@ func HackathonAdminCreateProject(w http.ResponseWriter, r *http.Request, ctx *co
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	ownerEmail := strings.TrimSpace(r.FormValue("OwnerEmail"))
-	if ownerEmail != "" {
-		personID, err := getters.GetPersonIDByEmail(ctx, ownerEmail)
-		if err != nil {
-			http.Redirect(w, r, dest+"?error="+url.QueryEscape("No person found for "+ownerEmail), http.StatusSeeOther)
+	teamPersonIDs := personIDsFromForm(r, "TeamPersonID")
+	if len(teamPersonIDs) > 0 {
+		if err := validatePersonIDs(ctx, teamPersonIDs); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/projects selected people: %s", competitionID, err)
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 			return
 		}
-		in.CreatedByPersonID = personID
+		in.CreatedByPersonID = teamPersonIDs[0]
 	}
 	in.Slug, err = generatedProjectSlug()
 	if err != nil {
@@ -812,6 +817,13 @@ func HackathonAdminCreateProject(w http.ResponseWriter, r *http.Request, ctx *co
 		ctx.Err.Printf("/admin/hackathons/%s/projects/%s create admin fields: %s", competitionID, projectID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project created, but admin fields could not be saved: "+err.Error()), http.StatusSeeOther)
 		return
+	}
+	for _, personID := range teamPersonIDs[1:] {
+		if err := getters.AddProjectMember(ctx, projectID, personID, getters.ProjectMemberRoleMember); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/projects/%s add member %s: %s", competitionID, projectID, personID, err)
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project created, but selected team members could not be added: "+err.Error()), http.StatusSeeOther)
+			return
+		}
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project created"), http.StatusSeeOther)
 }
@@ -856,6 +868,46 @@ func adminProjectInputFromRequest(w http.ResponseWriter, r *http.Request, compet
 		status = getters.ProjectStatusSubmitted
 	}
 	return in, status, projectNumber, nil
+}
+
+func personIDsFromForm(r *http.Request, field string) []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, value := range r.Form[field] {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func validatePersonIDs(ctx *config.AppContext, personIDs []string) error {
+	for _, personID := range personIDs {
+		person, err := getters.FetchSpeakerByID(ctx, personID)
+		if err != nil {
+			return fmt.Errorf("unable to load selected person")
+		}
+		if person == nil {
+			return fmt.Errorf("selected person was not found")
+		}
+	}
+	return nil
+}
+
+func timelineJudgeEvents(events []*types.JudgeEvent) []*types.JudgeEvent {
+	if len(events) == 0 {
+		return events
+	}
+	out := make([]*types.JudgeEvent, 0, len(events))
+	for _, event := range events {
+		if event != nil && strings.TrimSpace(event.ScheduleSegmentID) != "" {
+			out = append(out, event)
+		}
+	}
+	return out
 }
 
 func HackathonAdminAssignProjectNumbers(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -905,6 +957,7 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		http.Error(w, "Unable to load judge events", http.StatusInternalServerError)
 		return
 	}
+	events = timelineJudgeEvents(events)
 	judges, err := getters.ListCompetitionJudges(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/scores judges: %s", competitionID, err)
@@ -980,6 +1033,7 @@ func HackathonAdminTimeline(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Error(w, "Unable to load schedule event times", http.StatusInternalServerError)
 		return
 	}
+	judgeEvents = timelineJudgeEvents(judgeEvents)
 	scheduleSegments := loadCompetitionScheduleSegments(ctx, competition.ID)
 	sortScheduleSegmentsByScheduleTime(scheduleSegments, scheduleEventsByID)
 	page := &HackathonAdminPage{
@@ -1067,6 +1121,7 @@ func HackathonAdminAdvanceFinalists(w http.ResponseWriter, r *http.Request, ctx 
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load judge events"), http.StatusSeeOther)
 		return
 	}
+	events = timelineJudgeEvents(events)
 	scorecards, err := getters.ListScorecardsForCompetition(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/finalists scorecards: %s", competitionID, err)
@@ -1390,6 +1445,13 @@ func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Error(w, "Unable to load judges", http.StatusInternalServerError)
 		return
 	}
+	judgeEvents, err := getters.ListJudgeEvents(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging events: %s", competitionID, err)
+		http.Error(w, "Unable to load judge events", http.StatusInternalServerError)
+		return
+	}
+	judgeEvents = timelineJudgeEvents(judgeEvents)
 	judgeInviteLink := strings.TrimSpace(r.URL.Query().Get("invite"))
 	judgeInviteQRCodeURI := ""
 	if judgeInviteLink != "" {
@@ -1405,6 +1467,7 @@ func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.A
 		Conf:                 conf,
 		ActiveTab:            "judging",
 		Judges:               judges,
+		JudgeEvents:          judgeEvents,
 		JudgeInviteLink:      judgeInviteLink,
 		JudgeInviteQRCodeURI: judgeInviteQRCodeURI,
 		FlashMessage:         r.URL.Query().Get("flash"),
@@ -1418,34 +1481,50 @@ func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.A
 	}
 }
 
+func HackathonAdminUpdateJudgeEventRanks(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	eventIDs := r.Form["JudgeEventID"]
+	rankLimits := r.Form["RankLimit"]
+	if len(eventIDs) == 0 {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("No judging events to update"), http.StatusSeeOther)
+		return
+	}
+	if len(rankLimits) != len(eventIDs) {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Rank count form is incomplete"), http.StatusSeeOther)
+		return
+	}
+	for i, eventID := range eventIDs {
+		eventID = strings.TrimSpace(eventID)
+		rankLimit, err := strconv.Atoi(strings.TrimSpace(rankLimits[i]))
+		if eventID == "" || err != nil || rankLimit <= 0 {
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape("Rank counts must be positive numbers"), http.StatusSeeOther)
+			return
+		}
+		if err := getters.UpdateJudgeEventRankLimit(ctx, competitionID, eventID, rankLimit); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/judging/events/ranks %s: %s", competitionID, eventID, err)
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to save rank counts"), http.StatusSeeOther)
+			return
+		}
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Rank counts saved"), http.StatusSeeOther)
+}
+
 func HackathonAdminCreateJudgeEvent(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
 	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/timeline"
-	competition, err := getters.GetCompetitionByID(ctx, competitionID)
-	if err != nil {
-		handle404(w, r, ctx)
-		return
-	}
-	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
-	if err != nil {
-		ctx.Err.Printf("/admin/hackathons/%s/judging/events conf: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load conference"), http.StatusSeeOther)
-		return
-	}
-	in, err := judgeEventInputFromRequest(w, r, competitionID, conf.Loc())
-	if err != nil {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
-		return
-	}
-	if _, err := getters.CreateJudgeEvent(ctx, in); err != nil {
-		ctx.Err.Printf("/admin/hackathons/%s/judging/events create: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge event added"), http.StatusSeeOther)
+	http.Redirect(w, r, dest+"?error="+url.QueryEscape("Judging events are created from timeline blocks."), http.StatusSeeOther)
 }
 
 func HackathonAdminDeleteJudgeEvent(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1479,18 +1558,57 @@ func HackathonAdminAddJudge(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
 		return
 	}
-	email := strings.TrimSpace(r.FormValue("Email"))
-	personID, err := getters.GetPersonIDByEmail(ctx, email)
-	if err != nil {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("No person found for "+email), http.StatusSeeOther)
+	personIDs := personIDsFromForm(r, "PersonID")
+	if len(personIDs) == 0 {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Choose at least one person from the search results"), http.StatusSeeOther)
 		return
 	}
-	if err := getters.AddCompetitionJudge(ctx, competitionID, personID, getters.JudgeTypeCoordinator); err != nil {
-		ctx.Err.Printf("/admin/hackathons/%s/judging/judges add: %s", competitionID, err)
+	if err := validatePersonIDs(ctx, personIDs); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/judges selected people: %s", competitionID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge added"), http.StatusSeeOther)
+	existingJudges, err := getters.ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/judges existing: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to check existing judges. Please try again."), http.StatusSeeOther)
+		return
+	}
+	existingByPersonID := make(map[string]bool, len(existingJudges))
+	for _, judge := range existingJudges {
+		if judge != nil {
+			existingByPersonID[judge.PersonID] = true
+		}
+	}
+	addedCount := 0
+	alreadyCount := 0
+	for _, personID := range personIDs {
+		if existingByPersonID[personID] {
+			alreadyCount++
+			continue
+		}
+		if err := getters.AddCompetitionJudge(ctx, competitionID, personID, getters.JudgeTypeCoordinator); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/judging/judges add %s: %s", competitionID, personID, err)
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to add selected judge. Please try again."), http.StatusSeeOther)
+			return
+		}
+		addedCount++
+	}
+	message := ""
+	if addedCount > 0 {
+		message = fmt.Sprintf("Added %d judge", addedCount)
+		if addedCount != 1 {
+			message += "s"
+		}
+		if alreadyCount > 0 {
+			message += fmt.Sprintf("; %d already selected", alreadyCount)
+		}
+	} else if alreadyCount == 1 {
+		message = "Selected person is already a judge"
+	} else {
+		message = "Selected people are already judges"
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(message), http.StatusSeeOther)
 }
 
 func HackathonAdminCreateJudgeInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

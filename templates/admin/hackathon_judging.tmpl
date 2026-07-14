@@ -4,6 +4,7 @@
   <title>{{ .Competition.Title }} Judging - Admin - bitcoin++</title>
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" "" }}
+  <script src="/static/js/person-picker.js" defer></script>
 </head>
 <body class="bg-gray-50 text-gray-900">
   {{ block "mainnav" . }} {{ end }}
@@ -25,7 +26,44 @@
     <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
     {{ end }}
 
-    <div class="max-w-3xl">
+    <div class="max-w-3xl space-y-6">
+      <section class="overflow-hidden rounded-lg bg-white shadow">
+        <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-gray-900">Judging events</h2>
+              <p class="mt-1 text-sm text-gray-600">Events come from the timeline. Set how many project ranks judges choose for each one.</p>
+            </div>
+            <a href="{{ .TimelineURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Timeline</a>
+          </div>
+        </div>
+        <div class="px-4 py-5 sm:p-6">
+          {{ if .JudgeEvents }}
+          <form method="POST" action="{{ .JudgingURL .Competition }}/events/ranks" class="space-y-3">
+            {{ range .JudgeEvents }}
+            <div class="grid gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:items-end">
+              <input type="hidden" name="JudgeEventID" value="{{ .ID }}">
+              <div>
+                <div class="text-sm font-semibold text-gray-900">{{ .Name }}</div>
+                <div class="mt-1 text-xs text-gray-500">{{ $.JudgeTypeLabel .PlaybookType }} · {{ $.JudgeEventTimeRange . }}{{ if .StartingProjectNumber }} · starts at #{{ .StartingProjectNumber }}{{ end }}</div>
+              </div>
+              <label class="block text-sm font-medium text-gray-700">
+                Ranks
+                <input name="RankLimit" type="number" min="1" step="1" required value="{{ $.RankLimit . }}"
+                       class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              </label>
+            </div>
+            {{ end }}
+            <div class="flex justify-end">
+              <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save rank counts</button>
+            </div>
+          </form>
+          {{ else }}
+          <p class="text-sm text-gray-600">No timeline blocks currently create judging events. Add Project expo or Finals blocks on the timeline.</p>
+          {{ end }}
+        </div>
+      </section>
+
       <section class="overflow-hidden rounded-lg bg-white shadow">
         <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
           <h2 class="text-sm font-semibold text-gray-900">Judges</h2>
@@ -82,9 +120,13 @@
 
           <form method="POST" action="{{ .JudgingURL .Competition }}/judges" class="grid gap-4">
             <div>
-              <label for="Email" class="block text-sm font-medium text-gray-700">Judge email *</label>
-              <input id="Email" name="Email" type="email" required
-                     class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              <label for="JudgePersonSearch" class="block text-sm font-medium text-gray-700">Judge person *</label>
+              <div class="relative mt-1" data-person-picker data-person-picker-required="true" data-person-picker-name="PersonID">
+                <input id="JudgePersonSearch" type="search" data-person-picker-input
+                       placeholder="Search by name, email, or phone"
+                       class="block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                <p class="mt-2 hidden text-xs text-indigo-700" data-person-picker-flash></p>
+              </div>
             </div>
             <div class="flex justify-end">
               <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Add judge</button>

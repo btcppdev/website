@@ -186,7 +186,7 @@ CREATE INDEX competition_judge_invites_competition_idx ON competition_judge_invi
 CREATE TABLE judge_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   competition_id uuid NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
-  schedule_segment_id uuid REFERENCES competition_schedule_segments(id) ON DELETE SET NULL,
+  schedule_segment_id uuid NOT NULL REFERENCES competition_schedule_segments(id) ON DELETE CASCADE,
   name text NOT NULL,
   playbook_type text NOT NULL,
   ordering integer NOT NULL DEFAULT 0,

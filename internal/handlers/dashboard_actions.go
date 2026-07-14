@@ -92,6 +92,74 @@ func SpeakerSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 }
 
+// PersonSearch returns up to 10 people whose name, email, or phone contains
+// the `q` query parameter. It is restricted to global admins and returns only
+// enough display data to choose a person, not raw private contact fields.
+func PersonSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := auth.RequireOptional(r, ctx)
+	if id == nil || !id.IsGlobalAdmin() {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len([]rune(q)) < 3 {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]\n"))
+		return
+	}
+	people, err := getters.SearchPeopleByNameEmailOrPhone(ctx, q, 10)
+	if err != nil {
+		ctx.Err.Printf("/api/people/search: %s", err)
+		http.Error(w, "search failed", http.StatusInternalServerError)
+		return
+	}
+	type personHit struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		MaskedEmail string `json:"maskedEmail,omitempty"`
+		Company     string `json:"company,omitempty"`
+		PhotoURL    string `json:"photoUrl"`
+	}
+	out := make([]personHit, 0, len(people))
+	for _, person := range people {
+		out = append(out, personHit{
+			ID:          person.ID,
+			Name:        person.Name,
+			MaskedEmail: maskEmailForPicker(person.Email),
+			Company:     person.Company,
+			PhotoURL:    personPickerPhotoURL(person.Photo),
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		ctx.Err.Printf("/api/people/search encode: %s", err)
+	}
+}
+
+func maskEmailForPicker(email string) string {
+	email = strings.TrimSpace(email)
+	local, domain, ok := strings.Cut(email, "@")
+	if !ok || local == "" || domain == "" {
+		return ""
+	}
+	chars := []rune(local)
+	if len(chars) == 1 {
+		return "*@" + domain
+	}
+	return string(chars[0]) + "***@" + domain
+}
+
+func personPickerPhotoURL(photo string) string {
+	photo = strings.TrimSpace(photo)
+	if photo == "" {
+		return spaces.PublicURL("speakers/default.avif")
+	}
+	if strings.HasPrefix(photo, "http://") || strings.HasPrefix(photo, "https://") {
+		return photo
+	}
+	return spaces.PublicURL("speakers/" + photo)
+}
+
 // SpeakerRolesGet returns the Roles slice for a speaker by ID, as
 // JSON `{roles: [...]}`. Used by the admin role-manager autocomplete
 // to pre-fill existing tags. Caller must be a global-admin — this

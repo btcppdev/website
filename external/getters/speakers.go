@@ -162,6 +162,26 @@ func SearchSpeakersByNameOrEmail(ctx *config.AppContext, q string, limit int) ([
 	`, pattern, limit)
 }
 
+func SearchPeopleByNameEmailOrPhone(ctx *config.AppContext, q string, limit int) ([]*types.Speaker, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	pattern := "%" + q + "%"
+	phonePattern := "%" + digitsOnly(q) + "%"
+	return querySpeakersPostgres(ctx, "person search", `
+		WHERE people.name ILIKE $1
+			OR people.email::text ILIKE $1
+			OR people.phone ILIKE $1
+			OR ($2 <> '%%' AND regexp_replace(people.phone, '\D', '', 'g') LIKE $2)
+		ORDER BY lower(people.name), people.id
+		LIMIT $3
+	`, pattern, phonePattern, limit)
+}
+
 func ListSpeakersWithRole(ctx *config.AppContext, role string) ([]*types.Speaker, error) {
 	scope, position, ok := splitRoleScopePosition(role)
 	if !ok {
@@ -172,6 +192,16 @@ func ListSpeakersWithRole(ctx *config.AppContext, role string) ([]*types.Speaker
 		WHERE people_roles.scope = $1 AND people_roles.position = $2
 		ORDER BY lower(people.name), people.id
 	`, scope, position)
+}
+
+func digitsOnly(value string) string {
+	var out strings.Builder
+	for _, r := range value {
+		if r >= '0' && r <= '9' {
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
 }
 
 func ListHomepageFeaturedSpeakers(ctx *config.AppContext) ([]*types.Speaker, error) {
