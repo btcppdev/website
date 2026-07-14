@@ -770,6 +770,7 @@ type EditSpeakerPage struct {
 	IsAdmin      bool
 	BackURL      string
 	FormAction   string
+	NextURL      string
 	PublicURL    string
 	Year         uint
 }

@@ -198,7 +198,12 @@
         } catch (_) {
           input.focus();
           input.select();
-          button.textContent = 'Select';
+          try {
+            document.execCommand('copy');
+            button.textContent = 'Copied';
+          } catch (_) {
+            button.textContent = 'Select';
+          }
         }
       });
     });

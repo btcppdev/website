@@ -97,6 +97,15 @@ type CompetitionJudge struct {
 	CreatedAt     time.Time
 }
 
+type CompetitionJudgeInvite struct {
+	ID                 string
+	CompetitionID      string
+	AcceptedByPersonID string
+	AcceptedAt         *time.Time
+	ExpiresAt          *time.Time
+	CreatedAt          time.Time
+}
+
 type JudgeEvent struct {
 	ID                    string
 	CompetitionID         string

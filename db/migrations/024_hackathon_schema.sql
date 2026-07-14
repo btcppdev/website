@@ -170,6 +170,19 @@ CREATE TABLE competition_judges (
 
 CREATE INDEX competition_judges_person_idx ON competition_judges (person_id);
 
+CREATE TABLE competition_judge_invites (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  competition_id uuid NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  token_hash text NOT NULL UNIQUE,
+  accepted_by_person_id uuid REFERENCES people(id) ON DELETE SET NULL,
+  accepted_at timestamptz,
+  expires_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (token_hash <> '')
+);
+
+CREATE INDEX competition_judge_invites_competition_idx ON competition_judge_invites (competition_id);
+
 CREATE TABLE judge_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   competition_id uuid NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,

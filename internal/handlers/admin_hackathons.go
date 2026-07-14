@@ -26,6 +26,8 @@ type HackathonAdminPage struct {
 	ActiveTab            string
 	JudgeEvents          []*types.JudgeEvent
 	Judges               []*types.CompetitionJudge
+	JudgeInviteLink      string
+	JudgeInviteQRCodeURI string
 	Scorecards           []*types.Scorecard
 	ScoreSummaries       []*HackathonScoreSummary
 	ScoreMode            string
@@ -1388,14 +1390,26 @@ func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Error(w, "Unable to load judges", http.StatusInternalServerError)
 		return
 	}
+	judgeInviteLink := strings.TrimSpace(r.URL.Query().Get("invite"))
+	judgeInviteQRCodeURI := ""
+	if judgeInviteLink != "" {
+		if uri, err := qrCodeDataURI(judgeInviteLink, 192); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/judging invite qr: %s", competitionID, err)
+		} else {
+			judgeInviteQRCodeURI = uri
+		}
+	}
+
 	page := &HackathonAdminPage{
-		Competition:  competition,
-		Conf:         conf,
-		ActiveTab:    "judging",
-		Judges:       judges,
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		Year:         helpers.CurrentYear(),
+		Competition:          competition,
+		Conf:                 conf,
+		ActiveTab:            "judging",
+		Judges:               judges,
+		JudgeInviteLink:      judgeInviteLink,
+		JudgeInviteQRCodeURI: judgeInviteQRCodeURI,
+		FlashMessage:         r.URL.Query().Get("flash"),
+		FlashError:           r.URL.Query().Get("error"),
+		Year:                 helpers.CurrentYear(),
 	}
 	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_judging.tmpl", page); err != nil {
@@ -1471,17 +1485,33 @@ func HackathonAdminAddJudge(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("No person found for "+email), http.StatusSeeOther)
 		return
 	}
-	judgeType, err := judgeTypeFromForm(r)
-	if err != nil {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
-		return
-	}
-	if err := getters.AddCompetitionJudge(ctx, competitionID, personID, judgeType); err != nil {
+	if err := getters.AddCompetitionJudge(ctx, competitionID, personID, getters.JudgeTypeCoordinator); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/judges add: %s", competitionID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge added"), http.StatusSeeOther)
+}
+
+func HackathonAdminCreateJudgeInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	token, _, err := getters.CreateCompetitionJudgeInvite(ctx, competitionID, nil)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/judges/invites: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	inviteURL := absoluteURL(r, "/hackathons/judge-invites/"+url.PathEscape(token))
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge invite link created")+"&invite="+url.QueryEscape(inviteURL), http.StatusSeeOther)
 }
 
 func HackathonAdminRemoveJudge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
