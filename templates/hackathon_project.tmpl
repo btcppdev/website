@@ -112,10 +112,10 @@
           <div class="hack-list">
             {{ range .OptInAwards }}
             <label class="hack-list__row">
-              <span>
+              <div>
                 <span style="display:block;font-weight:700;">{{ .Title }}</span>
-                {{ if .Description }}<span class="hack-list__meta">{{ .Description }}</span>{{ end }}
-              </span>
+                {{ if .Description }}<div class="hack-list__meta">{{ hackathonRichText .Description }}</div>{{ end }}
+              </div>
               <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }}>
             </label>
             {{ end }}

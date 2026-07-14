@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,9 +19,14 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/types"
+	"github.com/gomarkdown/markdown"
+	mdhtml "github.com/gomarkdown/markdown/html"
+	"github.com/gomarkdown/markdown/parser"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/html"
 )
+
+var bitcoinPrizeAmountPattern = regexp.MustCompile(`[-+]?\d[\d,]*(?:\.\d+)?`)
 
 type HackathonPage struct {
 	Competition                 *types.HackathonCompetition
@@ -645,6 +651,28 @@ func (p *HackathonPage) AwardPrizes(award *types.Award) []*types.Prize {
 	return p.PrizesByAward[award.ID]
 }
 
+func (p *HackathonPage) RankedPrizePoolLabel() string {
+	sats := p.RankedPrizePoolSats()
+	if sats == 0 {
+		return "₿0"
+	}
+	btc := float64(sats) / 100_000_000
+	return "₿" + strings.TrimRight(strings.TrimRight(strconv.FormatFloat(btc, 'f', 8, 64), "0"), ".")
+}
+
+func (p *HackathonPage) RankedPrizePoolSats() int64 {
+	if p == nil || p.PrizesByAward == nil {
+		return 0
+	}
+	var total int64
+	for _, prizes := range p.PrizesByAward {
+		for _, prize := range prizes {
+			total += bitcoinPrizeSats(prize)
+		}
+	}
+	return total
+}
+
 func (p *HackathonPage) AwardOptedIn(award *types.Award) bool {
 	if p == nil || p.AwardOptIns == nil || award == nil {
 		return false
@@ -683,6 +711,25 @@ func (p *HackathonPage) PercentLabel(value *float64) string {
 	return strconv.FormatFloat(*value, 'f', -1, 64) + "%"
 }
 
+func bitcoinPrizeSats(prize *types.Prize) int64 {
+	if prize == nil || strings.TrimSpace(prize.PrizeType) != getters.PrizeTypeSats {
+		return 0
+	}
+	text := strings.ToLower(strings.TrimSpace(prize.ValueText))
+	match := bitcoinPrizeAmountPattern.FindString(text)
+	if match == "" {
+		return 0
+	}
+	value, err := strconv.ParseFloat(strings.ReplaceAll(match, ",", ""), 64)
+	if err != nil || value <= 0 {
+		return 0
+	}
+	if strings.Contains(text, "btc") || strings.Contains(text, "₿") {
+		return int64(value*100_000_000 + 0.5)
+	}
+	return int64(value + 0.5)
+}
+
 func (p *HackathonPage) JudgeEventTimeRange(event *types.JudgeEvent) string {
 	if p == nil {
 		return formatJudgeEventTimeRange(event, nil)
@@ -692,6 +739,10 @@ func (p *HackathonPage) JudgeEventTimeRange(event *types.JudgeEvent) string {
 
 func (p *HackathonPage) RichText(value string) template.HTML {
 	return hackathonRichTextHTML(value)
+}
+
+func (p *HackathonPage) DescriptionHTML(value, format string) template.HTML {
+	return hackathonDescriptionHTML(value, format)
 }
 
 func (p *HackathonPage) NextMilestoneLabel() string {
@@ -948,6 +999,43 @@ func completedHackathonScheduleValue(competition *types.HackathonCompetition) st
 		return formatHackathonTime(competition.SubmissionsOpenAt)
 	}
 	return ""
+}
+
+func hackathonDescriptionHTML(value, format string) template.HTML {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case getters.CompetitionDescriptionFormatPlain:
+		return hackathonPlainTextHTML(value)
+	case getters.CompetitionDescriptionFormatMarkdown:
+		return hackathonMarkdownHTML(value)
+	default:
+		return hackathonRichTextHTML(value)
+	}
+}
+
+func hackathonPlainTextHTML(value string) template.HTML {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	escaped := stdhtml.EscapeString(value)
+	escaped = strings.ReplaceAll(escaped, "\r\n", "\n")
+	escaped = strings.ReplaceAll(escaped, "\r", "\n")
+	escaped = strings.ReplaceAll(escaped, "\n", "<br>")
+	return template.HTML(escaped)
+}
+
+func hackathonMarkdownHTML(value string) template.HTML {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	escaped := stdhtml.EscapeString(value)
+	extensions := parser.CommonExtensions | parser.AutoHeadingIDs | parser.NoEmptyLineBeforeBlock
+	doc := parser.NewWithExtensions(extensions).Parse([]byte(escaped))
+	renderer := mdhtml.NewRenderer(mdhtml.RendererOptions{
+		Flags: mdhtml.CommonFlags,
+	})
+	return hackathonRichTextHTML(string(markdown.Render(doc, renderer)))
 }
 
 func hackathonRichTextHTML(value string) template.HTML {

@@ -1,6 +1,6 @@
 {{ define "conf_hackathon_section" }}
 {{ if .Hackathon }}
-{{ $sectionLabel := .Conf.HackathonSectionLabel }}{{ if not $sectionLabel }}{{ $sectionLabel = "§06 · The hackathon" }}{{ end }}
+{{ $sectionLabel := .Conf.HackathonSectionLabel }}{{ if not $sectionLabel }}{{ $sectionLabel = "§ The hackathon" }}{{ end }}
 {{ $headline := .Conf.HackathonHeadline }}{{ if not $headline }}{{ $headline = "Don't just talk. <span>Build.</span>" }}{{ end }}
 {{ $judgesNote := .Conf.HackathonJudgesNote }}{{ if not $judgesNote }}{{ $judgesNote = "Judged by five of the lineup · no appeals" }}{{ end }}
 {{ $proofLabel := .Conf.HackathonProofLabel }}{{ if not $proofLabel }}{{ $proofLabel = "Last edition · 37 projects · 90 hackers" }}{{ end }}
@@ -10,13 +10,13 @@
       <p class="rebrand-section-label">{{ $sectionLabel }}</p>
       <p class="conf-hackathon-redesign__edition">{{ .Hackathon.Title }}</p>
       <h2>{{ ishtml $headline }}</h2>
-      <p class="conf-hackathon-redesign__summary">
+      <div class="conf-hackathon-redesign__summary">
         {{ if .Hackathon.Description }}
-        {{ .Hackathon.Description }}
+        {{ hackathonDescription .Hackathon.Description .Hackathon.DescriptionFormat }}
         {{ else }}
         Build and submit projects tied to {{ .Conf.Desc }}.
         {{ end }}
-      </p>
+      </div>
       <div class="conf-hackathon-redesign__actions">
         <a href="{{ .HackathonURL }}" class="rebrand-button">Explore the hackathon →</a>
         <a href="{{ .HackathonURL }}#projects" class="rebrand-button is-secondary">Past projects →</a>

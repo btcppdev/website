@@ -40,6 +40,7 @@
               {{ if $schedulerURL }}
               <a href="{{ $schedulerURL }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Go to scheduler</a>
               {{ end }}
+              <button type="button" data-segment-add-defaults class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Add default blocks</button>
             </div>
           </div>
         </div>
@@ -53,13 +54,13 @@
                 <label class="block text-sm font-medium text-gray-700">
                   Type
                   <select name="SegmentType" data-segment-type data-current-type="{{ .SegmentType }}" autocomplete="off" class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-                    <option value="kickoff" data-title="Kickoff" {{ if eq .SegmentType "kickoff" }}selected{{ end }}>Kickoff</option>
-                    <option value="hacking" data-title="Hacking time" {{ if eq .SegmentType "hacking" }}selected{{ end }}>Hacking time</option>
-                    <option value="judges-meeting" data-title="Judges meeting" {{ if eq .SegmentType "judges-meeting" }}selected{{ end }}>Judges meeting</option>
-                    <option value="expo" data-title="Project expo" {{ if eq .SegmentType "expo" }}selected{{ end }}>Project expo</option>
-                    <option value="finals" data-title="Finals" {{ if eq .SegmentType "finals" }}selected{{ end }}>Finals</option>
-                    <option value="awards" data-title="Awards" {{ if eq .SegmentType "awards" }}selected{{ end }}>Awards</option>
-                    <option value="custom" data-title="Custom segment" {{ if eq .SegmentType "custom" }}selected{{ end }}>Custom</option>
+                    <option value="kickoff" data-title="Kickoff" data-duration="30" {{ if eq .SegmentType "kickoff" }}selected{{ end }}>Kickoff</option>
+                    <option value="hacking" data-title="Hacking time" data-duration="120" {{ if eq .SegmentType "hacking" }}selected{{ end }}>Hacking time</option>
+                    <option value="judges-meeting" data-title="Judges meeting" data-duration="30" {{ if eq .SegmentType "judges-meeting" }}selected{{ end }}>Judges meeting</option>
+                    <option value="expo" data-title="Project expo" data-duration="120" {{ if eq .SegmentType "expo" }}selected{{ end }}>Project expo</option>
+                    <option value="finals" data-title="Finals" data-duration="60" {{ if eq .SegmentType "finals" }}selected{{ end }}>Finals</option>
+                    <option value="awards" data-title="Awards" data-duration="45" {{ if eq .SegmentType "awards" }}selected{{ end }}>Awards</option>
+                    <option value="custom" data-title="Custom segment" data-duration="30" {{ if eq .SegmentType "custom" }}selected{{ end }}>Custom</option>
                   </select>
                 </label>
                 <div class="rounded-md bg-white px-3 py-2 text-xs text-gray-600 ring-1 ring-gray-200">
@@ -97,13 +98,13 @@
           <label class="block text-sm font-medium text-gray-700">
             Type
             <select name="SegmentType" data-segment-type class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-              <option value="kickoff" data-title="Kickoff">Kickoff</option>
-              <option value="hacking" data-title="Hacking time">Hacking time</option>
-              <option value="judges-meeting" data-title="Judges meeting">Judges meeting</option>
-              <option value="expo" data-title="Project expo">Project expo</option>
-              <option value="finals" data-title="Finals">Finals</option>
-              <option value="awards" data-title="Awards">Awards</option>
-              <option value="custom" data-title="Custom segment" selected>Custom</option>
+              <option value="kickoff" data-title="Kickoff" data-duration="30">Kickoff</option>
+              <option value="hacking" data-title="Hacking time" data-duration="120">Hacking time</option>
+              <option value="judges-meeting" data-title="Judges meeting" data-duration="30">Judges meeting</option>
+              <option value="expo" data-title="Project expo" data-duration="120">Project expo</option>
+              <option value="finals" data-title="Finals" data-duration="60">Finals</option>
+              <option value="awards" data-title="Awards" data-duration="45">Awards</option>
+              <option value="custom" data-title="Custom segment" data-duration="30" selected>Custom</option>
             </select>
           </label>
           <div class="rounded-md bg-white px-3 py-2 text-xs text-gray-600 ring-1 ring-gray-200">
@@ -123,10 +124,12 @@
   <script>
   document.querySelectorAll('[data-segment-builder]').forEach(function (builder) {
     var addButton = builder.querySelector('[data-segment-add]');
+    var addDefaultsButton = document.querySelector('[data-segment-add-defaults]');
     var addSlot = addButton ? addButton.closest('[data-segment-add-slot]') : null;
     var list = builder.querySelector('[data-segment-list]');
     var template = document.querySelector('[data-segment-template]');
     var empty = builder.querySelector('[data-segment-empty]');
+    var defaultSegmentTypes = ['kickoff', 'hacking', 'judges-meeting', 'expo', 'finals', 'awards'];
 
     function updateEmptyState() {
       if (!empty || !list) return;
@@ -147,18 +150,53 @@
       titleInput.value = (option && option.dataset.title) || (option ? option.textContent.trim() : '');
     }
 
-    function addSegment() {
+    function segmentTypeExists(type) {
+      if (!list || !type) return false;
+      return !!Array.prototype.find.call(list.querySelectorAll('[data-segment-type]'), function (select) {
+        return select.value === type;
+      });
+    }
+
+    function optionForSegmentType(type) {
+      if (!template || !type) return null;
+      var templateSelect = template.content.querySelector('[data-segment-type]');
+      if (!templateSelect) return null;
+      return Array.prototype.find.call(templateSelect.options, function (option) {
+        return option.value === type;
+      });
+    }
+
+    function setSegmentType(row, type) {
+      var typeSelect = row.querySelector('[data-segment-type]');
+      if (!typeSelect || !type) return;
+      typeSelect.value = type;
+      syncSegmentTitle(row);
+      var option = typeSelect.selectedOptions[0];
+      var durationInput = row.querySelector('input[name="SegmentDuration"]');
+      if (durationInput && option && option.dataset.duration) durationInput.value = option.dataset.duration;
+    }
+
+    function addSegment(type, shouldFocus) {
       if (!template || !list || !addSlot) return;
       var fragment = template.content.cloneNode(true);
       var row = fragment.querySelector('[data-segment-row]');
+      setSegmentType(row, type || 'custom');
       list.insertBefore(fragment, addSlot);
       updateEmptyState();
-      row.querySelector('[data-segment-type]').focus();
+      if (shouldFocus) row.querySelector('[data-segment-type]').focus();
     }
 
     if (addButton && list) {
       addButton.addEventListener('click', function () {
-        addSegment();
+        addSegment('custom', true);
+      });
+    }
+
+    if (addDefaultsButton && list) {
+      addDefaultsButton.addEventListener('click', function () {
+        defaultSegmentTypes.forEach(function (type) {
+          if (!segmentTypeExists(type) && optionForSegmentType(type)) addSegment(type, false);
+        });
       });
     }
 

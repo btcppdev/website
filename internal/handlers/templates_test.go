@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"btcpp-web/external/getters"
@@ -66,6 +67,32 @@ func TestHackathonRichTextHTML(t *testing.T) {
 				t.Fatalf("hackathonRichTextHTML() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestHackathonDescriptionHTML(t *testing.T) {
+	markdown := string(hackathonDescriptionHTML("A **bold** [link](https://example.com).\n\n<script>bad()</script>", getters.CompetitionDescriptionFormatMarkdown))
+	for _, want := range []string{
+		"<strong>bold</strong>",
+		`<a href="https://example.com" rel="noopener noreferrer">link</a>`,
+		"&amp;lt;script&amp;gt;bad()&amp;lt;/script&amp;gt;",
+	} {
+		if !strings.Contains(markdown, want) {
+			t.Fatalf("markdown description missing %q in %q", want, markdown)
+		}
+	}
+	if strings.Contains(markdown, "<script>") {
+		t.Fatalf("markdown description rendered raw script: %q", markdown)
+	}
+
+	plain := string(hackathonDescriptionHTML("2 < 3\nnext", getters.CompetitionDescriptionFormatPlain))
+	if plain != "2 &lt; 3<br>next" {
+		t.Fatalf("plain description = %q", plain)
+	}
+
+	html := string(hackathonDescriptionHTML(`<p><em>ok</em></p><script>bad()</script>`, getters.CompetitionDescriptionFormatHTML))
+	if html != "<p><em>ok</em></p>" {
+		t.Fatalf("html description = %q", html)
 	}
 }
 
