@@ -1,7 +1,6 @@
 package getters
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -74,7 +73,7 @@ func ListConfInfos(ctx *config.AppContext, confTag string) ([]*types.ConfInfo, e
 	}
 	sql += " ORDER BY c.tag, cd.day_number"
 
-	rows, err := ctx.DB.Query(context.Background(), sql, args...)
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query conference days: %w", err)
 	}
@@ -169,7 +168,7 @@ func upsertConfInfo(ctx *config.AppContext, confRef string, in ConfInfoInput) er
 	coffeeEnd := nullableTimeString(in.CoffeeEnd)
 
 	if in.ID != "" {
-		commandTag, err := ctx.DB.Exec(context.Background(), `
+		commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			UPDATE conference_days
 			SET day_number = $3,
 				doors_start = $4,
@@ -194,7 +193,7 @@ func upsertConfInfo(ctx *config.AppContext, confRef string, in ConfInfoInput) er
 		return nil
 	}
 
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO conference_days (
 			conference_id, day_number, doors_start, doors_end,
 			breakfast_start, breakfast_end, lunch_start, lunch_end,

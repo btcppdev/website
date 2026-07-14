@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"strings"
@@ -237,7 +236,7 @@ func IsCodeNameAvailable(ctx *config.AppContext, codeName string) (bool, error) 
 		return false, nil
 	}
 	var exists bool
-	if err := ctx.DB.QueryRow(context.Background(), `
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT EXISTS (
 			SELECT 1
 			FROM discounts
@@ -254,7 +253,7 @@ func queryDiscountsPostgres(ctx *config.AppContext, label string, whereSQL strin
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT discounts.id::text, discounts.code_name::text, discounts.discount_expr,
 			discounts.uses_count, coalesce(discounts.affiliate_email::text, ''),
 			coalesce(conferences.id::text, '')
@@ -311,7 +310,7 @@ func IncrementDiscountUses(ctx *config.AppContext, discountRef string, addCount 
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE discounts
 		SET uses_count = uses_count + $2
 		WHERE id = $1
@@ -354,15 +353,15 @@ func insertDiscountPostgres(ctx *config.AppContext, codeName, discountExpr, affi
 		return "", err
 	}
 
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return "", fmt.Errorf("begin discount insert: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
 	discType := string(discount.DiscType)
 	var discountID string
-	err = tx.QueryRow(context.Background(), `
+	err = tx.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO discounts (
 			code_name, discount_expr, affiliate_email, disc_type, amount,
 			max_uses, extra_qty, valid_from, valid_until
@@ -379,7 +378,7 @@ func insertDiscountPostgres(ctx *config.AppContext, codeName, discountExpr, affi
 	if err := replaceDiscountConferenceLinksPostgres(tx, discountID, confRefs); err != nil {
 		return "", err
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return "", fmt.Errorf("commit discount insert: %w", err)
 	}
 
@@ -399,16 +398,16 @@ func updateDiscountRowPostgres(ctx *config.AppContext, discountID, codeName, dis
 		return err
 	}
 
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return fmt.Errorf("begin discount update: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
 	discType := string(discount.DiscType)
 	var rowsAffected int64
 	if affiliateEmail == nil {
-		commandTag, execErr := tx.Exec(context.Background(), `
+		commandTag, execErr := tx.Exec(ctx.DatabaseContext(), `
 			UPDATE discounts
 			SET code_name = $2,
 				discount_expr = $3,
@@ -425,7 +424,7 @@ func updateDiscountRowPostgres(ctx *config.AppContext, discountID, codeName, dis
 		err = execErr
 		rowsAffected = commandTag.RowsAffected()
 	} else {
-		commandTag, execErr := tx.Exec(context.Background(), `
+		commandTag, execErr := tx.Exec(ctx.DatabaseContext(), `
 			UPDATE discounts
 			SET code_name = $2,
 				discount_expr = $3,
@@ -452,7 +451,7 @@ func updateDiscountRowPostgres(ctx *config.AppContext, discountID, codeName, dis
 	if err := replaceDiscountConferenceLinksPostgres(tx, discountID, confRefs); err != nil {
 		return err
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit discount update: %w", err)
 	}
 	return nil
@@ -462,7 +461,7 @@ func archiveDiscountRowPostgres(ctx *config.AppContext, discountID string) error
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE discounts
 		SET archived_at = now()
 		WHERE id = $1
@@ -477,7 +476,7 @@ func archiveDiscountRowPostgres(ctx *config.AppContext, discountID string) error
 }
 
 func replaceDiscountConferenceLinksPostgres(tx pgx.Tx, discountID string, confRefs []string) error {
-	if _, err := tx.Exec(context.Background(), `DELETE FROM discounts_conferences WHERE discount_id = $1`, discountID); err != nil {
+	if _, err := tx.Exec(config.DatabaseContext(), `DELETE FROM discounts_conferences WHERE discount_id = $1`, discountID); err != nil {
 		return fmt.Errorf("clear discount conference links %s: %w", discountID, err)
 	}
 	for _, confRef := range confRefs {
@@ -485,7 +484,7 @@ func replaceDiscountConferenceLinksPostgres(tx pgx.Tx, discountID string, confRe
 		if confRef == "" {
 			continue
 		}
-		if _, err := tx.Exec(context.Background(), `
+		if _, err := tx.Exec(config.DatabaseContext(), `
 			INSERT INTO discounts_conferences (discount_id, conference_id)
 			VALUES ($1, $2)
 			ON CONFLICT (discount_id, conference_id) DO NOTHING

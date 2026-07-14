@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -64,14 +63,14 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 		status = "Applied"
 	}
 
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return fmt.Errorf("begin volunteer registration: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
 	var volunteerID string
-	err = tx.QueryRow(context.Background(), `
+	err = tx.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO volunteers (
 			name, email, phone, signal, availability, contact_at, comments,
 			discovered_via, first_event, hometown, twitter_handle, nostr,
@@ -101,7 +100,7 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 		return err
 	}
 
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit volunteer registration: %w", err)
 	}
 	vol.Ref = volunteerID
@@ -113,7 +112,7 @@ func UpdateVolunteerStatus(ctx *config.AppContext, volRef, status string) error 
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE volunteers
 		SET status = $2
 		WHERE id = $1
@@ -131,7 +130,7 @@ func UpdateVolunteerAvailability(ctx *config.AppContext, volRef string, days []s
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE volunteers
 		SET availability = $2
 		WHERE id = $1
@@ -149,13 +148,13 @@ func UpdateVolunteerWorkPrefs(ctx *config.AppContext, volRef string, workYesRefs
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return fmt.Errorf("begin volunteer work preference update: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
-	commandTag, err := tx.Exec(context.Background(), `
+	commandTag, err := tx.Exec(ctx.DatabaseContext(), `
 		DELETE FROM volunteers_job_types
 		WHERE volunteer_id = $1
 	`, volRef)
@@ -165,7 +164,7 @@ func UpdateVolunteerWorkPrefs(ctx *config.AppContext, volRef string, workYesRefs
 
 	if commandTag.RowsAffected() == 0 {
 		var exists bool
-		if err := tx.QueryRow(context.Background(), `
+		if err := tx.QueryRow(ctx.DatabaseContext(), `
 			SELECT EXISTS(SELECT 1 FROM volunteers WHERE id = $1)
 		`, volRef).Scan(&exists); err != nil {
 			return fmt.Errorf("check volunteer %s: %w", volRef, err)
@@ -181,7 +180,7 @@ func UpdateVolunteerWorkPrefs(ctx *config.AppContext, volRef string, workYesRefs
 	if err := insertVolunteerJobRefLinksPostgres(tx, volRef, workNoRefs, "no"); err != nil {
 		return err
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit volunteer work preference update: %w", err)
 	}
 	return nil
@@ -198,7 +197,7 @@ func GetVolInfos(ctx *config.AppContext, confRef string) ([]*types.VolInfo, erro
 		args = append(args, confRef)
 		where = "WHERE volunteer_info.conference_id::text = $1"
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT volunteer_info.id::text, volunteer_info.conference_id::text,
 			volunteer_info.orient_link_url, volunteer_info.orient_start,
 			volunteer_info.orient_end, volunteer_info.notes
@@ -240,7 +239,7 @@ func UpdateVolInfoOrientation(ctx *config.AppContext, volInfoRef string, start, 
 	if strings.TrimSpace(volInfoRef) == "" {
 		return fmt.Errorf("volinfo ref is required")
 	}
-	tag, err := ctx.DB.Exec(context.Background(), `
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE volunteer_info
 		SET orient_start = $2, orient_end = $3, orient_link_url = $4
 		WHERE id::text = $1
@@ -289,7 +288,7 @@ func listVolunteersPostgres(ctx *config.AppContext, where string, args ...interf
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, name, email::text, phone, signal, availability, contact_at,
 			comments, discovered_via, first_event, hometown, twitter_handle, nostr,
 			shirt, status, captcha, subscribe, created_at
@@ -386,7 +385,7 @@ func hydrateVolunteerRelationsPostgres(ctx *config.AppContext, vols []*types.Vol
 }
 
 func hydrateVolunteerConferenceRelationsPostgres(ctx *config.AppContext, ids []string, volByID map[string]*types.Volunteer, confByID map[string]*types.Conf) error {
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT volunteer_id::text, conference_id::text, kind
 		FROM volunteers_conferences
 		WHERE volunteer_id::text = ANY($1::text[])
@@ -427,7 +426,7 @@ func insertVolunteerConferenceLinksPostgres(tx pgx.Tx, volunteerID string, confs
 		if conf == nil || strings.TrimSpace(conf.Ref) == "" {
 			continue
 		}
-		if _, err := tx.Exec(context.Background(), `
+		if _, err := tx.Exec(config.DatabaseContext(), `
 			INSERT INTO volunteers_conferences (volunteer_id, conference_id, kind)
 			VALUES ($1, $2, $3)
 			ON CONFLICT (volunteer_id, conference_id, kind) DO NOTHING
@@ -455,7 +454,7 @@ func insertVolunteerJobRefLinksPostgres(tx pgx.Tx, volunteerID string, jobRefs [
 		if jobRef == "" {
 			continue
 		}
-		if _, err := tx.Exec(context.Background(), `
+		if _, err := tx.Exec(config.DatabaseContext(), `
 			INSERT INTO volunteers_job_types (volunteer_id, job_type_id, preference)
 			VALUES ($1, $2, $3)
 			ON CONFLICT (volunteer_id, job_type_id, preference) DO NOTHING
@@ -467,7 +466,7 @@ func insertVolunteerJobRefLinksPostgres(tx pgx.Tx, volunteerID string, jobRefs [
 }
 
 func hydrateVolunteerJobRelationsPostgres(ctx *config.AppContext, ids []string, volByID map[string]*types.Volunteer, jobByID map[string]*types.JobType) error {
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT volunteer_id::text, job_type_id::text, preference
 		FROM volunteers_job_types
 		WHERE volunteer_id::text = ANY($1::text[])

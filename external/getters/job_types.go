@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"strings"
 )
@@ -32,7 +31,7 @@ func queryJobsPostgres(ctx *config.AppContext, label string, whereSQL string, ar
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, tag, display_order, title, tooltip, long_desc, show
 		FROM job_types
 		`+whereSQL+`

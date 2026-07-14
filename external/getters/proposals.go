@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"strings"
@@ -96,7 +95,7 @@ func CreateProposal(ctx *config.AppContext, in ProposalInput) (string, error) {
 		return "", err
 	}
 	var proposalID string
-	err = ctx.DB.QueryRow(context.Background(), `
+	err = ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO proposals (
 			conference_id, title, description, setup, comments, talk_type,
 			status, desired_duration_min, avail_duration_min
@@ -149,7 +148,7 @@ func queryProposalsPostgres(ctx *config.AppContext, where string, args ...interf
 		}
 	}
 
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT proposals.id::text, proposals.title, proposals.description,
 			proposals.setup, proposals.comments, proposals.talk_type,
 			proposals.status, proposals.desired_duration_min,
@@ -204,7 +203,7 @@ func hydrateProposalSpeakerConfRefsPostgres(ctx *config.AppContext, ids []string
 	if len(ids) == 0 {
 		return nil
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT proposal_id::text, speaker_conf_id::text
 		FROM proposals_speaker_confs
 		WHERE proposal_id::text = ANY($1::text[])
@@ -271,7 +270,7 @@ func UpdateProposal(ctx *config.AppContext, proposalID string, in ProposalInput)
 	}
 
 	args = append(args, proposalID)
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE proposals
 		SET `+strings.Join(setParts, ", ")+`
 		WHERE id = $`+fmt.Sprint(len(args))+`
@@ -289,7 +288,7 @@ func UpdateProposalStatus(ctx *config.AppContext, proposalID, status string) err
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE proposals
 		SET status = $2
 		WHERE id = $1
@@ -310,7 +309,7 @@ func SetProposalInviteToken(ctx *config.AppContext, proposalID, token string) er
 	if token == "" {
 		return fmt.Errorf("SetProposalInviteToken: empty token")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE proposals
 		SET invite_token = $2
 		WHERE id = $1
@@ -330,7 +329,7 @@ func proposalConferenceIDPostgres(ctx *config.AppContext, tag string) (*string, 
 		return nil, nil
 	}
 	var id string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text
 		FROM conferences
 		WHERE tag = $1

@@ -24,6 +24,12 @@ func Open(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	cfg.MaxConns = 10
 	cfg.MinConns = 1
 	cfg.HealthCheckPeriod = time.Minute
+	// Keep a blocked statement or forgotten transaction from permanently
+	// removing a connection from the small application pool. The application
+	// context also bounds pool acquisition, which server-side settings cannot.
+	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "15000"
+	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "5000"
+	cfg.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = "30000"
 
 	connectCtx, cancel := context.WithTimeout(ctx, defaultConnectTimeout)
 	defer cancel()

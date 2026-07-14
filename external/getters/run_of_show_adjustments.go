@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"strings"
 )
@@ -28,7 +27,7 @@ func ListRunOfShowAdjustments(ctx *config.AppContext, confTag string) ([]*types.
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT rsa.id::text, c.tag, rsa.venue, rsa.anchor_kind, rsa.anchor_id,
 			rsa.delay_minutes, rsa.propagation_mode, rsa.note, rsa.created_at
 		FROM run_of_show_adjustments rsa
@@ -74,7 +73,7 @@ func UpsertRunOfShowAdjustment(ctx *config.AppContext, in RunOfShowAdjustmentInp
 	if mode == "" {
 		mode = RunOfShowAdjustUntilNextAnchor
 	}
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO run_of_show_adjustments (
 			conference_id, venue, anchor_kind, anchor_id, delay_minutes, propagation_mode, note
 		)
@@ -100,7 +99,7 @@ func ArchiveRunOfShowAdjustment(ctx *config.AppContext, confTag, anchorKind, anc
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE run_of_show_adjustments rsa
 		SET archived_at = now()
 		FROM conferences c

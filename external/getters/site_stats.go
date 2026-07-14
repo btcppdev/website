@@ -1,7 +1,6 @@
 package getters
 
 import (
-	"context"
 	"fmt"
 
 	"btcpp-web/internal/config"
@@ -56,7 +55,7 @@ func siteStatsAttendees(ctx *config.AppContext) (int, error) {
 		return 0, fmt.Errorf("database is not configured")
 	}
 	var count int
-	if err := ctx.DB.QueryRow(context.Background(), `
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT count(*)
 		FROM registrations
 	`).Scan(&count); err != nil {
@@ -70,7 +69,7 @@ func siteStatsFromDatabase(ctx *config.AppContext) (SiteStatsValues, error) {
 		return SiteStatsValues{}, fmt.Errorf("database is not configured")
 	}
 	var s SiteStatsValues
-	if err := ctx.DB.QueryRow(context.Background(), `
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT
 			(SELECT count(*) FROM conferences WHERE end_date IS NOT NULL AND end_date < now()),
 			(

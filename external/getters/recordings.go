@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
@@ -24,7 +23,7 @@ func ListRecordings(ctx *config.AppContext) ([]*types.Recording, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, conf_talk_id::text, talk_name, youtube_url, x_url,
 			x_reply_url, file_uri, publish_at
 		FROM recordings
@@ -57,7 +56,7 @@ func ListRecordingsForConf(ctx *config.AppContext, confTag string) ([]*types.Rec
 	if confTag == "" {
 		return nil, fmt.Errorf("conference tag is required")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT r.id::text, r.conf_talk_id::text, r.talk_name, r.youtube_url, r.x_url,
 			r.x_reply_url, r.file_uri, r.publish_at
 		FROM recordings r
@@ -97,7 +96,7 @@ func queryRecordingPostgres(ctx *config.AppContext, label string, whereSQL strin
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	row := ctx.DB.QueryRow(context.Background(), `
+	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text, conf_talk_id::text, talk_name, youtube_url, x_url,
 			x_reply_url, file_uri, publish_at
 		FROM recordings
@@ -191,7 +190,7 @@ func UpdateRecordingPublishing(ctx *config.AppContext, recordingID string, up Re
 	if len(setParts) == 0 {
 		return nil
 	}
-	tag, err := ctx.DB.Exec(context.Background(), `
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE recordings
 		SET `+strings.Join(setParts, ", ")+`
 		WHERE id = $1::uuid
@@ -212,7 +211,7 @@ func updateRecordingColumnPostgres(ctx *config.AppContext, recordingID string, c
 	if !validRecordingColumn(column) {
 		return fmt.Errorf("invalid recording column %q", column)
 	}
-	tag, err := ctx.DB.Exec(context.Background(), `
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE recordings
 		SET `+pgx.Identifier{column}.Sanitize()+` = $2
 		WHERE id = $1::uuid

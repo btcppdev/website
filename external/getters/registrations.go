@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
@@ -116,7 +115,7 @@ func CheckIn(ctx *config.AppContext, ticket string) (string, bool, error) {
 	var ticketType string
 	var checkedInAt pgtype.Timestamptz
 	var revoked bool
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT type, checked_in_at, revoked
 		FROM registrations
 		WHERE ref_id = $1
@@ -136,7 +135,7 @@ func CheckIn(ctx *config.AppContext, ticket string) (string, bool, error) {
 	if checkedInAt.Valid {
 		return "", true, fmt.Errorf("Already checked in")
 	}
-	tag, err := ctx.DB.Exec(context.Background(), `
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE registrations
 		SET checked_in_at = now()
 		WHERE ref_id = $1 AND checked_in_at IS NULL AND revoked = false
@@ -161,7 +160,7 @@ func BulkCheckInRegistrations(ctx *config.AppContext, confRef string, emails []s
 	if len(clean) == 0 {
 		return 0, nil
 	}
-	tag, err := ctx.DB.Exec(context.Background(), `
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE registrations
 		SET checked_in_at = now()
 		WHERE conference_id = $1::uuid
@@ -181,7 +180,7 @@ func SoldTixCount(ctx *config.AppContext, confRef string) (uint, error) {
 		return 0, fmt.Errorf("database is not configured")
 	}
 	var count int64
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT count(*)
 		FROM registrations
 		WHERE conference_id = $1::uuid
@@ -240,7 +239,7 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 	}
 	sql += " ORDER BY r.registered_at DESC NULLS LAST, r.ref_id"
 
-	rows, err := ctx.DB.Query(context.Background(), sql, args...)
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query registrations: %w", err)
 	}
@@ -293,7 +292,7 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 	for i, item := range entry.Items {
 		refID := types.UniqueID(entry.Email, entry.ID, int32(i))
 		amountPaid := float64(item.Total) / 100
-		_, err := ctx.DB.Exec(context.Background(), `
+		_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			INSERT INTO registrations (
 				ref_id, checkout_id, conference_id, discount_id, type, email,
 				item_bought, amount_paid, currency, platform, registered_at, revoked
@@ -328,7 +327,7 @@ func RevokeTicket(ctx *config.AppContext, lookupID string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	tag, err := ctx.DB.Exec(context.Background(), `
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE registrations
 		SET revoked = true
 		WHERE checkout_id = $1

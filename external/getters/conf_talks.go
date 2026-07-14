@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
@@ -204,7 +203,7 @@ func CreateConfTalk(ctx *config.AppContext, in ConfTalkInput) (string, error) {
 	}
 
 	var confTalkID string
-	err = ctx.DB.QueryRow(context.Background(), `
+	err = ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO conf_talks (conference_id, proposal_id)
 		VALUES ($1, NULLIF($2, '')::uuid)
 		ON CONFLICT (proposal_id, scheduled_start) DO UPDATE SET
@@ -226,7 +225,7 @@ func CreateConfTalk(ctx *config.AppContext, in ConfTalkInput) (string, error) {
 
 func activeConfTalkIDForProposalPostgres(ctx *config.AppContext, proposalID string) (string, error) {
 	var existingID string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text
 		FROM conf_talks
 		WHERE proposal_id = $1::uuid
@@ -374,7 +373,7 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 		where += " AND conf_talks.archived_at IS NULL"
 	}
 
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, conference_id::text, coalesce(proposal_id::text, ''),
 			clipart_path, scheduled_start, scheduled_end, production_notes,
 			venue, section, cal_notif, social_card_path,
@@ -435,7 +434,7 @@ func UpdateConfTalkSchedule(ctx *config.AppContext, confTalkID, venue string, st
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conf_talks
 		SET scheduled_start = $2,
 			scheduled_end = $3,
@@ -463,7 +462,7 @@ func DeleteConfTalk(ctx *config.AppContext, confTalkID string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conf_talks
 		SET archived_at = now()
 		WHERE id = $1
@@ -494,7 +493,7 @@ func UpdateConfTalkResources(ctx *config.AppContext, confTalkID, githubRepoURL, 
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conf_talks
 		SET github_repo_url = $2,
 			slides_url = $3,
@@ -514,7 +513,7 @@ func updateConfTalkStringPostgres(ctx *config.AppContext, confTalkID, column, va
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conf_talks
 		SET `+column+` = $2
 		WHERE id = $1
@@ -530,7 +529,7 @@ func updateConfTalkStringPostgres(ctx *config.AppContext, confTalkID, column, va
 
 func proposalConferenceIDForProposalPostgres(ctx *config.AppContext, proposalID string) (*string, error) {
 	var id string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT conference_id::text
 		FROM proposals
 		WHERE id = $1

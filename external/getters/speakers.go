@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"strings"
 )
@@ -186,13 +185,13 @@ func ReplaceHomepageFeaturedSpeakers(ctx *config.AppContext, speakerIDs []string
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return fmt.Errorf("begin homepage featured speakers update: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
-	if _, err := tx.Exec(context.Background(), `DELETE FROM homepage_featured_speakers`); err != nil {
+	if _, err := tx.Exec(ctx.DatabaseContext(), `DELETE FROM homepage_featured_speakers`); err != nil {
 		return fmt.Errorf("delete homepage featured speakers: %w", err)
 	}
 	position := 1
@@ -206,7 +205,7 @@ func ReplaceHomepageFeaturedSpeakers(ctx *config.AppContext, speakerIDs []string
 		if position > 8 {
 			break
 		}
-		if _, err := tx.Exec(context.Background(), `
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
 			INSERT INTO homepage_featured_speakers (position, person_id)
 			VALUES ($1, $2::uuid)
 		`, position, id); err != nil {
@@ -214,7 +213,7 @@ func ReplaceHomepageFeaturedSpeakers(ctx *config.AppContext, speakerIDs []string
 		}
 		position++
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit homepage featured speakers update: %w", err)
 	}
 	return nil
@@ -224,7 +223,7 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT people.id::text, people.name, coalesce(people.email::text, ''),
 			people.norm_photo_path, people.phone, people.signal, people.telegram,
 			people.twitter_handle, people.nostr, people.github_url, people.instagram,
@@ -287,7 +286,7 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 	}
 	in = normalizeSpeakerInput(in)
 	var id string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO people (
 			name, email, norm_photo_path, phone, signal, telegram, twitter_handle,
 			nostr, github_url, instagram, linkedin, leetcode, website_url, company,
@@ -310,7 +309,7 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 		return fmt.Errorf("database is not configured")
 	}
 	up = normalizeSpeakerUpdate(up)
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE people
 		SET norm_photo_path = CASE WHEN $2 <> '' THEN $2 ELSE norm_photo_path END,
 			phone = CASE WHEN $3 <> '' THEN $3 ELSE phone END,
@@ -343,13 +342,13 @@ func UpdateSpeakerRoles(ctx *config.AppContext, speakerID string, roles []string
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return fmt.Errorf("begin speaker role update: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
-	if _, err := tx.Exec(context.Background(), `DELETE FROM people_roles WHERE person_id = $1::uuid`, speakerID); err != nil {
+	if _, err := tx.Exec(ctx.DatabaseContext(), `DELETE FROM people_roles WHERE person_id = $1::uuid`, speakerID); err != nil {
 		return fmt.Errorf("delete speaker roles: %w", err)
 	}
 	for _, role := range roles {
@@ -357,7 +356,7 @@ func UpdateSpeakerRoles(ctx *config.AppContext, speakerID string, roles []string
 		if !ok {
 			continue
 		}
-		if _, err := tx.Exec(context.Background(), `
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
 			INSERT INTO people_roles (person_id, scope, position)
 			VALUES ($1::uuid, $2, $3)
 			ON CONFLICT DO NOTHING
@@ -365,7 +364,7 @@ func UpdateSpeakerRoles(ctx *config.AppContext, speakerID string, roles []string
 			return fmt.Errorf("insert speaker role %q: %w", role, err)
 		}
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit speaker role update: %w", err)
 	}
 	return nil
@@ -391,7 +390,7 @@ func loadSpeakerRolesPostgres(ctx *config.AppContext, speakerByID map[string]*ty
 		return nil
 	}
 
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT person_id::text, scope, position
 		FROM people_roles
 		WHERE person_id::text = ANY($1::text[])

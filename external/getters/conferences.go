@@ -1,7 +1,6 @@
 package getters
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -167,7 +166,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 	if postgresColumnExists(ctx, "conferences", "youtube_playlist_title") {
 		youtubePlaylistTitleSelect = "youtube_playlist_title"
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, tag, public_uid, active, `+publicationStatusSelect+`, description, `+editionTypeSelect+`, og_flavor, emoji,
 			tagline, date_desc, start_date, end_date, timezone, location, venue,
 			venue_map_url, venue_website_url, show_hackathon, orient_cal_notif,
@@ -270,7 +269,7 @@ func postgresColumnExists(ctx *config.AppContext, tableName, columnName string) 
 		return false
 	}
 	var exists bool
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT EXISTS (
 			SELECT 1
 			FROM information_schema.columns
@@ -298,7 +297,7 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 	if postgresColumnExists(ctx, "conference_tickets", "card_surcharge_bps") {
 		cardSurchargeSelect = "card_surcharge_bps"
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, conference_id::text, tier, local_price, btc_price, usd_price,
 			`+basePriceSelect+`, `+cardSurchargeSelect+`,
 			expires_start, expires_end, max_count, currency, symbol, post_symbol
@@ -361,7 +360,7 @@ func ConfUpdateOrientCalNotif(ctx *config.AppContext, confRef string, calnotif s
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conferences
 		SET orient_cal_notif = $2
 		WHERE id = $1
@@ -382,7 +381,7 @@ func UpdateConfYouTubePlaylist(ctx *config.AppContext, confRef, playlistID, play
 	if !postgresColumnExists(ctx, "conferences", "youtube_playlist_id") || !postgresColumnExists(ctx, "conferences", "youtube_playlist_title") {
 		return fmt.Errorf("conference youtube playlist columns are not migrated")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conferences
 		SET youtube_playlist_id = $2,
 			youtube_playlist_title = $3
@@ -420,7 +419,7 @@ func UpdateConfPublicationStatus(ctx *config.AppContext, confRef string, status 
 		status = "draft"
 	}
 	if postgresColumnExists(ctx, "conferences", "publication_status") {
-		commandTag, err := ctx.DB.Exec(context.Background(), `
+		commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			UPDATE conferences
 			SET publication_status = $2,
 				active = $2 = 'published' AND (end_date IS NULL OR end_date >= now())
@@ -435,7 +434,7 @@ func UpdateConfPublicationStatus(ctx *config.AppContext, confRef string, status 
 		return nil
 	}
 	active := status == "published"
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conferences
 		SET active = $2
 		WHERE id = $1
@@ -453,7 +452,7 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conferences
 		SET description = $2,
 			og_flavor = $3,
@@ -503,7 +502,7 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 		return fmt.Errorf("conference %s not found", confRef)
 	}
 	if postgresColumnExists(ctx, "conferences", "edition_type") {
-		if _, err := ctx.DB.Exec(context.Background(), `
+		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			UPDATE conferences
 			SET edition_type = $2
 			WHERE id = $1
@@ -512,7 +511,7 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 		}
 	}
 	if postgresColumnExists(ctx, "conferences", "publication_status") {
-		if _, err := ctx.DB.Exec(context.Background(), `
+		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			UPDATE conferences
 			SET active = publication_status = 'published' AND (end_date IS NULL OR end_date >= now())
 			WHERE id = $1
@@ -530,7 +529,7 @@ func UpdateConfTicket(ctx *config.AppContext, confRef string, in ConfTicketInput
 	if in.ID == "" {
 		return fmt.Errorf("ticket id is required")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE conference_tickets
 		SET tier = $3,
 			local_price = $4,

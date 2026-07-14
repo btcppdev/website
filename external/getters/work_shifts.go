@@ -1,7 +1,6 @@
 package getters
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -87,7 +86,7 @@ func getWorkShiftConferencePostgres(ctx *config.AppContext, shiftRef string) (*t
 		return nil, fmt.Errorf("database is not configured")
 	}
 	var confTag string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT conferences.tag
 		FROM work_shifts
 		JOIN conferences ON conferences.id = work_shifts.conference_id
@@ -107,7 +106,7 @@ func queryWorkShiftsPostgres(ctx *config.AppContext, label string, joinSQL strin
 		return nil, fmt.Errorf("database is not configured")
 	}
 
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT work_shifts.id::text, work_shifts.conference_id::text,
 			coalesce(work_shifts.job_type_id::text, ''), work_shifts.name,
 			work_shifts.max_vols, work_shifts.shift_start, work_shifts.shift_end,
@@ -180,7 +179,7 @@ func ShiftUpdateCalNotif(ctx *config.AppContext, shiftID string, calnotif string
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE work_shifts
 		SET cal_notif = $2
 		WHERE id = $1
@@ -218,7 +217,7 @@ func CreateShift(ctx *config.AppContext, conf *types.Conf, jobType *types.JobTyp
 		shiftEnd = end
 	}
 
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO work_shifts (
 			conference_id, job_type_id, name, max_vols, shift_start, shift_end, priority
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -240,7 +239,7 @@ func UpdateShiftTimes(ctx *config.AppContext, shiftRef string, start, end time.T
 	if !end.IsZero() {
 		shiftEnd = end
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE work_shifts
 		SET shift_start = $2, shift_end = $3
 		WHERE id = $1
@@ -275,7 +274,7 @@ func UpdateShift(ctx *config.AppContext, shiftRef, name string, jobType *types.J
 		sets = append(sets, fmt.Sprintf("shift_end = $%d", len(args)))
 	}
 
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE work_shifts
 		SET `+strings.Join(sets, ", ")+`
 		WHERE id = $1
@@ -293,7 +292,7 @@ func DeleteShift(ctx *config.AppContext, shiftRef string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		DELETE FROM work_shifts
 		WHERE id = $1
 	`, shiftRef)
@@ -310,7 +309,7 @@ func AssignVolunteerToShift(ctx *config.AppContext, volRef, shiftRef string) err
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO work_shifts_volunteers (shift_id, volunteer_id, role)
 		VALUES ($1, $2, 'assignee')
 		ON CONFLICT DO NOTHING
@@ -325,7 +324,7 @@ func RemoveVolunteerFromShift(ctx *config.AppContext, volRef, shiftRef string) e
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		DELETE FROM work_shifts_volunteers
 		WHERE shift_id = $1 AND volunteer_id = $2 AND role = 'assignee'
 	`, shiftRef, volRef)

@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -61,7 +60,7 @@ func UpsertSpeakerConf(ctx *config.AppContext, in SpeakerConfInput) (string, err
 	}
 
 	var speakerConfID string
-	err = ctx.DB.QueryRow(context.Background(), `
+	err = ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO speaker_confs (
 			speaker_id, organization_id, coming_from, availability, record_ok,
 			visa, first_event, dinner_rsvp, sponsor, company, org_photo_path
@@ -186,7 +185,7 @@ func querySpeakerConfsPostgres(ctx *config.AppContext, where string, args []inte
 		}
 	}
 
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, speaker_id::text, coming_from, availability, record_ok,
 			visa, first_event, dinner_rsvp, sponsor, company, org_photo_path,
 			invited_at, viewed_at, accepted_at, COALESCE(featured_rank, 0)
@@ -259,7 +258,7 @@ func hydrateSpeakerConfProposalsPostgres(ctx *config.AppContext, ids []string, b
 	if len(ids) == 0 {
 		return nil
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT speaker_conf_id::text, proposal_id::text
 		FROM proposals_speaker_confs
 		WHERE speaker_conf_id::text = ANY($1::text[])
@@ -302,7 +301,7 @@ func hydrateSpeakerConfOtherEventsPostgres(ctx *config.AppContext, ids []string,
 		}
 	}
 
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT speaker_conf_id::text, conference_id::text
 		FROM speaker_confs_conferences
 		WHERE speaker_conf_id::text = ANY($1::text[])
@@ -382,7 +381,7 @@ func UpdateSpeakerConf(ctx *config.AppContext, speakerConfID string, in SpeakerC
 		}
 	}
 
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE speaker_confs
 		SET `+strings.Join(setParts, ", ")+`
 		WHERE id = $1
@@ -412,13 +411,13 @@ func UpdateSpeakerConfFeaturedRank(ctx *config.AppContext, speakerConfID string,
 		err        error
 	)
 	if rank == 0 {
-		commandTag, err = ctx.DB.Exec(context.Background(), `
+		commandTag, err = ctx.DB.Exec(ctx.DatabaseContext(), `
 			UPDATE speaker_confs
 			SET featured_rank = NULL
 			WHERE id = $1
 		`, speakerConfID)
 	} else {
-		commandTag, err = ctx.DB.Exec(context.Background(), `
+		commandTag, err = ctx.DB.Exec(ctx.DatabaseContext(), `
 			UPDATE speaker_confs
 			SET featured_rank = $2
 			WHERE id = $1
@@ -437,7 +436,7 @@ func AddSpeakerConfToProposal(ctx *config.AppContext, proposalID, speakerConfID 
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	if _, err := ctx.DB.Exec(context.Background(), `
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO proposals_speaker_confs (proposal_id, speaker_conf_id)
 		VALUES ($1, $2)
 		ON CONFLICT (proposal_id, speaker_conf_id) DO NOTHING
@@ -451,7 +450,7 @@ func RemoveProposalFromSpeakerConf(ctx *config.AppContext, speakerConfID, propos
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	if _, err := ctx.DB.Exec(context.Background(), `
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		DELETE FROM proposals_speaker_confs
 		WHERE proposal_id = $1
 			AND speaker_conf_id = $2
@@ -473,7 +472,7 @@ func setSpeakerConfDate(ctx *config.AppContext, speakerConfID, column string, wh
 	if onlyIfEmpty {
 		query += ` AND ` + column + ` IS NULL`
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), query, speakerConfID, when)
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), query, speakerConfID, when)
 	if err != nil {
 		return fmt.Errorf("set %s on speakerconf %s: %w", column, speakerConfID, err)
 	}
@@ -488,7 +487,7 @@ func findSpeakerConfForConfPostgres(ctx *config.AppContext, speakerID, confTag s
 		return "", nil
 	}
 	var speakerConfID string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT sc.id::text
 		FROM speaker_confs sc
 		JOIN proposals_speaker_confs psc ON psc.speaker_conf_id = sc.id
@@ -509,7 +508,7 @@ func findSpeakerConfForConfPostgres(ctx *config.AppContext, speakerID, confTag s
 }
 
 func replaceSpeakerConfOtherEventsPostgres(ctx *config.AppContext, speakerConfID string, confTags []string) error {
-	if _, err := ctx.DB.Exec(context.Background(), `
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		DELETE FROM speaker_confs_conferences
 		WHERE speaker_conf_id = $1
 	`, speakerConfID); err != nil {
@@ -523,7 +522,7 @@ func replaceSpeakerConfOtherEventsPostgres(ctx *config.AppContext, speakerConfID
 		if confID == nil {
 			continue
 		}
-		if _, err := ctx.DB.Exec(context.Background(), `
+		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			INSERT INTO speaker_confs_conferences (speaker_conf_id, conference_id)
 			VALUES ($1, $2)
 			ON CONFLICT (speaker_conf_id, conference_id) DO NOTHING

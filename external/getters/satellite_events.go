@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgtype"
 	"time"
@@ -35,7 +34,7 @@ func ListSatelliteEvents(ctx *config.AppContext, confRef string, includePending 
 	if includePending {
 		statusSQL = ""
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, conference_id::text, title, description, event_url,
 			event_type, starts_at, ends_at, location, image_url,
 			host_name, host_url, host_logo_url, COALESCE(submitter_email::text, ''),
@@ -67,7 +66,7 @@ func ListSatelliteEventsBySubmitter(ctx *config.AppContext, email string) ([]*ty
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, conference_id::text, title, description, event_url,
 			event_type, starts_at, ends_at, location, image_url,
 			host_name, host_url, host_logo_url, COALESCE(submitter_email::text, ''),
@@ -99,7 +98,7 @@ func GetSatelliteEvent(ctx *config.AppContext, id string) (*types.SatelliteEvent
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	row := ctx.DB.QueryRow(context.Background(), `
+	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text, conference_id::text, title, description, event_url,
 			event_type, starts_at, ends_at, location, image_url,
 			host_name, host_url, host_logo_url, COALESCE(submitter_email::text, ''),
@@ -157,7 +156,7 @@ func CreateSatelliteEvent(ctx *config.AppContext, input SatelliteEventInput) (*t
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	row := ctx.DB.QueryRow(context.Background(), `
+	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO satellite_events (
 			conference_id, title, description, event_url, event_type,
 			starts_at, ends_at, location, image_url,
@@ -198,7 +197,7 @@ func UpdateSatelliteEvent(ctx *config.AppContext, id string, input SatelliteEven
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE satellite_events
 		SET title = $2,
 			description = $3,
@@ -248,7 +247,7 @@ func DeleteSatelliteEvent(ctx *config.AppContext, id string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `DELETE FROM satellite_events WHERE id = $1`, id)
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `DELETE FROM satellite_events WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete satellite event %s: %w", id, err)
 	}

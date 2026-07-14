@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/mtypes"
-	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -31,7 +30,7 @@ func FindSubscriber(ctx *config.AppContext, email string) (*mtypes.Subscriber, e
 
 	var subscriberID string
 	var storedEmail string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text, email
 		FROM subscribers
 		WHERE email = $1
@@ -63,7 +62,7 @@ func ListSubscribersFor(ctx *config.AppContext, newsletters []string) ([]*mtypes
 		return nil, fmt.Errorf("Must have at least 1 !!newsletter %v", newsletters)
 	}
 
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT s.id::text, s.email
 		FROM subscribers s
 		WHERE EXISTS (
@@ -97,7 +96,7 @@ func IsSubscribedTo(ctx *config.AppContext, email, newsletter string) (bool, err
 	}
 
 	var exists bool
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT EXISTS (
 			SELECT 1
 			FROM subscribers s
@@ -130,7 +129,7 @@ func NewSubscriberList(ctx *config.AppContext, email string, newsletters []strin
 	}
 
 	var subscriberID string
-	if err := ctx.DB.QueryRow(context.Background(), `
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO subscribers (email)
 		VALUES ($1)
 		ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
@@ -180,20 +179,20 @@ func UpdateSubs(ctx *config.AppContext, sub *mtypes.Subscriber) error {
 	if err != nil {
 		return err
 	}
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return fmt.Errorf("begin subscriber update: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
-	if _, err := tx.Exec(context.Background(), `DELETE FROM subscriber_subscriptions WHERE subscriber_id = $1`, subscriberID); err != nil {
+	if _, err := tx.Exec(ctx.DatabaseContext(), `DELETE FROM subscriber_subscriptions WHERE subscriber_id = $1`, subscriberID); err != nil {
 		return fmt.Errorf("clear subscriber subscriptions %q: %w", sub.Email, err)
 	}
 	for _, subscription := range sub.Subs {
 		if subscription == nil || strings.TrimSpace(subscription.Name) == "" {
 			continue
 		}
-		if _, err := tx.Exec(context.Background(), `
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
 			INSERT INTO subscriber_subscriptions (subscriber_id, name)
 			VALUES ($1, $2)
 			ON CONFLICT (subscriber_id, name) DO NOTHING
@@ -201,7 +200,7 @@ func UpdateSubs(ctx *config.AppContext, sub *mtypes.Subscriber) error {
 			return fmt.Errorf("insert subscriber subscription %q/%q: %w", sub.Email, subscription.Name, err)
 		}
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit subscriber update: %w", err)
 	}
 	return nil
@@ -211,7 +210,7 @@ func GetLetter(ctx *config.AppContext, uniqueID uint64) (*mtypes.Letter, error) 
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	row := ctx.DB.QueryRow(context.Background(), `
+	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text, public_uid, title, newsletters, only_for, markdown,
 			send_at_expr, sent_at, expiry
 		FROM missives
@@ -231,7 +230,7 @@ func GetLetterFor(ctx *config.AppContext, onlyfor string) (*mtypes.Letter, error
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	row := ctx.DB.QueryRow(context.Background(), `
+	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text, public_uid, title, newsletters, only_for, markdown,
 			send_at_expr, sent_at, expiry
 		FROM missives
@@ -260,7 +259,7 @@ func GetLetters(ctx *config.AppContext, newsletter string) ([]*mtypes.Letter, er
 		WHERE $1 = 'all' OR $1 = ANY(newsletters)
 		ORDER BY public_uid NULLS LAST, created_at
 	`
-	rows, err := ctx.DB.Query(context.Background(), query, newsletter)
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), query, newsletter)
 	if err != nil {
 		return nil, fmt.Errorf("query missives: %w", err)
 	}
@@ -301,7 +300,7 @@ func UpdateTemplatedMissive(ctx *config.AppContext, pageID string, in MissiveInp
 		return fmt.Errorf("database is not configured")
 	}
 	in.OnlyFor = mtypes.OnlyForTemplated
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE missives
 		SET title = $2,
 			markdown = $3,
@@ -334,7 +333,7 @@ func MarkLetterSent(ctx *config.AppContext, letter *mtypes.Letter, sentAt time.T
 	if letter == nil {
 		return fmt.Errorf("letter is nil")
 	}
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE missives
 		SET sent_at = $2
 		WHERE id = $1
@@ -381,7 +380,7 @@ func scanLetterPostgres(row letterScanner) (*mtypes.Letter, error) {
 }
 
 func subscriberSubscriptionsPostgres(ctx *config.AppContext, subscriberID string) ([]*mtypes.Subscription, error) {
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT name
 		FROM subscriber_subscriptions
 		WHERE subscriber_id = $1
@@ -414,7 +413,7 @@ func subscriberIDPostgres(ctx *config.AppContext, sub *mtypes.Subscriber) (strin
 		return "", fmt.Errorf("subscriber email is empty")
 	}
 	var subscriberID string
-	if err := ctx.DB.QueryRow(context.Background(), `
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO subscribers (email)
 		VALUES ($1)
 		ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
@@ -471,7 +470,7 @@ func listLettersByOnlyForPostgres(ctx *config.AppContext, condition string) ([]*
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, public_uid, title, newsletters, only_for, markdown,
 			send_at_expr, sent_at, expiry
 		FROM missives
@@ -501,7 +500,7 @@ func insertMissivePostgres(ctx *config.AppContext, in MissiveInput) (*mtypes.Let
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	row := ctx.DB.QueryRow(context.Background(), `
+	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO missives (public_uid, title, markdown, send_at_expr, newsletters, only_for, expiry)
 		VALUES ((SELECT COALESCE(max(public_uid), 0) + 1 FROM missives), $1, $2, $3, $4, $5, $6)
 		RETURNING id::text, public_uid, title, newsletters, only_for, markdown,

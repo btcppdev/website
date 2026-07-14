@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"strings"
@@ -93,15 +92,15 @@ func reactivateArchivedAffiliateCodePostgres(ctx *config.AppContext, email, code
 		return "", false, err
 	}
 
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return "", false, fmt.Errorf("begin affiliate reactivation: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
 	discType := string(discount.DiscType)
 	var discountID string
-	err = tx.QueryRow(context.Background(), `
+	err = tx.QueryRow(ctx.DatabaseContext(), `
 		UPDATE discounts
 		SET archived_at = NULL,
 			discount_expr = $3,
@@ -128,7 +127,7 @@ func reactivateArchivedAffiliateCodePostgres(ctx *config.AppContext, email, code
 	if err := replaceDiscountConferenceLinksPostgres(tx, discountID, confRefs); err != nil {
 		return "", false, err
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return "", false, fmt.Errorf("commit affiliate reactivation: %w", err)
 	}
 	return discountID, true, nil
@@ -149,7 +148,7 @@ func RecordAffiliateUsage(ctx *config.AppContext, in AffiliateUsageInput) error 
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO affiliate_usages (
 			discount_id, conference_id, code_name_snapshot, affiliate_email,
 			saved_sats, earned_sats, tickets_count
@@ -209,7 +208,7 @@ func queryAffiliateUsagePostgres(ctx *config.AppContext, filter string, value st
 	}
 	sql += " ORDER BY au.created_at DESC, au.id"
 
-	rows, err := ctx.DB.Query(context.Background(), sql, args...)
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query affiliate usages: %w", err)
 	}
@@ -250,7 +249,7 @@ func UpdateAffiliateUsageSats(ctx *config.AppContext, usageID string, savedSats,
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	tag, err := ctx.DB.Exec(context.Background(), `
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE affiliate_usages
 		SET saved_sats = $2, earned_sats = $3
 		WHERE id = $1

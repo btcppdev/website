@@ -1,7 +1,6 @@
 package getters
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -17,7 +16,7 @@ func ensureYouTubePublishSlotsPostgres(ctx *config.AppContext) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	_, err := ctx.DB.Exec(context.Background(), `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		CREATE TABLE IF NOT EXISTS youtube_publish_slots (
 			id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 			channel text NOT NULL DEFAULT 'youtube',
@@ -36,7 +35,7 @@ func ensureYouTubePublishSlotsPostgres(ctx *config.AppContext) error {
 	if err != nil {
 		return fmt.Errorf("ensure youtube publish slots table: %w", err)
 	}
-	_, _ = ctx.DB.Exec(context.Background(), `
+	_, _ = ctx.DB.Exec(ctx.DatabaseContext(), `
 		DO $$
 		BEGIN
 			IF NOT EXISTS (
@@ -48,7 +47,7 @@ func ensureYouTubePublishSlotsPostgres(ctx *config.AppContext) error {
 			END IF;
 		END $$;
 	`)
-	_, err = ctx.DB.Exec(context.Background(), `
+	_, err = ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO youtube_publish_slots (channel, weekday, publish_time, timezone)
 		VALUES
 			('youtube', 1, '10:05', 'America/Chicago'),
@@ -84,7 +83,7 @@ func listYouTubePublishSlots(ctx *config.AppContext, channel string) ([]*types.Y
 	if err := ensureYouTubePublishSlotsPostgres(ctx); err != nil {
 		return nil, err
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, channel, weekday, publish_time, timezone, active
 		FROM youtube_publish_slots
 		WHERE channel = $1
@@ -121,13 +120,13 @@ func replaceYouTubePublishSlots(ctx *config.AppContext, channel string, slots []
 	if err := ensureYouTubePublishSlotsPostgres(ctx); err != nil {
 		return err
 	}
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return fmt.Errorf("begin replace youtube publish slots: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
-	if _, err := tx.Exec(context.Background(), `DELETE FROM youtube_publish_slots WHERE channel = $1`, channel); err != nil {
+	if _, err := tx.Exec(ctx.DatabaseContext(), `DELETE FROM youtube_publish_slots WHERE channel = $1`, channel); err != nil {
 		return fmt.Errorf("clear youtube publish slots: %w", err)
 	}
 	for _, slot := range slots {
@@ -138,7 +137,7 @@ func replaceYouTubePublishSlots(ctx *config.AppContext, channel string, slots []
 		if timezone == "" {
 			timezone = defaultYouTubeSlotTimezone
 		}
-		_, err := tx.Exec(context.Background(), `
+		_, err := tx.Exec(ctx.DatabaseContext(), `
 			INSERT INTO youtube_publish_slots (channel, weekday, publish_time, timezone, active)
 			VALUES ($1, $2, $3::time, $4, $5)
 		`, channel, int(slot.Weekday), slot.TimeOfDay, timezone, slot.Active)
@@ -146,7 +145,7 @@ func replaceYouTubePublishSlots(ctx *config.AppContext, channel string, slots []
 			return fmt.Errorf("insert youtube publish slot %s %s: %w", slot.Weekday, slot.TimeOfDay, err)
 		}
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit youtube publish slots: %w", err)
 	}
 	return nil

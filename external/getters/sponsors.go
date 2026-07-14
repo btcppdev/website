@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"strings"
 )
@@ -36,7 +35,7 @@ func RegisterOrg(ctx *config.AppContext, org *types.Org) (string, error) {
 	}
 
 	var orgID string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO organizations (
 			name, tagline, logo_light_url, logo_dark_url, email, website_url,
 			linkedin_url, instagram_url, youtube_url, github_url, twitter_handle,
@@ -102,7 +101,7 @@ func queryOrgsPostgres(ctx *config.AppContext, label string, whereSQL string, ar
 		args = append(args, limit)
 		sql += fmt.Sprintf(" LIMIT $%d", len(args))
 	}
-	rows, err := ctx.DB.Query(context.Background(), sql, args...)
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query %s: %w", label, err)
 	}
@@ -207,7 +206,7 @@ func UpdateOrg(ctx *config.AppContext, orgID string, up OrgUpdate) error {
 	}
 
 	args = append(args, orgID)
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE organizations
 		SET `+strings.Join(setParts, ", ")+`
 		WHERE id = $`+fmt.Sprint(len(args))+`
@@ -232,7 +231,7 @@ func UpdateOrgDetails(ctx *config.AppContext, org *types.Org) error {
 	if org.Name == "" {
 		return fmt.Errorf("UpdateOrgDetails: org name is required")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE organizations
 		SET name = $2,
 			tagline = $3,
@@ -280,7 +279,7 @@ func ListSponsorships(ctx *config.AppContext, confRef string) ([]*types.Sponsors
 			)`
 	}
 
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT sponsorships.id::text, sponsorships.name,
 			coalesce(sponsorships.organization_id::text, ''), sponsorships.level,
 			sponsorships.label, sponsorships.status, sponsorships.is_vendor,
@@ -352,7 +351,7 @@ func hydrateSponsorshipConfsPostgres(ctx *config.AppContext, ids []string, byID 
 		}
 	}
 
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT sponsorship_id::text, conference_id::text
 		FROM sponsorships_conferences
 		WHERE sponsorship_id::text = ANY($1::text[])
@@ -394,14 +393,14 @@ func RegisterSponsorship(ctx *config.AppContext, sp *types.Sponsorship) error {
 		orgID = strings.TrimSpace(sp.Org.Ref)
 	}
 
-	tx, err := ctx.DB.Begin(context.Background())
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return fmt.Errorf("begin sponsorship registration: %w", err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx.DatabaseContext())
 
 	var sponsorshipID string
-	err = tx.QueryRow(context.Background(), `
+	err = tx.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO sponsorships (
 			organization_id, name, level, label, status, is_vendor, notes
 		) VALUES (
@@ -416,7 +415,7 @@ func RegisterSponsorship(ctx *config.AppContext, sp *types.Sponsorship) error {
 		if conf == nil || strings.TrimSpace(conf.Ref) == "" {
 			continue
 		}
-		if _, err := tx.Exec(context.Background(), `
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
 			INSERT INTO sponsorships_conferences (sponsorship_id, conference_id)
 			VALUES ($1, $2)
 			ON CONFLICT (sponsorship_id, conference_id) DO NOTHING
@@ -424,7 +423,7 @@ func RegisterSponsorship(ctx *config.AppContext, sp *types.Sponsorship) error {
 			return fmt.Errorf("insert sponsorship conference link %s/%s: %w", sponsorshipID, conf.Ref, err)
 		}
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit sponsorship registration: %w", err)
 	}
 	sp.Ref = sponsorshipID
@@ -450,7 +449,7 @@ func UpdateSponsorship(ctx *config.AppContext, confRef string, sp *types.Sponsor
 		orgID = strings.TrimSpace(sp.Org.Ref)
 	}
 
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE sponsorships
 		SET organization_id = NULLIF($3, '')::uuid,
 			name = $4,
@@ -482,7 +481,7 @@ func UpdateSponsorshipStatus(ctx *config.AppContext, ref string, status string) 
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE sponsorships
 		SET status = $2
 		WHERE id = $1
@@ -505,7 +504,7 @@ func DeleteSponsorship(ctx *config.AppContext, confRef string, ref string) error
 	if confRef == "" || ref == "" {
 		return fmt.Errorf("DeleteSponsorship: conference ref and sponsorship ref are required")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		DELETE FROM sponsorships
 		WHERE id = $1
 			AND EXISTS (

@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"fmt"
 	"strings"
 )
@@ -39,7 +38,7 @@ func CreateHotel(ctx *config.AppContext, in HotelInput) (string, error) {
 		return "", fmt.Errorf("CreateHotel: ConfRef is required")
 	}
 	var hotelID string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO hotels (
 			conference_id, name, url, img_path, type, description, display_order
 		) VALUES (
@@ -69,7 +68,7 @@ func queryHotelsPostgres(ctx *config.AppContext, label string, whereSQL string, 
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT hotels.id::text, hotels.conference_id::text, hotels.name, hotels.url,
 			hotels.img_path, hotels.type, hotels.description, hotels.display_order
 		FROM hotels
@@ -120,7 +119,7 @@ func UpdateHotel(ctx *config.AppContext, hotelID string, in HotelInput) error {
 		args = append(args, in.Name)
 		setParts = append(setParts, fmt.Sprintf("name = $%d", len(args)))
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE hotels
 		SET `+strings.Join(setParts, ", ")+`
 		WHERE id = $1
@@ -138,7 +137,7 @@ func ArchiveHotel(ctx *config.AppContext, hotelID string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(context.Background(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE hotels
 		SET archived_at = now()
 		WHERE id = $1

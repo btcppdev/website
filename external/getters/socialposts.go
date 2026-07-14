@@ -3,7 +3,6 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
-	"context"
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
@@ -122,7 +121,7 @@ func RecordSocialPost(ctx *config.AppContext, ref, text, platform string, posted
 		return fmt.Errorf("database is not configured")
 	}
 	var id string
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO social_posts (ref, text, posted_to, posted_at)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id::text
@@ -137,7 +136,7 @@ func ListSocialPosts(ctx *config.AppContext) ([]*types.SocialPost, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, ref, text, posted_to, kind, status,
 			coalesce(recording_id::text, ''), coalesce(conf_talk_id::text, ''),
 			url, reply_url, error, error_fingerprint,
@@ -186,7 +185,7 @@ func FindSocialPostByRef(ctx *config.AppContext, ref string) (*types.SocialPost,
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	row := ctx.DB.QueryRow(context.Background(), `
+	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text, ref, text, posted_to, kind, status,
 			coalesce(recording_id::text, ''), coalesce(conf_talk_id::text, ''),
 			url, reply_url, error, error_fingerprint,
@@ -214,7 +213,7 @@ func insertSocialPostPostgres(ctx *config.AppContext, post *types.SocialPost) (*
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	err := ctx.DB.QueryRow(context.Background(), `
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO social_posts (
 			ref, text, posted_to, kind, status, recording_id, conf_talk_id,
 			url, reply_url, error, error_fingerprint, scheduled_at, posted_at, notified_at
@@ -236,7 +235,7 @@ func updateSocialPostPostgres(ctx *config.AppContext, post *types.SocialPost) (*
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	tag, err := ctx.DB.Exec(context.Background(), `
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE social_posts
 		SET ref = $2,
 			text = $3,
