@@ -1424,31 +1424,7 @@ func createJudgeEventPostgres(ctx *config.AppContext, in JudgeEventInput) (strin
 	if ctx == nil || ctx.DB == nil {
 		return "", fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
-	in = normalizeJudgeEventInput(in)
-	if in.CompetitionID == "" {
-		return "", fmt.Errorf("judge event competition id is required")
-	}
-	if in.Name == "" {
-		return "", fmt.Errorf("judge event name is required")
-	}
-	if in.PlaybookType == "" {
-		return "", fmt.Errorf("judge event type must be expo or finals")
-	}
-	var id string
-	err := ctx.DB.QueryRow(context.Background(), `
-			INSERT INTO judge_events (
-				competition_id, name, playbook_type, ordering, starts_at, ends_at,
-				starting_project_number, rank_limit
-			) VALUES (
-				$1::uuid, $2, $3, $4, $5, $6, $7, $8
-			)
-			RETURNING id::text
-	`, in.CompetitionID, in.Name, in.PlaybookType, in.Ordering, in.StartsAt,
-		in.EndsAt, in.StartingProjectNumber, in.RankLimit).Scan(&id)
-	if err != nil {
-		return "", fmt.Errorf("insert judge event %q: %w", in.Name, err)
-	}
-	return id, nil
+	return "", fmt.Errorf("judge events are created from timeline segments")
 }
 
 func listJudgeEventsPostgres(ctx *config.AppContext, competitionID string) ([]*types.JudgeEvent, error) {
@@ -1487,6 +1463,36 @@ func listJudgeEventsPostgres(ctx *config.AppContext, competitionID string) ([]*t
 		return nil, fmt.Errorf("iterate judge events for competition %s: %w", competitionID, err)
 	}
 	return out, nil
+}
+
+func updateJudgeEventRankLimitPostgres(ctx *config.AppContext, competitionID, judgeEventID string, rankLimit int) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	judgeEventID = strings.TrimSpace(judgeEventID)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if judgeEventID == "" {
+		return fmt.Errorf("judge event is required")
+	}
+	if rankLimit <= 0 {
+		return fmt.Errorf("rank count must be positive")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE judge_events
+		SET rank_limit = $3,
+			updated_at = now()
+		WHERE competition_id::text = $1 AND id::text = $2
+	`, competitionID, judgeEventID, rankLimit)
+	if err != nil {
+		return fmt.Errorf("update judge event rank limit %s: %w", judgeEventID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("judge event not found")
+	}
+	return nil
 }
 
 func deleteJudgeEventPostgres(ctx *config.AppContext, competitionID, judgeEventID string) error {
@@ -1532,7 +1538,12 @@ func addCompetitionJudgePostgres(ctx *config.AppContext, competitionID, personID
 	}
 	_, err := ctx.DB.Exec(context.Background(), `
 		INSERT INTO competition_judges (competition_id, person_id, judge_type)
-		VALUES ($1::uuid, $2::uuid, $3)
+		SELECT $1::uuid, $2::uuid, $3
+		WHERE NOT EXISTS (
+			SELECT 1
+			FROM competition_judges
+			WHERE competition_id = $1::uuid AND person_id = $2::uuid
+		)
 		ON CONFLICT (competition_id, person_id, judge_type) DO NOTHING
 	`, competitionID, personID, judgeType)
 	if err != nil {
@@ -1559,8 +1570,8 @@ func removeCompetitionJudgePostgres(ctx *config.AppContext, competitionID, perso
 	}
 	commandTag, err := ctx.DB.Exec(context.Background(), `
 		DELETE FROM competition_judges
-		WHERE competition_id::text = $1 AND person_id::text = $2 AND judge_type = $3
-	`, competitionID, personID, judgeType)
+		WHERE competition_id::text = $1 AND person_id::text = $2
+	`, competitionID, personID)
 	if err != nil {
 		return fmt.Errorf("remove competition judge %s/%s/%s: %w", competitionID, personID, judgeType, err)
 	}
@@ -1579,13 +1590,24 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 		return nil, fmt.Errorf("competition id is required")
 	}
 	rows, err := ctx.DB.Query(context.Background(), `
+		WITH deduped AS (
+			SELECT DISTINCT ON (competition_judges.person_id)
+				competition_judges.competition_id,
+				competition_judges.person_id,
+				competition_judges.judge_type,
+				competition_judges.created_at
+			FROM competition_judges
+			WHERE competition_judges.competition_id::text = $1
+			ORDER BY competition_judges.person_id,
+				(competition_judges.judge_type = 'coordinator') DESC,
+				competition_judges.created_at
+		)
 		SELECT competition_judges.competition_id::text, competition_judges.person_id::text,
 			coalesce(people.name, ''), coalesce(people.email::text, ''),
 			competition_judges.judge_type, competition_judges.created_at
-		FROM competition_judges
+		FROM deduped competition_judges
 		LEFT JOIN people ON people.id = competition_judges.person_id
-		WHERE competition_judges.competition_id::text = $1
-		ORDER BY competition_judges.judge_type, lower(people.name), people.id
+		ORDER BY lower(people.name), people.id
 	`, competitionID)
 	if err != nil {
 		return nil, fmt.Errorf("query competition judges %s: %w", competitionID, err)

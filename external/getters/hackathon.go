@@ -229,6 +229,10 @@ func ListJudgeEvents(ctx *config.AppContext, competitionID string) ([]*types.Jud
 	return listJudgeEventsPostgres(ctx, competitionID)
 }
 
+func UpdateJudgeEventRankLimit(ctx *config.AppContext, competitionID, judgeEventID string, rankLimit int) error {
+	return updateJudgeEventRankLimitPostgres(ctx, competitionID, judgeEventID, rankLimit)
+}
+
 func DeleteJudgeEvent(ctx *config.AppContext, competitionID, judgeEventID string) error {
 	return deleteJudgeEventPostgres(ctx, competitionID, judgeEventID)
 }

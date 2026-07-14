@@ -208,6 +208,23 @@ func TestHackathonJudgeInvites(t *testing.T) {
 	if len(judges) != 1 || judges[0].PersonID != judgeID || judges[0].JudgeType != JudgeTypeCoordinator {
 		t.Fatalf("judges after invite = %+v", judges)
 	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO competition_judges (competition_id, person_id, judge_type)
+		VALUES ($1::uuid, $2::uuid, $3)
+		ON CONFLICT DO NOTHING
+	`, competitionID, judgeID, JudgeTypeExpo); err != nil {
+		t.Fatalf("insert duplicate judge type: %v", err)
+	}
+	if err := AddCompetitionJudge(ctx, competitionID, judgeID, JudgeTypeCoordinator); err != nil {
+		t.Fatalf("AddCompetitionJudge duplicate person: %v", err)
+	}
+	judges, err = ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudges after duplicate type: %v", err)
+	}
+	if len(judges) != 1 || judges[0].PersonID != judgeID {
+		t.Fatalf("judges after duplicate type = %+v, want one row for %s", judges, judgeID)
+	}
 	if _, err := AcceptCompetitionJudgeInvite(ctx, token, judgeID); err == nil {
 		t.Fatalf("AcceptCompetitionJudgeInvite reuse succeeded, want error")
 	} else if !strings.Contains(err.Error(), "already accepted") {
@@ -227,6 +244,42 @@ func TestGetPersonIDByEmail(t *testing.T) {
 	}
 	if got != personID {
 		t.Fatalf("person id = %q, want %q", got, personID)
+	}
+}
+
+func TestSearchPeopleByNameEmailOrPhone(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	personID := insertSmokePerson(t, ctx, "person-search")
+	if _, err := ctx.DB.Exec(context.Background(), `
+		UPDATE people
+		SET phone = '+1 (555) 867-5309', company = 'Search Co'
+		WHERE id::text = $1
+	`, personID); err != nil {
+		t.Fatalf("update person phone: %v", err)
+	}
+	hits, err := SearchPeopleByNameEmailOrPhone(ctx, "8675309", 10)
+	if err != nil {
+		t.Fatalf("SearchPeopleByNameEmailOrPhone phone: %v", err)
+	}
+	if !speakerIDsContain(hits, personID) {
+		t.Fatalf("phone search hits = %+v, want person %s", hits, personID)
+	}
+	email := smokePersonEmail(t, ctx, personID)
+	hits, err = SearchPeopleByNameEmailOrPhone(ctx, email, 10)
+	if err != nil {
+		t.Fatalf("SearchPeopleByNameEmailOrPhone email: %v", err)
+	}
+	if !speakerIDsContain(hits, personID) {
+		t.Fatalf("email search hits = %+v, want person %s", hits, personID)
+	}
+	hits, err = SearchPeopleByNameEmailOrPhone(ctx, "person-search", 10)
+	if err != nil {
+		t.Fatalf("SearchPeopleByNameEmailOrPhone name: %v", err)
+	}
+	if !speakerIDsContain(hits, personID) {
+		t.Fatalf("name search hits = %+v, want person %s", hits, personID)
 	}
 }
 
@@ -308,28 +361,20 @@ func TestHackathonJudgingSetup(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)
 
-	startsAt := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
-	endsAt := startsAt.Add(time.Hour)
-	startingProjectNumber := 10
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
 		Slug:  "judging-" + postgresSmokeSuffix(),
 		Title: "Judging Hackathon",
 	})
-	eventID, err := CreateJudgeEvent(ctx, JudgeEventInput{
-		CompetitionID:         competitionID,
-		Name:                  "Expo judging",
-		PlaybookType:          JudgeTypeExpo,
-		Ordering:              2,
-		StartsAt:              &startsAt,
-		EndsAt:                &endsAt,
-		StartingProjectNumber: &startingProjectNumber,
-	})
-	if err != nil {
-		t.Fatalf("CreateJudgeEvent: %v", err)
+	if err := ReplaceCompetitionScheduleSegments(ctx, competitionID, []CompetitionScheduleSegmentInput{
+		{
+			SegmentType:            JudgeTypeExpo,
+			Title:                  "Expo judging",
+			DefaultDurationMinutes: 60,
+		},
+	}); err != nil {
+		t.Fatalf("create timeline judge segment: %v", err)
 	}
-	if eventID == "" {
-		t.Fatalf("CreateJudgeEvent returned empty id")
-	}
+
 	events, err := ListJudgeEvents(ctx, competitionID)
 	if err != nil {
 		t.Fatalf("ListJudgeEvents: %v", err)
@@ -337,8 +382,19 @@ func TestHackathonJudgingSetup(t *testing.T) {
 	if len(events) != 1 || events[0].Name != "Expo judging" || events[0].PlaybookType != JudgeTypeExpo {
 		t.Fatalf("judge events mismatch: %+v", events)
 	}
-	if events[0].StartingProjectNumber == nil || *events[0].StartingProjectNumber != startingProjectNumber {
-		t.Fatalf("starting project number = %v, want %d", events[0].StartingProjectNumber, startingProjectNumber)
+	if events[0].ScheduleSegmentID == "" {
+		t.Fatalf("expected judge event to be backed by a schedule segment: %+v", events[0])
+	}
+	eventID := events[0].ID
+	if err := UpdateJudgeEventRankLimit(ctx, competitionID, eventID, 6); err != nil {
+		t.Fatalf("UpdateJudgeEventRankLimit: %v", err)
+	}
+	events, err = ListJudgeEvents(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListJudgeEvents after rank update: %v", err)
+	}
+	if len(events) != 1 || events[0].RankLimit != 6 {
+		t.Fatalf("rank limit after update = %+v, want 6", events)
 	}
 
 	judgeID := insertSmokePerson(t, ctx, "judge")
@@ -764,4 +820,13 @@ func smokePersonEmail(t *testing.T, ctx *config.AppContext, personID string) str
 		t.Fatalf("lookup person email %s: %v", personID, err)
 	}
 	return email
+}
+
+func speakerIDsContain(speakers []*types.Speaker, speakerID string) bool {
+	for _, speaker := range speakers {
+		if speaker != nil && speaker.ID == speakerID {
+			return true
+		}
+	}
+	return false
 }
