@@ -8,6 +8,7 @@ type HackathonCompetition struct {
 	Slug                  string
 	Title                 string
 	Description           string
+	DescriptionFormat     string
 	Visibility            string
 	LifecycleOverride     string
 	PublicGalleryEnabled  bool
@@ -64,7 +65,6 @@ type HackathonProject struct {
 	Tags              []string
 	SubmittedAt       *time.Time
 	ShippedAt         *time.Time
-	PublishedAt       *time.Time
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }

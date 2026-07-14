@@ -20,6 +20,9 @@ import (
 const (
 	CompetitionVisibilityHidden           = "hidden"
 	CompetitionVisibilityPublic           = "public"
+	CompetitionDescriptionFormatPlain     = "plain"
+	CompetitionDescriptionFormatMarkdown  = "markdown"
+	CompetitionDescriptionFormatHTML      = "html"
 	CompetitionLifecycleAuto              = ""
 	CompetitionLifecycleUpcoming          = "upcoming"
 	CompetitionLifecycleOpen              = "open"
@@ -75,13 +78,13 @@ func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (str
 	var id string
 	err := ctx.DB.QueryRow(context.Background(), `
 		INSERT INTO competitions (
-			conference_id, slug, title, description, visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size,
+			conference_id, slug, title, description, description_format, visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size,
 			submissions_open_at, submissions_close_at, public_gallery_at
 		) VALUES (
-			$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+			$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 		)
 		RETURNING id::text
-	`, in.ConferenceID, in.Slug, in.Title, in.Description, in.Visibility, in.LifecycleOverride, in.PublicGalleryEnabled, in.AllowLateSubmissions, in.PublicTablesEnabled, in.MaxTeamSize,
+	`, in.ConferenceID, in.Slug, in.Title, in.Description, in.DescriptionFormat, in.Visibility, in.LifecycleOverride, in.PublicGalleryEnabled, in.AllowLateSubmissions, in.PublicTablesEnabled, in.MaxTeamSize,
 		in.SubmissionsOpenAt, in.SubmissionsCloseAt, in.PublicGalleryAt).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("insert competition %q: %w", in.Slug, err)
@@ -116,17 +119,18 @@ func updateCompetitionPostgres(ctx *config.AppContext, competitionID string, in 
 			slug = $3,
 			title = $4,
 			description = $5,
-			visibility = $6,
-			lifecycle_override = $7,
-			public_gallery_enabled = $8,
-			allow_late_submissions = $9,
-			public_tables_enabled = $10,
-			max_team_size = $11,
-			submissions_open_at = $12,
-			submissions_close_at = $13,
-			public_gallery_at = $14
+			description_format = $6,
+			visibility = $7,
+			lifecycle_override = $8,
+			public_gallery_enabled = $9,
+			allow_late_submissions = $10,
+			public_tables_enabled = $11,
+			max_team_size = $12,
+			submissions_open_at = $13,
+			submissions_close_at = $14,
+			public_gallery_at = $15
 		WHERE id = $1
-	`, competitionID, in.ConferenceID, in.Slug, in.Title, in.Description,
+	`, competitionID, in.ConferenceID, in.Slug, in.Title, in.Description, in.DescriptionFormat,
 		in.Visibility, in.LifecycleOverride, in.PublicGalleryEnabled, in.AllowLateSubmissions, in.PublicTablesEnabled, in.MaxTeamSize, in.SubmissionsOpenAt, in.SubmissionsCloseAt,
 		in.PublicGalleryAt)
 	if err != nil {
@@ -702,7 +706,7 @@ func queryCompetitionsPostgres(ctx *config.AppContext, label, whereSQL string, a
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 	rows, err := ctx.DB.Query(context.Background(), `
-		SELECT id::text, coalesce(conference_id::text, ''), slug, title, description,
+		SELECT id::text, coalesce(conference_id::text, ''), slug, title, description, description_format,
 			visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size, submissions_open_at, submissions_close_at,
 			public_gallery_at, hacking_starts_at, hacking_ends_at, judges_meeting_at,
 			expo_starts_at, expo_ends_at, expo_judging_starts_at, expo_judging_ends_at,
@@ -974,7 +978,7 @@ func queryProjectsPostgres(ctx *config.AppContext, label, whereSQL string, args 
 			projects.github_url, projects.demo_url, projects.video_url,
 			projects.slides_url, projects.docs_url, projects.project_number,
 			projects.status, projects.tags, projects.submitted_at, projects.shipped_at,
-			projects.published_at, projects.created_at, projects.updated_at
+			projects.created_at, projects.updated_at
 		FROM projects
 		`+whereSQL+`
 		ORDER BY projects.project_number NULLS LAST, projects.created_at, projects.title
@@ -2226,9 +2230,6 @@ func projectIsPublicPostgres(ctx *config.AppContext, project *types.HackathonPro
 	if project == nil {
 		return false
 	}
-	if project.PublishedAt != nil {
-		return true
-	}
 	if project.Status == ProjectStatusCreated || project.Status == "withdrawn" || project.Status == "disqualified" {
 		return false
 	}
@@ -2257,6 +2258,7 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 		&competition.Slug,
 		&competition.Title,
 		&competition.Description,
+		&competition.DescriptionFormat,
 		&competition.Visibility,
 		&competition.LifecycleOverride,
 		&competition.PublicGalleryEnabled,
@@ -2310,7 +2312,7 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 func scanProject(rows pgx.Rows) (*types.HackathonProject, error) {
 	var project types.HackathonProject
 	var projectNumber sql.NullInt64
-	var submittedAt, shippedAt, publishedAt pgtype.Timestamptz
+	var submittedAt, shippedAt pgtype.Timestamptz
 	if err := rows.Scan(
 		&project.ID,
 		&project.CompetitionID,
@@ -2329,7 +2331,6 @@ func scanProject(rows pgx.Rows) (*types.HackathonProject, error) {
 		&project.Tags,
 		&submittedAt,
 		&shippedAt,
-		&publishedAt,
 		&project.CreatedAt,
 		&project.UpdatedAt,
 	); err != nil {
@@ -2341,7 +2342,6 @@ func scanProject(rows pgx.Rows) (*types.HackathonProject, error) {
 	}
 	project.SubmittedAt = pgTimePtr(submittedAt)
 	project.ShippedAt = pgTimePtr(shippedAt)
-	project.PublishedAt = pgTimePtr(publishedAt)
 	return &project, nil
 }
 
@@ -2573,9 +2573,25 @@ func normalizeCompetitionInput(in CompetitionInput) CompetitionInput {
 	in.Slug = normalizeSlug(in.Slug)
 	in.Title = strings.TrimSpace(in.Title)
 	in.Description = strings.TrimSpace(in.Description)
+	in.DescriptionFormat = normalizeCompetitionDescriptionFormat(in.DescriptionFormat)
 	in.Visibility = normalizeCompetitionVisibility(in.Visibility)
 	in.LifecycleOverride = normalizeCompetitionLifecycleOverride(in.LifecycleOverride)
 	return in
+}
+
+func normalizeCompetitionDescriptionFormat(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case CompetitionDescriptionFormatPlain:
+		return CompetitionDescriptionFormatPlain
+	case CompetitionDescriptionFormatMarkdown:
+		return CompetitionDescriptionFormatMarkdown
+	case CompetitionDescriptionFormatHTML:
+		return CompetitionDescriptionFormatHTML
+	case "":
+		return CompetitionDescriptionFormatMarkdown
+	default:
+		return ""
+	}
 }
 
 func normalizeCompetitionVisibility(value string) string {

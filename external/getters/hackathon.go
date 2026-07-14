@@ -12,6 +12,7 @@ type CompetitionInput struct {
 	Slug                 string
 	Title                string
 	Description          string
+	DescriptionFormat    string
 	Visibility           string
 	LifecycleOverride    string
 	PublicGalleryEnabled bool

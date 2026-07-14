@@ -1760,6 +1760,7 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 		Slug:                 strings.TrimSpace(r.FormValue("Slug")),
 		Title:                strings.TrimSpace(r.FormValue("Title")),
 		Description:          strings.TrimSpace(r.FormValue("Description")),
+		DescriptionFormat:    strings.TrimSpace(r.FormValue("DescriptionFormat")),
 		Visibility:           visibility,
 		LifecycleOverride:    lifecycleOverride,
 		PublicGalleryEnabled: checkboxValue(r, "PublicGalleryEnabled"),

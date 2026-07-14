@@ -6469,6 +6469,70 @@ body.btcpp-checkout-page {
 	line-height: 1.3;
 }
 
+.hack-hero__deck p,
+.hack-copy__body p {
+	margin: 0 0 0.85em;
+}
+
+.hack-hero__deck p:last-child,
+.hack-copy__body p:last-child,
+.hack-hero__deck ul:last-child,
+.hack-hero__deck ol:last-child,
+.hack-copy__body ul:last-child,
+.hack-copy__body ol:last-child {
+	margin-bottom: 0;
+}
+
+.hack-hero__deck ul,
+.hack-hero__deck ol,
+.hack-copy__body ul,
+.hack-copy__body ol {
+	margin: 0.85em 0;
+	padding-left: 1.4em;
+}
+
+.hack-hero__deck ul,
+.hack-copy__body ul {
+	list-style: disc;
+}
+
+.hack-hero__deck ol,
+.hack-copy__body ol {
+	list-style: decimal;
+}
+
+.hack-hero__deck a,
+.hack-copy__body a {
+	color: inherit;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.15em;
+}
+
+.hack-copy__body h2,
+.hack-copy__body h3,
+.hack-copy__body h4 {
+	margin: 1.25em 0 0.45em;
+	color: var(--hack-ink);
+	font-family: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif;
+	font-style: normal;
+	font-weight: 700;
+	letter-spacing: 0;
+	line-height: 1.05;
+}
+
+.hack-copy__body h2 {
+	font-size: 30px;
+}
+
+.hack-copy__body h3 {
+	font-size: 24px;
+}
+
+.hack-copy__body h4 {
+	font-size: 20px;
+}
+
 .hack-actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -6992,6 +7056,30 @@ body.btcpp-checkout-page {
 .hack-list__meta {
 	color: var(--hack-dim);
 	font-size: 13px;
+}
+
+.hack-list__meta p {
+	margin: 0.25em 0 0;
+}
+
+.hack-list__meta ul,
+.hack-list__meta ol {
+	margin: 0.35em 0 0;
+	padding-left: 1.25em;
+}
+
+.hack-list__meta ul {
+	list-style: disc;
+}
+
+.hack-list__meta ol {
+	list-style: decimal;
+}
+
+.hack-list__meta a {
+	color: inherit;
+	text-decoration: underline;
+	text-underline-offset: 0.15em;
 }
 
 @media (max-width: 900px) {

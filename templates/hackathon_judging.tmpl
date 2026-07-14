@@ -45,7 +45,7 @@
     <section class="hack-section">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§01 · Events</div>
+          <div class="hack-label">§ Events</div>
           <h2>Judging <span class="hack-serif">windows.</span></h2>
         </div>
         <div class="hack-section__deck">Only active events you can score will show ballot forms below.</div>
@@ -81,7 +81,7 @@
     <section class="hack-section">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§02 · Ballots</div>
+          <div class="hack-label">§ Ballots</div>
           <h2>Save your <span class="hack-serif">rankings.</span></h2>
         </div>
         <div class="hack-section__deck">Each event has its own ballot and save button.</div>
@@ -147,7 +147,7 @@
     <section class="hack-section">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§03 · Projects</div>
+          <div class="hack-label">§ Projects</div>
           <h2>Visible <span class="hack-serif">submissions.</span></h2>
         </div>
         <div class="hack-section__deck">{{ len .Projects }} visible project{{ if ne (len .Projects) 1 }}s{{ end }}.</div>
@@ -163,7 +163,7 @@
             </div>
             <h3>{{ .Title }}</h3>
             {{ if .ShortDescription }}<div class="hack-card__desc">{{ .ShortDescription }}</div>{{ end }}
-            {{ if .Description }}<div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ .Description }}</div>{{ end }}
+            {{ if .Description }}<div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ hackathonRichText .Description }}</div>{{ end }}
             {{ if .Tags }}
             <div class="hack-tags">
               {{ range .Tags }}<span class="hack-tag">{{ . }}</span>{{ end }}

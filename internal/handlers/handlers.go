@@ -205,6 +205,8 @@ func loadTemplates(ctx *config.AppContext) error {
 		"ishtml": func(s string) template.HTML {
 			return template.HTML(s)
 		},
+		"hackathonDescription": hackathonDescriptionHTML,
+		"hackathonRichText":    hackathonRichTextHTML,
 		"mul": func(a, b int) int {
 			return a * b
 		},

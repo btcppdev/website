@@ -485,6 +485,37 @@ body.btcpp-rebrand-page {
   line-height: 1.4;
 }
 
+.btcpp-rebrand-page .conf-hackathon-redesign__summary p {
+  margin: 0 0 .85em;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__summary p:last-child,
+.btcpp-rebrand-page .conf-hackathon-redesign__summary ul:last-child,
+.btcpp-rebrand-page .conf-hackathon-redesign__summary ol:last-child {
+  margin-bottom: 0;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__summary ul,
+.btcpp-rebrand-page .conf-hackathon-redesign__summary ol {
+  margin: .85em 0;
+  padding-left: 1.35em;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__summary ul {
+  list-style: disc;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__summary ol {
+  list-style: decimal;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__summary a {
+  color: var(--rebrand-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: .15em;
+}
+
 .btcpp-rebrand-page .conf-hackathon-redesign__actions {
   display: flex;
   flex-wrap: wrap;

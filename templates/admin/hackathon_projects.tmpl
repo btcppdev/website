@@ -25,11 +25,14 @@
     <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
     {{ end }}
 
-    <section class="mb-6 overflow-hidden rounded-lg bg-white shadow">
-      <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
-        <h2 class="text-sm font-semibold text-gray-900">Admin add project</h2>
-        <p class="mt-1 text-sm text-gray-600">Create a project directly, even if public submissions are closed.</p>
-      </div>
+    <details class="mb-6 overflow-hidden rounded-lg bg-white shadow">
+      <summary class="flex cursor-pointer list-none items-center justify-between gap-4 border-b border-gray-200 px-4 py-4 sm:px-6">
+        <span>
+          <span class="block text-sm font-semibold text-gray-900">Admin add project</span>
+          <span class="mt-1 block text-sm text-gray-600">Create a project directly, even if public submissions are closed.</span>
+        </span>
+        <span class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">Add project</span>
+      </summary>
       <form method="POST" action="{{ .ProjectsURL .Competition }}" class="grid gap-4 px-4 py-5 sm:grid-cols-6 sm:p-6">
         <div class="sm:col-span-2">
           <label for="AdminProjectTitle" class="block text-sm font-medium text-gray-700">Title *</label>
@@ -75,7 +78,7 @@
           <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Create project</button>
         </div>
       </form>
-    </section>
+    </details>
 
     <section class="overflow-hidden rounded-lg bg-white shadow">
       <div class="border-b border-gray-200 px-4 py-4 sm:px-6">

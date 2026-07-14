@@ -6,6 +6,7 @@ CREATE TABLE competitions (
   slug text NOT NULL UNIQUE,
   title text NOT NULL,
   description text NOT NULL DEFAULT '',
+  description_format text NOT NULL DEFAULT 'markdown',
   visibility text NOT NULL DEFAULT 'hidden',
   lifecycle_override text NOT NULL DEFAULT '',
   public_gallery_enabled boolean NOT NULL DEFAULT false,
@@ -31,6 +32,7 @@ CREATE TABLE competitions (
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (slug <> ''),
   CHECK (title <> ''),
+  CHECK (description_format IN ('plain', 'markdown', 'html')),
   CHECK (visibility IN ('hidden', 'public')),
   CHECK (lifecycle_override IN ('', 'upcoming', 'open', 'submissions_closed', 'public_gallery', 'closed')),
   CHECK (max_team_size IS NULL OR max_team_size > 0),
@@ -110,7 +112,6 @@ CREATE TABLE projects (
   tags text[] NOT NULL DEFAULT '{}',
   submitted_at timestamptz,
   shipped_at timestamptz,
-  published_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (competition_id, slug),
@@ -122,7 +123,6 @@ CREATE TABLE projects (
 );
 
 CREATE INDEX projects_competition_status_idx ON projects (competition_id, status);
-CREATE INDEX projects_competition_published_idx ON projects (competition_id, published_at);
 CREATE INDEX projects_tags_idx ON projects USING gin (tags);
 
 CREATE TRIGGER projects_set_updated_at

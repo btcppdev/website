@@ -7,30 +7,6 @@
 <body class="hack-redesign">
   {{ block "mainnav" . }} {{ end }}
   <main class="hack-shell">
-    <div class="hack-ticker" aria-label="Hackathon highlights">
-      <span class="hack-ticker__live">▶ Live</span>
-      <span>{{ .Competition.Title }}</span>
-      <span>•</span>
-      <span>{{ .CompetitionStatusLabel }}</span>
-      <span>•</span>
-      <span>{{ with .Competition.MaxTeamSize }}Up to {{ . }} builders per team{{ else }}Unlimited team size{{ end }}</span>
-      {{ if .ConferenceLabel }}<span>•</span><span>{{ .ConferenceLabel }}</span>{{ end }}
-    </div>
-
-    <header class="hack-header">
-      <div>
-        <a href="/" class="hack-brand">bitcoin<span>++</span></a>
-        <div class="hack-header__meta">[ {{ if .ConferenceLabel }}{{ .ConferenceLabel }} · {{ end }}Hackathon ]</div>
-      </div>
-      <nav class="hack-header__nav" aria-label="Hackathon links">
-        <a href="#overview">overview/</a>
-        <a href="#projects">projects/</a>
-        {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<a href="#tables">tables/</a>{{ end }}
-        <a href="{{ .ScheduleURL }}">schedule/</a>
-        {{ if .ConferenceURL }}<a href="{{ .ConferenceURL }}">← conf</a>{{ end }}
-      </nav>
-    </header>
-
     <section class="hack-hero">
       <img src="/static/img/rebrand/hero-hackathon.png" alt="">
       <div class="hack-hero__content">
@@ -43,7 +19,7 @@
           <h1>{{ .Competition.Title }}</h1>
           <div class="hack-hero__deck">
             {{ if .Competition.Description }}
-            {{ .Competition.Description }}
+            {{ hackathonDescription .Competition.Description .Competition.DescriptionFormat }}
             {{ else }}
             Build something real alongside the conference, submit your project, and put it in front of judges and the bitcoin++ community.
             {{ end }}
@@ -54,7 +30,7 @@
             {{ else if not .Viewer }}
             <a href="{{ .LoginURL }}" class="hack-button hack-button--accent">Sign in →</a>
             {{ end }}
-            <a href="#projects" class="hack-button hack-button--light">View projects →</a>
+            <a href="#projects" class="hack-button hack-button--light">View project gallery →</a>
             <a href="{{ .ScheduleURL }}" class="hack-button hack-button--light">View schedule →</a>
             {{ if .CanJudge }}<a href="{{ .JudgingURL }}" class="hack-button hack-button--light">Judging →</a>{{ end }}
             {{ if .CanAdminEdit }}<a href="{{ .AdminEditURL }}" class="hack-button hack-button--light">Edit hackathon →</a>{{ end }}
@@ -70,11 +46,18 @@
     <div class="mx-6 mt-6 border border-red-700 bg-red-50 px-4 py-3 text-sm text-red-900">{{ .FlashError }}</div>
     {{ end }}
 
-    <section class="hack-section" id="overview">
+    <nav class="hack-tabs" aria-label="Hackathon sections">
+      <button type="button" data-hackathon-tab="overview" class="hack-tab" aria-selected="true">Overview</button>
+      <button type="button" data-hackathon-tab="projects" class="hack-tab" aria-selected="false">Project gallery · {{ len .Projects }}</button>
+      {{ if .Awards }}<button type="button" data-hackathon-tab="awards" class="hack-tab" aria-selected="false">Winners · {{ len .Awards }}</button>{{ end }}
+      {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<button type="button" data-hackathon-tab="tables" class="hack-tab" aria-selected="false">Tables</button>{{ end }}
+    </nav>
+
+    <section data-hackathon-tab-panel="overview" class="hack-panel" id="overview">
       <div class="hack-stat-grid">
         <div class="hack-stat">
-          <div class="hack-stat__value">{{ .CompetitionStatusLabel }}</div>
-          <div class="hack-stat__label">Status</div>
+          <div class="hack-stat__value">{{ .RankedPrizePoolLabel }}</div>
+          <div class="hack-stat__label">Total ranked prize pool</div>
         </div>
         <div class="hack-stat">
           <div class="hack-stat__value">{{ with .Competition.MaxTeamSize }}{{ . }}{{ else }}∞{{ end }}</div>
@@ -92,7 +75,7 @@
 
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§01 · Overview</div>
+          <div class="hack-label">§ Overview</div>
           <h2>Build in <span class="hack-serif">public.</span></h2>
         </div>
         <div class="hack-section__deck">
@@ -104,7 +87,7 @@
         <div class="hack-copy">
           <div class="hack-copy__body">
             {{ if .Competition.Description }}
-            {{ .RichText .Competition.Description }}
+            {{ hackathonDescription .Competition.Description .Competition.DescriptionFormat }}
             {{ else }}
             Details are still being finalized.
             {{ end }}
@@ -144,16 +127,10 @@
       </div>
     </section>
 
-    <nav class="hack-tabs" aria-label="Hackathon sections">
-      <button type="button" data-hackathon-tab="projects" class="hack-tab" aria-selected="true">Projects · {{ len .Projects }}</button>
-      {{ if .Awards }}<button type="button" data-hackathon-tab="awards" class="hack-tab" aria-selected="false">Winners · {{ len .Awards }}</button>{{ end }}
-      {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<button type="button" data-hackathon-tab="tables" class="hack-tab" aria-selected="false">Tables</button>{{ end }}
-    </nav>
-
-    <section data-hackathon-tab-panel="projects" class="hack-panel" id="projects">
+    <section data-hackathon-tab-panel="projects" class="hack-panel hidden" id="projects">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§02 · Projects</div>
+          <div class="hack-label">§ Project gallery</div>
           <h2>What got <span class="hack-serif">built.</span></h2>
         </div>
         <div class="hack-section__deck">Every visible project from this hackathon, sorted by the current platform rules.</div>
@@ -211,7 +188,7 @@
     <section data-hackathon-tab-panel="awards" class="hack-panel hidden hack-awards" id="awards">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§03 · Winners</div>
+          <div class="hack-label">§ Winners</div>
           <h2>Prize <span class="hack-serif">record.</span></h2>
         </div>
         <div class="hack-section__deck">Ranked awards, bounties, and assigned winning projects.</div>
@@ -248,7 +225,7 @@
     <section data-hackathon-tab-panel="tables" class="hack-panel hidden" id="tables">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§04 · Tables</div>
+          <div class="hack-label">§ Tables</div>
           <h2>Find the <span class="hack-serif">projects.</span></h2>
         </div>
         <div class="hack-section__deck">Public project table assignments for demos and expo-style review.</div>
@@ -286,7 +263,7 @@
 
       function setTab(name) {
         const exists = tabs.some(tab => tab.dataset.hackathonTab === name);
-        if (!exists) name = 'projects';
+        if (!exists) name = 'overview';
         for (const tab of tabs) {
           const active = tab.dataset.hackathonTab === name;
           tab.setAttribute('aria-selected', active ? 'true' : 'false');
@@ -297,10 +274,12 @@
       }
 
       function tabFromHash() {
+        if (window.location.hash === '#overview') return 'overview';
         if (window.location.hash === '#awards') return 'awards';
         if (window.location.hash === '#tables') return 'tables';
+        if (window.location.hash === '#projects') return 'projects';
         if (window.location.hash.indexOf('#project-') === 0) return 'projects';
-        return 'projects';
+        return 'overview';
       }
 
       for (const tab of tabs) {
