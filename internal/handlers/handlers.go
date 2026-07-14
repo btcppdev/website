@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -59,6 +60,13 @@ const (
 )
 
 var errUploadTooLarge = errors.New("uploaded file is too large")
+
+var whoIsCache = struct {
+	sync.Mutex
+	app     *config.AppContext
+	people  []*WhoIsPerson
+	expires time.Time
+}{}
 
 func limitRequestBody(w http.ResponseWriter, r *http.Request, max int64) {
 	r.Body = http.MaxBytesReader(w, r.Body, max)
@@ -2296,58 +2304,52 @@ func whoIsTotals(people []*WhoIsPerson) (int, int) {
 }
 
 func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
-	talks, err := getters.ListTalks(ctx)
+	if ctx == nil {
+		return nil, fmt.Errorf("application context is not configured")
+	}
+	ttl := time.Minute
+	if ctx.Env != nil && ctx.Env.CacheTTLSec > 0 {
+		ttl = time.Duration(ctx.Env.CacheTTLSec) * time.Second
+	}
+
+	// Hold the lock while refreshing so a crawler burst produces one database
+	// refresh rather than many identical two-query refreshes.
+	whoIsCache.Lock()
+	defer whoIsCache.Unlock()
+	if whoIsCache.app == ctx && time.Now().Before(whoIsCache.expires) {
+		return whoIsCache.people, nil
+	}
+
+	profiles, err := getters.ListPublicProfiles(ctx)
 	if err != nil {
+		// Public profiles are archival data. During a brief database incident,
+		// serving the last good snapshot is better than turning every crawler
+		// and visitor into another pool waiter.
+		if whoIsCache.app == ctx && whoIsCache.people != nil {
+			if ctx.Err != nil {
+				ctx.Err.Printf("/whois refresh failed; serving stale cache: %s", err)
+			}
+			whoIsCache.expires = time.Now().Add(30 * time.Second)
+			return whoIsCache.people, nil
+		}
 		return nil, err
 	}
-	confs, err := getters.ListConfs(ctx)
-	if err != nil {
-		return nil, err
-	}
-	confByTag := make(map[string]*types.Conf, len(confs))
-	confByID := make(map[string]*types.Conf, len(confs))
-	for _, conf := range confs {
-		if conf != nil {
-			confByTag[conf.Tag] = conf
-			confByID[conf.Ref] = conf
-		}
-	}
-
-	peopleByID := map[string]*WhoIsPerson{}
-	attendanceBySpeakerID := map[string]map[string]*types.Conf{}
-	for _, talk := range talks {
-		if talk == nil || strings.TrimSpace(talk.Name) == "" {
+	people := make([]*WhoIsPerson, 0, len(profiles))
+	for _, profile := range profiles {
+		if profile == nil || profile.Speaker == nil {
 			continue
 		}
-		if talk.Status != "" && talk.Status != StatusAccepted && talk.Status != StatusScheduled {
-			continue
+		person := &WhoIsPerson{
+			Speaker:  profile.Speaker,
+			Editions: profile.Editions,
+			Talks:    make([]*WhoIsTalk, 0, len(profile.Talks)),
 		}
-		conf := confByTag[talk.Event]
-		if conf == nil || !conf.IsPublished() {
-			continue
-		}
-		for _, speaker := range talk.Speakers {
-			if speaker == nil || speaker.ID == "" {
-				continue
+		for _, row := range profile.Talks {
+			if row != nil && row.Talk != nil {
+				person.Talks = append(person.Talks, &WhoIsTalk{Talk: row.Talk, Conf: row.Conf})
 			}
-			person := peopleByID[speaker.ID]
-			if person == nil {
-				view := *speaker
-				person = &WhoIsPerson{Speaker: &view}
-				peopleByID[speaker.ID] = person
-			}
-			person.Talks = append(person.Talks, &WhoIsTalk{Talk: talk, Conf: conf})
-			addWhoIsAttendance(attendanceBySpeakerID, speaker.ID, conf)
 		}
-	}
-
-	addWhoIsRegistrationAttendance(ctx, peopleByID, attendanceBySpeakerID, confByID)
-
-	people := make([]*WhoIsPerson, 0, len(peopleByID))
-	for _, person := range peopleByID {
-		dedupeWhoIsTalks(person)
 		sortWhoIsTalks(person.Talks)
-		setWhoIsEditions(person, attendanceBySpeakerID[person.Speaker.ID])
 		people = append(people, person)
 	}
 	sort.Slice(people, func(i, j int) bool {
@@ -2359,98 +2361,16 @@ func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
 		return a < b
 	})
 	assignWhoIsPublicIDs(people)
+	whoIsCache.app = ctx
+	whoIsCache.people = people
+	whoIsCache.expires = time.Now().Add(ttl)
 	return people, nil
 }
 
-func addWhoIsRegistrationAttendance(ctx *config.AppContext, peopleByID map[string]*WhoIsPerson, attendanceBySpeakerID map[string]map[string]*types.Conf, confByID map[string]*types.Conf) {
-	regs, err := getters.FetchRegistrations(ctx, "")
-	if err != nil {
-		if ctx != nil && ctx.Err != nil {
-			ctx.Err.Printf("/whois registration attendance failed: %s", err)
-		}
-		return
-	}
-	speakerIDsByEmail := map[string][]string{}
-	for speakerID, person := range peopleByID {
-		if person == nil || person.Speaker == nil {
-			continue
-		}
-		email := strings.ToLower(strings.TrimSpace(person.Speaker.Email))
-		if email == "" {
-			continue
-		}
-		speakerIDsByEmail[email] = append(speakerIDsByEmail[email], speakerID)
-	}
-	for _, reg := range regs {
-		if reg == nil || reg.Revoked {
-			continue
-		}
-		conf := confByID[reg.ConfRef]
-		if conf == nil || !conf.IsPublished() {
-			continue
-		}
-		for _, speakerID := range speakerIDsByEmail[strings.ToLower(strings.TrimSpace(reg.Email))] {
-			addWhoIsAttendance(attendanceBySpeakerID, speakerID, conf)
-		}
-	}
-}
-
-func addWhoIsAttendance(attendanceBySpeakerID map[string]map[string]*types.Conf, speakerID string, conf *types.Conf) {
-	if attendanceBySpeakerID == nil || strings.TrimSpace(speakerID) == "" || conf == nil || conf.Tag == "" {
-		return
-	}
-	byTag := attendanceBySpeakerID[speakerID]
-	if byTag == nil {
-		byTag = map[string]*types.Conf{}
-		attendanceBySpeakerID[speakerID] = byTag
-	}
-	byTag[conf.Tag] = conf
-}
-
-func dedupeWhoIsTalks(person *WhoIsPerson) {
-	if person == nil || len(person.Talks) == 0 {
-		return
-	}
-	seen := map[string]bool{}
-	out := person.Talks[:0]
-	for _, row := range person.Talks {
-		if row == nil || row.Talk == nil || row.Talk.ID == "" || seen[row.Talk.ID] {
-			continue
-		}
-		seen[row.Talk.ID] = true
-		out = append(out, row)
-	}
-	person.Talks = out
-}
-
-func setWhoIsEditions(person *WhoIsPerson, attendance map[string]*types.Conf) {
-	if person == nil {
-		return
-	}
-	seen := map[string]bool{}
-	var editions []*types.Conf
-	for _, conf := range attendance {
-		if conf == nil || conf.Tag == "" || seen[conf.Tag] {
-			continue
-		}
-		seen[conf.Tag] = true
-		editions = append(editions, conf)
-	}
-	for _, row := range person.Talks {
-		if row == nil || row.Conf == nil || row.Conf.Tag == "" || seen[row.Conf.Tag] {
-			continue
-		}
-		seen[row.Conf.Tag] = true
-		editions = append(editions, row.Conf)
-	}
-	sort.Slice(editions, func(i, j int) bool {
-		a, b := editions[i], editions[j]
-		if !a.StartDate.IsZero() && !b.StartDate.IsZero() && !a.StartDate.Equal(b.StartDate) {
-			return a.StartDate.After(b.StartDate)
-		}
-		return a.Tag > b.Tag
-	})
-	person.Editions = editions
+func invalidateWhoIsDirectoryCache() {
+	whoIsCache.Lock()
+	whoIsCache.expires = time.Time{}
+	whoIsCache.Unlock()
 }
 
 func sortWhoIsTalks(talks []*WhoIsTalk) {
@@ -8194,6 +8114,7 @@ func adminUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Update failed: "+err.Error()), http.StatusSeeOther)
 		return
 	}
+	invalidateWhoIsDirectoryCache()
 	if hasNewPic {
 		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
 	}

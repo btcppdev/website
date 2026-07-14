@@ -380,6 +380,7 @@ func saveDashboardTalkResources(w http.ResponseWriter, r *http.Request, ctx *con
 		http.Error(w, "update failed", http.StatusInternalServerError)
 		return
 	}
+	invalidateWhoIsDirectoryCache()
 	http.Redirect(w, r, dashboardResourceRedirect(r, encHMAC, encEmail, "Talk resources updated."), http.StatusSeeOther)
 }
 
@@ -757,6 +758,7 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			http.StatusSeeOther)
 		return
 	}
+	invalidateWhoIsDirectoryCache()
 	if hasNewPic {
 		// Patch the cached Speaker so the dashboard's next render
 		// reflects the new photo without waiting for a periodic
