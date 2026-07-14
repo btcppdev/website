@@ -6552,7 +6552,7 @@ func VolAdminUpdateStatus(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
-	conf, vol, _ := volAdminLoadVol(w, r, ctx)
+	conf, vol, shifts := volAdminLoadVol(w, r, ctx)
 	if vol == nil {
 		return
 	}
@@ -6566,6 +6566,10 @@ func VolAdminUpdateStatus(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	if status == "" {
 		http.Error(w, "Missing status", http.StatusBadRequest)
 		return
+	}
+
+	if status == "Declined" {
+		releaseVolunteerShifts(ctx, conf, vol, shifts, "volcoord/status-decline")
 	}
 
 	err := getters.UpdateVolunteerStatus(ctx, vol.Ref, status)
