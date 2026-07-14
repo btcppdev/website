@@ -293,6 +293,22 @@ body.btcpp-form-page {
   box-sizing: border-box;
 }
 
+.btcpp-form-page .btcpp-satellite-form-page {
+  width: min(100%, 1280px);
+  max-width: none;
+}
+
+.btcpp-form-page .btcpp-satellite-form-page .btcpp-form-layout {
+  max-width: none;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+}
+
+.btcpp-form-page .btcpp-satellite-form-page .btcpp-form-panel {
+  width: 100%;
+  max-width: none;
+  padding-right: 0;
+}
+
 .btcpp-form-page .btcpp-form-heading::before,
 .btcpp-form-page #form .mx-auto.max-w-2xl.text-center::before {
   content: attr(data-form-kicker);
