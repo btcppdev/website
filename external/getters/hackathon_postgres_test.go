@@ -168,6 +168,53 @@ func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 	}
 }
 
+func TestHackathonJudgeInvites(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "judge-invite-" + postgresSmokeSuffix(),
+		Title: "Judge Invite Hackathon",
+	})
+	judgeID := insertSmokePerson(t, ctx, "judge-invite")
+	beforeInvite := time.Now()
+	token, invite, err := CreateCompetitionJudgeInvite(ctx, competitionID, nil)
+	if err != nil {
+		t.Fatalf("CreateCompetitionJudgeInvite: %v", err)
+	}
+	if token == "" || invite == nil || invite.CompetitionID != competitionID {
+		t.Fatalf("bad judge invite: token=%q invite=%+v", token, invite)
+	}
+	if invite.ExpiresAt == nil {
+		t.Fatalf("judge invite ExpiresAt is nil")
+	}
+	minExpiresAt := beforeInvite.Add(ProjectInviteDefaultTTL - time.Minute)
+	maxExpiresAt := beforeInvite.Add(ProjectInviteDefaultTTL + time.Minute)
+	if invite.ExpiresAt.Before(minExpiresAt) || invite.ExpiresAt.After(maxExpiresAt) {
+		t.Fatalf("judge invite ExpiresAt = %v, want about %v", invite.ExpiresAt, beforeInvite.Add(ProjectInviteDefaultTTL))
+	}
+
+	accepted, err := AcceptCompetitionJudgeInvite(ctx, token, judgeID)
+	if err != nil {
+		t.Fatalf("AcceptCompetitionJudgeInvite: %v", err)
+	}
+	if accepted.AcceptedByPersonID != judgeID || accepted.AcceptedAt == nil {
+		t.Fatalf("accepted judge invite mismatch: %+v", accepted)
+	}
+	judges, err := ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudges: %v", err)
+	}
+	if len(judges) != 1 || judges[0].PersonID != judgeID || judges[0].JudgeType != JudgeTypeCoordinator {
+		t.Fatalf("judges after invite = %+v", judges)
+	}
+	if _, err := AcceptCompetitionJudgeInvite(ctx, token, judgeID); err == nil {
+		t.Fatalf("AcceptCompetitionJudgeInvite reuse succeeded, want error")
+	} else if !strings.Contains(err.Error(), "already accepted") {
+		t.Fatalf("AcceptCompetitionJudgeInvite reuse err = %v, want already accepted", err)
+	}
+}
+
 func TestGetPersonIDByEmail(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)

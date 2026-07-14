@@ -209,6 +209,14 @@ func AcceptProjectInvite(ctx *config.AppContext, token, personID string) (*types
 	return acceptProjectInvitePostgres(ctx, token, personID)
 }
 
+func CreateCompetitionJudgeInvite(ctx *config.AppContext, competitionID string, expiresAt *time.Time) (string, *types.CompetitionJudgeInvite, error) {
+	return createCompetitionJudgeInvitePostgres(ctx, competitionID, expiresAt)
+}
+
+func AcceptCompetitionJudgeInvite(ctx *config.AppContext, token, personID string) (*types.CompetitionJudgeInvite, error) {
+	return acceptCompetitionJudgeInvitePostgres(ctx, token, personID)
+}
+
 func CanViewProject(ctx *config.AppContext, projectID string, viewer types.HackathonViewer) (bool, error) {
 	return canViewProjectPostgres(ctx, projectID, viewer)
 }

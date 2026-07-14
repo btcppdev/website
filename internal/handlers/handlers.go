@@ -1211,6 +1211,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminAddJudge(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges/invites", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminCreateJudgeInvite(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges/remove", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminRemoveJudge(w, r, app)
 	}).Methods("POST")
@@ -1283,6 +1286,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/hackathons/invites/{token}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectInviteAccept(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/hackathons/judge-invites/{token}", func(w http.ResponseWriter, r *http.Request) {
+		HackathonJudgeInviteAccept(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/invites", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectInviteCreate(w, r, app)

@@ -666,6 +666,7 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 	encEmail := r.URL.Query().Get("em")
+	nextURL := safeReturnTo(r.URL.Query().Get("next"))
 
 	speakers, err := getters.GetSpeakersByEmail(ctx, email)
 	if err != nil {
@@ -705,6 +706,8 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		EmailPlain:   email,
 		Mode:         mode,
 		FlashMessage: r.URL.Query().Get("flash"),
+		FormAction:   dashboardSpeakerEditURL(encHMAC, encEmail, nextURL),
+		NextURL:      nextURL,
 		Year:         helpers.CurrentYear(),
 	}
 	if hasPublicWhoIsProfile(ctx, sp) {
@@ -722,13 +725,13 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 // speakerUpdateProps which builds the property map from non-empty
 // strings + booleans.
 func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, sp *types.Speaker, encHMAC, encEmail string) {
+	nextURL := safeReturnTo(r.FormValue("next"))
 	picRaw, picContentType, picExt, picErr := readMultipartFile(r, "PicFile")
 	hasNewPic := picErr == nil && len(picRaw) > 0
 	if picErr != nil && picErr != http.ErrMissingFile {
 		ctx.Err.Printf("/dashboard/speaker read pic: %s", picErr)
 		http.Redirect(w, r,
-			fmt.Sprintf("/dashboard/speaker?hr=%s&em=%s&flash=%s",
-				encHMAC, encEmail, url.QueryEscape("Photo upload failed.")),
+			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Photo upload failed."),
 			http.StatusSeeOther)
 		return
 	}
@@ -753,8 +756,7 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	if err := getters.UpdateSpeaker(ctx, sp.ID, up); err != nil {
 		ctx.Err.Printf("/dashboard/speaker update %s: %s", sp.ID, err)
 		http.Redirect(w, r,
-			fmt.Sprintf("/dashboard/speaker?hr=%s&em=%s&flash=%s",
-				encHMAC, encEmail, url.QueryEscape("Update failed: "+err.Error())),
+			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Update failed: "+err.Error()),
 			http.StatusSeeOther)
 		return
 	}
@@ -763,7 +765,7 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		// Persisted above; mirror the uploaded photo in the background.
 		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
 	}
-	http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "Speaker info updated."), http.StatusSeeOther)
+	http.Redirect(w, r, dashboardProfileSuccessRedirect(encHMAC, encEmail, nextURL, "Speaker info updated."), http.StatusSeeOther)
 }
 
 // handleCreateSpeakerPOST mints a new Speakers row for an
@@ -771,11 +773,11 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 // the magic-link-authed value so a user can't create a profile with
 // someone else's email.
 func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, email, encHMAC, encEmail string) {
+	nextURL := safeReturnTo(r.FormValue("next"))
 	name := strings.TrimSpace(r.FormValue("Name"))
 	if name == "" {
 		http.Redirect(w, r,
-			fmt.Sprintf("/dashboard/speaker?hr=%s&em=%s&flash=%s",
-				encHMAC, encEmail, url.QueryEscape("Name is required.")),
+			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Name is required."),
 			http.StatusSeeOther)
 		return
 	}
@@ -784,8 +786,7 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	if picErr != nil && picErr != http.ErrMissingFile {
 		ctx.Err.Printf("/dashboard/speaker (create) read pic: %s", picErr)
 		http.Redirect(w, r,
-			fmt.Sprintf("/dashboard/speaker?hr=%s&em=%s&flash=%s",
-				encHMAC, encEmail, url.QueryEscape("Photo upload failed.")),
+			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Photo upload failed."),
 			http.StatusSeeOther)
 		return
 	}
@@ -811,8 +812,7 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	}
 	if missing := firstMissingProfileField(in.Phone, in.Signal, hasNewPic); missing != "" {
 		http.Redirect(w, r,
-			fmt.Sprintf("/dashboard/speaker?hr=%s&em=%s&flash=%s",
-				encHMAC, encEmail, url.QueryEscape(missing+" is required.")),
+			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, missing+" is required."),
 			http.StatusSeeOther)
 		return
 	}
@@ -822,15 +822,14 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	if _, err := getters.CreateSpeaker(ctx, in); err != nil {
 		ctx.Err.Printf("/dashboard/speaker create %s: %s", email, err)
 		http.Redirect(w, r,
-			fmt.Sprintf("/dashboard/speaker?hr=%s&em=%s&flash=%s",
-				encHMAC, encEmail, url.QueryEscape("Create failed: "+err.Error())),
+			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Create failed: "+err.Error()),
 			http.StatusSeeOther)
 		return
 	}
 	if hasNewPic {
 		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
 	}
-	http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "Profile created."), http.StatusSeeOther)
+	http.Redirect(w, r, dashboardProfileSuccessRedirect(encHMAC, encEmail, nextURL, "Profile created."), http.StatusSeeOther)
 }
 
 // firstMissingProfileField returns the user-facing label of the first
@@ -1602,6 +1601,35 @@ func dashboardRedirect(encHMAC, encEmail, flash string) string {
 		q.Set("flash", flash)
 	}
 	return "/dashboard?" + q.Encode()
+}
+
+func dashboardSpeakerEditURL(encHMAC, encEmail, nextURL string) string {
+	q := url.Values{}
+	if encHMAC != "" {
+		q.Set("hr", encHMAC)
+	}
+	if encEmail != "" {
+		q.Set("em", encEmail)
+	}
+	if nextURL != "" {
+		q.Set("next", nextURL)
+	}
+	return "/dashboard/speaker?" + q.Encode()
+}
+
+func dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, flash string) string {
+	dest := dashboardSpeakerEditURL(encHMAC, encEmail, nextURL)
+	if flash == "" {
+		return dest
+	}
+	return appendFlash(dest, flash)
+}
+
+func dashboardProfileSuccessRedirect(encHMAC, encEmail, nextURL, flash string) string {
+	if nextURL != "" {
+		return appendFlash(nextURL, flash)
+	}
+	return dashboardRedirect(encHMAC, encEmail, flash)
 }
 
 func dashboardResourceRedirect(r *http.Request, encHMAC, encEmail, flash string) string {

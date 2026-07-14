@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	stdhtml "html"
@@ -618,7 +619,7 @@ func (p *HackathonPage) CanScoreJudgeEvent(event *types.JudgeEvent) bool {
 	if p.CanScoreAll {
 		return true
 	}
-	return p.JudgeTypes[getters.JudgeTypeCoordinator] || p.JudgeTypes[event.PlaybookType]
+	return len(p.JudgeTypes) > 0
 }
 
 func (p *HackathonPage) Awardees(award *types.Award) []*types.ProjectAward {
@@ -1253,6 +1254,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		}
 	}
 	judgeTypes := judgeTypesForPerson(ctx, competition.ID, viewer.PersonID)
+	canJudge := viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID)
 	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, viewer)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s/judging list projects: %s", competition.Slug, err)
@@ -1267,7 +1269,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		Scorecards:   scorecards,
 		JudgeTypes:   judgeTypes,
 		Viewer:       id,
-		CanScoreAll:  viewer.Admin || viewer.Coordinator,
+		CanScoreAll:  canJudge,
 		FlashMessage: r.URL.Query().Get("flash"),
 		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
@@ -1299,7 +1301,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		handle404(w, r, ctx)
 		return
 	}
-	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeType(ctx, competition.ID, viewer.PersonID, event.PlaybookType) {
+	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID) {
 		handle404(w, r, ctx)
 		return
 	}
@@ -1571,6 +1573,42 @@ func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *c
 		return
 	}
 	http.Redirect(w, r, hackathonURLForConf(conf)+"/projects/"+url.PathEscape(project.ID)+"?flash="+url.QueryEscape("Joined project"), http.StatusSeeOther)
+}
+
+func HackathonJudgeInviteAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
+	if email == "" {
+		redirectHackathonLogin(w, r)
+		return
+	}
+	personID, err := getters.GetPersonIDByEmail(ctx, email)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/judge-invites person %s: %s", email, err)
+		encHMAC := base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
+		encEmail := base64.RawURLEncoding.EncodeToString([]byte(email))
+		profileURL := dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, r.URL.RequestURI(), "Create your profile to accept this judge invite.")
+		http.Redirect(w, r, profileURL, http.StatusSeeOther)
+		return
+	}
+	invite, err := getters.AcceptCompetitionJudgeInvite(ctx, mux.Vars(r)["token"], personID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/judge-invites accept: %s", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	competition, err := getters.GetCompetitionByID(ctx, invite.CompetitionID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/judge-invites competition %s: %s", invite.CompetitionID, err)
+		http.Error(w, "Unable to load hackathon", http.StatusInternalServerError)
+		return
+	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/judge-invites conf %s: %s", competition.ConferenceID, err)
+		http.Error(w, "Unable to load conference", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, hackathonURLForConf(conf)+"/judging?flash="+url.QueryEscape("Judge access enabled"), http.StatusSeeOther)
 }
 
 func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string) ([]*types.Award, map[string][]*types.Prize, map[string][]*types.ProjectAward, error) {
@@ -1950,9 +1988,7 @@ func viewerCanJudgeType(ctx *config.AppContext, competitionID, personID, judgeTy
 		if judge == nil || judge.PersonID != personID {
 			continue
 		}
-		if judge.JudgeType == getters.JudgeTypeCoordinator || judge.JudgeType == judgeType {
-			return true
-		}
+		return true
 	}
 	return false
 }

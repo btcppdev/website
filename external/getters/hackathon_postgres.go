@@ -1272,6 +1272,117 @@ func acceptProjectInvitePostgres(ctx *config.AppContext, token, personID string)
 	return &invite, nil
 }
 
+func createCompetitionJudgeInvitePostgres(ctx *config.AppContext, competitionID string, expiresAt *time.Time) (string, *types.CompetitionJudgeInvite, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return "", nil, fmt.Errorf("competition id is required")
+	}
+	if expiresAt == nil {
+		defaultExpiresAt := time.Now().Add(ProjectInviteDefaultTTL)
+		expiresAt = &defaultExpiresAt
+	}
+	token, tokenHash, err := newInviteToken()
+	if err != nil {
+		return "", nil, err
+	}
+	var invite types.CompetitionJudgeInvite
+	var acceptedAt, expiresAtValue pgtype.Timestamptz
+	err = ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO competition_judge_invites (competition_id, token_hash, expires_at)
+		VALUES ($1::uuid, $2, $3)
+		RETURNING id::text, competition_id::text,
+			coalesce(accepted_by_person_id::text, ''), accepted_at, expires_at, created_at
+	`, competitionID, tokenHash, expiresAt).Scan(
+		&invite.ID,
+		&invite.CompetitionID,
+		&invite.AcceptedByPersonID,
+		&acceptedAt,
+		&expiresAtValue,
+		&invite.CreatedAt,
+	)
+	if err != nil {
+		return "", nil, fmt.Errorf("insert competition judge invite: %w", err)
+	}
+	invite.AcceptedAt = pgTimePtr(acceptedAt)
+	invite.ExpiresAt = pgTimePtr(expiresAtValue)
+	return token, &invite, nil
+}
+
+func acceptCompetitionJudgeInvitePostgres(ctx *config.AppContext, token, personID string) (*types.CompetitionJudgeInvite, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	tokenHash := hashInviteToken(token)
+	if tokenHash == "" {
+		return nil, fmt.Errorf("invite token is required")
+	}
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, fmt.Errorf("person id is required")
+	}
+
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("begin accept judge invite: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+
+	var invite types.CompetitionJudgeInvite
+	var acceptedAt, expiresAt pgtype.Timestamptz
+	err = tx.QueryRow(context.Background(), `
+		SELECT id::text, competition_id::text,
+			coalesce(accepted_by_person_id::text, ''), accepted_at, expires_at, created_at
+		FROM competition_judge_invites
+		WHERE token_hash = $1
+	`, tokenHash).Scan(
+		&invite.ID,
+		&invite.CompetitionID,
+		&invite.AcceptedByPersonID,
+		&acceptedAt,
+		&expiresAt,
+		&invite.CreatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("judge invite not found")
+		}
+		return nil, fmt.Errorf("load judge invite: %w", err)
+	}
+	invite.AcceptedAt = pgTimePtr(acceptedAt)
+	invite.ExpiresAt = pgTimePtr(expiresAt)
+	if invite.AcceptedAt != nil {
+		return nil, fmt.Errorf("judge invite already accepted")
+	}
+	if invite.ExpiresAt != nil && time.Now().After(*invite.ExpiresAt) {
+		return nil, fmt.Errorf("judge invite expired")
+	}
+	if _, err := tx.Exec(context.Background(), `
+		INSERT INTO competition_judges (competition_id, person_id, judge_type)
+		VALUES ($1::uuid, $2::uuid, $3)
+		ON CONFLICT (competition_id, person_id, judge_type) DO NOTHING
+	`, invite.CompetitionID, personID, JudgeTypeCoordinator); err != nil {
+		return nil, fmt.Errorf("accept judge invite %s add judge: %w", invite.ID, err)
+	}
+	now := time.Now()
+	if _, err := tx.Exec(context.Background(), `
+		UPDATE competition_judge_invites
+		SET accepted_by_person_id = $2,
+			accepted_at = $3
+		WHERE id = $1
+	`, invite.ID, personID, now); err != nil {
+		return nil, fmt.Errorf("accept judge invite %s: %w", invite.ID, err)
+	}
+	invite.AcceptedByPersonID = personID
+	invite.AcceptedAt = &now
+	if err := tx.Commit(context.Background()); err != nil {
+		return nil, fmt.Errorf("commit accept judge invite: %w", err)
+	}
+	return &invite, nil
+}
+
 func canViewProjectPostgres(ctx *config.AppContext, projectID string, viewer types.HackathonViewer) (bool, error) {
 	project, err := getProjectByIDPostgres(ctx, projectID)
 	if err != nil {

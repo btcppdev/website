@@ -37,7 +37,7 @@
             <li class="flex items-center justify-between gap-3 px-3 py-3 text-sm">
               <div>
                 <div class="font-medium text-gray-900">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</div>
-                <div class="mt-1 text-xs text-gray-500">{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }} · {{ $.JudgeTypeLabel .JudgeType }}</div>
+                <div class="mt-1 text-xs text-gray-500">{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</div>
               </div>
               <form method="POST" action="{{ $.JudgingURL $.Competition }}/judges/remove">
                 <input type="hidden" name="PersonID" value="{{ .PersonID }}">
@@ -51,20 +51,40 @@
           <p class="mb-6 text-sm text-gray-600">No judges assigned yet.</p>
           {{ end }}
 
+          {{ if .JudgeInviteLink }}
+          <div class="mb-6 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3">
+            <label for="JudgeInviteLink" class="block text-xs font-semibold uppercase tracking-wide text-indigo-700">Judge invite link created</label>
+            <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input id="JudgeInviteLink" type="url" readonly value="{{ .JudgeInviteLink }}"
+                     class="block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-indigo-200">
+              <button type="button" data-copy-target="JudgeInviteLink" class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Copy</button>
+            </div>
+            {{ if .JudgeInviteQRCodeURI }}
+            <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <img src="{{ .JudgeInviteQRCodeURI | safeURL }}" width="160" height="160" alt="Judge invite QR code"
+                   class="h-40 w-40 rounded-md bg-white p-2 ring-1 ring-indigo-200">
+              <p class="text-xs text-indigo-700">Scan this code to open the same one-time judge invite link.</p>
+            </div>
+            {{ end }}
+            <p class="mt-2 text-xs text-indigo-700">This link can be used once and expires after 24 hours.</p>
+          </div>
+          {{ end }}
+
+          <form method="POST" action="{{ .JudgingURL .Competition }}/judges/invites" class="mb-6 grid gap-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+            <div>
+              <h3 class="text-sm font-semibold text-gray-900">Generate judge invite link</h3>
+              <p class="mt-1 text-sm text-gray-600">The recipient signs in with this one-time link and can judge this hackathon.</p>
+            </div>
+            <div class="flex justify-end">
+              <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Generate judge invite</button>
+            </div>
+          </form>
+
           <form method="POST" action="{{ .JudgingURL .Competition }}/judges" class="grid gap-4">
             <div>
               <label for="Email" class="block text-sm font-medium text-gray-700">Judge email *</label>
               <input id="Email" name="Email" type="email" required
                      class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-            </div>
-            <div>
-              <label for="JudgeType" class="block text-sm font-medium text-gray-700">Judge type *</label>
-              <select id="JudgeType" name="JudgeType" required
-                      class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-                <option value="expo">Expo</option>
-                <option value="finals">Finals</option>
-                <option value="coordinator">Coordinator</option>
-              </select>
             </div>
             <div class="flex justify-end">
               <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Add judge</button>
@@ -74,5 +94,26 @@
       </section>
     </div>
   </div>
+  <script>
+    document.querySelectorAll('[data-copy-target]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const input = document.getElementById(button.dataset.copyTarget);
+        if (!input) return;
+        try {
+          await navigator.clipboard.writeText(input.value);
+          button.textContent = 'Copied';
+        } catch (_) {
+          input.focus();
+          input.select();
+          try {
+            document.execCommand('copy');
+            button.textContent = 'Copied';
+          } catch (_) {
+            button.textContent = 'Select';
+          }
+        }
+      });
+    });
+  </script>
 </body>
 </html>
