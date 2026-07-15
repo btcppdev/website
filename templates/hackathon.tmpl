@@ -73,6 +73,30 @@
         </div>
       </div>
 
+      {{ if .HackathonPlaceRows }}
+      <section class="hack-prizes" aria-label="Ranked prizes">
+        <div class="hack-section__head hack-prizes__head">
+          <div>
+            <div class="hack-label">§ Prizes</div>
+            <h2>Crime <span class="hack-serif">pays.</span></h2>
+          </div>
+          <div class="hack-section__deck">Ranked rewards for the top projects. Sponsor bounties can stack on top.</div>
+        </div>
+        <div class="hack-prize-grid">
+          {{ range .HackathonPlaceRows }}
+          <a href="{{ if .ProjectID }}#project-{{ .ProjectID }}{{ else }}#awards{{ end }}" class="hack-prize-card{{ if .GrandPrize }} hack-prize-card--grand{{ end }}">
+            <div class="hack-prize-card__place">★ {{ .PlaceName }} place{{ if .GrandPrize }} · grand prize{{ end }}</div>
+            <div>
+              <div class="hack-prize-card__amount">{{ if .Amount }}{{ .Amount }}{{ else }}TBA{{ end }}</div>
+              <div class="hack-prize-card__title">{{ .ProjectTitle }}</div>
+              {{ if and .Detail (ne .Detail .Amount) }}<div class="hack-prize-card__desc">{{ .Detail }}</div>{{ end }}
+            </div>
+          </a>
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
+
       <div class="hack-section__head">
         <div>
           <div class="hack-label">§ Overview</div>

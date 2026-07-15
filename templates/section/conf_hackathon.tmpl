@@ -2,7 +2,7 @@
 {{ if .Hackathon }}
 {{ $sectionLabel := .Conf.HackathonSectionLabel }}{{ if not $sectionLabel }}{{ $sectionLabel = "§ The hackathon" }}{{ end }}
 {{ $headline := .Conf.HackathonHeadline }}{{ if not $headline }}{{ $headline = "Don't just talk. <span>Build.</span>" }}{{ end }}
-{{ $judgesNote := .Conf.HackathonJudgesNote }}{{ if not $judgesNote }}{{ $judgesNote = "Judged by five of the lineup · no appeals" }}{{ end }}
+{{ $judgesNote := "Judges coming soon" }}
 {{ $proofLabel := .Conf.HackathonProofLabel }}{{ if not $proofLabel }}{{ $proofLabel = "Last edition · 37 projects · 90 hackers" }}{{ end }}
 <section id="hackathon" class="conf-hackathon-redesign">
   <div class="conf-hackathon-redesign__inner">
@@ -22,43 +22,41 @@
         <a href="{{ .HackathonURL }}#projects" class="rebrand-button is-secondary">Past projects →</a>
       </div>
       <div class="conf-hackathon-redesign__judges" aria-label="Hackathon judges">
+        {{ if .HackathonJudges }}
         <div class="conf-hackathon-redesign__avatars" aria-hidden="true">
-          <span>N</span>
-          <span>JR</span>
-          <span>YT</span>
-          <span>PT</span>
-          <span>BP</span>
+          {{ range .HackathonJudges }}
+          <img src="{{ speakerPhoto .Photo }}" alt="" title="{{ if .Name }}{{ .Name }}{{ else }}Hackathon judge{{ end }}">
+          {{ end }}
         </div>
-        <p>{{ $judgesNote }}</p>
+        {{ end }}
+        <p>{{ .HackathonJudgeNote $judgesNote }}</p>
       </div>
     </div>
 
     <aside class="conf-hackathon-redesign__proof" aria-label="Last edition hackathon highlights">
       <p class="conf-hackathon-redesign__proof-kicker">{{ $proofLabel }}</p>
       <div class="conf-hackathon-redesign__rows">
-        <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__row">
-          <span class="conf-hackathon-redesign__place">★ 1ST</span>
+        {{ if .HackathonPlaceRows }}
+        {{ range .HackathonPlaceRows }}
+        <a href="{{ $.HackathonURL }}{{ if .ProjectID }}#project-{{ .ProjectID }}{{ else }}#awards{{ end }}" class="conf-hackathon-redesign__row">
+          <span class="conf-hackathon-redesign__place">{{ .PlaceLabel }}</span>
           <span class="conf-hackathon-redesign__project">
-            <strong>KwachaBridge</strong>
-            <em>Kwacha → bitcoin over Lightning, spendable worldwide.</em>
+            <strong>{{ .ProjectTitle }}</strong>
+            {{ if .Detail }}<em>{{ .Detail }}</em>{{ end }}
           </span>
         </a>
-        <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__row">
-          <span class="conf-hackathon-redesign__place">★ 2ND</span>
+        {{ end }}
+        {{ else }}
+        <a href="{{ .HackathonURL }}#awards" class="conf-hackathon-redesign__row">
+          <span class="conf-hackathon-redesign__place">★</span>
           <span class="conf-hackathon-redesign__project">
-            <strong>P2Pesa</strong>
-            <em>Zap-backed agent reputation on Nostr.</em>
+            <strong>Prize places coming soon</strong>
+            <em>Ranked rewards will appear here once configured.</em>
           </span>
         </a>
-        <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__row">
-          <span class="conf-hackathon-redesign__place">★ 3RD</span>
-          <span class="conf-hackathon-redesign__project">
-            <strong>Core-gate</strong>
-            <em>Automatic PR triage for Bitcoin Core.</em>
-          </span>
-        </a>
+        {{ end }}
       </div>
-      <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__all">See all 37 projects →</a>
+      <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__all">See all projects →</a>
     </aside>
   </div>
 </section>

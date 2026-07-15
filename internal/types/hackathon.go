@@ -93,6 +93,7 @@ type CompetitionJudge struct {
 	PersonID      string
 	Name          string
 	Email         string
+	Photo         string
 	JudgeType     string
 	CreatedAt     time.Time
 }

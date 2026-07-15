@@ -266,7 +266,6 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		SpeakersBody:          strings.TrimSpace(r.FormValue("speakers_body")),
 		HackathonSectionLabel: strings.TrimSpace(r.FormValue("hackathon_section_label")),
 		HackathonHeadline:     strings.TrimSpace(r.FormValue("hackathon_headline")),
-		HackathonJudgesNote:   strings.TrimSpace(r.FormValue("hackathon_judges_note")),
 		HackathonProofLabel:   strings.TrimSpace(r.FormValue("hackathon_proof_label")),
 		MapEmbedURL:           strings.TrimSpace(r.FormValue("map_embed_url")),
 		MapLatitude:           parseOptionalFloat(r.FormValue("map_latitude")),
