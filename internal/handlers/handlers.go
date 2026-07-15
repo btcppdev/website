@@ -3730,6 +3730,8 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		ctx.Err.Printf("/%s hackathon load failed (continuing): %s", conf.Tag, err)
 	}
 	var hackathonScheduleEvents []HackathonScheduleEvent
+	var hackathonJudges []*types.CompetitionJudge
+	var hackathonPlaceRows []*HackathonPlaceRow
 	if hackathon != nil {
 		hackathonViewer := hackathonViewerFromIdentity(viewer, conf)
 		hackathonCanAdmin = hackathonViewer.Admin || hackathonViewer.Coordinator
@@ -3742,6 +3744,14 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		hackathonScheduleEvents, err = loadHackathonScheduleEvents(ctx, hackathon.ID)
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon schedule events %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
+		}
+		hackathonJudges, err = getters.ListCompetitionJudges(ctx, hackathon.ID)
+		if err != nil {
+			ctx.Err.Printf("/%s hackathon judges %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
+		}
+		hackathonPlaceRows, err = loadConfHackathonPlaceRows(ctx, hackathon.ID)
+		if err != nil {
+			ctx.Err.Printf("/%s hackathon place rows %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
 		}
 	}
 	confCopy.ShowHackathon = hackathon != nil
@@ -3776,6 +3786,8 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		SatelliteEvents:         satelliteEvents,
 		Hackathon:               hackathon,
 		HackathonScheduleEvents: hackathonScheduleEvents,
+		HackathonJudges:         hackathonJudges,
+		HackathonPlaceRows:      hackathonPlaceRows,
 		HackathonCanAdmin:       hackathonCanAdmin,
 		Year:                    helpers.CurrentYear(),
 	})

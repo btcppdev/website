@@ -44,6 +44,8 @@ type HackathonPage struct {
 	OptInAwards                 []*types.Award
 	AwardOptIns                 map[string]bool
 	PrizesByAward               map[string][]*types.Prize
+	PrizePoolByAward            map[string][]*types.Prize
+	HackathonPlaceRows          []*HackathonPlaceRow
 	AwardeesByAward             map[string][]*types.ProjectAward
 	ScheduleEventsByCompetition map[string][]HackathonScheduleEvent
 	ScheduleEventList           []HackathonScheduleEvent
@@ -347,6 +349,41 @@ func (p *ConfPage) HackathonTimeline() HackathonTimelineView {
 		Label: "Timeline",
 		Value: "TBA",
 	}
+}
+
+func (p *ConfPage) HackathonJudgeNote(defaultNote string) string {
+	if p == nil || len(p.HackathonJudges) == 0 {
+		return strings.TrimSpace(defaultNote)
+	}
+	names := make([]string, 0, len(p.HackathonJudges))
+	for _, judge := range p.HackathonJudges {
+		if judge == nil {
+			continue
+		}
+		name := strings.TrimSpace(judge.Name)
+		if name == "" {
+			continue
+		}
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return strings.TrimSpace(defaultNote)
+	}
+	if len(names) == 1 {
+		return "Judged by " + names[0]
+	}
+	if len(names) == 2 {
+		return "Judged by " + names[0] + " and " + names[1]
+	}
+	displayNames := names
+	if len(displayNames) > 5 {
+		displayNames = displayNames[:5]
+	}
+	note := "Judged by " + strings.Join(displayNames[:len(displayNames)-1], ", ") + ", and " + displayNames[len(displayNames)-1]
+	if remaining := len(names) - len(displayNames); remaining > 0 {
+		note += fmt.Sprintf(" + %d more", remaining)
+	}
+	return note
 }
 
 func (p *HackathonPage) CompetitionScheduleURL(competition *types.HackathonCompetition) string {
@@ -654,19 +691,19 @@ func (p *HackathonPage) AwardPrizes(award *types.Award) []*types.Prize {
 
 func (p *HackathonPage) RankedPrizePoolLabel() string {
 	sats := p.RankedPrizePoolSats()
-	if sats == 0 {
-		return "₿0"
-	}
-	btc := float64(sats) / 100_000_000
-	return "₿" + strings.TrimRight(strings.TrimRight(strconv.FormatFloat(btc, 'f', 8, 64), "0"), ".")
+	return bitcoinSatsLabel(sats)
 }
 
 func (p *HackathonPage) RankedPrizePoolSats() int64 {
-	if p == nil || p.PrizesByAward == nil {
+	if p == nil {
 		return 0
 	}
+	prizesByAward := p.PrizePoolByAward
+	if prizesByAward == nil {
+		prizesByAward = p.PrizesByAward
+	}
 	var total int64
-	for _, prizes := range p.PrizesByAward {
+	for _, prizes := range prizesByAward {
 		for _, prize := range prizes {
 			total += bitcoinPrizeSats(prize)
 		}
@@ -1180,10 +1217,16 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 	personID := hackathonViewerPersonID(id)
 	viewer := hackathonViewerFromIdentity(id, conf)
-	awards, prizesByAward, awardeesByAward, err := loadPublicHackathonAwards(ctx, competition.ID)
+	awards, prizesByAward, prizePoolByAward, awardeesByAward, err := loadPublicHackathonAwards(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s awards: %s", competition.Slug, err)
 		http.Error(w, "Unable to load awards", http.StatusInternalServerError)
+		return
+	}
+	placeRows, err := loadConfHackathonPlaceRows(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s place rows: %s", competition.Slug, err)
+		http.Error(w, "Unable to load prizes", http.StatusInternalServerError)
 		return
 	}
 	scheduleEvents, err := loadHackathonScheduleEvents(ctx, competition.ID)
@@ -1193,20 +1236,22 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		return
 	}
 	page := &HackathonPage{
-		Competition:       competition,
-		Conf:              conf,
-		Projects:          projects,
-		Awards:            awards,
-		PrizesByAward:     prizesByAward,
-		AwardeesByAward:   awardeesByAward,
-		ScheduleEventList: scheduleEvents,
-		Viewer:            id,
-		OwnedProjects:     ownedProjectMap(ctx, projects, personID),
-		CanCreate:         id != nil && competitionAcceptsProjects(competition),
-		CanJudge:          viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
-		FlashMessage:      r.URL.Query().Get("flash"),
-		FlashError:        r.URL.Query().Get("error"),
-		Year:              helpers.CurrentYear(),
+		Competition:        competition,
+		Conf:               conf,
+		Projects:           projects,
+		Awards:             awards,
+		PrizesByAward:      prizesByAward,
+		PrizePoolByAward:   prizePoolByAward,
+		HackathonPlaceRows: placeRows,
+		AwardeesByAward:    awardeesByAward,
+		ScheduleEventList:  scheduleEvents,
+		Viewer:             id,
+		OwnedProjects:      ownedProjectMap(ctx, projects, personID),
+		CanCreate:          id != nil && competitionAcceptsProjects(competition),
+		CanJudge:           viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
+		FlashMessage:       r.URL.Query().Get("flash"),
+		FlashError:         r.URL.Query().Get("error"),
+		Year:               helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s template: %s", competition.Slug, err)
@@ -1611,18 +1656,18 @@ func HackathonJudgeInviteAccept(w http.ResponseWriter, r *http.Request, ctx *con
 	http.Redirect(w, r, hackathonURLForConf(conf)+"/judging?flash="+url.QueryEscape("Judge access enabled"), http.StatusSeeOther)
 }
 
-func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string) ([]*types.Award, map[string][]*types.Prize, map[string][]*types.ProjectAward, error) {
+func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string) ([]*types.Award, map[string][]*types.Prize, map[string][]*types.Prize, map[string][]*types.ProjectAward, error) {
 	awards, err := getters.ListAwardsForCompetition(ctx, competitionID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	prizes, err := getters.ListPrizesForCompetition(ctx, competitionID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	projectAwards, err := getters.ListProjectAwardsForCompetition(ctx, competitionID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	awardeesByAward := make(map[string][]*types.ProjectAward)
 	for _, projectAward := range projectAwards {
@@ -1630,26 +1675,210 @@ func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string) ([]
 			awardeesByAward[projectAward.AwardID] = append(awardeesByAward[projectAward.AwardID], projectAward)
 		}
 	}
+	prizePoolAwardIDs := map[string]bool{}
 	publicAwardIDs := map[string]bool{}
 	publicAwards := make([]*types.Award, 0, len(awards))
 	for _, award := range awards {
-		if award == nil || award.Status != getters.AwardStatusAwarded || len(awardeesByAward[award.ID]) == 0 {
+		if award == nil {
+			continue
+		}
+		switch award.Status {
+		case getters.AwardStatusAvailable, getters.AwardStatusAwarded:
+			prizePoolAwardIDs[award.ID] = true
+		}
+		if award.Status != getters.AwardStatusAwarded || len(awardeesByAward[award.ID]) == 0 {
 			continue
 		}
 		publicAwardIDs[award.ID] = true
 		publicAwards = append(publicAwards, award)
 	}
 	prizesByAward := make(map[string][]*types.Prize)
+	prizePoolByAward := make(map[string][]*types.Prize)
 	for _, prize := range prizes {
-		if prize != nil && publicAwardIDs[prize.AwardID] {
+		if prize == nil {
+			continue
+		}
+		if publicAwardIDs[prize.AwardID] {
 			prizesByAward[prize.AwardID] = append(prizesByAward[prize.AwardID], prize)
+		}
+		if prizePoolAwardIDs[prize.AwardID] {
+			prizePoolByAward[prize.AwardID] = append(prizePoolByAward[prize.AwardID], prize)
 		}
 	}
 	publicAwardeesByAward := make(map[string][]*types.ProjectAward)
 	for awardID := range publicAwardIDs {
 		publicAwardeesByAward[awardID] = awardeesByAward[awardID]
 	}
-	return publicAwards, prizesByAward, publicAwardeesByAward, nil
+	return publicAwards, prizesByAward, prizePoolByAward, publicAwardeesByAward, nil
+}
+
+func loadConfHackathonPlaceRows(ctx *config.AppContext, competitionID string) ([]*HackathonPlaceRow, error) {
+	awards, err := getters.ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		return nil, err
+	}
+	prizes, err := getters.ListPrizesForCompetition(ctx, competitionID)
+	if err != nil {
+		return nil, err
+	}
+	projectAwards, err := getters.ListProjectAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		return nil, err
+	}
+	prizesByAward := make(map[string][]*types.Prize)
+	for _, prize := range prizes {
+		if prize != nil {
+			prizesByAward[prize.AwardID] = append(prizesByAward[prize.AwardID], prize)
+		}
+	}
+	awardeesByAward := make(map[string][]*types.ProjectAward)
+	for _, awardee := range projectAwards {
+		if awardee != nil {
+			awardeesByAward[awardee.AwardID] = append(awardeesByAward[awardee.AwardID], awardee)
+		}
+	}
+	rowsByRank := make(map[int]*HackathonPlaceRow)
+	for _, award := range awards {
+		if award == nil || !hackathonPlaceAwardStatusVisible(award.Status) {
+			continue
+		}
+		rank := hackathonPlaceAwardRank(award.Title)
+		if rank < 1 || rank > 3 || rowsByRank[rank] != nil {
+			continue
+		}
+		row := &HackathonPlaceRow{
+			PlaceLabel:   hackathonPlaceLabel(rank),
+			PlaceName:    hackathonPlaceName(rank),
+			ProjectTitle: strings.TrimSpace(award.Title),
+			Amount:       hackathonPlacePrizeAmount(prizesByAward[award.ID]),
+			Detail:       hackathonPlaceDetail(award, prizesByAward[award.ID], false),
+			GrandPrize:   rank == 1,
+		}
+		if awardees := awardeesByAward[award.ID]; len(awardees) > 0 && awardees[0] != nil {
+			row.ProjectID = awardees[0].ProjectID
+			row.ProjectTitle = strings.TrimSpace(awardees[0].ProjectTitle)
+			row.Detail = hackathonPlaceDetail(award, prizesByAward[award.ID], true)
+		}
+		if row.ProjectTitle == "" {
+			row.ProjectTitle = hackathonPlaceLabel(rank)
+		}
+		rowsByRank[rank] = row
+	}
+	rows := make([]*HackathonPlaceRow, 0, 3)
+	for rank := 1; rank <= 3; rank++ {
+		if row := rowsByRank[rank]; row != nil {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+
+func hackathonPlaceAwardStatusVisible(status string) bool {
+	switch strings.TrimSpace(status) {
+	case getters.AwardStatusAvailable, getters.AwardStatusAwarded:
+		return true
+	default:
+		return false
+	}
+}
+
+func hackathonPlaceAwardRank(title string) int {
+	title = strings.ToLower(strings.TrimSpace(title))
+	switch {
+	case strings.Contains(title, "1st"), strings.Contains(title, "first"):
+		return 1
+	case strings.Contains(title, "2nd"), strings.Contains(title, "second"):
+		return 2
+	case strings.Contains(title, "3rd"), strings.Contains(title, "third"):
+		return 3
+	default:
+		return 0
+	}
+}
+
+func hackathonPlaceLabel(rank int) string {
+	switch rank {
+	case 1:
+		return "★ 1ST"
+	case 2:
+		return "★ 2ND"
+	case 3:
+		return "★ 3RD"
+	default:
+		return "★"
+	}
+}
+
+func hackathonPlaceName(rank int) string {
+	switch rank {
+	case 1:
+		return "1st"
+	case 2:
+		return "2nd"
+	case 3:
+		return "3rd"
+	default:
+		return ""
+	}
+}
+
+func hackathonPlaceDetail(award *types.Award, prizes []*types.Prize, awarded bool) string {
+	value := hackathonPlacePrizeValue(prizes)
+	title := ""
+	if award != nil {
+		title = strings.TrimSpace(award.Title)
+	}
+	if awarded && title != "" && value != "" {
+		return title + " · " + value
+	}
+	if awarded && title != "" {
+		return title
+	}
+	if value != "" {
+		return value
+	}
+	if award != nil {
+		return strings.TrimSpace(award.Description)
+	}
+	return ""
+}
+
+func hackathonPlacePrizeValue(prizes []*types.Prize) string {
+	for _, prize := range prizes {
+		if prize == nil {
+			continue
+		}
+		if value := strings.TrimSpace(prize.ValueText); value != "" {
+			return value
+		}
+	}
+	for _, prize := range prizes {
+		if prize == nil {
+			continue
+		}
+		if title := strings.TrimSpace(prize.Title); title != "" {
+			return title
+		}
+	}
+	return ""
+}
+
+func hackathonPlacePrizeAmount(prizes []*types.Prize) string {
+	for _, prize := range prizes {
+		sats := bitcoinPrizeSats(prize)
+		if sats > 0 {
+			return bitcoinSatsLabel(sats)
+		}
+	}
+	return hackathonPlacePrizeValue(prizes)
+}
+
+func bitcoinSatsLabel(sats int64) string {
+	if sats == 0 {
+		return "₿0"
+	}
+	btc := float64(sats) / 100_000_000
+	return "₿" + strings.TrimRight(strings.TrimRight(strconv.FormatFloat(btc, 'f', 8, 64), "0"), ".")
 }
 
 func loadHackathonPageData(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.HackathonCompetition, *types.Conf, *auth.Identity, []*types.HackathonProject, error) {

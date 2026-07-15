@@ -73,9 +73,21 @@ type ConfPage struct {
 
 	Hackathon               *types.HackathonCompetition
 	HackathonScheduleEvents []HackathonScheduleEvent
+	HackathonJudges         []*types.CompetitionJudge
+	HackathonPlaceRows      []*HackathonPlaceRow
 	HackathonCanAdmin       bool
 
 	Year uint
+}
+
+type HackathonPlaceRow struct {
+	PlaceLabel   string
+	PlaceName    string
+	ProjectID    string
+	ProjectTitle string
+	Amount       string
+	Detail       string
+	GrandPrize   bool
 }
 
 type SuccessPage struct {

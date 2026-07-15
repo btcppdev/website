@@ -635,7 +635,8 @@ body.btcpp-rebrand-page {
   flex: 0 0 auto;
 }
 
-.btcpp-rebrand-page .conf-hackathon-redesign__avatars span {
+.btcpp-rebrand-page .conf-hackathon-redesign__avatars span,
+.btcpp-rebrand-page .conf-hackathon-redesign__avatars img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -652,7 +653,12 @@ body.btcpp-rebrand-page {
   letter-spacing: 0;
 }
 
-.btcpp-rebrand-page .conf-hackathon-redesign__avatars span:first-child {
+.btcpp-rebrand-page .conf-hackathon-redesign__avatars img {
+  object-fit: cover;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__avatars span:first-child,
+.btcpp-rebrand-page .conf-hackathon-redesign__avatars img:first-child {
   margin-left: 0;
   background: var(--rebrand-accent);
 }

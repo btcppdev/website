@@ -1604,6 +1604,7 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 		)
 		SELECT competition_judges.competition_id::text, competition_judges.person_id::text,
 			coalesce(people.name, ''), coalesce(people.email::text, ''),
+			coalesce(people.norm_photo_path, ''),
 			competition_judges.judge_type, competition_judges.created_at
 		FROM deduped competition_judges
 		LEFT JOIN people ON people.id = competition_judges.person_id
@@ -1616,7 +1617,7 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 	var out []*types.CompetitionJudge
 	for rows.Next() {
 		var judge types.CompetitionJudge
-		if err := rows.Scan(&judge.CompetitionID, &judge.PersonID, &judge.Name, &judge.Email, &judge.JudgeType, &judge.CreatedAt); err != nil {
+		if err := rows.Scan(&judge.CompetitionID, &judge.PersonID, &judge.Name, &judge.Email, &judge.Photo, &judge.JudgeType, &judge.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan competition judge %s: %w", competitionID, err)
 		}
 		out = append(out, &judge)

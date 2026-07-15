@@ -6626,6 +6626,94 @@ body.btcpp-checkout-page {
 	text-transform: uppercase;
 }
 
+.hack-prizes {
+	border-bottom: 1px solid var(--hack-ink);
+}
+
+.hack-prizes__head {
+	padding-top: 56px;
+}
+
+.hack-prize-grid {
+	display: grid;
+	grid-template-columns: 1.4fr 1fr 1fr;
+	border-top: 1px solid var(--hack-ink);
+}
+
+.hack-prize-card {
+	display: flex;
+	min-height: 280px;
+	flex-direction: column;
+	justify-content: space-between;
+	padding: 40px 32px;
+	border-right: 1px solid var(--hack-ink);
+	color: var(--hack-ink);
+	text-decoration: none;
+}
+
+.hack-prize-card:last-child {
+	border-right: 0;
+}
+
+.hack-prize-card--grand {
+	padding: 48px 40px;
+	background: var(--hack-ink);
+	color: var(--hack-paper);
+}
+
+.hack-prize-card__place {
+	color: var(--hack-accent);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+}
+
+.hack-prize-card__amount {
+	color: var(--hack-ink);
+	font-size: clamp(52px, 6vw, 96px);
+	font-weight: 700;
+	letter-spacing: 0;
+	line-height: 1;
+}
+
+.hack-prize-card--grand .hack-prize-card__amount {
+	color: var(--hack-paper);
+}
+
+.hack-prize-card:not(.hack-prize-card--grand) .hack-prize-card__amount {
+	font-size: clamp(42px, 5vw, 64px);
+}
+
+.hack-prize-card__title {
+	margin-top: 8px;
+	color: var(--hack-dim);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+}
+
+.hack-prize-card--grand .hack-prize-card__title {
+	color: #a9a39a;
+}
+
+.hack-prize-card__desc {
+	max-width: 380px;
+	margin-top: 16px;
+	color: #5b554d;
+	font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+	font-size: 17px;
+	font-style: italic;
+	line-height: 1.35;
+}
+
+.hack-prize-card--grand .hack-prize-card__desc {
+	color: #e8dccc;
+}
+
 .hack-tabs {
 	display: flex;
 	overflow-x: auto;
@@ -7119,6 +7207,7 @@ body.btcpp-checkout-page {
 	}
 
 	.hack-stat-grid,
+	.hack-prize-grid,
 	.hack-card-grid,
 	.hack-form__grid {
 		grid-template-columns: 1fr;
@@ -7130,6 +7219,16 @@ body.btcpp-checkout-page {
 	}
 
 	.hack-stat:last-child {
+		border-bottom: 0;
+	}
+
+	.hack-prize-card {
+		min-height: 220px;
+		border-right: 0;
+		border-bottom: 1px solid var(--hack-ink);
+	}
+
+	.hack-prize-card:last-child {
 		border-bottom: 0;
 	}
 }
