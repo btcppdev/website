@@ -1205,11 +1205,17 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/finalists", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminAdvanceFinalists(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/mode", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdateJudgingMode(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminCreateJudgeEvent(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events/ranks", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateJudgeEventRanks(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events/state", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdateJudgeEventState(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events/delete", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminDeleteJudgeEvent(w, r, app)

@@ -554,6 +554,32 @@ func (p *HackathonPage) CanManageProject(projectID string) bool {
 	return p != nil && p.OwnedProjects != nil && p.OwnedProjects[projectID]
 }
 
+func (p *HackathonPage) MyProjects() []*types.HackathonProject {
+	if p == nil || len(p.OwnedProjects) == 0 {
+		return nil
+	}
+	out := make([]*types.HackathonProject, 0, len(p.OwnedProjects))
+	for _, project := range p.Projects {
+		if project != nil && p.CanManageProject(project.ID) {
+			out = append(out, project)
+		}
+	}
+	return out
+}
+
+func (p *HackathonPage) GalleryProjects() []*types.HackathonProject {
+	if p == nil || len(p.OwnedProjects) == 0 {
+		return p.Projects
+	}
+	out := make([]*types.HackathonProject, 0, len(p.Projects))
+	for _, project := range p.Projects {
+		if project != nil && !p.CanManageProject(project.ID) {
+			out = append(out, project)
+		}
+	}
+	return out
+}
+
 func (p *HackathonPage) CanAdminEdit() bool {
 	if p == nil || p.Viewer == nil {
 		return false
@@ -610,6 +636,28 @@ func (p *HackathonPage) JudgeTypeLabel(judgeType string) string {
 	}
 }
 
+func (p *HackathonPage) JudgingModeLabel() string {
+	if p == nil {
+		return "Manual"
+	}
+	return judgingModeLabel(p.Competition)
+}
+
+func (p *HackathonPage) JudgeEventStateLabel(event *types.JudgeEvent) string {
+	if p == nil {
+		return judgeEventStateLabel(event)
+	}
+	return judgeEventEffectiveStateLabel(p.Competition, event, time.Now())
+}
+
+func (p *HackathonPage) CurrentJudgeEvent() *types.JudgeEvent {
+	events := currentJudgeEvents(p.Competition, p.JudgeEvents, time.Now())
+	if len(events) == 0 {
+		return nil
+	}
+	return events[0]
+}
+
 func (p *HackathonPage) JudgeNumber(index int) string {
 	return fmt.Sprintf("JUDGE #%02d", index+1)
 }
@@ -656,6 +704,9 @@ func (p *HackathonPage) RankOptionLabel(event *types.JudgeEvent, rank int) strin
 
 func (p *HackathonPage) CanScoreJudgeEvent(event *types.JudgeEvent) bool {
 	if p == nil || event == nil {
+		return false
+	}
+	if !judgeEventAcceptsScores(p.Competition, event, time.Now()) {
 		return false
 	}
 	if p.CanScoreAll {
@@ -1300,6 +1351,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if err != nil {
 		return
 	}
+	currentEvents := currentJudgeEvents(competition, events, time.Now())
 	viewer := hackathonViewerFromIdentity(id, conf)
 	var scorecards []*types.Scorecard
 	if viewer.PersonID != "" {
@@ -1318,16 +1370,20 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Error(w, "Unable to load projects", http.StatusInternalServerError)
 		return
 	}
+	flash := r.URL.Query().Get("flash")
+	if flash == "Rankings saved" {
+		flash = ""
+	}
 	page := &HackathonPage{
 		Competition:  competition,
 		Conf:         conf,
 		Projects:     projects,
-		JudgeEvents:  events,
+		JudgeEvents:  currentEvents,
 		Scorecards:   scorecards,
 		JudgeTypes:   judgeTypes,
 		Viewer:       id,
 		CanScoreAll:  canJudge,
-		FlashMessage: r.URL.Query().Get("flash"),
+		FlashMessage: flash,
 		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
 	}
@@ -1358,6 +1414,10 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		handle404(w, r, ctx)
 		return
 	}
+	if !judgeEventAcceptsScores(competition, event, time.Now()) {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("That judging round is not open for scoring."), http.StatusSeeOther)
+		return
+	}
 	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID) {
 		handle404(w, r, ctx)
 		return
@@ -1372,7 +1432,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Rankings saved")+"#event-"+url.PathEscape(event.ID), http.StatusSeeOther)
+	http.Redirect(w, r, dest+"#event-"+url.PathEscape(event.ID), http.StatusSeeOther)
 }
 
 func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2351,8 +2411,6 @@ func hackathonStatusLabel(status string) string {
 		return "Submitted"
 	case "withdrawn":
 		return "Withdrawn"
-	case "noshow":
-		return "No-show"
 	case "finalist":
 		return "Finalist"
 	case "disqualified":

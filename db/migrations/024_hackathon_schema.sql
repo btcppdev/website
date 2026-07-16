@@ -9,6 +9,7 @@ CREATE TABLE competitions (
   description_format text NOT NULL DEFAULT 'markdown',
   visibility text NOT NULL DEFAULT 'hidden',
   lifecycle_override text NOT NULL DEFAULT '',
+  judging_mode text NOT NULL DEFAULT 'automatic',
   public_gallery_enabled boolean NOT NULL DEFAULT false,
   allow_late_submissions boolean NOT NULL DEFAULT false,
   public_tables_enabled boolean NOT NULL DEFAULT false,
@@ -35,6 +36,7 @@ CREATE TABLE competitions (
   CHECK (description_format IN ('plain', 'markdown', 'html')),
   CHECK (visibility IN ('hidden', 'public')),
   CHECK (lifecycle_override IN ('', 'upcoming', 'open', 'submissions_closed', 'public_gallery', 'closed')),
+  CHECK (judging_mode IN ('manual', 'automatic')),
   CHECK (max_team_size IS NULL OR max_team_size > 0),
   CHECK (submissions_close_at IS NULL OR submissions_open_at IS NULL OR submissions_close_at >= submissions_open_at),
   CHECK (hacking_ends_at IS NULL OR hacking_starts_at IS NULL OR hacking_ends_at >= hacking_starts_at),
@@ -119,7 +121,7 @@ CREATE TABLE projects (
   CHECK (slug <> ''),
   CHECK (title <> ''),
   CHECK (project_number IS NULL OR project_number > 0),
-  CHECK (status IN ('created', 'submitted', 'withdrawn', 'noshow', 'finalist', 'disqualified', 'shipped'))
+  CHECK (status IN ('created', 'submitted', 'withdrawn', 'finalist', 'disqualified', 'shipped'))
 );
 
 CREATE INDEX projects_competition_status_idx ON projects (competition_id, status);
@@ -189,6 +191,7 @@ CREATE TABLE judge_events (
   schedule_segment_id uuid NOT NULL REFERENCES competition_schedule_segments(id) ON DELETE CASCADE,
   name text NOT NULL,
   playbook_type text NOT NULL,
+  state text NOT NULL DEFAULT 'pending',
   ordering integer NOT NULL DEFAULT 0,
   starts_at timestamptz,
   ends_at timestamptz,
@@ -199,6 +202,7 @@ CREATE TABLE judge_events (
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (name <> ''),
   CHECK (playbook_type IN ('expo', 'finals')),
+  CHECK (state IN ('pending', 'open', 'closed')),
   CHECK (ordering >= 0),
   CHECK (starting_project_number IS NULL OR starting_project_number > 0),
   CHECK (rank_limit > 0),
@@ -206,6 +210,9 @@ CREATE TABLE judge_events (
 );
 
 CREATE INDEX judge_events_competition_idx ON judge_events (competition_id, ordering);
+
+CREATE INDEX judge_events_competition_state_idx
+ON judge_events (competition_id, state, ordering);
 
 CREATE UNIQUE INDEX judge_events_schedule_segment_idx
 ON judge_events (schedule_segment_id)
@@ -221,7 +228,6 @@ CREATE TABLE scorecards (
   project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   judge_person_id uuid NOT NULL REFERENCES people(id) ON DELETE CASCADE,
   rank integer,
-  no_show boolean NOT NULL DEFAULT false,
   comments text NOT NULL DEFAULT '',
   submitted_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),

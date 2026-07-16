@@ -60,7 +60,6 @@
               <th scope="col" class="px-4 py-3">Points</th>
               <th scope="col" class="px-4 py-3">Avg rank</th>
               <th scope="col" class="px-4 py-3">Best rank</th>
-              <th scope="col" class="px-4 py-3">No-shows</th>
               <th scope="col" class="px-4 py-3">Award</th>
             </tr>
           </thead>
@@ -73,13 +72,6 @@
               <td class="px-4 py-3 font-medium text-gray-900">{{ .PointsLabel }}</td>
               <td class="px-4 py-3 text-gray-700">{{ .RankAverage }}</td>
               <td class="px-4 py-3 text-gray-700">{{ .BestRank }}</td>
-              <td class="px-4 py-3">
-                {{ if .NoShows }}
-                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">{{ .NoShows }}</span>
-                {{ else }}
-                <span class="text-gray-400">-</span>
-                {{ end }}
-              </td>
               <td class="px-4 py-3">
                 {{ if $.Awards }}
                 <form method="POST" action="{{ $.AwardsURL $.Competition }}/assign" class="flex min-w-64 gap-2">
@@ -127,7 +119,6 @@
               <th scope="col" class="px-4 py-3">Judge</th>
               <th scope="col" class="px-4 py-3">Rank</th>
               <th scope="col" class="px-4 py-3">Points</th>
-              <th scope="col" class="px-4 py-3">Flags</th>
               <th scope="col" class="px-4 py-3">Submitted</th>
             </tr>
           </thead>
@@ -139,19 +130,12 @@
               <td class="px-4 py-3 text-gray-700">{{ $.JudgeName .JudgePersonID }}</td>
               <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .Rank }}</td>
               <td class="px-4 py-3 font-medium text-gray-900">{{ $.ScorecardPoints . }}</td>
-              <td class="px-4 py-3">
-                {{ if .NoShow }}
-                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">No-show</span>
-                {{ else }}
-                <span class="text-gray-400">-</span>
-                {{ end }}
-              </td>
               <td class="whitespace-nowrap px-4 py-3 text-gray-600">{{ with .SubmittedAt }}{{ .Format "Jan 2, 2006 3:04 PM" }}{{ else }}-{{ end }}</td>
             </tr>
             {{ if .Comments }}
             <tr class="bg-gray-50">
               <td class="px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500">Comments</td>
-              <td colspan="6" class="px-4 py-3 text-sm text-gray-700">{{ .Comments }}</td>
+              <td colspan="5" class="px-4 py-3 text-sm text-gray-700">{{ .Comments }}</td>
             </tr>
             {{ end }}
             {{ end }}

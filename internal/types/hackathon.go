@@ -11,6 +11,7 @@ type HackathonCompetition struct {
 	DescriptionFormat     string
 	Visibility            string
 	LifecycleOverride     string
+	JudgingMode           string
 	PublicGalleryEnabled  bool
 	AllowLateSubmissions  bool
 	PublicTablesEnabled   bool
@@ -113,6 +114,7 @@ type JudgeEvent struct {
 	ScheduleSegmentID     string
 	Name                  string
 	PlaybookType          string
+	State                 string
 	Ordering              int
 	StartsAt              *time.Time
 	EndsAt                *time.Time
@@ -128,7 +130,6 @@ type Scorecard struct {
 	ProjectID     string
 	JudgePersonID string
 	Rank          *int
-	NoShow        bool
 	Comments      string
 	SubmittedAt   *time.Time
 	CreatedAt     time.Time

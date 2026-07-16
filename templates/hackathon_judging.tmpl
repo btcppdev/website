@@ -11,7 +11,7 @@
       <span class="hack-ticker__live">▶ Judging</span>
       <span>{{ .Competition.Title }}</span>
       <span>•</span>
-      <span>ranked ballots</span>
+      <span>{{ .JudgingModeLabel }} judging</span>
     </div>
 
     <header class="hack-header">
@@ -31,7 +31,7 @@
           <div class="hack-label">§ Judging</div>
           <h1 style="margin:0;font-size:clamp(48px,7vw,88px);font-weight:700;line-height:.92;">Rank the <span class="hack-serif">projects.</span></h1>
         </div>
-        <div class="hack-section__deck">Choose each rank once per judging event. Scores are calculated from the final rankings.</div>
+        <div class="hack-section__deck">Submit scores for the current judging round. Admins open and advance rounds from the backend unless automatic judging is enabled.</div>
       </div>
     </section>
 
@@ -42,63 +42,47 @@
     <div class="hack-alert hack-alert--error">{{ .FlashError }}</div>
     {{ end }}
 
-    <section class="hack-section">
-      <div class="hack-section__head">
-        <div>
-          <div class="hack-label">§ Events</div>
-          <h2>Judging <span class="hack-serif">windows.</span></h2>
-        </div>
-        <div class="hack-section__deck">Only active events you can score will show ballot forms below.</div>
-      </div>
-      {{ if .JudgeEvents }}
-      <div class="hack-card-grid">
-        {{ range .JudgeEvents }}
-        <article class="hack-card">
-          <div class="hack-card__body">
-            <div class="hack-card__top">
-              <h3>{{ .Name }}</h3>
-              <span class="hack-badge">{{ $.RankLimit . }} ranks</span>
-            </div>
-            <div class="hack-card__desc">{{ $.JudgeTypeLabel .PlaybookType }}{{ if .StartingProjectNumber }} · starts at #{{ .StartingProjectNumber }}{{ end }}</div>
-            <div class="hack-card__links" style="display:block;">
-              {{ if or .StartsAt .EndsAt }}
-              {{ if .StartsAt }}<div>Starts: <time class="hackathon-judging-time" datetime="{{ .StartsAt.Format "2006-01-02T15:04:05Z07:00" }}">{{ .StartsAt.Format "2006-01-02 15:04" }}</time></div>{{ end }}
-              {{ if .EndsAt }}<div>Ends: <time class="hackathon-judging-time" datetime="{{ .EndsAt.Format "2006-01-02T15:04:05Z07:00" }}">{{ .EndsAt.Format "2006-01-02 15:04" }}</time></div>{{ end }}
-              {{ else }}
-              <div>Time TBA</div>
-              {{ end }}
-            </div>
+    {{ $event := .CurrentJudgeEvent }}
+    <section class="hack-section hack-judging-round">
+      {{ if $event }}
+      <div class="hack-current-round">
+        <div class="hack-current-round__label">Current judging round</div>
+        <div class="hack-current-round__body">
+          <div>
+            <div class="hack-label">{{ .JudgeTypeLabel $event.PlaybookType }}</div>
+            <h2>{{ $event.Name }}</h2>
           </div>
-        </article>
-        {{ end }}
-      </div>
-      {{ else }}
-      <div class="hack-empty">No judge events have been set up yet.</div>
-      {{ end }}
-    </section>
-
-    {{ if and .Projects .JudgeEvents }}
-    <section class="hack-section">
-      <div class="hack-section__head">
-        <div>
-          <div class="hack-label">§ Ballots</div>
-          <h2>Save your <span class="hack-serif">rankings.</span></h2>
+          <div class="hack-current-round__meta">
+            <span>{{ .RankLimit $event }} ranks</span>
+            <span>{{ .JudgeEventStateLabel $event }}</span>
+            {{ if $event.StartingProjectNumber }}<span>Starts at #{{ $event.StartingProjectNumber }}</span>{{ end }}
+          </div>
         </div>
-        <div class="hack-section__deck">Each event has its own ballot and save button.</div>
+        <div class="hack-current-round__times">
+          {{ if or $event.StartsAt $event.EndsAt }}
+          {{ if $event.StartsAt }}<div><span>Starts</span><time class="hackathon-judging-time" datetime="{{ $event.StartsAt.Format "2006-01-02T15:04:05Z07:00" }}">{{ $event.StartsAt.Format "2006-01-02 15:04" }}</time></div>{{ end }}
+          {{ if $event.EndsAt }}<div><span>Ends</span><time class="hackathon-judging-time" datetime="{{ $event.EndsAt.Format "2006-01-02T15:04:05Z07:00" }}">{{ $event.EndsAt.Format "2006-01-02 15:04" }}</time></div>{{ end }}
+          {{ else }}
+          <div><span>Schedule</span><strong>Time TBA</strong></div>
+          {{ end }}
+        </div>
       </div>
-      {{ range .JudgeEvents }}
-      {{ if $.CanScoreJudgeEvent . }}
-      {{ $event := . }}
-      <form id="event-{{ .ID }}" method="POST" action="{{ $.JudgingURL }}/scorecards" class="hack-form">
-        <input type="hidden" name="JudgeEventID" value="{{ .ID }}">
+
+      {{ if .Projects }}
+      <form id="event-{{ $event.ID }}" method="POST" action="{{ .JudgingURL }}/scorecards" class="hack-form hack-judging-ballot">
+        {{ if .CanScoreJudgeEvent $event }}
+        <input type="hidden" name="JudgeEventID" value="{{ $event.ID }}">
         <div class="hack-form__body">
           <div class="hack-card__top">
             <div>
-              <div class="hack-label" style="margin-bottom:8px;">{{ $.JudgeTypeLabel .PlaybookType }}</div>
-              <h3 style="margin:0;font-size:32px;font-weight:700;">{{ .Name }}</h3>
+              <div class="hack-label" style="margin-bottom:8px;">Ballot</div>
+              <h3 style="margin:0;font-size:32px;font-weight:700;">Rankings</h3>
             </div>
-            <button type="submit" class="hack-button hack-button--accent">Save rankings →</button>
+            <div class="hack-judging-save">
+              <span data-autosave-status></span>
+            </div>
           </div>
+          <p class="hack-judging-ballot__note">Choose each rank once. Changes save automatically.</p>
         </div>
         <div class="hack-table-wrap">
           <table class="hack-table">
@@ -115,15 +99,11 @@
               <tr>
                 <td>
                   <input type="hidden" name="ProjectID" value="{{ .ID }}">
-                  <div style="font-weight:700;">{{ $.ProjectNumberLabel . }} · {{ .Title }}</div>
+                  <a href="{{ $.ProjectURL . }}" class="hack-judging-project-link">{{ $.ProjectNumberLabel . }} · {{ .Title }}</a>
                   {{ if .ShortDescription }}<div class="hack-list__meta">{{ .ShortDescription }}</div>{{ end }}
                 </td>
-                <td class="hack-field" style="min-width:620px;">
+                <td class="hack-field hack-rank-cell">
                   <fieldset class="hack-rank-picker" aria-label="Rank {{ .Title }}">
-                    <label class="hack-rank-option">
-                      <input type="radio" name="{{ printf "Rank_%s" .ID }}" value="" {{ if not $scorecard }}checked{{ else }}{{ if eq ($.ScoreValue $scorecard.Rank) "" }}checked{{ end }}{{ end }}>
-                      <span>Not ranked</span>
-                    </label>
                     {{ range $.RankOptions $event }}
                     {{ $rank := . }}
                     <label class="hack-rank-option">
@@ -131,6 +111,10 @@
                       <span>{{ $.RankOptionLabel $event . }}</span>
                     </label>
                     {{ end }}
+                    <label class="hack-rank-option">
+                      <input type="radio" name="{{ printf "Rank_%s" .ID }}" value="" {{ if not $scorecard }}checked{{ else }}{{ if eq ($.ScoreValue $scorecard.Rank) "" }}checked{{ end }}{{ end }}>
+                      <span>Not ranked</span>
+                    </label>
                   </fieldset>
                 </td>
               </tr>
@@ -138,11 +122,28 @@
             </tbody>
           </table>
         </div>
+        {{ else }}
+        <div class="hack-empty">This round is not open for your account.</div>
+        {{ end }}
       </form>
+      {{ else }}
+      <div class="hack-empty">No projects are visible for this judging round.</div>
       {{ end }}
+      {{ else }}
+      <div class="hack-current-round hack-current-round--empty">
+        <div class="hack-current-round__label">Current judging round</div>
+        <div class="hack-current-round__body">
+          <div>
+            <div class="hack-label">{{ .JudgingModeLabel }} judging</div>
+            <h2>Judging is not <span class="hack-serif">open.</span></h2>
+          </div>
+          <div class="hack-current-round__meta">
+            <span>Waiting for admin</span>
+          </div>
+        </div>
+      </div>
       {{ end }}
     </section>
-    {{ end }}
 
     <section class="hack-section">
       <div class="hack-section__head">
@@ -155,7 +156,7 @@
       {{ if .Projects }}
       <div class="hack-card-grid">
         {{ range .Projects }}
-        <article id="project-{{ .ID }}" class="hack-card">
+        <article id="project-{{ .ID }}" class="hack-card hack-judging-project-card" role="link" tabindex="0" data-url="{{ $.ProjectURL . }}" aria-label="Open {{ .Title }}">
           <div class="hack-card__body">
             <div class="hack-tags">
               <span class="hack-tag">{{ $.ProjectNumberLabel . }}</span>
@@ -211,6 +212,58 @@
         picker.dataset.currentRank = checked ? checked.value : '';
       }
 
+      for (const card of document.querySelectorAll('.hack-judging-project-card[data-url]')) {
+        function openProjectPage() {
+          const target = card.dataset.url;
+          if (!target) return;
+          window.location.href = target;
+        }
+        card.addEventListener('click', function (event) {
+          if (event.target.closest('a, button, input, label, select, textarea')) return;
+          openProjectPage();
+        });
+        card.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          openProjectPage();
+        });
+      }
+
+      function setSaveStatus(form, text, state) {
+        const status = form.querySelector('[data-autosave-status]');
+        if (!status) return;
+        status.textContent = text;
+        status.dataset.state = state || '';
+      }
+
+      async function saveBallot(form) {
+        if (form.dataset.saving === 'true') {
+          form.dataset.needsSave = 'true';
+          return;
+        }
+        form.dataset.saving = 'true';
+        form.dataset.needsSave = '';
+        setSaveStatus(form, 'Saving...', 'saving');
+        try {
+          const body = new URLSearchParams(new FormData(form));
+          const response = await fetch(form.action, {
+            method: 'POST',
+            body: body,
+            credentials: 'same-origin'
+          });
+          if (!response.ok) throw new Error('save failed');
+          setSaveStatus(form, 'Saved', 'saved');
+        } catch (_) {
+          setSaveStatus(form, 'Save failed', 'error');
+          console.warn('Failed to save hackathon rankings');
+        } finally {
+          form.dataset.saving = '';
+          if (form.dataset.needsSave === 'true') {
+            saveBallot(form);
+          }
+        }
+      }
+
       document.addEventListener('change', function (event) {
         const selected = event.target;
         if (!selected.matches('fieldset[aria-label^="Rank "] input[type="radio"]') || !selected.checked) return;
@@ -238,6 +291,7 @@
             picker.dataset.currentRank = replacement.value;
           }
         }
+        saveBallot(form);
       });
     })();
   </script>

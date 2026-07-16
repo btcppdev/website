@@ -29,11 +29,12 @@ const (
 	CompetitionLifecycleSubmissionsClosed = "submissions_closed"
 	CompetitionLifecyclePublicGallery     = "public_gallery"
 	CompetitionLifecycleClosed            = "closed"
+	CompetitionJudgingModeManual          = "manual"
+	CompetitionJudgingModeAutomatic       = "automatic"
 	ProjectInviteDefaultTTL               = 24 * time.Hour
 	ProjectStatusCreated                  = "created"
 	ProjectStatusSubmitted                = "submitted"
 	ProjectStatusWithdrawn                = "withdrawn"
-	ProjectStatusNoShow                   = "noshow"
 	ProjectStatusFinalist                 = "finalist"
 	ProjectStatusDisqualified             = "disqualified"
 	ProjectStatusShipped                  = "shipped"
@@ -42,6 +43,9 @@ const (
 	JudgeTypeExpo                         = "expo"
 	JudgeTypeFinals                       = "finals"
 	JudgeTypeCoordinator                  = "coordinator"
+	JudgeEventStatePending                = "pending"
+	JudgeEventStateOpen                   = "open"
+	JudgeEventStateClosed                 = "closed"
 	AwardStatusDraft                      = "draft"
 	AwardStatusAvailable                  = "available"
 	AwardStatusUnawarded                  = "unawarded"
@@ -176,6 +180,29 @@ func updateCompetitionVisibilityPostgres(ctx *config.AppContext, competitionID, 
 	`, competitionID, visibility)
 	if err != nil {
 		return fmt.Errorf("update competition %s visibility: %w", competitionID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("competition %s not found", competitionID)
+	}
+	return nil
+}
+
+func updateCompetitionJudgingModePostgres(ctx *config.AppContext, competitionID, mode string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	mode = normalizeCompetitionJudgingMode(mode)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		UPDATE competitions
+		SET judging_mode = $2
+		WHERE id = $1
+	`, competitionID, mode)
+	if err != nil {
+		return fmt.Errorf("update competition %s judging mode: %w", competitionID, err)
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("competition %s not found", competitionID)
@@ -707,7 +734,7 @@ func queryCompetitionsPostgres(ctx *config.AppContext, label, whereSQL string, a
 	}
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, coalesce(conference_id::text, ''), slug, title, description, description_format,
-			visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size, submissions_open_at, submissions_close_at,
+			visibility, lifecycle_override, judging_mode, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size, submissions_open_at, submissions_close_at,
 			public_gallery_at, hacking_starts_at, hacking_ends_at, judges_meeting_at,
 			expo_starts_at, expo_ends_at, expo_judging_starts_at, expo_judging_ends_at,
 			finals_starts_at, finals_ends_at, finals_judging_starts_at,
@@ -895,7 +922,7 @@ func assignMissingProjectNumbersPostgres(ctx *config.AppContext, competitionID s
 			FROM projects
 			WHERE competition_id = $1
 				AND project_number IS NULL
-				AND status IN ($2, $3, $4, $5)
+				AND status IN ($2, $3, $4)
 		), used_numbers AS (
 			SELECT DISTINCT project_number
 			FROM projects
@@ -923,7 +950,7 @@ func assignMissingProjectNumbersPostgres(ctx *config.AppContext, competitionID s
 		SET project_number = numbered.project_number
 		FROM numbered
 		WHERE projects.id = numbered.id
-	`, competitionID, ProjectStatusSubmitted, ProjectStatusFinalist, ProjectStatusNoShow, ProjectStatusShipped)
+	`, competitionID, ProjectStatusSubmitted, ProjectStatusFinalist, ProjectStatusShipped)
 	if err != nil {
 		return 0, fmt.Errorf("assign missing project numbers for competition %s: %w", competitionID, err)
 	}
@@ -1440,7 +1467,7 @@ func listJudgeEventsPostgres(ctx *config.AppContext, competitionID string) ([]*t
 	}
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT id::text, competition_id::text, coalesce(schedule_segment_id::text, ''),
-			name, playbook_type, ordering,
+			name, playbook_type, state, ordering,
 			starts_at, ends_at, starting_project_number, rank_limit, created_at, updated_at
 		FROM judge_events
 		WHERE competition_id::text = $1
@@ -1491,6 +1518,54 @@ func updateJudgeEventRankLimitPostgres(ctx *config.AppContext, competitionID, ju
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("judge event not found")
+	}
+	return nil
+}
+
+func updateJudgeEventStatePostgres(ctx *config.AppContext, competitionID, judgeEventID, state string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	judgeEventID = strings.TrimSpace(judgeEventID)
+	state = normalizeJudgeEventState(state)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if judgeEventID == "" {
+		return fmt.Errorf("judge event is required")
+	}
+	tx, err := ctx.DB.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin update judge event state: %w", err)
+	}
+	defer tx.Rollback(context.Background())
+	if state == JudgeEventStateOpen {
+		if _, err := tx.Exec(context.Background(), `
+			UPDATE judge_events
+			SET state = $3,
+				updated_at = now()
+			WHERE competition_id::text = $1
+				AND id::text <> $2
+				AND state = $4
+		`, competitionID, judgeEventID, JudgeEventStateClosed, JudgeEventStateOpen); err != nil {
+			return fmt.Errorf("close other open judge events: %w", err)
+		}
+	}
+	commandTag, err := tx.Exec(context.Background(), `
+		UPDATE judge_events
+		SET state = $3,
+			updated_at = now()
+		WHERE competition_id::text = $1 AND id::text = $2
+	`, competitionID, judgeEventID, state)
+	if err != nil {
+		return fmt.Errorf("update judge event state %s: %w", judgeEventID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("judge event not found")
+	}
+	if err := tx.Commit(context.Background()); err != nil {
+		return fmt.Errorf("commit update judge event state: %w", err)
 	}
 	return nil
 }
@@ -1645,10 +1720,10 @@ func upsertScorecardPostgres(ctx *config.AppContext, in ScorecardInput) (*types.
 	scorecard, err := scanScorecard(ctx.DB.QueryRow(context.Background(), `
 		INSERT INTO scorecards (
 			judge_event_id, project_id, judge_person_id,
-			rank, no_show, comments, submitted_at
+			rank, comments, submitted_at
 		)
 		SELECT judge_events.id, projects.id, $3,
-			$4, $5, $6, now()
+			$4, $5, now()
 		FROM judge_events
 		JOIN projects ON projects.id::text = $2
 			AND projects.competition_id = judge_events.competition_id
@@ -1656,14 +1731,13 @@ func upsertScorecardPostgres(ctx *config.AppContext, in ScorecardInput) (*types.
 		ON CONFLICT (judge_event_id, project_id, judge_person_id)
 		DO UPDATE SET
 			rank = EXCLUDED.rank,
-			no_show = EXCLUDED.no_show,
 			comments = EXCLUDED.comments,
 			submitted_at = EXCLUDED.submitted_at,
 			updated_at = now()
 		RETURNING id::text, judge_event_id::text, project_id::text, judge_person_id::text,
-			rank, no_show, comments,
+			rank, comments,
 			submitted_at, created_at, updated_at
-	`, in.JudgeEventID, in.ProjectID, in.JudgePersonID, in.Rank, in.NoShow, in.Comments))
+	`, in.JudgeEventID, in.ProjectID, in.JudgePersonID, in.Rank, in.Comments))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("scorecard project and judge event must belong to the same competition")
@@ -1702,9 +1776,9 @@ func replaceScorecardRankingsPostgres(ctx *config.AppContext, in ScorecardRankin
 		}
 		commandTag, err := tx.Exec(context.Background(), `
 			INSERT INTO scorecards (
-				judge_event_id, project_id, judge_person_id, rank, no_show, comments, submitted_at
+				judge_event_id, project_id, judge_person_id, rank, comments, submitted_at
 			)
-			SELECT judge_events.id, projects.id, $3, $4, false, '', now()
+			SELECT judge_events.id, projects.id, $3, $4, '', now()
 			FROM judge_events
 			JOIN projects ON projects.id::text = $2
 				AND projects.competition_id = judge_events.competition_id
@@ -1738,7 +1812,7 @@ func listScorecardsForJudgePostgres(ctx *config.AppContext, competitionID, judge
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT scorecards.id::text, scorecards.judge_event_id::text,
 			scorecards.project_id::text, scorecards.judge_person_id::text,
-			scorecards.rank, scorecards.no_show, scorecards.comments,
+			scorecards.rank, scorecards.comments,
 			scorecards.submitted_at, scorecards.created_at, scorecards.updated_at
 		FROM scorecards
 		JOIN judge_events ON judge_events.id = scorecards.judge_event_id
@@ -1775,7 +1849,7 @@ func listScorecardsForCompetitionPostgres(ctx *config.AppContext, competitionID 
 	rows, err := ctx.DB.Query(context.Background(), `
 		SELECT scorecards.id::text, scorecards.judge_event_id::text,
 			scorecards.project_id::text, scorecards.judge_person_id::text,
-			scorecards.rank, scorecards.no_show, scorecards.comments,
+			scorecards.rank, scorecards.comments,
 			scorecards.submitted_at, scorecards.created_at, scorecards.updated_at
 		FROM scorecards
 		JOIN judge_events ON judge_events.id = scorecards.judge_event_id
@@ -2395,6 +2469,7 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 		&competition.DescriptionFormat,
 		&competition.Visibility,
 		&competition.LifecycleOverride,
+		&competition.JudgingMode,
 		&competition.PublicGalleryEnabled,
 		&competition.AllowLateSubmissions,
 		&competition.PublicTablesEnabled,
@@ -2425,6 +2500,7 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 	}
 	competition.Visibility = normalizeCompetitionVisibility(competition.Visibility)
 	competition.LifecycleOverride = normalizeCompetitionLifecycleOverride(competition.LifecycleOverride)
+	competition.JudgingMode = normalizeCompetitionJudgingMode(competition.JudgingMode)
 	competition.SubmissionsOpenAt = pgTimePtr(submissionsOpenAt)
 	competition.SubmissionsCloseAt = pgTimePtr(submissionsCloseAt)
 	competition.PublicGalleryAt = pgTimePtr(publicGalleryAt)
@@ -2512,6 +2588,7 @@ func scanJudgeEvent(rows pgx.Rows) (*types.JudgeEvent, error) {
 		&event.ScheduleSegmentID,
 		&event.Name,
 		&event.PlaybookType,
+		&event.State,
 		&event.Ordering,
 		&startsAt,
 		&endsAt,
@@ -2524,6 +2601,7 @@ func scanJudgeEvent(rows pgx.Rows) (*types.JudgeEvent, error) {
 	}
 	event.StartsAt = pgTimePtr(startsAt)
 	event.EndsAt = pgTimePtr(endsAt)
+	event.State = normalizeJudgeEventState(event.State)
 	if startingProjectNumber.Valid {
 		n := int(startingProjectNumber.Int64)
 		event.StartingProjectNumber = &n
@@ -2549,7 +2627,6 @@ func scanScorecard(row scanner) (*types.Scorecard, error) {
 		&scorecard.ProjectID,
 		&scorecard.JudgePersonID,
 		&rank,
-		&scorecard.NoShow,
 		&scorecard.Comments,
 		&submittedAt,
 		&scorecard.CreatedAt,
@@ -2758,6 +2835,17 @@ func normalizeCompetitionLifecycleOverride(value string) string {
 	}
 }
 
+func normalizeCompetitionJudgingMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case CompetitionJudgingModeManual:
+		return CompetitionJudgingModeManual
+	case CompetitionJudgingModeAutomatic:
+		return CompetitionJudgingModeAutomatic
+	default:
+		return CompetitionJudgingModeAutomatic
+	}
+}
+
 func normalizeProjectInput(in ProjectInput) ProjectInput {
 	in.CompetitionID = strings.TrimSpace(in.CompetitionID)
 	in.CreatedByPersonID = strings.TrimSpace(in.CreatedByPersonID)
@@ -2787,8 +2875,6 @@ func normalizeProjectStatus(value string) string {
 		return ProjectStatusSubmitted
 	case ProjectStatusWithdrawn:
 		return ProjectStatusWithdrawn
-	case ProjectStatusNoShow:
-		return ProjectStatusNoShow
 	case ProjectStatusFinalist:
 		return ProjectStatusFinalist
 	case ProjectStatusDisqualified:
@@ -2867,6 +2953,17 @@ func normalizeJudgeEventType(value string) string {
 		return JudgeTypeFinals
 	default:
 		return ""
+	}
+}
+
+func normalizeJudgeEventState(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case JudgeEventStateOpen:
+		return JudgeEventStateOpen
+	case JudgeEventStateClosed, "review", "finalized", "skipped":
+		return JudgeEventStateClosed
+	default:
+		return JudgeEventStatePending
 	}
 }
 
