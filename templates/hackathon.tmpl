@@ -45,10 +45,13 @@
     {{ if .FlashError }}
     <div class="mx-6 mt-6 border border-red-700 bg-red-50 px-4 py-3 text-sm text-red-900">{{ .FlashError }}</div>
     {{ end }}
+    {{ $galleryProjects := .GalleryProjects }}
+    {{ $myProjects := .MyProjects }}
 
     <nav class="hack-tabs" aria-label="Hackathon sections">
       <button type="button" data-hackathon-tab="overview" class="hack-tab" aria-selected="true">Overview</button>
-      <button type="button" data-hackathon-tab="projects" class="hack-tab" aria-selected="false">Project gallery · {{ len .Projects }}</button>
+      {{ if .Viewer }}<button type="button" data-hackathon-tab="my-projects" class="hack-tab" aria-selected="false">My projects · {{ len $myProjects }}</button>{{ end }}
+      <button type="button" data-hackathon-tab="projects" class="hack-tab" aria-selected="false">Project gallery · {{ len $galleryProjects }}</button>
       {{ if .Awards }}<button type="button" data-hackathon-tab="awards" class="hack-tab" aria-selected="false">Awards · {{ len .Awards }}</button>{{ end }}
       {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<button type="button" data-hackathon-tab="tables" class="hack-tab" aria-selected="false">Tables</button>{{ end }}
     </nav>
@@ -64,7 +67,7 @@
           <div class="hack-stat__label">{{ with .Competition.MaxTeamSize }}Max builders per team{{ else }}Team size{{ end }}</div>
         </div>
         <div class="hack-stat">
-          <div class="hack-stat__value">{{ len .Projects }}</div>
+          <div class="hack-stat__value">{{ len $galleryProjects }}</div>
           <div class="hack-stat__label">Visible projects</div>
         </div>
         <div class="hack-stat">
@@ -78,7 +81,7 @@
         <div class="hack-section__head hack-prizes__head">
           <div>
             <div class="hack-label">§ Prizes</div>
-            <h2>Crime <span class="hack-serif">pays.</span></h2>
+            <h2>Prize <span class="hack-serif">pool.</span></h2>
           </div>
           <div class="hack-section__deck">Ranked rewards for the top projects. Sponsor bounties can stack on top.</div>
         </div>
@@ -228,45 +231,10 @@
         </div>
         <div class="hack-section__deck">Every visible project from this hackathon, sorted by the current platform rules.</div>
       </div>
-      {{ if .Projects }}
+      {{ if $galleryProjects }}
       <div class="hack-card-grid">
-        {{ range $index, $project := .Projects }}
-        {{ $winningAwards := $.ProjectWinningAwards $project }}
-        <article id="project-{{ $project.ID }}" class="hack-card">
-          <div class="hack-card__media" data-initials="++">
-            {{ if $winningAwards }}<span class="hack-badge" style="position:absolute;top:12px;left:12px;z-index:1;">★ Winner</span>{{ end }}
-          </div>
-          <div class="hack-card__body">
-            <div class="hack-card__top">
-              <h3>{{ $project.Title }}</h3>
-              <div class="hack-card__number">{{ $.ProjectNumberLabel $project }}</div>
-            </div>
-            {{ if $project.ShortDescription }}<div class="hack-card__desc">{{ $project.ShortDescription }}</div>{{ end }}
-            {{ if $winningAwards }}
-            <div class="hack-tags">
-              {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
-            </div>
-            {{ else if $.ProjectIsFinalist $project }}
-            <div class="hack-tags"><span class="hack-badge">Finalist</span></div>
-            {{ end }}
-            {{ if $project.Description }}
-            <div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ $.RichText $project.Description }}</div>
-            {{ end }}
-            {{ if $project.Tags }}
-            <div class="hack-tags">
-              {{ range $project.Tags }}<span class="hack-tag">{{ . }}</span>{{ end }}
-            </div>
-            {{ end }}
-            <div class="hack-card__links">
-              {{ if $project.GitHubURL }}<a href="{{ $project.GitHubURL }}">GitHub</a>{{ end }}
-              {{ if $project.DemoURL }}<a href="{{ $project.DemoURL }}">Demo</a>{{ end }}
-              {{ if $project.VideoURL }}<a href="{{ $project.VideoURL }}">Video</a>{{ end }}
-              {{ if $project.SlidesURL }}<a href="{{ $project.SlidesURL }}">Slides</a>{{ end }}
-              {{ if $project.DocsURL }}<a href="{{ $project.DocsURL }}">Docs</a>{{ end }}
-              {{ if $.CanManageProject $project.ID }}<a href="{{ $.ProjectURL $project }}">Manage</a>{{ end }}
-            </div>
-          </div>
-        </article>
+        {{ range $project := $galleryProjects }}
+        {{ template "hackathon_project_card" (dict "Page" $ "Project" $project "ShowManage" false) }}
         {{ end }}
       </div>
       {{ else }}
@@ -276,6 +244,30 @@
       </div>
       {{ end }}
     </section>
+
+    {{ if .Viewer }}
+    <section data-hackathon-tab-panel="my-projects" class="hack-panel hidden" id="my-projects">
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§ My projects</div>
+          <h2>Your hackathon <span class="hack-serif">builds.</span></h2>
+        </div>
+        <div class="hack-section__deck">Projects where you are listed as a team member. Manage the page, links, teammates, and award opt-ins from here.</div>
+      </div>
+      {{ if $myProjects }}
+      <div class="hack-card-grid">
+        {{ range $project := $myProjects }}
+        {{ template "hackathon_project_card" (dict "Page" $ "Project" $project "ShowManage" true) }}
+        {{ end }}
+      </div>
+      {{ else }}
+      <div class="hack-empty">
+        <p>You are not on any projects for this hackathon yet.</p>
+        {{ if .CanCreate }}<a href="{{ .ProjectNewURL }}" class="hack-button hack-button--accent">Create project →</a>{{ end }}
+      </div>
+      {{ end }}
+    </section>
+    {{ end }}
 
     {{ if .Awards }}
     <section data-hackathon-tab-panel="awards" class="hack-panel hidden hack-awards" id="awards">
@@ -370,8 +362,14 @@
         if (window.location.hash === '#overview') return 'overview';
         if (window.location.hash === '#awards') return 'awards';
         if (window.location.hash === '#tables') return 'tables';
+        if (window.location.hash === '#my-projects') return 'my-projects';
         if (window.location.hash === '#projects') return 'projects';
-        if (window.location.hash.indexOf('#project-') === 0) return 'projects';
+        if (window.location.hash.indexOf('#project-') === 0) {
+          const target = document.getElementById(window.location.hash.slice(1));
+          const panel = target && target.closest('[data-hackathon-tab-panel]');
+          if (panel && panel.dataset.hackathonTabPanel) return panel.dataset.hackathonTabPanel;
+          return 'projects';
+        }
         return 'overview';
       }
 
@@ -417,3 +415,44 @@
   {{ block "footer" . }} {{ end }}
 </body>
 </html>
+
+{{ define "hackathon_project_card" }}
+{{ $page := .Page }}
+{{ $project := .Project }}
+{{ $winningAwards := $page.ProjectWinningAwards $project }}
+<article id="project-{{ $project.ID }}" class="hack-card">
+  <div class="hack-card__media" data-initials="++">
+    {{ if $winningAwards }}<span class="hack-badge" style="position:absolute;top:12px;left:12px;z-index:1;">★ Winner</span>{{ end }}
+  </div>
+  <div class="hack-card__body">
+    <div class="hack-card__top">
+      <h3>{{ $project.Title }}</h3>
+      <div class="hack-card__number">{{ $page.ProjectNumberLabel $project }}</div>
+    </div>
+    {{ if $project.ShortDescription }}<div class="hack-card__desc">{{ $project.ShortDescription }}</div>{{ end }}
+    {{ if $winningAwards }}
+    <div class="hack-tags">
+      {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
+    </div>
+    {{ else if $page.ProjectIsFinalist $project }}
+    <div class="hack-tags"><span class="hack-badge">Finalist</span></div>
+    {{ end }}
+    {{ if $project.Description }}
+    <div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ $page.RichText $project.Description }}</div>
+    {{ end }}
+    {{ if $project.Tags }}
+    <div class="hack-tags">
+      {{ range $project.Tags }}<span class="hack-tag">{{ . }}</span>{{ end }}
+    </div>
+    {{ end }}
+    <div class="hack-card__links">
+      {{ if $project.GitHubURL }}<a href="{{ $project.GitHubURL }}">GitHub</a>{{ end }}
+      {{ if $project.DemoURL }}<a href="{{ $project.DemoURL }}">Demo</a>{{ end }}
+      {{ if $project.VideoURL }}<a href="{{ $project.VideoURL }}">Video</a>{{ end }}
+      {{ if $project.SlidesURL }}<a href="{{ $project.SlidesURL }}">Slides</a>{{ end }}
+      {{ if $project.DocsURL }}<a href="{{ $project.DocsURL }}">Docs</a>{{ end }}
+      {{ if .ShowManage }}<a href="{{ $page.ProjectURL $project }}">Manage</a>{{ end }}
+    </div>
+  </div>
+</article>
+{{ end }}

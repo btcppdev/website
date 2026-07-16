@@ -80,7 +80,7 @@
 
 .dashboard-affiliate-cta__side {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: 1fr;
 	align-content: stretch;
 	border: 1px solid #333;
 }
@@ -7140,6 +7140,159 @@ body.btcpp-checkout-page {
 	text-transform: uppercase;
 }
 
+.hack-judging-round {
+	padding-top: 0;
+}
+
+.hack-current-round {
+	border-top: 1px solid var(--hack-ink);
+	border-bottom: 1px solid var(--hack-ink);
+	background: var(--hack-accent);
+	color: #000;
+}
+
+.hack-current-round--empty {
+	background: #fff;
+	color: var(--hack-ink);
+}
+
+.hack-current-round__label {
+	padding: 16px 56px;
+	border-bottom: 1px solid var(--hack-ink);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+}
+
+.hack-current-round__body {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 32px;
+	align-items: end;
+	padding: 44px 56px;
+}
+
+.hack-current-round__body h2 {
+	margin: 0;
+	font-size: clamp(44px, 6vw, 76px);
+	font-weight: 700;
+	letter-spacing: 0;
+	line-height: 0.95;
+}
+
+.hack-current-round__meta {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+	max-width: 360px;
+}
+
+.hack-current-round__meta span {
+	border: 1px solid #000;
+	padding: 8px 10px;
+	background: rgba(255, 255, 255, 0.45);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 1.1px;
+	text-transform: uppercase;
+}
+
+.hack-current-round__times {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	border-top: 1px solid var(--hack-ink);
+}
+
+.hack-current-round__times > div {
+	display: grid;
+	gap: 6px;
+	padding: 18px 56px;
+	border-right: 1px solid var(--hack-ink);
+}
+
+.hack-current-round__times > div:last-child {
+	border-right: 0;
+}
+
+.hack-current-round__times span {
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 1.2px;
+	text-transform: uppercase;
+}
+
+.hack-current-round__times time,
+.hack-current-round__times strong {
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.hack-judging-ballot {
+	border-top: 0;
+}
+
+.hack-judging-ballot__note {
+	margin: 10px 0 0;
+	color: var(--hack-dim);
+	font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+	font-size: 18px;
+	font-style: italic;
+	line-height: 1.4;
+}
+
+.hack-judging-project-link {
+	color: var(--hack-ink);
+	font-weight: 700;
+	text-decoration: underline;
+	text-underline-offset: 0.18em;
+}
+
+.hack-judging-project-card {
+	cursor: pointer;
+}
+
+.hack-judging-project-card:focus-visible {
+	outline: 3px solid var(--hack-indigo);
+	outline-offset: 3px;
+}
+
+.hack-judging-save {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 12px;
+}
+
+.hack-judging-save [data-autosave-status] {
+	color: var(--hack-dim);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 1.2px;
+	text-transform: uppercase;
+}
+
+.hack-judging-save [data-autosave-status]:empty {
+	display: none;
+}
+
+.hack-judging-save [data-autosave-status][data-state="saving"] {
+	color: #92400e;
+}
+
+.hack-judging-save [data-autosave-status][data-state="saved"] {
+	color: #166534;
+}
+
+.hack-judging-save [data-autosave-status][data-state="error"] {
+	color: #991b1b;
+}
+
 .hack-empty {
 	padding: 56px;
 	border-top: 1px solid var(--hack-ink);
@@ -7214,6 +7367,10 @@ body.btcpp-checkout-page {
 	border: 0;
 	min-width: max-content;
 	padding: 0;
+}
+
+.hack-rank-cell {
+	min-width: min(620px, 100%);
 }
 
 .hack-field .hack-rank-option {
@@ -7355,7 +7512,10 @@ body.btcpp-checkout-page {
 	.hack-copy,
 	.hack-side,
 	.hack-form__body,
-	.hack-form__actions {
+	.hack-form__actions,
+	.hack-current-round__label,
+	.hack-current-round__body,
+	.hack-current-round__times > div {
 		padding-left: 24px;
 		padding-right: 24px;
 	}
@@ -7377,8 +7537,28 @@ body.btcpp-checkout-page {
 	.hack-section__head,
 	.hack-overview-grid,
 	.hack-submit,
-	.hack-submit__panel {
+	.hack-submit__panel,
+	.hack-current-round__body,
+	.hack-current-round__times {
 		grid-template-columns: 1fr;
+	}
+
+	.hack-current-round__meta {
+		justify-content: flex-start;
+	}
+
+	.hack-current-round__times > div {
+		border-right: 0;
+		border-bottom: 1px solid var(--hack-ink);
+	}
+
+	.hack-current-round__times > div:last-child {
+		border-bottom: 0;
+	}
+
+	.hack-judging-save {
+		align-items: stretch;
+		flex-direction: column;
 	}
 
 	.hack-side {
@@ -7410,6 +7590,21 @@ body.btcpp-checkout-page {
 
 	.hack-prize-card:last-child {
 		border-bottom: 0;
+	}
+
+	.hack-rank-cell {
+		min-width: 0;
+	}
+
+	.hack-rank-picker {
+		grid-auto-columns: auto;
+		grid-auto-flow: row;
+		grid-template-columns: 1fr;
+		min-width: 0;
+	}
+
+	.hack-rank-option span {
+		white-space: normal;
 	}
 }
 /* Final dashboard affiliate overrides: keep this after legacy dashboard rules. */

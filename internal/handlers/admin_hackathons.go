@@ -66,7 +66,6 @@ type HackathonScoreSummary struct {
 	ProjectNumber    string
 	Scorecards       int
 	ScoredScorecards int
-	NoShows          int
 	Points           int
 	PointsLabel      string
 	RankAverage      string
@@ -399,6 +398,34 @@ func (p *HackathonAdminPage) RankLimit(event *types.JudgeEvent) int {
 	return judgeEventRankLimit(event)
 }
 
+func (p *HackathonAdminPage) JudgingModeLabel() string {
+	return judgingModeLabel(p.Competition)
+}
+
+func (p *HackathonAdminPage) JudgingMode() string {
+	return competitionJudgingMode(p.Competition)
+}
+
+func (p *HackathonAdminPage) JudgingModeIsManual() bool {
+	return p.JudgingMode() == getters.CompetitionJudgingModeManual
+}
+
+func (p *HackathonAdminPage) JudgingModeIsAutomatic() bool {
+	return p.JudgingMode() == getters.CompetitionJudgingModeAutomatic
+}
+
+func (p *HackathonAdminPage) JudgeEventStateLabel(event *types.JudgeEvent) string {
+	return judgeEventStateLabel(event)
+}
+
+func (p *HackathonAdminPage) JudgeEventEffectiveStateLabel(event *types.JudgeEvent) string {
+	return judgeEventEffectiveStateLabel(p.Competition, event, time.Now())
+}
+
+func (p *HackathonAdminPage) JudgeEventAcceptsScores(event *types.JudgeEvent) bool {
+	return judgeEventAcceptsScores(p.Competition, event, time.Now())
+}
+
 func (p *HackathonAdminPage) ScheduleSegmentTimeRange(segment *types.CompetitionScheduleSegment) string {
 	if p == nil || segment == nil {
 		return "Not scheduled"
@@ -495,7 +522,7 @@ func (p *HackathonAdminPage) ScoreModeLabel(mode string) string {
 }
 
 func (p *HackathonAdminPage) ScorecardPoints(scorecard *types.Scorecard) string {
-	if scorecard == nil || scorecard.NoShow {
+	if scorecard == nil {
 		return "-"
 	}
 	if scorecard.Rank == nil {
@@ -1518,6 +1545,47 @@ func HackathonAdminUpdateJudgeEventRanks(w http.ResponseWriter, r *http.Request,
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Rank counts saved"), http.StatusSeeOther)
 }
 
+func HackathonAdminUpdateJudgingMode(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	mode := strings.TrimSpace(r.FormValue("JudgingMode"))
+	if err := getters.UpdateCompetitionJudgingMode(ctx, competitionID, mode); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/mode: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to save judging mode"), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judging mode saved"), http.StatusSeeOther)
+}
+
+func HackathonAdminUpdateJudgeEventState(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	eventID := strings.TrimSpace(r.FormValue("JudgeEventID"))
+	state := strings.TrimSpace(r.FormValue("State"))
+	if err := getters.UpdateJudgeEventState(ctx, competitionID, eventID, state); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/events/state %s: %s", competitionID, eventID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to update judging event"), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judging event updated"), http.StatusSeeOther)
+}
+
 func HackathonAdminCreateJudgeEvent(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
@@ -2470,10 +2538,6 @@ func scoreModeLabel(mode string) string {
 
 func (a *scoreSummaryAccumulator) add(scorecard *types.Scorecard) {
 	a.summary.Scorecards++
-	if scorecard.NoShow {
-		a.summary.NoShows++
-		return
-	}
 	if scorecard.Rank != nil {
 		points := rankPoints(a.events[scorecard.JudgeEventID], *scorecard.Rank)
 		if points <= 0 {
@@ -2518,6 +2582,83 @@ func rankPoints(event *types.JudgeEvent, rank int) int {
 		return 0
 	}
 	return limit - rank + 1
+}
+
+func competitionJudgingMode(competition *types.HackathonCompetition) string {
+	if competition != nil && strings.TrimSpace(competition.JudgingMode) == getters.CompetitionJudgingModeManual {
+		return getters.CompetitionJudgingModeManual
+	}
+	return getters.CompetitionJudgingModeAutomatic
+}
+
+func judgingModeLabel(competition *types.HackathonCompetition) string {
+	if competitionJudgingMode(competition) == getters.CompetitionJudgingModeAutomatic {
+		return "Automatic"
+	}
+	return "Manual"
+}
+
+func judgeEventState(event *types.JudgeEvent) string {
+	if event == nil {
+		return getters.JudgeEventStatePending
+	}
+	switch strings.TrimSpace(event.State) {
+	case getters.JudgeEventStateOpen:
+		return getters.JudgeEventStateOpen
+	case getters.JudgeEventStateClosed:
+		return getters.JudgeEventStateClosed
+	default:
+		return getters.JudgeEventStatePending
+	}
+}
+
+func judgeEventStateLabel(event *types.JudgeEvent) string {
+	return judgeEventStateValueLabel(judgeEventState(event))
+}
+
+func judgeEventStateValueLabel(state string) string {
+	switch state {
+	case getters.JudgeEventStateOpen:
+		return "Open"
+	case getters.JudgeEventStateClosed:
+		return "Closed"
+	default:
+		return "Pending"
+	}
+}
+
+func judgeEventEffectiveState(competition *types.HackathonCompetition, event *types.JudgeEvent, now time.Time) string {
+	state := judgeEventState(event)
+	if competitionJudgingMode(competition) != getters.CompetitionJudgingModeAutomatic {
+		return state
+	}
+	if event == nil || event.StartsAt == nil {
+		return getters.JudgeEventStatePending
+	}
+	if now.Before(*event.StartsAt) {
+		return getters.JudgeEventStatePending
+	}
+	if event.EndsAt == nil || now.Before(*event.EndsAt) || now.Equal(*event.EndsAt) {
+		return getters.JudgeEventStateOpen
+	}
+	return getters.JudgeEventStateClosed
+}
+
+func judgeEventEffectiveStateLabel(competition *types.HackathonCompetition, event *types.JudgeEvent, now time.Time) string {
+	return judgeEventStateValueLabel(judgeEventEffectiveState(competition, event, now))
+}
+
+func judgeEventAcceptsScores(competition *types.HackathonCompetition, event *types.JudgeEvent, now time.Time) bool {
+	return judgeEventEffectiveState(competition, event, now) == getters.JudgeEventStateOpen
+}
+
+func currentJudgeEvents(competition *types.HackathonCompetition, events []*types.JudgeEvent, now time.Time) []*types.JudgeEvent {
+	for _, event := range events {
+		if judgeEventAcceptsScores(competition, event, now) {
+			return []*types.JudgeEvent{event}
+		}
+	}
+	return nil
 }
 
 func ordinal(n int) string {

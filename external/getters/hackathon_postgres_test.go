@@ -441,13 +441,12 @@ func TestHackathonJudgingSetup(t *testing.T) {
 		ProjectID:     projectID,
 		JudgePersonID: judgeID,
 		Rank:          &rank,
-		NoShow:        true,
 		Comments:      "updated",
 	})
 	if err != nil {
 		t.Fatalf("UpsertScorecard update: %v", err)
 	}
-	if scorecard.Rank == nil || *scorecard.Rank != rank || !scorecard.NoShow || scorecard.Comments != "updated" {
+	if scorecard.Rank == nil || *scorecard.Rank != rank || scorecard.Comments != "updated" {
 		t.Fatalf("updated scorecard mismatch: %+v", scorecard)
 	}
 	if err := ReplaceScorecardRankings(ctx, ScorecardRankingsInput{

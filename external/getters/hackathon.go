@@ -64,7 +64,6 @@ type ScorecardInput struct {
 	ProjectID     string
 	JudgePersonID string
 	Rank          *int
-	NoShow        bool
 	Comments      string
 }
 
@@ -111,6 +110,10 @@ func UpdateCompetition(ctx *config.AppContext, competitionID string, in Competit
 
 func UpdateCompetitionVisibility(ctx *config.AppContext, competitionID, visibility string) error {
 	return updateCompetitionVisibilityPostgres(ctx, competitionID, visibility)
+}
+
+func UpdateCompetitionJudgingMode(ctx *config.AppContext, competitionID, mode string) error {
+	return updateCompetitionJudgingModePostgres(ctx, competitionID, mode)
 }
 
 func GetCompetitionByID(ctx *config.AppContext, competitionID string) (*types.HackathonCompetition, error) {
@@ -231,6 +234,10 @@ func ListJudgeEvents(ctx *config.AppContext, competitionID string) ([]*types.Jud
 
 func UpdateJudgeEventRankLimit(ctx *config.AppContext, competitionID, judgeEventID string, rankLimit int) error {
 	return updateJudgeEventRankLimitPostgres(ctx, competitionID, judgeEventID, rankLimit)
+}
+
+func UpdateJudgeEventState(ctx *config.AppContext, competitionID, judgeEventID, state string) error {
+	return updateJudgeEventStatePostgres(ctx, competitionID, judgeEventID, state)
 }
 
 func DeleteJudgeEvent(ctx *config.AppContext, competitionID, judgeEventID string) error {

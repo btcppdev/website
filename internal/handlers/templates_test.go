@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
@@ -116,14 +117,13 @@ func TestHackathonScoreSummaries(t *testing.T) {
 			JudgeEventID: "expo",
 			Rank:         &rankOne,
 		},
-		{ProjectID: "high", NoShow: true},
 	}
 	summaries := hackathonScoreSummaries(projects, scorecards, events)
 	if len(summaries) != 3 {
 		t.Fatalf("summaries len = %d, want 3", len(summaries))
 	}
-	if summaries[0].ProjectID != "high" || summaries[0].Points != 4 || summaries[0].NoShows != 1 {
-		t.Fatalf("first summary = %+v, want high score with one no-show", summaries[0])
+	if summaries[0].ProjectID != "high" || summaries[0].Points != 4 {
+		t.Fatalf("first summary = %+v, want high score", summaries[0])
 	}
 	if summaries[1].ProjectID != "low" || summaries[1].Points != 3 || summaries[1].RankAverage != "2.0" || summaries[1].BestRank != "2" {
 		t.Fatalf("second summary = %+v, want low project rank data", summaries[1])
@@ -164,5 +164,35 @@ func TestHackathonFinalistSelections(t *testing.T) {
 
 	if finalists := hackathonFinalistSelections(projects, scorecards, events, hackathonScoreModeExpo, 0); len(finalists) != 0 {
 		t.Fatalf("zero finalist count returned %+v, want empty", finalists)
+	}
+}
+
+func TestCurrentJudgeEvents(t *testing.T) {
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	before := now.Add(-time.Hour)
+	after := now.Add(time.Hour)
+
+	manual := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeManual}
+	manualEvents := []*types.JudgeEvent{
+		{ID: "pending", State: getters.JudgeEventStatePending},
+		{ID: "open", State: getters.JudgeEventStateOpen},
+	}
+	if got := currentJudgeEvents(manual, manualEvents, now); len(got) != 1 || got[0].ID != "open" {
+		t.Fatalf("manual current events = %+v, want open", got)
+	}
+
+	automatic := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeAutomatic}
+	autoEvents := []*types.JudgeEvent{
+		{ID: "future", StartsAt: &after},
+		{ID: "current", StartsAt: &before, EndsAt: &after},
+	}
+	if got := currentJudgeEvents(automatic, autoEvents, now); len(got) != 1 || got[0].ID != "current" {
+		t.Fatalf("automatic current events = %+v, want current", got)
+	}
+
+	endedAt := now.Add(-time.Minute)
+	closed := []*types.JudgeEvent{{ID: "done", StartsAt: &before, EndsAt: &endedAt}}
+	if got := currentJudgeEvents(automatic, closed, now); len(got) != 0 {
+		t.Fatalf("closed automatic event = %+v, want none", got)
 	}
 }
