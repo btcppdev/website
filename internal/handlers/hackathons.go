@@ -39,6 +39,7 @@ type HackathonPage struct {
 	Members                     []*types.ProjectMember
 	JudgeEvents                 []*types.JudgeEvent
 	Scorecards                  []*types.Scorecard
+	Judges                      []*types.CompetitionJudge
 	JudgeTypes                  map[string]bool
 	Awards                      []*types.Award
 	OptInAwards                 []*types.Award
@@ -607,6 +608,10 @@ func (p *HackathonPage) JudgeTypeLabel(judgeType string) string {
 	default:
 		return strings.TrimSpace(judgeType)
 	}
+}
+
+func (p *HackathonPage) JudgeNumber(index int) string {
+	return fmt.Sprintf("JUDGE #%02d", index+1)
 }
 
 func (p *HackathonPage) Scorecard(projectID, judgeEventID string) *types.Scorecard {
@@ -1229,6 +1234,12 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		http.Error(w, "Unable to load prizes", http.StatusInternalServerError)
 		return
 	}
+	judges, err := getters.ListCompetitionJudges(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s judges: %s", competition.Slug, err)
+		http.Error(w, "Unable to load judges", http.StatusInternalServerError)
+		return
+	}
 	scheduleEvents, err := loadHackathonScheduleEvents(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s schedule events: %s", competition.Slug, err)
@@ -1239,6 +1250,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Competition:        competition,
 		Conf:               conf,
 		Projects:           projects,
+		Judges:             judges,
 		Awards:             awards,
 		PrizesByAward:      prizesByAward,
 		PrizePoolByAward:   prizePoolByAward,
@@ -1675,8 +1687,7 @@ func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string) ([]
 			awardeesByAward[projectAward.AwardID] = append(awardeesByAward[projectAward.AwardID], projectAward)
 		}
 	}
-	prizePoolAwardIDs := map[string]bool{}
-	publicAwardIDs := map[string]bool{}
+	activeAwardIDs := map[string]bool{}
 	publicAwards := make([]*types.Award, 0, len(awards))
 	for _, award := range awards {
 		if award == nil {
@@ -1684,13 +1695,11 @@ func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string) ([]
 		}
 		switch award.Status {
 		case getters.AwardStatusAvailable, getters.AwardStatusAwarded:
-			prizePoolAwardIDs[award.ID] = true
-		}
-		if award.Status != getters.AwardStatusAwarded || len(awardeesByAward[award.ID]) == 0 {
+			activeAwardIDs[award.ID] = true
+			publicAwards = append(publicAwards, award)
+		default:
 			continue
 		}
-		publicAwardIDs[award.ID] = true
-		publicAwards = append(publicAwards, award)
 	}
 	prizesByAward := make(map[string][]*types.Prize)
 	prizePoolByAward := make(map[string][]*types.Prize)
@@ -1698,15 +1707,13 @@ func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string) ([]
 		if prize == nil {
 			continue
 		}
-		if publicAwardIDs[prize.AwardID] {
+		if activeAwardIDs[prize.AwardID] {
 			prizesByAward[prize.AwardID] = append(prizesByAward[prize.AwardID], prize)
-		}
-		if prizePoolAwardIDs[prize.AwardID] {
 			prizePoolByAward[prize.AwardID] = append(prizePoolByAward[prize.AwardID], prize)
 		}
 	}
 	publicAwardeesByAward := make(map[string][]*types.ProjectAward)
-	for awardID := range publicAwardIDs {
+	for awardID := range activeAwardIDs {
 		publicAwardeesByAward[awardID] = awardeesByAward[awardID]
 	}
 	return publicAwards, prizesByAward, prizePoolByAward, publicAwardeesByAward, nil
