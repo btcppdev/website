@@ -57,7 +57,7 @@
               <div class="flex-1">
                 <div>
                   <div class="text-sm font-semibold text-gray-900">{{ .Name }}</div>
-                  <div class="mt-1 text-xs text-gray-500">{{ $.JudgeTypeLabel .PlaybookType }} · {{ $.JudgeEventTimeRange . }}{{ if .StartingProjectNumber }} · starts at #{{ .StartingProjectNumber }}{{ end }}</div>
+                  <div class="mt-1 text-xs text-gray-500">{{ $.JudgeTypeLabel .PlaybookType }} · {{ $.JudgeEventTimeOnlyRange . }}{{ if .StartingProjectNumber }} · starts at #{{ .StartingProjectNumber }}{{ end }}</div>
                   <div class="mt-2 flex flex-wrap gap-2">
                     <span class="rounded-full {{ if $.JudgeEventAcceptsScores . }}bg-green-50 text-green-700{{ else }}bg-gray-200 text-gray-700{{ end }} px-2 py-0.5 text-xs font-medium">{{ $.JudgeEventEffectiveStateLabel . }}</span>
                   </div>

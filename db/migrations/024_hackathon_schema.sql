@@ -35,7 +35,7 @@ CREATE TABLE competitions (
   CHECK (title <> ''),
   CHECK (description_format IN ('plain', 'markdown', 'html')),
   CHECK (visibility IN ('hidden', 'public')),
-  CHECK (lifecycle_override IN ('', 'upcoming', 'open', 'submissions_closed', 'public_gallery', 'closed')),
+  CHECK (lifecycle_override IN ('', 'upcoming', 'open', 'submissions_closed', 'closed')),
   CHECK (judging_mode IN ('manual', 'automatic')),
   CHECK (max_team_size IS NULL OR max_team_size > 0),
   CHECK (submissions_close_at IS NULL OR submissions_open_at IS NULL OR submissions_close_at >= submissions_open_at),
@@ -104,6 +104,9 @@ CREATE TABLE projects (
   title text NOT NULL,
   short_description text NOT NULL DEFAULT '',
   description text NOT NULL DEFAULT '',
+  description_format text NOT NULL DEFAULT 'markdown',
+  image_url text NOT NULL DEFAULT '',
+  image_urls text[] NOT NULL DEFAULT '{}',
   github_url text NOT NULL DEFAULT '',
   demo_url text NOT NULL DEFAULT '',
   video_url text NOT NULL DEFAULT '',
@@ -113,15 +116,15 @@ CREATE TABLE projects (
   status text NOT NULL DEFAULT 'created',
   tags text[] NOT NULL DEFAULT '{}',
   submitted_at timestamptz,
-  shipped_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (competition_id, slug),
   UNIQUE (competition_id, project_number),
   CHECK (slug <> ''),
   CHECK (title <> ''),
+  CHECK (description_format IN ('plain', 'markdown', 'html')),
   CHECK (project_number IS NULL OR project_number > 0),
-  CHECK (status IN ('created', 'submitted', 'withdrawn', 'finalist', 'disqualified', 'shipped'))
+  CHECK (status IN ('created', 'submitted', 'hidden', 'advanced'))
 );
 
 CREATE INDEX projects_competition_status_idx ON projects (competition_id, status);

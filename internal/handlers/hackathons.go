@@ -4,11 +4,15 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	stdhtml "html"
 	"html/template"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -53,12 +57,15 @@ type HackathonPage struct {
 	Viewer                      *auth.Identity
 	OwnedProjects               map[string]bool
 	IsNew                       bool
+	IsProjectEditor             bool
 	CanCreate                   bool
 	CanEdit                     bool
 	CanSubmit                   bool
 	CanJudge                    bool
 	CanScoreAll                 bool
+	CanRemoveProjectMembers     bool
 	InviteLink                  string
+	InviteQRCodeURI             string
 	FlashMessage                string
 	FlashError                  string
 	Year                        uint
@@ -523,6 +530,14 @@ func (p *HackathonPage) ProjectURL(project *types.HackathonProject) string {
 	return base + "/projects/" + url.PathEscape(project.ID)
 }
 
+func (p *HackathonPage) ProjectEditURL(project *types.HackathonProject) string {
+	projectURL := p.ProjectURL(project)
+	if projectURL == "" {
+		return ""
+	}
+	return projectURL + "/edit"
+}
+
 func (p *HackathonPage) ProjectSubmitURL(project *types.HackathonProject) string {
 	projectURL := p.ProjectURL(project)
 	if projectURL == "" {
@@ -537,6 +552,14 @@ func (p *HackathonPage) ProjectInviteURL(project *types.HackathonProject) string
 		return ""
 	}
 	return projectURL + "/invites"
+}
+
+func (p *HackathonPage) ProjectMemberRemoveURL(project *types.HackathonProject) string {
+	projectURL := p.ProjectURL(project)
+	if projectURL == "" {
+		return ""
+	}
+	return projectURL + "/team/remove"
 }
 
 func (p *HackathonPage) LoginURL() string {
@@ -568,16 +591,10 @@ func (p *HackathonPage) MyProjects() []*types.HackathonProject {
 }
 
 func (p *HackathonPage) GalleryProjects() []*types.HackathonProject {
-	if p == nil || len(p.OwnedProjects) == 0 {
+	if p == nil {
 		return p.Projects
 	}
-	out := make([]*types.HackathonProject, 0, len(p.Projects))
-	for _, project := range p.Projects {
-		if project != nil && !p.CanManageProject(project.ID) {
-			out = append(out, project)
-		}
-	}
-	return out
+	return p.Projects
 }
 
 func (p *HackathonPage) CanAdminEdit() bool {
@@ -612,8 +629,8 @@ func (p *HackathonPage) ProjectStatusLabel(status string) string {
 	return hackathonStatusLabel(status)
 }
 
-func (p *HackathonPage) ProjectIsFinalist(project *types.HackathonProject) bool {
-	return project != nil && project.Status == getters.ProjectStatusFinalist
+func (p *HackathonPage) ProjectIsAdvanced(project *types.HackathonProject) bool {
+	return project != nil && project.Status == getters.ProjectStatusAdvanced
 }
 
 func (p *HackathonPage) ProjectNumberLabel(project *types.HackathonProject) string {
@@ -839,6 +856,31 @@ func (p *HackathonPage) DescriptionHTML(value, format string) template.HTML {
 	return hackathonDescriptionHTML(value, format)
 }
 
+func (p *HackathonPage) ProjectDescriptionHTML(project *types.HackathonProject) template.HTML {
+	if project == nil {
+		return ""
+	}
+	return hackathonDescriptionHTML(project.Description, project.DescriptionFormat)
+}
+
+func (p *HackathonPage) ProjectImageGallery(project *types.HackathonProject) []string {
+	if project == nil {
+		return nil
+	}
+	values := append([]string{project.ImageURL}, project.ImageURLs...)
+	seen := make(map[string]bool, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
 func (p *HackathonPage) NextMilestoneLabel() string {
 	if p == nil {
 		return ""
@@ -1002,6 +1044,28 @@ func formatJudgeEventTimeRange(event *types.JudgeEvent, conf *types.Conf) string
 		return start.Format("Jan 2, 2006 3:04 PM") + " - " + end.Format("3:04 PM MST")
 	}
 	return start.Format("Jan 2, 2006 3:04 PM MST") + " - " + end.Format("Jan 2, 2006 3:04 PM MST")
+}
+
+func formatJudgeEventTimeOnlyRange(event *types.JudgeEvent, conf *types.Conf) string {
+	if event == nil || (event.StartsAt == nil && event.EndsAt == nil) {
+		return ""
+	}
+	loc := time.Local
+	if conf != nil {
+		loc = conf.Loc()
+	}
+	if event.StartsAt == nil {
+		return event.EndsAt.In(loc).Format("3:04 PM MST")
+	}
+	if event.EndsAt == nil {
+		return event.StartsAt.In(loc).Format("3:04 PM MST")
+	}
+	start := event.StartsAt.In(loc)
+	end := event.EndsAt.In(loc)
+	if start.Format("2006-01-02") == end.Format("2006-01-02") {
+		return start.Format("3:04 PM") + " - " + end.Format("3:04 PM MST")
+	}
+	return start.Format("3:04 PM MST") + " - " + end.Format("3:04 PM MST")
 }
 
 func hackathonNextMilestoneTime(competition *types.HackathonCompetition) (string, *time.Time) {
@@ -1370,6 +1434,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Error(w, "Unable to load projects", http.StatusInternalServerError)
 		return
 	}
+	projects = projectsForJudgeEvents(projects, events, currentEvents)
 	flash := r.URL.Query().Get("flash")
 	if flash == "Rankings saved" {
 		flash = ""
@@ -1422,7 +1487,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		handle404(w, r, ctx)
 		return
 	}
-	if err := validateScorecardRankings(ctx, competition, viewer, event, in.Rankings); err != nil {
+	if err := validateScorecardRankings(ctx, competition, viewer, events, event, in.Rankings); err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
@@ -1449,16 +1514,17 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 	page := &HackathonPage{
-		Competition:  competition,
-		Conf:         conf,
-		Project:      &types.HackathonProject{CompetitionID: competition.ID},
-		Viewer:       id,
-		IsNew:        true,
-		CanEdit:      true,
-		CanSubmit:    false,
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		Year:         helpers.CurrentYear(),
+		Competition:     competition,
+		Conf:            conf,
+		Project:         &types.HackathonProject{CompetitionID: competition.ID},
+		Viewer:          id,
+		IsNew:           true,
+		IsProjectEditor: true,
+		CanEdit:         true,
+		CanSubmit:       false,
+		FlashMessage:    r.URL.Query().Get("flash"),
+		FlashError:      r.URL.Query().Get("error"),
+		Year:            helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_project.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/new template: %s", competition.Slug, err)
@@ -1485,7 +1551,7 @@ func HackathonProjectCreate(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, base+"?error="+url.QueryEscape("Your account needs a person profile before you can create a project."), http.StatusSeeOther)
 		return
 	}
-	in, err := projectInputFromRequest(w, r, competition.ID)
+	in, err := projectInputFromRequest(ctx, w, r, competition.ID)
 	if err != nil {
 		http.Redirect(w, r, base+"/projects/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
@@ -1503,7 +1569,15 @@ func HackathonProjectCreate(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, base+"/projects/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, base+"/projects/"+url.PathEscape(projectID)+"?flash="+url.QueryEscape("Project created"), http.StatusSeeOther)
+	http.Redirect(w, r, base+"/projects/"+url.PathEscape(projectID)+"/edit?flash="+url.QueryEscape("Project created"), http.StatusSeeOther)
+}
+
+func HackathonProjectShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	competition, conf, id, project, canManage, err := loadViewableHackathonProject(w, r, ctx)
+	if err != nil {
+		return
+	}
+	renderHackathonProjectPage(w, r, ctx, competition, conf, id, project, canManage, false, false, false)
 }
 
 func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1511,8 +1585,11 @@ func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	if err != nil {
 		return
 	}
-	canEdit := id != nil && projectEditableByDeadline(competition)
-	canSubmit := canEdit && project.Status != getters.ProjectStatusSubmitted
+	canSubmit := projectEditableByDeadline(competition) && project.Status != getters.ProjectStatusSubmitted
+	renderHackathonProjectPage(w, r, ctx, competition, conf, id, project, true, true, true, canSubmit)
+}
+
+func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, competition *types.HackathonCompetition, conf *types.Conf, id *auth.Identity, project *types.HackathonProject, canManage, isProjectEditor, canEdit, canSubmit bool) {
 	members, err := getters.ListProjectMembers(ctx, project.ID)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s members: %s", competition.Slug, project.ID, err)
@@ -1525,20 +1602,45 @@ func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "Unable to load project award opt-ins", http.StatusInternalServerError)
 		return
 	}
+	awards, prizesByAward, prizePoolByAward, awardeesByAward, err := loadPublicHackathonAwards(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s awards: %s", competition.Slug, project.ID, err)
+		http.Error(w, "Unable to load project awards", http.StatusInternalServerError)
+		return
+	}
+	inviteLink := strings.TrimSpace(r.URL.Query().Get("invite"))
+	inviteQRCodeURI := ""
+	if inviteLink != "" {
+		if uri, err := qrCodeDataURI(inviteLink, 192); err != nil {
+			ctx.Err.Printf("/hackathons/%s/projects/%s invite qr: %s", competition.Slug, project.ID, err)
+		} else {
+			inviteQRCodeURI = uri
+		}
+	}
+	canRemoveProjectMembers := isProjectEditor && canEdit && viewerIsProjectOwner(members, id)
+
 	page := &HackathonPage{
-		Competition:  competition,
-		Conf:         conf,
-		Project:      project,
-		Members:      members,
-		OptInAwards:  optInAwards,
-		AwardOptIns:  awardOptIns,
-		Viewer:       id,
-		CanEdit:      canEdit,
-		CanSubmit:    canSubmit,
-		InviteLink:   strings.TrimSpace(r.URL.Query().Get("invite")),
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		Year:         helpers.CurrentYear(),
+		Competition:             competition,
+		Conf:                    conf,
+		Project:                 project,
+		Members:                 members,
+		Awards:                  awards,
+		PrizesByAward:           prizesByAward,
+		PrizePoolByAward:        prizePoolByAward,
+		AwardeesByAward:         awardeesByAward,
+		OptInAwards:             optInAwards,
+		AwardOptIns:             awardOptIns,
+		Viewer:                  id,
+		OwnedProjects:           map[string]bool{project.ID: canManage},
+		IsProjectEditor:         isProjectEditor,
+		CanEdit:                 canEdit,
+		CanSubmit:               canSubmit,
+		CanRemoveProjectMembers: canRemoveProjectMembers,
+		InviteLink:              inviteLink,
+		InviteQRCodeURI:         inviteQRCodeURI,
+		FlashMessage:            r.URL.Query().Get("flash"),
+		FlashError:              r.URL.Query().Get("error"),
+		Year:                    helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_project.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s template: %s", competition.Slug, project.ID, err)
@@ -1551,12 +1653,8 @@ func HackathonProjectUpdate(w http.ResponseWriter, r *http.Request, ctx *config.
 	if err != nil {
 		return
 	}
-	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID)
-	if !projectEditableByDeadline(competition) {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project edits are closed."), http.StatusSeeOther)
-		return
-	}
-	in, err := projectInputFromRequest(w, r, competition.ID)
+	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID) + "/edit"
+	in, err := projectInputFromRequest(ctx, w, r, competition.ID)
 	if err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
@@ -1575,27 +1673,27 @@ func HackathonProjectSubmit(w http.ResponseWriter, r *http.Request, ctx *config.
 	if err != nil {
 		return
 	}
-	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID)
+	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID) + "/edit"
 	if !projectEditableByDeadline(competition) {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project submissions are closed."), http.StatusSeeOther)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project submissions are closed.")+"#submission", http.StatusSeeOther)
 		return
 	}
 	limitRequestBody(w, r, maxFormBodyBytes)
 	if err := r.ParseForm(); err != nil {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form")+"#submission", http.StatusSeeOther)
 		return
 	}
 	if err := getters.SetProjectAwardOptIns(ctx, project.ID, r.Form["AwardID"]); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s award opt-ins: %s", competition.Slug, project.ID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+"#submission", http.StatusSeeOther)
 		return
 	}
 	if err := getters.SubmitProject(ctx, project.ID); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s submit: %s", competition.Slug, project.ID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+"#submission", http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project submitted"), http.StatusSeeOther)
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project submitted")+"#submission", http.StatusSeeOther)
 }
 
 func loadProjectAwardOptInState(ctx *config.AppContext, competitionID, projectID string) ([]*types.Award, map[string]bool, error) {
@@ -1633,24 +1731,73 @@ func HackathonProjectInviteCreate(w http.ResponseWriter, r *http.Request, ctx *c
 	if err != nil {
 		return
 	}
-	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID)
-	if !projectEditableByDeadline(competition) {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project edits are closed."), http.StatusSeeOther)
-		return
-	}
+	projectURL := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID)
+	dest := projectURL
+	fragment := ""
 	limitRequestBody(w, r, maxFormBodyBytes)
 	if err := r.ParseForm(); err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
 		return
 	}
-	token, _, err := getters.CreateProjectInvite(ctx, project.ID, r.FormValue("Email"), nil)
+	switch returnTo := strings.TrimSpace(r.FormValue("ReturnTo")); returnTo {
+	case projectURL + "/edit":
+		dest = returnTo
+	case projectURL + "/edit#team":
+		dest = projectURL + "/edit"
+		fragment = "#team"
+	}
+	token, _, err := getters.CreateProjectInvite(ctx, project.ID, "", nil)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s invite: %s", competition.Slug, project.ID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+fragment, http.StatusSeeOther)
 		return
 	}
 	inviteURL := absoluteURL(r, "/hackathons/invites/"+url.PathEscape(token))
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Invite link created")+"&invite="+url.QueryEscape(inviteURL), http.StatusSeeOther)
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Invite link created")+"&invite="+url.QueryEscape(inviteURL)+fragment, http.StatusSeeOther)
+}
+
+func HackathonProjectMemberRemove(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	competition, conf, id, project, err := loadEditableHackathonProject(w, r, ctx)
+	if err != nil {
+		return
+	}
+	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID) + "/edit"
+	fragment := "#team"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form")+fragment, http.StatusSeeOther)
+		return
+	}
+	personID := strings.TrimSpace(r.FormValue("PersonID"))
+	if personID == "" {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Member is required.")+fragment, http.StatusSeeOther)
+		return
+	}
+	members, err := getters.ListProjectMembers(ctx, project.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s remove member list: %s", competition.Slug, project.ID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load project members.")+fragment, http.StatusSeeOther)
+		return
+	}
+	if !viewerIsProjectOwner(members, id) {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Only project owners can remove team members.")+fragment, http.StatusSeeOther)
+		return
+	}
+	target := projectMemberByPersonID(members, personID)
+	if target == nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project member not found.")+fragment, http.StatusSeeOther)
+		return
+	}
+	if target.Role == getters.ProjectMemberRoleOwner {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project owners cannot be removed from this page.")+fragment, http.StatusSeeOther)
+		return
+	}
+	if err := getters.RemoveProjectMember(ctx, project.ID, personID); err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s remove member %s: %s", competition.Slug, project.ID, personID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+fragment, http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project member removed")+fragment, http.StatusSeeOther)
 }
 
 func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2036,34 +2183,158 @@ func loadEditableHackathonProject(w http.ResponseWriter, r *http.Request, ctx *c
 		return nil, nil, nil, nil, err
 	}
 	viewer := hackathonViewerFromIdentity(id, conf)
-	if !viewer.Admin && !viewer.Coordinator && !viewerCanManageProject(ctx, project.ID, viewer.PersonID) {
+	if !viewerCanManageProject(ctx, project.ID, viewer.PersonID) {
 		http.Redirect(w, r, hackathonURLForConf(conf)+"?error="+url.QueryEscape("Only project members can edit that project."), http.StatusSeeOther)
 		return nil, nil, nil, nil, fmt.Errorf("viewer cannot edit project %s", project.ID)
 	}
 	return competition, conf, id, project, nil
 }
 
-func projectInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string) (getters.ProjectInput, error) {
-	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
-		return getters.ProjectInput{}, fmt.Errorf("bad form")
+func loadViewableHackathonProject(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.HackathonCompetition, *types.Conf, *auth.Identity, *types.HackathonProject, bool, error) {
+	competition, conf, id, err := loadHackathonCompetition(w, r, ctx)
+	if err != nil {
+		return nil, nil, nil, nil, false, err
+	}
+	projectID := mux.Vars(r)["projectID"]
+	project, err := getters.GetProjectByID(ctx, projectID)
+	if err != nil || project.CompetitionID != competition.ID {
+		handle404(w, r, ctx)
+		if err == nil {
+			err = fmt.Errorf("project %s is not in competition %s", projectID, competition.ID)
+		}
+		return nil, nil, nil, nil, false, err
+	}
+	viewer := hackathonViewerFromIdentity(id, conf)
+	canManage := viewerCanManageProject(ctx, project.ID, viewer.PersonID)
+	canView, err := getters.CanViewProject(ctx, project.ID, viewer)
+	if err != nil {
+		ctx.Err.Printf("/%s/hackathon/projects/%s visibility: %s", conf.Tag, project.ID, err)
+		http.Error(w, "Unable to load project", http.StatusInternalServerError)
+		return nil, nil, nil, nil, false, err
+	}
+	if !canView {
+		if id == nil {
+			redirectHackathonLogin(w, r)
+		} else {
+			handle404(w, r, ctx)
+		}
+		return nil, nil, nil, nil, false, fmt.Errorf("viewer cannot view project %s", project.ID)
+	}
+	return competition, conf, id, project, canManage, nil
+}
+
+func projectInputFromRequest(ctx *config.AppContext, w http.ResponseWriter, r *http.Request, competitionID string) (getters.ProjectInput, error) {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type"))), "multipart/form-data") {
+		r.Body = http.MaxBytesReader(w, r.Body, maxUploadFileBytes+maxFormBodyBytes)
+		if err := r.ParseMultipartForm(maxUploadFileBytes); err != nil {
+			return getters.ProjectInput{}, fmt.Errorf("bad form")
+		}
+	} else {
+		limitRequestBody(w, r, maxFormBodyBytes)
+		if err := r.ParseForm(); err != nil {
+			return getters.ProjectInput{}, fmt.Errorf("bad form")
+		}
 	}
 	in := getters.ProjectInput{
-		CompetitionID:    competitionID,
-		Title:            strings.TrimSpace(r.FormValue("Title")),
-		ShortDescription: strings.TrimSpace(r.FormValue("ShortDescription")),
-		Description:      strings.TrimSpace(r.FormValue("Description")),
-		GitHubURL:        strings.TrimSpace(r.FormValue("GitHubURL")),
-		DemoURL:          strings.TrimSpace(r.FormValue("DemoURL")),
-		VideoURL:         strings.TrimSpace(r.FormValue("VideoURL")),
-		SlidesURL:        strings.TrimSpace(r.FormValue("SlidesURL")),
-		DocsURL:          strings.TrimSpace(r.FormValue("DocsURL")),
-		Tags:             splitProjectTags(r.FormValue("Tags")),
+		CompetitionID:     competitionID,
+		Title:             strings.TrimSpace(r.FormValue("Title")),
+		ShortDescription:  strings.TrimSpace(r.FormValue("ShortDescription")),
+		Description:       strings.TrimSpace(r.FormValue("Description")),
+		DescriptionFormat: strings.TrimSpace(r.FormValue("DescriptionFormat")),
+		ImageURL:          strings.TrimSpace(r.FormValue("ImageURL")),
+		ImageURLs:         projectImageURLsFromForm(r),
+		GitHubURL:         strings.TrimSpace(r.FormValue("GitHubURL")),
+		DemoURL:           strings.TrimSpace(r.FormValue("DemoURL")),
+		VideoURL:          strings.TrimSpace(r.FormValue("VideoURL")),
+		SlidesURL:         strings.TrimSpace(r.FormValue("SlidesURL")),
+		DocsURL:           strings.TrimSpace(r.FormValue("DocsURL")),
+		Tags:              splitProjectTags(r.FormValue("Tags")),
 	}
 	if in.Title == "" {
 		return getters.ProjectInput{}, fmt.Errorf("project title is required")
 	}
+	imageURLs, err := uploadedProjectImageURLs(ctx, r, in.ImageURLs)
+	if err != nil {
+		return getters.ProjectInput{}, err
+	}
+	in.ImageURLs = imageURLs
+	if len(in.ImageURLs) > 0 {
+		in.ImageURL = in.ImageURLs[0]
+	} else {
+		in.ImageURL = ""
+	}
 	return in, nil
+}
+
+func projectImageURLsFromForm(r *http.Request) []string {
+	values := append([]string{r.FormValue("ImageURL")}, r.Form["ImageURLs"]...)
+	seen := make(map[string]bool, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func uploadedProjectImageURLs(ctx *config.AppContext, r *http.Request, current []string) ([]string, error) {
+	imageURLs := append([]string{}, current...)
+	if r.MultipartForm == nil || r.MultipartForm.File == nil {
+		return imageURLs, nil
+	}
+	files := r.MultipartForm.File["ImageFiles"]
+	if len(files) == 0 {
+		return imageURLs, nil
+	}
+	for _, header := range files {
+		raw, contentType, ext, err := readProjectImageFileHeader(header)
+		if err != nil {
+			if errors.Is(err, errUploadTooLarge) {
+				return nil, fmt.Errorf("project image is too large")
+			}
+			return nil, fmt.Errorf("project image upload failed: %w", err)
+		}
+		url, err := getters.UploadFile(ctx, contentType, "project-image"+ext, raw)
+		if err != nil {
+			return nil, fmt.Errorf("project image upload failed: %w", err)
+		}
+		imageURLs = append(imageURLs, url)
+	}
+	return imageURLs, nil
+}
+
+func readProjectImageFileHeader(header *multipart.FileHeader) ([]byte, string, string, error) {
+	if header == nil {
+		return nil, "", "", http.ErrMissingFile
+	}
+	file, err := header.Open()
+	if err != nil {
+		return nil, "", "", err
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, maxUploadFileBytes+1))
+	if err != nil {
+		return nil, "", "", err
+	}
+	if int64(len(raw)) > maxUploadFileBytes {
+		return nil, "", "", errUploadTooLarge
+	}
+	if len(raw) == 0 {
+		return nil, "", "", errors.New("empty upload")
+	}
+	contentType := detectedImageContentType(raw, header.Filename, false)
+	if contentType == "" {
+		return nil, "", "", errors.New("unsupported image type")
+	}
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if ext == "" || contentTypeFromFilename(header.Filename) != contentType {
+		ext = extForImageContentType(contentType)
+	}
+	return raw, contentType, ext, nil
 }
 
 func generatedProjectSlug() (string, error) {
@@ -2107,7 +2378,7 @@ func scorecardRankingsInputFromRequest(w http.ResponseWriter, r *http.Request) (
 	return in, nil
 }
 
-func validateScorecardRankings(ctx *config.AppContext, competition *types.HackathonCompetition, viewer types.HackathonViewer, event *types.JudgeEvent, rankings []getters.ScorecardRankingInput) error {
+func validateScorecardRankings(ctx *config.AppContext, competition *types.HackathonCompetition, viewer types.HackathonViewer, events []*types.JudgeEvent, event *types.JudgeEvent, rankings []getters.ScorecardRankingInput) error {
 	seenRanks := map[int]bool{}
 	seenProjects := map[string]bool{}
 	limit := judgeEventRankLimit(event)
@@ -2130,6 +2401,9 @@ func validateScorecardRankings(ctx *config.AppContext, competition *types.Hackat
 		project, err := getters.GetProjectByID(ctx, projectID)
 		if err != nil || competition == nil || project.CompetitionID != competition.ID {
 			return fmt.Errorf("project is invalid")
+		}
+		if !projectEligibleForJudgeEvent(project, events, event) {
+			return fmt.Errorf("project is not eligible for this judging round")
 		}
 		ok, err := getters.CanViewProject(ctx, project.ID, viewer)
 		if err != nil {
@@ -2201,7 +2475,7 @@ func competitionAcceptsProjects(competition *types.HackathonCompetition) bool {
 	switch competition.LifecycleOverride {
 	case getters.CompetitionLifecycleOpen:
 		return true
-	case getters.CompetitionLifecycleSubmissionsClosed, getters.CompetitionLifecyclePublicGallery:
+	case getters.CompetitionLifecycleSubmissionsClosed:
 		return competition.AllowLateSubmissions
 	case getters.CompetitionLifecycleUpcoming, getters.CompetitionLifecycleClosed:
 		return false
@@ -2223,7 +2497,7 @@ func projectEditableByDeadline(competition *types.HackathonCompetition) bool {
 	switch competition.LifecycleOverride {
 	case getters.CompetitionLifecycleOpen:
 		return true
-	case getters.CompetitionLifecycleSubmissionsClosed, getters.CompetitionLifecyclePublicGallery:
+	case getters.CompetitionLifecycleSubmissionsClosed:
 		return competition.AllowLateSubmissions
 	case getters.CompetitionLifecycleUpcoming, getters.CompetitionLifecycleClosed:
 		return false
@@ -2250,6 +2524,28 @@ func viewerCanManageProject(ctx *config.AppContext, projectID, personID string) 
 		}
 	}
 	return false
+}
+
+func viewerIsProjectOwner(members []*types.ProjectMember, id *auth.Identity) bool {
+	personID := strings.TrimSpace(hackathonViewerPersonID(id))
+	if personID == "" {
+		return false
+	}
+	member := projectMemberByPersonID(members, personID)
+	return member != nil && member.Role == getters.ProjectMemberRoleOwner
+}
+
+func projectMemberByPersonID(members []*types.ProjectMember, personID string) *types.ProjectMember {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil
+	}
+	for _, member := range members {
+		if member != nil && member.PersonID == personID {
+			return member
+		}
+	}
+	return nil
 }
 
 func viewerCanJudgeCompetition(ctx *config.AppContext, competitionID, personID string) bool {
@@ -2380,9 +2676,6 @@ func hackathonLifecycleLabel(competition *types.HackathonCompetition) string {
 	if competition.SubmissionsCloseAt == nil || competition.SubmissionsCloseAt.After(now) {
 		return "Open"
 	}
-	if competition.PublicGalleryEnabled {
-		return "Submissions public"
-	}
 	return "Submissions closed"
 }
 
@@ -2394,8 +2687,6 @@ func hackathonLifecycleOverrideLabel(value string) string {
 		return "Submissions open"
 	case getters.CompetitionLifecycleSubmissionsClosed:
 		return "Submissions closed"
-	case getters.CompetitionLifecyclePublicGallery:
-		return "Public gallery"
 	case getters.CompetitionLifecycleClosed:
 		return "Closed"
 	default:
@@ -2409,14 +2700,10 @@ func hackathonStatusLabel(status string) string {
 		return "Created"
 	case "submitted":
 		return "Submitted"
-	case "withdrawn":
-		return "Withdrawn"
-	case "finalist":
-		return "Finalist"
-	case "disqualified":
-		return "Disqualified"
-	case "shipped":
-		return "Shipped"
+	case "hidden":
+		return "Hidden"
+	case "advanced", "finalist":
+		return "Advanced"
 	default:
 		return strings.TrimSpace(status)
 	}

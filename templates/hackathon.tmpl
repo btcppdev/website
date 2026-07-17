@@ -385,11 +385,29 @@
         setTab(tabFromHash());
         if (window.location.hash.indexOf('#project-') !== 0) return;
         const target = document.getElementById(window.location.hash.slice(1));
-        if (target) window.setTimeout(() => target.scrollIntoView({ block: 'start' }), 0);
+        if (!target) return;
+        window.requestAnimationFrame(function () {
+          window.requestAnimationFrame(function () {
+            target.scrollIntoView({ block: 'start' });
+          });
+        });
       }
 
       window.addEventListener('hashchange', showHashTarget);
       showHashTarget();
+
+      document.querySelectorAll('[data-project-card-url]').forEach((card) => {
+        function openCard(event) {
+          if (event.target.closest('a, button, input, select, textarea')) return;
+          window.location.href = card.dataset.projectCardUrl;
+        }
+        card.addEventListener('click', openCard);
+        card.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          openCard(event);
+        });
+      });
     })();
 
     (function () {
@@ -420,8 +438,9 @@
 {{ $page := .Page }}
 {{ $project := .Project }}
 {{ $winningAwards := $page.ProjectWinningAwards $project }}
-<article id="project-{{ $project.ID }}" class="hack-card">
-  <div class="hack-card__media" data-initials="++">
+<article id="project-{{ $project.ID }}" class="hack-card{{ if not .ShowManage }} hack-card--clickable{{ end }}" {{ if not .ShowManage }}data-project-card-url="{{ $page.ProjectURL $project }}" tabindex="0" role="link"{{ end }}>
+  <div class="hack-card__media" data-initials="++" {{ if $project.ImageURL }}data-has-image="true"{{ end }}>
+    {{ if $project.ImageURL }}<img src="{{ $project.ImageURL }}" alt="" loading="lazy">{{ end }}
     {{ if $winningAwards }}<span class="hack-badge" style="position:absolute;top:12px;left:12px;z-index:1;">★ Winner</span>{{ end }}
   </div>
   <div class="hack-card__body">
@@ -430,15 +449,13 @@
       <div class="hack-card__number">{{ $page.ProjectNumberLabel $project }}</div>
     </div>
     {{ if $project.ShortDescription }}<div class="hack-card__desc">{{ $project.ShortDescription }}</div>{{ end }}
-    {{ if $winningAwards }}
-    <div class="hack-tags">
-      {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
-    </div>
-    {{ else if $page.ProjectIsFinalist $project }}
-    <div class="hack-tags"><span class="hack-badge">Finalist</span></div>
-    {{ end }}
+                    {{ if $winningAwards }}
+                      <div class="hack-tags">
+                        {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
+                      </div>
+                    {{ end }}
     {{ if $project.Description }}
-    <div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ $page.RichText $project.Description }}</div>
+    <div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ $page.ProjectDescriptionHTML $project }}</div>
     {{ end }}
     {{ if $project.Tags }}
     <div class="hack-tags">
@@ -446,12 +463,13 @@
     </div>
     {{ end }}
     <div class="hack-card__links">
+      {{ if .ShowManage }}<a href="{{ $page.ProjectEditURL $project }}">Manage</a>{{ end }}
       {{ if $project.GitHubURL }}<a href="{{ $project.GitHubURL }}">GitHub</a>{{ end }}
       {{ if $project.DemoURL }}<a href="{{ $project.DemoURL }}">Demo</a>{{ end }}
       {{ if $project.VideoURL }}<a href="{{ $project.VideoURL }}">Video</a>{{ end }}
       {{ if $project.SlidesURL }}<a href="{{ $project.SlidesURL }}">Slides</a>{{ end }}
       {{ if $project.DocsURL }}<a href="{{ $project.DocsURL }}">Docs</a>{{ end }}
-      {{ if .ShowManage }}<a href="{{ $page.ProjectURL $project }}">Manage</a>{{ end }}
+      {{ if .ShowManage }}<a href="{{ $page.ProjectURL $project }}" class="hack-card__link--push">View</a>{{ end }}
     </div>
   </div>
 </article>

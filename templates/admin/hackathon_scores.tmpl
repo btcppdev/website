@@ -29,26 +29,28 @@
       <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-sm font-semibold text-gray-900">Rankings</h2>
-          <span class="text-sm text-gray-500">{{ len .ScoreSummaries }} projects</span>
+          <div class="flex items-center gap-3">
+            <nav class="inline-flex overflow-hidden rounded-md shadow-sm ring-1 ring-gray-300" aria-label="Judging event">
+              {{ range .JudgeEvents }}
+              <a href="{{ $.ScoresURLForJudgeEvent . }}" class="{{ if $.ScoreJudgeEventIs . }}bg-indigo-600 text-white{{ else }}bg-white text-gray-700 hover:bg-gray-50{{ end }} border-l border-gray-300 first:border-l-0 px-3 py-1.5 text-sm font-semibold">
+                <span class="flex items-center gap-1.5">{{ .Name }}{{ if $.JudgeEventAcceptsScores . }}<span class="{{ if $.ScoreJudgeEventIs . }}bg-white/20 text-white{{ else }}bg-green-50 text-green-700{{ end }} rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">Open</span>{{ end }}</span>
+                <span class="block text-[11px] font-medium {{ if $.ScoreJudgeEventIs . }}text-indigo-100{{ else }}text-gray-500{{ end }}">{{ $.JudgeEventTimeOnlyRange . }}</span>
+              </a>
+              {{ end }}
+            </nav>
+            <span class="text-sm text-gray-500">{{ len .ScoreSummaries }} projects</span>
+          </div>
         </div>
       </div>
       {{ if .ScoreSummaries }}
-      <form method="POST" action="/admin/hackathons/{{ .Competition.ID }}/judging/finalists" class="grid gap-3 border-b border-gray-200 bg-gray-50 px-4 py-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end sm:px-6">
+      <form method="POST" action="/admin/hackathons/{{ .Competition.ID }}/judging/advance" class="grid gap-3 border-b border-gray-200 bg-gray-50 px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-end sm:px-6">
+        <input type="hidden" name="JudgeEventID" value="{{ .ScoreJudgeEventID }}">
         <div>
-          <label for="ScoreMode" class="block text-xs font-medium text-gray-700">Scoring mode</label>
-          <select id="ScoreMode" name="ScoreMode" required
-                  class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-            <option value="all" {{ if eq .ScoreMode "all" }}selected{{ end }}>All scorecards</option>
-            <option value="expo">Expo</option>
-            <option value="finals">Finals</option>
-          </select>
-        </div>
-        <div>
-          <label for="TopN" class="block text-xs font-medium text-gray-700">Finalists</label>
+          <label for="TopN" class="block text-xs font-medium text-gray-700">Projects to advance from {{ .ScoreJudgeEventLabel }}</label>
           <input id="TopN" name="TopN" type="number" min="1" value="5" required
                  class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
         </div>
-        <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Advance finalists</button>
+        <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Advance projects</button>
       </form>
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
@@ -56,10 +58,9 @@
             <tr>
               <th scope="col" class="px-4 py-3">Project</th>
               <th scope="col" class="px-4 py-3">#</th>
-              <th scope="col" class="px-4 py-3">Scorecards</th>
+              <th scope="col" class="px-4 py-3">Ranked by</th>
               <th scope="col" class="px-4 py-3">Points</th>
               <th scope="col" class="px-4 py-3">Avg rank</th>
-              <th scope="col" class="px-4 py-3">Best rank</th>
               <th scope="col" class="px-4 py-3">Award</th>
             </tr>
           </thead>
@@ -68,10 +69,9 @@
             <tr>
               <td class="px-4 py-3 font-medium text-gray-900">{{ .ProjectTitle }}</td>
               <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-600">{{ .ProjectNumber }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ .ScoredScorecards }} / {{ .Scorecards }}</td>
+              <td class="px-4 py-3 text-gray-700">{{ .ScoredScorecards }} judge{{ if ne .ScoredScorecards 1 }}s{{ end }}</td>
               <td class="px-4 py-3 font-medium text-gray-900">{{ .PointsLabel }}</td>
               <td class="px-4 py-3 text-gray-700">{{ .RankAverage }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ .BestRank }}</td>
               <td class="px-4 py-3">
                 {{ if $.Awards }}
                 <form method="POST" action="{{ $.AwardsURL $.Competition }}/assign" class="flex min-w-64 gap-2">
@@ -105,46 +105,59 @@
     <section class="overflow-hidden rounded-lg bg-white shadow">
       <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-gray-900">Scorecards</h2>
-          <span class="text-sm text-gray-500">{{ len .Scorecards }} submitted</span>
+          <div>
+            <h2 class="text-sm font-semibold text-gray-900">Judge ballots</h2>
+            <p class="mt-1 text-sm text-gray-600">Ranked choices for {{ .ScoreJudgeEventLabel }}.</p>
+          </div>
+          <span class="text-sm text-gray-500">{{ len .ScoreBallots }} judges</span>
         </div>
       </div>
-      {{ if .Scorecards }}
+      {{ if .ScoreBallots }}
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
           <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
             <tr>
-              <th scope="col" class="px-4 py-3">Project</th>
-              <th scope="col" class="px-4 py-3">Event</th>
               <th scope="col" class="px-4 py-3">Judge</th>
-              <th scope="col" class="px-4 py-3">Rank</th>
-              <th scope="col" class="px-4 py-3">Points</th>
+              {{ range .ScoreBallotRanks }}
+              <th scope="col" class="px-4 py-3">{{ .RankLabel }}</th>
+              {{ end }}
               <th scope="col" class="px-4 py-3">Submitted</th>
+              <th scope="col" class="px-4 py-3 text-right">Action</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 bg-white">
-            {{ range .Scorecards }}
+            {{ range .ScoreBallots }}
             <tr>
-              <td class="px-4 py-3 font-medium text-gray-900">{{ $.ProjectTitle .ProjectID }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ $.JudgeEventName .JudgeEventID }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ $.JudgeName .JudgePersonID }}</td>
-              <td class="px-4 py-3 text-gray-700">{{ $.ScoreValue .Rank }}</td>
-              <td class="px-4 py-3 font-medium text-gray-900">{{ $.ScorecardPoints . }}</td>
+              <td class="whitespace-nowrap px-4 py-3 font-medium text-gray-900">{{ .JudgeName }}</td>
+              {{ range .Ranks }}
+              <td class="px-4 py-3 text-gray-700">
+                {{ if .ProjectTitle }}
+                <span class="font-medium text-gray-900">{{ .ProjectTitle }}</span>
+                {{ else }}
+                <span class="text-gray-400">-</span>
+                {{ end }}
+              </td>
+              {{ end }}
               <td class="whitespace-nowrap px-4 py-3 text-gray-600">{{ with .SubmittedAt }}{{ .Format "Jan 2, 2006 3:04 PM" }}{{ else }}-{{ end }}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-right">
+                {{ if .HasRankings }}
+                <form method="POST" action="/admin/hackathons/{{ $.Competition.ID }}/judging/scores/remove-ballot">
+                  <input type="hidden" name="JudgeEventID" value="{{ $.ScoreJudgeEventID }}">
+                  <input type="hidden" name="JudgePersonID" value="{{ .JudgePersonID }}">
+                  <button type="submit" class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+                </form>
+                {{ else }}
+                <span class="text-gray-400">-</span>
+                {{ end }}
+              </td>
             </tr>
-            {{ if .Comments }}
-            <tr class="bg-gray-50">
-              <td class="px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500">Comments</td>
-              <td colspan="5" class="px-4 py-3 text-sm text-gray-700">{{ .Comments }}</td>
-            </tr>
-            {{ end }}
             {{ end }}
           </tbody>
         </table>
       </div>
       {{ else }}
       <div class="px-4 py-10 text-center sm:px-6">
-        <p class="text-sm text-gray-600">No scorecards have been submitted yet.</p>
+        <p class="text-sm text-gray-600">No judge ballots are available for this event yet.</p>
       </div>
       {{ end }}
     </section>
