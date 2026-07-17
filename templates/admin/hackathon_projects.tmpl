@@ -56,8 +56,8 @@
                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
             <option value="submitted" selected>Submitted</option>
             <option value="created">Created</option>
-            <option value="shipped">Shipped</option>
-            <option value="finalist">Finalist</option>
+            <option value="hidden">Hidden</option>
+            <option value="advanced">Advanced</option>
           </select>
         </div>
         <div class="sm:col-span-2">
@@ -88,7 +88,10 @@
     <section class="overflow-hidden rounded-lg bg-white shadow">
       <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-sm font-semibold text-gray-900">Projects</h2>
+          <div class="flex items-center gap-3">
+            <h2 class="text-sm font-semibold text-gray-900">Projects</h2>
+            <span class="text-xs text-gray-500" data-project-autosave-status></span>
+          </div>
           <form method="POST" action="{{ .AssignProjectNumbersURL }}">
             <button type="submit" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Assign missing numbers</button>
           </form>
@@ -106,14 +109,17 @@
               <th scope="col" class="px-4 py-3">Submitted</th>
               <th scope="col" class="px-4 py-3">Links</th>
               <th scope="col" class="px-4 py-3">Updated</th>
-              <th scope="col" class="px-4 py-3"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 bg-white">
             {{ range .Projects }}
             <tr class="align-top">
               <td class="whitespace-nowrap px-4 py-3">
+                <form id="ProjectAdmin-{{ .ID }}" method="POST" action="{{ $.ProjectAdminURL . }}" data-project-autosave-form>
+                  <input type="hidden" name="AutoSave" value="1">
+                </form>
                 <input form="ProjectAdmin-{{ .ID }}" name="ProjectNumber" type="number" min="1" {{ with .ProjectNumber }}value="{{ . }}"{{ end }}
+                       data-project-autosave
                        class="block w-20 rounded-md bg-white px-2 py-1 font-mono text-xs text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
               </td>
               <td class="px-4 py-3">
@@ -146,13 +152,12 @@
               </td>
               <td class="whitespace-nowrap px-4 py-3">
                 <select form="ProjectAdmin-{{ .ID }}" name="Status"
-                        class="block rounded-md bg-white px-2 py-1 text-xs text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                        data-project-autosave
+                        class="block min-w-28 rounded-md bg-white py-1 pl-2 pr-8 text-xs text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
                   <option value="created" {{ if eq .Status "created" }}selected{{ end }}>Created</option>
                   <option value="submitted" {{ if eq .Status "submitted" }}selected{{ end }}>Submitted</option>
-                  <option value="withdrawn" {{ if eq .Status "withdrawn" }}selected{{ end }}>Withdrawn</option>
-                  <option value="finalist" {{ if eq .Status "finalist" }}selected{{ end }}>Finalist</option>
-                  <option value="disqualified" {{ if eq .Status "disqualified" }}selected{{ end }}>Disqualified</option>
-                  <option value="shipped" {{ if eq .Status "shipped" }}selected{{ end }}>Shipped</option>
+                  <option value="hidden" {{ if eq .Status "hidden" }}selected{{ end }}>Hidden</option>
+                  <option value="advanced" {{ if eq .Status "advanced" }}selected{{ end }}>Advanced</option>
                 </select>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-gray-600">
@@ -169,15 +174,6 @@
                 </div>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-gray-600">{{ .UpdatedAt.Format "Jan 2, 2006 3:04 PM" }}</td>
-              <td class="whitespace-nowrap px-4 py-3 text-right">
-                <div class="flex justify-end gap-3">
-                  <form id="ProjectAdmin-{{ .ID }}" method="POST" action="{{ $.ProjectAdminURL . }}">
-                    <button type="submit" class="font-medium text-indigo-600 hover:text-indigo-500">Save</button>
-                  </form>
-                  <a href="{{ $.ProjectPublicURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">View</a>
-                  <a href="{{ $.ProjectManageURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">Manage</a>
-                </div>
-              </td>
             </tr>
             {{ end }}
           </tbody>
@@ -190,5 +186,49 @@
       {{ end }}
     </section>
   </div>
+  <script>
+    (function () {
+      function statusFor(form) {
+        return document.querySelector('[data-project-autosave-status]');
+      }
+
+      function setStatus(form, text, className) {
+        const status = statusFor(form);
+        if (!status) return;
+        status.textContent = text;
+        status.className = className;
+      }
+
+      async function autosave(input) {
+        const formID = input.getAttribute('form');
+        const form = formID ? document.getElementById(formID) : input.form;
+        if (!form || !form.reportValidity()) return;
+        setStatus(form, 'Saving...', 'text-xs text-gray-500');
+        try {
+          const response = await fetch(form.action, {
+            method: form.method || 'POST',
+            body: new URLSearchParams(new FormData(form)),
+            headers: {
+              'Accept': 'text/plain',
+              'Content-Type': 'application/x-www-form-urlencoded'
+            }
+          });
+          if (!response.ok) {
+            const message = (await response.text()).trim() || 'Save failed';
+            throw new Error(message);
+          }
+          setStatus(form, 'Saved', 'text-xs font-medium text-green-700');
+        } catch (error) {
+          setStatus(form, error.message || 'Save failed', 'text-xs font-medium text-red-700');
+        }
+      }
+
+      for (const input of document.querySelectorAll('[data-project-autosave]')) {
+        input.addEventListener('change', function () {
+          autosave(input);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>

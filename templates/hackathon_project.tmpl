@@ -11,7 +11,7 @@
       <span class="hack-ticker__live">▶ Project</span>
       <span>{{ .Competition.Title }}</span>
       <span>•</span>
-      <span>{{ if .IsNew }}Create project{{ else }}Edit project{{ end }}</span>
+      <span>{{ if .IsNew }}Create project{{ else if .IsProjectEditor }}Edit project{{ else }}Project page{{ end }}</span>
     </div>
 
     <header class="hack-header">
@@ -27,11 +27,15 @@
     <section class="hack-section">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§ Project submission</div>
+          <div class="hack-label">{{ if and (not .IsNew) (not .IsProjectEditor) }}§ Project file{{ else }}§ Project submission{{ end }}</div>
           <h1 style="margin:0;font-size:clamp(48px,7vw,88px);font-weight:700;line-height:.92;">{{ if .IsNew }}Create <span class="hack-serif">project.</span>{{ else }}{{ .Project.Title }}{{ end }}</h1>
         </div>
         <div class="hack-section__deck">
+          {{ if and (not .IsNew) (not .IsProjectEditor) }}
+          The permanent record for this hackathon project: write-up, links, team, tags, and prizes.
+          {{ else }}
           Add the links judges and organizers need. File uploads are intentionally deferred; use project, demo, video, slide, or docs links.
+          {{ end }}
         </div>
       </div>
     </section>
@@ -43,10 +47,136 @@
     <div class="hack-alert hack-alert--error">{{ .FlashError }}</div>
     {{ end }}
 
-    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectURL .Project }}{{ end }}" class="hack-form">
+    {{ if and (not .IsNew) (not .IsProjectEditor) }}
+    {{ $winningAwards := .ProjectWinningAwards .Project }}
+    <section class="hack-project-file">
+      <div class="hack-project-file__masthead">
+        <div>
+          <div class="hack-project-file__badges">
+            {{ if $winningAwards }}
+            {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
+            {{ else if .Project.Status }}
+            <span class="hack-badge">{{ .ProjectStatusLabel .Project.Status }}</span>
+            {{ end }}
+            <span class="hack-project-file__edition">{{ .Competition.Title }}</span>
+          </div>
+          {{ if .Project.ShortDescription }}
+          <div class="hack-project-file__tagline">{{ .Project.ShortDescription }}</div>
+          {{ end }}
+        </div>
+        <div class="hack-project-file__actions">
+          {{ if .CanManageProject .Project.ID }}<a href="{{ .ProjectEditURL .Project }}">Edit project <span>→</span></a>{{ end }}
+          {{ if .Project.GitHubURL }}<a href="{{ .Project.GitHubURL }}">View code <span>↗</span></a>{{ end }}
+          {{ if .Project.DemoURL }}<a href="{{ .Project.DemoURL }}">Live demo <span>↗</span></a>{{ end }}
+          {{ if .Project.VideoURL }}<a href="{{ .Project.VideoURL }}">Demo video <span>▶</span></a>{{ end }}
+          {{ if .Project.SlidesURL }}<a href="{{ .Project.SlidesURL }}">Slides <span>↗</span></a>{{ end }}
+          {{ if .Project.DocsURL }}<a href="{{ .Project.DocsURL }}">Docs <span>↗</span></a>{{ end }}
+        </div>
+      </div>
+
+      {{ $projectImages := .ProjectImageGallery .Project }}
+      <div class="hack-project-file__media">
+        <div class="hack-project-file__hero">
+          {{ if $projectImages }}
+          <img src="{{ index $projectImages 0 }}" alt="">
+          {{ else }}
+          <div class="hack-project-file__placeholder">Project image</div>
+          {{ end }}
+        </div>
+        {{ if gt (len $projectImages) 1 }}
+        <div class="hack-project-file__side{{ if eq (len $projectImages) 2 }} hack-project-file__side--single{{ end }}">
+          <img src="{{ index $projectImages 1 }}" alt="">
+          {{ if gt (len $projectImages) 2 }}
+            {{ if gt (len $projectImages) 3 }}
+            <button type="button" class="hack-project-file__gallery-button" data-project-gallery-open>
+              <img src="{{ index $projectImages 2 }}" alt="">
+              <span>View all images</span>
+            </button>
+            {{ else }}
+            <img src="{{ index $projectImages 2 }}" alt="">
+            {{ end }}
+          {{ end }}
+        </div>
+        {{ end }}
+      </div>
+
+      {{ if gt (len $projectImages) 3 }}
+      <dialog class="hack-project-gallery" data-project-gallery>
+        <div class="hack-project-gallery__frame">
+          <button type="button" class="hack-project-gallery__close" data-project-gallery-close>Close</button>
+          <img src="{{ index $projectImages 0 }}" alt="" data-project-gallery-image>
+          <div class="hack-project-gallery__controls">
+            <button type="button" class="hack-button" data-project-gallery-prev>Previous</button>
+            <span data-project-gallery-count>1 / {{ len $projectImages }}</span>
+            <button type="button" class="hack-button" data-project-gallery-next>Next</button>
+          </div>
+        </div>
+        <div class="hack-project-gallery__sources">
+          {{ range $projectImages }}<img src="{{ . }}" alt="" data-project-gallery-source>{{ end }}
+        </div>
+      </dialog>
+      {{ end }}
+
+      <div class="hack-project-file__body">
+        <article>
+          <div class="hack-label">The write-up</div>
+          {{ if .Project.Description }}
+          <div class="hack-project-file__copy">{{ .ProjectDescriptionHTML .Project }}</div>
+          {{ else }}
+          <p class="hack-project-file__empty">No write-up has been added yet.</p>
+          {{ end }}
+        </article>
+        <aside>
+          <section>
+            <div class="hack-label">The team</div>
+            {{ if .Members }}
+            <div class="hack-project-file__list">
+              {{ range .Members }}
+              <div class="hack-project-file__person">
+                <div class="hack-avatar">+</div>
+                <div>
+                  <strong>{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</strong>
+                  <span>{{ .Role }}</span>
+                </div>
+              </div>
+              {{ end }}
+            </div>
+            {{ else }}
+            <p class="hack-project-file__empty">No team members listed.</p>
+            {{ end }}
+          </section>
+          {{ if .Project.Tags }}
+          <section>
+            <div class="hack-label">Tags</div>
+            <div class="hack-project-file__tags">
+              {{ range .Project.Tags }}<span>{{ . }}</span>{{ end }}
+            </div>
+          </section>
+          {{ end }}
+        </aside>
+      </div>
+    </section>
+    {{ else }}
+    <nav class="hack-tabs" aria-label="Project editor sections" style="margin-top:28px;">
+      <button type="button" data-project-tab="basics" class="hack-tab" aria-selected="true">Basics</button>
+      <button type="button" data-project-tab="public-page" class="hack-tab" aria-selected="false">Public page</button>
+      {{ if not .IsNew }}<button type="button" data-project-tab="team" class="hack-tab" aria-selected="false">Team · {{ len .Members }}</button>{{ end }}
+      {{ if not .IsNew }}<button type="button" data-project-tab="submission" class="hack-tab" aria-selected="false">Submission</button>{{ end }}
+    </nav>
+
+    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" class="hack-form" data-project-tab-panel="basics">
       <div class="hack-form__body">
+        <input name="DescriptionFormat" type="hidden" value="{{ if .Project.DescriptionFormat }}{{ .Project.DescriptionFormat }}{{ else }}markdown{{ end }}">
+        <input name="Description" type="hidden" value="{{ .Project.Description }}">
+        <input name="ImageURL" type="hidden" value="{{ .Project.ImageURL }}">
+        {{ range .ProjectImageGallery .Project }}<input name="ImageURLs" type="hidden" value="{{ . }}">{{ end }}
+        <input name="GitHubURL" type="hidden" value="{{ .Project.GitHubURL }}">
+        <input name="DemoURL" type="hidden" value="{{ .Project.DemoURL }}">
+        <input name="VideoURL" type="hidden" value="{{ .Project.VideoURL }}">
+        <input name="SlidesURL" type="hidden" value="{{ .Project.SlidesURL }}">
+        <input name="DocsURL" type="hidden" value="{{ .Project.DocsURL }}">
         {{ if not .CanEdit }}
-        <div class="hack-alert hack-alert--warning" style="margin:0;">Project edits are closed.</div>
+        <div class="hack-alert hack-alert--warning" style="margin:0;">This project page is read-only.</div>
         {{ end }}
 
         <div class="hack-field">
@@ -60,10 +190,62 @@
         </div>
 
         <div class="hack-field">
-          <label for="Description">Description</label>
-          <textarea id="Description" name="Description" rows="7" {{ if not .CanEdit }}disabled{{ end }}>{{ .Project.Description }}</textarea>
+          <label for="Tags">Tags</label>
+          <input id="Tags" name="Tags" type="text" value="{{ .ProjectTagsCSV }}" {{ if not .CanEdit }}disabled{{ end }}>
+          <p class="hack-field__help">Separate tags with commas.</p>
         </div>
+      </div>
+      <div class="hack-form__actions">
+        <a href="{{ .HackathonURL }}" class="hack-button">Cancel</a>
+        {{ if .CanEdit }}
+        <button type="submit" class="hack-button hack-button--accent">Save →</button>
+        {{ end }}
+      </div>
+    </form>
 
+    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" enctype="multipart/form-data" class="hack-form hidden" data-project-tab-panel="public-page">
+      <div class="hack-form__body">
+        <input name="Title" type="hidden" value="{{ .Project.Title }}">
+        <input name="ShortDescription" type="hidden" value="{{ .Project.ShortDescription }}">
+        <input name="Tags" type="hidden" value="{{ .ProjectTagsCSV }}">
+        <div class="hack-form__grid">
+          <div class="hack-field">
+            <label for="ImageFiles">Project images</label>
+            {{ $editorImages := .ProjectImageGallery .Project }}
+            <div class="hack-upload" data-image-upload>
+              {{ if $editorImages }}
+              <div class="hack-upload__grid">
+                {{ range $editorImages }}
+                <figure class="hack-upload__thumb">
+                  <img src="{{ . }}" alt="">
+                  <input name="ImageURLs" type="hidden" value="{{ . }}">
+                  <figcaption>Saved</figcaption>
+                  {{ if $.CanEdit }}<button type="button" class="hack-upload__remove" data-image-upload-remove>Remove</button>{{ end }}
+                </figure>
+                {{ end }}
+              </div>
+              {{ end }}
+              <div class="hack-upload__grid hidden" data-image-upload-preview></div>
+              <input id="ImageFiles" class="hack-upload__input" name="ImageFiles" type="file" multiple accept="image/png,image/jpeg,image/gif,image/webp,image/avif" data-image-upload-input {{ if not .CanEdit }}disabled{{ end }}>
+              <div class="hack-upload__drop">
+                <button type="button" class="hack-button" data-image-upload-button {{ if not .CanEdit }}disabled{{ end }}>Add images</button>
+                <span data-image-upload-status>No new images selected.</span>
+              </div>
+            </div>
+            <p class="hack-field__help">Add one or more PNG, JPEG, GIF, WebP, or AVIF images. New uploads are staged here and added to the gallery when you save.</p>
+          </div>
+        </div>
+        <div class="hack-field">
+          <label for="Description">Public description</label>
+          <textarea id="Description" name="Description" rows="10" {{ if not .CanEdit }}disabled{{ end }}>{{ .Project.Description }}</textarea>
+        </div>
+        <div class="hack-field">
+          <label for="DescriptionFormat">Description format</label>
+          <select id="DescriptionFormat" name="DescriptionFormat" {{ if not .CanEdit }}disabled{{ end }}>
+            <option value="markdown" {{ if or (eq .Project.DescriptionFormat "") (eq .Project.DescriptionFormat "markdown") }}selected{{ end }}>Markdown</option>
+            <option value="plain" {{ if eq .Project.DescriptionFormat "plain" }}selected{{ end }}>Plain text</option>
+          </select>
+        </div>
         <div class="hack-form__grid">
           <div class="hack-field">
             <label for="GitHubURL">GitHub URL</label>
@@ -85,28 +267,58 @@
             <label for="DocsURL">Docs URL</label>
             <input id="DocsURL" name="DocsURL" type="url" value="{{ .Project.DocsURL }}" {{ if not .CanEdit }}disabled{{ end }}>
           </div>
-          <div class="hack-field">
-            <label for="Tags">Tags</label>
-            <input id="Tags" name="Tags" type="text" value="{{ .ProjectTagsCSV }}" {{ if not .CanEdit }}disabled{{ end }}>
-          </div>
         </div>
       </div>
       <div class="hack-form__actions">
         <a href="{{ .HackathonURL }}" class="hack-button">Cancel</a>
         {{ if .CanEdit }}
-        <button type="submit" class="hack-button hack-button--accent">Save →</button>
+        <button type="submit" class="hack-button hack-button--accent">Save public page →</button>
         {{ end }}
       </div>
     </form>
 
-    {{ if and (not .IsNew) .CanSubmit }}
-    <form method="POST" action="{{ .ProjectSubmitURL .Project }}" class="hack-form">
+    {{ if not .IsNew }}
+    <form method="POST" action="{{ .ProjectSubmitURL .Project }}" class="hack-form hidden" data-project-tab-panel="submission">
       <div class="hack-form__body">
         <div>
           <div class="hack-label">§ Submission</div>
-          {{ if .OptInAwards }}<div class="hack-section__deck">Choose the awards or bounties this project should be considered for.</div>{{ end }}
+          <h2 style="margin:6px 0 0;font-size:clamp(28px,4vw,48px);line-height:1;">Review and <span class="hack-serif">submit.</span></h2>
+          <div class="hack-section__deck">Check the project details people will see once the gallery is public.</div>
         </div>
+
+        {{ if not .CanSubmit }}
+        <div class="hack-alert hack-alert--warning" style="margin:0;">
+          {{ if eq .Project.Status "submitted" }}This project has already been submitted.{{ else }}Project submissions are not currently open.{{ end }}
+        </div>
+        {{ end }}
+
+        <section class="hack-card" style="padding:18px;">
+          <div class="hack-label">Current project</div>
+          <h3 style="margin:6px 0 8px;font-size:28px;line-height:1;">{{ .Project.Title }}</h3>
+          {{ if .Project.ShortDescription }}<p class="hack-card__desc" style="margin-top:0;">{{ .Project.ShortDescription }}</p>{{ end }}
+          {{ $submissionImages := .ProjectImageGallery .Project }}
+          {{ if $submissionImages }}
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0;">
+            {{ range $submissionImages }}<img src="{{ . }}" alt="" style="width:100%;aspect-ratio:1.35;object-fit:cover;border-radius:8px;">{{ end }}
+          </div>
+          {{ end }}
+          {{ if .Project.Description }}<div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ .ProjectDescriptionHTML .Project }}</div>{{ end }}
+          {{ if .Project.Tags }}
+          <div class="hack-tags" style="margin-top:14px;">
+            {{ range .Project.Tags }}<span class="hack-badge">{{ . }}</span>{{ end }}
+          </div>
+          {{ end }}
+          <div class="hack-links" style="margin-top:14px;">
+            {{ if .Project.GitHubURL }}<a href="{{ .Project.GitHubURL }}">View code <span>↗</span></a>{{ end }}
+            {{ if .Project.DemoURL }}<a href="{{ .Project.DemoURL }}">Live demo <span>↗</span></a>{{ end }}
+            {{ if .Project.VideoURL }}<a href="{{ .Project.VideoURL }}">Demo video <span>▶</span></a>{{ end }}
+            {{ if .Project.SlidesURL }}<a href="{{ .Project.SlidesURL }}">Slides <span>↗</span></a>{{ end }}
+            {{ if .Project.DocsURL }}<a href="{{ .Project.DocsURL }}">Docs <span>↗</span></a>{{ end }}
+          </div>
+        </section>
+
         {{ if .OptInAwards }}
+        <div class="hack-section__deck">Choose the awards or bounties this project should be considered for.</div>
         <fieldset class="hack-field">
           <legend>Award opt-ins</legend>
           <div class="hack-list">
@@ -116,7 +328,7 @@
                 <span style="display:block;font-weight:700;">{{ .Title }}</span>
                 {{ if .Description }}<div class="hack-list__meta">{{ hackathonRichText .Description }}</div>{{ end }}
               </div>
-              <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }}>
+              <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }} {{ if not $.CanSubmit }}disabled{{ end }}>
             </label>
             {{ end }}
           </div>
@@ -124,13 +336,16 @@
         {{ end }}
       </div>
       <div class="hack-form__actions">
+        <a href="#public-page" class="hack-button" data-project-tab-link="public-page">Edit public page</a>
+        {{ if .CanSubmit }}
         <button type="submit" class="hack-button hack-button--accent">Submit project →</button>
+        {{ end }}
       </div>
     </form>
     {{ end }}
 
     {{ if not .IsNew }}
-    <section class="hack-section">
+    <section class="hack-section hidden" data-project-tab-panel="team">
       <div class="hack-section__head">
         <div>
           <div class="hack-label">§ Team</div>
@@ -149,6 +364,13 @@
             </div>
             <button type="button" data-copy-target="InviteLink" class="hack-button hack-button--accent">Copy</button>
           </div>
+          {{ if .InviteQRCodeURI }}
+          <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:16px;">
+            <img src="{{ .InviteQRCodeURI | safeURL }}" width="160" height="160" alt="Project invite QR code" style="width:160px;height:160px;border-radius:8px;background:#fff;padding:8px;">
+            <p class="hack-field__help" style="margin:0;">Scan this code to open the same one-time project invite link.</p>
+          </div>
+          {{ end }}
+          <p class="hack-field__help" style="margin-top:10px;">This link can be used once and expires after 24 hours.</p>
         </div>
         {{ end }}
 
@@ -161,7 +383,17 @@
                 <span style="display:block;font-weight:700;">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</span>
                 <span class="hack-list__meta">{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</span>
               </span>
+              {{ if and $.CanRemoveProjectMembers (ne .Role "owner") }}
+              <span style="display:flex;align-items:center;gap:10px;">
+                <span class="hack-tag">{{ .Role }}</span>
+                <form method="POST" action="{{ $.ProjectMemberRemoveURL $.Project }}" style="margin:0;">
+                  <input type="hidden" name="PersonID" value="{{ .PersonID }}">
+                  <button type="submit" class="hack-button">Remove</button>
+                </form>
+              </span>
+              {{ else }}
               <span class="hack-tag">{{ .Role }}</span>
+              {{ end }}
             </div>
             {{ end }}
           </div>
@@ -171,12 +403,12 @@
         </div>
 
         {{ if .CanEdit }}
-        <form method="POST" action="{{ .ProjectInviteURL .Project }}" class="hack-form" style="border-top:0;">
-          <div class="hack-form__grid" style="align-items:end;">
-            <div class="hack-field">
-              <label for="Email">Invite email</label>
-              <input id="Email" name="Email" type="email">
-              <p class="hack-field__help">Add an email to restrict the invite to that address.</p>
+        <form method="POST" action="{{ .ProjectInviteURL .Project }}" class="hack-form" style="border:1px solid #111;padding:18px;">
+          <input type="hidden" name="ReturnTo" value="{{ .ProjectEditURL .Project }}#team">
+          <div class="hack-form__grid" style="align-items:end;grid-template-columns:minmax(0,1fr) auto;">
+            <div>
+              <h3 style="margin:0;font-size:16px;">Generate project invite link</h3>
+              <p class="hack-field__help">The recipient signs in with this one-time link and joins this project.</p>
             </div>
             <button type="submit" class="hack-button hack-button--accent">Generate one-time invite →</button>
           </div>
@@ -185,9 +417,171 @@
       </div>
     </section>
     {{ end }}
+    {{ end }}
   </main>
   {{ block "footer" . }} {{ end }}
   <script>
+    (function () {
+      const tabs = Array.prototype.slice.call(document.querySelectorAll('[data-project-tab]'));
+      const panels = Array.prototype.slice.call(document.querySelectorAll('[data-project-tab-panel]'));
+      if (tabs.length === 0 || panels.length === 0) return;
+
+      function setTab(name) {
+        const exists = tabs.some(tab => tab.dataset.projectTab === name);
+        if (!exists) name = 'basics';
+        for (const tab of tabs) {
+          const active = tab.dataset.projectTab === name;
+          tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        }
+        for (const panel of panels) {
+          panel.classList.toggle('hidden', panel.dataset.projectTabPanel !== name);
+        }
+      }
+
+      function tabFromHash() {
+        if (window.location.hash === '#public-page') return 'public-page';
+        if (window.location.hash === '#submission') return 'submission';
+        if (window.location.hash === '#team') return 'team';
+        return 'basics';
+      }
+
+      for (const tab of tabs) {
+        tab.addEventListener('click', function () {
+          const name = tab.dataset.projectTab;
+          setTab(name);
+          history.replaceState(null, '', '#' + name);
+        });
+      }
+      document.querySelectorAll('[data-project-tab-link]').forEach((link) => {
+        link.addEventListener('click', function (event) {
+          event.preventDefault();
+          const name = link.dataset.projectTabLink;
+          setTab(name);
+          history.replaceState(null, '', '#' + name);
+        });
+      });
+
+      window.addEventListener('hashchange', function () {
+        setTab(tabFromHash());
+      });
+      setTab(tabFromHash());
+    })();
+
+    document.querySelectorAll('[data-image-upload]').forEach((upload) => {
+      const input = upload.querySelector('[data-image-upload-input]');
+      const button = upload.querySelector('[data-image-upload-button]');
+      const preview = upload.querySelector('[data-image-upload-preview]');
+      const status = upload.querySelector('[data-image-upload-status]');
+      if (!input || !button || !preview || !status) return;
+
+      let stagedFiles = [];
+      let previewURLs = [];
+
+      function fileKey(file) {
+        return [file.name, file.size, file.lastModified].join(':');
+      }
+
+      function syncInputFiles() {
+        if (typeof DataTransfer === 'undefined') return;
+        const transfer = new DataTransfer();
+        stagedFiles.forEach((file) => transfer.items.add(file));
+        input.files = transfer.files;
+      }
+
+      function renderPreview() {
+        previewURLs.forEach((url) => URL.revokeObjectURL(url));
+        previewURLs = [];
+        preview.innerHTML = '';
+        preview.classList.toggle('hidden', stagedFiles.length === 0);
+        status.textContent = stagedFiles.length === 0
+          ? 'No new images selected.'
+          : `${stagedFiles.length} new image${stagedFiles.length === 1 ? '' : 's'} ready to save.`;
+
+        stagedFiles.forEach((file, index) => {
+          const figure = document.createElement('figure');
+          figure.className = 'hack-upload__thumb';
+
+          const img = document.createElement('img');
+          const url = URL.createObjectURL(file);
+          previewURLs.push(url);
+          img.src = url;
+          img.alt = '';
+          figure.appendChild(img);
+
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'hack-upload__remove';
+          remove.textContent = 'Remove';
+          remove.addEventListener('click', () => {
+            stagedFiles.splice(index, 1);
+            syncInputFiles();
+            renderPreview();
+          });
+          figure.appendChild(remove);
+
+          preview.appendChild(figure);
+        });
+      }
+
+      button.addEventListener('click', () => input.click());
+      upload.querySelectorAll('[data-image-upload-remove]').forEach((remove) => {
+        remove.addEventListener('click', () => {
+          const thumb = remove.closest('.hack-upload__thumb');
+          if (thumb) thumb.remove();
+        });
+      });
+      input.addEventListener('change', () => {
+        const seen = new Set(stagedFiles.map(fileKey));
+        Array.from(input.files || []).forEach((file) => {
+          const key = fileKey(file);
+          if (!seen.has(key)) {
+            stagedFiles.push(file);
+            seen.add(key);
+          }
+        });
+        syncInputFiles();
+        renderPreview();
+      });
+    });
+
+    document.querySelectorAll('[data-project-gallery]').forEach((gallery) => {
+      const openButton = document.querySelector('[data-project-gallery-open]');
+      const closeButton = gallery.querySelector('[data-project-gallery-close]');
+      const image = gallery.querySelector('[data-project-gallery-image]');
+      const count = gallery.querySelector('[data-project-gallery-count]');
+      const prev = gallery.querySelector('[data-project-gallery-prev]');
+      const next = gallery.querySelector('[data-project-gallery-next]');
+      const sources = Array.from(gallery.querySelectorAll('[data-project-gallery-source]')).map((source) => source.src);
+      if (!openButton || !image || sources.length === 0) return;
+
+      let index = 0;
+      function showImage(nextIndex) {
+        index = (nextIndex + sources.length) % sources.length;
+        image.src = sources[index];
+        if (count) count.textContent = `${index + 1} / ${sources.length}`;
+      }
+
+      openButton.addEventListener('click', () => {
+        showImage(0);
+        if (typeof gallery.showModal === 'function') {
+          gallery.showModal();
+        } else {
+          gallery.setAttribute('open', 'open');
+        }
+      });
+      if (closeButton) {
+        closeButton.addEventListener('click', () => {
+          if (typeof gallery.close === 'function') {
+            gallery.close();
+          } else {
+            gallery.removeAttribute('open');
+          }
+        });
+      }
+      if (prev) prev.addEventListener('click', () => showImage(index - 1));
+      if (next) next.addEventListener('click', () => showImage(index + 1));
+    });
+
     document.querySelectorAll('[data-copy-target]').forEach((button) => {
       button.addEventListener('click', async () => {
         const input = document.getElementById(button.dataset.copyTarget);

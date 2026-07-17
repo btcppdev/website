@@ -125,7 +125,7 @@ func TestHackathonScoreSummaries(t *testing.T) {
 	if summaries[0].ProjectID != "high" || summaries[0].Points != 4 {
 		t.Fatalf("first summary = %+v, want high score", summaries[0])
 	}
-	if summaries[1].ProjectID != "low" || summaries[1].Points != 3 || summaries[1].RankAverage != "2.0" || summaries[1].BestRank != "2" {
+	if summaries[1].ProjectID != "low" || summaries[1].Points != 3 || summaries[1].RankAverage != "2.0" {
 		t.Fatalf("second summary = %+v, want low project rank data", summaries[1])
 	}
 	if summaries[2].ProjectID != "empty" || summaries[2].PointsLabel != "-" || summaries[2].Scorecards != 0 {
@@ -133,12 +133,12 @@ func TestHackathonScoreSummaries(t *testing.T) {
 	}
 }
 
-func TestHackathonFinalistSelections(t *testing.T) {
+func TestHackathonAdvancedSelections(t *testing.T) {
 	n1, n2, n3 := 1, 2, 3
 	rankOne, rankTwo := 1, 2
 	projects := []*types.HackathonProject{
 		{ID: "winner", Title: "Winner", ProjectNumber: &n1, Status: getters.ProjectStatusSubmitted},
-		{ID: "runner-up", Title: "Runner Up", ProjectNumber: &n2, Status: getters.ProjectStatusShipped},
+		{ID: "runner-up", Title: "Runner Up", ProjectNumber: &n2, Status: getters.ProjectStatusAdvanced},
 		{ID: "created", Title: "Created", ProjectNumber: &n3, Status: getters.ProjectStatusCreated},
 	}
 	events := []*types.JudgeEvent{
@@ -152,18 +152,18 @@ func TestHackathonFinalistSelections(t *testing.T) {
 		{ProjectID: "runner-up", JudgeEventID: "finals", Rank: &rankOne},
 	}
 
-	expoFinalists := hackathonFinalistSelections(projects, scorecards, events, hackathonScoreModeExpo, 2)
-	if len(expoFinalists) != 2 || expoFinalists[0].ID != "winner" || expoFinalists[1].ID != "runner-up" {
-		t.Fatalf("expo finalists = %+v, want winner then runner-up", expoFinalists)
+	expoAdvanced := hackathonAdvancedSelections(projects, scorecards, events, hackathonScoreModeExpo, 2)
+	if len(expoAdvanced) != 2 || expoAdvanced[0].ID != "winner" || expoAdvanced[1].ID != "runner-up" {
+		t.Fatalf("expo advanced = %+v, want winner then runner-up", expoAdvanced)
 	}
 
-	finalsFinalists := hackathonFinalistSelections(projects, scorecards, events, hackathonScoreModeFinals, 2)
-	if len(finalsFinalists) != 1 || finalsFinalists[0].ID != "runner-up" {
-		t.Fatalf("finals finalists = %+v, want runner-up only", finalsFinalists)
+	finalsAdvanced := hackathonAdvancedSelections(projects, scorecards, events, hackathonScoreModeFinals, 2)
+	if len(finalsAdvanced) != 1 || finalsAdvanced[0].ID != "runner-up" {
+		t.Fatalf("finals advanced = %+v, want runner-up only", finalsAdvanced)
 	}
 
-	if finalists := hackathonFinalistSelections(projects, scorecards, events, hackathonScoreModeExpo, 0); len(finalists) != 0 {
-		t.Fatalf("zero finalist count returned %+v, want empty", finalists)
+	if advanced := hackathonAdvancedSelections(projects, scorecards, events, hackathonScoreModeExpo, 0); len(advanced) != 0 {
+		t.Fatalf("zero advance count returned %+v, want empty", advanced)
 	}
 }
 

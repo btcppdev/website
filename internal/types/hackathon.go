@@ -56,6 +56,9 @@ type HackathonProject struct {
 	Title             string
 	ShortDescription  string
 	Description       string
+	DescriptionFormat string
+	ImageURL          string
+	ImageURLs         []string
 	GitHubURL         string
 	DemoURL           string
 	VideoURL          string
@@ -65,7 +68,6 @@ type HackathonProject struct {
 	Status            string
 	Tags              []string
 	SubmittedAt       *time.Time
-	ShippedAt         *time.Time
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }

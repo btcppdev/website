@@ -27,17 +27,14 @@ const (
 	CompetitionLifecycleUpcoming          = "upcoming"
 	CompetitionLifecycleOpen              = "open"
 	CompetitionLifecycleSubmissionsClosed = "submissions_closed"
-	CompetitionLifecyclePublicGallery     = "public_gallery"
 	CompetitionLifecycleClosed            = "closed"
 	CompetitionJudgingModeManual          = "manual"
 	CompetitionJudgingModeAutomatic       = "automatic"
 	ProjectInviteDefaultTTL               = 24 * time.Hour
 	ProjectStatusCreated                  = "created"
 	ProjectStatusSubmitted                = "submitted"
-	ProjectStatusWithdrawn                = "withdrawn"
-	ProjectStatusFinalist                 = "finalist"
-	ProjectStatusDisqualified             = "disqualified"
-	ProjectStatusShipped                  = "shipped"
+	ProjectStatusHidden                   = "hidden"
+	ProjectStatusAdvanced                 = "advanced"
 	ProjectMemberRoleOwner                = "owner"
 	ProjectMemberRoleMember               = "member"
 	JudgeTypeExpo                         = "expo"
@@ -787,15 +784,15 @@ func createProjectPostgres(ctx *config.AppContext, in ProjectInput) (string, err
 	err = tx.QueryRow(context.Background(), `
 		INSERT INTO projects (
 			competition_id, created_by_person_id, slug, title, short_description,
-			description, github_url, demo_url, video_url, slides_url, docs_url,
-			project_number, tags
+			description, description_format, image_url, image_urls, github_url, demo_url,
+			video_url, slides_url, docs_url, project_number, tags
 		) VALUES (
 			$1::uuid, NULLIF($2, '')::uuid, $3, $4, $5, $6, $7, $8, $9, $10,
-			$11, $12, $13
+			$11, $12, $13, $14, $15, $16
 		)
 		RETURNING id::text
 	`, in.CompetitionID, in.CreatedByPersonID, in.Slug, in.Title, in.ShortDescription,
-		in.Description, in.GitHubURL, in.DemoURL, in.VideoURL, in.SlidesURL,
+		in.Description, in.DescriptionFormat, in.ImageURL, in.ImageURLs, in.GitHubURL, in.DemoURL, in.VideoURL, in.SlidesURL,
 		in.DocsURL, in.ProjectNumber, in.Tags).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("insert project %q: %w", in.Slug, err)
@@ -832,16 +829,19 @@ func updateProjectPostgres(ctx *config.AppContext, projectID string, in ProjectI
 			title = $3,
 			short_description = $4,
 			description = $5,
-			github_url = $6,
-			demo_url = $7,
-			video_url = $8,
-			slides_url = $9,
-			docs_url = $10,
-			project_number = $11,
-			tags = $12
+			description_format = $6,
+			image_url = $7,
+			image_urls = $8,
+			github_url = $9,
+			demo_url = $10,
+			video_url = $11,
+			slides_url = $12,
+			docs_url = $13,
+			project_number = $14,
+			tags = $15
 		WHERE id = $1
 	`, projectID, in.Slug, in.Title, in.ShortDescription, in.Description,
-		in.GitHubURL, in.DemoURL, in.VideoURL, in.SlidesURL, in.DocsURL,
+		in.DescriptionFormat, in.ImageURL, in.ImageURLs, in.GitHubURL, in.DemoURL, in.VideoURL, in.SlidesURL, in.DocsURL,
 		in.ProjectNumber, in.Tags)
 	if err != nil {
 		return fmt.Errorf("update project %s: %w", projectID, err)
@@ -892,10 +892,9 @@ func updateProjectAdminFieldsPostgres(ctx *config.AppContext, competitionID, pro
 		UPDATE projects
 		SET status = $3,
 			project_number = $4,
-			submitted_at = CASE WHEN $3 = $5 THEN coalesce(submitted_at, now()) ELSE submitted_at END,
-			shipped_at = CASE WHEN $3 = $6 THEN coalesce(shipped_at, now()) ELSE shipped_at END
+			submitted_at = CASE WHEN $3 = $5 THEN coalesce(submitted_at, now()) ELSE submitted_at END
 		WHERE id = $1 AND competition_id = $2
-	`, projectID, competitionID, status, projectNumber, ProjectStatusSubmitted, ProjectStatusShipped)
+	`, projectID, competitionID, status, projectNumber, ProjectStatusSubmitted)
 	if err != nil {
 		return fmt.Errorf("update project admin fields %s: %w", projectID, err)
 	}
@@ -922,7 +921,7 @@ func assignMissingProjectNumbersPostgres(ctx *config.AppContext, competitionID s
 			FROM projects
 			WHERE competition_id = $1
 				AND project_number IS NULL
-				AND status IN ($2, $3, $4)
+				AND status IN ($2, $3)
 		), used_numbers AS (
 			SELECT DISTINCT project_number
 			FROM projects
@@ -950,7 +949,7 @@ func assignMissingProjectNumbersPostgres(ctx *config.AppContext, competitionID s
 		SET project_number = numbered.project_number
 		FROM numbered
 		WHERE projects.id = numbered.id
-	`, competitionID, ProjectStatusSubmitted, ProjectStatusFinalist, ProjectStatusShipped)
+	`, competitionID, ProjectStatusSubmitted, ProjectStatusAdvanced)
 	if err != nil {
 		return 0, fmt.Errorf("assign missing project numbers for competition %s: %w", competitionID, err)
 	}
@@ -1002,9 +1001,10 @@ func queryProjectsPostgres(ctx *config.AppContext, label, whereSQL string, args 
 		SELECT projects.id::text, projects.competition_id::text,
 			coalesce(projects.created_by_person_id::text, ''), projects.slug,
 			projects.title, projects.short_description, projects.description,
+			projects.description_format, projects.image_url, projects.image_urls,
 			projects.github_url, projects.demo_url, projects.video_url,
 			projects.slides_url, projects.docs_url, projects.project_number,
-			projects.status, projects.tags, projects.submitted_at, projects.shipped_at,
+			projects.status, projects.tags, projects.submitted_at,
 			projects.created_at, projects.updated_at
 		FROM projects
 		`+whereSQL+`
@@ -1797,6 +1797,39 @@ func replaceScorecardRankingsPostgres(ctx *config.AppContext, in ScorecardRankin
 	return nil
 }
 
+func deleteScorecardRankingsPostgres(ctx *config.AppContext, competitionID, judgeEventID, judgePersonID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	judgeEventID = strings.TrimSpace(judgeEventID)
+	judgePersonID = strings.TrimSpace(judgePersonID)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if judgeEventID == "" {
+		return fmt.Errorf("scorecard judge event id is required")
+	}
+	if judgePersonID == "" {
+		return fmt.Errorf("scorecard judge person id is required")
+	}
+	commandTag, err := ctx.DB.Exec(context.Background(), `
+		DELETE FROM scorecards
+		USING judge_events
+		WHERE scorecards.judge_event_id = judge_events.id
+			AND judge_events.competition_id::text = $1
+			AND judge_events.id::text = $2
+			AND scorecards.judge_person_id::text = $3
+	`, competitionID, judgeEventID, judgePersonID)
+	if err != nil {
+		return fmt.Errorf("delete scorecard rankings: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("no ballot found for that judge and event")
+	}
+	return nil
+}
+
 func listScorecardsForJudgePostgres(ctx *config.AppContext, competitionID, judgePersonID string) ([]*types.Scorecard, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
@@ -2438,7 +2471,7 @@ func projectIsPublicPostgres(ctx *config.AppContext, project *types.HackathonPro
 	if project == nil {
 		return false
 	}
-	if project.Status == ProjectStatusCreated || project.Status == "withdrawn" || project.Status == "disqualified" {
+	if project.Status == ProjectStatusCreated || project.Status == ProjectStatusHidden {
 		return false
 	}
 	var publicGalleryEnabled bool
@@ -2522,7 +2555,7 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 func scanProject(rows pgx.Rows) (*types.HackathonProject, error) {
 	var project types.HackathonProject
 	var projectNumber sql.NullInt64
-	var submittedAt, shippedAt pgtype.Timestamptz
+	var submittedAt pgtype.Timestamptz
 	if err := rows.Scan(
 		&project.ID,
 		&project.CompetitionID,
@@ -2531,6 +2564,9 @@ func scanProject(rows pgx.Rows) (*types.HackathonProject, error) {
 		&project.Title,
 		&project.ShortDescription,
 		&project.Description,
+		&project.DescriptionFormat,
+		&project.ImageURL,
+		&project.ImageURLs,
 		&project.GitHubURL,
 		&project.DemoURL,
 		&project.VideoURL,
@@ -2540,7 +2576,6 @@ func scanProject(rows pgx.Rows) (*types.HackathonProject, error) {
 		&project.Status,
 		&project.Tags,
 		&submittedAt,
-		&shippedAt,
 		&project.CreatedAt,
 		&project.UpdatedAt,
 	); err != nil {
@@ -2550,8 +2585,8 @@ func scanProject(rows pgx.Rows) (*types.HackathonProject, error) {
 		n := int(projectNumber.Int64)
 		project.ProjectNumber = &n
 	}
+	project.Status = normalizeProjectStatus(project.Status)
 	project.SubmittedAt = pgTimePtr(submittedAt)
-	project.ShippedAt = pgTimePtr(shippedAt)
 	return &project, nil
 }
 
@@ -2824,10 +2859,8 @@ func normalizeCompetitionLifecycleOverride(value string) string {
 		return CompetitionLifecycleUpcoming
 	case CompetitionLifecycleOpen:
 		return CompetitionLifecycleOpen
-	case CompetitionLifecycleSubmissionsClosed, "closed_to_submissions":
+	case CompetitionLifecycleSubmissionsClosed, "closed_to_submissions", "public_gallery", "submissions_public", "public", "gallery":
 		return CompetitionLifecycleSubmissionsClosed
-	case CompetitionLifecyclePublicGallery, "submissions_public", "public", "gallery":
-		return CompetitionLifecyclePublicGallery
 	case CompetitionLifecycleClosed:
 		return CompetitionLifecycleClosed
 	default:
@@ -2853,6 +2886,15 @@ func normalizeProjectInput(in ProjectInput) ProjectInput {
 	in.Title = strings.TrimSpace(in.Title)
 	in.ShortDescription = strings.TrimSpace(in.ShortDescription)
 	in.Description = strings.TrimSpace(in.Description)
+	in.DescriptionFormat = normalizeCompetitionDescriptionFormat(in.DescriptionFormat)
+	in.ImageURL = strings.TrimSpace(in.ImageURL)
+	in.ImageURLs = normalizeURLList(in.ImageURLs)
+	if in.ImageURL != "" {
+		in.ImageURLs = normalizeURLList(append([]string{in.ImageURL}, in.ImageURLs...))
+	}
+	if in.ImageURL == "" && len(in.ImageURLs) > 0 {
+		in.ImageURL = in.ImageURLs[0]
+	}
 	in.GitHubURL = strings.TrimSpace(in.GitHubURL)
 	in.DemoURL = strings.TrimSpace(in.DemoURL)
 	in.VideoURL = strings.TrimSpace(in.VideoURL)
@@ -2869,18 +2911,28 @@ func normalizeProjectInput(in ProjectInput) ProjectInput {
 	return in
 }
 
+func normalizeURLList(values []string) []string {
+	seen := make(map[string]bool, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
 func normalizeProjectStatus(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case ProjectStatusSubmitted:
 		return ProjectStatusSubmitted
-	case ProjectStatusWithdrawn:
-		return ProjectStatusWithdrawn
-	case ProjectStatusFinalist:
-		return ProjectStatusFinalist
-	case ProjectStatusDisqualified:
-		return ProjectStatusDisqualified
-	case ProjectStatusShipped:
-		return ProjectStatusShipped
+	case ProjectStatusHidden, "withdrawn", "disqualified":
+		return ProjectStatusHidden
+	case ProjectStatusAdvanced, "finalist":
+		return ProjectStatusAdvanced
 	default:
 		return ProjectStatusCreated
 	}

@@ -28,9 +28,11 @@ type HackathonAdminPage struct {
 	Judges               []*types.CompetitionJudge
 	JudgeInviteLink      string
 	JudgeInviteQRCodeURI string
+	PeopleByID           map[string]*types.Speaker
 	Scorecards           []*types.Scorecard
 	ScoreSummaries       []*HackathonScoreSummary
 	ScoreMode            string
+	ScoreJudgeEventID    string
 	Awards               []*types.Award
 	ArchivedAwards       []*types.Award
 	PrizesByAward        map[string][]*types.Prize
@@ -69,11 +71,25 @@ type HackathonScoreSummary struct {
 	Points           int
 	PointsLabel      string
 	RankAverage      string
-	BestRank         string
 
 	sortTitle      string
 	rankAverage    float64
 	hasRankAverage bool
+}
+
+type HackathonJudgeBallot struct {
+	JudgePersonID string
+	JudgeName     string
+	Ranks         []HackathonJudgeBallotRank
+	SubmittedAt   *time.Time
+	HasRankings   bool
+}
+
+type HackathonJudgeBallotRank struct {
+	Rank         int
+	RankLabel    string
+	ProjectID    string
+	ProjectTitle string
 }
 
 type scoreSummaryAccumulator struct {
@@ -81,7 +97,6 @@ type scoreSummaryAccumulator struct {
 	events    map[string]*types.JudgeEvent
 	rankSum   int
 	rankCount int
-	bestRank  int
 }
 
 func (p *HackathonAdminPage) ConfLabel(confID string) string {
@@ -312,13 +327,6 @@ func (p *HackathonAdminPage) ProjectPublicURL(project *types.HackathonProject) s
 	if p == nil || p.Competition == nil || project == nil {
 		return ""
 	}
-	return hackathonURLForConf(p.confForCompetition(p.Competition)) + "#project-" + url.PathEscape(project.ID)
-}
-
-func (p *HackathonAdminPage) ProjectManageURL(project *types.HackathonProject) string {
-	if p == nil || p.Competition == nil || project == nil {
-		return ""
-	}
 	return hackathonURLForConf(p.confForCompetition(p.Competition)) + "/projects/" + url.PathEscape(project.ID)
 }
 
@@ -392,6 +400,10 @@ func (p *HackathonAdminPage) JudgeEvent(eventID string) *types.JudgeEvent {
 
 func (p *HackathonAdminPage) JudgeEventTimeRange(event *types.JudgeEvent) string {
 	return formatJudgeEventTimeRange(event, p.Conf)
+}
+
+func (p *HackathonAdminPage) JudgeEventTimeOnlyRange(event *types.JudgeEvent) string {
+	return formatJudgeEventTimeOnlyRange(event, p.Conf)
 }
 
 func (p *HackathonAdminPage) RankLimit(event *types.JudgeEvent) int {
@@ -500,6 +512,16 @@ func (p *HackathonAdminPage) JudgeName(personID string) string {
 			return judge.Email
 		}
 	}
+	if p.PeopleByID != nil {
+		if person := p.PeopleByID[personID]; person != nil {
+			if person.Name != "" {
+				return person.Name
+			}
+			if person.Email != "" {
+				return person.Email
+			}
+		}
+	}
 	return personID
 }
 
@@ -519,6 +541,90 @@ func (p *HackathonAdminPage) ScoreModeLabel(mode string) string {
 	default:
 		return "All scorecards"
 	}
+}
+
+func (p *HackathonAdminPage) ScoreJudgeEventIs(event *types.JudgeEvent) bool {
+	return p != nil && event != nil && p.ScoreJudgeEventID == event.ID
+}
+
+func (p *HackathonAdminPage) ScoresURLForJudgeEvent(event *types.JudgeEvent) string {
+	if p == nil || p.Competition == nil {
+		return "#"
+	}
+	if event == nil {
+		return "/admin/hackathons/" + url.PathEscape(p.Competition.ID) + "/judging/scores"
+	}
+	return "/admin/hackathons/" + url.PathEscape(p.Competition.ID) + "/judging/scores?judge_event=" + url.QueryEscape(event.ID)
+}
+
+func (p *HackathonAdminPage) ScoreJudgeEventLabel() string {
+	if p == nil {
+		return "selected event"
+	}
+	if event := p.JudgeEvent(p.ScoreJudgeEventID); event != nil {
+		return event.Name
+	}
+	return "selected event"
+}
+
+func (p *HackathonAdminPage) ScoreBallotRanks() []HackathonJudgeBallotRank {
+	if p == nil {
+		return nil
+	}
+	limit := judgeEventRankLimit(p.JudgeEvent(p.ScoreJudgeEventID))
+	return emptyJudgeBallotRanks(limit)
+}
+
+func (p *HackathonAdminPage) ScoreBallots() []*HackathonJudgeBallot {
+	if p == nil {
+		return nil
+	}
+	event := p.JudgeEvent(p.ScoreJudgeEventID)
+	limit := judgeEventRankLimit(event)
+	ballotByJudge := make(map[string]*HackathonJudgeBallot, len(p.Judges))
+	ballots := make([]*HackathonJudgeBallot, 0, len(p.Judges))
+	for _, judge := range p.Judges {
+		if judge == nil || strings.TrimSpace(judge.PersonID) == "" {
+			continue
+		}
+		ballot := &HackathonJudgeBallot{
+			JudgePersonID: judge.PersonID,
+			JudgeName:     p.JudgeName(judge.PersonID),
+			Ranks:         emptyJudgeBallotRanks(limit),
+		}
+		ballotByJudge[judge.PersonID] = ballot
+		ballots = append(ballots, ballot)
+	}
+	for _, scorecard := range p.Scorecards {
+		if scorecard == nil || strings.TrimSpace(scorecard.JudgePersonID) == "" {
+			continue
+		}
+		ballot := ballotByJudge[scorecard.JudgePersonID]
+		if ballot == nil {
+			ballot = &HackathonJudgeBallot{
+				JudgePersonID: scorecard.JudgePersonID,
+				JudgeName:     p.JudgeName(scorecard.JudgePersonID),
+				Ranks:         emptyJudgeBallotRanks(limit),
+			}
+			ballotByJudge[scorecard.JudgePersonID] = ballot
+			ballots = append(ballots, ballot)
+		}
+		if scorecard.SubmittedAt != nil && (ballot.SubmittedAt == nil || scorecard.SubmittedAt.After(*ballot.SubmittedAt)) {
+			submittedAt := *scorecard.SubmittedAt
+			ballot.SubmittedAt = &submittedAt
+		}
+		if scorecard.Rank == nil || *scorecard.Rank < 1 || *scorecard.Rank > len(ballot.Ranks) {
+			continue
+		}
+		ballot.HasRankings = true
+		rank := &ballot.Ranks[*scorecard.Rank-1]
+		rank.ProjectID = scorecard.ProjectID
+		rank.ProjectTitle = p.ProjectTitle(scorecard.ProjectID)
+	}
+	sort.SliceStable(ballots, func(i, j int) bool {
+		return strings.ToLower(ballots[i].JudgeName) < strings.ToLower(ballots[j].JudgeName)
+	})
+	return ballots
 }
 
 func (p *HackathonAdminPage) ScorecardPoints(scorecard *types.Scorecard) string {
@@ -757,6 +863,12 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 		handle404(w, r, ctx)
 		return
 	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects conf: %s", competitionID, err)
+		http.Error(w, "Unable to load conference", http.StatusInternalServerError)
+		return
+	}
 	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, types.HackathonViewer{Admin: true})
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/projects list: %s", competitionID, err)
@@ -784,6 +896,7 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 	}
 	page := &HackathonAdminPage{
 		Competition:          competition,
+		Conf:                 conf,
 		Projects:             projects,
 		ProjectTeams:         teams,
 		ActiveTab:            "projects",
@@ -865,24 +978,41 @@ func HackathonAdminUpdateProject(w http.ResponseWriter, r *http.Request, ctx *co
 	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/projects"
 	limitRequestBody(w, r, maxFormBodyBytes)
 	if err := r.ParseForm(); err != nil {
+		if r.FormValue("AutoSave") == "1" {
+			http.Error(w, "Bad form", http.StatusBadRequest)
+			return
+		}
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
 		return
 	}
+	autoSave := r.FormValue("AutoSave") == "1"
 	projectNumber, err := optionalIntFromForm(r, "ProjectNumber", "project number", 1, 0)
 	if err != nil {
+		if autoSave {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
 	if err := getters.UpdateProjectAdminFields(ctx, competitionID, projectID, r.FormValue("Status"), projectNumber); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/projects/%s update: %s", competitionID, projectID, err)
+		if autoSave {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if autoSave {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project updated"), http.StatusSeeOther)
 }
 
 func adminProjectInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string) (getters.ProjectInput, string, *int, error) {
-	in, err := projectInputFromRequest(w, r, competitionID)
+	in, err := projectInputFromRequest(nil, w, r, competitionID)
 	if err != nil {
 		return getters.ProjectInput{}, "", nil, err
 	}
@@ -997,6 +1127,13 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		http.Error(w, "Unable to load scorecards", http.StatusInternalServerError)
 		return
 	}
+	scoreJudgeEventID := selectedScoreJudgeEventID(competition, events, r.URL.Query().Get("judge_event"))
+	filteredScorecards := filterHackathonScorecardsByJudgeEvent(scorecards, scoreJudgeEventID)
+	scoreProjects := projectsForJudgeEvent(projects, events, scoreJudgeEventID)
+	peopleByID, err := scorecardJudgePeopleByID(ctx, scorecards)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/scores people: %s", competitionID, err)
+	}
 	awards, err := getters.ListAwardsForCompetition(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/scores awards: %s", competitionID, err)
@@ -1004,19 +1141,21 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 	page := &HackathonAdminPage{
-		Competition:    competition,
-		Conf:           conf,
-		Projects:       projects,
-		JudgeEvents:    events,
-		Judges:         judges,
-		Scorecards:     scorecards,
-		ScoreSummaries: hackathonScoreSummaries(projects, scorecards, events),
-		Awards:         awards,
-		ActiveTab:      "scores",
-		ScoreMode:      hackathonScoreModeAll,
-		FlashMessage:   r.URL.Query().Get("flash"),
-		FlashError:     r.URL.Query().Get("error"),
-		Year:           helpers.CurrentYear(),
+		Competition:       competition,
+		Conf:              conf,
+		Projects:          scoreProjects,
+		JudgeEvents:       events,
+		Judges:            judges,
+		PeopleByID:        peopleByID,
+		Scorecards:        filteredScorecards,
+		ScoreSummaries:    hackathonScoreSummaries(scoreProjects, filteredScorecards, events),
+		Awards:            awards,
+		ActiveTab:         "scores",
+		ScoreMode:         hackathonScoreModeAll,
+		ScoreJudgeEventID: scoreJudgeEventID,
+		FlashMessage:      r.URL.Query().Get("flash"),
+		FlashError:        r.URL.Query().Get("error"),
+		Year:              helpers.CurrentYear(),
 	}
 	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_scores.tmpl", page); err != nil {
@@ -1106,7 +1245,7 @@ func HackathonAdminUpdateTimeline(w http.ResponseWriter, r *http.Request, ctx *c
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Timeline saved"), http.StatusSeeOther)
 }
 
-func HackathonAdminAdvanceFinalists(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+func HackathonAdminAdvanceProjects(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
 	}
@@ -1117,18 +1256,13 @@ func HackathonAdminAdvanceFinalists(w http.ResponseWriter, r *http.Request, ctx 
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
 		return
 	}
-	topN, err := optionalIntFromForm(r, "TopN", "finalist count", 1, 0)
+	topN, err := optionalIntFromForm(r, "TopN", "project count", 1, 0)
 	if err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
 	if topN == nil {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("finalist count is required"), http.StatusSeeOther)
-		return
-	}
-	mode := normalizeHackathonScoreMode(r.FormValue("ScoreMode"))
-	if mode == "" {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("scoring mode is invalid"), http.StatusSeeOther)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("project count is required"), http.StatusSeeOther)
 		return
 	}
 	competition, err := getters.GetCompetitionByID(ctx, competitionID)
@@ -1138,44 +1272,100 @@ func HackathonAdminAdvanceFinalists(w http.ResponseWriter, r *http.Request, ctx 
 	}
 	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, types.HackathonViewer{Admin: true})
 	if err != nil {
-		ctx.Err.Printf("/admin/hackathons/%s/judging/finalists projects: %s", competitionID, err)
+		ctx.Err.Printf("/admin/hackathons/%s/judging/advance projects: %s", competitionID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load projects"), http.StatusSeeOther)
 		return
 	}
 	events, err := getters.ListJudgeEvents(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/admin/hackathons/%s/judging/finalists events: %s", competitionID, err)
+		ctx.Err.Printf("/admin/hackathons/%s/judging/advance events: %s", competitionID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load judge events"), http.StatusSeeOther)
 		return
 	}
 	events = timelineJudgeEvents(events)
+	eventID := selectedScoreJudgeEventID(competition, events, r.FormValue("JudgeEventID"))
+	dest = dest + "?judge_event=" + url.QueryEscape(eventID)
+	if eventID == "" {
+		http.Redirect(w, r, dest+"&error="+url.QueryEscape("judging event is required"), http.StatusSeeOther)
+		return
+	}
 	scorecards, err := getters.ListScorecardsForCompetition(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/admin/hackathons/%s/judging/finalists scorecards: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load scorecards"), http.StatusSeeOther)
+		ctx.Err.Printf("/admin/hackathons/%s/judging/advance scorecards: %s", competitionID, err)
+		http.Redirect(w, r, dest+"&error="+url.QueryEscape("Unable to load scorecards"), http.StatusSeeOther)
 		return
 	}
-	finalists := hackathonFinalistSelections(projects, scorecards, events, mode, *topN)
-	if len(finalists) == 0 {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("No scored eligible projects found for "+scoreModeLabel(mode)+"."), http.StatusSeeOther)
+	event := judgeEventByID(events, eventID)
+	filteredScorecards := filterHackathonScorecardsByJudgeEvent(scorecards, eventID)
+	advanced := hackathonAdvancedSelectionsFromScorecards(projects, filteredScorecards, events, event, *topN)
+	if len(advanced) == 0 {
+		http.Redirect(w, r, dest+"&error="+url.QueryEscape("No scored eligible projects found for "+judgeEventDisplayName(event)+"."), http.StatusSeeOther)
 		return
 	}
-	for _, project := range finalists {
+	advancedIDs := make(map[string]bool, len(advanced))
+	for _, project := range advanced {
 		if project == nil {
 			continue
 		}
-		if err := getters.UpdateProjectAdminFields(ctx, competition.ID, project.ID, getters.ProjectStatusFinalist, project.ProjectNumber); err != nil {
-			ctx.Err.Printf("/admin/hackathons/%s/judging/finalists project %s: %s", competitionID, project.ID, err)
+		advancedIDs[project.ID] = true
+		if err := getters.UpdateProjectAdminFields(ctx, competition.ID, project.ID, getters.ProjectStatusAdvanced, project.ProjectNumber); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/judging/advance project %s: %s", competitionID, project.ID, err)
 			http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 			return
 		}
 	}
-	message := fmt.Sprintf("Advanced %d finalist", len(finalists))
-	if len(finalists) != 1 {
+	demoted := 0
+	for _, project := range projects {
+		if project == nil || project.Status != getters.ProjectStatusAdvanced || advancedIDs[project.ID] {
+			continue
+		}
+		if !projectEligibleForJudgeEvent(project, events, event) {
+			continue
+		}
+		if err := getters.UpdateProjectAdminFields(ctx, competition.ID, project.ID, getters.ProjectStatusSubmitted, project.ProjectNumber); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/judging/advance demote project %s: %s", competitionID, project.ID, err)
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+			return
+		}
+		demoted++
+	}
+	message := fmt.Sprintf("Advanced %d project", len(advanced))
+	if len(advanced) != 1 {
 		message += "s"
 	}
-	message += " using " + scoreModeLabel(mode)
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(message), http.StatusSeeOther)
+	if demoted > 0 {
+		message += fmt.Sprintf("; moved %d back to submitted", demoted)
+	}
+	message += " using " + judgeEventDisplayName(event)
+	http.Redirect(w, r, dest+"&flash="+url.QueryEscape(message), http.StatusSeeOther)
+}
+
+func HackathonAdminRemoveJudgeBallot(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging/scores"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	eventID := strings.TrimSpace(r.FormValue("JudgeEventID"))
+	judgePersonID := strings.TrimSpace(r.FormValue("JudgePersonID"))
+	if eventID != "" {
+		dest += "?judge_event=" + url.QueryEscape(eventID)
+	}
+	if eventID == "" || judgePersonID == "" {
+		http.Redirect(w, r, appendAdminScoresMessage(dest, "error", "judge event and judge are required"), http.StatusSeeOther)
+		return
+	}
+	if err := getters.DeleteScorecardRankings(ctx, competitionID, eventID, judgePersonID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/scores/remove-ballot event=%s judge=%s: %s", competitionID, eventID, judgePersonID, err)
+		http.Redirect(w, r, appendAdminScoresMessage(dest, "error", err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, appendAdminScoresMessage(dest, "flash", "Judge ballot removed"), http.StatusSeeOther)
 }
 
 func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2017,7 +2207,7 @@ func checkboxValue(r *http.Request, name string) bool {
 func hackathonLifecycleOverrideFromForm(r *http.Request) (string, error) {
 	value := strings.TrimSpace(r.FormValue("LifecycleOverride"))
 	switch value {
-	case "", getters.CompetitionLifecycleUpcoming, getters.CompetitionLifecycleOpen, getters.CompetitionLifecycleSubmissionsClosed, getters.CompetitionLifecyclePublicGallery, getters.CompetitionLifecycleClosed:
+	case "", getters.CompetitionLifecycleUpcoming, getters.CompetitionLifecycleOpen, getters.CompetitionLifecycleSubmissionsClosed, getters.CompetitionLifecycleClosed:
 		return value, nil
 	default:
 		return "", fmt.Errorf("state override is invalid")
@@ -2388,7 +2578,6 @@ func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*t
 				ProjectNumber: adminProjectNumberLabel(project),
 				PointsLabel:   "-",
 				RankAverage:   "-",
-				BestRank:      "-",
 				sortTitle:     strings.ToLower(project.Title),
 			},
 		}
@@ -2409,7 +2598,6 @@ func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*t
 					ProjectNumber: "TBA",
 					PointsLabel:   "-",
 					RankAverage:   "-",
-					BestRank:      "-",
 					sortTitle:     strings.ToLower(scorecard.ProjectID),
 				},
 			}
@@ -2445,7 +2633,15 @@ func hackathonScoreSummaries(projects []*types.HackathonProject, scorecards []*t
 	return summaries
 }
 
-func hackathonFinalistSelections(projects []*types.HackathonProject, scorecards []*types.Scorecard, events []*types.JudgeEvent, mode string, topN int) []*types.HackathonProject {
+func hackathonAdvancedSelections(projects []*types.HackathonProject, scorecards []*types.Scorecard, events []*types.JudgeEvent, mode string, topN int) []*types.HackathonProject {
+	if topN <= 0 {
+		return nil
+	}
+	filteredScorecards := filterHackathonScorecardsByMode(scorecards, events, mode)
+	return hackathonAdvancedSelectionsFromScorecards(projects, filteredScorecards, events, firstJudgeEventForMode(events, mode), topN)
+}
+
+func hackathonAdvancedSelectionsFromScorecards(projects []*types.HackathonProject, scorecards []*types.Scorecard, events []*types.JudgeEvent, event *types.JudgeEvent, topN int) []*types.HackathonProject {
 	if topN <= 0 {
 		return nil
 	}
@@ -2456,27 +2652,109 @@ func hackathonFinalistSelections(projects []*types.HackathonProject, scorecards 
 			continue
 		}
 		projectByID[project.ID] = project
-		if projectEligibleForFinalist(project) {
+		if projectEligibleForJudgeEvent(project, events, event) {
 			eligibleProjects = append(eligibleProjects, project)
 		}
 	}
-	filteredScorecards := filterHackathonScorecardsByMode(scorecards, events, mode)
-	summaries := hackathonScoreSummaries(eligibleProjects, filteredScorecards, events)
-	finalists := make([]*types.HackathonProject, 0, min(topN, len(summaries)))
+	summaries := hackathonScoreSummaries(eligibleProjects, scorecards, events)
+	advanced := make([]*types.HackathonProject, 0, min(topN, len(summaries)))
 	for _, summary := range summaries {
 		if summary == nil || summary.ScoredScorecards == 0 {
 			continue
 		}
 		project := projectByID[summary.ProjectID]
-		if project == nil || !projectEligibleForFinalist(project) {
+		if project == nil || !projectEligibleForJudgeEvent(project, events, event) {
 			continue
 		}
-		finalists = append(finalists, project)
-		if len(finalists) >= topN {
+		advanced = append(advanced, project)
+		if len(advanced) >= topN {
 			break
 		}
 	}
-	return finalists
+	return advanced
+}
+
+func selectedScoreJudgeEventID(competition *types.HackathonCompetition, events []*types.JudgeEvent, requested string) string {
+	requested = strings.TrimSpace(requested)
+	if requested != "" {
+		for _, event := range events {
+			if event != nil && event.ID == requested {
+				return requested
+			}
+		}
+	}
+	if current := currentJudgeEvents(competition, events, time.Now()); len(current) > 0 && current[0] != nil {
+		return current[0].ID
+	}
+	for _, event := range events {
+		if event != nil {
+			return event.ID
+		}
+	}
+	return ""
+}
+
+func filterHackathonScorecardsByJudgeEvent(scorecards []*types.Scorecard, eventID string) []*types.Scorecard {
+	eventID = strings.TrimSpace(eventID)
+	if eventID == "" {
+		return nil
+	}
+	filtered := make([]*types.Scorecard, 0, len(scorecards))
+	for _, scorecard := range scorecards {
+		if scorecard == nil || scorecard.JudgeEventID != eventID {
+			continue
+		}
+		filtered = append(filtered, scorecard)
+	}
+	return filtered
+}
+
+func judgeEventDisplayName(event *types.JudgeEvent) string {
+	if event == nil || strings.TrimSpace(event.Name) == "" {
+		return "selected judging event"
+	}
+	return event.Name
+}
+
+func appendAdminScoresMessage(dest, key, message string) string {
+	sep := "?"
+	if strings.Contains(dest, "?") {
+		sep = "&"
+	}
+	return dest + sep + url.QueryEscape(key) + "=" + url.QueryEscape(message)
+}
+
+func scorecardJudgePeopleByID(ctx *config.AppContext, scorecards []*types.Scorecard) (map[string]*types.Speaker, error) {
+	people := make(map[string]*types.Speaker)
+	for _, scorecard := range scorecards {
+		if scorecard == nil || strings.TrimSpace(scorecard.JudgePersonID) == "" {
+			continue
+		}
+		if _, ok := people[scorecard.JudgePersonID]; ok {
+			continue
+		}
+		person, err := getters.FetchSpeakerByID(ctx, scorecard.JudgePersonID)
+		if err != nil {
+			return people, err
+		}
+		people[scorecard.JudgePersonID] = person
+	}
+	return people, nil
+}
+
+func emptyJudgeBallotRanks(limit int) []HackathonJudgeBallotRank {
+	if limit <= 0 {
+		return nil
+	}
+	ranks := make([]HackathonJudgeBallotRank, limit)
+	for i := range ranks {
+		rank := i + 1
+		ranks[i] = HackathonJudgeBallotRank{
+			Rank:      rank,
+			RankLabel: ordinal(rank),
+		}
+	}
+	return ranks
 }
 
 func filterHackathonScorecardsByMode(scorecards []*types.Scorecard, events []*types.JudgeEvent, mode string) []*types.Scorecard {
@@ -2500,16 +2778,62 @@ func filterHackathonScorecardsByMode(scorecards []*types.Scorecard, events []*ty
 	return filtered
 }
 
-func projectEligibleForFinalist(project *types.HackathonProject) bool {
+func firstJudgeEventForMode(events []*types.JudgeEvent, mode string) *types.JudgeEvent {
+	mode = normalizeHackathonScoreMode(mode)
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		if mode == hackathonScoreModeAll || event.PlaybookType == mode {
+			return event
+		}
+	}
+	return nil
+}
+
+func projectsForJudgeEvents(projects []*types.HackathonProject, events []*types.JudgeEvent, selectedEvents []*types.JudgeEvent) []*types.HackathonProject {
+	if len(selectedEvents) == 0 {
+		return nil
+	}
+	return projectsForJudgeEvent(projects, events, selectedEvents[0].ID)
+}
+
+func projectsForJudgeEvent(projects []*types.HackathonProject, events []*types.JudgeEvent, eventID string) []*types.HackathonProject {
+	event := judgeEventByID(events, eventID)
+	if event == nil {
+		return nil
+	}
+	filtered := make([]*types.HackathonProject, 0, len(projects))
+	for _, project := range projects {
+		if projectEligibleForJudgeEvent(project, events, event) {
+			filtered = append(filtered, project)
+		}
+	}
+	return filtered
+}
+
+func projectEligibleForJudgeEvent(project *types.HackathonProject, events []*types.JudgeEvent, event *types.JudgeEvent) bool {
 	if project == nil {
 		return false
 	}
-	switch project.Status {
-	case getters.ProjectStatusSubmitted, getters.ProjectStatusShipped, getters.ProjectStatusFinalist:
-		return true
-	default:
+	if event == nil {
 		return false
 	}
+	if judgeEventIsFirst(events, event.ID) {
+		return project.Status == getters.ProjectStatusSubmitted || project.Status == getters.ProjectStatusAdvanced
+	}
+	return project.Status == getters.ProjectStatusAdvanced
+}
+
+func judgeEventIsFirst(events []*types.JudgeEvent, eventID string) bool {
+	eventID = strings.TrimSpace(eventID)
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		return event.ID == eventID
+	}
+	return false
 }
 
 func normalizeHackathonScoreMode(mode string) string {
@@ -2547,9 +2871,6 @@ func (a *scoreSummaryAccumulator) add(scorecard *types.Scorecard) {
 		a.summary.ScoredScorecards++
 		a.rankSum += *scorecard.Rank
 		a.rankCount++
-		if a.bestRank == 0 || *scorecard.Rank < a.bestRank {
-			a.bestRank = *scorecard.Rank
-		}
 	}
 }
 
@@ -2561,7 +2882,6 @@ func (a *scoreSummaryAccumulator) finish() {
 	if a.rankCount > 0 {
 		s.rankAverage = float64(a.rankSum) / float64(a.rankCount)
 		s.RankAverage = formatScoreAverage(s.rankAverage)
-		s.BestRank = strconv.Itoa(a.bestRank)
 		s.hasRankAverage = true
 	}
 }

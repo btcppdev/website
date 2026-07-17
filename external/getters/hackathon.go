@@ -39,6 +39,9 @@ type ProjectInput struct {
 	Title             string
 	ShortDescription  string
 	Description       string
+	DescriptionFormat string
+	ImageURL          string
+	ImageURLs         []string
 	GitHubURL         string
 	DemoURL           string
 	VideoURL          string
@@ -262,6 +265,10 @@ func UpsertScorecard(ctx *config.AppContext, in ScorecardInput) (*types.Scorecar
 
 func ReplaceScorecardRankings(ctx *config.AppContext, in ScorecardRankingsInput) error {
 	return replaceScorecardRankingsPostgres(ctx, in)
+}
+
+func DeleteScorecardRankings(ctx *config.AppContext, competitionID, judgeEventID, judgePersonID string) error {
+	return deleteScorecardRankingsPostgres(ctx, competitionID, judgeEventID, judgePersonID)
 }
 
 func ListScorecardsForJudge(ctx *config.AppContext, competitionID, judgePersonID string) ([]*types.Scorecard, error) {

@@ -1202,8 +1202,11 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/scores", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminScoreReview(w, r, app)
 	}).Methods("GET")
-	r.HandleFunc("/admin/hackathons/{competitionID}/judging/finalists", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminAdvanceFinalists(w, r, app)
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/advance", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminAdvanceProjects(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/scores/remove-ballot", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminRemoveJudgeBallot(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/mode", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateJudgingMode(w, r, app)
@@ -1305,15 +1308,21 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/invites", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectInviteCreate(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/team/remove", func(w http.ResponseWriter, r *http.Request) {
+		HackathonProjectMemberRemove(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/submit", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectSubmit(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/{conf}/hackathon/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectEdit(w, r, app)
 	}).Methods("GET")
-	r.HandleFunc("/{conf}/hackathon/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectUpdate(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/{conf}/hackathon/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
+		HackathonProjectShow(w, r, app)
+	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditProposal(w, r, app)
