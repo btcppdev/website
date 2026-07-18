@@ -465,19 +465,23 @@
 <article id="{{ if .Featured }}featured-{{ else }}project-{{ end }}{{ $project.ID }}" class="hack-card hack-card--project{{ if not .ShowManage }} hack-card--clickable{{ end }}" {{ if not .ShowManage }}data-project-card-url="{{ $page.ProjectURL $project }}" tabindex="0" role="link"{{ end }}>
   <div class="hack-card__media" data-initials="++" {{ if $project.ImageURL }}data-has-image="true"{{ end }}>
     {{ if $project.ImageURL }}<img src="{{ $project.ImageURL }}" alt="" loading="lazy">{{ end }}
-    {{ if $winningAwards }}<span class="hack-badge" style="position:absolute;top:12px;left:12px;z-index:1;">★ Winner</span>{{ end }}
+    {{ if $winningAwards }}
+    <div class="hack-card__award-badges">
+      {{ range $winningAwards }}<span class="hack-badge">★ {{ .Title }}</span>{{ end }}
+    </div>
+    {{ end }}
   </div>
   <div class="hack-card__body">
     <div class="hack-card__top">
       <h3>{{ $project.Title }}</h3>
       <div class="hack-card__number">{{ $page.ProjectNumberLabel $project }}</div>
     </div>
+    {{ if $page.CanAdminEdit }}
+    <div class="hack-tags">
+      <span class="hack-badge">Admin: {{ $page.ProjectStatusLabel $project.Status }}</span>
+    </div>
+    {{ end }}
     {{ if $project.ShortDescription }}<div class="hack-card__desc">{{ $project.ShortDescription }}</div>{{ end }}
-                    {{ if $winningAwards }}
-                      <div class="hack-tags">
-                        {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
-                      </div>
-                    {{ end }}
     {{ if $project.Tags }}
     <div class="hack-tags">
       {{ range $project.Tags }}<span class="hack-tag">{{ . }}</span>{{ end }}

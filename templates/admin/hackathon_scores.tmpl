@@ -66,6 +66,24 @@
           </div>
         </div>
       </div>
+      <div class="grid gap-3 border-b border-gray-200 bg-gray-50 px-4 py-4 sm:grid-cols-4 sm:px-6">
+        <div class="rounded-md bg-white p-3 shadow-sm ring-1 ring-gray-200">
+          <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Judges invited</div>
+          <div class="mt-1 text-2xl font-semibold text-gray-900">{{ .ScoreInvitedJudgeCount }}</div>
+        </div>
+        <div class="rounded-md bg-white p-3 shadow-sm ring-1 ring-gray-200">
+          <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Ballots submitted</div>
+          <div class="mt-1 text-2xl font-semibold text-gray-900">{{ .ScoreSubmittedBallotCount }}</div>
+        </div>
+        <div class="rounded-md bg-white p-3 shadow-sm ring-1 ring-gray-200">
+          <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Projects ranked</div>
+          <div class="mt-1 text-2xl font-semibold text-gray-900">{{ .ScoreRankedProjectCount }}</div>
+        </div>
+        <div class="rounded-md bg-white p-3 shadow-sm ring-1 ring-gray-200">
+          <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Last ballot</div>
+          <div class="mt-1 text-sm font-semibold text-gray-900">{{ .ScoreLastSubmittedAtLabel }}</div>
+        </div>
+      </div>
       {{ if .ScoreSummaries }}
       {{ if .ScoreHasNextJudgeEvent }}
       <form method="POST" action="{{ .JudgingURL .Competition }}/advance" class="grid gap-3 border-b border-gray-200 bg-gray-50 px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-end sm:px-6">

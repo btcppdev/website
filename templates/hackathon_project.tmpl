@@ -150,8 +150,14 @@
       {{ if not .IsNew }}<button type="button" data-project-tab="submission" class="hack-tab" aria-selected="false">Submission</button>{{ end }}
     </nav>
 
-    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" class="hack-form hack-project-editor__panel" data-project-tab-panel="basics">
-      <div class="hack-form__body">
+	    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" class="hack-form hack-project-editor__panel" data-project-tab-panel="basics">
+	      <div class="hack-form__actions hack-form__actions--top">
+	        <a href="{{ .HackathonURL }}" class="hack-button">Cancel</a>
+	        {{ if .CanEdit }}
+	        <button type="submit" class="hack-button hack-button--accent">Save →</button>
+	        {{ end }}
+	      </div>
+	      <div class="hack-form__body">
         <header class="hack-project-editor__intro">
           <div>
             <div class="hack-label">§ Basics</div>
@@ -170,6 +176,9 @@
         <input name="DocsURL" type="hidden" value="{{ .Project.DocsURL }}">
         {{ if not .CanEdit }}
         <div class="hack-alert hack-alert--warning">This project page is read-only.</div>
+        {{ end }}
+        {{ if eq .Project.Status "submitted" }}
+        <div class="hack-alert hack-alert--success" style="margin:0;">This project has been submitted for judging. You can still keep the public project page up to date.</div>
         {{ end }}
 
         <div class="hack-field">
@@ -206,16 +215,16 @@
         </fieldset>
         {{ end }}
       </div>
-      <div class="hack-form__actions">
-        <a href="{{ .HackathonURL }}" class="hack-button">Cancel</a>
-        {{ if .CanEdit }}
-        <button type="submit" class="hack-button hack-button--accent">Save →</button>
-        {{ end }}
-      </div>
     </form>
 
-    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" enctype="multipart/form-data" class="hack-form hack-project-editor__panel hidden" data-project-tab-panel="public-page">
-      <div class="hack-form__body">
+	    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" enctype="multipart/form-data" class="hack-form hack-project-editor__panel hidden" data-project-tab-panel="public-page">
+	      <div class="hack-form__actions hack-form__actions--top">
+	        <a href="{{ .HackathonURL }}" class="hack-button">Cancel</a>
+	        {{ if .CanEdit }}
+	        <button type="submit" class="hack-button hack-button--accent">Save public page →</button>
+	        {{ end }}
+	      </div>
+	      <div class="hack-form__body">
         <header class="hack-project-editor__intro">
           <div>
             <div class="hack-label">§ Public page</div>
@@ -226,7 +235,10 @@
         <input name="Title" type="hidden" value="{{ .Project.Title }}">
         <input name="ShortDescription" type="hidden" value="{{ .Project.ShortDescription }}">
         <input name="Tags" type="hidden" value="{{ .ProjectTagsCSV }}">
-        <div class="hack-field">
+	        {{ if eq .Project.Status "submitted" }}
+	        <div class="hack-alert hack-alert--success" style="margin:0;">This submitted project page is visible to judges and admins. Public visibility still follows the hackathon gallery setting.</div>
+	        {{ end }}
+	        <div class="hack-field">
             <label for="ImageFiles">Project images</label>
             {{ $editorImages := .ProjectImageGallery .Project }}
             <div class="hack-upload" data-image-upload>
@@ -237,7 +249,7 @@
                   <img src="{{ . }}" alt="">
                   <input name="ImageURLs" type="hidden" value="{{ . }}">
                   <figcaption>Saved</figcaption>
-                  {{ if $.CanEdit }}<button type="button" class="hack-upload__remove" data-image-upload-remove>Remove</button>{{ end }}
+                  {{ if $.CanEdit }}<button type="button" class="hack-upload__remove" data-image-upload-remove aria-label="Remove image">X</button>{{ end }}
                 </figure>
                 {{ end }}
               </div>
@@ -284,12 +296,6 @@
             <input id="DocsURL" name="DocsURL" type="url" value="{{ .Project.DocsURL }}" {{ if not .CanEdit }}disabled{{ end }}>
           </div>
         </div>
-      </div>
-      <div class="hack-form__actions">
-        <a href="{{ .HackathonURL }}" class="hack-button">Cancel</a>
-        {{ if .CanEdit }}
-        <button type="submit" class="hack-button hack-button--accent">Save public page →</button>
-        {{ end }}
       </div>
     </form>
 
@@ -525,10 +531,15 @@
           img.alt = '';
           figure.appendChild(img);
 
+          const caption = document.createElement('figcaption');
+          caption.textContent = 'Pending';
+          figure.appendChild(caption);
+
           const remove = document.createElement('button');
           remove.type = 'button';
           remove.className = 'hack-upload__remove';
-          remove.textContent = 'Remove';
+          remove.setAttribute('aria-label', 'Remove image');
+          remove.textContent = 'X';
           remove.addEventListener('click', () => {
             stagedFiles.splice(index, 1);
             syncInputFiles();
