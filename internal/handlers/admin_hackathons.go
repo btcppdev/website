@@ -706,6 +706,80 @@ func (p *HackathonAdminPage) ScoreNextJudgeEventLabel() string {
 	return "next round"
 }
 
+func (p *HackathonAdminPage) ScoreInvitedJudgeCount() int {
+	if p == nil {
+		return 0
+	}
+	seen := make(map[string]bool, len(p.Judges))
+	for _, judge := range p.Judges {
+		if judge == nil {
+			continue
+		}
+		personID := strings.TrimSpace(judge.PersonID)
+		if personID == "" || seen[personID] {
+			continue
+		}
+		seen[personID] = true
+	}
+	return len(seen)
+}
+
+func (p *HackathonAdminPage) ScoreSubmittedBallotCount() int {
+	if p == nil {
+		return 0
+	}
+	seen := make(map[string]bool, len(p.Scorecards))
+	for _, scorecard := range p.Scorecards {
+		if scorecard == nil || scorecard.SubmittedAt == nil {
+			continue
+		}
+		personID := strings.TrimSpace(scorecard.JudgePersonID)
+		if personID == "" {
+			continue
+		}
+		seen[personID] = true
+	}
+	return len(seen)
+}
+
+func (p *HackathonAdminPage) ScoreRankedProjectCount() int {
+	if p == nil {
+		return 0
+	}
+	seen := make(map[string]bool, len(p.Scorecards))
+	for _, scorecard := range p.Scorecards {
+		if scorecard == nil || scorecard.Rank == nil {
+			continue
+		}
+		projectID := strings.TrimSpace(scorecard.ProjectID)
+		if projectID == "" {
+			continue
+		}
+		seen[projectID] = true
+	}
+	return len(seen)
+}
+
+func (p *HackathonAdminPage) ScoreLastSubmittedAtLabel() string {
+	if p == nil {
+		return "None"
+	}
+	var latest *time.Time
+	for _, scorecard := range p.Scorecards {
+		if scorecard == nil || scorecard.SubmittedAt == nil {
+			continue
+		}
+		if latest == nil || scorecard.SubmittedAt.After(*latest) {
+			submittedAt := *scorecard.SubmittedAt
+			latest = &submittedAt
+		}
+	}
+	if latest == nil {
+		return "None"
+	}
+	return latest.Format("Jan 2, 2006 3:04 PM")
+}
+
 func (p *HackathonAdminPage) ScoreBallotRanks() []HackathonJudgeBallotRank {
 	if p == nil {
 		return nil
