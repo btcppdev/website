@@ -9,6 +9,10 @@ todo
 reqs/
 *.log
 .env
+.env.orig
+.env.prod
+.env.staging
+/artifacts/
 .dev/
 .direnv/
 .DS_Store
