@@ -50,6 +50,24 @@ func TestDatabaseSmokeEasyshipWebhookReplayAndTransitions(t *testing.T) {
 	`, orderID, providerShipmentID); err != nil {
 		t.Fatalf("insert Easyship test shipment: %s", err)
 	}
+	var orderItemID string
+	if err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO shop_order_items (
+			order_id, quantity, refunded_quantity, unit_price_cents, line_total_cents,
+			product_name_snapshot, fulfillment_method, status
+		) VALUES ($1::uuid, 3, 1, 1000, 3000, 'Test hat', 'ship', 'partially_refunded')
+		RETURNING id::text
+	`, orderID).Scan(&orderItemID); err != nil {
+		t.Fatalf("insert Easyship test order item: %s", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO shipment_items (shipment_id, order_item_id, quantity)
+		SELECT id, $2::uuid, 2
+		FROM shipments
+		WHERE provider = 'easyship' AND provider_shipment_id = $1
+	`, providerShipmentID, orderItemID); err != nil {
+		t.Fatalf("insert Easyship test shipment item: %s", err)
+	}
 
 	labelPayload := []byte(fmt.Sprintf(`{
 		"event_type":"shipment.label.created","resource_type":"shipment","resource_id":%q,
@@ -73,6 +91,23 @@ func TestDatabaseSmokeEasyshipWebhookReplayAndTransitions(t *testing.T) {
 		t.Fatalf("process label events = (%d, %v)", count, err)
 	}
 	assertEasyshipShipmentState(t, ctx, providerShipmentID, "label_created", "generated", "not_created")
+	assertShopOrderItemFulfillment(t, ctx, orderItemID, 0, "partially_refunded")
+
+	shippedPayload := []byte(fmt.Sprintf(`{
+		"event_type":"shipment.tracking.status.changed","resource_type":"shipment","resource_id":%q,
+		"data":{"easyship_shipment_id":%q,"status":"In Transit to Customer","tracking_number":"TRACK123","tracking_page_url":"https://example.test/track"}
+	}`, providerShipmentID, providerShipmentID))
+	if created, err := StoreEasyshipWebhookEvent(ctx, EasyshipWebhookEventInput{
+		EventType: "shipment.tracking.status.changed", ResourceType: "shipment", ResourceID: providerShipmentID,
+		EasyshipShipmentID: providerShipmentID, Payload: shippedPayload,
+	}); err != nil || !created {
+		t.Fatalf("store shipped event = (%t, %v)", created, err)
+	}
+	if count, err := ProcessEasyshipWebhookEvents(ctx, 10); err != nil || count != 1 {
+		t.Fatalf("process shipped events = (%d, %v)", count, err)
+	}
+	assertEasyshipShipmentState(t, ctx, providerShipmentID, "shipped", "generated", "In Transit to Customer")
+	assertShopOrderItemFulfillment(t, ctx, orderItemID, 2, "partially_refunded")
 
 	deliveredPayload := []byte(fmt.Sprintf(`{
 		"event_type":"shipment.tracking.status.changed","resource_type":"shipment","resource_id":%q,
@@ -88,6 +123,7 @@ func TestDatabaseSmokeEasyshipWebhookReplayAndTransitions(t *testing.T) {
 		t.Fatalf("process delivered events = (%d, %v)", count, err)
 	}
 	assertEasyshipShipmentState(t, ctx, providerShipmentID, "delivered", "generated", "Delivered")
+	assertShopOrderItemFulfillment(t, ctx, orderItemID, 2, "partially_refunded")
 
 	stalePayload := []byte(fmt.Sprintf(`{
 		"event_type":"shipment.tracking.status.changed","resource_type":"shipment","resource_id":%q,
@@ -103,6 +139,7 @@ func TestDatabaseSmokeEasyshipWebhookReplayAndTransitions(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertEasyshipShipmentState(t, ctx, providerShipmentID, "delivered", "generated", "Delivered")
+	assertShopOrderItemFulfillment(t, ctx, orderItemID, 2, "partially_refunded")
 }
 
 func assertEasyshipShipmentState(t *testing.T, app *config.AppContext, providerID, wantStatus, wantLabel, wantDelivery string) {
@@ -119,5 +156,21 @@ func assertEasyshipShipmentState(t *testing.T, app *config.AppContext, providerI
 	}
 	if status != wantStatus || label != wantLabel || delivery != wantDelivery {
 		t.Fatalf("shipment state = (%q, %q, %q), want (%q, %q, %q)", status, label, delivery, wantStatus, wantLabel, wantDelivery)
+	}
+}
+
+func assertShopOrderItemFulfillment(t *testing.T, app *config.AppContext, orderItemID string, wantQuantity int, wantStatus string) {
+	t.Helper()
+	var quantity int
+	var status string
+	if err := app.DB.QueryRow(context.Background(), `
+		SELECT fulfilled_quantity, status
+		FROM shop_order_items
+		WHERE id = $1::uuid
+	`, orderItemID).Scan(&quantity, &status); err != nil {
+		t.Fatalf("load shop order item fulfillment: %s", err)
+	}
+	if quantity != wantQuantity || status != wantStatus {
+		t.Fatalf("order item fulfillment = (%d, %q), want (%d, %q)", quantity, status, wantQuantity, wantStatus)
 	}
 }

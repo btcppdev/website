@@ -205,6 +205,7 @@ func processOneEasyshipWebhookEvent(ctx *config.AppContext) (bool, error) {
 	status, labelState, deliveryState, markShipped, markDelivered := easyshipShipmentTransition(
 		event.EventType, payload.Data.Status, shipment.Status, shipment.LabelState, shipment.DeliveryState,
 	)
+	firstShipmentMovement := markShipped && shipment.Status != "shipped" && shipment.Status != "delivered"
 	if _, err := tx.Exec(ctx.DatabaseContext(), `
 		UPDATE shipments
 		SET status = $2,
@@ -223,6 +224,33 @@ func processOneEasyshipWebhookEvent(ctx *config.AppContext) (bool, error) {
 		strings.TrimSpace(payload.Data.LabelURL), strings.TrimSpace(payload.Data.TrackingNumber),
 		strings.TrimSpace(payload.Data.TrackingPageURL), markShipped, markDelivered, string(event.Payload)); err != nil {
 		return false, fmt.Errorf("apply Easyship shipment event: %w", err)
+	}
+	if firstShipmentMovement {
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			UPDATE shop_order_items item
+			SET fulfilled_quantity = least(
+					item.quantity - item.refunded_quantity,
+					item.fulfilled_quantity + shipment_item.quantity
+				),
+				status = CASE
+					WHEN least(
+						item.quantity - item.refunded_quantity,
+						item.fulfilled_quantity + shipment_item.quantity
+					) + item.refunded_quantity >= item.quantity THEN
+						CASE
+							WHEN item.refunded_quantity > 0 THEN 'partially_refunded'
+							ELSE 'fulfilled'
+						END
+					ELSE item.status
+				END
+			FROM shipment_items shipment_item
+			WHERE shipment_item.shipment_id = $1::uuid
+				AND item.id = shipment_item.order_item_id
+				AND item.fulfillment_method = 'ship'
+				AND item.status NOT IN ('cancelled', 'refunded', 'fulfilled')
+		`, shipment.ID); err != nil {
+			return false, fmt.Errorf("fulfill Easyship shipment items: %w", err)
+		}
 	}
 	if _, err := tx.Exec(ctx.DatabaseContext(), `
 		INSERT INTO shop_events (
