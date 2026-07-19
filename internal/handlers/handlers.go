@@ -1280,6 +1280,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/results/reopen", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminReopenResults(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/judges", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminAddAwardJudge(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/judges/remove", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminRemoveAwardJudge(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/visibility", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateVisibility(w, r, app)
 	}).Methods("POST")
@@ -1317,6 +1323,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/judging/scorecards", func(w http.ResponseWriter, r *http.Request) {
 		HackathonScorecardSubmit(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/hackathon/judging/award-votes", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAwardVoteSubmit(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/new", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectNew(w, r, app)

@@ -172,19 +172,21 @@ type Scorecard struct {
 }
 
 type Award struct {
-	ID               string
-	CompetitionID    string
-	SponsoredByOrgID string
-	Title            string
-	Description      string
-	PhotoURL         string
-	MaxAwardees      *int
-	OptInRequired    bool
-	FinalistsOnly    bool
-	Status           string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	ArchivedAt       *time.Time
+	ID                  string
+	CompetitionID       string
+	SponsoredByOrgID    string
+	AwardType           string
+	Title               string
+	Description         string
+	JudgingInstructions string
+	AwardRank           *int
+	MaxAwardees         *int
+	OptInRequired       bool
+	FinalistsOnly       bool
+	Status              string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	ArchivedAt          *time.Time
 }
 
 type Prize struct {
@@ -264,6 +266,29 @@ type HackathonTicketEntitlement struct {
 	ClaimedAt              *time.Time
 	VoidedAt               *time.Time
 	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+type AwardJudge struct {
+	AwardID   string
+	PersonID  string
+	Name      string
+	Email     string
+	Photo     string
+	CreatedAt time.Time
+}
+
+type AwardVote struct {
+	AwardID       string
+	JudgePersonID string
+	JudgeName     string
+	ProjectID     string
+	ProjectTitle  string
+	ProjectNumber *int
+	Notes         string
+	SubmittedAt   time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type HackathonViewer struct {

@@ -7149,9 +7149,9 @@ body.btcpp-checkout-page {
 .hack-bounty-card {
 	display: flex;
 	min-width: 0;
-	min-height: 210px;
+	min-height: 150px;
 	flex-direction: column;
-	gap: 12px;
+	gap: 10px;
 	border-right: 1px solid var(--hack-ink);
 	border-bottom: 1px solid var(--hack-ink);
 	padding: 28px 32px;
@@ -7161,8 +7161,13 @@ body.btcpp-checkout-page {
 	border-right: 0;
 }
 
-.hack-bounty-card__eyebrow {
-	color: var(--hack-accent);
+.hack-bounty-card__top,
+.hack-award-card__top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	color: var(--hack-ink);
 	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	font-size: 11px;
 	font-weight: 700;
@@ -7170,11 +7175,48 @@ body.btcpp-checkout-page {
 	text-transform: uppercase;
 }
 
+.hack-bounty-card__top strong,
+.hack-award-card__top strong {
+	flex: none;
+	color: var(--hack-ink);
+	font-size: 14px;
+	letter-spacing: 0;
+	white-space: nowrap;
+}
+
+.hack-bounty-card__sponsor,
+.hack-award-card__label {
+	display: inline-flex;
+	min-width: 0;
+	align-items: center;
+	gap: 9px;
+	color: var(--hack-accent);
+}
+
+.hack-bounty-card__sponsor a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.hack-bounty-card__sponsor a:hover {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.hack-bounty-card__logo img,
+.hack-award-card__logo img {
+	display: block;
+	max-width: 82px;
+	max-height: 24px;
+	object-fit: contain;
+}
+
 .hack-bounty-card h3 {
 	margin: 0;
-	font-size: 25px;
+	font-size: 22px;
 	font-weight: 700;
-	line-height: 1.08;
+	letter-spacing: 0;
+	line-height: 1.15;
 }
 
 .hack-bounty-card__desc {
@@ -8045,7 +8087,13 @@ display: grid;
 }
 
 .hack-award-card h3 {
+	margin: 0;
 	font-size: 32px;
+	line-height: 1.05;
+}
+
+.hack-award-card__top {
+	margin-bottom: 4px;
 }
 
 .hack-table-wrap {

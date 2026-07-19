@@ -209,8 +209,9 @@ func TestScoreAwardHelpersShowExistingAssignments(t *testing.T) {
 	assigned := &types.Award{ID: "assigned", Title: "First place", MaxAwardees: &limit}
 	available := &types.Award{ID: "available", Title: "Design prize"}
 	finalistsOnly := &types.Award{ID: "finalists-only", Title: "Second place", FinalistsOnly: true}
+	sponsorBounty := &types.Award{ID: "sponsor-bounty", Title: "Sponsor bounty", AwardType: getters.AwardTypeSponsor}
 	page := &HackathonAdminPage{
-		Awards: []*types.Award{assigned, available, finalistsOnly},
+		Awards: []*types.Award{assigned, available, finalistsOnly, sponsorBounty},
 		Projects: []*types.HackathonProject{
 			{ID: "finalist", Status: getters.ProjectStatusAdvanced},
 		},
@@ -461,7 +462,8 @@ func TestHackathonScheduleCalendarEventUsesPublicVenueLabel(t *testing.T) {
 
 func TestHackathonOverviewSelections(t *testing.T) {
 	winnerAward := &types.Award{ID: "winner-award", Title: "First place"}
-	bountyAward := &types.Award{ID: "bounty", Title: "Best Lightning project"}
+	bountyAward := &types.Award{ID: "bounty", Title: "Best Lightning project", AwardType: getters.AwardTypeSponsor}
+	emptyBountyAward := &types.Award{ID: "empty-bounty", Title: "Sponsor bounty without prize", AwardType: getters.AwardTypeSponsor}
 	page := &HackathonPage{
 		Projects: []*types.HackathonProject{
 			{ID: "regular", Title: "Regular"},
@@ -469,7 +471,7 @@ func TestHackathonOverviewSelections(t *testing.T) {
 			{ID: "third", Title: "Third"},
 			{ID: "fourth", Title: "Fourth"},
 		},
-		Awards: []*types.Award{winnerAward, bountyAward, {ID: "empty", Title: "No prize yet"}},
+		Awards: []*types.Award{winnerAward, bountyAward, emptyBountyAward, {ID: "empty", Title: "No prize yet"}},
 		PrizesByAward: map[string][]*types.Prize{
 			"winner-award": {{AwardID: "winner-award", ValueText: "1000000"}},
 			"bounty":       {{AwardID: "bounty", ValueText: "500000"}},
@@ -484,8 +486,8 @@ func TestHackathonOverviewSelections(t *testing.T) {
 		t.Fatalf("FeaturedProjects() = %+v, want winner followed by gallery order", featured)
 	}
 	bounties := page.BountyAwards()
-	if len(bounties) != 1 || bounties[0].ID != "bounty" {
-		t.Fatalf("BountyAwards() = %+v, want only non-ranked award with a prize", bounties)
+	if len(bounties) != 2 || bounties[0].ID != "bounty" || bounties[1].ID != "empty-bounty" {
+		t.Fatalf("BountyAwards() = %+v, want sponsor awards even before prizes are configured", bounties)
 	}
 }
 
@@ -555,6 +557,13 @@ func TestPublishedProjectGalleryOrdersFinalistAwardsThenPrizeValue(t *testing.T)
 	winningAwards := page.ProjectWinningAwards(mixedProject)
 	if len(winningAwards) != 2 || winningAwards[0].ID != "final-small" || winningAwards[1].ID != "general-large" {
 		t.Fatalf("ProjectWinningAwards() = %+v, want finalist-only award first", winningAwards)
+	}
+	firstRank := 1
+	if got := page.AwardWinnerBadgeLabel(&types.Award{Title: "First place prize", AwardRank: &firstRank}); got != "1st place" {
+		t.Fatalf("AwardWinnerBadgeLabel(ranked) = %q, want 1st place", got)
+	}
+	if got := page.AwardWinnerBadgeLabel(&types.Award{Title: "Best Lightning project", AwardType: getters.AwardTypeSponsor}); got != "Best Lightning project" {
+		t.Fatalf("AwardWinnerBadgeLabel(sponsor) = %q, want award title", got)
 	}
 }
 

@@ -23,46 +23,52 @@ import (
 )
 
 type HackathonAdminPage struct {
-	Competitions         []*types.HackathonCompetition
-	Conf                 *types.Conf
-	Confs                []*types.Conf
-	Competition          *types.HackathonCompetition
-	Projects             []*types.HackathonProject
-	NonFinalistProjects  []*types.HackathonProject
-	ProjectTeams         map[string][]*types.ProjectMember
-	ActiveTab            string
-	JudgeEvents          []*types.JudgeEvent
-	Judges               []*types.CompetitionJudge
-	JudgeInviteLink      string
-	JudgeInviteQRCodeURI string
-	PeopleByID           map[string]*types.Speaker
-	Scorecards           []*types.Scorecard
-	ScoreSummaries       []*HackathonScoreSummary
-	ScoreMode            string
-	ScoreJudgeEventID    string
-	Awards               []*types.Award
-	ArchivedAwards       []*types.Award
-	PrizesByAward        map[string][]*types.Prize
-	AwardeesByAward      map[string][]*types.ProjectAward
-	AwardOptInsByProject map[string][]*types.ProjectAwardOptIn
-	PayoutAssignments    []*HackathonPayoutAssignment
-	AwardDistributions   []*types.AwardDistribution
-	ScheduleSegments     []*types.CompetitionScheduleSegment
-	ScheduleEventsByID   map[string]HackathonScheduleEvent
-	ProjectCount         int
-	ScheduleSegmentCount int
-	JudgeEventCount      int
-	ScoreProjectCount    int
-	AwardCount           int
-	IsNew                bool
-	SetupFromSchedule    bool
-	SetupStep            int
-	SeedScheduleBlocks   bool
-	FlashMessage         string
-	FlashError           string
-	SearchQuery          string
-	Sort                 string
-	Year                 uint
+	Competitions          []*types.HackathonCompetition
+	Conf                  *types.Conf
+	Confs                 []*types.Conf
+	Competition           *types.HackathonCompetition
+	Projects              []*types.HackathonProject
+	NonFinalistProjects   []*types.HackathonProject
+	ProjectTeams          map[string][]*types.ProjectMember
+	Orgs                  []*types.Org
+	OrgsByID              map[string]*types.Org
+	ActiveTab             string
+	JudgeEvents           []*types.JudgeEvent
+	Judges                []*types.CompetitionJudge
+	JudgeInviteLink       string
+	JudgeInviteQRCodeURI  string
+	PeopleByID            map[string]*types.Speaker
+	Scorecards            []*types.Scorecard
+	ScoreBallotScorecards []*types.Scorecard
+	ScoreSummaries        []*HackathonScoreSummary
+	ProjectTitles         map[string]string
+	ScoreMode             string
+	ScoreJudgeEventID     string
+	Awards                []*types.Award
+	ArchivedAwards        []*types.Award
+	PrizesByAward         map[string][]*types.Prize
+	AwardeesByAward       map[string][]*types.ProjectAward
+	AwardOptInsByProject  map[string][]*types.ProjectAwardOptIn
+	AwardJudgesByAward    map[string][]*types.AwardJudge
+	AwardVotesByAward     map[string][]*types.AwardVote
+	PayoutAssignments     []*HackathonPayoutAssignment
+	AwardDistributions    []*types.AwardDistribution
+	ScheduleSegments      []*types.CompetitionScheduleSegment
+	ScheduleEventsByID    map[string]HackathonScheduleEvent
+	ProjectCount          int
+	ScheduleSegmentCount  int
+	JudgeEventCount       int
+	ScoreProjectCount     int
+	AwardCount            int
+	IsNew                 bool
+	SetupFromSchedule     bool
+	SetupStep             int
+	SeedScheduleBlocks    bool
+	FlashMessage          string
+	FlashError            string
+	SearchQuery           string
+	Sort                  string
+	Year                  uint
 }
 
 type HackathonPayoutAssignment struct {
@@ -611,6 +617,11 @@ func (p *HackathonAdminPage) ScheduleSegmentVenue(segment *types.CompetitionSche
 }
 
 func (p *HackathonAdminPage) ProjectTitle(projectID string) string {
+	if p != nil && p.ProjectTitles != nil {
+		if title := strings.TrimSpace(p.ProjectTitles[projectID]); title != "" {
+			return title
+		}
+	}
 	for _, project := range p.Projects {
 		if project != nil && project.ID == projectID {
 			return project.Title
@@ -806,7 +817,11 @@ func (p *HackathonAdminPage) ScoreBallots() []*HackathonJudgeBallot {
 		ballotByJudge[judge.PersonID] = ballot
 		ballots = append(ballots, ballot)
 	}
-	for _, scorecard := range p.Scorecards {
+	scorecards := p.Scorecards
+	if p.ScoreBallotScorecards != nil {
+		scorecards = p.ScoreBallotScorecards
+	}
+	for _, scorecard := range scorecards {
 		if scorecard == nil || strings.TrimSpace(scorecard.JudgePersonID) == "" {
 			continue
 		}
@@ -866,6 +881,56 @@ func (p *HackathonAdminPage) AwardStatusLabel(status string) string {
 	default:
 		return strings.TrimSpace(status)
 	}
+}
+
+func (p *HackathonAdminPage) AwardTypeLabel(awardType string) string {
+	switch strings.TrimSpace(awardType) {
+	case getters.AwardTypeSponsor:
+		return "Sponsor bounty"
+	default:
+		return "Ranked award"
+	}
+}
+
+func (p *HackathonAdminPage) AwardIsSponsor(award *types.Award) bool {
+	return award != nil && strings.TrimSpace(award.AwardType) == getters.AwardTypeSponsor
+}
+
+func (p *HackathonAdminPage) AwardSponsorLabel(award *types.Award) string {
+	if org := p.AwardSponsorOrg(award); org != nil && strings.TrimSpace(org.Name) != "" {
+		return strings.TrimSpace(org.Name)
+	}
+	return "Sponsor TBD"
+}
+
+func (p *HackathonAdminPage) AwardSponsorOrg(award *types.Award) *types.Org {
+	if p == nil || award == nil || p.OrgsByID == nil {
+		return nil
+	}
+	return p.OrgsByID[strings.TrimSpace(award.SponsoredByOrgID)]
+}
+
+func (p *HackathonAdminPage) AwardRankLabel(award *types.Award) string {
+	if award == nil || award.AwardRank == nil {
+		return "Unranked"
+	}
+	return ordinal(*award.AwardRank)
+}
+
+func (p *HackathonAdminPage) AwardTabLabel(award *types.Award) string {
+	if award == nil {
+		return "Award"
+	}
+	if p.AwardIsSponsor(award) {
+		return p.AwardSponsorLabel(award)
+	}
+	if award.AwardRank != nil {
+		return ordinal(*award.AwardRank)
+	}
+	if strings.TrimSpace(award.Title) != "" {
+		return strings.TrimSpace(award.Title)
+	}
+	return "Ranked"
 }
 
 func (p *HackathonAdminPage) PrizeTypeLabel(prizeType string) string {
@@ -971,7 +1036,7 @@ func (p *HackathonAdminPage) ProjectAssignableAwards(projectID string) []*types.
 	}
 	assignable := make([]*types.Award, 0)
 	for _, award := range p.Awards {
-		if award != nil && (!award.FinalistsOnly || p.ProjectIsFinalist(projectID)) && !p.ProjectHasAward(projectID, award) && p.AwardCanAssign(award) {
+		if award != nil && !p.AwardIsSponsor(award) && (!award.FinalistsOnly || p.ProjectIsFinalist(projectID)) && !p.ProjectHasAward(projectID, award) && p.AwardCanAssign(award) {
 			assignable = append(assignable, award)
 		}
 	}
@@ -1001,6 +1066,27 @@ func (p *HackathonAdminPage) AwardAssignmentLimitMessage(award *types.Award) str
 	}
 	count := len(p.Awardees(award))
 	return fmt.Sprintf("Awardee limit reached (%d of %d). Remove a winner before assigning another project.", count, *award.MaxAwardees)
+}
+
+func (p *HackathonAdminPage) AwardJudges(award *types.Award) []*types.AwardJudge {
+	if p == nil || p.AwardJudgesByAward == nil || award == nil {
+		return nil
+	}
+	return p.AwardJudgesByAward[award.ID]
+}
+
+func (p *HackathonAdminPage) AwardVotes(award *types.Award) []*types.AwardVote {
+	if p == nil || p.AwardVotesByAward == nil || award == nil {
+		return nil
+	}
+	return p.AwardVotesByAward[award.ID]
+}
+
+func (p *HackathonAdminPage) AwardVoteProjectNumber(vote *types.AwardVote) string {
+	if vote == nil || vote.ProjectNumber == nil {
+		return "unassigned"
+	}
+	return strconv.Itoa(*vote.ProjectNumber)
 }
 
 func (p *HackathonAdminPage) ProjectSelectLabel(project *types.HackathonProject) string {
@@ -1049,7 +1135,7 @@ func (p *HackathonAdminPage) ProjectAwardNumber(award *types.ProjectAward) strin
 
 func (p *HackathonAdminPage) OptionalIntLabel(value *int) string {
 	if value == nil {
-		return "Unlimited"
+		return "1"
 	}
 	return strconv.Itoa(*value)
 }
@@ -1421,7 +1507,7 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 	scoreJudgeEventID := selectedScoreJudgeEventID(competition, events, r.URL.Query().Get("judge_event"))
-	filteredScorecards := filterHackathonScorecardsByJudgeEvent(scorecards, scoreJudgeEventID)
+	eventScorecards := filterHackathonScorecardsByJudgeEvent(scorecards, scoreJudgeEventID)
 	scoreProjects := projectsForJudgeEvent(projects, events, scoreJudgeEventID)
 	nonFinalistProjects := make([]*types.HackathonProject, 0)
 	if scoreJudgeEventID != "" && nextJudgeEvent(events, scoreJudgeEventID) == nil {
@@ -1431,6 +1517,7 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 			}
 		}
 	}
+	filteredScorecards := filterHackathonScorecardsByProjects(eventScorecards, scoreProjects)
 	peopleByID, err := scorecardJudgePeopleByID(ctx, scorecards)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/scores people: %s", competitionID, err)
@@ -1454,23 +1541,25 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 		}
 	}
 	page := &HackathonAdminPage{
-		Competition:         competition,
-		Conf:                conf,
-		Projects:            scoreProjects,
-		NonFinalistProjects: nonFinalistProjects,
-		JudgeEvents:         events,
-		Judges:              judges,
-		PeopleByID:          peopleByID,
-		Scorecards:          filteredScorecards,
-		ScoreSummaries:      hackathonScoreSummaries(scoreProjects, filteredScorecards, events),
-		Awards:              awards,
-		AwardeesByAward:     awardeesByAward,
-		ActiveTab:           "scores",
-		ScoreMode:           hackathonScoreModeAll,
-		ScoreJudgeEventID:   scoreJudgeEventID,
-		FlashMessage:        r.URL.Query().Get("flash"),
-		FlashError:          r.URL.Query().Get("error"),
-		Year:                helpers.CurrentYear(),
+		Competition:           competition,
+		Conf:                  conf,
+		Projects:              scoreProjects,
+		NonFinalistProjects:   nonFinalistProjects,
+		ProjectTitles:         projectTitlesByID(projects),
+		JudgeEvents:           events,
+		Judges:                judges,
+		PeopleByID:            peopleByID,
+		Scorecards:            filteredScorecards,
+		ScoreBallotScorecards: eventScorecards,
+		ScoreSummaries:        hackathonScoreSummaries(scoreProjects, filteredScorecards, events),
+		Awards:                awards,
+		AwardeesByAward:       awardeesByAward,
+		ActiveTab:             "scores",
+		ScoreMode:             hackathonScoreModeAll,
+		ScoreJudgeEventID:     scoreJudgeEventID,
+		FlashMessage:          r.URL.Query().Get("flash"),
+		FlashError:            r.URL.Query().Get("error"),
+		Year:                  helpers.CurrentYear(),
 	}
 	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_scores.tmpl", page); err != nil {
@@ -1743,6 +1832,12 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "Unable to load projects", http.StatusInternalServerError)
 		return
 	}
+	orgs, err := getters.ListOrgs(ctx)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list orgs: %s", competitionID, err)
+		http.Error(w, "Unable to load sponsors", http.StatusInternalServerError)
+		return
+	}
 	projectAwards, err := getters.ListProjectAwardsForCompetition(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards list awardees: %s", competitionID, err)
@@ -1767,16 +1862,44 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 			awardeesByAward[award.AwardID] = append(awardeesByAward[award.AwardID], award)
 		}
 	}
+	awardJudges, err := getters.ListAwardJudgesForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list award judges: %s", competitionID, err)
+		http.Error(w, "Unable to load award judges", http.StatusInternalServerError)
+		return
+	}
+	awardJudgesByAward := make(map[string][]*types.AwardJudge)
+	for _, judge := range awardJudges {
+		if judge != nil {
+			awardJudgesByAward[judge.AwardID] = append(awardJudgesByAward[judge.AwardID], judge)
+		}
+	}
+	awardVotes, err := getters.ListAwardVotesForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list award votes: %s", competitionID, err)
+		http.Error(w, "Unable to load award votes", http.StatusInternalServerError)
+		return
+	}
+	awardVotesByAward := make(map[string][]*types.AwardVote)
+	for _, vote := range awardVotes {
+		if vote != nil {
+			awardVotesByAward[vote.AwardID] = append(awardVotesByAward[vote.AwardID], vote)
+		}
+	}
 	page := &HackathonAdminPage{
 		Competition:          competition,
 		Conf:                 conf,
 		Projects:             projects,
+		Orgs:                 orgs,
+		OrgsByID:             orgsByID(orgs),
 		ActiveTab:            "awards",
 		Awards:               awards,
 		ArchivedAwards:       archivedAwards,
 		PrizesByAward:        prizesByAward,
 		AwardeesByAward:      awardeesByAward,
 		AwardOptInsByProject: projectAwardOptInsByProject(optIns),
+		AwardJudgesByAward:   awardJudgesByAward,
+		AwardVotesByAward:    awardVotesByAward,
 		FlashMessage:         r.URL.Query().Get("flash"),
 		FlashError:           r.URL.Query().Get("error"),
 		Year:                 helpers.CurrentYear(),
@@ -1796,6 +1919,16 @@ func projectAwardOptInsByProject(optIns []*types.ProjectAwardOptIn) map[string][
 		}
 	}
 	return byProject
+}
+
+func orgsByID(orgs []*types.Org) map[string]*types.Org {
+	byID := make(map[string]*types.Org)
+	for _, org := range orgs {
+		if org != nil && strings.TrimSpace(org.Ref) != "" {
+			byID[org.Ref] = org
+		}
+	}
+	return byID
 }
 
 func HackathonAdminPayouts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2078,12 +2211,13 @@ func HackathonAdminCreateAward(w http.ResponseWriter, r *http.Request, ctx *conf
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	if _, err := getters.CreateAward(ctx, in); err != nil {
+	awardID, err := getters.CreateAward(ctx, in)
+	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards create: %s", competitionID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award added"), http.StatusSeeOther)
+	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", "Award added"), http.StatusSeeOther)
 }
 
 func HackathonAdminUpdateAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2104,10 +2238,10 @@ func HackathonAdminUpdateAward(w http.ResponseWriter, r *http.Request, ctx *conf
 	}
 	if err := getters.UpdateAward(ctx, awardID, in); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards/update: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award saved"), http.StatusSeeOther)
+	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", "Award saved"), http.StatusSeeOther)
 }
 
 func HackathonAdminArchiveAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2147,10 +2281,10 @@ func HackathonAdminRestoreAward(w http.ResponseWriter, r *http.Request, ctx *con
 	}
 	if err := getters.RestoreAward(ctx, competitionID, awardID); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards/restore: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award restored"), http.StatusSeeOther)
+	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", "Award restored"), http.StatusSeeOther)
 }
 
 func HackathonAdminDeleteArchivedAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2189,10 +2323,10 @@ func HackathonAdminCreatePrize(w http.ResponseWriter, r *http.Request, ctx *conf
 	}
 	if _, err := getters.CreatePrize(ctx, in); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards/prizes create: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, in.AwardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Prize added"), http.StatusSeeOther)
+	http.Redirect(w, r, appendAdminAwardsMessage(dest, in.AwardID, "flash", "Prize added"), http.StatusSeeOther)
 }
 
 func HackathonAdminUpdatePrize(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2208,15 +2342,15 @@ func HackathonAdminUpdatePrize(w http.ResponseWriter, r *http.Request, ctx *conf
 	}
 	prizeID := strings.TrimSpace(r.FormValue("PrizeID"))
 	if prizeID == "" {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("prize is required"), http.StatusSeeOther)
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, in.AwardID, "error", "prize is required"), http.StatusSeeOther)
 		return
 	}
 	if err := getters.UpdatePrize(ctx, competitionID, prizeID, in); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards/prizes/update: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, in.AwardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Prize saved"), http.StatusSeeOther)
+	http.Redirect(w, r, appendAdminAwardsMessage(dest, in.AwardID, "flash", "Prize saved"), http.StatusSeeOther)
 }
 
 func HackathonAdminDeletePrize(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2230,17 +2364,18 @@ func HackathonAdminDeletePrize(w http.ResponseWriter, r *http.Request, ctx *conf
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
 		return
 	}
+	awardID := strings.TrimSpace(r.FormValue("AwardID"))
 	prizeID := strings.TrimSpace(r.FormValue("PrizeID"))
 	if prizeID == "" {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("prize is required"), http.StatusSeeOther)
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", "prize is required"), http.StatusSeeOther)
 		return
 	}
 	if err := getters.DeletePrize(ctx, competitionID, prizeID); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards/prizes/delete: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Prize deleted"), http.StatusSeeOther)
+	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", "Prize deleted"), http.StatusSeeOther)
 }
 
 func HackathonAdminAssignAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2250,9 +2385,9 @@ func HackathonAdminAssignAward(w http.ResponseWriter, r *http.Request, ctx *conf
 	competitionID := mux.Vars(r)["competitionID"]
 	defaultDest := hackathonAdminRequestURL(r, competitionID, "/awards")
 	awardID, projectID, err := awardAssignmentFromRequest(w, r)
-	dest := awardAssignmentRedirectURL(r, competitionID, r.FormValue("Source"), defaultDest)
+	dest := awardAssignmentRedirectURL(ctx, competitionID, r.FormValue("Source"), defaultDest)
 	if err != nil {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, appendAwardAssignmentMessage(dest, defaultDest, awardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
 	if !awardBelongsToCompetition(ctx, competitionID, awardID) || !projectBelongsToCompetition(ctx, competitionID, projectID) {
@@ -2261,16 +2396,26 @@ func HackathonAdminAssignAward(w http.ResponseWriter, r *http.Request, ctx *conf
 	}
 	if err := getters.AssignProjectAward(ctx, awardID, projectID); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards/assign: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, appendAwardAssignmentMessage(dest, defaultDest, awardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award assigned"), http.StatusSeeOther)
+	http.Redirect(w, r, appendAwardAssignmentMessage(dest, defaultDest, awardID, "flash", "Award assigned"), http.StatusSeeOther)
 }
 
-func awardAssignmentRedirectURL(r *http.Request, competitionID, source, defaultDest string) string {
+func awardAssignmentRedirectURL(ctx *config.AppContext, competitionID, source, defaultDest string) string {
 	switch strings.TrimSpace(source) {
 	case "scores":
-		return hackathonAdminRequestURL(r, competitionID, "/judging/scores")
+		return "/admin/hackathons/" + url.PathEscape(competitionID) + "/judging/scores"
+	case "public":
+		competition, err := getters.GetCompetitionByID(ctx, competitionID)
+		if err != nil || competition == nil {
+			return defaultDest
+		}
+		conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+		if err != nil || conf == nil {
+			return defaultDest
+		}
+		return hackathonURLForConf(conf) + "#awards"
 	default:
 		return defaultDest
 	}
@@ -2283,9 +2428,9 @@ func HackathonAdminRemoveAward(w http.ResponseWriter, r *http.Request, ctx *conf
 	competitionID := mux.Vars(r)["competitionID"]
 	defaultDest := hackathonAdminRequestURL(r, competitionID, "/awards")
 	awardID, projectID, err := awardAssignmentFromRequest(w, r)
-	dest := awardAssignmentRedirectURL(r, competitionID, r.FormValue("Source"), defaultDest)
+	dest := awardAssignmentRedirectURL(ctx, competitionID, r.FormValue("Source"), defaultDest)
 	if err != nil {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, appendAwardAssignmentMessage(dest, defaultDest, awardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
 	if !awardBelongsToCompetition(ctx, competitionID, awardID) || !projectBelongsToCompetition(ctx, competitionID, projectID) {
@@ -2294,10 +2439,10 @@ func HackathonAdminRemoveAward(w http.ResponseWriter, r *http.Request, ctx *conf
 	}
 	if err := getters.RemoveProjectAward(ctx, awardID, projectID); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/awards/remove: %s", competitionID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, appendAwardAssignmentMessage(dest, defaultDest, awardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Award removed"), http.StatusSeeOther)
+	http.Redirect(w, r, appendAwardAssignmentMessage(dest, defaultDest, awardID, "flash", "Award removed"), http.StatusSeeOther)
 }
 
 func HackathonAdminFinalizeResults(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2323,6 +2468,51 @@ func HackathonAdminFinalizeResults(w http.ResponseWriter, r *http.Request, ctx *
 		flash += fmt.Sprintf("; emailed %d winning team members", sent)
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(flash), http.StatusSeeOther)
+}
+
+func HackathonAdminAddAwardJudge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	awardID, err := awardIDFromRequest(w, r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if !awardBelongsToCompetition(ctx, competitionID, awardID) {
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", "Award does not belong to this hackathon"), http.StatusSeeOther)
+		return
+	}
+	personIDs := personIDsFromForm(r, "PersonID")
+	if len(personIDs) == 0 {
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", "Select a judge"), http.StatusSeeOther)
+		return
+	}
+	if err := validatePersonIDs(ctx, personIDs); err != nil {
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", "Unable to load selected judge. Please try again."), http.StatusSeeOther)
+		return
+	}
+	added := 0
+	for _, personID := range personIDs {
+		if err := getters.AddAwardJudge(ctx, awardID, personID); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/awards/judges add %s/%s: %s", competitionID, awardID, personID, err)
+			http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", err.Error()), http.StatusSeeOther)
+			return
+		}
+		added++
+	}
+	flash := fmt.Sprintf("Added %d sponsor judge", added)
+	if added != 1 {
+		flash += "s"
+	}
+	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", flash), http.StatusSeeOther)
 }
 
 func sendFinalizedAwardNotifications(r *http.Request, ctx *config.AppContext, competitionID string) (sent, failed int) {
@@ -2421,6 +2611,35 @@ func hackathonResultsRedirectURL(r *http.Request, competitionID string) string {
 		return hackathonAdminRequestURL(r, competitionID, "/awards")
 	}
 	return hackathonAdminRequestURL(r, competitionID, "/judging/scores")
+}
+
+func HackathonAdminRemoveAwardJudge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := "/admin/hackathons/" + url.PathEscape(competitionID) + "/awards"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	awardID, err := awardIDFromRequest(w, r)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	personID := strings.TrimSpace(r.FormValue("PersonID"))
+	if !awardBelongsToCompetition(ctx, competitionID, awardID) {
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", "Award does not belong to this hackathon"), http.StatusSeeOther)
+		return
+	}
+	if err := getters.RemoveAwardJudge(ctx, awardID, personID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards/judges remove %s/%s: %s", competitionID, awardID, personID, err)
+		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", "Sponsor judge removed"), http.StatusSeeOther)
 }
 
 func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -3474,13 +3693,15 @@ func awardInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID
 		return getters.AwardInput{}, err
 	}
 	in := getters.AwardInput{
-		CompetitionID: strings.TrimSpace(competitionID),
-		Title:         strings.TrimSpace(r.FormValue("Title")),
-		Description:   strings.TrimSpace(r.FormValue("Description")),
-		PhotoURL:      strings.TrimSpace(r.FormValue("PhotoURL")),
-		OptInRequired: r.FormValue("OptInRequired") != "",
-		FinalistsOnly: r.FormValue("FinalistsOnly") != "",
-		Status:        status,
+		CompetitionID:       strings.TrimSpace(competitionID),
+		SponsoredByOrgID:    strings.TrimSpace(r.FormValue("SponsoredByOrgID")),
+		AwardType:           awardTypeFromForm(r),
+		Title:               strings.TrimSpace(r.FormValue("Title")),
+		Description:         strings.TrimSpace(r.FormValue("Description")),
+		JudgingInstructions: strings.TrimSpace(r.FormValue("JudgingInstructions")),
+		OptInRequired:       r.FormValue("OptInRequired") != "",
+		FinalistsOnly:       r.FormValue("FinalistsOnly") != "",
+		Status:              status,
 	}
 	if in.Title == "" {
 		return getters.AwardInput{}, fmt.Errorf("award title is required")
@@ -3491,8 +3712,37 @@ func awardInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID
 			return getters.AwardInput{}, fmt.Errorf("max awardees must be positive")
 		}
 		in.MaxAwardees = &n
+	} else {
+		n := 1
+		in.MaxAwardees = &n
+	}
+	if raw := strings.TrimSpace(r.FormValue("AwardRank")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			return getters.AwardInput{}, fmt.Errorf("award rank must be positive")
+		}
+		in.AwardRank = &n
+	}
+	switch in.AwardType {
+	case getters.AwardTypeRanked:
+		if in.AwardRank == nil {
+			return getters.AwardInput{}, fmt.Errorf("ranked awards require a rank")
+		}
+	case getters.AwardTypeSponsor:
+		if in.SponsoredByOrgID == "" {
+			return getters.AwardInput{}, fmt.Errorf("sponsor awards require a sponsor organization")
+		}
 	}
 	return in, nil
+}
+
+func awardTypeFromForm(r *http.Request) string {
+	switch strings.TrimSpace(r.FormValue("AwardType")) {
+	case getters.AwardTypeSponsor:
+		return getters.AwardTypeSponsor
+	default:
+		return getters.AwardTypeRanked
+	}
 }
 
 func prizeInputFromRequest(w http.ResponseWriter, r *http.Request) (getters.PrizeInput, error) {
@@ -3725,6 +3975,41 @@ func filterHackathonScorecardsByJudgeEvent(scorecards []*types.Scorecard, eventI
 	return filtered
 }
 
+func filterHackathonScorecardsByProjects(scorecards []*types.Scorecard, projects []*types.HackathonProject) []*types.Scorecard {
+	if len(scorecards) == 0 || len(projects) == 0 {
+		return nil
+	}
+	projectIDs := make(map[string]bool, len(projects))
+	for _, project := range projects {
+		if project == nil || strings.TrimSpace(project.ID) == "" {
+			continue
+		}
+		projectIDs[project.ID] = true
+	}
+	filtered := make([]*types.Scorecard, 0, len(scorecards))
+	for _, scorecard := range scorecards {
+		if scorecard == nil || !projectIDs[scorecard.ProjectID] {
+			continue
+		}
+		filtered = append(filtered, scorecard)
+	}
+	return filtered
+}
+
+func projectTitlesByID(projects []*types.HackathonProject) map[string]string {
+	if len(projects) == 0 {
+		return nil
+	}
+	titles := make(map[string]string, len(projects))
+	for _, project := range projects {
+		if project == nil || strings.TrimSpace(project.ID) == "" {
+			continue
+		}
+		titles[project.ID] = project.Title
+	}
+	return titles
+}
+
 func judgeEventDisplayName(event *types.JudgeEvent) string {
 	if event == nil || strings.TrimSpace(event.Name) == "" {
 		return "selected judging event"
@@ -3738,6 +4023,31 @@ func appendAdminScoresMessage(dest, key, message string) string {
 		sep = "&"
 	}
 	return dest + sep + url.QueryEscape(key) + "=" + url.QueryEscape(message)
+}
+
+func appendAdminAwardsMessage(dest, awardID, key, message string) string {
+	values := url.Values{}
+	if strings.TrimSpace(awardID) != "" {
+		values.Set("award", strings.TrimSpace(awardID))
+	}
+	if strings.TrimSpace(key) != "" {
+		values.Set(key, message)
+	}
+	if len(values) == 0 {
+		return dest
+	}
+	sep := "?"
+	if strings.Contains(dest, "?") {
+		sep = "&"
+	}
+	return dest + sep + values.Encode()
+}
+
+func appendAwardAssignmentMessage(dest, defaultDest, awardID, key, message string) string {
+	if dest == defaultDest {
+		return appendAdminAwardsMessage(dest, awardID, key, message)
+	}
+	return appendAdminScoresMessage(dest, key, message)
 }
 
 func scorecardJudgePeopleByID(ctx *config.AppContext, scorecards []*types.Scorecard) (map[string]*types.Speaker, error) {

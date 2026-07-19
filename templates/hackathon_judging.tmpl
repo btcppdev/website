@@ -147,6 +147,64 @@
       {{ end }}
     </section>
 
+    {{ if .SponsorAwards }}
+    <section class="hack-section">
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§ Sponsor bounties</div>
+          <h2>Pick bounty <span class="hack-serif">winners.</span></h2>
+        </div>
+        <div class="hack-section__deck">Sponsor award judges select one project for each assigned bounty. These picks do not affect ranked scoring.</div>
+      </div>
+      <div class="hack-card-grid">
+        {{ range .SponsorAwards }}
+        {{ $award := . }}
+        {{ $vote := $.AwardVote . }}
+        {{ $options := $.SponsorAwardProjectOptions . }}
+        <article id="award-{{ .ID }}" class="hack-card">
+          <div class="hack-card__body">
+            <div class="hack-tags">
+              <span class="hack-tag">Sponsor bounty</span>
+              <span class="hack-tag">{{ $.AwardSponsorLabel . }}</span>
+              {{ if .OptInRequired }}<span class="hack-tag">Opt-in required</span>{{ end }}
+            </div>
+            <h3>{{ .Title }}</h3>
+            {{ if .Description }}<div class="hack-card__desc">{{ .Description }}</div>{{ end }}
+            {{ if .JudgingInstructions }}<p class="hack-list__meta" style="margin-top:12px;white-space:pre-line;">{{ .JudgingInstructions }}</p>{{ end }}
+            {{ if $.AwardSponsorURL . }}<div class="hack-card__links"><a href="{{ $.AwardSponsorURL . }}" target="_blank" rel="noreferrer">Sponsor</a></div>{{ end }}
+
+            <form method="POST" action="{{ $.JudgingURL }}/award-votes" class="hack-form" style="margin-top:18px;">
+              <input type="hidden" name="AwardID" value="{{ .ID }}">
+              <div class="hack-form__body">
+                {{ if $options }}
+                <label class="hack-field">
+                  <span>Winning project</span>
+                  <select name="ProjectID" required>
+                    <option value="">Choose project</option>
+                    {{ range $options }}
+                    <option value="{{ .ID }}" {{ if $.ProjectSelectedForAward . $award }}selected{{ end }}>{{ $.ProjectNumberLabel . }} · {{ .Title }}</option>
+                    {{ end }}
+                  </select>
+                </label>
+                <label class="hack-field">
+                  <span>Notes</span>
+                  <textarea name="Notes" rows="3" placeholder="Optional notes for admins">{{ with $vote }}{{ .Notes }}{{ end }}</textarea>
+                </label>
+                <div class="hack-actions" style="justify-content:flex-end;">
+                  <button type="submit" class="hack-button hack-button--primary">Save pick</button>
+                </div>
+                {{ else }}
+                <div class="hack-empty">No eligible projects are available for this bounty.</div>
+                {{ end }}
+              </div>
+            </form>
+          </div>
+        </article>
+        {{ end }}
+      </div>
+    </section>
+    {{ end }}
+
     <section class="hack-section">
       <div class="hack-section__head">
         <div>

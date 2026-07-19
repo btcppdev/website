@@ -76,11 +76,11 @@ func GetOrg(ctx *config.AppContext, ref string) (*types.Org, error) {
 
 func SearchOrgsByName(ctx *config.AppContext, q string, limit int) ([]*types.Org, error) {
 	q = strings.TrimSpace(q)
-	if q == "" {
-		return nil, nil
-	}
 	if limit <= 0 {
 		limit = 10
+	}
+	if q == "" {
+		return queryOrgsPostgres(ctx, "organization search defaults", "", nil, limit)
 	}
 	return queryOrgsPostgres(ctx, "organization search", "WHERE name ILIKE '%' || $1 || '%'", []any{q}, limit)
 }
