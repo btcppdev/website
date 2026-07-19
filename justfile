@@ -178,6 +178,10 @@ verify-magiclink url:
 speaker-manifest *args:
   {{goenv}} go run ./cmd/backfill-speaker-manifest {{args}}
 
+# Archive or import a public Devpost hackathon.
+devpost-import *args:
+  {{goenv}} go run ./cmd/import-devpost {{args}}
+
 # Convert media PDFs for a conference/subdir, e.g. `just png-conv berlin26 speakers`.
 png-conv conf subdir:
   make png-conv conf={{conf}} subdir={{subdir}}
