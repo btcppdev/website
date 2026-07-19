@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>{{ .Product.Name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css">
+  </head>
+  <body class="shop-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <div class="shop-breadcrumb"><a href="/shop">shop</a><span>/</span><a href="/shop/all">{{ .Product.ProductType }}</a><span>/</span><b>{{ .Product.Name }}</b></div>
+    <main class="shop-item">
+      <div class="shop-item__media">
+        {{ if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="{{ .Product.Name }}">{{ else }}<span>{{ .Product.ProductType }}</span>{{ end }}
+      </div>
+      <section class="shop-item__details">
+        <p class="shop-kicker">{{ .Product.ProductType }}</p>
+        <h1>{{ .Product.Name }}</h1>
+        <div class="shop-price">
+          <strong>{{ merchMoney (merchPrice .Product) .Product }}</strong>
+          <span>≈ {{ merchSats (merchPrice .Product) }} sats</span>
+        </div>
+        <p>{{ .Product.Description }}</p>
+        {{ if merchProductSoldOut .Product }}
+        <div class="shop-sold-out-panel">
+          <strong>SOLD OUT</strong>
+          <span>This item is out of stock right now.</span>
+        </div>
+        {{ else if .Product.Variants }}
+        <form method="POST" action="/shop/cart/add" class="shop-buy-box">
+          <input type="hidden" name="redirect" value="/shop/cart">
+          <label>variant
+            <select name="variant_id">
+              {{ range .Product.Variants }}
+              <option value="{{ .ID }}"{{ if not (merchVariantAvailable .) }} disabled{{ end }}>{{ .Label }}{{ if ne .PriceDeltaCents 0 }} · {{ .PriceDeltaCents }}{{ end }}{{ if not (merchVariantAvailable .) }} · sold out{{ end }}</option>
+              {{ end }}
+            </select>
+          </label>
+          <label>quantity
+            <input type="number" name="qty" min="1" max="20" value="1">
+          </label>
+          <button class="shop-button is-primary" type="submit">Add to cart · {{ merchMoney (merchPrice .Product) .Product }}</button>
+        </form>
+        {{ else }}
+        <div class="shop-empty">This item needs a variant before it can be sold.</div>
+        {{ end }}
+        <div class="shop-facts">
+          {{ if .Product.RequiresShipping }}<span>📦 ships worldwide</span>{{ end }}
+          {{ if .Product.AllowEventPickup }}<span>free event pickup</span>{{ end }}
+          <span>₿ bitcoin or card</span>
+        </div>
+      </section>
+    </main>
+    <section class="shop-section">
+      <div class="shop-section__label">§ goes well with</div>
+      {{ template "shop_product_grid" .Related }}
+    </section>
+    {{ template "shop_footer" . }}
+  </body>
+</html>

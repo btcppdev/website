@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>bitcoin++ receipt {{ .ShopOrder.PublicID }}</title>
+    <style>
+      body { margin: 0; background: #f5f0e4; color: #131313; font-family: Arial, sans-serif; }
+      .receipt { max-width: 720px; margin: 0 auto; padding: 40px 22px; }
+      .receipt__paper { background: #fffaf0; border: 1px solid #151515; padding: 28px; }
+      .receipt__top { display: flex; justify-content: space-between; gap: 20px; border-bottom: 1px solid #151515; padding-bottom: 18px; }
+      h1 { margin: 0; font-size: 36px; line-height: .95; text-transform: uppercase; }
+      .receipt__meta { text-align: right; font-size: 13px; text-transform: uppercase; }
+      .receipt__items { margin: 24px 0; display: grid; gap: 12px; }
+      .receipt__item { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; border-bottom: 1px solid rgba(0,0,0,.15); padding-bottom: 12px; }
+      .receipt__item-img { width: 56px; height: 56px; border: 1px solid rgba(0,0,0,.25); background: #f5f0e4; overflow: hidden; }
+      .receipt__item-img img { width: 100%; height: 100%; object-fit: cover; }
+      .receipt__item-img span { display: grid; place-items: center; height: 100%; color: #777; font-size: 9px; text-transform: uppercase; text-align: center; padding: 4px; }
+      .receipt__item strong { display: block; }
+      .receipt__item span { color: #5f5f5f; font-size: 13px; }
+      .receipt__totals { margin-left: auto; max-width: 300px; display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; font-size: 15px; }
+      .receipt__totals strong { font-size: 20px; }
+      .receipt__foot { margin-top: 28px; color: #5f5f5f; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main class="receipt">
+      <section class="receipt__paper">
+        <div class="receipt__top">
+          <div>
+            <h1>{{ if eq .ShopOrder.CheckoutKind "merch" }}Order{{ else }}Ticket{{ end }}<br>Received</h1>
+            <p>{{ if eq .ShopOrder.CheckoutKind "merch" }}Merch receipt{{ else if eq .ShopOrder.CheckoutKind "mixed" }}Ticket + merch receipt{{ else }}Ticket receipt{{ end }}</p>
+          </div>
+          <div class="receipt__meta">
+            <div>bitcoin++</div>
+            <div>{{ .ShopOrder.PublicID }}</div>
+            <div>{{ .ShopOrder.CreatedAt.Format "Jan 2, 2006" }}</div>
+            <div>{{ .ShopOrder.BuyerEmail }}</div>
+          </div>
+        </div>
+        <div class="receipt__items">
+          {{ range .ShopOrder.Items }}
+          <div class="receipt__item">
+            <div class="receipt__item-img">
+              {{ if shopOrderItemImage . }}<img src="{{ absoluteURL $.BaseURI (shopOrderItemImage .) | safeURL }}" alt="{{ .ProductNameSnapshot }}">{{ else }}<span>{{ .ProductTagSnapshot }}</span>{{ end }}
+            </div>
+            <div>
+              <strong>{{ .ProductNameSnapshot }}</strong>
+              <span>{{ .VariantLabelSnapshot }} · qty {{ .Quantity }} · {{ .FulfillmentMethod }}{{ if .SKUSnapshot }} · {{ .SKUSnapshot }}{{ end }}</span>
+            </div>
+            <strong>{{ merchMoney .LineTotalCents nil }}</strong>
+          </div>
+          {{ end }}
+        </div>
+        <div class="receipt__totals">
+          <span>Subtotal</span><span>{{ merchMoney .ShopOrder.SubtotalCents nil }}</span>
+          <span>Discount</span><span>{{ merchMoney .ShopOrder.DiscountAmountCents nil }}</span>
+          <span>Shipping</span><span>{{ merchMoney .ShopOrder.ShippingAmountCents nil }}</span>
+          <span>Tax</span><span>{{ merchMoney .ShopOrder.SalesTaxAmountCents nil }}</span>
+          <strong>Total</strong><strong>{{ merchMoney .ShopOrder.TotalCents nil }}</strong>
+        </div>
+        <p class="receipt__foot">Save this receipt for your records. Pickup items can be collected at event check-in when applicable.</p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -39,6 +39,8 @@ func TestEnvConfigValidateRequiresProdSecrets(t *testing.T) {
 		"OPENNODE_KEY",
 		"OPENNODE_ENDPOINT",
 		"REGISTRY_PIN",
+		"EASYSHIP_API_KEY",
+		"EASYSHIP_WEBHOOK_SECRET",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("Validate error %q missing %s", err, want)
@@ -59,6 +61,9 @@ func TestEnvConfigValidateAllowsCompleteProdConfig(t *testing.T) {
 		OpenNode: OpenNodeConfig{
 			Key:      "opennode",
 			Endpoint: "https://opennode.example.test",
+		},
+		Easyship: EasyshipConfig{
+			APIKey: "easyship", WebhookSecret: "webh_easyship",
 		},
 		Prod: true,
 	}

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>{{ .Title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css">
+  </head>
+  <body class="shop-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    {{ if .Product }}
+    <section class="shop-hero">
+      <a class="shop-hero__media" href="/shop/{{ .Product.Slug }}">
+        {{ if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="{{ .Product.Name }}">{{ else }}<span>{{ .Product.ProductType }}</span>{{ end }}
+      </a>
+      <div class="shop-hero__copy">
+        <p class="shop-kicker">▶ the drop · new this week</p>
+        <h1>{{ .Product.Name }}</h1>
+        <p>{{ .Product.Description }}</p>
+        <div class="shop-price">
+          <strong>{{ merchMoney (merchPrice .Product) .Product }}</strong>
+          <span>≈ {{ merchSats (merchPrice .Product) }} sats</span>
+        </div>
+        <div class="shop-actions">
+          <a class="shop-button is-primary{{ if merchProductSoldOut .Product }} is-disabled{{ end }}" href="/shop/{{ .Product.Slug }}">{{ if merchProductSoldOut .Product }}Sold out{{ else }}Shop this drop →{{ end }}</a>
+          <a class="shop-button" href="/shop/all">Browse everything</a>
+        </div>
+      </div>
+    </section>
+    {{ end }}
+    <section class="shop-section">
+      <div class="shop-section__label">§ shop by category</div>
+      <div class="shop-category-grid">
+        {{ range .Categories }}
+        <a class="shop-category-card" href="/shop/all?cat={{ .Slug }}" style="--tone: {{ .Tone }}">
+          <span>{{ .Count }} items</span>
+          <strong>{{ .Label }}</strong>
+          <em>shop →</em>
+        </a>
+        {{ end }}
+      </div>
+    </section>
+    <section class="shop-section">
+      <div class="shop-section__label">
+        <span>§ bestsellers</span>
+        <a href="/shop/all">all products →</a>
+      </div>
+      {{ template "shop_product_grid" .Products }}
+    </section>
+    {{ template "shop_footer" . }}
+  </body>
+</html>
+
+{{ define "shop_header" }}
+<div class="shop-ticker">
+  <span><b>▶</b> free pickup{{ if .PickupConf }} at {{ .PickupConf.Desc }}{{ end }}</span>
+  <span>free shipping over $75</span>
+  <span>pay in bitcoin or card</span>
+</div>
+{{ if .Flash }}<div class="shop-flash">{{ .Flash }}</div>{{ end }}
+{{ if .Error }}<div class="shop-flash is-error">{{ .Error }}</div>{{ end }}
+{{ end }}
+
+{{ define "shop_footer" }}
+{{ template "generic_conf_footer" . }}
+{{ end }}
+
+{{ define "shop_product_grid" }}
+<div class="shop-grid">
+  {{ range . }}
+  <a class="shop-card{{ if merchProductSoldOut . }} is-sold-out{{ end }}" href="/shop/{{ .Slug }}">
+    <div class="shop-card__image">
+      {{ if merchImage . }}<img src="{{ merchImage . | safeURL }}" alt="{{ .Name }}">{{ else }}<span>{{ .ProductType }}</span>{{ end }}
+      {{ if merchProductSoldOut . }}<b class="shop-sold-out-badge">sold out</b>{{ end }}
+    </div>
+    <div class="shop-card__body">
+      <div class="shop-card__meta"><span>{{ .ProductType }}</span>{{ if merchProductSoldOut . }}<b>sold out</b>{{ else if .Variants }}{{ with index .Variants 0 }}{{ if and (ne .InventoryPolicy "unlimited") (le .Stock 6) }}<b>low stock · {{ .Stock }} left</b>{{ end }}{{ end }}{{ end }}</div>
+      <h2>{{ .Name }}</h2>
+      <p>{{ .Subtitle }}</p>
+      <div class="shop-price is-small">
+        <strong>{{ merchMoney (merchPrice .) . }}</strong>
+        <span>≈ {{ merchSats (merchPrice .) }} sats</span>
+      </div>
+    </div>
+  </a>
+  {{ else }}
+  <div class="shop-empty">No products are published yet.</div>
+  {{ end }}
+</div>
+{{ end }}

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>{{ .Title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css">
+  </head>
+  <body class="shop-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <main class="shop-listing">
+      <div class="shop-listing__head">
+        <p class="shop-kicker">§ the rack</p>
+        <h1>All merch.</h1>
+        <p>Small-batch gear for people who run their own node.</p>
+      </div>
+      {{ template "shop_product_grid" .Products }}
+    </main>
+    {{ template "shop_footer" . }}
+  </body>
+</html>

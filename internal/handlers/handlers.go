@@ -14,6 +14,7 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
+	"math"
 	"mime"
 	"net/http"
 	"net/url"
@@ -158,6 +159,17 @@ func loadTemplates(ctx *config.AppContext) error {
 			default:
 				return ""
 			}
+		},
+		"absoluteURL": func(base, path string) string {
+			path = strings.TrimSpace(path)
+			if path == "" || strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") || strings.HasPrefix(path, "data:") {
+				return path
+			}
+			base = strings.TrimRight(strings.TrimSpace(base), "/")
+			if strings.HasPrefix(path, "/") {
+				return base + path
+			}
+			return base + "/" + path
 		},
 		"safeCSS": func(s string) template.CSS {
 			return template.CSS(s)
@@ -491,6 +503,26 @@ func loadTemplates(ctx *config.AppContext) error {
 				return nil
 			}
 			return SponsorBannerForConf(ctx, conf.Ref)
+		},
+		"merchImage":                  merchImage,
+		"merchProductStock":           merchProductStock,
+		"shopOrderItemImage":          shopOrderItemImage,
+		"shopFulfillmentLabel":        shopFulfillmentLabel,
+		"shopOrderHasFulfillment":     shopOrderHasFulfillment,
+		"shopOrderFulfillmentSummary": shopOrderFulfillmentSummary,
+		"merchPrice":                  merchPrice,
+		"merchMoney":                  merchMoney,
+		"merchInches":                 merchInches,
+		"merchSats":                   merchSats,
+		"merchVariantPrice":           merchVariantPrice,
+		"merchVariantAvailable": func(v *types.MerchVariant) bool {
+			return merchVariantAvailable(v, 1)
+		},
+		"merchProductSoldOut": merchProductSoldOut,
+		"merchJSON":           merchJSON,
+		"isShopPage": func(v any) bool {
+			_, ok := v.(*shopPage)
+			return ok
 		},
 		"speakerPhoto": func(photo string) string {
 			if photo == "" {
@@ -989,12 +1021,18 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/tix/{tix}/apply-discount", func(w http.ResponseWriter, r *http.Request) {
 		HandleDiscount(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/tix/{tix}/tax-quote", func(w http.ResponseWriter, r *http.Request) {
+		TicketTaxQuote(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/conf-reload", func(w http.ResponseWriter, r *http.Request) {
 		ReloadConf(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/check-in/{ticket}", func(w http.ResponseWriter, r *http.Request) {
 		CheckIn(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/check-in/{ticket}/merch/{itemID}", func(w http.ResponseWriter, r *http.Request) {
+		CheckInMerchPickup(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/i/{conf}/sendcal", func(w http.ResponseWriter, r *http.Request) {
 		if id := requireConfAdmin(w, r, app); id == nil {
@@ -1025,6 +1063,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/callback/opennode", func(w http.ResponseWriter, r *http.Request) {
 		OpenNodeCallback(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/callbacks/easyship", func(w http.ResponseWriter, r *http.Request) {
+		EasyshipCallback(w, r, app)
+	}).Methods("POST")
 
 	/* Internal pages */
 	r.HandleFunc("/{conf}/volcoord", func(w http.ResponseWriter, r *http.Request) {
@@ -1159,6 +1200,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/tickets", func(w http.ResponseWriter, r *http.Request) {
 		DashboardHackathonTickets(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/orders", func(w http.ResponseWriter, r *http.Request) {
+		DashboardOrders(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/orders/{order}", func(w http.ResponseWriter, r *http.Request) {
+		DashboardOrder(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/orders/{order}/receipt", func(w http.ResponseWriter, r *http.Request) {
+		DashboardOrderReceipt(w, r, app)
 	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/{confTag}/edit", func(w http.ResponseWriter, r *http.Request) {
@@ -1302,6 +1352,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		HackathonAdminUpdate(w, r, app)
 	}).Methods("POST")
 	registerConferenceHackathonAdminRoutes(r, app)
+	r.HandleFunc("/admin/easyship", func(w http.ResponseWriter, r *http.Request) {
+		AdminEasyship(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/easyship", func(w http.ResponseWriter, r *http.Request) {
+		AdminEasyshipSave(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/missives", func(w http.ResponseWriter, r *http.Request) {
 		TemplatedMissivesAdmin(w, r, app)
 	}).Methods("GET")
@@ -1362,6 +1418,85 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectShow(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/merch", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerch(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/merch", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/merch/new", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchNew(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/merch/orders", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchOrders(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/merch/orders/{order}", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchOrder(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/merch/orders/{order}/{action}", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchOrderAction(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/merch/{id}", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchProduct(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/merch/{id}", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/merch/{id}/upload-image", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchUploadImage(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/merch/{id}/variants", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchVariantCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/merch/{id}/variants/{variant}", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchVariantUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/merch/{id}/images/{image}", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchImageUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/merch/{id}/options", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchOptionSave(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/merch/{id}/options/{option}", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchOptionSave(w, r, app)
+	}).Methods("POST")
+
+	r.HandleFunc("/shop", func(w http.ResponseWriter, r *http.Request) {
+		ShopHome(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/shop/all", func(w http.ResponseWriter, r *http.Request) {
+		ShopCollection(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/shop/cart", func(w http.ResponseWriter, r *http.Request) {
+		ShopCart(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/shop/cart/add", func(w http.ResponseWriter, r *http.Request) {
+		ShopCartAdd(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/shop/cart", func(w http.ResponseWriter, r *http.Request) {
+		ShopCartUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/shop/checkout", func(w http.ResponseWriter, r *http.Request) {
+		ShopCheckout(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/shop/checkout", func(w http.ResponseWriter, r *http.Request) {
+		ShopCheckoutCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/shop/shipping-rates", func(w http.ResponseWriter, r *http.Request) {
+		ShopShippingRates(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/shop/tax-quote", func(w http.ResponseWriter, r *http.Request) {
+		ShopTaxQuote(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/shop/checkout/cancel/{order}", func(w http.ResponseWriter, r *http.Request) {
+		ShopCheckoutCancel(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/shop/success/{order}", func(w http.ResponseWriter, r *http.Request) {
+		ShopSuccess(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/shop/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		ShopItem(w, r, app)
 	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/edit", func(w http.ResponseWriter, r *http.Request) {
@@ -1632,6 +1767,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/registrations/check-in", func(w http.ResponseWriter, r *http.Request) {
 		RegistrationsAdminBulkCheckIn(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/registrations/merch/{itemID}/pickup", func(w http.ResponseWriter, r *http.Request) {
+		RegistrationsAdminMerchPickup(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/applicants", func(w http.ResponseWriter, r *http.Request) {
 		ProposalAdmin(w, r, app)
@@ -1654,6 +1792,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/details/ticket", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminUpdateConfTicket(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/details/merch-upsells", func(w http.ResponseWriter, r *http.Request) {
+		GlobalAdminUpdateConfMerchUpsells(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/state", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminUpdateConfState(w, r, app)
@@ -4747,16 +4888,49 @@ func CheckInGet(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		msg = err.Error()
 		ctx.Infos.Println("check-in problem:", msg)
 	}
+	if flash := strings.TrimSpace(r.URL.Query().Get("msg")); flash != "" {
+		if msg != "" {
+			msg += " "
+		}
+		msg += flash
+	}
+	merchPickups, pickupErr := getters.ListShopPickupsForTicket(ctx, ticket)
+	if pickupErr != nil {
+		ctx.Err.Printf("/check-in/%s merch pickups: %s", ticket, pickupErr)
+		msg = strings.TrimSpace(msg + " Could not load merch pickups.")
+	}
 	err = ctx.TemplateCache.ExecuteTemplate(w, "checkin.tmpl", &CheckInPage{
-		TicketType: tix_type,
-		Msg:        msg,
-		Year:       helpers.CurrentYear(),
+		TicketType:   tix_type,
+		TicketRef:    ticket,
+		Msg:          msg,
+		MerchPickups: merchPickups,
+		Year:         helpers.CurrentYear(),
 	})
 
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/check-in ExecuteTemplate failed ! %s", err.Error())
 	}
+}
+
+func CheckInMerchPickup(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	pin := ctx.Session.GetString(r.Context(), "pin")
+	if pin == "" || pin != ctx.Env.RegistryPin {
+		http.Error(w, "check-in pin required", http.StatusUnauthorized)
+		return
+	}
+	ticket := strings.TrimSpace(mux.Vars(r)["ticket"])
+	itemID := strings.TrimSpace(mux.Vars(r)["itemID"])
+	if itemID == "" {
+		http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket), http.StatusSeeOther)
+		return
+	}
+	if err := getters.MarkShopOrderItemPickedUp(ctx, itemID, "check-in", "QR check-in merch pickup"); err != nil {
+		ctx.Err.Printf("/check-in/%s/merch/%s: %s", ticket, itemID, err)
+		http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket)+"?msg="+url.QueryEscape("Could not mark merch pickup."), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket)+"?msg="+url.QueryEscape("Merch pickup marked complete."), http.StatusSeeOther)
 }
 
 func ticketMatch(tickets []string, desc string) bool {
@@ -4810,32 +4984,57 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	/* Go get the actual event data */
 	charge, err := GetCharge(ctx, ev.ID)
 	if err != nil {
+		var apiErr *openNodeHTTPError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusBadRequest && strings.Contains(apiErr.Body, "checkout does not exist") {
+			// OpenNode's webhook simulator signs a synthetic charge ID that
+			// cannot be retrieved from the charge API. Acknowledge delivery so
+			// the simulator does not retry, but never fulfill a ticket or order.
+			ctx.Infos.Printf("Acknowledged OpenNode simulator callback for non-existent charge %s", ev.ID)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		ctx.Err.Printf("Unable to fetch charge: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	if charge.ID != "" && charge.ID != ev.ID {
+		ctx.Err.Printf("OpenNode returned charge %s for callback %s", charge.ID, ev.ID)
+		w.WriteHeader(http.StatusBadGateway)
+		return
+	}
 
-	if ev.Status != "paid" {
-		ctx.Infos.Printf("User did not complete charge. charge-id: %s status: %s email: %s conf-ref: %s", ev.ID, ev.Status, charge.Metadata.Email, charge.Metadata.ConfRef)
+	if charge.Metadata == nil {
+		ctx.Err.Printf("OpenNode charge %s has no metadata", ev.ID)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	// The callback form is only a notification. Trust the charge fetched
+	// directly from OpenNode as the authoritative payment state.
+	if charge.Status != "paid" {
+		ctx.Infos.Printf("User did not complete charge. charge-id: %s callback-status: %s charge-status: %s email: %s conf-ref: %s", ev.ID, ev.Status, charge.Status, charge.Metadata.Email, charge.Metadata.ConfRef)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
 	ctx.Infos.Println("opennode charge!", charge)
+	if charge.Metadata.ShopOrderID != "" && charge.Metadata.ConfRef == "" {
+		if err := markOpenNodeShopOrderPaid(ctx, charge); err != nil {
+			ctx.Err.Printf("opennode callback: unable to mark shop order %s paid: %s", charge.Metadata.ShopOrderID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	entry := types.Entry{
 		ID:          charge.ID,
 		ConfRef:     charge.Metadata.ConfRef,
 		Total:       int64(charge.FiatVal * 100),
 		Currency:    charge.Metadata.Currency,
-		Created:     charge.CreatedAt,
+		Created:     time.Unix(int64(charge.CreatedAt), 0),
 		Email:       charge.Metadata.Email,
 		DiscountRef: charge.Metadata.DiscountRef,
-	}
-
-	if err != nil {
-		ctx.Err.Printf("Failed to fetch charge %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
 	}
 
 	tixType := types.TicketTypeGeneral
@@ -4844,17 +5043,11 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	} else if charge.Metadata.TixLocal {
 		tixType = types.TicketTypeLocal
 	}
-	itemTotal := int64(charge.FiatVal * 100)
-	if charge.Metadata.Quantity > 0 {
-		itemTotal = itemTotal / int64(charge.Metadata.Quantity)
-	}
-	for i := 0; i < int(charge.Metadata.Quantity); i++ {
-		item := types.Item{
-			Total: itemTotal,
-			Desc:  charge.Description,
-			Type:  tixType,
-		}
-		entry.Items = append(entry.Items, item)
+	entry.Items, entry.Total, err = openNodeTicketItems(charge, tixType)
+	if err != nil {
+		ctx.Err.Printf("Invalid OpenNode ticket charge %s: %s", charge.ID, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	if len(entry.Items) == 0 {
@@ -4863,11 +5056,44 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 
+	existingTickets, err := getters.ListRegistrationsByCheckoutID(ctx, entry.ID)
+	if err != nil {
+		ctx.Err.Printf("Unable to check existing OpenNode tickets %s: %v", entry.ID, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	firstFulfillment := len(existingTickets) == 0
 	err = getters.AddTickets(ctx, &entry, "opennode")
 
 	if err != nil {
 		ctx.Err.Printf("!!! Unable to add ticket %s: %v", err, entry)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if charge.Metadata.ShopOrderID != "" {
+		transitioned, err := getters.MarkShopOrderPaid(ctx, charge.Metadata.ShopOrderID, "opennode", charge.ID, 0, fiatValueCents(charge.FiatVal))
+		if err != nil {
+			ctx.Err.Printf("opennode callback: unable to mark shop order %s paid: %s", charge.Metadata.ShopOrderID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if err := finalizeShopTaxTransaction(ctx, charge.Metadata.ShopOrderID); err != nil {
+			ctx.Err.Printf("opennode callback finalize tax %s: %s", charge.Metadata.ShopOrderID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if transitioned {
+			order, err := getters.GetShopOrderByID(ctx, charge.Metadata.ShopOrderID)
+			if err != nil {
+				ctx.Err.Printf("opennode callback load receipt order %s: %s", charge.Metadata.ShopOrderID, err)
+			} else if err := sendShopReceiptEmail(ctx, order); err != nil {
+				ctx.Err.Printf("opennode callback receipt %s: %s", charge.Metadata.ShopOrderID, err)
+			}
+		}
+	}
+	if !firstFulfillment {
+		ctx.Infos.Printf("OpenNode callback replay already fulfilled charge %s", entry.ID)
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
@@ -4908,6 +5134,61 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 
 	ctx.Infos.Println("Added ticket!", entry.ID)
 	w.WriteHeader(http.StatusOK)
+}
+
+func openNodeTicketItems(charge *Charge, ticketType string) ([]types.Item, int64, error) {
+	if charge == nil || charge.Metadata == nil {
+		return nil, 0, fmt.Errorf("charge metadata is required")
+	}
+	quantity := charge.Metadata.Quantity
+	if quantity <= 0 || quantity > 100 || math.Trunc(quantity) != quantity {
+		return nil, 0, fmt.Errorf("invalid ticket quantity %v", quantity)
+	}
+	ticketTotal := charge.Metadata.TicketTotalCents
+	if ticketTotal == 0 {
+		ticketTotal = int64(fiatValueCents(charge.FiatVal)) - charge.Metadata.AddOnCents
+	}
+	if ticketTotal < 0 {
+		return nil, 0, fmt.Errorf("add-on amount exceeds charge total")
+	}
+	count := int64(quantity)
+	items := make([]types.Item, 0, count)
+	for i := int64(0); i < count; i++ {
+		items = append(items, types.Item{
+			Total: stripePerTicketAmount(ticketTotal, count, i),
+			Desc:  charge.Description,
+			Type:  ticketType,
+		})
+	}
+	return items, ticketTotal, nil
+}
+
+func markOpenNodeShopOrderPaid(ctx *config.AppContext, charge *Charge) error {
+	if charge == nil || charge.Metadata == nil || charge.Metadata.ShopOrderID == "" {
+		return fmt.Errorf("missing shop order metadata")
+	}
+	transitioned, err := getters.MarkShopOrderPaid(ctx, charge.Metadata.ShopOrderID, "opennode", charge.ID, 0, fiatValueCents(charge.FiatVal))
+	if err != nil {
+		return err
+	}
+	if !transitioned {
+		return finalizeShopTaxTransaction(ctx, charge.Metadata.ShopOrderID)
+	}
+	if err := finalizeShopTaxTransaction(ctx, charge.Metadata.ShopOrderID); err != nil {
+		return err
+	}
+	order, err := getters.GetShopOrderByID(ctx, charge.Metadata.ShopOrderID)
+	if err != nil {
+		return err
+	}
+	return sendShopReceiptEmail(ctx, order)
+}
+
+func fiatValueCents(v float64) uint {
+	if v <= 0 {
+		return 0
+	}
+	return uint(v*100 + 0.5)
 }
 
 func getPrice(pricestr string) (uint, error) {
@@ -5128,6 +5409,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			Count:           uint(1),
 			Year:            helpers.CurrentYear(),
 			PaymentMethod:   checkoutDefaultPaymentMethod(r),
+			AddOnProducts:   ticketCheckoutAddOnProducts(ctx, conf),
 		})
 		if err != nil {
 			http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -5194,6 +5476,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 				Count:           form.Count,
 				Year:            helpers.CurrentYear(),
 				PaymentMethod:   form.PaymentMethod,
+				AddOnProducts:   ticketCheckoutAddOnProducts(ctx, conf),
 			})
 			if err != nil {
 				http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -5208,11 +5491,40 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 		ctx.Session.Put(r.Context(), checkoutEmailSessionKey(conf.Tag), strings.ToLower(strings.TrimSpace(form.Email)))
 
+		addOns, addOnTotalCents := selectedTicketAddOns(ctx, conf, r)
+		var shopOrderID string
+		var addOnTaxCents uint
+		if len(addOns) > 0 {
+			taxQuote, taxErr := ticketCheckoutTaxQuote(ctx, conf, addOns)
+			if taxErr != nil {
+				ctx.Err.Printf("/tix/%s/checkout calculate add-on tax failed: %s", tixSlug, taxErr)
+				http.Error(w, "Unable to calculate sales tax for event pickup", http.StatusUnprocessableEntity)
+				return
+			}
+			addOnTaxCents = taxQuote.SalesTaxAmountCents
+			order, err := createTicketAddOnOrder(ctx, conf, tix, &form, ticketKind, form.PaymentMethod, addOns, addOnTotalCents, addOnTaxCents)
+			if err != nil {
+				ctx.Err.Printf("/tix/%s/checkout create mixed add-on order failed: %s", tixSlug, err)
+				http.Error(w, "Unable to create add-on order", http.StatusInternalServerError)
+				return
+			}
+			if order != nil {
+				shopOrderID = order.ID
+				taxQuote.OrderID = order.ID
+				if err := getters.CreateTaxQuote(ctx, *taxQuote); err != nil {
+					ctx.Err.Printf("/tix/%s/checkout persist add-on tax failed: %s", tixSlug, err)
+					_ = getters.CancelShopOrder(ctx, order.ID, "", "ticket add-on tax quote could not be saved")
+					http.Error(w, "Unable to save sales tax calculation", http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+
 		if form.PaymentMethod == "card" {
 			cardPrice := cardSurchargePrice(form.DiscountPrice, tix.CardSurchargeBPS)
-			StripeInitWithDiscount(w, r, ctx, conf, tix, cardPrice, tixPrice, form.DiscountPrice, &form, ticketKind)
+			StripeInitWithDiscount(w, r, ctx, conf, tix, cardPrice, tixPrice, form.DiscountPrice, &form, ticketKind, addOns, addOnTaxCents, shopOrderID)
 		} else {
-			OpenNodeInit(w, r, ctx, conf, tix, form.DiscountPrice, tixPrice, &form, ticketKind)
+			OpenNodeInit(w, r, ctx, conf, tix, form.DiscountPrice, tixPrice, &form, ticketKind, addOnTotalCents+addOnTaxCents, shopOrderID)
 		}
 		return
 	default:
@@ -5221,10 +5533,15 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	}
 }
 
-func OpenNodeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice uint, tixForm *types.TixForm, ticketKind string) {
-	payment, err := getters.InitOpenNodeCheckout(ctx, tixPrice, preDiscountPrice, tix, conf, ticketKind, tixForm.Count, tixForm.Email, tixForm.DiscountRef, tixForm.Subscribe)
+func OpenNodeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice uint, tixForm *types.TixForm, ticketKind string, addOnTotalCents uint, shopOrderID string) {
+	payment, err := getters.InitOpenNodeCheckout(ctx, tixPrice, preDiscountPrice, tix, conf, ticketKind, tixForm.Count, tixForm.Email, tixForm.DiscountRef, tixForm.Subscribe, addOnTotalCents, shopOrderID)
 
 	if err != nil {
+		if shopOrderID != "" {
+			if cancelErr := getters.CancelShopOrder(ctx, shopOrderID, "", "OpenNode checkout could not start"); cancelErr != nil {
+				ctx.Err.Printf("release mixed OpenNode order %s: %s", shopOrderID, cancelErr)
+			}
+		}
 		http.Error(w, "unable to init btc payment", http.StatusInternalServerError)
 		ctx.Err.Printf("opennode payment init failed: %s", err.Error())
 		return
@@ -5257,7 +5574,14 @@ func stripePerTicketAmount(lineTotal int64, quantity int64, index int64) int64 {
 	return amount
 }
 
-func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice, discountedBasePrice uint, form *types.TixForm, ticketKind string) {
+func ticketStripeTaxCode(tix *types.ConfTicket) string {
+	if tix == nil || strings.TrimSpace(tix.StripeTaxCode) == "" {
+		return types.StripeTaxCodeNontaxable
+	}
+	return strings.TrimSpace(tix.StripeTaxCode)
+}
+
+func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice, discountedBasePrice uint, form *types.TixForm, ticketKind string, addOns []*shopCartItem, salesTaxCents uint, shopOrderID string) {
 	if ticketKind == "" {
 		ticketKind = types.TicketTypeGeneral
 	}
@@ -5278,35 +5602,93 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 	metadata["pre-discount-cents"] = strconv.FormatInt(int64(preDiscountPrice)*100, 10)
 	metadata["discounted-base-cents"] = strconv.FormatInt(int64(discountedBasePrice)*100, 10)
 	metadata["card-surcharge-cents"] = strconv.FormatInt((int64(tixPrice)-int64(discountedBasePrice))*100, 10)
+	metadata["sales-tax-cents"] = strconv.FormatUint(uint64(salesTaxCents), 10)
 	metadata["payment-method"] = "card"
 	metadata["ticket-kind"] = ticketKind
+	if shopOrderID != "" {
+		metadata["checkout-kind"] = types.ShopCheckoutKindMixed
+		metadata["shop-order-id"] = shopOrderID
+	}
 	if ticketKind == types.TicketTypeLocal {
 		metadata["tix-local"] = "yes"
 	}
+	ticketProductMetadata := make(map[string]string, len(metadata)+1)
+	for key, value := range metadata {
+		ticketProductMetadata[key] = value
+	}
+	ticketProductMetadata["line-kind"] = "ticket"
+	lineItems := []*stripe.CheckoutSessionLineItemParams{
+		{
+			PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+				ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+					Description: stripe.String(confDesc),
+					Name:        stripe.String(conf.Desc),
+					Metadata:    ticketProductMetadata,
+					TaxCode:     stripe.String(ticketStripeTaxCode(tix)),
+				},
+				TaxBehavior: stripe.String("exclusive"),
+				UnitAmount:  stripe.Int64(priceAsCents),
+				Currency:    stripe.String(tix.Currency),
+			},
+			Quantity: stripe.Int64(int64(form.Count)),
+		},
+	}
+	for _, item := range addOns {
+		if item == nil || item.Product == nil || item.Variant == nil {
+			continue
+		}
+		productData := &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+			Name:        stripe.String(item.Product.Name),
+			Description: stripe.String("MERCH:" + item.Variant.SKU),
+			Metadata: map[string]string{
+				"line-kind":     "merch",
+				"shop-order-id": shopOrderID,
+				"variant-id":    item.Variant.ID,
+			},
+			TaxCode: stripe.String(firstNonEmpty(item.Product.StripeTaxCode, types.StripeTaxCodeTangibleGood)),
+		}
+		lineItems = append(lineItems, &stripe.CheckoutSessionLineItemParams{
+			PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+				ProductData: productData,
+				TaxBehavior: stripe.String("exclusive"),
+				UnitAmount:  stripe.Int64(int64(item.UnitPriceCents)),
+				Currency:    stripe.String(strings.ToLower(tix.Currency)),
+			},
+			Quantity: stripe.Int64(int64(item.Qty)),
+		})
+	}
+	if salesTaxCents > 0 {
+		lineItems = append(lineItems, &stripe.CheckoutSessionLineItemParams{
+			PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+				ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+					Name:        stripe.String("Sales tax"),
+					Description: stripe.String("Calculated for event pickup"),
+					Metadata:    map[string]string{"line-kind": "tax", "shop-order-id": shopOrderID},
+				},
+				UnitAmount: stripe.Int64(int64(salesTaxCents)),
+				Currency:   stripe.String(strings.ToLower(tix.Currency)),
+			},
+			Quantity: stripe.Int64(1),
+		})
+	}
 	params := &stripe.CheckoutSessionParams{
 		CustomerEmail: stripe.String(form.Email),
-		LineItems: []*stripe.CheckoutSessionLineItemParams{
-			{
-				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
-					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-						Description: stripe.String(confDesc),
-						Name:        stripe.String(conf.Desc),
-						Metadata:    metadata,
-					},
-					UnitAmount: stripe.Int64(priceAsCents),
-					Currency:   stripe.String(tix.Currency),
-				},
-				Quantity: stripe.Int64(int64(form.Count)),
-			}},
-		Metadata:     metadata,
-		Mode:         stripe.String(string(stripe.CheckoutSessionModePayment)),
-		SuccessURL:   stripe.String(domain + "/" + conf.Tag + "/success?session_id={CHECKOUT_SESSION_ID}"),
-		CancelURL:    stripe.String(domain + "/" + conf.Tag),
-		AutomaticTax: &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(true)},
+		LineItems:     lineItems,
+		Metadata:      metadata,
+		Mode:          stripe.String(string(stripe.CheckoutSessionModePayment)),
+		SuccessURL:    stripe.String(domain + "/" + conf.Tag + "/success?session_id={CHECKOUT_SESSION_ID}"),
+		CancelURL:     stripe.String(domain + "/" + conf.Tag),
+		AutomaticTax:  &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(false)},
+		ExpiresAt:     stripe.Int64(time.Now().Add(types.ShopCheckoutSessionTTL).Unix()),
 	}
 
 	s, err := session.New(params)
 	if err != nil {
+		if shopOrderID != "" {
+			if cancelErr := getters.CancelShopOrder(ctx, shopOrderID, "", "Stripe checkout could not start"); cancelErr != nil {
+				ctx.Err.Printf("release mixed Stripe order %s: %s", shopOrderID, cancelErr)
+			}
+		}
 		ctx.Err.Printf("!!! Unable to create stripe session: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -5336,9 +5718,11 @@ func StripeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 						Description: stripe.String(confDesc),
 						Name:        stripe.String(conf.Desc),
 						Metadata:    metadata,
+						TaxCode:     stripe.String(ticketStripeTaxCode(tix)),
 					},
-					UnitAmount: stripe.Int64(priceAsCents),
-					Currency:   stripe.String(tix.Currency),
+					TaxBehavior: stripe.String("exclusive"),
+					UnitAmount:  stripe.Int64(priceAsCents),
+					Currency:    stripe.String(tix.Currency),
 				},
 				Quantity: stripe.Int64(1),
 			}},
@@ -5346,7 +5730,7 @@ func StripeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
 		SuccessURL:          stripe.String(domain + "/" + conf.Tag + "/success?session_id={CHECKOUT_SESSION_ID}"),
 		CancelURL:           stripe.String(domain + "/" + conf.Tag),
-		AutomaticTax:        &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(true)},
+		AutomaticTax:        &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(false)},
 		AllowPromotionCodes: stripe.Bool(true),
 	}
 
@@ -5358,6 +5742,41 @@ func StripeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 	}
 
 	http.Redirect(w, r, s.URL, http.StatusSeeOther)
+}
+
+func stripeCheckoutShopAmounts(checkout *stripe.CheckoutSession) (uint, uint) {
+	if checkout == nil {
+		return 0, 0
+	}
+	tax := uint(0)
+	if checkout.TotalDetails != nil {
+		tax = stripeAmountToUint(checkout.TotalDetails.AmountTax)
+	}
+	return tax, stripeAmountToUint(checkout.AmountTotal)
+}
+
+func stripeCheckoutShippingAddress(checkout *stripe.CheckoutSession) *types.ShopAddress {
+	if checkout == nil || checkout.ShippingDetails == nil || checkout.ShippingDetails.Address == nil {
+		return nil
+	}
+	address := checkout.ShippingDetails.Address
+	return &types.ShopAddress{
+		Name:       checkout.ShippingDetails.Name,
+		Line1:      address.Line1,
+		Line2:      address.Line2,
+		City:       address.City,
+		Region:     address.State,
+		PostalCode: address.PostalCode,
+		Country:    address.Country,
+		Phone:      checkout.ShippingDetails.Phone,
+	}
+}
+
+func stripeAmountToUint(amount int64) uint {
+	if amount <= 0 {
+		return 0
+	}
+	return uint(amount)
 }
 
 func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -5379,12 +5798,76 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	}
 
 	switch event.Type {
+	case "checkout.session.expired":
+		var checkout stripe.CheckoutSession
+		if err := json.Unmarshal(event.Data.Raw, &checkout); err != nil {
+			ctx.Err.Printf("Error parsing expired Stripe checkout: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		orderID := strings.TrimSpace(checkout.Metadata["shop-order-id"])
+		if orderID != "" {
+			order, err := getters.GetShopOrderByID(ctx, orderID)
+			if err != nil {
+				ctx.Err.Printf("Stripe expired checkout load order %s: %s", orderID, err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if order.Status == types.ShopOrderStatusPending {
+				if err := getters.CancelShopOrder(ctx, orderID, "", "Stripe checkout session expired"); err != nil {
+					ctx.Err.Printf("Stripe expired checkout release order %s: %s", orderID, err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		return
 	case "checkout.session.completed":
 		var checkout stripe.CheckoutSession
 		err := json.Unmarshal(event.Data.Raw, &checkout)
 		if err != nil {
 			ctx.Err.Printf("Error parsing webhook JSON: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if checkout.Metadata["checkout-kind"] == types.ShopCheckoutKindMerch {
+			orderID := strings.TrimSpace(checkout.Metadata["shop-order-id"])
+			if orderID == "" {
+				ctx.Err.Printf("Stripe merch callback missing shop-order-id")
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			salesTaxAmount, total := stripeCheckoutShopAmounts(&checkout)
+			if address := stripeCheckoutShippingAddress(&checkout); address != nil {
+				if err := getters.UpsertShopOrderShippingAddress(ctx, orderID, address); err != nil {
+					ctx.Err.Printf("Stripe merch callback save shipping address %s: %s", orderID, err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
+			transitioned, err := getters.MarkShopOrderPaid(ctx, orderID, "stripe", checkout.ID, salesTaxAmount, total)
+			if err != nil {
+				ctx.Err.Printf("Stripe merch callback mark paid %s: %s", orderID, err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if err := finalizeShopTaxTransaction(ctx, orderID); err != nil {
+				ctx.Err.Printf("Stripe merch callback finalize tax %s: %s", orderID, err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if transitioned {
+				order, err := getters.GetShopOrderByID(ctx, orderID)
+				if err != nil {
+					ctx.Err.Printf("Stripe merch callback load receipt order %s: %s", orderID, err)
+				} else if err := sendShopReceiptEmail(ctx, order); err != nil {
+					ctx.Err.Printf("Stripe merch callback receipt %s: %s", orderID, err)
+				}
+			}
+			ctx.Infos.Printf("Marked merch order %s paid via Stripe", orderID)
+			w.WriteHeader(http.StatusOK)
 			return
 		}
 
@@ -5422,6 +5905,7 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		itemParams := &stripe.CheckoutSessionListLineItemsParams{
 			Session: stripe.String(checkout.ID),
 		}
+		itemParams.AddExpand("data.price.product")
 
 		tixType := checkout.Metadata["ticket-kind"]
 		if tixType == "" {
@@ -5432,18 +5916,11 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			}
 		}
 		items := session.ListLineItems(itemParams)
+		var checkoutLineItems []*stripe.LineItem
 		for items.Next() {
-			si := items.LineItem()
-			var i int64
-			for i = 0; i < si.Quantity; i++ {
-				item := types.Item{
-					Total: stripePerTicketAmount(si.AmountTotal, si.Quantity, i),
-					Desc:  si.Description,
-					Type:  tixType,
-				}
-				entry.Items = append(entry.Items, item)
-			}
+			checkoutLineItems = append(checkoutLineItems, items.LineItem())
 		}
+		entry.Items, entry.Total = stripeTicketItems(checkoutLineItems, tixType)
 
 		if err := items.Err(); err != nil {
 			ctx.Err.Println(err)
@@ -5465,6 +5942,35 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			return
 		}
 		ctx.Infos.Printf("Added %d tickets!!", len(entry.Items))
+		if shopOrderID := strings.TrimSpace(checkout.Metadata["shop-order-id"]); shopOrderID != "" {
+			salesTaxAmount, total := stripeCheckoutShopAmounts(&checkout)
+			if address := stripeCheckoutShippingAddress(&checkout); address != nil {
+				if err := getters.UpsertShopOrderShippingAddress(ctx, shopOrderID, address); err != nil {
+					ctx.Err.Printf("Stripe mixed checkout save shipping address %s: %s", shopOrderID, err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+			}
+			transitioned, err := getters.MarkShopOrderPaid(ctx, shopOrderID, "stripe", checkout.ID, salesTaxAmount, total)
+			if err != nil {
+				ctx.Err.Printf("Stripe mixed checkout mark shop order paid %s: %s", shopOrderID, err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if err := finalizeShopTaxTransaction(ctx, shopOrderID); err != nil {
+				ctx.Err.Printf("Stripe mixed checkout finalize tax %s: %s", shopOrderID, err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if transitioned {
+				order, err := getters.GetShopOrderByID(ctx, shopOrderID)
+				if err != nil {
+					ctx.Err.Printf("Stripe mixed checkout load receipt order %s: %s", shopOrderID, err)
+				} else if err := sendShopReceiptEmail(ctx, order); err != nil {
+					ctx.Err.Printf("Stripe mixed checkout receipt %s: %s", shopOrderID, err)
+				}
+			}
+		}
 
 		// Increment discount usage counter
 		if entry.DiscountRef != "" {
@@ -5494,6 +6000,44 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func stripeTicketItems(lineItems []*stripe.LineItem, ticketType string) ([]types.Item, int64) {
+	var ticketItems []types.Item
+	var ticketTotal int64
+	for _, line := range lineItems {
+		kind := stripeLineItemKind(line)
+		if line == nil || (kind != "" && kind != "ticket") {
+			continue
+		}
+		ticketTotal += line.AmountTotal
+		for i := int64(0); i < line.Quantity; i++ {
+			ticketItems = append(ticketItems, types.Item{
+				Total: stripePerTicketAmount(line.AmountTotal, line.Quantity, i),
+				Desc:  line.Description,
+				Type:  ticketType,
+			})
+		}
+	}
+	return ticketItems, ticketTotal
+}
+
+func stripeLineItemKind(line *stripe.LineItem) string {
+	if line != nil && line.Price != nil && line.Price.Product != nil {
+		if kind := strings.ToLower(strings.TrimSpace(line.Price.Product.Metadata["line-kind"])); kind != "" {
+			return kind
+		}
+		if strings.HasPrefix(line.Price.Product.Description, "MERCH:") {
+			return "merch"
+		}
+	}
+	if line != nil && strings.HasPrefix(line.Description, "MERCH:") {
+		return "merch"
+	}
+	// Older ticket Checkout Sessions predate line-kind metadata. Unknown
+	// lines remain tickets for backward compatibility; current merch lines
+	// are identified by their expanded Product metadata above.
+	return "ticket"
 }
 
 type EmailForm struct {
@@ -8580,9 +9124,15 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		return unique[i].Email < unique[j].Email
 	})
 
+	merchPickups, err := getters.ListShopPickupsForConference(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/registrations merch pickups: %s", conf.Tag, err)
+	}
+
 	err = ctx.TemplateCache.ExecuteTemplate(w, "admin/registrations.tmpl", &RegistrationsAdminPage{
 		Conf:          conf,
 		Registrations: unique,
+		MerchPickups:  merchPickups,
 		FlashMessage:  r.URL.Query().Get("flash"),
 		IsConfAdmin:   id.HasRoleForConf(conf.Tag, auth.RoleAdmin),
 		Year:          helpers.CurrentYear(),
@@ -8600,6 +9150,25 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s/admin/registrations template failed: %s", conf.Tag, err.Error())
 	}
+}
+
+func RegistrationsAdminMerchPickup(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireConfStaff(w, r, ctx)
+	if id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	itemID := strings.TrimSpace(mux.Vars(r)["itemID"])
+	if err := getters.MarkShopOrderItemPickedUp(ctx, itemID, id.Email, "registration desk pickup"); err != nil {
+		ctx.Err.Printf("/%s/admin/registrations/merch/%s/pickup: %s", conf.Tag, itemID, err)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=%s", conf.Tag, url.QueryEscape("Could not mark merch pickup.")), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=%s", conf.Tag, url.QueryEscape("Merch pickup marked complete.")), http.StatusSeeOther)
 }
 
 func RegistrationsAdminBulkEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

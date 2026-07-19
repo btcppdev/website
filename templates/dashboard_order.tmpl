@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>bitcoin++ order {{ .ShopOrder.PublicID }}</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-dashboard-page">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="dashboard-shell">
+    <main class="dashboard-main">
+      <header class="dashboard-order-pagehead">
+        <div class="dashboard-order-pagehead__nav">
+          <a class="dashboard-order-pagehead__back" href="/dashboard/orders?hr={{ .HMAC }}&em={{ .Email }}">&larr; All orders</a>
+          <span>Order receipt</span>
+        </div>
+        <div class="dashboard-order-pagehead__body">
+          <div>
+            <p class="dashboard-section-label">§ order</p>
+            <h1>Order details.</h1>
+            <p class="dashboard-order-pagehead__id">#{{ .ShopOrder.PublicID }}</p>
+          </div>
+          <div class="dashboard-order-pagehead__summary">
+            <strong>{{ .ShopOrder.Status }}</strong>
+            <span>{{ .ShopOrder.CreatedAt.Format "Jan 2, 2006" }}</span>
+            <span>{{ .ShopOrder.CheckoutKind }} checkout</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="dashboard-order-detail">
+        <div class="dashboard-order-detail__head">
+          <div>
+            <div class="dashboard-kicker">§ Purchases · {{ len .ShopOrder.Items }}</div>
+            <p>{{ .ShopOrder.BuyerEmail }}</p>
+          </div>
+          <a href="/dashboard/orders/{{ .ShopOrder.PublicID }}/receipt?hr={{ .HMAC }}&em={{ .Email }}">download receipt</a>
+        </div>
+
+        <div class="dashboard-order-items">
+          {{ range .ShopOrder.Items }}
+          <article class="dashboard-order-item">
+            <div class="dashboard-order-item__image">
+              {{ if shopOrderItemImage . }}<img src="{{ shopOrderItemImage . | safeURL }}" alt="{{ .ProductNameSnapshot }}">{{ else }}<span>{{ .ProductTagSnapshot }}</span>{{ end }}
+            </div>
+            <div class="dashboard-order-item__main">
+              <strong>{{ .ProductNameSnapshot }}</strong>
+              <p>{{ .VariantLabelSnapshot }}{{ if .SKUSnapshot }} · {{ .SKUSnapshot }}{{ end }}</p>
+              <small>{{ .FulfillmentMethod }} · {{ .Status }}</small>
+            </div>
+            <div class="dashboard-order-item__qty">
+              <span>qty</span>
+              <strong>{{ .Quantity }}</strong>
+            </div>
+            <div class="dashboard-order-item__price">
+              <span>{{ merchMoney .UnitPriceCents nil }} ea</span>
+              <strong>{{ merchMoney .LineTotalCents nil }}</strong>
+            </div>
+          </article>
+          {{ end }}
+        </div>
+
+        <div class="dashboard-order-totals">
+          <span>Subtotal</span><strong>{{ merchMoney .ShopOrder.SubtotalCents nil }}</strong>
+          <span>Discount</span><strong>{{ merchMoney .ShopOrder.DiscountAmountCents nil }}</strong>
+          <span>Shipping</span><strong>{{ merchMoney .ShopOrder.ShippingAmountCents nil }}</strong>
+          <span>Tax</span><strong>{{ merchMoney .ShopOrder.SalesTaxAmountCents nil }}</strong>
+          <span>Total</span><strong>{{ merchMoney .ShopOrder.TotalCents nil }}</strong>
+        </div>
+        {{ with .ShopOrder.ShippingAddress }}
+        <div class="dashboard-order-shipping">
+          <strong>Shipping to</strong>
+          <span>{{ .Name }} · {{ .Line1 }}{{ if .Line2 }}, {{ .Line2 }}{{ end }} · {{ .City }}{{ if .Region }}, {{ .Region }}{{ end }} {{ .PostalCode }} · {{ .Country }}</span>
+        </div>
+        {{ end }}
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{{ define "admin_merch_fields" }}
+<div class="shop-form-grid">
+  <label>name<input name="name" value="{{ .Name }}" required></label>
+  <label>tag<input name="tag" value="{{ .Tag }}" placeholder="core-hat" required></label>
+  <label>slug<input name="slug" value="{{ .Slug }}" placeholder="core-hat" required></label>
+  <label>status
+    <select name="status">
+      <option value="draft" {{ if eq .Status "draft" }}selected{{ end }}>draft</option>
+      <option value="published" {{ if eq .Status "published" }}selected{{ end }}>published</option>
+      <option value="archived" {{ if eq .Status "archived" }}selected{{ end }}>archived</option>
+    </select>
+  </label>
+  <label>subtitle<input name="subtitle" value="{{ .Subtitle }}"></label>
+  <label>category/tag<input name="product_type" value="{{ .ProductType }}" placeholder="apparel"></label>
+  <label>base price cents<input type="number" name="base_price_cents" value="{{ .BasePriceCents }}" min="0" required></label>
+  <label>currency<input name="currency" value="{{ if .Currency }}{{ .Currency }}{{ else }}USD{{ end }}"></label>
+  <label>symbol<input name="symbol" value="{{ if .Symbol }}{{ .Symbol }}{{ else }}${{ end }}"></label>
+  <label>Stripe tax code<input name="stripe_tax_code" value="{{ .StripeTaxCode }}"></label>
+  <label>Easyship category<input name="easyship_category" value="{{ .EasyshipCategory }}" placeholder="fashion"></label>
+  <label>HS code<input name="hs_code" value="{{ .HSCode }}"></label>
+  <label>country of origin<input name="country_of_origin" value="{{ .CountryOfOrigin }}" placeholder="US" maxlength="2"></label>
+</div>
+<label class="shop-admin-form__full">description<textarea name="description" rows="4">{{ .Description }}</textarea></label>
+<div class="shop-checks">
+  <label><input type="checkbox" name="requires_shipping" {{ if .RequiresShipping }}checked{{ end }}> requires shipping</label>
+  <label><input type="checkbox" name="allow_event_pickup" {{ if .AllowEventPickup }}checked{{ end }}> allow event pickup</label>
+</div>
+{{ end }}

@@ -33,7 +33,9 @@
     <a href="/" class="site-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
     <input class="site-nav__toggle" type="checkbox" id="site-nav-toggle" aria-label="Toggle navigation">
     <div class="site-nav__controls">
-      {{ if $nav.Upcoming }}
+      {{ if isShopPage . }}
+        <a class="site-button is-accent site-nav__cta" href="/shop/cart">cart</a>
+      {{ else if $nav.Upcoming }}
         {{ $next := index $nav.Upcoming 0 }}
         <a class="site-button is-accent site-nav__cta" href="/{{ $next.Tag }}#tickets">GET TICKETS</a>
       {{ else }}
@@ -48,7 +50,7 @@
       <a href="/timeline">timeline/</a>
       <a href="/whois">whois/</a>
       <a href="/dashboard">dashboard/</a>
-      <a href="https://shop.btcpp.dev/" target="_blank" rel="noopener noreferrer">shop/</a>
+      <a href="/shop">shop/</a>
       <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">insider/</a>
     </div>
   </nav>

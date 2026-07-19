@@ -11,43 +11,49 @@ import (
 )
 
 type ConfDetailsInput struct {
-	Description           string
-	EditionType           string
-	OGFlavor              string
-	Emoji                 string
-	Tagline               string
-	DateDesc              string
-	StartDate             *time.Time
-	EndDate               *time.Time
-	Timezone              string
-	Location              string
-	Venue                 string
-	VenueMap              string
-	VenueWebsite          string
-	ShowHackathon         bool
-	HeroTitle             string
-	HeroCaption           string
-	AboutTitle            string
-	AboutBody             string
-	AboutBody2            string
-	VenueTitle            string
-	VenueSubtitle         string
-	VenueBody             string
-	HotelsIntro           string
-	LocalTicketBody       string
-	SpeakersTitle         string
-	SpeakersBody          string
-	HackathonSectionLabel string
-	HackathonHeadline     string
-	HackathonJudgesNote   string
-	HackathonProofLabel   string
-	MapEmbedURL           string
-	MapLatitude           float64
-	MapLongitude          float64
-	MapXPercent           float64
-	MapYPercent           float64
-	MapLabel              string
-	MapLabelSide          string
+	Description             string
+	EditionType             string
+	OGFlavor                string
+	Emoji                   string
+	Tagline                 string
+	DateDesc                string
+	StartDate               *time.Time
+	EndDate                 *time.Time
+	Timezone                string
+	Location                string
+	Venue                   string
+	VenueMap                string
+	VenueWebsite            string
+	PickupAddressLine1      string
+	PickupAddressLine2      string
+	PickupAddressCity       string
+	PickupAddressRegion     string
+	PickupAddressPostalCode string
+	PickupAddressCountry    string
+	ShowHackathon           bool
+	HeroTitle               string
+	HeroCaption             string
+	AboutTitle              string
+	AboutBody               string
+	AboutBody2              string
+	VenueTitle              string
+	VenueSubtitle           string
+	VenueBody               string
+	HotelsIntro             string
+	LocalTicketBody         string
+	SpeakersTitle           string
+	SpeakersBody            string
+	HackathonSectionLabel   string
+	HackathonHeadline       string
+	HackathonJudgesNote     string
+	HackathonProofLabel     string
+	MapEmbedURL             string
+	MapLatitude             float64
+	MapLongitude            float64
+	MapXPercent             float64
+	MapYPercent             float64
+	MapLabel                string
+	MapLabelSide            string
 }
 
 type ConfTicketInput struct {
@@ -60,6 +66,7 @@ type ConfTicketInput struct {
 	Currency         string
 	Symbol           string
 	PostSymbol       string
+	StripeTaxCode    string
 	ExpiresStart     *time.Time
 	ExpiresEnd       *time.Time
 }
@@ -156,7 +163,10 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, tag, public_uid, active, publication_status, description, edition_type, og_flavor, emoji,
 			tagline, date_desc, start_date, end_date, timezone, location, venue,
-			venue_map_url, venue_website_url, show_hackathon, orient_cal_notif,
+			venue_map_url, venue_website_url,
+			pickup_address_line1, pickup_address_line2, pickup_address_city,
+			pickup_address_region, pickup_address_postal_code, pickup_address_country,
+			show_hackathon, orient_cal_notif,
 			hero_title, hero_caption, about_title, about_body, about_body_2,
 			venue_title, venue_subtitle, venue_body, hotels_intro, local_ticket_body,
 			speakers_title, speakers_body, hackathon_section_label,
@@ -198,6 +208,12 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.Venue,
 			&conf.VenueMap,
 			&conf.VenueWebsite,
+			&conf.PickupAddressLine1,
+			&conf.PickupAddressLine2,
+			&conf.PickupAddressCity,
+			&conf.PickupAddressRegion,
+			&conf.PickupAddressPostalCode,
+			&conf.PickupAddressCountry,
 			&conf.ShowHackathon,
 			&conf.OrientCalNotif,
 			&conf.HeroTitle,
@@ -266,7 +282,8 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, conference_id::text, tier, local_price, btc_price, usd_price,
 			base_price, card_surcharge_bps,
-			expires_start, expires_end, max_count, currency, symbol, post_symbol
+			expires_start, expires_end, max_count, currency, symbol, post_symbol,
+			stripe_tax_code
 		FROM conference_tickets
 		`+whereSQL+`
 		ORDER BY expires_start NULLS LAST, tier
@@ -297,6 +314,7 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 			&ticket.Currency,
 			&ticket.Symbol,
 			&ticket.PostSymbol,
+			&ticket.StripeTaxCode,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)
@@ -437,7 +455,13 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 			map_x_percent = $34,
 			map_y_percent = $35,
 			map_label = $36,
-			map_label_side = $37
+			map_label_side = $37,
+			pickup_address_line1 = $38,
+			pickup_address_line2 = $39,
+			pickup_address_city = $40,
+			pickup_address_region = $41,
+			pickup_address_postal_code = $42,
+			pickup_address_country = upper($43)
 		WHERE id = $1
 	`, confRef, in.Description, in.OGFlavor, in.Emoji, in.Tagline, in.DateDesc,
 		in.StartDate, in.EndDate, in.Timezone, in.Location, in.Venue,
@@ -448,7 +472,9 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 		in.HackathonSectionLabel, in.HackathonHeadline,
 		in.HackathonJudgesNote, in.HackathonProofLabel, in.MapEmbedURL,
 		in.MapLatitude, in.MapLongitude, in.MapXPercent, in.MapYPercent,
-		in.MapLabel, in.MapLabelSide)
+		in.MapLabel, in.MapLabelSide, in.PickupAddressLine1, in.PickupAddressLine2,
+		in.PickupAddressCity, in.PickupAddressRegion, in.PickupAddressPostalCode,
+		in.PickupAddressCountry)
 	if err != nil {
 		return fmt.Errorf("update conference %s details: %w", confRef, err)
 	}
@@ -483,14 +509,15 @@ func UpdateConfTicket(ctx *config.AppContext, confRef string, in ConfTicketInput
 			currency = $8,
 			symbol = $9,
 			post_symbol = $10,
-			expires_start = $11,
-			expires_end = $12,
+			stripe_tax_code = $11,
+			expires_start = $12,
+			expires_end = $13,
 			btc_price = $5,
 			usd_price = $5
 		WHERE id = $1::uuid
 		  AND conference_id = $2::uuid
 	`, in.ID, confRef, in.Tier, int64(in.LocalPrice), int64(in.BasePrice), int64(in.CardSurchargeBPS),
-		int64(in.Max), in.Currency, in.Symbol, in.PostSymbol, in.ExpiresStart, in.ExpiresEnd)
+		int64(in.Max), in.Currency, in.Symbol, in.PostSymbol, normalizeStripeTaxCode(in.StripeTaxCode, types.StripeTaxCodeNontaxable), in.ExpiresStart, in.ExpiresEnd)
 	if err != nil {
 		return fmt.Errorf("update conference ticket %s: %w", in.ID, err)
 	}
@@ -498,4 +525,12 @@ func UpdateConfTicket(ctx *config.AppContext, confRef string, in ConfTicketInput
 		return fmt.Errorf("conference ticket %s not found", in.ID)
 	}
 	return nil
+}
+
+func normalizeStripeTaxCode(code string, fallback string) string {
+	code = strings.TrimSpace(code)
+	if code != "" {
+		return code
+	}
+	return fallback
 }

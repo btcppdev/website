@@ -23,13 +23,15 @@
       </aside>
 
       <section class="checkout-panel">
-        <nav class="checkout-steps" aria-label="Checkout steps" data-step="01/03" data-current="register">
-          <span class="is-active"><b>01</b> register</span>
-          <span><b>02</b> pay</span>
-          <span><b>03</b> confirmed</span>
+        <nav class="checkout-steps" aria-label="Checkout steps" data-step="01/04" data-current="register">
+          <span class="is-active" data-checkout-nav="register"><b>01</b> register</span>
+          <span data-checkout-nav="addons"><b>02</b> add-ons</span>
+          <span data-checkout-nav="pay"><b>03</b> pay</span>
+          <span data-checkout-nav="confirmed"><b>04</b> confirmed</span>
         </nav>
 
-        <form method="POST" class="checkout-form">
+        <form method="POST" class="checkout-form checkout-flow" data-checkout-flow>
+          <section class="checkout-flow__step" data-checkout-step="register">
           <div class="checkout-copy">
             {{ if .SponsorCheckout }}
             <h2>Sponsor a builder.</h2>
@@ -93,12 +95,78 @@
             <span>Join the <span class="font-bitcoin">bitcoin++</span> mailing list</span>
           </label>
 
+          <section class="checkout-cart-tabs checkout-cart-tabs--ticket">
+            <div class="checkout-cart-tabs__panel">
+              <div class="checkout-ticket-line">
+                <span>
+                  <strong>{{ if .SponsorCheckout }}Sponsored pass{{ else }}{{ .Tix.Tier }}{{ end }}</strong>
+                  <small>{{ .Conf.Desc }}</small>
+                </span>
+                <b>{{ .Tix.Symbol }}{{ .DiscountPrice }}{{ .Tix.PostSymbol }}</b>
+              </div>
+            </div>
+          </section>
+
           {{ template "tix_details.tmpl" . }}
 
           <div class="checkout-actions">
             <a href="/{{ .Conf.Tag }}#tickets">Back</a>
-            <button type="submit">Continue to payment</button>
+            <a href="#checkout-addons" class="checkout-actions__primary" data-checkout-next>Continue to add-ons →</a>
           </div>
+          </section>
+
+          <section id="checkout-addons" class="checkout-flow__step checkout-flow__step--addons" data-checkout-step="addons">
+            <div class="checkout-copy">
+              <h2>Grab some contraband.</h2>
+              <p>Straight from the bitcoin++ shop. Pick it up with your badge—no shipping required.</p>
+            </div>
+
+            {{ if .AddOnProducts }}
+            <div class="checkout-addons checkout-addons--step">
+              {{ range .AddOnProducts }}
+                {{ $p := . }}
+                {{ if .Variants }}
+                  {{ with index .Variants 0 }}
+                  <article class="checkout-addon" data-checkout-addon data-name="{{ $p.Name }}" data-price-cents="{{ merchVariantPrice $p . }}">
+                    <span class="checkout-addon__image">{{ if merchImage $p }}<img src="{{ merchImage $p | safeURL }}" alt="{{ $p.Name }}">{{ end }}</span>
+                    <span class="checkout-addon__body">
+                      <span><strong>{{ $p.Name }}</strong> <b>{{ merchMoney (merchVariantPrice $p .) $p }}</b></span>
+                      <em>{{ $p.Subtitle }}</em>
+                    </span>
+                    <span class="checkout-addon__controls">
+                      <button type="button" data-addon-add aria-label="Add {{ $p.Name }}" hidden>+ add</button>
+                      <span class="checkout-addon__stepper">
+                        <button type="button" data-addon-minus aria-label="Remove one {{ $p.Name }}">−</button>
+                        <input type="number" name="addon_{{ .ID }}" value="0" min="0" max="4" aria-label="Quantity for {{ $p.Name }}">
+                        <button type="button" data-addon-plus aria-label="Add one {{ $p.Name }}">+</button>
+                      </span>
+                    </span>
+                  </article>
+                  {{ end }}
+                {{ end }}
+              {{ end }}
+            </div>
+            {{ else }}
+            <div class="checkout-addons__empty">
+              <strong>No event add-ons are available yet.</strong>
+              <span>You can still continue with just your ticket.</span>
+            </div>
+            {{ end }}
+
+            <div class="checkout-addon-summary" aria-live="polite">
+              <div data-addon-summary-lines>
+                <div class="is-empty"><span>No add-ons—that's fine too</span><strong>$0.00</strong></div>
+              </div>
+              <div class="checkout-addon-summary__tax"><span>Sales tax · event pickup</span><strong data-addon-tax>$0.00</strong></div>
+              <div class="is-total"><span>Total (tickets + merch)</span><strong data-addon-total></strong></div>
+              <small data-addon-tax-status>Tax is calculated from the event pickup location.</small>
+            </div>
+
+            <div class="checkout-actions">
+              <button type="button" class="checkout-actions__back" data-checkout-back>← Back</button>
+              <button type="submit" data-checkout-submit>Skip — just the ticket →</button>
+            </div>
+          </section>
         </form>
 
         <footer class="checkout-footer">
@@ -107,5 +175,6 @@
         </footer>
       </section>
     </main>
+    <script src="/static/js/ticket-checkout.js?v=20260718-2" defer></script>
   </body>
 </html>

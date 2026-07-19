@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +19,8 @@ import (
 	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/types"
+
+	"github.com/gorilla/mux"
 )
 
 // Dashboard is the magic-link-authed self-service page combining a speaker's
@@ -105,11 +111,13 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		satErr           error
 		judgeAssignments []*types.CompetitionJudgeAssignment
 		judgeErr         error
+		shopOrders       []*types.ShopOrder
+		shopErr          error
 	)
 	t1 := time.Now()
 	var topWg sync.WaitGroup
-	topWg.Add(5)
-	var scDur, volDur, regDur, satDur, judgeDur time.Duration
+	topWg.Add(6)
+	var scDur, volDur, regDur, satDur, judgeDur, shopDur time.Duration
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
@@ -140,9 +148,15 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsByEmail(ctx, email)
 		judgeDur = time.Since(s)
 	}()
+	go func() {
+		defer topWg.Done()
+		s := time.Now()
+		shopOrders, shopErr = getters.ListShopOrdersByEmail(ctx, email, 5)
+		shopDur = time.Since(s)
+	}()
 	topWg.Wait()
-	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s judge=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d judgeAssignments=%d",
-		reqID, time.Since(t1), scDur, volDur, regDur, satDur, judgeDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents), len(judgeAssignments))
+	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s judge=%s shop=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d judgeAssignments=%d shopOrders=%d",
+		reqID, time.Since(t1), scDur, volDur, regDur, satDur, judgeDur, shopDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents), len(judgeAssignments), len(shopOrders))
 	if regErr != nil {
 		ctx.Err.Printf("/dashboard listregs failed (continuing): %s", regErr)
 	}
@@ -151,6 +165,10 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 	if judgeErr != nil {
 		ctx.Err.Printf("/dashboard judge assignments failed (continuing): %s", judgeErr)
+	}
+	if shopErr != nil {
+		ctx.Err.Printf("/dashboard shop orders failed (continuing): %s", shopErr)
+		shopOrders = nil
 	}
 	// Drop revoked tickets and sponsored-builder purchases. Both stay
 	// in the database for staff reporting, but neither is an attendee
@@ -439,6 +457,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		TicketEntitlements:          ticketEntitlements,
 		UnclaimedTicketEntitlements: unclaimedTicketEntitlements,
 		TicketClaimConfs:            ticketClaimConfs,
+		RecentShopOrders:            shopOrders,
 		BaseURI:                     ctx.Env.GetURI(),
 		Year:                        helpers.CurrentYear(),
 	})
@@ -527,6 +546,146 @@ func dashboardTicketEntitlements(ctx *config.AppContext, people []*types.Speaker
 		return out[i].CreatedAt.Before(out[j].CreatedAt)
 	})
 	return out, nil
+}
+
+func DashboardOrders(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email, encodedEmail, encodedHMAC, ok := dashboardRequestIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	orders, err := getters.ListShopOrdersByEmail(ctx, email, 100)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orders for %s: %s", email, err)
+		http.Error(w, "Unable to load orders", http.StatusInternalServerError)
+		return
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_orders.tmpl", &DashboardPage{
+		Name:       email,
+		Email:      encodedEmail,
+		HMAC:       encodedHMAC,
+		ShopOrders: orders,
+		BaseURI:    ctx.Env.GetURI(),
+		Year:       helpers.CurrentYear(),
+	}); err != nil {
+		ctx.Err.Printf("/dashboard/orders render: %s", err)
+		http.Error(w, "Unable to load orders", http.StatusInternalServerError)
+	}
+}
+
+func DashboardOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email, encodedEmail, encodedHMAC, ok := dashboardRequestIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	publicID := strings.TrimSpace(mux.Vars(r)["order"])
+	order, err := getters.GetShopOrderByPublicID(ctx, publicID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orders/%s: %s", publicID, err)
+		http.NotFound(w, r)
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(order.BuyerEmail), strings.TrimSpace(email)) {
+		http.Error(w, "order not found", http.StatusNotFound)
+		return
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_order.tmpl", &DashboardPage{
+		Name:      email,
+		Email:     encodedEmail,
+		HMAC:      encodedHMAC,
+		ShopOrder: order,
+		BaseURI:   ctx.Env.GetURI(),
+		Year:      helpers.CurrentYear(),
+	}); err != nil {
+		ctx.Err.Printf("/dashboard/orders/%s render: %s", publicID, err)
+		http.Error(w, "Unable to load order", http.StatusInternalServerError)
+	}
+}
+
+func DashboardOrderReceipt(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email, encodedEmail, encodedHMAC, ok := dashboardRequestIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	publicID := strings.TrimSpace(mux.Vars(r)["order"])
+	order, err := getters.GetShopOrderByPublicID(ctx, publicID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orders/%s/receipt: %s", publicID, err)
+		http.NotFound(w, r)
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(order.BuyerEmail), strings.TrimSpace(email)) {
+		http.Error(w, "receipt not found", http.StatusNotFound)
+		return
+	}
+	var html bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&html, "shop/receipt.tmpl", &DashboardPage{
+		Name:      email,
+		Email:     encodedEmail,
+		HMAC:      encodedHMAC,
+		ShopOrder: order,
+		BaseURI:   ctx.Env.GetURI(),
+		Year:      helpers.CurrentYear(),
+	}); err != nil {
+		ctx.Err.Printf("/dashboard/orders/%s/receipt render: %s", publicID, err)
+		http.Error(w, "Could not render receipt", http.StatusInternalServerError)
+		return
+	}
+
+	tmp, err := os.CreateTemp("", "btcpp-receipt-*.html")
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orders/%s/receipt temp: %s", publicID, err)
+		http.Error(w, "Could not generate receipt PDF", http.StatusInternalServerError)
+		return
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(html.Bytes()); err != nil {
+		tmp.Close()
+		ctx.Err.Printf("/dashboard/orders/%s/receipt temp write: %s", publicID, err)
+		http.Error(w, "Could not generate receipt PDF", http.StatusInternalServerError)
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		ctx.Err.Printf("/dashboard/orders/%s/receipt temp close: %s", publicID, err)
+		http.Error(w, "Could not generate receipt PDF", http.StatusInternalServerError)
+		return
+	}
+
+	fileURL := (&url.URL{Scheme: "file", Path: tmpName}).String()
+	pdfBytes, err := helpers.BuildChromePdf(ctx, &helpers.PDFPage{
+		URL:    fileURL,
+		Width:  8.5,
+		Height: 11,
+	})
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orders/%s/receipt pdf: %s", publicID, err)
+		http.Error(w, "Could not generate receipt PDF", http.StatusInternalServerError)
+		return
+	}
+
+	filename := fmt.Sprintf("btcpp-%s-receipt.pdf", order.PublicID)
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Length", strconv.Itoa(len(pdfBytes)))
+	w.Write(pdfBytes)
+}
+
+func dashboardRequestIdentity(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (email, encodedEmail, encodedHMAC string, ok bool) {
+	email, encodedHMAC, err := validateVolEmail(r, ctx)
+	encodedEmail = r.URL.Query().Get("em")
+	if err != nil {
+		if sessEmail := ctx.Session.GetString(r.Context(), auth.SessionEmailKey); sessEmail != "" {
+			email = sessEmail
+			encodedHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
+			encodedEmail = base64.RawURLEncoding.EncodeToString([]byte(email))
+			err = nil
+		}
+	}
+	if err != nil {
+		renderDashboardLogin(w, r, ctx)
+		return "", "", "", false
+	}
+	return email, encodedEmail, encodedHMAC, true
 }
 
 func renderDashboardLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

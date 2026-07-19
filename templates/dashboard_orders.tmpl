@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>your bitcoin++ orders</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-dashboard-page">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="dashboard-shell">
+    <main class="dashboard-main">
+      <header class="dashboard-order-pagehead">
+        <div class="dashboard-order-pagehead__nav">
+          <a class="dashboard-order-pagehead__back" href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}">&larr; Dashboard</a>
+          <span>Order ledger</span>
+        </div>
+        <div class="dashboard-order-pagehead__body">
+          <div>
+            <p class="dashboard-section-label">§ merch orders</p>
+            <h1>Order history.</h1>
+          </div>
+          <p class="dashboard-order-pagehead__lede">Receipts for merch purchases and ticket add-ons.</p>
+        </div>
+      </header>
+
+      <section class="dashboard-purchase-ledger dashboard-purchase-ledger--full">
+        <div class="dashboard-purchase-ledger__head">
+          <div class="dashboard-kicker">§ Orders · {{ len .ShopOrders }}</div>
+        </div>
+        <div class="dashboard-purchase-ledger__rows">
+          {{ range .ShopOrders }}
+          <article class="dashboard-purchase-row">
+            <div class="dashboard-purchase-row__main">
+              <strong><a href="/dashboard/orders/{{ .PublicID }}?hr={{ $.HMAC }}&em={{ $.Email }}">{{ .PublicID }}</a></strong>
+              <span>{{ .CreatedAt.Format "Jan 2, 2006" }} · {{ .Status }} · {{ .CheckoutKind }}</span>
+            </div>
+            <div class="dashboard-purchase-row__side">
+              <strong>{{ merchMoney .TotalCents nil }}</strong>
+              <a href="/dashboard/orders/{{ .PublicID }}?hr={{ $.HMAC }}&em={{ $.Email }}">view order</a>
+              <a href="/dashboard/orders/{{ .PublicID }}/receipt?hr={{ $.HMAC }}&em={{ $.Email }}">download receipt</a>
+            </div>
+          </article>
+          {{ else }}
+          <div class="dashboard-empty-state">
+            <h2>No merch orders yet.</h2>
+            <p>Ticket-only purchases still live on the event cards.</p>
+            <a href="/shop">Visit the shop</a>
+          </div>
+          {{ end }}
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

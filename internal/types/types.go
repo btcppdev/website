@@ -37,6 +37,7 @@ type (
 		LogFile              string
 		SendGrid             SendGridConfig
 		OpenNode             OpenNodeConfig
+		Easyship             EasyshipConfig
 		Host                 string
 		LocalExternal        string
 		HMACSecret           string
@@ -105,6 +106,14 @@ type (
 		// VenueWebsite is the venue's official site; rendered in
 		// the ticket email so attendees can read about it directly.
 		VenueWebsite string
+		// PickupAddress is the event venue's structured tax location for
+		// merchandise collected at the conference.
+		PickupAddressLine1      string
+		PickupAddressLine2      string
+		PickupAddressCity       string
+		PickupAddressRegion     string
+		PickupAddressPostalCode string
+		PickupAddressCountry    string
 		// DoorsOpen is the human-readable check-in time string —
 		// not a Notion field, populated just-in-time by the ticket
 		// email sender before template render so the body can do
@@ -214,6 +223,7 @@ type (
 		Currency         string
 		Symbol           string
 		PostSymbol       string
+		StripeTaxCode    string
 	}
 	ConfTickets []*ConfTicket
 

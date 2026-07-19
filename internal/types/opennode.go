@@ -6,6 +6,13 @@ type (
 		Endpoint string
 	}
 
+	EasyshipConfig struct {
+		APIKey        string
+		Endpoint      string
+		APIVersion    string
+		WebhookSecret string
+	}
+
 	OpenNodeRequest struct {
 		Amount        float64           `json:"amount"`
 		Description   string            `json:"description"`
@@ -30,6 +37,10 @@ type (
 		DiscountRef string  `json:"discount,omitempty"`
 		Currency    string  `json:"currency"`
 		Subscribe   bool    `json:"subscribe,omitempty"`
+		ShopOrderID string  `json:"shop-order-id,omitempty"`
+		AddOnCents  int64   `json:"add-on-cents,omitempty"`
+		// TicketTotalCents records the exact post-discount ticket subtotal.
+		TicketTotalCents int64 `json:"ticket-total-cents,omitempty"`
 		// PreDiscountCents is the per-ticket price in cents
 		// before any discount is applied. Webhook reads this to
 		// compute originalCents = PreDiscountCents × Quantity
@@ -49,7 +60,6 @@ type (
 	OpenNodePayment struct {
 		ID                string
 		Description       string
-		DescHash          string `json:"desc_hash"`
 		CreatedAt         uint64 `json:"created_at"`
 		Status            string
 		Amount            uint64
@@ -62,10 +72,10 @@ type (
 		AutoSettle        bool    `json:"auto_settle"`
 		NotifEmail        string  `json:"notif_email"`
 		BTCAddress        string  `json:"address"`
-		Metadata          map[string]string
+		Metadata          *OpenNodeMetadata
 		ChainInvoice      OpenNodeChainInvoice     `json:"chain_invoice"`
 		URI               string                   `json:"uri"`
-		TTL               string                   `json:"ttl"`
+		TTL               uint                     `json:"ttl"`
 		LNInvoice         OpenNodeLightningInvoice `json:"lightning_invoice"`
 	}
 

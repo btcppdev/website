@@ -37,6 +37,30 @@
                 </div>
             </section>
 
+            {{ if .MerchPickups }}
+            <section class="mb-6">
+                <div class="bg-white shadow rounded-lg overflow-hidden">
+                    <div class="border-b border-gray-200 bg-gray-50 px-4 py-3 sm:px-6">
+                        <h2 class="text-sm font-semibold text-gray-900">Merch pickups</h2>
+                        <p class="mt-1 text-xs text-gray-500">Add these items to attendee bags or hand them over at the merch desk.</p>
+                    </div>
+                    <div class="divide-y divide-gray-200">
+                        {{ range .MerchPickups }}
+                        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+                            <div>
+                                <div class="text-sm font-semibold text-gray-900">{{ .ProductNameSnapshot }}{{ if .VariantLabelSnapshot }} · {{ .VariantLabelSnapshot }}{{ end }}</div>
+                                <div class="mt-1 text-xs text-gray-500">Qty {{ .Quantity }} · SKU {{ .SKUSnapshot }}</div>
+                            </div>
+                            <form method="POST" action="/{{ $.Conf.Tag }}/admin/registrations/merch/{{ .ID }}/pickup">
+                                <button type="submit" class="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700">Mark picked up</button>
+                            </form>
+                        </div>
+                        {{ end }}
+                    </div>
+                </div>
+            </section>
+            {{ end }}
+
             {{ if .IsConfAdmin }}<form method="POST" action="/{{ .Conf.Tag }}/admin/registrations/email">{{ end }}
             <section id="registrations-table" class="mb-6">
                 <div class="bg-white shadow rounded-lg overflow-hidden">

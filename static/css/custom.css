@@ -4318,6 +4318,446 @@ button.dashboard-volunteer-button.is-primary:focus-visible {
 	text-transform: uppercase;
 }
 
+.dashboard-purchase-ledger {
+	background: #fffaf0;
+	border: 1px solid #0a0a0a;
+	margin-top: 28px;
+}
+
+.dashboard-purchase-ledger--full {
+	margin-top: 0;
+}
+
+.dashboard-purchase-ledger__head {
+	align-items: baseline;
+	border-bottom: 1px solid #0a0a0a;
+	display: flex;
+	gap: 16px;
+	justify-content: space-between;
+	padding: 18px 22px;
+}
+
+.dashboard-order-pagehead {
+	border: 1px solid #0a0a0a;
+	background: #fffaf0;
+}
+
+.dashboard-order-pagehead__nav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	border-bottom: 1px solid #0a0a0a;
+	padding: 11px 22px;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+}
+
+.dashboard-order-pagehead__nav > span {
+	color: #77716a;
+}
+
+.dashboard-order-pagehead__back {
+	color: #0a0a0a;
+	text-decoration: none;
+}
+
+.dashboard-order-pagehead__back:hover,
+.dashboard-order-pagehead__back:focus-visible {
+	color: #f7931a;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.dashboard-order-pagehead__body {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(220px, 290px);
+	align-items: end;
+	gap: 36px;
+	padding: 24px 22px 26px;
+}
+
+.dashboard-order-pagehead .dashboard-section-label {
+	margin: 0 0 7px;
+}
+
+.dashboard-order-pagehead h1 {
+	margin: 0;
+	color: #0a0a0a;
+	font-size: clamp(32px, 5vw, 42px);
+	font-weight: 800;
+	letter-spacing: -1.4px;
+	line-height: .96;
+}
+
+.dashboard-order-pagehead__lede {
+	margin: 0;
+	color: #68625a;
+	font-family: "Source Serif 4", Georgia, serif;
+	font-size: 17px;
+	font-style: italic;
+	line-height: 1.4;
+}
+
+.dashboard-order-pagehead__id {
+	margin: 13px 0 0;
+	color: #68625a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .25px;
+	overflow-wrap: anywhere;
+}
+
+.dashboard-order-pagehead__summary {
+	display: grid;
+	justify-items: end;
+	gap: 6px;
+	color: #68625a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: .7px;
+	text-transform: uppercase;
+}
+
+.dashboard-order-pagehead__summary strong {
+	margin-bottom: 2px;
+	border: 1px solid #f7931a;
+	padding: 5px 8px;
+	color: #0a0a0a;
+	font-size: 10px;
+	letter-spacing: 1px;
+}
+
+.dashboard-purchase-ledger__head a,
+.dashboard-purchase-row__side a {
+	color: #f7931a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 1px;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+.dashboard-purchase-row {
+	align-items: center;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 18px;
+	padding: 16px 22px;
+	border-bottom: 1px solid rgba(10, 10, 10, .12);
+}
+
+.dashboard-purchase-row:last-child {
+	border-bottom: 0;
+}
+
+.dashboard-purchase-row__main,
+.dashboard-purchase-row__side {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.dashboard-purchase-row__main strong,
+.dashboard-purchase-row__side strong {
+	color: #0a0a0a;
+	font-size: 16px;
+	line-height: 1.1;
+}
+
+.dashboard-purchase-row__main span {
+	color: #68625a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .5px;
+	text-transform: uppercase;
+}
+
+.dashboard-purchase-row__side {
+	align-items: flex-end;
+	text-align: right;
+}
+
+.dashboard-order-detail {
+	display: grid;
+	gap: 18px;
+	border: 1px solid #0a0a0a;
+	background: #fffaf0;
+	padding: 18px;
+}
+
+.dashboard-order-detail__head {
+	display: flex;
+	justify-content: space-between;
+	gap: 18px;
+	align-items: start;
+	border-bottom: 1px solid #e4ded3;
+	padding-bottom: 16px;
+}
+
+.dashboard-order-detail__head p {
+	margin: 6px 0 0;
+	color: #77716a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 11px;
+	text-transform: uppercase;
+}
+
+.dashboard-order-detail__head a {
+	color: #0a0a0a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: .7px;
+	text-transform: uppercase;
+	text-underline-offset: 3px;
+}
+
+.dashboard-order-items {
+	display: grid;
+	gap: 10px;
+}
+
+.dashboard-order-item {
+	display: grid;
+	grid-template-columns: 82px minmax(0, 1fr) 64px auto;
+	gap: 14px;
+	align-items: center;
+	border: 1px solid #e4ded3;
+	background: #fffdf8;
+	padding: 12px;
+}
+
+.dashboard-order-item__image {
+	aspect-ratio: 1;
+	overflow: hidden;
+	border: 1px solid #d8d0c1;
+	background: #f4ecdf;
+}
+
+.dashboard-order-item__image img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.dashboard-order-item__image span {
+	display: grid;
+	height: 100%;
+	place-items: center;
+	color: #77716a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 9px;
+	font-weight: 800;
+	letter-spacing: .6px;
+	padding: 6px;
+	text-align: center;
+	text-transform: uppercase;
+}
+
+.dashboard-order-item__main {
+	display: grid;
+	min-width: 0;
+	gap: 4px;
+}
+
+.dashboard-order-item__main strong {
+	color: #0a0a0a;
+	font-size: 18px;
+	line-height: 1.08;
+}
+
+.dashboard-order-item__main p,
+.dashboard-order-item__main small,
+.dashboard-order-item__qty span,
+.dashboard-order-item__price span {
+	margin: 0;
+	color: #77716a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 11px;
+	text-transform: uppercase;
+}
+
+.dashboard-order-item__main p {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.dashboard-order-item__qty,
+.dashboard-order-item__price {
+	display: grid;
+	gap: 4px;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	text-align: right;
+}
+
+.dashboard-order-item__qty strong,
+.dashboard-order-item__price strong {
+	color: #0a0a0a;
+	font-size: 15px;
+	white-space: nowrap;
+}
+
+.dashboard-order-totals {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: 8px 18px;
+	justify-self: end;
+	min-width: min(100%, 320px);
+	border-top: 1px solid #e4ded3;
+	padding-top: 14px;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.dashboard-order-totals span,
+.dashboard-order-totals strong {
+	font-size: 13px;
+	text-align: right;
+}
+
+.dashboard-order-totals span:last-of-type,
+.dashboard-order-totals strong:last-child {
+	font-size: 18px;
+}
+
+.checkin-page {
+	background: #f6f0e4;
+	color: #0a0a0a;
+	min-height: 100vh;
+}
+
+.checkin-page--sponsor { background: #ffd7d0; }
+.checkin-page--genpop { background: #dcecff; }
+.checkin-page--local { background: #dff5ff; }
+.checkin-page--volunteer { background: #dff5df; }
+.checkin-page--speaker { background: #ffe2bf; }
+
+.checkin-shell {
+	display: grid;
+	gap: 18px;
+	margin: 0 auto;
+	max-width: 760px;
+	padding: 96px 20px 48px;
+}
+
+.checkin-card {
+	background: #fffaf0;
+	border: 1px solid #0a0a0a;
+	padding: 24px;
+}
+
+.checkin-kicker,
+.checkin-ticket-ref,
+.checkin-pickup span {
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+}
+
+.checkin-card h1,
+.checkin-card h2 {
+	margin: 4px 0 0;
+	text-transform: uppercase;
+}
+
+.checkin-card h1 {
+	font-size: clamp(44px, 10vw, 96px);
+	line-height: .9;
+}
+
+.checkin-card h2 {
+	font-size: 28px;
+	line-height: 1;
+}
+
+.checkin-message {
+	margin: 14px 0 0;
+	font-size: 16px;
+}
+
+.checkin-pin-form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 20px;
+}
+
+.checkin-pin-form input,
+.checkin-pin-form button,
+.checkin-pickup button {
+	border: 1px solid #0a0a0a;
+	border-radius: 0;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 12px;
+	font-weight: 800;
+	padding: 12px 14px;
+	text-transform: uppercase;
+}
+
+.checkin-pin-form input {
+	background: #fff;
+	min-width: 220px;
+}
+
+.checkin-pin-form button,
+.checkin-pickup button {
+	background: #0a0a0a;
+	color: #fff;
+}
+
+.checkin-pickups {
+	display: grid;
+	margin-top: 16px;
+}
+
+.checkin-pickup {
+	align-items: center;
+	border-top: 1px solid rgba(10, 10, 10, .16);
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 16px;
+	padding: 14px 0;
+}
+
+.checkin-pickup:last-child {
+	padding-bottom: 0;
+}
+
+.checkin-pickup strong {
+	display: block;
+	font-size: 17px;
+	line-height: 1.1;
+}
+
+.checkin-pickup span {
+	color: #68625a;
+	display: block;
+	margin-top: 4px;
+}
+
+.checkin-pill {
+	border: 1px solid #0a0a0a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 11px;
+	font-weight: 800;
+	padding: 9px 10px;
+	text-transform: uppercase;
+}
+
+.checkin-pill.is-done {
+	background: #dff5df;
+}
+
 .dashboard-past-row {
 	display: grid;
 	grid-template-columns: 40px 1fr auto;
@@ -4950,6 +5390,56 @@ button.dashboard-volunteer-button.is-primary:focus-visible {
 	.dashboard-past-row__roles {
 		grid-column: 2;
 		justify-content: flex-start;
+	}
+
+	.dashboard-purchase-ledger__head,
+	.dashboard-purchase-row {
+		padding-left: 16px;
+		padding-right: 16px;
+	}
+
+	.dashboard-order-pagehead__nav,
+	.dashboard-order-pagehead__body {
+		padding-left: 16px;
+		padding-right: 16px;
+	}
+
+	.dashboard-order-pagehead__body {
+		grid-template-columns: 1fr;
+		gap: 18px;
+	}
+
+	.dashboard-order-pagehead__summary {
+		justify-items: start;
+	}
+
+	.dashboard-purchase-row {
+		grid-template-columns: 1fr;
+	}
+
+	.dashboard-purchase-row__side {
+		align-items: flex-start;
+		text-align: left;
+	}
+
+	.dashboard-order-detail__head {
+		flex-direction: column;
+	}
+
+	.dashboard-order-item {
+		grid-template-columns: 68px minmax(0, 1fr);
+	}
+
+	.dashboard-order-item__qty,
+	.dashboard-order-item__price {
+		grid-column: 2;
+		grid-template-columns: auto auto;
+		justify-content: start;
+		text-align: left;
+	}
+
+	.dashboard-order-totals {
+		justify-self: stretch;
 	}
 
 	.dashboard-archive-hero,
@@ -6127,7 +6617,7 @@ body.btcpp-checkout-page {
 
 .checkout-steps {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: repeat(4, minmax(0, 1fr));
 	border-bottom: 1px solid #0a0a0a;
 }
 
@@ -6164,6 +6654,16 @@ body.btcpp-checkout-page {
 	flex: 1;
 	flex-direction: column;
 	gap: 24px;
+}
+
+.checkout-flow__step {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+
+.checkout-flow.is-enhanced .checkout-flow__step[hidden] {
+	display: none;
 }
 
 .checkout-copy h2 {
@@ -6284,6 +6784,298 @@ body.btcpp-checkout-page {
 	accent-color: #f7931a;
 }
 
+.checkout-cart-tabs {
+	border: 1px solid #0a0a0a;
+	background: #fff;
+}
+
+.checkout-cart-tabs__nav {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	border-bottom: 1px solid #0a0a0a;
+	font-family: "IBM Plex Mono", monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.checkout-cart-tabs__nav span {
+	padding: 10px 12px;
+	color: #77716a;
+	border-right: 1px solid #0a0a0a;
+}
+
+.checkout-cart-tabs__nav span:last-child {
+	border-right: 0;
+}
+
+.checkout-cart-tabs__nav .is-active {
+	background: #0a0a0a;
+	color: #f6f3ee;
+}
+
+.checkout-cart-tabs--ticket .checkout-cart-tabs__panel {
+	padding: 14px;
+}
+
+.checkout-cart-tabs__panel {
+	padding: 12px;
+}
+
+.checkout-cart-tabs__panel + .checkout-cart-tabs__panel {
+	border-top: 1px solid #e4ded3;
+}
+
+.checkout-ticket-line {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 18px;
+	font-family: "IBM Plex Mono", monospace;
+}
+
+.checkout-ticket-line span {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.checkout-ticket-line strong {
+	font-size: 14px;
+	text-transform: uppercase;
+}
+
+.checkout-ticket-line small {
+	overflow: hidden;
+	color: #77716a;
+	font-size: 11px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.checkout-ticket-line b {
+	white-space: nowrap;
+}
+
+.checkout-cart-tabs__panel--merch {
+	display: grid;
+	gap: 10px;
+}
+
+.checkout-addons {
+	display: grid;
+	gap: 8px;
+}
+
+.checkout-addons__head {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	font-family: "IBM Plex Mono", monospace;
+	font-size: 11px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.checkout-addons__head span {
+	color: #77716a;
+}
+
+.checkout-addon {
+	display: grid;
+	grid-template-columns: 88px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 18px;
+	border: 1px solid #e4ded3;
+	padding: 14px 16px;
+	background: #fff;
+	transition: background-color 0.15s ease;
+}
+
+.checkout-addon.is-selected {
+	background: #fbf0de;
+}
+
+.checkout-addon__image {
+	aspect-ratio: 1;
+	overflow: hidden;
+	background: #f6f3ee;
+}
+
+.checkout-addon__image img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.checkout-addon__body {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.checkout-addon__body strong {
+	overflow: hidden;
+	font-size: 13px;
+	line-height: 1.1;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.checkout-addon__body > span {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.checkout-addon__body em {
+	overflow: hidden;
+	color: #77716a;
+	font-family: "Source Serif 4", Georgia, serif;
+	font-size: 12px;
+	font-style: italic;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.checkout-addon__body b {
+	font-family: "IBM Plex Mono", monospace;
+	font-size: 12px;
+}
+
+.checkout-addon__controls > button,
+.checkout-addon__stepper button {
+	min-height: 40px;
+	border: 1px solid #0a0a0a;
+	border-radius: 0;
+	background: #fff;
+	color: #0a0a0a;
+	font-family: "IBM Plex Mono", monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+
+.checkout-addon__controls > button {
+	padding: 0 16px;
+}
+
+.checkout-addon__stepper {
+	display: grid;
+	grid-template-columns: 38px 38px 38px;
+}
+
+.checkout-addon__stepper[hidden] {
+	display: none;
+}
+
+.checkout-addon__stepper button {
+	padding: 0;
+	font-size: 16px;
+}
+
+.checkout-addon__stepper button + input,
+.checkout-addon__stepper input + button {
+	border-left: 0;
+}
+
+.checkout-addon input {
+	box-sizing: border-box;
+	width: 100%;
+	height: 40px;
+	border: 1px solid #0a0a0a;
+	border-radius: 0;
+	padding: 4px;
+	background: #fff;
+	font-family: "IBM Plex Mono", monospace;
+	font-weight: 700;
+	text-align: center;
+	-moz-appearance: textfield;
+}
+
+.checkout-addon input::-webkit-inner-spin-button,
+.checkout-addon input::-webkit-outer-spin-button {
+	margin: 0;
+	-webkit-appearance: none;
+}
+
+.checkout-addons--step {
+	gap: 0;
+	border: 1px solid #0a0a0a;
+}
+
+.checkout-addons--step .checkout-addon {
+	border: 0;
+}
+
+.checkout-addons--step .checkout-addon + .checkout-addon {
+	border-top: 1px solid #e4ded3;
+}
+
+.checkout-addons__empty {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	border: 1px solid #0a0a0a;
+	background: #fff;
+	padding: 22px;
+}
+
+.checkout-addons__empty strong {
+	font-family: "IBM Plex Mono", monospace;
+	font-size: 13px;
+	text-transform: uppercase;
+}
+
+.checkout-addons__empty span {
+	color: #6f6a63;
+	font-family: "Source Serif 4", Georgia, serif;
+	font-style: italic;
+}
+
+.checkout-addon-summary {
+	display: grid;
+	gap: 9px;
+	border-top: 1px solid #0a0a0a;
+	padding-top: 18px;
+	font-family: "IBM Plex Mono", monospace;
+}
+
+.checkout-addon-summary [data-addon-summary-lines] {
+	display: grid;
+	gap: 9px;
+}
+
+.checkout-addon-summary [data-addon-summary-lines] > div,
+.checkout-addon-summary > .checkout-addon-summary__tax,
+.checkout-addon-summary > .is-total {
+	display: flex;
+	justify-content: space-between;
+	gap: 18px;
+	font-size: 13px;
+	text-transform: uppercase;
+}
+
+.checkout-addon-summary .is-empty {
+	color: #77716a;
+}
+
+.checkout-addon-summary > .is-total {
+	font-size: 16px;
+	font-weight: 700;
+}
+
+.checkout-addon-summary > small {
+	color: #77716a;
+	font-size: 11px;
+}
+
 .checkout-summary {
 	border-top: 1px solid #0a0a0a;
 	padding-top: 18px;
@@ -6341,6 +7133,12 @@ body.btcpp-checkout-page {
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	text-decoration: none;
+}
+
+.checkout-actions button.checkout-actions__back {
+	flex: 0 0 auto;
+	padding: 14px 18px;
+	background: transparent;
 }
 
 .checkout-actions a {
@@ -6479,6 +7277,12 @@ body.btcpp-checkout-page {
 	.checkout-grid {
 		grid-template-columns: 1fr;
 		gap: 20px;
+	}
+
+	.checkout-addon {
+		grid-template-columns: 64px minmax(0, 1fr) auto;
+		gap: 10px;
+		padding: 12px;
 	}
 
 	.checkout-steps {

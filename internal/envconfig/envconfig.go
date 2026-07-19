@@ -63,6 +63,7 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 		Port:                 os.Getenv("PORT"),
 		Prod:                 envBool("PROD", true),
 		Host:                 os.Getenv("HOST"),
+		LocalExternal:        os.Getenv("LOCAL_EXTERNAL"),
 		DatabaseURL:          os.Getenv("DATABASE_URL"),
 		MailerSecret:         os.Getenv("MAILER_SECRET"),
 		MailEndpoint:         os.Getenv("MAILER_ENDPOINT"),
@@ -78,6 +79,12 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 		OpenNode: types.OpenNodeConfig{
 			Key:      os.Getenv("OPENNODE_KEY"),
 			Endpoint: os.Getenv("OPENNODE_ENDPOINT"),
+		},
+		Easyship: types.EasyshipConfig{
+			APIKey:        os.Getenv("EASYSHIP_API_KEY"),
+			Endpoint:      firstNonEmpty(os.Getenv("EASYSHIP_ENDPOINT"), "https://public-api.easyship.com"),
+			APIVersion:    firstNonEmpty(os.Getenv("EASYSHIP_API_VERSION"), "2024-09"),
+			WebhookSecret: os.Getenv("EASYSHIP_WEBHOOK_SECRET"),
 		},
 		Spaces: types.SpacesConfig{
 			Endpoint: os.Getenv("SPACES_ENDPOINT"),

@@ -1,7 +1,9 @@
-<div id="discount_result" name="hidden_stuffs" class="checkout-summary">
+<div id="discount_result" name="hidden_stuffs" class="checkout-summary"
+  data-ticket-btc-price-cents="{{ mul (int .DiscountPrice) 100 }}"
+  data-ticket-card-price-cents="{{ mul (int .CardPrice) 100 }}">
   <div class="checkout-summary__lines">
     <div>
-      <span>{{ if .SponsorCheckout }}Sponsor a builder{{ else }}{{ .Tix.Tier }}{{ end }} · {{ .Count }} {{ if .SponsorCheckout }}pass{{ else }}ticket{{ end }}{{ if ne .Count 1 }}s{{ end }}</span>
+      <span>{{ if .SponsorCheckout }}Sponsor a builder{{ else }}{{ .Tix.Tier }}{{ end }} · <span data-ticket-count-label data-ticket-noun="{{ if .SponsorCheckout }}pass{{ else }}ticket{{ end }}">{{ .Count }} {{ if .SponsorCheckout }}pass{{ else }}ticket{{ end }}{{ if ne .Count 1 }}s{{ end }}</span></span>
       <strong>{{ .Tix.Symbol }}{{ .TixPrice }}{{ .Tix.PostSymbol }} ea</strong>
     </div>
     {{ if ne .TixPrice .DiscountPrice }}
@@ -10,17 +12,11 @@
       <strong>-{{ .Tix.Symbol }}{{ usub .TixPrice .DiscountPrice }}{{ .Tix.PostSymbol }}</strong>
     </div>
     {{ end }}
-    <div class="is-total">
-      <span>Bitcoin price</span>
-      <strong>{{ .Tix.Symbol }}{{ .DiscountPrice }}{{ .Tix.PostSymbol }} ea</strong>
-    </div>
-    <div>
-      <span>Card surcharge</span>
-      <strong>{{ .Tix.Symbol }}{{ .CardSurcharge }}{{ .Tix.PostSymbol }}</strong>
-    </div>
-    <div class="is-card">
-      <span>Card price</span>
-      <strong>{{ .Tix.Symbol }}{{ .CardPrice }}{{ .Tix.PostSymbol }} ea</strong>
+    <div class="is-total" data-selected-payment-price
+      data-bitcoin-price="{{ .Tix.Symbol }}{{ .DiscountPrice }}{{ .Tix.PostSymbol }} ea"
+      data-card-price="{{ .Tix.Symbol }}{{ .CardPrice }}{{ .Tix.PostSymbol }} ea">
+      <span data-payment-price-label>{{ if eq .PaymentMethod "card" }}Card{{ else }}Bitcoin{{ end }} price</span>
+      <strong data-payment-price-amount>{{ if eq .PaymentMethod "card" }}{{ .Tix.Symbol }}{{ .CardPrice }}{{ .Tix.PostSymbol }}{{ else }}{{ .Tix.Symbol }}{{ .DiscountPrice }}{{ .Tix.PostSymbol }}{{ end }} ea</strong>
     </div>
   </div>
 

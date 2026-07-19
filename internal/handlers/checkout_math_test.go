@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"btcpp-web/internal/types"
+	stripe "github.com/stripe/stripe-go/v76"
 )
 
 func TestCardSurchargePrice(t *testing.T) {
@@ -95,6 +96,60 @@ func TestStripePerTicketAmount(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestStripeTicketItemsExcludeMixedCheckoutNonTicketLines(t *testing.T) {
+	lines := []*stripe.LineItem{
+		{
+			Description: "DEV26 ticket", Quantity: 1, AmountTotal: 12500,
+			Price: &stripe.Price{Product: &stripe.Product{Metadata: map[string]string{"line-kind": "ticket"}}},
+		},
+		{
+			Description: "bitcoin++ hat", Quantity: 3, AmountTotal: 10500,
+			Price: &stripe.Price{Product: &stripe.Product{Metadata: map[string]string{"line-kind": "merch"}}},
+		},
+		{
+			Description: "Sales tax", Quantity: 1, AmountTotal: 866,
+			Price: &stripe.Price{Product: &stripe.Product{Metadata: map[string]string{"line-kind": "tax"}}},
+		},
+	}
+
+	items, total := stripeTicketItems(lines, types.TicketTypeGeneral)
+	if len(items) != 1 {
+		t.Fatalf("ticket count = %d, want 1", len(items))
+	}
+	if total != 12500 || items[0].Total != 12500 {
+		t.Fatalf("ticket totals = (%d, %d), want 12500", total, items[0].Total)
+	}
+}
+
+func TestTicketStripeTaxCodeDefaultsToNontaxable(t *testing.T) {
+	if got := ticketStripeTaxCode(nil); got != types.StripeTaxCodeNontaxable {
+		t.Fatalf("nil ticket tax code = %q, want %q", got, types.StripeTaxCodeNontaxable)
+	}
+	if got := ticketStripeTaxCode(&types.ConfTicket{}); got != types.StripeTaxCodeNontaxable {
+		t.Fatalf("empty ticket tax code = %q, want %q", got, types.StripeTaxCodeNontaxable)
+	}
+	if got := ticketStripeTaxCode(&types.ConfTicket{StripeTaxCode: "txcd_custom"}); got != "txcd_custom" {
+		t.Fatalf("custom ticket tax code = %q", got)
+	}
+}
+
+func TestMerchMoneyFormatsCents(t *testing.T) {
+	tests := []struct {
+		amount uint
+		want   string
+	}{
+		{0, "$0"},
+		{999, "$9.99"},
+		{3500, "$35"},
+		{3550, "$35.50"},
+	}
+	for _, tt := range tests {
+		if got := merchMoney(tt.amount, nil); got != tt.want {
+			t.Fatalf("merchMoney(%d) = %q, want %q", tt.amount, got, tt.want)
+		}
 	}
 }
 

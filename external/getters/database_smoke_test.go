@@ -49,6 +49,13 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 	if got.ID != speakerID || got.Email != email || got.Signal != "smoke."+suffix || got.TShirt != "MM" || got.Bio != "Smoke-test profile text." {
 		t.Fatalf("speaker mismatch: %+v", got)
 	}
+	contact, err := GetShopRefundContactByEmail(ctx, strings.ToUpper(email))
+	if err != nil {
+		t.Fatalf("GetShopRefundContactByEmail postgres: %v", err)
+	}
+	if contact.Signal != "smoke."+suffix || contact.Telegram != "smoke_tg" {
+		t.Fatalf("refund contact mismatch: %+v", contact)
+	}
 }
 
 func TestDatabaseSmokeDiscountScopedToConference(t *testing.T) {

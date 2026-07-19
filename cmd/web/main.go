@@ -123,6 +123,7 @@ func main() {
 	}
 
 	handlers.StartRecordingAutopublisher(&app)
+	handlers.StartShopMaintenance(&app)
 
 	/* Start the server */
 	app.Infos.Printf("Starting application on port %s\n", app.Env.Port)
@@ -159,12 +160,14 @@ func run(env *types.EnvConfig) error {
 	app.Infos.Println("~~~~app restarted, here we go~~~~~")
 	app.Infos.Println("Running in prod?", env.Prod)
 
-	pool, err := db.Open(context.Background(), env.DatabaseURL)
+	databaseCtx, cancelDatabase := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancelDatabase()
+	pool, err := db.Open(databaseCtx, env.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	app.DB = pool
-	applied, err := db.Migrate(context.Background(), pool, app.Infos)
+	applied, err := db.Migrate(databaseCtx, pool, app.Infos)
 	if err != nil {
 		return fmt.Errorf("run database migrations: %w", err)
 	}

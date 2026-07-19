@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>new merch item</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css">
+  </head>
+  <body class="shop-page shop-admin-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <main class="shop-admin shop-admin--editor">
+      <section class="shop-admin__intro shop-admin__intro--actions">
+        <div>
+          <p class="shop-kicker">§ new product</p>
+          <h1>Add merch item.</h1>
+          <p>Create the product and its first variant. Images and additional variants can be added after creation.</p>
+        </div>
+        <a class="shop-button" href="/admin/merch">&larr; Catalog</a>
+      </section>
+      {{ if .Error }}<p class="shop-flash is-error">{{ .Error }}</p>{{ end }}
+      <form method="POST" action="/admin/merch" class="shop-admin-form shop-admin-editor-form">
+        <section class="shop-admin-editor-section">
+          <div class="shop-admin-editor-section__head"><span>01</span><h2>Product details</h2></div>
+          {{ template "admin_merch_fields" .Product }}
+        </section>
+        <section class="shop-admin-editor-section">
+          <div class="shop-admin-editor-section__head"><span>02</span><h2>Initial variant</h2></div>
+          <div class="shop-form-grid">
+            <label>SKU<input name="sku" required></label>
+            <label>label<input name="variant_label" value="Default" required></label>
+            <label>initial stock<input type="number" name="stock" value="0" min="0"></label>
+            <label>weight grams<input type="number" name="weight_grams" value="0" min="0"></label>
+            <label>length inches<input type="number" name="length_inches" min="0" step="0.01" value="0"></label>
+            <label>width inches<input type="number" name="width_inches" min="0" step="0.01" value="0"></label>
+            <label>height inches<input type="number" name="height_inches" min="0" step="0.01" value="0"></label>
+          </div>
+        </section>
+        <div class="shop-admin-form__actions">
+          <a class="shop-button" href="/admin/merch">Cancel</a>
+          <button class="shop-button is-primary" type="submit">Create product</button>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>

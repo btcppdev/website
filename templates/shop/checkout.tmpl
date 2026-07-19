@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>checkout</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20260718-11">
+    <script src="/static/js/shop-checkout.js?v=20260718-10" defer></script>
+  </head>
+  <body class="shop-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <main class="shop-checkout shop-checkout--details" data-shop-checkout>
+      {{ if .PendingCheckout }}
+      <section class="shop-checkout-pending" role="alert">
+        <div>
+          <strong>Payment already pending</strong>
+          <span>Order {{ .PendingCheckout.PublicID }} is waiting for {{ if eq .PendingCheckout.PaymentProvider "card" }}card{{ else }}Bitcoin{{ end }} payment.</span>
+        </div>
+        <a class="shop-button" href="/shop/checkout/cancel/{{ .PendingCheckout.PublicID }}">Cancel payment and try again</a>
+      </section>
+      {{ end }}
+      <form id="shop-checkout-form" method="POST" action="/shop/checkout" class="shop-checkout-form" data-shop-checkout-form>
+        <input type="hidden" name="shipping_rate_amount_cents" value="{{ .Checkout.ShippingRateAmountCents }}">
+        <section class="shop-checkout-step" data-shop-checkout-step="details">
+          <header class="shop-checkout__head">
+            <p class="shop-kicker" data-shop-step-kicker>02 / details</p>
+            <h1>Checkout.</h1>
+            <p>Tell us where the order is going. You’ll review everything before payment.</p>
+          </header>
+          {{ if .Error }}<div class="shop-checkout-error" role="alert">{{ .Error }}</div>{{ end }}
+          <div class="shop-form-grid">
+            <label>name<input required autocomplete="name" name="name" value="{{ .Checkout.Name }}"></label>
+            <label>email<input required type="email" autocomplete="email" name="email" value="{{ .Checkout.Email }}"></label>
+          </div>
+          <fieldset class="shop-radio-panel">
+            <legend>delivery</legend>
+            <label data-fulfillment-label="Ship it to me"><input type="radio" name="fulfillment" value="ship" {{ if eq .Checkout.Fulfillment "ship" }}checked{{ end }}> Ship it to me <span>choose a carrier and delivery speed</span></label>
+            {{ if .PickupConf }}<label data-fulfillment-label="Pick up at {{ .PickupConf.Desc }}"><input type="radio" name="fulfillment" value="pickup" {{ if eq .Checkout.Fulfillment "pickup" }}checked{{ end }}> Pick up at {{ .PickupConf.Desc }} <span>free</span></label>{{ end }}
+          </fieldset>
+          <div class="shop-form-grid" data-shipping-address-fields>
+            <label>address<input name="address1" value="{{ .Checkout.Address1 }}" autocomplete="shipping address-line1" data-shipping-required></label>
+            <label>apt / suite<input name="address2" value="{{ .Checkout.Address2 }}" autocomplete="shipping address-line2"></label>
+            <label>city<input name="city" value="{{ .Checkout.City }}" autocomplete="shipping address-level2" data-shipping-required></label>
+            <label>state / region<input name="region" value="{{ .Checkout.Region }}" autocomplete="shipping address-level1"></label>
+            <label>postal / zip<input name="postal_code" value="{{ .Checkout.PostalCode }}" autocomplete="shipping postal-code" data-shipping-required></label>
+            <label>country<input name="country" value="{{ .Checkout.Country }}" autocomplete="shipping country" data-shipping-required></label>
+            <label>phone <span>required for shipping</span><input name="phone" value="{{ .Checkout.Phone }}" type="tel" autocomplete="shipping tel" data-shipping-required></label>
+          </div>
+          <p class="shop-tax-status" data-tax-status role="status" aria-live="polite" hidden></p>
+          <button class="shop-button is-primary" type="submit" data-shop-continue-shipping>Shipping →</button>
+        </section>
+
+        <section class="shop-checkout-step shop-shipping-step" data-shop-checkout-step="shipping" hidden>
+          <header class="shop-checkout__head">
+            <p class="shop-kicker">03 / shipping</p>
+            <h1>Choose shipping.</h1>
+            <p>Review the destination and choose how you’d like the order delivered.</p>
+          </header>
+          <section class="shop-confirm__section">
+            <div class="shop-confirm__head"><span>01</span><h2>Delivery details</h2></div>
+            <div class="shop-confirm__facts">
+              <div><span>Delivery</span><strong data-shipping-fulfillment></strong></div>
+              <div data-shipping-address-row><span>Shipping address</span><strong data-shipping-address></strong></div>
+            </div>
+          </section>
+          <fieldset class="shop-radio-panel shop-shipping-rates" data-shipping-rates>
+            <legend>shipping service</legend>
+            <p data-shipping-rates-status role="status" aria-live="polite">Loading shipping services…</p>
+            <div data-shipping-rate-options></div>
+          </fieldset>
+          <div class="shop-confirm__actions">
+            <button class="shop-button" type="button" data-shop-edit-details>← Edit details</button>
+            <button class="shop-button is-primary" type="submit" data-shop-review-order>Review order →</button>
+          </div>
+        </section>
+
+        <section class="shop-checkout-step shop-confirm" data-shop-checkout-step="confirm" hidden>
+          <header class="shop-checkout__head">
+            <p class="shop-kicker" data-shop-review-kicker>04 / review</p>
+            <h1>Review order.</h1>
+            <p>Make sure the items, delivery details, and payment choice look right.</p>
+          </header>
+          <section class="shop-confirm__section">
+            <div class="shop-confirm__head"><span>01</span><h2>Your items</h2></div>
+            <div class="shop-confirm__items">
+              {{ range .Cart }}
+              <div class="shop-confirm-item">
+                <div class="shop-confirm-item__image">{{ if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="">{{ end }}</div>
+                <div><strong>{{ .Product.Name }}</strong><span>{{ .Variant.Label }} · qty {{ .Qty }}</span></div>
+                <b>{{ merchMoney .LineTotalCents .Product }}</b>
+              </div>
+              {{ end }}
+            </div>
+          </section>
+          <section class="shop-confirm__section">
+            <div class="shop-confirm__head"><span>02</span><h2>Contact &amp; delivery</h2></div>
+            <div class="shop-confirm__facts">
+              <div><span>Contact</span><strong data-confirm-contact></strong></div>
+              <div><span>Delivery</span><strong data-confirm-fulfillment></strong></div>
+              <div data-confirm-address-row><span>Shipping address</span><strong data-confirm-address></strong></div>
+              <div data-confirm-shipping-rate-row><span>Shipping service</span><strong data-confirm-shipping-rate></strong></div>
+            </div>
+          </section>
+          <section class="shop-confirm__section">
+            <div class="shop-confirm__head"><span>03</span><h2>Payment</h2></div>
+            <fieldset class="shop-radio-panel shop-confirm__payment">
+              <legend class="shop-visually-hidden">Payment method</legend>
+              <label><input type="radio" name="payment_method" value="btc" {{ if eq .Checkout.PaymentMethod "btc" }}checked{{ end }}> Bitcoin <span>on-chain or Lightning</span></label>
+              <label><input type="radio" name="payment_method" value="card" {{ if eq .Checkout.PaymentMethod "card" }}checked{{ end }}> Card <span>pay securely by card</span></label>
+            </fieldset>
+          </section>
+          <p class="shop-confirm__notice">Shipping and tax are finalized. You’ll be sent to the selected payment processor for the displayed total.</p>
+          <div class="shop-confirm__actions">
+            <button class="shop-button" type="button" data-shop-review-back>← Shipping</button>
+            <button class="shop-button is-primary" type="submit" data-shop-create-order>Make payment →</button>
+          </div>
+        </section>
+      </form>
+
+      <aside class="shop-summary">
+        <div><span>Subtotal</span><b>{{ merchMoney .SubtotalCents nil }}</b></div>
+        <div><span>Tax</span><b data-summary-tax>{{ merchMoney .TaxCents nil }}</b></div>
+        <div><span>Shipping</span><b data-summary-shipping>{{ if eq .ShippingCents 0 }}free{{ else }}{{ merchMoney .ShippingCents nil }}{{ end }}</b></div>
+        <div class="is-total"><span>Total</span><b data-summary-total data-subtotal-cents="{{ .SubtotalCents }}" data-tax-cents="{{ .TaxCents }}">{{ merchMoney .TotalCents nil }}</b></div>
+        <small>≈ {{ merchSats .TotalCents }} sats · shipping/tax finalized at checkout</small>
+        <button class="shop-button is-primary" type="submit" form="shop-checkout-form" data-shop-summary-action>Shipping →</button>
+      </aside>
+    </main>
+    {{ template "shop_footer" . }}
+  </body>
+</html>
