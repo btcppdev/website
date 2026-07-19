@@ -107,7 +107,7 @@ function toggleNavFlyout(el, targetId) {
 		var now = Date.now() / 1000;
 		var prefix, sign, abs;
 		if (now < startSec) {
-			prefix = el.dataset.beforePrefix || 'doors open in';
+			prefix = el.dataset.beforePrefix || '';
 			sign = '';
 			abs = startSec - now;
 		} else if (now > endSec) {

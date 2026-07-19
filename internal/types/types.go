@@ -25,28 +25,29 @@ type (
 
 	/* Configs for the app! */
 	EnvConfig struct {
-		Port              string
-		Prod              bool
-		MailerSecret      string
-		MailerJob         int
-		MailOff           bool
-		MailEndpoint      string
-		StripeKey         string
-		StripeEndpointSec string
-		RegistryPin       string
-		LogFile           string
-		SendGrid          SendGridConfig
-		OpenNode          OpenNodeConfig
-		Host              string
-		LocalExternal     string
-		HMACSecret        string
-		HMACKey           [32]byte
-		DatabaseURL       string
-		BufferAPI         string
-		Spaces            SpacesConfig
-		CacheTTLSec       int
-		YouTube           YouTubeConfig
-		Recordings        RecordingsConfig
+		Port                 string
+		Prod                 bool
+		MailerSecret         string
+		MailerJob            int
+		MailOff              bool
+		MailEndpoint         string
+		StripeKey            string
+		StripeEndpointSec    string
+		RegistryPin          string
+		LogFile              string
+		SendGrid             SendGridConfig
+		OpenNode             OpenNodeConfig
+		Host                 string
+		LocalExternal        string
+		HMACSecret           string
+		HMACKey              [32]byte
+		DatabaseURL          string
+		BufferAPI            string
+		Spaces               SpacesConfig
+		CacheTTLSec          int
+		YouTube              YouTubeConfig
+		Recordings           RecordingsConfig
+		TaxFormEncryptionKey string
 	}
 
 	// YouTubeConfig holds the OAuth client + redirect that backs the
@@ -291,26 +292,32 @@ type (
 	}
 
 	Speaker struct {
-		ID            string
-		Name          string
-		Photo         string
-		Email         string
-		Signal        string
-		Phone         string
-		Telegram      string
-		Twitter       Twitter
-		Nostr         string
-		Github        string
-		Instagram     string
-		LinkedIn      string
-		LeetCode      string
-		Website       string
-		Company       string
-		Bio           string
-		OrgLogo       string
-		AvailToHire   bool
-		LookingToHire bool
-		TShirt        string
+		ID                  string
+		Name                string
+		Photo               string
+		Email               string
+		Signal              string
+		Phone               string
+		Telegram            string
+		Twitter             Twitter
+		Nostr               string
+		Github              string
+		Instagram           string
+		LinkedIn            string
+		LeetCode            string
+		Website             string
+		Company             string
+		Bio                 string
+		OrgLogo             string
+		AvailToHire         bool
+		LookingToHire       bool
+		TShirt              string
+		LightningAddress    string
+		BitcoinAddress      string
+		TaxFormType         string
+		TaxFormObjectKey    string
+		TaxFormOriginalName string
+		TaxFormUploadedAt   *time.Time
 		// RecordingEmoji is populated on Talk speaker views from the
 		// per-conf SpeakerConf.RecordOK value. Empty means recording OK.
 		RecordingEmoji string

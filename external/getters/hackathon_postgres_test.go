@@ -90,6 +90,111 @@ func TestHackathonCompetitionUpdate(t *testing.T) {
 	}
 }
 
+func TestHackathonResultsFinalizationLocksAwardRecipients(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "results-finalization-" + postgresSmokeSuffix(),
+		Title: "Results Finalization Hackathon",
+	})
+	personID := insertSmokePerson(t, ctx, "results-finalizer")
+	projectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID:     competitionID,
+		CreatedByPersonID: personID,
+		Slug:              "results-project-" + postgresSmokeSuffix(),
+		Title:             "Results Project",
+	})
+	secondMemberID := insertSmokePerson(t, ctx, "results-team-member")
+	if err := AddProjectMember(ctx, projectID, secondMemberID, ProjectMemberRoleMember); err != nil {
+		t.Fatalf("AddProjectMember: %v", err)
+	}
+	awardID, err := CreateAward(ctx, AwardInput{
+		CompetitionID: competitionID,
+		Title:         "Results Award",
+		Status:        AwardStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreateAward: %v", err)
+	}
+	for _, title := range []string{"Future ticket A", "Future ticket B"} {
+		if _, err := CreatePrize(ctx, PrizeInput{
+			AwardID: awardID, PrizeType: PrizeTypeTickets, Title: title,
+			ValueText: "500000", Status: PrizeStatusAvailable,
+		}); err != nil {
+			t.Fatalf("CreatePrize %s: %v", title, err)
+		}
+	}
+	if err := AssignProjectAward(ctx, awardID, projectID); err != nil {
+		t.Fatalf("AssignProjectAward before finalization: %v", err)
+	}
+	if err := FinalizeCompetitionResults(ctx, competitionID, personID); err != nil {
+		t.Fatalf("FinalizeCompetitionResults: %v", err)
+	}
+	competition, err := GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("GetCompetitionByID finalized: %v", err)
+	}
+	if competition.ResultsFinalizedAt == nil || competition.ResultsFinalizedBy != personID || competition.ResultsFinalizedName == "" {
+		t.Fatalf("finalization metadata mismatch: %+v", competition)
+	}
+	var entitlementCount int
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT count(*)
+		FROM hackathon_ticket_entitlements entitlements
+		JOIN award_distributions distributions ON distributions.id = entitlements.award_distribution_id
+		WHERE distributions.competition_id = $1::uuid
+	`, competitionID).Scan(&entitlementCount); err != nil {
+		t.Fatalf("count automatic ticket entitlements: %v", err)
+	}
+	if entitlementCount != 4 {
+		t.Fatalf("automatic ticket entitlement count = %d, want 4 (two members x two prizes)", entitlementCount)
+	}
+	if err := RemoveProjectAward(ctx, awardID, projectID); err == nil || !strings.Contains(err.Error(), "results are finalized") {
+		t.Fatalf("RemoveProjectAward while finalized = %v, want finalized error", err)
+	}
+	if err := AssignProjectAward(ctx, awardID, projectID); err == nil || !strings.Contains(err.Error(), "results are finalized") {
+		t.Fatalf("AssignProjectAward while finalized = %v, want finalized error", err)
+	}
+	if err := ReopenCompetitionResults(ctx, competitionID, personID); err != nil {
+		t.Fatalf("ReopenCompetitionResults: %v", err)
+	}
+	competition, err = GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("GetCompetitionByID reopened: %v", err)
+	}
+	if competition.ResultsFinalizedAt != nil || competition.ResultsFinalizedBy != "" {
+		t.Fatalf("reopened finalization metadata = %+v, want unpublished", competition)
+	}
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT count(*)
+		FROM hackathon_ticket_entitlements entitlements
+		JOIN award_distributions distributions ON distributions.id = entitlements.award_distribution_id
+		WHERE distributions.competition_id = $1::uuid
+	`, competitionID).Scan(&entitlementCount); err != nil {
+		t.Fatalf("count reopened ticket entitlements: %v", err)
+	}
+	if entitlementCount != 0 {
+		t.Fatalf("reopened automatic ticket entitlement count = %d, want 0", entitlementCount)
+	}
+	if err := RemoveProjectAward(ctx, awardID, projectID); err != nil {
+		t.Fatalf("RemoveProjectAward after reopen: %v", err)
+	}
+	var eventCount int
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT count(*)
+		FROM competition_results_publication_events
+		WHERE competition_id::text = $1
+			AND performed_by::text = $2
+			AND action IN ('finalized', 'reopened')
+	`, competitionID, personID).Scan(&eventCount); err != nil {
+		t.Fatalf("count results publication events: %v", err)
+	}
+	if eventCount != 2 {
+		t.Fatalf("results publication event count = %d, want 2", eventCount)
+	}
+}
+
 func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)
@@ -146,6 +251,36 @@ func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 		t.Fatalf("AddProjectMember third err = %v, want max team size", err)
 	}
 
+	otherTeamOwnerID := insertSmokePerson(t, ctx, "other-team-owner")
+	otherTeamProjectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID:     competitionID,
+		CreatedByPersonID: otherTeamOwnerID,
+		Slug:              "other-team-project-" + postgresSmokeSuffix(),
+		Title:             "Other Team",
+	})
+	if err := AddProjectMember(ctx, otherTeamProjectID, secondID, ProjectMemberRoleMember); err == nil || !strings.Contains(err.Error(), "only belong to one submission") {
+		t.Fatalf("AddProjectMember second project err = %v, want one-submission rule", err)
+	}
+	secondProjectInviteToken, _, err := CreateProjectInvite(ctx, otherTeamProjectID, secondEmail, nil)
+	if err != nil {
+		t.Fatalf("CreateProjectInvite second project: %v", err)
+	}
+	if _, err := AcceptProjectInvite(ctx, secondProjectInviteToken, secondID); err == nil || !strings.Contains(err.Error(), "only belong to one submission") {
+		t.Fatalf("AcceptProjectInvite second project err = %v, want one-submission rule", err)
+	}
+	if _, err := CreateProject(ctx, ProjectInput{
+		CompetitionID: competitionID, CreatedByPersonID: secondID,
+		Slug: "second-owned-project-" + postgresSmokeSuffix(), Title: "Second Owned Project",
+	}); err == nil || !strings.Contains(err.Error(), "only belong to one submission") {
+		t.Fatalf("CreateProject second membership err = %v, want one-submission rule", err)
+	}
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		INSERT INTO project_members (project_id, person_id, role)
+		VALUES ($1::uuid, $2::uuid, $3)
+	`, otherTeamProjectID, secondID, ProjectMemberRoleMember); err == nil || !strings.Contains(err.Error(), "only belong to one project") {
+		t.Fatalf("direct duplicate membership err = %v, want database invariant", err)
+	}
+
 	otherCompetitionID := createSmokeCompetition(t, ctx, CompetitionInput{
 		Slug:  "email-invite-" + postgresSmokeSuffix(),
 		Title: "Email Invite Hackathon",
@@ -168,6 +303,282 @@ func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 	}
 }
 
+func TestHackathonProjectMemberRemovalRespectsSubmissionState(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "team-removal-" + postgresSmokeSuffix(),
+		Title: "Team Removal Hackathon",
+	})
+	ownerID := insertSmokePerson(t, ctx, "team-removal-owner")
+	memberID := insertSmokePerson(t, ctx, "team-removal-member")
+	projectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID:     competitionID,
+		CreatedByPersonID: ownerID,
+		Slug:              "team-removal-project-" + postgresSmokeSuffix(),
+		Title:             "Team Removal Project",
+	})
+	if err := AddProjectMember(ctx, projectID, memberID, ProjectMemberRoleMember); err != nil {
+		t.Fatalf("AddProjectMember: %v", err)
+	}
+	if err := RemoveProjectMember(ctx, projectID, ownerID, false); err == nil {
+		t.Fatal("RemoveProjectMember removed project owner")
+	}
+	if err := RemoveProjectMember(ctx, projectID, memberID, false); err != nil {
+		t.Fatalf("RemoveProjectMember before submission: %v", err)
+	}
+	if err := AddProjectMember(ctx, projectID, memberID, ProjectMemberRoleMember); err != nil {
+		t.Fatalf("AddProjectMember again: %v", err)
+	}
+	if err := UpdateProjectAdminFields(ctx, competitionID, projectID, ProjectStatusSubmitted, nil); err != nil {
+		t.Fatalf("submit project: %v", err)
+	}
+	if err := RemoveProjectMember(ctx, projectID, memberID, false); err == nil {
+		t.Fatal("participant removal after submission succeeded")
+	}
+	if err := RemoveProjectMember(ctx, projectID, memberID, true); err != nil {
+		t.Fatalf("coordinator removal after submission: %v", err)
+	}
+}
+
+func TestHackathonTicketAwardDistributionAndClaim(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "ticket-distribution-" + postgresSmokeSuffix(),
+		Title: "Ticket Distribution Hackathon",
+	})
+	personID := insertSmokePerson(t, ctx, "ticket-recipient")
+	email := smokePersonEmail(t, ctx, personID)
+	projectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID:     competitionID,
+		CreatedByPersonID: personID,
+		Slug:              "ticket-project-" + postgresSmokeSuffix(),
+		Title:             "Ticket Project",
+	})
+	awardID, err := CreateAward(ctx, AwardInput{
+		CompetitionID: competitionID,
+		Title:         "Future conference tickets",
+		Status:        AwardStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreateAward: %v", err)
+	}
+	prizeID, err := CreatePrize(ctx, PrizeInput{
+		AwardID:   awardID,
+		PrizeType: PrizeTypeTickets,
+		Title:     "Two tickets",
+		ValueText: "100000",
+		Status:    PrizeStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreatePrize: %v", err)
+	}
+	if err := AssignProjectAward(ctx, awardID, projectID); err != nil {
+		t.Fatalf("AssignProjectAward: %v", err)
+	}
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE people
+		SET signal = 'cash-recipient-signal', lightning_address = 'winner@example.test'
+		WHERE id = $1::uuid
+	`, personID); err != nil {
+		t.Fatalf("set cash payout profile: %v", err)
+	}
+	cashPrizeID, err := CreatePrize(ctx, PrizeInput{
+		AwardID:   awardID,
+		PrizeType: PrizeTypeSats,
+		Title:     "Cash prize",
+		ValueText: "250000",
+		Status:    PrizeStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreatePrize cash: %v", err)
+	}
+	configuredCashAmount, err := CashPrizeValueSats(ctx, competitionID, awardID, cashPrizeID)
+	if err != nil || configuredCashAmount != 250000 {
+		t.Fatalf("CashPrizeValueSats = %d, %v, want 250000", configuredCashAmount, err)
+	}
+	cashAmount := int64(250000)
+	if _, err := CreateAwardDistribution(ctx, AwardDistributionInput{
+		CompetitionID: competitionID, AwardID: awardID, ProjectID: projectID,
+		PrizeID: cashPrizeID, PersonID: personID, DistributionType: PrizeTypeSats,
+		AmountSats: &cashAmount,
+	}); err != nil {
+		t.Fatalf("CreateAwardDistribution cash: %v", err)
+	}
+	recipients, err := ListCashPayoutRecipients(ctx, competitionID)
+	if err != nil || len(recipients[projectID]) != 1 {
+		t.Fatalf("cash payout recipients = %+v, %v", recipients, err)
+	}
+	if recipient := recipients[projectID][0]; recipient.PersonID != personID || recipient.Signal != "cash-recipient-signal" || recipient.LightningAddress != "winner@example.test" {
+		t.Fatalf("cash payout recipient = %+v", recipient)
+	}
+	distributions, err := ListAwardDistributions(ctx, competitionID)
+	if err != nil || len(distributions) != 1 || distributions[0].DistributionType != PrizeTypeSats || distributions[0].PersonSignal != "cash-recipient-signal" {
+		t.Fatalf("cash distributions = %+v, %v", distributions, err)
+	}
+	quantity := 2
+	if _, err := CreateAwardDistribution(ctx, AwardDistributionInput{
+		CompetitionID: competitionID, AwardID: awardID, ProjectID: projectID,
+		PrizeID: prizeID, PersonID: personID, DistributionType: PrizeTypeSats,
+		AmountSats: func() *int64 { value := int64(100000); return &value }(),
+	}); err == nil || !strings.Contains(err.Error(), "match the configured prize type") {
+		t.Fatalf("mismatched distribution type err = %v", err)
+	}
+	distributionID, err := CreateAwardDistribution(ctx, AwardDistributionInput{
+		CompetitionID: competitionID, AwardID: awardID, ProjectID: projectID,
+		PrizeID: prizeID, PersonID: personID, DistributionType: PrizeTypeTickets,
+		TicketQuantity: &quantity,
+	})
+	if err != nil {
+		t.Fatalf("CreateAwardDistribution: %v", err)
+	}
+	var entitlementID string
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT id::text FROM hackathon_ticket_entitlements
+		WHERE award_distribution_id = $1::uuid
+	`, distributionID).Scan(&entitlementID); err != nil {
+		t.Fatalf("load pre-finalization entitlement: %v", err)
+	}
+	if err := ClaimTicketEntitlement(ctx, entitlementID, personID, "", email); err == nil {
+		t.Fatal("claim before finalization succeeded")
+	}
+	if err := FinalizeCompetitionResults(ctx, competitionID, personID); err != nil {
+		t.Fatalf("FinalizeCompetitionResults: %v", err)
+	}
+	entitlements, err := ListTicketEntitlementsForPerson(ctx, personID)
+	if err != nil || len(entitlements) != 1 || entitlements[0].ID != entitlementID || entitlements[0].Quantity != quantity {
+		t.Fatalf("ticket entitlements after finalization = %+v, %v", entitlements, err)
+	}
+	claimConfID, _ := insertSmokeConference(t, ctx)
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE conferences SET start_date = now() + interval '30 days', end_date = now() + interval '32 days'
+		WHERE id = $1::uuid
+	`, claimConfID); err != nil {
+		t.Fatalf("make claim conference upcoming: %v", err)
+	}
+	if err := ClaimTicketEntitlement(ctx, entitlements[0].ID, personID, claimConfID, email); err != nil {
+		t.Fatalf("ClaimTicketEntitlement: %v", err)
+	}
+	if err := ClaimTicketEntitlement(ctx, entitlements[0].ID, personID, claimConfID, email); err == nil {
+		t.Fatal("second ticket entitlement claim succeeded")
+	}
+	var registrationCount int
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT count(*) FROM registrations
+		WHERE checkout_id = $1 AND conference_id = $2::uuid AND revoked = false
+	`, "hackathon-entitlement-"+entitlements[0].ID, claimConfID).Scan(&registrationCount); err != nil {
+		t.Fatalf("count claimed registrations: %v", err)
+	}
+	if registrationCount != quantity {
+		t.Fatalf("claimed registration count = %d, want %d", registrationCount, quantity)
+	}
+	var status string
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `SELECT status FROM award_distributions WHERE id = $1::uuid`, distributionID).Scan(&status); err != nil {
+		t.Fatalf("load distribution status: %v", err)
+	}
+	if status != "claimed" {
+		t.Fatalf("distribution status = %q, want claimed", status)
+	}
+}
+
+func TestCashPrizeDistributionAllocationAndTaxGate(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "cash-allocation-" + postgresSmokeSuffix(),
+		Title: "Cash Allocation Hackathon",
+	})
+	firstPersonID := insertSmokePerson(t, ctx, "cash-allocation-first")
+	secondPersonID := insertSmokePerson(t, ctx, "cash-allocation-second")
+	projectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID: competitionID, CreatedByPersonID: firstPersonID,
+		Slug: "cash-project-" + postgresSmokeSuffix(), Title: "Cash Project",
+	})
+	if err := AddProjectMember(ctx, projectID, secondPersonID, ProjectMemberRoleMember); err != nil {
+		t.Fatalf("AddProjectMember: %v", err)
+	}
+	awardID, err := CreateAward(ctx, AwardInput{
+		CompetitionID: competitionID, Title: "Cash Award", Status: AwardStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreateAward: %v", err)
+	}
+	if err := AssignProjectAward(ctx, awardID, projectID); err != nil {
+		t.Fatalf("AssignProjectAward: %v", err)
+	}
+	prizeID, err := CreatePrize(ctx, PrizeInput{
+		AwardID: awardID, PrizeType: PrizeTypeSats, Title: "101 sats",
+		ValueText: "101", Status: PrizeStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreatePrize: %v", err)
+	}
+	prepared, err := PrepareCashPrizeDistributions(ctx, competitionID, awardID, projectID, prizeID)
+	if err != nil || prepared != 2 {
+		t.Fatalf("PrepareCashPrizeDistributions = %d, %v, want 2", prepared, err)
+	}
+	var count int
+	var total int64
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT count(*), coalesce(sum(amount_sats), 0)
+		FROM award_distributions
+		WHERE prize_id = $1::uuid AND status <> 'cancelled'
+	`, prizeID).Scan(&count, &total); err != nil {
+		t.Fatalf("load prepared distributions: %v", err)
+	}
+	if count != 2 || total != 101 {
+		t.Fatalf("prepared distributions count=%d total=%d, want 2 and 101", count, total)
+	}
+	if _, err := PrepareCashPrizeDistributions(ctx, competitionID, awardID, projectID, prizeID); err == nil || !strings.Contains(err.Error(), "already have distributions") {
+		t.Fatalf("second preparation error = %v, want already distributed", err)
+	}
+
+	partialPrizeID, err := CreatePrize(ctx, PrizeInput{
+		AwardID: awardID, PrizeType: PrizeTypeSats, Title: "Partial cash prize",
+		ValueText: "100", Status: PrizeStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreatePrize partial: %v", err)
+	}
+	firstShare := int64(60)
+	firstDistributionID, err := CreateAwardDistribution(ctx, AwardDistributionInput{
+		CompetitionID: competitionID, AwardID: awardID, ProjectID: projectID,
+		PrizeID: partialPrizeID, PersonID: firstPersonID,
+		DistributionType: PrizeTypeSats, AmountSats: &firstShare,
+	})
+	if err != nil {
+		t.Fatalf("CreateAwardDistribution partial: %v", err)
+	}
+	overAllocation := int64(50)
+	if _, err := CreateAwardDistribution(ctx, AwardDistributionInput{
+		CompetitionID: competitionID, AwardID: awardID, ProjectID: projectID,
+		PrizeID: partialPrizeID, PersonID: secondPersonID,
+		DistributionType: PrizeTypeSats, AmountSats: &overAllocation,
+	}); err == nil || !strings.Contains(err.Error(), "40 sats remain") {
+		t.Fatalf("over-allocation error = %v, want 40 sats remain", err)
+	}
+	prepared, err = PrepareCashPrizeDistributions(ctx, competitionID, awardID, projectID, partialPrizeID)
+	if err != nil || prepared != 1 {
+		t.Fatalf("prepare remaining distribution = %d, %v, want 1", prepared, err)
+	}
+	if err := UpdateAwardDistribution(ctx, competitionID, firstDistributionID, "sent", "", firstPersonID); err == nil || !strings.Contains(err.Error(), "must be on file") {
+		t.Fatalf("sent without tax form error = %v, want tax form requirement", err)
+	}
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE people SET tax_form_type = 'w9', tax_form_uploaded_at = now()
+		WHERE id = $1::uuid
+	`, firstPersonID); err != nil {
+		t.Fatalf("set tax form metadata: %v", err)
+	}
+	if err := UpdateAwardDistribution(ctx, competitionID, firstDistributionID, "sent", "", firstPersonID); err != nil {
+		t.Fatalf("sent with tax form: %v", err)
+	}
+}
+
 func TestHackathonJudgeInvites(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)
@@ -178,11 +589,11 @@ func TestHackathonJudgeInvites(t *testing.T) {
 	})
 	judgeID := insertSmokePerson(t, ctx, "judge-invite")
 	beforeInvite := time.Now()
-	token, invite, err := CreateCompetitionJudgeInvite(ctx, competitionID, nil)
+	token, invite, err := CreateCompetitionJudgeInvite(ctx, competitionID, "", []string{JudgeTypeExpo, JudgeTypeFinals}, nil)
 	if err != nil {
 		t.Fatalf("CreateCompetitionJudgeInvite: %v", err)
 	}
-	if token == "" || invite == nil || invite.CompetitionID != competitionID {
+	if token == "" || invite == nil || invite.CompetitionID != competitionID || len(invite.JudgeTypes) != 2 {
 		t.Fatalf("bad judge invite: token=%q invite=%+v", token, invite)
 	}
 	if invite.ExpiresAt == nil {
@@ -205,7 +616,7 @@ func TestHackathonJudgeInvites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListCompetitionJudges: %v", err)
 	}
-	if len(judges) != 1 || judges[0].PersonID != judgeID || judges[0].JudgeType != JudgeTypeCoordinator {
+	if len(judges) != 1 || judges[0].PersonID != judgeID || len(judges[0].JudgeTypes) != 2 || judges[0].JudgeTypes[0] != JudgeTypeExpo || judges[0].JudgeTypes[1] != JudgeTypeFinals {
 		t.Fatalf("judges after invite = %+v", judges)
 	}
 	if _, err := ctx.DB.Exec(context.Background(), `
@@ -225,10 +636,14 @@ func TestHackathonJudgeInvites(t *testing.T) {
 	if len(judges) != 1 || judges[0].PersonID != judgeID {
 		t.Fatalf("judges after duplicate type = %+v, want one row for %s", judges, judgeID)
 	}
-	if _, err := AcceptCompetitionJudgeInvite(ctx, token, judgeID); err == nil {
-		t.Fatalf("AcceptCompetitionJudgeInvite reuse succeeded, want error")
-	} else if !strings.Contains(err.Error(), "already accepted") {
-		t.Fatalf("AcceptCompetitionJudgeInvite reuse err = %v, want already accepted", err)
+	if repeated, err := AcceptCompetitionJudgeInvite(ctx, token, judgeID); err != nil || repeated.AcceptedByPersonID != judgeID {
+		t.Fatalf("AcceptCompetitionJudgeInvite same-person retry = %+v, %v, want success", repeated, err)
+	}
+	otherJudgeID := insertSmokePerson(t, ctx, "other-judge-invite")
+	if _, err := AcceptCompetitionJudgeInvite(ctx, token, otherJudgeID); err == nil {
+		t.Fatalf("AcceptCompetitionJudgeInvite reuse by another person succeeded, want error")
+	} else if !strings.Contains(err.Error(), "another person") {
+		t.Fatalf("AcceptCompetitionJudgeInvite other-person reuse err = %v, want already accepted by another person", err)
 	}
 }
 
@@ -244,6 +659,36 @@ func TestGetPersonIDByEmail(t *testing.T) {
 	}
 	if got != personID {
 		t.Fatalf("person id = %q, want %q", got, personID)
+	}
+}
+
+func TestListCompetitionJudgeAssignmentsByEmail(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	confID, confTag := insertSmokeConference(t, ctx)
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		ConferenceID: confID,
+		Slug:         "judge-dashboard-" + postgresSmokeSuffix(),
+		Title:        "Judge Dashboard Hackathon",
+		Visibility:   CompetitionVisibilityPublic,
+	})
+	personID := insertSmokePerson(t, ctx, "judge-dashboard")
+	personEmail := smokePersonEmail(t, ctx, personID)
+	if err := AddCompetitionJudge(ctx, competitionID, personID, JudgeTypeExpo); err != nil {
+		t.Fatalf("AddCompetitionJudge: %v", err)
+	}
+
+	assignments, err := ListCompetitionJudgeAssignmentsByEmail(ctx, personEmail)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudgeAssignmentsByEmail: %v", err)
+	}
+	if len(assignments) != 1 {
+		t.Fatalf("assignments = %+v, want one", assignments)
+	}
+	got := assignments[0]
+	if got.CompetitionID != competitionID || got.ConferenceID != confID || got.ConferenceTag != confTag || got.JudgeType != JudgeTypeExpo {
+		t.Fatalf("assignment = %+v", got)
 	}
 }
 
@@ -407,6 +852,26 @@ func TestHackathonJudgingSetup(t *testing.T) {
 	}
 	if len(judges) != 1 || judges[0].PersonID != judgeID || judges[0].JudgeType != JudgeTypeFinals {
 		t.Fatalf("judges mismatch: %+v", judges)
+	}
+	if err := SetCompetitionJudgeType(ctx, competitionID, judgeID, JudgeTypeExpo); err != nil {
+		t.Fatalf("SetCompetitionJudgeType: %v", err)
+	}
+	judges, err = ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudges after role update: %v", err)
+	}
+	if len(judges) != 1 || judges[0].JudgeType != JudgeTypeExpo {
+		t.Fatalf("judges after role update: %+v", judges)
+	}
+	if err := SetCompetitionJudgeTypes(ctx, competitionID, judgeID, []string{JudgeTypeExpo, JudgeTypeFinals}); err != nil {
+		t.Fatalf("SetCompetitionJudgeTypes: %v", err)
+	}
+	judges, err = ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudges after multi-role update: %v", err)
+	}
+	if len(judges) != 1 || len(judges[0].JudgeTypes) != 2 || judges[0].JudgeTypes[0] != JudgeTypeExpo || judges[0].JudgeTypes[1] != JudgeTypeFinals {
+		t.Fatalf("judges after multi-role update: %+v", judges)
 	}
 	ownerID := insertSmokePerson(t, ctx, "score-owner")
 	projectID := createSmokeProject(t, ctx, ProjectInput{
@@ -609,6 +1074,40 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAward general: %v", err)
 	}
+	finalistsOnlyAwardID, err := CreateAward(ctx, AwardInput{
+		CompetitionID: competitionID,
+		Title:         "Finalists Only Award",
+		FinalistsOnly: true,
+		Status:        AwardStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreateAward finalists only: %v", err)
+	}
+	awards, err = ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListAwardsForCompetition after finalists-only award: %v", err)
+	}
+	var foundFinalistsOnly bool
+	for _, award := range awards {
+		if award.ID == finalistsOnlyAwardID && award.FinalistsOnly {
+			foundFinalistsOnly = true
+		}
+	}
+	if !foundFinalistsOnly {
+		t.Fatalf("finalists-only award flag was not persisted: %+v", awards)
+	}
+	if err := AssignProjectAward(ctx, finalistsOnlyAwardID, secondProjectID); err == nil {
+		t.Fatal("AssignProjectAward allowed a non-finalist to receive a finalists-only award")
+	}
+	if err := UpdateProjectAdminFields(ctx, competitionID, secondProjectID, ProjectStatusAdvanced, nil); err != nil {
+		t.Fatalf("advance project for finalists-only award: %v", err)
+	}
+	if err := AssignProjectAward(ctx, finalistsOnlyAwardID, secondProjectID); err != nil {
+		t.Fatalf("AssignProjectAward finalists-only award to finalist: %v", err)
+	}
+	if err := RemoveProjectAward(ctx, finalistsOnlyAwardID, secondProjectID); err != nil {
+		t.Fatalf("RemoveProjectAward finalists-only award: %v", err)
+	}
 	if err := SetProjectAwardOptIns(ctx, projectID, []string{generalAwardID}); err == nil {
 		t.Fatalf("SetProjectAwardOptIns accepted non-opt-in award")
 	}
@@ -625,7 +1124,7 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 		PrizeType:      PrizeTypePooled,
 		Title:          "Prize pool",
 		Description:    "Shared sats pool",
-		ValueText:      "1,000,000 sats",
+		ValueText:      "1000000",
 		PoolPercentage: &poolPercentage,
 		PoolURL:        "https://example.com/pool",
 		Status:         PrizeStatusNeedsFunds,
@@ -637,6 +1136,15 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	if prizeID == "" {
 		t.Fatalf("CreatePrize returned empty id")
 	}
+	if _, err := CreatePrize(ctx, PrizeInput{
+		AwardID:   awardID,
+		PrizeType: PrizeTypeSats,
+		Title:     "Invalid BTC value",
+		ValueText: "0.01 BTC",
+		Status:    PrizeStatusAvailable,
+	}); err == nil {
+		t.Fatalf("CreatePrize accepted a non-satoshi value")
+	}
 	prizes, err := ListPrizesForCompetition(ctx, competitionID)
 	if err != nil {
 		t.Fatalf("ListPrizesForCompetition: %v", err)
@@ -644,9 +1152,67 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	if len(prizes) != 1 || prizes[0].ID != prizeID || prizes[0].AwardID != awardID || prizes[0].PoolPercentage == nil || *prizes[0].PoolPercentage != poolPercentage {
 		t.Fatalf("prizes mismatch: %+v", prizes)
 	}
+	if err := UpdatePrize(ctx, competitionID, prizeID, PrizeInput{
+		AwardID:     awardID,
+		PrizeType:   PrizeTypeInKind,
+		Title:       "Hardware prize",
+		Description: "Hardware valued in sats",
+		ValueText:   "2000000",
+		Status:      PrizeStatusAvailable,
+	}); err != nil {
+		t.Fatalf("UpdatePrize: %v", err)
+	}
+	prizes, err = ListPrizesForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListPrizesForCompetition after update: %v", err)
+	}
+	if len(prizes) != 1 || prizes[0].Title != "Hardware prize" || prizes[0].PrizeType != PrizeTypeInKind || prizes[0].ValueText != "2000000" {
+		t.Fatalf("prizes after update mismatch: %+v", prizes)
+	}
+	deletePrizeID, err := CreatePrize(ctx, PrizeInput{
+		AwardID:   awardID,
+		PrizeType: PrizeTypeTickets,
+		Title:     "Ticket prize",
+		ValueText: "500000",
+		Status:    PrizeStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreatePrize for delete: %v", err)
+	}
+	if err := DeletePrize(ctx, competitionID, deletePrizeID); err != nil {
+		t.Fatalf("DeletePrize: %v", err)
+	}
+	prizes, err = ListPrizesForCompetition(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListPrizesForCompetition after delete: %v", err)
+	}
+	if len(prizes) != 1 || prizes[0].ID != prizeID {
+		t.Fatalf("prizes after delete mismatch: %+v", prizes)
+	}
 
 	if err := AssignProjectAward(ctx, awardID, projectID); err != nil {
 		t.Fatalf("AssignProjectAward: %v", err)
+	}
+	if err := SetProjectAwardOptIns(ctx, secondProjectID, []string{awardID}); err != nil {
+		t.Fatalf("SetProjectAwardOptIns for an active award with a tentative recipient: %v", err)
+	}
+	secondProjectOptIns, err := ListProjectAwardOptInsForProject(ctx, secondProjectID)
+	if err != nil {
+		t.Fatalf("ListProjectAwardOptInsForProject second project: %v", err)
+	}
+	if len(secondProjectOptIns) != 1 || secondProjectOptIns[0].AwardID != awardID {
+		t.Fatalf("second project opt-ins = %+v, want awarded active award", secondProjectOptIns)
+	}
+	if err := UpdateAward(ctx, awardID, AwardInput{
+		CompetitionID: competitionID,
+		Title:         "Best Overall",
+		Description:   "Top project",
+		MaxAwardees:   &maxAwardees,
+		OptInRequired: true,
+		FinalistsOnly: true,
+		Status:        AwardStatusAvailable,
+	}); err == nil {
+		t.Fatal("UpdateAward enabled finalists-only with an existing non-finalist recipient")
 	}
 	projectAwards, err := ListProjectAwardsForCompetition(ctx, competitionID)
 	if err != nil {

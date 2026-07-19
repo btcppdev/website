@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -32,6 +33,20 @@ func TestLoadTemplates(t *testing.T) {
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
 		}
+	}
+	var nav bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&nav, "generic_conf_nav", &types.Conf{Tag: "toronto", ShowHackathon: true}); err != nil {
+		t.Fatalf("render generic_conf_nav: %v", err)
+	}
+	if !strings.Contains(nav.String(), `href="/toronto/hackathon"`) {
+		t.Fatalf("live hackathon nav missing public hackathon link: %s", nav.String())
+	}
+	nav.Reset()
+	if err := ctx.TemplateCache.ExecuteTemplate(&nav, "generic_conf_nav", &types.Conf{Tag: "toronto"}); err != nil {
+		t.Fatalf("render generic_conf_nav without hackathon: %v", err)
+	}
+	if strings.Contains(nav.String(), `href="/toronto/hackathon"`) {
+		t.Fatalf("inactive hackathon nav unexpectedly contains public hackathon link: %s", nav.String())
 	}
 }
 

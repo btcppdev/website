@@ -88,6 +88,7 @@ type AwardInput struct {
 	PhotoURL      string
 	MaxAwardees   *int
 	OptInRequired bool
+	FinalistsOnly bool
 	Status        string
 }
 
@@ -117,6 +118,14 @@ func UpdateCompetitionVisibility(ctx *config.AppContext, competitionID, visibili
 
 func UpdateCompetitionJudgingMode(ctx *config.AppContext, competitionID, mode string) error {
 	return updateCompetitionJudgingModePostgres(ctx, competitionID, mode)
+}
+
+func FinalizeCompetitionResults(ctx *config.AppContext, competitionID, personID string) error {
+	return finalizeCompetitionResultsPostgres(ctx, competitionID, personID)
+}
+
+func ReopenCompetitionResults(ctx *config.AppContext, competitionID, personID string) error {
+	return reopenCompetitionResultsPostgres(ctx, competitionID, personID)
 }
 
 func GetCompetitionByID(ctx *config.AppContext, competitionID string) (*types.HackathonCompetition, error) {
@@ -153,6 +162,10 @@ func ListCompetitions(ctx *config.AppContext) ([]*types.HackathonCompetition, er
 
 func CreateProject(ctx *config.AppContext, in ProjectInput) (string, error) {
 	return createProjectPostgres(ctx, in)
+}
+
+func CreateProjectWithAwardOptIns(ctx *config.AppContext, in ProjectInput, awardIDs []string) (string, error) {
+	return createProjectWithAwardOptInsPostgres(ctx, in, awardIDs)
 }
 
 func UpdateProject(ctx *config.AppContext, projectID string, in ProjectInput) error {
@@ -195,8 +208,8 @@ func AddProjectMember(ctx *config.AppContext, projectID, personID, role string) 
 	return addProjectMemberPostgres(ctx, projectID, personID, role)
 }
 
-func RemoveProjectMember(ctx *config.AppContext, projectID, personID string) error {
-	return removeProjectMemberPostgres(ctx, projectID, personID)
+func RemoveProjectMember(ctx *config.AppContext, projectID, personID string, allowSubmitted bool) error {
+	return removeProjectMemberPostgres(ctx, projectID, personID, allowSubmitted)
 }
 
 func ListProjectMembers(ctx *config.AppContext, projectID string) ([]*types.ProjectMember, error) {
@@ -215,8 +228,8 @@ func AcceptProjectInvite(ctx *config.AppContext, token, personID string) (*types
 	return acceptProjectInvitePostgres(ctx, token, personID)
 }
 
-func CreateCompetitionJudgeInvite(ctx *config.AppContext, competitionID string, expiresAt *time.Time) (string, *types.CompetitionJudgeInvite, error) {
-	return createCompetitionJudgeInvitePostgres(ctx, competitionID, expiresAt)
+func CreateCompetitionJudgeInvite(ctx *config.AppContext, competitionID, email string, judgeTypes []string, expiresAt *time.Time) (string, *types.CompetitionJudgeInvite, error) {
+	return createCompetitionJudgeInvitePostgres(ctx, competitionID, email, judgeTypes, expiresAt)
 }
 
 func AcceptCompetitionJudgeInvite(ctx *config.AppContext, token, personID string) (*types.CompetitionJudgeInvite, error) {
@@ -251,12 +264,28 @@ func AddCompetitionJudge(ctx *config.AppContext, competitionID, personID, judgeT
 	return addCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
 }
 
+func SetCompetitionJudgeType(ctx *config.AppContext, competitionID, personID, judgeType string) error {
+	return setCompetitionJudgeTypePostgres(ctx, competitionID, personID, judgeType)
+}
+
+func SetCompetitionJudgeTypes(ctx *config.AppContext, competitionID, personID string, judgeTypes []string) error {
+	return setCompetitionJudgeTypesPostgres(ctx, competitionID, personID, judgeTypes)
+}
+
+func SetCompetitionJudgeRoles(ctx *config.AppContext, competitionID string, rolesByPersonID map[string][]string) error {
+	return setCompetitionJudgeRolesPostgres(ctx, competitionID, rolesByPersonID)
+}
+
 func RemoveCompetitionJudge(ctx *config.AppContext, competitionID, personID, judgeType string) error {
 	return removeCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
 }
 
 func ListCompetitionJudges(ctx *config.AppContext, competitionID string) ([]*types.CompetitionJudge, error) {
 	return listCompetitionJudgesPostgres(ctx, competitionID)
+}
+
+func ListCompetitionJudgeAssignmentsByEmail(ctx *config.AppContext, email string) ([]*types.CompetitionJudgeAssignment, error) {
+	return listCompetitionJudgeAssignmentsByEmailPostgres(ctx, email)
 }
 
 func UpsertScorecard(ctx *config.AppContext, in ScorecardInput) (*types.Scorecard, error) {
@@ -309,6 +338,14 @@ func ListArchivedAwardsForCompetition(ctx *config.AppContext, competitionID stri
 
 func CreatePrize(ctx *config.AppContext, in PrizeInput) (string, error) {
 	return createPrizePostgres(ctx, in)
+}
+
+func UpdatePrize(ctx *config.AppContext, competitionID, prizeID string, in PrizeInput) error {
+	return updatePrizePostgres(ctx, competitionID, prizeID, in)
+}
+
+func DeletePrize(ctx *config.AppContext, competitionID, prizeID string) error {
+	return deletePrizePostgres(ctx, competitionID, prizeID)
 }
 
 func ListPrizesForCompetition(ctx *config.AppContext, competitionID string) ([]*types.Prize, error) {

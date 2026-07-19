@@ -1139,6 +1139,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/affiliate/disable", func(w http.ResponseWriter, r *http.Request) {
 		AffiliateDisable(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/dashboard/hackathon-ticket-entitlements/{entitlementID}/claim", func(w http.ResponseWriter, r *http.Request) {
+		DashboardClaimHackathonTicket(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/tickets", func(w http.ResponseWriter, r *http.Request) {
+		DashboardHackathonTickets(w, r, app)
+	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/{confTag}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditSpeakerConf(w, r, app)
@@ -1226,6 +1232,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminAddJudge(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges/roles", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdateJudgeRoles(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges/invites", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminCreateJudgeInvite(w, r, app)
 	}).Methods("POST")
@@ -1253,11 +1262,23 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/prizes", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminCreatePrize(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/prizes/update", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdatePrize(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/prizes/delete", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminDeletePrize(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/assign", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminAssignAward(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/remove", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminRemoveAward(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/results/finalize", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminFinalizeResults(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/results/reopen", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminReopenResults(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/visibility", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateVisibility(w, r, app)
@@ -1265,6 +1286,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdate(w, r, app)
 	}).Methods("POST")
+	registerConferenceHackathonAdminRoutes(r, app)
 	r.HandleFunc("/admin/missives", func(w http.ResponseWriter, r *http.Request) {
 		TemplatedMissivesAdmin(w, r, app)
 	}).Methods("GET")
@@ -1286,6 +1308,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/schedule", func(w http.ResponseWriter, r *http.Request) {
 		HackathonSchedule(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/hackathon/schedule/{segmentID}/calendar.ics", func(w http.ResponseWriter, r *http.Request) {
+		HackathonScheduleICS(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/judging", func(w http.ResponseWriter, r *http.Request) {
 		HackathonJudging(w, r, app)
@@ -3764,12 +3789,12 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon judges %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
 		}
-		hackathonPlaceRows, err = loadConfHackathonPlaceRows(ctx, hackathon.ID)
+		hackathonPlaceRows, err = loadConfHackathonPlaceRows(ctx, hackathon.ID, hackathon.ResultsFinalizedAt != nil)
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon place rows %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
 		}
 	}
-	confCopy.ShowHackathon = hackathon != nil
+	confCopy.ShowHackathon = hackathon != nil && hackathon.Visibility == getters.CompetitionVisibilityPublic
 	conf = &confCopy
 
 	currTix := findCurrTix(conf, soldCount)
@@ -3843,8 +3868,7 @@ func RenderConfAgenda(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 
 	confCopy := *conf
 	confCopy.CountdownStart, confCopy.CountdownEnd = computeCountdownBounds(&confCopy, infosByDay)
-	confCopy.HasAgenda = anyScheduledTalk(&confCopy, talks)
-	conf = &confCopy
+	conf = publicHackathonNavConference(ctx, &confCopy, talks)
 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "conf/agenda.tmpl", &ConfPage{
 		Conf:       conf,
@@ -3889,8 +3913,7 @@ func RenderConfSpeakers(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 
 	confCopy := *conf
 	confCopy.CountdownStart, confCopy.CountdownEnd = computeCountdownBounds(&confCopy, infosByDay)
-	confCopy.HasAgenda = anyScheduledTalk(&confCopy, talks)
-	conf = &confCopy
+	conf = publicHackathonNavConference(ctx, &confCopy, talks)
 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "conf/speakers.tmpl", &ConfPage{
 		Conf:          conf,

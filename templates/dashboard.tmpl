@@ -102,6 +102,24 @@
 </section>
 {{ end }}
 
+{{ if .TicketEntitlements }}
+<section id="hackathon-ticket-awards" class="dashboard-affiliate dashboard-affiliate-cta{{ if eq .UnclaimedTicketEntitlements 0 }} dashboard-affiliate-cta--complete{{ end }}">
+  <a class="dashboard-affiliate-cta__link" href="/dashboard/tickets" aria-label="Open hackathon ticket awards">
+    <div class="dashboard-affiliate__copy">
+      <div class="dashboard-kicker">§ Hackathon ticket awards</div>
+      {{ if gt .UnclaimedTicketEntitlements 0 }}
+      <div class="dashboard-affiliate__title"><h2>You have {{ .UnclaimedTicketEntitlements }} ticket reward{{ if ne .UnclaimedTicketEntitlements 1 }}s{{ end }} ready to claim.</h2></div>
+      <p>Choose a future bitcoin++ event and claim each person-bound ticket from your ticket awards page.</p>
+      {{ else }}
+      <div class="dashboard-affiliate__title"><h2>Your ticket {{ if eq (len .TicketEntitlements) 1 }}reward has{{ else }}rewards have{{ end }} been claimed.</h2></div>
+      <p>View the event {{ if eq (len .TicketEntitlements) 1 }}ticket{{ else }}tickets{{ end }} issued from your hackathon awards.</p>
+      {{ end }}
+    </div>
+    <div class="dashboard-affiliate-cta__side"><span class="dashboard-affiliate-cta__button">{{ if gt .UnclaimedTicketEntitlements 0 }}View and claim tickets{{ else }}View claimed tickets{{ end }} →</span></div>
+  </a>
+</section>
+{{ end }}
+
 {{/*
   Per-event blocks: one section per conf the user has any relationship
   with (speaker, volunteer, ticket-holder). All applicable subsections
@@ -147,7 +165,7 @@
       </div>
     </div>
 
-    {{ if or $eb.SpeakerConf $eb.VolApp $eb.Tickets $eb.SatelliteEvents $eb.CanBuy $.AffiliateCode $conf.TalksOpen $conf.VolunteerOpen }}
+    {{ if or $eb.SpeakerConf $eb.VolApp $eb.Tickets $eb.SatelliteEvents $eb.CanBuy $eb.IsHackathonJudge $eb.IsHackathonCoordinator $.AffiliateCode $conf.TalksOpen $conf.VolunteerOpen }}
     {{ if $eb.Tickets }}
     <div class="dashboard-ticket-block">
       <div class="dashboard-ticket-list">
@@ -195,6 +213,8 @@
             {{ if $eb.Tickets }}<span>{{ len $eb.Tickets }} ticket{{ if gt (len $eb.Tickets) 1 }}s{{ end }}</span>{{ end }}
             {{ if $eb.SpeakerConf }}<span>{{ len $eb.SpeakerConf.Proposals }} talk{{ if ne (len $eb.SpeakerConf.Proposals) 1 }}s{{ end }}</span>{{ end }}
             {{ if $eb.VolApp }}<span>volunteer: {{ $eb.VolApp.Status }}</span>{{ end }}
+            {{ if $eb.IsHackathonJudge }}<span>{{ $eb.HackathonJudgeLabel }}</span>{{ end }}
+            {{ if $eb.IsHackathonCoordinator }}<span>Hackathon coordinator</span>{{ end }}
           </div>
         </div>
         <div class="dashboard-action-grid">
@@ -216,6 +236,20 @@
           <a href="/{{ $conf.Tag }}#tickets" class="dashboard-action">
             <span class="dashboard-action__label">{{ if $eb.Tickets }}Buy another ticket{{ else }}Buy a ticket{{ end }}</span>
             <span class="dashboard-action__hint">{{ $conf.DateDesc }}</span>
+          </a>
+          {{ end }}
+
+          {{ if $eb.IsHackathonJudge }}
+          <a href="/{{ $conf.Tag }}/hackathon/judging" class="dashboard-action">
+            <span class="dashboard-action__label">Score hackathon projects</span>
+            <span class="dashboard-action__hint">You're assigned to judge this event · Open your scoring ballot</span>
+          </a>
+          {{ end }}
+
+          {{ if $eb.IsHackathonCoordinator }}
+          <a href="/{{ $conf.Tag }}/admin/hackathon" class="dashboard-action">
+            <span class="dashboard-action__label">Admin hackathon</span>
+            <span class="dashboard-action__hint">Manage projects, judging, awards, and the public hackathon page</span>
           </a>
           {{ end }}
 
@@ -762,6 +796,8 @@
           {{ if $eb.SpeakerConf }}<span>speaker</span>{{ end }}
           {{ if $eb.VolApp }}<span>volunteer</span>{{ end }}
           {{ if $eb.Tickets }}<span>{{ len $eb.Tickets }} ticket{{ if gt (len $eb.Tickets) 1 }}s{{ end }}</span>{{ end }}
+          {{ if $eb.IsHackathonJudge }}<span>{{ $eb.HackathonJudgeLabel }}</span>{{ end }}
+          {{ if $eb.IsHackathonCoordinator }}<a href="/{{ $conf.Tag }}/admin/hackathon" class="dashboard-past-row__admin">hackathon admin</a>{{ end }}
           {{ if $eb.AdminRole }}
           <a href="{{ if eq $eb.AdminRole "admin" }}/{{ $conf.Tag }}/admin{{ else }}/{{ $conf.Tag }}/volcoord{{ end }}"
              class="dashboard-past-row__admin">

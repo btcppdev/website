@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ .Competition.Title }} Payouts - Admin - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+</head>
+<body class="btcpp-admin-page admin-hackathon-page bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <header class="mb-6">
+      <a href="{{ .BackURL }}" class="text-sm font-medium text-indigo-600">&larr; {{ .BackLabel }}</a>
+      <h1 class="mt-2 text-2xl font-semibold">Cash prize payouts</h1>
+      <p class="mt-1 text-sm text-gray-600">Prepare and track satoshi payments for winning teams. Ticket, trophy, pooled, and in-kind prizes are managed outside this cash queue.</p>
+      <p class="mt-1 text-sm text-gray-600">Each person/prize combination creates its own payout entry. The same person can receive multiple prizes, and each payment is tracked independently.</p>
+    </header>
+    {{ template "admin_hackathon_tabs" . }}
+    {{ if .FlashMessage }}<div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>{{ end }}
+    {{ if .FlashError }}<div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>{{ end }}
+
+    {{ if not .Competition.ResultsFinalizedAt }}
+    <div class="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Results are not finalized. You can prepare distributions, but award notifications remain off until results are finalized.</div>
+    {{ end }}
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      {{ range .PayoutAssignments }}
+      {{ $assignment := . }}
+      <article class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-indigo-700">{{ .Award.Title }}</p>
+        <h2 class="mt-1 text-lg font-semibold">{{ .Project.Title }}</h2>
+        <div class="mt-4 space-y-3">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Winning team payout details</h3>
+          {{ range .Recipients }}
+          <div class="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <strong class="text-gray-900">{{ .Name }}</strong>
+                <div class="text-gray-600">{{ if .Email }}<a class="text-indigo-600" href="mailto:{{ .Email }}">{{ .Email }}</a>{{ else }}No email{{ end }}</div>
+                {{ if or .Signal .Telegram }}<div class="mt-1 text-xs text-gray-500">{{ if .Signal }}Signal: {{ .Signal }}{{ end }}{{ if and .Signal .Telegram }} · {{ end }}{{ if .Telegram }}Telegram: {{ .Telegram }}{{ end }}</div>{{ end }}
+              </div>
+              <div class="flex flex-wrap gap-1">
+                {{ if .TaxFormUploadedAt }}
+                  {{ if or .LightningAddress .BitcoinAddress }}<span class="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">Payment address ready</span>{{ else }}<span class="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">Payment address missing</span>{{ end }}
+                  <span class="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold uppercase text-green-800">{{ .TaxFormType }} on file</span>
+                {{ else }}
+                  <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">Tax form missing · payout details locked</span>
+                {{ end }}
+              </div>
+            </div>
+            {{ if .TaxFormUploadedAt }}
+            <dl class="mt-3 grid gap-2 sm:grid-cols-2">
+              <div><dt class="text-xs font-semibold uppercase text-gray-500">Lightning</dt><dd class="break-all">{{ if .LightningAddress }}{{ .LightningAddress }}{{ else }}—{{ end }}</dd></div>
+              <div><dt class="text-xs font-semibold uppercase text-gray-500">On-chain</dt><dd class="break-all">{{ if .BitcoinAddress }}{{ .BitcoinAddress }}{{ else }}—{{ end }}</dd></div>
+            </dl>
+            <div class="mt-2 text-xs"><a class="font-semibold text-indigo-600" href="{{ $.PayoutsURL $.Competition }}/tax/{{ .PersonID }}">Download {{ .TaxFormType }}</a> · uploaded {{ .TaxFormUploadedAt.Format "Jan 2, 2006" }}</div>
+            {{ else }}
+            <p class="mt-3 text-xs text-gray-500">Lightning and on-chain payout addresses will appear after a W-9 or W-8BEN is on file.</p>
+            {{ end }}
+          </div>
+          {{ else }}
+          <p class="rounded-md bg-amber-50 p-3 text-sm text-amber-900">No team members are attached to this winning project.</p>
+          {{ end }}
+        </div>
+        <div class="mt-4 space-y-2 border-t border-gray-200 pt-4">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Prize allocation</h3>
+          {{ range .Prizes }}
+          <div class="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="text-sm">
+              <strong>{{ .Prize.Title }}</strong>
+              <p class="text-xs text-gray-500">{{ .AllocatedSats }} of {{ .ConfiguredSats }} sats allocated · {{ .RemainingSats }} remaining</p>
+            </div>
+            {{ if and (gt .RemainingSats 0) (lt .DistributionCount (len $assignment.Recipients)) }}
+            <form method="POST" action="{{ $.PayoutsURL $.Competition }}/prepare">
+              <input type="hidden" name="AwardID" value="{{ $assignment.Award.ID }}">
+              <input type="hidden" name="ProjectID" value="{{ $assignment.Project.ID }}">
+              <input type="hidden" name="PrizeID" value="{{ .Prize.ID }}">
+              <button class="rounded-md bg-gray-900 px-3 py-2 text-xs font-semibold text-white">Prepare equal distributions</button>
+            </form>
+            {{ else }}
+            <span class="text-xs font-semibold uppercase text-green-700">Fully allocated</span>
+            {{ end }}
+          </div>
+          {{ end }}
+          <p class="text-xs text-gray-500">Preparing distributions divides all remaining sats across team members who do not yet have an active distribution.</p>
+        </div>
+        {{ if .HasRemainingAllocation }}
+        <form method="POST" action="{{ $.PayoutsURL $.Competition }}" class="mt-4 grid gap-3 sm:grid-cols-2" data-cash-payout-form>
+          <input type="hidden" name="AwardID" value="{{ .Award.ID }}">
+          <input type="hidden" name="ProjectID" value="{{ .Project.ID }}">
+          <label class="text-sm font-medium">Recipient
+            <select name="PersonID" required class="mt-1 block w-full rounded-md border-gray-300" data-cash-payout-person>
+              <option value="">Choose team member</option>
+              {{ range .Recipients }}<option value="{{ .PersonID }}">{{ .Name }}{{ if .Email }} · {{ .Email }}{{ end }}</option>{{ end }}
+            </select>
+          </label>
+          <label class="text-sm font-medium">Prize
+            <select name="PrizeID" required class="mt-1 block w-full rounded-md border-gray-300" data-cash-payout-prize>
+              <option value="">Choose prize</option>
+              {{ range .Prizes }}{{ if and (gt .RemainingSats 0) (lt .DistributionCount (len $assignment.Recipients)) }}<option value="{{ .Prize.ID }}" data-amount-sats="{{ .RemainingSats }}" data-remaining-recipients="{{ sub (len $assignment.Recipients) .DistributionCount }}" data-distributed-person-ids="{{ .DistributedPersonIDs }}">{{ .Prize.Title }} · {{ .RemainingSats }} sats remaining</option>{{ end }}{{ end }}
+            </select>
+          </label>
+          <label class="text-sm font-medium">Amount (sats)
+            <input name="AmountSats" type="number" min="1" required class="mt-1 block w-full rounded-md border-gray-300" data-cash-payout-amount>
+            <span class="mt-1 block text-xs font-normal text-gray-500">Automatically set to an equal share of the currently unallocated prize value across team members without a distribution. Adjust only for an agreed custom split or an indivisible remainder.</span>
+          </label>
+          <label class="text-sm font-medium sm:col-span-2">Notes
+            <input name="Notes" type="text" class="mt-1 block w-full rounded-md border-gray-300">
+          </label>
+          <div class="sm:col-span-2"><button class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">Add distribution</button></div>
+        </form>
+        {{ else }}
+        <p class="mt-4 rounded-md bg-green-50 p-3 text-sm font-medium text-green-800">Every cash prize for this winning team is fully allocated.</p>
+        {{ end }}
+      </article>
+      {{ else }}
+      <p class="text-sm text-gray-600">No cash prizes have been assigned to projects yet.</p>
+      {{ end }}
+    </section>
+
+    <section class="mt-8">
+      <h2 class="text-xl font-semibold">Cash payout queue</h2>
+      <div class="mt-4 grid gap-4">
+        {{ range .AwardDistributions }}
+        <article class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div><strong>{{ .PersonName }}</strong><p class="text-sm text-gray-600">{{ .AwardTitle }} · {{ .ProjectTitle }} · {{ .PrizeTitle }}</p><p class="mt-1 text-xs text-gray-500">{{ if .PersonEmail }}<a class="text-indigo-600" href="mailto:{{ .PersonEmail }}">{{ .PersonEmail }}</a>{{ end }}{{ if .PersonSignal }} · Signal: {{ .PersonSignal }}{{ end }}{{ if .PersonTelegram }} · Telegram: {{ .PersonTelegram }}{{ end }}</p></div>
+            <span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold uppercase">{{ .Status }}</span>
+          </div>
+          <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-4">
+            {{ if .TaxFormUploadedAt }}
+            <div><dt class="text-gray-500">Lightning</dt><dd class="break-all">{{ if .LightningAddress }}{{ .LightningAddress }}{{ else }}Missing{{ end }}</dd></div>
+            <div><dt class="text-gray-500">On-chain</dt><dd class="break-all">{{ if .BitcoinAddress }}{{ .BitcoinAddress }}{{ else }}Missing{{ end }}</dd></div>
+            {{ else }}
+            <div class="sm:col-span-2"><dt class="text-gray-500">Payout details</dt><dd>Locked until a tax form is on file</dd></div>
+            {{ end }}
+            <div><dt class="text-gray-500">Tax form</dt><dd>{{ if .TaxFormUploadedAt }}{{ .TaxFormType }} · <a class="text-indigo-600" href="{{ $.PayoutsURL $.Competition }}/tax/{{ .PersonID }}">download</a>{{ else }}Missing{{ end }}</dd></div>
+            <div><dt class="text-gray-500">Amount</dt><dd>{{ with .AmountSats }}{{ . }} sats{{ else }}—{{ end }}</dd></div>
+          </dl>
+          <form method="POST" action="{{ $.PayoutsURL $.Competition }}/{{ .ID }}" class="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr_auto]">
+            <select name="Status" class="rounded-md border-gray-300"><option value="pending" {{ if eq .Status "pending" }}selected{{ end }}>Pending</option><option value="ready" {{ if eq .Status "ready" }}selected{{ end }}>Ready</option><option value="sent" {{ if eq .Status "sent" }}selected{{ end }} {{ if not .TaxFormUploadedAt }}disabled{{ end }}>Sent{{ if not .TaxFormUploadedAt }} · tax form required{{ end }}</option><option value="claimed" {{ if eq .Status "claimed" }}selected{{ end }} {{ if not .TaxFormUploadedAt }}disabled{{ end }}>Claimed{{ if not .TaxFormUploadedAt }} · tax form required{{ end }}</option><option value="cancelled" {{ if eq .Status "cancelled" }}selected{{ end }}>Cancelled</option></select>
+            <input name="Notes" value="{{ .Notes }}" placeholder="Internal notes" class="rounded-md border-gray-300">
+            <button class="rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white">Save</button>
+          </form>
+        </article>
+        {{ else }}<p class="text-sm text-gray-600">No cash payouts created yet.</p>{{ end }}
+      </div>
+    </section>
+  </main>
+  <script>
+    (function () {
+      document.querySelectorAll('[data-cash-payout-form]').forEach(function (form) {
+        const person = form.querySelector('[data-cash-payout-person]');
+        const prize = form.querySelector('[data-cash-payout-prize]');
+        const amount = form.querySelector('[data-cash-payout-amount]');
+        if (!person || !prize || !amount) return;
+
+        function fillSplitAmount() {
+          const option = prize.options[prize.selectedIndex];
+          if (!option || !option.value || !option.dataset.amountSats) {
+            amount.value = '';
+            return;
+          }
+          try {
+            const configuredAmount = BigInt(option.dataset.amountSats);
+            const remainingRecipients = BigInt(option.dataset.remainingRecipients || '1');
+            amount.value = remainingRecipients > 0n ? String(configuredAmount / remainingRecipients) : '';
+          } catch (_) {
+            amount.value = '';
+          }
+        }
+
+        function updateAvailableRecipients() {
+          const option = prize.options[prize.selectedIndex];
+          const distributed = new Set(((option && option.dataset.distributedPersonIds) || '').split(',').filter(Boolean));
+          Array.from(person.options).forEach(function (personOption) {
+            if (!personOption.value) return;
+            personOption.disabled = distributed.has(personOption.value);
+          });
+          if (person.selectedOptions.length && person.selectedOptions[0].disabled) person.value = '';
+        }
+
+        person.addEventListener('change', fillSplitAmount);
+        prize.addEventListener('change', function () {
+          updateAvailableRecipients();
+          fillSplitAmount();
+        });
+        updateAvailableRecipients();
+        fillSplitAmount();
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +21,7 @@ import (
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/missives"
+	"btcpp-web/internal/payoutdocs"
 	"btcpp-web/internal/types"
 
 	"github.com/gorilla/mux"
@@ -787,6 +790,58 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 }
 
+func DashboardClaimHackathonTicket(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
+	if email == "" {
+		http.Redirect(w, r, "/login?next="+url.QueryEscape("/dashboard/tickets"), http.StatusSeeOther)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, "/dashboard/tickets?error="+url.QueryEscape("Bad claim form"), http.StatusSeeOther)
+		return
+	}
+	people, err := getters.GetSpeakersByEmail(ctx, email)
+	if err != nil || len(people) == 0 || people[0] == nil {
+		http.Redirect(w, r, "/dashboard/tickets?error="+url.QueryEscape("A person profile is required to claim tickets"), http.StatusSeeOther)
+		return
+	}
+	conferenceID := strings.TrimSpace(r.FormValue("ConferenceID"))
+	entitlementID := mux.Vars(r)["entitlementID"]
+	personID := ""
+	for _, person := range people {
+		if person == nil {
+			continue
+		}
+		entitlements, listErr := getters.ListTicketEntitlementsForPerson(ctx, person.ID)
+		if listErr != nil {
+			continue
+		}
+		for _, entitlement := range entitlements {
+			if entitlement != nil && entitlement.ID == entitlementID {
+				personID = person.ID
+				break
+			}
+		}
+		if personID != "" {
+			break
+		}
+	}
+	if personID == "" {
+		http.Redirect(w, r, "/dashboard/tickets?error="+url.QueryEscape("Ticket award not found"), http.StatusSeeOther)
+		return
+	}
+	if err := getters.ClaimTicketEntitlement(ctx, entitlementID, personID, conferenceID, email); err != nil {
+		http.Redirect(w, r, "/dashboard/tickets?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if conf, err := getters.GetConfByRef(ctx, conferenceID); err == nil && conf != nil {
+		if err := missives.NewTicketSub(ctx, email, conf.Tag, "genpop", false); err != nil {
+			ctx.Err.Printf("ticket entitlement newsletter %s/%s: %s", email, conf.Tag, err)
+		}
+	}
+	http.Redirect(w, r, "/dashboard/tickets?flash="+url.QueryEscape("Conference ticket claimed. Your ticket will arrive by email and is now on your dashboard."), http.StatusSeeOther)
+}
+
 // handleUpdateSpeakerPOST applies the form fields to the existing
 // Speaker row via the sparse SpeakerUpdate API. Empty fields are
 // passed through, but the Notion library treats them as no-ops via
@@ -804,19 +859,22 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 	up := getters.SpeakerUpdate{
-		Phone:     strings.TrimSpace(r.FormValue("Phone")),
-		Signal:    strings.TrimSpace(r.FormValue("Signal")),
-		Telegram:  strings.TrimSpace(r.FormValue("Telegram")),
-		Twitter:   strings.TrimSpace(r.FormValue("Twitter")),
-		Nostr:     strings.TrimSpace(r.FormValue("Nostr")),
-		Github:    strings.TrimSpace(r.FormValue("Github")),
-		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
-		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
-		LeetCode:  strings.TrimSpace(r.FormValue("LeetCode")),
-		Website:   strings.TrimSpace(r.FormValue("Website")),
-		Bio:       strings.TrimSpace(r.FormValue("Bio")),
-		BioSet:    true,
-		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
+		Phone:            strings.TrimSpace(r.FormValue("Phone")),
+		Signal:           strings.TrimSpace(r.FormValue("Signal")),
+		Telegram:         strings.TrimSpace(r.FormValue("Telegram")),
+		Twitter:          strings.TrimSpace(r.FormValue("Twitter")),
+		Nostr:            strings.TrimSpace(r.FormValue("Nostr")),
+		Github:           strings.TrimSpace(r.FormValue("Github")),
+		Instagram:        strings.TrimSpace(r.FormValue("Instagram")),
+		LinkedIn:         strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:         strings.TrimSpace(r.FormValue("LeetCode")),
+		Website:          strings.TrimSpace(r.FormValue("Website")),
+		Bio:              strings.TrimSpace(r.FormValue("Bio")),
+		BioSet:           true,
+		TShirt:           validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
+		LightningAddress: strings.TrimSpace(r.FormValue("LightningAddress")),
+		BitcoinAddress:   strings.TrimSpace(r.FormValue("BitcoinAddress")),
+		PayoutFieldsSet:  true,
 	}
 	if hasNewPic {
 		up.Photo = imgproc.ShortID(picRaw) + picExt
@@ -828,12 +886,69 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			http.StatusSeeOther)
 		return
 	}
+	if uploaded, err := savePersonTaxFormFromRequest(ctx, r, sp); err != nil {
+		ctx.Err.Printf("/dashboard/speaker tax form %s: %s", sp.ID, err)
+		http.Redirect(w, r,
+			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Profile saved, but tax form upload failed: "+err.Error()),
+			http.StatusSeeOther)
+		return
+	} else if uploaded {
+		sp.TaxFormType = strings.ToLower(strings.TrimSpace(r.FormValue("TaxFormType")))
+	}
 	invalidateWhoIsDirectoryCache()
 	if hasNewPic {
 		// Persisted above; mirror the uploaded photo in the background.
 		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
 	}
 	http.Redirect(w, r, dashboardProfileSuccessRedirect(encHMAC, encEmail, nextURL, "Speaker info updated."), http.StatusSeeOther)
+}
+
+func savePersonTaxFormFromRequest(ctx *config.AppContext, r *http.Request, person *types.Speaker) (bool, error) {
+	file, header, err := r.FormFile("TaxFormFile")
+	if err == http.ErrMissingFile {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, maxUploadFileBytes+1))
+	if err != nil {
+		return false, err
+	}
+	if len(raw) == 0 {
+		return false, fmt.Errorf("tax form is empty")
+	}
+	if int64(len(raw)) > maxUploadFileBytes {
+		return false, fmt.Errorf("tax form is larger than 10 MB")
+	}
+	formType := strings.ToLower(strings.TrimSpace(r.FormValue("TaxFormType")))
+	if formType != "w9" && formType != "w8ben" {
+		return false, fmt.Errorf("choose W-9 or W-8BEN")
+	}
+	originalName := filepath.Base(header.Filename)
+	ext := strings.ToLower(filepath.Ext(originalName))
+	contentType := http.DetectContentType(raw)
+	allowed := contentType == "application/pdf" || contentType == "image/png" || contentType == "image/jpeg"
+	if !allowed || (ext != ".pdf" && ext != ".png" && ext != ".jpg" && ext != ".jpeg") {
+		return false, fmt.Errorf("tax form must be a PDF, PNG, or JPEG")
+	}
+	encrypted, err := payoutdocs.Encrypt(ctx.Env.TaxFormEncryptionKey, raw)
+	if err != nil {
+		return false, err
+	}
+	objectKey := "private/tax-forms/" + person.ID + "/" + imgproc.ShortID(encrypted) + ".enc"
+	if err := spaces.PutPrivate(objectKey, encrypted, "application/octet-stream"); err != nil {
+		return false, err
+	}
+	if err := getters.SetPersonTaxForm(ctx, person.ID, formType, objectKey, originalName); err != nil {
+		_ = spaces.DeletePrivate(objectKey)
+		return false, err
+	}
+	if oldKey := strings.TrimSpace(person.TaxFormObjectKey); oldKey != "" && oldKey != objectKey {
+		_ = spaces.DeletePrivate(oldKey)
+	}
+	return true, nil
 }
 
 // handleCreateSpeakerPOST mints a new Speakers row for an

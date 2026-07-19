@@ -184,6 +184,58 @@
         </div>
       </section>
 
+      {{ if and .Speaker (not .IsAdmin) }}
+      <section class="profile-edit-section is-open">
+        <div class="profile-edit-section__index">₿</div>
+        <div class="profile-edit-section__body">
+          <div class="profile-edit-section__head">
+            <div>
+              <p>§ PAYOUT DETAILS</p>
+              <h2>Awards & payments</h2>
+              <span>Private. Used only by authorized bitcoin++ organizers to distribute prizes and reimbursements.</span>
+            </div>
+            <div class="profile-edit-section__status">
+              <span class="profile-privacy-pill is-muted"><i class="is-hidden"></i>PRIVATE</span>
+              {{ if .Speaker.TaxFormUploadedAt }}<strong>✓ TAX FORM ON FILE</strong>{{ else }}<strong>INCOMPLETE</strong>{{ end }}
+            </div>
+          </div>
+          <div class="profile-edit-fields">
+            <label>LIGHTNING ADDRESS
+              <input id="LightningAddress" name="LightningAddress" type="text" value="{{ .Speaker.LightningAddress }}" placeholder="you@example.com">
+              <small>For Lightning prize payments. This is never shown on your public profile.</small>
+            </label>
+            <label>ON-CHAIN BITCOIN ADDRESS
+              <input id="BitcoinAddress" name="BitcoinAddress" type="text" value="{{ .Speaker.BitcoinAddress }}" placeholder="bc1…">
+              <small>Optional fallback for on-chain payments.</small>
+            </label>
+            <label>TAX FORM TYPE
+              <select id="TaxFormType" name="TaxFormType">
+                <option value="w9" {{ if eq .Speaker.TaxFormType "w9" }}selected{{ end }}>W-9 (US person)</option>
+                <option value="w8ben" {{ if eq .Speaker.TaxFormType "w8ben" }}selected{{ end }}>W-8BEN (non-US person)</option>
+              </select>
+              <small>Choose W-9 if you are a U.S. person. Non-U.S. individuals should use W-8BEN.</small>
+            </label>
+            <div class="profile-edit-tax-forms">
+              <span>DOWNLOAD A BLANK IRS FORM</span>
+              <div>
+                <a href="https://www.irs.gov/pub/irs-pdf/fw9.pdf" target="_blank" rel="noopener noreferrer">W-9 PDF ↗</a>
+                <a href="https://www.irs.gov/pub/irs-pdf/fw8ben.pdf" target="_blank" rel="noopener noreferrer">W-8BEN PDF ↗</a>
+              </div>
+              <small>Fill out and sign the appropriate form, then upload the completed document here.</small>
+            </div>
+            <label>TAX FORM DOCUMENT
+              <input id="TaxFormFile" name="TaxFormFile" type="file" accept="application/pdf,image/png,image/jpeg">
+              {{ if .Speaker.TaxFormUploadedAt }}
+              <small>On file: {{ .Speaker.TaxFormOriginalName }} · uploaded {{ .Speaker.TaxFormUploadedAt.Format "Jan 2, 2006" }}. Upload another file to replace it.</small>
+              {{ else }}
+              <small>PDF, PNG, or JPEG up to 10 MB. Encrypted before private storage.</small>
+              {{ end }}
+            </label>
+          </div>
+        </div>
+      </section>
+      {{ end }}
+
       <section class="profile-edit-section is-verified">
         <div class="profile-edit-section__index">▶</div>
         <div class="profile-edit-section__body">

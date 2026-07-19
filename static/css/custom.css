@@ -130,6 +130,313 @@
 	text-transform: uppercase;
 }
 
+/* Ticket awards use the dashboard's editorial ledger language without the
+   oversized boxed hero used on the main account overview. */
+.dashboard-ticket-back {
+	margin-bottom: -6px;
+}
+
+.btcpp-dashboard-page .dashboard-ticket-back a {
+	display: inline-flex;
+	align-items: center;
+	color: #575149;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: 1px;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+.btcpp-dashboard-page .dashboard-ticket-back a:hover,
+.btcpp-dashboard-page .dashboard-ticket-back a:focus-visible {
+	color: #0a0a0a;
+	text-decoration: underline;
+	text-underline-offset: 4px;
+}
+
+.dashboard-ticket-hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 36px;
+	align-items: end;
+	padding: 28px 0 10px;
+	border-bottom: 1px solid var(--dashboard-line);
+}
+
+.dashboard-ticket-hero h1 {
+	margin: 7px 0 10px;
+	font-family: "IBM Plex Sans", system-ui, sans-serif;
+	font-size: clamp(38px, 7vw, 68px);
+	font-weight: 800;
+	letter-spacing: -.035em;
+	line-height: .92;
+}
+
+.dashboard-ticket-hero p {
+	max-width: 620px;
+	margin: 0;
+	color: #666057;
+	font-size: 15px;
+	line-height: 1.55;
+}
+
+.dashboard-ticket-summary {
+	min-width: 126px;
+	padding: 15px 18px;
+	border-left: 3px solid #f7931a;
+	background: var(--dashboard-panel-alt);
+}
+
+.dashboard-ticket-summary strong,
+.dashboard-ticket-summary span {
+	display: block;
+}
+
+.dashboard-ticket-summary strong {
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 30px;
+	line-height: 1;
+}
+
+.dashboard-ticket-summary span {
+	margin-top: 6px;
+	color: #625c53;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 9px;
+	font-weight: 800;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+}
+
+.dashboard-ticket-list {
+	display: grid;
+	gap: 12px;
+}
+
+.dashboard-ticket-award {
+	border: 1px solid var(--dashboard-line);
+	background: var(--dashboard-panel);
+}
+
+.dashboard-ticket-award__head {
+	display: grid;
+	grid-template-columns: 58px minmax(0, 1fr) auto;
+	gap: 18px;
+	align-items: center;
+	padding: 20px 22px;
+}
+
+.dashboard-ticket-award__number {
+	display: grid;
+	width: 58px;
+	height: 58px;
+	place-items: center;
+	background: #f7931a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 26px;
+	font-weight: 900;
+}
+
+.dashboard-ticket-award__copy h2 {
+	margin: 3px 0;
+	font-family: "IBM Plex Sans", system-ui, sans-serif;
+	font-size: 24px;
+	font-weight: 800;
+	line-height: 1;
+}
+
+.dashboard-ticket-award__copy p {
+	margin: 0;
+	color: #6a645b;
+	font-size: 13px;
+}
+
+.btcpp-dashboard-page .dashboard-ticket-project-link {
+	color: #0a0a0a;
+	font-weight: 750;
+	text-decoration-color: #f7931a;
+	text-decoration-thickness: 2px;
+	text-underline-offset: 3px;
+}
+
+.btcpp-dashboard-page .dashboard-ticket-project-link:hover,
+.btcpp-dashboard-page .dashboard-ticket-project-link:focus-visible {
+	color: #9a5000;
+}
+
+.dashboard-ticket-status {
+	display: inline-flex;
+	padding: 6px 9px;
+	border: 1px solid currentColor;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 9px;
+	font-weight: 900;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.dashboard-ticket-status.is-ready {
+	background: #fff0d9;
+	color: #7c4300;
+}
+
+.dashboard-ticket-status.is-claimed {
+	background: #e5eee0;
+	color: #335326;
+}
+
+.dashboard-ticket-status.is-inactive {
+	background: #ece8e1;
+	color: #666057;
+}
+
+.dashboard-ticket-claim,
+.dashboard-ticket-award__result,
+.dashboard-ticket-award__notice {
+	padding: 17px 22px;
+	border-top: 1px solid var(--dashboard-line-soft);
+	background: #f2eee7;
+}
+
+.dashboard-ticket-claim label,
+.dashboard-ticket-award__result span {
+	display: block;
+	margin-bottom: 8px;
+	color: #666057;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 9px;
+	font-weight: 800;
+	letter-spacing: 1.1px;
+	text-transform: uppercase;
+}
+
+.dashboard-ticket-claim__controls {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 10px;
+}
+
+.dashboard-ticket-claim select,
+.dashboard-ticket-claim button {
+	min-height: 44px;
+	border: 1px solid #0a0a0a;
+	border-radius: 0;
+	font: inherit;
+}
+
+.dashboard-ticket-claim select {
+	width: 100%;
+	background: #fff;
+	padding: 0 13px;
+	color: #0a0a0a;
+}
+
+.dashboard-ticket-claim button {
+	background: #0a0a0a;
+	color: #fff;
+	padding: 0 18px;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 10px;
+	font-weight: 900;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+}
+
+.dashboard-ticket-award__result {
+	display: flex;
+	align-items: baseline;
+	gap: 10px;
+}
+
+.dashboard-ticket-award__result span {
+	margin: 0;
+}
+
+.dashboard-ticket-award__result strong {
+	font-size: 14px;
+}
+
+.dashboard-ticket-award.is-claimed,
+.dashboard-ticket-award.is-inactive {
+	background: #f1ede6;
+}
+
+.dashboard-ticket-award.is-claimed .dashboard-ticket-award__number,
+.dashboard-ticket-award.is-inactive .dashboard-ticket-award__number {
+	background: #d9d3ca;
+	color: #5d574f;
+}
+
+.dashboard-ticket-award__notice {
+	color: #6b4b21;
+	font-size: 13px;
+}
+
+.dashboard-ticket-empty {
+	padding: 42px 28px;
+	border: 1px solid var(--dashboard-line);
+	background: var(--dashboard-panel);
+	text-align: center;
+}
+
+.dashboard-ticket-empty span {
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 34px;
+	font-weight: 900;
+	color: #bbb3a7;
+}
+
+.dashboard-ticket-empty h2 {
+	margin: 8px 0 5px;
+	font-size: 24px;
+}
+
+.dashboard-ticket-empty p {
+	margin: 0;
+	color: #6a645b;
+}
+
+@media (max-width: 640px) {
+	.dashboard-ticket-hero {
+		grid-template-columns: 1fr;
+		gap: 18px;
+		padding-top: 18px;
+	}
+
+	.dashboard-ticket-summary {
+		width: max-content;
+	}
+
+	.dashboard-ticket-award__head {
+		grid-template-columns: 48px minmax(0, 1fr);
+		gap: 14px;
+		padding: 17px;
+	}
+
+	.dashboard-ticket-award__number {
+		width: 48px;
+		height: 48px;
+		font-size: 22px;
+	}
+
+	.dashboard-ticket-status {
+		grid-column: 2;
+		justify-self: start;
+	}
+
+	.dashboard-ticket-claim,
+	.dashboard-ticket-award__result,
+	.dashboard-ticket-award__notice {
+		padding: 16px 17px;
+	}
+
+	.dashboard-ticket-claim__controls {
+		grid-template-columns: 1fr;
+	}
+}
+
 .affiliate-shell {
 	max-width: 900px;
 	margin: 0 auto;
@@ -1063,6 +1370,52 @@
 	font-weight: 400;
 	letter-spacing: 0;
 	text-transform: none;
+}
+
+.profile-edit-tax-forms {
+	display: grid;
+	align-content: start;
+	gap: 8px;
+	padding: 12px;
+	border: 1px solid #c9c2b7;
+	background: #f1ede6;
+}
+
+.profile-edit-tax-forms > span {
+	color: #666;
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+}
+
+.profile-edit-tax-forms > div {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.profile-edit-tax-forms a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 34px;
+	border: 1px solid var(--profile-edit-ink);
+	background: #fff;
+	color: var(--profile-edit-ink);
+	padding: 7px 10px;
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: 1px;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+.profile-edit-tax-forms a:hover,
+.profile-edit-tax-forms a:focus-visible {
+	background: var(--profile-edit-ink);
+	color: #fff;
 }
 
 .profile-edit-wide,
@@ -2445,6 +2798,55 @@ body.btcpp-admin-page {
 	border: 1px solid #0a0a0a;
 	background: rgba(255, 255, 255, .55);
 	padding: 16px;
+}
+
+.admin-hackathon-page .admin-hackathon-tabs {
+	border: 1px solid #0a0a0a;
+	background: #fff;
+}
+
+.admin-hackathon-page .admin-hackathon-tabs__track {
+	display: flex;
+	width: max-content;
+	min-width: 100%;
+}
+
+.admin-hackathon-page .admin-hackathon-tab {
+	display: inline-flex;
+	min-height: 52px;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 18px;
+	border-right: 1px solid #0a0a0a;
+	color: #0a0a0a;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 1px;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+.admin-hackathon-page .admin-hackathon-tab:hover,
+.admin-hackathon-page .admin-hackathon-tab:focus-visible,
+.admin-hackathon-page .admin-hackathon-tab.is-active {
+	background: #f7931a;
+	color: #0a0a0a;
+}
+
+.admin-hackathon-page .admin-hackathon-tab.is-active {
+	box-shadow: inset 0 -4px 0 #0a0a0a;
+}
+
+.admin-hackathon-page .admin-hackathon-tab__count {
+	display: inline-flex;
+	min-width: 22px;
+	justify-content: center;
+	padding: 3px 6px;
+	border: 1px solid #0a0a0a;
+	background: #f6f3ee;
+	font-size: 10px;
+	line-height: 1;
 }
 
 .btcpp-dashboard-page {
@@ -6297,6 +6699,15 @@ body.btcpp-checkout-page {
 	--hack-paper: #f6f3ee;
 	--hack-soft: #e8e2d5;
 	--hack-dim: #6b655c;
+	/* The public hackathon uses the shared conference ticker/nav. Keep
+	   its rebrand variables available outside body.btcpp-rebrand-page so
+	   those components do not fall back to transparent backgrounds. */
+	--rebrand-accent: var(--hack-accent);
+	--rebrand-ink: var(--hack-ink);
+	--rebrand-paper: var(--hack-paper);
+	--rebrand-warm: #efeae2;
+	--rebrand-muted: #666;
+	--rebrand-soft: #efeae2;
 	background: var(--hack-paper);
 	color: var(--hack-ink);
 	font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
@@ -6602,6 +7013,7 @@ body.btcpp-checkout-page {
 }
 
 .hack-stat {
+	min-width: 0;
 	min-height: 150px;
 	padding: 32px;
 	border-right: 1px solid var(--hack-ink);
@@ -6714,6 +7126,92 @@ body.btcpp-checkout-page {
 	color: #e8dccc;
 }
 
+.hack-bounties {
+	border-bottom: 1px solid var(--hack-ink);
+}
+
+.hack-bounties__bar {
+	border-bottom: 1px solid var(--hack-ink);
+	padding: 20px 56px;
+	color: var(--hack-dim);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+}
+
+.hack-bounty-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hack-bounty-card {
+	display: flex;
+	min-width: 0;
+	min-height: 210px;
+	flex-direction: column;
+	gap: 12px;
+	border-right: 1px solid var(--hack-ink);
+	border-bottom: 1px solid var(--hack-ink);
+	padding: 28px 32px;
+}
+
+.hack-bounty-card:nth-child(3n) {
+	border-right: 0;
+}
+
+.hack-bounty-card__eyebrow {
+	color: var(--hack-accent);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 1.2px;
+	text-transform: uppercase;
+}
+
+.hack-bounty-card h3 {
+	margin: 0;
+	font-size: 25px;
+	font-weight: 700;
+	line-height: 1.08;
+}
+
+.hack-bounty-card__desc {
+	color: #5b554d;
+	font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+	font-size: 15px;
+	font-style: italic;
+	line-height: 1.4;
+}
+
+.hack-bounty-card__desc p {
+	margin: 0;
+}
+
+.hack-bounty-card__prizes {
+	display: grid;
+	gap: 8px;
+	margin-top: auto;
+	padding-top: 12px;
+	border-top: 1px solid var(--hack-soft);
+}
+
+.hack-bounty-card__prizes > div {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16px;
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
+	text-transform: uppercase;
+}
+
+.hack-bounty-card__prizes strong {
+	flex: none;
+	font-size: 13px;
+}
+
 .hack-judges {
 	border-bottom: 1px solid var(--hack-ink);
 	padding-bottom: 72px;
@@ -6731,9 +7229,22 @@ body.btcpp-checkout-page {
 }
 
 .hack-judge-card {
+	display: block;
 	border: 1px solid var(--hack-ink);
 	background: #fff;
 	color: var(--hack-ink);
+	text-decoration: none;
+}
+
+.hack-judge-card--linked {
+	transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.hack-judge-card--linked:hover,
+.hack-judge-card--linked:focus-visible {
+	transform: translate(-3px, -3px);
+	box-shadow: 5px 5px 0 var(--hack-ink);
+	outline: none;
 }
 
 .hack-judge-card__portrait {
@@ -7440,6 +7951,22 @@ display: grid;
 	background: #efeae2;
 }
 
+.hack-featured-projects {
+	border-top: 1px solid var(--hack-ink);
+	border-bottom: 1px solid var(--hack-ink);
+	background: #efeae2;
+}
+
+.hack-featured-projects .hack-section__deck a {
+	color: var(--hack-accent);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 12px;
+	font-style: normal;
+	font-weight: 700;
+	text-transform: uppercase;
+	text-underline-offset: 4px;
+}
+
 .hack-award-card {
 	min-height: 220px;
 	padding: 28px;
@@ -7473,6 +8000,115 @@ display: grid;
 	font-size: 11px;
 	letter-spacing: 1.2px;
 	text-transform: uppercase;
+}
+
+.hack-schedule-event {
+	min-width: 220px;
+	font-size: 17px;
+}
+
+.hack-schedule-intro p {
+	margin: 0;
+}
+
+.hack-schedule-intro a {
+	display: inline-block;
+	margin-top: 12px;
+	color: var(--hack-ink);
+	font-family: var(--hack-mono);
+	font-size: 12px;
+	font-style: normal;
+	font-weight: 700;
+	letter-spacing: 0.5px;
+	text-transform: uppercase;
+	text-underline-offset: 4px;
+}
+
+.hack-schedule-day,
+.hack-schedule-time,
+.hack-schedule-calendar {
+	white-space: nowrap;
+}
+
+.hack-schedule-time span[aria-hidden="true"] {
+	padding: 0 5px;
+	color: #777;
+}
+
+.hack-schedule-venue {
+	display: inline-flex;
+	align-items: center;
+	border: 1px solid var(--hack-ink);
+	background: var(--hack-accent);
+	padding: 5px 9px;
+	font-family: var(--hack-mono);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+}
+
+.hack-schedule-calendar {
+	width: 1%;
+	text-align: right !important;
+}
+
+.hack-schedule-tba {
+	color: #777;
+	font-family: var(--hack-serif);
+	font-style: italic;
+}
+
+.hack-schedule-table tbody tr:hover {
+	background: #f7f3ec;
+}
+
+@media (max-width: 720px) {
+	.hack-schedule-table,
+	.hack-schedule-table tbody,
+	.hack-schedule-table tr,
+	.hack-schedule-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.hack-schedule-table thead {
+		display: none;
+	}
+
+	.hack-schedule-table tr {
+		border-bottom: 1px solid var(--hack-ink);
+		padding: 18px 0;
+	}
+
+	.hack-schedule-table td {
+		display: grid;
+		grid-template-columns: 76px minmax(0, 1fr);
+		align-items: center;
+		gap: 12px;
+		border: 0;
+		padding: 6px 20px;
+	}
+
+	.hack-schedule-table td::before {
+		content: attr(data-label);
+		color: #666;
+		font-family: var(--hack-mono);
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+	}
+
+	.hack-schedule-table .hack-schedule-event {
+		min-width: 0;
+		font-size: 21px;
+	}
+
+	.hack-schedule-calendar {
+		width: 100%;
+		text-align: left !important;
+	}
 }
 
 .hack-judging-round {
@@ -7650,6 +8286,11 @@ display: grid;
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 20px;
+}
+
+.hack-form__grid--action {
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: end;
 }
 
 .hack-field label,
@@ -7882,6 +8523,38 @@ display: grid;
 	border-bottom: 0;
 }
 
+.hack-field label.hack-list__row--checkbox {
+	display: flex;
+	align-items: flex-start;
+	justify-content: flex-start;
+	gap: 12px;
+	margin: 0;
+	cursor: pointer;
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+.hack-field .hack-list__row--checkbox input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
+	min-width: 16px;
+	flex: 0 0 16px;
+	margin: 2px 0 0;
+	padding: 0;
+	border-radius: 0;
+	accent-color: var(--hack-accent);
+}
+
+.hack-list__row--checkbox > div {
+	min-width: 0;
+	flex: 1;
+}
+
+.hack-field label.hack-list__row--checkbox:has(input:disabled) {
+	cursor: default;
+	opacity: .68;
+}
+
 .hack-list__meta {
 	color: var(--hack-dim);
 	font-size: 13px;
@@ -7996,6 +8669,7 @@ display: grid;
 
 	.hack-stat-grid,
 	.hack-prize-grid,
+	.hack-bounty-grid,
 	.hack-card-grid,
 	.hack-form__grid {
 		grid-template-columns: 1fr;
@@ -8020,6 +8694,16 @@ display: grid;
 		border-bottom: 0;
 	}
 
+	.hack-bounties__bar {
+		padding-right: 24px;
+		padding-left: 24px;
+	}
+
+	.hack-bounty-card,
+	.hack-bounty-card:nth-child(3n) {
+		border-right: 0;
+	}
+
 	.hack-rank-cell {
 		min-width: 0;
 	}
@@ -8033,6 +8717,222 @@ display: grid;
 
 	.hack-rank-option span {
 		white-space: normal;
+	}
+}
+
+@media (max-width: 560px) {
+	.rebrand-nav {
+		display: flex;
+		gap: 7px;
+		padding: 10px 12px;
+	}
+
+	.rebrand-nav__brand img {
+		height: 26px;
+		max-width: 100%;
+	}
+
+	.rebrand-nav__ticket--persistent {
+		display: none;
+	}
+
+	.rebrand-nav__links .rebrand-nav__ticket {
+		display: inline-block;
+	}
+
+	.rebrand-nav__toggle {
+		display: inline-flex !important;
+		position: absolute;
+		top: 10px;
+		right: 12px;
+		z-index: 2;
+		margin-left: auto;
+		width: 38px;
+		height: 38px;
+		visibility: visible;
+		opacity: 1;
+	}
+
+	.rebrand-nav__links {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		left: 0;
+		background: var(--rebrand-paper);
+		border-bottom: 2px solid var(--rebrand-ink);
+		padding: 14px 16px 18px;
+	}
+
+	.hack-shell {
+		border-right: 0;
+		border-left: 0;
+	}
+
+	.hack-ticker {
+		gap: 14px;
+		padding: 7px 14px;
+		font-size: 9px;
+	}
+
+	.hack-hero,
+	.hack-hero__content {
+		min-height: 480px;
+	}
+
+	.hack-hero__content {
+		padding: 28px 18px;
+	}
+
+	.hack-hero h1,
+	.hack-hero__content h1 {
+		font-size: clamp(38px, 13vw, 58px) !important;
+		line-height: .96 !important;
+		overflow-wrap: anywhere;
+	}
+
+	.hack-hero__deck {
+		font-size: 18px;
+	}
+
+	.hack-actions {
+		gap: 8px;
+		margin-top: 22px;
+	}
+
+	.hack-actions .hack-button,
+	.hack-form__actions .hack-button,
+	.hack-form__grid--action .hack-button {
+		width: 100%;
+		min-height: 44px;
+	}
+
+	.hack-tabs {
+		scrollbar-width: thin;
+		overscroll-behavior-x: contain;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.hack-tab {
+		flex: 0 0 auto;
+		min-height: 44px;
+		padding: 14px 18px;
+	}
+
+	.hack-section__head,
+	.hack-judge-grid,
+	.hack-submit,
+	.hack-copy,
+	.hack-side,
+	.hack-form__body,
+	.hack-form__actions,
+	.hack-project-file__masthead,
+	.hack-project-file__body,
+	.hack-current-round__label,
+	.hack-current-round__body,
+	.hack-current-round__times > div {
+		padding-right: 18px;
+		padding-left: 18px;
+	}
+
+	.hack-section__head {
+		gap: 20px;
+		padding-top: 44px;
+		padding-bottom: 28px;
+	}
+
+	.hack-section h2 {
+		font-size: clamp(36px, 12vw, 54px);
+	}
+
+	.hack-stat {
+		min-height: 112px;
+		padding: 22px 18px;
+	}
+
+	.hack-prize-card,
+	.hack-prize-card--grand,
+	.hack-bounty-card,
+	.hack-award-card {
+		min-height: 0;
+		padding: 28px 18px;
+	}
+
+	.hack-prize-card__amount,
+	.hack-prize-card:not(.hack-prize-card--grand) .hack-prize-card__amount {
+		font-size: clamp(42px, 16vw, 64px);
+		overflow-wrap: anywhere;
+	}
+
+	.hack-judge-grid {
+		grid-template-columns: 1fr;
+		gap: 14px;
+	}
+
+	.hack-judge-card__portrait {
+		height: min(82vw, 320px);
+	}
+
+	.hack-project-file__media {
+		height: auto;
+	}
+
+	.hack-project-file__hero {
+		min-height: 240px;
+	}
+
+	.hack-project-file__side {
+		min-height: 110px;
+	}
+
+	.hack-project-gallery {
+		width: calc(100vw - 16px);
+	}
+
+	.hack-project-gallery__controls {
+		gap: 8px;
+	}
+
+	.hack-project-gallery__controls .hack-button {
+		padding: 10px;
+		font-size: 10px;
+	}
+
+	.hack-form__grid--action {
+		grid-template-columns: 1fr;
+	}
+
+	.hack-form__actions {
+		align-items: stretch;
+		flex-direction: column-reverse;
+	}
+
+	.hack-list__row {
+		align-items: flex-start;
+		flex-wrap: wrap;
+	}
+
+	.hack-list__row > :first-child {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.hack-list__row .hack-button {
+		min-height: 44px;
+		padding: 10px 16px;
+	}
+
+	.hack-upload__drop {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.hack-alert {
+		margin-right: 18px;
+		margin-left: 18px;
+	}
+
+	.hack-empty {
+		padding: 40px 18px;
 	}
 }
 /* Final dashboard affiliate overrides: keep this after legacy dashboard rules. */
@@ -8159,4 +9059,38 @@ display: grid;
 		flex-direction: column;
 		padding: 22px 20px;
 	}
+}
+
+/* A completed ticket award is history, not a primary CTA. Keep the high-
+   contrast black/orange treatment exclusively for unclaimed rewards. This
+   block intentionally follows the base CTA rules above so the paper state
+   wins the cascade. */
+.btcpp-dashboard-page .dashboard-affiliate.dashboard-affiliate-cta--complete {
+	background: var(--dashboard-panel);
+	color: #4f4a43;
+	border-color: var(--dashboard-line);
+}
+
+.btcpp-dashboard-page .dashboard-affiliate-cta--complete .dashboard-kicker {
+	color: #777066;
+}
+
+.btcpp-dashboard-page .dashboard-affiliate-cta--complete .dashboard-affiliate__title h2 {
+	color: #292622;
+	font-size: clamp(21px, 3vw, 30px);
+	font-weight: 650;
+}
+
+.btcpp-dashboard-page .dashboard-affiliate-cta--complete .dashboard-affiliate__copy p {
+	color: #706a61;
+}
+
+.btcpp-dashboard-page .dashboard-affiliate-cta--complete .dashboard-affiliate-cta__side {
+	border-color: var(--dashboard-line);
+	background: var(--dashboard-panel-alt);
+}
+
+.btcpp-dashboard-page .dashboard-affiliate-cta--complete .dashboard-affiliate-cta__button {
+	background: transparent;
+	color: #4f4a43;
 }

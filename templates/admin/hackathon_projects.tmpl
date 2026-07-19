@@ -6,12 +6,12 @@
   {{ template "admin_favicon" "" }}
   <script src="/static/js/person-picker.js" defer></script>
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="btcpp-admin-page admin-hackathon-page bg-gray-50 text-gray-900">
   {{ block "mainnav" . }} {{ end }}
   <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathons</a>
+        <a href="{{ .BackURL }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ .BackLabel }}</a>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} projects</h1>
         <p class="mt-1 text-sm text-gray-600">All submitted and in-progress projects for this hackathon.</p>
       </div>
@@ -113,6 +113,7 @@
           </thead>
           <tbody class="divide-y divide-gray-100 bg-white">
             {{ range .Projects }}
+            {{ $project := . }}
             <tr class="align-top">
               <td class="whitespace-nowrap px-4 py-3">
                 <form id="ProjectAdmin-{{ .ID }}" method="POST" action="{{ $.ProjectAdminURL . }}" data-project-autosave-form>
@@ -124,6 +125,7 @@
               </td>
               <td class="px-4 py-3">
                 <a href="{{ $.ProjectPublicURL . }}" class="font-medium text-indigo-600 hover:text-indigo-500">{{ .Title }}</a>
+                <div class="mt-1"><a href="{{ $.ProjectPublicURL . }}/edit" class="text-xs font-semibold text-indigo-600 hover:text-indigo-500">Edit submission</a></div>
                 {{ if .ShortDescription }}<div class="mt-1 max-w-md text-xs leading-5 text-gray-600">{{ .ShortDescription }}</div>{{ end }}
                 {{ $optIns := $.ProjectAwardOptIns . }}
                 {{ if $optIns }}
@@ -143,6 +145,13 @@
                     <span class="font-medium text-gray-900">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</span>
                     <span class="text-xs text-gray-500">({{ .Role }})</span>
                     {{ if .Email }}<div class="text-xs text-gray-500">{{ .Email }}</div>{{ end }}
+                    {{ if ne .Role "owner" }}
+                    <form method="POST" action="/{{ $.Conf.Tag }}/hackathon/projects/{{ $project.ID }}/team/remove" class="mt-1" onsubmit="return confirm('Remove {{ .Name }} from this team?');">
+                      <input type="hidden" name="PersonID" value="{{ .PersonID }}">
+                      <input type="hidden" name="ReturnTo" value="admin-projects">
+                      <button type="submit" class="text-xs font-semibold text-red-700 hover:text-red-900">Remove member</button>
+                    </form>
+                    {{ end }}
                   </li>
                   {{ end }}
                 </ul>

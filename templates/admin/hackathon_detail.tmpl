@@ -5,12 +5,12 @@
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" "" }}
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="btcpp-admin-page admin-hackathon-page bg-gray-50 text-gray-900">
   {{ block "mainnav" . }} {{ end }}
   <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathons</a>
+        <a href="{{ .BackURL }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ .BackLabel }}</a>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}New hackathon{{ else if eq .SetupStep 1 }}Set basics{{ else if eq .SetupStep 2 }}Set timeline and schedule{{ else }}{{ .Competition.Title }}{{ end }}</h1>
         <p class="mt-1 text-sm text-gray-600">
           {{ if or .IsNew (eq .SetupStep 1) }}Create the public page and access settings.{{ else if eq .SetupStep 2 }}Add submission timing and conference schedule blocks.{{ else }}Main settings and schedule.{{ end }}
@@ -18,7 +18,7 @@
       </div>
       {{ if and (not .IsNew) (eq .SetupStep 0) }}
       <div class="flex flex-wrap items-center gap-2">
-        <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
+        <a href="{{ .HackathonURL .Competition }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
       </div>
       {{ end }}
     </div>
@@ -35,7 +35,7 @@
     {{ template "admin_hackathon_setup_steps" . }}
     {{ end }}
 
-    <form id="HackathonSetupForm" method="POST" action="{{ if .IsNew }}/admin/hackathons{{ else }}/admin/hackathons/{{ .Competition.ID }}{{ if gt .SetupStep 0 }}?setup={{ .SetupStep }}{{ end }}{{ end }}" class="mt-6 rounded-lg bg-white shadow">
+    <form id="HackathonSetupForm" method="POST" action="{{ if .IsNew }}/admin/hackathons{{ else }}{{ .EditURL .Competition }}{{ if gt .SetupStep 0 }}?setup={{ .SetupStep }}{{ end }}{{ end }}" class="mt-6 rounded-lg bg-white shadow">
       {{ if gt .SetupStep 0 }}
       <input type="hidden" name="SetupStep" value="{{ .SetupStep }}">
       {{ end }}
@@ -407,7 +407,7 @@
         {{ end }}
       </div>
       <div class="flex items-center justify-end gap-3 border-t border-gray-200 px-4 py-4 sm:px-6">
-        <a href="{{ if gt .SetupStep 0 }}/admin/hackathons/{{ .Competition.ID }}{{ else }}/admin/hackathons{{ end }}" class="rounded-md px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">Cancel</a>
+        <a href="{{ if gt .SetupStep 0 }}{{ .EditURL .Competition }}{{ else }}{{ .BackURL }}{{ end }}" class="rounded-md px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100">Cancel</a>
         <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ if .IsNew }}Continue{{ else if eq .SetupStep 1 }}Save and continue to timeline{{ else if eq .SetupStep 2 }}Save and continue to awards{{ else }}Save{{ end }}</button>
       </div>
     </form>

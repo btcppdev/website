@@ -2,28 +2,12 @@
 <html lang="en">
 <head>
   <title>{{ if .IsNew }}Create project{{ else }}{{ .Project.Title }}{{ end }} - {{ .Competition.Title }}</title>
-  {{ block "header" . }} {{ end }}
+  {{ template "hackathon_header" . }}
 </head>
 <body class="hack-redesign">
-  {{ block "mainnav" . }} {{ end }}
+  {{ template "generic_conf_ticker" (dict "Conf" .Conf "Label" "Hackathon project") }}
+  {{ template "generic_conf_nav" .Conf }}
   <main class="hack-shell">
-    <div class="hack-ticker" aria-label="Project editor">
-      <span class="hack-ticker__live">▶ Project</span>
-      <span>{{ .Competition.Title }}</span>
-      <span>•</span>
-      <span>{{ if .IsNew }}Create project{{ else if .IsProjectEditor }}Edit project{{ else }}Project page{{ end }}</span>
-    </div>
-
-    <header class="hack-header">
-      <div>
-        <a href="/" class="hack-brand">bitcoin<span>++</span></a>
-        <div class="hack-header__meta">[ {{ .Competition.Title }} · Project ]</div>
-      </div>
-      <nav class="hack-header__nav" aria-label="Project links">
-        <a href="{{ .HackathonURL }}">← hackathon</a>
-      </nav>
-    </header>
-
     <section class="hack-section">
       <div class="hack-section__head">
         <div>
@@ -194,6 +178,24 @@
           <input id="Tags" name="Tags" type="text" value="{{ .ProjectTagsCSV }}" {{ if not .CanEdit }}disabled{{ end }}>
           <p class="hack-field__help">Separate tags with commas.</p>
         </div>
+
+        {{ if and .IsNew .OptInAwards }}
+        <fieldset class="hack-field">
+          <legend>Award opt-ins</legend>
+          <p class="hack-field__help">Choose any opt-in awards or bounties this project should be considered for. You can change these choices before submitting.</p>
+          <div class="hack-list">
+            {{ range .OptInAwards }}
+            <label class="hack-list__row hack-list__row--checkbox">
+              <input name="AwardID" type="checkbox" value="{{ .ID }}">
+              <div>
+                <span style="display:block;font-weight:700;">{{ .Title }}</span>
+                {{ if .Description }}<div class="hack-list__meta">{{ hackathonRichText .Description }}</div>{{ end }}
+              </div>
+            </label>
+            {{ end }}
+          </div>
+        </fieldset>
+        {{ end }}
       </div>
       <div class="hack-form__actions">
         <a href="{{ .HackathonURL }}" class="hack-button">Cancel</a>
@@ -323,12 +325,12 @@
           <legend>Award opt-ins</legend>
           <div class="hack-list">
             {{ range .OptInAwards }}
-            <label class="hack-list__row">
+            <label class="hack-list__row hack-list__row--checkbox">
+              <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }} {{ if not $.CanSubmit }}disabled{{ end }}>
               <div>
                 <span style="display:block;font-weight:700;">{{ .Title }}</span>
                 {{ if .Description }}<div class="hack-list__meta">{{ hackathonRichText .Description }}</div>{{ end }}
               </div>
-              <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }} {{ if not $.CanSubmit }}disabled{{ end }}>
             </label>
             {{ end }}
           </div>
@@ -358,7 +360,7 @@
         {{ if .InviteLink }}
         <div class="hack-alert hack-alert--success" style="margin:0;">
           <label for="InviteLink" class="hack-label" style="margin-bottom:8px;">Invite link created</label>
-          <div class="hack-form__grid" style="grid-template-columns:minmax(0,1fr) auto;">
+          <div class="hack-form__grid hack-form__grid--action">
             <div class="hack-field">
               <input id="InviteLink" type="url" readonly value="{{ .InviteLink }}">
             </div>
@@ -405,7 +407,7 @@
         {{ if .CanEdit }}
         <form method="POST" action="{{ .ProjectInviteURL .Project }}" class="hack-form" style="border:1px solid #111;padding:18px;">
           <input type="hidden" name="ReturnTo" value="{{ .ProjectEditURL .Project }}#team">
-          <div class="hack-form__grid" style="align-items:end;grid-template-columns:minmax(0,1fr) auto;">
+          <div class="hack-form__grid hack-form__grid--action">
             <div>
               <h3 style="margin:0;font-size:16px;">Generate project invite link</h3>
               <p class="hack-field__help">The recipient signs in with this one-time link and joins this project.</p>

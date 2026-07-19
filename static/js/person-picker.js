@@ -13,6 +13,11 @@
 
     const list = document.createElement('ul');
     list.className = 'absolute left-0 right-0 z-20 mt-1 hidden max-h-64 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg';
+    // Keep long result sets usable even when the Tailwind build has not seen
+    // the dynamically-created max-height class.
+    list.style.maxHeight = '16rem';
+    list.style.overflowY = 'auto';
+    list.style.overscrollBehavior = 'contain';
     list.setAttribute('role', 'listbox');
     root.appendChild(list);
 
