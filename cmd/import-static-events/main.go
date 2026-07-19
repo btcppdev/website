@@ -65,6 +65,9 @@ type staticSpeaker struct {
 var fetchClient = &http.Client{Timeout: 6 * time.Second}
 
 func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
 	envPath := flag.String("env", ".env", "env file to load")
 	eventsRaw := flag.String("events", "atx23", "comma-separated events to import")
 	fromCSV := flag.String("from-csv", "", "import reviewed CSV rows from one or more comma-separated local paths or URLs")
@@ -151,29 +154,29 @@ func main() {
 		log.Fatal("Spaces is not configured; rerun with Spaces env vars or use -skip-upload")
 	}
 
-	pool, err := db.Open(context.Background(), env.DatabaseURL)
+	pool, err := db.Open(ctx, env.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer pool.Close()
 
-	tx, err := pool.Begin(context.Background())
+	tx, err := pool.Begin(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer tx.Rollback(context.Background())
+	defer tx.Rollback(ctx)
 
-	if err := importTalks(context.Background(), tx, talks, !*skipUpload); err != nil {
+	if err := importTalks(ctx, tx, talks, !*skipUpload); err != nil {
 		log.Fatal(err)
 	}
 	if *rollback {
-		if err := tx.Rollback(context.Background()); err != nil {
+		if err := tx.Rollback(ctx); err != nil {
 			log.Fatal(err)
 		}
 		log.Printf("import rolled back")
 		return
 	}
-	if err := tx.Commit(context.Background()); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("import complete")

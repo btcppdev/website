@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -58,7 +59,11 @@ func MigrateDir(ctx context.Context, pool *pgxpool.Pool, dir string, logger *log
 	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, migrationLockKey); err != nil {
 		return 0, fmt.Errorf("acquire migration lock: %w", err)
 	}
-	defer conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, migrationLockKey)
+	defer func() {
+		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, _ = conn.Exec(unlockCtx, `SELECT pg_advisory_unlock($1)`, migrationLockKey)
+	}()
 
 	if err := ensureSchemaMigrations(ctx, conn); err != nil {
 		return 0, err
