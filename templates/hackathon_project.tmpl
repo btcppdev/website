@@ -141,15 +141,22 @@
       </div>
     </section>
     {{ else }}
-    <nav class="hack-tabs" aria-label="Project editor sections" style="margin-top:28px;">
+    <nav class="hack-tabs hack-tabs--editor" aria-label="Project editor sections">
       <button type="button" data-project-tab="basics" class="hack-tab" aria-selected="true">Basics</button>
       <button type="button" data-project-tab="public-page" class="hack-tab" aria-selected="false">Public page</button>
       {{ if not .IsNew }}<button type="button" data-project-tab="team" class="hack-tab" aria-selected="false">Team · {{ len .Members }}</button>{{ end }}
       {{ if not .IsNew }}<button type="button" data-project-tab="submission" class="hack-tab" aria-selected="false">Submission</button>{{ end }}
     </nav>
 
-    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" class="hack-form" data-project-tab-panel="basics">
+    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" class="hack-form hack-project-editor__panel" data-project-tab-panel="basics">
       <div class="hack-form__body">
+        <header class="hack-project-editor__intro">
+          <div>
+            <div class="hack-label">§ Basics</div>
+            <h2>Project <span class="hack-serif">basics.</span></h2>
+          </div>
+          <p>Give your project a clear name, a short pitch, and tags that help attendees and judges understand it quickly.</p>
+        </header>
         <input name="DescriptionFormat" type="hidden" value="{{ if .Project.DescriptionFormat }}{{ .Project.DescriptionFormat }}{{ else }}markdown{{ end }}">
         <input name="Description" type="hidden" value="{{ .Project.Description }}">
         <input name="ImageURL" type="hidden" value="{{ .Project.ImageURL }}">
@@ -160,7 +167,7 @@
         <input name="SlidesURL" type="hidden" value="{{ .Project.SlidesURL }}">
         <input name="DocsURL" type="hidden" value="{{ .Project.DocsURL }}">
         {{ if not .CanEdit }}
-        <div class="hack-alert hack-alert--warning" style="margin:0;">This project page is read-only.</div>
+        <div class="hack-alert hack-alert--warning">This project page is read-only.</div>
         {{ end }}
 
         <div class="hack-field">
@@ -188,7 +195,7 @@
             <label class="hack-list__row hack-list__row--checkbox">
               <input name="AwardID" type="checkbox" value="{{ .ID }}">
               <div>
-                <span style="display:block;font-weight:700;">{{ .Title }}</span>
+                <span class="hack-list__title">{{ .Title }}</span>
                 {{ if .Description }}<div class="hack-list__meta">{{ hackathonRichText .Description }}</div>{{ end }}
               </div>
             </label>
@@ -205,13 +212,19 @@
       </div>
     </form>
 
-    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" enctype="multipart/form-data" class="hack-form hidden" data-project-tab-panel="public-page">
+    <form method="POST" action="{{ if .IsNew }}{{ .ProjectCreateURL }}{{ else }}{{ .ProjectEditURL .Project }}{{ end }}" enctype="multipart/form-data" class="hack-form hack-project-editor__panel hidden" data-project-tab-panel="public-page">
       <div class="hack-form__body">
+        <header class="hack-project-editor__intro">
+          <div>
+            <div class="hack-label">§ Public page</div>
+            <h2>Tell the <span class="hack-serif">story.</span></h2>
+          </div>
+          <p>Add the images, write-up, and links that will represent the project in the public gallery.</p>
+        </header>
         <input name="Title" type="hidden" value="{{ .Project.Title }}">
         <input name="ShortDescription" type="hidden" value="{{ .Project.ShortDescription }}">
         <input name="Tags" type="hidden" value="{{ .ProjectTagsCSV }}">
-        <div class="hack-form__grid">
-          <div class="hack-field">
+        <div class="hack-field">
             <label for="ImageFiles">Project images</label>
             {{ $editorImages := .ProjectImageGallery .Project }}
             <div class="hack-upload" data-image-upload>
@@ -235,7 +248,6 @@
               </div>
             </div>
             <p class="hack-field__help">Add one or more PNG, JPEG, GIF, WebP, or AVIF images. New uploads are staged here and added to the gallery when you save.</p>
-          </div>
         </div>
         <div class="hack-field">
           <label for="Description">Public description</label>
@@ -280,37 +292,39 @@
     </form>
 
     {{ if not .IsNew }}
-    <form method="POST" action="{{ .ProjectSubmitURL .Project }}" class="hack-form hidden" data-project-tab-panel="submission">
+    <form method="POST" action="{{ .ProjectSubmitURL .Project }}" class="hack-form hack-project-editor__panel hidden" data-project-tab-panel="submission">
       <div class="hack-form__body">
-        <div>
-          <div class="hack-label">§ Submission</div>
-          <h2 style="margin:6px 0 0;font-size:clamp(28px,4vw,48px);line-height:1;">Review and <span class="hack-serif">submit.</span></h2>
-          <div class="hack-section__deck">Check the project details people will see once the gallery is public.</div>
-        </div>
+        <header class="hack-project-editor__intro">
+          <div>
+            <div class="hack-label">§ Submission</div>
+            <h2>Review and <span class="hack-serif">submit.</span></h2>
+          </div>
+          <p>Check the project details people will see once the gallery is public.</p>
+        </header>
 
         {{ if not .CanSubmit }}
-        <div class="hack-alert hack-alert--warning" style="margin:0;">
+        <div class="hack-alert hack-alert--warning">
           {{ if eq .Project.Status "submitted" }}This project has already been submitted.{{ else }}Project submissions are not currently open.{{ end }}
         </div>
         {{ end }}
 
-        <section class="hack-card" style="padding:18px;">
+        <section class="hack-card hack-project-editor__preview">
           <div class="hack-label">Current project</div>
-          <h3 style="margin:6px 0 8px;font-size:28px;line-height:1;">{{ .Project.Title }}</h3>
-          {{ if .Project.ShortDescription }}<p class="hack-card__desc" style="margin-top:0;">{{ .Project.ShortDescription }}</p>{{ end }}
+          <h3>{{ .Project.Title }}</h3>
+          {{ if .Project.ShortDescription }}<p class="hack-card__desc">{{ .Project.ShortDescription }}</p>{{ end }}
           {{ $submissionImages := .ProjectImageGallery .Project }}
           {{ if $submissionImages }}
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0;">
-            {{ range $submissionImages }}<img src="{{ . }}" alt="" style="width:100%;aspect-ratio:1.35;object-fit:cover;border-radius:8px;">{{ end }}
+          <div class="hack-project-editor__preview-images">
+            {{ range $submissionImages }}<img src="{{ . }}" alt="">{{ end }}
           </div>
           {{ end }}
-          {{ if .Project.Description }}<div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ .ProjectDescriptionHTML .Project }}</div>{{ end }}
+          {{ if .Project.Description }}<div class="hack-project-editor__preview-copy">{{ .ProjectDescriptionHTML .Project }}</div>{{ end }}
           {{ if .Project.Tags }}
-          <div class="hack-tags" style="margin-top:14px;">
+          <div class="hack-tags hack-project-editor__preview-tags">
             {{ range .Project.Tags }}<span class="hack-badge">{{ . }}</span>{{ end }}
           </div>
           {{ end }}
-          <div class="hack-links" style="margin-top:14px;">
+          <div class="hack-links hack-project-editor__preview-links">
             {{ if .Project.GitHubURL }}<a href="{{ .Project.GitHubURL }}">View code <span>↗</span></a>{{ end }}
             {{ if .Project.DemoURL }}<a href="{{ .Project.DemoURL }}">Live demo <span>↗</span></a>{{ end }}
             {{ if .Project.VideoURL }}<a href="{{ .Project.VideoURL }}">Demo video <span>▶</span></a>{{ end }}
@@ -320,15 +334,15 @@
         </section>
 
         {{ if .OptInAwards }}
-        <div class="hack-section__deck">Choose the awards or bounties this project should be considered for.</div>
         <fieldset class="hack-field">
           <legend>Award opt-ins</legend>
+          <p class="hack-field__help">Choose the awards or bounties this project should be considered for.</p>
           <div class="hack-list">
             {{ range .OptInAwards }}
             <label class="hack-list__row hack-list__row--checkbox">
               <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }} {{ if not $.CanSubmit }}disabled{{ end }}>
               <div>
-                <span style="display:block;font-weight:700;">{{ .Title }}</span>
+                <span class="hack-list__title">{{ .Title }}</span>
                 {{ if .Description }}<div class="hack-list__meta">{{ hackathonRichText .Description }}</div>{{ end }}
               </div>
             </label>
@@ -347,19 +361,18 @@
     {{ end }}
 
     {{ if not .IsNew }}
-    <section class="hack-section hidden" data-project-tab-panel="team">
-      <div class="hack-section__head">
-        <div>
-          <div class="hack-label">§ Team</div>
-          <h2>Project <span class="hack-serif">crew.</span></h2>
-        </div>
-        <div class="hack-section__deck">Generate one-time invites for additional project members. Links expire after 24 hours.</div>
-      </div>
-
+    <section class="hack-form hack-project-editor__panel hidden" data-project-tab-panel="team">
       <div class="hack-form__body">
+        <header class="hack-project-editor__intro">
+          <div>
+            <div class="hack-label">§ Team</div>
+            <h2>Project <span class="hack-serif">crew.</span></h2>
+          </div>
+          <p>Manage the current team or generate a one-time invite for another project member.</p>
+        </header>
         {{ if .InviteLink }}
-        <div class="hack-alert hack-alert--success" style="margin:0;">
-          <label for="InviteLink" class="hack-label" style="margin-bottom:8px;">Invite link created</label>
+        <div class="hack-alert hack-alert--success">
+          <label for="InviteLink" class="hack-label hack-project-editor__invite-label">Invite link created</label>
           <div class="hack-form__grid hack-form__grid--action">
             <div class="hack-field">
               <input id="InviteLink" type="url" readonly value="{{ .InviteLink }}">
@@ -367,12 +380,12 @@
             <button type="button" data-copy-target="InviteLink" class="hack-button hack-button--accent">Copy</button>
           </div>
           {{ if .InviteQRCodeURI }}
-          <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:16px;">
-            <img src="{{ .InviteQRCodeURI | safeURL }}" width="160" height="160" alt="Project invite QR code" style="width:160px;height:160px;border-radius:8px;background:#fff;padding:8px;">
-            <p class="hack-field__help" style="margin:0;">Scan this code to open the same one-time project invite link.</p>
+          <div class="hack-project-editor__invite-qr">
+            <img src="{{ .InviteQRCodeURI | safeURL }}" width="160" height="160" alt="Project invite QR code">
+            <p class="hack-field__help">Scan this code to open the same one-time project invite link.</p>
           </div>
           {{ end }}
-          <p class="hack-field__help" style="margin-top:10px;">This link can be used once and expires after 24 hours.</p>
+          <p class="hack-field__help">This link can be used once and expires after 24 hours.</p>
         </div>
         {{ end }}
 
@@ -382,13 +395,13 @@
             {{ range .Members }}
             <div class="hack-list__row">
               <span>
-                <span style="display:block;font-weight:700;">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</span>
+                <span class="hack-list__title">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</span>
                 <span class="hack-list__meta">{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</span>
               </span>
               {{ if and $.CanRemoveProjectMembers (ne .Role "owner") }}
-              <span style="display:flex;align-items:center;gap:10px;">
+              <span class="hack-project-editor__member-actions">
                 <span class="hack-tag">{{ .Role }}</span>
-                <form method="POST" action="{{ $.ProjectMemberRemoveURL $.Project }}" style="margin:0;">
+                <form method="POST" action="{{ $.ProjectMemberRemoveURL $.Project }}">
                   <input type="hidden" name="PersonID" value="{{ .PersonID }}">
                   <button type="submit" class="hack-button">Remove</button>
                 </form>
@@ -405,11 +418,11 @@
         </div>
 
         {{ if .CanEdit }}
-        <form method="POST" action="{{ .ProjectInviteURL .Project }}" class="hack-form" style="border:1px solid #111;padding:18px;">
+        <form method="POST" action="{{ .ProjectInviteURL .Project }}" class="hack-project-editor__invite-form">
           <input type="hidden" name="ReturnTo" value="{{ .ProjectEditURL .Project }}#team">
           <div class="hack-form__grid hack-form__grid--action">
             <div>
-              <h3 style="margin:0;font-size:16px;">Generate project invite link</h3>
+              <h3>Generate project invite link</h3>
               <p class="hack-field__help">The recipient signs in with this one-time link and joins this project.</p>
             </div>
             <button type="submit" class="hack-button hack-button--accent">Generate one-time invite →</button>

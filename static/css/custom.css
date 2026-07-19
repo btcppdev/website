@@ -7289,6 +7289,17 @@ body.btcpp-checkout-page {
 	border-bottom: 1px solid var(--hack-ink);
 }
 
+.hack-tabs--editor {
+	box-sizing: border-box;
+	width: 100%;
+	margin-top: 28px;
+	padding-inline: 56px;
+}
+
+.hack-tabs--editor .hack-tab:first-child {
+	border-left: 1px solid var(--hack-ink);
+}
+
 .hack-tab {
 	border: 0;
 	border-right: 1px solid var(--hack-ink);
@@ -8276,6 +8287,158 @@ display: grid;
 	background: #fff;
 }
 
+.hack-project-editor__panel {
+	border-top: 0;
+}
+
+.hack-project-editor__intro {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(280px, .7fr);
+	gap: 48px;
+	align-items: end;
+	padding-bottom: 24px;
+	border-bottom: 1px solid var(--hack-soft);
+}
+
+.hack-project-editor__intro h2 {
+	margin: 6px 0 0;
+	font-size: clamp(30px, 4vw, 48px);
+	line-height: 1;
+}
+
+.hack-project-editor__intro p {
+	margin: 0;
+	color: var(--hack-dim);
+	font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+	font-size: 18px;
+	font-style: italic;
+	line-height: 1.45;
+}
+
+.hack-project-editor__preview {
+	min-height: 0;
+	border: 1px solid var(--hack-ink);
+	padding: 24px;
+}
+
+.hack-project-editor__preview h3 {
+	margin: 6px 0 8px;
+	font-size: 28px;
+	line-height: 1;
+}
+
+.hack-project-editor__preview .hack-card__desc {
+	margin-top: 0;
+}
+
+.hack-project-editor__preview-images {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: 10px;
+	margin: 18px 0;
+}
+
+.hack-project-editor__preview-images img {
+	display: block;
+	width: 100%;
+	aspect-ratio: 1.35;
+	border: 1px solid var(--hack-ink);
+	object-fit: cover;
+}
+
+.hack-project-editor__preview-copy {
+	color: #3f3a33;
+	font-size: 15px;
+	line-height: 1.6;
+}
+
+.hack-project-editor__preview-copy > :first-child {
+	margin-top: 0;
+}
+
+.hack-project-editor__preview-copy > :last-child {
+	margin-bottom: 0;
+}
+
+.hack-project-editor__preview-tags,
+.hack-project-editor__preview-links {
+	margin-top: 18px;
+}
+
+.hack-project-editor__preview-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px 18px;
+	padding-top: 18px;
+	border-top: 1px solid var(--hack-soft);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .6px;
+	text-transform: uppercase;
+}
+
+.hack-project-editor__preview-links a {
+	text-decoration: none;
+}
+
+.hack-project-editor__preview-links a:hover,
+.hack-project-editor__preview-links a:focus-visible {
+	text-decoration: underline;
+	text-underline-offset: .2em;
+}
+
+.hack-project-editor__panel .hack-alert {
+	margin: 0;
+}
+
+.hack-project-editor__invite-label {
+	display: block;
+	margin-bottom: 8px;
+}
+
+.hack-project-editor__invite-qr {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	align-items: center;
+	margin-top: 16px;
+}
+
+.hack-project-editor__invite-qr img {
+	box-sizing: border-box;
+	width: 160px;
+	height: 160px;
+	border: 1px solid var(--hack-ink);
+	background: #fff;
+	padding: 8px;
+}
+
+.hack-project-editor__invite-qr .hack-field__help {
+	margin: 0;
+}
+
+.hack-project-editor__member-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.hack-project-editor__member-actions form {
+	margin: 0;
+}
+
+.hack-project-editor__invite-form {
+	border: 1px solid var(--hack-ink);
+	background: var(--hack-paper);
+	padding: 20px;
+}
+
+.hack-project-editor__invite-form h3 {
+	margin: 0;
+	font-size: 18px;
+}
+
 .hack-form__body {
 	display: grid;
 	gap: 24px;
@@ -8307,6 +8470,7 @@ display: grid;
 .hack-field input,
 .hack-field textarea,
 .hack-field select {
+	box-sizing: border-box;
 	width: 100%;
 	border: 1px solid var(--hack-ink);
 	border-radius: 0;
@@ -8329,9 +8493,17 @@ display: grid;
 }
 
 .hack-field input:disabled,
-.hack-field textarea:disabled {
+.hack-field textarea:disabled,
+.hack-field select:disabled {
 	background: var(--hack-soft);
 	color: var(--hack-dim);
+}
+
+.hack-form fieldset.hack-field {
+	min-width: 0;
+	margin: 0;
+	border: 0;
+	padding: 0;
 }
 
 .hack-rank-picker {
@@ -8394,7 +8566,7 @@ display: grid;
 }
 
 .hack-field__help {
-	margin-top: 8px;
+	margin: 8px 0 0;
 	color: var(--hack-dim);
 	font-size: 13px;
 }
@@ -8560,6 +8732,11 @@ display: grid;
 	font-size: 13px;
 }
 
+.hack-list__title {
+	display: block;
+	font-weight: 700;
+}
+
 .hack-list__meta p {
 	margin: 0.25em 0 0;
 }
@@ -8605,6 +8782,15 @@ display: grid;
 	.hack-project-file__body {
 		padding-left: 24px;
 		padding-right: 24px;
+	}
+
+	.hack-project-editor__intro {
+		grid-template-columns: 1fr;
+		gap: 16px;
+	}
+
+	.hack-tabs--editor {
+		padding-inline: 24px;
 	}
 
 	.hack-header {
@@ -8810,6 +8996,10 @@ display: grid;
 		scrollbar-width: thin;
 		overscroll-behavior-x: contain;
 		-webkit-overflow-scrolling: touch;
+	}
+
+	.hack-tabs--editor {
+		padding-inline: 18px;
 	}
 
 	.hack-tab {
