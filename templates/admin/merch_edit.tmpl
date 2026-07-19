@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>edit {{ .Product.Name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css">
+  </head>
+  <body class="shop-page shop-admin-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <main class="shop-admin shop-admin--editor">
+      {{ $product := .Product }}
+      <section class="shop-admin__intro shop-admin__intro--actions">
+        <div>
+          <p class="shop-kicker">§ {{ .Product.Status }} product</p>
+          <h1>{{ .Product.Name }}</h1>
+          <p>{{ .Product.Slug }} · {{ len .Product.Variants }} variants · {{ merchProductStock .Product }} in stock</p>
+        </div>
+        <div class="shop-admin-actions">
+          <a class="shop-button" href="/admin/merch">&larr; Catalog</a>
+          <a class="shop-button" href="/shop/{{ .Product.Slug }}">View product ↗</a>
+        </div>
+      </section>
+      {{ if .Flash }}<p class="shop-flash is-success">{{ .Flash }}</p>{{ end }}
+      {{ if .Error }}<p class="shop-flash is-error">{{ .Error }}</p>{{ end }}
+
+      <section class="shop-admin-editor-section">
+        <div class="shop-admin-editor-section__head"><span>01</span><h2>Product details</h2></div>
+        <form method="POST" action="/admin/merch/{{ .Product.ID }}" class="shop-admin-form shop-admin-editor-form">
+          {{ template "admin_merch_fields" .Product }}
+          <button class="shop-button is-primary" type="submit">Save product</button>
+        </form>
+      </section>
+
+      <section class="shop-admin-editor-section">
+        <div class="shop-admin-editor-section__head"><span>02</span><h2>Variants</h2></div>
+        <div class="shop-admin-editor-stack">
+          {{ range .Product.Variants }}
+          <form method="POST" action="/admin/merch/{{ $product.ID }}/variants/{{ .ID }}" class="shop-admin-form shop-form-grid">
+            <label>SKU<input name="sku" value="{{ .SKU }}" required></label>
+            <label>label<input name="variant_label" value="{{ .Label }}" required></label>
+            <label>price delta cents<input type="number" name="price_delta_cents" value="{{ .PriceDeltaCents }}"></label>
+            <label>stock on hand<input value="{{ .Stock }}" disabled></label>
+            <label>stock adjustment<input type="number" name="stock_delta" value="0"></label>
+            <label>weight grams<input type="number" name="weight_grams" value="{{ .WeightGrams }}"></label>
+            <label>length inches<input type="number" name="length_inches" min="0" step="0.01" value="{{ merchInches .LengthMM }}"></label>
+            <label>width inches<input type="number" name="width_inches" min="0" step="0.01" value="{{ merchInches .WidthMM }}"></label>
+            <label>height inches<input type="number" name="height_inches" min="0" step="0.01" value="{{ merchInches .HeightMM }}"></label>
+            <label>inventory policy
+              <select name="inventory_policy">
+                <option value="deny" {{ if eq .InventoryPolicy "deny" }}selected{{ end }}>deny overselling</option>
+                <option value="allow_backorder" {{ if eq .InventoryPolicy "allow_backorder" }}selected{{ end }}>allow backorder</option>
+                <option value="unlimited" {{ if eq .InventoryPolicy "unlimited" }}selected{{ end }}>unlimited</option>
+              </select>
+            </label>
+            <label>status
+              <select name="variant_status">
+                <option value="active" {{ if eq .Status "active" }}selected{{ end }}>active</option>
+                <option value="archived" {{ if eq .Status "archived" }}selected{{ end }}>archived</option>
+              </select>
+            </label>
+            <button class="shop-button" type="submit">Save variant</button>
+          </form>
+          {{ end }}
+          <form method="POST" action="/admin/merch/{{ .Product.ID }}/variants" class="shop-admin-form shop-form-grid">
+            <label>new SKU<input name="sku" required></label>
+            <label>label<input name="variant_label" required></label>
+            <label>price delta cents<input type="number" name="price_delta_cents" value="0"></label>
+            <label>initial stock<input type="number" name="stock" value="0" min="0"></label>
+            <label>weight grams<input type="number" name="weight_grams" value="0"></label>
+            <label>length inches<input type="number" name="length_inches" min="0" step="0.01" value="0"></label>
+            <label>width inches<input type="number" name="width_inches" min="0" step="0.01" value="0"></label>
+            <label>height inches<input type="number" name="height_inches" min="0" step="0.01" value="0"></label>
+            <input type="hidden" name="inventory_policy" value="deny">
+            <input type="hidden" name="variant_status" value="active">
+            <button class="shop-button" type="submit">Add variant</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="shop-admin-editor-section">
+        <div class="shop-admin-editor-section__head"><span>03</span><h2>Options</h2></div>
+        <div class="shop-admin-editor-stack">
+          {{ range .Product.Options }}
+          <form method="POST" action="/admin/merch/{{ $product.ID }}/options/{{ .ID }}" class="shop-admin-form shop-form-grid">
+            <label>name<input name="name" value="{{ .Name }}" required></label>
+            <label>values (comma separated)<input name="values" value="{{ range $i, $value := .Values }}{{ if $i }}, {{ end }}{{ $value.Value }}{{ end }}"></label>
+            <label>display order<input type="number" name="display_order" value="{{ .DisplayOrder }}"></label>
+            <label class="shop-checkbox"><input type="checkbox" name="required" {{ if .Required }}checked{{ end }}> required</label>
+            <button class="shop-button" type="submit">Save option</button>
+            <button class="shop-button" type="submit" name="delete" value="1" onclick="return confirm('Delete this option and its variant mappings?');">Delete</button>
+          </form>
+          {{ end }}
+          <form method="POST" action="/admin/merch/{{ .Product.ID }}/options" class="shop-admin-form shop-form-grid">
+            <label>new option<input name="name" placeholder="Size" required></label>
+            <label>values<input name="values" placeholder="S, M, L, XL" required></label>
+            <label>display order<input type="number" name="display_order" value="0"></label>
+            <label class="shop-checkbox"><input type="checkbox" name="required" checked> required</label>
+            <button class="shop-button" type="submit">Add option</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="shop-admin-editor-section">
+        <div class="shop-admin-editor-section__head"><span>04</span><h2>Images</h2></div>
+        <div class="shop-admin-editor-stack">
+          {{ range .Product.Images }}
+          <form method="POST" action="/admin/merch/{{ .ProductID }}/images/{{ .ID }}" class="shop-admin-form shop-form-grid">
+            <label>object<input value="{{ .ObjectKey }}" disabled></label>
+            <label>alt text<input name="alt_text" value="{{ .AltText }}"></label>
+            <label>display order<input type="number" name="display_order" value="{{ .DisplayOrder }}"></label>
+            <label class="shop-checkbox"><input type="checkbox" name="primary" {{ if .IsPrimary }}checked{{ end }}> primary</label>
+            <button class="shop-button" type="submit">Save image</button>
+            <button class="shop-button" type="submit" name="delete" value="1" onclick="return confirm('Remove this image from the product?');">Remove</button>
+          </form>
+          {{ end }}
+          {{ if .SpacesReady }}
+          <form method="POST" action="/admin/merch/{{ .Product.ID }}/upload-image" enctype="multipart/form-data" class="shop-admin-form shop-image-upload">
+            <label>upload product image<input type="file" name="file" accept="image/png,image/jpeg,image/webp,image/avif"></label>
+            <label>alt text<input name="alt_text"></label>
+            <label>display order<input type="number" name="display_order" value="0"></label>
+            <label class="shop-checkbox"><input type="checkbox" name="primary"> primary image</label>
+            <button class="shop-button" type="submit">Upload image</button>
+          </form>
+          {{ end }}
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>cart</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css">
+  </head>
+  <body class="shop-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <main class="shop-checkout shop-checkout--cart">
+      <section class="shop-checkout__main">
+        <header class="shop-checkout__head">
+          <p class="shop-kicker">01 / cart</p>
+          <h1>Your cart.</h1>
+        </header>
+        {{ if .Cart }}
+        <form method="POST" action="/shop/cart" class="shop-cart-list">
+          {{ range .Cart }}
+          <div class="shop-cart-row">
+            <a class="shop-cart-row__img" href="/shop/{{ .Product.Slug }}">{{ if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="{{ .Product.Name }}">{{ end }}</a>
+            <div class="shop-cart-row__body">
+              <strong>{{ .Product.Name }}</strong>
+              <span>{{ .Variant.Label }} · {{ merchMoney .UnitPriceCents .Product }} ea</span>
+              <input type="number" name="qty_{{ .Variant.ID }}" min="0" max="20" value="{{ .Qty }}">
+            </div>
+            <b>{{ merchMoney .LineTotalCents .Product }}</b>
+          </div>
+          {{ end }}
+          <button class="shop-button" type="submit">Update cart</button>
+        </form>
+        {{ else }}
+        <div class="shop-empty">Your cart is empty.</div>
+        <div class="shop-actions"><a class="shop-button" href="/shop/all">← Keep shopping</a></div>
+        {{ end }}
+      </section>
+      {{ template "shop_summary" . }}
+    </main>
+    {{ template "shop_footer" . }}
+  </body>
+</html>
+
+{{ define "shop_summary" }}
+<aside class="shop-summary">
+  <div><span>Subtotal</span><b>{{ merchMoney .SubtotalCents nil }}</b></div>
+  <div><span>Tax (calculated at checkout)</span><b>{{ merchMoney .TaxCents nil }}</b></div>
+  <div><span>Shipping</span><b>{{ if eq .ShippingCents 0 }}free{{ else }}{{ merchMoney .ShippingCents nil }}{{ end }}</b></div>
+  <div class="is-total"><span>Total</span><b>{{ merchMoney .TotalCents nil }}</b></div>
+  <small>≈ {{ merchSats .TotalCents }} sats · shipping/tax finalized at checkout</small>
+  {{ if .Cart }}
+  <div class="shop-summary__actions">
+    <a class="shop-button" href="/shop/all">← Keep shopping</a>
+    <a class="shop-button is-primary" href="/shop/checkout">Checkout →</a>
+  </div>
+  {{ end }}
+</aside>
+{{ end }}

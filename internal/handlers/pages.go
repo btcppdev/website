@@ -189,6 +189,7 @@ type TixFormPage struct {
 	DiscountRef     string
 	TicketKind      string
 	SponsorCheckout bool
+	AddOnProducts   []*types.MerchProduct
 	// AffiliateCode is the silent (`%0`) referral code stashed
 	// from a /{tag}?code= visit. Carried through the form
 	// as a hidden input — the visible Discount field stays empty
@@ -208,10 +209,12 @@ type SchedulePage struct {
 }
 
 type CheckInPage struct {
-	NeedsPin   bool
-	TicketType string
-	Msg        string
-	Year       uint
+	NeedsPin     bool
+	TicketType   string
+	TicketRef    string
+	Msg          string
+	MerchPickups []*types.ShopOrderItem
+	Year         uint
 }
 
 type VolunteerPage struct {
@@ -392,6 +395,9 @@ type DashboardPage struct {
 	TicketEntitlements          []*types.HackathonTicketEntitlement
 	UnclaimedTicketEntitlements int
 	TicketClaimConfs            []*types.Conf
+	RecentShopOrders            []*types.ShopOrder
+	ShopOrders                  []*types.ShopOrder
+	ShopOrder                   *types.ShopOrder
 	// BaseURI is the absolute site root used to build full
 	// affiliate share URLs the user can copy from per-event
 	// cards (e.g. https://btcpp.dev/vienna?code=NIFTY10).
@@ -966,6 +972,7 @@ type SpeakerRowTalk struct {
 type RegistrationsAdminPage struct {
 	Conf          *types.Conf
 	Registrations []*RegistrationAdminRow
+	MerchPickups  []*types.ShopOrderItem
 	FlashMessage  string
 	// IsConfAdmin gates the email composer. Staff get the
 	// attendee roster (read-only) but no bulk-email power.

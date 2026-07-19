@@ -1,53 +1,53 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>bitcoin++</title>
+  <title>bitcoin++ check-in</title>
   {{ block "header" . }} {{ end }}
-  <!-- FIXME: Show emoji that maps to the conf you're checking in for? -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
 </head>
-{{ if eq .TicketType "sponsor" }}
-<body class="btcpp-admin-page h-full bg-red-300">
-{{ end }}
-{{ if eq .TicketType "genpop" }}
-<body class="btcpp-admin-page h-full bg-blue-600">
-{{ end }}
-{{ if eq .TicketType "local" }}
-<body class="btcpp-admin-page h-full bg-blue-300">
-{{ end }}
-{{ if eq .TicketType "volunteer" }}
-<body class="btcpp-admin-page h-full bg-green-600">
-{{ end }}
-{{ if eq .TicketType "speaker" }}
-<body class="btcpp-admin-page h-full bg-orange-300">
-{{ end }}
-{{ if eq .TicketType "" }}
-  {{ if .NeedsPin }}
-    <body class="btcpp-admin-page h-full">
-  {{ end }}
-    <body class="btcpp-admin-page h-full bg-red-500">
-{{ end }}
+<body class="btcpp-admin-page checkin-page checkin-page--{{ if .TicketType }}{{ .TicketType }}{{ else }}unknown{{ end }}">
 {{ block "mainnav" . }} {{ end }}
-<!-- can i get tailwind to pick up these colors? -->
-  <section id="check-in">
-    <div class="flex flex-col" >
-    <div class="pt-20 sm:pt-20 grow-0">
-      <div class="mx-auto max-w-7xl px-6 lg:px-8">
-        <div class="max-w-2xl text-start">
-         {{ if .NeedsPin }}
-	  <form method="POST">
-	    <input id="pin" type="input" name="pin" placeholder="Passcode" required class="py-3 px-4 border-gray border-2 rounded-sm" />
-	    <button class="mt-4 bg-black text-white hover:text-white-400 px-4 py-2 rounded-md" type="submit" >Enter</button>
-	  </form> 
-         {{ else }}
-         <h2 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-4xl">{{ .TicketType }}</h2>
+  <main class="checkin-shell">
+    <section class="checkin-card">
+      {{ if .NeedsPin }}
+      <p class="checkin-kicker">§ check-in</p>
+      <h1>Enter passcode.</h1>
+      <form method="POST" class="checkin-pin-form">
+        <input id="pin" type="password" name="pin" placeholder="Passcode" required autofocus>
+        <button type="submit">Enter</button>
+      </form>
+      {{ else }}
+      <p class="checkin-kicker">§ ticket</p>
+      <h1>{{ if .TicketType }}{{ .TicketType }}{{ else }}Unknown ticket{{ end }}</h1>
+      {{ if .TicketRef }}<p class="checkin-ticket-ref">{{ .TicketRef }}</p>{{ end }}
+      {{ end }}
+      {{ if .Msg }}<p class="checkin-message">{{ .Msg }}</p>{{ end }}
+    </section>
+
+    {{ if .MerchPickups }}
+    <section class="checkin-card checkin-card--merch">
+      <p class="checkin-kicker">§ merch pickup</p>
+      <h2>Add to bag.</h2>
+      <div class="checkin-pickups">
+        {{ range .MerchPickups }}
+        <article class="checkin-pickup">
+          <div>
+            <strong>{{ .ProductNameSnapshot }}</strong>
+            <span>{{ if .VariantLabelSnapshot }}{{ .VariantLabelSnapshot }} · {{ end }}Qty {{ .Quantity }}{{ if .SKUSnapshot }} · {{ .SKUSnapshot }}{{ end }}</span>
+          </div>
+          {{ if eq .Status "fulfilled" }}
+          <span class="checkin-pill is-done">picked up</span>
+          {{ else }}
+          <form method="POST" action="/check-in/{{ $.TicketRef }}/merch/{{ .ID }}">
+            <button type="submit">Mark picked up</button>
+          </form>
           {{ end }}
-         <p class="mt-2 text-base leading-7">{{ .Msg }}</p>
-         </div>
-         </div>
-       </div>
-    </div>
-  </section>
+        </article>
+        {{ end }}
+      </div>
+    </section>
+    {{ end }}
+  </main>
   {{ block "footer" . }} {{ end }}
 </body>
 </html>

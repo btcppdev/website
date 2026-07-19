@@ -46,6 +46,12 @@ func (env *EnvConfig) ApplyDefaults() {
 	if env.Recordings.X.AuthWaitSec == 0 {
 		env.Recordings.X.AuthWaitSec = 300
 	}
+	if strings.TrimSpace(env.Easyship.Endpoint) == "" {
+		env.Easyship.Endpoint = "https://public-api.easyship.com"
+	}
+	if strings.TrimSpace(env.Easyship.APIVersion) == "" {
+		env.Easyship.APIVersion = "2024-09"
+	}
 }
 
 // Validate checks the pieces that must be present before the HTTP server is
@@ -68,13 +74,15 @@ func (env *EnvConfig) Validate() error {
 	}
 	if env.Prod {
 		required := map[string]string{
-			"MAILER_SECRET":     env.MailerSecret,
-			"MAILER_ENDPOINT":   env.MailEndpoint,
-			"STRIPE_KEY":        env.StripeKey,
-			"STRIPE_END_SECRET": env.StripeEndpointSec,
-			"OPENNODE_KEY":      env.OpenNode.Key,
-			"OPENNODE_ENDPOINT": env.OpenNode.Endpoint,
-			"REGISTRY_PIN":      env.RegistryPin,
+			"MAILER_SECRET":           env.MailerSecret,
+			"MAILER_ENDPOINT":         env.MailEndpoint,
+			"STRIPE_KEY":              env.StripeKey,
+			"STRIPE_END_SECRET":       env.StripeEndpointSec,
+			"OPENNODE_KEY":            env.OpenNode.Key,
+			"OPENNODE_ENDPOINT":       env.OpenNode.Endpoint,
+			"REGISTRY_PIN":            env.RegistryPin,
+			"EASYSHIP_API_KEY":        env.Easyship.APIKey,
+			"EASYSHIP_WEBHOOK_SECRET": env.Easyship.WebhookSecret,
 		}
 		for name, value := range required {
 			if strings.TrimSpace(value) == "" {

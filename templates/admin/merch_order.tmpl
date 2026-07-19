@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>merch order</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css?v=refund-contact-1">
+  </head>
+  <body class="shop-page shop-admin-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <main class="shop-admin">
+      <section class="shop-admin__intro">
+        <p class="shop-kicker">§ order {{ .Order.Status }}</p>
+        <h1>{{ .Order.PublicID }}</h1>
+        <p>{{ .Order.BuyerName }} {{ .Order.BuyerEmail }} / {{ .Order.CheckoutKind }} / {{ .Order.PaymentProvider }}</p>
+        <div class="shop-admin-actions">
+          <a class="shop-button" href="/admin/merch/orders">&larr; Orders</a>
+          <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/receipt">
+            <button class="shop-button" type="submit">Resend receipt</button>
+          </form>
+        </div>
+        {{ if .Flash }}<p class="shop-flash is-success">{{ .Flash }}</p>{{ end }}
+        {{ if .Error }}<p class="shop-flash is-error">{{ .Error }}</p>{{ end }}
+      </section>
+      {{ with .Order.ShippingAddress }}
+      <section class="shop-admin-form">
+        <h2>Shipping address</h2>
+        <address>
+          <strong>{{ .Name }}</strong><br>
+          {{ .Line1 }}{{ if .Line2 }}<br>{{ .Line2 }}{{ end }}<br>
+          {{ .City }}{{ if .Region }}, {{ .Region }}{{ end }} {{ .PostalCode }}<br>
+          {{ .Country }}{{ if .Phone }} · {{ .Phone }}{{ end }}
+        </address>
+      </section>
+      {{ end }}
+      {{ if .ManualRefund }}
+      <section class="shop-admin-form shop-manual-refund">
+        <p class="shop-kicker">Manual refund contact</p>
+        <h2>Request a Bitcoin refund address</h2>
+        <p>Contact the buyer and send the refund outside this app. “Record manual refund” only updates the order after you have sent it.</p>
+        <div class="shop-refund-contact">
+          <div><span>Email</span><strong><a href="mailto:{{ .Order.BuyerEmail }}">{{ .Order.BuyerEmail }}</a></strong></div>
+          {{ with .RefundContact }}
+          {{ if .Signal }}<div><span>Signal</span><strong>{{ .Signal }}</strong></div>{{ end }}
+          {{ if .Telegram }}<div><span>Telegram</span><strong>{{ .Telegram }}</strong></div>{{ end }}
+          {{ if and (not .Signal) (not .Telegram) }}<div><span>Messaging</span><strong>No Signal or Telegram saved</strong></div>{{ end }}
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
+      <section class="shop-admin-list">
+        {{ range .Order.Items }}
+        <article class="shop-admin-product shop-order-card">
+          <div class="shop-admin-product__head">
+            <div>
+              <span>{{ .Status }} / {{ shopFulfillmentLabel .FulfillmentMethod }}</span>
+              <h2>{{ .ProductNameSnapshot }}</h2>
+            </div>
+            <strong>{{ merchMoney .LineTotalCents nil }}</strong>
+          </div>
+          <div class="shop-order-meta">
+            <span>{{ .VariantLabelSnapshot }}</span>
+            <span>qty {{ .Quantity }}</span>
+            <span>fulfilled {{ .FulfilledQuantity }}</span>
+            <span>{{ .SKUSnapshot }}</span>
+          </div>
+          {{ if and (eq .FulfillmentMethod "event_pickup") (ne .Status "fulfilled") }}
+          <form method="POST" action="/admin/merch/orders/{{ $.Order.PublicID }}/pickup" class="shop-inline-form">
+            <input type="hidden" name="item_id" value="{{ .ID }}">
+            <button class="shop-button is-primary" type="submit">Mark picked up</button>
+          </form>
+          {{ end }}
+          {{ if ne .Status "refunded" }}
+          <details class="shop-refund-details">
+            <summary>{{ if $.ManualRefund }}Record manual refund{{ else }}Issue refund{{ end }}</summary>
+            <form method="POST" action="/admin/merch/orders/{{ $.Order.PublicID }}/refund" class="shop-form-grid" {{ if $.ManualRefund }}onsubmit="return confirm('Record this manual refund? This does not send Bitcoin.');"{{ else }}onsubmit="return confirm('Issue this refund through Stripe?');"{{ end }}>
+              <input type="hidden" name="item_id" value="{{ .ID }}">
+              <label>quantity<input type="number" name="quantity" min="1" max="{{ .Quantity }}" value="1"></label>
+              <label>amount cents<input type="number" name="amount_cents" min="1" max="{{ .LineTotalCents }}" value="{{ .LineTotalCents }}"></label>
+              <label>reason<input name="reason" placeholder="requested by customer"></label>
+              {{ if $.ManualRefund }}<label>refund transaction ID / reference <span>optional</span><input name="provider_refund_id" placeholder="txid, Lightning reference, or note"></label>{{ end }}
+              <label class="shop-checkbox"><input type="checkbox" name="restock" checked> restock inventory</label>
+              <button class="shop-button" type="submit">{{ if $.ManualRefund }}Record manual refund{{ else }}Issue refund{{ end }}</button>
+            </form>
+          </details>
+          {{ end }}
+        </article>
+        {{ end }}
+      </section>
+      <section class="shop-admin-form">
+        <h2>Fulfillment</h2>
+        <div class="shop-fulfillment-summary">
+          <strong>{{ shopOrderFulfillmentSummary .Order }}</strong>
+          {{ if shopOrderHasFulfillment .Order "event_pickup" }}
+          <span>Pickup items should be handed over at event check-in or the merch desk. Use the item-level “Mark picked up” button.</span>
+          {{ end }}
+          {{ if shopOrderHasFulfillment .Order "ship" }}
+          <span>Shipping items need tracking details once mailed. The form below marks all shippable pending items fulfilled.</span>
+          {{ end }}
+          {{ if shopOrderHasFulfillment .Order "pos_takeaway" }}
+          <span>Point-of-sale takeaway items were handed over at purchase time.</span>
+          {{ end }}
+        </div>
+        {{ if .Order.Shipments }}
+        <div class="shop-order-shipments">
+          {{ range .Order.Shipments }}
+          <article>
+            <strong>{{ .Status }}{{ if .CourierName }} · {{ .CourierName }}{{ end }}</strong>
+            {{ if .ProviderShipmentID }}<span>Easyship shipment: <code>{{ .ProviderShipmentID }}</code></span>{{ end }}
+            {{ if .LabelState }}<span>Label: {{ .LabelState }}</span>{{ end }}
+            <span>{{ if .TrackingURL }}<a href="{{ .TrackingURL }}">{{ .TrackingNumber }}</a>{{ else }}{{ .TrackingNumber }}{{ end }}</span>
+            {{ if .LabelURL }}<span><a class="shop-button" href="{{ .LabelURL }}" target="_blank" rel="noopener">Download label</a></span>{{ end }}
+            {{ if .LastError }}<span class="shop-flash is-error">{{ .LastError }}</span>{{ end }}
+            {{ if .ShippedAt }}<span>{{ .ShippedAt.Format "Jan 2, 2006 3:04 PM" }}</span>{{ end }}
+          </article>
+          {{ end }}
+        </div>
+        {{ end }}
+        {{ if shopOrderHasFulfillment .Order "ship" }}
+        {{ if .CanCreateEasyshipShipment }}
+        <div class="shop-admin-form">
+          <p class="shop-kicker">Easyship</p>
+          {{ with .EasyshipRateQuote }}
+          <p>Selected service: <strong>{{ .CourierName }}{{ if .ServiceName }} · {{ .ServiceName }}{{ end }}</strong></p>
+          {{ end }}
+          {{ if .EasyshipShipment }}
+            {{ if .EasyshipShipment.ProviderShipmentID }}
+              {{ if ne .EasyshipShipment.LabelState "generated" }}
+              <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/easyship-label" onsubmit="return confirm('Purchase this Easyship label? This books the courier and spends Easyship balance.');">
+                <button class="shop-button is-primary" type="submit">Purchase Easyship label</button>
+              </form>
+              {{ end }}
+            {{ else }}
+            <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/easyship-create">
+              <label>destination phone<input name="contact_phone" type="tel" value="{{ .Order.ShippingAddress.Phone }}" autocomplete="tel" required></label>
+              <button class="shop-button is-primary" type="submit">Retry Easyship shipment creation</button>
+            </form>
+            {{ end }}
+          {{ else }}
+          {{ if .EasyshipRateQuote }}
+          <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/easyship-create">
+            <label>destination phone<input name="contact_phone" type="tel" value="{{ .Order.ShippingAddress.Phone }}" autocomplete="tel" required></label>
+            <button class="shop-button is-primary" type="submit">Create Easyship shipment</button>
+          </form>
+          {{ else }}
+          <p>This order used a development fallback shipping charge, so it does not yet have a bookable Easyship service.</p>
+          <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/easyship-rate">
+            <button class="shop-button is-primary" type="submit">Get current Easyship rate</button>
+          </form>
+          <small>The least expensive current service will be selected. Review it here before creating the shipment.</small>
+          {{ end }}
+          {{ end }}
+        </div>
+        {{ end }}
+        <details class="shop-refund-details">
+          <summary>Record an externally purchased shipment instead</summary>
+        <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/ship" class="shop-form-grid">
+          <label>courier<input name="courier_name" placeholder="USPS"></label>
+          <label>tracking number<input name="tracking_number"></label>
+          <label>tracking URL<input name="tracking_url"></label>
+          <label>shipment note<input name="notes"></label>
+          <button class="shop-button is-primary" type="submit">Mark shipped</button>
+        </form>
+        </details>
+        {{ else }}
+        <div class="shop-empty">No mailed items on this order.</div>
+        {{ end }}
+      </section>
+      <section class="shop-admin-form">
+        <h2>Admin notes</h2>
+        <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/notes">
+          <textarea name="admin_notes" rows="5">{{ .Order.AdminNotes }}</textarea>
+          <button class="shop-button" type="submit">Save notes</button>
+        </form>
+      </section>
+      <section class="shop-admin-form">
+        <h2>Totals</h2>
+        <div class="shop-order-totals">
+          <span>Subtotal</span><strong>{{ merchMoney .Order.SubtotalCents nil }}</strong>
+          <span>Discount</span><strong>{{ merchMoney .Order.DiscountAmountCents nil }}</strong>
+          <span>Shipping</span><strong>{{ merchMoney .Order.ShippingAmountCents nil }}</strong>
+          <span>Tax</span><strong>{{ merchMoney .Order.SalesTaxAmountCents nil }}</strong>
+          <span>Total</span><strong>{{ merchMoney .Order.TotalCents nil }}</strong>
+        </div>
+      </section>
+      {{ if eq .Order.Status "pending" }}
+      <section class="shop-admin-form">
+        <h2>Cancel order</h2>
+        <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/cancel" class="shop-inline-form" onsubmit="return confirm('Cancel this order? This does not issue a refund.');">
+          <input name="notes" placeholder="reason">
+          <button class="shop-button" type="submit">Cancel order</button>
+        </form>
+      </section>
+      {{ end }}
+    </main>
+  </body>
+</html>

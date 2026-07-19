@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>merch orders</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css?v=shipping-queue-1">
+  </head>
+  <body class="shop-page shop-admin-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <main class="shop-admin shop-admin--wide">
+      <section class="shop-admin__intro shop-admin__intro--actions">
+        <div>
+          <p class="shop-kicker">§ order admin</p>
+          <h1>Merch orders.</h1>
+          <p>Paid orders with outstanding mailed items are prioritized at the top of the list.</p>
+        </div>
+        <a class="shop-button" href="/admin/merch">Catalog</a>
+      </section>
+      <section class="shop-shipping-queue" aria-label="Shipping queue">
+        <div>
+          <strong>{{ .NeedsShippingCount }}</strong>
+          <span>paid {{ if eq .NeedsShippingCount 1 }}order needs{{ else }}orders need{{ end }} shipping</span>
+        </div>
+        <nav class="shop-admin-order-filters" aria-label="Order filters">
+          <a class="shop-button {{ if eq .OrderView "all" }}is-primary{{ end }}" href="/admin/merch/orders">All orders · {{ .OrderCount }}</a>
+          <a class="shop-button {{ if eq .OrderView "needs_shipping" }}is-primary{{ end }}" href="/admin/merch/orders?view=needs_shipping">Needs shipping · {{ .NeedsShippingCount }}</a>
+          <a class="shop-button {{ if eq .OrderView "event_pickup" }}is-primary{{ end }}" href="/admin/merch/orders?view=event_pickup">Event pickup · {{ .EventPickupOrderCount }}</a>
+        </nav>
+      </section>
+      <section class="shop-admin-table-wrap">
+        <table class="shop-admin-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Order</th>
+              <th>Buyer</th>
+              <th>Fulfillment</th>
+              <th>Type</th>
+              <th>Payment</th>
+              <th>Total</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+        {{ range .Orders }}
+            <tr class="{{ if .UnfulfilledShippingQuantity }}needs-shipping{{ end }}">
+              <td><span class="shop-status-pill is-{{ .Status }}">{{ .Status }}</span></td>
+              <td><a class="shop-admin-table__order" href="/admin/merch/orders/{{ .PublicID }}">{{ .PublicID }}</a></td>
+              <td>
+                <strong>{{ if .BuyerName }}{{ .BuyerName }}{{ else }}{{ .BuyerEmail }}{{ end }}</strong>
+                {{ if and .BuyerName .BuyerEmail }}<span>{{ .BuyerEmail }}</span>{{ end }}
+              </td>
+              <td class="shop-admin-table__fulfillment">
+                {{ if .UnfulfilledShippingQuantity }}
+                <span class="shop-status-pill is-needs-shipping">Ship {{ .UnfulfilledShippingQuantity }}</span>
+                <span>{{ .UnfulfilledShippingSummary }}</span>
+                {{ else if .EventPickupQuantity }}
+                <span class="shop-status-pill is-muted">Event pickup {{ .EventPickupQuantity }}</span>
+                <span>{{ .EventPickupSummary }}{{ if eq .Status "pending" }} · awaiting payment confirmation{{ end }}</span>
+                {{ else if eq .Status "paid" }}
+                <span class="shop-status-pill is-muted">Nothing to ship</span>
+                {{ else }}
+                <span class="shop-status-pill is-muted">Not ready</span>
+                {{ end }}
+              </td>
+              <td><span class="shop-status-pill is-muted">{{ .CheckoutKind }}</span></td>
+              <td>{{ .PaymentProvider }}</td>
+              <td><strong>{{ merchMoney .TotalCents nil }}</strong></td>
+              <td>{{ .CreatedAt.Format "Jan 2, 2006 3:04 PM" }}</td>
+              <td><a class="shop-admin-table__action" href="/admin/merch/orders/{{ .PublicID }}">open</a></td>
+            </tr>
+        {{ else }}
+            <tr>
+              <td colspan="9"><div class="shop-empty">{{ if eq .OrderView "needs_shipping" }}No paid orders currently need shipping.{{ else if eq .OrderView "event_pickup" }}No event-pickup orders yet.{{ else }}No merch orders yet.{{ end }}</div></td>
+            </tr>
+        {{ end }}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

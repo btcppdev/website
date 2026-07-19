@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>merch admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css">
+  </head>
+  <body class="shop-page shop-admin-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <main class="shop-admin shop-admin--wide">
+      <section class="shop-admin__intro shop-admin__intro--actions">
+        <div>
+          <p class="shop-kicker">§ shop admin</p>
+          <h1>Merch catalog.</h1>
+          <p>Browse products, publication state, pricing, and inventory.</p>
+        </div>
+        <div class="shop-admin-actions">
+          <a class="shop-button" href="/admin/merch/orders">View orders</a>
+          <a class="shop-button is-primary" href="/admin/merch/new">+ New item</a>
+        </div>
+      </section>
+
+      {{ with .ShopStats }}
+      <section class="shop-admin-ops" aria-label="Shop operations">
+        <div><strong>{{ .PendingOrders }}</strong><span>Pending checkouts</span></div>
+        <div><strong>{{ .ExpiredPendingOrders }}</strong><span>Overdue pending</span></div>
+        <div><strong>{{ .ExpiredReservations }}</strong><span>Expired reservations</span></div>
+        <div><strong>{{ .PaidMissingProviderID }}</strong><span>Missing provider ID</span></div>
+      </section>
+      {{ if .LowStock }}
+      <details class="shop-admin-low-stock">
+        <summary>Low stock · {{ len .LowStock }}</summary>
+        <div>{{ range .LowStock }}<span>{{ .ProductName }} · {{ .Label }} ({{ .SKU }}): <strong>{{ .Stock }}</strong></span>{{ end }}</div>
+      </details>
+      {{ end }}
+      {{ end }}
+
+      {{ if .Flash }}<p class="shop-flash is-success">{{ .Flash }}</p>{{ end }}
+      {{ if .Error }}<p class="shop-flash is-error">{{ .Error }}</p>{{ end }}
+
+      <section class="shop-admin-table-wrap shop-admin-catalog-wrap">
+        <table class="shop-admin-table shop-admin-catalog-table">
+          <thead>
+            <tr>
+              <th aria-label="Image"></th>
+              <th>Product</th>
+              <th>Status</th>
+              <th>Category</th>
+              <th>Variants</th>
+              <th>Price</th>
+              <th>Inventory</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {{ range .Products }}
+            <tr>
+              <td class="shop-admin-catalog-table__media">
+                <a href="/admin/merch/{{ .ID }}">{{ if merchImage . }}<img src="{{ merchImage . | safeURL }}" alt="">{{ else }}<span>{{ .ProductType }}</span>{{ end }}</a>
+              </td>
+              <td>
+                <strong>{{ .Name }}</strong>
+                <span>{{ .Slug }}{{ if .Variants }}{{ with index .Variants 0 }}{{ if .SKU }} · {{ .SKU }}{{ end }}{{ end }}{{ end }}</span>
+              </td>
+              <td><span class="shop-status-pill is-{{ .Status }}">{{ .Status }}</span></td>
+              <td>{{ .ProductType }}</td>
+              <td><strong>{{ len .Variants }}</strong></td>
+              <td><strong>{{ merchMoney .BasePriceCents . }}</strong></td>
+              <td><strong>{{ merchProductStock . }}</strong></td>
+              <td><a class="shop-admin-table__action" href="/admin/merch/{{ .ID }}">edit</a></td>
+            </tr>
+          {{ else }}
+            <tr><td colspan="8"><div class="shop-empty">No merch products yet.</div></td></tr>
+          {{ end }}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

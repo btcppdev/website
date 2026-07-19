@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>order received</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/site-chrome.css">
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+    <link rel="stylesheet" href="/static/css/shop.css">
+  </head>
+  <body class="shop-page">
+    {{ template "mainnav" . }}
+    {{ template "shop_header" . }}
+    <main class="shop-success">
+      <p class="shop-success__status">✓ Order received</p>
+      <h1>Merch claimed.</h1>
+      <p>Order <span>{{ .Order.PublicID }}</span> has been created for {{ .Order.BuyerEmail }}.</p>
+      <div class="shop-success__box">
+        {{ range .Order.Items }}
+        <div><span>{{ .Quantity }} × {{ .ProductNameSnapshot }} {{ .VariantLabelSnapshot }}</span><b>{{ merchMoney .LineTotalCents nil }}</b></div>
+        {{ end }}
+        <div class="is-total"><span>Total</span><b>{{ merchMoney .Order.TotalCents nil }}</b></div>
+      </div>
+      <div class="shop-actions">
+        <a class="shop-button is-primary" href="/shop">Back to shop</a>
+        <a class="shop-button" href="/dashboard">Go to dashboard</a>
+      </div>
+    </main>
+    {{ template "shop_footer" . }}
+  </body>
+</html>

@@ -775,6 +775,30 @@
 </section>
 {{ end }}
 
+{{ if .RecentShopOrders }}
+<section id="purchases" class="dashboard-purchase-ledger">
+  <div class="dashboard-purchase-ledger__head">
+    <div class="dashboard-kicker">§ Purchases · {{ len .RecentShopOrders }}</div>
+    <a href="/dashboard/orders?hr={{ .HMAC }}&em={{ .Email }}">view order history &rarr;</a>
+  </div>
+  <div class="dashboard-purchase-ledger__rows">
+    {{ range .RecentShopOrders }}
+    <article class="dashboard-purchase-row">
+      <div class="dashboard-purchase-row__main">
+        <strong><a href="/dashboard/orders/{{ .PublicID }}?hr={{ $.HMAC }}&em={{ $.Email }}">{{ .PublicID }}</a></strong>
+        <span>{{ .CreatedAt.Format "Jan 2, 2006" }} · {{ .Status }} · {{ .CheckoutKind }}</span>
+      </div>
+      <div class="dashboard-purchase-row__side">
+        <strong>{{ merchMoney .TotalCents nil }}</strong>
+        <a href="/dashboard/orders/{{ .PublicID }}?hr={{ $.HMAC }}&em={{ $.Email }}">view</a>
+        <a href="/dashboard/orders/{{ .PublicID }}/receipt?hr={{ $.HMAC }}&em={{ $.Email }}">receipt</a>
+      </div>
+    </article>
+    {{ end }}
+  </div>
+</section>
+{{ end }}
+
 {{/* ---- Past conferences ---- */}}
 {{ if .PastBlocks }}
 <section id="past" class="dashboard-past-ledger">

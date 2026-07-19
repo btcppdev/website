@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Easyship configuration - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+</head>
+<body class="btcpp-admin-page bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <a href="/admin" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Global admin</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Easyship configuration</h1>
+        <p class="mt-1 text-sm text-gray-600">The fulfillment origin used for checkout rates and shipment labels.</p>
+      </div>
+      {{ if .Settings.IsConfigured }}
+      <span class="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">origin configured</span>
+      {{ else }}
+      <span class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">setup required</span>
+      {{ end }}
+    </div>
+
+    {{ if .Flash }}<div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .Flash }}</div>{{ end }}
+    {{ if .Error }}<div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .Error }}</div>{{ end }}
+
+    <section class="mb-6 rounded-lg bg-white shadow">
+      <div class="px-4 py-5 sm:p-6">
+        <h2 class="text-sm font-semibold text-gray-900">Environment connection</h2>
+        <p class="mt-1 text-xs text-gray-500">Credentials remain deployment secrets and cannot be edited here.</p>
+        <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          <div><dt class="text-xs text-gray-500">API token</dt><dd class="font-medium">{{ if .APIKeyConfigured }}Configured{{ else }}Missing{{ end }}</dd></div>
+          <div><dt class="text-xs text-gray-500">Webhook secret</dt><dd class="font-medium">{{ if .WebhookSecretConfigured }}Configured{{ else }}Not configured yet{{ end }}</dd></div>
+          <div><dt class="text-xs text-gray-500">Endpoint</dt><dd class="break-all font-mono text-xs">{{ .Endpoint }}</dd></div>
+          <div><dt class="text-xs text-gray-500">API version</dt><dd class="font-mono text-xs">{{ .APIVersion }}</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="rounded-lg bg-white shadow">
+      <form method="POST" action="/admin/easyship" class="space-y-6 px-4 py-5 sm:p-6">
+        <div>
+          <h2 class="text-sm font-semibold text-gray-900">Fulfillment origin</h2>
+          <p class="mt-1 text-xs text-gray-500">Use the actual location parcels will be shipped from. This address may appear on labels and customs documents.</p>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="text-xs font-medium text-gray-700">Contact name<input required name="contact_name" value="{{ .Settings.ContactName }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></label>
+          <label class="text-xs font-medium text-gray-700">Company name <span class="font-normal text-gray-400">optional</span><input name="company_name" value="{{ .Settings.CompanyName }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></label>
+          <label class="text-xs font-medium text-gray-700">Email <span class="font-normal text-gray-400">recommended for labels</span><input type="email" name="email" value="{{ .Settings.Email }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></label>
+          <label class="text-xs font-medium text-gray-700">Phone <span class="font-normal text-gray-400">recommended for labels</span><input name="phone" value="{{ .Settings.Phone }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></label>
+          <label class="text-xs font-medium text-gray-700 sm:col-span-2">Address line 1<input required name="line_1" value="{{ .Settings.Line1 }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></label>
+          <label class="text-xs font-medium text-gray-700 sm:col-span-2">Address line 2 <span class="font-normal text-gray-400">optional</span><input name="line_2" value="{{ .Settings.Line2 }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></label>
+          <label class="text-xs font-medium text-gray-700">City<input required name="city" value="{{ .Settings.City }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></label>
+          <label class="text-xs font-medium text-gray-700">State / region<input required name="region" value="{{ .Settings.Region }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></label>
+          <label class="text-xs font-medium text-gray-700">Postal code<input required name="postal_code" value="{{ .Settings.PostalCode }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"></label>
+          <label class="text-xs font-medium text-gray-700">Country code<input required name="country_alpha2" value="{{ .Settings.CountryAlpha2 }}" maxlength="2" pattern="[A-Za-z]{2}" placeholder="US" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm uppercase"></label>
+        </div>
+        {{ if .Settings.UpdatedAt }}<p class="text-xs text-gray-500">Last updated {{ .Settings.UpdatedAt.Format "Jan 2, 2006 3:04 PM" }}{{ if .Settings.UpdatedBy }} by {{ .Settings.UpdatedBy }}{{ end }}.</p>{{ end }}
+        <div class="flex justify-end"><button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save Easyship origin</button></div>
+      </form>
+    </section>
+
+    <section class="mt-6 rounded-lg bg-white shadow">
+      <div class="px-4 py-5 sm:p-6">
+        <h2 class="text-sm font-semibold text-gray-900">Recent callbacks</h2>
+        <p class="mt-1 text-xs text-gray-500">Signed deliveries received from Easyship. Replayed payloads appear only once.</p>
+        {{ if .WebhookEvents }}
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 text-left text-xs">
+            <thead><tr><th class="py-2 pr-4">Received</th><th class="py-2 pr-4">Event</th><th class="py-2 pr-4">Shipment</th><th class="py-2 pr-4">Status</th><th class="py-2">Result</th></tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              {{ range .WebhookEvents }}
+              <tr>
+                <td class="whitespace-nowrap py-2 pr-4">{{ .ReceivedAt.Format "Jan 2 3:04:05 PM" }}</td>
+                <td class="whitespace-nowrap py-2 pr-4 font-mono">{{ .EventType }}</td>
+                <td class="whitespace-nowrap py-2 pr-4 font-mono">{{ if .EasyshipShipmentID }}{{ .EasyshipShipmentID }}{{ else }}{{ .ResourceID }}{{ end }}</td>
+                <td class="py-2 pr-4">{{ .Status }} · attempt {{ .Attempts }}</td>
+                <td class="py-2 text-gray-500">{{ if .LastError }}{{ .LastError }}{{ else if .ProcessedAt }}processed {{ .ProcessedAt.Format "3:04:05 PM" }}{{ else }}waiting{{ end }}</td>
+              </tr>
+              {{ end }}
+            </tbody>
+          </table>
+        </div>
+        {{ else }}
+        <p class="mt-4 text-sm text-gray-500">No Easyship callbacks received yet.</p>
+        {{ end }}
+      </div>
+    </section>
+  </div>
+</body>
+</html>

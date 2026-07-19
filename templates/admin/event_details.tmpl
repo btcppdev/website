@@ -124,6 +124,34 @@
           <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Venue map</dt>
           <dd class="mt-1"><input type="url" name="venue_map" value="{{ .Conf.VenueMap }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
         </div>
+        <div class="sm:col-span-2 mt-3 border-t border-gray-200 pt-4">
+          <dt class="text-xs font-semibold uppercase tracking-wider text-gray-500">Merch pickup tax address</dt>
+          <dd class="mt-1 text-sm text-gray-600">Used to calculate tax when merchandise is collected at this event.</dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Address</dt>
+          <dd class="mt-1"><input type="text" name="pickup_address_line1" value="{{ .Conf.PickupAddressLine1 }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Address line 2</dt>
+          <dd class="mt-1"><input type="text" name="pickup_address_line2" value="{{ .Conf.PickupAddressLine2 }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">City</dt>
+          <dd class="mt-1"><input type="text" name="pickup_address_city" value="{{ .Conf.PickupAddressCity }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">State / region</dt>
+          <dd class="mt-1"><input type="text" name="pickup_address_region" value="{{ .Conf.PickupAddressRegion }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Postal code</dt>
+          <dd class="mt-1"><input type="text" name="pickup_address_postal_code" value="{{ .Conf.PickupAddressPostalCode }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Country code</dt>
+          <dd class="mt-1"><input type="text" name="pickup_address_country" maxlength="2" placeholder="US" value="{{ .Conf.PickupAddressCountry }}" class="block w-full rounded-md border-gray-300 text-sm uppercase shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
       </dl>
 
       <div class="mt-8 border-t border-gray-200 pt-5">
@@ -213,6 +241,53 @@
     </section>
 
     <section class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-4">
+      <form method="POST" action="/{{ .Conf.Tag }}/admin/details/merch-upsells">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Checkout merch upsells</h2>
+            <p class="mt-1 text-sm text-gray-600">Choose up to three products to show in the merch tab during ticket checkout for this event. Only published products appear here.</p>
+          </div>
+          <button type="submit" class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-gray-800">Save upsells</button>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {{ $slot1 := index .MerchUpsellSlots 0 }}
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Slot 1
+            <select name="upsell_1_product_id" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="">None</option>
+              {{ range .MerchProducts }}
+              {{ $product := . }}
+              <option value="{{ .ID }}"{{ with $slot1 }}{{ if eq $product.ID .ID }} selected{{ end }}{{ end }}>{{ .Name }} · {{ .ProductType }}</option>
+              {{ end }}
+            </select>
+          </label>
+
+          {{ $slot2 := index .MerchUpsellSlots 1 }}
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Slot 2
+            <select name="upsell_2_product_id" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="">None</option>
+              {{ range .MerchProducts }}
+              {{ $product := . }}
+              <option value="{{ .ID }}"{{ with $slot2 }}{{ if eq $product.ID .ID }} selected{{ end }}{{ end }}>{{ .Name }} · {{ .ProductType }}</option>
+              {{ end }}
+            </select>
+          </label>
+
+          {{ $slot3 := index .MerchUpsellSlots 2 }}
+          <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Slot 3
+            <select name="upsell_3_product_id" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="">None</option>
+              {{ range .MerchProducts }}
+              {{ $product := . }}
+              <option value="{{ .ID }}"{{ with $slot3 }}{{ if eq $product.ID .ID }} selected{{ end }}{{ end }}>{{ .Name }} · {{ .ProductType }}</option>
+              {{ end }}
+            </select>
+          </label>
+        </div>
+      </form>
+    </section>
+
+    <section class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-4">
       <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Ticket pricing</h2>
@@ -260,6 +335,9 @@
             </label>
             <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Max count
               <input type="number" min="0" step="1" name="max_count" value="{{ .Ticket.Max }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </label>
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Stripe tax code
+              <input type="text" name="stripe_tax_code" value="{{ .Ticket.StripeTaxCode }}" placeholder="txcd_00000000" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </label>
             <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Checkout opens
               <input type="datetime-local" name="expires_start" value="{{ .ExpiresStart }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
