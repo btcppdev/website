@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"btcpp-web/internal/db"
 	"btcpp-web/internal/envconfig"
@@ -36,6 +37,30 @@ const (
 	devHomepagePerson7ID    = "00000000-0000-4000-8000-000000000042"
 	devHomepagePerson8ID    = "00000000-0000-4000-8000-000000000043"
 	devVolLoginMissiveID    = "00000000-0000-4000-8000-000000000044"
+	devMerchProduct1ID      = "00000000-0000-4000-8000-000000000051"
+	devMerchProduct2ID      = "00000000-0000-4000-8000-000000000052"
+	devMerchProduct3ID      = "00000000-0000-4000-8000-000000000053"
+	devMerchProduct4ID      = "00000000-0000-4000-8000-000000000054"
+	devMerchProduct5ID      = "00000000-0000-4000-8000-000000000055"
+	devMerchVariant1ID      = "00000000-0000-4000-8000-000000000061"
+	devMerchVariant2ID      = "00000000-0000-4000-8000-000000000062"
+	devMerchVariant3ID      = "00000000-0000-4000-8000-000000000063"
+	devMerchVariant4ID      = "00000000-0000-4000-8000-000000000064"
+	devMerchVariant5ID      = "00000000-0000-4000-8000-000000000065"
+	devShopOrderPickupID    = "00000000-0000-4000-8000-000000000071"
+	devShopOrderShipID      = "00000000-0000-4000-8000-000000000072"
+	devShopOrderPendingID   = "00000000-0000-4000-8000-000000000073"
+	devShopOrderRefundID    = "00000000-0000-4000-8000-000000000074"
+	devShopOrderMixedID     = "00000000-0000-4000-8000-000000000075"
+	devShopItemPickupID     = "00000000-0000-4000-8000-000000000081"
+	devShopItemShipID       = "00000000-0000-4000-8000-000000000082"
+	devShopItemPendingID    = "00000000-0000-4000-8000-000000000083"
+	devShopItemRefundID     = "00000000-0000-4000-8000-000000000084"
+	devShopItemMixedMerchID = "00000000-0000-4000-8000-000000000085"
+	devShopItemMixedTixID   = "00000000-0000-4000-8000-000000000086"
+	devShopPickupReadyID    = "00000000-0000-4000-8000-000000000087"
+	devShopPickupDoneID     = "00000000-0000-4000-8000-000000000088"
+	devShopRefundID         = "00000000-0000-4000-8000-000000000089"
 )
 
 type daySeed struct {
@@ -445,7 +470,8 @@ var devSatellites = []satelliteSeed{
 }
 
 func main() {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 	env, err := envconfig.Load(".env")
 	if err != nil {
 		log.Fatal(err)
@@ -477,6 +503,7 @@ func main() {
 	seedSatelliteEvents(ctx, tx, confID)
 	seedHomepageFeaturedSpeakers(ctx, tx)
 	seedDashboardFixtures(ctx, tx, confID, pastConfID)
+	seedMerch(ctx, tx, confID)
 	seedMissives(ctx, tx)
 
 	if err := tx.Commit(ctx); err != nil {
@@ -515,13 +542,398 @@ If you did not ask for this link, you can ignore this email.
 	`, devVolLoginMissiveID, markdown)
 }
 
+func seedMerch(ctx context.Context, tx pgx.Tx, confID string) {
+	type merchSeed struct {
+		productID, variantID, tag, slug, name, subtitle, desc string
+		category, sku, image                                  string
+		price, stock, weight                                  int
+	}
+	items := []merchSeed{
+		{
+			devMerchProduct1ID, devMerchVariant1ID, "core-hat", "core-hat", "Core Hat",
+			"Washed rust corduroy, blackletter core.", "Six-panel washed corduroy in a sun-faded rust. Blackletter core embroidered low-profile on the front, bitcoin++ woven tag on the back strap.",
+			"apparel", "MERCH-CORE-HAT", "/static/img/merch/core-hat.avif", 3500, 22, 120,
+		},
+		{
+			devMerchProduct2ID, devMerchVariant2ID, "libbit-hat", "libbitcoin-hat", "Libbitcoin Hat",
+			"Black twill, pixel-font libbitcoin.", "Structured black twill cap with a pixel-font libbitcoin across the front. Flat-ish brim, snapback closure.",
+			"apparel", "MERCH-LIBBIT-HAT", "/static/img/merch/libbit-hat.avif", 3500, 4, 120,
+		},
+		{
+			devMerchProduct3ID, devMerchVariant3ID, "bpp-hat", "bitcoin-hat", "bitcoin++ Hat",
+			"Faded denim blue, logo on the back.", "Unstructured faded-denim dad hat. Small ++ on the front, full bitcoin++ wordmark on the back. Curved brim, buckle strap.",
+			"apparel", "MERCH-BPP-HAT", "/static/img/merch/librerelay-hat.avif", 3000, 40, 120,
+		},
+		{
+			devMerchProduct4ID, devMerchVariant4ID, "node-tee", "node-runner-tee", "Node Runner Tee",
+			"Heavyweight tee, run your own node.", "Heavyweight cotton tee with a full node topology print and RUN YOUR OWN NODE across the back.",
+			"apparel", "MERCH-NODE-TEE", "", 3200, 18, 220,
+		},
+		{
+			devMerchProduct5ID, devMerchVariant5ID, "signet-stickers", "signet-sticker-pack", "Signet Sticker Pack",
+			"Six die-cut vinyl stickers.", "Six weatherproof die-cut vinyl stickers: ++, mempool, node, lightning bolt, block, and a tiny villain mark. Laptop-lid ready.",
+			"stickers", "MERCH-SIGNET-STICKERS", "", 800, 120, 40,
+		},
+	}
+
+	for _, item := range items {
+		mustExec(ctx, tx, "seed merch product", `
+			INSERT INTO merch_products (
+				id, tag, slug, name, subtitle, description, status, product_type,
+				base_price_cents, currency, symbol, requires_shipping, allow_event_pickup,
+				stripe_tax_code, easyship_category, country_of_origin
+			)
+			VALUES (
+				$1::uuid, $2, $3, $4, $5, $6, 'published', $7,
+				$8, 'USD', '$', true, true, 'txcd_99999999', 'fashion', 'US'
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				tag = EXCLUDED.tag,
+				slug = EXCLUDED.slug,
+				name = EXCLUDED.name,
+				subtitle = EXCLUDED.subtitle,
+				description = EXCLUDED.description,
+				status = EXCLUDED.status,
+				product_type = EXCLUDED.product_type,
+				base_price_cents = EXCLUDED.base_price_cents,
+				requires_shipping = EXCLUDED.requires_shipping,
+				allow_event_pickup = EXCLUDED.allow_event_pickup
+		`, item.productID, item.tag, item.slug, item.name, item.subtitle, item.desc, item.category, item.price)
+
+		mustExec(ctx, tx, "seed merch variant", `
+			INSERT INTO merch_variants (
+				id, product_id, sku, label, weight_grams, inventory_policy, status
+			)
+			VALUES ($1::uuid, $2::uuid, $3, 'Default', $4, 'deny', 'active')
+			ON CONFLICT (id) DO UPDATE SET
+				product_id = EXCLUDED.product_id,
+				sku = EXCLUDED.sku,
+				label = EXCLUDED.label,
+				weight_grams = EXCLUDED.weight_grams,
+				inventory_policy = EXCLUDED.inventory_policy,
+				status = EXCLUDED.status
+		`, item.variantID, item.productID, item.sku, item.weight)
+
+		mustExec(ctx, tx, "seed merch initial stock", `
+			INSERT INTO merch_inventory_events (
+				variant_id, event_type, quantity_delta, actor_email, notes
+			)
+			SELECT $1::uuid, 'initial', $2, 'dev-admin@example.test', 'seed inventory'
+			WHERE NOT EXISTS (
+				SELECT 1 FROM merch_inventory_events
+				WHERE variant_id = $1::uuid AND event_type = 'initial' AND notes = 'seed inventory'
+			)
+		`, item.variantID, item.stock)
+
+		if item.image != "" {
+			mustExec(ctx, tx, "seed merch image", `
+				INSERT INTO merch_product_images (
+					product_id, object_key, alt_text, display_order, is_primary
+				)
+				VALUES ($1::uuid, $2, $3, 0, true)
+				ON CONFLICT DO NOTHING
+			`, item.productID, item.image, item.name)
+		}
+	}
+	for order, productID := range []string{devMerchProduct1ID, devMerchProduct2ID, devMerchProduct5ID} {
+		mustExec(ctx, tx, "seed conference merch upsell", `
+			INSERT INTO conference_merch_upsells (conference_id, product_id, display_order)
+			VALUES ($1::uuid, $2::uuid, $3)
+			ON CONFLICT (conference_id, product_id) DO UPDATE SET
+				display_order = EXCLUDED.display_order
+		`, confID, productID, order)
+	}
+	seedMerchPurchases(ctx, tx, confID)
+}
+
+func seedMerchPurchases(ctx context.Context, tx pgx.Tx, confID string) {
+	orderIDs := []string{
+		devShopOrderPickupID,
+		devShopOrderShipID,
+		devShopOrderPendingID,
+		devShopOrderRefundID,
+		devShopOrderMixedID,
+	}
+	itemIDs := []string{
+		devShopItemPickupID,
+		devShopItemShipID,
+		devShopItemPendingID,
+		devShopItemRefundID,
+		devShopItemMixedMerchID,
+		devShopItemMixedTixID,
+	}
+
+	mustExec(ctx, tx, "clear dev shop tax transactions", `
+		DELETE FROM tax_transactions WHERE order_id::text = ANY($1::text[])
+	`, orderIDs)
+	mustExec(ctx, tx, "clear dev shop tax quotes", `
+		DELETE FROM tax_quotes WHERE order_id::text = ANY($1::text[])
+	`, orderIDs)
+	mustExec(ctx, tx, "clear dev shop shipments", `
+		DELETE FROM shipments WHERE order_id::text = ANY($1::text[])
+	`, orderIDs)
+	mustExec(ctx, tx, "clear dev shop shipping quotes", `
+		DELETE FROM shipping_rate_quotes WHERE order_id::text = ANY($1::text[])
+	`, orderIDs)
+	mustExec(ctx, tx, "clear dev shop refunds", `
+		DELETE FROM refunds WHERE order_id::text = ANY($1::text[])
+	`, orderIDs)
+	mustExec(ctx, tx, "clear dev shop pickups", `
+		DELETE FROM shop_item_pickups WHERE order_item_id::text = ANY($1::text[])
+	`, itemIDs)
+	mustExec(ctx, tx, "clear dev shop events", `
+		DELETE FROM shop_events WHERE order_id::text = ANY($1::text[]) OR order_item_id::text = ANY($2::text[])
+	`, orderIDs, itemIDs)
+	mustExec(ctx, tx, "clear dev shop inventory events", `
+		DELETE FROM merch_inventory_events
+		WHERE order_item_id::text = ANY($1::text[])
+			AND notes LIKE 'dev seed%'
+	`, itemIDs)
+
+	orders := []struct {
+		id, publicID, email, name, status, source, kind, provider, providerID string
+		subtotal_cents, discount, shipping, tax, total_cents                  int
+		paidAt, cancelledAt, createdAt                                        string
+	}{
+		{devShopOrderPickupID, "dev-shop-pickup-ready", "dev-admin@example.test", "Dev Admin", "paid", "online", "merch", "stripe", "cs_test_dev_pickup", 3500, 0, 0, 0, 3500, "2026-07-02 09:00:00-05", "", "2026-07-02 08:58:00-05"},
+		{devShopOrderShipID, "dev-shop-shipped", "dev-admin@example.test", "Dev Admin", "paid", "online", "merch", "stripe", "cs_test_dev_ship", 3500, 0, 1000, 300, 4800, "2026-07-03 11:00:00-05", "", "2026-07-03 10:55:00-05"},
+		{devShopOrderPendingID, "dev-shop-pending-card", "dev-admin@example.test", "Dev Admin", "pending", "online", "merch", "stripe", "", 800, 0, 500, 0, 1300, "", "", "2026-07-04 14:00:00-05"},
+		{devShopOrderRefundID, "dev-shop-partial-refund", "dev-admin@example.test", "Dev Admin", "partially_refunded", "online", "merch", "stripe", "cs_test_dev_refund", 3000, 0, 0, 200, 3200, "2026-07-05 10:00:00-05", "", "2026-07-05 09:55:00-05"},
+		{devShopOrderMixedID, "dev-shop-mixed-ticket-merch", "dev-admin@example.test", "Dev Admin", "paid", "online", "mixed", "stripe", "cs_test_dev_mixed", 18500, 0, 0, 300, 18800, "2026-07-06 16:00:00-05", "", "2026-07-06 15:55:00-05"},
+	}
+	for _, order := range orders {
+		mustExec(ctx, tx, "seed shop order", `
+			INSERT INTO shop_orders (
+				id, public_id, buyer_email, buyer_name, status, source, checkout_kind,
+				payment_provider, payment_provider_id, currency, subtotal_cents, discount_amount_cents,
+				shipping_amount_cents, sales_tax_amount_cents, total_cents, paid_at, cancelled_at, created_at
+			)
+			VALUES (
+				$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, 'USD', $10, $11,
+				$12, $13, $14, NULLIF($15, '')::timestamptz, NULLIF($16, '')::timestamptz,
+				$17::timestamptz
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				public_id = EXCLUDED.public_id,
+				buyer_email = EXCLUDED.buyer_email,
+				buyer_name = EXCLUDED.buyer_name,
+				status = EXCLUDED.status,
+				source = EXCLUDED.source,
+				checkout_kind = EXCLUDED.checkout_kind,
+				payment_provider = EXCLUDED.payment_provider,
+				payment_provider_id = EXCLUDED.payment_provider_id,
+				currency = EXCLUDED.currency,
+				subtotal_cents = EXCLUDED.subtotal_cents,
+				discount_amount_cents = EXCLUDED.discount_amount_cents,
+				shipping_amount_cents = EXCLUDED.shipping_amount_cents,
+				sales_tax_amount_cents = EXCLUDED.sales_tax_amount_cents,
+				total_cents = EXCLUDED.total_cents,
+				paid_at = EXCLUDED.paid_at,
+				cancelled_at = EXCLUDED.cancelled_at,
+				created_at = EXCLUDED.created_at
+		`, order.id, order.publicID, order.email, order.name, order.status, order.source,
+			order.kind, order.provider, order.providerID, order.subtotal_cents, order.discount,
+			order.shipping, order.tax, order.total_cents, order.paidAt, order.cancelledAt, order.createdAt)
+	}
+
+	items := []struct {
+		id, orderID, productID, variantID, name, variantLabel, sku, fulfillment, saleConfID, pickupConfID, status string
+		quantity, fulfilled, refunded, unitPrice, discount, tax, lineTotalCents                                   int
+	}{
+		{devShopItemPickupID, devShopOrderPickupID, devMerchProduct1ID, devMerchVariant1ID, "Core Hat", "Default", "MERCH-CORE-HAT", "event_pickup", confID, confID, "ready", 1, 0, 0, 3500, 0, 0, 3500},
+		{devShopItemShipID, devShopOrderShipID, devMerchProduct2ID, devMerchVariant2ID, "Libbitcoin Hat", "Default", "MERCH-LIBBIT-HAT", "ship", "", "", "pending", 1, 0, 0, 3500, 0, 300, 3500},
+		{devShopItemPendingID, devShopOrderPendingID, devMerchProduct5ID, devMerchVariant5ID, "Signet Sticker Pack", "Default", "MERCH-SIGNET-STICKERS", "ship", "", "", "pending", 1, 0, 0, 800, 0, 0, 800},
+		{devShopItemRefundID, devShopOrderRefundID, devMerchProduct3ID, devMerchVariant3ID, "bitcoin++ Hat", "Default", "MERCH-BPP-HAT", "pos_takeaway", confID, "", "partially_refunded", 1, 1, 1, 3000, 0, 200, 3000},
+		{devShopItemMixedMerchID, devShopOrderMixedID, devMerchProduct1ID, devMerchVariant1ID, "Core Hat", "Default", "MERCH-CORE-HAT", "event_pickup", confID, confID, "fulfilled", 1, 1, 0, 3500, 0, 300, 3500},
+		{devShopItemMixedTixID, devShopOrderMixedID, "", "", "General Admission", "Ticket", "DEV26-GENERAL", "pos_takeaway", confID, "", "fulfilled", 1, 1, 0, 15000, 0, 0, 15000},
+	}
+	for _, item := range items {
+		mustExec(ctx, tx, "seed shop order item", `
+			INSERT INTO shop_order_items (
+				id, order_id, product_id, variant_id, quantity, fulfilled_quantity,
+				refunded_quantity, unit_price_cents, discount_amount_cents, tax_amount_cents, line_total_cents,
+				product_tag_snapshot, product_name_snapshot, variant_label_snapshot,
+				sku_snapshot, fulfillment_method, sale_conference_id, pickup_conference_id,
+				status, created_at
+			)
+			VALUES (
+				$1::uuid, $2::uuid, NULLIF($3, '')::uuid, NULLIF($4, '')::uuid,
+				$5, $6, $7, $8, $9, $10, $11, lower(replace($12, ' ', '-')), $12,
+				$13, $14, $15, NULLIF($16, '')::uuid, NULLIF($17, '')::uuid,
+				$18, now()
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				order_id = EXCLUDED.order_id,
+				product_id = EXCLUDED.product_id,
+				variant_id = EXCLUDED.variant_id,
+				quantity = EXCLUDED.quantity,
+				fulfilled_quantity = EXCLUDED.fulfilled_quantity,
+				refunded_quantity = EXCLUDED.refunded_quantity,
+				unit_price_cents = EXCLUDED.unit_price_cents,
+				discount_amount_cents = EXCLUDED.discount_amount_cents,
+				tax_amount_cents = EXCLUDED.tax_amount_cents,
+				line_total_cents = EXCLUDED.line_total_cents,
+				product_tag_snapshot = EXCLUDED.product_tag_snapshot,
+				product_name_snapshot = EXCLUDED.product_name_snapshot,
+				variant_label_snapshot = EXCLUDED.variant_label_snapshot,
+				sku_snapshot = EXCLUDED.sku_snapshot,
+				fulfillment_method = EXCLUDED.fulfillment_method,
+				sale_conference_id = EXCLUDED.sale_conference_id,
+				pickup_conference_id = EXCLUDED.pickup_conference_id,
+				status = EXCLUDED.status
+		`, item.id, item.orderID, item.productID, item.variantID, item.quantity, item.fulfilled,
+			item.refunded, item.unitPrice, item.discount, item.tax, item.lineTotalCents, item.name,
+			item.variantLabel, item.sku, item.fulfillment, item.saleConfID, item.pickupConfID, item.status)
+	}
+
+	mustExec(ctx, tx, "seed pending shop pickup", `
+		INSERT INTO shop_item_pickups (id, order_item_id, conference_id, quantity, picked_up_at, picked_up_by, notes)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, 1, NULL, '', 'ready for dev pickup')
+		ON CONFLICT (id) DO UPDATE SET
+			order_item_id = EXCLUDED.order_item_id,
+			conference_id = EXCLUDED.conference_id,
+			quantity = EXCLUDED.quantity,
+			picked_up_at = NULL,
+			picked_up_by = '',
+			notes = EXCLUDED.notes
+	`, devShopPickupReadyID, devShopItemPickupID, confID)
+	mustExec(ctx, tx, "seed completed shop pickup", `
+		INSERT INTO shop_item_pickups (id, order_item_id, conference_id, quantity, picked_up_at, picked_up_by, notes)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, 1, '2026-07-06 16:20:00-05'::timestamptz, 'dev-volunteer@example.test', 'dev seed completed pickup')
+		ON CONFLICT (id) DO UPDATE SET
+			order_item_id = EXCLUDED.order_item_id,
+			conference_id = EXCLUDED.conference_id,
+			quantity = EXCLUDED.quantity,
+			picked_up_at = EXCLUDED.picked_up_at,
+			picked_up_by = EXCLUDED.picked_up_by,
+			notes = EXCLUDED.notes
+	`, devShopPickupDoneID, devShopItemMixedMerchID, confID)
+
+	mustExec(ctx, tx, "seed shipping rate quote", `
+		INSERT INTO shipping_rate_quotes (
+			order_id, provider, provider_quote_id, destination_country, destination_region,
+			destination_postal_code, courier_name, service_name, amount_cents, currency,
+			estimated_min_days, estimated_max_days, raw_response, expires_at
+		)
+		VALUES (
+			$1::uuid, 'easyship', 'rate_dev_standard', 'US', 'TX', '78701',
+			'USPS', 'Ground Advantage', 1000, 'USD', 3, 5,
+			'{"fixture": true, "provider": "easyship"}'::jsonb,
+			'2026-07-04 11:00:00-05'::timestamptz
+		)
+	`, devShopOrderShipID)
+	mustExec(ctx, tx, "seed shipment", `
+		INSERT INTO shipments (
+			order_id, provider, provider_shipment_id, provider_label_id, courier_name,
+			service_name, tracking_number, tracking_url, label_url, status, raw_response,
+			shipped_at
+		)
+		VALUES (
+			$1::uuid, 'easyship', 'ship_dev_001', 'label_dev_001', 'USPS',
+			'Ground Advantage', 'DEVTRACK123', 'https://example.test/tracking/DEVTRACK123',
+			'https://example.test/labels/DEVTRACK123.pdf', 'label_created',
+			'{"fixture": true, "provider": "easyship"}'::jsonb,
+			'2026-07-03 15:00:00-05'::timestamptz
+		)
+	`, devShopOrderShipID)
+	mustExec(ctx, tx, "seed tax quote", `
+		INSERT INTO tax_quotes (
+			order_id, sales_tax_provider, sales_tax_amount_cents, import_provider,
+			import_duty_amount_cents, import_tax_amount_cents, incoterm, destination_country,
+			destination_region, destination_postal_code, raw_tax_response, raw_import_response,
+			expires_at
+		)
+		VALUES (
+			$1::uuid, 'stripe', 300, 'easyship', 0, 0, 'DDU', 'US', 'TX', '78701',
+			'{"fixture": true, "provider": "stripe"}'::jsonb,
+			'{"fixture": true, "provider": "easyship"}'::jsonb,
+			'2026-07-04 11:00:00-05'::timestamptz
+		)
+	`, devShopOrderShipID)
+	mustExec(ctx, tx, "seed tax transaction", `
+		INSERT INTO tax_transactions (
+			order_id, provider, provider_transaction_id, sales_tax_amount_cents, status, raw_response
+		)
+		VALUES (
+			$1::uuid, 'stripe', 'tax_dev_ship', 300, 'recorded',
+			'{"fixture": true, "provider": "stripe"}'::jsonb
+		)
+	`, devShopOrderShipID)
+	mustExec(ctx, tx, "seed shop refund", `
+		INSERT INTO refunds (
+			id, order_id, provider, provider_refund_id, amount_cents, currency, reason,
+			status, requested_by, raw_response, completed_at
+		)
+		VALUES (
+			$1::uuid, $2::uuid, 'stripe', 're_dev_partial', 3200, 'USD',
+			'dev fixture partial return', 'succeeded', 'dev-admin@example.test',
+			'{"fixture": true, "provider": "stripe"}'::jsonb,
+			'2026-07-05 12:00:00-05'::timestamptz
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			order_id = EXCLUDED.order_id,
+			provider = EXCLUDED.provider,
+			provider_refund_id = EXCLUDED.provider_refund_id,
+			amount_cents = EXCLUDED.amount_cents,
+			currency = EXCLUDED.currency,
+			reason = EXCLUDED.reason,
+			status = EXCLUDED.status,
+			requested_by = EXCLUDED.requested_by,
+			raw_response = EXCLUDED.raw_response,
+			completed_at = EXCLUDED.completed_at
+	`, devShopRefundID, devShopOrderRefundID)
+	mustExec(ctx, tx, "seed shop refund item", `
+		INSERT INTO refund_items (refund_id, order_item_id, quantity, amount_cents, restock)
+		VALUES ($1::uuid, $2::uuid, 1, 3200, true)
+		ON CONFLICT (refund_id, order_item_id) DO UPDATE SET
+			quantity = EXCLUDED.quantity,
+			amount_cents = EXCLUDED.amount_cents,
+			restock = EXCLUDED.restock
+	`, devShopRefundID, devShopItemRefundID)
+
+	inventoryEvents := []struct {
+		variantID, eventType, itemID, note string
+		delta                              int
+	}{
+		{devMerchVariant1ID, "sale", devShopItemPickupID, "dev seed paid pickup sale", -1},
+		{devMerchVariant2ID, "sale", devShopItemShipID, "dev seed shipped sale", -1},
+		{devMerchVariant5ID, "reservation", devShopItemPendingID, "dev seed pending card reservation", -1},
+		{devMerchVariant3ID, "sale", devShopItemRefundID, "dev seed refunded sale", -1},
+		{devMerchVariant3ID, "refund", devShopItemRefundID, "dev seed refund restock", 1},
+		{devMerchVariant1ID, "sale", devShopItemMixedMerchID, "dev seed mixed sale", -1},
+		{devMerchVariant1ID, "pickup", devShopItemMixedMerchID, "dev seed completed pickup", 0},
+	}
+	for _, event := range inventoryEvents {
+		mustExec(ctx, tx, "seed merch inventory event", `
+			INSERT INTO merch_inventory_events (
+				variant_id, event_type, quantity_delta, order_item_id, conference_id,
+				actor_email, notes
+			)
+			VALUES (
+				$1::uuid, $2, $3, $4::uuid, $5::uuid,
+				'dev-admin@example.test', $6
+			)
+		`, event.variantID, event.eventType, event.delta, event.itemID, confID, event.note)
+	}
+
+	for _, orderID := range orderIDs {
+		mustExec(ctx, tx, "seed shop order event", `
+			INSERT INTO shop_events (event_type, actor_type, actor_email, entity_type, entity_id, order_id, metadata)
+			VALUES ('order.seeded', 'system', 'dev-admin@example.test', 'shop_order', $1::uuid, $1::uuid, '{"fixture": true}'::jsonb)
+		`, orderID)
+	}
+}
+
 func seedConference(ctx context.Context, tx pgx.Tx) string {
 	var confID string
 	err := tx.QueryRow(ctx, `
 		INSERT INTO conferences (
 			id, tag, public_uid, active, publication_status, description, edition_type, og_flavor, emoji, tagline,
 			date_desc, start_date, end_date, timezone, location, venue,
-			venue_map_url, venue_website_url, show_hackathon, orient_cal_notif,
+			venue_map_url, venue_website_url,
+			pickup_address_line1, pickup_address_line2, pickup_address_city,
+			pickup_address_region, pickup_address_postal_code, pickup_address_country,
+			show_hackathon, orient_cal_notif,
 			hero_title, hero_caption, about_title, about_body, about_body_2,
 			venue_title, venue_subtitle, venue_body, hotels_intro, local_ticket_body,
 			speakers_title, speakers_body, map_embed_url,
@@ -534,6 +946,7 @@ func seedConference(ctx context.Context, tx pgx.Tx) string {
 			'Oct 1 - 3, 2026', '2026-10-01 09:00:00-05', '2026-10-03 17:00:00-05',
 			'America/Chicago', 'Austin, TX', 'Localhost Hall',
 			'https://maps.example.test/localhost-hall', 'https://example.test/localhost-hall',
+			'900 Olive St', '', 'Austin', 'TX', '78702', 'US',
 			true, '',
 			'<span class="font-bitcoin">bitcoin++</span> local dev',
 			'A full local fixture for the redesigned public event page.',
@@ -566,6 +979,12 @@ func seedConference(ctx context.Context, tx pgx.Tx) string {
 			venue = EXCLUDED.venue,
 			venue_map_url = EXCLUDED.venue_map_url,
 			venue_website_url = EXCLUDED.venue_website_url,
+			pickup_address_line1 = EXCLUDED.pickup_address_line1,
+			pickup_address_line2 = EXCLUDED.pickup_address_line2,
+			pickup_address_city = EXCLUDED.pickup_address_city,
+			pickup_address_region = EXCLUDED.pickup_address_region,
+			pickup_address_postal_code = EXCLUDED.pickup_address_postal_code,
+			pickup_address_country = EXCLUDED.pickup_address_country,
 			show_hackathon = EXCLUDED.show_hackathon,
 			hero_title = EXCLUDED.hero_title,
 			hero_caption = EXCLUDED.hero_caption,
@@ -786,11 +1205,12 @@ func seedTickets(ctx context.Context, tx pgx.Tx, confID string) {
 		mustExec(ctx, tx, "seed ticket", `
 			INSERT INTO conference_tickets (
 				id, conference_id, ticket_key, tier, local_price, btc_price, usd_price,
-				base_price, card_surcharge_bps, expires_start, max_count, currency, symbol, post_symbol
+				base_price, card_surcharge_bps, expires_start, max_count, currency, symbol, post_symbol,
+				stripe_tax_code
 			)
 			VALUES (
 				$1::uuid, $2::uuid, $3, $4, $5, $6, $7,
-				$6, 1000, $8::timestamptz, $9, $10, $11, $12
+				$6, 1000, $8::timestamptz, $9, $10, $11, $12, 'txcd_00000000'
 			)
 			ON CONFLICT (conference_id, ticket_key) DO UPDATE SET
 				tier = EXCLUDED.tier,
@@ -803,7 +1223,8 @@ func seedTickets(ctx context.Context, tx pgx.Tx, confID string) {
 				max_count = EXCLUDED.max_count,
 				currency = EXCLUDED.currency,
 				symbol = EXCLUDED.symbol,
-				post_symbol = EXCLUDED.post_symbol
+				post_symbol = EXCLUDED.post_symbol,
+				stripe_tax_code = EXCLUDED.stripe_tax_code
 		`, tix.id, confID, tix.key, tix.tier, tix.local, tix.btc, tix.usd,
 			tix.expiresStart, tix.max, tix.currency, tix.symbol, tix.postSymbol)
 	}

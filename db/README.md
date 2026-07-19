@@ -39,6 +39,29 @@ To drop, recreate, and migrate the local database while Postgres is healthy:
 btcpp_pg_reset
 ```
 
+To import the current Shopify catalog from `shop.btcpp.dev` into the local
+merch tables:
+
+```sh
+go run ./cmd/import-shopify-merch -dry-run
+go run ./cmd/import-shopify-merch
+```
+
+The importer reads Shopify's public `products.json`, upserts products by handle
+and variants by SKU or Shopify variant ID, stores Shopify CDN image URLs, and
+adds a one-time default stock event for available variants. Override that local
+stock placeholder with `-available-stock-default=0` or another quantity.
+
+To mirror Shopify images into DigitalOcean Spaces at the same time:
+
+```sh
+go run ./cmd/import-shopify-merch -upload-images
+```
+
+This downloads each Shopify image, uploads the original under
+`merch/shopify/{handle}/`, generates an AVIF derivative, uploads that sibling,
+and stores the AVIF Spaces object key in `merch_product_images`.
+
 If Postgres itself cannot start because the local data directory is stale or
 corrupt, explicitly rebuild the local dev database with:
 
