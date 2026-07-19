@@ -33,24 +33,27 @@ type SpeakerInput struct {
 // SpeakerUpdate is a sparse update for an existing speaker/person row. Empty
 // strings mean "leave this field alone".
 type SpeakerUpdate struct {
-	Name      string
-	Email     string
-	Photo     string
-	Phone     string
-	Signal    string
-	Telegram  string
-	Twitter   string
-	Nostr     string
-	Github    string
-	Instagram string
-	LinkedIn  string
-	LeetCode  string
-	Website   string
-	Company   string
-	Bio       string
-	BioSet    bool
-	OrgLogo   string
-	TShirt    string
+	Name             string
+	Email            string
+	Photo            string
+	Phone            string
+	Signal           string
+	Telegram         string
+	Twitter          string
+	Nostr            string
+	Github           string
+	Instagram        string
+	LinkedIn         string
+	LeetCode         string
+	Website          string
+	Company          string
+	Bio              string
+	BioSet           bool
+	OrgLogo          string
+	TShirt           string
+	LightningAddress string
+	BitcoinAddress   string
+	PayoutFieldsSet  bool
 }
 
 // SearchSpeakersByNameOrEmail returns up to limit Speakers whose Name or Email
@@ -95,6 +98,8 @@ func normalizeSpeakerUpdate(up SpeakerUpdate) SpeakerUpdate {
 	up.Bio = strings.TrimSpace(up.Bio)
 	up.OrgLogo = strings.TrimSpace(up.OrgLogo)
 	up.TShirt = strings.TrimSpace(up.TShirt)
+	up.LightningAddress = strings.TrimSpace(up.LightningAddress)
+	up.BitcoinAddress = strings.TrimSpace(up.BitcoinAddress)
 	return up
 }
 
@@ -258,7 +263,9 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 			people.norm_photo_path, people.phone, people.signal, people.telegram,
 			people.twitter_handle, people.nostr, people.github_url, people.instagram,
 			people.linkedin, people.leetcode, people.website_url, people.company, people.org_logo_path,
-			people.bio, people.avail_to_hire, people.looking_to_hire, people.tshirt
+			people.bio, people.avail_to_hire, people.looking_to_hire, people.tshirt,
+			people.lightning_address, people.bitcoin_address, people.tax_form_type,
+			people.tax_form_object_key, people.tax_form_original_name, people.tax_form_uploaded_at
 		FROM people
 		`+clause+`
 	`, args...)
@@ -293,6 +300,12 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 			&speaker.AvailToHire,
 			&speaker.LookingToHire,
 			&speaker.TShirt,
+			&speaker.LightningAddress,
+			&speaker.BitcoinAddress,
+			&speaker.TaxFormType,
+			&speaker.TaxFormObjectKey,
+			&speaker.TaxFormOriginalName,
+			&speaker.TaxFormUploadedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)
@@ -357,11 +370,14 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 			tshirt = CASE WHEN $15 <> '' THEN $15 ELSE tshirt END,
 			email = CASE WHEN $16 <> '' THEN $16::citext ELSE email END,
 			name = CASE WHEN $17 <> '' THEN $17 ELSE name END,
-			bio = CASE WHEN $18 THEN $19 ELSE bio END
+			bio = CASE WHEN $18 THEN $19 ELSE bio END,
+			lightning_address = CASE WHEN $20 THEN $21 ELSE lightning_address END,
+			bitcoin_address = CASE WHEN $20 THEN $22 ELSE bitcoin_address END
 		WHERE id = $1::uuid
 	`, speakerID, up.Photo, up.Phone, up.Signal, up.Telegram, up.Twitter,
 		up.Nostr, up.Github, up.Instagram, up.LinkedIn, up.LeetCode, up.Website, up.Company,
-		up.OrgLogo, up.TShirt, up.Email, up.Name, up.BioSet, up.Bio)
+		up.OrgLogo, up.TShirt, up.Email, up.Name, up.BioSet, up.Bio,
+		up.PayoutFieldsSet, up.LightningAddress, up.BitcoinAddress)
 	if err != nil {
 		return fmt.Errorf("update person %s: %w", speakerID, err)
 	}

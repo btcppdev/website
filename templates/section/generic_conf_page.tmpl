@@ -91,6 +91,8 @@
         </div>
       </section>
 
+      {{ template "conf_hackathon_section" $p }}
+
       <section id="venue" class="rebrand-venue">
         <div class="rebrand-venue__intro">
           <div>
@@ -145,7 +147,6 @@
       </section>
 
       {{ template "generic_conf_agenda" $p }}
-      {{ template "conf_hackathon_section" $p }}
       {{ template "generic_conf_tickets" (dict "Page" $p "LocalTicketBody" $localTicketBody) }}
       {{ template "satellites_section" $p }}
       {{ template "sponsors_section" $p }}
@@ -189,7 +190,6 @@
 <nav class="rebrand-nav" aria-label="Event navigation">
   <div class="rebrand-nav__identity">
     <a href="/" class="rebrand-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
-    <p>[ {{ .Tag }} · {{ .Location }} / {{ .DateDesc }} ]</p>
   </div>
   <button type="button" class="rebrand-nav__toggle" data-rebrand-menu-toggle aria-controls="rebrand-nav-links" aria-expanded="false" aria-label="Toggle navigation">
     <span>Menu</span>
@@ -199,6 +199,9 @@
   <div id="rebrand-nav-links" class="rebrand-nav__links">
     <a href="/{{ .Tag }}#about">about/</a>
     <a href="/{{ .Tag }}#venue">venue/</a>
+    {{ if .ShowHackathon }}
+    <a href="/{{ .Tag }}/hackathon">hackathon/</a>
+    {{ end }}
     <a href="/{{ .Tag }}#speakers">speakers/</a>
     {{ if .HasAgenda }}
     <a href="/{{ .Tag }}#agenda">agenda/</a>

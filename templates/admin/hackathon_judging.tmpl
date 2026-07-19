@@ -6,12 +6,12 @@
   {{ template "admin_favicon" "" }}
   <script src="/static/js/person-picker.js" defer></script>
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="btcpp-admin-page admin-hackathon-page bg-gray-50 text-gray-900">
   {{ block "mainnav" . }} {{ end }}
   <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <a href="/admin/hackathons" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Hackathons</a>
+        <a href="{{ .BackURL }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ .BackLabel }}</a>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} judging</h1>
         <p class="mt-1 text-sm text-gray-600">Assign judges and coordinators for scoring.</p>
       </div>
@@ -101,27 +101,40 @@
         </div>
       </section>
 
-      <section class="overflow-hidden rounded-lg bg-white shadow">
+      <section class="rounded-lg bg-white shadow">
         <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
           <h2 class="text-sm font-semibold text-gray-900">Judges</h2>
         </div>
         <div class="px-4 py-5 sm:p-6">
           {{ if .Judges }}
+          <form method="POST" action="{{ .JudgingURL .Competition }}/judges/roles">
           <ul class="mb-6 divide-y divide-gray-100 rounded-md border border-gray-200">
             {{ range .Judges }}
             <li class="flex items-center justify-between gap-3 px-3 py-3 text-sm">
+              <input type="hidden" name="JudgePersonID" value="{{ .PersonID }}">
               <div>
                 <div class="font-medium text-gray-900">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</div>
-                <div class="mt-1 text-xs text-gray-500">{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</div>
+                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                  <span>{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</span>
+                  {{ range $.JudgeRoleTypes . }}<span class="rounded-full bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">{{ $.JudgeTypeLabel . }}</span>{{ end }}
+                </div>
               </div>
-              <form method="POST" action="{{ $.JudgingURL $.Competition }}/judges/remove">
-                <input type="hidden" name="PersonID" value="{{ .PersonID }}">
-                <input type="hidden" name="JudgeType" value="{{ .JudgeType }}">
-                <button type="submit" class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
-              </form>
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                  <fieldset class="flex flex-wrap items-center justify-end gap-2 text-xs">
+                    <legend class="sr-only">Judge roles for {{ .Name }}</legend>
+                    <label class="flex items-center gap-1"><input type="checkbox" name="JudgeRole" value="{{ .PersonID }}|expo" {{ if $.JudgeHasType . "expo" }}checked{{ end }}> Expo</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" name="JudgeRole" value="{{ .PersonID }}|finals" {{ if $.JudgeHasType . "finals" }}checked{{ end }}> Finals</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" name="JudgeRole" value="{{ .PersonID }}|coordinator" {{ if $.JudgeHasType . "coordinator" }}checked{{ end }}> Coordinator</label>
+                  </fieldset>
+                <button type="submit" formnovalidate formaction="{{ $.JudgingURL $.Competition }}/judges/remove" name="PersonID" value="{{ .PersonID }}" class="rounded-md px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50">Remove</button>
+              </div>
             </li>
             {{ end }}
           </ul>
+          <div class="mb-6 flex justify-end">
+            <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save judge roles</button>
+          </div>
+          </form>
           {{ else }}
           <p class="mb-6 text-sm text-gray-600">No judges assigned yet.</p>
           {{ end }}
@@ -150,12 +163,37 @@
               <h3 class="text-sm font-semibold text-gray-900">Generate judge invite link</h3>
               <p class="mt-1 text-sm text-gray-600">The recipient signs in with this one-time link and can judge this hackathon.</p>
             </div>
+			<div>
+			  <label for="JudgeInviteEmail" class="block text-sm font-medium text-gray-700">Recipient email <span class="font-normal text-gray-500">(optional)</span></label>
+			  <input id="JudgeInviteEmail" name="Email" type="email" autocomplete="email" placeholder="judge@example.com"
+			         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+			  <p class="mt-1 text-xs text-gray-500">When present, the invitation is emailed and can only be accepted by an account using this address.</p>
+			</div>
+			<fieldset>
+			  <legend class="block text-sm font-medium text-gray-700">Judging rounds *</legend>
+			  <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-900">
+				<label class="flex items-center gap-2"><input type="checkbox" name="InviteJudgeType" value="expo" checked> Expo judge</label>
+				<label class="flex items-center gap-2"><input type="checkbox" name="InviteJudgeType" value="finals" checked> Finals judge</label>
+			  </div>
+			  <p class="mt-1 text-xs text-gray-500">This link grants judging access only. Add coordinators separately from the judge list.</p>
+			</fieldset>
             <div class="flex justify-end">
               <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Generate judge invite</button>
             </div>
           </form>
 
           <form method="POST" action="{{ .JudgingURL .Competition }}/judges" class="grid gap-4">
+            <div>
+              <fieldset>
+                <legend class="block text-sm font-medium text-gray-700">Judge roles *</legend>
+                <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-900">
+                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="expo" checked> Expo judge</label>
+                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="finals"> Finals judge</label>
+                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="coordinator"> Coordinator</label>
+                </div>
+              </fieldset>
+              <p class="mt-1 text-xs text-gray-500">Select every role that applies. A person can judge both Expo and Finals.</p>
+            </div>
             <div>
               <label for="JudgePersonSearch" class="block text-sm font-medium text-gray-700">Judge person *</label>
               <div class="relative mt-1" data-person-picker data-person-picker-required="true" data-person-picker-name="PersonID">

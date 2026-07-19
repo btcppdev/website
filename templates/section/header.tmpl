@@ -60,6 +60,16 @@
     <script src="/static/js/btcpp-redesign.js" type="text/javascript" defer></script>
 {{ end }}
 
+{{ define "hackathon_header" }}
+    {{ template "head_meta" . }}
+    <link rel="stylesheet" href="/static/css/mini.css" />
+    <link rel="stylesheet" href="/static/css/site-chrome.css" />
+    <link rel="stylesheet" href="/static/css/btcpp-redesign.css" />
+    <link rel="stylesheet" href="/static/css/custom.css" />
+    {{ template "shared_head_scripts" . }}
+    <script src="/static/js/btcpp-redesign.js" type="text/javascript" defer></script>
+{{ end }}
+
 {{ define "form_page_header" }}
     {{ template "rebrand_header" . }}
     <link rel="stylesheet" href="/static/css/form-kit.css" />

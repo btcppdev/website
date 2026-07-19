@@ -3,6 +3,7 @@ package handlers
 import (
 	"time"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/mtypes"
 	"btcpp-web/internal/types"
 )
@@ -385,9 +386,12 @@ type DashboardPage struct {
 	// haven't bought (or been issued) a ticket don't see the
 	// mint-a-code affordance. AffiliateCode is the user's live
 	// code (nil when none); AffiliateStats sums redemptions.
-	HasAnyTicket   bool
-	AffiliateCode  *types.DiscountCode
-	AffiliateStats *AffiliateStats
+	HasAnyTicket                bool
+	AffiliateCode               *types.DiscountCode
+	AffiliateStats              *AffiliateStats
+	TicketEntitlements          []*types.HackathonTicketEntitlement
+	UnclaimedTicketEntitlements int
+	TicketClaimConfs            []*types.Conf
 	// BaseURI is the absolute site root used to build full
 	// affiliate share URLs the user can copy from per-event
 	// cards (e.g. https://btcpp.dev/vienna?code=NIFTY10).
@@ -423,6 +427,8 @@ type AffiliateCampaignRow struct {
 // admin (no review/applicants/sponsors/social/email).
 type OrganizerDashboardPage struct {
 	Conf              *types.Conf
+	HackathonAdminURL string
+	HasHackathon      bool
 	PendingCount      int
 	DecisionedCount   int
 	ReviewCountsReady bool
@@ -708,6 +714,24 @@ type EventBlock struct {
 	// coord" link on the conf card. Empty when the user has no
 	// admin relationship with the event.
 	AdminRole string
+	// JudgeTypes contains the user's hackathon judging assignments for
+	// this conference (expo, finals, or coordinator).
+	JudgeTypes []string
+}
+
+func (b *EventBlock) IsHackathonJudge() bool {
+	return b != nil && (containsString(b.JudgeTypes, getters.JudgeTypeExpo) || containsString(b.JudgeTypes, getters.JudgeTypeFinals))
+}
+
+func (b *EventBlock) IsHackathonCoordinator() bool {
+	return b != nil && containsString(b.JudgeTypes, getters.JudgeTypeCoordinator)
+}
+
+func (b *EventBlock) HackathonJudgeLabel() string {
+	if b == nil || len(b.JudgeTypes) == 0 {
+		return ""
+	}
+	return "Hackathon judge"
 }
 
 type DashboardStats struct {

@@ -11,7 +11,7 @@
       <span class="hack-ticker__live">▶ Schedule</span>
       <span>{{ .Competition.Title }}</span>
       <span>•</span>
-      <span>local browser time</span>
+      <span>{{ if .Conf.Timezone }}{{ .Conf.Timezone }}{{ else }}conference time{{ end }}</span>
     </div>
 
     <header class="hack-header">
@@ -30,31 +30,57 @@
           <div class="hack-label">§ Schedule</div>
           <h1 style="margin:0;font-size:clamp(48px,7vw,88px);font-weight:700;line-height:.92;">Hackathon <span class="hack-serif">schedule.</span></h1>
         </div>
-        <div class="hack-section__deck">Times are shown in your browser timezone.</div>
+        <div class="hack-section__deck hack-schedule-intro">
+          <p>Times are shown in the conference timezone{{ if .Conf.Timezone }} ({{ .Conf.Timezone }}){{ end }}.</p>
+          <a href="/{{ .Conf.Tag }}/agenda">View the full conference agenda &rarr;</a>
+        </div>
       </div>
 
       {{ if .ScheduleEvents }}
       <div class="hack-table-wrap">
-        <table class="hack-table">
+        <table class="hack-table hack-schedule-table">
           <thead>
             <tr>
               <th scope="col">Event</th>
+              <th scope="col">Day</th>
               <th scope="col">Time</th>
               <th scope="col">Venue</th>
+              <th scope="col">Calendar</th>
             </tr>
           </thead>
           <tbody>
             {{ range .ScheduleEvents }}
             <tr>
-              <td>{{ .Label }}</td>
-              <td>
+              <td class="hack-schedule-event" data-label="Event"><strong>{{ .Label }}</strong></td>
+              <td data-label="Day">
                 {{ if .Time }}
-                <time class="hackathon-schedule-time" datetime="{{ .Time.Format "2006-01-02T15:04:05Z07:00" }}">{{ .Time.Format "2006-01-02 15:04" }}</time>{{ if .End }} - <time class="hackathon-schedule-time" datetime="{{ .End.Format "2006-01-02T15:04:05Z07:00" }}">{{ .End.Format "2006-01-02 15:04" }}</time>{{ end }}
+                <time class="hack-schedule-day" data-schedule-day datetime="{{ .Time.Format "2006-01-02T15:04:05Z07:00" }}">{{ .Time.Format "Monday, January 2" }}</time>
                 {{ else }}
                 TBA
                 {{ end }}
               </td>
-              <td>{{ if .Venue }}{{ .Venue }}{{ else }}TBA{{ end }}</td>
+              <td class="hack-schedule-time" data-label="Time">
+                {{ if .Time }}
+                <time data-schedule-clock datetime="{{ .Time.Format "2006-01-02T15:04:05Z07:00" }}">{{ .Time.Format "3:04 PM" }}</time>{{ if .End }}<span aria-hidden="true">–</span><time data-schedule-clock datetime="{{ .End.Format "2006-01-02T15:04:05Z07:00" }}">{{ .End.Format "3:04 PM" }}</time>{{ end }}
+                {{ else }}
+                TBA
+                {{ end }}
+              </td>
+              <td data-label="Venue">{{ if .Venue }}<span class="hack-schedule-venue">{{ venueLabel .Venue }}</span>{{ else }}TBA{{ end }}</td>
+              <td class="hack-schedule-calendar" data-label="Calendar">
+                {{ if and .Time .End }}
+                {{ template "cal_picker" (dict
+                  "Title"       .Label
+                  "StartISO"    (rfc3339 .Time)
+                  "EndISO"      (rfc3339 .End)
+                  "Description" (printf "Hackathon schedule session for %s." $.Competition.Title)
+                  "Location"    (venueLabel .Venue)
+                  "ICSURL"      (printf "/%s/hackathon/schedule/%s/calendar.ics" $.Conf.Tag .SegmentID)
+                ) }}
+                {{ else }}
+                <span class="hack-schedule-tba">TBA</span>
+                {{ end }}
+              </td>
             </tr>
             {{ end }}
           </tbody>
@@ -66,28 +92,6 @@
     </section>
   </main>
 
-  <script>
-    (function () {
-      const times = Array.prototype.slice.call(document.querySelectorAll('.hackathon-schedule-time'));
-      if (times.length === 0) return;
-
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-      for (const el of times) {
-        const value = el.getAttribute('datetime');
-        if (!value) continue;
-        const date = new Date(value);
-        el.textContent = new Intl.DateTimeFormat(undefined, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          timeZone: tz,
-          timeZoneName: 'short'
-        }).format(date);
-      }
-    })();
-  </script>
   {{ block "footer" . }} {{ end }}
 </body>
 </html>

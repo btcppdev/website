@@ -31,6 +31,9 @@ type HackathonCompetition struct {
 	FinalsJudgingStartsAt *time.Time
 	FinalsJudgingEndsAt   *time.Time
 	AwardsCeremonyAt      *time.Time
+	ResultsFinalizedAt    *time.Time
+	ResultsFinalizedBy    string
+	ResultsFinalizedName  string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
@@ -81,6 +84,23 @@ type ProjectMember struct {
 	CreatedAt time.Time
 }
 
+// HackathonPayoutRecipient contains the private, coordinator-visible fields
+// needed to prepare a cash award payout. It is deliberately separate from
+// ProjectMember so public project pages never receive payout details.
+type HackathonPayoutRecipient struct {
+	ProjectID           string
+	PersonID            string
+	Name                string
+	Email               string
+	Signal              string
+	Telegram            string
+	LightningAddress    string
+	BitcoinAddress      string
+	TaxFormType         string
+	TaxFormOriginalName string
+	TaxFormUploadedAt   *time.Time
+}
+
 type ProjectInvite struct {
 	ID                 string
 	ProjectID          string
@@ -98,12 +118,24 @@ type CompetitionJudge struct {
 	Email         string
 	Photo         string
 	JudgeType     string
+	JudgeTypes    []string
 	CreatedAt     time.Time
+}
+
+// CompetitionJudgeAssignment is the small, conference-scoped view of a
+// judging assignment used outside the hackathon administration pages.
+type CompetitionJudgeAssignment struct {
+	CompetitionID string
+	ConferenceID  string
+	ConferenceTag string
+	JudgeType     string
 }
 
 type CompetitionJudgeInvite struct {
 	ID                 string
 	CompetitionID      string
+	Email              string
+	JudgeTypes         []string
 	AcceptedByPersonID string
 	AcceptedAt         *time.Time
 	ExpiresAt          *time.Time
@@ -147,6 +179,7 @@ type Award struct {
 	PhotoURL         string
 	MaxAwardees      *int
 	OptInRequired    bool
+	FinalistsOnly    bool
 	Status           string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -183,6 +216,53 @@ type ProjectAwardOptIn struct {
 	ProjectNumber *int
 	AwardTitle    string
 	OptedInAt     time.Time
+}
+
+type AwardDistribution struct {
+	ID                  string
+	CompetitionID       string
+	AwardID             string
+	AwardTitle          string
+	ProjectID           string
+	ProjectTitle        string
+	PrizeID             string
+	PrizeTitle          string
+	PersonID            string
+	PersonName          string
+	PersonEmail         string
+	PersonSignal        string
+	PersonTelegram      string
+	DistributionType    string
+	AmountSats          *int64
+	TicketQuantity      *int
+	Status              string
+	Notes               string
+	LightningAddress    string
+	BitcoinAddress      string
+	TaxFormType         string
+	TaxFormOriginalName string
+	TaxFormUploadedAt   *time.Time
+	CompletedAt         *time.Time
+	CompletedBy         string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type HackathonTicketEntitlement struct {
+	ID                     string
+	PersonID               string
+	AwardDistributionID    string
+	AwardTitle             string
+	ProjectID              string
+	ProjectTitle           string
+	HackathonConferenceTag string
+	Quantity               int
+	ClaimedConferenceID    string
+	ClaimedConferenceTag   string
+	ClaimedRegistrationID  string
+	ClaimedAt              *time.Time
+	VoidedAt               *time.Time
+	CreatedAt              time.Time
 }
 
 type HackathonViewer struct {

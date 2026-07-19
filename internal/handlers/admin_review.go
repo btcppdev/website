@@ -75,6 +75,20 @@ func OrganizerDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	// when they don't have the role.
 	started := time.Now()
 	isAdmin := id.HasRoleForConf(conf.Tag, auth.RoleAdmin)
+	isVolcoord := id.HasRoleForConf(conf.Tag, auth.RoleVolcoord)
+	hackathonAdminURL := ""
+	hasHackathon := false
+	if isAdmin {
+		hackathon, hackathonErr := getters.GetCompetitionByConferenceID(ctx, conf.Ref)
+		if hackathonErr != nil {
+			ctx.Err.Printf("/%s/admin hackathon lookup failed (continuing): %s", conf.Tag, hackathonErr)
+		} else if hackathon != nil {
+			hackathonAdminURL = "/" + url.PathEscape(conf.Tag) + "/admin/hackathon"
+			hasHackathon = true
+		} else {
+			hackathonAdminURL = "/admin/hackathons/new?conf=" + url.QueryEscape(conf.Tag)
+		}
+	}
 	var pendingCount, decisionedCount int
 	var confProposals []*types.Proposal
 	var reviewCountsReady bool
@@ -117,6 +131,8 @@ func OrganizerDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "admin/conf_dashboard.tmpl", &OrganizerDashboardPage{
 		Conf:              &confCopy,
+		HackathonAdminURL: hackathonAdminURL,
+		HasHackathon:      hasHackathon,
 		PendingCount:      pendingCount,
 		DecisionedCount:   decisionedCount,
 		ReviewCountsReady: reviewCountsReady,
@@ -124,7 +140,7 @@ func OrganizerDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		Stats:             stats,
 		IsGlobalAdmin:     id.IsGlobalAdmin(),
 		IsConfAdmin:       isAdmin,
-		IsConfVolcoord:    id.HasRoleForConf(conf.Tag, auth.RoleVolcoord),
+		IsConfVolcoord:    isVolcoord,
 		Year:              helpers.CurrentYear(),
 	})
 	if err != nil {

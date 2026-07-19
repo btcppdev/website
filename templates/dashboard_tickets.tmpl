@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>your hackathon ticket awards - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#127903;</text></svg>">
+</head>
+<body class="btcpp-dashboard-page">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="dashboard-shell">
+    <main class="dashboard-main">
+      <nav class="dashboard-ticket-back" aria-label="Dashboard navigation">
+        <a href="/dashboard">← Dashboard</a>
+      </nav>
+
+      {{ if .FlashMessage }}<div class="dashboard-flash is-success"><p>{{ .FlashMessage }}</p></div>{{ end }}
+      {{ if .FlashError }}<div class="dashboard-flash is-error"><p>{{ .FlashError }}</p></div>{{ end }}
+
+      <header class="dashboard-ticket-hero">
+        <div>
+          <div class="dashboard-kicker">§ Hackathon awards</div>
+          <h1>Your bitcoin++ tickets.</h1>
+          <p>Tickets you earn belong to you. Choose an upcoming event when you’re ready to use one.</p>
+        </div>
+        {{ if .TicketEntitlements }}
+        <div class="dashboard-ticket-summary" aria-label="Ticket award summary">
+          <strong>{{ .UnclaimedTicketEntitlements }}</strong>
+          <span>ready to claim</span>
+        </div>
+        {{ end }}
+      </header>
+
+      <section class="dashboard-ticket-list">
+        <div class="dashboard-section-label">Ticket awards · {{ len .TicketEntitlements }}</div>
+        {{ range .TicketEntitlements }}
+        <article class="dashboard-ticket-award{{ if .VoidedAt }} is-inactive{{ else if .ClaimedAt }} is-claimed{{ end }}">
+          <div class="dashboard-ticket-award__head">
+            <div class="dashboard-ticket-award__number">{{ .Quantity }}</div>
+            <div class="dashboard-ticket-award__copy">
+              <div class="dashboard-kicker">{{ .AwardTitle }}</div>
+              <h2>bitcoin++ ticket{{ if ne .Quantity 1 }}s{{ end }}</h2>
+              <p>Won with <a class="dashboard-ticket-project-link" href="/{{ .HackathonConferenceTag }}/hackathon/projects/{{ .ProjectID }}">{{ .ProjectTitle }} →</a></p>
+            </div>
+            {{ if .VoidedAt }}<span class="dashboard-ticket-status is-inactive">Voided</span>{{ else if .ClaimedAt }}<span class="dashboard-ticket-status is-claimed">Claimed</span>{{ else }}<span class="dashboard-ticket-status is-ready">Ready to claim</span>{{ end }}
+          </div>
+          {{ if .VoidedAt }}
+          <div class="dashboard-ticket-award__result">This ticket award was voided.</div>
+          {{ else if .ClaimedAt }}
+          <div class="dashboard-ticket-award__result"><span>Issued for</span><strong>{{ .ClaimedConferenceTag }}</strong></div>
+          {{ else if $.TicketClaimConfs }}
+          <form method="POST" action="/dashboard/hackathon-ticket-entitlements/{{ .ID }}/claim" class="dashboard-ticket-claim">
+            <label for="ticket-event-{{ .ID }}">Choose an event</label>
+            <div class="dashboard-ticket-claim__controls">
+              <select id="ticket-event-{{ .ID }}" name="ConferenceID" required>
+                <option value="">Select an upcoming event</option>
+                {{ range $.TicketClaimConfs }}<option value="{{ .Ref }}">{{ .Desc }} · {{ .DateDesc }}</option>{{ end }}
+              </select>
+              <button type="submit" onclick="return confirm('Claim this ticket for the selected event? This cannot currently be changed afterward.');">Claim ticket →</button>
+            </div>
+          </form>
+          {{ else }}
+          <div class="dashboard-ticket-award__notice">No upcoming events are available yet. Your ticket will stay here until one is announced.</div>
+          {{ end }}
+        </article>
+        {{ else }}
+        <div class="dashboard-ticket-empty">
+          <span>00</span>
+          <h2>No ticket awards yet.</h2>
+          <p>Tickets earned from finalized hackathon results will appear here.</p>
+        </div>
+        {{ end }}
+      </section>
+    </main>
+  </div>
+</body>
+</html>

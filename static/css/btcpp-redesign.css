@@ -145,16 +145,6 @@ body.btcpp-rebrand-page {
   height: 36px;
 }
 
-.rebrand-nav p {
-  margin: 0;
-  color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  letter-spacing: 0;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
 .rebrand-nav__links {
   display: flex;
   align-items: center;
@@ -3512,10 +3502,6 @@ body.btcpp-rebrand-page {
 
   .rebrand-nav__brand {
     font-size: 22px;
-  }
-
-  .rebrand-nav p {
-    display: none;
   }
 
   .rebrand-nav__toggle {

@@ -2,13 +2,16 @@
 <html lang="en">
 <head>
   <title>{{ .Competition.Title }} - bitcoin++ hackathon</title>
-  {{ block "header" . }} {{ end }}
+  {{ template "hackathon_header" . }}
 </head>
 <body class="hack-redesign">
-  {{ block "mainnav" . }} {{ end }}
+  {{ $galleryProjects := .GalleryProjects }}
+  {{ $myProjects := .MyProjects }}
+  {{ template "generic_conf_ticker" (dict "Conf" .Conf "Label" "Hackathon live" "Count" (len $galleryProjects)) }}
+  {{ template "generic_conf_nav" .Conf }}
   <main class="hack-shell">
     <section class="hack-hero">
-      <img src="/static/img/rebrand/hero-hackathon.png" alt="">
+      <img src="{{ .CompetitionImagePNG .Competition }}" alt="">
       <div class="hack-hero__content">
         <div class="hack-hero__top">
           <div>The hackathon</div>
@@ -45,9 +48,6 @@
     {{ if .FlashError }}
     <div class="mx-6 mt-6 border border-red-700 bg-red-50 px-4 py-3 text-sm text-red-900">{{ .FlashError }}</div>
     {{ end }}
-    {{ $galleryProjects := .GalleryProjects }}
-    {{ $myProjects := .MyProjects }}
-
     <nav class="hack-tabs" aria-label="Hackathon sections">
       <button type="button" data-hackathon-tab="overview" class="hack-tab" aria-selected="true">Overview</button>
       {{ if .Viewer }}<button type="button" data-hackathon-tab="my-projects" class="hack-tab" aria-selected="false">My projects · {{ len $myProjects }}</button>{{ end }}
@@ -59,8 +59,8 @@
     <section data-hackathon-tab-panel="overview" class="hack-panel" id="overview">
       <div class="hack-stat-grid">
         <div class="hack-stat">
-          <div class="hack-stat__value">{{ .RankedPrizePoolLabel }}</div>
-          <div class="hack-stat__label">Total ranked prize pool</div>
+          <div class="hack-stat__value">{{ .RankedPrizePoolValue }}</div>
+          <div class="hack-stat__label">Prize Pool (satoshis)</div>
         </div>
         <div class="hack-stat">
           <div class="hack-stat__value">{{ with .Competition.MaxTeamSize }}{{ . }}{{ else }}∞{{ end }}</div>
@@ -100,6 +100,30 @@
       </section>
       {{ end }}
 
+      {{ $bountyAwards := .BountyAwards }}
+      {{ if $bountyAwards }}
+      <section class="hack-bounties" aria-label="Sponsor bounties">
+        <div class="hack-bounties__bar">+ Sponsor bounties · stackable</div>
+        <div class="hack-bounty-grid">
+          {{ range $bountyAwards }}
+          <article class="hack-bounty-card">
+            <div class="hack-bounty-card__eyebrow">[ Sponsor bounty ]</div>
+            <h3>{{ .Title }}</h3>
+            {{ if .Description }}<div class="hack-bounty-card__desc">{{ $.RichText .Description }}</div>{{ end }}
+            <div class="hack-bounty-card__prizes">
+              {{ range $.AwardPrizes . }}
+              <div>
+                <span>{{ .Title }}</span>
+                <strong>{{ $.PrizeValueLabel . }}</strong>
+              </div>
+              {{ end }}
+            </div>
+          </article>
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
+
       <section class="hack-judges" aria-label="Hackathon judges">
         <div class="hack-section__head hack-judges__head">
           <div>
@@ -111,16 +135,17 @@
         {{ if .Judges }}
         <div class="hack-judge-grid">
           {{ range $index, $judge := .Judges }}
-          <article class="hack-judge-card">
+          {{ $profileURL := $.JudgeProfileURL $judge }}
+          {{ if $profileURL }}<a href="{{ $profileURL }}" class="hack-judge-card hack-judge-card--linked" aria-label="View {{ if $judge.Name }}{{ $judge.Name }}{{ else }}this judge{{ end }}’s profile">{{ else }}<article class="hack-judge-card">{{ end }}
             <div class="hack-judge-card__portrait">
               <img src="{{ speakerPhoto $judge.Photo }}" alt="{{ $judge.Name }}">
             </div>
             <div class="hack-judge-card__body">
               <div class="hack-label">{{ $.JudgeNumber $index }}</div>
               <h3>{{ if $judge.Name }}{{ $judge.Name }}{{ else }}Hackathon judge{{ end }}</h3>
-              <div class="hack-judge-card__role">{{ $.JudgeTypeLabel $judge.JudgeType }}</div>
+              <div class="hack-judge-card__role">{{ $.PublicJudgeRoleLabel $judge }}</div>
             </div>
-          </article>
+          {{ if $profileURL }}</a>{{ else }}</article>{{ end }}
           {{ end }}
         </div>
         {{ else }}
@@ -166,7 +191,7 @@
             <dd>
               {{ if .NextMilestoneValue }}
               {{ with .NextMilestoneTime }}
-              <time class="hackathon-detail-time" datetime="{{ .Format "2006-01-02T15:04:05Z07:00" }}">{{ $.NextMilestoneValue }}</time>
+              <time datetime="{{ .Format "2006-01-02T15:04:05Z07:00" }}">{{ $.NextMilestoneValue }}</time>
               {{ else }}
               {{ $.NextMilestoneValue }}
               {{ end }}
@@ -182,6 +207,24 @@
           </div>
         </dl>
       </div>
+
+      {{ $featuredProjects := .FeaturedProjects }}
+      {{ if $featuredProjects }}
+      <section class="hack-featured-projects" aria-label="Featured hackathon projects">
+        <div class="hack-section__head">
+          <div>
+            <div class="hack-label">§ Featured builds</div>
+            <h2>Built in <span class="hack-serif">public.</span></h2>
+          </div>
+          <div class="hack-section__deck">Winning and featured projects from this hackathon. <a href="#projects">Explore the full gallery →</a></div>
+        </div>
+        <div class="hack-card-grid">
+          {{ range $project := $featuredProjects }}
+          {{ template "hackathon_project_card" (dict "Page" $ "Project" $project "ShowManage" false "Compact" true "Featured" true) }}
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
 
       {{ if .CanCreate }}
       <section id="submit" class="hack-submit">
@@ -295,7 +338,7 @@
             {{ if $prizes }}
             <div class="hack-card__links">
               {{ range $prizes }}
-              <span>{{ .Title }}{{ if .ValueText }} · {{ .ValueText }}{{ end }}</span>
+              <span>{{ .Title }}{{ if .ValueText }} · {{ $.PrizeValueLabel . }}{{ end }}</span>
               {{ end }}
             </div>
             {{ end }}
@@ -410,27 +453,8 @@
       });
     })();
 
-    (function () {
-      const times = Array.prototype.slice.call(document.querySelectorAll('.hackathon-detail-time'));
-      if (times.length === 0) return;
-      const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-      for (const el of times) {
-        const value = el.getAttribute('datetime');
-        if (!value) continue;
-        const date = new Date(value);
-        el.textContent = new Intl.DateTimeFormat(undefined, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          timeZone: localTZ,
-          timeZoneName: 'short'
-        }).format(date);
-      }
-    })();
   </script>
-  {{ block "footer" . }} {{ end }}
+  {{ template "generic_conf_footer" . }}
 </body>
 </html>
 
@@ -438,7 +462,7 @@
 {{ $page := .Page }}
 {{ $project := .Project }}
 {{ $winningAwards := $page.ProjectWinningAwards $project }}
-<article id="project-{{ $project.ID }}" class="hack-card{{ if not .ShowManage }} hack-card--clickable{{ end }}" {{ if not .ShowManage }}data-project-card-url="{{ $page.ProjectURL $project }}" tabindex="0" role="link"{{ end }}>
+<article id="{{ if .Featured }}featured-{{ else }}project-{{ end }}{{ $project.ID }}" class="hack-card{{ if not .ShowManage }} hack-card--clickable{{ end }}" {{ if not .ShowManage }}data-project-card-url="{{ $page.ProjectURL $project }}" tabindex="0" role="link"{{ end }}>
   <div class="hack-card__media" data-initials="++" {{ if $project.ImageURL }}data-has-image="true"{{ end }}>
     {{ if $project.ImageURL }}<img src="{{ $project.ImageURL }}" alt="" loading="lazy">{{ end }}
     {{ if $winningAwards }}<span class="hack-badge" style="position:absolute;top:12px;left:12px;z-index:1;">★ Winner</span>{{ end }}
@@ -454,7 +478,7 @@
                         {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
                       </div>
                     {{ end }}
-    {{ if $project.Description }}
+    {{ if and (not .Compact) $project.Description }}
     <div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ $page.ProjectDescriptionHTML $project }}</div>
     {{ end }}
     {{ if $project.Tags }}

@@ -94,20 +94,22 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	// Top-level fan-out: speakerconfs + volunteer apps + user's tickets
 	// are all independent.
 	var (
-		speakers     []*types.Speaker
-		speakerConfs []*types.SpeakerConf
-		scErr        error
-		volapps      []*types.Volunteer
-		volErr       error
-		regs         []*types.Registration
-		regErr       error
-		satEvents    []*types.SatelliteEvent
-		satErr       error
+		speakers         []*types.Speaker
+		speakerConfs     []*types.SpeakerConf
+		scErr            error
+		volapps          []*types.Volunteer
+		volErr           error
+		regs             []*types.Registration
+		regErr           error
+		satEvents        []*types.SatelliteEvent
+		satErr           error
+		judgeAssignments []*types.CompetitionJudgeAssignment
+		judgeErr         error
 	)
 	t1 := time.Now()
 	var topWg sync.WaitGroup
-	topWg.Add(4)
-	var scDur, volDur, regDur, satDur time.Duration
+	topWg.Add(5)
+	var scDur, volDur, regDur, satDur, judgeDur time.Duration
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
@@ -132,14 +134,23 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		satEvents, satErr = getters.ListSatelliteEventsBySubmitter(ctx, email)
 		satDur = time.Since(s)
 	}()
+	go func() {
+		defer topWg.Done()
+		s := time.Now()
+		judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsByEmail(ctx, email)
+		judgeDur = time.Since(s)
+	}()
 	topWg.Wait()
-	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d",
-		reqID, time.Since(t1), scDur, volDur, regDur, satDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents))
+	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s judge=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d judgeAssignments=%d",
+		reqID, time.Since(t1), scDur, volDur, regDur, satDur, judgeDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents), len(judgeAssignments))
 	if regErr != nil {
 		ctx.Err.Printf("/dashboard listregs failed (continuing): %s", regErr)
 	}
 	if satErr != nil {
 		ctx.Err.Printf("/dashboard satellite events failed (continuing): %s", satErr)
+	}
+	if judgeErr != nil {
+		ctx.Err.Printf("/dashboard judge assignments failed (continuing): %s", judgeErr)
 	}
 	// Drop revoked tickets and sponsored-builder purchases. Both stay
 	// in the database for staff reporting, but neither is an attendee
@@ -236,10 +247,14 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		reqID, len(activeSC), len(pastSC), len(activeVol), len(pastVol))
 	eligible := eligibleApplyConfs(confs, speakerConfs)
 	buyable := buyableConfs(confs)
+	// Award ticket entitlements may be claimed for every upcoming active
+	// conference, even when that conference already has a dashboard card.
+	ticketClaimConfs := append([]*types.Conf(nil), buyable...)
 	tickets := upcomingTickets(regs, confs)
 
 	activeBlocks, pastBlocks := buildEventBlocks(speakerConfs, volapps, tickets, regs, confs, volInfosByConf)
 	activeBlocks, pastBlocks = attachSatelliteEventBlocks(activeBlocks, pastBlocks, satEvents, confs)
+	activeBlocks, pastBlocks = attachJudgeEventBlocks(activeBlocks, pastBlocks, judgeAssignments, confs)
 	// Discover sections at the bottom of the page list confs the user
 	// has *no* existing relationship with. Anything already showing as
 	// an event block is filtered out so we don't list it twice.
@@ -252,6 +267,16 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	var topSpeaker *types.Speaker
 	if len(speakers) > 0 {
 		topSpeaker = speakers[0]
+	}
+	ticketEntitlements, entitlementErr := dashboardTicketEntitlements(ctx, speakers)
+	if entitlementErr != nil {
+		ctx.Err.Printf("/dashboard ticket entitlements: %s", entitlementErr)
+	}
+	unclaimedTicketEntitlements := 0
+	for _, entitlement := range ticketEntitlements {
+		if entitlement != nil && entitlement.ClaimedAt == nil && entitlement.VoidedAt == nil {
+			unclaimedTicketEntitlements++
+		}
 	}
 	hasPublicProfile := hasPublicWhoIsProfile(ctx, topSpeaker)
 	archiveOwnerPath := ""
@@ -382,37 +407,40 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "dashboard.tmpl", &DashboardPage{
-		Name:             name,
-		Hometown:         hometown,
-		Photo:            photo,
-		Email:            encodedEmail,
-		HMAC:             encodedHMAC,
-		Speaker:          topSpeaker,
-		HasPublicProfile: hasPublicProfile,
-		ArchiveOwnerPath: archiveOwnerPath,
-		SpeakerConfs:     activeSC,
-		PastSpeakerConfs: pastSC,
-		VolApps:          activeVol,
-		PastVolApps:      pastVol,
-		VolInfos:         volInfosByConf,
-		Stats:            stats,
-		Confs:            confs,
-		EligibleConfs:    eligible,
-		BuyableConfs:     buyable,
-		DiscoverConfs:    discoverConfs(confs, activeBlocks),
-		Tickets:          tickets,
-		ActiveBlocks:     activeBlocks,
-		PastBlocks:       pastBlocks,
-		HasUpcomingTalk:  hasUpTalk,
-		HasUpcomingVol:   hasUpVol,
-		FlashMessage:     r.URL.Query().Get("flash"),
-		FlashError:       r.URL.Query().Get("error"),
-		IsGlobalAdmin:    id.IsGlobalAdmin(),
-		HasAnyTicket:     len(regs) > 0,
-		AffiliateCode:    loadAffiliateCode(ctx, email, len(regs) > 0),
-		AffiliateStats:   loadAffiliateStats(ctx, email, len(regs) > 0),
-		BaseURI:          ctx.Env.GetURI(),
-		Year:             helpers.CurrentYear(),
+		Name:                        name,
+		Hometown:                    hometown,
+		Photo:                       photo,
+		Email:                       encodedEmail,
+		HMAC:                        encodedHMAC,
+		Speaker:                     topSpeaker,
+		HasPublicProfile:            hasPublicProfile,
+		ArchiveOwnerPath:            archiveOwnerPath,
+		SpeakerConfs:                activeSC,
+		PastSpeakerConfs:            pastSC,
+		VolApps:                     activeVol,
+		PastVolApps:                 pastVol,
+		VolInfos:                    volInfosByConf,
+		Stats:                       stats,
+		Confs:                       confs,
+		EligibleConfs:               eligible,
+		BuyableConfs:                buyable,
+		DiscoverConfs:               discoverConfs(confs, activeBlocks),
+		Tickets:                     tickets,
+		ActiveBlocks:                activeBlocks,
+		PastBlocks:                  pastBlocks,
+		HasUpcomingTalk:             hasUpTalk,
+		HasUpcomingVol:              hasUpVol,
+		FlashMessage:                r.URL.Query().Get("flash"),
+		FlashError:                  r.URL.Query().Get("error"),
+		IsGlobalAdmin:               id.IsGlobalAdmin(),
+		HasAnyTicket:                len(regs) > 0,
+		AffiliateCode:               loadAffiliateCode(ctx, email, len(regs) > 0),
+		AffiliateStats:              loadAffiliateStats(ctx, email, len(regs) > 0),
+		TicketEntitlements:          ticketEntitlements,
+		UnclaimedTicketEntitlements: unclaimedTicketEntitlements,
+		TicketClaimConfs:            ticketClaimConfs,
+		BaseURI:                     ctx.Env.GetURI(),
+		Year:                        helpers.CurrentYear(),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -420,6 +448,85 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 	ctx.Infos.Printf("/dashboard id=%s render=%s", reqID, time.Since(tRender))
+}
+
+func DashboardHackathonTickets(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
+	if email == "" {
+		http.Redirect(w, r, "/login?next="+url.QueryEscape("/dashboard/tickets"), http.StatusSeeOther)
+		return
+	}
+	people, err := getters.GetSpeakersByEmail(ctx, email)
+	if err != nil || len(people) == 0 {
+		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("A person profile is required to view ticket awards"), http.StatusSeeOther)
+		return
+	}
+	entitlements, err := dashboardTicketEntitlements(ctx, people)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/tickets entitlements: %s", err)
+		http.Error(w, "Unable to load ticket awards", http.StatusInternalServerError)
+		return
+	}
+	unclaimedEntitlements := 0
+	for _, entitlement := range entitlements {
+		if entitlement != nil && entitlement.ClaimedAt == nil && entitlement.VoidedAt == nil {
+			unclaimedEntitlements++
+		}
+	}
+	confs, err := getters.ListConfs(ctx)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/tickets conferences: %s", err)
+		http.Error(w, "Unable to load upcoming events", http.StatusInternalServerError)
+		return
+	}
+	name := email
+	for _, person := range people {
+		if person != nil && strings.TrimSpace(person.Name) != "" {
+			name = person.Name
+			break
+		}
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_tickets.tmpl", &DashboardPage{
+		Name:                        name,
+		Speaker:                     people[0],
+		TicketEntitlements:          entitlements,
+		UnclaimedTicketEntitlements: unclaimedEntitlements,
+		TicketClaimConfs:            buyableConfs(confs),
+		FlashMessage:                r.URL.Query().Get("flash"),
+		FlashError:                  r.URL.Query().Get("error"),
+		Year:                        helpers.CurrentYear(),
+	}); err != nil {
+		ctx.Err.Printf("/dashboard/tickets template: %s", err)
+		http.Error(w, "Unable to load ticket awards", http.StatusInternalServerError)
+	}
+}
+
+func dashboardTicketEntitlements(ctx *config.AppContext, people []*types.Speaker) ([]*types.HackathonTicketEntitlement, error) {
+	seen := map[string]bool{}
+	var out []*types.HackathonTicketEntitlement
+	for _, person := range people {
+		if person == nil || strings.TrimSpace(person.ID) == "" {
+			continue
+		}
+		entitlements, err := getters.ListTicketEntitlementsForPerson(ctx, person.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, entitlement := range entitlements {
+			if entitlement == nil || seen[entitlement.ID] {
+				continue
+			}
+			seen[entitlement.ID] = true
+			out = append(out, entitlement)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if (out[i].ClaimedAt == nil) != (out[j].ClaimedAt == nil) {
+			return out[i].ClaimedAt == nil
+		}
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return out, nil
 }
 
 func renderDashboardLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -928,6 +1035,71 @@ func attachSatelliteEventBlocks(active, past []*EventBlock, events []*types.Sate
 		return past[i].Conf.StartDate.After(past[j].Conf.StartDate)
 	})
 	return active, past
+}
+
+func attachJudgeEventBlocks(active, past []*EventBlock, assignments []*types.CompetitionJudgeAssignment, confs []*types.Conf) ([]*EventBlock, []*EventBlock) {
+	if len(assignments) == 0 {
+		return active, past
+	}
+	confByRef := make(map[string]*types.Conf, len(confs)*2)
+	for _, c := range confs {
+		if c != nil {
+			confByRef[c.Ref] = c
+			confByRef[c.Tag] = c
+		}
+	}
+	byTag := make(map[string]*EventBlock, len(active)+len(past))
+	for _, b := range active {
+		if b != nil && b.Conf != nil {
+			byTag[b.Conf.Tag] = b
+		}
+	}
+	for _, b := range past {
+		if b != nil && b.Conf != nil {
+			byTag[b.Conf.Tag] = b
+		}
+	}
+	for _, assignment := range assignments {
+		if assignment == nil {
+			continue
+		}
+		conf := confByRef[assignment.ConferenceID]
+		if conf == nil {
+			conf = confByRef[assignment.ConferenceTag]
+		}
+		if conf == nil {
+			continue
+		}
+		eb := byTag[conf.Tag]
+		if eb == nil {
+			eb = &EventBlock{Conf: conf, CanBuy: conf.Active && conf.InFuture()}
+			byTag[conf.Tag] = eb
+			if conf.HasEnded() {
+				past = append(past, eb)
+			} else {
+				active = append(active, eb)
+			}
+		}
+		if !containsString(eb.JudgeTypes, assignment.JudgeType) {
+			eb.JudgeTypes = append(eb.JudgeTypes, assignment.JudgeType)
+		}
+	}
+	sort.Slice(active, func(i, j int) bool {
+		return active[i].Conf.StartDate.Before(active[j].Conf.StartDate)
+	})
+	sort.Slice(past, func(i, j int) bool {
+		return past[i].Conf.StartDate.After(past[j].Conf.StartDate)
+	})
+	return active, past
+}
+
+func containsString(values []string, candidate string) bool {
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // confByRef finds a Conf by Notion page-ID (the value stored on
