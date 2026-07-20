@@ -135,9 +135,10 @@ func talkDays(ctx *config.AppContext, conf *types.Conf, talks types.TalkTime) ([
 		return nil, nil
 	}
 
-	/* populate days */
-	lastKey := keys[len(keys)-1]
-	maxDays, err := sessionDay(lastKey)
+	/* Populate through the highest numeric day. Lexicographic ordering puts
+	 * keys such as "10+" before "9+", so the final sorted key is not a
+	 * reliable maximum once an event has ten or more schedule days. */
+	maxDays, err := maxSessionDay(keys)
 	if err != nil {
 		return nil, err
 	}
@@ -172,6 +173,20 @@ func talkDays(ctx *config.AppContext, conf *types.Conf, talks types.TalkTime) ([
 	}
 
 	return days, nil
+}
+
+func maxSessionDay(keys []string) (int, error) {
+	maxDay := 0
+	for _, key := range keys {
+		day, err := sessionDay(key)
+		if err != nil {
+			return 0, err
+		}
+		if day > maxDay {
+			maxDay = day
+		}
+	}
+	return maxDay, nil
 }
 
 func talkToSession(ctx *config.AppContext, talk *types.Talk, conf *types.Conf) *types.Session {
