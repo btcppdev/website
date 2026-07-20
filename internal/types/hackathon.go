@@ -80,6 +80,7 @@ type ProjectMember struct {
 	PersonID  string
 	Name      string
 	Email     string
+	Photo     string
 	Role      string
 	CreatedAt time.Time
 }

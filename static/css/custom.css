@@ -7520,6 +7520,11 @@ body.btcpp-checkout-page {
 	text-decoration: none;
 }
 
+.hack-card--project {
+	min-height: 390px;
+	max-height: 520px;
+}
+
 .hack-card__media {
 	position: relative;
 	height: 150px;
@@ -7595,11 +7600,45 @@ outline-offset: 3px;
 }
 
 .hack-card__desc {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
 	color: #555;
 	font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
 	font-size: 15px;
 	font-style: italic;
 	line-height: 1.4;
+}
+
+.hack-card__team {
+	display: flex;
+	align-items: center;
+	min-height: 24px;
+	padding-top: 2px;
+}
+
+.hack-card__member {
+	display: grid;
+	width: 24px;
+	height: 24px;
+	flex: 0 0 24px;
+	place-items: center;
+	overflow: hidden;
+	margin-right: -5px;
+	border: 1px solid var(--hack-ink);
+	border-radius: 50%;
+	background: var(--hack-paper);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 10px;
+	font-weight: 700;
+}
+
+.hack-card__member img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
 }
 
 .hack-tags {
@@ -7935,11 +7974,21 @@ display: grid;
 	display: grid;
 	width: 44px;
 	height: 44px;
+	flex: 0 0 44px;
 	place-items: center;
+	overflow: hidden;
 	border: 1px solid var(--hack-ink);
+	border-radius: 50%;
 	background: #fff;
 	font-family: var(--hack-mono);
 	font-weight: 700;
+}
+
+.hack-avatar img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
 }
 
 .hack-project-file__tags span {
