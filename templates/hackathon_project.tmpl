@@ -105,7 +105,7 @@
         <article>
           <div class="hack-label">The write-up</div>
           {{ if .Project.Description }}
-          <div class="hack-project-file__copy">{{ .ProjectDescriptionHTML .Project }}</div>
+          <div class="hack-project-file__copy hack-copy__body">{{ .ProjectDescriptionHTML .Project }}</div>
           {{ else }}
           <p class="hack-project-file__empty">No write-up has been added yet.</p>
           {{ end }}
@@ -117,7 +117,9 @@
             <div class="hack-project-file__list">
               {{ range .Members }}
               <div class="hack-project-file__person">
-                <div class="hack-avatar">+</div>
+                <div class="hack-avatar">
+                  {{ if .Photo }}<img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" loading="lazy">{{ else }}<span aria-hidden="true">+</span>{{ end }}
+                </div>
                 <div>
                   <strong>{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</strong>
                   <span>{{ .Role }}</span>

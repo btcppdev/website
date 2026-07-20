@@ -41,6 +41,7 @@ type HackathonPage struct {
 	Conf                        *types.Conf
 	Confs                       []*types.Conf
 	Projects                    []*types.HackathonProject
+	ProjectMembersByProject     map[string][]*types.ProjectMember
 	Project                     *types.HackathonProject
 	Members                     []*types.ProjectMember
 	JudgeEvents                 []*types.JudgeEvent
@@ -1010,6 +1011,13 @@ func (p *HackathonPage) ProjectDescriptionHTML(project *types.HackathonProject) 
 	return hackathonDescriptionHTML(project.Description, project.DescriptionFormat)
 }
 
+func (p *HackathonPage) ProjectMembers(project *types.HackathonProject) []*types.ProjectMember {
+	if p == nil || project == nil || p.ProjectMembersByProject == nil {
+		return nil
+	}
+	return p.ProjectMembersByProject[project.ID]
+}
+
 func (p *HackathonPage) ProjectImageGallery(project *types.HackathonProject) []string {
 	if project == nil {
 		return nil
@@ -1513,6 +1521,12 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		http.Error(w, "Unable to load judges", http.StatusInternalServerError)
 		return
 	}
+	projectMembers, err := getters.ListProjectMembersForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s project members: %s", competition.Slug, err)
+		http.Error(w, "Unable to load project teams", http.StatusInternalServerError)
+		return
+	}
 	judgeProfileURLs, err := hackathonJudgeProfileURLs(ctx, judges)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s judge profiles failed (continuing): %s", competition.Slug, err)
@@ -1526,24 +1540,25 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	scheduleEvents = localizeHackathonScheduleEvents(scheduleEvents, conf.Loc())
 	ownedProjects := ownedProjectMap(ctx, projects, personID)
 	page := &HackathonPage{
-		Competition:        competition,
-		Conf:               conf,
-		Projects:           projects,
-		Judges:             judges,
-		JudgeProfileURLs:   judgeProfileURLs,
-		Awards:             awards,
-		PrizesByAward:      prizesByAward,
-		PrizePoolByAward:   prizePoolByAward,
-		HackathonPlaceRows: placeRows,
-		AwardeesByAward:    awardeesByAward,
-		ScheduleEventList:  scheduleEvents,
-		Viewer:             id,
-		OwnedProjects:      ownedProjects,
-		CanCreate:          id != nil && competitionAcceptsProjects(competition) && len(ownedProjects) == 0,
-		CanJudge:           viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
-		FlashMessage:       r.URL.Query().Get("flash"),
-		FlashError:         r.URL.Query().Get("error"),
-		Year:               helpers.CurrentYear(),
+		Competition:             competition,
+		Conf:                    conf,
+		Projects:                projects,
+		ProjectMembersByProject: projectMembers,
+		Judges:                  judges,
+		JudgeProfileURLs:        judgeProfileURLs,
+		Awards:                  awards,
+		PrizesByAward:           prizesByAward,
+		PrizePoolByAward:        prizePoolByAward,
+		HackathonPlaceRows:      placeRows,
+		AwardeesByAward:         awardeesByAward,
+		ScheduleEventList:       scheduleEvents,
+		Viewer:                  id,
+		OwnedProjects:           ownedProjects,
+		CanCreate:               id != nil && competitionAcceptsProjects(competition) && len(ownedProjects) == 0,
+		CanJudge:                viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
+		FlashMessage:            r.URL.Query().Get("flash"),
+		FlashError:              r.URL.Query().Get("error"),
+		Year:                    helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s template: %s", competition.Slug, err)

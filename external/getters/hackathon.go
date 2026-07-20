@@ -216,6 +216,10 @@ func ListProjectMembers(ctx *config.AppContext, projectID string) ([]*types.Proj
 	return listProjectMembersPostgres(ctx, projectID)
 }
 
+func ListProjectMembersForCompetition(ctx *config.AppContext, competitionID string) (map[string][]*types.ProjectMember, error) {
+	return listProjectMembersForCompetitionPostgres(ctx, competitionID)
+}
+
 func GetPersonIDByEmail(ctx *config.AppContext, email string) (string, error) {
 	return getPersonIDByEmailPostgres(ctx, email)
 }

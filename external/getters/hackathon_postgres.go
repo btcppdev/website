@@ -1285,10 +1285,11 @@ func listProjectMembersPostgres(ctx *config.AppContext, projectID string) ([]*ty
 	if projectID == "" {
 		return nil, fmt.Errorf("project id is required")
 	}
-	rows, err := ctx.DB.Query(context.Background(), `
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT project_members.project_id::text, project_members.person_id::text,
 			coalesce(people.name, ''), coalesce(people.email::text, ''),
-			project_members.role, project_members.created_at
+			coalesce(people.norm_photo_path, ''), project_members.role,
+			project_members.created_at
 		FROM project_members
 		LEFT JOIN people ON people.id = project_members.person_id
 		WHERE project_members.project_id::text = $1
@@ -1301,13 +1302,50 @@ func listProjectMembersPostgres(ctx *config.AppContext, projectID string) ([]*ty
 	var out []*types.ProjectMember
 	for rows.Next() {
 		var member types.ProjectMember
-		if err := rows.Scan(&member.ProjectID, &member.PersonID, &member.Name, &member.Email, &member.Role, &member.CreatedAt); err != nil {
+		if err := rows.Scan(&member.ProjectID, &member.PersonID, &member.Name, &member.Email, &member.Photo, &member.Role, &member.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan project member %s: %w", projectID, err)
 		}
 		out = append(out, &member)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate project members %s: %w", projectID, err)
+	}
+	return out, nil
+}
+
+func listProjectMembersForCompetitionPostgres(ctx *config.AppContext, competitionID string) (map[string][]*types.ProjectMember, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("competition id is required")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT project_members.project_id::text, project_members.person_id::text,
+			coalesce(people.name, ''), '', coalesce(people.norm_photo_path, ''),
+			project_members.role, project_members.created_at
+		FROM project_members
+		JOIN projects ON projects.id = project_members.project_id
+		LEFT JOIN people ON people.id = project_members.person_id
+		WHERE projects.competition_id::text = $1
+		ORDER BY project_members.project_id, project_members.created_at,
+			project_members.person_id::text
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("query project members for competition %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+	out := make(map[string][]*types.ProjectMember)
+	for rows.Next() {
+		var member types.ProjectMember
+		if err := rows.Scan(&member.ProjectID, &member.PersonID, &member.Name, &member.Email, &member.Photo, &member.Role, &member.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan project members for competition %s: %w", competitionID, err)
+		}
+		out[member.ProjectID] = append(out[member.ProjectID], &member)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate project members for competition %s: %w", competitionID, err)
 	}
 	return out, nil
 }

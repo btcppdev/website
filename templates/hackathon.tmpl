@@ -462,7 +462,7 @@
 {{ $page := .Page }}
 {{ $project := .Project }}
 {{ $winningAwards := $page.ProjectWinningAwards $project }}
-<article id="{{ if .Featured }}featured-{{ else }}project-{{ end }}{{ $project.ID }}" class="hack-card{{ if not .ShowManage }} hack-card--clickable{{ end }}" {{ if not .ShowManage }}data-project-card-url="{{ $page.ProjectURL $project }}" tabindex="0" role="link"{{ end }}>
+<article id="{{ if .Featured }}featured-{{ else }}project-{{ end }}{{ $project.ID }}" class="hack-card hack-card--project{{ if not .ShowManage }} hack-card--clickable{{ end }}" {{ if not .ShowManage }}data-project-card-url="{{ $page.ProjectURL $project }}" tabindex="0" role="link"{{ end }}>
   <div class="hack-card__media" data-initials="++" {{ if $project.ImageURL }}data-has-image="true"{{ end }}>
     {{ if $project.ImageURL }}<img src="{{ $project.ImageURL }}" alt="" loading="lazy">{{ end }}
     {{ if $winningAwards }}<span class="hack-badge" style="position:absolute;top:12px;left:12px;z-index:1;">★ Winner</span>{{ end }}
@@ -478,12 +478,19 @@
                         {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
                       </div>
                     {{ end }}
-    {{ if and (not .Compact) $project.Description }}
-    <div class="hack-copy__body" style="font-size:14px;line-height:1.55;">{{ $page.ProjectDescriptionHTML $project }}</div>
-    {{ end }}
     {{ if $project.Tags }}
     <div class="hack-tags">
       {{ range $project.Tags }}<span class="hack-tag">{{ . }}</span>{{ end }}
+    </div>
+    {{ end }}
+    {{ $members := $page.ProjectMembers $project }}
+    {{ if $members }}
+    <div class="hack-card__team" aria-label="Project team">
+      {{ range $members }}
+      <span class="hack-card__member" title="{{ .Name }}">
+        {{ if .Photo }}<img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" loading="lazy">{{ else }}<span aria-hidden="true">+</span>{{ end }}
+      </span>
+      {{ end }}
     </div>
     {{ end }}
     <div class="hack-card__links">
