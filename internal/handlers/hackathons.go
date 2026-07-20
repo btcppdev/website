@@ -2466,12 +2466,12 @@ func hackathonPlaceDetail(award *types.Award, prizes []*types.Prize, awarded boo
 }
 
 func hackathonPlacePrizeValue(prizes []*types.Prize) string {
+	if total := prizeValueSatsTotal(prizes); total > 0 {
+		return compactSatoshiLabel(total)
+	}
 	for _, prize := range prizes {
 		if prize == nil {
 			continue
-		}
-		if sats := prizeValueSats(prize); sats > 0 {
-			return compactSatoshiLabel(sats)
 		}
 		if value := strings.TrimSpace(prize.ValueText); value != "" {
 			return value
@@ -2489,13 +2489,18 @@ func hackathonPlacePrizeValue(prizes []*types.Prize) string {
 }
 
 func hackathonPlacePrizeAmount(prizes []*types.Prize) string {
-	for _, prize := range prizes {
-		sats := prizeValueSats(prize)
-		if sats > 0 {
-			return compactSatoshiLabel(sats)
-		}
+	if total := prizeValueSatsTotal(prizes); total > 0 {
+		return compactSatoshiLabel(total)
 	}
 	return hackathonPlacePrizeValue(prizes)
+}
+
+func prizeValueSatsTotal(prizes []*types.Prize) int64 {
+	var total int64
+	for _, prize := range prizes {
+		total += prizeValueSats(prize)
+	}
+	return total
 }
 
 func compactSatoshiLabel(sats int64) string {

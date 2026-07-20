@@ -422,6 +422,17 @@ func TestHackathonRankedPrizePoolValueOmitsUnit(t *testing.T) {
 	}
 }
 
+func TestHackathonPlacePrizeAmountSumsAwardPrizes(t *testing.T) {
+	prizes := []*types.Prize{
+		{ValueText: "1000000"},
+		{ValueText: "500000 sats"},
+		{ValueText: "0.01 BTC"},
+	}
+	if got := hackathonPlacePrizeAmount(prizes); got != "2.5M satoshis" {
+		t.Fatalf("hackathonPlacePrizeAmount() = %q, want %q", got, "2.5M satoshis")
+	}
+}
+
 func TestHackathonNavConferenceUsesConferenceNavState(t *testing.T) {
 	start := time.Date(2026, 7, 18, 10, 0, 0, 0, time.UTC)
 	original := &types.Conf{Tag: "toronto"}
