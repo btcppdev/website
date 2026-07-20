@@ -35,6 +35,8 @@ import (
 
 var bitcoinPrizeAmountPattern = regexp.MustCompile(`[-+]?\d[\d,]*(?:\.\d+)?`)
 
+const hackathonProjectTicketRequiredMessage = "You need a ticket for this conference before creating a hackathon project."
+
 type HackathonPage struct {
 	Competition                 *types.HackathonCompetition
 	Competitions                []*types.HackathonCompetition
@@ -1668,6 +1670,16 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 	scheduleEvents = localizeHackathonScheduleEvents(scheduleEvents, conf.Loc())
 	ownedProjects := ownedProjectMap(ctx, projects, personID)
+	canCreate := id != nil && competitionAcceptsProjects(competition) && len(ownedProjects) == 0
+	if canCreate {
+		hasTicket, ticketErr := viewerHasHackathonTicket(ctx, id, competition)
+		if ticketErr != nil {
+			ctx.Err.Printf("/hackathons/%s ticket gate: %s", competition.Slug, ticketErr)
+			canCreate = false
+		} else {
+			canCreate = hasTicket
+		}
+	}
 	page := &HackathonPage{
 		Competition:             competition,
 		Conf:                    conf,
@@ -1684,7 +1696,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		ScheduleEventList:       scheduleEvents,
 		Viewer:                  id,
 		OwnedProjects:           ownedProjects,
-		CanCreate:               id != nil && competitionAcceptsProjects(competition) && len(ownedProjects) == 0,
+		CanCreate:               canCreate,
 		CanJudge:                viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
 		FlashMessage:            r.URL.Query().Get("flash"),
 		FlashError:              r.URL.Query().Get("error"),
@@ -2058,6 +2070,16 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 		http.Redirect(w, r, hackathonURLForConf(conf)+"?error="+url.QueryEscape("Project submissions are not open."), http.StatusSeeOther)
 		return
 	}
+	hasTicket, err := viewerHasHackathonTicket(ctx, id, competition)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/new ticket gate: %s", competition.Slug, err)
+		http.Error(w, "Unable to verify ticket access", http.StatusInternalServerError)
+		return
+	}
+	if !hasTicket {
+		http.Redirect(w, r, hackathonURLForConf(conf)+"?error="+url.QueryEscape(hackathonProjectTicketRequiredMessage), http.StatusSeeOther)
+		return
+	}
 	awards, err := getters.ListAwardsForCompetition(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/new awards: %s", competition.Slug, err)
@@ -2096,6 +2118,16 @@ func HackathonProjectCreate(w http.ResponseWriter, r *http.Request, ctx *config.
 	}
 	if !competitionAcceptsProjects(competition) {
 		http.Redirect(w, r, base+"?error="+url.QueryEscape("Project submissions are not open."), http.StatusSeeOther)
+		return
+	}
+	hasTicket, err := viewerHasHackathonTicket(ctx, id, competition)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s create project ticket gate: %s", competition.Slug, err)
+		http.Error(w, "Unable to verify ticket access", http.StatusInternalServerError)
+		return
+	}
+	if !hasTicket {
+		http.Redirect(w, r, base+"?error="+url.QueryEscape(hackathonProjectTicketRequiredMessage), http.StatusSeeOther)
 		return
 	}
 	personID := hackathonViewerPersonID(id)
@@ -3158,6 +3190,30 @@ func competitionAcceptsProjects(competition *types.HackathonCompetition) bool {
 		return false
 	}
 	return projectEditableByDeadline(competition)
+}
+
+func viewerHasHackathonTicket(ctx *config.AppContext, id *auth.Identity, competition *types.HackathonCompetition) (bool, error) {
+	if id == nil || competition == nil {
+		return false, nil
+	}
+	email := strings.TrimSpace(id.Email)
+	conferenceID := strings.TrimSpace(competition.ConferenceID)
+	if email == "" || conferenceID == "" {
+		return false, nil
+	}
+	regs, err := getters.ListRegistrationsByEmail(ctx, email)
+	if err != nil {
+		return false, err
+	}
+	for _, reg := range regs {
+		if reg == nil || reg.Revoked || types.IsSponsoredTicketType(reg.Type) {
+			continue
+		}
+		if strings.TrimSpace(reg.ConfRef) == conferenceID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func projectEditableByDeadline(competition *types.HackathonCompetition) bool {
