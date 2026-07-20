@@ -30,5 +30,8 @@ bitcoin++\ rebrand.zip
 /backfill-speakername
 /swap-speakerconf-title
 /comingfrom.json
+/devpost-*-sensitive-info-*.csv
+/devpost-*-with-pii-*.csv
+/devpost-judge-mappings.private.json
 .claude/
 .codex
