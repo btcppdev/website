@@ -93,7 +93,7 @@ function toggleNavFlyout(el, targetId) {
 
 // Countdown ticker. Each countdown element carries data-start / data-end
 // as Unix seconds. Before start: positive countdown. Between start and
-// end: 0d 00h 00m 00s. After end: negative count. Optional
+// end and after end: 00d 00h 00m 00s. Optional
 // data-before-prefix / data-during-prefix / data-after-prefix attributes
 // override the default conference wording.
 (function () {
@@ -111,9 +111,9 @@ function toggleNavFlyout(el, targetId) {
 			sign = '';
 			abs = startSec - now;
 		} else if (now > endSec) {
-			prefix = el.dataset.afterPrefix || 'doors closed';
-			sign = '-';
-			abs = now - endSec;
+			prefix = el.dataset.afterPrefix || '';
+			sign = '';
+			abs = 0;
 		} else {
 			prefix = el.dataset.duringPrefix || 'happening now ·';
 			sign = '';
