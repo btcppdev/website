@@ -10,7 +10,7 @@ import (
 )
 
 const agendaPixelsPerMinute = 2.6
-const agendaMinSessionHeight = 236.0
+const agendaMinSessionHeight = 80.0
 
 // AgendaDay is one day's slice of the rendered agenda. Talks come
 // pre-sorted (Sched.Start, then Venue) and pre-bucketed against the
