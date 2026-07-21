@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
 
@@ -42,6 +43,18 @@ func TestSocialCardTalkTitleUsesPrefixBeforeColon(t *testing.T) {
 				t.Fatalf("socialCardTalkTitle(%q) = %q, want %q", tt.title, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMediaUpdatesEnabledOnlyInProduction(t *testing.T) {
+	if mediaUpdatesEnabled(nil) {
+		t.Fatal("nil context enabled media updates")
+	}
+	if mediaUpdatesEnabled(&config.AppContext{}) {
+		t.Fatal("non-production context enabled media updates")
+	}
+	if !mediaUpdatesEnabled(&config.AppContext{InProduction: true}) {
+		t.Fatal("production context did not enable media updates")
 	}
 }
 

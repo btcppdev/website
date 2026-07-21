@@ -112,12 +112,14 @@ func main() {
 
 	// Reconcile social cards after startup. The persisted hash index makes
 	// this comparison-only unless talk, speaker, sponsor, or image data changed.
-	if spaces.IsConfigured() {
+	if app.InProduction && spaces.IsConfigured() {
 		go func() {
 			time.Sleep(3 * time.Second)
 			handlers.InitMediaRefresh(&app)
 			app.Infos.Printf("media refresh done")
 		}()
+	} else if spaces.IsConfigured() {
+		app.Infos.Printf("media refresh disabled outside production")
 	}
 
 	handlers.StartRecordingAutopublisher(&app)
