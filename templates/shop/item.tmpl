@@ -48,7 +48,7 @@
         {{ end }}
         <div class="shop-facts">
           {{ if .Product.RequiresShipping }}<span>📦 ships worldwide</span>{{ end }}
-          {{ if .Product.AllowEventPickup }}<span>free event pickup</span>{{ end }}
+          {{ if and .Product.AllowEventPickup .PickupConf }}<span>free event pickup</span>{{ end }}
           <span>₿ bitcoin or card</span>
         </div>
       </section>
