@@ -1638,7 +1638,7 @@ func uploadTalkClipart(talk staticTalk, uploadAssets bool) (string, error) {
 	}
 	manifest, err := spaces.LoadJSONMap(spaces.TalkManifestKey)
 	if err != nil {
-		manifest = map[string]string{}
+		return "", fmt.Errorf("load talk image manifest: %w", err)
 	}
 	manifest[name] = contentHashShort(raw)
 	manifest[avifName] = contentHashShort(avif)

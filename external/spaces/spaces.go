@@ -250,6 +250,10 @@ const TalkManifestKey = "talks/_manifest.json"
 // media-card hashing can stop depending on static/img/speakers.
 const SpeakerManifestKey = "speakers/_manifest.json"
 
+// SponsorManifestKey records content fingerprints for uploaded organization
+// logos used by sponsor social cards.
+const SponsorManifestKey = "sponsors/_manifest.json"
+
 // LoadJSONMap reads a JSON map (string→string) from the given Spaces
 // key. Returns an empty map when the key doesn't exist yet (so a
 // caller can use it to bootstrap a fresh manifest without special-
@@ -264,7 +268,11 @@ func LoadJSONMap(key string) (map[string]string, error) {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return make(map[string]string), nil
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && (apiErr.ErrorCode() == "NoSuchKey" || apiErr.ErrorCode() == "NotFound") {
+			return make(map[string]string), nil
+		}
+		return nil, fmt.Errorf("load JSON manifest %s: %w", key, err)
 	}
 	defer result.Body.Close()
 	data, err := io.ReadAll(result.Body)

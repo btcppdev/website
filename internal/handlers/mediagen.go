@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -33,6 +34,9 @@ var (
 	speakerManifestMu        sync.RWMutex
 	speakerManifest          map[string]string
 	speakerManifestFetchedAt time.Time
+	sponsorManifestMu        sync.RWMutex
+	sponsorManifest          map[string]string
+	sponsorManifestFetchedAt time.Time
 )
 
 const talkManifestTTL = 5 * time.Minute
@@ -111,6 +115,36 @@ func speakerPhotoFingerprint(filename string) string {
 	speakerManifest = fresh
 	speakerManifestFetchedAt = time.Now()
 	speakerManifestMu.Unlock()
+	return fresh[filename]
+}
+
+func InvalidateSponsorManifest() {
+	sponsorManifestMu.Lock()
+	sponsorManifest = nil
+	sponsorManifestFetchedAt = time.Time{}
+	sponsorManifestMu.Unlock()
+}
+
+func sponsorLogoFingerprint(rawURL string) string {
+	filename := path.Base(strings.SplitN(strings.TrimSpace(rawURL), "?", 2)[0])
+	if filename == "" || filename == "." || filename == "/" {
+		return ""
+	}
+	sponsorManifestMu.RLock()
+	stale := sponsorManifest == nil || time.Since(sponsorManifestFetchedAt) > talkManifestTTL
+	cur := sponsorManifest[filename]
+	sponsorManifestMu.RUnlock()
+	if !stale {
+		return cur
+	}
+	fresh, err := spaces.LoadJSONMap(spaces.SponsorManifestKey)
+	if err != nil {
+		return cur
+	}
+	sponsorManifestMu.Lock()
+	sponsorManifest = fresh
+	sponsorManifestFetchedAt = time.Now()
+	sponsorManifestMu.Unlock()
 	return fresh[filename]
 }
 
@@ -323,6 +357,8 @@ func sponsorCardHash(sp *types.Sponsorship) string {
 		h.Write([]byte(sp.Org.LogoLight))
 		h.Write([]byte(sp.Org.Twitter.Handle))
 		h.Write([]byte(sp.Org.Website))
+		h.Write([]byte(sponsorLogoFingerprint(sp.Org.LogoDark)))
+		h.Write([]byte(sponsorLogoFingerprint(sp.Org.LogoLight)))
 	}
 	h.Write([]byte(sp.Level))
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
@@ -608,11 +644,10 @@ func RefreshSpeakerCards(ctx *config.AppContext, speakers []*types.Speaker) {
 // in-memory dedup cache. CLI tools can call this before RefreshTalkCards to
 // get the same dedup behavior the prod server uses, without InitMediaRefresh's
 // callback wiring.
-func PreloadCardHashes(ctx *config.AppContext) {
+func PreloadCardHashes(ctx *config.AppContext) error {
 	hashes, err := spaces.LoadHashes()
 	if err != nil {
-		ctx.Err.Printf("PreloadCardHashes: failed to load hashes: %s", err)
-		return
+		return fmt.Errorf("load rendered-card hashes: %w", err)
 	}
 	cardHashesMu.Lock()
 	for k, v := range hashes {
@@ -620,6 +655,33 @@ func PreloadCardHashes(ctx *config.AppContext) {
 	}
 	cardHashesMu.Unlock()
 	ctx.Infos.Printf("PreloadCardHashes: loaded %d hashes", len(hashes))
+	return nil
+}
+
+func preloadSourceManifests() error {
+	talks, err := spaces.LoadJSONMap(spaces.TalkManifestKey)
+	if err != nil {
+		return fmt.Errorf("load talk image manifest: %w", err)
+	}
+	speakers, err := spaces.LoadJSONMap(spaces.SpeakerManifestKey)
+	if err != nil {
+		return fmt.Errorf("load speaker image manifest: %w", err)
+	}
+	sponsors, err := spaces.LoadJSONMap(spaces.SponsorManifestKey)
+	if err != nil {
+		return fmt.Errorf("load sponsor image manifest: %w", err)
+	}
+	now := time.Now()
+	talkManifestMu.Lock()
+	talkManifest, talkManifestFetchedAt = talks, now
+	talkManifestMu.Unlock()
+	speakerManifestMu.Lock()
+	speakerManifest, speakerManifestFetchedAt = speakers, now
+	speakerManifestMu.Unlock()
+	sponsorManifestMu.Lock()
+	sponsorManifest, sponsorManifestFetchedAt = sponsors, now
+	sponsorManifestMu.Unlock()
+	return nil
 }
 
 func InitMediaRefresh(ctx *config.AppContext) {
@@ -627,7 +689,14 @@ func InitMediaRefresh(ctx *config.AppContext) {
 
 	// Load existing hashes from S3 to avoid regenerating unchanged cards
 	ctx.Infos.Println("InitMediaRefresh: loading hashes from spaces...")
-	PreloadCardHashes(ctx)
+	if err := PreloadCardHashes(ctx); err != nil {
+		ctx.Err.Printf("InitMediaRefresh: %s; skipping reconciliation", err)
+		return
+	}
+	if err := preloadSourceManifests(); err != nil {
+		ctx.Err.Printf("InitMediaRefresh: %s; skipping reconciliation", err)
+		return
+	}
 
 	// Scan active conferences only. Persisted hashes make this a cheap
 	// comparison pass; Chrome is not started unless at least one card changed.

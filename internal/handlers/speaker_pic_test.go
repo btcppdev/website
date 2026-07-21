@@ -15,6 +15,7 @@ type fakeSpaces struct {
 	existing   map[string]bool
 	uploads    map[string][]byte
 	uploadErr  map[string]error
+	manifests  map[string]map[string]string
 }
 
 func newFakeSpaces() *fakeSpaces {
@@ -23,6 +24,7 @@ func newFakeSpaces() *fakeSpaces {
 		existing:   map[string]bool{},
 		uploads:    map[string][]byte{},
 		uploadErr:  map[string]error{},
+		manifests:  map[string]map[string]string{},
 	}
 }
 
@@ -47,6 +49,23 @@ func (f *fakeSpaces) Upload(key string, data []byte, _ string, _ string) (string
 
 func (f *fakeSpaces) PublicURL(key string) string {
 	return "https://fake/" + key
+}
+
+func (f *fakeSpaces) LoadJSONMap(key string) (map[string]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[string]string{}
+	for k, v := range f.manifests[key] {
+		out[k] = v
+	}
+	return out, nil
+}
+
+func (f *fakeSpaces) SaveJSONMap(key string, manifest map[string]string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.manifests[key] = manifest
+	return nil
 }
 
 type pipelineRecorder struct {
@@ -209,6 +228,9 @@ func TestMirrorOrgLogoToSpaces_FreshUpload(t *testing.T) {
 	}
 	if len(rec.avifSizes) != 0 {
 		t.Errorf("org logo path must not call AVIF encoder; got %v", rec.avifSizes)
+	}
+	if got := sp.manifests["sponsors/_manifest.json"][shortID+".png"]; got == "" {
+		t.Error("expected org logo content hash in the Spaces sponsor manifest")
 	}
 }
 

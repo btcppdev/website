@@ -78,3 +78,26 @@ func TestTalkCardsChangedOnlyWhenSourceHashChanges(t *testing.T) {
 		t.Fatal("updated talk title was not marked for regeneration")
 	}
 }
+
+func TestSponsorCardHashUsesSpacesManifestFingerprint(t *testing.T) {
+	sponsorManifestMu.Lock()
+	oldManifest, oldFetchedAt := sponsorManifest, sponsorManifestFetchedAt
+	sponsorManifest = map[string]string{"logo.png": "logo-v1"}
+	sponsorManifestFetchedAt = time.Now()
+	sponsorManifestMu.Unlock()
+	t.Cleanup(func() {
+		sponsorManifestMu.Lock()
+		sponsorManifest, sponsorManifestFetchedAt = oldManifest, oldFetchedAt
+		sponsorManifestMu.Unlock()
+	})
+
+	sponsorship := &types.Sponsorship{Org: &types.Org{Name: "Example", LogoDark: "https://cdn.example/sponsors/logo.png"}}
+	before := sponsorCardHash(sponsorship)
+	sponsorManifestMu.Lock()
+	sponsorManifest["logo.png"] = "logo-v2"
+	sponsorManifestMu.Unlock()
+	after := sponsorCardHash(sponsorship)
+	if before == after {
+		t.Fatal("sponsor card hash did not change when the Spaces manifest fingerprint changed")
+	}
+}
