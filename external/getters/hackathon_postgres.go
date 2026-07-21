@@ -45,6 +45,8 @@ const (
 	JudgeEventStatePending                = "pending"
 	JudgeEventStateOpen                   = "open"
 	JudgeEventStateClosed                 = "closed"
+	AwardTypeNormal                       = "normal"
+	AwardTypeChallenge                    = "challenge"
 	AwardStatusDraft                      = "draft"
 	AwardStatusAvailable                  = "available"
 	AwardStatusUnawarded                  = "unawarded"
@@ -1704,6 +1706,12 @@ func canViewProjectLoadedPostgres(ctx *config.AppContext, project *types.Hackath
 		) OR EXISTS (
 			SELECT 1 FROM competition_judges
 			WHERE competition_id = $3 AND person_id = $2
+		) OR EXISTS (
+			SELECT 1
+			FROM award_judges
+			JOIN awards ON awards.id = award_judges.award_id
+			WHERE awards.competition_id = $3
+				AND award_judges.person_id = $2
 		)
 	`, project.ID, viewer.PersonID, project.CompetitionID).Scan(&allowed); err != nil {
 		return false, fmt.Errorf("check project visibility %s: %w", project.ID, err)
@@ -2461,11 +2469,14 @@ func createAwardPostgres(ctx *config.AppContext, in AwardInput) (string, error) 
 	var id string
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO awards (
-			competition_id, title, description, photo_url, max_awardees, opt_in_required, finalists_only, status
+			competition_id, sponsored_by_org_id, award_type, title, description,
+			judging_instructions,
+			award_rank, max_awardees, opt_in_required, finalists_only, status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id::text
-	`, in.CompetitionID, in.Title, in.Description, in.PhotoURL, in.MaxAwardees, in.OptInRequired, in.FinalistsOnly, in.Status).Scan(&id)
+	`, in.CompetitionID, in.SponsoredByOrgID, in.AwardType, in.Title, in.Description,
+		in.JudgingInstructions, in.AwardRank, in.MaxAwardees, in.OptInRequired, in.FinalistsOnly, in.Status).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("create award %q: %w", in.Title, err)
 	}
@@ -2515,17 +2526,21 @@ func updateAwardPostgres(ctx *config.AppContext, awardID string, in AwardInput) 
 
 	commandTag, err := tx.Exec(dbctx, `
 		UPDATE awards
-		SET title = $3,
-			description = $4,
-			photo_url = $5,
-			max_awardees = $6,
-			opt_in_required = $7,
-			finalists_only = $8,
-			status = $9
+		SET sponsored_by_org_id = NULLIF($3, '')::uuid,
+			award_type = $4,
+			title = $5,
+			description = $6,
+			judging_instructions = $7,
+			award_rank = $8,
+			max_awardees = $9,
+			opt_in_required = $10,
+			finalists_only = $11,
+			status = $12
 		WHERE id::text = $1
 			AND competition_id::text = $2
 			AND archived_at IS NULL
-	`, awardID, in.CompetitionID, in.Title, in.Description, in.PhotoURL, in.MaxAwardees, in.OptInRequired, in.FinalistsOnly, in.Status)
+	`, awardID, in.CompetitionID, in.SponsoredByOrgID, in.AwardType, in.Title, in.Description,
+		in.JudgingInstructions, in.AwardRank, in.MaxAwardees, in.OptInRequired, in.FinalistsOnly, in.Status)
 	if err != nil {
 		return fmt.Errorf("update award %s: %w", awardID, err)
 	}
@@ -2538,6 +2553,20 @@ func updateAwardPostgres(ctx *config.AppContext, awardID string, in AwardInput) 
 			WHERE award_id::text = $1
 		`, awardID); err != nil {
 			return fmt.Errorf("clear award opt-ins %s: %w", awardID, err)
+		}
+	}
+	if in.AwardType != AwardTypeChallenge {
+		if _, err := tx.Exec(dbctx, `
+				DELETE FROM award_votes
+				WHERE award_id::text = $1
+			`, awardID); err != nil {
+			return fmt.Errorf("clear award votes %s: %w", awardID, err)
+		}
+		if _, err := tx.Exec(dbctx, `
+				DELETE FROM award_judges
+				WHERE award_id::text = $1
+			`, awardID); err != nil {
+			return fmt.Errorf("clear award judges %s: %w", awardID, err)
 		}
 	}
 	if err := tx.Commit(dbctx); err != nil {
@@ -2646,15 +2675,16 @@ func listAwardsForCompetitionByArchiveStatePostgres(ctx *config.AppContext, comp
 		return nil, fmt.Errorf("award competition id is required")
 	}
 	archivePredicate := "archived_at IS NULL"
-	orderBy := "title, id"
+	orderBy := "CASE WHEN award_rank IS NOT NULL THEN 0 WHEN award_type = 'challenge' THEN 1 ELSE 2 END, award_rank NULLS LAST, title, id"
 	if archived {
 		archivePredicate = "archived_at IS NOT NULL"
 		orderBy = "archived_at DESC, title, id"
 	}
 	query := fmt.Sprintf(`
-		SELECT id::text, competition_id::text, coalesce(sponsored_by_org_id::text, ''),
-			title, description, photo_url, max_awardees, opt_in_required, finalists_only, status,
-			created_at, updated_at, archived_at
+				SELECT id::text, competition_id::text, coalesce(sponsored_by_org_id::text, ''),
+					award_type, title, description,
+					judging_instructions, award_rank, max_awardees, opt_in_required, finalists_only, status,
+					created_at, updated_at, archived_at
 		FROM awards
 		WHERE competition_id::text = $1
 			AND %s
@@ -3035,6 +3065,71 @@ func assignProjectAwardPostgres(ctx *config.AppContext, awardID, projectID strin
 	return nil
 }
 
+func replaceProjectAwardWinnerPostgres(ctx *config.AppContext, awardID, projectID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	awardID = strings.TrimSpace(awardID)
+	projectID = strings.TrimSpace(projectID)
+	if awardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	if projectID == "" {
+		return fmt.Errorf("project id is required")
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin replace project award winner: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+
+	var awardCompetitionID string
+	if err := tx.QueryRow(dbctx, `
+		SELECT competition_id::text
+		FROM awards
+		WHERE id::text = $1
+			AND archived_at IS NULL
+		FOR UPDATE
+	`, awardID).Scan(&awardCompetitionID); err != nil {
+		return fmt.Errorf("load award %s: %w", awardID, err)
+	}
+	var projectCompetitionID string
+	if err := tx.QueryRow(dbctx, `
+		SELECT competition_id::text
+		FROM projects
+		WHERE id::text = $1
+	`, projectID).Scan(&projectCompetitionID); err != nil {
+		return fmt.Errorf("load project %s: %w", projectID, err)
+	}
+	if projectCompetitionID != awardCompetitionID {
+		return fmt.Errorf("project and award must belong to the same competition")
+	}
+	if _, err := tx.Exec(dbctx, `
+		DELETE FROM project_awards
+		WHERE award_id::text = $1
+	`, awardID); err != nil {
+		return fmt.Errorf("clear project award winners %s: %w", awardID, err)
+	}
+	if _, err := tx.Exec(dbctx, `
+		INSERT INTO project_awards (project_id, award_id)
+		VALUES ($1, $2)
+	`, projectID, awardID); err != nil {
+		return fmt.Errorf("replace project award winner %s/%s: %w", awardID, projectID, err)
+	}
+	if _, err := tx.Exec(dbctx, `
+		UPDATE awards
+		SET status = $2
+		WHERE id::text = $1
+	`, awardID, AwardStatusAwarded); err != nil {
+		return fmt.Errorf("mark award awarded %s: %w", awardID, err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit replace project award winner: %w", err)
+	}
+	return nil
+}
+
 func removeProjectAwardPostgres(ctx *config.AppContext, awardID, projectID string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
@@ -3142,6 +3237,197 @@ func listProjectAwardsForCompetitionPostgres(ctx *config.AppContext, competition
 		return nil, fmt.Errorf("iterate project awards for competition %s: %w", competitionID, err)
 	}
 	return out, nil
+}
+
+func addAwardJudgePostgres(ctx *config.AppContext, awardID, personID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	awardID = strings.TrimSpace(awardID)
+	personID = strings.TrimSpace(personID)
+	if awardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	if personID == "" {
+		return fmt.Errorf("person id is required")
+	}
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		INSERT INTO award_judges (award_id, person_id)
+		SELECT awards.id, people.id
+		FROM awards
+		JOIN people ON people.id::text = $2
+		WHERE awards.id::text = $1
+			AND awards.award_type = $3
+			AND awards.archived_at IS NULL
+		ON CONFLICT (award_id, person_id) DO NOTHING
+	`, awardID, personID, AwardTypeChallenge)
+	if err != nil {
+		return fmt.Errorf("add award judge %s/%s: %w", awardID, personID, err)
+	}
+	return nil
+}
+
+func removeAwardJudgePostgres(ctx *config.AppContext, awardID, personID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	awardID = strings.TrimSpace(awardID)
+	personID = strings.TrimSpace(personID)
+	if awardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	if personID == "" {
+		return fmt.Errorf("person id is required")
+	}
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		DELETE FROM award_judges
+		WHERE award_id::text = $1 AND person_id::text = $2
+	`, awardID, personID)
+	if err != nil {
+		return fmt.Errorf("remove award judge %s/%s: %w", awardID, personID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("award judge not found")
+	}
+	return nil
+}
+
+func listAwardJudgesForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.AwardJudge, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("award judge competition id is required")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT award_judges.award_id::text, award_judges.person_id::text,
+			coalesce(people.name, ''), coalesce(people.email::text, ''),
+			coalesce(people.norm_photo_path, ''), award_judges.created_at
+		FROM award_judges
+		JOIN awards ON awards.id = award_judges.award_id
+		LEFT JOIN people ON people.id = award_judges.person_id
+		WHERE awards.competition_id::text = $1
+			AND awards.archived_at IS NULL
+		ORDER BY awards.title, lower(people.name), people.id
+	`, competitionID)
+	if err != nil {
+		return nil, fmt.Errorf("list award judges for competition %s: %w", competitionID, err)
+	}
+	defer rows.Close()
+	var out []*types.AwardJudge
+	for rows.Next() {
+		judge, err := scanAwardJudge(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan award judge: %w", err)
+		}
+		out = append(out, judge)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate award judges for competition %s: %w", competitionID, err)
+	}
+	return out, nil
+}
+
+func listAwardVotesForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.AwardVote, error) {
+	return queryAwardVotesPostgres(ctx, "competition "+strings.TrimSpace(competitionID), `
+		WHERE awards.competition_id::text = $1
+			AND awards.archived_at IS NULL
+	`, []any{strings.TrimSpace(competitionID)})
+}
+
+func listAwardVotesForJudgePostgres(ctx *config.AppContext, competitionID, judgePersonID string) ([]*types.AwardVote, error) {
+	competitionID = strings.TrimSpace(competitionID)
+	judgePersonID = strings.TrimSpace(judgePersonID)
+	if judgePersonID == "" {
+		return nil, fmt.Errorf("award vote judge person id is required")
+	}
+	return queryAwardVotesPostgres(ctx, "judge "+judgePersonID, `
+		WHERE awards.competition_id::text = $1
+			AND award_votes.judge_person_id::text = $2
+			AND awards.archived_at IS NULL
+	`, []any{competitionID, judgePersonID})
+}
+
+func queryAwardVotesPostgres(ctx *config.AppContext, label, whereSQL string, args []any) ([]*types.AwardVote, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT award_votes.award_id::text, award_votes.judge_person_id::text,
+			coalesce(people.name, ''), award_votes.project_id::text,
+			projects.title, projects.project_number, award_votes.notes,
+			award_votes.submitted_at, award_votes.created_at, award_votes.updated_at
+		FROM award_votes
+		JOIN awards ON awards.id = award_votes.award_id
+		JOIN projects ON projects.id = award_votes.project_id
+		LEFT JOIN people ON people.id = award_votes.judge_person_id
+		`+whereSQL+`
+		ORDER BY awards.title, lower(people.name), award_votes.submitted_at DESC
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list award votes for %s: %w", label, err)
+	}
+	defer rows.Close()
+	var out []*types.AwardVote
+	for rows.Next() {
+		vote, err := scanAwardVote(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan award vote: %w", err)
+		}
+		out = append(out, vote)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate award votes for %s: %w", label, err)
+	}
+	return out, nil
+}
+
+func upsertAwardVotePostgres(ctx *config.AppContext, in AwardVoteInput) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	in = normalizeAwardVoteInput(in)
+	if in.AwardID == "" {
+		return fmt.Errorf("award id is required")
+	}
+	if in.JudgePersonID == "" {
+		return fmt.Errorf("judge person id is required")
+	}
+	if in.ProjectID == "" {
+		return fmt.Errorf("project id is required")
+	}
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		INSERT INTO award_votes (award_id, judge_person_id, project_id, notes, submitted_at)
+		SELECT awards.id, $2::uuid, projects.id, $4, now()
+		FROM awards
+		JOIN projects ON projects.id::text = $3
+			AND projects.competition_id = awards.competition_id
+		WHERE awards.id::text = $1
+			AND awards.award_type = $5
+			AND awards.archived_at IS NULL
+			AND (
+				NOT awards.opt_in_required OR EXISTS (
+					SELECT 1
+					FROM project_award_opt_ins
+					WHERE project_award_opt_ins.award_id = awards.id
+						AND project_award_opt_ins.project_id = projects.id
+				)
+			)
+		ON CONFLICT (award_id, judge_person_id)
+		DO UPDATE SET
+			project_id = EXCLUDED.project_id,
+			notes = EXCLUDED.notes,
+			submitted_at = EXCLUDED.submitted_at,
+			updated_at = now()
+	`, in.AwardID, in.JudgePersonID, in.ProjectID, in.Notes, AwardTypeChallenge)
+	if err != nil {
+		return fmt.Errorf("save award vote %s/%s: %w", in.AwardID, in.JudgePersonID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("award vote is not allowed for this judge and project")
+	}
+	return nil
 }
 
 func projectIsPublicPostgres(ctx *config.AppContext, project *types.HackathonProject) bool {
@@ -3360,15 +3646,18 @@ func scanScorecard(row scanner) (*types.Scorecard, error) {
 
 func scanAward(rows pgx.Rows) (*types.Award, error) {
 	var award types.Award
+	var awardRank sql.NullInt64
 	var maxAwardees sql.NullInt64
 	var archivedAt pgtype.Timestamptz
 	if err := rows.Scan(
 		&award.ID,
 		&award.CompetitionID,
 		&award.SponsoredByOrgID,
+		&award.AwardType,
 		&award.Title,
 		&award.Description,
-		&award.PhotoURL,
+		&award.JudgingInstructions,
+		&awardRank,
 		&maxAwardees,
 		&award.OptInRequired,
 		&award.FinalistsOnly,
@@ -3383,9 +3672,46 @@ func scanAward(rows pgx.Rows) (*types.Award, error) {
 		n := int(maxAwardees.Int64)
 		award.MaxAwardees = &n
 	}
+	if awardRank.Valid {
+		n := int(awardRank.Int64)
+		award.AwardRank = &n
+	}
+	award.AwardType = normalizeAwardType(award.AwardType)
 	award.Status = normalizeAwardStatus(award.Status)
 	award.ArchivedAt = pgTimePtr(archivedAt)
 	return &award, nil
+}
+
+func scanAwardJudge(rows pgx.Rows) (*types.AwardJudge, error) {
+	var judge types.AwardJudge
+	if err := rows.Scan(&judge.AwardID, &judge.PersonID, &judge.Name, &judge.Email, &judge.Photo, &judge.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &judge, nil
+}
+
+func scanAwardVote(rows pgx.Rows) (*types.AwardVote, error) {
+	var vote types.AwardVote
+	var projectNumber sql.NullInt64
+	if err := rows.Scan(
+		&vote.AwardID,
+		&vote.JudgePersonID,
+		&vote.JudgeName,
+		&vote.ProjectID,
+		&vote.ProjectTitle,
+		&projectNumber,
+		&vote.Notes,
+		&vote.SubmittedAt,
+		&vote.CreatedAt,
+		&vote.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	if projectNumber.Valid {
+		n := int(projectNumber.Int64)
+		vote.ProjectNumber = &n
+	}
+	return &vote, nil
 }
 
 func scanPrize(rows pgx.Rows) (*types.Prize, error) {
@@ -3654,10 +3980,27 @@ func normalizeScorecardRankingsInput(in ScorecardRankingsInput) ScorecardRanking
 
 func normalizeAwardInput(in AwardInput) AwardInput {
 	in.CompetitionID = strings.TrimSpace(in.CompetitionID)
+	in.SponsoredByOrgID = strings.TrimSpace(in.SponsoredByOrgID)
+	in.AwardType = normalizeAwardType(in.AwardType)
 	in.Title = strings.TrimSpace(in.Title)
 	in.Description = strings.TrimSpace(in.Description)
-	in.PhotoURL = strings.TrimSpace(in.PhotoURL)
+	in.JudgingInstructions = strings.TrimSpace(in.JudgingInstructions)
+	if in.AwardType != AwardTypeChallenge {
+		in.JudgingInstructions = ""
+	}
+	if in.MaxAwardees == nil {
+		n := 1
+		in.MaxAwardees = &n
+	}
 	in.Status = normalizeAwardStatus(in.Status)
+	return in
+}
+
+func normalizeAwardVoteInput(in AwardVoteInput) AwardVoteInput {
+	in.AwardID = strings.TrimSpace(in.AwardID)
+	in.JudgePersonID = strings.TrimSpace(in.JudgePersonID)
+	in.ProjectID = strings.TrimSpace(in.ProjectID)
+	in.Notes = strings.TrimSpace(in.Notes)
 	return in
 }
 
@@ -3743,6 +4086,17 @@ func normalizeAwardStatus(value string) string {
 		return AwardStatusAwarded
 	default:
 		return AwardStatusDraft
+	}
+}
+
+func normalizeAwardType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case AwardTypeChallenge, "sponsor", "bounty":
+		return AwardTypeChallenge
+	case AwardTypeNormal, "ranked":
+		return AwardTypeNormal
+	default:
+		return AwardTypeNormal
 	}
 }
 
