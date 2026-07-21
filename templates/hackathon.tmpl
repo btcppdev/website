@@ -97,12 +97,15 @@
             <div class="hack-label">§ Prizes</div>
             <h2>Prize <span class="hack-serif">pool.</span></h2>
           </div>
-          <div class="hack-section__deck">Ranked rewards for the top projects. Sponsor bounties can stack on top.</div>
+          <div class="hack-section__deck">Ranked rewards for the top projects. Challenges can stack on top.</div>
         </div>
         <div class="hack-prize-grid">
           {{ range .HackathonPlaceRows }}
           <a href="{{ if .ProjectID }}#project-{{ .ProjectID }}{{ else }}#awards{{ end }}" class="hack-prize-card{{ if .GrandPrize }} hack-prize-card--grand{{ end }}">
-            <div class="hack-prize-card__place">★ {{ .PlaceName }} place{{ if .GrandPrize }} · grand prize{{ end }}</div>
+            <div class="hack-prize-card__top">
+              <div class="hack-prize-card__place">★ {{ .PlaceName }} place{{ if .GrandPrize }} · grand prize{{ end }}</div>
+              {{ if .SponsorLogoURL }}<span class="hack-prize-card__sponsor-logo"><img src="{{ .SponsorLogoURL }}" alt="{{ .SponsorLogoAlt }}"></span>{{ end }}
+            </div>
             <div>
               <div class="hack-prize-card__amount">{{ if .Amount }}{{ .Amount }}{{ else }}TBA{{ end }}</div>
               <div class="hack-prize-card__title">
@@ -117,19 +120,35 @@
       </section>
       {{ end }}
 
-      {{ $bountyAwards := .BountyAwards }}
-      {{ if $bountyAwards }}
-      <section class="hack-bounties" aria-label="Sponsor bounties">
-        <div class="hack-bounties__bar">+ Sponsor bounties · stackable</div>
+      {{ $additionalAwards := .AdditionalOverviewAwards }}
+      {{ if $additionalAwards }}
+      <section class="hack-bounties" aria-label="Additional awards">
+        <div class="hack-bounties__bar">+ Additional awards</div>
         <div class="hack-bounty-grid">
-          {{ range $bountyAwards }}
+          {{ range $additionalAwards }}
+          {{ $award := . }}
           <article class="hack-bounty-card">
-            <div class="hack-bounty-card__eyebrow">[ Sponsor bounty ]</div>
+            {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
+            <div class="hack-bounty-card__top">
+              <div class="hack-bounty-card__sponsor">
+                {{ if $.AwardHasSponsor . }}
+                {{ if $.AwardSponsorURL . }}
+                <a href="{{ $.AwardSponsorURL . }}" target="_blank" rel="noreferrer">[ {{ $.AwardSponsorLabel . }} ]</a>
+                {{ else }}
+                <span>[ {{ $.AwardSponsorLabel . }} ]</span>
+                {{ end }}
+              {{ else }}
+              <span>[ {{ $.AwardDisplayLabel . }} ]</span>
+              {{ end }}
+            </div>
+          </div>
             <h3>{{ .Title }}</h3>
             {{ if .Description }}<div class="hack-bounty-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
+            {{ $prizes := $.AwardPrizes . }}
+            {{ if $prizes }}
             <div class="hack-bounty-card__prize-label">Prizes</div>
             <div class="hack-bounty-card__prizes">
-              {{ range $.AwardPrizes . }}
+              {{ range $prizes }}
               <div class="hack-bounty-card__prize">
                 <div class="hack-bounty-card__prize-head">
                   <span>{{ .Title }}</span>
@@ -139,6 +158,52 @@
               </div>
               {{ end }}
             </div>
+            {{ end }}
+          </article>
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
+
+      {{ $challengeAwards := .ChallengeAwards }}
+      {{ if $challengeAwards }}
+      <section class="hack-bounties" aria-label="Challenge awards">
+        <div class="hack-bounties__bar">+ Challenges · stackable</div>
+        <div class="hack-bounty-grid">
+          {{ range $challengeAwards }}
+          {{ $award := . }}
+          <article class="hack-bounty-card">
+            {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
+            <div class="hack-bounty-card__top">
+              <div class="hack-bounty-card__sponsor">
+                {{ if $.AwardHasSponsor . }}
+                {{ if $.AwardSponsorURL . }}
+                <a href="{{ $.AwardSponsorURL . }}" target="_blank" rel="noreferrer">[ {{ $.AwardSponsorLabel . }} ]</a>
+                {{ else }}
+                <span>[ {{ $.AwardSponsorLabel . }} ]</span>
+                {{ end }}
+              {{ else }}
+              <span>[ Challenge ]</span>
+              {{ end }}
+            </div>
+          </div>
+            <h3>{{ .Title }}</h3>
+            {{ if .Description }}<div class="hack-bounty-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
+            {{ $prizes := $.AwardPrizes . }}
+            {{ if $prizes }}
+            <div class="hack-bounty-card__prize-label">Prizes</div>
+            <div class="hack-bounty-card__prizes">
+              {{ range $prizes }}
+              <div class="hack-bounty-card__prize">
+                <div class="hack-bounty-card__prize-head">
+                  <span>{{ .Title }}</span>
+                  <strong>{{ $.PrizeValueLabel . }}</strong>
+                </div>
+                {{ if .Description }}<div class="hack-bounty-card__prize-desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
+              </div>
+              {{ end }}
+            </div>
+            {{ end }}
           </article>
           {{ end }}
         </div>
@@ -348,21 +413,42 @@
           <h2>Prize <span class="hack-serif">pool.</span></h2>
         </div>
         <div class="hack-section__deck">
-          Ranked awards, bounties, and assigned winning projects when winners have been selected.
+          Normal awards, challenges, and assigned winning projects when winners have been selected.
           <div class="hack-section__cta">{{ template "hackathon_primary_action" . }}</div>
         </div>
       </div>
       <div class="hack-card-grid">
         {{ range .Awards }}
+        {{ $award := . }}
         <article class="hack-card hack-award-card">
           <div class="hack-card__body">
-            <div class="hack-label">★ Award</div>
+            {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
+            <div class="hack-award-card__top">
+              <div class="hack-award-card__label">
+                <span>{{ if $.AwardIsChallenge . }}[ {{ $.AwardDisplayLabel . }} ]{{ else }}★ {{ $.AwardDisplayLabel . }}{{ end }}</span>
+              </div>
+          </div>
             <h3>{{ .Title }}</h3>
+            {{ if $.AwardHasSponsor . }}
+            <div class="hack-tags">
+              {{ if $.AwardSponsorURL . }}<a href="{{ $.AwardSponsorURL . }}" target="_blank" rel="noreferrer" class="hack-tag">{{ $.AwardSponsorLabel . }}</a>{{ else }}<span class="hack-tag">{{ $.AwardSponsorLabel . }}</span>{{ end }}
+            </div>
+            {{ end }}
             {{ if .Description }}<div class="hack-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
             {{ $awardees := $.Awardees . }}
             {{ if $awardees }}
-            <div class="hack-tags">
-              {{ range $awardees }}<a href="#project-{{ .ProjectID }}" class="hack-badge">{{ .ProjectTitle }}</a>{{ end }}
+            <div class="hack-tags" aria-label="Award winners">
+              {{ range $awardees }}
+              <a href="#project-{{ .ProjectID }}" class="hack-badge">★ Winner: {{ .ProjectTitle }}</a>
+              {{ if $.CanAdminEdit }}
+              <form method="POST" action="{{ $.AdminEditURL }}/awards/remove" style="display:inline;">
+                <input type="hidden" name="AwardID" value="{{ .AwardID }}">
+                <input type="hidden" name="ProjectID" value="{{ .ProjectID }}">
+                <input type="hidden" name="Source" value="public">
+                <button type="submit" class="hack-badge" style="border:0;cursor:pointer;">Remove</button>
+              </form>
+              {{ end }}
+              {{ end }}
             </div>
             {{ end }}
             {{ $prizes := $.AwardPrizes . }}
@@ -514,7 +600,7 @@
     {{ if $project.ImageURL }}<img src="{{ $project.ImageURL }}" alt="" loading="lazy">{{ end }}
     {{ if $winningAwards }}
     <div class="hack-card__award-badges">
-      {{ range $winningAwards }}<span class="hack-badge">★ {{ .Title }}</span>{{ end }}
+      {{ range $winningAwards }}<span class="hack-badge">★ {{ $page.AwardWinnerBadgeLabel . }}</span>{{ end }}
     </div>
     {{ end }}
   </div>

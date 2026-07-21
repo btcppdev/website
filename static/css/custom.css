@@ -2617,6 +2617,19 @@ body.btcpp-admin-page {
 	color: #0a0a0a !important;
 }
 
+.btcpp-admin-page [data-award-tab] {
+	border-width: 2px !important;
+	box-shadow: 3px 3px 0 #0a0a0a !important;
+}
+
+.btcpp-admin-page [data-award-tab]:hover {
+	box-shadow: 4px 4px 0 #0a0a0a !important;
+}
+
+.btcpp-admin-page [data-award-tab][aria-selected="false"] {
+	background: #fff7ed !important;
+}
+
 .btcpp-admin-page [data-award-tab][aria-selected="true"],
 .btcpp-admin-page [data-score-tab][aria-current="page"] {
 	background: #f7931a !important;
@@ -7969,6 +7982,13 @@ body.btcpp-checkout-page {
 	color: var(--hack-paper);
 }
 
+.hack-prize-card__top {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 20px;
+}
+
 .hack-prize-card__place {
 	color: var(--hack-accent);
 	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -7976,6 +7996,19 @@ body.btcpp-checkout-page {
 	font-weight: 700;
 	letter-spacing: 1.5px;
 	text-transform: uppercase;
+}
+
+.hack-prize-card__sponsor-logo {
+	display: inline-flex;
+	flex: 0 1 116px;
+	justify-content: flex-end;
+}
+
+.hack-prize-card__sponsor-logo img {
+	display: block;
+	max-width: 116px;
+	max-height: 34px;
+	object-fit: contain;
 }
 
 .hack-prize-card__amount {
@@ -8051,9 +8084,9 @@ body.btcpp-checkout-page {
 .hack-bounty-card {
 	display: flex;
 	min-width: 0;
-	min-height: 210px;
+	min-height: 150px;
 	flex-direction: column;
-	gap: 12px;
+	gap: 10px;
 	border-right: 1px solid var(--hack-ink);
 	border-bottom: 1px solid var(--hack-ink);
 	padding: 28px 32px;
@@ -8063,8 +8096,13 @@ body.btcpp-checkout-page {
 	border-right: 0;
 }
 
-.hack-bounty-card__eyebrow {
-	color: var(--hack-accent);
+.hack-bounty-card__top,
+.hack-award-card__top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	color: var(--hack-ink);
 	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	font-size: 11px;
 	font-weight: 700;
@@ -8072,11 +8110,56 @@ body.btcpp-checkout-page {
 	text-transform: uppercase;
 }
 
+.hack-bounty-card__top strong,
+.hack-award-card__top strong {
+	flex: none;
+	color: var(--hack-ink);
+	font-size: 14px;
+	letter-spacing: 0;
+	white-space: nowrap;
+}
+
+.hack-bounty-card__sponsor,
+.hack-award-card__label {
+	display: inline-flex;
+	min-width: 0;
+	align-items: center;
+	gap: 9px;
+	color: var(--hack-accent);
+}
+
+.hack-bounty-card__sponsor a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.hack-bounty-card__sponsor a:hover {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.hack-sponsored-award-logo {
+	display: flex;
+	min-height: 58px;
+	align-items: center;
+	justify-content: center;
+	padding-bottom: 18px;
+	border-bottom: 1px solid rgba(10, 10, 10, 0.16);
+}
+
+.hack-sponsored-award-logo img {
+	display: block;
+	max-width: min(180px, 100%);
+	max-height: 44px;
+	object-fit: contain;
+}
+
 .hack-bounty-card h3 {
 	margin: 0;
-	font-size: 25px;
+	font-size: 22px;
 	font-weight: 700;
-	line-height: 1.08;
+	letter-spacing: 0;
+	line-height: 1.15;
 }
 
 .hack-bounty-card__desc {
@@ -9027,7 +9110,13 @@ display: grid;
 }
 
 .hack-award-card h3 {
+	margin: 0;
 	font-size: 32px;
+	line-height: 1.05;
+}
+
+.hack-award-card__top {
+	margin-bottom: 4px;
 }
 
 .hack-award-card__prize-label {

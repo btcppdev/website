@@ -41,6 +41,7 @@
         <a href="{{ $.HackathonURL }}{{ if .ProjectID }}#project-{{ .ProjectID }}{{ else }}#awards{{ end }}" class="conf-hackathon-redesign__row">
           <span class="conf-hackathon-redesign__place">{{ .PlaceLabel }}</span>
           <span class="conf-hackathon-redesign__project">
+            {{ if .SponsorLogoURL }}<span class="conf-hackathon-redesign__award-logo"><img src="{{ .SponsorLogoURL }}" alt="{{ .SponsorLogoAlt }}"></span>{{ end }}
             <strong>{{ .ProjectTitle }}{{ range .ExtraPrizeNames }} <span>+ {{ . }}</span>{{ end }}</strong>
             {{ if .Detail }}<em>{{ .Detail }}</em>{{ end }}
           </span>

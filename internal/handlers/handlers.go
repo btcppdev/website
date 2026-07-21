@@ -1351,6 +1351,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/results/reopen", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminReopenResults(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/judges", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminAddAwardJudge(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/awards/judges/remove", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminRemoveAwardJudge(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/visibility", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateVisibility(w, r, app)
 	}).Methods("POST")
@@ -1394,6 +1400,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/judging/scorecards", func(w http.ResponseWriter, r *http.Request) {
 		HackathonScorecardSubmit(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/hackathon/judging/award-votes", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAwardVoteSubmit(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/new", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectNew(w, r, app)
@@ -3971,6 +3980,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	var hackathonScheduleEvents []HackathonScheduleEvent
 	var hackathonJudges []*types.CompetitionJudge
 	var hackathonPlaceRows []*HackathonPlaceRow
+	var hackathonOrgs map[string]*types.Org
 	if hackathon != nil {
 		hackathonViewer := hackathonViewerFromIdentity(viewer, conf)
 		hackathonCanAdmin = hackathonViewer.Admin || hackathonViewer.Coordinator
@@ -3988,7 +3998,11 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon judges %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
 		}
-		hackathonPlaceRows, err = loadConfHackathonPlaceRows(ctx, hackathon.ID, hackathon.ResultsFinalizedAt != nil)
+		hackathonOrgs, err = loadHackathonOrgMap(ctx)
+		if err != nil {
+			ctx.Err.Printf("/%s hackathon orgs %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
+		}
+		hackathonPlaceRows, err = loadConfHackathonPlaceRows(ctx, hackathon.ID, hackathon.ResultsFinalizedAt != nil, hackathonOrgs)
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon place rows %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
 		}

@@ -41,6 +41,20 @@ func TestHackathonPageCompetitionImageUsesLoadedConference(t *testing.T) {
 	}
 }
 
+func TestOrgLogoURLPrefersLightLogo(t *testing.T) {
+	org := &types.Org{LogoLight: " https://cdn.example/light.svg ", LogoDark: "https://cdn.example/dark.svg"}
+	if got := orgLogoURL(org); got != "https://cdn.example/light.svg" {
+		t.Fatalf("orgLogoURL() = %q, want light logo", got)
+	}
+}
+
+func TestOrgLogoURLFallsBackToDarkLogo(t *testing.T) {
+	org := &types.Org{LogoDark: " https://cdn.example/dark.svg "}
+	if got := orgLogoURL(org); got != "https://cdn.example/dark.svg" {
+		t.Fatalf("orgLogoURL() = %q, want dark logo", got)
+	}
+}
+
 func TestHackathonPrimaryProjectActionOpenSubmissions(t *testing.T) {
 	page := &HackathonPage{
 		Competition: &types.HackathonCompetition{
@@ -291,8 +305,10 @@ func TestScoreAwardHelpersShowExistingAssignments(t *testing.T) {
 	assigned := &types.Award{ID: "assigned", Title: "First place", MaxAwardees: &limit}
 	available := &types.Award{ID: "available", Title: "Design prize"}
 	finalistsOnly := &types.Award{ID: "finalists-only", Title: "Second place", FinalistsOnly: true}
+	challengeAward := &types.Award{ID: "challenge-award", Title: "Challenge award", AwardType: getters.AwardTypeChallenge}
+	sponsoredNormalAward := &types.Award{ID: "sponsored-normal", Title: "Sponsored normal", AwardType: getters.AwardTypeNormal, SponsoredByOrgID: "org"}
 	page := &HackathonAdminPage{
-		Awards: []*types.Award{assigned, available, finalistsOnly},
+		Awards: []*types.Award{assigned, available, finalistsOnly, challengeAward, sponsoredNormalAward},
 		Projects: []*types.HackathonProject{
 			{ID: "finalist", Status: getters.ProjectStatusAdvanced},
 		},
@@ -308,12 +324,12 @@ func TestScoreAwardHelpersShowExistingAssignments(t *testing.T) {
 		t.Fatalf("ProjectAssignedAwards() = %+v, want assigned award", gotAssigned)
 	}
 	gotAssignable := page.ProjectAssignableAwards("winner")
-	if len(gotAssignable) != 1 || gotAssignable[0] != available {
-		t.Fatalf("ProjectAssignableAwards(non-finalist) = %+v, want only available award", gotAssignable)
+	if len(gotAssignable) != 2 || gotAssignable[0] != available || gotAssignable[1] != sponsoredNormalAward {
+		t.Fatalf("ProjectAssignableAwards(non-finalist) = %+v, want normal and sponsored normal awards", gotAssignable)
 	}
 	gotAssignable = page.ProjectAssignableAwards("finalist")
-	if len(gotAssignable) != 2 || gotAssignable[0] != available || gotAssignable[1] != finalistsOnly {
-		t.Fatalf("ProjectAssignableAwards(finalist) = %+v, want general and finalists-only awards", gotAssignable)
+	if len(gotAssignable) != 3 || gotAssignable[0] != available || gotAssignable[1] != finalistsOnly || gotAssignable[2] != sponsoredNormalAward {
+		t.Fatalf("ProjectAssignableAwards(finalist) = %+v, want normal, finalists-only, and sponsored normal awards", gotAssignable)
 	}
 	finalizedAt := time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC)
 	page.Competition = &types.HackathonCompetition{
@@ -572,7 +588,8 @@ func TestHackathonScheduleCalendarEventUsesPublicVenueLabel(t *testing.T) {
 
 func TestHackathonOverviewSelections(t *testing.T) {
 	winnerAward := &types.Award{ID: "winner-award", Title: "First place"}
-	bountyAward := &types.Award{ID: "bounty", Title: "Best Lightning project"}
+	challengeAward := &types.Award{ID: "challenge", Title: "Best Lightning project", AwardType: getters.AwardTypeChallenge}
+	emptyChallengeAward := &types.Award{ID: "empty-challenge", Title: "Challenge without prize", AwardType: getters.AwardTypeChallenge}
 	page := &HackathonPage{
 		Competition: &types.HackathonCompetition{PublicGalleryEnabled: true},
 		Projects: []*types.HackathonProject{
@@ -581,10 +598,10 @@ func TestHackathonOverviewSelections(t *testing.T) {
 			{ID: "third", Title: "Third", Status: getters.ProjectStatusSubmitted},
 			{ID: "fourth", Title: "Fourth", Status: getters.ProjectStatusSubmitted},
 		},
-		Awards: []*types.Award{winnerAward, bountyAward, {ID: "empty", Title: "No prize yet"}},
+		Awards: []*types.Award{winnerAward, challengeAward, emptyChallengeAward, {ID: "fourth-place", Title: "Fourth place"}},
 		PrizesByAward: map[string][]*types.Prize{
 			"winner-award": {{AwardID: "winner-award", ValueText: "1000000"}},
-			"bounty":       {{AwardID: "bounty", ValueText: "500000"}},
+			"challenge":    {{AwardID: "challenge", ValueText: "500000"}},
 		},
 		AwardeesByAward: map[string][]*types.ProjectAward{
 			"winner-award": {{AwardID: "winner-award", ProjectID: "winner"}},
@@ -595,9 +612,13 @@ func TestHackathonOverviewSelections(t *testing.T) {
 	if len(featured) != 3 || featured[0].ID != "winner" || featured[1].ID != "regular" || featured[2].ID != "third" {
 		t.Fatalf("FeaturedProjects() = %+v, want winner followed by gallery order", featured)
 	}
-	bounties := page.BountyAwards()
-	if len(bounties) != 1 || bounties[0].ID != "bounty" {
-		t.Fatalf("BountyAwards() = %+v, want only non-ranked award with a prize", bounties)
+	challenges := page.ChallengeAwards()
+	if len(challenges) != 2 || challenges[0].ID != "challenge" || challenges[1].ID != "empty-challenge" {
+		t.Fatalf("ChallengeAwards() = %+v, want challenge awards even before prizes are configured", challenges)
+	}
+	additional := page.AdditionalOverviewAwards()
+	if len(additional) != 1 || additional[0].ID != "fourth-place" {
+		t.Fatalf("AdditionalOverviewAwards() = %+v, want unranked normal award only", additional)
 	}
 }
 
@@ -667,6 +688,13 @@ func TestPublishedProjectGalleryOrdersFinalistAwardsThenPrizeValue(t *testing.T)
 	winningAwards := page.ProjectWinningAwards(mixedProject)
 	if len(winningAwards) != 2 || winningAwards[0].ID != "final-small" || winningAwards[1].ID != "general-large" {
 		t.Fatalf("ProjectWinningAwards() = %+v, want finalist-only award first", winningAwards)
+	}
+	firstRank := 1
+	if got := page.AwardWinnerBadgeLabel(&types.Award{Title: "First place prize", AwardRank: &firstRank}); got != "1st place" {
+		t.Fatalf("AwardWinnerBadgeLabel(ranked) = %q, want 1st place", got)
+	}
+	if got := page.AwardWinnerBadgeLabel(&types.Award{Title: "Best Lightning project", AwardType: getters.AwardTypeChallenge}); got != "Best Lightning project" {
+		t.Fatalf("AwardWinnerBadgeLabel(challenge) = %q, want award title", got)
 	}
 }
 
