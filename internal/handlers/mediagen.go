@@ -41,6 +41,10 @@ var (
 
 const talkManifestTTL = 5 * time.Minute
 
+func mediaUpdatesEnabled(ctx *config.AppContext) bool {
+	return ctx != nil && ctx.InProduction
+}
+
 // InvalidateTalkManifest forces the next talkClipartFingerprint call
 // to re-fetch from Spaces. Used by the clipart-upload admin handler
 // after a successful PUT so subsequent card-hash computations see
@@ -225,6 +229,9 @@ func generateAndUploadSpeakerPngOpt(ctx *config.AppContext, confTag, card string
 }
 
 func generateAndUploadSpeakerPngWithRenderer(ctx *config.AppContext, renderer *helpers.MediaRenderer, confTag, card string, speaker *types.Speaker, talk *types.Talk, force bool) (string, error) {
+	if !mediaUpdatesEnabled(ctx) {
+		return "", fmt.Errorf("media updates are disabled outside production")
+	}
 	key := fmt.Sprintf("%s/speakers/%s-%s-%s.png", confTag, talk.ID, speaker.ID, card)
 	hash := speakerCardHash(speaker, talk)
 
@@ -273,6 +280,9 @@ func generateAndUploadTalkPngOpt(ctx *config.AppContext, confTag, card string, t
 }
 
 func generateAndUploadTalkPngWithRenderer(ctx *config.AppContext, renderer *helpers.MediaRenderer, confTag, card string, talk *types.Talk, force bool) (string, error) {
+	if !mediaUpdatesEnabled(ctx) {
+		return "", fmt.Errorf("media updates are disabled outside production")
+	}
 	key := fmt.Sprintf("%s/talks/%s-%s.png", confTag, talk.ID, card)
 	hash := talkCardHash(talk)
 
@@ -408,6 +418,9 @@ func generateAndUploadSponsorPngOpt(ctx *config.AppContext, confTag, card string
 }
 
 func generateAndUploadSponsorPngWithRenderer(ctx *config.AppContext, renderer *helpers.MediaRenderer, confTag, card string, sp *types.Sponsorship, force bool) (string, error) {
+	if !mediaUpdatesEnabled(ctx) {
+		return "", fmt.Errorf("media updates are disabled outside production")
+	}
 	key := fmt.Sprintf("%s/sponsors/%s-%s.png", confTag, sp.Ref, card)
 	hash := sponsorCardHash(sp)
 
@@ -460,7 +473,7 @@ func RefreshSponsorCardsForConf(ctx *config.AppContext, conf *types.Conf) {
 // the existing Spaces object — useful when the source logo file's
 // content changed but its filename (the only logo bit hashed) didn't.
 func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, orgFilter string, force bool) {
-	if conf == nil {
+	if conf == nil || !mediaUpdatesEnabled(ctx) {
 		return
 	}
 	sponsorships, err := getters.ListSponsorships(ctx, conf.Ref)
@@ -511,6 +524,9 @@ func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, org
 }
 
 func RefreshSponsorCards(ctx *config.AppContext) {
+	if !mediaUpdatesEnabled(ctx) {
+		return
+	}
 	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		ctx.Err.Printf("media refresh sponsors: failed to fetch confs: %s", err)
@@ -540,6 +556,9 @@ func RefreshSponsorCards(ctx *config.AppContext) {
 // server. It enforces the atomic-running guard and skips talks attached to
 // inactive confs (which are past events and don't need fresh cards).
 func RefreshTalkCards(ctx *config.AppContext, talks []*types.Talk) {
+	if !mediaUpdatesEnabled(ctx) {
+		return
+	}
 	if !atomic.CompareAndSwapInt32(&refreshRunning, 0, 1) {
 		ctx.Infos.Printf("media refresh: skipping, already running")
 		return
@@ -553,6 +572,9 @@ func RefreshTalkCards(ctx *config.AppContext, talks []*types.Talk) {
 // useful for back-filling cards on past events (e.g., when migrating to a
 // new ConfTalk-keyed file layout).
 func RefreshTalkCardsForce(ctx *config.AppContext, talks []*types.Talk) {
+	if !mediaUpdatesEnabled(ctx) {
+		return
+	}
 	refreshTalkCards(ctx, talks, false, false)
 }
 
@@ -561,6 +583,9 @@ func RefreshTalkCardsForce(ctx *config.AppContext, talks []*types.Talk) {
 // circuit so every card actually re-renders. Used by the CLI's
 // -force flag for full sweeps after a template change.
 func RefreshTalkCardsForceOpt(ctx *config.AppContext, talks []*types.Talk, force bool) {
+	if !mediaUpdatesEnabled(ctx) {
+		return
+	}
 	refreshTalkCards(ctx, talks, false, force)
 }
 
@@ -685,6 +710,9 @@ func preloadSourceManifests() error {
 }
 
 func InitMediaRefresh(ctx *config.AppContext) {
+	if !mediaUpdatesEnabled(ctx) {
+		return
+	}
 	ctx.Infos.Println("InitMediaRefresh: starting...")
 
 	// Load existing hashes from S3 to avoid regenerating unchanged cards

@@ -8167,6 +8167,10 @@ func AdminSpeakerRefreshCards(w http.ResponseWriter, r *http.Request, ctx *confi
 	if id := requireConfAdmin(w, r, ctx); id == nil {
 		return
 	}
+	if !ctx.InProduction {
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", mux.Vars(r)["conf"], url.QueryEscape("Social card updates are disabled outside production.")), http.StatusSeeOther)
+		return
+	}
 	conf, err := helpers.FindConf(r, ctx)
 	if err != nil {
 		handle404(w, r, ctx)
@@ -8897,6 +8901,10 @@ func computeCalState(ct *types.ConfTalk, p *types.Proposal, conf *types.Conf) st
 
 func AdminProposalRefreshCard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+	if !ctx.InProduction {
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/applicants?flash=%s", mux.Vars(r)["conf"], url.QueryEscape("Social card updates are disabled outside production.")), http.StatusSeeOther)
 		return
 	}
 	conf, err := helpers.FindConf(r, ctx)
