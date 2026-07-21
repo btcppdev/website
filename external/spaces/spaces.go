@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"btcpp-web/internal/types"
 
@@ -33,7 +35,8 @@ func Init(cfg types.SpacesConfig) {
 	bucket = cfg.Bucket
 
 	awsCfg := aws.Config{
-		Region: cfg.Region,
+		Region:     cfg.Region,
+		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 		Credentials: credentials.NewStaticCredentialsProvider(
 			cfg.Key, cfg.Secret, "",
 		),

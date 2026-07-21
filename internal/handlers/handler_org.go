@@ -8,7 +8,6 @@ import (
 	"time"
 	"unicode"
 
-	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
@@ -120,6 +119,10 @@ func talkDays(ctx *config.AppContext, conf *types.Conf, talks types.TalkTime) ([
 	if err != nil {
 		return nil, err
 	}
+	return talkDaysFromBuckets(buckets)
+}
+
+func talkDaysFromBuckets(buckets map[string]types.SessionTime) ([]*Day, error) {
 	/* Sort keys alphabetically */
 	keys := make([]string, 0)
 	for k, _ := range buckets {
@@ -202,20 +205,12 @@ func talkToSession(ctx *config.AppContext, talk *types.Talk, conf *types.Conf) *
 		ConfTag:       conf.Tag,
 		GithubRepoURL: talk.GithubRepoURL,
 		SlidesURL:     talk.SlidesURL,
+		YTLink:        talk.YTLink,
 	}
 
 	if talk.Sched != nil {
 		sesh.Len = talk.Sched.LenStr()
 		sesh.StartTime = talk.Sched.StartTime()
-	}
-
-	// First try a direct ConfTalk.ID lookup (cheap when talks come from
-	// LoadTalksFromConfTalks); fall back to the (tag, title) bridge for
-	// the legacy Talks-DB renderer where talk.ID is a Talks-DB page ID.
-	if rec, err := getters.GetRecordingByConfTalk(ctx, talk.ID); err != nil {
-		ctx.Err.Printf("talkToSession recording lookup %s: %s", talk.ID, err)
-	} else if rec != nil {
-		sesh.YTLink = rec.YTLink
 	}
 
 	return sesh

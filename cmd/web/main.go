@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 	texttemplate "text/template"
 	"time"
@@ -90,7 +89,7 @@ func main() {
 	}
 	sessionHandler := app.Session.LoadAndSave(routes)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/run-of-show/events") {
+		if strings.HasPrefix(r.URL.Path, "/static/") || strings.HasSuffix(r.URL.Path, "/run-of-show/events") {
 			routes.ServeHTTP(w, r)
 			return
 		}
@@ -109,20 +108,6 @@ func main() {
 	/* Kick off job to start sending mails */
 	if !app.Env.MailOff {
 		go RunNewMails(&app)
-	}
-
-	/* Start media card refresh after server is listening */
-	if spaces.IsConfigured() {
-		if mediaRendererAvailable() {
-			go func() {
-				time.Sleep(3 * time.Second)
-				handlers.InitMediaRefresh(&app)
-				app.Infos.Printf("media refresh done")
-			}()
-			app.Infos.Printf("scheduling media refresh")
-		} else {
-			app.Infos.Printf("media refresh disabled: Chrome/Chromium executable not found")
-		}
 	}
 
 	handlers.StartRecordingAutopublisher(&app)
@@ -188,21 +173,4 @@ func run(env *types.EnvConfig) error {
 	app.Infos.Println("using postgres session store")
 
 	return nil
-}
-
-func mediaRendererAvailable() bool {
-	for _, name := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser"} {
-		if _, err := exec.LookPath(name); err == nil {
-			return true
-		}
-	}
-	for _, path := range []string{
-		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-		"/Applications/Chromium.app/Contents/MacOS/Chromium",
-	} {
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			return true
-		}
-	}
-	return false
 }

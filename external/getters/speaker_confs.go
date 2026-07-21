@@ -89,6 +89,13 @@ func ListSpeakerConfs(ctx *config.AppContext, speakerMap map[string]*types.Speak
 	return querySpeakerConfsPostgres(ctx, "", nil, speakerMap, proposalMap)
 }
 
+func ListSpeakerConfsByIDs(ctx *config.AppContext, ids []string, speakerMap map[string]*types.Speaker, proposalMap map[string]*types.Proposal) ([]*types.SpeakerConf, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.id::text = ANY($1::text[])", []interface{}{ids}, speakerMap, proposalMap)
+}
+
 func listSpeakerConfsForSpeaker(ctx *config.AppContext, speaker *types.Speaker) ([]*types.SpeakerConf, error) {
 	if speaker == nil || strings.TrimSpace(speaker.ID) == "" {
 		return nil, nil

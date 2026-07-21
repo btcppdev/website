@@ -244,7 +244,6 @@ func generateAndUploadTalkPngWithRenderer(ctx *config.AppContext, renderer *help
 		cardHashesMu.Lock()
 		if cardHashes[key] == hash {
 			cardHashesMu.Unlock()
-			writeSocialCardPath(ctx, talk.ID, key, card)
 			return spaces.PublicURL(key), nil
 		}
 		cardHashesMu.Unlock()
@@ -396,7 +395,11 @@ func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, org
 	if conf == nil {
 		return
 	}
-	renderer := helpers.NewMediaRenderer(ctx)
+	renderer, err := helpers.NewMediaRenderer(ctx)
+	if err != nil {
+		ctx.Err.Printf("media refresh sponsors: %s", err)
+		return
+	}
 	defer renderer.Close()
 	sponsorships, err := getters.ListSponsorships(ctx, conf.Ref)
 	if err != nil {
@@ -483,7 +486,11 @@ func RefreshTalkCardsForceOpt(ctx *config.AppContext, talks []*types.Talk, force
 func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive, force bool) {
 	confs, _ := getters.ListConfs(ctx)
 	confset := helpers.ConfTagSet(confs)
-	renderer := helpers.NewMediaRenderer(ctx)
+	renderer, err := helpers.NewMediaRenderer(ctx)
+	if err != nil {
+		ctx.Err.Printf("media refresh talks: %s", err)
+		return
+	}
 	defer renderer.Close()
 
 	card := "1080p"

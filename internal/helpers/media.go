@@ -19,6 +19,18 @@ import (
 var chromeSem = make(chan struct{}, 4)
 
 const chromeRenderTimeout = 90 * time.Second
+const chromeAcquireTimeout = 10 * time.Second
+
+func acquireChromeSlot() error {
+	timer := time.NewTimer(chromeAcquireTimeout)
+	defer timer.Stop()
+	select {
+	case chromeSem <- struct{}{}:
+		return nil
+	case <-timer.C:
+		return fmt.Errorf("timed out waiting for a media renderer")
+	}
+}
 
 func discardChromedpLogf(string, ...interface{}) {}
 
@@ -45,7 +57,9 @@ func pdfGrabber(pdf *PDFPage, res *[]byte) chromedp.Tasks {
 }
 
 func BuildChromePdf(ctx *config.AppContext, pdfPage *PDFPage) ([]byte, error) {
-	chromeSem <- struct{}{}
+	if err := acquireChromeSlot(); err != nil {
+		return nil, err
+	}
 	defer func() { <-chromeSem }()
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
@@ -86,7 +100,9 @@ func pngGrabber(pg *PDFPage, res *[]byte) chromedp.Tasks {
 }
 
 func BuildChromePng(ctx *config.AppContext, pdfPage *PDFPage) ([]byte, error) {
-	chromeSem <- struct{}{}
+	if err := acquireChromeSlot(); err != nil {
+		return nil, err
+	}
 	defer func() { <-chromeSem }()
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
@@ -121,8 +137,10 @@ type MediaRenderer struct {
 	mu            sync.Mutex
 }
 
-func NewMediaRenderer(ctx *config.AppContext) *MediaRenderer {
-	chromeSem <- struct{}{}
+func NewMediaRenderer(ctx *config.AppContext) (*MediaRenderer, error) {
+	if err := acquireChromeSlot(); err != nil {
+		return nil, err
+	}
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("allow-insecure-localhost", true),
@@ -143,7 +161,7 @@ func NewMediaRenderer(ctx *config.AppContext) *MediaRenderer {
 		cancelAlloc:   cancelAlloc,
 		browserCtx:    browserCtx,
 		cancelBrowser: cancelBrowser,
-	}
+	}, nil
 }
 
 func (r *MediaRenderer) Close() {
