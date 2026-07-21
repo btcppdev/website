@@ -23,7 +23,7 @@
     <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
     {{ end }}
     {{ if .FlashError }}
-    <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
+    <div class="btcpp-admin-flash btcpp-admin-flash--error mb-4">{{ .FlashError }}</div>
     {{ end }}
 
     <details class="mb-6 overflow-hidden rounded-lg bg-white shadow">
@@ -32,7 +32,7 @@
           <span class="block text-sm font-semibold text-gray-900">Admin add project</span>
           <span class="mt-1 block text-sm text-gray-600">Create a project directly, even if public submissions are closed.</span>
         </span>
-        <span class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">Add project</span>
+        <span class="rounded-md bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">Add project</span>
       </summary>
       <form method="POST" action="{{ .ProjectsURL .Competition }}" class="grid gap-4 px-4 py-5 sm:grid-cols-6 sm:p-6">
         <div class="sm:col-span-2">
@@ -46,7 +46,7 @@
                  class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
         </div>
         <div>
-          <label for="AdminProjectNumber" class="block text-sm font-medium text-gray-700">#</label>
+          <label for="AdminProjectNumber" class="block text-sm font-medium text-gray-700">Table #</label>
           <input id="AdminProjectNumber" name="ProjectNumber" type="number" min="1"
                  class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
         </div>
@@ -61,8 +61,8 @@
           </select>
         </div>
         <div class="sm:col-span-2">
-          <label for="AdminProjectOwnerSearch" class="block text-sm font-medium text-gray-700">Team people</label>
-          <div class="relative mt-1" data-person-picker data-person-picker-name="TeamPersonID" data-person-picker-search-url="{{ .EditURL .Competition }}/people/search">
+          <label for="AdminProjectOwnerSearch" class="block text-sm font-medium text-gray-700">Team people *</label>
+          <div class="relative mt-1" data-person-picker data-person-picker-required="true" data-person-picker-name="TeamPersonID" data-person-picker-search-url="{{ .EditURL .Competition }}/people/search">
             <input id="AdminProjectOwnerSearch" type="search" data-person-picker-input
                    placeholder="Search by name, email, or phone"
                    class="block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">

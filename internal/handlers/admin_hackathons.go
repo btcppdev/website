@@ -1152,14 +1152,16 @@ func HackathonAdminCreateProject(w http.ResponseWriter, r *http.Request, ctx *co
 		return
 	}
 	teamPersonIDs := personIDsFromForm(r, "TeamPersonID")
-	if len(teamPersonIDs) > 0 {
-		if err := validatePersonIDs(ctx, teamPersonIDs); err != nil {
-			ctx.Err.Printf("/admin/hackathons/%s/projects selected people: %s", competitionID, err)
-			http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
-			return
-		}
-		in.CreatedByPersonID = teamPersonIDs[0]
+	if len(teamPersonIDs) == 0 {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Add at least one team person before creating a project."), http.StatusSeeOther)
+		return
 	}
+	if err := validatePersonIDs(ctx, teamPersonIDs); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects selected people: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	in.CreatedByPersonID = teamPersonIDs[0]
 	in.Slug, err = generatedProjectSlug()
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/projects create slug: %s", competitionID, err)
