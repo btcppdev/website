@@ -183,31 +183,19 @@ func TestHackathonAdvancedSelections(t *testing.T) {
 }
 
 func TestCurrentJudgeEvents(t *testing.T) {
-	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
-	before := now.Add(-time.Hour)
-	after := now.Add(time.Hour)
-
-	manual := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeManual}
-	manualEvents := []*types.JudgeEvent{
+	events := []*types.JudgeEvent{
 		{ID: "pending", State: getters.JudgeEventStatePending},
 		{ID: "open", State: getters.JudgeEventStateOpen},
 	}
-	if got := currentJudgeEvents(manual, manualEvents, now); len(got) != 1 || got[0].ID != "open" {
-		t.Fatalf("manual current events = %+v, want open", got)
+	if got := currentJudgeEvents(events); len(got) != 1 || got[0].ID != "open" {
+		t.Fatalf("current events = %+v, want open", got)
 	}
 
-	automatic := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeAutomatic}
-	autoEvents := []*types.JudgeEvent{
-		{ID: "future", StartsAt: &after},
-		{ID: "current", StartsAt: &before, EndsAt: &after},
-	}
-	if got := currentJudgeEvents(automatic, autoEvents, now); len(got) != 1 || got[0].ID != "current" {
-		t.Fatalf("automatic current events = %+v, want current", got)
-	}
-
-	endedAt := now.Add(-time.Minute)
-	closed := []*types.JudgeEvent{{ID: "done", StartsAt: &before, EndsAt: &endedAt}}
-	if got := currentJudgeEvents(automatic, closed, now); len(got) != 0 {
-		t.Fatalf("closed automatic event = %+v, want none", got)
+	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
+	before := now.Add(-time.Hour)
+	after := now.Add(time.Hour)
+	scheduled := []*types.JudgeEvent{{ID: "scheduled", StartsAt: &before, EndsAt: &after}}
+	if got := currentJudgeEvents(scheduled); len(got) != 0 {
+		t.Fatalf("scheduled event without open state = %+v, want none", got)
 	}
 }
