@@ -16,7 +16,7 @@
     </header>
     {{ template "admin_hackathon_tabs" . }}
     {{ if .FlashMessage }}<div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>{{ end }}
-    {{ if .FlashError }}<div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>{{ end }}
+    {{ if .FlashError }}<div class="btcpp-admin-flash btcpp-admin-flash--error mb-4">{{ .FlashError }}</div>{{ end }}
 
     {{ if not .Competition.ResultsFinalizedAt }}
     <div class="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">Results are not finalized. You can prepare distributions, but award notifications remain off until results are finalized.</div>

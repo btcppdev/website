@@ -2682,6 +2682,23 @@ body.btcpp-admin-page {
 	color: #0a0a0a;
 }
 
+.btcpp-admin-page .btcpp-admin-flash {
+	border: 1px solid #0a0a0a;
+	border-radius: 6px;
+	padding: 12px 16px;
+	box-shadow: none;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 12px;
+	font-weight: 800;
+	text-transform: uppercase;
+}
+
+.btcpp-admin-page .btcpp-admin-flash--error {
+	border-color: #991b1b;
+	background: #dc2626;
+	color: #fff;
+}
+
 .btcpp-admin-page img.rounded-full,
 .btcpp-admin-page img.rounded-md,
 .btcpp-admin-page img.rounded-lg {
