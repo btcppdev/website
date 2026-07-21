@@ -886,22 +886,12 @@ func (p *HackathonPage) PublicJudgeRoleLabel(judge *types.CompetitionJudge) stri
 	}
 }
 
-func (p *HackathonPage) JudgingModeLabel() string {
-	if p == nil {
-		return "Manual"
-	}
-	return judgingModeLabel(p.Competition)
-}
-
 func (p *HackathonPage) JudgeEventStateLabel(event *types.JudgeEvent) string {
-	if p == nil {
-		return judgeEventStateLabel(event)
-	}
-	return judgeEventEffectiveStateLabel(p.Competition, event, time.Now())
+	return judgeEventStateLabel(event)
 }
 
 func (p *HackathonPage) CurrentJudgeEvent() *types.JudgeEvent {
-	events := currentJudgeEvents(p.Competition, p.JudgeEvents, time.Now())
+	events := currentJudgeEvents(p.JudgeEvents)
 	if len(events) == 0 {
 		return nil
 	}
@@ -956,7 +946,7 @@ func (p *HackathonPage) CanScoreJudgeEvent(event *types.JudgeEvent) bool {
 	if p == nil || event == nil {
 		return false
 	}
-	if !judgeEventAcceptsScores(p.Competition, event, time.Now()) {
+	if !judgeEventAcceptsScores(event) {
 		return false
 	}
 	if p.CanScoreAll {
@@ -2022,7 +2012,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if err != nil {
 		return
 	}
-	currentEvents := currentJudgeEvents(competition, events, time.Now())
+	currentEvents := currentJudgeEvents(events)
 	viewer := hackathonViewerFromIdentity(id, conf)
 	judgeTypes := judgeTypesForPerson(ctx, competition.ID, viewer.PersonID)
 	canJudge := viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID)
@@ -2119,7 +2109,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		handle404(w, r, ctx)
 		return
 	}
-	if !judgeEventAcceptsScores(competition, event, time.Now()) {
+	if !judgeEventAcceptsScores(event) {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("That judging round is not open for scoring."), http.StatusSeeOther)
 		return
 	}
@@ -3479,14 +3469,14 @@ func viewerCanEditHackathonProject(ctx *config.AppContext, competition *types.Ha
 		ctx.Err.Printf("list judging events before project edit %s: %s", projectID, err)
 		return false, "Unable to verify the judging schedule. Please try again."
 	}
-	if projectEditingPausedForJudging(competition, events, time.Now()) {
+	if projectEditingPausedForJudging(events) {
 		return false, "Project editing is paused while judging is active. Editing will reopen when the judging period closes."
 	}
 	return true, ""
 }
 
-func projectEditingPausedForJudging(competition *types.HackathonCompetition, events []*types.JudgeEvent, now time.Time) bool {
-	return len(currentJudgeEvents(competition, events, now)) > 0
+func projectEditingPausedForJudging(events []*types.JudgeEvent) bool {
+	return len(currentJudgeEvents(events)) > 0
 }
 
 func viewerIsProjectOwner(members []*types.ProjectMember, id *auth.Identity) bool {

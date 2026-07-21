@@ -30,8 +30,6 @@ const (
 	CompetitionLifecycleOpen              = "open"
 	CompetitionLifecycleSubmissionsClosed = "submissions_closed"
 	CompetitionLifecycleClosed            = "closed"
-	CompetitionJudgingModeManual          = "manual"
-	CompetitionJudgingModeAutomatic       = "automatic"
 	ProjectInviteDefaultTTL               = 24 * time.Hour
 	ProjectStatusCreated                  = "created"
 	ProjectStatusSubmitted                = "submitted"
@@ -181,29 +179,6 @@ func updateCompetitionVisibilityPostgres(ctx *config.AppContext, competitionID, 
 	`, competitionID, visibility)
 	if err != nil {
 		return fmt.Errorf("update competition %s visibility: %w", competitionID, err)
-	}
-	if commandTag.RowsAffected() == 0 {
-		return fmt.Errorf("competition %s not found", competitionID)
-	}
-	return nil
-}
-
-func updateCompetitionJudgingModePostgres(ctx *config.AppContext, competitionID, mode string) error {
-	if ctx == nil || ctx.DB == nil {
-		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
-	}
-	competitionID = strings.TrimSpace(competitionID)
-	mode = normalizeCompetitionJudgingMode(mode)
-	if competitionID == "" {
-		return fmt.Errorf("competition id is required")
-	}
-	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
-		UPDATE competitions
-		SET judging_mode = $2
-		WHERE id = $1
-	`, competitionID, mode)
-	if err != nil {
-		return fmt.Errorf("update competition %s judging mode: %w", competitionID, err)
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("competition %s not found", competitionID)
@@ -852,7 +827,7 @@ func queryCompetitionsPostgres(ctx *config.AppContext, label, whereSQL string, a
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, coalesce(conference_id::text, ''), slug, title, description, description_format,
-			visibility, lifecycle_override, judging_mode, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size, submissions_open_at, submissions_close_at,
+			visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size, submissions_open_at, submissions_close_at,
 			public_gallery_at, hacking_starts_at, hacking_ends_at, judges_meeting_at,
 			expo_starts_at, expo_ends_at, expo_judging_starts_at, expo_judging_ends_at,
 			finals_starts_at, finals_ends_at, finals_judging_starts_at,
@@ -3465,7 +3440,6 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 		&competition.DescriptionFormat,
 		&competition.Visibility,
 		&competition.LifecycleOverride,
-		&competition.JudgingMode,
 		&competition.PublicGalleryEnabled,
 		&competition.AllowLateSubmissions,
 		&competition.PublicTablesEnabled,
@@ -3499,7 +3473,6 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 	}
 	competition.Visibility = normalizeCompetitionVisibility(competition.Visibility)
 	competition.LifecycleOverride = normalizeCompetitionLifecycleOverride(competition.LifecycleOverride)
-	competition.JudgingMode = normalizeCompetitionJudgingMode(competition.JudgingMode)
 	competition.SubmissionsOpenAt = pgTimePtr(submissionsOpenAt)
 	competition.SubmissionsCloseAt = pgTimePtr(submissionsCloseAt)
 	competition.PublicGalleryAt = pgTimePtr(publicGalleryAt)
@@ -3873,17 +3846,6 @@ func normalizeCompetitionLifecycleOverride(value string) string {
 		return CompetitionLifecycleClosed
 	default:
 		return CompetitionLifecycleAuto
-	}
-}
-
-func normalizeCompetitionJudgingMode(value string) string {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case CompetitionJudgingModeManual:
-		return CompetitionJudgingModeManual
-	case CompetitionJudgingModeAutomatic:
-		return CompetitionJudgingModeAutomatic
-	default:
-		return CompetitionJudgingModeAutomatic
 	}
 }
 
