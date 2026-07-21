@@ -30,6 +30,7 @@ func Open(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "15000"
 	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "5000"
 	cfg.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = "30000"
+	cfg.ConnConfig.RuntimeParams["application_name"] = "btcpp-web"
 
 	connectCtx, cancel := context.WithTimeout(ctx, defaultConnectTimeout)
 	defer cancel()

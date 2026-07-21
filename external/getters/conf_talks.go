@@ -53,13 +53,6 @@ func talkFromConfTalk(ctx *config.AppContext, ct *types.ConfTalk, proposal *type
 	if talk.Sched != nil {
 		talk.TimeDesc = talk.Sched.Desc()
 	}
-	if ctx != nil {
-		if rec, err := GetRecordingByConfTalk(ctx, ct.ID); err == nil && rec != nil {
-			talk.YTLink = rec.YTLink
-		} else if err != nil && ctx.Err != nil {
-			ctx.Err.Printf("talk %s recording lookup: %s", ct.ID, err)
-		}
-	}
 	if proposal != nil {
 		talk.Name = proposal.Title
 		talk.Description = proposal.Description
@@ -153,7 +146,13 @@ func talksFromConfTalks(ctx *config.AppContext, confTalks []*types.ConfTalk, pro
 		speakerMap[sp.ID] = sp
 	}
 
-	sps, err := ListSpeakerConfs(ctx, speakerMap, proposalMap)
+	var speakerConfIDs []string
+	for _, proposal := range proposalMap {
+		if proposal != nil {
+			speakerConfIDs = append(speakerConfIDs, proposal.SpeakerConfRefs...)
+		}
+	}
+	sps, err := ListSpeakerConfsByIDs(ctx, speakerConfIDs, speakerMap, proposalMap)
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +166,28 @@ func talksFromConfTalks(ctx *config.AppContext, confTalks []*types.ConfTalk, pro
 	}
 
 	talks := make([]*types.Talk, 0, len(confTalks))
+	confTalkIDs := make([]string, 0, len(confTalks))
 	for _, ct := range confTalks {
-		talks = append(talks, talkFromConfTalk(ctx, ct, ct.Proposal))
+		if ct != nil {
+			confTalkIDs = append(confTalkIDs, ct.ID)
+		}
+	}
+	recordings, err := ListRecordingsForConfTalks(ctx, confTalkIDs)
+	if err != nil {
+		return nil, err
+	}
+	recordingByTalk := make(map[string]*types.Recording, len(recordings))
+	for _, recording := range recordings {
+		if recording != nil {
+			recordingByTalk[recording.ConfTalkID] = recording
+		}
+	}
+	for _, ct := range confTalks {
+		talk := talkFromConfTalk(ctx, ct, ct.Proposal)
+		if recording := recordingByTalk[ct.ID]; recording != nil {
+			talk.YTLink = recording.YTLink
+		}
+		talks = append(talks, talk)
 	}
 	return talks, nil
 }
@@ -245,6 +264,13 @@ func ListConfTalks(ctx *config.AppContext, proposalMap map[string]*types.Proposa
 	return queryConfTalksPostgres(ctx, "", nil, proposalMap)
 }
 
+func ListConfTalksForConf(ctx *config.AppContext, confRef string, proposalMap map[string]*types.Proposal) ([]*types.ConfTalk, error) {
+	if strings.TrimSpace(confRef) == "" {
+		return nil, nil
+	}
+	return queryConfTalksPostgres(ctx, "WHERE conf_talks.conference_id::text = $1", []interface{}{confRef}, proposalMap)
+}
+
 func GetConfTalkByProposal(ctx *config.AppContext, proposalID string) (*types.ConfTalk, error) {
 	rows, err := queryConfTalksPostgres(ctx, "WHERE proposal_id::text = $1", []interface{}{proposalID}, nil)
 	if err != nil {
@@ -277,7 +303,13 @@ func LoadTalkFromConfTalk(ctx *config.AppContext, confTalkID string) (*types.Tal
 	}
 	ct := rows[0]
 	if ct.Proposal == nil {
-		return talkFromConfTalk(ctx, ct, nil), nil
+		talk := talkFromConfTalk(ctx, ct, nil)
+		if recording, err := GetRecordingByConfTalk(ctx, ct.ID); err != nil {
+			return nil, err
+		} else if recording != nil {
+			talk.YTLink = recording.YTLink
+		}
+		return talk, nil
 	}
 
 	proposalMap := map[string]*types.Proposal{ct.Proposal.ID: ct.Proposal}
@@ -290,7 +322,13 @@ func LoadTalkFromConfTalk(ctx *config.AppContext, confTalkID string) (*types.Tal
 		speakerConfMap[sc.ID] = sc
 	}
 	resolveProposalSpeakers(ct.Proposal, speakerConfMap)
-	return talkFromConfTalk(ctx, ct, ct.Proposal), nil
+	talk := talkFromConfTalk(ctx, ct, ct.Proposal)
+	if recording, err := GetRecordingByConfTalk(ctx, ct.ID); err != nil {
+		return nil, err
+	} else if recording != nil {
+		talk.YTLink = recording.YTLink
+	}
+	return talk, nil
 }
 
 func loadTalksFromConfTalksForConf(ctx *config.AppContext, confTag string) ([]*types.Talk, error) {

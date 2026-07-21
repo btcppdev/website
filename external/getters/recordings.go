@@ -84,6 +84,41 @@ func ListRecordingsForConf(ctx *config.AppContext, confTag string) ([]*types.Rec
 	return out, nil
 }
 
+// ListRecordingsForConfTalks loads recording metadata for a set of talks in
+// one round trip. Page renderers use this instead of issuing one lookup per
+// talk, which is especially important when the database is remote.
+func ListRecordingsForConfTalks(ctx *config.AppContext, confTalkIDs []string) ([]*types.Recording, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	if len(confTalkIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT id::text, conf_talk_id::text, talk_name, youtube_url, x_url,
+			x_reply_url, file_uri, publish_at
+		FROM recordings
+		WHERE conf_talk_id::text = ANY($1::text[])
+	`, confTalkIDs)
+	if err != nil {
+		return nil, fmt.Errorf("query recordings for conference talks: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*types.Recording
+	for rows.Next() {
+		rec, err := scanRecording(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate recordings for conference talks: %w", err)
+	}
+	return out, nil
+}
+
 func GetRecordingByConfTalk(ctx *config.AppContext, confTalkID string) (*types.Recording, error) {
 	return queryRecordingPostgres(ctx, "recording by conf talk", "WHERE conf_talk_id = $1::uuid", confTalkID)
 }

@@ -66,25 +66,17 @@ func ticketMatch(tickets []string, rez *types.Registration) bool {
 	return false
 }
 
-func checkActive(ctx *config.AppContext, confRef string) bool {
-	conf, err := GetConfByRef(ctx, confRef)
-	if err != nil {
-		ctx.Err.Printf("couldn't fetch conf %s: %s", confRef, err)
-		return false
-	}
-	if conf == nil {
-		return false
-	}
-	return conf.Active
-}
-
 func FetchRegistrationsConf(ctx *config.AppContext, confRef string) ([]*types.Registration, error) {
 	return FetchRegistrations(ctx, confRef)
 }
 
 func FetchBtcppRegistrations(ctx *config.AppContext, activeOnly bool) ([]*types.Registration, error) {
 	var btcppres []*types.Registration
-	rezzies, err := FetchRegistrations(ctx, "")
+	filter := "conf"
+	if activeOnly {
+		filter = "active"
+	}
+	rezzies, err := queryRegistrationsPostgres(ctx, filter, "")
 
 	if err != nil {
 		return nil, err
@@ -95,10 +87,6 @@ func FetchBtcppRegistrations(ctx *config.AppContext, activeOnly bool) ([]*types.
 			continue
 		}
 		if types.IsSponsoredTicketType(r.Type) {
-			continue
-		}
-
-		if activeOnly && !checkActive(ctx, r.ConfRef) {
 			continue
 		}
 
@@ -234,6 +222,10 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 	case "checkout":
 		sql += " WHERE r.checkout_id = $1"
 		args = append(args, value)
+	case "active":
+		sql += ` JOIN conferences c ON c.id = r.conference_id
+			WHERE c.publication_status = 'published'
+			  AND (c.end_date IS NULL OR c.end_date >= now())`
 	default:
 		return nil, fmt.Errorf("unknown registrations filter %q", filter)
 	}

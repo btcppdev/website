@@ -791,6 +791,10 @@ func requestID(r *http.Request) string {
 // even when they never reach completion logging.
 func requestLog(ctx *config.AppContext, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/static/") {
+			h.ServeHTTP(w, r)
+			return
+		}
 		start := time.Now()
 		id := nextRequestID()
 		r = r.WithContext(context.WithValue(r.Context(), requestIDContextKey{}, id))
@@ -821,7 +825,7 @@ func requestWatchdog(ctx *config.AppContext, r *http.Request, id string, start t
 			timer.Stop()
 			return
 		case <-timer.C:
-			ctx.Err.Printf("request still running id=%s method=%s path=%s duration=%s", id, r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
+			logSlowRequest(ctx, r, id, start)
 		}
 	}
 	ticker := time.NewTicker(time.Minute)
@@ -831,9 +835,20 @@ func requestWatchdog(ctx *config.AppContext, r *http.Request, id string, start t
 		case <-done:
 			return
 		case <-ticker.C:
-			ctx.Err.Printf("request still running id=%s method=%s path=%s duration=%s", id, r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
+			logSlowRequest(ctx, r, id, start)
 		}
 	}
+}
+
+func logSlowRequest(ctx *config.AppContext, r *http.Request, id string, start time.Time) {
+	if ctx == nil || ctx.DB == nil {
+		return
+	}
+	stats := ctx.DB.Stat()
+	ctx.Err.Printf("request still running id=%s method=%s path=%s duration=%s db_acquired=%d db_idle=%d db_total=%d db_empty_acquires=%d db_canceled_acquires=%d db_acquire_wait=%s",
+		id, r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond),
+		stats.AcquiredConns(), stats.IdleConns(), stats.TotalConns(), stats.EmptyAcquireCount(),
+		stats.CanceledAcquireCount(), stats.AcquireDuration().Round(time.Millisecond))
 }
 
 func redirectTrailingSlash(h http.Handler) http.Handler {
@@ -2736,6 +2751,8 @@ func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*
 		ctx.Err.Printf("acceptedSpeakersForConf %s proposals: %s", conf.Tag, err)
 		return speakers
 	}
+	proposalMap := make(map[string]*types.Proposal, len(proposals))
+	var speakerConfIDs []string
 	for _, p := range proposals {
 		if p == nil {
 			continue
@@ -2743,26 +2760,42 @@ func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*
 		if p.Status != StatusAccepted && p.Status != "Scheduled" {
 			continue
 		}
-		if p.ScheduleFor == nil || p.ScheduleFor.Tag != conf.Tag {
+		proposalMap[p.ID] = p
+		speakerConfIDs = append(speakerConfIDs, p.SpeakerConfRefs...)
+	}
+	allSpeakers, err := getters.ListSpeakers(ctx)
+	if err != nil {
+		ctx.Err.Printf("acceptedSpeakersForConf %s speakers: %s", conf.Tag, err)
+		return speakers
+	}
+	speakerMap := make(map[string]*types.Speaker, len(allSpeakers))
+	for _, speaker := range allSpeakers {
+		if speaker != nil {
+			speakerMap[speaker.ID] = speaker
+		}
+	}
+	speakerConfs, err := getters.ListSpeakerConfsByIDs(ctx, speakerConfIDs, speakerMap, proposalMap)
+	if err != nil {
+		ctx.Err.Printf("acceptedSpeakersForConf %s speakerconfs: %s", conf.Tag, err)
+		return speakers
+	}
+	for _, sc := range speakerConfs {
+		if sc == nil || sc.Speaker == nil {
 			continue
 		}
-		for _, ref := range p.SpeakerConfRefs {
-			sc, err := getters.GetSpeakerConfByID(ctx, ref)
-			if err != nil {
-				ctx.Err.Printf("acceptedSpeakersForConf %s speakerconf %s: %s", conf.Tag, ref, err)
-				continue
-			}
-			if sc == nil || sc.Speaker == nil {
+		for _, p := range sc.Proposals {
+			if p == nil || p.ScheduleFor == nil || p.ScheduleFor.Tag != conf.Tag {
 				continue
 			}
 			if seen[sc.Speaker.ID] {
-				continue
+				break
 			}
 			seen[sc.Speaker.ID] = true
 			view := *sc.Speaker
 			view.Company = sc.Company
 			view.OrgLogo = sc.OrgPhoto
 			speakers = append(speakers, &view)
+			break
 		}
 	}
 	return speakers
@@ -2773,7 +2806,11 @@ type featuredSpeakerCandidate struct {
 	speaker *types.Speaker
 }
 
-func splitFeaturedSpeakersForConf(ctx *config.AppContext, confTag string, speakers types.Speakers) ([]*types.Speaker, []*types.Speaker) {
+func splitFeaturedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, speakers types.Speakers) ([]*types.Speaker, []*types.Speaker) {
+	if conf == nil {
+		return splitFeaturedSpeakersFallback(speakers)
+	}
+	confTag := conf.Tag
 	speakerByID := make(map[string]*types.Speaker, len(speakers))
 	for _, speaker := range speakers {
 		if speaker != nil {
@@ -2781,10 +2818,29 @@ func splitFeaturedSpeakersForConf(ctx *config.AppContext, confTag string, speake
 		}
 	}
 
-	proposals, err := getters.ListProposals(ctx)
+	proposals, err := getters.ListProposalsForConf(ctx, conf.Ref)
 	if err != nil {
 		ctx.Err.Printf("splitFeaturedSpeakersForConf %s proposals: %s", confTag, err)
 		return splitFeaturedSpeakersFallback(speakers)
+	}
+	proposalMap := make(map[string]*types.Proposal, len(proposals))
+	var speakerConfIDs []string
+	for _, proposal := range proposals {
+		if proposal != nil {
+			proposalMap[proposal.ID] = proposal
+			speakerConfIDs = append(speakerConfIDs, proposal.SpeakerConfRefs...)
+		}
+	}
+	speakerConfs, err := getters.ListSpeakerConfsByIDs(ctx, speakerConfIDs, speakerByID, proposalMap)
+	if err != nil {
+		ctx.Err.Printf("splitFeaturedSpeakersForConf %s speakerconfs: %s", confTag, err)
+		return splitFeaturedSpeakersFallback(speakers)
+	}
+	speakerConfByID := make(map[string]*types.SpeakerConf, len(speakerConfs))
+	for _, speakerConf := range speakerConfs {
+		if speakerConf != nil {
+			speakerConfByID[speakerConf.ID] = speakerConf
+		}
 	}
 
 	seenFeatured := map[string]bool{}
@@ -2800,11 +2856,7 @@ func splitFeaturedSpeakersForConf(ctx *config.AppContext, confTag string, speake
 			continue
 		}
 		for _, ref := range proposal.SpeakerConfRefs {
-			sc, err := getters.GetSpeakerConfByID(ctx, ref)
-			if err != nil {
-				ctx.Err.Printf("splitFeaturedSpeakersForConf %s speakerconf %s: %s", confTag, ref, err)
-				continue
-			}
+			sc := speakerConfByID[ref]
 			if sc == nil || sc.Speaker == nil || sc.FeaturedRank <= 0 || sc.FeaturedRank > 6 {
 				continue
 			}
@@ -3706,7 +3758,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	var evSpeakers types.Speakers
 	evSpeakers = acceptedSpeakersForConf(ctx, conf, talks)
 	sort.Sort(evSpeakers)
-	featuredSpeakers, communitySpeakers := splitFeaturedSpeakersForConf(ctx, conf.Tag, evSpeakers)
+	featuredSpeakers, communitySpeakers := splitFeaturedSpeakersForConf(ctx, conf, evSpeakers)
 
 	soldCount, err := getters.SoldTix(ctx, conf)
 	if err != nil {
@@ -3720,7 +3772,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		return
 	}
 
-	days, err := talkDays(ctx, conf, talks)
+	days, err := talkDaysFromBuckets(buckets)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("Unable to make days '%s' from talks: %s", conf.Tag, err.Error())
@@ -8135,8 +8187,8 @@ func AdminSpeakerRefreshCards(w http.ResponseWriter, r *http.Request, ctx *confi
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=No+social+cards+for+speaker", conf.Tag), http.StatusSeeOther)
 		return
 	}
-	RefreshTalkCardsForceOpt(ctx, talks, true)
-	http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape(fmt.Sprintf("Force refreshed %d talk(s) for speaker.", len(talks)))), http.StatusSeeOther)
+	go RefreshTalkCardsForceOpt(ctx, talks, true)
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape(fmt.Sprintf("Queued card refresh for %d talk(s).", len(talks)))), http.StatusSeeOther)
 }
 
 func SpeakerAdminNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -8729,14 +8781,14 @@ func ProposalAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 // CalNotif vs the freshly-computed content hash. CalState drives
 // the per-card "Send / Resend / Update cal invite" button.
 func loadProposalRowsForConf(ctx *config.AppContext, conf *types.Conf) ([]*ProposalAdminRow, error) {
-	proposals, err := getters.ListProposals(ctx)
+	proposals, err := getters.ListProposalsForConf(ctx, conf.Ref)
 	if err != nil {
 		return nil, fmt.Errorf("list proposals: %w", err)
 	}
 
-	proposalMap := make(map[string]*types.Proposal)
+	proposalMap := make(map[string]*types.Proposal, len(proposals))
 	for _, p := range proposals {
-		if p.ScheduleFor != nil && p.ScheduleFor.Ref == conf.Ref {
+		if p != nil {
 			proposalMap[p.ID] = p
 		}
 	}
@@ -8774,6 +8826,17 @@ func loadProposalRowsForConf(ctx *config.AppContext, conf *types.Conf) ([]*Propo
 	}
 
 	loc := conf.Loc()
+	confTalks, err := getters.ListConfTalksForConf(ctx, conf.Ref, proposalMap)
+	if err != nil {
+		return nil, fmt.Errorf("list conference talks: %w", err)
+	}
+	confTalkByProposal := make(map[string]*types.ConfTalk, len(confTalks))
+	for _, ct := range confTalks {
+		if ct == nil || ct.Conf == nil || ct.Conf.Ref != conf.Ref || ct.Proposal == nil {
+			continue
+		}
+		confTalkByProposal[ct.Proposal.ID] = ct
+	}
 	rows := make([]*ProposalAdminRow, 0, len(proposalMap))
 	for _, p := range proposalMap {
 		spList := speakersByProposal[p.ID]
@@ -8793,10 +8856,7 @@ func loadProposalRowsForConf(ctx *config.AppContext, conf *types.Conf) ([]*Propo
 
 		// Pull the ConfTalk if this proposal has been scheduled.
 		// Nil means the proposal isn't in the schedule yet.
-		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
-		if err != nil {
-			return nil, fmt.Errorf("lookup conftalk for proposal %s: %w", p.ID, err)
-		}
+		ct := confTalkByProposal[p.ID]
 		if ct != nil {
 			row.ConfTalk = ct
 			row.TalkCardURL = TalkCardURL(ctx, conf.Tag, "1080p", ct.ID)
@@ -8851,8 +8911,8 @@ func AdminProposalRefreshCard(w http.ResponseWriter, r *http.Request, ctx *confi
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/applicants?flash=%s", conf.Tag, url.QueryEscape("Refresh failed: "+err.Error())), http.StatusSeeOther)
 		return
 	}
-	RefreshTalkCardsForceOpt(ctx, []*types.Talk{talk}, true)
-	http.Redirect(w, r, fmt.Sprintf("/%s/admin/applicants?flash=%s", conf.Tag, url.QueryEscape("Force refreshed card for "+talk.Name)), http.StatusSeeOther)
+	go RefreshTalkCardsForceOpt(ctx, []*types.Talk{talk}, true)
+	http.Redirect(w, r, fmt.Sprintf("/%s/admin/applicants?flash=%s", conf.Tag, url.QueryEscape("Queued card refresh for "+talk.Name)), http.StatusSeeOther)
 }
 
 func talkForProposalMediaRefresh(ctx *config.AppContext, conf *types.Conf, proposalID string) (*types.Talk, error) {
