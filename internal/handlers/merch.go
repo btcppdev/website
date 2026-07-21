@@ -38,6 +38,7 @@ const shopActiveCheckoutSessionKey = "shop_active_checkout_v1"
 const shopShippingRatesSessionKey = "shop_shipping_rates_v1"
 
 const shopShippingRatesTTL = 20 * time.Minute
+const shopEventPickupCloseDays = 7
 
 var errShopShippingRatesExpired = errors.New("shipping services expired")
 
@@ -106,6 +107,7 @@ type shopCheckoutDetails struct {
 	PaymentMethod           string
 	ShippingRateID          string
 	ShippingRateAmountCents uint
+	PickupConferenceID      string
 }
 
 type shopShippingRateResponse struct {
@@ -365,6 +367,13 @@ func ShopShippingRates(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	if fulfillment == "pickup" {
 		fulfillment = types.ShopFulfillmentEventPickup
 	}
+	if fulfillment == types.ShopFulfillmentEventPickup {
+		if err := validateShopPickupSelection(nextShopPickupConf(ctx), r.FormValue("pickup_conf_id")); err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+	}
 	rates, dest, err := shopAvailableShippingRates(ctx, r, cart, fulfillment, shopFallbackShippingCents(cart))
 	if err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -405,6 +414,14 @@ func ShopTaxQuote(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		return
 	}
 	fulfillment := normalizedShopFulfillment(r.FormValue("fulfillment"))
+	pickupConf := nextShopPickupConf(ctx)
+	if fulfillment == types.ShopFulfillmentEventPickup {
+		if err := validateShopPickupSelection(pickupConf, r.FormValue("pickup_conf_id")); err != nil {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+	}
 	shippingCents := uint(0)
 	if fulfillment == types.ShopFulfillmentShip {
 		shippingQuote, err := shopShippingQuote(ctx, r, cart, fulfillment,
@@ -427,7 +444,7 @@ func ShopTaxQuote(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		}
 		shippingCents = shippingQuote.AmountCents
 	}
-	address, err := shopTaxAddress(ctx, r, fulfillment, nextShopPickupConf(ctx))
+	address, err := shopTaxAddress(ctx, r, fulfillment, pickupConf)
 	if err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -489,6 +506,14 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		return
 	}
 	fulfillment := normalizedShopFulfillment(page.Checkout.Fulfillment)
+	if fulfillment == types.ShopFulfillmentEventPickup {
+		if err := validateShopPickupSelection(page.PickupConf, page.Checkout.PickupConferenceID); err != nil {
+			page.Error = err.Error()
+			page.Checkout.Fulfillment = types.ShopFulfillmentShip
+			renderShopTemplate(w, r, ctx, "shop/checkout.tmpl", page)
+			return
+		}
+	}
 	var shippingAddress *types.ShopAddress
 	if fulfillment == types.ShopFulfillmentShip {
 		shippingAddress = &types.ShopAddress{
@@ -1551,6 +1576,7 @@ func shopCheckoutDetailsFromRequest(r *http.Request, fallbackEmail string) *shop
 	details.PaymentMethod = strings.TrimSpace(r.FormValue("payment_method"))
 	details.ShippingRateID = strings.TrimSpace(r.FormValue("shipping_rate_id"))
 	details.ShippingRateAmountCents = parseUintForm(r.FormValue("shipping_rate_amount_cents"), 0)
+	details.PickupConferenceID = strings.TrimSpace(r.FormValue("pickup_conf_id"))
 	if details.Fulfillment == "" {
 		details.Fulfillment = types.ShopFulfillmentShip
 	}
@@ -2151,14 +2177,17 @@ func merchVariantInputFromForm(r *http.Request, productID string) getters.MerchV
 }
 
 func nextShopPickupConf(ctx *config.AppContext) *types.Conf {
+	return nextShopPickupConfAt(ctx, time.Now())
+}
+
+func nextShopPickupConfAt(ctx *config.AppContext, now time.Time) *types.Conf {
 	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		return nil
 	}
-	now := time.Now()
 	var upcoming []*types.Conf
 	for _, conf := range confs {
-		if conf.IsPublished() && !conf.HasEndedAt(now) {
+		if shopEventPickupOpenAt(conf, now) {
 			upcoming = append(upcoming, conf)
 		}
 	}
@@ -2169,6 +2198,25 @@ func nextShopPickupConf(ctx *config.AppContext) *types.Conf {
 		return nil
 	}
 	return upcoming[0]
+}
+
+func shopEventPickupOpenAt(conf *types.Conf, now time.Time) bool {
+	if conf == nil || !conf.IsPublished() || conf.StartDate.IsZero() {
+		return false
+	}
+	loc := conf.Loc()
+	cutoff := conf.StartDate.In(loc).AddDate(0, 0, -shopEventPickupCloseDays)
+	return now.In(loc).Before(cutoff)
+}
+
+func validateShopPickupSelection(conf *types.Conf, selectedConfID string) error {
+	if conf == nil {
+		return fmt.Errorf("Event pickup closes seven days before the event. Please choose shipping.")
+	}
+	if strings.TrimSpace(selectedConfID) == "" || strings.TrimSpace(selectedConfID) != conf.Ref {
+		return fmt.Errorf("That event pickup option is no longer available. Please review the current delivery options.")
+	}
+	return nil
 }
 
 func shopCategories(products []*types.MerchProduct) []shopCategory {
@@ -2194,7 +2242,7 @@ func shopCategories(products []*types.MerchProduct) []shopCategory {
 }
 
 func ticketCheckoutAddOnProducts(ctx *config.AppContext, conf *types.Conf) []*types.MerchProduct {
-	if conf == nil {
+	if !shopEventPickupOpenAt(conf, time.Now()) {
 		return nil
 	}
 	products, err := getters.ListConferenceMerchUpsells(ctx, conf.Ref)
@@ -2249,6 +2297,9 @@ func selectedTicketAddOns(ctx *config.AppContext, conf *types.Conf, r *http.Requ
 func createTicketAddOnOrder(ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, form *types.TixForm, ticketKind string, paymentMethod string, addOns []*shopCartItem, addOnTotalCents, salesTaxCents uint) (*types.ShopOrder, error) {
 	if len(addOns) == 0 {
 		return nil, nil
+	}
+	if !shopEventPickupOpenAt(conf, time.Now()) {
+		return nil, fmt.Errorf("event pickup closes seven days before the event")
 	}
 	ticketUnitCents := form.DiscountPrice * 100
 	if paymentMethod == "card" {

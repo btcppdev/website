@@ -23,6 +23,7 @@
       {{ end }}
       <form id="shop-checkout-form" method="POST" action="/shop/checkout" class="shop-checkout-form" data-shop-checkout-form>
         <input type="hidden" name="shipping_rate_amount_cents" value="{{ .Checkout.ShippingRateAmountCents }}">
+        {{ if .PickupConf }}<input type="hidden" name="pickup_conf_id" value="{{ .PickupConf.Ref }}">{{ end }}
         <section class="shop-checkout-step" data-shop-checkout-step="details">
           <header class="shop-checkout__head">
             <p class="shop-kicker" data-shop-step-kicker>02 / details</p>
