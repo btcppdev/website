@@ -167,6 +167,7 @@ func OrgLogoUpload(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 			return
 		}
 	}
+	newPhotoPipeline(ctx).updateOrgLogoManifest(key, raw)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"url": spaces.PublicURL(key)})
 }

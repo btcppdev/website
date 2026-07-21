@@ -237,13 +237,14 @@ func AdminClipartsUpload(w http.ResponseWriter, r *http.Request, ctx *config.App
 
 	manifest, err := spaces.LoadJSONMap(spaces.TalkManifestKey)
 	if err != nil {
-		ctx.Err.Printf("/%s/admin/cliparts load manifest (continuing): %s", conf.Tag, err)
-		manifest = map[string]string{}
+		bail("Load clipart manifest: " + err.Error())
+		return
 	}
 	manifest[clean+".png"] = contentHashShort(pngBytes)
 	manifest[clean+".avif"] = contentHashShort(avifBytes)
 	if err := spaces.SaveJSONMap(spaces.TalkManifestKey, manifest); err != nil {
-		ctx.Err.Printf("/%s/admin/cliparts save manifest (continuing): %s", conf.Tag, err)
+		bail("Save clipart manifest: " + err.Error())
+		return
 	}
 	InvalidateTalkManifest()
 

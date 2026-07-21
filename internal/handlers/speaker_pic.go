@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"path"
 
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/config"
@@ -16,6 +19,8 @@ type photoSpaces interface {
 	Exists(key string) bool
 	Upload(key string, data []byte, contentType, hash string) (string, error)
 	PublicURL(key string) string
+	LoadJSONMap(key string) (map[string]string, error)
+	SaveJSONMap(key string, m map[string]string) error
 }
 
 type spacesPkgAdapter struct{}
@@ -26,6 +31,12 @@ func (spacesPkgAdapter) Upload(key string, data []byte, ct, hash string) (string
 	return spaces.Upload(key, data, ct, hash)
 }
 func (spacesPkgAdapter) PublicURL(key string) string { return spaces.PublicURL(key) }
+func (spacesPkgAdapter) LoadJSONMap(key string) (map[string]string, error) {
+	return spaces.LoadJSONMap(key)
+}
+func (spacesPkgAdapter) SaveJSONMap(key string, m map[string]string) error {
+	return spaces.SaveJSONMap(key, m)
+}
 
 // photoPipeline carries the side-effecting collaborators used by the photo
 // upload methods. Production code calls newPhotoPipeline; tests construct
@@ -65,14 +76,6 @@ func (p photoPipeline) mirrorPicToSpaces(raw []byte, contentType, ext string) {
 
 type speakerPhotoSpacesAdapter struct{ photoSpaces }
 
-func (a speakerPhotoSpacesAdapter) LoadJSONMap(key string) (map[string]string, error) {
-	return spaces.LoadJSONMap(key)
-}
-
-func (a speakerPhotoSpacesAdapter) SaveJSONMap(key string, m map[string]string) error {
-	return spaces.SaveJSONMap(key, m)
-}
-
 // mirrorOrgLogoToSpaces uploads the org-logo as-is (no crop, no resize, no
 // AVIF derivatives) under sponsors/{shortID}{ext}. Idempotent via
 // spaces.Exists.
@@ -82,12 +85,28 @@ func (p photoPipeline) mirrorOrgLogoToSpaces(raw []byte, contentType, ext string
 	}
 	shortID := imgproc.ShortID(raw)
 	key := "sponsors/" + shortID + ext
-	if p.spaces.Exists(key) {
+	if !p.spaces.Exists(key) {
+		if _, err := p.spaces.Upload(key, raw, contentType, ""); err != nil {
+			p.logf("org logo spaces upload failed (%s): %s", shortID, err)
+			return
+		}
+	}
+	p.updateOrgLogoManifest(key, raw)
+}
+
+func (p photoPipeline) updateOrgLogoManifest(key string, raw []byte) {
+	manifest, err := p.spaces.LoadJSONMap(spaces.SponsorManifestKey)
+	if err != nil {
+		p.logf("org logo manifest load failed: %s", err)
 		return
 	}
-	if _, err := p.spaces.Upload(key, raw, contentType, ""); err != nil {
-		p.logf("org logo spaces upload failed (%s): %s", shortID, err)
+	sum := sha256.Sum256(raw)
+	manifest[path.Base(key)] = hex.EncodeToString(sum[:])
+	if err := p.spaces.SaveJSONMap(spaces.SponsorManifestKey, manifest); err != nil {
+		p.logf("org logo manifest save failed: %s", err)
+		return
 	}
+	InvalidateSponsorManifest()
 }
 
 // uploadSatelliteImage stores the original satellite image. When the upload is
