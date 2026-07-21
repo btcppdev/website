@@ -619,19 +619,19 @@ func buildSchedulePage(ctx *config.AppContext, conf *types.Conf) (*AdminSchedule
 	}
 
 	proposals := loadConfProposals(ctx, conf)
-	enrichDashboardProposals(ctx, wrapProposalsAsSpeakerConfs(proposals))
+	confTalkByProposal, err := loadScheduleProposalRelations(ctx, conf, proposals)
+	if err != nil {
+		return nil, err
+	}
 
 	var unscheduled []*ScheduleProposal
 	for _, p := range proposals {
 		if !schedulableStatuses[p.Status] {
 			continue
 		}
-		sp := newScheduleProposal(ctx, p)
+		sp := newScheduleProposal(p)
 		sp.AvailDays, sp.NoAvail = intersectAvailability(sp.Speakers, conf)
-		ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
-		if err != nil {
-			return nil, fmt.Errorf("lookup conftalk for proposal %s: %w", p.ID, err)
-		}
+		ct := confTalkByProposal[p.ID]
 		if ct == nil || ct.Sched == nil || ct.Venue == "" {
 			unscheduled = append(unscheduled, sp)
 			continue
@@ -699,6 +699,69 @@ func buildSchedulePage(ctx *config.AppContext, conf *types.Conf) (*AdminSchedule
 	}, nil
 }
 
+// loadScheduleProposalRelations attaches the speaker records needed by the
+// schedule cards and returns each proposal's active ConfTalk. Keep this path
+// batched: the schedule contains every proposal for a conference, so fetching
+// these relations per card quickly exhausts the database pool on larger
+// events.
+func loadScheduleProposalRelations(ctx *config.AppContext, conf *types.Conf, proposals []*types.Proposal) (map[string]*types.ConfTalk, error) {
+	proposalMap := make(map[string]*types.Proposal, len(proposals))
+	speakerConfIDs := make([]string, 0, len(proposals))
+	for _, proposal := range proposals {
+		if proposal == nil {
+			continue
+		}
+		proposalMap[proposal.ID] = proposal
+		speakerConfIDs = append(speakerConfIDs, proposal.SpeakerConfRefs...)
+	}
+
+	speakers, err := getters.ListSpeakers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list schedule speakers: %w", err)
+	}
+	speakerMap := make(map[string]*types.Speaker, len(speakers))
+	for _, speaker := range speakers {
+		if speaker != nil {
+			speakerMap[speaker.ID] = speaker
+		}
+	}
+
+	speakerConfs, err := getters.ListSpeakerConfsByIDs(ctx, speakerConfIDs, speakerMap, proposalMap)
+	if err != nil {
+		return nil, fmt.Errorf("list schedule speaker conferences: %w", err)
+	}
+	speakerConfMap := make(map[string]*types.SpeakerConf, len(speakerConfs))
+	for _, speakerConf := range speakerConfs {
+		if speakerConf != nil {
+			speakerConfMap[speakerConf.ID] = speakerConf
+		}
+	}
+	for _, proposal := range proposals {
+		if proposal == nil {
+			continue
+		}
+		proposal.Speakers = proposal.Speakers[:0]
+		for _, speakerConfID := range proposal.SpeakerConfRefs {
+			if speakerConf := speakerConfMap[speakerConfID]; speakerConf != nil {
+				proposal.Speakers = append(proposal.Speakers, speakerConf)
+			}
+		}
+	}
+
+	confTalks, err := getters.ListConfTalksForConf(ctx, conf.Ref, proposalMap)
+	if err != nil {
+		return nil, fmt.Errorf("list schedule conference talks: %w", err)
+	}
+	confTalkByProposal := make(map[string]*types.ConfTalk, len(confTalks))
+	for _, confTalk := range confTalks {
+		if confTalk == nil || confTalk.Proposal == nil {
+			continue
+		}
+		confTalkByProposal[confTalk.Proposal.ID] = confTalk
+	}
+	return confTalkByProposal, nil
+}
+
 func scheduleHackathonSetupURL(ctx *config.AppContext, conf *types.Conf) string {
 	if conf == nil {
 		return "/admin/hackathons/new"
@@ -754,7 +817,7 @@ func hackathonScheduleSegmentOrder(ctx *config.AppContext, conf *types.Conf) map
 // get a Q&A buffer; everything else == DesiredMin). Once placed, the
 // schedule handler overwrites ActualMin with whatever the
 // ConfTalk.Sched range says.
-func newScheduleProposal(ctx *config.AppContext, p *types.Proposal) *ScheduleProposal {
+func newScheduleProposal(p *types.Proposal) *ScheduleProposal {
 	desired := p.DesiredDuration
 	if desired <= 0 {
 		desired = 30
@@ -765,7 +828,7 @@ func newScheduleProposal(ctx *config.AppContext, p *types.Proposal) *SchedulePro
 	}
 	return &ScheduleProposal{
 		Proposal:   p,
-		Speakers:   resolveProposalSpeakers(p, ctx),
+		Speakers:   p.Speakers,
 		DesiredMin: desired,
 		ActualMin:  actual,
 	}
@@ -957,18 +1020,6 @@ func statusSortRank(status string) int {
 		return 4
 	}
 	return 5
-}
-
-// wrapProposalsAsSpeakerConfs adapts a flat proposal slice into the
-// shape enrichDashboardProposals expects (it walks SpeakerConfs ->
-// Proposals). We don't actually have SpeakerConfs here — just synth
-// one with the proposals attached so the same enricher resolves the
-// co-speaker SpeakerConfs and ConfTalks for us.
-func wrapProposalsAsSpeakerConfs(proposals []*types.Proposal) []*types.SpeakerConf {
-	if len(proposals) == 0 {
-		return nil
-	}
-	return []*types.SpeakerConf{{Proposals: proposals}}
 }
 
 // FormatHourMin renders a minute-of-day as "9:00 am" / "1:30 pm". Used
