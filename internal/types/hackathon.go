@@ -5,7 +5,6 @@ import "time"
 type HackathonCompetition struct {
 	ID                    string
 	ConferenceID          string
-	Slug                  string
 	Title                 string
 	Description           string
 	DescriptionFormat     string

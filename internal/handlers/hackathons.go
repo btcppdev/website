@@ -280,7 +280,7 @@ func hackathonCompetitionMatches(competition *types.HackathonCompetition, confs 
 	if competition == nil {
 		return false
 	}
-	fields := []string{competition.Title, competition.Slug}
+	fields := []string{competition.Title}
 	if conf := confForHackathon(confs, competition); conf != nil {
 		fields = append(fields, publicHackathonConferenceName(conf.Desc), conf.Tag)
 	}
@@ -1755,41 +1755,41 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	viewer := hackathonViewerFromIdentity(id, conf)
 	awards, prizesByAward, prizePoolByAward, awardeesByAward, err := loadPublicHackathonAwards(ctx, competition.ID, competition.ResultsFinalizedAt != nil)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s awards: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s awards: %s", competition.ID, err)
 		http.Error(w, "Unable to load awards", http.StatusInternalServerError)
 		return
 	}
 	orgMap, err := loadHackathonOrgMap(ctx)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s orgs: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s orgs: %s", competition.ID, err)
 		http.Error(w, "Unable to load sponsors", http.StatusInternalServerError)
 		return
 	}
 	placeRows, err := loadConfHackathonPlaceRows(ctx, competition.ID, competition.ResultsFinalizedAt != nil, orgMap)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s place rows: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s place rows: %s", competition.ID, err)
 		http.Error(w, "Unable to load prizes", http.StatusInternalServerError)
 		return
 	}
 	judges, err := getters.ListCompetitionJudges(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s judges: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s judges: %s", competition.ID, err)
 		http.Error(w, "Unable to load judges", http.StatusInternalServerError)
 		return
 	}
 	projectMembers, err := getters.ListProjectMembersForCompetition(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s project members: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s project members: %s", competition.ID, err)
 		http.Error(w, "Unable to load project teams", http.StatusInternalServerError)
 		return
 	}
 	judgeProfileURLs, err := hackathonJudgeProfileURLs(ctx, judges)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s judge profiles failed (continuing): %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s judge profiles failed (continuing): %s", competition.ID, err)
 	}
 	scheduleEvents, err := loadHackathonScheduleEvents(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s schedule events: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s schedule events: %s", competition.ID, err)
 		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
 		return
 	}
@@ -1799,7 +1799,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	if id != nil && personID != "" {
 		hasTicket, err = viewerHasConferenceTicket(ctx, conf, id)
 		if err != nil {
-			ctx.Err.Printf("/hackathons/%s ticket lookup failed for %s: %s", competition.Slug, id.Email, err)
+			ctx.Err.Printf("/hackathons/%s ticket lookup failed for %s: %s", competition.ID, id.Email, err)
 		}
 	}
 	page := &HackathonPage{
@@ -1826,7 +1826,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Year:                    helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon.tmpl", page); err != nil {
-		ctx.Err.Printf("/hackathons/%s template: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s template: %s", competition.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
 }
@@ -1888,7 +1888,7 @@ func HackathonSchedule(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 	scheduleEvents, err := loadHackathonScheduleEvents(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/schedule events: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/schedule events: %s", competition.ID, err)
 		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
 		return
 	}
@@ -1901,7 +1901,7 @@ func HackathonSchedule(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		Year:              helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_schedule.tmpl", page); err != nil {
-		ctx.Err.Printf("/hackathons/%s/schedule template: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/schedule template: %s", competition.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
 }
@@ -1933,7 +1933,7 @@ func HackathonScheduleICS(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	segmentID := strings.TrimSpace(mux.Vars(r)["segmentID"])
 	events, err := loadHackathonScheduleEvents(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/schedule/%s/calendar.ics events: %s", competition.Slug, segmentID, err)
+		ctx.Err.Printf("/hackathons/%s/schedule/%s/calendar.ics events: %s", competition.ID, segmentID, err)
 		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
 		return
 	}
@@ -2018,7 +2018,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	canJudge := viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID)
 	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, viewer)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging list projects: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/judging list projects: %s", competition.ID, err)
 		http.Error(w, "Unable to load projects", http.StatusInternalServerError)
 		return
 	}
@@ -2026,13 +2026,13 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	projects = projectsForJudgeEvents(projects, events, currentEvents)
 	challengeAwards, err := challengeAwardsForJudge(ctx, competition.ID, viewer)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging challenge awards: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/judging challenge awards: %s", competition.ID, err)
 		http.Error(w, "Unable to load challenge awards", http.StatusInternalServerError)
 		return
 	}
 	orgMap, err := loadHackathonOrgMap(ctx)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging orgs: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/judging orgs: %s", competition.ID, err)
 		http.Error(w, "Unable to load sponsors", http.StatusInternalServerError)
 		return
 	}
@@ -2040,7 +2040,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if viewer.PersonID != "" {
 		scorecards, err = getters.ListScorecardsForJudge(ctx, competition.ID, viewer.PersonID)
 		if err != nil {
-			ctx.Err.Printf("/hackathons/%s/judging scorecards: %s", competition.Slug, err)
+			ctx.Err.Printf("/hackathons/%s/judging scorecards: %s", competition.ID, err)
 			http.Error(w, "Unable to load scorecards", http.StatusInternalServerError)
 			return
 		}
@@ -2049,14 +2049,14 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if viewer.PersonID != "" {
 		awardVotes, err = getters.ListAwardVotesForJudge(ctx, competition.ID, viewer.PersonID)
 		if err != nil {
-			ctx.Err.Printf("/hackathons/%s/judging award votes: %s", competition.Slug, err)
+			ctx.Err.Printf("/hackathons/%s/judging award votes: %s", competition.ID, err)
 			http.Error(w, "Unable to load challenge votes", http.StatusInternalServerError)
 			return
 		}
 	}
 	awardOptIns, err := challengeAwardOptInMap(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging challenge opt-ins: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/judging challenge opt-ins: %s", competition.ID, err)
 		http.Error(w, "Unable to load challenge opt-ins", http.StatusInternalServerError)
 		return
 	}
@@ -2083,7 +2083,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		Year:                    helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_judging.tmpl", page); err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging template: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/judging template: %s", competition.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
 }
@@ -2123,7 +2123,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 	in.JudgePersonID = viewer.PersonID
 	if err := getters.ReplaceScorecardRankings(ctx, in); err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging scorecard rankings: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/judging scorecard rankings: %s", competition.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
@@ -2168,12 +2168,12 @@ func HackathonAwardVoteSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		Notes:         r.FormValue("Notes"),
 	}
 	if err := getters.UpsertAwardVote(ctx, in); err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging award vote: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/judging award vote: %s", competition.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
 	if err := getters.ReplaceProjectAwardWinner(ctx, awardID, projectID); err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging award winner: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/judging award winner: %s", competition.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
@@ -2198,7 +2198,7 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 	if ok, err := viewerHasConferenceTicket(ctx, conf, id); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/new ticket lookup failed for %s: %s", competition.Slug, id.Email, err)
+		ctx.Err.Printf("/hackathons/%s/projects/new ticket lookup failed for %s: %s", competition.ID, id.Email, err)
 		http.Error(w, "Unable to verify your ticket", http.StatusInternalServerError)
 		return
 	} else if !ok {
@@ -2206,7 +2206,7 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 	if project, err := existingProjectForHackathonViewer(ctx, competition, conf, id); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/new existing project lookup failed for %s: %s", competition.Slug, id.Email, err)
+		ctx.Err.Printf("/hackathons/%s/projects/new existing project lookup failed for %s: %s", competition.ID, id.Email, err)
 		http.Error(w, "Unable to verify your project", http.StatusInternalServerError)
 		return
 	} else if project != nil {
@@ -2215,7 +2215,7 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 	}
 	awards, err := getters.ListAwardsForCompetition(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/new awards: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/projects/new awards: %s", competition.ID, err)
 		http.Error(w, "Unable to load award opt-ins", http.StatusInternalServerError)
 		return
 	}
@@ -2234,7 +2234,7 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 		Year:            helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_project.tmpl", page); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/new template: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/projects/new template: %s", competition.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
 }
@@ -2259,7 +2259,7 @@ func HackathonProjectCreate(w http.ResponseWriter, r *http.Request, ctx *config.
 		return
 	}
 	if ok, err := viewerHasConferenceTicket(ctx, conf, id); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects create ticket lookup failed for %s: %s", competition.Slug, id.Email, err)
+		ctx.Err.Printf("/hackathons/%s/projects create ticket lookup failed for %s: %s", competition.ID, id.Email, err)
 		http.Error(w, "Unable to verify your ticket", http.StatusInternalServerError)
 		return
 	} else if !ok {
@@ -2267,7 +2267,7 @@ func HackathonProjectCreate(w http.ResponseWriter, r *http.Request, ctx *config.
 		return
 	}
 	if project, err := existingProjectForHackathonViewer(ctx, competition, conf, id); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects create existing project lookup failed for %s: %s", competition.Slug, id.Email, err)
+		ctx.Err.Printf("/hackathons/%s/projects create existing project lookup failed for %s: %s", competition.ID, id.Email, err)
 		http.Error(w, "Unable to verify your project", http.StatusInternalServerError)
 		return
 	} else if project != nil {
@@ -2282,13 +2282,13 @@ func HackathonProjectCreate(w http.ResponseWriter, r *http.Request, ctx *config.
 	in.CreatedByPersonID = personID
 	in.Slug, err = generatedProjectSlug()
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s create project slug: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s create project slug: %s", competition.ID, err)
 		http.Redirect(w, r, base+"/projects/new?error="+url.QueryEscape("Unable to create project ID"), http.StatusSeeOther)
 		return
 	}
 	projectID, err := getters.CreateProjectWithAwardOptIns(ctx, in, r.Form["AwardID"])
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s create project: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s create project: %s", competition.ID, err)
 		http.Redirect(w, r, base+"/projects/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
@@ -2315,25 +2315,25 @@ func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, competition *types.HackathonCompetition, conf *types.Conf, id *auth.Identity, project *types.HackathonProject, canManage, isProjectEditor, canEdit, canSubmit bool) {
 	members, err := getters.ListProjectMembers(ctx, project.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s members: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s members: %s", competition.ID, project.ID, err)
 		http.Error(w, "Unable to load project members", http.StatusInternalServerError)
 		return
 	}
 	optInAwards, awardOptIns, err := loadProjectAwardOptInState(ctx, competition.ID, project.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s award opt-ins: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s award opt-ins: %s", competition.ID, project.ID, err)
 		http.Error(w, "Unable to load project award opt-ins", http.StatusInternalServerError)
 		return
 	}
 	awards, prizesByAward, prizePoolByAward, awardeesByAward, err := loadPublicHackathonAwards(ctx, competition.ID, competition.ResultsFinalizedAt != nil)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s awards: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s awards: %s", competition.ID, project.ID, err)
 		http.Error(w, "Unable to load project awards", http.StatusInternalServerError)
 		return
 	}
 	orgMap, err := loadHackathonOrgMap(ctx)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s orgs: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s orgs: %s", competition.ID, project.ID, err)
 		http.Error(w, "Unable to load sponsors", http.StatusInternalServerError)
 		return
 	}
@@ -2341,7 +2341,7 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 	inviteQRCodeURI := ""
 	if inviteLink != "" {
 		if uri, err := qrCodeDataURI(inviteLink, 192); err != nil {
-			ctx.Err.Printf("/hackathons/%s/projects/%s invite qr: %s", competition.Slug, project.ID, err)
+			ctx.Err.Printf("/hackathons/%s/projects/%s invite qr: %s", competition.ID, project.ID, err)
 		} else {
 			inviteQRCodeURI = uri
 		}
@@ -2375,7 +2375,7 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 		Year:                    helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_project.tmpl", page); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s template: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s template: %s", competition.ID, project.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
 }
@@ -2393,7 +2393,7 @@ func HackathonProjectUpdate(w http.ResponseWriter, r *http.Request, ctx *config.
 	}
 	in.Slug = project.Slug
 	if err := getters.UpdateProject(ctx, project.ID, in); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s update: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s update: %s", competition.ID, project.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
@@ -2416,23 +2416,23 @@ func HackathonProjectSubmit(w http.ResponseWriter, r *http.Request, ctx *config.
 		return
 	}
 	if err := getters.SetProjectAwardOptIns(ctx, project.ID, r.Form["AwardID"]); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s award opt-ins: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s award opt-ins: %s", competition.ID, project.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+"#submission", http.StatusSeeOther)
 		return
 	}
 	if err := getters.SubmitProject(ctx, project.ID); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s submit: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s submit: %s", competition.ID, project.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+"#submission", http.StatusSeeOther)
 		return
 	}
 	if project.SubmittedAt == nil {
 		members, membersErr := getters.ListProjectMembers(ctx, project.ID)
 		if membersErr != nil {
-			ctx.Err.Printf("/hackathons/%s/projects/%s submission email members: %s", competition.Slug, project.ID, membersErr)
+			ctx.Err.Printf("/hackathons/%s/projects/%s submission email members: %s", competition.ID, project.ID, membersErr)
 		} else {
 			projectURL := absoluteURL(r, hackathonURLForConf(conf)+"/projects/"+url.PathEscape(project.ID))
 			for _, sendErr := range emails.SendProjectSubmissionConfirmations(ctx, conf, competition, project, members, projectURL) {
-				ctx.Err.Printf("/hackathons/%s/projects/%s submission confirmation: %s", competition.Slug, project.ID, sendErr)
+				ctx.Err.Printf("/hackathons/%s/projects/%s submission confirmation: %s", competition.ID, project.ID, sendErr)
 			}
 		}
 	}
@@ -2491,7 +2491,7 @@ func HackathonProjectInviteCreate(w http.ResponseWriter, r *http.Request, ctx *c
 	}
 	token, _, err := getters.CreateProjectInvite(ctx, project.ID, "", nil)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s invite: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s invite: %s", competition.ID, project.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+fragment, http.StatusSeeOther)
 		return
 	}
@@ -2527,7 +2527,7 @@ func HackathonProjectMemberRemove(w http.ResponseWriter, r *http.Request, ctx *c
 	}
 	members, err := getters.ListProjectMembers(ctx, project.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s remove member list: %s", competition.Slug, project.ID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s remove member list: %s", competition.ID, project.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load project members.")+fragment, http.StatusSeeOther)
 		return
 	}
@@ -2551,7 +2551,7 @@ func HackathonProjectMemberRemove(w http.ResponseWriter, r *http.Request, ctx *c
 		return
 	}
 	if err := getters.RemoveProjectMember(ctx, project.ID, personID, coordinatorRemoval); err != nil {
-		ctx.Err.Printf("/hackathons/%s/projects/%s remove member %s: %s", competition.Slug, project.ID, personID, err)
+		ctx.Err.Printf("/hackathons/%s/projects/%s remove member %s: %s", competition.ID, project.ID, personID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+fragment, http.StatusSeeOther)
 		return
 	}
@@ -2980,7 +2980,7 @@ func loadHackathonPageData(w http.ResponseWriter, r *http.Request, ctx *config.A
 	viewer := hackathonViewerFromIdentity(id, conf)
 	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, viewer)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s list projects: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s list projects: %s", competition.ID, err)
 		http.Error(w, "Unable to load projects", http.StatusInternalServerError)
 		return nil, nil, nil, nil, err
 	}
@@ -3012,7 +3012,7 @@ func loadHackathonCompetition(w http.ResponseWriter, r *http.Request, ctx *confi
 	viewer := hackathonViewerFromIdentity(id, conf)
 	if competition.Visibility != getters.CompetitionVisibilityPublic && !viewer.Admin && !viewer.Coordinator {
 		handle404(w, r, ctx)
-		return nil, nil, nil, fmt.Errorf("hidden competition %s", competition.Slug)
+		return nil, nil, nil, fmt.Errorf("hidden competition %s", competition.ID)
 	}
 	conf = hackathonNavConference(conf, nil, competition.Visibility == getters.CompetitionVisibilityPublic)
 	if navTalks, navErr := getters.GetTalksFor(ctx, conf.Tag); navErr != nil {
@@ -3034,7 +3034,7 @@ func loadHackathonJudgingAccess(w http.ResponseWriter, r *http.Request, ctx *con
 	}
 	events, err := getters.ListJudgeEvents(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging events: %s", competition.Slug, err)
+		ctx.Err.Printf("/hackathons/%s/judging events: %s", competition.ID, err)
 		http.Error(w, "Unable to load judge events", http.StatusInternalServerError)
 		return nil, nil, nil, nil, err
 	}

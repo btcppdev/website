@@ -65,9 +65,6 @@ func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (str
 		return "", fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 	in = normalizeCompetitionInput(in)
-	if in.Slug == "" {
-		return "", fmt.Errorf("competition slug is required")
-	}
 	if in.Title == "" {
 		return "", fmt.Errorf("competition title is required")
 	}
@@ -81,16 +78,16 @@ func createCompetitionPostgres(ctx *config.AppContext, in CompetitionInput) (str
 	var id string
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO competitions (
-			conference_id, slug, title, description, description_format, visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size,
+			conference_id, title, description, description_format, visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size,
 			submissions_open_at, submissions_close_at, public_gallery_at
 		) VALUES (
-			$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+			$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 		)
 		RETURNING id::text
-	`, in.ConferenceID, in.Slug, in.Title, in.Description, in.DescriptionFormat, in.Visibility, in.LifecycleOverride, in.PublicGalleryEnabled, in.AllowLateSubmissions, in.PublicTablesEnabled, in.MaxTeamSize,
+	`, in.ConferenceID, in.Title, in.Description, in.DescriptionFormat, in.Visibility, in.LifecycleOverride, in.PublicGalleryEnabled, in.AllowLateSubmissions, in.PublicTablesEnabled, in.MaxTeamSize,
 		in.SubmissionsOpenAt, in.SubmissionsCloseAt, in.PublicGalleryAt).Scan(&id)
 	if err != nil {
-		return "", fmt.Errorf("insert competition %q: %w", in.Slug, err)
+		return "", fmt.Errorf("insert competition %q: %w", in.Title, err)
 	}
 	return id, nil
 }
@@ -104,9 +101,6 @@ func updateCompetitionPostgres(ctx *config.AppContext, competitionID string, in 
 	if competitionID == "" {
 		return fmt.Errorf("competition id is required")
 	}
-	if in.Slug == "" {
-		return fmt.Errorf("competition slug is required")
-	}
 	if in.Title == "" {
 		return fmt.Errorf("competition title is required")
 	}
@@ -119,21 +113,20 @@ func updateCompetitionPostgres(ctx *config.AppContext, competitionID string, in 
 	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE competitions
 		SET conference_id = $2::uuid,
-			slug = $3,
-			title = $4,
-			description = $5,
-			description_format = $6,
-			visibility = $7,
-			lifecycle_override = $8,
-			public_gallery_enabled = $9,
-			allow_late_submissions = $10,
-			public_tables_enabled = $11,
-			max_team_size = $12,
-			submissions_open_at = $13,
-			submissions_close_at = $14,
-			public_gallery_at = $15
+			title = $3,
+			description = $4,
+			description_format = $5,
+			visibility = $6,
+			lifecycle_override = $7,
+			public_gallery_enabled = $8,
+			allow_late_submissions = $9,
+			public_tables_enabled = $10,
+			max_team_size = $11,
+			submissions_open_at = $12,
+			submissions_close_at = $13,
+			public_gallery_at = $14
 		WHERE id = $1
-	`, competitionID, in.ConferenceID, in.Slug, in.Title, in.Description, in.DescriptionFormat,
+	`, competitionID, in.ConferenceID, in.Title, in.Description, in.DescriptionFormat,
 		in.Visibility, in.LifecycleOverride, in.PublicGalleryEnabled, in.AllowLateSubmissions, in.PublicTablesEnabled, in.MaxTeamSize, in.SubmissionsOpenAt, in.SubmissionsCloseAt,
 		in.PublicGalleryAt)
 	if err != nil {
@@ -802,21 +795,6 @@ func getCompetitionByIDPostgres(ctx *config.AppContext, competitionID string) (*
 	return competitions[0], nil
 }
 
-func getCompetitionBySlugPostgres(ctx *config.AppContext, slug string) (*types.HackathonCompetition, error) {
-	slug = normalizeSlug(slug)
-	if slug == "" {
-		return nil, fmt.Errorf("competition slug is required")
-	}
-	competitions, err := queryCompetitionsPostgres(ctx, "competition by slug", "WHERE slug = $1", []any{slug})
-	if err != nil || len(competitions) == 0 {
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("competition %s not found", slug)
-	}
-	return competitions[0], nil
-}
-
 func listCompetitionsPostgres(ctx *config.AppContext) ([]*types.HackathonCompetition, error) {
 	return queryCompetitionsPostgres(ctx, "competitions", "", nil)
 }
@@ -826,7 +804,7 @@ func queryCompetitionsPostgres(ctx *config.AppContext, label, whereSQL string, a
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
-		SELECT id::text, coalesce(conference_id::text, ''), slug, title, description, description_format,
+		SELECT id::text, coalesce(conference_id::text, ''), title, description, description_format,
 			visibility, lifecycle_override, public_gallery_enabled, allow_late_submissions, public_tables_enabled, max_team_size, submissions_open_at, submissions_close_at,
 			public_gallery_at, hacking_starts_at, hacking_ends_at, judges_meeting_at,
 			expo_starts_at, expo_ends_at, expo_judging_starts_at, expo_judging_ends_at,
@@ -3434,7 +3412,6 @@ func scanCompetition(rows pgx.Rows) (*types.HackathonCompetition, error) {
 	if err := rows.Scan(
 		&competition.ID,
 		&competition.ConferenceID,
-		&competition.Slug,
 		&competition.Title,
 		&competition.Description,
 		&competition.DescriptionFormat,
@@ -3797,7 +3774,6 @@ func pgTimePtr(value pgtype.Timestamptz) *time.Time {
 
 func normalizeCompetitionInput(in CompetitionInput) CompetitionInput {
 	in.ConferenceID = strings.TrimSpace(in.ConferenceID)
-	in.Slug = normalizeSlug(in.Slug)
 	in.Title = strings.TrimSpace(in.Title)
 	in.Description = strings.TrimSpace(in.Description)
 	in.DescriptionFormat = normalizeCompetitionDescriptionFormat(in.DescriptionFormat)

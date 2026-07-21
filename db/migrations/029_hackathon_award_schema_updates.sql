@@ -46,6 +46,7 @@ BEFORE UPDATE ON award_votes
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 ALTER TABLE competitions
-  DROP COLUMN IF EXISTS judging_mode;
+  DROP COLUMN IF EXISTS judging_mode,
+  DROP COLUMN IF EXISTS slug;
 
 COMMIT;
