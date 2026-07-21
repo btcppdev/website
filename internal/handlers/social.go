@@ -152,6 +152,10 @@ func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		return
 	}
 
+	// Keep cards current without making this page wait. The persisted source
+	// hashes ensure only cards whose underlying data changed are rendered.
+	go RefreshTalkCards(ctx, talks)
+
 	// Build a map of speaker ID -> their talks
 	speakerTalks := make(map[string][]*types.Talk)
 	for _, talk := range talks {

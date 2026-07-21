@@ -1,6 +1,12 @@
 package handlers
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+	"time"
+
+	"btcpp-web/internal/types"
+)
 
 func TestSocialCardTalkTitleUsesPrefixBeforeColon(t *testing.T) {
 	tests := []struct {
@@ -36,5 +42,39 @@ func TestSocialCardTalkTitleUsesPrefixBeforeColon(t *testing.T) {
 				t.Fatalf("socialCardTalkTitle(%q) = %q, want %q", tt.title, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTalkCardsChangedOnlyWhenSourceHashChanges(t *testing.T) {
+	cardHashesMu.Lock()
+	oldHashes := cardHashes
+	cardHashes = make(map[string]string)
+	cardHashesMu.Unlock()
+	talkManifestMu.Lock()
+	oldManifest, oldFetchedAt := talkManifest, talkManifestFetchedAt
+	talkManifest = map[string]string{"clip.png": "clip-v1"}
+	talkManifestFetchedAt = time.Now()
+	talkManifestMu.Unlock()
+	t.Cleanup(func() {
+		cardHashesMu.Lock()
+		cardHashes = oldHashes
+		cardHashesMu.Unlock()
+		talkManifestMu.Lock()
+		talkManifest, talkManifestFetchedAt = oldManifest, oldFetchedAt
+		talkManifestMu.Unlock()
+	})
+
+	talk := &types.Talk{ID: "talk-1", Event: "toronto", Name: "Original title", Clipart: "clip.png"}
+	key := fmt.Sprintf("%s/talks/%s-1080p.png", talk.Event, talk.ID)
+	cardHashesMu.Lock()
+	cardHashes[key] = talkCardHash(talk)
+	cardHashesMu.Unlock()
+
+	if talkCardsChanged(talk, "1080p") {
+		t.Fatal("unchanged talk was marked for regeneration")
+	}
+	talk.Name = "Updated title"
+	if !talkCardsChanged(talk, "1080p") {
+		t.Fatal("updated talk title was not marked for regeneration")
 	}
 }
