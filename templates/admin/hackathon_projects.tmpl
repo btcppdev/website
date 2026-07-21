@@ -62,7 +62,7 @@
         </div>
         <div class="sm:col-span-2">
           <label for="AdminProjectOwnerSearch" class="block text-sm font-medium text-gray-700">Team people</label>
-          <div class="relative mt-1" data-person-picker data-person-picker-name="TeamPersonID">
+          <div class="relative mt-1" data-person-picker data-person-picker-name="TeamPersonID" data-person-picker-search-url="{{ .EditURL .Competition }}/people/search">
             <input id="AdminProjectOwnerSearch" type="search" data-person-picker-input
                    placeholder="Search by name, email, or phone"
                    class="block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">

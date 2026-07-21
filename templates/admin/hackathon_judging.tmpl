@@ -26,7 +26,7 @@
     <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .FlashError }}</div>
     {{ end }}
 
-    <div class="max-w-4xl space-y-6">
+    <div class="max-w-6xl space-y-6">
       <section class="overflow-hidden rounded-lg bg-white shadow">
         <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
           <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -139,6 +139,30 @@
           <p class="mb-6 text-sm text-gray-600">No judges assigned yet.</p>
           {{ end }}
 
+          <form method="POST" action="{{ .JudgingURL .Competition }}/judges" class="mb-6 grid gap-2">
+            <div>
+              <fieldset>
+                <legend class="block text-sm font-medium text-gray-700">Add judge</legend>
+                <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-900">
+                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="expo" checked> Expo judge</label>
+                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="finals"> Finals judge</label>
+                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="coordinator"> Coordinator</label>
+                </div>
+              </fieldset>
+              <p class="mt-1 text-xs text-gray-500">Select every role that applies. A person can judge both Expo and Finals.</p>
+            </div>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+              <div class="relative sm:flex-1" data-person-picker data-person-picker-required="true" data-person-picker-name="PersonID" data-person-picker-search-url="{{ .EditURL .Competition }}/people/search">
+                <input id="JudgePersonSearch" type="search" data-person-picker-input
+                       aria-label="Judge person"
+                       placeholder="Search by name, email, or phone"
+                       class="block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                <p class="mt-2 hidden text-xs text-indigo-700" data-person-picker-flash></p>
+              </div>
+              <button type="submit" class="self-start rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Add judge</button>
+            </div>
+          </form>
+
           {{ if .JudgeInviteLink }}
           <div class="mb-6 rounded-md border border-indigo-200 bg-indigo-50 px-4 py-3">
             <label for="JudgeInviteLink" class="block text-xs font-semibold uppercase tracking-wide text-indigo-700">Judge invite link created</label>
@@ -158,53 +182,27 @@
           </div>
           {{ end }}
 
-          <form method="POST" action="{{ .JudgingURL .Competition }}/judges/invites" class="mb-6 grid gap-4 rounded-md border border-gray-200 bg-gray-50 p-4">
+          <form method="POST" action="{{ .JudgingURL .Competition }}/judges/invites" class="grid gap-4 rounded-md border border-gray-200 bg-gray-50 p-4">
             <div>
               <h3 class="text-sm font-semibold text-gray-900">Generate judge invite link</h3>
               <p class="mt-1 text-sm text-gray-600">The recipient signs in with this one-time link and can judge this hackathon.</p>
             </div>
-			<div>
-			  <label for="JudgeInviteEmail" class="block text-sm font-medium text-gray-700">Recipient email <span class="font-normal text-gray-500">(optional)</span></label>
-			  <input id="JudgeInviteEmail" name="Email" type="email" autocomplete="email" placeholder="judge@example.com"
-			         class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-			  <p class="mt-1 text-xs text-gray-500">When present, the invitation is emailed and can only be accepted by an account using this address.</p>
-			</div>
-			<fieldset>
-			  <legend class="block text-sm font-medium text-gray-700">Judging rounds *</legend>
-			  <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-900">
-				<label class="flex items-center gap-2"><input type="checkbox" name="InviteJudgeType" value="expo" checked> Expo judge</label>
-				<label class="flex items-center gap-2"><input type="checkbox" name="InviteJudgeType" value="finals" checked> Finals judge</label>
-			  </div>
-			  <p class="mt-1 text-xs text-gray-500">This link grants judging access only. Add coordinators separately from the judge list.</p>
-			</fieldset>
+            <div>
+              <label for="JudgeInviteEmail" class="block text-sm font-medium text-gray-700">Recipient email <span class="font-normal text-gray-500">(optional)</span></label>
+              <input id="JudgeInviteEmail" name="Email" type="email" autocomplete="email" placeholder="judge@example.com"
+                     class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+              <p class="mt-1 text-xs text-gray-500">When present, the invitation is emailed and can only be accepted by an account using this address.</p>
+            </div>
+            <fieldset>
+              <legend class="block text-sm font-medium text-gray-700">Judging rounds *</legend>
+              <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-900">
+                <label class="flex items-center gap-2"><input type="checkbox" name="InviteJudgeType" value="expo" checked> Expo judge</label>
+                <label class="flex items-center gap-2"><input type="checkbox" name="InviteJudgeType" value="finals" checked> Finals judge</label>
+              </div>
+              <p class="mt-1 text-xs text-gray-500">This link grants judging access only. Add coordinators separately from the judge list.</p>
+            </fieldset>
             <div class="flex justify-end">
               <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Generate judge invite</button>
-            </div>
-          </form>
-
-          <form method="POST" action="{{ .JudgingURL .Competition }}/judges" class="grid gap-4">
-            <div>
-              <fieldset>
-                <legend class="block text-sm font-medium text-gray-700">Judge roles *</legend>
-                <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-900">
-                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="expo" checked> Expo judge</label>
-                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="finals"> Finals judge</label>
-                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="coordinator"> Coordinator</label>
-                </div>
-              </fieldset>
-              <p class="mt-1 text-xs text-gray-500">Select every role that applies. A person can judge both Expo and Finals.</p>
-            </div>
-            <div>
-              <label for="JudgePersonSearch" class="block text-sm font-medium text-gray-700">Judge person *</label>
-              <div class="relative mt-1" data-person-picker data-person-picker-required="true" data-person-picker-name="PersonID">
-                <input id="JudgePersonSearch" type="search" data-person-picker-input
-                       placeholder="Search by name, email, or phone"
-                       class="block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-                <p class="mt-2 hidden text-xs text-indigo-700" data-person-picker-flash></p>
-              </div>
-            </div>
-            <div class="flex justify-end">
-              <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Add judge</button>
             </div>
           </form>
         </div>
