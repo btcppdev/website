@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 )
 
 var (
@@ -193,8 +195,14 @@ func LoadHashes() (map[string]string, error) {
 		Key:    aws.String(hashIndexKey),
 	})
 	if err != nil {
-		// File doesn't exist yet — return empty map
-		return make(map[string]string), nil
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && (apiErr.ErrorCode() == "NoSuchKey" || apiErr.ErrorCode() == "NotFound") {
+			// A new bucket legitimately has no index yet.
+			return make(map[string]string), nil
+		}
+		// A timeout or storage outage must not look like an empty index:
+		// that would incorrectly mark every card as changed.
+		return nil, fmt.Errorf("load card hash index: %w", err)
 	}
 	defer result.Body.Close()
 

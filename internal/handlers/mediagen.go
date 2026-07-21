@@ -143,6 +143,8 @@ func talkCardHash(talk *types.Talk) string {
 	for _, s := range talk.Speakers {
 		h.Write([]byte(s.Name))
 		h.Write([]byte(s.Photo))
+		h.Write([]byte(s.Company))
+		h.Write([]byte(s.Twitter.Handle))
 		h.Write([]byte(speakerPhotoFingerprint(s.Photo)))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
@@ -326,6 +328,36 @@ func sponsorCardHash(sp *types.Sponsorship) string {
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
 }
 
+func cardHashChanged(key, hash string) bool {
+	cardHashesMu.Lock()
+	defer cardHashesMu.Unlock()
+	return cardHashes[key] != hash
+}
+
+func talkCardsChanged(talk *types.Talk, card string) bool {
+	if talk == nil {
+		return false
+	}
+	if talk.Clipart != "" {
+		key := fmt.Sprintf("%s/talks/%s-%s.png", talk.Event, talk.ID, card)
+		if cardHashChanged(key, talkCardHash(talk)) {
+			return true
+		}
+	}
+	for _, speaker := range talk.Speakers {
+		if speaker == nil || speaker.Photo == "" {
+			continue
+		}
+		for _, cardType := range []string{card, "insta", "social"} {
+			key := fmt.Sprintf("%s/speakers/%s-%s-%s.png", talk.Event, talk.ID, speaker.ID, cardType)
+			if cardHashChanged(key, speakerCardHash(speaker, talk)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func generateAndUploadSponsorPng(ctx *config.AppContext, confTag, card string, sp *types.Sponsorship) (string, error) {
 	return generateAndUploadSponsorPngOpt(ctx, confTag, card, sp, false)
 }
@@ -395,19 +427,13 @@ func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, org
 	if conf == nil {
 		return
 	}
-	renderer, err := helpers.NewMediaRenderer(ctx)
-	if err != nil {
-		ctx.Err.Printf("media refresh sponsors: %s", err)
-		return
-	}
-	defer renderer.Close()
 	sponsorships, err := getters.ListSponsorships(ctx, conf.Ref)
 	if err != nil {
 		ctx.Err.Printf("media refresh sponsors: failed to fetch sponsorships for %s: %s", conf.Tag, err)
 		return
 	}
 	needle := strings.ToLower(strings.TrimSpace(orgFilter))
-	matched := 0
+	matched := make([]*types.Sponsorship, 0, len(sponsorships))
 	for _, sp := range sponsorships {
 		if sp.Org == nil {
 			continue
@@ -415,7 +441,26 @@ func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, org
 		if needle != "" && !strings.Contains(strings.ToLower(sp.Org.Name), needle) {
 			continue
 		}
-		matched++
+		changed := force
+		for _, card := range []string{"1080p", "insta", "social"} {
+			key := fmt.Sprintf("%s/sponsors/%s-%s.png", conf.Tag, sp.Ref, card)
+			changed = changed || cardHashChanged(key, sponsorCardHash(sp))
+		}
+		if changed {
+			matched = append(matched, sp)
+		}
+	}
+	if len(matched) == 0 {
+		ctx.Infos.Printf("media refresh sponsors: no changed cards for %s", conf.Tag)
+		return
+	}
+	renderer, err := helpers.NewMediaRenderer(ctx)
+	if err != nil {
+		ctx.Err.Printf("media refresh sponsors: %s", err)
+		return
+	}
+	defer renderer.Close()
+	for _, sp := range matched {
 		for _, card := range []string{"1080p", "insta", "social"} {
 			if _, err := generateAndUploadSponsorPngWithRenderer(ctx, renderer, conf.Tag, card, sp, force); err != nil {
 				ctx.Err.Printf("media refresh sponsors: %s", err)
@@ -423,9 +468,9 @@ func RefreshSponsorCardsForConfOpt(ctx *config.AppContext, conf *types.Conf, org
 		}
 	}
 	if needle != "" {
-		ctx.Infos.Printf("media refresh sponsors: finished %s (%d/%d matched %q, force=%t)", conf.Tag, matched, len(sponsorships), orgFilter, force)
+		ctx.Infos.Printf("media refresh sponsors: finished %s (%d/%d changed and matched %q, force=%t)", conf.Tag, len(matched), len(sponsorships), orgFilter, force)
 	} else {
-		ctx.Infos.Printf("media refresh sponsors: finished %s (%d sponsorships, force=%t)", conf.Tag, len(sponsorships), force)
+		ctx.Infos.Printf("media refresh sponsors: finished %s (%d/%d changed, force=%t)", conf.Tag, len(matched), len(sponsorships), force)
 	}
 }
 
@@ -486,6 +531,23 @@ func RefreshTalkCardsForceOpt(ctx *config.AppContext, talks []*types.Talk, force
 func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive, force bool) {
 	confs, _ := getters.ListConfs(ctx)
 	confset := helpers.ConfTagSet(confs)
+	changed := make([]*types.Talk, 0, len(talks))
+	for _, talk := range talks {
+		if talk == nil {
+			continue
+		}
+		conf, ok := confset[talk.Event]
+		if !ok || (requireActive && !conf.Active) {
+			continue
+		}
+		if force || talkCardsChanged(talk, "1080p") {
+			changed = append(changed, talk)
+		}
+	}
+	if len(changed) == 0 {
+		ctx.Infos.Printf("media refresh talks: no changed cards (%d talks checked)", len(talks))
+		return
+	}
 	renderer, err := helpers.NewMediaRenderer(ctx)
 	if err != nil {
 		ctx.Err.Printf("media refresh talks: %s", err)
@@ -494,7 +556,7 @@ func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive
 	defer renderer.Close()
 
 	card := "1080p"
-	for _, talk := range talks {
+	for _, talk := range changed {
 		conf, ok := confset[talk.Event]
 		if !ok {
 			continue
@@ -525,7 +587,7 @@ func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive
 		}
 	}
 
-	ctx.Infos.Printf("media refresh talks: finished (%d talks, requireActive=%v, force=%v)", len(talks), requireActive, force)
+	ctx.Infos.Printf("media refresh talks: finished (%d/%d changed, requireActive=%v, force=%v)", len(changed), len(talks), requireActive, force)
 
 	cardHashesMu.Lock()
 	hashCopy := make(map[string]string, len(cardHashes))
@@ -567,11 +629,28 @@ func InitMediaRefresh(ctx *config.AppContext) {
 	ctx.Infos.Println("InitMediaRefresh: loading hashes from spaces...")
 	PreloadCardHashes(ctx)
 
-	// Do an initial refresh from direct getters.
-	talks, err := getters.ListTalks(ctx)
-	if err == nil && talks != nil {
+	// Scan active conferences only. Persisted hashes make this a cheap
+	// comparison pass; Chrome is not started unless at least one card changed.
+	confs, err := getters.ListConfs(ctx)
+	var talks []*types.Talk
+	if err == nil {
+		for _, conf := range confs {
+			if conf == nil || !conf.Active {
+				continue
+			}
+			confTalks, loadErr := getters.LoadTalksFromConfTalks(ctx, conf.Tag)
+			if loadErr != nil {
+				ctx.Err.Printf("InitMediaRefresh: load talks for %s: %s", conf.Tag, loadErr)
+				continue
+			}
+			talks = append(talks, confTalks...)
+		}
+	}
+	if err == nil {
 		ctx.Infos.Println("Running initial media card refresh...")
 		RefreshTalkCards(ctx, talks)
+	} else {
+		ctx.Err.Printf("InitMediaRefresh: load conferences: %s", err)
 	}
 
 	// Initial sponsor card refresh
