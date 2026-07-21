@@ -1267,6 +1267,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/timeline", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateTimeline(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/people/search", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminPersonSearch(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminJudging(w, r, app)
 	}).Methods("GET")

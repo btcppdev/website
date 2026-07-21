@@ -1486,6 +1486,13 @@ func HackathonAdminUpdateTimeline(w http.ResponseWriter, r *http.Request, ctx *c
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Timeline saved"), http.StatusSeeOther)
 }
 
+func HackathonAdminPersonSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+		return
+	}
+	writePersonSearchResults(w, r, ctx)
+}
+
 func HackathonAdminAdvanceProjects(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireHackathonAdmin(w, r, ctx); id == nil {
 		return

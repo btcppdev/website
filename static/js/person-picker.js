@@ -6,6 +6,7 @@
 
     const required = root.dataset.personPickerRequired === 'true';
     const fieldName = root.dataset.personPickerName || 'PersonID';
+    const searchURL = root.dataset.personPickerSearchUrl || '/api/people/search';
     const selected = new Map();
     const chips = document.createElement('div');
     chips.className = 'mb-2 flex flex-wrap gap-2';
@@ -27,6 +28,15 @@
     function hideList() {
       list.classList.add('hidden');
       list.replaceChildren();
+    }
+
+    function renderMessage(message) {
+      list.replaceChildren();
+      const item = document.createElement('li');
+      item.className = 'px-3 py-2 text-sm text-gray-500';
+      item.textContent = message;
+      list.appendChild(item);
+      list.classList.remove('hidden');
     }
 
     function showFlash(message) {
@@ -87,7 +97,7 @@
     function renderHits(hits) {
       list.replaceChildren();
       if (!hits || hits.length === 0) {
-        hideList();
+        renderMessage('No results');
         return;
       }
       for (const person of hits) {
@@ -130,13 +140,34 @@
 
     function searchPeople(query) {
       const fetchID = ++activeFetch;
-      fetch('/api/people/search?q=' + encodeURIComponent(query), { credentials: 'same-origin' })
-        .then((response) => response.ok ? response.json() : [])
+      const url = new URL(searchURL, window.location.origin);
+      url.searchParams.set('q', query);
+      fetch(url.toString(), { credentials: 'same-origin' })
+        .then((response) => {
+          if (response.status === 401 || response.status === 403) {
+            return { error: 'permission' };
+          }
+          if (!response.ok) {
+            return { error: 'search' };
+          }
+          return response.json();
+        })
         .then((hits) => {
           if (fetchID !== activeFetch) return;
+          if (hits && hits.error === 'permission') {
+            renderMessage('No permission');
+            return;
+          }
+          if (hits && hits.error === 'search') {
+            renderMessage('Search failed');
+            return;
+          }
           renderHits(hits);
         })
-        .catch(() => {});
+        .catch(() => {
+          if (fetchID !== activeFetch) return;
+          renderMessage('Search failed');
+        });
     }
 
     input.addEventListener('input', () => {

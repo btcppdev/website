@@ -104,6 +104,10 @@ func PersonSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	writePersonSearchResults(w, r, ctx)
+}
+
+func writePersonSearchResults(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if len([]rune(q)) < 3 {
 		w.Header().Set("Content-Type", "application/json")
