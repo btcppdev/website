@@ -210,7 +210,6 @@ func (p *HackathonAdminPage) SetupStep1Complete() bool {
 	}
 	return strings.TrimSpace(p.Competition.ID) != "" &&
 		strings.TrimSpace(p.Competition.Title) != "" &&
-		strings.TrimSpace(p.Competition.Slug) != "" &&
 		strings.TrimSpace(p.Competition.ConferenceID) != "" &&
 		strings.TrimSpace(p.Competition.Visibility) != ""
 }
@@ -3319,7 +3318,6 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 	}
 	in := getters.CompetitionInput{
 		ConferenceID:         strings.TrimSpace(r.FormValue("ConferenceID")),
-		Slug:                 strings.TrimSpace(r.FormValue("Slug")),
 		Title:                strings.TrimSpace(r.FormValue("Title")),
 		Description:          strings.TrimSpace(r.FormValue("Description")),
 		DescriptionFormat:    strings.TrimSpace(r.FormValue("DescriptionFormat")),

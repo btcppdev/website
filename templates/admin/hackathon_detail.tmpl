@@ -41,7 +41,6 @@
       {{ end }}
       {{ if eq .SetupStep 2 }}
       <input type="hidden" name="Title" value="{{ .Competition.Title }}">
-      <input type="hidden" name="Slug" value="{{ .Competition.Slug }}">
       <input type="hidden" name="ConferenceID" value="{{ .Competition.ConferenceID }}">
       <input type="hidden" name="Visibility" value="{{ .Competition.Visibility }}">
       <input type="hidden" name="LifecycleOverride" value="{{ .Competition.LifecycleOverride }}">
@@ -68,17 +67,10 @@
         {{ end }}
 
         {{ if ne .SetupStep 2 }}
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label for="Title" class="block text-sm font-medium text-gray-700">Title *</label>
-            <input id="Title" name="Title" type="text" required value="{{ .Competition.Title }}"
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-          </div>
-          <div>
-            <label for="Slug" class="block text-sm font-medium text-gray-700">Slug *</label>
-            <input id="Slug" name="Slug" type="text" required value="{{ .Competition.Slug }}"
-                   class="mt-1 block w-full rounded-md bg-white px-3 py-2 font-mono text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
-          </div>
+        <div>
+          <label for="Title" class="block text-sm font-medium text-gray-700">Title *</label>
+          <input id="Title" name="Title" type="text" required value="{{ .Competition.Title }}"
+                 class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -711,10 +711,10 @@ func TestGalleryProjectsRequirePublicGallery(t *testing.T) {
 	}
 }
 
-func TestFilterHackathonCompetitionsSearchesTitleSlugAndConference(t *testing.T) {
+func TestFilterHackathonCompetitionsSearchesTitleAndConference(t *testing.T) {
 	competitions := []*types.HackathonCompetition{
-		{ID: "comp-1", ConferenceID: "conf-1", Slug: "berlin-build", Title: "Lightning Builder Day"},
-		{ID: "comp-2", ConferenceID: "conf-2", Slug: "austin-ai", Title: "AI Sprint"},
+		{ID: "comp-1", ConferenceID: "conf-1", Title: "Lightning Builder Day"},
+		{ID: "comp-2", ConferenceID: "conf-2", Title: "AI Sprint"},
 	}
 	confs := []*types.Conf{
 		{Ref: "conf-1", Tag: "berlin25", Desc: "bitcoin++ Berlin 2025"},
@@ -727,7 +727,6 @@ func TestFilterHackathonCompetitionsSearchesTitleSlugAndConference(t *testing.T)
 		want string
 	}{
 		{name: "title", q: "lightning", want: "comp-1"},
-		{name: "slug", q: "austin-ai", want: "comp-2"},
 		{name: "conference", q: "berlin", want: "comp-1"},
 		{name: "conference tag", q: "austin25", want: "comp-2"},
 	}
