@@ -2611,26 +2611,6 @@ body.btcpp-admin-page {
 	transform: none;
 }
 
-.btcpp-admin-page [data-award-tab][aria-selected="false"],
-.btcpp-admin-page [data-score-tab]:not([aria-current="page"]) {
-	background: #fff !important;
-	color: #0a0a0a !important;
-}
-
-.btcpp-admin-page [data-award-tab][aria-selected="true"],
-.btcpp-admin-page [data-score-tab][aria-current="page"] {
-	background: #f7931a !important;
-	color: #0a0a0a !important;
-}
-
-.btcpp-admin-page [data-score-tab][aria-current="page"] span {
-	color: #0a0a0a !important;
-}
-
-.btcpp-admin-page [data-score-tab][aria-current="page"] span span {
-	background: rgba(10, 10, 10, 0.12) !important;
-}
-
 .btcpp-admin-page button[class*="bg-red"],
 .btcpp-admin-page a[class*="bg-red"],
 .btcpp-admin-page .text-red-600,
