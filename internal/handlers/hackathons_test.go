@@ -55,22 +55,6 @@ func TestOrgLogoURLFallsBackToDarkLogo(t *testing.T) {
 	}
 }
 
-func TestRegistrationCountsForConferenceTicket(t *testing.T) {
-	conf := &types.Conf{Ref: "conf-toronto"}
-	if !registrationCountsForConferenceTicket(&types.Registration{ConfRef: "conf-toronto"}, conf) {
-		t.Fatalf("registrationCountsForConferenceTicket() = false, want true")
-	}
-	if registrationCountsForConferenceTicket(&types.Registration{ConfRef: "conf-toronto", Revoked: true}, conf) {
-		t.Fatalf("revoked registration counted as ticket")
-	}
-	if registrationCountsForConferenceTicket(&types.Registration{ConfRef: "conf-other"}, conf) {
-		t.Fatalf("wrong conference registration counted as ticket")
-	}
-	if registrationCountsForConferenceTicket(nil, conf) {
-		t.Fatalf("nil registration counted as ticket")
-	}
-}
-
 func TestHackathonPrimaryProjectActionOpenSubmissions(t *testing.T) {
 	page := &HackathonPage{
 		Competition: &types.HackathonCompetition{

@@ -2574,10 +2574,9 @@ func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *c
 		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("Your account needs a person profile before you can join a project."), http.StatusSeeOther)
 		return
 	}
-	token := mux.Vars(r)["token"]
-	invite, err := getters.GetProjectInviteByToken(ctx, token)
+	invite, err := getters.AcceptProjectInvite(ctx, mux.Vars(r)["token"], personID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/invites load: %s", err)
+		ctx.Err.Printf("/hackathons/invites accept: %s", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -2597,22 +2596,6 @@ func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *c
 	if err != nil {
 		ctx.Err.Printf("/hackathons/invites conf %s: %s", competition.ConferenceID, err)
 		http.Error(w, "Unable to load conference", http.StatusInternalServerError)
-		return
-	}
-	hasTicket, err := emailHasConferenceTicket(ctx, conf, email)
-	if err != nil {
-		ctx.Err.Printf("/hackathons/invites ticket check %s: %s", email, err)
-		http.Error(w, "Unable to verify conference ticket", http.StatusInternalServerError)
-		return
-	}
-	if !hasTicket {
-		dest := "/" + url.PathEscape(conf.Tag) + "?error=" + url.QueryEscape("Project team members need a conference ticket before joining this hackathon project.") + "#tickets"
-		http.Redirect(w, r, dest, http.StatusSeeOther)
-		return
-	}
-	if _, err = getters.AcceptProjectInvite(ctx, token, personID); err != nil {
-		ctx.Err.Printf("/hackathons/invites accept: %s", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	http.Redirect(w, r, hackathonURLForConf(conf)+"/projects/"+url.PathEscape(project.ID)+"?flash="+url.QueryEscape("Joined project"), http.StatusSeeOther)
@@ -3384,14 +3367,6 @@ func viewerHasConferenceTicket(ctx *config.AppContext, conf *types.Conf, id *aut
 	if email == "" && id.Speaker != nil {
 		email = strings.TrimSpace(id.Speaker.Email)
 	}
-	return emailHasConferenceTicket(ctx, conf, email)
-}
-
-func emailHasConferenceTicket(ctx *config.AppContext, conf *types.Conf, email string) (bool, error) {
-	if ctx == nil || conf == nil {
-		return false, nil
-	}
-	email = strings.TrimSpace(email)
 	if email == "" || strings.TrimSpace(conf.Ref) == "" {
 		return false, nil
 	}
@@ -3400,15 +3375,11 @@ func emailHasConferenceTicket(ctx *config.AppContext, conf *types.Conf, email st
 		return false, err
 	}
 	for _, registration := range registrations {
-		if registrationCountsForConferenceTicket(registration, conf) {
+		if registration != nil && !registration.Revoked && registration.ConfRef == conf.Ref {
 			return true, nil
 		}
 	}
 	return false, nil
-}
-
-func registrationCountsForConferenceTicket(registration *types.Registration, conf *types.Conf) bool {
-	return registration != nil && conf != nil && !registration.Revoked && registration.ConfRef == conf.Ref
 }
 
 func competitionAcceptsProjects(competition *types.HackathonCompetition) bool {

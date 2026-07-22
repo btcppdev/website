@@ -229,10 +229,6 @@ func CreateProjectInvite(ctx *config.AppContext, projectID, email string, expire
 	return createProjectInvitePostgres(ctx, projectID, email, expiresAt)
 }
 
-func GetProjectInviteByToken(ctx *config.AppContext, token string) (*types.ProjectInvite, error) {
-	return getProjectInviteByTokenPostgres(ctx, token)
-}
-
 func AcceptProjectInvite(ctx *config.AppContext, token, personID string) (*types.ProjectInvite, error) {
 	return acceptProjectInvitePostgres(ctx, token, personID)
 }
