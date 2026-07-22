@@ -45,13 +45,14 @@ func Import(ctx context.Context, tx pgx.Tx, manifest *Manifest, opts ImportOptio
 	if err := tx.QueryRow(ctx, `SELECT id::text FROM conferences WHERE lower(tag) = lower($1)`, manifest.ConferenceTag).Scan(&conferenceID); err != nil {
 		return nil, fmt.Errorf("find conference %q: %w", manifest.ConferenceTag, err)
 	}
+	slug := slugify(manifest.ConferenceTag + "-hackathon")
 	var competitionID string
 	err := tx.QueryRow(ctx, `
 		INSERT INTO competitions (
-			conference_id, title, description, description_format, visibility,
+			conference_id, slug, title, description, description_format, visibility,
 			lifecycle_override, public_gallery_enabled, submissions_open_at,
 			submissions_close_at, public_gallery_at, hacking_starts_at, hacking_ends_at
-		) VALUES ($1::uuid, $2, $3, 'html', $4, 'closed', true, $5, $6, $6, $5, $6)
+		) VALUES ($1::uuid, $2, $3, $4, 'html', $5, 'closed', true, $6, $7, $7, $6, $7)
 		ON CONFLICT (conference_id) DO UPDATE SET
 			title = EXCLUDED.title,
 			description = EXCLUDED.description,
@@ -64,7 +65,7 @@ func Import(ctx context.Context, tx pgx.Tx, manifest *Manifest, opts ImportOptio
 			hacking_starts_at = coalesce(EXCLUDED.hacking_starts_at, competitions.hacking_starts_at),
 			hacking_ends_at = coalesce(EXCLUDED.hacking_ends_at, competitions.hacking_ends_at)
 		RETURNING id::text
-	`, conferenceID, manifest.Competition.Title, manifest.Competition.Description, opts.Visibility, manifest.Competition.Start, manifest.Competition.End).Scan(&competitionID)
+	`, conferenceID, slug, manifest.Competition.Title, manifest.Competition.Description, opts.Visibility, manifest.Competition.Start, manifest.Competition.End).Scan(&competitionID)
 	if err != nil {
 		return nil, fmt.Errorf("upsert competition: %w", err)
 	}

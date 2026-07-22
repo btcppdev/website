@@ -9,6 +9,7 @@ import (
 
 type CompetitionInput struct {
 	ConferenceID         string
+	Slug                 string
 	Title                string
 	Description          string
 	DescriptionFormat    string
@@ -155,6 +156,10 @@ func SyncScheduleSegmentJudgeEventByProposal(ctx *config.AppContext, proposalID 
 
 func ReplaceCompetitionScheduleSegments(ctx *config.AppContext, competitionID string, segments []CompetitionScheduleSegmentInput) error {
 	return replaceCompetitionScheduleSegmentsPostgres(ctx, competitionID, segments)
+}
+
+func GetCompetitionBySlug(ctx *config.AppContext, slug string) (*types.HackathonCompetition, error) {
+	return getCompetitionBySlugPostgres(ctx, slug)
 }
 
 func ListCompetitions(ctx *config.AppContext) ([]*types.HackathonCompetition, error) {

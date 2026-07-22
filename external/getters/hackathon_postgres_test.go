@@ -15,6 +15,7 @@ func TestHackathonCompetitionRequiresConference(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	_, err := CreateCompetition(ctx, CompetitionInput{
+		Slug:  "missing-conf-" + postgresSmokeSuffix(),
 		Title: "Missing Conference Hackathon",
 	})
 	if err == nil {
@@ -25,6 +26,7 @@ func TestHackathonCompetitionRequiresConference(t *testing.T) {
 	}
 
 	linkedID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "linked-" + postgresSmokeSuffix(),
 		Title: "Conference Hackathon",
 	})
 	linked, err := GetCompetitionByID(ctx, linkedID)
@@ -41,6 +43,7 @@ func TestHackathonCompetitionUpdate(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "update-" + postgresSmokeSuffix(),
 		Title: "Original Hackathon",
 	})
 	confID, _ := insertSmokeConference(t, ctx)
@@ -48,8 +51,10 @@ func TestHackathonCompetitionUpdate(t *testing.T) {
 	openAt := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
 	closeAt := openAt.Add(48 * time.Hour)
 	galleryAt := closeAt.Add(time.Hour)
+	updatedSlug := "updated-" + postgresSmokeSuffix()
 	if err := UpdateCompetition(ctx, competitionID, CompetitionInput{
 		ConferenceID:       confID,
+		Slug:               updatedSlug,
 		Title:              "Updated Hackathon",
 		Description:        "Updated description",
 		Visibility:         CompetitionVisibilityPublic,
@@ -68,7 +73,7 @@ func TestHackathonCompetitionUpdate(t *testing.T) {
 	if updated.ConferenceID != confID {
 		t.Fatalf("ConferenceID = %q, want %q", updated.ConferenceID, confID)
 	}
-	if updated.Title != "Updated Hackathon" || updated.Description != "Updated description" || updated.Visibility != CompetitionVisibilityPublic {
+	if updated.Slug != updatedSlug || updated.Title != "Updated Hackathon" || updated.Description != "Updated description" || updated.Visibility != CompetitionVisibilityPublic {
 		t.Fatalf("updated fields mismatch: %+v", updated)
 	}
 	if updated.MaxTeamSize == nil || *updated.MaxTeamSize != maxTeamSize {
@@ -90,6 +95,7 @@ func TestHackathonResultsFinalizationLocksAwardRecipients(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "results-finalization-" + postgresSmokeSuffix(),
 		Title: "Results Finalization Hackathon",
 	})
 	personID := insertSmokePerson(t, ctx, "results-finalizer")
@@ -195,6 +201,7 @@ func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 
 	maxTeamSize := 2
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:        "teams-" + postgresSmokeSuffix(),
 		Title:       "Team Limit Hackathon",
 		MaxTeamSize: &maxTeamSize,
 	})
@@ -275,6 +282,7 @@ func TestHackathonProjectMaxTeamSizeAndInvites(t *testing.T) {
 	}
 
 	otherCompetitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "email-invite-" + postgresSmokeSuffix(),
 		Title: "Email Invite Hackathon",
 	})
 	otherProjectID := createSmokeProject(t, ctx, ProjectInput{
@@ -300,6 +308,7 @@ func TestHackathonProjectMemberRemovalRespectsSubmissionState(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "team-removal-" + postgresSmokeSuffix(),
 		Title: "Team Removal Hackathon",
 	})
 	ownerID := insertSmokePerson(t, ctx, "team-removal-owner")
@@ -338,6 +347,7 @@ func TestHackathonTicketAwardDistributionAndClaim(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "ticket-distribution-" + postgresSmokeSuffix(),
 		Title: "Ticket Distribution Hackathon",
 	})
 	personID := insertSmokePerson(t, ctx, "ticket-recipient")
@@ -479,6 +489,7 @@ func TestCashPrizeDistributionAllocationAndTaxGate(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "cash-allocation-" + postgresSmokeSuffix(),
 		Title: "Cash Allocation Hackathon",
 	})
 	firstPersonID := insertSmokePerson(t, ctx, "cash-allocation-first")
@@ -573,6 +584,7 @@ func TestHackathonJudgeInvites(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "judge-invite-" + postgresSmokeSuffix(),
 		Title: "Judge Invite Hackathon",
 	})
 	judgeID := insertSmokePerson(t, ctx, "judge-invite")
@@ -640,6 +652,7 @@ func TestCompetitionJudgeOrder(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "judge-order-" + postgresSmokeSuffix(),
 		Title: "Judge Order Hackathon",
 	})
 	firstJudgeID := insertSmokePerson(t, ctx, "judge-order-first")
@@ -732,6 +745,7 @@ func TestListCompetitionJudgeAssignmentsByEmail(t *testing.T) {
 	confID, confTag := insertSmokeConference(t, ctx)
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
 		ConferenceID: confID,
+		Slug:         "judge-dashboard-" + postgresSmokeSuffix(),
 		Title:        "Judge Dashboard Hackathon",
 		Visibility:   CompetitionVisibilityPublic,
 	})
@@ -796,6 +810,7 @@ func TestHackathonProjectVisibility(t *testing.T) {
 
 	future := time.Now().Add(24 * time.Hour)
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:               "visibility-" + postgresSmokeSuffix(),
 		Title:              "Visibility Hackathon",
 		SubmissionsCloseAt: &future,
 	})
@@ -868,6 +883,7 @@ func TestHackathonJudgingSetup(t *testing.T) {
 	requireHackathonSchema(t, ctx)
 
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "judging-" + postgresSmokeSuffix(),
 		Title: "Judging Hackathon",
 	})
 	if err := ReplaceCompetitionScheduleSegments(ctx, competitionID, []CompetitionScheduleSegmentInput{
@@ -999,6 +1015,7 @@ func TestHackathonJudgingSetup(t *testing.T) {
 		t.Fatalf("competition scorecards mismatch: %+v", competitionScorecards)
 	}
 	otherCompetitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "score-other-" + postgresSmokeSuffix(),
 		Title: "Other Scoring Hackathon",
 	})
 	otherProjectID := createSmokeProject(t, ctx, ProjectInput{
@@ -1033,6 +1050,7 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	maxAwardees := 1
 	poolPercentage := 12.5
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "awards-" + postgresSmokeSuffix(),
 		Title: "Awards Hackathon",
 	})
 	ownerID := insertSmokePerson(t, ctx, "award-owner")
