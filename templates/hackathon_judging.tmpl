@@ -45,18 +45,16 @@
     {{ $event := .CurrentJudgeEvent }}
     <section class="hack-section hack-judging-round">
       {{ if $event }}
-      <div class="hack-current-round{{ if .CanScoreJudgeEvent $event }} hack-current-round--open{{ end }}">
-        <div class="hack-current-round__label">{{ if .CanScoreJudgeEvent $event }}Open now{{ else }}Current judging round{{ end }}</div>
+      <div class="hack-current-round">
+        <div class="hack-current-round__label">Current judging round</div>
         <div class="hack-current-round__body">
           <div>
             <div class="hack-label">{{ .JudgeTypeLabel $event.PlaybookType }}</div>
             <h2>{{ $event.Name }}</h2>
-            <p class="hack-current-round__summary">{{ if .CanScoreJudgeEvent $event }}This is the active ballot. Rank each project once; changes save automatically.{{ else }}This round is selected, but it is not currently accepting scores for your account.{{ end }}</p>
           </div>
           <div class="hack-current-round__meta">
             <span>{{ .RankLimit $event }} ranks</span>
             <span>{{ .JudgeEventStateLabel $event }}</span>
-            <span>{{ len .Projects }} project{{ if ne (len .Projects) 1 }}s{{ end }}</span>
             {{ if $event.StartingProjectNumber }}<span>Starts at #{{ $event.StartingProjectNumber }}</span>{{ end }}
           </div>
         </div>
@@ -78,7 +76,7 @@
           <div class="hack-card__top">
             <div>
               <div class="hack-label" style="margin-bottom:8px;">Ballot</div>
-              <h3 style="margin:0;font-size:32px;font-weight:700;">Current ranking</h3>
+              <h3 style="margin:0;font-size:32px;font-weight:700;">Rankings</h3>
             </div>
             <div class="hack-judging-save">
               <span data-autosave-status></span>

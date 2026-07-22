@@ -8521,18 +8521,6 @@ body.btcpp-checkout-page {
 	display: none;
 }
 
-.hack-card__award-badges {
-	position: absolute;
-	top: 12px;
-	left: 12px;
-	z-index: 1;
-	display: flex;
-	max-width: calc(100% - 24px);
-	align-items: flex-start;
-	flex-direction: column;
-	gap: 6px;
-}
-
 .hack-card__body {
 display: flex;
 flex: 1;
@@ -9203,10 +9191,6 @@ display: grid;
 	color: #000;
 }
 
-.hack-current-round--open {
-	box-shadow: inset 0 0 0 4px var(--hack-ink);
-}
-
 .hack-current-round--empty {
 	background: #fff;
 	color: var(--hack-ink);
@@ -9236,14 +9220,6 @@ display: grid;
 	font-weight: 700;
 	letter-spacing: 0;
 	line-height: 0.95;
-}
-
-.hack-current-round__summary {
-	max-width: 720px;
-	margin: 16px 0 0;
-	font-size: 18px;
-	font-weight: 700;
-	line-height: 1.35;
 }
 
 .hack-current-round__meta {
@@ -9699,9 +9675,9 @@ display: grid;
 }
 
 .hack-upload__remove {
-right: 6px;
-padding: 5px 7px;
-cursor: pointer;
+	right: 6px;
+	padding: 5px 7px;
+	cursor: pointer;
 }
 
 .hack-upload__input {
@@ -9727,16 +9703,11 @@ cursor: pointer;
 }
 
 .hack-form__actions {
-display: flex;
-justify-content: flex-end;
-gap: 12px;
-border-top: 1px solid var(--hack-ink);
-padding: 18px 56px;
-}
-
-.hack-form__actions--top {
-border-top: 0;
-border-bottom: 1px solid var(--hack-ink);
+	display: flex;
+	justify-content: flex-end;
+	gap: 12px;
+	border-top: 1px solid var(--hack-ink);
+	padding: 18px 56px;
 }
 
 .hack-alert {
