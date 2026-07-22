@@ -77,6 +77,19 @@
         </div>
       </div>
 
+      {{ $hackathonEdition := .HackathonEditionName }}
+      {{ $hackathonEditionTitle := .HackathonEditionTitle }}
+      {{ $hackathonLocation := .HackathonLocation }}
+      <section class="hack-welcome" aria-label="Hackathon welcome">
+        <div class="hack-label">§ Welcome</div>
+        <h2>Welcome to the Bitcoin++ {{ $hackathonEditionTitle }} Edition Hackathon!</h2>
+        <div class="hack-welcome__body">
+          <p>This is the hackathon site for the bitcoin++ {{ $hackathonEdition }} edition hackathon in {{ $hackathonLocation }}.</p>
+          <p>The main hackathon competition will be open ended (overall 1st, 2nd, 3rd). Anything involving bitcoin is fair game. Bonus points for {{ $hackathonEdition }} related projects.</p>
+          <p>There are optional challenges that hackers may create projects around. Submitting for a challenge is optional, and ALL projects will be considered for the main competition.</p>
+        </div>
+      </section>
+
       {{ if .HackathonPlaceRows }}
       <section class="hack-prizes" aria-label="Ranked prizes">
         <div class="hack-section__head hack-prizes__head">
