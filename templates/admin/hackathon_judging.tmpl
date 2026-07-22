@@ -119,6 +119,7 @@
                   <div class="font-medium text-gray-900">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</div>
                   <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                     <span>{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</span>
+                    {{ range $.JudgeRoleTypes . }}<span class="rounded-full bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">{{ $.JudgeTypeLabel . }}</span>{{ end }}
                   </div>
                 </div>
               </div>
