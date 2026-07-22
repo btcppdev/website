@@ -2118,27 +2118,15 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 		SELECT competition_judges.competition_id::text, competition_judges.person_id::text,
 			coalesce(people.name, ''), coalesce(people.email::text, ''),
 			coalesce(people.norm_photo_path, ''),
-			coalesce(judge_company.company, nullif(people.company, ''), ''),
 			array_agg(competition_judges.judge_type ORDER BY
 				CASE competition_judges.judge_type WHEN 'expo' THEN 1 WHEN 'finals' THEN 2 ELSE 3 END),
 			min(competition_judges.display_order),
 			min(competition_judges.created_at)
 		FROM competition_judges
-		JOIN competitions ON competitions.id = competition_judges.competition_id
 		LEFT JOIN people ON people.id = competition_judges.person_id
-		LEFT JOIN LATERAL (
-			SELECT nullif(speaker_confs.company, '') AS company
-			FROM speaker_confs_conferences
-			JOIN speaker_confs ON speaker_confs.id = speaker_confs_conferences.speaker_conf_id
-			WHERE speaker_confs_conferences.conference_id = competitions.conference_id
-				AND speaker_confs.speaker_id = competition_judges.person_id
-				AND nullif(speaker_confs.company, '') IS NOT NULL
-			ORDER BY speaker_confs.created_at DESC
-			LIMIT 1
-		) judge_company ON true
 		WHERE competition_judges.competition_id::text = $1
 		GROUP BY competition_judges.competition_id, competition_judges.person_id,
-			people.id, people.name, people.email, people.norm_photo_path, people.company, judge_company.company
+			people.id, people.name, people.email, people.norm_photo_path
 		ORDER BY CASE WHEN min(competition_judges.display_order) > 0 THEN 0 ELSE 1 END,
 			min(competition_judges.display_order), lower(people.name), people.id
 	`, competitionID)
@@ -2149,7 +2137,7 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 	var out []*types.CompetitionJudge
 	for rows.Next() {
 		var judge types.CompetitionJudge
-		if err := rows.Scan(&judge.CompetitionID, &judge.PersonID, &judge.Name, &judge.Email, &judge.Photo, &judge.Company, &judge.JudgeTypes, &judge.DisplayOrder, &judge.CreatedAt); err != nil {
+		if err := rows.Scan(&judge.CompetitionID, &judge.PersonID, &judge.Name, &judge.Email, &judge.Photo, &judge.JudgeTypes, &judge.DisplayOrder, &judge.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan competition judge %s: %w", competitionID, err)
 		}
 		if len(judge.JudgeTypes) > 0 {

@@ -241,9 +241,6 @@ func TestPublicJudgeRoleLabel(t *testing.T) {
 			}
 		})
 	}
-	if got := page.PublicJudgeRoleLabel(&types.CompetitionJudge{Company: "ACME Labs", JudgeTypes: []string{"expo"}}); got != "ACME Labs" {
-		t.Fatalf("PublicJudgeRoleLabel() with company = %q, want ACME Labs", got)
-	}
 }
 
 func TestScoreAdvanceOnlyAppearsBeforeAnotherJudgingRound(t *testing.T) {
