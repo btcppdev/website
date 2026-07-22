@@ -22,7 +22,6 @@ func registerConferenceHackathonAdminRoutes(r *mux.Router, app *config.AppContex
 	register("/projects", HackathonAdminCreateProject, http.MethodPost)
 	register("/projects/assign-numbers", HackathonAdminAssignProjectNumbers, http.MethodPost)
 	register("/projects/{projectID}", HackathonAdminUpdateProject, http.MethodPost)
-	register("/projects/{projectID}/delete", HackathonAdminDeleteProject, http.MethodPost)
 	register("/timeline", HackathonAdminTimeline, http.MethodGet)
 	register("/timeline", HackathonAdminUpdateTimeline, http.MethodPost)
 	register("/people/search", HackathonAdminPersonSearch, http.MethodGet)

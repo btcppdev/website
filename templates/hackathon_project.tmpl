@@ -326,7 +326,7 @@
             {{ range $submissionImages }}<img src="{{ . }}" alt="">{{ end }}
           </div>
           {{ end }}
-          {{ if .Project.Description }}<div class="hack-project-editor__preview-copy hack-copy__body">{{ .ProjectDescriptionHTML .Project }}</div>{{ end }}
+          {{ if .Project.Description }}<div class="hack-project-editor__preview-copy">{{ .ProjectDescriptionHTML .Project }}</div>{{ end }}
           {{ if .Project.Tags }}
           <div class="hack-tags hack-project-editor__preview-tags">
             {{ range .Project.Tags }}<span class="hack-badge">{{ . }}</span>{{ end }}
@@ -436,31 +436,6 @@
             <button type="submit" class="hack-button hack-button--accent">Generate one-time invite →</button>
           </div>
         </form>
-        {{ end }}
-
-        {{ if .CanDeleteProject }}
-        <div class="hack-project-editor__danger">
-          <div>
-            <h3>Delete project</h3>
-            <p class="hack-field__help">Remove this project, team memberships, invites, judging records, award opt-ins, and award assignments.</p>
-          </div>
-          <form method="POST" action="{{ .ProjectDeleteURL .Project }}" onsubmit="return confirm('Delete this project? This cannot be undone.');">
-            <button type="submit" class="hack-button hack-button--danger">Delete project</button>
-          </form>
-        </div>
-        {{ end }}
-
-        {{ if .CanLeaveProject }}
-        <div class="hack-project-editor__danger">
-          <div>
-            <h3>Leave project</h3>
-            <p class="hack-field__help">Remove yourself from this project. The project stays available to the remaining team.</p>
-          </div>
-          <form method="POST" action="{{ .ProjectMemberRemoveURL .Project }}" onsubmit="return confirm('Leave this project?');">
-            <input type="hidden" name="PersonID" value="{{ .ViewerPersonID }}">
-            <button type="submit" class="hack-button hack-button--danger">Leave project</button>
-          </form>
-        </div>
         {{ end }}
       </div>
     </section>

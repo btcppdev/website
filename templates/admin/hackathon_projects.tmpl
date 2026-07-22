@@ -109,7 +109,6 @@
               <th scope="col" class="px-4 py-3">Submitted</th>
               <th scope="col" class="px-4 py-3">Links</th>
               <th scope="col" class="px-4 py-3">Updated</th>
-              <th scope="col" class="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 bg-white">
@@ -184,11 +183,6 @@
                 </div>
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-gray-600">{{ .UpdatedAt.Format "Jan 2, 2006 3:04 PM" }}</td>
-              <td class="whitespace-nowrap px-4 py-3">
-                <form method="POST" action="{{ $.ProjectDeleteURL . }}" onsubmit="return confirm('Delete this project? This cannot be undone.');">
-                  <button type="submit" class="btcpp-admin-danger-button rounded-md px-3 py-1.5 text-xs font-semibold">Delete</button>
-                </form>
-              </td>
             </tr>
             {{ end }}
           </tbody>

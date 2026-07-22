@@ -1261,9 +1261,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateProject(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/admin/hackathons/{competitionID}/projects/{projectID}/delete", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminDeleteProject(w, r, app)
-	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/timeline", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminTimeline(w, r, app)
 	}).Methods("GET")
@@ -1424,9 +1421,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/submit", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectSubmit(w, r, app)
-	}).Methods("POST")
-	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/delete", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectDelete(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectEdit(w, r, app)

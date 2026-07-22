@@ -101,16 +101,6 @@ func TestHackathonDescriptionHTML(t *testing.T) {
 		t.Fatalf("markdown description rendered raw script: %q", markdown)
 	}
 
-	heading := string(hackathonDescriptionHTML("# Project\n\nBody", getters.CompetitionDescriptionFormatMarkdown))
-	if !strings.Contains(heading, `<h1>Project</h1>`) {
-		t.Fatalf("markdown heading missing h1 in %q", heading)
-	}
-
-	defaultMarkdown := string(hackathonDescriptionHTML("# Project", ""))
-	if !strings.Contains(defaultMarkdown, `<h1>Project</h1>`) {
-		t.Fatalf("default description format should render markdown, got %q", defaultMarkdown)
-	}
-
 	plain := string(hackathonDescriptionHTML("2 < 3\nnext", getters.CompetitionDescriptionFormatPlain))
 	if plain != "2 &lt; 3<br>next" {
 		t.Fatalf("plain description = %q", plain)

@@ -7784,7 +7784,6 @@ body.btcpp-checkout-page {
 	text-underline-offset: 0.15em;
 }
 
-.hack-copy__body h1,
 .hack-copy__body h2,
 .hack-copy__body h3,
 .hack-copy__body h4 {
@@ -7795,10 +7794,6 @@ body.btcpp-checkout-page {
 	font-weight: 700;
 	letter-spacing: 0;
 	line-height: 1.05;
-}
-
-.hack-copy__body h1 {
-	font-size: 38px;
 }
 
 .hack-copy__body h2 {
@@ -7840,16 +7835,6 @@ body.btcpp-checkout-page {
 	border-color: var(--hack-accent);
 	background: var(--hack-accent);
 	color: #000;
-}
-
-.hack-button--danger {
-	border-color: #991b1b;
-	background: #dc2626;
-	color: #fff;
-}
-
-.hack-button--danger:hover {
-	background: #b91c1c;
 }
 
 .hack-actions .hack-button--accent {
@@ -9655,25 +9640,6 @@ display: grid;
 	font-size: 18px;
 }
 
-.hack-project-editor__danger {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 18px;
-	border: 1px solid #991b1b;
-	background: #fff5f5;
-	padding: 20px;
-}
-
-.hack-project-editor__danger h3 {
-	margin: 0;
-	font-size: 18px;
-}
-
-.hack-project-editor__danger form {
-	margin: 0;
-}
-
 .hack-form__body {
 	display: grid;
 	gap: 24px;
@@ -10336,11 +10302,6 @@ border-bottom: 1px solid var(--hack-ink);
 
 	.hack-form__grid--action {
 		grid-template-columns: 1fr;
-	}
-
-	.hack-project-editor__danger {
-		align-items: stretch;
-		flex-direction: column;
 	}
 
 	.hack-form__actions {

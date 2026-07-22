@@ -939,31 +939,6 @@ func updateProjectPostgres(ctx *config.AppContext, projectID string, in ProjectI
 	return nil
 }
 
-func deleteProjectPostgres(ctx *config.AppContext, competitionID, projectID string) error {
-	if ctx == nil || ctx.DB == nil {
-		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
-	}
-	competitionID = strings.TrimSpace(competitionID)
-	projectID = strings.TrimSpace(projectID)
-	if competitionID == "" {
-		return fmt.Errorf("competition id is required")
-	}
-	if projectID == "" {
-		return fmt.Errorf("project id is required")
-	}
-	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
-		DELETE FROM projects
-		WHERE id = $1 AND competition_id = $2
-	`, projectID, competitionID)
-	if err != nil {
-		return fmt.Errorf("delete project %s: %w", projectID, err)
-	}
-	if commandTag.RowsAffected() == 0 {
-		return fmt.Errorf("project %s not found in competition %s", projectID, competitionID)
-	}
-	return nil
-}
-
 func submitProjectPostgres(ctx *config.AppContext, projectID string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")

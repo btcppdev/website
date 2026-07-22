@@ -438,13 +438,6 @@ func (p *HackathonAdminPage) ProjectAdminURL(project *types.HackathonProject) st
 	return p.adminBaseURL(p.Competition) + "/projects/" + url.PathEscape(project.ID)
 }
 
-func (p *HackathonAdminPage) ProjectDeleteURL(project *types.HackathonProject) string {
-	if p == nil || project == nil {
-		return "/admin/hackathons"
-	}
-	return p.ProjectAdminURL(project) + "/delete"
-}
-
 func (p *HackathonAdminPage) AssignProjectNumbersURL() string {
 	if p == nil || p.Competition == nil {
 		return "/admin/hackathons"
@@ -1382,22 +1375,6 @@ func HackathonAdminUpdateProject(w http.ResponseWriter, r *http.Request, ctx *co
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project updated"), http.StatusSeeOther)
-}
-
-func HackathonAdminDeleteProject(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
-		return
-	}
-	vars := mux.Vars(r)
-	competitionID := vars["competitionID"]
-	projectID := vars["projectID"]
-	dest := hackathonAdminRequestURL(r, competitionID, "/projects")
-	if err := getters.DeleteProject(ctx, competitionID, projectID); err != nil {
-		ctx.Err.Printf("/admin/hackathons/%s/projects/%s delete: %s", competitionID, projectID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project deleted"), http.StatusSeeOther)
 }
 
 func adminProjectInputFromRequest(w http.ResponseWriter, r *http.Request, competitionID string) (getters.ProjectInput, string, *int, error) {
