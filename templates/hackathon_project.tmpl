@@ -198,7 +198,7 @@
               <input name="AwardID" type="checkbox" value="{{ .ID }}">
               <div>
                 <span class="hack-list__title">{{ .Title }}</span>
-                {{ if .Description }}<div class="hack-list__meta">{{ hackathonRichText .Description }}</div>{{ end }}
+                {{ if .Description }}<div class="hack-list__meta">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
               </div>
             </label>
             {{ end }}
@@ -345,7 +345,7 @@
               <input name="AwardID" type="checkbox" value="{{ .ID }}" {{ if $.AwardOptedIn . }}checked{{ end }} {{ if not $.CanSubmit }}disabled{{ end }}>
               <div>
                 <span class="hack-list__title">{{ .Title }}</span>
-                {{ if .Description }}<div class="hack-list__meta">{{ hackathonRichText .Description }}</div>{{ end }}
+                {{ if .Description }}<div class="hack-list__meta">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
               </div>
             </label>
             {{ end }}
