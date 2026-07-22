@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -486,25 +487,43 @@ func TestCompactSatoshiLabel(t *testing.T) {
 	}
 }
 
-func TestHackathonRankedPrizePoolValueOmitsUnit(t *testing.T) {
+func TestHackathonPrizePoolValueIncludesNonCashPrizeValues(t *testing.T) {
 	page := &HackathonPage{
 		PrizePoolByAward: map[string][]*types.Prize{
-			"first": {{ValueText: "6000000"}},
+			"first": {
+				{PrizeType: getters.PrizeTypeSats, ValueText: "6000000"},
+				{PrizeType: getters.PrizeTypeInKind, Title: "Hardware wallet", ValueText: "2500000"},
+			},
 		},
 	}
-	if got := page.RankedPrizePoolValue(); got != "6M" {
-		t.Fatalf("RankedPrizePoolValue() = %q, want %q", got, "6M")
+	if got := page.PrizePoolValue(); got != "8.5M" {
+		t.Fatalf("PrizePoolValue() = %q, want %q", got, "8.5M")
 	}
 }
 
-func TestHackathonPlacePrizeAmountSumsAwardPrizes(t *testing.T) {
+func TestHackathonPlacePrizeAmountSumsCashPrizes(t *testing.T) {
 	prizes := []*types.Prize{
-		{ValueText: "1000000"},
-		{ValueText: "500000 sats"},
-		{ValueText: "0.01 BTC"},
+		{PrizeType: getters.PrizeTypeSats, ValueText: "1000000"},
+		{PrizeType: getters.PrizeTypeSats, ValueText: "500000 sats"},
+		{PrizeType: getters.PrizeTypeSats, ValueText: "0.01 BTC"},
+		{PrizeType: getters.PrizeTypeTrophy, Title: "Trophy", ValueText: "2000000"},
 	}
 	if got := hackathonPlacePrizeAmount(prizes); got != "2.5M satoshis" {
 		t.Fatalf("hackathonPlacePrizeAmount() = %q, want %q", got, "2.5M satoshis")
+	}
+}
+
+func TestNonCashPrizeNamesIncludesConfiguredPrizeTypes(t *testing.T) {
+	prizes := []*types.Prize{
+		{PrizeType: getters.PrizeTypeSats, Title: "Cash", ValueText: "1000000"},
+		{PrizeType: getters.PrizeTypeInKind, Title: "Hardware wallet", ValueText: "500000"},
+		{PrizeType: getters.PrizeTypeTickets, Title: "Conference ticket", ValueText: "250000"},
+		{PrizeType: getters.PrizeTypeTrophy},
+	}
+	got := nonCashPrizeNames(prizes)
+	want := []string{"Hardware wallet", "Conference ticket", "Trophy"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("nonCashPrizeNames() = %#v, want %#v", got, want)
 	}
 }
 

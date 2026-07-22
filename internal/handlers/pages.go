@@ -82,13 +82,14 @@ type ConfPage struct {
 }
 
 type HackathonPlaceRow struct {
-	PlaceLabel   string
-	PlaceName    string
-	ProjectID    string
-	ProjectTitle string
-	Amount       string
-	Detail       string
-	GrandPrize   bool
+	PlaceLabel      string
+	PlaceName       string
+	ProjectID       string
+	ProjectTitle    string
+	Amount          string
+	Detail          string
+	ExtraPrizeNames []string
+	GrandPrize      bool
 }
 
 type SuccessPage struct {

@@ -7984,6 +7984,12 @@ body.btcpp-checkout-page {
 	text-transform: uppercase;
 }
 
+.hack-prize-card__extra {
+	display: inline-block;
+	margin-left: 8px;
+	color: var(--hack-accent);
+}
+
 .hack-prize-card--grand .hack-prize-card__title {
 	color: #a9a39a;
 }
@@ -8059,25 +8065,50 @@ body.btcpp-checkout-page {
 	font-size: 15px;
 	font-style: italic;
 	line-height: 1.4;
+	overflow-wrap: anywhere;
+	white-space: pre-line;
 }
 
 .hack-bounty-card__desc p {
-	margin: 0;
+	margin: 0 0 0.85em;
+}
+
+.hack-bounty-card__desc p:last-child,
+.hack-bounty-card__desc ul:last-child,
+.hack-bounty-card__desc ol:last-child {
+	margin-bottom: 0;
 }
 
 .hack-section__cta {
 	margin-top: 18px;
 }
 
+.hack-bounty-card__prize-label {
+	margin-top: auto;
+	border-top: 1px solid var(--hack-soft);
+	padding-top: 12px;
+	color: var(--hack-ink);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 10px;
+	font-weight: 900;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+}
+
 .hack-bounty-card__prizes {
 	display: grid;
 	gap: 8px;
-	margin-top: auto;
-	padding-top: 12px;
-	border-top: 1px solid var(--hack-soft);
+	margin-top: 0;
+	padding-top: 8px;
+	border-top: 0;
 }
 
-.hack-bounty-card__prizes > div {
+.hack-bounty-card__prize {
+	display: grid;
+	gap: 4px;
+}
+
+.hack-bounty-card__prize-head {
 	display: flex;
 	align-items: baseline;
 	justify-content: space-between;
@@ -8090,6 +8121,32 @@ body.btcpp-checkout-page {
 .hack-bounty-card__prizes strong {
 	flex: none;
 	font-size: 13px;
+}
+
+.hack-bounty-card__prize-desc,
+.hack-award-card__prize-desc {
+	color: #5b554d;
+	font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+	font-size: 13px;
+	font-style: italic;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+	text-transform: none;
+}
+
+.hack-bounty-card__prize-desc p,
+.hack-award-card__prize-desc p {
+	margin: 0.25em 0 0;
+}
+
+.hack-bounty-card__desc a,
+.hack-bounty-card__prize-desc a,
+.hack-card__desc a,
+.hack-award-card__prize-desc a {
+	color: var(--hack-accent);
+	font-weight: 700;
+	text-decoration: underline;
+	text-underline-offset: 0.15em;
 }
 
 .hack-judges {
@@ -8506,6 +8563,7 @@ outline-offset: 3px;
 .hack-card__desc {
 	display: -webkit-box;
 	overflow: hidden;
+	overflow-wrap: anywhere;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 3;
 	color: #555;
@@ -8938,6 +8996,53 @@ display: grid;
 
 .hack-award-card h3 {
 	font-size: 32px;
+}
+
+.hack-award-card__prize-label {
+	margin-top: auto;
+	border-top: 1px solid var(--hack-soft);
+	padding-top: 14px;
+	color: var(--hack-ink);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 10px;
+	font-weight: 900;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+}
+
+.hack-award-card .hack-card__links {
+	display: grid;
+	gap: 8px;
+	margin-top: 6px;
+	padding-top: 8px;
+	border-top: 0;
+}
+
+.hack-award-card__prize {
+	display: grid;
+	gap: 4px;
+}
+
+.hack-award-card .hack-card__desc {
+	display: block;
+	overflow: visible;
+	overflow-wrap: anywhere;
+	-webkit-line-clamp: unset;
+	-webkit-box-orient: initial;
+	white-space: pre-line;
+}
+
+.hack-award-card .hack-card__desc p,
+.hack-award-card .hack-card__desc ul,
+.hack-award-card .hack-card__desc ol {
+	margin: 0 0 0.85em;
+	overflow-wrap: anywhere;
+}
+
+.hack-award-card .hack-card__desc p:last-child,
+.hack-award-card .hack-card__desc ul:last-child,
+.hack-award-card .hack-card__desc ol:last-child {
+	margin-bottom: 0;
 }
 
 .hack-table-wrap {

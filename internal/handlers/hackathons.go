@@ -1005,12 +1005,12 @@ func (p *HackathonPage) BountyAwards() []*types.Award {
 	return bounties
 }
 
-func (p *HackathonPage) RankedPrizePoolValue() string {
-	sats := p.RankedPrizePoolSats()
+func (p *HackathonPage) PrizePoolValue() string {
+	sats := p.PrizePoolSats()
 	return strings.TrimSuffix(compactSatoshiLabel(sats), " satoshis")
 }
 
-func (p *HackathonPage) RankedPrizePoolSats() int64 {
+func (p *HackathonPage) PrizePoolSats() int64 {
 	if p == nil {
 		return 0
 	}
@@ -2523,12 +2523,13 @@ func loadConfHackathonPlaceRows(ctx *config.AppContext, competitionID string, pu
 			continue
 		}
 		row := &HackathonPlaceRow{
-			PlaceLabel:   hackathonPlaceLabel(rank),
-			PlaceName:    hackathonPlaceName(rank),
-			ProjectTitle: strings.TrimSpace(award.Title),
-			Amount:       hackathonPlacePrizeAmount(prizesByAward[award.ID]),
-			Detail:       hackathonPlaceDetail(award, prizesByAward[award.ID], false),
-			GrandPrize:   rank == 1,
+			PlaceLabel:      hackathonPlaceLabel(rank),
+			PlaceName:       hackathonPlaceName(rank),
+			ProjectTitle:    strings.TrimSpace(award.Title),
+			Amount:          hackathonPlacePrizeAmount(prizesByAward[award.ID]),
+			Detail:          hackathonPlaceDetail(award, prizesByAward[award.ID], false),
+			ExtraPrizeNames: nonCashPrizeNames(prizesByAward[award.ID]),
+			GrandPrize:      rank == 1,
 		}
 		if awardees := awardeesByAward[award.ID]; len(awardees) > 0 && awardees[0] != nil {
 			row.ProjectID = awardees[0].ProjectID
@@ -2599,7 +2600,7 @@ func hackathonPlaceName(rank int) string {
 }
 
 func hackathonPlaceDetail(award *types.Award, prizes []*types.Prize, awarded bool) string {
-	value := hackathonPlacePrizeValue(prizes)
+	value := hackathonPlacePrizeAmount(prizes)
 	title := ""
 	if award != nil {
 		title = strings.TrimSpace(award.Title)
@@ -2619,42 +2620,66 @@ func hackathonPlaceDetail(award *types.Award, prizes []*types.Prize, awarded boo
 	return ""
 }
 
-func hackathonPlacePrizeValue(prizes []*types.Prize) string {
-	if total := prizeValueSatsTotal(prizes); total > 0 {
+func hackathonPlacePrizeAmount(prizes []*types.Prize) string {
+	if total := cashPrizeValueSatsTotal(prizes); total > 0 {
 		return compactSatoshiLabel(total)
-	}
-	for _, prize := range prizes {
-		if prize == nil {
-			continue
-		}
-		if value := strings.TrimSpace(prize.ValueText); value != "" {
-			return value
-		}
-	}
-	for _, prize := range prizes {
-		if prize == nil {
-			continue
-		}
-		if title := strings.TrimSpace(prize.Title); title != "" {
-			return title
-		}
 	}
 	return ""
 }
 
-func hackathonPlacePrizeAmount(prizes []*types.Prize) string {
-	if total := prizeValueSatsTotal(prizes); total > 0 {
-		return compactSatoshiLabel(total)
-	}
-	return hackathonPlacePrizeValue(prizes)
-}
-
-func prizeValueSatsTotal(prizes []*types.Prize) int64 {
+func cashPrizeValueSatsTotal(prizes []*types.Prize) int64 {
 	var total int64
 	for _, prize := range prizes {
-		total += prizeValueSats(prize)
+		total += cashPrizeValueSats(prize)
 	}
 	return total
+}
+
+func cashPrizeValueSats(prize *types.Prize) int64 {
+	if prize == nil {
+		return 0
+	}
+	switch strings.TrimSpace(prize.PrizeType) {
+	case "", getters.PrizeTypeSats:
+		return prizeValueSats(prize)
+	default:
+		return 0
+	}
+}
+
+func nonCashPrizeNames(prizes []*types.Prize) []string {
+	names := make([]string, 0, len(prizes))
+	for _, prize := range prizes {
+		if prize == nil {
+			continue
+		}
+		if prize.PrizeType == "" || strings.TrimSpace(prize.PrizeType) == getters.PrizeTypeSats {
+			continue
+		}
+		name := strings.TrimSpace(prize.Title)
+		if name == "" {
+			name = publicNonCashPrizeTypeLabel(prize.PrizeType)
+		}
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+func publicNonCashPrizeTypeLabel(prizeType string) string {
+	switch strings.TrimSpace(prizeType) {
+	case getters.PrizeTypeInKind:
+		return "In-kind prize"
+	case getters.PrizeTypeTickets:
+		return "Tickets"
+	case getters.PrizeTypePooled:
+		return "Prize pool"
+	case getters.PrizeTypeTrophy:
+		return "Trophy"
+	default:
+		return strings.TrimSpace(prizeType)
+	}
 }
 
 func compactSatoshiLabel(sats int64) string {
