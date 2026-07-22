@@ -40,6 +40,81 @@ func TestHackathonPageCompetitionImageUsesLoadedConference(t *testing.T) {
 	}
 }
 
+func TestHackathonPrimaryProjectActionOpenSubmissions(t *testing.T) {
+	page := &HackathonPage{
+		Competition: &types.HackathonCompetition{
+			Visibility:        getters.CompetitionVisibilityPublic,
+			LifecycleOverride: getters.CompetitionLifecycleOpen,
+		},
+		Conf: &types.Conf{Tag: "toronto"},
+	}
+	action := page.PrimaryProjectAction()
+	if action.Label != "Create project →" || action.URL != "/toronto/hackathon/projects/new" || action.Disabled {
+		t.Fatalf("PrimaryProjectAction() = %+v, want create-project link for signed-out users", action)
+	}
+
+	page.Viewer = &auth.Identity{Email: "builder@example.com"}
+	action = page.PrimaryProjectAction()
+	if action.Label != "Create project →" || action.URL != "/toronto/hackathon/projects/new" || action.Disabled {
+		t.Fatalf("PrimaryProjectAction() signed in without profile = %+v, want create-project link", action)
+	}
+
+	page.Viewer = &auth.Identity{Email: "builder@example.com", Speaker: &types.Speaker{ID: "person-1"}}
+	action = page.PrimaryProjectAction()
+	if action.Label != "Buy ticket →" || action.URL != "/toronto#tickets" || action.Disabled {
+		t.Fatalf("PrimaryProjectAction() signed in without ticket = %+v, want buy-ticket link", action)
+	}
+
+	page.HasConferenceTicket = true
+	action = page.PrimaryProjectAction()
+	if action.Label != "Create project →" || action.URL != "/toronto/hackathon/projects/new" || action.Disabled {
+		t.Fatalf("PrimaryProjectAction() signed in with ticket = %+v, want create-project link", action)
+	}
+}
+
+func TestHackathonPrimaryProjectActionExistingProject(t *testing.T) {
+	page := &HackathonPage{
+		Competition: &types.HackathonCompetition{
+			Visibility:        getters.CompetitionVisibilityPublic,
+			LifecycleOverride: getters.CompetitionLifecycleOpen,
+		},
+		Conf:          &types.Conf{Tag: "toronto"},
+		Projects:      []*types.HackathonProject{{ID: "project-1"}},
+		OwnedProjects: map[string]bool{"project-1": true},
+		Viewer:        &auth.Identity{Email: "builder@example.com", Speaker: &types.Speaker{ID: "person-1"}},
+	}
+	action := page.PrimaryProjectAction()
+	if action.Label != "Edit project →" || action.URL != "/toronto/hackathon/projects/project-1/edit" || action.Disabled {
+		t.Fatalf("PrimaryProjectAction() = %+v, want edit-project link", action)
+	}
+}
+
+func TestExistingProjectFromMembers(t *testing.T) {
+	projects := []*types.HackathonProject{
+		{ID: "project-1", Title: "First"},
+		{ID: "project-2", Title: "Second"},
+	}
+	members := map[string][]*types.ProjectMember{
+		"project-2": {{ProjectID: "project-2", PersonID: "person-1"}},
+	}
+
+	got := existingProjectFromMembers(projects, members, "person-1")
+	if got == nil || got.ID != "project-2" {
+		t.Fatalf("existingProjectFromMembers() = %+v, want project-2", got)
+	}
+	if got := existingProjectFromMembers(projects, members, "missing-person"); got != nil {
+		t.Fatalf("existingProjectFromMembers() missing person = %+v, want nil", got)
+	}
+}
+
+func TestProjectEditURLForConf(t *testing.T) {
+	got := projectEditURLForConf(&types.Conf{Tag: "toronto"}, &types.HackathonProject{ID: "project/id"})
+	want := "/toronto/hackathon/projects/project%2Fid/edit"
+	if got != want {
+		t.Fatalf("projectEditURLForConf() = %q, want %q", got, want)
+	}
+}
+
 func TestHackathonPageJudgeProfileURL(t *testing.T) {
 	judge := &types.CompetitionJudge{PersonID: "judge-id"}
 	page := &HackathonPage{JudgeProfileURLs: map[string]string{"judge-id": "/whois/alice"}}
@@ -474,11 +549,12 @@ func TestHackathonOverviewSelections(t *testing.T) {
 	winnerAward := &types.Award{ID: "winner-award", Title: "First place"}
 	bountyAward := &types.Award{ID: "bounty", Title: "Best Lightning project"}
 	page := &HackathonPage{
+		Competition: &types.HackathonCompetition{PublicGalleryEnabled: true},
 		Projects: []*types.HackathonProject{
-			{ID: "regular", Title: "Regular"},
-			{ID: "winner", Title: "Winner"},
-			{ID: "third", Title: "Third"},
-			{ID: "fourth", Title: "Fourth"},
+			{ID: "regular", Title: "Regular", Status: getters.ProjectStatusSubmitted},
+			{ID: "winner", Title: "Winner", Status: getters.ProjectStatusSubmitted},
+			{ID: "third", Title: "Third", Status: getters.ProjectStatusSubmitted},
+			{ID: "fourth", Title: "Fourth", Status: getters.ProjectStatusSubmitted},
 		},
 		Awards: []*types.Award{winnerAward, bountyAward, {ID: "empty", Title: "No prize yet"}},
 		PrizesByAward: map[string][]*types.Prize{
@@ -531,13 +607,13 @@ func TestPublishedProjectGalleryOrdersFinalistAwardsThenPrizeValue(t *testing.T)
 	finalLarge := &types.Award{ID: "final-large", Title: "Final Large", FinalistsOnly: true}
 	generalLarge := &types.Award{ID: "general-large", Title: "General Large"}
 	projects := []*types.HackathonProject{
-		{ID: "unawarded", Title: "Unawarded"},
-		{ID: "general", Title: "General Winner"},
-		{ID: "final-small-project", Title: "Final Small Winner"},
-		{ID: "final-large-project", Title: "Final Large Winner"},
+		{ID: "unawarded", Title: "Unawarded", Status: getters.ProjectStatusSubmitted},
+		{ID: "general", Title: "General Winner", Status: getters.ProjectStatusSubmitted},
+		{ID: "final-small-project", Title: "Final Small Winner", Status: getters.ProjectStatusSubmitted},
+		{ID: "final-large-project", Title: "Final Large Winner", Status: getters.ProjectStatusSubmitted},
 	}
 	page := &HackathonPage{
-		Competition: &types.HackathonCompetition{ResultsFinalizedAt: &finalizedAt},
+		Competition: &types.HackathonCompetition{PublicGalleryEnabled: true, ResultsFinalizedAt: &finalizedAt},
 		Projects:    projects,
 		Awards:      []*types.Award{generalLarge, finalSmall, finalLarge},
 		PrizesByAward: map[string][]*types.Prize{
@@ -566,6 +642,27 @@ func TestPublishedProjectGalleryOrdersFinalistAwardsThenPrizeValue(t *testing.T)
 	winningAwards := page.ProjectWinningAwards(mixedProject)
 	if len(winningAwards) != 2 || winningAwards[0].ID != "final-small" || winningAwards[1].ID != "general-large" {
 		t.Fatalf("ProjectWinningAwards() = %+v, want finalist-only award first", winningAwards)
+	}
+}
+
+func TestGalleryProjectsRequirePublicGallery(t *testing.T) {
+	page := &HackathonPage{
+		Competition: &types.HackathonCompetition{},
+		Projects: []*types.HackathonProject{
+			{ID: "submitted", Status: getters.ProjectStatusSubmitted},
+		},
+	}
+	if got := page.GalleryProjects(); len(got) != 0 {
+		t.Fatalf("GalleryProjects() with closed gallery = %+v, want none", got)
+	}
+	page.Competition.PublicGalleryEnabled = true
+	page.Projects = append(page.Projects,
+		&types.HackathonProject{ID: "created", Status: getters.ProjectStatusCreated},
+		&types.HackathonProject{ID: "hidden", Status: getters.ProjectStatusHidden},
+	)
+	got := page.GalleryProjects()
+	if len(got) != 1 || got[0].ID != "submitted" {
+		t.Fatalf("GalleryProjects() = %+v, want only submitted project", got)
 	}
 }
 
