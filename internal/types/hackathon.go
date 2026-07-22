@@ -113,17 +113,16 @@ type ProjectInvite struct {
 }
 
 type CompetitionJudge struct {
-	CompetitionID       string
-	PersonID            string
-	Name                string
-	Email               string
-	Photo               string
-	Company             string
-	PublicLabelOverride string
-	JudgeType           string
-	JudgeTypes          []string
-	DisplayOrder        int
-	CreatedAt           time.Time
+	CompetitionID string
+	PersonID      string
+	Name          string
+	Email         string
+	Photo         string
+	Company       string
+	JudgeType     string
+	JudgeTypes    []string
+	DisplayOrder  int
+	CreatedAt     time.Time
 }
 
 // CompetitionJudgeAssignment is the small, conference-scoped view of a

@@ -284,10 +284,6 @@ func SetCompetitionJudgeOrder(ctx *config.AppContext, competitionID string, pers
 	return setCompetitionJudgeOrderPostgres(ctx, competitionID, personIDs)
 }
 
-func SetCompetitionJudgePublicLabelOverrides(ctx *config.AppContext, competitionID string, overridesByPersonID map[string]string) error {
-	return setCompetitionJudgePublicLabelOverridesPostgres(ctx, competitionID, overridesByPersonID)
-}
-
 func RemoveCompetitionJudge(ctx *config.AppContext, competitionID, personID, judgeType string) error {
 	return removeCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
 }
