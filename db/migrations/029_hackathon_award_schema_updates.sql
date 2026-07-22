@@ -1,7 +1,7 @@
 BEGIN;
 
 ALTER TABLE awards
-  ADD COLUMN award_type text NOT NULL DEFAULT 'normal',
+  ADD COLUMN award_type text NOT NULL DEFAULT 'ranked',
   ADD COLUMN judging_instructions text NOT NULL DEFAULT '',
   ADD COLUMN award_rank integer;
 
@@ -15,7 +15,7 @@ ALTER TABLE awards
 
 ALTER TABLE awards
   DROP CONSTRAINT IF EXISTS awards_max_awardees_check,
-  ADD CONSTRAINT awards_award_type_check CHECK (award_type IN ('normal', 'challenge')),
+  ADD CONSTRAINT awards_award_type_check CHECK (award_type IN ('ranked', 'sponsor')),
   ADD CONSTRAINT awards_award_rank_check CHECK (award_rank IS NULL OR award_rank > 0),
   ADD CONSTRAINT awards_max_awardees_check CHECK (max_awardees > 0);
 
@@ -44,8 +44,5 @@ CREATE INDEX award_votes_project_idx ON award_votes (project_id);
 CREATE TRIGGER award_votes_set_updated_at
 BEFORE UPDATE ON award_votes
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-
-ALTER TABLE competitions
-  DROP COLUMN IF EXISTS judging_mode;
 
 COMMIT;

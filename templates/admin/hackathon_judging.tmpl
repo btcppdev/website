@@ -29,8 +29,24 @@
     <div class="max-w-6xl space-y-6">
       <section class="overflow-hidden rounded-lg bg-white shadow">
         <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
-          <h2 class="text-sm font-semibold text-gray-900">Judging events</h2>
-          <p class="mt-1 text-sm text-gray-600">Events come from the timeline. Set rank counts and open or close judging rounds manually.</p>
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-gray-900">Judging events</h2>
+              <p class="mt-1 text-sm text-gray-600">Events come from the timeline. Set rank counts and control how judging rounds open.</p>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <form method="POST" action="{{ .JudgingURL .Competition }}/mode">
+                <label for="JudgingMode" class="block text-sm font-medium text-gray-700">
+                  Judging progression
+                  <select id="JudgingMode" name="JudgingMode" required onchange="this.form.submit()"
+                          class="mt-1 block w-full min-w-64 rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+                    <option value="manual" {{ if .JudgingModeIsManual }}selected{{ end }}>Manual admin progression</option>
+                    <option value="automatic" {{ if .JudgingModeIsAutomatic }}selected{{ end }}>Automatic by schedule</option>
+                  </select>
+                </label>
+              </form>
+            </div>
+          </div>
         </div>
         <div class="px-4 py-5 sm:p-6">
           {{ if .JudgeEvents }}
@@ -39,21 +55,12 @@
             {{ range .JudgeEvents }}
             <div class="flex w-80 flex-none flex-col rounded-md border border-gray-200 bg-gray-50 p-3">
               <div class="flex-1">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <div class="text-sm font-semibold text-gray-900">{{ .Name }}</div>
-                    <div class="mt-1 text-xs text-gray-500">{{ $.JudgeTypeLabel .PlaybookType }} · {{ $.JudgeEventTimeOnlyRange . }}{{ if .StartingProjectNumber }} · starts at #{{ .StartingProjectNumber }}{{ end }}</div>
-                    <div class="mt-2 flex flex-wrap gap-2">
-                      <span class="rounded-full {{ if $.JudgeEventAcceptsScores . }}bg-green-50 text-green-700{{ else }}bg-gray-200 text-gray-700{{ end }} px-2 py-0.5 text-xs font-medium">{{ $.JudgeEventStateLabel . }}</span>
-                    </div>
+                <div>
+                  <div class="text-sm font-semibold text-gray-900">{{ .Name }}</div>
+                  <div class="mt-1 text-xs text-gray-500">{{ $.JudgeTypeLabel .PlaybookType }} · {{ $.JudgeEventTimeOnlyRange . }}{{ if .StartingProjectNumber }} · starts at #{{ .StartingProjectNumber }}{{ end }}</div>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <span class="rounded-full {{ if $.JudgeEventAcceptsScores . }}bg-green-50 text-green-700{{ else }}bg-gray-200 text-gray-700{{ end }} px-2 py-0.5 text-xs font-medium">{{ $.JudgeEventEffectiveStateLabel . }}</span>
                   </div>
-                  {{ if ne .State "open" }}
-                  <form method="POST" action="{{ $.JudgingURL $.Competition }}/events/state" class="flex-none">
-                    <input type="hidden" name="JudgeEventID" value="{{ .ID }}">
-                    <input type="hidden" name="State" value="open">
-                    <button type="submit" class="{{ if eq .State "closed" }}btcpp-admin-danger-button {{ end }}rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ if eq .State "closed" }}Reopen{{ else }}Open{{ end }}</button>
-                  </form>
-                  {{ end }}
                 </div>
               </div>
               <div class="mt-4 flex flex-wrap items-end gap-2 border-t border-gray-200 pt-3">
@@ -66,13 +73,21 @@
                   </label>
                   <button type="submit" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Save ranks</button>
                 </form>
-                {{ if eq .State "open" }}
+                {{ if $.JudgingModeIsManual }}
                 <div class="flex flex-none flex-wrap gap-2">
+                  {{ if eq .State "open" }}
                   <form method="POST" action="{{ $.JudgingURL $.Competition }}/events/state">
                     <input type="hidden" name="JudgeEventID" value="{{ .ID }}">
                     <input type="hidden" name="State" value="closed">
                     <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Close scoring</button>
                   </form>
+                  {{ else }}
+                  <form method="POST" action="{{ $.JudgingURL $.Competition }}/events/state">
+                    <input type="hidden" name="JudgeEventID" value="{{ .ID }}">
+                    <input type="hidden" name="State" value="open">
+                    <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ if eq .State "closed" }}Reopen{{ else }}Open{{ end }}</button>
+                  </form>
+                  {{ end }}
                 </div>
                 {{ end }}
               </div>
@@ -136,7 +151,7 @@
           <form method="POST" action="{{ .JudgingURL .Competition }}/judges" class="mb-6 grid gap-2">
             <div>
               <fieldset>
-                <legend class="block text-lg font-semibold text-gray-900">Add judge</legend>
+                <legend class="block text-sm font-medium text-gray-700">Add judge</legend>
                 <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-900">
                   <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="expo" checked> Expo judge</label>
                   <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="finals"> Finals judge</label>

@@ -1282,6 +1282,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/scores/remove-ballot", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminRemoveJudgeBallot(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/mode", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdateJudgingMode(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminCreateJudgeEvent(w, r, app)
 	}).Methods("POST")

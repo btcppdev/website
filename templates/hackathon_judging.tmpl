@@ -11,7 +11,7 @@
       <span class="hack-ticker__live">▶ Judging</span>
       <span>{{ .Competition.Title }}</span>
       <span>•</span>
-      <span>Judging</span>
+      <span>{{ .JudgingModeLabel }} judging</span>
     </div>
 
     <header class="hack-header">
@@ -31,7 +31,7 @@
           <div class="hack-label">§ Judging</div>
           <h1 style="margin:0;font-size:clamp(48px,7vw,88px);font-weight:700;line-height:.92;">Rank the <span class="hack-serif">projects.</span></h1>
         </div>
-        <div class="hack-section__deck">Submit scores for the current judging round. Admins open and advance rounds from the backend.</div>
+        <div class="hack-section__deck">Submit scores for the current judging round. Admins open and advance rounds from the backend unless automatic judging is enabled.</div>
       </div>
     </section>
 
@@ -136,7 +136,7 @@
         <div class="hack-current-round__label">Current judging round</div>
         <div class="hack-current-round__body">
           <div>
-            <div class="hack-label">Judging</div>
+            <div class="hack-label">{{ .JudgingModeLabel }} judging</div>
             <h2>Judging is not <span class="hack-serif">open.</span></h2>
           </div>
           <div class="hack-current-round__meta">

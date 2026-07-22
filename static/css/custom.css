@@ -2657,16 +2657,6 @@ body.btcpp-admin-page {
 	background: #ffd8d2;
 }
 
-.btcpp-admin-page .btcpp-admin-danger-button {
-	border-color: #991b1b;
-	background: #dc2626;
-	color: #fff;
-}
-
-.btcpp-admin-page .btcpp-admin-danger-button:hover {
-	background: #b91c1c;
-}
-
 .btcpp-admin-page table {
 	width: 100%;
 	border-collapse: collapse;

@@ -194,13 +194,15 @@ func TestEventBlockSeparatesHackathonCoordinatorFromJudge(t *testing.T) {
 func TestCoordinatorRoleDoesNotGrantScoringAccess(t *testing.T) {
 	event := &types.JudgeEvent{PlaybookType: "expo", State: "open"}
 	coordinator := &HackathonPage{
-		JudgeTypes: map[string]bool{"coordinator": true},
+		Competition: &types.HackathonCompetition{JudgingMode: "manual"},
+		JudgeTypes:  map[string]bool{"coordinator": true},
 	}
 	if coordinator.CanScoreJudgeEvent(event) {
 		t.Fatal("coordinator-only assignment grants expo scoring access")
 	}
 	expoJudge := &HackathonPage{
-		JudgeTypes: map[string]bool{"expo": true},
+		Competition: &types.HackathonCompetition{JudgingMode: "manual"},
+		JudgeTypes:  map[string]bool{"expo": true},
 	}
 	if !expoJudge.CanScoreJudgeEvent(event) {
 		t.Fatal("expo assignment does not grant expo scoring access")
@@ -209,20 +211,26 @@ func TestCoordinatorRoleDoesNotGrantScoringAccess(t *testing.T) {
 
 func TestProjectEditingPausedOnlyDuringActiveJudging(t *testing.T) {
 	now := time.Date(2026, time.July, 22, 15, 0, 0, 0, time.UTC)
-	if projectEditingPausedForJudging([]*types.JudgeEvent{{State: getters.JudgeEventStatePending}}) {
-		t.Fatal("pending judging event paused project editing")
+	manual := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeManual}
+	if projectEditingPausedForJudging(manual, []*types.JudgeEvent{{State: getters.JudgeEventStatePending}}, now) {
+		t.Fatal("pending manual judging event paused project editing")
 	}
-	if !projectEditingPausedForJudging([]*types.JudgeEvent{{State: getters.JudgeEventStateOpen}}) {
-		t.Fatal("open judging event did not pause project editing")
+	if !projectEditingPausedForJudging(manual, []*types.JudgeEvent{{State: getters.JudgeEventStateOpen}}, now) {
+		t.Fatal("open manual judging event did not pause project editing")
 	}
-	if projectEditingPausedForJudging([]*types.JudgeEvent{{State: getters.JudgeEventStateClosed}}) {
-		t.Fatal("closed judging event paused project editing")
+	if projectEditingPausedForJudging(manual, []*types.JudgeEvent{{State: getters.JudgeEventStateClosed}}, now) {
+		t.Fatal("closed manual judging event paused project editing")
 	}
 
+	automatic := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeAutomatic}
 	starts := now.Add(-time.Hour)
 	ends := now.Add(time.Hour)
-	if projectEditingPausedForJudging([]*types.JudgeEvent{{StartsAt: &starts, EndsAt: &ends}}) {
-		t.Fatal("scheduled judging window paused project editing without open state")
+	if !projectEditingPausedForJudging(automatic, []*types.JudgeEvent{{StartsAt: &starts, EndsAt: &ends}}, now) {
+		t.Fatal("active automatic judging window did not pause project editing")
+	}
+	ended := now.Add(-time.Minute)
+	if projectEditingPausedForJudging(automatic, []*types.JudgeEvent{{StartsAt: &starts, EndsAt: &ended}}, now) {
+		t.Fatal("ended automatic judging window paused project editing")
 	}
 }
 

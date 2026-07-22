@@ -11,6 +11,7 @@ type HackathonCompetition struct {
 	DescriptionFormat     string
 	Visibility            string
 	LifecycleOverride     string
+	JudgingMode           string
 	PublicGalleryEnabled  bool
 	AllowLateSubmissions  bool
 	PublicTablesEnabled   bool

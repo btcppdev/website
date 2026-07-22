@@ -126,6 +126,10 @@ func UpdateCompetitionVisibility(ctx *config.AppContext, competitionID, visibili
 	return updateCompetitionVisibilityPostgres(ctx, competitionID, visibility)
 }
 
+func UpdateCompetitionJudgingMode(ctx *config.AppContext, competitionID, mode string) error {
+	return updateCompetitionJudgingModePostgres(ctx, competitionID, mode)
+}
+
 func FinalizeCompetitionResults(ctx *config.AppContext, competitionID, personID string) error {
 	return finalizeCompetitionResultsPostgres(ctx, competitionID, personID)
 }
