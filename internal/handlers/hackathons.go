@@ -115,6 +115,51 @@ func (p *HackathonPage) ConferenceURL() string {
 	return "/" + url.PathEscape(p.Conf.Tag)
 }
 
+func (p *HackathonPage) HackathonEditionName() string {
+	if p == nil || p.Conf == nil {
+		return "conference"
+	}
+	edition := strings.TrimSpace(p.Conf.ArchiveEdition())
+	if edition == "" {
+		edition = strings.TrimSpace(p.Conf.ArchiveTitle())
+	}
+	if edition == "" {
+		edition = p.ConferenceLabel()
+	}
+	edition = strings.TrimSpace(edition)
+	for _, suffix := range []string{" edition", " Edition", " EDITION"} {
+		if strings.HasSuffix(edition, suffix) {
+			edition = strings.TrimSpace(strings.TrimSuffix(edition, suffix))
+			break
+		}
+	}
+	if edition == "" {
+		return "conference"
+	}
+	return edition
+}
+
+func (p *HackathonPage) HackathonEditionTitle() string {
+	edition := p.HackathonEditionName()
+	if edition == "" {
+		return "Conference"
+	}
+	return strings.ToUpper(edition[:1]) + edition[1:]
+}
+
+func (p *HackathonPage) HackathonLocation() string {
+	if p == nil || p.Conf == nil {
+		return "the conference"
+	}
+	if location := strings.TrimSpace(p.Conf.Location); location != "" {
+		return location
+	}
+	if title := strings.TrimSpace(p.Conf.ArchiveTitle()); title != "" {
+		return title
+	}
+	return "the conference"
+}
+
 func (p *HackathonPage) CompetitionConferenceLabel(competition *types.HackathonCompetition) string {
 	conf := p.competitionConf(competition)
 	if conf == nil {
