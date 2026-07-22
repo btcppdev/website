@@ -1,6 +1,9 @@
 ALTER TABLE competition_judges
 ADD COLUMN IF NOT EXISTS display_order integer NOT NULL DEFAULT 0;
 
+ALTER TABLE competition_judges
+ADD COLUMN IF NOT EXISTS public_label_override text NOT NULL DEFAULT '';
+
 WITH judge_people AS (
 	SELECT competition_id, person_id, min(created_at) AS first_created
 	FROM competition_judges
