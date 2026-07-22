@@ -120,6 +120,7 @@ type CompetitionJudge struct {
 	Photo         string
 	JudgeType     string
 	JudgeTypes    []string
+	DisplayOrder  int
 	CreatedAt     time.Time
 }
 

@@ -1605,9 +1605,27 @@ func acceptCompetitionJudgeInvitePostgres(ctx *config.AppContext, token, personI
 		}
 	}
 	if _, err := tx.Exec(dbctx, `
-		INSERT INTO competition_judges (competition_id, person_id, judge_type)
-		SELECT $1::uuid, $2::uuid, judge_type
-		FROM unnest($3::text[]) AS roles(judge_type)
+		WITH judge_order AS (
+			SELECT COALESCE(
+				(
+					SELECT NULLIF(min(display_order), 0)
+					FROM competition_judges
+					WHERE competition_id = $1::uuid AND person_id = $2::uuid
+				),
+				(
+					SELECT COALESCE(max(display_order), 0) + 1
+					FROM competition_judges
+					WHERE competition_id = $1::uuid
+				)
+			) AS display_order
+		),
+		roles AS (
+			SELECT unnest($3::text[]) AS judge_type
+		)
+		INSERT INTO competition_judges (competition_id, person_id, judge_type, display_order)
+		SELECT $1::uuid, $2::uuid, roles.judge_type, judge_order.display_order
+		FROM roles
+		CROSS JOIN judge_order
 		ON CONFLICT (competition_id, person_id, judge_type) DO NOTHING
 	`, invite.CompetitionID, personID, invite.JudgeTypes); err != nil {
 		return nil, fmt.Errorf("accept judge invite %s add judge: %w", invite.ID, err)
@@ -1858,8 +1876,23 @@ func addCompetitionJudgePostgres(ctx *config.AppContext, competitionID, personID
 		return fmt.Errorf("judge type must be expo, finals, or coordinator")
 	}
 	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
-		INSERT INTO competition_judges (competition_id, person_id, judge_type)
-		VALUES ($1::uuid, $2::uuid, $3)
+		WITH judge_order AS (
+			SELECT COALESCE(
+				(
+					SELECT NULLIF(min(display_order), 0)
+					FROM competition_judges
+					WHERE competition_id = $1::uuid AND person_id = $2::uuid
+				),
+				(
+					SELECT COALESCE(max(display_order), 0) + 1
+					FROM competition_judges
+					WHERE competition_id = $1::uuid
+				)
+			) AS display_order
+		)
+		INSERT INTO competition_judges (competition_id, person_id, judge_type, display_order)
+		SELECT $1::uuid, $2::uuid, $3, judge_order.display_order
+		FROM judge_order
 		ON CONFLICT (competition_id, person_id, judge_type) DO NOTHING
 	`, competitionID, personID, judgeType)
 	if err != nil {
@@ -1917,6 +1950,10 @@ func setCompetitionJudgeRolesPostgres(ctx *config.AppContext, competitionID stri
 	}
 	defer tx.Rollback(dbctx)
 	for personID, judgeTypes := range normalizedByPersonID {
+		displayOrder, err := competitionJudgeDisplayOrderTx(dbctx, tx, competitionID, personID)
+		if err != nil {
+			return fmt.Errorf("load competition judge order %s/%s: %w", competitionID, personID, err)
+		}
 		if _, err := tx.Exec(dbctx, `
 			DELETE FROM competition_judges
 			WHERE competition_id = $1::uuid AND person_id = $2::uuid
@@ -1925,15 +1962,117 @@ func setCompetitionJudgeRolesPostgres(ctx *config.AppContext, competitionID stri
 		}
 		for _, judgeType := range judgeTypes {
 			if _, err := tx.Exec(dbctx, `
-				INSERT INTO competition_judges (competition_id, person_id, judge_type)
-				VALUES ($1::uuid, $2::uuid, $3)
-			`, competitionID, personID, judgeType); err != nil {
+				INSERT INTO competition_judges (competition_id, person_id, judge_type, display_order)
+				VALUES ($1::uuid, $2::uuid, $3, $4)
+			`, competitionID, personID, judgeType, displayOrder); err != nil {
 				return fmt.Errorf("set competition judge type %s/%s/%s: %w", competitionID, personID, judgeType, err)
 			}
 		}
 	}
 	if err := tx.Commit(dbctx); err != nil {
 		return fmt.Errorf("commit competition judge roles %s: %w", competitionID, err)
+	}
+	return nil
+}
+
+func competitionJudgeDisplayOrderTx(dbctx context.Context, tx pgx.Tx, competitionID, personID string) (int, error) {
+	var displayOrder int
+	if err := tx.QueryRow(dbctx, `
+		SELECT COALESCE(
+			(
+				SELECT NULLIF(min(display_order), 0)
+				FROM competition_judges
+				WHERE competition_id = $1::uuid AND person_id = $2::uuid
+			),
+			(
+				SELECT COALESCE(max(display_order), 0) + 1
+				FROM competition_judges
+				WHERE competition_id = $1::uuid
+			)
+		)
+	`, competitionID, personID).Scan(&displayOrder); err != nil {
+		return 0, err
+	}
+	return displayOrder, nil
+}
+
+func setCompetitionJudgeOrderPostgres(ctx *config.AppContext, competitionID string, personIDs []string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	normalized := make([]string, 0, len(personIDs))
+	seen := make(map[string]bool, len(personIDs))
+	for _, personID := range personIDs {
+		personID = strings.TrimSpace(personID)
+		if personID == "" {
+			continue
+		}
+		if seen[personID] {
+			return fmt.Errorf("judge order contains a duplicate judge")
+		}
+		seen[personID] = true
+		normalized = append(normalized, personID)
+	}
+	if len(normalized) == 0 {
+		return fmt.Errorf("judge order is required")
+	}
+
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin set competition judge order: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+
+	rows, err := tx.Query(dbctx, `
+		SELECT DISTINCT person_id::text
+		FROM competition_judges
+		WHERE competition_id = $1::uuid
+	`, competitionID)
+	if err != nil {
+		return fmt.Errorf("load current competition judges %s: %w", competitionID, err)
+	}
+	current := make(map[string]bool)
+	for rows.Next() {
+		var personID string
+		if err := rows.Scan(&personID); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan current competition judge %s: %w", competitionID, err)
+		}
+		current[personID] = true
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate current competition judges %s: %w", competitionID, err)
+	}
+	rows.Close()
+	if len(current) != len(normalized) {
+		return fmt.Errorf("the judge list changed. Refresh the page and try again")
+	}
+	for _, personID := range normalized {
+		if !current[personID] {
+			return fmt.Errorf("the judge list changed. Refresh the page and try again")
+		}
+	}
+	for index, personID := range normalized {
+		commandTag, err := tx.Exec(dbctx, `
+			UPDATE competition_judges
+			SET display_order = $3
+			WHERE competition_id = $1::uuid AND person_id = $2::uuid
+		`, competitionID, personID, index+1)
+		if err != nil {
+			return fmt.Errorf("set competition judge order %s/%s: %w", competitionID, personID, err)
+		}
+		if commandTag.RowsAffected() == 0 {
+			return fmt.Errorf("competition judge %s/%s not found", competitionID, personID)
+		}
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit competition judge order %s: %w", competitionID, err)
 	}
 	return nil
 }
@@ -1981,13 +2120,15 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 			coalesce(people.norm_photo_path, ''),
 			array_agg(competition_judges.judge_type ORDER BY
 				CASE competition_judges.judge_type WHEN 'expo' THEN 1 WHEN 'finals' THEN 2 ELSE 3 END),
+			min(competition_judges.display_order),
 			min(competition_judges.created_at)
 		FROM competition_judges
 		LEFT JOIN people ON people.id = competition_judges.person_id
 		WHERE competition_judges.competition_id::text = $1
 		GROUP BY competition_judges.competition_id, competition_judges.person_id,
 			people.id, people.name, people.email, people.norm_photo_path
-		ORDER BY lower(people.name), people.id
+		ORDER BY CASE WHEN min(competition_judges.display_order) > 0 THEN 0 ELSE 1 END,
+			min(competition_judges.display_order), lower(people.name), people.id
 	`, competitionID)
 	if err != nil {
 		return nil, fmt.Errorf("query competition judges %s: %w", competitionID, err)
@@ -1996,7 +2137,7 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 	var out []*types.CompetitionJudge
 	for rows.Next() {
 		var judge types.CompetitionJudge
-		if err := rows.Scan(&judge.CompetitionID, &judge.PersonID, &judge.Name, &judge.Email, &judge.Photo, &judge.JudgeTypes, &judge.CreatedAt); err != nil {
+		if err := rows.Scan(&judge.CompetitionID, &judge.PersonID, &judge.Name, &judge.Email, &judge.Photo, &judge.JudgeTypes, &judge.DisplayOrder, &judge.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan competition judge %s: %w", competitionID, err)
 		}
 		if len(judge.JudgeTypes) > 0 {

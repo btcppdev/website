@@ -2679,6 +2679,7 @@ func HackathonAdminUpdateJudgeRoles(w http.ResponseWriter, r *http.Request, ctx 
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
 		return
 	}
+	personIDs := personIDsFromForm(r, "JudgePersonID")
 	rolesByPersonID, err := judgeRolesFromForm(r)
 	if err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
@@ -2705,7 +2706,48 @@ func HackathonAdminUpdateJudgeRoles(w http.ResponseWriter, r *http.Request, ctx 
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to save judge roles. Please try again."), http.StatusSeeOther)
 		return
 	}
+	if err := getters.SetCompetitionJudgeOrder(ctx, competitionID, personIDs); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/judges/roles order: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to save judge order. Please try again."), http.StatusSeeOther)
+		return
+	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge roles saved"), http.StatusSeeOther)
+}
+
+func HackathonAdminUpdateJudgeOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := hackathonAdminRequestURL(r, competitionID, "/judging")
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		respondJudgeOrderError(w, r, dest, "Bad form", http.StatusBadRequest)
+		return
+	}
+	personIDs := personIDsFromForm(r, "JudgePersonID")
+	if err := getters.SetCompetitionJudgeOrder(ctx, competitionID, personIDs); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/judges/order: %s", competitionID, err)
+		respondJudgeOrderError(w, r, dest, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if isFetchRequest(r) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge order saved"), http.StatusSeeOther)
+}
+
+func respondJudgeOrderError(w http.ResponseWriter, r *http.Request, dest, message string, status int) {
+	if isFetchRequest(r) {
+		http.Error(w, message, status)
+		return
+	}
+	http.Redirect(w, r, dest+"?error="+url.QueryEscape(message), http.StatusSeeOther)
+}
+
+func isFetchRequest(r *http.Request) bool {
+	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Requested-With")), "fetch")
 }
 
 func HackathonAdminRemoveJudge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
