@@ -118,6 +118,7 @@ type CompetitionJudge struct {
 	Name          string
 	Email         string
 	Photo         string
+	Company       string
 	JudgeType     string
 	JudgeTypes    []string
 	DisplayOrder  int

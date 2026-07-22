@@ -855,6 +855,11 @@ func (p *HackathonPage) JudgeRoleTypes(judge *types.CompetitionJudge) []string {
 }
 
 func (p *HackathonPage) PublicJudgeRoleLabel(judge *types.CompetitionJudge) string {
+	if judge != nil {
+		if company := strings.TrimSpace(judge.Company); company != "" {
+			return company
+		}
+	}
 	var isJudge, isCoordinator bool
 	for _, judgeType := range p.JudgeRoleTypes(judge) {
 		switch judgeType {
