@@ -60,7 +60,7 @@
     <section data-hackathon-tab-panel="overview" class="hack-panel" id="overview">
       <div class="hack-stat-grid">
         <div class="hack-stat">
-          <div class="hack-stat__value">{{ .PrizePoolValue }}</div>
+          <div class="hack-stat__value">{{ .RankedPrizePoolValue }}</div>
           <div class="hack-stat__label">Prize Pool (satoshis)</div>
         </div>
         <div class="hack-stat">
@@ -105,10 +105,7 @@
             <div class="hack-prize-card__place">★ {{ .PlaceName }} place{{ if .GrandPrize }} · grand prize{{ end }}</div>
             <div>
               <div class="hack-prize-card__amount">{{ if .Amount }}{{ .Amount }}{{ else }}TBA{{ end }}</div>
-              <div class="hack-prize-card__title">
-                <span>{{ .ProjectTitle }}</span>
-                {{ range .ExtraPrizeNames }}<span class="hack-prize-card__extra">+ {{ . }}</span>{{ end }}
-              </div>
+              <div class="hack-prize-card__title">{{ .ProjectTitle }}</div>
               {{ if and .Detail (ne .Detail .Amount) }}<div class="hack-prize-card__desc">{{ .Detail }}</div>{{ end }}
             </div>
           </a>
@@ -126,16 +123,12 @@
           <article class="hack-bounty-card">
             <div class="hack-bounty-card__eyebrow">[ Sponsor bounty ]</div>
             <h3>{{ .Title }}</h3>
-            {{ if .Description }}<div class="hack-bounty-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
-            <div class="hack-bounty-card__prize-label">Prizes</div>
+            {{ if .Description }}<div class="hack-bounty-card__desc">{{ $.RichText .Description }}</div>{{ end }}
             <div class="hack-bounty-card__prizes">
               {{ range $.AwardPrizes . }}
-              <div class="hack-bounty-card__prize">
-                <div class="hack-bounty-card__prize-head">
-                  <span>{{ .Title }}</span>
-                  <strong>{{ $.PrizeValueLabel . }}</strong>
-                </div>
-                {{ if .Description }}<div class="hack-bounty-card__prize-desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
+              <div>
+                <span>{{ .Title }}</span>
+                <strong>{{ $.PrizeValueLabel . }}</strong>
               </div>
               {{ end }}
             </div>
@@ -358,7 +351,7 @@
           <div class="hack-card__body">
             <div class="hack-label">★ Award</div>
             <h3>{{ .Title }}</h3>
-            {{ if .Description }}<div class="hack-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
+            {{ if .Description }}<div class="hack-card__desc">{{ $.RichText .Description }}</div>{{ end }}
             {{ $awardees := $.Awardees . }}
             {{ if $awardees }}
             <div class="hack-tags">
@@ -367,13 +360,9 @@
             {{ end }}
             {{ $prizes := $.AwardPrizes . }}
             {{ if $prizes }}
-            <div class="hack-award-card__prize-label">Prizes</div>
-            <div class="hack-card__links hack-award-card__prizes">
+            <div class="hack-card__links">
               {{ range $prizes }}
-              <div class="hack-award-card__prize">
-                <span>{{ .Title }}{{ if .ValueText }} · {{ $.PrizeValueLabel . }}{{ end }}</span>
-                {{ if .Description }}<div class="hack-award-card__prize-desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
-              </div>
+              <span>{{ .Title }}{{ if .ValueText }} · {{ $.PrizeValueLabel . }}{{ end }}</span>
               {{ end }}
             </div>
             {{ end }}
