@@ -70,9 +70,12 @@ type HackathonPage struct {
 	CanCreate                   bool
 	CanEdit                     bool
 	CanSubmit                   bool
+	CanDeleteProject            bool
+	CanLeaveProject             bool
 	CanJudge                    bool
 	CanScoreAll                 bool
 	CanRemoveProjectMembers     bool
+	ViewerPersonID              string
 	InviteLink                  string
 	InviteQRCodeURI             string
 	FlashMessage                string
@@ -663,6 +666,14 @@ func (p *HackathonPage) ProjectSubmitURL(project *types.HackathonProject) string
 		return ""
 	}
 	return projectURL + "/submit"
+}
+
+func (p *HackathonPage) ProjectDeleteURL(project *types.HackathonProject) string {
+	projectURL := p.ProjectURL(project)
+	if projectURL == "" {
+		return ""
+	}
+	return projectURL + "/delete"
 }
 
 func (p *HackathonPage) ProjectInviteURL(project *types.HackathonProject) string {
@@ -1575,7 +1586,7 @@ func hackathonDescriptionHTML(value, format string) template.HTML {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case getters.CompetitionDescriptionFormatPlain:
 		return hackathonPlainTextHTML(value)
-	case getters.CompetitionDescriptionFormatMarkdown:
+	case "", getters.CompetitionDescriptionFormatMarkdown:
 		return hackathonMarkdownHTML(value)
 	default:
 		return hackathonRichTextHTML(value)
@@ -1670,7 +1681,7 @@ func renderHackathonHTMLNode(b *strings.Builder, node *html.Node) {
 
 func hackathonAllowedHTMLTag(tag string) bool {
 	switch tag {
-	case "a", "b", "br", "code", "em", "h2", "h3", "h4", "i", "li", "ol", "p", "pre", "strong", "u", "ul":
+	case "a", "b", "br", "code", "em", "h1", "h2", "h3", "h4", "i", "li", "ol", "p", "pre", "strong", "u", "ul":
 		return true
 	default:
 		return false
@@ -2348,6 +2359,9 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 	}
 	viewer := hackathonViewerForCompetition(ctx, id, conf, competition.ID)
 	coordinator := viewer.Admin || viewer.Coordinator
+	viewerMember := projectMemberByPersonID(members, viewer.PersonID)
+	canDeleteProject := isProjectEditor && project != nil && (coordinator || viewerIsProjectOwner(members, id))
+	canLeaveProject := isProjectEditor && project != nil && viewerMember != nil && viewerMember.Role != getters.ProjectMemberRoleOwner
 	canRemoveProjectMembers := isProjectEditor && canEdit && (coordinator || (project.Status == getters.ProjectStatusCreated && viewerIsProjectOwner(members, id)))
 
 	page := &HackathonPage{
@@ -2367,7 +2381,10 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 		IsProjectEditor:         isProjectEditor,
 		CanEdit:                 canEdit,
 		CanSubmit:               canSubmit,
+		CanDeleteProject:        canDeleteProject,
+		CanLeaveProject:         canLeaveProject,
 		CanRemoveProjectMembers: canRemoveProjectMembers,
+		ViewerPersonID:          viewer.PersonID,
 		InviteLink:              inviteLink,
 		InviteQRCodeURI:         inviteQRCodeURI,
 		FlashMessage:            r.URL.Query().Get("flash"),
@@ -2398,6 +2415,31 @@ func HackathonProjectUpdate(w http.ResponseWriter, r *http.Request, ctx *config.
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project saved"), http.StatusSeeOther)
+}
+
+func HackathonProjectDelete(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	competition, conf, id, project, err := loadEditableHackathonProject(w, r, ctx)
+	if err != nil {
+		return
+	}
+	dest := hackathonURLForConf(conf)
+	members, err := getters.ListProjectMembers(ctx, project.ID)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s delete members: %s", competition.ID, project.ID, err)
+		http.Error(w, "Unable to verify project ownership", http.StatusInternalServerError)
+		return
+	}
+	viewer := hackathonViewerForCompetition(ctx, id, conf, competition.ID)
+	if !viewer.Admin && !viewer.Coordinator && !viewerIsProjectOwner(members, id) {
+		http.Redirect(w, r, projectEditURLForConf(conf, project)+"?error="+url.QueryEscape("Only the project owner can delete this project."), http.StatusSeeOther)
+		return
+	}
+	if err := getters.DeleteProject(ctx, competition.ID, project.ID); err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s delete: %s", competition.ID, project.ID, err)
+		http.Redirect(w, r, projectEditURLForConf(conf, project)+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project deleted"), http.StatusSeeOther)
 }
 
 func HackathonProjectSubmit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2531,16 +2573,6 @@ func HackathonProjectMemberRemove(w http.ResponseWriter, r *http.Request, ctx *c
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load project members.")+fragment, http.StatusSeeOther)
 		return
 	}
-	viewer := hackathonViewerFromIdentity(id, conf)
-	coordinatorRemoval := viewer.Admin || viewer.Coordinator
-	if !coordinatorRemoval && !viewerIsProjectOwner(members, id) {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Only project owners or coordinators can remove team members.")+fragment, http.StatusSeeOther)
-		return
-	}
-	if !coordinatorRemoval && project.Status != getters.ProjectStatusCreated {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Team members cannot be removed after submission. Ask a hackathon coordinator for help.")+fragment, http.StatusSeeOther)
-		return
-	}
 	target := projectMemberByPersonID(members, personID)
 	if target == nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project member not found.")+fragment, http.StatusSeeOther)
@@ -2550,7 +2582,19 @@ func HackathonProjectMemberRemove(w http.ResponseWriter, r *http.Request, ctx *c
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project owners cannot be removed from this page.")+fragment, http.StatusSeeOther)
 		return
 	}
-	if err := getters.RemoveProjectMember(ctx, project.ID, personID, coordinatorRemoval); err != nil {
+	viewer := hackathonViewerForCompetition(ctx, id, conf, competition.ID)
+	coordinatorRemoval := viewer.Admin || viewer.Coordinator
+	selfLeave := personID == viewer.PersonID
+	ownerRemoval := !coordinatorRemoval && viewerIsProjectOwner(members, id)
+	if !coordinatorRemoval && !ownerRemoval && !selfLeave {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Only project owners or coordinators can remove team members.")+fragment, http.StatusSeeOther)
+		return
+	}
+	if !coordinatorRemoval && !selfLeave && project.Status != getters.ProjectStatusCreated {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Team members cannot be removed after submission. Ask a hackathon coordinator for help.")+fragment, http.StatusSeeOther)
+		return
+	}
+	if err := getters.RemoveProjectMember(ctx, project.ID, personID, coordinatorRemoval || selfLeave); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s remove member %s: %s", competition.ID, project.ID, personID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+fragment, http.StatusSeeOther)
 		return
@@ -2558,6 +2602,10 @@ func HackathonProjectMemberRemove(w http.ResponseWriter, r *http.Request, ctx *c
 	if returnTo := strings.TrimSpace(r.FormValue("ReturnTo")); returnTo == "admin-projects" && coordinatorRemoval {
 		dest = hackathonAdminRequestURL(r, competition.ID, "/projects")
 		fragment = ""
+	}
+	if selfLeave {
+		http.Redirect(w, r, hackathonURLForConf(conf)+"?flash="+url.QueryEscape("You left the project"), http.StatusSeeOther)
+		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project member removed")+fragment, http.StatusSeeOther)
 }

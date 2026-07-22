@@ -173,6 +173,10 @@ func UpdateProject(ctx *config.AppContext, projectID string, in ProjectInput) er
 	return updateProjectPostgres(ctx, projectID, in)
 }
 
+func DeleteProject(ctx *config.AppContext, competitionID, projectID string) error {
+	return deleteProjectPostgres(ctx, competitionID, projectID)
+}
+
 func SubmitProject(ctx *config.AppContext, projectID string) error {
 	return submitProjectPostgres(ctx, projectID)
 }

@@ -52,8 +52,10 @@ document.addEventListener("DOMContentLoaded", function () {
 			form.hasAttribute("hx-put") || form.hasAttribute("hx-delete"))) {
 			return;
 		}
-		overlay.classList.add("active");
-	}, true);
+		window.setTimeout(function () {
+			if (!e.defaultPrevented) overlay.classList.add("active");
+		}, 0);
+	});
 });
 
 // Hide overlay if the user comes back via the back button (bfcache).
