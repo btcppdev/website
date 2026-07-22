@@ -108,15 +108,19 @@
         <div class="px-4 py-5 sm:p-6">
           {{ if .Judges }}
           <form method="POST" action="{{ .JudgingURL .Competition }}/judges/roles">
-          <ul class="mb-6 divide-y divide-gray-100 rounded-md border border-gray-200">
+          <p class="mb-3 text-sm text-gray-600">Drag judges to set the order shown on the public hackathon page.</p>
+          <ul class="mb-2 divide-y divide-gray-100 rounded-md border border-gray-200" data-judge-order-list data-judge-order-url="{{ .JudgingURL .Competition }}/judges/order">
             {{ range .Judges }}
-            <li class="flex items-center justify-between gap-3 px-3 py-3 text-sm">
+            <li class="flex items-center justify-between gap-3 px-3 py-3 text-sm" data-judge-row data-judge-person-id="{{ .PersonID }}">
               <input type="hidden" name="JudgePersonID" value="{{ .PersonID }}">
-              <div>
-                <div class="font-medium text-gray-900">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</div>
-                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                  <span>{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</span>
-                  {{ range $.JudgeRoleTypes . }}<span class="rounded-full bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">{{ $.JudgeTypeLabel . }}</span>{{ end }}
+              <div class="flex min-w-0 items-start gap-3">
+                <button type="button" draggable="true" data-judge-drag-handle aria-label="Drag to reorder {{ if .Name }}{{ .Name }}{{ else }}judge{{ end }}" class="-m-2 mt-0 inline-flex h-11 w-11 cursor-grab items-center justify-center bg-transparent text-xs font-bold leading-none text-gray-500 hover:text-gray-800">::</button>
+                <div class="min-w-0">
+                  <div class="font-medium text-gray-900">{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</div>
+                  <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                    <span>{{ if .Email }}{{ .Email }}{{ else }}{{ .PersonID }}{{ end }}</span>
+                    {{ range $.JudgeRoleTypes . }}<span class="rounded-full bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-700">{{ $.JudgeTypeLabel . }}</span>{{ end }}
+                  </div>
                 </div>
               </div>
               <div class="flex flex-wrap items-center justify-end gap-2">
@@ -131,6 +135,7 @@
             </li>
             {{ end }}
           </ul>
+          <p class="mb-4 min-h-5 text-xs text-gray-500" data-judge-order-status></p>
           <div class="mb-6 flex justify-end">
             <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save judge roles</button>
           </div>
@@ -229,6 +234,86 @@
         }
       });
     });
+
+    const judgeOrderList = document.querySelector('[data-judge-order-list]');
+    if (judgeOrderList) {
+      let draggedRow = null;
+      const orderStatus = document.querySelector('[data-judge-order-status]');
+
+      const setOrderStatus = (message, isError = false) => {
+        if (!orderStatus) return;
+        orderStatus.textContent = message;
+        orderStatus.classList.toggle('text-red-700', isError);
+        orderStatus.classList.toggle('text-gray-500', !isError);
+      };
+
+      const rowAfterPointer = (y) => {
+        const rows = [...judgeOrderList.querySelectorAll('[data-judge-row]:not([data-dragging])')];
+        return rows.reduce((closest, row) => {
+          const box = row.getBoundingClientRect();
+          const offset = y - box.top - box.height / 2;
+          if (offset < 0 && offset > closest.offset) {
+            return { offset, row };
+          }
+          return closest;
+        }, { offset: Number.NEGATIVE_INFINITY, row: null }).row;
+      };
+
+      const saveJudgeOrder = async () => {
+        const body = new URLSearchParams();
+        judgeOrderList.querySelectorAll('[data-judge-row]').forEach((row) => {
+          body.append('JudgePersonID', row.dataset.judgePersonId || '');
+        });
+        setOrderStatus('Saving judge order...');
+        try {
+          const response = await fetch(judgeOrderList.dataset.judgeOrderUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-Requested-With': 'fetch'
+            },
+            body
+          });
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || 'Unable to save judge order');
+          }
+          setOrderStatus('Judge order saved');
+        } catch (error) {
+          setOrderStatus(error.message || 'Unable to save judge order', true);
+        }
+      };
+
+      judgeOrderList.querySelectorAll('[data-judge-drag-handle]').forEach((handle) => {
+        handle.addEventListener('dragstart', (event) => {
+          draggedRow = handle.closest('[data-judge-row]');
+          if (!draggedRow) return;
+          draggedRow.dataset.dragging = 'true';
+          draggedRow.classList.add('opacity-50');
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', draggedRow.dataset.judgePersonId || '');
+        });
+        handle.addEventListener('dragend', () => {
+          if (!draggedRow) return;
+          draggedRow.classList.remove('opacity-50');
+          delete draggedRow.dataset.dragging;
+          draggedRow = null;
+          saveJudgeOrder();
+        });
+      });
+
+      judgeOrderList.addEventListener('dragover', (event) => {
+        if (!draggedRow) return;
+        event.preventDefault();
+        const afterRow = rowAfterPointer(event.clientY);
+        if (afterRow) {
+          judgeOrderList.insertBefore(draggedRow, afterRow);
+        } else {
+          judgeOrderList.appendChild(draggedRow);
+        }
+      });
+    }
   </script>
 </body>
 </html>

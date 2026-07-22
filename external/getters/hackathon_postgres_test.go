@@ -647,6 +647,82 @@ func TestHackathonJudgeInvites(t *testing.T) {
 	}
 }
 
+func TestCompetitionJudgeOrder(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		Slug:  "judge-order-" + postgresSmokeSuffix(),
+		Title: "Judge Order Hackathon",
+	})
+	firstJudgeID := insertSmokePerson(t, ctx, "judge-order-first")
+	secondJudgeID := insertSmokePerson(t, ctx, "judge-order-second")
+	thirdJudgeID := insertSmokePerson(t, ctx, "judge-order-third")
+	for _, personID := range []string{firstJudgeID, secondJudgeID, thirdJudgeID} {
+		if err := AddCompetitionJudge(ctx, competitionID, personID, JudgeTypeExpo); err != nil {
+			t.Fatalf("AddCompetitionJudge %s: %v", personID, err)
+		}
+	}
+	judges, err := ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudges initial: %v", err)
+	}
+	if got, want := judgePersonIDs(judges), []string{firstJudgeID, secondJudgeID, thirdJudgeID}; !sameStringSlice(got, want) {
+		t.Fatalf("initial judge order = %v, want %v", got, want)
+	}
+
+	wantOrder := []string{thirdJudgeID, firstJudgeID, secondJudgeID}
+	if err := SetCompetitionJudgeOrder(ctx, competitionID, wantOrder); err != nil {
+		t.Fatalf("SetCompetitionJudgeOrder: %v", err)
+	}
+	judges, err = ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudges reordered: %v", err)
+	}
+	if got := judgePersonIDs(judges); !sameStringSlice(got, wantOrder) {
+		t.Fatalf("reordered judge order = %v, want %v", got, wantOrder)
+	}
+
+	if err := SetCompetitionJudgeTypes(ctx, competitionID, firstJudgeID, []string{JudgeTypeExpo, JudgeTypeFinals}); err != nil {
+		t.Fatalf("SetCompetitionJudgeTypes preserves order: %v", err)
+	}
+	judges, err = ListCompetitionJudges(ctx, competitionID)
+	if err != nil {
+		t.Fatalf("ListCompetitionJudges after role edit: %v", err)
+	}
+	if got := judgePersonIDs(judges); !sameStringSlice(got, wantOrder) {
+		t.Fatalf("judge order after role edit = %v, want %v", got, wantOrder)
+	}
+	if judges[1].DisplayOrder != 2 || len(judges[1].JudgeTypes) != 2 {
+		t.Fatalf("updated judge = %+v, want display order 2 and two roles", judges[1])
+	}
+	if err := SetCompetitionJudgeOrder(ctx, competitionID, []string{firstJudgeID, secondJudgeID}); err == nil {
+		t.Fatalf("SetCompetitionJudgeOrder with missing judge succeeded")
+	}
+}
+
+func judgePersonIDs(judges []*types.CompetitionJudge) []string {
+	out := make([]string, 0, len(judges))
+	for _, judge := range judges {
+		if judge != nil {
+			out = append(out, judge.PersonID)
+		}
+	}
+	return out
+}
+
+func sameStringSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestGetPersonIDByEmail(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)

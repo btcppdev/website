@@ -280,6 +280,10 @@ func SetCompetitionJudgeRoles(ctx *config.AppContext, competitionID string, role
 	return setCompetitionJudgeRolesPostgres(ctx, competitionID, rolesByPersonID)
 }
 
+func SetCompetitionJudgeOrder(ctx *config.AppContext, competitionID string, personIDs []string) error {
+	return setCompetitionJudgeOrderPostgres(ctx, competitionID, personIDs)
+}
+
 func RemoveCompetitionJudge(ctx *config.AppContext, competitionID, personID, judgeType string) error {
 	return removeCompetitionJudgePostgres(ctx, competitionID, personID, judgeType)
 }

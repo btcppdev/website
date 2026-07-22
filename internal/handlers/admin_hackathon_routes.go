@@ -36,6 +36,7 @@ func registerConferenceHackathonAdminRoutes(r *mux.Router, app *config.AppContex
 	register("/judging/events/delete", HackathonAdminDeleteJudgeEvent, http.MethodPost)
 	register("/judging/judges", HackathonAdminAddJudge, http.MethodPost)
 	register("/judging/judges/roles", HackathonAdminUpdateJudgeRoles, http.MethodPost)
+	register("/judging/judges/order", HackathonAdminUpdateJudgeOrder, http.MethodPost)
 	register("/judging/judges/invites", HackathonAdminCreateJudgeInvite, http.MethodPost)
 	register("/judging/judges/remove", HackathonAdminRemoveJudge, http.MethodPost)
 	register("/awards", HackathonAdminAwards, http.MethodGet)
