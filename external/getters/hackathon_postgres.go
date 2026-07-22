@@ -2077,6 +2077,46 @@ func setCompetitionJudgeOrderPostgres(ctx *config.AppContext, competitionID stri
 	return nil
 }
 
+func setCompetitionJudgePublicLabelOverridesPostgres(ctx *config.AppContext, competitionID string, overridesByPersonID map[string]string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return fmt.Errorf("competition id is required")
+	}
+	if len(overridesByPersonID) == 0 {
+		return nil
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin set competition judge public labels: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	for personID, override := range overridesByPersonID {
+		personID = strings.TrimSpace(personID)
+		if personID == "" {
+			return fmt.Errorf("person id is required")
+		}
+		commandTag, err := tx.Exec(dbctx, `
+			UPDATE competition_judges
+			SET public_label_override = $3
+			WHERE competition_id = $1::uuid AND person_id = $2::uuid
+		`, competitionID, personID, strings.TrimSpace(override))
+		if err != nil {
+			return fmt.Errorf("set competition judge public label %s/%s: %w", competitionID, personID, err)
+		}
+		if commandTag.RowsAffected() == 0 {
+			return fmt.Errorf("competition judge %s/%s not found", competitionID, personID)
+		}
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit competition judge public labels %s: %w", competitionID, err)
+	}
+	return nil
+}
+
 func removeCompetitionJudgePostgres(ctx *config.AppContext, competitionID, personID, judgeType string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
@@ -2119,6 +2159,7 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 			coalesce(people.name, ''), coalesce(people.email::text, ''),
 			coalesce(people.norm_photo_path, ''),
 			coalesce(judge_company.company, nullif(people.company, ''), ''),
+			coalesce(max(nullif(competition_judges.public_label_override, '')), ''),
 			array_agg(competition_judges.judge_type ORDER BY
 				CASE competition_judges.judge_type WHEN 'expo' THEN 1 WHEN 'finals' THEN 2 ELSE 3 END),
 			min(competition_judges.display_order),
@@ -2149,7 +2190,7 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 	var out []*types.CompetitionJudge
 	for rows.Next() {
 		var judge types.CompetitionJudge
-		if err := rows.Scan(&judge.CompetitionID, &judge.PersonID, &judge.Name, &judge.Email, &judge.Photo, &judge.Company, &judge.JudgeTypes, &judge.DisplayOrder, &judge.CreatedAt); err != nil {
+		if err := rows.Scan(&judge.CompetitionID, &judge.PersonID, &judge.Name, &judge.Email, &judge.Photo, &judge.Company, &judge.PublicLabelOverride, &judge.JudgeTypes, &judge.DisplayOrder, &judge.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan competition judge %s: %w", competitionID, err)
 		}
 		if len(judge.JudgeTypes) > 0 {

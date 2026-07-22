@@ -86,6 +86,8 @@ const (
 	hackathonScoreModeAll    = "all"
 	hackathonScoreModeExpo   = getters.JudgeTypeExpo
 	hackathonScoreModeFinals = getters.JudgeTypeFinals
+
+	hackathonJudgePublicLabelOverrideMaxLen = 80
 )
 
 type HackathonScoreSummary struct {
@@ -2680,6 +2682,11 @@ func HackathonAdminUpdateJudgeRoles(w http.ResponseWriter, r *http.Request, ctx 
 		return
 	}
 	personIDs := personIDsFromForm(r, "JudgePersonID")
+	overridesByPersonID, err := judgePublicLabelOverridesFromForm(r, personIDs)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
 	rolesByPersonID, err := judgeRolesFromForm(r)
 	if err != nil {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
@@ -2704,6 +2711,11 @@ func HackathonAdminUpdateJudgeRoles(w http.ResponseWriter, r *http.Request, ctx 
 	if err := getters.SetCompetitionJudgeRoles(ctx, competitionID, rolesByPersonID); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/judges/roles update: %s", competitionID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to save judge roles. Please try again."), http.StatusSeeOther)
+		return
+	}
+	if err := getters.SetCompetitionJudgePublicLabelOverrides(ctx, competitionID, overridesByPersonID); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/judges/labels update: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to save judge public labels. Please try again."), http.StatusSeeOther)
 		return
 	}
 	if err := getters.SetCompetitionJudgeOrder(ctx, competitionID, personIDs); err != nil {
@@ -3362,6 +3374,22 @@ func judgeRolesFromForm(r *http.Request) (map[string][]string, error) {
 		}
 	}
 	return rolesByPersonID, nil
+}
+
+func judgePublicLabelOverridesFromForm(r *http.Request, personIDs []string) (map[string]string, error) {
+	values := r.Form["JudgePublicLabelOverride"]
+	if len(values) != len(personIDs) {
+		return nil, fmt.Errorf("the judge list changed. Refresh the page and try again")
+	}
+	overridesByPersonID := make(map[string]string, len(personIDs))
+	for index, personID := range personIDs {
+		override := strings.TrimSpace(values[index])
+		if len(override) > hackathonJudgePublicLabelOverrideMaxLen {
+			return nil, fmt.Errorf("judge public label override must be %d characters or less", hackathonJudgePublicLabelOverrideMaxLen)
+		}
+		overridesByPersonID[personID] = override
+	}
+	return overridesByPersonID, nil
 }
 
 func sameJudgeTypes(a, b []string) bool {
