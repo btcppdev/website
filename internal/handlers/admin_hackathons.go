@@ -884,12 +884,8 @@ func (p *HackathonAdminPage) AwardIsChallenge(award *types.Award) bool {
 	return award != nil && strings.TrimSpace(award.AwardType) == getters.AwardTypeChallenge
 }
 
-func (p *HackathonAdminPage) AwardIsSponsor(award *types.Award) bool {
-	return awardHasLinkedSponsor(award)
-}
-
 func (p *HackathonAdminPage) AwardHasSponsor(award *types.Award) bool {
-	return awardHasLinkedSponsor(award)
+	return award != nil && strings.TrimSpace(award.SponsoredByOrgID) != ""
 }
 
 func (p *HackathonAdminPage) AwardSponsorLabel(award *types.Award) string {
@@ -2492,7 +2488,7 @@ func HackathonAdminFinalizeResults(w http.ResponseWriter, r *http.Request, ctx *
 }
 
 func HackathonAdminAddAwardJudge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
@@ -2635,7 +2631,7 @@ func hackathonResultsRedirectURL(r *http.Request, competitionID string) string {
 }
 
 func HackathonAdminRemoveAwardJudge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
@@ -2660,7 +2656,7 @@ func HackathonAdminRemoveAwardJudge(w http.ResponseWriter, r *http.Request, ctx 
 		http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "error", err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", "Sponsor judge removed"), http.StatusSeeOther)
+	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", "Challenge judge removed"), http.StatusSeeOther)
 }
 
 func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

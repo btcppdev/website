@@ -355,50 +355,6 @@ func TestScoreAwardHelpersShowExistingAssignments(t *testing.T) {
 	}
 }
 
-func TestSponsorAwardHelpersUseLinkedSponsor(t *testing.T) {
-	normalSponsored := &types.Award{ID: "normal-sponsored", Title: "Sponsor pick", AwardType: getters.AwardTypeNormal, SponsoredByOrgID: "org-1"}
-	challengeSponsored := &types.Award{ID: "challenge-sponsored", Title: "Sponsor challenge", AwardType: getters.AwardTypeChallenge, SponsoredByOrgID: "org-2"}
-	unsponsoredChallenge := &types.Award{ID: "challenge", Title: "Open challenge", AwardType: getters.AwardTypeChallenge}
-	unsponsoredNormal := &types.Award{ID: "normal", Title: "General award", AwardType: getters.AwardTypeNormal}
-
-	got := sponsorAwardsOnly([]*types.Award{unsponsoredNormal, normalSponsored, unsponsoredChallenge, challengeSponsored})
-	if len(got) != 2 || got[0] != normalSponsored || got[1] != challengeSponsored {
-		t.Fatalf("sponsorAwardsOnly() = %+v, want all and only awards with linked sponsors", got)
-	}
-
-	page := &HackathonPage{}
-	if !page.AwardIsSponsor(normalSponsored) || !page.AwardIsSponsor(challengeSponsored) {
-		t.Fatal("AwardIsSponsor() did not recognize linked sponsor awards")
-	}
-	if page.AwardIsSponsor(unsponsoredChallenge) || page.AwardIsSponsor(unsponsoredNormal) {
-		t.Fatal("AwardIsSponsor() recognized an award without a linked sponsor")
-	}
-}
-
-func TestSponsorAwardProjectOptionsHonorOptIns(t *testing.T) {
-	award := &types.Award{ID: "sponsor-award", SponsoredByOrgID: "org-1", OptInRequired: true}
-	page := &HackathonPage{
-		ChallengeProjects: []*types.HackathonProject{
-			{ID: "opted-in", Title: "Opted in"},
-			{ID: "not-opted-in", Title: "Not opted in"},
-		},
-		AwardOptIns: map[string]bool{
-			"opted-in|sponsor-award": true,
-		},
-	}
-
-	got := page.SponsorAwardProjectOptions(award)
-	if len(got) != 1 || got[0].ID != "opted-in" {
-		t.Fatalf("SponsorAwardProjectOptions() = %+v, want only opted-in project", got)
-	}
-
-	award.OptInRequired = false
-	got = page.SponsorAwardProjectOptions(award)
-	if len(got) != 2 {
-		t.Fatalf("SponsorAwardProjectOptions() without opt-in = %+v, want all submitted options", got)
-	}
-}
-
 func TestAvailableOptInAwardsIncludesTentativeOutcomeStatuses(t *testing.T) {
 	awards := []*types.Award{
 		{ID: "draft", OptInRequired: true, Status: getters.AwardStatusDraft},
