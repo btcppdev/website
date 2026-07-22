@@ -1365,7 +1365,7 @@ func createProjectInvitePostgres(ctx *config.AppContext, projectID, email string
 	return token, &invite, nil
 }
 
-func acceptProjectInvitePostgres(ctx *config.AppContext, token, personID string) (*types.ProjectInvite, error) {
+func getProjectInviteByTokenPostgres(ctx *config.AppContext, token string) (*types.ProjectInvite, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
@@ -1373,20 +1373,17 @@ func acceptProjectInvitePostgres(ctx *config.AppContext, token, personID string)
 	if tokenHash == "" {
 		return nil, fmt.Errorf("invite token is required")
 	}
-	personID = strings.TrimSpace(personID)
-	if personID == "" {
-		return nil, fmt.Errorf("person id is required")
-	}
+	return loadProjectInviteByTokenHash(ctx, ctx.DB, tokenHash)
+}
 
-	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
-	if err != nil {
-		return nil, fmt.Errorf("begin accept invite: %w", err)
-	}
-	defer tx.Rollback(ctx.DatabaseContext())
+type projectInviteRow interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
 
+func loadProjectInviteByTokenHash(ctx *config.AppContext, q projectInviteRow, tokenHash string) (*types.ProjectInvite, error) {
 	var invite types.ProjectInvite
 	var acceptedAt, expiresAt pgtype.Timestamptz
-	err = tx.QueryRow(ctx.DatabaseContext(), `
+	err := q.QueryRow(ctx.DatabaseContext(), `
 		SELECT id::text, project_id::text, coalesce(email::text, ''),
 			coalesce(accepted_by_person_id::text, ''), accepted_at, expires_at, created_at
 		FROM project_invites
@@ -1413,6 +1410,32 @@ func acceptProjectInvitePostgres(ctx *config.AppContext, token, personID string)
 	}
 	if invite.ExpiresAt != nil && time.Now().After(*invite.ExpiresAt) {
 		return nil, fmt.Errorf("project invite expired")
+	}
+	return &invite, nil
+}
+
+func acceptProjectInvitePostgres(ctx *config.AppContext, token, personID string) (*types.ProjectInvite, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	tokenHash := hashInviteToken(token)
+	if tokenHash == "" {
+		return nil, fmt.Errorf("invite token is required")
+	}
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, fmt.Errorf("person id is required")
+	}
+
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
+	if err != nil {
+		return nil, fmt.Errorf("begin accept invite: %w", err)
+	}
+	defer tx.Rollback(ctx.DatabaseContext())
+
+	invite, err := loadProjectInviteByTokenHash(ctx, tx, tokenHash)
+	if err != nil {
+		return nil, err
 	}
 	if invite.Email != "" {
 		var personEmail string
@@ -1447,7 +1470,7 @@ func acceptProjectInvitePostgres(ctx *config.AppContext, token, personID string)
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return nil, fmt.Errorf("commit accept invite: %w", err)
 	}
-	return &invite, nil
+	return invite, nil
 }
 
 func createCompetitionJudgeInvitePostgres(ctx *config.AppContext, competitionID, email string, judgeTypes []string, expiresAt *time.Time) (string, *types.CompetitionJudgeInvite, error) {
