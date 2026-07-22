@@ -43,6 +43,7 @@
     function selectOrg(org) {
       input.value = org.name || '';
       hidden.value = org.id || '';
+      hidden.dispatchEvent(new Event('change', { bubbles: true }));
       showFlash('');
       hideList();
     }
@@ -92,6 +93,7 @@
 
     input.addEventListener('input', () => {
       hidden.value = '';
+      hidden.dispatchEvent(new Event('change', { bubbles: true }));
       showFlash('');
       if (debounceTimer) clearTimeout(debounceTimer);
       const query = input.value.trim();

@@ -2556,11 +2556,11 @@ func updateAwardPostgres(ctx *config.AppContext, awardID string, in AwardInput) 
 			return fmt.Errorf("clear award opt-ins %s: %w", awardID, err)
 		}
 	}
-	if in.AwardType != AwardTypeChallenge {
+	if in.SponsoredByOrgID == "" {
 		if _, err := tx.Exec(dbctx, `
-				DELETE FROM award_votes
-				WHERE award_id::text = $1
-			`, awardID); err != nil {
+			DELETE FROM award_votes
+			WHERE award_id::text = $1
+		`, awardID); err != nil {
 			return fmt.Errorf("clear award votes %s: %w", awardID, err)
 		}
 		if _, err := tx.Exec(dbctx, `
@@ -3252,18 +3252,21 @@ func addAwardJudgePostgres(ctx *config.AppContext, awardID, personID string) err
 	if personID == "" {
 		return fmt.Errorf("person id is required")
 	}
-	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO award_judges (award_id, person_id)
 		SELECT awards.id, people.id
 		FROM awards
 		JOIN people ON people.id::text = $2
 		WHERE awards.id::text = $1
-			AND awards.award_type = $3
+			AND awards.sponsored_by_org_id IS NOT NULL
 			AND awards.archived_at IS NULL
 		ON CONFLICT (award_id, person_id) DO NOTHING
-	`, awardID, personID, AwardTypeChallenge)
+	`, awardID, personID)
 	if err != nil {
 		return fmt.Errorf("add award judge %s/%s: %w", awardID, personID, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("award is not linked to a sponsor or judge is already assigned")
 	}
 	return nil
 }
@@ -3405,7 +3408,7 @@ func upsertAwardVotePostgres(ctx *config.AppContext, in AwardVoteInput) error {
 		JOIN projects ON projects.id::text = $3
 			AND projects.competition_id = awards.competition_id
 		WHERE awards.id::text = $1
-			AND awards.award_type = $5
+			AND awards.sponsored_by_org_id IS NOT NULL
 			AND awards.archived_at IS NULL
 			AND (
 				NOT awards.opt_in_required OR EXISTS (
@@ -3421,7 +3424,7 @@ func upsertAwardVotePostgres(ctx *config.AppContext, in AwardVoteInput) error {
 			notes = EXCLUDED.notes,
 			submitted_at = EXCLUDED.submitted_at,
 			updated_at = now()
-	`, in.AwardID, in.JudgePersonID, in.ProjectID, in.Notes, AwardTypeChallenge)
+	`, in.AwardID, in.JudgePersonID, in.ProjectID, in.Notes)
 	if err != nil {
 		return fmt.Errorf("save award vote %s/%s: %w", in.AwardID, in.JudgePersonID, err)
 	}
@@ -3971,7 +3974,7 @@ func normalizeAwardInput(in AwardInput) AwardInput {
 	in.Title = strings.TrimSpace(in.Title)
 	in.Description = strings.TrimSpace(in.Description)
 	in.JudgingInstructions = strings.TrimSpace(in.JudgingInstructions)
-	if in.AwardType != AwardTypeChallenge {
+	if in.SponsoredByOrgID == "" {
 		in.JudgingInstructions = ""
 	}
 	if in.MaxAwardees == nil {

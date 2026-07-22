@@ -52,7 +52,7 @@ type HackathonPage struct {
 	JudgeProfileURLs            map[string]string
 	JudgeTypes                  map[string]bool
 	Awards                      []*types.Award
-	ChallengeAwardsForJudge     []*types.Award
+	SponsorAwardsForJudge       []*types.Award
 	AwardVotes                  []*types.AwardVote
 	OptInAwards                 []*types.Award
 	AwardOptIns                 map[string]bool
@@ -984,8 +984,12 @@ func (p *HackathonPage) AwardIsChallenge(award *types.Award) bool {
 	return award != nil && strings.TrimSpace(award.AwardType) == getters.AwardTypeChallenge
 }
 
+func (p *HackathonPage) AwardIsSponsor(award *types.Award) bool {
+	return awardHasLinkedSponsor(award)
+}
+
 func (p *HackathonPage) AwardHasSponsor(award *types.Award) bool {
-	return award != nil && strings.TrimSpace(award.SponsoredByOrgID) != ""
+	return awardHasLinkedSponsor(award)
 }
 
 func (p *HackathonPage) AwardSponsorLabel(award *types.Award) string {
@@ -1047,7 +1051,7 @@ func (p *HackathonPage) ProjectSelectedForAward(project *types.HackathonProject,
 	return vote != nil && vote.ProjectID == project.ID
 }
 
-func (p *HackathonPage) ChallengeAwardProjectOptions(award *types.Award) []*types.HackathonProject {
+func (p *HackathonPage) SponsorAwardProjectOptions(award *types.Award) []*types.HackathonProject {
 	if p == nil || award == nil {
 		return nil
 	}
@@ -2035,10 +2039,10 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	}
 	challengeProjects := hackathonSubmittedProjects(projects)
 	projects = projectsForJudgeEvents(projects, events, currentEvents)
-	challengeAwards, err := challengeAwardsForJudge(ctx, competition.ID, viewer)
+	sponsorAwards, err := sponsorAwardsForJudge(ctx, competition.ID, viewer)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging challenge awards: %s", competition.ID, err)
-		http.Error(w, "Unable to load challenge awards", http.StatusInternalServerError)
+		ctx.Err.Printf("/hackathons/%s/judging sponsor awards: %s", competition.ID, err)
+		http.Error(w, "Unable to load sponsor awards", http.StatusInternalServerError)
 		return
 	}
 	orgMap, err := loadHackathonOrgMap(ctx)
@@ -2061,14 +2065,14 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		awardVotes, err = getters.ListAwardVotesForJudge(ctx, competition.ID, viewer.PersonID)
 		if err != nil {
 			ctx.Err.Printf("/hackathons/%s/judging award votes: %s", competition.ID, err)
-			http.Error(w, "Unable to load challenge votes", http.StatusInternalServerError)
+			http.Error(w, "Unable to load sponsor award votes", http.StatusInternalServerError)
 			return
 		}
 	}
 	awardOptIns, err := challengeAwardOptInMap(ctx, competition.ID)
 	if err != nil {
-		ctx.Err.Printf("/hackathons/%s/judging challenge opt-ins: %s", competition.ID, err)
-		http.Error(w, "Unable to load challenge opt-ins", http.StatusInternalServerError)
+		ctx.Err.Printf("/hackathons/%s/judging sponsor award opt-ins: %s", competition.ID, err)
+		http.Error(w, "Unable to load sponsor award opt-ins", http.StatusInternalServerError)
 		return
 	}
 	flash := r.URL.Query().Get("flash")
@@ -2076,22 +2080,22 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		flash = ""
 	}
 	page := &HackathonPage{
-		Competition:             competition,
-		Conf:                    conf,
-		OrgsByID:                orgMap,
-		Projects:                projects,
-		ChallengeProjects:       challengeProjects,
-		JudgeEvents:             currentEvents,
-		Scorecards:              scorecards,
-		JudgeTypes:              judgeTypes,
-		ChallengeAwardsForJudge: challengeAwards,
-		AwardVotes:              awardVotes,
-		AwardOptIns:             awardOptIns,
-		Viewer:                  id,
-		CanScoreAll:             canJudge,
-		FlashMessage:            flash,
-		FlashError:              r.URL.Query().Get("error"),
-		Year:                    helpers.CurrentYear(),
+		Competition:           competition,
+		Conf:                  conf,
+		OrgsByID:              orgMap,
+		Projects:              projects,
+		ChallengeProjects:     challengeProjects,
+		JudgeEvents:           currentEvents,
+		Scorecards:            scorecards,
+		JudgeTypes:            judgeTypes,
+		SponsorAwardsForJudge: sponsorAwards,
+		AwardVotes:            awardVotes,
+		AwardOptIns:           awardOptIns,
+		Viewer:                id,
+		CanScoreAll:           canJudge,
+		FlashMessage:          flash,
+		FlashError:            r.URL.Query().Get("error"),
+		Year:                  helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_judging.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/judging template: %s", competition.ID, err)
@@ -2149,7 +2153,7 @@ func HackathonAwardVoteSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 	dest := hackathonURLForConf(conf) + "/judging"
 	viewer := hackathonViewerFromIdentity(id, conf)
 	if viewer.PersonID == "" {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Your account needs a person profile before you can judge challenge awards."), http.StatusSeeOther)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Your account needs a person profile before you can judge sponsor awards."), http.StatusSeeOther)
 		return
 	}
 	limitRequestBody(w, r, maxFormBodyBytes)
@@ -2160,20 +2164,25 @@ func HackathonAwardVoteSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 	awardID := strings.TrimSpace(r.FormValue("AwardID"))
 	projectID := strings.TrimSpace(r.FormValue("ProjectID"))
 	if awardID == "" || projectID == "" {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Choose a project for the challenge award."), http.StatusSeeOther)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Choose a project for the sponsor award."), http.StatusSeeOther)
 		return
 	}
-	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeAward(ctx, competition.ID, awardID, viewer.PersonID) {
+	award, err := sponsorAwardForCompetition(ctx, competition.ID, awardID)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeAward(ctx, competition.ID, award.ID, viewer.PersonID) {
 		handle404(w, r, ctx)
 		return
 	}
 	project, err := getters.GetProjectByID(ctx, projectID)
 	if err != nil || project.CompetitionID != competition.ID || !hackathonProjectSubmitted(project) {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project is not available for challenge judging."), http.StatusSeeOther)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project is not available for sponsor award judging."), http.StatusSeeOther)
 		return
 	}
 	in := getters.AwardVoteInput{
-		AwardID:       awardID,
+		AwardID:       award.ID,
 		JudgePersonID: viewer.PersonID,
 		ProjectID:     projectID,
 		Notes:         r.FormValue("Notes"),
@@ -2183,12 +2192,12 @@ func HackathonAwardVoteSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	if err := getters.ReplaceProjectAwardWinner(ctx, awardID, projectID); err != nil {
+	if err := getters.ReplaceProjectAwardWinner(ctx, award.ID, projectID); err != nil {
 		ctx.Err.Printf("/hackathons/%s/judging award winner: %s", competition.ID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Challenge winner saved")+"#award-"+url.PathEscape(awardID), http.StatusSeeOther)
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Sponsor award winner saved")+"#award-"+url.PathEscape(award.ID), http.StatusSeeOther)
 }
 
 func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -3683,13 +3692,13 @@ func judgeTypesForPerson(ctx *config.AppContext, competitionID, personID string)
 	return out
 }
 
-func challengeAwardsForJudge(ctx *config.AppContext, competitionID string, viewer types.HackathonViewer) ([]*types.Award, error) {
+func sponsorAwardsForJudge(ctx *config.AppContext, competitionID string, viewer types.HackathonViewer) ([]*types.Award, error) {
 	awards, err := getters.ListAwardsForCompetition(ctx, competitionID)
 	if err != nil {
 		return nil, err
 	}
 	if viewer.Admin || viewer.Coordinator {
-		return challengeAwardsOnly(awards), nil
+		return sponsorAwardsOnly(awards), nil
 	}
 	judges, err := getters.ListAwardJudgesForCompetition(ctx, competitionID)
 	if err != nil {
@@ -3703,21 +3712,45 @@ func challengeAwardsForJudge(ctx *config.AppContext, competitionID string, viewe
 	}
 	var out []*types.Award
 	for _, award := range awards {
-		if award != nil && award.AwardType == getters.AwardTypeChallenge && assigned[award.ID] {
+		if awardHasLinkedSponsor(award) && assigned[award.ID] {
 			out = append(out, award)
 		}
 	}
 	return out, nil
 }
 
-func challengeAwardsOnly(awards []*types.Award) []*types.Award {
+func sponsorAwardsOnly(awards []*types.Award) []*types.Award {
 	var out []*types.Award
 	for _, award := range awards {
-		if award != nil && award.AwardType == getters.AwardTypeChallenge {
+		if awardHasLinkedSponsor(award) {
 			out = append(out, award)
 		}
 	}
 	return out
+}
+
+func sponsorAwardForCompetition(ctx *config.AppContext, competitionID, awardID string) (*types.Award, error) {
+	awardID = strings.TrimSpace(awardID)
+	if awardID == "" {
+		return nil, fmt.Errorf("award is required")
+	}
+	awards, err := getters.ListAwardsForCompetition(ctx, competitionID)
+	if err != nil {
+		return nil, err
+	}
+	for _, award := range awards {
+		if award != nil && award.ID == awardID {
+			if !awardHasLinkedSponsor(award) {
+				return nil, fmt.Errorf("award is not linked to a sponsor")
+			}
+			return award, nil
+		}
+	}
+	return nil, fmt.Errorf("award does not belong to this hackathon")
+}
+
+func awardHasLinkedSponsor(award *types.Award) bool {
+	return award != nil && strings.TrimSpace(award.SponsoredByOrgID) != ""
 }
 
 func hackathonSubmittedProjects(projects []*types.HackathonProject) []*types.HackathonProject {

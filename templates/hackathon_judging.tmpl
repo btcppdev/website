@@ -147,24 +147,25 @@
       {{ end }}
     </section>
 
-    {{ if .ChallengeAwardsForJudge }}
+    {{ if .SponsorAwardsForJudge }}
     <section class="hack-section">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§ Challenges</div>
-          <h2>Pick challenge <span class="hack-serif">winners.</span></h2>
+          <div class="hack-label">§ Sponsor Awards</div>
+          <h2>Pick sponsor award <span class="hack-serif">winners.</span></h2>
         </div>
-        <div class="hack-section__deck">Challenge judges select one project for each assigned challenge. These picks do not affect ranked scoring.</div>
+        <div class="hack-section__deck">Sponsor judges select one project for each assigned sponsor award. These picks do not affect ranked scoring.</div>
       </div>
       <div class="hack-card-grid">
-        {{ range .ChallengeAwardsForJudge }}
+        {{ range .SponsorAwardsForJudge }}
         {{ $award := . }}
         {{ $vote := $.AwardVote . }}
-        {{ $options := $.ChallengeAwardProjectOptions . }}
+        {{ $options := $.SponsorAwardProjectOptions . }}
         <article id="award-{{ .ID }}" class="hack-card">
           <div class="hack-card__body">
             <div class="hack-tags">
-              <span class="hack-tag">Challenge</span>
+              <span class="hack-tag">Sponsor award</span>
+              {{ if $.AwardIsChallenge . }}<span class="hack-tag">Challenge</span>{{ end }}
               {{ if $.AwardHasSponsor . }}<span class="hack-tag">{{ $.AwardSponsorLabel . }}</span>{{ end }}
               {{ if .OptInRequired }}<span class="hack-tag">Opt-in required</span>{{ end }}
             </div>
@@ -194,7 +195,7 @@
                   <button type="submit" class="hack-button hack-button--primary">Save pick</button>
                 </div>
                 {{ else }}
-                <div class="hack-empty">No eligible projects are available for this challenge.</div>
+                <div class="hack-empty">No eligible projects are available for this sponsor award.</div>
                 {{ end }}
               </div>
             </form>
