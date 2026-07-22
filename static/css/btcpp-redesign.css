@@ -576,18 +576,6 @@ body.btcpp-rebrand-page {
   min-width: 0;
 }
 
-.btcpp-rebrand-page .conf-hackathon-redesign__award-logo {
-  display: block;
-  margin-bottom: 10px;
-}
-
-.btcpp-rebrand-page .conf-hackathon-redesign__award-logo img {
-  display: block;
-  max-width: 120px;
-  max-height: 34px;
-  object-fit: contain;
-}
-
 .btcpp-rebrand-page .conf-hackathon-redesign__project strong {
   display: block;
   min-width: 0;

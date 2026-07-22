@@ -27,22 +27,15 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// OrgSearch returns orgs whose name contains the `q` query parameter, as JSON
-// `[{id, name, website}, ...]`. The optional `limit` parameter is capped at 50.
-// Used by org autocomplete inputs.
+// OrgSearch returns up to 10 orgs whose name contains the `q` query
+// parameter, as JSON `[{id, name, website}, ...]`. Used by the org
+// autocomplete on the speaker-info editor.
 //
 // Public (no HMAC) — org names + websites are already shown publicly on
-// conf pages. Empty queries return the first page of orgs by name.
+// conf pages. Empty queries return an empty list.
 func OrgSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	q := r.URL.Query().Get("q")
-	limit := 10
-	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
-		n, err := strconv.Atoi(rawLimit)
-		if err == nil && n > 0 {
-			limit = min(n, 50)
-		}
-	}
-	orgs, err := getters.SearchOrgsByName(ctx, q, limit)
+	orgs, err := getters.SearchOrgsByName(ctx, q, 10)
 	if err != nil {
 		ctx.Err.Printf("/api/orgs/search: %s", err)
 		http.Error(w, "search failed", http.StatusInternalServerError)

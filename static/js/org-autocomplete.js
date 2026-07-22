@@ -80,11 +80,11 @@
     if (q === lastQuery) return;
     lastQuery = q;
     if (debounceTimer) clearTimeout(debounceTimer);
+    if (q.length < 2) {
+      hideList();
+      return;
+    }
     debounceTimer = setTimeout(function () { search(q); }, 200);
-  });
-
-  input.addEventListener('focus', function () {
-    search(input.value.trim());
   });
 
   input.addEventListener('blur', function () {

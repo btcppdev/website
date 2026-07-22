@@ -38,7 +38,7 @@
         <div>
           <div class="hack-project-file__badges">
             {{ if $winningAwards }}
-            {{ range $winningAwards }}<span class="hack-badge">{{ $.AwardWinnerBadgeLabel . }}</span>{{ end }}
+            {{ range $winningAwards }}<span class="hack-badge">{{ .Title }}</span>{{ end }}
             {{ else if .Project.Status }}
             <span class="hack-badge">{{ .ProjectStatusLabel .Project.Status }}</span>
             {{ end }}

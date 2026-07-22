@@ -89,10 +89,6 @@ type HackathonPlaceRow struct {
 	Amount          string
 	Detail          string
 	ExtraPrizeNames []string
-	SponsorLabel    string
-	SponsorURL      string
-	SponsorLogoURL  string
-	SponsorLogoAlt  string
 	GrandPrize      bool
 }
 

@@ -82,17 +82,14 @@ type ScorecardRankingsInput struct {
 }
 
 type AwardInput struct {
-	CompetitionID       string
-	SponsoredByOrgID    string
-	AwardType           string
-	Title               string
-	Description         string
-	JudgingInstructions string
-	AwardRank           *int
-	MaxAwardees         *int
-	OptInRequired       bool
-	FinalistsOnly       bool
-	Status              string
+	CompetitionID string
+	Title         string
+	Description   string
+	PhotoURL      string
+	MaxAwardees   *int
+	OptInRequired bool
+	FinalistsOnly bool
+	Status        string
 }
 
 type PrizeInput struct {
@@ -105,13 +102,6 @@ type PrizeInput struct {
 	PoolURL        string
 	Status         string
 	Comments       string
-}
-
-type AwardVoteInput struct {
-	AwardID       string
-	JudgePersonID string
-	ProjectID     string
-	Notes         string
 }
 
 func CreateCompetition(ctx *config.AppContext, in CompetitionInput) (string, error) {
@@ -378,38 +368,10 @@ func AssignProjectAward(ctx *config.AppContext, awardID, projectID string) error
 	return assignProjectAwardPostgres(ctx, awardID, projectID)
 }
 
-func ReplaceProjectAwardWinner(ctx *config.AppContext, awardID, projectID string) error {
-	return replaceProjectAwardWinnerPostgres(ctx, awardID, projectID)
-}
-
 func RemoveProjectAward(ctx *config.AppContext, awardID, projectID string) error {
 	return removeProjectAwardPostgres(ctx, awardID, projectID)
 }
 
 func ListProjectAwardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.ProjectAward, error) {
 	return listProjectAwardsForCompetitionPostgres(ctx, competitionID)
-}
-
-func AddAwardJudge(ctx *config.AppContext, awardID, personID string) error {
-	return addAwardJudgePostgres(ctx, awardID, personID)
-}
-
-func RemoveAwardJudge(ctx *config.AppContext, awardID, personID string) error {
-	return removeAwardJudgePostgres(ctx, awardID, personID)
-}
-
-func ListAwardJudgesForCompetition(ctx *config.AppContext, competitionID string) ([]*types.AwardJudge, error) {
-	return listAwardJudgesForCompetitionPostgres(ctx, competitionID)
-}
-
-func ListAwardVotesForCompetition(ctx *config.AppContext, competitionID string) ([]*types.AwardVote, error) {
-	return listAwardVotesForCompetitionPostgres(ctx, competitionID)
-}
-
-func ListAwardVotesForJudge(ctx *config.AppContext, competitionID, judgePersonID string) ([]*types.AwardVote, error) {
-	return listAwardVotesForJudgePostgres(ctx, competitionID, judgePersonID)
-}
-
-func UpsertAwardVote(ctx *config.AppContext, in AwardVoteInput) error {
-	return upsertAwardVotePostgres(ctx, in)
 }
