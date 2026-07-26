@@ -1047,8 +1047,8 @@
 
 .profile-edit-toolbar {
 	position: sticky;
-	top: 0;
-	z-index: 45;
+	top: calc(var(--btcpp-dev-banner-height, 0px) + var(--btcpp-site-nav-height, 69px));
+	z-index: 39;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;

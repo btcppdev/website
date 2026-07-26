@@ -860,6 +860,13 @@ func DashboardClaimHackathonTicket(w http.ResponseWriter, r *http.Request, ctx *
 // strings + booleans.
 func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, sp *types.Speaker, encHMAC, encEmail string) {
 	nextURL := safeReturnTo(r.FormValue("next"))
+	name := strings.TrimSpace(r.FormValue("Name"))
+	if name == "" {
+		http.Redirect(w, r,
+			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Name is required."),
+			http.StatusSeeOther)
+		return
+	}
 	picRaw, picContentType, picExt, picErr := readMultipartFile(r, "PicFile")
 	hasNewPic := picErr == nil && len(picRaw) > 0
 	if picErr != nil && picErr != http.ErrMissingFile {
@@ -870,6 +877,7 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 	up := getters.SpeakerUpdate{
+		Name:             name,
 		Phone:            strings.TrimSpace(r.FormValue("Phone")),
 		Signal:           strings.TrimSpace(r.FormValue("Signal")),
 		Telegram:         strings.TrimSpace(r.FormValue("Telegram")),

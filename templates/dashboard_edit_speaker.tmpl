@@ -95,12 +95,8 @@
               {{ end }}
             </label>
             {{ else }}
-            <label>DISPLAY NAME
-              {{ if .IsAdmin }}
+            <label>DISPLAY NAME *
               <input id="Name" name="Name" type="text" required value="{{ .Speaker.Name }}">
-              {{ else }}
-              <span class="profile-edit-locked">{{ .Speaker.Name }}</span>
-              {{ end }}
             </label>
             <label>EMAIL
               {{ if .IsAdmin }}
