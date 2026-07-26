@@ -1105,6 +1105,17 @@ func listProjectsForCompetitionPostgres(ctx *config.AppContext, competitionID st
 	return out, nil
 }
 
+func listTableProjectsForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.HackathonProject, error) {
+	competitionID = strings.TrimSpace(competitionID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("competition id is required")
+	}
+	return queryProjectsPostgres(ctx, "table projects for competition", `
+		WHERE projects.competition_id::text = $1
+			AND projects.status IN ($2, $3)
+	`, []any{competitionID, ProjectStatusSubmitted, ProjectStatusAdvanced})
+}
+
 func queryProjectsPostgres(ctx *config.AppContext, label, whereSQL string, args []any) ([]*types.HackathonProject, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
