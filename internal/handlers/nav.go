@@ -17,8 +17,8 @@ type NavConfList struct {
 	Past     []*types.Conf
 }
 
-// buildNavConfList loads published conferences and splits by
-// HasEnded(). Sort order is "next event soonest" for
+// buildNavConfList loads published conferences and splits using the public
+// active-list grace period. Sort order is "next event soonest" for
 // upcoming and "most recently ended" for past so the freshest items
 // land at the top of each list.
 func buildNavConfList(ctx *config.AppContext) NavConfList {
@@ -43,10 +43,10 @@ func buildNavConfList(ctx *config.AppContext) NavConfList {
 		if !c.IsPublished() {
 			continue
 		}
-		if c.HasEnded() {
-			past = append(past, c)
-		} else {
+		if c.IsInActiveEventList() {
 			upcoming = append(upcoming, c)
+		} else {
+			past = append(past, c)
 		}
 	}
 	sort.Slice(upcoming, func(i, j int) bool {

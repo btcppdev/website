@@ -1127,7 +1127,7 @@ func buildEventBlocks(
 	}
 
 	for _, eb := range byTag {
-		if eb.Conf != nil && eb.Conf.HasEnded() {
+		if eb.Conf != nil && eb.Conf.DashboardHasEnded() {
 			past = append(past, eb)
 		} else {
 			active = append(active, eb)
@@ -1179,7 +1179,7 @@ func attachSatelliteEventBlocks(active, past []*EventBlock, events []*types.Sate
 				CanBuy: conf.Active && conf.InFuture(),
 			}
 			byTag[conf.Tag] = eb
-			if conf.HasEnded() {
+			if conf.DashboardHasEnded() {
 				past = append(past, eb)
 			} else {
 				active = append(active, eb)
@@ -1233,7 +1233,7 @@ func attachJudgeEventBlocks(active, past []*EventBlock, assignments []*types.Com
 		if eb == nil {
 			eb = &EventBlock{Conf: conf, CanBuy: conf.Active && conf.InFuture()}
 			byTag[conf.Tag] = eb
-			if conf.HasEnded() {
+			if conf.DashboardHasEnded() {
 				past = append(past, eb)
 			} else {
 				active = append(active, eb)
@@ -1305,9 +1305,8 @@ func excludeConfsInBlocks(candidates []*types.Conf, blocks []*EventBlock) []*typ
 	return out
 }
 
-// upcomingTickets joins the user's PurchasesDb rows with the confs cache
-// and keeps only those whose conf hasn't ended. Past tickets are dropped
-// — no value in offering a PDF for a conf that's already over.
+// upcomingTickets joins the user's PurchasesDb rows with the confs cache and
+// keeps them through the dashboard's post-event grace period.
 func upcomingTickets(regs []*types.Registration, allConfs []*types.Conf) []*UserTicket {
 	if len(regs) == 0 {
 		return nil
@@ -1325,7 +1324,7 @@ func upcomingTickets(regs []*types.Registration, allConfs []*types.Conf) []*User
 			continue
 		}
 		c := confByRef[r.ConfRef]
-		if c == nil || c.HasEnded() {
+		if c == nil || c.DashboardHasEnded() {
 			continue
 		}
 		out = append(out, &UserTicket{Reg: r, Conf: c})
@@ -1394,14 +1393,14 @@ func eligibleApplyConfs(allConfs []*types.Conf, userSpeakerConfs []*types.Speake
 	return out
 }
 
-// splitSpeakerConfsByEnded partitions speaker confs by whether their conf
-// has ended (per Conf.EndDate). A SpeakerConf with no resolvable conf
+// splitSpeakerConfsByEnded partitions speaker confs using the dashboard's
+// post-event grace period. A SpeakerConf with no resolvable conf
 // (no proposals or proposals without ScheduleFor) lands in the active
 // bucket so it's still visible — better to show too much than to bury it.
 func splitSpeakerConfsByEnded(scs []*types.SpeakerConf) (active, past []*types.SpeakerConf) {
 	for _, sc := range scs {
 		conf := speakerConfConf(sc)
-		if conf != nil && conf.HasEnded() {
+		if conf != nil && conf.DashboardHasEnded() {
 			past = append(past, sc)
 		} else {
 			active = append(active, sc)
@@ -1412,7 +1411,7 @@ func splitSpeakerConfsByEnded(scs []*types.SpeakerConf) (active, past []*types.S
 
 func splitVolAppsByEnded(vols []*types.Volunteer) (active, past []*types.Volunteer) {
 	for _, v := range vols {
-		if len(v.ScheduleFor) > 0 && v.ScheduleFor[0] != nil && v.ScheduleFor[0].HasEnded() {
+		if len(v.ScheduleFor) > 0 && v.ScheduleFor[0] != nil && v.ScheduleFor[0].DashboardHasEnded() {
 			past = append(past, v)
 		} else {
 			active = append(active, v)

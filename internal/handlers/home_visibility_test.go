@@ -57,6 +57,37 @@ func TestHomeConferenceListsUsePublicationStatus(t *testing.T) {
 	}
 }
 
+func TestHomeConferenceListsHonorPostEventGrace(t *testing.T) {
+	loc, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		t.Fatalf("load Toronto timezone: %s", err)
+	}
+	conf := &types.Conf{
+		Tag:               "toronto",
+		PublicationStatus: "published",
+		Timezone:          "America/Toronto",
+		TZ:                loc,
+		StartDate:         time.Date(2026, time.July, 22, 0, 0, 0, 0, loc),
+		EndDate:           time.Date(2026, time.July, 24, 0, 0, 0, 0, loc),
+	}
+
+	duringGrace := time.Date(2026, time.July, 26, 11, 59, 0, 0, loc)
+	if got := homeUpcomingConfsAt([]*types.Conf{conf}, duringGrace); len(got) != 1 {
+		t.Fatalf("upcoming during grace = %v, want Toronto", confTags(got))
+	}
+	if got := homePastConfsAt([]*types.Conf{conf}, duringGrace); len(got) != 0 {
+		t.Fatalf("past during grace = %v, want none", confTags(got))
+	}
+
+	afterGrace := time.Date(2026, time.July, 26, 12, 0, 0, 0, loc)
+	if got := homeUpcomingConfsAt([]*types.Conf{conf}, afterGrace); len(got) != 0 {
+		t.Fatalf("upcoming after grace = %v, want none", confTags(got))
+	}
+	if got := homePastConfsAt([]*types.Conf{conf}, afterGrace); len(got) != 1 {
+		t.Fatalf("past after grace = %v, want Toronto", confTags(got))
+	}
+}
+
 func confTags(confs []*types.Conf) []string {
 	out := make([]string, 0, len(confs))
 	for _, conf := range confs {

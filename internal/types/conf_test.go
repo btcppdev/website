@@ -118,6 +118,38 @@ func TestConfEventDayCount(t *testing.T) {
 	}
 }
 
+func TestConfDisplayGracePeriodsStartAfterFinalLocalDay(t *testing.T) {
+	loc, err := time.LoadLocation("America/Toronto")
+	if err != nil {
+		t.Fatalf("load Toronto timezone: %s", err)
+	}
+	conf := &Conf{
+		PublicationStatus: "published",
+		Timezone:          "America/Toronto",
+		TZ:                loc,
+		StartDate:         time.Date(2026, time.July, 22, 0, 0, 0, 0, loc),
+		// Conference date fields may be stored at the beginning of the day.
+		EndDate: time.Date(2026, time.July, 24, 0, 0, 0, 0, loc),
+	}
+
+	finalDayEnd := time.Date(2026, time.July, 25, 0, 0, 0, 0, loc)
+	if got := conf.FinalDayEndsAt(); !got.Equal(finalDayEnd) {
+		t.Fatalf("FinalDayEndsAt() = %s, want %s", got, finalDayEnd)
+	}
+	if !conf.IsInActiveEventListAt(time.Date(2026, time.July, 26, 11, 59, 0, 0, loc)) {
+		t.Fatal("conference left public active list before 36-hour grace elapsed")
+	}
+	if conf.IsInActiveEventListAt(time.Date(2026, time.July, 26, 12, 0, 0, 0, loc)) {
+		t.Fatal("conference remained in public active list after 36-hour grace elapsed")
+	}
+	if conf.DashboardHasEndedAt(time.Date(2026, time.July, 31, 23, 59, 0, 0, loc)) {
+		t.Fatal("conference left dashboard current events before seven-day grace elapsed")
+	}
+	if !conf.DashboardHasEndedAt(time.Date(2026, time.August, 1, 0, 0, 0, 0, loc)) {
+		t.Fatal("conference remained in dashboard current events after seven-day grace elapsed")
+	}
+}
+
 func TestConfArchiveTitleParts(t *testing.T) {
 	for _, tc := range []struct {
 		name        string

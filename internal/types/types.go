@@ -1038,6 +1038,54 @@ func (c *Conf) HasEndedAt(now time.Time) bool {
 	return c.EndDate.Before(now)
 }
 
+const (
+	// PublicActiveListGrace keeps an event in the site's active/upcoming event
+	// lists after its final local calendar day. This is display-only; sales and
+	// other operational lifecycle checks continue to use HasEnded.
+	PublicActiveListGrace = 36 * time.Hour
+	// DashboardEventGrace keeps the current event card prominent while
+	// attendees are still wrapping up travel, tickets, judging, and follow-up.
+	DashboardEventGrace = 7 * 24 * time.Hour
+)
+
+// FinalDayEndsAt returns midnight immediately following the conference's
+// final calendar day in the conference timezone. Conference dates are often
+// stored at midnight, so comparing EndDate as an exact timestamp would make
+// an event disappear at the beginning of its last day.
+func (c *Conf) FinalDayEndsAt() time.Time {
+	if c == nil || c.EndDate.IsZero() {
+		return time.Time{}
+	}
+	loc := c.Loc()
+	end := c.EndDate.In(loc)
+	return time.Date(end.Year(), end.Month(), end.Day()+1, 0, 0, 0, 0, loc)
+}
+
+// IsInActiveEventListAt reports whether a published conference should remain
+// in public active/upcoming lists. It deliberately does not alter Conf.Active.
+func (c *Conf) IsInActiveEventListAt(now time.Time) bool {
+	if !c.IsPublished() {
+		return false
+	}
+	finalDayEnd := c.FinalDayEndsAt()
+	return finalDayEnd.IsZero() || now.Before(finalDayEnd.Add(PublicActiveListGrace))
+}
+
+func (c *Conf) IsInActiveEventList() bool {
+	return c.IsInActiveEventListAt(time.Now())
+}
+
+// DashboardHasEndedAt reports when a conference should move out of the
+// dashboard's current-event area and into its past/archive presentation.
+func (c *Conf) DashboardHasEndedAt(now time.Time) bool {
+	finalDayEnd := c.FinalDayEndsAt()
+	return !finalDayEnd.IsZero() && !now.Before(finalDayEnd.Add(DashboardEventGrace))
+}
+
+func (c *Conf) DashboardHasEnded() bool {
+	return c.DashboardHasEndedAt(time.Now())
+}
+
 func (c *Conf) IsCurrentlyActive() bool {
 	return c.IsPublished() && !c.HasEnded()
 }

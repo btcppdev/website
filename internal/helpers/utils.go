@@ -283,11 +283,13 @@ func MakeJobHash(email string, uid uint64, title string) string {
 // Removed in favor of redirect-to-/login on missing identity.
 
 const (
-	// Login links sent from /login should be short-lived. Longer-lived
-	// dashboard links embedded in ticket / speaker / volunteer emails use
-	// DefaultEmailLinkTTL below so normal event workflows do not depend on an
-	// immediate click.
-	LoginEmailLinkTTL   = 30 * time.Minute
+	// Every bearer link delivered by email is short-lived. Once a link has
+	// authenticated the visitor, the browser session has its own longer
+	// lifetime and no longer depends on the emailed URL.
+	LoginEmailLinkTTL = 30 * time.Minute
+	EmailedLinkTTL    = 30 * time.Minute
+	// DefaultEmailLinkTTL is retained for credentials minted during an
+	// already-authenticated browser session. Do not use it for emailed URLs.
 	DefaultEmailLinkTTL = 30 * 24 * time.Hour
 )
 
@@ -401,7 +403,7 @@ func EmailLink(ctx *config.AppContext, email, path string) string {
 		return ""
 	}
 	u.Path = path
-	hmac := CreateEmailHMAC(ctx, email)
+	hmac := CreateEmailHMACTTL(ctx, email, EmailedLinkTTL)
 	encodedHMAC := base64.RawURLEncoding.EncodeToString([]byte(hmac))
 	encodedEmail := base64.RawURLEncoding.EncodeToString([]byte(email))
 	q := u.Query()

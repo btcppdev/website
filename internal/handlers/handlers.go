@@ -4471,9 +4471,13 @@ func homeFeaturedSpeakers(ctx *config.AppContext) []*types.Speaker {
 }
 
 func homeUpcomingConfs(confs []*types.Conf) []*types.Conf {
+	return homeUpcomingConfsAt(confs, time.Now())
+}
+
+func homeUpcomingConfsAt(confs []*types.Conf, now time.Time) []*types.Conf {
 	out := make([]*types.Conf, 0, len(confs))
 	for _, c := range confs {
-		if c != nil && c.IsPublished() && !c.HasEnded() {
+		if c != nil && c.IsInActiveEventListAt(now) {
 			out = append(out, c)
 		}
 	}
@@ -4484,9 +4488,13 @@ func homeUpcomingConfs(confs []*types.Conf) []*types.Conf {
 }
 
 func homePastConfs(confs []*types.Conf) []*types.Conf {
+	return homePastConfsAt(confs, time.Now())
+}
+
+func homePastConfsAt(confs []*types.Conf, now time.Time) []*types.Conf {
 	out := make([]*types.Conf, 0, len(confs))
 	for _, c := range confs {
-		if c != nil && c.IsPublished() && c.HasEnded() {
+		if c != nil && c.IsPublished() && !c.IsInActiveEventListAt(now) {
 			out = append(out, c)
 		}
 	}
@@ -4556,7 +4564,7 @@ func homeMapMarkers(confs []*types.Conf) []*HomeMapMarker {
 			}
 			groups[key] = group
 		}
-		if !conf.HasEnded() {
+		if conf.IsInActiveEventList() {
 			group.marker.Upcoming = true
 		}
 		group.marker.Editions = append(group.marker.Editions, &HomeMapEdition{
@@ -4564,7 +4572,7 @@ func homeMapMarkers(confs []*types.Conf) []*HomeMapMarker {
 			Label:       conf.Desc,
 			Date:        conf.DateDesc,
 			EditionType: conf.EditionType,
-			Upcoming:    !conf.HasEnded(),
+			Upcoming:    conf.IsInActiveEventList(),
 		})
 		if group.marker.Conf == nil || conf.StartDate.Before(group.marker.Conf.StartDate) {
 			group.marker.Conf = conf

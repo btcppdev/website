@@ -24,6 +24,8 @@ import (
 	"github.com/alexedwards/scs/v2"
 )
 
+const authenticatedSessionLifetime = 28 * 24 * time.Hour
+
 var app config.AppContext
 
 const mailerStartupDelay = 8 * time.Minute
@@ -176,7 +178,10 @@ func run(env *types.EnvConfig) error {
 	}
 
 	app.Session = scs.New()
-	app.Session.Lifetime = 4 * 24 * time.Hour
+	// A successful magic-link login establishes a durable browser session.
+	// The link itself remains short-lived (LoginEmailLinkTTL), but once it has
+	// been validated the user should not need to re-authenticate every few days.
+	app.Session.Lifetime = authenticatedSessionLifetime
 	// Use an app-specific cookie name. The SCS default is "session",
 	// which is easy for another localhost service to overwrite because
 	// browser cookies are scoped by host, not port.
