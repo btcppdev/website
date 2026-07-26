@@ -209,6 +209,10 @@ func ListProjectsForCompetition(ctx *config.AppContext, competitionID string, vi
 	return listProjectsForCompetitionPostgres(ctx, competitionID, viewer)
 }
 
+func ListTableProjectsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.HackathonProject, error) {
+	return listTableProjectsForCompetitionPostgres(ctx, competitionID)
+}
+
 func AddProjectMember(ctx *config.AppContext, projectID, personID, role string) error {
 	return addProjectMemberPostgres(ctx, projectID, personID, role)
 }
