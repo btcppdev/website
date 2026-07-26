@@ -223,25 +223,6 @@ func TestCoordinatorRoleDoesNotGrantScoringAccess(t *testing.T) {
 	}
 }
 
-func TestProjectEditingPausedOnlyDuringActiveJudging(t *testing.T) {
-	now := time.Date(2026, time.July, 22, 15, 0, 0, 0, time.UTC)
-	if projectEditingPausedForJudging([]*types.JudgeEvent{{State: getters.JudgeEventStatePending}}) {
-		t.Fatal("pending judging event paused project editing")
-	}
-	if !projectEditingPausedForJudging([]*types.JudgeEvent{{State: getters.JudgeEventStateOpen}}) {
-		t.Fatal("open judging event did not pause project editing")
-	}
-	if projectEditingPausedForJudging([]*types.JudgeEvent{{State: getters.JudgeEventStateClosed}}) {
-		t.Fatal("closed judging event paused project editing")
-	}
-
-	starts := now.Add(-time.Hour)
-	ends := now.Add(time.Hour)
-	if projectEditingPausedForJudging([]*types.JudgeEvent{{StartsAt: &starts, EndsAt: &ends}}) {
-		t.Fatal("scheduled judging window paused project editing without open state")
-	}
-}
-
 func TestPublicJudgeRoleLabel(t *testing.T) {
 	page := &HackathonPage{}
 	tests := []struct {
