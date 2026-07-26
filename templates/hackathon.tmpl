@@ -7,6 +7,7 @@
 <body class="hack-redesign">
   {{ $galleryProjects := .GalleryProjects }}
   {{ $myProjects := .MyProjects }}
+  {{ $tableProjects := .TableProjects }}
   {{ $showProjectGallery := .ProjectGalleryOpen }}
   {{ template "generic_conf_ticker" (dict "Conf" .Conf "Label" "Hackathon live" "Count" (len $galleryProjects)) }}
   {{ template "generic_conf_nav" .Conf }}
@@ -482,7 +483,7 @@
           <div class="hack-section__cta">{{ template "hackathon_primary_action" . }}</div>
         </div>
       </div>
-      {{ if .Projects }}
+      {{ if $tableProjects }}
       <div class="hack-table-wrap">
         <table class="hack-table">
           <thead>
@@ -492,10 +493,10 @@
             </tr>
           </thead>
           <tbody>
-            {{ range .Projects }}
+            {{ range $tableProjects }}
             <tr>
               <td>{{ $.ProjectNumberLabel . }}</td>
-              <td><a href="#project-{{ .ID }}">{{ .Title }}</a></td>
+              <td>{{ if $showProjectGallery }}<a href="#project-{{ .ID }}">{{ .Title }}</a>{{ else }}{{ .Title }}{{ end }}</td>
             </tr>
             {{ end }}
           </tbody>

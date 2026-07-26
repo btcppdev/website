@@ -42,6 +42,7 @@ type HackathonPage struct {
 	Confs                       []*types.Conf
 	OrgsByID                    map[string]*types.Org
 	Projects                    []*types.HackathonProject
+	TableProjects               []*types.HackathonProject
 	ProjectMembersByProject     map[string][]*types.ProjectMember
 	ChallengeProjects           []*types.HackathonProject
 	Project                     *types.HackathonProject
@@ -1768,6 +1769,15 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 	personID := hackathonViewerPersonID(id)
 	viewer := hackathonViewerFromIdentity(id, conf)
+	var tableProjects []*types.HackathonProject
+	if competition.PublicTablesEnabled || viewer.Admin || viewer.Coordinator {
+		tableProjects, err = getters.ListTableProjectsForCompetition(ctx, competition.ID)
+		if err != nil {
+			ctx.Err.Printf("/hackathons/%s table projects: %s", competition.ID, err)
+			http.Error(w, "Unable to load project tables", http.StatusInternalServerError)
+			return
+		}
+	}
 	awards, prizesByAward, prizePoolByAward, awardeesByAward, err := loadPublicHackathonAwards(ctx, competition.ID, competition.ResultsFinalizedAt != nil)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s awards: %s", competition.ID, err)
@@ -1822,6 +1832,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Conf:                    conf,
 		OrgsByID:                orgMap,
 		Projects:                projects,
+		TableProjects:           tableProjects,
 		ProjectMembersByProject: projectMembers,
 		Judges:                  judges,
 		JudgeProfileURLs:        judgeProfileURLs,
