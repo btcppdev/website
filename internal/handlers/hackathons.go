@@ -3561,19 +3561,7 @@ func viewerCanEditHackathonProject(ctx *config.AppContext, competition *types.Ha
 	if !viewerCanManageProject(ctx, projectID, viewer.PersonID) {
 		return false, "Only project members or hackathon coordinators can edit that project."
 	}
-	events, err := getters.ListJudgeEvents(ctx, competition.ID)
-	if err != nil {
-		ctx.Err.Printf("list judging events before project edit %s: %s", projectID, err)
-		return false, "Unable to verify the judging schedule. Please try again."
-	}
-	if projectEditingPausedForJudging(events) {
-		return false, "Project editing is paused while judging is active. Editing will reopen when the judging period closes."
-	}
 	return true, ""
-}
-
-func projectEditingPausedForJudging(events []*types.JudgeEvent) bool {
-	return len(currentJudgeEvents(events)) > 0
 }
 
 func viewerIsProjectOwner(members []*types.ProjectMember, id *auth.Identity) bool {
