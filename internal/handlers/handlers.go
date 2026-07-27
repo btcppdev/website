@@ -1305,6 +1305,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminJudging(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/mode", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdateJudgingMode(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/scores", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminScoreReview(w, r, app)
 	}).Methods("GET")
@@ -4104,7 +4107,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		}
 	}
 	if hackathon != nil {
-		hackathonScheduleEvents, err = loadHackathonScheduleEvents(ctx, hackathon.ID)
+		hackathonScheduleEvents, err = loadLocalizedHackathonScheduleEvents(ctx, hackathon, conf)
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon schedule events %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
 		}

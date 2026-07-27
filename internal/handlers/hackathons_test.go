@@ -120,6 +120,92 @@ func TestHackathonPrimaryProjectActionExistingProject(t *testing.T) {
 	}
 }
 
+func TestScheduledSubmissionWindowDrivesAutomaticSubmissionState(t *testing.T) {
+	now := time.Now()
+	openAt := now.Add(-4 * time.Hour)
+	closeAt := now.Add(-1 * time.Hour)
+	competition := &types.HackathonCompetition{
+		Visibility: getters.CompetitionVisibilityPublic,
+	}
+	scheduleEvents := []HackathonScheduleEvent{
+		{SegmentType: "kickoff", Time: &openAt},
+		{SegmentType: getters.JudgeTypeExpo, Time: &closeAt},
+	}
+	if competitionAcceptsProjects(competition, scheduleEvents) {
+		t.Fatalf("competitionAcceptsProjects() = true, want false after scheduled judging starts")
+	}
+	action := (&HackathonPage{Competition: competition, Conf: &types.Conf{Tag: "toronto"}, ScheduleEventList: scheduleEvents}).PrimaryProjectAction()
+	if action.Label != "Submissions closed" || !action.Disabled {
+		t.Fatalf("PrimaryProjectAction() = %+v, want disabled submissions-closed action", action)
+	}
+}
+
+func TestLegacySubmissionWindowFallback(t *testing.T) {
+	now := time.Now()
+	openAt := now.Add(-4 * time.Hour)
+	closeAt := now.Add(time.Hour)
+	competition := &types.HackathonCompetition{
+		Visibility:         getters.CompetitionVisibilityPublic,
+		SubmissionsOpenAt:  &openAt,
+		SubmissionsCloseAt: &closeAt,
+	}
+	if !competitionAcceptsProjects(competition, nil) {
+		t.Fatal("competitionAcceptsProjects() = false, want legacy window fallback to accept projects")
+	}
+
+	futureExpo := now.Add(2 * time.Hour)
+	events := []HackathonScheduleEvent{{SegmentType: getters.JudgeTypeExpo, Time: &futureExpo}}
+	if !competitionAcceptsProjects(competition, events) {
+		t.Fatal("competitionAcceptsProjects() = false, want Expo not to suppress legacy opening")
+	}
+
+	futureKickoff := now.Add(30 * time.Minute)
+	events = append(events, HackathonScheduleEvent{SegmentType: "kickoff", Time: &futureKickoff})
+	if competitionAcceptsProjects(competition, events) {
+		t.Fatal("competitionAcceptsProjects() = true, want scheduled kickoff to override legacy opening")
+	}
+}
+
+func TestLegacyScheduleEventsRemainVisibleUntilEquivalentSegmentsAreScheduled(t *testing.T) {
+	openAt := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
+	closeAt := openAt.Add(8 * time.Hour)
+	publicAt := closeAt.Add(time.Hour)
+	competition := &types.HackathonCompetition{
+		SubmissionsOpenAt:  &openAt,
+		SubmissionsCloseAt: &closeAt,
+		PublicGalleryAt:    &publicAt,
+	}
+
+	events := withLegacyHackathonScheduleFallback(competition, nil)
+	if len(events) != 3 {
+		t.Fatalf("legacy schedule events = %+v, want three events", events)
+	}
+	if events[0].Label != "Submissions open" || events[1].Label != "Submissions close" || events[2].Label != "Submissions go public" {
+		t.Fatalf("legacy schedule event order = %+v", events)
+	}
+
+	scheduledAt := openAt.Add(2 * time.Hour)
+	scheduled := []HackathonScheduleEvent{{SegmentID: "scheduled", Label: "Kickoff", Time: &scheduledAt, SegmentType: "kickoff"}}
+	events = withLegacyHackathonScheduleFallback(competition, scheduled)
+	if len(events) != 3 {
+		t.Fatalf("partially scheduled events = %+v, want kickoff plus legacy close and gallery", events)
+	}
+	if events[0].SegmentType != "kickoff" || events[1].SegmentType != "submissions-close" || events[2].SegmentType != "public-gallery" {
+		t.Fatalf("partially scheduled event order = %+v", events)
+	}
+
+	expoAt := closeAt.Add(-time.Hour)
+	galleryAt := publicAt.Add(-30 * time.Minute)
+	fullyScheduled := append(scheduled,
+		HackathonScheduleEvent{SegmentID: "expo", Label: "Project expo", Time: &expoAt, SegmentType: getters.JudgeTypeExpo},
+		HackathonScheduleEvent{SegmentID: "gallery", Label: "Gallery", Time: &galleryAt, SegmentType: "public-gallery"},
+	)
+	events = withLegacyHackathonScheduleFallback(competition, fullyScheduled)
+	if len(events) != len(fullyScheduled) {
+		t.Fatalf("fully scheduled events = %+v, want no legacy additions", events)
+	}
+}
+
 func TestExistingProjectFromMembers(t *testing.T) {
 	projects := []*types.HackathonProject{
 		{ID: "project-1", Title: "First"},
@@ -210,13 +296,15 @@ func TestEventBlockSeparatesHackathonCoordinatorFromJudge(t *testing.T) {
 func TestCoordinatorRoleDoesNotGrantScoringAccess(t *testing.T) {
 	event := &types.JudgeEvent{PlaybookType: "expo", State: "open"}
 	coordinator := &HackathonPage{
-		JudgeTypes: map[string]bool{"coordinator": true},
+		Competition: &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeManual},
+		JudgeTypes:  map[string]bool{"coordinator": true},
 	}
 	if coordinator.CanScoreJudgeEvent(event) {
 		t.Fatal("coordinator-only assignment grants expo scoring access")
 	}
 	expoJudge := &HackathonPage{
-		JudgeTypes: map[string]bool{"expo": true},
+		Competition: &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeManual},
+		JudgeTypes:  map[string]bool{"expo": true},
 	}
 	if !expoJudge.CanScoreJudgeEvent(event) {
 		t.Fatal("expo assignment does not grant expo scoring access")
