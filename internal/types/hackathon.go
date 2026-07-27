@@ -3,17 +3,20 @@ package types
 import "time"
 
 type HackathonCompetition struct {
-	ID                    string
-	ConferenceID          string
-	Title                 string
-	Description           string
-	DescriptionFormat     string
-	Visibility            string
-	LifecycleOverride     string
-	PublicGalleryEnabled  bool
-	AllowLateSubmissions  bool
-	PublicTablesEnabled   bool
-	MaxTeamSize           *int
+	ID                   string
+	ConferenceID         string
+	Title                string
+	Description          string
+	DescriptionFormat    string
+	Visibility           string
+	LifecycleOverride    string
+	JudgingMode          string
+	PublicGalleryEnabled bool
+	AllowLateSubmissions bool
+	PublicTablesEnabled  bool
+	MaxTeamSize          *int
+	// Legacy submission timestamps remain as a fallback while existing
+	// competitions transition to conference schedule events.
 	SubmissionsOpenAt     *time.Time
 	SubmissionsCloseAt    *time.Time
 	PublicGalleryAt       *time.Time
