@@ -14,12 +14,7 @@
       <span class="admin-hackathon-tab__count">{{ .ScheduleSegmentCount }}</span>
     </a>
     <a href="{{ .JudgingURL .Competition }}"
-       class="admin-hackathon-tab{{ if eq .ActiveTab "judging" }} is-active{{ end }}">Judging</a>
-    <a href="{{ .ScoreReviewURL .Competition }}"
-       class="admin-hackathon-tab{{ if eq .ActiveTab "scores" }} is-active{{ end }}">
-      Scores
-      <span class="admin-hackathon-tab__count">{{ .ScoreProjectCount }}</span>
-    </a>
+       class="admin-hackathon-tab{{ if or (eq .ActiveTab "judging") (eq .ActiveTab "scores") }} is-active{{ end }}">Judging</a>
     <a href="{{ .AwardsURL .Competition }}"
        class="admin-hackathon-tab{{ if eq .ActiveTab "awards" }} is-active{{ end }}">
       Awards
@@ -28,5 +23,21 @@
     <a href="{{ .PayoutsURL .Competition }}"
        class="admin-hackathon-tab{{ if eq .ActiveTab "payouts" }} is-active{{ end }}">Payouts</a>
   </div>
+</nav>
+{{ end }}
+
+{{ define "admin_hackathon_judging_tabs" }}
+<nav class="-mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Judging admin sections">
+  <a href="{{ .JudgingURL .Competition }}"
+     role="tab"
+     aria-selected="{{ if eq .ActiveTab "judging" }}true{{ else }}false{{ end }}"
+     class="flex-none rounded-md px-3 py-2 text-sm font-semibold {{ if eq .ActiveTab "judging" }}bg-indigo-600 text-white{{ else }}bg-white text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50{{ end }}">Main</a>
+  <a href="{{ .ScoreReviewURL .Competition }}"
+     role="tab"
+     aria-selected="{{ if eq .ActiveTab "scores" }}true{{ else }}false{{ end }}"
+     class="flex-none rounded-md px-3 py-2 text-sm font-semibold {{ if eq .ActiveTab "scores" }}bg-indigo-600 text-white{{ else }}bg-white text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50{{ end }}">
+    Scoring
+    <span class="{{ if eq .ActiveTab "scores" }}text-indigo-100{{ else }}text-gray-500{{ end }}">· {{ .ScoreProjectCount }}</span>
+  </a>
 </nav>
 {{ end }}

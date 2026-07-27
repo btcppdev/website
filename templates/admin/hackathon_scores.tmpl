@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <title>{{ .Competition.Title }} Scores - Admin - bitcoin++</title>
+  <title>{{ .Competition.Title }} Scoring - Admin - bitcoin++</title>
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" "" }}
 </head>
@@ -11,12 +11,13 @@
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <a href="{{ .BackURL }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ .BackLabel }}</a>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} scores</h1>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} scoring</h1>
         <p class="mt-1 text-sm text-gray-600">Review submitted judge scorecards.</p>
       </div>
       <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
     </div>
     {{ template "admin_hackathon_tabs" . }}
+    {{ template "admin_hackathon_judging_tabs" . }}
 
     {{ if .FlashMessage }}
     <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>

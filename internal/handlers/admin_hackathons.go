@@ -23,52 +23,53 @@ import (
 )
 
 type HackathonAdminPage struct {
-	Competitions          []*types.HackathonCompetition
-	Conf                  *types.Conf
-	Confs                 []*types.Conf
-	Competition           *types.HackathonCompetition
-	Projects              []*types.HackathonProject
-	NonFinalistProjects   []*types.HackathonProject
-	ProjectTeams          map[string][]*types.ProjectMember
-	Orgs                  []*types.Org
-	OrgsByID              map[string]*types.Org
-	ActiveTab             string
-	JudgeEvents           []*types.JudgeEvent
-	Judges                []*types.CompetitionJudge
-	JudgeInviteLink       string
-	JudgeInviteQRCodeURI  string
-	PeopleByID            map[string]*types.Speaker
-	Scorecards            []*types.Scorecard
-	ScoreBallotScorecards []*types.Scorecard
-	ScoreSummaries        []*HackathonScoreSummary
-	ProjectTitles         map[string]string
-	ScoreMode             string
-	ScoreJudgeEventID     string
-	Awards                []*types.Award
-	ArchivedAwards        []*types.Award
-	PrizesByAward         map[string][]*types.Prize
-	AwardeesByAward       map[string][]*types.ProjectAward
-	AwardOptInsByProject  map[string][]*types.ProjectAwardOptIn
-	AwardJudgesByAward    map[string][]*types.AwardJudge
-	AwardVotesByAward     map[string][]*types.AwardVote
-	PayoutAssignments     []*HackathonPayoutAssignment
-	AwardDistributions    []*types.AwardDistribution
-	ScheduleSegments      []*types.CompetitionScheduleSegment
-	ScheduleEventsByID    map[string]HackathonScheduleEvent
-	ProjectCount          int
-	ScheduleSegmentCount  int
-	JudgeEventCount       int
-	ScoreProjectCount     int
-	AwardCount            int
-	IsNew                 bool
-	SetupFromSchedule     bool
-	SetupStep             int
-	SeedScheduleBlocks    bool
-	FlashMessage          string
-	FlashError            string
-	SearchQuery           string
-	Sort                  string
-	Year                  uint
+	Competitions                []*types.HackathonCompetition
+	Conf                        *types.Conf
+	Confs                       []*types.Conf
+	Competition                 *types.HackathonCompetition
+	Projects                    []*types.HackathonProject
+	NonFinalistProjects         []*types.HackathonProject
+	ProjectTeams                map[string][]*types.ProjectMember
+	Orgs                        []*types.Org
+	OrgsByID                    map[string]*types.Org
+	ActiveTab                   string
+	JudgeEvents                 []*types.JudgeEvent
+	Judges                      []*types.CompetitionJudge
+	JudgeInviteLink             string
+	JudgeInviteQRCodeURI        string
+	PeopleByID                  map[string]*types.Speaker
+	Scorecards                  []*types.Scorecard
+	ScoreBallotScorecards       []*types.Scorecard
+	ScoreSummaries              []*HackathonScoreSummary
+	ProjectTitles               map[string]string
+	ScoreMode                   string
+	ScoreJudgeEventID           string
+	Awards                      []*types.Award
+	ArchivedAwards              []*types.Award
+	PrizesByAward               map[string][]*types.Prize
+	AwardeesByAward             map[string][]*types.ProjectAward
+	AwardOptInsByProject        map[string][]*types.ProjectAwardOptIn
+	AwardJudgesByAward          map[string][]*types.AwardJudge
+	AwardVotesByAward           map[string][]*types.AwardVote
+	PayoutAssignments           []*HackathonPayoutAssignment
+	AwardDistributions          []*types.AwardDistribution
+	ScheduleSegments            []*types.CompetitionScheduleSegment
+	ScheduleEventsByID          map[string]HackathonScheduleEvent
+	ScheduleEventsByCompetition map[string][]HackathonScheduleEvent
+	ProjectCount                int
+	ScheduleSegmentCount        int
+	JudgeEventCount             int
+	ScoreProjectCount           int
+	AwardCount                  int
+	IsNew                       bool
+	SetupFromSchedule           bool
+	SetupStep                   int
+	SeedScheduleBlocks          bool
+	FlashMessage                string
+	FlashError                  string
+	SearchQuery                 string
+	Sort                        string
+	Year                        uint
 }
 
 type HackathonPayoutAssignment struct {
@@ -407,21 +408,36 @@ func (p *HackathonAdminPage) VisibilityURL(competition *types.HackathonCompetiti
 }
 
 func (p *HackathonAdminPage) TimelineLabel(competition *types.HackathonCompetition) string {
-	label, _ := hackathonNextMilestone(competition)
-	return label
+	if event := nextHackathonScheduleEvent(p.scheduleEventsForCompetition(competition)); event != nil {
+		return event.Label
+	}
+	if len(p.scheduleEventsForCompetition(competition)) > 0 {
+		return "View schedule"
+	}
+	return ""
 }
 
 func (p *HackathonAdminPage) TimelineValue(competition *types.HackathonCompetition) string {
-	_, value := hackathonNextMilestone(competition)
-	return value
+	events := p.scheduleEventsForCompetition(competition)
+	if event := nextHackathonScheduleEvent(events); event != nil {
+		return formatHackathonScheduleEventTime(event)
+	}
+	return completedHackathonScheduledEventRange(events)
 }
 
 func (p *HackathonAdminPage) TimelineIsScheduleLink(competition *types.HackathonCompetition) bool {
-	return hackathonMilestoneIsScheduleLink(competition)
+	return nextHackathonScheduleEvent(p.scheduleEventsForCompetition(competition)) == nil && len(p.scheduleEventsForCompetition(competition)) > 0
 }
 
 func (p *HackathonAdminPage) ScheduleURL(competition *types.HackathonCompetition) string {
 	return hackathonScheduleURLForConf(p.confForCompetition(competition))
+}
+
+func (p *HackathonAdminPage) scheduleEventsForCompetition(competition *types.HackathonCompetition) []HackathonScheduleEvent {
+	if p == nil || competition == nil || p.ScheduleEventsByCompetition == nil {
+		return nil
+	}
+	return p.ScheduleEventsByCompetition[competition.ID]
 }
 
 func (p *HackathonAdminPage) ProjectPublicURL(project *types.HackathonProject) string {
@@ -543,12 +559,32 @@ func (p *HackathonAdminPage) RankLimit(event *types.JudgeEvent) int {
 	return judgeEventRankLimit(event)
 }
 
+func (p *HackathonAdminPage) JudgingModeLabel() string {
+	return judgingModeLabel(p.Competition)
+}
+
+func (p *HackathonAdminPage) JudgingMode() string {
+	return competitionJudgingMode(p.Competition)
+}
+
+func (p *HackathonAdminPage) JudgingModeIsManual() bool {
+	return p.JudgingMode() == getters.CompetitionJudgingModeManual
+}
+
+func (p *HackathonAdminPage) JudgingModeIsAutomatic() bool {
+	return p.JudgingMode() == getters.CompetitionJudgingModeAutomatic
+}
+
 func (p *HackathonAdminPage) JudgeEventStateLabel(event *types.JudgeEvent) string {
 	return judgeEventStateLabel(event)
 }
 
+func (p *HackathonAdminPage) JudgeEventEffectiveStateLabel(event *types.JudgeEvent) string {
+	return judgeEventEffectiveStateLabel(p.Competition, event, time.Now())
+}
+
 func (p *HackathonAdminPage) JudgeEventAcceptsScores(event *types.JudgeEvent) bool {
-	return judgeEventAcceptsScores(event)
+	return judgeEventAcceptsScores(p.Competition, event, time.Now())
 }
 
 func (p *HackathonAdminPage) ScheduleSegmentTimeRange(segment *types.CompetitionScheduleSegment) string {
@@ -1212,15 +1248,35 @@ func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		http.Error(w, "Unable to load conferences", http.StatusInternalServerError)
 		return
 	}
+	scheduleEventsByCompetition := make(map[string][]HackathonScheduleEvent, len(competitions))
+	confByID := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			confByID[conf.Ref] = conf
+		}
+	}
+	for _, competition := range competitions {
+		if competition == nil {
+			continue
+		}
+		conf := confByID[competition.ConferenceID]
+		events, err := loadLocalizedHackathonScheduleEvents(ctx, competition, conf)
+		if err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s schedule events: %s", competition.ID, err)
+			continue
+		}
+		scheduleEventsByCompetition[competition.ID] = events
+	}
 	competitions = applyHackathonListControls(competitions, confs, searchQuery, sortMode)
 	page := &HackathonAdminPage{
-		Competitions: competitions,
-		Confs:        confs,
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		SearchQuery:  searchQuery,
-		Sort:         sortMode,
-		Year:         helpers.CurrentYear(),
+		Competitions:                competitions,
+		Confs:                       confs,
+		ScheduleEventsByCompetition: scheduleEventsByCompetition,
+		FlashMessage:                r.URL.Query().Get("flash"),
+		FlashError:                  r.URL.Query().Get("error"),
+		SearchQuery:                 searchQuery,
+		Sort:                        sortMode,
+		Year:                        helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathons.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons template: %s", err)
@@ -2758,6 +2814,26 @@ func HackathonAdminUpdateJudgeEventRanks(w http.ResponseWriter, r *http.Request,
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Rank counts saved"), http.StatusSeeOther)
 }
 
+func HackathonAdminUpdateJudgingMode(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := hackathonAdminRequestURL(r, competitionID, "/judging")
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	mode := strings.TrimSpace(r.FormValue("JudgingMode"))
+	if err := getters.UpdateCompetitionJudgingMode(ctx, competitionID, mode); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/judging/mode: %s", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to save judging mode"), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judging mode saved"), http.StatusSeeOther)
+}
+
 func HackathonAdminUpdateJudgeEventState(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireHackathonAdmin(w, r, ctx); id == nil {
 		return
@@ -3350,6 +3426,7 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 		DescriptionFormat:    strings.TrimSpace(r.FormValue("DescriptionFormat")),
 		Visibility:           visibility,
 		LifecycleOverride:    lifecycleOverride,
+		JudgingMode:          strings.TrimSpace(r.FormValue("JudgingMode")),
 		PublicGalleryEnabled: checkboxValue(r, "PublicGalleryEnabled"),
 		AllowLateSubmissions: checkboxValue(r, "AllowLateSubmissions"),
 		PublicTablesEnabled:  checkboxValue(r, "PublicTablesEnabled"),
@@ -3363,15 +3440,6 @@ func hackathonCompetitionInputFromRequest(w http.ResponseWriter, r *http.Request
 			return getters.CompetitionInput{}, fmt.Errorf("max team size must be a positive number")
 		}
 		in.MaxTeamSize = &maxTeamSize
-	}
-	if in.SubmissionsOpenAt, err = parseAdminLocalTime(r.FormValue("SubmissionsOpenAt")); err != nil {
-		return getters.CompetitionInput{}, fmt.Errorf("submissions open: %w", err)
-	}
-	if in.SubmissionsCloseAt, err = parseAdminLocalTime(r.FormValue("SubmissionsCloseAt")); err != nil {
-		return getters.CompetitionInput{}, fmt.Errorf("submissions close: %w", err)
-	}
-	if in.PublicGalleryAt, err = parseAdminLocalTime(r.FormValue("PublicGalleryAt")); err != nil {
-		return getters.CompetitionInput{}, fmt.Errorf("public gallery: %w", err)
 	}
 	return in, nil
 }
@@ -4007,7 +4075,7 @@ func selectedScoreJudgeEventID(competition *types.HackathonCompetition, events [
 			}
 		}
 	}
-	if current := currentJudgeEvents(events); len(current) > 0 && current[0] != nil {
+	if current := currentJudgeEvents(competition, events, time.Now()); len(current) > 0 && current[0] != nil {
 		return current[0].ID
 	}
 	for _, event := range events {
@@ -4317,13 +4385,48 @@ func judgeEventStateValueLabel(state string) string {
 	}
 }
 
-func judgeEventAcceptsScores(event *types.JudgeEvent) bool {
-	return judgeEventState(event) == getters.JudgeEventStateOpen
+func competitionJudgingMode(competition *types.HackathonCompetition) string {
+	if competition != nil && strings.TrimSpace(competition.JudgingMode) == getters.CompetitionJudgingModeManual {
+		return getters.CompetitionJudgingModeManual
+	}
+	return getters.CompetitionJudgingModeAutomatic
 }
 
-func currentJudgeEvents(events []*types.JudgeEvent) []*types.JudgeEvent {
+func judgingModeLabel(competition *types.HackathonCompetition) string {
+	if competitionJudgingMode(competition) == getters.CompetitionJudgingModeAutomatic {
+		return "Automatic"
+	}
+	return "Manual"
+}
+
+func judgeEventEffectiveState(competition *types.HackathonCompetition, event *types.JudgeEvent, now time.Time) string {
+	state := judgeEventState(event)
+	if competitionJudgingMode(competition) != getters.CompetitionJudgingModeAutomatic {
+		return state
+	}
+	if event == nil || event.StartsAt == nil {
+		return getters.JudgeEventStatePending
+	}
+	if now.Before(*event.StartsAt) {
+		return getters.JudgeEventStatePending
+	}
+	if event.EndsAt == nil || now.Before(*event.EndsAt) || now.Equal(*event.EndsAt) {
+		return getters.JudgeEventStateOpen
+	}
+	return getters.JudgeEventStateClosed
+}
+
+func judgeEventEffectiveStateLabel(competition *types.HackathonCompetition, event *types.JudgeEvent, now time.Time) string {
+	return judgeEventStateValueLabel(judgeEventEffectiveState(competition, event, now))
+}
+
+func judgeEventAcceptsScores(competition *types.HackathonCompetition, event *types.JudgeEvent, now time.Time) bool {
+	return judgeEventEffectiveState(competition, event, now) == getters.JudgeEventStateOpen
+}
+
+func currentJudgeEvents(competition *types.HackathonCompetition, events []*types.JudgeEvent, now time.Time) []*types.JudgeEvent {
 	for _, event := range events {
-		if judgeEventAcceptsScores(event) {
+		if judgeEventAcceptsScores(competition, event, now) {
 			return []*types.JudgeEvent{event}
 		}
 	}
