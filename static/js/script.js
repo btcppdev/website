@@ -64,6 +64,86 @@ window.addEventListener("pageshow", function () {
 	if (overlay) overlay.classList.remove("active");
 });
 
+document.addEventListener("DOMContentLoaded", function () {
+	function showAccountIcon(menu) {
+		var img = menu.querySelector("[data-nav-account-photo]");
+		var icon = menu.querySelector(".site-account__icon");
+		if (!img || !icon) return;
+		img.hidden = true;
+		img.removeAttribute("src");
+		icon.hidden = false;
+	}
+
+	function setAccountMenuAuthState(authenticated, photoUrl) {
+		document.querySelectorAll("[data-nav-login]").forEach(function (el) {
+			el.hidden = authenticated;
+		});
+		document.querySelectorAll("[data-nav-auth-only]").forEach(function (el) {
+			el.hidden = !authenticated;
+		});
+		document.querySelectorAll("[data-nav-signout]").forEach(function (el) {
+			el.hidden = !authenticated;
+		});
+		document.querySelectorAll("[data-account-menu]").forEach(function (menu) {
+			var img = menu.querySelector("[data-nav-account-photo]");
+			var icon = menu.querySelector(".site-account__icon");
+			if (!img || !icon) return;
+			if (authenticated && photoUrl) {
+				img.hidden = true;
+				icon.hidden = false;
+				img.onload = function () {
+					img.hidden = false;
+					icon.hidden = true;
+				};
+				img.onerror = function () {
+					showAccountIcon(menu);
+				};
+				img.src = photoUrl;
+			} else {
+				showAccountIcon(menu);
+			}
+		});
+	}
+
+	if (document.querySelector("[data-account-menu]")) {
+		setAccountMenuAuthState(false);
+		fetch("/auth/status", {
+			credentials: "same-origin",
+			headers: { "Accept": "application/json" },
+		}).then(function (response) {
+			if (!response.ok) throw new Error("auth status failed");
+			return response.json();
+		}).then(function (data) {
+			setAccountMenuAuthState(Boolean(data && data.authenticated), data && data.photoUrl);
+		}).catch(function () {
+			setAccountMenuAuthState(false);
+		});
+	}
+
+	function closeAccountMenusOutside(target) {
+		document.querySelectorAll("[data-account-menu][open]").forEach(function (menu) {
+			if (!menu.contains(target)) menu.removeAttribute("open");
+		});
+	}
+
+	document.addEventListener("pointerdown", function (event) {
+		closeAccountMenusOutside(event.target);
+	}, true);
+
+	document.addEventListener("focusin", function (event) {
+		closeAccountMenusOutside(event.target);
+	});
+
+	document.addEventListener("keydown", function (event) {
+		if (event.key !== "Escape") return;
+		document.querySelectorAll("[data-account-menu][open]").forEach(function (menu) {
+			menu.removeAttribute("open");
+			var summary = menu.querySelector("summary");
+			if (summary) summary.focus();
+		});
+	});
+});
+
 function toggleNavFlyout(el, targetId) {
 	// When called with a targetId, toggle just that flyout — and close
 	// any siblings so two flyouts can't be open at once. Without an ID

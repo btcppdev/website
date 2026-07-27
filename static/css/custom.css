@@ -10618,6 +10618,11 @@ border-bottom: 1px solid var(--hack-ink);
 		display: none;
 	}
 
+	.rebrand-nav .site-account {
+		margin-left: auto;
+		margin-right: 44px;
+	}
+
 	.rebrand-nav__links .rebrand-nav__ticket {
 		display: inline-block;
 	}

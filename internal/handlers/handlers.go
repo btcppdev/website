@@ -1177,6 +1177,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
 		AuthLanding(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/auth/status", func(w http.ResponseWriter, r *http.Request) {
+		AuthStatus(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
 		LogoutHandler(w, r, app)
 	}).Methods("POST")

@@ -741,13 +741,10 @@ func DashboardEditSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *confi
 // or ticket-only contacts who want to add themselves to the speakers
 // DB. The POST creates a new row via CreateSpeaker.
 func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	email, encHMAC, err := validateVolEmail(r, ctx)
-	if err != nil {
-		ctx.Infos.Printf("/dashboard/speaker auth: %s", err)
-		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+	email, encEmail, encHMAC, ok := dashboardRequestIdentity(w, r, ctx)
+	if !ok {
 		return
 	}
-	encEmail := r.URL.Query().Get("em")
 	nextURL := safeReturnTo(r.URL.Query().Get("next"))
 
 	speakers, err := getters.GetSpeakersByEmail(ctx, email)
@@ -905,6 +902,7 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			http.StatusSeeOther)
 		return
 	}
+	invalidateAccountPhotoSession(r, ctx)
 	if uploaded, err := savePersonTaxFormFromRequest(ctx, r, sp); err != nil {
 		ctx.Err.Printf("/dashboard/speaker tax form %s: %s", sp.ID, err)
 		http.Redirect(w, r,
@@ -1028,6 +1026,7 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			http.StatusSeeOther)
 		return
 	}
+	invalidateAccountPhotoSession(r, ctx)
 	if hasNewPic {
 		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
 	}

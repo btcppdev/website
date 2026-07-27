@@ -222,6 +222,13 @@ body.btcpp-home {
   gap: 10px;
 }
 
+.home-nav .site-account {
+	--account-ink: var(--home-ink);
+	--account-paper: var(--home-paper);
+	--account-accent: var(--home-accent);
+	--account-divider: rgba(10, 10, 10, 0.14);
+}
+
 .home-nav__menu {
   display: none;
   width: 40px;

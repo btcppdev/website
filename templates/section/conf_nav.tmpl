@@ -8,6 +8,7 @@
         <label class="site-nav__menu" for="conf-nav-toggle" aria-label="Toggle navigation">
           <span></span><span></span><span></span>
         </label>
+        {{ template "account_menu" . }}
       </div>
       <div class="site-nav__links">
         <a href="/{{ .Tag }}#about">about/</a>

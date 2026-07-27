@@ -44,6 +44,7 @@
       <label class="site-nav__menu" for="site-nav-toggle" aria-label="Toggle navigation">
         <span></span><span></span><span></span>
       </label>
+      {{ template "account_menu" . }}
     </div>
     <div class="site-nav__links">
       <a href="/#events">events/</a>
@@ -54,24 +55,27 @@
       <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">insider/</a>
     </div>
   </nav>
-  <script>
-    // Hide the "Log in" link on pages that require auth — every
-    // visitor of /dashboard, /{conf}/admin/..., or /{conf}/volcoord/...
-    // is either already signed in (link is noise) or will be
-    // bounced to /login by the gate (link goes to a useless
-    // intermediate). Path-based so it doesn't depend on cookie
-    // state staying in sync.
-    (function () {
-      const p = window.location.pathname;
-      const authed = p === '/dashboard' || p.startsWith('/dashboard/') ||
-                     /^\/[^/]+\/admin(\/|$)/.test(p) ||
-                     /^\/[^/]+\/volcoord(\/|$)/.test(p);
-      if (!authed) return;
-      document.querySelectorAll('[data-nav-login]').forEach(function (el) { el.style.display = 'none'; });
-      document.querySelectorAll('[data-nav-login-wrap]').forEach(function (el) { el.style.display = 'none'; });
-    })();
-  </script>
 </header>
+{{ end }}
+
+{{ define "account_menu" }}
+<details class="site-account" data-account-menu>
+  <summary class="site-account__summary" aria-label="Account menu">
+    <span class="site-account__icon" aria-hidden="true"></span>
+    <img class="site-account__photo" alt="" data-nav-account-photo hidden>
+  </summary>
+  <div class="site-account__panel">
+    <a href="/dashboard" data-nav-auth-only hidden>Dashboard</a>
+    <a href="/dashboard/speaker" data-nav-auth-only hidden>Profile</a>
+    <a href="/dashboard/tickets" data-nav-auth-only hidden>Tickets</a>
+    <a href="/dashboard/orders" data-nav-auth-only hidden>Orders</a>
+    <a href="/shop/cart">Cart</a>
+    <a href="/login?next=%2Fdashboard" data-nav-login>Sign in</a>
+    <form method="POST" action="/logout" data-nav-signout hidden>
+      <button type="submit">Sign out</button>
+    </form>
+  </div>
+</details>
 {{ end }}
 
 {{/*

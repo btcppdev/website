@@ -48,6 +48,26 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(nav.String(), `href="/toronto/hackathon"`) {
 		t.Fatalf("inactive hackathon nav unexpectedly contains public hackathon link: %s", nav.String())
 	}
+
+	var accountMenu bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&accountMenu, "account_menu", nil); err != nil {
+		t.Fatalf("render account_menu: %v", err)
+	}
+	menuHTML := accountMenu.String()
+	for _, want := range []string{
+		`href="/dashboard" data-nav-auth-only hidden`,
+		`href="/dashboard/speaker" data-nav-auth-only hidden`,
+		`data-nav-login`,
+		`data-nav-signout hidden`,
+		`data-nav-account-photo hidden`,
+	} {
+		if !strings.Contains(menuHTML, want) {
+			t.Fatalf("account menu missing %q: %s", want, menuHTML)
+		}
+	}
+	if strings.Contains(menuHTML, `src=""`) {
+		t.Fatalf("account menu contains an empty image source: %s", menuHTML)
+	}
 }
 
 func TestHackathonRichTextHTML(t *testing.T) {
