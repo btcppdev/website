@@ -377,14 +377,14 @@ func (p *ConfPage) HackathonStatusLabel() string {
 	if p == nil {
 		return ""
 	}
-	return hackathonLifecycleLabel(p.Hackathon)
+	return hackathonLifecycleLabel(p.Hackathon, p.HackathonScheduleEvents)
 }
 
 func (p *ConfPage) HackathonAcceptsProjects() bool {
 	if p == nil {
 		return false
 	}
-	return competitionAcceptsProjects(p.Hackathon)
+	return competitionAcceptsProjects(p.Hackathon, p.HackathonScheduleEvents)
 }
 
 func (p *ConfPage) HackathonTimeline() HackathonTimelineView {
@@ -399,22 +399,10 @@ func (p *ConfPage) HackathonTimeline() HackathonTimelineView {
 			CountdownUnix: event.Time.Unix(),
 		}
 	}
-	label, milestoneAt := hackathonNextMilestoneTime(p.Hackathon)
-	if milestoneAt != nil {
+	if value := completedHackathonScheduledEventRange(p.HackathonScheduleEvents); value != "" {
 		return HackathonTimelineView{
-			Label:         lowerFirst(label) + " in",
-			Value:         formatHackathonRelativeDuration(time.Until(*milestoneAt)),
-			HasCountdown:  true,
-			CountdownUnix: milestoneAt.Unix(),
-		}
-	}
-	if label == "View schedule" {
-		value := completedHackathonScheduleValue(p.Hackathon)
-		if value != "" {
-			return HackathonTimelineView{
-				Label: "Schedule",
-				Value: value,
-			}
+			Label: "Schedule",
+			Value: value,
 		}
 	}
 	return HackathonTimelineView{
@@ -463,11 +451,12 @@ func (p *HackathonPage) CompetitionScheduleURL(competition *types.HackathonCompe
 }
 
 func (p *HackathonPage) CompetitionStatusLabelFor(competition *types.HackathonCompetition) string {
-	return hackathonLifecycleLabel(competition)
+	return hackathonLifecycleLabel(competition, p.scheduleEventsForCompetition(competition))
 }
 
 func (p *HackathonPage) CompetitionTimeline(competition *types.HackathonCompetition) HackathonTimelineView {
-	if event := nextHackathonScheduleEvent(p.scheduleEventsForCompetition(competition)); event != nil {
+	events := p.scheduleEventsForCompetition(competition)
+	if event := nextHackathonScheduleEvent(events); event != nil {
 		return HackathonTimelineView{
 			Label:         lowerFirst(event.Label) + " in",
 			Value:         formatHackathonRelativeDuration(time.Until(*event.Time)),
@@ -475,22 +464,10 @@ func (p *HackathonPage) CompetitionTimeline(competition *types.HackathonCompetit
 			CountdownUnix: event.Time.Unix(),
 		}
 	}
-	label, milestoneAt := hackathonNextMilestoneTime(competition)
-	if milestoneAt != nil {
+	if value := completedHackathonScheduledEventRange(events); value != "" {
 		return HackathonTimelineView{
-			Label:         lowerFirst(label) + " in",
-			Value:         formatHackathonRelativeDuration(time.Until(*milestoneAt)),
-			HasCountdown:  true,
-			CountdownUnix: milestoneAt.Unix(),
-		}
-	}
-	if label == "View schedule" {
-		value := completedHackathonScheduleValue(competition)
-		if value != "" {
-			return HackathonTimelineView{
-				Label: "Schedule",
-				Value: value,
-			}
+			Label: "Schedule",
+			Value: value,
 		}
 	}
 	return HackathonTimelineView{
@@ -500,7 +477,7 @@ func (p *HackathonPage) CompetitionTimeline(competition *types.HackathonCompetit
 }
 
 func (p *HackathonPage) CompetitionAcceptsProjects(competition *types.HackathonCompetition) bool {
-	return competitionAcceptsProjects(competition)
+	return competitionAcceptsProjects(competition, p.scheduleEventsForCompetition(competition))
 }
 
 func (p *HackathonPage) CompetitionAdminEditURL(competition *types.HackathonCompetition) string {
@@ -602,13 +579,13 @@ func (p *HackathonPage) PrimaryProjectAction() HackathonPrimaryAction {
 	if project := p.PrimaryOwnedProject(); project != nil {
 		return HackathonPrimaryAction{Label: "Edit project →", URL: p.ProjectEditURL(project)}
 	}
-	if competitionAcceptsProjects(p.Competition) {
+	if competitionAcceptsProjects(p.Competition, p.ScheduleEventList) {
 		if p.Viewer != nil && hackathonViewerPersonID(p.Viewer) != "" && !p.HasConferenceTicket {
 			return HackathonPrimaryAction{Label: "Buy ticket →", URL: p.TicketURL()}
 		}
 		return HackathonPrimaryAction{Label: "Create project →", URL: p.ProjectNewURL()}
 	}
-	if competitionSubmissionsUpcoming(p.Competition) {
+	if competitionSubmissionsUpcoming(p.Competition, p.ScheduleEventList) {
 		return HackathonPrimaryAction{Label: "Coming soon", Disabled: true}
 	}
 	return HackathonPrimaryAction{Label: "Submissions closed", Disabled: true}
@@ -826,7 +803,7 @@ func (p *HackathonPage) CompetitionStatusLabel() string {
 	if p == nil || p.Competition == nil {
 		return ""
 	}
-	return hackathonLifecycleLabel(p.Competition)
+	return hackathonLifecycleLabel(p.Competition, p.ScheduleEventList)
 }
 
 func (p *HackathonPage) ProjectStatusLabel(status string) string {
@@ -899,11 +876,14 @@ func (p *HackathonPage) PublicJudgeRoleLabel(judge *types.CompetitionJudge) stri
 }
 
 func (p *HackathonPage) JudgeEventStateLabel(event *types.JudgeEvent) string {
-	return judgeEventStateLabel(event)
+	if p == nil {
+		return judgeEventStateLabel(event)
+	}
+	return judgeEventEffectiveStateLabel(p.Competition, event, time.Now())
 }
 
 func (p *HackathonPage) CurrentJudgeEvent() *types.JudgeEvent {
-	events := currentJudgeEvents(p.JudgeEvents)
+	events := currentJudgeEvents(p.Competition, p.JudgeEvents, time.Now())
 	if len(events) == 0 {
 		return nil
 	}
@@ -958,7 +938,7 @@ func (p *HackathonPage) CanScoreJudgeEvent(event *types.JudgeEvent) bool {
 	if p == nil || event == nil {
 		return false
 	}
-	if !judgeEventAcceptsScores(event) {
+	if !judgeEventAcceptsScores(p.Competition, event, time.Now()) {
 		return false
 	}
 	if p.CanScoreAll {
@@ -1309,8 +1289,10 @@ func (p *HackathonPage) NextMilestoneLabel() string {
 	if event := nextHackathonScheduleEvent(p.ScheduleEventList); event != nil {
 		return event.Label
 	}
-	label, _ := hackathonNextMilestone(p.Competition)
-	return label
+	if len(p.ScheduleEventList) > 0 {
+		return "View schedule"
+	}
+	return ""
 }
 
 func (p *HackathonPage) NextMilestoneValue() string {
@@ -1323,15 +1305,7 @@ func (p *HackathonPage) NextMilestoneValue() string {
 	if value := completedHackathonScheduledEventRange(p.ScheduleEventList); value != "" {
 		return value
 	}
-	_, milestoneAt := hackathonNextMilestoneTime(p.Competition)
-	if milestoneAt == nil {
-		return ""
-	}
-	loc := time.Local
-	if p.Conf != nil {
-		loc = p.Conf.Loc()
-	}
-	return milestoneAt.In(loc).Format("2006-01-02 15:04 MST")
+	return ""
 }
 
 func (p *HackathonPage) NextMilestoneTime() *time.Time {
@@ -1341,8 +1315,7 @@ func (p *HackathonPage) NextMilestoneTime() *time.Time {
 	if event := nextHackathonScheduleEvent(p.ScheduleEventList); event != nil {
 		return event.Time
 	}
-	_, milestoneAt := hackathonNextMilestoneTime(p.Competition)
-	return milestoneAt
+	return nil
 }
 
 func (p *HackathonPage) NextMilestoneIsScheduleLink() bool {
@@ -1355,7 +1328,7 @@ func (p *HackathonPage) NextMilestoneIsScheduleLink() bool {
 	if len(p.ScheduleEventList) > 0 {
 		return true
 	}
-	return hackathonMilestoneIsScheduleLink(p.Competition)
+	return false
 }
 
 func (p *HackathonPage) ScheduleURL() string {
@@ -1369,19 +1342,7 @@ func (p *HackathonPage) ScheduleEvents() []HackathonScheduleEvent {
 	if p == nil || p.Competition == nil {
 		return nil
 	}
-	if len(p.ScheduleEventList) > 0 {
-		return p.ScheduleEventList
-	}
-	competition := p.Competition
-	publicAt := competition.PublicGalleryAt
-	if publicAt == nil {
-		publicAt = competition.SubmissionsCloseAt
-	}
-	return []HackathonScheduleEvent{
-		{Label: "Submissions open", Time: competition.SubmissionsOpenAt},
-		{Label: "Submissions close", Time: competition.SubmissionsCloseAt},
-		{Label: "Submissions go public", Time: publicAt},
-	}
+	return p.ScheduleEventList
 }
 
 func (p *HackathonPage) scheduleEventsForCompetition(competition *types.HackathonCompetition) []HackathonScheduleEvent {
@@ -1392,17 +1353,6 @@ func (p *HackathonPage) scheduleEventsForCompetition(competition *types.Hackatho
 		return nil
 	}
 	return p.ScheduleEventsByCompetition[competition.ID]
-}
-
-func hackathonNextMilestone(competition *types.HackathonCompetition) (string, string) {
-	label, milestoneAt := hackathonNextMilestoneTime(competition)
-	if milestoneAt != nil {
-		return label, formatHackathonTime(milestoneAt)
-	}
-	if label == "View schedule" {
-		return label, completedHackathonScheduleValue(competition)
-	}
-	return "", ""
 }
 
 func nextHackathonScheduleEvent(events []HackathonScheduleEvent) *HackathonScheduleEvent {
@@ -1496,43 +1446,6 @@ func formatJudgeEventTimeOnlyRange(event *types.JudgeEvent, conf *types.Conf) st
 	return start.Format("3:04 PM MST") + " - " + end.Format("3:04 PM MST")
 }
 
-func hackathonNextMilestoneTime(competition *types.HackathonCompetition) (string, *time.Time) {
-	if competition == nil {
-		return "", nil
-	}
-	now := time.Now()
-	if competition.SubmissionsOpenAt != nil && competition.SubmissionsOpenAt.After(now) {
-		return "Submissions open", competition.SubmissionsOpenAt
-	}
-	if competition.SubmissionsCloseAt != nil && competition.SubmissionsCloseAt.After(now) {
-		return "Submissions close", competition.SubmissionsCloseAt
-	}
-	if competition.PublicGalleryAt != nil && competition.PublicGalleryAt.After(now) {
-		return "Submissions go public", competition.PublicGalleryAt
-	}
-	if hackathonMilestoneIsScheduleLink(competition) {
-		return "View schedule", nil
-	}
-	return "", nil
-}
-
-func hackathonMilestoneIsScheduleLink(competition *types.HackathonCompetition) bool {
-	if competition == nil {
-		return false
-	}
-	now := time.Now()
-	if competition.SubmissionsOpenAt != nil && competition.SubmissionsOpenAt.After(now) {
-		return false
-	}
-	if competition.SubmissionsCloseAt != nil && competition.SubmissionsCloseAt.After(now) {
-		return false
-	}
-	if competition.PublicGalleryAt != nil && competition.PublicGalleryAt.After(now) {
-		return false
-	}
-	return competition.SubmissionsOpenAt != nil || competition.SubmissionsCloseAt != nil || competition.PublicGalleryAt != nil
-}
-
 func formatHackathonTime(t *time.Time) string {
 	if t == nil {
 		return ""
@@ -1566,25 +1479,6 @@ func pluralizeDurationUnit(value int, unit string) string {
 		return fmt.Sprintf("1 %s", unit)
 	}
 	return fmt.Sprintf("%d %ss", value, unit)
-}
-
-func completedHackathonScheduleValue(competition *types.HackathonCompetition) string {
-	if competition == nil {
-		return ""
-	}
-	if competition.SubmissionsOpenAt != nil && competition.SubmissionsCloseAt != nil {
-		return formatHackathonTime(competition.SubmissionsOpenAt) + " - " + formatHackathonTime(competition.SubmissionsCloseAt)
-	}
-	if competition.PublicGalleryAt != nil {
-		return formatHackathonTime(competition.PublicGalleryAt)
-	}
-	if competition.SubmissionsCloseAt != nil {
-		return formatHackathonTime(competition.SubmissionsCloseAt)
-	}
-	if competition.SubmissionsOpenAt != nil {
-		return formatHackathonTime(competition.SubmissionsOpenAt)
-	}
-	return ""
 }
 
 func hackathonDescriptionHTML(value, format string) template.HTML {
@@ -1812,13 +1706,12 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s judge profiles failed (continuing): %s", competition.ID, err)
 	}
-	scheduleEvents, err := loadHackathonScheduleEvents(ctx, competition.ID)
+	scheduleEvents, err := loadLocalizedHackathonScheduleEvents(ctx, competition, conf)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s schedule events: %s", competition.ID, err)
 		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
 		return
 	}
-	scheduleEvents = localizeHackathonScheduleEvents(scheduleEvents, conf.Loc())
 	ownedProjects := ownedProjectMap(ctx, projects, personID)
 	hasTicket := false
 	if id != nil && personID != "" {
@@ -1845,7 +1738,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Viewer:                  id,
 		OwnedProjects:           ownedProjects,
 		HasConferenceTicket:     hasTicket,
-		CanCreate:               id != nil && hasTicket && competitionAcceptsProjects(competition) && len(ownedProjects) == 0,
+		CanCreate:               id != nil && hasTicket && competitionAcceptsProjects(competition, scheduleEvents) && len(ownedProjects) == 0,
 		CanJudge:                viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
 		FlashMessage:            r.URL.Query().Get("flash"),
 		FlashError:              r.URL.Query().Get("error"),
@@ -1912,13 +1805,12 @@ func HackathonSchedule(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	if err != nil {
 		return
 	}
-	scheduleEvents, err := loadHackathonScheduleEvents(ctx, competition.ID)
+	scheduleEvents, err := loadLocalizedHackathonScheduleEvents(ctx, competition, conf)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s/schedule events: %s", competition.ID, err)
 		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
 		return
 	}
-	scheduleEvents = localizeHackathonScheduleEvents(scheduleEvents, conf.Loc())
 	page := &HackathonPage{
 		Competition:       competition,
 		Conf:              conf,
@@ -1949,6 +1841,70 @@ func localizeHackathonScheduleEvents(events []HackathonScheduleEvent, loc *time.
 		}
 	}
 	return localized
+}
+
+func loadLocalizedHackathonScheduleEvents(ctx *config.AppContext, competition *types.HackathonCompetition, conf *types.Conf) ([]HackathonScheduleEvent, error) {
+	if competition == nil {
+		return nil, nil
+	}
+	events, err := loadHackathonScheduleEvents(ctx, competition.ID)
+	if err != nil {
+		return nil, err
+	}
+	events = withLegacyHackathonScheduleFallback(competition, events)
+	if conf != nil {
+		events = localizeHackathonScheduleEvents(events, conf.Loc())
+	}
+	return events, nil
+}
+
+func withLegacyHackathonScheduleFallback(competition *types.HackathonCompetition, events []HackathonScheduleEvent) []HackathonScheduleEvent {
+	if competition == nil {
+		return events
+	}
+	hasOpening := false
+	hasClosing := false
+	hasGallery := false
+	for i := range events {
+		if events[i].Time == nil {
+			continue
+		}
+		switch strings.TrimSpace(events[i].SegmentType) {
+		case "kickoff", "hacking", "submissions-open":
+			hasOpening = true
+		case getters.JudgeTypeExpo, getters.JudgeTypeFinals, "submissions-close":
+			hasClosing = true
+		case "public-gallery":
+			hasGallery = true
+		}
+	}
+
+	combined := append([]HackathonScheduleEvent(nil), events...)
+	if !hasOpening && competition.SubmissionsOpenAt != nil {
+		combined = append(combined, HackathonScheduleEvent{
+			Label: "Submissions open", Time: competition.SubmissionsOpenAt, SegmentType: "submissions-open",
+		})
+	}
+	if !hasClosing && competition.SubmissionsCloseAt != nil {
+		combined = append(combined, HackathonScheduleEvent{
+			Label: "Submissions close", Time: competition.SubmissionsCloseAt, SegmentType: "submissions-close",
+		})
+	}
+	if !hasGallery && competition.PublicGalleryAt != nil {
+		combined = append(combined, HackathonScheduleEvent{
+			Label: "Submissions go public", Time: competition.PublicGalleryAt, SegmentType: "public-gallery",
+		})
+	}
+	sort.SliceStable(combined, func(i, j int) bool {
+		if combined[i].Time == nil {
+			return false
+		}
+		if combined[j].Time == nil {
+			return true
+		}
+		return combined[i].Time.Before(*combined[j].Time)
+	})
+	return combined
 }
 
 func HackathonScheduleICS(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2038,7 +1994,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if err != nil {
 		return
 	}
-	currentEvents := currentJudgeEvents(events)
+	currentEvents := currentJudgeEvents(competition, events, time.Now())
 	viewer := hackathonViewerFromIdentity(id, conf)
 	judgeTypes := judgeTypesForPerson(ctx, competition.ID, viewer.PersonID)
 	canJudge := viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID)
@@ -2135,7 +2091,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		handle404(w, r, ctx)
 		return
 	}
-	if !judgeEventAcceptsScores(event) {
+	if !judgeEventAcceptsScores(competition, event, time.Now()) {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("That judging round is not open for scoring."), http.StatusSeeOther)
 		return
 	}
@@ -2220,7 +2176,13 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 		redirectHackathonProfile(w, r, ctx, "Create your profile to start a hackathon project.")
 		return
 	}
-	if !competitionAcceptsProjects(competition) {
+	scheduleEvents, err := loadLocalizedHackathonScheduleEvents(ctx, competition, conf)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/new schedule events: %s", competition.ID, err)
+		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
+		return
+	}
+	if !competitionAcceptsProjects(competition, scheduleEvents) {
 		http.Redirect(w, r, hackathonURLForConf(conf)+"?error="+url.QueryEscape("Project submissions are not open."), http.StatusSeeOther)
 		return
 	}
@@ -2280,7 +2242,13 @@ func HackathonProjectCreate(w http.ResponseWriter, r *http.Request, ctx *config.
 		redirectHackathonProfile(w, r, ctx, "Create your profile to start a hackathon project.")
 		return
 	}
-	if !competitionAcceptsProjects(competition) {
+	scheduleEvents, err := loadLocalizedHackathonScheduleEvents(ctx, competition, conf)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects create schedule events: %s", competition.ID, err)
+		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
+		return
+	}
+	if !competitionAcceptsProjects(competition, scheduleEvents) {
 		http.Redirect(w, r, base+"?error="+url.QueryEscape("Project submissions are not open."), http.StatusSeeOther)
 		return
 	}
@@ -2339,7 +2307,13 @@ func HackathonProjectEdit(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	if err != nil {
 		return
 	}
-	canSubmit := projectEditableByDeadline(competition) && project.Status != getters.ProjectStatusSubmitted
+	scheduleEvents, err := loadLocalizedHackathonScheduleEvents(ctx, competition, conf)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s edit schedule events: %s", competition.ID, project.ID, err)
+		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
+		return
+	}
+	canSubmit := projectEditableByDeadline(competition, scheduleEvents) && project.Status != getters.ProjectStatusSubmitted
 	renderHackathonProjectPage(w, r, ctx, competition, conf, id, project, true, true, true, canSubmit)
 }
 
@@ -2468,7 +2442,13 @@ func HackathonProjectSubmit(w http.ResponseWriter, r *http.Request, ctx *config.
 		return
 	}
 	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID) + "/edit"
-	if !projectEditableByDeadline(competition) {
+	scheduleEvents, err := loadLocalizedHackathonScheduleEvents(ctx, competition, conf)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s submit schedule events: %s", competition.ID, project.ID, err)
+		http.Error(w, "Unable to load schedule", http.StatusInternalServerError)
+		return
+	}
+	if !projectEditableByDeadline(competition, scheduleEvents) {
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project submissions are closed.")+"#submission", http.StatusSeeOther)
 		return
 	}
@@ -3132,6 +3112,68 @@ func loadHackathonJudgingAccess(w http.ResponseWriter, r *http.Request, ctx *con
 	return competition, conf, id, events, nil
 }
 
+type hackathonSubmissionWindow struct {
+	OpenAt  *time.Time
+	CloseAt *time.Time
+}
+
+func hackathonSubmissionWindowFromSchedule(events []HackathonScheduleEvent) hackathonSubmissionWindow {
+	return hackathonSubmissionWindow{
+		OpenAt:  firstScheduledSubmissionOpenTime(events),
+		CloseAt: firstScheduledJudgingTime(events),
+	}
+}
+
+func hackathonSubmissionWindowForCompetition(competition *types.HackathonCompetition, events []HackathonScheduleEvent) hackathonSubmissionWindow {
+	window := hackathonSubmissionWindowFromSchedule(events)
+	if competition == nil {
+		return window
+	}
+	if window.OpenAt == nil {
+		window.OpenAt = competition.SubmissionsOpenAt
+	}
+	if window.CloseAt == nil {
+		window.CloseAt = competition.SubmissionsCloseAt
+	}
+	return window
+}
+
+func firstScheduledSubmissionOpenTime(events []HackathonScheduleEvent) *time.Time {
+	var earliest *time.Time
+	for i := range events {
+		if events[i].Time == nil {
+			continue
+		}
+		switch strings.TrimSpace(events[i].SegmentType) {
+		case "kickoff", "hacking":
+		default:
+			continue
+		}
+		if earliest == nil || events[i].Time.Before(*earliest) {
+			value := *events[i].Time
+			earliest = &value
+		}
+	}
+	return earliest
+}
+
+func firstScheduledJudgingTime(events []HackathonScheduleEvent) *time.Time {
+	var earliest *time.Time
+	for i := range events {
+		if events[i].Time == nil {
+			continue
+		}
+		switch strings.TrimSpace(events[i].SegmentType) {
+		case getters.JudgeTypeExpo, getters.JudgeTypeFinals:
+			if earliest == nil || events[i].Time.Before(*earliest) {
+				value := *events[i].Time
+				earliest = &value
+			}
+		}
+	}
+	return earliest
+}
+
 func loadEditableHackathonProject(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.HackathonCompetition, *types.Conf, *auth.Identity, *types.HackathonProject, error) {
 	competition, conf, id, err := loadHackathonCompetition(w, r, ctx)
 	if err != nil {
@@ -3479,7 +3521,7 @@ func registrationCountsForConferenceTicket(registration *types.Registration, con
 	return registration != nil && conf != nil && !registration.Revoked && registration.ConfRef == conf.Ref
 }
 
-func competitionAcceptsProjects(competition *types.HackathonCompetition) bool {
+func competitionAcceptsProjects(competition *types.HackathonCompetition, events []HackathonScheduleEvent) bool {
 	if competition == nil || competition.Visibility != getters.CompetitionVisibilityPublic {
 		return false
 	}
@@ -3491,17 +3533,18 @@ func competitionAcceptsProjects(competition *types.HackathonCompetition) bool {
 	case getters.CompetitionLifecycleUpcoming, getters.CompetitionLifecycleClosed:
 		return false
 	}
-	if competition.SubmissionsOpenAt == nil {
+	window := hackathonSubmissionWindowForCompetition(competition, events)
+	if window.OpenAt == nil {
 		return false
 	}
 	now := time.Now()
-	if competition.SubmissionsOpenAt.After(now) {
+	if window.OpenAt.After(now) {
 		return false
 	}
-	return projectEditableByDeadline(competition)
+	return projectEditableByDeadline(competition, events)
 }
 
-func competitionSubmissionsUpcoming(competition *types.HackathonCompetition) bool {
+func competitionSubmissionsUpcoming(competition *types.HackathonCompetition, events []HackathonScheduleEvent) bool {
 	if competition == nil || competition.Visibility != getters.CompetitionVisibilityPublic {
 		return true
 	}
@@ -3511,10 +3554,11 @@ func competitionSubmissionsUpcoming(competition *types.HackathonCompetition) boo
 	case getters.CompetitionLifecycleOpen, getters.CompetitionLifecycleSubmissionsClosed, getters.CompetitionLifecycleClosed:
 		return false
 	}
-	return competition.SubmissionsOpenAt == nil || competition.SubmissionsOpenAt.After(time.Now())
+	window := hackathonSubmissionWindowForCompetition(competition, events)
+	return window.OpenAt == nil || window.OpenAt.After(time.Now())
 }
 
-func projectEditableByDeadline(competition *types.HackathonCompetition) bool {
+func projectEditableByDeadline(competition *types.HackathonCompetition, events []HackathonScheduleEvent) bool {
 	if competition == nil {
 		return false
 	}
@@ -3529,7 +3573,8 @@ func projectEditableByDeadline(competition *types.HackathonCompetition) bool {
 	if competition.AllowLateSubmissions {
 		return true
 	}
-	return competition.SubmissionsCloseAt == nil || competition.SubmissionsCloseAt.After(time.Now())
+	window := hackathonSubmissionWindowForCompetition(competition, events)
+	return window.CloseAt == nil || window.CloseAt.After(time.Now())
 }
 
 func viewerCanManageProject(ctx *config.AppContext, projectID, personID string) bool {
@@ -3890,21 +3935,22 @@ func hackathonScheduleURLForConf(conf *types.Conf) string {
 	return base + "/schedule"
 }
 
-func hackathonLifecycleLabel(competition *types.HackathonCompetition) string {
+func hackathonLifecycleLabel(competition *types.HackathonCompetition, events []HackathonScheduleEvent) string {
 	if competition == nil {
 		return ""
 	}
 	if label := hackathonLifecycleOverrideLabel(competition.LifecycleOverride); label != "" {
 		return label
 	}
+	window := hackathonSubmissionWindowForCompetition(competition, events)
 	now := time.Now()
-	if competition.SubmissionsOpenAt == nil {
+	if window.OpenAt == nil {
 		return "Schedule TBA"
 	}
-	if competition.SubmissionsOpenAt.After(now) {
+	if window.OpenAt.After(now) {
 		return "Upcoming"
 	}
-	if competition.SubmissionsCloseAt == nil || competition.SubmissionsCloseAt.After(now) {
+	if window.CloseAt == nil || window.CloseAt.After(now) {
 		return "Open"
 	}
 	return "Submissions closed"

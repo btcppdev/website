@@ -45,18 +45,12 @@ func TestHackathonCompetitionUpdate(t *testing.T) {
 	})
 	confID, _ := insertSmokeConference(t, ctx)
 	maxTeamSize := 4
-	openAt := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
-	closeAt := openAt.Add(48 * time.Hour)
-	galleryAt := closeAt.Add(time.Hour)
 	if err := UpdateCompetition(ctx, competitionID, CompetitionInput{
-		ConferenceID:       confID,
-		Title:              "Updated Hackathon",
-		Description:        "Updated description",
-		Visibility:         CompetitionVisibilityPublic,
-		MaxTeamSize:        &maxTeamSize,
-		SubmissionsOpenAt:  &openAt,
-		SubmissionsCloseAt: &closeAt,
-		PublicGalleryAt:    &galleryAt,
+		ConferenceID: confID,
+		Title:        "Updated Hackathon",
+		Description:  "Updated description",
+		Visibility:   CompetitionVisibilityPublic,
+		MaxTeamSize:  &maxTeamSize,
 	}); err != nil {
 		t.Fatalf("UpdateCompetition: %v", err)
 	}
@@ -73,15 +67,6 @@ func TestHackathonCompetitionUpdate(t *testing.T) {
 	}
 	if updated.MaxTeamSize == nil || *updated.MaxTeamSize != maxTeamSize {
 		t.Fatalf("MaxTeamSize = %v, want %d", updated.MaxTeamSize, maxTeamSize)
-	}
-	if updated.SubmissionsOpenAt == nil || !updated.SubmissionsOpenAt.Equal(openAt) {
-		t.Fatalf("SubmissionsOpenAt = %v, want %v", updated.SubmissionsOpenAt, openAt)
-	}
-	if updated.SubmissionsCloseAt == nil || !updated.SubmissionsCloseAt.Equal(closeAt) {
-		t.Fatalf("SubmissionsCloseAt = %v, want %v", updated.SubmissionsCloseAt, closeAt)
-	}
-	if updated.PublicGalleryAt == nil || !updated.PublicGalleryAt.Equal(galleryAt) {
-		t.Fatalf("PublicGalleryAt = %v, want %v", updated.PublicGalleryAt, galleryAt)
 	}
 }
 
@@ -794,10 +779,8 @@ func TestHackathonProjectVisibility(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)
 
-	future := time.Now().Add(24 * time.Hour)
 	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
-		Title:              "Visibility Hackathon",
-		SubmissionsCloseAt: &future,
+		Title: "Visibility Hackathon",
 	})
 	ownerID := insertSmokePerson(t, ctx, "owner")
 	judgeID := insertSmokePerson(t, ctx, "judge")
@@ -846,20 +829,19 @@ func TestHackathonProjectVisibility(t *testing.T) {
 	if err := SubmitProject(ctx, projectID); err != nil {
 		t.Fatalf("SubmitProject: %v", err)
 	}
-	past := time.Now().Add(-time.Hour)
 	if _, err := ctx.DB.Exec(context.Background(), `
 		UPDATE competitions
-		SET submissions_close_at = $2
+		SET public_gallery_enabled = true
 		WHERE id = $1
-	`, competitionID, past); err != nil {
-		t.Fatalf("close submissions: %v", err)
+	`, competitionID); err != nil {
+		t.Fatalf("enable public gallery: %v", err)
 	}
 	publicOK, err = CanViewProject(ctx, projectID, types.HackathonViewer{})
 	if err != nil {
-		t.Fatalf("CanViewProject public after close: %v", err)
+		t.Fatalf("CanViewProject public after gallery opens: %v", err)
 	}
 	if !publicOK {
-		t.Fatalf("public viewer cannot see submitted project after deadline")
+		t.Fatalf("public viewer cannot see submitted project after gallery opens")
 	}
 }
 

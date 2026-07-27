@@ -27,6 +27,7 @@ func registerConferenceHackathonAdminRoutes(r *mux.Router, app *config.AppContex
 	register("/timeline", HackathonAdminUpdateTimeline, http.MethodPost)
 	register("/people/search", HackathonAdminPersonSearch, http.MethodGet)
 	register("/judging", HackathonAdminJudging, http.MethodGet)
+	register("/judging/mode", HackathonAdminUpdateJudgingMode, http.MethodPost)
 	register("/judging/scores", HackathonAdminScoreReview, http.MethodGet)
 	register("/judging/advance", HackathonAdminAdvanceProjects, http.MethodPost)
 	register("/judging/scores/remove-ballot", HackathonAdminRemoveJudgeBallot, http.MethodPost)

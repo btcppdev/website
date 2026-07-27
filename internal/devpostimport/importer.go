@@ -49,18 +49,14 @@ func Import(ctx context.Context, tx pgx.Tx, manifest *Manifest, opts ImportOptio
 	err := tx.QueryRow(ctx, `
 		INSERT INTO competitions (
 			conference_id, title, description, description_format, visibility,
-			lifecycle_override, public_gallery_enabled, submissions_open_at,
-			submissions_close_at, public_gallery_at, hacking_starts_at, hacking_ends_at
-		) VALUES ($1::uuid, $2, $3, 'html', $4, 'closed', true, $5, $6, $6, $5, $6)
+			lifecycle_override, public_gallery_enabled, hacking_starts_at, hacking_ends_at
+		) VALUES ($1::uuid, $2, $3, 'html', $4, 'closed', true, $5, $6)
 		ON CONFLICT (conference_id) DO UPDATE SET
 			title = EXCLUDED.title,
 			description = EXCLUDED.description,
 			description_format = EXCLUDED.description_format,
 			visibility = EXCLUDED.visibility,
 			public_gallery_enabled = true,
-			submissions_open_at = coalesce(EXCLUDED.submissions_open_at, competitions.submissions_open_at),
-			submissions_close_at = coalesce(EXCLUDED.submissions_close_at, competitions.submissions_close_at),
-			public_gallery_at = coalesce(EXCLUDED.public_gallery_at, competitions.public_gallery_at),
 			hacking_starts_at = coalesce(EXCLUDED.hacking_starts_at, competitions.hacking_starts_at),
 			hacking_ends_at = coalesce(EXCLUDED.hacking_ends_at, competitions.hacking_ends_at)
 		RETURNING id::text

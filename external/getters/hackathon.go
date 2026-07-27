@@ -14,13 +14,11 @@ type CompetitionInput struct {
 	DescriptionFormat    string
 	Visibility           string
 	LifecycleOverride    string
+	JudgingMode          string
 	PublicGalleryEnabled bool
 	AllowLateSubmissions bool
 	PublicTablesEnabled  bool
 	MaxTeamSize          *int
-	SubmissionsOpenAt    *time.Time
-	SubmissionsCloseAt   *time.Time
-	PublicGalleryAt      *time.Time
 }
 
 type CompetitionScheduleSegmentInput struct {
@@ -123,6 +121,10 @@ func UpdateCompetition(ctx *config.AppContext, competitionID string, in Competit
 
 func UpdateCompetitionVisibility(ctx *config.AppContext, competitionID, visibility string) error {
 	return updateCompetitionVisibilityPostgres(ctx, competitionID, visibility)
+}
+
+func UpdateCompetitionJudgingMode(ctx *config.AppContext, competitionID, mode string) error {
+	return updateCompetitionJudgingModePostgres(ctx, competitionID, mode)
 }
 
 func FinalizeCompetitionResults(ctx *config.AppContext, competitionID, personID string) error {
