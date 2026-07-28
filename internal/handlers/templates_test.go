@@ -30,7 +30,7 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
-	for _, name := range []string{"hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
+	for _, name := range []string{"dashboard_hackathons.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
 		}
@@ -186,7 +186,40 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(nav.String(), `href="/toronto/hackathon"`) {
 		t.Fatalf("inactive hackathon nav unexpectedly contains public hackathon link: %s", nav.String())
 	}
-
+	var dashboardTabs bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&dashboardTabs, "dashboard_tabs", map[string]any{
+		"Active":    "overview",
+		"ShowAdmin": false,
+	}); err != nil {
+		t.Fatalf("render dashboard_tabs: %v", err)
+	}
+	if strings.Contains(dashboardTabs.String(), `href="/admin"`) {
+		t.Fatalf("non-admin dashboard tabs expose admin: %s", dashboardTabs.String())
+	}
+	if strings.Contains(dashboardTabs.String(), `href="/dashboard/hackathons"`) {
+		t.Fatalf("nonparticipant dashboard tabs expose hackathons: %s", dashboardTabs.String())
+	}
+	dashboardTabs.Reset()
+	if err := ctx.TemplateCache.ExecuteTemplate(&dashboardTabs, "dashboard_tabs", map[string]any{
+		"Active":         "hackathons",
+		"ShowHackathons": true,
+		"ShowAdmin":      false,
+	}); err != nil {
+		t.Fatalf("render participant dashboard_tabs: %v", err)
+	}
+	if !strings.Contains(dashboardTabs.String(), `href="/dashboard/hackathons" class="dashboard-tab is-active" aria-current="page"`) {
+		t.Fatalf("hackathons dashboard tab is not active: %s", dashboardTabs.String())
+	}
+	dashboardTabs.Reset()
+	if err := ctx.TemplateCache.ExecuteTemplate(&dashboardTabs, "dashboard_tabs", map[string]any{
+		"Active":    "admin",
+		"ShowAdmin": true,
+	}); err != nil {
+		t.Fatalf("render admin dashboard_tabs: %v", err)
+	}
+	if !strings.Contains(dashboardTabs.String(), `href="/admin" class="dashboard-tab is-active" aria-current="page"`) {
+		t.Fatalf("admin dashboard tab is not active: %s", dashboardTabs.String())
+	}
 }
 
 func TestHackathonRichTextHTML(t *testing.T) {

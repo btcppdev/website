@@ -3257,6 +3257,285 @@ body.btcpp-admin-page {
 	gap: 20px;
 }
 
+.dashboard-tabs {
+	display: flex;
+	gap: 8px;
+	margin: 0 0 4px;
+	overflow-x: auto;
+}
+
+.dashboard-tab {
+	display: inline-flex;
+	min-height: 38px;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid #0a0a0a;
+	background: #fff;
+	color: #0a0a0a;
+	padding: 8px 16px;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 12px;
+	font-weight: 800;
+	line-height: 1;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+.dashboard-tab:hover,
+.dashboard-tab:focus-visible {
+	background: #fbefdd;
+}
+
+.dashboard-tab.is-active {
+	background: #f7931a;
+	color: #0a0a0a;
+}
+
+.btcpp-admin-page .dashboard-tabs {
+	margin-bottom: 24px;
+}
+
+.dashboard-hackathon-header {
+	border: 1px solid #0a0a0a;
+	background: #f6f3ee;
+	padding: 28px 30px;
+}
+
+.dashboard-hackathon-header h1 {
+	margin: 8px 0 0;
+	font-family: "Source Serif 4", Georgia, serif;
+	font-size: 34px;
+	font-weight: 700;
+	letter-spacing: 0;
+	line-height: 1.05;
+}
+
+.dashboard-hackathon-header p {
+	max-width: 620px;
+	margin: 10px 0 0;
+	color: #555;
+	font-size: 15px;
+	line-height: 1.5;
+}
+
+.dashboard-hackathon-list {
+	display: grid;
+	gap: 16px;
+}
+
+.dashboard-hackathon-project {
+	display: grid;
+	grid-template-columns: 180px minmax(0, 1fr);
+	border: 1px solid #0a0a0a;
+	background: #fff;
+}
+
+.dashboard-hackathon-project__media {
+	display: flex;
+	min-height: 230px;
+	align-items: center;
+	justify-content: center;
+	border-right: 1px solid #0a0a0a;
+	background: #111;
+	overflow: hidden;
+}
+
+.dashboard-hackathon-project__media img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.dashboard-hackathon-project__media span {
+	color: #f7931a;
+	font-size: 54px;
+}
+
+.dashboard-hackathon-project__body {
+	min-width: 0;
+	padding: 20px 22px;
+}
+
+.dashboard-hackathon-project__topline {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.dashboard-hackathon-project__topline > div {
+	display: flex;
+	min-width: 0;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 10px;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.dashboard-hackathon-project__topline a {
+	color: #0a0a0a;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.dashboard-hackathon-project__topline > div span {
+	color: #666;
+}
+
+.dashboard-hackathon-project__topline > div span::before {
+	content: "·";
+	margin-right: 8px;
+}
+
+.dashboard-hackathon-status {
+	flex: 0 0 auto;
+	border: 1px solid #0a0a0a;
+	background: #f0ece4;
+	padding: 5px 8px;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 10px;
+	font-weight: 800;
+	line-height: 1;
+	text-transform: uppercase;
+}
+
+.dashboard-hackathon-status.is-submitted {
+	background: #dff0ff;
+}
+
+.dashboard-hackathon-status.is-advanced {
+	background: #e7f4df;
+}
+
+.dashboard-hackathon-status.is-hidden {
+	background: #ffd8d2;
+	color: #7a1f14;
+}
+
+.dashboard-hackathon-project__title {
+	margin-top: 20px;
+}
+
+.dashboard-hackathon-project__title h2 {
+	margin: 5px 0 0;
+	font-size: 24px;
+	font-weight: 800;
+	letter-spacing: 0;
+	line-height: 1.1;
+	overflow-wrap: anywhere;
+}
+
+.dashboard-hackathon-project__title p {
+	margin: 8px 0 0;
+	color: #555;
+	font-family: "Source Serif 4", Georgia, serif;
+	font-size: 15px;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
+}
+
+.dashboard-hackathon-project__meta {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	margin: 18px 0 0;
+	border-top: 1px solid #d8d1c5;
+	border-bottom: 1px solid #d8d1c5;
+}
+
+.dashboard-hackathon-project__meta > div {
+	min-width: 0;
+	padding: 9px 12px;
+	border-left: 1px solid #d8d1c5;
+}
+
+.dashboard-hackathon-project__meta > div:first-child {
+	border-left: 0;
+}
+
+.dashboard-hackathon-project__meta dt,
+.dashboard-hackathon-project__meta dd {
+	margin: 0;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	line-height: 1.25;
+}
+
+.dashboard-hackathon-project__meta dt {
+	color: #777;
+	font-size: 9px;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.dashboard-hackathon-project__meta dd {
+	margin-top: 3px;
+	font-size: 11px;
+	font-weight: 800;
+	overflow-wrap: anywhere;
+}
+
+.dashboard-hackathon-project__actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-top: 16px;
+}
+
+.dashboard-hackathon-project__actions a {
+	display: inline-flex;
+	min-height: 34px;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid #0a0a0a;
+	background: #fff;
+	color: #0a0a0a;
+	padding: 7px 11px;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 10px;
+	font-weight: 800;
+	line-height: 1;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+.dashboard-hackathon-project__actions a:hover,
+.dashboard-hackathon-project__actions a:focus-visible {
+	background: #fbefdd;
+}
+
+.dashboard-hackathon-project__actions a.is-primary {
+	background: #f7931a;
+}
+
+@media (max-width: 700px) {
+	.dashboard-hackathon-project {
+		grid-template-columns: 1fr;
+	}
+
+	.dashboard-hackathon-project__media {
+		min-height: 170px;
+		max-height: 220px;
+		border-right: 0;
+		border-bottom: 1px solid #0a0a0a;
+	}
+
+	.dashboard-hackathon-project__meta {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.dashboard-hackathon-project__meta > div:nth-child(3) {
+		border-left: 0;
+		border-top: 1px solid #d8d1c5;
+	}
+
+	.dashboard-hackathon-project__meta > div:nth-child(4) {
+		border-top: 1px solid #d8d1c5;
+	}
+}
+
 .dashboard-flash {
 	border: 1px solid #0a0a0a;
 	padding: 12px 16px;
