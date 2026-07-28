@@ -550,6 +550,19 @@ type (
 		QRCodeURI   string
 	}
 
+	RegistrationCheckIn struct {
+		TicketRef       string
+		TicketType      string
+		Email           string
+		AttendeeName    string
+		TShirtSize      string
+		ConferenceID    string
+		ConferenceTag   string
+		Revoked         bool
+		CheckedInAt     *time.Time
+		ShirtPickedUpAt *time.Time
+	}
+
 	Item struct {
 		Total int64
 		Desc  string

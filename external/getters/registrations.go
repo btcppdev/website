@@ -137,6 +137,112 @@ func CheckIn(ctx *config.AppContext, ticket string) (string, bool, error) {
 	return ticketType, true, nil
 }
 
+func GetRegistrationCheckIn(ctx *config.AppContext, ticket string) (*types.RegistrationCheckIn, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	ticket = strings.TrimSpace(ticket)
+	if ticket == "" {
+		return nil, fmt.Errorf("ticket reference is required")
+	}
+	var out types.RegistrationCheckIn
+	var checkedInAt pgtype.Timestamptz
+	var shirtPickedUpAt pgtype.Timestamptz
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT r.ref_id, r.type, r.email::text,
+			coalesce(profile.name, ''), coalesce(profile.tshirt, ''),
+			r.conference_id::text, conferences.tag, r.revoked, r.checked_in_at,
+			r.conference_shirt_picked_up_at
+		FROM registrations r
+		JOIN conferences ON conferences.id = r.conference_id
+		LEFT JOIN LATERAL (
+			SELECT people.name, people.tshirt
+			FROM people
+			WHERE people.email = r.email
+			ORDER BY (btrim(people.tshirt) <> '') DESC, people.created_at, people.id
+			LIMIT 1
+		) profile ON true
+		WHERE r.ref_id = $1
+	`, ticket).Scan(
+		&out.TicketRef, &out.TicketType, &out.Email,
+		&out.AttendeeName, &out.TShirtSize,
+		&out.ConferenceID, &out.ConferenceTag, &out.Revoked, &checkedInAt, &shirtPickedUpAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("ticket not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load registration check-in: %w", err)
+	}
+	if shirtPickedUpAt.Valid {
+		pickedUpAt := shirtPickedUpAt.Time
+		out.ShirtPickedUpAt = &pickedUpAt
+	}
+	if checkedInAt.Valid {
+		checkedIn := checkedInAt.Time
+		out.CheckedInAt = &checkedIn
+	}
+	return &out, nil
+}
+
+func ListDevRegistrationCheckInPreviews(ctx *config.AppContext) ([]*types.RegistrationCheckIn, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT r.ref_id, r.type, r.email::text,
+			coalesce(profile.name, ''), coalesce(profile.tshirt, ''),
+			r.conference_id::text, conferences.tag, r.revoked, r.checked_in_at,
+			r.conference_shirt_picked_up_at
+		FROM registrations r
+		JOIN conferences ON conferences.id = r.conference_id
+		LEFT JOIN LATERAL (
+			SELECT people.name, people.tshirt
+			FROM people
+			WHERE people.email = r.email
+			ORDER BY (btrim(people.tshirt) <> '') DESC, people.created_at, people.id
+			LIMIT 1
+		) profile ON true
+		WHERE r.platform = 'dev-checkin-preview'
+		ORDER BY CASE r.type
+			WHEN 'genpop' THEN 1 WHEN 'local' THEN 2 WHEN 'sponsor' THEN 3
+			WHEN 'volunteer' THEN 4 WHEN 'speaker' THEN 5 ELSE 6 END,
+			r.ref_id
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list development check-in previews: %w", err)
+	}
+	defer rows.Close()
+
+	var previews []*types.RegistrationCheckIn
+	for rows.Next() {
+		var preview types.RegistrationCheckIn
+		var checkedInAt pgtype.Timestamptz
+		var shirtPickedUpAt pgtype.Timestamptz
+		if err := rows.Scan(
+			&preview.TicketRef, &preview.TicketType, &preview.Email,
+			&preview.AttendeeName, &preview.TShirtSize,
+			&preview.ConferenceID, &preview.ConferenceTag, &preview.Revoked,
+			&checkedInAt, &shirtPickedUpAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan development check-in preview: %w", err)
+		}
+		if checkedInAt.Valid {
+			checkedIn := checkedInAt.Time
+			preview.CheckedInAt = &checkedIn
+		}
+		if shirtPickedUpAt.Valid {
+			pickedUp := shirtPickedUpAt.Time
+			preview.ShirtPickedUpAt = &pickedUp
+		}
+		previews = append(previews, &preview)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list development check-in previews: %w", err)
+	}
+	return previews, nil
+}
+
 func BulkCheckInRegistrations(ctx *config.AppContext, confRef string, emails []string) (int64, error) {
 	if ctx == nil || ctx.DB == nil {
 		return 0, fmt.Errorf("database is not configured")

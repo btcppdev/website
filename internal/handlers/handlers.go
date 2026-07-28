@@ -1030,9 +1030,18 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/check-in/{ticket}", func(w http.ResponseWriter, r *http.Request) {
 		CheckIn(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/check-in/{ticket}/pickups", func(w http.ResponseWriter, r *http.Request) {
+		CheckInPickups(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/check-in/{ticket}/merch/{itemID}", func(w http.ResponseWriter, r *http.Request) {
 		CheckInMerchPickup(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/dev/check-in", func(w http.ResponseWriter, r *http.Request) {
+		DevCheckInPreviewIndex(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dev/check-in/{ticket}", func(w http.ResponseWriter, r *http.Request) {
+		DevCheckInPreview(w, r, app)
+	}).Methods("GET")
 
 	r.HandleFunc("/i/{conf}/sendcal", func(w http.ResponseWriter, r *http.Request) {
 		if id := requireConfAdmin(w, r, app); id == nil {
@@ -4925,23 +4934,61 @@ func CheckInGet(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		}
 		msg += flash
 	}
+	checkInDetails, detailsErr := getters.GetRegistrationCheckIn(ctx, ticket)
+	if detailsErr != nil {
+		ctx.Err.Printf("/check-in/%s registration details: %s", ticket, detailsErr)
+	} else {
+		tix_type = checkInDetails.TicketType
+	}
 	merchPickups, pickupErr := getters.ListShopPickupsForTicket(ctx, ticket)
 	if pickupErr != nil {
 		ctx.Err.Printf("/check-in/%s merch pickups: %s", ticket, pickupErr)
 		msg = strings.TrimSpace(msg + " Could not load merch pickups.")
 	}
-	err = ctx.TemplateCache.ExecuteTemplate(w, "checkin.tmpl", &CheckInPage{
+	page := &CheckInPage{
 		TicketType:   tix_type,
 		TicketRef:    ticket,
 		Msg:          msg,
 		MerchPickups: merchPickups,
 		Year:         helpers.CurrentYear(),
-	})
+	}
+	if checkInDetails != nil {
+		page.AttendeeName = checkInDetails.AttendeeName
+		page.AttendeeEmail = checkInDetails.Email
+		page.TShirtSize = checkInDetails.TShirtSize
+		page.ConferenceTag = checkInDetails.ConferenceTag
+		page.ConferenceImage = confImagePath(checkInDetails.ConferenceTag, "leading")
+		page.CheckInComplete = checkInDetails.CheckedInAt != nil && !checkInDetails.Revoked
+		page.ShirtPickedUp = checkInDetails.ShirtPickedUpAt != nil
+	}
+	err = ctx.TemplateCache.ExecuteTemplate(w, "checkin.tmpl", page)
 
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/check-in ExecuteTemplate failed ! %s", err.Error())
 	}
+}
+
+func CheckInPickups(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	pin := ctx.Session.GetString(r.Context(), "pin")
+	if pin == "" || pin != ctx.Env.RegistryPin {
+		http.Error(w, "check-in pin required", http.StatusUnauthorized)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	ticket := strings.TrimSpace(mux.Vars(r)["ticket"])
+	itemIDs := r.Form["pickup_item_ids"]
+	includeConferenceShirt := r.Form.Get("conference_shirt") == "1"
+	if err := getters.MarkTicketPickups(ctx, ticket, itemIDs, includeConferenceShirt, "check-in"); err != nil {
+		ctx.Err.Printf("/check-in/%s/pickups: %s", ticket, err)
+		http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket)+"?msg="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket)+"?msg="+url.QueryEscape("Selected items marked picked up."), http.StatusSeeOther)
 }
 
 func CheckInMerchPickup(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -4956,12 +5003,133 @@ func CheckInMerchPickup(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket), http.StatusSeeOther)
 		return
 	}
-	if err := getters.MarkShopOrderItemPickedUp(ctx, itemID, "check-in", "QR check-in merch pickup"); err != nil {
+	if err := getters.MarkTicketPickups(ctx, ticket, []string{itemID}, false, "check-in"); err != nil {
 		ctx.Err.Printf("/check-in/%s/merch/%s: %s", ticket, itemID, err)
 		http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket)+"?msg="+url.QueryEscape("Could not mark merch pickup."), http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket)+"?msg="+url.QueryEscape("Merch pickup marked complete."), http.StatusSeeOther)
+}
+
+func DevCheckInPreviewIndex(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if ctx.Env.Prod {
+		handle404(w, r, ctx)
+		return
+	}
+	previews, err := getters.ListDevRegistrationCheckInPreviews(ctx)
+	if err != nil {
+		http.Error(w, "Unable to load check-in previews", http.StatusInternalServerError)
+		ctx.Err.Printf("/dev/check-in previews: %s", err)
+		return
+	}
+	rows := make([]*DevCheckInPreviewRow, 0, len(previews))
+	for _, preview := range previews {
+		pickups, pickupErr := getters.ListShopPickupsForTicket(ctx, preview.TicketRef)
+		if pickupErr != nil {
+			ctx.Err.Printf("/dev/check-in/%s pickup summary: %s", preview.TicketRef, pickupErr)
+		}
+		pending, completed := 0, 0
+		if preview.TShirtSize != "" {
+			if preview.ShirtPickedUpAt == nil {
+				pending++
+			} else {
+				completed++
+			}
+		}
+		for _, pickup := range pickups {
+			if pickup.Status == types.ShopItemStatusFulfilled {
+				completed++
+			} else {
+				pending++
+			}
+		}
+		pickupSummary := "No pickup items"
+		switch {
+		case pending > 0 && completed > 0:
+			pickupSummary = fmt.Sprintf("%d pending · %d complete", pending, completed)
+		case pending > 0:
+			pickupSummary = fmt.Sprintf("%d pending", pending)
+		case completed > 0:
+			pickupSummary = fmt.Sprintf("%d complete", completed)
+		}
+		checkInState := "Ready to scan"
+		if preview.CheckedInAt != nil && !preview.Revoked {
+			checkInState = "Checked in"
+		}
+		rows = append(rows, &DevCheckInPreviewRow{
+			TicketRef:     preview.TicketRef,
+			TicketType:    preview.TicketType,
+			TicketLabel:   checkInTicketTypeLabel(preview.TicketType),
+			TicketTheme:   checkInTicketTheme(preview.TicketType),
+			AttendeeName:  preview.AttendeeName,
+			TShirtSize:    preview.TShirtSize,
+			PickupSummary: pickupSummary,
+			ConferenceTag: preview.ConferenceTag,
+			CheckInState:  checkInState,
+		})
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dev/checkin_preview.tmpl", &DevCheckInPreviewPage{
+		Rows: rows,
+		Year: helpers.CurrentYear(),
+	}); err != nil {
+		http.Error(w, "Unable to load check-in previews", http.StatusInternalServerError)
+		ctx.Err.Printf("/dev/check-in template: %s", err)
+	}
+}
+
+func DevCheckInPreview(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if ctx.Env.Prod {
+		handle404(w, r, ctx)
+		return
+	}
+	ticket := strings.TrimSpace(mux.Vars(r)["ticket"])
+	previews, err := getters.ListDevRegistrationCheckInPreviews(ctx)
+	if err != nil {
+		http.Error(w, "Unable to load check-in preview", http.StatusInternalServerError)
+		ctx.Err.Printf("/dev/check-in/%s preview lookup: %s", ticket, err)
+		return
+	}
+	allowed := false
+	for _, preview := range previews {
+		if preview.TicketRef == ticket {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		handle404(w, r, ctx)
+		return
+	}
+	details, err := getters.GetRegistrationCheckIn(ctx, ticket)
+	if err != nil || details.ConferenceTag == "" {
+		handle404(w, r, ctx)
+		return
+	}
+	pickups, err := getters.ListShopPickupsForTicket(ctx, ticket)
+	if err != nil {
+		http.Error(w, "Unable to load pickup preview", http.StatusInternalServerError)
+		ctx.Err.Printf("/dev/check-in/%s merch pickups: %s", ticket, err)
+		return
+	}
+	page := &CheckInPage{
+		TicketType:      details.TicketType,
+		TicketRef:       details.TicketRef,
+		Msg:             "Development preview — no check-in or pickup changes will be recorded.",
+		AttendeeName:    details.AttendeeName,
+		AttendeeEmail:   details.Email,
+		TShirtSize:      details.TShirtSize,
+		ConferenceTag:   details.ConferenceTag,
+		ConferenceImage: confImagePath(details.ConferenceTag, "leading"),
+		CheckInComplete: details.CheckedInAt != nil && !details.Revoked,
+		ShirtPickedUp:   details.ShirtPickedUpAt != nil,
+		MerchPickups:    pickups,
+		IsPreview:       true,
+		Year:            helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "checkin.tmpl", page); err != nil {
+		http.Error(w, "Unable to load check-in preview", http.StatusInternalServerError)
+		ctx.Err.Printf("/dev/check-in/%s template: %s", ticket, err)
+	}
 }
 
 func ticketMatch(tickets []string, desc string) bool {

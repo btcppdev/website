@@ -1248,6 +1248,111 @@ func MarkShopOrderItemPickedUp(ctx *config.AppContext, orderItemID, actorEmail, 
 	return tx.Commit(ctx.DatabaseContext())
 }
 
+func MarkTicketPickups(ctx *config.AppContext, ticketRef string, orderItemIDs []string, includeConferenceShirt bool, actorEmail string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	ticketRef = strings.TrimSpace(ticketRef)
+	if ticketRef == "" {
+		return fmt.Errorf("ticket reference is required")
+	}
+	seen := make(map[string]bool, len(orderItemIDs))
+	cleanItemIDs := make([]string, 0, len(orderItemIDs))
+	for _, itemID := range orderItemIDs {
+		itemID = strings.TrimSpace(itemID)
+		if itemID == "" || seen[itemID] {
+			continue
+		}
+		seen[itemID] = true
+		cleanItemIDs = append(cleanItemIDs, itemID)
+	}
+	if len(cleanItemIDs) == 0 && !includeConferenceShirt {
+		return fmt.Errorf("select at least one pickup item")
+	}
+	actorEmail = strings.ToLower(strings.TrimSpace(actorEmail))
+
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx.DatabaseContext())
+
+	if includeConferenceShirt {
+		tag, err := tx.Exec(ctx.DatabaseContext(), `
+			UPDATE registrations r
+			SET conference_shirt_picked_up_at = now(),
+				conference_shirt_picked_up_by = NULLIF($2, '')::citext
+			WHERE r.ref_id = $1
+				AND r.revoked = false
+				AND r.checked_in_at IS NOT NULL
+				AND r.conference_shirt_picked_up_at IS NULL
+				AND EXISTS (
+					SELECT 1 FROM people
+					WHERE people.email = r.email AND btrim(people.tshirt) <> ''
+				)
+		`, ticketRef, actorEmail)
+		if err != nil {
+			return fmt.Errorf("mark conference shirt picked up: %w", err)
+		}
+		if tag.RowsAffected() != 1 {
+			return fmt.Errorf("conference shirt is unavailable or already picked up")
+		}
+	}
+
+	for _, itemID := range cleanItemIDs {
+		var variantID string
+		err := tx.QueryRow(ctx.DatabaseContext(), `
+			UPDATE shop_order_items item
+			SET fulfilled_quantity = item.quantity,
+				status = 'fulfilled'
+			FROM shop_orders shop_order, registrations registration
+			WHERE item.id = $2::uuid
+				AND registration.ref_id = $1
+				AND registration.revoked = false
+				AND registration.checked_in_at IS NOT NULL
+				AND shop_order.id = item.order_id
+				AND shop_order.status = 'paid'
+				AND shop_order.buyer_email = registration.email
+				AND item.pickup_conference_id = registration.conference_id
+				AND item.fulfillment_method = 'event_pickup'
+				AND item.status = 'ready'
+			RETURNING item.variant_id::text
+		`, ticketRef, itemID).Scan(&variantID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("pickup item %s is unavailable or already picked up", itemID)
+		}
+		if err != nil {
+			return fmt.Errorf("mark pickup item %s fulfilled: %w", itemID, err)
+		}
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			UPDATE shop_item_pickups
+			SET picked_up_at = now(), picked_up_by = $2, notes = 'QR check-in merch pickup'
+			WHERE order_item_id = $1::uuid AND picked_up_at IS NULL
+		`, itemID, actorEmail); err != nil {
+			return fmt.Errorf("mark pickup item %s collected: %w", itemID, err)
+		}
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			INSERT INTO merch_inventory_events (
+				variant_id, event_type, quantity_delta, order_item_id, actor_email, notes
+			) VALUES ($1::uuid, 'pickup', 0, $2::uuid, NULLIF($3, '')::citext, 'QR check-in merch pickup')
+		`, variantID, itemID, actorEmail); err != nil {
+			return fmt.Errorf("record pickup item %s inventory event: %w", itemID, err)
+		}
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			INSERT INTO shop_events (
+				event_type, actor_type, actor_email, entity_type, entity_id, order_item_id
+			) VALUES (
+				'pickup.completed', 'volunteer', NULLIF($2, '')::citext,
+				'shop_order_item', $1::uuid, $1::uuid
+			)
+		`, itemID, actorEmail); err != nil {
+			return fmt.Errorf("record pickup item %s event: %w", itemID, err)
+		}
+	}
+
+	return tx.Commit(ctx.DatabaseContext())
+}
+
 func UpdateShopOrderAdminNotes(ctx *config.AppContext, orderID, actorEmail, notes string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")

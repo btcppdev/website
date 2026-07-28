@@ -5,10 +5,22 @@
   {{ block "header" . }} {{ end }}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
 </head>
-<body class="btcpp-admin-page checkin-page checkin-page--{{ if .TicketType }}{{ .TicketType }}{{ else }}unknown{{ end }}">
-{{ block "mainnav" . }} {{ end }}
+<body class="checkin-page checkin-page--{{ .TicketTheme }}">
+  {{ if .ConferenceImage }}
+  <div class="checkin-backdrop" aria-hidden="true">
+    <img src="{{ .ConferenceImage }}" alt="">
+  </div>
+  {{ end }}
+  <header class="checkin-topbar">
+    <img src="/static/img/logo_blk.svg" alt="bitcoin++">
+    {{ if .IsPreview }}
+    <a href="/dev/check-in">← Preview states</a>
+    {{ else }}
+    <span>{{ if .ConferenceTag }}{{ .ConferenceTag }} · {{ end }}volunteer check-in</span>
+    {{ end }}
+  </header>
   <main class="checkin-shell">
-    <section class="checkin-card">
+    <section class="checkin-card checkin-card--ticket">
       {{ if .NeedsPin }}
       <p class="checkin-kicker">§ check-in</p>
       <h1>Enter passcode.</h1>
@@ -17,37 +29,99 @@
         <button type="submit">Enter</button>
       </form>
       {{ else }}
-      <p class="checkin-kicker">§ ticket</p>
-      <h1>{{ if .TicketType }}{{ .TicketType }}{{ else }}Unknown ticket{{ end }}</h1>
-      {{ if .TicketRef }}<p class="checkin-ticket-ref">{{ .TicketRef }}</p>{{ end }}
+      <div class="checkin-status-row">
+        <p class="checkin-kicker">§ ticket scanned</p>
+        {{ if .CheckInComplete }}<span class="checkin-status">✓ checked in</span>{{ else }}<span class="checkin-status is-alert">! needs attention</span>{{ end }}
+      </div>
+      <h1>{{ .TicketTypeLabel }}</h1>
+      {{ if or .AttendeeName .AttendeeEmail .TShirtSize }}
+      <div class="checkin-person">
+        {{ if .AttendeeName }}<strong>{{ .AttendeeName }}</strong>{{ end }}
+        {{ if .AttendeeEmail }}<span>{{ .AttendeeEmail }}</span>{{ end }}
+      </div>
+      <dl class="checkin-facts">
+        <div>
+          <dt>Ticket</dt>
+          <dd>{{ .TicketTypeLabel }}</dd>
+        </div>
+        <div>
+          <dt>T-shirt</dt>
+          <dd>{{ if .TShirtSize }}{{ .TShirtSizeLabel }} <small>{{ .TShirtSize }}</small>{{ else }}Not provided{{ end }}</dd>
+        </div>
+      </dl>
+      {{ end }}
+      {{ if .TicketRef }}<p class="checkin-ticket-ref">REF · {{ .TicketRef }}</p>{{ end }}
       {{ end }}
       {{ if .Msg }}<p class="checkin-message">{{ .Msg }}</p>{{ end }}
     </section>
 
-    {{ if .MerchPickups }}
+    {{ if and .CheckInComplete (or .TShirtSize .MerchPickups) }}
     <section class="checkin-card checkin-card--merch">
       <p class="checkin-kicker">§ merch pickup</p>
       <h2>Add to bag.</h2>
-      <div class="checkin-pickups">
+      <p class="checkin-card-intro">Check each item as it goes into the attendee’s bag, then complete the pickup.</p>
+      <form method="POST" action="/check-in/{{ .TicketRef }}/pickups" class="checkin-pickup-form" data-pickup-form>
+        <div class="checkin-pickups">
+        {{ if .TShirtSize }}
+        <label class="checkin-pickup{{ if .ShirtPickedUp }} is-done{{ end }}">
+          {{ if .ShirtPickedUp }}
+          <span class="checkin-checkbox is-checked" aria-hidden="true">✓</span>
+          {{ else }}
+          <input type="checkbox" name="conference_shirt" value="1"{{ if $.IsPreview }} disabled{{ end }}>
+          {{ end }}
+          <span class="checkin-pickup-copy">
+            <strong>Conference T-shirt</strong>
+            <span>{{ .TShirtSizeLabel }} · {{ .TShirtSize }} · Qty 1</span>
+          </span>
+          {{ if .ShirtPickedUp }}<span class="checkin-pill is-done">picked up</span>{{ end }}
+        </label>
+        {{ end }}
         {{ range .MerchPickups }}
-        <article class="checkin-pickup">
-          <div>
+        <label class="checkin-pickup{{ if eq .Status "fulfilled" }} is-done{{ end }}">
+          {{ if eq .Status "fulfilled" }}
+          <span class="checkin-checkbox is-checked" aria-hidden="true">✓</span>
+          {{ else }}
+          <input type="checkbox" name="pickup_item_ids" value="{{ .ID }}"{{ if $.IsPreview }} disabled{{ end }}>
+          {{ end }}
+          <span class="checkin-pickup-copy">
             <strong>{{ .ProductNameSnapshot }}</strong>
             <span>{{ if .VariantLabelSnapshot }}{{ .VariantLabelSnapshot }} · {{ end }}Qty {{ .Quantity }}{{ if .SKUSnapshot }} · {{ .SKUSnapshot }}{{ end }}</span>
-          </div>
+          </span>
           {{ if eq .Status "fulfilled" }}
           <span class="checkin-pill is-done">picked up</span>
-          {{ else }}
-          <form method="POST" action="/check-in/{{ $.TicketRef }}/merch/{{ .ID }}">
-            <button type="submit">Mark picked up</button>
-          </form>
           {{ end }}
-        </article>
+        </label>
         {{ end }}
-      </div>
+        </div>
+        {{ if .IsPreview }}
+        <div class="checkin-preview-notice">
+          <strong>Read-only preview</strong>
+          <span>Run the live flow to test check-in and pickup updates.</span>
+          <a href="/check-in/{{ .TicketRef }}">Open live check-in →</a>
+        </div>
+        {{ else if .HasPendingPickups }}
+        <button class="checkin-pickup-submit" type="submit" disabled data-pickup-submit>Mark selected picked up</button>
+        {{ else }}
+        <p class="checkin-all-done">✓ All pickup items complete</p>
+        {{ end }}
+      </form>
     </section>
     {{ end }}
   </main>
-  {{ block "footer" . }} {{ end }}
+  <script>
+    (function () {
+      const form = document.querySelector('[data-pickup-form]');
+      const button = document.querySelector('[data-pickup-submit]');
+      if (!form || !button) return;
+      const inputs = Array.from(form.querySelectorAll('input[type="checkbox"]'));
+      const refresh = function () {
+        const count = inputs.filter(function (input) { return input.checked; }).length;
+        button.disabled = count === 0;
+        button.textContent = count ? 'Mark ' + count + ' picked up' : 'Mark selected picked up';
+      };
+      inputs.forEach(function (input) { input.addEventListener('change', refresh); });
+      refresh();
+    })();
+  </script>
 </body>
 </html>
