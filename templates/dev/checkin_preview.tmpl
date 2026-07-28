@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Check-in previews · local development</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-admin-page checkin-preview-index">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="checkin-preview-shell">
+    <a href="/dev26/admin/registrations" class="checkin-preview-back">← Registrations</a>
+    <header class="checkin-preview-heading">
+      <p>§ local development</p>
+      <h1>Check-in previews.</h1>
+      <span>These fixtures cover every ticket color and the important merchandise pickup states. Preview pages are read-only.</span>
+    </header>
+
+    {{ if .Rows }}
+    <div class="checkin-preview-grid">
+      {{ range .Rows }}
+      <article class="checkin-preview-tile checkin-preview-tile--{{ .TicketTheme }}">
+        <div class="checkin-preview-tile__topline">
+          <span>{{ .TicketLabel }}</span>
+          <small>{{ .ConferenceTag }} · {{ .CheckInState }}</small>
+        </div>
+        <h2>{{ .AttendeeName }}</h2>
+        <dl>
+          <div><dt>T-shirt</dt><dd>{{ if .TShirtSize }}{{ .TShirtSize }}{{ else }}None{{ end }}</dd></div>
+          <div><dt>Pickup state</dt><dd>{{ .PickupSummary }}</dd></div>
+        </dl>
+        <div class="checkin-preview-actions">
+          <a href="/dev/check-in/{{ .TicketRef }}" target="_blank" rel="noopener">Preview</a>
+          <a href="/check-in/{{ .TicketRef }}" target="_blank" rel="noopener" class="is-secondary">Open live flow</a>
+        </div>
+      </article>
+      {{ end }}
+    </div>
+    {{ else }}
+    <section class="checkin-preview-empty">
+      <h2>No preview tickets found.</h2>
+      <p>Run <code>go run ./cmd/dev-seed</code>, then reload this page.</p>
+    </section>
+    {{ end }}
+  </main>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

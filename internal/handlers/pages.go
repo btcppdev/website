@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"time"
 
 	"btcpp-web/external/getters"
@@ -214,12 +215,115 @@ type SchedulePage struct {
 }
 
 type CheckInPage struct {
-	NeedsPin     bool
-	TicketType   string
-	TicketRef    string
-	Msg          string
-	MerchPickups []*types.ShopOrderItem
-	Year         uint
+	NeedsPin        bool
+	TicketType      string
+	TicketRef       string
+	Msg             string
+	AttendeeName    string
+	AttendeeEmail   string
+	TShirtSize      string
+	ConferenceTag   string
+	ConferenceImage string
+	CheckInComplete bool
+	ShirtPickedUp   bool
+	MerchPickups    []*types.ShopOrderItem
+	IsPreview       bool
+	Year            uint
+}
+
+func (p *CheckInPage) TicketTheme() string {
+	return checkInTicketTheme(p.TicketType)
+}
+
+func checkInTicketTheme(ticketType string) string {
+	ticketType = strings.ToLower(strings.TrimSpace(ticketType))
+	switch {
+	case ticketType == "genpop", ticketType == "local":
+		return "blue"
+	case strings.Contains(ticketType, "sponsor"):
+		return "red"
+	case strings.Contains(ticketType, "volunteer"):
+		return "green"
+	case strings.Contains(ticketType, "speaker"):
+		return "orange"
+	default:
+		return "neutral"
+	}
+}
+
+func (p *CheckInPage) TicketTypeLabel() string {
+	return checkInTicketTypeLabel(p.TicketType)
+}
+
+func checkInTicketTypeLabel(ticketType string) string {
+	switch strings.ToLower(strings.TrimSpace(ticketType)) {
+	case "genpop":
+		return "General admission"
+	case "local":
+		return "Local"
+	case "sponsor", "sponsored":
+		return "Sponsor"
+	case "volunteer":
+		return "Volunteer"
+	case "speaker":
+		return "Speaker"
+	default:
+		return firstNonEmpty(strings.TrimSpace(ticketType), "Unknown ticket")
+	}
+}
+
+func (p *CheckInPage) TShirtSizeLabel() string {
+	switch strings.ToUpper(strings.TrimSpace(p.TShirtSize)) {
+	case "LS":
+		return "Ladies small"
+	case "LM":
+		return "Ladies medium"
+	case "LL":
+		return "Ladies large"
+	case "MS":
+		return "Men's small"
+	case "MM":
+		return "Men's medium"
+	case "ML":
+		return "Men's large"
+	case "MXL":
+		return "Men's XL"
+	case "MXXL":
+		return "Men's XXL"
+	case "MXXXL":
+		return "Men's XXXL"
+	default:
+		return strings.TrimSpace(p.TShirtSize)
+	}
+}
+
+func (p *CheckInPage) HasPendingPickups() bool {
+	if strings.TrimSpace(p.TShirtSize) != "" && !p.ShirtPickedUp {
+		return true
+	}
+	for _, item := range p.MerchPickups {
+		if item != nil && item.Status != types.ShopItemStatusFulfilled {
+			return true
+		}
+	}
+	return false
+}
+
+type DevCheckInPreviewPage struct {
+	Rows []*DevCheckInPreviewRow
+	Year uint
+}
+
+type DevCheckInPreviewRow struct {
+	TicketRef     string
+	TicketType    string
+	TicketLabel   string
+	TicketTheme   string
+	AttendeeName  string
+	TShirtSize    string
+	PickupSummary string
+	ConferenceTag string
+	CheckInState  string
 }
 
 type VolunteerPage struct {

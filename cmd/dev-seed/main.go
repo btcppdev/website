@@ -22,45 +22,58 @@ const (
 	devDay2ID = "00000000-0000-4000-8000-000000000012"
 	devDay3ID = "00000000-0000-4000-8000-000000000013"
 
-	devEarlyTixID           = "00000000-0000-4000-8000-000000000021"
-	devGeneralTixID         = "00000000-0000-4000-8000-000000000022"
-	devAdminID              = "00000000-0000-4000-8000-000000000031"
-	devArchiveSpeakerConfID = "00000000-0000-4000-8000-000000000033"
-	devArchiveProposalID    = "00000000-0000-4000-8000-000000000034"
-	devArchiveTalkID        = "00000000-0000-4000-8000-000000000035"
-	devArchiveRecordingID   = "00000000-0000-4000-8000-000000000036"
-	devAffiliateDiscountID  = "00000000-0000-4000-8000-000000000037"
-	devVolunteerID          = "00000000-0000-4000-8000-000000000038"
-	devJobTypeID            = "00000000-0000-4000-8000-000000000039"
-	devWorkShiftID          = "00000000-0000-4000-8000-000000000040"
-	devVolInfoID            = "00000000-0000-4000-8000-000000000041"
-	devHomepagePerson7ID    = "00000000-0000-4000-8000-000000000042"
-	devHomepagePerson8ID    = "00000000-0000-4000-8000-000000000043"
-	devVolLoginMissiveID    = "00000000-0000-4000-8000-000000000044"
-	devMerchProduct1ID      = "00000000-0000-4000-8000-000000000051"
-	devMerchProduct2ID      = "00000000-0000-4000-8000-000000000052"
-	devMerchProduct3ID      = "00000000-0000-4000-8000-000000000053"
-	devMerchProduct4ID      = "00000000-0000-4000-8000-000000000054"
-	devMerchProduct5ID      = "00000000-0000-4000-8000-000000000055"
-	devMerchVariant1ID      = "00000000-0000-4000-8000-000000000061"
-	devMerchVariant2ID      = "00000000-0000-4000-8000-000000000062"
-	devMerchVariant3ID      = "00000000-0000-4000-8000-000000000063"
-	devMerchVariant4ID      = "00000000-0000-4000-8000-000000000064"
-	devMerchVariant5ID      = "00000000-0000-4000-8000-000000000065"
-	devShopOrderPickupID    = "00000000-0000-4000-8000-000000000071"
-	devShopOrderShipID      = "00000000-0000-4000-8000-000000000072"
-	devShopOrderPendingID   = "00000000-0000-4000-8000-000000000073"
-	devShopOrderRefundID    = "00000000-0000-4000-8000-000000000074"
-	devShopOrderMixedID     = "00000000-0000-4000-8000-000000000075"
-	devShopItemPickupID     = "00000000-0000-4000-8000-000000000081"
-	devShopItemShipID       = "00000000-0000-4000-8000-000000000082"
-	devShopItemPendingID    = "00000000-0000-4000-8000-000000000083"
-	devShopItemRefundID     = "00000000-0000-4000-8000-000000000084"
-	devShopItemMixedMerchID = "00000000-0000-4000-8000-000000000085"
-	devShopItemMixedTixID   = "00000000-0000-4000-8000-000000000086"
-	devShopPickupReadyID    = "00000000-0000-4000-8000-000000000087"
-	devShopPickupDoneID     = "00000000-0000-4000-8000-000000000088"
-	devShopRefundID         = "00000000-0000-4000-8000-000000000089"
+	devEarlyTixID            = "00000000-0000-4000-8000-000000000021"
+	devGeneralTixID          = "00000000-0000-4000-8000-000000000022"
+	devAdminID               = "00000000-0000-4000-8000-000000000031"
+	devArchiveSpeakerConfID  = "00000000-0000-4000-8000-000000000033"
+	devArchiveProposalID     = "00000000-0000-4000-8000-000000000034"
+	devArchiveTalkID         = "00000000-0000-4000-8000-000000000035"
+	devArchiveRecordingID    = "00000000-0000-4000-8000-000000000036"
+	devAffiliateDiscountID   = "00000000-0000-4000-8000-000000000037"
+	devVolunteerID           = "00000000-0000-4000-8000-000000000038"
+	devJobTypeID             = "00000000-0000-4000-8000-000000000039"
+	devWorkShiftID           = "00000000-0000-4000-8000-000000000040"
+	devVolInfoID             = "00000000-0000-4000-8000-000000000041"
+	devHomepagePerson7ID     = "00000000-0000-4000-8000-000000000042"
+	devHomepagePerson8ID     = "00000000-0000-4000-8000-000000000043"
+	devVolLoginMissiveID     = "00000000-0000-4000-8000-000000000044"
+	devMerchProduct1ID       = "00000000-0000-4000-8000-000000000051"
+	devMerchProduct2ID       = "00000000-0000-4000-8000-000000000052"
+	devMerchProduct3ID       = "00000000-0000-4000-8000-000000000053"
+	devMerchProduct4ID       = "00000000-0000-4000-8000-000000000054"
+	devMerchProduct5ID       = "00000000-0000-4000-8000-000000000055"
+	devMerchVariant1ID       = "00000000-0000-4000-8000-000000000061"
+	devMerchVariant2ID       = "00000000-0000-4000-8000-000000000062"
+	devMerchVariant3ID       = "00000000-0000-4000-8000-000000000063"
+	devMerchVariant4ID       = "00000000-0000-4000-8000-000000000064"
+	devMerchVariant5ID       = "00000000-0000-4000-8000-000000000065"
+	devShopOrderPickupID     = "00000000-0000-4000-8000-000000000071"
+	devShopOrderShipID       = "00000000-0000-4000-8000-000000000072"
+	devShopOrderPendingID    = "00000000-0000-4000-8000-000000000073"
+	devShopOrderRefundID     = "00000000-0000-4000-8000-000000000074"
+	devShopOrderMixedID      = "00000000-0000-4000-8000-000000000075"
+	devShopItemPickupID      = "00000000-0000-4000-8000-000000000081"
+	devShopItemShipID        = "00000000-0000-4000-8000-000000000082"
+	devShopItemPendingID     = "00000000-0000-4000-8000-000000000083"
+	devShopItemRefundID      = "00000000-0000-4000-8000-000000000084"
+	devShopItemMixedMerchID  = "00000000-0000-4000-8000-000000000085"
+	devShopItemMixedTixID    = "00000000-0000-4000-8000-000000000086"
+	devShopPickupReadyID     = "00000000-0000-4000-8000-000000000087"
+	devShopPickupDoneID      = "00000000-0000-4000-8000-000000000088"
+	devShopRefundID          = "00000000-0000-4000-8000-000000000089"
+	devCheckInGenpopID       = "00000000-0000-4000-8000-000000000a01"
+	devCheckInLocalID        = "00000000-0000-4000-8000-000000000a02"
+	devCheckInSponsorID      = "00000000-0000-4000-8000-000000000a03"
+	devCheckInVolunteerID    = "00000000-0000-4000-8000-000000000a04"
+	devCheckInSpeakerID      = "00000000-0000-4000-8000-000000000a05"
+	devCheckInSponsorOrder   = "00000000-0000-4000-8000-000000000a21"
+	devCheckInSpeakerOrder   = "00000000-0000-4000-8000-000000000a22"
+	devCheckInSponsorItem    = "00000000-0000-4000-8000-000000000a31"
+	devCheckInSpeakerItem1   = "00000000-0000-4000-8000-000000000a32"
+	devCheckInSpeakerItem2   = "00000000-0000-4000-8000-000000000a33"
+	devCheckInSponsorPickup  = "00000000-0000-4000-8000-000000000a41"
+	devCheckInSpeakerPickup1 = "00000000-0000-4000-8000-000000000a42"
+	devCheckInSpeakerPickup2 = "00000000-0000-4000-8000-000000000a43"
 )
 
 type daySeed struct {
@@ -504,6 +517,7 @@ func main() {
 	seedHomepageFeaturedSpeakers(ctx, tx)
 	seedDashboardFixtures(ctx, tx, confID, pastConfID)
 	seedMerch(ctx, tx, confID)
+	seedCheckInPreviews(ctx, tx, confID)
 	seedMissives(ctx, tx)
 
 	if err := tx.Commit(ctx); err != nil {
@@ -511,6 +525,170 @@ func main() {
 	}
 
 	log.Printf("seeded local dev conferences and dashboard fixture for dev-admin@example.test")
+}
+
+func seedCheckInPreviews(ctx context.Context, tx pgx.Tx, confID string) {
+	people := []struct {
+		id, name, email, tshirt string
+	}{
+		{devCheckInGenpopID, "Gina General", "dev-checkin-genpop@example.test", "MM"},
+		{devCheckInLocalID, "Luca Local", "dev-checkin-local@example.test", ""},
+		{devCheckInSponsorID, "Sam Sponsor", "dev-checkin-sponsor@example.test", "LS"},
+		{devCheckInVolunteerID, "Val Volunteer", "dev-checkin-volunteer@example.test", "ML"},
+		{devCheckInSpeakerID, "Sasha Speaker", "dev-checkin-speaker@example.test", "MXL"},
+	}
+	for _, person := range people {
+		mustExec(ctx, tx, "seed check-in preview person", `
+			INSERT INTO people (id, name, email, tshirt)
+			VALUES ($1::uuid, $2, $3::citext, $4)
+			ON CONFLICT (id) DO UPDATE SET
+				name = EXCLUDED.name,
+				email = EXCLUDED.email,
+				tshirt = EXCLUDED.tshirt
+		`, person.id, person.name, person.email, person.tshirt)
+	}
+
+	registrations := []struct {
+		id, ref, ticketType, email, item, checkedInAt, shirtPickedUpAt string
+	}{
+		{devCheckInGenpopID, "dev-checkin-genpop", "genpop", people[0].email, "General Admission", "", ""},
+		{devCheckInLocalID, "dev-checkin-local", "local", people[1].email, "Local Pass", "2026-10-01 09:02:00-05", ""},
+		{devCheckInSponsorID, "dev-checkin-sponsor", "sponsor", people[2].email, "Sponsor Pass", "2026-10-01 09:03:00-05", "2026-10-01 09:05:00-05"},
+		{devCheckInVolunteerID, "dev-checkin-volunteer", "volunteer", people[3].email, "Volunteer Pass", "2026-10-01 08:30:00-05", ""},
+		{devCheckInSpeakerID, "dev-checkin-speaker", "speaker", people[4].email, "Speaker Pass", "2026-10-01 08:45:00-05", ""},
+	}
+	for _, registration := range registrations {
+		mustExec(ctx, tx, "seed check-in preview registration", `
+			INSERT INTO registrations (
+				id, ref_id, conference_id, type, email, item_bought, platform,
+				registered_at, checked_in_at, revoked,
+				conference_shirt_picked_up_at, conference_shirt_picked_up_by
+			)
+			VALUES (
+				$1::uuid, $2, $3::uuid, $4, $5::citext, $6, 'dev-checkin-preview',
+				'2026-09-01 12:00:00-05'::timestamptz,
+				NULLIF($7, '')::timestamptz, false,
+				NULLIF($8, '')::timestamptz,
+				CASE WHEN $8 = '' THEN NULL ELSE 'dev-volunteer@example.test'::citext END
+			)
+			ON CONFLICT (ref_id) DO UPDATE SET
+				conference_id = EXCLUDED.conference_id,
+				type = EXCLUDED.type,
+				email = EXCLUDED.email,
+				item_bought = EXCLUDED.item_bought,
+				platform = EXCLUDED.platform,
+				checked_in_at = EXCLUDED.checked_in_at,
+				revoked = false,
+				conference_shirt_picked_up_at = EXCLUDED.conference_shirt_picked_up_at,
+				conference_shirt_picked_up_by = EXCLUDED.conference_shirt_picked_up_by
+		`, registration.id, registration.ref, confID, registration.ticketType, registration.email,
+			registration.item, registration.checkedInAt, registration.shirtPickedUpAt)
+	}
+
+	orderIDs := []string{devCheckInSponsorOrder, devCheckInSpeakerOrder}
+	itemIDs := []string{devCheckInSponsorItem, devCheckInSpeakerItem1, devCheckInSpeakerItem2}
+	mustExec(ctx, tx, "reset check-in preview events", `
+		DELETE FROM shop_events
+		WHERE order_id::text = ANY($1::text[]) OR order_item_id::text = ANY($2::text[])
+	`, orderIDs, itemIDs)
+	mustExec(ctx, tx, "reset check-in preview inventory events", `
+		DELETE FROM merch_inventory_events WHERE order_item_id::text = ANY($1::text[])
+	`, itemIDs)
+
+	orders := []struct {
+		id, publicID, email, name string
+		total                     int
+	}{
+		{devCheckInSponsorOrder, "dev-checkin-sponsor-order", people[2].email, people[2].name, 3500},
+		{devCheckInSpeakerOrder, "dev-checkin-speaker-order", people[4].email, people[4].name, 4300},
+	}
+	for _, order := range orders {
+		mustExec(ctx, tx, "seed check-in preview order", `
+			INSERT INTO shop_orders (
+				id, public_id, buyer_email, buyer_name, status, source, checkout_kind,
+				payment_provider, payment_provider_id, subtotal_cents, total_cents, paid_at
+			)
+			VALUES (
+				$1::uuid, $2, $3::citext, $4, 'paid', 'online', 'merch',
+				'stripe', $2, $5, $5, '2026-09-20 12:00:00-05'::timestamptz
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				buyer_email = EXCLUDED.buyer_email,
+				buyer_name = EXCLUDED.buyer_name,
+				status = 'paid',
+				subtotal_cents = EXCLUDED.subtotal_cents,
+				total_cents = EXCLUDED.total_cents,
+				paid_at = EXCLUDED.paid_at
+		`, order.id, order.publicID, order.email, order.name, order.total)
+	}
+
+	items := []struct {
+		id, orderID, productID, variantID, name, variant, sku, status string
+		quantity, fulfilled, unitPrice, total                         int
+	}{
+		{devCheckInSponsorItem, devCheckInSponsorOrder, devMerchProduct1ID, devMerchVariant1ID, "Core Hat", "Default", "MERCH-CORE-HAT", "fulfilled", 1, 1, 3500, 3500},
+		{devCheckInSpeakerItem1, devCheckInSpeakerOrder, devMerchProduct4ID, devMerchVariant4ID, "Node Runner Tee", "Default", "MERCH-NODE-TEE", "ready", 1, 0, 3200, 3200},
+		{devCheckInSpeakerItem2, devCheckInSpeakerOrder, devMerchProduct5ID, devMerchVariant5ID, "Signet Sticker Pack", "Default", "MERCH-SIGNET-STICKERS", "ready", 2, 0, 550, 1100},
+	}
+	for _, item := range items {
+		mustExec(ctx, tx, "seed check-in preview item", `
+			INSERT INTO shop_order_items (
+				id, order_id, product_id, variant_id, quantity, fulfilled_quantity,
+				unit_price_cents, line_total_cents, product_tag_snapshot,
+				product_name_snapshot, variant_label_snapshot, sku_snapshot,
+				fulfillment_method, sale_conference_id, pickup_conference_id, status
+			)
+			VALUES (
+				$1::uuid, $2::uuid, $3::uuid, $4::uuid, $9, $10, $11, $12,
+				lower(replace($5, ' ', '-')), $5, $6, $7,
+				'event_pickup', $8::uuid, $8::uuid, $13
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				order_id = EXCLUDED.order_id,
+				product_id = EXCLUDED.product_id,
+				variant_id = EXCLUDED.variant_id,
+				quantity = EXCLUDED.quantity,
+				fulfilled_quantity = EXCLUDED.fulfilled_quantity,
+				unit_price_cents = EXCLUDED.unit_price_cents,
+				line_total_cents = EXCLUDED.line_total_cents,
+				product_name_snapshot = EXCLUDED.product_name_snapshot,
+				variant_label_snapshot = EXCLUDED.variant_label_snapshot,
+				sku_snapshot = EXCLUDED.sku_snapshot,
+				fulfillment_method = EXCLUDED.fulfillment_method,
+				sale_conference_id = EXCLUDED.sale_conference_id,
+				pickup_conference_id = EXCLUDED.pickup_conference_id,
+				status = EXCLUDED.status
+		`, item.id, item.orderID, item.productID, item.variantID, item.name, item.variant,
+			item.sku, confID, item.quantity, item.fulfilled, item.unitPrice, item.total, item.status)
+	}
+
+	pickups := []struct {
+		id, itemID string
+		pickedUp   bool
+	}{
+		{devCheckInSponsorPickup, devCheckInSponsorItem, true},
+		{devCheckInSpeakerPickup1, devCheckInSpeakerItem1, false},
+		{devCheckInSpeakerPickup2, devCheckInSpeakerItem2, false},
+	}
+	for _, pickup := range pickups {
+		mustExec(ctx, tx, "seed check-in preview pickup", `
+			INSERT INTO shop_item_pickups (
+				id, order_item_id, conference_id, quantity, picked_up_at, picked_up_by, notes
+			)
+			SELECT $1::uuid, item.id, $3::uuid, item.quantity,
+				CASE WHEN $4 THEN '2026-10-01 09:05:00-05'::timestamptz ELSE NULL END,
+				CASE WHEN $4 THEN 'dev-volunteer@example.test' ELSE '' END,
+				'dev check-in preview'
+			FROM shop_order_items item WHERE item.id = $2::uuid
+			ON CONFLICT (id) DO UPDATE SET
+				order_item_id = EXCLUDED.order_item_id,
+				conference_id = EXCLUDED.conference_id,
+				quantity = EXCLUDED.quantity,
+				picked_up_at = EXCLUDED.picked_up_at,
+				picked_up_by = EXCLUDED.picked_up_by,
+				notes = EXCLUDED.notes
+		`, pickup.id, pickup.itemID, confID, pickup.pickedUp)
+	}
 }
 
 func seedMissives(ctx context.Context, tx pgx.Tx) {
