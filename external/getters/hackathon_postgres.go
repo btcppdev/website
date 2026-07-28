@@ -1126,6 +1126,129 @@ func listProjectsForCompetitionPostgres(ctx *config.AppContext, competitionID st
 	return out, nil
 }
 
+func listHackathonParticipantProjectsByEmailPostgres(ctx *config.AppContext, email string) ([]*HackathonParticipantProject, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, nil
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT projects.id::text, projects.competition_id::text,
+			coalesce(projects.created_by_person_id::text, ''), projects.slug,
+			projects.title, projects.short_description, projects.description,
+			projects.description_format, projects.image_url, projects.image_urls,
+			projects.github_url, projects.demo_url, projects.video_url,
+			projects.slides_url, projects.docs_url, projects.project_number,
+			projects.status, projects.tags, projects.submitted_at,
+			projects.created_at, projects.updated_at,
+			competition.title,
+			conf.id::text, conf.tag, conf.active, conf.publication_status,
+			conf.description, conf.edition_type, conf.og_flavor, conf.emoji,
+			conf.tagline, conf.date_desc, conf.start_date, conf.end_date,
+			conf.timezone, conf.location,
+			membership.role,
+			(SELECT count(*) FROM project_members team WHERE team.project_id = projects.id)
+		FROM project_members membership
+		JOIN people person ON person.id = membership.person_id
+		JOIN projects ON projects.id = membership.project_id
+		JOIN competitions competition ON competition.id = projects.competition_id
+		JOIN conferences conf ON conf.id = competition.conference_id
+		WHERE lower(coalesce(person.email::text, '')) = lower($1)
+		ORDER BY conf.start_date DESC NULLS LAST, projects.updated_at DESC,
+			projects.title, projects.id,
+			CASE WHEN membership.role = 'owner' THEN 0 ELSE 1 END
+	`, email)
+	if err != nil {
+		return nil, fmt.Errorf("query hackathon participant projects for %s: %w", email, err)
+	}
+	defer rows.Close()
+
+	seen := map[string]bool{}
+	var out []*HackathonParticipantProject
+	for rows.Next() {
+		var project types.HackathonProject
+		var projectNumber sql.NullInt64
+		var submittedAt pgtype.Timestamptz
+		var conf types.Conf
+		var confStart, confEnd pgtype.Timestamptz
+		var competitionTitle, memberRole string
+		var teamSize int
+		if err := rows.Scan(
+			&project.ID, &project.CompetitionID, &project.CreatedByPersonID,
+			&project.Slug, &project.Title, &project.ShortDescription,
+			&project.Description, &project.DescriptionFormat, &project.ImageURL,
+			&project.ImageURLs, &project.GitHubURL, &project.DemoURL,
+			&project.VideoURL, &project.SlidesURL, &project.DocsURL,
+			&projectNumber, &project.Status, &project.Tags, &submittedAt,
+			&project.CreatedAt, &project.UpdatedAt,
+			&competitionTitle,
+			&conf.Ref, &conf.Tag, &conf.Active, &conf.PublicationStatus,
+			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.Emoji,
+			&conf.Tagline, &conf.DateDesc, &confStart, &confEnd,
+			&conf.Timezone, &conf.Location,
+			&memberRole, &teamSize,
+		); err != nil {
+			return nil, fmt.Errorf("scan hackathon participant project: %w", err)
+		}
+		if seen[project.ID] {
+			continue
+		}
+		seen[project.ID] = true
+		if projectNumber.Valid {
+			n := int(projectNumber.Int64)
+			project.ProjectNumber = &n
+		}
+		project.Status = normalizeProjectStatus(project.Status)
+		project.SubmittedAt = pgTimePtr(submittedAt)
+		if conf.Timezone != "" {
+			if loc, err := time.LoadLocation(conf.Timezone); err == nil {
+				conf.TZ = loc
+			}
+		}
+		if confStart.Valid {
+			conf.StartDate = confStart.Time.In(conf.Loc())
+		}
+		if confEnd.Valid {
+			conf.EndDate = confEnd.Time.In(conf.Loc())
+		}
+		out = append(out, &HackathonParticipantProject{
+			Project:          &project,
+			Conf:             &conf,
+			CompetitionTitle: competitionTitle,
+			MemberRole:       normalizeProjectMemberRole(memberRole),
+			TeamSize:         teamSize,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate hackathon participant projects for %s: %w", email, err)
+	}
+	return out, nil
+}
+
+func hasHackathonParticipantProjectsByEmailPostgres(ctx *config.AppContext, email string) (bool, error) {
+	if ctx == nil || ctx.DB == nil {
+		return false, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return false, nil
+	}
+	var exists bool
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT EXISTS (
+			SELECT 1
+			FROM project_members membership
+			JOIN people person ON person.id = membership.person_id
+			WHERE lower(coalesce(person.email::text, '')) = lower($1)
+		)
+	`, email).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check hackathon participant projects for %s: %w", email, err)
+	}
+	return exists, nil
+}
+
 func listTableProjectsForCompetitionPostgres(ctx *config.AppContext, competitionID string) ([]*types.HackathonProject, error) {
 	competitionID = strings.TrimSpace(competitionID)
 	if competitionID == "" {

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>your hackathon projects - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#10024;</text></svg>">
+</head>
+<body class="btcpp-dashboard-page">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="dashboard-shell">
+    <main class="dashboard-main">
+      {{ template "dashboard_tabs" (dict "Active" "hackathons" "ShowHackathons" true "ShowAdmin" .IsGlobalAdmin) }}
+
+      <header class="dashboard-hackathon-header">
+        <div class="dashboard-kicker">§ Hackathons</div>
+        <h1>Your projects.</h1>
+        <p>Manage your team, public project page, and final submission from one place.</p>
+      </header>
+
+      <section class="dashboard-hackathon-list" aria-label="Your hackathon projects">
+        {{ range .HackathonProjects }}
+        <article class="dashboard-hackathon-project">
+          <div class="dashboard-hackathon-project__media">
+            {{ if .ImageURL }}
+            <img src="{{ .ImageURL | safeURL }}" alt="">
+            {{ else }}
+            <span aria-hidden="true">{{ .Conf.EmojiOrDefault }}</span>
+            {{ end }}
+          </div>
+
+          <div class="dashboard-hackathon-project__body">
+            <div class="dashboard-hackathon-project__topline">
+              <div>
+                <a href="{{ .HackathonURL }}">{{ .Conf.ArchiveTitle }}</a>
+                {{ if .Conf.DateDesc }}<span>{{ .Conf.DateDesc }}</span>{{ end }}
+                {{ if .Conf.Location }}<span>{{ .Conf.Location }}</span>{{ end }}
+              </div>
+              <span class="dashboard-hackathon-status{{ if eq .Project.Status "submitted" }} is-submitted{{ else if eq .Project.Status "advanced" }} is-advanced{{ else if eq .Project.Status "hidden" }} is-hidden{{ end }}">{{ .StatusLabel }}</span>
+            </div>
+
+            <div class="dashboard-hackathon-project__title">
+              <div class="dashboard-kicker">{{ if .CompetitionTitle }}{{ .CompetitionTitle }}{{ else }}Hackathon project{{ end }}</div>
+              <h2>{{ .Project.Title }}</h2>
+              {{ if .Project.ShortDescription }}<p>{{ .Project.ShortDescription }}</p>{{ end }}
+            </div>
+
+            <dl class="dashboard-hackathon-project__meta">
+              <div><dt>Role</dt><dd>{{ if eq .MemberRole "owner" }}Owner{{ else }}Team member{{ end }}</dd></div>
+              <div><dt>Team</dt><dd>{{ .TeamSize }} member{{ if ne .TeamSize 1 }}s{{ end }}</dd></div>
+              <div><dt>Table</dt><dd>{{ if .Project.ProjectNumber }}#{{ .Project.ProjectNumber }}{{ else }}Unassigned{{ end }}</dd></div>
+              <div><dt>Updated</dt><dd>{{ .Project.UpdatedAt.Format "Jan 2, 2006" }}</dd></div>
+            </dl>
+
+            <nav class="dashboard-hackathon-project__actions" aria-label="Actions for {{ .Project.Title }}">
+              <a class="is-primary" href="{{ .EditURL }}">{{ if eq .Project.Status "created" }}Continue project{{ else }}Manage project{{ end }}</a>
+              <a href="{{ .TeamURL }}">Team</a>
+              <a href="{{ .SubmissionURL }}">Submission</a>
+              <a href="{{ .ProjectURL }}">Public page</a>
+              <a href="{{ .HackathonURL }}">Hackathon</a>
+            </nav>
+          </div>
+        </article>
+        {{ end }}
+      </section>
+    </main>
+  </div>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>
