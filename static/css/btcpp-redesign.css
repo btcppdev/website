@@ -1673,6 +1673,195 @@ body.btcpp-rebrand-page {
   text-transform: uppercase;
 }
 
+.whois-project-list {
+  border-top: 1px solid var(--whois-ink);
+}
+
+.whois-project-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  border-bottom: 1px solid var(--whois-ink);
+}
+
+.whois-project-row:last-child {
+  border-bottom: 0;
+}
+
+.whois-project-row__main {
+  min-width: 0;
+  border-right: 1px solid var(--whois-ink);
+  padding: 24px 40px;
+}
+
+.whois-project-row__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.whois-project-row__title h3 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.whois-project-row__title h3 a {
+  color: var(--whois-ink);
+  text-decoration: none;
+}
+
+.whois-project-row__title h3 a:hover,
+.whois-project-row__title h3 a:focus-visible {
+  color: var(--whois-accent);
+}
+
+.whois-project-row__title > span {
+  background: var(--whois-accent);
+  color: #000;
+  padding: 4px 8px;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.whois-project-row__edition {
+  margin: 7px 0 0;
+}
+
+.whois-project-row__edition a {
+  color: #777;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.whois-project-row__edition a:hover,
+.whois-project-row__edition a:focus-visible {
+  color: var(--whois-accent);
+}
+
+.whois-project-row__description {
+  max-width: 680px;
+  margin: 13px 0 0;
+  color: #555;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.whois-project-row__links {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.whois-project-row__links span,
+.whois-project-row__links a {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  border: 1px solid #d6cfc1;
+  color: #666;
+  padding: 3px 8px;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.whois-project-row__links a {
+  border-color: var(--whois-ink);
+  background: #efeae1;
+  color: var(--whois-ink);
+}
+
+.whois-project-row__links a:hover,
+.whois-project-row__links a:focus-visible,
+.whois-project-row__links .is-project {
+  background: var(--whois-ink);
+  color: var(--whois-paper);
+}
+
+.whois-project-row__links .is-project:hover,
+.whois-project-row__links .is-project:focus-visible {
+  background: var(--whois-accent);
+  color: #000;
+}
+
+.whois-project-row__team {
+  padding: 24px 28px;
+}
+
+.whois-project-row__team > p {
+  margin: 0 0 12px;
+  color: #888;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.whois-project-row__team > div {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.whois-project-row__team a,
+.whois-project-row__team span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  color: #666;
+  text-decoration: none;
+}
+
+.whois-project-row__team a:hover,
+.whois-project-row__team a:focus-visible {
+  color: var(--whois-accent);
+}
+
+.whois-project-row__team img {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: 1px solid var(--whois-ink);
+  object-fit: cover;
+}
+
+.whois-project-row__team b {
+  min-width: 0;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.whois-project-row__team .is-current {
+  color: var(--whois-ink);
+}
+
+.whois-project-row__team .is-current b {
+  font-weight: 800;
+}
+
+.whois-project-row__team em {
+  color: var(--whois-accent);
+  font-style: normal;
+}
+
 .whois-talk-list {
   border-top: 1px solid var(--whois-ink);
 }
@@ -1884,6 +2073,26 @@ body.btcpp-rebrand-page {
 
   .whois-profile-empty {
     padding: 18px 22px 28px;
+  }
+
+  .whois-project-row {
+    grid-template-columns: 1fr;
+  }
+
+  .whois-project-row__main {
+    border-right: 0;
+    padding: 22px;
+  }
+
+  .whois-project-row__team {
+    border-top: 1px solid #e4ded3;
+    padding: 20px 22px;
+  }
+
+  .whois-project-row__team > div {
+    flex-direction: row;
+    gap: 14px;
+    flex-wrap: wrap;
   }
 
   .whois-event-badges {
