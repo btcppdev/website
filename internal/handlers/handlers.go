@@ -2335,11 +2335,12 @@ func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	if query != "" || topic != "" || event != "" {
 		people = filterWhoIsPeople(people, query, topic, event)
 	}
-	talkCount, editionCount := whoIsTotals(people)
+	talkCount, projectCount, editionCount := whoIsTotals(people)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois.tmpl", &WhoIsPage{
 		People:       people,
 		AllCount:     allCount,
 		TalkCount:    talkCount,
+		ProjectCount: projectCount,
 		EditionCount: editionCount,
 		Query:        query,
 		Topic:        topic,
@@ -2585,6 +2586,20 @@ func whoIsPersonMatches(person *WhoIsPerson, needle, topic, event string) bool {
 			hay = append(hay, talk.Conf.Tag, talk.Conf.Desc, talk.Conf.Location, talk.Conf.DateDesc)
 		}
 	}
+	for _, project := range person.Projects {
+		if project == nil || project.Project == nil {
+			continue
+		}
+		hay = append(hay,
+			project.Project.Title,
+			project.Project.ShortDescription,
+			project.Project.Description,
+			strings.Join(project.Project.Tags, " "),
+		)
+		if project.Conf != nil {
+			hay = append(hay, project.Conf.Tag, project.Conf.Desc, project.Conf.Location, project.Conf.DateDesc)
+		}
+	}
 	haystack := strings.ToLower(strings.Join(hay, " "))
 	if needle != "" && !strings.Contains(haystack, needle) {
 		return false
@@ -2617,6 +2632,11 @@ func whoIsPersonHasEvent(person *WhoIsPerson, event string) bool {
 			return true
 		}
 	}
+	for _, project := range person.Projects {
+		if project != nil && project.Conf != nil && strings.EqualFold(project.Conf.Tag, event) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -2637,6 +2657,11 @@ func whoIsEventOptions(people []*WhoIsPerson) []*types.Conf {
 			}
 			byTag[talk.Conf.Tag] = talk.Conf
 		}
+		for _, project := range person.Projects {
+			if project != nil && project.Conf != nil && project.Conf.Tag != "" {
+				byTag[project.Conf.Tag] = project.Conf
+			}
+		}
 	}
 	out := make([]*types.Conf, 0, len(byTag))
 	for _, conf := range byTag {
@@ -2652,8 +2677,9 @@ func whoIsEventOptions(people []*WhoIsPerson) []*types.Conf {
 	return out
 }
 
-func whoIsTotals(people []*WhoIsPerson) (int, int) {
+func whoIsTotals(people []*WhoIsPerson) (int, int, int) {
 	talks := map[string]bool{}
+	projects := map[string]bool{}
 	editions := map[string]bool{}
 	for _, person := range people {
 		if person == nil {
@@ -2670,8 +2696,13 @@ func whoIsTotals(people []*WhoIsPerson) (int, int) {
 				talks[talk.Talk.ID] = true
 			}
 		}
+		for _, project := range person.Projects {
+			if project != nil && project.Project != nil && project.Project.ID != "" {
+				projects[project.Project.ID] = true
+			}
+		}
 	}
-	return len(talks), len(editions)
+	return len(talks), len(projects), len(editions)
 }
 
 func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
@@ -2684,7 +2715,7 @@ func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
 	}
 
 	// Hold the lock while refreshing so a crawler burst produces one database
-	// refresh rather than many identical two-query refreshes.
+	// refresh rather than many identical set-based refreshes.
 	whoIsCache.Lock()
 	defer whoIsCache.Unlock()
 	if whoIsCache.app == ctx && time.Now().Before(whoIsCache.expires) {
@@ -2714,11 +2745,30 @@ func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
 			Speaker:  profile.Speaker,
 			Editions: profile.Editions,
 			Talks:    make([]*WhoIsTalk, 0, len(profile.Talks)),
+			Projects: make([]*WhoIsProject, 0, len(profile.Projects)),
 		}
 		for _, row := range profile.Talks {
 			if row != nil && row.Talk != nil {
 				person.Talks = append(person.Talks, &WhoIsTalk{Talk: row.Talk, Conf: row.Conf})
 			}
+		}
+		for _, row := range profile.Projects {
+			if row == nil || row.Project == nil || row.Conf == nil {
+				continue
+			}
+			project := &WhoIsProject{
+				Project: row.Project,
+				Conf:    row.Conf,
+				Awards:  row.Awards,
+				URL:     "/" + row.Conf.Tag + "/hackathon/projects/" + row.Project.ID,
+				Members: make([]*WhoIsProjectMember, 0, len(row.Members)),
+			}
+			for _, member := range row.Members {
+				if member != nil {
+					project.Members = append(project.Members, &WhoIsProjectMember{Member: member})
+				}
+			}
+			person.Projects = append(person.Projects, project)
 		}
 		sortWhoIsTalks(person.Talks)
 		people = append(people, person)
@@ -2732,10 +2782,35 @@ func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
 		return a < b
 	})
 	assignWhoIsPublicIDs(people)
+	assignWhoIsProjectMemberPublicIDs(people)
 	whoIsCache.app = ctx
 	whoIsCache.people = people
 	whoIsCache.expires = time.Now().Add(ttl)
 	return people, nil
+}
+
+func assignWhoIsProjectMemberPublicIDs(people []*WhoIsPerson) {
+	publicIDs := make(map[string]string, len(people))
+	for _, person := range people {
+		if person != nil && person.Speaker != nil {
+			publicIDs[person.Speaker.ID] = person.PublicID
+		}
+	}
+	for _, person := range people {
+		if person == nil {
+			continue
+		}
+		for _, project := range person.Projects {
+			if project == nil {
+				continue
+			}
+			for _, member := range project.Members {
+				if member != nil && member.Member != nil {
+					member.PublicID = publicIDs[member.Member.PersonID]
+				}
+			}
+		}
+	}
 }
 
 func invalidateWhoIsDirectoryCache() {

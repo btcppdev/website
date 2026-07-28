@@ -845,6 +845,112 @@ func TestHackathonProjectVisibility(t *testing.T) {
 	}
 }
 
+func TestPublicProfilesIncludePublicHackathonParticipants(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	conferenceID, conferenceTag := insertSmokeConference(t, ctx)
+	if _, err := ctx.DB.Exec(context.Background(), `
+		UPDATE conferences SET publication_status = 'published' WHERE id = $1
+	`, conferenceID); err != nil {
+		t.Fatalf("publish conference: %v", err)
+	}
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{
+		ConferenceID:         conferenceID,
+		Title:                "Public Profiles Hackathon",
+		Visibility:           CompetitionVisibilityPublic,
+		PublicGalleryEnabled: true,
+	})
+	personID := insertSmokePerson(t, ctx, "public-profile-builder")
+	projectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID:     competitionID,
+		CreatedByPersonID: personID,
+		Slug:              "public-profile-project-" + postgresSmokeSuffix(),
+		Title:             "Public Profile Project",
+		ShortDescription:  "A project visible on the builder profile.",
+		GitHubURL:         "https://github.com/example/project",
+		Tags:              []string{"bitcoin", "testing"},
+	})
+	if err := SubmitProject(ctx, projectID); err != nil {
+		t.Fatalf("SubmitProject: %v", err)
+	}
+	rank := 1
+	awardID, err := CreateAward(ctx, AwardInput{
+		CompetitionID: competitionID,
+		Title:         "First Place",
+		AwardRank:     &rank,
+		Status:        AwardStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreateAward: %v", err)
+	}
+	if err := AssignProjectAward(ctx, awardID, projectID); err != nil {
+		t.Fatalf("AssignProjectAward: %v", err)
+	}
+
+	profiles, err := ListPublicProfiles(ctx)
+	if err != nil {
+		t.Fatalf("ListPublicProfiles: %v", err)
+	}
+	profile := findPublicProfile(profiles, personID)
+	if profile == nil {
+		t.Fatal("public hackathon participant missing from public profiles")
+	}
+	if len(profile.Projects) != 1 || profile.Projects[0].Project.ID != projectID {
+		t.Fatalf("profile projects = %+v, want project %s", profile.Projects, projectID)
+	}
+	project := profile.Projects[0]
+	if project.Conf == nil || project.Conf.Tag != conferenceTag {
+		t.Fatalf("project conference = %+v, want %s", project.Conf, conferenceTag)
+	}
+	if len(project.Members) != 1 || project.Members[0].PersonID != personID {
+		t.Fatalf("project members = %+v, want participant %s", project.Members, personID)
+	}
+	if len(project.Awards) != 0 {
+		t.Fatalf("project awards before finalization = %+v, want none", project.Awards)
+	}
+
+	if err := FinalizeCompetitionResults(ctx, competitionID, personID); err != nil {
+		t.Fatalf("FinalizeCompetitionResults: %v", err)
+	}
+	profiles, err = ListPublicProfiles(ctx)
+	if err != nil {
+		t.Fatalf("ListPublicProfiles after finalization: %v", err)
+	}
+	profile = findPublicProfile(profiles, personID)
+	if profile == nil || len(profile.Projects) != 1 {
+		t.Fatalf("public profile after finalization = %+v, want one project", profile)
+	}
+	project = profile.Projects[0]
+	if len(project.Awards) != 1 || project.Awards[0].ID != awardID {
+		t.Fatalf("project awards after finalization = %+v, want award %s", project.Awards, awardID)
+	}
+
+	if _, err := ctx.DB.Exec(context.Background(), `
+		UPDATE competitions SET public_gallery_enabled = false WHERE id = $1
+	`, competitionID); err != nil {
+		t.Fatalf("disable public gallery: %v", err)
+	}
+	profiles, err = ListPublicProfiles(ctx)
+	if err != nil {
+		t.Fatalf("ListPublicProfiles with private gallery: %v", err)
+	}
+	for _, candidate := range profiles {
+		if candidate != nil && candidate.Speaker != nil && candidate.Speaker.ID == personID {
+			t.Fatal("project-only participant remained public after gallery was disabled")
+		}
+	}
+}
+
+func findPublicProfile(profiles []*PublicProfile, personID string) *PublicProfile {
+	for _, profile := range profiles {
+		if profile != nil && profile.Speaker != nil && profile.Speaker.ID == personID {
+			return profile
+		}
+	}
+	return nil
+}
+
 func TestHackathonJudgingSetup(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)

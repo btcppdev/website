@@ -148,6 +148,7 @@ type WhoIsPage struct {
 	People       []*WhoIsPerson
 	AllCount     int
 	TalkCount    int
+	ProjectCount int
 	EditionCount int
 	Query        string
 	Topic        string
@@ -166,12 +167,26 @@ type WhoIsPerson struct {
 	PublicID string
 	Speaker  *types.Speaker
 	Talks    []*WhoIsTalk
+	Projects []*WhoIsProject
 	Editions []*types.Conf
 }
 
 type WhoIsTalk struct {
 	Talk *types.Talk
 	Conf *types.Conf
+}
+
+type WhoIsProject struct {
+	Project *types.HackathonProject
+	Conf    *types.Conf
+	Members []*WhoIsProjectMember
+	Awards  []*getters.PublicProfileProjectAward
+	URL     string
+}
+
+type WhoIsProjectMember struct {
+	Member   *types.ProjectMember
+	PublicID string
 }
 
 type HomeSponsor struct {
