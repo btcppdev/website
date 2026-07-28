@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     {{ template "rebrand_header" . }}
-    {{ template "site_seo" (dict "Title" (printf "%s @ bitcoin++" .Person.Speaker.Name) "Description" "Speaker profile and bitcoin++ talk archive." "Path" (printf "/whois/%s" .Person.PublicID) "Image" "/static/img/rebrand/breakthroughs.jpg") }}
+    {{ template "site_seo" (dict "Title" (printf "%s @ bitcoin++" .Person.Speaker.Name) "Description" "Community profile, projects, and talk archive." "Path" (printf "/whois/%s" .Person.PublicID) "Image" "/static/img/rebrand/breakthroughs.jpg") }}
     <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
   </head>
@@ -12,6 +12,8 @@
       <b>{{ len .Person.Editions }} EDITIONS</b>
       <i>•</i>
       <b>{{ len .Person.Talks }} TALKS</b>
+      <i>•</i>
+      <b>{{ len .Person.Projects }} PROJECTS</b>
       <i>•</i>
       <b>EVERY BUILDER DESERVES A PERMANENT RECORD</b>
     </div>
@@ -46,10 +48,64 @@
           <div class="whois-profile-stats">
             <div><strong>{{ len .Person.Editions }}</strong><span>editions</span></div>
             <div><strong>{{ len .Person.Talks }}</strong><span>talks</span></div>
-            <div><strong>0</strong><span>projects</span></div>
+            <div><strong>{{ len .Person.Projects }}</strong><span>projects</span></div>
           </div>
         </div>
       </section>
+
+      {{ if .Person.Projects }}
+      <section class="whois-profile-section">
+        <div class="whois-section-head">
+          <div>
+            <p class="whois-section-tag">§02 · HACKATHON PROJECTS</p>
+            <h2>Built at the hackathon.</h2>
+          </div>
+        </div>
+        <div class="whois-project-list">
+          {{ range .Person.Projects }}
+          <article class="whois-project-row">
+            <div class="whois-project-row__main">
+              <div class="whois-project-row__title">
+                <h3><a href="{{ .URL }}">{{ .Project.Title }}</a></h3>
+                {{ range .Awards }}<span>{{ .Title }}</span>{{ end }}
+              </div>
+              <p class="whois-project-row__edition">
+                <a href="/{{ .Conf.Tag }}/hackathon">{{ .Conf.ArchiveTitle }}{{ if not .Conf.StartDate.IsZero }} · {{ .Conf.StartDate.Format "2006" }}{{ end }}</a>
+              </p>
+              {{ if .Project.ShortDescription }}<p class="whois-project-row__description">{{ .Project.ShortDescription }}</p>{{ end }}
+              <div class="whois-project-row__links">
+                {{ range .Project.Tags }}<span>{{ . }}</span>{{ end }}
+                {{ if .Project.GitHubURL }}<a href="{{ .Project.GitHubURL | safeURL }}" target="_blank" rel="noopener noreferrer">repo ↗</a>{{ end }}
+                {{ if .Project.DemoURL }}<a href="{{ .Project.DemoURL | safeURL }}" target="_blank" rel="noopener noreferrer">demo ↗</a>{{ end }}
+                {{ if .Project.VideoURL }}<a href="{{ .Project.VideoURL | safeURL }}" target="_blank" rel="noopener noreferrer">video ↗</a>{{ end }}
+                {{ if .Project.SlidesURL }}<a href="{{ .Project.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">slides ↗</a>{{ end }}
+                {{ if .Project.DocsURL }}<a href="{{ .Project.DocsURL | safeURL }}" target="_blank" rel="noopener noreferrer">docs ↗</a>{{ end }}
+                <a class="is-project" href="{{ .URL }}">view project →</a>
+              </div>
+            </div>
+            <div class="whois-project-row__team">
+              <p>TEAM · {{ len .Members }}</p>
+              <div>
+                {{ range .Members }}
+                  {{ if .PublicID }}
+                  <a href="/whois/{{ .PublicID }}"{{ if eq .Member.PersonID $.Person.Speaker.ID }} class="is-current"{{ end }}>
+                    <img loading="lazy" src="{{ speakerPhoto .Member.Photo }}" alt="">
+                    <b>{{ .Member.Name }}{{ if eq .Member.PersonID $.Person.Speaker.ID }} <em>· you</em>{{ end }}</b>
+                  </a>
+                  {{ else }}
+                  <span{{ if eq .Member.PersonID $.Person.Speaker.ID }} class="is-current"{{ end }}>
+                    <img loading="lazy" src="{{ speakerPhoto .Member.Photo }}" alt="">
+                    <b>{{ .Member.Name }}{{ if eq .Member.PersonID $.Person.Speaker.ID }} <em>· you</em>{{ end }}</b>
+                  </span>
+                  {{ end }}
+                {{ end }}
+              </div>
+            </div>
+          </article>
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
 
       <section class="whois-profile-section">
         <div class="whois-section-head">
@@ -76,10 +132,11 @@
         {{ end }}
       </section>
 
+      {{ if .Person.Talks }}
       <section class="whois-profile-section">
         <div class="whois-section-head">
           <div>
-            <p class="whois-section-tag">§02 · TALKS & PANELS</p>
+            <p class="whois-section-tag">§{{ if .Person.Projects }}03{{ else }}02{{ end }} · TALKS & PANELS</p>
             <h2>On stage.</h2>
           </div>
           {{ if .Person.Editions }}<a href="/whois/{{ .Person.PublicID }}/archive">Full archive →</a>{{ end }}
@@ -113,6 +170,7 @@
           {{ end }}
         </div>
       </section>
+      {{ end }}
     </main>
 
     {{ template "generic_conf_footer" . }}

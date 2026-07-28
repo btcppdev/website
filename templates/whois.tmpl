@@ -2,20 +2,22 @@
 <html lang="en">
   <head>
     {{ template "rebrand_header" . }}
-    {{ template "site_seo" (dict "Title" "whois @ bitcoin++" "Description" "A directory of bitcoin++ speakers and builders who have presented at bitcoin++ events." "Path" "/whois" "Image" "/static/img/rebrand/breakthroughs.jpg") }}
+    {{ template "site_seo" (dict "Title" "whois @ bitcoin++" "Description" "A directory of bitcoin++ speakers, builders, and hackathon participants." "Path" "/whois" "Image" "/static/img/rebrand/breakthroughs.jpg") }}
     <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
   </head>
   <body class="btcpp-redesign btcpp-rebrand-page whois-page">
     <div class="whois-ticker" aria-hidden="true">
       <span>▶ DIRECTORY</span>
-      <b>{{ .AllCount }} SPEAKERS</b>
+      <b>{{ .AllCount }} MEMBERS</b>
       <i>•</i>
       <b>{{ .TalkCount }} TALKS</b>
       <i>•</i>
+      <b>{{ .ProjectCount }} PROJECTS</b>
+      <i>•</i>
       <b>{{ .EditionCount }} EDITIONS</b>
       <i>•</i>
-      <b>PUBLIC PROFILES FOR PEOPLE WHO HAVE TAKEN THE BITCOIN++ STAGE</b>
+      <b>PUBLIC PROFILES FOR PEOPLE WHO HAVE TAKEN THE STAGE OR THE HACKATHON TABLE</b>
     </div>
 
     {{ template "mainnav" . }}
@@ -26,10 +28,10 @@
           <p class="whois-section-tag">§ WHO'S HERE</p>
           <h1>The <span>people</span> of bitcoin++.</h1>
         </div>
-        <p class="whois-hero__copy">{{ .AllCount }} builders, researchers, and hackers who have taken the stage at bitcoin++ events. Find a co-speaker, collaborator, or someone who runs what you run.</p>
+        <p class="whois-hero__copy">{{ .AllCount }} builders, researchers, and hackers who have taken the stage or the hackathon table at bitcoin++ events. Find a co-speaker, collaborator, or someone who runs what you run.</p>
         <form class="whois-search" action="/whois" method="GET" role="search">
           <label for="whois-q">⌕</label>
-          <input id="whois-q" type="search" name="q" value="{{ .Query }}" placeholder="Search people, talks, cities, handles...">
+          <input id="whois-q" type="search" name="q" value="{{ .Query }}" placeholder="Search people, talks, projects, cities, handles...">
           <button type="submit">SEARCH</button>
           {{ if .Query }}<a href="/whois">CLEAR</a>{{ end }}
         </form>
@@ -51,13 +53,12 @@
             {{ end }}
           </div>
           {{ if or .Query .Topic .Event }}<a class="whois-rail__clear" href="/whois">clear filters</a>{{ end }}
-          <small>Hackathon profiles and project history will join this directory after the hackathon system lands.</small>
         </aside>
 
         <div class="whois-results">
           <div class="whois-results__bar">
             <strong>{{ len .People }} MEMBER{{ if ne (len .People) 1 }}S{{ end }}{{ if or .Query .Topic .Event }} · FILTERED{{ end }}</strong>
-            <span>◇ = SPEAKER PROFILE · CLICK A CARD FOR THE FULL ARCHIVE</span>
+            <span>◇ = COMMUNITY PROFILE · CLICK A CARD FOR THE FULL ARCHIVE</span>
           </div>
 
           {{ if .People }}
@@ -69,7 +70,7 @@
                 <div>
                   <p>@{{ .PublicID }}</p>
                   <h2>{{ .Speaker.Name }}</h2>
-                  <span>{{ if .Speaker.Company }}{{ .Speaker.Company }}{{ else }}bitcoin++ speaker{{ end }}</span>
+                  <span>{{ if .Speaker.Company }}{{ .Speaker.Company }}{{ else if .Talks }}bitcoin++ speaker{{ else }}bitcoin++ builder{{ end }}</span>
                 </div>
               </div>
               <div class="whois-card__tags">
@@ -80,7 +81,7 @@
               <div class="whois-card__stats">
                 <span><b>{{ len .Editions }}</b> ED</span>
                 <span><b>{{ len .Talks }}</b> TALKS</span>
-                <span><b>0</b> PROJ</span>
+                <span><b>{{ len .Projects }}</b> PROJ</span>
               </div>
             </a>
             {{ end }}
