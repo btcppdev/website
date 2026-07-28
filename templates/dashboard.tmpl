@@ -10,6 +10,8 @@
   <div class="dashboard-shell">
     <div class="dashboard-main">
 
+      {{ template "dashboard_tabs" (dict "Active" "overview" "ShowHackathons" .HasHackathonProjects "ShowAdmin" .IsGlobalAdmin) }}
+
       {{ if .FlashMessage }}
       <div class="dashboard-flash is-success">
         <p>{{ .FlashMessage }}</p>
@@ -832,28 +834,6 @@
       </article>
       {{ end }}
       {{ end }}
-  </div>
-</section>
-{{ end }}
-
-{{ if .IsGlobalAdmin }}
-<section id="global-admin-tools">
-  <div class="bg-white shadow rounded-lg overflow-hidden">
-    <div class="px-4 py-5 sm:p-6">
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <h3 class="text-sm font-semibold text-gray-900">Global admin tools</h3>
-          <p class="mt-1 text-xs text-gray-500">Manage site-wide newsletter templates and admin-only infrastructure.</p>
-        </div>
-        <span class="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium">global-admin</span>
-      </div>
-      <div class="mt-4 grid gap-3 sm:grid-cols-2">
-        <a href="/admin" class="block rounded-md border border-gray-200 px-4 py-3 hover:border-indigo-300 hover:bg-indigo-50">
-          <div class="text-sm font-medium text-gray-900">Global admin dashboard</div>
-          <div class="mt-1 text-xs text-gray-500">Manage templated newsletters, organizations, and global permissions.</div>
-        </a>
-      </div>
-    </div>
   </div>
 </section>
 {{ end }}
