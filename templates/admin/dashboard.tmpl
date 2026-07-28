@@ -8,10 +8,11 @@
 <body class="btcpp-admin-page bg-gray-50 text-gray-900">
   {{ block "mainnav" . }} {{ end }}
   <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    {{ template "dashboard_tabs" (dict "Active" "admin" "ShowHackathons" .HasHackathonProjects "ShowAdmin" true) }}
+
     <div class="mb-6 flex items-center justify-between gap-4">
       <div>
-        <a href="/dashboard" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Dashboard</a>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Global admin</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">Global admin</h1>
         <p class="mt-1 text-sm text-gray-600">Site-wide tools for newsletters, organizations, and permissions.</p>
       </div>
       <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">global-admin</span>

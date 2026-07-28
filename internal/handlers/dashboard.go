@@ -100,24 +100,26 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	// Top-level fan-out: speakerconfs + volunteer apps + user's tickets
 	// are all independent.
 	var (
-		speakers         []*types.Speaker
-		speakerConfs     []*types.SpeakerConf
-		scErr            error
-		volapps          []*types.Volunteer
-		volErr           error
-		regs             []*types.Registration
-		regErr           error
-		satEvents        []*types.SatelliteEvent
-		satErr           error
-		judgeAssignments []*types.CompetitionJudgeAssignment
-		judgeErr         error
-		shopOrders       []*types.ShopOrder
-		shopErr          error
+		speakers             []*types.Speaker
+		speakerConfs         []*types.SpeakerConf
+		scErr                error
+		volapps              []*types.Volunteer
+		volErr               error
+		regs                 []*types.Registration
+		regErr               error
+		satEvents            []*types.SatelliteEvent
+		satErr               error
+		judgeAssignments     []*types.CompetitionJudgeAssignment
+		judgeErr             error
+		hasHackathonProjects bool
+		projectsErr          error
+		shopOrders           []*types.ShopOrder
+		shopErr              error
 	)
 	t1 := time.Now()
 	var topWg sync.WaitGroup
-	topWg.Add(6)
-	var scDur, volDur, regDur, satDur, judgeDur, shopDur time.Duration
+	topWg.Add(7)
+	var scDur, volDur, regDur, satDur, judgeDur, projectsDur, shopDur time.Duration
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
@@ -151,12 +153,18 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
+		hasHackathonProjects, projectsErr = getters.HasHackathonParticipantProjectsByEmail(ctx, email)
+		projectsDur = time.Since(s)
+	}()
+	go func() {
+		defer topWg.Done()
+		s := time.Now()
 		shopOrders, shopErr = getters.ListShopOrdersByEmail(ctx, email, 5)
 		shopDur = time.Since(s)
 	}()
 	topWg.Wait()
-	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s judge=%s shop=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d judgeAssignments=%d shopOrders=%d",
-		reqID, time.Since(t1), scDur, volDur, regDur, satDur, judgeDur, shopDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents), len(judgeAssignments), len(shopOrders))
+	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s judge=%s projects=%s shop=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d judgeAssignments=%d hasProjects=%t shopOrders=%d",
+		reqID, time.Since(t1), scDur, volDur, regDur, satDur, judgeDur, projectsDur, shopDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents), len(judgeAssignments), hasHackathonProjects, len(shopOrders))
 	if regErr != nil {
 		ctx.Err.Printf("/dashboard listregs failed (continuing): %s", regErr)
 	}
@@ -165,6 +173,10 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 	if judgeErr != nil {
 		ctx.Err.Printf("/dashboard judge assignments failed (continuing): %s", judgeErr)
+	}
+	if projectsErr != nil {
+		ctx.Err.Printf("/dashboard participant projects failed (continuing): %s", projectsErr)
+		hasHackathonProjects = false
 	}
 	if shopErr != nil {
 		ctx.Err.Printf("/dashboard shop orders failed (continuing): %s", shopErr)
@@ -448,6 +460,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		PastBlocks:                  pastBlocks,
 		HasUpcomingTalk:             hasUpTalk,
 		HasUpcomingVol:              hasUpVol,
+		HasHackathonProjects:        hasHackathonProjects,
 		FlashMessage:                r.URL.Query().Get("flash"),
 		FlashError:                  r.URL.Query().Get("error"),
 		IsGlobalAdmin:               id.IsGlobalAdmin(),
@@ -467,6 +480,92 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 	ctx.Infos.Printf("/dashboard id=%s render=%s", reqID, time.Since(tRender))
+}
+
+func DashboardHackathons(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	email, encodedEmail, encodedHMAC, ok := dashboardRequestIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	participantProjects, err := getters.ListHackathonParticipantProjectsByEmail(ctx, email)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/hackathons for %s: %s", email, err)
+		http.Error(w, "Unable to load hackathon projects", http.StatusInternalServerError)
+		return
+	}
+	if len(participantProjects) == 0 {
+		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("You do not have any hackathon projects yet."), http.StatusSeeOther)
+		return
+	}
+	name := email
+	photo := ""
+	isGlobalAdmin := false
+	if id, resolveErr := auth.Resolve(r, ctx); resolveErr != nil {
+		ctx.Err.Printf("/dashboard/hackathons identity for %s: %s", email, resolveErr)
+	} else if id != nil {
+		isGlobalAdmin = id.IsGlobalAdmin()
+		if id.Speaker != nil {
+			if strings.TrimSpace(id.Speaker.Name) != "" {
+				name = id.Speaker.Name
+			}
+			photo = id.Speaker.Photo
+		}
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_hackathons.tmpl", &DashboardPage{
+		Name:                 name,
+		Photo:                photo,
+		Email:                encodedEmail,
+		HMAC:                 encodedHMAC,
+		HackathonProjects:    buildDashboardHackathonProjects(participantProjects),
+		HasHackathonProjects: true,
+		IsGlobalAdmin:        isGlobalAdmin,
+		Year:                 helpers.CurrentYear(),
+	}); err != nil {
+		ctx.Err.Printf("/dashboard/hackathons render: %s", err)
+		http.Error(w, "Unable to load hackathon projects", http.StatusInternalServerError)
+	}
+}
+
+func buildDashboardHackathonProjects(entries []*getters.HackathonParticipantProject) []*DashboardHackathonProject {
+	out := make([]*DashboardHackathonProject, 0, len(entries))
+	for _, entry := range entries {
+		if entry == nil || entry.Project == nil || entry.Conf == nil {
+			continue
+		}
+		projectBase := "/" + url.PathEscape(entry.Conf.Tag) + "/hackathon/projects/" + url.PathEscape(entry.Project.ID)
+		imageURL := strings.TrimSpace(entry.Project.ImageURL)
+		if imageURL == "" && len(entry.Project.ImageURLs) > 0 {
+			imageURL = strings.TrimSpace(entry.Project.ImageURLs[0])
+		}
+		out = append(out, &DashboardHackathonProject{
+			Project:          entry.Project,
+			Conf:             entry.Conf,
+			CompetitionTitle: entry.CompetitionTitle,
+			MemberRole:       entry.MemberRole,
+			TeamSize:         entry.TeamSize,
+			ProjectURL:       projectBase,
+			EditURL:          projectBase + "/edit",
+			TeamURL:          projectBase + "/edit#team",
+			SubmissionURL:    projectBase + "/edit#submission",
+			HackathonURL:     "/" + url.PathEscape(entry.Conf.Tag) + "/hackathon",
+			StatusLabel:      dashboardHackathonProjectStatusLabel(entry.Project.Status),
+			ImageURL:         imageURL,
+		})
+	}
+	return out
+}
+
+func dashboardHackathonProjectStatusLabel(status string) string {
+	switch status {
+	case getters.ProjectStatusSubmitted:
+		return "Submitted"
+	case getters.ProjectStatusAdvanced:
+		return "Advanced"
+	case getters.ProjectStatusHidden:
+		return "Hidden"
+	default:
+		return "Draft"
+	}
 }
 
 func DashboardHackathonTickets(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

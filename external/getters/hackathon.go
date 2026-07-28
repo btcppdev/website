@@ -48,6 +48,14 @@ type ProjectInput struct {
 	Tags              []string
 }
 
+type HackathonParticipantProject struct {
+	Project          *types.HackathonProject
+	Conf             *types.Conf
+	CompetitionTitle string
+	MemberRole       string
+	TeamSize         int
+}
+
 type JudgeEventInput struct {
 	CompetitionID         string
 	Name                  string
@@ -209,6 +217,14 @@ func GetProjectByID(ctx *config.AppContext, projectID string) (*types.HackathonP
 
 func ListProjectsForCompetition(ctx *config.AppContext, competitionID string, viewer types.HackathonViewer) ([]*types.HackathonProject, error) {
 	return listProjectsForCompetitionPostgres(ctx, competitionID, viewer)
+}
+
+func ListHackathonParticipantProjectsByEmail(ctx *config.AppContext, email string) ([]*HackathonParticipantProject, error) {
+	return listHackathonParticipantProjectsByEmailPostgres(ctx, email)
+}
+
+func HasHackathonParticipantProjectsByEmail(ctx *config.AppContext, email string) (bool, error) {
+	return hasHackathonParticipantProjectsByEmailPostgres(ctx, email)
 }
 
 func ListTableProjectsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.HackathonProject, error) {

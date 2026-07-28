@@ -19,6 +19,7 @@ type GlobalAdminDashboardPage struct {
 	FlashMessage         string
 	Year                 uint
 	FeaturedSpeakerSlots []*types.Speaker
+	HasHackathonProjects bool
 }
 
 type EventDetailsPage struct {
@@ -60,7 +61,8 @@ type EventDetailsDay struct {
 }
 
 func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+	id := requireGlobalAdmin(w, r, ctx)
+	if id == nil {
 		return
 	}
 
@@ -74,11 +76,16 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	for i := 0; i < len(featured) && i < len(slots); i++ {
 		slots[i] = featured[i]
 	}
+	hasHackathonProjects, err := getters.HasHackathonParticipantProjectsByEmail(ctx, id.Email)
+	if err != nil {
+		ctx.Err.Printf("/admin hackathon participant projects failed: %s", err)
+	}
 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/dashboard.tmpl", &GlobalAdminDashboardPage{
 		FlashMessage:         r.URL.Query().Get("flash"),
 		Year:                 helpers.CurrentYear(),
 		FeaturedSpeakerSlots: slots,
+		HasHackathonProjects: hasHackathonProjects,
 	}); err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/admin template failed: %s", err)

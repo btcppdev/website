@@ -473,8 +473,10 @@ type DashboardPage struct {
 	// HasUpcomingTalk / HasUpcomingVol gate the per-channel "Need
 	// help?" block in the footer. True when at least one
 	// ActiveBlock has a SpeakerConf / VolApp respectively.
-	HasUpcomingTalk bool
-	HasUpcomingVol  bool
+	HasUpcomingTalk      bool
+	HasUpcomingVol       bool
+	HasHackathonProjects bool
+	HackathonProjects    []*DashboardHackathonProject
 
 	FlashMessage string
 	// FlashError is the parallel red-banner message — used when
@@ -507,6 +509,21 @@ type DashboardPage struct {
 	BaseURI string
 
 	Year uint
+}
+
+type DashboardHackathonProject struct {
+	Project          *types.HackathonProject
+	Conf             *types.Conf
+	CompetitionTitle string
+	MemberRole       string
+	TeamSize         int
+	ProjectURL       string
+	EditURL          string
+	TeamURL          string
+	SubmissionURL    string
+	HackathonURL     string
+	StatusLabel      string
+	ImageURL         string
 }
 
 // AffiliateStats are the dashboard headline numbers for the

@@ -1170,6 +1170,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		Dashboard(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/dashboard/hackathons", func(w http.ResponseWriter, r *http.Request) {
+		DashboardHackathons(w, r, app)
+	}).Methods("GET")
 
 	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		Login(w, r, app)
