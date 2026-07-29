@@ -30,6 +30,7 @@ func TestAuthRedirectInvalidLinkRedirectsToLoginWithError(t *testing.T) {
 		t.Fatalf("Location = %q, missing error flash", location)
 	}
 }
+
 func TestIdentityFromSpeakerUsesCanonicalPerson(t *testing.T) {
 	speaker := &types.Speaker{ID: "person-id", Roles: []string{"toronto-admin", "toronto-staff"}}
 	id := identityFromSpeaker("person-id", "alias@example.com", "primary@example.com", speaker)
@@ -41,5 +42,33 @@ func TestIdentityFromSpeakerUsesCanonicalPerson(t *testing.T) {
 	}
 	if !id.HasRoleForConf("toronto", RoleAdmin) || len(id.Roles) != 2 {
 		t.Fatalf("roles = %+v, want canonical person's roles", id.Roles)
+	}
+}
+
+func TestHackathonRolesAreScopedAndCoveredByAdmin(t *testing.T) {
+	manager := &Identity{Roles: ParseRoles([]string{"toronto-hackathon"})}
+	if !manager.HasRoleForConf("toronto", RoleHackathon) {
+		t.Fatal("conference hackathon role does not grant its conference")
+	}
+	if manager.HasRoleForConf("nairobi", RoleHackathon) {
+		t.Fatal("conference hackathon role grants another conference")
+	}
+
+	globalManager := &Identity{Roles: ParseRoles([]string{"global-hackathon"})}
+	if !globalManager.HasRoleForConf("toronto", RoleHackathon) || !globalManager.HasRoleForConf("nairobi", RoleHackathon) {
+		t.Fatal("global hackathon role does not cover every conference")
+	}
+
+	admin := &Identity{Roles: ParseRoles([]string{"toronto-admin"})}
+	if !admin.HasRoleForConf("toronto", RoleHackathon) {
+		t.Fatal("conference admin does not cover hackathon management")
+	}
+	if admin.HasExactRoleForConf("toronto", RoleHackathon) {
+		t.Fatal("admin was reported as an explicit hackathon manager")
+	}
+
+	volcoord := &Identity{Roles: ParseRoles([]string{"toronto-volcoord"})}
+	if volcoord.HasRoleForConf("toronto", RoleHackathon) {
+		t.Fatal("volunteer coordinator grants hackathon management")
 	}
 }

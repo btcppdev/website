@@ -22,6 +22,8 @@
     </a>
     <a href="{{ .PayoutsURL .Competition }}"
        class="admin-hackathon-tab{{ if eq .ActiveTab "payouts" }} is-active{{ end }}">Payouts</a>
+    <a href="{{ .ManagersURL .Competition }}"
+       class="admin-hackathon-tab{{ if eq .ActiveTab "managers" }} is-active{{ end }}">Managers</a>
   </div>
 </nav>
 {{ end }}

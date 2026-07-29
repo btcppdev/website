@@ -13,7 +13,7 @@
       <div>
         <a href="{{ .BackURL }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ .BackLabel }}</a>
         <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} judging</h1>
-        <p class="mt-1 text-sm text-gray-600">Assign judges and coordinators for scoring.</p>
+        <p class="mt-1 text-sm text-gray-600">Assign judges for each scoring round.</p>
       </div>
       <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
     </div>
@@ -123,7 +123,6 @@
                     <legend class="sr-only">Judge roles for {{ .Name }}</legend>
                     <label class="flex items-center gap-1"><input type="checkbox" name="JudgeRole" value="{{ .PersonID }}|expo" {{ if $.JudgeHasType . "expo" }}checked{{ end }}> Expo</label>
                     <label class="flex items-center gap-1"><input type="checkbox" name="JudgeRole" value="{{ .PersonID }}|finals" {{ if $.JudgeHasType . "finals" }}checked{{ end }}> Finals</label>
-                    <label class="flex items-center gap-1"><input type="checkbox" name="JudgeRole" value="{{ .PersonID }}|coordinator" {{ if $.JudgeHasType . "coordinator" }}checked{{ end }}> Coordinator</label>
                   </fieldset>
                 <label class="min-w-48 sm:w-56">
                   <span class="sr-only">Public label override for {{ if .Name }}{{ .Name }}{{ else }}judge{{ end }}</span>
@@ -151,7 +150,6 @@
                 <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-900">
                   <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="expo" checked> Expo judge</label>
                   <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="finals"> Finals judge</label>
-                  <label class="flex items-center gap-2"><input type="checkbox" name="JudgeType" value="coordinator"> Coordinator</label>
                 </div>
               </fieldset>
               <p class="mt-1 text-xs text-gray-500">Select every role that applies. A person can judge both Expo and Finals.</p>
@@ -204,7 +202,7 @@
                 <label class="flex items-center gap-2"><input type="checkbox" name="InviteJudgeType" value="expo" checked> Expo judge</label>
                 <label class="flex items-center gap-2"><input type="checkbox" name="InviteJudgeType" value="finals" checked> Finals judge</label>
               </div>
-              <p class="mt-1 text-xs text-gray-500">This link grants judging access only. Add coordinators separately from the judge list.</p>
+              <p class="mt-1 text-xs text-gray-500">This link grants judging access only. Manage hackathon administrators from the Managers tab.</p>
             </fieldset>
             <div class="flex justify-end">
               <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Generate judge invite</button>

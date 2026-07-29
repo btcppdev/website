@@ -35,6 +35,8 @@ type HackathonAdminPage struct {
 	ActiveTab                   string
 	JudgeEvents                 []*types.JudgeEvent
 	Judges                      []*types.CompetitionJudge
+	HackathonManagers           []*HackathonManagerAssignment
+	CanManageGlobalManagers     bool
 	JudgeInviteLink             string
 	JudgeInviteQRCodeURI        string
 	PeopleByID                  map[string]*types.Speaker
@@ -78,6 +80,11 @@ type HackathonPayoutAssignment struct {
 	Recipients             []*types.HackathonPayoutRecipient
 	Prizes                 []*HackathonPayoutPrize
 	HasRemainingAllocation bool
+}
+
+type HackathonManagerAssignment struct {
+	Person *types.Speaker
+	Scope  string
 }
 
 type HackathonPayoutPrize struct {
@@ -293,6 +300,13 @@ func (p *HackathonAdminPage) JudgingURL(competition *types.HackathonCompetition)
 	return p.adminBaseURL(competition) + "/judging"
 }
 
+func (p *HackathonAdminPage) ManagersURL(competition *types.HackathonCompetition) string {
+	if competition == nil {
+		return "/admin/hackathons"
+	}
+	return p.adminBaseURL(competition) + "/managers"
+}
+
 func (p *HackathonAdminPage) ScoreReviewURL(competition *types.HackathonCompetition) string {
 	if competition == nil {
 		return "/admin/hackathons"
@@ -499,8 +513,6 @@ func (p *HackathonAdminPage) JudgeTypeLabel(judgeType string) string {
 		return "Expo"
 	case getters.JudgeTypeFinals:
 		return "Finals"
-	case getters.JudgeTypeCoordinator:
-		return "Coordinator"
 	default:
 		return strings.TrimSpace(judgeType)
 	}
@@ -2719,6 +2731,230 @@ func HackathonAdminRemoveAwardJudge(w http.ResponseWriter, r *http.Request, ctx 
 	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", "Sponsor judge removed"), http.StatusSeeOther)
 }
 
+func HackathonAdminManagers(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/managers conf: %s", competitionID, err)
+		http.Error(w, "Unable to load conference", http.StatusInternalServerError)
+		return
+	}
+	managers, err := getters.ListSpeakersWithRole(ctx, conf.Tag+"-"+auth.RoleHackathon)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/managers conference roles: %s", competitionID, err)
+		http.Error(w, "Unable to load hackathon managers", http.StatusInternalServerError)
+		return
+	}
+	globalManagers, err := getters.ListSpeakersWithRole(ctx, auth.GlobalScope+"-"+auth.RoleHackathon)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/managers global roles: %s", competitionID, err)
+		http.Error(w, "Unable to load hackathon managers", http.StatusInternalServerError)
+		return
+	}
+	page := &HackathonAdminPage{
+		Competition:             competition,
+		Conf:                    conf,
+		ActiveTab:               "managers",
+		HackathonManagers:       hackathonManagerAssignments(managers, globalManagers, conf.Tag),
+		CanManageGlobalManagers: id.IsGlobalAdmin(),
+		FlashMessage:            r.URL.Query().Get("flash"),
+		FlashError:              r.URL.Query().Get("error"),
+		Year:                    helpers.CurrentYear(),
+	}
+	populateAdminHackathonCounts(ctx, page)
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_managers.tmpl", page); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/managers template: %s", competitionID, err)
+		http.Error(w, "Unable to load page", http.StatusInternalServerError)
+	}
+}
+
+func HackathonAdminAddManager(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := hackathonAdminRequestURL(r, competitionID, "/managers")
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load conference"), http.StatusSeeOther)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	scope, err := hackathonManagerScope(r.FormValue("Scope"), conf.Tag, id.IsGlobalAdmin())
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	personIDs := personIDsFromForm(r, "PersonID")
+	if len(personIDs) == 0 {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Choose at least one person"), http.StatusSeeOther)
+		return
+	}
+	if err := validatePersonIDs(ctx, personIDs); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	for _, personID := range personIDs {
+		if err := getters.SetSpeakerRole(ctx, personID, scope, auth.RoleHackathon, true); err != nil {
+			ctx.Err.Printf("/admin/hackathons/%s/managers add %s/%s: %s", competitionID, scope, personID, err)
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to add hackathon manager"), http.StatusSeeOther)
+			return
+		}
+	}
+	message := "Hackathon manager added"
+	if len(personIDs) != 1 {
+		message = fmt.Sprintf("%d hackathon managers added", len(personIDs))
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(message), http.StatusSeeOther)
+}
+
+func HackathonAdminUpdateManagerScope(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := hackathonAdminRequestURL(r, competitionID, "/managers")
+	if !id.IsGlobalAdmin() {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Only a global admin can change a manager's scope"), http.StatusSeeOther)
+		return
+	}
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load conference"), http.StatusSeeOther)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	fromScope, err := hackathonManagerScope(r.FormValue("CurrentScope"), conf.Tag, true)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	toScope, err := hackathonManagerScope(r.FormValue("Scope"), conf.Tag, true)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	personID := strings.TrimSpace(r.FormValue("PersonID"))
+	if err := validatePersonIDs(ctx, []string{personID}); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := getters.MoveSpeakerRoleScope(ctx, personID, fromScope, toScope, auth.RoleHackathon); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/managers scope %s/%s/%s: %s", competitionID, personID, fromScope, toScope, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to change hackathon manager scope"), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Hackathon manager scope saved"), http.StatusSeeOther)
+}
+
+func HackathonAdminRemoveManager(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := hackathonAdminRequestURL(r, competitionID, "/managers")
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load conference"), http.StatusSeeOther)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	scope, err := hackathonManagerScope(r.FormValue("Scope"), conf.Tag, id.IsGlobalAdmin())
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	personID := strings.TrimSpace(r.FormValue("PersonID"))
+	if personID == "" {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Person is required"), http.StatusSeeOther)
+		return
+	}
+	if err := getters.SetSpeakerRole(ctx, personID, scope, auth.RoleHackathon, false); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/managers remove %s/%s: %s", competitionID, scope, personID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to remove hackathon manager"), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Hackathon manager removed"), http.StatusSeeOther)
+}
+
+func hackathonManagerScope(raw, confTag string, canManageGlobal bool) (string, error) {
+	scope := strings.TrimSpace(raw)
+	if scope == "" || scope == confTag {
+		return confTag, nil
+	}
+	if scope == auth.GlobalScope && canManageGlobal {
+		return scope, nil
+	}
+	return "", fmt.Errorf("invalid hackathon manager scope")
+}
+
+func hackathonManagerAssignments(conferenceManagers, globalManagers []*types.Speaker, conferenceScope string) []*HackathonManagerAssignment {
+	byPersonID := make(map[string]*HackathonManagerAssignment, len(conferenceManagers)+len(globalManagers))
+	for _, person := range conferenceManagers {
+		if person != nil {
+			byPersonID[person.ID] = &HackathonManagerAssignment{Person: person, Scope: conferenceScope}
+		}
+	}
+	// Global access supersedes a redundant conference role in the combined UI.
+	for _, person := range globalManagers {
+		if person != nil {
+			byPersonID[person.ID] = &HackathonManagerAssignment{Person: person, Scope: auth.GlobalScope}
+		}
+	}
+	assignments := make([]*HackathonManagerAssignment, 0, len(byPersonID))
+	for _, assignment := range byPersonID {
+		assignments = append(assignments, assignment)
+	}
+	sort.Slice(assignments, func(i, j int) bool {
+		a := strings.ToLower(strings.TrimSpace(assignments[i].Person.Name))
+		b := strings.ToLower(strings.TrimSpace(assignments[j].Person.Name))
+		if a == b {
+			return assignments[i].Person.ID < assignments[j].Person.ID
+		}
+		return a < b
+	})
+	return assignments
+}
+
 func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireHackathonAdmin(w, r, ctx); id == nil {
 		return
@@ -3636,16 +3872,6 @@ func judgeEventTypeFromForm(r *http.Request) (string, error) {
 	}
 }
 
-func judgeTypeFromForm(r *http.Request) (string, error) {
-	value := strings.TrimSpace(r.FormValue("JudgeType"))
-	switch value {
-	case getters.JudgeTypeExpo, getters.JudgeTypeFinals, getters.JudgeTypeCoordinator:
-		return value, nil
-	default:
-		return "", fmt.Errorf("judge type must be Expo, Finals, or Coordinator")
-	}
-}
-
 func judgeTypesFromForm(r *http.Request) ([]string, error) {
 	values := r.Form["JudgeType"]
 	judgeTypes := make([]string, 0, len(values))
@@ -3653,9 +3879,9 @@ func judgeTypesFromForm(r *http.Request) ([]string, error) {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		switch value {
-		case getters.JudgeTypeExpo, getters.JudgeTypeFinals, getters.JudgeTypeCoordinator:
+		case getters.JudgeTypeExpo, getters.JudgeTypeFinals:
 		default:
-			return nil, fmt.Errorf("judge type must be expo, finals, or coordinator")
+			return nil, fmt.Errorf("judge type must be expo or finals")
 		}
 		if !seen[value] {
 			seen[value] = true
@@ -3710,7 +3936,7 @@ func judgeRolesFromForm(r *http.Request) (map[string][]string, error) {
 		}
 		judgeType := strings.TrimSpace(parts[1])
 		switch judgeType {
-		case getters.JudgeTypeExpo, getters.JudgeTypeFinals, getters.JudgeTypeCoordinator:
+		case getters.JudgeTypeExpo, getters.JudgeTypeFinals:
 		default:
 			return nil, fmt.Errorf("invalid judge role selection")
 		}

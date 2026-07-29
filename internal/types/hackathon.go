@@ -86,7 +86,7 @@ type ProjectMember struct {
 	CreatedAt time.Time
 }
 
-// HackathonPayoutRecipient contains the private, coordinator-visible fields
+// HackathonPayoutRecipient contains the private, manager-visible fields
 // needed to prepare a cash award payout. It is deliberately separate from
 // ProjectMember so public project pages never receive payout details.
 type HackathonPayoutRecipient struct {
@@ -296,7 +296,7 @@ type AwardVote struct {
 }
 
 type HackathonViewer struct {
-	PersonID    string
-	Admin       bool
-	Coordinator bool
+	PersonID string
+	Admin    bool
+	Manager  bool
 }

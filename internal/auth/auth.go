@@ -7,12 +7,11 @@
 //   - Each Speaker row has zero or more role tags in the Roles
 //     multi-select. Each tag is "{scope}-{role}" where scope is a
 //     conf tag ("vienna") or the literal "global", and role is one
-//     of "admin" / "staff" / "volcoord".
+//     of "admin" / "staff" / "volcoord" / "hackathon".
 //
-//   - admin > volcoord and admin > staff at the same scope: a
-//     vienna-admin can do anything a vienna-volcoord or vienna-staff
-//     can do. staff and volcoord are orthogonal — neither covers
-//     the other; users carrying both tags get the union.
+//   - admin covers staff, volcoord, and hackathon at the same scope.
+//     The other roles are orthogonal; users carrying multiple tags get
+//     the union of their permissions.
 //
 //   - global-X grants the X role for every conf.
 //
@@ -53,21 +52,21 @@ var ErrAmbiguousEmail = errors.New("email belongs to multiple people")
 // GlobalScope is the scope tag that means "every conf".
 const GlobalScope = "global"
 
-// RoleAdmin / RoleStaff / RoleVolcoord are the role names supported.
+// RoleAdmin / RoleStaff / RoleVolcoord / RoleHackathon are the supported roles.
 //
-// Coverage hierarchy (see covers): admin > staff, admin > volcoord.
-// staff and volcoord are independent — having one does NOT imply the
-// other; a user with both gets the union of their permissions.
+// Coverage hierarchy (see covers): admin covers every scoped operational role.
+// The non-admin roles are independent from each other.
 const (
-	RoleAdmin    = "admin"
-	RoleStaff    = "staff"
-	RoleVolcoord = "volcoord"
+	RoleAdmin     = "admin"
+	RoleStaff     = "staff"
+	RoleVolcoord  = "volcoord"
+	RoleHackathon = "hackathon"
 )
 
 // Role is one parsed entry from a Speaker's Roles multi-select.
 type Role struct {
 	Scope string // conf tag, or GlobalScope
-	Name  string // RoleAdmin or RoleVolcoord
+	Name  string // one of the Role* constants above
 }
 
 // Spec is the role requirement for a given handler. Conf is a conf
@@ -99,7 +98,7 @@ type Identity struct {
 //     only covers spec.Conf when the conf matches. spec.Conf == ""
 //     requires a global-scoped role (since there's no specific conf
 //     to match against).
-//   - Role: an admin role covers volcoord at the same scope. Other
+//   - Role: an admin role covers every scoped operational role. Other
 //     roles match only their own name.
 func (id *Identity) Satisfies(spec Spec) bool {
 	if id == nil {
@@ -130,6 +129,9 @@ func (id *Identity) AdminConfTags() (confs []string, globalAdmin, globalVolcoord
 	}
 	seen := make(map[string]bool)
 	for _, r := range id.Roles {
+		if r.Name != RoleAdmin && r.Name != RoleVolcoord {
+			continue
+		}
 		if r.Scope == GlobalScope {
 			if r.Name == RoleAdmin {
 				globalAdmin = true
@@ -153,6 +155,20 @@ func (id *Identity) HasRoleForConf(confTag, role string) bool {
 	return id.Satisfies(Spec{Conf: confTag, Role: role})
 }
 
+// HasExactRoleForConf reports whether the identity explicitly carries role for
+// the conference (or globally). It does not apply the admin coverage hierarchy.
+func (id *Identity) HasExactRoleForConf(confTag, role string) bool {
+	if id == nil {
+		return false
+	}
+	for _, r := range id.Roles {
+		if r.Name == role && (r.Scope == GlobalScope || r.Scope == confTag) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsGlobalAdmin is shorthand for the global-admin special role, used
 // to gate the role-management panel on the dashboard.
 func (id *Identity) IsGlobalAdmin() bool {
@@ -160,14 +176,12 @@ func (id *Identity) IsGlobalAdmin() bool {
 }
 
 // covers checks whether `have` is enough for `want`. admin covers
-// both volcoord and staff; otherwise names must match exactly. staff
-// and volcoord do NOT cover each other — they're orthogonal slices
-// of permissions, and a user needs both tags to get both.
+// all scoped operational roles; otherwise names must match exactly.
 func covers(have, want string) bool {
 	if have == want {
 		return true
 	}
-	if have == RoleAdmin && (want == RoleVolcoord || want == RoleStaff) {
+	if have == RoleAdmin && (want == RoleVolcoord || want == RoleStaff || want == RoleHackathon) {
 		return true
 	}
 	return false
@@ -188,7 +202,7 @@ func ParseRoles(tags []string) []Role {
 		}
 		scope := t[:idx]
 		name := t[idx+1:]
-		if name != RoleAdmin && name != RoleVolcoord && name != RoleStaff {
+		if name != RoleAdmin && name != RoleVolcoord && name != RoleStaff && name != RoleHackathon {
 			continue
 		}
 		if scope == "" {
