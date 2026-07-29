@@ -505,24 +505,7 @@ func (p *HackathonPage) CompetitionCanAdminEdit(competition *types.HackathonComp
 		return false
 	}
 	viewer := hackathonViewerFromIdentity(p.Viewer, p.competitionConf(competition))
-	if viewer.Admin {
-		return true
-	}
-	if p.Viewer == nil || p.Viewer.Speaker == nil {
-		return false
-	}
-	for _, judge := range p.Judges {
-		if judge == nil || judge.PersonID != p.Viewer.Speaker.ID {
-			continue
-		}
-		for _, judgeType := range judge.JudgeTypes {
-			if judgeType == getters.JudgeTypeCoordinator {
-				return true
-			}
-		}
-		return len(judge.JudgeTypes) == 0 && judge.JudgeType == getters.JudgeTypeCoordinator
-	}
-	return false
+	return viewer.Admin || viewer.Manager
 }
 
 func (p *HackathonPage) competitionConf(competition *types.HackathonCompetition) *types.Conf {
@@ -827,8 +810,6 @@ func (p *HackathonPage) JudgeTypeLabel(judgeType string) string {
 		return "Expo"
 	case getters.JudgeTypeFinals:
 		return "Finals"
-	case getters.JudgeTypeCoordinator:
-		return "Coordinator"
 	default:
 		return strings.TrimSpace(judgeType)
 	}
@@ -856,23 +837,12 @@ func (p *HackathonPage) PublicJudgeRoleLabel(judge *types.CompetitionJudge) stri
 			return company
 		}
 	}
-	var isJudge, isCoordinator bool
 	for _, judgeType := range p.JudgeRoleTypes(judge) {
-		switch judgeType {
-		case getters.JudgeTypeExpo, getters.JudgeTypeFinals:
-			isJudge = true
-		case getters.JudgeTypeCoordinator:
-			isCoordinator = true
+		if judgeType == getters.JudgeTypeExpo || judgeType == getters.JudgeTypeFinals {
+			return "Judge"
 		}
 	}
-	switch {
-	case isJudge:
-		return "Judge"
-	case isCoordinator:
-		return "Coordinator"
-	default:
-		return "Judge"
-	}
+	return "Judge"
 }
 
 func (p *HackathonPage) JudgeEventStateLabel(event *types.JudgeEvent) string {
@@ -1664,7 +1634,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	personID := hackathonViewerPersonID(id)
 	viewer := hackathonViewerFromIdentity(id, conf)
 	var tableProjects []*types.HackathonProject
-	if competition.PublicTablesEnabled || viewer.Admin || viewer.Coordinator {
+	if competition.PublicTablesEnabled || viewer.Admin || viewer.Manager {
 		tableProjects, err = getters.ListTableProjectsForCompetition(ctx, competition.ID)
 		if err != nil {
 			ctx.Err.Printf("/hackathons/%s table projects: %s", competition.ID, err)
@@ -1739,7 +1709,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		OwnedProjects:           ownedProjects,
 		HasConferenceTicket:     hasTicket,
 		CanCreate:               id != nil && hasTicket && competitionAcceptsProjects(competition, scheduleEvents) && len(ownedProjects) == 0,
-		CanJudge:                viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, personID),
+		CanJudge:                viewer.Admin || viewerCanJudgeCompetition(ctx, competition.ID, personID),
 		FlashMessage:            r.URL.Query().Get("flash"),
 		FlashError:              r.URL.Query().Get("error"),
 		Year:                    helpers.CurrentYear(),
@@ -1997,7 +1967,6 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	currentEvents := currentJudgeEvents(competition, events, time.Now())
 	viewer := hackathonViewerFromIdentity(id, conf)
 	judgeTypes := judgeTypesForPerson(ctx, competition.ID, viewer.PersonID)
-	canJudge := viewer.Admin || viewer.Coordinator || viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID)
 	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, viewer)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s/judging list projects: %s", competition.ID, err)
@@ -2059,7 +2028,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		AwardVotes:            awardVotes,
 		AwardOptIns:           awardOptIns,
 		Viewer:                id,
-		CanScoreAll:           canJudge,
+		CanScoreAll:           viewer.Admin,
 		FlashMessage:          flash,
 		FlashError:            r.URL.Query().Get("error"),
 		Year:                  helpers.CurrentYear(),
@@ -2095,7 +2064,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("That judging round is not open for scoring."), http.StatusSeeOther)
 		return
 	}
-	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID) {
+	if !viewer.Admin && !viewerCanJudgeType(ctx, competition.ID, viewer.PersonID, event.PlaybookType) {
 		handle404(w, r, ctx)
 		return
 	}
@@ -2139,7 +2108,7 @@ func HackathonAwardVoteSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeAward(ctx, competition.ID, award.ID, viewer.PersonID) {
+	if !viewer.Admin && !viewerCanJudgeAward(ctx, competition.ID, award.ID, viewer.PersonID) {
 		handle404(w, r, ctx)
 		return
 	}
@@ -2351,12 +2320,12 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 			inviteQRCodeURI = uri
 		}
 	}
-	viewer := hackathonViewerForCompetition(ctx, id, conf, competition.ID)
-	coordinator := viewer.Admin || viewer.Coordinator
+	viewer := hackathonViewerForCompetition(id, conf)
+	manager := viewer.Admin || viewer.Manager
 	viewerMember := projectMemberByPersonID(members, viewer.PersonID)
-	canDeleteProject := isProjectEditor && project != nil && (coordinator || viewerIsProjectOwner(members, id))
+	canDeleteProject := isProjectEditor && project != nil && (manager || viewerIsProjectOwner(members, id))
 	canLeaveProject := isProjectEditor && project != nil && viewerMember != nil && viewerMember.Role != getters.ProjectMemberRoleOwner
-	canRemoveProjectMembers := isProjectEditor && canEdit && (coordinator || (project.Status == getters.ProjectStatusCreated && viewerIsProjectOwner(members, id)))
+	canRemoveProjectMembers := isProjectEditor && canEdit && (manager || (project.Status == getters.ProjectStatusCreated && viewerIsProjectOwner(members, id)))
 
 	page := &HackathonPage{
 		Competition:             competition,
@@ -2423,8 +2392,8 @@ func HackathonProjectDelete(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Error(w, "Unable to verify project ownership", http.StatusInternalServerError)
 		return
 	}
-	viewer := hackathonViewerForCompetition(ctx, id, conf, competition.ID)
-	if !viewer.Admin && !viewer.Coordinator && !viewerIsProjectOwner(members, id) {
+	viewer := hackathonViewerForCompetition(id, conf)
+	if !viewer.Admin && !viewer.Manager && !viewerIsProjectOwner(members, id) {
 		http.Redirect(w, r, projectEditURLForConf(conf, project)+"?error="+url.QueryEscape("Only the project owner can delete this project."), http.StatusSeeOther)
 		return
 	}
@@ -2582,24 +2551,24 @@ func HackathonProjectMemberRemove(w http.ResponseWriter, r *http.Request, ctx *c
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Project owners cannot be removed from this page.")+fragment, http.StatusSeeOther)
 		return
 	}
-	viewer := hackathonViewerForCompetition(ctx, id, conf, competition.ID)
-	coordinatorRemoval := viewer.Admin || viewer.Coordinator
+	viewer := hackathonViewerForCompetition(id, conf)
+	managerRemoval := viewer.Admin || viewer.Manager
 	selfLeave := personID == viewer.PersonID
-	ownerRemoval := !coordinatorRemoval && viewerIsProjectOwner(members, id)
-	if !coordinatorRemoval && !ownerRemoval && !selfLeave {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Only project owners or coordinators can remove team members.")+fragment, http.StatusSeeOther)
+	ownerRemoval := !managerRemoval && viewerIsProjectOwner(members, id)
+	if !managerRemoval && !ownerRemoval && !selfLeave {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Only project owners or hackathon managers can remove team members.")+fragment, http.StatusSeeOther)
 		return
 	}
-	if !coordinatorRemoval && !selfLeave && project.Status != getters.ProjectStatusCreated {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Team members cannot be removed after submission. Ask a hackathon coordinator for help.")+fragment, http.StatusSeeOther)
+	if !managerRemoval && !selfLeave && project.Status != getters.ProjectStatusCreated {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Team members cannot be removed after submission. Ask a hackathon manager for help.")+fragment, http.StatusSeeOther)
 		return
 	}
-	if err := getters.RemoveProjectMember(ctx, project.ID, personID, coordinatorRemoval || selfLeave); err != nil {
+	if err := getters.RemoveProjectMember(ctx, project.ID, personID, managerRemoval || selfLeave); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s remove member %s: %s", competition.ID, project.ID, personID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error())+fragment, http.StatusSeeOther)
 		return
 	}
-	if returnTo := strings.TrimSpace(r.FormValue("ReturnTo")); returnTo == "admin-projects" && coordinatorRemoval {
+	if returnTo := strings.TrimSpace(r.FormValue("ReturnTo")); returnTo == "admin-projects" && managerRemoval {
 		dest = hackathonAdminRequestURL(r, competition.ID, "/projects")
 		fragment = ""
 	}
@@ -3075,7 +3044,7 @@ func loadHackathonCompetition(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 	id := auth.RequireOptional(r, ctx)
 	viewer := hackathonViewerFromIdentity(id, conf)
-	if competition.Visibility != getters.CompetitionVisibilityPublic && !viewer.Admin && !viewer.Coordinator {
+	if competition.Visibility != getters.CompetitionVisibilityPublic && !viewer.Admin && !viewer.Manager {
 		handle404(w, r, ctx)
 		return nil, nil, nil, fmt.Errorf("hidden competition %s", competition.ID)
 	}
@@ -3105,7 +3074,7 @@ func loadHackathonJudgingAccess(w http.ResponseWriter, r *http.Request, ctx *con
 	}
 	events = timelineJudgeEvents(events)
 	viewer := hackathonViewerFromIdentity(id, conf)
-	if !viewer.Admin && !viewer.Coordinator && !viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID) && !viewerCanJudgeAnyAward(ctx, competition.ID, viewer.PersonID) {
+	if !viewer.Admin && !viewer.Manager && !viewerCanJudgeCompetition(ctx, competition.ID, viewer.PersonID) && !viewerCanJudgeAnyAward(ctx, competition.ID, viewer.PersonID) {
 		handle404(w, r, ctx)
 		return nil, nil, nil, nil, fmt.Errorf("viewer cannot judge competition %s", competition.ID)
 	}
@@ -3214,7 +3183,7 @@ func loadViewableHackathonProject(w http.ResponseWriter, r *http.Request, ctx *c
 		}
 		return nil, nil, nil, nil, false, err
 	}
-	viewer := hackathonViewerForCompetition(ctx, id, conf, competition.ID)
+	viewer := hackathonViewerForCompetition(id, conf)
 	canManage, _ := viewerCanEditHackathonProject(ctx, competition, conf, id, project.ID)
 	canView, err := getters.CanViewProject(ctx, project.ID, viewer)
 	if err != nil {
@@ -3466,17 +3435,13 @@ func hackathonViewerFromIdentity(id *auth.Identity, conf *types.Conf) types.Hack
 	}
 	if conf != nil {
 		viewer.Admin = viewer.Admin || id.HasRoleForConf(conf.Tag, auth.RoleAdmin)
-		viewer.Coordinator = id.HasRoleForConf(conf.Tag, auth.RoleVolcoord)
+		viewer.Manager = id.HasExactRoleForConf(conf.Tag, auth.RoleHackathon)
 	}
 	return viewer
 }
 
-func hackathonViewerForCompetition(ctx *config.AppContext, id *auth.Identity, conf *types.Conf, competitionID string) types.HackathonViewer {
-	viewer := hackathonViewerFromIdentity(id, conf)
-	if !viewer.Coordinator && hackathonIdentityIsCoordinator(ctx, competitionID, id) {
-		viewer.Coordinator = true
-	}
-	return viewer
+func hackathonViewerForCompetition(id *auth.Identity, conf *types.Conf) types.HackathonViewer {
+	return hackathonViewerFromIdentity(id, conf)
 }
 
 func hackathonViewerPersonID(id *auth.Identity) string {
@@ -3610,12 +3575,12 @@ func viewerCanEditHackathonProject(ctx *config.AppContext, competition *types.Ha
 	if competition == nil {
 		return false, "Hackathon not found."
 	}
-	viewer := hackathonViewerForCompetition(ctx, id, conf, competition.ID)
-	if viewer.Admin || viewer.Coordinator {
+	viewer := hackathonViewerForCompetition(id, conf)
+	if viewer.Admin || viewer.Manager {
 		return true, ""
 	}
 	if !viewerCanManageProject(ctx, projectID, viewer.PersonID) {
-		return false, "Only project members or hackathon coordinators can edit that project."
+		return false, "Only project members or hackathon managers can edit that project."
 	}
 	return true, ""
 }
@@ -3752,7 +3717,7 @@ func sponsorAwardsForJudge(ctx *config.AppContext, competitionID string, viewer 
 	if err != nil {
 		return nil, err
 	}
-	if viewer.Admin || viewer.Coordinator {
+	if viewer.Admin {
 		return sponsorAwardsOnly(awards), nil
 	}
 	judges, err := getters.ListAwardJudgesForCompetition(ctx, competitionID)

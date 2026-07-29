@@ -492,14 +492,87 @@ func UpdateSpeakerRoles(ctx *config.AppContext, speakerID string, roles []string
 	return nil
 }
 
+// SetSpeakerRole adds or removes one role without disturbing the person's other
+// roles. Scoped admin pages should use this instead of replacing the full set.
+func SetSpeakerRole(ctx *config.AppContext, speakerID, scope, position string, enabled bool) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	speakerID = strings.TrimSpace(speakerID)
+	scope = strings.TrimSpace(scope)
+	position = strings.TrimSpace(position)
+	if speakerID == "" || scope == "" || position == "" {
+		return fmt.Errorf("person, scope, and role are required")
+	}
+	if enabled {
+		_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+			INSERT INTO people_roles (person_id, scope, position)
+			VALUES ($1::uuid, $2, $3)
+			ON CONFLICT DO NOTHING
+		`, speakerID, scope, position)
+		if err != nil {
+			return fmt.Errorf("add person role: %w", err)
+		}
+		return nil
+	}
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		DELETE FROM people_roles
+		WHERE person_id = $1::uuid AND scope = $2 AND position = $3
+	`, speakerID, scope, position); err != nil {
+		return fmt.Errorf("remove person role: %w", err)
+	}
+	return nil
+}
+
+// MoveSpeakerRoleScope changes one role's scope atomically while preserving all
+// other roles assigned to the person.
+func MoveSpeakerRoleScope(ctx *config.AppContext, speakerID, fromScope, toScope, position string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	speakerID = strings.TrimSpace(speakerID)
+	fromScope = strings.TrimSpace(fromScope)
+	toScope = strings.TrimSpace(toScope)
+	position = strings.TrimSpace(position)
+	if speakerID == "" || fromScope == "" || toScope == "" || position == "" {
+		return fmt.Errorf("person, scopes, and role are required")
+	}
+	if fromScope == toScope {
+		return nil
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin person role scope update: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	if _, err := tx.Exec(dbctx, `
+		INSERT INTO people_roles (person_id, scope, position)
+		VALUES ($1::uuid, $2, $3)
+		ON CONFLICT DO NOTHING
+	`, speakerID, toScope, position); err != nil {
+		return fmt.Errorf("add replacement person role: %w", err)
+	}
+	if _, err := tx.Exec(dbctx, `
+		DELETE FROM people_roles
+		WHERE person_id = $1::uuid AND scope = $2 AND position = $3
+	`, speakerID, fromScope, position); err != nil {
+		return fmt.Errorf("remove previous person role: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit person role scope update: %w", err)
+	}
+	return nil
+}
+
 func splitRoleScopePosition(role string) (string, string, bool) {
 	role = strings.TrimSpace(role)
-	parts := strings.SplitN(role, "-", 2)
-	if len(parts) != 2 {
+	idx := strings.LastIndex(role, "-")
+	if idx <= 0 || idx == len(role)-1 {
 		return "", "", false
 	}
-	scope := strings.TrimSpace(parts[0])
-	position := strings.TrimSpace(parts[1])
+	scope := strings.TrimSpace(role[:idx])
+	position := strings.TrimSpace(role[idx+1:])
 	return scope, position, scope != "" && position != ""
 }
 

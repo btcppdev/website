@@ -44,7 +44,7 @@ func SendProjectSubmissionConfirmations(ctx *config.AppContext, conf *types.Conf
 			continue
 		}
 		seen[email] = true
-		body := fmt.Sprintf("# Project submitted\n\nHi %s,\n\n**%s** has been submitted to **%s**. Everyone currently listed on the team is receiving this confirmation.\n\n[Review the submission](button#%s)\n\nIf the team needs to change after submission, contact a hackathon coordinator.", member.Name, project.Title, competition.Title, projectURL)
+		body := fmt.Sprintf("# Project submitted\n\nHi %s,\n\n**%s** has been submitted to **%s**. Everyone currently listed on the team is receiving this confirmation.\n\n[Review the submission](button#%s)\n\nIf the team needs to change after submission, contact a hackathon manager.", member.Name, project.Title, competition.Title, projectURL)
 		if err := SendHackathonMessage(ctx, "hackathon-submission-"+project.ID+"-"+member.PersonID, member.Email, "["+conf.Tag+"] Project submitted: "+project.Title, body); err != nil {
 			errs = append(errs, fmt.Errorf("send submission confirmation to %s: %w", member.Email, err))
 		}

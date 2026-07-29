@@ -356,6 +356,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 	attachDashboardAdminRoles(activeBlocks, id)
 	attachDashboardAdminRoles(pastBlocks, id)
+	activeBlocks, pastBlocks = attachDashboardHackathonManagerRoles(activeBlocks, pastBlocks, confs, id)
 	// Synthesize event blocks for confs the user can admin but has no
 	// other relationship with (the global-admin case, or per-conf
 	// admins watching events they're not personally speaking at).
@@ -858,6 +859,38 @@ func attachDashboardAdminRoles(blocks []*EventBlock, id *auth.Identity) {
 			b.AdminRole = auth.RoleVolcoord
 		}
 	}
+}
+
+func attachDashboardHackathonManagerRoles(active, past []*EventBlock, confs []*types.Conf, id *auth.Identity) ([]*EventBlock, []*EventBlock) {
+	if id == nil {
+		return active, past
+	}
+	byTag := make(map[string]*EventBlock, len(active)+len(past))
+	for _, b := range append(append([]*EventBlock(nil), active...), past...) {
+		if b == nil || b.Conf == nil || !b.Conf.ShowHackathon {
+			continue
+		}
+		b.HackathonManager = id.HasExactRoleForConf(b.Conf.Tag, auth.RoleHackathon)
+		byTag[b.Conf.Tag] = b
+	}
+	for _, conf := range confs {
+		if conf == nil || !conf.ShowHackathon || byTag[conf.Tag] != nil || !id.HasExactRoleForConf(conf.Tag, auth.RoleHackathon) {
+			continue
+		}
+		block := &EventBlock{Conf: conf, CanBuy: conf.Active && conf.InFuture(), HackathonManager: true}
+		if conf.DashboardHasEnded() {
+			past = append(past, block)
+		} else {
+			active = append(active, block)
+		}
+	}
+	sort.Slice(active, func(i, j int) bool {
+		return active[i].Conf.StartDate.Before(active[j].Conf.StartDate)
+	})
+	sort.Slice(past, func(i, j int) bool {
+		return past[i].Conf.StartDate.After(past[j].Conf.StartDate)
+	})
+	return active, past
 }
 
 func attachRegistrationQRCodes(ctx *config.AppContext, regs []*types.Registration) {
