@@ -258,6 +258,9 @@ func TestHackathonAdminPageUsesConferenceScopedAdminURLs(t *testing.T) {
 	if got := page.JudgingURL(competition); got != "/toronto/admin/hackathon/judging" {
 		t.Fatalf("JudgingURL() = %q", got)
 	}
+	if got := page.ManagersURL(competition); got != "/toronto/admin/hackathon/managers" {
+		t.Fatalf("ManagersURL() = %q", got)
+	}
 	if got := page.AwardsURL(competition); got != "/toronto/admin/hackathon/awards" {
 		t.Fatalf("AwardsURL() = %q", got)
 	}
@@ -270,6 +273,7 @@ func TestConferenceScopedHackathonAdminRoutes(t *testing.T) {
 		"/toronto/admin/hackathon",
 		"/toronto/admin/hackathon/projects",
 		"/toronto/admin/hackathon/timeline",
+		"/toronto/admin/hackathon/managers",
 		"/toronto/admin/hackathon/judging",
 		"/toronto/admin/hackathon/judging/scores",
 		"/toronto/admin/hackathon/awards",
@@ -282,32 +286,14 @@ func TestConferenceScopedHackathonAdminRoutes(t *testing.T) {
 	}
 }
 
-func TestEventBlockSeparatesHackathonCoordinatorFromJudge(t *testing.T) {
-	coordinator := &EventBlock{JudgeTypes: []string{"coordinator"}}
-	if !coordinator.IsHackathonCoordinator() || coordinator.IsHackathonJudge() {
-		t.Fatalf("coordinator classification is wrong: %+v", coordinator)
+func TestEventBlockSeparatesHackathonManagerFromJudge(t *testing.T) {
+	manager := &EventBlock{HackathonManager: true}
+	if !manager.IsHackathonManager() || manager.IsHackathonJudge() {
+		t.Fatalf("manager classification is wrong: %+v", manager)
 	}
-	judgeCoordinator := &EventBlock{JudgeTypes: []string{"expo", "coordinator"}}
-	if !judgeCoordinator.IsHackathonCoordinator() || !judgeCoordinator.IsHackathonJudge() {
-		t.Fatalf("judge/coordinator classification is wrong: %+v", judgeCoordinator)
-	}
-}
-
-func TestCoordinatorRoleDoesNotGrantScoringAccess(t *testing.T) {
-	event := &types.JudgeEvent{PlaybookType: "expo", State: "open"}
-	coordinator := &HackathonPage{
-		Competition: &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeManual},
-		JudgeTypes:  map[string]bool{"coordinator": true},
-	}
-	if coordinator.CanScoreJudgeEvent(event) {
-		t.Fatal("coordinator-only assignment grants expo scoring access")
-	}
-	expoJudge := &HackathonPage{
-		Competition: &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeManual},
-		JudgeTypes:  map[string]bool{"expo": true},
-	}
-	if !expoJudge.CanScoreJudgeEvent(event) {
-		t.Fatal("expo assignment does not grant expo scoring access")
+	judgeManager := &EventBlock{HackathonManager: true, JudgeTypes: []string{"expo"}}
+	if !judgeManager.IsHackathonManager() || !judgeManager.IsHackathonJudge() {
+		t.Fatalf("judge/manager classification is wrong: %+v", judgeManager)
 	}
 }
 
@@ -321,8 +307,6 @@ func TestPublicJudgeRoleLabel(t *testing.T) {
 		{name: "expo", roles: []string{"expo"}, want: "Judge"},
 		{name: "finals", roles: []string{"finals"}, want: "Judge"},
 		{name: "both judging rounds", roles: []string{"expo", "finals"}, want: "Judge"},
-		{name: "coordinator", roles: []string{"coordinator"}, want: "Coordinator"},
-		{name: "judge and coordinator", roles: []string{"finals", "coordinator"}, want: "Judge"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -500,26 +484,37 @@ func TestHackathonAdminConfsOnlyReturnsAssignedConferences(t *testing.T) {
 	}
 }
 
-func TestJudgeTypeFromForm(t *testing.T) {
-	for _, judgeType := range []string{"expo", "finals", "coordinator"} {
-		r := httptest.NewRequest("POST", "/", strings.NewReader(url.Values{"JudgeType": {judgeType}}.Encode()))
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		if err := r.ParseForm(); err != nil {
-			t.Fatalf("ParseForm: %v", err)
-		}
-		got, err := judgeTypeFromForm(r)
-		if err != nil || got != judgeType {
-			t.Errorf("judgeTypeFromForm(%q) = %q, %v", judgeType, got, err)
-		}
+func TestHackathonManagerScope(t *testing.T) {
+	if got, err := hackathonManagerScope("toronto", "toronto", false); err != nil || got != "toronto" {
+		t.Fatalf("conference scope = %q, %v", got, err)
 	}
+	if got, err := hackathonManagerScope("global", "toronto", true); err != nil || got != "global" {
+		t.Fatalf("global scope = %q, %v", got, err)
+	}
+	if _, err := hackathonManagerScope("global", "toronto", false); err == nil {
+		t.Fatal("non-global admin accepted global manager scope")
+	}
+	if _, err := hackathonManagerScope("nairobi", "toronto", true); err == nil {
+		t.Fatal("manager scope accepted a different conference")
+	}
+}
 
-	r := httptest.NewRequest("POST", "/", strings.NewReader(url.Values{"JudgeType": {"judge"}}.Encode()))
-	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if err := r.ParseForm(); err != nil {
-		t.Fatalf("ParseForm invalid: %v", err)
+func TestHackathonManagerAssignmentsCombinesScopes(t *testing.T) {
+	alice := &types.Speaker{ID: "alice", Name: "Alice"}
+	bob := &types.Speaker{ID: "bob", Name: "Bob"}
+	assignments := hackathonManagerAssignments(
+		[]*types.Speaker{alice, bob},
+		[]*types.Speaker{alice},
+		"toronto",
+	)
+	if len(assignments) != 2 {
+		t.Fatalf("assignments = %+v, want two people", assignments)
 	}
-	if _, err := judgeTypeFromForm(r); err == nil {
-		t.Fatal("judgeTypeFromForm accepted an invalid judge type")
+	if assignments[0].Person != alice || assignments[0].Scope != auth.GlobalScope {
+		t.Fatalf("Alice assignment = %+v, want global", assignments[0])
+	}
+	if assignments[1].Person != bob || assignments[1].Scope != "toronto" {
+		t.Fatalf("Bob assignment = %+v, want Toronto", assignments[1])
 	}
 }
 
@@ -545,6 +540,15 @@ func TestJudgeTypesFromFormAllowsMultipleRoles(t *testing.T) {
 	}
 	if _, err := judgeTypesFromForm(empty); err == nil {
 		t.Fatal("judgeTypesFromForm accepted no roles")
+	}
+
+	invalid := httptest.NewRequest("POST", "/", strings.NewReader(url.Values{"JudgeType": {"coordinator"}}.Encode()))
+	invalid.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err := invalid.ParseForm(); err != nil {
+		t.Fatalf("ParseForm invalid: %v", err)
+	}
+	if _, err := judgeTypesFromForm(invalid); err == nil {
+		t.Fatal("judgeTypesFromForm accepted legacy coordinator role")
 	}
 }
 
@@ -579,7 +583,7 @@ func TestJudgeRolesFromFormGroupsRolesByPerson(t *testing.T) {
 		"JudgeRole": {
 			"person-one|expo",
 			"person-one|finals",
-			"person-two|coordinator",
+			"person-two|finals",
 		},
 	}.Encode()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -593,8 +597,8 @@ func TestJudgeRolesFromFormGroupsRolesByPerson(t *testing.T) {
 	if !sameJudgeTypes(got["person-one"], []string{"expo", "finals"}) {
 		t.Fatalf("person-one roles = %v, want expo and finals", got["person-one"])
 	}
-	if !sameJudgeTypes(got["person-two"], []string{"coordinator"}) {
-		t.Fatalf("person-two roles = %v, want coordinator", got["person-two"])
+	if !sameJudgeTypes(got["person-two"], []string{"finals"}) {
+		t.Fatalf("person-two roles = %v, want finals", got["person-two"])
 	}
 
 	missingRole := httptest.NewRequest("POST", "/", strings.NewReader(url.Values{
