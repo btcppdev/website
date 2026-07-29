@@ -1289,6 +1289,18 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/people/search", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminPersonSearch(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/managers", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminManagers(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/managers", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminAddManager(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/managers/scope", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminUpdateManagerScope(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/managers/remove", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminRemoveManager(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminJudging(w, r, app)
 	}).Methods("GET")
@@ -4094,7 +4106,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	var hackathonOrgs map[string]*types.Org
 	if hackathon != nil {
 		hackathonViewer := hackathonViewerFromIdentity(viewer, conf)
-		hackathonCanAdmin = hackathonViewer.Admin || hackathonViewer.Coordinator
+		hackathonCanAdmin = hackathonViewer.Admin || hackathonViewer.Manager
 		if hackathon.Visibility != getters.CompetitionVisibilityPublic && !hackathonCanAdmin {
 			hackathon = nil
 			hackathonCanAdmin = false

@@ -840,8 +840,12 @@ type EventBlock struct {
 	// coord" link on the conf card. Empty when the user has no
 	// admin relationship with the event.
 	AdminRole string
+	// HackathonManager is true only for an explicit conference- or
+	// global-scoped hackathon role. Conference admins have access through
+	// AdminRole and do not need this additional label.
+	HackathonManager bool
 	// JudgeTypes contains the user's hackathon judging assignments for
-	// this conference (expo, finals, or coordinator).
+	// this conference (expo or finals).
 	JudgeTypes []string
 }
 
@@ -849,8 +853,8 @@ func (b *EventBlock) IsHackathonJudge() bool {
 	return b != nil && (containsString(b.JudgeTypes, getters.JudgeTypeExpo) || containsString(b.JudgeTypes, getters.JudgeTypeFinals))
 }
 
-func (b *EventBlock) IsHackathonCoordinator() bool {
-	return b != nil && containsString(b.JudgeTypes, getters.JudgeTypeCoordinator)
+func (b *EventBlock) IsHackathonManager() bool {
+	return b != nil && b.HackathonManager
 }
 
 func (b *EventBlock) HackathonJudgeLabel() string {

@@ -95,32 +95,12 @@ func requireHackathonAdmin(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
 		return nil
 	}
-	if id.HasRoleForConf(conf.Tag, auth.RoleAdmin) {
+	if id.HasRoleForConf(conf.Tag, auth.RoleHackathon) {
 		return id
 	}
-	if competitionID := strings.TrimSpace(mux.Vars(r)["competitionID"]); competitionID != "" && hackathonIdentityIsCoordinator(ctx, competitionID, id) {
-		return id
-	}
-	msg := "You don't have access to that hackathon admin page. A conference admin can assign you the Coordinator role."
+	msg := "You don't have access to that hackathon admin page. A conference admin can assign you the Hackathon manager role."
 	http.Redirect(w, r, "/dashboard?error="+url.QueryEscape(msg), http.StatusSeeOther)
 	return nil
-}
-
-func hackathonIdentityIsCoordinator(ctx *config.AppContext, competitionID string, id *auth.Identity) bool {
-	if id == nil || strings.TrimSpace(id.Email) == "" {
-		return false
-	}
-	assignments, err := getters.ListCompetitionJudgeAssignmentsByEmail(ctx, id.Email)
-	if err != nil {
-		ctx.Err.Printf("hackathon coordinator lookup %s: %s", competitionID, err)
-		return false
-	}
-	for _, assignment := range assignments {
-		if assignment != nil && assignment.CompetitionID == competitionID && assignment.JudgeType == getters.JudgeTypeCoordinator {
-			return true
-		}
-	}
-	return false
 }
 
 func hackathonAdminConference(ctx *config.AppContext, refOrTag string) (*types.Conf, error) {

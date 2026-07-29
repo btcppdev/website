@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>{{ .Competition.Title }} Managers - Admin - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+  <script src="/static/js/person-picker.js" defer></script>
+</head>
+<body class="btcpp-admin-page admin-hackathon-page bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <a href="{{ .BackURL }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ .BackLabel }}</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .Competition.Title }} managers</h1>
+        <p class="mt-1 text-sm text-gray-600">Grant hackathon administration without assigning judging access.</p>
+      </div>
+      <a href="{{ .HackathonURL .Competition }}" class="inline-flex items-center justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 hover:bg-gray-50">Public page</a>
+    </div>
+    {{ template "admin_hackathon_tabs" . }}
+
+    {{ if .FlashMessage }}
+    <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
+    {{ end }}
+    {{ if .FlashError }}
+    <div class="btcpp-admin-flash btcpp-admin-flash--error mb-4">{{ .FlashError }}</div>
+    {{ end }}
+
+    <div class="max-w-5xl">
+      <section class="rounded-lg bg-white shadow">
+        <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+          <h2 class="text-sm font-semibold text-gray-900">Hackathon managers</h2>
+          <p class="mt-1 text-sm text-gray-600">Managers can administer projects, timeline, judging, awards, payouts, and the public hackathon page. They are not judges unless assigned separately.</p>
+        </div>
+        <form method="POST" action="{{ .ManagersURL .Competition }}" class="hackathon-manager-add-form{{ if .CanManageGlobalManagers }} has-global-scope{{ end }} border-b border-gray-200 px-4 py-4 sm:px-6">
+          <div class="relative" data-person-picker data-person-picker-required="true" data-person-picker-name="PersonID" data-person-picker-search-url="{{ .EditURL .Competition }}/people/search">
+            <label for="HackathonManagerSearch" class="sr-only">Person</label>
+            <input id="HackathonManagerSearch" type="search" data-person-picker-input placeholder="Search by name, email, or phone"
+                   class="block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
+            <p class="mt-2 hidden text-xs text-indigo-700" data-person-picker-flash></p>
+          </div>
+          {{ if .CanManageGlobalManagers }}
+          <fieldset class="hackathon-manager-scope">
+            <legend class="sr-only">Access scope</legend>
+            <label>
+              <input type="radio" name="Scope" value="{{ .Conf.Tag }}" checked>
+              <span>This hackathon</span>
+            </label>
+            <label>
+              <input type="radio" name="Scope" value="global">
+              <span>All hackathons</span>
+            </label>
+          </fieldset>
+          {{ else }}
+          <input type="hidden" name="Scope" value="{{ .Conf.Tag }}">
+          {{ end }}
+          <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Add manager</button>
+        </form>
+        {{ if .HackathonManagers }}
+        <div class="overflow-x-auto">
+        <div class="hackathon-manager-table-grid border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase text-gray-500 sm:px-6">
+          <span>Name</span>
+          <span>Scope</span>
+          <span class="text-right">Remove</span>
+        </div>
+        <ul class="divide-y divide-gray-100">
+          {{ range .HackathonManagers }}
+          <li class="hackathon-manager-table-grid hackathon-manager-table-row px-4 py-4 sm:px-6">
+            <div class="min-w-0">
+              <div class="truncate text-sm font-semibold text-gray-900">{{ if .Person.Name }}{{ .Person.Name }}{{ else }}Unnamed person{{ end }}</div>
+              <div class="truncate text-sm text-gray-500">{{ .Person.Email }}</div>
+            </div>
+            <form method="POST" action="{{ $.ManagersURL $.Competition }}/scope">
+              <input type="hidden" name="PersonID" value="{{ .Person.ID }}">
+              <input type="hidden" name="CurrentScope" value="{{ .Scope }}">
+              <fieldset class="hackathon-manager-scope">
+                <legend class="sr-only">Scope for {{ .Person.Name }}</legend>
+                <label>
+                  <input type="radio" name="Scope" value="{{ $.Conf.Tag }}" {{ if eq .Scope $.Conf.Tag }}checked{{ end }} {{ if not $.CanManageGlobalManagers }}disabled{{ end }} onchange="this.form.submit()">
+                  <span>This hackathon</span>
+                </label>
+                <label>
+                  <input type="radio" name="Scope" value="global" {{ if eq .Scope "global" }}checked{{ end }} {{ if not $.CanManageGlobalManagers }}disabled{{ end }} onchange="this.form.submit()">
+                  <span>All hackathons</span>
+                </label>
+              </fieldset>
+            </form>
+            {{ if or $.CanManageGlobalManagers (ne .Scope "global") }}
+            <form method="POST" action="{{ $.ManagersURL $.Competition }}/remove" class="text-right">
+              <input type="hidden" name="PersonID" value="{{ .Person.ID }}">
+              <input type="hidden" name="Scope" value="{{ .Scope }}">
+              <button type="submit" class="rounded-md px-2 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Remove</button>
+            </form>
+            {{ else }}
+            <span class="text-right text-sm text-gray-400">&mdash;</span>
+            {{ end }}
+          </li>
+          {{ end }}
+        </ul>
+        </div>
+        {{ else }}
+        <p class="px-4 py-5 text-sm text-gray-600 sm:px-6">No hackathon managers assigned. Conference and global admins still retain access.</p>
+        {{ end }}
+      </section>
+    </div>
+  </div>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

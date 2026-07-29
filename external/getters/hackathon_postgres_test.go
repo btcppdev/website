@@ -314,7 +314,7 @@ func TestHackathonProjectMemberRemovalRespectsSubmissionState(t *testing.T) {
 		t.Fatal("participant removal after submission succeeded")
 	}
 	if err := RemoveProjectMember(ctx, projectID, memberID, true); err != nil {
-		t.Fatalf("coordinator removal after submission: %v", err)
+		t.Fatalf("manager removal after submission: %v", err)
 	}
 }
 
@@ -599,8 +599,8 @@ func TestHackathonJudgeInvites(t *testing.T) {
 	`, competitionID, judgeID, JudgeTypeExpo); err != nil {
 		t.Fatalf("insert duplicate judge type: %v", err)
 	}
-	if err := AddCompetitionJudge(ctx, competitionID, judgeID, JudgeTypeCoordinator); err != nil {
-		t.Fatalf("AddCompetitionJudge duplicate person: %v", err)
+	if err := AddCompetitionJudge(ctx, competitionID, judgeID, "coordinator"); err == nil {
+		t.Fatal("AddCompetitionJudge accepted legacy coordinator type")
 	}
 	judges, err = ListCompetitionJudges(ctx, competitionID)
 	if err != nil {
@@ -617,6 +617,64 @@ func TestHackathonJudgeInvites(t *testing.T) {
 		t.Fatalf("AcceptCompetitionJudgeInvite reuse by another person succeeded, want error")
 	} else if !strings.Contains(err.Error(), "another person") {
 		t.Fatalf("AcceptCompetitionJudgeInvite other-person reuse err = %v, want already accepted by another person", err)
+	}
+}
+
+func TestSetSpeakerRolePreservesOtherRoles(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	requireHackathonSchema(t, ctx)
+
+	personID := insertSmokePerson(t, ctx, "hackathon-manager-role")
+	if err := SetSpeakerRole(ctx, personID, "toronto", "staff", true); err != nil {
+		t.Fatalf("add staff role: %v", err)
+	}
+	if err := SetSpeakerRole(ctx, personID, "global", "hackathon", true); err != nil {
+		t.Fatalf("add global hackathon role: %v", err)
+	}
+	if err := SetSpeakerRole(ctx, personID, "toronto", "hackathon", true); err != nil {
+		t.Fatalf("add hackathon role: %v", err)
+	}
+	managers, err := ListSpeakersWithRole(ctx, "toronto-hackathon")
+	if err != nil {
+		t.Fatalf("list hackathon managers: %v", err)
+	}
+	found := false
+	for _, manager := range managers {
+		found = found || manager != nil && manager.ID == personID
+	}
+	if !found {
+		t.Fatal("new hackathon manager missing from role query")
+	}
+	var globalManagerRoles int
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT count(*)
+		FROM people_roles
+		WHERE person_id = $1::uuid AND scope = 'global' AND position = 'hackathon'
+	`, personID).Scan(&globalManagerRoles); err != nil {
+		t.Fatalf("count global roles after conference add: %v", err)
+	}
+	if globalManagerRoles != 1 {
+		t.Fatalf("global manager roles after conference add = %d, want 1", globalManagerRoles)
+	}
+	if err := MoveSpeakerRoleScope(ctx, personID, "toronto", "global", "hackathon"); err != nil {
+		t.Fatalf("move hackathon role scope: %v", err)
+	}
+	var staffRoles, conferenceManagerRoles int
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT
+			count(*) FILTER (WHERE scope = 'toronto' AND position = 'staff'),
+			count(*) FILTER (WHERE scope = 'toronto' AND position = 'hackathon'),
+			count(*) FILTER (WHERE scope = 'global' AND position = 'hackathon')
+		FROM people_roles
+		WHERE person_id = $1::uuid
+	`, personID).Scan(&staffRoles, &conferenceManagerRoles, &globalManagerRoles); err != nil {
+		t.Fatalf("count roles after scope move: %v", err)
+	}
+	if staffRoles != 1 || conferenceManagerRoles != 0 || globalManagerRoles != 1 {
+		t.Fatalf("roles after scope move = staff:%d conference:%d global:%d", staffRoles, conferenceManagerRoles, globalManagerRoles)
+	}
+	if err := SetSpeakerRole(ctx, personID, "global", "hackathon", false); err != nil {
+		t.Fatalf("remove hackathon role: %v", err)
 	}
 }
 

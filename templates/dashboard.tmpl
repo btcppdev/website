@@ -167,7 +167,7 @@
       </div>
     </div>
 
-    {{ if or $eb.SpeakerConf $eb.VolApp $eb.Tickets $eb.SatelliteEvents $eb.CanBuy $eb.IsHackathonJudge $eb.IsHackathonCoordinator $.AffiliateCode $conf.TalksOpen $conf.VolunteerOpen }}
+    {{ if or $eb.SpeakerConf $eb.VolApp $eb.Tickets $eb.SatelliteEvents $eb.CanBuy $eb.IsHackathonJudge $eb.IsHackathonManager $.AffiliateCode $conf.TalksOpen $conf.VolunteerOpen }}
     {{ if $eb.Tickets }}
     <div class="dashboard-ticket-block">
       <div class="dashboard-ticket-list">
@@ -216,7 +216,7 @@
             {{ if $eb.SpeakerConf }}<span>{{ len $eb.SpeakerConf.Proposals }} talk{{ if ne (len $eb.SpeakerConf.Proposals) 1 }}s{{ end }}</span>{{ end }}
             {{ if $eb.VolApp }}<span>volunteer: {{ $eb.VolApp.Status }}</span>{{ end }}
             {{ if $eb.IsHackathonJudge }}<span>{{ $eb.HackathonJudgeLabel }}</span>{{ end }}
-            {{ if $eb.IsHackathonCoordinator }}<span>Hackathon coordinator</span>{{ end }}
+            {{ if $eb.IsHackathonManager }}<span>Hackathon manager</span>{{ end }}
           </div>
         </div>
         <div class="dashboard-action-grid">
@@ -248,7 +248,7 @@
           </a>
           {{ end }}
 
-          {{ if $eb.IsHackathonCoordinator }}
+          {{ if $eb.IsHackathonManager }}
           <a href="/{{ $conf.Tag }}/admin/hackathon" class="dashboard-action">
             <span class="dashboard-action__label">Admin hackathon</span>
             <span class="dashboard-action__hint">Manage projects, judging, awards, and the public hackathon page</span>
@@ -823,7 +823,7 @@
           {{ if $eb.VolApp }}<span>volunteer</span>{{ end }}
           {{ if $eb.Tickets }}<span>{{ len $eb.Tickets }} ticket{{ if gt (len $eb.Tickets) 1 }}s{{ end }}</span>{{ end }}
           {{ if $eb.IsHackathonJudge }}<span>{{ $eb.HackathonJudgeLabel }}</span>{{ end }}
-          {{ if $eb.IsHackathonCoordinator }}<a href="/{{ $conf.Tag }}/admin/hackathon" class="dashboard-past-row__admin">hackathon admin</a>{{ end }}
+          {{ if $eb.IsHackathonManager }}<a href="/{{ $conf.Tag }}/admin/hackathon" class="dashboard-past-row__admin">hackathon admin</a>{{ end }}
           {{ if $eb.AdminRole }}
           <a href="{{ if eq $eb.AdminRole "admin" }}/{{ $conf.Tag }}/admin{{ else }}/{{ $conf.Tag }}/volcoord{{ end }}"
              class="dashboard-past-row__admin">

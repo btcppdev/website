@@ -41,7 +41,6 @@ const (
 	ProjectMemberRoleMember               = "member"
 	JudgeTypeExpo                         = "expo"
 	JudgeTypeFinals                       = "finals"
-	JudgeTypeCoordinator                  = "coordinator"
 	JudgeEventStatePending                = "pending"
 	JudgeEventStateOpen                   = "open"
 	JudgeEventStateClosed                 = "closed"
@@ -1844,7 +1843,7 @@ func canViewProjectLoadedPostgres(ctx *config.AppContext, project *types.Hackath
 	if project == nil {
 		return false, nil
 	}
-	if viewer.Admin || viewer.Coordinator {
+	if viewer.Admin || viewer.Manager {
 		return true, nil
 	}
 	if projectIsPublicPostgres(ctx, project) {
@@ -2037,7 +2036,7 @@ func addCompetitionJudgePostgres(ctx *config.AppContext, competitionID, personID
 		return fmt.Errorf("person id is required")
 	}
 	if judgeType == "" {
-		return fmt.Errorf("judge type must be expo, finals, or coordinator")
+		return fmt.Errorf("judge type must be expo or finals")
 	}
 	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		WITH judge_order AS (
@@ -2095,7 +2094,7 @@ func setCompetitionJudgeRolesPostgres(ctx *config.AppContext, competitionID stri
 		for _, judgeType := range judgeTypes {
 			judgeType = normalizeJudgeType(judgeType)
 			if judgeType == "" {
-				return fmt.Errorf("judge type must be expo, finals, or coordinator")
+				return fmt.Errorf("judge type must be expo or finals")
 			}
 			if !seen[judgeType] {
 				seen[judgeType] = true
@@ -2295,7 +2294,7 @@ func removeCompetitionJudgePostgres(ctx *config.AppContext, competitionID, perso
 		return fmt.Errorf("person id is required")
 	}
 	if judgeType == "" {
-		return fmt.Errorf("judge type must be expo, finals, or coordinator")
+		return fmt.Errorf("judge type must be expo or finals")
 	}
 	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		DELETE FROM competition_judges
@@ -4227,8 +4226,6 @@ func normalizeJudgeType(value string) string {
 		return JudgeTypeExpo
 	case JudgeTypeFinals:
 		return JudgeTypeFinals
-	case JudgeTypeCoordinator:
-		return JudgeTypeCoordinator
 	default:
 		return ""
 	}

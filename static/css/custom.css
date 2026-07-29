@@ -2920,6 +2920,104 @@ body.btcpp-admin-page {
 	line-height: 1;
 }
 
+.admin-hackathon-page .hackathon-manager-scope {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	overflow: hidden;
+	min-width: 0;
+	min-height: 44px;
+	margin: 0;
+	padding: 0;
+	border: 1px solid #0a0a0a;
+	border-radius: 0;
+	background: #fff;
+}
+
+.admin-hackathon-page .hackathon-manager-scope label {
+	position: relative;
+	min-width: 0;
+	cursor: pointer;
+}
+
+.admin-hackathon-page .hackathon-manager-scope label + label {
+	border-left: 1px solid #0a0a0a;
+}
+
+.admin-hackathon-page .hackathon-manager-scope input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.admin-hackathon-page .hackathon-manager-scope span {
+	display: flex;
+	height: 100%;
+	align-items: center;
+	justify-content: center;
+	padding: 8px 10px;
+	background: #fff;
+	color: #0a0a0a;
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: 1px;
+	line-height: 1.25;
+	text-align: center;
+	text-transform: uppercase;
+}
+
+.admin-hackathon-page .hackathon-manager-scope input:disabled + span {
+	cursor: not-allowed;
+	background: #f6f3ee;
+	color: #746d64;
+}
+
+.admin-hackathon-page .hackathon-manager-scope input:checked + span {
+	background: #f7931a;
+	color: #0a0a0a;
+	box-shadow: inset 0 -3px 0 #0a0a0a;
+}
+
+.admin-hackathon-page .hackathon-manager-scope input:not(:disabled):not(:checked) + span:hover {
+	background: #fbf0de;
+}
+
+.admin-hackathon-page .hackathon-manager-scope input:checked:disabled + span {
+	background: #f5c47f;
+	color: #0a0a0a;
+}
+
+.admin-hackathon-page .hackathon-manager-scope input:focus-visible + span {
+	box-shadow: inset 0 0 0 2px #0a0a0a;
+}
+
+.admin-hackathon-page .hackathon-manager-add-form {
+	display: grid;
+	gap: 12px;
+}
+
+.admin-hackathon-page .hackathon-manager-table-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 17rem 5rem;
+	gap: 16px;
+	min-width: 41rem;
+}
+
+.admin-hackathon-page .hackathon-manager-table-row {
+	align-items: center;
+}
+
+@media (min-width: 640px) {
+	.admin-hackathon-page .hackathon-manager-add-form {
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: start;
+	}
+
+	.admin-hackathon-page .hackathon-manager-add-form.has-global-scope {
+		grid-template-columns: minmax(0, 1fr) minmax(17rem, auto) auto;
+	}
+}
+
 .btcpp-dashboard-page {
 	background: #f6f3ee;
 	color: #0a0a0a;
