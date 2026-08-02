@@ -30,11 +30,15 @@ func FindSubscriber(ctx *config.AppContext, email string) (*mtypes.Subscriber, e
 
 	var subscriberID string
 	var storedEmail string
+	var subscriptionNames []string
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
-		SELECT id::text, email
-		FROM subscribers
-		WHERE email = $1
-	`, email).Scan(&subscriberID, &storedEmail)
+		SELECT s.id::text, s.email,
+			coalesce(array_agg(ss.name ORDER BY ss.name) FILTER (WHERE ss.name IS NOT NULL), '{}')
+		FROM subscribers s
+		LEFT JOIN subscriber_subscriptions ss ON ss.subscriber_id = s.id
+		WHERE s.email = $1
+		GROUP BY s.id, s.email
+	`, email).Scan(&subscriberID, &storedEmail, &subscriptionNames)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -42,13 +46,9 @@ func FindSubscriber(ctx *config.AppContext, email string) (*mtypes.Subscriber, e
 		return nil, fmt.Errorf("query subscriber %q: %w", email, err)
 	}
 
-	subs, err := subscriberSubscriptionsPostgres(ctx, subscriberID)
-	if err != nil {
-		return nil, err
-	}
 	return &mtypes.Subscriber{
 		Email: storedEmail,
-		Subs:  subs,
+		Subs:  subscriptionsFromNames(subscriptionNames),
 		Pages: []string{subscriberID},
 	}, nil
 }
@@ -63,8 +63,10 @@ func ListSubscribersFor(ctx *config.AppContext, newsletters []string) ([]*mtypes
 	}
 
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
-		SELECT s.id::text, s.email
+		SELECT s.id::text, s.email,
+			coalesce(array_agg(all_ss.name ORDER BY all_ss.name) FILTER (WHERE all_ss.name IS NOT NULL), '{}')
 		FROM subscribers s
+		LEFT JOIN subscriber_subscriptions all_ss ON all_ss.subscriber_id = s.id
 		WHERE EXISTS (
 			SELECT 1
 			FROM subscriber_subscriptions ss
@@ -77,6 +79,7 @@ func ListSubscribersFor(ctx *config.AppContext, newsletters []string) ([]*mtypes
 			WHERE ss.subscriber_id = s.id
 				AND ss.name = ANY($2::text[])
 		)
+		GROUP BY s.id, s.email
 		ORDER BY s.email
 	`, include, exclude)
 	if err != nil {
@@ -84,7 +87,7 @@ func ListSubscribersFor(ctx *config.AppContext, newsletters []string) ([]*mtypes
 	}
 	defer rows.Close()
 
-	return scanSubscribersPostgres(ctx, rows)
+	return scanSubscribersPostgres(rows)
 }
 
 func IsSubscribedTo(ctx *config.AppContext, email, newsletter string) (bool, error) {
@@ -379,32 +382,6 @@ func scanLetterPostgres(row letterScanner) (*mtypes.Letter, error) {
 	return &letter, nil
 }
 
-func subscriberSubscriptionsPostgres(ctx *config.AppContext, subscriberID string) ([]*mtypes.Subscription, error) {
-	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
-		SELECT name
-		FROM subscriber_subscriptions
-		WHERE subscriber_id = $1
-		ORDER BY name
-	`, subscriberID)
-	if err != nil {
-		return nil, fmt.Errorf("query subscriber subscriptions %q: %w", subscriberID, err)
-	}
-	defer rows.Close()
-
-	var subs []*mtypes.Subscription
-	for rows.Next() {
-		var sub mtypes.Subscription
-		if err := rows.Scan(&sub.Name); err != nil {
-			return nil, fmt.Errorf("scan subscriber subscription: %w", err)
-		}
-		subs = append(subs, &sub)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate subscriber subscriptions: %w", err)
-	}
-	return subs, nil
-}
-
 func subscriberIDPostgres(ctx *config.AppContext, sub *mtypes.Subscriber) (string, error) {
 	if len(sub.Pages) > 0 && strings.TrimSpace(sub.Pages[0]) != "" {
 		return strings.TrimSpace(sub.Pages[0]), nil
@@ -442,21 +419,18 @@ func splitNewsletterFilters(newsletters []string) ([]string, []string) {
 	return include, exclude
 }
 
-func scanSubscribersPostgres(ctx *config.AppContext, rows pgx.Rows) ([]*mtypes.Subscriber, error) {
+func scanSubscribersPostgres(rows pgx.Rows) ([]*mtypes.Subscriber, error) {
 	var subscribers []*mtypes.Subscriber
 	for rows.Next() {
 		var subscriberID string
 		var email string
-		if err := rows.Scan(&subscriberID, &email); err != nil {
+		var subscriptionNames []string
+		if err := rows.Scan(&subscriberID, &email, &subscriptionNames); err != nil {
 			return nil, fmt.Errorf("scan subscriber: %w", err)
-		}
-		subs, err := subscriberSubscriptionsPostgres(ctx, subscriberID)
-		if err != nil {
-			return nil, err
 		}
 		subscribers = append(subscribers, &mtypes.Subscriber{
 			Email: email,
-			Subs:  subs,
+			Subs:  subscriptionsFromNames(subscriptionNames),
 			Pages: []string{subscriberID},
 		})
 	}
@@ -464,6 +438,14 @@ func scanSubscribersPostgres(ctx *config.AppContext, rows pgx.Rows) ([]*mtypes.S
 		return nil, fmt.Errorf("iterate subscribers: %w", err)
 	}
 	return subscribers, nil
+}
+
+func subscriptionsFromNames(names []string) []*mtypes.Subscription {
+	subscriptions := make([]*mtypes.Subscription, 0, len(names))
+	for _, name := range names {
+		subscriptions = append(subscriptions, &mtypes.Subscription{Name: name})
+	}
+	return subscriptions
 }
 
 func listLettersByOnlyForPostgres(ctx *config.AppContext, condition string) ([]*mtypes.Letter, error) {
