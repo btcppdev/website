@@ -3709,9 +3709,25 @@ func viewerCanJudgeType(ctx *config.AppContext, competitionID, personID, judgeTy
 		if judge == nil || judge.PersonID != personID {
 			continue
 		}
-		return true
+		return competitionJudgeHasType(judge, judgeType)
 	}
 	return false
+}
+
+func competitionJudgeHasType(judge *types.CompetitionJudge, judgeType string) bool {
+	if judge == nil {
+		return false
+	}
+	judgeType = strings.TrimSpace(judgeType)
+	if judgeType == "" {
+		return false
+	}
+	for _, assignedType := range judge.JudgeTypes {
+		if strings.TrimSpace(assignedType) == judgeType {
+			return true
+		}
+	}
+	return len(judge.JudgeTypes) == 0 && strings.TrimSpace(judge.JudgeType) == judgeType
 }
 
 func judgeTypesForPerson(ctx *config.AppContext, competitionID, personID string) map[string]bool {

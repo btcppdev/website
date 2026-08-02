@@ -71,6 +71,30 @@ func TestRegistrationCountsForConferenceTicket(t *testing.T) {
 	}
 }
 
+func TestCompetitionJudgeHasType(t *testing.T) {
+	tests := []struct {
+		name      string
+		judge     *types.CompetitionJudge
+		judgeType string
+		want      bool
+	}{
+		{name: "expo assignment", judge: &types.CompetitionJudge{JudgeTypes: []string{getters.JudgeTypeExpo}}, judgeType: getters.JudgeTypeExpo, want: true},
+		{name: "expo cannot judge finals", judge: &types.CompetitionJudge{JudgeTypes: []string{getters.JudgeTypeExpo}}, judgeType: getters.JudgeTypeFinals},
+		{name: "finals cannot judge expo", judge: &types.CompetitionJudge{JudgeTypes: []string{getters.JudgeTypeFinals}}, judgeType: getters.JudgeTypeExpo},
+		{name: "both assignments", judge: &types.CompetitionJudge{JudgeTypes: []string{getters.JudgeTypeExpo, getters.JudgeTypeFinals}}, judgeType: getters.JudgeTypeFinals, want: true},
+		{name: "legacy single assignment", judge: &types.CompetitionJudge{JudgeType: getters.JudgeTypeFinals}, judgeType: getters.JudgeTypeFinals, want: true},
+		{name: "empty requested type", judge: &types.CompetitionJudge{JudgeTypes: []string{getters.JudgeTypeExpo}}},
+		{name: "nil judge", judgeType: getters.JudgeTypeExpo},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := competitionJudgeHasType(tt.judge, tt.judgeType); got != tt.want {
+				t.Fatalf("competitionJudgeHasType() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHackathonPrimaryProjectActionOpenSubmissions(t *testing.T) {
 	page := &HackathonPage{
 		Competition: &types.HackathonCompetition{
