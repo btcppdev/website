@@ -69,13 +69,13 @@ func OrgSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 // existing speakers before creating new rows, and by the dashboard
 // role manager.
 //
-// Gated to any user with at least one admin or volcoord role — the
-// response leaks email addresses, which shouldn't be exposed publicly.
+// Gated to admins and hackathon managers at any scope because the response
+// includes email addresses. Other operational roles do not need this data.
 // Returns 401 (rather than 302→/login) so the autocomplete XHR
 // surfaces the error inline.
 func SpeakerSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	id := auth.RequireOptional(r, ctx)
-	if id == nil || len(id.Roles) == 0 {
+	if !canSearchSpeakers(id) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -100,6 +100,18 @@ func SpeakerSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	if err := json.NewEncoder(w).Encode(out); err != nil {
 		ctx.Err.Printf("/api/speakers/search encode: %s", err)
 	}
+}
+
+func canSearchSpeakers(id *auth.Identity) bool {
+	if id == nil {
+		return false
+	}
+	for _, role := range id.Roles {
+		if role.Name == auth.RoleAdmin || role.Name == auth.RoleHackathon {
+			return true
+		}
+	}
+	return false
 }
 
 // PersonSearch returns up to 10 people whose name, email, or phone contains
