@@ -6089,6 +6089,216 @@ func stripeAmountToUint(amount int64) uint {
 	return uint(amount)
 }
 
+func stripeCheckoutReadyForFulfillment(checkout *stripe.CheckoutSession) bool {
+	if checkout == nil {
+		return false
+	}
+	return checkout.PaymentStatus == stripe.CheckoutSessionPaymentStatusPaid ||
+		checkout.PaymentStatus == stripe.CheckoutSessionPaymentStatusNoPaymentRequired
+}
+
+func stripeCheckoutShouldFulfill(eventType stripe.EventType, checkout *stripe.CheckoutSession) bool {
+	if checkout == nil {
+		return false
+	}
+	switch eventType {
+	case stripe.EventTypeCheckoutSessionAsyncPaymentSucceeded:
+		return true
+	case stripe.EventTypeCheckoutSessionCompleted:
+		return stripeCheckoutReadyForFulfillment(checkout)
+	default:
+		return false
+	}
+}
+
+func stripeCheckoutEmail(checkout *stripe.CheckoutSession) string {
+	if checkout == nil {
+		return ""
+	}
+	if checkout.CustomerDetails != nil {
+		if email := strings.TrimSpace(checkout.CustomerDetails.Email); email != "" {
+			return email
+		}
+	}
+	return strings.TrimSpace(checkout.CustomerEmail)
+}
+
+func parseStripeCheckout(event stripe.Event) (*stripe.CheckoutSession, error) {
+	var checkout stripe.CheckoutSession
+	if err := json.Unmarshal(event.Data.Raw, &checkout); err != nil {
+		return nil, fmt.Errorf("parse Stripe checkout session: %w", err)
+	}
+	return &checkout, nil
+}
+
+func cancelStripeCheckout(ctx *config.AppContext, checkout *stripe.CheckoutSession, reason string) error {
+	if checkout == nil {
+		return nil
+	}
+	orderID := strings.TrimSpace(checkout.Metadata["shop-order-id"])
+	if orderID == "" {
+		return nil
+	}
+	order, err := getters.GetShopOrderByID(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("load shop order %s: %w", orderID, err)
+	}
+	if order.Status != types.ShopOrderStatusPending {
+		return nil
+	}
+	if err := getters.CancelShopOrder(ctx, orderID, "", reason); err != nil {
+		return fmt.Errorf("cancel shop order %s: %w", orderID, err)
+	}
+	return nil
+}
+
+func fulfillStripeShopOrder(ctx *config.AppContext, checkout *stripe.CheckoutSession) (bool, error) {
+	if checkout == nil {
+		return false, fmt.Errorf("Stripe checkout is required")
+	}
+	orderID := strings.TrimSpace(checkout.Metadata["shop-order-id"])
+	if orderID == "" {
+		return false, nil
+	}
+	salesTaxAmount, total := stripeCheckoutShopAmounts(checkout)
+	if address := stripeCheckoutShippingAddress(checkout); address != nil {
+		if err := getters.UpsertShopOrderShippingAddress(ctx, orderID, address); err != nil {
+			return false, fmt.Errorf("save shop order %s shipping address: %w", orderID, err)
+		}
+	}
+	transitioned, err := getters.MarkShopOrderPaid(ctx, orderID, "stripe", checkout.ID, salesTaxAmount, total)
+	if err != nil {
+		return false, fmt.Errorf("mark shop order %s paid: %w", orderID, err)
+	}
+	if err := finalizeShopTaxTransaction(ctx, orderID); err != nil {
+		return false, fmt.Errorf("finalize shop order %s tax: %w", orderID, err)
+	}
+	if transitioned {
+		order, err := getters.GetShopOrderByID(ctx, orderID)
+		if err != nil {
+			ctx.Err.Printf("Stripe checkout load receipt order %s: %s", orderID, err)
+		} else if err := sendShopReceiptEmail(ctx, order); err != nil {
+			ctx.Err.Printf("Stripe checkout receipt %s: %s", orderID, err)
+		}
+	}
+	return transitioned, nil
+}
+
+func stripeCheckoutLineItems(checkoutID string) ([]*stripe.LineItem, error) {
+	itemParams := &stripe.CheckoutSessionListLineItemsParams{
+		Session: stripe.String(checkoutID),
+	}
+	itemParams.AddExpand("data.price.product")
+
+	items := session.ListLineItems(itemParams)
+	var lineItems []*stripe.LineItem
+	for items.Next() {
+		lineItems = append(lineItems, items.LineItem())
+	}
+	if err := items.Err(); err != nil {
+		return nil, fmt.Errorf("list Stripe checkout line items: %w", err)
+	}
+	return lineItems, nil
+}
+
+func stripeCheckoutTicketType(checkout *stripe.CheckoutSession) string {
+	ticketType := checkout.Metadata["ticket-kind"]
+	if ticketType != "" {
+		return ticketType
+	}
+	if _, isLocal := checkout.Metadata["tix-local"]; isLocal {
+		return types.TicketTypeLocal
+	}
+	return types.TicketTypeGeneral
+}
+
+func fulfillStripeCheckout(ctx *config.AppContext, checkout *stripe.CheckoutSession) error {
+	if checkout == nil {
+		return fmt.Errorf("Stripe checkout is required")
+	}
+
+	checkoutKind := checkout.Metadata["checkout-kind"]
+	shopOrderID := strings.TrimSpace(checkout.Metadata["shop-order-id"])
+	if checkoutKind == types.ShopCheckoutKindMerch {
+		if shopOrderID == "" {
+			return fmt.Errorf("Stripe merch checkout missing shop-order-id")
+		}
+		if _, err := fulfillStripeShopOrder(ctx, checkout); err != nil {
+			return err
+		}
+		ctx.Infos.Printf("Marked merch order %s paid via Stripe", shopOrderID)
+		return nil
+	}
+
+	confRef := strings.TrimSpace(checkout.Metadata["conf-ref"])
+	if confRef == "" {
+		return fmt.Errorf("Stripe checkout missing conf-ref")
+	}
+	conf, err := getters.GetConfByRef(ctx, confRef)
+	if err != nil {
+		return fmt.Errorf("load conference %s: %w", confRef, err)
+	}
+	if conf == nil {
+		return fmt.Errorf("conference %s not found", confRef)
+	}
+
+	if shopOrderID != "" {
+		if _, err := fulfillStripeShopOrder(ctx, checkout); err != nil {
+			return err
+		}
+	}
+
+	lineItems, err := stripeCheckoutLineItems(checkout.ID)
+	if err != nil {
+		return err
+	}
+	ticketType := stripeCheckoutTicketType(checkout)
+	ticketItems, _ := stripeTicketItems(lineItems, ticketType)
+	if len(ticketItems) == 0 {
+		ctx.Infos.Printf("Stripe checkout %s contained no ticket items", checkout.ID)
+		return nil
+	}
+
+	entry := types.Entry{
+		ID:          checkout.ID,
+		ConfRef:     conf.Ref,
+		Currency:    string(checkout.Currency),
+		Created:     time.Unix(checkout.Created, 0).UTC(),
+		Email:       stripeCheckoutEmail(checkout),
+		Items:       ticketItems,
+		DiscountRef: strings.TrimSpace(checkout.Metadata["discount-ref"]),
+	}
+	insertedItems, err := getters.AddPaymentTickets(ctx, &entry, "stripe")
+	if err != nil {
+		return fmt.Errorf("add Stripe tickets: %w", err)
+	}
+	if len(insertedItems) == 0 {
+		ctx.Infos.Printf("Stripe checkout %s was already fulfilled", checkout.ID)
+		return nil
+	}
+
+	entry.Items = insertedItems
+	for _, item := range insertedItems {
+		entry.Total += item.Total
+	}
+	ctx.Infos.Printf("Added %d Stripe tickets", len(insertedItems))
+
+	if entry.DiscountRef != "" {
+		affiliateEntry := entry
+		if discountedBaseCents, err := strconv.ParseInt(strings.TrimSpace(checkout.Metadata["discounted-base-cents"]), 10, 64); err == nil && discountedBaseCents > 0 {
+			affiliateEntry.Total = discountedBaseCents * int64(len(insertedItems))
+		}
+		recordAffiliateUsageFromCheckout(ctx, conf, &affiliateEntry, checkout.Metadata["pre-discount-cents"])
+	}
+
+	if !types.IsSponsoredTicketType(ticketType) {
+		if err := missives.NewTicketSub(ctx, entry.Email, conf.Tag, ticketType, false); err != nil {
+			ctx.Err.Printf("Unable to subscribe Stripe ticket buyer %s: %v", entry.Email, err)
+		}
+	}
+	return nil
+}
+
 func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	const MaxBodyBytes = int64(65536)
 	r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
@@ -6108,203 +6318,39 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	}
 
 	switch event.Type {
-	case "checkout.session.expired":
-		var checkout stripe.CheckoutSession
-		if err := json.Unmarshal(event.Data.Raw, &checkout); err != nil {
-			ctx.Err.Printf("Error parsing expired Stripe checkout: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		orderID := strings.TrimSpace(checkout.Metadata["shop-order-id"])
-		if orderID != "" {
-			order, err := getters.GetShopOrderByID(ctx, orderID)
-			if err != nil {
-				ctx.Err.Printf("Stripe expired checkout load order %s: %s", orderID, err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if order.Status == types.ShopOrderStatusPending {
-				if err := getters.CancelShopOrder(ctx, orderID, "", "Stripe checkout session expired"); err != nil {
-					ctx.Err.Printf("Stripe expired checkout release order %s: %s", orderID, err)
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-			}
-		}
-		w.WriteHeader(http.StatusOK)
-		return
-	case "checkout.session.completed":
-		var checkout stripe.CheckoutSession
-		err := json.Unmarshal(event.Data.Raw, &checkout)
+	case stripe.EventTypeCheckoutSessionCompleted, stripe.EventTypeCheckoutSessionAsyncPaymentSucceeded:
+		checkout, err := parseStripeCheckout(event)
 		if err != nil {
-			ctx.Err.Printf("Error parsing webhook JSON: %v", err)
+			ctx.Err.Printf("Stripe webhook: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-
-		if checkout.Metadata["checkout-kind"] == types.ShopCheckoutKindMerch {
-			orderID := strings.TrimSpace(checkout.Metadata["shop-order-id"])
-			if orderID == "" {
-				ctx.Err.Printf("Stripe merch callback missing shop-order-id")
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			salesTaxAmount, total := stripeCheckoutShopAmounts(&checkout)
-			if address := stripeCheckoutShippingAddress(&checkout); address != nil {
-				if err := getters.UpsertShopOrderShippingAddress(ctx, orderID, address); err != nil {
-					ctx.Err.Printf("Stripe merch callback save shipping address %s: %s", orderID, err)
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-			}
-			transitioned, err := getters.MarkShopOrderPaid(ctx, orderID, "stripe", checkout.ID, salesTaxAmount, total)
-			if err != nil {
-				ctx.Err.Printf("Stripe merch callback mark paid %s: %s", orderID, err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if err := finalizeShopTaxTransaction(ctx, orderID); err != nil {
-				ctx.Err.Printf("Stripe merch callback finalize tax %s: %s", orderID, err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if transitioned {
-				order, err := getters.GetShopOrderByID(ctx, orderID)
-				if err != nil {
-					ctx.Err.Printf("Stripe merch callback load receipt order %s: %s", orderID, err)
-				} else if err := sendShopReceiptEmail(ctx, order); err != nil {
-					ctx.Err.Printf("Stripe merch callback receipt %s: %s", orderID, err)
-				}
-			}
-			ctx.Infos.Printf("Marked merch order %s paid via Stripe", orderID)
+		if !stripeCheckoutShouldFulfill(event.Type, checkout) {
+			ctx.Infos.Printf("Stripe checkout %s is awaiting payment (%s)", checkout.ID, checkout.PaymentStatus)
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
-		confRef, ok := checkout.Metadata["conf-ref"]
-		if !ok {
-			ctx.Infos.Println("No conf-ref present")
+		if err := fulfillStripeCheckout(ctx, checkout); err != nil {
+			ctx.Err.Printf("Stripe checkout %s fulfillment failed: %v", checkout.ID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	case stripe.EventTypeCheckoutSessionExpired, stripe.EventTypeCheckoutSessionAsyncPaymentFailed:
+		checkout, err := parseStripeCheckout(event)
+		if err != nil {
+			ctx.Err.Printf("Stripe webhook: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-
-		conf, err := getters.GetConfByRef(ctx, confRef)
-		if err != nil {
-			ctx.Err.Printf("Stripe callback: unable to load conf! %s", err)
+		reason := "Stripe checkout session expired"
+		if event.Type == stripe.EventTypeCheckoutSessionAsyncPaymentFailed {
+			reason = "Stripe asynchronous payment failed"
+		}
+		if err := cancelStripeCheckout(ctx, checkout, reason); err != nil {
+			ctx.Err.Printf("Stripe checkout %s cancellation failed: %v", checkout.ID, err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if conf == nil {
-			ctx.Err.Printf("Couldn't find conf %s", confRef)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		discountRef, _ := checkout.Metadata["discount-ref"]
-
-		entry := types.Entry{
-			ID:          checkout.ID,
-			ConfRef:     conf.Ref,
-			Total:       checkout.AmountTotal,
-			Currency:    string(checkout.Currency),
-			Created:     time.Unix(checkout.Created, 0).UTC(),
-			Email:       checkout.CustomerDetails.Email,
-			DiscountRef: discountRef,
-		}
-
-		itemParams := &stripe.CheckoutSessionListLineItemsParams{
-			Session: stripe.String(checkout.ID),
-		}
-		itemParams.AddExpand("data.price.product")
-
-		tixType := checkout.Metadata["ticket-kind"]
-		if tixType == "" {
-			if _, isLocal := checkout.Metadata["tix-local"]; isLocal {
-				tixType = types.TicketTypeLocal
-			} else {
-				tixType = types.TicketTypeGeneral
-			}
-		}
-		items := session.ListLineItems(itemParams)
-		var checkoutLineItems []*stripe.LineItem
-		for items.Next() {
-			checkoutLineItems = append(checkoutLineItems, items.LineItem())
-		}
-		entry.Items, entry.Total = stripeTicketItems(checkoutLineItems, tixType)
-
-		if err := items.Err(); err != nil {
-			ctx.Err.Println(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		if len(entry.Items) == 0 {
-			ctx.Infos.Println("No valid items bought")
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		err = getters.AddTickets(ctx, &entry, "stripe")
-
-		if err != nil {
-			ctx.Err.Printf("!!! Unable to add ticket: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		ctx.Infos.Printf("Added %d tickets!!", len(entry.Items))
-		if shopOrderID := strings.TrimSpace(checkout.Metadata["shop-order-id"]); shopOrderID != "" {
-			salesTaxAmount, total := stripeCheckoutShopAmounts(&checkout)
-			if address := stripeCheckoutShippingAddress(&checkout); address != nil {
-				if err := getters.UpsertShopOrderShippingAddress(ctx, shopOrderID, address); err != nil {
-					ctx.Err.Printf("Stripe mixed checkout save shipping address %s: %s", shopOrderID, err)
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-			}
-			transitioned, err := getters.MarkShopOrderPaid(ctx, shopOrderID, "stripe", checkout.ID, salesTaxAmount, total)
-			if err != nil {
-				ctx.Err.Printf("Stripe mixed checkout mark shop order paid %s: %s", shopOrderID, err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if err := finalizeShopTaxTransaction(ctx, shopOrderID); err != nil {
-				ctx.Err.Printf("Stripe mixed checkout finalize tax %s: %s", shopOrderID, err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if transitioned {
-				order, err := getters.GetShopOrderByID(ctx, shopOrderID)
-				if err != nil {
-					ctx.Err.Printf("Stripe mixed checkout load receipt order %s: %s", shopOrderID, err)
-				} else if err := sendShopReceiptEmail(ctx, order); err != nil {
-					ctx.Err.Printf("Stripe mixed checkout receipt %s: %s", shopOrderID, err)
-				}
-			}
-		}
-
-		// Increment discount usage counter
-		if entry.DiscountRef != "" {
-			err = getters.IncrementDiscountUses(ctx, entry.DiscountRef, uint(len(entry.Items)))
-			if err != nil {
-				ctx.Err.Printf("Failed to increment discount uses: %s", err)
-			}
-			affiliateEntry := entry
-			if discountedBaseCents, err := strconv.ParseInt(strings.TrimSpace(checkout.Metadata["discounted-base-cents"]), 10, 64); err == nil && discountedBaseCents > 0 {
-				affiliateEntry.Total = discountedBaseCents * int64(len(entry.Items))
-			}
-			recordAffiliateUsageFromCheckout(ctx, conf, &affiliateEntry, checkout.Metadata["pre-discount-cents"])
-		}
-
-		/* Add to mailing list + send mails */
-		if !types.IsSponsoredTicketType(tixType) {
-			err = missives.NewTicketSub(ctx, entry.Email, conf.Tag, tixType, false)
-			if err != nil {
-				ctx.Err.Printf("!!! Unable to subscribe to newsletter %s: %v", err, entry)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		}
-
 	default:
 		ctx.Infos.Printf("Unhandled event type: %s", event.Type)
 	}

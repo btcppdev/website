@@ -124,6 +124,86 @@ func TestStripeTicketItemsExcludeMixedCheckoutNonTicketLines(t *testing.T) {
 	}
 }
 
+func TestStripeCheckoutShouldFulfill(t *testing.T) {
+	tests := []struct {
+		name        string
+		eventType   stripe.EventType
+		checkout    *stripe.CheckoutSession
+		wantFulfill bool
+	}{
+		{
+			name:        "completed paid",
+			eventType:   stripe.EventTypeCheckoutSessionCompleted,
+			checkout:    &stripe.CheckoutSession{PaymentStatus: stripe.CheckoutSessionPaymentStatusPaid},
+			wantFulfill: true,
+		},
+		{
+			name:        "completed free",
+			eventType:   stripe.EventTypeCheckoutSessionCompleted,
+			checkout:    &stripe.CheckoutSession{PaymentStatus: stripe.CheckoutSessionPaymentStatusNoPaymentRequired},
+			wantFulfill: true,
+		},
+		{
+			name:        "completed awaiting delayed payment",
+			eventType:   stripe.EventTypeCheckoutSessionCompleted,
+			checkout:    &stripe.CheckoutSession{PaymentStatus: stripe.CheckoutSessionPaymentStatusUnpaid},
+			wantFulfill: false,
+		},
+		{
+			name:        "asynchronous payment succeeded",
+			eventType:   stripe.EventTypeCheckoutSessionAsyncPaymentSucceeded,
+			checkout:    &stripe.CheckoutSession{PaymentStatus: stripe.CheckoutSessionPaymentStatusPaid},
+			wantFulfill: true,
+		},
+		{
+			name:        "unrelated event",
+			eventType:   stripe.EventTypeCheckoutSessionExpired,
+			checkout:    &stripe.CheckoutSession{PaymentStatus: stripe.CheckoutSessionPaymentStatusPaid},
+			wantFulfill: false,
+		},
+		{name: "missing checkout", eventType: stripe.EventTypeCheckoutSessionAsyncPaymentSucceeded},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stripeCheckoutShouldFulfill(tt.eventType, tt.checkout); got != tt.wantFulfill {
+				t.Fatalf("stripeCheckoutShouldFulfill(%q) = %v, want %v", tt.eventType, got, tt.wantFulfill)
+			}
+		})
+	}
+}
+
+func TestStripeCheckoutEmail(t *testing.T) {
+	tests := []struct {
+		name     string
+		checkout *stripe.CheckoutSession
+		want     string
+	}{
+		{name: "missing checkout"},
+		{
+			name:     "customer email fallback",
+			checkout: &stripe.CheckoutSession{CustomerEmail: " fallback@example.com "},
+			want:     "fallback@example.com",
+		},
+		{
+			name: "customer details take precedence",
+			checkout: &stripe.CheckoutSession{
+				CustomerEmail:   "fallback@example.com",
+				CustomerDetails: &stripe.CheckoutSessionCustomerDetails{Email: " details@example.com "},
+			},
+			want: "details@example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stripeCheckoutEmail(tt.checkout); got != tt.want {
+				t.Fatalf("stripeCheckoutEmail() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTicketStripeTaxCodeDefaultsToNontaxable(t *testing.T) {
 	if got := ticketStripeTaxCode(nil); got != types.StripeTaxCodeNontaxable {
 		t.Fatalf("nil ticket tax code = %q, want %q", got, types.StripeTaxCodeNontaxable)

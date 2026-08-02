@@ -463,6 +463,71 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 	return nil
 }
 
+// AddPaymentTickets inserts registrations without changing tickets that were
+// already fulfilled for the checkout. The returned items are the registrations
+// created by this call, allowing webhook side effects to remain replay-safe.
+func AddPaymentTickets(ctx *config.AppContext, entry *types.Entry, src string) ([]types.Item, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	if entry == nil {
+		return nil, fmt.Errorf("AddPaymentTickets: entry is nil")
+	}
+	email := strings.TrimSpace(entry.Email)
+	if email == "" {
+		return nil, fmt.Errorf("AddPaymentTickets: entry email is required")
+	}
+	if strings.TrimSpace(entry.ConfRef) == "" {
+		return nil, fmt.Errorf("AddPaymentTickets: entry conference ref is required")
+	}
+
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
+	if err != nil {
+		return nil, fmt.Errorf("begin payment registration insert: %w", err)
+	}
+	defer tx.Rollback(ctx.DatabaseContext())
+
+	inserted := make([]types.Item, 0, len(entry.Items))
+	for i, item := range entry.Items {
+		refID := types.UniqueID(entry.Email, entry.ID, int32(i))
+		amountPaid := float64(item.Total) / 100
+		tag, err := tx.Exec(ctx.DatabaseContext(), `
+			INSERT INTO registrations (
+				ref_id, checkout_id, conference_id, discount_id, type, email,
+				item_bought, amount_paid, currency, platform, registered_at, revoked
+			)
+			VALUES (
+				$1, $2, $3::uuid,
+				NULLIF($4, '')::uuid,
+				$5, $6, $7, $8, $9, $10, $11, false
+			)
+			ON CONFLICT (ref_id) DO NOTHING
+		`, refID, entry.ID, entry.ConfRef, entry.DiscountRef, item.Type, email,
+			item.Desc, amountPaid, entry.Currency, src, entry.Created)
+		if err != nil {
+			return nil, fmt.Errorf("insert payment registration %q: %w", refID, err)
+		}
+		if tag.RowsAffected() == 1 {
+			inserted = append(inserted, item)
+		}
+	}
+
+	if entry.DiscountRef != "" && len(inserted) > 0 {
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			UPDATE discounts
+			SET uses_count = uses_count + $2
+			WHERE id = $1
+		`, entry.DiscountRef, len(inserted)); err != nil {
+			return nil, fmt.Errorf("increment payment discount uses: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
+		return nil, fmt.Errorf("commit payment registration insert: %w", err)
+	}
+	return inserted, nil
+}
+
 func RevokeTicket(ctx *config.AppContext, lookupID string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
