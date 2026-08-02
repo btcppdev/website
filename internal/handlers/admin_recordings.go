@@ -1,5 +1,5 @@
 // admin_recordings.go wires the /{conf}/admin/recordings dashboard:
-//   - list every Notion Recording row with per-row publish status
+//   - list every recording with per-row publish status
 //   - per-recording detail page with editable YT + X copy
 //   - YouTube OAuth bootstrap (start / callback / disconnect)
 //   - YouTube upload kickoff + async status polling

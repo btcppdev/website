@@ -26,7 +26,7 @@ import (
 //   - Teardown crew on the last day (doors close − 2h → doors
 //     close, 6 people).
 //
-// All times anchor in conf.Loc() so the resulting Notion rows show
+// All times anchor in conf.Loc() so the resulting rows show
 // the right local wall-clock regardless of the server's tz.
 //
 // Best-effort across rows — a single CreateShift failure logs and

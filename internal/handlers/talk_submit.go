@@ -68,8 +68,8 @@ func newSubmitPipeline(ctx *config.AppContext) submitPipeline {
 	}}
 }
 
-// Submit writes a form-decoded TalkApp into Speaker + Proposal +
-// SpeakerProposal Notion DBs. Speaker is upserted by email (fail-loudly on
+// Submit writes a form-decoded TalkApp into Speaker, Proposal, and
+// SpeakerProposal tables. Speaker is upserted by email (fail-loudly on
 // duplicates). Each submission yields exactly one Proposal pinned to the
 // conf the form was submitted from.
 func (p submitPipeline) Submit(app *types.TalkApp) (SubmitResult, error) {
@@ -362,9 +362,8 @@ func otherEventTags(confs []*types.Conf) []string {
 
 // sendTalkAppLetter fires the "talkapp" OnlyFor letter as the
 // application-received ack. Loads the freshly-created proposal from
-// Notion, falls back to populating SpeakerConfRefs from the Submit
-// result when Notion's eventual consistency hasn't caught up to the
-// just-written inverse relation. Errors are logged, never fatal —
+// storage, and falls back to the SpeakerConf created by Submit when
+// the inverse relation is absent. Errors are logged, never fatal —
 // missing the ack shouldn't break the submit flow.
 func sendTalkAppLetter(ctx *config.AppContext, conf *types.Conf, res SubmitResult, applicantEmail string) {
 	if res.ProposalID == "" || conf == nil {
@@ -376,8 +375,8 @@ func sendTalkAppLetter(ctx *config.AppContext, conf *types.Conf, res SubmitResul
 		return
 	}
 	if len(proposal.SpeakerConfRefs) == 0 && res.SpeakerConfID != "" {
-		// Notion auto-populates `speakers` on the Proposal from the
-		// SpeakerConf side, but with eventual consistency the just-
+		// The relation normally populates `speakers` on the Proposal
+		// from the SpeakerConf side, but the just-
 		// created relation may not be visible on a re-read. Patch in
 		// the SpeakerConf ID we already have so the OnlyFor pipeline
 		// has at least one recipient.

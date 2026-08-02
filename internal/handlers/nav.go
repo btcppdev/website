@@ -29,7 +29,7 @@ func buildNavConfList(ctx *config.AppContext) NavConfList {
 	}
 	// Tags hardcoded at the bottom of the Past flyout as YouTube
 	// playlist links — exclude them from the dynamic list so they
-	// don't render twice if a row exists in Notion.
+	// don't render twice if a database row exists.
 	hardcodedPast := map[string]bool{"atx22": true, "cdmx22": true}
 
 	var upcoming, past []*types.Conf

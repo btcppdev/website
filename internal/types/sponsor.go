@@ -33,7 +33,7 @@ type (
 		// Label is the section-heading display string for the conf
 		// page (e.g. "Satoshi Level Sponsors", "Pool Party Sponsor",
 		// "VIP Dinner Sponsor"). Falls back to a per-tier default
-		// when blank. Stored as a rich_text field on Notion.
+		// when blank.
 		Label    string
 		Status   string
 		IsVendor bool

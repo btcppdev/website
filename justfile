@@ -115,6 +115,10 @@ deps:
 # Run the common local verification path.
 check: fmt tidy css build test vet
 
+# Verify formatting, migrations, vet, build, and tests without editing files.
+verify:
+  make verify
+
 # Configure this checkout to use the tracked git hooks.
 hooks:
   git config core.hooksPath githooks
@@ -165,10 +169,6 @@ db-pull-sanitized:
 # Replace local data with a production dump without sanitizing. Requires PROD_DATABASE_URL and ADMIN_BYPASS.
 db-pull-unsanitized:
   make db-pull-unsanitized
-
-# Clear the local disk cache.
-cache-clear:
-  rm -rf _cache
 
 # Verify a magic-link URL against the local HMAC secret.
 verify-magiclink url:

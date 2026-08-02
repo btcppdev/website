@@ -208,7 +208,7 @@ func (k dispatchKind) summaryVerb() string {
 // the title/time hash didn't.
 //
 // Phase 2 ships with hand-built letter bodies (the talkspeakerinvite
-// / talkunscheduled Notion letters land in Phase 3). Once those
+// / talkunscheduled stored letters land in Phase 3). Once those
 // exist, swap the per-recipient ComposeAndSendMail call to
 // emails.ExecLetter with the appropriate OnlyFor tag.
 func DispatchTalkICSForTalk(ctx *config.AppContext, talk *types.Talk, conf *types.Conf, kind dispatchKind, force bool) error {
@@ -699,7 +699,7 @@ func shiftJobKey(shiftRef string, seq int, email string, k dispatchKind) string 
 
 // buildTalkBody composes the human-readable email body for a talk
 // REQUEST or CANCEL. Phase 2 ships with hand-built copy here; Phase
-// 3 swaps to Notion-managed letter content via emails.ExecLetter
+// 3 swaps to stored letter content via emails.ExecLetter
 // once the talkspeakerinvite / talkunscheduled letters are
 // authored.
 func buildTalkBody(kind dispatchKind, talk *types.Talk, conf *types.Conf, dateLabel, location string) string {

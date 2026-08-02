@@ -366,7 +366,7 @@ func ScheduleResize(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 }
 
 // ScheduleUnplace handles a drag-back-to-sidebar request. Deletes the
-// ConfTalk row entirely (Notion archive, recoverable from trash).
+// ConfTalk row entirely.
 //
 // Body: {proposalID}.
 func ScheduleUnplace(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -427,7 +427,7 @@ func ScheduleUnplace(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 
 // addTalkAllowedTypes is the set of TalkType values the "Add talk"
 // form on the schedule page accepts. Keeps the dropdown honest and
-// stops typo'd values from sneaking into Notion.
+// stops typo'd values from reaching the database.
 var addTalkAllowedTypes = map[string]bool{
 	"talk":      true,
 	"panel":     true,
@@ -966,10 +966,10 @@ func dayOpenCloseMinutes(ci *types.ConfInfo) (open, close int) {
 }
 
 // dayDateFor returns midnight of the conf's Nth day in the conf's tz.
-// Conf.StartDate may carry a non-midnight time (Notion stores whatever
+// Conf.StartDate may carry a non-midnight time (the database stores whatever
 // the admin enters), so we floor to the day. Critically, this is the
 // function the schedule handler uses to construct a new TalkTime —
-// using conf.Loc() (which prefers the explicit Notion Timezone) means
+// using conf.Loc() (which prefers the explicit conference timezone) means
 // the times the scheduler writes back to ConfTalk are in the
 // conference's local zone, not the app's GMT-5.
 func dayDateFor(conf *types.Conf, dayIdx int) time.Time {

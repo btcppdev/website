@@ -109,8 +109,7 @@ restores the archive into the local Postgres instance, then runs
 `db/sanitize.sql` to remove contact details, live invite tokens, calendar
 notification IDs, source media URIs, notes, coupon codes, and ticket checkout
 IDs. After the restore, it also applies any newer local migrations from
-`db/migrations` and clears the local `_cache` directory so the next app start
-fetches fresh data from the restored database.
+`db/migrations`.
 
 To replace the local database with an unsanitized copy, you must provide the
 admin secret whose SHA-256 matches the hardcoded allowlist digest:
@@ -122,5 +121,5 @@ make db-pull-unsanitized
 ```
 
 This skips `db/sanitize.sql` entirely and restores the production data as-is.
-It still applies any newer local migrations from `db/migrations` and clears the
-local `_cache` directory after restore. Use it carefully.
+It still applies any newer local migrations from `db/migrations`. Use it
+carefully.

@@ -695,7 +695,7 @@ func DashboardEditSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *confi
 			return
 		}
 		// Mirror the new logo to Spaces — fire-and-forget to keep the
-		// redirect snappy. Spaces upload is the slow part; the Notion
+		// redirect snappy. Spaces upload is the slow part; the database
 		// write already completed.
 		if hasLogo {
 			go newPhotoPipeline(ctx).mirrorOrgLogoToSpaces(logoRaw, logoContentType, logoExt)
@@ -727,7 +727,7 @@ func DashboardEditSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *confi
 		Email:       encEmail,
 		Locked:      locked,
 		LockReason:  lockReason,
-		// No prefix — Notion stores Avails option values as bare dates
+		// No prefix — Avails values are stored as bare dates
 		// (the apply form strips its "days-" prefix before saving), so
 		// the edit form matches that format directly for both the
 		// pre-check and the round-trip.
@@ -864,8 +864,8 @@ func DashboardClaimHackathonTicket(w http.ResponseWriter, r *http.Request, ctx *
 
 // handleUpdateSpeakerPOST applies the form fields to the existing
 // Speaker row via the sparse SpeakerUpdate API. Empty fields are
-// passed through, but the Notion library treats them as no-ops via
-// speakerUpdateProps which builds the property map from non-empty
+// passed through, but the sparse update treats them as no-ops by
+// building the update from non-empty
 // strings + booleans.
 func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, sp *types.Speaker, encHMAC, encEmail string) {
 	nextURL := safeReturnTo(r.FormValue("next"))
@@ -1293,10 +1293,10 @@ func DashboardAcceptInvite(w http.ResponseWriter, r *http.Request, ctx *config.A
 // flash instead of double-firing the email or rolling back a later
 // state change.
 //
-// The `talkselfdecline` letter is a separate Notion letter UID from
+// The `talkselfdecline` letter is separate from
 // the admin-side `talkdeclined` (which is in WeDecline voice — "we
 // were not able to include your talk"). If the letter UID isn't yet
-// configured in Notion, SendOnlyForProposal logs and returns an error
+// configured, SendOnlyForProposal logs and returns an error
 // — non-fatal here so the status flip lands either way.
 func DashboardDeclineInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	proposalID := mux.Vars(r)["proposalID"]
@@ -1352,7 +1352,7 @@ func DashboardInviteCoSpeaker(w http.ResponseWriter, r *http.Request, ctx *confi
 	// Lazy-mint a token on first invite. Persist it on the proposal so
 	// the public invite-speaker handler can validate inbound URLs by
 	// equality, and admins can revoke a leaked link by rotating or
-	// clearing the field in Notion.
+	// clearing the persisted field.
 	if proposal.InviteToken == "" {
 		token := helpers.MintInviteToken()
 		if err := getters.SetProposalInviteToken(ctx, proposalID, token); err != nil {
@@ -1387,8 +1387,8 @@ func DashboardInviteCoSpeaker(w http.ResponseWriter, r *http.Request, ctx *confi
 // proposal.
 //
 // The token in the URL is matched against proposal.InviteToken — a
-// random value stored on the Notion row. Admins revoke a leaked link
-// by clearing or rotating the field in Notion; the next request 403s.
+// random value stored on the proposal. Admins revoke a leaked link
+// by clearing or rotating the field; the next request 403s.
 // Anyone with the link can submit — that's the point. The proposal
 // can't be mutated beyond "add a speaker" via this path, so the blast
 // radius of a leaked link is bounded.
@@ -1537,7 +1537,7 @@ func InviteSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 // idempotent — re-submits or clicks after admin already moved the
 // proposal route through inviteLinkBail with an explanatory message.
 // Sends the talkselfdecline letter to every speaker on the proposal;
-// failure is non-fatal so a Notion blip can't roll back the status
+// failure is non-fatal so a mail error can't roll back the status
 // flip.
 func InviteSpeakerDecline(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	proposalID := mux.Vars(r)["proposalID"]
@@ -1677,7 +1677,7 @@ func handleInviteSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		} else {
 			// Patch the in-memory proposal so the auto-accept
 			// success message + the rest of this handler see the
-			// new values without re-reading from Notion.
+			// new values without re-reading from the database.
 			proposal.Title = talkapp.TalkTitle
 			if talkapp.Description != "" {
 				proposal.Description = talkapp.Description
@@ -1752,7 +1752,7 @@ func handleInviteSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 
 // alreadyOnProposal reports whether the email is already linked to this
 // proposal via one of its existing speakers. Case-insensitive match —
-// Notion stores email as text and casing varies.
+// Email casing varies, so compare case-insensitively.
 func alreadyOnProposal(p *types.Proposal, email string) bool {
 	for _, sc := range p.Speakers {
 		if sc == nil || sc.Speaker == nil {

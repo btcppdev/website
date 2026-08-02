@@ -122,8 +122,8 @@ func GetPresentationTypes() []types.CheckItem {
 }
 
 // GetRecordingOptions returns the radio options for the Recording field on
-// the speaker application. Values match the Notion select options on both the
-// TalkApp and Talks DBs; descriptions are the user-facing labels.
+// the speaker application. Values match the persisted options; descriptions
+// are the user-facing labels.
 func GetRecordingOptions() []types.CheckItem {
 	return []types.CheckItem{
 		{

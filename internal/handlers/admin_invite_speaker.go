@@ -129,7 +129,7 @@ func AdminInviteSpeakerSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 	// new co-speaker without waiting for a cache cycle.
 	if err := getters.AddSpeakerConfToProposal(ctx, proposal.ID, scID); err != nil {
 		ctx.Err.Printf("/%s/admin/invite-speaker add speakerconf to proposal: %s", conf.Tag, err)
-		// non-fatal — Notion's two-way relation usually backfills
+		// non-fatal; the relation may already exist
 	}
 
 	// 4. Stamp InvitedAt.
@@ -304,7 +304,7 @@ func resolveOrCreateInvitedProposal(ctx *config.AppContext, conf *types.Conf, sp
 	if err != nil || p == nil {
 		// Worst case — fabricate a minimal Proposal so the rest of the
 		// flow can proceed; the next page render will pick up the real
-		// row from Notion.
+		// persisted row.
 		return &types.Proposal{
 			ID:          pid,
 			Title:       title,

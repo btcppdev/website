@@ -77,10 +77,10 @@ func (b *runOfShowEventBroker) publish(confTag, event string) {
 	}
 }
 
-// venueLabels maps the raw Notion venue tags (the multi-select values
+// venueLabels maps the raw persisted venue tags
 // stored on ConfInfo.Venues / ConfTalk.Venue) to friendly display
 // labels per conference. Anything not in this map renders as the raw
-// tag — admins can keep entering Notion-friendly slugs while the
+// tag so admins can keep entering short slugs while the
 // run-of-show shows the human-readable name.
 var venueLabels = map[string]map[string]string{
 	"vienna": {
@@ -358,7 +358,7 @@ func buildRunOfShowData(conf *types.Conf, infos []*types.ConfInfo, talks []*type
 	// (start day N, end day N+1) lands on both days correctly.
 	//
 	// Normalize every row's Start to conf-local tz before bucketing
-	// + sorting. parseTimes returns whatever zone Notion stored
+	// + sorting. parseTimes returns the stored zone
 	// (typically UTC for datetimes), but parseTimesRange anchors
 	// ConfInfo events to conf-local. Without this conversion, a shift
 	// end at "17:00 UTC" displays as "5:00 PM" but sorts at the same

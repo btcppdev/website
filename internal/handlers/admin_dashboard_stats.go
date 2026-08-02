@@ -10,7 +10,7 @@ import (
 )
 
 // OrganizerStats is the headline-numbers panel rendered on the
-// per-conf admin dashboard. Each block is best-effort: if a Notion
+// per-conf admin dashboard. Each block is best-effort: if a database
 // query fails the field stays at its zero value (logged once)
 // rather than blanking the whole panel.
 type OrganizerStats struct {

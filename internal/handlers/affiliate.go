@@ -438,7 +438,7 @@ func parseBuyerPct(raw string) uint {
 	return 10
 }
 
-// validCodeName: alphanumeric only. Keeps URL-safety + Notion-side
+// validCodeName: alphanumeric only. Keeps URL-safety and admin-side
 // readability simple. No length cap server-side; the client form
 // caps at 32 for a sensible UX.
 func validCodeName(s string) bool {

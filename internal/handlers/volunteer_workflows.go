@@ -623,7 +623,7 @@ func VolunteerSubmitShifts(w http.ResponseWriter, r *http.Request, ctx *config.A
 }
 
 // runScheduledFlow runs the post-status-update logic that promotes a volunteer
-// to "Scheduled": updates Notion status, sends the onboarding email, issues a
+// to "Scheduled": updates status, sends the onboarding email, issues a
 // ticket, subscribes to the volunteer newsletter, and sends calendar invites
 // (if Google Calendar is connected). Caller must have already populated
 // vol.WorkShifts with the assigned shifts. Failures in non-critical steps
@@ -1764,7 +1764,7 @@ func releaseVolunteerShifts(ctx *config.AppContext, conf *types.Conf, vol *types
 // End is rolled over to the next day if it's earlier than start (e.g. an
 // overnight shift).
 func parseShiftFormTimes(conf *types.Conf, dayStr, startStr, endStr string) (time.Time, time.Time, error) {
-	// Accept either Notion's "01/02/2006" or HTML date input "2006-01-02"
+	// Accept either the legacy "01/02/2006" format or HTML date input "2006-01-02"
 	loc := conf.Loc()
 	var day time.Time
 	var err error

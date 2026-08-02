@@ -181,7 +181,7 @@ func TestSubmit_NewSpeaker_OneConf(t *testing.T) {
 	}
 }
 
-func TestSubmit_TrimsTextInputsBeforeNotionWrites(t *testing.T) {
+func TestSubmitTrimsTextInputsBeforeWrites(t *testing.T) {
 	app := makeSubmitApp(" alice@example.com ", "berlin26")
 	app.Name = " Alice Test "
 	app.Phone = " +15551234567 "

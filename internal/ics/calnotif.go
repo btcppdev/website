@@ -1,12 +1,11 @@
 // Package ics generates RFC-5545 calendar invitations and decides
 // when to (re-)send them. The package is intentionally I/O-free —
 // callers (typically the email dispatch in handlers) feed it domain
-// data, get back ICS bytes plus an updated CalNotif string to stamp
-// back to Notion.
+// data, get back ICS bytes plus an updated CalNotif string to persist.
 //
 // The CalNotif string is the persisted state-of-the-invite: a
-// `"UID:Sequence:Hashbytes"` triple stored in the Notion rich_text
-// column on ConfTalk / WorkShift. UID is the RFC-5545 unique
+// `"UID:Sequence:Hashbytes"` triple stored on ConfTalk / WorkShift.
+// UID is the RFC-5545 unique
 // identifier (stable per row), Sequence is the RFC-5545 SEQUENCE
 // counter (monotonically advances), Hashbytes is a 4-byte content
 // fingerprint we use to decide whether anything material changed
@@ -21,8 +20,7 @@ import (
 	"time"
 )
 
-// CalNotif is the parsed shape of the CalNotif rich_text column on
-// ConfTalk / WorkShift rows in Notion.
+// CalNotif is the parsed shape of the persisted ConfTalk / WorkShift value.
 type CalNotif struct {
 	UID      string
 	Sequence int

@@ -24,14 +24,14 @@ import (
 // proposals (Invited / Accepted / TheyDecline / WeDecline / Rejected /
 // Waitlisted) drop out of the queue.
 var pendingReviewStatuses = map[string]bool{
-	"":         true, // Notion select unset — treat as pending
+	"":         true, // Unset status is treated as pending.
 	"Applied":  true,
 	"InReview": true,
 }
 
 // reviewActions lists the buttons rendered on the per-proposal review
 // page, in display order. Each entry maps a button label to the
-// status that gets written to Notion + the onlyfor letter that gets
+// status that gets persisted + the onlyfor letter that gets
 // fanned out to every speaker on the proposal.
 var reviewActions = []reviewAction{
 	{Label: "Invite to Confirm", Status: "Invited", Letter: "talkinvited", Style: "green"},
@@ -194,7 +194,7 @@ func ReviewProposals(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 }
 
 // ReviewProposalAction handles POSTs from the review page's action
-// buttons. Updates Notion status, optionally runs the accept pipeline,
+// buttons. Updates status, optionally runs the accept pipeline,
 // fans out the onlyfor letter, and redirects back to the next pending
 // proposal in the queue.
 //
@@ -387,7 +387,7 @@ func AdminCancelTalk(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 // Used by the "Resend tickets" button on the applicants table —
 // patches gaps where a talk got Accepted before the comp-ticket
 // pipeline existed, or where an admin manually flipped a status in
-// Notion bypassing the normal accept flow.
+// storage while bypassing the normal accept flow.
 //
 // Path: POST /admin/applicants/{conf}/resend-tickets
 func AdminResendSpeakerTickets(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

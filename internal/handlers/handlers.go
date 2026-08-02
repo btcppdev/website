@@ -1012,7 +1012,7 @@ func checkoutEmailSessionKey(confTag string) string {
 // unit, usually fiat cents. The 20% ceiling is fixed: affiliates earn
 // whatever's left after the buyer's actual savings come out of that
 // ceiling. Both outputs are floored at zero to avoid negatives leaking
-// into Notion.
+// into persisted totals.
 func affiliateMath(preDiscountPerTicket, count, paidTotal int64) (saved, earned int64) {
 	original := preDiscountPerTicket * count
 	ceiling := original * 20 / 100
@@ -1028,7 +1028,7 @@ func affiliateMath(preDiscountPerTicket, count, paidTotal int64) (saved, earned 
 }
 
 // recordAffiliateUsageFromCheckout writes one AffiliateUsage row to
-// Notion when a successful checkout consumed a discount code that
+// the database when a successful checkout consumed a discount code that
 // has an AffiliateEmail set. The list price + paid total arrive in
 // fiat cents (whatever currency the tier was priced in). Saved/Earned
 // are split in fiat cents first, then converted to sats. Doing the

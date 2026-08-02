@@ -29,24 +29,24 @@ type volsByShiftCount []*types.Volunteer
 func (v volsByShiftCount) Len() int      { return len(v) }
 func (v volsByShiftCount) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
 func (v volsByShiftCount) Less(i, j int) bool {
-        if len(v[i].WorkShifts) == len(v[j].WorkShifts) {
-                // CreatedAt can be nil — Notion's created_time
-                // hasn't surfaced for a row yet, or the field was
-                // never populated. Sort nils last so registered-
-                // earlier vols keep priority and the comparison
-                // never derefs nil.
-                ai, aj := v[i].CreatedAt, v[j].CreatedAt
-                switch {
-                case ai == nil && aj == nil:
-                        return false
-                case ai == nil:
-                        return false
-                case aj == nil:
-                        return true
-                default:
-                        return ai.Before(*aj)
-                }
-        }
+	if len(v[i].WorkShifts) == len(v[j].WorkShifts) {
+		// CreatedAt can be nil when a legacy row has no
+		// creation timestamp, or the field was
+		// never populated. Sort nils last so registered-
+		// earlier vols keep priority and the comparison
+		// never derefs nil.
+		ai, aj := v[i].CreatedAt, v[j].CreatedAt
+		switch {
+		case ai == nil && aj == nil:
+			return false
+		case ai == nil:
+			return false
+		case aj == nil:
+			return true
+		default:
+			return ai.Before(*aj)
+		}
+	}
 	return len(v[i].WorkShifts) > len(v[j].WorkShifts)
 }
 
@@ -85,23 +85,23 @@ func findEligibleVols(shift *types.WorkShift, vols []*types.Volunteer, relaxType
 type AssignFunc func(volRef, shiftRef string) error
 
 func processShifts(shift *types.WorkShift, eligible []*types.Volunteer, toAssign int, assign AssignFunc) (int, error) {
-        for _, vol := range eligible {
-                if toAssign == 0 {
-                        break
-                }
-                err := assign(vol.Ref, shift.Ref)
-                if err != nil {
-                        return toAssign, err
-                }
-                vol.WorkShifts = append(vol.WorkShifts, shift)
-                toAssign--
-        }
+	for _, vol := range eligible {
+		if toAssign == 0 {
+			break
+		}
+		err := assign(vol.Ref, shift.Ref)
+		if err != nil {
+			return toAssign, err
+		}
+		vol.WorkShifts = append(vol.WorkShifts, shift)
+		toAssign--
+	}
 
-        return toAssign, nil
+	return toAssign, nil
 }
 
 // assignShiftsCore is the pure algorithmic core. It's separated from the
-// Notion-dependent wrapper so it can be unit-tested with a fake AssignFunc.
+// persistence wrapper so it can be unit-tested with a fake AssignFunc.
 func assignShiftsCore(vols []*types.Volunteer, shifts []*types.WorkShift, assign AssignFunc) error {
 	sort.Sort(shiftsByPriority(shifts))
 
@@ -113,16 +113,16 @@ func assignShiftsCore(vols []*types.Volunteer, shifts []*types.WorkShift, assign
 
 		eligible := findEligibleVols(shift, vols, false)
 		sort.Sort(volsByShiftCount(eligible))
-                toAssign, _ = processShifts(shift, eligible, toAssign, assign)
+		toAssign, _ = processShifts(shift, eligible, toAssign, assign)
 
-                if toAssign <= 0 {
-                        continue
-                }
+		if toAssign <= 0 {
+			continue
+		}
 
-                /* relax requirements and try again */
+		/* relax requirements and try again */
 		eligible = findEligibleVols(shift, vols, true)
 		sort.Sort(volsByShiftCount(eligible))
-                toAssign, _ = processShifts(shift, eligible, toAssign, assign)
+		toAssign, _ = processShifts(shift, eligible, toAssign, assign)
 	}
 
 	return nil

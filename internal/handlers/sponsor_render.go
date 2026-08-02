@@ -73,7 +73,7 @@ func SponsorTiersForConf(ctx *config.AppContext, confRef string) []*SponsorTier 
 }
 
 // groupSponsorTiers is the pure-function core of SponsorTiersForConf
-// — separated so it's testable without a Notion client. Buckets by
+// — separated so it's testable without a database. Buckets by
 // (Level, Label) and orders by tierConfig.
 func groupSponsorTiers(all []*types.Sponsorship) []*SponsorTier {
 	if len(all) == 0 {
@@ -153,7 +153,7 @@ func visibleSponsorStatus(s string) bool {
 	return false
 }
 
-// normalizeLevel makes the Notion Level value tolerate small admin
+// normalizeLevel makes the persisted Level value tolerate small admin
 // variations: case differences ("Diamond" vs "diamond"), trailing
 // " Sponsor" / " Sponsors" / " Level" suffixes that admins
 // sometimes type into the select. Returns the matching canonical

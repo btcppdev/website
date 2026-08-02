@@ -15,7 +15,7 @@ import (
 // TrialCalInvite is a dev-only smoke endpoint for the self-hosted
 // ICS calendar pipeline. Generates a synthetic talk against the
 // requested conf, renders an ICS, and emails it to the recipient
-// with Reply-To: speak@btcpp.dev. Doesn't touch any Notion row,
+// with Reply-To: speak@btcpp.dev. Doesn't touch any database row,
 // so it's safe to fire repeatedly during development.
 //
 // Usage:
@@ -87,7 +87,7 @@ func TrialCalInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	icsBytes := ics.Render(event)
 
 	// Build the Mail by hand instead of going through ExecLetter so
-	// the smoke route doesn't depend on a Notion letter existing
+	// the smoke route doesn't depend on a stored letter existing
 	// for the cal-invite tags yet.
 	body := fmt.Sprintf("Trial calendar invite for %s\n\n"+
 		"Title: %s\nWhen: %s (%s)\nVenue: %s\nUID: %s\nHash: %s\n",

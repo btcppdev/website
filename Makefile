@@ -63,6 +63,30 @@ build-all: build
 test:
 	$(GO_ENV) go test ./...
 
+.PHONY: verify verify-format verify-migrations test-race
+verify: verify-format verify-migrations
+	$(GO_ENV) go vet ./...
+	$(MAKE) build
+	$(GO_ENV) go test ./...
+
+verify-format:
+	@unformatted="$$(find . -type f -name '*.go' -not -path './.git/*' -print0 | xargs -0 gofmt -l)"; \
+	if [ -n "$$unformatted" ]; then \
+		echo "The following Go files need gofmt:"; \
+		echo "$$unformatted"; \
+		exit 1; \
+	fi
+
+verify-migrations:
+	@duplicates="$$(find db/migrations -maxdepth 1 -type f -name '[0-9][0-9][0-9]_*.sql' -printf '%f\n' | cut -d_ -f1 | sort | uniq -d)"; \
+	if [ -n "$$duplicates" ]; then \
+		echo "Duplicate migration prefixes: $$duplicates"; \
+		exit 1; \
+	fi
+
+test-race:
+	CGO_ENABLED=1 GOSUMDB=sum.golang.org go test -race ./internal/... ./external/...
+
 .PHONY: db-pull-sanitized
 db-pull-sanitized: db-start
 	@test -n "$$PROD_DATABASE_URL" || (echo "PROD_DATABASE_URL is required"; exit 1)
@@ -88,9 +112,7 @@ db-pull-sanitized: db-start
 	psql "$$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/sanitize.sql; \
 	echo "Applying local migrations..."; \
 	$(GO_ENV) go run ./cmd/db-migrate; \
-	echo "Clearing local disk cache..."; \
-	rm -rf _cache; \
-	echo "Local database refreshed, sanitized, migrated, and cache-cleared."
+	echo "Local database refreshed, sanitized, and migrated."
 
 .PHONY: db-pull-unsanitized
 db-pull-unsanitized: db-start
@@ -116,9 +138,7 @@ db-pull-unsanitized: db-start
 	pg_restore --exit-on-error --no-owner --no-privileges --dbname "$$DATABASE_URL" "$$dump_file"; \
 	echo "Applying local migrations..."; \
 	$(GO_ENV) go run ./cmd/db-migrate; \
-	echo "Clearing local disk cache..."; \
-	rm -rf _cache; \
-	echo "Local database refreshed without sanitization, migrated, and cache-cleared."
+	echo "Local database refreshed without sanitization and migrated."
 
 .PHONY: clean
 clean:

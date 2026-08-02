@@ -264,8 +264,8 @@ func (l *Letter) HasNewsletter(newsletter string) bool {
 /*
 Job identifier for this letter.
 
-	We use the pageID from Notion.
-	If you delete the missive from Notion, you won't
+	We use the persisted missive ID.
+	If you delete the missive, you won't
 	be able to unschedule it.
 */
 func (l *Letter) Missive() string {

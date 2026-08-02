@@ -204,11 +204,10 @@ func covers(have, want string) bool {
 	return false
 }
 
-// ParseRoles turns the raw Notion multi-select tags ("vienna-admin",
+// ParseRoles turns the persisted role tags ("vienna-admin",
 // "global-volcoord", ...) into structured Role values. Tags that
 // don't look like "<scope>-<role>" or carry an unknown role name are
-// dropped silently — the source of truth is the Notion UI, and
-// dropping unknown values fails closed.
+// dropped silently so unknown values fail closed.
 func ParseRoles(tags []string) []Role {
 	var out []Role
 	for _, t := range tags {

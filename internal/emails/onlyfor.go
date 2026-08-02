@@ -141,7 +141,7 @@ func makeJobKeyDedupe(email string, letter *mtypes.Letter) string {
 }
 
 // OnlyForLogin sends a magic-link email pointing at /dashboard. Reuses the
-// existing "vollogin" Notion letter (its template field is named
+// existing "vollogin" letter (its template field is named
 // VolShiftLink for historical reasons; the URL it produces is now the
 // unified dashboard).
 //
@@ -468,7 +468,7 @@ type OnlyForTicket struct {
 // per-conf templates/emails/{tag}.tmpl path that's been used for
 // every conference's ticket receipt to date — same delivery
 // pipeline (`ComposeAndSendMail` → mailer service), just with a
-// single Notion-stored letter instead of N hand-written templates.
+// single stored letter instead of N hand-written templates.
 //
 // Pre-fills `conf.DoorsOpen` from `DoorsOpenDesc(ctx, conf)` so the
 // template body can reference {{ .Conf.DoorsOpen }} directly without
@@ -675,7 +675,7 @@ func sendOnlyForWithExtras(ctx *config.AppContext, email string, letter *mtypes.
 	return mail.HTMLBody, ComposeAndSendMail(ctx, mail)
 }
 
-// ExecLetter renders a Notion letter against tmplData and sends it
+// ExecLetter renders a stored letter against tmplData and sends it
 // to a single recipient with optional Reply-To + attachments.
 // Public surface used by the cal-invite dispatch (and the
 // /trial-cal-invite smoke route) to fire one-off ICS-attached

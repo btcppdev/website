@@ -27,7 +27,7 @@ import (
 // with `{conftag}_<keyword>` derived from the talk's title; admins
 // can edit before submitting. Saves PNG + AVIF to talks/<filename>
 // in Spaces, updates the talks/_manifest.json hash index, and
-// patches ConfTalk.Clipart in Notion.
+// updates ConfTalk.Clipart.
 func AdminCliparts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireConfAdmin(w, r, ctx); id == nil {
 		return
@@ -87,7 +87,7 @@ func AdminCliparts(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		}
 		// Pre-fill the filename input with the existing clipart
 		// name (sans extension) so re-uploads default to
-		// overwriting the same Spaces key + Notion field. New
+		// overwriting the same Spaces key + database field. New
 		// rows fall through to the suggester, which now bakes
 		// 2 hex bytes of proposal-ID uniqueness into the name
 		// to avoid two talks sharing a suggestion.

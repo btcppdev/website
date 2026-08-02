@@ -149,7 +149,7 @@ func CalcDiscount(ctx *config.AppContext, confRef string, code string, tixPrice 
 // so this intentionally rewrites the code, expression, relation, and
 // optional affiliate email together.
 
-// ArchiveDiscount soft-deletes a DiscountsDb row in Notion. Past
+// ArchiveDiscount soft-deletes a discount. Past
 // purchase rows keep their discount-ref history; future checkout
 // lookups stop seeing the archived code after cache refresh.
 

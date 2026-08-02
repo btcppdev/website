@@ -48,7 +48,7 @@ type AdminEditProposalPage struct {
 // AdminEditProposal serves the admin proposal editor. GET renders
 // the form pre-filled from the proposal; POST validates + calls the
 // same UpdateProposal helper the speaker-side dashboard editor uses.
-// requireConfAdmin (not staff) — content edits ripple into Notion
+// requireConfAdmin (not staff) — content edits ripple into persisted data
 // and reach attendees via re-rendered cards / re-sent cal invites,
 // so keep the surface tight.
 //
@@ -185,7 +185,7 @@ func adminTalkTypes(current string) []string {
 //     duplicating.
 //  2. Wire the SpeakerConf onto Proposal.speakers (mirror the
 //     relation so admin queues see the new co-speaker without
-//     waiting on Notion's two-way backfill).
+//     waiting for an inverse relation lookup).
 //  3. If the proposal is already Scheduled, fire a force=true
 //     REQUEST so the new speaker gets a cal invite and the
 //     existing speakers see the updated attendee list.
@@ -237,8 +237,7 @@ func AdminEditProposalAttachSpeaker(w http.ResponseWriter, r *http.Request, ctx 
 		return
 	}
 	if err := getters.AddSpeakerConfToProposal(ctx, proposalID, scID); err != nil {
-		// Non-fatal: Notion's two-way relation usually backfills,
-		// but log it so we know if the admin queue lags.
+		// Non-fatal, but log it so we know if the admin queue lags.
 		ctx.Err.Printf("/%s/admin/proposal/%s/speakers/attach add to proposal: %s", conf.Tag, proposalID, err)
 	}
 

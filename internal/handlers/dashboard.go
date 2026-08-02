@@ -403,7 +403,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 
 	// Populate per-conf countdown bounds for the event-card widget.
-	// Single Notion call (empty tag = all rows), bucket by tag→day,
+	// Single database call (empty tag = all rows), bucket by tag→day,
 	// then shallow-copy each block's Conf so the cached pointer
 	// shared with other readers stays untouched.
 	infosByTag := map[string]map[int]*types.ConfInfo{}
@@ -1393,7 +1393,7 @@ func containsString(values []string, candidate string) bool {
 	return false
 }
 
-// confByRef finds a Conf by Notion page-ID (the value stored on
+// confByRef finds a Conf by persisted ID (the value stored on
 // PurchasesDb rows). Linear scan over the typically-small confs map.
 func confByRef(byTag map[string]*types.Conf, ref string) *types.Conf {
 	for _, c := range byTag {
@@ -1606,7 +1606,7 @@ func loadAffiliateCode(ctx *config.AppContext, email string, eligible bool) *typ
 }
 
 // loadAffiliateStats sums every AffiliateUsage row for the user via
-// a live Notion query (no cache, since affiliates expect to see
+// a live database query (no cache, since affiliates expect to see
 // their freshest stats on refresh). Returns zeros when the gate is
 // closed; the template renders zeros as "0 tickets sold / $0".
 func loadAffiliateStats(ctx *config.AppContext, email string, eligible bool) *AffiliateStats {

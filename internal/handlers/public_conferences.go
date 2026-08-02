@@ -533,7 +533,7 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		talkapp.DinnerRSVP = dinneropt == "Yes"
 		talkapp.OtherEvents = helpers.ParseFormConfs("conf-", r.PostForm, confs)
 
-		/* Read PicFile bytes (no Notion upload — cropped JPEG goes
+		/* Read PicFile bytes (cropped JPEG goes
 		   only to Spaces). Optional for returning speakers — when
 		   the form was rendered with KnownSpeaker, the upload field
 		   is hidden and Submit will keep the existing Photo. */
@@ -1173,7 +1173,7 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		return
 	}
 
-	// Single Notion call (empty tag = all rows) so the homepage's
+	// Single database call (empty tag = all rows) so the homepage's
 	// countdown widget on each conf card has the same per-day-strip
 	// bounds the per-conf page uses. Bucket by tag → day for cheap
 	// per-conf lookup.

@@ -118,14 +118,14 @@ type (
 		PickupAddressPostalCode string
 		PickupAddressCountry    string
 		// DoorsOpen is the human-readable check-in time string —
-		// not a Notion field, populated just-in-time by the ticket
+		// not persisted, populated just-in-time by the ticket
 		// email sender before template render so the body can do
 		// {{ .Conf.DoorsOpen }} without round-tripping ConfInfo.
 		DoorsOpen string
 		// HasAgenda is a derived boolean — true when at least one of
 		// the conf's talks has Status == "Scheduled". Populated at
 		// request time (shallow-copy + set in RenderConf / RenderTalks),
-		// never stored in Notion. Drives both the nav-bar "agenda" /
+		// never persisted. Drives both the nav-bar "agenda" /
 		// "talks" links and the per-conf-template agenda section.
 		HasAgenda             bool
 		ShowHackathon         bool
@@ -163,7 +163,7 @@ type (
 		HackathonURL string
 		// Timezone is the IANA name of the conference venue's local
 		// time (e.g. "Europe/Vienna", "America/Toronto"). Read from
-		// the Notion ConfsDb "Timezone" field. Empty when the field
+		// the conferences timezone column. Empty when the field
 		// hasn't been filled in for this conf yet — callers should
 		// fall back via Conf.Loc() rather than reading TZ directly.
 		Timezone string
@@ -176,7 +176,7 @@ type (
 		// day-1 and doors-close-last-day timestamps, populated at
 		// conf-page render time from ConfInfo (with a fallback to
 		// StartDate / EndDate). Drives the countdown widget in
-		// conf_nav. Not stored in Notion — recomputed each render.
+		// conf_nav. Recomputed each render rather than persisted.
 		CountdownStart *time.Time
 		CountdownEnd   *time.Time
 
@@ -195,7 +195,7 @@ type (
 	// One row per conference-day; resolved against Conf.StartDate so
 	// the times carry the conf's timezone.
 	//
-	// The Notion-side row identifies its conf by Tag string (e.g.
+	// The persisted row identifies its conf by Tag string (e.g.
 	// "atx25") rather than a relation, so ConfTag holds the tag and
 	// resolution is a Tag → *Conf lookup at parse time.
 	ConfInfo struct {
@@ -206,7 +206,7 @@ type (
 		Breakfast *Times
 		Lunch     *Times
 		Coffee    *Times
-		// Venues is the multiselect on the Notion ConfInfo row
+		// Venues contains the room/stage tags from the ConfInfo row
 		// — the rooms/stages a talk can be scheduled into for
 		// this day. Drives the columns of the schedule grid.
 		Venues []string
@@ -272,7 +272,7 @@ type (
 		CodeName  string
 		Discount  string // raw expression (e.g. "%50", "$10:50", "=25:70")
 		ConfRef   []string
-		UsesCount uint // current usage count from Notion
+		UsesCount uint // current persisted usage count
 		// AffiliateEmail is set when the code is owned by a
 		// dashboard self-service affiliate. Webhooks read this
 		// to decide whether to record an AffiliateUsage row.
@@ -290,7 +290,7 @@ type (
 	// once per successful checkout that consumed an affiliate
 	// code. Aggregated by AffiliateEmail to produce the dashboard
 	// stats (tickets sold, $ saved, $ earned). CodeName + ConfTag
-	// are stored as plain strings rather than Notion relations so
+	// are stored as plain strings rather than foreign keys so
 	// the queries are straightforward and rows survive code
 	// renames.
 	AffiliateUsage struct {
@@ -365,7 +365,7 @@ type (
 
 		// InviteToken authenticates the public co-speaker invite
 		// link. Empty means "no active invitation"; admins clear
-		// or rotate the field in Notion to revoke an outstanding
+		// or rotate the persisted field to revoke an outstanding
 		// share link.
 		InviteToken string
 
@@ -421,8 +421,8 @@ type (
 	// Recording is a row in RecordingsDb — one per ConfTalk that has
 	// a YouTube link (and eventually other recording metadata).
 	//
-	// FileURI is the Spaces object key for the source video (rich_text
-	// column "FileURI" on Notion). Populated by the admin before the
+	// FileURI is the Spaces object key for the source video. It is
+	// populated by the admin before the
 	// longform-upload tool can publish to YouTube / X.
 	//
 	// XLink is the X.com (Twitter) post URL — written back when the
@@ -537,13 +537,13 @@ type (
 		Email      string
 		ItemBought string
 		// Amount is the buyer-paid price in main units (dollars,
-		// euros, …) — Notion stores the AddTickets-written number
+		// euros, …). AddTickets stores the number
 		// already pre-divided by 100. Currency is the ISO code as
 		// chosen at checkout. Both can be zero / blank for legacy
 		// rows that pre-date the field.
 		Amount   float64
 		Currency string
-		// Revoked is the Notion "Revoked" checkbox. When true, the
+		// Revoked marks a ticket voided. When true, the
 		// ticket is voided (refund / chargeback / admin reversal)
 		// and should be hidden from the buyer's dashboard. Stays in
 		// the cache so admin-side reporting / staffing decisions
@@ -750,8 +750,7 @@ var DayTimeChars = map[string]DayTime{
 }
 
 // Desc is a template-friendly alias for the Description field —
-// matches the Notion column name (which is "Desc") and lets letter
-// templates use the same name they see in the schema.
+// preserves the legacy "Desc" template contract.
 func (p *Proposal) Desc() string {
 	if p == nil {
 		return ""

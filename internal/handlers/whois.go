@@ -658,7 +658,7 @@ func slugifyPublicID(raw string) string {
 //  2. Accepted/Scheduled Proposals whose ScheduleFor.Tag matches
 //     this conf. Picks up speakers attached to a freshly-Accepted
 //     proposal whose ConfTalk hasn't been provisioned yet (accept
-//     pipeline failure, status flipped manually in Notion, etc).
+//     pipeline failure, status flipped manually, etc).
 //
 // Any status other than Accepted/Scheduled is filtered out (Applied
 // / InReview / Waitlisted / Invited / WeDecline / TheyDecline /

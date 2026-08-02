@@ -9,7 +9,7 @@
 //	go run ./cmd/verify-magiclink -url 'http://localhost:8888/auth?em=...&hr=...'
 //
 // Reads .env from the cwd to pull HMAC_SECRET. No network
-// calls. No Notion writes.
+// calls. No database writes.
 package main
 
 import (

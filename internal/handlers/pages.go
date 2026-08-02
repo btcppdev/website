@@ -604,7 +604,7 @@ type RunOfShowStage struct {
 	Days  []*RunOfShowDay
 }
 
-// VenueOption pairs a raw venue tag (the Notion select value used
+// VenueOption pairs a raw venue tag (the value used
 // on ConfTalk.Venue) with its human-readable display label and a
 // hex color for the run-of-show Where column. Colors cycle through
 // a small palette so different venues are visually distinct on the
@@ -1085,7 +1085,7 @@ type SpeakerRow struct {
 }
 
 // SpeakerRowTalk is one chip in a speaker's row — the talks they're
-// attached to for this conf. ProposalID is the Notion page ID, used
+// attached to for this conf. ProposalID is the persisted ID, used
 // to link to the admin edit page.
 type SpeakerRowTalk struct {
 	ProposalID string
