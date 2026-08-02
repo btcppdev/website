@@ -2,11 +2,12 @@ package emails
 
 import (
 	"bytes"
+	"fmt"
 	htmltemplate "html/template"
 	"os"
 	"strings"
+	"sync"
 	"testing"
-	texttemplate "text/template"
 	"time"
 
 	"btcpp-web/internal/config"
@@ -15,16 +16,14 @@ import (
 )
 
 func TestMissiveTemplateDoesNotHTMLEscapePlainTextURLs(t *testing.T) {
-	ctx := &config.AppContext{
-		EmailCache: make(map[string]*texttemplate.Template),
-	}
+	ctx := &config.AppContext{}
 	letter := &mtypes.Letter{
 		UID:      1,
 		Markdown: "Open {{ .URL }}",
 	}
 
 	var out bytes.Buffer
-	err := missiveTemplate(ctx, letter).Execute(&out, map[string]string{
+	err := executeMissiveTemplate(ctx, &out, letter, map[string]string{
 		"URL": "https://btcpp.dev/dashboard?email=test@example.com&token=abc123",
 	})
 	if err != nil {
@@ -72,7 +71,7 @@ ticker:
 		Markdown: string(markdown),
 	}
 	var rendered bytes.Buffer
-	if err := missiveTemplate(&config.AppContext{EmailCache: map[string]*texttemplate.Template{}}, letter).Execute(&rendered, &mtypes.EmailContent{}); err != nil {
+	if err := executeMissiveTemplate(&config.AppContext{}, &rendered, letter, &mtypes.EmailContent{}); err != nil {
 		t.Fatalf("execute templated missive: %v", err)
 	}
 
@@ -95,6 +94,41 @@ ticker:
 	}
 	if strings.Contains(string(textBody), "---") {
 		t.Fatalf("text body should not include frontmatter: %q", textBody)
+	}
+}
+
+func TestMissiveTemplateCacheIsSafeForConcurrentUse(t *testing.T) {
+	ctx := &config.AppContext{}
+	letter := &mtypes.Letter{UID: 7, Markdown: "Hello {{ .Name }}"}
+
+	const workers = 64
+	errCh := make(chan error, workers)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var out bytes.Buffer
+			if err := executeMissiveTemplate(ctx, &out, letter, map[string]string{"Name": "Nifty"}); err != nil {
+				errCh <- err
+				return
+			}
+			if got := out.String(); got != "Hello Nifty" {
+				errCh <- fmt.Errorf("rendered %q", got)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		t.Errorf("concurrent render: %v", err)
+	}
+}
+
+func TestMissiveTemplateReturnsParseErrors(t *testing.T) {
+	_, err := missiveTemplate(&config.AppContext{}, &mtypes.Letter{UID: 8, Markdown: "{{ broken"})
+	if err == nil {
+		t.Fatal("missiveTemplate returned nil error for invalid template")
 	}
 }
 

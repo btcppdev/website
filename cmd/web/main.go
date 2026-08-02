@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	texttemplate "text/template"
 	"time"
 
 	"btcpp-web/external/buffer"
@@ -158,8 +157,6 @@ func run(env *types.EnvConfig) error {
 
 	// Initialize the application configuration
 	app.InProduction = env.Prod
-	app.EmailCache = make(map[string]*texttemplate.Template)
-
 	app.Infos.Println("")
 	app.Infos.Println("~~~~app restarted, here we go~~~~~")
 	app.Infos.Println("Running in prod?", env.Prod)

@@ -353,7 +353,7 @@ func SendCustomToVolWithDiscount(ctx *config.AppContext, vol *types.Volunteer, c
 	}
 
 	var buf bytes.Buffer
-	err := missiveTemplate(ctx, letter).Execute(&buf, &tmplData)
+	err := executeMissiveTemplate(ctx, &buf, letter, &tmplData)
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +380,7 @@ func SendCustomToAttendee(ctx *config.AppContext, reg *types.Registration, conf 
 	}
 
 	var buf bytes.Buffer
-	err := missiveTemplate(ctx, letter).Execute(&buf, tmplData)
+	err := executeMissiveTemplate(ctx, &buf, letter, tmplData)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +411,7 @@ func SendCustomToProposalSpeaker(ctx *config.AppContext, proposal *types.Proposa
 	}
 
 	var buf bytes.Buffer
-	err := missiveTemplate(ctx, letter).Execute(&buf, &tmplData)
+	err := executeMissiveTemplate(ctx, &buf, letter, &tmplData)
 	if err != nil {
 		return nil, err
 	}
@@ -436,7 +436,7 @@ func SendCustomToSpeaker(ctx *config.AppContext, speaker *types.Speaker, conf *t
 	}
 
 	var buf bytes.Buffer
-	err := missiveTemplate(ctx, letter).Execute(&buf, &tmplData)
+	err := executeMissiveTemplate(ctx, &buf, letter, &tmplData)
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +516,7 @@ func SendOnlyForTicket(ctx *config.AppContext, conf *types.Conf, email string, p
 	}
 
 	var buf bytes.Buffer
-	if err := missiveTemplate(ctx, letter).Execute(&buf, data); err != nil {
+	if err := executeMissiveTemplate(ctx, &buf, letter, data); err != nil {
 		return fmt.Errorf("render ticket letter: %w", err)
 	}
 	title := templatizeTitle(letter.Title, data)
@@ -623,7 +623,7 @@ func execOnlyFor(ctx *config.AppContext, email, onlyFor string, tmplData interfa
 
 	/* Execute template for this type */
 	var buf bytes.Buffer
-	err = missiveTemplate(ctx, letter).Execute(&buf, tmplData)
+	err = executeMissiveTemplate(ctx, &buf, letter, tmplData)
 
 	if err != nil {
 		return nil, err
@@ -686,7 +686,7 @@ func ExecLetter(ctx *config.AppContext, email, onlyFor string, tmplData interfac
 		return nil, err
 	}
 	var buf bytes.Buffer
-	if err = missiveTemplate(ctx, letter).Execute(&buf, tmplData); err != nil {
+	if err = executeMissiveTemplate(ctx, &buf, letter, tmplData); err != nil {
 		return nil, err
 	}
 	title := templatizeTitle(letter.Title, tmplData)

@@ -4,6 +4,7 @@ import (
 	"context"
 	htmltemplate "html/template"
 	"log"
+	"sync"
 	texttemplate "text/template"
 	"time"
 
@@ -24,7 +25,39 @@ type AppContext struct {
 	Infos         *log.Logger
 	Session       *scs.SessionManager
 	TemplateCache *htmltemplate.Template
-	EmailCache    map[string]*texttemplate.Template
+	EmailCache    TextTemplateCache
+}
+
+// TextTemplateCache safely shares parsed email templates between HTTP requests
+// and background mail workers. Its zero value is ready for use.
+type TextTemplateCache struct {
+	mu        sync.RWMutex
+	templates map[string]*texttemplate.Template
+}
+
+func (c *TextTemplateCache) LoadOrStore(key string, parse func() (*texttemplate.Template, error)) (*texttemplate.Template, error) {
+	c.mu.RLock()
+	tmpl := c.templates[key]
+	c.mu.RUnlock()
+	if tmpl != nil {
+		return tmpl, nil
+	}
+
+	parsed, err := parse()
+	if err != nil {
+		return nil, err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if tmpl = c.templates[key]; tmpl != nil {
+		return tmpl, nil
+	}
+	if c.templates == nil {
+		c.templates = make(map[string]*texttemplate.Template)
+	}
+	c.templates[key] = parsed
+	return parsed, nil
 }
 
 // DatabaseContext bounds both pool acquisition and query execution. Most of

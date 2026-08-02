@@ -5,8 +5,6 @@ import (
 	"fmt"
 	htmltemplate "html/template"
 	"io"
-	"io/ioutil"
-	"net/http"
 	"strings"
 	"text/template"
 	"time"
@@ -166,52 +164,28 @@ func mdToHTML(md []byte) []byte {
 	return markdown.Render(doc, renderer)
 }
 
-func missiveTemplate(ctx *config.AppContext, letter *mtypes.Letter) *template.Template {
-
+func missiveTemplate(ctx *config.AppContext, letter *mtypes.Letter) (*template.Template, error) {
+	if ctx == nil || letter == nil {
+		return nil, fmt.Errorf("email template context and letter are required")
+	}
 	/* Hash the data for a key. We use the ID + body
 	 * so if they change, a new template will get generated */
 	keyhash := helpers.MakeJobHash("", letter.UID, letter.Markdown)
-	t, ok := ctx.EmailCache[keyhash]
-	if !ok {
+	return ctx.EmailCache.LoadOrStore(keyhash, func() (*template.Template, error) {
 		tmpl := template.New("")
 		if letter.OnlyFor == mtypes.OnlyForTemplated {
 			tmpl = tmpl.Funcs(templatedNewsletterFuncs())
 		}
-		t = template.Must(tmpl.Parse(string(letter.Markdown)))
-		ctx.EmailCache[keyhash] = t
-	}
-
-	return t
+		return tmpl.Parse(string(letter.Markdown))
+	})
 }
 
-func findEmailMarkdown(ctx *config.AppContext, tmplURL string) (*template.Template, error) {
-	t, ok := ctx.EmailCache[tmplURL]
-	if !ok {
-		ctx.Infos.Printf("cache miss for %s", tmplURL)
-		req, err := http.NewRequest("GET", tmplURL, nil)
-		if err != nil {
-			return nil, err
-		}
-		client := &http.Client{Timeout: 15 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-		tmpl, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		if resp.StatusCode != 200 {
-			return nil, fmt.Errorf("error returned from %s: status %d", tmplURL, resp.StatusCode)
-		}
-
-		t = template.Must(template.New("").Parse(string(tmpl)))
-		ctx.EmailCache[tmplURL] = t
+func executeMissiveTemplate(ctx *config.AppContext, dst io.Writer, letter *mtypes.Letter, data any) error {
+	tmpl, err := missiveTemplate(ctx, letter)
+	if err != nil {
+		return err
 	}
-
-	return t, nil
+	return tmpl.Execute(dst, data)
 }
 
 func BuildHTMLEmail(ctx *config.AppContext, markdown []byte) ([]byte, error) {
