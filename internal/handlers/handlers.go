@@ -5114,7 +5114,7 @@ func CheckInMerchPickup(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket), http.StatusSeeOther)
 		return
 	}
-	if err := getters.MarkTicketPickups(ctx, ticket, []string{itemID}, false, "check-in"); err != nil {
+	if err := getters.MarkShopOrderItemPickedUpForTicket(ctx, ticket, itemID, "check-in", "QR check-in merch pickup"); err != nil {
 		ctx.Err.Printf("/check-in/%s/merch/%s: %s", ticket, itemID, err)
 		http.Redirect(w, r, "/check-in/"+url.PathEscape(ticket)+"?msg="+url.QueryEscape("Could not mark merch pickup."), http.StatusSeeOther)
 		return

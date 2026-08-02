@@ -1176,6 +1176,7 @@ func ListShopPickupsForTicket(ctx *config.AppContext, ticketRef string) ([]*type
 		JOIN shop_order_items soi ON soi.order_id = so.id
 		LEFT JOIN conferences sale_conf ON sale_conf.id = soi.sale_conference_id
 		WHERE r.ref_id = $1
+			AND NOT r.revoked
 			AND soi.pickup_conference_id = r.conference_id
 			AND soi.fulfillment_method = 'event_pickup'
 			AND so.status = 'paid'
@@ -1216,6 +1217,70 @@ func MarkShopOrderItemPickedUp(ctx *config.AppContext, orderItemID, actorEmail, 
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("shop order item %s not found or already fulfilled", orderItemID)
 	}
+	if err := recordShopOrderItemPickup(ctx, tx, orderItemID, actorEmail, notes); err != nil {
+		return err
+	}
+	return tx.Commit(ctx.DatabaseContext())
+}
+
+// MarkShopOrderItemPickedUpForTicket completes only a pickup belonging to the
+// buyer and conference represented by ticketRef. It is the scoped operation
+// used by the QR check-in flow; administrative pickup actions use the broader
+// MarkShopOrderItemPickedUp function above.
+func MarkShopOrderItemPickedUpForTicket(ctx *config.AppContext, ticketRef, orderItemID, actorEmail, notes string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	ticketRef = strings.TrimSpace(ticketRef)
+	orderItemID = strings.TrimSpace(orderItemID)
+	if ticketRef == "" {
+		return fmt.Errorf("ticket ref is required")
+	}
+	if orderItemID == "" {
+		return fmt.Errorf("order item id is required")
+	}
+
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx.DatabaseContext())
+
+	commandTag, err := tx.Exec(ctx.DatabaseContext(), `
+		UPDATE shop_order_items soi
+		SET fulfilled_quantity = soi.quantity,
+			status = 'fulfilled'
+		FROM shop_orders so, registrations r
+		WHERE soi.id = $1::uuid
+			AND so.id = soi.order_id
+			AND r.ref_id = $2
+			AND NOT r.revoked
+			AND lower(so.buyer_email::text) = lower(r.email::text)
+			AND soi.pickup_conference_id = r.conference_id
+			AND soi.fulfillment_method = 'event_pickup'
+			AND so.status = 'paid'
+			AND soi.status = 'ready'
+			AND EXISTS (
+				SELECT 1
+				FROM shop_item_pickups sip
+				WHERE sip.order_item_id = soi.id
+					AND sip.conference_id = r.conference_id
+					AND sip.picked_up_at IS NULL
+			)
+	`, orderItemID, ticketRef)
+	if err != nil {
+		return fmt.Errorf("mark ticket shop item fulfilled: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("shop order item %s is not an available pickup for ticket %s", orderItemID, ticketRef)
+	}
+	if err := recordShopOrderItemPickup(ctx, tx, orderItemID, actorEmail, notes); err != nil {
+		return err
+	}
+	return tx.Commit(ctx.DatabaseContext())
+}
+
+func recordShopOrderItemPickup(ctx *config.AppContext, tx pgx.Tx, orderItemID, actorEmail, notes string) error {
 	if _, err := tx.Exec(ctx.DatabaseContext(), `
 		UPDATE shop_item_pickups
 		SET picked_up_at = now(),
@@ -1245,7 +1310,7 @@ func MarkShopOrderItemPickedUp(ctx *config.AppContext, orderItemID, actorEmail, 
 	`, orderItemID, strings.ToLower(strings.TrimSpace(actorEmail))); err != nil {
 		return fmt.Errorf("record pickup event: %w", err)
 	}
-	return tx.Commit(ctx.DatabaseContext())
+	return nil
 }
 
 func MarkTicketPickups(ctx *config.AppContext, ticketRef string, orderItemIDs []string, includeConferenceShirt bool, actorEmail string) error {
