@@ -26,12 +26,14 @@
 package auth
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
@@ -77,6 +79,32 @@ type Identity struct {
 	Email   string
 	Speaker *types.Speaker
 	Roles   []Role
+}
+
+type identityResolverContextKey struct{}
+
+type identityResolver struct {
+	once    sync.Once
+	resolve func() (*Identity, error)
+	id      *Identity
+	err     error
+}
+
+func (resolver *identityResolver) result() (*Identity, error) {
+	resolver.once.Do(func() {
+		resolver.id, resolver.err = resolver.resolve()
+	})
+	return resolver.id, resolver.err
+}
+
+// WithIdentityResolver installs a lazy, request-local identity lookup. Public
+// handlers that do not need identity perform no lookup; repeated role and
+// optional-auth checks within one request share the same result.
+func WithIdentityResolver(r *http.Request, ctx *config.AppContext) *http.Request {
+	resolver := &identityResolver{resolve: func() (*Identity, error) {
+		return resolveUncached(r, ctx)
+	}}
+	return r.WithContext(context.WithValue(r.Context(), identityResolverContextKey{}, resolver))
 }
 
 // Satisfies returns true when this identity has at least one role
@@ -225,6 +253,13 @@ func Logout(ctx *config.AppContext, r *http.Request) {
 // should treat that as "not logged in." A non-nil error means the
 // authed email exists but the lookup misfired.
 func Resolve(r *http.Request, ctx *config.AppContext) (*Identity, error) {
+	if resolver, ok := r.Context().Value(identityResolverContextKey{}).(*identityResolver); ok && resolver != nil {
+		return resolver.result()
+	}
+	return resolveUncached(r, ctx)
+}
+
+func resolveUncached(r *http.Request, ctx *config.AppContext) (*Identity, error) {
 	email := ctx.Session.GetString(r.Context(), SessionEmailKey)
 	if email == "" {
 		return nil, nil

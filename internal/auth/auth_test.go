@@ -4,11 +4,41 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
+
+func TestIdentityResolverRunsOnceConcurrently(t *testing.T) {
+	var calls atomic.Int32
+	want := &Identity{Email: "person@example.com"}
+	resolver := &identityResolver{resolve: func() (*Identity, error) {
+		calls.Add(1)
+		return want, nil
+	}}
+
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got, err := resolver.result()
+			if err != nil {
+				t.Errorf("resolve identity: %v", err)
+			}
+			if got != want {
+				t.Errorf("resolved identity %p, want %p", got, want)
+			}
+		}()
+	}
+	wg.Wait()
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("identity lookup ran %d times, want 1", got)
+	}
+}
 
 func TestAuthRedirectInvalidLinkRedirectsToLoginWithError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/auth?em=not-base64&hr=also-bad&next=/dashboard/talks", nil)
