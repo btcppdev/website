@@ -3,6 +3,7 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"strings"
@@ -375,7 +376,7 @@ func insertDiscountPostgres(ctx *config.AppContext, codeName, discountExpr, affi
 	if err != nil {
 		return "", fmt.Errorf("insert discount %q: %w", discount.CodeName, err)
 	}
-	if err := replaceDiscountConferenceLinksPostgres(tx, discountID, confRefs); err != nil {
+	if err := replaceDiscountConferenceLinksPostgres(ctx.DatabaseContext(), tx, discountID, confRefs); err != nil {
 		return "", err
 	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
@@ -448,7 +449,7 @@ func updateDiscountRowPostgres(ctx *config.AppContext, discountID, codeName, dis
 	if rowsAffected == 0 {
 		return fmt.Errorf("discount %s not found", discountID)
 	}
-	if err := replaceDiscountConferenceLinksPostgres(tx, discountID, confRefs); err != nil {
+	if err := replaceDiscountConferenceLinksPostgres(ctx.DatabaseContext(), tx, discountID, confRefs); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
@@ -475,8 +476,8 @@ func archiveDiscountRowPostgres(ctx *config.AppContext, discountID string) error
 	return nil
 }
 
-func replaceDiscountConferenceLinksPostgres(tx pgx.Tx, discountID string, confRefs []string) error {
-	if _, err := tx.Exec(config.DatabaseContext(), `DELETE FROM discounts_conferences WHERE discount_id = $1`, discountID); err != nil {
+func replaceDiscountConferenceLinksPostgres(queryCtx context.Context, tx pgx.Tx, discountID string, confRefs []string) error {
+	if _, err := tx.Exec(queryCtx, `DELETE FROM discounts_conferences WHERE discount_id = $1`, discountID); err != nil {
 		return fmt.Errorf("clear discount conference links %s: %w", discountID, err)
 	}
 	for _, confRef := range confRefs {
@@ -484,7 +485,7 @@ func replaceDiscountConferenceLinksPostgres(tx pgx.Tx, discountID string, confRe
 		if confRef == "" {
 			continue
 		}
-		if _, err := tx.Exec(config.DatabaseContext(), `
+		if _, err := tx.Exec(queryCtx, `
 			INSERT INTO discounts_conferences (discount_id, conference_id)
 			VALUES ($1, $2)
 			ON CONFLICT (discount_id, conference_id) DO NOTHING

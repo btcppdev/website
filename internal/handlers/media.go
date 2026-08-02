@@ -17,107 +17,107 @@ import (
 
 func AddMediaRoutes(r *mux.Router, app *config.AppContext) {
 	r.HandleFunc("/media/preview/{conf}/{type}/{card}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
 		params := mux.Vars(r)
 		cardtype := params["type"]
 		switch cardtype {
 		case "speaker":
-			PreviewSpeakerCard(w, r, app)
+			PreviewSpeakerCard(w, r, requestApp(r, app))
 		case "talk":
-			PreviewTalkCard(w, r, app)
+			PreviewTalkCard(w, r, requestApp(r, app))
 		case "sponsor":
-			PreviewSponsorCard(w, r, app)
+			PreviewSponsorCard(w, r, requestApp(r, app))
 		case "agenda":
 			confTag := params["conf"]
 			ref := params["card"]
 			/* Main stage preview! */
-			MakeAgendaCard(w, r, app, confTag, ref, "one")
+			MakeAgendaCard(w, r, requestApp(r, app), confTag, ref, "one")
 		default:
-			handle404(w, r, app)
+			handle404(w, r, requestApp(r, app))
 		}
 	}).Methods("GET")
 
 	r.HandleFunc("/media/imgs/{conf}/{type}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
 		params := mux.Vars(r)
 		cardtype := params["type"]
 		switch cardtype {
 		case "speakers":
-			GenSpeakerCards(w, r, app)
+			GenSpeakerCards(w, r, requestApp(r, app))
 		case "talks":
-			GenTalkCards(w, r, app)
+			GenTalkCards(w, r, requestApp(r, app))
 		case "agenda":
-			GenAgendaCards(w, r, app)
+			GenAgendaCards(w, r, requestApp(r, app))
 		default:
-			handle404(w, r, app)
+			handle404(w, r, requestApp(r, app))
 		}
 	}).Methods("GET")
 
 	/* Gen both talk + speaker cards */
 	r.HandleFunc("/media/imgs/{conf}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
-		GenSpeakerCards(w, r, app)
-		GenTalkCards(w, r, app)
-		GenAgendaCards(w, r, app)
+		GenSpeakerCards(w, r, requestApp(r, app))
+		GenTalkCards(w, r, requestApp(r, app))
+		GenAgendaCards(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/media/imgs/{conf}/speaker/{card}/{talk}/{speaker}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
-		MakeSpeakerCard(w, r, app)
+		MakeSpeakerCard(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/media/imgs/{conf}/talk/{card}/{talk}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
-		MakeTalkCard(w, r, app)
+		MakeTalkCard(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/media/png/{conf}/speaker/{card}/{talk}/{speaker}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
-		ServeSpeakerPng(w, r, app)
+		ServeSpeakerPng(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/media/png/{conf}/talk/{card}/{talk}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
-		ServeTalkPng(w, r, app)
+		ServeTalkPng(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/media/imgs/{conf}/sponsor/{card}/{sponsorRef}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
-		MakeSponsorCard(w, r, app)
+		MakeSponsorCard(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/media/png/{conf}/sponsor/{card}/{sponsorRef}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
-		ServeSponsorPng(w, r, app)
+		ServeSponsorPng(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/media/imgs/{conf}/agenda/{ref}/{venue}", func(w http.ResponseWriter, r *http.Request) {
-		if !allowMediaGeneration(w, r, app) {
+		if !allowMediaGeneration(w, r, requestApp(r, app)) {
 			return
 		}
 		params := mux.Vars(r)
 		confTag := params["conf"]
 		ref := params["ref"]
 		venue := params["venue"]
-		MakeAgendaCard(w, r, app, confTag, ref, venue)
+		MakeAgendaCard(w, r, requestApp(r, app), confTag, ref, venue)
 	}).Methods("GET")
 }
 

@@ -70,12 +70,12 @@ func conferenceHackathonAdminHandler(app *config.AppContext, next hackathonAdmin
 		confTag := strings.TrimSpace(mux.Vars(r)["conf"])
 		conf, err := getters.GetConfByTag(app, confTag)
 		if err != nil || conf == nil {
-			handle404(w, r, app)
+			handle404(w, r, requestApp(r, app))
 			return
 		}
 		competition, err := getters.GetCompetitionByConferenceID(app, conf.Ref)
 		if err != nil || competition == nil {
-			handle404(w, r, app)
+			handle404(w, r, requestApp(r, app))
 			return
 		}
 		vars := mux.Vars(r)

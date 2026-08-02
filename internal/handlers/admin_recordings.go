@@ -721,7 +721,7 @@ func RecordingsAdminBulkUploadYTApply(w http.ResponseWriter, r *http.Request, ct
 		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?flash="+url.QueryEscape("No recordings queued; uploads may already be running")), http.StatusSeeOther)
 		return
 	}
-	go runBulkYouTubeUploadQueue(ctx, queued)
+	go runBulkYouTubeUploadQueue(ctx.Detached(), queued)
 	flash := fmt.Sprintf("Queued %d YouTube upload(s)", len(queued))
 	if playlistTitle != "" {
 		flash += " for playlist " + playlistTitle
@@ -934,7 +934,7 @@ func RecordingsAdminUploadYT(w http.ResponseWriter, r *http.Request, ctx *config
 		redirectWithErr(w, r, conf.Tag, recordingID, "An upload is already in progress for this recording")
 		return
 	}
-	go runYouTubeUpload(ctx, rec, title, body, privacy, publishAt, conf.YouTubePlaylistID)
+	go runYouTubeUpload(ctx.Detached(), rec, title, body, privacy, publishAt, conf.YouTubePlaylistID)
 
 	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash=Upload+started", http.StatusSeeOther)
 }
@@ -1093,7 +1093,7 @@ func RecordingsAdminPostXNow(w http.ResponseWriter, r *http.Request, ctx *config
 	}
 
 	setXJobStatus(recordingID, "running", "Starting X post")
-	go runXPostNow(ctx, row, client, xBody)
+	go runXPostNow(ctx.Detached(), row, client, xBody)
 
 	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash=X+post+started", http.StatusSeeOther)
 }
@@ -1167,7 +1167,7 @@ func RecordingsAdminScheduleX(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 
 	setXJobStatus(recordingID, "running", "Starting X schedule")
-	go runXSchedule(ctx, rec, conf, xBody)
+	go runXSchedule(ctx.Detached(), rec, conf, xBody)
 
 	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash=X+scheduling+started", http.StatusSeeOther)
 }

@@ -3,6 +3,7 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
@@ -152,16 +153,16 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 		}
 	}
 
-	if err := insertVolunteerConferenceLinksPostgres(tx, volunteerID, vol.ScheduleFor, "schedule_for"); err != nil {
+	if err := insertVolunteerConferenceLinksPostgres(ctx.DatabaseContext(), tx, volunteerID, vol.ScheduleFor, "schedule_for"); err != nil {
 		return err
 	}
-	if err := insertVolunteerConferenceLinksPostgres(tx, volunteerID, vol.OtherEvents, "other_event"); err != nil {
+	if err := insertVolunteerConferenceLinksPostgres(ctx.DatabaseContext(), tx, volunteerID, vol.OtherEvents, "other_event"); err != nil {
 		return err
 	}
-	if err := insertVolunteerJobLinksPostgres(tx, volunteerID, vol.WorkYes, "yes"); err != nil {
+	if err := insertVolunteerJobLinksPostgres(ctx.DatabaseContext(), tx, volunteerID, vol.WorkYes, "yes"); err != nil {
 		return err
 	}
-	if err := insertVolunteerJobLinksPostgres(tx, volunteerID, vol.WorkNo, "no"); err != nil {
+	if err := insertVolunteerJobLinksPostgres(ctx.DatabaseContext(), tx, volunteerID, vol.WorkNo, "no"); err != nil {
 		return err
 	}
 
@@ -239,10 +240,10 @@ func UpdateVolunteerWorkPrefs(ctx *config.AppContext, volRef string, workYesRefs
 		}
 	}
 
-	if err := insertVolunteerJobRefLinksPostgres(tx, volRef, workYesRefs, "yes"); err != nil {
+	if err := insertVolunteerJobRefLinksPostgres(ctx.DatabaseContext(), tx, volRef, workYesRefs, "yes"); err != nil {
 		return err
 	}
-	if err := insertVolunteerJobRefLinksPostgres(tx, volRef, workNoRefs, "no"); err != nil {
+	if err := insertVolunteerJobRefLinksPostgres(ctx.DatabaseContext(), tx, volRef, workNoRefs, "no"); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
@@ -486,12 +487,12 @@ func hydrateVolunteerConferenceRelationsPostgres(ctx *config.AppContext, ids []s
 	return nil
 }
 
-func insertVolunteerConferenceLinksPostgres(tx pgx.Tx, volunteerID string, confs []*types.Conf, kind string) error {
+func insertVolunteerConferenceLinksPostgres(queryCtx context.Context, tx pgx.Tx, volunteerID string, confs []*types.Conf, kind string) error {
 	for _, conf := range confs {
 		if conf == nil || strings.TrimSpace(conf.Ref) == "" {
 			continue
 		}
-		if _, err := tx.Exec(config.DatabaseContext(), `
+		if _, err := tx.Exec(queryCtx, `
 			INSERT INTO volunteers_conferences (volunteer_id, conference_id, kind)
 			VALUES ($1, $2, $3)
 			ON CONFLICT (volunteer_id, conference_id, kind) DO NOTHING
@@ -502,7 +503,7 @@ func insertVolunteerConferenceLinksPostgres(tx pgx.Tx, volunteerID string, confs
 	return nil
 }
 
-func insertVolunteerJobLinksPostgres(tx pgx.Tx, volunteerID string, jobs []*types.JobType, preference string) error {
+func insertVolunteerJobLinksPostgres(queryCtx context.Context, tx pgx.Tx, volunteerID string, jobs []*types.JobType, preference string) error {
 	refs := make([]string, 0, len(jobs))
 	for _, job := range jobs {
 		if job == nil || strings.TrimSpace(job.Ref) == "" {
@@ -510,16 +511,16 @@ func insertVolunteerJobLinksPostgres(tx pgx.Tx, volunteerID string, jobs []*type
 		}
 		refs = append(refs, job.Ref)
 	}
-	return insertVolunteerJobRefLinksPostgres(tx, volunteerID, refs, preference)
+	return insertVolunteerJobRefLinksPostgres(queryCtx, tx, volunteerID, refs, preference)
 }
 
-func insertVolunteerJobRefLinksPostgres(tx pgx.Tx, volunteerID string, jobRefs []string, preference string) error {
+func insertVolunteerJobRefLinksPostgres(queryCtx context.Context, tx pgx.Tx, volunteerID string, jobRefs []string, preference string) error {
 	for _, jobRef := range jobRefs {
 		jobRef = strings.TrimSpace(jobRef)
 		if jobRef == "" {
 			continue
 		}
-		if _, err := tx.Exec(config.DatabaseContext(), `
+		if _, err := tx.Exec(queryCtx, `
 			INSERT INTO volunteers_job_types (volunteer_id, job_type_id, preference)
 			VALUES ($1, $2, $3)
 			ON CONFLICT (volunteer_id, job_type_id, preference) DO NOTHING

@@ -802,6 +802,7 @@ func (s *statusRecorder) Flush() {
 }
 
 type requestIDContextKey struct{}
+type requestAppContextKey struct{}
 
 var requestCounter uint64
 
@@ -816,6 +817,23 @@ func requestID(r *http.Request) string {
 	}
 	id, _ := r.Context().Value(requestIDContextKey{}).(string)
 	return id
+}
+
+func withRequestApp(app *config.AppContext, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		scoped := app.WithDatabaseContext(r.Context())
+		r = r.WithContext(context.WithValue(r.Context(), requestAppContextKey{}, scoped))
+		h.ServeHTTP(w, r)
+	})
+}
+
+func requestApp(r *http.Request, fallback *config.AppContext) *config.AppContext {
+	if r != nil {
+		if app, ok := r.Context().Value(requestAppContextKey{}).(*config.AppContext); ok && app != nil {
+			return app
+		}
+	}
+	return fallback
 }
 
 // requestLog is a middleware that logs each incoming request's start
@@ -899,6 +917,7 @@ func redirectTrailingSlash(h http.Handler) http.Handler {
 
 func Routes(app *config.AppContext) (http.Handler, error) {
 	r := mux.NewRouter()
+	app.EmailCache.Initialize()
 
 	err := loadTemplates(app)
 	if err != nil {
@@ -912,21 +931,21 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 
 	/* Handle 404s */
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handle404(w, r, app)
+		handle404(w, r, requestApp(r, app))
 	})
 
 	// Set up the routes, we'll have one page per course
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		RenderPage(w, r, app, "index")
+		RenderPage(w, r, requestApp(r, app), "index")
 	}).Methods("GET")
 
 	// SEO endpoints — robots policy at site root + dynamic sitemap
 	// rebuilt from the confs cache on each request.
 	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
-		Robots(w, r, app)
+		Robots(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/sitemap.xml", func(w http.ResponseWriter, r *http.Request) {
-		Sitemap(w, r, app)
+		Sitemap(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	/* List of 'normie' pages */
@@ -934,7 +953,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		/* Normie Pages */
 		renderPage := page
 		r.HandleFunc("/"+renderPage, func(w http.ResponseWriter, r *http.Request) {
-			RenderPage(w, r, app, renderPage)
+			RenderPage(w, r, requestApp(r, app), renderPage)
 		}).Methods("GET")
 	}
 
@@ -980,62 +999,60 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 
 	r.HandleFunc("/volunteer", func(w http.ResponseWriter, r *http.Request) {
-		RenderVolunteers(w, r, app)
+		RenderVolunteers(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/volunteer/{conf}", func(w http.ResponseWriter, r *http.Request) {
-		RenderVolunteerConf(w, r, app)
+		RenderVolunteerConf(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/talk", func(w http.ResponseWriter, r *http.Request) {
-		RenderSpeakers(w, r, app)
+		RenderSpeakers(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/talk/{conf}", func(w http.ResponseWriter, r *http.Request) {
-		RenderSpeakerConf(w, r, app)
+		RenderSpeakerConf(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/whois", func(w http.ResponseWriter, r *http.Request) {
-		RenderWhoIs(w, r, app)
+		RenderWhoIs(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/whois/{speaker}/archive", func(w http.ResponseWriter, r *http.Request) {
-		RenderWhoIsArchive(w, r, app)
+		RenderWhoIsArchive(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/whois/{speaker}", func(w http.ResponseWriter, r *http.Request) {
-		RenderWhoIsProfile(w, r, app)
+		RenderWhoIsProfile(w, r, requestApp(r, app))
 	}).Methods("GET")
-
 	r.HandleFunc("/contact", func(w http.ResponseWriter, r *http.Request) {
-		ContactPage(w, r, app)
+		ContactPage(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/sponsor", func(w http.ResponseWriter, r *http.Request) {
-		SponsorPage(w, r, app)
+		SponsorPage(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
-
 	r.HandleFunc("/tix/{tix}/collect-email", func(w http.ResponseWriter, r *http.Request) {
-		HandleCheckout(w, r, app)
+		HandleCheckout(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/tix/{tix}/checkout", func(w http.ResponseWriter, r *http.Request) {
-		HandleCheckout(w, r, app)
+		HandleCheckout(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/tix/{tix}/apply-discount", func(w http.ResponseWriter, r *http.Request) {
-		HandleDiscount(w, r, app)
+		HandleDiscount(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/tix/{tix}/tax-quote", func(w http.ResponseWriter, r *http.Request) {
-		TicketTaxQuote(w, r, app)
+		TicketTaxQuote(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/conf-reload", func(w http.ResponseWriter, r *http.Request) {
-		ReloadConf(w, r, app)
+		ReloadConf(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/check-in/{ticket}", func(w http.ResponseWriter, r *http.Request) {
-		CheckIn(w, r, app)
+		CheckIn(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/check-in/{ticket}/pickups", func(w http.ResponseWriter, r *http.Request) {
 		CheckInPickups(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/check-in/{ticket}/merch/{itemID}", func(w http.ResponseWriter, r *http.Request) {
-		CheckInMerchPickup(w, r, app)
+		CheckInMerchPickup(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dev/check-in", func(w http.ResponseWriter, r *http.Request) {
 		DevCheckInPreviewIndex(w, r, app)
@@ -1045,20 +1062,20 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 
 	r.HandleFunc("/i/{conf}/sendcal", func(w http.ResponseWriter, r *http.Request) {
-		if id := requireConfAdmin(w, r, app); id == nil {
+		if id := requireConfAdmin(w, r, requestApp(r, app)); id == nil {
 			return
 		}
-		SendCals(w, r, app)
+		SendCals(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 
 	AddMediaRoutes(r, app)
 
 	r.HandleFunc("/ticket/{ticket}", func(w http.ResponseWriter, r *http.Request) {
-		Ticket(w, r, app)
+		Ticket(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/ticket/{ticket}/pdf", func(w http.ResponseWriter, r *http.Request) {
-		TicketPDF(w, r, app)
+		TicketPDF(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	/* Register routes for newsletters */
@@ -1068,31 +1085,31 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	/* Setup stripe! */
 	stripe.Key = app.Env.StripeKey
 	r.HandleFunc("/callback/stripe", func(w http.ResponseWriter, r *http.Request) {
-		StripeCallback(w, r, app)
+		StripeCallback(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/callback/opennode", func(w http.ResponseWriter, r *http.Request) {
-		OpenNodeCallback(w, r, app)
+		OpenNodeCallback(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/callbacks/easyship", func(w http.ResponseWriter, r *http.Request) {
-		EasyshipCallback(w, r, app)
+		EasyshipCallback(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	/* Internal pages */
 	r.HandleFunc("/{conf}/volcoord", func(w http.ResponseWriter, r *http.Request) {
-		VolAdmin(w, r, app)
+		VolAdmin(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/volcoord/send-orientation", func(w http.ResponseWriter, r *http.Request) {
-		SendVolOrientation(w, r, app)
+		SendVolOrientation(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/volcoord/orientation", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminScheduleOrientation(w, r, app)
+		VolAdminScheduleOrientation(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/volcoord/sendcal", func(w http.ResponseWriter, r *http.Request) {
-		if id := requireConfVolcoord(w, r, app); id == nil {
+		if id := requireConfVolcoord(w, r, requestApp(r, app)); id == nil {
 			return
 		}
-		SendVolCals(w, r, app)
+		SendVolCals(w, r, requestApp(r, app))
 
 		params := mux.Vars(r)
 		confTag := params["conf"]
@@ -1100,91 +1117,91 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/{conf}/volcoord/promote", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminPromote(w, r, app)
+		VolAdminPromote(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/auto-assign", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminAutoAssign(w, r, app)
+		VolAdminAutoAssign(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/shifts", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminShifts(w, r, app)
+		VolAdminShifts(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/volcoord/shifts/new", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminCreateShift(w, r, app)
+		VolAdminCreateShift(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/shifts/gen", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminGenWorkShifts(w, r, app)
+		VolAdminGenWorkShifts(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/shifts/{shiftRef}/reschedule", func(w http.ResponseWriter, r *http.Request) {
-		VolShiftReschedule(w, r, app)
+		VolShiftReschedule(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/shifts/{shiftRef}/update", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminUpdateShift(w, r, app)
+		VolAdminUpdateShift(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/shifts/{shiftRef}/delete", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminDeleteShift(w, r, app)
+		VolAdminDeleteShift(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminDetails(w, r, app)
+		VolAdminDetails(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}/status", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminUpdateStatus(w, r, app)
+		VolAdminUpdateStatus(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}/availability", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminUpdateAvailability(w, r, app)
+		VolAdminUpdateAvailability(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}/work-prefs", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminUpdateWorkPrefs(w, r, app)
+		VolAdminUpdateWorkPrefs(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}/add-shift", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminAddShift(w, r, app)
+		VolAdminAddShift(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}/remove-shift", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminRemoveShift(w, r, app)
+		VolAdminRemoveShift(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}/scheduled", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminMarkScheduled(w, r, app)
+		VolAdminMarkScheduled(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/email", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminBulkEmail(w, r, app)
+		VolAdminBulkEmail(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/decline-selected", func(w http.ResponseWriter, r *http.Request) {
-		VolAdminDeclineSelected(w, r, app)
+		VolAdminDeclineSelected(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
-		Dashboard(w, r, app)
+		Dashboard(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/dashboard/hackathons", func(w http.ResponseWriter, r *http.Request) {
-		DashboardHackathons(w, r, app)
+		DashboardHackathons(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		Login(w, r, app)
+		Login(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
-		AuthLanding(w, r, app)
+		AuthLanding(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/auth/status", func(w http.ResponseWriter, r *http.Request) {
-		AuthStatus(w, r, app)
+		AuthStatus(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
-		LogoutHandler(w, r, app)
+		LogoutHandler(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	// /dashboard/affiliate/* MUST be registered before
@@ -1194,413 +1211,413 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	// find the conf, silently bounces the visitor back to
 	// /dashboard with no flash).
 	r.HandleFunc("/dashboard/affiliate", func(w http.ResponseWriter, r *http.Request) {
-		AffiliateLanding(w, r, app)
+		AffiliateLanding(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/affiliate/new", func(w http.ResponseWriter, r *http.Request) {
-		AffiliateNew(w, r, app)
+		AffiliateNew(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/affiliate/new", func(w http.ResponseWriter, r *http.Request) {
-		AffiliateCreate(w, r, app)
+		AffiliateCreate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/affiliate/edit", func(w http.ResponseWriter, r *http.Request) {
-		AffiliateEdit(w, r, app)
+		AffiliateEdit(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/affiliate/edit", func(w http.ResponseWriter, r *http.Request) {
-		AffiliateUpdate(w, r, app)
+		AffiliateUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/affiliate/disable", func(w http.ResponseWriter, r *http.Request) {
-		AffiliateDisable(w, r, app)
+		AffiliateDisable(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/hackathon-ticket-entitlements/{entitlementID}/claim", func(w http.ResponseWriter, r *http.Request) {
-		DashboardClaimHackathonTicket(w, r, app)
+		DashboardClaimHackathonTicket(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/tickets", func(w http.ResponseWriter, r *http.Request) {
-		DashboardHackathonTickets(w, r, app)
+		DashboardHackathonTickets(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/orders", func(w http.ResponseWriter, r *http.Request) {
-		DashboardOrders(w, r, app)
+		DashboardOrders(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/orders/{order}", func(w http.ResponseWriter, r *http.Request) {
-		DashboardOrder(w, r, app)
+		DashboardOrder(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/orders/{order}/receipt", func(w http.ResponseWriter, r *http.Request) {
-		DashboardOrderReceipt(w, r, app)
+		DashboardOrderReceipt(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/{confTag}/edit", func(w http.ResponseWriter, r *http.Request) {
-		DashboardEditSpeakerConf(w, r, app)
+		DashboardEditSpeakerConf(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/api/orgs/search", func(w http.ResponseWriter, r *http.Request) {
-		OrgSearch(w, r, app)
+		OrgSearch(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/api/speakers/search", func(w http.ResponseWriter, r *http.Request) {
-		SpeakerSearch(w, r, app)
+		SpeakerSearch(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/api/people/search", func(w http.ResponseWriter, r *http.Request) {
-		PersonSearch(w, r, app)
+		PersonSearch(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/api/speakers/{speakerID}/roles", func(w http.ResponseWriter, r *http.Request) {
-		SpeakerRolesGet(w, r, app)
+		SpeakerRolesGet(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin", func(w http.ResponseWriter, r *http.Request) {
-		GlobalAdminDashboard(w, r, app)
+		GlobalAdminDashboard(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/roles", func(w http.ResponseWriter, r *http.Request) {
-		SpeakerRolesUpdate(w, r, app)
+		SpeakerRolesUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/homepage-speakers", func(w http.ResponseWriter, r *http.Request) {
-		GlobalAdminHomepageSpeakersUpdate(w, r, app)
+		GlobalAdminHomepageSpeakersUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminList(w, r, app)
+		HackathonAdminList(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/new", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminNew(w, r, app)
+		HackathonAdminNew(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminCreate(w, r, app)
+		HackathonAdminCreate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminEdit(w, r, app)
+		HackathonAdminEdit(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/projects", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminProjects(w, r, app)
+		HackathonAdminProjects(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/projects", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminCreateProject(w, r, app)
+		HackathonAdminCreateProject(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/projects/assign-numbers", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminAssignProjectNumbers(w, r, app)
+		HackathonAdminAssignProjectNumbers(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateProject(w, r, app)
+		HackathonAdminUpdateProject(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/projects/{projectID}/delete", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminDeleteProject(w, r, app)
+		HackathonAdminDeleteProject(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/timeline", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminTimeline(w, r, app)
+		HackathonAdminTimeline(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/timeline", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateTimeline(w, r, app)
+		HackathonAdminUpdateTimeline(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/people/search", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminPersonSearch(w, r, app)
+		HackathonAdminPersonSearch(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/managers", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminManagers(w, r, app)
+		HackathonAdminManagers(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/managers", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminAddManager(w, r, app)
+		HackathonAdminAddManager(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/managers/scope", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateManagerScope(w, r, app)
+		HackathonAdminUpdateManagerScope(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/managers/remove", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminRemoveManager(w, r, app)
+		HackathonAdminRemoveManager(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminJudging(w, r, app)
+		HackathonAdminJudging(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/mode", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateJudgingMode(w, r, app)
+		HackathonAdminUpdateJudgingMode(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/scores", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminScoreReview(w, r, app)
+		HackathonAdminScoreReview(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/advance", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminAdvanceProjects(w, r, app)
+		HackathonAdminAdvanceProjects(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/scores/remove-ballot", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminRemoveJudgeBallot(w, r, app)
+		HackathonAdminRemoveJudgeBallot(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminCreateJudgeEvent(w, r, app)
+		HackathonAdminCreateJudgeEvent(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events/ranks", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateJudgeEventRanks(w, r, app)
+		HackathonAdminUpdateJudgeEventRanks(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events/state", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateJudgeEventState(w, r, app)
+		HackathonAdminUpdateJudgeEventState(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/events/delete", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminDeleteJudgeEvent(w, r, app)
+		HackathonAdminDeleteJudgeEvent(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminAddJudge(w, r, app)
+		HackathonAdminAddJudge(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges/roles", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateJudgeRoles(w, r, app)
+		HackathonAdminUpdateJudgeRoles(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges/order", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateJudgeOrder(w, r, app)
+		HackathonAdminUpdateJudgeOrder(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges/invites", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminCreateJudgeInvite(w, r, app)
+		HackathonAdminCreateJudgeInvite(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/judges/remove", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminRemoveJudge(w, r, app)
+		HackathonAdminRemoveJudge(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminAwards(w, r, app)
+		HackathonAdminAwards(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminCreateAward(w, r, app)
+		HackathonAdminCreateAward(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/update", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateAward(w, r, app)
+		HackathonAdminUpdateAward(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/archive", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminArchiveAward(w, r, app)
+		HackathonAdminArchiveAward(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/restore", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminRestoreAward(w, r, app)
+		HackathonAdminRestoreAward(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/delete", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminDeleteArchivedAward(w, r, app)
+		HackathonAdminDeleteArchivedAward(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/prizes", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminCreatePrize(w, r, app)
+		HackathonAdminCreatePrize(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/prizes/update", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdatePrize(w, r, app)
+		HackathonAdminUpdatePrize(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/prizes/delete", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminDeletePrize(w, r, app)
+		HackathonAdminDeletePrize(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/assign", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminAssignAward(w, r, app)
+		HackathonAdminAssignAward(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/remove", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminRemoveAward(w, r, app)
+		HackathonAdminRemoveAward(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/results/finalize", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminFinalizeResults(w, r, app)
+		HackathonAdminFinalizeResults(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/results/reopen", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminReopenResults(w, r, app)
+		HackathonAdminReopenResults(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/judges", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminAddAwardJudge(w, r, app)
+		HackathonAdminAddAwardJudge(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/awards/judges/remove", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminRemoveAwardJudge(w, r, app)
+		HackathonAdminRemoveAwardJudge(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/visibility", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdateVisibility(w, r, app)
+		HackathonAdminUpdateVisibility(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAdminUpdate(w, r, app)
+		HackathonAdminUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	registerConferenceHackathonAdminRoutes(r, app)
 	r.HandleFunc("/admin/easyship", func(w http.ResponseWriter, r *http.Request) {
-		AdminEasyship(w, r, app)
+		AdminEasyship(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/easyship", func(w http.ResponseWriter, r *http.Request) {
-		AdminEasyshipSave(w, r, app)
+		AdminEasyshipSave(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/missives", func(w http.ResponseWriter, r *http.Request) {
-		TemplatedMissivesAdmin(w, r, app)
+		TemplatedMissivesAdmin(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/missives", func(w http.ResponseWriter, r *http.Request) {
-		TemplatedMissivesSave(w, r, app)
+		TemplatedMissivesSave(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/missives/upload-image", func(w http.ResponseWriter, r *http.Request) {
-		TemplatedMissivesUploadImage(w, r, app)
+		TemplatedMissivesUploadImage(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/missives/test-send", func(w http.ResponseWriter, r *http.Request) {
-		TemplatedMissivesTestSend(w, r, app)
+		TemplatedMissivesTestSend(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/missives/schedule", func(w http.ResponseWriter, r *http.Request) {
-		TemplatedMissivesSchedule(w, r, app)
+		TemplatedMissivesSchedule(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/hackathon", func(w http.ResponseWriter, r *http.Request) {
-		HackathonShow(w, r, app)
+		HackathonShow(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/schedule", func(w http.ResponseWriter, r *http.Request) {
-		HackathonSchedule(w, r, app)
+		HackathonSchedule(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/schedule/{segmentID}/calendar.ics", func(w http.ResponseWriter, r *http.Request) {
-		HackathonScheduleICS(w, r, app)
+		HackathonScheduleICS(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/judging", func(w http.ResponseWriter, r *http.Request) {
-		HackathonJudging(w, r, app)
+		HackathonJudging(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/judging/scorecards", func(w http.ResponseWriter, r *http.Request) {
-		HackathonScorecardSubmit(w, r, app)
+		HackathonScorecardSubmit(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/judging/award-votes", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAwardVoteSubmit(w, r, app)
+		HackathonAwardVoteSubmit(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/new", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectNew(w, r, app)
+		HackathonProjectNew(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/projects", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectCreate(w, r, app)
+		HackathonProjectCreate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/hackathons/invites/{token}", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectInviteAccept(w, r, app)
+		HackathonProjectInviteAccept(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/hackathons/judge-invites/{token}", func(w http.ResponseWriter, r *http.Request) {
-		HackathonJudgeInviteAccept(w, r, app)
+		HackathonJudgeInviteAccept(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/invites", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectInviteCreate(w, r, app)
+		HackathonProjectInviteCreate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/team/remove", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectMemberRemove(w, r, app)
+		HackathonProjectMemberRemove(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/submit", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectSubmit(w, r, app)
+		HackathonProjectSubmit(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/delete", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectDelete(w, r, app)
+		HackathonProjectDelete(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/edit", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectEdit(w, r, app)
+		HackathonProjectEdit(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/edit", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectUpdate(w, r, app)
+		HackathonProjectUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
-		HackathonProjectShow(w, r, app)
+		HackathonProjectShow(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/merch", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerch(w, r, app)
+		AdminMerch(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/merch", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchCreate(w, r, app)
+		AdminMerchCreate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/new", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchNew(w, r, app)
+		AdminMerchNew(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/merch/orders", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchOrders(w, r, app)
+		AdminMerchOrders(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/merch/orders/{order}", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchOrder(w, r, app)
+		AdminMerchOrder(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/merch/orders/{order}/{action}", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchOrderAction(w, r, app)
+		AdminMerchOrderAction(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/{id}", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchProduct(w, r, app)
+		AdminMerchProduct(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/merch/{id}", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchUpdate(w, r, app)
+		AdminMerchUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/{id}/upload-image", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchUploadImage(w, r, app)
+		AdminMerchUploadImage(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/{id}/variants", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchVariantCreate(w, r, app)
+		AdminMerchVariantCreate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/{id}/variants/{variant}", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchVariantUpdate(w, r, app)
+		AdminMerchVariantUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/{id}/images/{image}", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchImageUpdate(w, r, app)
+		AdminMerchImageUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/{id}/options", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchOptionSave(w, r, app)
+		AdminMerchOptionSave(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/{id}/options/{option}", func(w http.ResponseWriter, r *http.Request) {
-		AdminMerchOptionSave(w, r, app)
+		AdminMerchOptionSave(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/shop", func(w http.ResponseWriter, r *http.Request) {
-		ShopHome(w, r, app)
+		ShopHome(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/shop/all", func(w http.ResponseWriter, r *http.Request) {
-		ShopCollection(w, r, app)
+		ShopCollection(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/shop/cart", func(w http.ResponseWriter, r *http.Request) {
-		ShopCart(w, r, app)
+		ShopCart(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/shop/cart/add", func(w http.ResponseWriter, r *http.Request) {
-		ShopCartAdd(w, r, app)
+		ShopCartAdd(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/shop/cart", func(w http.ResponseWriter, r *http.Request) {
-		ShopCartUpdate(w, r, app)
+		ShopCartUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/shop/checkout", func(w http.ResponseWriter, r *http.Request) {
-		ShopCheckout(w, r, app)
+		ShopCheckout(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/shop/checkout", func(w http.ResponseWriter, r *http.Request) {
-		ShopCheckoutCreate(w, r, app)
+		ShopCheckoutCreate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/shop/shipping-rates", func(w http.ResponseWriter, r *http.Request) {
-		ShopShippingRates(w, r, app)
+		ShopShippingRates(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/shop/tax-quote", func(w http.ResponseWriter, r *http.Request) {
-		ShopTaxQuote(w, r, app)
+		ShopTaxQuote(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/shop/checkout/cancel/{order}", func(w http.ResponseWriter, r *http.Request) {
-		ShopCheckoutCancel(w, r, app)
+		ShopCheckoutCancel(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/shop/success/{order}", func(w http.ResponseWriter, r *http.Request) {
-		ShopSuccess(w, r, app)
+		ShopSuccess(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/shop/{slug}", func(w http.ResponseWriter, r *http.Request) {
-		ShopItem(w, r, app)
+		ShopItem(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/edit", func(w http.ResponseWriter, r *http.Request) {
-		DashboardEditProposal(w, r, app)
+		DashboardEditProposal(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/details", func(w http.ResponseWriter, r *http.Request) {
-		DashboardTalkDetails(w, r, app)
+		DashboardTalkDetails(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/resources", func(w http.ResponseWriter, r *http.Request) {
-		DashboardTalkResources(w, r, app)
+		DashboardTalkResources(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/conftalks/{confTalkID}/resources", func(w http.ResponseWriter, r *http.Request) {
-		DashboardConfTalkResources(w, r, app)
+		DashboardConfTalkResources(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/withdraw", func(w http.ResponseWriter, r *http.Request) {
-		DashboardWithdraw(w, r, app)
+		DashboardWithdraw(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/dashboard/talks/{proposalID}/accept", func(w http.ResponseWriter, r *http.Request) {
-		DashboardAcceptInvite(w, r, app)
+		DashboardAcceptInvite(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/talks/{proposalID}/decline", func(w http.ResponseWriter, r *http.Request) {
-		DashboardDeclineInvite(w, r, app)
+		DashboardDeclineInvite(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/talks/{proposalID}/confirm", func(w http.ResponseWriter, r *http.Request) {
-		DashboardConfirmTalk(w, r, app)
+		DashboardConfirmTalk(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/dashboard/invite/{proposalID}", func(w http.ResponseWriter, r *http.Request) {
-		DashboardInviteCoSpeaker(w, r, app)
+		DashboardInviteCoSpeaker(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/talks/{proposalID}/speakers/{speakerConfID}/remove", func(w http.ResponseWriter, r *http.Request) {
-		DashboardRemoveCoSpeaker(w, r, app)
+		DashboardRemoveCoSpeaker(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/speaker", func(w http.ResponseWriter, r *http.Request) {
-		DashboardEditSpeaker(w, r, app)
+		DashboardEditSpeaker(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
-		DashboardSatelliteEventEdit(w, r, app)
+		DashboardSatelliteEventEdit(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
-		DashboardSatelliteEventSave(w, r, app)
+		DashboardSatelliteEventSave(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/satellites/{eventID}/upload-img", func(w http.ResponseWriter, r *http.Request) {
-		DashboardSatelliteEventImageUpload(w, r, app)
+		DashboardSatelliteEventImageUpload(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/invite-speaker/{proposalID}", func(w http.ResponseWriter, r *http.Request) {
-		InviteSpeaker(w, r, app)
+		InviteSpeaker(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/invite-speaker/{proposalID}/decline", func(w http.ResponseWriter, r *http.Request) {
-		InviteSpeakerDecline(w, r, app)
+		InviteSpeakerDecline(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	// Backwards compat: existing magic-link emails point at /vols/shift.
@@ -1614,75 +1631,75 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/dashboard/vol/{shiftRef}/calendar.ics", func(w http.ResponseWriter, r *http.Request) {
-		DashboardVolShiftICS(w, r, app)
+		DashboardVolShiftICS(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/vol/{conf}/shifts/resend-invites", func(w http.ResponseWriter, r *http.Request) {
-		DashboardVolShiftsResend(w, r, app)
+		DashboardVolShiftsResend(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/vols/shift/{conf}", func(w http.ResponseWriter, r *http.Request) {
-		VolunteerShiftSignup(w, r, app)
+		VolunteerShiftSignup(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/vols/shift/{conf}/select", func(w http.ResponseWriter, r *http.Request) {
-		VolunteerSelectShift(w, r, app)
+		VolunteerSelectShift(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/vols/shift/{conf}/remove", func(w http.ResponseWriter, r *http.Request) {
-		VolunteerRemoveShift(w, r, app)
+		VolunteerRemoveShift(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/vols/shift/{conf}/submit", func(w http.ResponseWriter, r *http.Request) {
-		VolunteerSubmitShifts(w, r, app)
+		VolunteerSubmitShifts(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/vols/shift/{conf}/decline", func(w http.ResponseWriter, r *http.Request) {
-		VolunteerDecline(w, r, app)
+		VolunteerDecline(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/vols/shift/{conf}/availability", func(w http.ResponseWriter, r *http.Request) {
-		VolunteerUpdateAvailability(w, r, app)
+		VolunteerUpdateAvailability(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/vols/shift/{conf}/work-prefs", func(w http.ResponseWriter, r *http.Request) {
-		VolunteerUpdateWorkPrefs(w, r, app)
+		VolunteerUpdateWorkPrefs(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/gifts", func(w http.ResponseWriter, r *http.Request) {
-		AdminGifts(w, r, app)
+		AdminGifts(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/gifts/clipart.zip", func(w http.ResponseWriter, r *http.Request) {
-		AdminGiftsClipartZip(w, r, app)
+		AdminGiftsClipartZip(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/comp-tickets", func(w http.ResponseWriter, r *http.Request) {
-		AdminCompTickets(w, r, app)
+		AdminCompTickets(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/{conf}/admin/discounts", func(w http.ResponseWriter, r *http.Request) {
-		AdminDiscounts(w, r, app)
+		AdminDiscounts(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/{conf}/admin/recordings", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminList(w, r, app)
+		RecordingsAdminList(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/recordings/oauth/youtube/start", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsYTOAuthStart(w, r, app)
+		RecordingsYTOAuthStart(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/recordings/oauth/youtube/callback", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsYTOAuthCallback(w, r, app)
+		RecordingsYTOAuthCallback(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/recordings/oauth/youtube/callback", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsYTOAuthCallback(w, r, app)
+		RecordingsYTOAuthCallback(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/recordings/oauth/youtube/disconnect", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsYTOAuthDisconnect(w, r, app)
+		RecordingsYTOAuthDisconnect(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/x/auth-check", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminXAuthCheck(w, r, app)
+		RecordingsAdminXAuthCheck(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/autoschedule", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminAutoschedulePreview(w, r, app)
+		RecordingsAdminAutoschedulePreview(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/recordings/autoschedule", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminAutoscheduleApply(w, r, app)
+		RecordingsAdminAutoscheduleApply(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/notify-speakers", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminNotifySpeakersPreview(w, r, app)
@@ -1694,288 +1711,287 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		RecordingsAdminNotifySpeakersTest(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/upload-youtube", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminBulkUploadYTPreview(w, r, app)
+		RecordingsAdminBulkUploadYTPreview(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/recordings/upload-youtube", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminBulkUploadYTApply(w, r, app)
+		RecordingsAdminBulkUploadYTApply(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/youtube-slots", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsYouTubeSlots(w, r, app)
+		RecordingsYouTubeSlots(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminDetail(w, r, app)
+		RecordingsAdminDetail(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/upload-yt", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminUploadYT(w, r, app)
+		RecordingsAdminUploadYT(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminSchedule(w, r, app)
+		RecordingsAdminSchedule(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/file", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminUploadSourceFile(w, r, app)
+		RecordingsAdminUploadSourceFile(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/x-copy", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminSaveXCopy(w, r, app)
+		RecordingsAdminSaveXCopy(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/post-x", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminPostXNow(w, r, app)
+		RecordingsAdminPostXNow(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/schedule-x", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminScheduleX(w, r, app)
+		RecordingsAdminScheduleX(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/x", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminSaveXLink(w, r, app)
+		RecordingsAdminSaveXLink(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/retry-x", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminRetryX(w, r, app)
+		RecordingsAdminRetryX(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/status", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminJobStatus(w, r, app)
+		RecordingsAdminJobStatus(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/x-status", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminXJobStatus(w, r, app)
+		RecordingsAdminXJobStatus(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	// Dev-only smoke endpoint for the self-hosted ICS pipeline.
 	// Production registrations of the route are blocked at the
 	// handler boundary (TrialCalInvite checks ctx.Env.Prod).
 	r.HandleFunc("/trial-cal-invite", func(w http.ResponseWriter, r *http.Request) {
-		TrialCalInvite(w, r, app)
+		TrialCalInvite(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/admin/orgs", func(w http.ResponseWriter, r *http.Request) {
-		OrgList(w, r, app)
+		OrgList(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/admin/orgs/new", func(w http.ResponseWriter, r *http.Request) {
-		OrgNew(w, r, app)
+		OrgNew(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/orgs/new", func(w http.ResponseWriter, r *http.Request) {
-		OrgCreate(w, r, app)
+		OrgCreate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/admin/orgs/upload-logo", func(w http.ResponseWriter, r *http.Request) {
-		OrgLogoUpload(w, r, app)
+		OrgLogoUpload(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/admin/orgs/{ref}", func(w http.ResponseWriter, r *http.Request) {
-		OrgDetail(w, r, app)
+		OrgDetail(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/admin/orgs/{ref}", func(w http.ResponseWriter, r *http.Request) {
-		OrgSave(w, r, app)
+		OrgSave(w, r, requestApp(r, app))
 	}).Methods("POST")
-
 	r.HandleFunc("/{conf}/admin/sponsors", func(w http.ResponseWriter, r *http.Request) {
-		SponsorshipsList(w, r, app)
+		SponsorshipsList(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/admin/sponsors/new", func(w http.ResponseWriter, r *http.Request) {
-		SponsorshipCreate(w, r, app)
+		SponsorshipCreate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/sponsors/{ref}", func(w http.ResponseWriter, r *http.Request) {
-		SponsorshipUpdate(w, r, app)
+		SponsorshipUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/sponsors/{ref}/delete", func(w http.ResponseWriter, r *http.Request) {
-		SponsorshipDelete(w, r, app)
+		SponsorshipDelete(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/social", func(w http.ResponseWriter, r *http.Request) {
-		SocialAdmin(w, r, app)
+		SocialAdmin(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/admin/social/post", func(w http.ResponseWriter, r *http.Request) {
-		SocialPost(w, r, app)
+		SocialPost(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/speakers", func(w http.ResponseWriter, r *http.Request) {
-		SpeakerAdmin(w, r, app)
+		SpeakerAdmin(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/admin/speakers/featured", func(w http.ResponseWriter, r *http.Request) {
-		SpeakerAdminFeatured(w, r, app)
+		SpeakerAdminFeatured(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/speakers/new", func(w http.ResponseWriter, r *http.Request) {
-		SpeakerAdminNew(w, r, app)
+		SpeakerAdminNew(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/{conf}/admin/speakers/{speakerID}/refresh-cards", func(w http.ResponseWriter, r *http.Request) {
-		AdminSpeakerRefreshCards(w, r, app)
+		AdminSpeakerRefreshCards(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/speakers/{speakerID}/edit", func(w http.ResponseWriter, r *http.Request) {
-		SpeakerAdminEdit(w, r, app)
+		SpeakerAdminEdit(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/{conf}/admin/speakerconfs/{speakerConfID}/edit", func(w http.ResponseWriter, r *http.Request) {
-		SpeakerConfAdminEdit(w, r, app)
+		SpeakerConfAdminEdit(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 
 	r.HandleFunc("/{conf}/admin/speakers/email", func(w http.ResponseWriter, r *http.Request) {
-		SpeakerAdminBulkEmail(w, r, app)
+		SpeakerAdminBulkEmail(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/registrations", func(w http.ResponseWriter, r *http.Request) {
-		RegistrationsAdmin(w, r, app)
+		RegistrationsAdmin(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/admin/registrations/email", func(w http.ResponseWriter, r *http.Request) {
-		RegistrationsAdminBulkEmail(w, r, app)
+		RegistrationsAdminBulkEmail(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/registrations/check-in", func(w http.ResponseWriter, r *http.Request) {
-		RegistrationsAdminBulkCheckIn(w, r, app)
+		RegistrationsAdminBulkCheckIn(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/registrations/merch/{itemID}/pickup", func(w http.ResponseWriter, r *http.Request) {
-		RegistrationsAdminMerchPickup(w, r, app)
+		RegistrationsAdminMerchPickup(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/applicants", func(w http.ResponseWriter, r *http.Request) {
-		ProposalAdmin(w, r, app)
+		ProposalAdmin(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/admin", func(w http.ResponseWriter, r *http.Request) {
-		OrganizerDashboard(w, r, app)
+		OrganizerDashboard(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/", func(w http.ResponseWriter, r *http.Request) {
-		OrganizerDashboard(w, r, app)
+		OrganizerDashboard(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/details", func(w http.ResponseWriter, r *http.Request) {
-		GlobalAdminEventDetails(w, r, app)
+		GlobalAdminEventDetails(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/details", func(w http.ResponseWriter, r *http.Request) {
-		GlobalAdminUpdateConfDetails(w, r, app)
+		GlobalAdminUpdateConfDetails(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/details/confinfo", func(w http.ResponseWriter, r *http.Request) {
-		GlobalAdminUpdateConfInfo(w, r, app)
+		GlobalAdminUpdateConfInfo(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/details/ticket", func(w http.ResponseWriter, r *http.Request) {
-		GlobalAdminUpdateConfTicket(w, r, app)
+		GlobalAdminUpdateConfTicket(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/details/merch-upsells", func(w http.ResponseWriter, r *http.Request) {
-		GlobalAdminUpdateConfMerchUpsells(w, r, app)
+		GlobalAdminUpdateConfMerchUpsells(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/state", func(w http.ResponseWriter, r *http.Request) {
-		GlobalAdminUpdateConfState(w, r, app)
+		GlobalAdminUpdateConfState(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/review", func(w http.ResponseWriter, r *http.Request) {
-		ReviewProposals(w, r, app)
+		ReviewProposals(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/review/{proposalID}/{action}", func(w http.ResponseWriter, r *http.Request) {
-		ReviewProposalAction(w, r, app)
+		ReviewProposalAction(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/proposal/{proposalID}/invite", func(w http.ResponseWriter, r *http.Request) {
-		AdminProposalInviteLink(w, r, app)
+		AdminProposalInviteLink(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/proposal/{proposalID}/edit", func(w http.ResponseWriter, r *http.Request) {
-		AdminEditProposal(w, r, app)
+		AdminEditProposal(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
 	r.HandleFunc("/{conf}/admin/proposal/{proposalID}/speakers/attach", func(w http.ResponseWriter, r *http.Request) {
-		AdminEditProposalAttachSpeaker(w, r, app)
+		AdminEditProposalAttachSpeaker(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/proposal/{proposalID}/speakers/{speakerConfID}/remove", func(w http.ResponseWriter, r *http.Request) {
-		AdminProposalRemoveSpeaker(w, r, app)
+		AdminProposalRemoveSpeaker(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/invite-speaker", func(w http.ResponseWriter, r *http.Request) {
-		AdminInviteSpeaker(w, r, app)
+		AdminInviteSpeaker(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/invite-speaker", func(w http.ResponseWriter, r *http.Request) {
-		AdminInviteSpeakerSubmit(w, r, app)
+		AdminInviteSpeakerSubmit(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/invite-speaker/sent", func(w http.ResponseWriter, r *http.Request) {
-		AdminInviteSpeakerSent(w, r, app)
+		AdminInviteSpeakerSent(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/admin/hotels", func(w http.ResponseWriter, r *http.Request) {
-		HotelsAdmin(w, r, app)
+		HotelsAdmin(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/hotels", func(w http.ResponseWriter, r *http.Request) {
-		HotelsAdminSave(w, r, app)
+		HotelsAdminSave(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/hotels/upload-img", func(w http.ResponseWriter, r *http.Request) {
-		HotelImageUpload(w, r, app)
+		HotelImageUpload(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/satellites", func(w http.ResponseWriter, r *http.Request) {
-		SatelliteEventsAdmin(w, r, app)
+		SatelliteEventsAdmin(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/satellites", func(w http.ResponseWriter, r *http.Request) {
-		SatelliteEventsAdminSave(w, r, app)
+		SatelliteEventsAdminSave(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/satellites/upload-img", func(w http.ResponseWriter, r *http.Request) {
-		SatelliteEventsAdminImageUpload(w, r, app)
+		SatelliteEventsAdminImageUpload(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/schedule", func(w http.ResponseWriter, r *http.Request) {
-		ScheduleConf(w, r, app)
+		ScheduleConf(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/cliparts", func(w http.ResponseWriter, r *http.Request) {
-		AdminCliparts(w, r, app)
+		AdminCliparts(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/cliparts/{proposalID}", func(w http.ResponseWriter, r *http.Request) {
-		AdminClipartsUpload(w, r, app)
+		AdminClipartsUpload(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/social-cards.zip", func(w http.ResponseWriter, r *http.Request) {
-		AdminSocialCardsZip(w, r, app)
+		AdminSocialCardsZip(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	r.HandleFunc("/{conf}/admin/run-of-show", func(w http.ResponseWriter, r *http.Request) {
-		RunOfShowAdmin(w, r, app)
+		RunOfShowAdmin(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/run-of-show/adjust", func(w http.ResponseWriter, r *http.Request) {
-		RunOfShowAdjust(w, r, app)
+		RunOfShowAdjust(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/run-of-show", func(w http.ResponseWriter, r *http.Request) {
-		RunOfShowPublic(w, r, app)
+		RunOfShowPublic(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/run-of-show/events", func(w http.ResponseWriter, r *http.Request) {
-		RunOfShowEvents(w, r, app)
+		RunOfShowEvents(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/schedule/sendcal-updates", func(w http.ResponseWriter, r *http.Request) {
-		ScheduleSendCalUpdates(w, r, app)
+		ScheduleSendCalUpdates(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/schedule/place", func(w http.ResponseWriter, r *http.Request) {
-		SchedulePlace(w, r, app)
+		SchedulePlace(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/schedule/unplace", func(w http.ResponseWriter, r *http.Request) {
-		ScheduleUnplace(w, r, app)
+		ScheduleUnplace(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/schedule/resize", func(w http.ResponseWriter, r *http.Request) {
-		ScheduleResize(w, r, app)
+		ScheduleResize(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/schedule/add-hackathon", func(w http.ResponseWriter, r *http.Request) {
-		ScheduleAddHackathon(w, r, app)
+		ScheduleAddHackathon(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/schedule/add-talk", func(w http.ResponseWriter, r *http.Request) {
-		ScheduleAddTalk(w, r, app)
+		ScheduleAddTalk(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/applicants/email", func(w http.ResponseWriter, r *http.Request) {
-		ProposalAdminBulkEmail(w, r, app)
+		ProposalAdminBulkEmail(w, r, requestApp(r, app))
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/applicants/accept", func(w http.ResponseWriter, r *http.Request) {
-		ProposalAdminAccept(w, r, app)
+		ProposalAdminAccept(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/applicants/resend-tickets", func(w http.ResponseWriter, r *http.Request) {
-		AdminResendSpeakerTickets(w, r, app)
+		AdminResendSpeakerTickets(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/applicants/{proposalID}/cancel", func(w http.ResponseWriter, r *http.Request) {
-		AdminCancelTalk(w, r, app)
+		AdminCancelTalk(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/applicants/{proposalID}/refresh-card", func(w http.ResponseWriter, r *http.Request) {
-		AdminProposalRefreshCard(w, r, app)
+		AdminProposalRefreshCard(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/proposals/{proposalID}/sendcal", func(w http.ResponseWriter, r *http.Request) {
-		AdminProposalSendCal(w, r, app)
+		AdminProposalSendCal(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/applicants/sendcal-all", func(w http.ResponseWriter, r *http.Request) {
-		AdminProposalSendCalAll(w, r, app)
+		AdminProposalSendCalAll(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/speakers/sendcal", func(w http.ResponseWriter, r *http.Request) {
-		if id := requireConfAdmin(w, r, app); id == nil {
+		if id := requireConfAdmin(w, r, requestApp(r, app)); id == nil {
 			return
 		}
-		SendCals(w, r, app)
+		SendCals(w, r, requestApp(r, app))
 
 		params := mux.Vars(r)
 		confTag := params["conf"]
@@ -1993,32 +2009,32 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	// aliases, ...) win first. Unknown {conf} falls through to a
 	// clean 404 via the handlers' FindConf branch.
 	r.HandleFunc("/{conf}/agenda", func(w http.ResponseWriter, r *http.Request) {
-		RenderConfAgenda(w, r, app)
+		RenderConfAgenda(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/speakers", func(w http.ResponseWriter, r *http.Request) {
-		RenderConfSpeakers(w, r, app)
+		RenderConfSpeakers(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}", func(w http.ResponseWriter, r *http.Request) {
-		RenderConf(w, r, app)
+		RenderConf(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/satellites/new", func(w http.ResponseWriter, r *http.Request) {
-		SatelliteEventSuggest(w, r, app)
+		SatelliteEventSuggest(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/satellites/new", func(w http.ResponseWriter, r *http.Request) {
-		SatelliteEventSuggestSubmit(w, r, app)
+		SatelliteEventSuggestSubmit(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/satellites/upload-img", func(w http.ResponseWriter, r *http.Request) {
-		SatelliteEventSuggestImageUpload(w, r, app)
+		SatelliteEventSuggestImageUpload(w, r, requestApp(r, app))
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/talks", func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 		redirectToConfAgenda(w, r, params["conf"])
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/talk/{anchor}/calendar.ics", func(w http.ResponseWriter, r *http.Request) {
-		TalkPublicICS(w, r, app)
+		TalkPublicICS(w, r, requestApp(r, app))
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/success", func(w http.ResponseWriter, r *http.Request) {
-		RenderConfSuccess(w, r, app)
+		RenderConfSuccess(w, r, requestApp(r, app))
 	}).Methods("GET")
 
 	// Create a file server to serve static files from the "static" directory.
@@ -2029,7 +2045,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	fs := http.FileServer(http.Dir("static"))
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", staticCache(fs)))
 
-	return requestLog(app, redirectTrailingSlash(noIndexRobots(r))), nil
+	return requestLog(app, withRequestApp(app, redirectTrailingSlash(noIndexRobots(r)))), nil
 }
 
 func getFaviconHandler(name string) func(http.ResponseWriter, *http.Request) {
@@ -9091,7 +9107,7 @@ func AdminSpeakerRefreshCards(w http.ResponseWriter, r *http.Request, ctx *confi
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=No+social+cards+for+speaker", conf.Tag), http.StatusSeeOther)
 		return
 	}
-	go RefreshTalkCardsForceOpt(ctx, talks, true)
+	go RefreshTalkCardsForceOpt(ctx.Detached(), talks, true)
 	http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers?flash=%s", conf.Tag, url.QueryEscape(fmt.Sprintf("Queued card refresh for %d talk(s).", len(talks)))), http.StatusSeeOther)
 }
 
@@ -9844,7 +9860,7 @@ func AdminProposalRefreshCard(w http.ResponseWriter, r *http.Request, ctx *confi
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/applicants?flash=%s", conf.Tag, url.QueryEscape("Refresh failed: "+err.Error())), http.StatusSeeOther)
 		return
 	}
-	go RefreshTalkCardsForceOpt(ctx, []*types.Talk{talk}, true)
+	go RefreshTalkCardsForceOpt(ctx.Detached(), []*types.Talk{talk}, true)
 	http.Redirect(w, r, fmt.Sprintf("/%s/admin/applicants?flash=%s", conf.Tag, url.QueryEscape("Queued card refresh for "+talk.Name)), http.StatusSeeOther)
 }
 

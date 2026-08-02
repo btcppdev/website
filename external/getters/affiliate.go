@@ -124,7 +124,7 @@ func reactivateArchivedAffiliateCodePostgres(ctx *config.AppContext, email, code
 		}
 		return "", false, fmt.Errorf("reactivate affiliate discount %q: %w", discount.CodeName, err)
 	}
-	if err := replaceDiscountConferenceLinksPostgres(tx, discountID, confRefs); err != nil {
+	if err := replaceDiscountConferenceLinksPostgres(ctx.DatabaseContext(), tx, discountID, confRefs); err != nil {
 		return "", false, err
 	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {

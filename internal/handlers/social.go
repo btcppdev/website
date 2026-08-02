@@ -157,7 +157,7 @@ func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	// Keep cards current without making this page wait. The persisted source
 	// hashes ensure only cards whose underlying data changed are rendered.
 	if ctx.InProduction {
-		go RefreshTalkCards(ctx, talks)
+		go RefreshTalkCards(ctx.Detached(), talks)
 	}
 
 	// Build a map of speaker ID -> their talks
