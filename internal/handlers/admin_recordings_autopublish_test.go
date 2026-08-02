@@ -23,6 +23,10 @@ func TestRecordingAutopublishEligibility(t *testing.T) {
 	if shouldUploadRecordingToYouTube(row) {
 		t.Fatalf("failed YouTube recording should wait for explicit retry")
 	}
+	row.YTStatus = recordingStatusUploading
+	if !shouldUploadRecordingToYouTube(row) {
+		t.Fatalf("stale in-progress YouTube recording should retry through its database claim")
+	}
 	row.YTStatus = recordingStatusPending
 	row.YTURL = "https://youtu.be/example"
 	if shouldUploadRecordingToYouTube(row) {

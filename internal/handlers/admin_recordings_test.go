@@ -116,8 +116,8 @@ func TestRecordingBulkUploadAllowsExplicitRetryOfFailures(t *testing.T) {
 	}
 
 	row.YTStatus = recordingStatusUploading
-	if reason := recordingBulkUploadSkipReason(row); reason != "YouTube status is uploading" {
-		t.Fatalf("uploading recording skip reason = %q", reason)
+	if reason := recordingBulkUploadSkipReason(row); reason != "" {
+		t.Fatalf("stale uploading recording skip reason = %q, want eligible for database-claimed retry", reason)
 	}
 }
 

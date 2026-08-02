@@ -34,6 +34,8 @@ const (
 	recordingStatusPosted       = "posted"
 	recordingStatusFailed       = "failed"
 	recordingStatusAuthRequired = "auth_required"
+
+	recordingPublicationClaimTTL = 30 * time.Minute
 )
 
 func StartRecordingAutopublisher(ctx *config.AppContext) {
@@ -88,7 +90,7 @@ func runRecordingAutopublishTick(ctx *config.AppContext) {
 			if xClient != nil {
 				runScheduledXPost(ctx, row, xClient)
 			} else if xInitErr != nil {
-				recordXFailure(ctx, row, recordingStatusFailed, "x uploader is not configured: "+xInitErr.Error())
+				recordXFailure(ctx, row, nil, recordingStatusFailed, "x uploader is not configured: "+xInitErr.Error())
 			}
 		}
 	}
@@ -125,7 +127,10 @@ func shouldPostRecordingToX(row *RecordingRow, now time.Time) bool {
 
 func statusAllowsRetry(status string) bool {
 	status = strings.TrimSpace(strings.ToLower(status))
-	return status == "" || status == recordingStatusPending || status == "queued"
+	// In-progress states are eligible so an expired database claim can recover
+	// after a worker exits. An active claim still prevents concurrent work.
+	return status == "" || status == recordingStatusPending || status == "queued" ||
+		status == recordingStatusUploading || status == recordingStatusPosting || status == recordingStatusScheduling
 }
 
 func runScheduledYouTubeUpload(ctx *config.AppContext, row *RecordingRow) {
@@ -135,12 +140,20 @@ func runScheduledYouTubeUpload(ctx *config.AppContext, row *RecordingRow) {
 		title = rec.TalkName
 	}
 	status := recordingStatusUploading
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
+	claim, claimed, err := claimRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
 		Text:   &body,
 		Status: &status,
-	}); err != nil {
-		ctx.Err.Printf("recording autopublish yt status recording=%s: %s", rec.ID, err)
+	})
+	if err != nil {
+		ctx.Err.Printf("recording autopublish yt claim recording=%s: %s", rec.ID, err)
+		return
 	}
+	if !claimed {
+		ctx.Infos.Printf("recording autopublish yt already claimed recording=%s", rec.ID)
+		return
+	}
+	stopClaim := maintainRecordingSocialPostClaim(ctx, claim)
+	defer stopClaim()
 
 	privacy := "public"
 	var publishAt time.Time
@@ -150,7 +163,7 @@ func runScheduledYouTubeUpload(ctx *config.AppContext, row *RecordingRow) {
 	}
 	src, size, err := openRecordingSourceStream(rec.FileURI)
 	if err != nil {
-		recordYouTubeFailure(ctx, row, "couldn't fetch source video from Spaces: "+err.Error())
+		recordYouTubeFailure(ctx, row, claim, "couldn't fetch source video from Spaces: "+err.Error())
 		return
 	}
 	defer src.Close()
@@ -162,7 +175,7 @@ func runScheduledYouTubeUpload(ctx *config.AppContext, row *RecordingRow) {
 		PublishAt:     publishAt,
 	}, src, size)
 	if err != nil {
-		recordYouTubeFailure(ctx, row, err.Error())
+		recordYouTubeFailure(ctx, row, claim, err.Error())
 		return
 	}
 	now := time.Now()
@@ -180,7 +193,7 @@ func runScheduledYouTubeUpload(ctx *config.AppContext, row *RecordingRow) {
 			ctx.Err.Printf("recording autopublish playlist recording=%s playlist=%s: %s", rec.ID, row.ConfTalk.Conf.YouTubePlaylistID, err)
 		}
 	}
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
+	if err := updateClaimedRecordingSocialPost(ctx, row, recordingPlatformYouTube, claim, getters.SocialPostUpdate{
 		URL:      &ytURL,
 		Status:   &status,
 		PostedAt: &now,
@@ -191,10 +204,10 @@ func runScheduledYouTubeUpload(ctx *config.AppContext, row *RecordingRow) {
 	ctx.Infos.Printf("recording autopublish yt uploaded recording=%s url=%s", rec.ID, ytURL)
 }
 
-func recordYouTubeFailure(ctx *config.AppContext, row *RecordingRow, msg string) {
+func recordYouTubeFailure(ctx *config.AppContext, row *RecordingRow, claim *getters.SocialPostClaim, msg string) {
 	rec := row.Recording
 	status := recordingStatusFailed
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{Status: &status, Error: &msg}); err != nil {
+	if err := persistRecordingSocialPost(ctx, row, recordingPlatformYouTube, claim, getters.SocialPostUpdate{Status: &status, Error: &msg}); err != nil {
 		ctx.Err.Printf("recording autopublish persist yt failure recording=%s: %s", rec.ID, err)
 	}
 	ctx.Err.Printf("recording autopublish yt failed recording=%s: %s", rec.ID, msg)
@@ -217,18 +230,27 @@ func runXPost(ctx *config.AppContext, row *RecordingRow, client *xposter.Client,
 	status := recordingStatusPosting
 	clear := ""
 	setXJobStage(rec.ID, "prepare", "Preparing X post")
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
+	claim, claimed, err := claimRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
 		Text:             &mainText,
 		Status:           &status,
 		Error:            &clear,
 		ErrorFingerprint: &clear,
-	}); err != nil {
-		ctx.Err.Printf("recording autopublish x status recording=%s: %s", rec.ID, err)
+	})
+	if err != nil {
+		ctx.Err.Printf("recording autopublish x claim recording=%s: %s", rec.ID, err)
+		setXJobStatus(rec.ID, "failed", "couldn't claim X publication: "+err.Error())
+		return
 	}
+	if !claimed {
+		ctx.Infos.Printf("recording autopublish x already claimed recording=%s", rec.ID)
+		return
+	}
+	stopClaim := maintainRecordingSocialPostClaim(ctx, claim)
+	defer stopClaim()
 	setXJobStage(rec.ID, "download", "Downloading source video from Spaces")
 	videoPath, cleanup, err := downloadRecordingVideo(rec.ID, rec.FileURI)
 	if err != nil {
-		recordXFailure(ctx, row, recordingStatusFailed, "couldn't fetch source video from Spaces: "+err.Error())
+		recordXFailure(ctx, row, claim, recordingStatusFailed, "couldn't fetch source video from Spaces: "+err.Error())
 		return
 	}
 	defer cleanup()
@@ -243,14 +265,14 @@ func runXPost(ctx *config.AppContext, row *RecordingRow, client *xposter.Client,
 	if err != nil {
 		var replyErr *xposter.ReplyError
 		if errors.As(err, &replyErr) && replyErr.PostURL != "" {
-			recordXPartialReplyFailure(ctx, row, mainText, replyErr.PostURL, err.Error())
+			recordXPartialReplyFailure(ctx, row, claim, mainText, replyErr.PostURL, err.Error())
 			return
 		}
 		status := recordingStatusFailed
 		if xposter.IsAuthError(err) {
 			status = recordingStatusAuthRequired
 		}
-		recordXFailure(ctx, row, status, err.Error())
+		recordXFailure(ctx, row, claim, status, err.Error())
 		return
 	}
 	setXJobStage(rec.ID, "save", "Saving X post URL")
@@ -264,7 +286,7 @@ func runXPost(ctx *config.AppContext, row *RecordingRow, client *xposter.Client,
 		setXJobStatus(rec.ID, "failed", "posted to X but failed to update the recording row: "+err.Error())
 		return
 	}
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
+	if err := updateClaimedRecordingSocialPost(ctx, row, recordingPlatformX, claim, getters.SocialPostUpdate{
 		URL:              &result.PostURL,
 		ReplyURL:         &result.ReplyURL,
 		Status:           &status,
@@ -280,7 +302,7 @@ func runXPost(ctx *config.AppContext, row *RecordingRow, client *xposter.Client,
 	ctx.Infos.Printf("recording autopublish x posted recording=%s url=%s", rec.ID, result.PostURL)
 }
 
-func recordXPartialReplyFailure(ctx *config.AppContext, row *RecordingRow, mainText, postURL, msg string) {
+func recordXPartialReplyFailure(ctx *config.AppContext, row *RecordingRow, claim *getters.SocialPostClaim, mainText, postURL, msg string) {
 	rec := row.Recording
 	setXJobStatus(rec.ID, "failed", msg)
 	if err := getters.UpdateRecordingPublishing(ctx, rec.ID, getters.RecordingPublishingUpdate{
@@ -291,7 +313,7 @@ func recordXPartialReplyFailure(ctx *config.AppContext, row *RecordingRow, mainT
 	status := recordingStatusFailed
 	fp := xFailureFingerprint(status, msg)
 	now := time.Now()
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
+	if err := persistRecordingSocialPost(ctx, row, recordingPlatformX, claim, getters.SocialPostUpdate{
 		Text:             &mainText,
 		URL:              &postURL,
 		Status:           &status,
@@ -321,18 +343,38 @@ func runXSchedule(ctx *config.AppContext, rec *types.Recording, conf *types.Conf
 	row := buildRecordingRow(ctx, rec)
 	setXJobStage(rec.ID, "prepare", "Preparing X schedule")
 	if rec.PublishAt == nil {
-		recordXFailure(ctx, row, recordingStatusFailed, "PublishAt is required before scheduling on X")
+		recordXFailure(ctx, row, nil, recordingStatusFailed, "PublishAt is required before scheduling on X")
 		return
 	}
+	status := recordingStatusScheduling
+	clear := ""
+	claim, claimed, err := claimRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
+		Text:             &mainText,
+		Status:           &status,
+		Error:            &clear,
+		ErrorFingerprint: &clear,
+		ScheduledAt:      rec.PublishAt,
+	})
+	if err != nil {
+		ctx.Err.Printf("recording schedule x claim recording=%s: %s", rec.ID, err)
+		setXJobStatus(rec.ID, "failed", "couldn't claim X scheduling: "+err.Error())
+		return
+	}
+	if !claimed {
+		ctx.Infos.Printf("recording schedule x already claimed recording=%s", rec.ID)
+		return
+	}
+	stopClaim := maintainRecordingSocialPostClaim(ctx, claim)
+	defer stopClaim()
 	client, err := newXPosterClient(ctx)
 	if err != nil {
-		recordXFailure(ctx, row, recordingStatusFailed, "x uploader is not configured: "+err.Error())
+		recordXFailure(ctx, row, claim, recordingStatusFailed, "x uploader is not configured: "+err.Error())
 		return
 	}
 	setXJobStage(rec.ID, "download", "Downloading source video from Spaces")
 	videoPath, cleanup, err := downloadRecordingVideo(rec.ID, rec.FileURI)
 	if err != nil {
-		recordXFailure(ctx, row, recordingStatusFailed, "couldn't fetch source video from Spaces: "+err.Error())
+		recordXFailure(ctx, row, claim, recordingStatusFailed, "couldn't fetch source video from Spaces: "+err.Error())
 		return
 	}
 	defer cleanup()
@@ -355,14 +397,13 @@ func runXSchedule(ctx *config.AppContext, rec *types.Recording, conf *types.Conf
 		if xposter.IsAuthError(err) {
 			status = recordingStatusAuthRequired
 		}
-		recordXFailure(ctx, row, status, err.Error())
+		recordXFailure(ctx, row, claim, status, err.Error())
 		return
 	}
 
 	setXJobStage(rec.ID, "save", "Saving X schedule status")
-	status := recordingStatusScheduled
-	clear := ""
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
+	status = recordingStatusScheduled
+	if err := updateClaimedRecordingSocialPost(ctx, row, recordingPlatformX, claim, getters.SocialPostUpdate{
 		Text:             &mainText,
 		Status:           &status,
 		Error:            &clear,
@@ -471,12 +512,12 @@ func recordingSourceObjectKey(fileURI string) string {
 	return strings.TrimPrefix(raw, "/")
 }
 
-func recordXFailure(ctx *config.AppContext, row *RecordingRow, status, msg string) {
+func recordXFailure(ctx *config.AppContext, row *RecordingRow, claim *getters.SocialPostClaim, status, msg string) {
 	rec := row.Recording
 	setXJobStatus(rec.ID, "failed", msg)
 	fp := xFailureFingerprint(status, msg)
 	shouldNotify := row.XErrorFingerprint != fp
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
+	if err := persistRecordingSocialPost(ctx, row, recordingPlatformX, claim, getters.SocialPostUpdate{
 		Status:           &status,
 		Error:            &msg,
 		ErrorFingerprint: &fp,
@@ -492,7 +533,7 @@ func recordXFailure(ctx *config.AppContext, row *RecordingRow, status, msg strin
 		return
 	}
 	now := time.Now()
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{NotifiedAt: &now}); err != nil {
+	if err := persistRecordingSocialPost(ctx, row, recordingPlatformX, claim, getters.SocialPostUpdate{NotifiedAt: &now}); err != nil {
 		ctx.Err.Printf("recording autopublish x notify stamp recording=%s: %s", rec.ID, err)
 	}
 }

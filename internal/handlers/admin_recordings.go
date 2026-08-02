@@ -1092,18 +1092,6 @@ func RecordingsAdminPostXNow(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 
-	status := recordingStatusPosting
-	clear := ""
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
-		Text:             &xBody,
-		Status:           &status,
-		Error:            &clear,
-		ErrorFingerprint: &clear,
-	}); err != nil {
-		ctx.Err.Printf("post x status recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update SocialPosts: "+err.Error())
-		return
-	}
 	setXJobStatus(recordingID, "running", "Starting X post")
 	go runXPostNow(ctx, row, client, xBody)
 
@@ -1178,19 +1166,6 @@ func RecordingsAdminScheduleX(w http.ResponseWriter, r *http.Request, ctx *confi
 		return
 	}
 
-	status := recordingStatusScheduling
-	clear := ""
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
-		Text:             &xBody,
-		Status:           &status,
-		Error:            &clear,
-		ErrorFingerprint: &clear,
-		ScheduledAt:      publishAt,
-	}); err != nil {
-		ctx.Err.Printf("schedule x status recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update SocialPosts: "+err.Error())
-		return
-	}
 	setXJobStatus(recordingID, "running", "Starting X schedule")
 	go runXSchedule(ctx, rec, conf, xBody)
 
@@ -1199,7 +1174,7 @@ func RecordingsAdminScheduleX(w http.ResponseWriter, r *http.Request, ctx *confi
 
 // runYouTubeUpload streams the source video from Spaces straight into
 // YouTube's resumable-upload endpoint, then writes the resulting URL
-// back to the Notion Recording row. Uses a fresh context.Background()
+// back to the recording row. Uses a fresh context.Background()
 // because the HTTP request that kicked us off has already returned.
 func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body, privacy string, publishAt time.Time, playlistID string) {
 	recordingID := rec.ID
@@ -1211,19 +1186,28 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 	}()
 	row := buildRecordingRow(ctx, rec)
 	status := recordingStatusUploading
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
+	claim, claimed, err := claimRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
 		Text:   &body,
 		Status: &status,
-	}); err != nil {
-		ctx.Err.Printf("youtube upload: socialpost status recording=%s: %s", recordingID, err)
+	})
+	if err != nil {
+		ctx.Err.Printf("youtube upload: claim recording=%s: %s", recordingID, err)
+		setJobStatus(recordingID, "failed", "couldn't claim YouTube publication: "+err.Error())
+		return
 	}
+	if !claimed {
+		setJobStatus(recordingID, "failed", "YouTube publication is already in progress")
+		return
+	}
+	stopClaim := maintainRecordingSocialPostClaim(ctx, claim)
+	defer stopClaim()
 	src, size, err := openRecordingSourceStream(rec.FileURI)
 	if err != nil {
 		ctx.Err.Printf("youtube upload: fetch %s: %s", rec.FileURI, err)
 		setJobStatus(recordingID, "failed", "couldn't fetch source video from Spaces: "+err.Error())
 		msg := "couldn't fetch source video from Spaces: " + err.Error()
 		status = recordingStatusFailed
-		_ = upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{Status: &status, Error: &msg})
+		_ = updateClaimedRecordingSocialPost(ctx, row, recordingPlatformYouTube, claim, getters.SocialPostUpdate{Status: &status, Error: &msg})
 		return
 	}
 	defer src.Close()
@@ -1240,7 +1224,7 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 		setJobStatus(recordingID, "failed", err.Error())
 		msg := err.Error()
 		status = recordingStatusFailed
-		_ = upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{Status: &status, Error: &msg})
+		_ = updateClaimedRecordingSocialPost(ctx, row, recordingPlatformYouTube, claim, getters.SocialPostUpdate{Status: &status, Error: &msg})
 		return
 	}
 	now := time.Now()
@@ -1257,7 +1241,7 @@ func runYouTubeUpload(ctx *config.AppContext, rec *types.Recording, title, body,
 	if err := addRecordingToYouTubePlaylist(context.Background(), recordingID, ytURL, playlistID); err != nil {
 		ctx.Err.Printf("youtube upload: playlist recording=%s playlist=%s: %s", recordingID, playlistID, err)
 	}
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformYouTube, getters.SocialPostUpdate{
+	if err := updateClaimedRecordingSocialPost(ctx, row, recordingPlatformYouTube, claim, getters.SocialPostUpdate{
 		URL:      &ytURL,
 		Status:   &status,
 		PostedAt: &now,
@@ -1628,8 +1612,82 @@ func recordingSocialPostRef(rec *types.Recording, platform string) string {
 }
 
 func upsertRecordingSocialPost(ctx *config.AppContext, row *RecordingRow, platform string, up getters.SocialPostUpdate) error {
+	up, err := prepareRecordingSocialPostUpdate(row, platform, up)
+	if err != nil {
+		return err
+	}
+	_, err = getters.UpsertSocialPost(ctx, up)
+	if err == nil {
+		attachRecordingSocialPosts(ctx, row)
+		row.HasYT = row.YTURL != ""
+		row.HasX = row.XURL != ""
+	}
+	return err
+}
+
+func claimRecordingSocialPost(ctx *config.AppContext, row *RecordingRow, platform string, up getters.SocialPostUpdate) (*getters.SocialPostClaim, bool, error) {
+	up, err := prepareRecordingSocialPostUpdate(row, platform, up)
+	if err != nil {
+		return nil, false, err
+	}
+	return getters.ClaimSocialPost(ctx, up, recordingPublicationClaimTTL)
+}
+
+func updateClaimedRecordingSocialPost(ctx *config.AppContext, row *RecordingRow, platform string, claim *getters.SocialPostClaim, up getters.SocialPostUpdate) error {
+	up, err := prepareRecordingSocialPostUpdate(row, platform, up)
+	if err != nil {
+		return err
+	}
+	_, err = getters.UpdateClaimedSocialPost(ctx, claim, up)
+	if err == nil {
+		attachRecordingSocialPosts(ctx, row)
+		row.HasYT = row.YTURL != ""
+		row.HasX = row.XURL != ""
+	}
+	return err
+}
+
+func persistRecordingSocialPost(ctx *config.AppContext, row *RecordingRow, platform string, claim *getters.SocialPostClaim, up getters.SocialPostUpdate) error {
+	if claim != nil {
+		return updateClaimedRecordingSocialPost(ctx, row, platform, claim, up)
+	}
+	return upsertRecordingSocialPost(ctx, row, platform, up)
+}
+
+func maintainRecordingSocialPostClaim(ctx *config.AppContext, claim *getters.SocialPostClaim) func() {
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(recordingPublicationClaimTTL / 3)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := getters.RenewSocialPostClaim(ctx, claim, recordingPublicationClaimTTL); err != nil {
+					ctx.Err.Printf("renew recording publication claim: %s", err)
+				}
+			case <-stop:
+				return
+			}
+		}
+	}()
+	return func() {
+		close(stop)
+		<-done
+		releaseRecordingSocialPostClaim(ctx, claim)
+	}
+}
+
+func releaseRecordingSocialPostClaim(ctx *config.AppContext, claim *getters.SocialPostClaim) {
+	if err := getters.ReleaseSocialPostClaim(ctx, claim); err != nil {
+		ctx.Err.Printf("release recording publication claim: %s", err)
+	}
+}
+
+func prepareRecordingSocialPostUpdate(row *RecordingRow, platform string, up getters.SocialPostUpdate) (getters.SocialPostUpdate, error) {
 	if row == nil || row.Recording == nil {
-		return fmt.Errorf("recording row required")
+		return up, fmt.Errorf("recording row required")
 	}
 	up.Ref = recordingSocialPostRef(row.Recording, platform)
 	up.PostedTo = platform
@@ -1641,13 +1699,7 @@ func upsertRecordingSocialPost(ctx *config.AppContext, row *RecordingRow, platfo
 	if up.ScheduledAt == nil && row.Recording.PublishAt != nil {
 		up.ScheduledAt = row.Recording.PublishAt
 	}
-	_, err := getters.UpsertSocialPost(ctx, up)
-	if err == nil {
-		attachRecordingSocialPosts(ctx, row)
-		row.HasYT = row.YTURL != ""
-		row.HasX = row.XURL != ""
-	}
-	return err
+	return up, nil
 }
 
 func buildRecordingRow(ctx *config.AppContext, rec *types.Recording) *RecordingRow {
