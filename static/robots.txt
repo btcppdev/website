@@ -12,7 +12,6 @@ Disallow: /vols/
 Disallow: /i/
 Disallow: /invite-speaker/
 Disallow: /trial-cal-invite
-Disallow: /trial-email
 Disallow: /welcome-email
 Disallow: /sendcal
 Disallow: /conf-reload
