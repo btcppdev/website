@@ -149,19 +149,28 @@
 
     {{ if .SponsorAwardsForJudge }}
     <section class="hack-section">
+      {{ if .Competition.ResultsFinalizedAt }}
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§ Sponsor Awards</div>
+          <h2>Judging <span class="hack-serif">complete.</span></h2>
+        </div>
+        <div class="hack-section__deck">Hackathon results are finalized. Sponsor award winner selection is now closed.</div>
+      </div>
+      {{ else }}
       <div class="hack-section__head">
         <div>
           <div class="hack-label">§ Sponsor Awards</div>
           <h2>Pick sponsor award <span class="hack-serif">winners.</span></h2>
         </div>
-        <div class="hack-section__deck">Sponsor judges select one project for each assigned sponsor award. These picks do not affect ranked scoring.</div>
+        <div class="hack-section__deck">Sponsor judges select winners directly for each assigned award, up to its recipient limit. These selections do not affect ranked scoring.</div>
       </div>
-      <div class="hack-card-grid">
+      <div class="hack-card-grid hack-card-grid--sponsor-judging">
         {{ range .SponsorAwardsForJudge }}
         {{ $award := . }}
-        {{ $vote := $.AwardVote . }}
+        {{ $awardees := $.Awardees . }}
         {{ $options := $.SponsorAwardProjectOptions . }}
-        <article id="award-{{ .ID }}" class="hack-card">
+        <article id="award-{{ .ID }}" class="hack-card hack-sponsor-judge-card">
           <div class="hack-card__body">
             <div class="hack-tags">
               <span class="hack-tag">Sponsor award</span>
@@ -174,35 +183,54 @@
             {{ if .JudgingInstructions }}<p class="hack-list__meta" style="margin-top:12px;white-space:pre-line;">{{ .JudgingInstructions }}</p>{{ end }}
             {{ if $.AwardSponsorURL . }}<div class="hack-card__links"><a href="{{ $.AwardSponsorURL . }}" target="_blank" rel="noreferrer">Sponsor</a></div>{{ end }}
 
-            <form method="POST" action="{{ $.JudgingURL }}/award-votes" class="hack-form" style="margin-top:18px;">
-              <input type="hidden" name="AwardID" value="{{ .ID }}">
-              <div class="hack-form__body">
-                {{ if $options }}
-                <label class="hack-field">
-                  <span>Winning project</span>
-                  <select name="ProjectID" required>
-                    <option value="">Choose project</option>
-                    {{ range $options }}
-                    <option value="{{ .ID }}" {{ if $.ProjectSelectedForAward . $award }}selected{{ end }}>{{ $.ProjectNumberLabel . }} · {{ .Title }}</option>
-                    {{ end }}
-                  </select>
-                </label>
-                <label class="hack-field">
-                  <span>Notes</span>
-                  <textarea name="Notes" rows="3" placeholder="Optional notes for admins">{{ with $vote }}{{ .Notes }}{{ end }}</textarea>
-                </label>
-                <div class="hack-actions" style="justify-content:flex-end;">
-                  <button type="submit" class="hack-button hack-button--primary">Save pick</button>
+            {{ if $awardees }}
+            <div class="hack-sponsor-judge-card__section">
+              <div class="hack-label">Selected winners</div>
+              <div class="hack-list">
+                {{ range $awardees }}
+                <div class="hack-list__row">
+                  <div>
+                    <strong>#{{ $.ProjectAwardNumber . }} · {{ .ProjectTitle }}</strong>
+                  </div>
+                  {{ if not $.Competition.ResultsFinalizedAt }}
+                  <form method="POST" action="{{ $.JudgingURL }}/award-winners/remove">
+                    <input type="hidden" name="AwardID" value="{{ $award.ID }}">
+                    <input type="hidden" name="ProjectID" value="{{ .ProjectID }}">
+                    <button type="submit" class="hack-button hack-button--danger-soft">Remove winner</button>
+                  </form>
+                  {{ end }}
                 </div>
-                {{ else }}
-                <div class="hack-empty">No eligible projects are available for this sponsor award.</div>
                 {{ end }}
               </div>
+            </div>
+            {{ end }}
+
+            {{ if $.SponsorAwardCanAssign . }}
+            <form method="POST" action="{{ $.JudgingURL }}/award-winners" class="hack-sponsor-judge-card__section hack-sponsor-judge-card__assignment">
+              <input type="hidden" name="AwardID" value="{{ .ID }}">
+              {{ if $options }}
+              <label class="hack-field">
+                <span>Winning project</span>
+                <select name="ProjectID" required>
+                  <option value="">Choose project</option>
+                  {{ range $options }}
+                  <option value="{{ .ID }}">{{ $.ProjectNumberLabel . }} · {{ .Title }}</option>
+                  {{ end }}
+                </select>
+              </label>
+              <button type="submit" class="hack-button hack-button--accent">Add winner</button>
+              {{ else }}
+              <div class="hack-sponsor-judge-card__notice">No eligible projects are available for this sponsor award.</div>
+              {{ end }}
             </form>
+            {{ else }}
+            {{ with $.SponsorAwardAssignmentMessage . }}<div class="hack-sponsor-judge-card__notice">{{ . }}</div>{{ end }}
+            {{ end }}
           </div>
         </article>
         {{ end }}
       </div>
+      {{ end }}
     </section>
     {{ end }}
 

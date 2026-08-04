@@ -352,6 +352,16 @@ func TestConferenceScopedHackathonAdminRoutes(t *testing.T) {
 			t.Errorf("conference hackathon admin route %s is not registered", path)
 		}
 	}
+	for _, path := range []string{
+		"/toronto/admin/hackathon/awards/judges",
+		"/toronto/admin/hackathon/awards/judges/remove",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		var match mux.RouteMatch
+		if !router.Match(req, &match) {
+			t.Errorf("conference hackathon admin POST route %s is not registered", path)
+		}
+	}
 }
 
 func TestEventBlockSeparatesHackathonManagerFromJudge(t *testing.T) {
@@ -502,9 +512,14 @@ func TestSponsorAwardProjectOptionsHonorOptIns(t *testing.T) {
 		ChallengeProjects: []*types.HackathonProject{
 			{ID: "opted-in", Title: "Opted in"},
 			{ID: "not-opted-in", Title: "Not opted in"},
+			{ID: "winner", Title: "Existing winner"},
 		},
 		AwardOptIns: map[string]bool{
 			"opted-in|sponsor-award": true,
+			"winner|sponsor-award":   true,
+		},
+		AwardeesByAward: map[string][]*types.ProjectAward{
+			"sponsor-award": {{AwardID: "sponsor-award", ProjectID: "winner"}},
 		},
 	}
 
@@ -516,7 +531,36 @@ func TestSponsorAwardProjectOptionsHonorOptIns(t *testing.T) {
 	award.OptInRequired = false
 	got = page.SponsorAwardProjectOptions(award)
 	if len(got) != 2 {
-		t.Fatalf("SponsorAwardProjectOptions() without opt-in = %+v, want all submitted options", got)
+		t.Fatalf("SponsorAwardProjectOptions() without opt-in = %+v, want all unassigned options", got)
+	}
+}
+
+func TestSponsorAwardCanAssignRequiresCapacityAndOpenResults(t *testing.T) {
+	maxAwardees := 1
+	award := &types.Award{ID: "sponsor-award", MaxAwardees: &maxAwardees}
+	page := &HackathonPage{
+		Competition: &types.HackathonCompetition{},
+		AwardeesByAward: map[string][]*types.ProjectAward{
+			award.ID: {{AwardID: award.ID, ProjectID: "winner"}},
+		},
+	}
+
+	if page.SponsorAwardCanAssign(award) {
+		t.Fatal("SponsorAwardCanAssign() = true at the recipient limit")
+	}
+	if got := page.SponsorAwardAssignmentMessage(award); !strings.Contains(got, "Remove a winner") {
+		t.Fatalf("SponsorAwardAssignmentMessage() = %q, want removal instruction", got)
+	}
+
+	page.AwardeesByAward[award.ID] = nil
+	if !page.SponsorAwardCanAssign(award) {
+		t.Fatal("SponsorAwardCanAssign() = false with available capacity")
+	}
+
+	finalizedAt := time.Now()
+	page.Competition.ResultsFinalizedAt = &finalizedAt
+	if page.SponsorAwardCanAssign(award) {
+		t.Fatal("SponsorAwardCanAssign() = true after results finalization")
 	}
 }
 
