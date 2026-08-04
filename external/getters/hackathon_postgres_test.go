@@ -1238,7 +1238,7 @@ func TestHackathonJudgingSetup(t *testing.T) {
 	}
 }
 
-func TestSponsoredAwardJudgesAndVotes(t *testing.T) {
+func TestSponsoredAwardJudgesSelectWinnersWithoutReplacement(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)
 
@@ -1246,6 +1246,7 @@ func TestSponsoredAwardJudgesAndVotes(t *testing.T) {
 		Title: "Sponsored Awards Hackathon",
 	})
 	ownerID := insertSmokePerson(t, ctx, "sponsored-award-owner")
+	secondOwnerID := insertSmokePerson(t, ctx, "sponsored-award-second-owner")
 	firstProjectID := createSmokeProject(t, ctx, ProjectInput{
 		CompetitionID:     competitionID,
 		CreatedByPersonID: ownerID,
@@ -1254,10 +1255,16 @@ func TestSponsoredAwardJudgesAndVotes(t *testing.T) {
 	})
 	secondProjectID := createSmokeProject(t, ctx, ProjectInput{
 		CompetitionID:     competitionID,
-		CreatedByPersonID: ownerID,
+		CreatedByPersonID: secondOwnerID,
 		Slug:              "sponsor-project-two-" + postgresSmokeSuffix(),
 		Title:             "Sponsor Project Two",
 	})
+	if err := SubmitProject(ctx, firstProjectID); err != nil {
+		t.Fatalf("SubmitProject first: %v", err)
+	}
+	if err := SubmitProject(ctx, secondProjectID); err != nil {
+		t.Fatalf("SubmitProject second: %v", err)
+	}
 	orgID := insertSmokeOrg(t, ctx, "award-sponsor")
 	judgeID := insertSmokePerson(t, ctx, "sponsor-judge")
 
@@ -1282,34 +1289,17 @@ func TestSponsoredAwardJudgesAndVotes(t *testing.T) {
 	if len(judges) != 1 || judges[0].AwardID != sponsoredNormalAwardID || judges[0].PersonID != judgeID {
 		t.Fatalf("sponsored normal award judges = %+v, want assigned judge", judges)
 	}
-	if err := UpsertAwardVote(ctx, AwardVoteInput{
-		AwardID:       sponsoredNormalAwardID,
-		JudgePersonID: judgeID,
-		ProjectID:     firstProjectID,
-		Notes:         "first pick",
-	}); err != nil {
-		t.Fatalf("UpsertAwardVote sponsored normal: %v", err)
+	if err := AssignSponsorProjectAward(ctx, orgID, sponsoredNormalAwardID, firstProjectID); err != nil {
+		t.Fatalf("AssignSponsorProjectAward first winner: %v", err)
 	}
-	if err := ReplaceProjectAwardWinner(ctx, sponsoredNormalAwardID, firstProjectID); err != nil {
-		t.Fatalf("ReplaceProjectAwardWinner first pick: %v", err)
+	if err := AssignSponsorProjectAward(ctx, orgID, sponsoredNormalAwardID, secondProjectID); err == nil || !strings.Contains(err.Error(), "maximum") {
+		t.Fatalf("AssignSponsorProjectAward replacement = %v, want maximum-awardees error", err)
 	}
-	if err := UpsertAwardVote(ctx, AwardVoteInput{
-		AwardID:       sponsoredNormalAwardID,
-		JudgePersonID: judgeID,
-		ProjectID:     secondProjectID,
-		Notes:         "updated pick",
-	}); err != nil {
-		t.Fatalf("UpsertAwardVote sponsored normal update: %v", err)
+	if err := RemoveSponsorProjectAward(ctx, orgID, sponsoredNormalAwardID, firstProjectID); err != nil {
+		t.Fatalf("RemoveSponsorProjectAward first winner: %v", err)
 	}
-	if err := ReplaceProjectAwardWinner(ctx, sponsoredNormalAwardID, secondProjectID); err != nil {
-		t.Fatalf("ReplaceProjectAwardWinner updated pick: %v", err)
-	}
-	votes, err := ListAwardVotesForJudge(ctx, competitionID, judgeID)
-	if err != nil {
-		t.Fatalf("ListAwardVotesForJudge: %v", err)
-	}
-	if len(votes) != 1 || votes[0].AwardID != sponsoredNormalAwardID || votes[0].ProjectID != secondProjectID || votes[0].Notes != "updated pick" {
-		t.Fatalf("sponsored normal award votes = %+v, want updated pick", votes)
+	if err := AssignSponsorProjectAward(ctx, orgID, sponsoredNormalAwardID, secondProjectID); err != nil {
+		t.Fatalf("AssignSponsorProjectAward second winner after removal: %v", err)
 	}
 	projectAwards, err := ListProjectAwardsForCompetition(ctx, competitionID)
 	if err != nil {
@@ -1330,13 +1320,6 @@ func TestSponsoredAwardJudgesAndVotes(t *testing.T) {
 	}
 	if err := AddAwardJudge(ctx, unsponsoredChallengeAwardID, judgeID); err == nil || !strings.Contains(err.Error(), "sponsor") {
 		t.Fatalf("AddAwardJudge unsponsored challenge = %v, want sponsor-link error", err)
-	}
-	if err := UpsertAwardVote(ctx, AwardVoteInput{
-		AwardID:       unsponsoredChallengeAwardID,
-		JudgePersonID: judgeID,
-		ProjectID:     firstProjectID,
-	}); err == nil {
-		t.Fatal("UpsertAwardVote accepted an unsponsored challenge award")
 	}
 }
 
