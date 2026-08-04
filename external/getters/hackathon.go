@@ -112,13 +112,6 @@ type PrizeInput struct {
 	Comments       string
 }
 
-type AwardVoteInput struct {
-	AwardID       string
-	JudgePersonID string
-	ProjectID     string
-	Notes         string
-}
-
 func CreateCompetition(ctx *config.AppContext, in CompetitionInput) (string, error) {
 	return createCompetitionPostgres(ctx, in)
 }
@@ -403,12 +396,16 @@ func AssignProjectAward(ctx *config.AppContext, awardID, projectID string) error
 	return assignProjectAwardPostgres(ctx, awardID, projectID)
 }
 
-func ReplaceProjectAwardWinner(ctx *config.AppContext, awardID, projectID string) error {
-	return replaceProjectAwardWinnerPostgres(ctx, awardID, projectID)
+func AssignSponsorProjectAward(ctx *config.AppContext, organizationID, awardID, projectID string) error {
+	return assignSponsorProjectAwardPostgres(ctx, organizationID, awardID, projectID)
 }
 
 func RemoveProjectAward(ctx *config.AppContext, awardID, projectID string) error {
 	return removeProjectAwardPostgres(ctx, awardID, projectID)
+}
+
+func RemoveSponsorProjectAward(ctx *config.AppContext, organizationID, awardID, projectID string) error {
+	return removeSponsorProjectAwardPostgres(ctx, organizationID, awardID, projectID)
 }
 
 func ListProjectAwardsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.ProjectAward, error) {
@@ -425,16 +422,4 @@ func RemoveAwardJudge(ctx *config.AppContext, awardID, personID string) error {
 
 func ListAwardJudgesForCompetition(ctx *config.AppContext, competitionID string) ([]*types.AwardJudge, error) {
 	return listAwardJudgesForCompetitionPostgres(ctx, competitionID)
-}
-
-func ListAwardVotesForCompetition(ctx *config.AppContext, competitionID string) ([]*types.AwardVote, error) {
-	return listAwardVotesForCompetitionPostgres(ctx, competitionID)
-}
-
-func ListAwardVotesForJudge(ctx *config.AppContext, competitionID, judgePersonID string) ([]*types.AwardVote, error) {
-	return listAwardVotesForJudgePostgres(ctx, competitionID, judgePersonID)
-}
-
-func UpsertAwardVote(ctx *config.AppContext, in AwardVoteInput) error {
-	return upsertAwardVotePostgres(ctx, in)
 }

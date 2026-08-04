@@ -267,24 +267,7 @@
                   <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Add judge</button>
                 </form>
 
-                {{ $awardVotes := $.AwardVotes . }}
-                {{ if $awardVotes }}
-                <div class="mt-4">
-                  <h5 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Submitted sponsor picks</h5>
-                  <p class="mt-1 text-xs text-gray-500">Saving a sponsor pick updates the assigned winner above automatically.</p>
-                  <ul class="mt-2 divide-y divide-gray-100 rounded-md border border-gray-200">
-                    {{ range $awardVotes }}
-                    <li class="px-3 py-3 text-sm">
-                      <div>
-                        <div class="font-medium text-gray-900">{{ if .JudgeName }}{{ .JudgeName }}{{ else }}{{ .JudgePersonID }}{{ end }}</div>
-                        <div class="mt-1 text-xs text-gray-500">Selected #{{ $.AwardVoteProjectNumber . }} · {{ .ProjectTitle }} · {{ .SubmittedAt.Format "Jan 2, 2006 3:04 PM" }}</div>
-                      </div>
-                      {{ if .Notes }}<p class="mt-2 text-sm text-gray-600">{{ .Notes }}</p>{{ end }}
-                    </li>
-                    {{ end }}
-                  </ul>
-                </div>
-                {{ end }}
+                <p class="mt-4 text-xs text-gray-500">Assigned sponsor judges select recipients directly from the judging page. Existing winners must be removed before replacements can be selected once the award reaches its recipient limit.</p>
                 </div>
               </details>
               {{ end }}
