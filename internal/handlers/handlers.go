@@ -1470,8 +1470,11 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/hackathon/judging/scorecards", func(w http.ResponseWriter, r *http.Request) {
 		HackathonScorecardSubmit(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/{conf}/hackathon/judging/award-votes", func(w http.ResponseWriter, r *http.Request) {
-		HackathonAwardVoteSubmit(w, r, app)
+	r.HandleFunc("/{conf}/hackathon/judging/award-winners", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAwardWinnerAssign(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/hackathon/judging/award-winners/remove", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAwardWinnerRemove(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/new", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectNew(w, r, app)

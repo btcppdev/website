@@ -9001,6 +9001,16 @@ body.btcpp-checkout-page {
 	background: #b91c1c;
 }
 
+.hack-button--danger-soft {
+	border-color: #fca5a5;
+	background: #fef2f2;
+	color: #991b1b;
+}
+
+.hack-button--danger-soft:hover {
+	background: #fee2e2;
+}
+
 .hack-actions .hack-button--accent {
 	min-height: 52px;
 	border: 2px solid #000;
@@ -9746,6 +9756,10 @@ body.btcpp-checkout-page {
 	border-left: 1px solid var(--hack-ink);
 }
 
+.hack-card-grid--sponsor-judging {
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+}
+
 .hack-card {
 	display: flex;
 	min-height: 260px;
@@ -9933,6 +9947,32 @@ outline-offset: 3px;
 .hack-card__links a {
 color: var(--hack-accent);
 font-weight: 700;
+}
+
+.hack-sponsor-judge-card .hack-card__links {
+	margin-top: 0;
+}
+
+.hack-sponsor-judge-card__section,
+.hack-sponsor-judge-card__notice {
+	margin-top: 6px;
+	padding-top: 18px;
+	border-top: 1px solid var(--hack-soft);
+}
+
+.hack-sponsor-judge-card__section {
+	display: grid;
+	gap: 12px;
+}
+
+.hack-sponsor-judge-card__assignment .hack-button {
+	justify-self: end;
+}
+
+.hack-sponsor-judge-card__notice {
+	color: var(--hack-dim);
+	font-size: 13px;
+	line-height: 1.5;
 }
 
 .hack-card__link--push {
