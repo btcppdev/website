@@ -282,19 +282,6 @@ type AwardJudge struct {
 	CreatedAt time.Time
 }
 
-type AwardVote struct {
-	AwardID       string
-	JudgePersonID string
-	JudgeName     string
-	ProjectID     string
-	ProjectTitle  string
-	ProjectNumber *int
-	Notes         string
-	SubmittedAt   time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
 type HackathonViewer struct {
 	PersonID string
 	Admin    bool

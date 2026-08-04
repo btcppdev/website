@@ -52,7 +52,6 @@ type HackathonAdminPage struct {
 	AwardeesByAward             map[string][]*types.ProjectAward
 	AwardOptInsByProject        map[string][]*types.ProjectAwardOptIn
 	AwardJudgesByAward          map[string][]*types.AwardJudge
-	AwardVotesByAward           map[string][]*types.AwardVote
 	PayoutAssignments           []*HackathonPayoutAssignment
 	AwardDistributions          []*types.AwardDistribution
 	ScheduleSegments            []*types.CompetitionScheduleSegment
@@ -1119,20 +1118,6 @@ func (p *HackathonAdminPage) AwardJudges(award *types.Award) []*types.AwardJudge
 	return p.AwardJudgesByAward[award.ID]
 }
 
-func (p *HackathonAdminPage) AwardVotes(award *types.Award) []*types.AwardVote {
-	if p == nil || p.AwardVotesByAward == nil || award == nil {
-		return nil
-	}
-	return p.AwardVotesByAward[award.ID]
-}
-
-func (p *HackathonAdminPage) AwardVoteProjectNumber(vote *types.AwardVote) string {
-	if vote == nil || vote.ProjectNumber == nil {
-		return "unassigned"
-	}
-	return strconv.Itoa(*vote.ProjectNumber)
-}
-
 func (p *HackathonAdminPage) ProjectSelectLabel(project *types.HackathonProject) string {
 	if project == nil {
 		return ""
@@ -1963,18 +1948,6 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 			awardJudgesByAward[judge.AwardID] = append(awardJudgesByAward[judge.AwardID], judge)
 		}
 	}
-	awardVotes, err := getters.ListAwardVotesForCompetition(ctx, competition.ID)
-	if err != nil {
-		ctx.Err.Printf("/admin/hackathons/%s/awards list award votes: %s", competitionID, err)
-		http.Error(w, "Unable to load award votes", http.StatusInternalServerError)
-		return
-	}
-	awardVotesByAward := make(map[string][]*types.AwardVote)
-	for _, vote := range awardVotes {
-		if vote != nil {
-			awardVotesByAward[vote.AwardID] = append(awardVotesByAward[vote.AwardID], vote)
-		}
-	}
 	page := &HackathonAdminPage{
 		Competition:          competition,
 		Conf:                 conf,
@@ -1988,7 +1961,6 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		AwardeesByAward:      awardeesByAward,
 		AwardOptInsByProject: projectAwardOptInsByProject(optIns),
 		AwardJudgesByAward:   awardJudgesByAward,
-		AwardVotesByAward:    awardVotesByAward,
 		FlashMessage:         r.URL.Query().Get("flash"),
 		FlashError:           r.URL.Query().Get("error"),
 		Year:                 helpers.CurrentYear(),
