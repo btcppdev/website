@@ -455,7 +455,11 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT competition_judges.competition_id::text, competition_judges.person_id::text,
-			coalesce(people.name, ''), coalesce(people.email::text, ''),
+			coalesce(people.name, ''), coalesce((
+				SELECT email.email::text FROM person_emails email
+				WHERE email.person_id = people.id
+				ORDER BY email.is_primary DESC, email.created_at, email.id LIMIT 1
+			), ''),
 			coalesce(people.norm_photo_path, ''),
 			coalesce(judge_company.company, nullif(people.company, ''), ''),
 			coalesce(max(nullif(competition_judges.public_label_override, '')), ''),
@@ -478,7 +482,7 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 		) judge_company ON true
 		WHERE competition_judges.competition_id::text = $1
 		GROUP BY competition_judges.competition_id, competition_judges.person_id,
-			people.id, people.name, people.email, people.norm_photo_path, people.company, judge_company.company
+			people.id, people.name, people.norm_photo_path, people.company, judge_company.company
 		ORDER BY CASE WHEN min(competition_judges.display_order) > 0 THEN 0 ELSE 1 END,
 			min(competition_judges.display_order), lower(people.name), people.id
 	`, competitionID)
@@ -510,7 +514,6 @@ func listCompetitionJudgeAssignmentsByEmailPostgres(ctx *config.AppContext, emai
 	}
 	return listCompetitionJudgeAssignmentsPostgres(ctx, `
 		competition_judges.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
-		OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL AND people.email = $1::citext)
 	`, email, email)
 }
 

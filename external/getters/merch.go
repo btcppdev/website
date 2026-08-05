@@ -837,10 +837,11 @@ func GetShopRefundContactByEmail(ctx *config.AppContext, email string) (*types.S
 	contact := &types.ShopRefundContact{}
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT
-			coalesce(max(nullif(signal, '')), ''),
-			coalesce(max(nullif(telegram, '')), '')
-		FROM people
-		WHERE email = $1::citext
+			coalesce(max(nullif(people.signal, '')), ''),
+			coalesce(max(nullif(people.telegram, '')), '')
+		FROM person_emails email
+		JOIN people ON people.id = email.person_id
+		WHERE email.email = $1::citext
 	`, email).Scan(&contact.Signal, &contact.Telegram)
 	if err != nil {
 		return nil, fmt.Errorf("get shop refund contact: %w", err)

@@ -465,9 +465,9 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		if email, h, err := validateVolEmail(r, ctx); err == nil {
 			encodedHMAC = h
 			encodedEmail = r.URL.Query().Get("em")
-			speakers, lerr := getters.GetSpeakersByEmail(ctx, email)
-			if lerr == nil && len(speakers) == 1 {
-				knownSpeaker = speakers[0]
+			person, lerr := getters.GetPersonByEmail(ctx, email)
+			if lerr == nil {
+				knownSpeaker = person
 			}
 			// Best-effort lookups: failures just leave the
 			// checkbox visible. The form still works.

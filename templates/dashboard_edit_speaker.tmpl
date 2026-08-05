@@ -99,10 +99,8 @@
               <input id="Name" name="Name" type="text" required value="{{ .Speaker.Name }}">
             </label>
             <label>EMAIL
-              {{ if .IsAdmin }}
-              <input id="Email" name="Email" type="email" required value="{{ .Speaker.Email }}">
-              {{ else }}
               <span class="profile-edit-locked">{{ .Speaker.Email }}</span>
+              {{ if not .IsAdmin }}
               <a class="profile-edit-email-manage" href="/dashboard/emails">Manage email addresses →</a>
               {{ end }}
             </label>

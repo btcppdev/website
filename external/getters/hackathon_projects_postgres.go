@@ -288,9 +288,7 @@ func listHackathonParticipantProjectsByEmailPostgres(ctx *config.AppContext, ema
 		return nil, nil
 	}
 	return listHackathonParticipantProjectsPostgres(ctx,
-		`membership.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
-			OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL
-				AND lower(coalesce(person.email::text, '')) = lower($1))`, email, email)
+		`membership.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)`, email, email)
 }
 
 func listHackathonParticipantProjectsByPersonIDPostgres(ctx *config.AppContext, personID string) ([]*HackathonParticipantProject, error) {
@@ -405,9 +403,7 @@ func hasHackathonParticipantProjectsByEmailPostgres(ctx *config.AppContext, emai
 		return false, nil
 	}
 	return hasHackathonParticipantProjectsPostgres(ctx,
-		`membership.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
-			OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL
-				AND lower(coalesce(person.email::text, '')) = lower($1))`, email, email)
+		`membership.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)`, email, email)
 }
 
 func hasHackathonParticipantProjectsByPersonIDPostgres(ctx *config.AppContext, personID string) (bool, error) {
@@ -610,7 +606,11 @@ func listProjectMembersPostgres(ctx *config.AppContext, projectID string) ([]*ty
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT project_members.project_id::text, project_members.person_id::text,
-			coalesce(people.name, ''), coalesce(people.email::text, ''),
+			coalesce(people.name, ''), coalesce((
+				SELECT email.email::text FROM person_emails email
+				WHERE email.person_id = people.id
+				ORDER BY email.is_primary DESC, email.created_at, email.id LIMIT 1
+			), ''),
 			coalesce(people.norm_photo_path, ''), project_members.role,
 			project_members.created_at
 		FROM project_members
@@ -689,14 +689,7 @@ func getPersonIDByEmailPostgres(ctx *config.AppContext, email string) (string, e
 		return "", fmt.Errorf("email %s belongs to multiple unresolved people", email)
 	}
 	if resolution.Alias == nil {
-		people, err := GetSpeakersByEmail(ctx, email)
-		if err != nil {
-			return "", err
-		}
-		if len(people) != 1 || people[0] == nil {
-			return "", fmt.Errorf("person not found for %s", email)
-		}
-		return people[0].ID, nil
+		return "", fmt.Errorf("person not found for %s", email)
 	}
 	return resolution.Alias.PersonID, nil
 }
@@ -810,18 +803,16 @@ func acceptProjectInvitePostgres(ctx *config.AppContext, token, personID string)
 		return nil, err
 	}
 	if invite.Email != "" {
-		var personEmail string
+		var matches bool
 		if err := tx.QueryRow(ctx.DatabaseContext(), `
-			SELECT coalesce(email::text, '')
-			FROM people
-			WHERE id::text = $1
-		`, personID).Scan(&personEmail); err != nil {
-			if err == pgx.ErrNoRows {
-				return nil, fmt.Errorf("person %s not found", personID)
-			}
+			SELECT EXISTS (
+				SELECT 1 FROM person_emails
+				WHERE person_id = $1::uuid AND email = $2::citext
+			)
+		`, personID, invite.Email).Scan(&matches); err != nil {
 			return nil, fmt.Errorf("load invite recipient %s: %w", personID, err)
 		}
-		if !strings.EqualFold(strings.TrimSpace(invite.Email), strings.TrimSpace(personEmail)) {
+		if !matches {
 			return nil, fmt.Errorf("project invite is for %s", invite.Email)
 		}
 	}
@@ -944,13 +935,16 @@ func acceptCompetitionJudgeInvitePostgres(ctx *config.AppContext, token, personI
 		return nil, fmt.Errorf("judge invite expired")
 	}
 	if strings.TrimSpace(invite.Email) != "" {
-		var personEmail string
+		var matches bool
 		if err := tx.QueryRow(dbctx, `
-			SELECT coalesce(email::text, '') FROM people WHERE id = $1::uuid
-		`, personID).Scan(&personEmail); err != nil {
+			SELECT EXISTS (
+				SELECT 1 FROM person_emails
+				WHERE person_id = $1::uuid AND email = $2::citext
+			)
+		`, personID, invite.Email).Scan(&matches); err != nil {
 			return nil, fmt.Errorf("load judge invite recipient: %w", err)
 		}
-		if !strings.EqualFold(strings.TrimSpace(invite.Email), strings.TrimSpace(personEmail)) {
+		if !matches {
 			return nil, fmt.Errorf("judge invite is for %s", invite.Email)
 		}
 	}

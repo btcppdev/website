@@ -124,9 +124,13 @@ func GetSpeakerConfsByEmail(ctx *config.AppContext, email string) ([]*types.Spea
 		return nil, nil, fmt.Errorf("database is not configured")
 	}
 
-	speakers, err := GetSpeakersByEmail(ctx, email)
+	speaker, err := GetPersonByEmail(ctx, email)
 	if err != nil {
-		return nil, nil, fmt.Errorf("speakers by email: %w", err)
+		return nil, nil, fmt.Errorf("person by email: %w", err)
+	}
+	var speakers []*types.Speaker
+	if speaker != nil {
+		speakers = append(speakers, speaker)
 	}
 	speakerMap := make(map[string]*types.Speaker)
 	ids := []string{}

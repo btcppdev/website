@@ -17,7 +17,7 @@ const StatusApplied = "Applied"
 // submitDeps carries the side-effecting collaborators used by the talk-submit
 // pipeline. Production wires these to the getters package; tests pass fakes.
 type submitDeps struct {
-	findSpeakers      func(email string) ([]*types.Speaker, error)
+	findPerson        func(email string) (*types.Speaker, error)
 	createSpeaker     func(in getters.SpeakerInput) (string, error)
 	updateSpeaker     func(speakerID string, up getters.SpeakerUpdate) error
 	findOrg           func(website, name string) (*types.Org, error)
@@ -43,8 +43,8 @@ type SubmitResult struct {
 
 func newSubmitPipeline(ctx *config.AppContext) submitPipeline {
 	return submitPipeline{deps: submitDeps{
-		findSpeakers: func(email string) ([]*types.Speaker, error) {
-			return getters.GetSpeakersByEmail(ctx, email)
+		findPerson: func(email string) (*types.Speaker, error) {
+			return getters.GetPersonByEmail(ctx, email)
 		},
 		createSpeaker: func(in getters.SpeakerInput) (string, error) {
 			return getters.CreateSpeaker(ctx, in)
@@ -84,15 +84,12 @@ func (p submitPipeline) Submit(app *types.TalkApp) (SubmitResult, error) {
 	}
 
 	// 1. Upsert Speaker by email.
-	matches, err := p.deps.findSpeakers(app.Email)
+	existing, err := p.deps.findPerson(app.Email)
 	if err != nil {
-		return result, fmt.Errorf("find speakers by email: %w", err)
-	}
-	if len(matches) > 1 {
-		return result, fmt.Errorf("%w: %d matches for %s", ErrDuplicateSpeakerEmail, len(matches), app.Email)
+		return result, fmt.Errorf("find person by email: %w", err)
 	}
 
-	if len(matches) == 0 {
+	if existing == nil {
 		speakerID, err := p.deps.createSpeaker(speakerInputFromTalkApp(app))
 		if err != nil {
 			return result, fmt.Errorf("create speaker: %w", err)
@@ -100,7 +97,6 @@ func (p submitPipeline) Submit(app *types.TalkApp) (SubmitResult, error) {
 		result.SpeakerID = speakerID
 		result.SpeakerCreated = true
 	} else {
-		existing := matches[0]
 		result.SpeakerID = existing.ID
 		update := buildSpeakerUpdateFromForm(existing, app)
 		if err := p.deps.updateSpeaker(existing.ID, update); err != nil {
@@ -191,14 +187,11 @@ func (p submitPipeline) JoinProposal(app *types.TalkApp, proposalID string) (Sub
 	}
 
 	// 1. Upsert Speaker by email — same logic as Submit.
-	matches, err := p.deps.findSpeakers(app.Email)
+	existing, err := p.deps.findPerson(app.Email)
 	if err != nil {
-		return result, fmt.Errorf("find speakers by email: %w", err)
+		return result, fmt.Errorf("find person by email: %w", err)
 	}
-	if len(matches) > 1 {
-		return result, fmt.Errorf("%w: %d matches for %s", ErrDuplicateSpeakerEmail, len(matches), app.Email)
-	}
-	if len(matches) == 0 {
+	if existing == nil {
 		speakerID, err := p.deps.createSpeaker(speakerInputFromTalkApp(app))
 		if err != nil {
 			return result, fmt.Errorf("create speaker: %w", err)
@@ -206,7 +199,6 @@ func (p submitPipeline) JoinProposal(app *types.TalkApp, proposalID string) (Sub
 		result.SpeakerID = speakerID
 		result.SpeakerCreated = true
 	} else {
-		existing := matches[0]
 		result.SpeakerID = existing.ID
 		update := buildSpeakerUpdateFromForm(existing, app)
 		if err := p.deps.updateSpeaker(existing.ID, update); err != nil {

@@ -50,7 +50,11 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT
-			person.id::text, person.name, coalesce(person.email::text, ''),
+			person.id::text, person.name, coalesce((
+				SELECT email.email::text FROM person_emails email
+				WHERE email.person_id = person.id
+				ORDER BY email.is_primary DESC, email.created_at, email.id LIMIT 1
+			), ''),
 			person.norm_photo_path, person.phone, person.signal, person.telegram,
 			person.twitter_handle, person.nostr, person.github_url, person.instagram,
 			person.linkedin, person.leetcode, person.website_url, person.company,
@@ -217,7 +221,11 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 func addPublicProfileProjects(ctx *config.AppContext, people map[string]*PublicProfile, confs map[string]*types.Conf, editionSeen map[string]bool) error {
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT
-			person.id::text, person.name, coalesce(person.email::text, ''),
+			person.id::text, person.name, coalesce((
+				SELECT email.email::text FROM person_emails email
+				WHERE email.person_id = person.id
+				ORDER BY email.is_primary DESC, email.created_at, email.id LIMIT 1
+			), ''),
 			person.norm_photo_path, person.phone, person.signal, person.telegram,
 			person.twitter_handle, person.nostr, person.github_url, person.instagram,
 			person.linkedin, person.leetcode, person.website_url, person.company,
@@ -370,7 +378,11 @@ func addPublicProfileAttendance(ctx *config.AppContext, personIDs []string, peop
 			conf.tagline, conf.date_desc, conf.start_date, conf.end_date,
 			conf.timezone, conf.location
 		FROM people person
-		JOIN registrations registration ON registration.email = person.email
+		JOIN registrations registration ON registration.person_id = person.id
+			OR (registration.person_id IS NULL AND EXISTS (
+				SELECT 1 FROM person_emails email
+				WHERE email.person_id = person.id AND email.email = registration.email
+			))
 		JOIN conferences conf ON conf.id = registration.conference_id
 		WHERE person.id::text = ANY($1::text[])
 		  AND registration.revoked = false

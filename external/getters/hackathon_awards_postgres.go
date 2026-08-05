@@ -836,7 +836,11 @@ func listAwardJudgesForCompetitionPostgres(ctx *config.AppContext, competitionID
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT award_judges.award_id::text, award_judges.person_id::text,
-			coalesce(people.name, ''), coalesce(people.email::text, ''),
+			coalesce(people.name, ''), coalesce((
+				SELECT email.email::text FROM person_emails email
+				WHERE email.person_id = people.id
+				ORDER BY email.is_primary DESC, email.created_at, email.id LIMIT 1
+			), ''),
 			coalesce(people.norm_photo_path, ''), award_judges.created_at
 		FROM award_judges
 		JOIN awards ON awards.id = award_judges.award_id
