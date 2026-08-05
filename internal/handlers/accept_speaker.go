@@ -202,14 +202,8 @@ func mapPresTypeToTalkType(presType string) string {
 	}
 }
 
-// validShirtCode returns the input if it's one of the Speakers DB TShirt
-// select options, else "" — guards against bad form input writing an
-// invalid Notion option.
+// validShirtCode keeps the legacy handler call sites on the canonical shirt
+// size vocabulary shared by people, speakers, and volunteers.
 func validShirtCode(shirt string) string {
-	switch shirt {
-	case "LS", "LM", "LL", "MS", "MM", "ML", "MXL", "MXXL", "MXXXL":
-		return shirt
-	default:
-		return ""
-	}
+	return types.ValidShirtSizeCode(shirt)
 }

@@ -282,15 +282,9 @@
                                 aria-label="Shirt Size"
                                 required
                                 class="col-start-1 row-start-1 w-full appearance-none rounded-md py-2 pl-3.5 pr-7 text-base text-gray-500 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-bitcoin sm:text-sm/6">
-                                <option value="LS">Ladies Small</option>
-                                <option value="LM">Ladies Medium</option>
-                                <option value="LL">Ladies Large</option>
-                                <option value="MS">Men's Small</option>
-                                <option value="MM" selected>Men's Medium</option>
-                                <option value="ML">Men's Large</option>
-                                <option value="MXL">Men's XL</option>
-                                <option value="MXXL">Men's XXL</option>
-                                <option value="MXXXL">Men's XXXL</option>
+                                {{ range shirtSizes }}
+                                <option value="{{ .Code }}"{{ if eq .Code "MM" }} selected{{ end }}>{{ .Label }}</option>
+                                {{ end }}
                             </select>
                         </div>
                     </div>

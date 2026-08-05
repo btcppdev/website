@@ -32,7 +32,7 @@ func TestCheckInPageTicketPresentation(t *testing.T) {
 
 func TestCheckInPagePickupState(t *testing.T) {
 	page := &CheckInPage{TShirtSize: "MM"}
-	if got := page.TShirtSizeLabel(); got != "Men's medium" {
+	if got := page.TShirtSizeLabel(); got != "Men's Medium" {
 		t.Fatalf("TShirtSizeLabel() = %q", got)
 	}
 	if !page.HasPendingPickups() {

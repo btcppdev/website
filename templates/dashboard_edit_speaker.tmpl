@@ -169,15 +169,9 @@
               <select id="TShirt" name="TShirt">
                 {{ $cur := "" }}{{ if .Speaker }}{{ $cur = .Speaker.TShirt }}{{ end }}
                 <option value="" {{ if eq $cur "" }}selected{{ end }}>—</option>
-                <option value="LS" {{ if eq $cur "LS" }}selected{{ end }}>Ladies Small</option>
-                <option value="LM" {{ if eq $cur "LM" }}selected{{ end }}>Ladies Medium</option>
-                <option value="LL" {{ if eq $cur "LL" }}selected{{ end }}>Ladies Large</option>
-                <option value="MS" {{ if eq $cur "MS" }}selected{{ end }}>Men's Small</option>
-                <option value="MM" {{ if eq $cur "MM" }}selected{{ end }}>Men's Medium</option>
-                <option value="ML" {{ if eq $cur "ML" }}selected{{ end }}>Men's Large</option>
-                <option value="MXL" {{ if eq $cur "MXL" }}selected{{ end }}>Men's XL</option>
-                <option value="MXXL" {{ if eq $cur "MXXL" }}selected{{ end }}>Men's XXL</option>
-                <option value="MXXXL" {{ if eq $cur "MXXXL" }}selected{{ end }}>Men's XXXL</option>
+                {{ range shirtSizes }}
+                <option value="{{ .Code }}" {{ if eq $cur .Code }}selected{{ end }}>{{ .Label }}</option>
+                {{ end }}
               </select>
             </label>
           </div>

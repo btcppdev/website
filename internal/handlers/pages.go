@@ -273,28 +273,7 @@ func checkInTicketTypeLabel(ticketType string) string {
 }
 
 func (p *CheckInPage) TShirtSizeLabel() string {
-	switch strings.ToUpper(strings.TrimSpace(p.TShirtSize)) {
-	case "LS":
-		return "Ladies small"
-	case "LM":
-		return "Ladies medium"
-	case "LL":
-		return "Ladies large"
-	case "MS":
-		return "Men's small"
-	case "MM":
-		return "Men's medium"
-	case "ML":
-		return "Men's large"
-	case "MXL":
-		return "Men's XL"
-	case "MXXL":
-		return "Men's XXL"
-	case "MXXXL":
-		return "Men's XXXL"
-	default:
-		return strings.TrimSpace(p.TShirtSize)
-	}
+	return firstNonEmpty(types.ShirtSizeLabel(p.TShirtSize), strings.TrimSpace(p.TShirtSize))
 }
 
 func (p *CheckInPage) HasPendingPickups() bool {
