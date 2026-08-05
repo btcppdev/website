@@ -1519,12 +1519,10 @@ func createSmokeProject(t *testing.T, ctx *config.AppContext, in ProjectInput) s
 func insertSmokePerson(t *testing.T, ctx *config.AppContext, label string) string {
 	t.Helper()
 	suffix := postgresSmokeSuffix()
-	var id string
-	err := ctx.DB.QueryRow(context.Background(), `
-		INSERT INTO people (name, email)
-		VALUES ($1, $2)
-		RETURNING id::text
-	`, "Hackathon "+label+" "+suffix, label+"-"+suffix+"@example.test").Scan(&id)
+	id, err := CreateSpeaker(ctx, SpeakerInput{
+		Name:  "Hackathon " + label + " " + suffix,
+		Email: label + "-" + suffix + "@example.test",
+	})
 	if err != nil {
 		t.Fatalf("insert person: %v", err)
 	}
@@ -1557,8 +1555,10 @@ func smokePersonEmail(t *testing.T, ctx *config.AppContext, personID string) str
 	var email string
 	if err := ctx.DB.QueryRow(context.Background(), `
 		SELECT email::text
-		FROM people
-		WHERE id::text = $1
+		FROM person_emails
+		WHERE person_id::text = $1
+		ORDER BY is_primary DESC, created_at, id
+		LIMIT 1
 	`, personID).Scan(&email); err != nil {
 		t.Fatalf("lookup person email %s: %v", personID, err)
 	}

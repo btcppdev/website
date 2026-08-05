@@ -253,15 +253,12 @@ func resolveOrCreateSpeaker(ctx *config.AppContext, speakerID, name, email strin
 		}
 		// Fall through: treat as if no ID was picked.
 	}
-	matches, err := getters.GetSpeakersByEmail(ctx, email)
+	person, err := getters.GetPersonByEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("lookup by email: %w", err)
 	}
-	if len(matches) > 1 {
-		return nil, fmt.Errorf("%w: %d matches for %s", ErrDuplicateSpeakerEmail, len(matches), email)
-	}
-	if len(matches) == 1 {
-		return matches[0], nil
+	if person != nil {
+		return person, nil
 	}
 	id, err := getters.CreateSpeaker(ctx, getters.SpeakerInput{
 		Name:  name,

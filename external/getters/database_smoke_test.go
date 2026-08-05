@@ -38,14 +38,13 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, speakerID)
 	})
 
-	speakers, err := GetSpeakersByEmail(ctx, strings.ToUpper(email))
+	got, err := GetPersonByEmail(ctx, strings.ToUpper(email))
 	if err != nil {
-		t.Fatalf("GetSpeakersByEmail postgres: %v", err)
+		t.Fatalf("GetPersonByEmail postgres: %v", err)
 	}
-	if len(speakers) != 1 {
-		t.Fatalf("GetSpeakersByEmail returned %d speakers, want 1", len(speakers))
+	if got == nil {
+		t.Fatal("GetPersonByEmail returned nil")
 	}
-	got := speakers[0]
 	if got.ID != speakerID || got.Email != email || got.Signal != "smoke."+suffix || got.TShirt != "MM" || got.Bio != "Smoke-test profile text." {
 		t.Fatalf("speaker mismatch: %+v", got)
 	}
@@ -407,12 +406,10 @@ func TestDatabaseSmokeUpsertSpeakerConfNormalizesNilAvailability(t *testing.T) {
 	confID, tag := insertSmokeConference(t, ctx)
 	suffix := databaseSmokeSuffix()
 
-	var speakerID string
-	err := ctx.DB.QueryRow(context.Background(), `
-		INSERT INTO people (name, email)
-		VALUES ($1, $2)
-		RETURNING id::text
-	`, "Smoke SpeakerConf "+suffix, "speakerconf-"+suffix+"@example.test").Scan(&speakerID)
+	speakerID, err := CreateSpeaker(ctx, SpeakerInput{
+		Name:  "Smoke SpeakerConf " + suffix,
+		Email: "speakerconf-" + suffix + "@example.test",
+	})
 	if err != nil {
 		t.Fatalf("insert person: %v", err)
 	}

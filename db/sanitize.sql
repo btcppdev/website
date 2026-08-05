@@ -3,16 +3,25 @@ BEGIN;
 UPDATE conferences
 SET orient_cal_notif = '';
 
+UPDATE person_emails
+SET email = ('__sanitizing_person_email_' || id || '@example.invalid')::citext;
+
 WITH numbered AS (
   SELECT id, row_number() OVER (ORDER BY id) AS rn
-  FROM people
+  FROM person_emails
 )
-UPDATE people AS p
-SET email = CASE
-    WHEN p.email IS NULL THEN NULL
-    ELSE ('person+' || numbered.rn || '@example.test')::citext
-  END,
-  phone = '',
+UPDATE person_emails AS email
+SET email = ('person+' || numbered.rn || '@example.test')::citext
+FROM numbered
+WHERE email.id = numbered.id;
+
+DELETE FROM person_email_verifications;
+
+UPDATE person_email_conflicts
+SET email = ('conflict+' || md5(email::text) || '@example.test')::citext;
+
+UPDATE people
+SET phone = '',
   signal = '',
   telegram = '',
   twitter_handle = '',
@@ -21,9 +30,7 @@ SET email = CASE
   instagram = '',
   linkedin = '',
   website_url = '',
-  tshirt = ''
-FROM numbered
-WHERE p.id = numbered.id;
+  tshirt = '';
 
 UPDATE organizations
 SET email = NULL,

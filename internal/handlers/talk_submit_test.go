@@ -67,9 +67,15 @@ func newSubmitRecorder(t *testing.T, app *types.TalkApp, matches []*types.Speake
 	t.Helper()
 	rec := &submitRecorder{}
 	deps := submitDeps{
-		findSpeakers: func(email string) ([]*types.Speaker, error) {
+		findPerson: func(email string) (*types.Speaker, error) {
 			rec.findCalls = append(rec.findCalls, email)
-			return matches, nil
+			if len(matches) > 1 {
+				return nil, ErrDuplicateSpeakerEmail
+			}
+			if len(matches) == 1 {
+				return matches[0], nil
+			}
+			return nil, nil
 		},
 		createSpeaker: func(in getters.SpeakerInput) (string, error) {
 			rec.speakerCreated = append(rec.speakerCreated, in)

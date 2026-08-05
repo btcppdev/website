@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"btcpp-web/internal/db"
@@ -1411,20 +1412,20 @@ func seedTickets(ctx context.Context, tx pgx.Tx, confID string) {
 func seedAdmin(ctx context.Context, tx pgx.Tx) {
 	mustExec(ctx, tx, "seed admin person", `
 		INSERT INTO people (
-			id, name, email, norm_photo_path, phone, signal, telegram, twitter_handle,
+			id, name, norm_photo_path, phone, signal, telegram, twitter_handle,
 			nostr, github_url, instagram, linkedin, website_url, company,
 			org_logo_path, avail_to_hire, looking_to_hire, tshirt
 		)
 		VALUES (
-			$1::uuid, 'Dev Admin', 'dev-admin@example.test', '', '', '', '', '',
+			$1::uuid, 'Dev Admin', '', '', '', '', '',
 			'', '', '', '', '', 'bitcoin++ local dev', '', false, false, 'MM'
 		)
 		ON CONFLICT (id) DO UPDATE SET
 			name = EXCLUDED.name,
-			email = EXCLUDED.email,
 			company = EXCLUDED.company,
 			tshirt = EXCLUDED.tshirt
 	`, devAdminID)
+	seedPersonEmail(ctx, tx, devAdminID, "dev-admin@example.test")
 
 	mustExec(ctx, tx, "seed admin role", `
 		INSERT INTO people_roles (person_id, scope, position)
@@ -1437,24 +1438,24 @@ func seedProgram(ctx context.Context, tx pgx.Tx, confID string) {
 	for i, sp := range devSpeakers {
 		mustExec(ctx, tx, "seed speaker person", `
 			INSERT INTO people (
-				id, name, email, norm_photo_path, phone, signal, telegram, twitter_handle,
+				id, name, norm_photo_path, phone, signal, telegram, twitter_handle,
 				nostr, github_url, instagram, linkedin, leetcode, website_url, company,
 				org_logo_path, avail_to_hire, looking_to_hire, tshirt
 			)
 			VALUES (
-				$1::uuid, $2, NULLIF($3, '')::citext, $4, '', '', '', $5,
-				'', $6, '', '', $7, $8, $9, '', false, false, ''
+				$1::uuid, $2, $3, '', '', '', $4,
+				'', $5, '', '', $6, $7, $8, '', false, false, ''
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				name = EXCLUDED.name,
-				email = EXCLUDED.email,
 				norm_photo_path = EXCLUDED.norm_photo_path,
 				twitter_handle = EXCLUDED.twitter_handle,
 				github_url = EXCLUDED.github_url,
 				leetcode = EXCLUDED.leetcode,
 				website_url = EXCLUDED.website_url,
 				company = EXCLUDED.company
-		`, sp.personID, sp.name, sp.email, sp.photo, sp.twitter, sp.github, sp.leetcode, sp.website, sp.company)
+		`, sp.personID, sp.name, sp.photo, sp.twitter, sp.github, sp.leetcode, sp.website, sp.company)
+		seedPersonEmail(ctx, tx, sp.personID, sp.email)
 
 		mustExec(ctx, tx, "seed speaker conf", `
 			INSERT INTO speaker_confs (
@@ -1663,20 +1664,20 @@ func seedHomepageFeaturedSpeakers(ctx context.Context, tx pgx.Tx) {
 	for _, person := range extraPeople {
 		mustExec(ctx, tx, "seed homepage-only speaker", `
 			INSERT INTO people (
-				id, name, email, norm_photo_path, phone, signal, telegram, twitter_handle,
+				id, name, norm_photo_path, phone, signal, telegram, twitter_handle,
 				nostr, github_url, instagram, linkedin, website_url, company,
 				org_logo_path, avail_to_hire, looking_to_hire, tshirt
 			)
 			VALUES (
-				$1::uuid, $2, $3::citext, $4, '', '', '', '',
-				'', '', '', '', '', $5, '', false, false, ''
+				$1::uuid, $2, $3, '', '', '', '',
+				'', '', '', '', '', $4, '', false, false, ''
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				name = EXCLUDED.name,
-				email = EXCLUDED.email,
 				norm_photo_path = EXCLUDED.norm_photo_path,
 				company = EXCLUDED.company
-		`, person.id, person.name, person.email, person.photo, person.company)
+		`, person.id, person.name, person.photo, person.company)
+		seedPersonEmail(ctx, tx, person.id, person.email)
 	}
 
 	featured := []string{
@@ -1994,4 +1995,20 @@ func mustExec(ctx context.Context, tx pgx.Tx, label string, sql string, args ...
 	if _, err := tx.Exec(ctx, sql, args...); err != nil {
 		log.Fatal(fmt.Errorf("%s: %w", label, err))
 	}
+}
+
+func seedPersonEmail(ctx context.Context, tx pgx.Tx, personID, email string) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return
+	}
+	mustExec(ctx, tx, "seed person email", `
+		INSERT INTO person_emails (person_id, email, is_primary, verified_at)
+		VALUES ($1::uuid, $2::citext, true, now())
+		ON CONFLICT (email) DO UPDATE SET
+			person_id = EXCLUDED.person_id,
+			is_primary = true,
+			verified_at = EXCLUDED.verified_at,
+			updated_at = now()
+	`, personID, email)
 }
