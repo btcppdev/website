@@ -216,8 +216,16 @@ func ListHackathonParticipantProjectsByEmail(ctx *config.AppContext, email strin
 	return listHackathonParticipantProjectsByEmailPostgres(ctx, email)
 }
 
+func ListHackathonParticipantProjectsForPerson(ctx *config.AppContext, personID string) ([]*HackathonParticipantProject, error) {
+	return listHackathonParticipantProjectsByPersonIDPostgres(ctx, personID)
+}
+
 func HasHackathonParticipantProjectsByEmail(ctx *config.AppContext, email string) (bool, error) {
 	return hasHackathonParticipantProjectsByEmailPostgres(ctx, email)
+}
+
+func HasHackathonParticipantProjectsForPerson(ctx *config.AppContext, personID string) (bool, error) {
+	return hasHackathonParticipantProjectsByPersonIDPostgres(ctx, personID)
 }
 
 func ListTableProjectsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.HackathonProject, error) {
@@ -322,6 +330,10 @@ func ListCompetitionJudges(ctx *config.AppContext, competitionID string) ([]*typ
 
 func ListCompetitionJudgeAssignmentsByEmail(ctx *config.AppContext, email string) ([]*types.CompetitionJudgeAssignment, error) {
 	return listCompetitionJudgeAssignmentsByEmailPostgres(ctx, email)
+}
+
+func ListCompetitionJudgeAssignmentsForPerson(ctx *config.AppContext, personID string) ([]*types.CompetitionJudgeAssignment, error) {
+	return listCompetitionJudgeAssignmentsByPersonIDPostgres(ctx, personID)
 }
 
 func UpsertScorecard(ctx *config.AppContext, in ScorecardInput) (*types.Scorecard, error) {

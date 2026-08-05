@@ -3485,21 +3485,32 @@ func hackathonViewerForCompetition(id *auth.Identity, conf *types.Conf) types.Ha
 }
 
 func hackathonViewerPersonID(id *auth.Identity) string {
-	if id == nil || id.Speaker == nil {
+	if id == nil {
 		return ""
 	}
-	return id.Speaker.ID
+	if id.PersonID == "" && id.Speaker != nil {
+		return id.Speaker.ID
+	}
+	return id.PersonID
 }
 
 func viewerHasConferenceTicket(ctx *config.AppContext, conf *types.Conf, id *auth.Identity) (bool, error) {
 	if ctx == nil || conf == nil || id == nil {
 		return false, nil
 	}
-	email := strings.TrimSpace(id.Email)
-	if email == "" && id.Speaker != nil {
-		email = strings.TrimSpace(id.Speaker.Email)
+	if strings.TrimSpace(id.PersonID) == "" || strings.TrimSpace(conf.Ref) == "" {
+		return false, nil
 	}
-	return emailHasConferenceTicket(ctx, conf, email)
+	registrations, err := getters.ListRegistrationsForPerson(ctx, id.PersonID)
+	if err != nil {
+		return false, err
+	}
+	for _, registration := range registrations {
+		if registrationCountsForConferenceTicket(registration, conf) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func emailHasConferenceTicket(ctx *config.AppContext, conf *types.Conf, email string) (bool, error) {

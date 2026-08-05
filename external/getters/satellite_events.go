@@ -72,7 +72,9 @@ func ListSatelliteEventsBySubmitter(ctx *config.AppContext, email string) ([]*ty
 			host_name, host_url, host_logo_url, COALESCE(submitter_email::text, ''),
 			status, notes, published_at
 		FROM satellite_events
-		WHERE submitter_email = NULLIF($1, '')::citext
+		WHERE submitter_person_id = (SELECT person_id FROM person_emails WHERE email = NULLIF($1, '')::citext)
+			OR ((SELECT person_id FROM person_emails WHERE email = NULLIF($1, '')::citext) IS NULL
+				AND submitter_email = NULLIF($1, '')::citext)
 		ORDER BY starts_at NULLS LAST, title
 	`, email)
 	if err != nil {
@@ -90,6 +92,37 @@ func ListSatelliteEventsBySubmitter(ctx *config.AppContext, email string) ([]*ty
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate submitter satellite events: %w", err)
+	}
+	return events, nil
+}
+
+func ListSatelliteEventsForPerson(ctx *config.AppContext, personID string) ([]*types.SatelliteEvent, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT id::text, conference_id::text, title, description, event_url,
+			event_type, starts_at, ends_at, location, image_url,
+			host_name, host_url, host_logo_url, COALESCE(submitter_email::text, ''),
+			status, notes, published_at
+		FROM satellite_events
+		WHERE submitter_person_id = NULLIF($1, '')::uuid
+		ORDER BY starts_at NULLS LAST, title
+	`, personID)
+	if err != nil {
+		return nil, fmt.Errorf("query person satellite events: %w", err)
+	}
+	defer rows.Close()
+	var events []*types.SatelliteEvent
+	for rows.Next() {
+		event, err := scanSatelliteEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate person satellite events: %w", err)
 	}
 	return events, nil
 }
@@ -160,14 +193,14 @@ func CreateSatelliteEvent(ctx *config.AppContext, input SatelliteEventInput) (*t
 		INSERT INTO satellite_events (
 			conference_id, title, description, event_url, event_type,
 			starts_at, ends_at, location, image_url,
-			host_name, host_url, host_logo_url, submitter_email,
+			host_name, host_url, host_logo_url, submitter_email, submitter_person_id,
 			status, notes, published_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7, $8, $9,
 			$10, $11, $12, NULLIF($13, '')::citext,
-			$14, $15,
-			CASE WHEN $14 = 'published' THEN now() ELSE NULL END
+			(SELECT person_id FROM person_emails WHERE email = NULLIF($13, '')::citext),
+			$14, $15, CASE WHEN $14 = 'published' THEN now() ELSE NULL END
 		)
 		RETURNING id::text, conference_id::text, title, description, event_url,
 			event_type, starts_at, ends_at, location, image_url, host_name,
@@ -211,6 +244,7 @@ func UpdateSatelliteEvent(ctx *config.AppContext, id string, input SatelliteEven
 			host_url = $11,
 			host_logo_url = $12,
 			submitter_email = NULLIF($13, '')::citext,
+			submitter_person_id = (SELECT person_id FROM person_emails WHERE email = NULLIF($13, '')::citext),
 			status = $14,
 			notes = $15,
 			published_at = CASE

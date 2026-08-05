@@ -247,14 +247,14 @@ func AffiliateDisable(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 }
 
 func buildAffiliatePage(ctx *config.AppContext, email string, isEdit bool, formErr string) *AffiliatePage {
-	code := loadAffiliateCode(ctx, email, true)
+	code := loadAffiliateCode(ctx, "", email, true)
 	page := &AffiliatePage{
 		Code:         code,
 		IsEdit:       isEdit,
 		IsLanding:    !isEdit && code != nil,
 		BuyerPctOpts: AffiliateBuyerPctOptions,
 		ConfNames:    activeConfTagNames(ctx),
-		Stats:        loadAffiliateStats(ctx, email, true),
+		Stats:        loadAffiliateStats(ctx, "", email, true),
 		CampaignRows: affiliateCampaignRows(ctx, email),
 		BaseURI:      ctx.Env.GetURI(),
 		FormError:    formErr,

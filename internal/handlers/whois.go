@@ -104,11 +104,11 @@ func RenderWhoIsArchive(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	var encodedEmail, encodedHMAC string
 	canEdit := false
-	if person.Speaker != nil && person.Speaker.Email != "" {
-		email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-		if email != "" && strings.EqualFold(email, person.Speaker.Email) {
-			encodedEmail = base64.RawURLEncoding.EncodeToString([]byte(email))
-			encodedHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
+	if person.Speaker != nil {
+		id, _ := auth.Resolve(r, ctx)
+		if id != nil && id.PersonID == person.Speaker.ID {
+			encodedEmail = base64.RawURLEncoding.EncodeToString([]byte(id.LoginEmail))
+			encodedHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, id.LoginEmail)))
 			canEdit = true
 		}
 	}
@@ -233,10 +233,11 @@ func whoIsProfileEditURL(ctx *config.AppContext, r *http.Request, person *WhoIsP
 	if ctx == nil || r == nil || person == nil || person.Speaker == nil {
 		return ""
 	}
-	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-	if email == "" || !strings.EqualFold(email, person.Speaker.Email) {
+	id, err := auth.Resolve(r, ctx)
+	if err != nil || id == nil || id.PersonID != person.Speaker.ID {
 		return ""
 	}
+	email := id.LoginEmail
 	encodedEmail := base64.RawURLEncoding.EncodeToString([]byte(email))
 	encodedHMAC := base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
 	return "/dashboard/speaker?hr=" + url.QueryEscape(encodedHMAC) + "&em=" + url.QueryEscape(encodedEmail)

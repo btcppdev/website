@@ -220,8 +220,27 @@ func GetDiscountByAffiliateEmail(ctx *config.AppContext, email string) (*types.D
 	}
 	out, err := queryDiscountsPostgres(ctx, "discount by affiliate email", `
 		discounts.archived_at IS NULL
-			AND discounts.affiliate_email = $1
+			AND (
+				discounts.affiliate_person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+				OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL
+					AND discounts.affiliate_email = $1::citext)
+			)
 	`, email)
+	if err != nil || len(out) == 0 {
+		return nil, err
+	}
+	return out[0], nil
+}
+
+func GetDiscountByAffiliatePersonID(ctx *config.AppContext, personID string) (*types.DiscountCode, error) {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, nil
+	}
+	out, err := queryDiscountsPostgres(ctx, "discount by affiliate person", `
+		discounts.archived_at IS NULL
+			AND discounts.affiliate_person_id = $1::uuid
+	`, personID)
 	if err != nil || len(out) == 0 {
 		return nil, err
 	}
@@ -364,10 +383,12 @@ func insertDiscountPostgres(ctx *config.AppContext, codeName, discountExpr, affi
 	var discountID string
 	err = tx.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO discounts (
-			code_name, discount_expr, affiliate_email, disc_type, amount,
+			code_name, discount_expr, affiliate_email, affiliate_person_id, disc_type, amount,
 			max_uses, extra_qty, valid_from, valid_until
 		) VALUES (
-			$1, $2, NULLIF($3, '')::citext, $4, $5, $6, $7, $8, $9
+			$1, $2, NULLIF($3, '')::citext,
+			(SELECT person_id FROM person_emails WHERE email = NULLIF($3, '')::citext),
+			$4, $5, $6, $7, $8, $9
 		)
 		RETURNING id::text
 	`, discount.CodeName, discount.Discount, discount.AffiliateEmail, discType,
@@ -430,6 +451,7 @@ func updateDiscountRowPostgres(ctx *config.AppContext, discountID, codeName, dis
 			SET code_name = $2,
 				discount_expr = $3,
 				affiliate_email = NULLIF($4, '')::citext,
+				affiliate_person_id = (SELECT person_id FROM person_emails WHERE email = NULLIF($4, '')::citext),
 				disc_type = $5,
 				amount = $6,
 				max_uses = $7,

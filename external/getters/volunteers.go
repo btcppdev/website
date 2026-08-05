@@ -76,10 +76,16 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 	defer tx.Rollback(ctx.DatabaseContext())
 
 	conferenceID := vol.ScheduleFor[0].Ref
-	// Serialize applications for the same email/event even when no volunteer
-	// row exists yet, so concurrent form submissions cannot create duplicates.
+	// Serialize applications for the same person/event, falling back to the
+	// submitted email when the address is not attached to an identity yet.
 	if _, err := tx.Exec(ctx.DatabaseContext(), `
-		SELECT pg_advisory_xact_lock(hashtextextended(lower(btrim($1)) || ':' || $2, 0))
+		SELECT pg_advisory_xact_lock(hashtextextended(
+			COALESCE(
+				(SELECT person_id::text FROM person_emails WHERE email = $1::citext),
+				lower(btrim($1))
+			) || ':' || $2,
+			0
+		))
 	`, vol.Email, conferenceID); err != nil {
 		return fmt.Errorf("lock volunteer application %q for conference %s: %w", vol.Email, conferenceID, err)
 	}
@@ -90,7 +96,13 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 		FROM volunteers volunteer
 		JOIN volunteers_conferences conference
 			ON conference.volunteer_id = volunteer.id
-		WHERE volunteer.email = $1::citext
+		WHERE (
+			volunteer.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+			OR (
+				(SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL
+				AND volunteer.email = $1::citext
+			)
+		)
 			AND conference.conference_id = $2::uuid
 			AND conference.kind = 'schedule_for'
 		ORDER BY volunteer.created_at DESC, volunteer.id
@@ -100,12 +112,12 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx.DatabaseContext(), `
 			INSERT INTO volunteers (
-				name, email, phone, signal, availability, contact_at, comments,
+				name, email, person_id, phone, signal, availability, contact_at, comments,
 				discovered_via, first_event, hometown, twitter_handle, nostr,
 				shirt, status, captcha, subscribe
 			) VALUES (
-				$1, $2::citext, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-				$13, $14, $15, $16
+				$1, $2::citext, (SELECT person_id FROM person_emails WHERE email = $2::citext),
+				$3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 			)
 			RETURNING id::text
 		`, vol.Name, vol.Email, vol.Phone, vol.Signal, vol.Availability,
@@ -127,7 +139,12 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 		}
 		if _, err := tx.Exec(ctx.DatabaseContext(), `
 			UPDATE volunteers
-			SET name = $2, email = $3::citext, phone = $4, signal = $5,
+			SET name = $2, email = $3::citext,
+				person_id = COALESCE(
+					(SELECT person_id FROM person_emails WHERE email = $3::citext),
+					volunteers.person_id
+				),
+				phone = $4, signal = $5,
 				availability = $6, contact_at = $7, comments = $8,
 				discovered_via = $9, first_event = $10, hometown = $11,
 				twitter_handle = $12, nostr = $13, shirt = $14,
@@ -324,9 +341,18 @@ func ListVolunteerApps(ctx *config.AppContext, email string) ([]*types.Volunteer
 	args := []interface{}{}
 	if strings.TrimSpace(email) != "" {
 		args = append(args, email)
-		where = "WHERE email = $1::citext"
+		where = `WHERE person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+			OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL AND email = $1::citext)`
 	}
 	return listVolunteersPostgres(ctx, where, args...)
+}
+
+func ListVolunteerAppsForPerson(ctx *config.AppContext, personID string) ([]*types.Volunteer, error) {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, nil
+	}
+	return listVolunteersPostgres(ctx, "WHERE person_id = $1::uuid", personID)
 }
 
 func FetchVolunteer(ctx *config.AppContext, volRef string) (*types.Volunteer, error) {

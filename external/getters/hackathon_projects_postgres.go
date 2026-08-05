@@ -283,12 +283,28 @@ func listProjectsForCompetitionPostgres(ctx *config.AppContext, competitionID st
 }
 
 func listHackathonParticipantProjectsByEmailPostgres(ctx *config.AppContext, email string) ([]*HackathonParticipantProject, error) {
-	if ctx == nil || ctx.DB == nil {
-		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
-	}
 	email = strings.TrimSpace(email)
 	if email == "" {
 		return nil, nil
+	}
+	return listHackathonParticipantProjectsPostgres(ctx,
+		`membership.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+			OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL
+				AND lower(coalesce(person.email::text, '')) = lower($1))`, email, email)
+}
+
+func listHackathonParticipantProjectsByPersonIDPostgres(ctx *config.AppContext, personID string) ([]*HackathonParticipantProject, error) {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, nil
+	}
+	return listHackathonParticipantProjectsPostgres(ctx,
+		"membership.person_id = $1::uuid", personID, personID)
+}
+
+func listHackathonParticipantProjectsPostgres(ctx *config.AppContext, whereSQL, value, label string) ([]*HackathonParticipantProject, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT projects.id::text, projects.competition_id::text,
@@ -311,13 +327,13 @@ func listHackathonParticipantProjectsByEmailPostgres(ctx *config.AppContext, ema
 		JOIN projects ON projects.id = membership.project_id
 		JOIN competitions competition ON competition.id = projects.competition_id
 		JOIN conferences conf ON conf.id = competition.conference_id
-		WHERE lower(coalesce(person.email::text, '')) = lower($1)
+		WHERE `+whereSQL+`
 		ORDER BY conf.start_date DESC NULLS LAST, projects.updated_at DESC,
 			projects.title, projects.id,
 			CASE WHEN membership.role = 'owner' THEN 0 ELSE 1 END
-	`, email)
+	`, value)
 	if err != nil {
-		return nil, fmt.Errorf("query hackathon participant projects for %s: %w", email, err)
+		return nil, fmt.Errorf("query hackathon participant projects for %s: %w", label, err)
 	}
 	defer rows.Close()
 
@@ -378,18 +394,34 @@ func listHackathonParticipantProjectsByEmailPostgres(ctx *config.AppContext, ema
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate hackathon participant projects for %s: %w", email, err)
+		return nil, fmt.Errorf("iterate hackathon participant projects for %s: %w", label, err)
 	}
 	return out, nil
 }
 
 func hasHackathonParticipantProjectsByEmailPostgres(ctx *config.AppContext, email string) (bool, error) {
-	if ctx == nil || ctx.DB == nil {
-		return false, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
-	}
 	email = strings.TrimSpace(email)
 	if email == "" {
 		return false, nil
+	}
+	return hasHackathonParticipantProjectsPostgres(ctx,
+		`membership.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+			OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL
+				AND lower(coalesce(person.email::text, '')) = lower($1))`, email, email)
+}
+
+func hasHackathonParticipantProjectsByPersonIDPostgres(ctx *config.AppContext, personID string) (bool, error) {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return false, nil
+	}
+	return hasHackathonParticipantProjectsPostgres(ctx,
+		"membership.person_id = $1::uuid", personID, personID)
+}
+
+func hasHackathonParticipantProjectsPostgres(ctx *config.AppContext, whereSQL, value, label string) (bool, error) {
+	if ctx == nil || ctx.DB == nil {
+		return false, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 	var exists bool
 	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
@@ -397,10 +429,10 @@ func hasHackathonParticipantProjectsByEmailPostgres(ctx *config.AppContext, emai
 			SELECT 1
 			FROM project_members membership
 			JOIN people person ON person.id = membership.person_id
-			WHERE lower(coalesce(person.email::text, '')) = lower($1)
+			WHERE `+whereSQL+`
 		)
-	`, email).Scan(&exists); err != nil {
-		return false, fmt.Errorf("check hackathon participant projects for %s: %w", email, err)
+	`, value).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check hackathon participant projects for %s: %w", label, err)
 	}
 	return exists, nil
 }
@@ -649,20 +681,24 @@ func getPersonIDByEmailPostgres(ctx *config.AppContext, email string) (string, e
 	if email == "" {
 		return "", fmt.Errorf("email is required")
 	}
-	var personID string
-	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
-		SELECT id::text
-		FROM people
-		WHERE email = $1::citext
-		ORDER BY created_at
-		LIMIT 1
-	`, email).Scan(&personID); err != nil {
-		if err == pgx.ErrNoRows {
+	resolution, err := ResolvePersonByEmail(ctx, email)
+	if err != nil {
+		return "", err
+	}
+	if resolution.IsConflict() {
+		return "", fmt.Errorf("email %s belongs to multiple unresolved people", email)
+	}
+	if resolution.Alias == nil {
+		people, err := GetSpeakersByEmail(ctx, email)
+		if err != nil {
+			return "", err
+		}
+		if len(people) != 1 || people[0] == nil {
 			return "", fmt.Errorf("person not found for %s", email)
 		}
-		return "", fmt.Errorf("lookup person by email %s: %w", email, err)
+		return people[0].ID, nil
 	}
-	return personID, nil
+	return resolution.Alias.PersonID, nil
 }
 
 func createProjectInvitePostgres(ctx *config.AppContext, projectID, email string, expiresAt *time.Time) (string, *types.ProjectInvite, error) {
