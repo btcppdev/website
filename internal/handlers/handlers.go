@@ -1250,6 +1250,21 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/discounts", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminDiscounts(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/admin/people", func(w http.ResponseWriter, r *http.Request) {
+		AdminPeople(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/people/merge", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMerge(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/people/merge", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMergeSave(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/people/merges/{mergeID}", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMergeAudit(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/people/merges/{mergeID}/undo", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMergeUndo(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/homepage-speakers", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminHomepageSpeakersUpdate(w, r, app)
 	}).Methods("POST")
