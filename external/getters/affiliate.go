@@ -67,6 +67,23 @@ func SumAffiliateStatsByEmail(ctx *config.AppContext, email string) (AffiliateSt
 	return totals, nil
 }
 
+func SumAffiliateStatsForPerson(ctx *config.AppContext, personID string) (AffiliateStatsTotals, error) {
+	rows, err := QueryAffiliateUsageForPerson(ctx, personID)
+	if err != nil {
+		return AffiliateStatsTotals{}, err
+	}
+	var totals AffiliateStatsTotals
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		totals.TicketsSold += int(row.TicketsCount)
+		totals.SavedSats += row.SavedSats
+		totals.EarnedSats += row.EarnedSats
+	}
+	return totals, nil
+}
+
 func CreateAffiliateCode(ctx *config.AppContext, email, codeName string, buyerPct uint, confRefs []string) (string, error) {
 	if strings.TrimSpace(email) == "" {
 		return "", fmt.Errorf("CreateAffiliateCode: empty email")
@@ -105,6 +122,7 @@ func reactivateArchivedAffiliateCodePostgres(ctx *config.AppContext, email, code
 		SET archived_at = NULL,
 			discount_expr = $3,
 			affiliate_email = NULLIF($2, '')::citext,
+			affiliate_person_id = (SELECT person_id FROM person_emails WHERE email = NULLIF($2, '')::citext),
 			disc_type = $4,
 			amount = $5,
 			max_uses = $6,
@@ -112,7 +130,11 @@ func reactivateArchivedAffiliateCodePostgres(ctx *config.AppContext, email, code
 			valid_from = $8,
 			valid_until = $9
 		WHERE code_name = $1
-			AND affiliate_email = $2
+			AND (
+				affiliate_person_id = (SELECT person_id FROM person_emails WHERE email = $2::citext)
+				OR ((SELECT person_id FROM person_emails WHERE email = $2::citext) IS NULL
+					AND affiliate_email = $2::citext)
+			)
 			AND archived_at IS NOT NULL
 		RETURNING id::text
 	`, discount.CodeName, discount.AffiliateEmail, discount.Discount, discType,
@@ -150,13 +172,14 @@ func RecordAffiliateUsage(ctx *config.AppContext, in AffiliateUsageInput) error 
 	}
 	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO affiliate_usages (
-			discount_id, conference_id, code_name_snapshot, affiliate_email,
+			discount_id, conference_id, code_name_snapshot, affiliate_email, affiliate_person_id,
 			saved_sats, earned_sats, tickets_count
 		)
 		VALUES (
 			(SELECT id FROM discounts WHERE code_name = $1 LIMIT 1),
 			(SELECT id FROM conferences WHERE tag = $2 LIMIT 1),
-			$1, $3, $4, $5, $6
+			$1, $3, (SELECT person_id FROM person_emails WHERE email = $3::citext),
+			$4, $5, $6
 		)
 	`, in.CodeName, in.ConfTag, in.AffiliateEmail, in.SavedSats, in.EarnedSats, int(in.TicketsCount))
 	if err != nil {
@@ -174,6 +197,13 @@ func QueryAffiliateUsageByEmail(ctx *config.AppContext, email string) ([]*types.
 		return nil, nil
 	}
 	return queryAffiliateUsagePostgres(ctx, "email", email)
+}
+
+func QueryAffiliateUsageForPerson(ctx *config.AppContext, personID string) ([]*types.AffiliateUsage, error) {
+	if strings.TrimSpace(personID) == "" {
+		return nil, nil
+	}
+	return queryAffiliateUsagePostgres(ctx, "person", personID)
 }
 
 func QueryAffiliateUsageByConf(ctx *config.AppContext, confTag string) ([]*types.AffiliateUsage, error) {
@@ -197,7 +227,11 @@ func queryAffiliateUsagePostgres(ctx *config.AppContext, filter string, value st
 	args := []any{}
 	switch filter {
 	case "email":
-		sql += " WHERE au.affiliate_email = $1"
+		sql += ` WHERE au.affiliate_person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+			OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL AND au.affiliate_email = $1::citext)`
+		args = append(args, value)
+	case "person":
+		sql += " WHERE au.affiliate_person_id = $1::uuid"
 		args = append(args, value)
 	case "conf":
 		sql += " WHERE c.tag = $1"

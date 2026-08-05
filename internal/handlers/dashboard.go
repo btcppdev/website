@@ -88,7 +88,20 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if validatedByLink {
 		if err := auth.LoginEmail(ctx, r, email); err != nil {
 			ctx.Err.Printf("/dashboard session stamp for %s: %s", email, err)
+			r.URL.RawQuery = "error=" + url.QueryEscape("This email cannot be signed in until its duplicate profiles are merged.")
+			renderDashboardLogin(w, r, ctx)
+			return
 		}
+	}
+	resolvedIdentity, resolveErr := auth.Resolve(r, ctx)
+	if resolveErr != nil {
+		ctx.Err.Printf("/dashboard identity for %s: %s", email, resolveErr)
+		http.Error(w, "Unable to resolve account", http.StatusInternalServerError)
+		return
+	}
+	personID := ""
+	if resolvedIdentity != nil {
+		personID = resolvedIdentity.PersonID
 	}
 
 	dashStart := time.Now()
@@ -121,37 +134,61 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
-		speakers, speakerConfs, scErr = getters.GetSpeakerConfsByEmail(ctx, email)
+		if personID != "" {
+			speakers, speakerConfs, scErr = getters.GetSpeakerConfsByPersonID(ctx, personID)
+		} else {
+			speakers, speakerConfs, scErr = getters.GetSpeakerConfsByEmail(ctx, email)
+		}
 		scDur = time.Since(s)
 	}()
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
-		volapps, volErr = getters.ListVolunteerApps(ctx, email)
+		if personID != "" {
+			volapps, volErr = getters.ListVolunteerAppsForPerson(ctx, personID)
+		} else {
+			volapps, volErr = getters.ListVolunteerApps(ctx, email)
+		}
 		volDur = time.Since(s)
 	}()
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
-		regs, regErr = getters.ListRegistrationsByEmail(ctx, email)
+		if personID != "" {
+			regs, regErr = getters.ListRegistrationsForPerson(ctx, personID)
+		} else {
+			regs, regErr = getters.ListRegistrationsByEmail(ctx, email)
+		}
 		regDur = time.Since(s)
 	}()
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
-		satEvents, satErr = getters.ListSatelliteEventsBySubmitter(ctx, email)
+		if personID != "" {
+			satEvents, satErr = getters.ListSatelliteEventsForPerson(ctx, personID)
+		} else {
+			satEvents, satErr = getters.ListSatelliteEventsBySubmitter(ctx, email)
+		}
 		satDur = time.Since(s)
 	}()
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
-		judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsByEmail(ctx, email)
+		if personID != "" {
+			judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsForPerson(ctx, personID)
+		} else {
+			judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsByEmail(ctx, email)
+		}
 		judgeDur = time.Since(s)
 	}()
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
-		shopOrders, shopErr = getters.ListShopOrdersByEmail(ctx, email, 5)
+		if personID != "" {
+			shopOrders, shopErr = getters.ListShopOrdersForPerson(ctx, personID, 5)
+		} else {
+			shopOrders, shopErr = getters.ListShopOrdersByEmail(ctx, email, 5)
+		}
 		shopDur = time.Since(s)
 	}()
 	topWg.Wait()
@@ -301,31 +338,9 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if hasPublicProfile && topSpeaker != nil {
 		archiveOwnerPath = "/whois/" + publicSpeakerSlug(topSpeaker) + "/archive"
 	}
-	// Decorate event blocks with the user's admin role for each conf
-	// — drives the "Admin" / "Vol coord" link on conf cards. Union
-	// the Roles tags across every Speaker row that matches this
-	// email, not just speakers[0]: duplicate Speaker pages are common
-	// (a person reapplies under a fresh row before an admin merges)
-	// and the role tags often live on only one of the pages, so
-	// picking just the first row silently drops admin/staff/volcoord
-	// access. Dedupe by raw tag to keep ParseRoles' output stable.
-	rawRoles := map[string]bool{}
-	for _, sp := range speakers {
-		if sp == nil {
-			continue
-		}
-		for _, raw := range sp.Roles {
-			rawRoles[raw] = true
-		}
-	}
-	rawList := make([]string, 0, len(rawRoles))
-	for r := range rawRoles {
-		rawList = append(rawList, r)
-	}
-	idRoles := auth.ParseRoles(rawList)
-	id := &auth.Identity{Speaker: topSpeaker, Roles: idRoles}
-	if topSpeaker != nil {
-		id.Email = topSpeaker.Email
+	id := resolvedIdentity
+	if id == nil {
+		id = &auth.Identity{Email: email}
 	}
 	attachDashboardAdminRoles(activeBlocks, id)
 	attachDashboardAdminRoles(pastBlocks, id)
@@ -335,7 +350,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	// Without this, an admin's dashboard would surface no Admin
 	// button at all because activeBlocks is built only from
 	// SpeakerConf/VolApp/Ticket relationships.
-	if len(idRoles) > 0 {
+	if len(id.Roles) > 0 {
 		existing := make(map[string]bool, len(activeBlocks))
 		for _, b := range activeBlocks {
 			if b != nil && b.Conf != nil {
@@ -452,8 +467,8 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		FlashError:                  r.URL.Query().Get("error"),
 		IsGlobalAdmin:               id.IsGlobalAdmin(),
 		HasAnyTicket:                len(regs) > 0,
-		AffiliateCode:               loadAffiliateCode(ctx, email, len(regs) > 0),
-		AffiliateStats:              loadAffiliateStats(ctx, email, len(regs) > 0),
+		AffiliateCode:               loadAffiliateCode(ctx, personID, email, len(regs) > 0),
+		AffiliateStats:              loadAffiliateStats(ctx, personID, email, len(regs) > 0),
 		TicketEntitlements:          ticketEntitlements,
 		UnclaimedTicketEntitlements: unclaimedTicketEntitlements,
 		TicketClaimConfs:            ticketClaimConfs,
@@ -475,11 +490,12 @@ func DashboardHackathonTickets(w http.ResponseWriter, r *http.Request, ctx *conf
 		http.Redirect(w, r, "/login?next="+url.QueryEscape("/dashboard/tickets"), http.StatusSeeOther)
 		return
 	}
-	people, err := getters.GetSpeakersByEmail(ctx, email)
-	if err != nil || len(people) == 0 {
+	id, err := auth.Resolve(r, ctx)
+	if err != nil || id == nil || id.Speaker == nil {
 		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("A person profile is required to view ticket awards"), http.StatusSeeOther)
 		return
 	}
+	people := []*types.Speaker{id.Speaker}
 	entitlements, err := dashboardTicketEntitlements(ctx, people)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/tickets entitlements: %s", err)
@@ -553,7 +569,12 @@ func DashboardOrders(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	if !ok {
 		return
 	}
-	orders, err := getters.ListShopOrdersByEmail(ctx, email, 100)
+	id, resolveErr := auth.Resolve(r, ctx)
+	if resolveErr != nil || id == nil {
+		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("A person profile is required to view orders."), http.StatusSeeOther)
+		return
+	}
+	orders, err := getters.ListShopOrdersForPerson(ctx, id.PersonID, 100)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/orders for %s: %s", email, err)
 		http.Error(w, "Unable to load orders", http.StatusInternalServerError)
@@ -584,7 +605,13 @@ func DashboardOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		http.NotFound(w, r)
 		return
 	}
-	if !strings.EqualFold(strings.TrimSpace(order.BuyerEmail), strings.TrimSpace(email)) {
+	id, resolveErr := auth.Resolve(r, ctx)
+	if resolveErr != nil || id == nil {
+		http.Error(w, "order not found", http.StatusNotFound)
+		return
+	}
+	owns, ownErr := getters.PersonOwnsShopOrder(ctx, id.PersonID, order.ID)
+	if ownErr != nil || !owns {
 		http.Error(w, "order not found", http.StatusNotFound)
 		return
 	}
@@ -1461,11 +1488,17 @@ func calcDashboardStats(speakerConfs []*types.SpeakerConf, volapps []*types.Volu
 // loadAffiliateCode returns the user's live (non-archived) affiliate
 // DiscountCode, or nil when the gate is closed (no tickets) / they
 // haven't made one yet / the cache lookup blipped.
-func loadAffiliateCode(ctx *config.AppContext, email string, eligible bool) *types.DiscountCode {
+func loadAffiliateCode(ctx *config.AppContext, personID, email string, eligible bool) *types.DiscountCode {
 	if !eligible || email == "" {
 		return nil
 	}
-	code, err := getters.FindAffiliateCodeByEmail(ctx, email)
+	var code *types.DiscountCode
+	var err error
+	if personID != "" {
+		code, err = getters.GetDiscountByAffiliatePersonID(ctx, personID)
+	} else {
+		code, err = getters.FindAffiliateCodeByEmail(ctx, email)
+	}
 	if err != nil {
 		ctx.Err.Printf("/dashboard affiliate lookup %s: %s", email, err)
 		return nil
@@ -1477,11 +1510,17 @@ func loadAffiliateCode(ctx *config.AppContext, email string, eligible bool) *typ
 // a live Notion query (no cache, since affiliates expect to see
 // their freshest stats on refresh). Returns zeros when the gate is
 // closed; the template renders zeros as "0 tickets sold / $0".
-func loadAffiliateStats(ctx *config.AppContext, email string, eligible bool) *AffiliateStats {
+func loadAffiliateStats(ctx *config.AppContext, personID, email string, eligible bool) *AffiliateStats {
 	if !eligible || email == "" {
 		return &AffiliateStats{}
 	}
-	totals, err := getters.SumAffiliateStatsByEmail(ctx, email)
+	var totals getters.AffiliateStatsTotals
+	var err error
+	if personID != "" {
+		totals, err = getters.SumAffiliateStatsForPerson(ctx, personID)
+	} else {
+		totals, err = getters.SumAffiliateStatsByEmail(ctx, email)
+	}
 	if err != nil {
 		ctx.Err.Printf("/dashboard affiliate stats %s: %s", email, err)
 		return &AffiliateStats{}

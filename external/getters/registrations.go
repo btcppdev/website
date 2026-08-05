@@ -340,6 +340,13 @@ func ListRegistrationsByEmail(ctx *config.AppContext, email string) ([]*types.Re
 	return queryRegistrationsPostgres(ctx, "email", email)
 }
 
+func ListRegistrationsForPerson(ctx *config.AppContext, personID string) ([]*types.Registration, error) {
+	if strings.TrimSpace(personID) == "" {
+		return nil, nil
+	}
+	return queryRegistrationsPostgres(ctx, "person", personID)
+}
+
 func ListRegistrationsByCheckoutID(ctx *config.AppContext, checkoutID string) ([]*types.Registration, error) {
 	if strings.TrimSpace(checkoutID) == "" {
 		return nil, nil
@@ -365,7 +372,11 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 			args = append(args, value)
 		}
 	case "email":
-		sql += " WHERE r.email = $1"
+		sql += ` WHERE r.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+			OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL AND r.email = $1::citext)`
+		args = append(args, value)
+	case "person":
+		sql += " WHERE r.person_id = $1::uuid"
 		args = append(args, value)
 	case "checkout":
 		sql += " WHERE r.checkout_id = $1"
@@ -434,13 +445,14 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 		amountPaid := float64(item.Total) / 100
 		_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			INSERT INTO registrations (
-				ref_id, checkout_id, conference_id, discount_id, type, email,
+				ref_id, checkout_id, conference_id, discount_id, type, email, person_id,
 				item_bought, amount_paid, currency, platform, registered_at, revoked
 			)
 			VALUES (
 				$1, $2, $3::uuid,
 				NULLIF($4, '')::uuid,
-				$5, $6, $7, $8, $9, $10, $11, false
+				$5, $6, (SELECT person_id FROM person_emails WHERE email = $6::citext),
+				$7, $8, $9, $10, $11, false
 			)
 			ON CONFLICT (ref_id) DO UPDATE SET
 				checkout_id = EXCLUDED.checkout_id,
@@ -448,6 +460,7 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 				discount_id = EXCLUDED.discount_id,
 				type = EXCLUDED.type,
 				email = EXCLUDED.email,
+				person_id = coalesce(EXCLUDED.person_id, registrations.person_id),
 				item_bought = EXCLUDED.item_bought,
 				amount_paid = EXCLUDED.amount_paid,
 				currency = EXCLUDED.currency,

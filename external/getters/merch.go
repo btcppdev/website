@@ -568,11 +568,13 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 	var order types.ShopOrder
 	err = tx.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO shop_orders (
-			public_id, buyer_email, buyer_name, status, source, checkout_kind, payment_provider,
+			public_id, buyer_email, buyer_person_id, buyer_name, status, source, checkout_kind, payment_provider,
 			currency, subtotal_cents, discount_amount_cents, shipping_amount_cents, sales_tax_amount_cents,
 			total_cents, checkout_expires_at
 		) VALUES (
-			gen_random_uuid()::text, NULLIF($1, '')::citext, $2, 'pending', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+			gen_random_uuid()::text, NULLIF($1, '')::citext,
+			(SELECT person_id FROM person_emails WHERE email = NULLIF($1, '')::citext),
+			$2, 'pending', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 		)
 		RETURNING id::text, public_id::text, coalesce(buyer_email::text, ''), buyer_name,
 			status, source, checkout_kind, payment_provider, coalesce(payment_provider_id, ''),
@@ -1047,8 +1049,20 @@ func GetShopOperationalStats(ctx *config.AppContext) (*types.ShopOperationalStat
 }
 
 func ListShopOrdersByEmail(ctx *config.AppContext, email string, limit uint) ([]*types.ShopOrder, error) {
+	return listShopOrders(ctx, `buyer_person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+		OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL AND buyer_email = $1::citext)`, strings.ToLower(strings.TrimSpace(email)), limit)
+}
+
+func ListShopOrdersForPerson(ctx *config.AppContext, personID string, limit uint) ([]*types.ShopOrder, error) {
+	return listShopOrders(ctx, "buyer_person_id = $1::uuid", strings.TrimSpace(personID), limit)
+}
+
+func listShopOrders(ctx *config.AppContext, whereSQL, value string, limit uint) ([]*types.ShopOrder, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
+	}
+	if value == "" {
+		return nil, nil
 	}
 	if limit == 0 || limit > 100 {
 		limit = 20
@@ -1060,13 +1074,13 @@ func ListShopOrdersByEmail(ctx *config.AppContext, email string, limit uint) ([]
 			import_duty_amount_cents, import_tax_amount_cents, total_cents, paid_at, cancelled_at, checkout_expires_at,
 			created_at, updated_at
 		FROM shop_orders
-		WHERE buyer_email = $1::citext
+		WHERE (`+whereSQL+`)
 			AND checkout_kind <> 'ticket'
 		ORDER BY created_at DESC
 		LIMIT $2
-	`, strings.ToLower(strings.TrimSpace(email)), int64(limit))
+	`, value, int64(limit))
 	if err != nil {
-		return nil, fmt.Errorf("list shop orders by email: %w", err)
+		return nil, fmt.Errorf("list shop orders: %w", err)
 	}
 	defer rows.Close()
 	var orders []*types.ShopOrder
@@ -1078,6 +1092,26 @@ func ListShopOrdersByEmail(ctx *config.AppContext, email string, limit uint) ([]
 		orders = append(orders, order)
 	}
 	return orders, rows.Err()
+}
+
+func PersonOwnsShopOrder(ctx *config.AppContext, personID, orderID string) (bool, error) {
+	if ctx == nil || ctx.DB == nil {
+		return false, fmt.Errorf("database is not configured")
+	}
+	if strings.TrimSpace(personID) == "" || strings.TrimSpace(orderID) == "" {
+		return false, nil
+	}
+	var owns bool
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT EXISTS (
+			SELECT 1 FROM shop_orders
+			WHERE id = $1::uuid AND buyer_person_id = $2::uuid
+		)
+	`, orderID, personID).Scan(&owns)
+	if err != nil {
+		return false, fmt.Errorf("check shop order ownership: %w", err)
+	}
+	return owns, nil
 }
 
 type shopOrderScanner interface {
