@@ -354,8 +354,14 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 		return "", fmt.Errorf("database is not configured")
 	}
 	in = normalizeSpeakerInput(in)
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return "", fmt.Errorf("begin person creation: %w", err)
+	}
+	defer tx.Rollback(dbctx)
 	var id string
-	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+	err = tx.QueryRow(dbctx, `
 		INSERT INTO people (
 			name, email, norm_photo_path, phone, signal, telegram, twitter_handle,
 			nostr, github_url, instagram, linkedin, leetcode, website_url, company,
@@ -370,6 +376,28 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create person: %w", err)
 	}
+	if in.Email != "" {
+		var conflicts int
+		if err := tx.QueryRow(dbctx, `
+			SELECT count(*)
+			FROM person_email_conflicts
+			WHERE email = $1::citext
+		`, in.Email).Scan(&conflicts); err != nil {
+			return "", fmt.Errorf("check person email conflicts: %w", err)
+		}
+		if conflicts > 0 {
+			return "", fmt.Errorf("email belongs to multiple existing people and must be resolved by an administrator")
+		}
+		if _, err := tx.Exec(dbctx, `
+			INSERT INTO person_emails (person_id, email, is_primary, verified_at)
+			VALUES ($1::uuid, $2::citext, true, now())
+		`, id, in.Email); err != nil {
+			return "", fmt.Errorf("attach primary person email: %w", err)
+		}
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return "", fmt.Errorf("commit person creation: %w", err)
+	}
 	return id, nil
 }
 
@@ -378,7 +406,46 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 		return fmt.Errorf("database is not configured")
 	}
 	up = normalizeSpeakerUpdate(up)
-	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin person update: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	if up.Email != "" {
+		var conflicts int
+		if err := tx.QueryRow(dbctx, `
+			SELECT count(*)
+			FROM person_email_conflicts
+			WHERE email = $1::citext AND person_id <> $2::uuid
+		`, up.Email, speakerID).Scan(&conflicts); err != nil {
+			return fmt.Errorf("check person email conflicts: %w", err)
+		}
+		if conflicts > 0 {
+			return fmt.Errorf("email belongs to another unresolved identity")
+		}
+		if _, err := tx.Exec(dbctx, `
+			UPDATE person_emails
+			SET is_primary = false
+			WHERE person_id = $1::uuid AND is_primary
+		`, speakerID); err != nil {
+			return fmt.Errorf("clear primary person email: %w", err)
+		}
+		tag, err := tx.Exec(dbctx, `
+			INSERT INTO person_emails (person_id, email, is_primary, verified_at)
+			VALUES ($1::uuid, $2::citext, true, now())
+			ON CONFLICT (email) DO UPDATE
+			SET is_primary = true, updated_at = now()
+			WHERE person_emails.person_id = EXCLUDED.person_id
+		`, speakerID, up.Email)
+		if err != nil {
+			return fmt.Errorf("set primary person email: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return fmt.Errorf("email already belongs to another person")
+		}
+	}
+	_, err = tx.Exec(dbctx, `
 		UPDATE people
 		SET norm_photo_path = CASE WHEN $2 <> '' THEN $2 ELSE norm_photo_path END,
 			phone = CASE WHEN $3 <> '' THEN $3 ELSE phone END,
@@ -406,6 +473,9 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 		up.PayoutFieldsSet, up.LightningAddress, up.BitcoinAddress)
 	if err != nil {
 		return fmt.Errorf("update person %s: %w", speakerID, err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit person update: %w", err)
 	}
 	return nil
 }

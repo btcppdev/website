@@ -56,6 +56,20 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 	if contact.Signal != "smoke."+suffix || contact.Telegram != "smoke_tg" {
 		t.Fatalf("refund contact mismatch: %+v", contact)
 	}
+	resolution, err := ResolvePersonByEmail(ctx, strings.ToUpper(email))
+	if err != nil {
+		t.Fatalf("ResolvePersonByEmail postgres: %v", err)
+	}
+	if resolution.Person == nil || resolution.Person.ID != speakerID || resolution.Alias == nil || !resolution.Alias.IsPrimary {
+		t.Fatalf("person email resolution mismatch: %+v", resolution)
+	}
+	aliases, err := ListPersonEmails(ctx, speakerID)
+	if err != nil {
+		t.Fatalf("ListPersonEmails postgres: %v", err)
+	}
+	if len(aliases) != 1 || aliases[0].Email != email || !aliases[0].IsPrimary {
+		t.Fatalf("person aliases = %+v, want one primary %s", aliases, email)
+	}
 }
 
 func TestDatabaseSmokeDiscountScopedToConference(t *testing.T) {
