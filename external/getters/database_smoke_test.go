@@ -98,6 +98,128 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 	}
 }
 
+func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	suffix := databaseSmokeSuffix()
+	canonicalEmail := "merge-destination-" + suffix + "@example.test"
+	sourceEmail := "merge-source-" + suffix + "@example.test"
+	canonicalID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Merge Destination " + suffix, Email: canonicalEmail})
+	if err != nil {
+		t.Fatalf("create merge destination: %v", err)
+	}
+	sourceID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Merge Source " + suffix, Email: sourceEmail})
+	if err != nil {
+		t.Fatalf("create merge source: %v", err)
+	}
+	refBefore := "merge-before-" + suffix
+	refAfter := "merge-after-" + suffix
+	var eventID string
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM registrations WHERE ref_id = ANY($1::text[])`, []string{refBefore, refAfter})
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people_roles WHERE person_id = ANY($1::uuid[])`, []string{canonicalID, sourceID})
+		if eventID != "" {
+			_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM person_merge_events WHERE id = $1::uuid`, eventID)
+		}
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id = ANY($1::uuid[])`, []string{canonicalID, sourceID})
+	})
+
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO registrations (ref_id, email, item_bought, person_id)
+		VALUES ($1, $2::citext, 'source ticket', $3::uuid)
+	`, refBefore, sourceEmail, sourceID); err != nil {
+		t.Fatalf("insert source registration: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO people_roles (person_id, scope, position)
+		VALUES ($1::uuid, 'global', 'staff'), ($2::uuid, 'global', 'staff')
+	`, canonicalID, sourceID); err != nil {
+		t.Fatalf("insert duplicate role: %v", err)
+	}
+
+	preview, err := PreviewPersonMerge(ctx, canonicalID, sourceID)
+	if err != nil {
+		t.Fatalf("PreviewPersonMerge: %v", err)
+	}
+	if len(preview.Conflicts) != 0 {
+		t.Fatalf("unexpected merge conflicts: %+v", preview.Conflicts)
+	}
+	decisions := make(map[string]PersonMergeDecision, len(preview.Fields))
+	for _, field := range preview.Fields {
+		value := field.Canonical
+		choice := "canonical"
+		if field.Spec.Key == "name" {
+			value = field.Source
+			choice = "source"
+		}
+		decisions[field.Spec.Key] = PersonMergeDecision{Choice: choice, Value: value}
+	}
+	eventID, err = MergePeople(ctx, PersonMergeInput{
+		CanonicalPersonID: canonicalID,
+		SourcePersonID:    sourceID,
+		MergedByPersonID:  canonicalID,
+		Decisions:         decisions,
+	})
+	if err != nil {
+		t.Fatalf("MergePeople: %v", err)
+	}
+
+	resolution, err := ResolvePersonByEmail(ctx, sourceEmail)
+	if err != nil || resolution.Person == nil || resolution.Person.ID != canonicalID {
+		t.Fatalf("source alias after merge = %+v, %v", resolution, err)
+	}
+	var registrationPersonID, itemBought string
+	if err := ctx.DB.QueryRow(context.Background(), `SELECT person_id::text, item_bought FROM registrations WHERE ref_id = $1`, refBefore).Scan(&registrationPersonID, &itemBought); err != nil {
+		t.Fatalf("load moved registration: %v", err)
+	}
+	if registrationPersonID != canonicalID || itemBought != "source ticket" {
+		t.Fatalf("moved registration = %s/%s, want %s/source ticket", registrationPersonID, itemBought, canonicalID)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO registrations (ref_id, email, item_bought, person_id)
+		VALUES ($1, $2::citext, 'post-merge ticket', $3::uuid)
+	`, refAfter, canonicalEmail, canonicalID); err != nil {
+		t.Fatalf("insert post-merge registration: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE registrations SET item_bought = 'changed after merge' WHERE ref_id = $1`, refBefore); err != nil {
+		t.Fatalf("change moved registration: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE people SET name = 'Changed Destination' WHERE id = $1::uuid`, canonicalID); err != nil {
+		t.Fatalf("change destination profile: %v", err)
+	}
+
+	undoPreview, err := GetPersonMergeUndoPreview(ctx, eventID)
+	if err != nil {
+		t.Fatalf("GetPersonMergeUndoPreview: %v", err)
+	}
+	if !undoPreview.Changed || len(undoPreview.Groups) < 2 {
+		t.Fatalf("undo warning = %+v, want profile and relationship changes", undoPreview.Groups)
+	}
+	if err := UndoPersonMerge(ctx, eventID, canonicalID, undoPreview); err != nil {
+		t.Fatalf("UndoPersonMerge: %v", err)
+	}
+
+	canonical, err := FetchSpeakerByID(ctx, canonicalID)
+	if err != nil || canonical == nil || canonical.Name != "Merge Destination "+suffix {
+		t.Fatalf("restored destination = %+v, %v", canonical, err)
+	}
+	source, err := FetchSpeakerByID(ctx, sourceID)
+	if err != nil || source == nil || source.Name != "Merge Source "+suffix {
+		t.Fatalf("restored source = %+v, %v", source, err)
+	}
+	if err := ctx.DB.QueryRow(context.Background(), `SELECT person_id::text, item_bought FROM registrations WHERE ref_id = $1`, refBefore).Scan(&registrationPersonID, &itemBought); err != nil {
+		t.Fatalf("load restored registration: %v", err)
+	}
+	if registrationPersonID != sourceID || itemBought != "source ticket" {
+		t.Fatalf("restored registration = %s/%s, want %s/source ticket", registrationPersonID, itemBought, sourceID)
+	}
+	if err := ctx.DB.QueryRow(context.Background(), `SELECT person_id::text FROM registrations WHERE ref_id = $1`, refAfter).Scan(&registrationPersonID); err != nil {
+		t.Fatalf("load retained registration: %v", err)
+	}
+	if registrationPersonID != canonicalID {
+		t.Fatalf("post-merge registration owner = %s, want %s", registrationPersonID, canonicalID)
+	}
+}
+
 func TestDatabaseSmokeDiscountScopedToConference(t *testing.T) {
 	ctx := databaseSmokeContext(t)
 	confID, tag := insertSmokeConference(t, ctx)

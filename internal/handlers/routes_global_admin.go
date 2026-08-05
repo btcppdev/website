@@ -17,6 +17,21 @@ func registerGlobalAdminRoutes(r *mux.Router, app *config.AppContext) {
 	r.HandleFunc("/admin/homepage-speakers", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminHomepageSpeakersUpdate(w, r, requestApp(r, app))
 	}).Methods("POST")
+	r.HandleFunc("/admin/people", func(w http.ResponseWriter, r *http.Request) {
+		AdminPeople(w, r, requestApp(r, app))
+	}).Methods("GET")
+	r.HandleFunc("/admin/people/merge", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMerge(w, r, requestApp(r, app))
+	}).Methods("GET")
+	r.HandleFunc("/admin/people/merge", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMergeSave(w, r, requestApp(r, app))
+	}).Methods("POST")
+	r.HandleFunc("/admin/people/merges/{mergeID}", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMergeAudit(w, r, requestApp(r, app))
+	}).Methods("GET")
+	r.HandleFunc("/admin/people/merges/{mergeID}/undo", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMergeUndo(w, r, requestApp(r, app))
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminList(w, r, requestApp(r, app))
 	}).Methods("GET")

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Person merge audit - bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+  {{ template "admin_favicon" "" }}
+</head>
+<body class="btcpp-admin-page bg-gray-50 text-gray-900">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6">
+      <a href="/admin/people" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; People and identities</a>
+      <h1 class="mt-2 text-2xl font-semibold tracking-tight">Person merge audit</h1>
+      <p class="mt-1 break-all font-mono text-xs text-gray-500">{{ .Undo.Event.ID }}</p>
+    </div>
+    {{ if .Flash }}<div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .Flash }}</div>{{ end }}
+    {{ if .Error }}<div class="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">{{ .Error }}</div>{{ end }}
+
+    <section class="rounded-lg bg-white shadow">
+      <dl class="grid gap-4 px-4 py-5 text-sm sm:grid-cols-2 sm:p-6">
+        <div><dt class="text-xs font-medium uppercase text-gray-500">Destination</dt><dd class="mt-1 font-semibold">{{ .Undo.Event.CanonicalName }}</dd><dd class="break-all font-mono text-xs text-gray-500">{{ .Undo.Event.CanonicalPersonID }}</dd></div>
+        <div><dt class="text-xs font-medium uppercase text-gray-500">Source</dt><dd class="mt-1 font-semibold">{{ .Undo.Event.SourceName }}</dd><dd class="break-all font-mono text-xs text-gray-500">{{ .Undo.Event.SourcePersonID }}</dd></div>
+        <div><dt class="text-xs font-medium uppercase text-gray-500">Merged</dt><dd class="mt-1">{{ .Undo.Event.CreatedAt.Format "Jan 2, 2006 3:04 PM MST" }}{{ if .Undo.Event.MergedByName }} by {{ .Undo.Event.MergedByName }}{{ end }}</dd></div>
+        <div><dt class="text-xs font-medium uppercase text-gray-500">Status</dt><dd class="mt-1 font-semibold">{{ .Undo.Event.Status }}</dd>{{ if eq .Undo.Event.Status "merged" }}<dd class="mt-1 text-xs text-gray-500">Undo expires {{ .Undo.Event.UndoExpiresAt.Format "Jan 2, 2006 3:04 PM MST" }}</dd>{{ end }}</div>
+      </dl>
+    </section>
+
+    <section class="mt-6 rounded-lg bg-white shadow">
+      <div class="px-4 py-5 sm:p-6">
+        <h2 class="text-base font-semibold">Recorded profile decisions</h2>
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
+            <thead><tr><th class="py-2 pr-4">Field</th><th class="py-2 pr-4">Decision</th><th class="py-2">Merged value</th></tr></thead>
+            <tbody class="divide-y divide-gray-100">{{ range .Decisions }}<tr><td class="py-2 pr-4 font-medium">{{ .Label }}</td><td class="py-2 pr-4 text-gray-600">{{ .Choice }}</td><td class="max-w-md break-words py-2">{{ .Value }}</td></tr>{{ end }}</tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    {{ if .CanUndo }}
+    <section class="mt-6 rounded-lg border-2 {{ if .Undo.Changed }}border-red-500 bg-red-50{{ else }}border-amber-300 bg-amber-50{{ end }} px-4 py-5 sm:px-6">
+      {{ if .Undo.Changed }}
+      <h2 class="text-xl font-bold text-red-950">Warning: data changed after this merge</h2>
+      <p class="mt-2 font-semibold text-red-900">Restoring now will overwrite the changed audited records listed below.</p>
+      <div class="mt-4 space-y-3">{{ range .Undo.Groups }}<div class="rounded-md bg-white/70 p-3"><div class="font-semibold text-red-950">{{ .Label }}: {{ .Count }} changed</div>{{ if .Details }}<ul class="mt-1 list-disc pl-5 font-mono text-xs text-red-800">{{ range .Details }}<li class="break-all">{{ . }}</li>{{ end }}</ul>{{ end }}</div>{{ end }}</div>
+      {{ else }}
+      <h2 class="text-lg font-bold text-amber-950">Restore this merge</h2>
+      <p class="mt-1 text-sm text-amber-900">No audited source records have changed since the merge.</p>
+      {{ end }}
+      <div class="mt-5 grid gap-4 md:grid-cols-2">
+        <div><h3 class="text-sm font-semibold">Will be overwritten</h3><ul class="mt-2 list-disc space-y-1 pl-5 text-sm">{{ range .Undo.Overwrites }}<li>{{ . }}</li>{{ end }}</ul></div>
+        <div><h3 class="text-sm font-semibold">Will be retained</h3><ul class="mt-2 list-disc space-y-1 pl-5 text-sm">{{ range .Undo.Retains }}<li>{{ . }}</li>{{ end }}</ul></div>
+      </div>
+      <form method="POST" action="/admin/people/merges/{{ .Undo.Event.ID }}/undo" class="mt-5 space-y-3">
+        <label class="block text-sm font-semibold">Type RESTORE<input name="confirmation" autocomplete="off" class="mt-1 block w-full max-w-sm rounded-md border border-red-300 bg-white px-3 py-2 font-mono text-sm"></label>
+        <label class="flex items-start gap-2 text-sm"><input type="checkbox" name="confirm_restore" value="yes" class="mt-1"><span>I understand which audited data will be overwritten and which newer records will remain.</span></label>
+        <button type="submit" class="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">Restore source person</button>
+      </form>
+    </section>
+    {{ else if eq .Undo.Event.Status "reverted" }}
+    <div class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">This merge has already been restored. Its audit record is permanent.</div>
+    {{ else }}
+    <div class="mt-6 rounded-md border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">The seven-day restoration window has expired.</div>
+    {{ end }}
+  </main>
+</body>
+</html>

@@ -5,6 +5,7 @@
     if (!input) return;
 
     const required = root.dataset.personPickerRequired === 'true';
+    const maxSelected = Number.parseInt(root.dataset.personPickerMax || '0', 10);
     const fieldName = root.dataset.personPickerName || 'PersonID';
     const searchURL = root.dataset.personPickerSearchUrl || '/api/people/search';
     const selected = new Map();
@@ -87,6 +88,7 @@
     }
 
     function selectPerson(person) {
+      if (maxSelected === 1) selected.clear();
       selected.set(person.id, person);
       renderChips();
       input.value = '';
