@@ -46,6 +46,21 @@ func registerParticipantRoutes(r *mux.Router, app *config.AppContext) {
 	r.HandleFunc("/dashboard/speaker", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditSpeaker(w, r, requestApp(r, app))
 	}).Methods("GET", "POST")
+	r.HandleFunc("/dashboard/emails", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmails(w, r, requestApp(r, app))
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/emails/request", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailRequest(w, r, requestApp(r, app))
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/emails/verify", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailVerify(w, r, requestApp(r, app))
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/emails/primary", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailPrimary(w, r, requestApp(r, app))
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/emails/remove", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailRemove(w, r, requestApp(r, app))
+	}).Methods("POST")
 	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardSatelliteEventEdit(w, r, requestApp(r, app))
 	}).Methods("GET")
