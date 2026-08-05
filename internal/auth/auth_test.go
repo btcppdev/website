@@ -89,18 +89,16 @@ func TestHackathonRolesAreScopedAndCoveredByAdmin(t *testing.T) {
 	}
 }
 
-func TestIdentityFromSpeakersUnionsRolesAcrossDuplicateEmailRecords(t *testing.T) {
-	primary := &types.Speaker{ID: "primary", Roles: []string{"toronto-staff"}}
-	duplicate := &types.Speaker{ID: "duplicate", Roles: []string{"toronto-hackathon", "toronto-staff"}}
-
-	id := identityFromSpeakers("manager@example.com", []*types.Speaker{primary, duplicate})
-	if id == nil || id.Speaker != primary {
-		t.Fatalf("identity = %+v, want primary speaker", id)
+func TestIdentityFromSpeakerUsesCanonicalPerson(t *testing.T) {
+	speaker := &types.Speaker{ID: "person-id", Roles: []string{"toronto-hackathon", "toronto-staff"}}
+	id := identityFromSpeaker("person-id", "alias@example.com", "primary@example.com", speaker)
+	if id == nil || id.Speaker != speaker || id.PersonID != "person-id" {
+		t.Fatalf("identity = %+v, want canonical person", id)
 	}
-	if !id.HasExactRoleForConf("toronto", RoleHackathon) {
-		t.Fatal("duplicate record's hackathon role was not resolved")
+	if id.LoginEmail != "alias@example.com" || id.PrimaryEmail != "primary@example.com" {
+		t.Fatalf("identity emails = %q/%q", id.LoginEmail, id.PrimaryEmail)
 	}
-	if len(id.Roles) != 2 {
-		t.Fatalf("roles = %+v, want deduplicated union", id.Roles)
+	if !id.HasExactRoleForConf("toronto", RoleHackathon) || len(id.Roles) != 2 {
+		t.Fatalf("roles = %+v, want canonical person's roles", id.Roles)
 	}
 }

@@ -21,7 +21,8 @@ func TestAuthStatusUsesCachedAccountPhoto(t *testing.T) {
 		t.Fatalf("load session: %v", err)
 	}
 	session.Put(sessionContext, auth.SessionEmailKey, "person@example.test")
-	session.Put(sessionContext, sessionAccountPhotoEmailKey, "person@example.test")
+	session.Put(sessionContext, auth.SessionPersonIDKey, "person-id")
+	session.Put(sessionContext, sessionAccountPhotoPersonKey, "person-id")
 	session.Put(sessionContext, sessionAccountPhotoURLKey, "https://cdn.example.test/person.jpg")
 
 	request := httptest.NewRequest("GET", "/auth/status", nil).WithContext(sessionContext)

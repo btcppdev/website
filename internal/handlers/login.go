@@ -25,8 +25,8 @@ type LoginPage struct {
 }
 
 const (
-	sessionAccountPhotoEmailKey = "account_photo_email"
-	sessionAccountPhotoURLKey   = "account_photo_url"
+	sessionAccountPhotoPersonKey = "account_photo_person_id"
+	sessionAccountPhotoURLKey    = "account_photo_url"
 )
 
 // Login renders the email-entry form (GET) and dispatches the
@@ -81,7 +81,8 @@ func AuthLanding(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 // threading request/session state through every template page model.
 func AuthStatus(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-	photoURL := accountPhotoURL(r, ctx, email)
+	personID := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionPersonIDKey))
+	photoURL := accountPhotoURL(r, ctx, personID)
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(struct {
@@ -93,30 +94,30 @@ func AuthStatus(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	})
 }
 
-func accountPhotoURL(r *http.Request, ctx *config.AppContext, email string) string {
-	if email == "" {
+func accountPhotoURL(r *http.Request, ctx *config.AppContext, personID string) string {
+	if personID == "" {
 		return ""
 	}
-	if ctx.Session.GetString(r.Context(), sessionAccountPhotoEmailKey) == email {
+	if ctx.Session.GetString(r.Context(), sessionAccountPhotoPersonKey) == personID {
 		return ctx.Session.GetString(r.Context(), sessionAccountPhotoURLKey)
 	}
 
 	photoURL := ""
-	speakers, err := getters.GetSpeakersByEmail(ctx, email)
+	speaker, err := getters.FetchSpeakerByID(ctx, personID)
 	if err != nil {
-		ctx.Err.Printf("/auth/status speaker lookup %s: %s", email, err)
+		ctx.Err.Printf("/auth/status person lookup %s: %s", personID, err)
 		return ""
 	}
-	if len(speakers) > 0 && speakers[0] != nil && strings.TrimSpace(speakers[0].Photo) != "" {
-		photoURL = SpeakerPhotoURL(ctx, speakers[0].Photo)
+	if speaker != nil && strings.TrimSpace(speaker.Photo) != "" {
+		photoURL = SpeakerPhotoURL(ctx, speaker.Photo)
 	}
-	ctx.Session.Put(r.Context(), sessionAccountPhotoEmailKey, email)
+	ctx.Session.Put(r.Context(), sessionAccountPhotoPersonKey, personID)
 	ctx.Session.Put(r.Context(), sessionAccountPhotoURLKey, photoURL)
 	return photoURL
 }
 
 func invalidateAccountPhotoSession(r *http.Request, ctx *config.AppContext) {
-	ctx.Session.Remove(r.Context(), sessionAccountPhotoEmailKey)
+	ctx.Session.Remove(r.Context(), sessionAccountPhotoPersonKey)
 	ctx.Session.Remove(r.Context(), sessionAccountPhotoURLKey)
 }
 

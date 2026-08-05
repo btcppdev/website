@@ -743,15 +743,8 @@ func DashboardEditSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 }
 
-// DashboardEditSpeaker renders / handles the user's row in the
-// Speakers DB. Auth is by magic-link email — the user can only edit
-// the speaker row whose email matches the authed identity.
-//
-// Mode is "edit" when GetSpeakersByEmail returns at least one row; in
-// that case the form's POST patches the existing row via UpdateSpeaker.
-// Mode is "create" when there's no row yet — common for volunteer-
-// or ticket-only contacts who want to add themselves to the speakers
-// DB. The POST creates a new row via CreateSpeaker.
+// DashboardEditSpeaker edits the person established by the session or magic
+// link. A new email remains pending until this form creates its person row.
 func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	email, encEmail, encHMAC, ok := dashboardRequestIdentity(w, r, ctx)
 	if !ok {
@@ -759,15 +752,23 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 	nextURL := safeReturnTo(r.URL.Query().Get("next"))
 
-	speakers, err := getters.GetSpeakersByEmail(ctx, email)
+	resolution, err := getters.ResolvePersonByEmail(ctx, email)
 	if err != nil {
-		ctx.Err.Printf("/dashboard/speaker lookup %s: %s", email, err)
+		ctx.Err.Printf("/dashboard/speaker resolve %s: %s", email, err)
 		http.Error(w, "lookup failed", http.StatusInternalServerError)
 		return
 	}
-	var sp *types.Speaker
-	if len(speakers) > 0 {
-		sp = speakers[0]
+	if resolution.IsConflict() {
+		http.Error(w, "This email matches multiple profiles. An administrator must merge them before the profile can be edited.", http.StatusConflict)
+		return
+	}
+	sp := resolution.Person
+	if sp != nil && ctx.Session.GetString(r.Context(), auth.SessionPersonIDKey) == "" {
+		if err := auth.LoginPerson(ctx, r, sp.ID, email); err != nil {
+			ctx.Err.Printf("/dashboard/speaker establish person session %s: %s", sp.ID, err)
+			http.Error(w, "session error", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if r.Method == http.MethodPost {
@@ -1031,11 +1032,17 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	if hasNewPic {
 		in.Photo = imgproc.ShortID(picRaw) + picExt
 	}
-	if _, err := getters.CreateSpeaker(ctx, in); err != nil {
+	personID, err := getters.CreateSpeaker(ctx, in)
+	if err != nil {
 		ctx.Err.Printf("/dashboard/speaker create %s: %s", email, err)
 		http.Redirect(w, r,
 			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Create failed: "+err.Error()),
 			http.StatusSeeOther)
+		return
+	}
+	if err := auth.LoginPerson(ctx, r, personID, email); err != nil {
+		ctx.Err.Printf("/dashboard/speaker login new person %s: %s", personID, err)
+		http.Error(w, "Profile created, but the session could not be updated. Sign in again.", http.StatusInternalServerError)
 		return
 	}
 	invalidateAccountPhotoSession(r, ctx)
