@@ -548,6 +548,7 @@ func loadTemplates(ctx *config.AppContext) error {
 		},
 		"formatTime":    formatRunOfShowTime,
 		"signedMinutes": formatSignedMinutes,
+		"shirtSizes":    types.ShirtSizeOptions,
 		"inDev": func() bool {
 			return !ctx.Env.Prod
 		},
@@ -3795,6 +3796,11 @@ func RenderVolunteerConf(w http.ResponseWriter, r *http.Request, ctx *config.App
 			return
 		}
 		trimVolunteer(&vol)
+		vol.Shirt = validShirtCode(vol.Shirt)
+		if vol.Shirt == "" {
+			w.Write([]byte(helpers.ErrVolApp("Please select a valid shirt size.")))
+			return
+		}
 
 		/* ten divided by two is five */
 		if vol.Captcha != 5 {

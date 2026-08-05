@@ -204,11 +204,10 @@
                                 aria-label="Shirt Size" 
                                 required
                                 class="col-start-1 row-start-1 w-full appearance-none rounded-md py-2 pl-3.5 pr-7 text-base text-gray-500 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-bitcoin sm:text-sm/6">
-                                <option value="S">S</option>
-                                <option value="M" selected>M</option>
-                                <option value="L">L</option>
-                                <option value="XL">XL</option>
-                                <option value="XXL">XXL</option>
+                                {{ $shirt := "MM" }}{{ if and .Prefill .Prefill.TShirt }}{{ $shirt = .Prefill.TShirt }}{{ end }}
+                                {{ range shirtSizes }}
+                                <option value="{{ .Code }}"{{ if eq .Code $shirt }} selected{{ end }}>{{ .Label }}</option>
+                                {{ end }}
                             </select>
                         </div>
                     </div>

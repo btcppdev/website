@@ -3,6 +3,7 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -54,6 +55,10 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 		return fmt.Errorf("RegisterVolunteer: volunteer is nil")
 	}
 	normalizeVolunteerInput(vol)
+	vol.Shirt = types.ValidShirtSizeCode(vol.Shirt)
+	if vol.Shirt == "" {
+		return fmt.Errorf("RegisterVolunteer: valid shirt size required")
+	}
 	if len(vol.ScheduleFor) == 0 || vol.ScheduleFor[0] == nil || vol.ScheduleFor[0].Ref == "" {
 		return fmt.Errorf("RegisterVolunteer: ScheduleFor required")
 	}
@@ -69,22 +74,82 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 	}
 	defer tx.Rollback(ctx.DatabaseContext())
 
-	var volunteerID string
+	conferenceID := vol.ScheduleFor[0].Ref
+	// Serialize applications for the same email/event even when no volunteer
+	// row exists yet, so concurrent form submissions cannot create duplicates.
+	if _, err := tx.Exec(ctx.DatabaseContext(), `
+		SELECT pg_advisory_xact_lock(hashtextextended(lower(btrim($1)) || ':' || $2, 0))
+	`, vol.Email, conferenceID); err != nil {
+		return fmt.Errorf("lock volunteer application %q for conference %s: %w", vol.Email, conferenceID, err)
+	}
+
+	var volunteerID, existingStatus string
 	err = tx.QueryRow(ctx.DatabaseContext(), `
-		INSERT INTO volunteers (
-			name, email, phone, signal, availability, contact_at, comments,
-			discovered_via, first_event, hometown, twitter_handle, nostr,
-			shirt, status, captcha, subscribe
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
-		)
-		RETURNING id::text
-	`, vol.Name, vol.Email, vol.Phone, vol.Signal, vol.Availability,
-		vol.ContactAt, vol.Comments, vol.DiscoveredVia, vol.FirstEvent,
-		vol.Hometown, vol.Twitter.Handle, vol.Nostr, vol.Shirt, status,
-		vol.Captcha, vol.Subscribe).Scan(&volunteerID)
-	if err != nil {
-		return fmt.Errorf("insert volunteer %q: %w", vol.Email, err)
+		SELECT volunteer.id::text, volunteer.status
+		FROM volunteers volunteer
+		JOIN volunteers_conferences conference
+			ON conference.volunteer_id = volunteer.id
+		WHERE volunteer.email = $1::citext
+			AND conference.conference_id = $2::uuid
+			AND conference.kind = 'schedule_for'
+		ORDER BY volunteer.created_at DESC, volunteer.id
+		LIMIT 1
+		FOR UPDATE OF volunteer
+	`, vol.Email, conferenceID).Scan(&volunteerID, &existingStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = tx.QueryRow(ctx.DatabaseContext(), `
+			INSERT INTO volunteers (
+				name, email, phone, signal, availability, contact_at, comments,
+				discovered_via, first_event, hometown, twitter_handle, nostr,
+				shirt, status, captcha, subscribe
+			) VALUES (
+				$1, $2::citext, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+				$13, $14, $15, $16
+			)
+			RETURNING id::text
+		`, vol.Name, vol.Email, vol.Phone, vol.Signal, vol.Availability,
+			vol.ContactAt, vol.Comments, vol.DiscoveredVia, vol.FirstEvent,
+			vol.Hometown, vol.Twitter.Handle, vol.Nostr, vol.Shirt, status,
+			vol.Captcha, vol.Subscribe).Scan(&volunteerID)
+		if err != nil {
+			return fmt.Errorf("insert volunteer %q: %w", vol.Email, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("find existing volunteer application %q for conference %s: %w", vol.Email, conferenceID, err)
+	} else {
+		// Preserve progress made by coordinators. A declined applicant may
+		// explicitly reapply, which reopens the existing application instead of
+		// creating a second record for the same event.
+		status = existingStatus
+		if existingStatus == "Declined" {
+			status = "Applied"
+		}
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			UPDATE volunteers
+			SET name = $2, email = $3::citext, phone = $4, signal = $5,
+				availability = $6, contact_at = $7, comments = $8,
+				discovered_via = $9, first_event = $10, hometown = $11,
+				twitter_handle = $12, nostr = $13, shirt = $14,
+				status = $15, captcha = $16, subscribe = $17
+			WHERE id = $1::uuid
+		`, volunteerID, vol.Name, vol.Email, vol.Phone, vol.Signal,
+			vol.Availability, vol.ContactAt, vol.Comments, vol.DiscoveredVia,
+			vol.FirstEvent, vol.Hometown, vol.Twitter.Handle, vol.Nostr,
+			vol.Shirt, status, vol.Captcha, vol.Subscribe); err != nil {
+			return fmt.Errorf("update volunteer application %s: %w", volunteerID, err)
+		}
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			DELETE FROM volunteers_conferences
+			WHERE volunteer_id = $1::uuid AND kind = 'other_event'
+		`, volunteerID); err != nil {
+			return fmt.Errorf("clear volunteer conference preferences %s: %w", volunteerID, err)
+		}
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			DELETE FROM volunteers_job_types
+			WHERE volunteer_id = $1::uuid
+		`, volunteerID); err != nil {
+			return fmt.Errorf("clear volunteer job preferences %s: %w", volunteerID, err)
+		}
 	}
 
 	if err := insertVolunteerConferenceLinksPostgres(tx, volunteerID, vol.ScheduleFor, "schedule_for"); err != nil {
@@ -258,7 +323,7 @@ func ListVolunteerApps(ctx *config.AppContext, email string) ([]*types.Volunteer
 	args := []interface{}{}
 	if strings.TrimSpace(email) != "" {
 		args = append(args, email)
-		where = "WHERE email = $1"
+		where = "WHERE email = $1::citext"
 	}
 	return listVolunteersPostgres(ctx, where, args...)
 }

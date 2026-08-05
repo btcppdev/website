@@ -1417,12 +1417,13 @@ func seedAdmin(ctx context.Context, tx pgx.Tx) {
 		)
 		VALUES (
 			$1::uuid, 'Dev Admin', 'dev-admin@example.test', '', '', '', '', '',
-			'', '', '', '', '', 'bitcoin++ local dev', '', false, false, ''
+			'', '', '', '', '', 'bitcoin++ local dev', '', false, false, 'MM'
 		)
 		ON CONFLICT (id) DO UPDATE SET
 			name = EXCLUDED.name,
 			email = EXCLUDED.email,
-			company = EXCLUDED.company
+			company = EXCLUDED.company,
+			tshirt = EXCLUDED.tshirt
 	`, devAdminID)
 
 	mustExec(ctx, tx, "seed admin role", `
@@ -1918,7 +1919,7 @@ func seedDashboardVolunteer(ctx context.Context, tx pgx.Tx, confID string) {
 		VALUES (
 			$1::uuid, 'Dev Admin', 'dev-admin@example.test', '', '', $2,
 			'Email', 'Seeded volunteer fixture.', 'local dev harness',
-			false, 'Austin, TX', '', '', 'M', 'Scheduled', 0, false
+			false, 'Austin, TX', '', '', 'MM', 'Scheduled', 0, false
 		)
 		ON CONFLICT (id) DO UPDATE SET
 			name = EXCLUDED.name,

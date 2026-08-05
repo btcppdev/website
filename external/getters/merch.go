@@ -1287,8 +1287,23 @@ func MarkTicketPickups(ctx *config.AppContext, ticketRef string, orderItemIDs []
 				AND r.checked_in_at IS NOT NULL
 				AND r.conference_shirt_picked_up_at IS NULL
 				AND EXISTS (
-					SELECT 1 FROM people
-					WHERE people.email = r.email AND btrim(people.tshirt) <> ''
+					SELECT 1
+					FROM people
+					WHERE people.email = r.email
+						AND upper(btrim(people.tshirt)) IN (
+							'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
+						)
+					UNION ALL
+					SELECT 1
+					FROM volunteers volunteer
+					JOIN volunteers_conferences volunteer_conf
+						ON volunteer_conf.volunteer_id = volunteer.id
+					WHERE volunteer.email = r.email
+						AND volunteer_conf.conference_id = r.conference_id
+						AND volunteer_conf.kind = 'schedule_for'
+						AND upper(btrim(volunteer.shirt)) IN (
+							'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
+						)
 				)
 		`, ticketRef, actorEmail)
 		if err != nil {
