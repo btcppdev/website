@@ -23,10 +23,13 @@ import (
 )
 
 var (
-	client   *s3.Client
-	bucket   string
-	endpoint string
+	client       *s3.Client
+	streamClient *s3.Client
+	bucket       string
+	endpoint     string
 )
+
+const spacesRequestTimeout = 30 * time.Second
 
 func Init(cfg types.SpacesConfig) {
 	if cfg.Endpoint == "" || cfg.Bucket == "" || cfg.Key == "" || cfg.Secret == "" {
@@ -38,16 +41,35 @@ func Init(cfg types.SpacesConfig) {
 
 	awsCfg := aws.Config{
 		Region:     cfg.Region,
-		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+		HTTPClient: &http.Client{Timeout: spacesRequestTimeout},
 		Credentials: credentials.NewStaticCredentialsProvider(
 			cfg.Key, cfg.Secret, "",
 		),
 	}
 
-	client = s3.NewFromConfig(awsCfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(cfg.Endpoint)
+	client = newSpacesClient(awsCfg, cfg.Endpoint)
+	// Large recordings can take minutes or hours to transfer. A non-zero
+	// http.Client.Timeout covers the response body too, so using the ordinary
+	// 30-second client here aborts a healthy stream after 30 seconds and makes
+	// the downstream YouTube upload report a videos.insert deadline error.
+	// Keep bounded connection/header setup, but do not impose a deadline on the
+	// entire body transfer.
+	streamCfg := awsCfg
+	streamCfg.HTTPClient = newStreamingHTTPClient()
+	streamClient = newSpacesClient(streamCfg, cfg.Endpoint)
+}
+
+func newSpacesClient(cfg aws.Config, endpoint string) *s3.Client {
+	return s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(endpoint)
 		o.UsePathStyle = false
 	})
+}
+
+func newStreamingHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = spacesRequestTimeout
+	return &http.Client{Transport: transport}
 }
 
 func IsConfigured() bool {
@@ -84,7 +106,7 @@ func Upload(key string, data []byte, contentType string, hash string) (string, e
 // for large files such as long-form recordings that should not be buffered
 // into process memory before being sent to Spaces.
 func UploadStream(key string, body io.Reader, contentType string, size int64) (string, error) {
-	if client == nil {
+	if streamClient == nil {
 		return "", fmt.Errorf("spaces not configured")
 	}
 	input := &s3.PutObjectInput{
@@ -98,7 +120,7 @@ func UploadStream(key string, body io.Reader, contentType string, size int64) (s
 	if size > 0 {
 		input.ContentLength = aws.Int64(size)
 	}
-	uploader := manager.NewUploader(client, func(u *manager.Uploader) {
+	uploader := manager.NewUploader(streamClient, func(u *manager.Uploader) {
 		u.PartSize = 64 * 1024 * 1024
 		u.Concurrency = 4
 	})
@@ -364,10 +386,10 @@ func Get(key string) ([]byte, error) {
 // stores omit it on chunked transfers — callers should treat -1 as
 // "unknown" and pass it through to the uploader as-is).
 func GetStream(key string) (io.ReadCloser, int64, error) {
-	if client == nil {
+	if streamClient == nil {
 		return nil, 0, fmt.Errorf("spaces not configured")
 	}
-	result, err := client.GetObject(context.Background(), &s3.GetObjectInput{
+	result, err := streamClient.GetObject(context.Background(), &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
