@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -165,6 +166,16 @@ func LinkUnownedRecordsByEmail(ctx *config.AppContext, personID, rawEmail string
 		return fmt.Errorf("begin historical identity link: %w", err)
 	}
 	defer tx.Rollback(dbctx)
+	if err := linkUnownedRecordsByEmailTx(dbctx, tx, personID, email); err != nil {
+		return err
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit historical identity link: %w", err)
+	}
+	return nil
+}
+
+func linkUnownedRecordsByEmailTx(dbctx context.Context, tx pgx.Tx, personID, email string) error {
 	updates := []struct {
 		label string
 		sql   string
@@ -181,8 +192,63 @@ func LinkUnownedRecordsByEmail(ctx *config.AppContext, personID, rawEmail string
 			return fmt.Errorf("link %s by verified email: %w", update.label, err)
 		}
 	}
-	if err := tx.Commit(dbctx); err != nil {
-		return fmt.Errorf("commit historical identity link: %w", err)
+	return nil
+}
+
+func MarkPersonEmailVerified(ctx *config.AppContext, personID, rawEmail string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	personID = strings.TrimSpace(personID)
+	email := strings.ToLower(strings.TrimSpace(rawEmail))
+	if personID == "" || email == "" {
+		return fmt.Errorf("person and email are required")
+	}
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE person_emails
+		SET verified_at = coalesce(verified_at, now()), updated_at = now()
+		WHERE person_id = $1::uuid AND email = $2::citext
+	`, personID, email)
+	if err != nil {
+		return fmt.Errorf("verify person email: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("email is not attached to person")
 	}
 	return nil
+}
+
+// ResolveCanonicalPersonID follows an active merge mapping so existing
+// sessions for a merged source person continue as the canonical person.
+func ResolveCanonicalPersonID(ctx *config.AppContext, rawPersonID string) (string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", fmt.Errorf("database is not configured")
+	}
+	personID := strings.TrimSpace(rawPersonID)
+	if personID == "" {
+		return "", nil
+	}
+	seen := make(map[string]bool)
+	for range 16 {
+		if seen[personID] {
+			return "", fmt.Errorf("person merge cycle detected at %s", personID)
+		}
+		seen[personID] = true
+		var canonicalID string
+		err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+			SELECT canonical_person_id::text
+			FROM person_merge_events
+			WHERE source_person_id = $1::uuid AND status = 'merged'
+			ORDER BY created_at DESC, id DESC
+			LIMIT 1
+		`, personID).Scan(&canonicalID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return personID, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("resolve canonical person: %w", err)
+		}
+		personID = canonicalID
+	}
+	return "", fmt.Errorf("person merge chain is too deep")
 }

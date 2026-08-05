@@ -40,9 +40,15 @@ import (
 	"btcpp-web/internal/types"
 )
 
-// SessionEmailKey is the SCS session key under which the validated
-// email lives once a magic-link click succeeds.
-const SessionEmailKey = "auth_email"
+const (
+	// SessionEmailKey retains the exact email proved by the current login.
+	// It also represents a pending identity before profile creation.
+	SessionEmailKey = "auth_email"
+	// SessionPersonIDKey is the durable identity for established accounts.
+	SessionPersonIDKey = "auth_person_id"
+)
+
+var ErrAmbiguousEmail = errors.New("email belongs to multiple people")
 
 // GlobalScope is the scope tag that means "every conf".
 const GlobalScope = "global"
@@ -75,6 +81,11 @@ type Spec struct {
 
 // Identity is the authed user, resolved on each request.
 type Identity struct {
+	PersonID     string
+	LoginEmail   string
+	PrimaryEmail string
+	// Email is retained while call sites move to an explicit login or primary
+	// address. It currently means the address used for this login.
 	Email   string
 	Speaker *types.Speaker
 	Roles   []Role
@@ -188,21 +199,55 @@ func ParseRoles(tags []string) []Role {
 	return out
 }
 
-// LoginEmail stamps the authed email into the session. Called by the
-// magic-link landing handler after the email HMAC checks out.
+// LoginEmail establishes either a person-backed session for a known alias or
+// a pending email session for a new user who still needs to create a profile.
 func LoginEmail(ctx *config.AppContext, r *http.Request, email string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
 	if email == "" {
 		return errors.New("LoginEmail: empty email")
+	}
+	resolution, err := getters.ResolvePersonByEmail(ctx, email)
+	if err != nil {
+		return fmt.Errorf("resolve login email: %w", err)
+	}
+	if resolution.IsConflict() {
+		return ErrAmbiguousEmail
+	}
+	if resolution.Alias != nil {
+		if err := getters.MarkPersonEmailVerified(ctx, resolution.Alias.PersonID, email); err != nil {
+			return err
+		}
 	}
 	if err := ctx.Session.RenewToken(r.Context()); err != nil {
 		return fmt.Errorf("renew session: %w", err)
 	}
+	ctx.Session.Remove(r.Context(), SessionPersonIDKey)
 	ctx.Session.Put(r.Context(), SessionEmailKey, email)
+	if resolution.Alias != nil {
+		ctx.Session.Put(r.Context(), SessionPersonIDKey, resolution.Alias.PersonID)
+	}
 	return nil
 }
 
-// Logout drops the authed email from the session.
+// LoginPerson upgrades a pending session after profile creation without
+// requiring another magic link.
+func LoginPerson(ctx *config.AppContext, r *http.Request, personID, loginEmail string) error {
+	personID = strings.TrimSpace(personID)
+	loginEmail = strings.ToLower(strings.TrimSpace(loginEmail))
+	if personID == "" || loginEmail == "" {
+		return errors.New("LoginPerson: person and email are required")
+	}
+	if err := ctx.Session.RenewToken(r.Context()); err != nil {
+		return fmt.Errorf("renew session: %w", err)
+	}
+	ctx.Session.Put(r.Context(), SessionPersonIDKey, personID)
+	ctx.Session.Put(r.Context(), SessionEmailKey, loginEmail)
+	return nil
+}
+
+// Logout drops both established and pending identity state.
 func Logout(ctx *config.AppContext, r *http.Request) {
+	ctx.Session.Remove(r.Context(), SessionPersonIDKey)
 	ctx.Session.Remove(r.Context(), SessionEmailKey)
 }
 
@@ -211,26 +256,62 @@ func Logout(ctx *config.AppContext, r *http.Request) {
 // should treat that as "not logged in." A non-nil error means the
 // authed email exists but the lookup misfired.
 func Resolve(r *http.Request, ctx *config.AppContext) (*Identity, error) {
-	email := ctx.Session.GetString(r.Context(), SessionEmailKey)
-	if email == "" {
+	personID := ctx.Session.GetString(r.Context(), SessionPersonIDKey)
+	loginEmail := ctx.Session.GetString(r.Context(), SessionEmailKey)
+	if personID == "" && loginEmail == "" {
 		return nil, nil
 	}
-	speakers, err := getters.GetSpeakersByEmail(ctx, email)
+	if personID == "" {
+		resolution, err := getters.ResolvePersonByEmail(ctx, loginEmail)
+		if err != nil {
+			return nil, fmt.Errorf("resolve session email: %w", err)
+		}
+		if resolution.IsConflict() {
+			return nil, ErrAmbiguousEmail
+		}
+		if resolution.Alias == nil {
+			return nil, nil
+		}
+		personID = resolution.Alias.PersonID
+		ctx.Session.Put(r.Context(), SessionPersonIDKey, personID)
+	}
+	canonicalID, err := getters.ResolveCanonicalPersonID(ctx, personID)
 	if err != nil {
-		return nil, fmt.Errorf("lookup speaker: %w", err)
+		return nil, err
 	}
-	if len(speakers) == 0 {
-		// Authed email no longer matches a Speaker row — treat as
-		// logged out so they re-enter their email and we either find
-		// them or surface a real error.
+	if canonicalID != personID {
+		personID = canonicalID
+		ctx.Session.Put(r.Context(), SessionPersonIDKey, personID)
+	}
+	speaker, err := getters.FetchSpeakerByID(ctx, personID)
+	if err != nil {
+		return nil, fmt.Errorf("lookup person: %w", err)
+	}
+	if speaker == nil {
 		return nil, nil
 	}
-	sp := speakers[0]
+	primaryEmail, err := getters.GetPrimaryPersonEmail(ctx, personID)
+	if err != nil {
+		return nil, err
+	}
+	if loginEmail == "" {
+		loginEmail = primaryEmail
+	}
+	return identityFromSpeaker(personID, loginEmail, primaryEmail, speaker), nil
+}
+
+func identityFromSpeaker(personID, loginEmail, primaryEmail string, speaker *types.Speaker) *Identity {
+	if speaker == nil {
+		return nil
+	}
 	return &Identity{
-		Email:   email,
-		Speaker: sp,
-		Roles:   ParseRoles(sp.Roles),
-	}, nil
+		PersonID:     personID,
+		LoginEmail:   loginEmail,
+		PrimaryEmail: primaryEmail,
+		Email:        loginEmail,
+		Speaker:      speaker,
+		Roles:        ParseRoles(speaker.Roles),
+	}
 }
 
 // RequireRole is the per-handler entry point. Resolves the identity,
@@ -332,6 +413,10 @@ func AuthRedirect(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		return
 	}
 	if err := LoginEmail(ctx, r, email); err != nil {
+		if errors.Is(err, ErrAmbiguousEmail) {
+			redirectLoginError(w, r, "That email matches more than one account. An administrator must merge those profiles before you can sign in.")
+			return
+		}
 		ctx.Err.Printf("/auth login %s: %s", email, err)
 		http.Error(w, "session error", http.StatusInternalServerError)
 		return
