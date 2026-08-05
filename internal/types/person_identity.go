@@ -9,6 +9,7 @@ type PersonEmail struct {
 	IsPrimary          bool
 	VerifiedAt         time.Time
 	OriginMergeEventID string
+	RemovalLocked      bool
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }

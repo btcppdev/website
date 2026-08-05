@@ -1571,6 +1571,21 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/speaker", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditSpeaker(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/dashboard/emails", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmails(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/emails/request", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailRequest(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/emails/verify", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailVerify(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/emails/primary", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailPrimary(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/emails/remove", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailRemove(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardSatelliteEventEdit(w, r, app)
 	}).Methods("GET")

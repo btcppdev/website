@@ -1574,6 +1574,132 @@
 	text-transform: none;
 }
 
+.profile-edit-email-manage {
+	display: inline-block;
+	margin-top: 8px;
+	color: #3730a3;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.person-emails-page {
+	padding-bottom: 72px;
+}
+
+.person-emails-error {
+	border-color: #b91c1c;
+	background: #fee2e2;
+	color: #7f1d1d;
+}
+
+.person-email-list {
+	display: grid;
+	gap: 10px;
+	padding: 20px;
+}
+
+.person-email-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	border: 1px solid #d1d5db;
+	padding: 14px;
+}
+
+.person-email-row > div:first-child {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.person-email-row strong {
+	overflow-wrap: anywhere;
+}
+
+.person-email-row span {
+	border-radius: 999px;
+	background: #e0e7ff;
+	color: #3730a3;
+	padding: 3px 7px;
+	font-size: 10px;
+	font-weight: 800;
+}
+
+.person-email-row small {
+	width: 100%;
+	color: #92400e;
+}
+
+.person-email-actions {
+	display: flex;
+	gap: 8px;
+	flex: none;
+}
+
+.person-email-actions button,
+.person-email-add button {
+	border: 1px solid #111827;
+	background: #111827;
+	color: #fff;
+	padding: 9px 12px;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.person-email-actions button.is-danger {
+	border-color: #fecaca;
+	background: #fee2e2;
+	color: #991b1b;
+}
+
+.person-email-actions button:disabled {
+	opacity: .45;
+	cursor: not-allowed;
+}
+
+.person-email-add {
+	display: grid;
+	grid-template-columns: minmax(240px, 1fr) auto auto;
+	align-items: end;
+	gap: 14px;
+	padding: 20px;
+}
+
+.person-email-add label {
+	display: grid;
+	gap: 7px;
+	font-size: 12px;
+	font-weight: 800;
+}
+
+.person-email-add input[type="email"] {
+	min-height: 42px;
+	border: 1px solid #9ca3af;
+	padding: 8px 10px;
+}
+
+.person-email-primary-choice {
+	display: flex !important;
+	align-items: center;
+	padding-bottom: 11px;
+	font-weight: 600 !important;
+}
+
+@media (max-width: 760px) {
+	.person-email-row,
+	.person-email-actions {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.person-email-add {
+		grid-template-columns: 1fr;
+	}
+}
+
 .profile-edit-add {
 	margin-top: 36px;
 }

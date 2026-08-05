@@ -905,6 +905,14 @@ type EditSpeakerPage struct {
 	Year         uint
 }
 
+type PersonEmailsPage struct {
+	Speaker      *types.Speaker
+	Emails       []*types.PersonEmail
+	FlashMessage string
+	FlashError   string
+	Year         uint
+}
+
 type EditSpeakerConfPage struct {
 	SpeakerConf         *types.SpeakerConf
 	Conf                *types.Conf
