@@ -163,6 +163,25 @@ func GetSpeakerConfsByEmail(ctx *config.AppContext, email string) ([]*types.Spea
 	return outSpeakers, scs, nil
 }
 
+func GetSpeakerConfsByPersonID(ctx *config.AppContext, personID string) ([]*types.Speaker, []*types.SpeakerConf, error) {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, nil, nil
+	}
+	speaker, err := FetchSpeakerByID(ctx, personID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if speaker == nil {
+		return nil, nil, nil
+	}
+	confs, err := listSpeakerConfsForSpeaker(ctx, speaker)
+	if err != nil {
+		return nil, nil, err
+	}
+	return []*types.Speaker{speaker}, confs, nil
+}
+
 func querySpeakerConfsPostgres(ctx *config.AppContext, where string, args []interface{}, speakerMap map[string]*types.Speaker, proposalMap map[string]*types.Proposal) ([]*types.SpeakerConf, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")

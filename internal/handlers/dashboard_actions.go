@@ -467,12 +467,19 @@ func saveDashboardTalkResources(w http.ResponseWriter, r *http.Request, ctx *con
 }
 
 func emailCanEditConfTalkResources(ctx *config.AppContext, email, confTalkID string) (bool, string, error) {
+	resolution, err := getters.ResolvePersonByEmail(ctx, email)
+	if err != nil {
+		return false, "", err
+	}
+	if resolution.IsConflict() || resolution.Alias == nil {
+		return false, "", nil
+	}
 	people, err := buildWhoIsDirectory(ctx)
 	if err != nil {
 		return false, "", err
 	}
 	for _, person := range people {
-		if person == nil || person.Speaker == nil || !strings.EqualFold(strings.TrimSpace(person.Speaker.Email), strings.TrimSpace(email)) {
+		if person == nil || person.Speaker == nil || person.Speaker.ID != resolution.Alias.PersonID {
 			continue
 		}
 		for _, row := range person.Talks {
@@ -803,46 +810,38 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 }
 
 func DashboardClaimHackathonTicket(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-	if email == "" {
+	id, resolveErr := auth.Resolve(r, ctx)
+	if resolveErr != nil || id == nil || id.Speaker == nil {
 		http.Redirect(w, r, "/login?next="+url.QueryEscape("/dashboard/tickets"), http.StatusSeeOther)
 		return
+	}
+	email := strings.TrimSpace(id.PrimaryEmail)
+	if email == "" {
+		email = strings.TrimSpace(id.LoginEmail)
 	}
 	if err := r.ParseForm(); err != nil {
 		http.Redirect(w, r, "/dashboard/tickets?error="+url.QueryEscape("Bad claim form"), http.StatusSeeOther)
 		return
 	}
-	people, err := getters.GetSpeakersByEmail(ctx, email)
-	if err != nil || len(people) == 0 || people[0] == nil {
-		http.Redirect(w, r, "/dashboard/tickets?error="+url.QueryEscape("A person profile is required to claim tickets"), http.StatusSeeOther)
-		return
-	}
 	conferenceID := strings.TrimSpace(r.FormValue("ConferenceID"))
 	entitlementID := mux.Vars(r)["entitlementID"]
-	personID := ""
-	for _, person := range people {
-		if person == nil {
-			continue
-		}
-		entitlements, listErr := getters.ListTicketEntitlementsForPerson(ctx, person.ID)
-		if listErr != nil {
-			continue
-		}
-		for _, entitlement := range entitlements {
-			if entitlement != nil && entitlement.ID == entitlementID {
-				personID = person.ID
-				break
-			}
-		}
-		if personID != "" {
+	entitlements, err := getters.ListTicketEntitlementsForPerson(ctx, id.PersonID)
+	if err != nil {
+		http.Redirect(w, r, "/dashboard/tickets?error="+url.QueryEscape("Unable to load ticket awards"), http.StatusSeeOther)
+		return
+	}
+	found := false
+	for _, entitlement := range entitlements {
+		if entitlement != nil && entitlement.ID == entitlementID {
+			found = true
 			break
 		}
 	}
-	if personID == "" {
+	if !found {
 		http.Redirect(w, r, "/dashboard/tickets?error="+url.QueryEscape("Ticket award not found"), http.StatusSeeOther)
 		return
 	}
-	if err := getters.ClaimTicketEntitlement(ctx, entitlementID, personID, conferenceID, email); err != nil {
+	if err := getters.ClaimTicketEntitlement(ctx, entitlementID, id.PersonID, conferenceID, email); err != nil {
 		http.Redirect(w, r, "/dashboard/tickets?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}

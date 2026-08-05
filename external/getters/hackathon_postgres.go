@@ -1338,20 +1338,24 @@ func getPersonIDByEmailPostgres(ctx *config.AppContext, email string) (string, e
 	if email == "" {
 		return "", fmt.Errorf("email is required")
 	}
-	var personID string
-	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
-		SELECT id::text
-		FROM people
-		WHERE email = $1::citext
-		ORDER BY created_at
-		LIMIT 1
-	`, email).Scan(&personID); err != nil {
-		if err == pgx.ErrNoRows {
+	resolution, err := ResolvePersonByEmail(ctx, email)
+	if err != nil {
+		return "", err
+	}
+	if resolution.IsConflict() {
+		return "", fmt.Errorf("email %s belongs to multiple unresolved people", email)
+	}
+	if resolution.Alias == nil {
+		people, err := GetSpeakersByEmail(ctx, email)
+		if err != nil {
+			return "", err
+		}
+		if len(people) != 1 || people[0] == nil {
 			return "", fmt.Errorf("person not found for %s", email)
 		}
-		return "", fmt.Errorf("lookup person by email %s: %w", email, err)
+		return people[0].ID, nil
 	}
-	return personID, nil
+	return resolution.Alias.PersonID, nil
 }
 
 func createProjectInvitePostgres(ctx *config.AppContext, projectID, email string, expiresAt *time.Time) (string, *types.ProjectInvite, error) {
@@ -2214,12 +2218,27 @@ func listCompetitionJudgesPostgres(ctx *config.AppContext, competitionID string)
 }
 
 func listCompetitionJudgeAssignmentsByEmailPostgres(ctx *config.AppContext, email string) ([]*types.CompetitionJudgeAssignment, error) {
-	if ctx == nil || ctx.DB == nil {
-		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
-	}
 	email = strings.TrimSpace(email)
 	if email == "" {
 		return nil, fmt.Errorf("email is required")
+	}
+	return listCompetitionJudgeAssignmentsPostgres(ctx, `
+		competition_judges.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+		OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL AND people.email = $1::citext)
+	`, email, email)
+}
+
+func listCompetitionJudgeAssignmentsByPersonIDPostgres(ctx *config.AppContext, personID string) ([]*types.CompetitionJudgeAssignment, error) {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, fmt.Errorf("person id is required")
+	}
+	return listCompetitionJudgeAssignmentsPostgres(ctx, "competition_judges.person_id = $1::uuid", personID, personID)
+}
+
+func listCompetitionJudgeAssignmentsPostgres(ctx *config.AppContext, whereSQL, value, label string) ([]*types.CompetitionJudgeAssignment, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT DISTINCT competitions.id::text,
@@ -2230,11 +2249,11 @@ func listCompetitionJudgeAssignmentsByEmailPostgres(ctx *config.AppContext, emai
 		JOIN people ON people.id = competition_judges.person_id
 		JOIN competitions ON competitions.id = competition_judges.competition_id
 		JOIN conferences ON conferences.id = competitions.conference_id
-		WHERE people.email = $1::citext
+		WHERE `+whereSQL+`
 		ORDER BY conferences.tag, competition_judges.judge_type
-	`, email)
+	`, value)
 	if err != nil {
-		return nil, fmt.Errorf("query competition judge assignments for %s: %w", email, err)
+		return nil, fmt.Errorf("query competition judge assignments for %s: %w", label, err)
 	}
 	defer rows.Close()
 
@@ -2242,12 +2261,12 @@ func listCompetitionJudgeAssignmentsByEmailPostgres(ctx *config.AppContext, emai
 	for rows.Next() {
 		var assignment types.CompetitionJudgeAssignment
 		if err := rows.Scan(&assignment.CompetitionID, &assignment.ConferenceID, &assignment.ConferenceTag, &assignment.JudgeType); err != nil {
-			return nil, fmt.Errorf("scan competition judge assignment for %s: %w", email, err)
+			return nil, fmt.Errorf("scan competition judge assignment for %s: %w", label, err)
 		}
 		out = append(out, &assignment)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate competition judge assignments for %s: %w", email, err)
+		return nil, fmt.Errorf("iterate competition judge assignments for %s: %w", label, err)
 	}
 	return out, nil
 }

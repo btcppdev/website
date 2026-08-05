@@ -82,11 +82,11 @@ func ClaimTicketEntitlement(ctx *config.AppContext, entitlementID, personID, con
 		refID := types.UniqueID(email, entitlementID, int32(i))
 		var registrationID string
 		if err := tx.QueryRow(ctx.DatabaseContext(), `
-			INSERT INTO registrations (ref_id, checkout_id, conference_id, type, email, item_bought, amount_paid, currency, platform, registered_at, revoked)
-			VALUES ($1, $2, $3::uuid, $4, $5, $6, 0, 'USD', 'hackathon-award', $7, false)
-			ON CONFLICT (ref_id) DO UPDATE SET revoked = false
+			INSERT INTO registrations (ref_id, checkout_id, conference_id, type, email, person_id, item_bought, amount_paid, currency, platform, registered_at, revoked)
+			VALUES ($1, $2, $3::uuid, $4, $5, $6::uuid, $7, 0, 'USD', 'hackathon-award', $8, false)
+			ON CONFLICT (ref_id) DO UPDATE SET revoked = false, person_id = EXCLUDED.person_id
 			RETURNING id::text
-		`, refID, "hackathon-entitlement-"+entitlementID, conferenceID, "genpop", strings.TrimSpace(email), confDesc, time.Now()).Scan(&registrationID); err != nil {
+		`, refID, "hackathon-entitlement-"+entitlementID, conferenceID, "genpop", strings.TrimSpace(email), personID, confDesc, time.Now()).Scan(&registrationID); err != nil {
 			return fmt.Errorf("issue claimed ticket: %w", err)
 		}
 		if firstRegistrationID == "" {
