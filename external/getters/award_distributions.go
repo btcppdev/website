@@ -375,7 +375,11 @@ func ListAwardDistributions(ctx *config.AppContext, competitionID string) ([]*ty
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT d.id::text, d.competition_id::text, d.award_id::text, a.title,
 			d.project_id::text, projects.title, d.prize_id::text, prizes.title,
-			d.person_id::text, people.name, coalesce(people.email::text, ''),
+			d.person_id::text, people.name, coalesce((
+				SELECT email.email::text FROM person_emails email
+				WHERE email.person_id = people.id
+				ORDER BY email.is_primary DESC, email.created_at, email.id LIMIT 1
+			), ''),
 			people.signal, people.telegram,
 			d.distribution_type, d.amount_sats, d.ticket_quantity, d.status, d.notes,
 			people.lightning_address, people.bitcoin_address, people.tax_form_type,
@@ -448,7 +452,11 @@ func CashPrizeValueSats(ctx *config.AppContext, competitionID, awardID, prizeID 
 func ListCashPayoutRecipients(ctx *config.AppContext, competitionID string) (map[string][]*types.HackathonPayoutRecipient, error) {
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT DISTINCT project_members.project_id::text, people.id::text,
-			people.name, coalesce(people.email::text, ''), people.signal,
+			people.name, coalesce((
+				SELECT email.email::text FROM person_emails email
+				WHERE email.person_id = people.id
+				ORDER BY email.is_primary DESC, email.created_at, email.id LIMIT 1
+			), ''), people.signal,
 			people.telegram, people.lightning_address, people.bitcoin_address,
 			people.tax_form_type, people.tax_form_original_name,
 			people.tax_form_uploaded_at

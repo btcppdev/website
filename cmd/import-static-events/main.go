@@ -1078,26 +1078,25 @@ func upsertStaticPersonSeed(ctx context.Context, tx pgx.Tx, person staticPersonS
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO people (
-			id, name, email, norm_photo_path, phone, signal, telegram,
+			id, name, norm_photo_path, phone, signal, telegram,
 			twitter_handle, nostr, github_url, instagram, linkedin, leetcode,
 			website_url, company, org_logo_path, bio, avail_to_hire,
 			looking_to_hire, tshirt
 		)
 		VALUES (
-			$1::uuid, $2, $3, '', '', '', '',
-			$4, '', $5, '', '', '',
-			'', $6, '', '', false, false, ''
+			$1::uuid, $2, '', '', '', '',
+			$3, '', $4, '', '', '',
+			'', $5, '', '', false, false, ''
 		)
 		ON CONFLICT (id) DO UPDATE SET
-			email = CASE WHEN people.email IS NULL OR people.email = '' THEN EXCLUDED.email ELSE people.email END,
 			twitter_handle = CASE WHEN people.twitter_handle = '' THEN EXCLUDED.twitter_handle ELSE people.twitter_handle END,
 			github_url = CASE WHEN people.github_url = '' THEN EXCLUDED.github_url ELSE people.github_url END,
 			company = CASE WHEN people.company = '' THEN EXCLUDED.company ELSE people.company END
-	`, personID, person.Name, email, person.Twitter, person.Github, person.Company)
+	`, personID, person.Name, person.Twitter, person.Github, person.Company)
 	if err != nil {
 		return fmt.Errorf("upsert static person %q: %w", email, err)
 	}
-	return nil
+	return attachImportedPersonEmail(ctx, tx, personID, email)
 }
 
 func resolveStaticPersonSeedID(ctx context.Context, tx pgx.Tx, person staticPersonSeed) (string, error) {
@@ -1108,7 +1107,7 @@ func resolveStaticPersonSeedID(ctx context.Context, tx pgx.Tx, person staticPers
 	}{
 		{`twitter`, `SELECT id::text FROM people WHERE lower(twitter_handle) = lower($1) LIMIT 1`, person.Twitter},
 		{`github`, `SELECT id::text FROM people WHERE lower(github_url) = lower($1) LIMIT 1`, person.Github},
-		{`email`, `SELECT id::text FROM people WHERE lower(email::text) = lower($1) LIMIT 1`, canonicalEmail(person.Email)},
+		{`email`, `SELECT person_id::text FROM person_emails WHERE email = $1::citext LIMIT 1`, canonicalEmail(person.Email)},
 	}
 	for _, q := range queries {
 		if strings.TrimSpace(q.arg) == "" {
@@ -1346,17 +1345,47 @@ func canonicalEmail(raw string) string {
 	return emails[0]
 }
 
+func attachImportedPersonEmail(ctx context.Context, tx pgx.Tx, personID, rawEmail string) error {
+	email := canonicalEmail(rawEmail)
+	if email == "" {
+		return nil
+	}
+	tag, err := tx.Exec(ctx, `
+		INSERT INTO person_emails (person_id, email, is_primary, verified_at)
+		VALUES (
+			$1::uuid, $2::citext,
+			NOT EXISTS (SELECT 1 FROM person_emails WHERE person_id = $1::uuid AND is_primary),
+			now()
+		)
+		ON CONFLICT (email) DO UPDATE SET updated_at = person_emails.updated_at
+		WHERE person_emails.person_id = EXCLUDED.person_id
+	`, personID, email)
+	if err != nil {
+		return fmt.Errorf("attach imported email %q: %w", email, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("attach imported email %q: email belongs to another person", email)
+	}
+	return nil
+}
+
 func findExistingPersonByEmail(ctx context.Context, tx pgx.Tx, email string) (existingPerson, error) {
 	var person existingPerson
 	err := tx.QueryRow(ctx, `
-		SELECT id::text, name, COALESCE(norm_photo_path, ''), COALESCE(company, ''), COALESCE(email::text, '')
+		SELECT people.id::text, people.name, COALESCE(people.norm_photo_path, ''), COALESCE(people.company, ''),
+			COALESCE(primary_email.email::text, '')
 		FROM people
-		WHERE lower(email::text) = lower($1)
+		JOIN person_emails matched_email ON matched_email.person_id = people.id AND matched_email.email = $1::citext
+		LEFT JOIN LATERAL (
+			SELECT email FROM person_emails
+			WHERE person_id = people.id
+			ORDER BY is_primary DESC, created_at, id LIMIT 1
+		) primary_email ON true
 		ORDER BY
-			(twitter_handle <> '') DESC,
-			(github_url <> '') DESC,
-			(norm_photo_path <> '') DESC,
-			updated_at DESC
+			(people.twitter_handle <> '') DESC,
+			(people.github_url <> '') DESC,
+			(people.norm_photo_path <> '') DESC,
+			people.updated_at DESC
 		LIMIT 1
 	`, email).Scan(&person.ID, &person.Name, &person.Photo, &person.Company, &person.Email)
 	if err == pgx.ErrNoRows {
@@ -1391,9 +1420,15 @@ func findExistingPersonByStaticSeed(ctx context.Context, tx pgx.Tx, seed staticP
 		return person, pgx.ErrNoRows
 	}
 	err = tx.QueryRow(ctx, `
-		SELECT id::text, name, COALESCE(norm_photo_path, ''), COALESCE(company, ''), COALESCE(email::text, '')
+		SELECT people.id::text, people.name, COALESCE(people.norm_photo_path, ''), COALESCE(people.company, ''),
+			COALESCE(primary_email.email::text, '')
 		FROM people
-		WHERE id::text = $1
+		LEFT JOIN LATERAL (
+			SELECT email FROM person_emails
+			WHERE person_id = people.id
+			ORDER BY is_primary DESC, created_at, id LIMIT 1
+		) primary_email ON true
+		WHERE people.id::text = $1
 		LIMIT 1
 	`, personID).Scan(&person.ID, &person.Name, &person.Photo, &person.Company, &person.Email)
 	return person, err
@@ -1423,25 +1458,30 @@ func upsertPerson(ctx context.Context, tx pgx.Tx, talk staticTalk, uploadAssets 
 	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO people (
-			id, name, email, norm_photo_path, phone, signal, telegram,
+			id, name, norm_photo_path, phone, signal, telegram,
 			twitter_handle, nostr, github_url, instagram, linkedin, leetcode,
 			website_url, company, org_logo_path, bio, avail_to_hire,
 			looking_to_hire, tshirt
 		)
 		VALUES (
-			$1::uuid, $2, NULLIF($3, ''), $4, '', '', '',
-			$5, $6, $7, '', '', '', $8, $9, '', '', false, false, ''
+			$1::uuid, $2, $3, '', '', '',
+			$4, $5, $6, '', '', '', $7, $8, '', '', false, false, ''
 		)
 		ON CONFLICT (id) DO UPDATE SET
 			norm_photo_path = CASE WHEN people.norm_photo_path = '' THEN EXCLUDED.norm_photo_path ELSE people.norm_photo_path END,
-			email = CASE WHEN people.email IS NULL OR people.email = '' THEN EXCLUDED.email ELSE people.email END,
 			twitter_handle = CASE WHEN people.twitter_handle = '' THEN EXCLUDED.twitter_handle ELSE people.twitter_handle END,
 			nostr = CASE WHEN people.nostr = '' THEN EXCLUDED.nostr ELSE people.nostr END,
 			github_url = CASE WHEN people.github_url = '' THEN EXCLUDED.github_url ELSE people.github_url END,
 			website_url = CASE WHEN people.website_url = '' THEN EXCLUDED.website_url ELSE people.website_url END,
 			company = CASE WHEN people.company = '' THEN EXCLUDED.company ELSE people.company END
-	`, personID, talk.Speaker.Name, canonicalEmail(talk.Speaker.Email), photo, talk.Speaker.Twitter, talk.Speaker.Nostr, talk.Speaker.GithubURL, talk.Speaker.WebsiteURL, talk.Speaker.Company)
-	return personID, photo, err
+	`, personID, talk.Speaker.Name, photo, talk.Speaker.Twitter, talk.Speaker.Nostr, talk.Speaker.GithubURL, talk.Speaker.WebsiteURL, talk.Speaker.Company)
+	if err != nil {
+		return personID, photo, err
+	}
+	if err := attachImportedPersonEmail(ctx, tx, personID, canonicalEmail(talk.Speaker.Email)); err != nil {
+		return "", "", err
+	}
+	return personID, photo, nil
 }
 
 func resolvePersonID(ctx context.Context, tx pgx.Tx, sp staticSpeaker) (string, error) {
@@ -1449,7 +1489,7 @@ func resolvePersonID(ctx context.Context, tx pgx.Tx, sp staticSpeaker) (string, 
 		sql string
 		arg string
 	}{
-		{`SELECT id::text FROM people WHERE lower(email::text) = lower($1) LIMIT 1`, canonicalEmail(sp.Email)},
+		{`SELECT person_id::text FROM person_emails WHERE email = $1::citext LIMIT 1`, canonicalEmail(sp.Email)},
 		{`SELECT id::text FROM people WHERE lower(twitter_handle) = lower($1) LIMIT 1`, sp.Twitter},
 		{`SELECT id::text FROM people WHERE lower(github_url) = lower($1) LIMIT 1`, sp.GithubURL},
 		{`SELECT id::text FROM people WHERE lower(name) = lower($1) LIMIT 1`, sp.Name},

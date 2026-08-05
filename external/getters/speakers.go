@@ -34,7 +34,6 @@ type SpeakerInput struct {
 // strings mean "leave this field alone".
 type SpeakerUpdate struct {
 	Name             string
-	Email            string
 	Photo            string
 	Phone            string
 	Signal           string
@@ -82,7 +81,6 @@ func normalizeSpeakerInput(in SpeakerInput) SpeakerInput {
 
 func normalizeSpeakerUpdate(up SpeakerUpdate) SpeakerUpdate {
 	up.Name = strings.TrimSpace(up.Name)
-	up.Email = strings.TrimSpace(up.Email)
 	up.Photo = strings.TrimSpace(up.Photo)
 	up.Phone = strings.TrimSpace(up.Phone)
 	up.Signal = strings.TrimSpace(up.Signal)
@@ -128,18 +126,19 @@ func ListSpeakers(ctx *config.AppContext) ([]*types.Speaker, error) {
 	return querySpeakersPostgres(ctx, "people", "ORDER BY lower(people.name), people.id")
 }
 
-func GetSpeakersByEmail(ctx *config.AppContext, email string) ([]*types.Speaker, error) {
+func GetPersonByEmail(ctx *config.AppContext, email string) (*types.Speaker, error) {
 	email = strings.TrimSpace(email)
 	if email == "" {
 		return nil, nil
 	}
-	return querySpeakersPostgres(ctx, "people by email", `
-		WHERE EXISTS (
-			SELECT 1 FROM person_emails pe
-			WHERE pe.person_id = people.id AND pe.email = $1::citext
-		) OR people.email = $1::citext
-		ORDER BY lower(people.name), people.id
-	`, email)
+	resolution, err := ResolvePersonByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if resolution.IsConflict() {
+		return nil, fmt.Errorf("email belongs to multiple unresolved people")
+	}
+	return resolution.Person, nil
 }
 
 func FetchSpeakerByID(ctx *config.AppContext, speakerID string) (*types.Speaker, error) {
@@ -168,7 +167,6 @@ func SearchSpeakersByNameOrEmail(ctx *config.AppContext, q string, limit int) ([
 	pattern := "%" + q + "%"
 	return querySpeakersPostgres(ctx, "speaker search", `
 		WHERE people.name ILIKE $1
-			OR people.email::text ILIKE $1
 			OR EXISTS (
 				SELECT 1 FROM person_emails pe
 				WHERE pe.person_id = people.id AND pe.email::text ILIKE $1
@@ -190,7 +188,6 @@ func SearchPeopleByNameEmailOrPhone(ctx *config.AppContext, q string, limit int)
 	phonePattern := "%" + digitsOnly(q) + "%"
 	return querySpeakersPostgres(ctx, "person search", `
 		WHERE people.name ILIKE $1
-			OR people.email::text ILIKE $1
 			OR EXISTS (
 				SELECT 1 FROM person_emails pe
 				WHERE pe.person_id = people.id AND pe.email::text ILIKE $1
@@ -301,7 +298,7 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT people.id::text, people.name,
-			coalesce(primary_email.email::text, people.email::text, ''),
+			coalesce(primary_email.email::text, ''),
 			people.norm_photo_path, people.phone, people.signal, people.telegram,
 			people.twitter_handle, people.nostr, people.github_url, people.instagram,
 			people.linkedin, people.leetcode, people.website_url, people.company, people.org_logo_path,
@@ -386,14 +383,14 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 	var id string
 	err = tx.QueryRow(dbctx, `
 		INSERT INTO people (
-			name, email, norm_photo_path, phone, signal, telegram, twitter_handle,
+			name, norm_photo_path, phone, signal, telegram, twitter_handle,
 			nostr, github_url, instagram, linkedin, leetcode, website_url, company,
 			org_logo_path, bio, avail_to_hire, looking_to_hire, tshirt
 		)
-		VALUES ($1, NULLIF($2, '')::citext, $3, $4, $5, $6, $7, $8, $9, $10,
-			$11, $12, $13, $14, $15, $16, $17, $18, $19)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+			$10, $11, $12, $13, $14, $15, $16, $17, $18)
 		RETURNING id::text
-	`, in.Name, in.Email, in.Photo, in.Phone, in.Signal, in.Telegram, in.Twitter,
+	`, in.Name, in.Photo, in.Phone, in.Signal, in.Telegram, in.Twitter,
 		in.Nostr, in.Github, in.Instagram, in.LinkedIn, in.LeetCode, in.Website, in.Company,
 		in.OrgLogo, in.Bio, in.AvailToHire, in.LookingToHire, in.TShirt).Scan(&id)
 	if err != nil {
@@ -432,46 +429,7 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 		return fmt.Errorf("database is not configured")
 	}
 	up = normalizeSpeakerUpdate(up)
-	dbctx := ctx.DatabaseContext()
-	tx, err := ctx.DB.Begin(dbctx)
-	if err != nil {
-		return fmt.Errorf("begin person update: %w", err)
-	}
-	defer tx.Rollback(dbctx)
-	if up.Email != "" {
-		var conflicts int
-		if err := tx.QueryRow(dbctx, `
-			SELECT count(*)
-			FROM person_email_conflicts
-			WHERE email = $1::citext AND person_id <> $2::uuid
-		`, up.Email, speakerID).Scan(&conflicts); err != nil {
-			return fmt.Errorf("check person email conflicts: %w", err)
-		}
-		if conflicts > 0 {
-			return fmt.Errorf("email belongs to another unresolved identity")
-		}
-		if _, err := tx.Exec(dbctx, `
-			UPDATE person_emails
-			SET is_primary = false
-			WHERE person_id = $1::uuid AND is_primary
-		`, speakerID); err != nil {
-			return fmt.Errorf("clear primary person email: %w", err)
-		}
-		tag, err := tx.Exec(dbctx, `
-			INSERT INTO person_emails (person_id, email, is_primary, verified_at)
-			VALUES ($1::uuid, $2::citext, true, now())
-			ON CONFLICT (email) DO UPDATE
-			SET is_primary = true, updated_at = now()
-			WHERE person_emails.person_id = EXCLUDED.person_id
-		`, speakerID, up.Email)
-		if err != nil {
-			return fmt.Errorf("set primary person email: %w", err)
-		}
-		if tag.RowsAffected() == 0 {
-			return fmt.Errorf("email already belongs to another person")
-		}
-	}
-	_, err = tx.Exec(dbctx, `
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE people
 		SET norm_photo_path = CASE WHEN $2 <> '' THEN $2 ELSE norm_photo_path END,
 			phone = CASE WHEN $3 <> '' THEN $3 ELSE phone END,
@@ -487,21 +445,17 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 			company = CASE WHEN $13 <> '' THEN $13 ELSE company END,
 			org_logo_path = CASE WHEN $14 <> '' THEN $14 ELSE org_logo_path END,
 			tshirt = CASE WHEN $15 <> '' THEN $15 ELSE tshirt END,
-			email = CASE WHEN $16 <> '' THEN $16::citext ELSE email END,
-			name = CASE WHEN $17 <> '' THEN $17 ELSE name END,
-			bio = CASE WHEN $18 THEN $19 ELSE bio END,
-			lightning_address = CASE WHEN $20 THEN $21 ELSE lightning_address END,
-			bitcoin_address = CASE WHEN $20 THEN $22 ELSE bitcoin_address END
+			name = CASE WHEN $16 <> '' THEN $16 ELSE name END,
+			bio = CASE WHEN $17 THEN $18 ELSE bio END,
+			lightning_address = CASE WHEN $19 THEN $20 ELSE lightning_address END,
+			bitcoin_address = CASE WHEN $19 THEN $21 ELSE bitcoin_address END
 		WHERE id = $1::uuid
 	`, speakerID, up.Photo, up.Phone, up.Signal, up.Telegram, up.Twitter,
 		up.Nostr, up.Github, up.Instagram, up.LinkedIn, up.LeetCode, up.Website, up.Company,
-		up.OrgLogo, up.TShirt, up.Email, up.Name, up.BioSet, up.Bio,
+		up.OrgLogo, up.TShirt, up.Name, up.BioSet, up.Bio,
 		up.PayoutFieldsSet, up.LightningAddress, up.BitcoinAddress)
 	if err != nil {
 		return fmt.Errorf("update person %s: %w", speakerID, err)
-	}
-	if err := tx.Commit(dbctx); err != nil {
-		return fmt.Errorf("commit person update: %w", err)
 	}
 	return nil
 }

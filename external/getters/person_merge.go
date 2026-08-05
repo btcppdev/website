@@ -231,8 +231,6 @@ func listMergeCandidateEmails(queryCtx context.Context, db personMergeQuerier, p
 		SELECT email::text FROM person_emails WHERE person_id = $1::uuid
 		UNION
 		SELECT email::text FROM person_email_conflicts WHERE person_id = $1::uuid
-		UNION
-		SELECT email::text FROM people WHERE id = $1::uuid AND email IS NOT NULL
 		ORDER BY 1
 	`, personID)
 	if err != nil {
@@ -447,15 +445,6 @@ func MergePeople(ctx *config.AppContext, input PersonMergeInput) (string, error)
 		)
 	`, canonicalID); err != nil {
 		return "", fmt.Errorf("ensure merged primary email: %w", err)
-	}
-	var hasCanonicalEmail bool
-	if err := tx.QueryRow(dbctx, `SELECT EXISTS(SELECT 1 FROM person_emails WHERE person_id = $1::uuid)`, canonicalID).Scan(&hasCanonicalEmail); err != nil {
-		return "", err
-	}
-	if hasCanonicalEmail {
-		if err := syncLegacyPrimaryEmailTx(dbctx, tx, canonicalID); err != nil {
-			return "", err
-		}
 	}
 	manifest.SourceEmailsAfter, err = snapshotRowsByOriginMerge(dbctx, tx, eventID)
 	if err != nil {
@@ -921,7 +910,7 @@ func UndoPersonMerge(ctx *config.AppContext, eventID, actorPersonID string, warn
 	canonicalRaw, _ := json.Marshal(canonicalBefore)
 	if _, err := tx.Exec(dbctx, `
 		UPDATE people current SET
-			name = restored.name, email = restored.email, norm_photo_path = restored.norm_photo_path,
+			name = restored.name, norm_photo_path = restored.norm_photo_path,
 			phone = restored.phone, signal = restored.signal, telegram = restored.telegram,
 			twitter_handle = restored.twitter_handle, nostr = restored.nostr, github_url = restored.github_url,
 			instagram = restored.instagram, linkedin = restored.linkedin, leetcode = restored.leetcode,

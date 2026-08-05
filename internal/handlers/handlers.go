@@ -3580,9 +3580,9 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		if email, h, err := validateVolEmail(r, ctx); err == nil {
 			encodedHMAC = h
 			encodedEmail = r.URL.Query().Get("em")
-			speakers, lerr := getters.GetSpeakersByEmail(ctx, email)
-			if lerr == nil && len(speakers) == 1 {
-				knownSpeaker = speakers[0]
+			person, lerr := getters.GetPersonByEmail(ctx, email)
+			if lerr == nil {
+				knownSpeaker = person
 			}
 			// Best-effort lookups: failures just leave the
 			// checkbox visible. The form still works.
@@ -9032,14 +9032,14 @@ func adminCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Name and email are required.")), http.StatusSeeOther)
 		return
 	}
-	existing, err := getters.GetSpeakersByEmail(ctx, email)
+	existing, err := getters.GetPersonByEmail(ctx, email)
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/speakers/new lookup %s: %s", conf.Tag, email, err)
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Speaker lookup failed: "+err.Error())), http.StatusSeeOther)
 		return
 	}
-	if len(existing) > 0 && existing[0] != nil {
-		sp := existing[0]
+	if existing != nil {
+		sp := existing
 		flash := "Speaker already exists for " + email + ". Edit the existing profile, then attach them to a proposal."
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/%s/edit?flash=%s", conf.Tag, sp.ID, url.QueryEscape(flash)), http.StatusSeeOther)
 		return
@@ -9151,28 +9151,8 @@ func adminUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Name is required."), http.StatusSeeOther)
 		return
 	}
-	email := strings.TrimSpace(r.FormValue("Email"))
-	if email == "" {
-		http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Email is required."), http.StatusSeeOther)
-		return
-	}
-	if !strings.EqualFold(email, sp.Email) {
-		existing, err := getters.GetSpeakersByEmail(ctx, email)
-		if err != nil {
-			ctx.Err.Printf("/%s/admin/speakers/%s/edit email lookup %s: %s", conf.Tag, sp.ID, email, err)
-			http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Email lookup failed: "+err.Error()), http.StatusSeeOther)
-			return
-		}
-		for _, other := range existing {
-			if other != nil && other.ID != sp.ID {
-				http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Email already belongs to another speaker."), http.StatusSeeOther)
-				return
-			}
-		}
-	}
 	up := getters.SpeakerUpdate{
 		Name:      name,
-		Email:     email,
 		Phone:     strings.TrimSpace(r.FormValue("Phone")),
 		Signal:    strings.TrimSpace(r.FormValue("Signal")),
 		Telegram:  strings.TrimSpace(r.FormValue("Telegram")),

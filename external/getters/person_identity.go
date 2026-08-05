@@ -379,9 +379,6 @@ func ConsumePersonEmailVerification(ctx *config.AppContext, token string) (strin
 	if tag.RowsAffected() == 0 {
 		return "", "", fmt.Errorf("email was attached to another account before verification completed")
 	}
-	if err := syncLegacyPrimaryEmailTx(dbctx, tx, personID); err != nil {
-		return "", "", err
-	}
 	if err := linkUnownedRecordsByEmailTx(dbctx, tx, personID, email); err != nil {
 		return "", "", err
 	}
@@ -430,9 +427,6 @@ func SetPrimaryPersonEmail(ctx *config.AppContext, personID, rawEmail string) er
 	}
 	if !selected {
 		return fmt.Errorf("email is not attached to this account")
-	}
-	if err := syncLegacyPrimaryEmailTx(dbctx, tx, personID); err != nil {
-		return err
 	}
 	if err := tx.Commit(dbctx); err != nil {
 		return fmt.Errorf("commit primary email update: %w", err)
@@ -496,27 +490,8 @@ func RemovePersonEmail(ctx *config.AppContext, personID, rawEmail string) error 
 			return fmt.Errorf("choose replacement primary email: %w", err)
 		}
 	}
-	if err := syncLegacyPrimaryEmailTx(dbctx, tx, personID); err != nil {
-		return err
-	}
 	if err := tx.Commit(dbctx); err != nil {
 		return fmt.Errorf("commit email removal: %w", err)
-	}
-	return nil
-}
-
-func syncLegacyPrimaryEmailTx(dbctx context.Context, tx pgx.Tx, personID string) error {
-	if _, err := tx.Exec(dbctx, `
-		UPDATE people
-		SET email = (
-			SELECT email FROM person_emails
-			WHERE person_id = $1::uuid
-			ORDER BY is_primary DESC, created_at, id
-			LIMIT 1
-		)
-		WHERE id = $1::uuid
-	`, personID); err != nil {
-		return fmt.Errorf("sync primary email snapshot: %w", err)
 	}
 	return nil
 }
