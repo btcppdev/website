@@ -98,6 +98,29 @@ func TestRecordingXSocialPostUsesTwitterInternally(t *testing.T) {
 	}
 }
 
+func TestRecordingBulkUploadAllowsExplicitRetryOfFailures(t *testing.T) {
+	row := &RecordingRow{
+		Recording: &types.Recording{
+			ID:      "recording-manual-retry-test",
+			FileURI: "toronto/recordings/talk.mp4",
+		},
+		YTStatus: recordingStatusFailed,
+	}
+	if reason := recordingBulkUploadSkipReason(row); reason != "" {
+		t.Fatalf("failed recording skip reason = %q, want eligible for manual retry", reason)
+	}
+
+	row.YTStatus = recordingStatusAuthRequired
+	if reason := recordingBulkUploadSkipReason(row); reason != "" {
+		t.Fatalf("auth-required recording skip reason = %q, want eligible after manual reauthorization", reason)
+	}
+
+	row.YTStatus = recordingStatusUploading
+	if reason := recordingBulkUploadSkipReason(row); reason != "YouTube status is uploading" {
+		t.Fatalf("uploading recording skip reason = %q", reason)
+	}
+}
+
 func TestRecordingXReplyCopyForPostRequiresYouTubeURL(t *testing.T) {
 	noYT := recordingXReplyCopyForPost(nil, &RecordingRow{
 		Recording: &types.Recording{TalkName: "No YouTube yet"},

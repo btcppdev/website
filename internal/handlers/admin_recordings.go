@@ -827,10 +827,19 @@ func recordingBulkUploadSkipReason(row *RecordingRow) string {
 	if job := getJob(row.Recording.ID); job != nil && job.Status == "running" {
 		return "upload already running"
 	}
-	if row.YTStatus != "" && !statusAllowsRetry(row.YTStatus) {
+	if row.YTStatus != "" && !statusAllowsManualRetry(row.YTStatus) {
 		return "YouTube status is " + row.YTStatus
 	}
 	return ""
+}
+
+// statusAllowsManualRetry is deliberately broader than statusAllowsRetry.
+// The latter drives the periodic autopublisher and must not hammer a failed
+// upload every poll. An admin explicitly opening the bulk upload flow should
+// be able to retry persisted failures after correcting the underlying issue.
+func statusAllowsManualRetry(status string) bool {
+	status = strings.TrimSpace(strings.ToLower(status))
+	return statusAllowsRetry(status) || status == recordingStatusFailed || status == recordingStatusAuthRequired
 }
 
 func recordingBulkUploadSortKey(row *RecordingRow) string {
