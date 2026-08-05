@@ -133,7 +133,13 @@ func GetSpeakersByEmail(ctx *config.AppContext, email string) ([]*types.Speaker,
 	if email == "" {
 		return nil, nil
 	}
-	return querySpeakersPostgres(ctx, "people by email", "WHERE people.email = $1 ORDER BY lower(people.name), people.id", email)
+	return querySpeakersPostgres(ctx, "people by email", `
+		WHERE EXISTS (
+			SELECT 1 FROM person_emails pe
+			WHERE pe.person_id = people.id AND pe.email = $1::citext
+		) OR people.email = $1::citext
+		ORDER BY lower(people.name), people.id
+	`, email)
 }
 
 func FetchSpeakerByID(ctx *config.AppContext, speakerID string) (*types.Speaker, error) {
@@ -161,7 +167,12 @@ func SearchSpeakersByNameOrEmail(ctx *config.AppContext, q string, limit int) ([
 	}
 	pattern := "%" + q + "%"
 	return querySpeakersPostgres(ctx, "speaker search", `
-		WHERE people.name ILIKE $1 OR people.email::text ILIKE $1
+		WHERE people.name ILIKE $1
+			OR people.email::text ILIKE $1
+			OR EXISTS (
+				SELECT 1 FROM person_emails pe
+				WHERE pe.person_id = people.id AND pe.email::text ILIKE $1
+			)
 		ORDER BY lower(people.name), people.id
 		LIMIT $2
 	`, pattern, limit)
@@ -180,6 +191,10 @@ func SearchPeopleByNameEmailOrPhone(ctx *config.AppContext, q string, limit int)
 	return querySpeakersPostgres(ctx, "person search", `
 		WHERE people.name ILIKE $1
 			OR people.email::text ILIKE $1
+			OR EXISTS (
+				SELECT 1 FROM person_emails pe
+				WHERE pe.person_id = people.id AND pe.email::text ILIKE $1
+			)
 			OR people.phone ILIKE $1
 			OR ($2 <> '%%' AND regexp_replace(people.phone, '\D', '', 'g') LIKE $2)
 		ORDER BY lower(people.name), people.id
@@ -285,7 +300,8 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 		return nil, fmt.Errorf("database is not configured")
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
-		SELECT people.id::text, people.name, coalesce(people.email::text, ''),
+		SELECT people.id::text, people.name,
+			coalesce(primary_email.email::text, people.email::text, ''),
 			people.norm_photo_path, people.phone, people.signal, people.telegram,
 			people.twitter_handle, people.nostr, people.github_url, people.instagram,
 			people.linkedin, people.leetcode, people.website_url, people.company, people.org_logo_path,
@@ -293,6 +309,13 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 			people.lightning_address, people.bitcoin_address, people.tax_form_type,
 			people.tax_form_object_key, people.tax_form_original_name, people.tax_form_uploaded_at
 		FROM people
+		LEFT JOIN LATERAL (
+			SELECT pe.email
+			FROM person_emails pe
+			WHERE pe.person_id = people.id
+			ORDER BY pe.is_primary DESC, pe.created_at, pe.id
+			LIMIT 1
+		) primary_email ON true
 		`+clause+`
 	`, args...)
 	if err != nil {
@@ -393,6 +416,9 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 			VALUES ($1::uuid, $2::citext, true, now())
 		`, id, in.Email); err != nil {
 			return "", fmt.Errorf("attach primary person email: %w", err)
+		}
+		if err := linkUnownedRecordsByEmailTx(dbctx, tx, id, strings.ToLower(in.Email)); err != nil {
+			return "", err
 		}
 	}
 	if err := tx.Commit(dbctx); err != nil {
