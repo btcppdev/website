@@ -107,6 +107,7 @@
               <input id="Email" name="Email" type="email" required value="{{ .Speaker.Email }}">
               {{ else }}
               <span class="profile-edit-locked">{{ .Speaker.Email }}</span>
+              <a class="profile-edit-email-manage" href="/dashboard/emails">Manage email addresses →</a>
               {{ end }}
             </label>
             {{ end }}

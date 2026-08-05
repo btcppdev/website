@@ -2,15 +2,21 @@ package getters
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 
 	"github.com/jackc/pgx/v5"
 )
+
+const PersonEmailVerificationTTL = 30 * time.Minute
 
 func ListPersonEmails(ctx *config.AppContext, personID string) ([]*types.PersonEmail, error) {
 	if ctx == nil || ctx.DB == nil {
@@ -22,7 +28,11 @@ func ListPersonEmails(ctx *config.AppContext, personID string) ([]*types.PersonE
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, person_id::text, email::text, is_primary, verified_at,
-			coalesce(origin_merge_event_id::text, ''), created_at, updated_at
+			coalesce(origin_merge_event_id::text, ''), EXISTS (
+				SELECT 1 FROM person_merge_events merge
+				WHERE merge.id = person_emails.origin_merge_event_id
+					AND merge.status = 'merged' AND merge.undo_expires_at > now()
+			), created_at, updated_at
 		FROM person_emails
 		WHERE person_id = $1::uuid
 		ORDER BY is_primary DESC, lower(email::text), id
@@ -35,7 +45,8 @@ func ListPersonEmails(ctx *config.AppContext, personID string) ([]*types.PersonE
 	for rows.Next() {
 		var email types.PersonEmail
 		if err := rows.Scan(&email.ID, &email.PersonID, &email.Email, &email.IsPrimary,
-			&email.VerifiedAt, &email.OriginMergeEventID, &email.CreatedAt, &email.UpdatedAt); err != nil {
+			&email.VerifiedAt, &email.OriginMergeEventID, &email.RemovalLocked,
+			&email.CreatedAt, &email.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan person email: %w", err)
 		}
 		out = append(out, &email)
@@ -252,4 +263,260 @@ func ResolveCanonicalPersonID(ctx *config.AppContext, rawPersonID string) (strin
 		personID = canonicalID
 	}
 	return "", fmt.Errorf("person merge chain is too deep")
+}
+
+func CreatePersonEmailVerification(ctx *config.AppContext, personID, rawEmail string, makePrimary bool) (string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", fmt.Errorf("database is not configured")
+	}
+	personID = strings.TrimSpace(personID)
+	email := strings.ToLower(strings.TrimSpace(rawEmail))
+	if personID == "" || email == "" {
+		return "", fmt.Errorf("person and email are required")
+	}
+	resolution, err := ResolvePersonByEmail(ctx, email)
+	if err != nil {
+		return "", err
+	}
+	if resolution.IsConflict() {
+		return "", fmt.Errorf("email belongs to unresolved duplicate profiles")
+	}
+	if resolution.Alias != nil {
+		if resolution.Alias.PersonID == personID {
+			return "", fmt.Errorf("email is already attached to this account")
+		}
+		return "", fmt.Errorf("email is already attached to another account")
+	}
+	rawToken := make([]byte, 32)
+	if _, err := rand.Read(rawToken); err != nil {
+		return "", fmt.Errorf("generate email verification token: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(rawToken)
+	tokenHash := sha256.Sum256([]byte(token))
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return "", fmt.Errorf("begin email verification: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	if _, err := tx.Exec(dbctx, `
+		DELETE FROM person_email_verifications
+		WHERE person_id = $1::uuid AND email = $2::citext AND consumed_at IS NULL
+	`, personID, email); err != nil {
+		return "", fmt.Errorf("replace pending email verification: %w", err)
+	}
+	if _, err := tx.Exec(dbctx, `
+		INSERT INTO person_email_verifications (
+			person_id, email, token_hash, make_primary, expires_at
+		) VALUES ($1::uuid, $2::citext, $3, $4, $5)
+	`, personID, email, tokenHash[:], makePrimary, time.Now().UTC().Add(PersonEmailVerificationTTL)); err != nil {
+		return "", fmt.Errorf("create email verification: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return "", fmt.Errorf("commit email verification: %w", err)
+	}
+	return token, nil
+}
+
+func ConsumePersonEmailVerification(ctx *config.AppContext, token string) (string, string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", "", fmt.Errorf("database is not configured")
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return "", "", fmt.Errorf("verification token is required")
+	}
+	tokenHash := sha256.Sum256([]byte(token))
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return "", "", fmt.Errorf("begin email verification: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	var personID, email string
+	var makePrimary bool
+	err = tx.QueryRow(dbctx, `
+		SELECT person_id::text, email::text, make_primary
+		FROM person_email_verifications
+		WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now()
+		FOR UPDATE
+	`, tokenHash[:]).Scan(&personID, &email, &makePrimary)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", fmt.Errorf("verification link is invalid, expired, or already used")
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("load email verification: %w", err)
+	}
+	var ownerID string
+	err = tx.QueryRow(dbctx, `SELECT person_id::text FROM person_emails WHERE email = $1::citext`, email).Scan(&ownerID)
+	if err == nil && ownerID != personID {
+		return "", "", fmt.Errorf("email was attached to another account before verification completed")
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", "", fmt.Errorf("check verified email owner: %w", err)
+	}
+	if makePrimary {
+		if _, err := tx.Exec(dbctx, `UPDATE person_emails SET is_primary = false WHERE person_id = $1::uuid`, personID); err != nil {
+			return "", "", fmt.Errorf("clear primary email: %w", err)
+		}
+	}
+	tag, err := tx.Exec(dbctx, `
+		INSERT INTO person_emails (person_id, email, is_primary, verified_at)
+		VALUES (
+			$1::uuid, $2::citext,
+			$3 OR NOT EXISTS (SELECT 1 FROM person_emails WHERE person_id = $1::uuid AND is_primary),
+			now()
+		)
+		ON CONFLICT (email) DO UPDATE
+		SET verified_at = coalesce(person_emails.verified_at, now()),
+			is_primary = CASE WHEN EXCLUDED.person_id = person_emails.person_id THEN EXCLUDED.is_primary ELSE person_emails.is_primary END,
+			updated_at = now()
+		WHERE EXCLUDED.person_id = person_emails.person_id
+	`, personID, email, makePrimary)
+	if err != nil {
+		return "", "", fmt.Errorf("attach verified email: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return "", "", fmt.Errorf("email was attached to another account before verification completed")
+	}
+	if err := syncLegacyPrimaryEmailTx(dbctx, tx, personID); err != nil {
+		return "", "", err
+	}
+	if err := linkUnownedRecordsByEmailTx(dbctx, tx, personID, email); err != nil {
+		return "", "", err
+	}
+	if _, err := tx.Exec(dbctx, `
+		UPDATE person_email_verifications SET consumed_at = now() WHERE token_hash = $1
+	`, tokenHash[:]); err != nil {
+		return "", "", fmt.Errorf("consume email verification: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return "", "", fmt.Errorf("commit email verification: %w", err)
+	}
+	return personID, email, nil
+}
+
+func SetPrimaryPersonEmail(ctx *config.AppContext, personID, rawEmail string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	personID = strings.TrimSpace(personID)
+	email := strings.ToLower(strings.TrimSpace(rawEmail))
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin primary email update: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	tag, err := tx.Exec(dbctx, `
+		UPDATE person_emails
+		SET is_primary = (email = $2::citext), updated_at = now()
+		WHERE person_id = $1::uuid
+	`, personID, email)
+	if err != nil {
+		return fmt.Errorf("set primary email: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("email is not attached to this account")
+	}
+	var selected bool
+	if err := tx.QueryRow(dbctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM person_emails
+			WHERE person_id = $1::uuid AND email = $2::citext AND is_primary
+		)
+	`, personID, email).Scan(&selected); err != nil {
+		return fmt.Errorf("check primary email: %w", err)
+	}
+	if !selected {
+		return fmt.Errorf("email is not attached to this account")
+	}
+	if err := syncLegacyPrimaryEmailTx(dbctx, tx, personID); err != nil {
+		return err
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit primary email update: %w", err)
+	}
+	return nil
+}
+
+func RemovePersonEmail(ctx *config.AppContext, personID, rawEmail string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	personID = strings.TrimSpace(personID)
+	email := strings.ToLower(strings.TrimSpace(rawEmail))
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin email removal: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	var count int
+	if err := tx.QueryRow(dbctx, `
+		SELECT count(*) FROM (
+			SELECT id FROM person_emails WHERE person_id = $1::uuid FOR UPDATE
+		) locked
+	`, personID).Scan(&count); err != nil {
+		return fmt.Errorf("count person emails: %w", err)
+	}
+	if count <= 1 {
+		return fmt.Errorf("an account must keep at least one email")
+	}
+	var isPrimary, locked bool
+	err = tx.QueryRow(dbctx, `
+		SELECT email.is_primary, EXISTS (
+			SELECT 1 FROM person_merge_events merge
+			WHERE merge.id = email.origin_merge_event_id
+				AND merge.status = 'merged' AND merge.undo_expires_at > now()
+		)
+		FROM person_emails email
+		WHERE email.person_id = $1::uuid AND email.email = $2::citext
+		FOR UPDATE
+	`, personID, email).Scan(&isPrimary, &locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("email is not attached to this account")
+	}
+	if err != nil {
+		return fmt.Errorf("load person email: %w", err)
+	}
+	if locked {
+		return fmt.Errorf("email is locked until its profile merge can no longer be undone")
+	}
+	if _, err := tx.Exec(dbctx, `DELETE FROM person_emails WHERE person_id = $1::uuid AND email = $2::citext`, personID, email); err != nil {
+		return fmt.Errorf("remove person email: %w", err)
+	}
+	if isPrimary {
+		if _, err := tx.Exec(dbctx, `
+			UPDATE person_emails SET is_primary = true, updated_at = now()
+			WHERE id = (
+				SELECT id FROM person_emails WHERE person_id = $1::uuid ORDER BY created_at, id LIMIT 1
+			)
+		`, personID); err != nil {
+			return fmt.Errorf("choose replacement primary email: %w", err)
+		}
+	}
+	if err := syncLegacyPrimaryEmailTx(dbctx, tx, personID); err != nil {
+		return err
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit email removal: %w", err)
+	}
+	return nil
+}
+
+func syncLegacyPrimaryEmailTx(dbctx context.Context, tx pgx.Tx, personID string) error {
+	if _, err := tx.Exec(dbctx, `
+		UPDATE people
+		SET email = (
+			SELECT email FROM person_emails
+			WHERE person_id = $1::uuid
+			ORDER BY is_primary DESC, created_at, id
+			LIMIT 1
+		)
+		WHERE id = $1::uuid
+	`, personID); err != nil {
+		return fmt.Errorf("sync primary email snapshot: %w", err)
+	}
+	return nil
 }

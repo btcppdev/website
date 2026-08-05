@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Email addresses · bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-profile-edit-page">
+  {{ block "mainnav" . }} {{ end }}
+
+  <main class="profile-edit-shell person-emails-page">
+    <div class="profile-edit-back"><a href="/dashboard/speaker">← Profile</a></div>
+
+    <header class="profile-edit-hero">
+      <p class="profile-edit-tag">§ ACCOUNT</p>
+      <h1>Email <span>addresses.</span></h1>
+      <p>Use any verified address to sign in. Account messages go to the primary address.</p>
+    </header>
+
+    {{ if .FlashMessage }}<div class="profile-edit-flash">{{ .FlashMessage }}</div>{{ end }}
+    {{ if .FlashError }}<div class="profile-edit-flash person-emails-error">{{ .FlashError }}</div>{{ end }}
+
+    <section class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">@</div>
+      <div class="profile-edit-section__body">
+        <div class="profile-edit-section__head">
+          <div>
+            <p>§ VERIFIED EMAILS</p>
+            <h2>{{ len .Emails }} attached</h2>
+          </div>
+        </div>
+        <div class="person-email-list">
+          {{ range .Emails }}
+          <div class="person-email-row">
+            <div>
+              <strong>{{ .Email }}</strong>
+              <span>{{ if .IsPrimary }}PRIMARY{{ else }}VERIFIED{{ end }}</span>
+              {{ if .RemovalLocked }}<small>Locked during merge undo window</small>{{ end }}
+            </div>
+            <div class="person-email-actions">
+              {{ if not .IsPrimary }}
+              <form method="POST" action="/dashboard/emails/primary">
+                <input type="hidden" name="email" value="{{ .Email }}">
+                <button type="submit">Make primary</button>
+              </form>
+              {{ end }}
+              {{ if gt (len $.Emails) 1 }}
+              <form method="POST" action="/dashboard/emails/remove">
+                <input type="hidden" name="email" value="{{ .Email }}">
+                <button type="submit" class="is-danger" {{ if .RemovalLocked }}disabled{{ end }}>Remove</button>
+              </form>
+              {{ end }}
+            </div>
+          </div>
+          {{ end }}
+        </div>
+      </div>
+    </section>
+
+    <section class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">+</div>
+      <div class="profile-edit-section__body">
+        <div class="profile-edit-section__head">
+          <div>
+            <p>§ ADD EMAIL</p>
+            <h2>Verify another address</h2>
+          </div>
+        </div>
+        <form method="POST" action="/dashboard/emails/request" class="person-email-add">
+          <label>EMAIL
+            <input type="email" name="email" required autocomplete="email">
+          </label>
+          <label class="person-email-primary-choice">
+            <input type="checkbox" name="make_primary" value="true">
+            Make primary after verification
+          </label>
+          <button type="submit">Send verification link</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

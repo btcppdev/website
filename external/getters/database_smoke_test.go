@@ -70,6 +70,32 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 	if len(aliases) != 1 || aliases[0].Email != email || !aliases[0].IsPrimary {
 		t.Fatalf("person aliases = %+v, want one primary %s", aliases, email)
 	}
+	secondary := "speaker-alias-" + suffix + "@example.test"
+	token, err := CreatePersonEmailVerification(ctx, speakerID, secondary, true)
+	if err != nil {
+		t.Fatalf("CreatePersonEmailVerification postgres: %v", err)
+	}
+	verifiedPersonID, verifiedEmail, err := ConsumePersonEmailVerification(ctx, token)
+	if err != nil {
+		t.Fatalf("ConsumePersonEmailVerification postgres: %v", err)
+	}
+	if verifiedPersonID != speakerID || verifiedEmail != secondary {
+		t.Fatalf("verified identity = %s/%s, want %s/%s", verifiedPersonID, verifiedEmail, speakerID, secondary)
+	}
+	primary, err := GetPrimaryPersonEmail(ctx, speakerID)
+	if err != nil || primary != secondary {
+		t.Fatalf("primary after verification = %q, %v; want %q", primary, err, secondary)
+	}
+	if err := SetPrimaryPersonEmail(ctx, speakerID, email); err != nil {
+		t.Fatalf("SetPrimaryPersonEmail postgres: %v", err)
+	}
+	if err := RemovePersonEmail(ctx, speakerID, secondary); err != nil {
+		t.Fatalf("RemovePersonEmail postgres: %v", err)
+	}
+	aliases, err = ListPersonEmails(ctx, speakerID)
+	if err != nil || len(aliases) != 1 || aliases[0].Email != email || !aliases[0].IsPrimary {
+		t.Fatalf("person aliases after removal = %+v, %v", aliases, err)
+	}
 }
 
 func TestDatabaseSmokeDiscountScopedToConference(t *testing.T) {
