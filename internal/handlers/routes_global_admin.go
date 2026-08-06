@@ -26,6 +26,9 @@ func registerGlobalAdminRoutes(r *mux.Router, app *config.AppContext) {
 	r.HandleFunc("/admin/people/merge", func(w http.ResponseWriter, r *http.Request) {
 		AdminPersonMergeSave(w, r, requestApp(r, app))
 	}).Methods("POST")
+	r.HandleFunc("/admin/people/merge-requests/{requestID}/reject", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMergeRequestReject(w, r, requestApp(r, app))
+	}).Methods("POST")
 	r.HandleFunc("/admin/people/merges/{mergeID}", func(w http.ResponseWriter, r *http.Request) {
 		AdminPersonMergeAudit(w, r, requestApp(r, app))
 	}).Methods("GET")
