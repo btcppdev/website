@@ -14,7 +14,7 @@ export BTCPP_PGROOT BTCPP_PGDATA BTCPP_PGRUN BTCPP_PGLOG PGHOST PGPORT PGDATABAS
 
 .PHONY: dev-run
 dev-run: build-all db-start
-	MAILER_OFF=true air -build.entrypoint="./target/$(APP_NAME)" -build.cmd="make build-all"
+	air -build.entrypoint="./target/$(APP_NAME)" -build.cmd="make build-all"
 
 .PHONY: run-dev
 run-dev: dev-run
