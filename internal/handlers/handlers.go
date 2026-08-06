@@ -1265,6 +1265,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/people/merge", func(w http.ResponseWriter, r *http.Request) {
 		AdminPersonMergeSave(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/people/merge-requests/{requestID}/reject", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonMergeRequestReject(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/people/merges/{mergeID}", func(w http.ResponseWriter, r *http.Request) {
 		AdminPersonMergeAudit(w, r, app)
 	}).Methods("GET")
