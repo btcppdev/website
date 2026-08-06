@@ -162,13 +162,7 @@ func GetRegistrationCheckIn(ctx *config.AppContext, ticket string) (*types.Regis
 			r.conference_shirt_picked_up_at
 		FROM registrations r
 		JOIN conferences ON conferences.id = r.conference_id
-		LEFT JOIN LATERAL (
-			SELECT people.name, people.tshirt
-			FROM people
-			WHERE people.email = r.email
-			ORDER BY (btrim(people.tshirt) <> '') DESC, people.created_at, people.id
-			LIMIT 1
-		) profile ON true
+		LEFT JOIN people profile ON profile.id = r.person_id
 		LEFT JOIN LATERAL (
 			SELECT volunteer.name, volunteer.shirt
 			FROM volunteers volunteer
@@ -224,13 +218,7 @@ func ListDevRegistrationCheckInPreviews(ctx *config.AppContext) ([]*types.Regist
 			r.conference_shirt_picked_up_at
 		FROM registrations r
 		JOIN conferences ON conferences.id = r.conference_id
-		LEFT JOIN LATERAL (
-			SELECT people.name, people.tshirt
-			FROM people
-			WHERE people.email = r.email
-			ORDER BY (btrim(people.tshirt) <> '') DESC, people.created_at, people.id
-			LIMIT 1
-		) profile ON true
+		LEFT JOIN people profile ON profile.id = r.person_id
 		LEFT JOIN LATERAL (
 			SELECT volunteer.name, volunteer.shirt
 			FROM volunteers volunteer

@@ -115,12 +115,6 @@ ADD COLUMN buyer_person_id uuid REFERENCES people(id) ON DELETE SET NULL;
 CREATE INDEX shop_orders_buyer_person_idx
 ON shop_orders (buyer_person_id, created_at DESC);
 
-ALTER TABLE sponsor_ticket_grants
-ADD COLUMN recipient_person_id uuid REFERENCES people(id) ON DELETE SET NULL;
-
-CREATE INDEX sponsor_ticket_grants_recipient_person_idx
-ON sponsor_ticket_grants (recipient_person_id, created_at DESC);
-
 ALTER TABLE discounts
 ADD COLUMN affiliate_person_id uuid REFERENCES people(id) ON DELETE SET NULL;
 
@@ -149,11 +143,6 @@ UPDATE shop_orders record
 SET buyer_person_id = email.person_id
 FROM person_emails email
 WHERE record.buyer_person_id IS NULL AND record.buyer_email = email.email;
-
-UPDATE sponsor_ticket_grants record
-SET recipient_person_id = email.person_id
-FROM person_emails email
-WHERE record.recipient_person_id IS NULL AND record.recipient_email = email.email;
 
 UPDATE discounts record
 SET affiliate_person_id = email.person_id
