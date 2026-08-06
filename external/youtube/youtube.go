@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -41,16 +42,20 @@ const (
 const maxThumbnailBytes = 2 * 1024 * 1024
 
 var (
-	cfg   *oauth2.Config
-	cfgMu sync.RWMutex
+	cfg            *oauth2.Config
+	updatesEnabled bool
+	cfgMu          sync.RWMutex
 )
+
+var ErrUpdatesDisabled = errors.New("YouTube updates are disabled; set YOUTUBE_UPDATES_ENABLED=true to allow this operation")
 
 // Init wires the OAuth client config. Safe to call multiple times —
 // the last call wins. Call at startup once env vars are loaded; the
 // rest of the package is no-op until Init runs.
-func Init(clientID, clientSecret, redirectURL string) {
+func Init(clientID, clientSecret, redirectURL string, allowUpdates bool) {
 	cfgMu.Lock()
 	defer cfgMu.Unlock()
+	updatesEnabled = allowUpdates
 	if clientID == "" || clientSecret == "" {
 		cfg = nil
 		return
@@ -66,6 +71,19 @@ func Init(clientID, clientSecret, redirectURL string) {
 		},
 		Endpoint: google.Endpoint,
 	}
+}
+
+func UpdatesEnabled() bool {
+	cfgMu.RLock()
+	defer cfgMu.RUnlock()
+	return updatesEnabled
+}
+
+func requireUpdatesEnabled() error {
+	if !UpdatesEnabled() {
+		return ErrUpdatesDisabled
+	}
+	return nil
 }
 
 // IsConfigured reports whether the OAuth client config has been wired.
@@ -309,6 +327,9 @@ func EnsurePlaylist(ctx context.Context, title, description string) (Playlist, e
 }
 
 func CreatePlaylist(ctx context.Context, title, description string) (Playlist, error) {
+	if err := requireUpdatesEnabled(); err != nil {
+		return Playlist{}, err
+	}
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return Playlist{}, fmt.Errorf("youtube playlist title is required")
@@ -341,6 +362,9 @@ func CreatePlaylist(ctx context.Context, title, description string) (Playlist, e
 }
 
 func AddVideoToPlaylist(ctx context.Context, playlistID, videoID string) error {
+	if err := requireUpdatesEnabled(); err != nil {
+		return err
+	}
 	playlistID = strings.TrimSpace(playlistID)
 	videoID = strings.TrimSpace(videoID)
 	if playlistID == "" {
@@ -413,6 +437,9 @@ func GetVideoStatus(ctx context.Context, videoID string) (*VideoStatus, error) {
 }
 
 func ScheduleExistingVideo(ctx context.Context, videoID string, publishAt time.Time) error {
+	if err := requireUpdatesEnabled(); err != nil {
+		return err
+	}
 	if videoID == "" {
 		return fmt.Errorf("youtube schedule: videoID is required")
 	}
@@ -441,6 +468,9 @@ func ScheduleExistingVideo(ctx context.Context, videoID string, publishAt time.T
 }
 
 func ClearExistingVideoSchedule(ctx context.Context, videoID string) error {
+	if err := requireUpdatesEnabled(); err != nil {
+		return err
+	}
 	if videoID == "" {
 		return fmt.Errorf("youtube clear schedule: videoID is required")
 	}
@@ -469,6 +499,9 @@ func ClearExistingVideoSchedule(ctx context.Context, videoID string) error {
 // URL on success. The Reader is consumed once; size is optional but
 // helps the SDK report progress.
 func Upload(ctx context.Context, p UploadParams, src io.Reader, size int64) (string, error) {
+	if err := requireUpdatesEnabled(); err != nil {
+		return "", err
+	}
 	if p.Title == "" {
 		return "", fmt.Errorf("youtube upload: Title is required")
 	}
@@ -514,6 +547,9 @@ func Upload(ctx context.Context, p UploadParams, src io.Reader, size int64) (str
 
 // SetThumbnail uploads a custom thumbnail for an existing video.
 func SetThumbnail(ctx context.Context, videoID, filename string, src io.Reader) error {
+	if err := requireUpdatesEnabled(); err != nil {
+		return err
+	}
 	if videoID == "" {
 		return fmt.Errorf("youtube thumbnail: videoID is required")
 	}
@@ -539,6 +575,9 @@ func SetThumbnail(ctx context.Context, videoID, filename string, src io.Reader) 
 // SetThumbnailBytes uploads a custom thumbnail, transcoding oversized PNGs
 // to JPEG so they fit YouTube's 2 MiB thumbnail limit.
 func SetThumbnailBytes(ctx context.Context, videoID, filename string, data []byte) error {
+	if err := requireUpdatesEnabled(); err != nil {
+		return err
+	}
 	prepared, contentType, err := PrepareThumbnail(filename, data)
 	if err != nil {
 		return err

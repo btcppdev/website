@@ -79,7 +79,7 @@ func main() {
 			app.Err.Printf("encrypted youtube token store disabled: %s", err)
 		}
 	}
-	youtubepkg.Init(app.Env.YouTube.ClientID, app.Env.YouTube.ClientSecret, app.Env.YouTube.RedirectURL)
+	youtubepkg.Init(app.Env.YouTube.ClientID, app.Env.YouTube.ClientSecret, app.Env.YouTube.RedirectURL, app.Env.YouTube.UpdatesEnabled)
 
 	/* Start up Buffer */
 	buffer.Init(app.Env.BufferAPI)
@@ -108,8 +108,10 @@ func main() {
 	}
 
 	/* Kick off job to start sending mails */
-	if !app.Env.MailOff {
+	if !app.Env.MailOff && app.Env.MailerJobEnabled {
 		go RunNewMails(&app)
+	} else if !app.Env.MailOff {
+		app.Infos.Println("Background mailer job disabled; request-driven email remains enabled")
 	}
 
 	// Reconcile social cards after startup. The persisted hash index makes

@@ -59,16 +59,19 @@ func FromEnv() *types.EnvConfig {
 }
 
 func fromEnv(defaultMailOff bool) *types.EnvConfig {
+	prod := envBool("PROD", true)
 	config := &types.EnvConfig{
 		Port:                 os.Getenv("PORT"),
-		Prod:                 envBool("PROD", true),
+		Prod:                 prod,
 		Host:                 os.Getenv("HOST"),
 		LocalExternal:        os.Getenv("LOCAL_EXTERNAL"),
 		DatabaseURL:          os.Getenv("DATABASE_URL"),
 		MailerSecret:         os.Getenv("MAILER_SECRET"),
 		MailEndpoint:         os.Getenv("MAILER_ENDPOINT"),
+		DevEmailOverride:     os.Getenv("DEV_EMAIL_OVERRIDE"),
 		MailOff:              envBool("MAILER_OFF", defaultMailOff),
 		MailerJob:            envInt("MAILER_JOB_SEC", 60),
+		MailerJobEnabled:     envBool("MAILER_JOB_ENABLED", !defaultMailOff),
 		StripeKey:            os.Getenv("STRIPE_KEY"),
 		StripeEndpointSec:    os.Getenv("STRIPE_END_SECRET"),
 		RegistryPin:          os.Getenv("REGISTRY_PIN"),
@@ -94,9 +97,10 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 			Secret:   os.Getenv("SPACES_SECRET"),
 		},
 		YouTube: types.YouTubeConfig{
-			ClientID:     os.Getenv("YOUTUBE_CLIENT_ID"),
-			ClientSecret: os.Getenv("YOUTUBE_CLIENT_SECRET"),
-			RedirectURL:  os.Getenv("YOUTUBE_REDIRECT_URL"),
+			ClientID:       os.Getenv("YOUTUBE_CLIENT_ID"),
+			ClientSecret:   os.Getenv("YOUTUBE_CLIENT_SECRET"),
+			RedirectURL:    os.Getenv("YOUTUBE_REDIRECT_URL"),
+			UpdatesEnabled: envBool("YOUTUBE_UPDATES_ENABLED", prod),
 		},
 		Recordings: types.RecordingsConfig{
 			AutopublishEnabled: envBool("RECORDINGS_AUTOPUBLISH_ENABLED", false),

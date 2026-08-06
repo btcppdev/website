@@ -69,7 +69,7 @@ func (env *EnvConfig) Validate() error {
 	if strings.TrimSpace(env.Host) == "" {
 		missing = append(missing, "HOST")
 	}
-	if !env.MailOff && env.MailerJob <= 0 {
+	if !env.MailOff && env.MailerJobEnabled && env.MailerJob <= 0 {
 		missing = append(missing, "MAILER_JOB_SEC")
 	}
 	if env.Prod {

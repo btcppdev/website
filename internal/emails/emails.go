@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 	"time"
@@ -242,7 +243,6 @@ func ComposeAndSendMail(ctx *config.AppContext, mail *Mail) error {
 		ctx.Infos.Printf("Mailer off; skipping send to %s with job %s", mail.Email, mail.JobKey)
 		return nil
 	}
-
 	var attaches mailer.AttachSet
 
 	attaches = make([]*mailer.Attachment, len(mail.Files))
@@ -275,6 +275,25 @@ func ComposeAndSendMail(ctx *config.AppContext, mail *Mail) error {
 	}
 
 	return SendMailRequest(ctx, mailReq)
+}
+
+func mailDeliveryTarget(ctx *config.AppContext, toAddr, jobKey string) (string, string, error) {
+	if ctx == nil || ctx.Env == nil {
+		return "", "", fmt.Errorf("email delivery configuration is incomplete")
+	}
+	toAddr = strings.TrimSpace(toAddr)
+	override := strings.TrimSpace(ctx.Env.DevEmailOverride)
+	if ctx.Env.Prod || override == "" {
+		return toAddr, jobKey, nil
+	}
+	parsed, err := mail.ParseAddress(override)
+	if err != nil || strings.TrimSpace(parsed.Address) == "" {
+		return "", "", fmt.Errorf("DEV_EMAIL_OVERRIDE is not a valid email address")
+	}
+	sum := sha256.Sum256([]byte(strings.ToLower(toAddr) + "\x00" + strings.ToLower(parsed.Address)))
+	devJobKey := fmt.Sprintf("dev-%x-%s", sum[:8], jobKey)
+	ctx.Infos.Printf("Development email override: redirecting %s to %s with job %s", toAddr, parsed.Address, devJobKey)
+	return parsed.Address, devJobKey, nil
 }
 
 func makeAuthStamp(secret string, timestamp string, r *http.Request) string {
@@ -369,8 +388,19 @@ func SendCancelMissiveRequest(ctx *config.AppContext, missive *mtypes.Letter) er
 }
 
 func SendMailRequest(ctx *config.AppContext, mail *mailer.MailRequest) error {
+	if mail == nil {
+		return fmt.Errorf("mail request is nil")
+	}
+	toAddr, jobKey, err := mailDeliveryTarget(ctx, mail.ToAddr, mail.JobKey)
+	if err != nil {
+		return err
+	}
+	request := *mail
+	request.ToAddr = toAddr
+	request.JobKey = jobKey
+
 	/* Send as a PUT request w/ JSON body */
-	payload, err := json.Marshal(mail)
+	payload, err := json.Marshal(&request)
 	if err != nil {
 		return err
 	}
@@ -380,7 +410,7 @@ func SendMailRequest(ctx *config.AppContext, mail *mailer.MailRequest) error {
 		return fmt.Errorf("Unable to schedule mail: %s", err)
 	}
 
-	ctx.Infos.Printf("Sent mail to %s at domain %s", mail.ToAddr, mail.Domain)
+	ctx.Infos.Printf("Sent mail to %s at domain %s", request.ToAddr, request.Domain)
 	return nil
 }
 

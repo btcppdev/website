@@ -20,6 +20,9 @@ func TestLoadDefaultsMailerOffWhenDotEnvExists(t *testing.T) {
 	if !env.MailOff {
 		t.Fatal("expected .env-backed config to default MailOff=true")
 	}
+	if env.MailerJobEnabled {
+		t.Fatal("expected .env-backed config to default the background mailer job off")
+	}
 }
 
 func TestLoadDoesNotDefaultMailerOffWhenDotEnvMissing(t *testing.T) {
@@ -30,6 +33,9 @@ func TestLoadDoesNotDefaultMailerOffWhenDotEnvMissing(t *testing.T) {
 	}
 	if env.MailOff {
 		t.Fatal("expected env-only config to default MailOff=false")
+	}
+	if !env.MailerJobEnabled {
+		t.Fatal("expected env-only production config to default the background mailer job on")
 	}
 }
 
@@ -49,6 +55,70 @@ func TestLoadRespectsExplicitMailerOff(t *testing.T) {
 	}
 }
 
+func TestLoadAllowsEmailWithoutBackgroundMailerJob(t *testing.T) {
+	t.Setenv("MAILER_OFF", "false")
+	t.Setenv("MAILER_JOB_ENABLED", "")
+	path := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(path, []byte("PORT=8888\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	env, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.MailOff {
+		t.Fatal("expected request-driven email to be enabled")
+	}
+	if env.MailerJobEnabled {
+		t.Fatal("expected the development background mailer job to remain disabled")
+	}
+}
+
+func TestLoadCanExplicitlyEnableBackgroundMailerJob(t *testing.T) {
+	t.Setenv("MAILER_JOB_ENABLED", "true")
+	env, err := Load(filepath.Join(t.TempDir(), ".env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.MailerJobEnabled {
+		t.Fatal("expected explicit MAILER_JOB_ENABLED=true to be honored")
+	}
+}
+
+func TestYouTubeUpdatesDefaultFromProductionMode(t *testing.T) {
+	t.Setenv("YOUTUBE_UPDATES_ENABLED", "")
+	t.Setenv("PROD", "false")
+	dev, err := Load(filepath.Join(t.TempDir(), ".env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dev.YouTube.UpdatesEnabled {
+		t.Fatal("expected YouTube updates to default off when PROD=false")
+	}
+
+	t.Setenv("PROD", "true")
+	prod, err := Load(filepath.Join(t.TempDir(), ".env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !prod.YouTube.UpdatesEnabled {
+		t.Fatal("expected YouTube updates to default on when PROD=true")
+	}
+}
+
+func TestYouTubeUpdatesCanBeEnabledInDevelopment(t *testing.T) {
+	t.Setenv("PROD", "false")
+	t.Setenv("YOUTUBE_UPDATES_ENABLED", "true")
+	env, err := Load(filepath.Join(t.TempDir(), ".env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.YouTube.UpdatesEnabled {
+		t.Fatal("expected explicit YOUTUBE_UPDATES_ENABLED=true to be honored")
+	}
+}
+
 func TestLoadReadsLocalExternal(t *testing.T) {
 	t.Setenv("LOCAL_EXTERNAL", "")
 	path := filepath.Join(t.TempDir(), ".env")
@@ -65,6 +135,22 @@ func TestLoadReadsLocalExternal(t *testing.T) {
 	}
 	if env.GetURI() != "https://example.ngrok.app" {
 		t.Fatalf("GetURI() = %q", env.GetURI())
+	}
+}
+
+func TestLoadReadsDevEmailOverride(t *testing.T) {
+	t.Setenv("DEV_EMAIL_OVERRIDE", "")
+	path := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(path, []byte("DEV_EMAIL_OVERRIDE=developer@example.com\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	env, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.DevEmailOverride != "developer@example.com" {
+		t.Fatalf("DevEmailOverride = %q", env.DevEmailOverride)
 	}
 }
 
