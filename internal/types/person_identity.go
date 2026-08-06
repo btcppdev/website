@@ -28,6 +28,25 @@ type PersonEmailResolution struct {
 	ConflictPersonIDs []string
 }
 
+type PersonMergeRequest struct {
+	ID                    string
+	RequesterPersonID     string
+	RequesterName         string
+	RequesterEmail        string
+	TargetPersonID        string
+	TargetName            string
+	TargetEmail           string
+	Status                string
+	ReviewedByPersonID    string
+	ReviewedByName        string
+	MergeEventID          string
+	ReviewNote            string
+	ConfirmationExpiresAt *time.Time
+	ConfirmedAt           *time.Time
+	CreatedAt             time.Time
+	ReviewedAt            *time.Time
+}
+
 func (resolution *PersonEmailResolution) IsConflict() bool {
 	return resolution != nil && len(resolution.ConflictPersonIDs) > 1
 }
