@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"text/template"
@@ -145,12 +146,13 @@ func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		postedRefs = make(map[string]bool)
 	}
 
-	talks, err := getters.LoadTalksFromConfTalks(ctx, conf.Tag)
+	allTalks, err := getters.LoadTalksFromConfTalks(ctx, conf.Tag)
 	if err != nil {
 		http.Error(w, "Unable to load talks", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s/admin/social failed to get conf talks: %s", conf.Tag, err.Error())
 		return
 	}
+	talks := eligibleSocialTalks(allTalks)
 
 	// Keep cards current without making this page wait. The persisted source
 	// hashes ensure only cards whose underlying data changed are rendered.
@@ -163,6 +165,17 @@ func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	for _, talk := range talks {
 		for _, speaker := range talk.Speakers {
 			speakerTalks[speaker.ID] = append(speakerTalks[speaker.ID], talk)
+		}
+	}
+	// Include every historical association only for matching refs written by
+	// the old handler, which did not filter proposal status before posting.
+	allSpeakerTalks := make(map[string][]*types.Talk)
+	for _, talk := range allTalks {
+		if talk == nil {
+			continue
+		}
+		for _, speaker := range talk.Speakers {
+			allSpeakerTalks[speaker.ID] = append(allSpeakerTalks[speaker.ID], talk)
 		}
 	}
 
@@ -185,8 +198,10 @@ func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 				}
 			}
 
-			// Skip if already posted
-			if postedRefs[helpers.SpeakerSocialPostRef(conf.Tag, bestTalk.ID, speaker.ID)] {
+			// Older versions recorded the first associated talk ID rather than
+			// the preferred talk ID rendered in the row. Check every historical
+			// association so those posts do not reappear after this fix.
+			if speakerSocialAlreadyPosted(postedRefs, conf.Tag, speaker.ID, allSpeakerTalks[speaker.ID]) {
 				continue
 			}
 
@@ -213,7 +228,7 @@ func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 			instaURL := SpeakerCardURL(ctx, conf.Tag, "insta", speaker.ID, bestTalk.ID)
 			speakerRows = append(speakerRows, &SocialSpeakerRow{
 				ID:              speaker.ID,
-				TalkID:          talk.ID,
+				TalkID:          bestTalk.ID,
 				Name:            speaker.Name,
 				TwitterHandle:   speaker.TwitterHandle(),
 				TalkName:        talkName,
@@ -347,6 +362,7 @@ func SocialAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		SponsorRows:      sponsorRows,
 		SponsorBatchText: sponsorBatchText,
 		FlashMessage:     r.URL.Query().Get("flash"),
+		FlashError:       r.URL.Query().Get("err"),
 		Year:             helpers.CurrentYear(),
 		BufferOK:         buffer.IsConfigured(),
 	})
@@ -377,6 +393,13 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+	selectedSpeakers := selectedSocialIDs(r.Form, "selected_speaker")
+	selectedTalks := selectedSocialIDs(r.Form, "selected_talk")
+	selectedSponsorRefs := selectedSocialIDs(r.Form, "selected_sponsor")
+	if len(selectedSpeakers)+len(selectedTalks)+len(selectedSponsorRefs) == 0 {
+		http.Redirect(w, r, "/"+conf.Tag+"/admin/social?err="+url.QueryEscape("Select at least one post to queue"), http.StatusSeeOther)
+		return
+	}
 
 	// Get target channels
 	allChannels, err := buffer.FetchChannels()
@@ -399,13 +422,11 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 
 	posted := 0
+	tracked := 0
+	var trackingErrors []string
 
 	// Process selected speakers
-	for key := range r.Form {
-		if !strings.HasPrefix(key, "speaker_") {
-			continue
-		}
-		speakerID := strings.TrimPrefix(key, "speaker_")
+	for _, speakerID := range selectedSpeakers {
 
 		postText := r.FormValue("text_speaker_" + speakerID)
 		if postText == "" {
@@ -417,6 +438,7 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		photoURL := r.FormValue("photo_speaker_" + speakerID)
 		instaPhotoURL := r.FormValue("instaphoto_speaker_" + speakerID)
 
+		queued := false
 		for _, ch := range targetChannels {
 			var imgs []string
 			if (ch.Service == "instagram" || ch.Service == "twitter") && instaPhotoURL != "" {
@@ -434,18 +456,22 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 				continue
 			}
 			posted++
+			queued = true
 			ctx.Infos.Printf("Queued speaker post for %s to %s", speakerID, ch.Service)
+		}
+		if queued {
 			id := helpers.SpeakerSocialPostRef(conf.Tag, talkID, speakerID)
-			getters.RecordSocialPost(ctx, id, postText, ch.Service, time.Now())
+			if err := recordQueuedBufferSocialPost(ctx, id, postText); err != nil {
+				ctx.Err.Printf("Failed to track queued speaker post %s: %s", speakerID, err)
+				trackingErrors = append(trackingErrors, speakerID)
+			} else {
+				tracked++
+			}
 		}
 	}
 
 	// Process selected talks
-	for key := range r.Form {
-		if !strings.HasPrefix(key, "talk_") {
-			continue
-		}
-		talkID := strings.TrimPrefix(key, "talk_")
+	for _, talkID := range selectedTalks {
 
 		postText := r.FormValue("text_talk_" + talkID)
 		if postText == "" {
@@ -458,6 +484,7 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 			imgs = append(imgs, photoURL)
 		}
 
+		queued := false
 		for _, ch := range targetChannels {
 			_, err := buffer.CreatePost(ch.ID, postText, imgs, ch.Service)
 			if err != nil {
@@ -465,18 +492,22 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 				continue
 			}
 			posted++
+			queued = true
 			ctx.Infos.Printf("Queued talk post for %s to %s", talkID, ch.Service)
-			postid := helpers.TalkSocialPostRef(conf.Tag, talkID)
-			getters.RecordSocialPost(ctx, postid, postText, ch.Service, time.Now())
+		}
+		if queued {
+			postID := helpers.TalkSocialPostRef(conf.Tag, talkID)
+			if err := recordQueuedBufferSocialPost(ctx, postID, postText); err != nil {
+				ctx.Err.Printf("Failed to track queued talk post %s: %s", talkID, err)
+				trackingErrors = append(trackingErrors, talkID)
+			} else {
+				tracked++
+			}
 		}
 	}
 
 	var selectedSponsors []selectedSponsor
-	for key := range r.Form {
-		if !strings.HasPrefix(key, "sponsor_") {
-			continue
-		}
-		sponsorRef := strings.TrimPrefix(key, "sponsor_")
+	for _, sponsorRef := range selectedSponsorRefs {
 		postText := r.FormValue("text_sponsor_" + sponsorRef)
 		if postText == "" {
 			continue
@@ -499,6 +530,7 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		if sp.cardURL != "" {
 			imgs = append(imgs, sp.cardURL)
 		}
+		queued := false
 		for _, ch := range targetChannels {
 			if ch.Service == "instagram" {
 				continue
@@ -509,9 +541,17 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 				continue
 			}
 			posted++
+			queued = true
 			ctx.Infos.Printf("Queued sponsor post for %s to %s", sp.ref, ch.Service)
-			postid := helpers.SponsorSocialPostRef(conf.Tag, sp.ref)
-			getters.RecordSocialPost(ctx, postid, sp.text, ch.Service, time.Now())
+		}
+		if queued {
+			postID := helpers.SponsorSocialPostRef(conf.Tag, sp.ref)
+			if err := recordQueuedBufferSocialPost(ctx, postID, sp.text); err != nil {
+				ctx.Err.Printf("Failed to track queued sponsor post %s: %s", sp.ref, err)
+				trackingErrors = append(trackingErrors, sp.ref)
+			} else {
+				tracked++
+			}
 		}
 	}
 
@@ -537,18 +577,80 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 				posted++
 
 				ctx.Infos.Printf("Queued sponsor batch post to instagram with %d images", len(batchImgs))
-				RecordInstagramBatch(ctx, conf, selectedSponsors, batchText, ch)
+				if err := RecordInstagramBatch(ctx, conf, selectedSponsors, batchText, ch); err != nil {
+					ctx.Err.Printf("Failed to track Instagram sponsor batch: %s", err)
+					trackingErrors = append(trackingErrors, "Instagram sponsor batch")
+				}
 			}
 		}
 	}
 
+	if len(trackingErrors) > 0 {
+		msg := fmt.Sprintf("%d Buffer post(s) were queued, but %d item(s) could not be recorded locally (%s). Do not submit them again until the tracking issue is resolved.", posted, len(trackingErrors), strings.Join(trackingErrors, ", "))
+		http.Redirect(w, r, "/"+conf.Tag+"/admin/social?err="+url.QueryEscape(msg), http.StatusSeeOther)
+		return
+	}
 	flash := fmt.Sprintf("%d posts queued to Buffer", posted)
+	if tracked > 0 {
+		flash += fmt.Sprintf("; %d selected item(s) recorded", tracked)
+	}
 	http.Redirect(w, r, "/"+conf.Tag+"/admin/social"+"?flash="+strings.ReplaceAll(flash, " ", "+"), http.StatusFound)
 }
 
-func RecordInstagramBatch(ctx *config.AppContext, conf *types.Conf, sponsors []selectedSponsor, text string, channel buffer.Channel) {
+func RecordInstagramBatch(ctx *config.AppContext, conf *types.Conf, sponsors []selectedSponsor, text string, channel buffer.Channel) error {
+	var firstErr error
 	for _, sponsor := range sponsors {
-		postid := helpers.SponsorSocialPostRef(conf.Tag, sponsor.ref)
-		getters.RecordSocialPost(ctx, postid, text, channel.Service, time.Now())
+		postID := helpers.SponsorSocialPostRef(conf.Tag, sponsor.ref)
+		if err := recordQueuedBufferSocialPost(ctx, postID, text); err != nil && firstErr == nil {
+			firstErr = err
+		}
 	}
+	return firstErr
+}
+
+func eligibleSocialTalks(talks []*types.Talk) []*types.Talk {
+	out := make([]*types.Talk, 0, len(talks))
+	for _, talk := range talks {
+		if talk == nil || (talk.Status != StatusAccepted && talk.Status != StatusScheduled) {
+			continue
+		}
+		out = append(out, talk)
+	}
+	return out
+}
+
+func speakerSocialAlreadyPosted(postedRefs map[string]bool, confTag, speakerID string, talks []*types.Talk) bool {
+	for _, talk := range talks {
+		if talk != nil && postedRefs[helpers.SpeakerSocialPostRef(confTag, talk.ID, speakerID)] {
+			return true
+		}
+	}
+	return false
+}
+
+func selectedSocialIDs(form url.Values, field string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, raw := range form[field] {
+		id := strings.TrimSpace(raw)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+func recordQueuedBufferSocialPost(ctx *config.AppContext, ref, text string) error {
+	status := "queued"
+	now := time.Now()
+	_, err := getters.UpsertSocialPost(ctx, getters.SocialPostUpdate{
+		Ref:      ref,
+		Text:     &text,
+		PostedTo: "buffer",
+		Status:   &status,
+		PostedAt: &now,
+	})
+	return err
 }

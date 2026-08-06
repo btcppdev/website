@@ -28,6 +28,14 @@
             </section>
             {{ end }}
 
+            {{ if .FlashError }}
+            <section class="mb-6">
+                <div class="bg-red-50 border border-red-300 text-red-800 px-4 py-3 rounded-lg">
+                    {{ .FlashError }}
+                </div>
+            </section>
+            {{ end }}
+
             {{ if not .BufferOK }}
             <section class="mb-6">
                 <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg">
@@ -45,7 +53,7 @@
                         <h2 class="text-lg font-semibold text-gray-900">Speakers</h2>
                         {{ if .SpeakerRows }}
                         <label class="flex items-center gap-2 text-sm text-gray-600">
-                            <input type="checkbox" onclick="toggleAll(this, 'speaker_')" class="rounded border-gray-300">
+                            <input type="checkbox" onclick="toggleAll(this, 'speaker')" class="rounded border-gray-300">
                             Select All
                         </label>
                         {{ end }}
@@ -64,7 +72,7 @@
                             {{ range .SpeakerRows }}
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 align-top">
-                                    <input type="checkbox" name="speaker_{{ .ID }}" value="1" class="rounded border-gray-300">
+                                    <input type="checkbox" name="selected_speaker" value="{{ .ID }}" data-selection-group="speaker" class="rounded border-gray-300">
                                     <input type="hidden" name="talkid_speaker{{ .ID }}" value="{{ .TalkID }}" class="rounded border-gray-300">
                                     <input type="hidden" name="speakerphoto_speaker_{{ .ID }}" value="{{ .SpeakerPhotoURL }}">
                                     <input type="hidden" name="photo_speaker_{{ .ID }}" value="{{ .PhotoURL }}">
@@ -100,7 +108,7 @@
                         <h2 class="text-lg font-semibold text-gray-900">Talks</h2>
                         {{ if .TalkRows }}
                         <label class="flex items-center gap-2 text-sm text-gray-600">
-                            <input type="checkbox" onclick="toggleAll(this, 'talk_')" class="rounded border-gray-300">
+                            <input type="checkbox" onclick="toggleAll(this, 'talk')" class="rounded border-gray-300">
                             Select All
                         </label>
                         {{ end }}
@@ -119,7 +127,7 @@
                             {{ range .TalkRows }}
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 align-top">
-                                    <input type="checkbox" name="talk_{{ .ID }}" value="1" class="rounded border-gray-300">
+                                    <input type="checkbox" name="selected_talk" value="{{ .ID }}" data-selection-group="talk" class="rounded border-gray-300">
                                     <input type="hidden" name="photo_talk_{{ .ID }}" value="{{ .PhotoURL }}">
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-900 align-top">
@@ -155,7 +163,7 @@
                         <h2 class="text-lg font-semibold text-gray-900">Sponsors</h2>
                         {{ if .SponsorRows }}
                         <label class="flex items-center gap-2 text-sm text-gray-600">
-                            <input type="checkbox" onclick="toggleAll(this, 'sponsor_')" class="rounded border-gray-300">
+                            <input type="checkbox" onclick="toggleAll(this, 'sponsor')" class="rounded border-gray-300">
                             Select All
                         </label>
                         {{ end }}
@@ -174,7 +182,7 @@
                             {{ range .SponsorRows }}
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 align-top">
-                                    <input type="checkbox" name="sponsor_{{ .Ref }}" value="1" class="rounded border-gray-300">
+                                    <input type="checkbox" name="selected_sponsor" value="{{ .Ref }}" data-selection-group="sponsor" class="rounded border-gray-300">
                                     <input type="hidden" name="card_sponsor_{{ .Ref }}" value="{{ .CardURL }}">
                                     <input type="hidden" name="level_sponsor_{{ .Ref }}" value="{{ .Level }}">
                                 </td>
@@ -220,8 +228,8 @@
         </div>
     </div>
     <script>
-    function toggleAll(source, prefix) {
-        var checkboxes = document.querySelectorAll('input[type="checkbox"][name^="' + prefix + '"]');
+    function toggleAll(source, group) {
+        var checkboxes = document.querySelectorAll('input[type="checkbox"][data-selection-group="' + group + '"]');
         checkboxes.forEach(function(cb) { cb.checked = source.checked; });
     }
     </script>

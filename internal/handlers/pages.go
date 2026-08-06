@@ -1224,6 +1224,7 @@ type SocialAdminPage struct {
 	SponsorRows      []*SocialSponsorRow
 	SponsorBatchText string
 	FlashMessage     string
+	FlashError       string
 	Year             uint
 	BufferOK         bool
 }
