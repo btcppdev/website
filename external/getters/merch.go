@@ -1324,7 +1324,7 @@ func MarkTicketPickups(ctx *config.AppContext, ticketRef string, orderItemIDs []
 				AND EXISTS (
 					SELECT 1
 					FROM people
-					WHERE people.email = r.email
+					WHERE people.id = r.person_id
 						AND upper(btrim(people.tshirt)) IN (
 							'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
 						)
