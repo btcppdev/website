@@ -81,6 +81,7 @@ type PersonMergeInput struct {
 	CanonicalPersonID string
 	SourcePersonID    string
 	MergedByPersonID  string
+	MergeRequestID    string
 	Decisions         map[string]PersonMergeDecision
 }
 
@@ -153,6 +154,7 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "homepage_featured_speakers", PersonColumn: "person_id", PrimaryKey: []string{"position"}, Label: "homepage speaker slots"},
 	{Table: "people_roles", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "scope", "position"}, DuplicateKey: []string{"scope", "position"}, Label: "roles"},
 	{Table: "person_email_verifications", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "pending email verifications"},
+	{Table: "person_merge_requests", PersonColumn: "reviewed_by_person_id", PrimaryKey: []string{"id"}, Label: "merge request reviewers"},
 	{Table: "person_merge_events", PersonColumn: "canonical_person_id", PrimaryKey: []string{"id"}, Label: "prior profile merges"},
 	{Table: "person_merge_events", PersonColumn: "merged_by_person_id", PrimaryKey: []string{"id"}, Label: "merge audit actors"},
 	{Table: "person_merge_events", PersonColumn: "reverted_by_person_id", PrimaryKey: []string{"id"}, Label: "merge restore actors"},
@@ -462,6 +464,31 @@ func MergePeople(ctx *config.AppContext, input PersonMergeInput) (string, error)
 	}
 	if _, err := tx.Exec(dbctx, `UPDATE person_merge_events SET relationship_manifest = $2::jsonb WHERE id = $1::uuid`, eventID, manifestJSON); err != nil {
 		return "", fmt.Errorf("store person merge manifest: %w", err)
+	}
+	if requestID := strings.TrimSpace(input.MergeRequestID); requestID != "" {
+		tag, err := tx.Exec(dbctx, `
+			UPDATE person_merge_requests
+			SET status = 'merged', reviewed_by_person_id = $4::uuid,
+				merge_event_id = $5::uuid, reviewed_at = now()
+			WHERE id = $1::uuid AND requester_person_id = $2::uuid
+				AND target_person_id = $3::uuid AND status = 'pending'
+		`, requestID, canonicalID, sourceID, actorID, eventID)
+		if err != nil {
+			return "", fmt.Errorf("complete person merge request: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return "", fmt.Errorf("merge request is no longer pending or does not match these people")
+		}
+	}
+	if _, err := tx.Exec(dbctx, `
+		UPDATE person_merge_requests
+		SET status = 'superseded', reviewed_by_person_id = $2::uuid,
+			review_note = 'One of the accounts was merged through another review.', reviewed_at = now()
+		WHERE status = 'pending'
+			AND (NULLIF($3, '') IS NULL OR id <> NULLIF($3, '')::uuid)
+			AND (requester_person_id = $1::uuid OR target_person_id = $1::uuid)
+	`, sourceID, actorID, strings.TrimSpace(input.MergeRequestID)); err != nil {
+		return "", fmt.Errorf("supersede related person merge requests: %w", err)
 	}
 	if err := tx.Commit(dbctx); err != nil {
 		return "", fmt.Errorf("commit person merge: %w", err)
@@ -934,6 +961,13 @@ func UndoPersonMerge(ctx *config.AppContext, eventID, actorPersonID string, warn
 		WHERE id = $1::uuid
 	`, event.ID, actorPersonID, warningJSON); err != nil {
 		return fmt.Errorf("complete person merge restore: %w", err)
+	}
+	if _, err := tx.Exec(dbctx, `
+		UPDATE person_merge_requests
+		SET status = 'reverted'
+		WHERE merge_event_id = $1::uuid AND status = 'merged'
+	`, event.ID); err != nil {
+		return fmt.Errorf("restore person merge request status: %w", err)
 	}
 	if err := tx.Commit(dbctx); err != nil {
 		return fmt.Errorf("commit person merge restore: %w", err)
