@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	youtubepkg "btcpp-web/external/youtube"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
@@ -23,13 +24,14 @@ type RecordingAutoscheduleItem struct {
 }
 
 type RecordingAutoschedulePreviewPage struct {
-	Conf               *types.Conf
-	Items              []*RecordingAutoscheduleItem
-	Skipped            []*RecordingAutoscheduleItem
-	Slots              []*types.YouTubePublishSlot
-	RescheduleExisting bool
-	FlashError         string
-	Year               uint
+	Conf                  *types.Conf
+	Items                 []*RecordingAutoscheduleItem
+	Skipped               []*RecordingAutoscheduleItem
+	Slots                 []*types.YouTubePublishSlot
+	RescheduleExisting    bool
+	YouTubeUpdatesEnabled bool
+	FlashError            string
+	Year                  uint
 }
 
 type YouTubeSlotDayGroup struct {
@@ -55,12 +57,13 @@ func RecordingsAdminAutoschedulePreview(w http.ResponseWriter, r *http.Request, 
 	rescheduleExisting := r.URL.Query().Get("reschedule") == "1"
 	preview, skipped, slots, err := buildRecordingAutoschedulePreview(ctx, conf, rescheduleExisting)
 	page := &RecordingAutoschedulePreviewPage{
-		Conf:               conf,
-		Items:              preview,
-		Skipped:            skipped,
-		Slots:              slots,
-		RescheduleExisting: rescheduleExisting,
-		Year:               uint(time.Now().Year()),
+		Conf:                  conf,
+		Items:                 preview,
+		Skipped:               skipped,
+		Slots:                 slots,
+		RescheduleExisting:    rescheduleExisting,
+		YouTubeUpdatesEnabled: youtubepkg.UpdatesEnabled(),
+		Year:                  uint(time.Now().Year()),
 	}
 	if err != nil {
 		page.FlashError = err.Error()
@@ -87,12 +90,13 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?err="+url.QueryEscape(err.Error())), http.StatusSeeOther)
 		return
 	}
+	items = reorderRecordingAutoscheduleItems(items, strings.Split(r.FormValue("recording_order"), ","))
 	if len(items) == 0 {
 		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?flash="+url.QueryEscape("No eligible YouTube recordings to autoschedule")), http.StatusSeeOther)
 		return
 	}
 
-	saved, youtubeUpdated, publicSkipped, failed := 0, 0, 0, 0
+	saved, youtubeUpdated, youtubeDisabled, publicSkipped, failed := 0, 0, 0, 0, 0
 	var firstErr string
 	for _, item := range items {
 		if item == nil || item.Row == nil || item.Row.Recording == nil {
@@ -120,6 +124,8 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 		switch result {
 		case "updated":
 			youtubeUpdated++
+		case "disabled":
+			youtubeDisabled++
 		case "public":
 			publicSkipped++
 		}
@@ -129,6 +135,9 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 	if publicSkipped > 0 {
 		flash += fmt.Sprintf("; %d already public", publicSkipped)
 	}
+	if youtubeDisabled > 0 {
+		flash += fmt.Sprintf("; %d saved locally only because YouTube updates are disabled", youtubeDisabled)
+	}
 	if failed > 0 {
 		flash += fmt.Sprintf("; %d failed", failed)
 		if firstErr != "" {
@@ -136,6 +145,50 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 		}
 	}
 	http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?flash="+url.QueryEscape(flash)), http.StatusSeeOther)
+}
+
+// reorderRecordingAutoscheduleItems assigns the existing configured slot
+// sequence to the administrator's requested recording order. Unknown,
+// duplicate, and stale IDs are ignored; newly eligible rows are appended in
+// their normal stage/agenda order so a stale form cannot drop recordings.
+func reorderRecordingAutoscheduleItems(items []*RecordingAutoscheduleItem, requestedIDs []string) []*RecordingAutoscheduleItem {
+	if len(items) < 2 || len(requestedIDs) == 0 {
+		return items
+	}
+	byID := make(map[string]*RecordingAutoscheduleItem, len(items))
+	for _, item := range items {
+		if item != nil && item.Row != nil && item.Row.Recording != nil {
+			byID[item.Row.Recording.ID] = item
+		}
+	}
+	seen := make(map[string]bool, len(items))
+	ordered := make([]*RecordingAutoscheduleItem, 0, len(items))
+	for _, rawID := range requestedIDs {
+		id := strings.TrimSpace(rawID)
+		if id == "" || seen[id] || byID[id] == nil {
+			continue
+		}
+		seen[id] = true
+		ordered = append(ordered, byID[id])
+	}
+	for _, item := range items {
+		if item == nil || item.Row == nil || item.Row.Recording == nil || seen[item.Row.Recording.ID] {
+			continue
+		}
+		seen[item.Row.Recording.ID] = true
+		ordered = append(ordered, item)
+	}
+	if len(ordered) != len(items) {
+		return items
+	}
+	result := make([]*RecordingAutoscheduleItem, len(ordered))
+	for i, item := range ordered {
+		copyItem := *item
+		copyItem.PublishAt = items[i].PublishAt
+		copyItem.SlotLabel = items[i].SlotLabel
+		result[i] = &copyItem
+	}
+	return result
 }
 
 func RecordingsYouTubeSlots(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -290,12 +343,29 @@ func recordingAutoscheduleSkipReason(row *RecordingRow, rescheduleExisting bool)
 
 func recordingAutoscheduleSortKey(row *RecordingRow) string {
 	if row == nil || row.Recording == nil {
-		return ""
+		return "99"
 	}
+	stage := recordingAutoscheduleStageRank(row)
 	if row.ConfTalk != nil && row.ConfTalk.Sched != nil {
-		return row.ConfTalk.Sched.Start.UTC().Format(time.RFC3339Nano) + row.Recording.ID
+		return fmt.Sprintf("%02d|0|%s|%s", stage, row.ConfTalk.Sched.Start.UTC().Format(time.RFC3339Nano), row.Recording.ID)
 	}
-	return strings.ToLower(row.Recording.TalkName) + row.Recording.ID
+	return fmt.Sprintf("%02d|1|%s|%s", stage, strings.ToLower(row.Recording.TalkName), row.Recording.ID)
+}
+
+func recordingAutoscheduleStageRank(row *RecordingRow) int {
+	if row == nil || row.ConfTalk == nil {
+		return 3
+	}
+	switch strings.ToLower(strings.TrimSpace(row.ConfTalk.Venue)) {
+	case "one", "p2pkh", "main", "main stage":
+		return 0
+	case "two", "p2wsh", "p2sh-p2wpkh", "talk", "talks", "talking", "talks stage", "talking stage", "talking two":
+		return 1
+	case "three", "multisig", "p2tr", "workshop", "workshops", "workshop stage", "workshops stage", "workshops 2":
+		return 2
+	default:
+		return 3
+	}
 }
 
 func activeYouTubePublishSlots(slots []*types.YouTubePublishSlot) []*types.YouTubePublishSlot {

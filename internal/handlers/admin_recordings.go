@@ -73,53 +73,56 @@ type RecordingRow struct {
 }
 
 type RecordingsAdminListPage struct {
-	Rows               []*RecordingRow
-	Conf               *types.Conf
-	YouTubeReady       bool
-	YouTubeAuthURL     string
-	AutopublishEnabled bool
-	XUploaderEnabled   bool
-	XProfileObject     string
-	FlashMessage       string
-	FlashError         string
-	Year               uint
+	Rows                  []*RecordingRow
+	Conf                  *types.Conf
+	YouTubeReady          bool
+	YouTubeUpdatesEnabled bool
+	YouTubeAuthURL        string
+	AutopublishEnabled    bool
+	XUploaderEnabled      bool
+	XProfileObject        string
+	FlashMessage          string
+	FlashError            string
+	Year                  uint
 }
 
 type RecordingsAdminDetailPage struct {
-	Conf             *types.Conf
-	Row              *RecordingRow
-	YTTitle          string
-	YTBody           string
-	XBody            string
-	XReplyBody       string
-	XIntentURL       string
-	PublishAtInput   string
-	PublishTimezone  string
-	JobActive        bool
-	JobStatus        string
-	JobMessage       string
-	XJobActive       bool
-	XJobStatus       string
-	XJobMessage      string
-	YouTubeReady     bool
-	XUploaderEnabled bool
-	FlashMessage     string
-	FlashError       string
-	Year             uint
+	Conf                  *types.Conf
+	Row                   *RecordingRow
+	YTTitle               string
+	YTBody                string
+	XBody                 string
+	XReplyBody            string
+	XIntentURL            string
+	PublishAtInput        string
+	PublishTimezone       string
+	JobActive             bool
+	JobStatus             string
+	JobMessage            string
+	XJobActive            bool
+	XJobStatus            string
+	XJobMessage           string
+	YouTubeReady          bool
+	YouTubeUpdatesEnabled bool
+	XUploaderEnabled      bool
+	FlashMessage          string
+	FlashError            string
+	Year                  uint
 }
 
 type RecordingsBulkUploadPage struct {
-	Conf                 *types.Conf
-	Eligible             []*RecordingRow
-	Skipped              []*RecordingBulkUploadSkip
-	YouTubeReady         bool
-	YouTubeAuthURL       string
-	YouTubePlaylists     []youtubepkg.Playlist
-	DefaultPlaylistTitle string
-	FlashMessage         string
-	FlashError           string
-	Now                  time.Time
-	Year                 uint
+	Conf                  *types.Conf
+	Eligible              []*RecordingRow
+	Skipped               []*RecordingBulkUploadSkip
+	YouTubeReady          bool
+	YouTubeUpdatesEnabled bool
+	YouTubeAuthURL        string
+	YouTubePlaylists      []youtubepkg.Playlist
+	DefaultPlaylistTitle  string
+	FlashMessage          string
+	FlashError            string
+	Now                   time.Time
+	Year                  uint
 }
 
 type RecordingBulkUploadSkip struct {
@@ -254,14 +257,15 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 	})
 
 	page := &RecordingsAdminListPage{
-		Rows:               rows,
-		Conf:               conf,
-		YouTubeReady:       youtubepkg.IsConfigured() && youtubepkg.IsConnected(),
-		YouTubeAuthURL:     recordingsAdminPath(conf.Tag, "/oauth/youtube/start"),
-		AutopublishEnabled: ctx.Env.Recordings.AutopublishEnabled,
-		XUploaderEnabled:   ctx.Env.Recordings.X.Enabled,
-		XProfileObject:     ctx.Env.Recordings.X.ProfileObject,
-		Year:               uint(time.Now().Year()),
+		Rows:                  rows,
+		Conf:                  conf,
+		YouTubeReady:          youtubepkg.IsConfigured() && youtubepkg.IsConnected(),
+		YouTubeUpdatesEnabled: youtubepkg.UpdatesEnabled(),
+		YouTubeAuthURL:        recordingsAdminPath(conf.Tag, "/oauth/youtube/start"),
+		AutopublishEnabled:    ctx.Env.Recordings.AutopublishEnabled,
+		XUploaderEnabled:      ctx.Env.Recordings.X.Enabled,
+		XProfileObject:        ctx.Env.Recordings.X.ProfileObject,
+		Year:                  uint(time.Now().Year()),
 	}
 	if !youtubepkg.IsConfigured() {
 		page.FlashError = "YouTube OAuth env vars (YOUTUBE_CLIENT_ID/SECRET) are not set — set them and restart to enable uploads."
@@ -459,18 +463,19 @@ func RecordingsAdminDetail(w http.ResponseWriter, r *http.Request, ctx *config.A
 	intentURL := "https://x.com/intent/post?" + url.Values{"text": []string{xBody}}.Encode()
 
 	page := &RecordingsAdminDetailPage{
-		Conf:             conf,
-		Row:              row,
-		YTTitle:          ytTitle,
-		YTBody:           ytBody,
-		XBody:            xBody,
-		XReplyBody:       xReplyBody,
-		XIntentURL:       intentURL,
-		PublishAtInput:   recordingPublishAtInput(rec.PublishAt, conf),
-		PublishTimezone:  recordingPublishTimezone(conf),
-		YouTubeReady:     youtubepkg.IsConfigured() && youtubepkg.IsConnected(),
-		XUploaderEnabled: ctx.Env.Recordings.X.Enabled,
-		Year:             uint(time.Now().Year()),
+		Conf:                  conf,
+		Row:                   row,
+		YTTitle:               ytTitle,
+		YTBody:                ytBody,
+		XBody:                 xBody,
+		XReplyBody:            xReplyBody,
+		XIntentURL:            intentURL,
+		PublishAtInput:        recordingPublishAtInput(rec.PublishAt, conf),
+		PublishTimezone:       recordingPublishTimezone(conf),
+		YouTubeReady:          youtubepkg.IsConfigured() && youtubepkg.IsConnected(),
+		YouTubeUpdatesEnabled: youtubepkg.UpdatesEnabled(),
+		XUploaderEnabled:      ctx.Env.Recordings.X.Enabled,
+		Year:                  uint(time.Now().Year()),
 	}
 	if job := getJob(rec.ID); job != nil {
 		page.JobActive = job.Status == "running"
@@ -628,22 +633,25 @@ func RecordingsAdminBulkUploadYTPreview(w http.ResponseWriter, r *http.Request, 
 		}
 	}
 	page := &RecordingsBulkUploadPage{
-		Conf:                 conf,
-		Eligible:             eligible,
-		Skipped:              skipped,
-		YouTubeReady:         youtubeReady,
-		YouTubeAuthURL:       recordingsAdminPath(conf.Tag, "/oauth/youtube/start"),
-		YouTubePlaylists:     playlists,
-		DefaultPlaylistTitle: defaultRecordingPlaylistTitle(conf),
-		FlashMessage:         r.URL.Query().Get("flash"),
-		FlashError:           r.URL.Query().Get("err"),
-		Now:                  time.Now(),
-		Year:                 uint(time.Now().Year()),
+		Conf:                  conf,
+		Eligible:              eligible,
+		Skipped:               skipped,
+		YouTubeReady:          youtubeReady,
+		YouTubeUpdatesEnabled: youtubepkg.UpdatesEnabled(),
+		YouTubeAuthURL:        recordingsAdminPath(conf.Tag, "/oauth/youtube/start"),
+		YouTubePlaylists:      playlists,
+		DefaultPlaylistTitle:  defaultRecordingPlaylistTitle(conf),
+		FlashMessage:          r.URL.Query().Get("flash"),
+		FlashError:            r.URL.Query().Get("err"),
+		Now:                   time.Now(),
+		Year:                  uint(time.Now().Year()),
 	}
 	if !youtubepkg.IsConfigured() {
 		page.FlashError = "YouTube OAuth env vars (YOUTUBE_CLIENT_ID/SECRET) are not set."
 	} else if !youtubepkg.IsConnected() {
 		page.FlashError = "YouTube is configured but not connected. Authorize YouTube before bulk uploading."
+	} else if !youtubepkg.UpdatesEnabled() {
+		page.FlashError = "YouTube updates are disabled. Set YOUTUBE_UPDATES_ENABLED=true and restart before uploading."
 	} else if playlistErr != "" && page.FlashError == "" {
 		page.FlashError = playlistErr
 	}
@@ -672,6 +680,10 @@ func RecordingsAdminBulkUploadYTApply(w http.ResponseWriter, r *http.Request, ct
 	}
 	if !youtubepkg.IsConnected() {
 		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?err="+url.QueryEscape("YouTube is not connected")), http.StatusSeeOther)
+		return
+	}
+	if !youtubepkg.UpdatesEnabled() {
+		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "/upload-youtube?err="+url.QueryEscape("YouTube updates are disabled; set YOUTUBE_UPDATES_ENABLED=true and restart")), http.StatusSeeOther)
 		return
 	}
 	limitRequestBody(w, r, maxFormBodyBytes)
@@ -911,6 +923,10 @@ func RecordingsAdminUploadYT(w http.ResponseWriter, r *http.Request, ctx *config
 		redirectWithErr(w, r, conf.Tag, recordingID, "YouTube is not connected — click Authorize on the recordings page")
 		return
 	}
+	if !youtubepkg.UpdatesEnabled() {
+		redirectWithErr(w, r, conf.Tag, recordingID, "YouTube updates are disabled; set YOUTUBE_UPDATES_ENABLED=true and restart")
+		return
+	}
 	if !claimJob(recordingID) {
 		redirectWithErr(w, r, conf.Tag, recordingID, "An upload is already in progress for this recording")
 		return
@@ -969,11 +985,15 @@ func RecordingsAdminSchedule(w http.ResponseWriter, r *http.Request, ctx *config
 			flash = "Schedule saved and YouTube updated"
 		} else if ytScheduleResult == "public" {
 			flash = "Schedule saved. YouTube is already public, so it was not changed."
+		} else if ytScheduleResult == "disabled" {
+			flash = "Schedule saved locally. YouTube updates are disabled, so the video was not changed."
 		}
 	} else if ytScheduleResult == "updated" {
 		flash = "Schedule cleared and YouTube set to unlisted"
 	} else if ytScheduleResult == "public" {
 		flash = "Schedule cleared. YouTube is already public, so it was not changed."
+	} else if ytScheduleResult == "disabled" {
+		flash = "Schedule cleared locally. YouTube updates are disabled, so the video was not changed."
 	}
 	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash="+url.QueryEscape(flash), http.StatusSeeOther)
 }
@@ -981,6 +1001,9 @@ func RecordingsAdminSchedule(w http.ResponseWriter, r *http.Request, ctx *config
 func updateRecordingYouTubeSchedule(ctx *config.AppContext, rec *types.Recording, publishAt *time.Time) (string, error) {
 	if rec == nil || strings.TrimSpace(rec.YTLink) == "" || !youtubepkg.IsConfigured() || !youtubepkg.IsConnected() {
 		return "", nil
+	}
+	if !youtubepkg.UpdatesEnabled() {
+		return "disabled", nil
 	}
 	videoID := youtubeVideoID(rec.YTLink)
 	if videoID == "" {

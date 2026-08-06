@@ -64,7 +64,7 @@ func runRecordingAutopublishTick(ctx *config.AppContext) {
 	if len(recs) == 0 {
 		return
 	}
-	youtubeReady := youtubepkg.IsConfigured() && youtubepkg.IsConnected()
+	youtubeReady := youtubepkg.IsConfigured() && youtubepkg.IsConnected() && youtubepkg.UpdatesEnabled()
 	var xClient *xposter.Client
 	var xInitErr error
 	if ctx.Env.Recordings.X.Enabled {

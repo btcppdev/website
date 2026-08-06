@@ -19,6 +19,7 @@
               </div>
               {{ if .YouTubeReady }}
                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">YouTube connected</span>
+                {{ if not .YouTubeUpdatesEnabled }}<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">updates off</span>{{ end }}
               {{ else }}
                 <a href="{{ .YouTubeAuthURL }}" class="px-3 py-1.5 text-sm rounded-md text-white bg-red-600 hover:bg-red-700">Authorize YouTube</a>
               {{ end }}
@@ -123,7 +124,7 @@
               </div>
               <div class="px-4 py-4 flex items-center justify-end gap-3">
                 <a href="/{{ .Conf.Tag }}/admin/recordings" class="px-3 py-1.5 text-sm rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</a>
-                {{ if .YouTubeReady }}
+                {{ if and .YouTubeReady .YouTubeUpdatesEnabled }}
                   <button type="submit" class="px-3 py-1.5 text-sm rounded-md text-white bg-red-600 hover:bg-red-700">Start {{ len .Eligible }} upload{{ if ne (len .Eligible) 1 }}s{{ end }}</button>
                 {{ else }}
                   <button type="button" disabled class="px-3 py-1.5 text-sm rounded-md text-white bg-gray-300 cursor-not-allowed">Start uploads</button>
