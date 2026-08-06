@@ -202,7 +202,7 @@ func addPublicProfileAttendance(ctx *config.AppContext, personIDs []string, peop
 			conf.tagline, conf.date_desc, conf.start_date, conf.end_date,
 			conf.timezone, conf.location
 		FROM people person
-		JOIN registrations registration ON registration.email = person.email
+		JOIN registrations registration ON registration.person_id = person.id
 		JOIN conferences conf ON conf.id = registration.conference_id
 		WHERE person.id::text = ANY($1::text[])
 		  AND registration.revoked = false
