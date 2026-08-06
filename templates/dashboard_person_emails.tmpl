@@ -77,6 +77,44 @@
         </form>
       </div>
     </section>
+
+    <section class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">⇄</div>
+      <div class="profile-edit-section__body">
+        <div class="profile-edit-section__head">
+          <div>
+            <p>§ ACCOUNT MERGE</p>
+            <h2>Combine duplicate profiles</h2>
+          </div>
+        </div>
+        <p>Enter a verified email belonging to your other bitcoin++ account. That address must confirm the request before administrators are notified. Nothing is merged until an administrator reviews both profiles.</p>
+        <form method="POST" action="/dashboard/merge-requests" class="person-email-add">
+          <label>OTHER ACCOUNT EMAIL
+            <input type="email" name="target_email" required autocomplete="email">
+          </label>
+          <button type="submit">Request account merge</button>
+        </form>
+
+        {{ if .MergeRequests }}
+        <div class="person-email-list">
+          {{ range .MergeRequests }}
+          <div class="person-email-row">
+            <div>
+              {{ if eq .RequesterPersonID $.Speaker.ID }}
+                <strong>Merge with {{ .TargetName }}</strong>
+                <small>{{ .TargetEmail }}</small>
+              {{ else }}
+                <strong>Requested by {{ .RequesterName }}</strong>
+                <small>{{ .RequesterEmail }}</small>
+              {{ end }}
+            </div>
+            <div class="person-email-actions"><span>{{ if eq .Status "awaiting_confirmation" }}AWAITING CONFIRMATION{{ else }}{{ .Status }}{{ end }}</span></div>
+          </div>
+          {{ end }}
+        </div>
+        {{ end }}
+      </div>
+    </section>
   </main>
 
   {{ block "footer" . }} {{ end }}
