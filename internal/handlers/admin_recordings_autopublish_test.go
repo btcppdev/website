@@ -44,6 +44,11 @@ func TestRecordingAutopublishEligibility(t *testing.T) {
 	if shouldPostRecordingToX(row, time.Now()) {
 		t.Fatalf("recording already scheduled on X should not post again")
 	}
+	row.XStatus = ""
+	row.BufferXSocialPost = &types.SocialPost{Status: recordingStatusScheduled}
+	if shouldPostRecordingToX(row, time.Now()) {
+		t.Fatalf("recording scheduled through Buffer should not also post through the browser uploader")
+	}
 }
 
 func TestXFailureFingerprintChangesByStatusAndMessage(t *testing.T) {

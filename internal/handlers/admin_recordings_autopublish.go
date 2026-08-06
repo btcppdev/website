@@ -114,6 +114,12 @@ func shouldPostRecordingToX(row *RecordingRow, now time.Time) bool {
 	if now.Before(row.Recording.PublishAt.UTC()) {
 		return false
 	}
+	if row.BufferXSocialPost != nil {
+		switch strings.ToLower(strings.TrimSpace(row.BufferXSocialPost.Status)) {
+		case recordingStatusScheduling, recordingStatusScheduled, recordingStatusPosted:
+			return false
+		}
+	}
 	return statusAllowsRetry(row.XStatus)
 }
 

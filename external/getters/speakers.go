@@ -199,6 +199,32 @@ func ListSpeakersWithRole(ctx *config.AppContext, role string) ([]*types.Speaker
 	`, scope, position)
 }
 
+func ListSpeakersWithAnyRole(ctx *config.AppContext, roles []string) ([]*types.Speaker, error) {
+	var scopes, positions []string
+	for _, role := range roles {
+		scope, position, ok := splitRoleScopePosition(role)
+		if !ok {
+			continue
+		}
+		scopes = append(scopes, scope)
+		positions = append(positions, position)
+	}
+	if len(scopes) == 0 {
+		return nil, nil
+	}
+	return querySpeakersPostgres(ctx, "speakers by roles", `
+		WHERE EXISTS (
+			SELECT 1
+			FROM people_roles
+			JOIN unnest($1::text[], $2::text[]) AS wanted(scope, position)
+			  ON wanted.scope = people_roles.scope
+			 AND wanted.position = people_roles.position
+			WHERE people_roles.person_id = people.id
+		)
+		ORDER BY lower(people.name), people.id
+	`, scopes, positions)
+}
+
 func digitsOnly(value string) string {
 	var out strings.Builder
 	for _, r := range value {
