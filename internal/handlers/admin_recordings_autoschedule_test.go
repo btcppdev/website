@@ -1,11 +1,81 @@
 package handlers
 
 import (
+	"sort"
 	"testing"
 	"time"
 
 	"btcpp-web/internal/types"
 )
+
+func TestRecordingAutoscheduleOrdersByStageThenAgendaTime(t *testing.T) {
+	base := time.Date(2026, time.July, 22, 9, 0, 0, 0, time.UTC)
+	rows := []*RecordingRow{
+		autoscheduleTestRow("workshop", "three", base),
+		autoscheduleTestRow("talks", "two", base.Add(time.Hour)),
+		autoscheduleTestRow("main-later", "one", base.Add(3*time.Hour)),
+		autoscheduleTestRow("main-earlier", "main stage", base.Add(2*time.Hour)),
+		autoscheduleTestRow("other", "lounge", base.Add(-time.Hour)),
+	}
+
+	sort.SliceStable(rows, func(i, j int) bool {
+		return recordingAutoscheduleSortKey(rows[i]) < recordingAutoscheduleSortKey(rows[j])
+	})
+	want := []string{"main-earlier", "main-later", "talks", "workshop", "other"}
+	for i, id := range want {
+		if got := rows[i].Recording.ID; got != id {
+			t.Fatalf("row %d = %q, want %q", i, got, id)
+		}
+	}
+}
+
+func TestRecordingAutoscheduleStageRankSupportsLegacyVenues(t *testing.T) {
+	tests := map[string]int{
+		"p2pkh":       0,
+		"p2wsh":       1,
+		"p2sh-p2wpkh": 1,
+		"multisig":    2,
+		"p2tr":        2,
+	}
+	for venue, want := range tests {
+		if got := recordingAutoscheduleStageRank(autoscheduleTestRow(venue, venue, time.Now())); got != want {
+			t.Errorf("stage rank for %q = %d, want %d", venue, got, want)
+		}
+	}
+}
+
+func TestReorderRecordingAutoscheduleItemsReassignsConfiguredSlots(t *testing.T) {
+	firstAt := time.Date(2026, time.August, 10, 10, 0, 0, 0, time.UTC)
+	secondAt := firstAt.Add(24 * time.Hour)
+	thirdAt := secondAt.Add(24 * time.Hour)
+	items := []*RecordingAutoscheduleItem{
+		{Row: autoscheduleTestRow("first", "one", firstAt), PublishAt: firstAt, SlotLabel: "Monday 10:00"},
+		{Row: autoscheduleTestRow("second", "two", secondAt), PublishAt: secondAt, SlotLabel: "Tuesday 10:00"},
+		{Row: autoscheduleTestRow("third", "three", thirdAt), PublishAt: thirdAt, SlotLabel: "Wednesday 10:00"},
+	}
+
+	got := reorderRecordingAutoscheduleItems(items, []string{"third", "unknown", "first", "third"})
+	wantIDs := []string{"third", "first", "second"}
+	wantTimes := []time.Time{firstAt, secondAt, thirdAt}
+	for i := range wantIDs {
+		if got[i].Row.Recording.ID != wantIDs[i] {
+			t.Fatalf("item %d ID = %q, want %q", i, got[i].Row.Recording.ID, wantIDs[i])
+		}
+		if !got[i].PublishAt.Equal(wantTimes[i]) {
+			t.Fatalf("item %d publish time = %s, want %s", i, got[i].PublishAt, wantTimes[i])
+		}
+	}
+	if items[0].Row.Recording.ID != "first" || !items[0].PublishAt.Equal(firstAt) {
+		t.Fatal("reorder mutated the original preview items")
+	}
+}
+
+func autoscheduleTestRow(id, venue string, start time.Time) *RecordingRow {
+	return &RecordingRow{
+		Recording: &types.Recording{ID: id, TalkName: id},
+		ConfTalk:  &types.ConfTalk{Venue: venue, Sched: &types.Times{Start: start}},
+	}
+}
 
 func TestNextYouTubePublishTimesUsesCentralSlotWallClock(t *testing.T) {
 	loc, err := time.LoadLocation("America/Chicago")
