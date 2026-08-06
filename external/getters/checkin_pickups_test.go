@@ -16,16 +16,22 @@ func TestDatabaseSmokeTicketPickupChecklist(t *testing.T) {
 
 	var personID string
 	if err := app.DB.QueryRow(app.DatabaseContext(), `
-		INSERT INTO people (name, email, tshirt)
-		VALUES ('Check-in Test', $1::citext, 'MM')
+		INSERT INTO people (name, tshirt)
+		VALUES ('Check-in Test', 'MM')
 		RETURNING id::text
-	`, email).Scan(&personID); err != nil {
+	`).Scan(&personID); err != nil {
 		t.Fatalf("create person: %s", err)
 	}
 	if _, err := app.DB.Exec(app.DatabaseContext(), `
-		INSERT INTO registrations (ref_id, conference_id, type, email, checked_in_at, platform)
-		VALUES ($1, $2::uuid, 'genpop', $3::citext, now(), 'dev-checkin-preview')
-	`, ticketRef, conferenceID, email); err != nil {
+		INSERT INTO person_emails (person_id, email, is_primary, verified_at)
+		VALUES ($1::uuid, $2::citext, true, now())
+	`, personID, email); err != nil {
+		t.Fatalf("create person email: %s", err)
+	}
+	if _, err := app.DB.Exec(app.DatabaseContext(), `
+		INSERT INTO registrations (ref_id, conference_id, type, email, person_id, checked_in_at, platform)
+		VALUES ($1, $2::uuid, 'genpop', $3::citext, $4::uuid, now(), 'dev-checkin-preview')
+	`, ticketRef, conferenceID, email, personID); err != nil {
 		t.Fatalf("create registration: %s", err)
 	}
 

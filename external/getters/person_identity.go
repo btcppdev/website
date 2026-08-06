@@ -194,7 +194,6 @@ func linkUnownedRecordsByEmailTx(dbctx context.Context, tx pgx.Tx, personID, ema
 		{"registrations", `UPDATE registrations SET person_id = $1::uuid WHERE person_id IS NULL AND email = $2::citext`},
 		{"volunteers", `UPDATE volunteers SET person_id = $1::uuid WHERE person_id IS NULL AND email = $2::citext`},
 		{"shop orders", `UPDATE shop_orders SET buyer_person_id = $1::uuid WHERE buyer_person_id IS NULL AND buyer_email = $2::citext`},
-		{"sponsor ticket grants", `UPDATE sponsor_ticket_grants SET recipient_person_id = $1::uuid WHERE recipient_person_id IS NULL AND recipient_email = $2::citext`},
 		{"discounts", `UPDATE discounts SET affiliate_person_id = $1::uuid WHERE affiliate_person_id IS NULL AND affiliate_email = $2::citext`},
 		{"affiliate usages", `UPDATE affiliate_usages SET affiliate_person_id = $1::uuid WHERE affiliate_person_id IS NULL AND affiliate_email = $2::citext`},
 		{"satellite events", `UPDATE satellite_events SET submitter_person_id = $1::uuid WHERE submitter_person_id IS NULL AND submitter_email = $2::citext`},

@@ -540,13 +540,13 @@ func seedCheckInPreviews(ctx context.Context, tx pgx.Tx, confID string) {
 	}
 	for _, person := range people {
 		mustExec(ctx, tx, "seed check-in preview person", `
-			INSERT INTO people (id, name, email, tshirt)
-			VALUES ($1::uuid, $2, $3::citext, $4)
+			INSERT INTO people (id, name, tshirt)
+			VALUES ($1::uuid, $2, $3)
 			ON CONFLICT (id) DO UPDATE SET
 				name = EXCLUDED.name,
-				email = EXCLUDED.email,
 				tshirt = EXCLUDED.tshirt
-		`, person.id, person.name, person.email, person.tshirt)
+		`, person.id, person.name, person.tshirt)
+		seedPersonEmail(ctx, tx, person.id, person.email)
 	}
 
 	registrations := []struct {
@@ -561,12 +561,12 @@ func seedCheckInPreviews(ctx context.Context, tx pgx.Tx, confID string) {
 	for _, registration := range registrations {
 		mustExec(ctx, tx, "seed check-in preview registration", `
 			INSERT INTO registrations (
-				id, ref_id, conference_id, type, email, item_bought, platform,
+				id, ref_id, conference_id, type, email, person_id, item_bought, platform,
 				registered_at, checked_in_at, revoked,
 				conference_shirt_picked_up_at, conference_shirt_picked_up_by
 			)
 			VALUES (
-				$1::uuid, $2, $3::uuid, $4, $5::citext, $6, 'dev-checkin-preview',
+				$1::uuid, $2, $3::uuid, $4, $5::citext, $1::uuid, $6, 'dev-checkin-preview',
 				'2026-09-01 12:00:00-05'::timestamptz,
 				NULLIF($7, '')::timestamptz, false,
 				NULLIF($8, '')::timestamptz,
@@ -576,6 +576,7 @@ func seedCheckInPreviews(ctx context.Context, tx pgx.Tx, confID string) {
 				conference_id = EXCLUDED.conference_id,
 				type = EXCLUDED.type,
 				email = EXCLUDED.email,
+				person_id = EXCLUDED.person_id,
 				item_bought = EXCLUDED.item_bought,
 				platform = EXCLUDED.platform,
 				checked_in_at = EXCLUDED.checked_in_at,
