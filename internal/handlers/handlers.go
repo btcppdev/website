@@ -1177,6 +1177,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
 		AuthLanding(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/account/merge/confirm", func(w http.ResponseWriter, r *http.Request) {
+		PersonMergeConfirmation(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/account/merge/confirm", func(w http.ResponseWriter, r *http.Request) {
+		PersonMergeConfirmationAccept(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
 		LogoutHandler(w, r, app)
 	}).Methods("POST")
@@ -1600,6 +1606,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/emails/remove", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmailRemove(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/merge-requests", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonMergeRequest(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardSatelliteEventEdit(w, r, app)

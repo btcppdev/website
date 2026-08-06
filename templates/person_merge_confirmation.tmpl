@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Confirm account merge · bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-profile-edit-page">
+  {{ block "mainnav" . }} {{ end }}
+
+  <main class="profile-edit-shell person-emails-page">
+    <header class="profile-edit-hero">
+      <p class="profile-edit-tag">§ ACCOUNT</p>
+      <h1>Merge <span>accounts.</span></h1>
+      {{ if .Confirmed }}
+        <p>Your confirmation has been recorded.</p>
+      {{ else }}
+        <p>Review this request before allowing it to proceed to a bitcoin++ administrator.</p>
+      {{ end }}
+    </header>
+
+    {{ if .Error }}
+      <div class="profile-edit-flash person-emails-error">{{ .Error }}</div>
+    {{ else if .Confirmed }}
+      <section class="profile-edit-section is-open">
+        <div class="profile-edit-section__index">✓</div>
+        <div class="profile-edit-section__body">
+          <div class="profile-edit-section__head"><div><p>§ CONFIRMED</p><h2>Request sent for review</h2></div></div>
+          <p>A global administrator has been notified. No profile or account data changes until they review and approve the merge.</p>
+          <p><a href="/dashboard">Go to dashboard →</a></p>
+        </div>
+      </section>
+    {{ else if .Request }}
+      <section class="profile-edit-section is-open">
+        <div class="profile-edit-section__index">⇄</div>
+        <div class="profile-edit-section__body">
+          <div class="profile-edit-section__head"><div><p>§ MERGE REQUEST</p><h2>Merge these accounts?</h2></div></div>
+          <p><strong>{{ .Request.RequesterName }}</strong> ({{ .Request.RequesterEmail }}) requested that the account using <strong>{{ .Request.TargetEmail }}</strong> be merged into theirs.</p>
+          <p>After confirmation, an administrator will compare the profiles and choose which information to retain. Nothing is changed at this step.</p>
+          <form method="POST" action="/account/merge/confirm" class="person-email-add">
+            <input type="hidden" name="token" value="{{ .Token }}">
+            <button type="submit">Merge accounts</button>
+          </form>
+          <p><small>If you did not request this, close this page and contact hello@btcpp.dev.</small></p>
+        </div>
+      </section>
+    {{ end }}
+  </main>
+
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>
