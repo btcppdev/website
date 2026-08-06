@@ -942,11 +942,12 @@ type EditSpeakerPage struct {
 }
 
 type PersonEmailsPage struct {
-	Speaker      *types.Speaker
-	Emails       []*types.PersonEmail
-	FlashMessage string
-	FlashError   string
-	Year         uint
+	Speaker       *types.Speaker
+	Emails        []*types.PersonEmail
+	MergeRequests []*types.PersonMergeRequest
+	FlashMessage  string
+	FlashError    string
+	Year          uint
 }
 
 type EditSpeakerConfPage struct {

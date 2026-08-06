@@ -61,6 +61,9 @@ func registerParticipantRoutes(r *mux.Router, app *config.AppContext) {
 	r.HandleFunc("/dashboard/emails/remove", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmailRemove(w, r, requestApp(r, app))
 	}).Methods("POST")
+	r.HandleFunc("/dashboard/merge-requests", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonMergeRequest(w, r, requestApp(r, app))
+	}).Methods("POST")
 	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardSatelliteEventEdit(w, r, requestApp(r, app))
 	}).Methods("GET")

@@ -11,6 +11,13 @@ import (
 )
 
 func registerPublicRoutes(r *mux.Router, app *config.AppContext) {
+	r.HandleFunc("/account/merge/confirm", func(w http.ResponseWriter, r *http.Request) {
+		PersonMergeConfirmation(w, r, requestApp(r, app))
+	}).Methods("GET")
+	r.HandleFunc("/account/merge/confirm", func(w http.ResponseWriter, r *http.Request) {
+		PersonMergeConfirmationAccept(w, r, requestApp(r, app))
+	}).Methods("POST")
+
 	/* Handle 404s */
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handle404(w, r, requestApp(r, app))
