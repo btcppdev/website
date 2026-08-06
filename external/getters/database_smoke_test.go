@@ -142,6 +142,20 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	if len(preview.Conflicts) != 0 {
 		t.Fatalf("unexpected merge conflicts: %+v", preview.Conflicts)
 	}
+	mergeRequest, confirmationToken, err := CreatePersonMergeRequest(ctx, canonicalID, sourceEmail)
+	if err != nil {
+		t.Fatalf("CreatePersonMergeRequest: %v", err)
+	}
+	if mergeRequest.RequesterPersonID != canonicalID || mergeRequest.TargetPersonID != sourceID || mergeRequest.Status != "awaiting_confirmation" {
+		t.Fatalf("merge request = %+v", mergeRequest)
+	}
+	mergeRequest, newlyConfirmed, err := ConfirmPersonMergeRequest(ctx, confirmationToken)
+	if err != nil {
+		t.Fatalf("ConfirmPersonMergeRequest: %v", err)
+	}
+	if !newlyConfirmed || mergeRequest.Status != "pending" || mergeRequest.ConfirmedAt == nil {
+		t.Fatalf("confirmed merge request = %+v", mergeRequest)
+	}
 	decisions := make(map[string]PersonMergeDecision, len(preview.Fields))
 	for _, field := range preview.Fields {
 		value := field.Canonical
@@ -156,10 +170,15 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 		CanonicalPersonID: canonicalID,
 		SourcePersonID:    sourceID,
 		MergedByPersonID:  canonicalID,
+		MergeRequestID:    mergeRequest.ID,
 		Decisions:         decisions,
 	})
 	if err != nil {
 		t.Fatalf("MergePeople: %v", err)
+	}
+	completedRequest, err := GetPersonMergeRequest(ctx, mergeRequest.ID)
+	if err != nil || completedRequest == nil || completedRequest.Status != "merged" || completedRequest.MergeEventID != eventID {
+		t.Fatalf("completed merge request = %+v, %v", completedRequest, err)
 	}
 
 	resolution, err := ResolvePersonByEmail(ctx, sourceEmail)
@@ -195,6 +214,10 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	}
 	if err := UndoPersonMerge(ctx, eventID, canonicalID, undoPreview); err != nil {
 		t.Fatalf("UndoPersonMerge: %v", err)
+	}
+	revertedRequest, err := GetPersonMergeRequest(ctx, mergeRequest.ID)
+	if err != nil || revertedRequest == nil || revertedRequest.Status != "reverted" {
+		t.Fatalf("reverted merge request = %+v, %v", revertedRequest, err)
 	}
 
 	canonical, err := FetchSpeakerByID(ctx, canonicalID)
