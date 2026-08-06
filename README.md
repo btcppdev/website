@@ -72,7 +72,20 @@ RECORDINGS_AUTOPUBLISH_ENABLED=true
 RECORDINGS_AUTOPUBLISH_POLL_SEC=60
 RECORDINGS_NOTIFY_EMAIL=nifty@btcpp.dev
 SOCIAL_STATE_KEY=<base64-encoded 32-byte key>
+YOUTUBE_UPDATES_ENABLED=true
 ```
+
+`YOUTUBE_UPDATES_ENABLED` gates every write to YouTube, including video
+uploads, scheduling changes, playlist creation/assignment, and thumbnails.
+It defaults to `false` when `PROD=false` and `true` when `PROD=true`; YouTube
+status and playlist reads remain available while updates are disabled.
+
+For safe local delivery testing, set `PROD=false`, `MAILER_OFF=false`,
+`MAILER_JOB_ENABLED=false`, and `DEV_EMAIL_OVERRIDE=you@example.com`. In
+non-production environments the override redirects every outgoing email to
+that address and namespaces its mailer job key so it cannot collide with
+production delivery. `MAILER_JOB_ENABLED` controls only the periodic database
+mailer scan; request-driven email remains available while it is false.
 
 YouTube OAuth tokens and the X Chrome profile are encrypted into Spaces because DigitalOcean App Platform does not persist local disk across deploys. The default object keys are:
 

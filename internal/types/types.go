@@ -29,8 +29,10 @@ type (
 		Prod                 bool
 		MailerSecret         string
 		MailerJob            int
+		MailerJobEnabled     bool
 		MailOff              bool
 		MailEndpoint         string
+		DevEmailOverride     string
 		StripeKey            string
 		StripeEndpointSec    string
 		RegistryPin          string
@@ -56,9 +58,10 @@ type (
 	// (the admin page surfaces a "set env vars" warning rather than
 	// crashing on a nil oauth2.Config).
 	YouTubeConfig struct {
-		ClientID     string
-		ClientSecret string
-		RedirectURL  string
+		ClientID       string
+		ClientSecret   string
+		RedirectURL    string
+		UpdatesEnabled bool
 	}
 
 	// RecordingsConfig controls the scheduled recording publisher. The

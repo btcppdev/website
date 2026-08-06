@@ -73,6 +73,18 @@ func TestEnvConfigValidateAllowsCompleteProdConfig(t *testing.T) {
 	}
 }
 
+func TestEnvConfigValidateOnlyRequiresMailerIntervalWhenJobEnabled(t *testing.T) {
+	env := &EnvConfig{Port: "8080", Host: "http://localhost:8080", MailOff: false}
+	if err := env.Validate(); err != nil {
+		t.Fatalf("disabled background mailer job should not require an interval: %s", err)
+	}
+
+	env.MailerJobEnabled = true
+	if err := env.Validate(); err == nil || !strings.Contains(err.Error(), "MAILER_JOB_SEC") {
+		t.Fatalf("enabled background mailer job with no interval returned %v", err)
+	}
+}
+
 func TestEnvConfigApplyDefaultsSeparatesXProfileObjects(t *testing.T) {
 	staging := &EnvConfig{}
 	staging.ApplyDefaults()
