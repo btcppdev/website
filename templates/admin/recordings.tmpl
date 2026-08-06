@@ -20,6 +20,7 @@
               </div>
               <div class="flex items-center gap-2 flex-wrap justify-end">
                 <a href="/{{ .Conf.Tag }}/admin/recordings/autoschedule" class="px-3 py-1.5 text-sm rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Autoschedule YouTube</a>
+                <a href="/{{ .Conf.Tag }}/admin/recordings/notify-speakers" class="px-3 py-1.5 text-sm rounded-md text-white bg-orange-600 hover:bg-orange-700">Notify Speakers</a>
                 <a href="/{{ .Conf.Tag }}/admin/recordings/upload-youtube" class="px-3 py-1.5 text-sm rounded-md text-white bg-green-600 hover:bg-green-700">Upload eligible to YouTube</a>
                 <a href="/{{ .Conf.Tag }}/admin/recordings/youtube-slots" class="px-3 py-1.5 text-sm rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200">Publish slots</a>
                 {{ if .AutopublishEnabled }}
@@ -29,6 +30,7 @@
                 {{ end }}
                 {{ if .YouTubeReady }}
                   <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">YouTube connected ✓</span>
+                  {{ if not .YouTubeUpdatesEnabled }}<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">updates off</span>{{ end }}
                   <form method="POST" action="/{{ .Conf.Tag }}/admin/recordings/oauth/youtube/disconnect" class="inline">
                     <button type="submit" class="text-xs text-gray-500 hover:text-gray-700 underline">disconnect</button>
                   </form>

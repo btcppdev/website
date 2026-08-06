@@ -45,6 +45,7 @@ const maxRecordingUploadBytes int64 = 25 << 30 // 25 GiB
 const (
 	recordingPlatformYouTube = "youtube"
 	recordingPlatformX       = "twitter"
+	recordingPlatformBufferX = "buffer-twitter"
 )
 
 // ---- page data ---------------------------------------------------------
@@ -55,6 +56,7 @@ type RecordingRow struct {
 	Speakers          []*types.Speaker
 	YTSocialPost      *types.SocialPost
 	XSocialPost       *types.SocialPost
+	BufferXSocialPost *types.SocialPost
 	YTURL             string
 	XURL              string
 	XReplyURL         string
@@ -389,6 +391,7 @@ func recordingSocialPostsByRef(ctx *config.AppContext, recs []*types.Recording) 
 		}
 		refs[recordingSocialPostRef(rec, recordingPlatformYouTube)] = true
 		refs[recordingSocialPostRef(rec, recordingPlatformX)] = true
+		refs[recordingSocialPostRef(rec, recordingPlatformBufferX)] = true
 	}
 	if len(refs) == 0 {
 		return nil
@@ -1721,6 +1724,7 @@ func attachRecordingSocialPosts(ctx *config.AppContext, row *RecordingRow) {
 	}
 	row.YTSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformYouTube)
 	row.XSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformX)
+	row.BufferXSocialPost = recordingSocialPostByRef(ctx, row.Recording, recordingPlatformBufferX)
 	applyRecordingSocialPosts(row)
 }
 
@@ -1730,6 +1734,7 @@ func attachRecordingSocialPostsFromMap(row *RecordingRow, socialPostsByRef map[s
 	}
 	row.YTSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformYouTube)]
 	row.XSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformX)]
+	row.BufferXSocialPost = socialPostsByRef[recordingSocialPostRef(row.Recording, recordingPlatformBufferX)]
 	applyRecordingSocialPosts(row)
 }
 
@@ -1760,6 +1765,14 @@ func applyRecordingSocialPosts(row *RecordingRow) {
 		}
 		if row.XSocialPost.ErrorFingerprint != "" {
 			row.XErrorFingerprint = row.XSocialPost.ErrorFingerprint
+		}
+	}
+	if row.BufferXSocialPost != nil && row.XSocialPost == nil {
+		if row.BufferXSocialPost.Status != "" {
+			row.XStatus = row.BufferXSocialPost.Status
+		}
+		if row.BufferXSocialPost.Error != "" {
+			row.XError = row.BufferXSocialPost.Error
 		}
 	}
 }

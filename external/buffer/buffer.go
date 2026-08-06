@@ -166,37 +166,18 @@ func buildAssetsBlock(imageURLs []string) string {
 }
 
 func CreatePost(channelID, text string, imageURLs []string, service string) (*PostResult, error) {
-	textEscaped, _ := json.Marshal(text)
+	return createPost(channelID, text, imageURLs, service, nil)
+}
 
-	assetsBlock := buildAssetsBlock(imageURLs)
+// CreateScheduledPost creates a post at an exact UTC instant instead of
+// placing it in the channel's next configured queue slot.
+func CreateScheduledPost(channelID, text string, imageURLs []string, service string, dueAt time.Time) (*PostResult, error) {
+	dueAt = dueAt.UTC()
+	return createPost(channelID, text, imageURLs, service, &dueAt)
+}
 
-	var metadataBlock string
-	if service == "instagram" {
-		igType := "post"
-		if len(imageURLs) > 1 {
-			igType = "carousel"
-		}
-		metadataBlock = fmt.Sprintf(`, metadata: { instagram: { type: %s, shouldShareToFeed: true } }`, igType)
-	}
-
-	query := fmt.Sprintf(`mutation {
-		createPost(input: {
-			text: %s,
-			channelId: "%s",
-			schedulingType: automatic,
-			mode: addToQueue
-			%s
-			%s
-		}) {
-			... on PostActionSuccess {
-				post { id text dueAt }
-			}
-			... on MutationError {
-				message
-			}
-		}
-	}`, string(textEscaped), channelID, assetsBlock, metadataBlock)
-
+func createPost(channelID, text string, imageURLs []string, service string, dueAt *time.Time) (*PostResult, error) {
+	query := buildCreatePostMutation(channelID, text, imageURLs, service, dueAt)
 	data, err := graphqlRequest(query)
 	if err != nil {
 		return nil, err
@@ -217,4 +198,98 @@ func CreatePost(channelID, text string, imageURLs []string, service string) (*Po
 	}
 
 	return result.CreatePost.Post, nil
+}
+
+// EditScheduledPost updates a previously created Buffer post after an admin
+// changes the corresponding YouTube schedule or release copy.
+func EditScheduledPost(postID, text string, imageURLs []string, service string, dueAt time.Time) (*PostResult, error) {
+	query := buildEditPostMutation(postID, text, imageURLs, service, dueAt.UTC())
+	data, err := graphqlRequest(query)
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		EditPost struct {
+			Post    *PostResult `json:"post"`
+			Message string      `json:"message"`
+		} `json:"editPost"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	if result.EditPost.Message != "" {
+		return nil, fmt.Errorf("buffer post error: %s", result.EditPost.Message)
+	}
+	return result.EditPost.Post, nil
+}
+
+func buildCreatePostMutation(channelID, text string, imageURLs []string, service string, dueAt *time.Time) string {
+	textEscaped, _ := json.Marshal(text)
+
+	assetsBlock := buildAssetsBlock(imageURLs)
+
+	var metadataBlock string
+	if service == "instagram" {
+		igType := "post"
+		if len(imageURLs) > 1 {
+			igType = "carousel"
+		}
+		metadataBlock = fmt.Sprintf(`, metadata: { instagram: { type: %s, shouldShareToFeed: true } }`, igType)
+	}
+	modeBlock := "mode: addToQueue"
+	if dueAt != nil {
+		dueEscaped, _ := json.Marshal(dueAt.UTC().Format(time.RFC3339Nano))
+		modeBlock = fmt.Sprintf("mode: customScheduled, dueAt: %s", string(dueEscaped))
+	}
+
+	return fmt.Sprintf(`mutation {
+		createPost(input: {
+			text: %s,
+			channelId: "%s",
+			schedulingType: automatic,
+			%s
+			%s
+			%s
+		}) {
+			... on PostActionSuccess {
+				post { id text dueAt }
+			}
+			... on MutationError {
+				message
+			}
+		}
+	}`, string(textEscaped), channelID, modeBlock, assetsBlock, metadataBlock)
+}
+
+func buildEditPostMutation(postID, text string, imageURLs []string, service string, dueAt time.Time) string {
+	textEscaped, _ := json.Marshal(text)
+	idEscaped, _ := json.Marshal(postID)
+	dueEscaped, _ := json.Marshal(dueAt.UTC().Format(time.RFC3339Nano))
+	assetsBlock := buildAssetsBlock(imageURLs)
+	var metadataBlock string
+	if service == "instagram" {
+		igType := "post"
+		if len(imageURLs) > 1 {
+			igType = "carousel"
+		}
+		metadataBlock = fmt.Sprintf(`, metadata: { instagram: { type: %s, shouldShareToFeed: true } }`, igType)
+	}
+	return fmt.Sprintf(`mutation {
+		editPost(input: {
+			id: %s,
+			text: %s,
+			schedulingType: automatic,
+			mode: customScheduled,
+			dueAt: %s
+			%s
+			%s
+		}) {
+			... on PostActionSuccess {
+				post { id text dueAt }
+			}
+			... on MutationError {
+				message
+			}
+		}
+	}`, string(idEscaped), string(textEscaped), string(dueEscaped), assetsBlock, metadataBlock)
 }
