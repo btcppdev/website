@@ -9184,14 +9184,15 @@ body.btcpp-checkout-page {
 
 .hack-prize-card__sponsor-logo {
 	display: inline-flex;
-	flex: 0 1 116px;
+	max-width: 50%;
+	flex: 0 1 150px;
 	justify-content: flex-end;
 }
 
 .hack-prize-card__sponsor-logo img {
 	display: block;
-	max-width: 116px;
-	max-height: 34px;
+	width: 100%;
+	height: 44px;
 	object-fit: contain;
 }
 
@@ -9310,6 +9311,17 @@ body.btcpp-checkout-page {
 	align-items: center;
 	gap: 9px;
 	color: var(--hack-accent);
+	overflow-wrap: anywhere;
+}
+
+.hack-bounty-card__sponsor {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+
+.hack-award-card__label {
+	flex: 0 0 auto;
+	white-space: nowrap;
 }
 
 .hack-bounty-card__sponsor a {
@@ -9324,17 +9336,17 @@ body.btcpp-checkout-page {
 
 .hack-sponsored-award-logo {
 	display: flex;
-	min-height: 58px;
+	min-width: 0;
+	max-width: 65%;
+	flex: 1 1 200px;
 	align-items: center;
-	justify-content: center;
-	padding-bottom: 18px;
-	border-bottom: 1px solid rgba(10, 10, 10, 0.16);
+	justify-content: flex-end;
 }
 
 .hack-sponsored-award-logo img {
 	display: block;
-	max-width: min(180px, 100%);
-	max-height: 44px;
+	width: 100%;
+	height: 48px;
 	object-fit: contain;
 }
 
