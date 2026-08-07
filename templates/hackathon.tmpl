@@ -124,7 +124,6 @@
           {{ range $additionalAwards }}
           {{ $award := . }}
           <article class="hack-bounty-card">
-            {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
             <div class="hack-bounty-card__top">
               <div class="hack-bounty-card__sponsor">
                 {{ if $.AwardHasSponsor . }}
@@ -137,7 +136,8 @@
               <span>[ {{ $.AwardDisplayLabel . }} ]</span>
               {{ end }}
             </div>
-          </div>
+              {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
+            </div>
             <h3>{{ .Title }}</h3>
             {{ if .Description }}<div class="hack-bounty-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
             {{ $prizes := $.AwardPrizes . }}
@@ -169,7 +169,6 @@
           {{ range $challengeAwards }}
           {{ $award := . }}
           <article class="hack-bounty-card">
-            {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
             <div class="hack-bounty-card__top">
               <div class="hack-bounty-card__sponsor">
                 {{ if $.AwardHasSponsor . }}
@@ -182,7 +181,8 @@
               <span>[ Challenge ]</span>
               {{ end }}
             </div>
-          </div>
+              {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
+            </div>
             <h3>{{ .Title }}</h3>
             {{ if .Description }}<div class="hack-bounty-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
             {{ $prizes := $.AwardPrizes . }}
@@ -392,12 +392,12 @@
         {{ $award := . }}
         <article class="hack-card hack-award-card">
           <div class="hack-card__body">
-            {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
             <div class="hack-award-card__top">
               <div class="hack-award-card__label">
                 <span>{{ if $.AwardIsChallenge . }}[ {{ $.AwardDisplayLabel . }} ]{{ else }}★ {{ $.AwardDisplayLabel . }}{{ end }}</span>
               </div>
-          </div>
+              {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
+            </div>
             <h3>{{ .Title }}</h3>
             {{ if $.AwardHasSponsor . }}
             <div class="hack-tags">
