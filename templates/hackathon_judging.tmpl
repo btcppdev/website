@@ -42,6 +42,101 @@
     <div class="hack-alert hack-alert--error">{{ .FlashError }}</div>
     {{ end }}
 
+    <nav class="hack-tabs hack-judging-view-tabs" aria-label="Judging views">
+      <a href="{{ .JudgingURL }}" class="hack-tab" aria-selected="{{ if not .JudgingResultsSelected }}true{{ else }}false{{ end }}">Ballot</a>
+      {{ if .CanViewJudgingResults }}
+      <a href="{{ .JudgingResultsURL nil }}" class="hack-tab" aria-selected="{{ if .JudgingResultsSelected }}true{{ else }}false{{ end }}">Results</a>
+      {{ end }}
+    </nav>
+
+    {{ if .JudgingResultsSelected }}
+    {{ $results := .JudgingResults }}
+    <section class="hack-section hack-judging-results">
+      <div class="hack-section__head">
+        <div>
+          <div class="hack-label">§ Live results</div>
+          <h2>Review the <span class="hack-serif">rankings.</span></h2>
+        </div>
+        <div class="hack-section__deck">Read-only scoring results for rounds you are assigned to judge. Refresh while the judges discuss which projects advance.</div>
+      </div>
+
+      {{ if .JudgingResultEvents }}
+      <nav class="hack-results-events" aria-label="Judging rounds">
+        {{ range .JudgingResultEvents }}
+        <a href="{{ $.JudgingResultsURL . }}" class="hack-results-event{{ if $.JudgingResultEventIs . }} hack-results-event--active{{ end }}" {{ if $.JudgingResultEventIs . }}aria-current="page"{{ end }}>
+          <strong>{{ .Name }}</strong>
+          <span>{{ $.JudgeTypeLabel .PlaybookType }} · {{ $.JudgeEventStateLabel . }}</span>
+          {{ if .StartsAt }}<time class="hackathon-judging-time" datetime="{{ .StartsAt.Format "2006-01-02T15:04:05Z07:00" }}">{{ .StartsAt.Format "2006-01-02 15:04" }}</time>{{ end }}
+        </a>
+        {{ end }}
+      </nav>
+      {{ end }}
+
+      {{ if not $results.Event }}
+      <div class="hack-empty">Results become available when one of your assigned judging rounds opens.</div>
+      {{ else if $results.AwaitingCompletedBallot }}
+      <div class="hack-results-gate">
+        <div class="hack-label">Complete your ballot first</div>
+        <h3>Rank all {{ $results.RequiredRanks }} required projects to unlock live results.</h3>
+        <p>Your choices remain private from the other judges until your ballot is complete. You can continue revising them after results unlock.</p>
+        <a href="{{ .JudgingURL }}" class="hack-button hack-button--accent">Return to ballot</a>
+      </div>
+      {{ else }}
+      <div class="hack-results-toolbar">
+        <div>
+          <div class="hack-label">{{ .JudgeTypeLabel $results.Event.PlaybookType }}</div>
+          <h3>{{ $results.Event.Name }}</h3>
+        </div>
+        <a href="{{ .JudgingResultsURL $results.Event }}" class="hack-button hack-button--light">Refresh results</a>
+      </div>
+      <div class="hack-results-stats">
+        <div><span>Judges invited</span><strong>{{ $results.InvitedJudgeCount }}</strong></div>
+        <div><span>Ballots submitted</span><strong>{{ $results.SubmittedBallotCount }}</strong></div>
+        <div><span>Projects ranked</span><strong>{{ $results.RankedProjectCount }}</strong></div>
+        <div><span>Last ballot</span><strong>{{ $results.LastSubmittedAtLabel }}</strong></div>
+      </div>
+
+      <div class="hack-results-block">
+        <div class="hack-results-block__head">
+          <div>
+            <div class="hack-label">Aggregate ranking</div>
+            <h3>Project standings</h3>
+          </div>
+          <span>{{ len $results.Summaries }} projects</span>
+        </div>
+        {{ if $results.Summaries }}
+        <div class="hack-table-wrap">
+          <table class="hack-table">
+            <thead>
+              <tr>
+                <th scope="col">Project</th>
+                <th scope="col">#</th>
+                <th scope="col">Ranked by</th>
+                <th scope="col">Points</th>
+                <th scope="col">Avg rank</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{ range $results.Summaries }}
+              <tr>
+                <td><a href="{{ $.ProjectURLByID .ProjectID }}" class="hack-judging-project-link">{{ .ProjectTitle }}</a></td>
+                <td>{{ .ProjectNumber }}</td>
+                <td>{{ .ScoredScorecards }} judge{{ if ne .ScoredScorecards 1 }}s{{ end }}</td>
+                <td><strong>{{ .PointsLabel }}</strong></td>
+                <td>{{ .RankAverage }}</td>
+              </tr>
+              {{ end }}
+            </tbody>
+          </table>
+        </div>
+        {{ else }}
+        <div class="hack-empty">No projects are available in this round.</div>
+        {{ end }}
+      </div>
+
+      {{ end }}
+    </section>
+    {{ else }}
     {{ $event := .CurrentJudgeEvent }}
     <section class="hack-section hack-judging-round">
       {{ if $event }}
@@ -274,6 +369,7 @@
       <div class="hack-empty">No projects are visible yet.</div>
       {{ end }}
     </section>
+    {{ end }}
   </main>
   <script>
     (function () {

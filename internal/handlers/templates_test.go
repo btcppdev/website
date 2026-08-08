@@ -336,3 +336,70 @@ func TestCurrentJudgeEvents(t *testing.T) {
 		t.Fatalf("automatic scheduled current events = %+v, want scheduled", got)
 	}
 }
+
+func TestJudgingResultEvents(t *testing.T) {
+	competition := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeManual}
+	events := []*types.JudgeEvent{
+		{ID: "pending-expo", PlaybookType: getters.JudgeTypeExpo, State: getters.JudgeEventStatePending},
+		{ID: "open-expo", PlaybookType: getters.JudgeTypeExpo, State: getters.JudgeEventStateOpen},
+		{ID: "closed-expo", PlaybookType: getters.JudgeTypeExpo, State: getters.JudgeEventStateClosed},
+		{ID: "closed-finals", PlaybookType: getters.JudgeTypeFinals, State: getters.JudgeEventStateClosed},
+	}
+	now := time.Now()
+
+	judgeEvents := judgingResultEvents(
+		competition,
+		events,
+		types.HackathonViewer{PersonID: "judge"},
+		map[string]bool{getters.JudgeTypeExpo: true},
+		now,
+	)
+	if len(judgeEvents) != 2 || judgeEvents[0].ID != "open-expo" || judgeEvents[1].ID != "closed-expo" {
+		t.Fatalf("judge result events = %+v, want open and closed expo events", judgeEvents)
+	}
+
+	managerEvents := judgingResultEvents(
+		competition,
+		events,
+		types.HackathonViewer{Manager: true},
+		nil,
+		now,
+	)
+	if len(managerEvents) != 3 || managerEvents[2].ID != "closed-finals" {
+		t.Fatalf("manager result events = %+v, want every non-pending event", managerEvents)
+	}
+
+	if selected := selectedJudgingResultEvent(competition, judgeEvents, "closed-expo", now); selected == nil || selected.ID != "closed-expo" {
+		t.Fatalf("requested result event = %+v, want closed-expo", selected)
+	}
+	if selected := selectedJudgingResultEvent(competition, judgeEvents, "", now); selected == nil || selected.ID != "open-expo" {
+		t.Fatalf("default result event = %+v, want open-expo", selected)
+	}
+}
+
+func TestJudgeBallotIsComplete(t *testing.T) {
+	event := &types.JudgeEvent{ID: "expo", RankLimit: 4}
+	rankOne, rankTwo, rankThree, rankFour := 1, 2, 3, 4
+	complete := []*types.Scorecard{
+		{JudgeEventID: event.ID, ProjectID: "one", Rank: &rankOne},
+		{JudgeEventID: event.ID, ProjectID: "two", Rank: &rankTwo},
+		{JudgeEventID: event.ID, ProjectID: "three", Rank: &rankThree},
+		{JudgeEventID: event.ID, ProjectID: "four", Rank: &rankFour},
+	}
+	if !judgeBallotIsComplete(complete, event, 4) {
+		t.Fatal("complete four-rank ballot was rejected")
+	}
+	if judgeBallotIsComplete(complete[:3], event, 4) {
+		t.Fatal("incomplete ballot was accepted")
+	}
+
+	duplicateRank := append([]*types.Scorecard(nil), complete...)
+	duplicateRank[3] = &types.Scorecard{JudgeEventID: event.ID, ProjectID: "four", Rank: &rankThree}
+	if judgeBallotIsComplete(duplicateRank, event, 4) {
+		t.Fatal("ballot with a duplicate rank was accepted")
+	}
+
+	if !judgeBallotIsComplete(complete[:2], event, 2) {
+		t.Fatal("complete ballot for a two-project round was rejected")
+	}
+}
