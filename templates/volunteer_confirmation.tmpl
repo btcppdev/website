@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Confirm volunteer application · bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-profile-edit-page">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="profile-edit-shell person-emails-page">
+    <header class="profile-edit-hero">
+      <p class="profile-edit-tag">§ VOLUNTEER</p>
+      <h1>Confirm your <span>application.</span></h1>
+    </header>
+    {{ if .Error }}
+      <div class="profile-edit-flash person-emails-error">{{ .Error }}</div>
+    {{ else if .Confirmed }}
+      <div class="profile-edit-flash">Your volunteer application for {{ .Conf.Desc }} has been submitted.</div>
+      {{ if .Notice }}<div class="profile-edit-flash person-emails-error">{{ .Notice }}</div>{{ end }}
+      <p><a href="/dashboard">Open your dashboard →</a></p>
+    {{ else }}
+      <section class="profile-edit-section is-open">
+        <div class="profile-edit-section__index">✓</div>
+        <div class="profile-edit-section__body">
+          <div class="profile-edit-section__head"><div><p>§ VERIFY EMAIL</p><h2>Volunteer at {{ .Conf.Desc }}?</h2></div></div>
+          <p>Confirm that <strong>{{ .Volunteer.Email }}</strong> submitted this application. It will only be added to the volunteer roster and your bitcoin++ profile after confirmation.</p>
+          <form method="POST" action="/volunteer/confirm" class="person-merge-review person-email-verification-form">
+            <input type="hidden" name="token" value="{{ .Token }}">
+            <button type="submit">Confirm volunteer application</button>
+          </form>
+          <p><small>If you did not submit this application, close this page and nothing will be changed.</small></p>
+        </div>
+      </section>
+    {{ end }}
+  </main>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

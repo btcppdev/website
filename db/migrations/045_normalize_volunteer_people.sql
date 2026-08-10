@@ -60,7 +60,7 @@ UPDATE volunteers volunteer
 SET person_id = backfill.person_id
 FROM volunteer_identity_backfill backfill
 WHERE volunteer.person_id IS NULL
-  AND volunteer.email = backfill.email;
+  AND lower(btrim(volunteer.email::text))::citext = backfill.email;
 
 -- Volunteer applications sometimes contain the only copy of older contact
 -- details. Copy the newest non-empty value into an empty canonical field, but
@@ -123,16 +123,28 @@ WHERE person.id = latest.person_id AND btrim(person.tshirt) = '';
 -- Complete registration ownership while the historical volunteer email is
 -- still present. Only unambiguous volunteer identities are eligible.
 WITH volunteer_owner AS (
-  SELECT email, min(person_id::text)::uuid AS person_id
-  FROM volunteers
-  GROUP BY email
+  SELECT lower(btrim(volunteer.email::text))::citext AS email,
+    min(volunteer.person_id::text)::uuid AS person_id
+  FROM volunteers volunteer
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM person_email_conflicts conflict
+    WHERE conflict.email = lower(btrim(volunteer.email::text))::citext
+  )
+    AND EXISTS (
+      SELECT 1
+      FROM person_emails alias
+      WHERE alias.person_id = volunteer.person_id
+        AND alias.email = lower(btrim(volunteer.email::text))::citext
+    )
+  GROUP BY lower(btrim(volunteer.email::text))::citext
   HAVING count(DISTINCT person_id) = 1
 )
 UPDATE registrations registration
 SET person_id = owner.person_id
 FROM volunteer_owner owner
 WHERE registration.person_id IS NULL
-  AND registration.email = owner.email;
+  AND lower(btrim(registration.email::text))::citext = owner.email;
 
 ALTER TABLE volunteers
   ALTER COLUMN person_id SET NOT NULL;

@@ -982,6 +982,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/volunteer", func(w http.ResponseWriter, r *http.Request) {
 		RenderVolunteers(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/volunteer/confirm", func(w http.ResponseWriter, r *http.Request) {
+		VolunteerApplicationConfirmation(w, r, app)
+	}).Methods("GET", "POST")
 
 	r.HandleFunc("/volunteer/{conf}", func(w http.ResponseWriter, r *http.Request) {
 		RenderVolunteerConf(w, r, app)
@@ -3871,40 +3874,23 @@ func RenderVolunteerConf(w http.ResponseWriter, r *http.Request, ctx *config.App
 		vol.WorkYes = helpers.ParseFormJobs("yjob-", r.PostForm, jobs)
 		vol.WorkNo = helpers.ParseFormJobs("njob-", r.PostForm, jobs)
 
-		if len(vol.ScheduleFor) == 0 {
-			vol.ScheduleFor = append(vol.ScheduleFor, conf)
-		}
+		// The event comes from the routed, published volunteer page. Do not trust
+		// a client-supplied ScheduleFor value to select a different conference.
+		vol.ScheduleFor = []*types.Conf{conf}
 
-		err = getters.RegisterVolunteer(ctx, &vol)
+		token, err := getters.CreateVolunteerApplicationRequest(ctx, &vol)
 		if err != nil {
-			ctx.Err.Printf("/volunteer/{conf} unable to register volunteer %s", err)
+			ctx.Err.Printf("/volunteer/{conf} unable to stage volunteer %s", err)
 			w.Write([]byte(helpers.ErrVolApp("Unable to register you.")))
 			return
 		}
-
-		/* Send application acknowledgment email */
-		volinfo, err := getters.GetVolInfo(ctx, conf.Ref)
-		if err != nil {
-			ctx.Err.Printf("/volunteer/{conf} unable to fetch volinfos %s", err)
-			w.Write([]byte(helpers.ErrVolApp("Unable to register you.")))
+		if err := sendVolunteerApplicationConfirmationEmail(ctx, &vol, conf, token); err != nil {
+			ctx.Err.Printf("/volunteer/{conf} unable to send confirmation email: %s", err)
+			w.Write([]byte(helpers.ErrVolApp("Unable to send your confirmation email. Please try again.")))
 			return
 		}
 
-		_, err = emails.OnlyForVolApp(ctx, &vol, conf, volinfo)
-		if err != nil {
-			ctx.Err.Printf("/volunteer/{conf} unable to send ack email: %s", err)
-		}
-
-		/* Register to mailing lists :) */
-		/* Note: this also sends pre-saved missives for the vol app list! */
-		newslist := missives.MakeApplicationSublist(conf.Tag, "volapp", vol.Subscribe)
-		err = missives.NewSubs(ctx, vol.Email, newslist)
-
-		if err != nil {
-			ctx.Err.Printf("!!! Unable to subscribe to newsletter %s: %v", err, vol)
-		}
-
-		w.Write([]byte(helpers.SuccessApp("Your volunteer application has been submitted! We'll be in touch.")))
+		w.Write([]byte(helpers.SuccessApp("Check your email to confirm your volunteer application. Nothing will be submitted until you confirm.")))
 		return
 	}
 
