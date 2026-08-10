@@ -20,22 +20,22 @@ func TestShowTicketPriceIncreaseDate(t *testing.T) {
 		{
 			name: "before conference start",
 			conf: conf,
-			tix:  &types.ConfTicket{Expires: &types.Times{Start: start.AddDate(0, 0, -1)}},
+			tix:  &types.ConfTicket{SalesEndAt: start.AddDate(0, 0, -1)},
 			want: true,
 		},
 		{
 			name: "same as conference start",
 			conf: conf,
-			tix:  &types.ConfTicket{Expires: &types.Times{Start: start}},
+			tix:  &types.ConfTicket{SalesEndAt: start},
 			want: false,
 		},
 		{
 			name: "after conference start",
 			conf: conf,
-			tix:  &types.ConfTicket{Expires: &types.Times{Start: start.AddDate(0, 0, 44)}},
+			tix:  &types.ConfTicket{SalesEndAt: start.AddDate(0, 0, 44)},
 			want: false,
 		},
-		{name: "nil conf", conf: nil, tix: &types.ConfTicket{Expires: &types.Times{Start: start}}, want: false},
+		{name: "nil conf", conf: nil, tix: &types.ConfTicket{SalesEndAt: start}, want: false},
 		{name: "nil ticket", conf: conf, tix: nil, want: false},
 		{name: "nil expires", conf: conf, tix: &types.ConfTicket{}, want: false},
 	}

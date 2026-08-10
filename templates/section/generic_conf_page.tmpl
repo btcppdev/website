@@ -554,7 +554,7 @@
         {{ if le $p.TixLeft 99 }}Only <strong>{{ $p.TixLeft }}</strong> tickets are left.{{ else }}All conference access. One pass for talks, workshops, and side programming.{{ end }}
       {{ else }}
         {{ if showTicketPriceIncreaseDate $conf $p.Tix }}
-          Prices go up on <strong>{{ $p.Tix.Expires.DateDesc }}</strong>{{ if le $p.TixLeft 99 }} or after <strong>{{ $p.TixLeft }}</strong> more tickets are sold{{ end }}.
+          Prices go up on <strong>{{ $p.Tix.SalesEndDateDesc }}</strong>{{ if le $p.TixLeft 99 }} or after <strong>{{ $p.TixLeft }}</strong> more tickets are sold{{ end }}.
         {{ else if le $p.TixLeft 99 }}
           Prices go up after <strong>{{ $p.TixLeft }}</strong> more tickets are sold.
         {{ else }}

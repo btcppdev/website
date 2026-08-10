@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -221,7 +222,7 @@ type (
 		USD              uint
 		BasePrice        uint
 		CardSurchargeBPS uint
-		Expires          *Times
+		SalesEndAt       time.Time
 		Max              uint
 		Currency         string
 		Symbol           string
@@ -1456,6 +1457,13 @@ func (t *ConfTicket) CardSurcharge(local bool) uint {
 	return card - base
 }
 
+func (t *ConfTicket) SalesEndDateDesc() string {
+	if t == nil || t.SalesEndAt.IsZero() {
+		return ""
+	}
+	return t.SalesEndAt.Format("Jan 2, 2006")
+}
+
 /* Functions to sort conference tickets */
 func (t ConfTickets) Len() int {
 	return len(t)
@@ -1467,7 +1475,45 @@ func (t ConfTickets) Swap(i, j int) {
 
 func (s ConfTickets) Less(i, j int) bool {
 	/* Sort by time first */
-	return s[i].Expires.Start.Before(s[j].Expires.Start)
+	return s[i].SalesEndAt.Before(s[j].SalesEndAt)
+}
+
+// CurrentConfTicketAt applies the time and cumulative-capacity rules used by
+// checkout without mutating the conference's ticket order.
+func CurrentConfTicketAt(tickets []*ConfTicket, sold uint, at time.Time) *ConfTicket {
+	sorted := append(ConfTickets(nil), tickets...)
+	sort.Sort(sorted)
+	for _, ticket := range sorted {
+		if ticket == nil || ticket.SalesEndAt.IsZero() || !ticket.SalesEndAt.After(at) {
+			continue
+		}
+		if ticket.Max <= sold {
+			continue
+		}
+		return ticket
+	}
+	return nil
+}
+
+// NextConfTicketAfter returns the next capacity-eligible tier after current.
+func NextConfTicketAfter(tickets []*ConfTicket, current *ConfTicket, sold uint) *ConfTicket {
+	if current == nil {
+		return nil
+	}
+	sorted := append(ConfTickets(nil), tickets...)
+	sort.Sort(sorted)
+	found := false
+	for _, ticket := range sorted {
+		if ticket == current || (ticket != nil && ticket.ID != "" && ticket.ID == current.ID) {
+			found = true
+			continue
+		}
+		if !found || ticket == nil || ticket.Max <= sold {
+			continue
+		}
+		return ticket
+	}
+	return nil
 }
 
 /* Functions to sort Speakers */

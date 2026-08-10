@@ -67,7 +67,7 @@ type ConfTicketInput struct {
 	Symbol           string
 	PostSymbol       string
 	StripeTaxCode    string
-	ExpiresStart     *time.Time
+	SalesEndAt       *time.Time
 	ExpiresEnd       *time.Time
 }
 
@@ -282,11 +282,11 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT id::text, conference_id::text, tier, local_price, btc_price, usd_price,
 			base_price, card_surcharge_bps,
-			expires_start, expires_end, max_count, currency, symbol, post_symbol,
+			sales_end_at, expires_end, max_count, currency, symbol, post_symbol,
 			stripe_tax_code
 		FROM conference_tickets
 		`+whereSQL+`
-		ORDER BY expires_start NULLS LAST, tier
+		ORDER BY sales_end_at NULLS LAST, tier
 	`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query %s: %w", label, err)
@@ -296,7 +296,7 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 	var tickets []*types.ConfTicket
 	for rows.Next() {
 		var ticket types.ConfTicket
-		var expiresStart pgtype.Timestamptz
+		var salesEndAt pgtype.Timestamptz
 		var expiresEnd pgtype.Timestamptz
 		var localPrice, btcPrice, usdPrice, basePrice, cardSurchargeBPS, maxCount int64
 		err := rows.Scan(
@@ -308,7 +308,7 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 			&usdPrice,
 			&basePrice,
 			&cardSurchargeBPS,
-			&expiresStart,
+			&salesEndAt,
 			&expiresEnd,
 			&maxCount,
 			&ticket.Currency,
@@ -325,12 +325,8 @@ func queryConfTicketsPostgres(ctx *config.AppContext, label string, whereSQL str
 		ticket.BasePrice = uint(basePrice)
 		ticket.CardSurchargeBPS = uint(cardSurchargeBPS)
 		ticket.Max = uint(maxCount)
-		ticket.Expires = &types.Times{}
-		if expiresStart.Valid {
-			ticket.Expires.Start = expiresStart.Time
-		}
-		if expiresEnd.Valid {
-			ticket.Expires.End = &expiresEnd.Time
+		if salesEndAt.Valid {
+			ticket.SalesEndAt = salesEndAt.Time
 		}
 		tickets = append(tickets, &ticket)
 	}
@@ -510,14 +506,14 @@ func UpdateConfTicket(ctx *config.AppContext, confRef string, in ConfTicketInput
 			symbol = $9,
 			post_symbol = $10,
 			stripe_tax_code = $11,
-			expires_start = $12,
+			sales_end_at = $12,
 			expires_end = $13,
 			btc_price = $5,
 			usd_price = $5
 		WHERE id = $1::uuid
 		  AND conference_id = $2::uuid
 	`, in.ID, confRef, in.Tier, int64(in.LocalPrice), int64(in.BasePrice), int64(in.CardSurchargeBPS),
-		int64(in.Max), in.Currency, in.Symbol, in.PostSymbol, normalizeStripeTaxCode(in.StripeTaxCode, types.StripeTaxCodeNontaxable), in.ExpiresStart, in.ExpiresEnd)
+		int64(in.Max), in.Currency, in.Symbol, in.PostSymbol, normalizeStripeTaxCode(in.StripeTaxCode, types.StripeTaxCodeNontaxable), in.SalesEndAt, in.ExpiresEnd)
 	if err != nil {
 		return fmt.Errorf("update conference ticket %s: %w", in.ID, err)
 	}

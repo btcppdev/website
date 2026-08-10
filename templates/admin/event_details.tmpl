@@ -339,10 +339,10 @@
             <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Stripe tax code
               <input type="text" name="stripe_tax_code" value="{{ .Ticket.StripeTaxCode }}" placeholder="txcd_00000000" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </label>
-            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Checkout opens
-              <input type="datetime-local" name="expires_start" value="{{ .ExpiresStart }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Tier cutoff / price change
+              <input type="datetime-local" name="sales_end_at" value="{{ .SalesEndAt }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </label>
-            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Checkout closes
+            <label class="text-xs font-medium uppercase tracking-wider text-gray-500">Legacy end (unused by checkout)
               <input type="datetime-local" name="expires_end" value="{{ .ExpiresEnd }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm normal-case tracking-normal shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </label>
           </div>

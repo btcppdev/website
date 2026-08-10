@@ -630,22 +630,7 @@ func determineTixPrice(ctx *config.AppContext, tixSlug string) (*types.Conf, *ty
 
 /* Find ticket where current sold + date > inputs */
 func findCurrTix(conf *types.Conf, soldCount uint) *types.ConfTicket {
-	now := time.Now()
-	/* Sort the tickets! */
-	tixs := types.ConfTickets(conf.Tickets)
-	sort.Sort(&tixs)
-	for _, tix := range tixs {
-		if tix.Expires.Start.Before(now) {
-			continue
-		}
-		if tix.Max <= soldCount {
-			continue
-		}
-		return tix
-	}
-
-	/* No tix available! */
-	return nil
+	return types.CurrentConfTicketAt(conf.Tickets, soldCount, time.Now())
 }
 
 /* Find ticket where current sold + date > inputs */
@@ -669,10 +654,10 @@ func findMaxTix(conf *types.Conf) *types.ConfTicket {
 }
 
 func showTicketPriceIncreaseDate(conf *types.Conf, tix *types.ConfTicket) bool {
-	if conf == nil || tix == nil || tix.Expires == nil {
+	if conf == nil || tix == nil || tix.SalesEndAt.IsZero() {
 		return false
 	}
-	return tix.Expires.Start.Before(conf.StartDate)
+	return tix.SalesEndAt.Before(conf.StartDate)
 }
 
 func confImagePath(tag, base string) string {
