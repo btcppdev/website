@@ -254,12 +254,16 @@ func TemplatedMissivesSchedule(w http.ResponseWriter, r *http.Request, ctx *conf
 		redirectTemplatedMissivesErr(w, r, "Save the missive before scheduling it")
 		return
 	}
-	letter, err := missives.ScheduleMissiveByUID(ctx, uid)
+	letter, started, err := missives.QueueMissiveByUID(ctx, uid)
 	if err != nil {
 		http.Redirect(w, r, "/admin/missives?uid="+strconv.FormatUint(uid, 10)+"&error="+url.QueryEscape("Schedule failed: "+err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, "/admin/missives?uid="+strconv.FormatUint(uid, 10)+"&flash="+url.QueryEscape("Scheduled missive "+letter.Missive()), http.StatusSeeOther)
+	message := "Scheduling " + letter.Missive() + " in the background"
+	if !started {
+		message = letter.Missive() + " is already being scheduled"
+	}
+	http.Redirect(w, r, "/admin/missives?uid="+strconv.FormatUint(uid, 10)+"&flash="+url.QueryEscape(message), http.StatusSeeOther)
 }
 
 func renderTemplatedMissivesAdminWithForm(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, form TemplatedMissiveForm, msg string) {

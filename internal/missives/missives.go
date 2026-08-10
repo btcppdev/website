@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"btcpp-web/external/getters"
@@ -20,6 +21,8 @@ type SubToken struct {
 	Email      string
 	Newsletter string
 }
+
+var activeMissiveSchedules sync.Map
 
 func ParseSubscribeToken(sec []byte, token string) (*SubToken, error) {
 	parts := strings.Split(token, "-")
@@ -88,6 +91,42 @@ func ScheduleMissiveByUID(ctx *config.AppContext, uid uint64) (*mtypes.Letter, e
 		return nil, err
 	}
 	return letter, nil
+}
+
+// QueueMissiveByUID validates that the missive exists, then performs the
+// per-subscriber mailer fan-out outside the admin HTTP request. The mailer
+// still provides per-recipient idempotency, while this process-local guard
+// prevents repeated clicks from starting duplicate work on the same server.
+func QueueMissiveByUID(ctx *config.AppContext, uid uint64) (*mtypes.Letter, bool, error) {
+	letter, err := getters.GetLetter(ctx, uid)
+	if err != nil {
+		return nil, false, err
+	}
+
+	started := startMissiveSchedule(uid, func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				ctx.Err.Printf("background missive schedule MISS-%d panicked: %v", uid, recovered)
+			}
+		}()
+		if _, err := ScheduleMissiveByUID(ctx, uid); err != nil {
+			ctx.Err.Printf("background missive schedule MISS-%d failed: %s", uid, err)
+			return
+		}
+		ctx.Infos.Printf("background missive schedule MISS-%d complete", uid)
+	})
+	return letter, started, nil
+}
+
+func startMissiveSchedule(uid uint64, run func()) bool {
+	if _, loaded := activeMissiveSchedules.LoadOrStore(uid, struct{}{}); loaded {
+		return false
+	}
+	go func() {
+		defer activeMissiveSchedules.Delete(uid)
+		run()
+	}()
+	return true
 }
 
 func scheduleMissive(ctx *config.AppContext, subscribers []*mtypes.Subscriber, letter *mtypes.Letter, isPreview bool) ([]byte, mtypes.SendStatus, error) {
