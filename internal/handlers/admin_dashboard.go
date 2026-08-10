@@ -40,7 +40,7 @@ type EventDetailsPage struct {
 
 type EventDetailsTicket struct {
 	Ticket        *types.ConfTicket
-	ExpiresStart  string
+	SalesEndAt    string
 	ExpiresEnd    string
 	CardPrice     uint
 	CardSurcharge uint
@@ -186,11 +186,8 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 			CardPrice:     ticket.CardPrice(false),
 			CardSurcharge: ticket.CardSurcharge(false),
 		}
-		if ticket.Expires != nil {
-			row.ExpiresStart = datetimeLocalInput(ticket.Expires.Start)
-			if ticket.Expires.End != nil {
-				row.ExpiresEnd = datetimeLocalInput(*ticket.Expires.End)
-			}
+		if !ticket.SalesEndAt.IsZero() {
+			row.SalesEndAt = datetimeLocalInput(ticket.SalesEndAt)
 		}
 		tickets = append(tickets, row)
 	}
@@ -402,9 +399,9 @@ func GlobalAdminUpdateConfTicket(w http.ResponseWriter, r *http.Request, ctx *co
 	}
 
 	loc := conf.Loc()
-	expiresStart, err := parseOptionalDatetimeLocal(r.FormValue("expires_start"), loc)
+	salesEndAt, err := parseOptionalDatetimeLocal(r.FormValue("sales_end_at"), loc)
 	if err != nil {
-		redirectEventDetails(w, r, conf, "Invalid ticket start date.")
+		redirectEventDetails(w, r, conf, "Invalid ticket tier cutoff.")
 		return
 	}
 	expiresEnd, err := parseOptionalDatetimeLocal(r.FormValue("expires_end"), loc)
@@ -412,8 +409,8 @@ func GlobalAdminUpdateConfTicket(w http.ResponseWriter, r *http.Request, ctx *co
 		redirectEventDetails(w, r, conf, "Invalid ticket end date.")
 		return
 	}
-	if expiresStart != nil && expiresEnd != nil && expiresEnd.Before(*expiresStart) {
-		redirectEventDetails(w, r, conf, "Ticket end date must be after ticket start date.")
+	if salesEndAt != nil && expiresEnd != nil && expiresEnd.Before(*salesEndAt) {
+		redirectEventDetails(w, r, conf, "Legacy ticket end date must be after the tier cutoff.")
 		return
 	}
 
@@ -428,7 +425,7 @@ func GlobalAdminUpdateConfTicket(w http.ResponseWriter, r *http.Request, ctx *co
 		Symbol:           strings.TrimSpace(r.FormValue("symbol")),
 		PostSymbol:       strings.TrimSpace(r.FormValue("post_symbol")),
 		StripeTaxCode:    strings.TrimSpace(r.FormValue("stripe_tax_code")),
-		ExpiresStart:     expiresStart,
+		SalesEndAt:       salesEndAt,
 		ExpiresEnd:       expiresEnd,
 	}
 	if in.Tier == "" {
