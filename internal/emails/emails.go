@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -480,6 +481,76 @@ func SendNewsletterMissive(ctx *config.AppContext, sub *mtypes.Subscriber, lette
 	ctx.Infos.Printf("Sending (%s)%s to %s at %s", subkey, letter.Title, sub.Email, sendAt)
 
 	return htmlBody, ComposeAndSendMail(ctx, mail)
+}
+
+// SendWeeklyNewsletterDraftReview alerts the editorial inbox that the Monday
+// automation has prepared a draft. The stable job key lets the mailer collapse
+// duplicate attempts if more than one web process observes the same run.
+func SendWeeklyNewsletterDraftReview(ctx *config.AppContext, letter *mtypes.Letter) error {
+	return sendWeeklyNewsletterDraftReview(ctx, letter, false)
+}
+
+// SendWeeklyNewsletterDraftReviewTest uses a unique job key so an admin can
+// exercise the workflow repeatedly. Development delivery still passes through
+// DEV_EMAIL_OVERRIDE in SendMailRequest.
+func SendWeeklyNewsletterDraftReviewTest(ctx *config.AppContext, letter *mtypes.Letter) error {
+	return sendWeeklyNewsletterDraftReview(ctx, letter, true)
+}
+
+func sendWeeklyNewsletterDraftReview(ctx *config.AppContext, letter *mtypes.Letter, test bool) error {
+	if ctx == nil || ctx.Env == nil || letter == nil || letter.UID == 0 {
+		return fmt.Errorf("weekly newsletter draft review is missing configuration or a draft")
+	}
+	editURL := strings.TrimRight(ctx.Env.GetURI(), "/") + fmt.Sprintf("/admin/missives/%d", letter.UID)
+	escapedURL := html.EscapeString(editURL)
+	var renderedMarkdown bytes.Buffer
+	if err := executeMissiveTemplate(ctx, letter, &renderedMarkdown, &mtypes.EmailContent{
+		ImgRef: letter.ImgRef(),
+		URI:    ctx.Env.GetURI(),
+	}); err != nil {
+		return fmt.Errorf("render weekly newsletter review draft: %w", err)
+	}
+	displayTime, err := letter.CalcSendAt()
+	if err != nil {
+		displayTime = time.Now()
+	}
+	htmlBody, textBody, err := BuildTemplatedNewsletterEmailAt(ctx, letter.ImgRef(), renderedMarkdown.Bytes(), "", displayTime)
+	if err != nil {
+		return fmt.Errorf("build weekly newsletter review draft: %w", err)
+	}
+	reviewBanner := fmt.Sprintf(`<div style="background:#111827;color:#fff;padding:14px 20px;text-align:center;font-family:Arial,sans-serif;font-size:14px;line-height:1.4"><strong style="margin-right:10px">Draft review</strong><a href="%s" style="display:inline-block;border-radius:6px;background:#fff;color:#111827;padding:8px 12px;font-weight:700;text-decoration:none">View and edit draft</a><div style="margin-top:7px;font-size:11px;color:#d1d5db;word-break:break-all">%s</div></div>`, escapedURL, escapedURL)
+	htmlBody = insertAfterOpeningBody(htmlBody, []byte(reviewBanner))
+	textBody = append([]byte(fmt.Sprintf("DRAFT REVIEW — View and edit: %s\n\n", editURL)), textBody...)
+	jobKey := fmt.Sprintf("weekly-draft-review-%d", letter.UID)
+	if test {
+		jobKey = fmt.Sprintf("%s-test-%d-%d", jobKey, time.Now().UTC().UnixNano(), previewMissiveJobSequence.Add(1))
+	}
+	return ComposeAndSendMail(ctx, &Mail{
+		JobKey:   jobKey,
+		Email:    "inbox@btcpp.dev",
+		Title:    "[DRAFT REVIEW] " + letter.Title,
+		SendAt:   time.Now(),
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	})
+}
+
+func insertAfterOpeningBody(document, content []byte) []byte {
+	lower := bytes.ToLower(document)
+	bodyStart := bytes.Index(lower, []byte("<body"))
+	if bodyStart == -1 {
+		return append(append([]byte(nil), content...), document...)
+	}
+	bodyEnd := bytes.IndexByte(document[bodyStart:], '>')
+	if bodyEnd == -1 {
+		return append(append([]byte(nil), content...), document...)
+	}
+	insertAt := bodyStart + bodyEnd + 1
+	out := make([]byte, 0, len(document)+len(content))
+	out = append(out, document[:insertAt]...)
+	out = append(out, content...)
+	out = append(out, document[insertAt:]...)
+	return out
 }
 
 func newsletterMissiveJobKey(email string, letter *mtypes.Letter, preview bool) string {

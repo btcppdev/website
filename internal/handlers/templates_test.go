@@ -9,6 +9,7 @@ import (
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/mtypes"
 	"btcpp-web/internal/types"
 )
 
@@ -29,10 +30,64 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
-	for _, name := range []string{"hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl"} {
+	for _, name := range []string{"hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl"} {
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
 		}
+	}
+	var inlineMissive bytes.Buffer
+	inlineTemplates, err := ctx.TemplateCache.Clone()
+	if err != nil {
+		t.Fatalf("clone templates for inline missive: %v", err)
+	}
+	if _, err := inlineTemplates.Parse(`{{ define "mainnav" }}<nav>test</nav>{{ end }}`); err != nil {
+		t.Fatalf("override inline missive test nav: %v", err)
+	}
+	if err := inlineTemplates.ExecuteTemplate(&inlineMissive, "admin/inline_missive.tmpl", &InlineMissivePage{
+		Current: &mtypes.Letter{UID: 42, PageID: "page-id", OnlyFor: "volapp", Title: "Hi {{ .Name }}", Markdown: "Hello {{ .Volunteer.Name }}"},
+		Fields:  onlyForTemplateFields("volapp"),
+	}); err != nil {
+		t.Fatalf("render inline missive editor: %v", err)
+	}
+	for _, want := range []string{`action="/admin/missives/42/inline"`, `{{ .Volunteer.Name }}`, `Triggered email`} {
+		if !strings.Contains(inlineMissive.String(), want) {
+			t.Fatalf("inline missive editor missing %q", want)
+		}
+	}
+	var missiveIndex bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&missiveIndex, "admin/templated_missives_index.tmpl", &TemplatedMissivesPage{
+		Letters:           []*mtypes.Letter{{UID: 42, OnlyFor: "volapp", Title: "Volunteer application"}},
+		MissiveView:       missiveViewOneShots,
+		MissiveTabCounts:  MissiveTabCounts{OneShots: 1, Unsent: 2, SentScheduled: 3},
+		OneShotsTabURL:    "/admin/missives?view=oneshots",
+		UnsentTabURL:      "/admin/missives?view=unsent",
+		SentTabURL:        "/admin/missives?view=sent",
+		ClearFilterURL:    "/admin/missives?view=oneshots",
+		OneShotLabels:     oneShotMissiveLabels(),
+		ScheduledMissives: map[uint64]bool{},
+		IsDevelopment:     true,
+		DevReviewEmail:    "developer@example.com",
+	}); err != nil {
+		t.Fatalf("render missive index: %v", err)
+	}
+	for _, want := range []string{"One-shots", "Unsent", "Sent / scheduled", "Volunteer application received", "volapp", `action="/admin/missives/weekly/test-auto-draft"`, "Review email redirects to developer@example.com"} {
+		if !strings.Contains(missiveIndex.String(), want) {
+			t.Fatalf("missive index missing %q", want)
+		}
+	}
+	var missiveEditor bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&missiveEditor, "admin/templated_missives.tmpl", &TemplatedMissivesPage{
+		Form: TemplatedMissiveForm{UID: 77, Title: "Weekly draft", Template: "roundup", Palette: "ember"},
+	}); err != nil {
+		t.Fatalf("render missive editor: %v", err)
+	}
+	for _, want := range []string{`id="MissiveControlsPanel"`, `id="OpenMissiveControls"`, `id="CloseMissiveControls"`, `id="NewsletterPreview"`, `window.matchMedia('(max-width: 1279px)')`} {
+		if !strings.Contains(missiveEditor.String(), want) {
+			t.Fatalf("mobile missive editor missing %q", want)
+		}
+	}
+	if strings.Contains(missiveEditor.String(), `style="min-width:680px;"`) {
+		t.Fatal("newsletter preview retains a forced desktop width on mobile")
 	}
 	discountTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {

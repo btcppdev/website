@@ -3,10 +3,69 @@ package getters
 import (
 	"context"
 	"testing"
+	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
+
+func TestDatabaseSmokeWeeklyNewsletterMerchAddedAndRestocked(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	suffix := databaseSmokeSuffix()
+	createdIDs := []string{}
+	t.Cleanup(func() {
+		for _, id := range createdIDs {
+			_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM merch_products WHERE id = $1::uuid`, id)
+		}
+	})
+	createStockedProduct := func(prefix string) (string, string, string) {
+		t.Helper()
+		slug := prefix + "-" + suffix
+		productID, err := CreateMerchProduct(ctx, MerchProductInput{
+			Tag: slug, Slug: slug, Name: prefix + " newsletter merch",
+			Status: types.MerchProductStatusPublished, BasePriceCents: 1000, Currency: "USD",
+		})
+		if err != nil {
+			t.Fatalf("create %s product: %v", prefix, err)
+		}
+		createdIDs = append(createdIDs, productID)
+		variantID, err := CreateMerchVariant(ctx, MerchVariantInput{
+			ProductID: productID, SKU: "NEWS-" + prefix + "-" + suffix,
+			Label: "Default", InventoryPolicy: types.MerchInventoryPolicyDeny, Status: "active",
+		})
+		if err != nil {
+			t.Fatalf("create %s variant: %v", prefix, err)
+		}
+		if err := AdjustMerchInventory(ctx, variantID, "initial", 2, "", "newsletter test stock"); err != nil {
+			t.Fatalf("stock %s variant: %v", prefix, err)
+		}
+		return productID, variantID, slug
+	}
+
+	_, _, addedSlug := createStockedProduct("added")
+	restockProductID, restockVariantID, restockedSlug := createStockedProduct("restocked")
+	now := time.Now().UTC()
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE merch_products SET published_at = $2 WHERE id = $1::uuid`, restockProductID, now.AddDate(0, 0, -30)); err != nil {
+		t.Fatalf("age restocked product: %v", err)
+	}
+	if err := AdjustMerchInventory(ctx, restockVariantID, "increase", 4, "", "newsletter test restock"); err != nil {
+		t.Fatalf("restock variant: %v", err)
+	}
+
+	updates, err := weeklyNewsletterMerchUpdates(ctx, now.Add(-time.Hour), now.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("weeklyNewsletterMerchUpdates: %v", err)
+	}
+	got := map[string]string{}
+	for _, update := range updates {
+		if update.Slug == addedSlug || update.Slug == restockedSlug {
+			got[update.Slug] = update.Kind
+		}
+	}
+	if got[addedSlug] != "added" || got[restockedSlug] != "restocked" {
+		t.Fatalf("merch updates = %#v, want added and restocked products", got)
+	}
+}
 
 func TestDatabaseSmokeShopReservationLifecycleAndPaymentReplay(t *testing.T) {
 	ctx := databaseSmokeContext(t)

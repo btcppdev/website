@@ -5,20 +5,12 @@
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" "" }}
   <style>
+    .missive-mobile-controls,
+    .missive-controls-backdrop,
+    .missive-controls-sheet-header {
+      display: none;
+    }
     @media (min-width: 1280px) {
-      .missive-page-grid {
-        display: grid;
-        grid-template-columns: minmax(720px, 65fr) minmax(360px, 35fr);
-        gap: 1.5rem;
-      }
-      .missive-page-grid > main {
-        grid-column: 1 / span 2;
-        grid-row-start: 1;
-      }
-      .missive-page-grid > aside {
-        grid-column-start: 2;
-        grid-row-start: 2;
-      }
       .missive-form-grid {
         display: grid;
         grid-template-columns: minmax(720px, 65fr) minmax(360px, 35fr);
@@ -43,6 +35,95 @@
         position: sticky;
         top: 1rem;
       }
+      .missive-controls-panel {
+        display: contents;
+      }
+    }
+    @media (max-width: 1279px) {
+      body.missive-controls-open {
+        overflow: hidden;
+      }
+      .missive-form-grid {
+        padding-bottom: 5.5rem;
+      }
+      .missive-preview-panel {
+        grid-row: 1;
+        padding: .75rem;
+      }
+      .missive-preview-panel iframe {
+        min-width: 0 !important;
+      }
+      .missive-controls-panel {
+        background: #fff;
+        border-radius: 1rem 1rem 0 0;
+        bottom: 0;
+        box-shadow: 0 -18px 48px rgba(17, 24, 39, .22);
+        display: block;
+        left: 0;
+        max-height: 92vh;
+        overflow-y: auto;
+        padding: 0 1rem calc(1.25rem + env(safe-area-inset-bottom));
+        position: fixed;
+        right: 0;
+        transform: translateY(105%);
+        transition: transform 220ms ease, visibility 220ms;
+        visibility: hidden;
+        z-index: 60;
+      }
+      .missive-controls-panel.is-open {
+        transform: translateY(0);
+        visibility: visible;
+      }
+      .missive-controls-panel > section,
+      .missive-controls-panel > div:not(.missive-controls-sheet-header) {
+        margin-top: 1rem;
+      }
+      .missive-controls-sheet-header {
+        align-items: center;
+        background: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        margin: 0 -1rem;
+        padding: .65rem 1rem .75rem;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+      .missive-controls-sheet-handle {
+        background: #d1d5db;
+        border-radius: 999px;
+        height: 4px;
+        left: 50%;
+        position: absolute;
+        top: 6px;
+        transform: translateX(-50%);
+        width: 42px;
+      }
+      .missive-mobile-controls {
+        align-items: center;
+        background: #111827;
+        border-radius: 999px;
+        bottom: calc(1rem + env(safe-area-inset-bottom));
+        box-shadow: 0 10px 24px rgba(17, 24, 39, .28);
+        color: #fff;
+        display: inline-flex;
+        font-size: .875rem;
+        font-weight: 700;
+        gap: .5rem;
+        left: 50%;
+        padding: .8rem 1.15rem;
+        position: fixed;
+        transform: translateX(-50%);
+        z-index: 45;
+      }
+      .missive-controls-backdrop.is-open {
+        background: rgba(17, 24, 39, .48);
+        display: block;
+        inset: 0;
+        position: fixed;
+        z-index: 50;
+      }
     }
   </style>
 </head>
@@ -51,11 +132,10 @@
   <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="mb-6 flex items-center justify-between gap-4">
       <div>
-        <a href="/dashboard" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Dashboard</a>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Templated missives</h1>
-        <p class="mt-1 text-sm text-gray-600">Create and edit newsletter missives that use the rebrand renderer. These are normal scheduled missives with <code class="rounded bg-gray-100 px-1">OnlyFor=templated</code>.</p>
+        <a href="/admin/missives" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; All missives</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}New templated missive{{ else }}Edit MISS-{{ .Form.UID }}{{ end }}</h1>
+        <p class="mt-1 text-sm text-gray-600">Build, preview, test, and schedule this newsletter missive.</p>
       </div>
-      <a href="/admin/missives" class="rounded-md bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">New templated missive</a>
     </div>
 
     {{ if .FlashMessage }}
@@ -65,66 +145,51 @@
     <div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .ErrorMessage }}</div>
     {{ end }}
 
-    <div class="missive-page-grid grid gap-6">
-      <aside class="space-y-4 xl:col-start-2 xl:row-start-2">
-        <div class="rounded-lg bg-white shadow">
-          <div class="border-b border-gray-200 px-4 py-3">
-            <h2 class="text-sm font-semibold">Existing templated missives</h2>
-          </div>
-          <div class="divide-y divide-gray-100">
-            {{ if .Letters }}
-              {{ range .Letters }}
-              <a href="/admin/missives?uid={{ .UID }}" class="block px-4 py-3 hover:bg-indigo-50">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <div class="truncate text-sm font-medium text-gray-900">{{ .Title }}</div>
-                    <div class="mt-1 text-xs text-gray-500">MISS-{{ .UID }} · SendAt {{ if .SendAt }}{{ .SendAt }}{{ else }}unset{{ end }}</div>
-                    <div class="mt-1 flex flex-wrap gap-1">
-                      {{ range .Newsletters }}<span class="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">{{ . }}</span>{{ end }}
-                    </div>
-                  </div>
-                  {{ if .SentAt }}
-                  <span class="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">sent</span>
-                  {{ else }}
-                  <span class="shrink-0 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">active</span>
-                  {{ end }}
-                </div>
-              </a>
-              {{ end }}
-            {{ else }}
-              <div class="px-4 py-8 text-sm text-gray-500">No templated missives yet.</div>
-            {{ end }}
-          </div>
-        </div>
-
-        <div class="rounded-lg bg-white p-4 text-sm shadow">
-          <h2 class="font-semibold">Image uploads</h2>
-          {{ if .SpacesReady }}
-          <p class="mt-1 text-gray-600">Attach a hero image while saving. It uploads to <code class="rounded bg-gray-100 px-1">newsletter/</code> in Spaces and writes the public URL into the hero field.</p>
-          {{ else }}
-          <p class="mt-1 text-red-700">Spaces is not configured, so image uploads are disabled.</p>
-          {{ end }}
-        </div>
-      </aside>
-
-      <main class="rounded-lg bg-white shadow xl:col-span-2 xl:row-start-1">
+    <div class="grid gap-6">
+      <main class="rounded-lg bg-white shadow">
         <form method="POST" action="/admin/missives" enctype="multipart/form-data" class="missive-form-grid grid gap-6 p-5 xl:items-start">
           <input type="hidden" name="UID" value="{{ .Form.UID }}">
 
-          <div class="flex items-center justify-between gap-4 border-b border-gray-200 pb-4 xl:col-start-2">
+          <div id="MissiveControlsPanel" class="missive-controls-panel" aria-hidden="false" aria-label="Newsletter settings and editing controls">
+            <div class="missive-controls-sheet-header">
+              <span class="missive-controls-sheet-handle" aria-hidden="true"></span>
+              <div>
+                <div class="text-sm font-semibold">Edit newsletter</div>
+                <div class="text-xs text-gray-500">Settings and draft content</div>
+              </div>
+              <button type="button" id="CloseMissiveControls" class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700">Done</button>
+            </div>
+
+          <div class="border-b border-gray-200 pb-5 xl:col-start-2">
             <div>
               <h2 class="text-lg font-semibold">{{ if .IsNew }}New templated missive{{ else }}Edit MISS-{{ .Form.UID }}{{ end }}</h2>
               <p class="mt-1 text-sm text-gray-500">Saving updates the missive row. Delivery still depends on SendAt, Expiry, SentAt, and subscriber list matching.</p>
             </div>
-            <div class="flex flex-wrap justify-end gap-2">
+            <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
+              <button type="submit" class="inline-flex min-h-[42px] items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:col-span-2 xl:col-span-1">
+                Save missive
+              </button>
               {{ if not .IsNew }}
               <button type="submit" formaction="/admin/missives/schedule?uid={{ .Form.UID }}" formmethod="POST"
                       onclick="return confirm('Schedule this saved missive using its current SendAt and audience settings?')"
-                      class="rounded-md border border-amber-700 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50">
+                      class="inline-flex min-h-[42px] items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
                 Schedule saved missive
               </button>
               {{ end }}
-              <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save missive</button>
+              {{ if .CanCancel }}
+              <button type="submit" formaction="/admin/missives/{{ .Form.UID }}/cancel" formmethod="POST" formnovalidate
+                      onclick="return confirm('Cancel every queued, unsent delivery for this missive? The draft will be kept.')"
+                      class="inline-flex min-h-[42px] items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-center text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2">
+                Cancel scheduled send
+              </button>
+              {{ end }}
+              {{ if .CanDelete }}
+              <button type="submit" formaction="/admin/missives/{{ .Form.UID }}/delete" formmethod="POST" formnovalidate
+                      onclick="return confirm('Delete this draft permanently? This cannot be undone.')"
+                      class="inline-flex min-h-[42px] items-center justify-center rounded-md border border-red-200 bg-white px-4 py-2 text-center text-sm font-semibold text-red-700 shadow-sm hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                Delete draft
+              </button>
+              {{ end }}
             </div>
           </div>
 
@@ -154,7 +219,7 @@
             </label>
             <label class="block">
               <span class="text-xs font-medium text-gray-700">SendAt</span>
-              <input name="SendAt" value="{{ .Form.SendAt }}" placeholder="now, onsub, +9, 6/12/2026" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+              <input name="SendAt" value="{{ .Form.SendAt }}" placeholder="now, onsub, +9, 6/12/2026, or an RFC3339 timestamp" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
             </label>
             <label class="block">
               <span class="text-xs font-medium text-gray-700">Expiry</span>
@@ -366,6 +431,11 @@
             </div>
           </section>
 
+          <div class="flex justify-end xl:col-start-2">
+            <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save missive</button>
+          </div>
+          </div>
+
           <section class="missive-preview-panel rounded-md border border-gray-200 bg-gray-50 p-4 xl:col-start-1 xl:row-start-1">
             <div class="flex items-center justify-between gap-4">
               <div>
@@ -375,17 +445,17 @@
               <span class="rounded bg-gray-100 px-2 py-1 text-xs text-gray-500">approximate inbox render</span>
             </div>
             <div class="mt-4 overflow-x-auto rounded-md border border-gray-300 bg-gray-200 p-4">
-              <iframe id="NewsletterPreview" title="Newsletter preview" scrolling="no" class="block w-full bg-white" style="min-width:680px;"></iframe>
+              <iframe id="NewsletterPreview" title="Newsletter preview" scrolling="no" class="block w-full bg-white"></iframe>
             </div>
           </section>
-
-          <div class="flex justify-end xl:col-start-2">
-            <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save missive</button>
-          </div>
         </form>
       </main>
     </div>
   </div>
+  <button type="button" id="OpenMissiveControls" class="missive-mobile-controls" aria-controls="MissiveControlsPanel" aria-expanded="false">
+    Edit draft <span aria-hidden="true">&uarr;</span>
+  </button>
+  <button type="button" id="MissiveControlsBackdrop" class="missive-controls-backdrop" aria-label="Close newsletter editor"></button>
   <script>
     (function () {
       const templateSelect = document.getElementById('TemplateType');
@@ -411,8 +481,47 @@
       const insertInlineButton = document.getElementById('InsertInlineButton');
       const inlineButtonStatus = document.getElementById('InlineButtonStatus');
       const contentMarkdown = document.getElementById('ContentMarkdown');
+      const controlsPanel = document.getElementById('MissiveControlsPanel');
+      const controlsOpen = document.getElementById('OpenMissiveControls');
+      const controlsClose = document.getElementById('CloseMissiveControls');
+      const controlsBackdrop = document.getElementById('MissiveControlsBackdrop');
+      const mobileControlsQuery = window.matchMedia('(max-width: 1279px)');
       let heroCropImage = null;
       let heroCropObjectURL = '';
+
+      function setControlsOpen(isOpen) {
+        if (!controlsPanel || !controlsOpen || !controlsBackdrop) return;
+        if (!mobileControlsQuery.matches) isOpen = false;
+        controlsPanel.classList.toggle('is-open', isOpen);
+        controlsBackdrop.classList.toggle('is-open', isOpen);
+        controlsPanel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+        controlsOpen.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        document.body.classList.toggle('missive-controls-open', isOpen);
+        if (isOpen && controlsClose) controlsClose.focus();
+        if (!isOpen) controlsOpen.focus();
+      }
+
+      function syncControlsForViewport() {
+        if (!controlsPanel || !controlsOpen || !controlsBackdrop) return;
+        if (!mobileControlsQuery.matches) {
+          controlsPanel.classList.remove('is-open');
+          controlsBackdrop.classList.remove('is-open');
+          controlsPanel.setAttribute('aria-hidden', 'false');
+          controlsOpen.setAttribute('aria-expanded', 'false');
+          document.body.classList.remove('missive-controls-open');
+          return;
+        }
+        controlsPanel.setAttribute('aria-hidden', controlsPanel.classList.contains('is-open') ? 'false' : 'true');
+      }
+
+      if (controlsOpen) controlsOpen.addEventListener('click', function () { setControlsOpen(true); });
+      if (controlsClose) controlsClose.addEventListener('click', function () { setControlsOpen(false); });
+      if (controlsBackdrop) controlsBackdrop.addEventListener('click', function () { setControlsOpen(false); });
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && controlsPanel && controlsPanel.classList.contains('is-open')) setControlsOpen(false);
+      });
+      if (mobileControlsQuery.addEventListener) mobileControlsQuery.addEventListener('change', syncControlsForViewport);
+      syncControlsForViewport();
 
       const templates = {
         roundup: {
@@ -660,7 +769,8 @@
       function markdownHTML(md) {
         const out = [];
         let inList = false;
-        lines(md).forEach(function (line) {
+        String(md || '').split(/\r?\n/).filter(function (line) { return line.trim(); }).forEach(function (rawLine) {
+          const line = rawLine.trim();
           const button = parseButtonShortcode(line);
           if (button) {
             if (inList) { out.push('</ul>'); inList = false; }
@@ -669,11 +779,12 @@
           }
           if (/^- /.test(line)) {
             if (!inList) { out.push('<ul style="padding-left:24px;margin:14px 0;">'); inList = true; }
-            out.push('<li style="font-size:15px;line-height:1.6;margin:6px 0;">' + inlineMarkdown(line.replace(/^- /, '')) + '</li>');
+            const nested = /^\s{4,}- /.test(rawLine);
+            out.push('<li style="font-size:15px;line-height:1.6;margin:6px 0;' + (nested ? 'margin-left:24px;' : '') + '">' + inlineMarkdown(line.replace(/^- /, '')) + '</li>');
             return;
           }
           if (inList) { out.push('</ul>'); inList = false; }
-          if (/^### /.test(line)) out.push('<h3 style="font-size:20px;line-height:1.2;margin:24px 0 8px;">' + inlineMarkdown(line.replace(/^### /, '')) + '</h3>');
+          if (/^### /.test(line)) out.push('<h3 style="color:#F57247;font-family:IBM Plex Mono,Menlo,monospace;font-size:11px;font-weight:600;line-height:1.3;letter-spacing:1.5px;text-transform:uppercase;margin:32px 0 12px;padding-top:18px;border-top:1px solid #1C1C1E;">' + inlineMarkdown(line.replace(/^### /, '')) + '</h3>');
           else if (/^## /.test(line)) out.push('<h2 style="font-size:30px;line-height:1.05;margin:28px 0 12px;">' + inlineMarkdown(line.replace(/^## /, '')) + '</h2>');
           else if (/^# /.test(line)) out.push('<h1 style="font-size:42px;line-height:1;margin:0 0 14px;">' + inlineMarkdown(line.replace(/^# /, '')) + '</h1>');
           else out.push('<p style="font-size:15px;line-height:1.65;margin:16px 0;color:#1C1C1E;">' + inlineMarkdown(line) + '</p>');
@@ -716,7 +827,7 @@
 
       function renderLead() {
         if (!visible('lead') || (!field('LeadTitle') && !field('LeadDeck'))) return '';
-        return sectionLabel(field('LeadEyebrow') || '§ FEATURE') +
+        return sectionLabel(field('LeadEyebrow')) +
           '<h1 style="font-size:48px;line-height:.95;letter-spacing:-2px;font-weight:700;margin:0 0 12px;color:#1C1C1E;">' + esc(field('LeadTitle')) + '</h1>' +
           '<div style="font-family:Georgia,serif;font-style:italic;font-size:20px;line-height:1.35;color:#6B655C;">' + esc(field('LeadDeck')) + '</div>';
       }
@@ -754,7 +865,11 @@
 
       function renderCTA() {
         if (!visible('cta') || (!field('CTATitle') && !field('CTAURL'))) return '';
-        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;border-top:1px solid #1C1C1E;border-bottom:1px solid #1C1C1E;background:#F57247;"><tr><td style="padding:32px 28px;"><div style="font-family:IBM Plex Mono,Menlo,monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">' + esc(field('CTAEyebrow')) + '</div><div style="font-size:36px;line-height:1;font-weight:700;letter-spacing:-1.5px;margin-bottom:10px;">' + esc(field('CTATitle')) + '</div><div style="font-family:Georgia,serif;font-size:18px;line-height:1.35;margin-bottom:20px;">' + esc(field('CTASubtitle')) + '</div><a href="' + esc(field('CTAURL')) + '" style="display:inline-block;background:#1C1C1E;color:#fff;border:1px solid #1C1C1E;padding:14px 24px;font-family:IBM Plex Mono,Menlo,monospace;font-size:12px;font-weight:700;letter-spacing:1.5px;text-decoration:none;text-transform:uppercase;">' + esc(field('CTALabel') || 'READ MORE') + ' &#8594;</a></td></tr></table>';
+        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;border-top:1px solid #1C1C1E;border-bottom:1px solid #1C1C1E;background:#F57247;"><tr><td style="padding:32px 28px;"><div style="font-family:IBM Plex Mono,Menlo,monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">' + esc(field('CTAEyebrow')) + '</div><div style="font-size:36px;line-height:1;font-weight:700;letter-spacing:-1.5px;margin-bottom:10px;">' + esc(field('CTATitle')) + '</div><div style="font-family:Georgia,serif;font-size:18px;line-height:1.35;margin-bottom:20px;">' + inlineStrong(field('CTASubtitle')) + '</div><a href="' + esc(field('CTAURL')) + '" style="display:inline-block;background:#1C1C1E;color:#fff;border:1px solid #1C1C1E;padding:14px 24px;font-family:IBM Plex Mono,Menlo,monospace;font-size:12px;font-weight:700;letter-spacing:1.5px;text-decoration:none;text-transform:uppercase;">' + esc(field('CTALabel') || 'READ MORE') + ' &#8594;</a></td></tr></table>';
+      }
+
+      function inlineStrong(value) {
+        return esc(value).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
       }
 
       function formatDisplayDate(date) {
@@ -789,9 +904,10 @@
         const ticker = visible('ticker') ? lines(field('Ticker')) : [];
         const hero = visible('hero') ? field('Hero') : '';
         const body = visible('body') ? markdownHTML(field('ContentMarkdown')) : '';
-        let html = '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;overflow:hidden;background:' + outer + ';font-family:IBM Plex Sans,-apple-system,BlinkMacSystemFont,Helvetica Neue,Arial,sans-serif;color:#1C1C1E}a{color:inherit}.inner{width:640px;max-width:100%;background:' + paper + ';border:1px solid #1C1C1E}</style></head><body><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:' + outer + ';"><tr><td align="center" style="padding:24px 12px;"><table role="presentation" class="inner" cellpadding="0" cellspacing="0">';
+        let html = '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;overflow:hidden;background:' + outer + ';font-family:IBM Plex Sans,-apple-system,BlinkMacSystemFont,Helvetica Neue,Arial,sans-serif;color:#1C1C1E}a{color:inherit}.inner{width:640px;max-width:100%;table-layout:fixed;background:' + paper + ';border:1px solid #1C1C1E}.ticker-cell{max-width:0;overflow:hidden;white-space:nowrap}.ticker-window{width:100%;height:14px;max-height:14px;overflow:hidden;white-space:nowrap}.ticker-track{display:inline-block;line-height:14px;white-space:nowrap;animation:ticker-scroll 28s linear infinite}.ticker-set{display:inline-block;padding-right:32px;white-space:nowrap}@keyframes ticker-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}@media(prefers-reduced-motion:reduce){.ticker-track{animation:none}}</style></head><body><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:' + outer + ';"><tr><td align="center" style="padding:24px 12px;"><table role="presentation" class="inner" cellpadding="0" cellspacing="0">';
         if (ticker.length) {
-          html += '<tr><td style="background:#1C1C1E;color:#fff;padding:10px 20px;font-family:IBM Plex Mono,Menlo,monospace;font-size:11px;letter-spacing:1.5px;"><span style="color:#F57247;margin-right:16px;">&#9654; LIVE</span>' + ticker.map(esc).join('<span style="color:#6B655C;margin:0 12px;">&bull;</span>') + '</td></tr>';
+          const tickerItems = ticker.map(esc).join('<span style="color:#6B655C;margin:0 12px;">&bull;</span>');
+          html += '<tr><td class="ticker-cell" style="background:#1C1C1E;color:#fff;padding:10px 20px;font-family:IBM Plex Mono,Menlo,monospace;font-size:11px;line-height:14px;letter-spacing:1.5px;white-space:nowrap;overflow:hidden;"><div class="ticker-window"><div class="ticker-track"><span class="ticker-set">' + tickerItems + '</span><span class="ticker-set" aria-hidden="true">' + tickerItems + '</span></div></div></td></tr>';
         }
         html += '<tr><td style="padding:22px 32px;border-bottom:1px solid #1C1C1E;"><table role="presentation" width="100%"><tr><td><div style="font-size:28px;font-weight:700;letter-spacing:-1px;font-family:IBM Plex Mono,Menlo,monospace;line-height:1;">bitcoin<span style="color:#F57247;">++</span></div><div style="font-family:Georgia,serif;font-style:italic;font-size:14px;color:#6B655C;margin-top:4px;">a dispatch from the frontier</div></td><td style="text-align:right;font-family:IBM Plex Mono,Menlo,monospace;font-size:11px;letter-spacing:1.2px;color:#6B655C;"><div>ISSUE ' + esc(field('Issue') || 'NEWSLETTER') + '</div><div>' + esc(displayDateFromSendAt()) + '</div></td></tr></table></td></tr>';
         if (hero) html += '<tr><td style="padding:0;border-bottom:1px solid #1C1C1E;"><img src="' + esc(hero) + '" width="640" height="270" style="width:100%;max-width:640px;height:270px;max-height:270px;object-fit:cover;display:block;"></td></tr>';

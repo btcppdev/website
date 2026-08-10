@@ -182,6 +182,14 @@ func (l *Letter) CalcSendAt() (time.Time, error) {
 		return time.Now(), nil
 	}
 
+	// Explicit timestamps are used when the wall-clock time and timezone are
+	// part of the publishing schedule (for example, the weekly newsletter at
+	// 10:00 America/Chicago). Keep the older shorthand formats below for
+	// existing missives.
+	if sendAt, err := time.Parse(time.RFC3339, l.SendAt); err == nil {
+		return sendAt, nil
+	}
+
 	if l.SendAt[0:1] == "+" {
 		days, err := strconv.Atoi(l.SendAt[1:])
 		if err != nil {
