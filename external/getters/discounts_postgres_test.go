@@ -58,3 +58,35 @@ func TestDatabaseSmokeDiscountScopedToMultipleConferences(t *testing.T) {
 		t.Fatal("archived code reported available even though the database code name is unique")
 	}
 }
+
+func TestDatabaseSmokeDiscountWildcardScope(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	code := "WILDCARDSMOKE" + strings.ToUpper(databaseSmokeSuffix())
+
+	discountID, err := CreateDiscount(ctx, DiscountInput{
+		CodeName:       code,
+		DiscountExpr:   "%25",
+		AllConferences: true,
+	})
+	if err != nil {
+		t.Fatalf("CreateDiscount wildcard: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM discounts WHERE id::text = $1 OR code_name = $2`, discountID, code)
+	})
+
+	found, err := GetDiscountByCode(ctx, code)
+	if err != nil {
+		t.Fatalf("GetDiscountByCode wildcard: %v", err)
+	}
+	if found == nil || len(found.ConfRef) != 0 {
+		t.Fatalf("wildcard discount = %+v, want no conference links", found)
+	}
+	total, applied, err := CalcDiscount(ctx, "future-conference-id", code, 100, 1)
+	if err != nil {
+		t.Fatalf("CalcDiscount wildcard: %v", err)
+	}
+	if total != 75 || applied == nil || applied.Ref != discountID {
+		t.Fatalf("CalcDiscount wildcard = total:%d discount:%+v", total, applied)
+	}
+}
