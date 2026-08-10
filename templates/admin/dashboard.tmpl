@@ -33,6 +33,14 @@
             <div class="text-sm font-medium text-gray-900">Templated newsletters</div>
             <div class="mt-1 text-xs text-gray-500">Create and edit rebrand missives, upload hero images, and list all templated sends.</div>
           </a>
+          <a href="/admin/subscribers" class="block rounded-md border border-gray-200 px-4 py-3 hover:border-indigo-300 hover:bg-indigo-50">
+            <div class="text-sm font-medium text-gray-900">Newsletter subscribers</div>
+            {{ if .SubscriberStatsReady }}
+            <div class="mt-1 text-xs font-medium text-indigo-700">{{ .SubscriberSummary.NewsletterActive }} active newsletter &middot; {{ .SubscriberSummary.TotalStored }} stored</div>
+            {{ else }}
+            <div class="mt-1 text-xs text-gray-500">Review audience totals, search email addresses, and inspect list memberships.</div>
+            {{ end }}
+          </a>
           <a href="/admin/orgs" class="block rounded-md border border-gray-200 px-4 py-3 hover:border-indigo-300 hover:bg-indigo-50">
             <div class="text-sm font-medium text-gray-900">Organizations</div>
             <div class="mt-1 text-xs text-gray-500">Manage sponsor and organization records.</div>

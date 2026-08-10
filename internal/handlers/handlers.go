@@ -1244,6 +1244,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/roles", func(w http.ResponseWriter, r *http.Request) {
 		SpeakerRolesUpdate(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/subscribers", func(w http.ResponseWriter, r *http.Request) {
+		AdminSubscribers(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/admin/homepage-speakers", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminHomepageSpeakersUpdate(w, r, app)
 	}).Methods("POST")
