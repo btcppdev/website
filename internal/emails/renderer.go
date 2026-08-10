@@ -416,6 +416,9 @@ a { color: inherit; }
 .btcpp-content ul, .btcpp-content ol { padding-left: 24px; }
 .btcpp-content li { font-size: 15px; line-height: 1.6; margin: 8px 0; }
 .btcpp-section-label { color: #F57247; font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+@media only screen and (max-width: 680px) {
+  .btcpp-inner { border: 0 !important; }
+}
 `, outer, outer, paper))
 }
 
