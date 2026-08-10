@@ -2,6 +2,7 @@ package getters
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"btcpp-web/internal/types"
@@ -126,7 +127,7 @@ func TestDatabaseSmokeTicketPickupChecklist(t *testing.T) {
 		Availability: []string{},
 		ScheduleFor:  []*types.Conf{{Ref: conferenceID}},
 	}
-	if err := RegisterVolunteer(app, volunteer); err != nil {
+	if err := registerConfirmedVolunteer(app, volunteer); err != nil {
 		t.Fatalf("register volunteer: %s", err)
 	}
 	t.Cleanup(func() {
@@ -151,14 +152,8 @@ func TestDatabaseSmokeTicketPickupChecklist(t *testing.T) {
 		Availability: []string{},
 		ScheduleFor:  []*types.Conf{{Ref: conferenceID}},
 	}
-	if err := RegisterVolunteer(app, updatedVolunteer); err != nil {
-		t.Fatalf("register returning volunteer: %s", err)
-	}
-	if updatedVolunteer.Ref != volunteer.Ref {
-		t.Fatalf("returning volunteer application = %q, want existing %q", updatedVolunteer.Ref, volunteer.Ref)
-	}
-	if updatedVolunteer.Status != "Scheduled" {
-		t.Fatalf("returning volunteer status = %q, want coordinator-managed Scheduled status preserved", updatedVolunteer.Status)
+	if err := registerConfirmedVolunteer(app, updatedVolunteer); !errors.Is(err, ErrVolunteerAlreadyApplied) {
+		t.Fatalf("register returning volunteer = %v, want ErrVolunteerAlreadyApplied", err)
 	}
 	var volunteerPersonID string
 	if err := app.DB.QueryRow(app.DatabaseContext(), `
@@ -190,14 +185,11 @@ func TestDatabaseSmokeTicketPickupChecklist(t *testing.T) {
 	if err := UpdateVolunteerStatus(app, volunteer.Ref, "Declined"); err != nil {
 		t.Fatalf("decline volunteer before reapplication: %s", err)
 	}
-	reopenedVolunteer := *updatedVolunteer
-	reopenedVolunteer.Ref = ""
-	reopenedVolunteer.Status = "Applied"
-	if err := RegisterVolunteer(app, &reopenedVolunteer); err != nil {
-		t.Fatalf("reopen declined volunteer application: %s", err)
+	if err := registerConfirmedVolunteer(app, updatedVolunteer); !errors.Is(err, ErrVolunteerAlreadyApplied) {
+		t.Fatalf("public reapplication after decline = %v, want ErrVolunteerAlreadyApplied", err)
 	}
-	if reopenedVolunteer.Ref != volunteer.Ref || reopenedVolunteer.Status != "Applied" {
-		t.Fatalf("reopened volunteer = (%q, %q), want (%q, Applied)", reopenedVolunteer.Ref, reopenedVolunteer.Status, volunteer.Ref)
+	if err := UpdateVolunteerStatus(app, volunteer.Ref, "Applied"); err != nil {
+		t.Fatalf("admin reopen declined volunteer application: %s", err)
 	}
 	if _, err := app.DB.Exec(app.DatabaseContext(), `
 		INSERT INTO registrations (ref_id, conference_id, type, email, person_id, checked_in_at)

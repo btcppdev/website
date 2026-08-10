@@ -47,20 +47,22 @@ func GetVolInfoMap(ctx *config.AppContext) (map[string]*types.VolInfo, error) {
 	return vmap, nil
 }
 
-func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
+// registerConfirmedVolunteer persists an application only after the applicant
+// has proved control of the submitted email address.
+func registerConfirmedVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
 	if vol == nil {
-		return fmt.Errorf("RegisterVolunteer: volunteer is nil")
+		return fmt.Errorf("registerConfirmedVolunteer: volunteer is nil")
 	}
 	normalizeVolunteerInput(vol)
 	vol.Shirt = types.ValidShirtSizeCode(vol.Shirt)
 	if vol.Shirt == "" {
-		return fmt.Errorf("RegisterVolunteer: valid shirt size required")
+		return fmt.Errorf("registerConfirmedVolunteer: valid shirt size required")
 	}
 	if len(vol.ScheduleFor) == 0 || vol.ScheduleFor[0] == nil || vol.ScheduleFor[0].Ref == "" {
-		return fmt.Errorf("RegisterVolunteer: ScheduleFor required")
+		return fmt.Errorf("registerConfirmedVolunteer: ScheduleFor required")
 	}
 
 	status := vol.Status
@@ -100,7 +102,7 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 			return fmt.Errorf("check volunteer email identity %q: %w", vol.Email, err)
 		}
 		if conflicted {
-			return fmt.Errorf("RegisterVolunteer: email %q belongs to profiles awaiting an account merge", vol.Email)
+			return fmt.Errorf("registerConfirmedVolunteer: email %q belongs to profiles awaiting an account merge", vol.Email)
 		}
 		err = tx.QueryRow(ctx.DatabaseContext(), `
 			INSERT INTO people (name, phone, signal, twitter_handle, nostr, tshirt)
@@ -119,8 +121,9 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 	} else if err != nil {
 		return fmt.Errorf("resolve volunteer identity %q: %w", vol.Email, err)
 	} else {
-		// A public volunteer form must not be able to overwrite an established
-		// profile merely by knowing its email address. It may fill missing fields.
+		// This function is called only after the submitted email has confirmed
+		// the staged application. Fill missing canonical fields, but never replace
+		// profile data that the person has already maintained.
 		if _, err := tx.Exec(ctx.DatabaseContext(), `
 			UPDATE people
 			SET phone = CASE WHEN btrim(phone) = '' THEN $2 ELSE phone END,
@@ -133,10 +136,17 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 			return fmt.Errorf("complete volunteer profile %s: %w", personID, err)
 		}
 	}
+	// Different verified aliases for the same person must serialize on the
+	// person/event pair, not merely on the submitted email above.
+	if _, err := tx.Exec(ctx.DatabaseContext(), `
+		SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))
+	`, personID, conferenceID); err != nil {
+		return fmt.Errorf("lock volunteer person %s for conference %s: %w", personID, conferenceID, err)
+	}
 
-	var volunteerID, existingStatus string
+	var volunteerID string
 	err = tx.QueryRow(ctx.DatabaseContext(), `
-		SELECT volunteer.id::text, volunteer.status
+		SELECT volunteer.id::text
 		FROM volunteers volunteer
 		JOIN volunteers_conferences conference
 			ON conference.volunteer_id = volunteer.id
@@ -146,7 +156,7 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 		ORDER BY volunteer.created_at DESC, volunteer.id
 		LIMIT 1
 		FOR UPDATE OF volunteer
-	`, personID, conferenceID).Scan(&volunteerID, &existingStatus)
+	`, personID, conferenceID).Scan(&volunteerID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx.DatabaseContext(), `
 			INSERT INTO volunteers (
@@ -165,37 +175,7 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 	} else if err != nil {
 		return fmt.Errorf("find existing volunteer application %q for conference %s: %w", vol.Email, conferenceID, err)
 	} else {
-		// Preserve progress made by coordinators. A declined applicant may
-		// explicitly reapply, which reopens the existing application instead of
-		// creating a second record for the same event.
-		status = existingStatus
-		if existingStatus == "Declined" {
-			status = "Applied"
-		}
-		if _, err := tx.Exec(ctx.DatabaseContext(), `
-			UPDATE volunteers
-			SET person_id = $2::uuid,
-				availability = $3, contact_at = $4, comments = $5,
-				discovered_via = $6, first_event = $7, hometown = $8,
-				status = $9, captcha = $10, subscribe = $11
-			WHERE id = $1::uuid
-		`, volunteerID, personID, vol.Availability, vol.ContactAt, vol.Comments,
-			vol.DiscoveredVia, vol.FirstEvent, vol.Hometown, status,
-			vol.Captcha, vol.Subscribe); err != nil {
-			return fmt.Errorf("update volunteer application %s: %w", volunteerID, err)
-		}
-		if _, err := tx.Exec(ctx.DatabaseContext(), `
-			DELETE FROM volunteers_conferences
-			WHERE volunteer_id = $1::uuid AND kind = 'other_event'
-		`, volunteerID); err != nil {
-			return fmt.Errorf("clear volunteer conference preferences %s: %w", volunteerID, err)
-		}
-		if _, err := tx.Exec(ctx.DatabaseContext(), `
-			DELETE FROM volunteers_job_types
-			WHERE volunteer_id = $1::uuid
-		`, volunteerID); err != nil {
-			return fmt.Errorf("clear volunteer job preferences %s: %w", volunteerID, err)
-		}
+		return ErrVolunteerAlreadyApplied
 	}
 
 	if err := insertVolunteerConferenceLinksPostgres(tx, volunteerID, vol.ScheduleFor, "schedule_for"); err != nil {

@@ -282,6 +282,39 @@ func personMergeConflicts(queryCtx context.Context, db personMergeQuerier, canon
 		return nil, err
 	}
 	rows, err = db.Query(queryCtx, `
+		SELECT DISTINCT conference.desc
+		FROM volunteers source_volunteer
+		JOIN volunteers_conferences source_link
+			ON source_link.volunteer_id = source_volunteer.id
+			AND source_link.kind = 'schedule_for'
+		JOIN volunteers canonical_volunteer
+			ON canonical_volunteer.person_id = $1::uuid
+		JOIN volunteers_conferences canonical_link
+			ON canonical_link.volunteer_id = canonical_volunteer.id
+			AND canonical_link.kind = 'schedule_for'
+			AND canonical_link.conference_id = source_link.conference_id
+		JOIN conferences conference ON conference.id = source_link.conference_id
+		WHERE source_volunteer.person_id = $2::uuid
+	`, canonicalPersonID, sourcePersonID)
+	if err != nil {
+		return nil, fmt.Errorf("check volunteer application merge conflicts: %w", err)
+	}
+	for rows.Next() {
+		var conference string
+		if err := rows.Scan(&conference); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		conflicts = append(conflicts, PersonMergeConflict{
+			Kind:        "volunteer_application",
+			Description: fmt.Sprintf("Both people have volunteer applications for %s. Keep one application and resolve its status before merging the profiles.", conference),
+		})
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows, err = db.Query(queryCtx, `
 		SELECT DISTINCT event.name
 		FROM scorecards source_score
 		JOIN scorecards canonical_score
