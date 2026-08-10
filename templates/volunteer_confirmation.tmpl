@@ -13,7 +13,18 @@
     </header>
     {{ if .Error }}
       <div class="profile-edit-flash person-emails-error">{{ .Error }}</div>
-      <p><a class="volunteer-confirmation-retry" href="/volunteer">Apply again</a></p>
+      <div class="volunteer-confirmation-actions">
+        {{ if .CanResend }}
+        <form method="POST" action="/volunteer/confirm/resend" class="person-merge-review">
+          <input type="hidden" name="token" value="{{ .Token }}">
+          <button type="submit">Resend confirmation email</button>
+        </form>
+        {{ end }}
+        <a class="volunteer-confirmation-retry" href="/volunteer">Apply again</a>
+      </div>
+    {{ else if .Resent }}
+      <div class="profile-edit-flash">A new confirmation link was sent to {{ .Volunteer.Email }}. It expires in 24 hours.</div>
+      <p><a href="/">Return home →</a></p>
     {{ else if .Confirmed }}
       <div class="profile-edit-flash">Your volunteer application for {{ .Conf.Desc }} has been submitted.</div>
       {{ if .Notice }}<div class="profile-edit-flash person-emails-error">{{ .Notice }}</div>{{ end }}

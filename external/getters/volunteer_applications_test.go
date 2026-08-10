@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"btcpp-web/internal/types"
 )
@@ -41,7 +42,41 @@ func TestDatabaseSmokeVolunteerApplicationRequiresConfirmation(t *testing.T) {
 	if pending.Email != email || pending.Name != vol.Name || len(pending.ScheduleFor) != 1 || pending.ScheduleFor[0].Ref != conferenceID {
 		t.Fatalf("pending volunteer = %+v", pending)
 	}
-	confirmed, err := ConfirmVolunteerApplication(ctx, token)
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE volunteer_application_requests
+		SET created_at = now() - interval '2 minutes', expires_at = now() - interval '1 minute'
+		WHERE email = $1::citext
+	`, email); err != nil {
+		t.Fatalf("expire volunteer confirmation: %v", err)
+	}
+	if _, err := GetPendingVolunteerApplication(ctx, token); err == nil || !strings.Contains(err.Error(), "expired") {
+		t.Fatalf("expired volunteer confirmation = %v, want expired error", err)
+	}
+	resendable, err := GetResendableVolunteerApplication(ctx, token)
+	if err != nil || resendable.Email != email {
+		t.Fatalf("resendable volunteer = %+v, %v", resendable, err)
+	}
+	_, renewedToken, err := RenewVolunteerApplicationConfirmation(ctx, token)
+	if err != nil {
+		t.Fatalf("RenewVolunteerApplicationConfirmation: %v", err)
+	}
+	if renewedToken == token || renewedToken == "" {
+		t.Fatalf("renewed token = %q, want a new token", renewedToken)
+	}
+	if _, err := GetPendingVolunteerApplication(ctx, token); err == nil {
+		t.Fatal("old volunteer confirmation token remained valid after renewal")
+	}
+	var expiresAt time.Time
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT expires_at FROM volunteer_application_requests WHERE email = $1::citext
+	`, email).Scan(&expiresAt); err != nil {
+		t.Fatalf("load renewed expiry: %v", err)
+	}
+	remaining := time.Until(expiresAt)
+	if remaining < 23*time.Hour+59*time.Minute || remaining > VolunteerApplicationConfirmationTTL {
+		t.Fatalf("renewed confirmation lifetime = %s, want about %s", remaining, VolunteerApplicationConfirmationTTL)
+	}
+	confirmed, err := ConfirmVolunteerApplication(ctx, renewedToken)
 	if err != nil {
 		t.Fatalf("ConfirmVolunteerApplication: %v", err)
 	}
@@ -52,7 +87,7 @@ func TestDatabaseSmokeVolunteerApplicationRequiresConfirmation(t *testing.T) {
 	if err != nil || resolution.Person == nil || resolution.Alias == nil {
 		t.Fatalf("confirmed volunteer identity = %+v, %v", resolution, err)
 	}
-	if _, err := ConfirmVolunteerApplication(ctx, token); err == nil || !strings.Contains(err.Error(), "already used") {
+	if _, err := ConfirmVolunteerApplication(ctx, renewedToken); err == nil || !strings.Contains(err.Error(), "already used") {
 		t.Fatalf("reused volunteer confirmation = %v, want already-used error", err)
 	}
 }
