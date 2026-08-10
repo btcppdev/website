@@ -99,6 +99,27 @@ func TestStripePerTicketAmount(t *testing.T) {
 	}
 }
 
+func TestStripeCheckoutNewsletterOptIn(t *testing.T) {
+	tests := []struct {
+		name     string
+		metadata map[string]string
+		want     bool
+	}{
+		{"checked", map[string]string{"subscribe": "true"}, true},
+		{"unchecked", map[string]string{"subscribe": "false"}, false},
+		{"missing", map[string]string{}, false},
+		{"invalid", map[string]string{"subscribe": "yes"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := stripeCheckoutNewsletterOptIn(tt.metadata); got != tt.want {
+				t.Fatalf("stripeCheckoutNewsletterOptIn(%v) = %t, want %t", tt.metadata, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStripeTicketItemsExcludeMixedCheckoutNonTicketLines(t *testing.T) {
 	lines := []*stripe.LineItem{
 		{
