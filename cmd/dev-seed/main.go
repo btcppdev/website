@@ -38,6 +38,9 @@ const (
 	devHomepagePerson7ID     = "00000000-0000-4000-8000-000000000042"
 	devHomepagePerson8ID     = "00000000-0000-4000-8000-000000000043"
 	devVolLoginMissiveID     = "00000000-0000-4000-8000-000000000044"
+	devVolAppMissiveID       = "00000000-0000-4000-8000-000000000045"
+	devVolSignupMissiveID    = "00000000-0000-4000-8000-000000000046"
+	devVolShiftsMissiveID    = "00000000-0000-4000-8000-000000000047"
 	devMerchProduct1ID       = "00000000-0000-4000-8000-000000000051"
 	devMerchProduct2ID       = "00000000-0000-4000-8000-000000000052"
 	devMerchProduct3ID       = "00000000-0000-4000-8000-000000000053"
@@ -694,7 +697,11 @@ func seedCheckInPreviews(ctx context.Context, tx pgx.Tx, confID string) {
 }
 
 func seedMissives(ctx context.Context, tx pgx.Tx) {
-	markdown := `Hi,
+	missives := []struct {
+		id, onlyFor, title, markdown string
+		uid                          int
+	}{
+		{devVolLoginMissiveID, "vollogin", "Your bitcoin++ sign-in link", `Hi,
 
 Use this secure link to sign in to your bitcoin++ account:
 
@@ -702,24 +709,48 @@ Use this secure link to sign in to your bitcoin++ account:
 
 If you did not ask for this link, you can ignore this email.
 
-— bitcoin++`
+— bitcoin++`, 260044},
+		{devVolAppMissiveID, "volapp", "We received your volunteer application", `Hi {{ .Volunteer.Name }},
 
-	mustExec(ctx, tx, "seed vollogin missive", `
-		INSERT INTO missives (
-			id, public_uid, title, newsletters, only_for, markdown, send_at_expr, expiry
-		)
-		VALUES (
-			$1::uuid, 260044, 'Your bitcoin++ sign-in link', '{}'::text[], 'vollogin', $2, '', NULL
-		)
-		ON CONFLICT (id) DO UPDATE SET
-			public_uid = EXCLUDED.public_uid,
-			title = EXCLUDED.title,
-			newsletters = EXCLUDED.newsletters,
-			only_for = EXCLUDED.only_for,
-			markdown = EXCLUDED.markdown,
-			send_at_expr = EXCLUDED.send_at_expr,
-			expiry = EXCLUDED.expiry
-	`, devVolLoginMissiveID, markdown)
+Your application to volunteer at {{ .Conf.Desc }} is confirmed. A volunteer coordinator will review it and contact you with next steps.
+
+[View your volunteer dashboard]({{ .VolShiftLink }})
+
+— bitcoin++`, 260045},
+		{devVolSignupMissiveID, "volsignup", "Choose your volunteer shifts", `Hi {{ .Volunteer.Name }},
+
+Your application to volunteer at {{ .Conf.Desc }} is moving forward. Please choose the shifts that work for you.
+
+[Choose volunteer shifts]({{ .VolShiftLink }})
+
+— bitcoin++`, 260046},
+		{devVolShiftsMissiveID, "volshifts", "Your volunteer shifts are confirmed", `Hi {{ .Volunteer.Name }},
+
+You're scheduled to volunteer at {{ .Conf.Desc }}. Your dashboard has your current shifts and event details.
+
+[View your volunteer dashboard]({{ .VolShiftLink }})
+
+— bitcoin++`, 260047},
+	}
+
+	for _, missive := range missives {
+		mustExec(ctx, tx, "seed "+missive.onlyFor+" missive", `
+			INSERT INTO missives (
+				id, public_uid, title, newsletters, only_for, markdown, send_at_expr, expiry
+			)
+			VALUES (
+				$1::uuid, $2, $3, '{}'::text[], $4, $5, '', NULL
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				public_uid = EXCLUDED.public_uid,
+				title = EXCLUDED.title,
+				newsletters = EXCLUDED.newsletters,
+				only_for = EXCLUDED.only_for,
+				markdown = EXCLUDED.markdown,
+				send_at_expr = EXCLUDED.send_at_expr,
+				expiry = EXCLUDED.expiry
+		`, missive.id, missive.uid, missive.title, missive.onlyFor, missive.markdown)
+	}
 }
 
 func seedMerch(ctx context.Context, tx pgx.Tx, confID string) {
