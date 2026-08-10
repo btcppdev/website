@@ -166,7 +166,7 @@ func mdToHTML(md []byte) []byte {
 	return markdown.Render(doc, renderer)
 }
 
-func missiveTemplate(ctx *config.AppContext, letter *mtypes.Letter) *template.Template {
+func missiveTemplate(ctx *config.AppContext, letter *mtypes.Letter) (*template.Template, error) {
 
 	/* Hash the data for a key. We use the ID + body
 	 * so if they change, a new template will get generated */
@@ -177,11 +177,26 @@ func missiveTemplate(ctx *config.AppContext, letter *mtypes.Letter) *template.Te
 		if letter.OnlyFor == mtypes.OnlyForTemplated {
 			tmpl = tmpl.Funcs(templatedNewsletterFuncs())
 		}
-		t = template.Must(tmpl.Parse(string(letter.Markdown)))
+		var err error
+		t, err = tmpl.Parse(string(letter.Markdown))
+		if err != nil {
+			return nil, fmt.Errorf(`invalid missive template: %w; inline buttons use {{ button "Label" "https://example.com" }}`, err)
+		}
 		ctx.EmailCache[keyhash] = t
 	}
 
-	return t
+	return t, nil
+}
+
+func executeMissiveTemplate(ctx *config.AppContext, letter *mtypes.Letter, dst io.Writer, data any) error {
+	tmpl, err := missiveTemplate(ctx, letter)
+	if err != nil {
+		return err
+	}
+	if err := tmpl.Execute(dst, data); err != nil {
+		return fmt.Errorf("execute missive template: %w", err)
+	}
+	return nil
 }
 
 func findEmailMarkdown(ctx *config.AppContext, tmplURL string) (*template.Template, error) {

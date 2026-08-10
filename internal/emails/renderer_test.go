@@ -24,7 +24,7 @@ func TestMissiveTemplateDoesNotHTMLEscapePlainTextURLs(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	err := missiveTemplate(ctx, letter).Execute(&out, map[string]string{
+	err := executeMissiveTemplate(ctx, letter, &out, map[string]string{
 		"URL": "https://btcpp.dev/dashboard?email=test@example.com&token=abc123",
 	})
 	if err != nil {
@@ -71,6 +71,8 @@ ticker:
 
 {{ newsList "Core 28 ships | Cleanup landed | CORE | https://btcpp.dev/core?x=1&y=2" }}
 
+{{ button "Read the full issue" "https://insider.btcpp.dev/p/weekly?from=email&issue=42" }}
+
 {{ cta "NEXT STOP" "Vienna · June 12+13." "Earlybird tickets live." "GRAB A TICKET" "https://btcpp.dev/vienna" }}
 `)
 
@@ -80,7 +82,7 @@ ticker:
 		Markdown: string(markdown),
 	}
 	var rendered bytes.Buffer
-	if err := missiveTemplate(&config.AppContext{EmailCache: map[string]*texttemplate.Template{}}, letter).Execute(&rendered, &mtypes.EmailContent{}); err != nil {
+	if err := executeMissiveTemplate(&config.AppContext{EmailCache: map[string]*texttemplate.Template{}}, letter, &rendered, &mtypes.EmailContent{}); err != nil {
 		t.Fatalf("execute templated missive: %v", err)
 	}
 
@@ -98,11 +100,38 @@ ticker:
 	if !strings.Contains(html, "Core 28 ships") {
 		t.Fatalf("news list was not rendered: %s", html)
 	}
+	if !strings.Contains(html, "Read the full issue") || !strings.Contains(html, "https://insider.btcpp.dev/p/weekly?from=email&amp;issue=42") {
+		t.Fatalf("inline button was not rendered: %s", html)
+	}
+	if strings.Contains(html, `{{ button`) {
+		t.Fatalf("inline button shortcode leaked into rendered HTML: %s", html)
+	}
 	if !strings.Contains(html, "https://btcpp.dev/newsletter/unsubscribe/tok") {
 		t.Fatalf("unsubscribe URL missing: %s", html)
 	}
 	if strings.Contains(string(textBody), "---") {
 		t.Fatalf("text body should not include frontmatter: %q", textBody)
+	}
+}
+
+func TestMissiveTemplateReturnsMalformedInlineButtonError(t *testing.T) {
+	ctx := &config.AppContext{EmailCache: map[string]*texttemplate.Template{}}
+	letter := &mtypes.Letter{
+		UID:      43,
+		OnlyFor:  mtypes.OnlyForTemplated,
+		Markdown: "Before.\n\n{{ button [Read the issue](https://example.com) }}\n\nAfter.",
+	}
+
+	var rendered bytes.Buffer
+	err := executeMissiveTemplate(ctx, letter, &rendered, &mtypes.EmailContent{})
+	if err == nil {
+		t.Fatal("malformed inline button unexpectedly rendered")
+	}
+	if !strings.Contains(err.Error(), `unexpected "[" in operand`) {
+		t.Fatalf("error = %q, want parser detail", err)
+	}
+	if !strings.Contains(err.Error(), `inline buttons use {{ button "Label" "https://example.com" }}`) {
+		t.Fatalf("error = %q, want corrected syntax", err)
 	}
 }
 
