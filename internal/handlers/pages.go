@@ -908,6 +908,7 @@ type EditSpeakerPage struct {
 type PersonEmailsPage struct {
 	Speaker       *types.Speaker
 	Emails        []*types.PersonEmail
+	PendingEmails []string
 	MergeRequests []*types.PersonMergeRequest
 	FlashMessage  string
 	FlashError    string

@@ -78,14 +78,14 @@ func CreatePersonMergeRequest(ctx *config.AppContext, requesterPersonID, rawTarg
 				AND least(requester_person_id, target_person_id) = least($1::uuid, $2::uuid)
 				AND greatest(requester_person_id, target_person_id) = greatest($1::uuid, $2::uuid)
 		`, requesterPersonID, targetPersonID).Scan(&id, &existingRequester, &existingStatus)
-		if err != nil || existingRequester != requesterPersonID || existingStatus != "awaiting_confirmation" {
+		if err != nil || existingRequester != requesterPersonID || (existingStatus != "awaiting_confirmation" && existingStatus != "pending") {
 			return nil, "", fmt.Errorf("a merge request between these accounts is already active")
 		}
 		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			UPDATE person_merge_requests
 			SET confirmation_token_hash = $2, confirmation_expires_at = $3,
 				target_email = $4::citext, updated_at = now()
-			WHERE id = $1::uuid AND status = 'awaiting_confirmation'
+			WHERE id = $1::uuid AND status IN ('awaiting_confirmation', 'pending')
 		`, id, tokenHash[:], expiresAt, targetEmail); err != nil {
 			return nil, "", fmt.Errorf("refresh merge confirmation: %w", err)
 		}
@@ -177,32 +177,6 @@ func ListPersonMergeRequestsForPerson(ctx *config.AppContext, personID string) (
 		WHERE request.requester_person_id = $1::uuid OR request.target_person_id = $1::uuid
 		ORDER BY request.created_at DESC
 	`, strings.TrimSpace(personID))
-}
-
-func ListPendingPersonMergeRequests(ctx *config.AppContext) ([]*types.PersonMergeRequest, error) {
-	return listPersonMergeRequests(ctx, personMergeRequestSelect+`
-		WHERE request.status = 'pending'
-		ORDER BY request.created_at
-	`)
-}
-
-func RejectPersonMergeRequest(ctx *config.AppContext, requestID, reviewerPersonID, note string) error {
-	if ctx == nil || ctx.DB == nil {
-		return fmt.Errorf("database is not configured")
-	}
-	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
-		UPDATE person_merge_requests
-		SET status = 'rejected', reviewed_by_person_id = $2::uuid,
-			review_note = $3, reviewed_at = now()
-		WHERE id = $1::uuid AND status = 'pending'
-	`, strings.TrimSpace(requestID), strings.TrimSpace(reviewerPersonID), strings.TrimSpace(note))
-	if err != nil {
-		return fmt.Errorf("reject person merge request: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("merge request is no longer pending")
-	}
-	return nil
 }
 
 const personMergeRequestSelect = `

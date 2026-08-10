@@ -57,6 +57,38 @@ func ListPersonEmails(ctx *config.AppContext, personID string) ([]*types.PersonE
 	return out, nil
 }
 
+func ListPendingPersonEmailVerifications(ctx *config.AppContext, personID string) ([]string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, nil
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT DISTINCT email::text
+		FROM person_email_verifications
+		WHERE person_id = $1::uuid AND consumed_at IS NULL AND expires_at > now()
+		ORDER BY email::text
+	`, personID)
+	if err != nil {
+		return nil, fmt.Errorf("list pending person email verifications: %w", err)
+	}
+	defer rows.Close()
+	var emails []string
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
+			return nil, fmt.Errorf("scan pending person email verification: %w", err)
+		}
+		emails = append(emails, email)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pending person email verifications: %w", err)
+	}
+	return emails, nil
+}
+
 func GetPrimaryPersonEmail(ctx *config.AppContext, personID string) (string, error) {
 	if ctx == nil || ctx.DB == nil {
 		return "", fmt.Errorf("database is not configured")
@@ -192,7 +224,6 @@ func linkUnownedRecordsByEmailTx(dbctx context.Context, tx pgx.Tx, personID, ema
 		sql   string
 	}{
 		{"registrations", `UPDATE registrations SET person_id = $1::uuid WHERE person_id IS NULL AND email = $2::citext`},
-		{"volunteers", `UPDATE volunteers SET person_id = $1::uuid WHERE person_id IS NULL AND email = $2::citext`},
 		{"shop orders", `UPDATE shop_orders SET buyer_person_id = $1::uuid WHERE buyer_person_id IS NULL AND buyer_email = $2::citext`},
 		{"discounts", `UPDATE discounts SET affiliate_person_id = $1::uuid WHERE affiliate_person_id IS NULL AND affiliate_email = $2::citext`},
 		{"affiliate usages", `UPDATE affiliate_usages SET affiliate_person_id = $1::uuid WHERE affiliate_person_id IS NULL AND affiliate_email = $2::citext`},
@@ -317,6 +348,39 @@ func CreatePersonEmailVerification(ctx *config.AppContext, personID, rawEmail st
 	return token, nil
 }
 
+func GetPendingPersonEmailVerification(ctx *config.AppContext, token string) (string, string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", "", fmt.Errorf("database is not configured")
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return "", "", fmt.Errorf("verification token is required")
+	}
+	tokenHash := sha256.Sum256([]byte(token))
+	var email, requesterEmail string
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT verification.email::text, account_email.email::text
+		FROM person_email_verifications verification
+		JOIN LATERAL (
+			SELECT email
+			FROM person_emails
+			WHERE person_id = verification.person_id
+			ORDER BY is_primary DESC, created_at, id
+			LIMIT 1
+		) account_email ON true
+		WHERE verification.token_hash = $1
+			AND verification.consumed_at IS NULL
+			AND verification.expires_at > now()
+	`, tokenHash[:]).Scan(&email, &requesterEmail)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", fmt.Errorf("verification link is invalid, expired, or already used")
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("load email verification: %w", err)
+	}
+	return email, requesterEmail, nil
+}
+
 func ConsumePersonEmailVerification(ctx *config.AppContext, token string) (string, string, error) {
 	if ctx == nil || ctx.DB == nil {
 		return "", "", fmt.Errorf("database is not configured")
@@ -382,9 +446,11 @@ func ConsumePersonEmailVerification(ctx *config.AppContext, token string) (strin
 		return "", "", err
 	}
 	if _, err := tx.Exec(dbctx, `
-		UPDATE person_email_verifications SET consumed_at = now() WHERE token_hash = $1
-	`, tokenHash[:]); err != nil {
-		return "", "", fmt.Errorf("consume email verification: %w", err)
+		UPDATE person_email_verifications
+		SET consumed_at = now()
+		WHERE email = $1::citext AND consumed_at IS NULL
+	`, email); err != nil {
+		return "", "", fmt.Errorf("close competing email verifications: %w", err)
 	}
 	if err := tx.Commit(dbctx); err != nil {
 		return "", "", fmt.Errorf("commit email verification: %w", err)
@@ -404,27 +470,26 @@ func SetPrimaryPersonEmail(ctx *config.AppContext, personID, rawEmail string) er
 		return fmt.Errorf("begin primary email update: %w", err)
 	}
 	defer tx.Rollback(dbctx)
+	// Clear the current primary in a separate statement. A single UPDATE using
+	// `is_primary = (email = ...)` can set the new row before clearing the old
+	// row, depending on PostgreSQL's row visitation order, and transiently
+	// violate the partial unique index.
+	if _, err := tx.Exec(dbctx, `
+		UPDATE person_emails
+		SET is_primary = false, updated_at = now()
+		WHERE person_id = $1::uuid
+	`, personID); err != nil {
+		return fmt.Errorf("clear primary email: %w", err)
+	}
 	tag, err := tx.Exec(dbctx, `
 		UPDATE person_emails
-		SET is_primary = (email = $2::citext), updated_at = now()
-		WHERE person_id = $1::uuid
+		SET is_primary = true, updated_at = now()
+		WHERE person_id = $1::uuid AND email = $2::citext
 	`, personID, email)
 	if err != nil {
 		return fmt.Errorf("set primary email: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("email is not attached to this account")
-	}
-	var selected bool
-	if err := tx.QueryRow(dbctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM person_emails
-			WHERE person_id = $1::uuid AND email = $2::citext AND is_primary
-		)
-	`, personID, email).Scan(&selected); err != nil {
-		return fmt.Errorf("check primary email: %w", err)
-	}
-	if !selected {
 		return fmt.Errorf("email is not attached to this account")
 	}
 	if err := tx.Commit(dbctx); err != nil {

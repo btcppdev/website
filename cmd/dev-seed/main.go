@@ -1914,26 +1914,22 @@ func seedDashboardVolunteer(ctx context.Context, tx pgx.Tx, confID string) {
 
 	mustExec(ctx, tx, "seed dashboard volunteer", `
 		INSERT INTO volunteers (
-			id, name, email, phone, signal, availability, contact_at, comments,
-			discovered_via, first_event, hometown, twitter_handle, nostr,
-			shirt, status, captcha, subscribe
+			id, person_id, availability, contact_at, comments, discovered_via,
+			first_event, hometown, status, captcha, subscribe
 		)
 		VALUES (
-			$1::uuid, 'Dev Admin', 'dev-admin@example.test', '', '', $2,
-			'Email', 'Seeded volunteer fixture.', 'local dev harness',
-			false, 'Austin, TX', '', '', 'MM', 'Scheduled', 0, false
+			$1::uuid, $2::uuid, $3, 'Email', 'Seeded volunteer fixture.',
+			'local dev harness', false, 'Austin, TX', 'Scheduled', 0, false
 		)
 		ON CONFLICT (id) DO UPDATE SET
-			name = EXCLUDED.name,
-			email = EXCLUDED.email,
+			person_id = EXCLUDED.person_id,
 			availability = EXCLUDED.availability,
 			contact_at = EXCLUDED.contact_at,
 			comments = EXCLUDED.comments,
 			discovered_via = EXCLUDED.discovered_via,
 			hometown = EXCLUDED.hometown,
-			shirt = EXCLUDED.shirt,
 			status = EXCLUDED.status
-	`, devVolunteerID, []string{"Day 1", "Day 2"})
+	`, devVolunteerID, devAdminID, []string{"Day 1", "Day 2"})
 
 	mustExec(ctx, tx, "seed dashboard volunteer conference link", `
 		INSERT INTO volunteers_conferences (volunteer_id, conference_id, kind)

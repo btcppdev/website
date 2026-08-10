@@ -75,18 +75,63 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 	defer tx.Rollback(ctx.DatabaseContext())
 
 	conferenceID := vol.ScheduleFor[0].Ref
-	// Serialize applications for the same person/event, falling back to the
-	// submitted email when the address is not attached to an identity yet.
+	// Serialize applications for the same email/event while identity ownership
+	// is resolved below.
 	if _, err := tx.Exec(ctx.DatabaseContext(), `
 		SELECT pg_advisory_xact_lock(hashtextextended(
-			COALESCE(
-				(SELECT person_id::text FROM person_emails WHERE email = $1::citext),
-				lower(btrim($1))
-			) || ':' || $2,
+			lower(btrim($1)) || ':' || $2,
 			0
 		))
 	`, vol.Email, conferenceID); err != nil {
 		return fmt.Errorf("lock volunteer application %q for conference %s: %w", vol.Email, conferenceID, err)
+	}
+
+	var personID string
+	err = tx.QueryRow(ctx.DatabaseContext(), `
+		SELECT person_id::text
+		FROM person_emails
+		WHERE email = $1::citext
+	`, vol.Email).Scan(&personID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		var conflicted bool
+		if err := tx.QueryRow(ctx.DatabaseContext(), `
+			SELECT EXISTS(SELECT 1 FROM person_email_conflicts WHERE email = $1::citext)
+		`, vol.Email).Scan(&conflicted); err != nil {
+			return fmt.Errorf("check volunteer email identity %q: %w", vol.Email, err)
+		}
+		if conflicted {
+			return fmt.Errorf("RegisterVolunteer: email %q belongs to profiles awaiting an account merge", vol.Email)
+		}
+		err = tx.QueryRow(ctx.DatabaseContext(), `
+			INSERT INTO people (name, phone, signal, twitter_handle, nostr, tshirt)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id::text
+		`, vol.Name, vol.Phone, vol.Signal, vol.Twitter.Handle, vol.Nostr, vol.Shirt).Scan(&personID)
+		if err != nil {
+			return fmt.Errorf("create person for volunteer %q: %w", vol.Email, err)
+		}
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			INSERT INTO person_emails (person_id, email, is_primary, verified_at)
+			VALUES ($1::uuid, $2::citext, true, now())
+		`, personID, vol.Email); err != nil {
+			return fmt.Errorf("attach volunteer email %q: %w", vol.Email, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("resolve volunteer identity %q: %w", vol.Email, err)
+	} else {
+		// A public volunteer form must not be able to overwrite an established
+		// profile merely by knowing its email address. It may fill missing fields.
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			UPDATE people
+			SET phone = CASE WHEN btrim(phone) = '' THEN $2 ELSE phone END,
+				signal = CASE WHEN btrim(signal) = '' THEN $3 ELSE signal END,
+				twitter_handle = CASE WHEN btrim(twitter_handle) = '' THEN $4 ELSE twitter_handle END,
+				nostr = CASE WHEN btrim(nostr) = '' THEN $5 ELSE nostr END,
+				tshirt = CASE WHEN btrim(tshirt) = '' THEN $6 ELSE tshirt END
+			WHERE id = $1::uuid
+		`, personID, vol.Phone, vol.Signal, vol.Twitter.Handle, vol.Nostr, vol.Shirt); err != nil {
+			return fmt.Errorf("complete volunteer profile %s: %w", personID, err)
+		}
 	}
 
 	var volunteerID, existingStatus string
@@ -95,33 +140,24 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 		FROM volunteers volunteer
 		JOIN volunteers_conferences conference
 			ON conference.volunteer_id = volunteer.id
-		WHERE (
-			volunteer.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
-			OR (
-				(SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL
-				AND volunteer.email = $1::citext
-			)
-		)
+		WHERE volunteer.person_id = $1::uuid
 			AND conference.conference_id = $2::uuid
 			AND conference.kind = 'schedule_for'
 		ORDER BY volunteer.created_at DESC, volunteer.id
 		LIMIT 1
 		FOR UPDATE OF volunteer
-	`, vol.Email, conferenceID).Scan(&volunteerID, &existingStatus)
+	`, personID, conferenceID).Scan(&volunteerID, &existingStatus)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx.DatabaseContext(), `
 			INSERT INTO volunteers (
-				name, email, person_id, phone, signal, availability, contact_at, comments,
-				discovered_via, first_event, hometown, twitter_handle, nostr,
-				shirt, status, captcha, subscribe
+				person_id, availability, contact_at, comments, discovered_via,
+				first_event, hometown, status, captcha, subscribe
 			) VALUES (
-				$1, $2::citext, (SELECT person_id FROM person_emails WHERE email = $2::citext),
-				$3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+				$1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10
 			)
 			RETURNING id::text
-		`, vol.Name, vol.Email, vol.Phone, vol.Signal, vol.Availability,
-			vol.ContactAt, vol.Comments, vol.DiscoveredVia, vol.FirstEvent,
-			vol.Hometown, vol.Twitter.Handle, vol.Nostr, vol.Shirt, status,
+		`, personID, vol.Availability, vol.ContactAt, vol.Comments,
+			vol.DiscoveredVia, vol.FirstEvent, vol.Hometown, status,
 			vol.Captcha, vol.Subscribe).Scan(&volunteerID)
 		if err != nil {
 			return fmt.Errorf("insert volunteer %q: %w", vol.Email, err)
@@ -138,21 +174,14 @@ func RegisterVolunteer(ctx *config.AppContext, vol *types.Volunteer) error {
 		}
 		if _, err := tx.Exec(ctx.DatabaseContext(), `
 			UPDATE volunteers
-			SET name = $2, email = $3::citext,
-				person_id = COALESCE(
-					(SELECT person_id FROM person_emails WHERE email = $3::citext),
-					volunteers.person_id
-				),
-				phone = $4, signal = $5,
-				availability = $6, contact_at = $7, comments = $8,
-				discovered_via = $9, first_event = $10, hometown = $11,
-				twitter_handle = $12, nostr = $13, shirt = $14,
-				status = $15, captcha = $16, subscribe = $17
+			SET person_id = $2::uuid,
+				availability = $3, contact_at = $4, comments = $5,
+				discovered_via = $6, first_event = $7, hometown = $8,
+				status = $9, captcha = $10, subscribe = $11
 			WHERE id = $1::uuid
-		`, volunteerID, vol.Name, vol.Email, vol.Phone, vol.Signal,
-			vol.Availability, vol.ContactAt, vol.Comments, vol.DiscoveredVia,
-			vol.FirstEvent, vol.Hometown, vol.Twitter.Handle, vol.Nostr,
-			vol.Shirt, status, vol.Captcha, vol.Subscribe); err != nil {
+		`, volunteerID, personID, vol.Availability, vol.ContactAt, vol.Comments,
+			vol.DiscoveredVia, vol.FirstEvent, vol.Hometown, status,
+			vol.Captcha, vol.Subscribe); err != nil {
 			return fmt.Errorf("update volunteer application %s: %w", volunteerID, err)
 		}
 		if _, err := tx.Exec(ctx.DatabaseContext(), `
@@ -338,10 +367,9 @@ func UpdateVolInfoOrientation(ctx *config.AppContext, volInfoRef string, start, 
 func ListVolunteerApps(ctx *config.AppContext, email string) ([]*types.Volunteer, error) {
 	where := ""
 	args := []interface{}{}
-	if strings.TrimSpace(email) != "" {
+	if email = strings.ToLower(strings.TrimSpace(email)); email != "" {
 		args = append(args, email)
-		where = `WHERE person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
-			OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL AND email = $1::citext)`
+		where = `WHERE volunteer.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)`
 	}
 	return listVolunteersPostgres(ctx, where, args...)
 }
@@ -351,11 +379,11 @@ func ListVolunteerAppsForPerson(ctx *config.AppContext, personID string) ([]*typ
 	if personID == "" {
 		return nil, nil
 	}
-	return listVolunteersPostgres(ctx, "WHERE person_id = $1::uuid", personID)
+	return listVolunteersPostgres(ctx, "WHERE volunteer.person_id = $1::uuid", personID)
 }
 
 func FetchVolunteer(ctx *config.AppContext, volRef string) (*types.Volunteer, error) {
-	vols, err := listVolunteersPostgres(ctx, "WHERE id::text = $1", volRef)
+	vols, err := listVolunteersPostgres(ctx, "WHERE volunteer.id::text = $1", volRef)
 	if err != nil {
 		return nil, err
 	}
@@ -367,7 +395,7 @@ func FetchVolunteer(ctx *config.AppContext, volRef string) (*types.Volunteer, er
 
 func ListVolunteersForConf(ctx *config.AppContext, confRef string) ([]*types.Volunteer, error) {
 	return listVolunteersPostgres(ctx, `
-		WHERE id IN (
+		WHERE volunteer.id IN (
 			SELECT volunteer_id
 			FROM volunteers_conferences
 			WHERE conference_id::text = $1 AND kind = 'schedule_for'
@@ -380,12 +408,30 @@ func listVolunteersPostgres(ctx *config.AppContext, where string, args ...interf
 		return nil, fmt.Errorf("database is not configured")
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
-		SELECT id::text, name, email::text, phone, signal, availability, contact_at,
-			comments, discovered_via, first_event, hometown, twitter_handle, nostr,
-			shirt, status, captcha, subscribe, created_at
-		FROM volunteers
+		SELECT volunteer.id::text, person.name, coalesce(primary_email.email::text, ''),
+			person.phone, person.signal, volunteer.availability, volunteer.contact_at,
+			volunteer.comments, volunteer.discovered_via, volunteer.first_event,
+			volunteer.hometown, person.twitter_handle, person.nostr, person.tshirt,
+			volunteer.status, volunteer.captcha, volunteer.subscribe, volunteer.created_at
+		FROM volunteers volunteer
+		JOIN people person ON person.id = volunteer.person_id
+		LEFT JOIN LATERAL (
+			SELECT candidate.email
+			FROM (
+				SELECT email, CASE WHEN is_primary THEN 0 ELSE 1 END AS priority,
+					created_at, id
+				FROM person_emails
+				WHERE person_id = person.id
+				UNION ALL
+				SELECT email, 2, detected_at, person.id
+				FROM person_email_conflicts
+				WHERE person_id = person.id
+			) candidate
+			ORDER BY candidate.priority, candidate.created_at, candidate.id
+			LIMIT 1
+		) primary_email ON true
 		`+where+`
-		ORDER BY created_at DESC, name
+		ORDER BY volunteer.created_at DESC, person.name
 	`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query volunteers: %w", err)

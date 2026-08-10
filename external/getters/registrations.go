@@ -150,12 +150,11 @@ func GetRegistrationCheckIn(ctx *config.AppContext, ticket string) (*types.Regis
 	var shirtPickedUpAt pgtype.Timestamptz
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT r.ref_id, r.type, r.email::text,
-			coalesce(nullif(profile.name, ''), volunteer_profile.name, ''),
+			coalesce(nullif(profile.name, ''), ''),
 			coalesce(
 				CASE WHEN upper(btrim(profile.tshirt)) IN (
 					'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
 				) THEN upper(btrim(profile.tshirt)) END,
-				volunteer_profile.shirt,
 				''
 			),
 			r.conference_id::text, conferences.tag, r.revoked, r.checked_in_at,
@@ -163,20 +162,6 @@ func GetRegistrationCheckIn(ctx *config.AppContext, ticket string) (*types.Regis
 		FROM registrations r
 		JOIN conferences ON conferences.id = r.conference_id
 		LEFT JOIN people profile ON profile.id = r.person_id
-		LEFT JOIN LATERAL (
-			SELECT volunteer.name, volunteer.shirt
-			FROM volunteers volunteer
-			JOIN volunteers_conferences volunteer_conf
-				ON volunteer_conf.volunteer_id = volunteer.id
-			WHERE volunteer.email = r.email
-				AND volunteer_conf.conference_id = r.conference_id
-				AND volunteer_conf.kind = 'schedule_for'
-				AND upper(btrim(volunteer.shirt)) IN (
-					'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
-				)
-			ORDER BY volunteer.created_at DESC, volunteer.id
-			LIMIT 1
-		) volunteer_profile ON true
 		WHERE r.ref_id = $1
 	`, ticket).Scan(
 		&out.TicketRef, &out.TicketType, &out.Email,
@@ -206,12 +191,11 @@ func ListDevRegistrationCheckInPreviews(ctx *config.AppContext) ([]*types.Regist
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT r.ref_id, r.type, r.email::text,
-			coalesce(nullif(profile.name, ''), volunteer_profile.name, ''),
+			coalesce(nullif(profile.name, ''), ''),
 			coalesce(
 				CASE WHEN upper(btrim(profile.tshirt)) IN (
 					'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
 				) THEN upper(btrim(profile.tshirt)) END,
-				volunteer_profile.shirt,
 				''
 			),
 			r.conference_id::text, conferences.tag, r.revoked, r.checked_in_at,
@@ -219,20 +203,6 @@ func ListDevRegistrationCheckInPreviews(ctx *config.AppContext) ([]*types.Regist
 		FROM registrations r
 		JOIN conferences ON conferences.id = r.conference_id
 		LEFT JOIN people profile ON profile.id = r.person_id
-		LEFT JOIN LATERAL (
-			SELECT volunteer.name, volunteer.shirt
-			FROM volunteers volunteer
-			JOIN volunteers_conferences volunteer_conf
-				ON volunteer_conf.volunteer_id = volunteer.id
-			WHERE volunteer.email = r.email
-				AND volunteer_conf.conference_id = r.conference_id
-				AND volunteer_conf.kind = 'schedule_for'
-				AND upper(btrim(volunteer.shirt)) IN (
-					'LS', 'LM', 'LL', 'MS', 'MM', 'ML', 'MXL', 'MXXL', 'MXXXL'
-				)
-			ORDER BY volunteer.created_at DESC, volunteer.id
-			LIMIT 1
-		) volunteer_profile ON true
 		WHERE r.platform = 'dev-checkin-preview'
 		ORDER BY CASE r.type
 			WHEN 'genpop' THEN 1 WHEN 'local' THEN 2 WHEN 'sponsor' THEN 3

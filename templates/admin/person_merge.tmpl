@@ -42,7 +42,6 @@
     {{ end }}
 
     <form method="POST" action="/admin/people/merge" class="mt-6">
-      {{ if .RequestID }}<input type="hidden" name="MergeRequestID" value="{{ .RequestID }}">{{ end }}
       <input type="hidden" name="CanonicalPersonID" value="{{ .Preview.Canonical.ID }}">
       <input type="hidden" name="SourcePersonID" value="{{ .Preview.Source.ID }}">
       <section class="overflow-hidden rounded-lg bg-white shadow">

@@ -18,7 +18,6 @@ import (
 
 type AdminPeoplePage struct {
 	ConflictGroups []*AdminPersonConflictGroup
-	MergeRequests  []*types.PersonMergeRequest
 	MergeEvents    []*getters.PersonMergeEvent
 	Flash          string
 	Error          string
@@ -38,11 +37,10 @@ type AdminPersonConflictLink struct {
 }
 
 type AdminPersonMergePage struct {
-	Preview   *getters.PersonMergePreview
-	RequestID string
-	Fields    []AdminPersonMergeField
-	Error     string
-	Year      uint
+	Preview *getters.PersonMergePreview
+	Fields  []AdminPersonMergeField
+	Error   string
+	Year    uint
 }
 
 type AdminPersonMergeField struct {
@@ -85,15 +83,8 @@ func AdminPeople(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		http.Error(w, "Unable to load people", http.StatusInternalServerError)
 		return
 	}
-	requests, err := getters.ListPendingPersonMergeRequests(ctx)
-	if err != nil {
-		ctx.Err.Printf("/admin/people merge requests: %s", err)
-		http.Error(w, "Unable to load people", http.StatusInternalServerError)
-		return
-	}
 	page := &AdminPeoplePage{
 		ConflictGroups: groupPersonEmailConflicts(conflicts),
-		MergeRequests:  requests,
 		MergeEvents:    events,
 		Flash:          r.URL.Query().Get("flash"),
 		Error:          r.URL.Query().Get("error"),
@@ -106,25 +97,14 @@ func AdminPersonMerge(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if requireGlobalAdmin(w, r, ctx) == nil {
 		return
 	}
-	requestID := strings.TrimSpace(r.URL.Query().Get("request"))
 	canonicalID := r.URL.Query().Get("canonical")
 	sourceID := r.URL.Query().Get("source")
-	if requestID != "" {
-		request, err := getters.GetPersonMergeRequest(ctx, requestID)
-		if err != nil || request == nil || request.Status != "pending" {
-			http.Redirect(w, r, "/admin/people?error="+url.QueryEscape("Merge request is no longer available."), http.StatusSeeOther)
-			return
-		}
-		canonicalID = request.RequesterPersonID
-		sourceID = request.TargetPersonID
-	}
 	preview, err := getters.PreviewPersonMerge(ctx, canonicalID, sourceID)
 	if err != nil {
 		http.Redirect(w, r, "/admin/people?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
 	page := adminPersonMergePage(preview, "")
-	page.RequestID = requestID
 	renderAdminPersonMerge(w, ctx, page)
 }
 
@@ -140,24 +120,20 @@ func AdminPersonMergeSave(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 	canonicalID := strings.TrimSpace(r.FormValue("CanonicalPersonID"))
 	sourceID := strings.TrimSpace(r.FormValue("SourcePersonID"))
-	requestID := strings.TrimSpace(r.FormValue("MergeRequestID"))
 	preview, err := getters.PreviewPersonMerge(ctx, canonicalID, sourceID)
 	if err != nil {
 		page := adminPersonMergePage(preview, err.Error())
-		page.RequestID = requestID
 		renderAdminPersonMerge(w, ctx, page)
 		return
 	}
 	if len(preview.Conflicts) > 0 {
 		page := adminPersonMergePage(preview, "Resolve every relationship conflict before merging.")
-		page.RequestID = requestID
 		renderAdminPersonMerge(w, ctx, page)
 		return
 	}
 	decisions, err := parsePersonMergeDecisions(r, preview)
 	if err != nil {
 		page := adminPersonMergePage(preview, err.Error())
-		page.RequestID = requestID
 		renderAdminPersonMerge(w, ctx, page)
 		return
 	}
@@ -165,34 +141,15 @@ func AdminPersonMergeSave(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		CanonicalPersonID: canonicalID,
 		SourcePersonID:    sourceID,
 		MergedByPersonID:  id.PersonID,
-		MergeRequestID:    requestID,
 		Decisions:         decisions,
 	})
 	if err != nil {
 		ctx.Err.Printf("/admin/people/merge: %s", err)
 		page := adminPersonMergePage(preview, err.Error())
-		page.RequestID = requestID
 		renderAdminPersonMerge(w, ctx, page)
 		return
 	}
 	http.Redirect(w, r, "/admin/people/merges/"+eventID+"?flash="+url.QueryEscape("People merged. Undo is available for seven days."), http.StatusSeeOther)
-}
-
-func AdminPersonMergeRequestReject(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id := requireGlobalAdmin(w, r, ctx)
-	if id == nil {
-		return
-	}
-	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
-		return
-	}
-	if err := getters.RejectPersonMergeRequest(ctx, mux.Vars(r)["requestID"], id.PersonID, r.FormValue("note")); err != nil {
-		http.Redirect(w, r, "/admin/people?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, "/admin/people?flash="+url.QueryEscape("Merge request rejected."), http.StatusSeeOther)
 }
 
 func AdminPersonMergeAudit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

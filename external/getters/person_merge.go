@@ -144,6 +144,7 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "award_distributions", PersonColumn: "completed_by", PrimaryKey: []string{"id"}, Label: "award completions"},
 	{Table: "award_distributions", PersonColumn: "person_id", PrimaryKey: []string{"id"}, DuplicateKey: []string{"award_id", "project_id", "prize_id"}, Label: "award distributions"},
 	{Table: "award_judges", PersonColumn: "person_id", PrimaryKey: []string{"award_id", "person_id"}, DuplicateKey: []string{"award_id"}, Label: "award judging roles"},
+	{Table: "award_votes", PersonColumn: "judge_person_id", PrimaryKey: []string{"award_id", "judge_person_id"}, DuplicateKey: []string{"award_id"}, Label: "award votes"},
 	{Table: "competition_hackers", PersonColumn: "person_id", PrimaryKey: []string{"competition_id", "person_id"}, DuplicateKey: []string{"competition_id"}, Label: "hackathon participation"},
 	{Table: "competition_judge_invites", PersonColumn: "accepted_by_person_id", PrimaryKey: []string{"id"}, Label: "judge invitations"},
 	{Table: "competition_judges", PersonColumn: "person_id", PrimaryKey: []string{"competition_id", "person_id", "judge_type"}, DuplicateKey: []string{"competition_id", "judge_type"}, Label: "hackathon judging roles"},
@@ -484,7 +485,7 @@ func MergePeople(ctx *config.AppContext, input PersonMergeInput) (string, error)
 		UPDATE person_merge_requests
 		SET status = 'superseded', reviewed_by_person_id = $2::uuid,
 			review_note = 'One of the accounts was merged through another review.', reviewed_at = now()
-		WHERE status = 'pending'
+		WHERE status IN ('awaiting_confirmation', 'pending')
 			AND (NULLIF($3, '') IS NULL OR id <> NULLIF($3, '')::uuid)
 			AND (requester_person_id = $1::uuid OR target_person_id = $1::uuid)
 	`, sourceID, actorID, strings.TrimSpace(input.MergeRequestID)); err != nil {
