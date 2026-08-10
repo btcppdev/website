@@ -74,6 +74,34 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreatePersonEmailVerification postgres: %v", err)
 	}
+	competitorEmail := "speaker-competitor-" + suffix + "@example.test"
+	competitorID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Verification Competitor " + suffix, Email: competitorEmail})
+	if err != nil {
+		t.Fatalf("create verification competitor: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, competitorID)
+	})
+	if _, err := CreatePersonEmailVerification(ctx, competitorID, secondary, false); err != nil {
+		t.Fatalf("create competing person email verification: %v", err)
+	}
+	pendingEmail, requesterEmail, err := GetPendingPersonEmailVerification(ctx, token)
+	if err != nil {
+		t.Fatalf("GetPendingPersonEmailVerification postgres: %v", err)
+	}
+	if pendingEmail != secondary {
+		t.Fatalf("pending verification email = %q, want %q", pendingEmail, secondary)
+	}
+	if requesterEmail != email {
+		t.Fatalf("requesting account email = %q, want %q", requesterEmail, email)
+	}
+	pendingEmails, err := ListPendingPersonEmailVerifications(ctx, speakerID)
+	if err != nil {
+		t.Fatalf("ListPendingPersonEmailVerifications postgres: %v", err)
+	}
+	if len(pendingEmails) != 1 || pendingEmails[0] != secondary {
+		t.Fatalf("pending verification emails = %v, want [%s]", pendingEmails, secondary)
+	}
 	verifiedPersonID, verifiedEmail, err := ConsumePersonEmailVerification(ctx, token)
 	if err != nil {
 		t.Fatalf("ConsumePersonEmailVerification postgres: %v", err)
@@ -81,12 +109,26 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 	if verifiedPersonID != speakerID || verifiedEmail != secondary {
 		t.Fatalf("verified identity = %s/%s, want %s/%s", verifiedPersonID, verifiedEmail, speakerID, secondary)
 	}
+	pendingEmails, err = ListPendingPersonEmailVerifications(ctx, speakerID)
+	if err != nil || len(pendingEmails) != 0 {
+		t.Fatalf("pending verification emails after consume = %v, %v; want none", pendingEmails, err)
+	}
+	competingPendingEmails, err := ListPendingPersonEmailVerifications(ctx, competitorID)
+	if err != nil || len(competingPendingEmails) != 0 {
+		t.Fatalf("competing pending verifications after consume = %v, %v; want none", competingPendingEmails, err)
+	}
 	primary, err := GetPrimaryPersonEmail(ctx, speakerID)
 	if err != nil || primary != secondary {
 		t.Fatalf("primary after verification = %q, %v; want %q", primary, err, secondary)
 	}
 	if err := SetPrimaryPersonEmail(ctx, speakerID, email); err != nil {
 		t.Fatalf("SetPrimaryPersonEmail postgres: %v", err)
+	}
+	if err := SetPrimaryPersonEmail(ctx, speakerID, secondary); err != nil {
+		t.Fatalf("SetPrimaryPersonEmail back to secondary: %v", err)
+	}
+	if err := SetPrimaryPersonEmail(ctx, speakerID, email); err != nil {
+		t.Fatalf("SetPrimaryPersonEmail back to original: %v", err)
 	}
 	if err := RemovePersonEmail(ctx, speakerID, secondary); err != nil {
 		t.Fatalf("RemovePersonEmail postgres: %v", err)
@@ -113,9 +155,13 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	refBefore := "merge-before-" + suffix
 	refAfter := "merge-after-" + suffix
 	var eventID string
+	var mergeRequestIDs []string
 	t.Cleanup(func() {
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM registrations WHERE ref_id = ANY($1::text[])`, []string{refBefore, refAfter})
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people_roles WHERE person_id = ANY($1::uuid[])`, []string{canonicalID, sourceID})
+		if len(mergeRequestIDs) > 0 {
+			_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM person_merge_requests WHERE id = ANY($1::uuid[])`, mergeRequestIDs)
+		}
 		if eventID != "" {
 			_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM person_merge_events WHERE id = $1::uuid`, eventID)
 		}
@@ -149,6 +195,20 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	if mergeRequest.RequesterPersonID != canonicalID || mergeRequest.TargetPersonID != sourceID || mergeRequest.Status != "awaiting_confirmation" {
 		t.Fatalf("merge request = %+v", mergeRequest)
 	}
+	mergeRequestIDs = append(mergeRequestIDs, mergeRequest.ID)
+	competitorEmail := "merge-competitor-" + suffix + "@example.test"
+	competitorID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Merge Competitor " + suffix, Email: competitorEmail})
+	if err != nil {
+		t.Fatalf("create merge competitor: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, competitorID)
+	})
+	competingRequest, _, err := CreatePersonMergeRequest(ctx, competitorID, sourceEmail)
+	if err != nil {
+		t.Fatalf("create competing merge request: %v", err)
+	}
+	mergeRequestIDs = append(mergeRequestIDs, competingRequest.ID)
 	mergeRequest, newlyConfirmed, err := ConfirmPersonMergeRequest(ctx, confirmationToken)
 	if err != nil {
 		t.Fatalf("ConfirmPersonMergeRequest: %v", err)
@@ -179,6 +239,10 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	completedRequest, err := GetPersonMergeRequest(ctx, mergeRequest.ID)
 	if err != nil || completedRequest == nil || completedRequest.Status != "merged" || completedRequest.MergeEventID != eventID {
 		t.Fatalf("completed merge request = %+v, %v", completedRequest, err)
+	}
+	competingRequest, err = GetPersonMergeRequest(ctx, competingRequest.ID)
+	if err != nil || competingRequest == nil || competingRequest.Status != "superseded" {
+		t.Fatalf("competing merge request after merge = %+v, %v; want superseded", competingRequest, err)
 	}
 
 	resolution, err := ResolvePersonByEmail(ctx, sourceEmail)
@@ -239,6 +303,44 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	}
 	if registrationPersonID != canonicalID {
 		t.Fatalf("post-merge registration owner = %s, want %s", registrationPersonID, canonicalID)
+	}
+}
+
+func TestDatabaseSmokePersonMergeManifestCoversPeopleForeignKeys(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT constraint_table.table_name, constraint_column.column_name
+		FROM information_schema.table_constraints constraint_table
+		JOIN information_schema.key_column_usage constraint_column
+			USING (constraint_catalog, constraint_schema, constraint_name)
+		JOIN information_schema.constraint_column_usage referenced_column
+			USING (constraint_catalog, constraint_schema, constraint_name)
+		WHERE constraint_table.constraint_type = 'FOREIGN KEY'
+			AND referenced_column.table_name = 'people'
+			AND referenced_column.column_name = 'id'
+	`)
+	if err != nil {
+		t.Fatalf("list people foreign keys: %v", err)
+	}
+	defer rows.Close()
+	covered := map[string]bool{
+		"person_emails.person_id":          true,
+		"person_email_conflicts.person_id": true,
+	}
+	for _, spec := range personMergeRelationshipSpecs {
+		covered[spec.Table+"."+spec.PersonColumn] = true
+	}
+	for rows.Next() {
+		var table, column string
+		if err := rows.Scan(&table, &column); err != nil {
+			t.Fatalf("scan people foreign key: %v", err)
+		}
+		if !covered[table+"."+column] {
+			t.Errorf("person merge manifest does not cover %s.%s", table, column)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate people foreign keys: %v", err)
 	}
 }
 

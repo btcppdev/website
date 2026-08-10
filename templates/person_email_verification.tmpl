@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Add email · bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-profile-edit-page">
+  {{ block "mainnav" . }} {{ end }}
+
+  <main class="profile-edit-shell person-emails-page">
+    <header class="profile-edit-hero">
+      <p class="profile-edit-tag">§ ACCOUNT</p>
+      <h1>Add this <span>email.</span></h1>
+      <p>Confirm that this email should be attached to the bitcoin++ account that requested it.</p>
+    </header>
+
+    {{ if .Error }}
+      <div class="profile-edit-flash person-emails-error">{{ .Error }}</div>
+      <p><a href="/dashboard/emails">Return to email addresses →</a></p>
+    {{ else }}
+      <section class="profile-edit-section is-open">
+        <div class="profile-edit-section__index">✓</div>
+        <div class="profile-edit-section__body">
+          <div class="profile-edit-section__head"><div><p>§ VERIFY EMAIL</p><h2>Add {{ .Email }}?</h2></div></div>
+          <p>Press the button below to verify <strong>{{ .Email }}</strong> and add it to the bitcoin++ account for <strong>{{ .RequesterEmail }}</strong>. Nothing will change until you confirm.</p>
+          <form method="POST" action="/dashboard/emails/verify" class="person-merge-review person-email-verification-form">
+            <input type="hidden" name="token" value="{{ .Token }}">
+            <button type="submit">Verify and add this email</button>
+          </form>
+          <p><small>If you did not request this, close this page. The email will not be added.</small></p>
+        </div>
+      </section>
+    {{ end }}
+  </main>
+
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

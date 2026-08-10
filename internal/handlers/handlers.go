@@ -1265,9 +1265,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/people/merge", func(w http.ResponseWriter, r *http.Request) {
 		AdminPersonMergeSave(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/admin/people/merge-requests/{requestID}/reject", func(w http.ResponseWriter, r *http.Request) {
-		AdminPersonMergeRequestReject(w, r, app)
-	}).Methods("POST")
 	r.HandleFunc("/admin/people/merges/{mergeID}", func(w http.ResponseWriter, r *http.Request) {
 		AdminPersonMergeAudit(w, r, app)
 	}).Methods("GET")
@@ -1601,17 +1598,20 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/emails/request", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmailRequest(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/dashboard/emails/resend", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailResend(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/dashboard/emails/verify", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmailVerify(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/emails/verify", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPersonEmailVerifyConfirm(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/dashboard/emails/primary", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmailPrimary(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/emails/remove", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmailRemove(w, r, app)
-	}).Methods("POST")
-	r.HandleFunc("/dashboard/merge-requests", func(w http.ResponseWriter, r *http.Request) {
-		DashboardPersonMergeRequest(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardSatelliteEventEdit(w, r, app)

@@ -40,6 +40,14 @@ func TestMissiveTemplateDoesNotHTMLEscapePlainTextURLs(t *testing.T) {
 	}
 }
 
+func TestEmailButtonPreservesVerificationToken(t *testing.T) {
+	verificationURL := "http://localhost:8888/dashboard/emails/verify?token=abc_123"
+	html := string(mdToHTML([]byte("[Add This Email](button#" + verificationURL + ")")))
+	if !strings.Contains(html, `href="`+verificationURL+`"`) {
+		t.Fatalf("rendered email button dropped verification token: %s", html)
+	}
+}
+
 func TestTemplatedNewsletterFrontmatterAndShortcodes(t *testing.T) {
 	ctx := &config.AppContext{
 		Env: &types.EnvConfig{Host: "btcpp.dev", Prod: true},

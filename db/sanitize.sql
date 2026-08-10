@@ -102,21 +102,45 @@ WITH numbered AS (
   FROM volunteers
 )
 UPDATE volunteers AS v
-SET name = 'Volunteer ' || numbered.rn,
-  email = ('volunteer+' || numbered.rn || '@example.test')::citext,
-  phone = '',
-  signal = '',
-  availability = '{}',
+SET availability = '{}',
   contact_at = '',
   comments = '',
   discovered_via = '',
   hometown = '',
-  twitter_handle = '',
-  nostr = '',
-  shirt = '',
   captcha = 0
 FROM numbered
 WHERE v.id = numbered.id;
+
+-- Production snapshots from before volunteer/person normalization still have
+-- profile and contact columns on volunteers. Scrub those before later local
+-- migrations copy them into people. Keep equal source emails equal so the
+-- identity backfill continues to exercise duplicate-application behavior.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'volunteers' AND column_name = 'email'
+  ) THEN
+    EXECUTE $sanitize_volunteers$
+      WITH numbered AS (
+        SELECT id, row_number() OVER (ORDER BY id) AS rn
+        FROM volunteers
+      )
+      UPDATE volunteers AS volunteer
+      SET name = 'Volunteer ' || numbered.rn,
+        email = ('volunteer+' || md5(lower(volunteer.email::text)) || '@example.test')::citext,
+        phone = '',
+        signal = '',
+        twitter_handle = '',
+        nostr = '',
+        shirt = ''
+      FROM numbered
+      WHERE volunteer.id = numbered.id
+    $sanitize_volunteers$;
+  END IF;
+END
+$$;
 
 UPDATE work_shifts
 SET cal_notif = '';

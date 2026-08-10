@@ -13,7 +13,7 @@
     <header class="profile-edit-hero">
       <p class="profile-edit-tag">§ ACCOUNT</p>
       <h1>Email <span>addresses.</span></h1>
-      <p>Use any verified address to sign in. Account messages go to the primary address.</p>
+      <p>Add another email to this account. If that email already has a bitcoin++ profile, we’ll help you combine them.</p>
     </header>
 
     {{ if .FlashMessage }}<div class="profile-edit-flash">{{ .FlashMessage }}</div>{{ end }}
@@ -33,7 +33,7 @@
           <div class="person-email-row">
             <div>
               <strong>{{ .Email }}</strong>
-              <span>{{ if .IsPrimary }}PRIMARY{{ else }}VERIFIED{{ end }}</span>
+              <span {{ if .IsPrimary }}class="is-primary"{{ end }}>{{ if .IsPrimary }}PRIMARY{{ else }}VERIFIED{{ end }}</span>
               {{ if .RemovalLocked }}<small>Locked during merge undo window</small>{{ end }}
             </div>
             <div class="person-email-actions">
@@ -52,6 +52,20 @@
             </div>
           </div>
           {{ end }}
+          {{ range .PendingEmails }}
+          <div class="person-email-row is-pending">
+            <div>
+              <strong>{{ . }}</strong>
+              <span class="is-pending">PENDING</span>
+            </div>
+            <div class="person-email-actions">
+              <form method="POST" action="/dashboard/emails/resend">
+                <input type="hidden" name="email" value="{{ . }}">
+                <button type="submit" class="is-link">Resend email</button>
+              </form>
+            </div>
+          </div>
+          {{ end }}
         </div>
       </div>
     </section>
@@ -62,38 +76,16 @@
         <div class="profile-edit-section__head">
           <div>
             <p>§ ADD EMAIL</p>
-            <h2>Verify another address</h2>
+            <h2>Add second email</h2>
           </div>
         </div>
         <form method="POST" action="/dashboard/emails/request" class="person-email-add">
-          <label>EMAIL
+          <label>SECOND EMAIL
             <input type="email" name="email" required autocomplete="email">
           </label>
-          <label class="person-email-primary-choice">
-            <input type="checkbox" name="make_primary" value="true">
-            Make primary after verification
-          </label>
-          <button type="submit">Send verification link</button>
+          <button type="submit">Add second email</button>
         </form>
-      </div>
-    </section>
-
-    <section class="profile-edit-section is-open">
-      <div class="profile-edit-section__index">⇄</div>
-      <div class="profile-edit-section__body">
-        <div class="profile-edit-section__head">
-          <div>
-            <p>§ ACCOUNT MERGE</p>
-            <h2>Combine duplicate profiles</h2>
-          </div>
-        </div>
-        <p>Enter a verified email belonging to your other bitcoin++ account. That address must confirm the request before administrators are notified. Nothing is merged until an administrator reviews both profiles.</p>
-        <form method="POST" action="/dashboard/merge-requests" class="person-email-add">
-          <label>OTHER ACCOUNT EMAIL
-            <input type="email" name="target_email" required autocomplete="email">
-          </label>
-          <button type="submit">Request account merge</button>
-        </form>
+        <p><small>We’ll email this address. New addresses are verified and attached; addresses with an existing profile receive a private account-merge review.</small></p>
 
         {{ if .MergeRequests }}
         <div class="person-email-list">
@@ -108,7 +100,7 @@
                 <small>{{ .RequesterEmail }}</small>
               {{ end }}
             </div>
-            <div class="person-email-actions"><span>{{ if eq .Status "awaiting_confirmation" }}AWAITING CONFIRMATION{{ else }}{{ .Status }}{{ end }}</span></div>
+            <div class="person-email-actions"><span {{ if or (eq .Status "awaiting_confirmation") (eq .Status "pending") }}class="is-pending"{{ end }}>{{ if eq .Status "awaiting_confirmation" }}AWAITING EMAIL REVIEW{{ else if eq .Status "pending" }}READY TO COMPLETE{{ else }}{{ .Status }}{{ end }}</span></div>
           </div>
           {{ end }}
         </div>

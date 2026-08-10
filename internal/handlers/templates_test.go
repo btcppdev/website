@@ -68,6 +68,7 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(nav.String(), `href="/toronto/hackathon"`) {
 		t.Fatalf("inactive hackathon nav unexpectedly contains public hackathon link: %s", nav.String())
 	}
+
 }
 
 func TestHackathonRichTextHTML(t *testing.T) {
