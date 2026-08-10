@@ -16,6 +16,7 @@ type DiscountInput struct {
 	CodeName       string
 	DiscountExpr   string
 	ConfRef        string
+	ConfRefs       []string
 	AffiliateEmail string
 }
 
@@ -139,8 +140,9 @@ func CalcDiscount(ctx *config.AppContext, confRef string, code string, tixPrice 
 	return total, discount, nil
 }
 
-// CreateDiscount inserts a DiscountsDb row scoped to a single
-// conference. AffiliateEmail is optional; when set, successful
+// CreateDiscount inserts a DiscountsDb row scoped to one or more
+// conferences. ConfRef remains available for single-conference callers;
+// ConfRefs is used by global admins creating a shared code. AffiliateEmail is optional; when set, successful
 // checkouts using the code will be credited to that affiliate.
 
 // UpdateDiscount patches an existing DiscountsDb row. The admin UI
@@ -159,10 +161,11 @@ func CreateDiscount(ctx *config.AppContext, in DiscountInput) (string, error) {
 	if in.DiscountExpr == "" {
 		return "", fmt.Errorf("CreateDiscount: DiscountExpr is required")
 	}
-	if in.ConfRef == "" {
-		return "", fmt.Errorf("CreateDiscount: ConfRef is required")
+	confRefs := discountInputConfRefs(in)
+	if len(confRefs) == 0 {
+		return "", fmt.Errorf("CreateDiscount: at least one conference is required")
 	}
-	return insertDiscountPostgres(ctx, in.CodeName, in.DiscountExpr, in.AffiliateEmail, []string{in.ConfRef})
+	return insertDiscountPostgres(ctx, in.CodeName, in.DiscountExpr, in.AffiliateEmail, confRefs)
 }
 
 func ListDiscounts(ctx *config.AppContext) ([]*types.DiscountCode, error) {
@@ -240,8 +243,7 @@ func IsCodeNameAvailable(ctx *config.AppContext, codeName string) (bool, error) 
 		SELECT EXISTS (
 			SELECT 1
 			FROM discounts
-			WHERE archived_at IS NULL
-				AND code_name = $1
+			WHERE code_name = $1
 		)
 	`, codeName).Scan(&exists); err != nil {
 		return false, fmt.Errorf("check discount code availability %q: %w", codeName, err)
@@ -331,10 +333,29 @@ func UpdateDiscount(ctx *config.AppContext, discountID string, in DiscountInput)
 	if in.DiscountExpr == "" {
 		return fmt.Errorf("UpdateDiscount: DiscountExpr is required")
 	}
-	if in.ConfRef == "" {
-		return fmt.Errorf("UpdateDiscount: ConfRef is required")
+	confRefs := discountInputConfRefs(in)
+	if len(confRefs) == 0 {
+		return fmt.Errorf("UpdateDiscount: at least one conference is required")
 	}
-	return updateDiscountRowPostgres(ctx, discountID, in.CodeName, in.DiscountExpr, &in.AffiliateEmail, []string{in.ConfRef})
+	return updateDiscountRowPostgres(ctx, discountID, in.CodeName, in.DiscountExpr, &in.AffiliateEmail, confRefs)
+}
+
+func discountInputConfRefs(in DiscountInput) []string {
+	refs := in.ConfRefs
+	if len(refs) == 0 && strings.TrimSpace(in.ConfRef) != "" {
+		refs = []string{in.ConfRef}
+	}
+	seen := make(map[string]bool, len(refs))
+	out := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		ref = strings.TrimSpace(ref)
+		if ref == "" || seen[ref] {
+			continue
+		}
+		seen[ref] = true
+		out = append(out, ref)
+	}
+	return out
 }
 
 func ArchiveDiscount(ctx *config.AppContext, discountID string) error {

@@ -47,6 +47,26 @@ type DiscountForm struct {
 	AffiliateEmail string
 }
 
+type GlobalAdminDiscountsPage struct {
+	Confs                  []*types.Conf
+	Discounts              []GlobalAdminDiscountRow
+	Form                   GlobalDiscountForm
+	SelectedConferenceRefs map[string]bool
+	Flash                  string
+	FlashErr               string
+	Year                   uint
+}
+
+type GlobalDiscountForm struct {
+	DiscountForm
+	ConferenceRefs []string
+}
+
+type GlobalAdminDiscountRow struct {
+	AdminDiscountRow
+	Conferences []*types.Conf
+}
+
 func AdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireConfAdmin(w, r, ctx); id == nil {
 		return
@@ -144,6 +164,178 @@ func AdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	renderAdminDiscounts(w, r, ctx, page)
 }
 
+func GlobalAdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if requireGlobalAdmin(w, r, ctx) == nil {
+		return
+	}
+	confs, err := getters.ListConfs(ctx)
+	if err != nil {
+		ctx.Err.Printf("/admin/discounts conferences: %s", err)
+		http.Error(w, "Unable to load discounts", http.StatusInternalServerError)
+		return
+	}
+	sortGlobalDiscountConfs(confs)
+	discounts, err := globalAdminDiscountRows(ctx, confs)
+	if err != nil {
+		ctx.Err.Printf("/admin/discounts list: %s", err)
+		http.Error(w, "Unable to load discounts", http.StatusInternalServerError)
+		return
+	}
+	page := &GlobalAdminDiscountsPage{
+		Confs:                  confs,
+		Discounts:              discounts,
+		SelectedConferenceRefs: map[string]bool{},
+		Flash:                  r.URL.Query().Get("flash"),
+		Year:                   helpers.CurrentYear(),
+		Form: GlobalDiscountForm{DiscountForm: DiscountForm{
+			DiscountType: "percent",
+			Amount:       "50",
+		}},
+	}
+
+	if r.Method == http.MethodPost {
+		limitRequestBody(w, r, maxFormBodyBytes)
+		if err := r.ParseForm(); err != nil {
+			page.FlashErr = "Couldn't read form. Try again."
+			renderGlobalAdminDiscounts(w, ctx, page)
+			return
+		}
+		page.Form = GlobalDiscountForm{
+			DiscountForm:   discountFormFromRequest(r),
+			ConferenceRefs: r.PostForm["conference_refs"],
+		}
+		for _, ref := range page.Form.ConferenceRefs {
+			page.SelectedConferenceRefs[ref] = true
+		}
+		confRefs, selectedConfs, err := validateGlobalDiscountConferences(confs, page.Form.ConferenceRefs)
+		if err != nil {
+			page.FlashErr = err.Error()
+			renderGlobalAdminDiscounts(w, ctx, page)
+			return
+		}
+		expr, err := buildDiscountExpr(page.Form.DiscountForm)
+		if err != nil {
+			page.FlashErr = err.Error()
+			renderGlobalAdminDiscounts(w, ctx, page)
+			return
+		}
+		available, err := getters.IsCodeNameAvailable(ctx, page.Form.CodeName)
+		if err != nil {
+			ctx.Err.Printf("/admin/discounts availability %s: %s", page.Form.CodeName, err)
+			page.FlashErr = "Couldn't check whether that code already exists."
+			renderGlobalAdminDiscounts(w, ctx, page)
+			return
+		}
+		if !available {
+			page.FlashErr = "That code already exists. Pick another code name."
+			renderGlobalAdminDiscounts(w, ctx, page)
+			return
+		}
+		_, err = getters.CreateDiscount(ctx, getters.DiscountInput{
+			CodeName:       strings.ToUpper(page.Form.CodeName),
+			DiscountExpr:   expr,
+			ConfRefs:       confRefs,
+			AffiliateEmail: page.Form.AffiliateEmail,
+		})
+		if err != nil {
+			ctx.Err.Printf("/admin/discounts create %s (%s): %s", page.Form.CodeName, expr, err)
+			page.FlashErr = "Creating the discount failed. Check server logs."
+			renderGlobalAdminDiscounts(w, ctx, page)
+			return
+		}
+		flash := fmt.Sprintf("Created %s for %s.", strings.ToUpper(page.Form.CodeName), conferenceNames(selectedConfs))
+		http.Redirect(w, r, "/admin/discounts?flash="+url.QueryEscape(flash), http.StatusSeeOther)
+		return
+	}
+
+	renderGlobalAdminDiscounts(w, ctx, page)
+}
+
+func renderGlobalAdminDiscounts(w http.ResponseWriter, ctx *config.AppContext, page *GlobalAdminDiscountsPage) {
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/global_discounts.tmpl", page); err != nil {
+		ctx.Err.Printf("/admin/discounts template: %s", err)
+		http.Error(w, "Unable to load page", http.StatusInternalServerError)
+	}
+}
+
+func validateGlobalDiscountConferences(confs []*types.Conf, requested []string) ([]string, []*types.Conf, error) {
+	byRef := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			byRef[conf.Ref] = conf
+		}
+	}
+	seen := make(map[string]bool, len(requested))
+	refs := make([]string, 0, len(requested))
+	selected := make([]*types.Conf, 0, len(requested))
+	for _, ref := range requested {
+		ref = strings.TrimSpace(ref)
+		if ref == "" || seen[ref] {
+			continue
+		}
+		conf := byRef[ref]
+		if conf == nil {
+			return nil, nil, fmt.Errorf("One of the selected conferences no longer exists. Refresh and try again.")
+		}
+		seen[ref] = true
+		refs = append(refs, ref)
+		selected = append(selected, conf)
+	}
+	if len(refs) == 0 {
+		return nil, nil, fmt.Errorf("Choose at least one conference.")
+	}
+	return refs, selected, nil
+}
+
+func sortGlobalDiscountConfs(confs []*types.Conf) {
+	sort.SliceStable(confs, func(i, j int) bool {
+		if confs[i].Active != confs[j].Active {
+			return confs[i].Active
+		}
+		if !confs[i].StartDate.Equal(confs[j].StartDate) {
+			return confs[i].StartDate.After(confs[j].StartDate)
+		}
+		return confs[i].Tag < confs[j].Tag
+	})
+}
+
+func globalAdminDiscountRows(ctx *config.AppContext, confs []*types.Conf) ([]GlobalAdminDiscountRow, error) {
+	discounts, err := getters.ListDiscounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	byRef := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			byRef[conf.Ref] = conf
+		}
+	}
+	out := make([]GlobalAdminDiscountRow, 0, len(discounts))
+	for _, discount := range discounts {
+		row := GlobalAdminDiscountRow{AdminDiscountRow: adminDiscountRow(discount)}
+		for _, ref := range discount.ConfRef {
+			if conf := byRef[ref]; conf != nil {
+				row.Conferences = append(row.Conferences, conf)
+			}
+		}
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return strings.ToUpper(out[i].CodeName) < strings.ToUpper(out[j].CodeName)
+	})
+	return out, nil
+}
+
+func conferenceNames(confs []*types.Conf) string {
+	names := make([]string, 0, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			names = append(names, conf.Desc)
+		}
+	}
+	return strings.Join(names, " and ")
+}
+
 func renderAdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, page *AdminDiscountsPage) {
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/discounts.tmpl", page); err != nil {
 		ctx.Err.Printf("/%s/admin/discounts template: %s", page.Conf.Tag, err)
@@ -178,7 +370,7 @@ func updateAdminDiscount(ctx *config.AppContext, conf *types.Conf, form Discount
 	return getters.UpdateDiscount(ctx, form.ID, getters.DiscountInput{
 		CodeName:       strings.ToUpper(form.CodeName),
 		DiscountExpr:   expr,
-		ConfRef:        conf.Ref,
+		ConfRefs:       discount.ConfRef,
 		AffiliateEmail: form.AffiliateEmail,
 	})
 }
