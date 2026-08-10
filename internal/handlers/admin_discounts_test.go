@@ -1,6 +1,11 @@
 package handlers
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"btcpp-web/internal/types"
+)
 
 func TestBuildDiscountExpr(t *testing.T) {
 	tests := []struct {
@@ -52,6 +57,26 @@ func TestBuildDiscountExpr(t *testing.T) {
 				t.Fatalf("buildDiscountExpr = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestValidateGlobalDiscountConferences(t *testing.T) {
+	confs := []*types.Conf{
+		{Ref: "seoul-id", Tag: "seoul26", Desc: "Seoul"},
+		{Ref: "berlin-id", Tag: "berlin26", Desc: "Berlin"},
+	}
+	refs, selected, err := validateGlobalDiscountConferences(confs, []string{"seoul-id", "berlin-id", "seoul-id"})
+	if err != nil {
+		t.Fatalf("validateGlobalDiscountConferences: %v", err)
+	}
+	if strings.Join(refs, ",") != "seoul-id,berlin-id" || conferenceNames(selected) != "Seoul and Berlin" {
+		t.Fatalf("selection = refs:%v names:%q", refs, conferenceNames(selected))
+	}
+	if _, _, err := validateGlobalDiscountConferences(confs, nil); err == nil {
+		t.Fatal("empty conference selection succeeded")
+	}
+	if _, _, err := validateGlobalDiscountConferences(confs, []string{"missing-id"}); err == nil {
+		t.Fatal("unknown conference selection succeeded")
 	}
 }
 
