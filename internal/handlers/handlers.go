@@ -6018,6 +6018,11 @@ func stripeCheckoutShopAmounts(checkout *stripe.CheckoutSession) (uint, uint) {
 	return tax, stripeAmountToUint(checkout.AmountTotal)
 }
 
+func stripeCheckoutNewsletterOptIn(metadata map[string]string) bool {
+	subscribe, err := strconv.ParseBool(strings.TrimSpace(metadata["subscribe"]))
+	return err == nil && subscribe
+}
+
 func stripeCheckoutShippingAddress(checkout *stripe.CheckoutSession) *types.ShopAddress {
 	if checkout == nil || checkout.ShippingDetails == nil || checkout.ShippingDetails.Address == nil {
 		return nil
@@ -6250,7 +6255,7 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 		/* Add to mailing list + send mails */
 		if !types.IsSponsoredTicketType(tixType) {
-			err = missives.NewTicketSub(ctx, entry.Email, conf.Tag, tixType, false)
+			err = missives.NewTicketSub(ctx, entry.Email, conf.Tag, tixType, stripeCheckoutNewsletterOptIn(checkout.Metadata))
 			if err != nil {
 				ctx.Err.Printf("!!! Unable to subscribe to newsletter %s: %v", err, entry)
 				w.WriteHeader(http.StatusInternalServerError)
