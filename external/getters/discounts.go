@@ -17,6 +17,7 @@ type DiscountInput struct {
 	DiscountExpr   string
 	ConfRef        string
 	ConfRefs       []string
+	AllConferences bool
 	AffiliateEmail string
 }
 
@@ -142,8 +143,10 @@ func CalcDiscount(ctx *config.AppContext, confRef string, code string, tixPrice 
 
 // CreateDiscount inserts a DiscountsDb row scoped to one or more
 // conferences. ConfRef remains available for single-conference callers;
-// ConfRefs is used by global admins creating a shared code. AffiliateEmail is optional; when set, successful
-// checkouts using the code will be credited to that affiliate.
+// ConfRefs is used by global admins creating a shared code. AllConferences
+// deliberately stores no conference links, matching affiliate-code wildcard
+// behavior. AffiliateEmail is optional; when set, successful checkouts using
+// the code will be credited to that affiliate.
 
 // UpdateDiscount patches an existing DiscountsDb row. The admin UI
 // always submits the full editable shape, including the event relation,
@@ -162,8 +165,11 @@ func CreateDiscount(ctx *config.AppContext, in DiscountInput) (string, error) {
 		return "", fmt.Errorf("CreateDiscount: DiscountExpr is required")
 	}
 	confRefs := discountInputConfRefs(in)
-	if len(confRefs) == 0 {
+	if len(confRefs) == 0 && !in.AllConferences {
 		return "", fmt.Errorf("CreateDiscount: at least one conference is required")
+	}
+	if in.AllConferences {
+		confRefs = nil
 	}
 	return insertDiscountPostgres(ctx, in.CodeName, in.DiscountExpr, in.AffiliateEmail, confRefs)
 }
@@ -334,8 +340,11 @@ func UpdateDiscount(ctx *config.AppContext, discountID string, in DiscountInput)
 		return fmt.Errorf("UpdateDiscount: DiscountExpr is required")
 	}
 	confRefs := discountInputConfRefs(in)
-	if len(confRefs) == 0 {
+	if len(confRefs) == 0 && !in.AllConferences {
 		return fmt.Errorf("UpdateDiscount: at least one conference is required")
+	}
+	if in.AllConferences {
+		confRefs = nil
 	}
 	return updateDiscountRowPostgres(ctx, discountID, in.CodeName, in.DiscountExpr, &in.AffiliateEmail, confRefs)
 }

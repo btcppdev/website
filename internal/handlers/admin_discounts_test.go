@@ -80,6 +80,17 @@ func TestValidateGlobalDiscountConferences(t *testing.T) {
 	}
 }
 
+func TestNormalizeGlobalDiscountScope(t *testing.T) {
+	if got := normalizeGlobalDiscountScope("all"); got != "all" {
+		t.Fatalf("scope = %q, want all", got)
+	}
+	for _, input := range []string{"", "selected", "unexpected"} {
+		if got := normalizeGlobalDiscountScope(input); got != "selected" {
+			t.Fatalf("scope %q = %q, want selected", input, got)
+		}
+	}
+}
+
 func TestBuildDiscountExprValidation(t *testing.T) {
 	tests := []struct {
 		name string

@@ -59,7 +59,8 @@ type GlobalAdminDiscountsPage struct {
 
 type GlobalDiscountForm struct {
 	DiscountForm
-	ConferenceRefs []string
+	ConferenceRefs  []string
+	ConferenceScope string
 }
 
 type GlobalAdminDiscountRow struct {
@@ -190,7 +191,7 @@ func GlobalAdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		Form: GlobalDiscountForm{DiscountForm: DiscountForm{
 			DiscountType: "percent",
 			Amount:       "50",
-		}},
+		}, ConferenceScope: "selected"},
 	}
 
 	if r.Method == http.MethodPost {
@@ -201,17 +202,22 @@ func GlobalAdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 			return
 		}
 		page.Form = GlobalDiscountForm{
-			DiscountForm:   discountFormFromRequest(r),
-			ConferenceRefs: r.PostForm["conference_refs"],
+			DiscountForm:    discountFormFromRequest(r),
+			ConferenceRefs:  r.PostForm["conference_refs"],
+			ConferenceScope: normalizeGlobalDiscountScope(r.PostForm.Get("conference_scope")),
 		}
 		for _, ref := range page.Form.ConferenceRefs {
 			page.SelectedConferenceRefs[ref] = true
 		}
-		confRefs, selectedConfs, err := validateGlobalDiscountConferences(confs, page.Form.ConferenceRefs)
-		if err != nil {
-			page.FlashErr = err.Error()
-			renderGlobalAdminDiscounts(w, ctx, page)
-			return
+		var confRefs []string
+		var selectedConfs []*types.Conf
+		if page.Form.ConferenceScope == "selected" {
+			confRefs, selectedConfs, err = validateGlobalDiscountConferences(confs, page.Form.ConferenceRefs)
+			if err != nil {
+				page.FlashErr = err.Error()
+				renderGlobalAdminDiscounts(w, ctx, page)
+				return
+			}
 		}
 		expr, err := buildDiscountExpr(page.Form.DiscountForm)
 		if err != nil {
@@ -235,6 +241,7 @@ func GlobalAdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 			CodeName:       strings.ToUpper(page.Form.CodeName),
 			DiscountExpr:   expr,
 			ConfRefs:       confRefs,
+			AllConferences: page.Form.ConferenceScope == "all",
 			AffiliateEmail: page.Form.AffiliateEmail,
 		})
 		if err != nil {
@@ -243,12 +250,23 @@ func GlobalAdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 			renderGlobalAdminDiscounts(w, ctx, page)
 			return
 		}
-		flash := fmt.Sprintf("Created %s for %s.", strings.ToUpper(page.Form.CodeName), conferenceNames(selectedConfs))
+		target := conferenceNames(selectedConfs)
+		if page.Form.ConferenceScope == "all" {
+			target = "all current and future conferences"
+		}
+		flash := fmt.Sprintf("Created %s for %s.", strings.ToUpper(page.Form.CodeName), target)
 		http.Redirect(w, r, "/admin/discounts?flash="+url.QueryEscape(flash), http.StatusSeeOther)
 		return
 	}
 
 	renderGlobalAdminDiscounts(w, ctx, page)
+}
+
+func normalizeGlobalDiscountScope(scope string) string {
+	if strings.TrimSpace(scope) == "all" {
+		return "all"
+	}
+	return "selected"
 }
 
 func renderGlobalAdminDiscounts(w http.ResponseWriter, ctx *config.AppContext, page *GlobalAdminDiscountsPage) {
