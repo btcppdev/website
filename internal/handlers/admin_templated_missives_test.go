@@ -32,6 +32,8 @@ ticker:
 
 Some freeform body copy.
 
+{{ button "Read the full issue" "https://example.com/weekly?from=email&issue=9" }}
+
 {{ pullquote "Bring your weirdest debugging story." "The organizers" }}
 
 {{ cta "JOIN US" "Get a ticket" "Seats are limited." "BUY TICKETS" "https://example.com/tickets" }}
@@ -70,7 +72,7 @@ Some freeform body copy.
 	if form.CTAEyebrow != "JOIN US" || form.CTATitle != "Get a ticket" || form.CTASubtitle != "Seats are limited." || form.CTALabel != "BUY TICKETS" || form.CTAURL != "https://example.com/tickets" {
 		t.Fatalf("CTA fields not hydrated: %#v", form)
 	}
-	if form.ContentMarkdown != "Some freeform body copy." {
+	if form.ContentMarkdown != "Some freeform body copy.\n\n{{ button \"Read the full issue\" \"https://example.com/weekly?from=email&issue=9\" }}" {
 		t.Fatalf("ContentMarkdown = %q", form.ContentMarkdown)
 	}
 	if strings.Contains(form.ContentMarkdown, "{{ stats") {
@@ -138,5 +140,22 @@ func TestBuildTemplatedMissiveMarkdownDoesNotWriteDateFrontmatter(t *testing.T) 
 	})
 	if strings.Contains(markdown, "\ndate:") {
 		t.Fatalf("templated missive markdown should not include date frontmatter: %q", markdown)
+	}
+}
+
+func TestBuildTemplatedMissiveMarkdownPreservesInlineButtonShortcode(t *testing.T) {
+	const button = `{{ button "Read the full issue" "https://example.com/weekly?from=email&issue=9" }}`
+	markdown := buildTemplatedMissiveMarkdown(TemplatedMissiveForm{
+		Template:        "roundup",
+		ContentMarkdown: "Latest reporting.\n\n" + button,
+	})
+	if !strings.Contains(markdown, button) {
+		t.Fatalf("templated missive markdown lost inline button: %q", markdown)
+	}
+
+	letter := &mtypes.Letter{Markdown: markdown}
+	form := formFromTemplatedLetter(letter)
+	if !strings.Contains(form.ContentMarkdown, button) {
+		t.Fatalf("inline button was not restored to the body editor: %q", form.ContentMarkdown)
 	}
 }

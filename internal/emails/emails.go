@@ -424,7 +424,7 @@ func SendNewsletterMissive(ctx *config.AppContext, sub *mtypes.Subscriber, lette
 	_, newsToken := helpers.GetSubscribeToken(ctx.Env.HMACKey[:], sub.Email, "newsletter", timestamp)
 
 	var buf bytes.Buffer
-	err := missiveTemplate(ctx, letter).Execute(&buf, &mtypes.EmailContent{
+	err := executeMissiveTemplate(ctx, letter, &buf, &mtypes.EmailContent{
 		ImgRef: letter.ImgRef(),
 		URI:    ctx.Env.GetURI(),
 		/* Always include the newsletter subscribe token?? */
