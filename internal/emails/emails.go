@@ -13,6 +13,7 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"btcpp-web/external/getters"
@@ -25,6 +26,7 @@ import (
 )
 
 var rezziesSent map[string]*types.Registration
+var previewMissiveJobSequence atomic.Uint64
 
 type EmailTmpl struct {
 	URI     string
@@ -416,8 +418,7 @@ func SendMailRequest(ctx *config.AppContext, mail *mailer.MailRequest) error {
 
 func SendNewsletterMissive(ctx *config.AppContext, sub *mtypes.Subscriber, letter *mtypes.Letter, sendAt time.Time, preview bool) ([]byte, error) {
 
-	jobhash := helpers.MakeJobHash(sub.Email, letter.UID, letter.Title)
-	jobkey := fmt.Sprintf("%s-%s", letter.Missive(), jobhash)
+	jobkey := newsletterMissiveJobKey(sub.Email, letter, preview)
 
 	timestamp := uint64(time.Now().UTC().UnixNano())
 	_, newsToken := helpers.GetSubscribeToken(ctx.Env.HMACKey[:], sub.Email, "newsletter", timestamp)
@@ -479,6 +480,20 @@ func SendNewsletterMissive(ctx *config.AppContext, sub *mtypes.Subscriber, lette
 	ctx.Infos.Printf("Sending (%s)%s to %s at %s", subkey, letter.Title, sub.Email, sendAt)
 
 	return htmlBody, ComposeAndSendMail(ctx, mail)
+}
+
+func newsletterMissiveJobKey(email string, letter *mtypes.Letter, preview bool) string {
+	jobhash := helpers.MakeJobHash(email, letter.UID, letter.Title)
+	jobkey := fmt.Sprintf("%s-%s", letter.Missive(), jobhash)
+	if !preview {
+		return jobkey
+	}
+	// Preview/test sends are explicitly user-triggered and must punch through
+	// the mailer's idempotency layer even when the saved missive UID, title,
+	// and recipient are unchanged. UnixNano keeps keys distinct across process
+	// restarts; the sequence also guarantees uniqueness within this process if
+	// the clock returns the same value for two rapid sends.
+	return fmt.Sprintf("%s-test-%d-%d", jobkey, time.Now().UTC().UnixNano(), previewMissiveJobSequence.Add(1))
 }
 
 func buildConfirmURL(ctx *config.AppContext, token string) string {
