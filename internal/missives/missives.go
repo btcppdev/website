@@ -118,6 +118,28 @@ func QueueMissiveByUID(ctx *config.AppContext, uid uint64) (*mtypes.Letter, bool
 	return letter, started, nil
 }
 
+// CancelMissiveByUID removes every non-sent mailer job associated with the
+// missive. Reserving the same process-local key used by QueueMissiveByUID
+// prevents cancellation from racing an in-progress subscriber fan-out.
+func CancelMissiveByUID(ctx *config.AppContext, uid uint64) (*mtypes.Letter, error) {
+	if _, loaded := activeMissiveSchedules.LoadOrStore(uid, struct{}{}); loaded {
+		return nil, fmt.Errorf("MISS-%d is still being scheduled; try cancellation again shortly", uid)
+	}
+	defer activeMissiveSchedules.Delete(uid)
+
+	letter, err := getters.GetLetter(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	if letter.SentAt != nil {
+		return nil, fmt.Errorf("MISS-%d has already been sent", uid)
+	}
+	if err := emails.SendCancelMissiveRequest(ctx, letter); err != nil {
+		return nil, err
+	}
+	return letter, nil
+}
+
 func startMissiveSchedule(uid uint64, run func()) bool {
 	if _, loaded := activeMissiveSchedules.LoadOrStore(uid, struct{}{}); loaded {
 		return false
