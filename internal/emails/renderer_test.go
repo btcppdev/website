@@ -128,3 +128,13 @@ Body.
 		t.Fatalf("rendered email used stale frontmatter date: %s", html)
 	}
 }
+
+func TestRebrandEmailCSSRemovesOuterBorderOnMobile(t *testing.T) {
+	css := string(rebrandEmailCSS("signal"))
+	if !strings.Contains(css, ".btcpp-inner { width: 640px; max-width: 100%;") || !strings.Contains(css, "border: 1px solid #1C1C1E;") {
+		t.Fatalf("desktop newsletter border missing: %s", css)
+	}
+	if !strings.Contains(css, "@media only screen and (max-width: 680px)") || !strings.Contains(css, ".btcpp-inner { border: 0 !important; }") {
+		t.Fatalf("mobile newsletter border override missing: %s", css)
+	}
+}
