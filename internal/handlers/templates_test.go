@@ -54,6 +54,17 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("global discounts render missing %q", want)
 		}
 	}
+	var volunteerConfirmation bytes.Buffer
+	if err := discountTemplates.ExecuteTemplate(&volunteerConfirmation, "volunteer_confirmation.tmpl", &VolunteerApplicationConfirmationPage{
+		Error: "Volunteer confirmation link is invalid, expired, or already used.",
+	}); err != nil {
+		t.Fatalf("render volunteer confirmation error: %v", err)
+	}
+	for _, want := range []string{`href="/volunteer"`, `>Apply again</a>`} {
+		if !strings.Contains(volunteerConfirmation.String(), want) {
+			t.Fatalf("volunteer confirmation error render missing %q", want)
+		}
+	}
 	var nav bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&nav, "generic_conf_nav", &types.Conf{Tag: "toronto", ShowHackathon: true}); err != nil {
 		t.Fatalf("render generic_conf_nav: %v", err)

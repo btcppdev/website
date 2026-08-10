@@ -13,6 +13,7 @@
     </header>
     {{ if .Error }}
       <div class="profile-edit-flash person-emails-error">{{ .Error }}</div>
+      <p><a class="volunteer-confirmation-retry" href="/volunteer">Apply again</a></p>
     {{ else if .Confirmed }}
       <div class="profile-edit-flash">Your volunteer application for {{ .Conf.Desc }} has been submitted.</div>
       {{ if .Notice }}<div class="profile-edit-flash person-emails-error">{{ .Notice }}</div>{{ end }}
