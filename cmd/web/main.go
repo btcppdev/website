@@ -128,6 +128,7 @@ func main() {
 
 	handlers.StartRecordingAutopublisher(&app)
 	handlers.StartShopMaintenance(&app)
+	handlers.StartWeeklyNewsletterDrafting(&app)
 
 	/* Start the server */
 	app.Infos.Printf("Starting application on port %s\n", app.Env.Port)

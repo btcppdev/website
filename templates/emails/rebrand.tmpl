@@ -13,12 +13,15 @@
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="btcpp-shell">
     <tr>
       <td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="640" cellpadding="0" cellspacing="0" class="btcpp-inner">
+        <table role="presentation" width="640" cellpadding="0" cellspacing="0" class="btcpp-inner" style="width:640px;max-width:100%;table-layout:fixed;">
           {{ if .Config.Ticker }}
           <tr>
-            <td style="background:#1C1C1E;color:#FFFFFF;padding:10px 20px;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11px;letter-spacing:1.5px;white-space:nowrap;overflow:hidden;">
-              <span style="color:#F57247;margin-right:16px;">&#9654; LIVE</span>
-              {{ range $i, $item := .Config.Ticker }}{{ if $i }}<span style="color:#6B655C;margin:0 12px;">&bull;</span>{{ end }}<span>{{ $item }}</span>{{ end }}
+            <td class="btcpp-ticker" style="max-width:0;background:#1C1C1E;color:#FFFFFF;padding:10px 20px;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:14px;letter-spacing:1.5px;white-space:nowrap;overflow:hidden;">
+              <div class="btcpp-ticker-window" style="display:block;width:100%;height:14px;line-height:14px;max-height:14px;overflow:hidden;white-space:nowrap;">
+                <div class="btcpp-ticker-track" style="display:inline-block;line-height:14px;white-space:nowrap;">
+                  <span class="btcpp-ticker-set" style="display:inline-block;padding-right:32px;white-space:nowrap;">{{ range $i, $item := .Config.Ticker }}{{ if $i }}<span style="color:#6B655C;margin:0 12px;">&bull;</span>{{ end }}<span>{{ $item }}</span>{{ end }}</span><span class="btcpp-ticker-set" aria-hidden="true" style="display:inline-block;padding-right:32px;white-space:nowrap;">{{ range $i, $item := .Config.Ticker }}{{ if $i }}<span style="color:#6B655C;margin:0 12px;">&bull;</span>{{ end }}<span>{{ $item }}</span>{{ end }}</span>
+                </div>
+              </div>
             </td>
           </tr>
           {{ end }}

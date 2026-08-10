@@ -1398,8 +1398,29 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/missives", func(w http.ResponseWriter, r *http.Request) {
 		TemplatedMissivesAdmin(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/missives/new", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesNew(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/missives/{uid:[0-9]+}", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesEdit(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/missives/{uid:[0-9]+}/inline", func(w http.ResponseWriter, r *http.Request) {
+		InlineMissiveSave(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/missives/{uid:[0-9]+}/delete", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesDelete(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/missives/{uid:[0-9]+}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesCancel(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/missives", func(w http.ResponseWriter, r *http.Request) {
 		TemplatedMissivesSave(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/missives/weekly", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesCreateWeekly(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/missives/weekly/test-auto-draft", func(w http.ResponseWriter, r *http.Request) {
+		TemplatedMissivesTestWeeklyAutomation(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/admin/missives/upload-image", func(w http.ResponseWriter, r *http.Request) {
 		TemplatedMissivesUploadImage(w, r, app)

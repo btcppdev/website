@@ -78,6 +78,16 @@ const (
 	devCheckInSponsorPickup  = "00000000-0000-4000-8000-000000000a41"
 	devCheckInSpeakerPickup1 = "00000000-0000-4000-8000-000000000a42"
 	devCheckInSpeakerPickup2 = "00000000-0000-4000-8000-000000000a43"
+	devNewsletterCompetition = "00000000-0000-4000-8000-000000000b01"
+	devNewsletterProject1    = "00000000-0000-4000-8000-000000000b02"
+	devNewsletterProject2    = "00000000-0000-4000-8000-000000000b03"
+	devNewsletterAward1      = "00000000-0000-4000-8000-000000000b11"
+	devNewsletterAward2      = "00000000-0000-4000-8000-000000000b12"
+	devNewsletterAward3      = "00000000-0000-4000-8000-000000000b13"
+	devNewsletterRecording   = "00000000-0000-4000-8000-000000000b21"
+	devNewsletterRecording2  = "00000000-0000-4000-8000-000000000b22"
+	devNewsletterRecording3  = "00000000-0000-4000-8000-000000000b23"
+	devNewsletterRecording4  = "00000000-0000-4000-8000-000000000b24"
 )
 
 type daySeed struct {
@@ -322,9 +332,9 @@ var devSpeakers = []speakerSeed{
 		title:         "Async Payments and Mobile Reliability",
 		description:   "A panel on the tradeoffs between background services, blinded paths, offline notifications, and the mobile constraints users actually have.",
 		talkType:      "panel",
-		start:         "2026-10-02 14:00:00-05",
-		end:           "2026-10-02 15:00:00-05",
-		venue:         "two",
+		start:         "2026-10-03 16:00:00-05",
+		end:           "2026-10-03 17:00:00-05",
+		venue:         "one",
 		clipart:       "../static/img/toronto/og_card_standard.png",
 		duration:      60,
 	},
@@ -511,16 +521,18 @@ func main() {
 
 	confID := seedConference(ctx, tx)
 	pastConfID := seedRedesignConferences(ctx, tx)
+	newsletterSendAt := nextWeeklyNewsletterSendAt(time.Now())
 	seedConferenceDays(ctx, tx, confID)
-	seedTickets(ctx, tx, confID)
+	seedTickets(ctx, tx, confID, newsletterSendAt)
 	seedAdmin(ctx, tx)
 	seedProgram(ctx, tx, confID)
+	seedMerch(ctx, tx, confID)
+	seedWeeklyNewsletterFixtures(ctx, tx, confID, newsletterSendAt)
 	seedSponsors(ctx, tx, confID)
 	seedHotels(ctx, tx, confID)
 	seedSatelliteEvents(ctx, tx, confID)
 	seedHomepageFeaturedSpeakers(ctx, tx)
 	seedDashboardFixtures(ctx, tx, confID, pastConfID)
-	seedMerch(ctx, tx, confID)
 	seedCheckInPreviews(ctx, tx, confID)
 	seedMissives(ctx, tx)
 
@@ -1411,12 +1423,16 @@ func seedConferenceDays(ctx context.Context, tx pgx.Tx, confID string) {
 	}
 }
 
-func seedTickets(ctx context.Context, tx pgx.Tx, confID string) {
+func seedTickets(ctx context.Context, tx pgx.Tx, confID string, newsletterSendAt time.Time) {
 	for _, tix := range devTickets {
+		salesEndAt := tix.expiresStart
+		if tix.id == devEarlyTixID {
+			salesEndAt = newsletterSendAt.AddDate(0, 0, 4).Format(time.RFC3339)
+		}
 		mustExec(ctx, tx, "seed ticket", `
 			INSERT INTO conference_tickets (
 				id, conference_id, ticket_key, tier, local_price, btc_price, usd_price,
-				base_price, card_surcharge_bps, expires_start, max_count, currency, symbol, post_symbol,
+				base_price, card_surcharge_bps, sales_end_at, max_count, currency, symbol, post_symbol,
 				stripe_tax_code
 			)
 			VALUES (
@@ -1430,15 +1446,29 @@ func seedTickets(ctx context.Context, tx pgx.Tx, confID string) {
 				usd_price = EXCLUDED.usd_price,
 				base_price = EXCLUDED.base_price,
 				card_surcharge_bps = EXCLUDED.card_surcharge_bps,
-				expires_start = EXCLUDED.expires_start,
+				sales_end_at = EXCLUDED.sales_end_at,
 				max_count = EXCLUDED.max_count,
 				currency = EXCLUDED.currency,
 				symbol = EXCLUDED.symbol,
 				post_symbol = EXCLUDED.post_symbol,
 				stripe_tax_code = EXCLUDED.stripe_tax_code
 		`, tix.id, confID, tix.key, tix.tier, tix.local, tix.btc, tix.usd,
-			tix.expiresStart, tix.max, tix.currency, tix.symbol, tix.postSymbol)
+			salesEndAt, tix.max, tix.currency, tix.symbol, tix.postSymbol)
 	}
+}
+
+func nextWeeklyNewsletterSendAt(now time.Time) time.Time {
+	loc, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		loc = time.FixedZone("America/Chicago", -6*60*60)
+	}
+	localNow := now.In(loc)
+	days := (int(time.Tuesday) - int(localNow.Weekday()) + 7) % 7
+	candidate := time.Date(localNow.Year(), localNow.Month(), localNow.Day()+days, 10, 0, 0, 0, loc)
+	if !candidate.After(localNow) {
+		candidate = candidate.AddDate(0, 0, 7)
+	}
+	return candidate
 }
 
 func seedAdmin(ctx context.Context, tx pgx.Tx) {
@@ -1573,6 +1603,194 @@ func seedProgram(ctx context.Context, tx pgx.Tx, confID string) {
 		VALUES ($1::uuid, $2::uuid)
 		ON CONFLICT DO NOTHING
 	`, "00000000-0000-4000-8000-000000000306", "00000000-0000-4000-8000-000000000203")
+}
+
+func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string, newsletterSendAt time.Time) {
+	// Give the weekly draft one newly published product and one genuine manual
+	// restock inside its lookback window. Keep the other seeded products old so
+	// repeated seed runs produce a stable, readable merch update list.
+	mustExec(ctx, tx, "age newsletter merch publication dates", `
+		UPDATE merch_products
+		SET published_at = $1::timestamptz - interval '30 days'
+		WHERE id::text = ANY($2::text[])
+	`, newsletterSendAt, []string{devMerchProduct1ID, devMerchProduct2ID, devMerchProduct3ID, devMerchProduct4ID, devMerchProduct5ID})
+	mustExec(ctx, tx, "seed newly published newsletter merch", `
+		UPDATE merch_products
+		SET published_at = $1::timestamptz - interval '3 days'
+		WHERE id = $2::uuid
+	`, newsletterSendAt, devMerchProduct4ID)
+	mustExec(ctx, tx, "reset newsletter merch restock", `
+		DELETE FROM merch_inventory_events
+		WHERE variant_id = $1::uuid AND notes = 'weekly newsletter restock fixture'
+	`, devMerchVariant1ID)
+	mustExec(ctx, tx, "seed newsletter merch restock", `
+		INSERT INTO merch_inventory_events (
+			variant_id, event_type, quantity_delta, actor_email, notes, occurred_at
+		) VALUES (
+			$1::uuid, 'increase', 12, 'dev-admin@example.test',
+			'weekly newsletter restock fixture', $2::timestamptz - interval '2 days'
+		)
+	`, devMerchVariant1ID, newsletterSendAt)
+
+	// Keep these inside the newsletter's seven-day lookback so the generated
+	// draft demonstrates the broadcasts section using already-public recordings.
+	recordings := []struct {
+		id, talkID, title, slug string
+		publishedDaysAgo        int
+	}{
+		{devNewsletterRecording, devSpeakers[len(devSpeakers)-1].talkID, "Async Payments and Mobile Reliability", "async-payments-panel", 1},
+		{devNewsletterRecording2, devSpeakers[0].talkID, "Package Relay in Practice", "package-relay", 2},
+		{devNewsletterRecording3, devSpeakers[1].talkID, "Building a Signet-First Release Pipeline", "signet-release-pipeline", 3},
+		{devNewsletterRecording4, devSpeakers[2].talkID, "Designing Good Failure Modes for Lightning Apps", "lightning-failure-modes", 4},
+	}
+	for _, recording := range recordings {
+		publishAt := newsletterSendAt.AddDate(0, 0, -recording.publishedDaysAgo)
+		mustExec(ctx, tx, "seed newsletter recording", `
+		INSERT INTO recordings (
+			id, conf_talk_id, talk_name, youtube_url, x_url, x_reply_url,
+			file_uri, publish_at
+		)
+		VALUES (
+			$1::uuid, $2::uuid, $3,
+			'https://www.youtube.com/watch?v=dev-' || $4, '', '',
+			'spaces://dev-fixture/' || $4 || '.mp4', $5::timestamptz
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			conf_talk_id = EXCLUDED.conf_talk_id,
+			talk_name = EXCLUDED.talk_name,
+			youtube_url = EXCLUDED.youtube_url,
+			x_url = EXCLUDED.x_url,
+			x_reply_url = EXCLUDED.x_reply_url,
+			file_uri = EXCLUDED.file_uri,
+			publish_at = EXCLUDED.publish_at
+	`, recording.id, recording.talkID, recording.title, recording.slug, publishAt)
+	}
+
+	var competitionID string
+	err := tx.QueryRow(ctx, `
+		INSERT INTO competitions (
+			id, conference_id, title, description, description_format, visibility,
+			lifecycle_override, public_gallery_enabled, public_tables_enabled,
+			public_gallery_at, hacking_starts_at, hacking_ends_at,
+			results_finalized_at, results_finalized_by
+		)
+		VALUES (
+			$1::uuid, $2::uuid, 'Signet Builders Sprint',
+			'A compact development hackathon fixture with public, finalized results.',
+			'markdown', 'public', 'closed', true, true,
+			now() - interval '1 day', now() - interval '4 days', now() - interval '2 days',
+			now(), $3::uuid
+		)
+		ON CONFLICT (conference_id) DO UPDATE SET
+			title = EXCLUDED.title,
+			description = EXCLUDED.description,
+			description_format = EXCLUDED.description_format,
+			visibility = EXCLUDED.visibility,
+			lifecycle_override = EXCLUDED.lifecycle_override,
+			public_gallery_enabled = EXCLUDED.public_gallery_enabled,
+			public_tables_enabled = EXCLUDED.public_tables_enabled,
+			public_gallery_at = EXCLUDED.public_gallery_at,
+			hacking_starts_at = EXCLUDED.hacking_starts_at,
+			hacking_ends_at = EXCLUDED.hacking_ends_at,
+			results_finalized_at = EXCLUDED.results_finalized_at,
+			results_finalized_by = EXCLUDED.results_finalized_by
+		RETURNING id::text
+	`, devNewsletterCompetition, confID, devAdminID).Scan(&competitionID)
+	if err != nil {
+		log.Fatal(fmt.Errorf("seed newsletter competition: %w", err))
+	}
+
+	type newsletterProjectSeed struct {
+		id, slug, title, shortDescription, description, githubURL string
+		number                                                    int
+	}
+	projects := []newsletterProjectSeed{
+		{
+			id:               devNewsletterProject1,
+			slug:             "mempool-observatory",
+			title:            "Mempool Observatory",
+			shortDescription: "A live package-relay and fee-pressure explorer for Signet.",
+			description:      "Turns package relay behavior into a visual timeline so developers can inspect propagation, replacement, and fee-bumping decisions.",
+			githubURL:        "https://github.com/example/mempool-observatory",
+			number:           7,
+		},
+		{
+			id:               devNewsletterProject2,
+			slug:             "signet-arcade",
+			title:            "Signet Arcade",
+			shortDescription: "Collaborative protocol puzzles backed by reproducible Signet fixtures.",
+			description:      "A playful browser lab for learning transaction construction, policy failures, and recovery paths with teammates.",
+			githubURL:        "https://github.com/example/signet-arcade",
+			number:           12,
+		},
+	}
+	projectIDs := make(map[string]string, len(projects))
+	for _, project := range projects {
+		var projectID string
+		err := tx.QueryRow(ctx, `
+			INSERT INTO projects (
+				id, competition_id, created_by_person_id, slug, title,
+				short_description, description, description_format, github_url,
+				project_number, status, tags, submitted_at
+			)
+			VALUES (
+				$1::uuid, $2::uuid, $3::uuid, $4, $5,
+				$6, $7, 'markdown', $8, $9, 'submitted',
+				ARRAY['signet', 'developer-tools'], now() - interval '2 days'
+			)
+			ON CONFLICT (competition_id, slug) DO UPDATE SET
+				title = EXCLUDED.title,
+				short_description = EXCLUDED.short_description,
+				description = EXCLUDED.description,
+				description_format = EXCLUDED.description_format,
+				github_url = EXCLUDED.github_url,
+				project_number = EXCLUDED.project_number,
+				status = EXCLUDED.status,
+				tags = EXCLUDED.tags,
+				submitted_at = EXCLUDED.submitted_at
+			RETURNING id::text
+		`, project.id, competitionID, devSpeakers[0].personID, project.slug,
+			project.title, project.shortDescription, project.description,
+			project.githubURL, project.number).Scan(&projectID)
+		if err != nil {
+			log.Fatal(fmt.Errorf("seed newsletter project %s: %w", project.slug, err))
+		}
+		projectIDs[project.slug] = projectID
+	}
+
+	type newsletterAwardSeed struct {
+		id, title, description, projectSlug string
+		rank                                int
+	}
+	awards := []newsletterAwardSeed{
+		{devNewsletterAward1, "Best Overall", "The strongest complete project from the sprint.", "mempool-observatory", 1},
+		{devNewsletterAward2, "Best Developer Tool", "The tool most likely to improve a Bitcoin developer's daily workflow.", "mempool-observatory", 2},
+		{devNewsletterAward3, "Community Choice", "The project selected by sprint participants.", "signet-arcade", 3},
+	}
+	for _, award := range awards {
+		mustExec(ctx, tx, "seed newsletter award", `
+			INSERT INTO awards (
+				id, competition_id, title, description, max_awardees,
+				status, award_type, award_rank
+			)
+			VALUES ($1::uuid, $2::uuid, $3, $4, 1, 'awarded', 'normal', $5)
+			ON CONFLICT (id) DO UPDATE SET
+				competition_id = EXCLUDED.competition_id,
+				title = EXCLUDED.title,
+				description = EXCLUDED.description,
+				max_awardees = EXCLUDED.max_awardees,
+				status = EXCLUDED.status,
+				award_type = EXCLUDED.award_type,
+				award_rank = EXCLUDED.award_rank,
+				archived_at = NULL
+		`, award.id, competitionID, award.title, award.description, award.rank)
+		mustExec(ctx, tx, "seed newsletter project award", `
+			INSERT INTO project_awards (project_id, award_id, awarded_at)
+			VALUES ($1::uuid, $2::uuid, now())
+			ON CONFLICT (project_id, award_id) DO UPDATE SET
+				awarded_at = EXCLUDED.awarded_at
+		`, projectIDs[award.projectSlug], award.id)
+	}
 }
 
 func seedSponsors(ctx context.Context, tx pgx.Tx, confID string) {

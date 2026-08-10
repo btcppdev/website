@@ -17,6 +17,7 @@ type MissiveInput struct {
 	Newsletters []string
 	OnlyFor     string
 	Expiry      *time.Time
+	DedupeKey   string
 }
 
 type AdminSubscriberSummary struct {
@@ -448,9 +449,111 @@ func ListTemplatedLetters(ctx *config.AppContext) ([]*mtypes.Letter, error) {
 	return listLettersByOnlyForPostgres(ctx, `only_for = '`+mtypes.OnlyForTemplated+`'`)
 }
 
+// ListAdminEditableLetters returns newsletter-builder missives plus the active
+// version of every reusable one-shot template. GetLetterFor resolves the
+// highest-UID row for an only_for key, so older shadowed versions must not be
+// offered for editing as if they still controlled outgoing mail.
+func ListAdminEditableLetters(ctx *config.AppContext) ([]*mtypes.Letter, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT id::text, public_uid, title, newsletters, only_for, markdown,
+			send_at_expr, sent_at, expiry
+		FROM missives m
+		WHERE m.only_for = $1
+			OR m.id IN (
+				SELECT DISTINCT ON (only_for) id
+				FROM missives
+				WHERE only_for <> '' AND only_for <> $1
+				ORDER BY only_for, public_uid DESC NULLS LAST, created_at DESC
+			)
+		ORDER BY public_uid DESC NULLS LAST, created_at DESC
+	`, mtypes.OnlyForTemplated)
+	if err != nil {
+		return nil, fmt.Errorf("query admin editable missives: %w", err)
+	}
+	defer rows.Close()
+	var letters []*mtypes.Letter
+	for rows.Next() {
+		letter, err := scanLetterPostgres(rows)
+		if err != nil {
+			return nil, err
+		}
+		letters = append(letters, letter)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate admin editable missives: %w", err)
+	}
+	return letters, nil
+}
+
 func CreateTemplatedMissive(ctx *config.AppContext, in MissiveInput) (*mtypes.Letter, error) {
 	in.OnlyFor = mtypes.OnlyForTemplated
 	return insertMissivePostgres(ctx, in)
+}
+
+// CreateWeeklyNewsletterMissive saves the generated issue and its selected
+// Talk of the Week atomically. Keeping the relation separate from the rendered
+// Markdown gives future issues reliable no-repeat and diversity signals while
+// leaving the draft copy fully editable.
+func CreateWeeklyNewsletterMissive(ctx *config.AppContext, in MissiveInput, featuredTalkID string) (*mtypes.Letter, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	in.OnlyFor = mtypes.OnlyForTemplated
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
+	if err != nil {
+		return nil, fmt.Errorf("begin weekly newsletter missive: %w", err)
+	}
+	defer tx.Rollback(ctx.DatabaseContext())
+
+	row := tx.QueryRow(ctx.DatabaseContext(), `
+		INSERT INTO missives (public_uid, title, markdown, send_at_expr, newsletters, only_for, expiry, dedupe_key)
+		VALUES ((SELECT COALESCE(max(public_uid), 0) + 1 FROM missives), $1, $2, $3, $4, $5, $6, NULLIF($7, ''))
+		RETURNING id::text, public_uid, title, newsletters, only_for, markdown,
+			send_at_expr, sent_at, expiry
+	`, in.Title, in.Markdown, in.SendAt, in.Newsletters, in.OnlyFor, in.Expiry, strings.TrimSpace(in.DedupeKey))
+	letter, err := scanLetterPostgres(row)
+	if err != nil {
+		return nil, fmt.Errorf("insert weekly newsletter missive %q: %w", in.Title, err)
+	}
+	if featuredTalkID = strings.TrimSpace(featuredTalkID); featuredTalkID != "" {
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			INSERT INTO weekly_newsletter_featured_talks (missive_id, conf_talk_id)
+			VALUES ($1::uuid, $2::uuid)
+		`, letter.PageID, featuredTalkID); err != nil {
+			return nil, fmt.Errorf("record weekly newsletter featured talk: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
+		return nil, fmt.Errorf("commit weekly newsletter missive: %w", err)
+	}
+	return letter, nil
+}
+
+func GetTemplatedLetterByDedupeKey(ctx *config.AppContext, dedupeKey string) (*mtypes.Letter, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	dedupeKey = strings.TrimSpace(dedupeKey)
+	if dedupeKey == "" {
+		return nil, nil
+	}
+	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT id::text, public_uid, title, newsletters, only_for, markdown,
+			send_at_expr, sent_at, expiry
+		FROM missives
+		WHERE only_for = $1 AND dedupe_key = $2
+	`, mtypes.OnlyForTemplated, dedupeKey)
+	letter, err := scanLetterPostgres(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query templated missive dedupe key %q: %w", dedupeKey, err)
+	}
+	return letter, nil
 }
 
 func UpdateTemplatedMissive(ctx *config.AppContext, pageID string, in MissiveInput) error {
@@ -472,6 +575,45 @@ func UpdateTemplatedMissive(ctx *config.AppContext, pageID string, in MissiveInp
 		return fmt.Errorf("update templated missive %q: %w", pageID, err)
 	}
 	return nil
+}
+
+func UpdateOnlyForMissive(ctx *config.AppContext, pageID, title, markdown string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	result, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE missives
+		SET title = $2, markdown = $3
+		WHERE id = $1::uuid
+			AND only_for <> ''
+			AND only_for <> $4
+	`, pageID, strings.TrimSpace(title), markdown, mtypes.OnlyForTemplated)
+	if err != nil {
+		return fmt.Errorf("update reusable missive %q: %w", pageID, err)
+	}
+	if result.RowsAffected() != 1 {
+		return fmt.Errorf("reusable missive %q not found", pageID)
+	}
+	return nil
+}
+
+// DeleteTemplatedDraft deletes an unsent templated missive by public UID. The
+// sent_at and only_for predicates are enforced in the delete itself so this
+// remains safe if the editor is stale or the missive was sent concurrently.
+func DeleteTemplatedDraft(ctx *config.AppContext, uid uint64) (bool, error) {
+	if ctx == nil || ctx.DB == nil {
+		return false, fmt.Errorf("database is not configured")
+	}
+	result, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		DELETE FROM missives
+		WHERE public_uid = $1
+			AND only_for = $2
+			AND sent_at IS NULL
+	`, uid, mtypes.OnlyForTemplated)
+	if err != nil {
+		return false, fmt.Errorf("delete templated draft %d: %w", uid, err)
+	}
+	return result.RowsAffected() == 1, nil
 }
 
 func CreateMissive(ctx *config.AppContext, title, markdown, sendAt string, newsletters []string) error {
@@ -659,11 +801,11 @@ func insertMissivePostgres(ctx *config.AppContext, in MissiveInput) (*mtypes.Let
 		return nil, fmt.Errorf("database is not configured")
 	}
 	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
-		INSERT INTO missives (public_uid, title, markdown, send_at_expr, newsletters, only_for, expiry)
-		VALUES ((SELECT COALESCE(max(public_uid), 0) + 1 FROM missives), $1, $2, $3, $4, $5, $6)
+		INSERT INTO missives (public_uid, title, markdown, send_at_expr, newsletters, only_for, expiry, dedupe_key)
+		VALUES ((SELECT COALESCE(max(public_uid), 0) + 1 FROM missives), $1, $2, $3, $4, $5, $6, NULLIF($7, ''))
 		RETURNING id::text, public_uid, title, newsletters, only_for, markdown,
 			send_at_expr, sent_at, expiry
-	`, in.Title, in.Markdown, in.SendAt, in.Newsletters, in.OnlyFor, in.Expiry)
+	`, in.Title, in.Markdown, in.SendAt, in.Newsletters, in.OnlyFor, in.Expiry, strings.TrimSpace(in.DedupeKey))
 	letter, err := scanLetterPostgres(row)
 	if err != nil {
 		return nil, fmt.Errorf("insert missive %q: %w", in.Title, err)

@@ -74,6 +74,7 @@ type MerchProduct struct {
 	AllowEventPickup bool
 	AvailableFrom    *time.Time
 	AvailableUntil   *time.Time
+	PublishedAt      *time.Time
 	Images           []*MerchProductImage
 	Options          []*MerchProductOption
 	Variants         []*MerchVariant

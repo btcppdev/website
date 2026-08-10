@@ -355,6 +355,42 @@ func ListKeys(prefix string) ([]string, error) {
 	return keys, nil
 }
 
+// LatestKey returns the most recently uploaded object under prefix whose key
+// ends with suffix. An empty key is returned when the collection has no match.
+func LatestKey(prefix, suffix string) (string, error) {
+	if client == nil {
+		return "", fmt.Errorf("spaces not configured")
+	}
+	var latestKey string
+	var latestAt time.Time
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix),
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(context.Background())
+		if err != nil {
+			return "", err
+		}
+		for _, obj := range page.Contents {
+			latestKey, latestAt = newerObjectKey(latestKey, latestAt, obj, suffix)
+		}
+	}
+	return latestKey, nil
+}
+
+func newerObjectKey(currentKey string, currentAt time.Time, obj s3types.Object, suffix string) (string, time.Time) {
+	key := aws.ToString(obj.Key)
+	if key == "" || (suffix != "" && !strings.HasSuffix(key, suffix)) {
+		return currentKey, currentAt
+	}
+	modifiedAt := aws.ToTime(obj.LastModified)
+	if currentKey == "" || modifiedAt.After(currentAt) || (modifiedAt.Equal(currentAt) && key > currentKey) {
+		return key, modifiedAt
+	}
+	return currentKey, currentAt
+}
+
 // Get fetches an object's raw bytes by key. Used by the admin
 // social-cards download to stream a zip of the per-conf 1080p PNGs
 // without going through the public CDN. Returns a 404-style error

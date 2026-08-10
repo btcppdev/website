@@ -48,6 +48,29 @@ func TestEmailButtonPreservesVerificationToken(t *testing.T) {
 	}
 }
 
+func TestNewsletterNestedUpdateBulletsRenderAsNestedLists(t *testing.T) {
+	markdown := []byte("- New speakers confirmed:\n    - Alice of ACME. [x.com](https://x.com/alice)\n    - Bob.\n- New sponsors:\n    - Bitco — Gold sponsor\n")
+	html := string(mdToHTML(markdown))
+	if strings.Count(html, "<ul") != 3 {
+		t.Fatalf("nested update bullets rendered with %d lists, want 3: %s", strings.Count(html, "<ul"), html)
+	}
+	for _, want := range []string{"New speakers confirmed", "Alice of ACME", "New sponsors", "Bitco — Gold sponsor"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("nested list render missing %q: %s", want, html)
+		}
+	}
+}
+
+func TestRebrandCTARendersMarkdownStrongInSubtitle(t *testing.T) {
+	html := rebrandCTA("subscriber offer", "Get your ticket", "Use code **SUBSCRIBER20**", "Get your ticket", "https://btcpp.dev/dev26?code=SUBSCRIBER20#tickets")
+	if !strings.Contains(html, "Use code <strong>SUBSCRIBER20</strong>") {
+		t.Fatalf("CTA subtitle did not render strong discount code: %s", html)
+	}
+	if !strings.Contains(html, `href="https://btcpp.dev/dev26?code=SUBSCRIBER20#tickets"`) {
+		t.Fatalf("CTA URL lost query parameter or fragment: %s", html)
+	}
+}
+
 func TestTemplatedNewsletterFrontmatterAndShortcodes(t *testing.T) {
 	ctx := &config.AppContext{
 		Env: &types.EnvConfig{Host: "btcpp.dev", Prod: true},
@@ -73,6 +96,8 @@ ticker:
 
 {{ button "Read the full issue" "https://insider.btcpp.dev/p/weekly?from=email&issue=42" }}
 
+{{ button "Get your ticket" (print .URI "/vienna#tickets") }}
+
 {{ cta "NEXT STOP" "Vienna · June 12+13." "Earlybird tickets live." "GRAB A TICKET" "https://btcpp.dev/vienna" }}
 `)
 
@@ -82,7 +107,7 @@ ticker:
 		Markdown: string(markdown),
 	}
 	var rendered bytes.Buffer
-	if err := executeMissiveTemplate(&config.AppContext{EmailCache: map[string]*texttemplate.Template{}}, letter, &rendered, &mtypes.EmailContent{}); err != nil {
+	if err := executeMissiveTemplate(&config.AppContext{EmailCache: map[string]*texttemplate.Template{}}, letter, &rendered, &mtypes.EmailContent{URI: "https://btcpp.dev"}); err != nil {
 		t.Fatalf("execute templated missive: %v", err)
 	}
 
@@ -94,6 +119,12 @@ ticker:
 	if !strings.Contains(html, "VIENNA TICKETS LIVE") {
 		t.Fatalf("ticker was not rendered: %s", html)
 	}
+	if strings.Count(html, "VIENNA TICKETS LIVE") != 2 || !strings.Contains(html, "btcpp-ticker-track") {
+		t.Fatalf("ticker was not repeated for continuous scrolling: %s", html)
+	}
+	if strings.Contains(html, "&#9654; LIVE") || strings.Contains(html, "▶ LIVE") {
+		t.Fatalf("ticker still contains the retired live indicator: %s", html)
+	}
 	if !strings.Contains(html, "Villain edition.") {
 		t.Fatalf("lead was not rendered: %s", html)
 	}
@@ -102,6 +133,12 @@ ticker:
 	}
 	if !strings.Contains(html, "Read the full issue") || !strings.Contains(html, "https://insider.btcpp.dev/p/weekly?from=email&amp;issue=42") {
 		t.Fatalf("inline button was not rendered: %s", html)
+	}
+	if !strings.Contains(html, `href="https://btcpp.dev/vienna#tickets"`) {
+		t.Fatalf(".URI button was not expanded to an absolute URL: %s", html)
+	}
+	if !strings.Contains(html, ".btcpp-content h3") || !strings.Contains(html, "border-top:1px solid #1C1C1E") {
+		t.Fatalf("templated Markdown section-heading styles are missing: %s", html)
 	}
 	if strings.Contains(html, `{{ button`) {
 		t.Fatalf("inline button shortcode leaked into rendered HTML: %s", html)
@@ -168,10 +205,23 @@ Body.
 
 func TestRebrandEmailCSSRemovesOuterBorderOnMobile(t *testing.T) {
 	css := string(rebrandEmailCSS("signal"))
-	if !strings.Contains(css, ".btcpp-inner { width: 640px; max-width: 100%;") || !strings.Contains(css, "border: 1px solid #1C1C1E;") {
+	if !strings.Contains(css, ".btcpp-inner { width: 640px; max-width: 100%; table-layout: fixed;") || !strings.Contains(css, "border: 1px solid #1C1C1E;") {
 		t.Fatalf("desktop newsletter border missing: %s", css)
 	}
 	if !strings.Contains(css, "@media only screen and (max-width: 680px)") || !strings.Contains(css, ".btcpp-inner { border: 0 !important; }") {
 		t.Fatalf("mobile newsletter border override missing: %s", css)
+	}
+	if !strings.Contains(css, "@keyframes btcpp-ticker-scroll") || !strings.Contains(css, ".btcpp-ticker { max-width: 0; overflow: hidden; white-space: nowrap; }") || !strings.Contains(css, "width: 100%; height: 14px; max-height: 14px; overflow: hidden; white-space: nowrap;") {
+		t.Fatalf("single-line scrolling ticker CSS missing: %s", css)
+	}
+}
+
+func TestRebrandLeadOmitsEmptyEyebrow(t *testing.T) {
+	html := rebrandLead("", "what's new", "Weekly briefing")
+	if strings.Contains(html, "btcpp-section-label") || strings.Contains(html, "§ FEATURE") {
+		t.Fatalf("empty lead eyebrow rendered a fallback label: %s", html)
+	}
+	if !strings.Contains(html, "what&#39;s new") {
+		t.Fatalf("lead title missing: %s", html)
 	}
 }

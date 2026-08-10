@@ -122,10 +122,10 @@ func CreateMerchProduct(ctx *config.AppContext, in MerchProductInput) (string, e
 			tag, slug, name, subtitle, description, status, product_type,
 			base_price_cents, currency, symbol, post_symbol, stripe_tax_code,
 			easyship_category, hs_code, country_of_origin, requires_shipping,
-			allow_event_pickup
+			allow_event_pickup, published_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-			$14, $15, $16, $17
+			$14, $15, $16, $17, CASE WHEN $6 = 'published' THEN now() END
 		)
 		RETURNING id::text
 	`, in.Tag, in.Slug, in.Name, in.Subtitle, in.Description, in.Status, in.ProductType,
@@ -156,7 +156,11 @@ func UpdateMerchProduct(ctx *config.AppContext, id string, in MerchProductInput)
 			status = $7, product_type = $8, base_price_cents = $9, currency = $10,
 			symbol = $11, post_symbol = $12, stripe_tax_code = $13,
 			easyship_category = $14, hs_code = $15, country_of_origin = $16,
-			requires_shipping = $17, allow_event_pickup = $18
+			requires_shipping = $17, allow_event_pickup = $18,
+			published_at = CASE
+				WHEN $7 = 'published' THEN coalesce(published_at, now())
+				ELSE published_at
+			END
 		WHERE id = $1::uuid
 	`, id, tag, slug, name, in.Subtitle, in.Description, in.Status, in.ProductType,
 		int64(in.BasePriceCents), in.Currency, in.Symbol, in.PostSymbol, in.StripeTaxCode,
@@ -2066,7 +2070,7 @@ func queryMerchProducts(ctx *config.AppContext, whereSQL string, args []any) ([]
 			merch_products.easyship_category, merch_products.hs_code, merch_products.country_of_origin,
 			merch_products.requires_shipping, merch_products.allow_event_pickup,
 			merch_products.available_from, merch_products.available_until,
-			merch_products.created_at, merch_products.updated_at
+			merch_products.published_at, merch_products.created_at, merch_products.updated_at
 		FROM merch_products
 		`+whereSQL+`
 		`+orderSQL+`
@@ -2085,7 +2089,7 @@ func queryMerchProducts(ctx *config.AppContext, whereSQL string, args []any) ([]
 			&p.ProductType, &p.BasePriceCents, &p.Currency, &p.Symbol, &p.PostSymbol,
 			&p.StripeTaxCode, &p.EasyshipCategory, &p.HSCode, &p.CountryOfOrigin,
 			&p.RequiresShipping, &p.AllowEventPickup, &p.AvailableFrom, &p.AvailableUntil,
-			&p.CreatedAt, &p.UpdatedAt,
+			&p.PublishedAt, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan merch product: %w", err)
 		}

@@ -124,11 +124,14 @@ func fanoutAcceptedProposal(ctx *config.AppContext, proposal *types.Proposal, co
 			ctx.Err.Printf("fanoutAcceptedProposal %s: speakerconf %s: %s", proposal.ID, ref, err)
 			continue
 		}
-		if sc == nil || sc.Speaker == nil || sc.Speaker.Email == "" {
+		if sc == nil {
 			continue
 		}
 		if err := getters.SetSpeakerConfAcceptedAt(ctx, ref, now); err != nil {
 			ctx.Err.Printf("fanoutAcceptedProposal %s: stamp AcceptedAt on %s: %s", proposal.ID, ref, err)
+		}
+		if sc.Speaker == nil || sc.Speaker.Email == "" {
+			continue
 		}
 		issueSpeakerTicket(ctx, sc.Speaker.Email, conf)
 	}
