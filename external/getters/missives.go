@@ -19,6 +19,164 @@ type MissiveInput struct {
 	Expiry      *time.Time
 }
 
+type AdminSubscriberSummary struct {
+	TotalStored      int
+	ActiveAny        int
+	NewsletterActive int
+	Inactive         int
+}
+
+type AdminSubscriberListCount struct {
+	Name  string
+	Count int
+}
+
+type AdminSubscriberRow struct {
+	Email         string
+	Subscriptions []string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type AdminSubscriberResult struct {
+	Summary       AdminSubscriberSummary
+	ListCounts    []AdminSubscriberListCount
+	Subscribers   []AdminSubscriberRow
+	TotalFiltered int
+}
+
+// ListAdminSubscribers returns aggregate counts plus one filtered page for the
+// global-admin subscriber browser. Subscriber rows are retained after their
+// final unsubscribe, so TotalStored and Inactive intentionally remain distinct
+// from active audience counts.
+func ListAdminSubscribers(ctx *config.AppContext, search, list, status string, limit, offset int) (*AdminSubscriberResult, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	search = strings.TrimSpace(search)
+	list = strings.TrimSpace(list)
+	status = strings.TrimSpace(status)
+	if status != "active" && status != "inactive" {
+		status = "all"
+	}
+	if limit < 1 {
+		limit = 25
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	result := &AdminSubscriberResult{}
+	summary, err := GetAdminSubscriberSummary(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result.Summary = summary
+
+	listRows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT name, COUNT(*)::int
+		FROM subscriber_subscriptions
+		GROUP BY name
+		ORDER BY name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query subscriber list counts: %w", err)
+	}
+	defer listRows.Close()
+	for listRows.Next() {
+		var item AdminSubscriberListCount
+		if err := listRows.Scan(&item.Name, &item.Count); err != nil {
+			return nil, fmt.Errorf("scan subscriber list count: %w", err)
+		}
+		result.ListCounts = append(result.ListCounts, item)
+	}
+	if err := listRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate subscriber list counts: %w", err)
+	}
+
+	const filteredWhere = `
+		FROM subscribers s
+		WHERE ($1 = '' OR s.email ILIKE '%' || $1 || '%')
+			AND ($2 = '' OR EXISTS (
+				SELECT 1 FROM subscriber_subscriptions selected
+				WHERE selected.subscriber_id = s.id AND selected.name = $2
+			))
+			AND (
+				$3 = 'all'
+				OR ($3 = 'active' AND EXISTS (
+					SELECT 1 FROM subscriber_subscriptions active WHERE active.subscriber_id = s.id
+				))
+				OR ($3 = 'inactive' AND NOT EXISTS (
+					SELECT 1 FROM subscriber_subscriptions inactive WHERE inactive.subscriber_id = s.id
+				))
+			)
+	`
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `SELECT COUNT(*)::int `+filteredWhere, search, list, status).Scan(&result.TotalFiltered); err != nil {
+		return nil, fmt.Errorf("count filtered subscribers: %w", err)
+	}
+
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT s.email, s.created_at, s.updated_at,
+			ARRAY(
+				SELECT membership.name
+				FROM subscriber_subscriptions membership
+				WHERE membership.subscriber_id = s.id
+				ORDER BY membership.name
+			)
+		`+filteredWhere+`
+		ORDER BY s.created_at DESC, s.email
+		LIMIT $4 OFFSET $5
+	`, search, list, status, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query admin subscribers: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var subscriber AdminSubscriberRow
+		if err := rows.Scan(&subscriber.Email, &subscriber.CreatedAt, &subscriber.UpdatedAt, &subscriber.Subscriptions); err != nil {
+			return nil, fmt.Errorf("scan admin subscriber: %w", err)
+		}
+		result.Subscribers = append(result.Subscribers, subscriber)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate admin subscribers: %w", err)
+	}
+	return result, nil
+}
+
+func GetAdminSubscriberSummary(ctx *config.AppContext) (AdminSubscriberSummary, error) {
+	if ctx == nil || ctx.DB == nil {
+		return AdminSubscriberSummary{}, fmt.Errorf("database is not configured")
+	}
+	var summary AdminSubscriberSummary
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT
+			COUNT(*)::int,
+			COUNT(*) FILTER (WHERE EXISTS (
+				SELECT 1 FROM subscriber_subscriptions ss WHERE ss.subscriber_id = s.id
+			))::int,
+			COUNT(*) FILTER (WHERE EXISTS (
+				SELECT 1 FROM subscriber_subscriptions ss
+				WHERE ss.subscriber_id = s.id AND ss.name = 'newsletter'
+			))::int,
+			COUNT(*) FILTER (WHERE NOT EXISTS (
+				SELECT 1 FROM subscriber_subscriptions ss WHERE ss.subscriber_id = s.id
+			))::int
+		FROM subscribers s
+	`).Scan(
+		&summary.TotalStored,
+		&summary.ActiveAny,
+		&summary.NewsletterActive,
+		&summary.Inactive,
+	); err != nil {
+		return AdminSubscriberSummary{}, fmt.Errorf("query subscriber summary: %w", err)
+	}
+	return summary, nil
+}
+
 func FindSubscriber(ctx *config.AppContext, email string) (*mtypes.Subscriber, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")

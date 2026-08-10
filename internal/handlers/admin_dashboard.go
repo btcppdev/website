@@ -19,6 +19,8 @@ type GlobalAdminDashboardPage struct {
 	FlashMessage         string
 	Year                 uint
 	FeaturedSpeakerSlots []*types.Speaker
+	SubscriberSummary    getters.AdminSubscriberSummary
+	SubscriberStatsReady bool
 }
 
 type EventDetailsPage struct {
@@ -74,11 +76,17 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	for i := 0; i < len(featured) && i < len(slots); i++ {
 		slots[i] = featured[i]
 	}
+	subscriberSummary, subscriberErr := getters.GetAdminSubscriberSummary(ctx)
+	if subscriberErr != nil {
+		ctx.Err.Printf("/admin subscriber summary failed: %s", subscriberErr)
+	}
 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/dashboard.tmpl", &GlobalAdminDashboardPage{
 		FlashMessage:         r.URL.Query().Get("flash"),
 		Year:                 helpers.CurrentYear(),
 		FeaturedSpeakerSlots: slots,
+		SubscriberSummary:    subscriberSummary,
+		SubscriberStatsReady: subscriberErr == nil,
 	}); err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/admin template failed: %s", err)
