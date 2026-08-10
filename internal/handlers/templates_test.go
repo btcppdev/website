@@ -56,11 +56,13 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	var volunteerConfirmation bytes.Buffer
 	if err := discountTemplates.ExecuteTemplate(&volunteerConfirmation, "volunteer_confirmation.tmpl", &VolunteerApplicationConfirmationPage{
-		Error: "Volunteer confirmation link is invalid, expired, or already used.",
+		Error:     "Volunteer confirmation link is invalid, expired, or already used.",
+		Token:     "expired-token",
+		CanResend: true,
 	}); err != nil {
 		t.Fatalf("render volunteer confirmation error: %v", err)
 	}
-	for _, want := range []string{`href="/volunteer"`, `>Apply again</a>`} {
+	for _, want := range []string{`href="/volunteer"`, `>Apply again</a>`, `action="/volunteer/confirm/resend"`, `value="expired-token"`, `>Resend confirmation email</button>`} {
 		if !strings.Contains(volunteerConfirmation.String(), want) {
 			t.Fatalf("volunteer confirmation error render missing %q", want)
 		}

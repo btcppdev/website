@@ -20,6 +20,8 @@ type VolunteerApplicationConfirmationPage struct {
 	Conf      *types.Conf
 	Token     string
 	Confirmed bool
+	Resent    bool
+	CanResend bool
 	Notice    string
 	Error     string
 	Year      uint
@@ -33,7 +35,7 @@ func sendVolunteerApplicationConfirmationEmail(ctx *config.AppContext, vol *type
 	if !ctx.InProduction {
 		ctx.Infos.Printf("[dev] volunteer application confirmation for %s: %s", vol.Email, confirmationURL)
 	}
-	markdown := fmt.Sprintf("# Confirm your volunteer application\n\nWe received a request for %s to volunteer at %s.\n\n[Review and confirm your application](button#%s)\n\nYour request will not be added to the volunteer roster or your bitcoin++ profile until you confirm. This link expires in 30 minutes. If you did not submit this request, ignore this email.\n\n— bitcoin++", markdownEmailText(vol.Email), markdownEmailText(conf.Desc), confirmationURL)
+	markdown := fmt.Sprintf("# Confirm your volunteer application\n\nWe received a request for %s to volunteer at %s.\n\n[Review and confirm your application](button#%s)\n\nYour request will not be added to the volunteer roster or your bitcoin++ profile until you confirm. This link expires in 24 hours. If you did not submit this request, ignore this email.\n\n— bitcoin++", markdownEmailText(vol.Email), markdownEmailText(conf.Desc), confirmationURL)
 	return sendPersonAccountEmail(ctx, vol.Email, "Confirm your bitcoin++ volunteer application", markdown, "volunteer-confirm-"+token[:12])
 }
 
@@ -49,10 +51,15 @@ func VolunteerApplicationConfirmation(w http.ResponseWriter, r *http.Request, ct
 		vol, err := getters.ConfirmVolunteerApplication(ctx, token)
 		if err != nil {
 			message := err.Error()
-			if errors.Is(err, getters.ErrVolunteerAlreadyApplied) {
+			alreadyApplied := errors.Is(err, getters.ErrVolunteerAlreadyApplied)
+			if alreadyApplied {
 				message = "You already have a volunteer application for this event. A volunteer coordinator can reopen it if it was declined."
 			}
-			renderVolunteerApplicationConfirmation(w, ctx, volunteerApplicationConfirmationPage(ctx, token, message))
+			page := volunteerApplicationConfirmationPage(ctx, token, message)
+			if alreadyApplied {
+				page.CanResend = false
+			}
+			renderVolunteerApplicationConfirmation(w, ctx, page)
 			return
 		}
 		conf, err := getters.GetConfByRef(ctx, vol.ScheduleFor[0].Ref)
@@ -81,24 +88,71 @@ func VolunteerApplicationConfirmation(w http.ResponseWriter, r *http.Request, ct
 	renderVolunteerApplicationConfirmation(w, ctx, volunteerApplicationConfirmationPage(ctx, token, ""))
 }
 
+func VolunteerApplicationConfirmationResend(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		renderVolunteerApplicationConfirmation(w, ctx, &VolunteerApplicationConfirmationPage{Error: "Invalid resend request.", Year: helpers.CurrentYear()})
+		return
+	}
+	vol, token, err := getters.RenewVolunteerApplicationConfirmation(ctx, strings.TrimSpace(r.FormValue("token")))
+	if err != nil {
+		renderVolunteerApplicationConfirmation(w, ctx, &VolunteerApplicationConfirmationPage{Error: err.Error(), Year: helpers.CurrentYear()})
+		return
+	}
+	page := &VolunteerApplicationConfirmationPage{Volunteer: vol, Token: token, Year: helpers.CurrentYear()}
+	if err := loadVolunteerConfirmationConf(ctx, page); err != nil {
+		page.Error = "The event for this volunteer application is no longer available."
+		renderVolunteerApplicationConfirmation(w, ctx, page)
+		return
+	}
+	if err := sendVolunteerApplicationConfirmationEmail(ctx, vol, page.Conf, token); err != nil {
+		ctx.Err.Printf("volunteer confirmation resend: %s", err)
+		page.Error = "We couldn't resend the confirmation email. Please try again."
+		page.CanResend = true
+		renderVolunteerApplicationConfirmation(w, ctx, page)
+		return
+	}
+	page.Resent = true
+	renderVolunteerApplicationConfirmation(w, ctx, page)
+}
+
 func volunteerApplicationConfirmationPage(ctx *config.AppContext, token, message string) *VolunteerApplicationConfirmationPage {
 	page := &VolunteerApplicationConfirmationPage{Token: token, Error: message, Year: helpers.CurrentYear()}
-	if message != "" {
-		return page
-	}
-	vol, err := getters.GetPendingVolunteerApplication(ctx, token)
-	if err != nil {
+	if message == "" {
+		vol, err := getters.GetPendingVolunteerApplication(ctx, token)
+		if err == nil {
+			page.Volunteer = vol
+			if err := loadVolunteerConfirmationConf(ctx, page); err != nil {
+				page.Error = "The event for this volunteer application is no longer available."
+			}
+			return page
+		}
 		page.Error = err.Error()
+	}
+	vol, err := getters.GetResendableVolunteerApplication(ctx, token)
+	if err != nil {
 		return page
 	}
 	page.Volunteer = vol
-	if len(vol.ScheduleFor) > 0 && vol.ScheduleFor[0] != nil {
-		page.Conf, err = getters.GetConfByRef(ctx, vol.ScheduleFor[0].Ref)
-	}
-	if err != nil || page.Conf == nil {
-		page.Error = "The event for this volunteer application is no longer available."
+	if loadVolunteerConfirmationConf(ctx, page) == nil {
+		page.CanResend = true
 	}
 	return page
+}
+
+func loadVolunteerConfirmationConf(ctx *config.AppContext, page *VolunteerApplicationConfirmationPage) error {
+	if page == nil || page.Volunteer == nil || len(page.Volunteer.ScheduleFor) == 0 || page.Volunteer.ScheduleFor[0] == nil {
+		return fmt.Errorf("volunteer application has no event")
+	}
+	conf, err := getters.GetConfByRef(ctx, page.Volunteer.ScheduleFor[0].Ref)
+	if err != nil {
+		return fmt.Errorf("load volunteer application event: %w", err)
+	}
+	if conf == nil {
+		return fmt.Errorf("volunteer application event was not found")
+	}
+	page.Conf = conf
+	return nil
 }
 
 func renderVolunteerApplicationConfirmation(w http.ResponseWriter, ctx *config.AppContext, page *VolunteerApplicationConfirmationPage) {

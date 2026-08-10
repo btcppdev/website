@@ -985,6 +985,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/volunteer/confirm", func(w http.ResponseWriter, r *http.Request) {
 		VolunteerApplicationConfirmation(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/volunteer/confirm/resend", func(w http.ResponseWriter, r *http.Request) {
+		VolunteerApplicationConfirmationResend(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/volunteer/{conf}", func(w http.ResponseWriter, r *http.Request) {
 		RenderVolunteerConf(w, r, app)

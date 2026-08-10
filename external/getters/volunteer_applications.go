@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const VolunteerApplicationConfirmationTTL = 30 * time.Minute
+const VolunteerApplicationConfirmationTTL = 24 * time.Hour
 
 var ErrVolunteerAlreadyApplied = errors.New("you already have a volunteer application for this event; contact the volunteer coordinator if it needs to be reopened")
 
@@ -70,12 +70,10 @@ func CreateVolunteerApplicationRequest(ctx *config.AppContext, vol *types.Volunt
 	if err != nil {
 		return "", fmt.Errorf("encode volunteer application: %w", err)
 	}
-	rawToken := make([]byte, 32)
-	if _, err := rand.Read(rawToken); err != nil {
-		return "", fmt.Errorf("generate volunteer confirmation token: %w", err)
+	token, tokenHash, err := newVolunteerApplicationToken()
+	if err != nil {
+		return "", err
 	}
-	token := base64.RawURLEncoding.EncodeToString(rawToken)
-	tokenHash := sha256.Sum256([]byte(token))
 	dbctx := ctx.DatabaseContext()
 	tx, err := ctx.DB.Begin(dbctx)
 	if err != nil {
@@ -84,7 +82,7 @@ func CreateVolunteerApplicationRequest(ctx *config.AppContext, vol *types.Volunt
 	defer tx.Rollback(dbctx)
 	if _, err := tx.Exec(dbctx, `
 		DELETE FROM volunteer_application_requests
-		WHERE expires_at <= now() AND consumed_at IS NULL
+		WHERE expires_at <= now() - interval '30 days' AND consumed_at IS NULL
 	`); err != nil {
 		return "", fmt.Errorf("clean expired volunteer applications: %w", err)
 	}
@@ -98,13 +96,23 @@ func CreateVolunteerApplicationRequest(ctx *config.AppContext, vol *types.Volunt
 	if _, err := tx.Exec(dbctx, `
 		INSERT INTO volunteer_application_requests (email, payload, token_hash, expires_at)
 		VALUES ($1::citext, $2::jsonb, $3, $4)
-	`, vol.Email, payloadJSON, tokenHash[:], time.Now().UTC().Add(VolunteerApplicationConfirmationTTL)); err != nil {
+	`, vol.Email, payloadJSON, tokenHash, time.Now().UTC().Add(VolunteerApplicationConfirmationTTL)); err != nil {
 		return "", fmt.Errorf("create volunteer application request: %w", err)
 	}
 	if err := tx.Commit(dbctx); err != nil {
 		return "", fmt.Errorf("commit volunteer application request: %w", err)
 	}
 	return token, nil
+}
+
+func newVolunteerApplicationToken() (string, []byte, error) {
+	rawToken := make([]byte, 32)
+	if _, err := rand.Read(rawToken); err != nil {
+		return "", nil, fmt.Errorf("generate volunteer confirmation token: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(rawToken)
+	tokenHash := sha256.Sum256([]byte(token))
+	return token, tokenHash[:], nil
 }
 
 func GetPendingVolunteerApplication(ctx *config.AppContext, token string) (*types.Volunteer, error) {
@@ -130,6 +138,61 @@ func GetPendingVolunteerApplication(ctx *config.AppContext, token string) (*type
 		return nil, fmt.Errorf("decode volunteer application request: %w", err)
 	}
 	return volunteerFromApplicationPayload(email, payload), nil
+}
+
+// GetResendableVolunteerApplication loads an unconsumed request even after its
+// confirmation window has expired. Possession of the old random token is
+// required; consumed requests are never eligible for resend.
+func GetResendableVolunteerApplication(ctx *config.AppContext, token string) (*types.Volunteer, error) {
+	if ctx == nil || ctx.DB == nil || strings.TrimSpace(token) == "" {
+		return nil, fmt.Errorf("volunteer confirmation link is invalid")
+	}
+	tokenHash := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	var email string
+	var payloadJSON []byte
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT email::text, payload
+		FROM volunteer_application_requests
+		WHERE token_hash = $1 AND consumed_at IS NULL
+	`, tokenHash[:]).Scan(&email, &payloadJSON)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("volunteer confirmation request is no longer available")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load resendable volunteer application request: %w", err)
+	}
+	var payload volunteerApplicationPayload
+	if err := json.Unmarshal(payloadJSON, &payload); err != nil {
+		return nil, fmt.Errorf("decode volunteer application request: %w", err)
+	}
+	return volunteerFromApplicationPayload(email, payload), nil
+}
+
+// RenewVolunteerApplicationConfirmation rotates the credential for an
+// unconsumed request and starts a fresh confirmation window. The old token is
+// invalid immediately after this succeeds.
+func RenewVolunteerApplicationConfirmation(ctx *config.AppContext, token string) (*types.Volunteer, string, error) {
+	vol, err := GetResendableVolunteerApplication(ctx, token)
+	if err != nil {
+		return nil, "", err
+	}
+	newToken, newHash, err := newVolunteerApplicationToken()
+	if err != nil {
+		return nil, "", err
+	}
+	oldHash := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE volunteer_application_requests
+		SET token_hash = $2, expires_at = $3
+		WHERE token_hash = $1 AND consumed_at IS NULL
+	`, oldHash[:], newHash, time.Now().UTC().Add(VolunteerApplicationConfirmationTTL))
+	if err != nil {
+		return nil, "", fmt.Errorf("renew volunteer confirmation request: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, "", fmt.Errorf("volunteer confirmation request is no longer available")
+	}
+	return vol, newToken, nil
 }
 
 func ConfirmVolunteerApplication(ctx *config.AppContext, token string) (*types.Volunteer, error) {

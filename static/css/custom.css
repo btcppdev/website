@@ -1603,6 +1603,13 @@
 	text-decoration: none;
 }
 
+.volunteer-confirmation-actions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
 .volunteer-confirmation-retry:hover {
 	background: #374151;
 	color: #fff;
