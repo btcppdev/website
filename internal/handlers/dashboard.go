@@ -186,7 +186,9 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
-		hasHackathonProjects, projectsErr = getters.HasHackathonParticipantProjectsByEmail(ctx, email)
+		if personID != "" {
+			hasHackathonProjects, projectsErr = getters.HasHackathonParticipantProjectsForPerson(ctx, personID)
+		}
 		projectsDur = time.Since(s)
 	}()
 	go func() {
@@ -503,9 +505,19 @@ func DashboardHackathons(w http.ResponseWriter, r *http.Request, ctx *config.App
 	if !ok {
 		return
 	}
-	participantProjects, err := getters.ListHackathonParticipantProjectsByEmail(ctx, email)
+	id, resolveErr := auth.Resolve(r, ctx)
+	if resolveErr != nil {
+		ctx.Err.Printf("/dashboard/hackathons identity for %s: %s", email, resolveErr)
+		http.Error(w, "Unable to resolve account", http.StatusInternalServerError)
+		return
+	}
+	if id == nil || strings.TrimSpace(id.PersonID) == "" {
+		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("A person profile is required to view hackathon projects."), http.StatusSeeOther)
+		return
+	}
+	participantProjects, err := getters.ListHackathonParticipantProjectsForPerson(ctx, id.PersonID)
 	if err != nil {
-		ctx.Err.Printf("/dashboard/hackathons for %s: %s", email, err)
+		ctx.Err.Printf("/dashboard/hackathons for person %s: %s", id.PersonID, err)
 		http.Error(w, "Unable to load hackathon projects", http.StatusInternalServerError)
 		return
 	}
@@ -515,17 +527,12 @@ func DashboardHackathons(w http.ResponseWriter, r *http.Request, ctx *config.App
 	}
 	name := email
 	photo := ""
-	isGlobalAdmin := false
-	if id, resolveErr := auth.Resolve(r, ctx); resolveErr != nil {
-		ctx.Err.Printf("/dashboard/hackathons identity for %s: %s", email, resolveErr)
-	} else if id != nil {
-		isGlobalAdmin = id.IsGlobalAdmin()
-		if id.Speaker != nil {
-			if strings.TrimSpace(id.Speaker.Name) != "" {
-				name = id.Speaker.Name
-			}
-			photo = id.Speaker.Photo
+	isGlobalAdmin := id.IsGlobalAdmin()
+	if id.Speaker != nil {
+		if strings.TrimSpace(id.Speaker.Name) != "" {
+			name = id.Speaker.Name
 		}
+		photo = id.Speaker.Photo
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_hackathons.tmpl", &DashboardPage{
 		Name:                 name,
