@@ -1868,6 +1868,27 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/registrations/merch/{itemID}/pickup", func(w http.ResponseWriter, r *http.Request) {
 		RegistrationsAdminMerchPickup(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissivesAdmin(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/admin/missives/campaigns/{campaignID}", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissiveCampaignUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives/test-automation", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissivesTestAutomation(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives/occurrences/{occurrenceID}", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissiveDraftEdit(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/admin/missives/occurrences/{occurrenceID}", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissiveDraftUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives/occurrences/{occurrenceID}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissiveOccurrenceCancel(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives/occurrences/{occurrenceID}/rebuild", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissiveOccurrenceRebuild(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/applicants", func(w http.ResponseWriter, r *http.Request) {
 		ProposalAdmin(w, r, app)

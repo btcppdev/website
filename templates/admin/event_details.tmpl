@@ -99,6 +99,18 @@
           <dd class="mt-1"><input type="text" name="venue" value="{{ .Conf.Venue }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
         </div>
         <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Speaker dinner</dt>
+          <dd class="mt-1"><input type="datetime-local" name="speaker_dinner_start" value="{{ .SpeakerDinnerInput }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Speaker dinner location</dt>
+          <dd class="mt-1"><input type="text" name="speaker_dinner_location" value="{{ if .Conf.SpeakerDinnerLocation }}{{ .Conf.SpeakerDinnerLocation }}{{ else }}Location TBD{{ end }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
+        </div>
+        <div class="sm:col-span-2">
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Speaker dinner notes</dt>
+          <dd class="mt-1"><textarea name="speaker_dinner_notes" rows="2" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ .Conf.SpeakerDinnerNotes }}</textarea></dd>
+        </div>
+        <div>
           <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Timezone</dt>
           <dd class="mt-1"><input type="text" name="timezone" value="{{ .Conf.Timezone }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
         </div>

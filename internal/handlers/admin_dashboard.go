@@ -34,6 +34,7 @@ type EventDetailsPage struct {
 	MerchUpsellProductIDs map[string]bool
 	StartInput            string
 	EndInput              string
+	SpeakerDinnerInput    string
 	NextDay               int
 	Year                  uint
 }
@@ -209,6 +210,17 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 		merchUpsellProductIDs[merchUpsells[i].ID] = true
 	}
 
+	speakerDinner := conf.SpeakerDinnerStart
+	if speakerDinner == nil && !conf.StartDate.IsZero() {
+		dayBefore := conf.StartDate.In(conf.Loc()).AddDate(0, 0, -1)
+		defaultDinner := time.Date(dayBefore.Year(), dayBefore.Month(), dayBefore.Day(), 18, 30, 0, 0, conf.Loc())
+		speakerDinner = &defaultDinner
+	}
+	dinnerInput := ""
+	if speakerDinner != nil {
+		dinnerInput = datetimeLocalInput(*speakerDinner)
+	}
+
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/event_details.tmpl", &EventDetailsPage{
 		Conf:                  conf,
 		FlashMessage:          r.URL.Query().Get("flash"),
@@ -220,6 +232,7 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 		MerchUpsellProductIDs: merchUpsellProductIDs,
 		StartInput:            datetimeLocalInput(conf.StartDate),
 		EndInput:              datetimeLocalInput(conf.EndDate),
+		SpeakerDinnerInput:    dinnerInput,
 		NextDay:               nextDay,
 		Year:                  helpers.CurrentYear(),
 	}); err != nil {
@@ -260,6 +273,11 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		redirectEventDetails(w, r, conf, "Invalid end date.")
 		return
 	}
+	speakerDinnerStart, err := parseOptionalDatetimeLocal(r.FormValue("speaker_dinner_start"), loc)
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Invalid speaker dinner date.")
+		return
+	}
 	if start != nil && end != nil && end.Before(*start) {
 		redirectEventDetails(w, r, conf, "End date must be after start date.")
 		return
@@ -279,6 +297,9 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		Venue:                   strings.TrimSpace(r.FormValue("venue")),
 		VenueMap:                strings.TrimSpace(r.FormValue("venue_map")),
 		VenueWebsite:            strings.TrimSpace(r.FormValue("venue_website")),
+		SpeakerDinnerStart:      speakerDinnerStart,
+		SpeakerDinnerLocation:   strings.TrimSpace(r.FormValue("speaker_dinner_location")),
+		SpeakerDinnerNotes:      strings.TrimSpace(r.FormValue("speaker_dinner_notes")),
 		PickupAddressLine1:      strings.TrimSpace(r.FormValue("pickup_address_line1")),
 		PickupAddressLine2:      strings.TrimSpace(r.FormValue("pickup_address_line2")),
 		PickupAddressCity:       strings.TrimSpace(r.FormValue("pickup_address_city")),
