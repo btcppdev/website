@@ -11,13 +11,14 @@ import (
 )
 
 type MissiveInput struct {
-	Title       string
-	Markdown    string
-	SendAt      string
-	Newsletters []string
-	OnlyFor     string
-	Expiry      *time.Time
-	DedupeKey   string
+	Title        string
+	Markdown     string
+	SendAt       string
+	Newsletters  []string
+	OnlyFor      string
+	Expiry       *time.Time
+	DedupeKey    string
+	ConferenceID string
 }
 
 type AdminSubscriberSummary struct {
@@ -414,8 +415,12 @@ func GetLetters(ctx *config.AppContext, newsletter string) ([]*mtypes.Letter, er
 	query := `
 		SELECT id::text, public_uid, title, newsletters, only_for, markdown,
 			send_at_expr, sent_at, expiry
-		FROM missives
-		WHERE $1 = 'all' OR $1 = ANY(newsletters)
+		FROM missives m
+		WHERE ($1 = 'all' OR $1 = ANY(newsletters))
+			AND NOT EXISTS (
+				SELECT 1 FROM conference_email_occurrences occurrence
+				WHERE occurrence.missive_id = m.id
+			)
 		ORDER BY public_uid NULLS LAST, created_at
 	`
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), query, newsletter)
@@ -461,7 +466,7 @@ func ListAdminEditableLetters(ctx *config.AppContext) ([]*mtypes.Letter, error) 
 		SELECT id::text, public_uid, title, newsletters, only_for, markdown,
 			send_at_expr, sent_at, expiry
 		FROM missives m
-		WHERE m.only_for = $1
+		WHERE (m.only_for = $1 AND m.conference_id IS NULL)
 			OR m.id IN (
 				SELECT DISTINCT ON (only_for) id
 				FROM missives
@@ -509,11 +514,11 @@ func CreateWeeklyNewsletterMissive(ctx *config.AppContext, in MissiveInput, feat
 	defer tx.Rollback(ctx.DatabaseContext())
 
 	row := tx.QueryRow(ctx.DatabaseContext(), `
-		INSERT INTO missives (public_uid, title, markdown, send_at_expr, newsletters, only_for, expiry, dedupe_key)
-		VALUES ((SELECT COALESCE(max(public_uid), 0) + 1 FROM missives), $1, $2, $3, $4, $5, $6, NULLIF($7, ''))
+		INSERT INTO missives (public_uid, title, markdown, send_at_expr, newsletters, only_for, expiry, dedupe_key, conference_id)
+		VALUES ((SELECT COALESCE(max(public_uid), 0) + 1 FROM missives), $1, $2, $3, $4, $5, $6, NULLIF($7, ''), NULLIF($8, '')::uuid)
 		RETURNING id::text, public_uid, title, newsletters, only_for, markdown,
 			send_at_expr, sent_at, expiry
-	`, in.Title, in.Markdown, in.SendAt, in.Newsletters, in.OnlyFor, in.Expiry, strings.TrimSpace(in.DedupeKey))
+	`, in.Title, in.Markdown, in.SendAt, in.Newsletters, in.OnlyFor, in.Expiry, strings.TrimSpace(in.DedupeKey), strings.TrimSpace(in.ConferenceID))
 	letter, err := scanLetterPostgres(row)
 	if err != nil {
 		return nil, fmt.Errorf("insert weekly newsletter missive %q: %w", in.Title, err)
@@ -801,11 +806,11 @@ func insertMissivePostgres(ctx *config.AppContext, in MissiveInput) (*mtypes.Let
 		return nil, fmt.Errorf("database is not configured")
 	}
 	row := ctx.DB.QueryRow(ctx.DatabaseContext(), `
-		INSERT INTO missives (public_uid, title, markdown, send_at_expr, newsletters, only_for, expiry, dedupe_key)
-		VALUES ((SELECT COALESCE(max(public_uid), 0) + 1 FROM missives), $1, $2, $3, $4, $5, $6, NULLIF($7, ''))
+		INSERT INTO missives (public_uid, title, markdown, send_at_expr, newsletters, only_for, expiry, dedupe_key, conference_id)
+		VALUES ((SELECT COALESCE(max(public_uid), 0) + 1 FROM missives), $1, $2, $3, $4, $5, $6, NULLIF($7, ''), NULLIF($8, '')::uuid)
 		RETURNING id::text, public_uid, title, newsletters, only_for, markdown,
 			send_at_expr, sent_at, expiry
-	`, in.Title, in.Markdown, in.SendAt, in.Newsletters, in.OnlyFor, in.Expiry, strings.TrimSpace(in.DedupeKey))
+	`, in.Title, in.Markdown, in.SendAt, in.Newsletters, in.OnlyFor, in.Expiry, strings.TrimSpace(in.DedupeKey), strings.TrimSpace(in.ConferenceID))
 	letter, err := scanLetterPostgres(row)
 	if err != nil {
 		return nil, fmt.Errorf("insert missive %q: %w", in.Title, err)
