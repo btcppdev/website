@@ -280,40 +280,6 @@ func TestHackathonScoreSummaries(t *testing.T) {
 	}
 }
 
-func TestHackathonAdvancedSelections(t *testing.T) {
-	n1, n2, n3 := 1, 2, 3
-	rankOne, rankTwo := 1, 2
-	projects := []*types.HackathonProject{
-		{ID: "winner", Title: "Winner", ProjectNumber: &n1, Status: getters.ProjectStatusSubmitted},
-		{ID: "runner-up", Title: "Runner Up", ProjectNumber: &n2, Status: getters.ProjectStatusAdvanced},
-		{ID: "created", Title: "Created", ProjectNumber: &n3, Status: getters.ProjectStatusCreated},
-	}
-	events := []*types.JudgeEvent{
-		{ID: "expo", PlaybookType: getters.JudgeTypeExpo, RankLimit: 4},
-		{ID: "finals", PlaybookType: getters.JudgeTypeFinals, RankLimit: 4},
-	}
-	scorecards := []*types.Scorecard{
-		{ProjectID: "winner", JudgeEventID: "expo", Rank: &rankOne},
-		{ProjectID: "runner-up", JudgeEventID: "expo", Rank: &rankTwo},
-		{ProjectID: "created", JudgeEventID: "expo", Rank: &rankOne},
-		{ProjectID: "runner-up", JudgeEventID: "finals", Rank: &rankOne},
-	}
-
-	expoAdvanced := hackathonAdvancedSelections(projects, scorecards, events, hackathonScoreModeExpo, 2)
-	if len(expoAdvanced) != 2 || expoAdvanced[0].ID != "winner" || expoAdvanced[1].ID != "runner-up" {
-		t.Fatalf("expo advanced = %+v, want winner then runner-up", expoAdvanced)
-	}
-
-	finalsAdvanced := hackathonAdvancedSelections(projects, scorecards, events, hackathonScoreModeFinals, 2)
-	if len(finalsAdvanced) != 1 || finalsAdvanced[0].ID != "runner-up" {
-		t.Fatalf("finals advanced = %+v, want runner-up only", finalsAdvanced)
-	}
-
-	if advanced := hackathonAdvancedSelections(projects, scorecards, events, hackathonScoreModeExpo, 0); len(advanced) != 0 {
-		t.Fatalf("zero advance count returned %+v, want empty", advanced)
-	}
-}
-
 func TestCurrentJudgeEvents(t *testing.T) {
 	manual := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeManual}
 	events := []*types.JudgeEvent{
@@ -354,8 +320,8 @@ func TestJudgingResultEvents(t *testing.T) {
 		map[string]bool{getters.JudgeTypeExpo: true},
 		now,
 	)
-	if len(judgeEvents) != 2 || judgeEvents[0].ID != "open-expo" || judgeEvents[1].ID != "closed-expo" {
-		t.Fatalf("judge result events = %+v, want open and closed expo events", judgeEvents)
+	if len(judgeEvents) != 1 || judgeEvents[0].ID != "closed-expo" {
+		t.Fatalf("judge result events = %+v, want only closed expo event", judgeEvents)
 	}
 
 	managerEvents := judgingResultEvents(
@@ -365,41 +331,79 @@ func TestJudgingResultEvents(t *testing.T) {
 		nil,
 		now,
 	)
-	if len(managerEvents) != 3 || managerEvents[2].ID != "closed-finals" {
-		t.Fatalf("manager result events = %+v, want every non-pending event", managerEvents)
+	if len(managerEvents) != 2 || managerEvents[1].ID != "closed-finals" {
+		t.Fatalf("manager result events = %+v, want every closed event", managerEvents)
 	}
 
 	if selected := selectedJudgingResultEvent(competition, judgeEvents, "closed-expo", now); selected == nil || selected.ID != "closed-expo" {
 		t.Fatalf("requested result event = %+v, want closed-expo", selected)
 	}
-	if selected := selectedJudgingResultEvent(competition, judgeEvents, "", now); selected == nil || selected.ID != "open-expo" {
-		t.Fatalf("default result event = %+v, want open-expo", selected)
+	if selected := selectedJudgingResultEvent(competition, judgeEvents, "", now); selected == nil || selected.ID != "closed-expo" {
+		t.Fatalf("default result event = %+v, want closed-expo", selected)
 	}
 }
 
-func TestJudgeBallotIsComplete(t *testing.T) {
-	event := &types.JudgeEvent{ID: "expo", RankLimit: 4}
-	rankOne, rankTwo, rankThree, rankFour := 1, 2, 3, 4
-	complete := []*types.Scorecard{
-		{JudgeEventID: event.ID, ProjectID: "one", Rank: &rankOne},
-		{JudgeEventID: event.ID, ProjectID: "two", Rank: &rankTwo},
-		{JudgeEventID: event.ID, ProjectID: "three", Rank: &rankThree},
-		{JudgeEventID: event.ID, ProjectID: "four", Rank: &rankFour},
-	}
-	if !judgeBallotIsComplete(complete, event, 4) {
-		t.Fatal("complete four-rank ballot was rejected")
-	}
-	if judgeBallotIsComplete(complete[:3], event, 4) {
-		t.Fatal("incomplete ballot was accepted")
+func TestApplyJudgeEventDeliberation(t *testing.T) {
+	one := &HackathonScoreSummary{ProjectID: "one", ScoredScorecards: 2}
+	two := &HackathonScoreSummary{ProjectID: "two", ScoredScorecards: 1}
+	unscored := &HackathonScoreSummary{ProjectID: "unscored"}
+	advanceCount := 1
+	deliberation := &types.JudgeEventDeliberation{
+		ProjectOrder: []string{"two", "one"},
+		AdvanceCount: &advanceCount,
+		Revision:     3,
 	}
 
-	duplicateRank := append([]*types.Scorecard(nil), complete...)
-	duplicateRank[3] = &types.Scorecard{JudgeEventID: event.ID, ProjectID: "four", Rank: &rankThree}
-	if judgeBallotIsComplete(duplicateRank, event, 4) {
-		t.Fatal("ballot with a duplicate rank was accepted")
+	ordered, gotCount, revision := applyJudgeEventDeliberation([]*HackathonScoreSummary{one, two, unscored}, deliberation, true)
+	if len(ordered) != 3 || ordered[0].ProjectID != "two" || ordered[1].ProjectID != "one" || ordered[2].ProjectID != "unscored" {
+		t.Fatalf("deliberation order = %+v, want two, one, unscored", ordered)
+	}
+	if gotCount != 1 || revision != 3 || !ordered[1].CutoffBefore {
+		t.Fatalf("deliberation cutoff = count %d revision %d rows %+v", gotCount, revision, ordered)
 	}
 
-	if !judgeBallotIsComplete(complete[:2], event, 2) {
-		t.Fatal("complete ballot for a two-project round was rejected")
+	finalOrder, gotCount, _ := applyJudgeEventDeliberation(ordered, deliberation, false)
+	if gotCount != 0 {
+		t.Fatalf("final round advance count = %d, want 0", gotCount)
+	}
+	for _, summary := range finalOrder {
+		if summary.CutoffBefore {
+			t.Fatalf("final round retained cutoff on %+v", summary)
+		}
+	}
+}
+
+func TestValidateDeliberationProjectOrder(t *testing.T) {
+	summaries := []*HackathonScoreSummary{
+		{ProjectID: "one", ScoredScorecards: 2},
+		{ProjectID: "two", ScoredScorecards: 1},
+		{ProjectID: "unscored"},
+	}
+	ordered, err := validateDeliberationProjectOrder(summaries, []string{"two", "one"})
+	if err != nil || len(ordered) != 2 || ordered[0] != "two" {
+		t.Fatalf("valid project order = %v, %v", ordered, err)
+	}
+	for _, invalid := range [][]string{{"one"}, {"one", "one"}, {"one", "unscored"}, {"one", "unknown"}} {
+		if _, err := validateDeliberationProjectOrder(summaries, invalid); err == nil {
+			t.Fatalf("invalid project order %v was accepted", invalid)
+		}
+	}
+}
+
+func TestProjectsForJudgeEventResultsKeepsScoredEliminations(t *testing.T) {
+	projects := []*types.HackathonProject{
+		{ID: "advanced", Status: getters.ProjectStatusAdvanced},
+		{ID: "eliminated", Status: getters.ProjectStatusSubmitted},
+		{ID: "unrelated", Status: getters.ProjectStatusSubmitted},
+	}
+	events := []*types.JudgeEvent{
+		{ID: "expo"},
+		{ID: "finals"},
+	}
+	scorecards := []*types.Scorecard{{JudgeEventID: "finals", ProjectID: "eliminated"}}
+
+	got := projectsForJudgeEventResults(projects, events, "finals", scorecards)
+	if len(got) != 2 || got[0].ID != "advanced" || got[1].ID != "eliminated" {
+		t.Fatalf("result projects = %+v, want advanced and scored eliminated projects", got)
 	}
 }

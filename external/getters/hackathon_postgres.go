@@ -1724,7 +1724,7 @@ func acceptCompetitionJudgeInvitePostgres(ctx *config.AppContext, token, personI
 			judge_types, coalesce(accepted_by_person_id::text, ''), accepted_at, expires_at, created_at
 		FROM competition_judge_invites
 		WHERE token_hash = $1
-		FOR UPDATE
+		FOR UPDATE OF event
 	`, tokenHash).Scan(
 		&invite.ID,
 		&invite.CompetitionID,
@@ -1993,8 +1993,303 @@ func updateJudgeEventStatePostgres(ctx *config.AppContext, competitionID, judgeE
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("judge event not found")
 	}
+	if state == JudgeEventStateOpen {
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			DELETE FROM judge_event_deliberations
+			WHERE judge_event_id = $1::uuid
+		`, judgeEventID); err != nil {
+			return fmt.Errorf("clear reopened judge event deliberation %s: %w", judgeEventID, err)
+		}
+	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit update judge event state: %w", err)
+	}
+	return nil
+}
+
+func getJudgeEventDeliberationPostgres(ctx *config.AppContext, competitionID, judgeEventID string) (*types.JudgeEventDeliberation, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	competitionID = strings.TrimSpace(competitionID)
+	judgeEventID = strings.TrimSpace(judgeEventID)
+	if competitionID == "" {
+		return nil, fmt.Errorf("competition id is required")
+	}
+	if judgeEventID == "" {
+		return nil, fmt.Errorf("judge event is required")
+	}
+	deliberation := &types.JudgeEventDeliberation{}
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT deliberation.judge_event_id::text,
+			ARRAY(
+				SELECT project_id::text
+				FROM unnest(deliberation.project_order) WITH ORDINALITY AS ordered(project_id, position)
+				ORDER BY position
+			),
+			deliberation.advance_count,
+			deliberation.revision,
+			coalesce(deliberation.updated_by_person_id::text, ''),
+			deliberation.updated_at
+		FROM judge_event_deliberations deliberation
+		JOIN judge_events event ON event.id = deliberation.judge_event_id
+		WHERE event.competition_id = $1::uuid
+			AND event.id = $2::uuid
+	`, competitionID, judgeEventID).Scan(
+		&deliberation.JudgeEventID,
+		&deliberation.ProjectOrder,
+		&deliberation.AdvanceCount,
+		&deliberation.Revision,
+		&deliberation.UpdatedByPersonID,
+		&deliberation.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get judge event deliberation %s: %w", judgeEventID, err)
+	}
+	return deliberation, nil
+}
+
+func saveJudgeEventDeliberationPostgres(ctx *config.AppContext, competitionID, judgeEventID string, projectOrder []string, advanceCount *int, expectedRevision int64, updatedByPersonID string) (*types.JudgeEventDeliberation, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	projectOrder, err := normalizeJudgeEventDeliberationOrder(projectOrder)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateJudgeEventDeliberationCount(advanceCount, len(projectOrder)); err != nil {
+		return nil, err
+	}
+	if expectedRevision < 0 {
+		return nil, fmt.Errorf("deliberation revision is invalid")
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin save judge event deliberation: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	deliberation, err := saveJudgeEventDeliberationTx(dbctx, tx, strings.TrimSpace(competitionID), strings.TrimSpace(judgeEventID), projectOrder, advanceCount, expectedRevision, strings.TrimSpace(updatedByPersonID))
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return nil, fmt.Errorf("commit judge event deliberation %s: %w", judgeEventID, err)
+	}
+	return deliberation, nil
+}
+
+func advanceProjectsFromDeliberationPostgres(ctx *config.AppContext, competitionID, judgeEventID string, projectOrder, eligibleProjectIDs []string, advanceCount int, expectedRevision int64, updatedByPersonID string) (*types.JudgeEventDeliberation, int, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, 0, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	projectOrder, err := normalizeJudgeEventDeliberationOrder(projectOrder)
+	if err != nil {
+		return nil, 0, err
+	}
+	eligibleProjectIDs, err = normalizeJudgeEventDeliberationOrder(eligibleProjectIDs)
+	if err != nil {
+		return nil, 0, fmt.Errorf("eligible project order: %w", err)
+	}
+	if err := validateJudgeEventDeliberationCount(&advanceCount, len(projectOrder)); err != nil {
+		return nil, 0, err
+	}
+	eligible := make(map[string]bool, len(eligibleProjectIDs))
+	for _, projectID := range eligibleProjectIDs {
+		eligible[projectID] = true
+	}
+	for _, projectID := range projectOrder {
+		if !eligible[projectID] {
+			return nil, 0, fmt.Errorf("project %s is not eligible for this judging event", projectID)
+		}
+	}
+
+	competitionID = strings.TrimSpace(competitionID)
+	judgeEventID = strings.TrimSpace(judgeEventID)
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("begin advance projects: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	deliberation, err := saveJudgeEventDeliberationTx(dbctx, tx, competitionID, judgeEventID, projectOrder, &advanceCount, expectedRevision, strings.TrimSpace(updatedByPersonID))
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := tx.Query(dbctx, `
+		SELECT id::text, status
+		FROM projects
+		WHERE competition_id = $1::uuid
+			AND id = ANY($2::uuid[])
+		FOR UPDATE
+	`, competitionID, eligibleProjectIDs)
+	if err != nil {
+		return nil, 0, fmt.Errorf("lock eligible projects: %w", err)
+	}
+	currentStatuses := make(map[string]string, len(eligibleProjectIDs))
+	for rows.Next() {
+		var projectID, status string
+		if err := rows.Scan(&projectID, &status); err != nil {
+			rows.Close()
+			return nil, 0, fmt.Errorf("scan eligible project: %w", err)
+		}
+		currentStatuses[projectID] = status
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, 0, fmt.Errorf("load eligible projects: %w", err)
+	}
+	rows.Close()
+	if len(currentStatuses) != len(eligibleProjectIDs) {
+		return nil, 0, fmt.Errorf("eligible projects changed; reload the scoring page")
+	}
+	for projectID, status := range currentStatuses {
+		if status != ProjectStatusSubmitted && status != ProjectStatusAdvanced {
+			return nil, 0, fmt.Errorf("project %s is no longer eligible; reload the scoring page", projectID)
+		}
+	}
+
+	advancedProjectIDs := projectOrder[:advanceCount]
+	commandTag, err := tx.Exec(dbctx, `
+		UPDATE projects
+		SET status = $3,
+			updated_at = now()
+		WHERE competition_id = $1::uuid
+			AND id = ANY($2::uuid[])
+	`, competitionID, advancedProjectIDs, ProjectStatusAdvanced)
+	if err != nil {
+		return nil, 0, fmt.Errorf("advance selected projects: %w", err)
+	}
+	if commandTag.RowsAffected() != int64(len(advancedProjectIDs)) {
+		return nil, 0, fmt.Errorf("selected projects changed; reload the scoring page")
+	}
+	demotedTag, err := tx.Exec(dbctx, `
+		UPDATE projects
+		SET status = $3,
+			updated_at = now()
+		WHERE competition_id = $1::uuid
+			AND id = ANY($2::uuid[])
+			AND NOT (id = ANY($4::uuid[]))
+			AND status = $5
+	`, competitionID, eligibleProjectIDs, ProjectStatusSubmitted, advancedProjectIDs, ProjectStatusAdvanced)
+	if err != nil {
+		return nil, 0, fmt.Errorf("demote unselected projects: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return nil, 0, fmt.Errorf("commit project advancement: %w", err)
+	}
+	return deliberation, int(demotedTag.RowsAffected()), nil
+}
+
+func saveJudgeEventDeliberationTx(dbctx context.Context, tx pgx.Tx, competitionID, judgeEventID string, projectOrder []string, advanceCount *int, expectedRevision int64, updatedByPersonID string) (*types.JudgeEventDeliberation, error) {
+	if competitionID == "" {
+		return nil, fmt.Errorf("competition id is required")
+	}
+	if judgeEventID == "" {
+		return nil, fmt.Errorf("judge event is required")
+	}
+	var eventClosed bool
+	if err := tx.QueryRow(dbctx, `
+		SELECT CASE
+			WHEN coalesce(competition.judging_mode, $3) = $3
+				THEN event.ends_at IS NOT NULL AND now() > event.ends_at
+			ELSE event.state = $4
+		END
+		FROM judge_events event
+		JOIN competitions competition ON competition.id = event.competition_id
+		WHERE event.competition_id = $1::uuid AND event.id = $2::uuid
+		FOR UPDATE
+	`, competitionID, judgeEventID, CompetitionJudgingModeAutomatic, JudgeEventStateClosed).Scan(&eventClosed); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("judge event not found")
+		}
+		return nil, fmt.Errorf("lock judge event %s: %w", judgeEventID, err)
+	}
+	if !eventClosed {
+		return nil, fmt.Errorf("close this judging round before arranging projects")
+	}
+
+	var currentRevision int64
+	err := tx.QueryRow(dbctx, `
+		SELECT revision
+		FROM judge_event_deliberations
+		WHERE judge_event_id = $1::uuid
+		FOR UPDATE
+	`, judgeEventID).Scan(&currentRevision)
+	if errors.Is(err, pgx.ErrNoRows) {
+		currentRevision = 0
+	} else if err != nil {
+		return nil, fmt.Errorf("lock judge event deliberation %s: %w", judgeEventID, err)
+	}
+	if currentRevision != expectedRevision {
+		return nil, ErrJudgeEventDeliberationConflict
+	}
+
+	newRevision := currentRevision + 1
+	deliberation := &types.JudgeEventDeliberation{
+		JudgeEventID:      judgeEventID,
+		ProjectOrder:      append([]string(nil), projectOrder...),
+		AdvanceCount:      advanceCount,
+		Revision:          newRevision,
+		UpdatedByPersonID: updatedByPersonID,
+	}
+	if currentRevision == 0 {
+		err = tx.QueryRow(dbctx, `
+			INSERT INTO judge_event_deliberations (
+				judge_event_id, project_order, advance_count, revision,
+				updated_by_person_id, updated_at
+			)
+			VALUES ($1::uuid, $2::uuid[], $3, $4, nullif($5, '')::uuid, now())
+			RETURNING updated_at
+		`, judgeEventID, projectOrder, advanceCount, newRevision, updatedByPersonID).Scan(&deliberation.UpdatedAt)
+	} else {
+		err = tx.QueryRow(dbctx, `
+			UPDATE judge_event_deliberations
+			SET project_order = $2::uuid[],
+				advance_count = $3,
+				revision = $4,
+				updated_by_person_id = nullif($5, '')::uuid,
+				updated_at = now()
+			WHERE judge_event_id = $1::uuid
+			RETURNING updated_at
+		`, judgeEventID, projectOrder, advanceCount, newRevision, updatedByPersonID).Scan(&deliberation.UpdatedAt)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("save judge event deliberation %s: %w", judgeEventID, err)
+	}
+	return deliberation, nil
+}
+
+func normalizeJudgeEventDeliberationOrder(projectIDs []string) ([]string, error) {
+	normalized := make([]string, 0, len(projectIDs))
+	seen := make(map[string]bool, len(projectIDs))
+	for _, projectID := range projectIDs {
+		projectID = strings.TrimSpace(projectID)
+		if projectID == "" {
+			return nil, fmt.Errorf("project order contains an empty project")
+		}
+		if seen[projectID] {
+			return nil, fmt.Errorf("project order contains duplicate project %s", projectID)
+		}
+		seen[projectID] = true
+		normalized = append(normalized, projectID)
+	}
+	return normalized, nil
+}
+
+func validateJudgeEventDeliberationCount(advanceCount *int, projectCount int) error {
+	if advanceCount == nil {
+		return nil
+	}
+	if *advanceCount < 1 {
+		return fmt.Errorf("project count must be at least 1")
+	}
+	if *advanceCount > projectCount {
+		return fmt.Errorf("project count cannot exceed the number of scored projects")
 	}
 	return nil
 }

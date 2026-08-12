@@ -1,11 +1,14 @@
 package getters
 
 import (
+	"errors"
 	"time"
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
+
+var ErrJudgeEventDeliberationConflict = errors.New("judging deliberation changed")
 
 type CompetitionInput struct {
 	ConferenceID         string
@@ -282,6 +285,18 @@ func UpdateJudgeEventRankLimit(ctx *config.AppContext, competitionID, judgeEvent
 
 func UpdateJudgeEventState(ctx *config.AppContext, competitionID, judgeEventID, state string) error {
 	return updateJudgeEventStatePostgres(ctx, competitionID, judgeEventID, state)
+}
+
+func GetJudgeEventDeliberation(ctx *config.AppContext, competitionID, judgeEventID string) (*types.JudgeEventDeliberation, error) {
+	return getJudgeEventDeliberationPostgres(ctx, competitionID, judgeEventID)
+}
+
+func SaveJudgeEventDeliberation(ctx *config.AppContext, competitionID, judgeEventID string, projectOrder []string, advanceCount *int, expectedRevision int64, updatedByPersonID string) (*types.JudgeEventDeliberation, error) {
+	return saveJudgeEventDeliberationPostgres(ctx, competitionID, judgeEventID, projectOrder, advanceCount, expectedRevision, updatedByPersonID)
+}
+
+func AdvanceProjectsFromDeliberation(ctx *config.AppContext, competitionID, judgeEventID string, projectOrder, eligibleProjectIDs []string, advanceCount int, expectedRevision int64, updatedByPersonID string) (*types.JudgeEventDeliberation, int, error) {
+	return advanceProjectsFromDeliberationPostgres(ctx, competitionID, judgeEventID, projectOrder, eligibleProjectIDs, advanceCount, expectedRevision, updatedByPersonID)
 }
 
 func DeleteJudgeEvent(ctx *config.AppContext, competitionID, judgeEventID string) error {

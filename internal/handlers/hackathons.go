@@ -86,14 +86,15 @@ type HackathonPage struct {
 }
 
 type HackathonJudgingResults struct {
-	Event                   *types.JudgeEvent
-	Summaries               []*HackathonScoreSummary
-	InvitedJudgeCount       int
-	SubmittedBallotCount    int
-	RankedProjectCount      int
-	LastSubmittedAtLabel    string
-	RequiredRanks           int
-	AwaitingCompletedBallot bool
+	Event                *types.JudgeEvent
+	Summaries            []*HackathonScoreSummary
+	InvitedJudgeCount    int
+	SubmittedBallotCount int
+	RankedProjectCount   int
+	LastSubmittedAtLabel string
+	AdvanceCount         int
+	Revision             int64
+	HasNextJudgeEvent    bool
 }
 
 type HackathonScheduleEvent struct {
@@ -811,6 +812,14 @@ func (p *HackathonPage) JudgingResultsURL(event *types.JudgeEvent) string {
 		values.Set("judge_event", event.ID)
 	}
 	return p.JudgingURL() + "?" + values.Encode()
+}
+
+func (p *HackathonPage) JudgingDeliberationURL(event *types.JudgeEvent) string {
+	if p == nil || event == nil {
+		return ""
+	}
+	values := url.Values{"judge_event": {event.ID}}
+	return p.JudgingURL() + "/deliberation?" + values.Encode()
 }
 
 func (p *HackathonPage) JudgingResultEventIs(event *types.JudgeEvent) bool {
@@ -2063,8 +2072,6 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 			events,
 			resultEvents,
 			allProjects,
-			viewer,
-			scorecards,
 			r.URL.Query().Get("judge_event"),
 			now,
 		)
@@ -2125,7 +2132,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 func judgingResultEvents(competition *types.HackathonCompetition, events []*types.JudgeEvent, viewer types.HackathonViewer, judgeTypes map[string]bool, now time.Time) []*types.JudgeEvent {
 	available := make([]*types.JudgeEvent, 0, len(events))
 	for _, event := range events {
-		if event == nil || judgeEventEffectiveState(competition, event, now) == getters.JudgeEventStatePending {
+		if event == nil || judgeEventEffectiveState(competition, event, now) != getters.JudgeEventStateClosed {
 			continue
 		}
 		if !viewer.Admin && !viewer.Manager && !judgeTypes[event.PlaybookType] {
@@ -2158,43 +2165,12 @@ func selectedJudgingResultEvent(competition *types.HackathonCompetition, events 
 	return nil
 }
 
-func requiredJudgeBallotRanks(event *types.JudgeEvent, projectCount int) int {
-	if projectCount <= 0 {
-		return 0
-	}
-	return min(judgeEventRankLimit(event), projectCount)
-}
-
-func judgeBallotIsComplete(scorecards []*types.Scorecard, event *types.JudgeEvent, projectCount int) bool {
-	required := requiredJudgeBallotRanks(event, projectCount)
-	if event == nil || required == 0 {
-		return false
-	}
-	ranks := make(map[int]bool, required)
-	projects := make(map[string]bool, required)
-	for _, scorecard := range scorecards {
-		if scorecard == nil || scorecard.JudgeEventID != event.ID || scorecard.Rank == nil {
-			continue
-		}
-		rank := *scorecard.Rank
-		projectID := strings.TrimSpace(scorecard.ProjectID)
-		if rank < 1 || rank > required || projectID == "" || ranks[rank] || projects[projectID] {
-			continue
-		}
-		ranks[rank] = true
-		projects[projectID] = true
-	}
-	return len(ranks) == required
-}
-
 func loadHackathonJudgingResults(
 	ctx *config.AppContext,
 	competition *types.HackathonCompetition,
 	events []*types.JudgeEvent,
 	resultEvents []*types.JudgeEvent,
 	projects []*types.HackathonProject,
-	viewer types.HackathonViewer,
-	viewerScorecards []*types.Scorecard,
 	requestedEventID string,
 	now time.Time,
 ) (*HackathonJudgingResults, error) {
@@ -2203,13 +2179,6 @@ func loadHackathonJudgingResults(
 		LastSubmittedAtLabel: "None",
 	}
 	if result.Event == nil {
-		return result, nil
-	}
-
-	eventProjects := projectsForJudgeEvent(projects, events, result.Event.ID)
-	result.RequiredRanks = requiredJudgeBallotRanks(result.Event, len(eventProjects))
-	if !viewer.Admin && !viewer.Manager && judgeEventEffectiveState(competition, result.Event, now) == getters.JudgeEventStateOpen && !judgeBallotIsComplete(viewerScorecards, result.Event, len(eventProjects)) {
-		result.AwaitingCompletedBallot = true
 		return result, nil
 	}
 
@@ -2223,7 +2192,12 @@ func loadHackathonJudgingResults(
 		return nil, err
 	}
 	eventScorecards := filterHackathonScorecardsByJudgeEvent(allScorecards, result.Event.ID)
+	eventProjects := projectsForJudgeEventResults(projects, events, result.Event.ID, eventScorecards)
 	filteredScorecards := filterHackathonScorecardsByProjects(eventScorecards, eventProjects)
+	summaries, advanceCount, revision, err := loadJudgeEventDeliberationView(ctx, competition, events, result.Event, eventProjects, filteredScorecards)
+	if err != nil {
+		return nil, err
+	}
 	page := &HackathonAdminPage{
 		Competition:       competition,
 		Projects:          eventProjects,
@@ -2231,10 +2205,13 @@ func loadHackathonJudgingResults(
 		JudgeEvents:       events,
 		Judges:            judges,
 		Scorecards:        filteredScorecards,
-		ScoreSummaries:    hackathonScoreSummaries(eventProjects, filteredScorecards, events),
+		ScoreSummaries:    summaries,
 		ScoreJudgeEventID: result.Event.ID,
 	}
 	result.Summaries = page.ScoreSummaries
+	result.AdvanceCount = advanceCount
+	result.Revision = revision
+	result.HasNextJudgeEvent = nextJudgeEvent(events, result.Event.ID) != nil
 	result.InvitedJudgeCount = page.ScoreInvitedJudgeCount()
 	result.RankedProjectCount = page.ScoreRankedProjectCount()
 	ballotStatsPage := *page
@@ -2242,6 +2219,64 @@ func loadHackathonJudgingResults(
 	result.SubmittedBallotCount = ballotStatsPage.ScoreSubmittedBallotCount()
 	result.LastSubmittedAtLabel = ballotStatsPage.ScoreLastSubmittedAtLabel()
 	return result, nil
+}
+
+func loadJudgeEventDeliberationView(ctx *config.AppContext, competition *types.HackathonCompetition, events []*types.JudgeEvent, event *types.JudgeEvent, eventProjects []*types.HackathonProject, scorecards []*types.Scorecard) ([]*HackathonScoreSummary, int, int64, error) {
+	summaries := hackathonScoreSummaries(eventProjects, scorecards, events)
+	deliberation, err := getters.GetJudgeEventDeliberation(ctx, competition.ID, event.ID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	summaries, advanceCount, revision := applyJudgeEventDeliberation(summaries, deliberation, nextJudgeEvent(events, event.ID) != nil)
+	return summaries, advanceCount, revision, nil
+}
+
+func HackathonJudgingDeliberation(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	competition, conf, id, events, err := loadHackathonJudgingAccess(w, r, ctx)
+	if err != nil {
+		return
+	}
+	eventID := strings.TrimSpace(r.URL.Query().Get("judge_event"))
+	event := judgeEventByID(events, eventID)
+	if event == nil {
+		writeHackathonDeliberationError(w, http.StatusBadRequest, "judging event is invalid")
+		return
+	}
+	now := time.Now()
+	if judgeEventEffectiveState(competition, event, now) != getters.JudgeEventStateClosed {
+		writeHackathonDeliberationError(w, http.StatusConflict, "Results are available after this judging round closes.")
+		return
+	}
+	viewer := hackathonViewerFromIdentity(id, conf)
+	if !viewer.Admin && !viewer.Manager && !judgeTypesForPerson(ctx, competition.ID, viewer.PersonID)[event.PlaybookType] {
+		handle404(w, r, ctx)
+		return
+	}
+	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, viewer)
+	if err != nil {
+		writeHackathonDeliberationError(w, http.StatusInternalServerError, "Unable to load projects")
+		return
+	}
+	scorecards, err := getters.ListScorecardsForCompetition(ctx, competition.ID)
+	if err != nil {
+		writeHackathonDeliberationError(w, http.StatusInternalServerError, "Unable to load scorecards")
+		return
+	}
+	eventScorecards := filterHackathonScorecardsByJudgeEvent(scorecards, event.ID)
+	eventProjects := projectsForJudgeEventResults(projects, events, event.ID, eventScorecards)
+	eventScorecards = filterHackathonScorecardsByProjects(eventScorecards, eventProjects)
+	summaries, advanceCount, revision, err := loadJudgeEventDeliberationView(ctx, competition, events, event, eventProjects, eventScorecards)
+	if err != nil {
+		writeHackathonDeliberationError(w, http.StatusInternalServerError, "Unable to load deliberation order")
+		return
+	}
+	writeHackathonDeliberationJSON(w, http.StatusOK, hackathonDeliberationResponse{
+		ProjectOrder: scoredSummaryProjectIDs(summaries),
+		AdvanceCount: advanceCount,
+		Revision:     revision,
+		HasNextRound: nextJudgeEvent(events, event.ID) != nil,
+	})
 }
 
 func competitionJudgesForType(judges []*types.CompetitionJudge, judgeType string) []*types.CompetitionJudge {

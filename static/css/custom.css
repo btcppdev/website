@@ -3251,6 +3251,79 @@ body.btcpp-admin-page {
 	line-height: 1;
 }
 
+.hack-deliberation-cutoff td {
+	position: relative;
+	height: 28px;
+	padding: 0 !important;
+	border-top: 3px solid #b42318 !important;
+	background: #fff4f2 !important;
+	text-align: center;
+}
+
+.hack-deliberation-cutoff span {
+	position: relative;
+	top: -11px;
+	display: inline-block;
+	padding: 2px 10px;
+	border: 1px solid #b42318;
+	background: #fff4f2;
+	color: #8f1d14;
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: 1px;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+.btcpp-admin-page .hack-deliberation-drag-handle,
+.btcpp-admin-page .hack-deliberation-move {
+	display: inline-flex;
+	height: 36px;
+	min-height: 36px;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 1px solid #0a0a0a;
+	box-shadow: none;
+	color: #0a0a0a;
+	transform: none;
+}
+
+.btcpp-admin-page .hack-deliberation-drag-handle {
+	width: 42px;
+	border-width: 2px;
+	background: #fff7ed;
+	cursor: grab;
+	font-size: 17px;
+	letter-spacing: 0;
+}
+
+.btcpp-admin-page .hack-deliberation-drag-handle:active {
+	cursor: grabbing;
+}
+
+.btcpp-admin-page .hack-deliberation-move {
+	width: 30px;
+	background: #fff;
+	font-size: 14px;
+}
+
+.btcpp-admin-page .hack-deliberation-drag-handle:hover,
+.btcpp-admin-page .hack-deliberation-drag-handle:focus-visible,
+.btcpp-admin-page .hack-deliberation-move:hover,
+.btcpp-admin-page .hack-deliberation-move:focus-visible {
+	border-color: #0a0a0a;
+	background: #f7931a;
+	box-shadow: none;
+	color: #0a0a0a;
+	transform: none;
+}
+
+.hack-deliberation-row--dragging {
+	opacity: .55;
+}
+
 .admin-hackathon-page .hackathon-manager-scope {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
