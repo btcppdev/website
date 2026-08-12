@@ -282,7 +282,7 @@ func personMergeConflicts(queryCtx context.Context, db personMergeQuerier, canon
 		return nil, err
 	}
 	rows, err = db.Query(queryCtx, `
-		SELECT DISTINCT conference.desc
+		SELECT DISTINCT conference.description
 		FROM volunteers source_volunteer
 		JOIN volunteers_conferences source_link
 			ON source_link.volunteer_id = source_volunteer.id
