@@ -9441,6 +9441,10 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		ctx.Err.Printf("/%s/admin/registrations merch pickups: %s", conf.Tag, err)
 	}
 
+	onSubExpiry := ""
+	if !conf.EndDate.IsZero() {
+		onSubExpiry = conf.EndDate.In(conf.Loc()).Format("2006-01-02")
+	}
 	err = ctx.TemplateCache.ExecuteTemplate(w, "admin/registrations.tmpl", &RegistrationsAdminPage{
 		Conf:          conf,
 		Registrations: unique,
@@ -9456,6 +9460,8 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 			Fields: []EmailFieldGroup{
 				fieldGroup(".Conf", types.Conf{}, false),
 			},
+			AllowOnSub:  true,
+			OnSubExpiry: onSubExpiry,
 		},
 	})
 	if err != nil {
@@ -9510,6 +9516,44 @@ func RegistrationsAdminBulkEmail(w http.ResponseWriter, r *http.Request, ctx *co
 
 	testEmail := r.FormValue("test_email")
 	isTest := r.FormValue("send_test") == "1" && testEmail != ""
+	saveOnSub := r.FormValue("save_onsub") == "1" && !isTest
+	if saveOnSub {
+		if strings.Contains(title, "{{") || strings.Contains(body, "{{") {
+			http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=%s", conf.Tag,
+				url.QueryEscape("Saved on-registration emails must use static copy without template fields.")), http.StatusSeeOther)
+			return
+		}
+		expiry, parseErr := conferenceOnSubExpiry(r.FormValue("onsub_expiry"), conf)
+		if parseErr != nil {
+			http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=%s", conf.Tag,
+				url.QueryEscape("Invalid on-registration expiry date.")), http.StatusSeeOther)
+			return
+		}
+		if err := ensureConferenceRegistrationSubscribers(ctx, conf); err != nil {
+			ctx.Err.Printf("/%s attendee onsub subscription reconciliation failed: %s", conf.Tag, err)
+			http.Error(w, "Unable to prepare event audience", http.StatusInternalServerError)
+			return
+		}
+		letter, createErr := getters.CreateTemplatedMissive(ctx, getters.MissiveInput{
+			Title: title, Markdown: body, SendAt: "onsub", Newsletters: []string{conf.Tag},
+			Expiry: expiry, ConferenceID: conf.Ref,
+		})
+		if createErr != nil {
+			ctx.Err.Printf("/%s attendee onsub create failed: %s", conf.Tag, createErr)
+			http.Error(w, "Unable to save event missive", http.StatusInternalServerError)
+			return
+		}
+		if _, started, queueErr := missives.QueueMissiveByUID(ctx, letter.UID); queueErr != nil {
+			ctx.Err.Printf("/%s attendee onsub queue failed: %s", conf.Tag, queueErr)
+			http.Error(w, "Missive saved but could not be queued", http.StatusInternalServerError)
+			return
+		} else if !started {
+			ctx.Err.Printf("/%s attendee onsub MISS-%d was already being scheduled", conf.Tag, letter.UID)
+		}
+		flash := fmt.Sprintf("MISS-%d is sending now and will be sent to new %s registrants until expiry", letter.UID, conf.Tag)
+		http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=%s", conf.Tag, url.QueryEscape(flash)), http.StatusSeeOther)
+		return
+	}
 
 	if len(selectedEmails) == 0 && !isTest {
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=No+attendees+selected", conf.Tag), http.StatusSeeOther)
@@ -9576,6 +9620,45 @@ func RegistrationsAdminBulkEmail(w http.ResponseWriter, r *http.Request, ctx *co
 
 	flash := fmt.Sprintf("Sent+to+%d+of+%d+attendees", sent, len(selectedEmails))
 	http.Redirect(w, r, fmt.Sprintf("/%s/admin/registrations?flash=%s", conf.Tag, flash), http.StatusSeeOther)
+}
+
+func conferenceOnSubExpiry(raw string, conf *types.Conf) (*time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		if conf == nil || conf.EndDate.IsZero() {
+			return nil, nil
+		}
+		expiry := conf.EndDate
+		return &expiry, nil
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", raw, conf.Loc())
+	if err != nil {
+		return nil, err
+	}
+	expiry := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 23, 59, 59, 0, conf.Loc())
+	return &expiry, nil
+}
+
+func ensureConferenceRegistrationSubscribers(ctx *config.AppContext, conf *types.Conf) error {
+	registrations, err := getters.FetchRegistrations(ctx, conf.Ref)
+	if err != nil {
+		return err
+	}
+	seen := make(map[string]bool)
+	for _, registration := range registrations {
+		if registration == nil || registration.Revoked {
+			continue
+		}
+		email := strings.ToLower(strings.TrimSpace(registration.Email))
+		if email == "" || seen[email] {
+			continue
+		}
+		seen[email] = true
+		if _, err := getters.SubscribeEmailList(ctx, email, []string{conf.Tag}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func RegistrationsAdminBulkCheckIn(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
