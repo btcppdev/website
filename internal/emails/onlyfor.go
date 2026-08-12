@@ -3,7 +3,7 @@ package emails
 import (
 	"bytes"
 	"fmt"
-	"html/template"
+	"text/template"
 	"time"
 
 	"btcpp-web/external/getters"
@@ -584,6 +584,26 @@ func DoorsOpenDesc(ctx *config.AppContext, conf *types.Conf) string {
 		}
 	}
 	return fallback
+}
+
+// BreakfastStartDesc returns the configured day-one breakfast start in the
+// same casual clock format used for doors-open copy. An empty result means the
+// event schedule does not have a breakfast time yet.
+func BreakfastStartDesc(ctx *config.AppContext, conf *types.Conf) string {
+	if conf == nil || conf.Tag == "" {
+		return ""
+	}
+	infos, err := getters.ListConfInfos(ctx, conf.Tag)
+	if err != nil {
+		ctx.Err.Printf("BreakfastStartDesc %s: list confinfos: %s", conf.Tag, err)
+		return ""
+	}
+	for _, ci := range infos {
+		if ci != nil && ci.Day == 1 && ci.Breakfast != nil && !ci.Breakfast.Start.IsZero() {
+			return ci.Breakfast.Start.Format("3:04pm")
+		}
+	}
+	return ""
 }
 
 // confDayCount returns the inclusive day count between StartDate

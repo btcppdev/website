@@ -46,7 +46,41 @@ func conferenceAttendeeRecipients(ctx *config.AppContext, confID string) ([]*typ
 		}
 		recipient.Registrations = append(recipient.Registrations, registration)
 	}
+	if err := populateConferenceAttendeeNames(ctx, byEmail); err != nil {
+		return nil, err
+	}
 	return sortedConferenceRecipients(byEmail), nil
+}
+
+func populateConferenceAttendeeNames(ctx *config.AppContext, recipients map[string]*types.ConferenceEmailRecipient) error {
+	if len(recipients) == 0 {
+		return nil
+	}
+	emails := make([]string, 0, len(recipients))
+	for email := range recipients {
+		emails = append(emails, email)
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT lower(pe.email::text), p.name
+		FROM person_emails pe
+		JOIN people p ON p.id = pe.person_id
+		WHERE lower(pe.email::text) = ANY($1::text[])
+		ORDER BY pe.is_primary DESC, pe.created_at, pe.id
+	`, emails)
+	if err != nil {
+		return fmt.Errorf("list conference attendee names: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var email, name string
+		if err := rows.Scan(&email, &name); err != nil {
+			return fmt.Errorf("scan conference attendee name: %w", err)
+		}
+		if recipient := recipients[email]; recipient != nil && strings.TrimSpace(recipient.Name) == "" {
+			recipient.Name = strings.TrimSpace(name)
+		}
+	}
+	return rows.Err()
 }
 
 func conferenceSpeakerRecipients(ctx *config.AppContext, confID, targetSpeakerConfID string) ([]*types.ConferenceEmailRecipient, error) {

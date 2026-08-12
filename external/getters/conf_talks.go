@@ -271,6 +271,33 @@ func ListConfTalksForConf(ctx *config.AppContext, confRef string, proposalMap ma
 	return queryConfTalksPostgres(ctx, "WHERE conf_talks.conference_id::text = $1", []interface{}{confRef}, proposalMap)
 }
 
+// LatestConferenceTalkClipart returns the clipart on the most recently
+// updated, non-archived talk for one event. Clipart uploads update the
+// ConfTalk row, so this stays event-scoped instead of using the global Spaces
+// upload order.
+func LatestConferenceTalkClipart(ctx *config.AppContext, confRef string) (string, error) {
+	if ctx == nil || ctx.DB == nil || strings.TrimSpace(confRef) == "" {
+		return "", fmt.Errorf("conference clipart lookup is not configured")
+	}
+	var clipart string
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT clipart_path
+		FROM conf_talks
+		WHERE conference_id = $1::uuid
+			AND archived_at IS NULL
+			AND btrim(clipart_path) <> ''
+		ORDER BY updated_at DESC, created_at DESC, id DESC
+		LIMIT 1
+	`, strings.TrimSpace(confRef)).Scan(&clipart)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("query latest conference talk clipart: %w", err)
+	}
+	return strings.TrimSpace(clipart), nil
+}
+
 func GetConfTalkByProposal(ctx *config.AppContext, proposalID string) (*types.ConfTalk, error) {
 	rows, err := queryConfTalksPostgres(ctx, "WHERE proposal_id::text = $1", []interface{}{proposalID}, nil)
 	if err != nil {
