@@ -121,6 +121,17 @@
           </dd>
         </div>
         <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Automated reminder campaigns</dt>
+          <dd class="mt-1">
+            <select name="conference_email_campaigns" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="" {{ if eq .CampaignAutomationSetting "" }}selected{{ end }}>Enabled (default)</option>
+              <option value="enabled" {{ if eq .CampaignAutomationSetting "enabled" }}selected{{ end }}>Enabled explicitly</option>
+              <option value="disabled" {{ if eq .CampaignAutomationSetting "disabled" }}selected{{ end }}>Disabled for this event</option>
+            </select>
+            <span class="mt-1 block text-xs text-gray-500">Disabling prevents new drafts and sends. Existing campaign data is kept in case automation is enabled again.</span>
+          </dd>
+        </div>
+        <div>
           <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">OG flavor</dt>
           <dd class="mt-1"><input type="text" name="og_flavor" value="{{ .Conf.OGFlavor }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
         </div>

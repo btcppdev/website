@@ -35,6 +35,12 @@
 
     {{ if .Flash }}<div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .Flash }}</div>{{ end }}
     {{ if .Error }}<div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .Error }}</div>{{ end }}
+    {{ if not .Conf.UsesConferenceEmailCampaigns }}
+    <div class="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      Automated reminder campaigns are disabled for this event. Existing templates and drafts are preserved, but automation will not build or send them.
+      <a href="/{{ .Conf.Tag }}/admin/details" class="font-semibold underline">Change this in event details.</a>
+    </div>
+    {{ end }}
 
     <div class="overflow-hidden rounded-lg bg-white shadow">
       <nav aria-label="Event missive views" class="flex overflow-x-auto border-b border-gray-200 px-5">

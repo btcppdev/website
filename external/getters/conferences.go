@@ -11,52 +11,53 @@ import (
 )
 
 type ConfDetailsInput struct {
-	Description             string
-	EditionType             string
-	OGFlavor                string
-	Emoji                   string
-	Tagline                 string
-	DateDesc                string
-	StartDate               *time.Time
-	EndDate                 *time.Time
-	Timezone                string
-	Location                string
-	Venue                   string
-	VenueMap                string
-	VenueWebsite            string
-	SpeakerDinnerStart      *time.Time
-	SpeakerDinnerLocation   string
-	SpeakerDinnerNotes      string
-	PickupAddressLine1      string
-	PickupAddressLine2      string
-	PickupAddressCity       string
-	PickupAddressRegion     string
-	PickupAddressPostalCode string
-	PickupAddressCountry    string
-	ShowHackathon           bool
-	HeroTitle               string
-	HeroCaption             string
-	AboutTitle              string
-	AboutBody               string
-	AboutBody2              string
-	VenueTitle              string
-	VenueSubtitle           string
-	VenueBody               string
-	HotelsIntro             string
-	LocalTicketBody         string
-	SpeakersTitle           string
-	SpeakersBody            string
-	HackathonSectionLabel   string
-	HackathonHeadline       string
-	HackathonJudgesNote     string
-	HackathonProofLabel     string
-	MapEmbedURL             string
-	MapLatitude             float64
-	MapLongitude            float64
-	MapXPercent             float64
-	MapYPercent             float64
-	MapLabel                string
-	MapLabelSide            string
+	Description                     string
+	EditionType                     string
+	OGFlavor                        string
+	Emoji                           string
+	Tagline                         string
+	DateDesc                        string
+	StartDate                       *time.Time
+	EndDate                         *time.Time
+	Timezone                        string
+	Location                        string
+	Venue                           string
+	VenueMap                        string
+	VenueWebsite                    string
+	SpeakerDinnerStart              *time.Time
+	SpeakerDinnerLocation           string
+	SpeakerDinnerNotes              string
+	ConferenceEmailCampaignsEnabled *bool
+	PickupAddressLine1              string
+	PickupAddressLine2              string
+	PickupAddressCity               string
+	PickupAddressRegion             string
+	PickupAddressPostalCode         string
+	PickupAddressCountry            string
+	ShowHackathon                   bool
+	HeroTitle                       string
+	HeroCaption                     string
+	AboutTitle                      string
+	AboutBody                       string
+	AboutBody2                      string
+	VenueTitle                      string
+	VenueSubtitle                   string
+	VenueBody                       string
+	HotelsIntro                     string
+	LocalTicketBody                 string
+	SpeakersTitle                   string
+	SpeakersBody                    string
+	HackathonSectionLabel           string
+	HackathonHeadline               string
+	HackathonJudgesNote             string
+	HackathonProofLabel             string
+	MapEmbedURL                     string
+	MapLatitude                     float64
+	MapLongitude                    float64
+	MapXPercent                     float64
+	MapYPercent                     float64
+	MapLabel                        string
+	MapLabelSide                    string
 }
 
 type ConfTicketInput struct {
@@ -168,6 +169,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			tagline, date_desc, start_date, end_date, timezone, location, venue,
 			venue_map_url, venue_website_url,
 			speaker_dinner_start, speaker_dinner_location, speaker_dinner_notes,
+			conference_email_campaigns_enabled,
 			pickup_address_line1, pickup_address_line2, pickup_address_city,
 			pickup_address_region, pickup_address_postal_code, pickup_address_country,
 			show_hackathon, orient_cal_notif,
@@ -194,6 +196,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 		var startDate pgtype.Timestamptz
 		var endDate pgtype.Timestamptz
 		var speakerDinnerStart pgtype.Timestamptz
+		var conferenceEmailCampaignsEnabled pgtype.Bool
 		err := rows.Scan(
 			&conf.Ref,
 			&conf.Tag,
@@ -216,6 +219,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&speakerDinnerStart,
 			&conf.SpeakerDinnerLocation,
 			&conf.SpeakerDinnerNotes,
+			&conferenceEmailCampaignsEnabled,
 			&conf.PickupAddressLine1,
 			&conf.PickupAddressLine2,
 			&conf.PickupAddressCity,
@@ -259,6 +263,10 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 		if speakerDinnerStart.Valid {
 			dinnerStart := speakerDinnerStart.Time
 			conf.SpeakerDinnerStart = &dinnerStart
+		}
+		if conferenceEmailCampaignsEnabled.Valid {
+			enabled := conferenceEmailCampaignsEnabled.Bool
+			conf.ConferenceEmailCampaignsEnabled = &enabled
 		}
 		if conf.Timezone != "" {
 			if loc, err := time.LoadLocation(conf.Timezone); err == nil {
@@ -472,7 +480,8 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 			pickup_address_country = upper($43),
 			speaker_dinner_start = $44,
 			speaker_dinner_location = $45,
-			speaker_dinner_notes = $46
+			speaker_dinner_notes = $46,
+			conference_email_campaigns_enabled = $47
 		WHERE id = $1
 	`, confRef, in.Description, in.OGFlavor, in.Emoji, in.Tagline, in.DateDesc,
 		in.StartDate, in.EndDate, in.Timezone, in.Location, in.Venue,
@@ -486,7 +495,8 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 		in.MapLabel, in.MapLabelSide, in.PickupAddressLine1, in.PickupAddressLine2,
 		in.PickupAddressCity, in.PickupAddressRegion, in.PickupAddressPostalCode,
 		in.PickupAddressCountry, in.SpeakerDinnerStart,
-		strings.TrimSpace(in.SpeakerDinnerLocation), strings.TrimSpace(in.SpeakerDinnerNotes))
+		strings.TrimSpace(in.SpeakerDinnerLocation), strings.TrimSpace(in.SpeakerDinnerNotes),
+		in.ConferenceEmailCampaignsEnabled)
 	if err != nil {
 		return fmt.Errorf("update conference %s details: %w", confRef, err)
 	}

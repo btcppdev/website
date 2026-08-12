@@ -40,7 +40,9 @@ func ClaimAllConferenceEmailBuildsForConference(ctx *config.AppContext, now time
 			SELECT o.id
 			FROM conference_email_occurrences o
 			JOIN conference_email_campaigns c ON c.id = o.campaign_id
+			JOIN conferences conf ON conf.id = c.conference_id
 			WHERE c.enabled AND c.conference_id = $1::uuid
+				AND coalesce(conf.conference_email_campaigns_enabled, true)
 				AND o.missive_id IS NULL
 				AND o.status IN ('planned', 'skipped', 'failed', 'paused')
 			ORDER BY o.send_at, o.id
@@ -80,7 +82,9 @@ func claimConferenceEmailBuilds(ctx *config.AppContext, now time.Time, limit int
 			SELECT o.id
 			FROM conference_email_occurrences o
 			JOIN conference_email_campaigns c ON c.id = o.campaign_id
+			JOIN conferences conf ON conf.id = c.conference_id
 			WHERE c.enabled
+				AND coalesce(conf.conference_email_campaigns_enabled, true)
 				AND (NULLIF($3, '') IS NULL OR c.conference_id = NULLIF($3, '')::uuid)
 				AND o.build_at <= $1
 				AND (
@@ -130,7 +134,9 @@ func ClaimAllConferenceEmailDraftsForConference(ctx *config.AppContext, now time
 			SELECT o.id
 			FROM conference_email_occurrences o
 			JOIN conference_email_campaigns c ON c.id = o.campaign_id
+			JOIN conferences conf ON conf.id = c.conference_id
 			WHERE c.enabled AND c.conference_id = $1::uuid
+				AND coalesce(conf.conference_email_campaigns_enabled, true)
 				AND o.missive_id IS NOT NULL
 				AND o.status IN ('draft', 'failed')
 			ORDER BY o.send_at, o.id
@@ -170,7 +176,9 @@ func claimConferenceEmailSends(ctx *config.AppContext, now time.Time, limit int,
 			SELECT o.id
 			FROM conference_email_occurrences o
 			JOIN conference_email_campaigns c ON c.id = o.campaign_id
-			WHERE c.enabled AND o.send_at <= $1 AND o.missive_id IS NOT NULL
+			JOIN conferences conf ON conf.id = c.conference_id
+			WHERE c.enabled AND coalesce(conf.conference_email_campaigns_enabled, true)
+				AND o.send_at <= $1 AND o.missive_id IS NOT NULL
 				AND (
 					o.status = 'draft'
 					OR (o.status IN ('sending', 'failed') AND o.claimed_at < $1 - interval '20 minutes')
@@ -496,6 +504,9 @@ func EnsureConferenceEmailCampaigns(ctx *config.AppContext, conf *types.Conf, no
 	if ctx == nil || ctx.DB == nil || conf == nil || conf.Ref == "" {
 		return fmt.Errorf("conference campaign configuration is incomplete")
 	}
+	if !conf.UsesConferenceEmailCampaigns() {
+		return nil
+	}
 	for _, campaignDefault := range conferenceCampaignDefaults {
 		definition, err := conferencemissives.DefinitionForKind(campaignDefault.Kind)
 		if err != nil {
@@ -629,7 +640,7 @@ func ReconcileConferenceEmailCampaigns(ctx *config.AppContext, now time.Time) er
 		return fmt.Errorf("list conferences for email campaigns: %w", err)
 	}
 	for _, conf := range confs {
-		if conf == nil || conf.StartDate.IsZero() || (!conf.EndDate.IsZero() && conf.EndDate.Before(now)) {
+		if conf == nil || !conf.UsesConferenceEmailCampaigns() || conf.StartDate.IsZero() || (!conf.EndDate.IsZero() && conf.EndDate.Before(now)) {
 			continue
 		}
 		if err := EnsureConferenceEmailCampaigns(ctx, conf, now); err != nil {

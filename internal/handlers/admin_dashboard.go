@@ -24,19 +24,20 @@ type GlobalAdminDashboardPage struct {
 }
 
 type EventDetailsPage struct {
-	Conf                  *types.Conf
-	FlashMessage          string
-	Days                  []*EventDetailsDay
-	Venues                []string
-	Tickets               []*EventDetailsTicket
-	MerchProducts         []*types.MerchProduct
-	MerchUpsellSlots      []*types.MerchProduct
-	MerchUpsellProductIDs map[string]bool
-	StartInput            string
-	EndInput              string
-	SpeakerDinnerInput    string
-	NextDay               int
-	Year                  uint
+	Conf                      *types.Conf
+	FlashMessage              string
+	Days                      []*EventDetailsDay
+	Venues                    []string
+	Tickets                   []*EventDetailsTicket
+	MerchProducts             []*types.MerchProduct
+	MerchUpsellSlots          []*types.MerchProduct
+	MerchUpsellProductIDs     map[string]bool
+	StartInput                string
+	EndInput                  string
+	SpeakerDinnerInput        string
+	CampaignAutomationSetting string
+	NextDay                   int
+	Year                      uint
 }
 
 type EventDetailsTicket struct {
@@ -220,21 +221,30 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 	if speakerDinner != nil {
 		dinnerInput = datetimeLocalInput(*speakerDinner)
 	}
+	campaignAutomationSetting := ""
+	if conf.ConferenceEmailCampaignsEnabled != nil {
+		if *conf.ConferenceEmailCampaignsEnabled {
+			campaignAutomationSetting = "enabled"
+		} else {
+			campaignAutomationSetting = "disabled"
+		}
+	}
 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/event_details.tmpl", &EventDetailsPage{
-		Conf:                  conf,
-		FlashMessage:          r.URL.Query().Get("flash"),
-		Days:                  days,
-		Venues:                venues,
-		Tickets:               tickets,
-		MerchProducts:         merchProducts,
-		MerchUpsellSlots:      merchUpsellSlots,
-		MerchUpsellProductIDs: merchUpsellProductIDs,
-		StartInput:            datetimeLocalInput(conf.StartDate),
-		EndInput:              datetimeLocalInput(conf.EndDate),
-		SpeakerDinnerInput:    dinnerInput,
-		NextDay:               nextDay,
-		Year:                  helpers.CurrentYear(),
+		Conf:                      conf,
+		FlashMessage:              r.URL.Query().Get("flash"),
+		Days:                      days,
+		Venues:                    venues,
+		Tickets:                   tickets,
+		MerchProducts:             merchProducts,
+		MerchUpsellSlots:          merchUpsellSlots,
+		MerchUpsellProductIDs:     merchUpsellProductIDs,
+		StartInput:                datetimeLocalInput(conf.StartDate),
+		EndInput:                  datetimeLocalInput(conf.EndDate),
+		SpeakerDinnerInput:        dinnerInput,
+		CampaignAutomationSetting: campaignAutomationSetting,
+		NextDay:                   nextDay,
+		Year:                      helpers.CurrentYear(),
 	}); err != nil {
 		ctx.Err.Printf("/%s/admin/details template failed: %s", conf.Tag, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -282,53 +292,68 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		redirectEventDetails(w, r, conf, "End date must be after start date.")
 		return
 	}
+	var conferenceEmailCampaignsEnabled *bool
+	switch strings.TrimSpace(r.FormValue("conference_email_campaigns")) {
+	case "":
+		// Null is the inherited default, which is intentionally enabled.
+	case "enabled":
+		enabled := true
+		conferenceEmailCampaignsEnabled = &enabled
+	case "disabled":
+		enabled := false
+		conferenceEmailCampaignsEnabled = &enabled
+	default:
+		redirectEventDetails(w, r, conf, "Invalid reminder campaign setting.")
+		return
+	}
 
 	in := getters.ConfDetailsInput{
-		Description:             strings.TrimSpace(r.FormValue("description")),
-		EditionType:             strings.TrimSpace(r.FormValue("edition_type")),
-		OGFlavor:                strings.TrimSpace(r.FormValue("og_flavor")),
-		Emoji:                   strings.TrimSpace(r.FormValue("emoji")),
-		Tagline:                 strings.TrimSpace(r.FormValue("tagline")),
-		DateDesc:                strings.TrimSpace(r.FormValue("date_desc")),
-		StartDate:               start,
-		EndDate:                 end,
-		Timezone:                timezoneName,
-		Location:                strings.TrimSpace(r.FormValue("location")),
-		Venue:                   strings.TrimSpace(r.FormValue("venue")),
-		VenueMap:                strings.TrimSpace(r.FormValue("venue_map")),
-		VenueWebsite:            strings.TrimSpace(r.FormValue("venue_website")),
-		SpeakerDinnerStart:      speakerDinnerStart,
-		SpeakerDinnerLocation:   strings.TrimSpace(r.FormValue("speaker_dinner_location")),
-		SpeakerDinnerNotes:      strings.TrimSpace(r.FormValue("speaker_dinner_notes")),
-		PickupAddressLine1:      strings.TrimSpace(r.FormValue("pickup_address_line1")),
-		PickupAddressLine2:      strings.TrimSpace(r.FormValue("pickup_address_line2")),
-		PickupAddressCity:       strings.TrimSpace(r.FormValue("pickup_address_city")),
-		PickupAddressRegion:     strings.TrimSpace(r.FormValue("pickup_address_region")),
-		PickupAddressPostalCode: strings.TrimSpace(r.FormValue("pickup_address_postal_code")),
-		PickupAddressCountry:    strings.TrimSpace(r.FormValue("pickup_address_country")),
-		ShowHackathon:           r.FormValue("show_hackathon") == "1",
-		HeroTitle:               strings.TrimSpace(r.FormValue("hero_title")),
-		HeroCaption:             strings.TrimSpace(r.FormValue("hero_caption")),
-		AboutTitle:              strings.TrimSpace(r.FormValue("about_title")),
-		AboutBody:               strings.TrimSpace(r.FormValue("about_body")),
-		AboutBody2:              strings.TrimSpace(r.FormValue("about_body_2")),
-		VenueTitle:              strings.TrimSpace(r.FormValue("venue_title")),
-		VenueSubtitle:           strings.TrimSpace(r.FormValue("venue_subtitle")),
-		VenueBody:               strings.TrimSpace(r.FormValue("venue_body")),
-		HotelsIntro:             strings.TrimSpace(r.FormValue("hotels_intro")),
-		LocalTicketBody:         strings.TrimSpace(r.FormValue("local_ticket_body")),
-		SpeakersTitle:           strings.TrimSpace(r.FormValue("speakers_title")),
-		SpeakersBody:            strings.TrimSpace(r.FormValue("speakers_body")),
-		HackathonSectionLabel:   strings.TrimSpace(r.FormValue("hackathon_section_label")),
-		HackathonHeadline:       strings.TrimSpace(r.FormValue("hackathon_headline")),
-		HackathonProofLabel:     strings.TrimSpace(r.FormValue("hackathon_proof_label")),
-		MapEmbedURL:             strings.TrimSpace(r.FormValue("map_embed_url")),
-		MapLatitude:             parseOptionalFloat(r.FormValue("map_latitude")),
-		MapLongitude:            parseOptionalFloat(r.FormValue("map_longitude")),
-		MapXPercent:             parseOptionalFloat(r.FormValue("map_x_percent")),
-		MapYPercent:             parseOptionalFloat(r.FormValue("map_y_percent")),
-		MapLabel:                strings.TrimSpace(r.FormValue("map_label")),
-		MapLabelSide:            normalizeMapLabelSide(r.FormValue("map_label_side")),
+		Description:                     strings.TrimSpace(r.FormValue("description")),
+		EditionType:                     strings.TrimSpace(r.FormValue("edition_type")),
+		OGFlavor:                        strings.TrimSpace(r.FormValue("og_flavor")),
+		Emoji:                           strings.TrimSpace(r.FormValue("emoji")),
+		Tagline:                         strings.TrimSpace(r.FormValue("tagline")),
+		DateDesc:                        strings.TrimSpace(r.FormValue("date_desc")),
+		StartDate:                       start,
+		EndDate:                         end,
+		Timezone:                        timezoneName,
+		Location:                        strings.TrimSpace(r.FormValue("location")),
+		Venue:                           strings.TrimSpace(r.FormValue("venue")),
+		VenueMap:                        strings.TrimSpace(r.FormValue("venue_map")),
+		VenueWebsite:                    strings.TrimSpace(r.FormValue("venue_website")),
+		SpeakerDinnerStart:              speakerDinnerStart,
+		SpeakerDinnerLocation:           strings.TrimSpace(r.FormValue("speaker_dinner_location")),
+		SpeakerDinnerNotes:              strings.TrimSpace(r.FormValue("speaker_dinner_notes")),
+		ConferenceEmailCampaignsEnabled: conferenceEmailCampaignsEnabled,
+		PickupAddressLine1:              strings.TrimSpace(r.FormValue("pickup_address_line1")),
+		PickupAddressLine2:              strings.TrimSpace(r.FormValue("pickup_address_line2")),
+		PickupAddressCity:               strings.TrimSpace(r.FormValue("pickup_address_city")),
+		PickupAddressRegion:             strings.TrimSpace(r.FormValue("pickup_address_region")),
+		PickupAddressPostalCode:         strings.TrimSpace(r.FormValue("pickup_address_postal_code")),
+		PickupAddressCountry:            strings.TrimSpace(r.FormValue("pickup_address_country")),
+		ShowHackathon:                   r.FormValue("show_hackathon") == "1",
+		HeroTitle:                       strings.TrimSpace(r.FormValue("hero_title")),
+		HeroCaption:                     strings.TrimSpace(r.FormValue("hero_caption")),
+		AboutTitle:                      strings.TrimSpace(r.FormValue("about_title")),
+		AboutBody:                       strings.TrimSpace(r.FormValue("about_body")),
+		AboutBody2:                      strings.TrimSpace(r.FormValue("about_body_2")),
+		VenueTitle:                      strings.TrimSpace(r.FormValue("venue_title")),
+		VenueSubtitle:                   strings.TrimSpace(r.FormValue("venue_subtitle")),
+		VenueBody:                       strings.TrimSpace(r.FormValue("venue_body")),
+		HotelsIntro:                     strings.TrimSpace(r.FormValue("hotels_intro")),
+		LocalTicketBody:                 strings.TrimSpace(r.FormValue("local_ticket_body")),
+		SpeakersTitle:                   strings.TrimSpace(r.FormValue("speakers_title")),
+		SpeakersBody:                    strings.TrimSpace(r.FormValue("speakers_body")),
+		HackathonSectionLabel:           strings.TrimSpace(r.FormValue("hackathon_section_label")),
+		HackathonHeadline:               strings.TrimSpace(r.FormValue("hackathon_headline")),
+		HackathonProofLabel:             strings.TrimSpace(r.FormValue("hackathon_proof_label")),
+		MapEmbedURL:                     strings.TrimSpace(r.FormValue("map_embed_url")),
+		MapLatitude:                     parseOptionalFloat(r.FormValue("map_latitude")),
+		MapLongitude:                    parseOptionalFloat(r.FormValue("map_longitude")),
+		MapXPercent:                     parseOptionalFloat(r.FormValue("map_x_percent")),
+		MapYPercent:                     parseOptionalFloat(r.FormValue("map_y_percent")),
+		MapLabel:                        strings.TrimSpace(r.FormValue("map_label")),
+		MapLabelSide:                    normalizeMapLabelSide(r.FormValue("map_label_side")),
 	}
 	if err := getters.UpdateConfDetails(ctx, conf.Ref, in); err != nil {
 		ctx.Err.Printf("/%s/admin/details update failed: %s", conf.Tag, err)

@@ -113,6 +113,9 @@ type (
 		SpeakerDinnerStart    *time.Time
 		SpeakerDinnerLocation string
 		SpeakerDinnerNotes    string
+		// ConferenceEmailCampaignsEnabled is a nullable event-level override.
+		// Nil preserves the default-on behavior for existing events.
+		ConferenceEmailCampaignsEnabled *bool
 		// PickupAddress is the event venue's structured tax location for
 		// merchandise collected at the conference.
 		PickupAddressLine1      string
@@ -1047,6 +1050,10 @@ func (c *Conf) WithinTwoWeeks() bool {
 
 func (c *Conf) IsPublished() bool {
 	return c != nil && c.PublicationStatus == "published"
+}
+
+func (c *Conf) UsesConferenceEmailCampaigns() bool {
+	return c != nil && (c.ConferenceEmailCampaignsEnabled == nil || *c.ConferenceEmailCampaignsEnabled)
 }
 
 func (c *Conf) IsDraft() bool {
