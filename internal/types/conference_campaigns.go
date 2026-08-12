@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	ConferenceCampaignAttendeeReminder70 = "attendee-reminder-70"
@@ -11,6 +14,16 @@ const (
 	ConferenceCampaignVolunteerOrient    = "volunteer-orientation"
 	ConferenceCampaignSpeakerOnboarding  = "speaker-onboarding"
 )
+
+const ConferenceCampaignSubjectPrefix = "✨ bitcoin++ {{ .Conf.Tag }} {{ .Conf.Emoji }}: "
+
+func ConferenceCampaignSubject(title string) string {
+	title = strings.TrimSpace(title)
+	if strings.HasPrefix(title, "✨ bitcoin++ ") {
+		return title
+	}
+	return ConferenceCampaignSubjectPrefix + title
+}
 
 func ConferenceCampaignTemplateOnlyFor(kind string) string {
 	return "conference-" + kind

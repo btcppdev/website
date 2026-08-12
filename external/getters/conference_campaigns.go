@@ -8,6 +8,7 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/mtypes"
 	"btcpp-web/internal/types"
+	conferencemissives "btcpp-web/templates/missives"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -407,10 +408,14 @@ func EnsureConferenceEmailCampaigns(ctx *config.AppContext, conf *types.Conf, no
 	if ctx == nil || ctx.DB == nil || conf == nil || conf.Ref == "" {
 		return fmt.Errorf("conference campaign configuration is incomplete")
 	}
-	for _, def := range conferenceCampaignDefaults {
-		templateLetter, err := GetLetterFor(ctx, types.ConferenceCampaignTemplateOnlyFor(def.Kind))
+	for _, campaignDefault := range conferenceCampaignDefaults {
+		definition, err := conferencemissives.DefinitionForKind(campaignDefault.Kind)
 		if err != nil {
-			return fmt.Errorf("load %s event-email template: %w", def.Kind, err)
+			return fmt.Errorf("load %s event-email definition: %w", campaignDefault.Kind, err)
+		}
+		templateLetter, err := GetLetterFor(ctx, definition.OnlyFor)
+		if err != nil {
+			return fmt.Errorf("load %s event-email template: %w", campaignDefault.Kind, err)
 		}
 		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			INSERT INTO conference_email_campaigns
@@ -418,9 +423,9 @@ func EnsureConferenceEmailCampaigns(ctx *config.AppContext, conf *types.Conf, no
 			VALUES ($1::uuid, $2, $3, $4, $5, make_time($6, 0, 0), $7::uuid)
 			ON CONFLICT (conference_id, kind) DO UPDATE SET
 				template_missive_id = COALESCE(conference_email_campaigns.template_missive_id, EXCLUDED.template_missive_id)
-		`, conf.Ref, def.Kind, def.Audience, templateLetter.Title, templateLetter.Markdown,
-			def.SendHour, templateLetter.PageID); err != nil {
-			return fmt.Errorf("ensure %s campaign for %s: %w", def.Kind, conf.Tag, err)
+		`, conf.Ref, campaignDefault.Kind, campaignDefault.Audience, types.ConferenceCampaignSubject(templateLetter.Title), templateLetter.Markdown,
+			campaignDefault.SendHour, templateLetter.PageID); err != nil {
+			return fmt.Errorf("ensure %s campaign for %s: %w", campaignDefault.Kind, conf.Tag, err)
 		}
 	}
 	for _, timing := range ConferenceCampaignTimings(conf) {
