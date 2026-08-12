@@ -2,6 +2,7 @@ package getters
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -1152,9 +1153,10 @@ func TestHackathonJudgingSetup(t *testing.T) {
 		Slug:              "score-project-" + postgresSmokeSuffix(),
 		Title:             "Scored Project",
 	})
+	secondOwnerID := insertSmokePerson(t, ctx, "score-owner-two")
 	secondProjectID := createSmokeProject(t, ctx, ProjectInput{
 		CompetitionID:     competitionID,
-		CreatedByPersonID: ownerID,
+		CreatedByPersonID: secondOwnerID,
 		Slug:              "score-project-two-" + postgresSmokeSuffix(),
 		Title:             "Second Scored Project",
 	})
@@ -1209,6 +1211,69 @@ func TestHackathonJudgingSetup(t *testing.T) {
 	}
 	if len(competitionScorecards) != 2 {
 		t.Fatalf("competition scorecards mismatch: %+v", competitionScorecards)
+	}
+	if err := UpdateProjectAdminFields(ctx, competitionID, projectID, ProjectStatusSubmitted, nil); err != nil {
+		t.Fatalf("submit first deliberation project: %v", err)
+	}
+	if err := UpdateProjectAdminFields(ctx, competitionID, secondProjectID, ProjectStatusSubmitted, nil); err != nil {
+		t.Fatalf("submit second deliberation project: %v", err)
+	}
+	if err := UpdateCompetitionJudgingMode(ctx, competitionID, CompetitionJudgingModeManual); err != nil {
+		t.Fatalf("set manual judging mode: %v", err)
+	}
+	if err := UpdateJudgeEventState(ctx, competitionID, eventID, JudgeEventStateClosed); err != nil {
+		t.Fatalf("close judge event: %v", err)
+	}
+	advanceCount := 1
+	deliberation, err := SaveJudgeEventDeliberation(ctx, competitionID, eventID, []string{secondProjectID, projectID}, &advanceCount, 0, judgeID)
+	if err != nil {
+		t.Fatalf("SaveJudgeEventDeliberation: %v", err)
+	}
+	if deliberation.Revision != 1 || len(deliberation.ProjectOrder) != 2 || deliberation.ProjectOrder[0] != secondProjectID {
+		t.Fatalf("saved deliberation = %+v", deliberation)
+	}
+	if _, err := SaveJudgeEventDeliberation(ctx, competitionID, eventID, []string{projectID, secondProjectID}, &advanceCount, 0, judgeID); !errors.Is(err, ErrJudgeEventDeliberationConflict) {
+		t.Fatalf("stale deliberation save error = %v, want conflict", err)
+	}
+	deliberation, demoted, err := AdvanceProjectsFromDeliberation(ctx, competitionID, eventID, []string{secondProjectID, projectID}, []string{projectID, secondProjectID}, 1, deliberation.Revision, judgeID)
+	if err != nil {
+		t.Fatalf("AdvanceProjectsFromDeliberation: %v", err)
+	}
+	if deliberation.Revision != 2 || demoted != 0 {
+		t.Fatalf("advanced deliberation = %+v, demoted %d", deliberation, demoted)
+	}
+	firstProject, err := GetProjectByID(ctx, projectID)
+	if err != nil || firstProject.Status != ProjectStatusSubmitted {
+		t.Fatalf("first project after advancement = %+v, %v", firstProject, err)
+	}
+	secondProject, err := GetProjectByID(ctx, secondProjectID)
+	if err != nil || secondProject.Status != ProjectStatusAdvanced {
+		t.Fatalf("second project after advancement = %+v, %v", secondProject, err)
+	}
+	deliberation, demoted, err = AdvanceProjectsFromDeliberation(ctx, competitionID, eventID, []string{projectID, secondProjectID}, []string{projectID, secondProjectID}, 1, deliberation.Revision, judgeID)
+	if err != nil {
+		t.Fatalf("replace advanced project: %v", err)
+	}
+	if deliberation.Revision != 3 || demoted != 1 {
+		t.Fatalf("replacement deliberation = %+v, demoted %d", deliberation, demoted)
+	}
+	firstProject, err = GetProjectByID(ctx, projectID)
+	if err != nil {
+		t.Fatalf("load replacement first project: %v", err)
+	}
+	secondProject, err = GetProjectByID(ctx, secondProjectID)
+	if err != nil {
+		t.Fatalf("load replacement second project: %v", err)
+	}
+	if firstProject.Status != ProjectStatusAdvanced || secondProject.Status != ProjectStatusSubmitted {
+		t.Fatalf("replacement statuses = %s/%s, want advanced/submitted", firstProject.Status, secondProject.Status)
+	}
+	if err := UpdateJudgeEventState(ctx, competitionID, eventID, JudgeEventStateOpen); err != nil {
+		t.Fatalf("reopen judge event: %v", err)
+	}
+	cleared, err := GetJudgeEventDeliberation(ctx, competitionID, eventID)
+	if err != nil || cleared != nil {
+		t.Fatalf("deliberation after reopen = %+v, %v", cleared, err)
 	}
 	otherCompetitionID := createSmokeCompetition(t, ctx, CompetitionInput{
 		Title: "Other Scoring Hackathon",

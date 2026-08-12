@@ -163,6 +163,15 @@ type JudgeEvent struct {
 	UpdatedAt             time.Time
 }
 
+type JudgeEventDeliberation struct {
+	JudgeEventID      string
+	ProjectOrder      []string
+	AdvanceCount      *int
+	Revision          int64
+	UpdatedByPersonID string
+	UpdatedAt         time.Time
+}
+
 type Scorecard struct {
 	ID            string
 	JudgeEventID  string
