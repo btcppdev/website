@@ -1159,6 +1159,8 @@ type EmailComposeData struct {
 	TitlePlaceholder string
 	BodyPlaceholder  string
 	Fields           []EmailFieldGroup
+	AllowOnSub       bool
+	OnSubExpiry      string
 }
 
 type SponsorFormPage struct {
