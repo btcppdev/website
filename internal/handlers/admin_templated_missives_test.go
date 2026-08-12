@@ -256,7 +256,8 @@ func TestPrepareTemplatedMissiveIndexSeparatesOneShotsDraftsAndScheduled(t *test
 	}
 
 	labels := oneShotMissiveLabels()
-	if labels["volapp"] != "Volunteer application received" || labels["ticket"] != "Ticket receipt" {
+	if labels["volapp"] != "Volunteer application received" || labels["ticket"] != "Ticket receipt" ||
+		labels["conference-attendee-final"] != "Event final details and tickets" {
 		t.Fatalf("one-shot labels missing expected names: %#v", labels)
 	}
 }
@@ -464,6 +465,7 @@ func TestOnlyForTemplateFieldsDescribeTriggeredEmailContexts(t *testing.T) {
 		{"talkconfirmed", []string{".TalkConfirmLink", ".Proposal.Title", ".Speaker.Name", ".Conf.Tag"}},
 		{"ticket", []string{".DayCount", ".DashboardLink", ".Conf.DoorsOpen"}},
 		{"vollogin", []string{".Email", ".VolShiftLink", ".URI"}},
+		{"conference-speaker-onboarding", []string{".SpeakerDinnerTime", ".GeneratedUpdates", ".Conf.Venue"}},
 	} {
 		groups := onlyForTemplateFields(tc.onlyFor)
 		for _, field := range tc.fields {
