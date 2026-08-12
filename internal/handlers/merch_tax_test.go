@@ -87,17 +87,48 @@ func TestShopTaxAddressUsesConferencePickupLocation(t *testing.T) {
 	}
 }
 
-func TestEventPickupTaxAddressMustBeComplete(t *testing.T) {
+func TestEventPickupTaxAddressAllowsMissingPostalCode(t *testing.T) {
 	conf := &types.Conf{
-		PickupAddressLine1: "Möckernstraße 120", PickupAddressCity: "Berlin",
-		PickupAddressPostalCode: "10963", PickupAddressCountry: "DE",
+		PickupAddressLine1: "Community House Masil", PickupAddressCity: "Seoul",
+		PickupAddressCountry: "KR",
 	}
 	if !shopEventPickupTaxAddressConfigured(conf) {
-		t.Fatal("complete Berlin pickup address was rejected")
+		t.Fatal("Seoul pickup address without a postal code was rejected")
 	}
-	conf.PickupAddressPostalCode = ""
+	conf.PickupAddressCity = ""
 	if shopEventPickupTaxAddressConfigured(conf) {
 		t.Fatal("incomplete pickup address was accepted")
+	}
+}
+
+func TestShopTaxAddressAllowsEventPickupWithoutPostalCode(t *testing.T) {
+	conf := &types.Conf{
+		Tag: "seoul", Venue: "Community House Masil",
+		PickupAddressLine1: "Community House Masil", PickupAddressCity: "Seoul",
+		PickupAddressCountry: "KR",
+	}
+	address, err := shopTaxAddress(nil, nil, types.ShopFulfillmentEventPickup, conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if address.Country != "KR" || address.PostalCode != "" {
+		t.Fatalf("address = %#v", address)
+	}
+}
+
+func TestShopStripeTaxParamsOmitsMissingPostalCode(t *testing.T) {
+	cart := []*shopCartItem{{
+		Product: &types.MerchProduct{StripeTaxCode: "txcd_custom"},
+		Variant: &types.MerchVariant{ID: "variant-1"}, Qty: 1, LineTotalCents: 3800,
+	}}
+	params, err := shopStripeTaxParams(cart, &types.ShopAddress{
+		Line1: "Community House Masil", City: "Seoul", Country: "KR",
+	}, 0, "USD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if params.CustomerDetails.Address.PostalCode != nil {
+		t.Fatalf("postal code = %q, want it omitted", *params.CustomerDetails.Address.PostalCode)
 	}
 }
 

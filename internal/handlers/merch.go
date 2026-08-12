@@ -1702,7 +1702,7 @@ func shopTaxAddress(ctx *config.AppContext, r *http.Request, fulfillment string,
 			PostalCode: strings.TrimSpace(pickupConf.PickupAddressPostalCode),
 			Country:    strings.ToUpper(strings.TrimSpace(pickupConf.PickupAddressCountry)),
 		}
-		if address.Line1 == "" || address.City == "" || address.PostalCode == "" || address.Country == "" {
+		if address.Line1 == "" || address.City == "" || address.Country == "" {
 			ctx.Err.Printf("event pickup tax address is incomplete for %s", pickupConf.Tag)
 			return nil, fmt.Errorf("Tax configuration for event pickup is incomplete. Please choose shipping or contact support.")
 		}
@@ -1728,7 +1728,6 @@ func shopEventPickupTaxAddressConfigured(conf *types.Conf) bool {
 	return conf != nil &&
 		strings.TrimSpace(conf.PickupAddressLine1) != "" &&
 		strings.TrimSpace(conf.PickupAddressCity) != "" &&
-		strings.TrimSpace(conf.PickupAddressPostalCode) != "" &&
 		len(strings.TrimSpace(conf.PickupAddressCountry)) == 2
 }
 
@@ -2078,20 +2077,23 @@ func shopStripeTaxQuote(cart []*shopCartItem, address *types.ShopAddress, shippi
 }
 
 func shopStripeTaxParams(cart []*shopCartItem, address *types.ShopAddress, shippingCents uint, currency string) (*stripe.TaxCalculationParams, error) {
-	if address == nil || strings.TrimSpace(address.Line1) == "" || strings.TrimSpace(address.City) == "" || strings.TrimSpace(address.PostalCode) == "" || strings.TrimSpace(address.Country) == "" {
+	if address == nil || strings.TrimSpace(address.Line1) == "" || strings.TrimSpace(address.City) == "" || strings.TrimSpace(address.Country) == "" {
 		return nil, fmt.Errorf("a complete shipping address is required to calculate tax")
+	}
+	stripeAddress := &stripe.AddressParams{
+		Line1:   stripe.String(strings.TrimSpace(address.Line1)),
+		Line2:   stripe.String(strings.TrimSpace(address.Line2)),
+		City:    stripe.String(strings.TrimSpace(address.City)),
+		State:   stripe.String(strings.TrimSpace(address.Region)),
+		Country: stripe.String(strings.ToUpper(strings.TrimSpace(address.Country))),
+	}
+	if postalCode := strings.TrimSpace(address.PostalCode); postalCode != "" {
+		stripeAddress.PostalCode = stripe.String(postalCode)
 	}
 	params := &stripe.TaxCalculationParams{
 		Currency: stripe.String(strings.ToLower(firstNonEmpty(strings.TrimSpace(currency), "USD"))),
 		CustomerDetails: &stripe.TaxCalculationCustomerDetailsParams{
-			Address: &stripe.AddressParams{
-				Line1:      stripe.String(strings.TrimSpace(address.Line1)),
-				Line2:      stripe.String(strings.TrimSpace(address.Line2)),
-				City:       stripe.String(strings.TrimSpace(address.City)),
-				State:      stripe.String(strings.TrimSpace(address.Region)),
-				PostalCode: stripe.String(strings.TrimSpace(address.PostalCode)),
-				Country:    stripe.String(strings.ToUpper(strings.TrimSpace(address.Country))),
-			},
+			Address:       stripeAddress,
 			AddressSource: stripe.String(string(stripe.TaxCalculationCustomerDetailsAddressSourceShipping)),
 		},
 	}
