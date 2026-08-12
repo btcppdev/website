@@ -27,6 +27,50 @@ func ClaimConferenceEmailBuildsForConference(ctx *config.AppContext, now time.Ti
 	return claimConferenceEmailBuilds(ctx, now, limit, strings.TrimSpace(confID))
 }
 
+// ClaimAllConferenceEmailBuildsForConference makes every unbuilt, enabled
+// occurrence for one conference buildable immediately. It is used by the
+// development review workflow; production continues to claim drafts by
+// BuildAt through ClaimConferenceEmailBuilds.
+func ClaimAllConferenceEmailBuildsForConference(ctx *config.AppContext, now time.Time, limit int, confID string) ([]*types.ConferenceEmailOccurrence, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		WITH due AS (
+			SELECT o.id
+			FROM conference_email_occurrences o
+			JOIN conference_email_campaigns c ON c.id = o.campaign_id
+			WHERE c.enabled AND c.conference_id = $1::uuid
+				AND o.missive_id IS NULL
+				AND o.status IN ('planned', 'skipped', 'failed', 'paused')
+			ORDER BY o.send_at, o.id
+			FOR UPDATE OF o SKIP LOCKED
+			LIMIT $2
+		)
+		UPDATE conference_email_occurrences o
+		SET status = 'building', claimed_at = $3, skipped_at = NULL, last_error = ''
+		FROM due
+		WHERE o.id = due.id
+		RETURNING o.id::text
+	`, strings.TrimSpace(confID), limit, now)
+	if err != nil {
+		return nil, fmt.Errorf("claim all conference email builds: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return loadConferenceEmailOccurrencesByIDs(ctx, ids)
+}
+
 func claimConferenceEmailBuilds(ctx *config.AppContext, now time.Time, limit int, confID string) ([]*types.ConferenceEmailOccurrence, error) {
 	if limit <= 0 {
 		limit = 10
@@ -71,6 +115,50 @@ func claimConferenceEmailBuilds(ctx *config.AppContext, now time.Time, limit int
 
 func ClaimConferenceEmailSends(ctx *config.AppContext, now time.Time, limit int) ([]*types.ConferenceEmailOccurrence, error) {
 	return claimConferenceEmailSends(ctx, now, limit, "")
+}
+
+// ClaimAllConferenceEmailDraftsForConference claims editable drafts without
+// waiting for SendAt. Development uses this to exercise the real recipient
+// personalization and delivery path while DEV_EMAIL_OVERRIDE keeps delivery
+// safely routed to the configured test inbox.
+func ClaimAllConferenceEmailDraftsForConference(ctx *config.AppContext, now time.Time, limit int, confID string) ([]*types.ConferenceEmailOccurrence, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		WITH due AS (
+			SELECT o.id
+			FROM conference_email_occurrences o
+			JOIN conference_email_campaigns c ON c.id = o.campaign_id
+			WHERE c.enabled AND c.conference_id = $1::uuid
+				AND o.missive_id IS NOT NULL
+				AND o.status IN ('draft', 'failed')
+			ORDER BY o.send_at, o.id
+			FOR UPDATE OF o SKIP LOCKED
+			LIMIT $2
+		)
+		UPDATE conference_email_occurrences o
+		SET status = 'sending', claimed_at = $3, last_error = ''
+		FROM due
+		WHERE o.id = due.id
+		RETURNING o.id::text
+	`, strings.TrimSpace(confID), limit, now)
+	if err != nil {
+		return nil, fmt.Errorf("claim all conference email drafts: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return loadConferenceEmailOccurrencesByIDs(ctx, ids)
 }
 
 func claimConferenceEmailSends(ctx *config.AppContext, now time.Time, limit int, confID string) ([]*types.ConferenceEmailOccurrence, error) {

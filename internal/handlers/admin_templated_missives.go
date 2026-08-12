@@ -49,6 +49,31 @@ type TemplatedMissivesPage struct {
 	DevReviewEmail    string
 	CanDelete         bool
 	CanCancel         bool
+	IsCampaign        bool
+	IsOccurrence      bool
+	Conf              *types.Conf
+	Campaign          *types.ConferenceEmailCampaign
+	Occurrence        *types.ConferenceEmailOccurrence
+	CampaignEnabled   bool
+	EditorTitle       string
+	EditorHeading     string
+	EditorDescription string
+	BackURL           string
+	BackLabel         string
+	FormAction        string
+	TestSendAction    string
+	UploadImageURL    string
+	SaveLabel         string
+	FieldGroups       []EmailFieldGroup
+	PreviewValues     []TemplatePreviewValue
+	HideTestSend      bool
+	RebuildAction     string
+	CancelAction      string
+}
+
+type TemplatePreviewValue struct {
+	Token string
+	Value string
 }
 
 type MissiveTabCounts struct {
@@ -314,6 +339,10 @@ func TemplatedMissivesEdit(w http.ResponseWriter, r *http.Request, ctx *config.A
 			http.Error(w, "Reusable missive not found", http.StatusNotFound)
 			return
 		}
+		if strings.HasPrefix(letter.OnlyFor, "conference-") {
+			renderTemplatedMissivesEditor(w, r, ctx, globalConferenceCampaignBuilderPage(ctx, letter, r.URL.Query().Get("flash"), r.URL.Query().Get("error")))
+			return
+		}
 		renderInlineMissiveEditor(w, r, ctx, &InlineMissivePage{
 			Current:      letter,
 			Fields:       onlyForTemplateFields(letter.OnlyFor),
@@ -335,6 +364,55 @@ func TemplatedMissivesEdit(w http.ResponseWriter, r *http.Request, ctx *config.A
 		SpacesReady:  spaces.IsConfigured(),
 		Year:         helpers.CurrentYear(),
 	})
+}
+
+func globalConferenceCampaignBuilderPage(ctx *config.AppContext, letter *mtypes.Letter, flash, errMsg string) *TemplatedMissivesPage {
+	kind := strings.TrimPrefix(letter.OnlyFor, "conference-")
+	return &TemplatedMissivesPage{
+		Current: letter, Form: formFromTemplatedLetter(letter), IsCampaign: true, HideTestSend: true,
+		EditorTitle:       "Edit global " + kind + " template",
+		EditorHeading:     "Edit global " + kind,
+		EditorDescription: "This reusable newsletter template is copied when a new event campaign is created.",
+		BackURL:           "/admin/missives?view=oneshots", BackLabel: "All missives",
+		FormAction: fmt.Sprintf("/admin/missives/%d/conference-template", letter.UID), SaveLabel: "Save global template",
+		UploadImageURL: "/admin/missives/upload-image", FieldGroups: onlyForTemplateFields(letter.OnlyFor),
+		FlashMessage: flash, ErrorMessage: errMsg, SpacesReady: spaces.IsConfigured(), Year: helpers.CurrentYear(),
+	}
+}
+
+func GlobalConferenceCampaignTemplateSave(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	uid, err := strconv.ParseUint(strings.TrimSpace(mux.Vars(r)["uid"]), 10, 64)
+	if err != nil || uid == 0 {
+		http.Error(w, "Bad missive UID", http.StatusBadRequest)
+		return
+	}
+	letter, err := getters.GetLetter(ctx, uid)
+	if err != nil || !strings.HasPrefix(letter.OnlyFor, "conference-") {
+		http.Error(w, "Reusable event template not found", http.StatusNotFound)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadFileBytes)
+	if err := r.ParseMultipartForm(maxUploadFileBytes); err != nil {
+		http.Error(w, "Bad form", http.StatusBadRequest)
+		return
+	}
+	form := templatedMissiveFormFromRequest(r)
+	if form.Title == "" {
+		page := globalConferenceCampaignBuilderPage(ctx, letter, "", "Title is required")
+		page.Form = form
+		renderTemplatedMissivesEditor(w, r, ctx, page)
+		return
+	}
+	if err := getters.UpdateOnlyForMissive(ctx, letter.PageID, types.ConferenceCampaignSubject(form.Title), buildTemplatedMissiveMarkdown(form)); err != nil {
+		page := globalConferenceCampaignBuilderPage(ctx, letter, "", "Save failed: "+err.Error())
+		page.Form = form
+		renderTemplatedMissivesEditor(w, r, ctx, page)
+		return
+	}
+	http.Redirect(w, r, templatedMissiveEditorURL(uid, "flash", "Global event template updated"), http.StatusSeeOther)
 }
 
 func InlineMissiveSave(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -412,7 +490,7 @@ func onlyForTemplateFields(onlyFor string) []EmailFieldGroup {
 		types.ConferenceCampaignTemplateOnlyFor(types.ConferenceCampaignVolunteerOrient),
 		types.ConferenceCampaignTemplateOnlyFor(types.ConferenceCampaignSpeakerOnboarding):
 		return []EmailFieldGroup{
-			direct(".Email", ".Name", ".URI", ".DashboardLink", ".AffiliateDashboardLink", ".DoorsOpen", ".SpeakerDinnerTime", ".SpeakerDinnerLocation", ".GeneratedUpdates", ".TalkDetails"),
+			direct(".Email", ".Name", ".CampaignTitle", ".URI", ".DashboardLink", ".AffiliateDashboardLink", ".DoorsOpen", ".BreakfastStart", ".SpeakerDinnerTime", ".SpeakerDinnerLocation", ".GeneratedUpdates", ".SponsorAcknowledgement", ".TalkDetails"),
 			fieldGroup(".Conf", types.Conf{}, false),
 		}
 	case "vollogin":
@@ -948,6 +1026,10 @@ func TemplatedMissivesUploadImage(w http.ResponseWriter, r *http.Request, ctx *c
 	if id := requireGlobalAdmin(w, r, ctx); id == nil {
 		return
 	}
+	uploadTemplatedMissiveImage(w, r, ctx)
+}
+
+func uploadTemplatedMissiveImage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if !spaces.IsConfigured() {
 		http.Error(w, "spaces not configured", http.StatusInternalServerError)
 		return
@@ -1104,6 +1186,37 @@ func renderTemplatedMissivesIndex(w http.ResponseWriter, r *http.Request, ctx *c
 }
 
 func renderTemplatedMissivesEditor(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, page *TemplatedMissivesPage) {
+	if page.EditorTitle == "" {
+		page.EditorTitle = "Templated missives - bitcoin++"
+	}
+	if page.EditorHeading == "" {
+		if page.IsNew {
+			page.EditorHeading = "New templated missive"
+		} else {
+			page.EditorHeading = fmt.Sprintf("Edit MISS-%d", page.Form.UID)
+		}
+	}
+	if page.EditorDescription == "" {
+		page.EditorDescription = "Build, preview, test, and schedule this newsletter missive."
+	}
+	if page.BackURL == "" {
+		page.BackURL = "/admin/missives"
+	}
+	if page.BackLabel == "" {
+		page.BackLabel = "All missives"
+	}
+	if page.FormAction == "" {
+		page.FormAction = "/admin/missives"
+	}
+	if page.TestSendAction == "" {
+		page.TestSendAction = "/admin/missives/test-send"
+	}
+	if page.UploadImageURL == "" {
+		page.UploadImageURL = "/admin/missives/upload-image"
+	}
+	if page.SaveLabel == "" {
+		page.SaveLabel = "Save missive"
+	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/templated_missives.tmpl", page); err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/admin/missives editor template failed: %s", err)
@@ -1261,6 +1374,19 @@ func parseTemplatedQuotedArgs(input string) ([]string, bool) {
 			input = rest[1:]
 			continue
 		}
+		if strings.HasPrefix(input, ".") {
+			end := strings.IndexAny(input, " \t)")
+			if end == -1 {
+				end = len(input)
+			}
+			selector := input[:end]
+			if !validTemplatedSelector(selector) {
+				return nil, false
+			}
+			args = append(args, selector)
+			input = input[end:]
+			continue
+		}
 		if !strings.HasPrefix(input, `"`) {
 			return nil, false
 		}
@@ -1385,7 +1511,7 @@ func buildTemplatedMissiveMarkdown(form TemplatedMissiveForm) string {
 	b.WriteString("---\n\n")
 
 	if form.LeadTitle != "" || form.LeadDeck != "" {
-		b.WriteString(fmt.Sprintf("{{ lead %q %q %q }}\n\n", form.LeadEyebrow, form.LeadTitle, form.LeadDeck))
+		b.WriteString(fmt.Sprintf("{{ lead %s %s %s }}\n\n", templatedMissiveTemplateArg(form.LeadEyebrow), templatedMissiveTemplateArg(form.LeadTitle), templatedMissiveTemplateArg(form.LeadDeck)))
 	}
 	if form.NewsItems != "" {
 		b.WriteString("{{ newsList")
@@ -1402,14 +1528,14 @@ func buildTemplatedMissiveMarkdown(form TemplatedMissiveForm) string {
 		b.WriteString(" }}\n\n")
 	}
 	if form.Pullquote != "" {
-		b.WriteString(fmt.Sprintf("{{ pullquote %q %q }}\n\n", form.Pullquote, form.PullquoteBy))
+		b.WriteString(fmt.Sprintf("{{ pullquote %s %s }}\n\n", templatedMissiveTemplateArg(form.Pullquote), templatedMissiveTemplateArg(form.PullquoteBy)))
 	}
 	if form.ContentMarkdown != "" {
 		b.WriteString(form.ContentMarkdown)
 		b.WriteString("\n\n")
 	}
 	if form.CTATitle != "" || form.CTAURL != "" {
-		b.WriteString(fmt.Sprintf("{{ cta %q %q %q %q %s }}\n", form.CTAEyebrow, form.CTATitle, form.CTASubtitle, firstNonEmpty(form.CTALabel, "READ MORE"), templatedMissiveURLArg(form.CTAURL)))
+		b.WriteString(fmt.Sprintf("{{ cta %s %s %s %s %s }}\n", templatedMissiveTemplateArg(form.CTAEyebrow), templatedMissiveTemplateArg(form.CTATitle), templatedMissiveTemplateArg(form.CTASubtitle), templatedMissiveTemplateArg(firstNonEmpty(form.CTALabel, "READ MORE")), templatedMissiveURLArg(form.CTAURL)))
 	}
 	return strings.TrimSpace(b.String()) + "\n"
 }
@@ -1419,7 +1545,32 @@ func templatedMissiveURLArg(value string) string {
 	if strings.HasPrefix(value, uriSelector) {
 		return fmt.Sprintf("(print .URI %q)", strings.TrimPrefix(value, uriSelector))
 	}
+	return templatedMissiveTemplateArg(value)
+}
+
+func templatedMissiveTemplateArg(value string) string {
+	value = strings.TrimSpace(value)
+	if validTemplatedSelector(value) {
+		return value
+	}
 	return strconv.Quote(value)
+}
+
+func validTemplatedSelector(value string) bool {
+	if len(value) < 2 || value[0] != '.' {
+		return false
+	}
+	for _, part := range strings.Split(value[1:], ".") {
+		if part == "" {
+			return false
+		}
+		for i, r := range part {
+			if !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || i > 0 && r >= '0' && r <= '9') {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func writeFrontmatter(b *strings.Builder, key, value string) {

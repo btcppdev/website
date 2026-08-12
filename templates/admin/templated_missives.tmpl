@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <title>Templated missives - bitcoin++</title>
+  <title>{{ .EditorTitle }}</title>
   {{ block "header" . }} {{ end }}
-  {{ template "admin_favicon" "" }}
+  {{ template "admin_favicon" .Conf }}
   <style>
     .missive-mobile-controls,
     .missive-controls-backdrop,
@@ -132,9 +132,9 @@
   <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="mb-6 flex items-center justify-between gap-4">
       <div>
-        <a href="/admin/missives" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; All missives</a>
-        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ if .IsNew }}New templated missive{{ else }}Edit MISS-{{ .Form.UID }}{{ end }}</h1>
-        <p class="mt-1 text-sm text-gray-600">Build, preview, test, and schedule this newsletter missive.</p>
+        <a href="{{ .BackURL }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ .BackLabel }}</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">{{ .EditorHeading }}</h1>
+        <p class="mt-1 text-sm text-gray-600">{{ .EditorDescription }}</p>
       </div>
     </div>
 
@@ -147,7 +147,7 @@
 
     <div class="grid gap-6">
       <main class="rounded-lg bg-white shadow">
-        <form method="POST" action="/admin/missives" enctype="multipart/form-data" class="missive-form-grid grid gap-6 p-5 xl:items-start">
+        <form method="POST" action="{{ .FormAction }}" enctype="multipart/form-data" class="missive-form-grid grid gap-6 p-5 xl:items-start">
           <input type="hidden" name="UID" value="{{ .Form.UID }}">
 
           <div id="MissiveControlsPanel" class="missive-controls-panel" aria-hidden="false" aria-label="Newsletter settings and editing controls">
@@ -162,28 +162,40 @@
 
           <div class="border-b border-gray-200 pb-5 xl:col-start-2">
             <div>
-              <h2 class="text-lg font-semibold">{{ if .IsNew }}New templated missive{{ else }}Edit MISS-{{ .Form.UID }}{{ end }}</h2>
-              <p class="mt-1 text-sm text-gray-500">Saving updates the missive row. Delivery still depends on SendAt, Expiry, SentAt, and subscriber list matching.</p>
+              <h2 class="text-lg font-semibold">{{ .EditorHeading }}</h2>
+              <p class="mt-1 text-sm text-gray-500">{{ if .IsCampaign }}Saving updates this event-specific campaign. Drafts already built remain unchanged.{{ else if .IsOccurrence }}Saving changes only this generated occurrence; its campaign template remains unchanged.{{ else }}Saving updates the missive row. Delivery still depends on SendAt, Expiry, SentAt, and subscriber list matching.{{ end }}</p>
             </div>
             <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1">
               <button type="submit" class="inline-flex min-h-[42px] items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:col-span-2 xl:col-span-1">
-                Save missive
+                {{ .SaveLabel }}
               </button>
-              {{ if not .IsNew }}
+              {{ if .IsOccurrence }}
+              <button type="submit" formaction="{{ .RebuildAction }}" formmethod="POST" formnovalidate
+                      onclick="return confirm('Replace your edits with current event data?')"
+                      class="inline-flex min-h-[42px] items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-center text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2">
+                Rebuild from event data
+              </button>
+              <button type="submit" formaction="{{ .CancelAction }}" formmethod="POST" formnovalidate
+                      onclick="return confirm('Cancel this event email?')"
+                      class="inline-flex min-h-[42px] items-center justify-center rounded-md border border-red-200 bg-white px-4 py-2 text-center text-sm font-semibold text-red-700 shadow-sm hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                Cancel email
+              </button>
+              {{ end }}
+              {{ if and (not (or .IsCampaign .IsOccurrence)) (not .IsNew) }}
               <button type="submit" formaction="/admin/missives/schedule?uid={{ .Form.UID }}" formmethod="POST"
                       onclick="return confirm('Schedule this saved missive using its current SendAt and audience settings?')"
                       class="inline-flex min-h-[42px] items-center justify-center rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm font-semibold text-amber-900 shadow-sm hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
                 Schedule saved missive
               </button>
               {{ end }}
-              {{ if .CanCancel }}
+              {{ if and (not (or .IsCampaign .IsOccurrence)) .CanCancel }}
               <button type="submit" formaction="/admin/missives/{{ .Form.UID }}/cancel" formmethod="POST" formnovalidate
                       onclick="return confirm('Cancel every queued, unsent delivery for this missive? The draft will be kept.')"
                       class="inline-flex min-h-[42px] items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-center text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2">
                 Cancel scheduled send
               </button>
               {{ end }}
-              {{ if .CanDelete }}
+              {{ if and (not (or .IsCampaign .IsOccurrence)) .CanDelete }}
               <button type="submit" formaction="/admin/missives/{{ .Form.UID }}/delete" formmethod="POST" formnovalidate
                       onclick="return confirm('Delete this draft permanently? This cannot be undone.')"
                       class="inline-flex min-h-[42px] items-center justify-center rounded-md border border-red-200 bg-white px-4 py-2 text-center text-sm font-semibold text-red-700 shadow-sm hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
@@ -193,26 +205,26 @@
             </div>
           </div>
 
-          <section class="rounded-md border border-indigo-200 bg-indigo-50 p-4 xl:col-start-2">
+          {{ if not .HideTestSend }}<section class="rounded-md border border-indigo-200 bg-indigo-50 p-4 xl:col-start-2">
             <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
               <label class="block">
                 <span class="text-xs font-medium text-indigo-950">Test recipient</span>
                 <input type="email" name="TestEmail" value="{{ .Form.TestEmail }}" placeholder="you@example.com" class="mt-1 block w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
               </label>
-              <button type="submit" formaction="/admin/missives/test-send" formmethod="POST"
+              <button type="submit" formaction="{{ .TestSendAction }}" formmethod="POST"
                       class="rounded-md border border-indigo-700 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100">
                 Send test
               </button>
             </div>
             <p class="mt-2 text-xs text-indigo-900">Sends the current editor contents immediately without saving the missive or changing its scheduled delivery state.</p>
-          </section>
+          </section>{{ end }}
 
           <section class="grid gap-4 xl:col-start-2">
             <label class="block">
               <span class="text-xs font-medium text-gray-700">Title</span>
               <input name="Title" value="{{ .Form.Title }}" required class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
             </label>
-            <label class="block">
+            {{ if not (or .IsCampaign .IsOccurrence) }}<label class="block">
               <span class="text-xs font-medium text-gray-700">Newsletter lists</span>
               <input name="Newsletters" value="{{ .Form.Newsletters }}" placeholder="newsletter, vienna" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
               <span class="mt-1 block text-xs text-gray-500">Comma-separated. Use <code class="rounded bg-gray-100 px-1">!newsletter</code> to exclude that list. Include at least one positive list.</span>
@@ -224,7 +236,13 @@
             <label class="block">
               <span class="text-xs font-medium text-gray-700">Expiry</span>
               <input type="date" name="Expiry" value="{{ .Form.Expiry }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
-            </label>
+            </label>{{ else if .IsCampaign }}
+            {{ if .Campaign }}<label class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700"><input type="checkbox" name="enabled" value="1" {{ if .CampaignEnabled }}checked{{ end }} class="rounded border-gray-300 text-indigo-600"> Campaign enabled</label>
+            <p class="text-xs text-gray-500">Audience: {{ .Campaign.Audience }} · {{ .Campaign.Kind }} · sends at {{ .Campaign.SendTime }} local</p>{{ else }}
+            <p class="text-xs text-gray-500">Global source template. Existing event-specific copies remain unchanged when this is saved.</p>{{ end }}
+            {{ else }}
+            <p class="text-xs text-gray-500">Audience: {{ .Occurrence.Audience }} · {{ .Occurrence.CampaignKind }} · sends {{ .Occurrence.SendLabel }}</p>
+            {{ end }}
           </section>
 
           <section class="rounded-md border border-gray-200 p-4 xl:col-start-2">
@@ -317,7 +335,7 @@
             </div>
           </section>
 
-          <section class="rounded-md border border-amber-200 bg-amber-50 p-4 xl:col-start-2">
+          {{ if not (or .IsCampaign .IsOccurrence) }}<section class="rounded-md border border-amber-200 bg-amber-50 p-4 xl:col-start-2">
             <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <h3 class="text-sm font-semibold text-amber-950">Audience helper</h3>
@@ -349,7 +367,15 @@
               </div>
             </div>
             <p class="mt-3 text-xs text-amber-900">Exclusions only filter an included audience. A target like <code class="rounded bg-amber-100 px-1">!newsletter</code> by itself has nobody to send to.</p>
+          </section>{{ end }}
+
+          {{ if and (or .IsCampaign .IsOccurrence) .FieldGroups }}
+          <section class="rounded-md border border-blue-200 bg-blue-50 p-4 xl:col-start-2">
+            <h3 class="text-sm font-semibold text-blue-950">Available event fields</h3>
+            <p class="mt-1 text-xs text-blue-900">These values are populated when the campaign preview or recipient draft is rendered.</p>
+            <div class="mt-3 space-y-3">{{ range .FieldGroups }}<div><div class="text-xs font-semibold text-blue-950">{{ .Name }}</div><div class="mt-1 flex flex-wrap gap-1">{{ range .Items }}<code class="rounded bg-white px-1.5 py-0.5 text-xs text-blue-900">{{ . }}</code>{{ end }}</div></div>{{ end }}</div>
           </section>
+          {{ end }}
 
           <section class="rounded-md border border-gray-200 p-4 xl:col-start-2">
             <h3 class="text-sm font-semibold">Structured sections</h3>
@@ -432,7 +458,7 @@
           </section>
 
           <div class="flex justify-end xl:col-start-2">
-            <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save missive</button>
+            <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ .SaveLabel }}</button>
           </div>
           </div>
 
@@ -456,6 +482,7 @@
     Edit draft <span aria-hidden="true">&uarr;</span>
   </button>
   <button type="button" id="MissiveControlsBackdrop" class="missive-controls-backdrop" aria-label="Close newsletter editor"></button>
+  <div id="CampaignPreviewValues" hidden>{{ range .PreviewValues }}<span data-token="{{ .Token }}" data-value="{{ .Value }}"></span>{{ end }}</div>
   <script>
     (function () {
       const templateSelect = document.getElementById('TemplateType');
@@ -485,6 +512,8 @@
       const controlsOpen = document.getElementById('OpenMissiveControls');
       const controlsClose = document.getElementById('CloseMissiveControls');
       const controlsBackdrop = document.getElementById('MissiveControlsBackdrop');
+      const previewValues = {};
+      document.querySelectorAll('#CampaignPreviewValues [data-token]').forEach(function (el) { previewValues[el.dataset.token] = el.dataset.value || ''; });
       const mobileControlsQuery = window.matchMedia('(max-width: 1279px)');
       let heroCropImage = null;
       let heroCropObjectURL = '';
@@ -629,9 +658,17 @@
         }
       };
 
+      function previewValue(value) {
+        value = String(value || '');
+        Object.keys(previewValues).sort(function (a, b) { return b.length - a.length; }).forEach(function (token) {
+          value = value.split(token).join(previewValues[token]);
+        });
+        return value;
+      }
+
       function field(name) {
         const el = document.querySelector('[name="' + name + '"]');
-        return el ? el.value.trim() : '';
+        return el ? previewValue(el.value.trim()) : '';
       }
 
       function setHeroStatus(message, tone) {
@@ -961,7 +998,7 @@
           heroCropUpload.disabled = true;
           if (heroUploadButton) heroUploadButton.disabled = true;
           setHeroStatus('Uploading cropped hero...', 'info');
-          fetch('/admin/missives/upload-image', { method: 'POST', body: fd, credentials: 'same-origin' })
+          fetch('{{ .UploadImageURL }}', { method: 'POST', body: fd, credentials: 'same-origin' })
             .then(function (r) {
               if (!r.ok) return r.text().then(function (t) { throw new Error(t || ('HTTP ' + r.status)); });
               return r.json();
