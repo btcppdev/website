@@ -1084,7 +1084,9 @@ type RegistrationsAdminPage struct {
 
 type RegistrationAdminRow struct {
 	*types.Registration
-	CheckedInLabel string
+	CheckedInLabel  string
+	RegisteredLabel string
+	PaymentLabel    string
 }
 
 // ProposalAdminRow is one card on /{conf}/admin/applicants. The

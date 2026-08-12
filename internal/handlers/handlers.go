@@ -9406,35 +9406,7 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		return
 	}
 
-	// Deduplicate by email
-	seen := make(map[string]bool)
-	var unique []*RegistrationAdminRow
-	loc := conf.Loc()
-	for _, r := range regs {
-		if r.Email != "" && !seen[r.Email] {
-			seen[r.Email] = true
-			row := &RegistrationAdminRow{Registration: r}
-			if r.CheckedInAt != nil && !r.CheckedInAt.IsZero() {
-				row.CheckedInLabel = r.CheckedInAt.In(loc).Format("Jan 2, 3:04 PM")
-			}
-			unique = append(unique, row)
-		}
-	}
-
-	regTypeOrder := map[string]int{
-		"speaker":   0,
-		"sponsor":   1,
-		"volunteer": 2,
-		"local":     3,
-		"genpop":    4,
-	}
-	sort.SliceStable(unique, func(i, j int) bool {
-		oi, oj := regTypeOrder[unique[i].Type], regTypeOrder[unique[j].Type]
-		if oi != oj {
-			return oi < oj
-		}
-		return unique[i].Email < unique[j].Email
-	})
+	rows := registrationAdminRows(regs, conf.Loc())
 
 	merchPickups, err := getters.ListShopPickupsForConference(ctx, conf.Ref)
 	if err != nil {
@@ -9447,7 +9419,7 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	err = ctx.TemplateCache.ExecuteTemplate(w, "admin/registrations.tmpl", &RegistrationsAdminPage{
 		Conf:          conf,
-		Registrations: unique,
+		Registrations: rows,
 		MerchPickups:  merchPickups,
 		FlashMessage:  r.URL.Query().Get("flash"),
 		IsConfAdmin:   id.HasRoleForConf(conf.Tag, auth.RoleAdmin),
@@ -9468,6 +9440,52 @@ func RegistrationsAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s/admin/registrations template failed: %s", conf.Tag, err.Error())
 	}
+}
+
+func registrationAdminRows(regs []*types.Registration, loc *time.Location) []*RegistrationAdminRow {
+	if loc == nil {
+		loc = time.UTC
+	}
+	rows := make([]*RegistrationAdminRow, 0, len(regs))
+	for _, registration := range regs {
+		if registration == nil {
+			continue
+		}
+		row := &RegistrationAdminRow{Registration: registration}
+		if registration.CheckedInAt != nil && !registration.CheckedInAt.IsZero() {
+			row.CheckedInLabel = registration.CheckedInAt.In(loc).Format("Jan 2, 3:04 PM")
+		}
+		if registration.RegisteredAt != nil && !registration.RegisteredAt.IsZero() {
+			row.RegisteredLabel = registration.RegisteredAt.In(loc).Format("Jan 2, 2006, 3:04 PM")
+		}
+		if registration.Currency != "" {
+			row.PaymentLabel = fmt.Sprintf("%s %.2f", strings.ToUpper(registration.Currency), registration.Amount)
+		} else if registration.Amount != 0 {
+			row.PaymentLabel = fmt.Sprintf("%.2f", registration.Amount)
+		}
+		rows = append(rows, row)
+	}
+
+	// Keep multiple tickets for one buyer together, with their newest
+	// registration first. The admin roster intentionally shows every ticket.
+	sort.SliceStable(rows, func(i, j int) bool {
+		ei, ej := strings.ToLower(rows[i].Email), strings.ToLower(rows[j].Email)
+		if ei != ej {
+			return ei < ej
+		}
+		ti, tj := rows[i].RegisteredAt, rows[j].RegisteredAt
+		if ti != nil && tj == nil {
+			return true
+		}
+		if ti == nil && tj != nil {
+			return false
+		}
+		if ti != nil && tj != nil && !ti.Equal(*tj) {
+			return ti.After(*tj)
+		}
+		return rows[i].RefID < rows[j].RefID
+	})
+	return rows
 }
 
 func RegistrationsAdminMerchPickup(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
