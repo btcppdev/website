@@ -30,7 +30,7 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
-	for _, name := range []string{"hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl"} {
+	for _, name := range []string{"hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl", "admin/conference_missive_draft.tmpl"} {
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
 		}
@@ -88,6 +88,21 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if strings.Contains(missiveEditor.String(), `style="min-width:680px;"`) {
 		t.Fatal("newsletter preview retains a forced desktop width on mobile")
+	}
+	var eventMissiveEditor bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&eventMissiveEditor, "admin/conference_missive_draft.tmpl", &ConferenceMissiveDraftPage{
+		Conf: &types.Conf{Tag: "dev26", Desc: "Local Dev 2026"},
+		Occurrence: &types.ConferenceEmailOccurrence{
+			ID: "occurrence-id", CampaignTitle: "Event reminder", Audience: "attendees", SendLabel: "Friday at 10:00 AM",
+		},
+		Title: "Event reminder", Markdown: "Hello there",
+	}); err != nil {
+		t.Fatalf("render conference missive editor: %v", err)
+	}
+	for _, want := range []string{`id="EventMissiveControls"`, `id="OpenEventMissiveControls"`, `id="CloseEventMissiveControls"`, `class="event-missive-preview"`, `window.matchMedia('(max-width: 1023px)')`} {
+		if !strings.Contains(eventMissiveEditor.String(), want) {
+			t.Fatalf("mobile conference missive editor missing %q", want)
+		}
 	}
 	discountTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {
