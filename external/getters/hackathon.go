@@ -219,12 +219,12 @@ func ListProjectsForCompetition(ctx *config.AppContext, competitionID string, vi
 	return listProjectsForCompetitionPostgres(ctx, competitionID, viewer)
 }
 
-func ListHackathonParticipantProjectsByEmail(ctx *config.AppContext, email string) ([]*HackathonParticipantProject, error) {
-	return listHackathonParticipantProjectsByEmailPostgres(ctx, email)
+func ListHackathonParticipantProjectsForPerson(ctx *config.AppContext, personID string) ([]*HackathonParticipantProject, error) {
+	return listHackathonParticipantProjectsForPersonPostgres(ctx, personID)
 }
 
-func HasHackathonParticipantProjectsByEmail(ctx *config.AppContext, email string) (bool, error) {
-	return hasHackathonParticipantProjectsByEmailPostgres(ctx, email)
+func HasHackathonParticipantProjectsForPerson(ctx *config.AppContext, personID string) (bool, error) {
+	return hasHackathonParticipantProjectsForPersonPostgres(ctx, personID)
 }
 
 func ListTableProjectsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.HackathonProject, error) {

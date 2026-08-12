@@ -221,7 +221,11 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 func addPublicProfileProjects(ctx *config.AppContext, people map[string]*PublicProfile, confs map[string]*types.Conf, editionSeen map[string]bool) error {
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT
-			person.id::text, person.name, coalesce(person.email::text, ''),
+			person.id::text, person.name, coalesce((
+				SELECT email.email::text FROM person_emails email
+				WHERE email.person_id = person.id
+				ORDER BY email.is_primary DESC, email.created_at, email.id LIMIT 1
+			), ''),
 			person.norm_photo_path, person.phone, person.signal, person.telegram,
 			person.twitter_handle, person.nostr, person.github_url, person.instagram,
 			person.linkedin, person.leetcode, person.website_url, person.company,
