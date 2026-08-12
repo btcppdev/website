@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	"btcpp-web/internal/types"
-	stripe "github.com/stripe/stripe-go/v76"
+	stripe "github.com/stripe/stripe-go/v86"
 )
 
 func TestCardSurchargePrice(t *testing.T) {
@@ -171,6 +173,30 @@ func TestMerchMoneyFormatsCents(t *testing.T) {
 		if got := merchMoney(tt.amount, nil); got != tt.want {
 			t.Fatalf("merchMoney(%d) = %q, want %q", tt.amount, got, tt.want)
 		}
+	}
+}
+
+func TestTicketCheckoutMoneyUsesTicketCurrency(t *testing.T) {
+	ticket := &types.ConfTicket{Currency: "EUR", Symbol: "€"}
+	if got := ticketCheckoutMoney(3500, ticket); got != "€35" {
+		t.Fatalf("ticketCheckoutMoney = %q, want €35", got)
+	}
+	if got := ticketCheckoutMoney(3550, ticket); got != "€35.50" {
+		t.Fatalf("ticketCheckoutMoney with cents = %q, want €35.50", got)
+	}
+}
+
+func TestTicketCheckoutScriptUsesFormCurrency(t *testing.T) {
+	script, err := os.ReadFile("../../static/js/ticket-checkout.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(script)
+	if !strings.Contains(source, `form.getAttribute("data-currency")`) {
+		t.Fatal("ticket checkout no longer reads the event ticket currency")
+	}
+	if strings.Contains(source, `currency: "USD"`) {
+		t.Fatal("ticket checkout still hardcodes USD money formatting")
 	}
 }
 

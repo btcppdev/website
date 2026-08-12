@@ -14,13 +14,14 @@
   var taxStatus = form.querySelector("[data-addon-tax-status]");
   var taxCents = 0;
   var taxRequestSequence = 0;
+  var checkoutCurrency = (form.getAttribute("data-currency") || "USD").trim().toUpperCase();
 
   form.classList.add("is-enhanced");
 
   function money(cents) {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD"
+      currency: checkoutCurrency
     }).format(cents / 100);
   }
 
@@ -118,7 +119,8 @@
     if (!selected.length) {
       var empty = document.createElement("div");
       empty.className = "is-empty";
-      empty.innerHTML = "<span>No add-ons—that's fine too</span><strong>$0.00</strong>";
+      empty.innerHTML = "<span>No add-ons—that's fine too</span><strong></strong>";
+      empty.querySelector("strong").textContent = money(0);
       lines.appendChild(empty);
     } else {
       selected.forEach(function (item) {

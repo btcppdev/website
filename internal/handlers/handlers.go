@@ -44,9 +44,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
 
-	stripe "github.com/stripe/stripe-go/v76"
-	"github.com/stripe/stripe-go/v76/checkout/session"
-	"github.com/stripe/stripe-go/v76/webhook"
+	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86/checkout/session"
+	"github.com/stripe/stripe-go/v86/webhook"
 )
 
 var pages []string = []string{"index", "timeline", "vegas25", "terms", "privacy"}
@@ -512,6 +512,7 @@ func loadTemplates(ctx *config.AppContext) error {
 		"shopOrderFulfillmentSummary": shopOrderFulfillmentSummary,
 		"merchPrice":                  merchPrice,
 		"merchMoney":                  merchMoney,
+		"ticketCheckoutMoney":         ticketCheckoutMoney,
 		"merchInches":                 merchInches,
 		"merchSats":                   merchSats,
 		"merchVariantPrice":           merchVariantPrice,
@@ -5649,7 +5650,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 				discountRef = discount.Ref
 			}
 		}
-		err = ctx.TemplateCache.ExecuteTemplate(w, "collect-email.tmpl", &TixFormPage{
+		page := &TixFormPage{
 			Conf:            conf,
 			Tix:             tix,
 			TixSlug:         tixSlug,
@@ -5667,8 +5668,11 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			Count:           uint(1),
 			Year:            helpers.CurrentYear(),
 			PaymentMethod:   checkoutDefaultPaymentMethod(r),
-			AddOnProducts:   ticketCheckoutAddOnProducts(ctx, conf),
-		})
+		}
+		if quoteErr := populateTicketCheckoutAddOns(r.Context(), ctx, page); quoteErr != nil {
+			ctx.Err.Printf("/tix/%s/checkout add-on FX quote unavailable: %s", tixSlug, quoteErr)
+		}
+		err = ctx.TemplateCache.ExecuteTemplate(w, "collect-email.tmpl", page)
 		if err != nil {
 			http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 			ctx.Err.Printf("/tix/%s/checkout templ exec failed %s", tixSlug, err.Error())
@@ -5716,7 +5720,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		discountRef, currentDiscountPrice, err := validateCheckoutDiscountPrice(ctx, conf, tixPrice, effectiveCode, form.DiscountPrice)
 		if err != nil {
 			ctx.Err.Printf("/tix/%s/checkout discount revalidation failed: %s", tixSlug, err)
-			err = ctx.TemplateCache.ExecuteTemplate(w, "collect-email.tmpl", &TixFormPage{
+			page := &TixFormPage{
 				Conf:            conf,
 				Tix:             tix,
 				TixSlug:         tixSlug,
@@ -5734,8 +5738,11 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 				Count:           form.Count,
 				Year:            helpers.CurrentYear(),
 				PaymentMethod:   form.PaymentMethod,
-				AddOnProducts:   ticketCheckoutAddOnProducts(ctx, conf),
-			})
+			}
+			if quoteErr := populateTicketCheckoutAddOns(r.Context(), ctx, page); quoteErr != nil {
+				ctx.Err.Printf("/tix/%s/checkout refreshed add-on FX quote unavailable: %s", tixSlug, quoteErr)
+			}
+			err = ctx.TemplateCache.ExecuteTemplate(w, "collect-email.tmpl", page)
 			if err != nil {
 				http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 				ctx.Err.Printf("/tix/%s/checkout stale discount templ exec failed %s", tixSlug, err.Error())
@@ -5749,11 +5756,16 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 		ctx.Session.Put(r.Context(), checkoutEmailSessionKey(conf.Tag), strings.ToLower(strings.TrimSpace(form.Email)))
 
-		addOns, addOnTotalCents := selectedTicketAddOns(ctx, conf, r)
+		addOns, addOnTotalCents, addOnQuote, addOnErr := selectedTicketAddOns(ctx, conf, tix, r)
+		if addOnErr != nil {
+			ctx.Err.Printf("/tix/%s/checkout add-on pricing failed: %s", tixSlug, addOnErr)
+			http.Error(w, "Add-on prices have expired. Refresh the checkout and try again.", http.StatusUnprocessableEntity)
+			return
+		}
 		var shopOrderID string
 		var addOnTaxCents uint
 		if len(addOns) > 0 {
-			taxQuote, taxErr := ticketCheckoutTaxQuote(ctx, conf, addOns)
+			taxQuote, taxErr := ticketCheckoutTaxQuote(ctx, conf, tix.Currency, addOns)
 			if taxErr != nil {
 				ctx.Err.Printf("/tix/%s/checkout calculate add-on tax failed: %s", tixSlug, taxErr)
 				http.Error(w, "Unable to calculate sales tax for event pickup", http.StatusUnprocessableEntity)
@@ -5780,7 +5792,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 		if form.PaymentMethod == "card" {
 			cardPrice := cardSurchargePrice(form.DiscountPrice, tix.CardSurchargeBPS)
-			StripeInitWithDiscount(w, r, ctx, conf, tix, cardPrice, tixPrice, form.DiscountPrice, &form, ticketKind, addOns, addOnTaxCents, shopOrderID)
+			StripeInitWithDiscount(w, r, ctx, conf, tix, cardPrice, tixPrice, form.DiscountPrice, &form, ticketKind, addOns, addOnQuote, addOnTaxCents, shopOrderID)
 		} else {
 			OpenNodeInit(w, r, ctx, conf, tix, form.DiscountPrice, tixPrice, &form, ticketKind, addOnTotalCents+addOnTaxCents, shopOrderID)
 		}
@@ -5839,7 +5851,7 @@ func ticketStripeTaxCode(tix *types.ConfTicket) string {
 	return strings.TrimSpace(tix.StripeTaxCode)
 }
 
-func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice, discountedBasePrice uint, form *types.TixForm, ticketKind string, addOns []*shopCartItem, salesTaxCents uint, shopOrderID string) {
+func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice, discountedBasePrice uint, form *types.TixForm, ticketKind string, addOns []*shopCartItem, addOnQuote *ticketAddOnQuotePayload, salesTaxCents uint, shopOrderID string) {
 	if ticketKind == "" {
 		ticketKind = types.TicketTypeGeneral
 	}
@@ -5866,6 +5878,17 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 	if shopOrderID != "" {
 		metadata["checkout-kind"] = types.ShopCheckoutKindMixed
 		metadata["shop-order-id"] = shopOrderID
+	}
+	if addOnQuote != nil && addOnQuote.QuoteID != "" {
+		metadata["merch-fx-quote"] = addOnQuote.QuoteID
+		for sourceCurrency, rate := range addOnQuote.Rates {
+			if sourceCurrency == addOnQuote.TargetCurrency {
+				continue
+			}
+			metadata["merch-fx-source"] = strings.ToUpper(sourceCurrency)
+			metadata["merch-fx-rate"] = strconv.FormatFloat(rate, 'g', -1, 64)
+			break
+		}
 	}
 	if ticketKind == types.TicketTypeLocal {
 		metadata["tix-local"] = "yes"
@@ -5939,7 +5962,6 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 		AutomaticTax:  &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(false)},
 		ExpiresAt:     stripe.Int64(time.Now().Add(types.ShopCheckoutSessionTTL).Unix()),
 	}
-
 	s, err := session.New(params)
 	if err != nil {
 		if shopOrderID != "" {
@@ -6018,20 +6040,41 @@ func stripeCheckoutNewsletterOptIn(metadata map[string]string) bool {
 	return err == nil && subscribe
 }
 
-func stripeCheckoutShippingAddress(checkout *stripe.CheckoutSession) *types.ShopAddress {
-	if checkout == nil || checkout.ShippingDetails == nil || checkout.ShippingDetails.Address == nil {
+type stripeCheckoutEvent struct {
+	stripe.CheckoutSession
+	// ShippingDetails preserves compatibility with webhook endpoints that still
+	// serialize Checkout Sessions using the pre-Basil top-level field.
+	ShippingDetails *stripe.ShippingDetails `json:"shipping_details"`
+}
+
+func stripeCheckoutShippingAddress(checkout *stripeCheckoutEvent) *types.ShopAddress {
+	if checkout == nil {
 		return nil
 	}
-	address := checkout.ShippingDetails.Address
+	var details *stripe.ShippingDetails
+	if checkout.CollectedInformation != nil && checkout.CollectedInformation.ShippingDetails != nil {
+		collected := checkout.CollectedInformation.ShippingDetails
+		details = &stripe.ShippingDetails{
+			Address: collected.Address,
+			Name:    collected.Name,
+			Phone:   checkout.CollectedInformation.Phone,
+		}
+	} else {
+		details = checkout.ShippingDetails
+	}
+	if details == nil || details.Address == nil {
+		return nil
+	}
+	address := details.Address
 	return &types.ShopAddress{
-		Name:       checkout.ShippingDetails.Name,
+		Name:       details.Name,
 		Line1:      address.Line1,
 		Line2:      address.Line2,
 		City:       address.City,
 		Region:     address.State,
 		PostalCode: address.PostalCode,
 		Country:    address.Country,
-		Phone:      checkout.ShippingDetails.Phone,
+		Phone:      details.Phone,
 	}
 }
 
@@ -6052,7 +6095,12 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
-	event, err := webhook.ConstructEvent(payload, r.Header.Get("Stripe-Signature"), ctx.Env.StripeEndpointSec)
+	event, err := webhook.ConstructEventWithOptions(
+		payload,
+		r.Header.Get("Stripe-Signature"),
+		ctx.Env.StripeEndpointSec,
+		webhook.ConstructEventOptions{IgnoreAPIVersionMismatch: true},
+	)
 
 	if err != nil {
 		ctx.Err.Println("Error verifying webhook sig", err)
@@ -6062,7 +6110,7 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 	switch event.Type {
 	case "checkout.session.expired":
-		var checkout stripe.CheckoutSession
+		var checkout stripeCheckoutEvent
 		if err := json.Unmarshal(event.Data.Raw, &checkout); err != nil {
 			ctx.Err.Printf("Error parsing expired Stripe checkout: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -6087,7 +6135,7 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		w.WriteHeader(http.StatusOK)
 		return
 	case "checkout.session.completed":
-		var checkout stripe.CheckoutSession
+		var checkout stripeCheckoutEvent
 		err := json.Unmarshal(event.Data.Raw, &checkout)
 		if err != nil {
 			ctx.Err.Printf("Error parsing webhook JSON: %v", err)
@@ -6102,7 +6150,7 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			salesTaxAmount, total := stripeCheckoutShopAmounts(&checkout)
+			salesTaxAmount, total := stripeCheckoutShopAmounts(&checkout.CheckoutSession)
 			if address := stripeCheckoutShippingAddress(&checkout); address != nil {
 				if err := getters.UpsertShopOrderShippingAddress(ctx, orderID, address); err != nil {
 					ctx.Err.Printf("Stripe merch callback save shipping address %s: %s", orderID, err)
@@ -6206,7 +6254,7 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		}
 		ctx.Infos.Printf("Added %d tickets!!", len(entry.Items))
 		if shopOrderID := strings.TrimSpace(checkout.Metadata["shop-order-id"]); shopOrderID != "" {
-			salesTaxAmount, total := stripeCheckoutShopAmounts(&checkout)
+			salesTaxAmount, total := stripeCheckoutShopAmounts(&checkout.CheckoutSession)
 			if address := stripeCheckoutShippingAddress(&checkout); address != nil {
 				if err := getters.UpsertShopOrderShippingAddress(ctx, shopOrderID, address); err != nil {
 					ctx.Err.Printf("Stripe mixed checkout save shipping address %s: %s", shopOrderID, err)

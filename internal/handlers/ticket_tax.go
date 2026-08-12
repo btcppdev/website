@@ -21,17 +21,23 @@ func TicketTaxQuote(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 	tixSlug := strings.TrimSpace(mux.Vars(r)["tix"])
-	conf, _, _, _, err := determineTixPrice(ctx, tixSlug)
+	conf, tix, _, _, err := determineTixPrice(ctx, tixSlug)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	addOns, addOnTotalCents := selectedTicketAddOns(ctx, conf, r)
+	addOns, addOnTotalCents, _, err := selectedTicketAddOns(ctx, conf, tix, r)
+	if err != nil {
+		ctx.Err.Printf("/tix/%s/tax-quote add-on pricing: %s", tixSlug, err)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Add-on prices have expired. Refresh the page to get a new quote."})
+		return
+	}
 	if len(addOns) == 0 {
 		_ = json.NewEncoder(w).Encode(map[string]any{"tax_cents": 0, "add_on_total_cents": 0})
 		return
 	}
-	quote, err := ticketCheckoutTaxQuote(ctx, conf, addOns)
+	quote, err := ticketCheckoutTaxQuote(ctx, conf, tix.Currency, addOns)
 	if err != nil {
 		ctx.Err.Printf("/tix/%s/tax-quote: %s", tixSlug, err)
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -44,7 +50,7 @@ func TicketTaxQuote(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	})
 }
 
-func ticketCheckoutTaxQuote(ctx *config.AppContext, conf *types.Conf, addOns []*shopCartItem) (*getters.TaxQuoteInput, error) {
+func ticketCheckoutTaxQuote(ctx *config.AppContext, conf *types.Conf, currency string, addOns []*shopCartItem) (*getters.TaxQuoteInput, error) {
 	if conf == nil {
 		return nil, fmt.Errorf("event is required to calculate pickup tax")
 	}
@@ -52,5 +58,5 @@ func ticketCheckoutTaxQuote(ctx *config.AppContext, conf *types.Conf, addOns []*
 	if err != nil {
 		return nil, err
 	}
-	return shopStripeTaxQuote(addOns, address, 0)
+	return shopStripeTaxQuote(addOns, address, 0, currency)
 }
