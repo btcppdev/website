@@ -7365,8 +7365,8 @@ body.btcpp-checkout-page {
 	color: #fff;
 }
 
-.checkout-hero picture,
-.checkout-hero img {
+.checkout-hero > picture,
+.checkout-hero > picture > img {
 	position: absolute;
 	inset: 0;
 	width: 100%;
@@ -7392,6 +7392,8 @@ body.btcpp-checkout-page {
 }
 
 .checkout-brand img {
+	position: static;
+	display: block;
 	width: 156px;
 	height: auto;
 	filter: invert(1);
