@@ -126,8 +126,8 @@ type sponsorshipSeed struct {
 }
 
 type hotelSeed struct {
-	id, name, url, img, hotelType, desc string
-	order                               int
+	id, name, url, img, hotelType, desc, priceRange string
+	order                                           int
 }
 
 type satelliteSeed struct {
@@ -424,31 +424,34 @@ var devSponsorships = []sponsorshipSeed{
 
 var devHotels = []hotelSeed{
 	{
-		id:        "00000000-0000-4000-8000-000000000701",
-		name:      "The Annex Hotel",
-		url:       "https://example.test/dev26/hotels/annex",
-		img:       "static/img/toronto/sonder.webp",
-		hotelType: "Hotel",
-		desc:      "Walkable rooms near the venue with enough desk space to keep hacking after the talks.",
-		order:     1,
+		id:         "00000000-0000-4000-8000-000000000701",
+		name:       "The Annex Hotel",
+		url:        "https://example.test/dev26/hotels/annex",
+		img:        "static/img/toronto/sonder.webp",
+		hotelType:  "Hotel",
+		desc:       "Walkable rooms near the venue with enough desk space to keep hacking after the talks.",
+		priceRange: "$180–$240/night",
+		order:      1,
 	},
 	{
-		id:        "00000000-0000-4000-8000-000000000702",
-		name:      "Congress House",
-		url:       "https://example.test/dev26/hotels/congress",
-		img:       "static/img/palmer_night.jpg",
-		hotelType: "Boutique",
-		desc:      "A smaller stay option close to food, coffee, and the evening satellite events.",
-		order:     2,
+		id:         "00000000-0000-4000-8000-000000000702",
+		name:       "Congress House",
+		url:        "https://example.test/dev26/hotels/congress",
+		img:        "static/img/palmer_night.jpg",
+		hotelType:  "Boutique",
+		desc:       "A smaller stay option close to food, coffee, and the evening satellite events.",
+		priceRange: "$140–$190/night",
+		order:      2,
 	},
 	{
-		id:        "00000000-0000-4000-8000-000000000703",
-		name:      "Node Hostel",
-		url:       "https://example.test/dev26/hotels/node-hostel",
-		img:       "static/img/selina.webp",
-		hotelType: "Hostel",
-		desc:      "Budget-friendly shared rooms for attendees who want to spend more on hardware and less on lodging.",
-		order:     3,
+		id:         "00000000-0000-4000-8000-000000000703",
+		name:       "Node Hostel",
+		url:        "https://example.test/dev26/hotels/node-hostel",
+		img:        "static/img/selina.webp",
+		hotelType:  "Hostel",
+		desc:       "Budget-friendly shared rooms for attendees who want to spend more on hardware and less on lodging.",
+		priceRange: "$45–$85/night",
+		order:      3,
 	},
 }
 
@@ -1869,11 +1872,11 @@ func seedHotels(ctx context.Context, tx pgx.Tx, confID string) {
 	for _, hotel := range devHotels {
 		mustExec(ctx, tx, "seed hotel", `
 			INSERT INTO hotels (
-				id, conference_id, name, url, img_path, type, description,
+				id, conference_id, name, url, img_path, type, description, price_range,
 				display_order, archived_at
 			)
 			VALUES (
-				$1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, NULL
+				$1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, NULL
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				conference_id = EXCLUDED.conference_id,
@@ -1882,9 +1885,10 @@ func seedHotels(ctx context.Context, tx pgx.Tx, confID string) {
 				img_path = EXCLUDED.img_path,
 				type = EXCLUDED.type,
 				description = EXCLUDED.description,
+				price_range = EXCLUDED.price_range,
 				display_order = EXCLUDED.display_order,
 				archived_at = NULL
-		`, hotel.id, confID, hotel.name, hotel.url, hotel.img, hotel.hotelType, hotel.desc, hotel.order)
+		`, hotel.id, confID, hotel.name, hotel.url, hotel.img, hotel.hotelType, hotel.desc, hotel.priceRange, hotel.order)
 	}
 }
 
