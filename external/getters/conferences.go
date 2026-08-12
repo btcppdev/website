@@ -24,6 +24,9 @@ type ConfDetailsInput struct {
 	Venue                   string
 	VenueMap                string
 	VenueWebsite            string
+	SpeakerDinnerStart      *time.Time
+	SpeakerDinnerLocation   string
+	SpeakerDinnerNotes      string
 	PickupAddressLine1      string
 	PickupAddressLine2      string
 	PickupAddressCity       string
@@ -164,6 +167,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 		SELECT id::text, tag, public_uid, active, publication_status, description, edition_type, og_flavor, emoji,
 			tagline, date_desc, start_date, end_date, timezone, location, venue,
 			venue_map_url, venue_website_url,
+			speaker_dinner_start, speaker_dinner_location, speaker_dinner_notes,
 			pickup_address_line1, pickup_address_line2, pickup_address_city,
 			pickup_address_region, pickup_address_postal_code, pickup_address_country,
 			show_hackathon, orient_cal_notif,
@@ -189,6 +193,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 		var publicUID *int64
 		var startDate pgtype.Timestamptz
 		var endDate pgtype.Timestamptz
+		var speakerDinnerStart pgtype.Timestamptz
 		err := rows.Scan(
 			&conf.Ref,
 			&conf.Tag,
@@ -208,6 +213,9 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.Venue,
 			&conf.VenueMap,
 			&conf.VenueWebsite,
+			&speakerDinnerStart,
+			&conf.SpeakerDinnerLocation,
+			&conf.SpeakerDinnerNotes,
 			&conf.PickupAddressLine1,
 			&conf.PickupAddressLine2,
 			&conf.PickupAddressCity,
@@ -247,6 +255,10 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 		}
 		if publicUID != nil {
 			conf.UID = uint64(*publicUID)
+		}
+		if speakerDinnerStart.Valid {
+			dinnerStart := speakerDinnerStart.Time
+			conf.SpeakerDinnerStart = &dinnerStart
 		}
 		if conf.Timezone != "" {
 			if loc, err := time.LoadLocation(conf.Timezone); err == nil {
@@ -457,7 +469,10 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 			pickup_address_city = $40,
 			pickup_address_region = $41,
 			pickup_address_postal_code = $42,
-			pickup_address_country = upper($43)
+			pickup_address_country = upper($43),
+			speaker_dinner_start = $44,
+			speaker_dinner_location = $45,
+			speaker_dinner_notes = $46
 		WHERE id = $1
 	`, confRef, in.Description, in.OGFlavor, in.Emoji, in.Tagline, in.DateDesc,
 		in.StartDate, in.EndDate, in.Timezone, in.Location, in.Venue,
@@ -470,7 +485,8 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 		in.MapLatitude, in.MapLongitude, in.MapXPercent, in.MapYPercent,
 		in.MapLabel, in.MapLabelSide, in.PickupAddressLine1, in.PickupAddressLine2,
 		in.PickupAddressCity, in.PickupAddressRegion, in.PickupAddressPostalCode,
-		in.PickupAddressCountry)
+		in.PickupAddressCountry, in.SpeakerDinnerStart,
+		strings.TrimSpace(in.SpeakerDinnerLocation), strings.TrimSpace(in.SpeakerDinnerNotes))
 	if err != nil {
 		return fmt.Errorf("update conference %s details: %w", confRef, err)
 	}

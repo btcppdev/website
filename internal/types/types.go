@@ -109,7 +109,10 @@ type (
 		VenueMap string
 		// VenueWebsite is the venue's official site; rendered in
 		// the ticket email so attendees can read about it directly.
-		VenueWebsite string
+		VenueWebsite          string
+		SpeakerDinnerStart    *time.Time
+		SpeakerDinnerLocation string
+		SpeakerDinnerNotes    string
 		// PickupAddress is the event venue's structured tax location for
 		// merchandise collected at the conference.
 		PickupAddressLine1      string

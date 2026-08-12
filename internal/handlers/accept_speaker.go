@@ -135,6 +135,9 @@ func fanoutAcceptedProposal(ctx *config.AppContext, proposal *types.Proposal, co
 		}
 		issueSpeakerTicket(ctx, sc.Speaker.Email, conf)
 	}
+	if err := getters.EnsureConferenceEmailCampaigns(ctx, conf, now); err != nil {
+		ctx.Err.Printf("fanoutAcceptedProposal %s: reconcile speaker onboarding: %s", proposal.ID, err)
+	}
 }
 
 // issueSpeakerTicket creates a complimentary "speaker"-type ticket
