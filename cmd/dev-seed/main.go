@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"btcpp-web/internal/conferencemissives"
 	"btcpp-web/internal/db"
 	"btcpp-web/internal/envconfig"
+	conferencemissives "btcpp-web/templates/missives"
 
 	"github.com/jackc/pgx/v5"
 )

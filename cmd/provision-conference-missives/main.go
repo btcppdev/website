@@ -8,8 +8,8 @@ import (
 	"strings"
 	texttemplate "text/template"
 
-	"btcpp-web/internal/conferencemissives"
 	"btcpp-web/internal/envconfig"
+	conferencemissives "btcpp-web/templates/missives"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

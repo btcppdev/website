@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"btcpp-web/internal/conferencemissives"
 	"btcpp-web/internal/types"
+	conferencemissives "btcpp-web/templates/missives"
 )
 
 func TestConferenceCampaignTimingsWorkBackwardFromFinal(t *testing.T) {
