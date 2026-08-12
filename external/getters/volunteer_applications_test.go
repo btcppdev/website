@@ -130,6 +130,9 @@ func TestDatabaseSmokePersonMergeRejectsDuplicateVolunteerEvent(t *testing.T) {
 	for _, conflict := range preview.Conflicts {
 		if conflict.Kind == "volunteer_application" {
 			found = true
+			if !strings.Contains(conflict.Description, "Smoke Test Conf") {
+				t.Fatalf("volunteer merge conflict description = %q, want conference description", conflict.Description)
+			}
 		}
 	}
 	if !found {
