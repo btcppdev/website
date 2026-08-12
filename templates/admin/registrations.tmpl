@@ -16,7 +16,7 @@
                         <div>
                             <h1 class="text-xl font-bold text-gray-900">Registrations</h1>
                             <p class="text-sm text-gray-500">{{ .Conf.Desc }} - {{ .Conf.DateDesc }}</p>
-                            <p class="mt-1 text-xs text-gray-400">{{ len .Registrations }} unique attendees</p>
+                            <p class="mt-1 text-xs text-gray-400">{{ len .Registrations }} registration rows</p>
                         </div>
                         {{ if inDev }}
                         <a href="/dev/check-in" target="_blank" rel="noopener"
@@ -39,7 +39,7 @@
             {{ if .Registrations }}
             <section class="mb-4">
                 <div class="bg-white shadow rounded-lg px-4 py-3 sm:px-6">
-                    <input type="text" id="search-input" placeholder="Search by email, type, or ticket..."
+                    <input type="text" id="search-input" placeholder="Search by email, type, ticket, or payment ID..."
                         class="w-full rounded border border-gray-300 px-3 py-1.5 text-sm"
                         oninput="filterTable()">
                 </div>
@@ -76,7 +76,7 @@
                     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 sm:px-6">
                         <label class="inline-flex items-center gap-2 text-xs text-gray-700">
                             <input type="checkbox" onclick="toggleAll(this)" class="rounded border-gray-300">
-                            Select visible attendees
+                            Select visible registrations
                         </label>
                         <div class="flex items-center gap-3">
                             <span class="text-xs text-gray-500">Already checked-in tickets are ignored.</span>
@@ -100,6 +100,7 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Checked-In</th>
                             </tr>
                         </thead>
@@ -113,7 +114,22 @@
                                 {{ end }}
                                 <td class="px-6 py-4 text-sm text-gray-900">{{ .Email }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-500">{{ .Type }}</td>
-                                <td class="px-6 py-4 text-sm text-gray-500">{{ .ItemBought }}</td>
+                                <td class="px-6 py-4 text-sm text-gray-500">
+                                    <div>{{ .ItemBought }}</div>
+                                    <code class="mt-1 block text-xs text-gray-400" title="Ticket ID">{{ .RefID }}</code>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500">
+                                    <div>
+                                        {{ if .Platform }}<span class="font-medium text-gray-700">{{ .Platform }}</span>{{ end }}
+                                        {{ if and .Platform .PaymentLabel }}<span class="text-gray-300"> · </span>{{ end }}
+                                        {{ .PaymentLabel }}
+                                    </div>
+                                    {{ if .CheckoutID }}
+                                    <code class="mt-1 block break-all text-xs text-gray-500" title="Provider checkout or charge ID">{{ .CheckoutID }}</code>
+                                    {{ end }}
+                                    {{ if .RegisteredLabel }}<div class="mt-1 text-xs text-gray-400">{{ .RegisteredLabel }}</div>{{ end }}
+                                    {{ if and (not .Platform) (not .PaymentLabel) (not .CheckoutID) }}<span class="text-gray-300">&mdash;</span>{{ end }}
+                                </td>
                                 <td class="px-6 py-4 text-sm text-gray-500">
                                     {{ if .CheckedInLabel }}{{ .CheckedInLabel }}{{ else }}<span class="text-gray-300">&mdash;</span>{{ end }}
                                 </td>
@@ -122,7 +138,7 @@
                         </tbody>
                     </table>
                     <div class="px-6 py-3 bg-gray-50 text-sm text-gray-500">
-                        {{ len .Registrations }} attendees
+                        {{ len .Registrations }} registrations
                     </div>
                 </div>
             </section>

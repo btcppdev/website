@@ -317,9 +317,9 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 		return nil, fmt.Errorf("database is not configured")
 	}
 	sql := `
-		SELECT r.ref_id, coalesce(r.conference_id::text, ''), r.type,
+		SELECT r.ref_id, r.checkout_id, coalesce(r.conference_id::text, ''), r.type,
 			r.email::text, r.item_bought, coalesce(r.amount_paid, 0),
-			r.currency, r.revoked, r.checked_in_at
+			r.currency, r.platform, r.registered_at, r.revoked, r.checked_in_at
 		FROM registrations r
 	`
 	args := []any{}
@@ -357,15 +357,19 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 	var out []*types.Registration
 	for rows.Next() {
 		var registration types.Registration
+		var registeredAt pgtype.Timestamptz
 		var checkedInAt pgtype.Timestamptz
 		err := rows.Scan(
 			&registration.RefID,
+			&registration.CheckoutID,
 			&registration.ConfRef,
 			&registration.Type,
 			&registration.Email,
 			&registration.ItemBought,
 			&registration.Amount,
 			&registration.Currency,
+			&registration.Platform,
+			&registeredAt,
 			&registration.Revoked,
 			&checkedInAt,
 		)
@@ -374,6 +378,9 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 		}
 		if checkedInAt.Valid {
 			registration.CheckedInAt = &checkedInAt.Time
+		}
+		if registeredAt.Valid {
+			registration.RegisteredAt = &registeredAt.Time
 		}
 		out = append(out, &registration)
 	}

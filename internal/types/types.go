@@ -537,11 +537,14 @@ type (
 	}
 
 	Registration struct {
-		RefID      string
-		ConfRef    string
-		Type       string
-		Email      string
-		ItemBought string
+		RefID        string
+		CheckoutID   string
+		ConfRef      string
+		Type         string
+		Email        string
+		ItemBought   string
+		Platform     string
+		RegisteredAt *time.Time
 		// Amount is the buyer-paid price in main units (dollars,
 		// euros, …) — Notion stores the AddTickets-written number
 		// already pre-divided by 100. Currency is the ISO code as
