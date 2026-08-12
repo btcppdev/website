@@ -186,3 +186,37 @@ func TestLatestConferenceTalkClipartIsScopedToEventAndUpdateOrder(t *testing.T) 
 		t.Fatalf("LatestConferenceTalkClipart() = %q, want newest.png", got)
 	}
 }
+
+func TestEnsureConferenceEmailCampaignsHonorsEventOptOut(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	confID, tag := insertSmokeConference(t, ctx)
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE conferences SET conference_email_campaigns_enabled = false WHERE id = $1::uuid
+	`, confID); err != nil {
+		t.Fatal(err)
+	}
+	disabled := false
+	conf := &types.Conf{
+		Ref: confID, Tag: tag, StartDate: time.Now().AddDate(0, 1, 0),
+		ConferenceEmailCampaignsEnabled: &disabled,
+	}
+	if err := EnsureConferenceEmailCampaigns(ctx, conf, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT count(*) FROM conference_email_campaigns WHERE conference_id = $1::uuid
+	`, confID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("disabled event created %d conference campaigns, want 0", count)
+	}
+	loaded, err := GetConfByRef(ctx, confID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.ConferenceEmailCampaignsEnabled == nil || *loaded.ConferenceEmailCampaignsEnabled {
+		t.Fatal("conference campaign opt-out did not round-trip from the database")
+	}
+}
