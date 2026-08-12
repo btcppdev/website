@@ -1,84 +1,104 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <title>{{ .Conf.Desc }} · event emails</title>
+  <title>Missives · {{ .Conf.Desc }}</title>
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" .Conf }}
 </head>
-<body class="btcpp-admin-page bg-gray-50">
+<body class="btcpp-admin-page bg-gray-50 text-gray-900">
   {{ block "mainnav" . }} {{ end }}
-  <main class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-    <a href="/{{ .Conf.Tag }}/admin" class="text-xs text-gray-500 hover:text-gray-700">&larr; {{ .Conf.Desc }} dashboard</a>
-    <div class="mt-2 flex flex-wrap items-end justify-between gap-4">
+  <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">Event emails</h1>
-        <p class="mt-1 text-sm text-gray-500">Drafts are built from current event data one day before their scheduled send.</p>
+        <a href="/{{ .Conf.Tag }}/admin" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; {{ .Conf.Desc }} dashboard</a>
+        <h1 class="mt-2 text-2xl font-semibold tracking-tight">Missives</h1>
+        <p class="mt-1 text-sm text-gray-600">Edit event email templates, review generated drafts, and monitor delivery.</p>
       </div>
-      <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ .Conf.Timezone }}</span>
-      {{ if inDev }}<form method="POST" action="/{{ .Conf.Tag }}/admin/missives/test-automation" class="flex items-end gap-2"><label class="text-xs font-semibold text-gray-600">Simulated local time<input type="datetime-local" name="simulated_at" class="mt-1 block rounded-md border-gray-300 text-xs"></label><button type="submit" class="rounded-md bg-gray-900 px-3 py-2 text-xs font-semibold text-white">Run automation</button></form>{{ end }}
+      <div class="flex flex-wrap items-start justify-end gap-2">
+        <span class="rounded-full bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700">{{ .Conf.Timezone }}</span>
+        {{ if inDev }}
+        <form method="POST" action="/{{ .Conf.Tag }}/admin/missives/dev-generate-all" onsubmit="return confirm('Generate every unbuilt event-email draft from the current templates and event data?');" class="flex flex-col items-end">
+          <button type="submit" {{ if not .CanGenerateDev }}disabled{{ end }} class="rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-gray-300">Generate all drafts</button>
+          <span class="mt-1 text-[11px] text-gray-500">saves editable missives</span>
+        </form>
+        <form method="POST" action="/{{ .Conf.Tag }}/admin/missives/dev-send-all" onsubmit="return confirm('Send every editable draft using its real recipient data? In development, all deliveries are redirected to {{ .DevEmailOverride }}.');" class="flex flex-col items-end">
+          <button type="submit" {{ if not .CanSendDevDrafts }}disabled{{ end }} class="rounded-md bg-gray-900 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300">Send all drafts</button>
+          {{ if .CanSendDevDrafts }}<span class="mt-1 max-w-56 truncate text-[11px] text-gray-500">{{ .DraftCount }} drafts · to {{ .DevEmailOverride }}</span>{{ else }}<span class="mt-1 text-[11px] text-amber-700">Requires drafts, DEV_EMAIL_OVERRIDE, and mail enabled</span>{{ end }}
+        </form>
+        <form method="POST" action="/{{ .Conf.Tag }}/admin/missives/test-automation" class="flex items-end gap-2">
+          <label class="text-xs font-semibold text-gray-600">Simulated local time<input type="datetime-local" name="simulated_at" class="mt-1 block rounded-md border-gray-300 text-xs"></label>
+          <button type="submit" class="rounded-md bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800">Run automation</button>
+        </form>
+        {{ end }}
+      </div>
     </div>
 
-    {{ if .Flash }}<div class="mt-5 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .Flash }}</div>{{ end }}
-    {{ if .Error }}<div class="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .Error }}</div>{{ end }}
+    {{ if .Flash }}<div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .Flash }}</div>{{ end }}
+    {{ if .Error }}<div class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ .Error }}</div>{{ end }}
 
-    <section class="mt-7 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div class="overflow-hidden rounded-lg bg-white shadow">
+      <nav aria-label="Event missive views" class="flex overflow-x-auto border-b border-gray-200 px-5">
+        <a href="{{ .ScheduleURL }}" class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {{ if eq .View "schedule" }}border-indigo-600 text-indigo-600{{ else }}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{{ end }}">Schedule <span class="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ .Counts.Schedule }}</span></a>
+        <a href="{{ .OnSubURL }}" class="ml-7 whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {{ if eq .View "onsub" }}border-indigo-600 text-indigo-600{{ else }}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{{ end }}">On registration <span class="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ .Counts.OnSub }}</span></a>
+        <a href="{{ .TemplatesURL }}" class="ml-7 whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {{ if eq .View "templates" }}border-indigo-600 text-indigo-600{{ else }}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{{ end }}">Templates <span class="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{{ .Counts.Templates }}</span></a>
+      </nav>
+
       <div class="border-b border-gray-200 px-5 py-4">
-        <h2 class="font-semibold text-gray-900">Schedule</h2>
-        <p class="mt-1 text-xs text-gray-500">Past dates are retained as skipped; changing the event date recalculates future planned dates.</p>
+        {{ if eq .View "templates" }}
+        <h2 class="text-base font-semibold">Campaign templates</h2><p class="mt-1 text-xs text-gray-500">Event-specific source copy. Generated drafts use the latest template and current event data.</p>
+        {{ else if eq .View "onsub" }}
+        <h2 class="text-base font-semibold">On-registration missives</h2><p class="mt-1 text-xs text-gray-500">Sent to current registrants and each new registrant until expiry.</p>
+        {{ else }}
+        <h2 class="text-base font-semibold">Generated drafts</h2><p class="mt-1 text-xs text-gray-500">Editable drafts appear here when they are built from current event data, one local day before delivery.</p>
+        {{ end }}
       </div>
+
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200 text-sm">
-          <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <tr><th class="px-5 py-3">Email</th><th class="px-5 py-3">Audience</th><th class="px-5 py-3">Build</th><th class="px-5 py-3">Send</th><th class="px-5 py-3">State</th><th class="px-5 py-3">Draft</th></tr>
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            {{ if eq .View "templates" }}
+            <tr><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Missive</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Audience</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Send time</th></tr>
+            {{ else if eq .View "onsub" }}
+            <tr><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Missive</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Audience</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Expiry</th></tr>
+            {{ else }}
+            <tr><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Missive</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Audience</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Build</th><th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Send</th></tr>
+            {{ end }}
           </thead>
-          <tbody class="divide-y divide-gray-100">
-          {{ range .Occurrences }}
-            <tr>
-              <td class="px-5 py-3 font-medium text-gray-900">{{ .CampaignTitle }}{{ if .TargetEmail }}<div class="mt-1 font-normal text-xs text-gray-500">{{ .TargetEmail }}</div>{{ end }}</td>
-              <td class="px-5 py-3 text-gray-600">{{ .Audience }}</td>
-              <td class="px-5 py-3 whitespace-nowrap text-gray-600">{{ .BuildLabel }}</td>
-              <td class="px-5 py-3 whitespace-nowrap text-gray-600">{{ .SendLabel }}</td>
-              <td class="px-5 py-3"><span class="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">{{ .Status }}</span>{{ if not .Enabled }}<span class="ml-1 text-xs text-amber-700">paused</span>{{ end }}{{ if .LastError }}<div class="mt-2 max-w-xs text-xs text-red-700">{{ .LastError }}</div>{{ end }}</td>
-              <td class="px-5 py-3">{{ if .MissiveUID }}<a class="font-semibold text-indigo-600 hover:text-indigo-800" href="/{{ $.Conf.Tag }}/admin/missives/occurrences/{{ .ID }}">Edit MISS-{{ .MissiveUID }}</a>{{ else }}<span class="text-gray-400">builds later</span>{{ end }}</td>
-            </tr>
-          {{ else }}
-            <tr><td colspan="6" class="px-5 py-8 text-center text-gray-500">No event-email occurrences have been calculated.</td></tr>
-          {{ end }}
+          <tbody class="divide-y divide-gray-100 bg-white">
+            {{ if eq .View "templates" }}
+              {{ range .Campaigns }}
+              <tr class="hover:bg-indigo-50">
+                <td class="p-0"><a href="/{{ $.Conf.Tag }}/admin/missives/campaigns/{{ .ID }}" class="block px-5 py-4"><div class="text-sm font-semibold text-gray-900">{{ .Title }}</div><div class="mt-1 font-mono text-xs text-gray-500">{{ .Kind }}{{ if .TemplateMissiveUID }} · source MISS-{{ .TemplateMissiveUID }}{{ end }}</div></a></td>
+                <td class="p-0"><a href="/{{ $.Conf.Tag }}/admin/missives/campaigns/{{ .ID }}" class="block px-5 py-4 text-sm text-gray-700">{{ .Audience }}</a></td>
+                <td class="p-0"><a href="/{{ $.Conf.Tag }}/admin/missives/campaigns/{{ .ID }}" class="block px-5 py-4">{{ if .Enabled }}<span class="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Enabled</span>{{ else }}<span class="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">Paused</span>{{ end }}</a></td>
+                <td class="p-0"><a href="/{{ $.Conf.Tag }}/admin/missives/campaigns/{{ .ID }}" class="block whitespace-nowrap px-5 py-4 text-sm text-gray-700">{{ .SendTime }} local</a></td>
+              </tr>
+              {{ else }}<tr><td colspan="4" class="px-5 py-12 text-center text-sm text-gray-500">No campaign templates found.</td></tr>{{ end }}
+            {{ else if eq .View "onsub" }}
+              {{ range .Missives }}
+              <tr class="hover:bg-indigo-50">
+                <td class="p-0"><a href="/admin/missives/{{ .UID }}" class="block px-5 py-4"><div class="text-sm font-semibold text-gray-900">{{ .Title }}</div><div class="mt-1 text-xs text-gray-500">MISS-{{ .UID }}</div></a></td>
+                <td class="p-0"><a href="/admin/missives/{{ .UID }}" class="block px-5 py-4"><div class="flex flex-wrap gap-1">{{ range .Newsletters }}<span class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{{ . }}</span>{{ end }}</div></a></td>
+                <td class="p-0"><a href="/admin/missives/{{ .UID }}" class="block px-5 py-4"><span class="rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">On registration</span></a></td>
+                <td class="p-0"><a href="/admin/missives/{{ .UID }}" class="block whitespace-nowrap px-5 py-4 text-sm text-gray-700">{{ if .Expiry }}{{ .Expiry.Format "Jan 2, 2006" }}{{ else }}&mdash;{{ end }}</a></td>
+              </tr>
+              {{ else }}<tr><td colspan="4" class="px-5 py-12 text-center text-sm text-gray-500">No on-registration missives found.</td></tr>{{ end }}
+            {{ else }}
+              {{ range .Occurrences }}
+              {{ $editURL := print "/" $.Conf.Tag "/admin/missives/occurrences/" .ID }}
+              <tr class="hover:bg-indigo-50">
+                <td class="p-0"><a href="{{ $editURL }}" class="block px-5 py-4"><div class="text-sm font-semibold text-gray-900">{{ .CampaignTitle }}</div><div class="mt-1 text-xs text-gray-500">MISS-{{ .MissiveUID }} · generated draft{{ if .TargetEmail }} · {{ .TargetEmail }}{{ end }}</div></a></td>
+                <td class="p-0"><a href="{{ $editURL }}" class="block px-5 py-4 text-sm text-gray-700">{{ .Audience }}</a></td>
+                <td class="p-0"><a href="{{ $editURL }}" class="block px-5 py-4"><span class="rounded px-2 py-1 text-xs font-medium {{ if eq .Status "sent" }}bg-green-100 text-green-800{{ else if eq .Status "draft" }}bg-amber-100 text-amber-800{{ else if eq .Status "failed" }}bg-red-100 text-red-800{{ else }}bg-gray-100 text-gray-700{{ end }}">{{ .Status }}</span>{{ if not .Enabled }}<span class="ml-1 text-xs text-amber-700">paused</span>{{ end }}{{ if .LastError }}<div class="mt-2 max-w-xs text-xs text-red-700">{{ .LastError }}</div>{{ end }}</a></td>
+                <td class="p-0"><a href="{{ $editURL }}" class="block whitespace-nowrap px-5 py-4 text-sm text-gray-700">{{ .BuildLabel }}</a></td>
+                <td class="p-0"><a href="{{ $editURL }}" class="block whitespace-nowrap px-5 py-4 text-sm text-gray-700">{{ .SendLabel }}</a></td>
+              </tr>
+              {{ else }}<tr><td colspan="5" class="px-5 py-12 text-center text-sm text-gray-500">No drafts have been generated yet. They will appear here one local day before delivery.</td></tr>{{ end }}
+            {{ end }}
           </tbody>
         </table>
       </div>
-    </section>
-
-    {{ if .Missives }}
-    <section class="mt-8 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div class="border-b border-gray-200 px-5 py-4"><h2 class="font-semibold text-gray-900">On-registration missives</h2><p class="mt-1 text-xs text-gray-500">These sent to the current conference list and continue for new registrants until expiry.</p></div>
-      <div class="divide-y divide-gray-100">
-      {{ range .Missives }}
-        <a href="/admin/missives/{{ .UID }}" class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-gray-50">
-          <div><div class="font-semibold text-gray-900">{{ .Title }}</div><div class="mt-1 text-xs text-gray-500">MISS-{{ .UID }} · {{ .SendAt }}</div></div>
-          <div class="text-xs text-gray-500">{{ if .Expiry }}expires {{ .Expiry.Format "Jan 2, 2006" }}{{ else }}no expiry{{ end }} <span class="ml-2 font-semibold text-indigo-600">Edit &rarr;</span></div>
-        </a>
-      {{ end }}
-      </div>
-    </section>
-    {{ end }}
-
-    <section class="mt-8">
-      <div class="mb-3"><h2 class="font-semibold text-gray-900">Campaign templates</h2><p class="mt-1 text-xs text-gray-500">These become editable missive drafts one day before delivery.</p></div>
-      <div class="grid gap-4 lg:grid-cols-2">
-      {{ range .Campaigns }}
-        <form method="POST" action="/{{ $.Conf.Tag }}/admin/missives/campaigns/{{ .ID }}" class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <div class="flex items-start justify-between gap-3">
-            <div><div class="text-xs font-semibold uppercase tracking-wide text-indigo-600">{{ .Kind }}</div><div class="mt-1 text-xs text-gray-500">{{ .Audience }} · {{ .SendTime }} local{{ if .TemplateMissiveUID }} · copied from <a href="/admin/missives/{{ .TemplateMissiveUID }}" class="font-semibold text-indigo-600 hover:text-indigo-800">MISS-{{ .TemplateMissiveUID }}</a>{{ end }}</div></div>
-            <label class="inline-flex items-center gap-2 text-xs font-semibold text-gray-700"><input type="checkbox" name="enabled" value="1" {{ if .Enabled }}checked{{ end }} class="rounded border-gray-300 text-indigo-600"> Enabled</label>
-          </div>
-          <label class="mt-4 block"><span class="text-xs font-semibold text-gray-700">Subject</span><input name="title" required value="{{ .Title }}" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"></label>
-          <label class="mt-4 block"><span class="text-xs font-semibold text-gray-700">Markdown template</span><textarea name="markdown" rows="12" class="mt-1 block w-full rounded-md border-gray-300 font-mono text-xs shadow-sm">{{ .Markdown }}</textarea></label>
-          <div class="mt-4 flex justify-end"><button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700">Save campaign</button></div>
-        </form>
-      {{ end }}
-      </div>
-    </section>
-  </main>
+    </div>
+  </div>
 </body>
 </html>

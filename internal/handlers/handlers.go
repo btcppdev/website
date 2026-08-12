@@ -1411,6 +1411,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/missives/{uid:[0-9]+}/inline", func(w http.ResponseWriter, r *http.Request) {
 		InlineMissiveSave(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/missives/{uid:[0-9]+}/conference-template", func(w http.ResponseWriter, r *http.Request) {
+		GlobalConferenceCampaignTemplateSave(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/missives/{uid:[0-9]+}/delete", func(w http.ResponseWriter, r *http.Request) {
 		TemplatedMissivesDelete(w, r, app)
 	}).Methods("POST")
@@ -1872,16 +1875,34 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		ConferenceMissivesAdmin(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/missives/campaigns/{campaignID}", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissiveCampaignEdit(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/admin/missives/campaigns/{campaignID}", func(w http.ResponseWriter, r *http.Request) {
 		ConferenceMissiveCampaignUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives/campaigns/{campaignID}/test-send", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissiveCampaignTestSend(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives/upload-image", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissiveCampaignUploadImage(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/missives/test-automation", func(w http.ResponseWriter, r *http.Request) {
 		ConferenceMissivesTestAutomation(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives/dev-generate-all", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissivesDevGenerateAll(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives/dev-send-all", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissivesDevSendAll(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/missives/occurrences/{occurrenceID}", func(w http.ResponseWriter, r *http.Request) {
 		ConferenceMissiveDraftEdit(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/missives/occurrences/{occurrenceID}", func(w http.ResponseWriter, r *http.Request) {
 		ConferenceMissiveDraftUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/missives/occurrences/{occurrenceID}/test-send", func(w http.ResponseWriter, r *http.Request) {
+		ConferenceMissiveDraftTestSend(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/missives/occurrences/{occurrenceID}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		ConferenceMissiveOccurrenceCancel(w, r, app)

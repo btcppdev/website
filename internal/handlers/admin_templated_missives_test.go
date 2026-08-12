@@ -96,6 +96,40 @@ func TestParseTemplatedShortcodeLineHandlesEscapes(t *testing.T) {
 	}
 }
 
+func TestCampaignTemplateSelectorsRoundTripThroughBuilder(t *testing.T) {
+	letter := &mtypes.Letter{Markdown: `---
+template: announce
+palette: ember
+issue: EVENT UPDATE
+---
+
+{{ lead "EVENT UPDATE" .CampaignTitle "Three weeks to go." }}
+
+Hi {{ .Name }},
+
+{{ .GeneratedUpdates }}
+
+{{ cta "YOUR EVENT" "Get ready" "Review the details." "Open dashboard" .DashboardLink }}
+`}
+	form := formFromTemplatedLetter(letter)
+	if form.LeadTitle != ".CampaignTitle" || form.CTAURL != ".DashboardLink" {
+		t.Fatalf("dynamic campaign fields were not hydrated: %#v", form)
+	}
+	if !strings.Contains(form.ContentMarkdown, "{{ .GeneratedUpdates }}") {
+		t.Fatalf("campaign body lost generated updates: %q", form.ContentMarkdown)
+	}
+	markdown := buildTemplatedMissiveMarkdown(form)
+	for _, want := range []string{
+		`{{ lead "EVENT UPDATE" .CampaignTitle "Three weeks to go." }}`,
+		`{{ cta "YOUR EVENT" "Get ready" "Review the details." "Open dashboard" .DashboardLink }}`,
+		`{{ .GeneratedUpdates }}`,
+	} {
+		if !strings.Contains(markdown, want) {
+			t.Errorf("round-tripped campaign markdown missing %q: %s", want, markdown)
+		}
+	}
+}
+
 func TestTemplatedMissiveTestLetterUsesCurrentFormWithoutSchedulingState(t *testing.T) {
 	form := TemplatedMissiveForm{
 		Title:       "Draft newsletter",
