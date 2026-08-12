@@ -154,3 +154,35 @@ func TestConferenceCampaignThursdayIsStrictlyBeforeEvent(t *testing.T) {
 	}
 	t.Fatal("orientation timing missing")
 }
+
+func TestLatestConferenceTalkClipartIsScopedToEventAndUpdateOrder(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	confID, _ := insertSmokeConference(t, ctx)
+	otherConfID, _ := insertSmokeConference(t, ctx)
+	oldAt := time.Now().UTC().Add(-2 * time.Hour)
+	newAt := oldAt.Add(time.Hour)
+	for _, row := range []struct {
+		confID, clipart string
+		when            time.Time
+		scheduled       time.Time
+	}{
+		{confID, "older.png", oldAt, oldAt},
+		{confID, "newest.png", newAt, newAt},
+		{otherConfID, "other-event.png", newAt.Add(time.Hour), newAt.Add(time.Hour)},
+	} {
+		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+			INSERT INTO conf_talks (conference_id, clipart_path, scheduled_start, updated_at)
+			VALUES ($1::uuid, $2, $3, $4)
+		`, row.confID, row.clipart, row.scheduled, row.when); err != nil {
+			t.Fatalf("insert clipart fixture: %v", err)
+		}
+	}
+
+	got, err := LatestConferenceTalkClipart(ctx, confID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "newest.png" {
+		t.Fatalf("LatestConferenceTalkClipart() = %q, want newest.png", got)
+	}
+}

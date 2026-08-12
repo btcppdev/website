@@ -47,6 +47,45 @@ type ConfTalkInput struct {
 	ProposalID string
 }
 
+type ProposalSpeakerSummary struct {
+	SpeakerConfID string
+	Name          string
+}
+
+func ListProposalSpeakerSummaries(ctx *config.AppContext, proposalID string) ([]ProposalSpeakerSummary, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	proposalID = strings.TrimSpace(proposalID)
+	if proposalID == "" {
+		return nil, nil
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT speaker_confs.id::text, people.name
+		FROM proposals_speaker_confs
+		JOIN speaker_confs ON speaker_confs.id = proposals_speaker_confs.speaker_conf_id
+		JOIN people ON people.id = speaker_confs.speaker_id
+		WHERE proposals_speaker_confs.proposal_id = $1::uuid
+		ORDER BY lower(people.name), speaker_confs.id
+	`, proposalID)
+	if err != nil {
+		return nil, fmt.Errorf("query proposal speakers: %w", err)
+	}
+	defer rows.Close()
+	var summaries []ProposalSpeakerSummary
+	for rows.Next() {
+		var summary ProposalSpeakerSummary
+		if err := rows.Scan(&summary.SpeakerConfID, &summary.Name); err != nil {
+			return nil, fmt.Errorf("scan proposal speaker: %w", err)
+		}
+		summaries = append(summaries, summary)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate proposal speakers: %w", err)
+	}
+	return summaries, nil
+}
+
 // SpeakerConfFields is the editable subset of a SpeakerConf row written
 // from the dashboard editor. Speaker / conf / talk relations stay put.
 type SpeakerConfFields struct {

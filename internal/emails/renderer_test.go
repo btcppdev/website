@@ -12,6 +12,7 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/mtypes"
 	"btcpp-web/internal/types"
+	conferencemissives "btcpp-web/templates/missives"
 )
 
 func TestMissiveTemplateDoesNotHTMLEscapePlainTextURLs(t *testing.T) {
@@ -37,6 +38,86 @@ func TestMissiveTemplateDoesNotHTMLEscapePlainTextURLs(t *testing.T) {
 	}
 	if !strings.Contains(got, "email=test@example.com&token=abc123") {
 		t.Fatalf("plain text email body lost raw query separator: %q", got)
+	}
+}
+
+func TestConferenceCampaignPreviewUsesNewsletterWrapper(t *testing.T) {
+	rebrand, err := os.ReadFile("../../templates/emails/rebrand.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &config.AppContext{
+		Env:           &types.EnvConfig{Host: "localhost:8888"},
+		EmailCache:    make(map[string]*texttemplate.Template),
+		TemplateCache: htmltemplate.Must(htmltemplate.New("").New("emails/rebrand.tmpl").Parse(string(rebrand))),
+	}
+	letter := &mtypes.Letter{
+		UID: 42, OnlyFor: mtypes.OnlyForTemplated,
+		Markdown: "---\ntemplate: announce\npalette: ember\nissue: EVENT UPDATE\n---\n\nHello {{ .Name }}",
+	}
+	html, err := RenderConferenceCampaignPreview(ctx, letter, &ConferenceCampaignData{
+		Name: "Ada", SendAt: time.Date(2026, time.August, 13, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(html)
+	for _, want := range []string{"a dispatch from the frontier", "ISSUE EVENT UPDATE", "Hello Ada"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("conference newsletter preview missing %q", want)
+		}
+	}
+}
+
+func TestConferenceCampaignDefaultUsesNewsletterSections(t *testing.T) {
+	rebrand, err := os.ReadFile("../../templates/emails/rebrand.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := conferencemissives.DefinitionForKind(types.ConferenceCampaignAttendeeReminder70)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &config.AppContext{
+		Env:           &types.EnvConfig{Host: "localhost:8888"},
+		EmailCache:    make(map[string]*texttemplate.Template),
+		TemplateCache: htmltemplate.Must(htmltemplate.New("").New("emails/rebrand.tmpl").Parse(string(rebrand))),
+	}
+	letter := &mtypes.Letter{UID: 43, Title: "✨ bitcoin++ dev26 ++: We're getting closer", OnlyFor: mtypes.OnlyForTemplated, Markdown: definition.Markdown}
+	html, err := RenderConferenceCampaignPreview(ctx, letter, &ConferenceCampaignData{
+		Conf: &types.Conf{Desc: "bitcoin++ test", Location: "Test City"}, Name: "Ada",
+		DashboardLink: "http://localhost:8888/dashboard", GeneratedUpdates: "### What's new\n\n- The agenda is live.",
+		SendAt: time.Date(2026, time.August, 13, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(html)
+	for _, want := range []string{
+		"EVENT UPDATE", "closer</h1>", "getting closer.", "The agenda is live.",
+		"background:#F57247", "Get ready for bitcoin++", "Open your dashboard",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("conference default preview missing %q", want)
+		}
+	}
+}
+
+func TestConferenceCampaignHeadlineUsesSubjectSuffix(t *testing.T) {
+	if got := conferenceCampaignHeadline("✨ bitcoin++ dev26 ++: Volunteer Orientation Next Week!"); got != "Volunteer Orientation Next Week!" {
+		t.Fatalf("conferenceCampaignHeadline = %q", got)
+	}
+}
+
+func TestTemplatizeTitleReturnsPlainText(t *testing.T) {
+	data := struct {
+		Tag   string
+		Emoji string
+		Name  string
+	}{Tag: "dev26", Emoji: "++", Name: "O'Brien"}
+	want := "✨ bitcoin++ dev26 ++: O'Brien, your moment at bitcoin++ has arrived"
+	if got := templatizeTitle("✨ bitcoin++ {{ .Tag }} {{ .Emoji }}: {{ .Name }}, your moment at bitcoin++ has arrived", data); got != want {
+		t.Fatalf("templatizeTitle = %q, want %q", got, want)
 	}
 }
 
