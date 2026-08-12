@@ -3,6 +3,7 @@
 <head>
   <title>Judging - {{ .Competition.Title }} - bitcoin++ hackathon</title>
   {{ block "header" . }} {{ end }}
+  <script src="/static/js/hackathon-deliberation.js" defer></script>
 </head>
 <body class="hack-redesign">
   {{ block "mainnav" . }} {{ end }}
@@ -54,10 +55,10 @@
     <section class="hack-section hack-judging-results">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§ Live results</div>
+          <div class="hack-label">§ Deliberation results</div>
           <h2>Review the <span class="hack-serif">rankings.</span></h2>
         </div>
-        <div class="hack-section__deck">Read-only scoring results for rounds you are assigned to judge. Refresh while the judges discuss which projects advance.</div>
+        <div class="hack-section__deck">Read-only scoring results for closed rounds you were assigned to judge. Project order updates while the judges discuss which projects advance.</div>
       </div>
 
       {{ if .JudgingResultEvents }}
@@ -73,14 +74,7 @@
       {{ end }}
 
       {{ if not $results.Event }}
-      <div class="hack-empty">Results become available when one of your assigned judging rounds opens.</div>
-      {{ else if $results.AwaitingCompletedBallot }}
-      <div class="hack-results-gate">
-        <div class="hack-label">Complete your ballot first</div>
-        <h3>Rank all {{ $results.RequiredRanks }} required projects to unlock live results.</h3>
-        <p>Your choices remain private from the other judges until your ballot is complete. You can continue revising them after results unlock.</p>
-        <a href="{{ .JudgingURL }}" class="hack-button hack-button--accent">Return to ballot</a>
-      </div>
+      <div class="hack-empty">Results become available after one of your assigned judging rounds closes.</div>
       {{ else }}
       <div class="hack-results-toolbar">
         <div>
@@ -96,7 +90,7 @@
         <div><span>Last ballot</span><strong>{{ $results.LastSubmittedAtLabel }}</strong></div>
       </div>
 
-      <div class="hack-results-block">
+      <div class="hack-results-block" data-deliberation-view data-deliberation-url="{{ .JudgingDeliberationURL $results.Event }}" data-revision="{{ $results.Revision }}" data-advance-count="{{ $results.AdvanceCount }}" data-has-next="{{ $results.HasNextJudgeEvent }}" data-column-count="5">
         <div class="hack-results-block__head">
           <div>
             <div class="hack-label">Aggregate ranking</div>
@@ -116,9 +110,12 @@
                 <th scope="col">Avg rank</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody data-deliberation-list>
               {{ range $results.Summaries }}
-              <tr>
+              {{ if .CutoffBefore }}
+              <tr class="hack-deliberation-cutoff" data-deliberation-cutoff><td colspan="5"><span>Eliminated below</span></td></tr>
+              {{ end }}
+              <tr data-deliberation-project="{{ .ProjectID }}" data-scored="{{ if gt .ScoredScorecards 0 }}true{{ else }}false{{ end }}">
                 <td><a href="{{ $.ProjectURLByID .ProjectID }}" class="hack-judging-project-link">{{ .ProjectTitle }}</a></td>
                 <td>{{ .ProjectNumber }}</td>
                 <td>{{ .ScoredScorecards }} judge{{ if ne .ScoredScorecards 1 }}s{{ end }}</td>

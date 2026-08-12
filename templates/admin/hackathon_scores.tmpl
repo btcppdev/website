@@ -4,6 +4,7 @@
   <title>{{ .Competition.Title }} Scoring - Admin - bitcoin++</title>
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" "" }}
+  <script src="/static/js/hackathon-deliberation.js" defer></script>
 </head>
 <body class="btcpp-admin-page admin-hackathon-page bg-gray-50 text-gray-900">
   {{ block "mainnav" . }} {{ end }}
@@ -50,7 +51,7 @@
     </section>
     {{ end }}
 
-    <section class="mb-8 overflow-hidden rounded-lg bg-white shadow">
+    <section class="mb-8 overflow-hidden rounded-lg bg-white shadow"{{ if .ScoreCanDeliberate }} data-deliberation-admin data-save-url="{{ .JudgingURL .Competition }}/deliberation" data-event-id="{{ .ScoreJudgeEventID }}" data-revision="{{ .ScoreDeliberationRevision }}" data-has-next="{{ .ScoreHasNextJudgeEvent }}" data-column-count="7"{{ end }}>
       <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-sm font-semibold text-gray-900">Rankings</h2>
@@ -87,24 +88,39 @@
       </div>
       {{ if .ScoreSummaries }}
       {{ if .ScoreHasNextJudgeEvent }}
-      <form method="POST" action="{{ .JudgingURL .Competition }}/advance" class="grid gap-3 border-b border-gray-200 bg-gray-50 px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-end sm:px-6">
+      {{ if .ScoreCanDeliberate }}
+      <form id="deliberation-advance-form" method="POST" action="{{ .JudgingURL .Competition }}/advance" class="grid gap-3 border-b border-gray-200 bg-gray-50 px-4 py-4 sm:grid-cols-[minmax(12rem,1fr)_auto_auto] sm:items-end sm:px-6" data-deliberation-advance-form>
         <input type="hidden" name="JudgeEventID" value="{{ .ScoreJudgeEventID }}">
+        <input type="hidden" name="Revision" value="{{ .ScoreDeliberationRevision }}" data-deliberation-revision-input>
+        <span hidden data-deliberation-order-inputs>{{ range .ScoreSummaries }}{{ if gt .ScoredScorecards 0 }}<input type="hidden" name="ProjectID" value="{{ .ProjectID }}">{{ end }}{{ end }}</span>
         <div>
           <label for="TopN" class="block text-xs font-medium text-gray-700">Projects to advance to {{ .ScoreNextJudgeEventLabel }}</label>
-          <input id="TopN" name="TopN" type="number" min="1" value="5" required
+          <input id="TopN" name="TopN" type="number" min="1" max="{{ .ScoreRankedProjectCount }}" value="{{ .ScoreAdvanceCount }}" required data-deliberation-count
                  class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
         </div>
+        <button type="button" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50" data-deliberation-reset>Reset score order</button>
         <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Advance to {{ .ScoreNextJudgeEventLabel }}</button>
+        <p class="min-h-5 text-xs text-gray-500 sm:col-span-3" data-deliberation-status aria-live="polite">Drag scored projects to arrange the shared deliberation order.</p>
       </form>
       {{ else }}
+      <div class="border-b border-gray-200 bg-amber-50 px-4 py-4 text-sm text-amber-950 sm:px-6">
+        <strong>Close this judging round to deliberate.</strong> Project movement and advancement unlock after voting ends.
+      </div>
+      {{ end }}
+      {{ else }}
       <div class="border-b border-gray-200 bg-indigo-50 px-4 py-4 text-sm text-indigo-900 sm:px-6">
-        <strong>Final judging round.</strong> Assign the winning awards from the rankings below; there is no later round to advance projects into.
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <span><strong>Final judging round.</strong> Arrange the standings for discussion, then assign awards from the rankings below.</span>
+          {{ if .ScoreCanDeliberate }}<button type="button" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-gray-300 hover:bg-gray-50" data-deliberation-reset>Reset score order</button>{{ end }}
+        </div>
+        {{ if .ScoreCanDeliberate }}<p class="mt-2 min-h-5 text-xs text-gray-500" data-deliberation-status aria-live="polite">Drag scored projects to arrange the shared deliberation order.</p>{{ else }}<p class="mt-2 text-xs">Close this judging round to unlock shared project movement.</p>{{ end }}
       </div>
       {{ end }}
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 text-left text-sm">
           <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
             <tr>
+              <th scope="col" class="w-28 px-4 py-3"><span class="sr-only">Order</span></th>
               <th scope="col" class="px-4 py-3">Project</th>
               <th scope="col" class="px-4 py-3">#</th>
               <th scope="col" class="px-4 py-3">Ranked by</th>
@@ -113,9 +129,21 @@
               <th scope="col" class="px-4 py-3">Award</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100 bg-white">
+          <tbody class="divide-y divide-gray-100 bg-white" data-deliberation-list>
             {{ range .ScoreSummaries }}
-            <tr>
+            {{ if .CutoffBefore }}
+            <tr class="hack-deliberation-cutoff" data-deliberation-cutoff><td colspan="7"><span>Eliminated below</span></td></tr>
+            {{ end }}
+            <tr data-deliberation-project="{{ .ProjectID }}" data-scored="{{ if gt .ScoredScorecards 0 }}true{{ else }}false{{ end }}" data-score-position="{{ .ScorePosition }}">
+              <td class="px-4 py-3">
+                {{ if and $.ScoreCanDeliberate (gt .ScoredScorecards 0) }}
+                <span class="inline-flex items-center gap-1">
+                  <button type="button" draggable="true" data-deliberation-drag-handle class="hack-deliberation-drag-handle" aria-label="Drag to move {{ .ProjectTitle }}">&#8942;&#8942;</button>
+                  <button type="button" data-deliberation-move="up" class="hack-deliberation-move" aria-label="Move {{ .ProjectTitle }} up">&uarr;</button>
+                  <button type="button" data-deliberation-move="down" class="hack-deliberation-move" aria-label="Move {{ .ProjectTitle }} down">&darr;</button>
+                </span>
+                {{ end }}
+              </td>
               <td class="px-4 py-3 font-medium text-gray-900">{{ .ProjectTitle }}</td>
               <td class="whitespace-nowrap px-4 py-3 font-mono text-xs text-gray-600">{{ .ProjectNumber }}</td>
               <td class="px-4 py-3 text-gray-700">{{ .ScoredScorecards }} judge{{ if ne .ScoredScorecards 1 }}s{{ end }}</td>
