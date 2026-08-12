@@ -32,10 +32,12 @@
 <nav class="-mx-1 mb-6 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Judging admin sections">
   <a href="{{ .JudgingURL .Competition }}"
      role="tab"
+     data-admin-subtab
      aria-selected="{{ if eq .ActiveTab "judging" }}true{{ else }}false{{ end }}"
      class="flex-none rounded-md px-3 py-2 text-sm font-semibold {{ if eq .ActiveTab "judging" }}bg-indigo-600 text-white{{ else }}bg-white text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50{{ end }}">Main</a>
   <a href="{{ .ScoreReviewURL .Competition }}"
      role="tab"
+     data-admin-subtab
      aria-selected="{{ if eq .ActiveTab "scores" }}true{{ else }}false{{ end }}"
      class="flex-none rounded-md px-3 py-2 text-sm font-semibold {{ if eq .ActiveTab "scores" }}bg-indigo-600 text-white{{ else }}bg-white text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50{{ end }}">
     Scoring
