@@ -2928,27 +2928,42 @@ body.btcpp-admin-page {
 }
 
 .btcpp-admin-page [data-award-tab][aria-selected="false"],
+.btcpp-admin-page [data-admin-subtab][aria-selected="false"],
 .btcpp-admin-page [data-score-tab]:not([aria-current="page"]) {
 	background: #fff !important;
 	color: #0a0a0a !important;
 }
 
-.btcpp-admin-page [data-award-tab] {
+.btcpp-admin-page [data-award-tab],
+.btcpp-admin-page [data-admin-subtab] {
 	border-width: 2px !important;
 	box-shadow: 3px 3px 0 #0a0a0a !important;
 }
 
-.btcpp-admin-page [data-award-tab]:hover {
+.btcpp-admin-page [data-award-tab]:hover,
+.btcpp-admin-page [data-admin-subtab]:hover {
 	box-shadow: 4px 4px 0 #0a0a0a !important;
 }
 
-.btcpp-admin-page [data-award-tab][aria-selected="false"] {
+.btcpp-admin-page [data-award-tab][aria-selected="false"],
+.btcpp-admin-page [data-admin-subtab][aria-selected="false"] {
 	background: #fff7ed !important;
 }
 
 .btcpp-admin-page [data-award-tab][aria-selected="true"],
+.btcpp-admin-page [data-admin-subtab][aria-selected="true"],
 .btcpp-admin-page [data-score-tab][aria-current="page"] {
 	background: #f7931a !important;
+	color: #0a0a0a !important;
+}
+
+.btcpp-admin-page [data-admin-subtab]:hover,
+.btcpp-admin-page [data-admin-subtab]:focus-visible {
+	border-color: #0a0a0a !important;
+	transform: none !important;
+}
+
+.btcpp-admin-page [data-admin-subtab][aria-selected="true"] span {
 	color: #0a0a0a !important;
 }
 
