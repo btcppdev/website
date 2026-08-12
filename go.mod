@@ -11,16 +11,19 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.16
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.18
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.101.0
+	github.com/aws/smithy-go v1.25.1
 	github.com/base58btc/mailer v0.0.0-20250703225241-27f47714b725
 	github.com/chromedp/cdproto v0.0.0-20230329100754-6125fc8d7142
 	github.com/chromedp/chromedp v0.9.1
 	github.com/gomarkdown/markdown v0.0.0-20250311123330-531bef5e742b
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/schema v1.4.1
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
-	github.com/stripe/stripe-go/v76 v76.3.0
+	github.com/stripe/stripe-go/v86 v86.3.0-beta.1
 	go.etcd.io/bbolt v1.4.3
+	golang.org/x/net v0.53.0
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.278.0
 )
@@ -37,7 +40,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.23 // indirect
-	github.com/aws/smithy-go v1.25.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chromedp/sysutil v1.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -48,7 +50,6 @@ require (
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.1.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.15 // indirect
 	github.com/googleapis/gax-go/v2 v2.22.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -71,7 +72,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
-	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect

@@ -183,19 +183,22 @@ type HomeSponsor struct {
 }
 
 type TixFormPage struct {
-	Conf            *types.Conf
-	Tix             *types.ConfTicket
-	TixSlug         string
-	Count           uint
-	TixPrice        uint
-	Discount        string
-	DiscountPrice   uint
-	CardPrice       uint
-	CardSurcharge   uint
-	DiscountRef     string
-	TicketKind      string
-	SponsorCheckout bool
-	AddOnProducts   []*types.MerchProduct
+	Conf             *types.Conf
+	Tix              *types.ConfTicket
+	TixSlug          string
+	Count            uint
+	TixPrice         uint
+	Discount         string
+	DiscountPrice    uint
+	CardPrice        uint
+	CardSurcharge    uint
+	DiscountRef      string
+	TicketKind       string
+	SponsorCheckout  bool
+	AddOnProducts    []*ticketCheckoutAddOnProduct
+	AddOnQuote       string
+	AddOnQuoteHMAC   string
+	AddOnUnavailable string
 	// AffiliateCode is the silent (`%0`) referral code stashed
 	// from a /{tag}?code= visit. Carried through the form
 	// as a hidden input — the visible Discount field stays empty

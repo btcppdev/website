@@ -26,11 +26,11 @@ import (
 	"btcpp-web/internal/types"
 
 	"github.com/gorilla/mux"
-	stripe "github.com/stripe/stripe-go/v76"
-	"github.com/stripe/stripe-go/v76/checkout/session"
-	stripeRefund "github.com/stripe/stripe-go/v76/refund"
-	stripeTaxCalculation "github.com/stripe/stripe-go/v76/tax/calculation"
-	stripeTaxTransaction "github.com/stripe/stripe-go/v76/tax/transaction"
+	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86/checkout/session"
+	stripeRefund "github.com/stripe/stripe-go/v86/refund"
+	stripeTaxCalculation "github.com/stripe/stripe-go/v86/tax/calculation"
+	stripeTaxTransaction "github.com/stripe/stripe-go/v86/tax/transaction"
 )
 
 const shopCartSessionKey = "shop_cart_v1"
@@ -450,7 +450,7 @@ func ShopTaxQuote(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
-	quote, err := shopStripeTaxQuote(cart, address, shippingCents)
+	quote, err := shopStripeTaxQuote(cart, address, shippingCents, "USD")
 	if err != nil {
 		ctx.Err.Printf("/shop/tax-quote: %s", err)
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -555,7 +555,7 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		renderShopTemplate(w, r, ctx, "shop/checkout.tmpl", page)
 		return
 	}
-	taxQuote, err := shopStripeTaxQuote(cart, taxAddress, page.ShippingCents)
+	taxQuote, err := shopStripeTaxQuote(cart, taxAddress, page.ShippingCents, "USD")
 	if err != nil {
 		ctx.Err.Printf("/shop/checkout tax quote: %s", err)
 		page.Error = "Tax could not be calculated for this order. Please verify the delivery details."
@@ -1724,6 +1724,14 @@ func shopTaxAddress(ctx *config.AppContext, r *http.Request, fulfillment string,
 	return address, nil
 }
 
+func shopEventPickupTaxAddressConfigured(conf *types.Conf) bool {
+	return conf != nil &&
+		strings.TrimSpace(conf.PickupAddressLine1) != "" &&
+		strings.TrimSpace(conf.PickupAddressCity) != "" &&
+		strings.TrimSpace(conf.PickupAddressPostalCode) != "" &&
+		len(strings.TrimSpace(conf.PickupAddressCountry)) == 2
+}
+
 func shopCartSubtotal(cart []*shopCartItem) uint {
 	var subtotal uint
 	for _, item := range cart {
@@ -2036,8 +2044,8 @@ func validateShopVariantParcel(product *types.MerchProduct, variant *types.Merch
 	return nil
 }
 
-func shopStripeTaxQuote(cart []*shopCartItem, address *types.ShopAddress, shippingCents uint) (*getters.TaxQuoteInput, error) {
-	params, err := shopStripeTaxParams(cart, address, shippingCents)
+func shopStripeTaxQuote(cart []*shopCartItem, address *types.ShopAddress, shippingCents uint, currency string) (*getters.TaxQuoteInput, error) {
+	params, err := shopStripeTaxParams(cart, address, shippingCents, currency)
 	if err != nil {
 		return nil, err
 	}
@@ -2069,12 +2077,12 @@ func shopStripeTaxQuote(cart []*shopCartItem, address *types.ShopAddress, shippi
 	}, nil
 }
 
-func shopStripeTaxParams(cart []*shopCartItem, address *types.ShopAddress, shippingCents uint) (*stripe.TaxCalculationParams, error) {
+func shopStripeTaxParams(cart []*shopCartItem, address *types.ShopAddress, shippingCents uint, currency string) (*stripe.TaxCalculationParams, error) {
 	if address == nil || strings.TrimSpace(address.Line1) == "" || strings.TrimSpace(address.City) == "" || strings.TrimSpace(address.PostalCode) == "" || strings.TrimSpace(address.Country) == "" {
 		return nil, fmt.Errorf("a complete shipping address is required to calculate tax")
 	}
 	params := &stripe.TaxCalculationParams{
-		Currency: stripe.String("usd"),
+		Currency: stripe.String(strings.ToLower(firstNonEmpty(strings.TrimSpace(currency), "USD"))),
 		CustomerDetails: &stripe.TaxCalculationCustomerDetailsParams{
 			Address: &stripe.AddressParams{
 				Line1:      stripe.String(strings.TrimSpace(address.Line1)),
@@ -2242,7 +2250,7 @@ func shopCategories(products []*types.MerchProduct) []shopCategory {
 }
 
 func ticketCheckoutAddOnProducts(ctx *config.AppContext, conf *types.Conf) []*types.MerchProduct {
-	if !shopEventPickupOpenAt(conf, time.Now()) {
+	if !shopEventPickupOpenAt(conf, time.Now()) || !shopEventPickupTaxAddressConfigured(conf) {
 		return nil
 	}
 	products, err := getters.ListConferenceMerchUpsells(ctx, conf.Ref)
@@ -2261,10 +2269,11 @@ func ticketCheckoutAddOnProducts(ctx *config.AppContext, conf *types.Conf) []*ty
 	return out
 }
 
-func selectedTicketAddOns(ctx *config.AppContext, conf *types.Conf, r *http.Request) ([]*shopCartItem, uint) {
+func selectedTicketAddOns(ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, r *http.Request) ([]*shopCartItem, uint, *ticketAddOnQuotePayload, error) {
 	products := ticketCheckoutAddOnProducts(ctx, conf)
 	var out []*shopCartItem
 	var totalCents uint
+	var quote *ticketAddOnQuotePayload
 	for _, product := range products {
 		if product == nil || len(product.Variants) == 0 {
 			continue
@@ -2280,7 +2289,17 @@ func selectedTicketAddOns(ctx *config.AppContext, conf *types.Conf, r *http.Requ
 		if !merchVariantAvailable(variant, qty) {
 			continue
 		}
-		unit := merchVariantPrice(product, variant)
+		if quote == nil {
+			var err error
+			quote, err = verifyTicketAddOnQuote(ctx, conf, tix.Currency, r.FormValue("AddOnQuote"), r.FormValue("AddOnQuoteHMAC"))
+			if err != nil {
+				return nil, 0, nil, err
+			}
+		}
+		unit, ok := quote.VariantPrices[variant.ID]
+		if !ok {
+			return nil, 0, nil, fmt.Errorf("add-on pricing quote does not include %s", product.Name)
+		}
 		lineTotal := unit * qty
 		out = append(out, &shopCartItem{
 			Product:        product,
@@ -2291,7 +2310,7 @@ func selectedTicketAddOns(ctx *config.AppContext, conf *types.Conf, r *http.Requ
 		})
 		totalCents += lineTotal
 	}
-	return out, totalCents
+	return out, totalCents, quote, nil
 }
 
 func createTicketAddOnOrder(ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, form *types.TixForm, ticketKind string, paymentMethod string, addOns []*shopCartItem, addOnTotalCents, salesTaxCents uint) (*types.ShopOrder, error) {
@@ -2492,6 +2511,31 @@ func merchMoney(amount uint, product *types.MerchProduct) string {
 	if product != nil {
 		symbol = firstNonEmpty(product.Symbol, "$")
 		post = product.PostSymbol
+	}
+	whole := amount / 100
+	cents := amount % 100
+	if cents == 0 {
+		return fmt.Sprintf("%s%d%s", symbol, whole, post)
+	}
+	return fmt.Sprintf("%s%d.%02d%s", symbol, whole, cents, post)
+}
+
+func ticketCheckoutMoney(amount uint, ticket *types.ConfTicket) string {
+	symbol := "$"
+	post := ""
+	if ticket != nil {
+		symbol = strings.TrimSpace(ticket.Symbol)
+		post = ticket.PostSymbol
+		if symbol == "" {
+			switch strings.ToUpper(strings.TrimSpace(ticket.Currency)) {
+			case "EUR":
+				symbol = "€"
+			case "GBP":
+				symbol = "£"
+			default:
+				symbol = "$"
+			}
+		}
 	}
 	whole := amount / 100
 	cents := amount % 100

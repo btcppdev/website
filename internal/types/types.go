@@ -262,10 +262,12 @@ type (
 		// /{tag}?code= link tied to a `%0` affiliate code.
 		// On POST the visible Discount wins — typing a different
 		// code drops the silent affiliate's credit.
-		AffiliateCode string
-		DiscountRef   string
-		HMAC          string
-		PaymentMethod string // "btc" or "card"
+		AffiliateCode  string
+		DiscountRef    string
+		HMAC           string
+		AddOnQuote     string
+		AddOnQuoteHMAC string
+		PaymentMethod  string // "btc" or "card"
 	}
 
 	DiscountCode struct {

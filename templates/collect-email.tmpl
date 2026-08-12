@@ -30,7 +30,9 @@
           <span data-checkout-nav="confirmed"><b>04</b> confirmed</span>
         </nav>
 
-        <form method="POST" class="checkout-form checkout-flow" data-checkout-flow>
+        <form method="POST" class="checkout-form checkout-flow" data-checkout-flow data-currency="{{ .Tix.Currency }}">
+          <input type="hidden" name="AddOnQuote" value="{{ .AddOnQuote }}">
+          <input type="hidden" name="AddOnQuoteHMAC" value="{{ .AddOnQuoteHMAC }}">
           <section class="checkout-flow__step" data-checkout-step="register">
           <div class="checkout-copy">
             {{ if .SponsorCheckout }}
@@ -124,40 +126,42 @@
             {{ if .AddOnProducts }}
             <div class="checkout-addons checkout-addons--step">
               {{ range .AddOnProducts }}
-                {{ $p := . }}
-                {{ if .Variants }}
-                  {{ with index .Variants 0 }}
-                  <article class="checkout-addon" data-checkout-addon data-name="{{ $p.Name }}" data-price-cents="{{ merchVariantPrice $p . }}">
+                {{ $p := .Product }}
+                {{ $v := .Variant }}
+                  <article class="checkout-addon" data-checkout-addon data-name="{{ $p.Name }}" data-price-cents="{{ .UnitPriceCents }}">
                     <span class="checkout-addon__image">{{ if merchImage $p }}<img src="{{ merchImage $p | safeURL }}" alt="{{ $p.Name }}">{{ end }}</span>
                     <span class="checkout-addon__body">
-                      <span><strong>{{ $p.Name }}</strong> <b>{{ merchMoney (merchVariantPrice $p .) $p }}</b></span>
+                      <span><strong>{{ $p.Name }}</strong> <b>{{ ticketCheckoutMoney .UnitPriceCents $.Tix }}</b></span>
                       <em>{{ $p.Subtitle }}</em>
                     </span>
                     <span class="checkout-addon__controls">
                       <button type="button" data-addon-add aria-label="Add {{ $p.Name }}" hidden>+ add</button>
                       <span class="checkout-addon__stepper">
                         <button type="button" data-addon-minus aria-label="Remove one {{ $p.Name }}">−</button>
-                        <input type="number" name="addon_{{ .ID }}" value="0" min="0" max="4" aria-label="Quantity for {{ $p.Name }}">
+                        <input type="number" name="addon_{{ $v.ID }}" value="0" min="0" max="4" aria-label="Quantity for {{ $p.Name }}">
                         <button type="button" data-addon-plus aria-label="Add one {{ $p.Name }}">+</button>
                       </span>
                     </span>
                   </article>
-                  {{ end }}
-                {{ end }}
               {{ end }}
             </div>
             {{ else }}
             <div class="checkout-addons__empty">
+              {{ if .AddOnUnavailable }}
+              <strong>Add-ons are temporarily unavailable.</strong>
+              <span>You can still continue with just your ticket.</span>
+              {{ else }}
               <strong>No event add-ons are available yet.</strong>
               <span>You can still continue with just your ticket.</span>
+              {{ end }}
             </div>
             {{ end }}
 
             <div class="checkout-addon-summary" aria-live="polite">
               <div data-addon-summary-lines>
-                <div class="is-empty"><span>No add-ons—that's fine too</span><strong>$0.00</strong></div>
+                <div class="is-empty"><span>No add-ons—that's fine too</span><strong>{{ ticketCheckoutMoney 0 .Tix }}</strong></div>
               </div>
-              <div class="checkout-addon-summary__tax"><span>Sales tax · event pickup</span><strong data-addon-tax>$0.00</strong></div>
+              <div class="checkout-addon-summary__tax"><span>Sales tax · event pickup</span><strong data-addon-tax>{{ ticketCheckoutMoney 0 .Tix }}</strong></div>
               <div class="is-total"><span>Total (tickets + merch)</span><strong data-addon-total></strong></div>
               <small data-addon-tax-status>Tax is calculated from the event pickup location.</small>
             </div>
@@ -175,6 +179,6 @@
         </footer>
       </section>
     </main>
-    <script src="/static/js/ticket-checkout.js?v=20260718-2" defer></script>
+    <script src="/static/js/ticket-checkout.js?v=20260812-1" defer></script>
   </body>
 </html>

@@ -20,12 +20,15 @@ func TestShopStripeTaxParamsUsesDestinationAndLineTotals(t *testing.T) {
 		PostalCode: "78701", Country: "us",
 	}
 
-	params, err := shopStripeTaxParams(cart, address, 900)
+	params, err := shopStripeTaxParams(cart, address, 900, "EUR")
 	if err != nil {
 		t.Fatalf("shopStripeTaxParams: %s", err)
 	}
 	if got := *params.CustomerDetails.Address.Country; got != "US" {
 		t.Fatalf("country = %q, want US", got)
+	}
+	if got := *params.Currency; got != "eur" {
+		t.Fatalf("currency = %q, want eur", got)
 	}
 	if len(params.LineItems) != 1 {
 		t.Fatalf("line item count = %d, want 1", len(params.LineItems))
@@ -84,6 +87,20 @@ func TestShopTaxAddressUsesConferencePickupLocation(t *testing.T) {
 	}
 }
 
+func TestEventPickupTaxAddressMustBeComplete(t *testing.T) {
+	conf := &types.Conf{
+		PickupAddressLine1: "Möckernstraße 120", PickupAddressCity: "Berlin",
+		PickupAddressPostalCode: "10963", PickupAddressCountry: "DE",
+	}
+	if !shopEventPickupTaxAddressConfigured(conf) {
+		t.Fatal("complete Berlin pickup address was rejected")
+	}
+	conf.PickupAddressPostalCode = ""
+	if shopEventPickupTaxAddressConfigured(conf) {
+		t.Fatal("incomplete pickup address was accepted")
+	}
+}
+
 func TestShopStripeCheckoutUsesPrecalculatedShippingAndTax(t *testing.T) {
 	order := &types.ShopOrder{
 		ID: "order-id", PublicID: "public-id", BuyerEmail: "buyer@example.com",
@@ -118,7 +135,7 @@ func TestShopStripeCheckoutUsesPrecalculatedShippingAndTax(t *testing.T) {
 }
 
 func TestShopStripeTaxParamsRejectsMissingAddress(t *testing.T) {
-	if _, err := shopStripeTaxParams(nil, nil, 0); err == nil {
+	if _, err := shopStripeTaxParams(nil, nil, 0, "USD"); err == nil {
 		t.Fatal("expected missing address error")
 	}
 }
