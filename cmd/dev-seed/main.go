@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"btcpp-web/internal/conferencemissives"
 	"btcpp-web/internal/db"
 	"btcpp-web/internal/envconfig"
 
@@ -762,6 +763,25 @@ You're scheduled to volunteer at {{ .Conf.Desc }}. Your dashboard has your curre
 				send_at_expr = EXCLUDED.send_at_expr,
 				expiry = EXCLUDED.expiry
 		`, missive.id, missive.uid, missive.title, missive.onlyFor, missive.markdown)
+	}
+	conferenceTemplates, err := conferencemissives.Definitions()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for i, missive := range conferenceTemplates {
+		mustExec(ctx, tx, "seed "+missive.OnlyFor+" missive", `
+			INSERT INTO missives (
+				public_uid, title, newsletters, only_for, markdown, send_at_expr, expiry, dedupe_key
+			)
+			VALUES ($1, $2, '{}'::text[], $3, $4, '', NULL, $5)
+			ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE SET
+				title = EXCLUDED.title,
+				newsletters = EXCLUDED.newsletters,
+				only_for = EXCLUDED.only_for,
+				markdown = EXCLUDED.markdown,
+				send_at_expr = EXCLUDED.send_at_expr,
+				expiry = EXCLUDED.expiry
+		`, 260060+i, missive.Title, missive.OnlyFor, missive.Markdown, "conference-template:"+missive.Kind)
 	}
 }
 

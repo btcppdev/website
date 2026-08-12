@@ -253,23 +253,31 @@ func missiveIndexURL(view, newsletter string) string {
 }
 
 func oneShotMissiveLabels() map[string]string {
-	return map[string]string{
-		"vollogin":           "Sign-in link",
-		"volapp":             "Volunteer application received",
-		"volsignup":          "Volunteer shift signup",
-		"volwaitlist":        "Volunteer waitlist",
-		"volshifts":          "Volunteer shifts confirmed",
-		"volcancel":          "Volunteer cancellation",
-		"ticket":             "Ticket receipt",
-		"talkapp":            "Talk application received",
-		"talkinvited":        "Talk invitation",
-		"talkinvited-direct": "Direct talk invitation",
-		"talkconfirmed":      "Talk confirmed",
-		"talkdeclined":       "Talk declined",
-		"talkwaitlisted":     "Talk waitlisted",
-		"talkrejected":       "Talk rejected",
-		"talkselfdecline":    "Speaker declined talk",
+	labels := map[string]string{
+		"vollogin":                         "Sign-in link",
+		"volapp":                           "Volunteer application received",
+		"volsignup":                        "Volunteer shift signup",
+		"volwaitlist":                      "Volunteer waitlist",
+		"volshifts":                        "Volunteer shifts confirmed",
+		"volcancel":                        "Volunteer cancellation",
+		"ticket":                           "Ticket receipt",
+		"talkapp":                          "Talk application received",
+		"talkinvited":                      "Talk invitation",
+		"talkinvited-direct":               "Direct talk invitation",
+		"talkconfirmed":                    "Talk confirmed",
+		"talkdeclined":                     "Talk declined",
+		"talkwaitlisted":                   "Talk waitlisted",
+		"talkrejected":                     "Talk rejected",
+		"talkselfdecline":                  "Speaker declined talk",
+		"conference-attendee-reminder-70":  "Event attendee reminder · 70 days",
+		"conference-attendee-reminder-49":  "Event attendee reminder · 49 days",
+		"conference-attendee-reminder-28":  "Event attendee reminder · 28 days",
+		"conference-speaker-reminder":      "Event speaker reminder",
+		"conference-attendee-final":        "Event final details and tickets",
+		"conference-volunteer-orientation": "Event volunteer orientation reminder",
+		"conference-speaker-onboarding":    "Event speaker onboarding",
 	}
+	return labels
 }
 
 func TemplatedMissivesNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -396,6 +404,17 @@ func onlyForTemplateFields(onlyFor string) []EmailFieldGroup {
 		return groups
 	}
 	switch strings.ToLower(strings.TrimSpace(onlyFor)) {
+	case types.ConferenceCampaignTemplateOnlyFor(types.ConferenceCampaignAttendeeReminder70),
+		types.ConferenceCampaignTemplateOnlyFor(types.ConferenceCampaignAttendeeReminder49),
+		types.ConferenceCampaignTemplateOnlyFor(types.ConferenceCampaignAttendeeReminder28),
+		types.ConferenceCampaignTemplateOnlyFor(types.ConferenceCampaignSpeakerReminder),
+		types.ConferenceCampaignTemplateOnlyFor(types.ConferenceCampaignAttendeeFinal),
+		types.ConferenceCampaignTemplateOnlyFor(types.ConferenceCampaignVolunteerOrient),
+		types.ConferenceCampaignTemplateOnlyFor(types.ConferenceCampaignSpeakerOnboarding):
+		return []EmailFieldGroup{
+			direct(".Email", ".Name", ".URI", ".DashboardLink", ".AffiliateDashboardLink", ".DoorsOpen", ".SpeakerDinnerTime", ".SpeakerDinnerLocation", ".GeneratedUpdates", ".TalkDetails"),
+			fieldGroup(".Conf", types.Conf{}, false),
+		}
 	case "vollogin":
 		return []EmailFieldGroup{direct(".Email", ".VolShiftLink", ".URI")}
 	case "volapp":
@@ -426,6 +445,9 @@ func onlyForTemplateFields(onlyFor string) []EmailFieldGroup {
 }
 
 func onlyForTemplateFieldNotice(onlyFor string) string {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(onlyFor)), "conference-") {
+		return ".GeneratedUpdates is populated from current event data when the event-specific draft is built. The source one-shot is copied once per event, so event-level edits remain independent."
+	}
 	switch strings.ToLower(strings.TrimSpace(onlyFor)) {
 	case "talkinvited-direct":
 		return ".MagicLink and .Note are populated for direct invitations. Other proposal emails may receive them as empty strings."
