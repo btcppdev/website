@@ -1326,6 +1326,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/scores", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminScoreReview(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/hackathons/{competitionID}/judging/deliberation", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminSaveDeliberation(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/judging/advance", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminAdvanceProjects(w, r, app)
 	}).Methods("POST")
@@ -1468,6 +1471,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/judging", func(w http.ResponseWriter, r *http.Request) {
 		HackathonJudging(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/hackathon/judging/deliberation", func(w http.ResponseWriter, r *http.Request) {
+		HackathonJudgingDeliberation(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/judging/scorecards", func(w http.ResponseWriter, r *http.Request) {
 		HackathonScorecardSubmit(w, r, app)
