@@ -955,6 +955,13 @@ func TestPublicProfilesIncludePublicHackathonParticipants(t *testing.T) {
 	if profile == nil {
 		t.Fatal("public hackathon participant missing from public profiles")
 	}
+	wantEmail := smokePersonEmail(t, ctx, personID)
+	if profile.Speaker == nil {
+		t.Fatal("public hackathon participant is missing its person profile")
+	}
+	if profile.Speaker.Email != wantEmail {
+		t.Fatalf("public profile email = %q, want primary alias %q", profile.Speaker.Email, wantEmail)
+	}
 	if len(profile.Projects) != 1 || profile.Projects[0].Project.ID != projectID {
 		t.Fatalf("profile projects = %+v, want project %s", profile.Projects, projectID)
 	}
@@ -1010,7 +1017,7 @@ func findPublicProfile(profiles []*PublicProfile, personID string) *PublicProfil
 	return nil
 }
 
-func TestListHackathonParticipantProjectsByEmail(t *testing.T) {
+func TestListHackathonParticipantProjectsForPerson(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	requireHackathonSchema(t, ctx)
 
@@ -1033,9 +1040,9 @@ func TestListHackathonParticipantProjectsByEmail(t *testing.T) {
 		t.Fatalf("AddProjectMember: %v", err)
 	}
 
-	projects, err := ListHackathonParticipantProjectsByEmail(ctx, strings.ToUpper(smokePersonEmail(t, ctx, ownerID)))
+	projects, err := ListHackathonParticipantProjectsForPerson(ctx, ownerID)
 	if err != nil {
-		t.Fatalf("ListHackathonParticipantProjectsByEmail: %v", err)
+		t.Fatalf("ListHackathonParticipantProjectsForPerson: %v", err)
 	}
 	if len(projects) != 1 {
 		t.Fatalf("participant projects = %d, want 1", len(projects))
@@ -1050,21 +1057,22 @@ func TestListHackathonParticipantProjectsByEmail(t *testing.T) {
 	if got.CompetitionTitle != "Participant Dashboard Hackathon" || got.MemberRole != ProjectMemberRoleOwner || got.TeamSize != 2 {
 		t.Fatalf("participant metadata = title %q, role %q, team %d", got.CompetitionTitle, got.MemberRole, got.TeamSize)
 	}
-	hasProjects, err := HasHackathonParticipantProjectsByEmail(ctx, smokePersonEmail(t, ctx, ownerID))
+	hasProjects, err := HasHackathonParticipantProjectsForPerson(ctx, ownerID)
 	if err != nil || !hasProjects {
-		t.Fatalf("HasHackathonParticipantProjectsByEmail = %t, %v; want true", hasProjects, err)
+		t.Fatalf("HasHackathonParticipantProjectsForPerson = %t, %v; want true", hasProjects, err)
 	}
 
-	projects, err = ListHackathonParticipantProjectsByEmail(ctx, "not-a-participant@example.test")
+	outsiderID := insertSmokePerson(t, ctx, "participant-dashboard-outsider")
+	projects, err = ListHackathonParticipantProjectsForPerson(ctx, outsiderID)
 	if err != nil {
-		t.Fatalf("ListHackathonParticipantProjectsByEmail nonparticipant: %v", err)
+		t.Fatalf("ListHackathonParticipantProjectsForPerson nonparticipant: %v", err)
 	}
 	if len(projects) != 0 {
 		t.Fatalf("nonparticipant projects = %d, want 0", len(projects))
 	}
-	hasProjects, err = HasHackathonParticipantProjectsByEmail(ctx, "not-a-participant@example.test")
+	hasProjects, err = HasHackathonParticipantProjectsForPerson(ctx, outsiderID)
 	if err != nil || hasProjects {
-		t.Fatalf("HasHackathonParticipantProjectsByEmail nonparticipant = %t, %v; want false", hasProjects, err)
+		t.Fatalf("HasHackathonParticipantProjectsForPerson nonparticipant = %t, %v; want false", hasProjects, err)
 	}
 }
 

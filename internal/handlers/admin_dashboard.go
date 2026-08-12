@@ -82,7 +82,7 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	if subscriberErr != nil {
 		ctx.Err.Printf("/admin subscriber summary failed: %s", subscriberErr)
 	}
-	hasHackathonProjects, err := getters.HasHackathonParticipantProjectsByEmail(ctx, id.Email)
+	hasHackathonProjects, err := getters.HasHackathonParticipantProjectsForPerson(ctx, id.PersonID)
 	if err != nil {
 		ctx.Err.Printf("/admin hackathon participant projects failed: %s", err)
 	}
