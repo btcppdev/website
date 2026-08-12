@@ -109,6 +109,7 @@ func HotelsAdminSave(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		img := strings.TrimSpace(r.FormValue(prefix + "Img"))
 		typ := strings.TrimSpace(r.FormValue(prefix + "Type"))
 		desc := strings.TrimSpace(r.FormValue(prefix + "Desc"))
+		priceRange := strings.TrimSpace(r.FormValue(prefix + "PriceRange"))
 		order, _ := strconv.Atoi(r.FormValue(prefix + "Order"))
 
 		switch {
@@ -128,12 +129,13 @@ func HotelsAdminSave(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 			// url) — but Order is always saved since "0" is a
 			// legitimate value an admin might be moving toward.
 			err := getters.UpdateHotel(ctx, hotelID, getters.HotelInput{
-				Name:  name,
-				URL:   hotelURL,
-				Img:   img,
-				Type:  typ,
-				Desc:  desc,
-				Order: order,
+				Name:       name,
+				URL:        hotelURL,
+				Img:        img,
+				Type:       typ,
+				Desc:       desc,
+				PriceRange: priceRange,
+				Order:      order,
 			})
 			if err != nil {
 				ctx.Err.Printf("/%s/admin/hotels update %s: %s", conf.Tag, hotelID, err)
@@ -149,13 +151,14 @@ func HotelsAdminSave(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 			// non-Order field is filled. Pure-blank rows are
 			// no-ops.
 			_, err := getters.CreateHotel(ctx, getters.HotelInput{
-				Name:    name,
-				URL:     hotelURL,
-				Img:     img,
-				Type:    typ,
-				Desc:    desc,
-				Order:   order,
-				ConfRef: conf.Ref,
+				Name:       name,
+				URL:        hotelURL,
+				Img:        img,
+				Type:       typ,
+				Desc:       desc,
+				PriceRange: priceRange,
+				Order:      order,
+				ConfRef:    conf.Ref,
 			})
 			if err != nil {
 				ctx.Err.Printf("/%s/admin/hotels create: %s", conf.Tag, err)

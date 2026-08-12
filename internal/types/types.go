@@ -608,6 +608,9 @@ type (
 		Img  string
 		Type string
 		Desc string
+		// PriceRange is display copy such as "$150–$220/night". It is
+		// intentionally free-form so it can include local currencies.
+		PriceRange string
 		// Order is the display rank within a conf (smaller =
 		// earlier). Edited from /{conf}/admin/hotels.
 		Order int

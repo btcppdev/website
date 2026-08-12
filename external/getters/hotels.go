@@ -11,13 +11,14 @@ import (
 // "leave the field unset" on create and "clear it" on update. Order is always
 // written (zero is a real, valid display rank).
 type HotelInput struct {
-	Name    string
-	URL     string
-	Img     string // bare Spaces path, e.g. "vienna/hotels/abc.jpg"
-	Type    string
-	Desc    string
-	Order   int
-	ConfRef string // Conference page ID for the `conf` relation
+	Name       string
+	URL        string
+	Img        string // bare Spaces path, e.g. "vienna/hotels/abc.jpg"
+	Type       string
+	Desc       string
+	PriceRange string
+	Order      int
+	ConfRef    string // Conference page ID for the `conf` relation
 }
 
 // CreateHotel inserts a new row into the Hotels DB and returns the
@@ -40,12 +41,12 @@ func CreateHotel(ctx *config.AppContext, in HotelInput) (string, error) {
 	var hotelID string
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO hotels (
-			conference_id, name, url, img_path, type, description, display_order
+			conference_id, name, url, img_path, type, description, price_range, display_order
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7
+			$1, $2, $3, $4, $5, $6, $7, $8
 		)
 		RETURNING id::text
-	`, in.ConfRef, in.Name, in.URL, in.Img, in.Type, in.Desc, in.Order).Scan(&hotelID)
+	`, in.ConfRef, in.Name, in.URL, in.Img, in.Type, in.Desc, in.PriceRange, in.Order).Scan(&hotelID)
 	if err != nil {
 		return "", fmt.Errorf("insert hotel %q: %w", in.Name, err)
 	}
@@ -70,7 +71,7 @@ func queryHotelsPostgres(ctx *config.AppContext, label string, whereSQL string, 
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT hotels.id::text, hotels.conference_id::text, hotels.name, hotels.url,
-			hotels.img_path, hotels.type, hotels.description, hotels.display_order
+			hotels.img_path, hotels.type, hotels.description, hotels.price_range, hotels.display_order
 		FROM hotels
 		JOIN conferences ON conferences.id = hotels.conference_id
 		WHERE hotels.archived_at IS NULL
@@ -93,6 +94,7 @@ func queryHotelsPostgres(ctx *config.AppContext, label string, whereSQL string, 
 			&hotel.Img,
 			&hotel.Type,
 			&hotel.Desc,
+			&hotel.PriceRange,
 			&hotel.Order,
 		)
 		if err != nil {
@@ -113,8 +115,8 @@ func UpdateHotel(ctx *config.AppContext, hotelID string, in HotelInput) error {
 	if strings.TrimSpace(hotelID) == "" {
 		return fmt.Errorf("UpdateHotel: hotelID is required")
 	}
-	setParts := []string{"display_order = $2", "url = $3", "img_path = $4", "type = $5", "description = $6"}
-	args := []interface{}{hotelID, in.Order, in.URL, in.Img, in.Type, in.Desc}
+	setParts := []string{"display_order = $2", "url = $3", "img_path = $4", "type = $5", "description = $6", "price_range = $7"}
+	args := []interface{}{hotelID, in.Order, in.URL, in.Img, in.Type, in.Desc, in.PriceRange}
 	if in.Name != "" {
 		args = append(args, in.Name)
 		setParts = append(setParts, fmt.Sprintf("name = $%d", len(args)))
