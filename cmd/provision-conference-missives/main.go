@@ -36,11 +36,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	newsletterFuncs := texttemplate.FuncMap{
+		"button":    func(...any) string { return "" },
+		"cta":       func(...any) string { return "" },
+		"hero":      func(...any) string { return "" },
+		"lead":      func(...any) string { return "" },
+		"newsList":  func(...any) string { return "" },
+		"pullquote": func(...any) string { return "" },
+		"stats":     func(...any) string { return "" },
+	}
 	for _, definition := range definitions {
 		if _, err := texttemplate.New("subject").Parse(definition.Title); err != nil {
 			log.Fatalf("invalid subject for %s: %v", definition.OnlyFor, err)
 		}
-		if _, err := texttemplate.New("body").Parse(definition.Markdown); err != nil {
+		if _, err := texttemplate.New("body").Funcs(newsletterFuncs).Parse(definition.Markdown); err != nil {
 			log.Fatalf("invalid body for %s: %v", definition.OnlyFor, err)
 		}
 	}

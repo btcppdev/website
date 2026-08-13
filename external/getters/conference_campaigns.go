@@ -512,7 +512,7 @@ func EnsureConferenceEmailCampaigns(ctx *config.AppContext, conf *types.Conf, no
 		if err != nil {
 			return fmt.Errorf("load %s event-email definition: %w", campaignDefault.Kind, err)
 		}
-		templateLetter, err := GetLetterFor(ctx, definition.OnlyFor)
+		templateLetter, err := ensureConferenceTemplateLetter(ctx, definition)
 		if err != nil {
 			return fmt.Errorf("load %s event-email template: %w", campaignDefault.Kind, err)
 		}
@@ -567,6 +567,29 @@ func EnsureConferenceEmailCampaigns(ctx *config.AppContext, conf *types.Conf, no
 		}
 	}
 	return ensureSpeakerOnboardingOccurrences(ctx, conf, now)
+}
+
+// ensureConferenceTemplateLetter bootstraps a missing editable source template
+// from the checked-in definition. Existing rows are deliberately left alone so
+// edits made through /admin/missives remain the source for future campaigns.
+func ensureConferenceTemplateLetter(ctx *config.AppContext, definition *conferencemissives.Definition) (*mtypes.Letter, error) {
+	if ctx == nil || ctx.DB == nil || definition == nil {
+		return nil, fmt.Errorf("conference template configuration is incomplete")
+	}
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		INSERT INTO missives
+			(public_uid, title, newsletters, only_for, markdown, send_at_expr, dedupe_key)
+		SELECT
+			(SELECT COALESCE(max(public_uid), 0) + 1 FROM missives),
+			$1, '{}'::text[], $2, $3, '', $4
+		WHERE NOT EXISTS (
+			SELECT 1 FROM missives WHERE only_for = $2
+		)
+		ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
+	`, definition.Title, definition.OnlyFor, definition.Markdown, "conference-template:"+definition.Kind); err != nil {
+		return nil, fmt.Errorf("ensure source missive %s: %w", definition.OnlyFor, err)
+	}
+	return GetLetterFor(ctx, definition.OnlyFor)
 }
 
 func ensureSpeakerOnboardingOccurrences(ctx *config.AppContext, conf *types.Conf, now time.Time) error {
