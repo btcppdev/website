@@ -801,7 +801,7 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		Year:         helpers.CurrentYear(),
 	}
 	if hasPublicWhoIsProfile(ctx, sp) {
-		page.PublicURL = "/whois/" + publicSpeakerSlug(sp)
+		page.PublicURL = whoIsPublicPath(ctx, sp)
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_edit_speaker.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/speaker render: %s", err)

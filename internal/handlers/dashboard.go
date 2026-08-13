@@ -350,7 +350,9 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	hasPublicProfile := hasPublicWhoIsProfile(ctx, topSpeaker)
 	archiveOwnerPath := ""
 	if hasPublicProfile && topSpeaker != nil {
-		archiveOwnerPath = "/whois/" + publicSpeakerSlug(topSpeaker) + "/archive"
+		if publicID, ok := resolvedWhoIsPublicID(ctx, topSpeaker); ok {
+			archiveOwnerPath = "/whois/" + url.PathEscape(publicID) + "/archive"
+		}
 	}
 	id := resolvedIdentity
 	if id == nil {
@@ -835,20 +837,8 @@ func renderDashboardLogin(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 }
 
 func hasPublicWhoIsProfile(ctx *config.AppContext, speaker *types.Speaker) bool {
-	if speaker == nil || speaker.ID == "" {
-		return false
-	}
-	people, err := buildWhoIsDirectory(ctx)
-	if err != nil {
-		ctx.Err.Printf("/dashboard whois profile check failed: %s", err)
-		return false
-	}
-	for _, person := range people {
-		if person != nil && person.Speaker != nil && person.Speaker.ID == speaker.ID {
-			return true
-		}
-	}
-	return false
+	_, ok := resolvedWhoIsPublicID(ctx, speaker)
+	return ok
 }
 
 func attachDashboardAdminRoles(blocks []*EventBlock, id *auth.Identity) {
