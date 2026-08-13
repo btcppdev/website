@@ -43,6 +43,43 @@ func TestConferenceCampaignTimingsWorkBackwardFromFinal(t *testing.T) {
 	}
 }
 
+func TestEnsureConferenceTemplateLetterBootstrapsAndPreservesEdits(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	suffix := postgresSmokeSuffix()
+	definition := &conferencemissives.Definition{
+		Kind:     "bootstrap-" + suffix,
+		OnlyFor:  "conference-bootstrap-" + suffix,
+		Title:    "Initial title",
+		Markdown: "Initial body",
+	}
+	dedupeKey := "conference-template:" + definition.Kind
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM missives WHERE dedupe_key = $1`, dedupeKey)
+	})
+
+	letter, err := ensureConferenceTemplateLetter(ctx, definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if letter.Title != definition.Title || letter.Markdown != definition.Markdown {
+		t.Fatalf("bootstrapped letter = %q / %q", letter.Title, letter.Markdown)
+	}
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE missives SET title = 'Edited title', markdown = 'Edited body'
+		WHERE id = $1::uuid
+	`, letter.PageID); err != nil {
+		t.Fatal(err)
+	}
+
+	letter, err = ensureConferenceTemplateLetter(ctx, definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if letter.Title != "Edited title" || letter.Markdown != "Edited body" {
+		t.Fatalf("existing edits were overwritten: %q / %q", letter.Title, letter.Markdown)
+	}
+}
+
 func TestConferenceCampaignPersistenceIsIdempotent(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	definitions, err := conferencemissives.Definitions()
