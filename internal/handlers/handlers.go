@@ -64,9 +64,10 @@ var errUploadTooLarge = errors.New("uploaded file is too large")
 
 var whoIsCache = struct {
 	sync.Mutex
-	app     *config.AppContext
-	people  []*WhoIsPerson
-	expires time.Time
+	app       *config.AppContext
+	people    []*WhoIsPerson
+	publicIDs map[string]string
+	expires   time.Time
 }{}
 
 func limitRequestBody(w http.ResponseWriter, r *http.Request, max int64) {
@@ -190,10 +191,7 @@ func loadTemplates(ctx *config.AppContext) error {
 			return template.URL(websiteURL(s))
 		},
 		"speakerPublicPath": func(s *types.Speaker) template.URL {
-			if s == nil {
-				return ""
-			}
-			return template.URL("/whois/" + publicSpeakerSlug(s))
+			return template.URL(whoIsPublicPath(ctx, s))
 		},
 		"confImage": func(tag, base string) template.URL {
 			return template.URL(confImagePath(tag, base))
@@ -2897,10 +2895,11 @@ func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
 		}
 		return a < b
 	})
-	assignWhoIsPublicIDs(people)
+	publicIDs := assignWhoIsPublicIDs(people)
 	assignWhoIsProjectMemberPublicIDs(people)
 	whoIsCache.app = ctx
 	whoIsCache.people = people
+	whoIsCache.publicIDs = publicIDs
 	whoIsCache.expires = time.Now().Add(ttl)
 	return people, nil
 }
@@ -2967,15 +2966,27 @@ func whoIsTalkTime(row *WhoIsTalk) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-func assignWhoIsPublicIDs(people []*WhoIsPerson) {
-	used := map[string]bool{}
+func assignWhoIsPublicIDs(people []*WhoIsPerson) map[string]string {
+	publicIDs := make(map[string]string, len(people))
+	bases := make(map[string]string, len(people))
+	counts := make(map[string]int, len(people))
 	for _, person := range people {
 		if person == nil || person.Speaker == nil {
 			continue
 		}
 		base := publicSpeakerSlug(person.Speaker)
+		bases[person.Speaker.ID] = base
+		counts[base]++
+	}
+
+	used := map[string]bool{}
+	for _, person := range people {
+		if person == nil || person.Speaker == nil {
+			continue
+		}
+		base := bases[person.Speaker.ID]
 		slug := base
-		if used[slug] {
+		if counts[base] > 1 {
 			suffix := strings.ReplaceAll(person.Speaker.ID, "-", "")
 			if len(suffix) > 8 {
 				suffix = suffix[:8]
@@ -2987,7 +2998,35 @@ func assignWhoIsPublicIDs(people []*WhoIsPerson) {
 		}
 		used[slug] = true
 		person.PublicID = slug
+		publicIDs[person.Speaker.ID] = slug
 	}
+	return publicIDs
+}
+
+func resolvedWhoIsPublicID(ctx *config.AppContext, speaker *types.Speaker) (string, bool) {
+	if ctx == nil || speaker == nil || strings.TrimSpace(speaker.ID) == "" {
+		return "", false
+	}
+	if _, err := buildWhoIsDirectory(ctx); err != nil {
+		return "", false
+	}
+	whoIsCache.Lock()
+	defer whoIsCache.Unlock()
+	if whoIsCache.app != ctx {
+		return "", false
+	}
+	slug, ok := whoIsCache.publicIDs[speaker.ID]
+	return slug, ok && slug != ""
+}
+
+func whoIsPublicPath(ctx *config.AppContext, speaker *types.Speaker) string {
+	if speaker == nil {
+		return ""
+	}
+	if slug, ok := resolvedWhoIsPublicID(ctx, speaker); ok {
+		return "/whois/" + url.PathEscape(slug)
+	}
+	return "/whois?q=" + url.QueryEscape(strings.TrimSpace(speaker.Name))
 }
 
 func publicSpeakerSlug(speaker *types.Speaker) string {
@@ -3022,15 +3061,14 @@ func profileHandleForSlug(raw string, host string) string {
 	host = strings.TrimPrefix(strings.ToLower(host), "www.")
 	if strings.HasPrefix(strings.ToLower(raw), "http://") || strings.HasPrefix(strings.ToLower(raw), "https://") {
 		u, err := url.Parse(raw)
-		if err == nil {
-			uHost := strings.TrimPrefix(strings.ToLower(u.Host), "www.")
-			if uHost == host {
-				parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-				if len(parts) > 0 {
-					raw = parts[0]
-				}
-			}
+		if err != nil || strings.TrimPrefix(strings.ToLower(u.Host), "www.") != host {
+			return ""
 		}
+		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+		if len(parts) == 0 || parts[0] == "" {
+			return ""
+		}
+		raw = parts[0]
 	} else {
 		lower := strings.TrimPrefix(strings.ToLower(raw), "www.")
 		if strings.HasPrefix(lower, host+"/") {
@@ -3041,7 +3079,31 @@ func profileHandleForSlug(raw string, host string) string {
 	if idx := strings.IndexAny(raw, "/?#"); idx >= 0 {
 		raw = raw[:idx]
 	}
+	if host == "github.com" && !validGithubHandle(raw) {
+		return ""
+	}
 	return raw
+}
+
+func validGithubHandle(handle string) bool {
+	if handle == "" || len(handle) > 39 || handle[0] == '-' || handle[len(handle)-1] == '-' {
+		return false
+	}
+	lastHyphen := false
+	for _, r := range handle {
+		if r == '-' {
+			if lastHyphen {
+				return false
+			}
+			lastHyphen = true
+			continue
+		}
+		lastHyphen = false
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
 }
 
 func slugifyPublicID(raw string) string {
@@ -9320,7 +9382,7 @@ func SpeakerAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		Year:         helpers.CurrentYear(),
 	}
 	if hasPublicWhoIsProfile(ctx, sp) {
-		page.PublicURL = "/whois/" + publicSpeakerSlug(sp)
+		page.PublicURL = whoIsPublicPath(ctx, sp)
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_edit_speaker.tmpl", page); err != nil {
 		ctx.Err.Printf("/%s/admin/speakers/%s/edit render: %s", conf.Tag, speakerID, err)

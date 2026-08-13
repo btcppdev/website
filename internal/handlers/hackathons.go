@@ -1726,24 +1726,15 @@ func hackathonJudgeProfileURLs(ctx *config.AppContext, judges []*types.Competiti
 	if len(judges) == 0 {
 		return nil, nil
 	}
-	people, err := buildWhoIsDirectory(ctx)
-	if err != nil {
-		return nil, err
-	}
-	judgeIDs := make(map[string]bool, len(judges))
+	_, directoryErr := buildWhoIsDirectory(ctx)
+	urls := make(map[string]string, len(judges))
 	for _, judge := range judges {
-		if judge != nil && strings.TrimSpace(judge.PersonID) != "" {
-			judgeIDs[judge.PersonID] = true
-		}
-	}
-	urls := make(map[string]string, len(judgeIDs))
-	for _, person := range people {
-		if person == nil || person.Speaker == nil || !judgeIDs[person.Speaker.ID] || strings.TrimSpace(person.PublicID) == "" {
+		if judge == nil || strings.TrimSpace(judge.PersonID) == "" {
 			continue
 		}
-		urls[person.Speaker.ID] = "/whois/" + url.PathEscape(person.PublicID)
+		urls[judge.PersonID] = whoIsPublicPath(ctx, &types.Speaker{ID: judge.PersonID, Name: judge.Name})
 	}
-	return urls, nil
+	return urls, directoryErr
 }
 
 func hackathonMemberProfileURLs(ctx *config.AppContext, members []*types.ProjectMember) (map[string]string, error) {
