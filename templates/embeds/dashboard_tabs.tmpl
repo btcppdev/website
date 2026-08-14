@@ -1,4 +1,5 @@
 {{ define "dashboard_tabs" }}
+{{ if or .ShowHackathons .ShowAdmin }}
 <nav class="dashboard-tabs" aria-label="Dashboard sections">
   <a href="/dashboard" class="dashboard-tab{{ if eq .Active "overview" }} is-active{{ end }}"{{ if eq .Active "overview" }} aria-current="page"{{ end }}>Overview</a>
   {{ if .ShowHackathons }}
@@ -8,4 +9,5 @@
   <a href="/admin" class="dashboard-tab{{ if eq .Active "admin" }} is-active{{ end }}"{{ if eq .Active "admin" }} aria-current="page"{{ end }}>Admin</a>
   {{ end }}
 </nav>
+{{ end }}
 {{ end }}
