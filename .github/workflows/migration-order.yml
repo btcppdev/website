@@ -1,0 +1,17 @@
+name: Migration order
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  migration-order:
+    name: New migrations follow the base sequence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check migration versions
+        run: githooks/check-migration-prefixes.sh db/migrations "${{ github.event.pull_request.base.sha }}"
