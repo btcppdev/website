@@ -243,6 +243,17 @@ func TestHackathonPageJudgeProfileURL(t *testing.T) {
 	}
 }
 
+func TestHackathonPageMemberProfileURL(t *testing.T) {
+	member := &types.ProjectMember{PersonID: "member-id"}
+	page := &HackathonPage{MemberProfileURLs: map[string]string{"member-id": "/whois/alice"}}
+	if got := page.MemberProfileURL(member); got != "/whois/alice" {
+		t.Fatalf("MemberProfileURL() = %q, want /whois/alice", got)
+	}
+	if got := page.MemberProfileURL(&types.ProjectMember{PersonID: "no-profile"}); got != "" {
+		t.Fatalf("MemberProfileURL() without public profile = %q, want empty", got)
+	}
+}
+
 func TestHackathonAdminPageUsesConferenceScopedAdminURLs(t *testing.T) {
 	competition := &types.HackathonCompetition{ID: "hackathon-id", ConferenceID: "conf-toronto"}
 	page := &HackathonAdminPage{
@@ -263,6 +274,39 @@ func TestHackathonAdminPageUsesConferenceScopedAdminURLs(t *testing.T) {
 	}
 	if got := page.AwardsURL(competition); got != "/toronto/admin/hackathon/awards" {
 		t.Fatalf("AwardsURL() = %q", got)
+	}
+}
+
+func TestHackathonAdminBackLinkRespectsEventAdminAccess(t *testing.T) {
+	conf := &types.Conf{Ref: "conf-toronto", Tag: "toronto"}
+	managerPage := &HackathonAdminPage{
+		Conf:   conf,
+		Viewer: &auth.Identity{Roles: auth.ParseRoles([]string{"toronto-hackathon"})},
+	}
+	if got := managerPage.BackURL(); got != "/dashboard" {
+		t.Fatalf("manager BackURL() = %q, want /dashboard", got)
+	}
+	if got := managerPage.BackLabel(); got != "Dashboard" {
+		t.Fatalf("manager BackLabel() = %q, want Dashboard", got)
+	}
+
+	staffPage := &HackathonAdminPage{
+		Conf:   conf,
+		Viewer: &auth.Identity{Roles: auth.ParseRoles([]string{"toronto-staff"})},
+	}
+	if got := staffPage.BackURL(); got != "/toronto/admin" {
+		t.Fatalf("staff BackURL() = %q, want /toronto/admin", got)
+	}
+	if got := staffPage.BackLabel(); got != "Event admin" {
+		t.Fatalf("staff BackLabel() = %q, want Event admin", got)
+	}
+
+	adminPage := &HackathonAdminPage{
+		Conf:   conf,
+		Viewer: &auth.Identity{Roles: auth.ParseRoles([]string{"toronto-admin"})},
+	}
+	if got := adminPage.BackURL(); got != "/toronto/admin" {
+		t.Fatalf("admin BackURL() = %q, want /toronto/admin", got)
 	}
 }
 
