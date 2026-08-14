@@ -6,7 +6,6 @@
 </head>
 <body class="hack-redesign">
   {{ $galleryProjects := .GalleryProjects }}
-  {{ $myProjects := .MyProjects }}
   {{ $tableProjects := .TableProjects }}
   {{ $showProjectGallery := .ProjectGalleryOpen }}
   {{ template "generic_conf_ticker" (dict "Conf" .Conf "Label" "Hackathon live" "Count" (len $galleryProjects)) }}
@@ -31,9 +30,6 @@
           </div>
           <div class="hack-actions">
             {{ template "hackathon_primary_action" . }}
-            {{ if $showProjectGallery }}
-            <a href="#projects" class="hack-button hack-button--light">View project gallery →</a>
-            {{ end }}
             <a href="{{ .ScheduleURL }}" class="hack-button hack-button--light">View schedule →</a>
             {{ if .CanJudge }}<a href="{{ .JudgingURL }}" class="hack-button hack-button--light">Judging →</a>{{ end }}
             {{ if .CanAdminEdit }}<a href="{{ .AdminEditURL }}" class="hack-button hack-button--light">Edit hackathon →</a>{{ end }}
@@ -50,7 +46,6 @@
     {{ end }}
     <nav class="hack-tabs" aria-label="Hackathon sections">
       <button type="button" data-hackathon-tab="overview" class="hack-tab" aria-selected="true">Overview</button>
-      {{ if .Viewer }}<button type="button" data-hackathon-tab="my-projects" class="hack-tab" aria-selected="false">My projects · {{ len $myProjects }}</button>{{ end }}
       {{ if $showProjectGallery }}
       <button type="button" data-hackathon-tab="projects" class="hack-tab" aria-selected="false">Project gallery · {{ len $galleryProjects }}</button>
       {{ end }}
@@ -380,32 +375,6 @@
     </section>
     {{ end }}
 
-    {{ if .Viewer }}
-    <section data-hackathon-tab-panel="my-projects" class="hack-panel hidden" id="my-projects">
-      <div class="hack-section__head">
-        <div>
-          <div class="hack-label">§ My projects</div>
-          <h2>Your hackathon <span class="hack-serif">builds.</span></h2>
-        </div>
-        <div class="hack-section__deck">
-          Projects where you are listed as a team member. Manage the page, links, teammates, and award opt-ins from here.
-          <div class="hack-section__cta">{{ template "hackathon_primary_action" . }}</div>
-        </div>
-      </div>
-      {{ if $myProjects }}
-      <div class="hack-card-grid">
-        {{ range $project := $myProjects }}
-        {{ template "hackathon_project_card" (dict "Page" $ "Project" $project "ShowManage" true) }}
-        {{ end }}
-      </div>
-      {{ else }}
-      <div class="hack-empty">
-        <p>You are not on any projects for this hackathon yet.</p>
-      </div>
-      {{ end }}
-    </section>
-    {{ end }}
-
     {{ if .Awards }}
     <section data-hackathon-tab-panel="awards" class="hack-panel hidden hack-awards" id="awards">
       <div class="hack-section__head">
@@ -530,7 +499,6 @@
         if (window.location.hash === '#overview') return 'overview';
         if (window.location.hash === '#awards') return 'awards';
         if (window.location.hash === '#tables') return 'tables';
-        if (window.location.hash === '#my-projects') return 'my-projects';
         if (window.location.hash === '#projects') return 'projects';
         if (window.location.hash.indexOf('#project-') === 0) {
           const target = document.getElementById(window.location.hash.slice(1));

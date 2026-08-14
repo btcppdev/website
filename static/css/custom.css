@@ -10209,6 +10209,16 @@ display: grid;
 	border-bottom: 1px solid var(--hack-ink);
 }
 
+a.hack-project-file__person {
+	color: inherit;
+	text-decoration: none;
+}
+
+a.hack-project-file__person:hover strong,
+a.hack-project-file__person:focus-visible strong {
+	text-decoration: underline;
+}
+
 .hack-project-file__person strong,
 .hack-project-file__person span {
 	display: block;
