@@ -27,6 +27,7 @@ type HackathonAdminPage struct {
 	Conf                        *types.Conf
 	Confs                       []*types.Conf
 	Competition                 *types.HackathonCompetition
+	Viewer                      *auth.Identity
 	Projects                    []*types.HackathonProject
 	NonFinalistProjects         []*types.HackathonProject
 	ProjectTeams                map[string][]*types.ProjectMember
@@ -361,17 +362,29 @@ func (p *HackathonAdminPage) HackathonURL(competition *types.HackathonCompetitio
 }
 
 func (p *HackathonAdminPage) BackURL() string {
-	if p != nil && p.Conf != nil && strings.TrimSpace(p.Conf.Tag) != "" {
+	if p == nil || p.Conf == nil || strings.TrimSpace(p.Conf.Tag) == "" {
+		return "/admin/hackathons"
+	}
+	if p.canAccessEventAdmin() {
 		return "/" + url.PathEscape(p.Conf.Tag) + "/admin"
 	}
-	return "/admin/hackathons"
+	return "/dashboard"
 }
 
 func (p *HackathonAdminPage) BackLabel() string {
-	if p != nil && p.Conf != nil && strings.TrimSpace(p.Conf.Tag) != "" {
+	if p == nil || p.Conf == nil || strings.TrimSpace(p.Conf.Tag) == "" {
+		return "Hackathons"
+	}
+	if p.canAccessEventAdmin() {
 		return "Event admin"
 	}
-	return "Hackathons"
+	return "Dashboard"
+}
+
+func (p *HackathonAdminPage) canAccessEventAdmin() bool {
+	return p != nil && p.Viewer != nil && p.Conf != nil &&
+		strings.TrimSpace(p.Conf.Tag) != "" &&
+		p.Viewer.HasRoleForConf(p.Conf.Tag, auth.RoleStaff)
 }
 
 func (p *HackathonAdminPage) ConfURL(confID string) string {
@@ -1297,7 +1310,8 @@ func HackathonAdminList(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 }
 
 func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
@@ -1340,6 +1354,7 @@ func HackathonAdminProjects(w http.ResponseWriter, r *http.Request, ctx *config.
 	page := &HackathonAdminPage{
 		Competition:          competition,
 		Conf:                 conf,
+		Viewer:               id,
 		Projects:             projects,
 		ProjectTeams:         teams,
 		ActiveTab:            "projects",
@@ -1548,7 +1563,8 @@ func HackathonAdminAssignProjectNumbers(w http.ResponseWriter, r *http.Request, 
 }
 
 func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
@@ -1625,6 +1641,7 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 	page := &HackathonAdminPage{
 		Competition:           competition,
 		Conf:                  conf,
+		Viewer:                id,
 		Projects:              scoreProjects,
 		NonFinalistProjects:   nonFinalistProjects,
 		ProjectTitles:         projectTitlesByID(projects),
@@ -1651,7 +1668,8 @@ func HackathonAdminScoreReview(w http.ResponseWriter, r *http.Request, ctx *conf
 }
 
 func HackathonAdminTimeline(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
@@ -1691,6 +1709,7 @@ func HackathonAdminTimeline(w http.ResponseWriter, r *http.Request, ctx *config.
 	page := &HackathonAdminPage{
 		Competition:        competition,
 		Conf:               conf,
+		Viewer:             id,
 		Confs:              confs,
 		ActiveTab:          "timeline",
 		JudgeEvents:        judgeEvents,
@@ -1882,7 +1901,8 @@ func HackathonAdminRemoveJudgeBallot(w http.ResponseWriter, r *http.Request, ctx
 }
 
 func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
@@ -1978,6 +1998,7 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	page := &HackathonAdminPage{
 		Competition:          competition,
 		Conf:                 conf,
+		Viewer:               id,
 		Projects:             projects,
 		Orgs:                 orgs,
 		OrgsByID:             orgsByID(orgs),
@@ -2021,7 +2042,8 @@ func orgsByID(orgs []*types.Org) map[string]*types.Org {
 }
 
 func HackathonAdminPayouts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
@@ -2135,7 +2157,7 @@ func HackathonAdminPayouts(w http.ResponseWriter, r *http.Request, ctx *config.A
 		}
 		rows = append(rows, &HackathonPayoutAssignment{Award: awardByID[assignment.AwardID], Project: projectByID[assignment.ProjectID], Recipients: recipientsByProject[assignment.ProjectID], Prizes: cashPrizes, HasRemainingAllocation: hasRemainingAllocation})
 	}
-	page := &HackathonAdminPage{Competition: competition, Conf: conf, ActiveTab: "payouts", PayoutAssignments: rows, AwardDistributions: cashDistributions, FlashMessage: r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"), Year: helpers.CurrentYear()}
+	page := &HackathonAdminPage{Competition: competition, Conf: conf, Viewer: id, ActiveTab: "payouts", PayoutAssignments: rows, AwardDistributions: cashDistributions, FlashMessage: r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"), Year: helpers.CurrentYear()}
 	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_payouts.tmpl", page); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/payouts template: %s", competitionID, err)
@@ -2763,6 +2785,7 @@ func HackathonAdminManagers(w http.ResponseWriter, r *http.Request, ctx *config.
 	page := &HackathonAdminPage{
 		Competition:             competition,
 		Conf:                    conf,
+		Viewer:                  id,
 		ActiveTab:               "managers",
 		HackathonManagers:       hackathonManagerAssignments(managers, globalManagers, conf.Tag),
 		CanManageGlobalManagers: id.IsGlobalAdmin(),
@@ -2956,7 +2979,8 @@ func hackathonManagerAssignments(conferenceManagers, globalManagers []*types.Spe
 }
 
 func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
 		return
 	}
 	competitionID := mux.Vars(r)["competitionID"]
@@ -2997,6 +3021,7 @@ func HackathonAdminJudging(w http.ResponseWriter, r *http.Request, ctx *config.A
 	page := &HackathonAdminPage{
 		Competition:          competition,
 		Conf:                 conf,
+		Viewer:               id,
 		ActiveTab:            "judging",
 		Judges:               judges,
 		JudgeEvents:          judgeEvents,
@@ -3406,6 +3431,7 @@ func HackathonAdminNew(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 	page := &HackathonAdminPage{
 		Conf:               selectedConf,
+		Viewer:             id,
 		Confs:              availableHackathonConfs(ctx, hackathonAdminConfs(id, confs), ""),
 		Competition:        competition,
 		IsNew:              true,
@@ -3518,6 +3544,7 @@ func HackathonAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	page := &HackathonAdminPage{
 		Conf:         helpers.FindConfByRef(confs, competition.ConferenceID),
+		Viewer:       id,
 		Confs:        availableHackathonConfs(ctx, hackathonAdminConfs(id, confs), competition.ID),
 		Competition:  competition,
 		ActiveTab:    "main",
