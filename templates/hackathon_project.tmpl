@@ -116,6 +116,18 @@
             {{ if .Members }}
             <div class="hack-project-file__list">
               {{ range .Members }}
+              {{ $profileURL := $.MemberProfileURL . }}
+              {{ if $profileURL }}
+              <a class="hack-project-file__person" href="{{ $profileURL }}">
+                <div class="hack-avatar">
+                  {{ if .Photo }}<img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" loading="lazy">{{ else }}<span aria-hidden="true">+</span>{{ end }}
+                </div>
+                <div>
+                  <strong>{{ if .Name }}{{ .Name }}{{ else }}{{ .PersonID }}{{ end }}</strong>
+                  <span>{{ .Role }}</span>
+                </div>
+              </a>
+              {{ else }}
               <div class="hack-project-file__person">
                 <div class="hack-avatar">
                   {{ if .Photo }}<img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" loading="lazy">{{ else }}<span aria-hidden="true">+</span>{{ end }}
@@ -125,6 +137,7 @@
                   <span>{{ .Role }}</span>
                 </div>
               </div>
+              {{ end }}
               {{ end }}
             </div>
             {{ else }}

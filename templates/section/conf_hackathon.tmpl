@@ -4,7 +4,29 @@
 {{ $headline := .Conf.HackathonHeadline }}{{ if not $headline }}{{ $headline = "Don't just talk. <span>Build.</span>" }}{{ end }}
 {{ $judgesNote := "Judges coming soon" }}
 {{ $proofLabel := .Conf.HackathonProofLabel }}{{ if not $proofLabel }}{{ $proofLabel = "Last edition · 37 projects · 90 hackers" }}{{ end }}
+{{ $prizePool := .HackathonPrizePoolValue }}
+{{ $featureLabel := "Prizes" }}
+{{ $featureValue := "Coming Soon" }}
+{{ if $prizePool }}{{ $featureLabel = "Total prizes" }}{{ $featureValue = $prizePool }}{{ end }}
 <section id="hackathon" class="conf-hackathon-redesign">
+  <dl class="conf-hackathon-redesign__stats" aria-label="Hackathon at a glance">
+    <div class="conf-hackathon-redesign__stat conf-hackathon-redesign__stat--status">
+      <dt>Now</dt>
+      <dd>{{ .HackathonStatusLabel }}</dd>
+    </div>
+    <div class="conf-hackathon-redesign__stat">
+      <dt>Prize places</dt>
+      <dd>{{ if .HackathonPlaceRows }}{{ len .HackathonPlaceRows }}{{ else }}TBA{{ end }}</dd>
+    </div>
+    <div class="conf-hackathon-redesign__stat">
+      <dt>{{ $featureLabel }}</dt>
+      <dd>{{ $featureValue }}</dd>
+    </div>
+    <div class="conf-hackathon-redesign__stat">
+      <dt>Judges</dt>
+      <dd>{{ if .HackathonJudges }}{{ len .HackathonJudges }}{{ else }}TBA{{ end }}</dd>
+    </div>
+  </dl>
   <div class="conf-hackathon-redesign__inner">
     <div class="conf-hackathon-redesign__copy">
       <p class="rebrand-section-label">{{ $sectionLabel }}</p>

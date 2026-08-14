@@ -4187,6 +4187,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	var hackathonScheduleEvents []HackathonScheduleEvent
 	var hackathonJudges []*types.CompetitionJudge
 	var hackathonPlaceRows []*HackathonPlaceRow
+	var hackathonPrizePoolSats int64
 	var hackathonOrgs map[string]*types.Org
 	if hackathon != nil {
 		hackathonViewer := hackathonViewerFromIdentity(viewer, conf)
@@ -4209,7 +4210,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon orgs %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
 		}
-		hackathonPlaceRows, err = loadConfHackathonPlaceRows(ctx, hackathon.ID, hackathon.ResultsFinalizedAt != nil, hackathonOrgs)
+		hackathonPlaceRows, hackathonPrizePoolSats, err = loadConfHackathonPlaceRows(ctx, hackathon.ID, hackathon.ResultsFinalizedAt != nil, hackathonOrgs)
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon place rows %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
 		}
@@ -4248,6 +4249,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		HackathonScheduleEvents: hackathonScheduleEvents,
 		HackathonJudges:         hackathonJudges,
 		HackathonPlaceRows:      hackathonPlaceRows,
+		HackathonPrizePoolSats:  hackathonPrizePoolSats,
 		HackathonCanAdmin:       hackathonCanAdmin,
 		Year:                    helpers.CurrentYear(),
 	})

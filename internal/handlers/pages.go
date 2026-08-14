@@ -77,6 +77,7 @@ type ConfPage struct {
 	HackathonScheduleEvents []HackathonScheduleEvent
 	HackathonJudges         []*types.CompetitionJudge
 	HackathonPlaceRows      []*HackathonPlaceRow
+	HackathonPrizePoolSats  int64
 	HackathonCanAdmin       bool
 
 	Year uint

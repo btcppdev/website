@@ -51,6 +51,7 @@ type HackathonPage struct {
 	Scorecards                  []*types.Scorecard
 	Judges                      []*types.CompetitionJudge
 	JudgeProfileURLs            map[string]string
+	MemberProfileURLs           map[string]string
 	JudgeTypes                  map[string]bool
 	Awards                      []*types.Award
 	SponsorAwardsForJudge       []*types.Award
@@ -380,6 +381,13 @@ func (p *ConfPage) HackathonStatusLabel() string {
 	return hackathonLifecycleLabel(p.Hackathon, p.HackathonScheduleEvents)
 }
 
+func (p *ConfPage) HackathonPrizePoolValue() string {
+	if p == nil || p.HackathonPrizePoolSats <= 0 {
+		return ""
+	}
+	return strings.TrimSuffix(compactSatoshiLabel(p.HackathonPrizePoolSats), " satoshis")
+}
+
 func (p *ConfPage) HackathonAcceptsProjects() bool {
 	if p == nil {
 		return false
@@ -680,19 +688,6 @@ func (p *HackathonPage) PrimaryOwnedProject() *types.HackathonProject {
 	return nil
 }
 
-func (p *HackathonPage) MyProjects() []*types.HackathonProject {
-	if p == nil || len(p.OwnedProjects) == 0 {
-		return nil
-	}
-	out := make([]*types.HackathonProject, 0, len(p.OwnedProjects))
-	for _, project := range p.Projects {
-		if project != nil && p.CanManageProject(project.ID) {
-			out = append(out, project)
-		}
-	}
-	return out
-}
-
 func (p *HackathonPage) GalleryProjects() []*types.HackathonProject {
 	if p == nil || !p.ProjectGalleryOpen() {
 		return nil
@@ -929,6 +924,13 @@ func (p *HackathonPage) JudgeProfileURL(judge *types.CompetitionJudge) string {
 		return ""
 	}
 	return p.JudgeProfileURLs[judge.PersonID]
+}
+
+func (p *HackathonPage) MemberProfileURL(member *types.ProjectMember) string {
+	if p == nil || member == nil || p.MemberProfileURLs == nil {
+		return ""
+	}
+	return p.MemberProfileURLs[member.PersonID]
 }
 
 func (p *HackathonPage) AwardIsChallenge(award *types.Award) bool {
@@ -1654,7 +1656,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		http.Error(w, "Unable to load sponsors", http.StatusInternalServerError)
 		return
 	}
-	placeRows, err := loadConfHackathonPlaceRows(ctx, competition.ID, competition.ResultsFinalizedAt != nil, orgMap)
+	placeRows, _, err := loadConfHackathonPlaceRows(ctx, competition.ID, competition.ResultsFinalizedAt != nil, orgMap)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s place rows: %s", competition.ID, err)
 		http.Error(w, "Unable to load prizes", http.StatusInternalServerError)
@@ -1737,6 +1739,30 @@ func hackathonJudgeProfileURLs(ctx *config.AppContext, judges []*types.Competiti
 	urls := make(map[string]string, len(judgeIDs))
 	for _, person := range people {
 		if person == nil || person.Speaker == nil || !judgeIDs[person.Speaker.ID] || strings.TrimSpace(person.PublicID) == "" {
+			continue
+		}
+		urls[person.Speaker.ID] = "/whois/" + url.PathEscape(person.PublicID)
+	}
+	return urls, nil
+}
+
+func hackathonMemberProfileURLs(ctx *config.AppContext, members []*types.ProjectMember) (map[string]string, error) {
+	if len(members) == 0 {
+		return nil, nil
+	}
+	people, err := buildWhoIsDirectory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	memberIDs := make(map[string]bool, len(members))
+	for _, member := range members {
+		if member != nil && strings.TrimSpace(member.PersonID) != "" {
+			memberIDs[member.PersonID] = true
+		}
+	}
+	urls := make(map[string]string, len(memberIDs))
+	for _, person := range people {
+		if person == nil || person.Speaker == nil || !memberIDs[person.Speaker.ID] || strings.TrimSpace(person.PublicID) == "" {
 			continue
 		}
 		urls[person.Speaker.ID] = "/whois/" + url.PathEscape(person.PublicID)
@@ -2293,6 +2319,10 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 		http.Error(w, "Unable to load project members", http.StatusInternalServerError)
 		return
 	}
+	memberProfileURLs, err := hackathonMemberProfileURLs(ctx, members)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s member profiles failed (continuing): %s", competition.ID, project.ID, err)
+	}
 	optInAwards, awardOptIns, err := loadProjectAwardOptInState(ctx, competition.ID, project.ID)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s award opt-ins: %s", competition.ID, project.ID, err)
@@ -2333,6 +2363,7 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 		OrgsByID:                orgMap,
 		Project:                 project,
 		Members:                 members,
+		MemberProfileURLs:       memberProfileURLs,
 		Awards:                  awards,
 		PrizesByAward:           prizesByAward,
 		PrizePoolByAward:        prizePoolByAward,
@@ -2764,20 +2795,20 @@ func loadHackathonOrgMap(ctx *config.AppContext) (map[string]*types.Org, error) 
 	return orgsByID(orgs), nil
 }
 
-func loadConfHackathonPlaceRows(ctx *config.AppContext, competitionID string, publishWinners bool, orgsByID map[string]*types.Org) ([]*HackathonPlaceRow, error) {
+func loadConfHackathonPlaceRows(ctx *config.AppContext, competitionID string, publishWinners bool, orgsByID map[string]*types.Org) ([]*HackathonPlaceRow, int64, error) {
 	awards, err := getters.ListAwardsForCompetition(ctx, competitionID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	prizes, err := getters.ListPrizesForCompetition(ctx, competitionID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	var projectAwards []*types.ProjectAward
 	if publishWinners {
 		projectAwards, err = getters.ListProjectAwardsForCompetition(ctx, competitionID)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
 	prizesByAward := make(map[string][]*types.Prize)
@@ -2793,9 +2824,13 @@ func loadConfHackathonPlaceRows(ctx *config.AppContext, competitionID string, pu
 		}
 	}
 	rowsByRank := make(map[int]*HackathonPlaceRow)
+	var prizePoolSats int64
 	for _, award := range awards {
 		if award == nil || !hackathonPlaceAwardStatusVisible(award.Status) {
 			continue
+		}
+		for _, prize := range prizesByAward[award.ID] {
+			prizePoolSats += prizeValueSats(prize)
 		}
 		rank := hackathonPlaceAwardRank(award)
 		if rank < 1 || rank > 3 || rowsByRank[rank] != nil {
@@ -2832,7 +2867,7 @@ func loadConfHackathonPlaceRows(ctx *config.AppContext, competitionID string, pu
 			rows = append(rows, row)
 		}
 	}
-	return rows, nil
+	return rows, prizePoolSats, nil
 }
 
 func orgLogoURL(org *types.Org) string {

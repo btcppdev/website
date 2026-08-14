@@ -53,6 +53,31 @@
         </div>
       </section>
 
+      <section class="whois-profile-section">
+        <div class="whois-section-head">
+          <div>
+            <p class="whois-section-tag">§01 · EVENT BADGES</p>
+            <h2>{{ len .Person.Editions }} edition{{ if ne (len .Person.Editions) 1 }}s{{ end }} attended.</h2>
+          </div>
+        </div>
+        {{ if .Person.Editions }}
+        <div class="whois-event-badges">
+          {{ range .Person.Editions }}
+          <a class="whois-event-badge" href="/{{ .Tag }}">
+            <div>
+              <span>{{ .BadgeEmoji }}</span>
+              {{ if not .StartDate.IsZero }}<b>’{{ .StartDate.Format "06" }}</b>{{ end }}
+            </div>
+            <strong>{{ .ArchiveTitle }}</strong>
+            {{ if .ArchiveEdition }}<em>{{ .ArchiveEdition }}</em>{{ else if .Tagline }}<em>{{ .Tagline }}</em>{{ end }}
+          </a>
+          {{ end }}
+        </div>
+        {{ else }}
+        <p class="whois-profile-empty">No event attendance records are connected to this profile yet.</p>
+        {{ end }}
+      </section>
+
       {{ if .Person.Projects }}
       <section class="whois-profile-section">
         <div class="whois-section-head">
@@ -106,31 +131,6 @@
         </div>
       </section>
       {{ end }}
-
-      <section class="whois-profile-section">
-        <div class="whois-section-head">
-          <div>
-            <p class="whois-section-tag">§01 · EVENT BADGES</p>
-            <h2>{{ len .Person.Editions }} edition{{ if ne (len .Person.Editions) 1 }}s{{ end }} attended.</h2>
-          </div>
-        </div>
-        {{ if .Person.Editions }}
-        <div class="whois-event-badges">
-          {{ range .Person.Editions }}
-          <a class="whois-event-badge" href="/{{ .Tag }}">
-            <div>
-              <span>{{ .BadgeEmoji }}</span>
-              {{ if not .StartDate.IsZero }}<b>’{{ .StartDate.Format "06" }}</b>{{ end }}
-            </div>
-            <strong>{{ .ArchiveTitle }}</strong>
-            {{ if .ArchiveEdition }}<em>{{ .ArchiveEdition }}</em>{{ else if .Tagline }}<em>{{ .Tagline }}</em>{{ end }}
-          </a>
-          {{ end }}
-        </div>
-        {{ else }}
-        <p class="whois-profile-empty">No event attendance records are connected to this profile yet.</p>
-        {{ end }}
-      </section>
 
       {{ if .Person.Talks }}
       <section class="whois-profile-section">
