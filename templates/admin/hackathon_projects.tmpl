@@ -169,6 +169,16 @@
                   <option value="hidden" {{ if eq .Status "hidden" }}selected{{ end }}>Hidden</option>
                   <option value="advanced" {{ if eq .Status "advanced" }}selected{{ end }}>Advanced</option>
                 </select>
+                {{ if eq .Status "created" }}
+                <form method="POST" action="{{ $.ProjectAdminURL . }}" class="mt-2"
+                      onsubmit="return confirm('Submit this project? This bypasses the submission deadline and makes it immediately eligible for judging and public display.');">
+                  <input type="hidden" name="Status" value="submitted">
+                  {{ with .ProjectNumber }}<input type="hidden" name="ProjectNumber" value="{{ . }}">{{ end }}
+                  <button type="submit" class="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500">
+                    Submit project
+                  </button>
+                </form>
+                {{ end }}
               </td>
               <td class="whitespace-nowrap px-4 py-3 text-gray-600">
                 {{ with .SubmittedAt }}{{ .Format "Jan 2, 2006 3:04 PM" }}{{ else }}Not submitted{{ end }}
