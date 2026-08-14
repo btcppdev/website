@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/mtypes"
 	"btcpp-web/internal/types"
@@ -35,7 +36,6 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("template %s was not loaded", name)
 		}
 	}
-	var inlineMissive bytes.Buffer
 	inlineTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {
 		t.Fatalf("clone templates for inline missive: %v", err)
@@ -43,6 +43,114 @@ func TestLoadTemplates(t *testing.T) {
 	if _, err := inlineTemplates.Parse(`{{ define "mainnav" }}<nav>test</nav>{{ end }}`); err != nil {
 		t.Fatalf("override inline missive test nav: %v", err)
 	}
+	var projectPage bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&projectPage, "hackathon_project.tmpl", &HackathonPage{
+		Competition: &types.HackathonCompetition{ID: "competition-id", Title: "Hackathon"},
+		Conf:        &types.Conf{Tag: "toronto"},
+		Project:     &types.HackathonProject{ID: "project-id", Title: "Project", Status: getters.ProjectStatusSubmitted},
+		Members: []*types.ProjectMember{
+			{PersonID: "linked-member", Name: "Linked Member", Role: getters.ProjectMemberRoleOwner},
+			{PersonID: "private-member", Name: "Private Member", Role: getters.ProjectMemberRoleMember},
+		},
+		MemberProfileURLs: map[string]string{"linked-member": "/whois/linked-member"},
+	}); err != nil {
+		t.Fatalf("render hackathon project: %v", err)
+	}
+	if !strings.Contains(projectPage.String(), `<a class="hack-project-file__person" href="/whois/linked-member">`) {
+		t.Fatalf("hackathon project member does not link to public profile: %s", projectPage.String())
+	}
+	if strings.Contains(projectPage.String(), `href="/whois/private-member"`) {
+		t.Fatalf("hackathon project links a member without a public profile: %s", projectPage.String())
+	}
+	var hackathonPage bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&hackathonPage, "hackathon.tmpl", &HackathonPage{
+		Competition: &types.HackathonCompetition{
+			ID:                   "competition-id",
+			Title:                "Hackathon",
+			Visibility:           getters.CompetitionVisibilityPublic,
+			LifecycleOverride:    getters.CompetitionLifecycleOpen,
+			PublicGalleryEnabled: true,
+		},
+		Conf:          &types.Conf{Tag: "toronto"},
+		Projects:      []*types.HackathonProject{{ID: "my-project", Title: "My Project"}},
+		OwnedProjects: map[string]bool{"my-project": true},
+		Viewer:        &auth.Identity{PersonID: "person-id"},
+	}); err != nil {
+		t.Fatalf("render hackathon with owned project: %v", err)
+	}
+	if !strings.Contains(hackathonPage.String(), `<a href="/toronto/hackathon/projects/my-project/edit" class="hack-button hack-button--accent">Edit project →</a>`) {
+		t.Fatalf("hackathon does not render its established edit-project action: %s", hackathonPage.String())
+	}
+	for _, unwanted := range []string{`data-hackathon-tab="my-projects"`, `id="my-projects"`, `My projects`, `>My project</a>`} {
+		if strings.Contains(hackathonPage.String(), unwanted) {
+			t.Fatalf("hackathon still renders obsolete project panel marker %q: %s", unwanted, hackathonPage.String())
+		}
+	}
+	if !strings.Contains(hackathonPage.String(), `data-hackathon-tab="projects"`) {
+		t.Fatalf("hackathon with an open gallery does not render the Project gallery tab: %s", hackathonPage.String())
+	}
+	if strings.Contains(hackathonPage.String(), `View project gallery`) {
+		t.Fatalf("hackathon renders the redundant View project gallery hero action: %s", hackathonPage.String())
+	}
+	var confHackathonSection bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&confHackathonSection, "conf_hackathon_section", &ConfPage{
+		Conf: &types.Conf{Tag: "toronto", Desc: "Bitcoin++ Toronto"},
+		Hackathon: &types.HackathonCompetition{
+			Title:             "Toronto Hackathon",
+			LifecycleOverride: getters.CompetitionLifecycleOpen,
+		},
+		HackathonJudges: []*types.CompetitionJudge{{Name: "Judge One"}, {Name: "Judge Two"}},
+		HackathonPlaceRows: []*HackathonPlaceRow{
+			{PlaceLabel: "01", ProjectTitle: "First prize", Amount: "1,000,000 sats", GrandPrize: true},
+			{PlaceLabel: "02", ProjectTitle: "Second prize", Amount: "500,000 sats"},
+			{PlaceLabel: "03", ProjectTitle: "Third prize", Amount: "250,000 sats"},
+		},
+		HackathonPrizePoolSats: 1_750_000,
+	}); err != nil {
+		t.Fatalf("render conference hackathon section: %v", err)
+	}
+	for _, want := range []string{`aria-label="Hackathon at a glance"`, `>Submissions open</dd>`, `>3</dd>`, `<dt>Total prizes</dt>`, `>1.8M</dd>`, `>2</dd>`} {
+		if !strings.Contains(confHackathonSection.String(), want) {
+			t.Fatalf("conference hackathon stats missing %q: %s", want, confHackathonSection.String())
+		}
+	}
+	confHackathonSection.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&confHackathonSection, "conf_hackathon_section", &ConfPage{
+		Conf:      &types.Conf{Tag: "toronto", Desc: "Bitcoin++ Toronto"},
+		Hackathon: &types.HackathonCompetition{Title: "Toronto Hackathon"},
+	}); err != nil {
+		t.Fatalf("render conference hackathon section without configured prizes: %v", err)
+	}
+	for _, want := range []string{`<dt>Prizes</dt>`, `<dd>Coming Soon</dd>`} {
+		if !strings.Contains(confHackathonSection.String(), want) {
+			t.Fatalf("conference hackathon fallback stat missing %q: %s", want, confHackathonSection.String())
+		}
+	}
+	if strings.Contains(confHackathonSection.String(), `<dt>Schedule</dt>`) {
+		t.Fatalf("conference hackathon prize fallback exposes the schedule: %s", confHackathonSection.String())
+	}
+	projectNumber := 7
+	var adminProjects bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&adminProjects, "admin/hackathon_projects.tmpl", &HackathonAdminPage{
+		Competition: &types.HackathonCompetition{ID: "competition-id", Title: "Hackathon"},
+		Conf:        &types.Conf{Ref: "conference-id", Tag: "toronto"},
+		Projects: []*types.HackathonProject{
+			{ID: "draft-project", Title: "Draft", Status: getters.ProjectStatusCreated, ProjectNumber: &projectNumber},
+			{ID: "submitted-project", Title: "Submitted", Status: getters.ProjectStatusSubmitted},
+		},
+		ActiveTab: "projects",
+	}); err != nil {
+		t.Fatalf("render admin hackathon projects: %v", err)
+	}
+	if got := strings.Count(adminProjects.String(), ">\n                    Submit project\n"); got != 1 {
+		t.Fatalf("admin projects rendered %d submit actions, want one for the draft: %s", got, adminProjects.String())
+	}
+	for _, want := range []string{`name="Status" value="submitted"`, `name="ProjectNumber" value="7"`, `bypasses the submission deadline`} {
+		if !strings.Contains(adminProjects.String(), want) {
+			t.Fatalf("admin draft submit action missing %q: %s", want, adminProjects.String())
+		}
+	}
+	var inlineMissive bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&inlineMissive, "admin/inline_missive.tmpl", &InlineMissivePage{
 		Current: &mtypes.Letter{UID: 42, PageID: "page-id", OnlyFor: "volapp", Title: "Hi {{ .Name }}", Markdown: "Hello {{ .Volunteer.Name }}"},
 		Fields:  onlyForTemplateFields("volapp"),
@@ -199,6 +307,9 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(dashboardTabs.String(), `href="/dashboard/hackathons"`) {
 		t.Fatalf("nonparticipant dashboard tabs expose hackathons: %s", dashboardTabs.String())
 	}
+	if strings.Contains(dashboardTabs.String(), `class="dashboard-tabs"`) {
+		t.Fatalf("single-section dashboard renders redundant tab navigation: %s", dashboardTabs.String())
+	}
 	dashboardTabs.Reset()
 	if err := ctx.TemplateCache.ExecuteTemplate(&dashboardTabs, "dashboard_tabs", map[string]any{
 		"Active":         "hackathons",
@@ -210,6 +321,9 @@ func TestLoadTemplates(t *testing.T) {
 	if !strings.Contains(dashboardTabs.String(), `href="/dashboard/hackathons" class="dashboard-tab is-active" aria-current="page"`) {
 		t.Fatalf("hackathons dashboard tab is not active: %s", dashboardTabs.String())
 	}
+	if !strings.Contains(dashboardTabs.String(), `class="dashboard-tabs"`) {
+		t.Fatalf("multi-section participant dashboard does not render tab navigation: %s", dashboardTabs.String())
+	}
 	dashboardTabs.Reset()
 	if err := ctx.TemplateCache.ExecuteTemplate(&dashboardTabs, "dashboard_tabs", map[string]any{
 		"Active":    "admin",
@@ -219,6 +333,9 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if !strings.Contains(dashboardTabs.String(), `href="/admin" class="dashboard-tab is-active" aria-current="page"`) {
 		t.Fatalf("admin dashboard tab is not active: %s", dashboardTabs.String())
+	}
+	if !strings.Contains(dashboardTabs.String(), `class="dashboard-tabs"`) {
+		t.Fatalf("multi-section admin dashboard does not render tab navigation: %s", dashboardTabs.String())
 	}
 }
 

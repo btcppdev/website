@@ -66,4 +66,9 @@ func TestProjectOnlyWhoIsProfileShowsEventBadges(t *testing.T) {
 	if strings.Contains(html, `TALKS & PANELS`) {
 		t.Fatalf("project-only WhoIs profile unexpectedly renders the talks section: %s", html)
 	}
+	eventBadgesIndex := strings.Index(html, `§01 · EVENT BADGES`)
+	hackathonProjectsIndex := strings.Index(html, `§02 · HACKATHON PROJECTS`)
+	if eventBadgesIndex == -1 || hackathonProjectsIndex == -1 || eventBadgesIndex > hackathonProjectsIndex {
+		t.Fatalf("WhoIs profile sections are out of order: event badges index %d, hackathon projects index %d", eventBadgesIndex, hackathonProjectsIndex)
+	}
 }
