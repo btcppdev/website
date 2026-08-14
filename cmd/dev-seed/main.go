@@ -1724,12 +1724,13 @@ func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string,
 	}
 
 	type newsletterProjectSeed struct {
-		id, slug, title, shortDescription, description, githubURL string
-		number                                                    int
+		id, ownerPersonID, slug, title, shortDescription, description, githubURL string
+		number                                                                   int
 	}
 	projects := []newsletterProjectSeed{
 		{
 			id:               devNewsletterProject1,
+			ownerPersonID:    devSpeakers[0].personID,
 			slug:             "mempool-observatory",
 			title:            "Mempool Observatory",
 			shortDescription: "A live package-relay and fee-pressure explorer for Signet.",
@@ -1739,6 +1740,7 @@ func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string,
 		},
 		{
 			id:               devNewsletterProject2,
+			ownerPersonID:    devSpeakers[2].personID,
 			slug:             "signet-arcade",
 			title:            "Signet Arcade",
 			shortDescription: "Collaborative protocol puzzles backed by reproducible Signet fixtures.",
@@ -1762,6 +1764,7 @@ func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string,
 				ARRAY['signet', 'developer-tools'], now() - interval '2 days'
 			)
 			ON CONFLICT (competition_id, slug) DO UPDATE SET
+				created_by_person_id = EXCLUDED.created_by_person_id,
 				title = EXCLUDED.title,
 				short_description = EXCLUDED.short_description,
 				description = EXCLUDED.description,
@@ -1772,12 +1775,17 @@ func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string,
 				tags = EXCLUDED.tags,
 				submitted_at = EXCLUDED.submitted_at
 			RETURNING id::text
-		`, project.id, competitionID, devSpeakers[0].personID, project.slug,
+		`, project.id, competitionID, project.ownerPersonID, project.slug,
 			project.title, project.shortDescription, project.description,
 			project.githubURL, project.number).Scan(&projectID)
 		if err != nil {
 			log.Fatal(fmt.Errorf("seed newsletter project %s: %w", project.slug, err))
 		}
+		mustExec(ctx, tx, "seed newsletter project owner", `
+			INSERT INTO project_members (project_id, person_id, role)
+			VALUES ($1::uuid, $2::uuid, 'owner')
+			ON CONFLICT (project_id, person_id) DO UPDATE SET role = EXCLUDED.role
+		`, projectID, project.ownerPersonID)
 		projectIDs[project.slug] = projectID
 	}
 
