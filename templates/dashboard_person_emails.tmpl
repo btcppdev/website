@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Email addresses · bitcoin++</title>
+  <title>Account settings · bitcoin++</title>
   {{ block "header" . }} {{ end }}
 </head>
 <body class="btcpp-profile-edit-page">
@@ -12,12 +12,53 @@
 
     <header class="profile-edit-hero">
       <p class="profile-edit-tag">§ ACCOUNT</p>
-      <h1>Email <span>addresses.</span></h1>
-      <p>Add another email to this account. If that email already has a bitcoin++ profile, we’ll help you combine them.</p>
+      <h1>Account <span>settings.</span></h1>
+      <p>Manage how you sign in and which verified email addresses belong to your bitcoin++ profile.</p>
     </header>
 
     {{ if .FlashMessage }}<div class="profile-edit-flash">{{ .FlashMessage }}</div>{{ end }}
     {{ if .FlashError }}<div class="profile-edit-flash person-emails-error">{{ .FlashError }}</div>{{ end }}
+
+    <section class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">↗</div>
+      <div class="profile-edit-section__body">
+        <div class="profile-edit-section__head">
+          <div>
+            <p>§ SIGN-IN METHODS</p>
+            <h2>Connected accounts</h2>
+          </div>
+        </div>
+        <div class="person-email-list">
+          {{ range .OAuthIdentities }}
+          <div class="person-email-row">
+            <div>
+              <strong>{{ if eq .Provider "github" }}GitHub @{{ .Username }}{{ else }}{{ .Provider }} · {{ .Username }}{{ end }}</strong>
+              <span class="is-primary">CONNECTED</span>
+              {{ if .Email }}<small>{{ .Email }}{{ if .EmailVerified }} · verified by provider{{ end }}</small>{{ end }}
+            </div>
+            <div class="person-email-actions">
+              <form method="POST" action="/auth/oauth/github/unlink">
+                <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
+                <input type="hidden" name="identity_id" value="{{ .ID }}">
+                <button type="submit" class="is-danger">Unlink</button>
+              </form>
+            </div>
+          </div>
+          {{ end }}
+          {{ if .GitHubEnabled }}
+          <div class="person-email-row">
+            <div>
+              <strong>GitHub</strong>
+              <small>Use an immutable GitHub account ID to sign in. Repository access is never requested.</small>
+            </div>
+            <div class="person-email-actions"><a class="person-oauth-link" href="{{ .GitHubLinkURL }}">Connect GitHub</a></div>
+          </div>
+          {{ else }}
+          <div class="person-email-row is-pending"><div><strong>GitHub</strong><span class="is-pending">COMING SOON</span><small>GitHub sign-in is not configured on this environment.</small></div></div>
+          {{ end }}
+        </div>
+      </div>
+    </section>
 
     <section class="profile-edit-section is-open">
       <div class="profile-edit-section__index">@</div>

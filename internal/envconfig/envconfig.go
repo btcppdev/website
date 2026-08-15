@@ -102,6 +102,12 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 			RedirectURL:    os.Getenv("YOUTUBE_REDIRECT_URL"),
 			UpdatesEnabled: envBool("YOUTUBE_UPDATES_ENABLED", prod),
 		},
+		OAuth: types.OAuthConfig{
+			GitHub: types.OAuthProviderConfig{
+				ClientID:     os.Getenv("AUTH_GITHUB_CLIENT_ID"),
+				ClientSecret: os.Getenv("AUTH_GITHUB_CLIENT_SECRET"),
+			},
+		},
 		Recordings: types.RecordingsConfig{
 			AutopublishEnabled: envBool("RECORDINGS_AUTOPUBLISH_ENABLED", false),
 			PollSec:            envInt("RECORDINGS_AUTOPUBLISH_POLL_SEC", 0),

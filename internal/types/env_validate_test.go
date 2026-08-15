@@ -98,3 +98,15 @@ func TestEnvConfigApplyDefaultsSeparatesXProfileObjects(t *testing.T) {
 		t.Fatalf("prod X profile object = %q, want %q", got, want)
 	}
 }
+
+func TestEnvConfigValidateRejectsPartialGitHubOAuthConfig(t *testing.T) {
+	base := EnvConfig{Port: "8888", Host: "localhost"}
+	base.OAuth.GitHub.ClientID = "client"
+	if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "AUTH_GITHUB_CLIENT_ID") {
+		t.Fatalf("partial GitHub client config returned %v", err)
+	}
+	base.OAuth.GitHub.ClientSecret = "secret"
+	if err := base.Validate(); err != nil {
+		t.Fatalf("complete GitHub config returned %v", err)
+	}
+}

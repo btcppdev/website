@@ -40,15 +40,32 @@ func DashboardPersonEmails(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Error(w, "Unable to load merge requests", http.StatusInternalServerError)
 		return
 	}
+	oauthIdentities, err := getters.ListPersonOAuthIdentities(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/emails OAuth identities %s: %s", id.PersonID, err)
+		http.Error(w, "Unable to load sign-in methods", http.StatusInternalServerError)
+		return
+	}
+	csrf, err := ensureAuthMethodsCSRF(ctx, r)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/emails auth CSRF: %s", err)
+		http.Error(w, "Unable to load sign-in methods", http.StatusInternalServerError)
+		return
+	}
+	githubEnabled := auth.NewGitHubOAuthProvider(ctx.Env).Enabled()
 	w.Header().Set("Cache-Control", "private, no-store")
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_person_emails.tmpl", &PersonEmailsPage{
-		Speaker:       id.Speaker,
-		Emails:        addresses,
-		PendingEmails: pendingEmails,
-		MergeRequests: mergeRequests,
-		FlashMessage:  r.URL.Query().Get("flash"),
-		FlashError:    r.URL.Query().Get("error"),
-		Year:          helpers.CurrentYear(),
+		Speaker:         id.Speaker,
+		Emails:          addresses,
+		OAuthIdentities: oauthIdentities,
+		PendingEmails:   pendingEmails,
+		MergeRequests:   mergeRequests,
+		AuthMethodsCSRF: csrf,
+		GitHubEnabled:   githubEnabled,
+		GitHubLinkURL:   "/auth/oauth/github?next=" + url.QueryEscape("/dashboard/emails"),
+		FlashMessage:    r.URL.Query().Get("flash"),
+		FlashError:      r.URL.Query().Get("error"),
+		Year:            helpers.CurrentYear(),
 	}); err != nil {
 		ctx.Err.Printf("/dashboard/emails render: %s", err)
 		http.Error(w, "Unable to render email addresses", http.StatusInternalServerError)

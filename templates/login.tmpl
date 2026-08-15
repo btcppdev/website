@@ -13,7 +13,7 @@
         <div class="mx-auto max-w-7xl px-6 lg:px-8">
           <div class="max-w-2xl text-start">
             <h1 class="text-2xl font-bold text-gray-900 mb-2">Sign in</h1>
-            <p class="text-sm text-gray-600 mb-6">Enter the email associated with your bitcoin++ account. We'll send you a magic-link that signs you in for the next stretch.</p>
+            <p class="text-sm text-gray-600 mb-6">Use a connected account, or enter your bitcoin++ email and we’ll send you a magic sign-in link.</p>
             {{ if .FlashMessage }}
             <div class="mb-4 rounded-md bg-green-50 border border-green-200 px-4 py-3">
               <p class="text-sm text-green-800">{{ .FlashMessage }}</p>
@@ -23,6 +23,13 @@
             <div class="mb-4 rounded-md bg-red-50 border border-red-200 px-4 py-3">
               <p class="text-sm text-red-800">{{ .FlashError }}</p>
             </div>
+            {{ end }}
+            {{ if .GitHubEnabled }}
+            <div class="mb-6">
+              <a class="inline-flex items-center bg-gray-900 text-white hover:text-gray-200 px-4 py-3 rounded-md" href="{{ .GitHubURL }}">Continue with GitHub</a>
+              <p class="mt-2 text-xs text-gray-500">Already linked GitHub accounts sign in immediately. First-time links require one email confirmation.</p>
+            </div>
+            <div class="flex items-center gap-3 mb-6 text-xs text-gray-400" aria-hidden="true"><span class="grow border-t border-gray-300"></span><span>OR</span><span class="grow border-t border-gray-300"></span></div>
             {{ end }}
             <form method="POST" action="/login">
               <input type="hidden" name="Next" value="{{ .Next }}" />

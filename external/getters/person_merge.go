@@ -141,6 +141,7 @@ type personMergeManifest struct {
 
 var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "affiliate_usages", PersonColumn: "affiliate_person_id", PrimaryKey: []string{"id"}, Label: "affiliate usages"},
+	{Table: "auth_audit_events", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "authentication audit events"},
 	{Table: "award_distributions", PersonColumn: "completed_by", PrimaryKey: []string{"id"}, Label: "award completions"},
 	{Table: "award_distributions", PersonColumn: "person_id", PrimaryKey: []string{"id"}, DuplicateKey: []string{"award_id", "project_id", "prize_id"}, Label: "award distributions"},
 	{Table: "award_judges", PersonColumn: "person_id", PrimaryKey: []string{"award_id", "person_id"}, DuplicateKey: []string{"award_id"}, Label: "award judging roles"},
@@ -159,6 +160,7 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "person_merge_events", PersonColumn: "canonical_person_id", PrimaryKey: []string{"id"}, Label: "prior profile merges"},
 	{Table: "person_merge_events", PersonColumn: "merged_by_person_id", PrimaryKey: []string{"id"}, Label: "merge audit actors"},
 	{Table: "person_merge_events", PersonColumn: "reverted_by_person_id", PrimaryKey: []string{"id"}, Label: "merge restore actors"},
+	{Table: "person_oauth_identities", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "OAuth identities"},
 	{Table: "project_invites", PersonColumn: "accepted_by_person_id", PrimaryKey: []string{"id"}, Label: "project invitations"},
 	{Table: "project_members", PersonColumn: "person_id", PrimaryKey: []string{"project_id", "person_id"}, DuplicateKey: []string{"project_id"}, Label: "project memberships"},
 	{Table: "projects", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "created projects"},

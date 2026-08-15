@@ -50,8 +50,18 @@ type (
 		Spaces               SpacesConfig
 		CacheTTLSec          int
 		YouTube              YouTubeConfig
+		OAuth                OAuthConfig
 		Recordings           RecordingsConfig
 		TaxFormEncryptionKey string
+	}
+
+	OAuthConfig struct {
+		GitHub OAuthProviderConfig
+	}
+
+	OAuthProviderConfig struct {
+		ClientID     string
+		ClientSecret string
 	}
 
 	// YouTubeConfig holds the OAuth client + redirect that backs the

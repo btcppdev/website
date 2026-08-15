@@ -1176,6 +1176,21 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		Login(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/auth/oauth/github", func(w http.ResponseWriter, r *http.Request) {
+		GitHubOAuthStart(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/auth/oauth/github/callback", func(w http.ResponseWriter, r *http.Request) {
+		GitHubOAuthCallback(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/auth/oauth/github/confirm", func(w http.ResponseWriter, r *http.Request) {
+		GitHubOAuthConfirm(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/auth/oauth/github/confirm", func(w http.ResponseWriter, r *http.Request) {
+		GitHubOAuthConfirmAccept(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/auth/oauth/github/unlink", func(w http.ResponseWriter, r *http.Request) {
+		GitHubOAuthUnlink(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
 		AuthLanding(w, r, app)
 	}).Methods("GET")

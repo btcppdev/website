@@ -16,10 +16,12 @@ import (
 // `next` path. Used by every page guarded by auth.RequireRole when
 // the user isn't authenticated yet.
 type LoginPage struct {
-	Next         string
-	FlashMessage string
-	FlashError   string
-	Year         uint
+	Next          string
+	FlashMessage  string
+	FlashError    string
+	GitHubEnabled bool
+	GitHubURL     string
+	Year          uint
 }
 
 // Login renders the email-entry form (GET) and dispatches the
@@ -51,11 +53,15 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 
+	next := auth.SafeNext(r.URL.Query().Get("next"), "/dashboard")
+	githubEnabled := auth.NewGitHubOAuthProvider(ctx.Env).Enabled()
 	page := &LoginPage{
-		Next:         auth.SafeNext(r.URL.Query().Get("next"), "/dashboard"),
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		Year:         helpers.CurrentYear(),
+		Next:          next,
+		FlashMessage:  r.URL.Query().Get("flash"),
+		FlashError:    r.URL.Query().Get("error"),
+		GitHubEnabled: githubEnabled,
+		GitHubURL:     "/auth/oauth/github?next=" + url.QueryEscape(next),
+		Year:          helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "login.tmpl", page); err != nil {
 		ctx.Err.Printf("/login render: %s", err)
