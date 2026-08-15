@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -742,12 +743,20 @@ func DashboardEditSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *confi
 // link. A new email remains pending until this form creates its person row.
 func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	email, encHMAC, err := validateVolEmail(r, ctx)
+	encEmail := r.URL.Query().Get("em")
+	if err != nil {
+		if sessEmail := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey)); sessEmail != "" {
+			email = sessEmail
+			encHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
+			encEmail = base64.RawURLEncoding.EncodeToString([]byte(email))
+			err = nil
+		}
+	}
 	if err != nil {
 		ctx.Infos.Printf("/dashboard/speaker auth: %s", err)
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 		return
 	}
-	encEmail := r.URL.Query().Get("em")
 	nextURL := safeReturnTo(r.URL.Query().Get("next"))
 
 	resolution, err := getters.ResolvePersonByEmail(ctx, email)

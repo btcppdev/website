@@ -58,6 +58,17 @@
           <div class="person-email-row is-pending"><div><strong>{{ .Label }}</strong><span class="is-pending">COMING SOON</span><small>Sign-in is not configured on this environment.</small></div></div>
           {{ end }}
           {{ end }}
+          {{ if .Speaker.Nostr }}
+          <div class="person-email-row">
+            <div><strong>Nostr</strong><span class="is-primary">AVAILABLE</span><small>{{ .Speaker.Nostr }} · signatures can sign in</small></div>
+            <div class="person-email-actions"><a class="person-oauth-link" href="/dashboard/speaker">Edit key</a></div>
+          </div>
+          {{ else }}
+          <div class="person-email-row is-pending">
+            <div><strong>Nostr</strong><span class="is-pending">NOT LINKED</span><small>Add an npub to your profile before using Nostr sign-in.</small></div>
+            <div class="person-email-actions"><a class="person-oauth-link" href="/dashboard/speaker">Add npub</a></div>
+          </div>
+          {{ end }}
         </div>
       </div>
     </section>

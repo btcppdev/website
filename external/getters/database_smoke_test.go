@@ -140,6 +140,31 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 	}
 }
 
+func TestDatabaseSmokeNostrIdentityLookup(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	suffix := databaseSmokeSuffix()
+	const npub = "npub10elfcs4fr0l0r8af98jlmgdh9c8tcxjvz9qkw038js35mp4dma8qzvjptg"
+	const hexKey = "7e7e9c42a91bfef19fa929e5fda1b72e0ebc1a4c1141673e2794234d86addf4e"
+	firstID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Nostr Smoke " + suffix, Email: "nostr-" + suffix + "@example.test", Nostr: npub})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, firstID) })
+	person, err := FindPersonByNostrPubkey(ctx, hexKey)
+	if err != nil || person == nil || person.ID != firstID {
+		t.Fatalf("Nostr lookup = %+v, %v", person, err)
+	}
+
+	secondID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Nostr Duplicate " + suffix, Email: "nostr-duplicate-" + suffix + "@example.test", Nostr: "nostr:" + npub})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, secondID) })
+	if _, err := FindPersonByNostrPubkey(ctx, hexKey); !errors.Is(err, ErrNostrPubkeyConflict) {
+		t.Fatalf("duplicate Nostr lookup returned %v", err)
+	}
+}
+
 func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	ctx := databaseSmokeContext(t)
 	suffix := databaseSmokeSuffix()

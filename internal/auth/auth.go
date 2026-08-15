@@ -65,6 +65,7 @@ const (
 	MethodDiscord   Method = "discord"
 	MethodGitLab    Method = "gitlab"
 	MethodMLH       Method = "mlh"
+	MethodNostr     Method = "nostr"
 )
 
 var ErrAmbiguousEmail = errors.New("email belongs to multiple people")

@@ -1191,6 +1191,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/auth/oauth/{provider:github|discord|gitlab|mlh}/unlink", func(w http.ResponseWriter, r *http.Request) {
 		OAuthUnlink(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/auth/nostr/challenge", func(w http.ResponseWriter, r *http.Request) {
+		NostrChallenge(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/auth/nostr/verify", func(w http.ResponseWriter, r *http.Request) {
+		NostrVerify(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
 		AuthLanding(w, r, app)
 	}).Methods("GET")

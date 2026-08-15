@@ -78,6 +78,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		clearOAuthFlow(ctx, r, provider.Key())
 		clearPendingOAuthIdentity(ctx, r, provider.Key())
 	}
+	clearNostrChallenge(ctx, r)
 	ctx.Session.Remove(r.Context(), authMethodsCSRFKey)
 	auth.Logout(ctx, r)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
