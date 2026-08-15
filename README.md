@@ -126,6 +126,10 @@ callback from `HOST`. GitHub, Discord, and GitLab use S256 PKCE. MLH uses its
 documented confidential authorization-code flow. The app requests only basic
 identity/email scopes and never retains provider access or refresh tokens.
 
+Nostr sign-in needs no server configuration. It uses a one-time, five-minute
+NIP-98-style challenge signed by a NIP-07 browser extension. The signing pubkey
+must already match an npub (or hex key) on exactly one bitcoin++ profile.
+
 ## Deploy Testing
 
 Currently, we deploy the app using Digital Ocean, using the `Dockerfile`. Sometimes it's useful to test building changes locally. For this, I'd recommend using the `doctl` app.

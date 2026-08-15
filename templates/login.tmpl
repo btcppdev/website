@@ -31,8 +31,12 @@
               </div>
               <p class="mt-2 text-xs text-gray-500">Connected accounts sign in immediately. First-time links require one email confirmation.</p>
             </div>
-            <div class="flex items-center gap-3 mb-6 text-xs text-gray-400" aria-hidden="true"><span class="grow border-t border-gray-300"></span><span>OR</span><span class="grow border-t border-gray-300"></span></div>
             {{ end }}
+            <div class="mb-6">
+              <button type="button" data-nostr-login data-next="{{ .Next }}" class="inline-flex items-center bg-purple-950 text-white hover:text-purple-200 px-4 py-3 rounded-md">Sign in with Nostr</button>
+              <p data-nostr-status class="mt-2 text-xs text-gray-500">Signs a one-time request with the Nostr key already attached to your profile.</p>
+            </div>
+            <div class="flex items-center gap-3 mb-6 text-xs text-gray-400" aria-hidden="true"><span class="grow border-t border-gray-300"></span><span>OR</span><span class="grow border-t border-gray-300"></span></div>
             <form method="POST" action="/login">
               <input type="hidden" name="Next" value="{{ .Next }}" />
               <input id="Email"
@@ -49,5 +53,6 @@
     </div>
   </section>
   {{ block "footer" . }} {{ end }}
+  <script src="/static/js/nostr-login.js" defer></script>
 </body>
 </html>
