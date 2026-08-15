@@ -32,29 +32,31 @@
           {{ range .OAuthIdentities }}
           <div class="person-email-row">
             <div>
-              <strong>{{ if eq .Provider "github" }}GitHub @{{ .Username }}{{ else }}{{ .Provider }} · {{ .Username }}{{ end }}</strong>
+              <strong>{{ .Label }} · {{ .Identity.Username }}</strong>
               <span class="is-primary">CONNECTED</span>
-              {{ if .Email }}<small>{{ .Email }}{{ if .EmailVerified }} · verified by provider{{ end }}</small>{{ end }}
+              {{ if .Identity.Email }}<small>{{ .Identity.Email }}{{ if .Identity.EmailVerified }} · verified by provider{{ end }}</small>{{ end }}
             </div>
             <div class="person-email-actions">
-              <form method="POST" action="/auth/oauth/github/unlink">
+              <form method="POST" action="/auth/oauth/{{ .Identity.Provider }}/unlink">
                 <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
-                <input type="hidden" name="identity_id" value="{{ .ID }}">
+                <input type="hidden" name="identity_id" value="{{ .Identity.ID }}">
                 <button type="submit" class="is-danger">Unlink</button>
               </form>
             </div>
           </div>
           {{ end }}
-          {{ if .GitHubEnabled }}
+          {{ range .OAuthProviders }}
+          {{ if .Enabled }}
           <div class="person-email-row">
             <div>
-              <strong>GitHub</strong>
-              <small>Use an immutable GitHub account ID to sign in. Repository access is never requested.</small>
+              <strong>{{ .Label }}</strong>
+              <small>{{ .Description }}</small>
             </div>
-            <div class="person-email-actions"><a class="person-oauth-link" href="{{ .GitHubLinkURL }}">Connect GitHub</a></div>
+            <div class="person-email-actions"><a class="person-oauth-link" href="{{ .LinkURL }}">Connect</a></div>
           </div>
           {{ else }}
-          <div class="person-email-row is-pending"><div><strong>GitHub</strong><span class="is-pending">COMING SOON</span><small>GitHub sign-in is not configured on this environment.</small></div></div>
+          <div class="person-email-row is-pending"><div><strong>{{ .Label }}</strong><span class="is-pending">COMING SOON</span><small>Sign-in is not configured on this environment.</small></div></div>
+          {{ end }}
           {{ end }}
         </div>
       </div>

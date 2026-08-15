@@ -103,21 +103,28 @@ Note that the Github actions deployer uses Docker and isn't nix-aware, so for no
 CSS updates are made automatically by `dev-run`, so this shouldn't be too hard.
 
 
-## GitHub sign-in
+## Connected-account sign-in
 
-GitHub OAuth is optional and stays hidden on the login page until both values
-are configured:
+OAuth providers are optional and stay hidden on the login page until both
+values for that provider are configured:
 
 ```
 AUTH_GITHUB_CLIENT_ID=
 AUTH_GITHUB_CLIENT_SECRET=
+AUTH_DISCORD_CLIENT_ID=
+AUTH_DISCORD_CLIENT_SECRET=
+AUTH_GITLAB_CLIENT_ID=
+AUTH_GITLAB_CLIENT_SECRET=
+AUTH_MLH_CLIENT_ID=
+AUTH_MLH_CLIENT_SECRET=
 ```
 
 Use a dedicated OAuth App for each environment. Register the local callback as
-`http://localhost:8888/auth/oauth/github/callback`; production derives the
-equivalent callback from `HOST`. The app requests only `read:user` and
-`user:email`, uses S256 PKCE, and does not retain GitHub access tokens.
-
+`http://localhost:8888/auth/oauth/{provider}/callback`, where provider is
+`github`, `discord`, `gitlab`, or `mlh`; production derives the equivalent
+callback from `HOST`. GitHub, Discord, and GitLab use S256 PKCE. MLH uses its
+documented confidential authorization-code flow. The app requests only basic
+identity/email scopes and never retains provider access or refresh tokens.
 
 ## Deploy Testing
 

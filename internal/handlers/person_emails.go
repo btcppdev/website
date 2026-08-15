@@ -52,17 +52,24 @@ func DashboardPersonEmails(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Error(w, "Unable to load sign-in methods", http.StatusInternalServerError)
 		return
 	}
-	githubEnabled := auth.NewGitHubOAuthProvider(ctx.Env).Enabled()
+	identityViews := make([]*OAuthIdentityView, 0, len(oauthIdentities))
+	for _, identity := range oauthIdentities {
+		provider := auth.OAuthProviderByKey(ctx.Env, identity.Provider)
+		label := identity.Provider
+		if provider != nil {
+			label = provider.Label()
+		}
+		identityViews = append(identityViews, &OAuthIdentityView{Identity: identity, Label: label})
+	}
 	w.Header().Set("Cache-Control", "private, no-store")
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_person_emails.tmpl", &PersonEmailsPage{
 		Speaker:         id.Speaker,
 		Emails:          addresses,
-		OAuthIdentities: oauthIdentities,
+		OAuthIdentities: identityViews,
+		OAuthProviders:  oauthProviderViews(ctx.Env, "/dashboard/emails"),
 		PendingEmails:   pendingEmails,
 		MergeRequests:   mergeRequests,
 		AuthMethodsCSRF: csrf,
-		GitHubEnabled:   githubEnabled,
-		GitHubLinkURL:   "/auth/oauth/github?next=" + url.QueryEscape("/dashboard/emails"),
 		FlashMessage:    r.URL.Query().Get("flash"),
 		FlashError:      r.URL.Query().Get("error"),
 		Year:            helpers.CurrentYear(),

@@ -125,15 +125,15 @@ func MarkOAuthIdentityLogin(ctx *config.AppContext, identityID string) error {
 	return nil
 }
 
-func UnlinkOAuthIdentity(ctx *config.AppContext, personID, identityID string) (*types.PersonOAuthIdentity, error) {
+func UnlinkOAuthIdentity(ctx *config.AppContext, personID, provider, identityID string) (*types.PersonOAuthIdentity, error) {
 	var identity types.PersonOAuthIdentity
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		DELETE FROM person_oauth_identities
-		WHERE id = $1::uuid AND person_id = $2::uuid
+		WHERE id = $1::uuid AND person_id = $2::uuid AND provider = $3
 		RETURNING id::text, person_id::text, provider, provider_subject,
 			provider_username, coalesce(provider_email::text, ''),
 			provider_email_verified, avatar_url, linked_at, last_login_at, updated_at
-	`, identityID, personID).Scan(
+	`, identityID, personID, strings.ToLower(strings.TrimSpace(provider))).Scan(
 		&identity.ID, &identity.PersonID, &identity.Provider, &identity.Subject,
 		&identity.Username, &identity.Email, &identity.EmailVerified,
 		&identity.AvatarURL, &identity.LinkedAt, &identity.LastLoginAt, &identity.UpdatedAt,

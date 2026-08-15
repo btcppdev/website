@@ -3,6 +3,7 @@ package envconfig
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -169,14 +170,19 @@ func TestLoadUsesCurrentEasyshipDefaults(t *testing.T) {
 	}
 }
 
-func TestLoadReadsGitHubAuthConfig(t *testing.T) {
-	t.Setenv("AUTH_GITHUB_CLIENT_ID", "github-client")
-	t.Setenv("AUTH_GITHUB_CLIENT_SECRET", "github-secret")
+func TestLoadReadsOAuthProviderConfigs(t *testing.T) {
+	for _, provider := range []string{"GITHUB", "DISCORD", "GITLAB", "MLH"} {
+		t.Setenv("AUTH_"+provider+"_CLIENT_ID", strings.ToLower(provider)+"-client")
+		t.Setenv("AUTH_"+provider+"_CLIENT_SECRET", strings.ToLower(provider)+"-secret")
+	}
 	env, err := Load(filepath.Join(t.TempDir(), ".env"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if env.OAuth.GitHub.ClientID != "github-client" || env.OAuth.GitHub.ClientSecret != "github-secret" {
 		t.Fatalf("GitHub OAuth config = %+v", env.OAuth.GitHub)
+	}
+	if env.OAuth.Discord.ClientID != "discord-client" || env.OAuth.GitLab.ClientID != "gitlab-client" || env.OAuth.MLH.ClientID != "mlh-client" {
+		t.Fatalf("OAuth config = %+v", env.OAuth)
 	}
 }

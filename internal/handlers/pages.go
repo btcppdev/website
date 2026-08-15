@@ -971,15 +971,27 @@ type EditSpeakerPage struct {
 type PersonEmailsPage struct {
 	Speaker         *types.Speaker
 	Emails          []*types.PersonEmail
-	OAuthIdentities []*types.PersonOAuthIdentity
+	OAuthIdentities []*OAuthIdentityView
+	OAuthProviders  []*OAuthProviderView
 	PendingEmails   []string
 	MergeRequests   []*types.PersonMergeRequest
 	AuthMethodsCSRF string
-	GitHubEnabled   bool
-	GitHubLinkURL   string
 	FlashMessage    string
 	FlashError      string
 	Year            uint
+}
+
+type OAuthIdentityView struct {
+	Identity *types.PersonOAuthIdentity
+	Label    string
+}
+
+type OAuthProviderView struct {
+	Key         string
+	Label       string
+	Enabled     bool
+	LinkURL     string
+	Description string
 }
 
 type EditSpeakerConfPage struct {

@@ -107,6 +107,18 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 				ClientID:     os.Getenv("AUTH_GITHUB_CLIENT_ID"),
 				ClientSecret: os.Getenv("AUTH_GITHUB_CLIENT_SECRET"),
 			},
+			Discord: types.OAuthProviderConfig{
+				ClientID:     os.Getenv("AUTH_DISCORD_CLIENT_ID"),
+				ClientSecret: os.Getenv("AUTH_DISCORD_CLIENT_SECRET"),
+			},
+			GitLab: types.OAuthProviderConfig{
+				ClientID:     os.Getenv("AUTH_GITLAB_CLIENT_ID"),
+				ClientSecret: os.Getenv("AUTH_GITLAB_CLIENT_SECRET"),
+			},
+			MLH: types.OAuthProviderConfig{
+				ClientID:     os.Getenv("AUTH_MLH_CLIENT_ID"),
+				ClientSecret: os.Getenv("AUTH_MLH_CLIENT_SECRET"),
+			},
 		},
 		Recordings: types.RecordingsConfig{
 			AutopublishEnabled: envBool("RECORDINGS_AUTOPUBLISH_ENABLED", false),

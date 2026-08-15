@@ -62,6 +62,9 @@ type Method string
 const (
 	MethodEmailLink Method = "email_link"
 	MethodGitHub    Method = "github"
+	MethodDiscord   Method = "discord"
+	MethodGitLab    Method = "gitlab"
+	MethodMLH       Method = "mlh"
 )
 
 var ErrAmbiguousEmail = errors.New("email belongs to multiple people")

@@ -56,7 +56,10 @@ type (
 	}
 
 	OAuthConfig struct {
-		GitHub OAuthProviderConfig
+		GitHub  OAuthProviderConfig
+		Discord OAuthProviderConfig
+		GitLab  OAuthProviderConfig
+		MLH     OAuthProviderConfig
 	}
 
 	OAuthProviderConfig struct {

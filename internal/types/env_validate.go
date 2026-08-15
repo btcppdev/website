@@ -101,10 +101,20 @@ func (env *EnvConfig) Validate() error {
 			missing = append(missing, "Spaces config for X uploader")
 		}
 	}
-	githubID := strings.TrimSpace(env.OAuth.GitHub.ClientID)
-	githubSecret := strings.TrimSpace(env.OAuth.GitHub.ClientSecret)
-	if (githubID == "") != (githubSecret == "") {
-		missing = append(missing, "both AUTH_GITHUB_CLIENT_ID and AUTH_GITHUB_CLIENT_SECRET")
+	for _, provider := range []struct {
+		name   string
+		config OAuthProviderConfig
+	}{
+		{"GITHUB", env.OAuth.GitHub},
+		{"DISCORD", env.OAuth.Discord},
+		{"GITLAB", env.OAuth.GitLab},
+		{"MLH", env.OAuth.MLH},
+	} {
+		clientID := strings.TrimSpace(provider.config.ClientID)
+		clientSecret := strings.TrimSpace(provider.config.ClientSecret)
+		if (clientID == "") != (clientSecret == "") {
+			missing = append(missing, "both AUTH_"+provider.name+"_CLIENT_ID and AUTH_"+provider.name+"_CLIENT_SECRET")
+		}
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required config: %s", strings.Join(missing, ", "))
