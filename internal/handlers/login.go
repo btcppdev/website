@@ -9,6 +9,7 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
+	"btcpp-web/internal/types"
 )
 
 // LoginPage drives /login — an email-entry form that sends a
@@ -16,12 +17,11 @@ import (
 // `next` path. Used by every page guarded by auth.RequireRole when
 // the user isn't authenticated yet.
 type LoginPage struct {
-	Next          string
-	FlashMessage  string
-	FlashError    string
-	GitHubEnabled bool
-	GitHubURL     string
-	Year          uint
+	Next           string
+	FlashMessage   string
+	FlashError     string
+	OAuthProviders []*OAuthProviderView
+	Year           uint
 }
 
 // Login renders the email-entry form (GET) and dispatches the
@@ -54,14 +54,9 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 
 	next := auth.SafeNext(r.URL.Query().Get("next"), "/dashboard")
-	githubEnabled := auth.NewGitHubOAuthProvider(ctx.Env).Enabled()
 	page := &LoginPage{
-		Next:          next,
-		FlashMessage:  r.URL.Query().Get("flash"),
-		FlashError:    r.URL.Query().Get("error"),
-		GitHubEnabled: githubEnabled,
-		GitHubURL:     "/auth/oauth/github?next=" + url.QueryEscape(next),
-		Year:          helpers.CurrentYear(),
+		Next: next, FlashMessage: r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"),
+		OAuthProviders: enabledOAuthProviderViews(ctx.Env, next), Year: helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "login.tmpl", page); err != nil {
 		ctx.Err.Printf("/login render: %s", err)
@@ -79,6 +74,40 @@ func AuthLanding(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 // LogoutHandler clears the auth session and bounces home. POST so
 // it isn't trivially CSRF'd via an <img src=...> trick.
 func LogoutHandler(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	for _, provider := range auth.OAuthProviders(ctx.Env) {
+		clearOAuthFlow(ctx, r, provider.Key())
+		clearPendingOAuthIdentity(ctx, r, provider.Key())
+	}
+	ctx.Session.Remove(r.Context(), authMethodsCSRFKey)
 	auth.Logout(ctx, r)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func oauthProviderViews(env *types.EnvConfig, next string) []*OAuthProviderView {
+	descriptions := map[string]string{
+		"github":  "Uses your immutable GitHub account ID. Repository access is never requested.",
+		"discord": "Uses your Discord account ID. Server and message access is never requested.",
+		"gitlab":  "Uses your GitLab account ID. Repository access is never requested.",
+		"mlh":     "Uses your Major League Hacking profile and primary email.",
+	}
+	providers := auth.OAuthProviders(env)
+	views := make([]*OAuthProviderView, 0, len(providers))
+	for _, provider := range providers {
+		views = append(views, &OAuthProviderView{
+			Key: provider.Key(), Label: provider.Label(), Enabled: provider.Enabled(),
+			LinkURL:     "/auth/oauth/" + provider.Key() + "?next=" + url.QueryEscape(next),
+			Description: descriptions[provider.Key()],
+		})
+	}
+	return views
+}
+
+func enabledOAuthProviderViews(env *types.EnvConfig, next string) []*OAuthProviderView {
+	var enabled []*OAuthProviderView
+	for _, provider := range oauthProviderViews(env, next) {
+		if provider.Enabled {
+			enabled = append(enabled, provider)
+		}
+	}
+	return enabled
 }

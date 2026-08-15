@@ -24,10 +24,12 @@
               <p class="text-sm text-red-800">{{ .FlashError }}</p>
             </div>
             {{ end }}
-            {{ if .GitHubEnabled }}
-            <div class="mb-6">
-              <a class="inline-flex items-center bg-gray-900 text-white hover:text-gray-200 px-4 py-3 rounded-md" href="{{ .GitHubURL }}">Continue with GitHub</a>
-              <p class="mt-2 text-xs text-gray-500">Already linked GitHub accounts sign in immediately. First-time links require one email confirmation.</p>
+            {{ if .OAuthProviders }}
+            <div class="mb-3">
+              <div class="flex flex-wrap gap-2">
+                {{ range .OAuthProviders }}<a class="inline-flex items-center bg-gray-900 text-white hover:text-gray-200 px-4 py-3 rounded-md" href="{{ .LinkURL }}">Continue with {{ .Label }}</a>{{ end }}
+              </div>
+              <p class="mt-2 text-xs text-gray-500">Connected accounts sign in immediately. First-time links require one email confirmation.</p>
             </div>
             <div class="flex items-center gap-3 mb-6 text-xs text-gray-400" aria-hidden="true"><span class="grow border-t border-gray-300"></span><span>OR</span><span class="grow border-t border-gray-300"></span></div>
             {{ end }}

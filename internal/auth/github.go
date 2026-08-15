@@ -45,6 +45,10 @@ func NewGitHubOAuthProvider(env *types.EnvConfig) *GitHubOAuthProvider {
 	return provider
 }
 
+func (provider *GitHubOAuthProvider) Key() string    { return OAuthProviderGitHub }
+func (provider *GitHubOAuthProvider) Label() string  { return "GitHub" }
+func (provider *GitHubOAuthProvider) UsesPKCE() bool { return true }
+
 func (provider *GitHubOAuthProvider) Enabled() bool {
 	return provider != nil && provider.config.ClientID != "" && provider.config.ClientSecret != ""
 }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Link {{ .ProviderName }} · bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-profile-edit-page">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="profile-edit-shell person-emails-page">
+    <div class="profile-edit-back"><a href="/dashboard/emails">← Account settings</a></div>
+    <header class="profile-edit-hero">
+      <p class="profile-edit-tag">§ SIGN-IN METHOD</p>
+      <h1>Link <span>{{ .ProviderName }}.</span></h1>
+      <p>Confirm that {{ .ProviderName }} {{ .Identity.Username }} should sign in to the bitcoin++ profile for {{ .Speaker.Name }}.</p>
+    </header>
+    <section class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">↗</div>
+      <div class="profile-edit-section__body">
+        <div class="profile-edit-section__head"><div><p>§ VERIFIED BY {{ .ProviderName }}</p><h2>{{ .Identity.Username }}</h2></div></div>
+        <div class="person-email-list">
+          <div class="person-email-row"><div><strong>Account ID {{ .Identity.Subject }}</strong>{{ if .Identity.Email }}<small>{{ .Identity.Email }}{{ if .Identity.EmailVerified }} · verified{{ end }}</small>{{ end }}</div></div>
+        </div>
+        <form method="POST" action="/auth/oauth/{{ .ProviderKey }}/confirm" class="person-email-add">
+          <input type="hidden" name="csrf" value="{{ .CSRF }}">
+          <button type="submit">Link {{ .ProviderName }} to this profile</button>
+          <a href="/dashboard/emails">Cancel</a>
+        </form>
+      </div>
+    </section>
+  </main>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

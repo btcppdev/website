@@ -99,14 +99,24 @@ func TestEnvConfigApplyDefaultsSeparatesXProfileObjects(t *testing.T) {
 	}
 }
 
-func TestEnvConfigValidateRejectsPartialGitHubOAuthConfig(t *testing.T) {
-	base := EnvConfig{Port: "8888", Host: "localhost"}
-	base.OAuth.GitHub.ClientID = "client"
-	if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "AUTH_GITHUB_CLIENT_ID") {
-		t.Fatalf("partial GitHub client config returned %v", err)
-	}
-	base.OAuth.GitHub.ClientSecret = "secret"
-	if err := base.Validate(); err != nil {
-		t.Fatalf("complete GitHub config returned %v", err)
+func TestEnvConfigValidateRejectsPartialOAuthConfig(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		set  func(*EnvConfig, OAuthProviderConfig)
+	}{
+		{"GITHUB", func(env *EnvConfig, config OAuthProviderConfig) { env.OAuth.GitHub = config }},
+		{"DISCORD", func(env *EnvConfig, config OAuthProviderConfig) { env.OAuth.Discord = config }},
+		{"GITLAB", func(env *EnvConfig, config OAuthProviderConfig) { env.OAuth.GitLab = config }},
+		{"MLH", func(env *EnvConfig, config OAuthProviderConfig) { env.OAuth.MLH = config }},
+	} {
+		base := EnvConfig{Port: "8888", Host: "localhost"}
+		test.set(&base, OAuthProviderConfig{ClientID: "client"})
+		if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "AUTH_"+test.name+"_CLIENT_ID") {
+			t.Fatalf("partial %s client config returned %v", test.name, err)
+		}
+		test.set(&base, OAuthProviderConfig{ClientID: "client", ClientSecret: "secret"})
+		if err := base.Validate(); err != nil {
+			t.Fatalf("complete %s config returned %v", test.name, err)
+		}
 	}
 }
