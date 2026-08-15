@@ -103,6 +103,22 @@ Note that the Github actions deployer uses Docker and isn't nix-aware, so for no
 CSS updates are made automatically by `dev-run`, so this shouldn't be too hard.
 
 
+## GitHub sign-in
+
+GitHub OAuth is optional and stays hidden on the login page until both values
+are configured:
+
+```
+AUTH_GITHUB_CLIENT_ID=
+AUTH_GITHUB_CLIENT_SECRET=
+```
+
+Use a dedicated OAuth App for each environment. Register the local callback as
+`http://localhost:8888/auth/oauth/github/callback`; production derives the
+equivalent callback from `HOST`. The app requests only `read:user` and
+`user:email`, uses S256 PKCE, and does not retain GitHub access tokens.
+
+
 ## Deploy Testing
 
 Currently, we deploy the app using Digital Ocean, using the `Dockerfile`. Sometimes it's useful to test building changes locally. For this, I'd recommend using the `doctl` app.

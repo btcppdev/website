@@ -14,6 +14,29 @@ type PersonEmail struct {
 	UpdatedAt          time.Time
 }
 
+type PersonOAuthIdentity struct {
+	ID            string
+	PersonID      string
+	Provider      string
+	Subject       string
+	Username      string
+	Email         string
+	EmailVerified bool
+	AvatarURL     string
+	LinkedAt      time.Time
+	LastLoginAt   *time.Time
+	UpdatedAt     time.Time
+}
+
+type AuthAuditEvent struct {
+	PersonID      string
+	Method        string
+	Event         string
+	RemoteAddress string
+	UserAgent     string
+	Metadata      map[string]any
+}
+
 type PersonEmailConflict struct {
 	Email      string
 	PersonID   string

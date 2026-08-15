@@ -1703,6 +1703,21 @@
 	text-underline-offset: 3px;
 }
 
+.person-oauth-link {
+	display: inline-flex;
+	align-items: center;
+	border: 1px solid #111827;
+	background: #111827;
+	color: #fff;
+	padding: 9px 12px;
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.person-oauth-link:hover {
+	color: #e5e7eb;
+}
+
 .person-email-actions button:disabled {
 	opacity: .45;
 	cursor: not-allowed;

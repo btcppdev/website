@@ -101,6 +101,11 @@ func (env *EnvConfig) Validate() error {
 			missing = append(missing, "Spaces config for X uploader")
 		}
 	}
+	githubID := strings.TrimSpace(env.OAuth.GitHub.ClientID)
+	githubSecret := strings.TrimSpace(env.OAuth.GitHub.ClientSecret)
+	if (githubID == "") != (githubSecret == "") {
+		missing = append(missing, "both AUTH_GITHUB_CLIENT_ID and AUTH_GITHUB_CLIENT_SECRET")
+	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required config: %s", strings.Join(missing, ", "))
 	}

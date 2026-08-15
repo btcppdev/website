@@ -168,3 +168,15 @@ func TestLoadUsesCurrentEasyshipDefaults(t *testing.T) {
 		t.Fatalf("Easyship API version = %q", env.Easyship.APIVersion)
 	}
 }
+
+func TestLoadReadsGitHubAuthConfig(t *testing.T) {
+	t.Setenv("AUTH_GITHUB_CLIENT_ID", "github-client")
+	t.Setenv("AUTH_GITHUB_CLIENT_SECRET", "github-secret")
+	env, err := Load(filepath.Join(t.TempDir(), ".env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.OAuth.GitHub.ClientID != "github-client" || env.OAuth.GitHub.ClientSecret != "github-secret" {
+		t.Fatalf("GitHub OAuth config = %+v", env.OAuth.GitHub)
+	}
+}

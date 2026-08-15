@@ -2,6 +2,7 @@ package getters
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -156,7 +157,12 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	refAfter := "merge-after-" + suffix
 	var eventID string
 	var mergeRequestIDs []string
+	var oauthIdentityID string
+	var authAuditEventID string
 	t.Cleanup(func() {
+		if authAuditEventID != "" {
+			_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM auth_audit_events WHERE id = $1::uuid`, authAuditEventID)
+		}
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM registrations WHERE ref_id = ANY($1::text[])`, []string{refBefore, refAfter})
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people_roles WHERE person_id = ANY($1::uuid[])`, []string{canonicalID, sourceID})
 		if len(mergeRequestIDs) > 0 {
@@ -167,6 +173,25 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 		}
 		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id = ANY($1::uuid[])`, []string{canonicalID, sourceID})
 	})
+	linkedOAuth, err := LinkOAuthIdentity(ctx, sourceID, &types.PersonOAuthIdentity{
+		Provider: "github", Subject: "smoke-" + suffix, Username: "merge-source-" + suffix,
+		Email: sourceEmail, EmailVerified: true,
+	})
+	if err != nil {
+		t.Fatalf("link source OAuth identity: %v", err)
+	}
+	if _, err := LinkOAuthIdentity(ctx, canonicalID, &types.PersonOAuthIdentity{
+		Provider: "github", Subject: "smoke-" + suffix, Username: "attacker",
+	}); !errors.Is(err, ErrOAuthIdentityLinked) {
+		t.Fatalf("link another person's OAuth identity returned %v, want ErrOAuthIdentityLinked", err)
+	}
+	oauthIdentityID = linkedOAuth.ID
+	if err := RecordAuthAuditEvent(ctx, &types.AuthAuditEvent{PersonID: sourceID, Method: "github", Event: "smoke_login"}); err != nil {
+		t.Fatalf("record source auth audit: %v", err)
+	}
+	if err := ctx.DB.QueryRow(context.Background(), `SELECT id::text FROM auth_audit_events WHERE person_id = $1::uuid AND event = 'smoke_login'`, sourceID).Scan(&authAuditEventID); err != nil {
+		t.Fatalf("load source auth audit: %v", err)
+	}
 
 	if _, err := ctx.DB.Exec(context.Background(), `
 		INSERT INTO registrations (ref_id, email, item_bought, person_id)
@@ -256,6 +281,14 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	if registrationPersonID != canonicalID || itemBought != "source ticket" {
 		t.Fatalf("moved registration = %s/%s, want %s/source ticket", registrationPersonID, itemBought, canonicalID)
 	}
+	mergedOAuth, err := FindOAuthIdentity(ctx, "github", "smoke-"+suffix)
+	if err != nil || mergedOAuth == nil || mergedOAuth.PersonID != canonicalID || mergedOAuth.ID != oauthIdentityID {
+		t.Fatalf("merged OAuth identity = %+v, %v", mergedOAuth, err)
+	}
+	var mergedAuditPersonID string
+	if err := ctx.DB.QueryRow(context.Background(), `SELECT person_id::text FROM auth_audit_events WHERE id = $1::uuid`, authAuditEventID).Scan(&mergedAuditPersonID); err != nil || mergedAuditPersonID != canonicalID {
+		t.Fatalf("merged auth audit owner = %q, %v", mergedAuditPersonID, err)
+	}
 	if _, err := ctx.DB.Exec(context.Background(), `
 		INSERT INTO registrations (ref_id, email, item_bought, person_id)
 		VALUES ($1, $2::citext, 'post-merge ticket', $3::uuid)
@@ -297,6 +330,14 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	}
 	if registrationPersonID != sourceID || itemBought != "source ticket" {
 		t.Fatalf("restored registration = %s/%s, want %s/source ticket", registrationPersonID, itemBought, sourceID)
+	}
+	restoredOAuth, err := FindOAuthIdentity(ctx, "github", "smoke-"+suffix)
+	if err != nil || restoredOAuth == nil || restoredOAuth.PersonID != sourceID || restoredOAuth.ID != oauthIdentityID {
+		t.Fatalf("restored OAuth identity = %+v, %v", restoredOAuth, err)
+	}
+	var restoredAuditPersonID string
+	if err := ctx.DB.QueryRow(context.Background(), `SELECT person_id::text FROM auth_audit_events WHERE id = $1::uuid`, authAuditEventID).Scan(&restoredAuditPersonID); err != nil || restoredAuditPersonID != sourceID {
+		t.Fatalf("restored auth audit owner = %q, %v", restoredAuditPersonID, err)
 	}
 	if err := ctx.DB.QueryRow(context.Background(), `SELECT person_id::text FROM registrations WHERE ref_id = $1`, refAfter).Scan(&registrationPersonID); err != nil {
 		t.Fatalf("load retained registration: %v", err)
