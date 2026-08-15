@@ -762,7 +762,7 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 	sp := resolution.Person
 	if sp != nil && ctx.Session.GetString(r.Context(), auth.SessionPersonIDKey) == "" {
-		if err := auth.LoginPerson(ctx, r, sp.ID, email); err != nil {
+		if err := auth.LoginPersonWithEmail(ctx, r, sp.ID, email); err != nil {
 			ctx.Err.Printf("/dashboard/speaker establish person session %s: %s", sp.ID, err)
 			http.Error(w, "session error", http.StatusInternalServerError)
 			return
@@ -1021,7 +1021,7 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			http.StatusSeeOther)
 		return
 	}
-	if err := auth.LoginPerson(ctx, r, personID, email); err != nil {
+	if err := auth.LoginPersonWithEmail(ctx, r, personID, email); err != nil {
 		ctx.Err.Printf("/dashboard/speaker login new person %s: %s", personID, err)
 		http.Error(w, "Profile created, but the session could not be updated. Sign in again.", http.StatusInternalServerError)
 		return

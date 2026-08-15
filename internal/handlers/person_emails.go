@@ -164,7 +164,7 @@ func PersonMergeConfirmationAccept(w http.ResponseWriter, r *http.Request, ctx *
 		return
 	}
 	invalidateWhoIsDirectoryCache()
-	if err := auth.LoginPerson(ctx, r, request.RequesterPersonID, request.TargetEmail); err != nil {
+	if err := auth.LoginPersonWithEmail(ctx, r, request.RequesterPersonID, request.TargetEmail); err != nil {
 		ctx.Err.Printf("self-service merge login %s: %s", request.ID, err)
 	}
 	request.Status = "merged"
@@ -412,7 +412,7 @@ func DashboardPersonEmailVerifyConfirm(w http.ResponseWriter, r *http.Request, c
 		renderPersonEmailVerification(w, ctx, &PersonEmailVerificationPage{Token: token, Error: err.Error(), Year: helpers.CurrentYear()})
 		return
 	}
-	if err := auth.LoginPerson(ctx, r, personID, email); err != nil {
+	if err := auth.LoginPersonWithEmail(ctx, r, personID, email); err != nil {
 		ctx.Err.Printf("/dashboard/emails verified login %s: %s", personID, err)
 		http.Error(w, "Email verified, but the session could not be updated. Sign in again.", http.StatusInternalServerError)
 		return
@@ -442,7 +442,7 @@ func DashboardPersonEmailPrimary(w http.ResponseWriter, r *http.Request, ctx *co
 		redirectPersonEmails(w, r, "", err.Error())
 		return
 	}
-	if err := auth.LoginPerson(ctx, r, id.PersonID, email); err != nil {
+	if err := auth.UpdateSessionEmail(ctx, r, id.PersonID, email); err != nil {
 		ctx.Err.Printf("/dashboard/emails primary session %s: %s", id.PersonID, err)
 	}
 	redirectPersonEmails(w, r, email+" is now your primary email.", "")
@@ -464,7 +464,7 @@ func DashboardPersonEmailRemove(w http.ResponseWriter, r *http.Request, ctx *con
 	}
 	primary, err := getters.GetPrimaryPersonEmail(ctx, id.PersonID)
 	if err == nil && primary != "" {
-		if err := auth.LoginPerson(ctx, r, id.PersonID, primary); err != nil {
+		if err := auth.UpdateSessionEmail(ctx, r, id.PersonID, primary); err != nil {
 			ctx.Err.Printf("/dashboard/emails removal session %s: %s", id.PersonID, err)
 		}
 	}

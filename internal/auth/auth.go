@@ -32,6 +32,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
@@ -45,6 +46,21 @@ const (
 	SessionEmailKey = "auth_email"
 	// SessionPersonIDKey is the durable identity for established accounts.
 	SessionPersonIDKey = "auth_person_id"
+	// SessionMethodKey records how the current session proved its identity.
+	SessionMethodKey = "auth_method"
+	// SessionAuthenticatedAtKey records when the current proof completed. It is
+	// intentionally separate from the session's creation time so future
+	// sensitive actions can require a recent authentication.
+	SessionAuthenticatedAtKey = "auth_authenticated_at"
+)
+
+// Method identifies the credential or provider used to authenticate a
+// session. Provider implementations may define additional values alongside
+// the built-in methods.
+type Method string
+
+const (
+	MethodEmailLink Method = "email_link"
 )
 
 var ErrAmbiguousEmail = errors.New("email belongs to multiple people")
@@ -80,7 +96,11 @@ type Spec struct {
 
 // Identity is the authed user, resolved on each request.
 type Identity struct {
-	PersonID     string
+	PersonID        string
+	Method          Method
+	AuthenticatedAt time.Time
+	// LoginEmail is retained for email-link compatibility and may be empty for
+	// other authentication methods.
 	LoginEmail   string
 	PrimaryEmail string
 	// Email is retained while call sites move to an explicit login or primary
@@ -232,24 +252,47 @@ func LoginEmail(ctx *config.AppContext, r *http.Request, email string) error {
 			return err
 		}
 	}
-	if err := ctx.Session.RenewToken(r.Context()); err != nil {
-		return fmt.Errorf("renew session: %w", err)
-	}
-	ctx.Session.Remove(r.Context(), SessionPersonIDKey)
-	ctx.Session.Put(r.Context(), SessionEmailKey, email)
+	personID := ""
 	if resolution.Alias != nil {
-		ctx.Session.Put(r.Context(), SessionPersonIDKey, resolution.Alias.PersonID)
+		personID = resolution.Alias.PersonID
 	}
-	return nil
+	return establishSession(ctx, r, personID, email, MethodEmailLink)
 }
 
-// LoginPerson upgrades a pending session after profile creation without
-// requiring another magic link.
-func LoginPerson(ctx *config.AppContext, r *http.Request, personID, loginEmail string) error {
+// LoginPerson establishes a person-backed session using a non-email
+// authentication method. It is the common entry point for passkeys, OAuth,
+// passwords, Nostr signatures, and future methods.
+func LoginPerson(ctx *config.AppContext, r *http.Request, personID string, method Method) error {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return errors.New("LoginPerson: person is required")
+	}
+	return establishSession(ctx, r, personID, "", method)
+}
+
+// LoginPersonWithEmail upgrades a pending email-link session after profile
+// creation without requiring another magic link.
+func LoginPersonWithEmail(ctx *config.AppContext, r *http.Request, personID, loginEmail string) error {
 	personID = strings.TrimSpace(personID)
 	loginEmail = strings.ToLower(strings.TrimSpace(loginEmail))
 	if personID == "" || loginEmail == "" {
-		return errors.New("LoginPerson: person and email are required")
+		return errors.New("LoginPersonWithEmail: person and email are required")
+	}
+	return establishSession(ctx, r, personID, loginEmail, MethodEmailLink)
+}
+
+// UpdateSessionEmail refreshes the legacy email value after an authenticated
+// person changes their primary email. It rotates the session token but
+// deliberately preserves the original method and authentication time: an
+// account setting change is not a new proof of identity.
+func UpdateSessionEmail(ctx *config.AppContext, r *http.Request, personID, loginEmail string) error {
+	if ctx == nil || ctx.Session == nil {
+		return errors.New("UpdateSessionEmail: session manager is required")
+	}
+	personID = strings.TrimSpace(personID)
+	loginEmail = strings.ToLower(strings.TrimSpace(loginEmail))
+	if personID == "" || loginEmail == "" {
+		return errors.New("UpdateSessionEmail: person and email are required")
 	}
 	if err := ctx.Session.RenewToken(r.Context()); err != nil {
 		return fmt.Errorf("renew session: %w", err)
@@ -259,21 +302,57 @@ func LoginPerson(ctx *config.AppContext, r *http.Request, personID, loginEmail s
 	return nil
 }
 
-// Logout drops both established and pending identity state.
+func establishSession(ctx *config.AppContext, r *http.Request, personID, loginEmail string, method Method) error {
+	if ctx == nil || ctx.Session == nil {
+		return errors.New("establishSession: session manager is required")
+	}
+	method = Method(strings.TrimSpace(string(method)))
+	if method == "" {
+		return errors.New("establishSession: authentication method is required")
+	}
+	if err := ctx.Session.RenewToken(r.Context()); err != nil {
+		return fmt.Errorf("renew session: %w", err)
+	}
+	ctx.Session.Remove(r.Context(), SessionPersonIDKey)
+	ctx.Session.Remove(r.Context(), SessionEmailKey)
+	ctx.Session.Remove(r.Context(), SessionMethodKey)
+	ctx.Session.Remove(r.Context(), SessionAuthenticatedAtKey)
+	if personID != "" {
+		ctx.Session.Put(r.Context(), SessionPersonIDKey, personID)
+	}
+	if loginEmail != "" {
+		ctx.Session.Put(r.Context(), SessionEmailKey, loginEmail)
+	}
+	ctx.Session.Put(r.Context(), SessionMethodKey, string(method))
+	ctx.Session.Put(r.Context(), SessionAuthenticatedAtKey, time.Now().UTC().Format(time.RFC3339Nano))
+	return nil
+}
+
+// Logout drops both established and pending identity state, including the
+// proof metadata used for future step-up authentication.
 func Logout(ctx *config.AppContext, r *http.Request) {
 	ctx.Session.Remove(r.Context(), SessionPersonIDKey)
 	ctx.Session.Remove(r.Context(), SessionEmailKey)
+	ctx.Session.Remove(r.Context(), SessionMethodKey)
+	ctx.Session.Remove(r.Context(), SessionAuthenticatedAtKey)
 }
 
-// Resolve looks up the current request's Identity. Returns nil
-// (no error) when there's no authed email in the session — callers
-// should treat that as "not logged in." A non-nil error means the
-// authed email exists but the lookup misfired.
+// Resolve looks up the current request's Identity. Returns nil (no error) when
+// the session has neither a person nor a pending email identity. A non-nil
+// error means the stored identity exists but could not be resolved.
 func Resolve(r *http.Request, ctx *config.AppContext) (*Identity, error) {
 	personID := ctx.Session.GetString(r.Context(), SessionPersonIDKey)
 	loginEmail := ctx.Session.GetString(r.Context(), SessionEmailKey)
+	method := Method(ctx.Session.GetString(r.Context(), SessionMethodKey))
+	authenticatedAt := sessionAuthenticatedAt(ctx, r)
 	if personID == "" && loginEmail == "" {
 		return nil, nil
+	}
+	// Sessions created before method tracking was deployed were all email-link
+	// sessions. Preserve them without inventing a recent authentication time.
+	if method == "" && loginEmail != "" {
+		method = MethodEmailLink
+		ctx.Session.Put(r.Context(), SessionMethodKey, string(method))
 	}
 	if personID == "" {
 		resolution, err := getters.ResolvePersonByEmail(ctx, loginEmail)
@@ -310,21 +389,35 @@ func Resolve(r *http.Request, ctx *config.AppContext) (*Identity, error) {
 	}
 	if loginEmail == "" {
 		loginEmail = primaryEmail
+		if loginEmail != "" {
+			ctx.Session.Put(r.Context(), SessionEmailKey, loginEmail)
+		}
 	}
-	return identityFromSpeaker(personID, loginEmail, primaryEmail, speaker), nil
+	return identityFromSpeaker(personID, method, authenticatedAt, loginEmail, primaryEmail, speaker), nil
 }
 
-func identityFromSpeaker(personID, loginEmail, primaryEmail string, speaker *types.Speaker) *Identity {
+func sessionAuthenticatedAt(ctx *config.AppContext, r *http.Request) time.Time {
+	raw := ctx.Session.GetString(r.Context(), SessionAuthenticatedAtKey)
+	authenticatedAt, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		return time.Time{}
+	}
+	return authenticatedAt
+}
+
+func identityFromSpeaker(personID string, method Method, authenticatedAt time.Time, loginEmail, primaryEmail string, speaker *types.Speaker) *Identity {
 	if speaker == nil {
 		return nil
 	}
 	return &Identity{
-		PersonID:     personID,
-		LoginEmail:   loginEmail,
-		PrimaryEmail: primaryEmail,
-		Email:        loginEmail,
-		Speaker:      speaker,
-		Roles:        ParseRoles(speaker.Roles),
+		PersonID:        personID,
+		Method:          method,
+		AuthenticatedAt: authenticatedAt,
+		LoginEmail:      loginEmail,
+		PrimaryEmail:    primaryEmail,
+		Email:           loginEmail,
+		Speaker:         speaker,
+		Roles:           ParseRoles(speaker.Roles),
 	}
 }
 
