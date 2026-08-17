@@ -487,6 +487,9 @@ type DashboardPage struct {
 	// a redirect bounces the user with an error rather than a
 	// success notice. Populated from ?error= on the URL.
 	FlashError string
+	// DevLoginEnabled exposes the email-free local login shortcut. The POST
+	// handler independently enforces the same development-only guard.
+	DevLoginEnabled bool
 
 	// IsGlobalAdmin gates the role-management panel — only a
 	// global-admin can edit other speakers' Roles. Other admin

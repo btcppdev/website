@@ -43,6 +43,20 @@ func TestLoadTemplates(t *testing.T) {
 	if _, err := inlineTemplates.Parse(`{{ define "mainnav" }}<nav>test</nav>{{ end }}`); err != nil {
 		t.Fatalf("override inline missive test nav: %v", err)
 	}
+	var dashboardLogin bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&dashboardLogin, "dashboard_login.tmpl", &DashboardPage{DevLoginEnabled: true}); err != nil {
+		t.Fatalf("render development dashboard login: %v", err)
+	}
+	if !strings.Contains(dashboardLogin.String(), `name="Action" value="dev-login"`) || !strings.Contains(dashboardLogin.String(), "does not send email") {
+		t.Fatalf("development dashboard login shortcut missing: %s", dashboardLogin.String())
+	}
+	dashboardLogin.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&dashboardLogin, "dashboard_login.tmpl", &DashboardPage{}); err != nil {
+		t.Fatalf("render production dashboard login: %v", err)
+	}
+	if strings.Contains(dashboardLogin.String(), `value="dev-login"`) {
+		t.Fatalf("production dashboard exposed development login shortcut: %s", dashboardLogin.String())
+	}
 	var projectPage bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&projectPage, "hackathon_project.tmpl", &HackathonPage{
 		Competition: &types.HackathonCompetition{ID: "competition-id", Title: "Hackathon"},
