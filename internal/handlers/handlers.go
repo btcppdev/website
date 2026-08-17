@@ -503,6 +503,8 @@ func loadTemplates(ctx *config.AppContext) error {
 			return SponsorBannerForConf(ctx, conf.Ref)
 		},
 		"merchImage":                  merchImage,
+		"merchSEODescription":         merchSEODescription,
+		"shopSEOImage":                shopSEOImage,
 		"merchProductStock":           merchProductStock,
 		"shopOrderItemImage":          shopOrderItemImage,
 		"shopFulfillmentLabel":        shopFulfillmentLabel,

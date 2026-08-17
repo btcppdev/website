@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>{{ .Title }}</title>
+    {{ template "site_seo" (dict "Title" "bitcoin++ shop · Gear for bitcoin builders" "Description" "Small-batch bitcoin++ apparel, hats, and gear for people who build on bitcoin and run their own nodes." "Path" "/shop" "Image" (shopSEOImage .Product)) }}
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
