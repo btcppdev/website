@@ -73,6 +73,9 @@
     var orderInputs = root.querySelector("[data-deliberation-order-inputs]");
     var status = root.querySelector("[data-deliberation-status]");
     var advanceForm = root.querySelector("[data-deliberation-advance-form]");
+    var conflictAlert = root.querySelector("[data-deliberation-conflict]");
+    var conflictMessage = root.querySelector("[data-deliberation-conflict-message]");
+    var reloadButton = root.querySelector("[data-deliberation-reload]");
     var initialScoreOrder = scoredRows(list)
       .slice()
       .sort(function (a, b) {
@@ -115,6 +118,22 @@
       if (!advanceForm) return;
       var button = advanceForm.querySelector('button[type="submit"]');
       if (button) button.disabled = disabled;
+    }
+
+    function blockEditingForConflict(message) {
+      root.querySelectorAll("[data-deliberation-move], [data-deliberation-reset], [data-deliberation-drag-handle], [data-deliberation-count]").forEach(function (control) {
+        control.disabled = true;
+        if (control.hasAttribute("draggable")) control.draggable = false;
+      });
+      if (!conflictAlert) {
+        window.alert(message);
+        return;
+      }
+      if (conflictMessage) conflictMessage.textContent = message + ". Reload before continuing so you do not overwrite another admin's changes.";
+      conflictAlert.hidden = false;
+      window.requestAnimationFrame(function () {
+        conflictAlert.focus();
+      });
     }
 
     function syncForm() {
@@ -169,8 +188,10 @@
         return true;
       } catch (error) {
         blocked = Boolean(error && error.conflict);
-        setStatus((error && error.message) || "Unable to save deliberation order", true);
+        var message = (error && error.message) || "Unable to save deliberation order";
+        setStatus(message, true);
         setAdvanceDisabled(blocked);
+        if (blocked) blockEditingForConflict(message);
         return false;
       }
     }
@@ -261,6 +282,12 @@
         } else {
           advanceForm.submit();
         }
+      });
+    }
+
+    if (reloadButton) {
+      reloadButton.addEventListener("click", function () {
+        window.location.reload();
       });
     }
 

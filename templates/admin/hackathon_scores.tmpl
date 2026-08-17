@@ -52,6 +52,17 @@
     {{ end }}
 
     <section class="mb-8 overflow-hidden rounded-lg bg-white shadow"{{ if .ScoreCanDeliberate }} data-deliberation-admin data-save-url="{{ .JudgingURL .Competition }}/deliberation" data-event-id="{{ .ScoreJudgeEventID }}" data-revision="{{ .ScoreDeliberationRevision }}" data-has-next="{{ .ScoreHasNextJudgeEvent }}" data-column-count="7"{{ end }}>
+      {{ if .ScoreCanDeliberate }}
+      <div hidden data-deliberation-conflict role="alert" aria-live="assertive" tabindex="-1" class="fixed inset-x-4 top-4 z-50 mx-auto max-w-2xl rounded-lg border-2 border-red-800 bg-red-50 p-4 text-red-950 shadow-2xl">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-sm font-bold">Project order changed in another window</h2>
+            <p class="mt-1 text-sm" data-deliberation-conflict-message>Reload before continuing so you do not overwrite another admin's changes.</p>
+          </div>
+          <button type="button" data-deliberation-reload class="shrink-0 rounded-md bg-red-800 px-3 py-2 text-sm font-semibold text-white hover:bg-red-900">Reload scoring</button>
+        </div>
+      </div>
+      {{ end }}
       <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="text-sm font-semibold text-gray-900">Rankings</h2>
