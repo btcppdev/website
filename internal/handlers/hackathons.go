@@ -797,6 +797,16 @@ func (p *HackathonPage) CanViewJudgingResults() bool {
 	return p != nil && len(p.JudgingResultEvents) > 0
 }
 
+func (p *HackathonPage) CanViewRegularJudging() bool {
+	if p == nil {
+		return false
+	}
+	if p.CompetitionCanAdminEdit(p.Competition) {
+		return true
+	}
+	return p.JudgeTypes[getters.JudgeTypeExpo] || p.JudgeTypes[getters.JudgeTypeFinals]
+}
+
 func (p *HackathonPage) JudgingResultsURL(event *types.JudgeEvent) string {
 	if p == nil {
 		return ""
@@ -1774,7 +1784,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		OwnedProjects:           ownedProjects,
 		HasConferenceTicket:     hasTicket,
 		CanCreate:               id != nil && hasTicket && competitionAcceptsProjects(competition, scheduleEvents) && len(ownedProjects) == 0,
-		CanJudge:                viewer.Admin || viewerCanJudgeCompetition(ctx, competition.ID, personID),
+		CanJudge:                viewer.Admin || viewer.Manager || viewerCanJudgeCompetition(ctx, competition.ID, personID) || viewerCanJudgeAnyAward(ctx, competition.ID, personID),
 		FlashMessage:            r.URL.Query().Get("flash"),
 		FlashError:              r.URL.Query().Get("error"),
 		Year:                    helpers.CurrentYear(),

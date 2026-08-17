@@ -26,12 +26,12 @@
     <div class="hack-alert hack-alert--error">{{ .FlashError }}</div>
     {{ end }}
 
+    {{ if .CanViewJudgingResults }}
     <nav class="hack-tabs hack-judging-view-tabs" aria-label="Judging views">
       <a href="{{ .JudgingURL }}" class="hack-tab" aria-selected="{{ if not .JudgingResultsSelected }}true{{ else }}false{{ end }}">Ballot</a>
-      {{ if .CanViewJudgingResults }}
       <a href="{{ .JudgingResultsURL nil }}" class="hack-tab" aria-selected="{{ if .JudgingResultsSelected }}true{{ else }}false{{ end }}">Results</a>
-      {{ end }}
     </nav>
+    {{ end }}
 
     {{ if .JudgingResultsSelected }}
     {{ $results := .JudgingResults }}
@@ -117,6 +117,7 @@
       {{ end }}
     </section>
     {{ else }}
+    {{ if .CanViewRegularJudging }}
     {{ $event := .CurrentJudgeEvent }}
     <section class="hack-section hack-judging-round">
       {{ if $event }}
@@ -221,6 +222,7 @@
       </div>
       {{ end }}
     </section>
+    {{ end }}
 
     {{ if .SponsorAwardsForJudge }}
     <section class="hack-section">
@@ -313,9 +315,9 @@
       <div class="hack-section__head">
         <div>
           <div class="hack-label">§ Projects</div>
-          <h2>Visible <span class="hack-serif">submissions.</span></h2>
+          <h2>Eligible <span class="hack-serif">submissions.</span></h2>
         </div>
-        <div class="hack-section__deck">{{ len .Projects }} visible project{{ if ne (len .Projects) 1 }}s{{ end }}.</div>
+        <div class="hack-section__deck">{{ len .Projects }} eligible project{{ if ne (len .Projects) 1 }}s{{ end }}.</div>
       </div>
       {{ if .Projects }}
       <div class="hack-card-grid">
