@@ -2990,13 +2990,11 @@ func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string, pub
 		if award == nil {
 			continue
 		}
-		switch award.Status {
-		case getters.AwardStatusAvailable, getters.AwardStatusAwarded:
-			activeAwardIDs[award.ID] = true
-			publicAwards = append(publicAwards, award)
-		default:
+		if !publicHackathonAwardStatusVisible(award.Status) {
 			continue
 		}
+		activeAwardIDs[award.ID] = true
+		publicAwards = append(publicAwards, award)
 	}
 	prizesByAward := make(map[string][]*types.Prize)
 	prizePoolByAward := make(map[string][]*types.Prize)
@@ -3089,7 +3087,7 @@ func loadConfHackathonPlaceRows(ctx *config.AppContext, competitionID string, pu
 	rowsByRank := make(map[int]*HackathonPlaceRow)
 	var prizePoolSats int64
 	for _, award := range awards {
-		if award == nil || !hackathonPlaceAwardStatusVisible(award.Status) {
+		if award == nil || !publicHackathonAwardStatusVisible(award.Status) {
 			continue
 		}
 		for _, prize := range prizesByAward[award.ID] {
@@ -3150,9 +3148,9 @@ func orgLogoAlt(org *types.Org) string {
 	return "Sponsor"
 }
 
-func hackathonPlaceAwardStatusVisible(status string) bool {
+func publicHackathonAwardStatusVisible(status string) bool {
 	switch strings.TrimSpace(status) {
-	case getters.AwardStatusAvailable, getters.AwardStatusAwarded:
+	case getters.AwardStatusAvailable, getters.AwardStatusUnawarded, getters.AwardStatusAwarded:
 		return true
 	default:
 		return false
