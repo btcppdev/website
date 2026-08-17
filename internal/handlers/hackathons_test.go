@@ -579,6 +579,21 @@ func TestAvailableOptInAwardsIncludesTentativeOutcomeStatuses(t *testing.T) {
 	}
 }
 
+func TestPublicHackathonAwardStatusVisibleWhileAwaitingWinner(t *testing.T) {
+	for _, status := range []string{
+		getters.AwardStatusAvailable,
+		getters.AwardStatusUnawarded,
+		getters.AwardStatusAwarded,
+	} {
+		if !publicHackathonAwardStatusVisible(status) {
+			t.Fatalf("publicHackathonAwardStatusVisible(%q) = false", status)
+		}
+	}
+	if publicHackathonAwardStatusVisible(getters.AwardStatusDraft) {
+		t.Fatal("draft award is publicly visible")
+	}
+}
+
 func TestHackathonAdminConfsOnlyReturnsAssignedConferences(t *testing.T) {
 	toronto := &types.Conf{Tag: "toronto"}
 	nairobi := &types.Conf{Tag: "nairobi"}
