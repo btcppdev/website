@@ -796,6 +796,43 @@ func TestListCompetitionJudgeAssignmentsByEmail(t *testing.T) {
 	if got.CompetitionID != competitionID || got.ConferenceID != confID || got.ConferenceTag != confTag || got.JudgeType != JudgeTypeExpo {
 		t.Fatalf("assignment = %+v", got)
 	}
+
+	orgID := insertSmokeOrg(t, ctx, "dashboard-award-sponsor")
+	awardID, err := CreateAward(ctx, AwardInput{
+		CompetitionID:    competitionID,
+		SponsoredByOrgID: orgID,
+		AwardType:        AwardTypeNormal,
+		Title:            "Dashboard Sponsor Award",
+		Status:           AwardStatusAvailable,
+	})
+	if err != nil {
+		t.Fatalf("CreateAward: %v", err)
+	}
+	if err := AddAwardJudge(ctx, awardID, personID); err != nil {
+		t.Fatalf("AddAwardJudge: %v", err)
+	}
+	for name, load := range map[string]func() ([]*types.CompetitionJudgeAssignment, error){
+		"email": func() ([]*types.CompetitionJudgeAssignment, error) {
+			return ListAwardJudgeAssignmentsByEmail(ctx, personEmail)
+		},
+		"person ID": func() ([]*types.CompetitionJudgeAssignment, error) {
+			return ListAwardJudgeAssignmentsForPerson(ctx, personID)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assignments, err := load()
+			if err != nil {
+				t.Fatalf("load sponsor judge assignments: %v", err)
+			}
+			if len(assignments) != 1 {
+				t.Fatalf("assignments = %+v, want one", assignments)
+			}
+			got := assignments[0]
+			if got.CompetitionID != competitionID || got.ConferenceID != confID || got.ConferenceTag != confTag || !got.SponsorAward {
+				t.Fatalf("sponsor assignment = %+v", got)
+			}
+		})
+	}
 }
 
 func TestSearchPeopleByNameEmailOrPhone(t *testing.T) {

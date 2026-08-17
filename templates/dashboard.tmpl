@@ -243,8 +243,8 @@
 
           {{ if $eb.IsHackathonJudge }}
           <a href="/{{ $conf.Tag }}/hackathon/judging" class="dashboard-action">
-            <span class="dashboard-action__label">Score hackathon projects</span>
-            <span class="dashboard-action__hint">You're assigned to judge this event · Open your scoring ballot</span>
+            <span class="dashboard-action__label">{{ $eb.HackathonJudgeActionLabel }}</span>
+            <span class="dashboard-action__hint">{{ $eb.HackathonJudgeActionHint }}</span>
           </a>
           {{ end }}
 

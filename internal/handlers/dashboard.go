@@ -195,8 +195,18 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		s := time.Now()
 		if personID != "" {
 			judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsForPerson(ctx, personID)
+			if judgeErr == nil {
+				var sponsorAssignments []*types.CompetitionJudgeAssignment
+				sponsorAssignments, judgeErr = getters.ListAwardJudgeAssignmentsForPerson(ctx, personID)
+				judgeAssignments = append(judgeAssignments, sponsorAssignments...)
+			}
 		} else {
 			judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsByEmail(ctx, email)
+			if judgeErr == nil {
+				var sponsorAssignments []*types.CompetitionJudgeAssignment
+				sponsorAssignments, judgeErr = getters.ListAwardJudgeAssignmentsByEmail(ctx, email)
+				judgeAssignments = append(judgeAssignments, sponsorAssignments...)
+			}
 		}
 		judgeDur = time.Since(s)
 	}()
@@ -1418,8 +1428,11 @@ func attachJudgeEventBlocks(active, past []*EventBlock, assignments []*types.Com
 			}
 		}
 		if !containsString(eb.JudgeTypes, assignment.JudgeType) {
-			eb.JudgeTypes = append(eb.JudgeTypes, assignment.JudgeType)
+			if assignment.JudgeType != "" {
+				eb.JudgeTypes = append(eb.JudgeTypes, assignment.JudgeType)
+			}
 		}
+		eb.SponsorJudge = eb.SponsorJudge || assignment.SponsorAward
 	}
 	sort.Slice(active, func(i, j int) bool {
 		return active[i].Conf.StartDate.Before(active[j].Conf.StartDate)

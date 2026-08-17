@@ -2719,6 +2719,58 @@ func listCompetitionJudgeAssignmentsPostgres(ctx *config.AppContext, whereSQL, v
 	return out, nil
 }
 
+func listAwardJudgeAssignmentsByEmailPostgres(ctx *config.AppContext, email string) ([]*types.CompetitionJudgeAssignment, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, fmt.Errorf("email is required")
+	}
+	return listAwardJudgeAssignmentsPostgres(ctx, `
+		award_judges.person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
+	`, email, email)
+}
+
+func listAwardJudgeAssignmentsByPersonIDPostgres(ctx *config.AppContext, personID string) ([]*types.CompetitionJudgeAssignment, error) {
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, fmt.Errorf("person id is required")
+	}
+	return listAwardJudgeAssignmentsPostgres(ctx, "award_judges.person_id = $1::uuid", personID, personID)
+}
+
+func listAwardJudgeAssignmentsPostgres(ctx *config.AppContext, whereSQL, value, label string) ([]*types.CompetitionJudgeAssignment, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT DISTINCT competitions.id::text,
+			competitions.conference_id::text,
+			conferences.tag
+		FROM award_judges
+		JOIN awards ON awards.id = award_judges.award_id
+		JOIN competitions ON competitions.id = awards.competition_id
+		JOIN conferences ON conferences.id = competitions.conference_id
+		WHERE awards.archived_at IS NULL AND `+whereSQL+`
+		ORDER BY conferences.tag
+	`, value)
+	if err != nil {
+		return nil, fmt.Errorf("query award judge assignments for %s: %w", label, err)
+	}
+	defer rows.Close()
+
+	var out []*types.CompetitionJudgeAssignment
+	for rows.Next() {
+		assignment := &types.CompetitionJudgeAssignment{SponsorAward: true}
+		if err := rows.Scan(&assignment.CompetitionID, &assignment.ConferenceID, &assignment.ConferenceTag); err != nil {
+			return nil, fmt.Errorf("scan award judge assignment for %s: %w", label, err)
+		}
+		out = append(out, assignment)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate award judge assignments for %s: %w", label, err)
+	}
+	return out, nil
+}
+
 func upsertScorecardPostgres(ctx *config.AppContext, in ScorecardInput) (*types.Scorecard, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")

@@ -35,6 +35,35 @@ func TestAttachJudgeEventBlocksCreatesJudgeOnlyConferenceCard(t *testing.T) {
 	}
 }
 
+func TestAttachJudgeEventBlocksCreatesSponsorJudgeConferenceCard(t *testing.T) {
+	conf := &types.Conf{
+		Ref:       "conf-id",
+		Tag:       "toronto",
+		Active:    true,
+		StartDate: time.Now().Add(24 * time.Hour),
+		EndDate:   time.Now().Add(72 * time.Hour),
+	}
+	assignments := []*types.CompetitionJudgeAssignment{
+		{ConferenceID: conf.Ref, ConferenceTag: conf.Tag, SponsorAward: true},
+	}
+
+	active, past := attachJudgeEventBlocks(nil, nil, assignments, []*types.Conf{conf})
+
+	if len(past) != 0 || len(active) != 1 || !active[0].IsHackathonJudge() {
+		t.Fatalf("sponsor judge event blocks active=%+v past=%+v", active, past)
+	}
+	block := active[0]
+	if got := block.HackathonJudgeLabel(); got != "Sponsor judge" {
+		t.Fatalf("HackathonJudgeLabel() = %q, want Sponsor judge", got)
+	}
+	if got := block.HackathonJudgeActionLabel(); got != "Judge sponsor award" {
+		t.Fatalf("HackathonJudgeActionLabel() = %q, want Judge sponsor award", got)
+	}
+	if got := block.HackathonJudgeActionHint(); got != "You're assigned to select a sponsor award winner" {
+		t.Fatalf("HackathonJudgeActionHint() = %q", got)
+	}
+}
+
 func TestAttachDashboardHackathonManagerRoles(t *testing.T) {
 	activeConf := &types.Conf{
 		Tag:           "toronto",
