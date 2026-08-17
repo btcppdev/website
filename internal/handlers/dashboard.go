@@ -43,6 +43,23 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			w.Write([]byte(helpers.ErrVolApp("Unable to send you email link.")))
 			return
 		}
+		if r.PostForm.Get("Action") == "dev-login" {
+			if !dashboardDevLoginEnabled(ctx) {
+				http.NotFound(w, r)
+				return
+			}
+			if strings.TrimSpace(form.Email) == "" {
+				http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("Enter an email to use for the development login."), http.StatusSeeOther)
+				return
+			}
+			if err := auth.LoginEmail(ctx, r, form.Email); err != nil {
+				ctx.Err.Printf("/dashboard development login failed: %s", err)
+				http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("Unable to log in as that email."), http.StatusSeeOther)
+				return
+			}
+			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+			return
+		}
 		if _, err := emails.OnlyForLogin(ctx, form.Email); err != nil {
 			http.Error(w, "Unable to send login link via email", http.StatusInternalServerError)
 			ctx.Err.Printf("/dashboard onlyforlogin failed: %s", err)
@@ -826,14 +843,19 @@ func dashboardRequestIdentity(w http.ResponseWriter, r *http.Request, ctx *confi
 
 func renderDashboardLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_login.tmpl", &DashboardPage{
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		Year:         helpers.CurrentYear(),
+		FlashMessage:    r.URL.Query().Get("flash"),
+		FlashError:      r.URL.Query().Get("error"),
+		DevLoginEnabled: dashboardDevLoginEnabled(ctx),
+		Year:            helpers.CurrentYear(),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/dashboard render login failed: %s", err)
 	}
+}
+
+func dashboardDevLoginEnabled(ctx *config.AppContext) bool {
+	return ctx != nil && ctx.Env != nil && !ctx.InProduction && !ctx.Env.Prod
 }
 
 func hasPublicWhoIsProfile(ctx *config.AppContext, speaker *types.Speaker) bool {
