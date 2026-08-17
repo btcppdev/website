@@ -62,6 +62,46 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(projectPage.String(), `href="/whois/private-member"`) {
 		t.Fatalf("hackathon project links a member without a public profile: %s", projectPage.String())
 	}
+	var shopItemPage bytes.Buffer
+	shopProduct := &types.MerchProduct{
+		Slug:        "libre-relay",
+		Name:        "libre relay hat",
+		Description: "Support Libre Relay with this one-of-a-kind hat.",
+		Images: []*types.MerchProductImage{{
+			ObjectKey: "https://cdn.example/merch/libre-relay.avif",
+		}},
+	}
+	if err := inlineTemplates.ExecuteTemplate(&shopItemPage, "shop/item.tmpl", &shopPage{Product: shopProduct}); err != nil {
+		t.Fatalf("render shop item: %v", err)
+	}
+	for _, want := range []string{
+		`<link rel="canonical" href="https://btcpp.dev/shop/libre-relay"`,
+		`<meta property="og:type" content="product"`,
+		`<meta property="og:title" content="libre relay hat · bitcoin&#43;&#43; shop"`,
+		`<meta property="og:description" content="Support Libre Relay with this one-of-a-kind hat."`,
+		`<meta property="og:image" content="https://cdn.example/merch/libre-relay.avif"`,
+		`<meta name="twitter:card" content="summary_large_image"`,
+	} {
+		if !strings.Contains(shopItemPage.String(), want) {
+			t.Fatalf("shop item metadata missing %q: %s", want, shopItemPage.String())
+		}
+	}
+	var shopHomePage bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&shopHomePage, "shop/index.tmpl", &shopPage{Product: shopProduct}); err != nil {
+		t.Fatalf("render shop home: %v", err)
+	}
+	for _, want := range []string{
+		`<link rel="canonical" href="https://btcpp.dev/shop"`,
+		`<meta property="og:url" content="https://btcpp.dev/shop"`,
+		`<meta property="og:title" content="bitcoin&#43;&#43; shop · Gear for bitcoin builders"`,
+		`<meta property="og:description" content="Small-batch bitcoin&#43;&#43; apparel, hats, and gear for people who build on bitcoin and run their own nodes."`,
+		`<meta property="og:image" content="https://cdn.example/merch/libre-relay.avif"`,
+		`<meta name="twitter:card" content="summary_large_image"`,
+	} {
+		if !strings.Contains(shopHomePage.String(), want) {
+			t.Fatalf("shop home metadata missing %q: %s", want, shopHomePage.String())
+		}
+	}
 	var hackathonPage bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&hackathonPage, "hackathon.tmpl", &HackathonPage{
 		Competition: &types.HackathonCompetition{

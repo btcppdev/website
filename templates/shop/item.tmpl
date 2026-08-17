@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>{{ .Product.Name }}</title>
+    {{ template "site_seo" (dict "Title" (printf "%s · bitcoin++ shop" .Product.Name) "Description" (merchSEODescription .Product) "Path" (printf "/shop/%s" .Product.Slug) "Image" (merchImage .Product) "Type" "product") }}
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">

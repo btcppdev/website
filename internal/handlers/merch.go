@@ -2434,6 +2434,37 @@ func merchImage(product *types.MerchProduct) string {
 	return merchStaticImage(product)
 }
 
+func merchSEODescription(product *types.MerchProduct) string {
+	if product == nil {
+		return "Shop bitcoin++ merchandise."
+	}
+	description := strings.TrimSpace(product.Subtitle)
+	if description == "" {
+		description = strings.TrimSpace(product.Description)
+	}
+	if description == "" {
+		description = "Shop " + strings.TrimSpace(product.Name) + " from bitcoin++."
+	}
+	description = strings.Join(strings.Fields(description), " ")
+	const maximumRunes = 200
+	runes := []rune(description)
+	if len(runes) <= maximumRunes {
+		return description
+	}
+	short := strings.TrimSpace(string(runes[:maximumRunes-3]))
+	if lastSpace := strings.LastIndex(short, " "); lastSpace >= maximumRunes/2 {
+		short = short[:lastSpace]
+	}
+	return short + "..."
+}
+
+func shopSEOImage(featured *types.MerchProduct) string {
+	if image := merchImage(featured); image != "" {
+		return image
+	}
+	return "/static/img/rebrand/breakthroughs.jpg"
+}
+
 func merchProductStock(product *types.MerchProduct) int {
 	if product == nil {
 		return 0
