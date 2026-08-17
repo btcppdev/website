@@ -343,6 +343,14 @@ func ListCompetitionJudgeAssignmentsForPerson(ctx *config.AppContext, personID s
 	return listCompetitionJudgeAssignmentsByPersonIDPostgres(ctx, personID)
 }
 
+func ListAwardJudgeAssignmentsByEmail(ctx *config.AppContext, email string) ([]*types.CompetitionJudgeAssignment, error) {
+	return listAwardJudgeAssignmentsByEmailPostgres(ctx, email)
+}
+
+func ListAwardJudgeAssignmentsForPerson(ctx *config.AppContext, personID string) ([]*types.CompetitionJudgeAssignment, error) {
+	return listAwardJudgeAssignmentsByPersonIDPostgres(ctx, personID)
+}
+
 func UpsertScorecard(ctx *config.AppContext, in ScorecardInput) (*types.Scorecard, error) {
 	return upsertScorecardPostgres(ctx, in)
 }

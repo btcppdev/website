@@ -854,10 +854,13 @@ type EventBlock struct {
 	// JudgeTypes contains the user's hackathon judging assignments for
 	// this conference (expo or finals).
 	JudgeTypes []string
+	// SponsorJudge is true when the user judges at least one sponsor award
+	// for this conference's hackathon.
+	SponsorJudge bool
 }
 
 func (b *EventBlock) IsHackathonJudge() bool {
-	return b != nil && (containsString(b.JudgeTypes, getters.JudgeTypeExpo) || containsString(b.JudgeTypes, getters.JudgeTypeFinals))
+	return b != nil && (b.SponsorJudge || containsString(b.JudgeTypes, getters.JudgeTypeExpo) || containsString(b.JudgeTypes, getters.JudgeTypeFinals))
 }
 
 func (b *EventBlock) IsHackathonManager() bool {
@@ -865,10 +868,27 @@ func (b *EventBlock) IsHackathonManager() bool {
 }
 
 func (b *EventBlock) HackathonJudgeLabel() string {
-	if b == nil || len(b.JudgeTypes) == 0 {
+	if b == nil || !b.IsHackathonJudge() {
 		return ""
 	}
+	if b.SponsorJudge && len(b.JudgeTypes) == 0 {
+		return "Sponsor judge"
+	}
 	return "Hackathon judge"
+}
+
+func (b *EventBlock) HackathonJudgeActionLabel() string {
+	if b != nil && b.SponsorJudge && len(b.JudgeTypes) == 0 {
+		return "Judge sponsor award"
+	}
+	return "Score hackathon projects"
+}
+
+func (b *EventBlock) HackathonJudgeActionHint() string {
+	if b != nil && b.SponsorJudge && len(b.JudgeTypes) == 0 {
+		return "You're assigned to select a sponsor award winner"
+	}
+	return "You're assigned to judge this event · Open your scoring ballot"
 }
 
 type DashboardStats struct {

@@ -128,12 +128,14 @@ type CompetitionJudge struct {
 }
 
 // CompetitionJudgeAssignment is the small, conference-scoped view of a
-// judging assignment used outside the hackathon administration pages.
+// ranked or sponsor-award judging assignment used outside the hackathon
+// administration pages.
 type CompetitionJudgeAssignment struct {
 	CompetitionID string
 	ConferenceID  string
 	ConferenceTag string
 	JudgeType     string
+	SponsorAward  bool
 }
 
 type CompetitionJudgeInvite struct {
