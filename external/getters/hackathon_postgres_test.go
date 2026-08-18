@@ -1242,11 +1242,60 @@ func TestHackathonJudgingSetup(t *testing.T) {
 	if len(scorecards) != 2 {
 		t.Fatalf("scorecards mismatch: %+v", scorecards)
 	}
+	firstSubmission, err := SubmitScorecardRankings(ctx, ScorecardRankingsInput{
+		JudgeEventID:  eventID,
+		JudgePersonID: judgeID,
+		Rankings:      []ScorecardRankingInput{{ProjectID: projectID, Rank: 1}},
+	})
+	if err != nil {
+		t.Fatalf("SubmitScorecardRankings first: %v", err)
+	}
+	if !firstSubmission {
+		t.Fatal("SubmitScorecardRankings first submission = false, want true")
+	}
+	firstSubmission, err = SubmitScorecardRankings(ctx, ScorecardRankingsInput{
+		JudgeEventID:  eventID,
+		JudgePersonID: judgeID,
+		Rankings:      []ScorecardRankingInput{{ProjectID: secondProjectID, Rank: 1}},
+	})
+	if err != nil {
+		t.Fatalf("SubmitScorecardRankings update: %v", err)
+	}
+	if firstSubmission {
+		t.Fatal("SubmitScorecardRankings update = true, want false")
+	}
+	scorecards, err = ListScorecardsForJudge(ctx, competitionID, judgeID)
+	if err != nil {
+		t.Fatalf("ListScorecardsForJudge after submission update: %v", err)
+	}
+	if len(scorecards) != 1 || scorecards[0].ProjectID != secondProjectID {
+		t.Fatalf("updated submitted scorecards mismatch: %+v", scorecards)
+	}
+	if _, err := SubmitScorecardRankings(ctx, ScorecardRankingsInput{
+		JudgeEventID:  eventID,
+		JudgePersonID: judgeID,
+	}); err == nil || !strings.Contains(err.Error(), "at least one") {
+		t.Fatalf("SubmitScorecardRankings empty error = %v, want at-least-one error", err)
+	}
+	if err := DeleteScorecardRankings(ctx, competitionID, eventID, judgeID); err != nil {
+		t.Fatalf("DeleteScorecardRankings submitted ballot: %v", err)
+	}
+	firstSubmission, err = SubmitScorecardRankings(ctx, ScorecardRankingsInput{
+		JudgeEventID:  eventID,
+		JudgePersonID: judgeID,
+		Rankings:      []ScorecardRankingInput{{ProjectID: projectID, Rank: 1}},
+	})
+	if err != nil {
+		t.Fatalf("SubmitScorecardRankings after ballot removal: %v", err)
+	}
+	if firstSubmission {
+		t.Fatal("SubmitScorecardRankings after ballot removal = true, want preserved submission history")
+	}
 	competitionScorecards, err := ListScorecardsForCompetition(ctx, competitionID)
 	if err != nil {
 		t.Fatalf("ListScorecardsForCompetition: %v", err)
 	}
-	if len(competitionScorecards) != 2 {
+	if len(competitionScorecards) != 1 {
 		t.Fatalf("competition scorecards mismatch: %+v", competitionScorecards)
 	}
 	if err := UpdateProjectAdminFields(ctx, competitionID, projectID, ProjectStatusSubmitted, nil); err != nil {
