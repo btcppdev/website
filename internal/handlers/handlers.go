@@ -1558,6 +1558,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/hackathon/judging", func(w http.ResponseWriter, r *http.Request) {
 		HackathonJudging(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/{conf}/hackathon/judging/submitted", func(w http.ResponseWriter, r *http.Request) {
+		HackathonBallotSubmitted(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/judging/deliberation", func(w http.ResponseWriter, r *http.Request) {
 		HackathonJudgingDeliberation(w, r, app)
 	}).Methods("GET")

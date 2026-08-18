@@ -50,6 +50,7 @@ type HackathonPage struct {
 	Scorecards                  []*types.Scorecard
 	JudgingResultEvents         []*types.JudgeEvent
 	JudgingResults              *HackathonJudgingResults
+	SubmittedJudgeEvent         *types.JudgeEvent
 	Judges                      []*types.CompetitionJudge
 	JudgeProfileURLs            map[string]string
 	MemberProfileURLs           map[string]string
@@ -76,6 +77,7 @@ type HackathonPage struct {
 	CanLeaveProject             bool
 	CanJudge                    bool
 	CanScoreAll                 bool
+	CelebrateBallot             bool
 	CanRemoveProjectMembers     bool
 	ViewerPersonID              string
 	InviteLink                  string
@@ -797,6 +799,18 @@ func (p *HackathonPage) CanViewJudgingResults() bool {
 	return p != nil && len(p.JudgingResultEvents) > 0
 }
 
+func (p *HackathonPage) HasSubmittedBallot(event *types.JudgeEvent) bool {
+	if p == nil || event == nil {
+		return false
+	}
+	for _, scorecard := range p.Scorecards {
+		if scorecard != nil && scorecard.JudgeEventID == event.ID && scorecard.Rank != nil {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *HackathonPage) CanViewRegularJudging() bool {
 	if p == nil {
 		return false
@@ -816,6 +830,13 @@ func (p *HackathonPage) JudgingResultsURL(event *types.JudgeEvent) string {
 		values.Set("judge_event", event.ID)
 	}
 	return p.JudgingURL() + "?" + values.Encode()
+}
+
+func (p *HackathonPage) BallotSubmittedURL(event *types.JudgeEvent) string {
+	if p == nil || event == nil {
+		return p.JudgingURL()
+	}
+	return p.JudgingURL() + "/submitted?judge_event=" + url.QueryEscape(event.ID)
 }
 
 func (p *HackathonPage) JudgingDeliberationURL(event *types.JudgeEvent) string {
@@ -2089,7 +2110,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 			return
 		}
 	}
-	resultEvents := judgingResultEvents(competition, events, viewer, judgeTypes, now)
+	resultEvents := judgingResultEvents(competition, events, viewer, judgeTypes, submittedJudgeEventIDs(scorecards), now)
 	var judgingResults *HackathonJudgingResults
 	if r.URL.Query().Get("view") == "results" {
 		judgingResults, err = loadHackathonJudgingResults(
@@ -2155,13 +2176,27 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	}
 }
 
-func judgingResultEvents(competition *types.HackathonCompetition, events []*types.JudgeEvent, viewer types.HackathonViewer, judgeTypes map[string]bool, now time.Time) []*types.JudgeEvent {
+func submittedJudgeEventIDs(scorecards []*types.Scorecard) map[string]bool {
+	submitted := make(map[string]bool)
+	for _, scorecard := range scorecards {
+		if scorecard != nil && scorecard.Rank != nil && strings.TrimSpace(scorecard.JudgeEventID) != "" {
+			submitted[scorecard.JudgeEventID] = true
+		}
+	}
+	return submitted
+}
+
+func judgingResultEvents(competition *types.HackathonCompetition, events []*types.JudgeEvent, viewer types.HackathonViewer, judgeTypes map[string]bool, submittedEventIDs map[string]bool, now time.Time) []*types.JudgeEvent {
 	available := make([]*types.JudgeEvent, 0, len(events))
 	for _, event := range events {
-		if event == nil || judgeEventEffectiveState(competition, event, now) != getters.JudgeEventStateClosed {
+		if event == nil {
 			continue
 		}
 		if !viewer.Admin && !viewer.Manager && !judgeTypes[event.PlaybookType] {
+			continue
+		}
+		state := judgeEventEffectiveState(competition, event, now)
+		if state != getters.JudgeEventStateClosed && (state != getters.JudgeEventStateOpen || (!viewer.Admin && !viewer.Manager && !submittedEventIDs[event.ID])) {
 			continue
 		}
 		available = append(available, event)
@@ -2323,12 +2358,16 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 	dest := hackathonURLForConf(conf) + "/judging"
 	viewer := hackathonViewerFromIdentity(id, conf)
 	if viewer.PersonID == "" {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Your account needs a person profile before you can score projects."), http.StatusSeeOther)
+		writeHackathonScorecardSubmitError(w, r, dest, http.StatusBadRequest, "Your account needs a person profile before you can score projects.")
 		return
 	}
 	in, err := scorecardRankingsInputFromRequest(w, r)
 	if err != nil {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		writeHackathonScorecardSubmitError(w, r, dest, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(in.Rankings) == 0 {
+		writeHackathonScorecardSubmitError(w, r, dest, http.StatusUnprocessableEntity, "Choose at least one project before submitting your choices.")
 		return
 	}
 	event := judgeEventByID(events, in.JudgeEventID)
@@ -2337,7 +2376,7 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		return
 	}
 	if !judgeEventAcceptsScores(competition, event, time.Now()) {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape("That judging round is not open for scoring."), http.StatusSeeOther)
+		writeHackathonScorecardSubmitError(w, r, dest, http.StatusConflict, "That judging round is not open for scoring.")
 		return
 	}
 	if !viewer.Admin && !viewerCanJudgeType(ctx, competition.ID, viewer.PersonID, event.PlaybookType) {
@@ -2345,16 +2384,78 @@ func HackathonScorecardSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		return
 	}
 	if err := validateScorecardRankings(ctx, competition, viewer, events, event, in.Rankings); err != nil {
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		writeHackathonScorecardSubmitError(w, r, dest, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	in.JudgePersonID = viewer.PersonID
-	if err := getters.ReplaceScorecardRankings(ctx, in); err != nil {
+	firstSubmission, err := getters.SubmitScorecardRankings(ctx, in)
+	if err != nil {
 		ctx.Err.Printf("/hackathons/%s/judging scorecard rankings: %s", competition.ID, err)
-		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		writeHackathonScorecardSubmitError(w, r, dest, http.StatusInternalServerError, "Unable to submit your choices. Please try again.")
 		return
 	}
-	http.Redirect(w, r, dest+"#event-"+url.PathEscape(event.ID), http.StatusSeeOther)
+	if firstSubmission {
+		ctx.Session.Put(r.Context(), hackathonBallotCelebrationSessionKey(event.ID), true)
+	}
+	submittedURL := dest + "/submitted?judge_event=" + url.QueryEscape(event.ID)
+	if hackathonScorecardSubmitWantsJSON(r) {
+		writeHackathonDeliberationJSON(w, http.StatusOK, map[string]string{"redirect": submittedURL})
+		return
+	}
+	http.Redirect(w, r, submittedURL, http.StatusSeeOther)
+}
+
+func writeHackathonScorecardSubmitError(w http.ResponseWriter, r *http.Request, dest string, status int, message string) {
+	if hackathonScorecardSubmitWantsJSON(r) {
+		writeHackathonDeliberationError(w, status, message)
+		return
+	}
+	http.Redirect(w, r, dest+"?error="+url.QueryEscape(message), http.StatusSeeOther)
+}
+
+func hackathonScorecardSubmitWantsJSON(r *http.Request) bool {
+	return r != nil && strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Requested-With")), "fetch")
+}
+
+func hackathonBallotCelebrationSessionKey(eventID string) string {
+	return "hackathon_ballot_celebration:" + strings.TrimSpace(eventID)
+}
+
+func HackathonBallotSubmitted(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	competition, conf, id, events, err := loadHackathonJudgingAccess(w, r, ctx)
+	if err != nil {
+		return
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
+	viewer := hackathonViewerFromIdentity(id, conf)
+	event := judgeEventByID(events, strings.TrimSpace(r.URL.Query().Get("judge_event")))
+	if event == nil || (!viewer.Admin && !viewerCanJudgeType(ctx, competition.ID, viewer.PersonID, event.PlaybookType)) {
+		handle404(w, r, ctx)
+		return
+	}
+	scorecards, err := getters.ListScorecardsForJudge(ctx, competition.ID, viewer.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/%s/hackathon/judging/submitted scorecards: %s", conf.Tag, err)
+		http.Error(w, "Unable to load submitted choices", http.StatusInternalServerError)
+		return
+	}
+	page := &HackathonPage{
+		Competition:         competition,
+		Conf:                conf,
+		Viewer:              id,
+		Scorecards:          scorecards,
+		SubmittedJudgeEvent: event,
+		CelebrateBallot:     ctx.Session.Pop(r.Context(), hackathonBallotCelebrationSessionKey(event.ID)) == true,
+		Year:                helpers.CurrentYear(),
+	}
+	if !page.HasSubmittedBallot(event) {
+		http.Redirect(w, r, page.JudgingURL()+"?error="+url.QueryEscape("Submit at least one choice before viewing your confirmation."), http.StatusSeeOther)
+		return
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_ballot_submitted.tmpl", page); err != nil {
+		ctx.Err.Printf("/%s/hackathon/judging/submitted template: %s", conf.Tag, err)
+		http.Error(w, "Unable to load ballot confirmation", http.StatusInternalServerError)
+	}
 }
 
 type sponsorAwardWinnerRequest struct {

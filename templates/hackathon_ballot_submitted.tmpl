@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Choices submitted - {{ .Competition.Title }} - bitcoin++ hackathon</title>
+  {{ template "hackathon_header" . }}
+  {{ if .CelebrateBallot }}<script src="/static/js/hackathon-confetti.js" defer></script>{{ end }}
+</head>
+<body class="hack-redesign">
+  {{ template "generic_conf_ticker" (dict "Conf" .Conf "Label" "Hackathon judging") }}
+  {{ template "generic_conf_nav" .Conf }}
+  {{ if .CelebrateBallot }}<canvas class="hack-ballot-confetti" data-ballot-confetti aria-hidden="true"></canvas>{{ end }}
+  <main class="hack-ballot-confirmation">
+    <div class="hack-ballot-confirmation__inner">
+      <div class="hack-label">{{ .SubmittedJudgeEvent.Name }} ballot submitted</div>
+      <h1>Your choices<br><span class="hack-serif">are in.</span></h1>
+      <p>Your ranking is saved. Watch the aggregate results update as the other judges submit their choices.</p>
+      <a href="{{ .JudgingResultsURL .SubmittedJudgeEvent }}" class="hack-button hack-button--accent hack-ballot-confirmation__action">Watch live results &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>
