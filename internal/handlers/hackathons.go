@@ -832,19 +832,18 @@ func (p *HackathonPage) JudgingResultsURL(event *types.JudgeEvent) string {
 	return p.JudgingURL() + "?" + values.Encode()
 }
 
+func (p *HackathonPage) JudgingLiveResultsURL(event *types.JudgeEvent) string {
+	if p == nil || event == nil {
+		return ""
+	}
+	return p.JudgingURL() + "/results/live?judge_event=" + url.QueryEscape(event.ID)
+}
+
 func (p *HackathonPage) BallotSubmittedURL(event *types.JudgeEvent) string {
 	if p == nil || event == nil {
 		return p.JudgingURL()
 	}
 	return p.JudgingURL() + "/submitted?judge_event=" + url.QueryEscape(event.ID)
-}
-
-func (p *HackathonPage) JudgingDeliberationURL(event *types.JudgeEvent) string {
-	if p == nil || event == nil {
-		return ""
-	}
-	values := url.Values{"judge_event": {event.ID}}
-	return p.JudgingURL() + "/deliberation?" + values.Encode()
 }
 
 func (p *HackathonPage) JudgingResultEventIs(event *types.JudgeEvent) bool {
@@ -2292,52 +2291,60 @@ func loadJudgeEventDeliberationView(ctx *config.AppContext, competition *types.H
 	return summaries, advanceCount, revision, nil
 }
 
-func HackathonJudgingDeliberation(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+func HackathonJudgingLiveResults(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	competition, conf, id, events, err := loadHackathonJudgingAccess(w, r, ctx)
 	if err != nil {
 		return
 	}
-	eventID := strings.TrimSpace(r.URL.Query().Get("judge_event"))
-	event := judgeEventByID(events, eventID)
-	if event == nil {
-		writeHackathonDeliberationError(w, http.StatusBadRequest, "judging event is invalid")
-		return
+	viewer := hackathonViewerFromIdentity(id, conf)
+	var judgeScorecards []*types.Scorecard
+	if viewer.PersonID != "" {
+		judgeScorecards, err = getters.ListScorecardsForJudge(ctx, competition.ID, viewer.PersonID)
+		if err != nil {
+			ctx.Err.Printf("/%s/hackathon/judging/results/live judge scorecards: %s", conf.Tag, err)
+			http.Error(w, "Unable to load judging results", http.StatusInternalServerError)
+			return
+		}
 	}
 	now := time.Now()
-	if judgeEventEffectiveState(competition, event, now) != getters.JudgeEventStateClosed {
-		writeHackathonDeliberationError(w, http.StatusConflict, "Results are available after this judging round closes.")
-		return
-	}
-	viewer := hackathonViewerFromIdentity(id, conf)
-	if !viewer.Admin && !viewer.Manager && !judgeTypesForPerson(ctx, competition.ID, viewer.PersonID)[event.PlaybookType] {
+	resultEvents := judgingResultEvents(
+		competition,
+		events,
+		viewer,
+		judgeTypesForPerson(ctx, competition.ID, viewer.PersonID),
+		submittedJudgeEventIDs(judgeScorecards),
+		now,
+	)
+	eventID := strings.TrimSpace(r.URL.Query().Get("judge_event"))
+	event := judgeEventByID(resultEvents, eventID)
+	if event == nil {
 		handle404(w, r, ctx)
 		return
 	}
 	projects, err := getters.ListProjectsForCompetition(ctx, competition.ID, viewer)
 	if err != nil {
-		writeHackathonDeliberationError(w, http.StatusInternalServerError, "Unable to load projects")
+		ctx.Err.Printf("/%s/hackathon/judging/results/live projects: %s", conf.Tag, err)
+		http.Error(w, "Unable to load judging results", http.StatusInternalServerError)
 		return
 	}
-	scorecards, err := getters.ListScorecardsForCompetition(ctx, competition.ID)
+	results, err := loadHackathonJudgingResults(ctx, competition, events, resultEvents, projects, event.ID, now)
 	if err != nil {
-		writeHackathonDeliberationError(w, http.StatusInternalServerError, "Unable to load scorecards")
+		ctx.Err.Printf("/%s/hackathon/judging/results/live results: %s", conf.Tag, err)
+		http.Error(w, "Unable to load judging results", http.StatusInternalServerError)
 		return
 	}
-	eventScorecards := filterHackathonScorecardsByJudgeEvent(scorecards, event.ID)
-	eventProjects := projectsForJudgeEventResults(projects, events, event.ID, eventScorecards)
-	eventScorecards = filterHackathonScorecardsByProjects(eventScorecards, eventProjects)
-	summaries, advanceCount, revision, err := loadJudgeEventDeliberationView(ctx, competition, events, event, eventProjects, eventScorecards)
-	if err != nil {
-		writeHackathonDeliberationError(w, http.StatusInternalServerError, "Unable to load deliberation order")
-		return
+	page := &HackathonPage{
+		Competition:    competition,
+		Conf:           conf,
+		Viewer:         id,
+		JudgingResults: results,
+		Year:           helpers.CurrentYear(),
 	}
-	writeHackathonDeliberationJSON(w, http.StatusOK, hackathonDeliberationResponse{
-		ProjectOrder: scoredSummaryProjectIDs(summaries),
-		AdvanceCount: advanceCount,
-		Revision:     revision,
-		HasNextRound: nextJudgeEvent(events, event.ID) != nil,
-	})
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_judging_results_live", page); err != nil {
+		ctx.Err.Printf("/%s/hackathon/judging/results/live template: %s", conf.Tag, err)
+		http.Error(w, "Unable to load judging results", http.StatusInternalServerError)
+	}
 }
 
 func competitionJudgesForType(judges []*types.CompetitionJudge, judgeType string) []*types.CompetitionJudge {
