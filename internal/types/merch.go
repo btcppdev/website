@@ -83,13 +83,14 @@ type MerchProduct struct {
 }
 
 type MerchProductImage struct {
-	ID           string
-	ProductID    string
-	ObjectKey    string
-	AltText      string
-	DisplayOrder int
-	IsPrimary    bool
-	CreatedAt    time.Time
+	ID              string
+	ProductID       string
+	ObjectKey       string
+	SocialObjectKey string
+	AltText         string
+	DisplayOrder    int
+	IsPrimary       bool
+	CreatedAt       time.Time
 }
 
 type MerchProductOption struct {

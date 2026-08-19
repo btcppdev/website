@@ -112,21 +112,38 @@
             <label>alt text<input name="alt_text" value="{{ .AltText }}"></label>
             <label>display order<input type="number" name="display_order" value="{{ .DisplayOrder }}"></label>
             <label class="shop-checkbox"><input type="checkbox" name="primary" {{ if .IsPrimary }}checked{{ end }}> primary</label>
+            <div class="shop-social-preview-field">
+              <div class="shop-social-preview-label"><strong>X / social card</strong><span>1200 × 630 JPEG</span></div>
+              {{ with merchImageSocialPreview . }}
+              <div class="shop-social-preview has-image"><img src="{{ . | safeURL }}" alt="Generated social card preview"></div>
+              {{ else }}
+              <div class="shop-social-preview is-missing"><p>No social card has been generated for this image yet.</p></div>
+              {{ end }}
+            </div>
             <button class="shop-button" type="submit">Save image</button>
+            <button class="shop-button" type="submit" formaction="/admin/merch/{{ .ProductID }}/images/{{ .ID }}/social-card">{{ if .SocialObjectKey }}Regenerate social card{{ else }}Generate social card{{ end }}</button>
             <button class="shop-button" type="submit" name="delete" value="1" onclick="return confirm('Remove this image from the product?');">Remove</button>
           </form>
           {{ end }}
           {{ if .SpacesReady }}
           <form method="POST" action="/admin/merch/{{ .Product.ID }}/upload-image" enctype="multipart/form-data" class="shop-admin-form shop-image-upload">
-            <label>upload product image<input type="file" name="file" accept="image/png,image/jpeg,image/webp,image/avif"></label>
+            <label>upload product image<input type="file" name="file" accept="image/png,image/jpeg,image/webp,image/avif" data-merch-social-source></label>
             <label>alt text<input name="alt_text"></label>
             <label>display order<input type="number" name="display_order" value="0"></label>
             <label class="shop-checkbox"><input type="checkbox" name="primary"> primary image</label>
+            <div class="shop-social-preview-field">
+              <div class="shop-social-preview-label"><strong>New social card preview</strong><span>1200 × 630 JPEG · image is contained, never cropped</span></div>
+              <div class="shop-social-preview" data-merch-social-preview>
+                <img alt="Social-card preview" hidden>
+                <p>Select a product image to preview its generated social card.</p>
+              </div>
+            </div>
             <button class="shop-button" type="submit">Upload image</button>
           </form>
           {{ end }}
         </div>
       </section>
     </main>
+    <script src="/static/js/merch-social-preview.js"></script>
   </body>
 </html>

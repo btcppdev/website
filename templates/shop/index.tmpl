@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    {{ template "site_seo" (dict "Title" "bitcoin++ shop · Gear for bitcoin builders" "Description" "Small-batch bitcoin++ apparel, hats, and gear for people who build on bitcoin and run their own nodes." "Path" "/shop" "Image" (shopSEOImage .Product)) }}
+    {{ template "site_seo" (dict "Title" "bitcoin++ shop · Gear for bitcoin builders" "Description" "Small-batch bitcoin++ apparel, hats, and gear for people who build on bitcoin and run their own nodes." "Path" "/shop" "Image" (shopSEOImage .Product) "ImageType" "image/jpeg" "ImageWidth" (merchSocialImageWidth .Product) "ImageHeight" (merchSocialImageHeight .Product)) }}
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">

@@ -20,7 +20,7 @@
         <a class="shop-button" href="/admin/merch">&larr; Catalog</a>
       </section>
       {{ if .Error }}<p class="shop-flash is-error">{{ .Error }}</p>{{ end }}
-      <form method="POST" action="/admin/merch" class="shop-admin-form shop-admin-editor-form">
+      <form method="POST" action="/admin/merch" enctype="multipart/form-data" class="shop-admin-form shop-admin-editor-form">
         <section class="shop-admin-editor-section">
           <div class="shop-admin-editor-section__head"><span>01</span><h2>Product details</h2></div>
           {{ template "admin_merch_fields" .Product }}
@@ -37,11 +37,33 @@
             <label>height inches<input type="number" name="height_inches" min="0" step="0.01" value="0"></label>
           </div>
         </section>
+        <section class="shop-admin-editor-section">
+          <div class="shop-admin-editor-section__head"><span>03</span><h2>Product image &amp; social preview</h2></div>
+          <div class="shop-merch-image-create">
+            <div class="shop-form-grid">
+              <label>primary product image<input type="file" name="file" accept="image/png,image/jpeg,image/webp,image/avif" data-merch-social-source></label>
+              <label>image alt text<input name="image_alt_text" placeholder="Describe the product photo"></label>
+              {{ if not .SpacesReady }}<p class="shop-flash is-error">Preview is available, but image storage must be configured before this file can be saved.</p>{{ end }}
+            </div>
+            <div>
+              <div class="shop-social-preview-label">
+                <strong>X / social card preview</strong>
+                <span>1200 × 630 JPEG · image is contained, never cropped</span>
+                {{ if .IsDevelopment }}<a href="/dev/merch-social-card" target="_blank" rel="noopener">Open Core Hat template example ↗</a>{{ end }}
+              </div>
+              <div class="shop-social-preview" data-merch-social-preview>
+                <img alt="Social-card preview" hidden>
+                <p>Select a product image to preview its generated social card.</p>
+              </div>
+            </div>
+          </div>
+        </section>
         <div class="shop-admin-form__actions">
           <a class="shop-button" href="/admin/merch">Cancel</a>
           <button class="shop-button is-primary" type="submit">Create product</button>
         </div>
       </form>
     </main>
+    <script src="/static/js/merch-social-preview.js"></script>
   </body>
 </html>

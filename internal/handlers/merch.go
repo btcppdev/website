@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -90,6 +91,7 @@ type shopPage struct {
 	CanCreateEasyshipShipment bool
 	PendingCheckout           *types.ShopOrder
 	Email                     string
+	IsDevelopment             bool
 	Checkout                  *shopCheckoutDetails
 }
 
@@ -140,6 +142,35 @@ func StartShopMaintenance(ctx *config.AppContext) {
 		return
 	}
 	go func() {
+		backfillSocialCards := func() {
+			if !spaces.IsConfigured() {
+				return
+			}
+			products, err := getters.ListMerchProducts(ctx, true)
+			if err != nil {
+				ctx.Err.Printf("shop maintenance list products for social cards: %s", err)
+				return
+			}
+			generated := 0
+			for _, product := range products {
+				if product == nil {
+					continue
+				}
+				for _, image := range product.Images {
+					if image == nil || strings.TrimSpace(image.SocialObjectKey) != "" {
+						continue
+					}
+					if err := regenerateMerchSocialCard(context.Background(), ctx, product.ID, image); err != nil {
+						ctx.Err.Printf("shop maintenance social card product=%s image=%s: %s", product.ID, image.ID, err)
+						continue
+					}
+					generated++
+				}
+			}
+			if generated > 0 {
+				ctx.Infos.Printf("shop maintenance generated %d merchandise social cards", generated)
+			}
+		}
 		expire := func() {
 			count, err := getters.ExpirePendingShopOrders(ctx, 100)
 			if err != nil {
@@ -160,6 +191,7 @@ func StartShopMaintenance(ctx *config.AppContext) {
 				ctx.Infos.Printf("shop maintenance processed %d Easyship webhook events", count)
 			}
 		}
+		go backfillSocialCards()
 		expire()
 		processEasyship()
 		expireTicker := time.NewTicker(time.Minute)
@@ -901,6 +933,7 @@ func AdminMerchNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 	page := baseShopPage(ctx, r, "new merch item")
 	page.Admin = true
+	page.SpacesReady = spaces.IsConfigured()
 	page.Product = &types.MerchProduct{
 		Status:           types.MerchProductStatusDraft,
 		ProductType:      "apparel",
@@ -910,6 +943,22 @@ func AdminMerchNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		AllowEventPickup: true,
 	}
 	renderShopTemplate(w, r, ctx, "admin/merch_new.tmpl", page)
+}
+
+func DevMerchSocialCardPreview(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if ctx.Env.Prod {
+		handle404(w, r, ctx)
+		return
+	}
+	card, err := imgproc.RenderSocialCardHTML("/static/img/merch/core-hat.avif")
+	if err != nil {
+		http.Error(w, "Unable to render merchandise social-card preview", http.StatusInternalServerError)
+		ctx.Err.Printf("/dev/merch-social-card: %s", err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(card)
 }
 
 func AdminMerchProduct(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -935,9 +984,20 @@ func AdminMerchCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if id == nil {
 		return
 	}
-	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
+	limitRequestBody(w, r, maxMultipartBodyBytes)
+	if err := parseMerchAdminForm(r); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	var imageRaw []byte
+	var imageContentType, imageExt string
+	imageRaw, imageContentType, imageExt, err := readMultipartImageFile(r, "file", false)
+	if err != nil && !errors.Is(err, http.ErrMissingFile) {
+		http.Redirect(w, r, "/admin/merch/new?err="+url.QueryEscape("Product image is missing, too large, or unsupported."), http.StatusSeeOther)
+		return
+	}
+	if len(imageRaw) > 0 && !spaces.IsConfigured() {
+		http.Redirect(w, r, "/admin/merch/new?err="+url.QueryEscape("Image storage is not configured."), http.StatusSeeOther)
 		return
 	}
 	input := merchProductInputFromForm(r)
@@ -954,7 +1014,21 @@ func AdminMerchCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if stock := parseIntForm(r.FormValue("stock"), 0); stock > 0 {
 		_ = getters.AdjustMerchInventory(ctx, variantID, "initial", stock, id.Email, "initial admin stock")
 	}
+	if len(imageRaw) > 0 {
+		if _, _, err := storeMerchProductImage(ctx, productID, imageRaw, imageContentType, imageExt, r.FormValue("image_alt_text"), 0, true); err != nil {
+			ctx.Err.Printf("/admin/merch create image %s: %s", productID, err)
+			http.Redirect(w, r, adminMerchProductURL(productID, "err", "Product created, but its image could not be saved: "+err.Error()), http.StatusSeeOther)
+			return
+		}
+	}
 	http.Redirect(w, r, "/admin/merch?flash="+url.QueryEscape("Product created."), http.StatusSeeOther)
+}
+
+func parseMerchAdminForm(r *http.Request) error {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Type"))), "multipart/form-data") {
+		return r.ParseMultipartForm(maxMultipartBodyBytes)
+	}
+	return r.ParseForm()
 }
 
 func AdminMerchUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -989,24 +1063,45 @@ func AdminMerchUploadImage(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Error(w, "spaces not configured", http.StatusInternalServerError)
 		return
 	}
-	shortID := imgproc.ShortID(raw)
-	key := "merch/" + shortID + ext
-	if !spaces.Exists(key) {
-		if _, err := spaces.Upload(key, raw, contentType, ""); err != nil {
-			ctx.Err.Printf("/admin/merch/%s/upload-image: %s", productID, err)
-			http.Error(w, "upload failed", http.StatusInternalServerError)
-			return
-		}
-	}
 	altText := strings.TrimSpace(r.FormValue("alt_text"))
 	displayOrder := parseIntForm(r.FormValue("display_order"), 0)
 	primary := r.FormValue("primary") == "on"
-	if _, err := getters.AddMerchProductImage(ctx, productID, key, altText, displayOrder, primary); err != nil {
+	imageURL, socialURL, err := storeMerchProductImage(ctx, productID, raw, contentType, ext, altText, displayOrder, primary)
+	if err != nil {
+		ctx.Err.Printf("/admin/merch/%s/upload-image: %s", productID, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"url": spaces.PublicURL(key), "key": key})
+	json.NewEncoder(w).Encode(map[string]string{
+		"url":        imageURL,
+		"key":        "merch/" + imgproc.ShortID(raw) + ext,
+		"social_url": socialURL,
+	})
+}
+
+func storeMerchProductImage(ctx *config.AppContext, productID string, raw []byte, contentType, ext, altText string, displayOrder int, primary bool) (string, string, error) {
+	socialCard, err := imgproc.MakeSocialCardJPEG(raw)
+	if err != nil {
+		return "", "", fmt.Errorf("generate social card: %w", err)
+	}
+	shortID := imgproc.ShortID(raw)
+	key := "merch/" + shortID + ext
+	socialKey := "merch/social/" + imgproc.SocialCardID(raw) + ".jpg"
+	if !spaces.Exists(key) {
+		if _, err := spaces.Upload(key, raw, contentType, ""); err != nil {
+			return "", "", fmt.Errorf("upload product image: %w", err)
+		}
+	}
+	if !spaces.Exists(socialKey) {
+		if _, err := spaces.Upload(socialKey, socialCard, "image/jpeg", ""); err != nil {
+			return "", "", fmt.Errorf("upload social card: %w", err)
+		}
+	}
+	if _, err := getters.AddMerchProductImage(ctx, productID, key, socialKey, altText, displayOrder, primary); err != nil {
+		return "", "", err
+	}
+	return spaces.PublicURL(key), spaces.PublicURL(socialKey), nil
 }
 
 func AdminMerchVariantCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1071,6 +1166,87 @@ func AdminMerchImageUpdate(w http.ResponseWriter, r *http.Request, ctx *config.A
 		err = getters.UpdateMerchProductImage(ctx, productID, imageID, r.FormValue("alt_text"), parseIntForm(r.FormValue("display_order"), 0), r.FormValue("primary") == "on")
 	}
 	adminMerchRedirect(w, r, err, "Image updated.")
+}
+
+func AdminMerchImageSocialCard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if requireGlobalAdmin(w, r, ctx) == nil {
+		return
+	}
+	productID := strings.TrimSpace(mux.Vars(r)["id"])
+	imageID := strings.TrimSpace(mux.Vars(r)["image"])
+	product, err := getters.GetMerchProductByID(ctx, productID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var selected *types.MerchProductImage
+	for _, image := range product.Images {
+		if image != nil && image.ID == imageID {
+			selected = image
+			break
+		}
+	}
+	if selected == nil {
+		http.NotFound(w, r)
+		return
+	}
+	err = regenerateMerchSocialCard(r.Context(), ctx, productID, selected)
+	adminMerchRedirect(w, r, err, "Social card regenerated.")
+}
+
+func regenerateMerchSocialCard(requestContext context.Context, app *config.AppContext, productID string, image *types.MerchProductImage) error {
+	if image == nil {
+		return fmt.Errorf("product image is required")
+	}
+	raw, err := loadMerchImageBytes(requestContext, image.ObjectKey)
+	if err != nil {
+		return err
+	}
+	social, err := imgproc.MakeSocialCardJPEG(raw)
+	if err != nil {
+		return fmt.Errorf("generate social card: %w", err)
+	}
+	socialKey := "merch/social/" + imgproc.SocialCardID(raw) + ".jpg"
+	if !spaces.Exists(socialKey) {
+		if _, err := spaces.Upload(socialKey, social, "image/jpeg", ""); err != nil {
+			return fmt.Errorf("upload social card: %w", err)
+		}
+	}
+	return getters.SetMerchProductImageSocialObjectKey(app, productID, image.ID, socialKey)
+}
+
+func loadMerchImageBytes(ctx context.Context, objectKey string) ([]byte, error) {
+	objectKey = strings.TrimSpace(objectKey)
+	if objectKey == "" {
+		return nil, fmt.Errorf("product image object key is empty")
+	}
+	if !strings.HasPrefix(objectKey, "http://") && !strings.HasPrefix(objectKey, "https://") && !strings.HasPrefix(objectKey, "/") {
+		return spaces.Get(objectKey)
+	}
+	imageURL := objectKey
+	if strings.HasPrefix(imageURL, "/") {
+		return nil, fmt.Errorf("static product images cannot be regenerated from object storage")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("download product image: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("download product image: status %d", resp.StatusCode)
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxUploadFileBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(raw)) > maxUploadFileBytes {
+		return nil, errUploadTooLarge
+	}
+	return raw, nil
 }
 
 func AdminMerchOptionSave(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1537,12 +1713,13 @@ func renderShopTemplate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 
 func baseShopPage(ctx *config.AppContext, r *http.Request, title string) *shopPage {
 	page := &shopPage{
-		Title:      title,
-		Year:       int(helpers.CurrentYear()),
-		Flash:      strings.TrimSpace(r.URL.Query().Get("flash")),
-		Error:      strings.TrimSpace(r.URL.Query().Get("err")),
-		PickupConf: nextShopPickupConf(ctx),
-		Email:      strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey)),
+		Title:         title,
+		Year:          int(helpers.CurrentYear()),
+		Flash:         strings.TrimSpace(r.URL.Query().Get("flash")),
+		Error:         strings.TrimSpace(r.URL.Query().Get("err")),
+		PickupConf:    nextShopPickupConf(ctx),
+		Email:         strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey)),
+		IsDevelopment: !ctx.Env.Prod,
 	}
 	cart, _ := loadShopCart(ctx, r)
 	page.CartCount = uint(len(cart))
@@ -2404,9 +2581,16 @@ func merchPrimaryImage(product *types.MerchProduct) string {
 	if product == nil || len(product.Images) == 0 {
 		return ""
 	}
-	key := strings.TrimSpace(product.Images[0].ObjectKey)
+	return merchObjectURL(product.Images[0].ObjectKey)
+}
+
+func merchObjectURL(objectKey string) string {
+	key := strings.TrimSpace(objectKey)
 	if strings.HasPrefix(key, "/") || strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") {
 		return key
+	}
+	if key == "" {
+		return ""
 	}
 	return spaces.PublicURL(key)
 }
@@ -2434,6 +2618,36 @@ func merchImage(product *types.MerchProduct) string {
 	return merchStaticImage(product)
 }
 
+func merchSocialImage(product *types.MerchProduct) string {
+	if product != nil && len(product.Images) > 0 {
+		if image := merchObjectURL(product.Images[0].SocialObjectKey); image != "" {
+			return image
+		}
+	}
+	return "/static/img/rebrand/breakthroughs.jpg"
+}
+
+func merchSocialImageWidth(product *types.MerchProduct) int {
+	if product != nil && len(product.Images) > 0 && strings.TrimSpace(product.Images[0].SocialObjectKey) != "" {
+		return imgproc.SocialCardWidth
+	}
+	return 2000
+}
+
+func merchSocialImageHeight(product *types.MerchProduct) int {
+	if product != nil && len(product.Images) > 0 && strings.TrimSpace(product.Images[0].SocialObjectKey) != "" {
+		return imgproc.SocialCardHeight
+	}
+	return 2000
+}
+
+func merchImageSocialPreview(image *types.MerchProductImage) string {
+	if image == nil {
+		return ""
+	}
+	return merchObjectURL(image.SocialObjectKey)
+}
+
 func merchSEODescription(product *types.MerchProduct) string {
 	if product == nil {
 		return "Shop bitcoin++ merchandise."
@@ -2459,7 +2673,7 @@ func merchSEODescription(product *types.MerchProduct) string {
 }
 
 func shopSEOImage(featured *types.MerchProduct) string {
-	if image := merchImage(featured); image != "" {
+	if image := merchSocialImage(featured); image != "" {
 		return image
 	}
 	return "/static/img/rebrand/breakthroughs.jpg"

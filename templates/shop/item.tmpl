@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    {{ template "site_seo" (dict "Title" (printf "%s · bitcoin++ shop" .Product.Name) "Description" (merchSEODescription .Product) "Path" (printf "/shop/%s" .Product.Slug) "Image" (merchImage .Product) "Type" "product") }}
+    {{ template "site_seo" (dict "Title" (printf "%s · bitcoin++ shop" .Product.Name) "Description" (merchSEODescription .Product) "Path" (printf "/shop/%s" .Product.Slug) "Image" (merchSocialImage .Product) "ImageType" "image/jpeg" "ImageWidth" (merchSocialImageWidth .Product) "ImageHeight" (merchSocialImageHeight .Product) "Type" "product") }}
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">

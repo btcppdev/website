@@ -82,7 +82,8 @@ func TestLoadTemplates(t *testing.T) {
 		Name:        "libre relay hat",
 		Description: "Support Libre Relay with this one-of-a-kind hat.",
 		Images: []*types.MerchProductImage{{
-			ObjectKey: "https://cdn.example/merch/libre-relay.avif",
+			ObjectKey:       "https://cdn.example/merch/libre-relay.avif",
+			SocialObjectKey: "https://cdn.example/merch/social/libre-relay.jpg",
 		}},
 	}
 	if err := inlineTemplates.ExecuteTemplate(&shopItemPage, "shop/item.tmpl", &shopPage{Product: shopProduct}); err != nil {
@@ -93,7 +94,10 @@ func TestLoadTemplates(t *testing.T) {
 		`<meta property="og:type" content="product"`,
 		`<meta property="og:title" content="libre relay hat · bitcoin&#43;&#43; shop"`,
 		`<meta property="og:description" content="Support Libre Relay with this one-of-a-kind hat."`,
-		`<meta property="og:image" content="https://cdn.example/merch/libre-relay.avif"`,
+		`<meta property="og:image" content="https://cdn.example/merch/social/libre-relay.jpg"`,
+		`<meta property="og:image:type" content="image/jpeg"`,
+		`<meta property="og:image:width" content="1200"`,
+		`<meta property="og:image:height" content="630"`,
 		`<meta name="twitter:card" content="summary_large_image"`,
 	} {
 		if !strings.Contains(shopItemPage.String(), want) {
@@ -109,11 +113,30 @@ func TestLoadTemplates(t *testing.T) {
 		`<meta property="og:url" content="https://btcpp.dev/shop"`,
 		`<meta property="og:title" content="bitcoin&#43;&#43; shop · Gear for bitcoin builders"`,
 		`<meta property="og:description" content="Small-batch bitcoin&#43;&#43; apparel, hats, and gear for people who build on bitcoin and run their own nodes."`,
-		`<meta property="og:image" content="https://cdn.example/merch/libre-relay.avif"`,
+		`<meta property="og:image" content="https://cdn.example/merch/social/libre-relay.jpg"`,
+		`<meta property="og:image:type" content="image/jpeg"`,
 		`<meta name="twitter:card" content="summary_large_image"`,
 	} {
 		if !strings.Contains(shopHomePage.String(), want) {
 			t.Fatalf("shop home metadata missing %q: %s", want, shopHomePage.String())
+		}
+	}
+	var merchNewPage bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&merchNewPage, "admin/merch_new.tmpl", &shopPage{
+		Product: &types.MerchProduct{}, SpacesReady: true, IsDevelopment: true,
+	}); err != nil {
+		t.Fatalf("render new merchandise page: %v", err)
+	}
+	for _, want := range []string{
+		`enctype="multipart/form-data"`,
+		`name="file"`,
+		`data-merch-social-source`,
+		`data-merch-social-preview`,
+		`1200 × 630 JPEG`,
+		`href="/dev/merch-social-card"`,
+	} {
+		if !strings.Contains(merchNewPage.String(), want) {
+			t.Fatalf("new merchandise social preview missing %q: %s", want, merchNewPage.String())
 		}
 	}
 	var hackathonPage bytes.Buffer

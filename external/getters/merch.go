@@ -271,12 +271,13 @@ func GetMerchProductByID(ctx *config.AppContext, id string) (*types.MerchProduct
 	return products[0], nil
 }
 
-func AddMerchProductImage(ctx *config.AppContext, productID, objectKey, altText string, displayOrder int, primary bool) (string, error) {
+func AddMerchProductImage(ctx *config.AppContext, productID, objectKey, socialObjectKey, altText string, displayOrder int, primary bool) (string, error) {
 	if ctx == nil || ctx.DB == nil {
 		return "", fmt.Errorf("database is not configured")
 	}
 	productID = strings.TrimSpace(productID)
 	objectKey = strings.TrimSpace(objectKey)
+	socialObjectKey = strings.TrimSpace(socialObjectKey)
 	if productID == "" || objectKey == "" {
 		return "", fmt.Errorf("product id and image object key are required")
 	}
@@ -306,16 +307,34 @@ func AddMerchProductImage(ctx *config.AppContext, productID, objectKey, altText 
 
 	var id string
 	if err := tx.QueryRow(ctx.DatabaseContext(), `
-		INSERT INTO merch_product_images (product_id, object_key, alt_text, display_order, is_primary)
-		VALUES ($1::uuid, $2, $3, $4, $5)
+		INSERT INTO merch_product_images (product_id, object_key, social_object_key, alt_text, display_order, is_primary)
+		VALUES ($1::uuid, $2, $3, $4, $5, $6)
 		RETURNING id::text
-	`, productID, objectKey, strings.TrimSpace(altText), displayOrder, primary).Scan(&id); err != nil {
+	`, productID, objectKey, socialObjectKey, strings.TrimSpace(altText), displayOrder, primary).Scan(&id); err != nil {
 		return "", fmt.Errorf("add merch image: %w", err)
 	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return "", err
 	}
 	return id, nil
+}
+
+func SetMerchProductImageSocialObjectKey(ctx *config.AppContext, productID, imageID, socialObjectKey string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE merch_product_images
+		SET social_object_key = $3
+		WHERE product_id = $1::uuid AND id = $2::uuid
+	`, strings.TrimSpace(productID), strings.TrimSpace(imageID), strings.TrimSpace(socialObjectKey))
+	if err != nil {
+		return fmt.Errorf("update product image social card: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("product image not found")
+	}
+	return nil
 }
 
 func DeleteMerchProductImage(ctx *config.AppContext, imageID string) error {
@@ -2176,7 +2195,7 @@ func mapKeysOptions(values map[string]*types.MerchProductOption) []string {
 func listMerchImages(ctx *config.AppContext, productIDs []string) (map[string][]*types.MerchProductImage, error) {
 	out := map[string][]*types.MerchProductImage{}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
-		SELECT id::text, product_id::text, object_key, alt_text, display_order, is_primary, created_at
+		SELECT id::text, product_id::text, object_key, social_object_key, alt_text, display_order, is_primary, created_at
 		FROM merch_product_images
 		WHERE product_id::text = ANY($1)
 		ORDER BY product_id, is_primary DESC, display_order, created_at
@@ -2187,7 +2206,7 @@ func listMerchImages(ctx *config.AppContext, productIDs []string) (map[string][]
 	defer rows.Close()
 	for rows.Next() {
 		var img types.MerchProductImage
-		if err := rows.Scan(&img.ID, &img.ProductID, &img.ObjectKey, &img.AltText, &img.DisplayOrder, &img.IsPrimary, &img.CreatedAt); err != nil {
+		if err := rows.Scan(&img.ID, &img.ProductID, &img.ObjectKey, &img.SocialObjectKey, &img.AltText, &img.DisplayOrder, &img.IsPrimary, &img.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan merch image: %w", err)
 		}
 		out[img.ProductID] = append(out[img.ProductID], &img)

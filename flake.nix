@@ -10,7 +10,7 @@
       in
       {
         devShells.default = pkgs.mkShell {
-          packages = with pkgs; [
+          packages = (with pkgs; [
             poppler-utils
             bashInteractive
             jq
@@ -22,7 +22,7 @@
             git
             postgresql_18
             rclone
-          ];
+          ]) ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
           shellHook = ''
             if [ -z "$BTCPP_PGROOT" ]; then
               if [ -n "$XDG_DATA_HOME" ]; then
