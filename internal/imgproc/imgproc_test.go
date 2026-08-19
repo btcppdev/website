@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"os"
 	"os/exec"
 	"testing"
 )
@@ -30,6 +31,24 @@ func requireFFmpeg(t *testing.T) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg not in PATH; skipping AVIF roundtrip test")
 	}
+}
+
+func requireChrome(t *testing.T) {
+	t.Helper()
+	for _, executable := range []string{"chromium", "chromium-browser", "google-chrome", "google-chrome-stable"} {
+		if _, err := exec.LookPath(executable); err == nil {
+			return
+		}
+	}
+	for _, executable := range []string{
+		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		"/Applications/Chromium.app/Contents/MacOS/Chromium",
+	} {
+		if _, err := os.Stat(executable); err == nil {
+			return
+		}
+	}
+	t.Skip("Chrome or Chromium not installed; skipping HTML social-card render test")
 }
 
 func TestMakeAVIF_RoundTrip(t *testing.T) {
@@ -73,6 +92,66 @@ func TestMakeAVIF_EmptyInput(t *testing.T) {
 	}
 }
 
+func TestMakeSocialCardJPEG(t *testing.T) {
+	requireChrome(t)
+
+	out, err := MakeSocialCardJPEG(makeTestJPEG(t, 417))
+	if err != nil {
+		t.Fatalf("MakeSocialCardJPEG: %v", err)
+	}
+	card, err := jpeg.Decode(bytes.NewReader(out))
+	if err != nil {
+		t.Fatalf("decode social card: %v", err)
+	}
+	if got := card.Bounds().Dx(); got != SocialCardWidth {
+		t.Fatalf("social card width = %d, want %d", got, SocialCardWidth)
+	}
+	if got := card.Bounds().Dy(); got != SocialCardHeight {
+		t.Fatalf("social card height = %d, want %d", got, SocialCardHeight)
+	}
+	if len(out) >= 3<<20 {
+		t.Fatalf("social card size = %d bytes, want less than 3 MiB", len(out))
+	}
+	corner := color.RGBAModel.Convert(card.At(0, 0)).(color.RGBA)
+	if !closeColor(corner, color.RGBA{R: 0xf6, G: 0xf3, B: 0xee, A: 0xff}, 4) {
+		t.Fatalf("social card corner = %#v, want template background #f6f3ee", corner)
+	}
+	center := color.RGBAModel.Convert(card.At(SocialCardWidth/2, SocialCardHeight/2)).(color.RGBA)
+	if closeColor(center, corner, 8) {
+		t.Fatalf("social card center = %#v, want rendered product image", center)
+	}
+}
+
+func closeColor(got, want color.RGBA, tolerance uint8) bool {
+	closeChannel := func(a, b uint8) bool {
+		if a > b {
+			return a-b <= tolerance
+		}
+		return b-a <= tolerance
+	}
+	return closeChannel(got.R, want.R) && closeChannel(got.G, want.G) && closeChannel(got.B, want.B)
+}
+
+func TestMakeSocialCardJPEGFromAVIF(t *testing.T) {
+	requireChrome(t)
+	requireFFmpeg(t)
+
+	avif, err := MakeAVIF(makeTestJPEG(t, 417), 0)
+	if err != nil {
+		t.Fatalf("MakeAVIF: %v", err)
+	}
+	if _, err := MakeSocialCardJPEG(avif); err != nil {
+		t.Fatalf("MakeSocialCardJPEG from AVIF: %v", err)
+	}
+}
+
+func TestMakeSocialCardJPEGRejectsBadInput(t *testing.T) {
+	requireChrome(t)
+	if _, err := MakeSocialCardJPEG([]byte("not an image")); err == nil {
+		t.Fatal("MakeSocialCardJPEG accepted invalid image bytes")
+	}
+}
+
 func TestShortID_Deterministic(t *testing.T) {
 	a := []byte("hello world")
 	if got, want := ShortID(a), ShortID(a); got != want {
@@ -95,5 +174,37 @@ func TestShortID_Format(t *testing.T) {
 		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
 			t.Errorf("non-hex char %q in ShortID %q", c, id)
 		}
+	}
+}
+
+func TestSocialCardID(t *testing.T) {
+	data := []byte("product image")
+	if got, want := SocialCardID(data), SocialCardID(data); got != want {
+		t.Fatalf("SocialCardID is not deterministic: %s vs %s", got, want)
+	}
+	if got := SocialCardID(data); len(got) != 12 {
+		t.Fatalf("SocialCardID length = %d, want 12", len(got))
+	}
+	if SocialCardID(data) == ShortID(data) {
+		t.Fatal("SocialCardID does not include the template fingerprint")
+	}
+}
+
+func TestRenderSocialCardHTML(t *testing.T) {
+	rendered, err := RenderSocialCardHTML("/static/img/merch/core-hat.avif")
+	if err != nil {
+		t.Fatalf("RenderSocialCardHTML: %v", err)
+	}
+	if !bytes.Contains(rendered, []byte(`src="/static/img/merch/core-hat.avif"`)) {
+		t.Fatalf("rendered social card does not contain seeded image URL: %s", rendered)
+	}
+	if !bytes.Contains(rendered, []byte(`src="/static/img/logo_blk.svg"`)) {
+		t.Fatalf("rendered social card does not contain bitcoin++ logo: %s", rendered)
+	}
+	if !bytes.Contains(rendered, []byte(`>merch shop</p>`)) {
+		t.Fatalf("rendered social card does not contain merch shop label: %s", rendered)
+	}
+	if _, err := RenderSocialCardHTML("javascript:alert(1)"); err == nil {
+		t.Fatal("RenderSocialCardHTML accepted unsafe URL scheme")
 	}
 }

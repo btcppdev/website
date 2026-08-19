@@ -30,3 +30,16 @@ func TestShopSEOImageFallsBackWithoutFeaturedProduct(t *testing.T) {
 		t.Fatalf("shopSEOImage(nil) = %q, want %q", got, want)
 	}
 }
+
+func TestMerchSocialImagePrefersDedicatedJPEG(t *testing.T) {
+	product := &types.MerchProduct{Images: []*types.MerchProductImage{{
+		ObjectKey:       "merch/product.avif",
+		SocialObjectKey: "https://cdn.example/merch/social/product.jpg",
+	}}}
+	if got, want := merchSocialImage(product), "https://cdn.example/merch/social/product.jpg"; got != want {
+		t.Fatalf("merchSocialImage() = %q, want %q", got, want)
+	}
+	if merchSocialImageWidth(product) != 1200 || merchSocialImageHeight(product) != 630 {
+		t.Fatalf("social dimensions = %dx%d", merchSocialImageWidth(product), merchSocialImageHeight(product))
+	}
+}

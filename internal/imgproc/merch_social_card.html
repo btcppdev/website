@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1200, initial-scale=1">
+  <style>
+    /*
+      Merchandise link-preview template.
+
+      Keep the canvas at 1200 × 630 for X and Open Graph large-image cards.
+      Everything else in this file can be edited like a normal web page.
+    */
+    :root {
+      --card-background: #f6f3ee;
+      --product-max-width: 1040px;
+      --product-max-height: 520px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .social-card {
+      align-items: center;
+      background: var(--card-background);
+      display: flex;
+      height: 630px;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      width: 1200px;
+    }
+
+    .social-card__product {
+      display: block;
+      height: var(--product-max-height);
+      object-fit: contain;
+      width: var(--product-max-width);
+    }
+
+    .social-card__shop-label {
+      color: #0a0a0a;
+      font: 800 32px/1 Arial, Helvetica, sans-serif;
+      letter-spacing: 0.08em;
+      margin: 0;
+      position: absolute;
+      right: 58px;
+      text-transform: lowercase;
+      top: 50px;
+    }
+
+    .social-card__logo {
+      bottom: 48px;
+      display: block;
+      height: auto;
+      left: 56px;
+      position: absolute;
+      width: 260px;
+    }
+  </style>
+</head>
+<body>
+  <main class="social-card">
+    <img
+      id="product-image"
+      class="social-card__product"
+      src="{{ .ProductImageURL }}"
+      alt=""
+    >
+    <p class="social-card__shop-label">merch shop</p>
+    <img class="social-card__logo" src="{{ .LogoImageURL }}" alt="bitcoin++">
+  </main>
+</body>
+</html>

@@ -9,6 +9,43 @@ import (
 	"btcpp-web/internal/types"
 )
 
+func TestDatabaseSmokeMerchImageSocialCardPersistence(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	suffix := databaseSmokeSuffix()
+	productID, err := CreateMerchProduct(ctx, MerchProductInput{
+		Tag: "social-image-" + suffix, Slug: "social-image-" + suffix,
+		Name: "Social image test", Status: types.MerchProductStatusDraft,
+		BasePriceCents: 1000, Currency: "USD",
+	})
+	if err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM merch_products WHERE id = $1::uuid`, productID)
+	})
+	imageID, err := AddMerchProductImage(ctx, productID, "merch/source.avif", "merch/social/source.jpg", "Product photo", 0, true)
+	if err != nil {
+		t.Fatalf("add product image: %v", err)
+	}
+	product, err := GetMerchProductByID(ctx, productID)
+	if err != nil {
+		t.Fatalf("reload product: %v", err)
+	}
+	if len(product.Images) != 1 || product.Images[0].SocialObjectKey != "merch/social/source.jpg" {
+		t.Fatalf("product images = %+v", product.Images)
+	}
+	if err := SetMerchProductImageSocialObjectKey(ctx, productID, imageID, "merch/social/regenerated.jpg"); err != nil {
+		t.Fatalf("update social image: %v", err)
+	}
+	product, err = GetMerchProductByID(ctx, productID)
+	if err != nil {
+		t.Fatalf("reload updated product: %v", err)
+	}
+	if got := product.Images[0].SocialObjectKey; got != "merch/social/regenerated.jpg" {
+		t.Fatalf("social object key = %q", got)
+	}
+}
+
 func TestDatabaseSmokeWeeklyNewsletterMerchAddedAndRestocked(t *testing.T) {
 	ctx := databaseSmokeContext(t)
 	suffix := databaseSmokeSuffix()

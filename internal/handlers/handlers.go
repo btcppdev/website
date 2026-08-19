@@ -503,6 +503,10 @@ func loadTemplates(ctx *config.AppContext) error {
 			return SponsorBannerForConf(ctx, conf.Ref)
 		},
 		"merchImage":                  merchImage,
+		"merchSocialImage":            merchSocialImage,
+		"merchSocialImageWidth":       merchSocialImageWidth,
+		"merchSocialImageHeight":      merchSocialImageHeight,
+		"merchImageSocialPreview":     merchImageSocialPreview,
 		"merchSEODescription":         merchSEODescription,
 		"shopSEOImage":                shopSEOImage,
 		"merchProductStock":           merchProductStock,
@@ -1035,6 +1039,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dev/check-in/{ticket}", func(w http.ResponseWriter, r *http.Request) {
 		DevCheckInPreview(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dev/merch-social-card", func(w http.ResponseWriter, r *http.Request) {
+		DevMerchSocialCardPreview(w, r, app)
+	}).Methods("GET")
 
 	r.HandleFunc("/i/{conf}/sendcal", func(w http.ResponseWriter, r *http.Request) {
 		if id := requireConfAdmin(w, r, app); id == nil {
@@ -1552,6 +1559,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/{id}/images/{image}", func(w http.ResponseWriter, r *http.Request) {
 		AdminMerchImageUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/merch/{id}/images/{image}/social-card", func(w http.ResponseWriter, r *http.Request) {
+		AdminMerchImageSocialCard(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/admin/merch/{id}/options", func(w http.ResponseWriter, r *http.Request) {
 		AdminMerchOptionSave(w, r, app)

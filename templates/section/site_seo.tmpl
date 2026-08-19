@@ -12,6 +12,9 @@
     <meta property="og:title" content="{{ .Title }}" />
     <meta property="og:description" content="{{ .Description }}" />
     <meta property="og:image" content="{{ $image }}" />
+    {{ if .ImageType }}<meta property="og:image:type" content="{{ .ImageType }}" />{{ end }}
+    {{ if .ImageWidth }}<meta property="og:image:width" content="{{ .ImageWidth }}" />{{ end }}
+    {{ if .ImageHeight }}<meta property="og:image:height" content="{{ .ImageHeight }}" />{{ end }}
     <meta property="og:image:alt" content="{{ .Title }}" />
 
     <meta name="twitter:card" content="summary_large_image" />
