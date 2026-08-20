@@ -1,15 +1,18 @@
 package getters
 
 import (
-	"btcpp-web/internal/config"
-	"btcpp-web/internal/types"
+	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
+	"btcpp-web/internal/config"
+	"btcpp-web/internal/types"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"strings"
-	"time"
 )
 
 // GetConfTalkByProposal looks up the ConfTalk linked to a proposal.
@@ -499,7 +502,122 @@ func UpdateConfTalkSchedule(ctx *config.AppContext, confTalkID, venue string, st
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+	dbCtx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbCtx)
+	if err != nil {
+		return fmt.Errorf("begin conftalk schedule update: %w", err)
+	}
+	defer tx.Rollback(dbCtx)
+	if _, err := lockConfTalkSchedule(dbCtx, tx, confTalkID); err != nil {
+		return err
+	}
+	if err := updateConfTalkScheduleTx(dbCtx, tx, confTalkID, venue, start, end); err != nil {
+		return err
+	}
+	if err := tx.Commit(dbCtx); err != nil {
+		return fmt.Errorf("commit conftalk %s schedule: %w", confTalkID, err)
+	}
+	return nil
+}
+
+type ScheduleConflict string
+
+const (
+	ScheduleConflictNone    ScheduleConflict = ""
+	ScheduleConflictVenue   ScheduleConflict = "venue"
+	ScheduleConflictSpeaker ScheduleConflict = "speaker"
+)
+
+// UpdateConfTalkScheduleAtomic serializes schedule changes for one conference,
+// checks the current committed schedule while holding that lock, and updates
+// the talk in the same transaction. A competing request therefore cannot pass
+// conflict validation using stale schedule data.
+func UpdateConfTalkScheduleAtomic(ctx *config.AppContext, confTalkID, venue string, start, end time.Time) (ScheduleConflict, error) {
+	if ctx == nil || ctx.DB == nil {
+		return ScheduleConflictNone, fmt.Errorf("database is not configured")
+	}
+	dbCtx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbCtx)
+	if err != nil {
+		return ScheduleConflictNone, fmt.Errorf("begin atomic conftalk schedule update: %w", err)
+	}
+	defer tx.Rollback(dbCtx)
+
+	conferenceID, err := lockConfTalkSchedule(dbCtx, tx, confTalkID)
+	if err != nil {
+		return ScheduleConflictNone, err
+	}
+	var venueConflict bool
+	if err := tx.QueryRow(dbCtx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM conf_talks
+			WHERE conference_id = $1::uuid
+				AND id <> $2::uuid
+				AND archived_at IS NULL
+				AND scheduled_start < $4
+				AND scheduled_end > $3
+				AND venue = $5
+		)
+	`, conferenceID, confTalkID, start, end, venue).Scan(&venueConflict); err != nil {
+		return ScheduleConflictNone, fmt.Errorf("check conftalk venue collision: %w", err)
+	}
+	if venueConflict {
+		return ScheduleConflictVenue, nil
+	}
+
+	var speakerConflict bool
+	if err := tx.QueryRow(dbCtx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM conf_talks AS existing
+			JOIN proposals_speaker_confs AS existing_link ON existing_link.proposal_id = existing.proposal_id
+			JOIN speaker_confs AS existing_speaker ON existing_speaker.id = existing_link.speaker_conf_id
+			JOIN conf_talks AS target ON target.id = $2::uuid
+			JOIN proposals_speaker_confs AS target_link ON target_link.proposal_id = target.proposal_id
+			JOIN speaker_confs AS target_speaker ON target_speaker.id = target_link.speaker_conf_id
+			WHERE existing.conference_id = $1::uuid
+				AND existing.id <> target.id
+				AND existing.archived_at IS NULL
+				AND existing.scheduled_start < $4
+				AND existing.scheduled_end > $3
+				AND existing_speaker.speaker_id = target_speaker.speaker_id
+		)
+	`, conferenceID, confTalkID, start, end).Scan(&speakerConflict); err != nil {
+		return ScheduleConflictNone, fmt.Errorf("check conftalk speaker collision: %w", err)
+	}
+	if speakerConflict {
+		return ScheduleConflictSpeaker, nil
+	}
+	if err := updateConfTalkScheduleTx(dbCtx, tx, confTalkID, venue, start, end); err != nil {
+		return ScheduleConflictNone, err
+	}
+	if err := tx.Commit(dbCtx); err != nil {
+		return ScheduleConflictNone, fmt.Errorf("commit atomic conftalk %s schedule: %w", confTalkID, err)
+	}
+	return ScheduleConflictNone, nil
+}
+
+func lockConfTalkSchedule(dbCtx context.Context, tx pgx.Tx, confTalkID string) (string, error) {
+	var conferenceID string
+	if err := tx.QueryRow(dbCtx, `
+		SELECT conference_id::text
+		FROM conf_talks
+		WHERE id = $1::uuid AND archived_at IS NULL
+	`, confTalkID).Scan(&conferenceID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", fmt.Errorf("conf talk %s not found", confTalkID)
+		}
+		return "", fmt.Errorf("load conftalk %s conference: %w", confTalkID, err)
+	}
+	if _, err := tx.Exec(dbCtx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, conferenceID); err != nil {
+		return "", fmt.Errorf("lock conference %s schedule: %w", conferenceID, err)
+	}
+	return conferenceID, nil
+}
+
+func updateConfTalkScheduleTx(dbCtx context.Context, tx pgx.Tx, confTalkID, venue string, start, end time.Time) error {
+	commandTag, err := tx.Exec(dbCtx, `
 		UPDATE conf_talks
 		SET scheduled_start = $2,
 			scheduled_end = $3,
@@ -512,7 +630,6 @@ func UpdateConfTalkSchedule(ctx *config.AppContext, confTalkID, venue string, st
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("conf talk %s not found", confTalkID)
 	}
-
 	return nil
 }
 

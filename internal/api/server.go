@@ -41,7 +41,7 @@ type server struct {
 	loadTalk            func(string) (*types.Talk, error)
 	updateProposal      func(string, getters.ProposalPatch) error
 	updateTalkResources func(string, string, string, string) error
-	updateTalkSchedule  func(string, string, time.Time, time.Time) error
+	updateTalkSchedule  func(string, string, time.Time, time.Time) (getters.ScheduleConflict, error)
 	listConfRecordings  func(string) ([]*types.Recording, error)
 	upsertRecording     func(string, getters.RecordingUpsert) (*types.Recording, error)
 	recordAudit         func(*types.AuthAuditEvent) error
@@ -82,8 +82,8 @@ func Register(root *mux.Router, app *config.AppContext) {
 		updateTalkResources: func(id, repository, slides, objectKey string) error {
 			return getters.UpdateConfTalkResources(app, id, repository, slides, objectKey)
 		},
-		updateTalkSchedule: func(id, venue string, start, end time.Time) error {
-			return getters.UpdateConfTalkSchedule(app, id, venue, start, end)
+		updateTalkSchedule: func(id, venue string, start, end time.Time) (getters.ScheduleConflict, error) {
+			return getters.UpdateConfTalkScheduleAtomic(app, id, venue, start, end)
 		},
 		listConfRecordings: func(tag string) ([]*types.Recording, error) { return getters.ListRecordingsForConf(app, tag) },
 		upsertRecording: func(id string, update getters.RecordingUpsert) (*types.Recording, error) {
@@ -574,8 +574,17 @@ func (s *server) updateConferenceTalkSchedule(w http.ResponseWriter, r *http.Req
 		s.internalError(w, r, "update API schedule", io.ErrClosedPipe)
 		return
 	}
-	if err := s.updateTalkSchedule(confTalk.ID, strings.TrimSpace(input.Venue), start, end); err != nil {
+	conflict, err := s.updateTalkSchedule(confTalk.ID, strings.TrimSpace(input.Venue), start, end)
+	if err != nil {
 		s.internalError(w, r, "update API schedule", err)
+		return
+	}
+	switch conflict {
+	case getters.ScheduleConflictVenue:
+		s.writeError(w, r, http.StatusConflict, "schedule_conflict", "Another talk already occupies that venue and time.")
+		return
+	case getters.ScheduleConflictSpeaker:
+		s.writeError(w, r, http.StatusConflict, "schedule_conflict", "A speaker is already scheduled for another talk at that time.")
 		return
 	}
 	s.auditMutation(r, principal, "api_schedule_updated", map[string]any{"conference": mux.Vars(r)["tag"], "talk_id": confTalk.ID})
