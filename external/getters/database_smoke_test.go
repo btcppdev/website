@@ -266,7 +266,7 @@ func TestDatabaseSmokePasswordCredentialAndReset(t *testing.T) {
 	}
 	apiSelector := "password-reset-api-" + suffix
 	apiDigest := bytes.Repeat([]byte{0x5a}, 32)
-	if _, err := CreatePersonAPIToken(ctx, personID, "Password reset survivor", apiSelector, apiDigest, []string{"profile:read"}, time.Now().Add(time.Hour)); err != nil {
+	if _, err := CreatePersonAPIToken(ctx, personID, "Password reset survivor", apiSelector, apiDigest, []string{"profile:self:read"}, time.Now().Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	valid, err := PasswordResetTokenValid(ctx, token)
@@ -401,7 +401,7 @@ func TestDatabaseSmokeAPITokenCredential(t *testing.T) {
 	for index := range digest {
 		digest[index] = byte(index)
 	}
-	stored, err := CreatePersonAPIToken(ctx, personID, "Smoke integration", "selector-"+suffix, digest, []string{"profile:read"}, time.Now().Add(24*time.Hour))
+	stored, err := CreatePersonAPIToken(ctx, personID, "Smoke integration", "selector-"+suffix, digest, []string{"profile:self:read"}, time.Now().Add(24*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

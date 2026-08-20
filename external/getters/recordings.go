@@ -19,6 +19,82 @@ type RecordingPublishingUpdate struct {
 	XReplyLink *string
 }
 
+type RecordingUpsert struct {
+	TalkName     *string
+	YTLink       *string
+	XLink        *string
+	XReplyLink   *string
+	FileURI      *string
+	PublishAt    *time.Time
+	SetPublishAt bool
+}
+
+// UpsertRecordingForConfTalk makes service retries idempotent by using the
+// one-recording-per-talk database constraint.
+func UpsertRecordingForConfTalk(ctx *config.AppContext, confTalkID string, up RecordingUpsert) (*types.Recording, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	confTalkID = strings.TrimSpace(confTalkID)
+	if confTalkID == "" {
+		return nil, fmt.Errorf("conference talk id is required")
+	}
+	existing, err := GetRecordingByConfTalk(ctx, confTalkID)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		talkName := ""
+		if up.TalkName != nil {
+			talkName = strings.TrimSpace(*up.TalkName)
+		}
+		_, err = ctx.DB.Exec(ctx.DatabaseContext(), `
+			INSERT INTO recordings (conf_talk_id, talk_name) VALUES ($1::uuid, $2)
+			ON CONFLICT (conf_talk_id) DO NOTHING
+		`, confTalkID, talkName)
+		if err != nil {
+			return nil, fmt.Errorf("create recording for talk %s: %w", confTalkID, err)
+		}
+		existing, err = GetRecordingByConfTalk(ctx, confTalkID)
+		if err != nil || existing == nil {
+			if err == nil {
+				err = fmt.Errorf("recording was not created")
+			}
+			return nil, err
+		}
+	}
+	setParts := []string{}
+	args := []any{existing.ID}
+	add := func(column string, value any) {
+		args = append(args, value)
+		setParts = append(setParts, fmt.Sprintf("%s = $%d", column, len(args)))
+	}
+	if up.TalkName != nil {
+		add("talk_name", strings.TrimSpace(*up.TalkName))
+	}
+	if up.YTLink != nil {
+		add("youtube_url", strings.TrimSpace(*up.YTLink))
+	}
+	if up.XLink != nil {
+		add("x_url", strings.TrimSpace(*up.XLink))
+	}
+	if up.XReplyLink != nil {
+		add("x_reply_url", strings.TrimSpace(*up.XReplyLink))
+	}
+	if up.FileURI != nil {
+		add("file_uri", strings.TrimSpace(*up.FileURI))
+	}
+	if up.SetPublishAt {
+		add("publish_at", up.PublishAt)
+	}
+	if len(setParts) > 0 {
+		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `UPDATE recordings SET `+strings.Join(setParts, ", ")+` WHERE id = $1::uuid`, args...); err != nil {
+			return nil, fmt.Errorf("update recording for talk %s: %w", confTalkID, err)
+		}
+	}
+	return GetRecordingByConfTalk(ctx, confTalkID)
+}
+
 func ListRecordings(ctx *config.AppContext) ([]*types.Recording, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")

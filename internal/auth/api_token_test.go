@@ -31,10 +31,10 @@ func TestParseAPITokenRejectsMalformedValues(t *testing.T) {
 }
 
 func TestValidAPITokenScopes(t *testing.T) {
-	if !ValidAPITokenScopes([]string{"profile:read", "events:read"}) {
+	if !ValidAPITokenScopes([]string{"profile:self:read", "talks:read"}) {
 		t.Fatal("valid scopes rejected")
 	}
-	for _, scopes := range [][]string{nil, {"admin"}, {"profile:read", "profile:read"}} {
+	for _, scopes := range [][]string{nil, {"admin"}, {"profile:self:read", "profile:self:read"}, {"profile:read"}} {
 		if ValidAPITokenScopes(scopes) {
 			t.Fatalf("invalid scopes accepted: %v", scopes)
 		}
