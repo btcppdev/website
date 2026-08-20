@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -2874,8 +2873,9 @@ func HackathonProjectMemberRemove(w http.ResponseWriter, r *http.Request, ctx *c
 }
 
 func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-	if email == "" {
+	email, sessionErr := validatedSessionEmail(r, ctx, true)
+	if sessionErr != nil {
+		ctx.Infos.Printf("/hackathons/invites session validation failed: %s", sessionErr)
 		redirectHackathonLogin(w, r)
 		return
 	}
@@ -2930,17 +2930,16 @@ func HackathonProjectInviteAccept(w http.ResponseWriter, r *http.Request, ctx *c
 }
 
 func HackathonJudgeInviteAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-	if email == "" {
+	email, sessionErr := validatedSessionEmail(r, ctx, true)
+	if sessionErr != nil {
+		ctx.Infos.Printf("/hackathons/judge-invites session validation failed: %s", sessionErr)
 		redirectHackathonLogin(w, r)
 		return
 	}
 	personID, err := getters.GetPersonIDByEmail(ctx, email)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/judge-invites person %s: %s", email, err)
-		encHMAC := base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
-		encEmail := base64.RawURLEncoding.EncodeToString([]byte(email))
-		profileURL := dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, r.URL.RequestURI(), "Create your profile to accept this judge invite.")
+		profileURL := dashboardSpeakerEditURLWithFlash("", "", r.URL.RequestURI(), "Create your profile to accept this judge invite.")
 		http.Redirect(w, r, profileURL, http.StatusSeeOther)
 		return
 	}
@@ -4191,14 +4190,11 @@ func redirectHackathonLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func redirectHackathonProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, flash string) {
-	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-	if email == "" {
+	if _, err := validatedSessionEmail(r, ctx, true); err != nil {
 		redirectHackathonLogin(w, r)
 		return
 	}
-	encHMAC := base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
-	encEmail := base64.RawURLEncoding.EncodeToString([]byte(email))
-	http.Redirect(w, r, dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, r.URL.RequestURI(), flash), http.StatusSeeOther)
+	http.Redirect(w, r, dashboardSpeakerEditURLWithFlash("", "", r.URL.RequestURI(), flash), http.StatusSeeOther)
 }
 
 func hackathonURLForConf(conf *types.Conf) string {

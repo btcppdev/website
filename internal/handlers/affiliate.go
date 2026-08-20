@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/base64"
 	"net/http"
 	"net/url"
 	"sort"
@@ -9,7 +8,6 @@ import (
 	"strings"
 
 	"btcpp-web/external/getters"
-	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/types"
@@ -351,8 +349,9 @@ func affiliateCampaignTitle(row *AffiliateCampaignRow) string {
 // user has at least one ticket on file. Returns ("", false) and
 // writes a redirect when either gate fails.
 func affiliateAuthAndGate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (string, bool) {
-	email := ctx.Session.GetString(r.Context(), auth.SessionEmailKey)
-	if email == "" {
+	email, err := validatedSessionEmail(r, ctx, true)
+	if err != nil {
+		ctx.Infos.Printf("/dashboard/affiliate session validation failed: %s", err)
 		http.Redirect(w, r,
 			"/login?next="+url.QueryEscape(r.URL.RequestURI()),
 			http.StatusSeeOther)
@@ -373,25 +372,21 @@ func affiliateAuthAndGate(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	return email, true
 }
 
-// dashboardURLForEmail builds /dashboard?em=&hr=&flash=&error= for
-// post-action redirects. The em+hr pair lets the dashboard handler's
-// URL-auth path pick up the visitor without falling through to its
-// session-based fallback (which works too, but landing with the
-// canonical URL keeps every dashboard sub-link that hand-builds
-// from .HMAC / .Email working without a re-mint).
+// dashboardURLForEmail builds a session-only dashboard redirect. The email is
+// retained in the function signature for callers during the transition, but
+// is never placed in the URL and never acts as a bearer credential.
 func dashboardURLForEmail(ctx *config.AppContext, email, flash, errMsg string) string {
 	q := url.Values{}
-	if email != "" {
-		q.Set("em", base64.RawURLEncoding.EncodeToString([]byte(email)))
-		q.Set("hr", base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email))))
-	}
 	if flash != "" {
 		q.Set("flash", flash)
 	}
 	if errMsg != "" {
 		q.Set("error", errMsg)
 	}
-	return "/dashboard?" + q.Encode()
+	if encoded := q.Encode(); encoded != "" {
+		return "/dashboard?" + encoded
+	}
+	return "/dashboard"
 }
 
 func affiliateURLForEmail(ctx *config.AppContext, email, flash, errMsg string) string {

@@ -44,15 +44,12 @@ func renderSatelliteSuggestForm(w http.ResponseWriter, ctx *config.AppContext, c
 	}
 }
 
-func satelliteSubmitterSessionEmail(r *http.Request, ctx *config.AppContext) string {
-	return strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-}
-
 func requireSatelliteSubmitterSession(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (string, bool) {
-	email := satelliteSubmitterSessionEmail(r, ctx)
-	if email != "" {
+	email, err := validatedSessionEmail(r, ctx, true)
+	if err == nil {
 		return email, true
 	}
+	ctx.Infos.Printf("%s satellite submitter session validation failed: %s", r.URL.Path, err)
 	next := auth.SafeNext(r.URL.RequestURI(), "/dashboard")
 	http.Redirect(w, r, "/login?next="+url.QueryEscape(next), http.StatusSeeOther)
 	return "", false
@@ -98,7 +95,7 @@ func SatelliteEventSuggestImageUpload(w http.ResponseWriter, r *http.Request, ct
 		handle404(w, r, ctx)
 		return
 	}
-	if satelliteSubmitterSessionEmail(r, ctx) == "" {
+	if _, err := validatedSessionEmail(r, ctx, true); err != nil {
 		http.Error(w, "login required", http.StatusUnauthorized)
 		return
 	}
