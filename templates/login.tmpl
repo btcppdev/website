@@ -90,6 +90,7 @@
         <summary>Email me a one-time sign-in link</summary>
         <form method="POST" action="/login" class="auth-form auth-form--compact">
           <input type="hidden" name="Next" value="{{ .Next }}">
+          <input type="hidden" name="csrf" value="{{ .CSRF }}">
           <label>EMAIL<input type="email" name="Email" autocomplete="email" placeholder="you@example.com" required></label>
           <button class="auth-secondary" type="submit">Send sign-in link</button>
         </form>

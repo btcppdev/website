@@ -338,12 +338,20 @@ func TestDatabaseSmokeMagicLoginTokenIsOneUse(t *testing.T) {
 	if err != nil || !valid {
 		t.Fatalf("new magic token valid = %t, %v", valid, err)
 	}
-	gotEmail, gotNext, err := ConsumeMagicLoginToken(ctx, token)
+	gotEmail, gotNext, valid, found, err := LookupMagicLoginToken(ctx, token)
+	if err != nil || !found || !valid || gotEmail != email || gotNext != "/dashboard/settings" {
+		t.Fatalf("lookup magic token = %q, %q, valid=%t, found=%t, %v", gotEmail, gotNext, valid, found, err)
+	}
+	gotEmail, gotNext, err = ConsumeMagicLoginToken(ctx, token)
 	if err != nil || gotEmail != email || gotNext != "/dashboard/settings" {
 		t.Fatalf("consume magic token = %q, %q, %v", gotEmail, gotNext, err)
 	}
 	if _, _, err := ConsumeMagicLoginToken(ctx, token); !errors.Is(err, ErrMagicLoginTokenInvalid) {
 		t.Fatalf("magic token replay returned %v", err)
+	}
+	_, _, valid, found, err = LookupMagicLoginToken(ctx, token)
+	if err != nil || !found || valid {
+		t.Fatalf("consumed magic token lookup = valid=%t, found=%t, %v", valid, found, err)
 	}
 }
 
