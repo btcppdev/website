@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -168,6 +169,42 @@ func TestOAuthEmailDisposition(t *testing.T) {
 				t.Fatalf("disposition = %d, want %d", got, test.want)
 			}
 		})
+	}
+}
+
+func TestOAuthLinkSuccessDestination(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		next string
+		want string
+	}{
+		{name: "first-time sign-in returns to dashboard", next: "/dashboard", want: "/dashboard"},
+		{name: "settings link returns to settings", next: "/dashboard/settings", want: "/dashboard/settings"},
+		{name: "missing destination falls back to settings", want: "/dashboard/settings"},
+		{name: "external destination falls back to settings", next: "https://example.com", want: "/dashboard/settings"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := oauthLinkSuccessDestination(test.next); got != test.want {
+				t.Fatalf("destination = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestOAuthLinkEmailMarkdownUsesProviderSpecificButton(t *testing.T) {
+	markdown := oauthLinkEmailMarkdown("person@example.com", "GitLab", "https://btcpp.dev/auth/magic?token=test-token")
+	for _, want := range []string{
+		"We've received a request to link your GitLab account",
+		"associated with **person@example.com**",
+		"[Finish linking GitLab](button#https://btcpp.dev/auth/magic?token=test-token)",
+		"expires in 72 hours and can only be used once",
+	} {
+		if !strings.Contains(markdown, want) {
+			t.Errorf("OAuth link email missing %q:\n%s", want, markdown)
+		}
+	}
+	if strings.Contains(markdown, "sign in to your bitcoin++ account") {
+		t.Fatalf("OAuth link email uses generic sign-in copy:\n%s", markdown)
 	}
 }
 
