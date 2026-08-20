@@ -11,6 +11,24 @@
     }
   ],
   "paths": {
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenAPIContract",
+        "summary": "Download the API v1 OpenAPI 3.1 contract",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 JSON document",
+            "content": {
+              "application/vnd.oai.openapi+json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/bootstrap": {
       "get": {
         "operationId": "getBootstrap",

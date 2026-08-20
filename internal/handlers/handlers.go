@@ -912,6 +912,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/sitemap.xml", func(w http.ResponseWriter, r *http.Request) {
 		Sitemap(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/developers/api", func(w http.ResponseWriter, r *http.Request) {
+		DevelopersAPI(w, r, app)
+	}).Methods("GET")
 
 	/* List of 'normie' pages */
 	for _, page := range pages {

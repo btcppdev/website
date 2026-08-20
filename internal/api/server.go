@@ -105,6 +105,7 @@ func (s *server) register(r *mux.Router) {
 	})
 
 	r.HandleFunc("/bootstrap", s.bootstrap).Methods(http.MethodGet)
+	r.HandleFunc("/openapi.json", s.openAPISpec).Methods(http.MethodGet)
 	r.HandleFunc("/conferences", s.conferences).Methods(http.MethodGet)
 	r.HandleFunc("/conferences/{tag}", s.conference).Methods(http.MethodGet)
 	r.HandleFunc("/conferences/{tag}/days", s.conferenceDays).Methods(http.MethodGet)
@@ -245,6 +246,8 @@ func (s *server) bootstrap(w http.ResponseWriter, r *http.Request) {
 		APIVersion: "v1",
 		Links: map[string]string{
 			"bootstrap":             "/api/v1/bootstrap",
+			"documentation":         "/developers/api",
+			"openapi":               "/api/v1/openapi.json",
 			"conferences":           "/api/v1/conferences",
 			"people":                "/api/v1/people",
 			"recordings":            "/api/v1/recordings",
@@ -1267,6 +1270,9 @@ func acceptsJSON(header string) bool {
 	}
 	for _, item := range strings.Split(header, ",") {
 		mediaType := strings.ToLower(strings.TrimSpace(strings.SplitN(item, ";", 2)[0]))
+		if strings.HasPrefix(mediaType, "application/") && strings.HasSuffix(mediaType, "+json") {
+			return true
+		}
 		switch mediaType {
 		case "*/*", "application/*", "application/json":
 			return true

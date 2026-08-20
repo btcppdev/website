@@ -5,6 +5,173 @@
 	font-display: swap;
 }
 
+/* Public developer documentation. */
+body.btcpp-api-docs-page {
+	margin: 0;
+	background: #f4f0e9;
+	color: #0a0a0a;
+	font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+.btcpp-api-docs-page *,
+.btcpp-api-docs-page *::before,
+.btcpp-api-docs-page *::after {
+	box-sizing: border-box;
+}
+
+.api-docs code,
+.api-docs pre,
+.api-docs__eyebrow,
+.api-docs__section-number,
+.api-docs__toc {
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.api-docs__hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1.05fr) minmax(380px, .95fr);
+	gap: clamp(36px, 7vw, 100px);
+	align-items: center;
+	padding: clamp(64px, 9vw, 124px) clamp(20px, 6vw, 88px);
+	background: #0a0a0a;
+	color: #fff;
+}
+
+.api-docs__eyebrow {
+	margin: 0 0 24px;
+	color: #f7931a;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+}
+
+.api-docs__hero h1 {
+	margin: 0;
+	font-family: "Source Serif 4", Georgia, serif;
+	font-size: clamp(60px, 9vw, 126px);
+	font-weight: 600;
+	letter-spacing: -.045em;
+	line-height: .83;
+}
+
+.api-docs__hero h1 span { color: #f7931a; }
+
+.api-docs__lede {
+	max-width: 680px;
+	margin: 34px 0 0;
+	color: rgba(255, 255, 255, .72);
+	font-size: clamp(17px, 1.7vw, 21px);
+	line-height: 1.6;
+}
+
+.api-docs__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin-top: 34px;
+}
+
+.api-docs__button {
+	display: inline-flex;
+	padding: 13px 16px;
+	border: 1px solid rgba(255, 255, 255, .45);
+	color: #fff;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 13px;
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.api-docs__button:hover,
+.api-docs__button:focus-visible { border-color: #fff; }
+.api-docs__button.is-primary { border-color: #f7931a; background: #f7931a; color: #0a0a0a; }
+
+.api-docs__terminal {
+	min-width: 0;
+	border: 1px solid rgba(255, 255, 255, .22);
+	background: #121212;
+	box-shadow: 18px 18px 0 #f7931a;
+}
+
+.api-docs__terminal-bar {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 11px 14px;
+	border-bottom: 1px solid rgba(255, 255, 255, .16);
+}
+
+.api-docs__terminal-bar span { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, .28); }
+.api-docs__terminal-bar b { margin-left: auto; color: rgba(255, 255, 255, .42); font: 500 10px "IBM Plex Mono", monospace; text-transform: uppercase; }
+.api-docs__terminal pre { overflow: auto; margin: 0; padding: 24px; color: #ddd; font-size: 12px; line-height: 1.7; }
+.api-docs__prompt, .api-docs__key { color: #f7931a; }
+.api-docs__string { color: #a7d7a7; }
+
+.api-docs__layout {
+	display: grid;
+	grid-template-columns: 190px minmax(0, 900px);
+	gap: clamp(32px, 6vw, 90px);
+	max-width: 1260px;
+	margin: 0 auto;
+	padding: clamp(56px, 8vw, 104px) clamp(20px, 5vw, 72px) clamp(80px, 10vw, 140px);
+}
+
+.api-docs__toc {
+	position: sticky;
+	top: calc(var(--btcpp-site-nav-top, 0px) + 90px);
+	align-self: start;
+	display: flex;
+	flex-direction: column;
+	gap: 9px;
+	font-size: 12px;
+}
+
+.api-docs__toc p { margin: 0 0 8px; color: #777; font-weight: 700; text-transform: uppercase; }
+.api-docs__toc a { color: #555; text-decoration: none; }
+.api-docs__toc a:hover, .api-docs__toc a:focus-visible { color: #f7931a; }
+
+.api-docs__content { min-width: 0; }
+.api-docs__section { scroll-margin-top: 100px; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 22px; padding: 0 0 70px; margin-bottom: 70px; border-bottom: 1px solid rgba(10, 10, 10, .18); }
+.api-docs__section:last-child { margin-bottom: 0; border-bottom: 0; }
+.api-docs__section-number { margin: 9px 0 0; color: #f7931a; font-size: 12px; font-weight: 700; }
+.api-docs__section h2 { margin: 0 0 20px; font-family: "Source Serif 4", Georgia, serif; font-size: clamp(38px, 5vw, 62px); line-height: 1; }
+.api-docs__section p, .api-docs__section li { color: #373737; font-size: 16px; line-height: 1.7; }
+.api-docs__section a { color: #9b4e00; text-underline-offset: 3px; }
+.api-docs__section p code, .api-docs__section li code { padding: 2px 5px; background: #e5dfd5; color: #111; font-size: .86em; }
+.api-docs__section pre { overflow: auto; margin: 24px 0; padding: 22px; background: #111; color: #f5f5f5; font-size: 13px; line-height: 1.65; }
+
+.api-docs__endpoint-list,
+.api-docs__scope-list { margin-top: 28px; border-top: 1px solid #0a0a0a; }
+.api-docs__endpoint-list > div,
+.api-docs__scope-list > div { display: grid; grid-template-columns: 58px minmax(230px, .9fr) minmax(200px, 1fr); gap: 16px; align-items: baseline; padding: 15px 0; border-bottom: 1px solid rgba(10, 10, 10, .18); }
+.api-docs__endpoint-list span { color: #16803c; font: 700 11px "IBM Plex Mono", monospace; }
+.api-docs__endpoint-list code, .api-docs__scope-list code { font-size: 12px; font-weight: 700; }
+.api-docs__endpoint-list p, .api-docs__scope-list p { margin: 0; font-size: 13px; }
+.api-docs__scope-list > div { grid-template-columns: minmax(200px, .8fr) minmax(240px, 1fr); }
+
+.api-docs__notice { margin-top: 26px; padding: 18px 20px; border-left: 5px solid #f7931a; background: #fff; line-height: 1.6; }
+.api-docs__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 28px 0; border-top: 1px solid #0a0a0a; border-left: 1px solid #0a0a0a; }
+.api-docs__facts > div { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 18px; border-right: 1px solid #0a0a0a; border-bottom: 1px solid #0a0a0a; }
+.api-docs__facts small { color: #777; font: 700 10px "IBM Plex Mono", monospace; text-transform: uppercase; }
+.api-docs__facts code { overflow-wrap: anywhere; font-size: 12px; }
+
+@media (max-width: 850px) {
+	.api-docs__hero { grid-template-columns: 1fr; }
+	.api-docs__terminal { box-shadow: 10px 10px 0 #f7931a; }
+	.api-docs__layout { grid-template-columns: 1fr; }
+	.api-docs__toc { position: static; display: none; }
+}
+
+@media (max-width: 560px) {
+	.api-docs__hero { padding: 50px 18px 64px; }
+	.api-docs__hero h1 { font-size: clamp(52px, 18vw, 78px); }
+	.api-docs__section { grid-template-columns: 1fr; gap: 8px; }
+	.api-docs__endpoint-list > div,
+	.api-docs__scope-list > div { grid-template-columns: 1fr; gap: 5px; }
+	.api-docs__facts { grid-template-columns: 1fr; }
+}
+
 .font-bitcoin {
 	font-family: "Ubuntu-BoldItalic", sans-serif;
 }
