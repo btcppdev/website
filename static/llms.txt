@@ -1,0 +1,39 @@
+# bitcoin++
+
+> bitcoin++ organizes technical Bitcoin conferences, workshops, and hackathons. btcpp.dev publishes event schedules, speakers, recordings, public profiles, hackathon projects, and a scoped API for applications and integrations.
+
+The canonical website is https://btcpp.dev. Public API responses contain only information already intended for publication. Emails, private contact details, credentials, draft submissions, invitations, payout information, production notes, and unfinalized judging results are not public API data.
+
+## Developer resources
+
+- [API documentation](https://btcpp.dev/developers/api): Human-readable API v1, authentication, scope, pagination, and error documentation.
+- [OpenAPI contract](https://btcpp.dev/api/v1/openapi.json): Canonical OpenAPI 3.1 JSON schema for API v1.
+- [API bootstrap](https://btcpp.dev/api/v1/bootstrap): Machine-readable links to primary API resources.
+- [OAuth authorization-server metadata](https://btcpp.dev/.well-known/oauth-authorization-server): OAuth endpoint and capability discovery.
+- [Website source](https://github.com/btcppdev/website): Source code for btcpp.dev.
+
+## Public API resources
+
+- [Conferences](https://btcpp.dev/api/v1/conferences): Published Bitcoin++ events.
+- [People](https://btcpp.dev/api/v1/people): Public profiles with published talks, appearances, and hackathon projects.
+- [Recordings](https://btcpp.dev/api/v1/recordings): Published talk recordings.
+
+Protected endpoints accept personal API tokens and OAuth access tokens through the HTTP Authorization header. Token scopes express consent but do not grant roles; administrative operations also require the account's current conference-admin or global-admin role. Never place bearer credentials in URLs.
+
+## Website resources
+
+- [Events](https://btcpp.dev/#events): Upcoming and past Bitcoin++ events.
+- [Timeline](https://btcpp.dev/timeline): Conference history.
+- [People directory](https://btcpp.dev/whois): Public speaker and participant profiles.
+- [Talk archive](https://www.youtube.com/@btcplusplus/playlists): Published conference recordings.
+- [Shop](https://btcpp.dev/shop): Bitcoin++ merchandise.
+
+## Policies
+
+- [Privacy policy](https://btcpp.dev/privacy): How Bitcoin++ handles personal information.
+- [Terms of service](https://btcpp.dev/terms): Terms governing website and event participation.
+
+## Optional
+
+- [Insider](https://insider.btcpp.dev/): Bitcoin++ news and editorial content.
+- [GitHub organization](https://github.com/btcppdev): Public Bitcoin++ software projects.
