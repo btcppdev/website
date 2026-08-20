@@ -95,9 +95,8 @@ type (
 	//
 	// TalkConfirmLink is the magic-link URL the recipient clicks
 	// to one-click-accept the talk. DashboardLink is their general
-	// self-service URL. Both are speaker-scoped magic links — the
-	// HMAC encodes the recipient's email so each speaker on a
-	// multi-speaker proposal gets their own pair of links.
+	// self-service URL. Both are speaker-scoped, database-backed tokens, so each
+	// speaker on a multi-speaker proposal gets their own pair of links.
 	OnlyForProposal struct {
 		Proposal        *types.Proposal
 		SpeakerConfs    []*types.SpeakerConf
@@ -140,21 +139,11 @@ func makeJobKeyDedupe(email string, letter *mtypes.Letter) string {
 	return fmt.Sprintf("%s-%s", letter.Missive(), jobhash)
 }
 
-// OnlyForLogin sends a magic-link email pointing at /dashboard. Reuses the
-// existing "vollogin" Notion letter (its template field is named
-// VolShiftLink for historical reasons; the URL it produces is now the
-// unified dashboard).
-//
-// Outside production, the link is also written to the info log so devs can
-// grab it without waiting for a real email. NEVER do this in prod — anyone
-// with log access could log in as anyone.
-func OnlyForLogin(ctx *config.AppContext, email string) ([]byte, error) {
-	return OnlyForLoginLink(ctx, email, helpers.EmailLink(ctx, email, "/dashboard"))
-}
-
 // OnlyForLoginLink sends the "vollogin" magic-link letter with a
 // caller-provided URL. Used by the generic /login flow to bake a
-// `next` redirect into the link via auth.MagicLink.
+// `next` redirect into the link via auth.MagicLink. The button# destination
+// marker makes the existing editable missive render its sign-in link as the
+// standard transactional-email button.
 func OnlyForLoginLink(ctx *config.AppContext, email, link string) ([]byte, error) {
 	onlyFor := "vollogin"
 	if !ctx.InProduction {
@@ -162,11 +151,15 @@ func OnlyForLoginLink(ctx *config.AppContext, email, link string) ([]byte, error
 	}
 	tmplData := &VolLogin{
 		Email:        email,
-		VolShiftLink: link,
+		VolShiftLink: loginEmailButtonLink(link),
 		URI:          ctx.Env.GetURI(),
 	}
 
 	return execOnlyFor(ctx, email, onlyFor, tmplData)
+}
+
+func loginEmailButtonLink(link string) string {
+	return "button#" + link
 }
 
 func OnlyForVolWaitlist(ctx *config.AppContext, vol *types.Volunteer, conf *types.Conf) ([]byte, error) {

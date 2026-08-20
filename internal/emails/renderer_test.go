@@ -41,6 +41,13 @@ func TestMissiveTemplateDoesNotHTMLEscapePlainTextURLs(t *testing.T) {
 	}
 }
 
+func TestLoginEmailUsesButtonDestination(t *testing.T) {
+	link := "https://btcpp.dev/auth/magic?token=test-token"
+	if got, want := loginEmailButtonLink(link), "button#"+link; got != want {
+		t.Fatalf("login email destination = %q, want %q", got, want)
+	}
+}
+
 func TestConferenceCampaignPreviewUsesNewsletterWrapper(t *testing.T) {
 	rebrand, err := os.ReadFile("../../templates/emails/rebrand.tmpl")
 	if err != nil {

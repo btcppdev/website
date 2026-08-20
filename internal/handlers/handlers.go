@@ -1761,6 +1761,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		InviteSpeakerDecline(w, r, app)
 	}).Methods("POST")
 
+	// Backwards compat: retire the old volunteer-only email form in favor of
+	// the unified login page while preserving its intended destination.
+	r.HandleFunc("/volunteers/findshift", func(w http.ResponseWriter, r *http.Request) {
+		redirectVolunteerFindShiftLogin(w, r)
+	}).Methods("GET", "POST")
+
 	// Backwards compat: existing magic-link emails point at /vols/shift.
 	// Forward them to /dashboard, preserving the HMAC + email query params.
 	r.HandleFunc("/vols/shift", func(w http.ResponseWriter, r *http.Request) {
@@ -6641,75 +6647,13 @@ func stripeLineItemKind(line *stripe.LineItem) string {
 	return "ticket"
 }
 
-type EmailForm struct {
-	Email string
-}
-
-func RenderFindShift(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	switch r.Method {
-	case http.MethodGet:
-		err := ctx.TemplateCache.ExecuteTemplate(w, "volunteers/findshift.tmpl", &VolShiftPage{
-			Year: helpers.CurrentYear(),
-		})
-
-		if err != nil {
-			http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-			ctx.Err.Printf("/volunteers/findshift ExecuteTemplate failed ! %s", err.Error())
-			return
-		}
-	case http.MethodPost:
-		limitRequestBody(w, r, maxFormBodyBytes)
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "bad form", http.StatusBadRequest)
-			return
-		}
-		dec := newFormDecoder()
-		var form EmailForm
-		err := dec.Decode(&form, r.PostForm)
-		if err != nil {
-			ctx.Err.Printf("/vols/shift unable to decode email form %s", err)
-			w.Write([]byte(helpers.ErrVolApp("Unable to send you email link.")))
-			return
-		}
-
-		_, err = emails.OnlyForLogin(ctx, form.Email)
-		if err != nil {
-			http.Error(w, "Unable to send login link via email", http.StatusInternalServerError)
-			ctx.Err.Printf("/volunteers/findshift onlyforvollogin failed ! %s", err.Error())
-			return
-		}
-
-		/* We redirect to home on success */
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-	}
-}
-
-func calcStats(apps []*types.Volunteer) *ApplicationStats {
-
-	pending, accepted, totalShifts := 0, 0, 0
-	for _, app := range apps {
-		switch app.Status {
-		case "Applied":
-		case "PendingShifts":
-		case "Waitlist":
-			pending += 1
-		case "Scheduled":
-			accepted += 1
-		}
-		totalShifts += len(app.WorkShifts)
-	}
-
-	return &ApplicationStats{
-		Applied:     len(apps),
-		Pending:     pending,
-		Accepted:    accepted,
-		TotalShifts: totalShifts,
-	}
-}
-
 func validateVolEmail(r *http.Request, ctx *config.AppContext) (string, string, error) {
 	email, err := validatedSessionEmail(r, ctx, true)
 	return email, "", err
+}
+
+func redirectVolunteerFindShiftLogin(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/login?next="+url.QueryEscape("/vols/shift"), http.StatusSeeOther)
 }
 
 // validatedSessionEmail returns an email only after validating any
@@ -6753,69 +6697,6 @@ func validatedSessionEmail(r *http.Request, ctx *config.AppContext, allowPending
 		return "", fmt.Errorf("missing or revoked session credentials")
 	}
 	return "", fmt.Errorf("missing or revoked session credentials")
-}
-
-func VolunteerShift(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	/* We put a hash + email in the link */
-	email, encodedHMAC, err := validateVolEmail(r, ctx)
-	if err != nil {
-		ctx.Infos.Printf("/vols/shift HMAC validation failed: %s", err.Error())
-		RenderFindShift(w, r, ctx)
-		return
-	}
-	ctx.Infos.Printf("/vols/shift validated email: %s", email)
-
-	/* Find volunteer signups */
-	volapps, err := getters.ListVolunteerApps(ctx, email)
-	if err != nil {
-		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("/vol/shift listvolunteerapps failed ! %s", err.Error())
-		return
-	}
-
-	// fixme: add "sign up to volunteer" state :)
-	if len(volapps) == 0 {
-		handle404(w, r, ctx)
-		return
-	}
-
-	// Populate WorkShifts and per-conf VolInfo for each volunteer application
-	volInfosByConf, err := getters.GetVolInfoMap(ctx)
-	if err != nil {
-		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("/vol/shift getvolinfomap failed ! %s", err.Error())
-		return
-	}
-
-	for _, vol := range volapps {
-		conf := vol.ScheduleFor[0]
-		confShifts, err := getters.GetShiftsForConf(ctx, conf.Tag)
-		if err != nil {
-			ctx.Err.Printf("/vol/shift failed to get shifts for conf %s: %s", conf.Tag, err.Error())
-			continue
-		}
-		vol.WorkShifts = getSelectedShifts(vol, confShifts)
-	}
-
-	encodedEmail := r.URL.Query().Get("em")
-	confs := listConfs(w, ctx)
-	err = ctx.TemplateCache.ExecuteTemplate(w, "volunteers/shift.tmpl", &VolShiftPage{
-		Name:     volapps[0].Name,
-		Hometown: volapps[0].Hometown,
-		Email:    encodedEmail,
-		HMAC:     encodedHMAC,
-		Stats:    calcStats(volapps),
-		VolApps:  volapps,
-		Confs:    confs,
-		VolInfos: volInfosByConf,
-		Year:     helpers.CurrentYear(),
-	})
-
-	if err != nil {
-		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("/vol/shift ExecuteTemplate failed ! %s", err.Error())
-		return
-	}
 }
 
 func buildShiftDisplays(vol *types.Volunteer, shifts []*types.WorkShift, selectedShifts []*types.WorkShift) map[string][]*ShiftDisplay {
