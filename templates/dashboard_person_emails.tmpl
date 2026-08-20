@@ -129,6 +129,76 @@
     </section>
 
     <section class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">↔</div>
+      <div class="profile-edit-section__body">
+        <div class="profile-edit-section__head"><div><p>§ AUTHORIZED APPS</p><h2>Third-party access</h2></div></div>
+        <p><small>These applications can use bitcoin++ on your behalf within the listed scopes. Revoking access invalidates their access and refresh tokens.</small></p>
+        <div class="person-email-list">
+          {{ range .OAuthConsents }}
+          <div class="person-email-row"><div><strong>{{ .ClientName }}</strong><span class="is-primary">AUTHORIZED</span>
+            <small>{{ .ClientID }} · authorized {{ .GrantedAt.Format "Jan 2, 2006" }}</small>
+            <small>Scopes: {{ range $index, $scope := .Scopes }}{{ if $index }}, {{ end }}{{ $scope }}{{ end }}</small>
+          </div><div class="person-email-actions"><form method="POST" action="/dashboard/settings/oauth-consents/revoke">
+            <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}"><input type="hidden" name="client_id" value="{{ .ClientDBID }}">
+            <button type="submit" class="is-danger">Revoke access</button>
+          </form></div></div>
+          {{ else }}<div class="person-email-row is-pending"><div><strong>No authorized applications</strong><small>Apps appear here after you approve an OAuth authorization request.</small></div></div>{{ end }}
+        </div>
+      </div>
+    </section>
+
+    {{ if .IsGlobalAdmin }}
+    <section class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">O₂</div>
+      <div class="profile-edit-section__body">
+        <div class="profile-edit-section__head"><div><p>§ OAUTH SERVER</p><h2>Registered applications</h2></div></div>
+        <p><small>Public clients are for browser and native apps and must use PKCE. Confidential clients are only for servers that can keep a client secret.</small></p>
+        {{ if .NewOAuthClientID }}
+        <div class="profile-edit-flash">
+          <strong>OAuth application registered.</strong>
+          <code style="display:block;overflow-wrap:anywhere;margin-top:.75rem;user-select:all">Client ID: {{ .NewOAuthClientID }}</code>
+          {{ if .NewOAuthClientSecret }}<code style="display:block;overflow-wrap:anywhere;margin-top:.5rem;user-select:all">Client secret: {{ .NewOAuthClientSecret }}</code><small>Copy the secret now. It will not be shown again.</small>{{ end }}
+        </div>
+        {{ end }}
+        <div class="person-email-list">
+          {{ range .OAuthClients }}
+          <div class="person-email-row{{ if .RevokedAt }} is-pending{{ end }}">
+            <div>
+              <strong>{{ .Name }}</strong>{{ if .RevokedAt }}<span class="is-pending">REVOKED</span>{{ else }}<span class="is-primary">ACTIVE</span>{{ end }}
+              <small>{{ .ClientID }} · {{ .TokenEndpointAuthMethod }} · created {{ .CreatedAt.Format "Jan 2, 2006" }}</small>
+              <small>Redirects: {{ range $index, $uri := .RedirectURIs }}{{ if $index }}, {{ end }}{{ $uri }}{{ end }}</small>
+              <small>Scopes: {{ range $index, $scope := .AllowedScopes }}{{ if $index }}, {{ end }}{{ $scope }}{{ end }}</small>
+            </div>
+            {{ if not .RevokedAt }}
+            <div class="person-email-actions"><form method="POST" action="/dashboard/settings/oauth-clients/revoke">
+              <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}"><input type="hidden" name="client_id" value="{{ .ID }}">
+              <button type="submit" class="is-danger">Revoke</button>
+            </form></div>
+            {{ end }}
+          </div>
+          {{ else }}<div class="person-email-row is-pending"><div><strong>No OAuth applications</strong><small>Register one to let a third-party app request scoped access.</small></div></div>{{ end }}
+        </div>
+        <form method="POST" action="/dashboard/settings/oauth-clients" class="person-email-add mt-3">
+          <input type="hidden" name="csrf" value="{{ .AuthMethodsCSRF }}">
+          <label>APPLICATION NAME<input type="text" name="name" required maxlength="100" placeholder="My bitcoin++ app"></label>
+          <label>CLIENT TYPE<select name="client_type"><option value="public" selected>Public — native or browser app</option><option value="confidential">Confidential — server backend</option></select></label>
+          <label>REDIRECT URIS<textarea name="redirect_uris" required rows="3" placeholder="https://app.example.com/oauth/callback&#10;myapp://oauth/callback"></textarea></label>
+          <fieldset><legend>ALLOWED SCOPES</legend>
+            <label><input type="checkbox" name="scopes" value="profile:self:read" checked> Read private profile</label>
+            <label><input type="checkbox" name="scopes" value="profile:self:write"> Update profile</label>
+            <label><input type="checkbox" name="scopes" value="talks:read" checked> Read talks</label>
+            <label><input type="checkbox" name="scopes" value="talks:write"> Update talks</label>
+            <label><input type="checkbox" name="scopes" value="schedule:write"> Manage schedules (live admin role also required)</label>
+            <label><input type="checkbox" name="scopes" value="recordings:write"> Manage recordings (live admin role also required)</label>
+            <label><input type="checkbox" name="scopes" value="offline_access" checked> Issue rotating refresh tokens</label>
+          </fieldset>
+          <button type="submit">Register OAuth application</button>
+        </form>
+      </div>
+    </section>
+    {{ end }}
+
+    <section class="profile-edit-section is-open">
       <div class="profile-edit-section__index">&gt;_</div>
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head">
@@ -174,9 +244,12 @@
           </label>
           <fieldset>
             <legend>SCOPES</legend>
-            <label><input type="checkbox" name="scopes" value="profile:read" checked> Read your profile</label>
-            <label><input type="checkbox" name="scopes" value="events:read"> Read events</label>
-            <label><input type="checkbox" name="scopes" value="projects:read"> Read hackathon projects</label>
+            <label><input type="checkbox" name="scopes" value="profile:self:read" checked> Read your private profile</label>
+            <label><input type="checkbox" name="scopes" value="profile:self:write"> Update your profile</label>
+            <label><input type="checkbox" name="scopes" value="talks:read"> Read your talks</label>
+            <label><input type="checkbox" name="scopes" value="talks:write"> Update talks you can edit</label>
+            <label><input type="checkbox" name="scopes" value="schedule:write"> Manage conference schedules (admins only)</label>
+            <label><input type="checkbox" name="scopes" value="recordings:write"> Manage recording metadata (admins only)</label>
           </fieldset>
           <label>EXPIRES
             <select name="expires_in">

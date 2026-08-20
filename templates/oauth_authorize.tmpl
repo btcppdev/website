@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Authorize {{ .Client.Name }} · bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-login-page">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="auth-shell">
+    <aside class="auth-poster" aria-hidden="true">
+      <div class="auth-poster__eyebrow">BITCOIN++ / AUTHORIZATION</div>
+      <div class="auth-poster__mark">++</div>
+      <div><p>Your account.</p><p>Your data.</p><p class="auth-poster__accent">Your choice.</p></div>
+      <span class="auth-poster__note">You can revoke this connection later.</span>
+    </aside>
+    <section class="auth-card">
+      <header class="auth-card__head">
+        <span class="auth-kicker">§ CONNECT APP</span>
+        <h1>Authorize <em>{{ .Client.Name }}?</em></h1>
+        <p>This application is asking for the following access to your bitcoin++ account.</p>
+      </header>
+      <ul class="oauth-consent-scopes">
+        {{ range .Scopes }}
+        <li><strong>{{ . }}</strong><span>{{ index $.ScopeDescriptions . }}</span></li>
+        {{ end }}
+      </ul>
+      <form method="POST" action="/oauth/authorize" class="auth-form">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <input type="hidden" name="client_id" value="{{ .ClientID }}">
+        <input type="hidden" name="redirect_uri" value="{{ .RedirectURI }}">
+        <input type="hidden" name="response_type" value="code">
+        <input type="hidden" name="scope" value="{{ range $i, $scope := .Scopes }}{{ if $i }} {{ end }}{{ $scope }}{{ end }}">
+        <input type="hidden" name="state" value="{{ .State }}">
+        <input type="hidden" name="code_challenge" value="{{ .CodeChallenge }}">
+        <input type="hidden" name="code_challenge_method" value="S256">
+        <div class="auth-form__actions">
+          <button class="auth-primary" type="submit" name="decision" value="allow">Authorize {{ .Client.Name }} <span>→</span></button>
+          <button class="auth-secondary" type="submit" name="decision" value="deny">Cancel</button>
+        </div>
+      </form>
+    </section>
+  </main>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

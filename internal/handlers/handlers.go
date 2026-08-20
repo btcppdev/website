@@ -1170,6 +1170,27 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		Login(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
+		OAuthServerMetadata(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/oauth/authorize", func(w http.ResponseWriter, r *http.Request) {
+		OAuthAuthorize(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/oauth/authorize", func(w http.ResponseWriter, r *http.Request) {
+		OAuthAuthorizeDecision(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		OAuthToken(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		OAuthTokenPreflight(w, r, app)
+	}).Methods("OPTIONS")
+	r.HandleFunc("/oauth/revoke", func(w http.ResponseWriter, r *http.Request) {
+		OAuthRevoke(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/oauth/revoke", func(w http.ResponseWriter, r *http.Request) {
+		OAuthTokenPreflight(w, r, app)
+	}).Methods("OPTIONS")
 	r.HandleFunc("/login/password", func(w http.ResponseWriter, r *http.Request) {
 		PasswordLogin(w, r, app)
 	}).Methods("POST")
@@ -1717,6 +1738,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/settings/api-tokens/revoke", func(w http.ResponseWriter, r *http.Request) {
 		DashboardAPITokenRevoke(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/settings/oauth-clients", func(w http.ResponseWriter, r *http.Request) {
+		DashboardOAuthClientCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/settings/oauth-consents/revoke", func(w http.ResponseWriter, r *http.Request) {
+		DashboardOAuthConsentRevoke(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/settings/oauth-clients/revoke", func(w http.ResponseWriter, r *http.Request) {
+		DashboardOAuthClientRevoke(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/emails/request", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmailRequest(w, r, app)

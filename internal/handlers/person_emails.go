@@ -22,10 +22,10 @@ func DashboardPersonEmails(w http.ResponseWriter, r *http.Request, ctx *config.A
 	if id == nil {
 		return
 	}
-	renderAccountSettings(w, r, ctx, id, "")
+	renderAccountSettings(w, r, ctx, id, "", "", "")
 }
 
-func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, id *auth.Identity, newAPIToken string) {
+func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, id *auth.Identity, newAPIToken, newOAuthClientID, newOAuthClientSecret string) {
 	addresses, err := getters.ListPersonEmails(ctx, id.PersonID)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/emails list %s: %s", id.PersonID, err)
@@ -74,6 +74,21 @@ func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Error(w, "Unable to load API tokens", http.StatusInternalServerError)
 		return
 	}
+	oauthConsents, err := getters.ListPersonOAuthConsents(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/settings OAuth consents %s: %s", id.PersonID, err)
+		http.Error(w, "Unable to load authorized applications", http.StatusInternalServerError)
+		return
+	}
+	var oauthClients []*types.OAuthClient
+	if id.IsGlobalAdmin() {
+		oauthClients, err = getters.ListOAuthClients(ctx)
+		if err != nil {
+			ctx.Err.Printf("/dashboard/settings OAuth clients: %s", err)
+			http.Error(w, "Unable to load OAuth applications", http.StatusInternalServerError)
+			return
+		}
+	}
 	csrf, err := ensureAuthMethodsCSRF(ctx, r)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/emails auth CSRF: %s", err)
@@ -95,21 +110,26 @@ func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.A
 	}
 	w.Header().Set("Cache-Control", "private, no-store")
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_person_emails.tmpl", &PersonEmailsPage{
-		Speaker:          id.Speaker,
-		Emails:           addresses,
-		OAuthIdentities:  identityViews,
-		OAuthProviders:   providerViews,
-		NostrCredentials: nostrViews,
-		HasPassword:      passwordCredential != nil,
-		Passkeys:         passkeys,
-		APITokens:        apiTokens,
-		NewAPIToken:      newAPIToken,
-		PendingEmails:    pendingEmails,
-		MergeRequests:    mergeRequests,
-		AuthMethodsCSRF:  csrf,
-		FlashMessage:     r.URL.Query().Get("flash"),
-		FlashError:       r.URL.Query().Get("error"),
-		Year:             helpers.CurrentYear(),
+		Speaker:              id.Speaker,
+		Emails:               addresses,
+		OAuthIdentities:      identityViews,
+		OAuthProviders:       providerViews,
+		NostrCredentials:     nostrViews,
+		HasPassword:          passwordCredential != nil,
+		Passkeys:             passkeys,
+		APITokens:            apiTokens,
+		NewAPIToken:          newAPIToken,
+		OAuthClients:         oauthClients,
+		OAuthConsents:        oauthConsents,
+		NewOAuthClientID:     newOAuthClientID,
+		NewOAuthClientSecret: newOAuthClientSecret,
+		IsGlobalAdmin:        id.IsGlobalAdmin(),
+		PendingEmails:        pendingEmails,
+		MergeRequests:        mergeRequests,
+		AuthMethodsCSRF:      csrf,
+		FlashMessage:         r.URL.Query().Get("flash"),
+		FlashError:           r.URL.Query().Get("error"),
+		Year:                 helpers.CurrentYear(),
 	}); err != nil {
 		ctx.Err.Printf("/dashboard/emails render: %s", err)
 		http.Error(w, "Unable to render email addresses", http.StatusInternalServerError)
@@ -194,7 +214,7 @@ func DashboardAPITokenCreate(w http.ResponseWriter, r *http.Request, ctx *config
 		"API token created for your bitcoin++ account",
 		fmt.Sprintf("The API token %s was created.", markdownEmailText(token.Name)), time.Now().UTC())
 	r.URL.RawQuery = "flash=" + url.QueryEscape("API token created. Copy it now; it will not be shown again.")
-	renderAccountSettings(w, r, ctx, viewer, plaintext)
+	renderAccountSettings(w, r, ctx, viewer, plaintext, "", "")
 }
 
 func DashboardAPITokenRevoke(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

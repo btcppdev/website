@@ -1744,6 +1744,40 @@
 	padding: 8px 10px;
 }
 
+.person-email-add textarea {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 84px;
+	border: 1px solid #9ca3af;
+	padding: 8px 10px;
+	resize: vertical;
+}
+
+.oauth-consent-scopes {
+	display: grid;
+	gap: 10px;
+	margin: 0 0 28px;
+	padding: 0;
+	list-style: none;
+}
+
+.oauth-consent-scopes li {
+	display: grid;
+	gap: 4px;
+	border: 1px solid var(--auth-line);
+	padding: 12px 14px;
+}
+
+.oauth-consent-scopes strong {
+	font-family: "IBM Plex Mono", monospace;
+	font-size: 11px;
+}
+
+.oauth-consent-scopes span {
+	color: #625d55;
+	font-size: 13px;
+}
+
 .person-password-form {
 	grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
 }
