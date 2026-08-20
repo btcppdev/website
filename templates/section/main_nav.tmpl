@@ -24,8 +24,11 @@
   }
   /* Push body content + the sticky main nav below the 28px banner
      so neither sits underneath. */
-  body { padding-top: 28px; }
-  body .site-nav { top: 28px; }
+  body {
+    --btcpp-site-nav-top: 28px;
+    padding-top: 28px;
+  }
+  body .site-nav { top: var(--btcpp-site-nav-top); }
 </style>
 {{ end }}
 <header class="site-nav">

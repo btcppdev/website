@@ -1047,8 +1047,8 @@
 
 .profile-edit-toolbar {
 	position: sticky;
-	top: 0;
-	z-index: 45;
+	top: calc(var(--btcpp-site-nav-top) + var(--btcpp-site-nav-height));
+	z-index: 35;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -2360,6 +2360,8 @@
 /* Shared public header, matched to the current homepage nav. */
 :root {
 	--btcpp-anchor-offset: 112px;
+	--btcpp-site-nav-height: 68px;
+	--btcpp-site-nav-top: 0px;
 }
 
 html {
