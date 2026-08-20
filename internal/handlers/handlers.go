@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
@@ -24,12 +23,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"btcpp-web/external/coingecko"
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
+	"btcpp-web/internal/api"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
@@ -37,6 +36,8 @@ import (
 	"btcpp-web/internal/ics"
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/missives"
+	"btcpp-web/internal/publicid"
+	"btcpp-web/internal/requestid"
 	"btcpp-web/internal/types"
 	"btcpp-web/internal/volunteers"
 
@@ -790,21 +791,11 @@ func (s *statusRecorder) Flush() {
 	}
 }
 
-type requestIDContextKey struct{}
-
-var requestCounter uint64
-
-func nextRequestID() string {
-	n := atomic.AddUint64(&requestCounter, 1)
-	return fmt.Sprintf("%x-%06x", time.Now().UnixNano(), n)
-}
-
 func requestID(r *http.Request) string {
 	if r == nil {
 		return ""
 	}
-	id, _ := r.Context().Value(requestIDContextKey{}).(string)
-	return id
+	return requestid.From(r.Context())
 }
 
 // requestLog is a middleware that logs each incoming request's start
@@ -818,8 +809,9 @@ func requestLog(ctx *config.AppContext, h http.Handler) http.Handler {
 			return
 		}
 		start := time.Now()
-		id := nextRequestID()
-		r = r.WithContext(context.WithValue(r.Context(), requestIDContextKey{}, id))
+		id := requestid.New()
+		r = r.WithContext(requestid.With(r.Context(), id))
+		w.Header().Set("X-Request-ID", id)
 		done := make(chan struct{})
 		go requestWatchdog(ctx, r, id, start, done)
 
@@ -903,6 +895,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handle404(w, r, app)
 	})
+
+	// Register the versioned API before broad conference and catch-all routes.
+	api.Register(r, app)
 
 	// Set up the routes, we'll have one page per course
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -3067,38 +3062,19 @@ func whoIsTalkTime(row *WhoIsTalk) (time.Time, bool) {
 }
 
 func assignWhoIsPublicIDs(people []*WhoIsPerson) map[string]string {
-	publicIDs := make(map[string]string, len(people))
-	bases := make(map[string]string, len(people))
-	counts := make(map[string]int, len(people))
+	speakers := make([]*types.Speaker, 0, len(people))
 	for _, person := range people {
 		if person == nil || person.Speaker == nil {
 			continue
 		}
-		base := publicSpeakerSlug(person.Speaker)
-		bases[person.Speaker.ID] = base
-		counts[base]++
+		speakers = append(speakers, person.Speaker)
 	}
-
-	used := map[string]bool{}
+	publicIDs := publicid.AssignSpeakers(speakers)
 	for _, person := range people {
 		if person == nil || person.Speaker == nil {
 			continue
 		}
-		base := bases[person.Speaker.ID]
-		slug := base
-		if counts[base] > 1 {
-			suffix := strings.ReplaceAll(person.Speaker.ID, "-", "")
-			if len(suffix) > 8 {
-				suffix = suffix[:8]
-			}
-			slug = strings.Trim(base+"-"+suffix, "-")
-			for n := 2; used[slug]; n++ {
-				slug = fmt.Sprintf("%s-%d", strings.Trim(base, "-"), n)
-			}
-		}
-		used[slug] = true
-		person.PublicID = slug
-		publicIDs[person.Speaker.ID] = slug
+		person.PublicID = publicIDs[person.Speaker.ID]
 	}
 	return publicIDs
 }
@@ -3130,99 +3106,15 @@ func whoIsPublicPath(ctx *config.AppContext, speaker *types.Speaker) string {
 }
 
 func publicSpeakerSlug(speaker *types.Speaker) string {
-	if speaker == nil {
-		return "speaker"
-	}
-	for _, raw := range []string{
-		profileHandleForSlug(speaker.Github, "github.com"),
-		speaker.Twitter.Handle,
-		speaker.Name,
-	} {
-		if slug := slugifyPublicID(raw); slug != "" {
-			return slug
-		}
-	}
-	id := strings.ReplaceAll(speaker.ID, "-", "")
-	if len(id) > 8 {
-		id = id[:8]
-	}
-	if id == "" {
-		return "speaker"
-	}
-	return "speaker-" + id
+	return publicid.SpeakerSlug(speaker)
 }
 
 func profileHandleForSlug(raw string, host string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	raw = strings.TrimPrefix(raw, "@")
-	host = strings.TrimPrefix(strings.ToLower(host), "www.")
-	if strings.HasPrefix(strings.ToLower(raw), "http://") || strings.HasPrefix(strings.ToLower(raw), "https://") {
-		u, err := url.Parse(raw)
-		if err != nil || strings.TrimPrefix(strings.ToLower(u.Host), "www.") != host {
-			return ""
-		}
-		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
-		if len(parts) == 0 || parts[0] == "" {
-			return ""
-		}
-		raw = parts[0]
-	} else {
-		lower := strings.TrimPrefix(strings.ToLower(raw), "www.")
-		if strings.HasPrefix(lower, host+"/") {
-			raw = raw[len(host)+1:]
-		}
-	}
-	raw = strings.Trim(raw, " /")
-	if idx := strings.IndexAny(raw, "/?#"); idx >= 0 {
-		raw = raw[:idx]
-	}
-	if host == "github.com" && !validGithubHandle(raw) {
-		return ""
-	}
-	return raw
-}
-
-func validGithubHandle(handle string) bool {
-	if handle == "" || len(handle) > 39 || handle[0] == '-' || handle[len(handle)-1] == '-' {
-		return false
-	}
-	lastHyphen := false
-	for _, r := range handle {
-		if r == '-' {
-			if lastHyphen {
-				return false
-			}
-			lastHyphen = true
-			continue
-		}
-		lastHyphen = false
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
-			return false
-		}
-	}
-	return true
+	return publicid.ProfileHandle(raw, host)
 }
 
 func slugifyPublicID(raw string) string {
-	raw = strings.ToLower(strings.TrimSpace(raw))
-	var b strings.Builder
-	lastDash := false
-	for _, r := range raw {
-		isAlphaNum := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
-		if isAlphaNum {
-			b.WriteRune(r)
-			lastDash = false
-			continue
-		}
-		if !lastDash && b.Len() > 0 {
-			b.WriteByte('-')
-			lastDash = true
-		}
-	}
-	return strings.Trim(b.String(), "-")
+	return publicid.Slug(raw)
 }
 
 // acceptedSpeakersForConf returns the deduped speaker list for the

@@ -8,9 +8,12 @@ import (
 const APITokenVersion = "btcpp_v1"
 
 var APITokenScopes = []string{
-	"profile:read",
-	"events:read",
-	"projects:read",
+	"profile:self:read",
+	"profile:self:write",
+	"talks:read",
+	"talks:write",
+	"schedule:write",
+	"recordings:write",
 }
 
 func ValidAPITokenScopes(scopes []string) bool {

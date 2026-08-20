@@ -55,6 +55,22 @@ type SpeakerUpdate struct {
 	PayoutFieldsSet  bool
 }
 
+// SpeakerProfilePatch is the API-facing profile allowlist. A nil field is
+// unchanged; a non-nil empty string clears the field. Credential-owned fields
+// such as email and nostr are intentionally absent.
+type SpeakerProfilePatch struct {
+	Name      *string
+	Photo     *string
+	Twitter   *string
+	Github    *string
+	Instagram *string
+	LinkedIn  *string
+	LeetCode  *string
+	Website   *string
+	Company   *string
+	Bio       *string
+}
+
 // SearchSpeakersByNameOrEmail returns up to limit Speakers whose Name or Email
 // contains q (case-insensitive substring).
 
@@ -463,6 +479,62 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 		up.PayoutFieldsSet, up.LightningAddress, up.BitcoinAddress)
 	if err != nil {
 		return fmt.Errorf("update person %s: %w", speakerID, err)
+	}
+	return nil
+}
+
+func UpdateSpeakerProfile(ctx *config.AppContext, speakerID string, patch SpeakerProfilePatch) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	speakerID = strings.TrimSpace(speakerID)
+	if speakerID == "" {
+		return fmt.Errorf("person id is required")
+	}
+	trim := func(value *string) *string {
+		if value == nil {
+			return nil
+		}
+		cleaned := strings.TrimSpace(*value)
+		return &cleaned
+	}
+	patch.Name = trim(patch.Name)
+	if patch.Name != nil && *patch.Name == "" {
+		return fmt.Errorf("name cannot be empty")
+	}
+	patch.Photo = trim(patch.Photo)
+	patch.Github = trim(patch.Github)
+	patch.Instagram = trim(patch.Instagram)
+	patch.LinkedIn = trim(patch.LinkedIn)
+	patch.LeetCode = trim(patch.LeetCode)
+	patch.Website = trim(patch.Website)
+	patch.Company = trim(patch.Company)
+	patch.Bio = trim(patch.Bio)
+	if patch.Twitter != nil {
+		cleaned := types.ParseTwitter(*patch.Twitter).Handle
+		patch.Twitter = &cleaned
+	}
+	command, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE people SET
+			name = coalesce($2, name),
+			norm_photo_path = coalesce($3, norm_photo_path),
+			twitter_handle = coalesce($4, twitter_handle),
+			github_url = coalesce($5, github_url),
+			instagram = coalesce($6, instagram),
+			linkedin = coalesce($7, linkedin),
+			leetcode = coalesce($8, leetcode),
+			website_url = coalesce($9, website_url),
+			company = coalesce($10, company),
+			bio = coalesce($11, bio)
+		WHERE id = $1::uuid
+	`, speakerID, patch.Name, patch.Photo, patch.Twitter, patch.Github,
+		patch.Instagram, patch.LinkedIn, patch.LeetCode, patch.Website,
+		patch.Company, patch.Bio)
+	if err != nil {
+		return fmt.Errorf("update API profile %s: %w", speakerID, err)
+	}
+	if command.RowsAffected() == 0 {
+		return fmt.Errorf("person not found")
 	}
 	return nil
 }

@@ -23,6 +23,15 @@ type ProposalInput struct {
 	Status          string // initial value: "Applied"
 }
 
+// ProposalPatch is the API-editable proposal subset. Nil leaves a value
+// unchanged; string fields may be cleared except title.
+type ProposalPatch struct {
+	Title           *string
+	Description     *string
+	TalkType        *string
+	DesiredDuration *int
+}
+
 // SpeakerConfInput is the data needed to upsert a SpeakerConf DB row.
 type SpeakerConfInput struct {
 	SpeakerID      string
@@ -319,6 +328,56 @@ func UpdateProposal(ctx *config.AppContext, proposalID string, in ProposalInput)
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("proposal %s not found", proposalID)
+	}
+	return nil
+}
+
+func UpdateProposalPatch(ctx *config.AppContext, proposalID string, patch ProposalPatch) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	proposalID = strings.TrimSpace(proposalID)
+	if proposalID == "" {
+		return fmt.Errorf("proposal id is required")
+	}
+	setParts := []string{}
+	args := []any{proposalID}
+	add := func(column string, value any) {
+		args = append(args, value)
+		setParts = append(setParts, fmt.Sprintf("%s = $%d", column, len(args)))
+	}
+	if patch.Title != nil {
+		title := strings.TrimSpace(*patch.Title)
+		if title == "" {
+			return fmt.Errorf("title cannot be empty")
+		}
+		add("title", title)
+	}
+	if patch.Description != nil {
+		add("description", strings.TrimSpace(*patch.Description))
+	}
+	if patch.TalkType != nil {
+		kind := strings.TrimSpace(*patch.TalkType)
+		if kind == "" {
+			return fmt.Errorf("talk type cannot be empty")
+		}
+		add("talk_type", kind)
+	}
+	if patch.DesiredDuration != nil {
+		if *patch.DesiredDuration <= 0 || *patch.DesiredDuration > 480 {
+			return fmt.Errorf("desired duration must be between 1 and 480 minutes")
+		}
+		add("desired_duration_min", *patch.DesiredDuration)
+	}
+	if len(setParts) == 0 {
+		return nil
+	}
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `UPDATE proposals SET `+strings.Join(setParts, ", ")+` WHERE id = $1::uuid`, args...)
+	if err != nil {
+		return fmt.Errorf("update API proposal %s: %w", proposalID, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("proposal not found")
 	}
 	return nil
 }
