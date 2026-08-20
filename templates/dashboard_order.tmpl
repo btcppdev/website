@@ -10,7 +10,7 @@
     <main class="dashboard-main">
       <header class="dashboard-order-pagehead">
         <div class="dashboard-order-pagehead__nav">
-          <a class="dashboard-order-pagehead__back" href="/dashboard/orders?hr={{ .HMAC }}&em={{ .Email }}">&larr; All orders</a>
+          <a class="dashboard-order-pagehead__back" href="/dashboard/orders">&larr; All orders</a>
           <span>Order receipt</span>
         </div>
         <div class="dashboard-order-pagehead__body">
@@ -33,7 +33,7 @@
             <div class="dashboard-kicker">§ Purchases · {{ len .ShopOrder.Items }}</div>
             <p>{{ .ShopOrder.BuyerEmail }}</p>
           </div>
-          <a href="/dashboard/orders/{{ .ShopOrder.PublicID }}/receipt?hr={{ .HMAC }}&em={{ .Email }}">download receipt</a>
+          <a href="/dashboard/orders/{{ .ShopOrder.PublicID }}/receipt">download receipt</a>
         </div>
 
         <div class="dashboard-order-items">

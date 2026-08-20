@@ -17,6 +17,10 @@ func TestStandardOAuthProviderAuthorizationURLs(t *testing.T) {
 	env := &types.EnvConfig{Host: "localhost", Port: "8888", OAuth: types.OAuthConfig{
 		Discord: configuredOAuth(), GitLab: configuredOAuth(), MLH: configuredOAuth(),
 	}}
+	mlh := NewMLHOAuthProvider(env)
+	if mlh.config.Endpoint.TokenURL != "https://my.mlh.io/oauth/token" {
+		t.Fatalf("MLH token endpoint = %q", mlh.config.Endpoint.TokenURL)
+	}
 	for _, test := range []struct {
 		provider          OAuthProvider
 		host, path, scope string
@@ -24,7 +28,7 @@ func TestStandardOAuthProviderAuthorizationURLs(t *testing.T) {
 	}{
 		{NewDiscordOAuthProvider(env), "discord.com", "/oauth2/authorize", "identify email", true},
 		{NewGitLabOAuthProvider(env), "gitlab.com", "/oauth/authorize", "read_user", true},
-		{NewMLHOAuthProvider(env), "my.mlh.io", "/oauth/authorize", "user:read:profile user:read:email", false},
+		{mlh, "my.mlh.io", "/oauth/authorize", "public user:read:profile user:read:email", false},
 	} {
 		authorizationURL, err := test.provider.AuthorizationURL("state", "challenge")
 		if err != nil {
@@ -101,6 +105,24 @@ func TestStandardOAuthProvidersExchangeAndFetchIdentity(t *testing.T) {
 
 func configuredOAuth() types.OAuthProviderConfig {
 	return types.OAuthProviderConfig{ClientID: "client", ClientSecret: "secret"}
+}
+
+func TestStandardOAuthProviderReportsSafeIdentityErrorDetail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("WWW-Authenticate", `Bearer error="insufficient_scope"`)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error":"forbidden","error_description":"profile scope was not granted"}`))
+	}))
+	defer server.Close()
+
+	provider := testStandardProvider("mlh")
+	provider.apiBaseURL = server.URL
+	provider.userPath = "/user"
+	provider.httpClient = server.Client()
+	_, err := provider.FetchIdentity(t.Context(), &oauth2.Token{AccessToken: "secret", TokenType: "Bearer"})
+	if err == nil || !strings.Contains(err.Error(), "forbidden: profile scope was not granted") || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("identity error = %v", err)
+	}
 }
 
 func testStandardProvider(key string) *standardOAuthProvider {

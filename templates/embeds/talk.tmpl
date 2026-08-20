@@ -50,8 +50,8 @@
             <form action="#"
             {{ if .InviteMode }}
             hx-post="/invite-speaker/{{ .Proposal.ID }}?t={{ .InviteToken }}"
-            {{ else if .HMAC }}
-            hx-post="/talk/{{ .Conf.Tag }}?hr={{ .HMAC }}&em={{ .Email }}"
+            {{ else if .ReturnToDashboard }}
+            hx-post="/talk/{{ .Conf.Tag }}?from=dashboard"
             {{ else }}
             hx-post="/talk/{{ .Conf.Tag }}"
             {{ end }}

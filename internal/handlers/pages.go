@@ -366,6 +366,7 @@ type SpeakerPage struct {
 	Email                  string // base64-encoded
 	IsNewsletterSubscriber bool   // hides the newsletter opt-in checkbox
 	IsReturningAttendee    bool   // hides the "first bitcoin++" checkbox
+	ReturnToDashboard      bool   // preserves dashboard navigation without URL credentials
 
 	// InviteMode flips the form into co-speaker-invite mode: the
 	// talk-content fields (Title / Description / Setup / PresType /
@@ -487,10 +488,6 @@ type DashboardPage struct {
 	// a redirect bounces the user with an error rather than a
 	// success notice. Populated from ?error= on the URL.
 	FlashError string
-	// DevLoginEnabled exposes the email-free local login shortcut. The POST
-	// handler independently enforces the same development-only guard.
-	DevLoginEnabled bool
-
 	// IsGlobalAdmin gates the role-management panel — only a
 	// global-admin can edit other speakers' Roles. Other admin
 	// surfaces (the per-conf Admin button on conf cards) are
@@ -969,16 +966,27 @@ type EditSpeakerPage struct {
 }
 
 type PersonEmailsPage struct {
-	Speaker         *types.Speaker
-	Emails          []*types.PersonEmail
-	OAuthIdentities []*OAuthIdentityView
-	OAuthProviders  []*OAuthProviderView
-	PendingEmails   []string
-	MergeRequests   []*types.PersonMergeRequest
-	AuthMethodsCSRF string
-	FlashMessage    string
-	FlashError      string
-	Year            uint
+	Speaker          *types.Speaker
+	Emails           []*types.PersonEmail
+	OAuthIdentities  []*OAuthIdentityView
+	OAuthProviders   []*OAuthProviderView
+	NostrCredentials []*NostrCredentialView
+	HasPassword      bool
+	Passkeys         []*types.PersonPasskeyCredential
+	APITokens        []*types.PersonAPIToken
+	NewAPIToken      string
+	PendingEmails    []string
+	MergeRequests    []*types.PersonMergeRequest
+	AuthMethodsCSRF  string
+	FlashMessage     string
+	FlashError       string
+	Year             uint
+}
+
+type NostrCredentialView struct {
+	Credential *types.PersonNostrCredential
+	Display    string
+	Legacy     bool
 }
 
 type OAuthIdentityView struct {

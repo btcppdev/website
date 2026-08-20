@@ -11,8 +11,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// DashboardVolShiftICS serves a downloadable .ics for one volunteer
-// shift, gated on the dashboard's hr+em magic-link params. Used by
+// DashboardVolShiftICS serves a session-authenticated downloadable .ics for
+// one volunteer shift. Used by
 // the "Add to calendar" pill next to each shift on /dashboard so a
 // volunteer can re-add a single shift to their calendar without
 // triggering an email round-trip through the mailer.
@@ -23,11 +23,10 @@ import (
 // calendar (clients match on UID; the public-feed UID would be a
 // second entry, so we deliberately use a different stem here too).
 //
-// Authorization: email is on the shift's AssigneesRef. The HMAC
-// guards against URL forgery, the assignee check guards against
-// pulling a co-worker's shift.
+// Authorization: the session email is on the shift's AssigneesRef; the
+// assignee check guards against pulling a co-worker's shift.
 //
-// Path: GET /dashboard/vol/{shiftRef}/calendar.ics?hr=&em=
+// Path: GET /dashboard/vol/{shiftRef}/calendar.ics
 func DashboardVolShiftICS(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	email, _, err := validateVolEmail(r, ctx)
 	if err != nil {
@@ -115,7 +114,7 @@ func DashboardVolShiftICS(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 // doesn't suppress the resend (the explicit click is the intent;
 // shift CalNotif advances SEQUENCE by one per shift).
 //
-// Path: POST /dashboard/vol/{conf}/shifts/resend-invites?hr=&em=
+// Path: POST /dashboard/vol/{conf}/shifts/resend-invites
 func DashboardVolShiftsResend(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	email, encHMAC, err := validateVolEmail(r, ctx)
 	if err != nil {

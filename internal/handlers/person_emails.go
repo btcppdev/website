@@ -22,6 +22,10 @@ func DashboardPersonEmails(w http.ResponseWriter, r *http.Request, ctx *config.A
 	if id == nil {
 		return
 	}
+	renderAccountSettings(w, r, ctx, id, "")
+}
+
+func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, id *auth.Identity, newAPIToken string) {
 	addresses, err := getters.ListPersonEmails(ctx, id.PersonID)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/emails list %s: %s", id.PersonID, err)
@@ -46,37 +50,183 @@ func DashboardPersonEmails(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Error(w, "Unable to load sign-in methods", http.StatusInternalServerError)
 		return
 	}
+	nostrCredentials, err := getters.ListPersonNostrCredentials(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/emails Nostr credentials %s: %s", id.PersonID, err)
+		http.Error(w, "Unable to load sign-in methods", http.StatusInternalServerError)
+		return
+	}
+	passwordCredential, err := getters.GetPersonPasswordCredential(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/emails password credential %s: %s", id.PersonID, err)
+		http.Error(w, "Unable to load sign-in methods", http.StatusInternalServerError)
+		return
+	}
+	passkeys, err := getters.ListPersonPasskeyCredentials(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/emails passkeys %s: %s", id.PersonID, err)
+		http.Error(w, "Unable to load sign-in methods", http.StatusInternalServerError)
+		return
+	}
+	apiTokens, err := getters.ListPersonAPITokens(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/settings API tokens %s: %s", id.PersonID, err)
+		http.Error(w, "Unable to load API tokens", http.StatusInternalServerError)
+		return
+	}
 	csrf, err := ensureAuthMethodsCSRF(ctx, r)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/emails auth CSRF: %s", err)
 		http.Error(w, "Unable to load sign-in methods", http.StatusInternalServerError)
 		return
 	}
-	identityViews := make([]*OAuthIdentityView, 0, len(oauthIdentities))
-	for _, identity := range oauthIdentities {
-		provider := auth.OAuthProviderByKey(ctx.Env, identity.Provider)
+	identityViews, providerViews := accountOAuthViews(ctx.Env, oauthIdentities)
+	nostrViews := make([]*NostrCredentialView, 0, len(nostrCredentials))
+	for _, credential := range nostrCredentials {
+		value := credential.PubkeyHex
+		if value == "" {
+			value = credential.LegacyValue
+		}
+		nostrViews = append(nostrViews, &NostrCredentialView{
+			Credential: credential,
+			Display:    getters.NostrPubkeyDisplay(value),
+			Legacy:     credential.PubkeyHex == "",
+		})
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_person_emails.tmpl", &PersonEmailsPage{
+		Speaker:          id.Speaker,
+		Emails:           addresses,
+		OAuthIdentities:  identityViews,
+		OAuthProviders:   providerViews,
+		NostrCredentials: nostrViews,
+		HasPassword:      passwordCredential != nil,
+		Passkeys:         passkeys,
+		APITokens:        apiTokens,
+		NewAPIToken:      newAPIToken,
+		PendingEmails:    pendingEmails,
+		MergeRequests:    mergeRequests,
+		AuthMethodsCSRF:  csrf,
+		FlashMessage:     r.URL.Query().Get("flash"),
+		FlashError:       r.URL.Query().Get("error"),
+		Year:             helpers.CurrentYear(),
+	}); err != nil {
+		ctx.Err.Printf("/dashboard/emails render: %s", err)
+		http.Error(w, "Unable to render email addresses", http.StatusInternalServerError)
+	}
+}
+
+func accountOAuthViews(env *types.EnvConfig, identities []*types.PersonOAuthIdentity) ([]*OAuthIdentityView, []*OAuthProviderView) {
+	connected := make(map[string]bool, len(identities))
+	identityViews := make([]*OAuthIdentityView, 0, len(identities))
+	for _, identity := range identities {
+		if identity == nil || connected[identity.Provider] {
+			continue
+		}
+		connected[identity.Provider] = true
+		provider := auth.OAuthProviderByKey(env, identity.Provider)
 		label := identity.Provider
 		if provider != nil {
 			label = provider.Label()
 		}
 		identityViews = append(identityViews, &OAuthIdentityView{Identity: identity, Label: label})
 	}
-	w.Header().Set("Cache-Control", "private, no-store")
-	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_person_emails.tmpl", &PersonEmailsPage{
-		Speaker:         id.Speaker,
-		Emails:          addresses,
-		OAuthIdentities: identityViews,
-		OAuthProviders:  oauthProviderViews(ctx.Env, "/dashboard/emails"),
-		PendingEmails:   pendingEmails,
-		MergeRequests:   mergeRequests,
-		AuthMethodsCSRF: csrf,
-		FlashMessage:    r.URL.Query().Get("flash"),
-		FlashError:      r.URL.Query().Get("error"),
-		Year:            helpers.CurrentYear(),
-	}); err != nil {
-		ctx.Err.Printf("/dashboard/emails render: %s", err)
-		http.Error(w, "Unable to render email addresses", http.StatusInternalServerError)
+	providerViews := oauthProviderViews(env, "/dashboard/settings")
+	unconnected := providerViews[:0]
+	for _, provider := range providerViews {
+		if !connected[provider.Key] {
+			unconnected = append(unconnected, provider)
+		}
 	}
+	return identityViews, unconnected
+}
+
+func DashboardAPITokenCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	viewer := requirePersonIdentity(w, r, ctx)
+	if viewer == nil {
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		redirectPersonEmails(w, r, "", "That API token request expired. Reload the page and try again.")
+		return
+	}
+	if !recentAuthentication(viewer) {
+		recordAuthAudit(ctx, r, viewer.PersonID, "api_token", "api_token_creation_rejected", map[string]any{"reason": "reauthentication_required"})
+		redirectPersonEmails(w, r, "", "Sign in again before creating an API token.")
+		return
+	}
+	days := 90
+	switch r.FormValue("expires_in") {
+	case "30":
+		days = 30
+	case "90":
+	case "365":
+		days = 365
+	default:
+		redirectPersonEmails(w, r, "", "Choose a valid API token expiration.")
+		return
+	}
+	scopes := r.Form["scopes"]
+	if !auth.ValidAPITokenScopes(scopes) {
+		redirectPersonEmails(w, r, "", "Choose at least one valid API token scope.")
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" || len([]rune(name)) > 80 {
+		redirectPersonEmails(w, r, "", "Token name must be between 1 and 80 characters.")
+		return
+	}
+	plaintext, selector, digest, err := auth.GenerateAPIToken()
+	if err != nil {
+		ctx.Err.Printf("generate API token: %s", err)
+		redirectPersonEmails(w, r, "", "Unable to create an API token.")
+		return
+	}
+	token, err := getters.CreatePersonAPIToken(ctx, viewer.PersonID, name, selector, digest, scopes, time.Now().AddDate(0, 0, days))
+	if err != nil {
+		ctx.Err.Printf("create API token: %s", err)
+		redirectPersonEmails(w, r, "", "Unable to create an API token.")
+		return
+	}
+	recordAuthAudit(ctx, r, viewer.PersonID, "api_token", "api_token_created", map[string]any{"credential_id": token.ID, "scopes": token.Scopes, "expires_at": token.ExpiresAt})
+	sendAccountSecurityNotice(ctx, viewer.PersonID, identitySecurityEmail(viewer),
+		"API token created for your bitcoin++ account",
+		fmt.Sprintf("The API token %s was created.", markdownEmailText(token.Name)), time.Now().UTC())
+	r.URL.RawQuery = "flash=" + url.QueryEscape("API token created. Copy it now; it will not be shown again.")
+	renderAccountSettings(w, r, ctx, viewer, plaintext)
+}
+
+func DashboardAPITokenRevoke(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	viewer := requirePersonIdentity(w, r, ctx)
+	if viewer == nil {
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		redirectPersonEmails(w, r, "", "That API token request expired. Reload the page and try again.")
+		return
+	}
+	if !recentAuthentication(viewer) {
+		recordAuthAudit(ctx, r, viewer.PersonID, "api_token", "api_token_revocation_rejected", map[string]any{"reason": "reauthentication_required"})
+		redirectPersonEmails(w, r, "", "Sign in again before revoking an API token.")
+		return
+	}
+	token, err := getters.RevokePersonAPIToken(ctx, viewer.PersonID, strings.TrimSpace(r.FormValue("token_id")))
+	if err != nil {
+		ctx.Err.Printf("revoke API token: %s", err)
+		redirectPersonEmails(w, r, "", "Unable to revoke that API token.")
+		return
+	}
+	if token == nil {
+		redirectPersonEmails(w, r, "", "That API token was not found.")
+		return
+	}
+	recordAuthAudit(ctx, r, viewer.PersonID, "api_token", "api_token_revoked", map[string]any{"credential_id": token.ID})
+	sendAccountSecurityNotice(ctx, viewer.PersonID, identitySecurityEmail(viewer),
+		"API token revoked from your bitcoin++ account",
+		fmt.Sprintf("The API token %s was revoked.", markdownEmailText(token.Name)), time.Now().UTC())
+	redirectPersonEmails(w, r, token.Name+" was revoked.", "")
 }
 
 func sendPersonMergeConfirmationEmail(ctx *config.AppContext, request *types.PersonMergeRequest, token string) error {
@@ -188,6 +338,11 @@ func PersonMergeConfirmationAccept(w http.ResponseWriter, r *http.Request, ctx *
 		return
 	}
 	invalidateWhoIsDirectoryCache()
+	if _, err := getters.RevokePersonSessions(ctx, request.RequesterPersonID); err != nil {
+		ctx.Err.Printf("self-service merge session revocation %s: %s", request.ID, err)
+		http.Error(w, "Accounts merged, but existing sessions could not be secured. Sign in again.", http.StatusInternalServerError)
+		return
+	}
 	if err := auth.LoginPersonWithEmail(ctx, r, request.RequesterPersonID, request.TargetEmail); err != nil {
 		ctx.Err.Printf("self-service merge login %s: %s", request.ID, err)
 	}
@@ -212,16 +367,55 @@ func sendPersonAccountEmail(ctx *config.AppContext, recipient, subject, markdown
 	})
 }
 
+func sendAccountSecurityNotice(ctx *config.AppContext, personID, recipient, subject, detail string, occurredAt time.Time) {
+	recipient = strings.ToLower(strings.TrimSpace(recipient))
+	if recipient == "" {
+		return
+	}
+	if occurredAt.IsZero() {
+		occurredAt = time.Now().UTC()
+	}
+	markdown := accountSecurityNoticeMarkdown(subject, detail, occurredAt)
+	jobKey := fmt.Sprintf("person-account-security-%s-%d", personID, occurredAt.UnixNano())
+	if err := sendPersonAccountEmail(ctx, recipient, subject, markdown, jobKey); err != nil {
+		ctx.Err.Printf("account security notice to %s: %s", recipient, err)
+	}
+}
+
+func accountSecurityNoticeMarkdown(subject, detail string, occurredAt time.Time) string {
+	timestamp := occurredAt.UTC().Format("2006-01-02 15:04:05 UTC")
+	return fmt.Sprintf("# %s\n\n%s\n\n**Time:** %s\n\nIf you did not make this change, contact hello@btcpp.dev immediately.\n\n— bitcoin++", subject, detail, timestamp)
+}
+
+func identitySecurityEmail(viewer *auth.Identity) string {
+	if viewer == nil {
+		return ""
+	}
+	if email := strings.TrimSpace(viewer.PrimaryEmail); email != "" {
+		return email
+	}
+	return strings.TrimSpace(viewer.LoginEmail)
+}
+
 func DashboardPersonEmailRequest(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	id := requirePersonIdentity(w, r, ctx)
 	if id == nil {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		redirectPersonEmails(w, r, "", "Invalid form submission.")
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		redirectPersonEmails(w, r, "", "That email request expired. Reload the page and try again.")
+		return
+	}
+	if !recentAuthentication(id) {
+		redirectPersonEmails(w, r, "", "Sign in again before adding an email address.")
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
+	if !allowAuthAttempt(ctx, r, id.PersonID+"\x00"+email, 5, 15*time.Minute) {
+		redirectPersonEmails(w, r, "", "Too many email verification requests. Try again later.")
+		return
+	}
 	parsed, err := mail.ParseAddress(email)
 	if err != nil || !strings.EqualFold(parsed.Address, email) {
 		redirectPersonEmails(w, r, "", "Enter a valid email address.")
@@ -236,11 +430,19 @@ func DashboardPersonEmailResend(w http.ResponseWriter, r *http.Request, ctx *con
 		return
 	}
 	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
-		redirectPersonEmails(w, r, "", "Invalid form submission.")
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		redirectPersonEmails(w, r, "", "That email request expired. Reload the page and try again.")
+		return
+	}
+	if !recentAuthentication(id) {
+		redirectPersonEmails(w, r, "", "Sign in again before resending an email verification.")
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
+	if !allowAuthAttempt(ctx, r, id.PersonID+"\x00"+email, 5, 15*time.Minute) {
+		redirectPersonEmails(w, r, "", "Too many email verification requests. Try again later.")
+		return
+	}
 	pending, err := getters.ListPendingPersonEmailVerifications(ctx, id.PersonID)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/emails resend pending list %s: %s", id.PersonID, err)
@@ -436,6 +638,12 @@ func DashboardPersonEmailVerifyConfirm(w http.ResponseWriter, r *http.Request, c
 		renderPersonEmailVerification(w, ctx, &PersonEmailVerificationPage{Token: token, Error: err.Error(), Year: helpers.CurrentYear()})
 		return
 	}
+	primary, _ := getters.GetPrimaryPersonEmail(ctx, personID)
+	if !strings.EqualFold(primary, email) {
+		sendAccountSecurityNotice(ctx, personID, primary, "Email added to your bitcoin++ account",
+			fmt.Sprintf("%s was added as a verified recovery and sign-in email.", markdownEmailText(email)), time.Now().UTC())
+	}
+	recordAuthAudit(ctx, r, personID, string(auth.MethodEmailLink), "recovery_email_added", map[string]any{"email": email})
 	if err := auth.LoginPersonWithEmail(ctx, r, personID, email); err != nil {
 		ctx.Err.Printf("/dashboard/emails verified login %s: %s", personID, err)
 		http.Error(w, "Email verified, but the session could not be updated. Sign in again.", http.StatusInternalServerError)
@@ -457,13 +665,31 @@ func DashboardPersonEmailPrimary(w http.ResponseWriter, r *http.Request, ctx *co
 	if id == nil {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		redirectPersonEmails(w, r, "", "Invalid form submission.")
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		redirectPersonEmails(w, r, "", "That email request expired. Reload the page and try again.")
+		return
+	}
+	if !recentAuthentication(id) {
+		redirectPersonEmails(w, r, "", "Sign in again before changing your primary email.")
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
 	if err := getters.SetPrimaryPersonEmail(ctx, id.PersonID, email); err != nil {
 		redirectPersonEmails(w, r, "", err.Error())
+		return
+	}
+	if !strings.EqualFold(id.PrimaryEmail, email) {
+		detail := fmt.Sprintf("The primary email was changed from %s to %s.", markdownEmailText(id.PrimaryEmail), markdownEmailText(email))
+		occurredAt := time.Now().UTC()
+		sendAccountSecurityNotice(ctx, id.PersonID, id.PrimaryEmail, "Primary bitcoin++ email changed", detail, occurredAt)
+		sendAccountSecurityNotice(ctx, id.PersonID, email, "Primary bitcoin++ email changed", detail, occurredAt)
+	}
+	recordAuthAudit(ctx, r, id.PersonID, string(id.Method), "primary_email_changed", map[string]any{"email": email})
+	if err := revokeOtherPersonSessions(ctx, r, id.PersonID); err != nil {
+		ctx.Err.Printf("/dashboard/emails primary session revocation %s: %s", id.PersonID, err)
+		auth.Logout(ctx, r)
+		redirectPasswordLogin(w, r, "/dashboard/settings", "Primary email changed. Sign in again to continue.")
 		return
 	}
 	if err := auth.UpdateSessionEmail(ctx, r, id.PersonID, email); err != nil {
@@ -477,8 +703,13 @@ func DashboardPersonEmailRemove(w http.ResponseWriter, r *http.Request, ctx *con
 	if id == nil {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		redirectPersonEmails(w, r, "", "Invalid form submission.")
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		redirectPersonEmails(w, r, "", "That email request expired. Reload the page and try again.")
+		return
+	}
+	if !recentAuthentication(id) {
+		redirectPersonEmails(w, r, "", "Sign in again before removing an email address.")
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(r.FormValue("email")))
@@ -486,8 +717,21 @@ func DashboardPersonEmailRemove(w http.ResponseWriter, r *http.Request, ctx *con
 		redirectPersonEmails(w, r, "", err.Error())
 		return
 	}
-	primary, err := getters.GetPrimaryPersonEmail(ctx, id.PersonID)
-	if err == nil && primary != "" {
+	primary, primaryErr := getters.GetPrimaryPersonEmail(ctx, id.PersonID)
+	detail := fmt.Sprintf("%s was removed as a recovery and sign-in email.", markdownEmailText(email))
+	occurredAt := time.Now().UTC()
+	sendAccountSecurityNotice(ctx, id.PersonID, email, "Email removed from your bitcoin++ account", detail, occurredAt)
+	if primaryErr == nil && !strings.EqualFold(primary, email) {
+		sendAccountSecurityNotice(ctx, id.PersonID, primary, "Email removed from your bitcoin++ account", detail, occurredAt)
+	}
+	recordAuthAudit(ctx, r, id.PersonID, string(id.Method), "recovery_email_removed", map[string]any{"email": email})
+	if err := revokeOtherPersonSessions(ctx, r, id.PersonID); err != nil {
+		ctx.Err.Printf("/dashboard/emails removal session revocation %s: %s", id.PersonID, err)
+		auth.Logout(ctx, r)
+		redirectPasswordLogin(w, r, "/dashboard/settings", "Email removed. Sign in again to continue.")
+		return
+	}
+	if primaryErr == nil && primary != "" {
 		if err := auth.UpdateSessionEmail(ctx, r, id.PersonID, primary); err != nil {
 			ctx.Err.Printf("/dashboard/emails removal session %s: %s", id.PersonID, err)
 		}
@@ -515,7 +759,7 @@ func redirectPersonEmails(w http.ResponseWriter, r *http.Request, flash, errorMe
 	if errorMessage != "" {
 		query.Set("error", errorMessage)
 	}
-	destination := "/dashboard/emails"
+	destination := "/dashboard/settings"
 	if encoded := query.Encode(); encoded != "" {
 		destination += "?" + encoded
 	}

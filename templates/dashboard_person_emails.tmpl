@@ -13,7 +13,7 @@
     <header class="profile-edit-hero">
       <p class="profile-edit-tag">§ ACCOUNT</p>
       <h1>Account <span>settings.</span></h1>
-      <p>Manage how you sign in and which verified email addresses belong to your bitcoin++ profile.</p>
+      <p>Manage how you sign in, which verified email addresses belong to your profile, and credentials used by API clients.</p>
     </header>
 
     {{ if .FlashMessage }}<div class="profile-edit-flash">{{ .FlashMessage }}</div>{{ end }}
@@ -58,18 +58,135 @@
           <div class="person-email-row is-pending"><div><strong>{{ .Label }}</strong><span class="is-pending">COMING SOON</span><small>Sign-in is not configured on this environment.</small></div></div>
           {{ end }}
           {{ end }}
-          {{ if .Speaker.Nostr }}
           <div class="person-email-row">
-            <div><strong>Nostr</strong><span class="is-primary">AVAILABLE</span><small>{{ .Speaker.Nostr }} · signatures can sign in</small></div>
-            <div class="person-email-actions"><a class="person-oauth-link" href="/dashboard/speaker">Edit key</a></div>
+            <div>
+              <strong>Password</strong><span {{ if .HasPassword }}class="is-primary"{{ else }}class="is-pending"{{ end }}>{{ if .HasPassword }}SET{{ else }}NOT SET{{ end }}</span>
+              <small>{{ if .HasPassword }}Choose a new password. This signs out other browser sessions.{{ else }}Add a password as another way to sign in.{{ end }}</small>
+              <form method="POST" action="/dashboard/password" class="person-email-add person-password-form mt-3">
+                <input type="hidden" name="csrf" value="{{ .AuthMethodsCSRF }}">
+                <label>NEW PASSWORD
+                  <input type="password" name="password" required minlength="12" maxlength="128" autocomplete="new-password">
+                </label>
+                <label>CONFIRM PASSWORD
+                  <input type="password" name="password_confirm" required minlength="12" maxlength="128" autocomplete="new-password">
+                </label>
+                <button type="submit">{{ if .HasPassword }}Change password{{ else }}Set password{{ end }}</button>
+              </form>
+            </div>
           </div>
-          {{ else }}
+          {{ range .Passkeys }}
+          <div class="person-email-row">
+            <div>
+              <strong>{{ .DisplayName }}</strong><span class="is-primary">PASSKEY</span>
+              <small>Added {{ .CreatedAt.Format "Jan 2, 2006" }}{{ if .LastUsedAt }} · last used {{ .LastUsedAt.Format "Jan 2, 2006" }}{{ end }}</small>
+            </div>
+            <div class="person-email-actions">
+              <form method="POST" action="/auth/passkey/unlink">
+                <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
+                <input type="hidden" name="credential_id" value="{{ .ID }}">
+                <button type="submit" class="is-danger">Remove</button>
+              </form>
+            </div>
+          </div>
+          {{ end }}
+          <div class="person-email-row{{ if not .Passkeys }} is-pending{{ end }}">
+            <div>
+              <strong>Passkey</strong>{{ if not .Passkeys }}<span class="is-pending">NOT ADDED</span>{{ end }}
+              <small data-passkey-status>Use this device, a synced passkey, or a hardware security key.</small>
+              <label class="mt-3">PASSKEY NAME
+                <input type="text" data-passkey-name maxlength="80" placeholder="My laptop" autocomplete="off">
+              </label>
+            </div>
+            <div class="person-email-actions">
+              <button type="button" class="person-oauth-link" data-passkey-register>Add passkey</button>
+            </div>
+          </div>
+          {{ range .NostrCredentials }}
+          <div class="person-email-row">
+            <div><strong>Nostr</strong><span class="is-primary">{{ if .Legacy }}PROFILE ONLY{{ else }}VERIFIED{{ end }}</span><small>{{ .Display }}{{ if .Legacy }} · unlink and prove this key before using it to sign in{{ end }}</small></div>
+            <div class="person-email-actions">
+              <form method="POST" action="/auth/nostr/unlink">
+                <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
+                <input type="hidden" name="credential_id" value="{{ .Credential.ID }}">
+                <button type="submit" class="is-danger">Unlink</button>
+              </form>
+            </div>
+          </div>
+          {{ end }}
+          {{ if not .NostrCredentials }}
           <div class="person-email-row is-pending">
-            <div><strong>Nostr</strong><span class="is-pending">NOT LINKED</span><small>Add an npub to your profile before using Nostr sign-in.</small></div>
-            <div class="person-email-actions"><a class="person-oauth-link" href="/dashboard/speaker">Add npub</a></div>
+            <div>
+              <strong>Nostr</strong>{{ if not .NostrCredentials }}<span class="is-pending">NOT LINKED</span>{{ end }}
+              <small data-nostr-status>Use a NIP-07 signer such as Alby to prove and link a key.</small>
+            </div>
+            <div class="person-email-actions">
+              <button type="button" class="person-oauth-link" data-nostr-link data-challenge="/auth/nostr/link/challenge" data-verify="/auth/nostr/link/verify">Link key</button>
+            </div>
           </div>
           {{ end }}
         </div>
+      </div>
+    </section>
+
+    <section class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">&gt;_</div>
+      <div class="profile-edit-section__body">
+        <div class="profile-edit-section__head">
+          <div>
+            <p>§ API ACCESS</p>
+            <h2>Personal API tokens</h2>
+          </div>
+        </div>
+        <p><small>Tokens act as you within their selected scopes. Store them like passwords. Revoking a token does not sign you out of the website.</small></p>
+        {{ if .NewAPIToken }}
+        <div class="profile-edit-flash">
+          <strong>Copy this token now. It will not be shown again.</strong>
+          <code style="display:block;overflow-wrap:anywhere;margin-top:.75rem;user-select:all">{{ .NewAPIToken }}</code>
+        </div>
+        {{ end }}
+        <div class="person-email-list">
+          {{ range .APITokens }}
+          <div class="person-email-row{{ if or .RevokedAt .Expired }} is-pending{{ end }}">
+            <div>
+              <strong>{{ .Name }}</strong>
+              {{ if .RevokedAt }}<span class="is-pending">REVOKED</span>{{ else if .Expired }}<span class="is-pending">EXPIRED</span>{{ else }}<span class="is-primary">ACTIVE</span>{{ end }}
+              <small>{{ .Prefix }}… · created {{ .CreatedAt.Format "Jan 2, 2006" }} · expires {{ .ExpiresAt.Format "Jan 2, 2006" }}{{ if .LastUsedAt }} · last used {{ .LastUsedAt.Format "Jan 2, 2006" }}{{ end }}</small>
+              <small>Scopes: {{ range $index, $scope := .Scopes }}{{ if $index }}, {{ end }}{{ $scope }}{{ end }}</small>
+            </div>
+            {{ if and (not .RevokedAt) (not .Expired) }}
+            <div class="person-email-actions">
+              <form method="POST" action="/dashboard/settings/api-tokens/revoke">
+                <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
+                <input type="hidden" name="token_id" value="{{ .ID }}">
+                <button type="submit" class="is-danger">Revoke</button>
+              </form>
+            </div>
+            {{ end }}
+          </div>
+          {{ else }}
+          <div class="person-email-row is-pending"><div><strong>No API tokens</strong><small>Create one when you are ready to use the API.</small></div></div>
+          {{ end }}
+        </div>
+        <form method="POST" action="/dashboard/settings/api-tokens" class="person-email-add mt-3">
+          <input type="hidden" name="csrf" value="{{ .AuthMethodsCSRF }}">
+          <label>TOKEN NAME
+            <input type="text" name="name" required maxlength="80" placeholder="My integration" autocomplete="off">
+          </label>
+          <fieldset>
+            <legend>SCOPES</legend>
+            <label><input type="checkbox" name="scopes" value="profile:read" checked> Read your profile</label>
+            <label><input type="checkbox" name="scopes" value="events:read"> Read events</label>
+            <label><input type="checkbox" name="scopes" value="projects:read"> Read hackathon projects</label>
+          </fieldset>
+          <label>EXPIRES
+            <select name="expires_in">
+              <option value="30">30 days</option>
+              <option value="90" selected>90 days</option>
+              <option value="365">1 year</option>
+            </select>
+          </label>
+          <button type="submit">Create API token</button>
+        </form>
       </div>
     </section>
 
@@ -93,12 +210,14 @@
             <div class="person-email-actions">
               {{ if not .IsPrimary }}
               <form method="POST" action="/dashboard/emails/primary">
+                <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
                 <input type="hidden" name="email" value="{{ .Email }}">
                 <button type="submit">Make primary</button>
               </form>
               {{ end }}
               {{ if gt (len $.Emails) 1 }}
               <form method="POST" action="/dashboard/emails/remove">
+                <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
                 <input type="hidden" name="email" value="{{ .Email }}">
                 <button type="submit" class="is-danger" {{ if .RemovalLocked }}disabled{{ end }}>Remove</button>
               </form>
@@ -114,6 +233,7 @@
             </div>
             <div class="person-email-actions">
               <form method="POST" action="/dashboard/emails/resend">
+                <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
                 <input type="hidden" name="email" value="{{ . }}">
                 <button type="submit" class="is-link">Resend email</button>
               </form>
@@ -134,6 +254,7 @@
           </div>
         </div>
         <form method="POST" action="/dashboard/emails/request" class="person-email-add">
+          <input type="hidden" name="csrf" value="{{ .AuthMethodsCSRF }}">
           <label>SECOND EMAIL
             <input type="email" name="email" required autocomplete="email">
           </label>
@@ -164,5 +285,7 @@
   </main>
 
   {{ block "footer" . }} {{ end }}
+  <script src="/static/js/nostr-login.js" defer></script>
+  <script src="/static/js/passkey.js" defer></script>
 </body>
 </html>

@@ -26,7 +26,6 @@
 package auth
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -52,6 +51,9 @@ const (
 	// intentionally separate from the session's creation time so future
 	// sensitive actions can require a recent authentication.
 	SessionAuthenticatedAtKey = "auth_authenticated_at"
+	// SessionVersionKey supports revoking all browser sessions after a password
+	// reset or other account-security event.
+	SessionVersionKey = "auth_session_version"
 )
 
 // Method identifies the credential or provider used to authenticate a
@@ -66,6 +68,8 @@ const (
 	MethodGitLab    Method = "gitlab"
 	MethodMLH       Method = "mlh"
 	MethodNostr     Method = "nostr"
+	MethodPassword  Method = "password"
+	MethodPasskey   Method = "passkey"
 )
 
 var ErrAmbiguousEmail = errors.New("email belongs to multiple people")
@@ -322,8 +326,16 @@ func establishSession(ctx *config.AppContext, r *http.Request, personID, loginEm
 	ctx.Session.Remove(r.Context(), SessionEmailKey)
 	ctx.Session.Remove(r.Context(), SessionMethodKey)
 	ctx.Session.Remove(r.Context(), SessionAuthenticatedAtKey)
+	ctx.Session.Remove(r.Context(), SessionVersionKey)
 	if personID != "" {
 		ctx.Session.Put(r.Context(), SessionPersonIDKey, personID)
+		if ctx.DB != nil {
+			version, err := getters.PersonSessionVersion(ctx, personID)
+			if err != nil {
+				return err
+			}
+			ctx.Session.Put(r.Context(), SessionVersionKey, version)
+		}
 	}
 	if loginEmail != "" {
 		ctx.Session.Put(r.Context(), SessionEmailKey, loginEmail)
@@ -340,6 +352,7 @@ func Logout(ctx *config.AppContext, r *http.Request) {
 	ctx.Session.Remove(r.Context(), SessionEmailKey)
 	ctx.Session.Remove(r.Context(), SessionMethodKey)
 	ctx.Session.Remove(r.Context(), SessionAuthenticatedAtKey)
+	ctx.Session.Remove(r.Context(), SessionVersionKey)
 }
 
 // Resolve looks up the current request's Identity. Returns nil (no error) when
@@ -381,6 +394,23 @@ func Resolve(r *http.Request, ctx *config.AppContext) (*Identity, error) {
 		personID = canonicalID
 		ctx.Session.Put(r.Context(), SessionPersonIDKey, personID)
 	}
+	if sessionVersion := ctx.Session.GetInt64(r.Context(), SessionVersionKey); ctx.DB != nil {
+		// Sessions issued before revocable versions existed cannot safely be
+		// distinguished from sessions issued before a password reset. Require
+		// one fresh sign-in when this feature is deployed.
+		if sessionVersion <= 0 {
+			Logout(ctx, r)
+			return nil, nil
+		}
+		currentVersion, err := getters.PersonSessionVersion(ctx, personID)
+		if err != nil {
+			return nil, err
+		}
+		if currentVersion != sessionVersion {
+			Logout(ctx, r)
+			return nil, nil
+		}
+	}
 	speaker, err := getters.FetchSpeakerByID(ctx, personID)
 	if err != nil {
 		return nil, fmt.Errorf("lookup person: %w", err)
@@ -399,6 +429,19 @@ func Resolve(r *http.Request, ctx *config.AppContext) (*Identity, error) {
 		}
 	}
 	return identityFromSpeaker(personID, method, authenticatedAt, loginEmail, primaryEmail, speaker), nil
+}
+
+// RefreshSessionVersion keeps the current browser session after a security
+// action that intentionally revoked every older session.
+func RefreshSessionVersion(ctx *config.AppContext, r *http.Request, version int64) error {
+	if version <= 0 {
+		return errors.New("refresh session version: invalid version")
+	}
+	if err := ctx.Session.RenewToken(r.Context()); err != nil {
+		return fmt.Errorf("refresh session version: %w", err)
+	}
+	ctx.Session.Put(r.Context(), SessionVersionKey, version)
+	return nil
 }
 
 func sessionAuthenticatedAt(ctx *config.AppContext, r *http.Request) time.Time {
@@ -479,48 +522,25 @@ func SafeNext(next, fallback string) string {
 	return next
 }
 
-// MagicLink builds the URL the login email points at: /auth?em=&hr=&next=.
-// Clicking it stamps the email into the session and redirects to
-// the validated next path.
+// MagicLink builds a one-use, database-backed login URL. The destination is
+// stored with the token so it cannot be changed by editing the URL.
 func MagicLink(ctx *config.AppContext, email, next string) string {
-	u, err := url.Parse(ctx.Env.GetURI())
-	if err != nil {
-		return ""
-	}
-	u.Path = "/auth"
-	q := u.Query()
-	q.Set("em", base64.RawURLEncoding.EncodeToString([]byte(email)))
-	q.Set("hr", base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMACTTL(ctx, email, helpers.LoginEmailLinkTTL))))
-	if next != "" {
-		q.Set("next", next)
-	}
-	u.RawQuery = q.Encode()
-	return u.String()
+	return helpers.EmailLink(ctx, email, SafeNext(next, "/dashboard"))
 }
 
-// AuthRedirect handles the magic-link click. Validates the HMAC +
-// email, stamps the session, then redirects to a sanitized `next`
-// (default "/dashboard").
+// AuthRedirect atomically consumes a magic-link token, stamps the session,
+// then redirects to the destination stored with the token.
 func AuthRedirect(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	q := r.URL.Query()
-	encEmail := q.Get("em")
-	encHMAC := q.Get("hr")
-	if encEmail == "" || encHMAC == "" {
+	token := strings.TrimSpace(r.URL.Query().Get("token"))
+	if token == "" {
 		redirectLoginError(w, r, "That login link is missing required information. Enter your email to get a fresh link.")
 		return
 	}
-	emailB, err := base64.RawURLEncoding.DecodeString(encEmail)
+	email, dest, err := getters.ConsumeMagicLoginToken(ctx, token)
 	if err != nil {
-		redirectLoginError(w, r, "That login link is malformed. Enter your email to get a fresh link.")
-		return
-	}
-	hmacB, err := base64.RawURLEncoding.DecodeString(encHMAC)
-	if err != nil {
-		redirectLoginError(w, r, "That login link is malformed. Enter your email to get a fresh link.")
-		return
-	}
-	email := string(emailB)
-	if !helpers.VerifyEmailHMAC(ctx, string(hmacB), email) {
+		if !errors.Is(err, getters.ErrMagicLoginTokenInvalid) && ctx.Err != nil {
+			ctx.Err.Printf("consume magic login token: %s", err)
+		}
 		redirectLoginError(w, r, "That login link has expired or is invalid. Enter your email to get a fresh link.")
 		return
 	}
@@ -533,12 +553,10 @@ func AuthRedirect(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		http.Error(w, "session error", http.StatusInternalServerError)
 		return
 	}
-	dest := SafeNext(q.Get("next"), "/dashboard")
-	http.Redirect(w, r, dest, http.StatusSeeOther)
+	http.Redirect(w, r, SafeNext(dest, "/dashboard"), http.StatusSeeOther)
 }
 
 func redirectLoginError(w http.ResponseWriter, r *http.Request, message string) {
-	next := SafeNext(r.URL.Query().Get("next"), "/dashboard")
-	dest := "/login?next=" + url.QueryEscape(next) + "&error=" + url.QueryEscape(message)
+	dest := "/login?next=%2Fdashboard&error=" + url.QueryEscape(message)
 	http.Redirect(w, r, dest, http.StatusSeeOther)
 }

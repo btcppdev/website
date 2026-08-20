@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
@@ -17,11 +18,13 @@ import (
 // `next` path. Used by every page guarded by auth.RequireRole when
 // the user isn't authenticated yet.
 type LoginPage struct {
-	Next           string
-	FlashMessage   string
-	FlashError     string
-	OAuthProviders []*OAuthProviderView
-	Year           uint
+	Next            string
+	FlashMessage    string
+	FlashError      string
+	OAuthProviders  []*OAuthProviderView
+	DevLoginEnabled bool
+	CSRF            string
+	Year            uint
 }
 
 // Login renders the email-entry form (GET) and dispatches the
@@ -35,13 +38,43 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			http.Error(w, "bad form", http.StatusBadRequest)
 			return
 		}
-		email := strings.TrimSpace(r.PostForm.Get("Email"))
 		next := auth.SafeNext(r.PostForm.Get("Next"), "/dashboard")
+		email := strings.TrimSpace(r.PostForm.Get("Email"))
+		if r.PostForm.Get("Action") == "dev-login" {
+			if !dashboardDevLoginEnabled(ctx) {
+				http.NotFound(w, r)
+				return
+			}
+			if !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+				http.Redirect(w, r, "/login?next="+url.QueryEscape(next)+"&error="+url.QueryEscape("That development sign-in request expired. Reload and try again."), http.StatusSeeOther)
+				return
+			}
+			if email == "" {
+				http.Redirect(w, r, "/login?next="+url.QueryEscape(next)+"&error="+url.QueryEscape("Enter a seeded email for development sign-in."), http.StatusSeeOther)
+				return
+			}
+			if err := auth.LoginEmail(ctx, r, email); err != nil {
+				ctx.Err.Printf("/login development login failed: %s", err)
+				http.Redirect(w, r, "/login?next="+url.QueryEscape(next)+"&error="+url.QueryEscape("Unable to sign in as that email."), http.StatusSeeOther)
+				return
+			}
+			http.Redirect(w, r, next, http.StatusSeeOther)
+			return
+		}
 		if email == "" {
 			http.Redirect(w, r, "/login?next="+url.QueryEscape(next)+"&flash="+url.QueryEscape("Enter the email you want a login link sent to."), http.StatusSeeOther)
 			return
 		}
+		if !allowAuthAttempt(ctx, r, strings.ToLower(email), 10, time.Minute) {
+			http.Redirect(w, r, "/login?flash="+url.QueryEscape("Check your inbox — if that address can sign in, a login link is on its way."), http.StatusSeeOther)
+			return
+		}
 		link := auth.MagicLink(ctx, email, next)
+		if link == "" {
+			ctx.Err.Printf("/login create magic link for %s", email)
+			http.Error(w, "Couldn't create the login link — try again in a minute.", http.StatusInternalServerError)
+			return
+		}
 		if _, err := emails.OnlyForLoginLink(ctx, email, link); err != nil {
 			ctx.Err.Printf("/login send %s: %s", email, err)
 			http.Error(w, "Couldn't send the email — try again in a minute.", http.StatusInternalServerError)
@@ -54,9 +87,18 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 
 	next := auth.SafeNext(r.URL.Query().Get("next"), "/dashboard")
+	csrf, err := ensureAuthMethodsCSRF(ctx, r)
+	if err != nil {
+		http.Error(w, "Unable to start sign-in", http.StatusInternalServerError)
+		return
+	}
+	providers := enabledOAuthProviderViews(ctx.Env, next)
+	if dashboardDevLoginEnabled(ctx) {
+		providers = oauthProviderViews(ctx.Env, next)
+	}
 	page := &LoginPage{
 		Next: next, FlashMessage: r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"),
-		OAuthProviders: enabledOAuthProviderViews(ctx.Env, next), Year: helpers.CurrentYear(),
+		OAuthProviders: providers, DevLoginEnabled: dashboardDevLoginEnabled(ctx), CSRF: csrf, Year: helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "login.tmpl", page); err != nil {
 		ctx.Err.Printf("/login render: %s", err)
@@ -79,6 +121,9 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		clearPendingOAuthIdentity(ctx, r, provider.Key())
 	}
 	clearNostrChallenge(ctx, r)
+	ctx.Session.Remove(r.Context(), passkeyLoginSessionKey)
+	ctx.Session.Remove(r.Context(), passkeyLoginNextKey)
+	clearPasskeyRegistration(ctx, r)
 	ctx.Session.Remove(r.Context(), authMethodsCSRFKey)
 	auth.Logout(ctx, r)
 	http.Redirect(w, r, "/", http.StatusSeeOther)

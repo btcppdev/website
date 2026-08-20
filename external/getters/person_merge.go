@@ -120,6 +120,7 @@ type mergeRelationshipSpec struct {
 	PersonColumn string
 	PrimaryKey   []string
 	DuplicateKey []string
+	Singleton    bool
 	Label        string
 }
 
@@ -154,13 +155,20 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "discounts", PersonColumn: "affiliate_person_id", PrimaryKey: []string{"id"}, Label: "affiliate codes"},
 	{Table: "hackathon_ticket_entitlements", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "ticket entitlements"},
 	{Table: "homepage_featured_speakers", PersonColumn: "person_id", PrimaryKey: []string{"position"}, Label: "homepage speaker slots"},
+	{Table: "judge_event_deliberations", PersonColumn: "updated_by_person_id", PrimaryKey: []string{"competition_id"}, Label: "judging deliberation updates"},
 	{Table: "people_roles", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "scope", "position"}, DuplicateKey: []string{"scope", "position"}, Label: "roles"},
 	{Table: "person_email_verifications", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "pending email verifications"},
 	{Table: "person_merge_requests", PersonColumn: "reviewed_by_person_id", PrimaryKey: []string{"id"}, Label: "merge request reviewers"},
 	{Table: "person_merge_events", PersonColumn: "canonical_person_id", PrimaryKey: []string{"id"}, Label: "prior profile merges"},
 	{Table: "person_merge_events", PersonColumn: "merged_by_person_id", PrimaryKey: []string{"id"}, Label: "merge audit actors"},
 	{Table: "person_merge_events", PersonColumn: "reverted_by_person_id", PrimaryKey: []string{"id"}, Label: "merge restore actors"},
-	{Table: "person_oauth_identities", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "OAuth identities"},
+	{Table: "person_oauth_identities", PersonColumn: "person_id", PrimaryKey: []string{"id"}, DuplicateKey: []string{"provider"}, Label: "OAuth identities"},
+	{Table: "person_nostr_credentials", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Singleton: true, Label: "Nostr credential"},
+	{Table: "person_auth_security", PersonColumn: "person_id", PrimaryKey: []string{"person_id"}, Singleton: true, Label: "authentication security state"},
+	{Table: "person_password_credentials", PersonColumn: "person_id", PrimaryKey: []string{"person_id"}, Singleton: true, Label: "password credential"},
+	{Table: "person_passkey_credentials", PersonColumn: "person_id", PrimaryKey: []string{"id"}, DuplicateKey: []string{"credential_id"}, Label: "passkey credentials"},
+	{Table: "person_api_tokens", PersonColumn: "person_id", PrimaryKey: []string{"id"}, DuplicateKey: []string{"token_selector"}, Label: "API tokens"},
+	{Table: "password_reset_tokens", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "password reset tokens"},
 	{Table: "project_invites", PersonColumn: "accepted_by_person_id", PrimaryKey: []string{"id"}, Label: "project invitations"},
 	{Table: "project_members", PersonColumn: "person_id", PrimaryKey: []string{"project_id", "person_id"}, DuplicateKey: []string{"project_id"}, Label: "project memberships"},
 	{Table: "projects", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "created projects"},
@@ -416,6 +424,19 @@ func MergePeople(ctx *config.AppContext, input PersonMergeInput) (string, error)
 			manifest.Relationships = append(manifest.Relationships, snapshot)
 		}
 	}
+	var verifiedNostrPubkey string
+	err = tx.QueryRow(dbctx, `
+		SELECT pubkey_hex FROM person_nostr_credentials
+		WHERE person_id = $1::uuid AND pubkey_hex IS NOT NULL AND verified_at IS NOT NULL
+	`, canonicalID).Scan(&verifiedNostrPubkey)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("load merged Nostr credential: %w", err)
+	}
+	if err == nil {
+		if err := setPersonNostrProfile(dbctx, tx, canonicalID, verifiedNostrPubkey); err != nil {
+			return "", err
+		}
+	}
 	manifest.SourceEmailsBefore, err = snapshotRows(dbctx, tx, "person_emails", "person_id", sourceID)
 	if err != nil {
 		return "", err
@@ -560,6 +581,21 @@ func mergeRelationship(queryCtx context.Context, tx pgx.Tx, spec mergeRelationsh
 	snapshot.Before, err = snapshotRows(queryCtx, tx, spec.Table, spec.PersonColumn, sourceID)
 	if err != nil || len(snapshot.Before) == 0 {
 		return snapshot, err
+	}
+	if spec.Singleton {
+		var canonicalExists bool
+		if err := tx.QueryRow(queryCtx, `SELECT EXISTS (SELECT 1 FROM `+quoteMergeIdentifier(spec.Table)+`
+			WHERE `+quoteMergeIdentifier(spec.PersonColumn)+` = $1::uuid)`, canonicalID).Scan(&canonicalExists); err != nil {
+			return snapshot, fmt.Errorf("check canonical %s: %w", spec.Label, err)
+		}
+		if canonicalExists {
+			snapshot.Deleted = snapshot.Before
+			if _, err := tx.Exec(queryCtx, `DELETE FROM `+quoteMergeIdentifier(spec.Table)+`
+				WHERE `+quoteMergeIdentifier(spec.PersonColumn)+` = $1::uuid`, sourceID); err != nil {
+				return snapshot, fmt.Errorf("deduplicate %s: %w", spec.Label, err)
+			}
+			return snapshot, nil
+		}
 	}
 	if len(spec.DuplicateKey) > 0 {
 		snapshot.Deleted, err = duplicateRelationshipRows(queryCtx, tx, spec, canonicalID, sourceID)

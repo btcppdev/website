@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -282,72 +281,6 @@ func MakeJobHash(email string, uid uint64, title string) string {
 // auth.RequireRole flow — see internal/auth and internal/handlers/auth_shim.go.
 // Removed in favor of redirect-to-/login on missing identity.
 
-const (
-	// Every bearer link delivered by email is short-lived. Once a link has
-	// authenticated the visitor, the browser session has its own longer
-	// lifetime and no longer depends on the emailed URL.
-	LoginEmailLinkTTL = 30 * time.Minute
-	EmailedLinkTTL    = 30 * time.Minute
-	// DefaultEmailLinkTTL is retained for credentials minted during an
-	// already-authenticated browser session. Do not use it for emailed URLs.
-	DefaultEmailLinkTTL = 30 * 24 * time.Hour
-)
-
-var legacyEmailTokenCutoff = time.Date(2026, time.November, 18, 0, 0, 0, 0, time.UTC)
-
-func VerifyEmailHMAC(ctx *config.AppContext, token, email string) bool {
-	return verifyEmailHMACAt(ctx, token, email, time.Now().UTC())
-}
-
-func verifyEmailHMACAt(ctx *config.AppContext, token, email string, now time.Time) bool {
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 || parts[0] != "v1" {
-		return now.Before(legacyEmailTokenCutoff) && verifyLegacyEmailToken(ctx, token, email)
-	}
-	exp, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
-		return false
-	}
-	if now.Unix() > exp {
-		return false
-	}
-	verify := signEmailToken(ctx, email, exp)
-	return subtle.ConstantTimeCompare([]byte(verify), []byte(parts[2])) == 1
-}
-
-func CreateEmailHMAC(ctx *config.AppContext, email string) string {
-	return CreateEmailHMACTTL(ctx, email, DefaultEmailLinkTTL)
-}
-
-func CreateEmailHMACTTL(ctx *config.AppContext, email string, ttl time.Duration) string {
-	exp := time.Now().UTC().Add(ttl).Unix()
-	return fmt.Sprintf("v1.%d.%s", exp, signEmailToken(ctx, email, exp))
-}
-
-func signEmailToken(ctx *config.AppContext, email string, exp int64) string {
-	mac := hmac.New(sha256.New, ctx.Env.HMACKey[:])
-	mac.Write([]byte("email-link\x00"))
-	mac.Write([]byte(email))
-	mac.Write([]byte{0})
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, uint64(exp))
-	mac.Write(b)
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func verifyLegacyEmailToken(ctx *config.AppContext, token, email string) bool {
-	if len(token) != sha256.Size*2 {
-		return false
-	}
-	if _, err := hex.DecodeString(token); err != nil {
-		return false
-	}
-	mac := hmac.New(sha256.New, ctx.Env.HMACKey[:])
-	mac.Write([]byte(email))
-	verify := hex.EncodeToString(mac.Sum(nil))
-	return subtle.ConstantTimeCompare([]byte(verify), []byte(token)) == 1
-}
-
 func CreateScopedHMAC(ctx *config.AppContext, purpose, value string) string {
 	mac := hmac.New(sha256.New, ctx.Env.HMACKey[:])
 	mac.Write([]byte(purpose))
@@ -402,13 +335,16 @@ func EmailLink(ctx *config.AppContext, email, path string) string {
 	if err != nil {
 		return ""
 	}
-	u.Path = path
-	hmac := CreateEmailHMACTTL(ctx, email, EmailedLinkTTL)
-	encodedHMAC := base64.RawURLEncoding.EncodeToString([]byte(hmac))
-	encodedEmail := base64.RawURLEncoding.EncodeToString([]byte(email))
+	token, err := getters.CreateMagicLoginToken(ctx, email, path)
+	if err != nil {
+		if ctx.Err != nil {
+			ctx.Err.Printf("create magic login link for %s: %s", email, err)
+		}
+		return ""
+	}
+	u.Path = "/auth"
 	q := u.Query()
-	q.Set("hr", encodedHMAC)
-	q.Set("em", encodedEmail)
+	q.Set("token", token)
 	u.RawQuery = q.Encode()
 	return u.String()
 }

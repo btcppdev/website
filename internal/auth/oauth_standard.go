@@ -114,7 +114,10 @@ func (provider *standardOAuthProvider) FetchIdentity(ctx context.Context, token 
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, githubMaxResponse))
+		detail := oauthIdentityErrorDetail(response)
+		if detail != "" {
+			return nil, fmt.Errorf("%s identity endpoint returned %s (%s)", provider.label, response.Status, detail)
+		}
 		return nil, fmt.Errorf("%s identity endpoint returned %s", provider.label, response.Status)
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, githubMaxResponse))
@@ -132,6 +135,31 @@ func (provider *standardOAuthProvider) FetchIdentity(ctx context.Context, token 
 	identity.Username = strings.TrimSpace(identity.Username)
 	identity.AvatarURL = strings.TrimSpace(identity.AvatarURL)
 	return identity, nil
+}
+
+func oauthIdentityErrorDetail(response *http.Response) string {
+	if response == nil || response.Body == nil {
+		return ""
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, 4096))
+	if err != nil {
+		return ""
+	}
+	var payload struct {
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+		Message          string `json:"message"`
+		Detail           string `json:"detail"`
+	}
+	_ = json.Unmarshal(body, &payload)
+	parts := make([]string, 0, 3)
+	for _, value := range []string{payload.Error, payload.ErrorDescription, payload.Message, payload.Detail, response.Header.Get("WWW-Authenticate")} {
+		value = strings.Join(strings.Fields(value), " ")
+		if value != "" && len(value) <= 500 {
+			parts = append(parts, value)
+		}
+	}
+	return strings.Join(parts, ": ")
 }
 
 func NewDiscordOAuthProvider(env *types.EnvConfig) *standardOAuthProvider {
@@ -213,7 +241,7 @@ func NewMLHOAuthProvider(env *types.EnvConfig) *standardOAuthProvider {
 		key: OAuthProviderMLH, label: "Major League Hacking", usesPKCE: false,
 		config: oauth2.Config{
 			ClientID: strings.TrimSpace(config.ClientID), ClientSecret: strings.TrimSpace(config.ClientSecret),
-			RedirectURL: oauthRedirectURL(env, OAuthProviderMLH), Scopes: []string{"user:read:profile", "user:read:email"},
+			RedirectURL: oauthRedirectURL(env, OAuthProviderMLH), Scopes: []string{"public", "user:read:profile", "user:read:email"},
 			Endpoint: oauth2.Endpoint{AuthURL: "https://my.mlh.io/oauth/authorize", TokenURL: "https://my.mlh.io/oauth/token", AuthStyle: oauth2.AuthStyleInParams},
 		},
 		apiBaseURL: "https://api.mlh.com", userPath: "/v4/users/me", parseIdentity: parseMLHIdentity,

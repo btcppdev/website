@@ -429,7 +429,14 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 		return fmt.Errorf("database is not configured")
 	}
 	up = normalizeSpeakerUpdate(up)
-	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+	verifiedNostr, err := VerifiedNostrProfileValue(ctx, speakerID)
+	if err != nil {
+		return err
+	}
+	if verifiedNostr != "" {
+		up.Nostr = verifiedNostr
+	}
+	_, err = ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE people
 		SET norm_photo_path = CASE WHEN $2 <> '' THEN $2 ELSE norm_photo_path END,
 			phone = CASE WHEN $3 <> '' THEN $3 ELSE phone END,

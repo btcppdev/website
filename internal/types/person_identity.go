@@ -1,6 +1,35 @@
 package types
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+const APITokenVersion = "btcpp_v1"
+
+var APITokenScopes = []string{
+	"profile:read",
+	"events:read",
+	"projects:read",
+}
+
+func ValidAPITokenScopes(scopes []string) bool {
+	if len(scopes) == 0 {
+		return false
+	}
+	allowed := make(map[string]bool, len(APITokenScopes))
+	for _, scope := range APITokenScopes {
+		allowed[scope] = true
+	}
+	seen := make(map[string]bool, len(scopes))
+	for _, scope := range scopes {
+		if !allowed[scope] || seen[scope] {
+			return false
+		}
+		seen[scope] = true
+	}
+	return true
+}
 
 type PersonEmail struct {
 	ID                 string
@@ -26,6 +55,52 @@ type PersonOAuthIdentity struct {
 	LinkedAt      time.Time
 	LastLoginAt   *time.Time
 	UpdatedAt     time.Time
+}
+
+type PersonNostrCredential struct {
+	ID          string
+	PersonID    string
+	PubkeyHex   string
+	LegacyValue string
+	VerifiedAt  *time.Time
+	LinkedAt    time.Time
+	LastLoginAt *time.Time
+	UpdatedAt   time.Time
+}
+
+type PersonPasswordCredential struct {
+	PersonID          string
+	PasswordHash      string
+	FailedAttempts    int
+	LockedUntil       *time.Time
+	CreatedAt         time.Time
+	PasswordChangedAt time.Time
+	UpdatedAt         time.Time
+}
+
+type PersonPasskeyCredential struct {
+	ID             string
+	PersonID       string
+	CredentialID   []byte
+	CredentialJSON json.RawMessage
+	DisplayName    string
+	CreatedAt      time.Time
+	LastUsedAt     *time.Time
+	UpdatedAt      time.Time
+}
+
+type PersonAPIToken struct {
+	ID         string
+	PersonID   string
+	Name       string
+	Prefix     string
+	Scopes     []string
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+	ExpiresAt  time.Time
+	Expired    bool
+	RevokedAt  *time.Time
+	UpdatedAt  time.Time
 }
 
 type AuthAuditEvent struct {

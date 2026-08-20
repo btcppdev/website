@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,99 +15,27 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
-	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/types"
 
 	"github.com/gorilla/mux"
 )
 
-// Dashboard is the magic-link-authed self-service page combining a speaker's
-// talk applications + their volunteer shift signups.
-//
-// GET without valid HMAC → renders the email-entry form.
-// GET with valid HMAC → loads SpeakerConfs + VolunteerApps for the email.
-// POST with email → emails a magic link, redirects home.
+// Dashboard is the session-authenticated self-service page combining a
+// speaker's talk applications + their volunteer shift signups. Magic links
+// establish a session at /auth before redirecting here.
 func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if r.Method == http.MethodPost {
-		limitRequestBody(w, r, maxFormBodyBytes)
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "bad form", http.StatusBadRequest)
-			return
-		}
-		dec := newFormDecoder()
-		var form EmailForm
-		if err := dec.Decode(&form, r.PostForm); err != nil {
-			ctx.Err.Printf("/dashboard form decode failed: %s", err)
-			w.Write([]byte(helpers.ErrVolApp("Unable to send you email link.")))
-			return
-		}
-		if r.PostForm.Get("Action") == "dev-login" {
-			if !dashboardDevLoginEnabled(ctx) {
-				http.NotFound(w, r)
-				return
-			}
-			if strings.TrimSpace(form.Email) == "" {
-				http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("Enter an email to use for the development login."), http.StatusSeeOther)
-				return
-			}
-			if err := auth.LoginEmail(ctx, r, form.Email); err != nil {
-				ctx.Err.Printf("/dashboard development login failed: %s", err)
-				http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("Unable to log in as that email."), http.StatusSeeOther)
-				return
-			}
-			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
-			return
-		}
-		if _, err := emails.OnlyForLogin(ctx, form.Email); err != nil {
-			http.Error(w, "Unable to send login link via email", http.StatusInternalServerError)
-			ctx.Err.Printf("/dashboard onlyforlogin failed: %s", err)
-			return
-		}
-		http.Redirect(w, r, "/dashboard?flash="+url.QueryEscape("Check your inbox — we sent you a login link."), http.StatusSeeOther)
+		redirectDashboardLogin(w, r, "")
 		return
 	}
 
-	// Two equally valid auth paths land here:
-	//
-	//   1. Magic-link click with ?em=&hr= URL params — the
-	//      magic-link's HMAC validates the email; we stamp the
-	//      session for subsequent navigation.
-	//   2. Already-authed visitor (the affiliate / role-manager
-	//      flows redirect back here without rebuilding the URL
-	//      params) — session has the email; we mint a fresh
-	//      ?em=&hr= pair from it so dashboard sub-pages that
-	//      still hand-build URLs (talks, vol shifts, etc.) keep
-	//      working.
 	email, encodedHMAC, err := validateVolEmail(r, ctx)
-	validatedByLink := err == nil
-	encodedEmail := r.URL.Query().Get("em")
+	encodedEmail := ""
 	if err != nil {
-		// Fall back to the SCS session before giving up.
-		if sessEmail := ctx.Session.GetString(r.Context(), auth.SessionEmailKey); sessEmail != "" {
-			email = sessEmail
-			encodedHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
-			encodedEmail = base64.RawURLEncoding.EncodeToString([]byte(email))
-			err = nil
-		}
-	}
-	if err != nil {
-		ctx.Infos.Printf("/dashboard HMAC validation failed: %s", err)
-		renderDashboardLogin(w, r, ctx)
+		ctx.Infos.Printf("/dashboard session validation failed: %s", err)
+		redirectDashboardLogin(w, r, r.URL.Query().Get("error"))
 		return
-	}
-
-	// The magic-link URL HMAC is itself proof of identity — stamp the
-	// session only when this request actually carried a valid link.
-	// If we already fell back to the session, renewing the token again
-	// on every dashboard page load just churns cookies.
-	if validatedByLink {
-		if err := auth.LoginEmail(ctx, r, email); err != nil {
-			ctx.Err.Printf("/dashboard session stamp for %s: %s", email, err)
-			r.URL.RawQuery = "error=" + url.QueryEscape("This email cannot be signed in until its duplicate profiles are merged.")
-			renderDashboardLogin(w, r, ctx)
-			return
-		}
 	}
 	resolvedIdentity, resolveErr := auth.Resolve(r, ctx)
 	if resolveErr != nil {
@@ -529,6 +456,16 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	ctx.Infos.Printf("/dashboard id=%s render=%s", reqID, time.Since(tRender))
 }
 
+func dashboardIdentityEmail(identity *auth.Identity) string {
+	if identity == nil {
+		return ""
+	}
+	if primary := strings.TrimSpace(identity.PrimaryEmail); primary != "" {
+		return primary
+	}
+	return strings.TrimSpace(identity.LoginEmail)
+}
+
 func DashboardHackathons(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	email, encodedEmail, encodedHMAC, ok := dashboardRequestIdentity(w, r, ctx)
 	if !ok {
@@ -621,16 +558,12 @@ func dashboardHackathonProjectStatusLabel(status string) string {
 }
 
 func DashboardHackathonTickets(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-	if email == "" {
-		http.Redirect(w, r, "/login?next="+url.QueryEscape("/dashboard/tickets"), http.StatusSeeOther)
-		return
-	}
 	id, err := auth.Resolve(r, ctx)
 	if err != nil || id == nil || id.Speaker == nil {
 		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("A person profile is required to view ticket awards"), http.StatusSeeOther)
 		return
 	}
+	email := dashboardIdentityEmail(id)
 	people := []*types.Speaker{id.Speaker}
 	entitlements, err := dashboardTicketEntitlements(ctx, people)
 	if err != nil {
@@ -835,33 +768,23 @@ func DashboardOrderReceipt(w http.ResponseWriter, r *http.Request, ctx *config.A
 
 func dashboardRequestIdentity(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (email, encodedEmail, encodedHMAC string, ok bool) {
 	email, encodedHMAC, err := validateVolEmail(r, ctx)
-	encodedEmail = r.URL.Query().Get("em")
+	encodedEmail = ""
 	if err != nil {
-		if sessEmail := ctx.Session.GetString(r.Context(), auth.SessionEmailKey); sessEmail != "" {
-			email = sessEmail
-			encodedHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
-			encodedEmail = base64.RawURLEncoding.EncodeToString([]byte(email))
-			err = nil
-		}
-	}
-	if err != nil {
-		renderDashboardLogin(w, r, ctx)
+		redirectDashboardLogin(w, r, "")
 		return "", "", "", false
 	}
 	return email, encodedEmail, encodedHMAC, true
 }
 
-func renderDashboardLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_login.tmpl", &DashboardPage{
-		FlashMessage:    r.URL.Query().Get("flash"),
-		FlashError:      r.URL.Query().Get("error"),
-		DevLoginEnabled: dashboardDevLoginEnabled(ctx),
-		Year:            helpers.CurrentYear(),
-	})
-	if err != nil {
-		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("/dashboard render login failed: %s", err)
+func redirectDashboardLogin(w http.ResponseWriter, r *http.Request, errorMessage string) {
+	query := url.Values{"next": {r.URL.Path}}
+	if flash := strings.TrimSpace(r.URL.Query().Get("flash")); flash != "" {
+		query.Set("flash", flash)
 	}
+	if errorMessage != "" {
+		query.Set("error", errorMessage)
+	}
+	http.Redirect(w, r, "/login?"+query.Encode(), http.StatusSeeOther)
 }
 
 func dashboardDevLoginEnabled(ctx *config.AppContext) bool {
