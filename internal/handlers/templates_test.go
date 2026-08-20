@@ -57,6 +57,30 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(loginPage.String(), `value="dev-login"`) {
 		t.Fatalf("production login exposed development login shortcut: %s", loginPage.String())
 	}
+	var accountSetupPage bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&accountSetupPage, "dashboard_edit_speaker.tmpl", &EditSpeakerPage{
+		Mode: "create", EmailPlain: "new@example.test", SetupProvider: "GitHub",
+	}); err != nil {
+		t.Fatalf("render OAuth account setup: %v", err)
+	}
+	for _, expected := range []string{"NEW ACCOUNT", "Finish setting up", "GitHub sign-in is verified", "CREATE ACCOUNT", "profile-edit-actions__create-account"} {
+		if !strings.Contains(accountSetupPage.String(), expected) {
+			t.Fatalf("OAuth account setup omitted %q: %s", expected, accountSetupPage.String())
+		}
+	}
+	if strings.Contains(accountSetupPage.String(), "Arrange <span>your</span> record") {
+		t.Fatalf("new-account onboarding used edit-profile copy: %s", accountSetupPage.String())
+	}
+	if strings.Contains(accountSetupPage.String(), "Back to dashboard") {
+		t.Fatalf("new-account onboarding offered a dashboard back link: %s", accountSetupPage.String())
+	}
+	accountSetupPage.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&accountSetupPage, "dashboard_edit_speaker.tmpl", &EditSpeakerPage{Mode: "create", IsAdmin: true}); err != nil {
+		t.Fatalf("render admin speaker creation: %v", err)
+	}
+	if !strings.Contains(accountSetupPage.String(), "Create a <span>speaker record.</span>") || strings.Contains(accountSetupPage.String(), "GitHub sign-in is verified") {
+		t.Fatalf("admin speaker creation used account-onboarding copy: %s", accountSetupPage.String())
+	}
 	var settingsPage bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{
 		Emails: []*types.PersonEmail{

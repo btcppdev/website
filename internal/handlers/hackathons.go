@@ -2939,7 +2939,7 @@ func HackathonJudgeInviteAccept(w http.ResponseWriter, r *http.Request, ctx *con
 	personID, err := getters.GetPersonIDByEmail(ctx, email)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/judge-invites person %s: %s", email, err)
-		profileURL := dashboardSpeakerEditURLWithFlash("", "", r.URL.RequestURI(), "Create your profile to accept this judge invite.")
+		profileURL := dashboardProfileURLWithFlash("", "", r.URL.RequestURI(), "Create your profile to accept this judge invite.")
 		http.Redirect(w, r, profileURL, http.StatusSeeOther)
 		return
 	}
@@ -4194,7 +4194,7 @@ func redirectHackathonProfile(w http.ResponseWriter, r *http.Request, ctx *confi
 		redirectHackathonLogin(w, r)
 		return
 	}
-	http.Redirect(w, r, dashboardSpeakerEditURLWithFlash("", "", r.URL.RequestURI(), flash), http.StatusSeeOther)
+	http.Redirect(w, r, dashboardProfileURLWithFlash("", "", r.URL.RequestURI(), flash), http.StatusSeeOther)
 }
 
 func hackathonURLForConf(conf *types.Conf) string {

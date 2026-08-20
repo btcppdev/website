@@ -1701,8 +1701,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/talks/{proposalID}/speakers/{speakerConfID}/remove", func(w http.ResponseWriter, r *http.Request) {
 		DashboardRemoveCoSpeaker(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/dashboard/speaker", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/dashboard/profile", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditSpeaker(w, r, app)
+	}).Methods("GET", "POST")
+	r.HandleFunc("/dashboard/speaker", func(w http.ResponseWriter, r *http.Request) {
+		target := "/dashboard/profile"
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, target, http.StatusPermanentRedirect)
 	}).Methods("GET", "POST")
 	r.HandleFunc("/dashboard/emails", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/dashboard/settings", http.StatusMovedPermanently)
@@ -2743,7 +2750,7 @@ func whoIsProfileEditURL(ctx *config.AppContext, r *http.Request, person *WhoIsP
 	if err != nil || id == nil || id.PersonID != person.Speaker.ID {
 		return ""
 	}
-	return "/dashboard/speaker"
+	return "/dashboard/profile"
 }
 
 func filterWhoIsPeople(people []*WhoIsPerson, query, topic, event string) []*WhoIsPerson {
