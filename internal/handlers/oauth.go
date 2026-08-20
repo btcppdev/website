@@ -16,7 +16,6 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
-	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/types"
 
@@ -285,7 +284,7 @@ func OAuthEmailLink(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			http.Error(w, "Couldn't create the email link — try again in a minute.", http.StatusInternalServerError)
 			return
 		}
-		if _, err := emails.OnlyForLoginLink(ctx, pending.Identity.Email, link); err != nil {
+		if err := sendOAuthLinkEmail(ctx, pending.Identity.Email, provider.Key(), provider.Label(), link); err != nil {
 			ctx.Err.Printf("%s OAuth send link to %s: %s", provider.Label(), pending.Identity.Email, err)
 			http.Error(w, "Couldn't send the email — try again in a minute.", http.StatusInternalServerError)
 			return
@@ -304,6 +303,23 @@ func OAuthEmailLink(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		ctx.Err.Printf("%s OAuth email proof render: %s", provider.Label(), err)
 		http.Error(w, "Unable to render email confirmation", http.StatusInternalServerError)
 	}
+}
+
+func sendOAuthLinkEmail(ctx *config.AppContext, email, providerKey, providerName, link string) error {
+	if !ctx.InProduction {
+		ctx.Infos.Printf("[dev] %s account link for %s: %s", providerName, email, link)
+	}
+	return sendPersonAccountEmail(
+		ctx,
+		email,
+		"Finish linking "+providerName+" to your bitcoin++ account",
+		oauthLinkEmailMarkdown(email, providerName, link),
+		fmt.Sprintf("oauth-link-%s-%d", providerKey, time.Now().UnixNano()),
+	)
+}
+
+func oauthLinkEmailMarkdown(email, providerName, link string) string {
+	return fmt.Sprintf("# Link %s to bitcoin++\n\nWe've received a request to link your %s account to the bitcoin++ account associated with **%s**. Use the button below to finish linking them.\n\n[Finish linking %s](button#%s)\n\nThis link expires in 72 hours and can only be used once. If you did not request this link, you can ignore this email.\n\n— bitcoin++", markdownEmailText(providerName), markdownEmailText(providerName), markdownEmailText(email), markdownEmailText(providerName), link)
 }
 
 func oauthIdentityEmailResolution(ctx *config.AppContext, identity *types.PersonOAuthIdentity) (*types.PersonEmailResolution, error) {
