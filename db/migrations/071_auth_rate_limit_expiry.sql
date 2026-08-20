@@ -3,7 +3,7 @@ BEGIN;
 ALTER TABLE auth_rate_limits
 ADD COLUMN expires_at timestamptz;
 
--- Migration 068 did not record the window duration. Keep existing buckets for
+-- Migration 069 did not record the window duration. Keep existing buckets for
 -- at most one more day; subsequent attempts set their exact window expiry.
 UPDATE auth_rate_limits
 SET expires_at = updated_at + interval '1 day';
