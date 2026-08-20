@@ -1,0 +1,786 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Bitcoin++ API",
+    "version": "1.0.0",
+    "description": "Bitcoin++ public data and scoped account, talk, schedule, and recording API. OAuth access tokens and personal access tokens use the same scope and live-role checks."
+  },
+  "servers": [
+    {
+      "url": "https://btcpp.dev/api/v1"
+    }
+  ],
+  "paths": {
+    "/bootstrap": {
+      "get": {
+        "operationId": "getBootstrap",
+        "summary": "Discover API v1 resources",
+        "responses": {
+          "200": {
+            "description": "API discovery document",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The cached representation is current"
+          }
+        }
+      }
+    },
+    "/conferences": {
+      "get": {
+        "operationId": "listConferences",
+        "summary": "List published conferences",
+        "responses": {
+          "200": {
+            "description": "Published conferences",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConferenceListResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The cached representation is current"
+          }
+        }
+      }
+    },
+    "/conferences/{tag}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConferenceTag"
+        }
+      ],
+      "get": {
+        "operationId": "getConference",
+        "summary": "Get a published conference",
+        "responses": {
+          "200": {
+            "description": "Published conference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConferenceResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The cached representation is current"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/conferences/{tag}/days": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConferenceTag"
+        }
+      ],
+      "get": {
+        "operationId": "listConferenceDays",
+        "summary": "List conference day context",
+        "responses": {
+          "200": {
+            "description": "Conference days",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConferenceDaysResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The cached representation is current"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/conferences/{tag}/agenda": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConferenceTag"
+        }
+      ],
+      "get": {
+        "operationId": "getConferenceAgenda",
+        "summary": "Get public scheduled talks and day context",
+        "responses": {
+          "200": {
+            "description": "Public conference agenda",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgendaResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The cached representation is current"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/conferences/{tag}/talks/{talk_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConferenceTag"
+        },
+        {
+          "name": "talk_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getConferenceTalk",
+        "summary": "Get one public conference talk",
+        "responses": {
+          "200": {
+            "description": "Public conference talk",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TalkResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The cached representation is current"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateConferenceTalk",
+        "summary": "Edit a talk as its speaker or conference admin",
+        "security": [{"oauth2": ["talks:write"]}, {"personalAccessToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TalkPatch"}}}},
+        "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
+      }
+    },
+    "/conferences/{tag}/talks/{talk_id}/schedule": {
+      "parameters": [{"$ref": "#/components/parameters/ConferenceTag"}, {"$ref": "#/components/parameters/TalkID"}],
+      "put": {
+        "operationId": "updateConferenceTalkSchedule",
+        "summary": "Schedule a talk as a conference admin",
+        "security": [{"oauth2": ["schedule:write"]}, {"personalAccessToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleUpdate"}}}},
+        "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
+      }
+    },
+    "/conferences/{tag}/talks/{talk_id}/recording": {
+      "parameters": [{"$ref": "#/components/parameters/ConferenceTag"}, {"$ref": "#/components/parameters/TalkID"}],
+      "put": {
+        "operationId": "putConferenceTalkRecording",
+        "summary": "Idempotently create or update recording metadata",
+        "security": [{"oauth2": ["recordings:write"]}, {"personalAccessToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingUpsert"}}}},
+        "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
+      }
+    },
+    "/conferences/{tag}/recording-candidates": {
+      "parameters": [{"$ref": "#/components/parameters/ConferenceTag"}],
+      "get": {
+        "operationId": "listRecordingCandidates",
+        "summary": "List accepted or scheduled talks and recording consent state",
+        "security": [{"oauth2": ["recordings:write"]}, {"personalAccessToken": []}],
+        "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}
+      }
+    },
+    "/conferences/{tag}/speakers": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceSpeakers", "summary": "List public conference speakers", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/conferences/{tag}/sponsors": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceSponsors", "summary": "List visible paid or committed sponsors", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/conferences/{tag}/hackathons": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceHackathons", "summary": "List public hackathons", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/people": {"get": {"operationId": "listPeople", "summary": "List public people", "responses": {"200": {"$ref": "#/components/responses/Success"}}}},
+    "/people/{person_id}": {"parameters": [{"$ref": "#/components/parameters/PersonID"}], "get": {"operationId": "getPerson", "summary": "Get a holistic public profile with talks and projects", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/organizations/{organization_id}": {"parameters": [{"$ref": "#/components/parameters/OrganizationID"}], "get": {"operationId": "getOrganization", "summary": "Get a publicly referenced organization", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/recordings": {"get": {"operationId": "listRecordings", "summary": "List published recording links", "responses": {"200": {"$ref": "#/components/responses/Success"}}}},
+    "/recordings/{recording_id}": {"parameters": [{"$ref": "#/components/parameters/RecordingID"}], "get": {"operationId": "getRecording", "summary": "Get one published recording", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/hackathons/{competition_id}": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "getHackathon", "summary": "Get a public hackathon", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/hackathons/{competition_id}/projects": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonProjects", "summary": "List public submitted projects", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/hackathons/{competition_id}/projects/{project_id}": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}, {"$ref": "#/components/parameters/ProjectID"}], "get": {"operationId": "getHackathonProject", "summary": "Get a public project and teammates without email", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/hackathons/{competition_id}/awards": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonAwards", "summary": "List non-draft awards and prizes", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/hackathons/{competition_id}/results": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonResults", "summary": "List finalized award results", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/me": {
+      "get": {"operationId": "getMe", "summary": "Get the token owner's private profile", "security": [{"oauth2": ["profile:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}},
+      "patch": {"operationId": "updateMe", "summary": "Update the token owner's public profile fields", "security": [{"oauth2": ["profile:self:write"]}, {"personalAccessToken": []}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProfilePatch"}}}}, "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}
+    },
+    "/me/talks": {"get": {"operationId": "listMyTalks", "summary": "List the token owner's talks including non-public states", "security": [{"oauth2": ["talks:read"]}, {"personalAccessToken": []}], "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}}
+  },
+  "components": {
+    "parameters": {
+      "ConferenceTag": {
+        "name": "tag",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "TalkID": {"name": "talk_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "PersonID": {"name": "person_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "OrganizationID": {"name": "organization_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "RecordingID": {"name": "recording_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "CompetitionID": {"name": "competition_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "ProjectID": {"name": "project_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+    },
+    "securitySchemes": {
+      "personalAccessToken": {
+        "type": "http", "scheme": "bearer", "bearerFormat": "btcpp_v1",
+        "description": "A personal access token. The endpoint's documented scope is still enforced."
+      },
+      "oauth2": {
+        "type": "oauth2",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://btcpp.dev/oauth/authorize",
+            "tokenUrl": "https://btcpp.dev/oauth/token",
+            "refreshUrl": "https://btcpp.dev/oauth/token",
+            "scopes": {
+              "profile:self:read": "Read the resource owner's private profile",
+              "profile:self:write": "Update the resource owner's public profile",
+              "talks:read": "Read the resource owner's talks",
+              "talks:write": "Edit talks the resource owner speaks at",
+              "schedule:write": "Manage schedules when live admin roles permit",
+              "recordings:write": "Manage recording metadata when live admin roles permit",
+              "offline_access": "Receive a rotating refresh token"
+            }
+          }
+        }
+      }
+    },
+    "headers": {
+      "ETag": {
+        "description": "Weak validator for the stable resource data in this representation",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "Success": {
+        "description": "Successful API response",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/GenericResponse"}}}
+      },
+      "Unauthorized": {
+        "description": "A valid bearer token is required",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}
+      },
+      "Forbidden": {
+        "description": "The token lacks the required scope, ownership, or current role",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}
+      },
+      "NotFound": {
+        "description": "The resource is absent or not public",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "GenericResponse": {
+        "type": "object", "required": ["data", "meta"],
+        "properties": {"data": true, "meta": {"$ref": "#/components/schemas/Meta"}}
+      },
+      "ProfilePatch": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"}, "company": {"type": "string"},
+          "biography": {"type": "string"}, "website": {"type": "string"}, "x": {"type": "string"},
+          "github": {"type": "string"}, "instagram": {"type": "string"}, "linkedin": {"type": "string"}, "leetcode": {"type": "string"}
+        }
+      },
+      "TalkPatch": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "title": {"type": "string"}, "description": {"type": "string"}, "kind": {"type": "string"},
+          "desired_duration_minutes": {"type": "integer", "minimum": 1, "maximum": 480},
+          "repository_url": {"type": "string"}, "slides_url": {"type": "string"}
+        }
+      },
+      "ScheduleUpdate": {
+        "type": "object", "additionalProperties": false, "required": ["starts_at", "ends_at", "venue"],
+        "properties": {"starts_at": {"type": "string", "format": "date-time"}, "ends_at": {"type": "string", "format": "date-time"}, "venue": {"type": "string"}}
+      },
+      "RecordingUpsert": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "talk_name": {"type": "string"}, "file_uri": {"type": "string"}, "youtube_url": {"type": "string"},
+          "x_url": {"type": "string"}, "x_reply_url": {"type": "string"}, "published_at": {"type": "string", "description": "RFC 3339 timestamp; empty clears publication time"}
+        }
+      },
+      "Meta": {
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Opaque cursor for the next page; absent on the final page"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "LinkMap": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "Bootstrap": {
+        "type": "object",
+        "required": [
+          "api_version",
+          "links"
+        ],
+        "properties": {
+          "api_version": {
+            "const": "v1"
+          },
+          "links": {
+            "$ref": "#/components/schemas/LinkMap"
+          }
+        }
+      },
+      "BootstrapResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Bootstrap"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "Conference": {
+        "type": "object",
+        "required": [
+          "id",
+          "tag",
+          "description",
+          "edition_type",
+          "tagline",
+          "timezone",
+          "location",
+          "venue",
+          "starts_at",
+          "ends_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "edition_type": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "venue": {
+            "type": "string"
+          },
+          "starts_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ConferenceResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Conference"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "ConferenceListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Conference"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "TimeRange": {
+        "type": "object",
+        "required": [
+          "starts_at",
+          "ends_at"
+        ],
+        "properties": {
+          "starts_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ConferenceDay": {
+        "type": "object",
+        "required": [
+          "id",
+          "day_number",
+          "venues",
+          "doors",
+          "breakfast",
+          "lunch",
+          "coffee"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "day_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "venues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "doors": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TimeRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "breakfast": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TimeRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lunch": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TimeRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coffee": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TimeRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ConferenceDaysResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConferenceDay"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "TalkSpeaker": {
+        "type": "object",
+        "required": [
+          "person_id",
+          "name",
+          "company"
+        ],
+        "properties": {
+          "person_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          }
+        }
+      },
+      "Talk": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "kind",
+          "starts_at",
+          "ends_at",
+          "venue",
+          "section",
+          "speakers",
+          "repository_url",
+          "slides_url",
+          "recording_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ends_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "venue": {
+            "type": "string"
+          },
+          "section": {
+            "type": "string"
+          },
+          "speakers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TalkSpeaker"
+            }
+          },
+          "repository_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "slides_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "recording_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          }
+        }
+      },
+      "TalkResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Talk"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "Agenda": {
+        "type": "object",
+        "required": [
+          "conference",
+          "days",
+          "talks"
+        ],
+        "properties": {
+          "conference": {
+            "$ref": "#/components/schemas/Conference"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConferenceDay"
+            }
+          },
+          "talks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Talk"
+            }
+          }
+        }
+      },
+      "AgendaResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Agenda"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    }
+  }
+}
