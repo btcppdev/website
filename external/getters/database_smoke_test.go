@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -911,6 +912,98 @@ func TestDatabaseSmokeCreateConfTalkReusesScheduledProposalRow(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("active conf_talks for proposal = %d, want 1", count)
+	}
+}
+
+func TestDatabaseSmokeAtomicScheduleUpdatesSerializeAndRejectSpeakerOverlap(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	conferenceID, _ := insertSmokeConference(t, ctx)
+	ids := make([]string, 2)
+	proposalIDs := make([]string, len(ids))
+	for index := range ids {
+		if err := ctx.DB.QueryRow(context.Background(), `
+			INSERT INTO proposals (conference_id, title, status)
+			VALUES ($1::uuid, $2, 'Accepted')
+			RETURNING id::text
+		`, conferenceID, fmt.Sprintf("Concurrent schedule talk %d", index+1)).Scan(&proposalIDs[index]); err != nil {
+			t.Fatalf("insert concurrent schedule proposal %d: %v", index, err)
+		}
+		if err := ctx.DB.QueryRow(context.Background(), `
+			INSERT INTO conf_talks (conference_id, proposal_id)
+			VALUES ($1::uuid, $2::uuid)
+			RETURNING id::text
+		`, conferenceID, proposalIDs[index]).Scan(&ids[index]); err != nil {
+			t.Fatalf("insert concurrent schedule talk %d: %v", index, err)
+		}
+	}
+
+	start := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	end := start.Add(30 * time.Minute)
+	gate := make(chan struct{})
+	type result struct {
+		conflict ScheduleConflict
+		err      error
+	}
+	results := make(chan result, len(ids))
+	for _, id := range ids {
+		go func(confTalkID string) {
+			<-gate
+			conflict, err := UpdateConfTalkScheduleAtomic(ctx, confTalkID, "Mainstage", start, end)
+			results <- result{conflict: conflict, err: err}
+		}(id)
+	}
+	close(gate)
+
+	winners, conflicts := 0, 0
+	for range ids {
+		outcome := <-results
+		if outcome.err != nil {
+			t.Fatalf("concurrent schedule update: %v", outcome.err)
+		}
+		switch outcome.conflict {
+		case ScheduleConflictNone:
+			winners++
+		case ScheduleConflictVenue:
+			conflicts++
+		default:
+			t.Fatalf("unexpected schedule conflict %q", outcome.conflict)
+		}
+	}
+	if winners != 1 || conflicts != 1 {
+		t.Fatalf("concurrent schedule outcomes: winners=%d venue_conflicts=%d", winners, conflicts)
+	}
+
+	var personID, speakerConfID string
+	if err := ctx.DB.QueryRow(context.Background(), `INSERT INTO people (name) VALUES ('Concurrent Speaker') RETURNING id::text`).Scan(&personID); err != nil {
+		t.Fatalf("insert concurrent speaker: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id = $1::uuid`, personID)
+	})
+	if err := ctx.DB.QueryRow(context.Background(), `INSERT INTO speaker_confs (speaker_id) VALUES ($1::uuid) RETURNING id::text`, personID).Scan(&speakerConfID); err != nil {
+		t.Fatalf("insert concurrent speaker conference: %v", err)
+	}
+	for _, proposalID := range proposalIDs {
+		if _, err := ctx.DB.Exec(context.Background(), `
+			INSERT INTO proposals_speaker_confs (proposal_id, speaker_conf_id)
+			VALUES ($1::uuid, $2::uuid)
+		`, proposalID, speakerConfID); err != nil {
+			t.Fatalf("link concurrent proposal speaker: %v", err)
+		}
+	}
+	var unscheduledID string
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT id::text FROM conf_talks
+		WHERE conference_id = $1::uuid AND scheduled_start IS NULL
+	`, conferenceID).Scan(&unscheduledID); err != nil {
+		t.Fatalf("find losing concurrent talk: %v", err)
+	}
+	conflict, err := UpdateConfTalkScheduleAtomic(ctx, unscheduledID, "Second stage", start, end)
+	if err != nil {
+		t.Fatalf("check atomic speaker collision: %v", err)
+	}
+	if conflict != ScheduleConflictSpeaker {
+		t.Fatalf("atomic speaker collision = %q, want %q", conflict, ScheduleConflictSpeaker)
 	}
 }
 

@@ -137,7 +137,9 @@ canonical person relationships, never email.
 `schedule:write` additionally requires `{tag}-admin` or `global-admin`.
 Scheduling validates conference ownership, RFC 3339 timestamps, start/end
 order, conference dates, configured venues, room collisions, and speaker
-collisions. Schedule writes produce audit records.
+collisions. Conflict validation and the update run in one transaction under a
+conference-level advisory lock, so concurrent schedule requests cannot both
+claim the same room or speaker time. Schedule writes produce audit records.
 
 ### Recordings
 
