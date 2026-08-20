@@ -13,8 +13,9 @@ import (
 	"github.com/alexedwards/scs/v2"
 )
 
-func TestAuthRedirectInvalidLinkRedirectsToLoginWithError(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/auth?token=invalid", nil)
+func TestAuthRedirectInvalidLinkReturnsToConfirmationWithError(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/auth", strings.NewReader("token=invalid"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
 	AuthRedirect(rec, req, &config.AppContext{})
@@ -23,11 +24,11 @@ func TestAuthRedirectInvalidLinkRedirectsToLoginWithError(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusSeeOther)
 	}
 	location := rec.Header().Get("Location")
-	if !strings.HasPrefix(location, "/login?") {
-		t.Fatalf("Location = %q, want /login redirect", location)
+	if !strings.HasPrefix(location, "/auth?") {
+		t.Fatalf("Location = %q, want /auth redirect", location)
 	}
-	if !strings.Contains(location, "next=%2Fdashboard") {
-		t.Fatalf("Location = %q, missing safe dashboard next", location)
+	if !strings.Contains(location, "token=invalid") {
+		t.Fatalf("Location = %q, missing original token", location)
 	}
 	if !strings.Contains(location, "error=") {
 		t.Fatalf("Location = %q, missing error flash", location)

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Confirm sign in · bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-login-page">
+  {{ block "mainnav" . }} {{ end }}
+  <main class="auth-shell">
+    <aside class="auth-poster" aria-hidden="true">
+      <div class="auth-poster__eyebrow">BITCOIN++ / ACCESS</div>
+      <div class="auth-poster__mark">++</div>
+      <div><p>One profile.</p><p>Every event.</p><p class="auth-poster__accent">Your keys.</p></div>
+      <span class="auth-poster__note">Talks · tickets · hackathons · volunteering</span>
+    </aside>
+    <section class="auth-card" id="magic-login">
+      <header class="auth-card__head">
+        <span class="auth-kicker">§ EMAIL SIGN IN</span>
+        {{ if .TokenValid }}
+        <h1>Ready to <em>continue?</em></h1>
+        <p>Confirm below to use this one-time link and open your account.</p>
+        {{ else }}
+        <h1>This link is <em>no longer valid.</em></h1>
+        <p>It may have expired or already been used.</p>
+        {{ end }}
+      </header>
+
+      {{ if .FlashError }}<div class="auth-alert auth-alert--error">{{ .FlashError }}</div>{{ end }}
+
+      {{ if .TokenValid }}
+      <form method="POST" action="/auth" class="auth-form">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <input type="hidden" name="token" value="{{ .Token }}">
+        <button class="auth-primary" type="submit">Continue to your account <span>→</span></button>
+      </form>
+      {{ else if .CanResend }}
+      <form method="POST" action="/auth/resend" class="auth-form">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <input type="hidden" name="token" value="{{ .Token }}">
+        <button class="auth-primary" type="submit">Email me a fresh link <span>→</span></button>
+      </form>
+      {{ else }}
+      <div class="auth-form__actions"><a href="/login">Request another login link →</a></div>
+      {{ end }}
+    </section>
+  </main>
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

@@ -128,9 +128,12 @@ identity/email scopes and never retains provider access or refresh tokens.
 
 Password, passkey, and Nostr sign-in need no provider configuration. Passwords
 are hashed with Argon2id; reset links are one-use and expire after 30 minutes.
-Email magic links are also stored as hashed, one-use tokens and expire after 30
-minutes; the redirect destination is stored with the token rather than trusted
-from the clicked URL.
+Email magic links are also stored as hashed, one-use tokens and expire after 72
+hours; the redirect destination is stored with the token rather than trusted
+from the clicked URL. Opening a link only renders a confirmation page; a
+CSRF-protected confirmation consumes it, preventing email scanners from using
+the credential. Expired and consumed links can be reissued to their original
+mailbox without revealing the address.
 Passkeys use discoverable WebAuthn credentials, require user verification, and
 are bound to the exact public origin derived from `HOST`/`PORT`. The complete
 WebAuthn credential record is encrypted at rest while its credential ID remains

@@ -528,10 +528,11 @@ func MagicLink(ctx *config.AppContext, email, next string) string {
 	return helpers.EmailLink(ctx, email, SafeNext(next, "/dashboard"))
 }
 
-// AuthRedirect atomically consumes a magic-link token, stamps the session,
+// AuthRedirect atomically consumes a magic-link token after the handlers
+// package has verified the confirmation form's CSRF token, stamps the session,
 // then redirects to the destination stored with the token.
 func AuthRedirect(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	token := strings.TrimSpace(r.URL.Query().Get("token"))
+	token := strings.TrimSpace(r.FormValue("token"))
 	if token == "" {
 		redirectLoginError(w, r, "That login link is missing required information. Enter your email to get a fresh link.")
 		return
@@ -541,7 +542,8 @@ func AuthRedirect(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		if !errors.Is(err, getters.ErrMagicLoginTokenInvalid) && ctx.Err != nil {
 			ctx.Err.Printf("consume magic login token: %s", err)
 		}
-		redirectLoginError(w, r, "That login link has expired or is invalid. Enter your email to get a fresh link.")
+		dest := "/auth?token=" + url.QueryEscape(token) + "&error=" + url.QueryEscape("That login link has expired or was already used.")
+		http.Redirect(w, r, dest, http.StatusSeeOther)
 		return
 	}
 	if err := LoginEmail(ctx, r, email); err != nil {

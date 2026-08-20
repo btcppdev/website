@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
@@ -25,6 +26,15 @@ type LoginPage struct {
 	DevLoginEnabled bool
 	CSRF            string
 	Year            uint
+}
+
+type MagicLinkPage struct {
+	Token      string
+	TokenValid bool
+	CanResend  bool
+	FlashError string
+	CSRF       string
+	Year       uint
 }
 
 // Login renders the email-entry form (GET) and dispatches the
@@ -59,6 +69,10 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 				return
 			}
 			http.Redirect(w, r, next, http.StatusSeeOther)
+			return
+		}
+		if !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+			http.Redirect(w, r, "/login?next="+url.QueryEscape(next)+"&error="+url.QueryEscape("That email-link request expired. Reload and try again."), http.StatusSeeOther)
 			return
 		}
 		if email == "" {
@@ -106,11 +120,75 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 }
 
-// AuthLanding is the /auth handler that magic-links point at. Thin
-// wrapper around auth.AuthRedirect so the route registration in
-// handlers.go can keep the pattern of `func(w,r) { Foo(w,r,app) }`.
+// AuthLanding renders a non-consuming GET confirmation so email security
+// scanners cannot spend a one-use credential. Only the CSRF-protected POST
+// consumes the token and starts the session.
 func AuthLanding(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	auth.AuthRedirect(w, r, ctx)
+	token := strings.TrimSpace(r.URL.Query().Get("token"))
+	if r.Method == http.MethodPost {
+		limitRequestBody(w, r, maxFormBodyBytes)
+		if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+			http.Redirect(w, r, "/auth?token="+url.QueryEscape(strings.TrimSpace(r.FormValue("token")))+"&error="+url.QueryEscape("That confirmation expired. Reload the page and try again."), http.StatusSeeOther)
+			return
+		}
+		auth.AuthRedirect(w, r, ctx)
+		return
+	}
+	_, _, valid, found, err := getters.LookupMagicLoginToken(ctx, token)
+	if err != nil {
+		ctx.Err.Printf("/auth inspect magic login token: %s", err)
+		http.Error(w, "Unable to check that login link", http.StatusInternalServerError)
+		return
+	}
+	csrf, err := ensureAuthMethodsCSRF(ctx, r)
+	if err != nil {
+		http.Error(w, "Unable to confirm sign-in", http.StatusInternalServerError)
+		return
+	}
+	renderMagicLinkPage(w, ctx, &MagicLinkPage{
+		Token: token, TokenValid: valid, CanResend: found,
+		FlashError: r.URL.Query().Get("error"), CSRF: csrf, Year: helpers.CurrentYear(),
+	})
+}
+
+func MagicLinkResend(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		http.Redirect(w, r, "/login?error="+url.QueryEscape("That resend request expired. Request another login link."), http.StatusSeeOther)
+		return
+	}
+	email, next, _, found, err := getters.LookupMagicLoginToken(ctx, strings.TrimSpace(r.FormValue("token")))
+	if err != nil {
+		ctx.Err.Printf("/auth/resend inspect magic login token: %s", err)
+		http.Error(w, "Unable to resend that login link", http.StatusInternalServerError)
+		return
+	}
+	genericMessage := "If that link belonged to an email address, a fresh login link is on its way."
+	if !found || !allowAuthAttempt(ctx, r, strings.ToLower(email), 5, 15*time.Minute) {
+		http.Redirect(w, r, "/login?flash="+url.QueryEscape(genericMessage), http.StatusSeeOther)
+		return
+	}
+	link := auth.MagicLink(ctx, email, auth.SafeNext(next, "/dashboard"))
+	if link == "" {
+		ctx.Err.Printf("/auth/resend create magic link")
+		http.Error(w, "Unable to resend that login link", http.StatusInternalServerError)
+		return
+	}
+	if _, err := emails.OnlyForLoginLink(ctx, email, link); err != nil {
+		ctx.Err.Printf("/auth/resend send login link: %s", err)
+		http.Error(w, "Unable to resend that login link", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/login?flash="+url.QueryEscape(genericMessage), http.StatusSeeOther)
+}
+
+func renderMagicLinkPage(w http.ResponseWriter, ctx *config.AppContext, page *MagicLinkPage) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "magic_login.tmpl", page); err != nil {
+		ctx.Err.Printf("/auth render: %s", err)
+		http.Error(w, "Unable to render login confirmation", http.StatusInternalServerError)
+	}
 }
 
 // LogoutHandler clears the auth session and bounces home. POST so

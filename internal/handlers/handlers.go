@@ -1234,7 +1234,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
 		AuthLanding(w, r, app)
-	}).Methods("GET")
+	}).Methods("GET", "POST")
+	r.HandleFunc("/auth/resend", func(w http.ResponseWriter, r *http.Request) {
+		MagicLinkResend(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/account/merge/confirm", func(w http.ResponseWriter, r *http.Request) {
 		PersonMergeConfirmation(w, r, app)
 	}).Methods("GET")

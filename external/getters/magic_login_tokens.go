@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const MagicLoginTokenTTL = 30 * time.Minute
+const MagicLoginTokenTTL = 72 * time.Hour
 
 var ErrMagicLoginTokenInvalid = errors.New("magic login token is invalid, expired, or already used")
 
@@ -64,16 +64,32 @@ func ConsumeMagicLoginToken(ctx *config.AppContext, token string) (email, next s
 }
 
 func MagicLoginTokenValid(ctx *config.AppContext, token string) (bool, error) {
-	if ctx == nil || ctx.DB == nil {
-		return false, errors.New("database is not configured")
-	}
-	hash := sha256.Sum256([]byte(strings.TrimSpace(token)))
-	var valid bool
-	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
-		SELECT EXISTS (
-			SELECT 1 FROM magic_login_tokens
-			WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now()
-		)
-	`, hash[:]).Scan(&valid)
+	_, _, valid, _, err := LookupMagicLoginToken(ctx, token)
 	return valid, err
+}
+
+// LookupMagicLoginToken inspects a token without consuming it. found remains
+// true for expired and consumed tokens so a handler can offer to send a fresh
+// link to the same mailbox without exposing that address in the browser.
+func LookupMagicLoginToken(ctx *config.AppContext, token string) (email, next string, valid, found bool, err error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", "", false, false, errors.New("database is not configured")
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return "", "", false, false, nil
+	}
+	hash := sha256.Sum256([]byte(token))
+	err = ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT email::text, next_path, consumed_at IS NULL AND expires_at > now()
+		FROM magic_login_tokens
+		WHERE token_hash = $1
+	`, hash[:]).Scan(&email, &next, &valid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", false, false, nil
+	}
+	if err != nil {
+		return "", "", false, false, fmt.Errorf("lookup magic login token: %w", err)
+	}
+	return email, next, valid, true, nil
 }
