@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{ template "site_seo" (dict "Title" "API Documentation · bitcoin++" "Description" "Build apps and integrations with the bitcoin++ public API and OAuth authorization server." "Path" "/developers/api" "Image" "/static/img/rebrand/breakthroughs.jpg") }}
+    {{ template "rebrand_header" . }}
+    <link rel="icon" href="/favicon.ico">
+  </head>
+  <body class="btcpp-api-docs-page">
+    {{ block "mainnav" . }} {{ end }}
+
+    <main class="api-docs">
+      <section class="api-docs__hero">
+        <div>
+          <p class="api-docs__eyebrow">§ Developers / API v1</p>
+          <h1>Build on<br><span>bitcoin++.</span></h1>
+          <p class="api-docs__lede">Published event data is open to everyone. Account and administrative operations use narrowly scoped bearer tokens with live ownership and role checks.</p>
+          <div class="api-docs__actions">
+            <a class="api-docs__button is-primary" href="/api/v1/openapi.json">OpenAPI JSON →</a>
+            <a class="api-docs__button" href="/.well-known/oauth-authorization-server">OAuth metadata →</a>
+          </div>
+        </div>
+        <div class="api-docs__terminal" aria-label="API request example">
+          <div class="api-docs__terminal-bar"><span></span><span></span><span></span><b>public request</b></div>
+          <pre><code><span class="api-docs__prompt">$</span> curl https://btcpp.dev/api/v1/conferences
+
+{
+  <span class="api-docs__key">"data"</span>: [
+    {
+      <span class="api-docs__key">"tag"</span>: <span class="api-docs__string">"dev26"</span>,
+      <span class="api-docs__key">"description"</span>: <span class="api-docs__string">"..."</span>
+    }
+  ],
+  <span class="api-docs__key">"meta"</span>: {
+    <span class="api-docs__key">"request_id"</span>: <span class="api-docs__string">"..."</span>
+  }
+}</code></pre>
+        </div>
+      </section>
+
+      <div class="api-docs__layout">
+        <nav class="api-docs__toc" aria-label="API documentation">
+          <p>On this page</p>
+          <a href="#start">Quick start</a>
+          <a href="#public">Public data</a>
+          <a href="#authentication">Authentication</a>
+          <a href="#scopes">Scopes</a>
+          <a href="#oauth">OAuth + PKCE</a>
+          <a href="#conventions">Conventions</a>
+        </nav>
+
+        <div class="api-docs__content">
+          <section id="start" class="api-docs__section">
+            <p class="api-docs__section-number">01</p>
+            <div>
+              <h2>Quick start</h2>
+              <p>The stable base URL is <code>https://btcpp.dev/api/v1</code>. Start with the bootstrap document to discover major resources. Public reads do not require credentials.</p>
+              <pre><code>curl -H 'Accept: application/json' \
+  https://btcpp.dev/api/v1/bootstrap</code></pre>
+              <p>For the complete request and response schemas, use the <a href="/api/v1/openapi.json">OpenAPI 3.1 JSON contract</a>.</p>
+            </div>
+          </section>
+
+          <section id="public" class="api-docs__section">
+            <p class="api-docs__section-number">02</p>
+            <div>
+              <h2>Public data</h2>
+              <p>Public responses contain only published website data. Private contact details, drafts, invitations, credentials, payout information, and unfinalized judging results are never included.</p>
+              <div class="api-docs__endpoint-list">
+                <div><span>GET</span><code>/conferences</code><p>Published events</p></div>
+                <div><span>GET</span><code>/conferences/{tag}/agenda</code><p>Public schedule</p></div>
+                <div><span>GET</span><code>/conferences/{tag}/speakers</code><p>Event speakers</p></div>
+                <div><span>GET</span><code>/people/{person_id}</code><p>Public profile, appearances, talks, and projects</p></div>
+                <div><span>GET</span><code>/recordings</code><p>Published recordings</p></div>
+                <div><span>GET</span><code>/hackathons/{id}/projects</code><p>Public submissions and teammates</p></div>
+                <div><span>GET</span><code>/hackathons/{id}/awards</code><p>Published awards</p></div>
+                <div><span>GET</span><code>/hackathons/{id}/results</code><p>Finalized results</p></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="authentication" class="api-docs__section">
+            <p class="api-docs__section-number">03</p>
+            <div>
+              <h2>Authentication</h2>
+              <p>Protected endpoints accept either a personal API token created in Account Settings or an OAuth access token. Send credentials only in the HTTP <code>Authorization</code> header—never in a URL.</p>
+              <pre><code>curl -H 'Authorization: Bearer YOUR_TOKEN' \
+  https://btcpp.dev/api/v1/me</code></pre>
+              <div class="api-docs__notice"><strong>Scopes are not roles.</strong> Administrative calls require both the requested token scope and the account’s current conference or global-admin role.</div>
+            </div>
+          </section>
+
+          <section id="scopes" class="api-docs__section">
+            <p class="api-docs__section-number">04</p>
+            <div>
+              <h2>Scopes</h2>
+              <div class="api-docs__scope-list">
+                <div><code>profile:self:read</code><p>Read your private account projection.</p></div>
+                <div><code>profile:self:write</code><p>Update your public profile fields.</p></div>
+                <div><code>talks:read</code><p>Read talks associated with your account.</p></div>
+                <div><code>talks:write</code><p>Edit shared content for talks you speak at.</p></div>
+                <div><code>schedule:write</code><p>Schedule talks when you currently administer the event.</p></div>
+                <div><code>recordings:write</code><p>Discover and update recordings for events you administer.</p></div>
+                <div><code>offline_access</code><p>OAuth only: request a rotating refresh token.</p></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="oauth" class="api-docs__section">
+            <p class="api-docs__section-number">05</p>
+            <div>
+              <h2>OAuth authorization</h2>
+              <p>Native, browser, and server-backed applications use the authorization-code flow. S256 PKCE, an exact registered redirect URI, and <code>state</code> are required. Access tokens last one hour; approved <code>offline_access</code> grants a rotating 30-day refresh token.</p>
+              <div class="api-docs__facts">
+                <div><small>Authorize</small><code>/oauth/authorize</code></div>
+                <div><small>Exchange</small><code>/oauth/token</code></div>
+                <div><small>Revoke</small><code>/oauth/revoke</code></div>
+                <div><small>Discovery</small><code>/.well-known/oauth-authorization-server</code></div>
+              </div>
+              <p>Bitcoin++ currently provides OAuth authorization, not OpenID Connect. Identify the signed-in person through <code>GET /api/v1/me</code>; ID tokens and JWKS are not advertised.</p>
+            </div>
+          </section>
+
+          <section id="conventions" class="api-docs__section">
+            <p class="api-docs__section-number">06</p>
+            <div>
+              <h2>Conventions</h2>
+              <ul>
+                <li>JSON keys use <code>snake_case</code>; timestamps use RFC 3339.</li>
+                <li>Growing collections accept <code>limit</code> (maximum 100) and an opaque <code>cursor</code>.</li>
+                <li>Public GET responses use ETags and short-lived caching.</li>
+                <li>Mutations reject unknown fields and return <code>409 schedule_conflict</code> for schedule collisions.</li>
+                <li>Errors include a stable code, human-readable message, and request ID.</li>
+                <li><code>429</code> responses include <code>Retry-After</code>.</li>
+              </ul>
+              <pre><code>{
+  "error": {
+    "code": "insufficient_scope",
+    "message": "The API token does not grant the required scope.",
+    "request_id": "..."
+  }
+}</code></pre>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    {{ block "footer" . }} {{ end }}
+  </body>
+</html>

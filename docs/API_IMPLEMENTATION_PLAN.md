@@ -219,7 +219,8 @@ never bypass absolute safety ceilings or grant admin authorization.
 
 ## Testing and compatibility
 
-`docs/openapi-v1.json` is the contract. Tests cover:
+`internal/api/openapi-v1.json` is the embedded contract served publicly from
+`/api/v1/openapi.json`. Tests cover:
 
 - anonymous/publication filtering;
 - stable DTO and error shapes;

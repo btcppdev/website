@@ -182,6 +182,7 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		{"/volunteer", "monthly", "0.7"},
 		{"/sponsor", "monthly", "0.6"},
 		{"/contact", "monthly", "0.5"},
+		{"/developers/api", "monthly", "0.5"},
 		{"/privacy", "yearly", "0.2"},
 		{"/terms", "yearly", "0.2"},
 	}

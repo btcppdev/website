@@ -1,11 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -490,10 +490,7 @@ func TestUnknownAPIRouteReturnsJSONErrorWithRequestID(t *testing.T) {
 }
 
 func TestOpenAPIContractListsEveryV1RouteAndNoTranscriptSurface(t *testing.T) {
-	document, err := os.ReadFile("../../docs/openapi-v1.json")
-	if err != nil {
-		t.Fatalf("read OpenAPI contract: %v", err)
-	}
+	document := openAPIV1
 	var contract struct {
 		Paths map[string]json.RawMessage `json:"paths"`
 	}
@@ -501,6 +498,7 @@ func TestOpenAPIContractListsEveryV1RouteAndNoTranscriptSurface(t *testing.T) {
 		t.Fatalf("parse OpenAPI contract as JSON: %v", err)
 	}
 	for _, path := range []string{
+		"/openapi.json",
 		"/bootstrap",
 		"/conferences",
 		"/conferences/{tag}",
@@ -532,5 +530,22 @@ func TestOpenAPIContractListsEveryV1RouteAndNoTranscriptSurface(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(string(document)), "transcript") {
 		t.Fatal("initial OpenAPI contract must not expose transcripts")
+	}
+}
+
+func TestOpenAPIContractIsPubliclyServed(t *testing.T) {
+	router := testRouter(&fakeSource{}, time.Now())
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/openapi.json", nil)
+	request.Header.Set("Accept", "application/vnd.oai.openapi+json")
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if contentType := response.Header().Get("Content-Type"); !strings.Contains(contentType, "application/vnd.oai.openapi+json") {
+		t.Fatalf("Content-Type = %q", contentType)
+	}
+	if !bytes.Equal(response.Body.Bytes(), openAPIV1) {
+		t.Fatal("served OpenAPI contract differs from embedded source")
 	}
 }
