@@ -16,6 +16,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/types"
 
@@ -43,6 +44,25 @@ type OAuthConfirmPage struct {
 	CSRF         string
 	Year         uint
 }
+
+type OAuthEmailLinkPage struct {
+	Identity     *types.PersonOAuthIdentity
+	ProviderKey  string
+	ProviderName string
+	Email        string
+	CSRF         string
+	Sent         bool
+	Year         uint
+}
+
+type oauthEmailDisposition uint8
+
+const (
+	oauthEmailFallback oauthEmailDisposition = iota
+	oauthEmailCreateProfile
+	oauthEmailRequireMagicLink
+	oauthEmailAmbiguous
+)
 
 func OAuthStart(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	provider := requestOAuthProvider(r, ctx)
@@ -177,7 +197,7 @@ func OAuthCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		}
 		recordAuthAudit(ctx, r, linked.PersonID, provider.Key(), "login_succeeded", map[string]any{"oauth_identity_id": providerIdentity.ID})
 		if mode == "link" {
-			next = "/dashboard/emails?flash=" + url.QueryEscape(oauthIdentityLabel(provider.Label(), providerIdentity.Username)+" is already linked.")
+			next = "/dashboard/settings?flash=" + url.QueryEscape(oauthIdentityLabel(provider.Label(), providerIdentity.Username)+" is already linked.")
 		}
 		http.Redirect(w, r, next, http.StatusSeeOther)
 		return
@@ -190,12 +210,120 @@ func OAuthCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 	}
 	confirmationPath := "/auth/oauth/" + provider.Key() + "/confirm"
 	if viewer == nil {
+		resolution, err := oauthIdentityEmailResolution(ctx, providerIdentity)
+		if err != nil {
+			clearPendingOAuthIdentity(ctx, r, provider.Key())
+			ctx.Err.Printf("%s OAuth email lookup: %s", provider.Label(), err)
+			redirectOAuthError(w, r, ctx, provider.Label()+" sign-in could not be completed. Try again.")
+			return
+		}
+		switch oauthEmailDispositionFor(providerIdentity, resolution) {
+		case oauthEmailCreateProfile:
+			if err := auth.LoginEmail(ctx, r, providerIdentity.Email); err != nil {
+				clearPendingOAuthIdentity(ctx, r, provider.Key())
+				ctx.Err.Printf("%s OAuth new profile session: %s", provider.Label(), err)
+				redirectOAuthError(w, r, ctx, provider.Label()+" sign-in could not be completed. Try again.")
+				return
+			}
+			http.Redirect(w, r, confirmationPath, http.StatusSeeOther)
+			return
+		case oauthEmailRequireMagicLink:
+			http.Redirect(w, r, "/auth/oauth/"+provider.Key()+"/email", http.StatusSeeOther)
+			return
+		case oauthEmailAmbiguous:
+			clearPendingOAuthIdentity(ctx, r, provider.Key())
+			redirectOAuthError(w, r, ctx, "That verified "+provider.Label()+" email matches more than one bitcoin++ profile. An administrator must merge them before it can be linked.")
+			return
+		}
 		destination := "/login?next=" + url.QueryEscape(confirmationPath) +
-			"&flash=" + url.QueryEscape(oauthIdentityLabel(provider.Label(), providerIdentity.Username)+" was verified. Sign in by email once to choose the bitcoin++ profile to link.")
+			"&flash=" + url.QueryEscape(oauthIdentityLabel(provider.Label(), providerIdentity.Username)+" was verified. Sign in once to choose the bitcoin++ profile to link.")
 		http.Redirect(w, r, destination, http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, confirmationPath, http.StatusSeeOther)
+}
+
+func OAuthEmailLink(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	provider := requestOAuthProvider(r, ctx)
+	if provider == nil {
+		http.NotFound(w, r)
+		return
+	}
+	pending, err := pendingOAuth(ctx, r, provider.Key())
+	if err != nil || pending.Identity == nil || !pending.Identity.EmailVerified || strings.TrimSpace(pending.Identity.Email) == "" {
+		clearPendingOAuthIdentity(ctx, r, provider.Key())
+		redirectOAuthError(w, r, ctx, "That "+provider.Label()+" link attempt expired. Start again.")
+		return
+	}
+	resolution, err := getters.ResolvePersonByEmail(ctx, pending.Identity.Email)
+	if err != nil {
+		ctx.Err.Printf("%s OAuth email proof lookup: %s", provider.Label(), err)
+		redirectOAuthError(w, r, ctx, provider.Label()+" sign-in could not be completed. Try again.")
+		return
+	}
+	if oauthEmailDispositionFor(pending.Identity, resolution) != oauthEmailRequireMagicLink {
+		clearPendingOAuthIdentity(ctx, r, provider.Key())
+		redirectOAuthError(w, r, ctx, "That "+provider.Label()+" link attempt is no longer valid. Start again.")
+		return
+	}
+
+	confirmationPath := "/auth/oauth/" + provider.Key() + "/confirm"
+	if viewer := auth.RequireOptional(r, ctx); viewer != nil {
+		http.Redirect(w, r, confirmationPath, http.StatusSeeOther)
+		return
+	}
+	if r.Method == http.MethodPost {
+		limitRequestBody(w, r, maxFormBodyBytes)
+		if err := r.ParseForm(); err != nil || !secureTokenEqual(pending.CSRF, r.FormValue("csrf")) {
+			clearPendingOAuthIdentity(ctx, r, provider.Key())
+			redirectOAuthError(w, r, ctx, "That "+provider.Label()+" email-link request expired. Start again.")
+			return
+		}
+		link := auth.MagicLink(ctx, pending.Identity.Email, confirmationPath)
+		if link == "" {
+			ctx.Err.Printf("%s OAuth create email proof link", provider.Label())
+			http.Error(w, "Couldn't create the email link — try again in a minute.", http.StatusInternalServerError)
+			return
+		}
+		if _, err := emails.OnlyForLoginLink(ctx, pending.Identity.Email, link); err != nil {
+			ctx.Err.Printf("%s OAuth send link to %s: %s", provider.Label(), pending.Identity.Email, err)
+			http.Error(w, "Couldn't send the email — try again in a minute.", http.StatusInternalServerError)
+			return
+		}
+		recordAuthAudit(ctx, r, resolution.Alias.PersonID, provider.Key(), "oauth_link_magic_sent", nil)
+		http.Redirect(w, r, "/auth/oauth/"+provider.Key()+"/email?sent=1", http.StatusSeeOther)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "private, no-store")
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "oauth_email_link.tmpl", &OAuthEmailLinkPage{
+		Identity: pending.Identity, ProviderKey: provider.Key(), ProviderName: provider.Label(),
+		Email: strings.ToLower(strings.TrimSpace(pending.Identity.Email)), CSRF: pending.CSRF,
+		Sent: r.URL.Query().Get("sent") == "1", Year: helpers.CurrentYear(),
+	}); err != nil {
+		ctx.Err.Printf("%s OAuth email proof render: %s", provider.Label(), err)
+		http.Error(w, "Unable to render email confirmation", http.StatusInternalServerError)
+	}
+}
+
+func oauthIdentityEmailResolution(ctx *config.AppContext, identity *types.PersonOAuthIdentity) (*types.PersonEmailResolution, error) {
+	if identity == nil || !identity.EmailVerified || strings.TrimSpace(identity.Email) == "" {
+		return nil, nil
+	}
+	return getters.ResolvePersonByEmail(ctx, identity.Email)
+}
+
+func oauthEmailDispositionFor(identity *types.PersonOAuthIdentity, resolution *types.PersonEmailResolution) oauthEmailDisposition {
+	if identity == nil || !identity.EmailVerified || strings.TrimSpace(identity.Email) == "" || resolution == nil {
+		return oauthEmailFallback
+	}
+	if resolution.IsConflict() {
+		return oauthEmailAmbiguous
+	}
+	if resolution.Alias != nil {
+		return oauthEmailRequireMagicLink
+	}
+	return oauthEmailCreateProfile
 }
 
 func OAuthConfirm(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -245,9 +373,31 @@ func OAuthConfirmAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		redirectPersonEmails(w, r, "", "That "+provider.Label()+" confirmation expired or was already used. Start again.")
 		return
 	}
+	verifiedEmailConflict, err := oauthVerifiedEmailLinkConflict(ctx, viewer.PersonID, pending.Identity)
+	if err != nil {
+		clearPendingOAuthIdentity(ctx, r, provider.Key())
+		ctx.Err.Printf("%s OAuth verified email lookup: %s", provider.Label(), err)
+		redirectPersonEmails(w, r, "", provider.Label()+" could not be linked. Try again.")
+		return
+	}
+	if verifiedEmailConflict != "" {
+		clearPendingOAuthIdentity(ctx, r, provider.Key())
+		recordAuthAudit(ctx, r, viewer.PersonID, provider.Key(), "oauth_link_conflict", map[string]any{"reason": verifiedEmailConflict})
+		message := "That verified " + provider.Label() + " email belongs to another bitcoin++ profile. Add that address under Verified emails to review and merge the profiles before connecting " + provider.Label() + "."
+		if verifiedEmailConflict == "ambiguous_verified_email" {
+			message = "That verified " + provider.Label() + " email is attached to multiple bitcoin++ profiles. An administrator must resolve the profiles before you can connect " + provider.Label() + "."
+		}
+		redirectPersonEmails(w, r, "", message)
+		return
+	}
 	clearPendingOAuthIdentity(ctx, r, provider.Key())
 
 	linked, err := getters.LinkOAuthIdentity(ctx, viewer.PersonID, pending.Identity)
+	if errors.Is(err, getters.ErrOAuthProviderLinked) {
+		recordAuthAudit(ctx, r, viewer.PersonID, provider.Key(), "oauth_link_conflict", map[string]any{"reason": "provider_already_linked"})
+		redirectPersonEmails(w, r, "", "This profile already has a "+provider.Label()+" account connected. Unlink it before connecting a different one.")
+		return
+	}
 	if errors.Is(err, getters.ErrOAuthIdentityLinked) {
 		recordAuthAudit(ctx, r, viewer.PersonID, provider.Key(), "oauth_link_conflict", map[string]any{"provider_subject": pending.Identity.Subject})
 		redirectPersonEmails(w, r, "", "That "+provider.Label()+" account is already linked to another bitcoin++ profile.")
@@ -261,17 +411,45 @@ func OAuthConfirmAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	if err := getters.MarkOAuthIdentityLogin(ctx, linked.ID); err != nil {
 		ctx.Err.Printf("%s OAuth linked login time: %s", provider.Label(), err)
 	}
+	linkedAt := time.Now().UTC()
+	sendAccountSecurityNotice(ctx, viewer.PersonID, identitySecurityEmail(viewer),
+		provider.Label()+" sign-in linked",
+		markdownEmailText(oauthIdentityLabel(provider.Label(), linked.Username))+" was added as a sign-in method.", linkedAt)
 	if err := auth.LoginPerson(ctx, r, viewer.PersonID, auth.Method(provider.Key())); err != nil {
 		ctx.Err.Printf("%s OAuth linked session: %s", provider.Label(), err)
 		redirectPersonEmails(w, r, "", provider.Label()+" was linked, but the session could not be refreshed.")
 		return
 	}
 	recordAuthAudit(ctx, r, viewer.PersonID, provider.Key(), "oauth_identity_linked", map[string]any{"oauth_identity_id": linked.ID})
-	destination := auth.SafeNext(pending.Next, "/dashboard/emails")
+	destination := auth.SafeNext(pending.Next, "/dashboard/settings")
 	if destination == "/dashboard" {
-		destination = "/dashboard/emails"
+		destination = "/dashboard/settings"
 	}
 	http.Redirect(w, r, appendFlash(destination, oauthIdentityLabel(provider.Label(), linked.Username)+" is now linked."), http.StatusSeeOther)
+}
+
+func oauthVerifiedEmailLinkConflict(ctx *config.AppContext, viewerPersonID string, identity *types.PersonOAuthIdentity) (string, error) {
+	if identity == nil || !identity.EmailVerified || strings.TrimSpace(identity.Email) == "" {
+		return "", nil
+	}
+	resolution, err := getters.ResolvePersonByEmail(ctx, identity.Email)
+	if err != nil {
+		return "", err
+	}
+	return oauthEmailConflictReason(viewerPersonID, resolution), nil
+}
+
+func oauthEmailConflictReason(viewerPersonID string, resolution *types.PersonEmailResolution) string {
+	if resolution == nil {
+		return ""
+	}
+	if len(resolution.ConflictPersonIDs) > 0 {
+		return "ambiguous_verified_email"
+	}
+	if resolution.Alias != nil && resolution.Alias.PersonID != viewerPersonID {
+		return "verified_email_other_person"
+	}
+	return ""
 }
 
 func OAuthUnlink(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -282,6 +460,11 @@ func OAuthUnlink(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	}
 	viewer := requirePersonIdentity(w, r, ctx)
 	if viewer == nil {
+		return
+	}
+	if !recentAuthentication(viewer) {
+		recordAuthAudit(ctx, r, viewer.PersonID, provider.Key(), "oauth_unlink_rejected", map[string]any{"reason": "reauthentication_required"})
+		redirectPersonEmails(w, r, "", "Sign in again before unlinking a connected account.")
 		return
 	}
 	limitRequestBody(w, r, maxFormBodyBytes)
@@ -298,6 +481,16 @@ func OAuthUnlink(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	}
 	if identity == nil {
 		redirectPersonEmails(w, r, "", "That "+provider.Label()+" identity is no longer linked.")
+		return
+	}
+	unlinkedAt := time.Now().UTC()
+	sendAccountSecurityNotice(ctx, viewer.PersonID, identitySecurityEmail(viewer),
+		provider.Label()+" sign-in removed",
+		markdownEmailText(oauthIdentityLabel(provider.Label(), identity.Username))+" was removed as a sign-in method.", unlinkedAt)
+	if err := revokeOtherPersonSessions(ctx, r, viewer.PersonID); err != nil {
+		ctx.Err.Printf("%s OAuth unlink session revocation: %s", provider.Label(), err)
+		auth.Logout(ctx, r)
+		redirectPasswordLogin(w, r, "/dashboard/settings", provider.Label()+" was unlinked. Sign in again to continue.")
 		return
 	}
 	recordAuthAudit(ctx, r, viewer.PersonID, provider.Key(), "oauth_identity_unlinked", map[string]any{"provider_subject": identity.Subject})
@@ -365,18 +558,19 @@ func requireOAuthLinkPerson(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Error(w, "Unable to resolve account", http.StatusInternalServerError)
 		return nil
 	}
-	if viewer != nil && viewer.PersonID != "" && viewer.Speaker != nil {
+	if viewer != nil && viewer.PersonID != "" && viewer.Speaker != nil && recentAuthentication(viewer) {
 		return viewer
 	}
 	confirmationPath := "/auth/oauth/" + provider + "/confirm"
-	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
-	if email == "" {
+	if viewer != nil && viewer.PersonID != "" {
+		http.Redirect(w, r, "/login?next="+url.QueryEscape(confirmationPath)+"&error="+url.QueryEscape("Sign in again to link that account."), http.StatusSeeOther)
+		return nil
+	}
+	if _, err := validatedSessionEmail(r, ctx, true); err != nil {
 		http.Redirect(w, r, "/login?next="+url.QueryEscape(confirmationPath), http.StatusSeeOther)
 		return nil
 	}
-	encodedEmail := base64.RawURLEncoding.EncodeToString([]byte(email))
-	encodedHMAC := base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
-	http.Redirect(w, r, dashboardSpeakerEditURL(encodedHMAC, encodedEmail, confirmationPath), http.StatusSeeOther)
+	http.Redirect(w, r, dashboardSpeakerEditURL("", "", confirmationPath), http.StatusSeeOther)
 	return nil
 }
 
@@ -419,7 +613,7 @@ func secureTokenEqual(expected, actual string) bool {
 func redirectOAuthError(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, message string) {
 	destination := "/login?error=" + url.QueryEscape(message)
 	if auth.RequireOptional(r, ctx) != nil {
-		destination = "/dashboard/emails?error=" + url.QueryEscape(message)
+		destination = "/dashboard/settings?error=" + url.QueryEscape(message)
 	}
 	http.Redirect(w, r, destination, http.StatusSeeOther)
 }
@@ -442,4 +636,12 @@ func recordAuthAudit(ctx *config.AppContext, r *http.Request, personID, method, 
 	if err != nil {
 		ctx.Err.Printf("record auth audit %s: %s", event, err)
 	}
+}
+
+func revokeOtherPersonSessions(ctx *config.AppContext, r *http.Request, personID string) error {
+	version, err := getters.RevokePersonSessions(ctx, personID)
+	if err != nil {
+		return err
+	}
+	return auth.RefreshSessionVersion(ctx, r, version)
 }

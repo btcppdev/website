@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -739,19 +738,11 @@ func DashboardEditSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 }
 
-// DashboardEditSpeaker edits the person established by the session or magic
-// link. A new email remains pending until this form creates its person row.
+// DashboardEditSpeaker edits the person established by the session. A new
+// magic-link or OAuth email remains pending until this form creates its row.
 func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	email, encHMAC, err := validateVolEmail(r, ctx)
-	encEmail := r.URL.Query().Get("em")
-	if err != nil {
-		if sessEmail := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey)); sessEmail != "" {
-			email = sessEmail
-			encHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
-			encEmail = base64.RawURLEncoding.EncodeToString([]byte(email))
-			err = nil
-		}
-	}
+	encEmail := ""
 	if err != nil {
 		ctx.Infos.Printf("/dashboard/speaker auth: %s", err)
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
@@ -1800,30 +1791,24 @@ func proposalEditLocked(proposal *types.Proposal, confTalk *types.ConfTalk) (boo
 
 func dashboardRedirect(encHMAC, encEmail, flash string) string {
 	q := url.Values{}
-	if encHMAC != "" {
-		q.Set("hr", encHMAC)
-	}
-	if encEmail != "" {
-		q.Set("em", encEmail)
-	}
 	if flash != "" {
 		q.Set("flash", flash)
 	}
-	return "/dashboard?" + q.Encode()
+	if encoded := q.Encode(); encoded != "" {
+		return "/dashboard?" + encoded
+	}
+	return "/dashboard"
 }
 
 func dashboardSpeakerEditURL(encHMAC, encEmail, nextURL string) string {
 	q := url.Values{}
-	if encHMAC != "" {
-		q.Set("hr", encHMAC)
-	}
-	if encEmail != "" {
-		q.Set("em", encEmail)
-	}
 	if nextURL != "" {
 		q.Set("next", nextURL)
 	}
-	return "/dashboard/speaker?" + q.Encode()
+	if encoded := q.Encode(); encoded != "" {
+		return "/dashboard/speaker?" + encoded
+	}
+	return "/dashboard/speaker"
 }
 
 func dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, flash string) string {
@@ -1864,16 +1849,14 @@ func dashboardResourceRedirect(r *http.Request, encHMAC, encEmail, flash string)
 		proposalID := strings.TrimSpace(r.FormValue("ReturnProposalID"))
 		if proposalID != "" {
 			q := url.Values{}
-			if encHMAC != "" {
-				q.Set("hr", encHMAC)
-			}
-			if encEmail != "" {
-				q.Set("em", encEmail)
-			}
 			if flash != "" {
 				q.Set("flash", flash)
 			}
-			return "/dashboard/talks/" + url.PathEscape(proposalID) + "/edit?" + q.Encode()
+			destination := "/dashboard/talks/" + url.PathEscape(proposalID) + "/edit"
+			if encoded := q.Encode(); encoded != "" {
+				destination += "?" + encoded
+			}
+			return destination
 		}
 	}
 	return dashboardRedirect(encHMAC, encEmail, flash)

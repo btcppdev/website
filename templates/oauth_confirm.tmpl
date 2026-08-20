@@ -7,7 +7,7 @@
 <body class="btcpp-profile-edit-page">
   {{ block "mainnav" . }} {{ end }}
   <main class="profile-edit-shell person-emails-page">
-    <div class="profile-edit-back"><a href="/dashboard/emails">← Account settings</a></div>
+    <div class="profile-edit-back"><a href="/dashboard/settings">← Account settings</a></div>
     <header class="profile-edit-hero">
       <p class="profile-edit-tag">§ SIGN-IN METHOD</p>
       <h1>Link <span>{{ .ProviderName }}.</span></h1>
@@ -23,7 +23,7 @@
         <form method="POST" action="/auth/oauth/{{ .ProviderKey }}/confirm" class="person-email-add">
           <input type="hidden" name="csrf" value="{{ .CSRF }}">
           <button type="submit">Link {{ .ProviderName }} to this profile</button>
-          <a href="/dashboard/emails">Cancel</a>
+          <a href="/dashboard/settings">Cancel</a>
         </form>
       </div>
     </section>

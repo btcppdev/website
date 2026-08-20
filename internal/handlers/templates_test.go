@@ -43,19 +43,54 @@ func TestLoadTemplates(t *testing.T) {
 	if _, err := inlineTemplates.Parse(`{{ define "mainnav" }}<nav>test</nav>{{ end }}`); err != nil {
 		t.Fatalf("override inline missive test nav: %v", err)
 	}
-	var dashboardLogin bytes.Buffer
-	if err := inlineTemplates.ExecuteTemplate(&dashboardLogin, "dashboard_login.tmpl", &DashboardPage{DevLoginEnabled: true}); err != nil {
-		t.Fatalf("render development dashboard login: %v", err)
+	var loginPage bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&loginPage, "login.tmpl", &LoginPage{DevLoginEnabled: true}); err != nil {
+		t.Fatalf("render development login: %v", err)
 	}
-	if !strings.Contains(dashboardLogin.String(), `name="Action" value="dev-login"`) || !strings.Contains(dashboardLogin.String(), "does not send email") {
-		t.Fatalf("development dashboard login shortcut missing: %s", dashboardLogin.String())
+	if !strings.Contains(loginPage.String(), `name="Action" value="dev-login"`) || !strings.Contains(loginPage.String(), "No email is sent") {
+		t.Fatalf("development login shortcut missing: %s", loginPage.String())
 	}
-	dashboardLogin.Reset()
-	if err := inlineTemplates.ExecuteTemplate(&dashboardLogin, "dashboard_login.tmpl", &DashboardPage{}); err != nil {
-		t.Fatalf("render production dashboard login: %v", err)
+	loginPage.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&loginPage, "login.tmpl", &LoginPage{}); err != nil {
+		t.Fatalf("render production login: %v", err)
 	}
-	if strings.Contains(dashboardLogin.String(), `value="dev-login"`) {
-		t.Fatalf("production dashboard exposed development login shortcut: %s", dashboardLogin.String())
+	if strings.Contains(loginPage.String(), `value="dev-login"`) {
+		t.Fatalf("production login exposed development login shortcut: %s", loginPage.String())
+	}
+	var settingsPage bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{
+		Emails: []*types.PersonEmail{
+			{Email: "primary@example.test", IsPrimary: true},
+			{Email: "secondary@example.test"},
+		},
+		PendingEmails:   []string{"pending@example.test"},
+		AuthMethodsCSRF: "settings-csrf-token",
+		NostrCredentials: []*NostrCredentialView{{
+			Credential: &types.PersonNostrCredential{ID: "nostr-credential"},
+			Display:    "npub1linked",
+		}},
+	}); err != nil {
+		t.Fatalf("render settings with linked Nostr key: %v", err)
+	}
+	if !strings.Contains(settingsPage.String(), "npub1linked") || strings.Contains(settingsPage.String(), "data-nostr-link") {
+		t.Fatalf("linked Nostr settings offered another key: %s", settingsPage.String())
+	}
+	for _, action := range []string{"/dashboard/emails/primary", "/dashboard/emails/remove", "/dashboard/emails/resend", "/dashboard/emails/request"} {
+		start := strings.Index(settingsPage.String(), `action="`+action+`"`)
+		if start < 0 {
+			t.Fatalf("settings email action %s was not rendered", action)
+		}
+		end := strings.Index(settingsPage.String()[start:], `</form>`)
+		if end < 0 || !strings.Contains(settingsPage.String()[start:start+end], `name="csrf" value="settings-csrf-token"`) {
+			t.Fatalf("settings email action %s omitted CSRF token", action)
+		}
+	}
+	settingsPage.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{}); err != nil {
+		t.Fatalf("render settings without Nostr key: %v", err)
+	}
+	if !strings.Contains(settingsPage.String(), "data-nostr-link") {
+		t.Fatalf("unlinked Nostr settings omitted link action: %s", settingsPage.String())
 	}
 	var projectPage bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&projectPage, "hackathon_project.tmpl", &HackathonPage{

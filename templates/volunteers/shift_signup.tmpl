@@ -65,7 +65,7 @@
                         </button>
                     </div>
                     <div class="mt-4 sm:mt-0">
-                        <a href="/vols/shift?hr={{ .HMAC }}&em={{ .Email }}" class="text-sm text-indigo-600 hover:text-indigo-500">
+                        <a href="/vols/shift" class="text-sm text-indigo-600 hover:text-indigo-500">
                             &larr; Dashboard
                         </a>
                     </div>
@@ -77,7 +77,7 @@
                 <div class="bg-white shadow rounded-lg px-4 py-4 sm:px-6 mb-4">
                     <h3 class="text-sm font-semibold text-gray-900 mb-3">Update Availability</h3>
                     <p class="text-xs text-gray-500 mb-3">Pick the days you can work shifts. Saving will refresh the available shifts list below.</p>
-                    <form method="POST" action="/vols/shift/{{ .ConfRef }}/availability?hr={{ .HMAC }}&em={{ .Email }}">
+                    <form method="POST" action="/vols/shift/{{ .ConfRef }}/availability">
                         {{ range .DaysList }}
                             {{ block "form_list" . }} {{ end }}
                         {{ end }}
@@ -90,7 +90,7 @@
                 <div class="bg-white shadow rounded-lg px-4 py-4 sm:px-6">
                     <h3 class="text-sm font-semibold text-gray-900 mb-3">Update Work Preferences</h3>
                     <p class="text-xs text-gray-500 mb-3">Tell us what kinds of jobs you'd like to help with and which you'd rather not.</p>
-                    <form method="POST" action="/vols/shift/{{ .ConfRef }}/work-prefs?hr={{ .HMAC }}&em={{ .Email }}">
+                    <form method="POST" action="/vols/shift/{{ .ConfRef }}/work-prefs">
                         <fieldset class="mb-4">
                             <legend class="text-sm font-medium text-gray-700 mb-2">Will work</legend>
                             {{ range .YesJobs }}

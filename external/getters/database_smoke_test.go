@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -12,6 +13,7 @@ import (
 
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -145,14 +147,39 @@ func TestDatabaseSmokeNostrIdentityLookup(t *testing.T) {
 	suffix := databaseSmokeSuffix()
 	const npub = "npub10elfcs4fr0l0r8af98jlmgdh9c8tcxjvz9qkw038js35mp4dma8qzvjptg"
 	const hexKey = "7e7e9c42a91bfef19fa929e5fda1b72e0ebc1a4c1141673e2794234d86addf4e"
-	firstID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Nostr Smoke " + suffix, Email: "nostr-" + suffix + "@example.test", Nostr: npub})
+	firstID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Nostr Smoke " + suffix, Email: "nostr-" + suffix + "@example.test"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, firstID) })
 	person, err := FindPersonByNostrPubkey(ctx, hexKey)
+	if err != nil || person != nil {
+		t.Fatalf("unverified profile Nostr lookup = %+v, %v; want no authentication credential", person, err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO person_nostr_credentials (person_id, legacy_value)
+		VALUES ($1::uuid, $2)
+	`, firstID, npub); err != nil {
+		t.Fatal(err)
+	}
+	person, err = FindPersonByNostrPubkey(ctx, hexKey)
+	if err != nil || person != nil {
+		t.Fatalf("legacy Nostr snapshot lookup = %+v, %v; want no authentication credential", person, err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `DELETE FROM person_nostr_credentials WHERE person_id = $1::uuid`, firstID); err != nil {
+		t.Fatal(err)
+	}
+	credential, err := LinkNostrCredential(ctx, firstID, npub)
+	if err != nil {
+		t.Fatalf("link Nostr credential: %v", err)
+	}
+	person, err = FetchSpeakerByID(ctx, firstID)
+	if err != nil || person.Nostr != npub {
+		t.Fatalf("profile Nostr after link = %+v, %v; want %s", person, err, npub)
+	}
+	person, err = FindPersonByNostrPubkey(ctx, hexKey)
 	if err != nil || person == nil || person.ID != firstID {
-		t.Fatalf("Nostr lookup = %+v, %v", person, err)
+		t.Fatalf("linked Nostr lookup = %+v, %v", person, err)
 	}
 
 	secondID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Nostr Duplicate " + suffix, Email: "nostr-duplicate-" + suffix + "@example.test", Nostr: "nostr:" + npub})
@@ -160,8 +187,233 @@ func TestDatabaseSmokeNostrIdentityLookup(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, secondID) })
-	if _, err := FindPersonByNostrPubkey(ctx, hexKey); !errors.Is(err, ErrNostrPubkeyConflict) {
-		t.Fatalf("duplicate Nostr lookup returned %v", err)
+	if _, err := LinkNostrCredential(ctx, secondID, hexKey); !errors.Is(err, ErrNostrPubkeyConflict) {
+		t.Fatalf("link duplicate Nostr credential returned %v", err)
+	}
+	const anotherHexKey = "7e7e9c42a91bfef19fa929e5fda1b72e0ebc1a4c1141673e2794234d86addf4f"
+	if _, err := LinkNostrCredential(ctx, firstID, anotherHexKey); !errors.Is(err, ErrNostrCredentialLinked) {
+		t.Fatalf("link second Nostr credential returned %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE people SET nostr = 'stale-profile-key' WHERE id = $1::uuid`, firstID); err != nil {
+		t.Fatal(err)
+	}
+	if updated, err := ReconcileNostrCredentialProfiles(ctx); err != nil || updated < 1 {
+		t.Fatalf("reconcile Nostr profiles updated %d: %v", updated, err)
+	}
+	person, err = FetchSpeakerByID(ctx, firstID)
+	if err != nil || person.Nostr != npub {
+		t.Fatalf("profile Nostr after reconciliation = %+v, %v; want %s", person, err, npub)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE people SET nostr = 'stale-profile-key' WHERE id = $1::uuid`, firstID); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyNostrCredential(ctx, credential.ID, firstID, hexKey); err != nil {
+		t.Fatalf("verify Nostr credential: %v", err)
+	}
+	person, err = FetchSpeakerByID(ctx, firstID)
+	if err != nil || person.Nostr != npub {
+		t.Fatalf("profile Nostr after sign-in verification = %+v, %v; want %s", person, err, npub)
+	}
+	if err := UpdateSpeaker(ctx, firstID, SpeakerUpdate{Nostr: NostrPubkeyDisplay(anotherHexKey)}); err != nil {
+		t.Fatalf("update profile with linked Nostr credential: %v", err)
+	}
+	person, err = FetchSpeakerByID(ctx, firstID)
+	if err != nil || person.Nostr != npub {
+		t.Fatalf("profile Nostr after profile edit = %+v, %v; want linked %s", person, err, npub)
+	}
+	removed, err := UnlinkNostrCredential(ctx, firstID, credential.ID)
+	if err != nil || removed == nil {
+		t.Fatalf("unlink Nostr credential = %+v, %v", removed, err)
+	}
+	if person, err := FindPersonByNostrPubkey(ctx, hexKey); err != nil || person != nil {
+		t.Fatalf("Nostr lookup after unlink = %+v, %v", person, err)
+	}
+	person, err = FetchSpeakerByID(ctx, firstID)
+	if err != nil || person.Nostr != "" {
+		t.Fatalf("profile Nostr after unlink = %+v, %v; want empty", person, err)
+	}
+}
+
+func TestDatabaseSmokePasswordCredentialAndReset(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	suffix := databaseSmokeSuffix()
+	email := "password-" + suffix + "@example.test"
+	personID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Password Smoke " + suffix, Email: email})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, personID) })
+
+	version, err := PersonSessionVersion(ctx, personID)
+	if err != nil || version != 1 {
+		t.Fatalf("initial session version = %d, %v; want 1", version, err)
+	}
+	version, replaced, err := SetPersonPassword(ctx, personID, "test-password-hash")
+	if err != nil || version != 1 || replaced {
+		t.Fatalf("add password = version %d, replaced %t, %v; want version 1 without replacement", version, replaced, err)
+	}
+	credential, err := GetPersonPasswordCredential(ctx, personID)
+	if err != nil || credential == nil || credential.PasswordHash != "test-password-hash" {
+		t.Fatalf("password credential = %+v, %v", credential, err)
+	}
+	version, replaced, err = SetPersonPassword(ctx, personID, "updated-password-hash")
+	if err != nil || version != 2 || !replaced {
+		t.Fatalf("replace password = version %d, replaced %t, %v; want version 2 with replacement", version, replaced, err)
+	}
+	token, err := CreatePasswordResetToken(ctx, personID, email, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apiSelector := "password-reset-api-" + suffix
+	apiDigest := bytes.Repeat([]byte{0x5a}, 32)
+	if _, err := CreatePersonAPIToken(ctx, personID, "Password reset survivor", apiSelector, apiDigest, []string{"profile:read"}, time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	valid, err := PasswordResetTokenValid(ctx, token)
+	if err != nil || !valid {
+		t.Fatalf("new password reset token valid = %t, %v", valid, err)
+	}
+	resetPersonID, version, err := ConsumePasswordResetToken(ctx, token, "replacement-password-hash")
+	if err != nil || resetPersonID != personID || version != 3 {
+		t.Fatalf("consume password reset = %s, %d, %v", resetPersonID, version, err)
+	}
+	if _, _, err := ConsumePasswordResetToken(ctx, token, "replayed-password-hash"); !errors.Is(err, ErrPasswordResetTokenInvalid) {
+		t.Fatalf("reset token replay returned %v", err)
+	}
+	credential, err = GetPersonPasswordCredential(ctx, personID)
+	if err != nil || credential == nil || credential.PasswordHash != "replacement-password-hash" {
+		t.Fatalf("reset password credential = %+v, %v", credential, err)
+	}
+	activeAPI, err := FindActiveAPIToken(ctx, apiSelector)
+	if err != nil || activeAPI == nil || !bytes.Equal(activeAPI.TokenHash, apiDigest) {
+		t.Fatalf("API token after password reset = %+v, %v; want active token", activeAPI, err)
+	}
+	version, err = RevokePersonSessions(ctx, personID)
+	if err != nil || version != 4 {
+		t.Fatalf("revoke person sessions = %d, %v; want 4", version, err)
+	}
+}
+
+func TestDatabaseSmokeAuthRateLimit(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	key := []byte("01234567890123456789012345678901")
+	expiredKey := []byte("expired-auth-rate-limit-key-0001")
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM auth_rate_limits WHERE key_hash = ANY($1)`, [][]byte{key, expiredKey})
+	})
+	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		INSERT INTO auth_rate_limits (key_hash, window_started_at, attempt_count, updated_at, expires_at)
+		VALUES ($1, now() - interval '2 hours', 1, now() - interval '2 hours', now() - interval '1 hour')
+	`, expiredKey); err != nil {
+		t.Fatal(err)
+	}
+	allowed, err := ConsumeAuthRateLimit(ctx, key, 1, time.Minute)
+	if err != nil || !allowed {
+		t.Fatalf("first rate-limit attempt = %t, %v; want allowed", allowed, err)
+	}
+	allowed, err = ConsumeAuthRateLimit(ctx, key, 1, time.Minute)
+	if err != nil || allowed {
+		t.Fatalf("second rate-limit attempt = %t, %v; want denied", allowed, err)
+	}
+	var expiredExists bool
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `SELECT EXISTS (SELECT 1 FROM auth_rate_limits WHERE key_hash = $1)`, expiredKey).Scan(&expiredExists); err != nil {
+		t.Fatal(err)
+	}
+	if expiredExists {
+		t.Fatal("expired auth rate-limit bucket was not pruned")
+	}
+}
+
+func TestDatabaseSmokeMagicLoginTokenIsOneUse(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	email := "magic-login-" + databaseSmokeSuffix() + "@example.test"
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM magic_login_tokens WHERE email = $1::citext`, email)
+	})
+	token, err := CreateMagicLoginToken(ctx, email, "/dashboard/settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	valid, err := MagicLoginTokenValid(ctx, token)
+	if err != nil || !valid {
+		t.Fatalf("new magic token valid = %t, %v", valid, err)
+	}
+	gotEmail, gotNext, err := ConsumeMagicLoginToken(ctx, token)
+	if err != nil || gotEmail != email || gotNext != "/dashboard/settings" {
+		t.Fatalf("consume magic token = %q, %q, %v", gotEmail, gotNext, err)
+	}
+	if _, _, err := ConsumeMagicLoginToken(ctx, token); !errors.Is(err, ErrMagicLoginTokenInvalid) {
+		t.Fatalf("magic token replay returned %v", err)
+	}
+}
+
+func TestDatabaseSmokePasskeyCredential(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	suffix := databaseSmokeSuffix()
+	personID, err := CreateSpeaker(ctx, SpeakerInput{Name: "Passkey Smoke " + suffix, Email: "passkey-" + suffix + "@example.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, personID) })
+	credential := &webauthn.Credential{ID: []byte("credential-" + suffix), PublicKey: []byte("test-public-key")}
+	stored, err := CreatePersonPasskeyCredential(ctx, personID, "Test laptop", credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerID, err := FindPasskeyOwner(ctx, credential.ID)
+	if err != nil || ownerID != personID {
+		t.Fatalf("passkey owner = %q, %v; want %q", ownerID, err, personID)
+	}
+	listed, err := ListPersonPasskeyCredentials(ctx, personID)
+	if err != nil || len(listed) != 1 || listed[0].DisplayName != "Test laptop" {
+		t.Fatalf("listed passkeys = %+v, %v", listed, err)
+	}
+	credential.Authenticator.SignCount = 2
+	if err := UpdatePersonPasskeyCredentialUse(ctx, personID, credential); err != nil {
+		t.Fatal(err)
+	}
+	removed, err := UnlinkPersonPasskeyCredential(ctx, personID, stored.ID)
+	if err != nil || removed == nil {
+		t.Fatalf("removed passkey = %+v, %v", removed, err)
+	}
+	if ownerID, err := FindPasskeyOwner(ctx, credential.ID); err != nil || ownerID != "" {
+		t.Fatalf("passkey owner after removal = %q, %v", ownerID, err)
+	}
+}
+
+func TestDatabaseSmokeAPITokenCredential(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	suffix := databaseSmokeSuffix()
+	personID, err := CreateSpeaker(ctx, SpeakerInput{Name: "API Token Smoke " + suffix, Email: "api-token-" + suffix + "@example.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id::text = $1`, personID) })
+	digest := make([]byte, 32)
+	for index := range digest {
+		digest[index] = byte(index)
+	}
+	stored, err := CreatePersonAPIToken(ctx, personID, "Smoke integration", "selector-"+suffix, digest, []string{"profile:read"}, time.Now().Add(24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed, err := ListPersonAPITokens(ctx, personID)
+	if err != nil || len(listed) != 1 || listed[0].ID != stored.ID || listed[0].Name != "Smoke integration" {
+		t.Fatalf("listed API tokens = %+v, %v", listed, err)
+	}
+	active, err := FindActiveAPIToken(ctx, "selector-"+suffix)
+	if err != nil || active == nil || active.Token.PersonID != personID || !bytes.Equal(active.TokenHash, digest) {
+		t.Fatalf("active API token = %+v, %v", active, err)
+	}
+	if err := MarkPersonAPITokenUsed(ctx, stored.ID); err != nil {
+		t.Fatal(err)
+	}
+	revoked, err := RevokePersonAPIToken(ctx, personID, stored.ID)
+	if err != nil || revoked == nil || revoked.RevokedAt == nil {
+		t.Fatalf("revoked API token = %+v, %v", revoked, err)
+	}
+	if active, err := FindActiveAPIToken(ctx, "selector-"+suffix); err != nil || active != nil {
+		t.Fatalf("active API token after revoke = %+v, %v", active, err)
 	}
 }
 
@@ -204,6 +456,11 @@ func TestDatabaseSmokePersonMergeAndUndo(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("link source OAuth identity: %v", err)
+	}
+	if _, err := LinkOAuthIdentity(ctx, sourceID, &types.PersonOAuthIdentity{
+		Provider: "github", Subject: "different-" + suffix, Username: "different",
+	}); !errors.Is(err, ErrOAuthProviderLinked) {
+		t.Fatalf("second GitHub identity for one person returned %v, want ErrOAuthProviderLinked", err)
 	}
 	if _, err := LinkOAuthIdentity(ctx, canonicalID, &types.PersonOAuthIdentity{
 		Provider: "github", Subject: "smoke-" + suffix, Username: "attacker",

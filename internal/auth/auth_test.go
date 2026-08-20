@@ -14,7 +14,7 @@ import (
 )
 
 func TestAuthRedirectInvalidLinkRedirectsToLoginWithError(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/auth?em=not-base64&hr=also-bad&next=/dashboard/talks", nil)
+	req := httptest.NewRequest(http.MethodGet, "/auth?token=invalid", nil)
 	rec := httptest.NewRecorder()
 
 	AuthRedirect(rec, req, &config.AppContext{})
@@ -26,8 +26,8 @@ func TestAuthRedirectInvalidLinkRedirectsToLoginWithError(t *testing.T) {
 	if !strings.HasPrefix(location, "/login?") {
 		t.Fatalf("Location = %q, want /login redirect", location)
 	}
-	if !strings.Contains(location, "next=%2Fdashboard%2Ftalks") {
-		t.Fatalf("Location = %q, missing preserved next", location)
+	if !strings.Contains(location, "next=%2Fdashboard") {
+		t.Fatalf("Location = %q, missing safe dashboard next", location)
 	}
 	if !strings.Contains(location, "error=") {
 		t.Fatalf("Location = %q, missing error flash", location)
@@ -112,6 +112,22 @@ func TestLoginPersonRequiresMethod(t *testing.T) {
 	}
 }
 
+func TestLoginPersonPreservesPendingCredentialFlow(t *testing.T) {
+	manager := scs.New()
+	requestContext, err := manager.Load(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/login/password", nil).WithContext(requestContext)
+	manager.Put(req.Context(), "oauth_github_pending_subject", "provider-subject")
+	if err := LoginPerson(&config.AppContext{Session: manager}, req, "person-id", MethodPassword); err != nil {
+		t.Fatal(err)
+	}
+	if got := manager.GetString(req.Context(), "oauth_github_pending_subject"); got != "provider-subject" {
+		t.Fatalf("pending OAuth identity was cleared: %q", got)
+	}
+}
+
 func TestUpdateSessionEmailPreservesAuthenticationProof(t *testing.T) {
 	manager := scs.New()
 	initialContext, err := manager.Load(context.Background(), "")
@@ -166,6 +182,7 @@ func TestLogoutClearsIdentityAndProofMetadata(t *testing.T) {
 	manager.Put(req.Context(), SessionEmailKey, "person@example.com")
 	manager.Put(req.Context(), SessionMethodKey, string(MethodEmailLink))
 	manager.Put(req.Context(), SessionAuthenticatedAtKey, time.Now().UTC().Format(time.RFC3339Nano))
+	manager.Put(req.Context(), SessionVersionKey, int64(3))
 
 	Logout(&config.AppContext{Session: manager}, req)
 
@@ -180,6 +197,9 @@ func TestLogoutClearsIdentityAndProofMetadata(t *testing.T) {
 	}
 	if got := manager.GetString(req.Context(), SessionAuthenticatedAtKey); got != "" {
 		t.Fatalf("authentication time retained as %q", got)
+	}
+	if got := manager.GetInt64(req.Context(), SessionVersionKey); got != 0 {
+		t.Fatalf("session version retained as %d", got)
 	}
 }
 

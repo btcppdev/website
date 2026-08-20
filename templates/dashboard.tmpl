@@ -44,7 +44,8 @@
             </div>
           </div>
           <div class="dashboard-topline__actions">
-            <a href="/dashboard/speaker?hr={{ .HMAC }}&em={{ .Email }}">{{ if .Speaker }}Edit profile{{ else }}Create profile{{ end }}</a>
+			<a href="/dashboard/settings">Account settings</a>
+            <a href="/dashboard/speaker">{{ if .Speaker }}Edit profile{{ else }}Create profile{{ end }}</a>
             {{ if and .Speaker .HasPublicProfile }}
             <a href="{{ speakerPublicPath .Speaker }}">View profile</a>
             {{ end }}
@@ -261,7 +262,7 @@
             <span class="dashboard-action__hint">{{ len $eb.SpeakerConf.Proposals }} Active</span>
           </a>
           {{ else if $conf.TalksOpen }}
-          <a href="/talk/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}" class="dashboard-action">
+          <a href="/talk/{{ $conf.Tag }}?from=dashboard" class="dashboard-action">
             <span class="dashboard-action__label">Apply to speak</span>
             <span class="dashboard-action__hint">Submit a talk, workshop, or panel</span>
           </a>
@@ -269,7 +270,7 @@
 
           {{ if $eb.VolApp }}
           {{ if or (eq $eb.VolApp.Status "PendingShifts") (eq $eb.VolApp.Status "Scheduled") }}
-          <a href="/vols/shift/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}" class="dashboard-action">
+          <a href="/vols/shift/{{ $conf.Tag }}" class="dashboard-action">
             <span class="dashboard-action__label">Manage volunteer schedule</span>
             <span class="dashboard-action__hint">Select, view, or edit your shifts</span>
           </a>
@@ -280,7 +281,7 @@
           </a>
           {{ end }}
           {{ else if $conf.VolunteerOpen }}
-          <a href="/volunteer/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}" class="dashboard-action">
+          <a href="/volunteer/{{ $conf.Tag }}" class="dashboard-action">
             <span class="dashboard-action__label">Apply to volunteer</span>
             <span class="dashboard-action__hint">Help run the event</span>
           </a>
@@ -290,7 +291,7 @@
 
       {{ if and $eb.SpeakerConf $conf.CanInvite }}
       <div class="flex justify-end mt-4 mb-2">
-        <a href="/dashboard/{{ $conf.Tag }}/edit?hr={{ $.HMAC }}&em={{ $.Email }}"
+        <a href="/dashboard/{{ $conf.Tag }}/edit"
            class="text-xs font-medium text-gray-600 hover:text-gray-900">
           Edit speaker info &rarr;
         </a>
@@ -303,7 +304,7 @@
         <div class="dashboard-ledger-section__head">
           <h3>§ Talks · {{ len $eb.SpeakerConf.Proposals }}</h3>
           {{ if $conf.TalksOpen }}
-          <a class="dashboard-ledger-inline-action" href="/talk/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}">+ propose another</a>
+          <a class="dashboard-ledger-inline-action" href="/talk/{{ $conf.Tag }}?from=dashboard">+ propose another</a>
           {{ end }}
         </div>
         <div class="dashboard-talks-ledger__rows">
@@ -356,7 +357,7 @@
                     {{ end }}
                   </div>
                   {{ if not (or (eq .Status "Accepted") (eq .Status "TheyDecline") (eq .Status "WeDecline") (eq .Status "Rejected")) }}
-                  <form method="POST" action="/dashboard/talks/{{ .ID }}/withdraw?hr={{ $.HMAC }}&em={{ $.Email }}" class="inline">
+                  <form method="POST" action="/dashboard/talks/{{ .ID }}/withdraw" class="inline">
                     <button type="submit"
                             class="dashboard-inline-action is-danger"
                             onclick="return confirm('Withdraw this talk? {{ if eq .TalkType "panel" }}You''ll be removed from the panel; the talk continues with the other speakers.{{ else }}This will withdraw the whole talk.{{ end }}');">
@@ -380,7 +381,7 @@
                        class="dashboard-speaker-chip__avatar" />
                   <span>{{ .Speaker.Name }}</span>
                   {{ if and $canEditSpeakers (and $multi (ne .ID $eb.SpeakerConf.ID)) }}
-                  <form method="POST" action="/dashboard/talks/{{ $proposal.ID }}/speakers/{{ .ID }}/remove?hr={{ $.HMAC }}&em={{ $.Email }}" class="inline-flex">
+                  <form method="POST" action="/dashboard/talks/{{ $proposal.ID }}/speakers/{{ .ID }}/remove" class="inline-flex">
                     <button type="submit"
                             title="Remove {{ .Speaker.Name }} from this talk"
                             onclick="return confirm('Remove {{ .Speaker.Name }} from this talk?');"
@@ -397,12 +398,12 @@
 
               <div class="mt-2 flex flex-wrap items-center gap-3">
                 {{ if or (eq .Status "TheyDecline") (eq .Status "WeDecline") (eq .Status "Rejected") }}
-                <a href="/dashboard/talks/{{ .ID }}/details?hr={{ $.HMAC }}&em={{ $.Email }}"
+                <a href="/dashboard/talks/{{ .ID }}/details"
                    class="inline-flex items-center text-xs font-medium text-gray-600 hover:text-gray-900">
                   Talk details &rarr;
                 </a>
                 {{ else }}
-                <a href="/dashboard/talks/{{ .ID }}/edit?hr={{ $.HMAC }}&em={{ $.Email }}"
+                <a href="/dashboard/talks/{{ .ID }}/edit"
                    class="inline-flex items-center text-xs font-medium text-gray-600 hover:text-gray-900">
                   Edit talk &rarr;
                 </a>
@@ -428,20 +429,20 @@
                 ) }}
                 {{ end }}
                 {{ if and (and $conf $conf.CanInvite) (not (or (eq .Status "TheyDecline") (eq .Status "WeDecline") (eq .Status "Rejected"))) }}
-                <a href="/dashboard/invite/{{ .ID }}?hr={{ $.HMAC }}&em={{ $.Email }}"
+                <a href="/dashboard/invite/{{ .ID }}"
                    class="inline-flex items-center text-xs font-medium text-indigo-600 hover:text-indigo-700">
                   Invite a co-speaker &rarr;
                 </a>
                 {{ end }}
                 {{ if eq .Status "Invited" }}
-                <form method="POST" action="/dashboard/talks/{{ .ID }}/accept?hr={{ $.HMAC }}&em={{ $.Email }}" class="inline">
+                <form method="POST" action="/dashboard/talks/{{ .ID }}/accept" class="inline">
                   <button type="submit"
                           class="dashboard-inline-action is-primary"
                           onclick="return confirm('Accept this invitation? Your talk will be added to the program and you''ll be on the public agenda.');">
                     Accept invitation
                   </button>
                 </form>
-                <form method="POST" action="/dashboard/talks/{{ .ID }}/decline?hr={{ $.HMAC }}&em={{ $.Email }}" class="inline">
+                <form method="POST" action="/dashboard/talks/{{ .ID }}/decline" class="inline">
                   <button type="submit"
                           class="dashboard-inline-action"
                           onclick="return confirm('Decline this invitation? Your talk will not be added to the program and your co-speakers (if any) will be notified.');">
@@ -452,7 +453,7 @@
               </div>
 
               {{ if .ConfTalk }}
-              <form class="dashboard-talk-resources" method="POST" enctype="multipart/form-data" action="/dashboard/talks/{{ .ID }}/resources?hr={{ $.HMAC }}&em={{ $.Email }}">
+              <form class="dashboard-talk-resources" method="POST" enctype="multipart/form-data" action="/dashboard/talks/{{ .ID }}/resources">
                 <div class="dashboard-talk-resources__head">
                   <span>Talk resources</span>
                   <small>Add public links for the agenda and speaker archive.</small>
@@ -493,7 +494,7 @@
       </div>
       {{ else if $conf.TalksOpen }}
       <div id="talks-{{ $conf.Tag }}" class="dashboard-ledger-section">
-        <a href="/talk/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}"
+        <a href="/talk/{{ $conf.Tag }}?from=dashboard"
            class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700">
           + Propose a talk for {{ $conf.Desc }}
         </a>
@@ -519,7 +520,7 @@
                 {{ $satTime := satelliteTimeLabel . $conf }}{{ if $satTime }}<span class="text-xs text-gray-500">{{ $satTime }}</span>{{ end }}
               </div>
             </div>
-            <a href="/dashboard/satellites/{{ .ID }}/edit?hr={{ $.HMAC }}&em={{ $.Email }}"
+            <a href="/dashboard/satellites/{{ .ID }}/edit"
                class="shrink-0 inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
               Edit
             </a>
@@ -605,7 +606,7 @@
                     "EndISO"      (rfc3339 .ShiftTime.End)
                     "Description" .TypeLongDesc
                     "Location"    $conf.Venue
-                    "ICSURL"      (printf "/dashboard/vol/%s/calendar.ics?hr=%s&em=%s" .Ref $.HMAC $.Email)
+                    "ICSURL"      (printf "/dashboard/vol/%s/calendar.ics" .Ref)
                     "Compact"     true
                   ) }}
                   {{ end }}
@@ -619,15 +620,15 @@
 
         <div class="dashboard-volunteer-actions">
           {{ if eq $vol.Status "PendingShifts" }}
-          <a href="/vols/shift/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}"
+          <a href="/vols/shift/{{ $conf.Tag }}"
              class="dashboard-volunteer-button is-primary">Select your shifts</a>
           {{ else if eq $vol.Status "Scheduled" }}
-          <a href="/vols/shift/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}"
+          <a href="/vols/shift/{{ $conf.Tag }}"
              class="dashboard-volunteer-button is-secondary">View/edit shifts</a>
           <a href="/ticket/{{ $vol.TicketRef }}/pdf?type=volunteer&conf={{ $conf.Ref }}"
              class="dashboard-volunteer-button is-secondary">Download volunteer ticket</a>
           {{ if $vol.WorkShifts }}
-          <form method="POST" action="/dashboard/vol/{{ $conf.Tag }}/shifts/resend-invites?hr={{ $.HMAC }}&em={{ $.Email }}" class="inline">
+          <form method="POST" action="/dashboard/vol/{{ $conf.Tag }}/shifts/resend-invites" class="inline">
             <button type="submit"
                     class="dashboard-volunteer-button is-secondary"
                     onclick="return confirm('Re-send the calendar invite emails for all your shifts at {{ $conf.Desc }}?');">
@@ -642,12 +643,12 @@
           {{ else if eq $vol.Status "Declined" }}
           <p class="text-sm text-gray-600">You've let us know you can't attend. Thanks for letting us know!</p>
           {{ else }}
-          <a href="/vols/shift/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}"
+          <a href="/vols/shift/{{ $conf.Tag }}"
              class="dashboard-volunteer-button is-primary">Sign up for shifts</a>
           {{ end }}
 
           {{ if ne $vol.Status "Declined" }}
-          <form method="POST" action="/vols/shift/{{ $conf.Tag }}/decline?hr={{ $.HMAC }}&em={{ $.Email }}" class="inline">
+          <form method="POST" action="/vols/shift/{{ $conf.Tag }}/decline" class="inline">
             <button type="submit"
                     class="dashboard-volunteer-button is-danger"
                     onclick="return confirm('Let us know you can no longer attend? This will release any shifts you signed up for.')">Can't attend</button>
@@ -673,7 +674,7 @@
             <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Volunteer</h3>
             <p>Shifts are open for this edition.</p>
           </div>
-          <a href="/volunteer/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}"
+          <a href="/volunteer/{{ $conf.Tag }}"
              class="dashboard-volunteer-button is-primary">
             Sign up for shifts
           </a>
@@ -757,14 +758,14 @@
           </a>
 
           {{ if $conf.TalksOpen }}
-          <a href="/talk/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}" class="dashboard-action">
+          <a href="/talk/{{ $conf.Tag }}?from=dashboard" class="dashboard-action">
             <span class="dashboard-action__label">Apply to speak</span>
             <span class="dashboard-action__hint">Submit a talk, workshop, or panel</span>
           </a>
           {{ end }}
 
           {{ if $conf.VolunteerOpen }}
-          <a href="/volunteer/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}" class="dashboard-action">
+          <a href="/volunteer/{{ $conf.Tag }}" class="dashboard-action">
             <span class="dashboard-action__label">Apply to volunteer</span>
             <span class="dashboard-action__hint">Help run the event</span>
           </a>
@@ -781,19 +782,19 @@
 <section id="purchases" class="dashboard-purchase-ledger">
   <div class="dashboard-purchase-ledger__head">
     <div class="dashboard-kicker">§ Purchases · {{ len .RecentShopOrders }}</div>
-    <a href="/dashboard/orders?hr={{ .HMAC }}&em={{ .Email }}">view order history &rarr;</a>
+    <a href="/dashboard/orders">view order history &rarr;</a>
   </div>
   <div class="dashboard-purchase-ledger__rows">
     {{ range .RecentShopOrders }}
     <article class="dashboard-purchase-row">
       <div class="dashboard-purchase-row__main">
-        <strong><a href="/dashboard/orders/{{ .PublicID }}?hr={{ $.HMAC }}&em={{ $.Email }}">{{ .PublicID }}</a></strong>
+        <strong><a href="/dashboard/orders/{{ .PublicID }}">{{ .PublicID }}</a></strong>
         <span>{{ .CreatedAt.Format "Jan 2, 2006" }} · {{ .Status }} · {{ .CheckoutKind }}</span>
       </div>
       <div class="dashboard-purchase-row__side">
         <strong>{{ merchMoney .TotalCents nil }}</strong>
-        <a href="/dashboard/orders/{{ .PublicID }}?hr={{ $.HMAC }}&em={{ $.Email }}">view</a>
-        <a href="/dashboard/orders/{{ .PublicID }}/receipt?hr={{ $.HMAC }}&em={{ $.Email }}">receipt</a>
+        <a href="/dashboard/orders/{{ .PublicID }}">view</a>
+        <a href="/dashboard/orders/{{ .PublicID }}/receipt">receipt</a>
       </div>
     </article>
     {{ end }}

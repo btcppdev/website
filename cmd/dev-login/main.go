@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/db"
 	"btcpp-web/internal/envconfig"
 	"btcpp-web/internal/types"
 )
@@ -32,6 +35,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ctx := &config.AppContext{Env: env}
-	fmt.Println(auth.MagicLink(ctx, *email, *next))
+	databaseContext, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	pool, err := db.Open(databaseContext, env.DatabaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer pool.Close()
+	ctx := &config.AppContext{Env: env, DB: pool, Err: log.Default()}
+	link := auth.MagicLink(ctx, *email, *next)
+	if link == "" {
+		log.Fatal("unable to create development login link")
+	}
+	fmt.Println(link)
 }

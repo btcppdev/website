@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Link {{ .ProviderName }} · bitcoin++</title>
+  {{ block "header" . }} {{ end }}
+</head>
+<body class="btcpp-login-page">
+  {{ block "mainnav" . }} {{ end }}
+
+  <main class="auth-shell">
+    <aside class="auth-poster" aria-hidden="true">
+      <div class="auth-poster__eyebrow">BITCOIN++ / ACCESS</div>
+      <div class="auth-poster__mark">++</div>
+      <div>
+        <p>One profile.</p>
+        <p>Every event.</p>
+        <p class="auth-poster__accent">Your keys.</p>
+      </div>
+      <span class="auth-poster__note">Verify before linking credentials</span>
+    </aside>
+
+    <section class="auth-card">
+      <header class="auth-card__head">
+        <span class="auth-kicker">§ LINK {{ .ProviderName }}</span>
+        <h1>Check your <em>email.</em></h1>
+        <p>{{ .ProviderName }} returned an email that already belongs to a bitcoin++ profile. We need to verify that email before linking the two sign-in methods.</p>
+      </header>
+
+      {{ if .Sent }}
+      <div class="auth-alert auth-alert--success">Check {{ .Email }} — we sent a one-time link to finish connecting {{ .ProviderName }}.</div>
+      {{ else }}
+      <div class="person-email-list">
+        <div class="person-email-row"><div><strong>{{ .Email }}</strong><small>Verified by {{ .ProviderName }}</small></div></div>
+      </div>
+      <form method="POST" action="/auth/oauth/{{ .ProviderKey }}/email" class="auth-form auth-form--compact">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <button class="auth-primary" type="submit">Send linking email <span>→</span></button>
+      </form>
+      {{ end }}
+
+      <p><a href="/login">Cancel and return to sign in</a></p>
+    </section>
+  </main>
+
+  {{ block "footer" . }} {{ end }}
+</body>
+</html>

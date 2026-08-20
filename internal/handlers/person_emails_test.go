@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"btcpp-web/external/getters"
 )
@@ -47,6 +48,16 @@ func TestSelfServicePersonMergeDecisionsOnlyReviewProfileFields(t *testing.T) {
 	for _, key := range []string{"tax_form_type", "tax_form_object", "tax_form_name", "tax_form_uploaded"} {
 		if got := decisions[key]; got.Choice != "source" || got.Value != "second-"+key {
 			t.Fatalf("%s decision = %+v", key, got)
+		}
+	}
+}
+
+func TestAccountSecurityNoticeIncludesEventTimestamp(t *testing.T) {
+	occurredAt := time.Date(2026, time.August, 20, 17, 42, 9, 0, time.FixedZone("CDT", -5*60*60))
+	markdown := accountSecurityNoticeMarkdown("GitHub sign-in linked", "GitHub @example was added.", occurredAt)
+	for _, want := range []string{"GitHub sign-in linked", "GitHub @example was added.", "2026-08-20 22:42:09 UTC"} {
+		if !strings.Contains(markdown, want) {
+			t.Fatalf("security notice missing %q: %s", want, markdown)
 		}
 	}
 }

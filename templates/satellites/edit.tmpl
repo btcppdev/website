@@ -10,7 +10,7 @@
   <div class="btcpp-form-wrap btcpp-satellite-form-page mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
     <div class="btcpp-form-layout">
     <div class="btcpp-form-heading">
-    <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}" class="text-xs text-gray-500 hover:text-gray-700">&larr; dashboard</a>
+    <a href="/dashboard" class="text-xs text-gray-500 hover:text-gray-700">&larr; dashboard</a>
     <div class="mt-1 flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Edit Satellite Event</h1>
@@ -32,7 +32,7 @@
     </div>
     {{ end }}
 
-    <form method="POST" action="/dashboard/satellites/{{ .Event.ID }}/edit?hr={{ .HMAC }}&em={{ .Email }}" class="btcpp-form-kit mt-8 bg-white shadow rounded-lg p-6 space-y-5">
+    <form method="POST" action="/dashboard/satellites/{{ .Event.ID }}/edit" class="btcpp-form-kit mt-8 bg-white shadow rounded-lg p-6 space-y-5">
       <input type="hidden" name="Timezone" value="{{ .Conf.Timezone }}">
       <input type="hidden" name="Status" value="{{ .Event.Status }}">
 
@@ -102,7 +102,7 @@
       </div>
 
       <div class="flex flex-wrap justify-end gap-3 pt-2">
-        <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}" class="btcpp-form-button-secondary inline-flex items-center px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</a>
+        <a href="/dashboard" class="btcpp-form-button-secondary inline-flex items-center px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</a>
         {{ if eq .Event.Status "draft" }}
         <button type="submit" name="action" value="save" class="btcpp-form-button-secondary inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Save draft</button>
         {{ end }}
@@ -116,7 +116,7 @@
   <input type="file" id="SatelliteImagePicker" accept="image/*" class="hidden">
   <script>
     (function () {
-      const uploadURL = '/dashboard/satellites/{{ .Event.ID }}/upload-img?hr={{ .HMAC }}&em={{ .Email }}';
+      const uploadURL = '/dashboard/satellites/{{ .Event.ID }}/upload-img';
       const picker = document.getElementById('SatelliteImagePicker');
       let active = null;
       document.querySelectorAll('.sat-upload-trigger').forEach(function (btn) {

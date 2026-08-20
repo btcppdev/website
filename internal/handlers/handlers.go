@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -1176,12 +1175,39 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		Login(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/login/password", func(w http.ResponseWriter, r *http.Request) {
+		PasswordLogin(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/auth/passkey/login/challenge", func(w http.ResponseWriter, r *http.Request) {
+		PasskeyLoginChallenge(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/auth/passkey/login/verify", func(w http.ResponseWriter, r *http.Request) {
+		PasskeyLoginVerify(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/auth/passkey/register/challenge", func(w http.ResponseWriter, r *http.Request) {
+		PasskeyRegisterChallenge(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/auth/passkey/register/verify", func(w http.ResponseWriter, r *http.Request) {
+		PasskeyRegisterVerify(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/auth/passkey/unlink", func(w http.ResponseWriter, r *http.Request) {
+		PasskeyUnlink(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/forgot-password", func(w http.ResponseWriter, r *http.Request) {
+		ForgotPassword(w, r, app)
+	}).Methods("GET", "POST")
+	r.HandleFunc("/reset-password", func(w http.ResponseWriter, r *http.Request) {
+		ResetPassword(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/auth/oauth/{provider:github|discord|gitlab|mlh}", func(w http.ResponseWriter, r *http.Request) {
 		OAuthStart(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/auth/oauth/{provider:github|discord|gitlab|mlh}/callback", func(w http.ResponseWriter, r *http.Request) {
 		OAuthCallback(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/auth/oauth/{provider:github|discord|gitlab|mlh}/email", func(w http.ResponseWriter, r *http.Request) {
+		OAuthEmailLink(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/auth/oauth/{provider:github|discord|gitlab|mlh}/confirm", func(w http.ResponseWriter, r *http.Request) {
 		OAuthConfirm(w, r, app)
 	}).Methods("GET")
@@ -1196,6 +1222,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/auth/nostr/verify", func(w http.ResponseWriter, r *http.Request) {
 		NostrVerify(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/auth/nostr/link/challenge", func(w http.ResponseWriter, r *http.Request) {
+		NostrLinkChallenge(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/auth/nostr/link/verify", func(w http.ResponseWriter, r *http.Request) {
+		NostrLinkVerify(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/auth/nostr/unlink", func(w http.ResponseWriter, r *http.Request) {
+		NostrUnlink(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
 		AuthLanding(w, r, app)
@@ -1667,8 +1702,17 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		DashboardEditSpeaker(w, r, app)
 	}).Methods("GET", "POST")
 	r.HandleFunc("/dashboard/emails", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/dashboard/settings", http.StatusMovedPermanently)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/settings", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmails(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/settings/api-tokens", func(w http.ResponseWriter, r *http.Request) {
+		DashboardAPITokenCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/settings/api-tokens/revoke", func(w http.ResponseWriter, r *http.Request) {
+		DashboardAPITokenRevoke(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/dashboard/emails/request", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmailRequest(w, r, app)
 	}).Methods("POST")
@@ -1686,6 +1730,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/emails/remove", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmailRemove(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/password", func(w http.ResponseWriter, r *http.Request) {
+		DashboardPasswordSet(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/satellites/{eventID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		DashboardSatelliteEventEdit(w, r, app)
@@ -2565,8 +2612,6 @@ func RenderWhoIsArchive(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	if person.Speaker != nil {
 		id, _ := auth.Resolve(r, ctx)
 		if id != nil && id.PersonID == person.Speaker.ID {
-			encodedEmail = base64.RawURLEncoding.EncodeToString([]byte(id.LoginEmail))
-			encodedHMAC = base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, id.LoginEmail)))
 			canEdit = true
 		}
 	}
@@ -2695,10 +2740,7 @@ func whoIsProfileEditURL(ctx *config.AppContext, r *http.Request, person *WhoIsP
 	if err != nil || id == nil || id.PersonID != person.Speaker.ID {
 		return ""
 	}
-	email := id.LoginEmail
-	encodedEmail := base64.RawURLEncoding.EncodeToString([]byte(email))
-	encodedHMAC := base64.RawURLEncoding.EncodeToString([]byte(helpers.CreateEmailHMAC(ctx, email)))
-	return "/dashboard/speaker?hr=" + url.QueryEscape(encodedHMAC) + "&em=" + url.QueryEscape(encodedEmail)
+	return "/dashboard/speaker"
 }
 
 func filterWhoIsPeople(people []*WhoIsPerson, query, topic, event string) []*WhoIsPerson {
@@ -3873,6 +3915,7 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 			Email:                  encodedEmail,
 			IsNewsletterSubscriber: subscribed,
 			IsReturningAttendee:    returning,
+			ReturnToDashboard:      r.URL.Query().Get("from") == "dashboard",
 			Year:                   helpers.CurrentYear(),
 		})
 
@@ -3982,17 +4025,13 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		   "talkapp" letter. */
 		sendTalkAppLetter(ctx, conf, submitResult, talkapp.Email)
 
-		/* When the form was submitted from a magic-link-authed
-		   context (the dashboard's "Propose another talk" link
-		   sets ?hr= & ?em= on the form action), bounce the user
+		/* When the form was opened from the dashboard, bounce the user
 		   back to the dashboard rather than dropping them on a
 		   standalone success page. HTMX consumes HX-Redirect to
 		   navigate the whole page. */
-		if encHMAC := r.URL.Query().Get("hr"); encHMAC != "" {
-			encEmail := r.URL.Query().Get("em")
+		if r.URL.Query().Get("from") == "dashboard" {
 			flash := url.QueryEscape("Thanks — your talk proposal is in.")
-			w.Header().Set("HX-Redirect",
-				fmt.Sprintf("/dashboard?hr=%s&em=%s&flash=%s", encHMAC, encEmail, flash))
+			w.Header().Set("HX-Redirect", "/dashboard?flash="+flash)
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -6659,30 +6698,51 @@ func calcStats(apps []*types.Volunteer) *ApplicationStats {
 }
 
 func validateVolEmail(r *http.Request, ctx *config.AppContext) (string, string, error) {
-	encodedHMAC := r.URL.Query().Get("hr")
-	encodedEmail := r.URL.Query().Get("em")
+	email, err := validatedSessionEmail(r, ctx, true)
+	return email, "", err
+}
 
-	if encodedHMAC == "" || encodedEmail == "" {
-		return "", "", fmt.Errorf("missing credentials")
+// validatedSessionEmail returns an email only after validating any
+// person-backed session through auth.Resolve. allowPending preserves the
+// deliberately narrow post-magic-link state where a verified email has not
+// created a person profile yet and therefore has no session version.
+func validatedSessionEmail(r *http.Request, ctx *config.AppContext, allowPending bool) (string, error) {
+	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
+	personID := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionPersonIDKey))
+	if email == "" && personID == "" {
+		return "", fmt.Errorf("missing session credentials")
 	}
-
-	emailval, err := base64.RawURLEncoding.DecodeString(encodedEmail)
-	if err != nil {
-		return "", "", err
+	// A few isolated handler tests use a session without a database. Production
+	// always has a database and therefore always takes the validated path below.
+	if ctx.DB == nil {
+		if email != "" {
+			return email, nil
+		}
+		return "", fmt.Errorf("missing session credentials")
 	}
-
-	hashResult, err := base64.RawURLEncoding.DecodeString(encodedHMAC)
-	if err != nil {
-		return "", "", err
+	if email != "" || personID != "" {
+		identity, err := auth.Resolve(r, ctx)
+		if err != nil {
+			return "", err
+		}
+		if identity != nil {
+			if loginEmail := strings.TrimSpace(identity.LoginEmail); loginEmail != "" {
+				return loginEmail, nil
+			}
+			return strings.TrimSpace(identity.PrimaryEmail), nil
+		}
+		// Resolve clears revoked and pre-version person sessions. The only
+		// session allowed to remain without a resolved person is a pending
+		// email-link signup whose verified address has no profile yet.
+		email = strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
+		if allowPending && email != "" &&
+			ctx.Session.GetString(r.Context(), auth.SessionPersonIDKey) == "" &&
+			auth.Method(ctx.Session.GetString(r.Context(), auth.SessionMethodKey)) == auth.MethodEmailLink {
+			return email, nil
+		}
+		return "", fmt.Errorf("missing or revoked session credentials")
 	}
-	email := string(emailval)
-	hmacVal := string(hashResult)
-
-	if !helpers.VerifyEmailHMAC(ctx, hmacVal, email) {
-		return "", "", fmt.Errorf("invalid HMAC")
-	}
-
-	return email, encodedHMAC, nil
+	return "", fmt.Errorf("missing or revoked session credentials")
 }
 
 func VolunteerShift(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -7189,11 +7249,8 @@ func VolunteerSubmitShifts(w http.ResponseWriter, r *http.Request, ctx *config.A
 		return
 	}
 
-	// Redirect back to dashboard
-	encodedHMAC := r.URL.Query().Get("hr")
-	encodedEmail := r.URL.Query().Get("em")
-	redirectURL := fmt.Sprintf("/vols/shift?hr=%s&em=%s", encodedHMAC, encodedEmail)
-	w.Header().Set("HX-Redirect", redirectURL)
+	// Redirect back to the session-authenticated shift dashboard.
+	w.Header().Set("HX-Redirect", "/vols/shift")
 }
 
 // runScheduledFlow runs the post-status-update logic that promotes a volunteer
@@ -7560,20 +7617,14 @@ func VolunteerDecline(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		ctx.Err.Printf("/vols/shift/%s/decline ticket revoke failed: %s", confTag, err.Error())
 	}
 
-	// Redirect back to dashboard
-	encodedHMAC := r.URL.Query().Get("hr")
-	encodedEmail := r.URL.Query().Get("em")
-	redirectURL := fmt.Sprintf("/vols/shift?hr=%s&em=%s", encodedHMAC, encodedEmail)
-	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+	// Redirect back to the session-authenticated shift dashboard.
+	http.Redirect(w, r, "/vols/shift", http.StatusSeeOther)
 }
 
 // volAdminLoadVol fetches a single volunteer for the conf, populates their
-// volSelfRedirect returns the volunteer to their own shift signup page,
-// preserving the HMAC + email query string.
+// volSelfRedirect returns the volunteer to their session-authenticated shift page.
 func volSelfRedirect(w http.ResponseWriter, r *http.Request, confTag string) {
-	encodedHMAC := r.URL.Query().Get("hr")
-	encodedEmail := r.URL.Query().Get("em")
-	http.Redirect(w, r, fmt.Sprintf("/vols/shift/%s?hr=%s&em=%s", confTag, encodedHMAC, encodedEmail), http.StatusSeeOther)
+	http.Redirect(w, r, "/vols/shift/"+url.PathEscape(confTag), http.StatusSeeOther)
 }
 
 func VolunteerUpdateAvailability(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

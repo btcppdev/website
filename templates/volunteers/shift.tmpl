@@ -164,12 +164,12 @@
                             <div class="mt-4">
                                 <div class="flex flex-wrap items-center gap-3">
                                     {{ if eq .Status "PendingShifts" }}
-                                    <a href="/vols/shift/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}"
+                                    <a href="/vols/shift/{{ $conf.Tag }}"
                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
                                         Select Your Shifts
                                     </a>
                                     {{ else if eq .Status "Scheduled" }}
-                                    <a href="/vols/shift/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}"
+                                    <a href="/vols/shift/{{ $conf.Tag }}"
                                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
                                         View/Edit Shifts
                                     </a>
@@ -184,7 +184,7 @@
                                     {{ else if eq .Status "Declined" }}
                                     <p class="text-sm text-gray-600">You've let us know you can't attend. Thanks for letting us know!</p>
                                     {{ else }}
-                                    <a href="/vols/shift/{{ $conf.Tag }}?hr={{ $.HMAC }}&em={{ $.Email }}"
+                                    <a href="/vols/shift/{{ $conf.Tag }}"
                                        class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
                                         Sign Up for Shifts
                                     </a>
@@ -195,7 +195,7 @@
                                     <p class="text-sm text-gray-600">You're scheduled for shifts and we're within two weeks of the conference. If you can no longer attend, please reach out to the Volunteer coordinator or send us an email at 
                             <a href="mailto:volunteer@btcpp.dev" class="text-indigo-600 hover:text-indigo-500">volunteer@btcpp.dev</a>.
                                     {{ end }}
-                                    <form method="POST" action="/vols/shift/{{ $conf.Tag }}/decline?hr={{ $.HMAC }}&em={{ $.Email }}" class="inline">
+                                    <form method="POST" action="/vols/shift/{{ $conf.Tag }}/decline" class="inline">
                                         <button type="submit"
                                                 class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200"
                                                 onclick="return confirm('Let us know you can no longer attend? This will release any shifts you signed up for.')">

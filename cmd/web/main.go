@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"btcpp-web/external/buffer"
+	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
 	"btcpp-web/external/tokens"
 	youtubepkg "btcpp-web/external/youtube"
@@ -180,11 +181,18 @@ func run(env *types.EnvConfig) error {
 	if applied == 0 {
 		app.Infos.Println("database migrations up to date")
 	}
+	profilesSynced, err := getters.ReconcileNostrCredentialProfiles(&app)
+	if err != nil {
+		return fmt.Errorf("reconcile Nostr profile keys: %w", err)
+	}
+	if profilesSynced > 0 {
+		app.Infos.Printf("synchronized %d verified Nostr profile key(s)", profilesSynced)
+	}
 
 	app.Session = scs.New()
 	// A successful magic-link login establishes a durable browser session.
-	// The link itself remains short-lived (LoginEmailLinkTTL), but once it has
-	// been validated the user should not need to re-authenticate every few days.
+	// The one-use link itself remains short-lived, but once it has been consumed
+	// the user should not need to re-authenticate every few days.
 	app.Session.Lifetime = authenticatedSessionLifetime
 	// Use an app-specific cookie name. The SCS default is "session",
 	// which is easy for another localhost service to overwrite because

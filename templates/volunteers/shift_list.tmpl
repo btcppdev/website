@@ -32,7 +32,7 @@
     <div class="flex justify-end">
         {{ if .CanSubmit }}
         <button
-            hx-post="/vols/shift/{{ .ConfRef }}/submit?hr={{ .HMAC }}&em={{ .Email }}"
+            hx-post="/vols/shift/{{ .ConfRef }}/submit"
             hx-indicator="#loading-overlay"
             class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
             Submit Shift Selection
@@ -61,7 +61,7 @@
                 </span>
                 {{ if not $.Conf.WithinTwoWeeks }}
                 <button
-                    hx-post="/vols/shift/{{ $.ConfRef }}/remove?hr={{ $.HMAC }}&em={{ $.Email }}"
+                    hx-post="/vols/shift/{{ $.ConfRef }}/remove"
                     hx-vals='{"shiftRef":"{{ .Ref }}"}'
                     hx-target="#shift-list"
                     hx-swap="innerHTML"
@@ -118,7 +118,7 @@
                         </span>
                         {{ else }}
                         <button
-                            hx-post="/vols/shift/{{ $.ConfRef }}/remove?hr={{ $.HMAC }}&em={{ $.Email }}"
+                            hx-post="/vols/shift/{{ $.ConfRef }}/remove"
                             hx-vals='{"shiftRef":"{{ .Shift.Ref }}"}'
                             hx-target="#shift-list"
                             hx-swap="innerHTML"
@@ -129,7 +129,7 @@
                         {{ end }}
                         {{ else if .CanSelect }}
                         <button
-                            hx-post="/vols/shift/{{ $.ConfRef }}/select?hr={{ $.HMAC }}&em={{ $.Email }}"
+                            hx-post="/vols/shift/{{ $.ConfRef }}/select"
                             hx-vals='{"shiftRef":"{{ .Shift.Ref }}"}'
                             hx-target="#shift-list"
                             hx-swap="innerHTML"

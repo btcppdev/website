@@ -12,7 +12,7 @@
       {{ if .BackURL }}
       <a href="{{ .BackURL }}" class="text-sm text-indigo-600 hover:text-indigo-700">&larr; Speakers</a>
       {{ else }}
-      <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}" class="text-sm text-indigo-600 hover:text-indigo-700">&larr; Dashboard</a>
+      <a href="/dashboard" class="text-sm text-indigo-600 hover:text-indigo-700">&larr; Dashboard</a>
       {{ end }}
     </div>
 
@@ -44,7 +44,7 @@
     </div>
     {{ end }}
 
-    <form method="POST" action="{{ if .FormAction }}{{ .FormAction }}{{ else }}/dashboard/{{ .Conf.Tag }}/edit?hr={{ .HMAC }}&em={{ .Email }}{{ end }}"
+    <form method="POST" action="{{ if .FormAction }}{{ .FormAction }}{{ else }}/dashboard/{{ .Conf.Tag }}/edit{{ end }}"
           enctype="multipart/form-data"
           class="mt-8 space-y-6">
 
@@ -175,7 +175,7 @@
 
       {{ if not .Locked }}
       <div class="flex items-center justify-end gap-3 pt-2">
-        <a href="{{ if .BackURL }}{{ .BackURL }}{{ else }}/dashboard?hr={{ .HMAC }}&em={{ .Email }}{{ end }}"
+        <a href="{{ if .BackURL }}{{ .BackURL }}{{ else }}/dashboard{{ end }}"
            class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900">Cancel</a>
         <button type="submit"
                 class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">

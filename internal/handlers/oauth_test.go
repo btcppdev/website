@@ -104,6 +104,73 @@ func TestEnabledOAuthProviderViewsOnlyReturnsConfiguredProviders(t *testing.T) {
 	}
 }
 
+func TestAccountOAuthViewsDoNotOfferConnectedProviderAgain(t *testing.T) {
+	env := &types.EnvConfig{OAuth: types.OAuthConfig{
+		GitHub:  types.OAuthProviderConfig{ClientID: "github", ClientSecret: "secret"},
+		Discord: types.OAuthProviderConfig{ClientID: "discord", ClientSecret: "secret"},
+	}}
+	identities := []*types.PersonOAuthIdentity{
+		{ID: "github-identity", Provider: "github", Subject: "42", Username: "octocat"},
+		// Defensive deduplication keeps the page at one row per provider even
+		// if settings are rendered while an old database is being repaired.
+		{ID: "duplicate-github", Provider: "github", Subject: "43", Username: "other"},
+	}
+	connected, available := accountOAuthViews(env, identities)
+	if len(connected) != 1 || connected[0].Identity.ID != "github-identity" {
+		t.Fatalf("connected OAuth views = %+v", connected)
+	}
+	for _, provider := range available {
+		if provider.Key == "github" {
+			t.Fatalf("connected GitHub provider was offered again: %+v", available)
+		}
+	}
+	if len(available) != 3 {
+		t.Fatalf("available OAuth providers = %+v, want Discord plus two unconfigured providers", available)
+	}
+}
+
+func TestOAuthEmailConflictReason(t *testing.T) {
+	viewerID := "person-a"
+	for _, test := range []struct {
+		name       string
+		resolution *types.PersonEmailResolution
+		want       string
+	}{
+		{name: "unused email", resolution: &types.PersonEmailResolution{}},
+		{name: "same profile", resolution: &types.PersonEmailResolution{Alias: &types.PersonEmail{PersonID: viewerID}}},
+		{name: "another profile", resolution: &types.PersonEmailResolution{Alias: &types.PersonEmail{PersonID: "person-b"}}, want: "verified_email_other_person"},
+		{name: "legacy conflict", resolution: &types.PersonEmailResolution{ConflictPersonIDs: []string{"person-a", "person-b"}}, want: "ambiguous_verified_email"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := oauthEmailConflictReason(viewerID, test.resolution); got != test.want {
+				t.Fatalf("conflict reason = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestOAuthEmailDisposition(t *testing.T) {
+	verified := &types.PersonOAuthIdentity{Email: "person@example.com", EmailVerified: true}
+	for _, test := range []struct {
+		name       string
+		identity   *types.PersonOAuthIdentity
+		resolution *types.PersonEmailResolution
+		want       oauthEmailDisposition
+	}{
+		{name: "unverified provider email falls back", identity: &types.PersonOAuthIdentity{Email: "person@example.com"}, resolution: &types.PersonEmailResolution{}, want: oauthEmailFallback},
+		{name: "missing provider email falls back", identity: &types.PersonOAuthIdentity{EmailVerified: true}, resolution: &types.PersonEmailResolution{}, want: oauthEmailFallback},
+		{name: "unused verified email creates profile", identity: verified, resolution: &types.PersonEmailResolution{}, want: oauthEmailCreateProfile},
+		{name: "existing verified email requires magic link", identity: verified, resolution: &types.PersonEmailResolution{Alias: &types.PersonEmail{PersonID: "person-a"}}, want: oauthEmailRequireMagicLink},
+		{name: "ambiguous email is rejected", identity: verified, resolution: &types.PersonEmailResolution{ConflictPersonIDs: []string{"person-a", "person-b"}}, want: oauthEmailAmbiguous},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := oauthEmailDispositionFor(test.identity, test.resolution); got != test.want {
+				t.Fatalf("disposition = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
 func oauthTestContext(t *testing.T, oauthConfig types.OAuthConfig) (*config.AppContext, *http.Request) {
 	t.Helper()
 	manager := scs.New()

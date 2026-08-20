@@ -126,9 +126,41 @@ callback from `HOST`. GitHub, Discord, and GitLab use S256 PKCE. MLH uses its
 documented confidential authorization-code flow. The app requests only basic
 identity/email scopes and never retains provider access or refresh tokens.
 
-Nostr sign-in needs no server configuration. It uses a one-time, five-minute
-NIP-98-style challenge signed by a NIP-07 browser extension. The signing pubkey
-must already match an npub (or hex key) on exactly one bitcoin++ profile.
+Password, passkey, and Nostr sign-in need no provider configuration. Passwords
+are hashed with Argon2id; reset links are one-use and expire after 30 minutes.
+Email magic links are also stored as hashed, one-use tokens and expire after 30
+minutes; the redirect destination is stored with the token rather than trusted
+from the clicked URL.
+Passkeys use discoverable WebAuthn credentials, require user verification, and
+are bound to the exact public origin derived from `HOST`/`PORT`. The complete
+WebAuthn credential record is encrypted at rest while its credential ID remains
+indexed for usernameless login.
+
+Nostr uses a one-time, five-minute NIP-98-style challenge signed by a NIP-07
+browser extension. Users link keys from Account settings by signing a challenge;
+editing the public Nostr profile field does not create a login credential.
+Legacy profile keys do not grant sign-in access; users must explicitly prove and
+link a key from Account settings after signing in another way.
+
+Account settings are at `/dashboard/settings`. Adding, changing, or removing a
+credential requires authentication completed within the previous 15 minutes.
+Adding a new sign-in method preserves existing browser sessions. Replacing or
+removing a credential, changing recovery-email authority, and password resets
+revoke other browser sessions. Credential changes send a security notice with
+the event time to the account's primary email. OAuth identities are
+matched only by the provider's immutable subject; matching provider email
+addresses are never linked automatically. The first OAuth sign-in with a
+verified, unused email continues into profile creation. If that verified email
+already belongs to a profile, the site sends a magic link to that fixed address
+before offering to link the provider identity to the existing profile.
+
+Personal API tokens are also managed from Account settings. Tokens use the
+versioned `btcpp_v1.<selector>.<secret>` format, are displayed only once, and
+are stored as SHA-256 digests. Each token has explicit scopes and an expiry;
+revocation is independent from browser-session logout and password resets.
+Future API handlers should accept them only in the `Authorization: Bearer`
+header, call `auth.AuthenticateAPIToken`, enforce the endpoint's required
+scope, and load current person roles rather than copying roles into tokens.
 
 ## Deploy Testing
 

@@ -10,9 +10,11 @@ import (
 	"btcpp-web/internal/types"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrOAuthIdentityLinked = errors.New("oauth identity is linked to another person")
+var ErrOAuthProviderLinked = errors.New("oauth provider is already linked to this person")
 
 func FindOAuthIdentity(ctx *config.AppContext, provider, subject string) (*types.PersonOAuthIdentity, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
@@ -103,6 +105,10 @@ func LinkOAuthIdentity(ctx *config.AppContext, personID string, identity *types.
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrOAuthIdentityLinked
+	}
+	var postgresError *pgconn.PgError
+	if errors.As(err, &postgresError) && postgresError.ConstraintName == "person_oauth_identities_person_provider_unique" {
+		return nil, ErrOAuthProviderLinked
 	}
 	if err != nil {
 		return nil, fmt.Errorf("link oauth identity: %w", err)

@@ -25,7 +25,7 @@
       {{ if .BackURL }}
       <a href="{{ .BackURL }}">← Back to speakers</a>
       {{ else }}
-      <a href="/dashboard?hr={{ .HMAC }}&em={{ .Email }}">← Back to dashboard</a>
+      <a href="/dashboard">← Back to dashboard</a>
       {{ end }}
     </div>
 
@@ -45,7 +45,7 @@
       <span><i class="is-hidden"></i><b>HIDDEN</b><em>Only you</em></span>
     </div>
 
-    <form id="SpeakerProfileForm" method="POST" action="{{ if .FormAction }}{{ .FormAction }}{{ else }}/dashboard/speaker?hr={{ .HMAC }}&em={{ .Email }}{{ end }}" enctype="multipart/form-data" class="profile-edit-form">
+    <form id="SpeakerProfileForm" method="POST" action="{{ if .FormAction }}{{ .FormAction }}{{ else }}/dashboard/speaker{{ end }}" enctype="multipart/form-data" class="profile-edit-form">
       <section class="profile-edit-section is-open">
         <div class="profile-edit-section__index">✎</div>
         <div class="profile-edit-section__body">
@@ -105,7 +105,7 @@
             <label>EMAIL
               <span class="profile-edit-locked">{{ .Speaker.Email }}</span>
               {{ if not .IsAdmin }}
-              <a class="profile-edit-email-manage" href="/dashboard/emails">Manage email addresses →</a>
+              <a class="profile-edit-email-manage" href="/dashboard/settings">Account settings →</a>
               {{ end }}
             </label>
             {{ end }}
@@ -259,7 +259,7 @@
     </section>
 
     <div class="profile-edit-actions">
-      <a href="{{ if .BackURL }}{{ .BackURL }}{{ else }}/dashboard?hr={{ .HMAC }}&em={{ .Email }}{{ end }}">CANCEL</a>
+      <a href="{{ if .BackURL }}{{ .BackURL }}{{ else }}/dashboard{{ end }}">CANCEL</a>
       <button type="submit" form="SpeakerProfileForm">{{ if eq .Mode "edit" }}SAVE CHANGES{{ else }}CREATE PROFILE{{ end }}</button>
     </div>
   </main>
