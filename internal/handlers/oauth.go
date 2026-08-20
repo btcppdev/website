@@ -421,11 +421,12 @@ func OAuthConfirmAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		return
 	}
 	recordAuthAudit(ctx, r, viewer.PersonID, provider.Key(), "oauth_identity_linked", map[string]any{"oauth_identity_id": linked.ID})
-	destination := auth.SafeNext(pending.Next, "/dashboard/settings")
-	if destination == "/dashboard" {
-		destination = "/dashboard/settings"
-	}
+	destination := oauthLinkSuccessDestination(pending.Next)
 	http.Redirect(w, r, appendFlash(destination, oauthIdentityLabel(provider.Label(), linked.Username)+" is now linked."), http.StatusSeeOther)
+}
+
+func oauthLinkSuccessDestination(next string) string {
+	return auth.SafeNext(next, "/dashboard/settings")
 }
 
 func oauthVerifiedEmailLinkConflict(ctx *config.AppContext, viewerPersonID string, identity *types.PersonOAuthIdentity) (string, error) {
@@ -570,7 +571,7 @@ func requireOAuthLinkPerson(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, "/login?next="+url.QueryEscape(confirmationPath), http.StatusSeeOther)
 		return nil
 	}
-	http.Redirect(w, r, dashboardSpeakerEditURL("", "", confirmationPath), http.StatusSeeOther)
+	http.Redirect(w, r, dashboardProfileURL("", "", confirmationPath), http.StatusSeeOther)
 	return nil
 }
 

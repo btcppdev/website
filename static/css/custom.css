@@ -2002,6 +2002,12 @@
 	cursor: pointer;
 }
 
+.profile-edit-actions button.profile-edit-actions__create-account {
+	border-color: #f7931a;
+	background: #f7931a;
+	color: #0a0a0a;
+}
+
 @media (max-width: 760px) {
 	.profile-edit-toolbar {
 		position: static;

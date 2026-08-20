@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>{{ if eq .Mode "edit" }}Edit{{ else }}Create{{ end }} speaker profile · bitcoin++</title>
+  <title>{{ if eq .Mode "edit" }}Edit profile{{ else if .IsAdmin }}Create speaker profile{{ else }}Set up your account{{ end }} · bitcoin++</title>
   {{ block "header" . }} {{ end }}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#128100;</text></svg>">
 </head>
@@ -10,29 +10,37 @@
 
   <div class="profile-edit-toolbar">
     <div>
-      <span class="profile-edit-toolbar__live">● EDITING</span>
-      <span>{{ if .Speaker }}{{ .Speaker.Name }}{{ else }}new profile{{ end }}</span>
-      <span>{{ if eq .Mode "edit" }}identity section editable{{ else }}create identity row{{ end }}</span>
+      <span class="profile-edit-toolbar__live">● {{ if and (eq .Mode "create") (not .IsAdmin) }}ACCOUNT SETUP{{ else }}EDITING{{ end }}</span>
+      <span>{{ if .Speaker }}{{ .Speaker.Name }}{{ else if .IsAdmin }}new speaker profile{{ else }}new bitcoin++ account{{ end }}</span>
+      <span>{{ if eq .Mode "edit" }}identity section editable{{ else if .IsAdmin }}create speaker record{{ else }}profile required{{ end }}</span>
     </div>
     <div>
       {{ if .PublicURL }}<a href="{{ .PublicURL }}">VIEW PUBLIC →</a>{{ end }}
-      <button type="submit" form="SpeakerProfileForm">{{ if eq .Mode "edit" }}SAVE CHANGES{{ else }}CREATE PROFILE{{ end }}</button>
+      <button type="submit" form="SpeakerProfileForm">{{ if eq .Mode "edit" }}SAVE CHANGES{{ else if .IsAdmin }}CREATE PROFILE{{ else }}CREATE ACCOUNT{{ end }}</button>
     </div>
   </div>
 
   <main class="profile-edit-shell">
+    {{ if .BackURL }}
     <div class="profile-edit-back">
-      {{ if .BackURL }}
       <a href="{{ .BackURL }}">← Back to speakers</a>
-      {{ else }}
-      <a href="/dashboard">← Back to dashboard</a>
-      {{ end }}
     </div>
+    {{ else if or (ne .Mode "create") .IsAdmin }}
+    <div class="profile-edit-back">
+      <a href="/dashboard">← Back to dashboard</a>
+    </div>
+    {{ end }}
 
     <header class="profile-edit-hero">
+      {{ if and (eq .Mode "create") (not .IsAdmin) }}
+      <p class="profile-edit-tag">§ NEW ACCOUNT</p>
+      <h1>Finish setting up <span>your account.</span></h1>
+      <p>We haven’t created your bitcoin++ account yet. Your {{ if .SetupProvider }}{{ .SetupProvider }}{{ else }}email{{ end }} sign-in is verified; add your details below, then choose Create account.</p>
+      {{ else }}
       <p class="profile-edit-tag">§ YOUR PROFILE</p>
-      <h1>Arrange <span>your</span> record.</h1>
-      <p>{{ if eq .Mode "edit" }}Edit the identity, links, and contact details that power your bitcoin++ public profile and event records.{{ else }}Create your bitcoin++ identity row. Public profile pages appear once you have an accepted or scheduled talk.{{ end }}</p>
+      <h1>{{ if .IsAdmin }}Create a <span>speaker record.</span>{{ else }}Arrange <span>your</span> record.{{ end }}</h1>
+      <p>{{ if eq .Mode "edit" }}Edit the identity, links, and contact details that power your bitcoin++ public profile and event records.{{ else }}Create the speaker’s identity, contact details, and public profile information.{{ end }}</p>
+      {{ end }}
     </header>
 
     {{ if .FlashMessage }}
@@ -45,15 +53,15 @@
       <span><i class="is-hidden"></i><b>HIDDEN</b><em>Only you</em></span>
     </div>
 
-    <form id="SpeakerProfileForm" method="POST" action="{{ if .FormAction }}{{ .FormAction }}{{ else }}/dashboard/speaker{{ end }}" enctype="multipart/form-data" class="profile-edit-form">
+    <form id="SpeakerProfileForm" method="POST" action="{{ if .FormAction }}{{ .FormAction }}{{ else }}/dashboard/profile{{ end }}" enctype="multipart/form-data" class="profile-edit-form">
       <section class="profile-edit-section is-open">
         <div class="profile-edit-section__index">✎</div>
         <div class="profile-edit-section__body">
           <div class="profile-edit-section__head">
             <div>
               <p>§ IDENTITY</p>
-              <h2>Bio & links</h2>
-              <span>{{ if .Speaker }}{{ if .Speaker.Bio }}bio {{ len .Speaker.Bio }} chars{{ else }}bio empty{{ end }} · links editable{{ else }}new identity row{{ end }}</span>
+              <h2>{{ if and (eq .Mode "create") (not .IsAdmin) }}Your profile{{ else }}Bio & links{{ end }}</h2>
+              <span>{{ if .Speaker }}{{ if .Speaker.Bio }}bio {{ len .Speaker.Bio }} chars{{ else }}bio empty{{ end }} · links editable{{ else if .IsAdmin }}new speaker record{{ else }}used for your account and event participation{{ end }}</span>
             </div>
             <div class="profile-edit-section__status">
               <span class="profile-privacy-pill"><i class="is-public"></i>PUBLIC</span>
@@ -260,7 +268,7 @@
 
     <div class="profile-edit-actions">
       <a href="{{ if .BackURL }}{{ .BackURL }}{{ else }}/dashboard{{ end }}">CANCEL</a>
-      <button type="submit" form="SpeakerProfileForm">{{ if eq .Mode "edit" }}SAVE CHANGES{{ else }}CREATE PROFILE{{ end }}</button>
+      <button type="submit" form="SpeakerProfileForm"{{ if and (eq .Mode "create") (not .IsAdmin) }} class="profile-edit-actions__create-account"{{ end }}>{{ if eq .Mode "edit" }}SAVE CHANGES{{ else if .IsAdmin }}CREATE PROFILE{{ else }}CREATE ACCOUNT{{ end }}</button>
     </div>
   </main>
 

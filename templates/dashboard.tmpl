@@ -45,7 +45,7 @@
           </div>
           <div class="dashboard-topline__actions">
 			<a href="/dashboard/settings">Account settings</a>
-            <a href="/dashboard/speaker">{{ if .Speaker }}Edit profile{{ else }}Create profile{{ end }}</a>
+            <a href="/dashboard/profile">{{ if .Speaker }}Edit profile{{ else }}Create profile{{ end }}</a>
             {{ if and .Speaker .HasPublicProfile }}
             <a href="{{ speakerPublicPath .Speaker }}">View profile</a>
             {{ end }}

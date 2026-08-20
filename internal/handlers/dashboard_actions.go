@@ -744,7 +744,7 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	email, encHMAC, err := validateVolEmail(r, ctx)
 	encEmail := ""
 	if err != nil {
-		ctx.Infos.Printf("/dashboard/speaker auth: %s", err)
+		ctx.Infos.Printf("/dashboard/profile auth: %s", err)
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 		return
 	}
@@ -752,7 +752,7 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 
 	resolution, err := getters.ResolvePersonByEmail(ctx, email)
 	if err != nil {
-		ctx.Err.Printf("/dashboard/speaker resolve %s: %s", email, err)
+		ctx.Err.Printf("/dashboard/profile resolve %s: %s", email, err)
 		http.Error(w, "lookup failed", http.StatusInternalServerError)
 		return
 	}
@@ -763,7 +763,7 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	sp := resolution.Person
 	if sp != nil && ctx.Session.GetString(r.Context(), auth.SessionPersonIDKey) == "" {
 		if err := auth.LoginPersonWithEmail(ctx, r, sp.ID, email); err != nil {
-			ctx.Err.Printf("/dashboard/speaker establish person session %s: %s", sp.ID, err)
+			ctx.Err.Printf("/dashboard/profile establish person session %s: %s", sp.ID, err)
 			http.Error(w, "session error", http.StatusInternalServerError)
 			return
 		}
@@ -796,15 +796,23 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		EmailPlain:   email,
 		Mode:         mode,
 		FlashMessage: r.URL.Query().Get("flash"),
-		FormAction:   dashboardSpeakerEditURL(encHMAC, encEmail, nextURL),
+		FormAction:   dashboardProfileURL(encHMAC, encEmail, nextURL),
 		NextURL:      nextURL,
 		Year:         helpers.CurrentYear(),
+	}
+	if mode == "create" {
+		for _, provider := range auth.OAuthProviders(ctx.Env) {
+			if nextURL == "/auth/oauth/"+provider.Key()+"/confirm" {
+				page.SetupProvider = provider.Label()
+				break
+			}
+		}
 	}
 	if hasPublicWhoIsProfile(ctx, sp) {
 		page.PublicURL = whoIsPublicPath(ctx, sp)
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_edit_speaker.tmpl", page); err != nil {
-		ctx.Err.Printf("/dashboard/speaker render: %s", err)
+		ctx.Err.Printf("/dashboard/profile render: %s", err)
 		http.Error(w, "render failed", http.StatusInternalServerError)
 	}
 }
@@ -863,9 +871,9 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	picRaw, picContentType, picExt, picErr := readMultipartFile(r, "PicFile")
 	hasNewPic := picErr == nil && len(picRaw) > 0
 	if picErr != nil && picErr != http.ErrMissingFile {
-		ctx.Err.Printf("/dashboard/speaker read pic: %s", picErr)
+		ctx.Err.Printf("/dashboard/profile read pic: %s", picErr)
 		http.Redirect(w, r,
-			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Photo upload failed."),
+			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, "Photo upload failed."),
 			http.StatusSeeOther)
 		return
 	}
@@ -891,16 +899,16 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		up.Photo = imgproc.ShortID(picRaw) + picExt
 	}
 	if err := getters.UpdateSpeaker(ctx, sp.ID, up); err != nil {
-		ctx.Err.Printf("/dashboard/speaker update %s: %s", sp.ID, err)
+		ctx.Err.Printf("/dashboard/profile update %s: %s", sp.ID, err)
 		http.Redirect(w, r,
-			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Update failed: "+err.Error()),
+			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, "Update failed: "+err.Error()),
 			http.StatusSeeOther)
 		return
 	}
 	if uploaded, err := savePersonTaxFormFromRequest(ctx, r, sp); err != nil {
-		ctx.Err.Printf("/dashboard/speaker tax form %s: %s", sp.ID, err)
+		ctx.Err.Printf("/dashboard/profile tax form %s: %s", sp.ID, err)
 		http.Redirect(w, r,
-			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Profile saved, but tax form upload failed: "+err.Error()),
+			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, "Profile saved, but tax form upload failed: "+err.Error()),
 			http.StatusSeeOther)
 		return
 	} else if uploaded {
@@ -971,16 +979,16 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	name := strings.TrimSpace(r.FormValue("Name"))
 	if name == "" {
 		http.Redirect(w, r,
-			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Name is required."),
+			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, "Name is required."),
 			http.StatusSeeOther)
 		return
 	}
 	picRaw, picContentType, picExt, picErr := readMultipartFile(r, "PicFile")
 	hasNewPic := picErr == nil && len(picRaw) > 0
 	if picErr != nil && picErr != http.ErrMissingFile {
-		ctx.Err.Printf("/dashboard/speaker (create) read pic: %s", picErr)
+		ctx.Err.Printf("/dashboard/profile (create) read pic: %s", picErr)
 		http.Redirect(w, r,
-			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Photo upload failed."),
+			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, "Photo upload failed."),
 			http.StatusSeeOther)
 		return
 	}
@@ -1006,7 +1014,7 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	}
 	if missing := firstMissingProfileField(in.Phone, in.Signal, hasNewPic); missing != "" {
 		http.Redirect(w, r,
-			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, missing+" is required."),
+			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, missing+" is required."),
 			http.StatusSeeOther)
 		return
 	}
@@ -1015,14 +1023,14 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	}
 	personID, err := getters.CreateSpeaker(ctx, in)
 	if err != nil {
-		ctx.Err.Printf("/dashboard/speaker create %s: %s", email, err)
+		ctx.Err.Printf("/dashboard/profile create %s: %s", email, err)
 		http.Redirect(w, r,
-			dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, "Create failed: "+err.Error()),
+			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, "Create failed: "+err.Error()),
 			http.StatusSeeOther)
 		return
 	}
 	if err := auth.LoginPersonWithEmail(ctx, r, personID, email); err != nil {
-		ctx.Err.Printf("/dashboard/speaker login new person %s: %s", personID, err)
+		ctx.Err.Printf("/dashboard/profile login new person %s: %s", personID, err)
 		http.Error(w, "Profile created, but the session could not be updated. Sign in again.", http.StatusInternalServerError)
 		return
 	}
@@ -1800,19 +1808,19 @@ func dashboardRedirect(encHMAC, encEmail, flash string) string {
 	return "/dashboard"
 }
 
-func dashboardSpeakerEditURL(encHMAC, encEmail, nextURL string) string {
+func dashboardProfileURL(encHMAC, encEmail, nextURL string) string {
 	q := url.Values{}
 	if nextURL != "" {
 		q.Set("next", nextURL)
 	}
 	if encoded := q.Encode(); encoded != "" {
-		return "/dashboard/speaker?" + encoded
+		return "/dashboard/profile?" + encoded
 	}
-	return "/dashboard/speaker"
+	return "/dashboard/profile"
 }
 
-func dashboardSpeakerEditURLWithFlash(encHMAC, encEmail, nextURL, flash string) string {
-	dest := dashboardSpeakerEditURL(encHMAC, encEmail, nextURL)
+func dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, flash string) string {
+	dest := dashboardProfileURL(encHMAC, encEmail, nextURL)
 	if flash == "" {
 		return dest
 	}
