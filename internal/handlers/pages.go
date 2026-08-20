@@ -397,25 +397,6 @@ type SpeakerPage struct {
 	Year uint
 }
 
-type ApplicationStats struct {
-	Applied     int
-	Pending     int
-	Accepted    int
-	TotalShifts int
-}
-
-type VolShiftPage struct {
-	Name     string
-	Hometown string
-	Email    string
-	HMAC     string
-	VolApps  []*types.Volunteer
-	Stats    *ApplicationStats
-	Confs    []*types.Conf
-	VolInfos map[string]*types.VolInfo
-	Year     uint
-}
-
 type DashboardPage struct {
 	Name     string
 	Hometown string
