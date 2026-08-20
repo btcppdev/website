@@ -47,9 +47,18 @@ func TestLoadTemplates(t *testing.T) {
 	if err := inlineTemplates.ExecuteTemplate(&apiDocs, "developers_api.tmpl", nil); err != nil {
 		t.Fatalf("render API documentation: %v", err)
 	}
-	for _, expected := range []string{"Build on", "/api/v1/openapi.json", "profile:self:read", "OAuth authorization", `href="/developers/api">API Docs`} {
+	for _, expected := range []string{"Build on", "/api/v1/openapi.json", "profile:self:read", "OAuth authorization", `href="/developers/api">API Docs`, "data-docs-search", "data-api-language", "data-api-endpoint", "data-copy-example"} {
 		if !strings.Contains(apiDocs.String(), expected) {
 			t.Fatalf("API documentation omitted %q", expected)
+		}
+	}
+	apiDocsScript, err := os.ReadFile("static/js/api-docs.js")
+	if err != nil {
+		t.Fatalf("read API documentation script: %v", err)
+	}
+	for _, expected := range []string{"renderExample", "navigator.clipboard", "data-docs-search-input", "IntersectionObserver"} {
+		if !strings.Contains(string(apiDocsScript), expected) {
+			t.Fatalf("API documentation script omitted %q", expected)
 		}
 	}
 	var loginPage bytes.Buffer
