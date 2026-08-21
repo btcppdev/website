@@ -564,6 +564,7 @@ func writeOAuthTokenError(w http.ResponseWriter, status int, code, description s
 
 func oauthScopeDescriptions() map[string]string {
 	return map[string]string{
+		"identity:self:read": "View your account identity and current roles",
 		"profile:self:read":  "View your bitcoin++ profile and verified email addresses",
 		"profile:self:write": "Update your public bitcoin++ profile",
 		"talks:read":         "View your submitted and accepted talks",

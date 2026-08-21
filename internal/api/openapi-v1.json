@@ -255,6 +255,7 @@
     "/hackathons/{competition_id}/projects/{project_id}": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}, {"$ref": "#/components/parameters/ProjectID"}], "get": {"operationId": "getHackathonProject", "summary": "Get a public project and teammates without email", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/hackathons/{competition_id}/awards": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonAwards", "summary": "List non-draft awards and prizes", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/hackathons/{competition_id}/results": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonResults", "summary": "List finalized award results", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/me/identity": {"get": {"operationId": "getMyIdentity", "summary": "Get the token owner's account ID, display name, and current roles", "security": [{"oauth2": ["identity:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
     "/me": {
       "get": {"operationId": "getMe", "summary": "Get the token owner's private profile", "security": [{"oauth2": ["profile:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}},
       "patch": {"operationId": "updateMe", "summary": "Update the token owner's public profile fields", "security": [{"oauth2": ["profile:self:write"]}, {"personalAccessToken": []}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProfilePatch"}}}}, "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}
@@ -291,6 +292,7 @@
             "tokenUrl": "https://btcpp.dev/oauth/token",
             "refreshUrl": "https://btcpp.dev/oauth/token",
             "scopes": {
+              "identity:self:read": "Read the resource owner's account ID, display name, and current roles",
               "profile:self:read": "Read the resource owner's private profile",
               "profile:self:write": "Update the resource owner's public profile",
               "talks:read": "Read the resource owner's talks",

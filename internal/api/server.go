@@ -118,6 +118,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/conferences/{tag}/speakers", s.conferenceSpeakers).Methods(http.MethodGet)
 	r.HandleFunc("/people", s.people).Methods(http.MethodGet)
 	r.HandleFunc("/people/{personID}", s.person).Methods(http.MethodGet)
+	r.HandleFunc("/me/identity", s.identity).Methods(http.MethodGet)
 	r.HandleFunc("/me", s.me).Methods(http.MethodGet)
 	r.HandleFunc("/me", s.patchMe).Methods(http.MethodPatch)
 	r.HandleFunc("/me/talks", s.myTalks).Methods(http.MethodGet)
@@ -251,6 +252,7 @@ func (s *server) bootstrap(w http.ResponseWriter, r *http.Request) {
 			"conferences":           "/api/v1/conferences",
 			"people":                "/api/v1/people",
 			"recordings":            "/api/v1/recordings",
+			"identity":              "/api/v1/me/identity",
 			"me":                    "/api/v1/me",
 			"oauth_server_metadata": "/.well-known/oauth-authorization-server",
 		},
@@ -345,6 +347,18 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writePrivate(w, r, http.StatusOK, profile)
+}
+
+func (s *server) identity(w http.ResponseWriter, r *http.Request) {
+	principal, r := s.requireScope(w, r, "identity:self:read")
+	if principal == nil {
+		return
+	}
+	roles := append([]string(nil), principal.Person.Roles...)
+	sort.Strings(roles)
+	s.writePrivate(w, r, http.StatusOK, accountIdentityDTO{
+		ID: principal.Person.ID, Name: principal.Person.Name, Roles: roles,
+	})
 }
 
 func (s *server) patchMe(w http.ResponseWriter, r *http.Request) {

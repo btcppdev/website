@@ -15,6 +15,7 @@
     projects: ["GET", "/hackathons/HACKATHON_ID/projects", false],
     project: ["GET", "/hackathons/HACKATHON_ID/projects/PROJECT_ID", false],
     results: ["GET", "/hackathons/HACKATHON_ID/results", false],
+    identity: ["GET", "/me/identity", true],
     me: ["GET", "/me", true],
     "me-update": ["PATCH", "/me", true, '{"biography":"Building useful Bitcoin software."}'],
     "my-talks": ["GET", "/me/talks", true],

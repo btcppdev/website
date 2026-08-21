@@ -137,6 +137,7 @@
             <h2>Account + talks</h2>
             <p>Applications can read and update the current person’s profile, list their talks, and edit shared talk content. Schedule placement remains restricted to event administrators.</p>
             <div class="api-reference__endpoints">
+              <button type="button" data-api-endpoint="identity" data-docs-search-item data-search-label="GET /me/identity — Retrieve identity and current roles"><span>GET</span><code>/me/identity</code><small>Identity and current roles</small></button>
               <button type="button" data-api-endpoint="me" data-docs-search-item data-search-label="GET /me — Retrieve the current account"><span>GET</span><code>/me</code><small>Current account projection</small></button>
               <button type="button" data-api-endpoint="me-update" data-docs-search-item data-search-label="PATCH /me — Update the current profile"><span class="is-patch">PATCH</span><code>/me</code><small>Update public profile fields</small></button>
               <button type="button" data-api-endpoint="my-talks" data-docs-search-item data-search-label="GET /me/talks — List the current person's talks"><span>GET</span><code>/me/talks</code><small>Current person’s talks</small></button>
@@ -148,6 +149,7 @@
             <p class="api-reference__kicker">08 / Authorization</p>
             <h2>Scopes</h2>
             <div class="api-reference__scope-list">
+              <div><code>identity:self:read</code><p>Read your account ID, display name, and current roles.</p></div>
               <div><code>profile:self:read</code><p>Read your private account projection.</p></div>
               <div><code>profile:self:write</code><p>Update your public profile fields.</p></div>
               <div><code>talks:read</code><p>Read talks associated with your account.</p></div>
@@ -168,7 +170,7 @@
               <div><small>Revoke</small><code>/oauth/revoke</code></div>
               <div><small>Discovery</small><code>/.well-known/oauth-authorization-server</code></div>
             </div>
-            <p>Access tokens last one hour. Approved <code>offline_access</code> grants a rotating 30-day refresh token. Bitcoin++ currently provides OAuth authorization, not OpenID Connect; identify the signed-in person through <code>GET /api/v1/me</code>.</p>
+            <p>Access tokens last one hour. Approved <code>offline_access</code> grants a rotating 30-day refresh token. Bitcoin++ currently provides OAuth authorization, not OpenID Connect; identify the signed-in person and inspect their current roles through <code>GET /api/v1/me/identity</code>.</p>
           </section>
 
           <section id="conventions" class="api-reference__section" data-docs-section>
