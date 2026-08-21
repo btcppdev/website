@@ -162,12 +162,24 @@
         {{ end }}
         <div class="person-email-list">
           {{ range .OAuthClients }}
-          <div class="person-email-row{{ if .RevokedAt }} is-pending{{ end }}">
-            <div>
-              <strong>{{ .Name }}</strong>{{ if .RevokedAt }}<span class="is-pending">REVOKED</span>{{ else }}<span class="is-primary">ACTIVE</span>{{ end }}
-              <small>{{ .ClientID }} · {{ .TokenEndpointAuthMethod }} · created {{ .CreatedAt.Format "Jan 2, 2006" }}</small>
-              <small>Redirects: {{ range $index, $uri := .RedirectURIs }}{{ if $index }}, {{ end }}{{ $uri }}{{ end }}</small>
-              <small>Scopes: {{ range $index, $scope := .AllowedScopes }}{{ if $index }}, {{ end }}{{ $scope }}{{ end }}</small>
+          <div class="person-email-row oauth-client-card{{ if .RevokedAt }} is-pending{{ end }}">
+            <div class="oauth-client-card__content">
+              <div class="oauth-client-card__heading">
+                <strong>{{ .Name }}</strong>{{ if .RevokedAt }}<span class="is-pending">REVOKED</span>{{ else }}<span class="is-primary">ACTIVE</span>{{ end }}
+              </div>
+              <dl class="oauth-client-card__metadata">
+                <div><dt>Client ID</dt><dd><code>{{ .ClientID }}</code></dd></div>
+                <div><dt>Client type</dt><dd>{{ .TokenEndpointAuthMethod }}</dd></div>
+                <div><dt>Created</dt><dd>{{ .CreatedAt.Format "Jan 2, 2006" }}</dd></div>
+              </dl>
+              <div class="oauth-client-card__callbacks">
+                <p>Callback URLs</p>
+                <ul>{{ range .RedirectURIs }}<li><code>{{ . }}</code></li>{{ end }}</ul>
+              </div>
+              <div class="oauth-client-card__scopes">
+                <p>Permissions</p>
+                <ul>{{ range .AllowedScopes }}<li><code>{{ . }}</code></li>{{ end }}</ul>
+              </div>
             </div>
             {{ if not .RevokedAt }}
             <div class="person-email-actions"><form method="POST" action="/dashboard/settings/oauth-clients/revoke">
@@ -178,19 +190,22 @@
           </div>
           {{ else }}<div class="person-email-row is-pending"><div><strong>No OAuth applications</strong><small>Register one to let a third-party app request scoped access.</small></div></div>{{ end }}
         </div>
-        <form method="POST" action="/dashboard/settings/oauth-clients" class="person-email-add mt-3">
+        <form method="POST" action="/dashboard/settings/oauth-clients" class="person-email-add oauth-client-form mt-3">
           <input type="hidden" name="csrf" value="{{ .AuthMethodsCSRF }}">
           <label>APPLICATION NAME<input type="text" name="name" required maxlength="100" placeholder="My bitcoin++ app"></label>
           <label>CLIENT TYPE<select name="client_type"><option value="public" selected>Public — native or browser app</option><option value="confidential">Confidential — server backend</option></select></label>
-          <label>REDIRECT URIS<textarea name="redirect_uris" required rows="3" placeholder="https://app.example.com/oauth/callback&#10;myapp://oauth/callback"></textarea></label>
-          <fieldset><legend>ALLOWED SCOPES</legend>
-            <label><input type="checkbox" name="scopes" value="profile:self:read" checked> Read private profile</label>
-            <label><input type="checkbox" name="scopes" value="profile:self:write"> Update profile</label>
-            <label><input type="checkbox" name="scopes" value="talks:read" checked> Read talks</label>
-            <label><input type="checkbox" name="scopes" value="talks:write"> Update talks</label>
-            <label><input type="checkbox" name="scopes" value="schedule:write"> Manage schedules (live admin role also required)</label>
-            <label><input type="checkbox" name="scopes" value="recordings:write"> Manage recordings (live admin role also required)</label>
-            <label><input type="checkbox" name="scopes" value="offline_access" checked> Issue rotating refresh tokens</label>
+          <label class="oauth-client-form__callbacks">CALLBACK URLS <small>Enter one URL per line.</small><textarea name="redirect_uris" required rows="3" placeholder="https://app.example.com/oauth/callback&#10;myapp://oauth/callback"></textarea></label>
+          <fieldset class="credential-permissions"><legend>ALLOWED PERMISSIONS</legend>
+            <div class="credential-permissions__list">
+              <label><input type="checkbox" name="scopes" value="identity:self:read" checked><span><code>identity:self:read</code> Read account identity and current roles</span></label>
+              <label><input type="checkbox" name="scopes" value="profile:self:read" checked><span><code>profile:self:read</code> Read private profile</span></label>
+              <label><input type="checkbox" name="scopes" value="profile:self:write"><span><code>profile:self:write</code> Update profile</span></label>
+              <label><input type="checkbox" name="scopes" value="talks:read" checked><span><code>talks:read</code> Read talks</span></label>
+              <label><input type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks</span></label>
+              <label><input type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage schedules <small>Requires a current admin role.</small></span></label>
+              <label><input type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recordings <small>Requires a current admin role.</small></span></label>
+              <label><input type="checkbox" name="scopes" value="offline_access" checked><span><code>offline_access</code> Issue rotating refresh tokens</span></label>
+            </div>
           </fieldset>
           <button type="submit">Register OAuth application</button>
         </form>
@@ -237,19 +252,22 @@
           <div class="person-email-row is-pending"><div><strong>No API tokens</strong><small>Create one when you are ready to use the API.</small></div></div>
           {{ end }}
         </div>
-        <form method="POST" action="/dashboard/settings/api-tokens" class="person-email-add mt-3">
+        <form method="POST" action="/dashboard/settings/api-tokens" class="person-email-add api-token-form mt-3">
           <input type="hidden" name="csrf" value="{{ .AuthMethodsCSRF }}">
           <label>TOKEN NAME
             <input type="text" name="name" required maxlength="80" placeholder="My integration" autocomplete="off">
           </label>
-          <fieldset>
-            <legend>SCOPES</legend>
-            <label><input type="checkbox" name="scopes" value="profile:self:read" checked> Read your private profile</label>
-            <label><input type="checkbox" name="scopes" value="profile:self:write"> Update your profile</label>
-            <label><input type="checkbox" name="scopes" value="talks:read"> Read your talks</label>
-            <label><input type="checkbox" name="scopes" value="talks:write"> Update talks you can edit</label>
-            <label><input type="checkbox" name="scopes" value="schedule:write"> Manage conference schedules (admins only)</label>
-            <label><input type="checkbox" name="scopes" value="recordings:write"> Manage recording metadata (admins only)</label>
+          <fieldset class="credential-permissions">
+            <legend>ALLOWED PERMISSIONS</legend>
+            <div class="credential-permissions__list">
+              <label><input type="checkbox" name="scopes" value="identity:self:read"><span><code>identity:self:read</code> Read your account identity and current roles</span></label>
+              <label><input type="checkbox" name="scopes" value="profile:self:read" checked><span><code>profile:self:read</code> Read your private profile</span></label>
+              <label><input type="checkbox" name="scopes" value="profile:self:write"><span><code>profile:self:write</code> Update your profile</span></label>
+              <label><input type="checkbox" name="scopes" value="talks:read"><span><code>talks:read</code> Read your talks</span></label>
+              <label><input type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks you can edit</span></label>
+              <label><input type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage conference schedules <small>Requires a current admin role.</small></span></label>
+              <label><input type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recording metadata <small>Requires a current admin role.</small></span></label>
+            </div>
           </fieldset>
           <label>EXPIRES
             <select name="expires_in">
