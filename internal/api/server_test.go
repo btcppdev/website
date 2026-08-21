@@ -156,6 +156,37 @@ func TestMeReturnsPrivateProfileWithoutCredentialSecrets(t *testing.T) {
 	}
 }
 
+func TestIdentityReturnsOnlyMinimalAccountAndCurrentRoles(t *testing.T) {
+	person := &types.Speaker{
+		ID: "person-1", Name: "Mara", Email: "private@example.test", Phone: "private-phone",
+		Bio: "private biography", Roles: []string{"dev26-admin", "global-admin"},
+	}
+	router := protectedTestRouter(&types.PersonAPIToken{
+		PersonID: person.ID, Scopes: []string{"identity:self:read"},
+	}, person, []*types.PersonEmail{{Email: "also-private@example.test"}})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/me/identity", nil)
+	request.Header.Set("Authorization", "Bearer test-secret")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, expected := range []string{`"id":"person-1"`, `"name":"Mara"`, `"global-admin"`, `"dev26-admin"`} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("identity response omitted %s: %s", expected, body)
+		}
+	}
+	for _, private := range []string{"private@example.test", "also-private@example.test", "private-phone", "private biography"} {
+		if strings.Contains(body, private) {
+			t.Fatalf("identity response leaked %q: %s", private, body)
+		}
+	}
+	if response.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("Cache-Control = %q", response.Header().Get("Cache-Control"))
+	}
+}
+
 func TestMutationURLAndRecordingKeyValidation(t *testing.T) {
 	goodURL := "https://example.test/path"
 	badURL := "javascript:alert(1)"
@@ -521,6 +552,7 @@ func TestOpenAPIContractListsEveryV1RouteAndNoTranscriptSurface(t *testing.T) {
 		"/hackathons/{competition_id}/projects/{project_id}",
 		"/hackathons/{competition_id}/awards",
 		"/hackathons/{competition_id}/results",
+		"/me/identity",
 		"/me",
 		"/me/talks",
 	} {

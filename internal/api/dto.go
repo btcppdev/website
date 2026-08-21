@@ -173,6 +173,12 @@ type accountEmailDTO struct {
 	VerifiedAt string `json:"verified_at"`
 }
 
+type accountIdentityDTO struct {
+	ID    string   `json:"id"`
+	Name  string   `json:"name"`
+	Roles []string `json:"roles"`
+}
+
 type accountProfileDTO struct {
 	ID        string            `json:"id"`
 	Name      string            `json:"name"`
