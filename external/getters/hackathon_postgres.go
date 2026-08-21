@@ -2816,27 +2816,60 @@ func upsertScorecardPostgres(ctx *config.AppContext, in ScorecardInput) (*types.
 }
 
 func replaceScorecardRankingsPostgres(ctx *config.AppContext, in ScorecardRankingsInput) error {
+	_, err := writeScorecardRankingsPostgres(ctx, in, false)
+	return err
+}
+
+func submitScorecardRankingsPostgres(ctx *config.AppContext, in ScorecardRankingsInput) (bool, error) {
+	return writeScorecardRankingsPostgres(ctx, in, true)
+}
+
+func writeScorecardRankingsPostgres(ctx *config.AppContext, in ScorecardRankingsInput, trackSubmission bool) (bool, error) {
 	if ctx == nil || ctx.DB == nil {
-		return fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+		return false, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
 	}
 	in = normalizeScorecardRankingsInput(in)
 	if in.JudgeEventID == "" {
-		return fmt.Errorf("scorecard judge event id is required")
+		return false, fmt.Errorf("scorecard judge event id is required")
 	}
 	if in.JudgePersonID == "" {
-		return fmt.Errorf("scorecard judge person id is required")
+		return false, fmt.Errorf("scorecard judge person id is required")
+	}
+	if trackSubmission && len(in.Rankings) == 0 {
+		return false, fmt.Errorf("at least one ranked project is required")
 	}
 	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
-		return fmt.Errorf("begin scorecard rankings transaction: %w", err)
+		return false, fmt.Errorf("begin scorecard rankings transaction: %w", err)
 	}
 	defer tx.Rollback(ctx.DatabaseContext())
+	firstSubmission := false
+	if trackSubmission {
+		commandTag, err := tx.Exec(ctx.DatabaseContext(), `
+			INSERT INTO judge_ballot_submissions (judge_event_id, judge_person_id)
+			VALUES ($1, $2)
+			ON CONFLICT (judge_event_id, judge_person_id) DO NOTHING
+		`, in.JudgeEventID, in.JudgePersonID)
+		if err != nil {
+			return false, fmt.Errorf("record first ballot submission: %w", err)
+		}
+		firstSubmission = commandTag.RowsAffected() == 1
+		if !firstSubmission {
+			if _, err := tx.Exec(ctx.DatabaseContext(), `
+				UPDATE judge_ballot_submissions
+				SET last_submitted_at = now()
+				WHERE judge_event_id = $1 AND judge_person_id = $2
+			`, in.JudgeEventID, in.JudgePersonID); err != nil {
+				return false, fmt.Errorf("update ballot submission: %w", err)
+			}
+		}
+	}
 
 	if _, err := tx.Exec(ctx.DatabaseContext(), `
 		DELETE FROM scorecards
 		WHERE judge_event_id::text = $1 AND judge_person_id::text = $2
 	`, in.JudgeEventID, in.JudgePersonID); err != nil {
-		return fmt.Errorf("clear scorecard rankings: %w", err)
+		return false, fmt.Errorf("clear scorecard rankings: %w", err)
 	}
 	for _, ranking := range in.Rankings {
 		if strings.TrimSpace(ranking.ProjectID) == "" || ranking.Rank <= 0 {
@@ -2853,16 +2886,16 @@ func replaceScorecardRankingsPostgres(ctx *config.AppContext, in ScorecardRankin
 			WHERE judge_events.id::text = $1
 		`, in.JudgeEventID, ranking.ProjectID, in.JudgePersonID, ranking.Rank)
 		if err != nil {
-			return fmt.Errorf("insert scorecard ranking for project %s: %w", ranking.ProjectID, err)
+			return false, fmt.Errorf("insert scorecard ranking for project %s: %w", ranking.ProjectID, err)
 		}
 		if commandTag.RowsAffected() == 0 {
-			return fmt.Errorf("scorecard project and judge event must belong to the same competition")
+			return false, fmt.Errorf("scorecard project and judge event must belong to the same competition")
 		}
 	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
-		return fmt.Errorf("commit scorecard rankings: %w", err)
+		return false, fmt.Errorf("commit scorecard rankings: %w", err)
 	}
-	return nil
+	return firstSubmission, nil
 }
 
 func deleteScorecardRankingsPostgres(ctx *config.AppContext, competitionID, judgeEventID, judgePersonID string) error {

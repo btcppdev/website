@@ -2,28 +2,12 @@
 <html lang="en">
 <head>
   <title>Schedule - {{ .Competition.Title }} - bitcoin++ hackathon</title>
-  {{ block "header" . }} {{ end }}
+  {{ template "hackathon_header" . }}
 </head>
 <body class="hack-redesign">
-  {{ block "mainnav" . }} {{ end }}
+  {{ template "generic_conf_ticker" (dict "Conf" .Conf "Label" "Hackathon schedule") }}
+  {{ template "generic_conf_nav" .Conf }}
   <main class="hack-shell">
-    <div class="hack-ticker" aria-label="Hackathon schedule">
-      <span class="hack-ticker__live">▶ Schedule</span>
-      <span>{{ .Competition.Title }}</span>
-      <span>•</span>
-      <span>{{ if .Conf.Timezone }}{{ .Conf.Timezone }}{{ else }}conference time{{ end }}</span>
-    </div>
-
-    <header class="hack-header">
-      <div>
-        <a href="/" class="hack-brand">bitcoin<span>++</span></a>
-        <div class="hack-header__meta">[ {{ .Competition.Title }} · Schedule ]</div>
-      </div>
-      <nav class="hack-header__nav" aria-label="Schedule links">
-        <a href="{{ .HackathonURL }}">← hackathon</a>
-      </nav>
-    </header>
-
     <section class="hack-section">
       <div class="hack-section__head">
         <div>

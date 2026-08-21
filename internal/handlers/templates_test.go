@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -31,10 +33,32 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
-	for _, name := range []string{"developers_api.tmpl", "dashboard_hackathons.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
+<<<<<<< HEAD
+	for _, name := range []string{"developers_api.tmpl", "dashboard_hackathons.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_ballot_submitted.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
+=======
+	for _, name := range []string{"developers_api.tmpl", "dashboard_hackathons.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_ballot_submitted.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "section/hackathon_judging_results.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
+>>>>>>> cf1c2566 (Stream live aggregate judging results)
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
 		}
+	}
+	liveTemplates, err := ctx.TemplateCache.Clone()
+	if err != nil {
+		t.Fatalf("clone templates for live judging results: %v", err)
+	}
+	var liveResults bytes.Buffer
+	if err := liveTemplates.ExecuteTemplate(&liveResults, "hackathon_judging_results_live", &HackathonPage{
+		Competition: &types.HackathonCompetition{ID: "competition-id"},
+		Conf:        &types.Conf{Tag: "toronto"},
+		JudgingResults: &HackathonJudgingResults{
+			Event:     &types.JudgeEvent{ID: "expo", Name: "Project expo", PlaybookType: getters.JudgeTypeExpo},
+			Summaries: []*HackathonScoreSummary{{ProjectID: "project-id", ProjectTitle: "Project", PointsLabel: "4", RankAverage: "1.0"}},
+		},
+	}); err != nil {
+		t.Fatalf("render live judging results: %v", err)
+	}
+	if !strings.Contains(liveResults.String(), "Live results") || !strings.Contains(liveResults.String(), "Project standings") {
+		t.Fatalf("live judging results missing expected content: %s", liveResults.String())
 	}
 	inlineTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {
@@ -639,10 +663,22 @@ func TestJudgingResultEvents(t *testing.T) {
 		events,
 		types.HackathonViewer{PersonID: "judge"},
 		map[string]bool{getters.JudgeTypeExpo: true},
+		nil,
 		now,
 	)
 	if len(judgeEvents) != 1 || judgeEvents[0].ID != "closed-expo" {
 		t.Fatalf("judge result events = %+v, want only closed expo event", judgeEvents)
+	}
+	submittedJudgeEvents := judgingResultEvents(
+		competition,
+		events,
+		types.HackathonViewer{PersonID: "judge"},
+		map[string]bool{getters.JudgeTypeExpo: true},
+		map[string]bool{"open-expo": true},
+		now,
+	)
+	if len(submittedJudgeEvents) != 2 || submittedJudgeEvents[0].ID != "open-expo" || submittedJudgeEvents[1].ID != "closed-expo" {
+		t.Fatalf("submitted judge result events = %+v, want open and closed expo events", submittedJudgeEvents)
 	}
 
 	managerEvents := judgingResultEvents(
@@ -650,10 +686,11 @@ func TestJudgingResultEvents(t *testing.T) {
 		events,
 		types.HackathonViewer{Manager: true},
 		nil,
+		nil,
 		now,
 	)
-	if len(managerEvents) != 2 || managerEvents[1].ID != "closed-finals" {
-		t.Fatalf("manager result events = %+v, want every closed event", managerEvents)
+	if len(managerEvents) != 3 || managerEvents[0].ID != "open-expo" || managerEvents[2].ID != "closed-finals" {
+		t.Fatalf("manager result events = %+v, want the open and every closed event", managerEvents)
 	}
 
 	if selected := selectedJudgingResultEvent(competition, judgeEvents, "closed-expo", now); selected == nil || selected.ID != "closed-expo" {
@@ -661,6 +698,34 @@ func TestJudgingResultEvents(t *testing.T) {
 	}
 	if selected := selectedJudgingResultEvent(competition, judgeEvents, "", now); selected == nil || selected.ID != "closed-expo" {
 		t.Fatalf("default result event = %+v, want closed-expo", selected)
+	}
+}
+
+func TestHackathonPageHasSubmittedBallot(t *testing.T) {
+	rank := 1
+	page := &HackathonPage{Scorecards: []*types.Scorecard{
+		{JudgeEventID: "expo", ProjectID: "one"},
+		{JudgeEventID: "finals", ProjectID: "two", Rank: &rank},
+	}}
+	if page.HasSubmittedBallot(&types.JudgeEvent{ID: "expo"}) {
+		t.Fatal("unranked scorecard should not count as a submitted ballot")
+	}
+	if !page.HasSubmittedBallot(&types.JudgeEvent{ID: "finals"}) {
+		t.Fatal("ranked scorecard should count as a submitted ballot")
+	}
+	if page.HasSubmittedBallot(nil) {
+		t.Fatal("nil event should not count as a submitted ballot")
+	}
+}
+
+func TestHackathonScorecardSubmitWantsJSON(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/toronto/hackathon/judging/scorecards", nil)
+	if hackathonScorecardSubmitWantsJSON(r) {
+		t.Fatal("plain form request should not request JSON")
+	}
+	r.Header.Set("X-Requested-With", "fetch")
+	if !hackathonScorecardSubmitWantsJSON(r) {
+		t.Fatal("fetch request should request JSON")
 	}
 }
 

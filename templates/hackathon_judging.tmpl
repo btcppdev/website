@@ -2,30 +2,13 @@
 <html lang="en">
 <head>
   <title>Judging - {{ .Competition.Title }} - bitcoin++ hackathon</title>
-  {{ block "header" . }} {{ end }}
-  <script src="/static/js/hackathon-deliberation.js" defer></script>
+  {{ template "hackathon_header" . }}
+  <script src="/static/js/hackathon-live-results.js" defer></script>
 </head>
 <body class="hack-redesign">
-  {{ block "mainnav" . }} {{ end }}
+  {{ template "generic_conf_ticker" (dict "Conf" .Conf "Label" "Hackathon judging") }}
+  {{ template "generic_conf_nav" .Conf }}
   <main class="hack-shell">
-    <div class="hack-ticker" aria-label="Hackathon judging">
-      <span class="hack-ticker__live">▶ Judging</span>
-      <span>{{ .Competition.Title }}</span>
-      <span>•</span>
-      <span>Judging</span>
-    </div>
-
-    <header class="hack-header">
-      <div>
-        <a href="/" class="hack-brand">bitcoin<span>++</span></a>
-        <div class="hack-header__meta">[ {{ .Competition.Title }} · Judging ]</div>
-      </div>
-      <nav class="hack-header__nav" aria-label="Judging links">
-        <a href="{{ .HackathonURL }}">← hackathon</a>
-        <a href="{{ .ScheduleURL }}">schedule/</a>
-      </nav>
-    </header>
-
     <section class="hack-section">
       <div class="hack-section__head">
         <div>
@@ -43,12 +26,12 @@
     <div class="hack-alert hack-alert--error">{{ .FlashError }}</div>
     {{ end }}
 
+    {{ if .CanViewJudgingResults }}
     <nav class="hack-tabs hack-judging-view-tabs" aria-label="Judging views">
       <a href="{{ .JudgingURL }}" class="hack-tab" aria-selected="{{ if not .JudgingResultsSelected }}true{{ else }}false{{ end }}">Ballot</a>
-      {{ if .CanViewJudgingResults }}
       <a href="{{ .JudgingResultsURL nil }}" class="hack-tab" aria-selected="{{ if .JudgingResultsSelected }}true{{ else }}false{{ end }}">Results</a>
-      {{ end }}
     </nav>
+    {{ end }}
 
     {{ if .JudgingResultsSelected }}
     {{ $results := .JudgingResults }}
@@ -58,7 +41,7 @@
           <div class="hack-label">§ Deliberation results</div>
           <h2>Review the <span class="hack-serif">rankings.</span></h2>
         </div>
-        <div class="hack-section__deck">Read-only scoring results for closed rounds you were assigned to judge. Project order updates while the judges discuss which projects advance.</div>
+        <div class="hack-section__deck">Read-only aggregate results for rounds you submitted or completed. Standings update live as judges submit their choices.</div>
       </div>
 
       {{ if .JudgingResultEvents }}
@@ -74,66 +57,15 @@
       {{ end }}
 
       {{ if not $results.Event }}
-      <div class="hack-empty">Results become available after one of your assigned judging rounds closes.</div>
+      <div class="hack-empty">Results become available after you submit a ballot or one of your assigned judging rounds closes.</div>
       {{ else }}
-      <div class="hack-results-toolbar">
-        <div>
-          <div class="hack-label">{{ .JudgeTypeLabel $results.Event.PlaybookType }}</div>
-          <h3>{{ $results.Event.Name }}</h3>
-        </div>
-        <a href="{{ .JudgingResultsURL $results.Event }}" class="hack-button hack-button--light">Refresh results</a>
+      <div data-live-judging-results data-live-results-url="{{ .JudgingLiveResultsURL $results.Event }}">
+        {{ template "hackathon_judging_results_live" . }}
       </div>
-      <div class="hack-results-stats">
-        <div><span>Judges invited</span><strong>{{ $results.InvitedJudgeCount }}</strong></div>
-        <div><span>Ballots submitted</span><strong>{{ $results.SubmittedBallotCount }}</strong></div>
-        <div><span>Projects ranked</span><strong>{{ $results.RankedProjectCount }}</strong></div>
-        <div><span>Last ballot</span><strong>{{ $results.LastSubmittedAtLabel }}</strong></div>
-      </div>
-
-      <div class="hack-results-block" data-deliberation-view data-deliberation-url="{{ .JudgingDeliberationURL $results.Event }}" data-revision="{{ $results.Revision }}" data-advance-count="{{ $results.AdvanceCount }}" data-has-next="{{ $results.HasNextJudgeEvent }}" data-column-count="5">
-        <div class="hack-results-block__head">
-          <div>
-            <div class="hack-label">Aggregate ranking</div>
-            <h3>Project standings</h3>
-          </div>
-          <span>{{ len $results.Summaries }} projects</span>
-        </div>
-        {{ if $results.Summaries }}
-        <div class="hack-table-wrap">
-          <table class="hack-table">
-            <thead>
-              <tr>
-                <th scope="col">Project</th>
-                <th scope="col">#</th>
-                <th scope="col">Ranked by</th>
-                <th scope="col">Points</th>
-                <th scope="col">Avg rank</th>
-              </tr>
-            </thead>
-            <tbody data-deliberation-list>
-              {{ range $results.Summaries }}
-              {{ if .CutoffBefore }}
-              <tr class="hack-deliberation-cutoff" data-deliberation-cutoff><td colspan="5"><span>Eliminated below</span></td></tr>
-              {{ end }}
-              <tr data-deliberation-project="{{ .ProjectID }}" data-scored="{{ if gt .ScoredScorecards 0 }}true{{ else }}false{{ end }}">
-                <td><a href="{{ $.ProjectURLByID .ProjectID }}" class="hack-judging-project-link">{{ .ProjectTitle }}</a></td>
-                <td>{{ .ProjectNumber }}</td>
-                <td>{{ .ScoredScorecards }} judge{{ if ne .ScoredScorecards 1 }}s{{ end }}</td>
-                <td><strong>{{ .PointsLabel }}</strong></td>
-                <td>{{ .RankAverage }}</td>
-              </tr>
-              {{ end }}
-            </tbody>
-          </table>
-        </div>
-        {{ else }}
-        <div class="hack-empty">No projects are available in this round.</div>
-        {{ end }}
-      </div>
-
       {{ end }}
     </section>
     {{ else }}
+    {{ if .CanViewRegularJudging }}
     {{ $event := .CurrentJudgeEvent }}
     <section class="hack-section hack-judging-round">
       {{ if $event }}
@@ -143,7 +75,7 @@
           <div>
             <div class="hack-label">{{ .JudgeTypeLabel $event.PlaybookType }}</div>
             <h2>{{ $event.Name }}</h2>
-            <p class="hack-current-round__summary">{{ if .CanScoreJudgeEvent $event }}This is the active ballot. Rank each project once; changes save automatically.{{ else }}This round is selected, but it is not currently accepting scores for your account.{{ end }}</p>
+            <p class="hack-current-round__summary">{{ if .CanScoreJudgeEvent $event }}This is the active ballot. Rank the projects, then submit your choices when you are ready.{{ else }}This round is selected, but it is not currently accepting scores for your account.{{ end }}</p>
           </div>
           <div class="hack-current-round__meta">
             <span>{{ .RankLimit $event }} ranks</span>
@@ -163,20 +95,15 @@
       </div>
 
       {{ if .Projects }}
-      <form id="event-{{ $event.ID }}" method="POST" action="{{ .JudgingURL }}/scorecards" class="hack-form hack-judging-ballot">
+      <form id="event-{{ $event.ID }}" method="POST" action="{{ .JudgingURL }}/scorecards" class="hack-form hack-judging-ballot" data-judge-ballot data-ballot-submitted="{{ if .HasSubmittedBallot $event }}true{{ else }}false{{ end }}">
         {{ if .CanScoreJudgeEvent $event }}
         <input type="hidden" name="JudgeEventID" value="{{ $event.ID }}">
         <div class="hack-form__body">
-          <div class="hack-card__top">
-            <div>
-              <div class="hack-label" style="margin-bottom:8px;">Ballot</div>
-              <h3 style="margin:0;font-size:32px;font-weight:700;">Current ranking</h3>
-            </div>
-            <div class="hack-judging-save">
-              <span data-autosave-status></span>
-            </div>
+          <div>
+            <div class="hack-label" style="margin-bottom:8px;">Ballot</div>
+            <h3 style="margin:0;font-size:32px;font-weight:700;">Current ranking</h3>
           </div>
-          <p class="hack-judging-ballot__note">Choose each rank once. Changes save automatically.</p>
+          <p class="hack-judging-ballot__note">Choose each rank once. Your choices are not recorded until you submit them.</p>
         </div>
         <div class="hack-table-wrap">
           <table class="hack-table">
@@ -216,6 +143,13 @@
             </tbody>
           </table>
         </div>
+        <div class="hack-ballot-submit" data-ballot-submit-wrap>
+          <p class="hack-ballot-submit__error" data-ballot-submit-error role="alert" hidden></p>
+          <button type="submit" class="hack-button hack-button--accent hack-ballot-submit__button" data-ballot-submit>
+            <span data-ballot-submit-label>Submit choices</span>
+            <small data-ballot-submit-count>0 selected</small>
+          </button>
+        </div>
         {{ else }}
         <div class="hack-empty">This round is not open for your account.</div>
         {{ end }}
@@ -238,6 +172,7 @@
       </div>
       {{ end }}
     </section>
+    {{ end }}
 
     {{ if .SponsorAwardsForJudge }}
     <section class="hack-section">
@@ -330,9 +265,9 @@
       <div class="hack-section__head">
         <div>
           <div class="hack-label">§ Projects</div>
-          <h2>Visible <span class="hack-serif">submissions.</span></h2>
+          <h2>Eligible <span class="hack-serif">submissions.</span></h2>
         </div>
-        <div class="hack-section__deck">{{ len .Projects }} visible project{{ if ne (len .Projects) 1 }}s{{ end }}.</div>
+        <div class="hack-section__deck">{{ len .Projects }} eligible project{{ if ne (len .Projects) 1 }}s{{ end }}.</div>
       </div>
       {{ if .Projects }}
       <div class="hack-card-grid">
@@ -411,69 +346,124 @@
         });
       }
 
-      function setSaveStatus(form, text, state) {
-        const status = form.querySelector('[data-autosave-status]');
-        if (!status) return;
-        status.textContent = text;
-        status.dataset.state = state || '';
+      function ballotSignature(form) {
+        return Array.prototype.map.call(form.querySelectorAll('fieldset[aria-label^="Rank "]'), function (picker) {
+          const checked = picker.querySelector('input[type="radio"]:checked');
+          return checked ? checked.value : '';
+        }).join('|');
       }
 
-      async function saveBallot(form) {
-        if (form.dataset.saving === 'true') {
-          form.dataset.needsSave = 'true';
-          return;
-        }
-        form.dataset.saving = 'true';
-        form.dataset.needsSave = '';
-        setSaveStatus(form, 'Saving...', 'saving');
-        try {
-          const body = new URLSearchParams(new FormData(form));
-          const response = await fetch(form.action, {
-            method: 'POST',
-            body: body,
-            credentials: 'same-origin'
-          });
-          if (!response.ok) throw new Error('save failed');
-          setSaveStatus(form, 'Saved', 'saved');
-        } catch (_) {
-          setSaveStatus(form, 'Save failed', 'error');
-          console.warn('Failed to save hackathon rankings');
-        } finally {
-          form.dataset.saving = '';
-          if (form.dataset.needsSave === 'true') {
-            saveBallot(form);
-          }
+      function selectedRankCount(form) {
+        return form.querySelectorAll('fieldset[aria-label^="Rank "] input[type="radio"]:checked:not([value=""])').length;
+      }
+
+      function setBallotError(form, message) {
+        const error = form.querySelector('[data-ballot-submit-error]');
+        if (!error) return;
+        error.textContent = message || '';
+        error.hidden = !message;
+      }
+
+      function updateBallotSubmit(form) {
+        const button = form.querySelector('[data-ballot-submit]');
+        const label = form.querySelector('[data-ballot-submit-label]');
+        const countLabel = form.querySelector('[data-ballot-submit-count]');
+        if (!button || !label || !countLabel) return;
+
+        const count = selectedRankCount(form);
+        const dirty = ballotSignature(form) !== form.dataset.initialSignature;
+        form.dataset.dirty = dirty ? 'true' : 'false';
+        countLabel.textContent = count + ' project' + (count === 1 ? '' : 's') + ' selected';
+
+        if (form.dataset.submitting === 'true') {
+          button.disabled = true;
+          label.textContent = 'Submitting...';
+        } else if (count === 0) {
+          button.disabled = true;
+          label.textContent = 'Choose at least one project';
+        } else if (form.dataset.ballotSubmitted === 'true' && !dirty) {
+          button.disabled = true;
+          label.textContent = 'Choices submitted';
+        } else {
+          button.disabled = false;
+          label.textContent = form.dataset.ballotSubmitted === 'true' ? 'Update choices' : 'Submit choices';
         }
       }
 
-      document.addEventListener('change', function (event) {
-        const selected = event.target;
-        if (!selected.matches('fieldset[aria-label^="Rank "] input[type="radio"]') || !selected.checked) return;
+      for (const form of document.querySelectorAll('[data-judge-ballot]')) {
+        form.dataset.initialSignature = ballotSignature(form);
+        updateBallotSubmit(form);
 
-        const form = selected.closest('form');
-        const selectedPicker = selected.closest('fieldset[aria-label^="Rank "]');
-        if (!form || !selectedPicker) return;
+        form.addEventListener('change', function (event) {
+          const selected = event.target;
+          if (!selected.matches('fieldset[aria-label^="Rank "] input[type="radio"]') || !selected.checked) return;
 
-        const previousRank = selectedPicker.dataset.currentRank || '';
-        selectedPicker.dataset.currentRank = selected.value;
-        if (selected.value === '') return;
+          const selectedPicker = selected.closest('fieldset[aria-label^="Rank "]');
+          if (!selectedPicker) return;
+          const previousRank = selectedPicker.dataset.currentRank || '';
+          selectedPicker.dataset.currentRank = selected.value;
 
-        const choices = Array.prototype.slice.call(form.querySelectorAll('fieldset[aria-label^="Rank "] input[type="radio"]'));
-        for (const choice of choices) {
-          if (choice === selected || choice.value !== selected.value || !choice.checked) continue;
-          choice.checked = false;
+          if (selected.value !== '') {
+            const choices = Array.prototype.slice.call(form.querySelectorAll('fieldset[aria-label^="Rank "] input[type="radio"]'));
+            for (const choice of choices) {
+              if (choice === selected || choice.value !== selected.value || !choice.checked) continue;
+              choice.checked = false;
 
-          const picker = choice.closest('fieldset[aria-label^="Rank "]');
-          if (!picker) continue;
-          const replacement = Array.prototype.find.call(picker.querySelectorAll('input[type="radio"]'), function (input) {
-            return input.value === previousRank;
-          });
-          if (replacement) {
-            replacement.checked = true;
-            picker.dataset.currentRank = replacement.value;
+              const picker = choice.closest('fieldset[aria-label^="Rank "]');
+              if (!picker) continue;
+              const replacement = Array.prototype.find.call(picker.querySelectorAll('input[type="radio"]'), function (input) {
+                return input.value === previousRank;
+              });
+              if (replacement) {
+                replacement.checked = true;
+                picker.dataset.currentRank = replacement.value;
+              }
+            }
           }
-        }
-        saveBallot(form);
+          setBallotError(form, '');
+          updateBallotSubmit(form);
+        });
+
+        form.addEventListener('submit', async function (event) {
+          if (form.dataset.submitting === 'true') {
+            event.preventDefault();
+            return;
+          }
+          if (!window.fetch || !window.URLSearchParams) return;
+          event.preventDefault();
+          form.dataset.submitting = 'true';
+          setBallotError(form, '');
+          updateBallotSubmit(form);
+
+          try {
+            const response = await fetch(form.action, {
+              method: 'POST',
+              body: new URLSearchParams(new FormData(form)),
+              credentials: 'same-origin',
+              headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'fetch'
+              }
+            });
+            const payload = await response.json().catch(function () { return {}; });
+            if (!response.ok || !payload.redirect) {
+              throw new Error(payload.error || 'Unable to submit your choices. Please try again.');
+            }
+            form.dataset.dirty = 'false';
+            window.location.assign(payload.redirect);
+          } catch (error) {
+            form.dataset.submitting = '';
+            setBallotError(form, error.message || 'Unable to submit your choices. Please try again.');
+            updateBallotSubmit(form);
+          }
+        });
+      }
+
+      window.addEventListener('beforeunload', function (event) {
+        const dirtyBallot = document.querySelector('[data-judge-ballot][data-dirty="true"]');
+        if (!dirtyBallot || dirtyBallot.dataset.submitting === 'true') return;
+        event.preventDefault();
+        event.returnValue = '';
       });
     })();
   </script>

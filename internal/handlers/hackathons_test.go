@@ -95,6 +95,29 @@ func TestCompetitionJudgeHasType(t *testing.T) {
 	}
 }
 
+func TestHackathonPageCanViewRegularJudging(t *testing.T) {
+	tests := []struct {
+		name      string
+		judgeType string
+		want      bool
+	}{
+		{name: "sponsor-only judge"},
+		{name: "expo judge", judgeType: getters.JudgeTypeExpo, want: true},
+		{name: "finals judge", judgeType: getters.JudgeTypeFinals, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			page := &HackathonPage{Competition: &types.HackathonCompetition{}, JudgeTypes: map[string]bool{}}
+			if tt.judgeType != "" {
+				page.JudgeTypes[tt.judgeType] = true
+			}
+			if got := page.CanViewRegularJudging(); got != tt.want {
+				t.Fatalf("CanViewRegularJudging() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestHackathonPrimaryProjectActionOpenSubmissions(t *testing.T) {
 	page := &HackathonPage{
 		Competition: &types.HackathonCompetition{
@@ -414,6 +437,40 @@ func TestScoreAdvanceOnlyAppearsBeforeAnotherJudgingRound(t *testing.T) {
 	page.ScoreJudgeEventID = "finals"
 	if page.ScoreHasNextJudgeEvent() || page.ScoreNextJudgeEvent() != nil {
 		t.Fatalf("finals unexpectedly has a next judging event: %+v", page.ScoreNextJudgeEvent())
+	}
+}
+
+func TestSelectedScoreJudgeEventStaysAtEndAfterJudging(t *testing.T) {
+	now := time.Now()
+	firstStart := now.Add(-4 * time.Hour)
+	firstEnd := now.Add(-3 * time.Hour)
+	lastStart := now.Add(-2 * time.Hour)
+	lastEnd := now.Add(-time.Hour)
+	competition := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeAutomatic}
+	events := []*types.JudgeEvent{
+		{ID: "expo", StartsAt: &firstStart, EndsAt: &firstEnd},
+		{ID: "finals", StartsAt: &lastStart, EndsAt: &lastEnd},
+	}
+
+	if got := selectedScoreJudgeEventID(competition, events, ""); got != "finals" {
+		t.Fatalf("selectedScoreJudgeEventID() = %q, want final closed event", got)
+	}
+}
+
+func TestSelectedScoreJudgeEventStartsAtFirstUpcomingEvent(t *testing.T) {
+	now := time.Now()
+	firstStart := now.Add(time.Hour)
+	firstEnd := now.Add(2 * time.Hour)
+	lastStart := now.Add(3 * time.Hour)
+	lastEnd := now.Add(4 * time.Hour)
+	competition := &types.HackathonCompetition{JudgingMode: getters.CompetitionJudgingModeAutomatic}
+	events := []*types.JudgeEvent{
+		{ID: "expo", StartsAt: &firstStart, EndsAt: &firstEnd},
+		{ID: "finals", StartsAt: &lastStart, EndsAt: &lastEnd},
+	}
+
+	if got := selectedScoreJudgeEventID(competition, events, ""); got != "expo" {
+		t.Fatalf("selectedScoreJudgeEventID() = %q, want first upcoming event", got)
 	}
 }
 

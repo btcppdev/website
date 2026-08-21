@@ -4481,8 +4481,18 @@ func selectedScoreJudgeEventID(competition *types.HackathonCompetition, events [
 			}
 		}
 	}
-	if current := currentJudgeEvents(competition, events, time.Now()); len(current) > 0 && current[0] != nil {
+	now := time.Now()
+	if current := currentJudgeEvents(competition, events, now); len(current) > 0 && current[0] != nil {
 		return current[0].ID
+	}
+	lastClosedID := ""
+	for _, event := range events {
+		if event != nil && judgeEventEffectiveState(competition, event, now) == getters.JudgeEventStateClosed {
+			lastClosedID = event.ID
+		}
+	}
+	if lastClosedID != "" {
+		return lastClosedID
 	}
 	for _, event := range events {
 		if event != nil {

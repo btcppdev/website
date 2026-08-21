@@ -107,11 +107,13 @@
       return count;
     }
 
-    function setStatus(message, isError) {
+    function setStatus(message, tone) {
       if (!status) return;
       status.textContent = message;
-      status.classList.toggle("text-red-700", Boolean(isError));
-      status.classList.toggle("text-gray-500", !isError);
+      status.classList.toggle("font-medium", tone === "saved");
+      status.classList.toggle("text-green-700", tone === "saved");
+      status.classList.toggle("text-red-700", tone === "error");
+      status.classList.toggle("text-gray-500", tone !== "saved" && tone !== "error");
     }
 
     function setAdvanceDisabled(disabled) {
@@ -153,7 +155,7 @@
       if (blocked) return false;
       window.clearTimeout(saveTimer);
       syncForm();
-      setStatus("Saving deliberation order...", false);
+      setStatus("Saving deliberation order...", "saving");
       setAdvanceDisabled(true);
 
       var body = new URLSearchParams();
@@ -183,13 +185,13 @@
         revision = Number(payload.revision || revision);
         root.dataset.revision = String(revision);
         syncForm();
-        setStatus("Deliberation order saved", false);
+        setStatus("Deliberation order saved", "saved");
         setAdvanceDisabled(false);
         return true;
       } catch (error) {
         blocked = Boolean(error && error.conflict);
         var message = (error && error.message) || "Unable to save deliberation order";
-        setStatus(message, true);
+        setStatus(message, "error");
         setAdvanceDisabled(blocked);
         if (blocked) blockEditingForConflict(message);
         return false;
@@ -295,39 +297,5 @@
     syncForm();
   }
 
-  function initViewer(root) {
-    var list = root.querySelector("[data-deliberation-list]");
-    if (!list || !root.dataset.deliberationUrl) return;
-    var revision = Number(root.dataset.revision || 0);
-    var advanceCount = Number(root.dataset.advanceCount || 0);
-
-    async function refresh() {
-      if (document.hidden) return;
-      try {
-        var response = await fetch(root.dataset.deliberationUrl, {
-          credentials: "same-origin",
-          cache: "no-store",
-          headers: { "X-Requested-With": "fetch" }
-        });
-        if (!response.ok) return;
-        var payload = await response.json();
-        var nextRevision = Number(payload.revision || 0);
-        var nextCount = Number(payload.advance_count || 0);
-        if (nextRevision === revision && nextCount === advanceCount) return;
-        revision = nextRevision;
-        advanceCount = nextCount;
-        root.dataset.revision = String(revision);
-        root.dataset.advanceCount = String(advanceCount);
-        root.dataset.hasNext = payload.has_next_round ? "true" : "false";
-        applyProjectOrder(root, list, payload.project_order || [], advanceCount);
-      } catch (_) {
-        // The visible results remain usable during a transient refresh failure.
-      }
-    }
-
-    window.setInterval(refresh, 2000);
-  }
-
   document.querySelectorAll("[data-deliberation-admin]").forEach(initAdmin);
-  document.querySelectorAll("[data-deliberation-view]").forEach(initViewer);
 })();
