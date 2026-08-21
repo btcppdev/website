@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"text/template"
 	"time"
@@ -99,10 +100,8 @@ func emailRenderHook(w io.Writer, node ast.Node, entering bool) (ast.WalkStatus,
 	if anchor, ok := node.(*ast.Link); ok && entering {
 		var styleAttr string
 		dest := string(anchor.Destination)
-		if strings.HasPrefix(dest, "button#") {
-			trimmed := strings.TrimPrefix(dest, "button#")
-			anchor.Destination = []byte(trimmed)
-
+		if href, button := emailButtonDestination(dest); button {
+			anchor.Destination = []byte(href)
 			styleAttr = `style="
 				color: #3f3f3f;
 				background-color: #fff;
@@ -143,6 +142,25 @@ func emailRenderHook(w io.Writer, node ast.Node, entering bool) (ast.WalkStatus,
 	}
 
 	return ast.GoToNext, false
+}
+
+// emailButtonDestination keeps support for the legacy button# Markdown
+// marker while allowing login emails to use their real URL in both MIME
+// parts. A one-time login URL is promoted to a button only when it is an
+// absolute HTTP(S) /auth URL carrying a token.
+func emailButtonDestination(destination string) (string, bool) {
+	if strings.HasPrefix(destination, "button#") {
+		return strings.TrimPrefix(destination, "button#"), true
+	}
+
+	parsed, err := url.Parse(destination)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return destination, false
+	}
+	if parsed.Path == "/auth" && strings.TrimSpace(parsed.Query().Get("token")) != "" {
+		return destination, true
+	}
+	return destination, false
 }
 
 func newEmailRenderer() *html.Renderer {

@@ -41,10 +41,17 @@ func TestMissiveTemplateDoesNotHTMLEscapePlainTextURLs(t *testing.T) {
 	}
 }
 
-func TestLoginEmailUsesButtonDestination(t *testing.T) {
-	link := "https://btcpp.dev/auth/magic?token=test-token"
-	if got, want := loginEmailButtonLink(link), "button#"+link; got != want {
-		t.Fatalf("login email destination = %q, want %q", got, want)
+func TestLoginEmailUsesRealURLStyledAsButton(t *testing.T) {
+	link := "https://btcpp.dev/auth?token=test-token"
+	html := string(mdToHTML([]byte("[Sign in to bitcoin++](" + link + ")")))
+	if !strings.Contains(html, `href="`+link+`"`) {
+		t.Fatalf("rendered login button omitted real URL: %s", html)
+	}
+	if !strings.Contains(html, "border: 1.5px solid #f7931a") {
+		t.Fatalf("rendered login link was not styled as a button: %s", html)
+	}
+	if strings.Contains(html, "button#") || strings.Contains(html, "https://button/") {
+		t.Fatalf("rendered login button retained an internal marker: %s", html)
 	}
 }
 

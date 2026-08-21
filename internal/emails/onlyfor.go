@@ -141,9 +141,9 @@ func makeJobKeyDedupe(email string, letter *mtypes.Letter) string {
 
 // OnlyForLoginLink sends the "vollogin" magic-link letter with a
 // caller-provided URL. Used by the generic /login flow to bake a
-// `next` redirect into the link via auth.MagicLink. The button# destination
-// marker makes the existing editable missive render its sign-in link as the
-// standard transactional-email button.
+// `next` redirect into the link via auth.MagicLink. Keep the destination a
+// real URL so both the HTML and plain-text MIME parts contain a usable link;
+// the HTML renderer recognizes magic-login URLs and styles them as buttons.
 func OnlyForLoginLink(ctx *config.AppContext, email, link string) ([]byte, error) {
 	onlyFor := "vollogin"
 	if !ctx.InProduction {
@@ -151,17 +151,12 @@ func OnlyForLoginLink(ctx *config.AppContext, email, link string) ([]byte, error
 	}
 	tmplData := &VolLogin{
 		Email:        email,
-		VolShiftLink: loginEmailButtonLink(link),
+		VolShiftLink: link,
 		URI:          ctx.Env.GetURI(),
 	}
 
 	return execOnlyFor(ctx, email, onlyFor, tmplData)
 }
-
-func loginEmailButtonLink(link string) string {
-	return "button#" + link
-}
-
 func OnlyForVolWaitlist(ctx *config.AppContext, vol *types.Volunteer, conf *types.Conf) ([]byte, error) {
 	onlyFor := "volwaitlist"
 	tmplData := &VolWaitlist{
