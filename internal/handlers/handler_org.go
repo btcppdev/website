@@ -206,6 +206,7 @@ func talkToSession(ctx *config.AppContext, talk *types.Talk, conf *types.Conf) *
 		GithubRepoURL: talk.GithubRepoURL,
 		SlidesURL:     talk.SlidesURL,
 		YTLink:        talk.YTLink,
+		RecordingID:   talk.RecordingID,
 	}
 
 	if talk.Sched != nil {

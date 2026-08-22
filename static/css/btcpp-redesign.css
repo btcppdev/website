@@ -21,7 +21,7 @@ body.btcpp-rebrand-page {
   --rebrand-warm: #efeae2;
   --rebrand-muted: #666;
   --rebrand-soft: #efeae2;
-  --btcpp-anchor-offset: 112px;
+  --btcpp-anchor-offset: 126px;
   margin: 0;
   background: var(--rebrand-paper);
   color: var(--rebrand-ink);

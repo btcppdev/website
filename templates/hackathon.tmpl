@@ -8,7 +8,6 @@
   {{ $galleryProjects := .GalleryProjects }}
   {{ $tableProjects := .TableProjects }}
   {{ $showProjectGallery := .ProjectGalleryOpen }}
-  {{ template "generic_conf_ticker" (dict "Conf" .Conf "Label" "Hackathon live" "Count" (len $galleryProjects)) }}
   {{ template "generic_conf_nav" .Conf }}
   <main class="hack-shell">
     <section class="hack-hero">

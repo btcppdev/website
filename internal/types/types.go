@@ -460,6 +460,17 @@ type (
 		PublishAt  *time.Time
 	}
 
+	RecordingBroadcast struct {
+		RecordingID   string
+		State         string
+		HLSURL        string
+		XBroadcastURL string
+		StartedAt     *time.Time
+		EndedAt       *time.Time
+		HeartbeatAt   *time.Time
+		UpdatedAt     time.Time
+	}
+
 	SocialPost struct {
 		ID               string
 		Ref              string
@@ -511,6 +522,9 @@ type (
 		// this talk's ConfTalk. Drives the "Watch" badge on the
 		// agenda + /talks pages.
 		YTLink string
+		// RecordingID is the stable public recording identifier used by
+		// /watch/{recording_id}. YTLink remains the upstream playback URL.
+		RecordingID string
 		// GithubRepoURL and SlidesURL are public resources attached by
 		// speakers after a talk is accepted/scheduled.
 		GithubRepoURL   string
@@ -537,6 +551,7 @@ type (
 		AnchorTag       string
 		ConfTag         string
 		YTLink          string // populated when a Recording row exists for this talk
+		RecordingID     string // stable ID for the canonical /watch page
 		GithubRepoURL   string
 		SlidesURL       string
 		SlidesObjectKey string

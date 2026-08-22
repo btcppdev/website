@@ -268,6 +268,22 @@ type recordingUpsertDTO struct {
 	PublishedAt *string `json:"published_at"`
 }
 
+type recordingBroadcastUpdateDTO struct {
+	State         string `json:"state"`
+	HLSURL        string `json:"hls_url"`
+	XBroadcastURL string `json:"x_broadcast_url"`
+}
+
+type recordingBroadcastDTO struct {
+	State         string  `json:"state"`
+	HLSURL        *string `json:"hls_url"`
+	XBroadcastURL *string `json:"x_broadcast_url"`
+	StartedAt     *string `json:"started_at"`
+	EndedAt       *string `json:"ended_at"`
+	HeartbeatAt   *string `json:"heartbeat_at"`
+	IsLive        bool    `json:"is_live"`
+}
+
 type organizationDTO struct {
 	ID        string  `json:"id"`
 	Name      string  `json:"name"`
@@ -302,6 +318,7 @@ type recordingDTO struct {
 	XURL          *string `json:"x_url"`
 	XReplyURL     *string `json:"x_reply_url"`
 	PublishedAt   *string `json:"published_at"`
+	WatchURL      string  `json:"watch_url"`
 }
 
 type hackathonDTO struct {

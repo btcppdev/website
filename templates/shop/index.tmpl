@@ -54,11 +54,6 @@
 </html>
 
 {{ define "shop_header" }}
-<div class="shop-ticker">
-  {{ if .PickupConf }}<span><b>▶</b> free pickup at {{ .PickupConf.Desc }}</span>{{ end }}
-  <span>free shipping over $75</span>
-  <span>pay in bitcoin or card</span>
-</div>
 {{ if .Flash }}<div class="shop-flash">{{ .Flash }}</div>{{ end }}
 {{ if .Error }}<div class="shop-flash is-error">{{ .Error }}</div>{{ end }}
 {{ end }}

@@ -23,8 +23,6 @@
     <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
   </head>
   <body class="btcpp-redesign btcpp-rebrand-page">
-    {{ template "generic_conf_ticker" (dict "Conf" $conf "Page" $p) }}
-
     {{ template "generic_conf_nav" $conf }}
 
     <main class="rebrand-page">
@@ -158,35 +156,9 @@
 </html>
 {{ end }}
 
-{{ define "generic_conf_ticker" }}
-<div class="rebrand-ticker" aria-label="Event ticker">
-  {{ if .Label }}<span class="rebrand-ticker__label">▶ {{ .Label }}</span>{{ end }}
-  <div class="rebrand-ticker__viewport" aria-hidden="true">
-    <div class="rebrand-ticker__track">
-      {{ template "generic_conf_ticker_items" . }}
-      {{ template "generic_conf_ticker_items" . }}
-    </div>
-  </div>
-</div>
-{{ end }}
-
-{{ define "generic_conf_ticker_items" }}
-{{ $conf := .Conf }}
-{{ $page := .Page }}
-<div class="rebrand-ticker__items">
-  {{ if $page }}
-    {{ if $page.Tix }}<strong>{{ $page.Tix.Symbol }}{{ $page.Tix.StandardPrice }}{{ $page.Tix.PostSymbol }} {{ $page.Tix.Currency }} / CARD {{ $page.Tix.Symbol }}{{ $page.Tix.CardPrice false }}{{ $page.Tix.PostSymbol }}</strong><b>•</b>{{ end }}
-    {{ if and $page.Tix (le $page.TixLeft 99) }}<em>{{ $page.TixLeft }} SEATS LEFT</em><b>•</b>{{ end }}
-  {{ end }}
-  <em>{{ $conf.DateDesc }}</em><b>•</b>
-  <em>{{ $conf.Location }}</em>
-  {{ if $conf.Venue }}<b>•</b><em>{{ $conf.Venue }}</em>{{ end }}
-  <b>•</b><em>{{ $conf.Tagline }}</em>
-  {{ if .Count }}<b>•</b><em>{{ .Count }} builders, speakers, and contributors</em>{{ end }}
-</div>
-{{ end }}
-
 {{ define "generic_conf_nav" }}
+{{ $nav := navConfs }}
+{{ template "site_ticker" $nav }}
 <nav class="rebrand-nav" aria-label="Event navigation">
   <div class="rebrand-nav__identity">
     <a href="/" class="rebrand-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
@@ -380,8 +352,8 @@
     </div>
     <div class="rebrand-agenda-row__venue">{{ mapVenue .Venue }}</div>
   </button>
-  {{ if .YTLink }}
-  <a class="rebrand-agenda-row__watch" href="{{ .YTLink }}" target="_blank" rel="noopener noreferrer">Watch</a>
+  {{ if .RecordingID }}
+  <a class="rebrand-agenda-row__watch" href="{{ recordingWatchPath .RecordingID }}">Watch</a>
   {{ end }}
 </div>
 {{ template "generic_conf_agenda_dialog" . }}
@@ -482,7 +454,7 @@
         {{ if .Len }}<div><dt>Duration</dt><dd>{{ .Len }}</dd></div>{{ end }}
       </dl>
       {{ $showCal := and .Sched .AnchorTag (isFuture .Sched.Start) }}
-      {{ if or $showCal .YTLink .SlidesURL .GithubRepoURL }}
+      {{ if or $showCal .RecordingID .SlidesURL .GithubRepoURL }}
       <div class="btcpp-agenda-dialog__actions">
         {{ if $showCal }}
         {{ template "cal_picker" (dict
@@ -494,8 +466,8 @@
           "Compact"  true
         ) }}
         {{ end }}
-        {{ if .YTLink }}
-        <a class="btcpp-agenda-dialog__recording" href="{{ .YTLink }}" target="_blank" rel="noopener noreferrer">Watch recording</a>
+        {{ if .RecordingID }}
+        <a class="btcpp-agenda-dialog__recording" href="{{ recordingWatchPath .RecordingID }}">Watch recording</a>
         {{ end }}
         {{ if .SlidesURL }}
         <a class="btcpp-agenda-dialog__resource" href="{{ .SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">View slides</a>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{ template "site_seo" (dict "Title" (printf "%s · bitcoin++" .Title) "Description" .Description "Path" .Path "Image" .SocialImage "ImageType" "image/png" "ImageWidth" 1920 "ImageHeight" 1080 "Type" "video.other") }}
+    {{ template "rebrand_header" . }}
+    <link rel="stylesheet" href="/static/css/watch.css">
+    <link rel="icon" href="/favicon.ico">
+  </head>
+  <body class="btcpp-redesign btcpp-watch-page">
+    {{ template "generic_conf_nav" .Conf }}
+
+    <main class="watch-shell">
+      <section class="watch-hero">
+        <div class="watch-hero__label"><span aria-hidden="true">●</span> bitcoin++ watch</div>
+        <h1>{{ .Title }}</h1>
+        {{ if .Speakers }}
+        <p class="watch-hero__speakers">with {{ range $idx, $speaker := .Speakers }}{{ if $idx }}, {{ end }}<a href="{{ speakerPublicPath $speaker }}">{{ $speaker.Name }}</a>{{ end }}</p>
+        {{ end }}
+      </section>
+
+      <section class="watch-player" data-watch-state="{{ .State }}">
+        {{ if eq .State "live" }}
+          <div class="watch-player__frame">
+            <video id="watch-live-video" controls autoplay muted playsinline data-hls-url="{{ .HLSURL }}"></video>
+            <div class="watch-player__live-badge" data-watch-live-badge>LIVE</div>
+            <button class="watch-player__sound-prompt" type="button" data-watch-sound-prompt>
+              <span aria-hidden="true">🔇</span><strong data-watch-sound-label>TAP FOR SOUND</strong>
+            </button>
+          </div>
+        {{ else if eq .State "available" }}
+          {{ if .YouTubeEmbed }}
+          <div class="watch-player__frame">
+            <iframe src="{{ .YouTubeEmbed }}" title="{{ .Title }}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+          </div>
+          {{ else }}
+          <div class="watch-player__standby"><strong>Recording unavailable</strong><p>This recording is still being prepared.</p></div>
+          {{ end }}
+        {{ else if eq .State "scheduled" }}
+          <div class="watch-player__standby watch-player__standby--scheduled">
+            <span>Scheduled broadcast</span>
+            <strong>{{ .PublishLabel }}</strong>
+            <p data-watch-countdown="{{ .PublishRFC3339 }}">Come back here when the talk goes live.</p>
+          </div>
+        {{ else }}
+          <div class="watch-player__standby"><span>Recording status</span><strong>Coming soon</strong><p>This talk is being prepared for broadcast.</p></div>
+        {{ end }}
+      </section>
+
+      <section class="watch-details">
+        <div>
+          <p class="watch-details__eyebrow">{{ .Conf.Desc }}</p>
+          <p class="watch-details__description">{{ .Description }}</p>
+        </div>
+        <div class="watch-details__actions">
+          {{ if .YouTubeURL }}<a href="{{ .YouTubeURL | safeURL }}" target="_blank" rel="noopener noreferrer">Open on YouTube ↗</a>{{ end }}
+          {{ if .XBroadcastURL }}<a href="{{ .XBroadcastURL | safeURL }}" target="_blank" rel="noopener noreferrer">Join on X ↗</a>{{ end }}
+          <a href="/{{ .Conf.Tag }}/agenda">View event agenda →</a>
+        </div>
+      </section>
+    </main>
+
+    {{ template "generic_conf_footer" . }}
+    {{ if eq .State "live" }}
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <script>
+      (() => {
+        const video = document.getElementById('watch-live-video');
+        const src = video && video.dataset.hlsUrl;
+        if (!video || !src) return;
+        video.muted = true;
+        video.defaultMuted = true;
+        video.autoplay = true;
+        const soundPrompt = document.querySelector('[data-watch-sound-prompt]');
+        const soundLabel = document.querySelector('[data-watch-sound-label]');
+        const startPlayback = async () => {
+          try {
+            await video.play();
+            soundLabel.textContent = 'TAP FOR SOUND';
+          } catch (_) {
+            soundLabel.textContent = 'PLAY LIVE STREAM';
+          }
+        };
+        soundPrompt.addEventListener('click', async () => {
+          video.muted = false;
+          video.defaultMuted = false;
+          try {
+            await video.play();
+            soundPrompt.hidden = true;
+          } catch (_) {
+            video.muted = true;
+            soundLabel.textContent = 'PRESS PLAY TO WATCH';
+          }
+        });
+        video.addEventListener('loadedmetadata', startPlayback, { once: true });
+        video.addEventListener('canplay', startPlayback, { once: true });
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = src;
+          video.load();
+        } else if (window.Hls && Hls.isSupported()) {
+          const hls = new Hls({ lowLatencyMode: true });
+          hls.loadSource(src);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, startPlayback);
+        }
+        const liveBadge = document.querySelector('[data-watch-live-badge]');
+        video.addEventListener('ended', () => { if (liveBadge) liveBadge.hidden = true; });
+        window.setInterval(async () => {
+          try {
+            const response = await fetch(`${window.location.pathname}/status`, { cache: 'no-store' });
+            const status = await response.json();
+            if (status.state !== 'live') {
+              if (liveBadge) liveBadge.hidden = true;
+              window.location.reload();
+            }
+          } catch (_) {}
+        }, 20000);
+      })();
+    </script>
+    {{ else if eq .State "scheduled" }}
+    <script>
+      (() => {
+        const node = document.querySelector('[data-watch-countdown]');
+        if (!node) return;
+        const target = Date.parse(node.dataset.watchCountdown);
+        const update = () => {
+          const seconds = Math.max(0, Math.floor((target - Date.now()) / 1000));
+          if (seconds <= 0) { window.location.reload(); return; }
+          const days = Math.floor(seconds / 86400);
+          const hours = Math.floor((seconds % 86400) / 3600);
+          const minutes = Math.floor((seconds % 3600) / 60);
+          node.textContent = `Live in ${days ? days + 'd ' : ''}${hours}h ${minutes}m`;
+        };
+        update();
+        window.setInterval(update, 30000);
+        window.setInterval(async () => {
+          try {
+            const response = await fetch(`${window.location.pathname}/status`, { cache: 'no-store' });
+            const status = await response.json();
+            if (status.state === 'live' || status.state === 'available') window.location.reload();
+          } catch (_) {}
+        }, 20000);
+      })();
+    </script>
+    {{ end }}
+  </body>
+</html>

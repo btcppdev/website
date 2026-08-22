@@ -22,6 +22,9 @@ type NavConfList struct {
 // upcoming and "most recently ended" for past so the freshest items
 // land at the top of each list.
 func buildNavConfList(ctx *config.AppContext) NavConfList {
+	if ctx == nil || ctx.DB == nil {
+		return NavConfList{}
+	}
 	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		ctx.Err.Printf("navConfs: %s", err)

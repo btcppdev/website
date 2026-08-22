@@ -69,7 +69,7 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 			conf.description, conf.edition_type, conf.og_flavor, conf.emoji,
 			conf.tagline, conf.date_desc, conf.start_date, conf.end_date,
 			conf.timezone, conf.location,
-			coalesce(recording.youtube_url, '')
+			coalesce(recording.youtube_url, ''), coalesce(recording.id::text, '')
 		FROM conf_talks ct
 		JOIN proposals proposal ON proposal.id = ct.proposal_id
 		JOIN proposals_speaker_confs psc ON psc.proposal_id = proposal.id
@@ -99,7 +99,7 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 		var twitter, speakerConfCompany, speakerConfOrg, recordOK string
 		var talkID, clipart, venue, section, calNotif, socialCard string
 		var githubRepo, slidesURL, slidesObjectKey string
-		var title, description, talkType, status, recordingURL string
+		var title, description, talkType, status, recordingURL, recordingID string
 		var scheduledStart, scheduledEnd pgtype.Timestamptz
 		var conf types.Conf
 		var confStart, confEnd pgtype.Timestamptz
@@ -116,7 +116,7 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 			&conf.Ref, &conf.Tag, &conf.Active, &conf.PublicationStatus,
 			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.Emoji,
 			&conf.Tagline, &conf.DateDesc, &confStart, &confEnd,
-			&conf.Timezone, &conf.Location, &recordingURL,
+			&conf.Timezone, &conf.Location, &recordingURL, &recordingID,
 		); err != nil {
 			return nil, fmt.Errorf("scan public profile talk: %w", err)
 		}
@@ -140,7 +140,7 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 				ID: talkID, Name: title, Description: description, Type: talkType,
 				Status: status, Clipart: clipart, Venue: venue, Section: section,
 				CalNotif: calNotif, TalkCardURL: socialCard, Event: confView.Tag,
-				YTLink: recordingURL, GithubRepoURL: githubRepo, SlidesURL: slidesURL,
+				YTLink: recordingURL, RecordingID: recordingID, GithubRepoURL: githubRepo, SlidesURL: slidesURL,
 				SlidesObjectKey: slidesObjectKey,
 			}
 			if scheduledStart.Valid {

@@ -25,12 +25,13 @@
   /* Push body content + the sticky main nav below the 28px banner
      so neither sits underneath. */
   body {
-    --btcpp-site-nav-top: 28px;
+    --btcpp-site-banner-height: 28px;
+    --btcpp-site-nav-top: calc(var(--btcpp-site-banner-height) + var(--btcpp-site-ticker-height));
     padding-top: 28px;
   }
-  body .site-nav { top: var(--btcpp-site-nav-top); }
 </style>
 {{ end }}
+{{ template "site_ticker" $nav }}
 <header class="site-nav">
   <nav class="site-nav__inner" aria-label="Primary navigation">
     <a href="/" class="site-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
