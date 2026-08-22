@@ -473,10 +473,14 @@ func recordingNotificationVenueLabel(row *RecordingRow) string {
 }
 
 func recordingNotificationTalkURL(baseURI string, conf *types.Conf, row *RecordingRow) string {
-	if row != nil && row.Recording != nil {
-		return recordingWatchURL(baseURI, row.Recording.ID)
+	if conf == nil {
+		return strings.TrimRight(baseURI, "/")
 	}
-	return strings.TrimRight(baseURI, "/")
+	target := strings.TrimRight(baseURI, "/") + "/" + url.PathEscape(conf.Tag) + "/agenda"
+	if row != nil && row.ConfTalk != nil && row.ConfTalk.AnchorTag() != "" {
+		target += "#" + url.PathEscape(row.ConfTalk.AnchorTag())
+	}
+	return target
 }
 
 func recordingNotificationCardKey(row *RecordingRow, conf *types.Conf) string {
@@ -714,12 +718,12 @@ func recordingBufferXText(talk *RecordingSpeakerCampaignTalk) string {
 	if talk.SpeakerCredit != "" {
 		prefix += "\n\nFeaturing: " + talk.SpeakerCredit
 	}
-	available := 275 - utf8.RuneCountInString(talk.TalkURL)
+	available := 275 - utf8.RuneCountInString(talk.YouTubeURL)
 	if available < 20 {
 		available = 20
 	}
 	prefix = truncateRunes(prefix, available)
-	return strings.TrimSpace(prefix) + "\n\n" + talk.TalkURL
+	return strings.TrimSpace(prefix) + "\n\n" + talk.YouTubeURL
 }
 
 func truncateRunes(value string, max int) string {

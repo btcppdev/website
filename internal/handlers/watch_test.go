@@ -91,18 +91,3 @@ func TestLiveTickerSpeakerLinks(t *testing.T) {
 		t.Fatalf("name fallback = %+v", got[2])
 	}
 }
-
-func TestRecordingBufferPostUsesCanonicalWatchURL(t *testing.T) {
-	talk := &RecordingSpeakerCampaignTalk{
-		TalkTitle:  "A useful talk",
-		YouTubeURL: "https://youtube.com/watch?v=abcdefghijk",
-		TalkURL:    "https://btcpp.dev/watch/recording-id",
-	}
-	got := recordingBufferXText(talk)
-	if !strings.Contains(got, talk.TalkURL) {
-		t.Fatalf("post does not contain watch URL: %q", got)
-	}
-	if strings.Contains(got, talk.YouTubeURL) {
-		t.Fatalf("post leaked raw YouTube URL: %q", got)
-	}
-}
