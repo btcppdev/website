@@ -88,7 +88,7 @@
               <strong>{{ .Title }}</strong>
             </div>
             <div class="dashboard-archive-session__links">
-              {{ if and .Recording .Recording.YTLink }}<a class="is-watch" href="{{ .Recording.YTLink }}" target="_blank" rel="noopener noreferrer">▶ Watch</a>{{ end }}
+              {{ if and .Recording .Recording.YTLink }}<a class="is-watch" href="{{ recordingWatchPath .Recording.ID }}">▶ Watch</a>{{ end }}
               {{ if and .ConfTalk .ConfTalk.SlidesURL }}<a href="{{ .ConfTalk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">Slides</a>{{ end }}
               {{ if and .ConfTalk .ConfTalk.GithubRepoURL }}<a href="{{ .ConfTalk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">Repo</a>{{ end }}
               {{ if not (or (and .Recording .Recording.YTLink) (and .ConfTalk .ConfTalk.SlidesURL) (and .ConfTalk .ConfTalk.GithubRepoURL)) }}<span class="dashboard-archive-session__empty">-</span>{{ end }}

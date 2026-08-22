@@ -189,6 +189,7 @@ func talksFromConfTalks(ctx *config.AppContext, confTalks []*types.ConfTalk, pro
 		talk := talkFromConfTalk(ctx, ct, ct.Proposal)
 		if recording := recordingByTalk[ct.ID]; recording != nil {
 			talk.YTLink = recording.YTLink
+			talk.RecordingID = recording.ID
 		}
 		talks = append(talks, talk)
 	}
@@ -338,6 +339,7 @@ func LoadTalkFromConfTalk(ctx *config.AppContext, confTalkID string) (*types.Tal
 			return nil, err
 		} else if recording != nil {
 			talk.YTLink = recording.YTLink
+			talk.RecordingID = recording.ID
 		}
 		return talk, nil
 	}
@@ -357,6 +359,7 @@ func LoadTalkFromConfTalk(ctx *config.AppContext, confTalkID string) (*types.Tal
 		return nil, err
 	} else if recording != nil {
 		talk.YTLink = recording.YTLink
+		talk.RecordingID = recording.ID
 	}
 	return talk, nil
 }

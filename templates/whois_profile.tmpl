@@ -7,17 +7,6 @@
     <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
   </head>
   <body class="btcpp-redesign btcpp-rebrand-page whois-page">
-    <div class="whois-ticker" aria-hidden="true">
-      <span>▶ PROFILE</span>
-      <b>{{ len .Person.Editions }} EDITIONS</b>
-      <i>•</i>
-      <b>{{ len .Person.Talks }} TALKS</b>
-      <i>•</i>
-      <b>{{ len .Person.Projects }} PROJECTS</b>
-      <i>•</i>
-      <b>EVERY BUILDER DESERVES A PERMANENT RECORD</b>
-    </div>
-
     {{ template "mainnav" . }}
 
     <main class="whois-shell">
@@ -161,7 +150,7 @@
             <div class="whois-talk-row__actions">
               {{ if .Talk.Duration }}<span>{{ .Talk.Duration }}</span>{{ end }}
               {{ if and .Conf .Talk.ID }}<a href="/{{ .Conf.Tag }}/agenda#talk-{{ .Talk.ID }}">agenda</a>{{ end }}
-              {{ if .Talk.YTLink }}<a class="is-watch" href="{{ .Talk.YTLink | safeURL }}" target="_blank" rel="noopener noreferrer">▶ watch</a>{{ end }}
+              {{ if .Talk.RecordingID }}<a class="is-watch" href="{{ recordingWatchPath .Talk.RecordingID }}">▶ watch</a>{{ end }}
               {{ if .Talk.SlidesURL }}<a href="{{ .Talk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">slides</a>{{ end }}
               {{ if .Talk.GithubRepoURL }}<a href="{{ .Talk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">repo</a>{{ end }}
             </div>
@@ -209,7 +198,7 @@
       </dl>
       <div class="btcpp-agenda-dialog__actions">
         {{ if and $conf $talk.ID }}<a class="btcpp-agenda-dialog__resource" href="/{{ $conf.Tag }}/agenda#talk-{{ $talk.ID }}">Open agenda</a>{{ end }}
-        {{ if $talk.YTLink }}<a class="btcpp-agenda-dialog__recording" href="{{ $talk.YTLink | safeURL }}" target="_blank" rel="noopener noreferrer">Watch recording</a>{{ end }}
+        {{ if $talk.RecordingID }}<a class="btcpp-agenda-dialog__recording" href="{{ recordingWatchPath $talk.RecordingID }}">Watch recording</a>{{ end }}
         {{ if $talk.SlidesURL }}<a class="btcpp-agenda-dialog__resource" href="{{ $talk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">View slides</a>{{ end }}
         {{ if $talk.GithubRepoURL }}<a class="btcpp-agenda-dialog__resource" href="{{ $talk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">GitHub repo</a>{{ end }}
       </div>

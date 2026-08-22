@@ -10,7 +10,7 @@
   --home-serif: "Source Serif 4", Georgia, serif;
   --home-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --home-sans: "IBM Plex Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --btcpp-anchor-offset: 92px;
+  --btcpp-anchor-offset: 110px;
 }
 
 html {
@@ -1308,7 +1308,7 @@ body.btcpp-home {
 
 @media (max-width: 640px) {
   :root {
-    --btcpp-anchor-offset: 28px;
+    --btcpp-anchor-offset: 110px;
   }
 
   .home-nav__inner {

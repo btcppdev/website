@@ -7,13 +7,6 @@
 <body class="hack-redesign">
   {{ block "mainnav" . }} {{ end }}
   <main class="hack-shell">
-    <div class="hack-ticker" aria-label="Hackathon schedule">
-      <span class="hack-ticker__live">▶ Schedule</span>
-      <span>{{ .Competition.Title }}</span>
-      <span>•</span>
-      <span>{{ if .Conf.Timezone }}{{ .Conf.Timezone }}{{ else }}conference time{{ end }}</span>
-    </div>
-
     <header class="hack-header">
       <div>
         <a href="/" class="hack-brand">bitcoin<span>++</span></a>

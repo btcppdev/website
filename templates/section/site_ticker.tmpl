@@ -1,0 +1,90 @@
+{{ define "site_ticker" }}
+{{ $nav := . }}
+<div class="site-ticker" aria-label="bitcoin++ updates" data-site-ticker>
+  <span class="site-ticker__label" data-site-ticker-default>bitcoin++</span>
+  <a class="site-ticker__live" data-site-ticker-live href="/" hidden>LIVE &gt;</a>
+  <div class="site-ticker__viewport" aria-hidden="true">
+    <div class="site-ticker__track">
+      {{ template "site_ticker_items" $nav }}
+      {{ template "site_ticker_items" $nav }}
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    const ticker = document.currentScript.previousElementSibling;
+    if (!ticker || !ticker.matches('[data-site-ticker]')) return;
+
+    const regularLabel = ticker.querySelector('[data-site-ticker-default]');
+    const liveLink = ticker.querySelector('[data-site-ticker-live]');
+    const liveItems = ticker.querySelectorAll('[data-site-ticker-live-item]');
+
+    function render(status) {
+      const live = Boolean(status && status.live && status.watch_url);
+      regularLabel.hidden = live;
+      liveLink.hidden = !live;
+      liveItems.forEach(function (item) {
+        item.hidden = !live;
+        if (!live) return;
+        item.querySelector('[data-site-ticker-live-title]').textContent = status.title || 'bitcoin++ live stream';
+        const socials = item.querySelector('[data-site-ticker-live-socials]');
+        socials.replaceChildren();
+        (status.speakers || []).forEach(function (speaker) {
+          const label = speaker.handle ? '@' + speaker.handle : speaker.name;
+          if (!label) return;
+          if (speaker.url) {
+            const link = document.createElement('a');
+            link.href = speaker.url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = label;
+            link.title = speaker.provider + ': ' + label;
+            socials.appendChild(link);
+          } else {
+            const name = document.createElement('span');
+            name.textContent = label;
+            socials.appendChild(name);
+          }
+        });
+      });
+      if (live) {
+        liveLink.href = status.watch_url;
+        liveLink.setAttribute('aria-label', status.title ? 'Watch live: ' + status.title : 'Watch live');
+      }
+    }
+
+    function refresh() {
+      fetch('/live/status', { cache: 'no-store', credentials: 'same-origin' })
+        .then(function (response) {
+          if (!response.ok) throw new Error('live status unavailable');
+          return response.json();
+        })
+        .then(render)
+        .catch(function () { render({ live: false }); });
+    }
+
+    refresh();
+    window.setInterval(refresh, 20000);
+  })();
+</script>
+{{ end }}
+
+{{ define "site_ticker_items" }}
+<div class="site-ticker__items">
+  <span class="site-ticker__live-item" data-site-ticker-live-item hidden>
+    <strong data-site-ticker-live-title></strong>
+    <span class="site-ticker__live-socials" data-site-ticker-live-socials></span>
+    <b>•</b>
+  </span>
+  <em>NEXT</em><b>•</b>
+  {{ if .Upcoming }}
+    {{ $next := index .Upcoming 0 }}
+    <strong>{{ $next.Desc }}</strong><b>•</b><em>{{ $next.DateDesc }}</em><b>•</b><a href="/{{ $next.Tag }}#tickets">GET TICKETS</a>
+  {{ else }}
+    <em>WATCH FOR THE NEXT EDITION</em>
+  {{ end }}
+  <b>•</b><em>TECHNICAL BITCOIN CONFERENCES</em><b>•</b>
+  <strong>{{ len .Past }} EDITIONS IN THE ARCHIVE</strong><b>•</b><a href="/timeline">BROWSE THE ARCHIVE</a><b>•</b>
+  <em>INSIDER EDITION</em><b>•</b><a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">NEW DISPATCHES WEEKLY</a>
+</div>
+{{ end }}

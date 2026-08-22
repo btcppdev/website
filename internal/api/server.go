@@ -44,6 +44,9 @@ type server struct {
 	updateTalkSchedule  func(string, string, time.Time, time.Time) (getters.ScheduleConflict, error)
 	listConfRecordings  func(string) ([]*types.Recording, error)
 	upsertRecording     func(string, getters.RecordingUpsert) (*types.Recording, error)
+	loadRecording       func(string) (*types.Recording, error)
+	loadBroadcast       func(string) (*types.RecordingBroadcast, error)
+	upsertBroadcast     func(string, getters.RecordingBroadcastUpdate) (*types.RecordingBroadcast, error)
 	recordAudit         func(*types.AuthAuditEvent) error
 	limiter             *rateLimiter
 }
@@ -89,6 +92,11 @@ func Register(root *mux.Router, app *config.AppContext) {
 		upsertRecording: func(id string, update getters.RecordingUpsert) (*types.Recording, error) {
 			return getters.UpsertRecordingForConfTalk(app, id, update)
 		},
+		loadRecording: func(id string) (*types.Recording, error) { return getters.GetRecordingByID(app, id) },
+		loadBroadcast: func(id string) (*types.RecordingBroadcast, error) { return getters.GetRecordingBroadcast(app, id) },
+		upsertBroadcast: func(id string, update getters.RecordingBroadcastUpdate) (*types.RecordingBroadcast, error) {
+			return getters.UpsertRecordingBroadcast(app, id, update)
+		},
 		recordAudit: func(event *types.AuthAuditEvent) error { return getters.RecordAuthAuditEvent(app, event) },
 		limiter:     newRateLimiter(),
 	}
@@ -126,6 +134,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/organizations/{organizationID}", s.organization).Methods(http.MethodGet)
 	r.HandleFunc("/recordings", s.recordings).Methods(http.MethodGet)
 	r.HandleFunc("/recordings/{recordingID}", s.recording).Methods(http.MethodGet)
+	r.HandleFunc("/recordings/{recordingID}/broadcast", s.putRecordingBroadcast).Methods(http.MethodPut)
 	r.HandleFunc("/conferences/{tag}/hackathons", s.conferenceHackathons).Methods(http.MethodGet)
 	r.HandleFunc("/hackathons/{competitionID}", s.hackathon).Methods(http.MethodGet)
 	r.HandleFunc("/hackathons/{competitionID}/projects", s.hackathonProjects).Methods(http.MethodGet)
@@ -768,6 +777,82 @@ func (s *server) putTalkRecording(w http.ResponseWriter, r *http.Request) {
 	}
 	s.auditMutation(r, principal, "api_recording_upserted", map[string]any{"conference": mux.Vars(r)["tag"], "talk_id": confTalk.ID, "recording_id": recording.ID})
 	s.writePrivate(w, r, http.StatusOK, recordingAdminFromDomain(recording))
+}
+
+func (s *server) putRecordingBroadcast(w http.ResponseWriter, r *http.Request) {
+	principal, r := s.requireScope(w, r, "recordings:write")
+	if principal == nil {
+		return
+	}
+	// Broadcast heartbeats arrive every 45 seconds while a stream is live;
+	// use the general mutation bucket rather than the human recording-edit
+	// bucket, whose 30/hour account limit is intentionally much tighter.
+	if !s.requireMutationLimit(w, r, principal, false) {
+		return
+	}
+	if s.loadRecording == nil || s.loadConfTalk == nil || s.loadBroadcast == nil || s.upsertBroadcast == nil {
+		s.internalError(w, r, "update recording broadcast", io.ErrClosedPipe)
+		return
+	}
+	recordingID := strings.TrimSpace(mux.Vars(r)["recordingID"])
+	recording, err := s.loadRecording(recordingID)
+	if err != nil {
+		s.internalError(w, r, "load recording broadcast target", err)
+		return
+	}
+	if recording == nil {
+		s.writeError(w, r, http.StatusNotFound, "not_found", "Recording not found.")
+		return
+	}
+	confTalk, err := s.loadConfTalk(recording.ConfTalkID)
+	if err != nil {
+		s.internalError(w, r, "load recording conference", err)
+		return
+	}
+	if confTalk == nil || confTalk.Conf == nil {
+		s.writeError(w, r, http.StatusNotFound, "not_found", "Recording conference not found.")
+		return
+	}
+	allowed := principal.Identity != nil && (principal.Identity.IsGlobalAdmin() || principal.Identity.HasRoleForConf(confTalk.Conf.Tag, auth.RoleAdmin))
+	if !allowed {
+		s.writeError(w, r, http.StatusForbidden, "forbidden", "Conference admin access is required.")
+		return
+	}
+	var input recordingBroadcastUpdateDTO
+	if !s.decodeJSON(w, r, &input) {
+		return
+	}
+	input.State = strings.ToLower(strings.TrimSpace(input.State))
+	if input.State != "scheduled" && input.State != "live" && input.State != "ended" && input.State != "failed" {
+		s.writeError(w, r, http.StatusUnprocessableEntity, "validation_error", "state must be scheduled, live, ended, or failed.")
+		return
+	}
+	if input.State == "live" && strings.TrimSpace(input.HLSURL) == "" {
+		s.writeError(w, r, http.StatusUnprocessableEntity, "validation_error", "hls_url is required while a broadcast is live.")
+		return
+	}
+	if !validOptionalHTTPURL(&input.HLSURL) || !validOptionalHTTPURL(&input.XBroadcastURL) {
+		s.writeError(w, r, http.StatusUnprocessableEntity, "validation_error", "Broadcast links must be absolute http or https URLs.")
+		return
+	}
+	previous, err := s.loadBroadcast(recordingID)
+	if err != nil {
+		s.internalError(w, r, "load current recording broadcast", err)
+		return
+	}
+	broadcast, err := s.upsertBroadcast(recordingID, getters.RecordingBroadcastUpdate{
+		State: input.State, HLSURL: input.HLSURL, XBroadcastURL: input.XBroadcastURL, Now: s.now(),
+	})
+	if err != nil {
+		s.internalError(w, r, "update recording broadcast", err)
+		return
+	}
+	if previous == nil || previous.State != input.State || previous.XBroadcastURL != input.XBroadcastURL {
+		s.auditMutation(r, principal, "api_recording_broadcast_updated", map[string]any{
+			"recording_id": recordingID, "conference": confTalk.Conf.Tag, "state": input.State,
+		})
+	}
+	s.writePrivate(w, r, http.StatusOK, recordingBroadcastFromDomain(broadcast, s.now()))
 }
 
 func (s *server) auditMutation(r *http.Request, principal *apiPrincipal, event string, metadata map[string]any) {
@@ -1671,9 +1756,24 @@ func (s *server) publicRecordings(w http.ResponseWriter, r *http.Request) ([]rec
 			ID: recording.ID, TalkID: recording.ConfTalkID, ConferenceTag: context.tag, Title: title,
 			YouTubeURL: optionalString(recording.YTLink), XURL: optionalString(recording.XLink),
 			XReplyURL: optionalString(recording.XReplyLink), PublishedAt: optionalTime(recording.PublishAt),
+			WatchURL: "/watch/" + url.PathEscape(recording.ID),
 		})
 	}
 	return data, true
+}
+
+func recordingBroadcastFromDomain(broadcast *types.RecordingBroadcast, now time.Time) *recordingBroadcastDTO {
+	if broadcast == nil {
+		return nil
+	}
+	live := broadcast.State == "live" && strings.TrimSpace(broadcast.HLSURL) != "" &&
+		broadcast.HeartbeatAt != nil && broadcast.HeartbeatAt.After(now.Add(-2*time.Minute))
+	return &recordingBroadcastDTO{
+		State: broadcast.State, HLSURL: optionalString(broadcast.HLSURL),
+		XBroadcastURL: optionalString(broadcast.XBroadcastURL),
+		StartedAt:     optionalTime(broadcast.StartedAt), EndedAt: optionalTime(broadcast.EndedAt),
+		HeartbeatAt: optionalTime(broadcast.HeartbeatAt), IsLive: live,
+	}
 }
 
 func recordingIsPublic(recording *types.Recording, now time.Time) bool {

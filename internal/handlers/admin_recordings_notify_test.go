@@ -156,15 +156,16 @@ func TestMergeRecordingDigestRecipientsAddsStaffAndDeduplicatesSpeakers(t *testi
 	}
 }
 
-func TestRecordingBufferXTextIncludesYouTubeAndFitsXLimit(t *testing.T) {
+func TestRecordingBufferXTextIncludesWatchPageAndFitsXLimit(t *testing.T) {
 	talk := &RecordingSpeakerCampaignTalk{
 		TalkTitle:     strings.Repeat("Long title ", 40),
 		SpeakerCredit: "Ada (@ada)",
 		YouTubeURL:    "https://youtu.be/example",
+		TalkURL:       "https://btcpp.dev/watch/recording-id",
 	}
 	got := recordingBufferXText(talk)
-	if !strings.Contains(got, talk.YouTubeURL) {
-		t.Fatalf("post does not include YouTube URL: %q", got)
+	if !strings.Contains(got, talk.TalkURL) {
+		t.Fatalf("post does not include watch URL: %q", got)
 	}
 	if len([]rune(got)) > 280 {
 		t.Fatalf("post has %d runes, want <= 280", len([]rune(got)))

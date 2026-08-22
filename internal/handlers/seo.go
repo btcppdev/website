@@ -78,7 +78,7 @@ func shouldNoIndexPath(path string) bool {
 	}
 	switch parts[0] {
 	case "admin", "api", "auth", "callback", "check-in", "conf-reload",
-		"dashboard", "i", "invite-speaker", "login", "media", "sendcal",
+		"dashboard", "i", "invite-speaker", "live", "login", "media", "sendcal",
 		"ticket", "tix", "logout", "trial-cal-invite", "trial-email", "vols",
 		"webhook", "welcome-email":
 		return true

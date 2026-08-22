@@ -193,6 +193,9 @@ func loadTemplates(ctx *config.AppContext) error {
 		"speakerPublicPath": func(s *types.Speaker) template.URL {
 			return template.URL(whoIsPublicPath(ctx, s))
 		},
+		"recordingWatchPath": func(recordingID string) template.URL {
+			return template.URL(recordingWatchPath(recordingID))
+		},
 		"confImage": func(tag, base string) template.URL {
 			return template.URL(confImagePath(tag, base))
 		},
@@ -997,6 +1000,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/whois/{speaker}", func(w http.ResponseWriter, r *http.Request) {
 		RenderWhoIsProfile(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/watch/{recordingID}", func(w http.ResponseWriter, r *http.Request) {
+		RecordingWatch(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/watch/{recordingID}/status", func(w http.ResponseWriter, r *http.Request) {
+		RecordingWatchStatus(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/live/status", func(w http.ResponseWriter, r *http.Request) {
+		LiveStatus(w, r, app)
 	}).Methods("GET")
 
 	r.HandleFunc("/contact", func(w http.ResponseWriter, r *http.Request) {
@@ -2746,7 +2758,7 @@ func whoIsArchiveBlocks(person *WhoIsPerson) []*EventBlock {
 			},
 		}
 		if row.Talk.YTLink != "" {
-			proposal.Recording = &types.Recording{YTLink: row.Talk.YTLink}
+			proposal.Recording = &types.Recording{ID: row.Talk.RecordingID, YTLink: row.Talk.YTLink}
 		}
 		if proposal.Status == "" {
 			proposal.Status = StatusAccepted
