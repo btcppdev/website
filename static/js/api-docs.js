@@ -3,27 +3,29 @@
 
   const base = "https://btcpp.dev/api/v1";
   const examples = {
-    conferences: ["GET", "/conferences", false],
-    conference: ["GET", "/conferences/dev26", false],
-    agenda: ["GET", "/conferences/dev26/agenda", false],
-    speakers: ["GET", "/conferences/dev26/speakers", false],
-    people: ["GET", "/people?limit=20", false],
-    person: ["GET", "/people/PERSON_ID", false],
-    recordings: ["GET", "/recordings?limit=20", false],
-    candidates: ["GET", "/conferences/dev26/recording-candidates", true],
-    "recording-update": ["PUT", "/conferences/dev26/talks/TALK_ID/recording", true, '{"youtube_url":"https://youtube.com/watch?v=…"}'],
-    projects: ["GET", "/hackathons/HACKATHON_ID/projects", false],
-    project: ["GET", "/hackathons/HACKATHON_ID/projects/PROJECT_ID", false],
-    results: ["GET", "/hackathons/HACKATHON_ID/results", false],
-    identity: ["GET", "/me/identity", true],
-    me: ["GET", "/me", true],
-    "me-update": ["PATCH", "/me", true, '{"biography":"Building useful Bitcoin software."}'],
-    "my-talks": ["GET", "/me/talks", true],
-    schedule: ["PUT", "/conferences/dev26/talks/TALK_ID/schedule", true, '{"venue":"Main Stage","starts_at":"2026-08-20T10:00:00-05:00","ends_at":"2026-08-20T10:30:00-05:00"}']
+    conferences: ["GET", "/conferences", false, null, "listConferences"],
+    conference: ["GET", "/conferences/dev26", false, null, "getConference"],
+    agenda: ["GET", "/conferences/dev26/agenda", false, null, "getConferenceAgenda"],
+    speakers: ["GET", "/conferences/dev26/speakers", false, null, "listConferenceSpeakers"],
+    people: ["GET", "/people?limit=20", false, null, "listPeople"],
+    person: ["GET", "/people/PERSON_ID", false, null, "getPerson"],
+    recordings: ["GET", "/recordings?limit=20", false, null, "listRecordings"],
+    candidates: ["GET", "/conferences/dev26/recording-candidates", true, null, "listRecordingCandidates"],
+    "recording-update": ["PUT", "/conferences/dev26/talks/TALK_ID/recording", true, '{"youtube_url":"https://youtube.com/watch?v=…"}', "putConferenceTalkRecording"],
+    "broadcast-update": ["PUT", "/recordings/RECORDING_ID/broadcast", true, '{"state":"live","hls_url":"https://stream.btcpp.dev/live/stream-1/index.m3u8"}', "updateRecordingBroadcast"],
+    projects: ["GET", "/hackathons/HACKATHON_ID/projects", false, null, "listHackathonProjects"],
+    project: ["GET", "/hackathons/HACKATHON_ID/projects/PROJECT_ID", false, null, "getHackathonProject"],
+    results: ["GET", "/hackathons/HACKATHON_ID/results", false, null, "listHackathonResults"],
+    identity: ["GET", "/me/identity", true, null, "getMyIdentity"],
+    me: ["GET", "/me", true, null, "getMe"],
+    "me-update": ["PATCH", "/me", true, '{"biography":"Building useful Bitcoin software."}', "updateMe"],
+    "my-talks": ["GET", "/me/talks", true, null, "listMyTalks"],
+    schedule: ["PUT", "/conferences/dev26/talks/TALK_ID/schedule", true, '{"venue":"Main Stage","starts_at":"2026-08-20T10:00:00-05:00","ends_at":"2026-08-20T10:30:00-05:00"}', "updateConferenceTalkSchedule"]
   };
 
   let language = "curl";
   let activeExample = "conferences";
+  let responseExamples = {};
   const examplePanel = document.querySelector("[data-api-example]");
 
   function exampleCode(key, selectedLanguage) {
@@ -65,11 +67,51 @@
   }
 
   function exampleResponse(key) {
-    if (["conferences", "agenda", "speakers", "people", "recordings", "candidates", "projects", "results", "my-talks"].includes(key)) {
-      return '{\n  "data": [\n    {\n      "id": "…"\n    }\n  ],\n  "meta": {\n    "request_id": "…"\n  }\n}';
-    }
-    return '{\n  "data": {\n    "id": "…"\n  },\n  "meta": {\n    "request_id": "…"\n  }\n}';
+    const item = examples[key];
+    const operationID = item && item[4];
+    const response = operationID && responseExamples[operationID];
+    if (response) return JSON.stringify(response.value, null, 2);
+    return "Loading response example…";
   }
+
+  function resolveContractRef(contract, reference) {
+    if (!reference || reference.indexOf("#/") !== 0) return null;
+    return reference.slice(2).split("/").reduce(function (value, segment) {
+      return value && value[segment.replace(/~1/g, "/").replace(/~0/g, "~")];
+    }, contract);
+  }
+
+  function examplesByOperation(contract) {
+    const resolved = {};
+    Object.keys(contract.paths || {}).forEach(function (path) {
+      const pathItem = contract.paths[path];
+      ["get", "post", "put", "patch", "delete"].forEach(function (method) {
+        const operation = pathItem[method];
+        if (!operation || !operation.operationId) return;
+        const media = operation.responses && operation.responses["200"] &&
+          operation.responses["200"].content && operation.responses["200"].content["application/json"];
+        const namedExamples = media && media.examples;
+        const firstExample = namedExamples && namedExamples[Object.keys(namedExamples)[0]];
+        const example = firstExample && firstExample.$ref ? resolveContractRef(contract, firstExample.$ref) : firstExample;
+        if (example && Object.prototype.hasOwnProperty.call(example, "value")) resolved[operation.operationId] = example;
+      });
+    });
+    return resolved;
+  }
+
+  fetch("/api/v1/openapi.json", { headers: { "Accept": "application/json" } })
+    .then(function (response) {
+      if (!response.ok) throw new Error("OpenAPI contract unavailable");
+      return response.json();
+    })
+    .then(function (contract) {
+      responseExamples = examplesByOperation(contract);
+      renderExample(activeExample);
+    })
+    .catch(function () {
+      const responseNode = examplePanel && examplePanel.querySelector("[data-api-example-response]");
+      if (responseNode) responseNode.textContent = "Response example unavailable. Open /api/v1/openapi.json for the API contract.";
+    });
 
   document.querySelectorAll("[data-api-endpoint]").forEach(function (button) {
     button.addEventListener("click", function () {

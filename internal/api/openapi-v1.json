@@ -71,6 +71,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConferenceListResponse"
+                },
+                "examples": {
+                  "default": {"$ref": "#/components/examples/listConferences"}
                 }
               }
             }
@@ -97,6 +100,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConferenceResponse"
+                },
+                "examples": {
+                  "default": {"$ref": "#/components/examples/getConference"}
                 }
               }
             }
@@ -155,6 +161,9 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AgendaResponse"
+                },
+                "examples": {
+                  "default": {"$ref": "#/components/examples/getConferenceAgenda"}
                 }
               }
             }
@@ -210,7 +219,7 @@
         "summary": "Edit a talk as its speaker or conference admin",
         "security": [{"oauth2": ["talks:write"]}, {"personalAccessToken": []}],
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TalkPatch"}}}},
-        "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
+        "responses": {"200": {"description": "Updated talk", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TalkResponse"}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
       }
     },
     "/conferences/{tag}/talks/{talk_id}/schedule": {
@@ -220,7 +229,7 @@
         "summary": "Schedule a talk as a conference admin",
         "security": [{"oauth2": ["schedule:write"]}, {"personalAccessToken": []}],
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleUpdate"}}}},
-        "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
+        "responses": {"200": {"description": "Updated talk schedule", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TalkResponse"}, "examples": {"default": {"$ref": "#/components/examples/updateConferenceTalkSchedule"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
       }
     },
     "/conferences/{tag}/talks/{talk_id}/recording": {
@@ -230,7 +239,7 @@
         "summary": "Idempotently create or update recording metadata",
         "security": [{"oauth2": ["recordings:write"]}, {"personalAccessToken": []}],
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingUpsert"}}}},
-        "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
+        "responses": {"200": {"description": "Updated recording metadata", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingAdminResponse"}, "examples": {"default": {"$ref": "#/components/examples/putConferenceTalkRecording"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
       }
     },
     "/conferences/{tag}/recording-candidates": {
@@ -239,28 +248,39 @@
         "operationId": "listRecordingCandidates",
         "summary": "List accepted or scheduled talks and recording consent state",
         "security": [{"oauth2": ["recordings:write"]}, {"personalAccessToken": []}],
-        "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}
+        "responses": {"200": {"description": "Recording candidates", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingCandidateListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listRecordingCandidates"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}
       }
     },
-    "/conferences/{tag}/speakers": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceSpeakers", "summary": "List public conference speakers", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/conferences/{tag}/speakers": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceSpeakers", "summary": "List public conference speakers", "responses": {"200": {"description": "Conference speakers", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PersonSummaryListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listConferenceSpeakers"}}}}}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/conferences/{tag}/sponsors": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceSponsors", "summary": "List visible paid or committed sponsors", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/conferences/{tag}/hackathons": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceHackathons", "summary": "List public hackathons", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
-    "/people": {"get": {"operationId": "listPeople", "summary": "List public people", "responses": {"200": {"$ref": "#/components/responses/Success"}}}},
-    "/people/{person_id}": {"parameters": [{"$ref": "#/components/parameters/PersonID"}], "get": {"operationId": "getPerson", "summary": "Get a holistic public profile with talks and projects", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/people": {"get": {"operationId": "listPeople", "summary": "List public people", "responses": {"200": {"description": "Public people", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PersonSummaryListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listPeople"}}}}}}}},
+    "/people/{person_id}": {"parameters": [{"$ref": "#/components/parameters/PersonID"}], "get": {"operationId": "getPerson", "summary": "Get a holistic public profile with talks and projects", "responses": {"200": {"description": "Public person", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PersonResponse"}, "examples": {"default": {"$ref": "#/components/examples/getPerson"}}}}}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/organizations/{organization_id}": {"parameters": [{"$ref": "#/components/parameters/OrganizationID"}], "get": {"operationId": "getOrganization", "summary": "Get a publicly referenced organization", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
-    "/recordings": {"get": {"operationId": "listRecordings", "summary": "List published recording links", "responses": {"200": {"$ref": "#/components/responses/Success"}}}},
+    "/recordings": {"get": {"operationId": "listRecordings", "summary": "List published recording links", "responses": {"200": {"description": "Published recordings", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listRecordings"}}}}}}}},
     "/recordings/{recording_id}": {"parameters": [{"$ref": "#/components/parameters/RecordingID"}], "get": {"operationId": "getRecording", "summary": "Get one published recording", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
-    "/hackathons/{competition_id}": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "getHackathon", "summary": "Get a public hackathon", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
-    "/hackathons/{competition_id}/projects": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonProjects", "summary": "List public submitted projects", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
-    "/hackathons/{competition_id}/projects/{project_id}": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}, {"$ref": "#/components/parameters/ProjectID"}], "get": {"operationId": "getHackathonProject", "summary": "Get a public project and teammates without email", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
-    "/hackathons/{competition_id}/awards": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonAwards", "summary": "List non-draft awards and prizes", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
-    "/hackathons/{competition_id}/results": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonResults", "summary": "List finalized award results", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
-    "/me/identity": {"get": {"operationId": "getMyIdentity", "summary": "Get the token owner's account ID, display name, and current roles", "security": [{"oauth2": ["identity:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
-    "/me": {
-      "get": {"operationId": "getMe", "summary": "Get the token owner's private profile", "security": [{"oauth2": ["profile:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}},
-      "patch": {"operationId": "updateMe", "summary": "Update the token owner's public profile fields", "security": [{"oauth2": ["profile:self:write"]}, {"personalAccessToken": []}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProfilePatch"}}}}, "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}
+    "/recordings/{recording_id}/broadcast": {
+      "parameters": [{"$ref": "#/components/parameters/RecordingID"}],
+      "put": {
+        "operationId": "updateRecordingBroadcast",
+        "summary": "Start, heartbeat, or stop a recording broadcast",
+        "description": "A live update also acts as a heartbeat. Send it at least once per minute; public playback stops advertising a live stream after two minutes without a heartbeat.",
+        "security": [{"oauth2": ["recordings:write"]}, {"personalAccessToken": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingBroadcastUpdate"}}}},
+        "responses": {"200": {"description": "Updated broadcast state", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingBroadcastResponse"}, "examples": {"default": {"$ref": "#/components/examples/updateRecordingBroadcast"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}}
+      }
     },
-    "/me/talks": {"get": {"operationId": "listMyTalks", "summary": "List the token owner's talks including non-public states", "security": [{"oauth2": ["talks:read"]}, {"personalAccessToken": []}], "responses": {"200": {"$ref": "#/components/responses/Success"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}}
+    "/hackathons/{competition_id}": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "getHackathon", "summary": "Get a public hackathon", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/hackathons/{competition_id}/projects": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonProjects", "summary": "List public submitted projects", "responses": {"200": {"description": "Submitted projects", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HackathonProjectListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listHackathonProjects"}}}}}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/hackathons/{competition_id}/projects/{project_id}": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}, {"$ref": "#/components/parameters/ProjectID"}], "get": {"operationId": "getHackathonProject", "summary": "Get a public project and teammates without email", "responses": {"200": {"description": "Submitted project", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HackathonProjectResponse"}, "examples": {"default": {"$ref": "#/components/examples/getHackathonProject"}}}}}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/hackathons/{competition_id}/awards": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonAwards", "summary": "List non-draft awards and prizes", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/hackathons/{competition_id}/results": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonResults", "summary": "List finalized award results", "responses": {"200": {"description": "Finalized results", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HackathonResultListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listHackathonResults"}}}}}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/me/identity": {"get": {"operationId": "getMyIdentity", "summary": "Get the token owner's account ID, display name, and current roles", "security": [{"oauth2": ["identity:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"description": "Token owner identity", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountIdentityResponse"}, "examples": {"default": {"$ref": "#/components/examples/getMyIdentity"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
+    "/me": {
+      "get": {"operationId": "getMe", "summary": "Get the token owner's private profile", "security": [{"oauth2": ["profile:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"description": "Private profile", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountProfileResponse"}, "examples": {"default": {"$ref": "#/components/examples/getMe"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}},
+      "patch": {"operationId": "updateMe", "summary": "Update the token owner's public profile fields", "security": [{"oauth2": ["profile:self:write"]}, {"personalAccessToken": []}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProfilePatch"}}}}, "responses": {"200": {"description": "Updated private profile", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountProfileResponse"}, "examples": {"default": {"$ref": "#/components/examples/updateMe"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}
+    },
+    "/me/talks": {"get": {"operationId": "listMyTalks", "summary": "List the token owner's talks including non-public states", "security": [{"oauth2": ["talks:read"]}, {"personalAccessToken": []}], "responses": {"200": {"description": "Token owner's talks", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountTalkListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listMyTalks"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}}
   },
   "components": {
     "parameters": {
@@ -337,6 +357,173 @@
         }
       }
     },
+    "examples": {
+      "listConferences": {
+        "summary": "Published conferences",
+        "value": {
+          "data": [{
+            "id": "00000000-0000-4000-8000-000000000001",
+            "tag": "dev26",
+            "description": "bitcoin++ Local Dev 2026",
+            "edition_type": "global",
+            "tagline": "signet edition",
+            "timezone": "America/Chicago",
+            "location": "Austin, Texas",
+            "venue": "Bitcoin Commons",
+            "starts_at": "2026-08-20T09:00:00-05:00",
+            "ends_at": "2026-08-21T18:00:00-05:00"
+          }],
+          "meta": {"request_id": "req_example", "limit": 20}
+        }
+      },
+      "getConference": {
+        "summary": "One published conference",
+        "value": {
+          "data": {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "tag": "dev26",
+            "description": "bitcoin++ Local Dev 2026",
+            "edition_type": "global",
+            "tagline": "signet edition",
+            "timezone": "America/Chicago",
+            "location": "Austin, Texas",
+            "venue": "Bitcoin Commons",
+            "starts_at": "2026-08-20T09:00:00-05:00",
+            "ends_at": "2026-08-21T18:00:00-05:00"
+          },
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "getConferenceAgenda": {
+        "summary": "Conference agenda with day and speaker context",
+        "value": {
+          "data": {
+            "conference": {"id": "00000000-0000-4000-8000-000000000001", "tag": "dev26", "description": "bitcoin++ Local Dev 2026", "edition_type": "global", "tagline": "signet edition", "timezone": "America/Chicago", "location": "Austin, Texas", "venue": "Bitcoin Commons", "starts_at": "2026-08-20T09:00:00-05:00", "ends_at": "2026-08-21T18:00:00-05:00"},
+            "days": [{"id": "00000000-0000-4000-8000-000000000101", "day_number": 1, "venues": ["Main Stage"], "doors": {"starts_at": "2026-08-20T08:30:00-05:00", "ends_at": "2026-08-20T09:00:00-05:00"}, "breakfast": null, "lunch": {"starts_at": "2026-08-20T12:00:00-05:00", "ends_at": "2026-08-20T13:00:00-05:00"}, "coffee": null}],
+            "talks": [{"id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "description": "Practical relay policy for production Bitcoin software.", "kind": "Talk", "starts_at": "2026-08-20T10:00:00-05:00", "ends_at": "2026-08-20T10:30:00-05:00", "venue": "Main Stage", "section": "Protocol", "speakers": [{"person_id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "company": "Example Labs"}], "repository_url": "https://github.com/example/package-relay", "slides_url": null, "recording_url": "/watch/00000000-0000-4000-8000-000000000b22"}]
+          },
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "listConferenceSpeakers": {
+        "summary": "Public speakers at a conference",
+        "value": {
+          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator."}],
+          "meta": {"request_id": "req_example", "limit": 20}
+        }
+      },
+      "listPeople": {
+        "summary": "Public people directory",
+        "value": {
+          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator."}],
+          "meta": {"request_id": "req_example", "limit": 20, "next_cursor": "eyJpZCI6Ii4uLiJ9"}
+        }
+      },
+      "getPerson": {
+        "summary": "Holistic public person profile",
+        "value": {
+          "data": {
+            "id": "00000000-0000-4000-8000-000000000201",
+            "public_id": "mara-chen",
+            "profile_url": "/whois/mara-chen",
+            "name": "Mara Chen",
+            "avatar_url": "/static/img/dev26/speakers/mara.jpg",
+            "company": "Example Labs",
+            "biography": "Bitcoin protocol engineer and educator.",
+            "links": {"website": "https://example.com", "nostr": null, "x": "https://x.com/marachen", "github": "https://github.com/marachen", "instagram": null, "linkedin": null, "leetcode": null},
+            "stats": {"editions": 2, "talks": 3, "projects": 1},
+            "editions": [{"conference": {"id": "00000000-0000-4000-8000-000000000001", "tag": "dev26", "description": "bitcoin++ Local Dev 2026", "edition_type": "global", "tagline": "signet edition", "timezone": "America/Chicago", "location": "Austin, Texas", "venue": "Bitcoin Commons", "starts_at": "2026-08-20T09:00:00-05:00", "ends_at": "2026-08-21T18:00:00-05:00"}}],
+            "talks": [{"id": "00000000-0000-4000-8000-000000000301", "conference": {"id": "00000000-0000-4000-8000-000000000001", "tag": "dev26", "description": "bitcoin++ Local Dev 2026", "edition_type": "global", "tagline": "signet edition", "timezone": "America/Chicago", "location": "Austin, Texas", "venue": "Bitcoin Commons", "starts_at": "2026-08-20T09:00:00-05:00", "ends_at": "2026-08-21T18:00:00-05:00"}, "title": "Package Relay in Practice", "description": "Practical relay policy for production Bitcoin software.", "kind": "Talk", "starts_at": "2026-08-20T10:00:00-05:00", "ends_at": "2026-08-20T10:30:00-05:00", "venue": "Main Stage", "speakers": [{"person_id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "company": "Example Labs"}], "recording_url": "/watch/00000000-0000-4000-8000-000000000b22", "slides_url": null, "repository_url": "https://github.com/example/package-relay"}],
+            "projects": [{"id": "00000000-0000-4000-8000-000000000b03", "conference": {"id": "00000000-0000-4000-8000-000000000001", "tag": "dev26", "description": "bitcoin++ Local Dev 2026", "edition_type": "global", "tagline": "signet edition", "timezone": "America/Chicago", "location": "Austin, Texas", "venue": "Bitcoin Commons", "starts_at": "2026-08-20T09:00:00-05:00", "ends_at": "2026-08-21T18:00:00-05:00"}, "title": "Signet Wallet Lab", "short_description": "A collaborative wallet testing environment.", "project_url": "/dev26/hackathon/projects/00000000-0000-4000-8000-000000000b03", "image_url": null, "tags": ["wallets", "signet"], "repository_url": "https://github.com/example/signet-wallet", "demo_url": null, "video_url": null, "slides_url": null, "docs_url": null, "teammates": [], "awards": []}]
+          },
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "listRecordings": {
+        "summary": "Published recordings",
+        "value": {
+          "data": [{"id": "00000000-0000-4000-8000-000000000b22", "talk_id": "00000000-0000-4000-8000-000000000301", "conference_tag": "dev26", "title": "Package Relay in Practice", "youtube_url": "https://youtube.com/watch?v=example", "x_url": null, "x_reply_url": null, "published_at": "2026-08-21T15:00:00Z", "watch_url": "/watch/00000000-0000-4000-8000-000000000b22"}],
+          "meta": {"request_id": "req_example", "limit": 20}
+        }
+      },
+      "listRecordingCandidates": {
+        "summary": "Admin recording work queue",
+        "value": {
+          "data": [{"talk_id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "status": "Scheduled", "starts_at": "2026-08-20T10:00:00-05:00", "ends_at": "2026-08-20T10:30:00-05:00", "venue": "Main Stage", "speakers": [{"person_id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "company": "Example Labs"}], "recording_policy": "record", "eligible": true, "reasons": [], "recording": {"id": "00000000-0000-4000-8000-000000000b22", "talk_id": "00000000-0000-4000-8000-000000000301", "talk_name": "Package Relay in Practice", "file_uri": "dev26/recordings/package-relay.mp4", "youtube_url": "", "x_url": "", "x_reply_url": "", "published_at": "2026-08-21T15:00:00Z"}}],
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "putConferenceTalkRecording": {
+        "summary": "Updated recording metadata",
+        "value": {
+          "data": {"id": "00000000-0000-4000-8000-000000000b22", "talk_id": "00000000-0000-4000-8000-000000000301", "talk_name": "Package Relay in Practice", "file_uri": "dev26/recordings/package-relay.mp4", "youtube_url": "https://youtube.com/watch?v=example", "x_url": "", "x_reply_url": "", "published_at": "2026-08-21T15:00:00Z"},
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "updateRecordingBroadcast": {
+        "summary": "Live recording broadcast heartbeat",
+        "value": {
+          "data": {"state": "live", "hls_url": "https://stream.btcpp.dev/live/stream-1/index.m3u8", "x_broadcast_url": null, "started_at": "2026-08-21T14:59:58Z", "ended_at": null, "heartbeat_at": "2026-08-21T15:00:43Z", "is_live": true},
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "listHackathonProjects": {
+        "summary": "Public submitted projects",
+        "value": {
+          "data": [{"id": "00000000-0000-4000-8000-000000000b03", "competition_id": "00000000-0000-4000-8000-000000000b01", "project_number": 3, "title": "Signet Wallet Lab", "short_description": "A collaborative wallet testing environment.", "description": "Test wallet behavior against reproducible signet scenarios.", "image_url": null, "image_urls": [], "tags": ["wallets", "signet"], "repository_url": "https://github.com/example/signet-wallet", "demo_url": null, "video_url": null, "slides_url": null, "docs_url": null, "teammates": [{"person_id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "role": "builder"}], "submitted_at": "2026-08-20T22:15:00-05:00"}],
+          "meta": {"request_id": "req_example", "limit": 20}
+        }
+      },
+      "getHackathonProject": {
+        "summary": "One public project with teammates",
+        "value": {
+          "data": {"id": "00000000-0000-4000-8000-000000000b03", "competition_id": "00000000-0000-4000-8000-000000000b01", "project_number": 3, "title": "Signet Wallet Lab", "short_description": "A collaborative wallet testing environment.", "description": "Test wallet behavior against reproducible signet scenarios.", "image_url": null, "image_urls": [], "tags": ["wallets", "signet"], "repository_url": "https://github.com/example/signet-wallet", "demo_url": "https://example.com/signet-wallet", "video_url": null, "slides_url": null, "docs_url": "https://github.com/example/signet-wallet#readme", "teammates": [{"person_id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "role": "builder"}], "submitted_at": "2026-08-20T22:15:00-05:00"},
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "listHackathonResults": {
+        "summary": "Finalized hackathon results",
+        "value": {
+          "data": [{"award": {"id": "00000000-0000-4000-8000-000000000b11", "competition_id": "00000000-0000-4000-8000-000000000b01", "sponsored_by_organization_id": null, "type": "placement", "title": "Best Overall Project", "description": "Overall hackathon winner.", "rank": 1, "maximum_awardees": 1, "opt_in_required": false, "finalists_only": false, "prizes": [{"id": "00000000-0000-4000-8000-000000000b31", "type": "cash", "title": "First prize", "description": "Paid after the event.", "value_text": "$5,000", "pool_percentage": null, "pool_url": null}]}, "project": {"id": "00000000-0000-4000-8000-000000000b03", "competition_id": "00000000-0000-4000-8000-000000000b01", "project_number": 3, "title": "Signet Wallet Lab", "short_description": "A collaborative wallet testing environment.", "description": "Test wallet behavior against reproducible signet scenarios.", "image_url": null, "image_urls": [], "tags": ["wallets", "signet"], "repository_url": "https://github.com/example/signet-wallet", "demo_url": null, "video_url": null, "slides_url": null, "docs_url": null, "teammates": [], "submitted_at": "2026-08-20T22:15:00-05:00"}}],
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "getMyIdentity": {
+        "summary": "Authenticated account identity",
+        "value": {
+          "data": {"id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "roles": ["dev26:speaker", "dev26:admin"]},
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "getMe": {
+        "summary": "Authenticated private profile",
+        "value": {
+          "data": {"id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "photo": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator.", "website": "https://example.com", "x": "marachen", "github": "https://github.com/marachen", "instagram": "", "linkedin": "", "leetcode": "", "nostr": "npub1example", "emails": [{"email": "mara.chen@example.test", "is_primary": true, "verified_at": "2026-08-01T12:00:00Z"}], "roles": ["dev26:speaker", "dev26:admin"]},
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "updateMe": {
+        "summary": "Updated private profile",
+        "value": {
+          "data": {"id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "photo": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Building useful Bitcoin software.", "website": "https://example.com", "x": "marachen", "github": "https://github.com/marachen", "instagram": "", "linkedin": "", "leetcode": "", "nostr": "npub1example", "emails": [{"email": "mara.chen@example.test", "is_primary": true, "verified_at": "2026-08-01T12:00:00Z"}], "roles": ["dev26:speaker", "dev26:admin"]},
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "listMyTalks": {
+        "summary": "Talks visible to the authenticated speaker",
+        "value": {
+          "data": [{"id": "00000000-0000-4000-8000-000000000301", "conference_tag": "dev26", "title": "Package Relay in Practice", "description": "Practical relay policy for production Bitcoin software.", "kind": "Talk", "status": "Scheduled", "desired_duration_minutes": 30, "speaker_person_ids": ["00000000-0000-4000-8000-000000000201"]}],
+          "meta": {"request_id": "req_example"}
+        }
+      },
+      "updateConferenceTalkSchedule": {
+        "summary": "Atomically updated talk schedule",
+        "value": {
+          "data": {"id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "description": "Practical relay policy for production Bitcoin software.", "kind": "Talk", "starts_at": "2026-08-20T10:00:00-05:00", "ends_at": "2026-08-20T10:30:00-05:00", "venue": "Main Stage", "section": "Protocol", "speakers": [{"person_id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "company": "Example Labs"}], "repository_url": "https://github.com/example/package-relay", "slides_url": null, "recording_url": null},
+          "meta": {"request_id": "req_example"}
+        }
+      }
+    },
     "schemas": {
       "GenericResponse": {
         "type": "object", "required": ["data", "meta"],
@@ -367,6 +554,14 @@
         "properties": {
           "talk_name": {"type": "string"}, "file_uri": {"type": "string"}, "youtube_url": {"type": "string"},
           "x_url": {"type": "string"}, "x_reply_url": {"type": "string"}, "published_at": {"type": "string", "description": "RFC 3339 timestamp; empty clears publication time"}
+        }
+      },
+      "RecordingBroadcastUpdate": {
+        "type": "object", "additionalProperties": false, "required": ["state"],
+        "properties": {
+          "state": {"type": "string", "enum": ["scheduled", "live", "ended", "failed"]},
+          "hls_url": {"type": "string", "format": "uri", "description": "Required for live updates."},
+          "x_broadcast_url": {"type": "string", "format": "uri"}
         }
       },
       "Meta": {
@@ -771,6 +966,191 @@
           }
         }
       },
+      "PersonSummary": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "public_id": {"type": "string"}, "profile_url": {"type": "string"},
+          "name": {"type": "string"}, "avatar_url": {"type": "string"},
+          "company": {"type": ["string", "null"]}, "biography": {"type": ["string", "null"]}
+        }
+      },
+      "PersonLinks": {
+        "type": "object", "additionalProperties": false,
+        "required": ["website", "nostr", "x", "github", "instagram", "linkedin", "leetcode"],
+        "properties": {
+          "website": {"type": ["string", "null"]}, "nostr": {"type": ["string", "null"]}, "x": {"type": ["string", "null"]},
+          "github": {"type": ["string", "null"]}, "instagram": {"type": ["string", "null"]},
+          "linkedin": {"type": ["string", "null"]}, "leetcode": {"type": ["string", "null"]}
+        }
+      },
+      "PersonStats": {
+        "type": "object", "additionalProperties": false, "required": ["editions", "talks", "projects"],
+        "properties": {"editions": {"type": "integer"}, "talks": {"type": "integer"}, "projects": {"type": "integer"}}
+      },
+      "PersonEdition": {
+        "type": "object", "additionalProperties": false, "required": ["conference"],
+        "properties": {"conference": {"$ref": "#/components/schemas/Conference"}}
+      },
+      "PersonTalk": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "conference", "title", "description", "kind", "starts_at", "ends_at", "venue", "speakers", "recording_url", "slides_url", "repository_url"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "conference": {"$ref": "#/components/schemas/Conference"},
+          "title": {"type": "string"}, "description": {"type": "string"}, "kind": {"type": "string"},
+          "starts_at": {"type": ["string", "null"], "format": "date-time"}, "ends_at": {"type": ["string", "null"], "format": "date-time"},
+          "venue": {"type": "string"}, "speakers": {"type": "array", "items": {"$ref": "#/components/schemas/TalkSpeaker"}},
+          "recording_url": {"type": ["string", "null"]}, "slides_url": {"type": ["string", "null"]}, "repository_url": {"type": ["string", "null"]}
+        }
+      },
+      "ProjectMember": {
+        "type": "object", "additionalProperties": false,
+        "required": ["person_id", "public_id", "profile_url", "name", "avatar_url", "role"],
+        "properties": {
+          "person_id": {"type": "string", "format": "uuid"}, "public_id": {"type": ["string", "null"]},
+          "profile_url": {"type": ["string", "null"]}, "name": {"type": "string"}, "avatar_url": {"type": "string"}, "role": {"type": "string"}
+        }
+      },
+      "ProjectAward": {
+        "type": "object", "additionalProperties": false, "required": ["id", "title", "rank"],
+        "properties": {"id": {"type": "string", "format": "uuid"}, "title": {"type": "string"}, "rank": {"type": ["integer", "null"]}}
+      },
+      "PersonProject": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "conference", "title", "short_description", "project_url", "image_url", "tags", "repository_url", "demo_url", "video_url", "slides_url", "docs_url", "teammates", "awards"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "conference": {"$ref": "#/components/schemas/Conference"},
+          "title": {"type": "string"}, "short_description": {"type": "string"}, "project_url": {"type": "string"},
+          "image_url": {"type": ["string", "null"]}, "tags": {"type": "array", "items": {"type": "string"}},
+          "repository_url": {"type": ["string", "null"]}, "demo_url": {"type": ["string", "null"]},
+          "video_url": {"type": ["string", "null"]}, "slides_url": {"type": ["string", "null"]}, "docs_url": {"type": ["string", "null"]},
+          "teammates": {"type": "array", "items": {"$ref": "#/components/schemas/ProjectMember"}},
+          "awards": {"type": "array", "items": {"$ref": "#/components/schemas/ProjectAward"}}
+        }
+      },
+      "Person": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "links", "stats", "editions", "talks", "projects"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "public_id": {"type": "string"}, "profile_url": {"type": "string"},
+          "name": {"type": "string"}, "avatar_url": {"type": "string"}, "company": {"type": ["string", "null"]}, "biography": {"type": ["string", "null"]},
+          "links": {"$ref": "#/components/schemas/PersonLinks"}, "stats": {"$ref": "#/components/schemas/PersonStats"},
+          "editions": {"type": "array", "items": {"$ref": "#/components/schemas/PersonEdition"}},
+          "talks": {"type": "array", "items": {"$ref": "#/components/schemas/PersonTalk"}},
+          "projects": {"type": "array", "items": {"$ref": "#/components/schemas/PersonProject"}}
+        }
+      },
+      "Recording": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "talk_id", "conference_tag", "title", "youtube_url", "x_url", "x_reply_url", "published_at", "watch_url"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "talk_id": {"type": "string", "format": "uuid"}, "conference_tag": {"type": "string"},
+          "title": {"type": "string"}, "youtube_url": {"type": ["string", "null"]}, "x_url": {"type": ["string", "null"]},
+          "x_reply_url": {"type": ["string", "null"]}, "published_at": {"type": ["string", "null"], "format": "date-time"}, "watch_url": {"type": "string"}
+        }
+      },
+      "RecordingAdmin": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "talk_id", "talk_name", "file_uri", "youtube_url", "x_url", "x_reply_url", "published_at"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "talk_id": {"type": "string", "format": "uuid"}, "talk_name": {"type": "string"},
+          "file_uri": {"type": "string"}, "youtube_url": {"type": "string"}, "x_url": {"type": "string"}, "x_reply_url": {"type": "string"},
+          "published_at": {"type": ["string", "null"], "format": "date-time"}
+        }
+      },
+      "RecordingCandidate": {
+        "type": "object", "additionalProperties": false,
+        "required": ["talk_id", "title", "status", "starts_at", "ends_at", "venue", "speakers", "recording_policy", "eligible", "reasons", "recording"],
+        "properties": {
+          "talk_id": {"type": "string", "format": "uuid"}, "title": {"type": "string"}, "status": {"type": "string"},
+          "starts_at": {"type": ["string", "null"], "format": "date-time"}, "ends_at": {"type": ["string", "null"], "format": "date-time"}, "venue": {"type": "string"},
+          "speakers": {"type": "array", "items": {"$ref": "#/components/schemas/TalkSpeaker"}}, "recording_policy": {"type": "string"},
+          "eligible": {"type": "boolean"}, "reasons": {"type": "array", "items": {"type": "string"}},
+          "recording": {"oneOf": [{"$ref": "#/components/schemas/RecordingAdmin"}, {"type": "null"}]}
+        }
+      },
+      "RecordingBroadcast": {
+        "type": "object", "additionalProperties": false,
+        "required": ["state", "hls_url", "x_broadcast_url", "started_at", "ended_at", "heartbeat_at", "is_live"],
+        "properties": {
+          "state": {"type": "string"}, "hls_url": {"type": ["string", "null"]}, "x_broadcast_url": {"type": ["string", "null"]},
+          "started_at": {"type": ["string", "null"], "format": "date-time"}, "ended_at": {"type": ["string", "null"], "format": "date-time"},
+          "heartbeat_at": {"type": ["string", "null"], "format": "date-time"}, "is_live": {"type": "boolean"}
+        }
+      },
+      "HackathonProject": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "competition_id", "project_number", "title", "short_description", "description", "image_url", "image_urls", "tags", "repository_url", "demo_url", "video_url", "slides_url", "docs_url", "teammates", "submitted_at"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "competition_id": {"type": "string", "format": "uuid"}, "project_number": {"type": ["integer", "null"]},
+          "title": {"type": "string"}, "short_description": {"type": "string"}, "description": {"type": "string"},
+          "image_url": {"type": ["string", "null"]}, "image_urls": {"type": "array", "items": {"type": "string"}}, "tags": {"type": "array", "items": {"type": "string"}},
+          "repository_url": {"type": ["string", "null"]}, "demo_url": {"type": ["string", "null"]}, "video_url": {"type": ["string", "null"]},
+          "slides_url": {"type": ["string", "null"]}, "docs_url": {"type": ["string", "null"]},
+          "teammates": {"type": "array", "items": {"$ref": "#/components/schemas/ProjectMember"}}, "submitted_at": {"type": ["string", "null"], "format": "date-time"}
+        }
+      },
+      "Prize": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "type", "title", "description", "value_text", "pool_percentage", "pool_url"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "type": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"},
+          "value_text": {"type": "string"}, "pool_percentage": {"type": ["number", "null"]}, "pool_url": {"type": ["string", "null"]}
+        }
+      },
+      "Award": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "competition_id", "sponsored_by_organization_id", "type", "title", "description", "rank", "maximum_awardees", "opt_in_required", "finalists_only", "prizes"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "competition_id": {"type": "string", "format": "uuid"},
+          "sponsored_by_organization_id": {"type": ["string", "null"], "format": "uuid"}, "type": {"type": "string"}, "title": {"type": "string"},
+          "description": {"type": "string"}, "rank": {"type": ["integer", "null"]}, "maximum_awardees": {"type": ["integer", "null"]},
+          "opt_in_required": {"type": "boolean"}, "finalists_only": {"type": "boolean"}, "prizes": {"type": "array", "items": {"$ref": "#/components/schemas/Prize"}}
+        }
+      },
+      "HackathonResult": {
+        "type": "object", "additionalProperties": false, "required": ["award", "project"],
+        "properties": {"award": {"$ref": "#/components/schemas/Award"}, "project": {"$ref": "#/components/schemas/HackathonProject"}}
+      },
+      "AccountEmail": {
+        "type": "object", "additionalProperties": false, "required": ["email", "is_primary", "verified_at"],
+        "properties": {"email": {"type": "string", "format": "email"}, "is_primary": {"type": "boolean"}, "verified_at": {"type": "string", "format": "date-time"}}
+      },
+      "AccountIdentity": {
+        "type": "object", "additionalProperties": false, "required": ["id", "name", "roles"],
+        "properties": {"id": {"type": "string", "format": "uuid"}, "name": {"type": "string"}, "roles": {"type": "array", "items": {"type": "string"}}}
+      },
+      "AccountProfile": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "photo", "company", "biography", "website", "x", "github", "instagram", "linkedin", "leetcode", "nostr", "emails", "roles"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "name": {"type": "string"}, "photo": {"type": "string"}, "company": {"type": "string"},
+          "biography": {"type": "string"}, "website": {"type": "string"}, "x": {"type": "string"}, "github": {"type": "string"},
+          "instagram": {"type": "string"}, "linkedin": {"type": "string"}, "leetcode": {"type": "string"}, "nostr": {"type": "string"},
+          "emails": {"type": "array", "items": {"$ref": "#/components/schemas/AccountEmail"}}, "roles": {"type": "array", "items": {"type": "string"}}
+        }
+      },
+      "AccountTalk": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "conference_tag", "title", "description", "kind", "status", "desired_duration_minutes", "speaker_person_ids"],
+        "properties": {
+          "id": {"type": "string", "format": "uuid"}, "conference_tag": {"type": "string"}, "title": {"type": "string"}, "description": {"type": "string"},
+          "kind": {"type": "string"}, "status": {"type": "string"}, "desired_duration_minutes": {"type": "integer"},
+          "speaker_person_ids": {"type": "array", "items": {"type": "string", "format": "uuid"}}
+        }
+      },
+      "PersonSummaryListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/PersonSummary"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "PersonResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/Person"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "RecordingListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/Recording"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "RecordingAdminResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/RecordingAdmin"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "RecordingCandidateListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/RecordingCandidate"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "RecordingBroadcastResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/RecordingBroadcast"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "HackathonProjectListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/HackathonProject"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "HackathonProjectResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/HackathonProject"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "HackathonResultListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/HackathonResult"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "AccountIdentityResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/AccountIdentity"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "AccountProfileResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/AccountProfile"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "AccountTalkListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/AccountTalk"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "Error": {
         "type": "object",
         "required": [
