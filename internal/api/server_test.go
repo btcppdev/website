@@ -835,6 +835,9 @@ func TestOpenAPIContractIsPubliclyServed(t *testing.T) {
 	if contentType := response.Header().Get("Content-Type"); !strings.Contains(contentType, "application/vnd.oai.openapi+json") {
 		t.Fatalf("Content-Type = %q", contentType)
 	}
+	if cacheControl := response.Header().Get("Cache-Control"); cacheControl != "no-cache" {
+		t.Fatalf("Cache-Control = %q, want no-cache", cacheControl)
+	}
 	if !bytes.Equal(response.Body.Bytes(), openAPIV1) {
 		t.Fatal("served OpenAPI contract differs from embedded source")
 	}

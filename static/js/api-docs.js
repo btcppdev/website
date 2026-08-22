@@ -25,7 +25,7 @@
 
   let language = "curl";
   let activeExample = "conferences";
-  let responseExamples = {};
+  let responseExamples = null;
   const examplePanel = document.querySelector("[data-api-example]");
 
   function exampleCode(key, selectedLanguage) {
@@ -69,9 +69,10 @@
   function exampleResponse(key) {
     const item = examples[key];
     const operationID = item && item[4];
-    const response = operationID && responseExamples[operationID];
+    const response = operationID && responseExamples && responseExamples[operationID];
     if (response) return JSON.stringify(response.value, null, 2);
-    return "Loading response example…";
+    if (responseExamples === null) return "Loading response example…";
+    return "Response example unavailable. Open /api/v1/openapi.json for the API contract.";
   }
 
   function resolveContractRef(contract, reference) {
@@ -99,7 +100,7 @@
     return resolved;
   }
 
-  fetch("/api/v1/openapi.json", { headers: { "Accept": "application/json" } })
+  fetch("/api/v1/openapi.json", { cache: "no-store", headers: { "Accept": "application/json" } })
     .then(function (response) {
       if (!response.ok) throw new Error("OpenAPI contract unavailable");
       return response.json();

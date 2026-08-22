@@ -56,7 +56,7 @@ func TestLoadTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read API documentation script: %v", err)
 	}
-	for _, expected := range []string{"renderExample", "navigator.clipboard", "data-docs-search-input", "IntersectionObserver"} {
+	for _, expected := range []string{"renderExample", "navigator.clipboard", "data-docs-search-input", "IntersectionObserver", `cache: "no-store"`, "Response example unavailable"} {
 		if !strings.Contains(string(apiDocsScript), expected) {
 			t.Fatalf("API documentation script omitted %q", expected)
 		}
