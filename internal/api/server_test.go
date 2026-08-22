@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -562,6 +565,261 @@ func TestOpenAPIContractListsEveryV1RouteAndNoTranscriptSurface(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(string(document)), "transcript") {
 		t.Fatal("initial OpenAPI contract must not expose transcripts")
+	}
+}
+
+func TestOpenAPIContractIncludesDocumentationExamples(t *testing.T) {
+	var contract struct {
+		Paths      map[string]map[string]json.RawMessage `json:"paths"`
+		Components struct {
+			Examples map[string]struct {
+				Value json.RawMessage `json:"value"`
+			} `json:"examples"`
+			Schemas map[string]json.RawMessage `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(openAPIV1, &contract); err != nil {
+		t.Fatalf("parse OpenAPI contract as JSON: %v", err)
+	}
+	wiredExamples := make(map[string]string)
+	wiredSchemas := make(map[string]string)
+	for _, pathItem := range contract.Paths {
+		for method, rawOperation := range pathItem {
+			if method == "parameters" {
+				continue
+			}
+			var operation struct {
+				OperationID string `json:"operationId"`
+				Responses   map[string]struct {
+					Content map[string]struct {
+						Schema struct {
+							Ref string `json:"$ref"`
+						} `json:"schema"`
+						Examples map[string]struct {
+							Ref string `json:"$ref"`
+						} `json:"examples"`
+					} `json:"content"`
+				} `json:"responses"`
+			}
+			if err := json.Unmarshal(rawOperation, &operation); err != nil {
+				t.Fatalf("parse %s operation: %v", method, err)
+			}
+			media := operation.Responses["200"].Content["application/json"]
+			wiredSchemas[operation.OperationID] = media.Schema.Ref
+			for _, example := range media.Examples {
+				wiredExamples[operation.OperationID] = strings.TrimPrefix(example.Ref, "#/components/examples/")
+				break
+			}
+		}
+	}
+
+	expectedSchemas := map[string]string{
+		"listConferences": "ConferenceListResponse", "getConference": "ConferenceResponse", "getConferenceAgenda": "AgendaResponse",
+		"listConferenceSpeakers": "PersonSummaryListResponse", "listPeople": "PersonSummaryListResponse", "getPerson": "PersonResponse",
+		"listRecordings": "RecordingListResponse", "listRecordingCandidates": "RecordingCandidateListResponse",
+		"putConferenceTalkRecording": "RecordingAdminResponse", "updateRecordingBroadcast": "RecordingBroadcastResponse",
+		"listHackathonProjects": "HackathonProjectListResponse", "getHackathonProject": "HackathonProjectResponse",
+		"listHackathonResults": "HackathonResultListResponse", "getMyIdentity": "AccountIdentityResponse",
+		"getMe": "AccountProfileResponse", "updateMe": "AccountProfileResponse", "listMyTalks": "AccountTalkListResponse",
+		"updateConferenceTalkSchedule": "TalkResponse",
+	}
+	for operationID, schema := range expectedSchemas {
+		if got := strings.TrimPrefix(wiredSchemas[operationID], "#/components/schemas/"); got != schema {
+			t.Errorf("%s 200 response schema = %q, want %q", operationID, got, schema)
+		}
+		if got := wiredExamples[operationID]; got != operationID {
+			t.Errorf("%s 200 response example = %q, want %q", operationID, got, operationID)
+		}
+		if _, ok := contract.Components.Examples[operationID]; !ok {
+			t.Errorf("OpenAPI contract is missing documentation example %s", operationID)
+			continue
+		}
+		assertOpenAPIExampleSchema(t, contract.Components.Examples[operationID].Value, schema, contract.Components.Schemas)
+	}
+
+	assertOpenAPIExample[[]conferenceDTO](t, contract.Components.Examples, "listConferences")
+	assertOpenAPIExample[conferenceDTO](t, contract.Components.Examples, "getConference")
+	assertOpenAPIExample[agendaDTO](t, contract.Components.Examples, "getConferenceAgenda")
+	assertOpenAPIExample[[]personSummaryDTO](t, contract.Components.Examples, "listConferenceSpeakers")
+	assertOpenAPIExample[[]personSummaryDTO](t, contract.Components.Examples, "listPeople")
+	assertOpenAPIExample[personDTO](t, contract.Components.Examples, "getPerson")
+	assertOpenAPIExample[[]recordingDTO](t, contract.Components.Examples, "listRecordings")
+	assertOpenAPIExample[[]recordingCandidateDTO](t, contract.Components.Examples, "listRecordingCandidates")
+	assertOpenAPIExample[recordingAdminDTO](t, contract.Components.Examples, "putConferenceTalkRecording")
+	assertOpenAPIExample[recordingBroadcastDTO](t, contract.Components.Examples, "updateRecordingBroadcast")
+	assertOpenAPIExample[[]hackathonProjectDTO](t, contract.Components.Examples, "listHackathonProjects")
+	assertOpenAPIExample[hackathonProjectDTO](t, contract.Components.Examples, "getHackathonProject")
+	assertOpenAPIExample[[]resultDTO](t, contract.Components.Examples, "listHackathonResults")
+	assertOpenAPIExample[accountIdentityDTO](t, contract.Components.Examples, "getMyIdentity")
+	assertOpenAPIExample[accountProfileDTO](t, contract.Components.Examples, "getMe")
+	assertOpenAPIExample[accountProfileDTO](t, contract.Components.Examples, "updateMe")
+	assertOpenAPIExample[[]accountTalkDTO](t, contract.Components.Examples, "listMyTalks")
+	assertOpenAPIExample[talkDTO](t, contract.Components.Examples, "updateConferenceTalkSchedule")
+}
+
+func assertOpenAPIExampleSchema(t *testing.T, value json.RawMessage, schemaName string, schemas map[string]json.RawMessage) {
+	t.Helper()
+	var decoded any
+	decoder := json.NewDecoder(bytes.NewReader(value))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
+		t.Errorf("decode %s example for schema validation: %v", schemaName, err)
+		return
+	}
+	if err := validateOpenAPIExampleValue(decoded, schemas[schemaName], schemas, schemaName); err != nil {
+		t.Errorf("OpenAPI example does not satisfy %s: %v", schemaName, err)
+	}
+}
+
+func validateOpenAPIExampleValue(value any, rawSchema json.RawMessage, schemas map[string]json.RawMessage, path string) error {
+	var schema struct {
+		Ref                  string                     `json:"$ref"`
+		Type                 json.RawMessage            `json:"type"`
+		Required             []string                   `json:"required"`
+		Properties           map[string]json.RawMessage `json:"properties"`
+		Items                json.RawMessage            `json:"items"`
+		OneOf                []json.RawMessage          `json:"oneOf"`
+		AdditionalProperties any                        `json:"additionalProperties"`
+	}
+	if err := json.Unmarshal(rawSchema, &schema); err != nil {
+		return fmt.Errorf("%s has an invalid schema: %w", path, err)
+	}
+	if schema.Ref != "" {
+		const prefix = "#/components/schemas/"
+		if !strings.HasPrefix(schema.Ref, prefix) {
+			return fmt.Errorf("%s uses unsupported reference %q", path, schema.Ref)
+		}
+		name := strings.TrimPrefix(schema.Ref, prefix)
+		referenced, ok := schemas[name]
+		if !ok {
+			return fmt.Errorf("%s references missing schema %q", path, name)
+		}
+		return validateOpenAPIExampleValue(value, referenced, schemas, path)
+	}
+	if len(schema.OneOf) > 0 {
+		var failures []string
+		for _, candidate := range schema.OneOf {
+			if err := validateOpenAPIExampleValue(value, candidate, schemas, path); err == nil {
+				return nil
+			} else {
+				failures = append(failures, err.Error())
+			}
+		}
+		return fmt.Errorf("%s does not satisfy any oneOf option: %s", path, strings.Join(failures, "; "))
+	}
+	var allowedTypes []string
+	if len(schema.Type) > 0 {
+		if schema.Type[0] == '[' {
+			if err := json.Unmarshal(schema.Type, &allowedTypes); err != nil {
+				return fmt.Errorf("%s has invalid type list: %w", path, err)
+			}
+		} else {
+			var single string
+			if err := json.Unmarshal(schema.Type, &single); err != nil {
+				return fmt.Errorf("%s has invalid type: %w", path, err)
+			}
+			allowedTypes = []string{single}
+		}
+	}
+	actualType := openAPIExampleType(value)
+	if len(allowedTypes) > 0 && !containsString(allowedTypes, actualType) {
+		return fmt.Errorf("%s is %s, want %s", path, actualType, strings.Join(allowedTypes, " or "))
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, required := range schema.Required {
+			if _, ok := typed[required]; !ok {
+				return fmt.Errorf("%s is missing required property %q", path, required)
+			}
+		}
+		for name, child := range typed {
+			childSchema, ok := schema.Properties[name]
+			if !ok {
+				if allowed, ok := schema.AdditionalProperties.(bool); ok && !allowed {
+					return fmt.Errorf("%s has undocumented property %q", path, name)
+				}
+				continue
+			}
+			if err := validateOpenAPIExampleValue(child, childSchema, schemas, path+"."+name); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for index, child := range typed {
+			if err := validateOpenAPIExampleValue(child, schema.Items, schemas, fmt.Sprintf("%s[%d]", path, index)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func openAPIExampleType(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return "null"
+	case map[string]any:
+		return "object"
+	case []any:
+		return "array"
+	case string:
+		return "string"
+	case bool:
+		return "boolean"
+	case json.Number:
+		if strings.ContainsAny(typed.String(), ".eE") {
+			return "number"
+		}
+		return "integer"
+	default:
+		return "unknown"
+	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target || (value == "number" && target == "integer") {
+			return true
+		}
+	}
+	return false
+}
+
+func assertOpenAPIExample[T any](t *testing.T, examples map[string]struct {
+	Value json.RawMessage `json:"value"`
+}, operationID string) {
+	t.Helper()
+	example, ok := examples[operationID]
+	if !ok {
+		return
+	}
+	var envelope struct {
+		Data T            `json:"data"`
+		Meta responseMeta `json:"meta"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(example.Value))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&envelope); err != nil {
+		t.Errorf("OpenAPI documentation example %s does not match its Go response DTO: %v", operationID, err)
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		t.Errorf("OpenAPI documentation example %s has trailing JSON", operationID)
+		return
+	}
+	roundTrip, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("marshal %s example DTO: %v", operationID, err)
+	}
+	var originalValue, roundTripValue any
+	if err := json.Unmarshal(example.Value, &originalValue); err != nil {
+		t.Fatalf("parse original %s example: %v", operationID, err)
+	}
+	if err := json.Unmarshal(roundTrip, &roundTripValue); err != nil {
+		t.Fatalf("parse round-tripped %s example: %v", operationID, err)
+	}
+	if !reflect.DeepEqual(originalValue, roundTripValue) {
+		t.Errorf("OpenAPI documentation example %s omits or changes fields when round-tripped through its Go response DTO", operationID)
 	}
 }
 
