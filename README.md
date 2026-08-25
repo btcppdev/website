@@ -87,14 +87,15 @@ that address and namespaces its mailer job key so it cannot collide with
 production delivery. `MAILER_JOB_ENABLED` controls only the periodic database
 mailer scan; request-driven email remains available while it is false.
 
-YouTube OAuth tokens and the X Chrome profile are encrypted into Spaces because DigitalOcean App Platform does not persist local disk across deploys. The default object keys are:
+YouTube OAuth tokens are encrypted into Spaces because DigitalOcean App Platform does not persist local disk across deploys. The default object key is:
 
 ```
 YOUTUBE_TOKEN_OBJECT=private/social/youtube-token.json.enc
-X_PROFILE_ARCHIVE_OBJECT=private/social/x-chrome-profile.tgz.enc
 ```
 
-Set `X_UPLOADER_ENABLED=true` on exactly one running app component. To repair X auth, run the app locally with the same Spaces credentials plus `X_BROWSER_HEADED=true`, use the recordings admin page's Bootstrap X action, finish the x.com login in Chrome, then run Test X auth.
+X Studio broadcast scheduling uses the unsupported private endpoints observed in Studio. Configure the integration with `X_STUDIO_ENABLED`, `X_STUDIO_COOKIE`, `X_STUDIO_USER_AGENT`, and `X_STUDIO_INGEST_ID`. The cookie and ingest ID are server-side secrets. Scheduling persists each returned identifier before moving to poster upload and finalization, allowing an interrupted operation to resume without creating another broadcast.
+
+The recording admin's X action now creates a broadcast rather than uploading a video into an X post. Its public URL is copied into `recording_broadcasts.x_broadcast_url`, alongside the durable control-plane record in `recording_x_broadcasts`. The recordings autoschedule review also offers an explicit, opt-in batch action for poster-ready rows; it saves all publish times first and creates or updates X broadcasts sequentially. streamctl can incrementally poll `GET /api/v1/recording-broadcast-plans?updated_after=…` with a global-admin machine token carrying `recordings:write`; the response contains the source object key, canonical X schedule and URL, destinations, and a server-provided next cursor. streamctl synchronization is the next integration step: it will reconcile those plans into local one-shot streams and drive the existing HLS live/ended callback. Buffer remains responsible for announcement posts; btcpp-web no longer drives X.com through a Chrome profile.
 
 YouTube OAuth uses the current event-scoped callback URL, for example `https://btcpp.dev/berlin26/admin/recordings/oauth/youtube/callback`. Register the event callback URL in the Google OAuth client before authorizing YouTube from that event dashboard.
 

@@ -43,6 +43,7 @@ type server struct {
 	updateTalkResources func(string, string, string, string) error
 	updateTalkSchedule  func(string, string, time.Time, time.Time) (getters.ScheduleConflict, error)
 	listConfRecordings  func(string) ([]*types.Recording, error)
+	listBroadcastPlans  func(getters.RecordingBroadcastPlanFilter) ([]*types.RecordingBroadcastPlan, error)
 	upsertRecording     func(string, getters.RecordingUpsert) (*types.Recording, error)
 	loadRecording       func(string) (*types.Recording, error)
 	loadBroadcast       func(string) (*types.RecordingBroadcast, error)
@@ -89,6 +90,9 @@ func Register(root *mux.Router, app *config.AppContext) {
 			return getters.UpdateConfTalkScheduleAtomic(app, id, venue, start, end)
 		},
 		listConfRecordings: func(tag string) ([]*types.Recording, error) { return getters.ListRecordingsForConf(app, tag) },
+		listBroadcastPlans: func(filter getters.RecordingBroadcastPlanFilter) ([]*types.RecordingBroadcastPlan, error) {
+			return getters.ListRecordingBroadcastPlans(app, filter)
+		},
 		upsertRecording: func(id string, update getters.RecordingUpsert) (*types.Recording, error) {
 			return getters.UpsertRecordingForConfTalk(app, id, update)
 		},
@@ -122,6 +126,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/conferences/{tag}/talks/{talkID}", s.patchConferenceTalk).Methods(http.MethodPatch)
 	r.HandleFunc("/conferences/{tag}/talks/{talkID}/schedule", s.updateConferenceTalkSchedule).Methods(http.MethodPut)
 	r.HandleFunc("/conferences/{tag}/recording-candidates", s.recordingCandidates).Methods(http.MethodGet)
+	r.HandleFunc("/recording-broadcast-plans", s.recordingBroadcastPlans).Methods(http.MethodGet)
 	r.HandleFunc("/conferences/{tag}/talks/{talkID}/recording", s.putTalkRecording).Methods(http.MethodPut)
 	r.HandleFunc("/conferences/{tag}/speakers", s.conferenceSpeakers).Methods(http.MethodGet)
 	r.HandleFunc("/people", s.people).Methods(http.MethodGet)
@@ -255,15 +260,16 @@ func (s *server) bootstrap(w http.ResponseWriter, r *http.Request) {
 	s.writePublic(w, r, http.StatusOK, bootstrapDTO{
 		APIVersion: "v1",
 		Links: map[string]string{
-			"bootstrap":             "/api/v1/bootstrap",
-			"documentation":         "/developers/api",
-			"openapi":               "/api/v1/openapi.json",
-			"conferences":           "/api/v1/conferences",
-			"people":                "/api/v1/people",
-			"recordings":            "/api/v1/recordings",
-			"identity":              "/api/v1/me/identity",
-			"me":                    "/api/v1/me",
-			"oauth_server_metadata": "/.well-known/oauth-authorization-server",
+			"bootstrap":                 "/api/v1/bootstrap",
+			"documentation":             "/developers/api",
+			"openapi":                   "/api/v1/openapi.json",
+			"conferences":               "/api/v1/conferences",
+			"people":                    "/api/v1/people",
+			"recordings":                "/api/v1/recordings",
+			"recording_broadcast_plans": "/api/v1/recording-broadcast-plans",
+			"identity":                  "/api/v1/me/identity",
+			"me":                        "/api/v1/me",
+			"oauth_server_metadata":     "/.well-known/oauth-authorization-server",
 		},
 	})
 }
@@ -713,14 +719,79 @@ func (s *server) recordingCandidates(w http.ResponseWriter, r *http.Request) {
 			byTalk[recording.ConfTalkID] = recording
 		}
 	}
+	plansByRecording := make(map[string]*types.RecordingBroadcastPlan)
+	if s.listBroadcastPlans != nil {
+		plans, err := s.listBroadcastPlans(getters.RecordingBroadcastPlanFilter{ConferenceTag: conf.Tag})
+		if err != nil {
+			s.internalError(w, r, "list conference recording broadcast plans", err)
+			return
+		}
+		for _, plan := range plans {
+			if plan != nil {
+				plansByRecording[plan.RecordingID] = plan
+			}
+		}
+	}
 	data := make([]recordingCandidateDTO, 0, len(talks))
 	for _, talk := range talks {
 		if talk == nil || (talk.Status != "Accepted" && talk.Status != "Scheduled") {
 			continue
 		}
-		data = append(data, recordingCandidateFromDomain(talk, byTalk[talk.ID]))
+		recording := byTalk[talk.ID]
+		var plan *types.RecordingBroadcastPlan
+		if recording != nil {
+			plan = plansByRecording[recording.ID]
+		}
+		data = append(data, recordingCandidateFromDomain(talk, recording, plan))
 	}
 	s.writePrivate(w, r, http.StatusOK, data)
+}
+
+func (s *server) recordingBroadcastPlans(w http.ResponseWriter, r *http.Request) {
+	principal, r := s.requireScope(w, r, "recordings:write")
+	if principal == nil {
+		return
+	}
+	if principal.Identity == nil || !principal.Identity.IsGlobalAdmin() {
+		s.writeError(w, r, http.StatusForbidden, "forbidden", "Global admin access is required.")
+		return
+	}
+	if s.listBroadcastPlans == nil {
+		s.internalError(w, r, "list recording broadcast plans", io.ErrClosedPipe)
+		return
+	}
+	var updatedAfter *time.Time
+	if raw := strings.TrimSpace(r.URL.Query().Get("updated_after")); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			s.writeError(w, r, http.StatusUnprocessableEntity, "validation_error", "updated_after must be an RFC3339 timestamp.")
+			return
+		}
+		parsed = parsed.UTC()
+		updatedAfter = &parsed
+	}
+	plans, err := s.listBroadcastPlans(getters.RecordingBroadcastPlanFilter{UpdatedAfter: updatedAfter})
+	if err != nil {
+		s.internalError(w, r, "list recording broadcast plans", err)
+		return
+	}
+	data := make([]recordingBroadcastPlanDTO, 0, len(plans))
+	nextUpdatedAfter := ""
+	var newestUpdate time.Time
+	for _, plan := range plans {
+		if plan == nil {
+			continue
+		}
+		data = append(data, recordingBroadcastPlanFromDomain(plan))
+		if newestUpdate.IsZero() || plan.UpdatedAt.After(newestUpdate) {
+			newestUpdate = plan.UpdatedAt
+			nextUpdatedAfter = plan.UpdatedAt.UTC().Format(time.RFC3339Nano)
+		}
+	}
+	if nextUpdatedAfter == "" && updatedAfter != nil {
+		nextUpdatedAfter = updatedAfter.Format(time.RFC3339Nano)
+	}
+	s.writePrivateMeta(w, r, http.StatusOK, data, responseMeta{NextUpdatedAfter: nextUpdatedAfter})
 }
 
 func (s *server) putTalkRecording(w http.ResponseWriter, r *http.Request) {
@@ -1271,11 +1342,16 @@ func (s *server) writePublicWithMeta(w http.ResponseWriter, r *http.Request, sta
 }
 
 func (s *server) writePrivate(w http.ResponseWriter, r *http.Request, status int, data any) {
+	s.writePrivateMeta(w, r, status, data, responseMeta{})
+}
+
+func (s *server) writePrivateMeta(w http.ResponseWriter, r *http.Request, status int, data any, meta responseMeta) {
 	id := responseRequestID(w, r)
+	meta.RequestID = id
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(responseEnvelope{Data: data, Meta: responseMeta{RequestID: id}})
+	_ = json.NewEncoder(w).Encode(responseEnvelope{Data: data, Meta: meta})
 }
 
 func (s *server) decodeJSON(w http.ResponseWriter, r *http.Request, destination any) bool {
@@ -1465,7 +1541,7 @@ func talkFromDomain(talk *types.Talk) talkDTO {
 	}
 }
 
-func recordingCandidateFromDomain(talk *types.Talk, recording *types.Recording) recordingCandidateDTO {
+func recordingCandidateFromDomain(talk *types.Talk, recording *types.Recording, plan *types.RecordingBroadcastPlan) recordingCandidateDTO {
 	policy := "full"
 	reasons := make([]string, 0)
 	eligible := true
@@ -1488,7 +1564,26 @@ func recordingCandidateFromDomain(talk *types.Talk, recording *types.Recording) 
 		TalkID: talk.ID, Title: talk.Name, Status: talk.Status, StartsAt: startsAt,
 		EndsAt: endsAt, Venue: talk.Venue, Speakers: talkSpeakersFromDomain(talk.Speakers),
 		RecordingPolicy: policy, Eligible: eligible, Reasons: reasons,
-		Recording: recordingAdminFromDomain(recording),
+		Recording:     recordingAdminFromDomain(recording),
+		BroadcastPlan: recordingBroadcastPlanPtrFromDomain(plan),
+	}
+}
+
+func recordingBroadcastPlanPtrFromDomain(plan *types.RecordingBroadcastPlan) *recordingBroadcastPlanDTO {
+	if plan == nil {
+		return nil
+	}
+	dto := recordingBroadcastPlanFromDomain(plan)
+	return &dto
+}
+
+func recordingBroadcastPlanFromDomain(plan *types.RecordingBroadcastPlan) recordingBroadcastPlanDTO {
+	return recordingBroadcastPlanDTO{
+		RecordingID: plan.RecordingID, ConferenceTag: plan.ConferenceTag, TalkID: plan.TalkID,
+		Title: plan.Title, Source: recordingBroadcastSourceDTO{Kind: "spaces", ObjectKey: plan.SourceObjectKey},
+		PublishAt: optionalTime(plan.PublishAt), Status: plan.Status,
+		ScheduledAt: plan.ScheduledAt.UTC().Format(time.RFC3339Nano), XBroadcastURL: optionalString(plan.XBroadcastURL),
+		Destinations: []string{"website_hls", "x"}, UpdatedAt: plan.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
 }
 

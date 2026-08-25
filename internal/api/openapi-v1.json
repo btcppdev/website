@@ -259,6 +259,16 @@
     "/organizations/{organization_id}": {"parameters": [{"$ref": "#/components/parameters/OrganizationID"}], "get": {"operationId": "getOrganization", "summary": "Get a publicly referenced organization", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/recordings": {"get": {"operationId": "listRecordings", "summary": "List published recording links", "responses": {"200": {"description": "Published recordings", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listRecordings"}}}}}}}},
     "/recordings/{recording_id}": {"parameters": [{"$ref": "#/components/parameters/RecordingID"}], "get": {"operationId": "getRecording", "summary": "Get one published recording", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/recording-broadcast-plans": {
+      "get": {
+        "operationId": "listRecordingBroadcastPlans",
+        "summary": "Poll recording broadcast plans",
+        "description": "Global-admin integration feed for stream schedulers. Results are ordered by updated_at. Pass the response meta.next_updated_after value on the next poll; updated_after is exclusive.",
+        "parameters": [{"name": "updated_after", "in": "query", "required": false, "description": "Return plans changed strictly after this RFC 3339 timestamp.", "schema": {"type": "string", "format": "date-time"}}],
+        "security": [{"oauth2": ["recordings:write"]}, {"personalAccessToken": []}],
+        "responses": {"200": {"description": "Recording broadcast plans", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingBroadcastPlanListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listRecordingBroadcastPlans"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "422": {"$ref": "#/components/responses/ValidationError"}}
+      }
+    },
     "/recordings/{recording_id}/broadcast": {
       "parameters": [{"$ref": "#/components/parameters/RecordingID"}],
       "put": {
@@ -449,8 +459,15 @@
       "listRecordingCandidates": {
         "summary": "Admin recording work queue",
         "value": {
-          "data": [{"talk_id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "status": "Scheduled", "starts_at": "2026-08-20T10:00:00-05:00", "ends_at": "2026-08-20T10:30:00-05:00", "venue": "Main Stage", "speakers": [{"person_id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "company": "Example Labs"}], "recording_policy": "record", "eligible": true, "reasons": [], "recording": {"id": "00000000-0000-4000-8000-000000000b22", "talk_id": "00000000-0000-4000-8000-000000000301", "talk_name": "Package Relay in Practice", "file_uri": "dev26/recordings/package-relay.mp4", "youtube_url": "", "x_url": "", "x_reply_url": "", "published_at": "2026-08-21T15:00:00Z"}}],
+          "data": [{"talk_id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "status": "Scheduled", "starts_at": "2026-08-20T10:00:00-05:00", "ends_at": "2026-08-20T10:30:00-05:00", "venue": "Main Stage", "speakers": [{"person_id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "company": "Example Labs"}], "recording_policy": "record", "eligible": true, "reasons": [], "recording": {"id": "00000000-0000-4000-8000-000000000b22", "talk_id": "00000000-0000-4000-8000-000000000301", "talk_name": "Package Relay in Practice", "file_uri": "dev26/recordings/package-relay.mp4", "youtube_url": "", "x_url": "", "x_reply_url": "", "published_at": "2026-08-21T15:00:00Z"}, "broadcast_plan": {"recording_id": "00000000-0000-4000-8000-000000000b22", "conference_tag": "dev26", "talk_id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "source": {"kind": "spaces", "object_key": "dev26/recordings/package-relay.mp4"}, "publish_at": "2026-08-21T15:00:00Z", "status": "scheduled", "scheduled_at": "2026-08-21T15:00:00Z", "x_broadcast_url": "https://x.com/i/broadcasts/1example", "destinations": ["website_hls", "x"], "updated_at": "2026-08-20T18:15:00Z"}}],
           "meta": {"request_id": "req_example"}
+        }
+      },
+      "listRecordingBroadcastPlans": {
+        "summary": "Incremental stream scheduling feed",
+        "value": {
+          "data": [{"recording_id": "00000000-0000-4000-8000-000000000b22", "conference_tag": "dev26", "talk_id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "source": {"kind": "spaces", "object_key": "dev26/recordings/package-relay.mp4"}, "publish_at": "2026-08-21T15:00:00Z", "status": "scheduled", "scheduled_at": "2026-08-21T15:00:00Z", "x_broadcast_url": "https://x.com/i/broadcasts/1example", "destinations": ["website_hls", "x"], "updated_at": "2026-08-20T18:15:00Z"}],
+          "meta": {"request_id": "req_example", "next_updated_after": "2026-08-20T18:15:00Z"}
         }
       },
       "putConferenceTalkRecording": {
@@ -576,6 +593,11 @@
           "next_cursor": {
             "type": "string",
             "description": "Opaque cursor for the next page; absent on the final page"
+          },
+          "next_updated_after": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Exclusive cursor to send as updated_after on the next incremental poll"
           },
           "limit": {
             "type": "integer",
@@ -1060,13 +1082,30 @@
       },
       "RecordingCandidate": {
         "type": "object", "additionalProperties": false,
-        "required": ["talk_id", "title", "status", "starts_at", "ends_at", "venue", "speakers", "recording_policy", "eligible", "reasons", "recording"],
+        "required": ["talk_id", "title", "status", "starts_at", "ends_at", "venue", "speakers", "recording_policy", "eligible", "reasons", "recording", "broadcast_plan"],
         "properties": {
           "talk_id": {"type": "string", "format": "uuid"}, "title": {"type": "string"}, "status": {"type": "string"},
           "starts_at": {"type": ["string", "null"], "format": "date-time"}, "ends_at": {"type": ["string", "null"], "format": "date-time"}, "venue": {"type": "string"},
           "speakers": {"type": "array", "items": {"$ref": "#/components/schemas/TalkSpeaker"}}, "recording_policy": {"type": "string"},
           "eligible": {"type": "boolean"}, "reasons": {"type": "array", "items": {"type": "string"}},
-          "recording": {"oneOf": [{"$ref": "#/components/schemas/RecordingAdmin"}, {"type": "null"}]}
+          "recording": {"oneOf": [{"$ref": "#/components/schemas/RecordingAdmin"}, {"type": "null"}]},
+          "broadcast_plan": {"oneOf": [{"$ref": "#/components/schemas/RecordingBroadcastPlan"}, {"type": "null"}]}
+        }
+      },
+      "RecordingBroadcastSource": {
+        "type": "object", "additionalProperties": false, "required": ["kind", "object_key"],
+        "properties": {"kind": {"type": "string", "enum": ["spaces"]}, "object_key": {"type": "string"}}
+      },
+      "RecordingBroadcastPlan": {
+        "type": "object", "additionalProperties": false,
+        "required": ["recording_id", "conference_tag", "talk_id", "title", "source", "publish_at", "status", "scheduled_at", "x_broadcast_url", "destinations", "updated_at"],
+        "properties": {
+          "recording_id": {"type": "string", "format": "uuid"}, "conference_tag": {"type": "string"}, "talk_id": {"type": "string", "format": "uuid"},
+          "title": {"type": "string"}, "source": {"$ref": "#/components/schemas/RecordingBroadcastSource"},
+          "publish_at": {"type": ["string", "null"], "format": "date-time"},
+          "status": {"type": "string", "enum": ["creating", "created", "uploading_poster", "poster_uploaded", "finalizing", "scheduled", "failed"]},
+          "scheduled_at": {"type": "string", "format": "date-time"}, "x_broadcast_url": {"type": ["string", "null"], "format": "uri"},
+          "destinations": {"type": "array", "items": {"type": "string", "enum": ["website_hls", "x"]}}, "updated_at": {"type": "string", "format": "date-time"}
         }
       },
       "RecordingBroadcast": {
@@ -1144,6 +1183,7 @@
       "RecordingListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/Recording"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "RecordingAdminResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/RecordingAdmin"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "RecordingCandidateListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/RecordingCandidate"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "RecordingBroadcastPlanListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/RecordingBroadcastPlan"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "RecordingBroadcastResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/RecordingBroadcast"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "HackathonProjectListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/HackathonProject"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "HackathonProjectResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/HackathonProject"}, "meta": {"$ref": "#/components/schemas/Meta"}}},

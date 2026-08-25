@@ -101,10 +101,11 @@
           <section id="recordings" class="api-reference__section" data-docs-section>
             <p class="api-reference__kicker">04 / Public + admin</p>
             <h2>Recordings</h2>
-            <p>Browse published recordings anonymously. Conference and global admins can update recording metadata, then start, heartbeat, and stop HLS broadcasts with a scoped token.</p>
+            <p>Browse published recordings anonymously. Conference and global admins can update recording metadata, then start, heartbeat, and stop HLS broadcasts with a scoped token. Global-admin services can incrementally poll the broadcast-plan feed to reconcile recording sources, release times, and destinations.</p>
             <div class="api-reference__endpoints">
               <button type="button" data-api-endpoint="recordings" data-docs-search-item data-search-label="GET /recordings — List published recordings"><span>GET</span><code>/recordings</code><small>List published recordings</small></button>
               <button type="button" data-api-endpoint="candidates" data-docs-search-item data-search-label="GET recording candidates — Admin recording work queue"><span>GET</span><code>/conferences/{tag}/recording-candidates</code><small>Admin recording work queue</small></button>
+              <button type="button" data-api-endpoint="broadcast-plans" data-docs-search-item data-search-label="GET recording broadcast plans — Incremental stream scheduler feed"><span>GET</span><code>/recording-broadcast-plans?updated_after=…</code><small>Poll changed stream schedules</small></button>
               <button type="button" data-api-endpoint="recording-update" data-docs-search-item data-search-label="PUT talk recording — Update recording metadata"><span class="is-put">PUT</span><code>/conferences/{tag}/talks/{talk_id}/recording</code><small>Update recording metadata</small></button>
               <button type="button" data-api-endpoint="broadcast-update" data-docs-search-item data-search-label="PUT recording broadcast — Start or stop live playback"><span class="is-put">PUT</span><code>/recordings/{recording_id}/broadcast</code><small>Start, heartbeat, or stop HLS playback</small></button>
             </div>

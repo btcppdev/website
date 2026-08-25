@@ -60,6 +60,10 @@ client, which revokes every token issued to it.
 For `stream.btcpp.dev`, create a personal token while signed in as a
 `global-admin`, selecting only `recordings:write`. Store it in a root-owned
 `0400` file and inject it into the service; do not put it in Nix source,
-Terraform state, command-line flags, or URLs. The service can discover work at
-`GET /api/v1/conferences/{tag}/recording-candidates` and idempotently update a
-record with `PUT /api/v1/conferences/{tag}/talks/{talk_id}/recording`.
+Terraform state, command-line flags, or URLs. The service discovers scheduled
+work across conferences at `GET /api/v1/recording-broadcast-plans`. After the
+first full fetch, persist `meta.next_updated_after` and pass it back as the
+exclusive `updated_after` cursor on later polls. It can still inspect a
+conference's work queue at `GET /api/v1/conferences/{tag}/recording-candidates`
+and idempotently update a record with
+`PUT /api/v1/conferences/{tag}/talks/{talk_id}/recording`.
