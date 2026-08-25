@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"errors"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
 
@@ -89,5 +92,76 @@ func TestLiveTickerSpeakerLinks(t *testing.T) {
 	}
 	if got[2].Provider != "Name" || got[2].Name != "Name Only" || got[2].URL != "" {
 		t.Fatalf("name fallback = %+v", got[2])
+	}
+}
+
+func TestLiveStatusCacheCollapsesLookupsAndExpires(t *testing.T) {
+	var cache liveStatusCache
+	now := time.Date(2026, 8, 25, 18, 0, 0, 0, time.UTC)
+	loads := 0
+	load := func() (liveStatusResponse, error) {
+		loads++
+		return liveStatusResponse{Live: true, Title: "Cached talk"}, nil
+	}
+	for i := 0; i < 3; i++ {
+		response, err := cache.get(now.Add(time.Duration(i)*time.Second), load)
+		if err != nil || !response.Live {
+			t.Fatalf("cache response = %+v, err = %v", response, err)
+		}
+	}
+	if loads != 1 {
+		t.Fatalf("loader called %d times inside TTL, want 1", loads)
+	}
+	if _, err := cache.get(now.Add(liveStatusCacheTTL), load); err != nil {
+		t.Fatal(err)
+	}
+	if loads != 2 {
+		t.Fatalf("loader called %d times after expiry, want 2", loads)
+	}
+}
+
+func TestLiveStatusCacheDoesNotCacheErrors(t *testing.T) {
+	var cache liveStatusCache
+	now := time.Date(2026, 8, 25, 18, 0, 0, 0, time.UTC)
+	loads := 0
+	load := func() (liveStatusResponse, error) {
+		loads++
+		if loads == 1 {
+			return liveStatusResponse{}, errors.New("temporary failure")
+		}
+		return liveStatusResponse{}, nil
+	}
+	if _, err := cache.get(now, load); err == nil {
+		t.Fatal("expected loader error")
+	}
+	if _, err := cache.get(now, load); err != nil {
+		t.Fatalf("retry after loader error: %v", err)
+	}
+	if loads != 2 {
+		t.Fatalf("loader called %d times, want error to remain uncached", loads)
+	}
+}
+
+func TestLiveStatusIsPubliclyCacheable(t *testing.T) {
+	siteLiveStatusCache.mu.Lock()
+	previousResponse := siteLiveStatusCache.response
+	previousExpiry := siteLiveStatusCache.expiresAt
+	siteLiveStatusCache.response = liveStatusResponse{}
+	siteLiveStatusCache.expiresAt = time.Now().Add(time.Minute)
+	siteLiveStatusCache.mu.Unlock()
+	t.Cleanup(func() {
+		siteLiveStatusCache.mu.Lock()
+		siteLiveStatusCache.response = previousResponse
+		siteLiveStatusCache.expiresAt = previousExpiry
+		siteLiveStatusCache.mu.Unlock()
+	})
+
+	response := httptest.NewRecorder()
+	LiveStatus(response, httptest.NewRequest("GET", "/live/status", nil), &config.AppContext{})
+	if got, want := response.Header().Get("Cache-Control"), "public, max-age=5, s-maxage=15, stale-while-revalidate=30"; got != want {
+		t.Fatalf("Cache-Control = %q, want %q", got, want)
+	}
+	if got := strings.TrimSpace(response.Body.String()); got != `{"live":false}` {
+		t.Fatalf("body = %q", got)
 	}
 }

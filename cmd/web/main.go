@@ -92,7 +92,7 @@ func main() {
 	}
 	sessionHandler := app.Session.LoadAndSave(routes)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/static/") || strings.HasSuffix(r.URL.Path, "/run-of-show/events") {
+		if bypassSessionMiddleware(r.URL.Path) {
 			routes.ServeHTTP(w, r)
 			return
 		}
@@ -139,6 +139,10 @@ func main() {
 	if err != nil {
 		app.Err.Fatal(err)
 	}
+}
+
+func bypassSessionMiddleware(path string) bool {
+	return path == "/live/status" || strings.HasPrefix(path, "/static/") || strings.HasSuffix(path, "/run-of-show/events")
 }
 
 func run(env *types.EnvConfig) error {
