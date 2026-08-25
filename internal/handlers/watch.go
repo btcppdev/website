@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"btcpp-web/external/getters"
@@ -43,6 +44,38 @@ type liveSpeakerLink struct {
 	Handle   string `json:"handle"`
 	URL      string `json:"url"`
 	Name     string `json:"name,omitempty"`
+}
+
+type liveStatusResponse struct {
+	Live     bool              `json:"live"`
+	WatchURL string            `json:"watch_url,omitempty"`
+	Title    string            `json:"title,omitempty"`
+	Speakers []liveSpeakerLink `json:"speakers,omitempty"`
+}
+
+type liveStatusCache struct {
+	mu        sync.Mutex
+	response  liveStatusResponse
+	expiresAt time.Time
+}
+
+const liveStatusCacheTTL = 10 * time.Second
+
+var siteLiveStatusCache liveStatusCache
+
+func (c *liveStatusCache) get(now time.Time, load func() (liveStatusResponse, error)) (liveStatusResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if now.Before(c.expiresAt) {
+		return c.response, nil
+	}
+	response, err := load()
+	if err != nil {
+		return liveStatusResponse{}, err
+	}
+	c.response = response
+	c.expiresAt = now.Add(liveStatusCacheTTL)
+	return response, nil
 }
 
 func liveTickerTitle(title string) string {
@@ -250,44 +283,43 @@ func RecordingWatchStatus(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 
 func LiveStatus(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Cache-Control", "public, max-age=5, s-maxage=15, stale-while-revalidate=30")
 
 	now := time.Now()
-	broadcast, err := getters.GetActiveRecordingBroadcast(ctx, now.Add(-2*time.Minute))
+	response, err := siteLiveStatusCache.get(now, func() (liveStatusResponse, error) {
+		return loadLiveStatus(ctx, now)
+	})
 	if err != nil {
 		ctx.Err.Printf("live status: %s", err)
+		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, `{"error":"status unavailable"}`, http.StatusInternalServerError)
 		return
 	}
-	response := struct {
-		Live     bool              `json:"live"`
-		WatchURL string            `json:"watch_url,omitempty"`
-		Title    string            `json:"title,omitempty"`
-		Speakers []liveSpeakerLink `json:"speakers,omitempty"`
-	}{}
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func loadLiveStatus(ctx *config.AppContext, now time.Time) (liveStatusResponse, error) {
+	broadcast, err := getters.GetActiveRecordingBroadcast(ctx, now.Add(-2*time.Minute))
+	if err != nil {
+		return liveStatusResponse{}, err
+	}
+	response := liveStatusResponse{}
 	if broadcast == nil || !recordingBroadcastIsLive(broadcast, now) {
-		_ = json.NewEncoder(w).Encode(response)
-		return
+		return response, nil
 	}
 	rec, err := getters.GetRecordingByID(ctx, broadcast.RecordingID)
 	if err != nil {
-		ctx.Err.Printf("live status recording %s: %s", broadcast.RecordingID, err)
-		http.Error(w, `{"error":"status unavailable"}`, http.StatusInternalServerError)
-		return
+		return liveStatusResponse{}, fmt.Errorf("recording %s: %w", broadcast.RecordingID, err)
 	}
 	if rec == nil {
-		_ = json.NewEncoder(w).Encode(response)
-		return
+		return response, nil
 	}
 	confTalk, err := getters.GetConfTalkByID(ctx, rec.ConfTalkID)
 	if err != nil {
-		ctx.Err.Printf("live status recording %s talk: %s", rec.ID, err)
-		http.Error(w, `{"error":"status unavailable"}`, http.StatusInternalServerError)
-		return
+		return liveStatusResponse{}, fmt.Errorf("recording %s talk: %w", rec.ID, err)
 	}
 	if confTalk == nil || confTalk.Conf == nil || !confTalk.Conf.IsPublished() {
-		_ = json.NewEncoder(w).Encode(response)
-		return
+		return response, nil
 	}
 	response.Live = true
 	response.WatchURL = recordingWatchPath(rec.ID)
@@ -299,5 +331,5 @@ func LiveStatus(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	if confTalk.Proposal != nil {
 		response.Speakers = liveTickerSpeakerLinks(recordingSpeakersForProposal(confTalk.Proposal, ctx))
 	}
-	_ = json.NewEncoder(w).Encode(response)
+	return response, nil
 }
