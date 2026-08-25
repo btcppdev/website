@@ -58,6 +58,7 @@ type HackathonPage struct {
 	SponsorAwardsForJudge       []*types.Award
 	OptInAwards                 []*types.Award
 	AwardOptIns                 map[string]bool
+	SponsorContactConsent       *types.HackathonSponsorContactConsent
 	PrizesByAward               map[string][]*types.Prize
 	PrizePoolByAward            map[string][]*types.Prize
 	HackathonPlaceRows          []*HackathonPlaceRow
@@ -77,6 +78,8 @@ type HackathonPage struct {
 	CanJudge                    bool
 	CanScoreAll                 bool
 	CanRemoveProjectMembers     bool
+	CanSetSponsorContactConsent bool
+	SponsorContactCSRF          string
 	ViewerPersonID              string
 	InviteLink                  string
 	InviteQRCodeURI             string
@@ -2615,42 +2618,95 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 	viewer := hackathonViewerForCompetition(id, conf)
 	manager := viewer.Admin || viewer.Manager
 	viewerMember := projectMemberByPersonID(members, viewer.PersonID)
+	var sponsorContactConsent *types.HackathonSponsorContactConsent
+	sponsorContactCSRF := ""
+	if isProjectEditor && viewerMember != nil {
+		sponsorContactConsent, err = getters.GetHackathonSponsorContactConsent(ctx, competition.ID, viewer.PersonID)
+		if err != nil {
+			ctx.Err.Printf("/hackathons/%s/projects/%s sponsor contact consent: %s", competition.ID, project.ID, err)
+			http.Error(w, "Unable to load sponsor contact preferences", http.StatusInternalServerError)
+			return
+		}
+		sponsorContactCSRF, err = ensureAuthMethodsCSRF(ctx, r)
+		if err != nil {
+			http.Error(w, "Unable to prepare contact preferences", http.StatusInternalServerError)
+			return
+		}
+	}
 	canDeleteProject := isProjectEditor && project != nil && (manager || viewerIsProjectOwner(members, id))
 	canLeaveProject := isProjectEditor && project != nil && viewerMember != nil && viewerMember.Role != getters.ProjectMemberRoleOwner
 	canRemoveProjectMembers := isProjectEditor && canEdit && (manager || (project.Status == getters.ProjectStatusCreated && viewerIsProjectOwner(members, id)))
 
 	page := &HackathonPage{
-		Competition:             competition,
-		Conf:                    conf,
-		OrgsByID:                orgMap,
-		Project:                 project,
-		Members:                 members,
-		MemberProfileURLs:       memberProfileURLs,
-		Awards:                  awards,
-		PrizesByAward:           prizesByAward,
-		PrizePoolByAward:        prizePoolByAward,
-		AwardeesByAward:         awardeesByAward,
-		OptInAwards:             optInAwards,
-		AwardOptIns:             awardOptIns,
-		Viewer:                  id,
-		OwnedProjects:           map[string]bool{project.ID: canManage},
-		IsProjectEditor:         isProjectEditor,
-		CanEdit:                 canEdit,
-		CanSubmit:               canSubmit,
-		CanDeleteProject:        canDeleteProject,
-		CanLeaveProject:         canLeaveProject,
-		CanRemoveProjectMembers: canRemoveProjectMembers,
-		ViewerPersonID:          viewer.PersonID,
-		InviteLink:              inviteLink,
-		InviteQRCodeURI:         inviteQRCodeURI,
-		FlashMessage:            r.URL.Query().Get("flash"),
-		FlashError:              r.URL.Query().Get("error"),
-		Year:                    helpers.CurrentYear(),
+		Competition:                 competition,
+		Conf:                        conf,
+		OrgsByID:                    orgMap,
+		Project:                     project,
+		Members:                     members,
+		MemberProfileURLs:           memberProfileURLs,
+		Awards:                      awards,
+		PrizesByAward:               prizesByAward,
+		PrizePoolByAward:            prizePoolByAward,
+		AwardeesByAward:             awardeesByAward,
+		OptInAwards:                 optInAwards,
+		AwardOptIns:                 awardOptIns,
+		SponsorContactConsent:       sponsorContactConsent,
+		Viewer:                      id,
+		OwnedProjects:               map[string]bool{project.ID: canManage},
+		IsProjectEditor:             isProjectEditor,
+		CanEdit:                     canEdit,
+		CanSubmit:                   canSubmit,
+		CanDeleteProject:            canDeleteProject,
+		CanLeaveProject:             canLeaveProject,
+		CanRemoveProjectMembers:     canRemoveProjectMembers,
+		CanSetSponsorContactConsent: viewerCanSetSponsorContactConsent(members, viewer.PersonID),
+		SponsorContactCSRF:          sponsorContactCSRF,
+		ViewerPersonID:              viewer.PersonID,
+		InviteLink:                  inviteLink,
+		InviteQRCodeURI:             inviteQRCodeURI,
+		FlashMessage:                r.URL.Query().Get("flash"),
+		FlashError:                  r.URL.Query().Get("error"),
+		Year:                        helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_project.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s template: %s", competition.ID, project.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
+}
+
+func HackathonSponsorContactConsentUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	competition, conf, id, project, err := loadEditableHackathonProject(w, r, ctx)
+	if err != nil {
+		return
+	}
+	dest := hackathonURLForConf(conf) + "/projects/" + url.PathEscape(project.ID) + "/edit"
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		http.Error(w, "Invalid form token", http.StatusBadRequest)
+		return
+	}
+	personID := hackathonViewerPersonID(id)
+	members, err := getters.ListProjectMembers(ctx, project.ID)
+	if err != nil {
+		http.Error(w, "Unable to verify project membership", http.StatusInternalServerError)
+		return
+	}
+	if !viewerCanSetSponsorContactConsent(members, personID) {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Only project participants can set their own sponsor contact preference.")+"#privacy", http.StatusSeeOther)
+		return
+	}
+	consent := &types.HackathonSponsorContactConsent{
+		CompetitionID:        competition.ID,
+		PersonID:             personID,
+		AllHackathonSponsors: r.FormValue("AllHackathonSponsors") == "on",
+		EnteredAwardSponsors: r.FormValue("EnteredAwardSponsors") == "on",
+	}
+	if err := getters.SetHackathonSponsorContactConsent(ctx, consent); err != nil {
+		ctx.Err.Printf("/hackathons/%s/projects/%s sponsor contact consent save: %s", competition.ID, project.ID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Contact preferences could not be saved.")+"#privacy", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Sponsor contact preferences saved.")+"#privacy", http.StatusSeeOther)
 }
 
 func HackathonProjectUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -3900,6 +3956,10 @@ func projectMemberByPersonID(members []*types.ProjectMember, personID string) *t
 		}
 	}
 	return nil
+}
+
+func viewerCanSetSponsorContactConsent(members []*types.ProjectMember, personID string) bool {
+	return projectMemberByPersonID(members, personID) != nil
 }
 
 func viewerCanJudgeCompetition(ctx *config.AppContext, competitionID, personID string) bool {
