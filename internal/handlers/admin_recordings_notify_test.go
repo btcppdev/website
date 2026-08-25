@@ -176,7 +176,7 @@ func TestSocialPostBlocksBufferSchedule(t *testing.T) {
 		t.Fatal("nil post blocked Buffer scheduling")
 	}
 	if !socialPostBlocksBufferSchedule(&types.SocialPost{Status: recordingStatusScheduled}) {
-		t.Fatal("scheduled browser-X post did not block Buffer scheduling")
+		t.Fatal("existing scheduled X post did not block Buffer scheduling")
 	}
 	if !socialPostBlocksBufferSchedule(&types.SocialPost{URL: "https://x.com/btcplusplus/status/1"}) {
 		t.Fatal("published X URL did not block Buffer scheduling")

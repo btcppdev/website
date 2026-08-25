@@ -71,7 +71,7 @@ func main() {
 	/* Start up Spaces (S3-compatible storage) */
 	spaces.Init(app.Env.Spaces)
 
-	/* OAuth token store (YouTube today; X tomorrow when chromedp lands) */
+	/* OAuth token store for YouTube */
 	if err := tokens.Init("tokens.bolt"); err != nil {
 		app.Err.Fatalf("open tokens.bolt: %s", err)
 	}

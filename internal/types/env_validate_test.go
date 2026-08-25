@@ -85,17 +85,22 @@ func TestEnvConfigValidateOnlyRequiresMailerIntervalWhenJobEnabled(t *testing.T)
 	}
 }
 
-func TestEnvConfigApplyDefaultsSeparatesXProfileObjects(t *testing.T) {
-	staging := &EnvConfig{}
-	staging.ApplyDefaults()
-	if got, want := staging.Recordings.X.ProfileObject, "private/social/x-chrome-profile-staging.tgz.enc"; got != want {
-		t.Fatalf("staging X profile object = %q, want %q", got, want)
+func TestEnvConfigValidateRequiresXStudioRuntimeSecretsWhenEnabled(t *testing.T) {
+	env := &EnvConfig{
+		Port: "8080", Host: "http://localhost:8080", MailOff: true,
+		Recordings: RecordingsConfig{X: XStudioConfig{Enabled: true}},
 	}
-
-	prod := &EnvConfig{Prod: true}
-	prod.ApplyDefaults()
-	if got, want := prod.Recordings.X.ProfileObject, "private/social/x-chrome-profile-prod.tgz.enc"; got != want {
-		t.Fatalf("prod X profile object = %q, want %q", got, want)
+	err := env.Validate()
+	if err == nil || !strings.Contains(err.Error(), "X_STUDIO_COOKIE") || !strings.Contains(err.Error(), "X_STUDIO_USER_AGENT") ||
+		!strings.Contains(err.Error(), "X_STUDIO_INGEST_ID") || !strings.Contains(err.Error(), "Spaces config for X Studio poster uploads") {
+		t.Fatalf("missing X Studio credentials returned %v", err)
+	}
+	env.Recordings.X.Cookie = "cookie"
+	env.Recordings.X.UserAgent = "browser"
+	env.Recordings.X.IngestID = "ingest"
+	env.Spaces = SpacesConfig{Endpoint: "https://spaces.example", Bucket: "bucket", Key: "key", Secret: "secret"}
+	if err := env.Validate(); err != nil {
+		t.Fatalf("configured X Studio returned %v", err)
 	}
 }
 

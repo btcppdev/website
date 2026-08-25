@@ -16,7 +16,7 @@
               <div>
                 <a href="/{{ .Conf.Tag }}/admin" class="text-xs text-gray-500 hover:text-gray-700">&larr; {{ .Conf.Desc }} dashboard</a>
                 <h1 class="text-xl font-bold text-gray-900">Recordings</h1>
-                <p class="text-sm text-gray-500">Upload longform talks to YouTube and X.com from a single dashboard.</p>
+                <p class="text-sm text-gray-500">Publish talks to YouTube and schedule their X.com broadcasts.</p>
               </div>
               <div class="flex items-center gap-2 flex-wrap justify-end">
                 <a href="/{{ .Conf.Tag }}/admin/recordings/autoschedule" class="px-3 py-1.5 text-sm rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Autoschedule YouTube</a>
@@ -37,12 +37,10 @@
                 {{ else }}
                   <a href="{{ .YouTubeAuthURL }}" class="px-3 py-1.5 text-sm rounded-md text-white bg-red-600 hover:bg-red-700">Authorize YouTube</a>
                 {{ end }}
-                {{ if .XUploaderEnabled }}
-                  <form method="POST" action="/{{ .Conf.Tag }}/admin/recordings/x/auth-check" class="inline">
-                    <button type="submit" class="px-3 py-1.5 text-sm rounded-md text-white bg-black hover:bg-gray-800">Test X auth</button>
-                  </form>
+                {{ if .XStudioEnabled }}
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">X broadcasts enabled</span>
                 {{ else }}
-                  <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">X uploader off</span>
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">X broadcasts off</span>
                 {{ end }}
               </div>
             </div>
@@ -72,7 +70,7 @@
                   <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Publish</th>
                   <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
                   <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">YouTube</th>
-                  <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">X</th>
+                  <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">X broadcast</th>
                   <th class="px-4 py-3"></th>
                 </tr>
               </thead>

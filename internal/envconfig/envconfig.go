@@ -124,16 +124,13 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 			AutopublishEnabled: envBool("RECORDINGS_AUTOPUBLISH_ENABLED", false),
 			PollSec:            envInt("RECORDINGS_AUTOPUBLISH_POLL_SEC", 0),
 			NotifyEmail:        os.Getenv("RECORDINGS_NOTIFY_EMAIL"),
-			EncryptionKey:      firstNonEmpty(os.Getenv("SOCIAL_STATE_KEY"), os.Getenv("X_PROFILE_ARCHIVE_KEY")),
+			EncryptionKey:      os.Getenv("SOCIAL_STATE_KEY"),
 			YouTubeTokenObject: os.Getenv("YOUTUBE_TOKEN_OBJECT"),
-			X: types.XUploaderConfig{
-				Enabled:        envBool("X_UPLOADER_ENABLED", false),
-				ProfileObject:  os.Getenv("X_PROFILE_ARCHIVE_OBJECT"),
-				Headed:         envBool("X_BROWSER_HEADED", false),
-				LoginUsername:  os.Getenv("X_LOGIN_USERNAME"),
-				LoginPassword:  os.Getenv("X_LOGIN_PASSWORD"),
-				PostTimeoutSec: envInt("X_POST_TIMEOUT_SEC", 0),
-				AuthWaitSec:    envInt("X_AUTH_WAIT_SEC", 0),
+			X: types.XStudioConfig{
+				Enabled:   envBool("X_STUDIO_ENABLED", false),
+				Cookie:    os.Getenv("X_STUDIO_COOKIE"),
+				UserAgent: os.Getenv("X_STUDIO_USER_AGENT"),
+				IngestID:  os.Getenv("X_STUDIO_INGEST_ID"),
 			},
 		},
 	}

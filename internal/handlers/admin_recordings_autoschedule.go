@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/external/spaces"
 	youtubepkg "btcpp-web/external/youtube"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
@@ -17,10 +18,12 @@ import (
 const youtubeAutoscheduleChannel = getters.YouTubePublishChannel
 
 type RecordingAutoscheduleItem struct {
-	Row        *RecordingRow
-	PublishAt  time.Time
-	SlotLabel  string
-	SkipReason string
+	Row                *RecordingRow
+	PublishAt          time.Time
+	SlotLabel          string
+	SkipReason         string
+	XBroadcastEligible bool
+	XBroadcastLabel    string
 }
 
 type RecordingAutoschedulePreviewPage struct {
@@ -30,6 +33,8 @@ type RecordingAutoschedulePreviewPage struct {
 	Slots                 []*types.YouTubePublishSlot
 	RescheduleExisting    bool
 	YouTubeUpdatesEnabled bool
+	XStudioEnabled        bool
+	XEligibleCount        int
 	FlashError            string
 	Year                  uint
 }
@@ -63,6 +68,8 @@ func RecordingsAdminAutoschedulePreview(w http.ResponseWriter, r *http.Request, 
 		Slots:                 slots,
 		RescheduleExisting:    rescheduleExisting,
 		YouTubeUpdatesEnabled: youtubepkg.UpdatesEnabled(),
+		XStudioEnabled:        ctx.Env.Recordings.X.Enabled,
+		XEligibleCount:        recordingAutoscheduleXEligibleCount(preview),
 		Year:                  uint(time.Now().Year()),
 	}
 	if err != nil {
@@ -91,12 +98,18 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 		return
 	}
 	items = reorderRecordingAutoscheduleItems(items, strings.Split(r.FormValue("recording_order"), ","))
+	for _, item := range items {
+		decorateRecordingAutoscheduleX(ctx, conf, item)
+	}
 	if len(items) == 0 {
 		http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?flash="+url.QueryEscape("No eligible YouTube recordings to autoschedule")), http.StatusSeeOther)
 		return
 	}
 
+	createXBroadcasts := r.FormValue("create_x_broadcasts") == "1"
 	saved, youtubeUpdated, youtubeDisabled, publicSkipped, failed := 0, 0, 0, 0, 0
+	xQueued, xAlreadyScheduled, xAlreadyRunning, xSkipped, xFailed := 0, 0, 0, 0, 0
+	var xWorks []*recordingXBroadcastWork
 	var firstErr string
 	for _, item := range items {
 		if item == nil || item.Row == nil || item.Row.Recording == nil {
@@ -119,16 +132,47 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 			if firstErr == "" {
 				firstErr = err.Error()
 			}
-			continue
+		} else {
+			switch result {
+			case "updated":
+				youtubeUpdated++
+			case "disabled":
+				youtubeDisabled++
+			case "public":
+				publicSkipped++
+			}
 		}
-		switch result {
-		case "updated":
-			youtubeUpdated++
-		case "disabled":
-			youtubeDisabled++
-		case "public":
-			publicSkipped++
+		if createXBroadcasts {
+			if !item.XBroadcastEligible {
+				if item.XBroadcastLabel == "Already scheduled" {
+					xAlreadyScheduled++
+				} else {
+					xSkipped++
+				}
+				continue
+			}
+			work, disposition, err := claimRecordingXBroadcast(ctx, conf, rec, item.Row, publishAt)
+			if err != nil {
+				xFailed++
+				if firstErr == "" {
+					firstErr = err.Error()
+				}
+				continue
+			}
+			switch disposition {
+			case "started":
+				setXJobProgress(rec.ID, "running", "Queued behind other X broadcasts", work.action, 5)
+				xWorks = append(xWorks, work)
+				xQueued++
+			case "scheduled":
+				xAlreadyScheduled++
+			case "running":
+				xAlreadyRunning++
+			}
 		}
+	}
+	if len(xWorks) > 0 {
+		go runRecordingXBroadcastBatch(ctx, xWorks)
 	}
 
 	flash := fmt.Sprintf("Autoscheduled %d recording(s); YouTube updated %d", saved, youtubeUpdated)
@@ -142,6 +186,21 @@ func RecordingsAdminAutoscheduleApply(w http.ResponseWriter, r *http.Request, ct
 		flash += fmt.Sprintf("; %d failed", failed)
 		if firstErr != "" {
 			flash += ": " + firstErr
+		}
+	}
+	if createXBroadcasts {
+		flash += fmt.Sprintf("; X broadcasts queued %d", xQueued)
+		if xAlreadyScheduled > 0 {
+			flash += fmt.Sprintf("; %d X already scheduled", xAlreadyScheduled)
+		}
+		if xAlreadyRunning > 0 {
+			flash += fmt.Sprintf("; %d X already running", xAlreadyRunning)
+		}
+		if xSkipped > 0 {
+			flash += fmt.Sprintf("; %d X skipped", xSkipped)
+		}
+		if xFailed > 0 {
+			flash += fmt.Sprintf("; %d X failed to queue", xFailed)
 		}
 	}
 	http.Redirect(w, r, recordingsAdminPath(conf.Tag, "?flash="+url.QueryEscape(flash)), http.StatusSeeOther)
@@ -311,13 +370,63 @@ func buildRecordingAutoschedulePreview(ctx *config.AppContext, conf *types.Conf,
 
 	items := make([]*RecordingAutoscheduleItem, 0, len(eligible))
 	for i, row := range eligible {
-		items = append(items, &RecordingAutoscheduleItem{
+		item := &RecordingAutoscheduleItem{
 			Row:       row,
 			PublishAt: assignments[i],
 			SlotLabel: youtubeSlotLabel(assignments[i], active),
-		})
+		}
+		decorateRecordingAutoscheduleX(ctx, conf, item)
+		items = append(items, item)
 	}
 	return items, skipped, slots, nil
+}
+
+func decorateRecordingAutoscheduleX(ctx *config.AppContext, conf *types.Conf, item *RecordingAutoscheduleItem) {
+	if item == nil || item.Row == nil || item.Row.Recording == nil {
+		return
+	}
+	item.XBroadcastEligible = false
+	if !ctx.Env.Recordings.X.Enabled {
+		item.XBroadcastLabel = "X Studio disabled"
+		return
+	}
+	broadcast := item.Row.XBroadcast
+	if broadcast != nil && broadcast.Status == "scheduled" && broadcast.ScheduledAt.Equal(item.PublishAt) {
+		item.XBroadcastLabel = "Already scheduled"
+		return
+	}
+	if broadcast == nil || strings.TrimSpace(broadcast.PosterMediaID) == "" {
+		cardKey := recordingNotificationCardKey(item.Row, conf)
+		if cardKey == "" {
+			item.XBroadcastLabel = "Missing social card"
+			return
+		}
+		if !spaces.IsConfigured() || !spaces.Exists(cardKey) {
+			item.XBroadcastLabel = "Poster unavailable"
+			return
+		}
+	}
+	item.XBroadcastEligible = true
+	switch {
+	case broadcast == nil:
+		item.XBroadcastLabel = "Ready to create"
+	case broadcast.Status == "scheduled":
+		item.XBroadcastLabel = "Ready to update time"
+	case broadcast.Status == "failed":
+		item.XBroadcastLabel = "Ready to resume"
+	default:
+		item.XBroadcastLabel = "In progress or resumable"
+	}
+}
+
+func recordingAutoscheduleXEligibleCount(items []*RecordingAutoscheduleItem) int {
+	count := 0
+	for _, item := range items {
+		if item != nil && item.XBroadcastEligible {
+			count++
+		}
+	}
+	return count
 }
 
 func recordingAutoscheduleSkipReason(row *RecordingRow, rescheduleExisting bool) string {

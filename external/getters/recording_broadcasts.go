@@ -99,7 +99,10 @@ func UpsertRecordingBroadcast(ctx *config.AppContext, recordingID string, update
 		ON CONFLICT (recording_id) DO UPDATE SET
 			state = EXCLUDED.state,
 			hls_url = EXCLUDED.hls_url,
-			x_broadcast_url = EXCLUDED.x_broadcast_url,
+			x_broadcast_url = CASE
+				WHEN EXCLUDED.x_broadcast_url <> '' THEN EXCLUDED.x_broadcast_url
+				ELSE recording_broadcasts.x_broadcast_url
+			END,
 			started_at = CASE
 				WHEN EXCLUDED.state = 'live' THEN coalesce(recording_broadcasts.started_at, EXCLUDED.started_at)
 				ELSE recording_broadcasts.started_at
@@ -116,6 +119,28 @@ func UpsertRecordingBroadcast(ctx *config.AppContext, recordingID string, update
 		return nil, fmt.Errorf("upsert recording broadcast: %w", err)
 	}
 	return GetRecordingBroadcast(ctx, recordingID)
+}
+
+// SetRecordingXBroadcastURL stores scheduling output without overwriting the
+// HLS state maintained by streamctl.
+func SetRecordingXBroadcastURL(ctx *config.AppContext, recordingID, broadcastURL string, now time.Time) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		INSERT INTO recording_broadcasts (recording_id, state, x_broadcast_url, updated_at)
+		VALUES ($1::uuid, 'scheduled', $2, $3)
+		ON CONFLICT (recording_id) DO UPDATE SET
+			x_broadcast_url = EXCLUDED.x_broadcast_url,
+			updated_at = EXCLUDED.updated_at
+	`, strings.TrimSpace(recordingID), strings.TrimSpace(broadcastURL), now)
+	if err != nil {
+		return fmt.Errorf("set recording X broadcast URL: %w", err)
+	}
+	return nil
 }
 
 func pgTimestampPtr(value pgtype.Timestamptz) *time.Time {

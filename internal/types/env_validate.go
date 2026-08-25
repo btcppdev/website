@@ -34,18 +34,6 @@ func (env *EnvConfig) ApplyDefaults() {
 	if strings.TrimSpace(env.Recordings.YouTubeTokenObject) == "" {
 		env.Recordings.YouTubeTokenObject = "private/social/youtube-token.json.enc"
 	}
-	if strings.TrimSpace(env.Recordings.X.ProfileObject) == "" {
-		env.Recordings.X.ProfileObject = "private/social/x-chrome-profile-staging.tgz.enc"
-		if env.Prod {
-			env.Recordings.X.ProfileObject = "private/social/x-chrome-profile-prod.tgz.enc"
-		}
-	}
-	if env.Recordings.X.PostTimeoutSec == 0 {
-		env.Recordings.X.PostTimeoutSec = 300
-	}
-	if env.Recordings.X.AuthWaitSec == 0 {
-		env.Recordings.X.AuthWaitSec = 300
-	}
 	if strings.TrimSpace(env.Easyship.Endpoint) == "" {
 		env.Easyship.Endpoint = "https://public-api.easyship.com"
 	}
@@ -91,14 +79,20 @@ func (env *EnvConfig) Validate() error {
 		}
 	}
 	if env.Recordings.X.Enabled {
-		if strings.TrimSpace(env.Recordings.EncryptionKey) == "" {
-			missing = append(missing, "SOCIAL_STATE_KEY or X_PROFILE_ARCHIVE_KEY")
+		if strings.TrimSpace(env.Recordings.X.Cookie) == "" {
+			missing = append(missing, "X_STUDIO_COOKIE")
+		}
+		if strings.TrimSpace(env.Recordings.X.UserAgent) == "" {
+			missing = append(missing, "X_STUDIO_USER_AGENT")
+		}
+		if strings.TrimSpace(env.Recordings.X.IngestID) == "" {
+			missing = append(missing, "X_STUDIO_INGEST_ID")
 		}
 		if strings.TrimSpace(env.Spaces.Endpoint) == "" ||
 			strings.TrimSpace(env.Spaces.Bucket) == "" ||
 			strings.TrimSpace(env.Spaces.Key) == "" ||
 			strings.TrimSpace(env.Spaces.Secret) == "" {
-			missing = append(missing, "Spaces config for X uploader")
+			missing = append(missing, "Spaces config for X Studio poster uploads")
 		}
 	}
 	for _, provider := range []struct {
