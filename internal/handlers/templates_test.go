@@ -31,7 +31,7 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
-	for _, name := range []string{"developers_api.tmpl", "dashboard_hackathons.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
+	for _, name := range []string{"developers_api.tmpl", "dashboard_hackathons.tmpl", "dashboard_sponsor.tmpl", "sponsor_invite.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
 		}
@@ -149,6 +149,27 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if !strings.Contains(projectPage.String(), `<a class="hack-project-file__person" href="/whois/linked-member">`) {
 		t.Fatalf("hackathon project member does not link to public profile: %s", projectPage.String())
+	}
+	projectPage.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&projectPage, "hackathon_project.tmpl", &HackathonPage{
+		Competition:                 &types.HackathonCompetition{ID: "competition-id", Title: "Hackathon"},
+		Conf:                        &types.Conf{Tag: "dev26"},
+		Project:                     &types.HackathonProject{ID: "project-id", Title: "Project", Status: getters.ProjectStatusCreated},
+		Members:                     []*types.ProjectMember{{PersonID: "viewer", Name: "Viewer", Role: getters.ProjectMemberRoleOwner}},
+		IsProjectEditor:             true,
+		CanEdit:                     true,
+		CanSetSponsorContactConsent: true,
+		SponsorContactCSRF:          "contact-csrf",
+		SponsorContactConsent: &types.HackathonSponsorContactConsent{
+			EnteredAwardSponsors: true,
+		},
+	}); err != nil {
+		t.Fatalf("render hackathon project sponsor consent: %v", err)
+	}
+	for _, want := range []string{"Sponsor contact", "Allow sponsors of this hackathon to contact me.", "Allow sponsors whose prizes I enter to contact me.", `name="csrf" value="contact-csrf"`, `name="EnteredAwardSponsors" type="checkbox" checked`} {
+		if !strings.Contains(projectPage.String(), want) {
+			t.Fatalf("hackathon sponsor consent omitted %q", want)
+		}
 	}
 	if strings.Contains(projectPage.String(), `href="/whois/private-member"`) {
 		t.Fatalf("hackathon project links a member without a public profile: %s", projectPage.String())
@@ -480,6 +501,16 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	dashboardTabs.Reset()
 	if err := ctx.TemplateCache.ExecuteTemplate(&dashboardTabs, "dashboard_tabs", map[string]any{
+		"Active":      "sponsor",
+		"ShowSponsor": true,
+	}); err != nil {
+		t.Fatalf("render sponsor dashboard_tabs: %v", err)
+	}
+	if !strings.Contains(dashboardTabs.String(), `href="/dashboard/sponsor" class="dashboard-tab is-active" aria-current="page"`) {
+		t.Fatalf("sponsor dashboard tab is not active: %s", dashboardTabs.String())
+	}
+	dashboardTabs.Reset()
+	if err := ctx.TemplateCache.ExecuteTemplate(&dashboardTabs, "dashboard_tabs", map[string]any{
 		"Active":    "admin",
 		"ShowAdmin": true,
 	}); err != nil {
@@ -490,6 +521,43 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if !strings.Contains(dashboardTabs.String(), `class="dashboard-tabs"`) {
 		t.Fatalf("multi-section admin dashboard does not render tab navigation: %s", dashboardTabs.String())
+	}
+
+	var sponsorDashboard bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&sponsorDashboard, "dashboard_sponsor.tmpl", &SponsorDashboardPage{
+		Membership:   &types.OrganizationMembership{Role: getters.OrganizationRoleOwner},
+		Organization: &types.Org{Ref: "org-id", Name: "Signet Systems", Tagline: "Test networks", LogoLight: "/logo.svg"},
+		Memberships:  []*types.OrganizationMembership{{OrganizationID: "org-id", Organization: &types.Org{Name: "Signet Systems"}}},
+		Upcoming: []*types.SponsorDashboardEvent{{
+			Sponsorship: &types.Sponsorship{Level: "Headline", Status: "Paid"},
+			Conference:  &types.Conf{Tag: "dev26", Desc: "Local Dev", DateDesc: "Oct 2026", Location: "Austin", ShowHackathon: true},
+			Entitlement: &types.SponsorshipEntitlement{TicketAllocation: 20, SponsorAwardLimit: 2, ParticipantContactAccess: true},
+		}},
+		Members:    []*types.OrganizationMembership{{Role: getters.OrganizationRoleOwner, PersonName: "Mara", PersonEmail: "mara@example.test"}},
+		CanManage:  true,
+		CanEditOrg: true,
+		CSRF:       "sponsor-csrf",
+		InviteLink: "http://localhost:8888/sponsor-invites/example-token",
+	}); err != nil {
+		t.Fatalf("render sponsor dashboard: %v", err)
+	}
+	for _, want := range []string{"Signet Systems", "20", "Opt-in only", "Allow sponsors of this hackathon to contact me", `name="csrf" value="sponsor-csrf"`, `action="/dashboard/sponsor/org-id/profile"`, `action="/dashboard/sponsor/org-id/invites"`, "http://localhost:8888/sponsor-invites/example-token"} {
+		if !strings.Contains(sponsorDashboard.String(), want) {
+			t.Fatalf("sponsor dashboard omitted %q", want)
+		}
+	}
+	var sponsorInvite bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&sponsorInvite, "sponsor_invite.tmpl", &SponsorInvitePage{
+		Invite: &types.OrganizationMemberInvite{OrganizationName: "Signet Systems", Email: "teammate@example.test", Role: getters.OrganizationRoleManager},
+		Token:  "secure-token",
+		CSRF:   "invite-csrf",
+	}); err != nil {
+		t.Fatalf("render sponsor invite: %v", err)
+	}
+	for _, want := range []string{"Join Signet Systems", "teammate@example.test", `action="/sponsor-invites/secure-token"`, `name="csrf" value="invite-csrf"`} {
+		if !strings.Contains(sponsorInvite.String(), want) {
+			t.Fatalf("sponsor invite omitted %q", want)
+		}
 	}
 }
 

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Join {{ .Invite.OrganizationName }} - bitcoin++</title>
+  {{ block "header" . }}{{ end }}
+</head>
+<body class="btcpp-dashboard-page sponsor-dashboard-page">
+  {{ block "mainnav" . }}{{ end }}
+  <main class="dashboard-main sponsor-invite-page">
+    <div class="dashboard-kicker">● Sponsor invitation</div>
+    <h1>Join {{ .Invite.OrganizationName }}.</h1>
+    <p>This invitation grants <strong>{{ .Invite.Role }}</strong> access to the organization’s bitcoin++ sponsor workspace. It was issued to <strong>{{ .Invite.Email }}</strong>.</p>
+    {{ if .Error }}
+    <div class="dashboard-flash is-error"><p>{{ .Error }}</p></div>
+    {{ else }}
+    <form method="POST" action="/sponsor-invites/{{ .Token }}">
+      <input type="hidden" name="csrf" value="{{ .CSRF }}">
+      <button type="submit">Accept invitation →</button>
+    </form>
+    <p class="sponsor-dashboard-note">You must be signed into an account with the verified email {{ .Invite.Email }}. Acceptance is one-time.</p>
+    {{ end }}
+  </main>
+  {{ block "footer" . }}{{ end }}
+</body>
+</html>
