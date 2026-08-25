@@ -9,7 +9,7 @@
   {{ block "mainnav" . }} {{ end }}
   <div class="dashboard-shell">
     <main class="dashboard-main">
-      {{ template "dashboard_tabs" (dict "Active" "hackathons" "ShowHackathons" true "ShowAdmin" .IsGlobalAdmin) }}
+      {{ template "dashboard_tabs" (dict "Active" "hackathons" "ShowHackathons" true "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" .IsGlobalAdmin) }}
 
       <header class="dashboard-hackathon-header">
         <div class="dashboard-kicker">§ Hackathons</div>

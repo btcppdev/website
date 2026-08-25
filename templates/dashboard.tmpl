@@ -10,7 +10,7 @@
   <div class="dashboard-shell">
     <div class="dashboard-main">
 
-      {{ template "dashboard_tabs" (dict "Active" "overview" "ShowHackathons" .HasHackathonProjects "ShowAdmin" .IsGlobalAdmin) }}
+      {{ template "dashboard_tabs" (dict "Active" "overview" "ShowHackathons" .HasHackathonProjects "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" .IsGlobalAdmin) }}
 
       {{ if .FlashMessage }}
       <div class="dashboard-flash is-success">
