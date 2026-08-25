@@ -89,6 +89,10 @@ const (
 	devNewsletterRecording2  = "00000000-0000-4000-8000-000000000b22"
 	devNewsletterRecording3  = "00000000-0000-4000-8000-000000000b23"
 	devNewsletterRecording4  = "00000000-0000-4000-8000-000000000b24"
+	devSponsorAward          = "00000000-0000-4000-8000-000000000b31"
+	devSponsorPrize          = "00000000-0000-4000-8000-000000000b32"
+	devSponsorConsentEvent   = "00000000-0000-4000-8000-000000000b33"
+	devPastSponsorship       = "00000000-0000-4000-8000-000000000606"
 )
 
 type daySeed struct {
@@ -532,7 +536,7 @@ func main() {
 	seedProgram(ctx, tx, confID)
 	seedMerch(ctx, tx, confID)
 	seedWeeklyNewsletterFixtures(ctx, tx, confID, newsletterSendAt)
-	seedSponsors(ctx, tx, confID)
+	seedSponsors(ctx, tx, confID, pastConfID)
 	seedHotels(ctx, tx, confID)
 	seedSatelliteEvents(ctx, tx, confID)
 	seedHomepageFeaturedSpeakers(ctx, tx)
@@ -1824,7 +1828,7 @@ func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string,
 	}
 }
 
-func seedSponsors(ctx context.Context, tx pgx.Tx, confID string) {
+func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 	for _, org := range devOrgs {
 		mustExec(ctx, tx, "seed organization", `
 			INSERT INTO organizations (
@@ -1874,6 +1878,152 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID string) {
 			ON CONFLICT DO NOTHING
 		`, sp.id, confID)
 	}
+	mustExec(ctx, tx, "seed past sponsor trophy", `
+		INSERT INTO sponsorships (
+			id, organization_id, name, level, label, status, notes
+		) VALUES (
+			$1::uuid, $2::uuid, 'Signet Systems @ Satoshi', 'Satoshi',
+			'Satoshi Sponsors', 'Paid', 'Local dev past sponsor trophy fixture.'
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			organization_id = EXCLUDED.organization_id,
+			name = EXCLUDED.name,
+			level = EXCLUDED.level,
+			label = EXCLUDED.label,
+			status = EXCLUDED.status,
+			archived_at = NULL
+	`, devPastSponsorship, devOrgs[0].id)
+	mustExec(ctx, tx, "seed past sponsor conference link", `
+		INSERT INTO sponsorships_conferences (sponsorship_id, conference_id)
+		VALUES ($1::uuid, $2::uuid)
+		ON CONFLICT DO NOTHING
+	`, devPastSponsorship, pastConfID)
+	mustExec(ctx, tx, "seed past sponsor entitlement", `
+		INSERT INTO sponsorship_entitlements (
+			sponsorship_id, conference_id, ticket_allocation,
+			sponsor_award_limit, can_edit_organization
+		) VALUES ($1::uuid, $2::uuid, 10, 1, false)
+		ON CONFLICT (sponsorship_id, conference_id) DO UPDATE SET
+			ticket_allocation = EXCLUDED.ticket_allocation,
+			sponsor_award_limit = EXCLUDED.sponsor_award_limit,
+			can_edit_organization = EXCLUDED.can_edit_organization
+	`, devPastSponsorship, pastConfID)
+
+	// Mara and the local admin exercise a multi-manager sponsor workspace.
+	for _, member := range []struct {
+		personID, role string
+	}{
+		{devSpeakers[0].personID, "owner"},
+		{devAdminID, "manager"},
+	} {
+		mustExec(ctx, tx, "seed sponsor organization membership", `
+			INSERT INTO organization_memberships (
+				organization_id, person_id, role, status, invited_by_person_id
+			) VALUES ($1::uuid, $2::uuid, $3, 'active', $4::uuid)
+			ON CONFLICT (organization_id, person_id) DO UPDATE SET
+				role = EXCLUDED.role,
+				status = EXCLUDED.status,
+				invited_by_person_id = EXCLUDED.invited_by_person_id
+		`, devOrgs[0].id, member.personID, member.role, devAdminID)
+	}
+
+	for _, entitlement := range []struct {
+		sponsorshipID                                      string
+		tickets, awards                                    int
+		contacts, exportContacts, judges, editOrganization bool
+	}{
+		{devSponsorships[0].id, 20, 2, true, false, true, true},
+		{devSponsorships[1].id, 12, 1, false, false, true, true},
+		{devSponsorships[2].id, 8, 0, false, false, false, true},
+		{devSponsorships[3].id, 10, 1, true, false, true, true},
+		{devSponsorships[4].id, 2, 0, false, false, false, true},
+	} {
+		mustExec(ctx, tx, "seed sponsorship entitlement", `
+			INSERT INTO sponsorship_entitlements (
+				sponsorship_id, conference_id, ticket_allocation,
+				sponsor_award_limit, participant_contact_access,
+				participant_contact_export, can_manage_award_judges,
+				can_edit_organization
+			) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)
+			ON CONFLICT (sponsorship_id, conference_id) DO UPDATE SET
+				ticket_allocation = EXCLUDED.ticket_allocation,
+				sponsor_award_limit = EXCLUDED.sponsor_award_limit,
+				participant_contact_access = EXCLUDED.participant_contact_access,
+				participant_contact_export = EXCLUDED.participant_contact_export,
+				can_manage_award_judges = EXCLUDED.can_manage_award_judges,
+				can_edit_organization = EXCLUDED.can_edit_organization
+		`, entitlement.sponsorshipID, confID, entitlement.tickets,
+			entitlement.awards, entitlement.contacts, entitlement.exportContacts,
+			entitlement.judges, entitlement.editOrganization)
+	}
+
+	// A sponsor award and participant preference make the consent-aware prize
+	// path visible in the seeded hackathon.
+	mustExec(ctx, tx, "seed sponsor award", `
+		INSERT INTO awards (
+			id, competition_id, sponsored_by_org_id, award_type, title,
+			description, judging_instructions, max_awardees,
+			opt_in_required, status
+		) VALUES (
+			$1::uuid, $2::uuid, $3::uuid, 'challenge',
+			'Best Signet Infrastructure',
+			'For the project that makes reproducible bitcoin testing easier.',
+			'Prefer tools with a documented path from local fixtures to Signet.',
+			1, true, 'awarded'
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			sponsored_by_org_id = EXCLUDED.sponsored_by_org_id,
+			title = EXCLUDED.title,
+			description = EXCLUDED.description,
+			judging_instructions = EXCLUDED.judging_instructions,
+			max_awardees = EXCLUDED.max_awardees,
+			opt_in_required = EXCLUDED.opt_in_required,
+			status = EXCLUDED.status,
+			archived_at = NULL
+	`, devSponsorAward, devNewsletterCompetition, devOrgs[0].id)
+	mustExec(ctx, tx, "seed sponsor prize", `
+		INSERT INTO prizes (
+			id, award_id, prize_type, title, description, value_text, status
+		) VALUES (
+			$1::uuid, $2::uuid, 'sats', 'Signet Systems prize',
+			'Paid directly to the winning project team.', '1000000', 'awarded'
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			title = EXCLUDED.title,
+			description = EXCLUDED.description,
+			value_text = EXCLUDED.value_text,
+			status = EXCLUDED.status
+	`, devSponsorPrize, devSponsorAward)
+	mustExec(ctx, tx, "seed sponsor award opt in", `
+		INSERT INTO project_award_opt_ins (project_id, award_id)
+		VALUES ($1::uuid, $2::uuid)
+		ON CONFLICT DO NOTHING
+	`, devNewsletterProject1, devSponsorAward)
+	mustExec(ctx, tx, "seed sponsor project award", `
+		INSERT INTO project_awards (project_id, award_id, awarded_at)
+		VALUES ($1::uuid, $2::uuid, now())
+		ON CONFLICT (project_id, award_id) DO UPDATE SET awarded_at = EXCLUDED.awarded_at
+	`, devNewsletterProject1, devSponsorAward)
+	mustExec(ctx, tx, "seed sponsor contact consent", `
+		INSERT INTO hackathon_sponsor_contact_consents (
+			competition_id, person_id, all_hackathon_sponsors,
+			entered_award_sponsors
+		) VALUES ($1::uuid, $2::uuid, false, true)
+		ON CONFLICT (competition_id, person_id) DO UPDATE SET
+			all_hackathon_sponsors = EXCLUDED.all_hackathon_sponsors,
+			entered_award_sponsors = EXCLUDED.entered_award_sponsors
+	`, devNewsletterCompetition, devSpeakers[0].personID)
+	mustExec(ctx, tx, "seed sponsor contact consent event", `
+		INSERT INTO hackathon_sponsor_contact_consent_events (
+			id, competition_id, person_id, all_hackathon_sponsors,
+			entered_award_sponsors, policy_version, source
+		) VALUES ($1::uuid, $2::uuid, $3::uuid, false, true, 'sponsor-contact-v1', 'dev-seed')
+		ON CONFLICT (id) DO UPDATE SET
+			all_hackathon_sponsors = EXCLUDED.all_hackathon_sponsors,
+			entered_award_sponsors = EXCLUDED.entered_award_sponsors,
+			policy_version = EXCLUDED.policy_version,
+			source = EXCLUDED.source
+	`, devSponsorConsentEvent, devNewsletterCompetition, devSpeakers[0].personID)
 }
 
 func seedHotels(ctx context.Context, tx pgx.Tx, confID string) {
