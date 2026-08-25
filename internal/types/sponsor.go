@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 type (
 	Org struct {
 		Ref       string
@@ -38,5 +40,62 @@ type (
 		Status   string
 		IsVendor bool
 		Notes    string
+	}
+
+	OrganizationMembership struct {
+		OrganizationID    string
+		PersonID          string
+		PersonName        string
+		PersonEmail       string
+		Role              string
+		Status            string
+		Organization      *Org
+		InvitedByPersonID string
+		CreatedAt         time.Time
+		UpdatedAt         time.Time
+	}
+
+	OrganizationMemberInvite struct {
+		ID                 string
+		OrganizationID     string
+		OrganizationName   string
+		Email              string
+		Role               string
+		InvitedByPersonID  string
+		AcceptedByPersonID string
+		AcceptedAt         *time.Time
+		RevokedAt          *time.Time
+		ExpiresAt          time.Time
+		CreatedAt          time.Time
+	}
+
+	SponsorshipEntitlement struct {
+		SponsorshipID            string
+		ConferenceID             string
+		TicketAllocation         int
+		SponsorAwardLimit        int
+		ParticipantContactAccess bool
+		ParticipantContactExport bool
+		CanManageAwardJudges     bool
+		CanEditOrganization      bool
+		CreatedAt                time.Time
+		UpdatedAt                time.Time
+	}
+
+	SponsorDashboardEvent struct {
+		Sponsorship *Sponsorship
+		Conference  *Conf
+		Entitlement *SponsorshipEntitlement
+		AwardCount  int
+		WinnerCount int
+	}
+
+	HackathonSponsorContactConsent struct {
+		CompetitionID        string
+		PersonID             string
+		AllHackathonSponsors bool
+		EnteredAwardSponsors bool
+		CreatedAt            time.Time
+		UpdatedAt            time.Time
 	}
 )

@@ -802,6 +802,16 @@ func requestID(r *http.Request) string {
 	return requestid.From(r.Context())
 }
 
+func requestLogPath(r *http.Request) string {
+	if r == nil || r.URL == nil {
+		return ""
+	}
+	if strings.HasPrefix(r.URL.Path, "/sponsor-invites/") {
+		return "/sponsor-invites/[redacted]"
+	}
+	return r.URL.Path
+}
+
 // requestLog is a middleware that logs each incoming request's start
 // and completion (method, path, status, duration). It also emits watchdog
 // messages while a request is still running so hung requests are visible
@@ -825,11 +835,11 @@ func requestLog(ctx *config.AppContext, h http.Handler) http.Handler {
 		} else if idx := strings.Index(remote, ","); idx >= 0 {
 			remote = strings.TrimSpace(remote[:idx])
 		}
-		ctx.Infos.Printf("→ request id=%s method=%s path=%s remote=%s", id, r.Method, r.URL.Path, remote)
+		ctx.Infos.Printf("→ request id=%s method=%s path=%s remote=%s", id, r.Method, requestLogPath(r), remote)
 		sr := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		defer func() {
 			close(done)
-			ctx.Infos.Printf("← request id=%s method=%s path=%s status=%d bytes=%d duration=%s", id, r.Method, r.URL.Path, sr.status, sr.bytes, time.Since(start))
+			ctx.Infos.Printf("← request id=%s method=%s path=%s status=%d bytes=%d duration=%s", id, r.Method, requestLogPath(r), sr.status, sr.bytes, time.Since(start))
 		}()
 		h.ServeHTTP(sr, r)
 	})
@@ -864,7 +874,7 @@ func logSlowRequest(ctx *config.AppContext, r *http.Request, id string, start ti
 	}
 	stats := ctx.DB.Stat()
 	ctx.Err.Printf("request still running id=%s method=%s path=%s duration=%s db_acquired=%d db_idle=%d db_total=%d db_empty_acquires=%d db_canceled_acquires=%d db_acquire_wait=%s",
-		id, r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond),
+		id, r.Method, requestLogPath(r), time.Since(start).Round(time.Millisecond),
 		stats.AcquiredConns(), stats.IdleConns(), stats.TotalConns(), stats.EmptyAcquireCount(),
 		stats.CanceledAcquireCount(), stats.AcquireDuration().Round(time.Millisecond))
 }
@@ -1188,6 +1198,24 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/hackathons", func(w http.ResponseWriter, r *http.Request) {
 		DashboardHackathons(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/sponsor", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardIndex(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboard(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}/profile", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardProfileUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}/invites", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardInviteCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/sponsor-invites/{token}", func(w http.ResponseWriter, r *http.Request) {
+		SponsorInvite(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/sponsor-invites/{token}", func(w http.ResponseWriter, r *http.Request) {
+		SponsorInviteAccept(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		Login(w, r, app)
@@ -1608,6 +1636,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/submit", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectSubmit(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/sponsor-contact-consent", func(w http.ResponseWriter, r *http.Request) {
+		HackathonSponsorContactConsentUpdate(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/hackathon/projects/{projectID}/delete", func(w http.ResponseWriter, r *http.Request) {
 		HackathonProjectDelete(w, r, app)

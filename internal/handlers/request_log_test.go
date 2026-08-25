@@ -45,3 +45,21 @@ func TestRequestLogStillLogsApplicationRoutes(t *testing.T) {
 		t.Fatalf("application request log missing fields: %q", logged)
 	}
 }
+
+func TestRequestLogRedactsSponsorInvitationToken(t *testing.T) {
+	var infoLog bytes.Buffer
+	ctx := &config.AppContext{
+		Infos: log.New(&infoLog, "", 0),
+		Err:   log.New(&bytes.Buffer{}, "", 0),
+	}
+	handler := requestLog(ctx, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/sponsor-invites/highly-secret-token", nil))
+
+	logged := infoLog.String()
+	if strings.Contains(logged, "highly-secret-token") || !strings.Contains(logged, "path=/sponsor-invites/[redacted]") {
+		t.Fatalf("sponsor invitation token was not redacted: %q", logged)
+	}
+}
