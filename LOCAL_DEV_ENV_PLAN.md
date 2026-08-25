@@ -27,7 +27,7 @@ DATABASE_URL=postgres://btcpp@127.0.0.1:55432/btcpp_dev?sslmode=disable
 HMAC_SECRET=local-dev-only-change-me
 MAILER_OFF=true
 RECORDINGS_AUTOPUBLISH_ENABLED=false
-X_UPLOADER_ENABLED=false
+X_STUDIO_ENABLED=false
 ```
 
 Add `just dev-bootstrap` that copies `.env.local.example` to `.env` only when `.env` does not already exist.
@@ -81,4 +81,3 @@ make dev-run
 - The printed login URL signs in as `dev-admin@example.test`.
 - `/admin` is accessible after using the printed login URL.
 - Booting and rendering those pages does not require external network services.
-

@@ -1,13 +1,9 @@
 // admin_recordings.go wires the /{conf}/admin/recordings dashboard:
 //   - list every Notion Recording row with per-row publish status
-//   - per-recording detail page with editable YT + X copy
+//   - per-recording detail page with YouTube and X broadcast controls
 //   - YouTube OAuth bootstrap (start / callback / disconnect)
 //   - YouTube upload kickoff + async status polling
-//   - X browser automation status + manual fallback URL save
-//
-// X automation is implemented in admin_recordings_autopublish.go and
-// external/xposter; this file keeps the dashboard, YouTube OAuth, and
-// manual escape hatches.
+//   - durable X Studio broadcast scheduling status
 package handlers
 
 import (
@@ -64,7 +60,7 @@ type RecordingRow struct {
 	XStatus           string
 	YTError           string
 	XError            string
-	XErrorFingerprint string
+	XBroadcast        *types.RecordingXBroadcast
 	YTPrivacyStatus   string
 	YTUploadStatus    string
 	YTPublishAt       *time.Time
@@ -81,8 +77,7 @@ type RecordingsAdminListPage struct {
 	YouTubeUpdatesEnabled bool
 	YouTubeAuthURL        string
 	AutopublishEnabled    bool
-	XUploaderEnabled      bool
-	XProfileObject        string
+	XStudioEnabled        bool
 	FlashMessage          string
 	FlashError            string
 	Year                  uint
@@ -93,9 +88,6 @@ type RecordingsAdminDetailPage struct {
 	Row                   *RecordingRow
 	YTTitle               string
 	YTBody                string
-	XBody                 string
-	XReplyBody            string
-	XIntentURL            string
 	PublishAtInput        string
 	PublishTimezone       string
 	JobActive             bool
@@ -106,7 +98,8 @@ type RecordingsAdminDetailPage struct {
 	XJobMessage           string
 	YouTubeReady          bool
 	YouTubeUpdatesEnabled bool
-	XUploaderEnabled      bool
+	XStudioEnabled        bool
+	XBroadcastNeedsUpdate bool
 	FlashMessage          string
 	FlashError            string
 	Year                  uint
@@ -265,8 +258,7 @@ func RecordingsAdminList(w http.ResponseWriter, r *http.Request, ctx *config.App
 		YouTubeUpdatesEnabled: youtubepkg.UpdatesEnabled(),
 		YouTubeAuthURL:        recordingsAdminPath(conf.Tag, "/oauth/youtube/start"),
 		AutopublishEnabled:    ctx.Env.Recordings.AutopublishEnabled,
-		XUploaderEnabled:      ctx.Env.Recordings.X.Enabled,
-		XProfileObject:        ctx.Env.Recordings.X.ProfileObject,
+		XStudioEnabled:        ctx.Env.Recordings.X.Enabled,
 		Year:                  uint(time.Now().Year()),
 	}
 	if !youtubepkg.IsConfigured() {
@@ -306,6 +298,17 @@ func recordingRowsFromList(ctx *config.AppContext, recs []*types.Recording, conf
 	socialStart := time.Now()
 	socialPostsByRef := recordingSocialPostsByRef(ctx, recs)
 	socialDur := time.Since(socialStart)
+	recordingIDs := make([]string, 0, len(recs))
+	for _, rec := range recs {
+		if rec != nil {
+			recordingIDs = append(recordingIDs, rec.ID)
+		}
+	}
+	xBroadcasts, err := getters.ListRecordingXBroadcasts(ctx, recordingIDs)
+	if err != nil {
+		ctx.Err.Printf("recording rows X broadcasts: %s", err)
+		xBroadcasts = nil
+	}
 	buildStart := time.Now()
 	rows := make([]*RecordingRow, 0, len(recs))
 	for _, rec := range recs {
@@ -313,6 +316,7 @@ func recordingRowsFromList(ctx *config.AppContext, recs []*types.Recording, conf
 			continue
 		}
 		row := buildRecordingRowFromMaps(ctx, rec, confTalksByID, socialPostsByRef)
+		attachRecordingXBroadcast(row, xBroadcasts[rec.ID])
 		if recordingRowBelongsToConf(row, confTag) {
 			rows = append(rows, row)
 		}
@@ -320,6 +324,19 @@ func recordingRowsFromList(ctx *config.AppContext, recs []*types.Recording, conf
 	ctx.Infos.Printf("/%s/admin/recordings batch recs=%d conftalks=%d conftalksDur=%s socialposts=%d socialDur=%s build=%s",
 		confTag, len(recs), len(confTalksByID), confTalksDur, len(socialPostsByRef), socialDur, time.Since(buildStart))
 	return rows
+}
+
+func attachRecordingXBroadcast(row *RecordingRow, broadcast *types.RecordingXBroadcast) {
+	if row == nil || broadcast == nil {
+		return
+	}
+	row.XBroadcast = broadcast
+	row.XStatus = broadcast.Status
+	row.XError = broadcast.Error
+	if broadcast.BroadcastID != "" {
+		row.XURL = "https://x.com/i/broadcasts/" + url.PathEscape(broadcast.BroadcastID)
+		row.HasX = true
+	}
 }
 
 func recordingConfTalksByID(ctx *config.AppContext, recs []*types.Recording) map[string]*types.ConfTalk {
@@ -461,24 +478,26 @@ func RecordingsAdminDetail(w http.ResponseWriter, r *http.Request, ctx *config.A
 
 	ytTitle, ytBody := defaultYouTubeCopy(ctx, row)
 	enrichRowsWithYouTubeStatus(ctx, []*RecordingRow{row})
-	xBody := recordingXMainCopy(ctx, row)
-	xReplyBody := defaultXReplyCopy(ctx, row)
-	intentURL := "https://x.com/intent/post?" + url.Values{"text": []string{xBody}}.Encode()
+	xBroadcast, err := getters.GetRecordingXBroadcast(ctx, rec.ID)
+	if err != nil {
+		ctx.Err.Printf("recording X broadcast recording=%s: %s", rec.ID, err)
+	}
+	attachRecordingXBroadcast(row, xBroadcast)
 
 	page := &RecordingsAdminDetailPage{
 		Conf:                  conf,
 		Row:                   row,
 		YTTitle:               ytTitle,
 		YTBody:                ytBody,
-		XBody:                 xBody,
-		XReplyBody:            xReplyBody,
-		XIntentURL:            intentURL,
 		PublishAtInput:        recordingPublishAtInput(rec.PublishAt, conf),
 		PublishTimezone:       recordingPublishTimezone(conf),
 		YouTubeReady:          youtubepkg.IsConfigured() && youtubepkg.IsConnected(),
 		YouTubeUpdatesEnabled: youtubepkg.UpdatesEnabled(),
-		XUploaderEnabled:      ctx.Env.Recordings.X.Enabled,
+		XStudioEnabled:        ctx.Env.Recordings.X.Enabled,
 		Year:                  uint(time.Now().Year()),
+	}
+	if xBroadcast != nil && rec.PublishAt != nil {
+		page.XBroadcastNeedsUpdate = !xBroadcast.ScheduledAt.Equal(*rec.PublishAt)
 	}
 	if job := getJob(rec.ID); job != nil {
 		page.JobActive = job.Status == "running"
@@ -1027,176 +1046,6 @@ func updateRecordingYouTubeSchedule(ctx *config.AppContext, rec *types.Recording
 	return "updated", youtubepkg.ClearExistingVideoSchedule(context.Background(), videoID)
 }
 
-func RecordingsAdminSaveXCopy(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	conf, rec, row, ok := scopedRecordingFromRequest(w, r, ctx)
-	if !ok {
-		return
-	}
-	recordingID := rec.ID
-	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't parse form: "+err.Error())
-		return
-	}
-	xBody := strings.TrimSpace(r.FormValue("x_body"))
-	if xBody == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X post text is required")
-		return
-	}
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{Text: &xBody}); err != nil {
-		ctx.Err.Printf("save x copy recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update SocialPosts: "+err.Error())
-		return
-	}
-	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash=X+text+saved", http.StatusSeeOther)
-}
-
-func RecordingsAdminPostXNow(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	conf, rec, row, ok := scopedRecordingFromRequest(w, r, ctx)
-	if !ok {
-		return
-	}
-	recordingID := rec.ID
-	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't parse form: "+err.Error())
-		return
-	}
-	xBody := strings.TrimSpace(r.FormValue("x_body"))
-	if xBody == "" {
-		xBody = strings.TrimSpace(recordingXMainCopy(ctx, row))
-	}
-	if xBody == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X post text is required")
-		return
-	}
-	if rec.FileURI == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI - set the Spaces key first")
-		return
-	}
-	if row.XURL != "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X already has a saved URL")
-		return
-	}
-	if row.XStatus == recordingStatusScheduling || row.XStatus == recordingStatusScheduled || row.XStatus == recordingStatusPosting {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X is already "+row.XStatus)
-		return
-	}
-	if !ctx.Env.Recordings.X.Enabled {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X uploader is disabled")
-		return
-	}
-	client, err := newXPosterClient(ctx)
-	if err != nil {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X uploader is not configured: "+err.Error())
-		return
-	}
-
-	status := recordingStatusPosting
-	clear := ""
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
-		Text:             &xBody,
-		Status:           &status,
-		Error:            &clear,
-		ErrorFingerprint: &clear,
-	}); err != nil {
-		ctx.Err.Printf("post x status recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update SocialPosts: "+err.Error())
-		return
-	}
-	setXJobStatus(recordingID, "running", "Starting X post")
-	go runXPostNow(ctx, row, client, xBody)
-
-	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash=X+post+started", http.StatusSeeOther)
-}
-
-func RecordingsAdminScheduleX(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	conf, rec, row, ok := scopedRecordingFromRequest(w, r, ctx)
-	if !ok {
-		return
-	}
-	recordingID := rec.ID
-	limitRequestBody(w, r, maxFormBodyBytes)
-	if err := r.ParseForm(); err != nil {
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't parse form: "+err.Error())
-		return
-	}
-	xBody := strings.TrimSpace(r.FormValue("x_body"))
-	if xBody == "" {
-		xBody = strings.TrimSpace(recordingXMainCopy(ctx, row))
-	}
-	if xBody == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X post text is required")
-		return
-	}
-	if rec.FileURI == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Recording row has no FileURI - set the Spaces key first")
-		return
-	}
-	publishAt := rec.PublishAt
-	rawPublishAt := strings.TrimSpace(r.FormValue("publish_at"))
-	if rawPublishAt != "" {
-		when, err := parseRecordingPublishAt(rawPublishAt, conf)
-		if err != nil {
-			redirectWithErr(w, r, conf.Tag, recordingID, "couldn't parse publish time: "+err.Error())
-			return
-		}
-		publishAt = &when
-	}
-	if publishAt == nil {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Set PublishAt before scheduling on X")
-		return
-	}
-	if !publishAt.After(time.Now()) {
-		redirectWithErr(w, r, conf.Tag, recordingID, "PublishAt must be in the future to schedule on X")
-		return
-	}
-	if row.XURL != "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X already has a saved URL")
-		return
-	}
-	if row.XStatus == recordingStatusScheduling || row.XStatus == recordingStatusScheduled || row.XStatus == recordingStatusPosting {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X is already "+row.XStatus)
-		return
-	}
-	if !ctx.Env.Recordings.X.Enabled {
-		redirectWithErr(w, r, conf.Tag, recordingID, "X uploader is disabled")
-		return
-	}
-	if rec.PublishAt == nil || !rec.PublishAt.Equal(*publishAt) {
-		if err := getters.UpdateRecordingPublishAt(ctx, recordingID, publishAt); err != nil {
-			ctx.Err.Printf("schedule x publishAt recording=%s: %s", recordingID, err)
-			redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update PublishAt: "+err.Error())
-			return
-		}
-		rec.PublishAt = publishAt
-		row.Recording.PublishAt = publishAt
-	}
-	if _, err := updateRecordingYouTubeSchedule(ctx, rec, publishAt); err != nil {
-		ctx.Err.Printf("schedule x youtube recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update YouTube schedule: "+err.Error())
-		return
-	}
-
-	status := recordingStatusScheduling
-	clear := ""
-	if err := upsertRecordingSocialPost(ctx, row, recordingPlatformX, getters.SocialPostUpdate{
-		Text:             &xBody,
-		Status:           &status,
-		Error:            &clear,
-		ErrorFingerprint: &clear,
-		ScheduledAt:      publishAt,
-	}); err != nil {
-		ctx.Err.Printf("schedule x status recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update SocialPosts: "+err.Error())
-		return
-	}
-	setXJobStatus(recordingID, "running", "Starting X schedule")
-	go runXSchedule(ctx, rec, conf, xBody)
-
-	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash=X+scheduling+started", http.StatusSeeOther)
-}
-
 // runYouTubeUpload streams the source video from Spaces straight into
 // YouTube's resumable-upload endpoint, then writes the resulting URL
 // back to the Notion Recording row. Uses a fresh context.Background()
@@ -1350,46 +1199,6 @@ func youtubeVideoID(raw string) string {
 	return ""
 }
 
-// ---- save X link (manual handoff) ------------------------------------
-
-func RecordingsAdminSaveXLink(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	conf, rec, _, ok := scopedRecordingFromRequest(w, r, ctx)
-	if !ok {
-		return
-	}
-	recordingID := rec.ID
-	if err := r.ParseForm(); err != nil {
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't parse form: "+err.Error())
-		return
-	}
-	xURL := strings.TrimSpace(r.FormValue("x_url"))
-	if xURL == "" {
-		redirectWithErr(w, r, conf.Tag, recordingID, "Paste the X URL before saving")
-		return
-	}
-	if !strings.HasPrefix(xURL, "https://x.com/") && !strings.HasPrefix(xURL, "https://twitter.com/") {
-		redirectWithErr(w, r, conf.Tag, recordingID, "That doesn't look like an X.com URL")
-		return
-	}
-	if err := getters.UpdateRecordingXLink(ctx, recordingID, xURL); err != nil {
-		ctx.Err.Printf("save xlink recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update the recording row: "+err.Error())
-		return
-	}
-	status := recordingStatusPosted
-	now := time.Now()
-	if err := upsertRecordingSocialPost(ctx, buildRecordingRow(ctx, rec), recordingPlatformX, getters.SocialPostUpdate{
-		URL:      &xURL,
-		Status:   &status,
-		PostedAt: &now,
-	}); err != nil {
-		ctx.Err.Printf("save xlink socialpost recording=%s: %s", recordingID, err)
-		redirectWithErr(w, r, conf.Tag, recordingID, "couldn't update SocialPosts: "+err.Error())
-		return
-	}
-	http.Redirect(w, r, recordingDetailPath(conf.Tag, recordingID)+"?flash=X+link+saved", http.StatusSeeOther)
-}
-
 // ---- job status polling ----------------------------------------------
 
 func RecordingsAdminJobStatus(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -1410,20 +1219,32 @@ func RecordingsAdminJobStatus(w http.ResponseWriter, r *http.Request, ctx *confi
 }
 
 func RecordingsAdminXJobStatus(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	_, rec, row, ok := scopedRecordingFromRequest(w, r, ctx)
+	_, rec, _, ok := scopedRecordingFromRequest(w, r, ctx)
 	if !ok {
 		return
 	}
 	job := getXJob(rec.ID)
 	w.Header().Set("Content-Type", "application/json")
 	if job == nil {
+		broadcast, err := getters.GetRecordingXBroadcast(ctx, rec.ID)
+		if err != nil {
+			http.Error(w, "could not load X broadcast status", http.StatusInternalServerError)
+			return
+		}
+		if broadcast == nil {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": ""})
+			return
+		}
+		broadcastURL := ""
+		if broadcast.BroadcastID != "" {
+			broadcastURL = "https://x.com/i/broadcasts/" + url.PathEscape(broadcast.BroadcastID)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status":   row.XStatus,
-			"message":  row.XError,
+			"status":   broadcast.Status,
+			"message":  broadcast.Error,
 			"stage":    "",
 			"progress": 0,
-			"url":      row.XURL,
-			"reply":    row.XReplyURL,
+			"url":      broadcastURL,
 		})
 		return
 	}
@@ -1432,8 +1253,7 @@ func RecordingsAdminXJobStatus(w http.ResponseWriter, r *http.Request, ctx *conf
 		"message":  job.Message,
 		"stage":    job.Stage,
 		"progress": job.Progress,
-		"url":      row.XURL,
-		"reply":    row.XReplyURL,
+		"url":      job.Message,
 	})
 }
 
@@ -1750,31 +1570,6 @@ func applyRecordingSocialPosts(row *RecordingRow) {
 			row.YTError = row.YTSocialPost.Error
 		}
 	}
-	if row.XSocialPost != nil {
-		if row.XSocialPost.URL != "" {
-			row.XURL = row.XSocialPost.URL
-		}
-		if row.XSocialPost.ReplyURL != "" {
-			row.XReplyURL = row.XSocialPost.ReplyURL
-		}
-		if row.XSocialPost.Status != "" {
-			row.XStatus = row.XSocialPost.Status
-		}
-		if row.XSocialPost.Error != "" {
-			row.XError = row.XSocialPost.Error
-		}
-		if row.XSocialPost.ErrorFingerprint != "" {
-			row.XErrorFingerprint = row.XSocialPost.ErrorFingerprint
-		}
-	}
-	if row.BufferXSocialPost != nil && row.XSocialPost == nil {
-		if row.BufferXSocialPost.Status != "" {
-			row.XStatus = row.BufferXSocialPost.Status
-		}
-		if row.BufferXSocialPost.Error != "" {
-			row.XError = row.BufferXSocialPost.Error
-		}
-	}
 }
 
 func recordingSocialPostByRef(ctx *config.AppContext, rec *types.Recording, platform string) *types.SocialPost {
@@ -1849,39 +1644,12 @@ Follow @btcplusplus for upcoming events: https://x.com/btcplusplus
 Future bitcoin++ events: https://btcpp.dev
 `))
 
-var xMainCopy = template.Must(template.New("x-main").Parse(
-	`POSTED 🎥: {{ .TalkName }}
-{{- if .SpeakerCredits }}
-
-Featuring: {{ .SpeakerCredits }}
-{{- end }}
-{{- if .Conf }}
-
-from {{ .Conf.Desc }}{{ if .Conf.Location }} ({{ .Conf.Location }}){{ end }}
-{{- end }}
-`))
-
-var xReplyCopy = template.Must(template.New("x-reply").Parse(
-	`Watch ▶ {{ .YTLink }}
-{{- if .TicketConf }}
-
-Join us at {{ .TicketConf.Desc }}: https://btcpp.dev/{{ .TicketConf.Tag }}#tickets
-{{- end }}`))
-
 type ytCopyData struct {
 	TalkName   string
 	TalkDesc   string
 	Speakers   []*types.Speaker
 	Conf       *types.Conf
 	RecordedOn string
-}
-
-type xCopyData struct {
-	TalkName       string
-	SpeakerCredits string
-	Conf           *types.Conf
-	TicketConf     *types.Conf
-	YTLink         string
 }
 
 func defaultYouTubeCopy(ctx *config.AppContext, row *RecordingRow) (string, string) {
@@ -1919,92 +1687,6 @@ func defaultYouTubeCopy(ctx *config.AppContext, row *RecordingRow) (string, stri
 		return title, ""
 	}
 	return title, strings.TrimSpace(buf.String()) + "\n"
-}
-
-func defaultXMainCopy(ctx *config.AppContext, row *RecordingRow) string {
-	if row == nil || row.Recording == nil {
-		return ""
-	}
-	talkName := row.Recording.TalkName
-	var conf *types.Conf
-	if row.ConfTalk != nil {
-		conf = row.ConfTalk.Conf
-		if row.ConfTalk.Proposal != nil && row.ConfTalk.Proposal.Title != "" {
-			talkName = row.ConfTalk.Proposal.Title
-		}
-	}
-	var buf bytes.Buffer
-	if err := xMainCopy.Execute(&buf, xCopyData{
-		TalkName:       talkName,
-		SpeakerCredits: joinSpeakerXCredits(row.Speakers),
-		Conf:           conf,
-	}); err != nil {
-		ctx.Err.Printf("x copy gen: %s", err)
-		return ""
-	}
-	return strings.TrimSpace(buf.String())
-}
-
-func recordingXMainCopy(ctx *config.AppContext, row *RecordingRow) string {
-	if row != nil && row.XSocialPost != nil && strings.TrimSpace(row.XSocialPost.Text) != "" {
-		return row.XSocialPost.Text
-	}
-	return defaultXMainCopy(ctx, row)
-}
-
-func defaultXReplyCopy(ctx *config.AppContext, row *RecordingRow) string {
-	if row == nil || row.Recording == nil {
-		return ""
-	}
-	var conf *types.Conf
-	if row.ConfTalk != nil {
-		conf = row.ConfTalk.Conf
-	}
-	yt := row.YTURL
-	if yt == "" {
-		yt = "<paste the YouTube link after you upload>"
-	}
-	var buf bytes.Buffer
-	if err := xReplyCopy.Execute(&buf, xCopyData{
-		Conf:       conf,
-		TicketConf: nextTicketConf(ctx, conf),
-		YTLink:     yt,
-	}); err != nil {
-		ctx.Err.Printf("x reply copy gen: %s", err)
-		return ""
-	}
-	return strings.TrimSpace(buf.String())
-}
-
-func nextTicketConf(ctx *config.AppContext, current *types.Conf) *types.Conf {
-	if ctx == nil {
-		return nil
-	}
-	confs, err := getters.ListConfs(ctx)
-	if err != nil {
-		return nil
-	}
-	return nextTicketConfFromList(confs, current, time.Now())
-}
-
-func nextTicketConfFromList(confs []*types.Conf, current *types.Conf, now time.Time) *types.Conf {
-	var candidates []*types.Conf
-	for _, conf := range confs {
-		if conf == nil || !conf.Active || !conf.StartDate.After(now) || len(conf.Tickets) == 0 {
-			continue
-		}
-		if current != nil && ((current.Ref != "" && conf.Ref == current.Ref) || (current.Tag != "" && conf.Tag == current.Tag)) {
-			continue
-		}
-		candidates = append(candidates, conf)
-	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].StartDate.Before(candidates[j].StartDate)
-	})
-	if len(candidates) == 0 {
-		return nil
-	}
-	return candidates[0]
 }
 
 // buildYTTitle assembles "Talk Name — Speaker A, Speaker B | bitcoin++ Conf"

@@ -80,27 +80,24 @@ type (
 
 	// RecordingsConfig controls the scheduled recording publisher. The
 	// dashboard remains available when this is disabled; only the
-	// background autopublisher and browser automation are gated here.
+	// background YouTube publisher and X broadcast scheduler are gated here.
 	RecordingsConfig struct {
 		AutopublishEnabled bool
 		PollSec            int
 		NotifyEmail        string
 		EncryptionKey      string
 		YouTubeTokenObject string
-		X                  XUploaderConfig
+		X                  XStudioConfig
 	}
 
-	// XUploaderConfig holds the x.com browser automation settings.
-	// Chrome profiles are encrypted into Spaces so App Platform's
-	// ephemeral filesystem does not wipe login state on deploy.
-	XUploaderConfig struct {
-		Enabled        bool
-		ProfileObject  string
-		Headed         bool
-		LoginUsername  string
-		LoginPassword  string
-		PostTimeoutSec int
-		AuthWaitSec    int
+	// XStudioConfig holds server-side credentials for the unsupported private
+	// X Studio broadcast endpoints. Values are runtime secrets, never browser
+	// configuration exposed to an administrator's client.
+	XStudioConfig struct {
+		Enabled   bool
+		Cookie    string
+		UserAgent string
+		IngestID  string
 	}
 
 	Conf struct {
@@ -469,6 +466,37 @@ type (
 		EndedAt       *time.Time
 		HeartbeatAt   *time.Time
 		UpdatedAt     time.Time
+	}
+
+	RecordingXBroadcast struct {
+		RecordingID          string
+		Status               string
+		ScheduledAt          time.Time
+		ScheduledBroadcastID string
+		BroadcastID          string
+		PosterMediaID        string
+		PosterURL            string
+		SessionID            string
+		OptimisticPosterURL  string
+		Error                string
+		OperationStartedAt   time.Time
+		CreatedAt            time.Time
+		UpdatedAt            time.Time
+	}
+
+	// RecordingBroadcastPlan is the durable hand-off from btcpp.dev's
+	// recording scheduler to a broadcaster such as streamctl.
+	RecordingBroadcastPlan struct {
+		RecordingID     string
+		ConferenceTag   string
+		TalkID          string
+		Title           string
+		SourceObjectKey string
+		PublishAt       *time.Time
+		Status          string
+		ScheduledAt     time.Time
+		XBroadcastURL   string
+		UpdatedAt       time.Time
 	}
 
 	SocialPost struct {

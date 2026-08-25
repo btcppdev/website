@@ -1880,9 +1880,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/recordings/oauth/youtube/disconnect", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsYTOAuthDisconnect(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/{conf}/admin/recordings/x/auth-check", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminXAuthCheck(w, r, app)
-	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/autoschedule", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminAutoschedulePreview(w, r, app)
 	}).Methods("GET")
@@ -1919,20 +1916,8 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/recordings/{id}/file", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminUploadSourceFile(w, r, app)
 	}).Methods("POST")
-	r.HandleFunc("/{conf}/admin/recordings/{id}/x-copy", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminSaveXCopy(w, r, app)
-	}).Methods("POST")
-	r.HandleFunc("/{conf}/admin/recordings/{id}/post-x", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminPostXNow(w, r, app)
-	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/schedule-x", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminScheduleX(w, r, app)
-	}).Methods("POST")
-	r.HandleFunc("/{conf}/admin/recordings/{id}/x", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminSaveXLink(w, r, app)
-	}).Methods("POST")
-	r.HandleFunc("/{conf}/admin/recordings/{id}/retry-x", func(w http.ResponseWriter, r *http.Request) {
-		RecordingsAdminRetryX(w, r, app)
+		RecordingsAdminScheduleXBroadcast(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/recordings/{id}/status", func(w http.ResponseWriter, r *http.Request) {
 		RecordingsAdminJobStatus(w, r, app)

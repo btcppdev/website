@@ -9,7 +9,6 @@ import (
 
 func TestRecordingAutopublishEligibility(t *testing.T) {
 	future := time.Now().Add(time.Hour)
-	due := time.Now().Add(-time.Minute)
 
 	rec := &types.Recording{
 		FileURI:   "videos/talk.mp4",
@@ -29,38 +28,6 @@ func TestRecordingAutopublishEligibility(t *testing.T) {
 		t.Fatalf("recording with YTLink should not upload again")
 	}
 
-	rec.PublishAt = &due
-	row.XStatus = ""
-	row.XURL = ""
-	if !shouldPostRecordingToX(row, time.Now()) {
-		t.Fatalf("due recording with YTLink should post to X")
-	}
-	rec.PublishAt = &future
-	if shouldPostRecordingToX(row, time.Now()) {
-		t.Fatalf("future recording should not post to X yet")
-	}
-	rec.PublishAt = &due
-	row.XStatus = recordingStatusScheduled
-	if shouldPostRecordingToX(row, time.Now()) {
-		t.Fatalf("recording already scheduled on X should not post again")
-	}
-	row.XStatus = ""
-	row.BufferXSocialPost = &types.SocialPost{Status: recordingStatusScheduled}
-	if shouldPostRecordingToX(row, time.Now()) {
-		t.Fatalf("recording scheduled through Buffer should not also post through the browser uploader")
-	}
-}
-
-func TestXFailureFingerprintChangesByStatusAndMessage(t *testing.T) {
-	a := xFailureFingerprint(recordingStatusFailed, "upload failed")
-	b := xFailureFingerprint(recordingStatusAuthRequired, "upload failed")
-	c := xFailureFingerprint(recordingStatusFailed, "different")
-	if a == b || a == c || b == c {
-		t.Fatalf("fingerprints should differ by status and message")
-	}
-	if len(a) != 16 {
-		t.Fatalf("fingerprint length = %d, want 16", len(a))
-	}
 }
 
 func TestRecordingSourceObjectKeyNormalizesSpacesValues(t *testing.T) {

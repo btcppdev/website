@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
 
@@ -67,6 +68,30 @@ func TestReorderRecordingAutoscheduleItemsReassignsConfiguredSlots(t *testing.T)
 	}
 	if items[0].Row.Recording.ID != "first" || !items[0].PublishAt.Equal(firstAt) {
 		t.Fatal("reorder mutated the original preview items")
+	}
+}
+
+func TestDecorateRecordingAutoscheduleXRecognizesScheduledAndUpdatedTimes(t *testing.T) {
+	scheduledAt := time.Date(2026, time.August, 30, 10, 0, 0, 0, time.UTC)
+	row := autoscheduleTestRow("recording", "one", scheduledAt)
+	row.XBroadcast = &types.RecordingXBroadcast{
+		Status: "scheduled", ScheduledAt: scheduledAt, PosterMediaID: "poster",
+	}
+	ctx := &config.AppContext{Env: &types.EnvConfig{Recordings: types.RecordingsConfig{X: types.XStudioConfig{Enabled: true}}}}
+	item := &RecordingAutoscheduleItem{Row: row, PublishAt: scheduledAt}
+
+	decorateRecordingAutoscheduleX(ctx, &types.Conf{}, item)
+	if item.XBroadcastEligible || item.XBroadcastLabel != "Already scheduled" {
+		t.Fatalf("matching X schedule = eligible %t label %q", item.XBroadcastEligible, item.XBroadcastLabel)
+	}
+
+	item.PublishAt = scheduledAt.Add(time.Hour)
+	decorateRecordingAutoscheduleX(ctx, &types.Conf{}, item)
+	if !item.XBroadcastEligible || item.XBroadcastLabel != "Ready to update time" {
+		t.Fatalf("changed X schedule = eligible %t label %q", item.XBroadcastEligible, item.XBroadcastLabel)
+	}
+	if got := recordingAutoscheduleXEligibleCount([]*RecordingAutoscheduleItem{item, nil}); got != 1 {
+		t.Fatalf("eligible X count = %d, want 1", got)
 	}
 }
 
