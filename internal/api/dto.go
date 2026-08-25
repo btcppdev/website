@@ -1,9 +1,10 @@
 package api
 
 type responseMeta struct {
-	RequestID  string `json:"request_id"`
-	NextCursor string `json:"next_cursor,omitempty"`
-	Limit      int    `json:"limit,omitempty"`
+	RequestID        string `json:"request_id"`
+	NextCursor       string `json:"next_cursor,omitempty"`
+	NextUpdatedAfter string `json:"next_updated_after,omitempty"`
+	Limit            int    `json:"limit,omitempty"`
 }
 
 type responseEnvelope struct {
@@ -235,17 +236,37 @@ type scheduleUpdateDTO struct {
 }
 
 type recordingCandidateDTO struct {
-	TalkID          string             `json:"talk_id"`
-	Title           string             `json:"title"`
-	Status          string             `json:"status"`
-	StartsAt        *string            `json:"starts_at"`
-	EndsAt          *string            `json:"ends_at"`
-	Venue           string             `json:"venue"`
-	Speakers        []talkSpeakerDTO   `json:"speakers"`
-	RecordingPolicy string             `json:"recording_policy"`
-	Eligible        bool               `json:"eligible"`
-	Reasons         []string           `json:"reasons"`
-	Recording       *recordingAdminDTO `json:"recording"`
+	TalkID          string                     `json:"talk_id"`
+	Title           string                     `json:"title"`
+	Status          string                     `json:"status"`
+	StartsAt        *string                    `json:"starts_at"`
+	EndsAt          *string                    `json:"ends_at"`
+	Venue           string                     `json:"venue"`
+	Speakers        []talkSpeakerDTO           `json:"speakers"`
+	RecordingPolicy string                     `json:"recording_policy"`
+	Eligible        bool                       `json:"eligible"`
+	Reasons         []string                   `json:"reasons"`
+	Recording       *recordingAdminDTO         `json:"recording"`
+	BroadcastPlan   *recordingBroadcastPlanDTO `json:"broadcast_plan"`
+}
+
+type recordingBroadcastSourceDTO struct {
+	Kind      string `json:"kind"`
+	ObjectKey string `json:"object_key"`
+}
+
+type recordingBroadcastPlanDTO struct {
+	RecordingID   string                      `json:"recording_id"`
+	ConferenceTag string                      `json:"conference_tag"`
+	TalkID        string                      `json:"talk_id"`
+	Title         string                      `json:"title"`
+	Source        recordingBroadcastSourceDTO `json:"source"`
+	PublishAt     *string                     `json:"publish_at"`
+	Status        string                      `json:"status"`
+	ScheduledAt   string                      `json:"scheduled_at"`
+	XBroadcastURL *string                     `json:"x_broadcast_url"`
+	Destinations  []string                    `json:"destinations"`
+	UpdatedAt     string                      `json:"updated_at"`
 }
 
 type recordingAdminDTO struct {

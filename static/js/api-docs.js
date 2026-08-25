@@ -11,6 +11,7 @@
     person: ["GET", "/people/PERSON_ID", false, null, "getPerson"],
     recordings: ["GET", "/recordings?limit=20", false, null, "listRecordings"],
     candidates: ["GET", "/conferences/dev26/recording-candidates", true, null, "listRecordingCandidates"],
+    "broadcast-plans": ["GET", "/recording-broadcast-plans?updated_after=2026-08-20T18%3A00%3A00Z", true, null, "listRecordingBroadcastPlans"],
     "recording-update": ["PUT", "/conferences/dev26/talks/TALK_ID/recording", true, '{"youtube_url":"https://youtube.com/watch?v=…"}', "putConferenceTalkRecording"],
     "broadcast-update": ["PUT", "/recordings/RECORDING_ID/broadcast", true, '{"state":"live","hls_url":"https://stream.btcpp.dev/live/stream-1/index.m3u8"}', "updateRecordingBroadcast"],
     projects: ["GET", "/hackathons/HACKATHON_ID/projects", false, null, "listHackathonProjects"],

@@ -159,6 +159,60 @@ func TestMeReturnsPrivateProfileWithoutCredentialSecrets(t *testing.T) {
 	}
 }
 
+func TestRecordingBroadcastPlansRequireGlobalAdminAndUseIncrementalCursor(t *testing.T) {
+	updated := time.Date(2026, 8, 25, 19, 30, 0, 123000000, time.UTC)
+	requestedCursor := time.Date(2026, 8, 25, 19, 0, 0, 0, time.UTC)
+	person := &types.Speaker{ID: "person-1", Name: "Mara", Roles: []string{"global-admin"}}
+	var received getters.RecordingBroadcastPlanFilter
+	root := mux.NewRouter()
+	s := &server{
+		source: &fakeSource{}, now: time.Now,
+		authenticateToken: func(raw string) (*auth.BearerGrant, error) {
+			return &auth.BearerGrant{PersonID: person.ID, Scopes: []string{"recordings:write"}, Kind: "personal_access_token"}, nil
+		},
+		loadPerson: func(string) (*types.Speaker, error) { return person, nil },
+		listBroadcastPlans: func(filter getters.RecordingBroadcastPlanFilter) ([]*types.RecordingBroadcastPlan, error) {
+			received = filter
+			return []*types.RecordingBroadcastPlan{{
+				RecordingID: "recording-1", ConferenceTag: "dev26", TalkID: "talk-1", Title: "Relay",
+				SourceObjectKey: "dev26/recordings/relay.mp4", Status: "scheduled",
+				ScheduledAt: requestedCursor.Add(time.Hour), XBroadcastURL: "https://x.com/i/broadcasts/example", UpdatedAt: updated,
+			}}, nil
+		},
+	}
+	s.register(root.PathPrefix("/api/v1").Subrouter())
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/recording-broadcast-plans?updated_after=2026-08-25T19%3A00%3A00Z", nil)
+	request.Header.Set("Authorization", "Bearer test-secret")
+	response := httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if received.UpdatedAfter == nil || !received.UpdatedAfter.Equal(requestedCursor) {
+		t.Fatalf("updated_after = %v, want %v", received.UpdatedAfter, requestedCursor)
+	}
+	if !strings.Contains(response.Body.String(), `"next_updated_after":"2026-08-25T19:30:00.123Z"`) || !strings.Contains(response.Body.String(), `"object_key":"dev26/recordings/relay.mp4"`) {
+		t.Fatalf("unexpected broadcast-plan response: %s", response.Body.String())
+	}
+
+	bad := httptest.NewRequest(http.MethodGet, "/api/v1/recording-broadcast-plans?updated_after=yesterday", nil)
+	bad.Header.Set("Authorization", "Bearer test-secret")
+	badResponse := httptest.NewRecorder()
+	root.ServeHTTP(badResponse, bad)
+	if badResponse.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid timestamp status = %d, body = %s", badResponse.Code, badResponse.Body.String())
+	}
+
+	person.Roles = []string{"dev26-admin"}
+	forbidden := httptest.NewRequest(http.MethodGet, "/api/v1/recording-broadcast-plans", nil)
+	forbidden.Header.Set("Authorization", "Bearer test-secret")
+	forbiddenResponse := httptest.NewRecorder()
+	root.ServeHTTP(forbiddenResponse, forbidden)
+	if forbiddenResponse.Code != http.StatusForbidden {
+		t.Fatalf("conference admin status = %d, body = %s", forbiddenResponse.Code, forbiddenResponse.Body.String())
+	}
+}
+
 func TestIdentityReturnsOnlyMinimalAccountAndCurrentRoles(t *testing.T) {
 	person := &types.Speaker{
 		ID: "person-1", Name: "Mara", Email: "private@example.test", Phone: "private-phone",
@@ -542,6 +596,7 @@ func TestOpenAPIContractListsEveryV1RouteAndNoTranscriptSurface(t *testing.T) {
 		"/conferences/{tag}/talks/{talk_id}/schedule",
 		"/conferences/{tag}/talks/{talk_id}/recording",
 		"/conferences/{tag}/recording-candidates",
+		"/recording-broadcast-plans",
 		"/conferences/{tag}/speakers",
 		"/conferences/{tag}/sponsors",
 		"/conferences/{tag}/hackathons",
@@ -617,7 +672,8 @@ func TestOpenAPIContractIncludesDocumentationExamples(t *testing.T) {
 		"listConferences": "ConferenceListResponse", "getConference": "ConferenceResponse", "getConferenceAgenda": "AgendaResponse",
 		"listConferenceSpeakers": "PersonSummaryListResponse", "listPeople": "PersonSummaryListResponse", "getPerson": "PersonResponse",
 		"listRecordings": "RecordingListResponse", "listRecordingCandidates": "RecordingCandidateListResponse",
-		"putConferenceTalkRecording": "RecordingAdminResponse", "updateRecordingBroadcast": "RecordingBroadcastResponse",
+		"listRecordingBroadcastPlans": "RecordingBroadcastPlanListResponse",
+		"putConferenceTalkRecording":  "RecordingAdminResponse", "updateRecordingBroadcast": "RecordingBroadcastResponse",
 		"listHackathonProjects": "HackathonProjectListResponse", "getHackathonProject": "HackathonProjectResponse",
 		"listHackathonResults": "HackathonResultListResponse", "getMyIdentity": "AccountIdentityResponse",
 		"getMe": "AccountProfileResponse", "updateMe": "AccountProfileResponse", "listMyTalks": "AccountTalkListResponse",
@@ -645,6 +701,7 @@ func TestOpenAPIContractIncludesDocumentationExamples(t *testing.T) {
 	assertOpenAPIExample[personDTO](t, contract.Components.Examples, "getPerson")
 	assertOpenAPIExample[[]recordingDTO](t, contract.Components.Examples, "listRecordings")
 	assertOpenAPIExample[[]recordingCandidateDTO](t, contract.Components.Examples, "listRecordingCandidates")
+	assertOpenAPIExample[[]recordingBroadcastPlanDTO](t, contract.Components.Examples, "listRecordingBroadcastPlans")
 	assertOpenAPIExample[recordingAdminDTO](t, contract.Components.Examples, "putConferenceTalkRecording")
 	assertOpenAPIExample[recordingBroadcastDTO](t, contract.Components.Examples, "updateRecordingBroadcast")
 	assertOpenAPIExample[[]hackathonProjectDTO](t, contract.Components.Examples, "listHackathonProjects")

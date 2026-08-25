@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"btcpp-web/internal/types"
 	"context"
 	"errors"
 	"testing"
@@ -61,5 +62,29 @@ func TestDatabaseSmokeRecordingXBroadcastResumesEachDurableStep(t *testing.T) {
 	listed, err := ListRecordingXBroadcasts(ctx, []string{recordingID})
 	if err != nil || listed[recordingID] == nil || listed[recordingID].BroadcastID != "broadcast-1" {
 		t.Fatalf("listed=%+v err=%v", listed, err)
+	}
+	plans, err := ListRecordingBroadcastPlans(ctx, RecordingBroadcastPlanFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var plan *types.RecordingBroadcastPlan
+	for _, candidate := range plans {
+		if candidate.RecordingID == recordingID {
+			plan = candidate
+			break
+		}
+	}
+	if plan == nil || plan.Status != "scheduled" || !plan.ScheduledAt.Equal(updatedAt) || plan.ConferenceTag == "" {
+		t.Fatalf("broadcast plan = %+v", plan)
+	}
+	after := plan.UpdatedAt
+	changed, err := ListRecordingBroadcastPlans(ctx, RecordingBroadcastPlanFilter{ConferenceTag: plan.ConferenceTag, UpdatedAfter: &after})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range changed {
+		if candidate.RecordingID == recordingID {
+			t.Fatalf("exclusive updated_after returned unchanged plan: %+v", candidate)
+		}
 	}
 }

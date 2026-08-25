@@ -117,6 +117,7 @@ PATCH  /api/v1/conferences/{tag}/talks/{conf_talk_id}
 PUT    /api/v1/conferences/{tag}/talks/{conf_talk_id}/schedule
 
 GET /api/v1/conferences/{tag}/recording-candidates
+GET /api/v1/recording-broadcast-plans?updated_after={rfc3339}
 PUT /api/v1/conferences/{tag}/talks/{conf_talk_id}/recording
 ```
 
