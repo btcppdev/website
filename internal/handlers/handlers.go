@@ -36,6 +36,7 @@ import (
 	"btcpp-web/internal/ics"
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/missives"
+	appmetrics "btcpp-web/internal/observability"
 	"btcpp-web/internal/publicid"
 	"btcpp-web/internal/requestid"
 	"btcpp-web/internal/types"
@@ -883,6 +884,11 @@ func redirectTrailingSlash(h http.Handler) http.Handler {
 
 func Routes(app *config.AppContext) (http.Handler, error) {
 	r := mux.NewRouter()
+	metrics := appmetrics.New("btcpp_web", func() ([]types.BusinessMetricCount, error) {
+		return getters.ListBusinessMetricCounts(app)
+	})
+	r.Handle("/metrics", metrics.Handler(app.Env.MetricsToken)).Methods(http.MethodGet)
+	r.Use(metrics.Middleware)
 
 	err := loadTemplates(app)
 	if err != nil {

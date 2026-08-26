@@ -72,6 +72,7 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 		MailOff:              envBool("MAILER_OFF", defaultMailOff),
 		MailerJob:            envInt("MAILER_JOB_SEC", 60),
 		MailerJobEnabled:     envBool("MAILER_JOB_ENABLED", !defaultMailOff),
+		MetricsToken:         os.Getenv("METRICS_TOKEN"),
 		StripeKey:            os.Getenv("STRIPE_KEY"),
 		StripeEndpointSec:    os.Getenv("STRIPE_END_SECRET"),
 		RegistryPin:          os.Getenv("REGISTRY_PIN"),

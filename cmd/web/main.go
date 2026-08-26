@@ -142,7 +142,7 @@ func main() {
 }
 
 func bypassSessionMiddleware(path string) bool {
-	return path == "/live/status" || strings.HasPrefix(path, "/static/") || strings.HasSuffix(path, "/run-of-show/events")
+	return path == "/metrics" || path == "/live/status" || strings.HasPrefix(path, "/static/") || strings.HasSuffix(path, "/run-of-show/events")
 }
 
 func run(env *types.EnvConfig) error {

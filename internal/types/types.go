@@ -23,6 +23,12 @@ func IsSponsoredTicketType(ticketType string) bool {
 }
 
 type (
+	BusinessMetricCount struct {
+		Metric     string
+		Conference string
+		State      string
+		Count      float64
+	}
 
 	/* Configs for the app! */
 	EnvConfig struct {
@@ -34,6 +40,7 @@ type (
 		MailOff              bool
 		MailEndpoint         string
 		DevEmailOverride     string
+		MetricsToken         string
 		StripeKey            string
 		StripeEndpointSec    string
 		RegistryPin          string

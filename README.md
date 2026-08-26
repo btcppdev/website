@@ -4,6 +4,18 @@ Configuration is loaded from environment variables. For local development,
 the app also reads `.env` from the repo root without overwriting variables
 already exported in the shell.
 
+## Prometheus metrics
+
+Set `METRICS_TOKEN` to enable the Prometheus endpoint at `/metrics`. The endpoint
+requires `Authorization: Bearer <token>` and returns 404 while the variable is
+unset. It exports HTTP request count, status, duration and in-flight metrics
+using bounded Gorilla route templates, along with Go runtime and process
+metrics. It also exports privacy-safe ticket, check-in, speaker application,
+volunteer application, and recording broadcast totals grouped only by
+conference and bounded workflow state. Database aggregates are cached for two
+minutes; a failed refresh retains the last good snapshot and exposes a failed
+collection health gauge. Never put the raw token in this repository; configure
+it as a secret App Platform environment variable.
 
 ## Setup Dependencies
 
