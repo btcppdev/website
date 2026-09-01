@@ -78,7 +78,7 @@ func shouldNoIndexPath(path string) bool {
 	}
 	switch parts[0] {
 	case "admin", "api", "auth", "callback", "check-in", "conf-reload",
-		"dashboard", "i", "invite-speaker", "live", "login", "media", "sendcal",
+		"dashboard", "i", "invite-speaker", "live", "login", "media", "navigation", "sendcal",
 		"ticket", "tix", "logout", "trial-cal-invite", "trial-email", "vols",
 		"webhook", "welcome-email":
 		return true
@@ -178,6 +178,7 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		Path, Freq, Prio string
 	}{
 		{"/", "weekly", "1.0"},
+		{"/events", "weekly", "0.8"},
 		{"/talk", "monthly", "0.7"},
 		{"/volunteer", "monthly", "0.7"},
 		{"/sponsor", "monthly", "0.6"},

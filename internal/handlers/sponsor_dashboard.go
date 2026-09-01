@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,26 +15,110 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/imgproc"
+	"btcpp-web/internal/missives"
 	"btcpp-web/internal/types"
 
 	"github.com/gorilla/mux"
 )
 
 type SponsorDashboardPage struct {
-	Memberships  []*types.OrganizationMembership
-	Membership   *types.OrganizationMembership
-	Organization *types.Org
-	Upcoming     []*types.SponsorDashboardEvent
-	Past         []*types.SponsorDashboardEvent
-	Members      []*types.OrganizationMembership
-	CanManage    bool
-	CanEditOrg   bool
-	SpacesReady  bool
-	CSRF         string
-	FlashMessage string
-	FlashError   string
-	InviteLink   string
-	Year         uint
+	Memberships     []*types.OrganizationMembership
+	Membership      *types.OrganizationMembership
+	Organization    *types.Org
+	Upcoming        []*types.SponsorDashboardEvent
+	Past            []*types.SponsorDashboardEvent
+	Members         []*types.OrganizationMembership
+	PrizeProposals  []*types.SponsorAwardProposal
+	TicketIssuances []*types.SponsorTicketIssuance
+	CanManage       bool
+	CanEditOrg      bool
+	SpacesReady     bool
+	CSRF            string
+	FlashMessage    string
+	FlashError      string
+	InviteLink      string
+	Year            uint
+}
+
+func (p *SponsorDashboardPage) ProposalsFor(sponsorshipID string) []*types.SponsorAwardProposal {
+	var out []*types.SponsorAwardProposal
+	for _, proposal := range p.PrizeProposals {
+		if proposal != nil && proposal.SponsorshipID == sponsorshipID {
+			out = append(out, proposal)
+		}
+	}
+	return out
+}
+
+func (p *SponsorDashboardPage) TicketIssuancesFor(sponsorshipID string) []*types.SponsorTicketIssuance {
+	var out []*types.SponsorTicketIssuance
+	for _, issuance := range p.TicketIssuances {
+		if issuance != nil && issuance.SponsorshipID == sponsorshipID {
+			out = append(out, issuance)
+		}
+	}
+	return out
+}
+
+func (p *SponsorDashboardPage) TicketsRemaining(event *types.SponsorDashboardEvent) int {
+	if event == nil || event.Entitlement == nil {
+		return 0
+	}
+	remaining := event.Entitlement.TicketAllocation - event.TicketsIssued
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+func (p *SponsorDashboardPage) TicketBatchMaximum(event *types.SponsorDashboardEvent) int {
+	remaining := p.TicketsRemaining(event)
+	if remaining > compTicketMaxCount {
+		return compTicketMaxCount
+	}
+	return remaining
+}
+
+func sponsorDashboardPercent(used, total int) int {
+	if total <= 0 || used <= 0 {
+		return 0
+	}
+	percent := used * 100 / total
+	if percent > 100 {
+		return 100
+	}
+	return percent
+}
+
+func (p *SponsorDashboardPage) TicketUsePercent(event *types.SponsorDashboardEvent) int {
+	if event == nil || event.Entitlement == nil {
+		return 0
+	}
+	return sponsorDashboardPercent(event.TicketsIssued, event.Entitlement.TicketAllocation)
+}
+
+func (p *SponsorDashboardPage) ProposalUsePercent(event *types.SponsorDashboardEvent) int {
+	if event == nil || event.Entitlement == nil {
+		return 0
+	}
+	return sponsorDashboardPercent(event.AwardCount, event.Entitlement.SponsorAwardLimit)
+}
+
+func (p *SponsorDashboardPage) ProposalSlotsRemaining(event *types.SponsorDashboardEvent) int {
+	if event == nil || event.Entitlement == nil || event.Sponsorship == nil {
+		return 0
+	}
+	used := event.AwardCount
+	for _, proposal := range p.PrizeProposals {
+		if proposal != nil && proposal.SponsorshipID == event.Sponsorship.Ref && proposal.Status == "pending" {
+			used++
+		}
+	}
+	remaining := event.Entitlement.SponsorAwardLimit - used
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }
 
 const sponsorInviteLinkSessionKey = "sponsor_invite_link"
@@ -82,6 +167,18 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Error(w, "Unable to load sponsor team", http.StatusInternalServerError)
 		return
 	}
+	proposals, err := getters.ListSponsorAwardProposalsForOrganization(ctx, organizationID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s proposals: %s", organizationID, err)
+		http.Error(w, "Unable to load sponsor prize proposals", http.StatusInternalServerError)
+		return
+	}
+	issuances, err := getters.ListSponsorTicketIssuances(ctx, organizationID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s ticket issuances: %s", organizationID, err)
+		http.Error(w, "Unable to load sponsor tickets", http.StatusInternalServerError)
+		return
+	}
 	csrf, err := ensureAuthMethodsCSRF(ctx, r)
 	if err != nil {
 		http.Error(w, "Unable to prepare sponsor dashboard", http.StatusInternalServerError)
@@ -109,25 +206,114 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	})
 
 	page := &SponsorDashboardPage{
-		Memberships:  memberships,
-		Membership:   membership,
-		Organization: membership.Organization,
-		Upcoming:     upcoming,
-		Past:         past,
-		Members:      members,
-		CanManage:    sponsorMembershipCanManage(membership),
-		CanEditOrg:   sponsorMembershipCanManage(membership) && canEditOrg,
-		SpacesReady:  spaces.IsConfigured(),
-		CSRF:         csrf,
-		FlashMessage: r.URL.Query().Get("flash"),
-		FlashError:   r.URL.Query().Get("error"),
-		InviteLink:   ctx.Session.PopString(r.Context(), sponsorInviteLinkSessionKey),
-		Year:         helpers.CurrentYear(),
+		Memberships:     memberships,
+		Membership:      membership,
+		Organization:    membership.Organization,
+		Upcoming:        upcoming,
+		Past:            past,
+		Members:         members,
+		PrizeProposals:  proposals,
+		TicketIssuances: issuances,
+		CanManage:       sponsorMembershipCanManage(membership),
+		CanEditOrg:      sponsorMembershipCanManage(membership) && canEditOrg,
+		SpacesReady:     spaces.IsConfigured(),
+		CSRF:            csrf,
+		FlashMessage:    r.URL.Query().Get("flash"),
+		FlashError:      r.URL.Query().Get("error"),
+		InviteLink:      ctx.Session.PopString(r.Context(), sponsorInviteLinkSessionKey),
+		Year:            helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_sponsor.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s template: %s", organizationID, err)
 		http.Error(w, "Unable to load sponsor dashboard", http.StatusInternalServerError)
 	}
+}
+
+func SponsorDashboardPrizeProposalCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	redirectTo := "/dashboard/sponsor/" + url.PathEscape(organizationID)
+	membership := organizationMembershipByID(memberships, organizationID)
+	if membership == nil || !sponsorMembershipCanManage(membership) {
+		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape("Only organization owners and managers can propose sponsor prizes."), http.StatusSeeOther)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		http.Error(w, "Invalid form token", http.StatusBadRequest)
+		return
+	}
+	maxAwardees, err := strconv.Atoi(strings.TrimSpace(r.FormValue("MaxAwardees")))
+	if err != nil {
+		maxAwardees = 0
+	}
+	proposal, err := getters.CreateSponsorAwardProposal(ctx, getters.SponsorAwardProposalInput{
+		SponsorshipID:       r.FormValue("SponsorshipID"),
+		ConferenceID:        r.FormValue("ConferenceID"),
+		CompetitionID:       r.FormValue("CompetitionID"),
+		OrganizationID:      organizationID,
+		SubmittedByPersonID: id.PersonID,
+		Title:               r.FormValue("Title"), Description: r.FormValue("Description"),
+		JudgingInstructions: r.FormValue("JudgingInstructions"), MaxAwardees: maxAwardees,
+		OptInRequired: r.FormValue("OptInRequired") == "on",
+		FinalistsOnly: r.FormValue("FinalistsOnly") == "on",
+		PrizeType:     r.FormValue("PrizeType"), PrizeTitle: r.FormValue("PrizeTitle"),
+		PrizeDescription: r.FormValue("PrizeDescription"), PrizeValueText: r.FormValue("PrizeValueText"),
+	})
+	if err != nil {
+		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := getters.RecordSponsorAuditEvent(ctx, organizationID, proposal.SponsorshipID,
+		proposal.ConferenceID, id.PersonID, "sponsor.award_proposed",
+		"sponsor_award_proposal", proposal.ID, nil); err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s proposal audit: %s", organizationID, err)
+	}
+	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("Prize proposal sent to the hackathon organizers for approval."), http.StatusSeeOther)
+}
+
+func SponsorDashboardTicketsIssue(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	redirectTo := "/dashboard/sponsor/" + url.PathEscape(organizationID)
+	membership := organizationMembershipByID(memberships, organizationID)
+	if membership == nil || !sponsorMembershipCanManage(membership) {
+		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape("Only organization owners and managers can issue sponsor tickets."), http.StatusSeeOther)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		http.Error(w, "Invalid form token", http.StatusBadRequest)
+		return
+	}
+	quantity, err := strconv.Atoi(strings.TrimSpace(r.FormValue("Quantity")))
+	if err != nil {
+		quantity = 0
+	}
+	issuance, err := getters.IssueSponsorTickets(ctx, organizationID,
+		r.FormValue("SponsorshipID"), r.FormValue("ConferenceID"),
+		id.PersonID, r.FormValue("Email"), quantity)
+	if err != nil {
+		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := missives.NewTicketSub(ctx, issuance.RecipientEmail, issuance.ConferenceTag, "sponsor", false); err != nil {
+		ctx.Err.Printf("/%s sponsor ticket newsletter sub for %s: %s", issuance.ConferenceTag, issuance.RecipientEmail, err)
+	}
+	if err := getters.RecordSponsorAuditEvent(ctx, organizationID, issuance.SponsorshipID,
+		issuance.ConferenceID, id.PersonID, "sponsor.tickets_issued",
+		"sponsor_ticket_issuance", issuance.ID,
+		map[string]any{"recipient_email": issuance.RecipientEmail, "quantity": issuance.Quantity}); err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s ticket audit: %s", organizationID, err)
+	}
+	message := fmt.Sprintf("Issued %d sponsor ticket(s) to %s. The ticket email will be sent shortly.", issuance.Quantity, issuance.RecipientEmail)
+	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape(message), http.StatusSeeOther)
 }
 
 func SponsorDashboardInviteCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

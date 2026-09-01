@@ -1,10 +1,18 @@
 {{ define "mainnav" }}
+  {{ template "site_header" (dict "Page" .) }}
+{{ end }}
+
+{{/*
+  site_header is the one site-wide navigation shell. Conference pages pass a
+  Conference value and receive the same global navigation plus a contextual
+  second row; every other page passes only Page.
+*/}}
+{{ define "site_header" }}
 {{ $nav := navConfs }}
+{{ $page := .Page }}
+{{ $conf := .Conference }}
+{{ $hackathon := .Hackathon }}
 {{ if inDev }}
-{{/* Permanent dev-mode banner — only renders when the server isn't
-     running in prod. Fixed at the top of the
-     viewport above the sticky nav so it stays visible during scroll
-     and is hard to miss. */}}
 <div class="dev-mode-banner">🚧 ⚠️ IN DEV MODE ⚠️ 🚧</div>
 <style>
   .dev-mode-banner {
@@ -22,8 +30,6 @@
     padding: 4px 8px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   }
-  /* Push body content + the sticky main nav below the 28px banner
-     so neither sits underneath. */
   body {
     --btcpp-site-banner-height: 28px;
     --btcpp-site-nav-top: calc(var(--btcpp-site-banner-height) + var(--btcpp-site-ticker-height));
@@ -32,65 +38,267 @@
 </style>
 {{ end }}
 {{ template "site_ticker" $nav }}
-<header class="site-nav">
+<header class="site-nav{{ if $conf }} site-nav--conference{{ end }}">
   <nav class="site-nav__inner" aria-label="Primary navigation">
     <a href="/" class="site-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
     <input class="site-nav__toggle" type="checkbox" id="site-nav-toggle" aria-label="Toggle navigation">
+    <div class="site-nav__links">
+      <a href="/">/home</a>
+      <a href="/events">/events</a>
+      <a href="/whois">/whois</a>
+      <a href="/shop">/shop</a>
+      <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">/insider</a>
+      <div class="site-account site-account--mobile" data-site-account>
+        <a class="site-account__signin" href="/login">sign in</a>
+      </div>
+    </div>
     <div class="site-nav__controls">
-      {{ if isShopPage . }}
+      {{ if and $page (isShopPage $page) }}
         <a class="site-button is-accent site-nav__cta" href="/shop/cart">cart</a>
+      {{ else if $conf }}
+        <a class="site-button is-accent site-nav__cta" href="/{{ $conf.Tag }}#tickets">GET TICKETS</a>
       {{ else if $nav.Upcoming }}
         {{ $next := index $nav.Upcoming 0 }}
         <a class="site-button is-accent site-nav__cta" href="/{{ $next.Tag }}#tickets">GET TICKETS</a>
       {{ else }}
-        <a class="site-button is-accent site-nav__cta" href="/#events">GET TICKETS</a>
+        <a class="site-button is-accent site-nav__cta" href="/events">GET TICKETS</a>
       {{ end }}
+      <div class="site-account site-account--desktop" data-site-account>
+        <a class="site-account__signin" href="/login">sign in</a>
+      </div>
       <label class="site-nav__menu" for="site-nav-toggle" aria-label="Toggle navigation">
         <span></span><span></span><span></span>
       </label>
     </div>
-    <div class="site-nav__links">
-      <a href="/#events">events/</a>
-      <a href="/timeline">timeline/</a>
-      <a href="/whois">whois/</a>
-      <a href="/dashboard">dashboard/</a>
-      <a href="/shop">shop/</a>
-      <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">insider/</a>
-    </div>
   </nav>
-  <script>
-    // Hide the "Log in" link on pages that require auth — every
-    // visitor of /dashboard, /{conf}/admin/..., or /{conf}/volcoord/...
-    // is either already signed in (link is noise) or will be
-    // bounced to /login by the gate (link goes to a useless
-    // intermediate). Path-based so it doesn't depend on cookie
-    // state staying in sync.
-    (function () {
-      const p = window.location.pathname;
-      const authed = p === '/dashboard' || p.startsWith('/dashboard/') ||
-                     /^\/[^/]+\/admin(\/|$)/.test(p) ||
-                     /^\/[^/]+\/volcoord(\/|$)/.test(p);
-      if (!authed) return;
-      document.querySelectorAll('[data-nav-login]').forEach(function (el) { el.style.display = 'none'; });
-      document.querySelectorAll('[data-nav-login-wrap]').forEach(function (el) { el.style.display = 'none'; });
-    })();
-  </script>
 </header>
+{{ if $conf }}
+<nav class="site-conf-nav{{ if $hackathon }} site-conf-nav--hackathon{{ end }}" aria-label="{{ if $hackathon }}{{ $hackathon.Competition.Title }} navigation{{ else }}{{ $conf.Desc }} navigation{{ end }}">
+  {{ if $hackathon }}
+  <a class="site-conf-nav__identity site-conf-nav__identity--back" href="{{ $hackathon.ConferenceURL }}">
+    <span>← THIS EVENT</span>
+    <strong>{{ $hackathon.ConferenceLabel }}</strong>
+  </a>
+  <div class="site-conf-nav__context" aria-hidden="true">
+    <span>Current area</span>
+    <strong>Hackathon</strong>
+  </div>
+  <div class="site-conf-nav__links">
+    {{ template "hackathon_nav_links" $hackathon }}
+  </div>
+  {{ else }}
+  <a class="site-conf-nav__identity" href="/{{ $conf.Tag }}">
+    <span>THIS EVENT</span>
+    <strong>{{ if $conf.Desc }}{{ $conf.Desc }}{{ else }}{{ $conf.Tag }}{{ end }}</strong>
+  </a>
+  <div class="site-conf-nav__links">
+    {{ template "conference_nav_links" $conf }}
+  </div>
+  {{ end }}
+</nav>
+{{ end }}
+<script src="/static/js/brand-wordmark.js?v=20260831-1"></script>
+<script>
+  (function () {
+    const slots = Array.from(document.querySelectorAll('[data-site-account]'));
+    if (!slots.length) return;
+    const next = window.location.pathname + window.location.search + window.location.hash;
+    slots.forEach(function (slot) {
+      const fallback = slot.querySelector('a');
+      if (fallback) fallback.href = '/login?next=' + encodeURIComponent(next);
+    });
+    fetch('/navigation/account?next=' + encodeURIComponent(next), {
+      credentials: 'same-origin',
+      headers: { 'Accept': 'text/html' }
+    }).then(function (response) {
+      if (!response.ok) throw new Error('account navigation unavailable');
+      return response.text();
+    }).then(function (html) {
+      slots.forEach(function (slot) {
+        slot.innerHTML = html;
+        installImageFallbacks(slot);
+      });
+    }).catch(function () {
+      // The sign-in link is a complete no-JavaScript/error fallback.
+    });
+
+    function installImageFallbacks(root) {
+      root.querySelectorAll('[data-image-fallback]').forEach(function (img) {
+        const fallback = img.parentElement.querySelector('[data-image-fallback-copy]');
+        if (!fallback) return;
+        const showFallback = function () {
+          img.hidden = true;
+          fallback.hidden = false;
+        };
+        img.addEventListener('error', showFallback, { once: true });
+        if (img.complete && !img.naturalWidth) showFallback();
+      });
+    }
+    installImageFallbacks(document);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { installImageFallbacks(document); }, { once: true });
+    }
+  })();
+
+  (function () {
+    const rail = document.querySelector('.site-conf-nav__links');
+    if (!rail) return;
+    const links = Array.from(rail.querySelectorAll('a'));
+    const usesHackathonPanels = Boolean(rail.closest('.site-conf-nav--hackathon'));
+    const hashLink = links.find(function (link) { return new URL(link.href, window.location.href).hash; });
+    const rootPath = hashLink ? (new URL(hashLink.href, window.location.href).pathname.replace(/\/$/, '') || '/') : '';
+    let activeLink = null;
+
+    function setActive(next) {
+      links.forEach(function (link) {
+        const matches = link === next;
+        link.classList.toggle('is-active', matches);
+        if (matches) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+
+      const changed = next !== activeLink;
+      activeLink = next;
+      if (!next || !changed) return;
+      if (window.matchMedia('(max-width: 900px)').matches) {
+        window.requestAnimationFrame(function () {
+          const centered = next.offsetLeft - ((rail.clientWidth - next.offsetWidth) / 2);
+          rail.scrollTo({ left: Math.max(0, centered), behavior: 'smooth' });
+        });
+      }
+    }
+
+    function updateFromLocation() {
+      const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+      const currentHash = window.location.hash;
+      let match = null;
+      links.forEach(function (link) {
+        if (link.hasAttribute('data-nav-back')) return;
+        const target = new URL(link.href, window.location.href);
+        const targetPath = target.pathname.replace(/\/$/, '') || '/';
+        const activePrefix = (link.dataset.activePrefix || '').replace(/\/$/, '');
+        const matchesHash = target.hash && currentPath === targetPath && currentHash === target.hash;
+        const matchesPrefix = activePrefix && (currentPath === activePrefix || currentPath.startsWith(activePrefix + '/'));
+        const matchesPage = !target.hash && !link.hasAttribute('data-active-exact') && (currentPath === targetPath || currentPath.startsWith(targetPath + '/'));
+        const matchesExact = !target.hash && link.hasAttribute('data-active-exact') && currentPath === targetPath;
+        if (matchesHash || matchesPrefix || matchesPage || matchesExact) match = link;
+      });
+      setActive(match);
+    }
+
+    function stickyHeaderBottom() {
+      let bottom = 0;
+      document.querySelectorAll('.site-ticker, .site-nav').forEach(function (node) {
+        bottom = Math.max(bottom, node.getBoundingClientRect().bottom);
+      });
+      if (!window.matchMedia('(max-width: 900px)').matches) {
+        const conferenceNav = document.querySelector('.site-conf-nav');
+        if (conferenceNav) bottom = Math.max(bottom, conferenceNav.getBoundingClientRect().bottom);
+      }
+      return bottom;
+    }
+
+    function updateFromScroll() {
+      const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+      if (!rootPath || currentPath !== rootPath) return;
+
+      if (usesHackathonPanels) {
+        const panel = document.querySelector('[data-hackathon-tab-panel]:not(.hidden)');
+        if (!panel) return;
+        const panelName = panel.dataset.hackathonTabPanel;
+        const match = links.find(function (link) { return link.dataset.hackathonTab === panelName; });
+        if (match) setActive(match);
+        return;
+      }
+
+      const sections = links.map(function (link) {
+        const target = new URL(link.href, window.location.href);
+        const id = target.hash ? target.hash.slice(1) : target.pathname.replace(/\/$/, '').split('/').pop();
+        const section = id ? document.getElementById(id) : null;
+        return section && section.getClientRects().length ? { link: link, section: section } : null;
+      }).filter(Boolean).sort(function (a, b) {
+        return a.section.getBoundingClientRect().top - b.section.getBoundingClientRect().top;
+      });
+      if (!sections.length) return;
+
+      const marker = stickyHeaderBottom() + 18;
+      let match = sections[0].link;
+      sections.forEach(function (item) {
+        if (item.section.getBoundingClientRect().top <= marker) match = item.link;
+      });
+      if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
+        match = sections[sections.length - 1].link;
+      }
+      setActive(match);
+    }
+
+    updateFromLocation();
+    window.addEventListener('scroll', updateFromScroll, { passive: true });
+    window.addEventListener('resize', updateFromScroll);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', updateFromScroll, { once: true });
+    else updateFromScroll();
+    window.addEventListener('hashchange', function () {
+      updateFromLocation();
+      window.requestAnimationFrame(updateFromScroll);
+    });
+    window.addEventListener('popstate', function () {
+      updateFromLocation();
+      window.requestAnimationFrame(updateFromScroll);
+    });
+  })();
+</script>
 {{ end }}
 
-{{/*
-  nav_conf_card — one tile in the desktop "Events" flyout. Three
-  lines: title / tagline / date.
-*/}}
-{{ define "nav_conf_card" }}
-<a href="/{{ .Tag }}" class="group relative rounded-lg p-3 text-sm leading-6 hover:bg-orange-50 flex items-start gap-3">
-  <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 group-hover:bg-white text-lg">
-    {{ .EmojiOrDefault }}
+{{ define "conference_nav_links" }}
+  <a href="/{{ .Tag }}#about">/about</a>
+  <a href="/{{ .Tag }}#dates">/dates</a>
+  {{ if .ShowHackathon }}<a href="/{{ .Tag }}#hackathon">/hackathon</a>{{ end }}
+  <a href="/{{ .Tag }}#speakers">/speakers</a>
+  {{ if .HasSchedule }}<a href="/{{ .Tag }}#schedule">/schedule</a>{{ end }}
+  {{ if .HasAgenda }}<a href="/{{ .Tag }}#agenda">/agenda</a>{{ end }}
+  <a href="/{{ .Tag }}#venue">/venue</a>
+  <a href="/{{ .Tag }}#satellites">/satellites</a>
+  <a href="/{{ .Tag }}#sponsors">/sponsors</a>
+{{ end }}
+
+{{ define "hackathon_nav_links" }}
+  <a class="site-conf-nav__event-back" href="{{ .ConferenceURL }}" data-nav-back>← Event</a>
+  <a href="{{ .HackathonURL }}" data-hackathon-tab="overview" data-active-exact>/start</a>
+  {{ if .ProjectGalleryOpen }}<a href="{{ .HackathonURL }}#projects" data-hackathon-tab="projects" data-active-prefix="{{ .HackathonURL }}/projects">/projects</a>{{ end }}
+  <a href="{{ .HackathonURL }}#awards" data-hackathon-tab="awards">/prizes</a>
+  <a href="{{ .ScheduleURL }}" data-active-prefix="{{ .ScheduleURL }}">/schedule</a>
+  {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<a href="{{ .HackathonURL }}#tables" data-hackathon-tab="tables">/tables</a>{{ end }}
+  {{ if .CanJudge }}<a href="{{ .JudgingURL }}" data-active-prefix="{{ .JudgingURL }}">/judging</a>{{ end }}
+{{ end }}
+
+{{ define "site_account_authenticated" }}
+<details class="site-account__menu">
+  <summary>
+    {{ if .PhotoURL }}
+      <img src="{{ .PhotoURL }}" alt="" data-image-fallback>
+      <span data-image-fallback-copy hidden>{{ .Initial }}</span>
+    {{ else }}<span>{{ .Initial }}</span>{{ end }}
+    <b>{{ .Name }}</b>
+    <i aria-hidden="true">⌄</i>
+  </summary>
+  <div class="site-account__popover">
+    <div class="site-account__identity">
+      <strong>{{ .Name }}</strong>
+      {{ if .Email }}<span>{{ .Email }}</span>{{ end }}
+    </div>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/dashboard/settings">Account settings</a>
+    <a href="/dashboard/profile">Edit profile</a>
+    {{ if .ProfileURL }}<a href="{{ .ProfileURL }}">View public profile</a>{{ end }}
+    {{ if .IsGlobalAdmin }}<a href="/admin">Site administration</a>{{ end }}
+    <form method="POST" action="/logout">
+      <input type="hidden" name="csrf" value="{{ .CSRF }}">
+      <button type="submit">Sign out</button>
+    </form>
   </div>
-  <div class="min-w-0 flex-1">
-    <div class="font-semibold text-gray-900 truncate">{{ .Desc }}</div>
-    {{ if .Tagline }}<p class="mt-0.5 text-xs text-gray-600 truncate">{{ .Tagline }}</p>{{ end }}
-    {{ if .DateDesc }}<p class="mt-0.5 text-xs text-gray-500 truncate">{{ .DateDesc }}</p>{{ end }}
-  </div>
-</a>
+</details>
+{{ end }}
+
+{{ define "site_account_anonymous" }}
+<a class="site-account__signin" href="/login?next={{ .Next }}">sign in</a>
 {{ end }}

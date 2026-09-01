@@ -83,11 +83,53 @@ type (
 	}
 
 	SponsorDashboardEvent struct {
-		Sponsorship *Sponsorship
-		Conference  *Conf
-		Entitlement *SponsorshipEntitlement
-		AwardCount  int
-		WinnerCount int
+		Sponsorship   *Sponsorship
+		Conference    *Conf
+		Competition   *HackathonCompetition
+		Entitlement   *SponsorshipEntitlement
+		AwardCount    int
+		WinnerCount   int
+		TicketsIssued int
+	}
+
+	SponsorAwardProposal struct {
+		ID                  string
+		SponsorshipID       string
+		ConferenceID        string
+		CompetitionID       string
+		OrganizationID      string
+		OrganizationName    string
+		SubmittedByPersonID string
+		SubmittedByName     string
+		Title               string
+		Description         string
+		JudgingInstructions string
+		MaxAwardees         int
+		OptInRequired       bool
+		FinalistsOnly       bool
+		PrizeType           string
+		PrizeTitle          string
+		PrizeDescription    string
+		PrizeValueText      string
+		Status              string
+		ReviewNotes         string
+		ReviewedByPersonID  string
+		AwardID             string
+		ReviewedAt          *time.Time
+		CreatedAt           time.Time
+		UpdatedAt           time.Time
+	}
+
+	SponsorTicketIssuance struct {
+		ID               string
+		SponsorshipID    string
+		ConferenceID     string
+		ConferenceTag    string
+		IssuedByPersonID string
+		RecipientEmail   string
+		Quantity         int
+		CheckoutID       string
+		CreatedAt        time.Time
 	}
 
 	HackathonSponsorContactConsent struct {

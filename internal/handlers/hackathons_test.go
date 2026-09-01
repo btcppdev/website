@@ -41,6 +41,73 @@ func TestHackathonPageCompetitionImageUsesLoadedConference(t *testing.T) {
 	}
 }
 
+func TestSelectPreviousPublicHackathonUsesMostRecentEarlierConference(t *testing.T) {
+	currentDate := time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC)
+	currentCompetition := &types.HackathonCompetition{ID: "current", ConferenceID: "conf-current"}
+	currentConf := &types.Conf{Ref: "conf-current", StartDate: currentDate}
+	competitions := []*types.HackathonCompetition{
+		{ID: "old", ConferenceID: "conf-old", Visibility: getters.CompetitionVisibilityPublic},
+		{ID: "previous", ConferenceID: "conf-previous", Visibility: getters.CompetitionVisibilityPublic},
+		{ID: "hidden", ConferenceID: "conf-hidden", Visibility: getters.CompetitionVisibilityHidden},
+		{ID: "future", ConferenceID: "conf-future", Visibility: getters.CompetitionVisibilityPublic},
+	}
+	confs := []*types.Conf{
+		{Ref: "conf-old", StartDate: currentDate.AddDate(-2, 0, 0)},
+		{Ref: "conf-previous", StartDate: currentDate.AddDate(-1, 0, 0)},
+		{Ref: "conf-hidden", StartDate: currentDate.AddDate(0, -1, 0)},
+		{Ref: "conf-future", StartDate: currentDate.AddDate(1, 0, 0)},
+	}
+
+	competition, conf := selectPreviousPublicHackathon(currentCompetition, currentConf, competitions, confs)
+	if competition == nil || competition.ID != "previous" || conf == nil || conf.Ref != "conf-previous" {
+		t.Fatalf("selectPreviousPublicHackathon() = (%+v, %+v), want previous public hackathon", competition, conf)
+	}
+}
+
+func TestHackathonPageUsesPriorGalleryUntilCurrentGalleryOpens(t *testing.T) {
+	current := &types.HackathonCompetition{ID: "current"}
+	previous := &types.HackathonCompetition{ID: "previous", PublicGalleryEnabled: true}
+	priorProject := &types.HackathonProject{ID: "prior-project", CompetitionID: previous.ID, Status: getters.ProjectStatusSubmitted}
+	page := &HackathonPage{
+		Competition:             current,
+		Conf:                    &types.Conf{Tag: "dev26"},
+		Projects:                []*types.HackathonProject{{ID: "private-current", CompetitionID: current.ID, Status: getters.ProjectStatusSubmitted}},
+		PriorGalleryCompetition: previous,
+		PriorGalleryConf:        &types.Conf{Tag: "prior25", Desc: "Prior 2025"},
+		PriorGalleryProjects:    []*types.HackathonProject{priorProject, {ID: "draft", CompetitionID: previous.ID, Status: getters.ProjectStatusCreated}},
+	}
+
+	if !page.ProjectGalleryOpen() || !page.ShowingPriorGallery() {
+		t.Fatal("closed current gallery did not expose the prior public gallery")
+	}
+	projects := page.GalleryProjects()
+	if len(projects) != 1 || projects[0] != priorProject {
+		t.Fatalf("GalleryProjects() = %+v, want only the prior submitted project", projects)
+	}
+	if got := page.ProjectURL(priorProject); got != "/prior25/hackathon/projects/prior-project" {
+		t.Fatalf("ProjectURL(prior project) = %q", got)
+	}
+
+	current.PublicGalleryEnabled = true
+	if page.ShowingPriorGallery() {
+		t.Fatal("prior gallery remained active after the current gallery opened")
+	}
+	projects = page.GalleryProjects()
+	if len(projects) != 1 || projects[0].ID != "private-current" {
+		t.Fatalf("GalleryProjects() after opening = %+v, want current projects", projects)
+	}
+}
+
+func TestHackathonPagePriorJudgeSource(t *testing.T) {
+	page := &HackathonPage{
+		Judges:          []*types.CompetitionJudge{{PersonID: "judge-1", Name: "Prior Judge"}},
+		PriorJudgesConf: &types.Conf{Desc: "Prior 2025"},
+	}
+	if !page.ShowingPriorJudges() || page.PriorJudgesLabel() != "Prior 2025" {
+		t.Fatalf("prior judge source = (%v, %q), want visible Prior 2025 fallback", page.ShowingPriorJudges(), page.PriorJudgesLabel())
+	}
+}
+
 func TestOrgLogoURLPrefersLightLogo(t *testing.T) {
 	org := &types.Org{LogoLight: " https://cdn.example/light.svg ", LogoDark: "https://cdn.example/dark.svg"}
 	if got := orgLogoURL(org); got != "https://cdn.example/light.svg" {
@@ -772,6 +839,20 @@ func TestHackathonPrizePoolValueIncludesNonCashPrizeValues(t *testing.T) {
 	}
 	if got := page.PrizePoolValue(); got != "8.5M" {
 		t.Fatalf("PrizePoolValue() = %q, want %q", got, "8.5M")
+	}
+}
+
+func TestAttachHackathonPlaceRowMembers(t *testing.T) {
+	member := &types.ProjectMember{ProjectID: "project-1", PersonID: "person-1", Name: "Ada Hacker", Photo: "ada.jpg"}
+	rows := []*HackathonPlaceRow{{ProjectID: "project-1"}, {ProjectID: "project-2"}, nil}
+
+	attachHackathonPlaceRowMembers(rows, map[string][]*types.ProjectMember{"project-1": {member}})
+
+	if len(rows[0].Members) != 1 || rows[0].Members[0] != member {
+		t.Fatalf("winner team members = %+v, want Ada Hacker", rows[0].Members)
+	}
+	if len(rows[1].Members) != 0 {
+		t.Fatalf("unmatched project members = %+v, want none", rows[1].Members)
 	}
 }
 

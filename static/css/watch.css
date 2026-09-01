@@ -1,5 +1,5 @@
 .btcpp-watch-page {
-  --rebrand-accent: #f7931a;
+  --rebrand-accent: #f9af5e;
   --rebrand-ink: #1c1c1e;
   --rebrand-paper: #f6f3ee;
   background: #f4efe6;
@@ -68,7 +68,7 @@
 .watch-player__sound-prompt {
   align-items: center;
   background: rgba(10, 10, 10, .86);
-  border: 1px solid #f7931a;
+  border: 1px solid #f9af5e;
   bottom: 54px;
   color: #fff;
   cursor: pointer;
@@ -85,7 +85,7 @@
 
 .watch-player__sound-prompt:hover,
 .watch-player__sound-prompt:focus-visible {
-  background: #f7931a;
+  background: #f9af5e;
   color: #101010;
   outline: none;
 }

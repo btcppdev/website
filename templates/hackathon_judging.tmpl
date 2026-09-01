@@ -6,19 +6,8 @@
   <script src="/static/js/hackathon-deliberation.js" defer></script>
 </head>
 <body class="hack-redesign">
-  {{ block "mainnav" . }} {{ end }}
+  {{ template "hackathon_conf_nav" . }}
   <main class="hack-shell">
-    <header class="hack-header">
-      <div>
-        <a href="/" class="hack-brand">bitcoin<span>++</span></a>
-        <div class="hack-header__meta">[ {{ .Competition.Title }} · Judging ]</div>
-      </div>
-      <nav class="hack-header__nav" aria-label="Judging links">
-        <a href="{{ .HackathonURL }}">← hackathon</a>
-        <a href="{{ .ScheduleURL }}">schedule/</a>
-      </nav>
-    </header>
-
     <section class="hack-section">
       <div class="hack-section__head">
         <div>

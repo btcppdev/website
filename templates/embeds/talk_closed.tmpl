@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{ template "site_seo" (dict "Title" (printf "Talk applications closed · %s" .Conf.Desc) "Description" (printf "The call for presenters at %s is now closed." .Conf.Desc) "Path" (printf "/talk/%s" .Conf.Tag) "Image" (confSocialImage .Conf.Tag "standard")) }}
+    {{ template "form_page_header" . }}
+    <meta name="robots" content="noindex, follow">
+  </head>
+  <body class="btcpp-form-page">
+    {{ block "mainnav" . }} {{ end }}
+    <main class="btcpp-apply-page">
+      <section class="btcpp-apply-hero">
+        <div class="btcpp-section-tag">§CFP · APPLICATION WINDOW</div>
+        <h1 class="btcpp-apply-hero__title btcpp-apply-hero__title--closed">Applications <span>closed.</span></h1>
+        <p class="btcpp-apply-hero__copy">The call for presenters at {{ .Conf.Desc }} closed at midnight on {{ .DueDate }}. Existing applicants can still manage their submissions from the dashboard.</p>
+        <div class="btcpp-apply-hero__actions">
+          <a href="/{{ .Conf.Tag }}" class="btcpp-editorial-button">Back to the event →</a>
+          <a href="/dashboard" class="btcpp-editorial-button">Open dashboard →</a>
+          {{ if .Conf.VolunteerOpen }}<a href="/volunteer/{{ .Conf.Tag }}" class="btcpp-editorial-button">Volunteer instead →</a>{{ end }}
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -22,8 +22,7 @@ Protected endpoints accept personal API tokens and OAuth access tokens through t
 
 ## Website resources
 
-- [Events](https://btcpp.dev/#events): Upcoming and past Bitcoin++ events.
-- [Timeline](https://btcpp.dev/timeline): Conference history.
+- [Events](https://btcpp.dev/events): Upcoming and past Bitcoin++ events and the complete conference history.
 - [People directory](https://btcpp.dev/whois): Public speaker and participant profiles.
 - [Talk archive](https://www.youtube.com/@btcplusplus/playlists): Published conference recordings.
 - [Shop](https://btcpp.dev/shop): Bitcoin++ merchandise.

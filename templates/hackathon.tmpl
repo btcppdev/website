@@ -8,32 +8,54 @@
   {{ $galleryProjects := .GalleryProjects }}
   {{ $tableProjects := .TableProjects }}
   {{ $showProjectGallery := .ProjectGalleryOpen }}
-  {{ template "generic_conf_nav" .Conf }}
+  {{ template "hackathon_conf_nav" . }}
   <main class="hack-shell">
-    <section class="hack-hero">
-      <img src="{{ .CompetitionImagePNG .Competition }}" alt="">
-      <div class="hack-hero__content">
-        <div class="hack-hero__top">
-          <div>The hackathon</div>
-          <div>{{ if .ConferenceLabel }}{{ .ConferenceLabel }}{{ else }}bitcoin++{{ end }}</div>
-        </div>
-        <div>
-          <div class="hack-hero__label"><strong>Hack</strong> Build · Ship · Demo</div>
-          <h1>{{ .Competition.Title }}</h1>
-          <div class="hack-hero__deck">
-            {{ if .Competition.Description }}
-            {{ hackathonDescription .Competition.Description .Competition.DescriptionFormat }}
-            {{ else }}
-            Build something real alongside the conference, submit your project, and put it in front of judges and the bitcoin++ community.
-            {{ end }}
+    <section class="hack-control" aria-labelledby="hackathon-title">
+      <div class="hack-control__status">
+        <span class="hack-control__status-label"><i aria-hidden="true"></i>Status · {{ .CompetitionStatusLabel }}</span>
+        {{ with .NextMilestoneTime }}
+        <span class="hackathon-countdown hack-control__countdown" data-start="{{ .Unix }}" data-end="{{ .Unix }}" data-before-prefix="{{ $.NextMilestoneLabel }} in ·">
+          <span data-cd-prefix>{{ $.NextMilestoneLabel }} ·</span>
+          <strong data-cd-value>{{ $.NextMilestoneValue }}</strong>
+        </span>
+        {{ else }}
+        {{ if $.NextMilestoneIsScheduleLink }}
+        <a href="{{ $.ScheduleURL }}" class="hack-control__countdown"><span>Event timeline ·</span><strong>View schedule →</strong></a>
+        {{ else if $.NextMilestoneValue }}
+        <a href="{{ $.ScheduleURL }}" class="hack-control__countdown"><span>{{ $.NextMilestoneLabel }} ·</span><strong>{{ $.NextMilestoneValue }}</strong></a>
+        {{ else }}
+        <a href="{{ $.ScheduleURL }}" class="hack-control__countdown"><span>Timeline ·</span><strong>TBA</strong></a>
+        {{ end }}
+        {{ end }}
+      </div>
+      <div class="hack-control__body">
+        <div class="hack-control__brief">
+          <div class="hack-control__eyebrow">
+            <span>Hackathon control board</span>
+            <span>{{ if .ConferenceLabel }}{{ .ConferenceLabel }}{{ else }}bitcoin++{{ end }}</span>
           </div>
-          <div class="hack-actions">
+          <h1 id="hackathon-title">{{ .Competition.Title }}</h1>
+          <p class="hack-control__deck">Build something real. Find collaborators, choose a challenge, ship your project, and put it in front of the bitcoin++ community.</p>
+          <div class="hack-actions hack-control__actions">
             {{ template "hackathon_primary_action" . }}
-            <a href="{{ .ScheduleURL }}" class="hack-button hack-button--light">View schedule →</a>
+            <a href="#participate" class="hack-button hack-button--light">How to participate ↓</a>
             {{ if .CanJudge }}<a href="{{ .JudgingURL }}" class="hack-button hack-button--light">Judging →</a>{{ end }}
             {{ if .CanAdminEdit }}<a href="{{ .AdminEditURL }}" class="hack-button hack-button--light">Edit hackathon →</a>{{ end }}
           </div>
         </div>
+        <aside class="hack-control__prize" aria-label="Hackathon at a glance">
+          <div class="hack-control__prize-mark" aria-hidden="true">★</div>
+          <div>
+            <span class="hack-control__prize-label">Total prizes · sats</span>
+            <strong>{{ if .PrizePoolSats }}{{ .PrizePoolValue }}{{ else }}Coming soon{{ end }}</strong>
+            <p>Build for the main competition, then stack eligible sponsor challenges.</p>
+          </div>
+          <dl class="hack-control__facts">
+            <div><dt>Team limit</dt><dd>{{ with .Competition.MaxTeamSize }}{{ . }} builders{{ else }}Open{{ end }}</dd></div>
+            <div><dt>Awards</dt><dd>{{ len .Awards }}</dd></div>
+            <div><dt>Projects</dt><dd>{{ len $galleryProjects }}</dd></div>
+          </dl>
+        </aside>
       </div>
     </section>
 
@@ -43,46 +65,59 @@
     {{ if .FlashError }}
     <div class="mx-6 mt-6 border border-red-700 bg-red-50 px-4 py-3 text-sm text-red-900">{{ .FlashError }}</div>
     {{ end }}
-    <nav class="hack-tabs" aria-label="Hackathon sections">
-      <button type="button" data-hackathon-tab="overview" class="hack-tab" aria-selected="true">Overview</button>
-      {{ if $showProjectGallery }}
-      <button type="button" data-hackathon-tab="projects" class="hack-tab" aria-selected="false">Project gallery · {{ len $galleryProjects }}</button>
-      {{ end }}
-      {{ if .Awards }}<button type="button" data-hackathon-tab="awards" class="hack-tab" aria-selected="false">Awards · {{ len .Awards }}</button>{{ end }}
-      {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<button type="button" data-hackathon-tab="tables" class="hack-tab" aria-selected="false">Tables</button>{{ end }}
-    </nav>
-
     <section data-hackathon-tab-panel="overview" class="hack-panel" id="overview">
-      <div class="hack-stat-grid">
-        <div class="hack-stat">
-          <div class="hack-stat__value">{{ .PrizePoolValue }}</div>
-          <div class="hack-stat__label">Prize Pool (satoshis)</div>
+      <section class="hack-participation" id="participate" aria-labelledby="participate-title">
+        <div class="hack-participation__intro">
+          <div class="hack-label">§ Start here</div>
+          <h2 id="participate-title">Three steps from idea to <span class="hack-serif">demo.</span></h2>
+          <p>Everything you need to enter, build, and submit without hunting through the conference site.</p>
         </div>
-        <div class="hack-stat">
-          <div class="hack-stat__value">{{ with .Competition.MaxTeamSize }}{{ . }}{{ else }}∞{{ end }}</div>
-          <div class="hack-stat__label">{{ with .Competition.MaxTeamSize }}Max builders per team{{ else }}Team size{{ end }}</div>
+        <div class="hack-participation__board">
+          <ol class="hack-steps">
+            <li>
+              <span>01</span>
+              <div><h3>Join a team</h3><p>Bring collaborators or add teammates from their bitcoin++ profiles. One person belongs to one project team.</p></div>
+            </li>
+            <li>
+              <span>02</span>
+              <div><h3>Choose your build</h3><p>Enter the open competition, then opt into any sponsor challenges your project qualifies for.</p></div>
+            </li>
+            <li>
+              <span>03</span>
+              <div><h3>Submit your Project</h3><p>Add your pitch, team, repository, demo, and supporting links before submissions close.</p></div>
+            </li>
+          </ol>
+          <aside class="hack-deadlines" aria-label="Important hackathon dates">
+            <div class="hack-deadlines__head">
+              <div><span>Important dates</span><strong>{{ .CompetitionStatusLabel }}</strong></div>
+              <a href="{{ .ScheduleURL }}">Full schedule →</a>
+            </div>
+            {{ if .ScheduleEvents }}
+            <div class="hack-deadlines__list">
+              {{ range .ScheduleEvents }}
+              <div>
+                <span>{{ .Label }}</span>
+                {{ if .Time }}<time datetime="{{ .Time.Format "2006-01-02T15:04:05Z07:00" }}">{{ .Time.Format "Mon Jan 2 · 3:04 PM" }}</time>{{ else }}<time>TBA</time>{{ end }}
+              </div>
+              {{ end }}
+            </div>
+            {{ else }}
+            <p class="hack-deadlines__empty">Milestones are being finalized.</p>
+            {{ end }}
+          </aside>
         </div>
-        <div class="hack-stat">
-          <div class="hack-stat__value">{{ len $galleryProjects }}</div>
-          <div class="hack-stat__label">Visible projects</div>
+        <div class="hack-rules-strip">
+          <div><span>Team size</span><strong>{{ with .Competition.MaxTeamSize }}Up to {{ . }}{{ else }}Unlimited{{ end }}</strong></div>
+          <div><span>What counts</span><strong>Anything Bitcoin</strong></div>
+          <div><span>Challenge entry</span><strong>Optional + stackable</strong></div>
+          <div class="hack-rules-strip__action">{{ template "hackathon_primary_action" . }}</div>
         </div>
-        <div class="hack-stat">
-          <div class="hack-stat__value">{{ len .Awards }}</div>
-          <div class="hack-stat__label">Awards</div>
+        {{ if .Competition.Description }}
+        <div class="hack-participation__brief">
+          <div class="hack-label">§ The brief</div>
+          <div>{{ hackathonDescription .Competition.Description .Competition.DescriptionFormat }}</div>
         </div>
-      </div>
-
-      {{ $hackathonEdition := .HackathonEditionName }}
-      {{ $hackathonEditionTitle := .HackathonEditionTitle }}
-      {{ $hackathonLocation := .HackathonLocation }}
-      <section class="hack-welcome" aria-label="Hackathon welcome">
-        <div class="hack-label">§ Welcome</div>
-        <h2>Welcome to the Bitcoin++ {{ $hackathonEditionTitle }} Edition Hackathon!</h2>
-        <div class="hack-welcome__body">
-          <p>This is the hackathon site for the bitcoin++ {{ $hackathonEdition }} edition hackathon in {{ $hackathonLocation }}.</p>
-          <p>The main hackathon competition will be open ended (overall 1st, 2nd, 3rd). Anything involving bitcoin is fair game. Bonus points for {{ $hackathonEdition }} related projects.</p>
-          <p>There are optional challenges that hackers may create projects around. Submitting for a challenge is optional, and ALL projects will be considered for the main competition.</p>
-        </div>
+        {{ end }}
       </section>
 
       {{ if .HackathonPlaceRows }}
@@ -208,10 +243,10 @@
       <section class="hack-judges" aria-label="Hackathon judges">
         <div class="hack-section__head hack-judges__head">
           <div>
-            <div class="hack-label">§ The judges</div>
+            <div class="hack-label">{{ if .ShowingPriorJudges }}§ Previous judges{{ else }}§ The judges{{ end }}</div>
             <h2>{{ if .Judges }}{{ len .Judges }} {{ if eq (len .Judges) 1 }}judge{{ else }}judges{{ end }}.{{ else }}Judges <span class="hack-serif">soon.</span>{{ end }}</h2>
           </div>
-          <div class="hack-section__deck">Scoring is handled by the assigned hackathon judges.</div>
+          <div class="hack-section__deck">{{ if .ShowingPriorJudges }}Meet the judges from {{ .PriorJudgesLabel }} while this hackathon’s panel is being selected.{{ else }}Scoring is handled by the assigned hackathon judges.{{ end }}</div>
         </div>
         {{ if .Judges }}
         <div class="hack-judge-grid">
@@ -236,69 +271,15 @@
         {{ end }}
       </section>
 
-      <div class="hack-section__head">
-        <div>
-          <div class="hack-label">§ Overview</div>
-          <h2>Build in <span class="hack-serif">public.</span></h2>
-        </div>
-        <div class="hack-section__deck">
-          Projects stay private until organizers open the public gallery. Judges and admins can review submissions while the event is running.
-          <div class="hack-section__cta">{{ template "hackathon_primary_action" . }}</div>
-        </div>
-      </div>
-
-      <div class="hack-overview-grid">
-        <div class="hack-copy">
-          <div class="hack-copy__body">
-            {{ if .Competition.Description }}
-            {{ hackathonDescription .Competition.Description .Competition.DescriptionFormat }}
-            {{ else }}
-            Details are still being finalized.
-            {{ end }}
-          </div>
-        </div>
-        <dl class="hack-side">
-          <div class="hack-side-row">
-            <dt>Conference</dt>
-            <dd>
-              {{ if .ConferenceLabel }}
-              {{ if .ConferenceURL }}<a href="{{ .ConferenceURL }}">{{ .ConferenceLabel }}</a>{{ else }}{{ .ConferenceLabel }}{{ end }}
-              {{ else }}
-              TBA
-              {{ end }}
-            </dd>
-          </div>
-          <div class="hack-side-row">
-            <dt>{{ if and .NextMilestoneLabel (not .NextMilestoneIsScheduleLink) }}{{ .NextMilestoneLabel }}{{ else }}Timeline{{ end }}</dt>
-            <dd>
-              {{ if .NextMilestoneValue }}
-              {{ with .NextMilestoneTime }}
-              <time datetime="{{ .Format "2006-01-02T15:04:05Z07:00" }}">{{ $.NextMilestoneValue }}</time>
-              {{ else }}
-              {{ $.NextMilestoneValue }}
-              {{ end }}
-              {{ else }}
-              TBA
-              {{ end }}
-            </dd>
-            <a href="{{ .ScheduleURL }}">View schedule →</a>
-          </div>
-          <div class="hack-side-row">
-            <dt>Team size</dt>
-            <dd>{{ with .Competition.MaxTeamSize }}Up to {{ . }}{{ else }}Unlimited{{ end }}</dd>
-          </div>
-        </dl>
-      </div>
-
       {{ $featuredProjects := .FeaturedProjects }}
       {{ if $featuredProjects }}
       <section class="hack-featured-projects" aria-label="Featured hackathon projects">
         <div class="hack-section__head">
           <div>
-            <div class="hack-label">§ Featured builds</div>
+            <div class="hack-label">{{ if .ShowingPriorGallery }}§ Previous builds{{ else }}§ Featured builds{{ end }}</div>
             <h2>Built in <span class="hack-serif">public.</span></h2>
           </div>
-          <div class="hack-section__deck">Winning and featured projects from this hackathon. <a href="#projects">Explore the full gallery →</a></div>
+          <div class="hack-section__deck">{{ if .ShowingPriorGallery }}Projects from {{ .PriorGalleryLabel }}, shown until this hackathon’s gallery opens.{{ else }}Winning and featured projects from this hackathon.{{ end }} <a href="#projects">Explore the full gallery →</a></div>
         </div>
         <div class="hack-card-grid">
           {{ range $project := $featuredProjects }}
@@ -352,11 +333,11 @@
     <section data-hackathon-tab-panel="projects" class="hack-panel hidden" id="projects">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">§ Project gallery</div>
+          <div class="hack-label">{{ if .ShowingPriorGallery }}§ Previous project gallery{{ else }}§ Project gallery{{ end }}</div>
           <h2>What got <span class="hack-serif">built.</span></h2>
         </div>
         <div class="hack-section__deck">
-          Every visible project from this hackathon, sorted by the current platform rules.
+          {{ if .ShowingPriorGallery }}Showing public projects from {{ .PriorGalleryLabel }} until this hackathon’s gallery is made public.{{ else }}Every visible project from this hackathon, sorted by the current platform rules.{{ end }}
           <div class="hack-section__cta">{{ template "hackathon_primary_action" . }}</div>
         </div>
       </div>
@@ -368,13 +349,12 @@
       </div>
       {{ else }}
       <div class="hack-empty">
-        <p>No visible projects yet.</p>
+        <p>{{ if .ShowingPriorGallery }}No public projects from {{ .PriorGalleryLabel }}.{{ else }}No visible projects yet.{{ end }}</p>
       </div>
       {{ end }}
     </section>
     {{ end }}
 
-    {{ if .Awards }}
     <section data-hackathon-tab-panel="awards" class="hack-panel hidden hack-awards" id="awards">
       <div class="hack-section__head">
         <div>
@@ -386,6 +366,7 @@
           <div class="hack-section__cta">{{ template "hackathon_primary_action" . }}</div>
         </div>
       </div>
+      {{ if .Awards }}
       <div class="hack-card-grid">
         {{ range .Awards }}
         {{ $award := . }}
@@ -436,8 +417,12 @@
         </article>
         {{ end }}
       </div>
+      {{ else }}
+      <div class="hack-empty">
+        <p>Prizes and sponsor challenges will be announced soon.</p>
+      </div>
+      {{ end }}
     </section>
-    {{ end }}
 
     {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}
     <section data-hackathon-tab-panel="tables" class="hack-panel hidden" id="tables">
@@ -485,13 +470,16 @@
       function setTab(name) {
         const exists = tabs.some(tab => tab.dataset.hackathonTab === name);
         if (!exists) name = 'overview';
+
         for (const tab of tabs) {
           const active = tab.dataset.hackathonTab === name;
           tab.setAttribute('aria-selected', active ? 'true' : 'false');
+          tab.classList.toggle('is-active', active);
         }
         for (const panel of panels) {
           panel.classList.toggle('hidden', panel.dataset.hackathonTabPanel !== name);
         }
+        return panels.find(panel => panel.dataset.hackathonTabPanel === name);
       }
 
       function tabFromHash() {
@@ -509,26 +497,39 @@
       }
 
       for (const tab of tabs) {
-        tab.addEventListener('click', function () {
+        tab.addEventListener('click', function (event) {
+          event.preventDefault();
           const name = tab.dataset.hackathonTab;
-          setTab(name);
-          history.replaceState(null, '', '#' + name);
+          const panel = setTab(name);
+          const target = new URL(tab.href, window.location.href);
+          const destination = target.pathname + target.search + target.hash;
+          if (destination !== window.location.pathname + window.location.search + window.location.hash) {
+            history.pushState(null, '', destination);
+          }
+          const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+          scrollToTarget(panel, behavior);
         });
       }
 
-      function showHashTarget() {
-        setTab(tabFromHash());
-        if (window.location.hash.indexOf('#project-') !== 0) return;
-        const target = document.getElementById(window.location.hash.slice(1));
+      function scrollToTarget(target, behavior) {
         if (!target) return;
         window.requestAnimationFrame(function () {
           window.requestAnimationFrame(function () {
-            target.scrollIntoView({ block: 'start' });
+            target.scrollIntoView({ block: 'start', behavior: behavior });
           });
         });
       }
 
+      function showHashTarget() {
+        const name = tabFromHash();
+        const panel = setTab(name);
+        if (!window.location.hash) return;
+        const target = document.getElementById(window.location.hash.slice(1)) || panel;
+        scrollToTarget(target, 'auto');
+      }
+
       window.addEventListener('hashchange', showHashTarget);
+      window.addEventListener('popstate', showHashTarget);
       showHashTarget();
 
       document.querySelectorAll('[data-project-card-url]').forEach((card) => {

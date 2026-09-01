@@ -27,7 +27,8 @@
         <div class="dashboard-topline__profile">
           <div class="dashboard-avatar">
             {{ if .Photo }}
-            <img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" />
+            <img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" data-image-fallback />
+            <span data-image-fallback-copy hidden>{{ printf "%.1s" .Name }}</span>
             {{ else }}
             <span>{{ printf "%.1s" .Name }}</span>
             {{ end }}
@@ -44,12 +45,11 @@
             </div>
           </div>
           <div class="dashboard-topline__actions">
-			<a href="/dashboard/settings">Account settings</a>
             <a href="/dashboard/profile">{{ if .Speaker }}Edit profile{{ else }}Create profile{{ end }}</a>
+            <a href="/dashboard/settings">Account settings</a>
             {{ if and .Speaker .HasPublicProfile }}
             <a href="{{ speakerPublicPath .Speaker }}">View profile</a>
             {{ end }}
-            <form method="POST" action="/logout"><button type="submit">Sign out</button></form>
           </div>
         </div>
         <div class="dashboard-stat-grid dashboard-stat-grid--ledger" aria-label="Dashboard stats">

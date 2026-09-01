@@ -254,6 +254,16 @@ type (
 	}
 	ConfTickets []*ConfTicket
 
+	ConferenceMilestone struct {
+		ID        string
+		ConfRef   string
+		Label     string
+		Category  string
+		OccursAt  time.Time
+		URL       string
+		Published bool
+	}
+
 	SatelliteEvent struct {
 		ID             string
 		ConfRef        string
@@ -1216,7 +1226,13 @@ func (c *Conf) TalksDueDate() time.Time {
 // TalksOpen reports whether talk applications are currently being accepted
 // for this conf — Active and before TalksDueDate.
 func (c *Conf) TalksOpen() bool {
-	return c.IsCurrentlyActive() && time.Now().Before(c.TalksDueDate())
+	return c.TalksOpenAt(time.Now())
+}
+
+// TalksOpenAt is the deterministic form of TalksOpen. Applications close at
+// the configured due instant and remain closed even if a stale form is posted.
+func (c *Conf) TalksOpenAt(now time.Time) bool {
+	return c != nil && c.Active && c.IsPublished() && !c.HasEndedAt(now) && now.Before(c.TalksDueDate())
 }
 
 // VolunteerOpen reports whether public volunteer applications should be

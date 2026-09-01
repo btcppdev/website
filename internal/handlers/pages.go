@@ -72,6 +72,7 @@ type ConfPage struct {
 	// hard-coded satellite sections; this list is for new/admin-added
 	// rows and attendee suggestions that have been approved.
 	SatelliteEvents []*types.SatelliteEvent
+	ImportantDates  []*ConferenceImportantDate
 
 	Hackathon               *types.HackathonCompetition
 	HackathonScheduleEvents []HackathonScheduleEvent
@@ -81,6 +82,19 @@ type ConfPage struct {
 	HackathonCanAdmin       bool
 
 	Year uint
+}
+
+type ConferenceImportantDate struct {
+	Label     string
+	Detail    string
+	Category  string
+	URL       string
+	OccursAt  time.Time
+	DateLabel string
+	TimeLabel string
+	Status    string
+	IsNext    bool
+	IsPast    bool
 }
 
 type HackathonPlaceRow struct {
@@ -95,6 +109,7 @@ type HackathonPlaceRow struct {
 	SponsorURL      string
 	SponsorLogoURL  string
 	SponsorLogoAlt  string
+	Members         []*types.ProjectMember
 	GrandPrize      bool
 }
 
@@ -945,6 +960,7 @@ type EditSpeakerPage struct {
 	FormAction    string
 	NextURL       string
 	PublicURL     string
+	CancelCSRF    string // present only for self-service account setup
 	Year          uint
 }
 

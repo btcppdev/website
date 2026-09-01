@@ -105,7 +105,7 @@ func emailRenderHook(w io.Writer, node ast.Node, entering bool) (ast.WalkStatus,
 			styleAttr = `style="
 				color: #3f3f3f;
 				background-color: #fff;
-				border: 1.5px solid #f7931a;
+				border: 1.5px solid #f9af5e;
 				border-radius: 6px;
 				cursor: pointer;
 				display: inline-block;

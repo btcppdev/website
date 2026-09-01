@@ -789,6 +789,15 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	if sp != nil {
 		mode = "edit"
 	}
+	cancelCSRF := ""
+	if mode == "create" {
+		cancelCSRF, err = ensureAuthMethodsCSRF(ctx, r)
+		if err != nil {
+			ctx.Err.Printf("/dashboard/profile cancel CSRF: %s", err)
+			http.Error(w, "session error", http.StatusInternalServerError)
+			return
+		}
+	}
 	page := &EditSpeakerPage{
 		Speaker:      sp,
 		HMAC:         encHMAC,
@@ -798,6 +807,7 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		FlashMessage: r.URL.Query().Get("flash"),
 		FormAction:   dashboardProfileURL(encHMAC, encEmail, nextURL),
 		NextURL:      nextURL,
+		CancelCSRF:   cancelCSRF,
 		Year:         helpers.CurrentYear(),
 	}
 	if mode == "create" {

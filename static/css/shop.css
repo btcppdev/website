@@ -1,7 +1,7 @@
 .shop-page {
   --shop-ink: #0a0a0a;
   --shop-paper: #f6f3ee;
-  --shop-accent: #f7931a;
+  --shop-accent: #f9af5e;
   --shop-muted: #666;
   --shop-line: #0a0a0a;
   background: var(--shop-paper);
@@ -10,6 +10,13 @@
   margin: 0;
 }
 .shop-page a { color: inherit; }
+.shop-public-shell {
+  width: min(1040px, calc(100% - 48px));
+  margin: 36px auto 64px;
+  border-right: 1px solid var(--shop-ink);
+  border-left: 1px solid var(--shop-ink);
+  background: var(--shop-paper);
+}
 .shop-ticker {
   align-items: center;
   background: var(--shop-ink);
@@ -958,6 +965,13 @@
   .shop-admin-ops > div:nth-child(2) { border-right: 0; }
   .shop-admin-ops > div:nth-child(-n+2) { border-bottom: 1px solid var(--shop-ink); }
 }
+@media (max-width: 900px) {
+  .shop-public-shell {
+    width: min(100% - 28px, 1040px);
+    margin-top: 24px;
+    margin-bottom: 48px;
+  }
+}
 @media (max-width: 540px) {
   .shop-grid,
   .shop-form-grid { grid-template-columns: 1fr; }
@@ -965,6 +979,15 @@
   .shop-confirm__facts { grid-template-columns: 1fr; }
   .shop-confirm__facts > div + div { border-left: 0; border-top: 1px solid #e4ded3; }
   .shop-confirm__actions .shop-button { width: 100%; }
+  .shop-admin__intro--actions > .shop-button,
+  .shop-admin-form__actions .shop-button,
+  .shop-admin-order-filters,
+  .shop-admin-order-filters .shop-button {
+    width: 100%;
+  }
+  .shop-admin-form__actions { display: grid; grid-template-columns: 1fr; }
+  .shop-admin-order-filters .shop-button { justify-content: center; }
+  .shop-social-preview-label a { margin-left: 0; }
   .shop-refund-contact { grid-template-columns: 1fr; }
   .shop-refund-contact > div + div { border-left: 0; border-top: 1px solid #e4ded3; }
   .shop-checkout-form .shop-radio-panel label {

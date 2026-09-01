@@ -14,12 +14,16 @@
         <a href="/whois">← browse profiles</a>
       </div>
 
-      <section class="whois-profile-hero">
+      <div class="whois-profile-dossier">
+        <aside class="whois-profile-identity">
         <div class="whois-profile-portrait">
-          <img loading="lazy" src="{{ speakerPhoto .Person.Speaker.Photo }}" alt="{{ .Person.Speaker.Name }}">
+          <img loading="lazy" src="{{ speakerPhoto .Person.Speaker.Photo }}" alt="{{ .Person.Speaker.Name }}" data-image-fallback>
+          <div class="whois-profile-photo-fallback" data-image-fallback-copy hidden aria-hidden="true">
+            <span>@{{ .Person.PublicID }}</span>
+          </div>
           {{ if .Person.Editions }}
           {{ $firstEdition := index .Person.Editions (sub (len .Person.Editions) 1) }}
-          <span>MEMBER SINCE {{ $firstEdition.StartDate.Format "2006" }}</span>
+          <span class="whois-profile-member-since">MEMBER SINCE {{ $firstEdition.StartDate.Format "2006" }}</span>
           {{ end }}
         </div>
         <div class="whois-profile-main">
@@ -40,7 +44,9 @@
             <div><strong>{{ len .Person.Projects }}</strong><span>projects</span></div>
           </div>
         </div>
-      </section>
+        </aside>
+
+        <div class="whois-profile-archive">
 
       <section class="whois-profile-section">
         <div class="whois-section-head">
@@ -103,12 +109,18 @@
                 {{ range .Members }}
                   {{ if .PublicID }}
                   <a href="/whois/{{ .PublicID }}"{{ if eq .Member.PersonID $.Person.Speaker.ID }} class="is-current"{{ end }}>
-                    <img loading="lazy" src="{{ speakerPhoto .Member.Photo }}" alt="">
+                    <span class="whois-project-row__avatar">
+                      <img loading="lazy" src="{{ speakerPhoto .Member.Photo }}" alt="" data-image-fallback>
+                      <span data-image-fallback-copy hidden aria-hidden="true">++</span>
+                    </span>
                     <b>{{ .Member.Name }}{{ if eq .Member.PersonID $.Person.Speaker.ID }} <em>· you</em>{{ end }}</b>
                   </a>
                   {{ else }}
                   <span{{ if eq .Member.PersonID $.Person.Speaker.ID }} class="is-current"{{ end }}>
-                    <img loading="lazy" src="{{ speakerPhoto .Member.Photo }}" alt="">
+                    <span class="whois-project-row__avatar">
+                      <img loading="lazy" src="{{ speakerPhoto .Member.Photo }}" alt="" data-image-fallback>
+                      <span data-image-fallback-copy hidden aria-hidden="true">++</span>
+                    </span>
                     <b>{{ .Member.Name }}{{ if eq .Member.PersonID $.Person.Speaker.ID }} <em>· you</em>{{ end }}</b>
                   </span>
                   {{ end }}
@@ -134,19 +146,24 @@
           {{ range $idx, $row := .Person.Talks }}
           {{ $dialogID := printf "whois-talk-dialog-%d" $idx }}
           <article class="whois-talk-row" role="button" tabindex="0" data-agenda-dialog-open="{{ $dialogID }}" aria-controls="{{ $dialogID }}">
-            <span class="whois-talk-row__type">{{ if .Talk.Type }}{{ .Talk.Type }}{{ else }}talk{{ end }}</span>
             <div class="whois-talk-row__title">
+              <div class="whois-talk-row__visual">
               {{ if .Talk.Clipart }}
-              <img class="whois-talk-row__clipart" loading="lazy" src="{{ talkClipart .Talk.Clipart }}" alt="">
+              <img class="whois-talk-row__clipart" loading="lazy" src="{{ talkClipart .Talk.Clipart }}" alt="" data-image-fallback>
+              <div class="whois-talk-row__mark" data-image-fallback-copy hidden aria-hidden="true">++</div>
               {{ else }}
               <div class="whois-talk-row__mark" aria-hidden="true">++</div>
               {{ end }}
+              </div>
               <div>
+                <span class="whois-talk-row__type">
+                  {{ if .Talk.Type }}{{ .Talk.Type }}{{ else }}talk{{ end }}
+                  {{ if .Conf }} · <a href="/{{ .Conf.Tag }}">{{ .Conf.ArchiveTitle }}{{ if not .Conf.StartDate.IsZero }} {{ .Conf.StartDate.Format "2006" }}{{ end }}</a>{{ end }}
+                </span>
                 <h3>{{ .Talk.Name }}</h3>
                 {{ if .Talk.Description }}<p>{{ .Talk.Description }}</p>{{ end }}
               </div>
             </div>
-            {{ if .Conf }}<a class="whois-talk-row__event" href="/{{ .Conf.Tag }}">{{ .Conf.ArchiveTitle }}{{ if not .Conf.StartDate.IsZero }} {{ .Conf.StartDate.Format "2006" }}{{ end }}</a>{{ end }}
             <div class="whois-talk-row__actions">
               {{ if .Talk.Duration }}<span>{{ .Talk.Duration }}</span>{{ end }}
               {{ if and .Conf .Talk.ID }}<a href="/{{ .Conf.Tag }}/agenda#talk-{{ .Talk.ID }}">agenda</a>{{ end }}
@@ -160,6 +177,13 @@
         </div>
       </section>
       {{ end }}
+        </div>
+      </div>
+
+      <div class="whois-profile-record">
+        <span>whois/{{ .Person.PublicID }}</span>
+        <span>records: public · permanent</span>
+      </div>
     </main>
 
     {{ template "generic_conf_footer" . }}
