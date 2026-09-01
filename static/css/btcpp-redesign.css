@@ -11,6 +11,8 @@ body.btcpp-redesign {
 }
 
 .whois-page .whois-shell {
+  position: relative;
+  z-index: 1;
   width: min(1040px, calc(100% - 48px));
   max-width: none;
   margin: 36px auto 64px;
@@ -66,6 +68,10 @@ body.btcpp-rebrand-page {
   border-left: 1px solid var(--rebrand-ink);
   background: var(--rebrand-paper);
   overflow-x: clip;
+}
+
+.btcpp-rebrand-page .rebrand-page:has(> .rebrand-hero) {
+  margin-top: 0;
 }
 
 @media (max-width: 900px) {
@@ -278,7 +284,9 @@ body.btcpp-rebrand-page {
 
 .rebrand-hero {
   position: relative;
-  min-height: 640px;
+  min-height: 430px;
+  height: clamp(430px, calc(100vh - 262px - var(--btcpp-site-banner-height)), 540px);
+  height: clamp(430px, calc(100svh - 262px - var(--btcpp-site-banner-height)), 540px);
   overflow: hidden;
   border-bottom: 1px solid var(--rebrand-ink);
   background: var(--rebrand-ink);
@@ -286,7 +294,7 @@ body.btcpp-rebrand-page {
 
 .rebrand-hero__image {
   width: 100%;
-  height: 640px;
+  height: 100%;
   object-fit: cover;
   filter: contrast(1.05) saturate(1.05);
   image-rendering: pixelated;
@@ -1426,6 +1434,10 @@ body.btcpp-rebrand-page {
   border-left: 1px solid var(--whois-ink);
   background: var(--whois-paper);
   color: var(--whois-ink);
+}
+
+.whois-page:has(.archive-rain) .whois-shell {
+  background: rgba(246, 243, 238, .70);
 }
 
 .whois-section-tag {

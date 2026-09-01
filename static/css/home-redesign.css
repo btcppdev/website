@@ -28,6 +28,10 @@ body.btcpp-home {
   font-family: var(--home-sans);
 }
 
+body.btcpp-home:has(.archive-rain) {
+  background: #ded8ce;
+}
+
 .home-page,
 .home-page *,
 .home-page *::before,
@@ -40,12 +44,23 @@ body.btcpp-home {
   overflow-x: clip;
 }
 
+.home-shell,
 .timeline-shell {
   width: min(1040px, calc(100% - 48px));
   margin: 36px auto 64px;
   border-right: 1px solid var(--home-line);
   border-left: 1px solid var(--home-line);
   background: var(--home-paper);
+}
+
+.home-shell {
+  position: relative;
+  z-index: 1;
+  background: rgba(246, 243, 238, .68);
+}
+
+@media (max-width: 700px) {
+  .home-shell { background: rgba(246, 243, 238, .78); }
 }
 
 .home-page a {
@@ -330,6 +345,12 @@ body.btcpp-home {
   letter-spacing: 0;
   line-height: .88;
   overflow-wrap: anywhere;
+}
+
+.home-hero h1 {
+  font-size: clamp(58px, 6.5vw, 88px);
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .home-serif {
@@ -1343,6 +1364,7 @@ body.btcpp-home {
 }
 
 @media (max-width: 900px) {
+  .home-shell,
   .timeline-shell {
     width: min(100% - 28px, 1040px);
     margin-top: 24px;

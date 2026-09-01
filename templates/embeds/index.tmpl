@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
     <link rel="stylesheet" href="/static/css/site-chrome.css">
     <link rel="stylesheet" href="/static/css/home-redesign.css">
+    <link rel="stylesheet" href="/static/css/archive-rain.css">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260831-1">
     <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
@@ -19,7 +20,9 @@
       {{ $next := .NextConf }}
       {{ template "mainnav" . }}
 
-      <main>
+      {{ template "archive_rain" .ArchiveRain }}
+
+      <main class="home-shell">
         <section class="home-hero">
           <div class="home-hero__grid">
             <div>

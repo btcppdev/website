@@ -127,8 +127,16 @@ type HomePageData struct {
 	Years            []*HomeTimelineYear
 	Sponsors         []*HomeSponsor
 	FeaturedSpeakers []*types.Speaker
+	ArchiveRain      []*HomeArchiveRainItem
 	MapMarkers       []*HomeMapMarker
 	Year             uint
+}
+
+type HomeArchiveRainItem struct {
+	Kind  string
+	Image string
+	Label string
+	Style string
 }
 
 func (h HomePageData) NextConf() *types.Conf {
@@ -162,6 +170,7 @@ type HomeMapEdition struct {
 
 type WhoIsPage struct {
 	People       []*WhoIsPerson
+	ArchiveRain  []*HomeArchiveRainItem
 	AllCount     int
 	TalkCount    int
 	ProjectCount int
@@ -175,6 +184,7 @@ type WhoIsPage struct {
 
 type WhoIsProfilePage struct {
 	Person           *WhoIsPerson
+	ArchiveRain      []*HomeArchiveRainItem
 	UpdateProfileURL string
 	Year             uint
 }

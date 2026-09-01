@@ -3,11 +3,13 @@
   <head>
     {{ template "rebrand_header" . }}
     {{ template "site_seo" (dict "Title" "whois @ bitcoin++" "Description" "A directory of bitcoin++ speakers, builders, and hackathon participants." "Path" "/whois" "Image" "/static/img/rebrand/breakthroughs.jpg") }}
+    <link rel="stylesheet" href="/static/css/archive-rain.css">
     <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
   </head>
   <body class="btcpp-redesign btcpp-rebrand-page whois-page">
     {{ template "mainnav" . }}
+    {{ template "archive_rain" .ArchiveRain }}
 
     <main class="whois-shell">
       <section class="whois-hero">

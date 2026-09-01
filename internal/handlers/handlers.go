@@ -2637,6 +2637,7 @@ func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	talkCount, projectCount, editionCount := whoIsTotals(people)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois.tmpl", &WhoIsPage{
 		People:       people,
+		ArchiveRain:  whoIsPeopleRain(people),
 		AllCount:     allCount,
 		TalkCount:    talkCount,
 		ProjectCount: projectCount,
@@ -2671,6 +2672,7 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois_profile.tmpl", &WhoIsProfilePage{
 		Person:           person,
+		ArchiveRain:      whoIsPeopleRain(mustWhoIsDirectory(ctx)),
 		UpdateProfileURL: whoIsProfileEditURL(ctx, r, person),
 		Year:             helpers.CurrentYear(),
 	}); err != nil {
@@ -4814,13 +4816,19 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		enriched = append(enriched, &copy)
 	}
 
+	featuredSpeakers := homeFeaturedSpeakers(ctx)
+	var archiveRain []*HomeArchiveRainItem
+	if page == "index" {
+		archiveRain = homeArchiveRain(ctx, featuredSpeakers)
+	}
 	data := HomePageData{
 		Confs:            enriched,
 		Upcoming:         homeUpcomingConfs(enriched),
 		Past:             homePastConfs(enriched),
 		Years:            homeTimelineYears(enriched),
 		Sponsors:         homeSponsors(ctx, enriched, time.Now()),
-		FeaturedSpeakers: homeFeaturedSpeakers(ctx),
+		FeaturedSpeakers: featuredSpeakers,
+		ArchiveRain:      archiveRain,
 		MapMarkers:       homeMapMarkers(enriched),
 		Year:             helpers.CurrentYear(),
 	}
@@ -4832,6 +4840,113 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s ExecuteTemplate failed ! %s", page, err.Error())
 	}
+}
+
+func homeArchiveRain(ctx *config.AppContext, featuredSpeakers []*types.Speaker) []*HomeArchiveRainItem {
+	const perKind = 12
+	assets, err := getters.ListHomepageArchiveAssets(ctx, perKind)
+	if err != nil {
+		ctx.Err.Printf("/ homepage archive rain (continuing): %s", err)
+		return nil
+	}
+	if !ctx.InProduction {
+		assets = homeArchiveRainDevAssets(assets, featuredSpeakers, perKind)
+	}
+	return decorativeArchiveRain(assets, 24)
+}
+
+func decorativeArchiveRain(assets []*getters.HomepageArchiveAsset, count int) []*HomeArchiveRainItem {
+	assets = repeatHomepageArchiveAssets(assets, count)
+	sizes := []int{88, 112, 144, 176, 208, 128, 192, 96, 224, 156, 120, 184}
+	durations := []int{20, 23, 26, 28, 22, 25, 29, 24, 27, 21, 26, 30}
+	laneFractions := []float64{.02, .18, .35, .52, .70, .88, .10, .27, .44, .61, .78, .94}
+	items := make([]*HomeArchiveRainItem, 0, len(assets))
+	for i, asset := range assets {
+		if asset == nil {
+			continue
+		}
+		size := sizes[i%len(sizes)]
+		duration := durations[i%len(durations)]
+		// Distribute each card through the animation's full progress at first
+		// paint so the page opens in the middle of an established rainstorm.
+		delay := -((i*duration)/len(assets) + 1)
+		fraction := laneFractions[i%len(laneFractions)]
+		x := fmt.Sprintf("calc((100vw - var(--rain-card-size)) * %.2f)", fraction)
+		items = append(items, &HomeArchiveRainItem{
+			Kind: asset.Kind, Image: asset.Image, Label: asset.Label,
+			Style: fmt.Sprintf("--rain-x:%s;--rain-size:%dpx;--rain-duration:%ds;--rain-delay:%ds;--rain-tilt:%ddeg", x, size, duration, delay, (i%7)-3),
+		})
+	}
+	return items
+}
+
+func whoIsPeopleRain(people []*WhoIsPerson) []*HomeArchiveRainItem {
+	assets := make([]*getters.HomepageArchiveAsset, 0, len(people))
+	for _, person := range people {
+		if person == nil || person.Speaker == nil || strings.TrimSpace(person.Speaker.Photo) == "" {
+			continue
+		}
+		assets = append(assets, &getters.HomepageArchiveAsset{
+			Kind: "speaker", Image: person.Speaker.Photo, Label: person.Speaker.Name,
+		})
+	}
+	return decorativeArchiveRain(assets, 24)
+}
+
+func mustWhoIsDirectory(ctx *config.AppContext) []*WhoIsPerson {
+	people, err := buildWhoIsDirectory(ctx)
+	if err != nil {
+		return nil
+	}
+	return people
+}
+
+func homeArchiveRainDevAssets(assets []*getters.HomepageArchiveAsset, featuredSpeakers []*types.Speaker, perKind int) []*getters.HomepageArchiveAsset {
+	talks := make([]*getters.HomepageArchiveAsset, 0, perKind)
+	speakers := make([]*getters.HomepageArchiveAsset, 0, perKind)
+	for _, asset := range assets {
+		if asset == nil {
+			continue
+		}
+		if asset.Kind == "talk" {
+			talks = append(talks, asset)
+		} else if asset.Kind == "speaker" {
+			speakers = append(speakers, asset)
+		}
+	}
+	for _, speaker := range featuredSpeakers {
+		if len(speakers) >= perKind {
+			break
+		}
+		if speaker != nil && strings.TrimSpace(speaker.Photo) != "" {
+			speakers = append(speakers, &getters.HomepageArchiveAsset{
+				Kind: "speaker", Image: speaker.Photo, Label: speaker.Name,
+			})
+		}
+	}
+	talks = repeatHomepageArchiveAssets(talks, perKind)
+	speakers = repeatHomepageArchiveAssets(speakers, perKind)
+	result := make([]*getters.HomepageArchiveAsset, 0, len(talks)+len(speakers))
+	for i := 0; i < perKind; i++ {
+		if i < len(talks) {
+			result = append(result, talks[i])
+		}
+		if i < len(speakers) {
+			result = append(result, speakers[i])
+		}
+	}
+	return result
+}
+
+func repeatHomepageArchiveAssets(assets []*getters.HomepageArchiveAsset, count int) []*getters.HomepageArchiveAsset {
+	if len(assets) == 0 || len(assets) >= count {
+		return assets
+	}
+	result := append([]*getters.HomepageArchiveAsset(nil), assets...)
+	for len(result) < count {
+		result = append(result, assets[len(result)%len(assets)])
+	}
+	return result
 }
 
 func homeFeaturedSpeakers(ctx *config.AppContext) []*types.Speaker {

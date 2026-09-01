@@ -1,0 +1,17 @@
+{{ define "archive_rain" }}
+{{ if . }}
+<div class="archive-rain" aria-hidden="true">
+  {{ range . }}
+  <span class="archive-rain__card is-{{ .Kind }}" style="{{ .Style | safeCSS }}">
+    {{ if eq .Kind "talk" }}
+    <img src="{{ talkClipart .Image }}" alt="" loading="lazy">
+    {{ else if eq .Kind "speaker" }}
+    <img src="{{ speakerPhoto .Image }}" alt="" loading="lazy">
+    {{ else }}
+    <img src="{{ .Image | safeURL }}" alt="" loading="lazy">
+    {{ end }}
+  </span>
+  {{ end }}
+</div>
+{{ end }}
+{{ end }}

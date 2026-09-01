@@ -61,6 +61,7 @@ type shopCartItem struct {
 type shopPage struct {
 	Title                     string
 	Year                      int
+	ArchiveRain               []*HomeArchiveRainItem
 	Products                  []*types.MerchProduct
 	Product                   *types.MerchProduct
 	Related                   []*types.MerchProduct
@@ -218,11 +219,27 @@ func ShopHome(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 	page := baseShopPage(ctx, r, "bitcoin++ shop")
 	page.Products = products
+	page.ArchiveRain = merchArchiveRain(products)
 	page.Categories = shopCategories(products)
 	if len(products) > 0 {
 		page.Product = products[0]
 	}
 	renderShopTemplate(w, r, ctx, "shop/index.tmpl", page)
+}
+
+func merchArchiveRain(products []*types.MerchProduct) []*HomeArchiveRainItem {
+	assets := make([]*getters.HomepageArchiveAsset, 0, len(products))
+	for _, product := range products {
+		if product == nil {
+			continue
+		}
+		if image := strings.TrimSpace(merchImage(product)); image != "" {
+			assets = append(assets, &getters.HomepageArchiveAsset{
+				Kind: "merch", Image: image, Label: product.Name,
+			})
+		}
+	}
+	return decorativeArchiveRain(assets, 24)
 }
 
 func ShopCollection(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
