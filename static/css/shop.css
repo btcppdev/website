@@ -11,12 +11,16 @@
 }
 .shop-page a { color: inherit; }
 .shop-public-shell {
+  position: relative;
+  z-index: 1;
   width: min(1040px, calc(100% - 48px));
   margin: 36px auto 64px;
   border-right: 1px solid var(--shop-ink);
   border-left: 1px solid var(--shop-ink);
   background: var(--shop-paper);
 }
+.shop-page:has(.archive-rain) { background: #ded8ce; }
+.shop-page:has(.archive-rain) .shop-public-shell { background: rgba(246, 243, 238, .70); }
 .shop-ticker {
   align-items: center;
   background: var(--shop-ink);
