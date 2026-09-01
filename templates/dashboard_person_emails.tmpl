@@ -4,23 +4,37 @@
   <title>Account settings · bitcoin++</title>
   {{ block "header" . }} {{ end }}
 </head>
-<body class="btcpp-profile-edit-page">
+<body class="btcpp-profile-edit-page account-settings-page">
   {{ block "mainnav" . }} {{ end }}
 
   <main class="profile-edit-shell person-emails-page">
-    <div class="profile-edit-back"><a href="/dashboard/profile">← Profile</a></div>
-
-    <header class="profile-edit-hero">
-      <p class="profile-edit-tag">§ ACCOUNT</p>
-      <h1>Account <span>settings.</span></h1>
-      <p>Manage how you sign in, which verified email addresses belong to your profile, and credentials used by API clients.</p>
+    <header class="profile-edit-hero account-settings-hero">
+      <div class="account-settings-hero__copy">
+        <a class="profile-edit-back" href="/dashboard">← Dashboard</a>
+        <p class="profile-edit-tag">§ ACCOUNT CONTROL ROOM</p>
+        <h1>Account <span>settings.</span></h1>
+        <p>Manage sign-in methods, verified email addresses, connected applications, and credentials used by API clients.</p>
+      </div>
+      <dl class="account-settings-hero__facts" aria-label="Account summary">
+        <div><dt>Verified emails</dt><dd>{{ len .Emails }}</dd></div>
+        <div><dt>API tokens</dt><dd>{{ len .APITokens }}</dd></div>
+        <div><dt>Authorized apps</dt><dd>{{ len .OAuthConsents }}</dd></div>
+      </dl>
     </header>
+
+    <nav class="account-settings-index" aria-label="Account settings sections">
+      <a href="#settings-sign-in">/sign-in</a>
+      <a href="#settings-apps">/apps</a>
+      {{ if .IsGlobalAdmin }}<a href="#settings-oauth-server">/oauth server</a>{{ end }}
+      <a href="#settings-api">/api tokens</a>
+      <a href="#settings-emails">/emails</a>
+    </nav>
 
     {{ if .FlashMessage }}<div class="profile-edit-flash">{{ .FlashMessage }}</div>{{ end }}
     {{ if .FlashError }}<div class="profile-edit-flash person-emails-error">{{ .FlashError }}</div>{{ end }}
 
-    <section class="profile-edit-section is-open">
-      <div class="profile-edit-section__index">↗</div>
+    <section id="settings-sign-in" class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">ID</div>
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head">
           <div>
@@ -30,7 +44,7 @@
         </div>
         <div class="person-email-list">
           {{ range .OAuthIdentities }}
-          <div class="person-email-row">
+          <div class="person-email-row settings-provider-row">
             <div>
               <strong>{{ .Label }} · {{ .Identity.Username }}</strong>
               <span class="is-primary">CONNECTED</span>
@@ -47,7 +61,7 @@
           {{ end }}
           {{ range .OAuthProviders }}
           {{ if .Enabled }}
-          <div class="person-email-row">
+          <div class="person-email-row settings-provider-row">
             <div>
               <strong>{{ .Label }}</strong>
               <small>{{ .Description }}</small>
@@ -55,10 +69,10 @@
             <div class="person-email-actions"><a class="person-oauth-link" href="{{ .LinkURL }}">Connect</a></div>
           </div>
           {{ else }}
-          <div class="person-email-row is-pending"><div><strong>{{ .Label }}</strong><span class="is-pending">COMING SOON</span><small>Sign-in is not configured on this environment.</small></div></div>
+          <div class="person-email-row settings-provider-row is-pending"><div><strong>{{ .Label }}</strong><span class="is-pending">COMING SOON</span><small>Sign-in is not configured on this environment.</small></div></div>
           {{ end }}
           {{ end }}
-          <div class="person-email-row">
+          <div class="person-email-row settings-method-row">
             <div>
               <strong>Password</strong><span {{ if .HasPassword }}class="is-primary"{{ else }}class="is-pending"{{ end }}>{{ if .HasPassword }}SET{{ else }}NOT SET{{ end }}</span>
               <small>{{ if .HasPassword }}Choose a new password. This signs out other browser sessions.{{ else }}Add a password as another way to sign in.{{ end }}</small>
@@ -75,7 +89,7 @@
             </div>
           </div>
           {{ range .Passkeys }}
-          <div class="person-email-row">
+          <div class="person-email-row settings-method-row">
             <div>
               <strong>{{ .DisplayName }}</strong><span class="is-primary">PASSKEY</span>
               <small>Added {{ .CreatedAt.Format "Jan 2, 2006" }}{{ if .LastUsedAt }} · last used {{ .LastUsedAt.Format "Jan 2, 2006" }}{{ end }}</small>
@@ -89,7 +103,7 @@
             </div>
           </div>
           {{ end }}
-          <div class="person-email-row{{ if not .Passkeys }} is-pending{{ end }}">
+          <div class="person-email-row settings-method-row{{ if not .Passkeys }} is-pending{{ end }}">
             <div>
               <strong>Passkey</strong>{{ if not .Passkeys }}<span class="is-pending">NOT ADDED</span>{{ end }}
               <small data-passkey-status>Use this device, a synced passkey, or a hardware security key.</small>
@@ -102,7 +116,7 @@
             </div>
           </div>
           {{ range .NostrCredentials }}
-          <div class="person-email-row">
+          <div class="person-email-row settings-method-row">
             <div><strong>Nostr</strong><span class="is-primary">{{ if .Legacy }}PROFILE ONLY{{ else }}VERIFIED{{ end }}</span><small>{{ .Display }}{{ if .Legacy }} · unlink and prove this key before using it to sign in{{ end }}</small></div>
             <div class="person-email-actions">
               <form method="POST" action="/auth/nostr/unlink">
@@ -114,7 +128,7 @@
           </div>
           {{ end }}
           {{ if not .NostrCredentials }}
-          <div class="person-email-row is-pending">
+          <div class="person-email-row settings-method-row is-pending">
             <div>
               <strong>Nostr</strong>{{ if not .NostrCredentials }}<span class="is-pending">NOT LINKED</span>{{ end }}
               <small data-nostr-status>Use a NIP-07 signer such as Alby to prove and link a key.</small>
@@ -128,8 +142,8 @@
       </div>
     </section>
 
-    <section class="profile-edit-section is-open">
-      <div class="profile-edit-section__index">↔</div>
+    <section id="settings-apps" class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">APP</div>
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head"><div><p>§ AUTHORIZED APPS</p><h2>Third-party access</h2></div></div>
         <p><small>These applications can use bitcoin++ on your behalf within the listed scopes. Revoking access invalidates their access and refresh tokens.</small></p>
@@ -148,7 +162,7 @@
     </section>
 
     {{ if .IsGlobalAdmin }}
-    <section class="profile-edit-section is-open">
+    <section id="settings-oauth-server" class="profile-edit-section is-open">
       <div class="profile-edit-section__index">O₂</div>
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head"><div><p>§ OAUTH SERVER</p><h2>Registered applications</h2></div></div>
@@ -213,8 +227,8 @@
     </section>
     {{ end }}
 
-    <section class="profile-edit-section is-open">
-      <div class="profile-edit-section__index">&gt;_</div>
+    <section id="settings-api" class="profile-edit-section is-open">
+      <div class="profile-edit-section__index">API</div>
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head">
           <div>
@@ -281,7 +295,7 @@
       </div>
     </section>
 
-    <section class="profile-edit-section is-open">
+    <section id="settings-emails" class="profile-edit-section is-open">
       <div class="profile-edit-section__index">@</div>
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head">
@@ -335,7 +349,7 @@
       </div>
     </section>
 
-    <section class="profile-edit-section is-open">
+    <section id="settings-add-email" class="profile-edit-section is-open">
       <div class="profile-edit-section__index">+</div>
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head">

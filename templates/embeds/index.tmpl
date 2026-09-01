@@ -10,34 +10,14 @@
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
     <link rel="stylesheet" href="/static/css/site-chrome.css">
     <link rel="stylesheet" href="/static/css/home-redesign.css">
+    <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260831-1">
     <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
   </head>
   <body class="btcpp-home">
     <div class="home-page">
       {{ $next := .NextConf }}
-      {{ template "site_ticker" (navConfs) }}
-
-      <nav class="home-nav" aria-label="Primary navigation">
-        <div class="home-nav__inner">
-          <a href="/" class="home-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
-          <input class="home-nav__toggle" type="checkbox" id="home-nav-toggle" aria-label="Toggle navigation">
-          <div class="home-nav__controls">
-            <a class="home-button is-accent home-nav__cta" href="{{ if $next }}/{{ $next.Tag }}#tickets{{ else }}#events{{ end }}">GET TICKETS</a>
-            <label class="home-nav__menu" for="home-nav-toggle" aria-label="Toggle navigation">
-              <span></span><span></span><span></span>
-            </label>
-          </div>
-          <div class="home-nav__links">
-            <a href="#events">events/</a>
-            <a href="/timeline">timeline/</a>
-            <a href="/whois">whois/</a>
-            <a href="/dashboard">dashboard/</a>
-            <a href="/shop">shop/</a>
-            <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">insider/</a>
-          </div>
-        </div>
-      </nav>
+      {{ template "mainnav" . }}
 
       <main>
         <section class="home-hero">
@@ -49,7 +29,7 @@
             <div>
               <p class="home-deck">Join the builders shaping Bitcoin's next chapter. Attend live, or get the insider's view: stories, updates, and signals from the frontier.</p>
               <div class="home-actions">
-                <a href="#events" class="home-button">Upcoming events</a>
+                <a href="/#events" class="home-button">Upcoming events</a>
                 <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer" class="home-button is-outline">Read insider</a>
               </div>
             </div>
@@ -168,7 +148,7 @@
               <p class="home-section-label">§05 · Expert speakers</p>
               <h2 class="home-section-title">Direct access to bitcoin's <span class="home-serif">brightest minds.</span></h2>
             </div>
-            <a href="/timeline" class="home-button is-outline">Talk archive</a>
+            <a href="/events" class="home-button is-outline">Talk archive</a>
           </div>
           <p class="home-deck" style="max-width:640px">Long-form technical sessions, workshops, and hallway time with the people writing the code.</p>
           <div class="home-speaker-strip">
@@ -272,11 +252,11 @@
               <p class="home-section-label">§09 · Our journey</p>
               <h2 class="home-section-title">bitcoin++ through the <span class="home-serif">years.</span></h2>
             </div>
-            <a href="/timeline" class="home-button is-outline">The full timeline</a>
+            <a href="/events" class="home-button is-outline">The full timeline</a>
           </div>
           <div class="home-year-grid">
             {{ range .Years }}
-            <a href="/timeline#y{{ .Year }}" class="home-year">
+            <a href="/events#y{{ .Year }}" class="home-year">
               <strong>{{ .Year }}</strong>
               <p>{{ len .Confs }} edition{{ if ne (len .Confs) 1 }}s{{ end }} in the permanent record.</p>
             </a>

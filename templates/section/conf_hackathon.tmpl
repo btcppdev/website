@@ -5,28 +5,23 @@
 {{ $judgesNote := "Judges coming soon" }}
 {{ $proofLabel := .Conf.HackathonProofLabel }}{{ if not $proofLabel }}{{ $proofLabel = "Last edition · 37 projects · 90 hackers" }}{{ end }}
 {{ $prizePool := .HackathonPrizePoolValue }}
-{{ $featureLabel := "Prizes" }}
-{{ $featureValue := "Coming Soon" }}
-{{ if $prizePool }}{{ $featureLabel = "Total prizes" }}{{ $featureValue = $prizePool }}{{ end }}
 <section id="hackathon" class="conf-hackathon-redesign">
-  <dl class="conf-hackathon-redesign__stats" aria-label="Hackathon at a glance">
-    <div class="conf-hackathon-redesign__stat conf-hackathon-redesign__stat--status">
-      <dt>Now</dt>
-      <dd>{{ .HackathonStatusLabel }}</dd>
+  <div class="conf-hackathon-redesign__prize-hero" aria-label="Hackathon prize pool">
+    <div class="conf-hackathon-redesign__trophy">
+      <img src="/static/img/rebrand/hackathon-trophy.jpg" alt="An orange championship trophy" loading="lazy">
     </div>
-    <div class="conf-hackathon-redesign__stat">
-      <dt>Prize places</dt>
-      <dd>{{ if .HackathonPlaceRows }}{{ len .HackathonPlaceRows }}{{ else }}TBA{{ end }}</dd>
+    <div class="conf-hackathon-redesign__prize-callout">
+      <p>Hackathon prize pool</p>
+      {{ if $prizePool }}
+      <strong>{{ $prizePool }}</strong>
+      <span>Sats up for grabs</span>
+      {{ else }}
+      <strong class="is-coming-soon">Prizes</strong>
+      <span>Coming soon</span>
+      {{ end }}
+      <a href="{{ .HackathonURL }}#awards">See what you can win →</a>
     </div>
-    <div class="conf-hackathon-redesign__stat">
-      <dt>{{ $featureLabel }}</dt>
-      <dd>{{ $featureValue }}</dd>
-    </div>
-    <div class="conf-hackathon-redesign__stat">
-      <dt>Judges</dt>
-      <dd>{{ if .HackathonJudges }}{{ len .HackathonJudges }}{{ else }}TBA{{ end }}</dd>
-    </div>
-  </dl>
+  </div>
   <div class="conf-hackathon-redesign__inner">
     <div class="conf-hackathon-redesign__copy">
       <p class="rebrand-section-label">{{ $sectionLabel }}</p>
@@ -66,6 +61,15 @@
             {{ if .SponsorLogoURL }}<span class="conf-hackathon-redesign__award-logo"><img src="{{ .SponsorLogoURL }}" alt="{{ .SponsorLogoAlt }}"></span>{{ end }}
             <strong>{{ .ProjectTitle }}{{ range .ExtraPrizeNames }} <span>+ {{ . }}</span>{{ end }}</strong>
             {{ if .Detail }}<em>{{ .Detail }}</em>{{ end }}
+            {{ if .Members }}
+            <span class="conf-hackathon-redesign__team" aria-label="Project team">
+              {{ range .Members }}
+              <span class="conf-hackathon-redesign__member" title="{{ .Name }}">
+                {{ if .Photo }}<img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" loading="lazy">{{ else }}<span aria-hidden="true">+</span>{{ end }}
+              </span>
+              {{ end }}
+            </span>
+            {{ end }}
           </span>
         </a>
         {{ end }}

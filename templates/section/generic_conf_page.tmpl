@@ -2,7 +2,6 @@
 {{ $p := .Page }}
 {{ $conf := $p.Conf }}
 {{ $heroTitle := .HeroTitle }}{{ if not $heroTitle }}{{ $heroTitle = $conf.HeroTitle }}{{ end }}{{ if not $heroTitle }}{{ $heroTitle = printf "<span class=\"font-bitcoin\">bitcoin++</span> %s" $conf.Tagline }}{{ end }}
-{{ $heroCaption := .HeroCaption }}{{ if not $heroCaption }}{{ $heroCaption = $conf.HeroCaption }}{{ end }}
 {{ $aboutTitle := .AboutTitle }}{{ if not $aboutTitle }}{{ $aboutTitle = $conf.AboutTitle }}{{ end }}{{ if not $aboutTitle }}{{ $aboutTitle = $conf.Tagline }}{{ end }}
 {{ $aboutBody1 := .AboutBody1 }}{{ if not $aboutBody1 }}{{ $aboutBody1 = $conf.AboutBody }}{{ end }}{{ if not $aboutBody1 }}{{ $aboutBody1 = $conf.OGFlavor }}{{ end }}
 {{ $aboutBody2 := .AboutBody2 }}{{ if not $aboutBody2 }}{{ $aboutBody2 = $conf.AboutBody2 }}{{ end }}
@@ -31,18 +30,12 @@
         <div class="rebrand-hero__overlay"></div>
         <div class="rebrand-hero__content">
           <div class="rebrand-hero__bottom">
-            {{ if $heroCaption }}<p class="rebrand-live-label"><span>{{ $heroCaption }}</span></p>{{ end }}
             <h1>{{ ishtml $heroTitle }}</h1>
             <p class="rebrand-hero__deck">{{ $conf.OGFlavor }}</p>
             <div class="rebrand-hero__cta-row">
               {{ template "conf_countdown" $conf }}
               <div class="rebrand-actions">
-                <a href="#tickets" class="rebrand-button">Get all conf pass →</a>
-                {{ if $conf.HasAgenda }}
-                <a href="#agenda" class="rebrand-button is-secondary is-on-dark">See agenda</a>
-                {{ else }}
-                <a href="#speakers" class="rebrand-button is-secondary is-on-dark">See speakers</a>
-                {{ end }}
+                <a href="/{{ $conf.Tag }}/speakers" class="rebrand-button is-secondary is-on-dark">See who's coming</a>
               </div>
             </div>
           </div>
@@ -54,16 +47,25 @@
       {{ $firstInfo := false }}
       {{ if $p.ConfInfos }}{{ $firstInfo = index $p.ConfInfos 0 }}{{ end }}
       <section id="about" class="rebrand-masthead">
-        <div class="rebrand-spec-list">
-          {{ if $conf.Venue }}· {{ $conf.Venue }}<br>{{ end }}
-          · {{ $conf.Location }}<br>
-          · {{ $conf.DateDesc }}<br>
-          {{ if $firstInfo }}
-            {{ if $firstInfo.Doors }}· DOORS {{ formatTime $firstInfo.Doors.Start }}<br>{{ end }}
-            {{ if $firstInfo.Venues }}· {{ len $firstInfo.Venues }} STAGES / ROOMS{{ end }}
-          {{ end }}
+        <div class="rebrand-masthead__content">
+          <div class="rebrand-spec-list">
+            {{ if $conf.Venue }}· {{ $conf.Venue }}<br>{{ end }}
+            · {{ $conf.Location }}<br>
+            · {{ $conf.DateDesc }}<br>
+            {{ if $firstInfo }}
+              {{ if $firstInfo.Doors }}· DOORS {{ formatTime $firstInfo.Doors.Start }}<br>{{ end }}
+              {{ if $firstInfo.Venues }}· {{ len $firstInfo.Venues }} STAGES / ROOMS{{ end }}
+            {{ end }}
+          </div>
+          <div class="rebrand-masthead__copy">
+            <p>{{ $aboutBody1 }} {{ if $aboutBody2 }}<span>{{ $aboutBody2 }}</span>{{ end }}</p>
+          </div>
         </div>
-        <p>{{ $aboutBody1 }} {{ if $aboutBody2 }}<span>{{ $aboutBody2 }}</span>{{ end }}</p>
+        <div class="rebrand-masthead__actions" aria-label="Attend or participate">
+          <a href="#tickets" class="rebrand-button">Get your all conf pass →</a>
+          {{ if $conf.TalksOpen }}<a href="/talk/{{ $conf.Tag }}" class="rebrand-button is-secondary">Apply to talk →</a>{{ end }}
+          {{ if $conf.VolunteerOpen }}<a href="/volunteer/{{ $conf.Tag }}" class="rebrand-button is-secondary">Volunteer →</a>{{ end }}
+        </div>
       </section>
 
       <section class="rebrand-glance" aria-label="At a glance">
@@ -76,6 +78,32 @@
         <div><strong>{{ len $p.EventSpeakers }}</strong><span>Accepted speakers</span></div>
         <div><strong>{{ if and $firstInfo $firstInfo.Venues }}{{ len $firstInfo.Venues }}{{ else }}—{{ end }}</strong><span>Stages / rooms</span></div>
       </section>
+
+      {{ if $p.ImportantDates }}
+      <section id="dates" class="rebrand-important-dates" aria-labelledby="important-dates-title">
+        <div class="rebrand-important-dates__intro">
+          <p class="rebrand-section-label">Planning board</p>
+          <h2 id="important-dates-title">Important <span>dates.</span></h2>
+          <p>Ticket changes, participation deadlines, and the moments worth putting on your calendar.</p>
+        </div>
+        <div class="rebrand-important-dates__list">
+          {{ range $p.ImportantDates }}
+          <a href="{{ .URL }}" class="rebrand-important-date{{ if .IsPast }} is-past{{ end }}{{ if .IsNext }} is-next{{ end }}">
+            <div class="rebrand-important-date__status"><i aria-hidden="true"></i>{{ .Status }}</div>
+            <div class="rebrand-important-date__date">
+              <strong>{{ .DateLabel }}</strong>
+              <span>{{ .TimeLabel }}</span>
+            </div>
+            <div class="rebrand-important-date__event">
+              <strong>{{ .Label }}</strong>
+              {{ if .Detail }}<span>{{ .Detail }}</span>{{ end }}
+            </div>
+            <span class="rebrand-important-date__arrow" aria-hidden="true">→</span>
+          </a>
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
 
       <section class="rebrand-section rebrand-section--split">
         <div>
@@ -91,35 +119,8 @@
 
       {{ template "conf_hackathon_section" $p }}
 
-      <section id="venue" class="rebrand-venue">
-        <div class="rebrand-venue__intro">
-          <div>
-            <p class="rebrand-section-label">§02 · Venue</p>
-            <h2>{{ $venueTitle }}</h2>
-          </div>
-          <div>
-            <div class="rebrand-venue__quote">{{ $venueSubtitle }}</div>
-            <p>{{ ishtml $venueBody }}</p>
-            <div class="rebrand-mono-line">{{ $conf.Venue }} · {{ $conf.Location }}</div>
-          </div>
-        </div>
-        {{ $venueImages := confVenueImages $conf.Tag }}
-        {{ if $venueImages }}
-        <div class="rebrand-venue-grid">
-          {{ range $venueImages }}<img src="{{ . }}" alt="">{{ end }}
-        </div>
-        {{ end }}
-        {{ if $mapSrc }}
-        <div class="rebrand-map">
-          <iframe title="{{ $conf.Venue }}" aria-label="{{ $conf.Venue }}" width="100%" height="420" frameborder="0" style="border:0" referrerpolicy="no-referrer-when-downgrade" src="{{ $mapSrc }}" allowfullscreen></iframe>
-        </div>
-        {{ end }}
-      </section>
-
-      {{ template "generic_conf_hotels" (dict "Page" $p "HotelsIntro" $hotelsIntro) }}
-
       <section id="speakers" class="rebrand-section">
-        <p class="rebrand-section-label">§03 · Speakers</p>
+        <p class="rebrand-section-label">§02 · Speakers</p>
         <h2>{{ $speakersTitle }}</h2>
         <div class="rebrand-body-copy">{{ ishtml $speakersBody }}</div>
         {{ if $p.FeaturedSpeakers }}
@@ -145,6 +146,34 @@
       </section>
 
       {{ template "generic_conf_agenda" $p }}
+
+      <section id="venue" class="rebrand-venue">
+        <div class="rebrand-venue__intro">
+          <div>
+            <p class="rebrand-section-label">§04 · Venue</p>
+            <h2>{{ $venueTitle }}</h2>
+          </div>
+          <div>
+            <div class="rebrand-venue__quote">{{ $venueSubtitle }}</div>
+            <p>{{ ishtml $venueBody }}</p>
+            <div class="rebrand-mono-line">{{ $conf.Venue }} · {{ $conf.Location }}</div>
+          </div>
+        </div>
+        {{ $venueImages := confVenueImages $conf.Tag }}
+        {{ if $venueImages }}
+        <div class="rebrand-venue-grid">
+          {{ range $venueImages }}<img src="{{ . }}" alt="">{{ end }}
+        </div>
+        {{ end }}
+        {{ if $mapSrc }}
+        <div class="rebrand-map">
+          <iframe title="{{ $conf.Venue }}" aria-label="{{ $conf.Venue }}" width="100%" height="420" frameborder="0" style="border:0" referrerpolicy="no-referrer-when-downgrade" src="{{ $mapSrc }}" allowfullscreen></iframe>
+        </div>
+        {{ end }}
+      </section>
+
+      {{ template "generic_conf_hotels" (dict "Page" $p "HotelsIntro" $hotelsIntro) }}
+
       {{ template "generic_conf_tickets" (dict "Page" $p "LocalTicketBody" $localTicketBody) }}
       {{ template "satellites_section" $p }}
       {{ template "sponsors_section" $p }}
@@ -157,31 +186,11 @@
 {{ end }}
 
 {{ define "generic_conf_nav" }}
-{{ $nav := navConfs }}
-{{ template "site_ticker" $nav }}
-<nav class="rebrand-nav" aria-label="Event navigation">
-  <div class="rebrand-nav__identity">
-    <a href="/" class="rebrand-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
-  </div>
-  <button type="button" class="rebrand-nav__toggle" data-rebrand-menu-toggle aria-controls="rebrand-nav-links" aria-expanded="false" aria-label="Toggle navigation">
-    <span>Menu</span>
-    <i aria-hidden="true"></i>
-  </button>
-  <a href="/{{ .Tag }}#tickets" class="rebrand-nav__ticket rebrand-nav__ticket--persistent">GET TICKETS →</a>
-  <div id="rebrand-nav-links" class="rebrand-nav__links">
-    <a href="/{{ .Tag }}#about">about/</a>
-    <a href="/{{ .Tag }}#venue">venue/</a>
-    {{ if .ShowHackathon }}
-    <a href="/{{ .Tag }}/hackathon">hackathon/</a>
-    {{ end }}
-    <a href="/{{ .Tag }}#speakers">speakers/</a>
-    {{ if .HasAgenda }}
-    <a href="/{{ .Tag }}#agenda">agenda/</a>
-    {{ end }}
-    <a href="/{{ .Tag }}#sponsors">sponsors/</a>
-    <a href="/{{ .Tag }}#tickets" class="rebrand-nav__ticket">GET TICKETS →</a>
-  </div>
-</nav>
+  {{ template "site_header" (dict "Conference" .) }}
+{{ end }}
+
+{{ define "hackathon_conf_nav" }}
+  {{ template "site_header" (dict "Conference" .Conf "Hackathon" .) }}
 {{ end }}
 
 {{ define "generic_conf_topic" }}
@@ -279,7 +288,7 @@
 <section id="agenda" class="rebrand-agenda">
   <div class="rebrand-agenda__intro">
     <div>
-      <p class="rebrand-section-label">§04 · Agenda</p>
+      <p class="rebrand-section-label">§03 · Agenda</p>
       <h2>Two days of building in public.</h2>
     </div>
     <div class="rebrand-agenda__note">
@@ -659,8 +668,7 @@
     <div class="redesign-footer__menus">
       <div class="redesign-footer__menu">
         <div class="redesign-footer__menu-title">Events</div>
-        <a href="/#events">Events</a>
-        <a href="/timeline">Timeline</a>
+        <a href="/events">Events</a>
         <a href="/shop">Shop</a>
       </div>
       <div class="redesign-footer__menu">

@@ -267,7 +267,14 @@
     </section>
 
     <div class="profile-edit-actions">
+      {{ if and (eq .Mode "create") (not .IsAdmin) }}
+      <form class="profile-edit-actions__cancel-form" method="POST" action="/logout">
+        <input type="hidden" name="csrf" value="{{ .CancelCSRF }}">
+        <button class="profile-edit-actions__cancel" type="submit">CANCEL</button>
+      </form>
+      {{ else }}
       <a href="{{ if .BackURL }}{{ .BackURL }}{{ else }}/dashboard{{ end }}">CANCEL</a>
+      {{ end }}
       <button type="submit" form="SpeakerProfileForm"{{ if and (eq .Mode "create") (not .IsAdmin) }} class="profile-edit-actions__create-account"{{ end }}>{{ if eq .Mode "edit" }}SAVE CHANGES{{ else if .IsAdmin }}CREATE PROFILE{{ else }}CREATE ACCOUNT{{ end }}</button>
     </div>
   </main>

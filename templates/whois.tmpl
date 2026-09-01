@@ -25,35 +25,33 @@
       </section>
 
       <section class="whois-directory" aria-label="Speaker directory">
-        <aside class="whois-rail">
-          <div>
-            <p>Topic</p>
+        <div class="whois-filters" aria-label="Directory filters">
+          <div class="whois-filters__group">
+            <p>Topic:</p>
             <a class="{{ if eq .Topic "protocol" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=protocol{{ if .Event }}&event={{ .Event }}{{ end }}">protocol</a>
             <a class="{{ if eq .Topic "privacy" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=privacy{{ if .Event }}&event={{ .Event }}{{ end }}">privacy</a>
             <a class="{{ if eq .Topic "scaling" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=scaling{{ if .Event }}&event={{ .Event }}{{ end }}">scaling</a>
             <a class="{{ if eq .Topic "operations" }}is-active{{ end }}" href="/whois?{{ if .Query }}q={{ .Query }}&{{ end }}topic=operations{{ if .Event }}&event={{ .Event }}{{ end }}">operations</a>
           </div>
-          <div>
-            <p>Event</p>
+          <span class="whois-filters__rule" aria-hidden="true"></span>
+          <div class="whois-filters__group whois-filters__group--events">
+            <p>Event:</p>
             {{ range .EventOptions }}
             <a class="{{ if eq $.Event .Tag }}is-active{{ end }}" href="/whois?{{ if $.Query }}q={{ $.Query }}&{{ end }}{{ if $.Topic }}topic={{ $.Topic }}&{{ end }}event={{ .Tag }}">{{ .ArchiveTitle }}</a>
             {{ end }}
           </div>
-          {{ if or .Query .Topic .Event }}<a class="whois-rail__clear" href="/whois">clear filters</a>{{ end }}
-        </aside>
+          {{ if or .Query .Topic .Event }}<a class="whois-filters__clear" href="/whois">clear filters</a>{{ end }}
+          <strong class="whois-filters__count">{{ len .People }} MEMBER{{ if ne (len .People) 1 }}S{{ end }}{{ if or .Query .Topic .Event }} · FILTERED{{ end }}</strong>
+        </div>
 
         <div class="whois-results">
-          <div class="whois-results__bar">
-            <strong>{{ len .People }} MEMBER{{ if ne (len .People) 1 }}S{{ end }}{{ if or .Query .Topic .Event }} · FILTERED{{ end }}</strong>
-            <span>◇ = COMMUNITY PROFILE · CLICK A CARD FOR THE FULL ARCHIVE</span>
-          </div>
-
           {{ if .People }}
           <div class="whois-grid">
             {{ range .People }}
             <a class="whois-card" href="/whois/{{ .PublicID }}">
               <div class="whois-card__top">
-                <img loading="lazy" src="{{ speakerPhoto .Speaker.Photo }}" alt="{{ .Speaker.Name }}">
+                <img loading="lazy" src="{{ speakerPhoto .Speaker.Photo }}" alt="{{ .Speaker.Name }}" data-image-fallback>
+                <span class="whois-card__photo-fallback" data-image-fallback-copy hidden aria-hidden="true">++</span>
                 <div>
                   <p>@{{ .PublicID }}</p>
                   <h2>{{ .Speaker.Name }}</h2>
@@ -79,6 +77,10 @@
             <p>Try removing a search term or broadening the query.</p>
           </div>
           {{ end }}
+          <div class="whois-directory__footer">
+            <span>◇ = community profile</span>
+            <span>click a card for the full archive</span>
+          </div>
         </div>
       </section>
     </main>

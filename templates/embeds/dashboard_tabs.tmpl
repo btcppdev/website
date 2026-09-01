@@ -1,15 +1,15 @@
 {{ define "dashboard_tabs" }}
 {{ if or .ShowHackathons .ShowSponsor .ShowAdmin }}
 <nav class="dashboard-tabs" aria-label="Dashboard sections">
-  <a href="/dashboard" class="dashboard-tab{{ if eq .Active "overview" }} is-active{{ end }}"{{ if eq .Active "overview" }} aria-current="page"{{ end }}>Overview</a>
+  <a href="/dashboard" class="dashboard-tab{{ if eq .Active "overview" }} is-active{{ end }}"{{ if eq .Active "overview" }} aria-current="page"{{ end }}>/overview</a>
   {{ if .ShowHackathons }}
-  <a href="/dashboard/hackathons" class="dashboard-tab{{ if eq .Active "hackathons" }} is-active{{ end }}"{{ if eq .Active "hackathons" }} aria-current="page"{{ end }}>Hackathons</a>
+  <a href="/dashboard/hackathons" class="dashboard-tab{{ if eq .Active "hackathons" }} is-active{{ end }}"{{ if eq .Active "hackathons" }} aria-current="page"{{ end }}>/hackathons</a>
   {{ end }}
   {{ if .ShowSponsor }}
-  <a href="/dashboard/sponsor" class="dashboard-tab{{ if eq .Active "sponsor" }} is-active{{ end }}"{{ if eq .Active "sponsor" }} aria-current="page"{{ end }}>Sponsor</a>
+  <a href="/dashboard/sponsor" class="dashboard-tab{{ if eq .Active "sponsor" }} is-active{{ end }}"{{ if eq .Active "sponsor" }} aria-current="page"{{ end }}>/sponsor</a>
   {{ end }}
   {{ if .ShowAdmin }}
-  <a href="/admin" class="dashboard-tab{{ if eq .Active "admin" }} is-active{{ end }}"{{ if eq .Active "admin" }} aria-current="page"{{ end }}>Admin</a>
+  <a href="/admin" class="dashboard-tab{{ if eq .Active "admin" }} is-active{{ end }}"{{ if eq .Active "admin" }} aria-current="page"{{ end }}>/admin</a>
   {{ end }}
 </nav>
 {{ end }}

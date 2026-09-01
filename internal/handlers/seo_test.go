@@ -61,6 +61,7 @@ func TestShouldNoIndexPath(t *testing.T) {
 		{"/dashboard", true},
 		{"/dashboard/berlin26/edit", true},
 		{"/logout", true},
+		{"/navigation/account", true},
 		{"/live/status", true},
 		{"/invite-speaker/proposal-id", true},
 		{"/ticket/abc", true},

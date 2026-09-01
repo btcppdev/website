@@ -6,10 +6,12 @@
     <link rel="stylesheet" href="/static/css/site-chrome.css">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
     <link rel="stylesheet" href="/static/css/shop.css">
+    <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260831-1">
   </head>
   <body class="shop-page">
     {{ template "mainnav" . }}
     {{ template "shop_header" . }}
+    <main class="shop-public-shell">
     {{ if .Product }}
     <section class="shop-hero">
       <a class="shop-hero__media" href="/shop/{{ .Product.Slug }}">
@@ -49,6 +51,7 @@
       </div>
       {{ template "shop_product_grid" .Products }}
     </section>
+    </main>
     {{ template "shop_footer" . }}
   </body>
 </html>

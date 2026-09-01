@@ -532,6 +532,7 @@ func main() {
 	newsletterSendAt := nextWeeklyNewsletterSendAt(time.Now())
 	seedConferenceDays(ctx, tx, confID)
 	seedTickets(ctx, tx, confID, newsletterSendAt)
+	seedConferenceMilestones(ctx, tx, confID)
 	seedAdmin(ctx, tx)
 	seedProgram(ctx, tx, confID)
 	seedMerch(ctx, tx, confID)
@@ -1481,6 +1482,28 @@ func seedTickets(ctx context.Context, tx pgx.Tx, confID string, newsletterSendAt
 				stripe_tax_code = EXCLUDED.stripe_tax_code
 		`, tix.id, confID, tix.key, tix.tier, tix.local, tix.btc, tix.usd,
 			salesEndAt, tix.max, tix.currency, tix.symbol, tix.postSymbol)
+	}
+}
+
+func seedConferenceMilestones(ctx context.Context, tx pgx.Tx, confID string) {
+	milestones := []struct {
+		id, label, category, occursAt, url string
+	}{
+		{"00000000-0000-4000-8000-000000000c01", "Tickets go on sale", "tickets", "2026-06-01 09:00:00-05", "#tickets"},
+		{"00000000-0000-4000-8000-000000000c02", "Talk applications open", "talks", "2026-06-15 09:00:00-05", "/talk/dev26"},
+	}
+	for _, milestone := range milestones {
+		mustExec(ctx, tx, "seed conference milestone", `
+			INSERT INTO conference_milestones (id, conference_id, label, category, occurs_at, url, published)
+			VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz, $6, true)
+			ON CONFLICT (id) DO UPDATE SET
+				conference_id = EXCLUDED.conference_id,
+				label = EXCLUDED.label,
+				category = EXCLUDED.category,
+				occurs_at = EXCLUDED.occurs_at,
+				url = EXCLUDED.url,
+				published = EXCLUDED.published
+		`, milestone.id, confID, milestone.label, milestone.category, milestone.occursAt, milestone.url)
 	}
 }
 

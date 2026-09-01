@@ -30,6 +30,7 @@ type EventDetailsPage struct {
 	Days                      []*EventDetailsDay
 	Venues                    []string
 	Tickets                   []*EventDetailsTicket
+	Milestones                []*EventDetailsMilestone
 	MerchProducts             []*types.MerchProduct
 	MerchUpsellSlots          []*types.MerchProduct
 	MerchUpsellProductIDs     map[string]bool
@@ -39,6 +40,11 @@ type EventDetailsPage struct {
 	CampaignAutomationSetting string
 	NextDay                   int
 	Year                      uint
+}
+
+type EventDetailsMilestone struct {
+	Milestone *types.ConferenceMilestone
+	OccursAt  string
 }
 
 type EventDetailsTicket struct {
@@ -201,6 +207,23 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 		tickets = append(tickets, row)
 	}
 
+	conferenceMilestones, err := getters.ListConferenceMilestones(ctx, conf.Ref, true)
+	if err != nil {
+		ctx.Err.Printf("/%s/admin/details milestones failed: %s", conf.Tag, err)
+		http.Error(w, "Unable to load event details", http.StatusInternalServerError)
+		return
+	}
+	milestones := make([]*EventDetailsMilestone, 0, len(conferenceMilestones))
+	for _, milestone := range conferenceMilestones {
+		if milestone == nil {
+			continue
+		}
+		milestones = append(milestones, &EventDetailsMilestone{
+			Milestone: milestone,
+			OccursAt:  datetimeLocalInput(milestone.OccursAt.In(conf.Loc())),
+		})
+	}
+
 	merchProducts, err := getters.ListMerchProducts(ctx, false)
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/details merch products failed: %s", conf.Tag, err)
@@ -243,6 +266,7 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 		Days:                      days,
 		Venues:                    venues,
 		Tickets:                   tickets,
+		Milestones:                milestones,
 		MerchProducts:             merchProducts,
 		MerchUpsellSlots:          merchUpsellSlots,
 		MerchUpsellProductIDs:     merchUpsellProductIDs,
@@ -256,6 +280,68 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 		ctx.Err.Printf("/%s/admin/details template failed: %s", conf.Tag, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 	}
+}
+
+func GlobalAdminUpdateConfMilestone(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+
+	milestoneID := strings.TrimSpace(r.FormValue("milestone_id"))
+	if r.FormValue("action") == "delete" {
+		if milestoneID == "" {
+			redirectEventDetails(w, r, conf, "Milestone ID is required.")
+			return
+		}
+		if err := getters.DeleteConferenceMilestone(ctx, conf.Ref, milestoneID); err != nil {
+			ctx.Err.Printf("/%s/admin/details milestone delete failed: %s", conf.Tag, err)
+			redirectEventDetails(w, r, conf, "Could not delete important date.")
+			return
+		}
+		redirectEventDetails(w, r, conf, "Important date deleted.")
+		return
+	}
+
+	occursAt, err := parseOptionalDatetimeLocal(r.FormValue("occurs_at"), conf.Loc())
+	if err != nil || occursAt == nil {
+		redirectEventDetails(w, r, conf, "Enter a valid date and time.")
+		return
+	}
+	targetURL := strings.TrimSpace(r.FormValue("url"))
+	if !validConferenceMilestoneURL(targetURL) {
+		redirectEventDetails(w, r, conf, "Important date link must be an http(s), site-relative, or section URL.")
+		return
+	}
+	in := getters.ConferenceMilestoneInput{
+		ID: milestoneID, Label: strings.TrimSpace(r.FormValue("label")),
+		Category: strings.TrimSpace(r.FormValue("category")), OccursAt: *occursAt,
+		URL: targetURL, Published: r.FormValue("published") == "1",
+	}
+	if err := getters.UpsertConferenceMilestone(ctx, conf.Ref, in); err != nil {
+		ctx.Err.Printf("/%s/admin/details milestone update failed: %s", conf.Tag, err)
+		redirectEventDetails(w, r, conf, "Could not save important date.")
+		return
+	}
+	redirectEventDetails(w, r, conf, "Important date saved.")
+}
+
+func validConferenceMilestoneURL(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.HasPrefix(value, "/") || strings.HasPrefix(value, "#") {
+		return true
+	}
+	parsed, err := url.Parse(value)
+	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
 }
 
 func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

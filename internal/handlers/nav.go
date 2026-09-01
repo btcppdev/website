@@ -1,9 +1,13 @@
 package handlers
 
 import (
+	"net/http"
 	"sort"
+	"strings"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/external/spaces"
+	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
@@ -15,6 +19,75 @@ import (
 type NavConfList struct {
 	Upcoming []*types.Conf
 	Past     []*types.Conf
+}
+
+type siteAccountNavView struct {
+	Name          string
+	Email         string
+	Initial       string
+	PhotoURL      string
+	ProfileURL    string
+	CSRF          string
+	Next          string
+	IsGlobalAdmin bool
+}
+
+// SiteAccountNavigation renders the request-specific account control used by
+// the shared site header. Keeping this as a small private, no-store fragment
+// lets every existing page use real session state without teaching the many
+// unrelated page view models about navigation concerns.
+func SiteAccountNavigation(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Vary", "Cookie")
+
+	next := auth.SafeNext(r.URL.Query().Get("next"), "/dashboard")
+	id, err := auth.Resolve(r, ctx)
+	if err != nil {
+		if ctx.Err != nil {
+			ctx.Err.Printf("/navigation/account resolve: %s", err)
+		}
+		id = nil
+	}
+	if id == nil || id.PersonID == "" {
+		if err := ctx.TemplateCache.ExecuteTemplate(w, "site_account_anonymous", &siteAccountNavView{Next: next}); err != nil {
+			http.Error(w, "navigation unavailable", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	csrf, err := ensureAuthMethodsCSRF(ctx, r)
+	if err != nil {
+		http.Error(w, "navigation unavailable", http.StatusInternalServerError)
+		return
+	}
+	name := strings.TrimSpace(id.PrimaryEmail)
+	if name == "" {
+		name = strings.TrimSpace(id.LoginEmail)
+	}
+	view := &siteAccountNavView{
+		Name:          name,
+		Email:         strings.TrimSpace(id.PrimaryEmail),
+		CSRF:          csrf,
+		IsGlobalAdmin: id.IsGlobalAdmin(),
+	}
+	if id.Speaker != nil {
+		if speakerName := strings.TrimSpace(id.Speaker.Name); speakerName != "" {
+			view.Name = speakerName
+		}
+		if photo := strings.TrimSpace(id.Speaker.Photo); photo != "" {
+			view.PhotoURL = spaces.PublicURL("speakers/" + photo)
+		}
+		view.ProfileURL = whoIsPublicPath(ctx, id.Speaker)
+	}
+	if view.Name == "" {
+		view.Name = "Account"
+	}
+	view.Initial = strings.ToUpper(string([]rune(view.Name)[0]))
+
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "site_account_authenticated", view); err != nil {
+		http.Error(w, "navigation unavailable", http.StatusInternalServerError)
+	}
 }
 
 // buildNavConfList loads published conferences and splits using the public

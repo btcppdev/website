@@ -47,7 +47,7 @@ func TestLoginEmailUsesRealURLStyledAsButton(t *testing.T) {
 	if !strings.Contains(html, `href="`+link+`"`) {
 		t.Fatalf("rendered login button omitted real URL: %s", html)
 	}
-	if !strings.Contains(html, "border: 1.5px solid #f7931a") {
+	if !strings.Contains(html, "border: 1.5px solid #f9af5e") {
 		t.Fatalf("rendered login link was not styled as a button: %s", html)
 	}
 	if strings.Contains(html, "button#") || strings.Contains(html, "https://button/") {

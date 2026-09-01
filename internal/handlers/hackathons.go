@@ -43,6 +43,10 @@ type HackathonPage struct {
 	Projects                    []*types.HackathonProject
 	TableProjects               []*types.HackathonProject
 	ProjectMembersByProject     map[string][]*types.ProjectMember
+	PriorGalleryCompetition     *types.HackathonCompetition
+	PriorGalleryConf            *types.Conf
+	PriorGalleryProjects        []*types.HackathonProject
+	PriorJudgesConf             *types.Conf
 	ChallengeProjects           []*types.HackathonProject
 	Project                     *types.HackathonProject
 	Members                     []*types.ProjectMember
@@ -619,7 +623,11 @@ func (p *HackathonPage) ProjectURL(project *types.HackathonProject) string {
 	if p == nil || project == nil {
 		return ""
 	}
-	base := p.HackathonURL()
+	conf := p.Conf
+	if p.PriorGalleryCompetition != nil && p.PriorGalleryConf != nil && project.CompetitionID == p.PriorGalleryCompetition.ID {
+		conf = p.PriorGalleryConf
+	}
+	base := hackathonURLForConf(conf)
 	if base == "" {
 		return ""
 	}
@@ -707,14 +715,20 @@ func (p *HackathonPage) GalleryProjects() []*types.HackathonProject {
 	if p == nil || !p.ProjectGalleryOpen() {
 		return nil
 	}
-	projects := make([]*types.HackathonProject, 0, len(p.Projects))
-	for _, project := range p.Projects {
+	source := p.Projects
+	competition := p.Competition
+	if p.ShowingPriorGallery() {
+		source = p.PriorGalleryProjects
+		competition = p.PriorGalleryCompetition
+	}
+	projects := make([]*types.HackathonProject, 0, len(source))
+	for _, project := range source {
 		if project == nil || project.Status == getters.ProjectStatusCreated || project.Status == getters.ProjectStatusHidden {
 			continue
 		}
 		projects = append(projects, project)
 	}
-	if p.Competition == nil || p.Competition.ResultsFinalizedAt == nil {
+	if competition == nil || competition.ResultsFinalizedAt == nil {
 		return projects
 	}
 	projectAwardRank := func(project *types.HackathonProject) (bool, int64) {
@@ -746,7 +760,29 @@ func (p *HackathonPage) GalleryProjects() []*types.HackathonProject {
 }
 
 func (p *HackathonPage) ProjectGalleryOpen() bool {
-	return p != nil && p.Competition != nil && p.Competition.PublicGalleryEnabled
+	return p != nil && ((p.Competition != nil && p.Competition.PublicGalleryEnabled) || p.ShowingPriorGallery())
+}
+
+func (p *HackathonPage) ShowingPriorGallery() bool {
+	return p != nil && p.Competition != nil && !p.Competition.PublicGalleryEnabled && p.PriorGalleryCompetition != nil && p.PriorGalleryCompetition.PublicGalleryEnabled && p.PriorGalleryConf != nil
+}
+
+func (p *HackathonPage) ShowingPriorJudges() bool {
+	return p != nil && p.PriorJudgesConf != nil && len(p.Judges) > 0
+}
+
+func (p *HackathonPage) PriorGalleryLabel() string {
+	if p == nil || p.PriorGalleryConf == nil {
+		return "the previous hackathon"
+	}
+	return publicHackathonConferenceName(p.PriorGalleryConf.Desc)
+}
+
+func (p *HackathonPage) PriorJudgesLabel() string {
+	if p == nil || p.PriorJudgesConf == nil {
+		return "the previous hackathon"
+	}
+	return publicHackathonConferenceName(p.PriorJudgesConf.Desc)
 }
 
 func (p *HackathonPage) FeaturedProjects() []*types.HackathonProject {
@@ -1694,6 +1730,47 @@ func confTalkForHackathonScheduleSegment(ctx *config.AppContext, segment *types.
 	return nil, nil
 }
 
+func previousPublicHackathon(ctx *config.AppContext, currentCompetition *types.HackathonCompetition, currentConf *types.Conf) (*types.HackathonCompetition, *types.Conf, error) {
+	confs, err := getters.ListConfs(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	competitions, err := getters.ListCompetitions(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	competition, conf := selectPreviousPublicHackathon(currentCompetition, currentConf, competitions, confs)
+	return competition, conf, nil
+}
+
+func selectPreviousPublicHackathon(currentCompetition *types.HackathonCompetition, currentConf *types.Conf, competitions []*types.HackathonCompetition, confs []*types.Conf) (*types.HackathonCompetition, *types.Conf) {
+	if currentCompetition == nil || currentConf == nil || currentConf.StartDate.IsZero() {
+		return nil, nil
+	}
+	confByID := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			confByID[conf.Ref] = conf
+		}
+	}
+	var previousCompetition *types.HackathonCompetition
+	var previousConf *types.Conf
+	for _, competition := range competitions {
+		if competition == nil || competition.ID == currentCompetition.ID || competition.Visibility != getters.CompetitionVisibilityPublic {
+			continue
+		}
+		conf := confByID[competition.ConferenceID]
+		if conf == nil || conf.StartDate.IsZero() || !conf.StartDate.Before(currentConf.StartDate) {
+			continue
+		}
+		if previousConf == nil || conf.StartDate.After(previousConf.StartDate) {
+			previousCompetition = competition
+			previousConf = conf
+		}
+	}
+	return previousCompetition, previousConf
+}
+
 func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	competition, conf, id, projects, err := loadHackathonPageData(w, r, ctx)
 	if err != nil {
@@ -1734,12 +1811,51 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		http.Error(w, "Unable to load judges", http.StatusInternalServerError)
 		return
 	}
+	var priorCompetition *types.HackathonCompetition
+	var priorConf *types.Conf
+	if !competition.PublicGalleryEnabled || len(judges) == 0 {
+		priorCompetition, priorConf, err = previousPublicHackathon(ctx, competition, conf)
+		if err != nil {
+			ctx.Err.Printf("/hackathons/%s previous hackathon lookup failed (continuing): %s", competition.ID, err)
+		}
+	}
+	var priorGalleryProjects []*types.HackathonProject
+	var priorJudgesConf *types.Conf
+	if priorCompetition != nil && priorConf != nil {
+		if !competition.PublicGalleryEnabled && priorCompetition.PublicGalleryEnabled {
+			priorGalleryProjects, err = getters.ListProjectsForCompetition(ctx, priorCompetition.ID, types.HackathonViewer{})
+			if err != nil {
+				ctx.Err.Printf("/hackathons/%s previous gallery failed (continuing): %s", competition.ID, err)
+				priorGalleryProjects = nil
+			}
+		}
+		if len(judges) == 0 {
+			priorJudges, judgesErr := getters.ListCompetitionJudges(ctx, priorCompetition.ID)
+			if judgesErr != nil {
+				ctx.Err.Printf("/hackathons/%s previous judges failed (continuing): %s", competition.ID, judgesErr)
+			} else if len(priorJudges) > 0 {
+				judges = priorJudges
+				priorJudgesConf = priorConf
+			}
+		}
+	}
 	projectMembers, err := getters.ListProjectMembersForCompetition(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s project members: %s", competition.ID, err)
 		http.Error(w, "Unable to load project teams", http.StatusInternalServerError)
 		return
 	}
+	if len(priorGalleryProjects) > 0 {
+		priorMembers, membersErr := getters.ListProjectMembersForCompetition(ctx, priorCompetition.ID)
+		if membersErr != nil {
+			ctx.Err.Printf("/hackathons/%s previous project members failed (continuing): %s", competition.ID, membersErr)
+		} else {
+			for projectID, members := range priorMembers {
+				projectMembers[projectID] = members
+			}
+		}
+	}
+	attachHackathonPlaceRowMembers(placeRows, projectMembers)
 	judgeProfileURLs, err := hackathonJudgeProfileURLs(ctx, judges)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s judge profiles failed (continuing): %s", competition.ID, err)
@@ -1765,6 +1881,10 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Projects:                projects,
 		TableProjects:           tableProjects,
 		ProjectMembersByProject: projectMembers,
+		PriorGalleryCompetition: priorCompetition,
+		PriorGalleryConf:        priorConf,
+		PriorGalleryProjects:    priorGalleryProjects,
+		PriorJudgesConf:         priorJudgesConf,
 		Judges:                  judges,
 		JudgeProfileURLs:        judgeProfileURLs,
 		Awards:                  awards,
@@ -2137,6 +2257,7 @@ func HackathonJudging(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		AwardeesByAward:       awardeesByAward,
 		AwardOptIns:           awardOptIns,
 		Viewer:                id,
+		CanJudge:              true,
 		CanScoreAll:           viewer.Admin,
 		FlashMessage:          flash,
 		FlashError:            r.URL.Query().Get("error"),
@@ -3184,6 +3305,15 @@ func loadConfHackathonPlaceRows(ctx *config.AppContext, competitionID string, pu
 		}
 	}
 	return rows, prizePoolSats, nil
+}
+
+func attachHackathonPlaceRowMembers(rows []*HackathonPlaceRow, membersByProject map[string][]*types.ProjectMember) {
+	for _, row := range rows {
+		if row == nil || row.ProjectID == "" {
+			continue
+		}
+		row.Members = membersByProject[row.ProjectID]
+	}
 }
 
 func orgLogoURL(org *types.Org) string {

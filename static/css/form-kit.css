@@ -5,7 +5,7 @@
   --fk-muted: #666;
   --fk-line: #0A0A0A;
   --fk-soft-line: #E2DDD2;
-  --fk-accent: #F7931A;
+  --fk-accent: #f9af5e;
   --fk-accent-soft: #FBF0DE;
   --fk-error: #B42318;
   --fk-success: #027A48;
@@ -1357,6 +1357,12 @@ body.btcpp-notfound-page {
 
   .btcpp-apply-hero {
     padding: 52px 16px 44px;
+  }
+
+  .btcpp-form-page .btcpp-apply-hero__title--closed {
+    font-size: clamp(38px, 12vw, 48px);
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .btcpp-apply-hero__actions {

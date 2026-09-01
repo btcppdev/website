@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"strconv"
 	"strings"
 	"time"
 
@@ -377,6 +378,7 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			coalesce(entitlements.can_edit_organization, false),
 			coalesce(entitlements.created_at, sponsorships.created_at),
 			coalesce(entitlements.updated_at, sponsorships.updated_at),
+			coalesce(competitions.id::text, ''), coalesce(competitions.title, ''),
 			(SELECT count(*) FROM awards
 			 JOIN competitions ON competitions.id = awards.competition_id
 			 WHERE competitions.conference_id = conferences.id
@@ -387,13 +389,18 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			 JOIN competitions ON competitions.id = awards.competition_id
 			 WHERE competitions.conference_id = conferences.id
 			   AND awards.sponsored_by_org_id = sponsorships.organization_id
-			   AND awards.archived_at IS NULL)
+				   AND awards.archived_at IS NULL),
+			(SELECT coalesce(sum(issuances.quantity), 0)
+			 FROM sponsor_ticket_issuances issuances
+			 WHERE issuances.sponsorship_id = sponsorships.id
+			   AND issuances.conference_id = conferences.id)
 		FROM sponsorships
 		JOIN sponsorships_conferences links ON links.sponsorship_id = sponsorships.id
 		JOIN conferences ON conferences.id = links.conference_id
 		LEFT JOIN sponsorship_entitlements entitlements
 		  ON entitlements.sponsorship_id = sponsorships.id
 		 AND entitlements.conference_id = conferences.id
+		LEFT JOIN competitions ON competitions.conference_id = conferences.id
 		WHERE sponsorships.organization_id = $1::uuid
 		  AND sponsorships.archived_at IS NULL
 		ORDER BY conferences.start_date DESC NULLS LAST, sponsorships.created_at DESC
@@ -419,7 +426,7 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			Sponsorship: &types.Sponsorship{Org: &types.Org{Ref: organizationID}},
 			Entitlement: &types.SponsorshipEntitlement{},
 		}
-		var conferenceID string
+		var conferenceID, competitionID, competitionTitle string
 		if err := rows.Scan(
 			&event.Sponsorship.Ref, &event.Sponsorship.Name,
 			&event.Sponsorship.Level, &event.Sponsorship.Label,
@@ -432,7 +439,8 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			&event.Entitlement.CanManageAwardJudges,
 			&event.Entitlement.CanEditOrganization,
 			&event.Entitlement.CreatedAt, &event.Entitlement.UpdatedAt,
-			&event.AwardCount, &event.WinnerCount,
+			&competitionID, &competitionTitle,
+			&event.AwardCount, &event.WinnerCount, &event.TicketsIssued,
 		); err != nil {
 			return nil, fmt.Errorf("scan sponsor dashboard event: %w", err)
 		}
@@ -442,12 +450,394 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 		if event.Conference != nil {
 			event.Sponsorship.Confs = []*types.Conf{event.Conference}
 		}
+		if competitionID != "" {
+			event.Competition = &types.HackathonCompetition{ID: competitionID, ConferenceID: conferenceID, Title: competitionTitle}
+		}
 		out = append(out, event)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate sponsor dashboard events: %w", err)
 	}
 	return out, nil
+}
+
+type SponsorAwardProposalInput struct {
+	SponsorshipID       string
+	ConferenceID        string
+	CompetitionID       string
+	OrganizationID      string
+	SubmittedByPersonID string
+	Title               string
+	Description         string
+	JudgingInstructions string
+	MaxAwardees         int
+	OptInRequired       bool
+	FinalistsOnly       bool
+	PrizeType           string
+	PrizeTitle          string
+	PrizeDescription    string
+	PrizeValueText      string
+}
+
+func CreateSponsorAwardProposal(ctx *config.AppContext, in SponsorAwardProposalInput) (*types.SponsorAwardProposal, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	in.SponsorshipID = strings.TrimSpace(in.SponsorshipID)
+	in.ConferenceID = strings.TrimSpace(in.ConferenceID)
+	in.CompetitionID = strings.TrimSpace(in.CompetitionID)
+	in.OrganizationID = strings.TrimSpace(in.OrganizationID)
+	in.SubmittedByPersonID = strings.TrimSpace(in.SubmittedByPersonID)
+	in.Title = strings.TrimSpace(in.Title)
+	in.Description = strings.TrimSpace(in.Description)
+	in.JudgingInstructions = strings.TrimSpace(in.JudgingInstructions)
+	in.PrizeType = strings.TrimSpace(in.PrizeType)
+	in.PrizeTitle = strings.TrimSpace(in.PrizeTitle)
+	in.PrizeDescription = strings.TrimSpace(in.PrizeDescription)
+	in.PrizeValueText = strings.TrimSpace(in.PrizeValueText)
+	if in.Title == "" || in.PrizeTitle == "" {
+		return nil, fmt.Errorf("award and prize titles are required")
+	}
+	if in.MaxAwardees < 1 || in.MaxAwardees > 100 {
+		return nil, fmt.Errorf("max awardees must be between 1 and 100")
+	}
+	switch in.PrizeType {
+	case PrizeTypeSats, PrizeTypeInKind, PrizeTypeTickets, PrizeTypeTrophy:
+	default:
+		return nil, fmt.Errorf("unsupported prize type")
+	}
+	value, err := strconv.ParseInt(in.PrizeValueText, 10, 64)
+	if err != nil || value <= 0 {
+		return nil, fmt.Errorf("prize value must be a positive whole number of satoshis")
+	}
+	in.PrizeValueText = strconv.FormatInt(value, 10)
+
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin sponsor award proposal: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	var proposalLimit int
+	if err := tx.QueryRow(dbctx, `
+		SELECT entitlements.sponsor_award_limit
+		FROM sponsorship_entitlements entitlements
+		JOIN sponsorships ON sponsorships.id = entitlements.sponsorship_id
+		JOIN competitions ON competitions.id = $3::uuid
+		JOIN conferences ON conferences.id = entitlements.conference_id
+		WHERE entitlements.sponsorship_id = $1::uuid
+		  AND entitlements.conference_id = $2::uuid
+		  AND competitions.conference_id = entitlements.conference_id
+		  AND sponsorships.organization_id = $4::uuid
+		  AND sponsorships.archived_at IS NULL
+		  AND lower(sponsorships.status) IN ('paid', 'committed')
+		  AND (conferences.end_date IS NULL OR conferences.end_date >= now())
+		FOR UPDATE OF entitlements
+	`, in.SponsorshipID, in.ConferenceID, in.CompetitionID, in.OrganizationID).Scan(&proposalLimit); err != nil {
+		return nil, fmt.Errorf("this sponsorship cannot propose prizes for that hackathon")
+	}
+	var used int
+	if err := tx.QueryRow(dbctx, `
+		SELECT
+		  (SELECT count(*) FROM awards
+		   WHERE competition_id = $1::uuid AND sponsored_by_org_id = $2::uuid
+		     AND archived_at IS NULL) +
+		  (SELECT count(*) FROM sponsor_award_proposals
+		   WHERE sponsorship_id = $3::uuid AND conference_id = $4::uuid
+		     AND status = 'pending')
+	`, in.CompetitionID, in.OrganizationID, in.SponsorshipID, in.ConferenceID).Scan(&used); err != nil {
+		return nil, fmt.Errorf("count sponsor award proposals: %w", err)
+	}
+	if proposalLimit <= 0 || used >= proposalLimit {
+		return nil, fmt.Errorf("this sponsorship has used its sponsor prize allowance")
+	}
+	proposal := &types.SponsorAwardProposal{
+		SponsorshipID: in.SponsorshipID, ConferenceID: in.ConferenceID,
+		CompetitionID: in.CompetitionID, OrganizationID: in.OrganizationID,
+		SubmittedByPersonID: in.SubmittedByPersonID, Title: in.Title,
+		Description: in.Description, JudgingInstructions: in.JudgingInstructions,
+		MaxAwardees: in.MaxAwardees, OptInRequired: in.OptInRequired,
+		FinalistsOnly: in.FinalistsOnly, PrizeType: in.PrizeType,
+		PrizeTitle: in.PrizeTitle, PrizeDescription: in.PrizeDescription,
+		PrizeValueText: in.PrizeValueText, Status: "pending",
+	}
+	if err := tx.QueryRow(dbctx, `
+		INSERT INTO sponsor_award_proposals (
+			sponsorship_id, conference_id, competition_id, submitted_by_person_id,
+			title, description, judging_instructions, max_awardees,
+			opt_in_required, finalists_only, prize_type, prize_title,
+			prize_description, prize_value_text
+		) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		RETURNING id::text, created_at, updated_at
+	`, proposal.SponsorshipID, proposal.ConferenceID, proposal.CompetitionID,
+		proposal.SubmittedByPersonID, proposal.Title, proposal.Description,
+		proposal.JudgingInstructions, proposal.MaxAwardees, proposal.OptInRequired,
+		proposal.FinalistsOnly, proposal.PrizeType, proposal.PrizeTitle,
+		proposal.PrizeDescription, proposal.PrizeValueText).Scan(
+		&proposal.ID, &proposal.CreatedAt, &proposal.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("create sponsor award proposal: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return nil, fmt.Errorf("commit sponsor award proposal: %w", err)
+	}
+	return proposal, nil
+}
+
+func ListSponsorAwardProposalsForOrganization(ctx *config.AppContext, organizationID string) ([]*types.SponsorAwardProposal, error) {
+	return listSponsorAwardProposals(ctx, `WHERE sponsorships.organization_id = $1::uuid`, strings.TrimSpace(organizationID))
+}
+
+func ListSponsorAwardProposalsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.SponsorAwardProposal, error) {
+	return listSponsorAwardProposals(ctx, `WHERE proposals.competition_id = $1::uuid`, strings.TrimSpace(competitionID))
+}
+
+func listSponsorAwardProposals(ctx *config.AppContext, where string, arg string) ([]*types.SponsorAwardProposal, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT proposals.id::text, proposals.sponsorship_id::text,
+			proposals.conference_id::text, proposals.competition_id::text,
+			sponsorships.organization_id::text, organizations.name,
+			coalesce(proposals.submitted_by_person_id::text, ''), coalesce(submitter.name, ''),
+			proposals.title, proposals.description, proposals.judging_instructions,
+			proposals.max_awardees, proposals.opt_in_required, proposals.finalists_only,
+			proposals.prize_type, proposals.prize_title, proposals.prize_description,
+			proposals.prize_value_text, proposals.status, proposals.review_notes,
+			coalesce(proposals.reviewed_by_person_id::text, ''), proposals.reviewed_at,
+			coalesce(proposals.award_id::text, ''), proposals.created_at, proposals.updated_at
+		FROM sponsor_award_proposals proposals
+		JOIN sponsorships ON sponsorships.id = proposals.sponsorship_id
+		JOIN organizations ON organizations.id = sponsorships.organization_id
+		LEFT JOIN people submitter ON submitter.id = proposals.submitted_by_person_id
+		`+where+`
+		ORDER BY proposals.created_at DESC
+	`, arg)
+	if err != nil {
+		return nil, fmt.Errorf("list sponsor award proposals: %w", err)
+	}
+	defer rows.Close()
+	var out []*types.SponsorAwardProposal
+	for rows.Next() {
+		proposal := &types.SponsorAwardProposal{}
+		var reviewedAt pgtype.Timestamptz
+		if err := rows.Scan(&proposal.ID, &proposal.SponsorshipID, &proposal.ConferenceID,
+			&proposal.CompetitionID, &proposal.OrganizationID, &proposal.OrganizationName,
+			&proposal.SubmittedByPersonID, &proposal.SubmittedByName, &proposal.Title,
+			&proposal.Description, &proposal.JudgingInstructions, &proposal.MaxAwardees,
+			&proposal.OptInRequired, &proposal.FinalistsOnly, &proposal.PrizeType,
+			&proposal.PrizeTitle, &proposal.PrizeDescription, &proposal.PrizeValueText,
+			&proposal.Status, &proposal.ReviewNotes, &proposal.ReviewedByPersonID,
+			&reviewedAt, &proposal.AwardID, &proposal.CreatedAt, &proposal.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan sponsor award proposal: %w", err)
+		}
+		if reviewedAt.Valid {
+			value := reviewedAt.Time
+			proposal.ReviewedAt = &value
+		}
+		out = append(out, proposal)
+	}
+	return out, rows.Err()
+}
+
+func ReviewSponsorAwardProposal(ctx *config.AppContext, proposalID, competitionID, reviewerPersonID, decision, notes string) (*types.SponsorAwardProposal, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	decision = strings.ToLower(strings.TrimSpace(decision))
+	if decision != "approved" && decision != "rejected" {
+		return nil, fmt.Errorf("review decision must be approved or rejected")
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin sponsor award review: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	proposal := &types.SponsorAwardProposal{}
+	if err := tx.QueryRow(dbctx, `
+		SELECT proposals.id::text, proposals.sponsorship_id::text,
+			proposals.conference_id::text, proposals.competition_id::text,
+			sponsorships.organization_id::text, proposals.title, proposals.description,
+			proposals.judging_instructions, proposals.max_awardees,
+			proposals.opt_in_required, proposals.finalists_only,
+			proposals.prize_type, proposals.prize_title,
+			proposals.prize_description, proposals.prize_value_text, proposals.status
+		FROM sponsor_award_proposals proposals
+		JOIN sponsorships ON sponsorships.id = proposals.sponsorship_id
+		WHERE proposals.id = $1::uuid AND proposals.competition_id = $2::uuid
+		FOR UPDATE OF proposals
+	`, strings.TrimSpace(proposalID), strings.TrimSpace(competitionID)).Scan(
+		&proposal.ID, &proposal.SponsorshipID, &proposal.ConferenceID,
+		&proposal.CompetitionID, &proposal.OrganizationID, &proposal.Title,
+		&proposal.Description, &proposal.JudgingInstructions, &proposal.MaxAwardees,
+		&proposal.OptInRequired, &proposal.FinalistsOnly, &proposal.PrizeType,
+		&proposal.PrizeTitle, &proposal.PrizeDescription, &proposal.PrizeValueText,
+		&proposal.Status); err != nil {
+		return nil, fmt.Errorf("sponsor award proposal not found")
+	}
+	if proposal.Status != "pending" {
+		return nil, fmt.Errorf("sponsor award proposal has already been reviewed")
+	}
+	if decision == "approved" {
+		if err := tx.QueryRow(dbctx, `
+			INSERT INTO awards (
+				competition_id, sponsored_by_org_id, award_type, title, description,
+				judging_instructions, max_awardees, opt_in_required, finalists_only, status
+			) VALUES ($1::uuid, $2::uuid, 'challenge', $3, $4, $5, $6, $7, $8, 'available')
+			RETURNING id::text
+		`, proposal.CompetitionID, proposal.OrganizationID, proposal.Title,
+			proposal.Description, proposal.JudgingInstructions, proposal.MaxAwardees,
+			proposal.OptInRequired, proposal.FinalistsOnly).Scan(&proposal.AwardID); err != nil {
+			return nil, fmt.Errorf("create approved sponsor award: %w", err)
+		}
+		if _, err := tx.Exec(dbctx, `
+			INSERT INTO prizes (award_id, prize_type, title, description, value_text, status)
+			VALUES ($1::uuid, $2, $3, $4, $5, 'available')
+		`, proposal.AwardID, proposal.PrizeType, proposal.PrizeTitle,
+			proposal.PrizeDescription, proposal.PrizeValueText); err != nil {
+			return nil, fmt.Errorf("create approved sponsor prize: %w", err)
+		}
+	}
+	if _, err := tx.Exec(dbctx, `
+		UPDATE sponsor_award_proposals SET
+			status = $2, review_notes = $3, reviewed_by_person_id = $4::uuid,
+			reviewed_at = now(), award_id = NULLIF($5, '')::uuid
+		WHERE id = $1::uuid
+	`, proposal.ID, decision, strings.TrimSpace(notes), strings.TrimSpace(reviewerPersonID), proposal.AwardID); err != nil {
+		return nil, fmt.Errorf("finish sponsor award review: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return nil, fmt.Errorf("commit sponsor award review: %w", err)
+	}
+	proposal.Status = decision
+	proposal.ReviewNotes = strings.TrimSpace(notes)
+	proposal.ReviewedByPersonID = strings.TrimSpace(reviewerPersonID)
+	return proposal, nil
+}
+
+func IssueSponsorTickets(ctx *config.AppContext, organizationID, sponsorshipID, conferenceID, issuedByPersonID, email string, quantity int) (*types.SponsorTicketIssuance, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	email = strings.ToLower(strings.TrimSpace(email))
+	parsed, err := mail.ParseAddress(email)
+	if err != nil || !strings.EqualFold(parsed.Address, email) {
+		return nil, fmt.Errorf("a valid recipient email is required")
+	}
+	if quantity < 1 || quantity > 25 {
+		return nil, fmt.Errorf("ticket quantity must be between 1 and 25")
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin sponsor ticket issuance: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	var allocation int
+	var conferenceDescription, conferenceTag string
+	if err := tx.QueryRow(dbctx, `
+		SELECT entitlements.ticket_allocation, conferences.description, conferences.tag
+		FROM sponsorship_entitlements entitlements
+		JOIN sponsorships ON sponsorships.id = entitlements.sponsorship_id
+		JOIN conferences ON conferences.id = entitlements.conference_id
+		WHERE entitlements.sponsorship_id = $1::uuid
+		  AND entitlements.conference_id = $2::uuid
+		  AND sponsorships.organization_id = $3::uuid
+		  AND sponsorships.archived_at IS NULL
+		  AND lower(sponsorships.status) IN ('paid', 'committed')
+		  AND (conferences.end_date IS NULL OR conferences.end_date >= now())
+		FOR UPDATE OF entitlements
+	`, sponsorshipID, conferenceID, organizationID).Scan(&allocation, &conferenceDescription, &conferenceTag); err != nil {
+		return nil, fmt.Errorf("this sponsorship cannot issue tickets for that event")
+	}
+	var issued int
+	if err := tx.QueryRow(dbctx, `
+		SELECT coalesce(sum(quantity), 0) FROM sponsor_ticket_issuances
+		WHERE sponsorship_id = $1::uuid AND conference_id = $2::uuid
+	`, sponsorshipID, conferenceID).Scan(&issued); err != nil {
+		return nil, fmt.Errorf("count sponsor tickets: %w", err)
+	}
+	if issued+quantity > allocation {
+		remaining := allocation - issued
+		if remaining < 0 {
+			remaining = 0
+		}
+		return nil, fmt.Errorf("only %d sponsor ticket(s) remain", remaining)
+	}
+	raw := make([]byte, 18)
+	if _, err := rand.Read(raw); err != nil {
+		return nil, fmt.Errorf("generate sponsor ticket batch: %w", err)
+	}
+	checkoutID := "sponsor-" + base64.RawURLEncoding.EncodeToString(raw)
+	issuedAt := time.Now()
+	for i := 0; i < quantity; i++ {
+		refID := types.UniqueID(email, checkoutID, int32(i))
+		if _, err := tx.Exec(dbctx, `
+			INSERT INTO registrations (
+				ref_id, checkout_id, conference_id, type, email, person_id,
+				item_bought, amount_paid, currency, platform, registered_at, revoked
+			) VALUES (
+				$1, $2, $3::uuid, 'sponsor', $4::citext,
+				(SELECT person_id FROM person_emails WHERE email = $4::citext),
+				$5, 0, 'USD', 'sponsor', $6, false
+			)
+		`, refID, checkoutID, conferenceID, email, conferenceDescription, issuedAt); err != nil {
+			return nil, fmt.Errorf("issue sponsor ticket: %w", err)
+		}
+	}
+	issuance := &types.SponsorTicketIssuance{
+		SponsorshipID: sponsorshipID, ConferenceID: conferenceID,
+		ConferenceTag:    conferenceTag,
+		IssuedByPersonID: issuedByPersonID, RecipientEmail: email,
+		Quantity: quantity, CheckoutID: checkoutID, CreatedAt: issuedAt,
+	}
+	if err := tx.QueryRow(dbctx, `
+		INSERT INTO sponsor_ticket_issuances (
+			sponsorship_id, conference_id, issued_by_person_id,
+			recipient_email, quantity, checkout_id, created_at
+		) VALUES ($1::uuid, $2::uuid, $3::uuid, $4::citext, $5, $6, $7)
+		RETURNING id::text
+	`, sponsorshipID, conferenceID, issuedByPersonID, email, quantity,
+		checkoutID, issuedAt).Scan(&issuance.ID); err != nil {
+		return nil, fmt.Errorf("record sponsor ticket issuance: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return nil, fmt.Errorf("commit sponsor ticket issuance: %w", err)
+	}
+	return issuance, nil
+}
+
+func ListSponsorTicketIssuances(ctx *config.AppContext, organizationID string) ([]*types.SponsorTicketIssuance, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT issuances.id::text, issuances.sponsorship_id::text,
+			issuances.conference_id::text, coalesce(issuances.issued_by_person_id::text, ''),
+			issuances.recipient_email::text, issuances.quantity,
+			issuances.checkout_id, issuances.created_at
+		FROM sponsor_ticket_issuances issuances
+		JOIN sponsorships ON sponsorships.id = issuances.sponsorship_id
+		WHERE sponsorships.organization_id = $1::uuid
+		ORDER BY issuances.created_at DESC
+	`, strings.TrimSpace(organizationID))
+	if err != nil {
+		return nil, fmt.Errorf("list sponsor ticket issuances: %w", err)
+	}
+	defer rows.Close()
+	var out []*types.SponsorTicketIssuance
+	for rows.Next() {
+		issuance := &types.SponsorTicketIssuance{}
+		if err := rows.Scan(&issuance.ID, &issuance.SponsorshipID,
+			&issuance.ConferenceID, &issuance.IssuedByPersonID,
+			&issuance.RecipientEmail, &issuance.Quantity,
+			&issuance.CheckoutID, &issuance.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan sponsor ticket issuance: %w", err)
+		}
+		out = append(out, issuance)
+	}
+	return out, rows.Err()
 }
 
 func GetHackathonSponsorContactConsent(ctx *config.AppContext, competitionID, personID string) (*types.HackathonSponsorContactConsent, error) {

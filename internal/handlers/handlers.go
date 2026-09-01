@@ -50,7 +50,7 @@ import (
 	"github.com/stripe/stripe-go/v86/webhook"
 )
 
-var pages []string = []string{"index", "timeline", "vegas25", "terms", "privacy"}
+var pages []string = []string{"index", "vegas25", "terms", "privacy"}
 
 const (
 	maxFormBodyBytes         = 1 << 20  // 1 MiB
@@ -935,6 +935,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/developers/api", func(w http.ResponseWriter, r *http.Request) {
 		DevelopersAPI(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/navigation/account", func(w http.ResponseWriter, r *http.Request) {
+		SiteAccountNavigation(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		RenderPage(w, r, app, "timeline")
+	}).Methods("GET")
+	r.HandleFunc("/timeline", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/events", http.StatusMovedPermanently)
+	}).Methods("GET")
 
 	/* List of 'normie' pages */
 	for _, page := range pages {
@@ -1209,6 +1218,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/sponsor/{organizationID}/invites", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboardInviteCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}/prize-proposals", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardPrizeProposalCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}/tickets", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardTicketsIssue(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/sponsor-invites/{token}", func(w http.ResponseWriter, r *http.Request) {
 		SponsorInvite(w, r, app)
@@ -2116,6 +2131,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/details/ticket", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminUpdateConfTicket(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/details/milestone", func(w http.ResponseWriter, r *http.Request) {
+		GlobalAdminUpdateConfMilestone(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/details/merch-upsells", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminUpdateConfMerchUpsells(w, r, app)
@@ -3848,6 +3866,22 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		return
 	}
 
+	if !conf.TalksOpen() {
+		dueDate := conf.DateBeforeStart(conf.TalksDueDays())
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusGone)
+			w.Write([]byte(helpers.ErrSpeakerApp("Talk applications closed at midnight on " + dueDate + ".")))
+			return
+		}
+		w.WriteHeader(http.StatusGone)
+		if err := ctx.TemplateCache.ExecuteTemplate(w, "embeds/talk_closed.tmpl", &SpeakerPage{
+			Conf: conf, DueDate: dueDate, Year: helpers.CurrentYear(),
+		}); err != nil {
+			ctx.Err.Printf("/talk/%s closed template: %s", conf.Tag, err)
+		}
+		return
+	}
+
 	confs := listConfs(w, ctx)
 
 	switch r.Method {
@@ -4296,6 +4330,10 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	if err != nil {
 		ctx.Err.Printf("/%s satellite events load failed (continuing): %s", conf.Tag, err)
 	}
+	conferenceMilestones, err := getters.ListConferenceMilestones(ctx, conf.Ref, false)
+	if err != nil {
+		ctx.Err.Printf("/%s important dates load failed (continuing): %s", conf.Tag, err)
+	}
 
 	viewer := auth.RequireOptional(r, ctx)
 	hackathonCanAdmin := false
@@ -4333,12 +4371,21 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon place rows %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
 		}
+		if hackathon.ResultsFinalizedAt != nil && len(hackathonPlaceRows) > 0 {
+			hackathonProjectMembers, membersErr := getters.ListProjectMembersForCompetition(ctx, hackathon.ID)
+			if membersErr != nil {
+				ctx.Err.Printf("/%s hackathon project members %s failed (continuing): %s", conf.Tag, hackathon.ID, membersErr)
+			} else {
+				attachHackathonPlaceRowMembers(hackathonPlaceRows, hackathonProjectMembers)
+			}
+		}
 	}
 	confCopy.ShowHackathon = hackathon != nil && hackathon.Visibility == getters.CompetitionVisibilityPublic
 	conf = &confCopy
 
 	currTix := findCurrTix(conf, soldCount)
 	maxTix := findMaxTix(conf)
+	importantDates := buildConferenceImportantDates(conf, conferenceMilestones, time.Now())
 
 	var tixLeft uint
 	if currTix == nil {
@@ -4364,6 +4411,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		ConfInfos:               confInfos,
 		ScheduledSessions:       scheduledSessions,
 		SatelliteEvents:         satelliteEvents,
+		ImportantDates:          importantDates,
 		Hackathon:               hackathon,
 		HackathonScheduleEvents: hackathonScheduleEvents,
 		HackathonJudges:         hackathonJudges,

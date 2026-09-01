@@ -1,31 +1,3 @@
 {{ define "conf_nav" }}
-  <header class="site-nav site-nav--conference">
-    <nav class="site-nav__inner" aria-label="Event navigation">
-      <a href="/" class="site-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
-      <input class="site-nav__toggle" type="checkbox" id="conf-nav-toggle" aria-label="Toggle navigation">
-      <div class="site-nav__controls">
-        <a href="/{{ .Tag }}#tickets" class="site-button is-accent site-nav__cta">GET TICKETS</a>
-        <label class="site-nav__menu" for="conf-nav-toggle" aria-label="Toggle navigation">
-          <span></span><span></span><span></span>
-        </label>
-      </div>
-      <div class="site-nav__links">
-        <a href="/{{ .Tag }}#about">about/</a>
-        <a href="/{{ .Tag }}#venue">venue/</a>
-        {{ if .ShowHackathon }}
-        <a href="/{{ .Tag }}/hackathon">hackathon/</a>
-        {{ end }}
-        <a href="/{{ .Tag }}#speakers">speakers/</a>
-        {{ if .HasSchedule }}
-        <a href="/{{ .Tag }}#schedule">schedule/</a>
-        {{ end }}
-        {{ if .HasAgenda }}
-        <a href="/{{ .Tag }}#agenda">agenda/</a>
-        <a href="/{{ .Tag }}/agenda">full agenda/</a>
-        {{ end }}
-        <a href="/{{ .Tag }}#satellites">satellite events/</a>
-        <a href="/{{ .Tag }}#sponsors">sponsors/</a>
-      </div>
-    </nav>
-  </header>
+  {{ template "site_header" (dict "Conference" .) }}
 {{ end }}

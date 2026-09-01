@@ -8,18 +8,19 @@ This branch establishes the sponsor-platform foundation:
 - Event-specific sponsorship entitlements.
 - Sponsor dashboard overview, team invitations, and public organization editing.
 - Past sponsorship trophy case.
+- Sponsor ticket issuance with event-allocation accounting.
+- Sponsor prize proposals with hackathon-organizer approval.
 - Individual hackathon sponsor-contact preferences.
 - Append-only, policy-versioned consent history.
 - Sponsor audit events for sensitive management operations.
 
-Participant contact views/exports, ticket issuance, sponsor prize creation,
-invitation email delivery, and pending-invitation management are intentionally
-deferred.
+Participant contact views/exports, invitation email delivery, and
+pending-invitation management are intentionally deferred.
 
 ## Prepare a local environment
 
-The draft sponsor migrations were consolidated before being committed. If the
-local database previously applied an earlier version of migrations 074-076,
+The sponsor migrations were renumbered above migration 076. If the local
+database previously applied draft migrations 074 or 075,
 rebuild it before testing:
 
 ```sh
@@ -92,6 +93,40 @@ As Mara, verify the Signet Systems workspace shows:
 Archived sponsorships must not appear. Pending or in-progress sponsorships may
 be visible as records, but only `Paid` and `Committed` sponsorships may grant
 action capabilities.
+
+## Sponsor tickets
+
+1. As Mara, expand “Issue sponsor tickets” for `dev26`.
+2. Issue two tickets to an email address you can inspect locally.
+3. Confirm the dashboard changes from `0 / 20` to `2 / 20` and records the
+   recipient and quantity in the issuance history.
+4. Confirm two `sponsor` registrations share the issuance batch recorded in
+   `sponsor_ticket_issuances` and that the normal ticket mailer picks them up.
+5. Attempt to issue 19 more tickets and confirm the request is rejected with
+   18 remaining.
+6. Submit the same action simultaneously in two browsers near the limit and
+   confirm only the batch that fits succeeds.
+7. Confirm a plain organization member and a manager from another organization
+   cannot issue from this sponsorship.
+
+## Sponsor prize proposals
+
+1. As Mara, expand “Propose a hackathon prize” for `dev26`.
+2. Submit a one-winner satoshi prize with a positive whole-number value.
+3. Confirm it appears as pending and is not yet visible on the public awards
+   page.
+4. As `dev-admin@example.test`, open `/dev26/admin/hackathon/awards` and review
+   the proposal.
+5. Reject one proposal with a note and confirm the sponsor sees the rejection
+   and note without an award being created.
+6. Submit another, approve it, and confirm an available challenge award and
+   prize are created with Signet Systems as the sponsor.
+7. Confirm the award can then be edited with the normal organizer award tools
+   and appears publicly according to the existing award visibility rules.
+8. Fill the sponsorship's two-award allowance and confirm another pending
+   proposal is rejected.
+9. Confirm a plain organization member, unrelated sponsor, and inactive
+   sponsorship cannot submit proposals.
 
 ## Organization profile editing
 
@@ -167,6 +202,5 @@ Recommended next work, in order:
 
 1. Email sponsor invitations and add pending/resend/revoke controls.
 2. Add consent-filtered participant contact views with mandatory audit logging.
-3. Add sponsor ticket allocation, claiming, and issuance.
-4. Add sponsor-managed prize proposals and organizer approval.
-5. Add sponsor headlines and project/prize outcome reporting.
+3. Add sponsor headlines and project/prize outcome reporting.
+4. Add sponsor member role changes/removal and ticket revocation/reallocation.

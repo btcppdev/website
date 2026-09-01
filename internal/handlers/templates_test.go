@@ -77,11 +77,11 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	var accountSetupPage bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&accountSetupPage, "dashboard_edit_speaker.tmpl", &EditSpeakerPage{
-		Mode: "create", EmailPlain: "new@example.test", SetupProvider: "GitHub",
+		Mode: "create", EmailPlain: "new@example.test", SetupProvider: "GitHub", CancelCSRF: "cancel-csrf",
 	}); err != nil {
 		t.Fatalf("render OAuth account setup: %v", err)
 	}
-	for _, expected := range []string{"NEW ACCOUNT", "Finish setting up", "GitHub sign-in is verified", "CREATE ACCOUNT", "profile-edit-actions__create-account"} {
+	for _, expected := range []string{"NEW ACCOUNT", "Finish setting up", "GitHub sign-in is verified", "CREATE ACCOUNT", "profile-edit-actions__create-account", `action="/logout"`, `name="csrf" value="cancel-csrf"`} {
 		if !strings.Contains(accountSetupPage.String(), expected) {
 			t.Fatalf("OAuth account setup omitted %q: %s", expected, accountSetupPage.String())
 		}
@@ -98,6 +98,9 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if !strings.Contains(accountSetupPage.String(), "Create a <span>speaker record.</span>") || strings.Contains(accountSetupPage.String(), "GitHub sign-in is verified") {
 		t.Fatalf("admin speaker creation used account-onboarding copy: %s", accountSetupPage.String())
+	}
+	if strings.Contains(accountSetupPage.String(), `action="/logout"`) {
+		t.Fatalf("admin speaker creation exposed new-account cancellation: %s", accountSetupPage.String())
 	}
 	var settingsPage bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{
@@ -116,6 +119,18 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if !strings.Contains(settingsPage.String(), "npub1linked") || strings.Contains(settingsPage.String(), "data-nostr-link") {
 		t.Fatalf("linked Nostr settings offered another key: %s", settingsPage.String())
+	}
+	for _, expected := range []string{
+		`class="profile-edit-hero account-settings-hero"`,
+		`href="#settings-sign-in"`,
+		`id="settings-sign-in"`,
+		`id="settings-apps"`,
+		`id="settings-api"`,
+		`id="settings-emails"`,
+	} {
+		if !strings.Contains(settingsPage.String(), expected) {
+			t.Fatalf("account settings omitted workspace navigation %q: %s", expected, settingsPage.String())
+		}
 	}
 	for _, action := range []string{"/dashboard/emails/primary", "/dashboard/emails/remove", "/dashboard/emails/resend", "/dashboard/emails/request"} {
 		start := strings.Index(settingsPage.String(), `action="`+action+`"`)
@@ -276,7 +291,7 @@ func TestLoadTemplates(t *testing.T) {
 		},
 		HackathonJudges: []*types.CompetitionJudge{{Name: "Judge One"}, {Name: "Judge Two"}},
 		HackathonPlaceRows: []*HackathonPlaceRow{
-			{PlaceLabel: "01", ProjectTitle: "First prize", Amount: "1,000,000 sats", GrandPrize: true},
+			{PlaceLabel: "01", ProjectID: "first-project", ProjectTitle: "First prize", Amount: "1,000,000 sats", Members: []*types.ProjectMember{{Name: "Ada Hacker", Photo: "ada.jpg"}}, GrandPrize: true},
 			{PlaceLabel: "02", ProjectTitle: "Second prize", Amount: "500,000 sats"},
 			{PlaceLabel: "03", ProjectTitle: "Third prize", Amount: "250,000 sats"},
 		},
@@ -284,10 +299,13 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render conference hackathon section: %v", err)
 	}
-	for _, want := range []string{`aria-label="Hackathon at a glance"`, `>Submissions open</dd>`, `>3</dd>`, `<dt>Total prizes</dt>`, `>1.8M</dd>`, `>2</dd>`} {
+	for _, want := range []string{`class="conf-hackathon-redesign__prize-hero"`, `/static/img/rebrand/hackathon-trophy.jpg`, `>1.8M</strong>`, `>Sats up for grabs</span>`, `alt="Ada Hacker"`} {
 		if !strings.Contains(confHackathonSection.String(), want) {
-			t.Fatalf("conference hackathon stats missing %q: %s", want, confHackathonSection.String())
+			t.Fatalf("conference hackathon feature missing %q: %s", want, confHackathonSection.String())
 		}
+	}
+	if strings.Contains(confHackathonSection.String(), `conf-hackathon-redesign__stats`) {
+		t.Fatalf("conference hackathon still renders the retired stats grid: %s", confHackathonSection.String())
 	}
 	confHackathonSection.Reset()
 	if err := inlineTemplates.ExecuteTemplate(&confHackathonSection, "conf_hackathon_section", &ConfPage{
@@ -296,9 +314,9 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render conference hackathon section without configured prizes: %v", err)
 	}
-	for _, want := range []string{`<dt>Prizes</dt>`, `<dd>Coming Soon</dd>`} {
+	for _, want := range []string{`>Prizes</strong>`, `>Coming soon</span>`} {
 		if !strings.Contains(confHackathonSection.String(), want) {
-			t.Fatalf("conference hackathon fallback stat missing %q: %s", want, confHackathonSection.String())
+			t.Fatalf("conference hackathon fallback prize callout missing %q: %s", want, confHackathonSection.String())
 		}
 	}
 	if strings.Contains(confHackathonSection.String(), `<dt>Schedule</dt>`) {
@@ -459,15 +477,60 @@ func TestLoadTemplates(t *testing.T) {
 	if err := ctx.TemplateCache.ExecuteTemplate(&nav, "generic_conf_nav", &types.Conf{Tag: "toronto", ShowHackathon: true}); err != nil {
 		t.Fatalf("render generic_conf_nav: %v", err)
 	}
-	if !strings.Contains(nav.String(), `href="/toronto/hackathon"`) {
-		t.Fatalf("live hackathon nav missing public hackathon link: %s", nav.String())
+	if !strings.Contains(nav.String(), `href="/toronto#hackathon"`) {
+		t.Fatalf("live hackathon nav missing conference hackathon anchor: %s", nav.String())
 	}
 	nav.Reset()
 	if err := ctx.TemplateCache.ExecuteTemplate(&nav, "generic_conf_nav", &types.Conf{Tag: "toronto"}); err != nil {
 		t.Fatalf("render generic_conf_nav without hackathon: %v", err)
 	}
-	if strings.Contains(nav.String(), `href="/toronto/hackathon"`) {
-		t.Fatalf("inactive hackathon nav unexpectedly contains public hackathon link: %s", nav.String())
+	if strings.Contains(nav.String(), `href="/toronto#hackathon"`) {
+		t.Fatalf("inactive hackathon nav unexpectedly contains conference hackathon anchor: %s", nav.String())
+	}
+	if !strings.Contains(nav.String(), `aria-label="Primary navigation"`) || !strings.Contains(nav.String(), `class="site-conf-nav"`) || strings.Contains(nav.String(), `class="rebrand-nav"`) {
+		t.Fatalf("conference page did not use unified global navigation: %s", nav.String())
+	}
+	if !strings.Contains(nav.String(), `href="/">/home</a>`) || !strings.Contains(nav.String(), `href="/events">/events</a>`) || strings.Contains(nav.String(), `href="/#events"`) || strings.Contains(nav.String(), `href="/timeline"`) {
+		t.Fatalf("conference navigation did not expose the single canonical events destination: %s", nav.String())
+	}
+	if !strings.Contains(nav.String(), `/static/js/brand-wordmark.js?v=20260831-1`) {
+		t.Fatalf("unified navigation did not include the site-wide bitcoin++ wordmark treatment: %s", nav.String())
+	}
+	nav.Reset()
+	if err := ctx.TemplateCache.ExecuteTemplate(&nav, "hackathon_conf_nav", &HackathonPage{
+		Competition: &types.HackathonCompetition{Title: "Signet Builders Sprint"},
+		Conf:        &types.Conf{Tag: "dev26", Desc: "Local Dev 2026"},
+		CanJudge:    true,
+	}); err != nil {
+		t.Fatalf("render hackathon_conf_nav: %v", err)
+	}
+	for _, want := range []string{
+		`class="site-conf-nav site-conf-nav--hackathon"`,
+		`class="site-conf-nav__identity site-conf-nav__identity--back" href="/dev26"`,
+		`<span>← THIS EVENT</span>`,
+		`<strong>Hackathon</strong>`,
+		`href="/dev26/hackathon" data-hackathon-tab="overview" data-active-exact>/start</a>`,
+		`href="/dev26/hackathon#awards" data-hackathon-tab="awards">/prizes</a>`,
+		`href="/dev26/hackathon/schedule" data-active-prefix="/dev26/hackathon/schedule">/schedule</a>`,
+		`href="/dev26/hackathon/judging" data-active-prefix="/dev26/hackathon/judging">/judging</a>`,
+	} {
+		if !strings.Contains(nav.String(), want) {
+			t.Fatalf("contextual hackathon navigation missing %q: %s", want, nav.String())
+		}
+	}
+	if strings.Contains(nav.String(), `class="hack-tabs"`) {
+		t.Fatalf("contextual hackathon navigation unexpectedly includes the legacy tab bar: %s", nav.String())
+	}
+	var accountNav bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&accountNav, "site_account_authenticated", &siteAccountNavView{
+		Name: "Mara Chen", Email: "mara@example.test", Initial: "M", ProfileURL: "/whois/mara", CSRF: "logout-csrf", IsGlobalAdmin: true,
+	}); err != nil {
+		t.Fatalf("render authenticated account navigation: %v", err)
+	}
+	for _, want := range []string{"Mara Chen", "mara@example.test", `href="/dashboard"`, `href="/dashboard/settings"`, `href="/dashboard/profile"`, `href="/whois/mara"`, `href="/admin"`, `action="/logout"`, `name="csrf" value="logout-csrf"`} {
+		if !strings.Contains(accountNav.String(), want) {
+			t.Fatalf("authenticated account navigation missing %q: %s", want, accountNav.String())
+		}
 	}
 	var dashboardTabs bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&dashboardTabs, "dashboard_tabs", map[string]any{
@@ -529,9 +592,12 @@ func TestLoadTemplates(t *testing.T) {
 		Organization: &types.Org{Ref: "org-id", Name: "Signet Systems", Tagline: "Test networks", LogoLight: "/logo.svg"},
 		Memberships:  []*types.OrganizationMembership{{OrganizationID: "org-id", Organization: &types.Org{Name: "Signet Systems"}}},
 		Upcoming: []*types.SponsorDashboardEvent{{
-			Sponsorship: &types.Sponsorship{Level: "Headline", Status: "Paid"},
-			Conference:  &types.Conf{Tag: "dev26", Desc: "Local Dev", DateDesc: "Oct 2026", Location: "Austin", ShowHackathon: true},
-			Entitlement: &types.SponsorshipEntitlement{TicketAllocation: 20, SponsorAwardLimit: 2, ParticipantContactAccess: true},
+			Sponsorship:   &types.Sponsorship{Ref: "sponsorship-id", Level: "Headline", Status: "Paid"},
+			Conference:    &types.Conf{Ref: "conference-id", Tag: "dev26", Desc: "Local Dev", DateDesc: "Oct 2026", Location: "Austin", ShowHackathon: true},
+			Competition:   &types.HackathonCompetition{ID: "competition-id", Title: "Local Hackathon"},
+			Entitlement:   &types.SponsorshipEntitlement{TicketAllocation: 20, SponsorAwardLimit: 2, ParticipantContactAccess: true},
+			TicketsIssued: 5,
+			AwardCount:    1,
 		}},
 		Members:    []*types.OrganizationMembership{{Role: getters.OrganizationRoleOwner, PersonName: "Mara", PersonEmail: "mara@example.test"}},
 		CanManage:  true,
@@ -541,7 +607,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render sponsor dashboard: %v", err)
 	}
-	for _, want := range []string{"Signet Systems", "20", "Opt-in only", "Allow sponsors of this hackathon to contact me", `name="csrf" value="sponsor-csrf"`, `action="/dashboard/sponsor/org-id/profile"`, `action="/dashboard/sponsor/org-id/invites"`, "http://localhost:8888/sponsor-invites/example-token"} {
+	for _, want := range []string{"Signet Systems", "20", "Opt-in only", "Sponsor workspace sections", "Public sponsor card preview", "width: 25%", "width: 50%", "Allow sponsors of this hackathon to contact me", `name="csrf" value="sponsor-csrf"`, `action="/dashboard/sponsor/org-id/profile"`, `action="/dashboard/sponsor/org-id/invites"`, `action="/dashboard/sponsor/org-id/tickets"`, `action="/dashboard/sponsor/org-id/prize-proposals"`, "http://localhost:8888/sponsor-invites/example-token"} {
 		if !strings.Contains(sponsorDashboard.String(), want) {
 			t.Fatalf("sponsor dashboard omitted %q", want)
 		}

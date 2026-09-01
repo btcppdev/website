@@ -14,6 +14,12 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	suffix := postgresSmokeSuffix()
 	personID := insertSmokePerson(t, ctx, "sponsor-member-"+suffix)
 	confID, _ := insertSmokeConference(t, ctx)
+	if _, err := ctx.DB.Exec(context.Background(), `
+		UPDATE conferences SET start_date = now() + interval '30 days', end_date = now() + interval '32 days'
+		WHERE id = $1::uuid
+	`, confID); err != nil {
+		t.Fatalf("move sponsor fixture conference into future: %v", err)
+	}
 
 	var orgID string
 	if err := ctx.DB.QueryRow(context.Background(), `
@@ -37,16 +43,25 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	}
 	if _, err := ctx.DB.Exec(context.Background(), `
 		INSERT INTO sponsorships_conferences (sponsorship_id, conference_id)
-		VALUES ($1::uuid, $2::uuid);
+		VALUES ($1::uuid, $2::uuid)
+	`, sponsorshipID, confID); err != nil {
+		t.Fatalf("insert sponsor conference link: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
 		INSERT INTO organization_memberships (organization_id, person_id, role, status)
-		VALUES ($3::uuid, $4::uuid, 'owner', 'active');
+		VALUES ($1::uuid, $2::uuid, 'owner', 'active')
+	`, orgID, personID); err != nil {
+		t.Fatalf("insert sponsor membership: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
 		INSERT INTO sponsorship_entitlements (
 			sponsorship_id, conference_id, ticket_allocation,
 			sponsor_award_limit, participant_contact_access
 		) VALUES ($1::uuid, $2::uuid, 20, 2, true)
-	`, sponsorshipID, confID, orgID, personID); err != nil {
-		t.Fatalf("insert sponsor dashboard fixtures: %v", err)
+	`, sponsorshipID, confID); err != nil {
+		t.Fatalf("insert sponsor entitlement: %v", err)
 	}
+	competitionID := createSmokeCompetition(t, ctx, CompetitionInput{ConferenceID: confID, Title: "Sponsor benefits " + suffix})
 
 	memberships, err := ListOrganizationMembershipsForPerson(ctx, personID)
 	if err != nil {
@@ -67,7 +82,7 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListSponsorDashboardEvents: %v", err)
 	}
-	if len(events) != 1 || events[0].Entitlement.TicketAllocation != 20 || events[0].Entitlement.SponsorAwardLimit != 2 || !events[0].Entitlement.ParticipantContactAccess {
+	if len(events) != 1 || events[0].Entitlement.TicketAllocation != 20 || events[0].Entitlement.SponsorAwardLimit != 2 || !events[0].Entitlement.ParticipantContactAccess || events[0].Competition == nil || events[0].Competition.ID != competitionID {
 		t.Fatalf("event entitlement mismatch: %+v", events)
 	}
 	if events[0].Sponsorship.Notes != "" {
@@ -84,8 +99,73 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 		t.Fatalf("restore sponsorship: %v", err)
 	}
 
+	issuance, err := IssueSponsorTickets(ctx, orgID, sponsorshipID, confID, personID, "tickets-"+suffix+"@example.test", 2)
+	if err != nil {
+		t.Fatalf("IssueSponsorTickets: %v", err)
+	}
+	if issuance.Quantity != 2 || issuance.CheckoutID == "" {
+		t.Fatalf("sponsor ticket issuance mismatch: %+v", issuance)
+	}
+	if _, err := IssueSponsorTickets(ctx, orgID, sponsorshipID, confID, personID, "too-many-"+suffix+"@example.test", 19); err == nil {
+		t.Fatal("sponsor ticket issuance exceeded the event allocation")
+	}
+	issuances, err := ListSponsorTicketIssuances(ctx, orgID)
+	if err != nil || len(issuances) != 1 || issuances[0].RecipientEmail != issuance.RecipientEmail {
+		t.Fatalf("ListSponsorTicketIssuances: issuances=%+v err=%v", issuances, err)
+	}
+	var registrations int
+	if err := ctx.DB.QueryRow(context.Background(), `SELECT count(*) FROM registrations WHERE checkout_id = $1`, issuance.CheckoutID).Scan(&registrations); err != nil || registrations != 2 {
+		t.Fatalf("sponsor registrations=%d err=%v, want 2", registrations, err)
+	}
+
+	proposalInput := SponsorAwardProposalInput{
+		SponsorshipID: sponsorshipID, ConferenceID: confID,
+		CompetitionID: competitionID, OrganizationID: orgID,
+		SubmittedByPersonID: personID, Title: "Sponsor challenge " + suffix,
+		Description: "Build something useful", JudgingInstructions: "Prefer working demos",
+		MaxAwardees: 1, OptInRequired: true, PrizeType: PrizeTypeSats,
+		PrizeTitle: "Sponsor sats", PrizeValueText: "1000000",
+	}
+	proposal, err := CreateSponsorAwardProposal(ctx, proposalInput)
+	if err != nil {
+		t.Fatalf("CreateSponsorAwardProposal: %v", err)
+	}
+	proposals, err := ListSponsorAwardProposalsForCompetition(ctx, competitionID)
+	if err != nil || len(proposals) != 1 || proposals[0].Status != "pending" {
+		t.Fatalf("ListSponsorAwardProposalsForCompetition: proposals=%+v err=%v", proposals, err)
+	}
+	approved, err := ReviewSponsorAwardProposal(ctx, proposal.ID, competitionID, personID, "approved", "Looks good")
+	if err != nil || approved.AwardID == "" || approved.Status != "approved" {
+		t.Fatalf("ReviewSponsorAwardProposal: proposal=%+v err=%v", approved, err)
+	}
+	var awardStatus, prizeValue string
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT awards.status, prizes.value_text
+		FROM awards JOIN prizes ON prizes.award_id = awards.id
+		WHERE awards.id = $1::uuid AND awards.sponsored_by_org_id = $2::uuid
+	`, approved.AwardID, orgID).Scan(&awardStatus, &prizeValue); err != nil || awardStatus != "available" || prizeValue != "1000000" {
+		t.Fatalf("approved sponsor award: status=%q value=%q err=%v", awardStatus, prizeValue, err)
+	}
+	proposalInput.Title = "Second sponsor challenge " + suffix
+	secondProposal, err := CreateSponsorAwardProposal(ctx, proposalInput)
+	if err != nil || secondProposal.Status != "pending" {
+		t.Fatalf("second CreateSponsorAwardProposal: proposal=%+v err=%v", secondProposal, err)
+	}
+	proposalInput.Title = "Over limit " + suffix
+	if _, err := CreateSponsorAwardProposal(ctx, proposalInput); err == nil {
+		t.Fatal("created a sponsor award proposal beyond the entitlement limit")
+	}
+	rejected, err := ReviewSponsorAwardProposal(ctx, secondProposal.ID, competitionID, personID, "rejected", "Needs a clearer rubric")
+	if err != nil || rejected.Status != "rejected" || rejected.AwardID != "" {
+		t.Fatalf("reject sponsor proposal: proposal=%+v err=%v", rejected, err)
+	}
+	proposalInput.Title = "Replacement proposal " + suffix
+	if _, err := CreateSponsorAwardProposal(ctx, proposalInput); err != nil {
+		t.Fatalf("rejected sponsor proposal did not release its allowance: %v", err)
+	}
+
 	consent := &types.HackathonSponsorContactConsent{
-		CompetitionID:        createSmokeCompetition(t, ctx, CompetitionInput{ConferenceID: confID, Title: "Sponsor consent " + suffix}),
+		CompetitionID:        competitionID,
 		PersonID:             personID,
 		EnteredAwardSponsors: true,
 	}

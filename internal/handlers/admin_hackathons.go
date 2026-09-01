@@ -57,6 +57,7 @@ type HackathonAdminPage struct {
 	AwardeesByAward             map[string][]*types.ProjectAward
 	AwardOptInsByProject        map[string][]*types.ProjectAwardOptIn
 	AwardJudgesByAward          map[string][]*types.AwardJudge
+	SponsorAwardProposals       []*types.SponsorAwardProposal
 	PayoutAssignments           []*HackathonPayoutAssignment
 	AwardDistributions          []*types.AwardDistribution
 	ScheduleSegments            []*types.CompetitionScheduleSegment
@@ -2095,23 +2096,30 @@ func HackathonAdminAwards(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 			awardJudgesByAward[judge.AwardID] = append(awardJudgesByAward[judge.AwardID], judge)
 		}
 	}
+	sponsorAwardProposals, err := getters.ListSponsorAwardProposalsForCompetition(ctx, competition.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/awards list sponsor proposals: %s", competitionID, err)
+		http.Error(w, "Unable to load sponsor prize proposals", http.StatusInternalServerError)
+		return
+	}
 	page := &HackathonAdminPage{
-		Competition:          competition,
-		Conf:                 conf,
-		Viewer:               id,
-		Projects:             projects,
-		Orgs:                 orgs,
-		OrgsByID:             orgsByID(orgs),
-		ActiveTab:            "awards",
-		Awards:               awards,
-		ArchivedAwards:       archivedAwards,
-		PrizesByAward:        prizesByAward,
-		AwardeesByAward:      awardeesByAward,
-		AwardOptInsByProject: projectAwardOptInsByProject(optIns),
-		AwardJudgesByAward:   awardJudgesByAward,
-		FlashMessage:         r.URL.Query().Get("flash"),
-		FlashError:           r.URL.Query().Get("error"),
-		Year:                 helpers.CurrentYear(),
+		Competition:           competition,
+		Conf:                  conf,
+		Viewer:                id,
+		Projects:              projects,
+		Orgs:                  orgs,
+		OrgsByID:              orgsByID(orgs),
+		ActiveTab:             "awards",
+		Awards:                awards,
+		ArchivedAwards:        archivedAwards,
+		PrizesByAward:         prizesByAward,
+		AwardeesByAward:       awardeesByAward,
+		AwardOptInsByProject:  projectAwardOptInsByProject(optIns),
+		AwardJudgesByAward:    awardJudgesByAward,
+		SponsorAwardProposals: sponsorAwardProposals,
+		FlashMessage:          r.URL.Query().Get("flash"),
+		FlashError:            r.URL.Query().Get("error"),
+		Year:                  helpers.CurrentYear(),
 	}
 	populateAdminHackathonCounts(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/hackathon_awards.tmpl", page); err != nil {
@@ -2428,6 +2436,39 @@ func HackathonAdminCreateAward(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 	http.Redirect(w, r, appendAdminAwardsMessage(dest, awardID, "flash", "Award added"), http.StatusSeeOther)
+}
+
+func HackathonAdminReviewSponsorAwardProposal(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireHackathonAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	competitionID := mux.Vars(r)["competitionID"]
+	dest := hackathonAdminRequestURL(r, competitionID, "/awards")
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	proposal, err := getters.ReviewSponsorAwardProposal(ctx,
+		r.FormValue("ProposalID"), competitionID, id.PersonID,
+		r.FormValue("Decision"), r.FormValue("ReviewNotes"))
+	if err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	action := "sponsor.award_proposal_" + proposal.Status
+	if err := getters.RecordSponsorAuditEvent(ctx, proposal.OrganizationID,
+		proposal.SponsorshipID, proposal.ConferenceID, id.PersonID, action,
+		"sponsor_award_proposal", proposal.ID,
+		map[string]any{"review_notes": proposal.ReviewNotes, "award_id": proposal.AwardID}); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s sponsor proposal audit: %s", competitionID, err)
+	}
+	message := "Sponsor prize proposal rejected"
+	if proposal.Status == "approved" {
+		message = "Sponsor prize proposal approved and added to the hackathon"
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(message), http.StatusSeeOther)
 }
 
 func HackathonAdminUpdateAward(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

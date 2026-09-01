@@ -191,9 +191,15 @@ func renderMagicLinkPage(w http.ResponseWriter, ctx *config.AppContext, page *Ma
 	}
 }
 
-// LogoutHandler clears the auth session and bounces home. POST so
-// it isn't trivially CSRF'd via an <img src=...> trick.
+// LogoutHandler clears the auth session and bounces home. The shared account
+// menu supplies the same session-bound CSRF token used by other credential
+// actions, preventing another site from silently signing the visitor out.
 func LogoutHandler(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		http.Error(w, "That sign-out request expired. Reload and try again.", http.StatusForbidden)
+		return
+	}
 	for _, provider := range auth.OAuthProviders(ctx.Env) {
 		clearOAuthFlow(ctx, r, provider.Key())
 		clearPendingOAuthIdentity(ctx, r, provider.Key())
