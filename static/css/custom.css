@@ -5657,8 +5657,7 @@ body.btcpp-admin-page {
 	font-size: 11px;
 }
 
-.dashboard-ticket-row a,
-.dashboard-ticket-block.is-needed a {
+.dashboard-ticket-row a {
 	display: inline-flex;
 	min-height: 34px;
 	align-items: center;
@@ -5681,11 +5680,6 @@ body.btcpp-admin-page {
 	gap: 20px;
 	padding: 16px 22px;
 	background: #fbefdd;
-}
-
-.dashboard-ticket-block.is-needed a {
-	background: #f9af5e;
-	color: #0a0a0a;
 }
 
 .dashboard-ledger-card .dashboard-actions {
@@ -7984,8 +7978,7 @@ button.dashboard-volunteer-button.is-primary:focus-visible {
 		align-self: center;
 	}
 
-	.dashboard-ticket-row a,
-	.dashboard-ticket-block.is-needed a {
+	.dashboard-ticket-row a {
 		width: fit-content;
 		max-width: 100%;
 		justify-content: center;
@@ -8320,7 +8313,6 @@ button.dashboard-volunteer-button.is-primary:focus-visible {
 .btcpp-dashboard-page .dashboard-affiliate__actions a,
 .btcpp-dashboard-page .dashboard-affiliate__actions button,
 .dashboard-ticket-row a,
-.dashboard-ticket-block.is-needed a,
 .btcpp-dashboard-page .dashboard-inline-action,
 .btcpp-dashboard-page button.dashboard-inline-action,
 .btcpp-dashboard-page .dashboard-status-chip,
