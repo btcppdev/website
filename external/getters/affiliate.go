@@ -4,7 +4,6 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"strings"
 	"time"
 )
@@ -16,8 +15,8 @@ import (
 // UpdateAffiliateCode patches an existing DiscountCode row owned by
 // an affiliate.
 
-// ArchiveAffiliateCode soft-deletes the DiscountCode row. Past
-// AffiliateUsage rows stay put.
+// DeleteAffiliateCode removes the DiscountCode row. Past AffiliateUsage rows
+// stay put and retain their code/email snapshots.
 
 // AffiliateUsageInput is the data needed to record one redemption.
 type AffiliateUsageInput struct {
@@ -92,67 +91,7 @@ func CreateAffiliateCode(ctx *config.AppContext, email, codeName string, buyerPc
 		return "", fmt.Errorf("CreateAffiliateCode: empty codeName")
 	}
 	discountExpr := fmt.Sprintf("%%%d", buyerPct)
-	if id, restored, err := reactivateArchivedAffiliateCodePostgres(ctx, email, codeName, discountExpr, confRefs); err != nil {
-		return "", err
-	} else if restored {
-		return id, nil
-	}
 	return insertDiscountPostgres(ctx, codeName, discountExpr, email, confRefs)
-}
-
-func reactivateArchivedAffiliateCodePostgres(ctx *config.AppContext, email, codeName, discountExpr string, confRefs []string) (string, bool, error) {
-	if ctx == nil || ctx.DB == nil {
-		return "", false, fmt.Errorf("database is not configured")
-	}
-	discount, err := discountForWrite(codeName, discountExpr, email)
-	if err != nil {
-		return "", false, err
-	}
-
-	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
-	if err != nil {
-		return "", false, fmt.Errorf("begin affiliate reactivation: %w", err)
-	}
-	defer tx.Rollback(ctx.DatabaseContext())
-
-	discType := string(discount.DiscType)
-	var discountID string
-	err = tx.QueryRow(ctx.DatabaseContext(), `
-		UPDATE discounts
-		SET archived_at = NULL,
-			discount_expr = $3,
-			affiliate_email = NULLIF($2, '')::citext,
-			affiliate_person_id = (SELECT person_id FROM person_emails WHERE email = NULLIF($2, '')::citext),
-			disc_type = $4,
-			amount = $5,
-			max_uses = $6,
-			extra_qty = $7,
-			valid_from = $8,
-			valid_until = $9
-		WHERE code_name = $1
-			AND (
-				affiliate_person_id = (SELECT person_id FROM person_emails WHERE email = $2::citext)
-				OR ((SELECT person_id FROM person_emails WHERE email = $2::citext) IS NULL
-					AND affiliate_email = $2::citext)
-			)
-			AND archived_at IS NOT NULL
-		RETURNING id::text
-	`, discount.CodeName, discount.AffiliateEmail, discount.Discount, discType,
-		nullableUintPtr(discount.Amount), nullableUintPtr(discount.MaxUses),
-		int(discount.ExtraQty), discount.ValidFrom, discount.ValidUntil).Scan(&discountID)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return "", false, nil
-		}
-		return "", false, fmt.Errorf("reactivate affiliate discount %q: %w", discount.CodeName, err)
-	}
-	if err := replaceDiscountConferenceLinksPostgres(tx, discountID, confRefs); err != nil {
-		return "", false, err
-	}
-	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
-		return "", false, fmt.Errorf("commit affiliate reactivation: %w", err)
-	}
-	return discountID, true, nil
 }
 
 func UpdateAffiliateCode(ctx *config.AppContext, codeID, codeName string, buyerPct uint, confRefs []string) error {
@@ -162,8 +101,8 @@ func UpdateAffiliateCode(ctx *config.AppContext, codeID, codeName string, buyerP
 	return updateDiscountRowPostgres(ctx, codeID, codeName, fmt.Sprintf("%%%d", buyerPct), nil, confRefs)
 }
 
-func ArchiveAffiliateCode(ctx *config.AppContext, codeID string) error {
-	return archiveDiscountRowPostgres(ctx, codeID)
+func DeleteAffiliateCode(ctx *config.AppContext, codeID string) error {
+	return deleteDiscountRowPostgres(ctx, codeID)
 }
 
 func RecordAffiliateUsage(ctx *config.AppContext, in AffiliateUsageInput) error {

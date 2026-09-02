@@ -47,15 +47,26 @@ func TestDatabaseSmokeDiscountScopedToMultipleConferences(t *testing.T) {
 			t.Fatalf("CalcDiscount for %s = total:%d discount:%+v", confID, total, discount)
 		}
 	}
-	if err := ArchiveDiscount(ctx, discountID); err != nil {
-		t.Fatalf("ArchiveDiscount: %v", err)
+	if err := DeleteDiscount(ctx, discountID); err != nil {
+		t.Fatalf("DeleteDiscount: %v", err)
 	}
 	available, err := IsCodeNameAvailable(ctx, code)
 	if err != nil {
-		t.Fatalf("IsCodeNameAvailable archived code: %v", err)
+		t.Fatalf("IsCodeNameAvailable deleted code: %v", err)
 	}
-	if available {
-		t.Fatal("archived code reported available even though the database code name is unique")
+	if !available {
+		t.Fatal("deleted code name was not available for reuse")
+	}
+	recreatedID, err := CreateDiscount(ctx, DiscountInput{
+		CodeName:     code,
+		DiscountExpr: "%40",
+		ConfRefs:     []string{firstConfID},
+	})
+	if err != nil {
+		t.Fatalf("recreate deleted discount: %v", err)
+	}
+	if recreatedID == discountID {
+		t.Fatal("recreated discount unexpectedly reused the deleted row")
 	}
 }
 

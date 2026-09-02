@@ -153,9 +153,9 @@ func CalcDiscount(ctx *config.AppContext, confRef string, code string, tixPrice 
 // so this intentionally rewrites the code, expression, relation, and
 // optional affiliate email together.
 
-// ArchiveDiscount soft-deletes a DiscountsDb row in Notion. Past
-// purchase rows keep their discount-ref history; future checkout
-// lookups stop seeing the archived code after cache refresh.
+// DeleteDiscount permanently removes a discount. Registration rows remain and
+// affiliate usage rows retain their historical snapshots; their nullable
+// foreign keys are cleared by ON DELETE SET NULL.
 
 func CreateDiscount(ctx *config.AppContext, in DiscountInput) (string, error) {
 	if in.CodeName == "" {
@@ -175,9 +175,7 @@ func CreateDiscount(ctx *config.AppContext, in DiscountInput) (string, error) {
 }
 
 func ListDiscounts(ctx *config.AppContext) ([]*types.DiscountCode, error) {
-	return queryDiscountsPostgres(ctx, "all discounts", `
-		discounts.archived_at IS NULL
-	`)
+	return queryDiscountsPostgres(ctx, "all discounts", `TRUE`)
 }
 
 func ListDiscountsForConf(ctx *config.AppContext, confRef string) ([]*types.DiscountCode, error) {
@@ -186,8 +184,7 @@ func ListDiscountsForConf(ctx *config.AppContext, confRef string) ([]*types.Disc
 		return nil, nil
 	}
 	return queryDiscountsPostgres(ctx, "discounts for conf", `
-		discounts.archived_at IS NULL
-			AND conferences.id::text = $1
+		conferences.id::text = $1
 	`, confRef)
 }
 
@@ -197,8 +194,7 @@ func GetDiscountByCode(ctx *config.AppContext, code string) (*types.DiscountCode
 		return nil, nil
 	}
 	out, err := queryDiscountsPostgres(ctx, "discount by code", `
-		discounts.archived_at IS NULL
-			AND discounts.code_name = $1
+		discounts.code_name = $1
 	`, code)
 	if err != nil || len(out) == 0 {
 		return nil, err
@@ -212,8 +208,7 @@ func GetDiscountByRef(ctx *config.AppContext, ref string) (*types.DiscountCode, 
 		return nil, nil
 	}
 	out, err := queryDiscountsPostgres(ctx, "discount by ref", `
-		discounts.archived_at IS NULL
-			AND discounts.id::text = $1
+		discounts.id::text = $1
 	`, ref)
 	if err != nil || len(out) == 0 {
 		return nil, err
@@ -227,8 +222,7 @@ func GetDiscountByAffiliateEmail(ctx *config.AppContext, email string) (*types.D
 		return nil, nil
 	}
 	out, err := queryDiscountsPostgres(ctx, "discount by affiliate email", `
-		discounts.archived_at IS NULL
-			AND (
+		(
 				discounts.affiliate_person_id = (SELECT person_id FROM person_emails WHERE email = $1::citext)
 				OR ((SELECT person_id FROM person_emails WHERE email = $1::citext) IS NULL
 					AND discounts.affiliate_email = $1::citext)
@@ -246,8 +240,7 @@ func GetDiscountByAffiliatePersonID(ctx *config.AppContext, personID string) (*t
 		return nil, nil
 	}
 	out, err := queryDiscountsPostgres(ctx, "discount by affiliate person", `
-		discounts.archived_at IS NULL
-			AND discounts.affiliate_person_id = $1::uuid
+		discounts.affiliate_person_id = $1::uuid
 	`, personID)
 	if err != nil || len(out) == 0 {
 		return nil, err
@@ -386,11 +379,11 @@ func discountInputConfRefs(in DiscountInput) []string {
 	return out
 }
 
-func ArchiveDiscount(ctx *config.AppContext, discountID string) error {
+func DeleteDiscount(ctx *config.AppContext, discountID string) error {
 	if discountID == "" {
-		return fmt.Errorf("ArchiveDiscount: discountID is required")
+		return fmt.Errorf("DeleteDiscount: discountID is required")
 	}
-	return archiveDiscountRowPostgres(ctx, discountID)
+	return deleteDiscountRowPostgres(ctx, discountID)
 }
 
 func insertDiscountPostgres(ctx *config.AppContext, codeName, discountExpr, affiliateEmail string, confRefs []string) (string, error) {
@@ -509,17 +502,16 @@ func updateDiscountRowPostgres(ctx *config.AppContext, discountID, codeName, dis
 	return nil
 }
 
-func archiveDiscountRowPostgres(ctx *config.AppContext, discountID string) error {
+func deleteDiscountRowPostgres(ctx *config.AppContext, discountID string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
 	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
-		UPDATE discounts
-		SET archived_at = now()
+		DELETE FROM discounts
 		WHERE id = $1
 	`, discountID)
 	if err != nil {
-		return fmt.Errorf("archive discount %s: %w", discountID, err)
+		return fmt.Errorf("delete discount %s: %w", discountID, err)
 	}
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("discount %s not found", discountID)

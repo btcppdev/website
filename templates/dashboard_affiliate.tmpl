@@ -79,7 +79,7 @@
             <button type="button" class="affiliate-copy-btn" data-share-url="{{ .BaseURI }}/?code={{ .Code.CodeName }}">Copy link</button>
             <a href="/dashboard/affiliate/edit#affiliate-form">Edit split</a>
             <form method="POST" action="/dashboard/affiliate/disable">
-              <button type="submit" onclick="return confirm('Disable {{ .Code.CodeName }}? Past redemption stats stay; the code stops working immediately.');">Pause</button>
+              <button type="submit" onclick="return confirm('Permanently delete {{ .Code.CodeName }}? Past redemption stats stay, and the code name can be reused.');">Delete</button>
             </form>
           </div>
         </div>

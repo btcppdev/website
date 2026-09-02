@@ -223,7 +223,7 @@ func AffiliateUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		http.StatusSeeOther)
 }
 
-// AffiliateDisable archives the user's code.
+// AffiliateDisable permanently deletes the user's code.
 func AffiliateDisable(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	email, ok := affiliateAuthAndGate(w, r, ctx)
 	if !ok {
@@ -234,13 +234,13 @@ func AffiliateDisable(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Redirect(w, r, dashboardURLForEmail(ctx, email, "", "Couldn't find your code."), http.StatusSeeOther)
 		return
 	}
-	if err := getters.ArchiveAffiliateCode(ctx, code.Ref); err != nil {
-		ctx.Err.Printf("/dashboard/affiliate/disable archive: %s", err)
-		http.Redirect(w, r, affiliateURLForEmail(ctx, email, "", "Couldn't disable the code."), http.StatusSeeOther)
+	if err := getters.DeleteAffiliateCode(ctx, code.Ref); err != nil {
+		ctx.Err.Printf("/dashboard/affiliate/disable delete: %s", err)
+		http.Redirect(w, r, affiliateURLForEmail(ctx, email, "", "Couldn't delete the code."), http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r,
-		affiliateURLForEmail(ctx, email, "Affiliate code "+code.CodeName+" disabled.", ""),
+		affiliateURLForEmail(ctx, email, "Affiliate code "+code.CodeName+" deleted.", ""),
 		http.StatusSeeOther)
 }
 

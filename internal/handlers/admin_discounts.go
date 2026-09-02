@@ -216,7 +216,7 @@ func GlobalAdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 				renderGlobalAdminDiscounts(w, ctx, page)
 				return
 			}
-			if err := getters.ArchiveDiscount(ctx, discountID); err != nil {
+			if err := getters.DeleteDiscount(ctx, discountID); err != nil {
 				ctx.Err.Printf("/admin/discounts delete %s: %s", discountID, err)
 				page.FlashErr = "Deleting the discount failed. Check server logs."
 				renderGlobalAdminDiscounts(w, ctx, page)
@@ -426,7 +426,7 @@ func deleteAdminDiscount(ctx *config.AppContext, conf *types.Conf, discountID st
 	if discount == nil {
 		return fmt.Errorf("Discount code not found for this event.")
 	}
-	return getters.ArchiveDiscount(ctx, discountID)
+	return getters.DeleteDiscount(ctx, discountID)
 }
 
 func adminDiscountForConf(ctx *config.AppContext, conf *types.Conf, discountID string) (*types.DiscountCode, error) {
