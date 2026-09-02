@@ -16,13 +16,13 @@ import (
 	"github.com/alexedwards/scs/v2"
 )
 
-func TestSiteAccountNavigationAnonymousUsesSafeReturnPath(t *testing.T) {
+func TestSiteAccountNavigationAnonymousDefaultsToDashboardLogin(t *testing.T) {
 	manager := scs.New()
 	requestContext, err := manager.Load(context.Background(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	templates := template.Must(template.New("navigation").Parse(`{{ define "site_account_anonymous" }}<a href="/login?next={{ .Next }}">sign in</a>{{ end }}`))
+	templates := template.Must(template.New("navigation").Parse(`{{ define "site_account_anonymous" }}<a href="/login">sign in</a>{{ end }}`))
 	ctx := &config.AppContext{Session: manager, TemplateCache: templates}
 	req := httptest.NewRequest(http.MethodGet, "/navigation/account?next=https://evil.example", nil).WithContext(requestContext)
 	rec := httptest.NewRecorder()
@@ -32,8 +32,8 @@ func TestSiteAccountNavigationAnonymousUsesSafeReturnPath(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), `next=%2fdashboard`) {
-		t.Fatalf("anonymous navigation did not sanitize return path: %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), `href="/login"`) || strings.Contains(rec.Body.String(), `next=`) {
+		t.Fatalf("anonymous navigation did not use the default dashboard login: %s", rec.Body.String())
 	}
 	if got := rec.Header().Get("Cache-Control"); got != "private, no-store" {
 		t.Fatalf("Cache-Control = %q", got)

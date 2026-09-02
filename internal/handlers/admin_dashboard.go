@@ -16,12 +16,13 @@ import (
 )
 
 type GlobalAdminDashboardPage struct {
-	FlashMessage         string
-	Year                 uint
-	FeaturedSpeakerSlots []*types.Speaker
-	SubscriberSummary    getters.AdminSubscriberSummary
-	SubscriberStatsReady bool
-	HasHackathonProjects bool
+	FlashMessage            string
+	Year                    uint
+	FeaturedSpeakerSlots    []*types.Speaker
+	SubscriberSummary       getters.AdminSubscriberSummary
+	SubscriberStatsReady    bool
+	HasHackathonProjects    bool
+	HasSponsorOrganizations bool
 }
 
 type EventDetailsPage struct {
@@ -94,14 +95,19 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	if err != nil {
 		ctx.Err.Printf("/admin hackathon participant projects failed: %s", err)
 	}
+	hasSponsorOrganizations, err := getters.HasActiveOrganizationMembership(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/admin sponsor memberships failed: %s", err)
+	}
 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/dashboard.tmpl", &GlobalAdminDashboardPage{
-		FlashMessage:         r.URL.Query().Get("flash"),
-		Year:                 helpers.CurrentYear(),
-		FeaturedSpeakerSlots: slots,
-		SubscriberSummary:    subscriberSummary,
-		SubscriberStatsReady: subscriberErr == nil,
-		HasHackathonProjects: hasHackathonProjects,
+		FlashMessage:            r.URL.Query().Get("flash"),
+		Year:                    helpers.CurrentYear(),
+		FeaturedSpeakerSlots:    slots,
+		SubscriberSummary:       subscriberSummary,
+		SubscriberStatsReady:    subscriberErr == nil,
+		HasHackathonProjects:    hasHackathonProjects,
+		HasSponsorOrganizations: hasSponsorOrganizations,
 	}); err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/admin template failed: %s", err)

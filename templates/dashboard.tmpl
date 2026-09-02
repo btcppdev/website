@@ -7,11 +7,9 @@
 </head>
 <body class="btcpp-dashboard-page">
   {{ block "mainnav" . }} {{ end }}
+  {{ template "dashboard_tabs" (dict "Active" "overview" "ShowHackathons" .HasHackathonProjects "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" .IsGlobalAdmin) }}
   <div class="dashboard-shell">
     <div class="dashboard-main">
-
-      {{ template "dashboard_tabs" (dict "Active" "overview" "ShowHackathons" .HasHackathonProjects "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" .IsGlobalAdmin) }}
-
       {{ if .FlashMessage }}
       <div class="dashboard-flash is-success">
         <p>{{ .FlashMessage }}</p>
@@ -23,52 +21,33 @@
       </div>
       {{ end }}
 
-      <section id="topline" class="dashboard-topline">
-        <div class="dashboard-topline__profile">
-          <div class="dashboard-avatar">
-            {{ if .Photo }}
-            <img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" data-image-fallback />
-            <span data-image-fallback-copy hidden>{{ printf "%.1s" .Name }}</span>
-            {{ else }}
-            <span>{{ printf "%.1s" .Name }}</span>
+      <header id="topline" class="dashboard-workspace-hero dashboard-overview-hero">
+        <div class="dashboard-workspace-hero__mark dashboard-workspace-hero__mark--avatar">
+          {{ if .Photo }}
+          <img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" data-image-fallback />
+          <span data-image-fallback-copy hidden>{{ printf "%.1s" .Name }}</span>
+          {{ else }}
+          <span>{{ printf "%.1s" .Name }}</span>
+          {{ end }}
+        </div>
+        <div class="dashboard-workspace-hero__copy">
+          <div class="dashboard-kicker">● Personal workspace</div>
+          <h1>{{ .Name }}</h1>
+          <p class="dashboard-workspace-hero__meta">
+            {{ if .Speaker }}
+            {{ if .Speaker.Email }}<a href="mailto:{{ .Speaker.Email }}">{{ .Speaker.Email }}</a>{{ end }}
+            {{ if .Speaker.Twitter.Handle }}<a href="https://x.com/{{ .Speaker.Twitter.Handle }}" target="_blank" rel="noopener noreferrer">@{{ .Speaker.Twitter.Handle }}</a>{{ end }}
             {{ end }}
-          </div>
-          <div class="dashboard-identity">
-            <div class="dashboard-kicker">Welcome back</div>
-            <h1>{{ .Name }}</h1>
-            <div class="dashboard-meta">
-              {{ if .Speaker }}
-              {{ if .Speaker.Email }}<a href="mailto:{{ .Speaker.Email }}">{{ .Speaker.Email }}</a>{{ end }}
-              {{ if .Speaker.Twitter.Handle }}<a href="https://x.com/{{ .Speaker.Twitter.Handle }}" target="_blank" rel="noopener noreferrer">@{{ .Speaker.Twitter.Handle }}</a>{{ end }}
-              {{ end }}
-              {{ if and .Hometown (ne .Hometown "unknown") }}<span>{{ .Hometown }}</span>{{ end }}
-            </div>
-          </div>
-          <div class="dashboard-topline__actions">
-            <a href="/dashboard/profile">{{ if .Speaker }}Edit profile{{ else }}Create profile{{ end }}</a>
-            <a href="/dashboard/settings">Account settings</a>
-            {{ if and .Speaker .HasPublicProfile }}
-            <a href="{{ speakerPublicPath .Speaker }}">View profile</a>
-            {{ end }}
+            {{ if and .Hometown (ne .Hometown "unknown") }}<span>{{ .Hometown }}</span>{{ end }}
+          </p>
+          <div class="dashboard-workspace-hero__facts" aria-label="Dashboard summary">
+            <span>{{ .Stats.TalksApplied }} talk{{ if ne .Stats.TalksApplied 1 }}s{{ end }} submitted</span>
+            <span>{{ .Stats.TalksAccepted }} accepted</span>
+            <span>{{ .Stats.ShiftsApplied }} event{{ if ne .Stats.ShiftsApplied 1 }}s{{ end }} volunteered</span>
+            <span>{{ .Stats.ShiftsBooked }} upcoming shift{{ if ne .Stats.ShiftsBooked 1 }}s{{ end }}</span>
           </div>
         </div>
-        <div class="dashboard-stat-grid dashboard-stat-grid--ledger" aria-label="Dashboard stats">
-          <div class="dashboard-stat-group">
-            <div class="dashboard-stat-group__legend">Speaking</div>
-            <div class="dashboard-stat-group__cells">
-              <div class="dashboard-stat"><span>Talks submitted</span><strong>{{ .Stats.TalksApplied }}</strong></div>
-              <div class="dashboard-stat is-accent"><span>Talks accepted</span><strong>{{ .Stats.TalksAccepted }}</strong></div>
-            </div>
-          </div>
-          <div class="dashboard-stat-group">
-            <div class="dashboard-stat-group__legend">Volunteering</div>
-            <div class="dashboard-stat-group__cells">
-              <div class="dashboard-stat"><span>Conferences volunteered</span><strong>{{ .Stats.ShiftsApplied }}</strong></div>
-              <div class="dashboard-stat"><span>Upcoming shifts</span><strong>{{ .Stats.ShiftsBooked }}</strong></div>
-            </div>
-          </div>
-        </div>
-      </section>
+      </header>
 
 {{/* ---- Affiliate ---- */}}
 {{ if .HasAnyTicket }}
@@ -135,7 +114,7 @@
   {{ range .ActiveBlocks }}
   {{ $eb := . }}
   {{ $conf := .Conf }}
-  <article class="dashboard-ledger-card">
+  <article class="dashboard-ledger-card dashboard-workspace-panel">
     {{/* Hero band — uses the conf's leading image with a gradient
          scrim so the title text stays legible on any photo. Anchor
          takes the user to the public conf page. */}}
@@ -779,7 +758,7 @@
 {{ end }}
 
 {{ if .RecentShopOrders }}
-<section id="purchases" class="dashboard-purchase-ledger">
+<section id="purchases" class="dashboard-purchase-ledger dashboard-workspace-panel">
   <div class="dashboard-purchase-ledger__head">
     <div class="dashboard-kicker">§ Purchases · {{ len .RecentShopOrders }}</div>
     <a href="/dashboard/orders">view order history &rarr;</a>
@@ -804,7 +783,7 @@
 
 {{/* ---- Past conferences ---- */}}
 {{ if .PastBlocks }}
-<section id="past" class="dashboard-past-ledger">
+<section id="past" class="dashboard-past-ledger dashboard-workspace-panel">
   <div class="dashboard-past-ledger__head">
     <div class="dashboard-kicker">§ Past conferences · {{ len .PastBlocks }}</div>
     {{ if .ArchiveOwnerPath }}<a href="{{ .ArchiveOwnerPath }}">show all {{ len .PastBlocks }} &rarr;</a>{{ end }}
@@ -840,7 +819,7 @@
 {{ end }}
 
 {{ if or .HasUpcomingTalk .HasUpcomingVol }}
-<section id="contact" class="dashboard-help-block">
+<section id="contact" class="dashboard-help-block dashboard-workspace-panel">
   <div>
     <div class="dashboard-kicker">§ Need help?</div>
     <p>We read every message. Reach the right crew:</p>

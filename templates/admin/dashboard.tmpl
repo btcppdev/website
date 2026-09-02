@@ -5,24 +5,29 @@
   {{ block "header" . }} {{ end }}
   {{ template "admin_favicon" "" }}
 </head>
-<body class="btcpp-admin-page bg-gray-50 text-gray-900">
+<body class="btcpp-dashboard-page btcpp-admin-page bg-gray-50 text-gray-900">
   {{ block "mainnav" . }} {{ end }}
-  <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-    {{ template "dashboard_tabs" (dict "Active" "admin" "ShowHackathons" .HasHackathonProjects "ShowAdmin" true) }}
-
-    <div class="mb-6 flex items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Global admin</h1>
-        <p class="mt-1 text-sm text-gray-600">Site-wide tools for newsletters, organizations, and permissions.</p>
-      </div>
-      <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">global-admin</span>
-    </div>
-
+  {{ template "dashboard_tabs" (dict "Active" "admin" "ShowHackathons" .HasHackathonProjects "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" true) }}
+  <div class="dashboard-channel-shell">
     {{ if .FlashMessage }}
     <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>
     {{ end }}
 
-    <section class="rounded-lg bg-white shadow">
+    <header class="dashboard-workspace-hero dashboard-admin-hero">
+      <div class="dashboard-workspace-hero__mark"><span>A</span></div>
+      <div class="dashboard-workspace-hero__copy">
+        <div class="dashboard-kicker">● Global workspace · global-admin</div>
+        <h1>Site administration.</h1>
+        <p>Manage bitcoin++ events, people, publishing, commerce, and site-wide configuration.</p>
+        <div class="dashboard-workspace-hero__facts" aria-label="Admin workspace summary">
+          {{ if .SubscriberStatsReady }}<span>{{ .SubscriberSummary.NewsletterActive }} newsletter subscribers</span>{{ end }}
+          <span>{{ len .FeaturedSpeakerSlots }} homepage speaker slots</span>
+          <span>Global access</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="dashboard-workspace-panel rounded-lg bg-white shadow">
       <div class="px-4 py-5 sm:p-6">
         <h2 class="text-sm font-semibold text-gray-900">Admin tools</h2>
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
@@ -70,7 +75,7 @@
       </div>
     </section>
 
-    <section id="homepage-speakers" class="mt-8 rounded-lg bg-white shadow">
+    <section id="homepage-speakers" class="dashboard-workspace-panel mt-8 rounded-lg bg-white shadow">
       <div class="px-4 py-5 sm:p-6">
         <div class="flex items-center justify-between gap-4">
           <div>
@@ -106,7 +111,7 @@
       </div>
     </section>
 
-    <section id="role-manager" class="mt-8 rounded-lg bg-white shadow">
+    <section id="role-manager" class="dashboard-workspace-panel mt-8 rounded-lg bg-white shadow">
       <div class="px-4 py-5 sm:p-6">
         <div class="flex items-center justify-between gap-4">
           <div>

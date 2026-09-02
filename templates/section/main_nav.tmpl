@@ -102,12 +102,7 @@
   (function () {
     const slots = Array.from(document.querySelectorAll('[data-site-account]'));
     if (!slots.length) return;
-    const next = window.location.pathname + window.location.search + window.location.hash;
-    slots.forEach(function (slot) {
-      const fallback = slot.querySelector('a');
-      if (fallback) fallback.href = '/login?next=' + encodeURIComponent(next);
-    });
-    fetch('/navigation/account?next=' + encodeURIComponent(next), {
+    fetch('/navigation/account', {
       credentials: 'same-origin',
       headers: { 'Accept': 'text/html' }
     }).then(function (response) {
@@ -300,5 +295,5 @@
 {{ end }}
 
 {{ define "site_account_anonymous" }}
-<a class="site-account__signin" href="/login?next={{ .Next }}">sign in</a>
+<a class="site-account__signin" href="/login">sign in</a>
 {{ end }}

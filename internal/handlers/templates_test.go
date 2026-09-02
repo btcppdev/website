@@ -77,7 +77,7 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	var accountSetupPage bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&accountSetupPage, "dashboard_edit_speaker.tmpl", &EditSpeakerPage{
-		Mode: "create", EmailPlain: "new@example.test", SetupProvider: "GitHub", CancelCSRF: "cancel-csrf",
+		Mode: "create", EmailPlain: "new@example.test", SetupProvider: "GitHub", RequireFullProfile: true, CancelCSRF: "cancel-csrf",
 	}); err != nil {
 		t.Fatalf("render OAuth account setup: %v", err)
 	}
@@ -91,6 +91,19 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if strings.Contains(accountSetupPage.String(), "Back to dashboard") {
 		t.Fatalf("new-account onboarding offered a dashboard back link: %s", accountSetupPage.String())
+	}
+	accountSetupPage.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&accountSetupPage, "dashboard_edit_speaker.tmpl", &EditSpeakerPage{
+		Mode: "create", EmailPlain: "sponsor@example.test", SetupPurpose: "sponsor",
+		SetupName: "Ada Nakamoto", NextURL: "/sponsor-invites/example", CancelCSRF: "cancel-csrf",
+	}); err != nil {
+		t.Fatalf("render sponsor account setup: %v", err)
+	}
+	if !strings.Contains(accountSetupPage.String(), "You’ll continue to your sponsor invitation next.") || !strings.Contains(accountSetupPage.String(), `value="Ada Nakamoto"`) {
+		t.Fatalf("sponsor account setup omitted destination context: %s", accountSetupPage.String())
+	}
+	if strings.Contains(accountSetupPage.String(), `id="PicFile" type="file" accept="image/*" required`) || strings.Contains(accountSetupPage.String(), `id="Phone" name="Phone" type="tel" required`) || strings.Contains(accountSetupPage.String(), `id="Signal" name="Signal" type="text" required`) {
+		t.Fatalf("sponsor account setup required speaker-only profile fields: %s", accountSetupPage.String())
 	}
 	accountSetupPage.Reset()
 	if err := inlineTemplates.ExecuteTemplate(&accountSetupPage, "dashboard_edit_speaker.tmpl", &EditSpeakerPage{Mode: "create", IsAdmin: true}); err != nil {
@@ -181,7 +194,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render hackathon project sponsor consent: %v", err)
 	}
-	for _, want := range []string{"Sponsor contact", "Allow sponsors of this hackathon to contact me.", "Allow sponsors whose prizes I enter to contact me.", `name="csrf" value="contact-csrf"`, `name="EnteredAwardSponsors" type="checkbox" checked`} {
+	for _, want := range []string{"Sponsor contact", "Submitting a project includes email sharing", "Allow other sponsors of this hackathon to contact me.", "Allow other sponsors whose prizes I enter to contact me.", `name="csrf" value="contact-csrf"`, `name="EnteredAwardSponsors" type="checkbox" checked`} {
 		if !strings.Contains(projectPage.String(), want) {
 			t.Fatalf("hackathon sponsor consent omitted %q", want)
 		}
@@ -586,11 +599,26 @@ func TestLoadTemplates(t *testing.T) {
 		t.Fatalf("multi-section admin dashboard does not render tab navigation: %s", dashboardTabs.String())
 	}
 
+	var adminDashboard bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&adminDashboard, "admin/dashboard.tmpl", &GlobalAdminDashboardPage{
+		HasHackathonProjects:    true,
+		HasSponsorOrganizations: true,
+	}); err != nil {
+		t.Fatalf("render global admin dashboard: %v", err)
+	}
+	for _, want := range []string{`href="/dashboard/hackathons"`, `href="/dashboard/sponsor"`, `href="/admin" class="dashboard-tab is-active" aria-current="page"`} {
+		if !strings.Contains(adminDashboard.String(), want) {
+			t.Fatalf("global admin dashboard omitted %q: %s", want, adminDashboard.String())
+		}
+	}
+
 	var sponsorDashboard bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&sponsorDashboard, "dashboard_sponsor.tmpl", &SponsorDashboardPage{
-		Membership:   &types.OrganizationMembership{Role: getters.OrganizationRoleOwner},
-		Organization: &types.Org{Ref: "org-id", Name: "Signet Systems", Tagline: "Test networks", LogoLight: "/logo.svg"},
-		Memberships:  []*types.OrganizationMembership{{OrganizationID: "org-id", Organization: &types.Org{Name: "Signet Systems"}}},
+		Membership:           &types.OrganizationMembership{PersonID: "owner-id", Role: getters.OrganizationRoleOwner},
+		Organization:         &types.Org{Ref: "org-id", Name: "Signet Systems", Tagline: "Test networks", LogoLight: "/logo-light.svg", LogoDark: "/logo-dark.svg"},
+		Memberships:          []*types.OrganizationMembership{{OrganizationID: "org-id", Organization: &types.Org{Name: "Signet Systems"}}},
+		HasHackathonProjects: true,
+		IsGlobalAdmin:        true,
 		Upcoming: []*types.SponsorDashboardEvent{{
 			Sponsorship:   &types.Sponsorship{Ref: "sponsorship-id", Level: "Headline", Status: "Paid"},
 			Conference:    &types.Conf{Ref: "conference-id", Tag: "dev26", Desc: "Local Dev", DateDesc: "Oct 2026", Location: "Austin", ShowHackathon: true},
@@ -599,18 +627,64 @@ func TestLoadTemplates(t *testing.T) {
 			TicketsIssued: 5,
 			AwardCount:    1,
 		}},
-		Members:    []*types.OrganizationMembership{{Role: getters.OrganizationRoleOwner, PersonName: "Mara", PersonEmail: "mara@example.test"}},
-		CanManage:  true,
-		CanEditOrg: true,
-		CSRF:       "sponsor-csrf",
-		InviteLink: "http://localhost:8888/sponsor-invites/example-token",
+		Members: []*types.OrganizationMembership{
+			{PersonID: "owner-id", Role: getters.OrganizationRoleOwner, Status: "active", PersonName: "Mara", PersonEmail: "mara@example.test"},
+			{PersonID: "member-id", Role: getters.OrganizationRoleMember, Status: "active", PersonName: "Eli", PersonEmail: "eli@example.test"},
+		},
+		PrizeEntries: []*types.SponsorPrizeEntry{{
+			AwardID: "award-id", AwardTitle: "Best Signet Infrastructure",
+			ConferenceTag: "dev26", ConferenceTitle: "Local Dev",
+			ProjectID: "project-id", ProjectTitle: "Fixture Forge",
+			ProjectShortDescription: "Deterministic test data for bitcoin applications.",
+			ProjectStatus:           "submitted", GitHubURL: "https://github.com/example/fixture-forge",
+			Participants: []*types.SponsorPrizeParticipant{{
+				PersonID: "person-id", Name: "Mara", Role: "owner", PublicID: "mara",
+				Photo: "mara.jpg", Email: "mara@example.test", ConsentScope: "entered_award",
+			}},
+		}},
+		CanManage:             true,
+		CanEditOrg:            true,
+		CanExportParticipants: true,
+		SpacesReady:           true,
+		CSRF:                  "sponsor-csrf",
+		InviteLink:            "http://localhost:8888/sponsor-invites/example-token",
 	}); err != nil {
 		t.Fatalf("render sponsor dashboard: %v", err)
 	}
-	for _, want := range []string{"Signet Systems", "20", "Opt-in only", "Sponsor workspace sections", "Public sponsor card preview", "width: 25%", "width: 50%", "Allow sponsors of this hackathon to contact me", `name="csrf" value="sponsor-csrf"`, `action="/dashboard/sponsor/org-id/profile"`, `action="/dashboard/sponsor/org-id/invites"`, `action="/dashboard/sponsor/org-id/tickets"`, `action="/dashboard/sponsor/org-id/prize-proposals"`, "http://localhost:8888/sponsor-invites/example-token"} {
+	for _, want := range []string{"Signet Systems", "20", "Opt-in only", "Sponsor workspace sections", "Public sponsor card preview", "width: 25%", "width: 50%", `href="/dashboard/hackathons"`, `href="/admin"`, `name="csrf" value="sponsor-csrf"`, `action="/dashboard/sponsor/org-id/profile"`, `action="/dashboard/sponsor/org-id/invites"`, `action="/dashboard/sponsor/org-id/tickets"`, `action="/dashboard/sponsor/org-id/prize-proposals"`, `action="/dashboard/sponsor/org-id/members/member-id/remove"`, `href="/dashboard/sponsor/org-id/hackathon-projects.csv"`, "http://localhost:8888/sponsor-invites/example-token", `class="sponsor-logo-variant__preview is-light"`, `src="/logo-light.svg"`, `class="sponsor-logo-variant__preview is-dark"`, `src="/logo-dark.svg"`, `name="LogoLightFile"`, `name="LogoDarkFile"`, "Teams building for your challenges.", "Fixture Forge", `href="/whois/mara"`, `href="mailto:mara@example.test"`, "Consented through this prize"} {
 		if !strings.Contains(sponsorDashboard.String(), want) {
 			t.Fatalf("sponsor dashboard omitted %q", want)
 		}
+	}
+	for _, unwanted := range []string{`name="LogoLight"`, `name="LogoDark"`} {
+		if strings.Contains(sponsorDashboard.String(), unwanted) {
+			t.Fatalf("sponsor dashboard still exposes raw logo URL input %q", unwanted)
+		}
+	}
+	var sponsorEvents bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&sponsorEvents, "sponsors/events.tmpl", &SponsorshipsPage{
+		Conf: &types.Conf{Tag: "dev26", Desc: "Local Dev"},
+		Sponsorships: []*types.Sponsorship{{
+			Ref: "sponsorship-id", Level: "Headline", Status: "Paid",
+			Org: &types.Org{Ref: "org-id", Name: "Signet Systems"},
+		}},
+		Entitlements: map[string]*types.SponsorshipEntitlement{
+			"sponsorship-id": {
+				TicketAllocation: 24, SponsorAwardLimit: 3,
+				AllHackathonSubmissions: true,
+				CanEditOrganization:     true,
+			},
+		},
+	}); err != nil {
+		t.Fatalf("render event sponsorships: %v", err)
+	}
+	for _, want := range []string{`name="TicketAllocation"`, `value="24"`, `>Tickets</th>`, `name="SponsorAwardLimit"`, `value="3"`, `name="ManagerPersonID"`, `name="ManagerName"`, `name="ManagerEmail"`, "secure 72-hour login link", `data-search-url="/dev26/admin/sponsors/people/search"`, `name="CanEditOrganization"`, "Can edit organization"} {
+		if !strings.Contains(sponsorEvents.String(), want) {
+			t.Fatalf("event sponsorships omitted %q: %s", want, sponsorEvents.String())
+		}
+	}
+	if strings.Contains(sponsorEvents.String(), "CanManageAwardJudges") || strings.Contains(sponsorEvents.String(), "manage prize judges") {
+		t.Fatalf("event sponsorships exposed sponsor judge management: %s", sponsorEvents.String())
 	}
 	var sponsorInvite bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&sponsorInvite, "sponsor_invite.tmpl", &SponsorInvitePage{
