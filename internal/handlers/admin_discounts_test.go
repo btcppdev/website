@@ -36,6 +36,18 @@ func TestBuildDiscountExpr(t *testing.T) {
 			want: "$10<20260522",
 		},
 		{
+			name: "exact price with max and date range",
+			form: DiscountForm{
+				CodeName:     "COMMUNITY",
+				DiscountType: "fixed",
+				Amount:       "25",
+				MaxAllowed:   "70",
+				ValidFrom:    "2026-05-19",
+				ExpiresAt:    "2026-05-22",
+			},
+			want: "=25:70@20260519-20260522",
+		},
+		{
 			name: "start only",
 			form: DiscountForm{
 				CodeName:     "LATE",
@@ -57,6 +69,14 @@ func TestBuildDiscountExpr(t *testing.T) {
 				t.Fatalf("buildDiscountExpr = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDiscountFormFromCodePreservesExactPrice(t *testing.T) {
+	discount := &types.DiscountCode{DiscType: '=', Amount: 25}
+	form := discountFormFromCode(discount)
+	if form.DiscountType != "fixed" || form.Amount != "25" {
+		t.Fatalf("exact-price form = %#v", form)
 	}
 }
 

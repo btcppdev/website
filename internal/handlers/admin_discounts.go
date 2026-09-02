@@ -201,6 +201,31 @@ func GlobalAdminDiscounts(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 			renderGlobalAdminDiscounts(w, ctx, page)
 			return
 		}
+		action := strings.TrimSpace(r.PostForm.Get("action"))
+		if action == "delete" {
+			discountID := strings.TrimSpace(r.PostForm.Get("discount_id"))
+			discount, err := getters.GetDiscountByRef(ctx, discountID)
+			if err != nil {
+				ctx.Err.Printf("/admin/discounts delete %s lookup: %s", discountID, err)
+				page.FlashErr = "Couldn't load that discount code."
+				renderGlobalAdminDiscounts(w, ctx, page)
+				return
+			}
+			if discount == nil {
+				page.FlashErr = "Discount code not found."
+				renderGlobalAdminDiscounts(w, ctx, page)
+				return
+			}
+			if err := getters.ArchiveDiscount(ctx, discountID); err != nil {
+				ctx.Err.Printf("/admin/discounts delete %s: %s", discountID, err)
+				page.FlashErr = "Deleting the discount failed. Check server logs."
+				renderGlobalAdminDiscounts(w, ctx, page)
+				return
+			}
+			flash := fmt.Sprintf("Deleted %s.", strings.ToUpper(discount.CodeName))
+			http.Redirect(w, r, "/admin/discounts?flash="+url.QueryEscape(flash), http.StatusSeeOther)
+			return
+		}
 		page.Form = GlobalDiscountForm{
 			DiscountForm:    discountFormFromRequest(r),
 			ConferenceRefs:  r.PostForm["conference_refs"],
@@ -461,8 +486,10 @@ func buildDiscountExpr(form DiscountForm) (string, error) {
 		prefix = "%"
 	case "dollars":
 		prefix = "$"
+	case "fixed":
+		prefix = "="
 	default:
-		return "", fmt.Errorf("Choose percent off or dollars off.")
+		return "", fmt.Errorf("Choose percent off, dollars off, or an exact price.")
 	}
 
 	expr := fmt.Sprintf("%s%d", prefix, amount)
@@ -579,6 +606,8 @@ func discountFormFromCode(d *types.DiscountCode) DiscountForm {
 		form.DiscountType = "percent"
 	case '$':
 		form.DiscountType = "dollars"
+	case '=':
+		form.DiscountType = "fixed"
 	default:
 		form.DiscountType = "percent"
 	}

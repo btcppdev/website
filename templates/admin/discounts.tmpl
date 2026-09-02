@@ -49,6 +49,7 @@
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                   <option value="percent" {{ if or (eq .Form.DiscountType "") (eq .Form.DiscountType "percent") }}selected{{ end }}>% off</option>
                   <option value="dollars" {{ if eq .Form.DiscountType "dollars" }}selected{{ end }}>Dollars off</option>
+                  <option value="fixed" {{ if eq .Form.DiscountType "fixed" }}selected{{ end }}>Set price to</option>
                 </select>
               </div>
               <div>
@@ -150,6 +151,7 @@
                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                 <option value="percent" {{ if eq .Form.DiscountType "percent" }}selected{{ end }}>% off</option>
                                 <option value="dollars" {{ if eq .Form.DiscountType "dollars" }}selected{{ end }}>Dollars off</option>
+                                <option value="fixed" {{ if eq .Form.DiscountType "fixed" }}selected{{ end }}>Set price to</option>
                               </select>
                             </div>
                             <div>
