@@ -5679,7 +5679,7 @@ body.btcpp-admin-page {
 	justify-content: space-between;
 	gap: 20px;
 	padding: 16px 22px;
-	background: #fbefdd;
+	background: var(--dashboard-panel-alt, #efeae1);
 }
 
 .dashboard-ledger-card .dashboard-actions {
@@ -6152,7 +6152,7 @@ body.btcpp-admin-page {
 }
 
 .btcpp-dashboard-page .dashboard-volunteer-ledger {
-	background: #efeae1;
+	background: var(--dashboard-panel-alt, #efeae1);
 	padding: 14px 22px;
 }
 
@@ -8388,7 +8388,6 @@ button.dashboard-volunteer-button.is-primary:focus-visible {
 }
 
 .dashboard-stat.is-accent,
-.dashboard-ticket-block.is-needed,
 .dashboard-ledger-card .dashboard-action:hover,
 .dashboard-ledger-card .dashboard-action:focus-visible,
 .btcpp-dashboard-page .dashboard-inline-action:hover,
