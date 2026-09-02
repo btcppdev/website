@@ -14,17 +14,16 @@
     {{ end }}
 
     <header class="dashboard-workspace-hero dashboard-admin-hero">
-      <div class="dashboard-workspace-hero__mark"><span>A</span></div>
       <div class="dashboard-workspace-hero__copy">
-        <div class="dashboard-kicker">● Global workspace · global-admin</div>
-        <h1>Site administration.</h1>
+        <p class="profile-edit-tag">§ Global workspace · global-admin</p>
+        <h1>Site <span>administration.</span></h1>
         <p>Manage bitcoin++ events, people, publishing, commerce, and site-wide configuration.</p>
-        <div class="dashboard-workspace-hero__facts" aria-label="Admin workspace summary">
-          {{ if .SubscriberStatsReady }}<span>{{ .SubscriberSummary.NewsletterActive }} newsletter subscribers</span>{{ end }}
-          <span>{{ len .FeaturedSpeakerSlots }} homepage speaker slots</span>
-          <span>Global access</span>
-        </div>
       </div>
+      <dl class="dashboard-workspace-hero__facts" aria-label="Admin workspace summary">
+        {{ if .SubscriberStatsReady }}<div><dt>Subscribers</dt><dd>{{ .SubscriberSummary.NewsletterActive }}</dd></div>{{ end }}
+        <div><dt>Speaker slots</dt><dd>{{ len .FeaturedSpeakerSlots }}</dd></div>
+        <div><dt>Access</dt><dd>Global</dd></div>
+      </dl>
     </header>
 
     <section class="dashboard-workspace-panel rounded-lg bg-white shadow">

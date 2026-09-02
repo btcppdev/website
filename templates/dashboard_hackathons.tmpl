@@ -11,16 +11,18 @@
   <div class="dashboard-shell">
     <main class="dashboard-main">
       <header class="dashboard-workspace-hero dashboard-hackathon-header">
-        <div class="dashboard-workspace-hero__mark"><span>H</span></div>
-        <div class="dashboard-workspace-hero__copy">
-          <div class="dashboard-kicker">● Hackathon workspace</div>
-          <h1>Your projects.</h1>
-          <p>Manage your team, public project page, and final submission from one place.</p>
-          <div class="dashboard-workspace-hero__facts" aria-label="Hackathon workspace summary">
-            <span>{{ len .HackathonProjects }} project{{ if ne (len .HackathonProjects) 1 }}s{{ end }}</span>
-            <span>Team and submission tools</span>
+        <div class="dashboard-workspace-hero__identity">
+          <div class="dashboard-workspace-hero__mark"><span>H</span></div>
+          <div class="dashboard-workspace-hero__copy">
+            <div class="dashboard-kicker">● Hackathon workspace</div>
+            <h1>Your projects.</h1>
+            <p>Manage your team, public project page, and final submission from one place.</p>
           </div>
         </div>
+        <dl class="dashboard-workspace-hero__facts" aria-label="Hackathon workspace summary">
+          <div><dt>Projects</dt><dd>{{ len .HackathonProjects }}</dd></div>
+          <div><dt>Access</dt><dd>Team</dd></div>
+        </dl>
       </header>
 
       <section class="dashboard-hackathon-list" aria-label="Your hackathon projects">

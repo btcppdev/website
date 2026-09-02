@@ -13,23 +13,25 @@
       {{ if .FlashError }}<div class="dashboard-flash is-error"><p>{{ .FlashError }}</p></div>{{ end }}
 
       <header class="dashboard-workspace-hero sponsor-dashboard-hero">
-        <div class="dashboard-workspace-hero__mark sponsor-dashboard-hero__logo">
-          {{ if .Organization.LogoLight }}
-          <img src="{{ .Organization.LogoLight | safeURL }}" alt="{{ .Organization.Name }}">
-          {{ else }}
-          <span>{{ printf "%.1s" .Organization.Name }}</span>
-          {{ end }}
-        </div>
-        <div class="dashboard-workspace-hero__copy sponsor-dashboard-hero__copy">
-          <div class="dashboard-kicker">● Sponsor workspace · {{ .Membership.Role }}</div>
-          <h1>{{ .Organization.Name }}</h1>
-          <p>{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}Manage your bitcoin++ sponsorship, team, tickets, and hackathon activity.{{ end }}</p>
-          <div class="dashboard-workspace-hero__facts sponsor-dashboard-hero__facts" aria-label="Workspace summary">
-            <span>{{ len .Upcoming }} active event{{ if ne (len .Upcoming) 1 }}s{{ end }}</span>
-            <span>{{ len .Members }} team member{{ if ne (len .Members) 1 }}s{{ end }}</span>
-            {{ if .CanManage }}<span>Management access</span>{{ else }}<span>View access</span>{{ end }}
+        <div class="dashboard-workspace-hero__identity">
+          <div class="dashboard-workspace-hero__mark sponsor-dashboard-hero__logo">
+            {{ if .Organization.LogoLight }}
+            <img src="{{ .Organization.LogoLight | safeURL }}" alt="{{ .Organization.Name }}">
+            {{ else }}
+            <span>{{ printf "%.1s" .Organization.Name }}</span>
+            {{ end }}
+          </div>
+          <div class="dashboard-workspace-hero__copy sponsor-dashboard-hero__copy">
+            <div class="dashboard-kicker">● Sponsor workspace · {{ .Membership.Role }}</div>
+            <h1>{{ .Organization.Name }}</h1>
+            <p>{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}Manage your bitcoin++ sponsorship, team, tickets, and hackathon activity.{{ end }}</p>
           </div>
         </div>
+        <dl class="dashboard-workspace-hero__facts sponsor-dashboard-hero__facts" aria-label="Workspace summary">
+          <div><dt>Active events</dt><dd>{{ len .Upcoming }}</dd></div>
+          <div><dt>Team members</dt><dd>{{ len .Members }}</dd></div>
+          <div><dt>Access</dt><dd>{{ if .CanManage }}Manage{{ else }}View{{ end }}</dd></div>
+        </dl>
         {{ if gt (len .Memberships) 1 }}
         <nav class="sponsor-dashboard-org-switcher" aria-label="Sponsor organizations">
           {{ range .Memberships }}

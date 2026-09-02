@@ -6,11 +6,11 @@
 </head>
 <body class="btcpp-profile-edit-page account-settings-page">
   {{ block "mainnav" . }} {{ end }}
+  {{ template "dashboard_tabs" (dict "Active" "settings" "ShowHackathons" .HasHackathonProjects "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" .IsGlobalAdmin) }}
 
   <main class="profile-edit-shell person-emails-page">
     <header class="profile-edit-hero account-settings-hero">
       <div class="account-settings-hero__copy">
-        <a class="profile-edit-back" href="/dashboard">← Dashboard</a>
         <p class="profile-edit-tag">§ ACCOUNT CONTROL ROOM</p>
         <h1>Account <span>settings.</span></h1>
         <p>Manage sign-in methods, verified email addresses, connected applications, and credentials used by API clients.</p>
@@ -211,15 +211,15 @@
           <label class="oauth-client-form__callbacks">CALLBACK URLS <small>Enter one URL per line.</small><textarea name="redirect_uris" required rows="3" placeholder="https://app.example.com/oauth/callback&#10;myapp://oauth/callback"></textarea></label>
           <fieldset class="credential-permissions"><legend>ALLOWED PERMISSIONS</legend>
             <div class="credential-permissions__list">
-              <label><input type="checkbox" name="scopes" value="identity:self:read" checked><span><code>identity:self:read</code> Read account identity and current roles</span></label>
-              <label><input type="checkbox" name="scopes" value="profile:self:read" checked><span><code>profile:self:read</code> Read private profile</span></label>
-              <label><input type="checkbox" name="scopes" value="profile:self:write"><span><code>profile:self:write</code> Update profile</span></label>
-              <label><input type="checkbox" name="scopes" value="talks:read" checked><span><code>talks:read</code> Read talks</span></label>
-              <label><input type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks</span></label>
-              <label><input type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage schedules <small>Requires a current admin role.</small></span></label>
-              <label><input type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recordings <small>Requires a current admin role.</small></span></label>
-              <label><input type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires a current global-admin role.</small></span></label>
-              <label><input type="checkbox" name="scopes" value="offline_access" checked><span><code>offline_access</code> Issue rotating refresh tokens</span></label>
+              <label for="oauth-scope-identity-read"><input id="oauth-scope-identity-read" type="checkbox" name="scopes" value="identity:self:read" checked><span><code>identity:self:read</code> Read account identity and current roles</span></label>
+              <label for="oauth-scope-profile-read"><input id="oauth-scope-profile-read" type="checkbox" name="scopes" value="profile:self:read" checked><span><code>profile:self:read</code> Read private profile</span></label>
+              <label for="oauth-scope-profile-write"><input id="oauth-scope-profile-write" type="checkbox" name="scopes" value="profile:self:write"><span><code>profile:self:write</code> Update profile</span></label>
+              <label for="oauth-scope-talks-read"><input id="oauth-scope-talks-read" type="checkbox" name="scopes" value="talks:read" checked><span><code>talks:read</code> Read talks</span></label>
+              <label for="oauth-scope-talks-write"><input id="oauth-scope-talks-write" type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks</span></label>
+              <label for="oauth-scope-schedule-write"><input id="oauth-scope-schedule-write" type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage schedules <small>Requires a current admin role.</small></span></label>
+              <label for="oauth-scope-recordings-write"><input id="oauth-scope-recordings-write" type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recordings <small>Requires a current admin role.</small></span></label>
+              <label for="oauth-scope-shop-accounting-read"><input id="oauth-scope-shop-accounting-read" type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires a current global-admin role.</small></span></label>
+              <label for="oauth-scope-offline-access"><input id="oauth-scope-offline-access" type="checkbox" name="scopes" value="offline_access" checked><span><code>offline_access</code> Issue rotating refresh tokens</span></label>
             </div>
           </fieldset>
           <button type="submit">Register OAuth application</button>
@@ -275,14 +275,14 @@
           <fieldset class="credential-permissions">
             <legend>ALLOWED PERMISSIONS</legend>
             <div class="credential-permissions__list">
-              <label><input type="checkbox" name="scopes" value="identity:self:read"><span><code>identity:self:read</code> Read your account identity and current roles</span></label>
-              <label><input type="checkbox" name="scopes" value="profile:self:read" checked><span><code>profile:self:read</code> Read your private profile</span></label>
-              <label><input type="checkbox" name="scopes" value="profile:self:write"><span><code>profile:self:write</code> Update your profile</span></label>
-              <label><input type="checkbox" name="scopes" value="talks:read"><span><code>talks:read</code> Read your talks</span></label>
-              <label><input type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks you can edit</span></label>
-              <label><input type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage conference schedules <small>Requires a current admin role.</small></span></label>
-              <label><input type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recording metadata <small>Requires a current admin role.</small></span></label>
-              {{ if .IsGlobalAdmin }}<label><input type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires your current global-admin role.</small></span></label>{{ end }}
+              <label for="api-token-scope-identity-read"><input id="api-token-scope-identity-read" type="checkbox" name="scopes" value="identity:self:read"><span><code>identity:self:read</code> Read your account identity and current roles</span></label>
+              <label for="api-token-scope-profile-read"><input id="api-token-scope-profile-read" type="checkbox" name="scopes" value="profile:self:read" checked><span><code>profile:self:read</code> Read your private profile</span></label>
+              <label for="api-token-scope-profile-write"><input id="api-token-scope-profile-write" type="checkbox" name="scopes" value="profile:self:write"><span><code>profile:self:write</code> Update your profile</span></label>
+              <label for="api-token-scope-talks-read"><input id="api-token-scope-talks-read" type="checkbox" name="scopes" value="talks:read"><span><code>talks:read</code> Read your talks</span></label>
+              <label for="api-token-scope-talks-write"><input id="api-token-scope-talks-write" type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks you can edit</span></label>
+              <label for="api-token-scope-schedule-write"><input id="api-token-scope-schedule-write" type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage conference schedules <small>Requires a current admin role.</small></span></label>
+              <label for="api-token-scope-recordings-write"><input id="api-token-scope-recordings-write" type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recording metadata <small>Requires a current admin role.</small></span></label>
+              {{ if .IsGlobalAdmin }}<label for="api-token-scope-shop-accounting-read"><input id="api-token-scope-shop-accounting-read" type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires your current global-admin role.</small></span></label>{{ end }}
             </div>
           </fieldset>
           <label>EXPIRES

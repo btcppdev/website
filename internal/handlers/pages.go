@@ -184,7 +184,6 @@ type WhoIsPage struct {
 
 type WhoIsProfilePage struct {
 	Person           *WhoIsPerson
-	ArchiveRain      []*HomeArchiveRainItem
 	UpdateProfileURL string
 	Year             uint
 }
@@ -978,26 +977,28 @@ type EditSpeakerPage struct {
 }
 
 type PersonEmailsPage struct {
-	Speaker              *types.Speaker
-	Emails               []*types.PersonEmail
-	OAuthIdentities      []*OAuthIdentityView
-	OAuthProviders       []*OAuthProviderView
-	NostrCredentials     []*NostrCredentialView
-	HasPassword          bool
-	Passkeys             []*types.PersonPasskeyCredential
-	APITokens            []*types.PersonAPIToken
-	NewAPIToken          string
-	OAuthClients         []*types.OAuthClient
-	OAuthConsents        []*types.OAuthConsent
-	NewOAuthClientID     string
-	NewOAuthClientSecret string
-	IsGlobalAdmin        bool
-	PendingEmails        []string
-	MergeRequests        []*types.PersonMergeRequest
-	AuthMethodsCSRF      string
-	FlashMessage         string
-	FlashError           string
-	Year                 uint
+	Speaker                 *types.Speaker
+	Emails                  []*types.PersonEmail
+	OAuthIdentities         []*OAuthIdentityView
+	OAuthProviders          []*OAuthProviderView
+	NostrCredentials        []*NostrCredentialView
+	HasPassword             bool
+	Passkeys                []*types.PersonPasskeyCredential
+	APITokens               []*types.PersonAPIToken
+	NewAPIToken             string
+	OAuthClients            []*types.OAuthClient
+	OAuthConsents           []*types.OAuthConsent
+	NewOAuthClientID        string
+	NewOAuthClientSecret    string
+	IsGlobalAdmin           bool
+	HasHackathonProjects    bool
+	HasSponsorOrganizations bool
+	PendingEmails           []string
+	MergeRequests           []*types.PersonMergeRequest
+	AuthMethodsCSRF         string
+	FlashMessage            string
+	FlashError              string
+	Year                    uint
 }
 
 type NostrCredentialView struct {
