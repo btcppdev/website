@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -22,22 +24,27 @@ import (
 )
 
 type SponsorDashboardPage struct {
-	Memberships     []*types.OrganizationMembership
-	Membership      *types.OrganizationMembership
-	Organization    *types.Org
-	Upcoming        []*types.SponsorDashboardEvent
-	Past            []*types.SponsorDashboardEvent
-	Members         []*types.OrganizationMembership
-	PrizeProposals  []*types.SponsorAwardProposal
-	TicketIssuances []*types.SponsorTicketIssuance
-	CanManage       bool
-	CanEditOrg      bool
-	SpacesReady     bool
-	CSRF            string
-	FlashMessage    string
-	FlashError      string
-	InviteLink      string
-	Year            uint
+	Memberships                    []*types.OrganizationMembership
+	Membership                     *types.OrganizationMembership
+	Organization                   *types.Org
+	Upcoming                       []*types.SponsorDashboardEvent
+	Past                           []*types.SponsorDashboardEvent
+	Members                        []*types.OrganizationMembership
+	PrizeProposals                 []*types.SponsorAwardProposal
+	PrizeEntries                   []*types.SponsorPrizeEntry
+	CanViewAllHackathonSubmissions bool
+	CanExportParticipants          bool
+	TicketIssuances                []*types.SponsorTicketIssuance
+	CanManage                      bool
+	CanEditOrg                     bool
+	HasHackathonProjects           bool
+	IsGlobalAdmin                  bool
+	SpacesReady                    bool
+	CSRF                           string
+	FlashMessage                   string
+	FlashError                     string
+	InviteLink                     string
+	Year                           uint
 }
 
 func (p *SponsorDashboardPage) ProposalsFor(sponsorshipID string) []*types.SponsorAwardProposal {
@@ -58,6 +65,55 @@ func (p *SponsorDashboardPage) TicketIssuancesFor(sponsorshipID string) []*types
 		}
 	}
 	return out
+}
+
+func (p *SponsorDashboardPage) CurrentHackathonEntries() []*types.SponsorPrizeEntry {
+	return p.hackathonEntriesByHistory(false)
+}
+
+func (p *SponsorDashboardPage) PastHackathonEntries() []*types.SponsorPrizeEntry {
+	return p.hackathonEntriesByHistory(true)
+}
+
+func (p *SponsorDashboardPage) hackathonEntriesByHistory(wantPast bool) []*types.SponsorPrizeEntry {
+	if p == nil {
+		return nil
+	}
+	pastConferences := make(map[string]bool, len(p.Past))
+	for _, event := range p.Past {
+		if event != nil && event.Conference != nil {
+			pastConferences[event.Conference.Ref] = true
+		}
+	}
+	var out []*types.SponsorPrizeEntry
+	for _, entry := range p.PrizeEntries {
+		if entry != nil && pastConferences[entry.ConferenceID] == wantPast {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
+func (p *SponsorDashboardPage) CanRemoveMember(target *types.OrganizationMembership) bool {
+	if p == nil || p.Membership == nil || target == nil || target.Status == "removed" {
+		return false
+	}
+	owners := 0
+	for _, member := range p.Members {
+		if member != nil && member.Status != "removed" && member.Role == getters.OrganizationRoleOwner {
+			owners++
+		}
+	}
+	if target.Role == getters.OrganizationRoleOwner && owners <= 1 {
+		return false
+	}
+	if p.Membership.PersonID == target.PersonID {
+		return true
+	}
+	if p.Membership.Role == getters.OrganizationRoleOwner {
+		return true
+	}
+	return p.Membership.Role == getters.OrganizationRoleManager && target.Role == getters.OrganizationRoleMember
 }
 
 func (p *SponsorDashboardPage) TicketsRemaining(event *types.SponsorDashboardEvent) int {
@@ -145,7 +201,7 @@ func SponsorDashboardIndex(w http.ResponseWriter, r *http.Request, ctx *config.A
 }
 
 func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	_, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
+	id, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
 	if !ok {
 		return
 	}
@@ -154,6 +210,10 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if membership == nil {
 		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("You do not have access to that sponsor organization."), http.StatusSeeOther)
 		return
+	}
+	hasHackathonProjects, projectsErr := getters.HasHackathonParticipantProjectsForPerson(ctx, id.PersonID)
+	if projectsErr != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s hackathon projects for %s: %s", organizationID, id.PersonID, projectsErr)
 	}
 	events, err := getters.ListSponsorDashboardEvents(ctx, organizationID)
 	if err != nil {
@@ -179,6 +239,24 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Error(w, "Unable to load sponsor tickets", http.StatusInternalServerError)
 		return
 	}
+	canManage := sponsorMembershipCanManage(membership)
+	prizeEntries, err := getters.ListSponsorPrizeEntries(ctx, organizationID, canManage)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s prize entries: %s", organizationID, err)
+		http.Error(w, "Unable to load sponsor prize entrants", http.StatusInternalServerError)
+		return
+	}
+	attachSponsorPrizeEntryPublicIDs(ctx, prizeEntries)
+	if canManage {
+		contactCount := sponsorPrizeEntryContactCount(prizeEntries)
+		if contactCount > 0 {
+			if err := getters.RecordSponsorAuditEvent(ctx, organizationID, "", "", id.PersonID,
+				"sponsor.participant_contacts_viewed", "organization", organizationID,
+				map[string]any{"contact_count": contactCount}); err != nil {
+				ctx.Err.Printf("/dashboard/sponsor/%s contact audit: %s", organizationID, err)
+			}
+		}
+	}
 	csrf, err := ensureAuthMethodsCSRF(ctx, r)
 	if err != nil {
 		http.Error(w, "Unable to prepare sponsor dashboard", http.StatusInternalServerError)
@@ -188,12 +266,20 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	now := time.Now()
 	var upcoming, past []*types.SponsorDashboardEvent
 	canEditOrg := false
+	canViewAllHackathonSubmissions := false
+	canExportParticipants := false
 	for _, event := range events {
 		if event == nil || event.Conference == nil {
 			continue
 		}
 		if event.Sponsorship != nil && event.Entitlement != nil && event.Entitlement.CanEditOrganization && sponsorStatusGrantsCapabilities(event.Sponsorship.Status) && !event.Conference.EndDate.Before(now) {
 			canEditOrg = true
+		}
+		if event.Sponsorship != nil && event.Entitlement != nil && event.Entitlement.AllHackathonSubmissions && sponsorStatusGrantsCapabilities(event.Sponsorship.Status) {
+			canViewAllHackathonSubmissions = true
+		}
+		if canManage && event.Sponsorship != nil && event.Entitlement != nil && event.Entitlement.ParticipantContactExport && sponsorStatusGrantsCapabilities(event.Sponsorship.Status) {
+			canExportParticipants = true
 		}
 		if !event.Conference.EndDate.IsZero() && event.Conference.EndDate.Before(now) {
 			past = append(past, event)
@@ -206,27 +292,261 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	})
 
 	page := &SponsorDashboardPage{
-		Memberships:     memberships,
-		Membership:      membership,
-		Organization:    membership.Organization,
-		Upcoming:        upcoming,
-		Past:            past,
-		Members:         members,
-		PrizeProposals:  proposals,
-		TicketIssuances: issuances,
-		CanManage:       sponsorMembershipCanManage(membership),
-		CanEditOrg:      sponsorMembershipCanManage(membership) && canEditOrg,
-		SpacesReady:     spaces.IsConfigured(),
-		CSRF:            csrf,
-		FlashMessage:    r.URL.Query().Get("flash"),
-		FlashError:      r.URL.Query().Get("error"),
-		InviteLink:      ctx.Session.PopString(r.Context(), sponsorInviteLinkSessionKey),
-		Year:            helpers.CurrentYear(),
+		Memberships:                    memberships,
+		Membership:                     membership,
+		Organization:                   membership.Organization,
+		Upcoming:                       upcoming,
+		Past:                           past,
+		Members:                        members,
+		PrizeProposals:                 proposals,
+		TicketIssuances:                issuances,
+		PrizeEntries:                   prizeEntries,
+		CanViewAllHackathonSubmissions: canViewAllHackathonSubmissions,
+		CanExportParticipants:          canExportParticipants,
+		CanManage:                      canManage,
+		CanEditOrg:                     canManage && canEditOrg,
+		HasHackathonProjects:           hasHackathonProjects,
+		IsGlobalAdmin:                  id.IsGlobalAdmin(),
+		SpacesReady:                    spaces.IsConfigured(),
+		CSRF:                           csrf,
+		FlashMessage:                   r.URL.Query().Get("flash"),
+		FlashError:                     r.URL.Query().Get("error"),
+		InviteLink:                     ctx.Session.PopString(r.Context(), sponsorInviteLinkSessionKey),
+		Year:                           helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_sponsor.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s template: %s", organizationID, err)
 		http.Error(w, "Unable to load sponsor dashboard", http.StatusInternalServerError)
 	}
+}
+
+type sponsorParticipantCSVRow struct {
+	ConferenceTitle string
+	ConferenceTag   string
+	ProjectNumber   string
+	ProjectTitle    string
+	ProjectStatus   string
+	ProjectURL      string
+	GitHubURL       string
+	DemoURL         string
+	ParticipantName string
+	AvailableToHire bool
+	ParticipantRole string
+	ProfileURL      string
+	Email           string
+	ContactBasis    string
+	Awards          map[string]bool
+	Winner          bool
+}
+
+func SponsorDashboardHackathonCSV(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	membership := organizationMembershipByID(memberships, organizationID)
+	if membership == nil || !sponsorMembershipCanManage(membership) {
+		http.Error(w, "Sponsor participant exports require organization owner or manager access.", http.StatusForbidden)
+		return
+	}
+	events, err := getters.ListSponsorDashboardEvents(ctx, organizationID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s hackathon CSV events: %s", organizationID, err)
+		http.Error(w, "Unable to verify sponsor export access", http.StatusInternalServerError)
+		return
+	}
+	canExport := false
+	for _, event := range events {
+		if event != nil && event.Sponsorship != nil && event.Entitlement != nil && event.Entitlement.ParticipantContactExport && sponsorStatusGrantsCapabilities(event.Sponsorship.Status) {
+			canExport = true
+			break
+		}
+	}
+	if !canExport {
+		http.Error(w, "Participant CSV export is not included with this sponsorship.", http.StatusForbidden)
+		return
+	}
+	entries, err := getters.ListSponsorPrizeEntriesForExport(ctx, organizationID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s hackathon CSV entries: %s", organizationID, err)
+		http.Error(w, "Unable to prepare participant export", http.StatusInternalServerError)
+		return
+	}
+	attachSponsorPrizeEntryPublicIDs(ctx, entries)
+	rows := sponsorParticipantCSVRows(r, entries)
+
+	var body bytes.Buffer
+	writer := csv.NewWriter(&body)
+	header := []string{"Event", "Event tag", "Project number", "Project", "Project status", "Project URL", "Repository URL", "Demo URL", "Sponsor awards", "Winner", "Participant", "Currently looking for work", "Team role", "Profile URL", "Email", "Contact basis"}
+	if err := writer.Write(header); err != nil {
+		http.Error(w, "Unable to prepare participant export", http.StatusInternalServerError)
+		return
+	}
+	contactCount := 0
+	for _, row := range rows {
+		awards := make([]string, 0, len(row.Awards))
+		for award := range row.Awards {
+			awards = append(awards, award)
+		}
+		sort.Strings(awards)
+		if row.Email != "" {
+			contactCount++
+		}
+		record := []string{
+			row.ConferenceTitle, row.ConferenceTag, row.ProjectNumber,
+			row.ProjectTitle, row.ProjectStatus, row.ProjectURL,
+			row.GitHubURL, row.DemoURL, strings.Join(awards, "; "),
+			strconv.FormatBool(row.Winner), row.ParticipantName,
+			sponsorCSVYesNo(row.AvailableToHire),
+			row.ParticipantRole, row.ProfileURL, row.Email, row.ContactBasis,
+		}
+		for i := range record {
+			record[i] = sponsorCSVSafeCell(record[i])
+		}
+		if err := writer.Write(record); err != nil {
+			http.Error(w, "Unable to prepare participant export", http.StatusInternalServerError)
+			return
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		http.Error(w, "Unable to prepare participant export", http.StatusInternalServerError)
+		return
+	}
+	if err := getters.RecordSponsorAuditEvent(ctx, organizationID, "", "", id.PersonID,
+		"sponsor.participant_contacts_exported", "organization", organizationID,
+		map[string]any{"row_count": len(rows), "contact_count": contactCount}); err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s hackathon CSV audit: %s", organizationID, err)
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="btcpp_hackathons_project_participants.csv"`)
+	_, _ = w.Write(body.Bytes())
+}
+
+func sponsorParticipantCSVRows(r *http.Request, entries []*types.SponsorPrizeEntry) []*sponsorParticipantCSVRow {
+	rows := make([]*sponsorParticipantCSVRow, 0)
+	byKey := make(map[string]*sponsorParticipantCSVRow)
+	for _, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		projectNumber := ""
+		if entry.ProjectNumber != nil {
+			projectNumber = strconv.Itoa(*entry.ProjectNumber)
+		}
+		projectURL := absoluteURL(r, "/"+url.PathEscape(entry.ConferenceTag)+"/hackathon/projects/"+url.PathEscape(entry.ProjectID))
+		for _, participant := range entry.Participants {
+			if participant == nil {
+				continue
+			}
+			key := entry.ConferenceID + "|" + entry.ProjectID + "|" + participant.PersonID
+			row := byKey[key]
+			if row == nil {
+				profileURL := ""
+				if participant.PublicID != "" {
+					profileURL = absoluteURL(r, "/whois/"+url.PathEscape(participant.PublicID))
+				}
+				row = &sponsorParticipantCSVRow{
+					ConferenceTitle: entry.ConferenceTitle, ConferenceTag: entry.ConferenceTag,
+					ProjectNumber: projectNumber, ProjectTitle: entry.ProjectTitle,
+					ProjectStatus: entry.ProjectStatus, ProjectURL: projectURL,
+					GitHubURL: entry.GitHubURL, DemoURL: entry.DemoURL,
+					ParticipantName: participant.Name, AvailableToHire: participant.AvailableToHire,
+					ParticipantRole: participant.Role,
+					ProfileURL:      profileURL, Email: participant.Email,
+					ContactBasis: sponsorParticipantContactBasis(participant), Awards: make(map[string]bool),
+				}
+				byKey[key] = row
+				rows = append(rows, row)
+			}
+			if entry.SponsoredPrize && entry.AwardTitle != "" {
+				row.Awards[entry.AwardTitle] = true
+			}
+			row.Winner = row.Winner || entry.Winner
+		}
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		left := strings.ToLower(rows[i].ConferenceTitle + "\x00" + rows[i].ProjectNumber + "\x00" + rows[i].ProjectTitle + "\x00" + rows[i].ParticipantName)
+		right := strings.ToLower(rows[j].ConferenceTitle + "\x00" + rows[j].ProjectNumber + "\x00" + rows[j].ProjectTitle + "\x00" + rows[j].ParticipantName)
+		return left < right
+	})
+	return rows
+}
+
+func sponsorParticipantContactBasis(participant *types.SponsorPrizeParticipant) string {
+	if participant == nil || participant.Email == "" {
+		return "Not shared"
+	}
+	switch participant.ConsentScope {
+	case "included_sponsorship":
+		return "Included with submission"
+	case "all_sponsors":
+		return "Participant allowed hackathon sponsors"
+	case "entered_award":
+		return "Participant entered sponsor award"
+	default:
+		return "Shared"
+	}
+}
+
+func sponsorCSVYesNo(value bool) string {
+	if value {
+		return "Yes"
+	}
+	return "No"
+}
+
+func sponsorCSVSafeCell(value string) string {
+	trimmed := strings.TrimLeft(value, " \t\r\n")
+	if trimmed == "" {
+		return value
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@':
+		return "'" + value
+	default:
+		return value
+	}
+}
+
+func attachSponsorPrizeEntryPublicIDs(ctx *config.AppContext, entries []*types.SponsorPrizeEntry) {
+	people, err := buildWhoIsDirectory(ctx)
+	if err != nil {
+		return
+	}
+	publicIDs := make(map[string]string, len(people))
+	for _, person := range people {
+		if person != nil && person.Speaker != nil {
+			publicIDs[person.Speaker.ID] = person.PublicID
+		}
+	}
+	for _, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		for _, participant := range entry.Participants {
+			if participant != nil {
+				participant.PublicID = publicIDs[participant.PersonID]
+			}
+		}
+	}
+}
+
+func sponsorPrizeEntryContactCount(entries []*types.SponsorPrizeEntry) int {
+	seen := make(map[string]bool)
+	for _, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		for _, participant := range entry.Participants {
+			if participant != nil && participant.Email != "" {
+				seen[participant.PersonID] = true
+			}
+		}
+	}
+	return len(seen)
 }
 
 func SponsorDashboardPrizeProposalCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -345,6 +665,42 @@ func SponsorDashboardInviteCreate(w http.ResponseWriter, r *http.Request, ctx *c
 	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("Invitation created. Copy the secure link below; it expires in 72 hours."), http.StatusSeeOther)
 }
 
+func SponsorDashboardMemberRemove(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	targetPersonID := strings.TrimSpace(mux.Vars(r)["personID"])
+	redirectTo := "/dashboard/sponsor/" + url.PathEscape(organizationID)
+	if organizationMembershipByID(memberships, organizationID) == nil {
+		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("You do not have access to that sponsor organization."), http.StatusSeeOther)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad form", http.StatusBadRequest)
+		return
+	}
+	if !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		http.Error(w, "Invalid form token", http.StatusBadRequest)
+		return
+	}
+	if err := getters.RemoveOrganizationMembership(ctx, organizationID, id.PersonID, targetPersonID); err != nil {
+		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := getters.RecordSponsorAuditEvent(ctx, organizationID, "", "", id.PersonID,
+		"organization.member_removed", "person", targetPersonID,
+		map[string]any{"self_removed": id.PersonID == targetPersonID}); err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s member removal audit: %s", organizationID, err)
+	}
+	if id.PersonID == targetPersonID {
+		http.Redirect(w, r, "/dashboard?flash="+url.QueryEscape("You left the sponsor organization."), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("Organization member removed."), http.StatusSeeOther)
+}
+
 func SponsorInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	protectSponsorInviteResponse(w)
 	token := strings.TrimSpace(mux.Vars(r)["token"])
@@ -363,6 +719,12 @@ func SponsorInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		return
 	}
 	if id == nil || strings.TrimSpace(id.PersonID) == "" {
+		pendingEmail := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
+		if pendingEmail != "" && strings.EqualFold(pendingEmail, invite.Email) {
+			next := r.URL.RequestURI()
+			http.Redirect(w, r, "/dashboard/profile?next="+url.QueryEscape(next), http.StatusSeeOther)
+			return
+		}
 		http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
 		return
 	}
@@ -461,8 +823,6 @@ func SponsorDashboardProfileUpdate(w http.ResponseWriter, r *http.Request, ctx *
 	org.Nostr = strings.TrimSpace(r.FormValue("Nostr"))
 	org.Matrix = strings.TrimSpace(r.FormValue("Matrix"))
 	org.Hiring = r.FormValue("Hiring") == "on"
-	org.LogoLight = strings.TrimSpace(r.FormValue("LogoLight"))
-	org.LogoDark = strings.TrimSpace(r.FormValue("LogoDark"))
 	if org.Name == "" {
 		http.Redirect(w, r, "/dashboard/sponsor/"+url.PathEscape(organizationID)+"?error="+url.QueryEscape("Organization name is required."), http.StatusSeeOther)
 		return

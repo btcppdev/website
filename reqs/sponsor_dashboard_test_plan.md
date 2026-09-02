@@ -14,8 +14,9 @@ This branch establishes the sponsor-platform foundation:
 - Append-only, policy-versioned consent history.
 - Sponsor audit events for sensitive management operations.
 
-Participant contact views/exports, invitation email delivery, and
-pending-invitation management are intentionally deferred.
+Consent-filtered participant contact views/exports and sponsor invitation
+email delivery are included. Pending-invitation management is intentionally
+deferred.
 
 ## Prepare a local environment
 
@@ -145,6 +146,26 @@ action capabilities.
 
 ## Organization invitations
 
+### Event-admin invitation
+
+1. As `dev-admin@example.test`, open `/dev26/admin/sponsors` and edit a
+   sponsorship.
+2. Under “Or invite a new manager,” enter a name and an email that does not
+   belong to an existing development account, then save.
+3. Confirm the page reports that the sponsorship was saved and the invitation
+   was emailed.
+4. Open the email and follow its 72-hour secure login link.
+5. Confirm the email-login confirmation routes to “Set up your account,” the
+   invited name is prefilled, and photo, phone, and Signal are optional.
+6. Create the account, accept the one-time sponsor invitation, and confirm the
+   browser lands on the organization sponsor dashboard.
+7. Repeat with an email belonging to an existing account and confirm account
+   setup is skipped.
+8. Confirm the resulting organization membership is `manager`, a reused link
+   fails, and an account authenticated with another email cannot accept it.
+
+### Sponsor-manager invitation
+
 1. As Mara, invite `rafael.silva@example.test` as a member.
 2. Copy the generated link. Confirm it is shown only after creation and is not
    stored in plaintext in the database.
@@ -200,7 +221,7 @@ Review `/privacy` and `/terms` and confirm they state that:
 
 Recommended next work, in order:
 
-1. Email sponsor invitations and add pending/resend/revoke controls.
-2. Add consent-filtered participant contact views with mandatory audit logging.
-3. Add sponsor headlines and project/prize outcome reporting.
-4. Add sponsor member role changes/removal and ticket revocation/reallocation.
+1. Add pending/resend/revoke controls for sponsor invitations.
+2. Add sponsor headlines and project/prize outcome reporting.
+3. Add sponsor member role changes and ticket revocation/reallocation.
+4. Keep sponsor-judge assignment in the hackathon organizer administration.

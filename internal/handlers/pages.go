@@ -958,20 +958,23 @@ type InviteCoSpeakerPage struct {
 // (Speaker non-nil) and "create" when they don't yet (volunteer- or
 // ticket-only contacts who want to add themselves to the speakers DB).
 type EditSpeakerPage struct {
-	Speaker       *types.Speaker
-	HMAC          string
-	Email         string
-	EmailPlain    string // not base64 — used as the value for the create-mode email field
-	Mode          string // "edit" | "create"
-	SetupProvider string // OAuth provider label when create mode follows a new-provider sign-in
-	FlashMessage  string
-	IsAdmin       bool
-	BackURL       string
-	FormAction    string
-	NextURL       string
-	PublicURL     string
-	CancelCSRF    string // present only for self-service account setup
-	Year          uint
+	Speaker            *types.Speaker
+	HMAC               string
+	Email              string
+	EmailPlain         string // not base64 — used as the value for the create-mode email field
+	Mode               string // "edit" | "create"
+	SetupProvider      string // OAuth provider label when create mode follows a new-provider sign-in
+	SetupPurpose       string // optional destination context, such as "sponsor"
+	SetupName          string // escaped account-setup name prefill
+	RequireFullProfile bool   // speaker-oriented setup requires photo and logistics fields
+	FlashMessage       string
+	IsAdmin            bool
+	BackURL            string
+	FormAction         string
+	NextURL            string
+	PublicURL          string
+	CancelCSRF         string // present only for self-service account setup
+	Year               uint
 }
 
 type PersonEmailsPage struct {

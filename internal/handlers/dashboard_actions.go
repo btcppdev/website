@@ -811,6 +811,12 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		Year:         helpers.CurrentYear(),
 	}
 	if mode == "create" {
+		if strings.HasPrefix(nextURL, "/sponsor-invites/") {
+			page.SetupPurpose = "sponsor"
+			if parsedNext, parseErr := url.Parse(nextURL); parseErr == nil {
+				page.SetupName = strings.TrimSpace(parsedNext.Query().Get("name"))
+			}
+		}
 		for _, provider := range auth.OAuthProviders(ctx.Env) {
 			if nextURL == "/auth/oauth/"+provider.Key()+"/confirm" {
 				page.SetupProvider = provider.Label()
@@ -818,6 +824,7 @@ func DashboardEditSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 			}
 		}
 	}
+	page.RequireFullProfile = mode == "edit" || page.SetupPurpose != "sponsor"
 	if hasPublicWhoIsProfile(ctx, sp) {
 		page.PublicURL = whoIsPublicPath(ctx, sp)
 	}
@@ -1022,11 +1029,13 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		Bio:       strings.TrimSpace(r.FormValue("Bio")),
 		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
-	if missing := firstMissingProfileField(in.Phone, in.Signal, hasNewPic); missing != "" {
-		http.Redirect(w, r,
-			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, missing+" is required."),
-			http.StatusSeeOther)
-		return
+	if !strings.HasPrefix(nextURL, "/sponsor-invites/") {
+		if missing := firstMissingProfileField(in.Phone, in.Signal, hasNewPic); missing != "" {
+			http.Redirect(w, r,
+				dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, missing+" is required."),
+				http.StatusSeeOther)
+			return
+		}
 	}
 	if hasNewPic {
 		in.Photo = imgproc.ShortID(picRaw) + picExt

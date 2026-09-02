@@ -5,6 +5,8 @@ import (
 	"btcpp-web/internal/types"
 	"fmt"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // SearchOrgsByName returns up to limit orgs whose name contains q
@@ -379,7 +381,42 @@ func hydrateSponsorshipConfsPostgres(ctx *config.AppContext, ids []string, byID 
 	return nil
 }
 
-func RegisterSponsorship(ctx *config.AppContext, sp *types.Sponsorship) error {
+type SponsorshipWriteOptions struct {
+	ManagerPersonID    string
+	AssignedByPersonID string
+}
+
+func assignSponsorshipManager(tx pgx.Tx, ctx *config.AppContext, organizationID string, options SponsorshipWriteOptions) error {
+	personID := strings.TrimSpace(options.ManagerPersonID)
+	if personID == "" {
+		return nil
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	if organizationID == "" {
+		return fmt.Errorf("cannot assign a sponsor manager without an organization")
+	}
+	if _, err := tx.Exec(ctx.DatabaseContext(), `
+		INSERT INTO organization_memberships (
+			organization_id, person_id, role, status, invited_by_person_id
+		) VALUES ($1::uuid, $2::uuid, 'manager', 'active', NULLIF($3, '')::uuid)
+		ON CONFLICT (organization_id, person_id) DO UPDATE SET
+			role = CASE
+				WHEN organization_memberships.role = 'owner' THEN 'owner'
+				ELSE 'manager'
+			END,
+			status = 'active',
+			invited_by_person_id = coalesce(
+				organization_memberships.invited_by_person_id,
+				EXCLUDED.invited_by_person_id
+			),
+			updated_at = now()
+	`, organizationID, personID, strings.TrimSpace(options.AssignedByPersonID)); err != nil {
+		return fmt.Errorf("assign sponsorship organization manager: %w", err)
+	}
+	return nil
+}
+
+func RegisterSponsorship(ctx *config.AppContext, sp *types.Sponsorship, entitlement *types.SponsorshipEntitlement, options SponsorshipWriteOptions) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
@@ -422,6 +459,42 @@ func RegisterSponsorship(ctx *config.AppContext, sp *types.Sponsorship) error {
 		`, sponsorshipID, conf.Ref); err != nil {
 			return fmt.Errorf("insert sponsorship conference link %s/%s: %w", sponsorshipID, conf.Ref, err)
 		}
+		allSubmissions := false
+		automaticContact := false
+		ticketAllocation := 0
+		sponsorAwardLimit := 0
+		canEditOrganization := false
+		if entitlement != nil {
+			allSubmissions = entitlement.AllHackathonSubmissions
+			automaticContact = entitlement.AutomaticSubmissionContactAccess
+			ticketAllocation = entitlement.TicketAllocation
+			sponsorAwardLimit = entitlement.SponsorAwardLimit
+			canEditOrganization = entitlement.CanEditOrganization
+		}
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			INSERT INTO sponsorship_entitlements (
+				sponsorship_id, conference_id, ticket_allocation, sponsor_award_limit,
+				all_hackathon_submissions_access,
+				participant_contact_access, participant_contact_export,
+				automatic_submission_contact_access,
+				can_edit_organization
+			) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $6, $6, $7)
+			ON CONFLICT (sponsorship_id, conference_id) DO UPDATE SET
+				ticket_allocation = EXCLUDED.ticket_allocation,
+				sponsor_award_limit = EXCLUDED.sponsor_award_limit,
+				all_hackathon_submissions_access = EXCLUDED.all_hackathon_submissions_access,
+				participant_contact_access = sponsorship_entitlements.participant_contact_access
+					OR EXCLUDED.automatic_submission_contact_access,
+				participant_contact_export = sponsorship_entitlements.participant_contact_export
+					OR EXCLUDED.automatic_submission_contact_access,
+				automatic_submission_contact_access = EXCLUDED.automatic_submission_contact_access,
+				can_edit_organization = EXCLUDED.can_edit_organization
+		`, sponsorshipID, conf.Ref, ticketAllocation, sponsorAwardLimit, allSubmissions, automaticContact, canEditOrganization); err != nil {
+			return fmt.Errorf("insert sponsorship entitlement %s/%s: %w", sponsorshipID, conf.Ref, err)
+		}
+	}
+	if err := assignSponsorshipManager(tx, ctx, orgID, options); err != nil {
+		return err
 	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return fmt.Errorf("commit sponsorship registration: %w", err)
@@ -431,7 +504,7 @@ func RegisterSponsorship(ctx *config.AppContext, sp *types.Sponsorship) error {
 	return nil
 }
 
-func UpdateSponsorship(ctx *config.AppContext, confRef string, sp *types.Sponsorship) error {
+func UpdateSponsorship(ctx *config.AppContext, confRef string, sp *types.Sponsorship, entitlement *types.SponsorshipEntitlement, options SponsorshipWriteOptions) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
@@ -449,7 +522,13 @@ func UpdateSponsorship(ctx *config.AppContext, confRef string, sp *types.Sponsor
 		orgID = strings.TrimSpace(sp.Org.Ref)
 	}
 
-	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
+	if err != nil {
+		return fmt.Errorf("begin sponsorship update: %w", err)
+	}
+	defer tx.Rollback(ctx.DatabaseContext())
+
+	commandTag, err := tx.Exec(ctx.DatabaseContext(), `
 		UPDATE sponsorships
 		SET organization_id = NULLIF($3, '')::uuid,
 			name = $4,
@@ -473,8 +552,85 @@ func UpdateSponsorship(ctx *config.AppContext, confRef string, sp *types.Sponsor
 	if commandTag.RowsAffected() == 0 {
 		return fmt.Errorf("sponsorship %s not found for conference %s", sp.Ref, confRef)
 	}
+	allSubmissions := false
+	automaticContact := false
+	ticketAllocation := 0
+	sponsorAwardLimit := 0
+	canEditOrganization := false
+	if entitlement != nil {
+		allSubmissions = entitlement.AllHackathonSubmissions
+		automaticContact = entitlement.AutomaticSubmissionContactAccess
+		ticketAllocation = entitlement.TicketAllocation
+		sponsorAwardLimit = entitlement.SponsorAwardLimit
+		canEditOrganization = entitlement.CanEditOrganization
+	}
+	if _, err := tx.Exec(ctx.DatabaseContext(), `
+		INSERT INTO sponsorship_entitlements (
+			sponsorship_id, conference_id, ticket_allocation, sponsor_award_limit,
+			all_hackathon_submissions_access,
+			participant_contact_access, participant_contact_export,
+			automatic_submission_contact_access,
+			can_edit_organization
+		) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $6, $6, $7)
+		ON CONFLICT (sponsorship_id, conference_id) DO UPDATE SET
+			ticket_allocation = EXCLUDED.ticket_allocation,
+			sponsor_award_limit = EXCLUDED.sponsor_award_limit,
+			all_hackathon_submissions_access = EXCLUDED.all_hackathon_submissions_access,
+			participant_contact_access = sponsorship_entitlements.participant_contact_access
+				OR EXCLUDED.automatic_submission_contact_access,
+			participant_contact_export = sponsorship_entitlements.participant_contact_export
+				OR EXCLUDED.automatic_submission_contact_access,
+			automatic_submission_contact_access = EXCLUDED.automatic_submission_contact_access,
+			can_edit_organization = EXCLUDED.can_edit_organization
+	`, sp.Ref, confRef, ticketAllocation, sponsorAwardLimit, allSubmissions, automaticContact, canEditOrganization); err != nil {
+		return fmt.Errorf("update sponsorship entitlement %s/%s: %w", sp.Ref, confRef, err)
+	}
+	if err := assignSponsorshipManager(tx, ctx, orgID, options); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
+		return fmt.Errorf("commit sponsorship update: %w", err)
+	}
 	sp.Name = name
 	return nil
+}
+
+func ListSponsorshipEntitlementsForConference(ctx *config.AppContext, conferenceID string) (map[string]*types.SponsorshipEntitlement, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT sponsorship_id::text, conference_id::text, ticket_allocation,
+			sponsor_award_limit, all_hackathon_submissions_access,
+			automatic_submission_contact_access,
+			participant_contact_access, participant_contact_export,
+			can_edit_organization,
+			created_at, updated_at
+		FROM sponsorship_entitlements
+		WHERE conference_id = $1::uuid
+	`, strings.TrimSpace(conferenceID))
+	if err != nil {
+		return nil, fmt.Errorf("list sponsorship entitlements for conference: %w", err)
+	}
+	defer rows.Close()
+	out := make(map[string]*types.SponsorshipEntitlement)
+	for rows.Next() {
+		entitlement := &types.SponsorshipEntitlement{}
+		if err := rows.Scan(&entitlement.SponsorshipID, &entitlement.ConferenceID,
+			&entitlement.TicketAllocation, &entitlement.SponsorAwardLimit,
+			&entitlement.AllHackathonSubmissions,
+			&entitlement.AutomaticSubmissionContactAccess,
+			&entitlement.ParticipantContactAccess, &entitlement.ParticipantContactExport,
+			&entitlement.CanEditOrganization,
+			&entitlement.CreatedAt, &entitlement.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan sponsorship entitlement: %w", err)
+		}
+		out[entitlement.SponsorshipID] = entitlement
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sponsorship entitlements: %w", err)
+	}
+	return out, nil
 }
 
 func UpdateSponsorshipStatus(ctx *config.AppContext, ref string, status string) error {

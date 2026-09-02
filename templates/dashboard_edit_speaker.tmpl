@@ -35,7 +35,7 @@
       {{ if and (eq .Mode "create") (not .IsAdmin) }}
       <p class="profile-edit-tag">§ NEW ACCOUNT</p>
       <h1>Finish setting up <span>your account.</span></h1>
-      <p>We haven’t created your bitcoin++ account yet. Your {{ if .SetupProvider }}{{ .SetupProvider }}{{ else }}email{{ end }} sign-in is verified; add your details below, then choose Create account.</p>
+      <p>We haven’t created your bitcoin++ account yet. Your {{ if .SetupProvider }}{{ .SetupProvider }}{{ else }}email{{ end }} sign-in is verified; add your details below, then choose Create account.{{ if eq .SetupPurpose "sponsor" }} You’ll continue to your sponsor invitation next.{{ end }}</p>
       {{ else }}
       <p class="profile-edit-tag">§ YOUR PROFILE</p>
       <h1>{{ if .IsAdmin }}Create a <span>speaker record.</span>{{ else }}Arrange <span>your</span> record.{{ end }}</h1>
@@ -71,7 +71,7 @@
 
           <div class="profile-edit-fields">
             <div class="profile-edit-photo">
-              <label for="PicFile">PHOTO {{ if and (eq .Mode "create") (not .IsAdmin) }}*{{ end }}</label>
+              <label for="PicFile">PHOTO {{ if and (eq .Mode "create") .RequireFullProfile }}*{{ end }}</label>
               <div>
                 {{ if and .Speaker .Speaker.Photo }}
                 <img src="{{ speakerPhoto .Speaker.Photo }}" alt="{{ .Speaker.Name }}">
@@ -79,7 +79,7 @@
                 <span>{{ if .Speaker }}{{ printf "%.1s" .Speaker.Name }}{{ else }}+{{ end }}</span>
                 {{ end }}
                 <div>
-                  <input name="PicFile" id="PicFile" type="file" accept="image/*" {{ if and (eq .Mode "create") (not .IsAdmin) }}required{{ end }}>
+                  <input name="PicFile" id="PicFile" type="file" accept="image/*" {{ if and (eq .Mode "create") .RequireFullProfile }}required{{ end }}>
                   <small>Square crops work best. Leave empty to keep the current photo.</small>
                   <div id="PicError" class="profile-edit-error hidden" role="alert" aria-live="polite"></div>
                   <div id="PicPreview" class="profile-edit-preview hidden">
@@ -93,7 +93,7 @@
 
             {{ if eq .Mode "create" }}
             <label>DISPLAY NAME *
-              <input id="Name" name="Name" type="text" required>
+              <input id="Name" name="Name" type="text" required value="{{ .SetupName }}">
             </label>
             <label>EMAIL {{ if .IsAdmin }}*{{ end }}
               {{ if .IsAdmin }}
@@ -163,11 +163,11 @@
             </div>
           </div>
           <div class="profile-edit-fields">
-            <label>PHONE {{ if not .IsAdmin }}*{{ end }}
-              <input id="Phone" name="Phone" type="tel" {{ if not .IsAdmin }}required{{ end }} value="{{ if .Speaker }}{{ .Speaker.Phone }}{{ end }}">
+            <label>PHONE {{ if .RequireFullProfile }}*{{ end }}
+              <input id="Phone" name="Phone" type="tel" {{ if .RequireFullProfile }}required{{ end }} value="{{ if .Speaker }}{{ .Speaker.Phone }}{{ end }}">
             </label>
-            <label>SIGNAL {{ if not .IsAdmin }}*{{ end }}
-              <input id="Signal" name="Signal" type="text" {{ if not .IsAdmin }}required{{ end }} value="{{ if .Speaker }}{{ .Speaker.Signal }}{{ end }}">
+            <label>SIGNAL {{ if .RequireFullProfile }}*{{ end }}
+              <input id="Signal" name="Signal" type="text" {{ if .RequireFullProfile }}required{{ end }} value="{{ if .Speaker }}{{ .Speaker.Signal }}{{ end }}">
             </label>
             <label>TELEGRAM
               <input id="Telegram" name="Telegram" type="text" value="{{ if .Speaker }}{{ .Speaker.Telegram }}{{ end }}">
