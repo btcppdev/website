@@ -7,19 +7,25 @@
 </head>
 <body class="btcpp-dashboard-page">
   {{ block "mainnav" . }} {{ end }}
+  {{ template "dashboard_tabs" (dict "Active" "hackathons" "ShowHackathons" true "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" .IsGlobalAdmin) }}
   <div class="dashboard-shell">
     <main class="dashboard-main">
-      {{ template "dashboard_tabs" (dict "Active" "hackathons" "ShowHackathons" true "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" .IsGlobalAdmin) }}
-
-      <header class="dashboard-hackathon-header">
-        <div class="dashboard-kicker">§ Hackathons</div>
-        <h1>Your projects.</h1>
-        <p>Manage your team, public project page, and final submission from one place.</p>
+      <header class="dashboard-workspace-hero dashboard-hackathon-header">
+        <div class="dashboard-workspace-hero__mark"><span>H</span></div>
+        <div class="dashboard-workspace-hero__copy">
+          <div class="dashboard-kicker">● Hackathon workspace</div>
+          <h1>Your projects.</h1>
+          <p>Manage your team, public project page, and final submission from one place.</p>
+          <div class="dashboard-workspace-hero__facts" aria-label="Hackathon workspace summary">
+            <span>{{ len .HackathonProjects }} project{{ if ne (len .HackathonProjects) 1 }}s{{ end }}</span>
+            <span>Team and submission tools</span>
+          </div>
+        </div>
       </header>
 
       <section class="dashboard-hackathon-list" aria-label="Your hackathon projects">
         {{ range .HackathonProjects }}
-        <article class="dashboard-hackathon-project">
+        <article class="dashboard-hackathon-project dashboard-workspace-panel">
           <div class="dashboard-hackathon-project__media">
             {{ if .ImageURL }}
             <img src="{{ .ImageURL | safeURL }}" alt="">

@@ -28,7 +28,6 @@ type siteAccountNavView struct {
 	PhotoURL      string
 	ProfileURL    string
 	CSRF          string
-	Next          string
 	IsGlobalAdmin bool
 }
 
@@ -41,7 +40,6 @@ func SiteAccountNavigation(w http.ResponseWriter, r *http.Request, ctx *config.A
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Vary", "Cookie")
 
-	next := auth.SafeNext(r.URL.Query().Get("next"), "/dashboard")
 	id, err := auth.Resolve(r, ctx)
 	if err != nil {
 		if ctx.Err != nil {
@@ -50,7 +48,7 @@ func SiteAccountNavigation(w http.ResponseWriter, r *http.Request, ctx *config.A
 		id = nil
 	}
 	if id == nil || id.PersonID == "" {
-		if err := ctx.TemplateCache.ExecuteTemplate(w, "site_account_anonymous", &siteAccountNavView{Next: next}); err != nil {
+		if err := ctx.TemplateCache.ExecuteTemplate(w, "site_account_anonymous", &siteAccountNavView{}); err != nil {
 			http.Error(w, "navigation unavailable", http.StatusInternalServerError)
 		}
 		return
