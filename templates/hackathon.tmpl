@@ -7,7 +7,6 @@
 <body class="hack-redesign">
   {{ $galleryProjects := .GalleryProjects }}
   {{ $tableProjects := .TableProjects }}
-  {{ $showProjectGallery := .ProjectGalleryOpen }}
   {{ template "hackathon_conf_nav" . }}
   <main class="hack-shell">
     <section class="hack-control" aria-labelledby="hackathon-title">
@@ -39,8 +38,6 @@
           <div class="hack-actions hack-control__actions">
             {{ template "hackathon_primary_action" . }}
             <a href="#participate" class="hack-button hack-button--light">How to participate ↓</a>
-            {{ if .CanJudge }}<a href="{{ .JudgingURL }}" class="hack-button hack-button--light">Judging →</a>{{ end }}
-            {{ if .CanAdminEdit }}<a href="{{ .AdminEditURL }}" class="hack-button hack-button--light">Edit hackathon →</a>{{ end }}
           </div>
         </div>
         <aside class="hack-control__prize" aria-label="Hackathon at a glance">
@@ -157,7 +154,7 @@
         <div class="hack-bounty-grid">
           {{ range $additionalAwards }}
           {{ $award := . }}
-          <article class="hack-bounty-card">
+          <article class="hack-bounty-card" id="bounty-{{ .ID }}">
             <div class="hack-bounty-card__top">
               <div class="hack-bounty-card__sponsor">
                 {{ if $.AwardHasSponsor . }}
@@ -172,7 +169,7 @@
             </div>
               {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
             </div>
-            <h3>{{ .Title }}</h3>
+            <h3><a class="hack-bounty-card__permalink" href="#bounty-{{ .ID }}">{{ .Title }} <span aria-hidden="true">#</span></a></h3>
             {{ if .Description }}<div class="hack-bounty-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
             {{ $prizes := $.AwardPrizes . }}
             {{ if $prizes }}
@@ -202,7 +199,7 @@
         <div class="hack-bounty-grid">
           {{ range $challengeAwards }}
           {{ $award := . }}
-          <article class="hack-bounty-card">
+          <article class="hack-bounty-card" id="bounty-{{ .ID }}">
             <div class="hack-bounty-card__top">
               <div class="hack-bounty-card__sponsor">
                 {{ if $.AwardHasSponsor . }}
@@ -217,7 +214,7 @@
             </div>
               {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
             </div>
-            <h3>{{ .Title }}</h3>
+            <h3><a class="hack-bounty-card__permalink" href="#bounty-{{ .ID }}">{{ .Title }} <span aria-hidden="true">#</span></a></h3>
             {{ if .Description }}<div class="hack-bounty-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
             {{ $prizes := $.AwardPrizes . }}
             {{ if $prizes }}
@@ -243,10 +240,10 @@
       <section class="hack-judges" aria-label="Hackathon judges">
         <div class="hack-section__head hack-judges__head">
           <div>
-            <div class="hack-label">{{ if .ShowingPriorJudges }}§ Previous judges{{ else }}§ The judges{{ end }}</div>
+            <div class="hack-label">§ The judges</div>
             <h2>{{ if .Judges }}{{ len .Judges }} {{ if eq (len .Judges) 1 }}judge{{ else }}judges{{ end }}.{{ else }}Judges <span class="hack-serif">soon.</span>{{ end }}</h2>
           </div>
-          <div class="hack-section__deck">{{ if .ShowingPriorJudges }}Meet the judges from {{ .PriorJudgesLabel }} while this hackathon’s panel is being selected.{{ else }}Scoring is handled by the assigned hackathon judges.{{ end }}</div>
+          <div class="hack-section__deck">Scoring is handled by the assigned hackathon judges.</div>
         </div>
         {{ if .Judges }}
         <div class="hack-judge-grid">
@@ -276,10 +273,10 @@
       <section class="hack-featured-projects" aria-label="Featured hackathon projects">
         <div class="hack-section__head">
           <div>
-            <div class="hack-label">{{ if .ShowingPriorGallery }}§ Previous builds{{ else }}§ Featured builds{{ end }}</div>
+            <div class="hack-label">§ Featured builds</div>
             <h2>Built in <span class="hack-serif">public.</span></h2>
           </div>
-          <div class="hack-section__deck">{{ if .ShowingPriorGallery }}Projects from {{ .PriorGalleryLabel }}, shown until this hackathon’s gallery opens.{{ else }}Winning and featured projects from this hackathon.{{ end }} <a href="#projects">Explore the full gallery →</a></div>
+          <div class="hack-section__deck">Winning and featured projects from this hackathon. <a href="#projects">Explore the full gallery →</a></div>
         </div>
         <div class="hack-card-grid">
           {{ range $project := $featuredProjects }}
@@ -330,15 +327,14 @@
       {{ end }}
     </section>
 
-    {{ if $showProjectGallery }}
     <section data-hackathon-tab-panel="projects" class="hack-panel hidden" id="projects">
       <div class="hack-section__head">
         <div>
-          <div class="hack-label">{{ if .ShowingPriorGallery }}§ Previous project gallery{{ else }}§ Project gallery{{ end }}</div>
+          <div class="hack-label">§ Project gallery</div>
           <h2>What got <span class="hack-serif">built.</span></h2>
         </div>
         <div class="hack-section__deck">
-          {{ if .ShowingPriorGallery }}Showing public projects from {{ .PriorGalleryLabel }} until this hackathon’s gallery is made public.{{ else }}Every visible project from this hackathon, sorted by the current platform rules.{{ end }}
+          Every public project from this hackathon, sorted by the current platform rules.
           <div class="hack-section__cta">{{ template "hackathon_primary_action" . }}</div>
         </div>
       </div>
@@ -349,12 +345,25 @@
         {{ end }}
       </div>
       {{ else }}
-      <div class="hack-empty">
-        <p>{{ if .ShowingPriorGallery }}No public projects from {{ .PriorGalleryLabel }}.{{ else }}No visible projects yet.{{ end }}</p>
+      <div class="hack-empty hack-empty--gallery">
+        <div class="hack-empty__mark" aria-hidden="true">+</div>
+        {{ if .ProjectGalleryOpen }}
+        <h3>This hackathon’s gallery is waiting for its first builds.</h3>
+        <p>Join the event, form a team, and submit a project.</p>
+        {{ else }}
+        <h3>This hackathon’s project gallery isn’t public yet.</h3>
+        <p>Join the event, form a team, and submit a project. This event’s projects will appear here when the gallery opens.</p>
+        {{ end }}
+        <div class="hack-empty__actions">
+          {{ $primaryAction := .PrimaryProjectAction }}
+          {{ template "hackathon_primary_action" . }}
+          {{ if ne $primaryAction.URL .TicketURL }}
+          <a class="hack-button hack-button--light" href="{{ .TicketURL }}">Get a ticket →</a>
+          {{ end }}
+        </div>
       </div>
       {{ end }}
     </section>
-    {{ end }}
 
     <section data-hackathon-tab-panel="awards" class="hack-panel hidden hack-awards" id="awards">
       <div class="hack-section__head">
@@ -371,18 +380,31 @@
       <div class="hack-card-grid">
         {{ range .Awards }}
         {{ $award := . }}
-        <article class="hack-card hack-award-card">
+        <article class="hack-card hack-award-card" id="award-{{ .ID }}">
           <div class="hack-card__body">
             <div class="hack-award-card__top">
               <div class="hack-award-card__label">
-                <span>{{ if $.AwardIsChallenge . }}[ {{ $.AwardDisplayLabel . }} ]{{ else }}★ {{ $.AwardDisplayLabel . }}{{ end }}</span>
+                {{ if $.AwardHasSponsor . }}
+                  {{ with $.AwardSponsorURL . }}<a href="{{ . }}" target="_blank" rel="noreferrer">[ {{ $.AwardSponsorLabel $award }} ]</a>{{ else }}<span>[ {{ $.AwardSponsorLabel $award }} ]</span>{{ end }}
+                {{ else }}
+                  <span>{{ if $.AwardIsChallenge . }}[ {{ $.AwardDisplayLabel . }} ]{{ else }}★ {{ $.AwardDisplayLabel . }}{{ end }}</span>
+                {{ end }}
               </div>
-              {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
+              {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}
+                {{ with $.AwardSponsorURL $award }}<a class="hack-sponsored-award-logo" href="{{ . }}" target="_blank" rel="noreferrer"><img src="{{ $.AwardLogoURL $award }}" alt="{{ $.AwardLogoAlt $award }}"></a>{{ else }}<div class="hack-sponsored-award-logo"><img src="{{ $.AwardLogoURL $award }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}
+              {{ end }}{{ end }}
             </div>
-            <h3>{{ .Title }}</h3>
-            {{ if $.AwardHasSponsor . }}
-            <div class="hack-tags">
-              {{ if $.AwardSponsorURL . }}<a href="{{ $.AwardSponsorURL . }}" target="_blank" rel="noreferrer" class="hack-tag">{{ $.AwardSponsorLabel . }}</a>{{ else }}<span class="hack-tag">{{ $.AwardSponsorLabel . }}</span>{{ end }}
+            <h3><a class="hack-bounty-card__permalink" href="#award-{{ .ID }}">{{ .Title }} <span aria-hidden="true">#</span></a></h3>
+            {{ $prizes := $.AwardPrizes . }}
+            {{ if $prizes }}
+            <div class="hack-award-card__value">
+              {{ with $.AwardTotalPrizeValue . }}
+              <span>Total prize value</span>
+              <strong>{{ . }} <small>sats</small></strong>
+              {{ else }}
+              <span>Prize package</span>
+              <strong>{{ len $prizes }} <small>{{ if eq (len $prizes) 1 }}prize{{ else }}prizes{{ end }}</small></strong>
+              {{ end }}
             </div>
             {{ end }}
             {{ if .Description }}<div class="hack-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
@@ -402,7 +424,6 @@
               {{ end }}
             </div>
             {{ end }}
-            {{ $prizes := $.AwardPrizes . }}
             {{ if $prizes }}
             <div class="hack-award-card__prize-label">Prizes</div>
             <div class="hack-card__links hack-award-card__prizes">
@@ -450,7 +471,7 @@
             {{ range $tableProjects }}
             <tr>
               <td>{{ $.ProjectNumberLabel . }}</td>
-              <td>{{ if $showProjectGallery }}<a href="#project-{{ .ID }}">{{ .Title }}</a>{{ else }}{{ .Title }}{{ end }}</td>
+              <td>{{ if $.ProjectGalleryOpen }}<a href="#project-{{ .ID }}">{{ .Title }}</a>{{ else }}{{ .Title }}{{ end }}</td>
             </tr>
             {{ end }}
           </tbody>
@@ -486,9 +507,10 @@
       function tabFromHash() {
         if (window.location.hash === '#overview') return 'overview';
         if (window.location.hash === '#awards') return 'awards';
-        if (window.location.hash === '#tables') return 'tables';
-        if (window.location.hash === '#projects') return 'projects';
-        if (window.location.hash.indexOf('#project-') === 0) {
+                if (window.location.hash === '#tables') return 'tables';
+                if (window.location.hash === '#projects') return 'projects';
+                if (window.location.hash.indexOf('#award-') === 0) return 'awards';
+                if (window.location.hash.indexOf('#project-') === 0) {
           const target = document.getElementById(window.location.hash.slice(1));
           const panel = target && target.closest('[data-hackathon-tab-panel]');
           if (panel && panel.dataset.hackathonTabPanel) return panel.dataset.hackathonTabPanel;

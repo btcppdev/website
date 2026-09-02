@@ -4353,6 +4353,8 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 	var hackathonScheduleEvents []HackathonScheduleEvent
 	var hackathonJudges []*types.CompetitionJudge
+	var hackathonJudgesArePast bool
+	var hackathonJudgesLabel string
 	var hackathonPlaceRows []*HackathonPlaceRow
 	var hackathonPrizePoolSats int64
 	var hackathonOrgs map[string]*types.Org
@@ -4372,6 +4374,21 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		hackathonJudges, err = getters.ListCompetitionJudges(ctx, hackathon.ID)
 		if err != nil {
 			ctx.Err.Printf("/%s hackathon judges %s failed (continuing): %s", conf.Tag, hackathon.ID, err)
+		}
+		if len(hackathonJudges) == 0 {
+			priorCompetition, priorConf, priorErr := previousPublicHackathon(ctx, hackathon, conf)
+			if priorErr != nil {
+				ctx.Err.Printf("/%s previous hackathon judges lookup failed (continuing): %s", conf.Tag, priorErr)
+			} else if priorCompetition != nil && priorConf != nil {
+				priorJudges, judgesErr := getters.ListCompetitionJudges(ctx, priorCompetition.ID)
+				if judgesErr != nil {
+					ctx.Err.Printf("/%s previous hackathon judges %s failed (continuing): %s", conf.Tag, priorCompetition.ID, judgesErr)
+				} else if len(priorJudges) > 0 {
+					hackathonJudges = limitHackathonJudges(priorJudges, 6)
+					hackathonJudgesArePast = true
+					hackathonJudgesLabel = publicHackathonConferenceName(priorConf.Desc)
+				}
+			}
 		}
 		hackathonOrgs, err = loadHackathonOrgMap(ctx)
 		if err != nil {
@@ -4425,6 +4442,8 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		Hackathon:               hackathon,
 		HackathonScheduleEvents: hackathonScheduleEvents,
 		HackathonJudges:         hackathonJudges,
+		HackathonJudgesArePast:  hackathonJudgesArePast,
+		HackathonJudgesLabel:    hackathonJudgesLabel,
 		HackathonPlaceRows:      hackathonPlaceRows,
 		HackathonPrizePoolSats:  hackathonPrizePoolSats,
 		HackathonCanAdmin:       hackathonCanAdmin,

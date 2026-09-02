@@ -64,47 +64,37 @@ func TestSelectPreviousPublicHackathonUsesMostRecentEarlierConference(t *testing
 	}
 }
 
-func TestHackathonPageUsesPriorGalleryUntilCurrentGalleryOpens(t *testing.T) {
+func TestHackathonPageKeepsCurrentProjectsPrivateUntilGalleryOpens(t *testing.T) {
 	current := &types.HackathonCompetition{ID: "current"}
-	previous := &types.HackathonCompetition{ID: "previous", PublicGalleryEnabled: true}
-	priorProject := &types.HackathonProject{ID: "prior-project", CompetitionID: previous.ID, Status: getters.ProjectStatusSubmitted}
+	currentProject := &types.HackathonProject{ID: "current-project", CompetitionID: current.ID, Status: getters.ProjectStatusSubmitted}
 	page := &HackathonPage{
-		Competition:             current,
-		Conf:                    &types.Conf{Tag: "dev26"},
-		Projects:                []*types.HackathonProject{{ID: "private-current", CompetitionID: current.ID, Status: getters.ProjectStatusSubmitted}},
-		PriorGalleryCompetition: previous,
-		PriorGalleryConf:        &types.Conf{Tag: "prior25", Desc: "Prior 2025"},
-		PriorGalleryProjects:    []*types.HackathonProject{priorProject, {ID: "draft", CompetitionID: previous.ID, Status: getters.ProjectStatusCreated}},
+		Competition: current,
+		Conf:        &types.Conf{Tag: "dev26"},
+		Projects:    []*types.HackathonProject{currentProject},
 	}
 
-	if !page.ProjectGalleryOpen() || !page.ShowingPriorGallery() {
-		t.Fatal("closed current gallery did not expose the prior public gallery")
+	if page.ProjectGalleryOpen() {
+		t.Fatal("closed current gallery reported open")
 	}
-	projects := page.GalleryProjects()
-	if len(projects) != 1 || projects[0] != priorProject {
-		t.Fatalf("GalleryProjects() = %+v, want only the prior submitted project", projects)
-	}
-	if got := page.ProjectURL(priorProject); got != "/prior25/hackathon/projects/prior-project" {
-		t.Fatalf("ProjectURL(prior project) = %q", got)
+	if projects := page.GalleryProjects(); len(projects) != 0 {
+		t.Fatalf("GalleryProjects() = %+v, want no projects while current gallery is closed", projects)
 	}
 
 	current.PublicGalleryEnabled = true
-	if page.ShowingPriorGallery() {
-		t.Fatal("prior gallery remained active after the current gallery opened")
-	}
-	projects = page.GalleryProjects()
-	if len(projects) != 1 || projects[0].ID != "private-current" {
+	projects := page.GalleryProjects()
+	if len(projects) != 1 || projects[0] != currentProject {
 		t.Fatalf("GalleryProjects() after opening = %+v, want current projects", projects)
 	}
 }
 
-func TestHackathonPagePriorJudgeSource(t *testing.T) {
-	page := &HackathonPage{
-		Judges:          []*types.CompetitionJudge{{PersonID: "judge-1", Name: "Prior Judge"}},
-		PriorJudgesConf: &types.Conf{Desc: "Prior 2025"},
+func TestLimitHackathonJudges(t *testing.T) {
+	judges := []*types.CompetitionJudge{
+		{Name: "One"}, {Name: "Two"}, {Name: "Three"}, {Name: "Four"},
+		{Name: "Five"}, {Name: "Six"}, {Name: "Seven"},
 	}
-	if !page.ShowingPriorJudges() || page.PriorJudgesLabel() != "Prior 2025" {
-		t.Fatalf("prior judge source = (%v, %q), want visible Prior 2025 fallback", page.ShowingPriorJudges(), page.PriorJudgesLabel())
+	limited := limitHackathonJudges(judges, 6)
+	if len(limited) != 6 || limited[5].Name != "Six" {
+		t.Fatalf("limitHackathonJudges() = %+v, want first six judges", limited)
 	}
 }
 
@@ -816,7 +806,11 @@ func TestCompactSatoshiLabel(t *testing.T) {
 		{sats: 0, want: "0 satoshis"},
 		{sats: 750, want: "750 satoshis"},
 		{sats: 1_000, want: "1k satoshis"},
+		{sats: 1_001, want: "1.001k satoshis"},
 		{sats: 750_000, want: "750k satoshis"},
+		{sats: 999_999, want: "999.999k satoshis"},
+		{sats: 1_750_000, want: "1.75M satoshis"},
+		{sats: 1_750_001, want: "1.750001M satoshis"},
 		{sats: 2_500_000, want: "2.5M satoshis"},
 		{sats: 100_000_000, want: "100M satoshis"},
 	}
@@ -839,6 +833,21 @@ func TestHackathonPrizePoolValueIncludesNonCashPrizeValues(t *testing.T) {
 	}
 	if got := page.PrizePoolValue(); got != "8.5M" {
 		t.Fatalf("PrizePoolValue() = %q, want %q", got, "8.5M")
+	}
+}
+
+func TestAwardTotalPrizeValueIncludesEveryPrizeValuation(t *testing.T) {
+	award := &types.Award{ID: "sponsor-award"}
+	page := &HackathonPage{
+		PrizesByAward: map[string][]*types.Prize{
+			award.ID: {
+				{PrizeType: getters.PrizeTypeSats, ValueText: "1,000,000"},
+				{PrizeType: getters.PrizeTypeInKind, ValueText: "750000"},
+			},
+		},
+	}
+	if got := page.AwardTotalPrizeValue(award); got != "1.75M" {
+		t.Fatalf("AwardTotalPrizeValue() = %q, want %q", got, "1.75M")
 	}
 }
 

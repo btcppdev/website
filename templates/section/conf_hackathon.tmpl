@@ -36,9 +36,15 @@
       </div>
       <div class="conf-hackathon-redesign__actions">
         <a href="{{ .HackathonURL }}" class="rebrand-button">Explore the hackathon →</a>
-        <a href="{{ .HackathonURL }}#projects" class="rebrand-button is-secondary">Past projects →</a>
+        <a href="{{ .HackathonURL }}#projects" class="rebrand-button is-secondary">Project gallery →</a>
       </div>
       <div class="conf-hackathon-redesign__judges" aria-label="Hackathon judges">
+        {{ if .HackathonJudgesArePast }}
+        <div class="conf-hackathon-redesign__past-judges-note">
+          <strong>PAST JUDGES</strong>
+          <span>{{ .HackathonJudgesLabel }} · This event’s panel is coming soon</span>
+        </div>
+        {{ end }}
         {{ if .HackathonJudges }}
         <div class="conf-hackathon-redesign__avatars" aria-hidden="true">
           {{ range .HackathonJudges }}
@@ -46,7 +52,7 @@
           {{ end }}
         </div>
         {{ end }}
-        <p>{{ .HackathonJudgeNote $judgesNote }}</p>
+        {{ if not .HackathonJudgesArePast }}<p>{{ .HackathonJudgeNote $judgesNote }}</p>{{ end }}
       </div>
     </div>
 

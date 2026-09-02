@@ -43,10 +43,6 @@ type HackathonPage struct {
 	Projects                    []*types.HackathonProject
 	TableProjects               []*types.HackathonProject
 	ProjectMembersByProject     map[string][]*types.ProjectMember
-	PriorGalleryCompetition     *types.HackathonCompetition
-	PriorGalleryConf            *types.Conf
-	PriorGalleryProjects        []*types.HackathonProject
-	PriorJudgesConf             *types.Conf
 	ChallengeProjects           []*types.HackathonProject
 	Project                     *types.HackathonProject
 	Members                     []*types.ProjectMember
@@ -623,11 +619,7 @@ func (p *HackathonPage) ProjectURL(project *types.HackathonProject) string {
 	if p == nil || project == nil {
 		return ""
 	}
-	conf := p.Conf
-	if p.PriorGalleryCompetition != nil && p.PriorGalleryConf != nil && project.CompetitionID == p.PriorGalleryCompetition.ID {
-		conf = p.PriorGalleryConf
-	}
-	base := hackathonURLForConf(conf)
+	base := hackathonURLForConf(p.Conf)
 	if base == "" {
 		return ""
 	}
@@ -717,10 +709,6 @@ func (p *HackathonPage) GalleryProjects() []*types.HackathonProject {
 	}
 	source := p.Projects
 	competition := p.Competition
-	if p.ShowingPriorGallery() {
-		source = p.PriorGalleryProjects
-		competition = p.PriorGalleryCompetition
-	}
 	projects := make([]*types.HackathonProject, 0, len(source))
 	for _, project := range source {
 		if project == nil || project.Status == getters.ProjectStatusCreated || project.Status == getters.ProjectStatusHidden {
@@ -760,29 +748,7 @@ func (p *HackathonPage) GalleryProjects() []*types.HackathonProject {
 }
 
 func (p *HackathonPage) ProjectGalleryOpen() bool {
-	return p != nil && ((p.Competition != nil && p.Competition.PublicGalleryEnabled) || p.ShowingPriorGallery())
-}
-
-func (p *HackathonPage) ShowingPriorGallery() bool {
-	return p != nil && p.Competition != nil && !p.Competition.PublicGalleryEnabled && p.PriorGalleryCompetition != nil && p.PriorGalleryCompetition.PublicGalleryEnabled && p.PriorGalleryConf != nil
-}
-
-func (p *HackathonPage) ShowingPriorJudges() bool {
-	return p != nil && p.PriorJudgesConf != nil && len(p.Judges) > 0
-}
-
-func (p *HackathonPage) PriorGalleryLabel() string {
-	if p == nil || p.PriorGalleryConf == nil {
-		return "the previous hackathon"
-	}
-	return publicHackathonConferenceName(p.PriorGalleryConf.Desc)
-}
-
-func (p *HackathonPage) PriorJudgesLabel() string {
-	if p == nil || p.PriorJudgesConf == nil {
-		return "the previous hackathon"
-	}
-	return publicHackathonConferenceName(p.PriorJudgesConf.Desc)
+	return p != nil && p.Competition != nil && p.Competition.PublicGalleryEnabled
 }
 
 func (p *HackathonPage) FeaturedProjects() []*types.HackathonProject {
@@ -1168,6 +1134,17 @@ func (p *HackathonPage) AwardPrizes(award *types.Award) []*types.Prize {
 
 func (p *HackathonPage) AwardPrizeAmount(award *types.Award) string {
 	return hackathonPlacePrizeAmount(p.AwardPrizes(award))
+}
+
+func (p *HackathonPage) AwardTotalPrizeValue(award *types.Award) string {
+	var total int64
+	for _, prize := range p.AwardPrizes(award) {
+		total += prizeValueSats(prize)
+	}
+	if total <= 0 {
+		return ""
+	}
+	return strings.TrimSuffix(compactSatoshiLabel(total), " satoshis")
 }
 
 func (p *HackathonPage) AwardDisplayLabel(award *types.Award) string {
@@ -1743,6 +1720,16 @@ func previousPublicHackathon(ctx *config.AppContext, currentCompetition *types.H
 	return competition, conf, nil
 }
 
+func limitHackathonJudges(judges []*types.CompetitionJudge, limit int) []*types.CompetitionJudge {
+	if limit <= 0 || len(judges) == 0 {
+		return nil
+	}
+	if len(judges) <= limit {
+		return judges
+	}
+	return judges[:limit]
+}
+
 func selectPreviousPublicHackathon(currentCompetition *types.HackathonCompetition, currentConf *types.Conf, competitions []*types.HackathonCompetition, confs []*types.Conf) (*types.HackathonCompetition, *types.Conf) {
 	if currentCompetition == nil || currentConf == nil || currentConf.StartDate.IsZero() {
 		return nil, nil
@@ -1811,49 +1798,11 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		http.Error(w, "Unable to load judges", http.StatusInternalServerError)
 		return
 	}
-	var priorCompetition *types.HackathonCompetition
-	var priorConf *types.Conf
-	if !competition.PublicGalleryEnabled || len(judges) == 0 {
-		priorCompetition, priorConf, err = previousPublicHackathon(ctx, competition, conf)
-		if err != nil {
-			ctx.Err.Printf("/hackathons/%s previous hackathon lookup failed (continuing): %s", competition.ID, err)
-		}
-	}
-	var priorGalleryProjects []*types.HackathonProject
-	var priorJudgesConf *types.Conf
-	if priorCompetition != nil && priorConf != nil {
-		if !competition.PublicGalleryEnabled && priorCompetition.PublicGalleryEnabled {
-			priorGalleryProjects, err = getters.ListProjectsForCompetition(ctx, priorCompetition.ID, types.HackathonViewer{})
-			if err != nil {
-				ctx.Err.Printf("/hackathons/%s previous gallery failed (continuing): %s", competition.ID, err)
-				priorGalleryProjects = nil
-			}
-		}
-		if len(judges) == 0 {
-			priorJudges, judgesErr := getters.ListCompetitionJudges(ctx, priorCompetition.ID)
-			if judgesErr != nil {
-				ctx.Err.Printf("/hackathons/%s previous judges failed (continuing): %s", competition.ID, judgesErr)
-			} else if len(priorJudges) > 0 {
-				judges = priorJudges
-				priorJudgesConf = priorConf
-			}
-		}
-	}
 	projectMembers, err := getters.ListProjectMembersForCompetition(ctx, competition.ID)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s project members: %s", competition.ID, err)
 		http.Error(w, "Unable to load project teams", http.StatusInternalServerError)
 		return
-	}
-	if len(priorGalleryProjects) > 0 {
-		priorMembers, membersErr := getters.ListProjectMembersForCompetition(ctx, priorCompetition.ID)
-		if membersErr != nil {
-			ctx.Err.Printf("/hackathons/%s previous project members failed (continuing): %s", competition.ID, membersErr)
-		} else {
-			for projectID, members := range priorMembers {
-				projectMembers[projectID] = members
-			}
-		}
 	}
 	attachHackathonPlaceRowMembers(placeRows, projectMembers)
 	judgeProfileURLs, err := hackathonJudgeProfileURLs(ctx, judges)
@@ -1881,10 +1830,6 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Projects:                projects,
 		TableProjects:           tableProjects,
 		ProjectMembersByProject: projectMembers,
-		PriorGalleryCompetition: priorCompetition,
-		PriorGalleryConf:        priorConf,
-		PriorGalleryProjects:    priorGalleryProjects,
-		PriorJudgesConf:         priorJudgesConf,
 		Judges:                  judges,
 		JudgeProfileURLs:        judgeProfileURLs,
 		Awards:                  awards,
@@ -1897,11 +1842,11 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		OwnedProjects:           ownedProjects,
 		HasConferenceTicket:     hasTicket,
 		CanCreate:               id != nil && hasTicket && competitionAcceptsProjects(competition, scheduleEvents) && len(ownedProjects) == 0,
-		CanJudge:                viewer.Admin || viewerCanJudgeCompetition(ctx, competition.ID, personID),
 		FlashMessage:            r.URL.Query().Get("flash"),
 		FlashError:              r.URL.Query().Get("error"),
 		Year:                    helpers.CurrentYear(),
 	}
+	configureHackathonNavigation(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s template: %s", competition.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -1991,6 +1936,7 @@ func HackathonSchedule(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		Viewer:            id,
 		Year:              helpers.CurrentYear(),
 	}
+	configureHackathonNavigation(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_schedule.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/schedule template: %s", competition.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -2607,6 +2553,7 @@ func HackathonProjectNew(w http.ResponseWriter, r *http.Request, ctx *config.App
 		FlashError:      r.URL.Query().Get("error"),
 		Year:            helpers.CurrentYear(),
 	}
+	configureHackathonNavigation(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_project.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/new template: %s", competition.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -2789,6 +2736,7 @@ func renderHackathonProjectPage(w http.ResponseWriter, r *http.Request, ctx *con
 		FlashError:                  r.URL.Query().Get("error"),
 		Year:                        helpers.CurrentYear(),
 	}
+	configureHackathonNavigation(ctx, page)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon_project.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s/projects/%s template: %s", competition.ID, project.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -3472,18 +3420,24 @@ func publicNonCashPrizeTypeLabel(prizeType string) string {
 }
 
 func compactSatoshiLabel(sats int64) string {
-	value := float64(sats)
+	var divisor int64 = 1
+	decimalPlaces := 0
 	suffix := ""
 	switch {
 	case sats >= 1_000_000:
-		value /= 1_000_000
+		divisor = 1_000_000
+		decimalPlaces = 6
 		suffix = "M"
 	case sats >= 1_000:
-		value /= 1_000
+		divisor = 1_000
+		decimalPlaces = 3
 		suffix = "k"
 	}
-	formatted := strconv.FormatFloat(value, 'f', 1, 64)
-	formatted = strings.TrimRight(strings.TrimRight(formatted, "0"), ".")
+	formatted := strconv.FormatInt(sats/divisor, 10)
+	if remainder := sats % divisor; remainder != 0 {
+		fraction := fmt.Sprintf("%0*d", decimalPlaces, remainder)
+		formatted += "." + strings.TrimRight(fraction, "0")
+	}
 	return formatted + suffix + " satoshis"
 }
 
@@ -4114,6 +4068,19 @@ func viewerCanJudgeCompetition(ctx *config.AppContext, competitionID, personID s
 		return len(judge.JudgeTypes) == 0 && (judge.JudgeType == getters.JudgeTypeExpo || judge.JudgeType == getters.JudgeTypeFinals)
 	}
 	return false
+}
+
+func configureHackathonNavigation(ctx *config.AppContext, page *HackathonPage) {
+	if ctx == nil || page == nil || page.Competition == nil {
+		return
+	}
+	viewer := hackathonViewerFromIdentity(page.Viewer, page.Conf)
+	if viewer.Admin || viewer.Manager {
+		page.CanJudge = true
+		return
+	}
+	page.CanJudge = viewerCanJudgeCompetition(ctx, page.Competition.ID, viewer.PersonID) ||
+		viewerCanJudgeAnyAward(ctx, page.Competition.ID, viewer.PersonID)
 }
 
 func viewerCanJudgeAnyAward(ctx *config.AppContext, competitionID, personID string) bool {

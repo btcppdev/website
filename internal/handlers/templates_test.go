@@ -316,10 +316,21 @@ func TestLoadTemplates(t *testing.T) {
 			LifecycleOverride:    getters.CompetitionLifecycleOpen,
 			PublicGalleryEnabled: true,
 		},
-		Conf:          &types.Conf{Tag: "toronto"},
-		Projects:      []*types.HackathonProject{{ID: "my-project", Title: "My Project"}},
+		Conf:     &types.Conf{Tag: "toronto"},
+		Projects: []*types.HackathonProject{{ID: "my-project", Title: "My Project"}},
+		Awards:   []*types.Award{{ID: "sponsor-bounty-id", Title: "Build the future", SponsoredByOrgID: "sponsor-org"}},
+		OrgsByID: map[string]*types.Org{
+			"sponsor-org": {Name: "Future Sponsor", Website: "https://sponsor.example", LogoDark: "https://sponsor.example/logo.svg"},
+		},
+		PrizesByAward: map[string][]*types.Prize{
+			"sponsor-bounty-id": {{Title: "Cash prize", ValueText: "1750000"}},
+		},
 		OwnedProjects: map[string]bool{"my-project": true},
-		Viewer:        &auth.Identity{PersonID: "person-id"},
+		Viewer: &auth.Identity{
+			PersonID: "person-id",
+			Roles:    []auth.Role{{Scope: "toronto", Name: auth.RoleAdmin}},
+		},
+		CanJudge: true,
 	}); err != nil {
 		t.Fatalf("render hackathon with owned project: %v", err)
 	}
@@ -336,6 +347,60 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if strings.Contains(hackathonPage.String(), `View project gallery`) {
 		t.Fatalf("hackathon renders the redundant View project gallery hero action: %s", hackathonPage.String())
+	}
+	for _, unwanted := range []string{`Judging →`, `Edit hackathon →`} {
+		if strings.Contains(hackathonPage.String(), unwanted) {
+			t.Fatalf("hackathon hero still renders relocated action %q: %s", unwanted, hackathonPage.String())
+		}
+	}
+	for _, want := range []string{`href="/toronto/hackathon/judging"`, `href="/toronto/admin/hackathon" data-active-prefix="/toronto/admin/hackathon">/edit</a>`} {
+		if !strings.Contains(hackathonPage.String(), want) {
+			t.Fatalf("hackathon navigation missing relocated action %q: %s", want, hackathonPage.String())
+		}
+	}
+	for _, want := range []string{
+		`id="bounty-sponsor-bounty-id"`,
+		`href="#bounty-sponsor-bounty-id"`,
+		`id="award-sponsor-bounty-id"`,
+		`href="#award-sponsor-bounty-id"`,
+		`href="https://sponsor.example" target="_blank" rel="noreferrer">[ Future Sponsor ]</a>`,
+		`class="hack-sponsored-award-logo" href="https://sponsor.example"`,
+		`class="hack-award-card__value"`,
+		`<span>Total prize value</span>`,
+		`<strong>1.75M <small>sats</small></strong>`,
+		`window.location.hash.indexOf('#award-') === 0) return 'awards'`,
+	} {
+		if !strings.Contains(hackathonPage.String(), want) {
+			t.Fatalf("hackathon award permalink missing %q: %s", want, hackathonPage.String())
+		}
+	}
+	var privateHackathonPage bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&privateHackathonPage, "hackathon.tmpl", &HackathonPage{
+		Competition: &types.HackathonCompetition{
+			ID:                   "private-competition-id",
+			Title:                "New Hackathon",
+			Visibility:           getters.CompetitionVisibilityPublic,
+			LifecycleOverride:    getters.CompetitionLifecycleOpen,
+			PublicGalleryEnabled: false,
+		},
+		Conf: &types.Conf{Tag: "berlin26"},
+	}); err != nil {
+		t.Fatalf("render hackathon with private gallery: %v", err)
+	}
+	for _, want := range []string{
+		`href="/berlin26/hackathon#projects" data-hackathon-tab="projects"`,
+		`id="projects"`,
+		`This hackathon’s project gallery isn’t public yet.`,
+		`href="/berlin26#tickets"`,
+	} {
+		if !strings.Contains(privateHackathonPage.String(), want) {
+			t.Fatalf("private hackathon gallery missing %q: %s", want, privateHackathonPage.String())
+		}
+	}
+	for _, unwanted := range []string{`Previous project gallery`, `Previous builds`, `previous hackathon`} {
+		if strings.Contains(privateHackathonPage.String(), unwanted) {
+			t.Fatalf("private hackathon gallery exposes prior-event copy %q: %s", unwanted, privateHackathonPage.String())
+		}
 	}
 	var confHackathonSection bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&confHackathonSection, "conf_hackathon_section", &ConfPage{
@@ -354,13 +419,28 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render conference hackathon section: %v", err)
 	}
-	for _, want := range []string{`class="conf-hackathon-redesign__prize-hero"`, `/static/img/rebrand/hackathon-trophy.jpg`, `>1.8M</strong>`, `>Sats up for grabs</span>`, `alt="Ada Hacker"`} {
+	for _, want := range []string{`class="conf-hackathon-redesign__prize-hero"`, `/static/img/rebrand/hackathon-trophy.jpg`, `>1.75M</strong>`, `>Sats up for grabs</span>`, `alt="Ada Hacker"`} {
 		if !strings.Contains(confHackathonSection.String(), want) {
 			t.Fatalf("conference hackathon feature missing %q: %s", want, confHackathonSection.String())
 		}
 	}
 	if strings.Contains(confHackathonSection.String(), `conf-hackathon-redesign__stats`) {
 		t.Fatalf("conference hackathon still renders the retired stats grid: %s", confHackathonSection.String())
+	}
+	confHackathonSection.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&confHackathonSection, "conf_hackathon_section", &ConfPage{
+		Conf:                   &types.Conf{Tag: "berlin26", Desc: "Bitcoin++ Berlin"},
+		Hackathon:              &types.HackathonCompetition{Title: "Berlin Hackathon"},
+		HackathonJudges:        []*types.CompetitionJudge{{Name: "Past Judge"}},
+		HackathonJudgesArePast: true,
+		HackathonJudgesLabel:   "Berlin 2025",
+	}); err != nil {
+		t.Fatalf("render conference hackathon section with prior judges: %v", err)
+	}
+	for _, want := range []string{`>PAST JUDGES</strong>`, `Berlin 2025 · This event’s panel is coming soon`} {
+		if !strings.Contains(confHackathonSection.String(), want) {
+			t.Fatalf("conference prior-judge context missing %q: %s", want, confHackathonSection.String())
+		}
 	}
 	confHackathonSection.Reset()
 	if err := inlineTemplates.ExecuteTemplate(&confHackathonSection, "conf_hackathon_section", &ConfPage{
@@ -557,6 +637,7 @@ func TestLoadTemplates(t *testing.T) {
 		Competition: &types.HackathonCompetition{Title: "Signet Builders Sprint"},
 		Conf:        &types.Conf{Tag: "dev26", Desc: "Local Dev 2026"},
 		CanJudge:    true,
+		Viewer:      &auth.Identity{Roles: []auth.Role{{Scope: "dev26", Name: auth.RoleAdmin}}},
 	}); err != nil {
 		t.Fatalf("render hackathon_conf_nav: %v", err)
 	}
@@ -566,9 +647,11 @@ func TestLoadTemplates(t *testing.T) {
 		`<span>← THIS EVENT</span>`,
 		`<strong>Hackathon</strong>`,
 		`href="/dev26/hackathon" data-hackathon-tab="overview" data-active-exact>/start</a>`,
+		`href="/dev26/hackathon#projects" data-hackathon-tab="projects"`,
 		`href="/dev26/hackathon#awards" data-hackathon-tab="awards">/prizes</a>`,
 		`href="/dev26/hackathon/schedule" data-active-prefix="/dev26/hackathon/schedule">/schedule</a>`,
 		`href="/dev26/hackathon/judging" data-active-prefix="/dev26/hackathon/judging">/judging</a>`,
+		`href="/dev26/admin/hackathon" data-active-prefix="/dev26/admin/hackathon">/edit</a>`,
 	} {
 		if !strings.Contains(nav.String(), want) {
 			t.Fatalf("contextual hackathon navigation missing %q: %s", want, nav.String())

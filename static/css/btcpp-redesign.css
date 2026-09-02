@@ -801,8 +801,36 @@ body.btcpp-rebrand-page {
 .btcpp-rebrand-page .conf-hackathon-redesign__judges {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
   margin-top: 40px;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__past-judges-note {
+  display: flex;
+  flex: 1 0 100%;
+  align-items: baseline;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 3px solid var(--rebrand-ink);
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__past-judges-note strong {
+  color: var(--rebrand-ink);
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: clamp(24px, 3vw, 38px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.btcpp-rebrand-page .conf-hackathon-redesign__past-judges-note span {
+  color: var(--rebrand-muted);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__avatars {
@@ -846,6 +874,14 @@ body.btcpp-rebrand-page {
   letter-spacing: 1px;
   line-height: 1.4;
   text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .btcpp-rebrand-page .conf-hackathon-redesign__past-judges-note {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
 }
 
 .rebrand-masthead p {

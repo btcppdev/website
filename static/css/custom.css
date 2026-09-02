@@ -10726,9 +10726,19 @@ body.btcpp-checkout-page {
 .hack-section__head {
 	display: grid;
 	grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
-	gap: 64px;
-	align-items: end;
-	padding: 72px 56px 40px;
+	gap: 32px;
+	align-items: center;
+	padding: 36px 56px 28px;
+}
+
+.hack-section__head .hack-label {
+	margin-bottom: 8px;
+}
+
+.hack-section__head h2 {
+	margin: 0;
+	font-size: clamp(36px, 5vw, 60px);
+	line-height: 0.95;
 }
 
 .hack-section h2 {
@@ -10953,6 +10963,12 @@ body.btcpp-checkout-page {
 	border-right: 1px solid var(--hack-ink);
 	border-bottom: 1px solid var(--hack-ink);
 	padding: 28px 32px;
+	scroll-margin-top: calc(var(--btcpp-site-banner-height, 0px) + var(--btcpp-site-ticker-height, 0px) + 150px);
+}
+
+.hack-bounty-card:target,
+.hack-award-card:target {
+	box-shadow: inset 0 0 0 4px var(--hack-accent);
 }
 
 .hack-bounty-card:nth-child(3n) {
@@ -11007,7 +11023,13 @@ body.btcpp-checkout-page {
 	text-decoration: none;
 }
 
-.hack-bounty-card__sponsor a:hover {
+.hack-award-card__label a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.hack-bounty-card__sponsor a:hover,
+.hack-award-card__label a:hover {
 	text-decoration: underline;
 	text-underline-offset: 3px;
 }
@@ -11019,6 +11041,7 @@ body.btcpp-checkout-page {
 	flex: 1 1 200px;
 	align-items: center;
 	justify-content: flex-end;
+	text-decoration: none;
 }
 
 .hack-sponsored-award-logo img {
@@ -11034,6 +11057,24 @@ body.btcpp-checkout-page {
 	font-weight: 700;
 	letter-spacing: 0;
 	line-height: 1.15;
+}
+
+.hack-bounty-card__permalink {
+	color: inherit;
+	text-decoration: none;
+}
+
+.hack-bounty-card__permalink span {
+	color: var(--hack-accent);
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 0.7em;
+	opacity: 0.45;
+	transition: opacity 140ms ease;
+}
+
+.hack-bounty-card__permalink:hover span,
+.hack-bounty-card__permalink:focus-visible span {
+	opacity: 1;
 }
 
 .hack-bounty-card__desc {
@@ -12021,12 +12062,47 @@ a.hack-project-file__person:focus-visible strong {
 .hack-award-card {
 	min-height: 220px;
 	padding: 28px;
+	scroll-margin-top: calc(var(--btcpp-site-banner-height, 0px) + var(--btcpp-site-ticker-height, 0px) + 150px);
 }
 
 .hack-award-card h3 {
 	margin: 0;
 	font-size: 32px;
 	line-height: 1.05;
+}
+
+.hack-award-card__value {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 18px;
+	margin: 8px 0 10px;
+	padding: 13px 16px;
+	background: var(--hack-ink);
+	color: #fff;
+	font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.hack-award-card__value > span {
+	font-size: 9px;
+	font-weight: 800;
+	letter-spacing: 1.1px;
+	text-transform: uppercase;
+}
+
+.hack-award-card__value > strong {
+	color: var(--hack-accent);
+	font-size: clamp(24px, 3vw, 34px);
+	letter-spacing: -0.04em;
+	line-height: 1;
+	white-space: nowrap;
+}
+
+.hack-award-card__value small {
+	font-size: 10px;
+	font-weight: 800;
+	letter-spacing: 0.7px;
+	text-transform: uppercase;
 }
 
 .hack-award-card__top {
@@ -12525,6 +12601,79 @@ a.hack-project-file__person:focus-visible strong {
 	border-top: 1px solid var(--hack-ink);
 	color: var(--hack-dim);
 	text-align: center;
+}
+
+.hack-empty--gallery {
+	display: flex;
+	min-height: 360px;
+	align-items: center;
+	flex-direction: column;
+	justify-content: center;
+	background:
+		linear-gradient(rgba(10, 10, 10, 0.045) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(10, 10, 10, 0.045) 1px, transparent 1px),
+		#f6f1e8;
+	background-size: 32px 32px;
+}
+
+.hack-empty--gallery .hack-empty__mark {
+	display: grid;
+	width: 72px;
+	height: 72px;
+	place-items: center;
+	border: 2px solid var(--hack-ink);
+	border-radius: 50%;
+	background: var(--hack-accent);
+	color: var(--hack-ink);
+	font-size: 52px;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.hack-empty--gallery h3 {
+	max-width: 680px;
+	margin: 24px 0 10px;
+	color: var(--hack-ink);
+	font-size: clamp(30px, 4vw, 52px);
+	letter-spacing: -0.04em;
+	line-height: 0.98;
+}
+
+.hack-empty--gallery p {
+	max-width: 620px;
+	margin: 0;
+	font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+	font-size: 18px;
+	line-height: 1.5;
+}
+
+.hack-empty__actions {
+	display: flex;
+	align-items: stretch;
+	justify-content: center;
+	gap: 10px;
+	margin-top: 26px;
+}
+
+.hack-empty__actions .hack-button {
+	min-width: 180px;
+}
+
+@media (max-width: 560px) {
+	.hack-empty--gallery {
+		min-height: 420px;
+		padding: 48px 20px;
+	}
+
+	.hack-empty__actions {
+		width: 100%;
+		flex-direction: column;
+	}
+
+	.hack-empty__actions .hack-button {
+		width: 100%;
+		min-width: 0;
+	}
 }
 
 .hack-form {
@@ -13150,6 +13299,12 @@ border-bottom: 1px solid var(--hack-ink);
 		grid-template-columns: 1fr;
 	}
 
+	.hack-section__head {
+		gap: 18px;
+		padding-top: 30px;
+		padding-bottom: 24px;
+	}
+
 	.hack-project-file__masthead,
 	.hack-project-file__body {
 		gap: 32px;
@@ -13553,13 +13708,13 @@ border-bottom: 1px solid var(--hack-ink);
 	}
 
 	.hack-section__head {
-		gap: 20px;
-		padding-top: 44px;
-		padding-bottom: 28px;
+		gap: 14px;
+		padding-top: 26px;
+		padding-bottom: 22px;
 	}
 
-	.hack-section h2 {
-		font-size: clamp(36px, 12vw, 54px);
+	.hack-section__head h2 {
+		font-size: clamp(32px, 10vw, 46px);
 	}
 
 	.hack-stat {

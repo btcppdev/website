@@ -259,11 +259,12 @@
 {{ define "hackathon_nav_links" }}
   <a class="site-conf-nav__event-back" href="{{ .ConferenceURL }}" data-nav-back>← Event</a>
   <a href="{{ .HackathonURL }}" data-hackathon-tab="overview" data-active-exact>/start</a>
-  {{ if .ProjectGalleryOpen }}<a href="{{ .HackathonURL }}#projects" data-hackathon-tab="projects" data-active-prefix="{{ .HackathonURL }}/projects">/projects</a>{{ end }}
+  <a href="{{ .HackathonURL }}#projects" data-hackathon-tab="projects" data-active-prefix="{{ .HackathonURL }}/projects">/projects</a>
   <a href="{{ .HackathonURL }}#awards" data-hackathon-tab="awards">/prizes</a>
   <a href="{{ .ScheduleURL }}" data-active-prefix="{{ .ScheduleURL }}">/schedule</a>
   {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<a href="{{ .HackathonURL }}#tables" data-hackathon-tab="tables">/tables</a>{{ end }}
   {{ if .CanJudge }}<a href="{{ .JudgingURL }}" data-active-prefix="{{ .JudgingURL }}">/judging</a>{{ end }}
+  {{ if .CanAdminEdit }}<a href="{{ .AdminEditURL }}" data-active-prefix="{{ .AdminEditURL }}">/edit</a>{{ end }}
 {{ end }}
 
 {{ define "site_account_authenticated" }}
