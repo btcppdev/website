@@ -4,6 +4,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"time"
 )
 
 type dataSource interface {
@@ -21,6 +22,8 @@ type dataSource interface {
 	ListAwards(competitionID string) ([]*types.Award, error)
 	ListPrizes(competitionID string) ([]*types.Prize, error)
 	ListProjectAwards(competitionID string) ([]*types.ProjectAward, error)
+	ListAccountingInventoryVariants(after time.Time, afterID string, limit int) ([]*types.AccountingInventoryVariant, error)
+	ListAccountingInventorySales(after time.Time, afterID string, limit int) ([]*types.AccountingInventorySale, error)
 }
 
 type postgresSource struct {
@@ -81,4 +84,12 @@ func (s postgresSource) ListPrizes(competitionID string) ([]*types.Prize, error)
 
 func (s postgresSource) ListProjectAwards(competitionID string) ([]*types.ProjectAward, error) {
 	return getters.ListProjectAwardsForCompetition(s.app, competitionID)
+}
+
+func (s postgresSource) ListAccountingInventoryVariants(after time.Time, afterID string, limit int) ([]*types.AccountingInventoryVariant, error) {
+	return getters.ListAccountingInventoryVariants(s.app, after, afterID, limit)
+}
+
+func (s postgresSource) ListAccountingInventorySales(after time.Time, afterID string, limit int) ([]*types.AccountingInventorySale, error) {
+	return getters.ListAccountingInventorySales(s.app, after, afterID, limit)
 }

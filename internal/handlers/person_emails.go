@@ -188,7 +188,12 @@ func DashboardAPITokenCreate(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 	scopes := r.Form["scopes"]
-	if !auth.ValidAPITokenScopes(scopes) {
+	if !validPersonalAPITokenScopes(scopes, viewer.IsGlobalAdmin()) {
+		if containsString(scopes, "shop:accounting:read") && !viewer.IsGlobalAdmin() {
+			recordAuthAudit(ctx, r, viewer.PersonID, "api_token", "api_token_creation_rejected", map[string]any{"reason": "global_admin_scope_required", "scope": "shop:accounting:read"})
+			redirectPersonEmails(w, r, "", "Only a global administrator can create a shop accounting token.")
+			return
+		}
 		redirectPersonEmails(w, r, "", "Choose at least one valid API token scope.")
 		return
 	}
@@ -215,6 +220,10 @@ func DashboardAPITokenCreate(w http.ResponseWriter, r *http.Request, ctx *config
 		fmt.Sprintf("The API token %s was created.", markdownEmailText(token.Name)), time.Now().UTC())
 	r.URL.RawQuery = "flash=" + url.QueryEscape("API token created. Copy it now; it will not be shown again.")
 	renderAccountSettings(w, r, ctx, viewer, plaintext, "", "")
+}
+
+func validPersonalAPITokenScopes(scopes []string, isGlobalAdmin bool) bool {
+	return auth.ValidAPITokenScopes(scopes) && (isGlobalAdmin || !containsString(scopes, "shop:accounting:read"))
 }
 
 func DashboardAPITokenRevoke(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

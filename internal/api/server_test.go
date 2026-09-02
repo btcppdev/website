@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -21,20 +22,22 @@ import (
 )
 
 type fakeSource struct {
-	conferences   []*types.Conf
-	days          map[string][]*types.ConfInfo
-	talks         map[string][]*types.Talk
-	profiles      []*getters.PublicProfile
-	organizations []*types.Org
-	sponsorships  map[string][]*types.Sponsorship
-	recordings    []*types.Recording
-	competitions  []*types.HackathonCompetition
-	projects      map[string][]*types.HackathonProject
-	members       map[string]map[string][]*types.ProjectMember
-	awards        map[string][]*types.Award
-	prizes        map[string][]*types.Prize
-	projectAwards map[string][]*types.ProjectAward
-	err           error
+	conferences       []*types.Conf
+	days              map[string][]*types.ConfInfo
+	talks             map[string][]*types.Talk
+	profiles          []*getters.PublicProfile
+	organizations     []*types.Org
+	sponsorships      map[string][]*types.Sponsorship
+	recordings        []*types.Recording
+	competitions      []*types.HackathonCompetition
+	projects          map[string][]*types.HackathonProject
+	members           map[string]map[string][]*types.ProjectMember
+	awards            map[string][]*types.Award
+	prizes            map[string][]*types.Prize
+	projectAwards     map[string][]*types.ProjectAward
+	inventoryVariants []*types.AccountingInventoryVariant
+	inventorySales    []*types.AccountingInventorySale
+	err               error
 }
 
 func (f *fakeSource) ListConferences() ([]*types.Conf, error) {
@@ -88,6 +91,38 @@ func (f *fakeSource) ListPrizes(competitionID string) ([]*types.Prize, error) {
 func (f *fakeSource) ListProjectAwards(competitionID string) ([]*types.ProjectAward, error) {
 	return f.projectAwards[competitionID], f.err
 }
+func (f *fakeSource) ListAccountingInventoryVariants(after time.Time, afterID string, limit int) ([]*types.AccountingInventoryVariant, error) {
+	return accountingVariantTestPage(f.inventoryVariants, after, afterID, limit), f.err
+}
+func (f *fakeSource) ListAccountingInventorySales(after time.Time, afterID string, limit int) ([]*types.AccountingInventorySale, error) {
+	return accountingSaleTestPage(f.inventorySales, after, afterID, limit), f.err
+}
+
+func accountingVariantTestPage(values []*types.AccountingInventoryVariant, after time.Time, afterID string, limit int) []*types.AccountingInventoryVariant {
+	var out []*types.AccountingInventoryVariant
+	for _, value := range values {
+		if value != nil && (after.IsZero() || value.UpdatedAt.After(after) || (value.UpdatedAt.Equal(after) && value.SourceID > afterID)) {
+			out = append(out, value)
+			if len(out) == limit {
+				break
+			}
+		}
+	}
+	return out
+}
+
+func accountingSaleTestPage(values []*types.AccountingInventorySale, after time.Time, afterID string, limit int) []*types.AccountingInventorySale {
+	var out []*types.AccountingInventorySale
+	for _, value := range values {
+		if value != nil && (after.IsZero() || value.UpdatedAt.After(after) || (value.UpdatedAt.Equal(after) && value.SourceID > afterID)) {
+			out = append(out, value)
+			if len(out) == limit {
+				break
+			}
+		}
+	}
+	return out
+}
 
 func testRouter(source dataSource, now time.Time) http.Handler {
 	root := mux.NewRouter()
@@ -131,6 +166,90 @@ func TestMeRequiresBearerTokenAndExactScope(t *testing.T) {
 	router.ServeHTTP(insufficient, request)
 	if insufficient.Code != http.StatusForbidden || !strings.Contains(insufficient.Header().Get("WWW-Authenticate"), "profile:self:read") {
 		t.Fatalf("scope response = %d, challenge %q, body %s", insufficient.Code, insufficient.Header().Get("WWW-Authenticate"), insufficient.Body.String())
+	}
+}
+
+func TestAccountingInventoryRequiresScopeAndGlobalAdmin(t *testing.T) {
+	person := &types.Speaker{ID: "person-1", Name: "Mara", Roles: []string{"dev26-admin"}}
+	token := &types.PersonAPIToken{PersonID: person.ID, Scopes: []string{"shop:accounting:read"}}
+	router := protectedTestRouter(token, person, nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/shop/inventory/variants", nil)
+	request.Header.Set("Authorization", "Bearer test-secret")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("conference admin status = %d, body = %s", response.Code, response.Body.String())
+	}
+
+	person.Roles = []string{"global-admin"}
+	token.Scopes = []string{"profile:self:read"}
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/shop/inventory/variants", nil)
+	request.Header.Set("Authorization", "Bearer test-secret")
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden || !strings.Contains(response.Header().Get("WWW-Authenticate"), "shop:accounting:read") {
+		t.Fatalf("missing scope status = %d, challenge = %q, body = %s", response.Code, response.Header().Get("WWW-Authenticate"), response.Body.String())
+	}
+}
+
+func TestAccountingInventoryUsesPrivateKeysetPaginationWithoutPII(t *testing.T) {
+	updated := time.Date(2026, 9, 1, 12, 0, 0, 123000000, time.UTC)
+	person := &types.Speaker{ID: "person-1", Name: "Mara", Roles: []string{"global-admin"}}
+	source := &fakeSource{
+		inventoryVariants: []*types.AccountingInventoryVariant{
+			{SourceID: "variant-1", SKU: "HAT", ProductName: "Hat", VariantLabel: "Black", OnHand: 12, UpdatedAt: updated},
+			{SourceID: "variant-2", SKU: "TEE", ProductName: "T-shirt", VariantLabel: "Large", OnHand: 8, UpdatedAt: updated.Add(time.Second)},
+		},
+		inventorySales: []*types.AccountingInventorySale{{
+			SourceID: "registration:ticket-1", SellableSourceID: "sku:ticket:dev26:genpop", Kind: "ticket",
+			ProductName: "Developer Ticket", VariantLabel: "genpop", SKU: "ticket:dev26:genpop",
+			Quantity: 1, RefundedQuantity: 0, RevenueCents: 42000, Currency: "USD",
+			SoldAt: updated.Add(-time.Hour), UpdatedAt: updated,
+		}},
+	}
+	root := mux.NewRouter()
+	s := &server{
+		source: source, now: time.Now,
+		authenticateToken: func(string) (*auth.BearerGrant, error) {
+			return &auth.BearerGrant{PersonID: person.ID, Scopes: []string{"shop:accounting:read"}}, nil
+		},
+		loadPerson: func(string) (*types.Speaker, error) { return person, nil },
+	}
+	s.register(root.PathPrefix("/api/v1").Subrouter())
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/shop/inventory/variants?limit=1", nil)
+	request.Header.Set("Authorization", "Bearer test-secret")
+	response := httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("variant response = %d, cache = %q, body = %s", response.Code, response.Header().Get("Cache-Control"), response.Body.String())
+	}
+	var page struct {
+		Data []accountingInventoryVariantDTO `json:"data"`
+		Meta responseMeta                    `json:"meta"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Data) != 1 || page.Data[0].SourceID != "variant-1" || page.Meta.NextCursor == "" {
+		t.Fatalf("unexpected first page: %#v", page)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/shop/inventory/variants?limit=1&cursor="+url.QueryEscape(page.Meta.NextCursor), nil)
+	request.Header.Set("Authorization", "Bearer test-secret")
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"source_id":"variant-2"`) {
+		t.Fatalf("second page status = %d, body = %s", response.Code, response.Body.String())
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/shop/inventory/sales", nil)
+	request.Header.Set("Authorization", "Bearer test-secret")
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	body := response.Body.String()
+	if response.Code != http.StatusOK || !strings.Contains(body, `"sellable_source_id":"sku:ticket:dev26:genpop"`) || strings.Contains(body, "email") || strings.Contains(body, "payment") {
+		t.Fatalf("unexpected sales projection: %d %s", response.Code, body)
 	}
 }
 

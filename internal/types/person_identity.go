@@ -15,6 +15,7 @@ var APITokenScopes = []string{
 	"talks:write",
 	"schedule:write",
 	"recordings:write",
+	"shop:accounting:read",
 }
 
 func ValidAPITokenScopes(scopes []string) bool {
