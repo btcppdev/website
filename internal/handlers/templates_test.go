@@ -140,9 +140,35 @@ func TestLoadTemplates(t *testing.T) {
 		`id="settings-apps"`,
 		`id="settings-api"`,
 		`id="settings-emails"`,
+		`href="/dashboard/settings" class="dashboard-tab is-active" aria-current="page"`,
+		`for="api-token-scope-talks-read"`,
+		`id="api-token-scope-talks-read" type="checkbox" name="scopes"`,
 	} {
 		if !strings.Contains(settingsPage.String(), expected) {
 			t.Fatalf("account settings omitted workspace navigation %q: %s", expected, settingsPage.String())
+		}
+	}
+	if strings.Contains(settingsPage.String(), `class="profile-edit-back"`) {
+		t.Fatalf("account settings retained redundant back-to-dashboard link: %s", settingsPage.String())
+	}
+	settingsCSS, err := os.ReadFile("static/css/custom.css")
+	if err != nil {
+		t.Fatalf("read account settings stylesheet: %v", err)
+	}
+	for _, expected := range []string{
+		`.person-emails-page .profile-edit-hero {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: none;`,
+		`.person-emails-page .person-email-add input:not([type="checkbox"]):not([type="radio"])`,
+		`.person-emails-page .person-email-row input:not([type="checkbox"]):not([type="radio"])`,
+		`.account-settings-page .person-email-add input:not([type="checkbox"]):not([type="radio"])`,
+		"min-width: 18px;",
+		"min-height: 18px;",
+		"padding: 0;",
+	} {
+		if !strings.Contains(string(settingsCSS), expected) {
+			t.Fatalf("account settings stylesheet omitted layout guard %q", expected)
 		}
 	}
 	for _, action := range []string{"/dashboard/emails/primary", "/dashboard/emails/remove", "/dashboard/emails/resend", "/dashboard/emails/request"} {
@@ -162,8 +188,14 @@ func TestLoadTemplates(t *testing.T) {
 	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{IsGlobalAdmin: true}); err != nil {
 		t.Fatalf("render global-admin settings: %v", err)
 	}
-	if !strings.Contains(settingsPage.String(), `value="shop:accounting:read"`) {
-		t.Fatalf("global-admin account settings omitted shop accounting scope: %s", settingsPage.String())
+	for _, expected := range []string{
+		`value="shop:accounting:read"`,
+		`for="oauth-scope-profile-write"`,
+		`id="oauth-scope-profile-write" type="checkbox" name="scopes"`,
+	} {
+		if !strings.Contains(settingsPage.String(), expected) {
+			t.Fatalf("global-admin account settings omitted %q: %s", expected, settingsPage.String())
+		}
 	}
 	settingsPage.Reset()
 	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{}); err != nil {
@@ -473,12 +505,13 @@ func TestLoadTemplates(t *testing.T) {
 	var discounts bytes.Buffer
 	if err := discountTemplates.ExecuteTemplate(&discounts, "admin/global_discounts.tmpl", &GlobalAdminDiscountsPage{
 		Confs:                  []*types.Conf{{Ref: "seoul-id", Tag: "seoul26", Desc: "Seoul"}, {Ref: "berlin-id", Tag: "berlin26", Desc: "Berlin"}},
+		Discounts:              []GlobalAdminDiscountRow{{AdminDiscountRow: AdminDiscountRow{ID: "discount-id", CodeName: "COMMUNITY25", AmountLabel: "$25 fixed"}}},
 		Form:                   GlobalDiscountForm{DiscountForm: DiscountForm{DiscountType: "percent", Amount: "50"}},
 		SelectedConferenceRefs: map[string]bool{"seoul-id": true, "berlin-id": true},
 	}); err != nil {
 		t.Fatalf("render global discounts: %v", err)
 	}
-	for _, want := range []string{`action="/admin/discounts"`, `value="seoul-id" checked`, `value="50"`} {
+	for _, want := range []string{`action="/admin/discounts"`, `value="seoul-id" checked`, `value="50"`, `value="fixed"`, `Set price to`, `name="action" value="delete"`, `name="discount_id" value="discount-id"`, `>Delete</button>`} {
 		if !strings.Contains(discounts.String(), want) {
 			t.Fatalf("global discounts render missing %q", want)
 		}
@@ -568,8 +601,11 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(dashboardTabs.String(), `href="/dashboard/hackathons"`) {
 		t.Fatalf("nonparticipant dashboard tabs expose hackathons: %s", dashboardTabs.String())
 	}
-	if strings.Contains(dashboardTabs.String(), `class="dashboard-tabs"`) {
-		t.Fatalf("single-section dashboard renders redundant tab navigation: %s", dashboardTabs.String())
+	if !strings.Contains(dashboardTabs.String(), `href="/dashboard/settings" class="dashboard-tab"`) {
+		t.Fatalf("dashboard tabs omitted settings: %s", dashboardTabs.String())
+	}
+	if !strings.Contains(dashboardTabs.String(), `class="dashboard-tabs"`) {
+		t.Fatalf("dashboard tabs were not rendered: %s", dashboardTabs.String())
 	}
 	dashboardTabs.Reset()
 	if err := ctx.TemplateCache.ExecuteTemplate(&dashboardTabs, "dashboard_tabs", map[string]any{
@@ -608,6 +644,9 @@ func TestLoadTemplates(t *testing.T) {
 	if !strings.Contains(dashboardTabs.String(), `class="dashboard-tabs"`) {
 		t.Fatalf("multi-section admin dashboard does not render tab navigation: %s", dashboardTabs.String())
 	}
+	if strings.LastIndex(dashboardTabs.String(), `href="/dashboard/settings"`) < strings.LastIndex(dashboardTabs.String(), `href="/admin"`) {
+		t.Fatalf("settings is not the final dashboard tab: %s", dashboardTabs.String())
+	}
 
 	var adminDashboard bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&adminDashboard, "admin/dashboard.tmpl", &GlobalAdminDashboardPage{
@@ -616,10 +655,13 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render global admin dashboard: %v", err)
 	}
-	for _, want := range []string{`href="/dashboard/hackathons"`, `href="/dashboard/sponsor"`, `href="/admin" class="dashboard-tab is-active" aria-current="page"`} {
+	for _, want := range []string{`href="/dashboard/hackathons"`, `href="/dashboard/sponsor"`, `href="/admin" class="dashboard-tab is-active" aria-current="page"`, `href="/dashboard/settings"`, `class="profile-edit-tag">§ Global workspace · global-admin`, `<h1>Site <span>administration.</span></h1>`} {
 		if !strings.Contains(adminDashboard.String(), want) {
 			t.Fatalf("global admin dashboard omitted %q: %s", want, adminDashboard.String())
 		}
+	}
+	if strings.Contains(adminDashboard.String(), `dashboard-workspace-hero__mark`) {
+		t.Fatalf("global admin dashboard retained workspace mark: %s", adminDashboard.String())
 	}
 
 	var sponsorDashboard bytes.Buffer

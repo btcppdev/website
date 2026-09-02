@@ -22,31 +22,33 @@
       {{ end }}
 
       <header id="topline" class="dashboard-workspace-hero dashboard-overview-hero">
-        <div class="dashboard-workspace-hero__mark dashboard-workspace-hero__mark--avatar">
-          {{ if .Photo }}
-          <img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" data-image-fallback />
-          <span data-image-fallback-copy hidden>{{ printf "%.1s" .Name }}</span>
-          {{ else }}
-          <span>{{ printf "%.1s" .Name }}</span>
-          {{ end }}
-        </div>
-        <div class="dashboard-workspace-hero__copy">
-          <div class="dashboard-kicker">● Personal workspace</div>
-          <h1>{{ .Name }}</h1>
-          <p class="dashboard-workspace-hero__meta">
-            {{ if .Speaker }}
-            {{ if .Speaker.Email }}<a href="mailto:{{ .Speaker.Email }}">{{ .Speaker.Email }}</a>{{ end }}
-            {{ if .Speaker.Twitter.Handle }}<a href="https://x.com/{{ .Speaker.Twitter.Handle }}" target="_blank" rel="noopener noreferrer">@{{ .Speaker.Twitter.Handle }}</a>{{ end }}
+        <div class="dashboard-workspace-hero__identity">
+          <div class="dashboard-workspace-hero__mark dashboard-workspace-hero__mark--avatar">
+            {{ if .Photo }}
+            <img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}" data-image-fallback />
+            <span data-image-fallback-copy hidden>{{ printf "%.1s" .Name }}</span>
+            {{ else }}
+            <span>{{ printf "%.1s" .Name }}</span>
             {{ end }}
-            {{ if and .Hometown (ne .Hometown "unknown") }}<span>{{ .Hometown }}</span>{{ end }}
-          </p>
-          <div class="dashboard-workspace-hero__facts" aria-label="Dashboard summary">
-            <span>{{ .Stats.TalksApplied }} talk{{ if ne .Stats.TalksApplied 1 }}s{{ end }} submitted</span>
-            <span>{{ .Stats.TalksAccepted }} accepted</span>
-            <span>{{ .Stats.ShiftsApplied }} event{{ if ne .Stats.ShiftsApplied 1 }}s{{ end }} volunteered</span>
-            <span>{{ .Stats.ShiftsBooked }} upcoming shift{{ if ne .Stats.ShiftsBooked 1 }}s{{ end }}</span>
+          </div>
+          <div class="dashboard-workspace-hero__copy">
+            <div class="dashboard-kicker">● Personal workspace</div>
+            <h1>{{ .Name }}</h1>
+            <p class="dashboard-workspace-hero__meta">
+              {{ if .Speaker }}
+              {{ if .Speaker.Email }}<a href="mailto:{{ .Speaker.Email }}">{{ .Speaker.Email }}</a>{{ end }}
+              {{ if .Speaker.Twitter.Handle }}<a href="https://x.com/{{ .Speaker.Twitter.Handle }}" target="_blank" rel="noopener noreferrer">@{{ .Speaker.Twitter.Handle }}</a>{{ end }}
+              {{ end }}
+              {{ if and .Hometown (ne .Hometown "unknown") }}<span>{{ .Hometown }}</span>{{ end }}
+            </p>
           </div>
         </div>
+        <dl class="dashboard-workspace-hero__facts" aria-label="Dashboard summary">
+          <div><dt>Talks submitted</dt><dd>{{ .Stats.TalksApplied }}</dd></div>
+          <div><dt>Talks accepted</dt><dd>{{ .Stats.TalksAccepted }}</dd></div>
+          <div><dt>Events volunteered</dt><dd>{{ .Stats.ShiftsApplied }}</dd></div>
+          <div><dt>Upcoming shifts</dt><dd>{{ .Stats.ShiftsBooked }}</dd></div>
+        </dl>
       </header>
 
 {{/* ---- Affiliate ---- */}}
