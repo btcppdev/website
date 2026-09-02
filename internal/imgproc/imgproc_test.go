@@ -2,6 +2,7 @@ package imgproc
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"image"
 	"image/color"
@@ -187,6 +188,55 @@ func TestSocialCardID(t *testing.T) {
 	}
 	if SocialCardID(data) == ShortID(data) {
 		t.Fatal("SocialCardID does not include the template fingerprint")
+	}
+}
+
+func TestSiteSocialCardIDTracksContent(t *testing.T) {
+	card := SiteSocialCard{Kind: "conference", Title: "bitcoin++ Vienna"}
+	first := SiteSocialCardID(card)
+	if got := SiteSocialCardID(card); got != first {
+		t.Fatalf("SiteSocialCardID is not deterministic: %q != %q", got, first)
+	}
+	card.Title = "bitcoin++ Austin"
+	if got := SiteSocialCardID(card); got == first {
+		t.Fatal("SiteSocialCardID did not change with rendered content")
+	}
+}
+
+func TestRenderSiteSocialCardHTML(t *testing.T) {
+	html, err := RenderSiteSocialCardHTML(SiteSocialCard{
+		Kind: "person", Eyebrow: "community profile", Title: "Mara Chen",
+		Subtitle: "Talk: Building Bitcoin", Stats: []SiteSocialCardStat{{Value: "3", Label: "talks"}},
+	})
+	if err != nil {
+		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
+	}
+	for _, want := range []string{"Mara Chen", "Building Bitcoin", "community profile", `data-card-ready="false"`} {
+		if !bytes.Contains(html, []byte(want)) {
+			t.Fatalf("rendered site card missing %q", want)
+		}
+	}
+}
+
+func TestMakeSiteSocialCardJPEG(t *testing.T) {
+	requireChrome(t)
+	out, err := MakeSiteSocialCardJPEG(SiteSocialCard{
+		Kind: "home", Eyebrow: "bitcoin++", Title: "Developing the frontier of bitcoin.",
+		Subtitle: "Technical conferences for bitcoin builders.",
+		Images:   []string{"data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(makeTestJPEG(t, 417))},
+	})
+	if err != nil {
+		t.Fatalf("MakeSiteSocialCardJPEG: %v", err)
+	}
+	card, err := jpeg.Decode(bytes.NewReader(out))
+	if err != nil {
+		t.Fatalf("decode site social card: %v", err)
+	}
+	if got := card.Bounds().Dx(); got != SocialCardWidth {
+		t.Fatalf("site social card width = %d, want %d", got, SocialCardWidth)
+	}
+	if got := card.Bounds().Dy(); got != SocialCardHeight {
+		t.Fatalf("site social card height = %d, want %d", got, SocialCardHeight)
 	}
 }
 

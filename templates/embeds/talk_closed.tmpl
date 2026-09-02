@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    {{ template "site_seo" (dict "Title" (printf "Talk applications closed · %s" .Conf.Desc) "Description" (printf "The call for presenters at %s is now closed." .Conf.Desc) "Path" (printf "/talk/%s" .Conf.Tag) "Image" (confSocialImage .Conf.Tag "standard")) }}
+    {{ template "site_seo" (dict "Title" (printf "Talk applications closed · %s" .Conf.Desc) "Description" (printf "The call for presenters at %s is now closed." .Conf.Desc) "Path" (printf "/talk/%s" .Conf.Tag) "Image" (conferenceSocialCard .Conf) "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
     {{ template "form_page_header" . }}
     <meta name="robots" content="noindex, follow">
   </head>

@@ -54,16 +54,91 @@ const (
 //go:embed merch_social_card.html
 var socialCardTemplateSource string
 
+//go:embed site_social_card.html
+var siteSocialCardTemplateSource string
+
 //go:embed bitcoin_plus_plus_logo.svg
 var socialCardLogo []byte
 
 var socialCardTemplate = template.Must(template.New("merch_social_card.html").Parse(socialCardTemplateSource))
+var siteSocialCardTemplate = template.Must(template.New("site_social_card.html").Parse(siteSocialCardTemplateSource))
 
 var socialCardChromeSlots = make(chan struct{}, 2)
 
 type socialCardTemplateData struct {
 	ProductImageURL template.URL
 	LogoImageURL    template.URL
+}
+
+type SiteSocialCardStat struct {
+	Value string
+	Label string
+}
+
+// SiteSocialCard describes the shared large-image unfurl used by public site
+// landing pages. Images must be public HTTP(S) URLs or site-relative paths when
+// RenderSiteSocialCardHTML is used for an in-browser preview.
+type SiteSocialCard struct {
+	Kind     string
+	Eyebrow  string
+	Title    string
+	Subtitle string
+	Footer   string
+	Images   []string
+	Stats    []SiteSocialCardStat
+}
+
+type siteSocialCardTemplateData struct {
+	SiteSocialCard
+	LogoImageURL template.URL
+	ImageURLs    []template.URL
+}
+
+// SiteSocialCardID fingerprints the editable template, logo, and public page
+// data. It is used as the metadata URL version so social-network caches refresh
+// when either the content or the design changes.
+func SiteSocialCardID(card SiteSocialCard) string {
+	hash := sha256.New()
+	hash.Write([]byte(siteSocialCardTemplateSource))
+	hash.Write([]byte{0})
+	hash.Write(socialCardLogo)
+	for _, value := range []string{card.Kind, card.Eyebrow, card.Title, card.Subtitle, card.Footer} {
+		hash.Write([]byte{0})
+		hash.Write([]byte(value))
+	}
+	for _, image := range card.Images {
+		hash.Write([]byte{0})
+		hash.Write([]byte(image))
+	}
+	for _, stat := range card.Stats {
+		hash.Write([]byte{0})
+		hash.Write([]byte(stat.Value))
+		hash.Write([]byte{0})
+		hash.Write([]byte(stat.Label))
+	}
+	return hex.EncodeToString(hash.Sum(nil)[:6])
+}
+
+func renderSiteSocialCardHTML(card SiteSocialCard, logoURL template.URL) ([]byte, error) {
+	images := make([]template.URL, 0, len(card.Images))
+	for _, raw := range card.Images {
+		if strings.TrimSpace(raw) != "" {
+			images = append(images, template.URL(raw))
+		}
+	}
+	var rendered bytes.Buffer
+	if err := siteSocialCardTemplate.Execute(&rendered, siteSocialCardTemplateData{
+		SiteSocialCard: card,
+		LogoImageURL:   logoURL,
+		ImageURLs:      images,
+	}); err != nil {
+		return nil, fmt.Errorf("render site social card template: %w", err)
+	}
+	return rendered.Bytes(), nil
+}
+
+func RenderSiteSocialCardHTML(card SiteSocialCard) ([]byte, error) {
+	return renderSiteSocialCardHTML(card, template.URL("/static/img/logo_blk.svg"))
 }
 
 func renderSocialCardHTML(productImageURL, logoImageURL template.URL) ([]byte, error) {
@@ -243,6 +318,76 @@ func MakeSocialCardJPEG(data []byte) ([]byte, error) {
 	var output bytes.Buffer
 	if err := jpeg.Encode(&output, card, &jpeg.Options{Quality: 90}); err != nil {
 		return nil, fmt.Errorf("encode social card JPEG: %w", err)
+	}
+	return output.Bytes(), nil
+}
+
+// MakeSiteSocialCardJPEG renders the shared page-card template in headless
+// Chrome. Unlike the merch renderer, its source images are already-public URLs.
+func MakeSiteSocialCardJPEG(card SiteSocialCard) ([]byte, error) {
+	htmlFile, err := os.CreateTemp("", "imgproc-site-social-card-*.html")
+	if err != nil {
+		return nil, fmt.Errorf("tempfile: %w", err)
+	}
+	htmlName := htmlFile.Name()
+	defer os.Remove(htmlName)
+
+	logoURL := "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString(socialCardLogo)
+	renderedHTML, err := renderSiteSocialCardHTML(card, template.URL(logoURL))
+	if err != nil {
+		htmlFile.Close()
+		return nil, err
+	}
+	if _, err := htmlFile.Write(renderedHTML); err != nil {
+		htmlFile.Close()
+		return nil, fmt.Errorf("write site social card template: %w", err)
+	}
+	if err := htmlFile.Close(); err != nil {
+		return nil, fmt.Errorf("close site social card template: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), socialCardRenderTimeout)
+	defer cancel()
+	select {
+	case socialCardChromeSlots <- struct{}{}:
+		defer func() { <-socialCardChromeSlots }()
+	case <-ctx.Done():
+		return nil, fmt.Errorf("wait for social card renderer: %w", ctx.Err())
+	}
+
+	opts := append([]chromedp.ExecAllocatorOption{}, chromedp.DefaultExecAllocatorOptions[:]...)
+	opts = append(opts, chromedp.Flag("allow-file-access-from-files", true))
+	allocCtx, cancelAlloc := chromedp.NewExecAllocator(ctx, opts...)
+	defer cancelAlloc()
+	browserCtx, cancelBrowser := chromedp.NewContext(allocCtx)
+	defer cancelBrowser()
+
+	pageURL := (&url.URL{Scheme: "file", Path: htmlName}).String()
+	var screenshot []byte
+	err = chromedp.Run(browserCtx,
+		emulation.SetDeviceMetricsOverride(SocialCardWidth, SocialCardHeight, 1, false),
+		chromedp.Navigate(pageURL),
+		chromedp.WaitVisible(`[data-card-ready="true"]`, chromedp.ByQuery),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var captureErr error
+			screenshot, captureErr = page.CaptureScreenshot().
+				WithFormat(page.CaptureScreenshotFormatPng).
+				WithFromSurface(true).
+				WithClip(&page.Viewport{Width: SocialCardWidth, Height: SocialCardHeight, Scale: 1}).
+				Do(ctx)
+			return captureErr
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("render site social card HTML: %w", err)
+	}
+	decoded, err := png.Decode(bytes.NewReader(screenshot))
+	if err != nil {
+		return nil, fmt.Errorf("decode site social card screenshot: %w", err)
+	}
+	var output bytes.Buffer
+	if err := jpeg.Encode(&output, decoded, &jpeg.Options{Quality: 90}); err != nil {
+		return nil, fmt.Errorf("encode site social card JPEG: %w", err)
 	}
 	return output.Bytes(), nil
 }

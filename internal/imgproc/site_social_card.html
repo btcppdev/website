@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 1200px; height: 630px; margin: 0; overflow: hidden; }
+    body { background: #0a0a0a; color: #f6f1e8; font-family: Arial, Helvetica, sans-serif; }
+    .card { position: relative; display: grid; grid-template-columns: 58% 42%; width: 100%; height: 100%; background: radial-gradient(circle at 22% 5%, #29241f 0, #111 37%, #080808 78%); }
+    .card::before { content: ""; position: absolute; inset: 0; opacity: .18; background-image: linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px); background-size: 42px 42px; }
+    .copy { position: relative; z-index: 2; display: flex; flex-direction: column; padding: 58px 44px 42px 60px; }
+    .eyebrow { color: #f9af5e; font-size: 20px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { max-width: 660px; margin: 22px 0 16px; font-size: 67px; line-height: .96; letter-spacing: -.045em; }
+    .subtitle { max-width: 650px; margin: 0; color: #d2cdc4; font-size: 26px; line-height: 1.28; }
+    .stats { display: flex; gap: 34px; margin-top: auto; }
+    .stat { min-width: 110px; padding-top: 13px; border-top: 3px solid #f9af5e; }
+    .stat strong { display: block; font-size: 30px; line-height: 1; }
+    .stat span { display: block; margin-top: 7px; color: #a9a49c; font-size: 15px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .brand { display: flex; align-items: center; gap: 16px; margin-top: 28px; color: #f6f1e8; font-size: 19px; font-weight: 800; }
+    .copy:not(.has-stats) .brand { margin-top: auto; }
+    .brand img { width: 174px; height: auto; filter: invert(1); }
+    .visual { position: relative; z-index: 1; padding: 28px 28px 28px 0; }
+    .images { display: grid; width: 100%; height: 100%; gap: 12px; transform: rotate(2deg); }
+    .images.count-1 { grid-template-columns: 1fr; }
+    .images.count-2 { grid-template-columns: 1fr 1fr; }
+    .images.count-3, .images.count-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+    .image { position: relative; overflow: hidden; min-width: 0; min-height: 0; border: 3px solid rgba(255,255,255,.9); background: #272727; box-shadow: 0 20px 55px rgba(0,0,0,.45); }
+    .image:first-child:last-child { border-radius: 48% 48% 8px 8px; }
+    .image img { width: 100%; height: 100%; object-fit: cover; }
+    .images.count-3 .image:first-child { grid-row: span 2; }
+    .fallback { display: grid; place-items: center; height: 100%; color: #f9af5e; font-size: 150px; font-weight: 900; }
+    .kind-hackathon .image { border-color: #f9af5e; }
+    .kind-person .image:first-child { border-radius: 50% 50% 10px 10px; }
+  </style>
+</head>
+<body>
+  <main class="card kind-{{ .Kind }}" data-card-ready="false">
+    <section class="copy{{ if .Stats }} has-stats{{ end }}">
+      <div class="eyebrow">{{ .Eyebrow }}</div>
+      <h1>{{ .Title }}</h1>
+      {{ if .Subtitle }}<p class="subtitle">{{ .Subtitle }}</p>{{ end }}
+      {{ if .Stats }}<div class="stats">{{ range .Stats }}<div class="stat"><strong>{{ .Value }}</strong><span>{{ .Label }}</span></div>{{ end }}</div>{{ end }}
+      <div class="brand"><img src="{{ .LogoImageURL }}" alt="bitcoin++">{{ .Footer }}</div>
+    </section>
+    <section class="visual">
+      {{ if .ImageURLs }}<div class="images count-{{ len .ImageURLs }}">{{ range .ImageURLs }}<div class="image"><img src="{{ . }}" alt=""></div>{{ end }}</div>{{ else }}<div class="fallback">++</div>{{ end }}
+    </section>
+  </main>
+  <script>
+    Promise.all(Array.from(document.images).map(function (img) {
+      if (img.complete) return Promise.resolve();
+      return new Promise(function (resolve) { img.onload = resolve; img.onerror = resolve; });
+    })).then(function () { document.querySelector('.card').dataset.cardReady = 'true'; });
+  </script>
+</body>
+</html>

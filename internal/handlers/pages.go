@@ -132,6 +132,7 @@ type HomePageData struct {
 	ArchiveRain      []*HomeArchiveRainItem
 	MapMarkers       []*HomeMapMarker
 	Year             uint
+	SocialCardURL    string
 }
 
 type HomeArchiveRainItem struct {
@@ -171,23 +172,25 @@ type HomeMapEdition struct {
 }
 
 type WhoIsPage struct {
-	People       []*WhoIsPerson
-	ArchiveRain  []*HomeArchiveRainItem
-	AllCount     int
-	TalkCount    int
-	ProjectCount int
-	EditionCount int
-	Query        string
-	Topic        string
-	Event        string
-	EventOptions []*types.Conf
-	Year         uint
+	People        []*WhoIsPerson
+	ArchiveRain   []*HomeArchiveRainItem
+	AllCount      int
+	TalkCount     int
+	ProjectCount  int
+	EditionCount  int
+	Query         string
+	Topic         string
+	Event         string
+	EventOptions  []*types.Conf
+	Year          uint
+	SocialCardURL string
 }
 
 type WhoIsProfilePage struct {
 	Person           *WhoIsPerson
 	UpdateProfileURL string
 	Year             uint
+	SocialCardURL    string
 }
 
 type WhoIsPerson struct {

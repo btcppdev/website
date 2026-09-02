@@ -1,8 +1,9 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <title>{{ .Competition.Title }} - bitcoin++ hackathon</title>
   {{ template "hackathon_header" . }}
+  {{ $socialCard := .SocialCardURL }}{{ if not $socialCard }}{{ $socialCard = printf "%s" (confImage .Conf.Tag "leading") }}{{ end }}
+  {{ template "site_seo" (dict "Title" (printf "%s · bitcoin++ hackathon" .Competition.Title) "Description" "Build something real. Find collaborators, choose a challenge, and ship your project at bitcoin++." "Path" (printf "/%s/hackathon" .Conf.Tag) "Image" $socialCard "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
 </head>
 <body class="hack-redesign">
   {{ $galleryProjects := .GalleryProjects }}

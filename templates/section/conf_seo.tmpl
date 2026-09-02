@@ -1,5 +1,4 @@
 {{ define "conf_seo" }}
-    <title>{{ .Conf.Desc }} || {{ .Conf.DateDesc }}</title>
-    {{ block "og_tags" .Conf }} {{ end }}
+    {{ template "site_seo" (dict "Title" (printf "%s · %s" .Conf.Desc .Conf.DateDesc) "Description" .Conf.OGFlavor "Path" (printf "/%s" .Conf.Tag) "Image" (conferenceSocialCard .Conf) "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
     {{ block "event_jsonld" . }} {{ end }}
 {{ end }}

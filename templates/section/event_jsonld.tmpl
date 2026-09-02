@@ -28,7 +28,7 @@
     "address": {{ jsonStr .Conf.Location }}{{ if .Conf.VenueWebsite }},
     "url": {{ jsonStr .Conf.VenueWebsite }}{{ end }}
   },
-  "image": {{ jsonStr (confSocialImage .Conf.Tag "standard") }},
+  "image": {{ jsonStr (absoluteSEOURL (conferenceSocialCard .Conf)) }},
   "url": {{ jsonStr (printf "https://btcpp.dev/%s" .Conf.Tag) }},
   "organizer": {
     "@type": "Organization",

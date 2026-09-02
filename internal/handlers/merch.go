@@ -86,6 +86,7 @@ type shopPage struct {
 	Error                     string
 	Admin                     bool
 	SpacesReady               bool
+	SocialCardURL             string
 	ShopStats                 *types.ShopOperationalStats
 	EasyshipRateQuote         *types.ShippingRateQuote
 	EasyshipShipment          *types.Shipment
@@ -224,6 +225,7 @@ func ShopHome(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if len(products) > 0 {
 		page.Product = products[0]
 	}
+	page.SocialCardURL = siteSocialCardPath("shop", "", shopSocialCard(ctx, products))
 	renderShopTemplate(w, r, ctx, "shop/index.tmpl", page)
 }
 

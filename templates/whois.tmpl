@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     {{ template "rebrand_header" . }}
-    {{ template "site_seo" (dict "Title" "whois @ bitcoin++" "Description" "A directory of bitcoin++ speakers, builders, and hackathon participants." "Path" "/whois" "Image" "/static/img/rebrand/breakthroughs.jpg") }}
+    {{ $socialCard := .SocialCardURL }}{{ if not $socialCard }}{{ $socialCard = "/static/img/rebrand/breakthroughs.jpg" }}{{ end }}
+    {{ template "site_seo" (dict "Title" "whois @ bitcoin++" "Description" "A directory of bitcoin++ speakers, builders, and hackathon participants." "Path" "/whois" "Image" $socialCard "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
     <link rel="stylesheet" href="/static/css/archive-rain.css">
     <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
     <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
