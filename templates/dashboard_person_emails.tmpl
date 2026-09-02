@@ -218,6 +218,7 @@
               <label><input type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks</span></label>
               <label><input type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage schedules <small>Requires a current admin role.</small></span></label>
               <label><input type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recordings <small>Requires a current admin role.</small></span></label>
+              <label><input type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires a current global-admin role.</small></span></label>
               <label><input type="checkbox" name="scopes" value="offline_access" checked><span><code>offline_access</code> Issue rotating refresh tokens</span></label>
             </div>
           </fieldset>
@@ -281,6 +282,7 @@
               <label><input type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks you can edit</span></label>
               <label><input type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage conference schedules <small>Requires a current admin role.</small></span></label>
               <label><input type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recording metadata <small>Requires a current admin role.</small></span></label>
+              {{ if .IsGlobalAdmin }}<label><input type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires your current global-admin role.</small></span></label>{{ end }}
             </div>
           </fieldset>
           <label>EXPIRES

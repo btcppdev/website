@@ -155,6 +155,16 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("settings email action %s omitted CSRF token", action)
 		}
 	}
+	if strings.Contains(settingsPage.String(), `value="shop:accounting:read"`) {
+		t.Fatalf("non-global account settings exposed shop accounting scope: %s", settingsPage.String())
+	}
+	settingsPage.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{IsGlobalAdmin: true}); err != nil {
+		t.Fatalf("render global-admin settings: %v", err)
+	}
+	if !strings.Contains(settingsPage.String(), `value="shop:accounting:read"`) {
+		t.Fatalf("global-admin account settings omitted shop accounting scope: %s", settingsPage.String())
+	}
 	settingsPage.Reset()
 	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{}); err != nil {
 		t.Fatalf("render settings without Nostr key: %v", err)

@@ -27,6 +27,30 @@ type bootstrapDTO struct {
 	Links      map[string]string `json:"links"`
 }
 
+type accountingInventoryVariantDTO struct {
+	SourceID     string `json:"source_id"`
+	SKU          string `json:"sku"`
+	ProductName  string `json:"product_name"`
+	VariantLabel string `json:"variant_label"`
+	OnHand       int    `json:"on_hand"`
+	UpdatedAt    string `json:"updated_at"`
+}
+
+type accountingInventorySaleDTO struct {
+	SourceID         string `json:"source_id"`
+	SellableSourceID string `json:"sellable_source_id"`
+	Kind             string `json:"kind"`
+	ProductName      string `json:"product_name"`
+	VariantLabel     string `json:"variant_label"`
+	SKU              string `json:"sku"`
+	Quantity         int    `json:"quantity"`
+	RefundedQuantity int    `json:"refunded_quantity"`
+	RevenueCents     int64  `json:"revenue_cents"`
+	Currency         string `json:"currency"`
+	SoldAt           string `json:"sold_at"`
+	UpdatedAt        string `json:"updated_at"`
+}
+
 type conferenceDTO struct {
 	ID          string  `json:"id"`
 	Tag         string  `json:"tag"`

@@ -97,3 +97,15 @@ func TestPersonEmailAdditionVerificationIsNotLoginCopy(t *testing.T) {
 		t.Fatal("email addition verification should not use login copy")
 	}
 }
+
+func TestShopAccountingTokenScopeRequiresGlobalAdmin(t *testing.T) {
+	if validPersonalAPITokenScopes([]string{"shop:accounting:read"}, false) {
+		t.Fatal("non-global admin accepted shop accounting scope")
+	}
+	if !validPersonalAPITokenScopes([]string{"shop:accounting:read"}, true) {
+		t.Fatal("global admin rejected shop accounting scope")
+	}
+	if !validPersonalAPITokenScopes([]string{"profile:self:read"}, false) {
+		t.Fatal("ordinary profile scope unexpectedly requires global admin")
+	}
+}

@@ -146,6 +146,8 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/hackathons/{competitionID}/projects/{projectID}", s.hackathonProject).Methods(http.MethodGet)
 	r.HandleFunc("/hackathons/{competitionID}/awards", s.hackathonAwards).Methods(http.MethodGet)
 	r.HandleFunc("/hackathons/{competitionID}/results", s.hackathonResults).Methods(http.MethodGet)
+	r.HandleFunc("/shop/inventory/variants", s.accountingInventoryVariants).Methods(http.MethodGet)
+	r.HandleFunc("/shop/inventory/sales", s.accountingInventorySales).Methods(http.MethodGet)
 }
 
 func (s *server) middleware(next http.Handler) http.Handler {
@@ -267,11 +269,113 @@ func (s *server) bootstrap(w http.ResponseWriter, r *http.Request) {
 			"people":                    "/api/v1/people",
 			"recordings":                "/api/v1/recordings",
 			"recording_broadcast_plans": "/api/v1/recording-broadcast-plans",
+			"shop_inventory_variants":   "/api/v1/shop/inventory/variants",
+			"shop_inventory_sales":      "/api/v1/shop/inventory/sales",
 			"identity":                  "/api/v1/me/identity",
 			"me":                        "/api/v1/me",
 			"oauth_server_metadata":     "/.well-known/oauth-authorization-server",
 		},
 	})
+}
+
+func (s *server) accountingPrincipal(w http.ResponseWriter, r *http.Request) (*apiPrincipal, *http.Request) {
+	principal, r := s.requireScope(w, r, "shop:accounting:read")
+	if principal == nil {
+		return nil, r
+	}
+	if principal.Identity == nil || !principal.Identity.IsGlobalAdmin() {
+		s.writeError(w, r, http.StatusForbidden, "forbidden", "A current global administrator role is required for shop accounting data.")
+		return nil, r
+	}
+	return principal, r
+}
+
+func (s *server) accountingPage(w http.ResponseWriter, r *http.Request) (time.Time, string, int, bool) {
+	limit, err := pageLimit(r)
+	if err != nil {
+		s.writeError(w, r, http.StatusBadRequest, "invalid_pagination", err.Error())
+		return time.Time{}, "", 0, false
+	}
+	after, afterID, err := decodeKeysetCursor(r.URL.Query().Get("cursor"))
+	if err != nil {
+		s.writeError(w, r, http.StatusBadRequest, "invalid_pagination", err.Error())
+		return time.Time{}, "", 0, false
+	}
+	return after, afterID, limit, true
+}
+
+func (s *server) accountingInventoryVariants(w http.ResponseWriter, r *http.Request) {
+	if principal, _ := s.accountingPrincipal(w, r); principal == nil {
+		return
+	}
+	after, afterID, limit, ok := s.accountingPage(w, r)
+	if !ok {
+		return
+	}
+	items, err := s.source.ListAccountingInventoryVariants(after, afterID, limit+1)
+	if err != nil {
+		s.internalError(w, r, "list accounting inventory variants", err)
+		return
+	}
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	data := make([]accountingInventoryVariantDTO, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		data = append(data, accountingInventoryVariantDTO{
+			SourceID: item.SourceID, SKU: item.SKU, ProductName: item.ProductName,
+			VariantLabel: item.VariantLabel, OnHand: item.OnHand,
+			UpdatedAt: item.UpdatedAt.UTC().Format(time.RFC3339Nano),
+		})
+	}
+	next := ""
+	if hasMore && len(items) > 0 {
+		last := items[len(items)-1]
+		next = encodeKeysetCursor(last.UpdatedAt, last.SourceID)
+	}
+	s.writePrivateMeta(w, r, http.StatusOK, data, responseMeta{NextCursor: next, Limit: limit})
+}
+
+func (s *server) accountingInventorySales(w http.ResponseWriter, r *http.Request) {
+	if principal, _ := s.accountingPrincipal(w, r); principal == nil {
+		return
+	}
+	after, afterID, limit, ok := s.accountingPage(w, r)
+	if !ok {
+		return
+	}
+	items, err := s.source.ListAccountingInventorySales(after, afterID, limit+1)
+	if err != nil {
+		s.internalError(w, r, "list accounting inventory sales", err)
+		return
+	}
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	data := make([]accountingInventorySaleDTO, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		data = append(data, accountingInventorySaleDTO{
+			SourceID: item.SourceID, SellableSourceID: item.SellableSourceID, Kind: item.Kind,
+			ProductName: item.ProductName, VariantLabel: item.VariantLabel, SKU: item.SKU,
+			Quantity: item.Quantity, RefundedQuantity: item.RefundedQuantity,
+			RevenueCents: item.RevenueCents, Currency: item.Currency,
+			SoldAt: item.SoldAt.UTC().Format(time.RFC3339Nano), UpdatedAt: item.UpdatedAt.UTC().Format(time.RFC3339Nano),
+		})
+	}
+	next := ""
+	if hasMore && len(items) > 0 {
+		last := items[len(items)-1]
+		next = encodeKeysetCursor(last.UpdatedAt, last.SourceID)
+	}
+	s.writePrivateMeta(w, r, http.StatusOK, data, responseMeta{NextCursor: next, Limit: limit})
 }
 
 func (s *server) conferences(w http.ResponseWriter, r *http.Request) {
