@@ -32,7 +32,6 @@ CREATE TABLE sponsorship_entitlements (
   sponsor_award_limit integer NOT NULL DEFAULT 0,
   participant_contact_access boolean NOT NULL DEFAULT false,
   participant_contact_export boolean NOT NULL DEFAULT false,
-  can_manage_award_judges boolean NOT NULL DEFAULT false,
   can_edit_organization boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),

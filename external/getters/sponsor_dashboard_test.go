@@ -13,6 +13,7 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	suffix := postgresSmokeSuffix()
 	personID := insertSmokePerson(t, ctx, "sponsor-member-"+suffix)
+	managerPersonID := insertSmokePerson(t, ctx, "sponsor-manager-"+suffix)
 	confID, _ := insertSmokeConference(t, ctx)
 	if _, err := ctx.DB.Exec(context.Background(), `
 		UPDATE conferences SET start_date = now() + interval '30 days', end_date = now() + interval '32 days'
@@ -88,6 +89,48 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if events[0].Sponsorship.Notes != "" {
 		t.Fatalf("sponsor dashboard loaded private sponsorship notes: %q", events[0].Sponsorship.Notes)
 	}
+	if err := UpdateSponsorship(ctx, confID, &types.Sponsorship{
+		Ref: sponsorshipID, Org: &types.Org{Ref: orgID, Name: "Sponsor Dashboard " + suffix},
+		Level: "Gold", Status: "Paid", Notes: "private contract note",
+	}, &types.SponsorshipEntitlement{
+		TicketAllocation: 24, SponsorAwardLimit: 3,
+		CanEditOrganization: true,
+	}, SponsorshipWriteOptions{ManagerPersonID: managerPersonID, AssignedByPersonID: personID}); err != nil {
+		t.Fatalf("UpdateSponsorship ticket allocation: %v", err)
+	}
+	events, err = ListSponsorDashboardEvents(ctx, orgID)
+	if err != nil || len(events) != 1 || events[0].Entitlement.TicketAllocation != 24 || events[0].Entitlement.SponsorAwardLimit != 3 || !events[0].Entitlement.CanEditOrganization {
+		t.Fatalf("updated ticket allocation: events=%+v err=%v", events, err)
+	}
+	managerMembership, err := GetOrganizationMembership(ctx, managerPersonID, orgID)
+	if err != nil || managerMembership == nil || managerMembership.Role != OrganizationRoleManager || managerMembership.Status != "active" {
+		t.Fatalf("assigned organization manager: membership=%+v err=%v", managerMembership, err)
+	}
+	registered := &types.Sponsorship{
+		Org:   &types.Org{Ref: orgID, Name: "Sponsor Dashboard " + suffix},
+		Confs: []*types.Conf{{Ref: confID}}, Level: "Silver", Status: "Pending",
+	}
+	if err := RegisterSponsorship(ctx, registered, &types.SponsorshipEntitlement{
+		TicketAllocation: 13, SponsorAwardLimit: 4,
+		CanEditOrganization: true,
+	}, SponsorshipWriteOptions{}); err != nil {
+		t.Fatalf("RegisterSponsorship ticket allocation: %v", err)
+	}
+	var registeredAllocation, registeredAwardLimit int
+	var registeredCanEditOrganization bool
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT ticket_allocation, sponsor_award_limit,
+			can_edit_organization
+		FROM sponsorship_entitlements
+		WHERE sponsorship_id = $1::uuid AND conference_id = $2::uuid
+	`, registered.Ref, confID).Scan(
+		&registeredAllocation, &registeredAwardLimit, &registeredCanEditOrganization,
+	); err != nil || registeredAllocation != 13 || registeredAwardLimit != 4 || !registeredCanEditOrganization {
+		t.Fatalf("registered entitlement = tickets %d, prizes %d, edit org %t, err=%v", registeredAllocation, registeredAwardLimit, registeredCanEditOrganization, err)
+	}
+	if err := DeleteSponsorship(ctx, confID, registered.Ref); err != nil {
+		t.Fatalf("DeleteSponsorship registered fixture: %v", err)
+	}
 	if _, err := ctx.DB.Exec(context.Background(), `UPDATE sponsorships SET archived_at = now() WHERE id = $1::uuid`, sponsorshipID); err != nil {
 		t.Fatalf("archive sponsorship: %v", err)
 	}
@@ -106,7 +149,7 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if issuance.Quantity != 2 || issuance.CheckoutID == "" {
 		t.Fatalf("sponsor ticket issuance mismatch: %+v", issuance)
 	}
-	if _, err := IssueSponsorTickets(ctx, orgID, sponsorshipID, confID, personID, "too-many-"+suffix+"@example.test", 19); err == nil {
+	if _, err := IssueSponsorTickets(ctx, orgID, sponsorshipID, confID, personID, "too-many-"+suffix+"@example.test", 23); err == nil {
 		t.Fatal("sponsor ticket issuance exceeded the event allocation")
 	}
 	issuances, err := ListSponsorTicketIssuances(ctx, orgID)
@@ -179,6 +222,119 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if gotConsent.AllHackathonSponsors || !gotConsent.EnteredAwardSponsors {
 		t.Fatalf("consent mismatch: %+v", gotConsent)
 	}
+	projectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID: competitionID, CreatedByPersonID: personID,
+		Slug: "sponsor-entry-" + suffix, Title: "Sponsor entry " + suffix,
+		ShortDescription: "A project entered in the sponsor challenge.",
+		GitHubURL:        "https://github.com/example/sponsor-entry",
+	})
+	if err := SetProjectAwardOptIns(ctx, projectID, []string{approved.AwardID}); err != nil {
+		t.Fatalf("SetProjectAwardOptIns sponsor entry: %v", err)
+	}
+	nonConsentingPersonID := insertSmokePerson(t, ctx, "sponsor-entry-private-"+suffix)
+	if err := AddProjectMember(ctx, projectID, nonConsentingPersonID, ProjectMemberRoleMember); err != nil {
+		t.Fatalf("AddProjectMember non-consenting sponsor entry member: %v", err)
+	}
+	entries, err := ListSponsorPrizeEntries(ctx, orgID, true)
+	if err != nil {
+		t.Fatalf("ListSponsorPrizeEntries: %v", err)
+	}
+	if len(entries) != 1 || entries[0].AwardID != approved.AwardID || entries[0].ProjectID != projectID || len(entries[0].Participants) != 2 {
+		t.Fatalf("sponsor prize entries mismatch: %+v", entries)
+	}
+	contacts := map[string]string{}
+	for _, participant := range entries[0].Participants {
+		contacts[participant.PersonID] = participant.Email
+	}
+	if contacts[personID] != smokePersonEmail(t, ctx, personID) {
+		t.Fatalf("consenting participant email = %q, want verified address", contacts[personID])
+	}
+	if contacts[nonConsentingPersonID] != "" {
+		t.Fatalf("non-consenting participant email was disclosed: %q", contacts[nonConsentingPersonID])
+	}
+	if err := SubmitProject(ctx, projectID); err != nil {
+		t.Fatalf("SubmitProject sponsor entry: %v", err)
+	}
+	generalProjectID := createSmokeProject(t, ctx, ProjectInput{
+		CompetitionID: competitionID, CreatedByPersonID: personID,
+		Slug: "general-sponsor-entry-" + suffix, Title: "General entry " + suffix,
+		ShortDescription: "A submitted project that did not enter the sponsor challenge.",
+	})
+	if err := SubmitProject(ctx, generalProjectID); err != nil {
+		t.Fatalf("SubmitProject general sponsor entry: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		UPDATE projects SET submitted_at = '2020-01-01 00:00:00+00'::timestamptz
+		WHERE id = $1::uuid
+	`, generalProjectID); err != nil {
+		t.Fatalf("make general sponsor entry historical: %v", err)
+	}
+	sponsorViewerID := insertSmokePerson(t, ctx, "sponsor-project-viewer-"+suffix)
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO organization_memberships (organization_id, person_id, role, status)
+		VALUES ($1::uuid, $2::uuid, 'member', 'active')
+	`, orgID, sponsorViewerID); err != nil {
+		t.Fatalf("insert sponsor project viewer: %v", err)
+	}
+	sponsoredVisible, err := CanViewProject(ctx, projectID, types.HackathonViewer{PersonID: sponsorViewerID})
+	if err != nil || !sponsoredVisible {
+		t.Fatalf("sponsor could not open its prize submission: visible=%t err=%v", sponsoredVisible, err)
+	}
+	generalVisible, err := CanViewProject(ctx, generalProjectID, types.HackathonViewer{PersonID: sponsorViewerID})
+	if err != nil || generalVisible {
+		t.Fatalf("sponsored-only viewer opened unrelated submission: visible=%t err=%v", generalVisible, err)
+	}
+	entries, err = ListSponsorPrizeEntries(ctx, orgID, true)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("sponsored-only access included unrelated submission: entries=%+v err=%v", entries, err)
+	}
+	exportEntries, err := ListSponsorPrizeEntriesForExport(ctx, orgID)
+	if err != nil || len(exportEntries) != 0 {
+		t.Fatalf("participant export bypassed entitlement: entries=%+v err=%v", exportEntries, err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		UPDATE sponsorship_entitlements
+		SET all_hackathon_submissions_access = true,
+			automatic_submission_contact_access = true,
+			participant_contact_access = true,
+			participant_contact_export = true
+		WHERE sponsorship_id = $1::uuid AND conference_id = $2::uuid
+	`, sponsorshipID, confID); err != nil {
+		t.Fatalf("enable all hackathon submission access: %v", err)
+	}
+	entries, err = ListSponsorPrizeEntries(ctx, orgID, true)
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("all-submission access entries=%+v err=%v, want two projects", entries, err)
+	}
+	generalVisible, err = CanViewProject(ctx, generalProjectID, types.HackathonViewer{PersonID: sponsorViewerID})
+	if err != nil || !generalVisible {
+		t.Fatalf("all-submission sponsor could not open project: visible=%t err=%v", generalVisible, err)
+	}
+	var generalEntry *types.SponsorPrizeEntry
+	for _, entry := range entries {
+		if entry.ProjectID == generalProjectID {
+			generalEntry = entry
+		}
+	}
+	if generalEntry == nil || generalEntry.SponsoredPrize || generalEntry.AwardID != "" || len(generalEntry.Participants) != 1 {
+		t.Fatalf("general hackathon submission mismatch: %+v", generalEntry)
+	}
+	if generalEntry.Participants[0].Email != smokePersonEmail(t, ctx, personID) || generalEntry.Participants[0].ConsentScope != "included_sponsorship" {
+		t.Fatalf("included sponsorship did not disclose submitted participant email: %+v", generalEntry.Participants[0])
+	}
+	exportEntries, err = ListSponsorPrizeEntriesForExport(ctx, orgID)
+	if err != nil || len(exportEntries) != 2 {
+		t.Fatalf("participant export entries=%+v err=%v, want two projects", exportEntries, err)
+	}
+	entriesWithoutContacts, err := ListSponsorPrizeEntries(ctx, orgID, false)
+	if err != nil {
+		t.Fatalf("ListSponsorPrizeEntries without contact permission: %v", err)
+	}
+	for _, participant := range entriesWithoutContacts[0].Participants {
+		if participant.Email != "" {
+			t.Fatalf("contact was disclosed to a read-only sponsor member: %+v", participant)
+		}
+	}
 	var consentEvents int
 	if err := ctx.DB.QueryRow(context.Background(), `
 		SELECT count(*) FROM hackathon_sponsor_contact_consent_events
@@ -249,5 +405,18 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	ownerEmail := smokePersonEmail(t, ctx, personID)
 	if _, _, err := CreateOrganizationMemberInvite(ctx, orgID, ownerEmail, OrganizationRoleMember, personID, time.Now().Add(time.Hour)); err == nil {
 		t.Fatal("created an invitation capable of replacing an existing owner role")
+	}
+	if err := RemoveOrganizationMembership(ctx, orgID, invitedPersonID, personID); err == nil {
+		t.Fatal("manager removed the organization owner")
+	}
+	if err := RemoveOrganizationMembership(ctx, orgID, personID, personID); err == nil {
+		t.Fatal("last active owner removed themselves")
+	}
+	if err := RemoveOrganizationMembership(ctx, orgID, invitedPersonID, invitedPersonID); err != nil {
+		t.Fatalf("manager could not remove themselves: %v", err)
+	}
+	removedMembership, err := GetOrganizationMembership(ctx, invitedPersonID, orgID)
+	if err != nil || removedMembership != nil {
+		t.Fatalf("removed membership remained active: membership=%+v err=%v", removedMembership, err)
 	}
 }

@@ -1867,6 +1867,35 @@ func canViewProjectLoadedPostgres(ctx *config.AppContext, project *types.Hackath
 			JOIN awards ON awards.id = award_judges.award_id
 			WHERE awards.competition_id = $3
 				AND award_judges.person_id = $2
+		) OR EXISTS (
+			SELECT 1
+			FROM organization_memberships memberships
+			JOIN sponsorships
+			  ON sponsorships.organization_id = memberships.organization_id
+			 AND sponsorships.archived_at IS NULL
+			JOIN sponsorships_conferences links
+			  ON links.sponsorship_id = sponsorships.id
+			JOIN competitions
+			  ON competitions.conference_id = links.conference_id
+			JOIN sponsorship_entitlements entitlements
+			  ON entitlements.sponsorship_id = sponsorships.id
+			 AND entitlements.conference_id = links.conference_id
+			WHERE memberships.person_id = $2
+			  AND memberships.status = 'active'
+			  AND competitions.id = $3
+			  AND (
+				(entitlements.all_hackathon_submissions_access
+				 AND lower(sponsorships.status) IN ('paid', 'committed'))
+				OR EXISTS (
+					SELECT 1
+					FROM awards
+					JOIN project_award_opt_ins opt_ins ON opt_ins.award_id = awards.id
+					WHERE awards.competition_id = competitions.id
+					  AND awards.sponsored_by_org_id = memberships.organization_id
+					  AND awards.archived_at IS NULL
+					  AND opt_ins.project_id = $1
+				)
+			  )
 		)
 	`, project.ID, viewer.PersonID, project.CompetitionID).Scan(&allowed); err != nil {
 		return false, fmt.Errorf("check project visibility %s: %w", project.ID, err)
