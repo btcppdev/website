@@ -2376,11 +2376,11 @@ func seedDashboardAffiliate(ctx context.Context, tx pgx.Tx, confID, pastConfID s
 	mustExec(ctx, tx, "seed affiliate discount", `
 		INSERT INTO discounts (
 			id, code_name, discount_expr, uses_count, affiliate_email, disc_type,
-			amount, max_uses, extra_qty, valid_from, valid_until, archived_at
+			amount, max_uses, extra_qty, valid_from, valid_until
 		)
 		VALUES (
 			$1::uuid, 'DEVADMIN15', '%15', 3, 'dev-admin@example.test',
-			'%', 15, NULL, 0, NULL, NULL, NULL
+			'%', 15, NULL, 0, NULL, NULL
 		)
 		ON CONFLICT (code_name) DO UPDATE SET
 			discount_expr = EXCLUDED.discount_expr,
@@ -2391,8 +2391,7 @@ func seedDashboardAffiliate(ctx context.Context, tx pgx.Tx, confID, pastConfID s
 			max_uses = EXCLUDED.max_uses,
 			extra_qty = EXCLUDED.extra_qty,
 			valid_from = EXCLUDED.valid_from,
-			valid_until = EXCLUDED.valid_until,
-			archived_at = NULL
+			valid_until = EXCLUDED.valid_until
 	`, devAffiliateDiscountID)
 
 	usages := []struct {
