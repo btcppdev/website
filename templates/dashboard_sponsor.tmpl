@@ -6,26 +6,25 @@
 </head>
 <body class="btcpp-dashboard-page sponsor-dashboard-page">
   {{ block "mainnav" . }}{{ end }}
+  {{ template "dashboard_tabs" (dict "Active" "sponsor" "ShowHackathons" .HasHackathonProjects "ShowSponsor" true "ShowAdmin" .IsGlobalAdmin) }}
   <div class="dashboard-shell">
     <main class="dashboard-main">
-      {{ template "dashboard_tabs" (dict "Active" "sponsor" "ShowSponsor" true) }}
-
       {{ if .FlashMessage }}<div class="dashboard-flash is-success"><p>{{ .FlashMessage }}</p></div>{{ end }}
       {{ if .FlashError }}<div class="dashboard-flash is-error"><p>{{ .FlashError }}</p></div>{{ end }}
 
-      <header class="sponsor-dashboard-hero">
-        <div class="sponsor-dashboard-hero__logo">
+      <header class="dashboard-workspace-hero sponsor-dashboard-hero">
+        <div class="dashboard-workspace-hero__mark sponsor-dashboard-hero__logo">
           {{ if .Organization.LogoLight }}
           <img src="{{ .Organization.LogoLight | safeURL }}" alt="{{ .Organization.Name }}">
           {{ else }}
           <span>{{ printf "%.1s" .Organization.Name }}</span>
           {{ end }}
         </div>
-        <div class="sponsor-dashboard-hero__copy">
+        <div class="dashboard-workspace-hero__copy sponsor-dashboard-hero__copy">
           <div class="dashboard-kicker">● Sponsor workspace · {{ .Membership.Role }}</div>
           <h1>{{ .Organization.Name }}</h1>
           <p>{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}Manage your bitcoin++ sponsorship, team, tickets, and hackathon activity.{{ end }}</p>
-          <div class="sponsor-dashboard-hero__facts" aria-label="Workspace summary">
+          <div class="dashboard-workspace-hero__facts sponsor-dashboard-hero__facts" aria-label="Workspace summary">
             <span>{{ len .Upcoming }} active event{{ if ne (len .Upcoming) 1 }}s{{ end }}</span>
             <span>{{ len .Members }} team member{{ if ne (len .Members) 1 }}s{{ end }}</span>
             {{ if .CanManage }}<span>Management access</span>{{ else }}<span>View access</span>{{ end }}
@@ -42,12 +41,13 @@
 
       <nav class="sponsor-workspace-nav" aria-label="Sponsor workspace sections">
         <a href="#sponsorships"><span>01</span> Sponsorships</a>
-        <a href="#team"><span>02</span> Team</a>
-        <a href="#profile"><span>03</span> Public profile</a>
-        {{ if .Past }}<a href="#history"><span>04</span> Trophy case</a>{{ end }}
+        <a href="#prize-entrants"><span>02</span> Prize entrants</a>
+        <a href="#team"><span>03</span> Team</a>
+        <a href="#profile"><span>04</span> Public profile</a>
+        {{ if .Past }}<a href="#history"><span>05</span> Trophy case</a>{{ end }}
       </nav>
 
-      <section class="sponsor-dashboard-section" id="sponsorships">
+      <section class="sponsor-dashboard-section dashboard-workspace-panel" id="sponsorships">
         <div class="sponsor-dashboard-section__head">
           <div><div class="dashboard-kicker">§ Upcoming</div><h2>Active sponsorships.</h2></div>
           <p>Benefits shown here come from the event agreement, not just the public tier name.</p>
@@ -55,7 +55,7 @@
         {{ if .Upcoming }}
         <div class="sponsor-event-grid">
           {{ range .Upcoming }}
-          <article class="sponsor-event-card">
+          <article class="sponsor-event-card dashboard-workspace-widget">
             <header class="sponsor-event-card__header">
               <div class="sponsor-event-card__eyebrow"><span>{{ .Sponsorship.Level }} sponsor</span><span>{{ .Sponsorship.Status }}</span></div>
               <h3>{{ .Conference.Desc }}</h3>
@@ -150,8 +150,33 @@
         {{ end }}
       </section>
 
-      <div class="sponsor-dashboard-columns">
-        <section class="sponsor-dashboard-section sponsor-dashboard-panel" id="team">
+      <section class="sponsor-dashboard-section dashboard-workspace-panel" id="prize-entrants">
+        <div class="sponsor-dashboard-section__head">
+          <div><div class="dashboard-kicker">§ Hackathon projects</div><h2>{{ if .CanViewAllHackathonSubmissions }}All submitted projects.{{ else }}Teams building for your challenges.{{ end }}</h2></div>
+          <div class="sponsor-project-export">
+            <p>{{ if .CanViewAllHackathonSubmissions }}Your sponsorship includes access to hackathon participant contact information{{ else }}Every project below explicitly entered an approved prize sponsored by {{ .Organization.Name }}. Contact details appear only through the included submission terms or an additional participant choice.{{ end }}</p>
+            {{ if .CanExportParticipants }}<a href="/dashboard/sponsor/{{ .Organization.Ref }}/hackathon-projects.csv">Download participant CSV ↓</a>{{ end }}
+          </div>
+        </div>
+        {{ if .PrizeEntries }}
+        {{ with .CurrentHackathonEntries }}
+        <div class="sponsor-project-era">
+          <div class="sponsor-project-era__head"><span>Current hackathon</span><strong>{{ len . }} project{{ if ne (len .) 1 }}s{{ end }}</strong></div>
+          <div class="sponsor-prize-entry-grid">{{ range . }}{{ template "sponsor_prize_entry" . }}{{ end }}</div>
+        </div>
+        {{ end }}
+        {{ with .PastHackathonEntries }}
+        <details class="sponsor-project-era sponsor-project-era--past">
+          <summary><span>Past hackathons</span><strong>{{ len . }} archived project{{ if ne (len .) 1 }}s{{ end }}</strong></summary>
+          <div class="sponsor-prize-entry-grid">{{ range . }}{{ template "sponsor_prize_entry" . }}{{ end }}</div>
+        </details>
+        {{ end }}
+        {{ else }}
+        <div class="sponsor-dashboard-empty">{{ if .CanViewAllHackathonSubmissions }}No hackathon projects have been submitted yet.{{ else }}No projects have entered an approved {{ .Organization.Name }} prize yet.{{ end }}</div>
+        {{ end }}
+      </section>
+
+      <section class="sponsor-dashboard-section dashboard-workspace-panel" id="team">
           <div class="sponsor-dashboard-section__head">
             <div><div class="dashboard-kicker">§ Team</div><h2>Organization managers.</h2></div>
           </div>
@@ -159,7 +184,15 @@
             {{ range .Members }}
             <div class="sponsor-team-row">
               <div><strong>{{ .PersonName }}</strong><span>{{ .PersonEmail }}</span></div>
-              <span class="sponsor-team-role">{{ .Role }}</span>
+              <div class="sponsor-team-row__actions">
+                <span class="sponsor-team-role">{{ .Role }}</span>
+                {{ if $.CanRemoveMember . }}
+                <form method="POST" action="/dashboard/sponsor/{{ $.Organization.Ref }}/members/{{ .PersonID }}/remove" onsubmit="return confirm('{{ if eq $.Membership.PersonID .PersonID }}Leave this sponsor organization?{{ else }}Remove {{ .PersonName }} from this organization?{{ end }}');">
+                  <input type="hidden" name="csrf" value="{{ $.CSRF }}">
+                  <button type="submit">{{ if eq $.Membership.PersonID .PersonID }}Leave organization{{ else }}Remove{{ end }}</button>
+                </form>
+                {{ end }}
+              </div>
             </div>
             {{ end }}
           </div>
@@ -174,22 +207,9 @@
           <div class="sponsor-invite-link"><strong>Secure invite link</strong><input readonly value="{{ .InviteLink }}" aria-label="Secure invite link"><p>Share it only with the invited email address. It expires in 72 hours and can be used once.</p></div>
           {{ end }}
           {{ end }}
-        </section>
+      </section>
 
-        <section class="sponsor-dashboard-section sponsor-dashboard-panel">
-          <div class="sponsor-dashboard-section__head">
-            <div><div class="dashboard-kicker">§ Privacy</div><h2>Participant contact.</h2></div>
-          </div>
-          <p>Contact access is not enabled in this first dashboard release. When it is added, only participants who explicitly choose one of these options will be available:</p>
-          <ul class="sponsor-consent-explainer">
-            <li>Allow sponsors of this hackathon to contact me.</li>
-            <li>Allow sponsors whose prizes I enter to contact me.</li>
-          </ul>
-          <p class="sponsor-dashboard-note">Future contact views and exports will be recorded in the sponsor audit log.</p>
-        </section>
-      </div>
-
-      <section class="sponsor-dashboard-section" id="profile">
+      <section class="sponsor-dashboard-section dashboard-workspace-panel" id="profile">
         <div class="sponsor-dashboard-section__head">
           <div><div class="dashboard-kicker">§ Public profile</div><h2>How {{ .Organization.Name }} appears.</h2></div>
           <p>Internal sponsorship notes, tier, and contract details cannot be changed here.</p>
@@ -235,13 +255,25 @@
           </fieldset>
           <fieldset class="sponsor-profile-group">
             <legend>Logos</legend>
-            <div class="sponsor-profile-grid">
-              <label><span>Light-background logo URL</span><input name="LogoLight" type="url" value="{{ .Organization.LogoLight }}"></label>
-              <label><span>Dark-background logo URL</span><input name="LogoDark" type="url" value="{{ .Organization.LogoDark }}"></label>
-              {{ if .SpacesReady }}
-              <label><span>Upload light-background logo</span><input name="LogoLightFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"></label>
-              <label><span>Upload dark-background logo</span><input name="LogoDarkFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"></label>
-              {{ end }}
+            <div class="sponsor-logo-variants">
+              <div class="sponsor-logo-variant">
+                <span>Light background</span>
+                <div class="sponsor-logo-variant__preview is-light">
+                  {{ if .Organization.LogoLight }}<img src="{{ .Organization.LogoLight | safeURL }}" alt="{{ .Organization.Name }} light-background logo">{{ else }}<em>No logo uploaded</em>{{ end }}
+                </div>
+                {{ if .SpacesReady }}
+                <label><span>Replace light-background logo</span><input name="LogoLightFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"></label>
+                {{ end }}
+              </div>
+              <div class="sponsor-logo-variant">
+                <span>Dark background</span>
+                <div class="sponsor-logo-variant__preview is-dark">
+                  {{ if .Organization.LogoDark }}<img src="{{ .Organization.LogoDark | safeURL }}" alt="{{ .Organization.Name }} dark-background logo">{{ else }}<em>No logo uploaded</em>{{ end }}
+                </div>
+                {{ if .SpacesReady }}
+                <label><span>Replace dark-background logo</span><input name="LogoDarkFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"></label>
+                {{ end }}
+              </div>
             </div>
           </fieldset>
           <button type="submit">Save public profile →</button>
@@ -253,7 +285,7 @@
       </section>
 
       {{ if .Past }}
-      <section class="sponsor-dashboard-section" id="history">
+      <section class="sponsor-dashboard-section dashboard-workspace-panel" id="history">
         <div class="sponsor-dashboard-section__head">
           <div><div class="dashboard-kicker">§ Trophy case</div><h2>Past sponsorships.</h2></div>
         </div>
@@ -269,3 +301,49 @@
   {{ block "footer" . }}{{ end }}
 </body>
 </html>
+
+{{ define "sponsor_prize_entry" }}
+<article class="sponsor-prize-entry">
+  <header>
+    <div>
+      <span>{{ .ConferenceTitle }}{{ if .SponsoredPrize }} · {{ .AwardTitle }}{{ else }} · Hackathon submission{{ end }}</span>
+      <h3>{{ with .ProjectNumber }}<b>#{{ . }}</b> {{ end }}{{ .ProjectTitle }}</h3>
+    </div>
+    <div class="sponsor-prize-entry__status">
+      {{ if .Winner }}<strong>Winner</strong>{{ end }}
+      <span>{{ .ProjectStatus }}</span>
+    </div>
+  </header>
+  {{ if .ProjectImageURL }}<a class="sponsor-prize-entry__image" href="/{{ .ConferenceTag }}/hackathon/projects/{{ .ProjectID }}"><img src="{{ .ProjectImageURL | safeURL }}" alt=""></a>{{ end }}
+  <div class="sponsor-prize-entry__body">
+    {{ if .ProjectShortDescription }}<p>{{ .ProjectShortDescription }}</p>{{ end }}
+    <nav aria-label="{{ .ProjectTitle }} links">
+      <a href="/{{ .ConferenceTag }}/hackathon/projects/{{ .ProjectID }}">View project →</a>
+      {{ if .GitHubURL }}<a href="{{ .GitHubURL | safeURL }}" target="_blank" rel="noopener noreferrer">Repository ↗</a>{{ end }}
+      {{ if .DemoURL }}<a href="{{ .DemoURL | safeURL }}" target="_blank" rel="noopener noreferrer">Demo ↗</a>{{ end }}
+    </nav>
+  </div>
+  <div class="sponsor-prize-entry__team">
+    <strong>Team · {{ len .Participants }}</strong>
+    {{ range .Participants }}
+    <div class="sponsor-prize-participant">
+      {{ if .PublicID }}<a class="sponsor-prize-participant__identity" href="/whois/{{ .PublicID }}">{{ else }}<span class="sponsor-prize-participant__identity">{{ end }}
+        <span class="sponsor-prize-participant__avatar">
+          <img src="{{ speakerPhoto .Photo }}" alt="" loading="lazy" data-image-fallback>
+          <span data-image-fallback-copy hidden aria-hidden="true">++</span>
+        </span>
+        <span><b>{{ .Name }}</b><small>{{ .Role }}</small></span>
+      {{ if .PublicID }}</a>{{ else }}</span>{{ end }}
+      <div class="sponsor-prize-participant__contact">
+        {{ if .Email }}
+        <a href="mailto:{{ .Email }}">{{ .Email }}</a>
+        <small>{{ if eq .ConsentScope "included_sponsorship" }}Included with submission{{ else if eq .ConsentScope "all_sponsors" }}Consented to other hackathon sponsors{{ else }}Consented through this prize{{ end }}</small>
+        {{ else }}
+        <span>Contact not shared</span>
+        {{ end }}
+      </div>
+    </div>
+    {{ end }}
+  </div>
+</article>
+{{ end }}

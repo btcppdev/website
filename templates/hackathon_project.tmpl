@@ -329,6 +329,10 @@
         </div>
         {{ end }}
 
+        <div class="hack-alert hack-alert--warning">
+          By submitting, each team member permits bitcoin++ to share their verified email address with this event's Headline and Hackathon sponsors. Make sure every teammate knows before you submit. Other sponsor sharing remains optional and is controlled by each participant.
+        </div>
+
         <section class="hack-card hack-project-editor__preview">
           <div class="hack-label">Current project</div>
           <h3>{{ .Project.Title }}</h3>
@@ -388,12 +392,12 @@
         <header class="hack-project-editor__intro">
           <div>
             <div class="hack-label">§ Sponsor contact</div>
-            <h2>Your contact, <span class="hack-serif">your choice.</span></h2>
+            <h2>Sponsor contact, <span class="hack-serif">clearly scoped.</span></h2>
           </div>
-          <p>These choices apply only to you. Every teammate controls whether their own email address may be shared.</p>
+          <p>Submitting a project includes email sharing with this event's Headline and Hackathon sponsors. The choices below apply only to additional sponsors and only to you.</p>
         </header>
         <div class="hack-alert hack-alert--warning">
-          Your project, public profile, and award eligibility do not depend on either choice. You can change them later.
+          The included Headline and Hackathon sponsor access cannot be turned off for a submitted project. Every teammate should review this before submission.
         </div>
         <fieldset class="hack-field">
           <legend>Who may contact you?</legend>
@@ -401,15 +405,15 @@
             <label class="hack-list__row hack-list__row--checkbox">
               <input name="AllHackathonSponsors" type="checkbox"{{ if and .SponsorContactConsent .SponsorContactConsent.AllHackathonSponsors }} checked{{ end }}>
               <div>
-                <span class="hack-list__title">Allow sponsors of this hackathon to contact me.</span>
-                <div class="hack-list__meta">Shares your verified email with sponsor organizations whose agreement includes participant contact access.</div>
+                <span class="hack-list__title">Allow other sponsors of this hackathon to contact me.</span>
+                <div class="hack-list__meta">Extends verified-email access beyond the included Headline and Hackathon sponsors to other sponsor organizations whose agreement includes participant contact access.</div>
               </div>
             </label>
             <label class="hack-list__row hack-list__row--checkbox">
               <input name="EnteredAwardSponsors" type="checkbox"{{ if and .SponsorContactConsent .SponsorContactConsent.EnteredAwardSponsors }} checked{{ end }}>
               <div>
-                <span class="hack-list__title">Allow sponsors whose prizes I enter to contact me.</span>
-                <div class="hack-list__meta">Only applies when this project explicitly opts into an award linked to that sponsor.</div>
+                <span class="hack-list__title">Allow other sponsors whose prizes I enter to contact me.</span>
+                <div class="hack-list__meta">Applies when this project explicitly opts into an award linked to a sponsor that does not already receive included access.</div>
               </div>
             </label>
           </div>

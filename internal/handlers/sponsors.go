@@ -2,14 +2,20 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
+	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/types"
@@ -44,9 +50,116 @@ type OrgNewPage struct {
 type SponsorshipsPage struct {
 	Conf         *types.Conf
 	Sponsorships []*types.Sponsorship
+	Entitlements map[string]*types.SponsorshipEntitlement
 	Orgs         []*types.Org
 	FlashMessage string
+	FlashError   string
 	Year         uint
+}
+
+func sponsorManagerInvitationFromForm(r *http.Request) (name, email string, err error) {
+	name = strings.TrimSpace(r.FormValue("ManagerName"))
+	email = strings.ToLower(strings.TrimSpace(r.FormValue("ManagerEmail")))
+	if name == "" && email == "" {
+		return "", "", nil
+	}
+	if name == "" || email == "" {
+		return "", "", fmt.Errorf("manager name and email are both required to send an invitation")
+	}
+	parsed, parseErr := mail.ParseAddress(email)
+	if parseErr != nil || !strings.EqualFold(parsed.Address, email) {
+		return "", "", fmt.Errorf("enter a valid manager email address")
+	}
+	return name, email, nil
+}
+
+func sendSponsorshipManagerInvitation(ctx *config.AppContext, conf *types.Conf, org *types.Org, invitedByPersonID, name, email string) error {
+	if strings.TrimSpace(email) == "" {
+		return nil
+	}
+	token, invite, err := getters.CreateOrganizationMemberInvite(ctx, org.Ref, email, getters.OrganizationRoleManager, invitedByPersonID, time.Now().Add(72*time.Hour))
+	if err != nil {
+		return err
+	}
+	invite.OrganizationName = org.Name
+	next := "/sponsor-invites/" + url.PathEscape(token)
+	if strings.TrimSpace(name) != "" {
+		next += "?name=" + url.QueryEscape(strings.TrimSpace(name))
+	}
+	loginURL := auth.MagicLink(ctx, invite.Email, next)
+	if loginURL == "" {
+		return fmt.Errorf("could not create the sponsor invitation login link")
+	}
+	if err := emails.SendSponsorManagerInvitation(ctx, conf, invite, name, loginURL); err != nil {
+		return fmt.Errorf("send sponsor manager invitation: %w", err)
+	}
+	return nil
+}
+
+func (p *SponsorshipsPage) CanViewAllHackathonSubmissions(sponsorshipID string) bool {
+	if p == nil || p.Entitlements == nil {
+		return false
+	}
+	entitlement := p.Entitlements[sponsorshipID]
+	return entitlement != nil && entitlement.AllHackathonSubmissions
+}
+
+func (p *SponsorshipsPage) TicketAllocation(sponsorshipID string) int {
+	if p == nil || p.Entitlements == nil || p.Entitlements[sponsorshipID] == nil {
+		return 0
+	}
+	return p.Entitlements[sponsorshipID].TicketAllocation
+}
+
+func (p *SponsorshipsPage) SponsorAwardLimit(sponsorshipID string) int {
+	if p == nil || p.Entitlements == nil || p.Entitlements[sponsorshipID] == nil {
+		return 0
+	}
+	return p.Entitlements[sponsorshipID].SponsorAwardLimit
+}
+
+func (p *SponsorshipsPage) CanEditOrganization(sponsorshipID string) bool {
+	return p != nil && p.Entitlements != nil && p.Entitlements[sponsorshipID] != nil && p.Entitlements[sponsorshipID].CanEditOrganization
+}
+
+func sponsorLevelIncludesAllHackathonSubmissions(level string) bool {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "headline", "hackathon":
+		return true
+	default:
+		return false
+	}
+}
+
+func sponsorAllHackathonSubmissionsFromForm(r *http.Request, level string) bool {
+	return sponsorLevelIncludesAllHackathonSubmissions(level) || r.FormValue("HackathonSubmissionAccess") == "all"
+}
+
+func sponsorTicketAllocationFromForm(r *http.Request) (int, error) {
+	return sponsorNonNegativeCountFromForm(r, "TicketAllocation", "ticket allocation")
+}
+
+func sponsorAwardLimitFromForm(r *http.Request) (int, error) {
+	return sponsorNonNegativeCountFromForm(r, "SponsorAwardLimit", "sponsor prize proposal allowance")
+}
+
+func sponsorNonNegativeCountFromForm(r *http.Request, field, label string) (int, error) {
+	raw := strings.TrimSpace(r.FormValue(field))
+	if raw == "" {
+		return 0, nil
+	}
+	count, err := strconv.Atoi(raw)
+	if err != nil || count < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative whole number", label)
+	}
+	return count, nil
+}
+
+func SponsorshipPersonSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfAdmin(w, r, ctx); id == nil {
+		return
+	}
+	writePersonSearchResults(w, r, ctx)
 }
 
 func OrgList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -316,6 +429,12 @@ func SponsorshipsList(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		ctx.Err.Printf("/%s/admin/sponsors failed: %s", conf.Tag, err.Error())
 		return
 	}
+	entitlements, err := getters.ListSponsorshipEntitlementsForConference(ctx, conf.Ref)
+	if err != nil {
+		http.Error(w, "Unable to load sponsorship benefits", http.StatusInternalServerError)
+		ctx.Err.Printf("/%s/admin/sponsors failed to load entitlements: %s", conf.Tag, err.Error())
+		return
+	}
 
 	orgs, err := getters.ListOrgs(ctx)
 	if err != nil {
@@ -331,8 +450,10 @@ func SponsorshipsList(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	err = ctx.TemplateCache.ExecuteTemplate(w, "sponsors/events.tmpl", &SponsorshipsPage{
 		Conf:         conf,
 		Sponsorships: sponsorships,
+		Entitlements: entitlements,
 		Orgs:         orgs,
 		FlashMessage: r.URL.Query().Get("flash"),
+		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
 	})
 	if err != nil {
@@ -342,7 +463,8 @@ func SponsorshipsList(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 }
 
 func SponsorshipCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireConfAdmin(w, r, ctx); id == nil {
+	id := requireConfAdmin(w, r, ctx)
+	if id == nil {
 		return
 	}
 
@@ -360,13 +482,43 @@ func SponsorshipCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 
 	orgRef := strings.TrimSpace(r.FormValue("OrgRef"))
 	level := strings.TrimSpace(r.FormValue("Level"))
+	ticketAllocation, allocationErr := sponsorTicketAllocationFromForm(r)
+	if allocationErr != nil {
+		http.Error(w, allocationErr.Error(), http.StatusBadRequest)
+		return
+	}
+	sponsorAwardLimit, awardLimitErr := sponsorAwardLimitFromForm(r)
+	if awardLimitErr != nil {
+		http.Error(w, awardLimitErr.Error(), http.StatusBadRequest)
+		return
+	}
+	managerPersonID := strings.TrimSpace(r.FormValue("ManagerPersonID"))
+	managerName, managerEmail, managerInviteErr := sponsorManagerInvitationFromForm(r)
+	if managerInviteErr != nil {
+		http.Error(w, managerInviteErr.Error(), http.StatusBadRequest)
+		return
+	}
+	if managerPersonID != "" && managerEmail != "" {
+		http.Error(w, "choose an existing manager or invite a new manager, not both", http.StatusBadRequest)
+		return
+	}
+	if managerPersonID != "" {
+		if err := validatePersonIDs(ctx, []string{managerPersonID}); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 
 	if orgRef == "" || level == "" {
 		http.Error(w, "Org and level are required", http.StatusBadRequest)
 		return
 	}
 
-	org, _ := getters.GetOrg(ctx, orgRef)
+	org, err := getters.GetOrg(ctx, orgRef)
+	if err != nil || org == nil {
+		http.Error(w, "Org not found", http.StatusBadRequest)
+		return
+	}
 
 	sp := &types.Sponsorship{
 		Org:    org,
@@ -375,18 +527,43 @@ func SponsorshipCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		Status: "Pending",
 	}
 
-	err = getters.RegisterSponsorship(ctx, sp)
+	entitlement := &types.SponsorshipEntitlement{
+		ConferenceID:                     conf.Ref,
+		TicketAllocation:                 ticketAllocation,
+		SponsorAwardLimit:                sponsorAwardLimit,
+		AllHackathonSubmissions:          sponsorAllHackathonSubmissionsFromForm(r, level),
+		AutomaticSubmissionContactAccess: sponsorLevelIncludesAllHackathonSubmissions(level),
+		ParticipantContactExport:         sponsorLevelIncludesAllHackathonSubmissions(level),
+		CanEditOrganization:              r.FormValue("CanEditOrganization") == "on",
+	}
+	err = getters.RegisterSponsorship(ctx, sp, entitlement, getters.SponsorshipWriteOptions{
+		ManagerPersonID: managerPersonID, AssignedByPersonID: id.PersonID,
+	})
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/sponsors/new failed: %s", conf.Tag, err.Error())
 		http.Error(w, "Failed to create sponsorship", http.StatusInternalServerError)
 		return
 	}
 
-	http.Redirect(w, r, "/"+conf.Tag+"/admin/sponsors"+"?flash=Sponsorship+created", http.StatusFound)
+	dest := "/" + conf.Tag + "/admin/sponsors"
+	flash := "Sponsorship created."
+	if managerPersonID != "" {
+		flash = "Sponsorship created and organization manager added."
+	}
+	if managerEmail != "" {
+		if err := sendSponsorshipManagerInvitation(ctx, conf, org, id.PersonID, managerName, managerEmail); err != nil {
+			ctx.Err.Printf("/%s/admin/sponsors/new manager invitation: %s", conf.Tag, err)
+			http.Redirect(w, r, dest+"?flash="+url.QueryEscape(flash)+"&error="+url.QueryEscape("The sponsorship was saved, but the manager invitation could not be sent: "+err.Error()), http.StatusSeeOther)
+			return
+		}
+		flash = "Sponsorship created and manager invitation emailed to " + managerEmail + "."
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(flash), http.StatusSeeOther)
 }
 
 func SponsorshipUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireConfAdmin(w, r, ctx); id == nil {
+	id := requireConfAdmin(w, r, ctx)
+	if id == nil {
 		return
 	}
 
@@ -411,6 +588,32 @@ func SponsorshipUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	orgRef := strings.TrimSpace(r.FormValue("OrgRef"))
 	level := strings.TrimSpace(r.FormValue("Level"))
 	status := strings.TrimSpace(r.FormValue("Status"))
+	ticketAllocation, allocationErr := sponsorTicketAllocationFromForm(r)
+	if allocationErr != nil {
+		http.Error(w, allocationErr.Error(), http.StatusBadRequest)
+		return
+	}
+	sponsorAwardLimit, awardLimitErr := sponsorAwardLimitFromForm(r)
+	if awardLimitErr != nil {
+		http.Error(w, awardLimitErr.Error(), http.StatusBadRequest)
+		return
+	}
+	managerPersonID := strings.TrimSpace(r.FormValue("ManagerPersonID"))
+	managerName, managerEmail, managerInviteErr := sponsorManagerInvitationFromForm(r)
+	if managerInviteErr != nil {
+		http.Error(w, managerInviteErr.Error(), http.StatusBadRequest)
+		return
+	}
+	if managerPersonID != "" && managerEmail != "" {
+		http.Error(w, "choose an existing manager or invite a new manager, not both", http.StatusBadRequest)
+		return
+	}
+	if managerPersonID != "" {
+		if err := validatePersonIDs(ctx, []string{managerPersonID}); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 	if orgRef == "" || level == "" {
 		http.Error(w, "Org and level are required", http.StatusBadRequest)
 		return
@@ -434,13 +637,38 @@ func SponsorshipUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		IsVendor: r.FormValue("IsVendor") == "on",
 		Notes:    strings.TrimSpace(r.FormValue("Notes")),
 	}
-	if err := getters.UpdateSponsorship(ctx, conf.Ref, sp); err != nil {
+	entitlement := &types.SponsorshipEntitlement{
+		SponsorshipID:                    ref,
+		ConferenceID:                     conf.Ref,
+		TicketAllocation:                 ticketAllocation,
+		SponsorAwardLimit:                sponsorAwardLimit,
+		AllHackathonSubmissions:          sponsorAllHackathonSubmissionsFromForm(r, level),
+		AutomaticSubmissionContactAccess: sponsorLevelIncludesAllHackathonSubmissions(level),
+		ParticipantContactExport:         sponsorLevelIncludesAllHackathonSubmissions(level),
+		CanEditOrganization:              r.FormValue("CanEditOrganization") == "on",
+	}
+	if err := getters.UpdateSponsorship(ctx, conf.Ref, sp, entitlement, getters.SponsorshipWriteOptions{
+		ManagerPersonID: managerPersonID, AssignedByPersonID: id.PersonID,
+	}); err != nil {
 		ctx.Err.Printf("/%s/admin/sponsors/%s update failed: %s", conf.Tag, ref, err.Error())
 		http.Error(w, "Failed to update sponsorship", http.StatusInternalServerError)
 		return
 	}
 
-	http.Redirect(w, r, "/"+conf.Tag+"/admin/sponsors"+"?flash=Sponsorship+updated", http.StatusFound)
+	dest := "/" + conf.Tag + "/admin/sponsors"
+	flash := "Sponsorship updated."
+	if managerPersonID != "" {
+		flash = "Sponsorship updated and organization manager added."
+	}
+	if managerEmail != "" {
+		if err := sendSponsorshipManagerInvitation(ctx, conf, org, id.PersonID, managerName, managerEmail); err != nil {
+			ctx.Err.Printf("/%s/admin/sponsors/%s manager invitation: %s", conf.Tag, ref, err)
+			http.Redirect(w, r, dest+"?flash="+url.QueryEscape(flash)+"&error="+url.QueryEscape("The sponsorship was saved, but the manager invitation could not be sent: "+err.Error()), http.StatusSeeOther)
+			return
+		}
+		flash = "Sponsorship updated and manager invitation emailed to " + managerEmail + "."
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(flash), http.StatusSeeOther)
 }
 
 func SponsorshipDelete(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

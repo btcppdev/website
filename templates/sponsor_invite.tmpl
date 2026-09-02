@@ -18,7 +18,7 @@
         <input type="hidden" name="csrf" value="{{ .CSRF }}">
         <button type="submit">Accept invitation →</button>
       </form>
-      <p class="sponsor-dashboard-note">You must be signed into an account with the verified email {{ .Invite.Email }}. Acceptance is one-time.</p>
+      <p class="sponsor-dashboard-note">You’re signed in with the invited email. Acceptance is one-time and takes you directly to the organization’s sponsor dashboard.</p>
       {{ end }}
     </article>
   </main>

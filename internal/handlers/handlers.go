@@ -1213,11 +1213,17 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/sponsor/{organizationID}", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboard(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}/hackathon-projects.csv", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardHackathonCSV(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/dashboard/sponsor/{organizationID}/profile", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboardProfileUpdate(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/sponsor/{organizationID}/invites", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboardInviteCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}/members/{personID}/remove", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardMemberRemove(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/sponsor/{organizationID}/prize-proposals", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboardPrizeProposalCreate(w, r, app)
@@ -2013,6 +2019,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/sponsors/new", func(w http.ResponseWriter, r *http.Request) {
 		SponsorshipCreate(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/sponsors/people/search", func(w http.ResponseWriter, r *http.Request) {
+		SponsorshipPersonSearch(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/{conf}/admin/sponsors/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		SponsorshipUpdate(w, r, app)
 	}).Methods("POST")

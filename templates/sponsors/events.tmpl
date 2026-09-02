@@ -27,6 +27,14 @@
             </section>
             {{ end }}
 
+            {{ if .FlashError }}
+            <section class="mb-6">
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+                    {{ .FlashError }}
+                </div>
+            </section>
+            {{ end }}
+
             <!-- Add Sponsorship -->
             <section class="mb-6">
                 <div class="bg-white shadow rounded-lg px-6 py-4">
@@ -35,8 +43,8 @@
                         <a href="/admin/orgs/new?return=%2F{{ .Conf.Tag }}%2Fadmin%2Fsponsors"
                            class="text-xs font-semibold text-indigo-700 hover:text-indigo-900">+ Add new org</a>
                     </div>
-                    <form method="POST" action="/{{ .Conf.Tag }}/admin/sponsors/new" class="flex items-end gap-4">
-                        <div class="flex-1">
+                    <form method="POST" action="/{{ .Conf.Tag }}/admin/sponsors/new" class="grid grid-cols-1 gap-4 md:grid-cols-8">
+                        <div class="md:col-span-2">
                             <label for="OrgRef" class="block text-xs font-medium text-gray-700 mb-1">Organization</label>
                             <select name="OrgRef" id="OrgRef" required
                                 class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
@@ -46,7 +54,7 @@
                                 {{ end }}
                             </select>
                         </div>
-                        <div>
+                        <div class="md:col-span-2">
                             <label for="Level" class="block text-xs font-medium text-gray-700 mb-1">Level</label>
                             <select name="Level" id="Level" required
                                 class="rounded-md border border-gray-300 px-3 py-1.5 text-sm">
@@ -65,6 +73,55 @@
                             </select>
                         </div>
                         <div>
+                            <label for="TicketAllocation" class="block text-xs font-medium text-gray-700 mb-1">Included tickets</label>
+                            <input type="number" name="TicketAllocation" id="TicketAllocation" value="0" min="0" max="10000" step="1" required
+                                class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                        </div>
+                        <div>
+                            <label for="SponsorAwardLimit" class="block text-xs font-medium text-gray-700 mb-1">Sponsor prizes</label>
+                            <input type="number" name="SponsorAwardLimit" id="SponsorAwardLimit" value="0" min="0" max="100" step="1" required
+                                class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                            <p class="mt-1 text-xs text-gray-500">Proposals allowed</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="HackathonSubmissionAccess" class="block text-xs font-medium text-gray-700 mb-1">Hackathon submissions</label>
+                            <select name="HackathonSubmissionAccess" id="HackathonSubmissionAccess"
+                                class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" data-hackathon-access>
+                                <option value="sponsored">Sponsored prize submissions only</option>
+                                <option value="all">All hackathon submissions</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500" data-hackathon-access-note>Headline and Hackathon sponsors receive all-submission access automatically.</p>
+                        </div>
+                        <div class="relative md:col-span-4" data-sponsor-manager-picker data-search-url="/{{ .Conf.Tag }}/admin/sponsors/people/search">
+                            <label for="ManagerSearch" class="block text-xs font-medium text-gray-700 mb-1">Existing organization manager</label>
+                            <input type="search" id="ManagerSearch" autocomplete="off" data-manager-search
+                                class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                                placeholder="Search by name, email, or phone">
+                            <input type="hidden" name="ManagerPersonID" data-manager-person-id>
+                            <p class="mt-1 text-xs text-gray-500" data-manager-help>Optional. Select an existing account for immediate sponsor-dashboard access.</p>
+                        </div>
+                        <fieldset class="md:col-span-4">
+                            <legend class="block text-xs font-medium text-gray-700 mb-1">Or invite a new manager</legend>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <label class="block text-xs text-gray-700">Name
+                                    <input type="text" name="ManagerName" autocomplete="name" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="Ada Nakamoto">
+                                </label>
+                                <label class="block text-xs text-gray-700">Email
+                                    <input type="email" name="ManagerEmail" autocomplete="email" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="ada@example.com">
+                                </label>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">We’ll email a secure 72-hour login link. New users complete account setup first.</p>
+                        </fieldset>
+                        <fieldset class="md:col-span-8">
+                            <legend class="block text-xs font-medium text-gray-700 mb-1">Sponsor dashboard permissions</legend>
+                            <div class="flex flex-wrap gap-x-5 gap-y-2 rounded-md border border-gray-200 px-3 py-2">
+                                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                    <input type="checkbox" name="CanEditOrganization" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    Edit organization profile and logos
+                                </label>
+                            </div>
+                        </fieldset>
+                        <div class="flex items-end justify-end md:col-span-8">
                             <button type="submit" class="px-3 py-1.5 text-sm rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Add</button>
                         </div>
                     </form>
@@ -82,6 +139,8 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tickets</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sponsor benefits</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
@@ -123,6 +182,14 @@
                                     {{ if .IsVendor }}Yes{{ end }}
                                 </td>
                                 <td class="px-6 py-4 text-sm text-gray-500">
+                                    {{ $.TicketAllocation .Ref }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500">
+                                    <div>{{ if $.CanViewAllHackathonSubmissions .Ref }}All submissions{{ else }}Sponsored prizes only{{ end }}</div>
+                                    <div class="mt-1 text-xs">{{ $.SponsorAwardLimit .Ref }} prize proposal{{ if ne ($.SponsorAwardLimit .Ref) 1 }}s{{ end }}</div>
+                                    {{ if $.CanEditOrganization .Ref }}<div class="mt-1 text-xs">Can edit organization</div>{{ end }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-500">
                                     {{ if .Notes }}{{ .Notes }}{{ else }}&mdash;{{ end }}
                                 </td>
                                 <td class="px-6 py-4 text-right text-sm">
@@ -135,7 +202,7 @@
                                 </td>
                             </tr>
                             <tr id="sponsorship-{{ .Ref }}-edit" class="hidden bg-gray-50">
-                                <td colspan="6" class="px-6 py-4">
+                                <td colspan="8" class="px-6 py-4">
                                     <form method="POST" action="/{{ $.Conf.Tag }}/admin/sponsors/{{ .Ref }}" class="grid grid-cols-1 gap-4 md:grid-cols-6">
                                         <div class="md:col-span-2">
                                             <label class="block text-xs font-medium text-gray-700 mb-1">Organization</label>
@@ -181,6 +248,54 @@
                                                 Yes
                                             </label>
                                         </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Included tickets</label>
+                                            <input type="number" name="TicketAllocation" value="{{ $.TicketAllocation .Ref }}" min="0" max="10000" step="1" required
+                                                class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Sponsor prizes</label>
+                                            <input type="number" name="SponsorAwardLimit" value="{{ $.SponsorAwardLimit .Ref }}" min="0" max="100" step="1" required
+                                                class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+                                            <p class="mt-1 text-xs text-gray-500">Proposals allowed</p>
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Hackathon submissions</label>
+                                            <select name="HackathonSubmissionAccess" class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" data-hackathon-access>
+                                                <option value="sponsored" {{ if not ($.CanViewAllHackathonSubmissions .Ref) }}selected{{ end }}>Sponsored prize submissions only</option>
+                                                <option value="all" {{ if $.CanViewAllHackathonSubmissions .Ref }}selected{{ end }}>All hackathon submissions</option>
+                                            </select>
+                                            <p class="mt-1 text-xs text-gray-500" data-hackathon-access-note>Headline and Hackathon sponsors receive all-submission access automatically.</p>
+                                        </div>
+                                        <div class="relative md:col-span-3" data-sponsor-manager-picker data-search-url="/{{ $.Conf.Tag }}/admin/sponsors/people/search">
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Add existing organization manager</label>
+                                            <input type="search" autocomplete="off" data-manager-search
+                                                class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                                                placeholder="Search by name, email, or phone">
+                                            <input type="hidden" name="ManagerPersonID" data-manager-person-id>
+                                            <p class="mt-1 text-xs text-gray-500" data-manager-help>Optional. Existing managers are not removed.</p>
+                                        </div>
+                                        <fieldset class="md:col-span-3">
+                                            <legend class="block text-xs font-medium text-gray-700 mb-1">Or invite a new manager</legend>
+                                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                                <label class="block text-xs text-gray-700">Name
+                                                    <input type="text" name="ManagerName" autocomplete="name" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="Ada Nakamoto">
+                                                </label>
+                                                <label class="block text-xs text-gray-700">Email
+                                                    <input type="email" name="ManagerEmail" autocomplete="email" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="ada@example.com">
+                                                </label>
+                                            </div>
+                                            <p class="mt-1 text-xs text-gray-500">We’ll email a secure 72-hour login link. New users complete account setup first.</p>
+                                        </fieldset>
+                                        <fieldset class="md:col-span-6">
+                                            <legend class="block text-xs font-medium text-gray-700 mb-1">Sponsor dashboard permissions</legend>
+                                            <div class="flex flex-wrap gap-x-5 gap-y-2 rounded-md border border-gray-200 px-3 py-2">
+                                                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                                    <input type="checkbox" name="CanEditOrganization" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {{ if $.CanEditOrganization .Ref }}checked{{ end }}>
+                                                    Edit organization profile and logos
+                                                </label>
+                                            </div>
+                                        </fieldset>
                                         <div class="md:col-span-3">
                                             <label class="block text-xs font-medium text-gray-700 mb-1">Label</label>
                                             <input type="text" name="Label" value="{{ .Label }}" class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="Optional section label">
@@ -220,6 +335,95 @@
           btn.addEventListener('click', function () {
             const row = document.getElementById(btn.dataset.editTarget);
             if (row) row.classList.toggle('hidden');
+          });
+        });
+        document.querySelectorAll('form').forEach(function (form) {
+          const level = form.querySelector('select[name="Level"]');
+          const access = form.querySelector('[data-hackathon-access]');
+          const note = form.querySelector('[data-hackathon-access-note]');
+          if (!level || !access) return;
+          const syncAccess = function () {
+            const automatic = level.value === 'Headline' || level.value === 'Hackathon';
+            if (automatic) access.value = 'all';
+            access.disabled = automatic;
+            if (note) note.textContent = automatic
+              ? level.value + ' sponsorship includes all hackathon submissions.'
+              : 'Choose whether this sponsor sees only its prize entrants or every submitted project.';
+          };
+          level.addEventListener('change', syncAccess);
+          syncAccess();
+        });
+
+        document.querySelectorAll('[data-sponsor-manager-picker]').forEach(function (picker) {
+          const input = picker.querySelector('[data-manager-search]');
+          const hidden = picker.querySelector('[data-manager-person-id]');
+          const help = picker.querySelector('[data-manager-help]');
+          const searchURL = picker.dataset.searchUrl;
+          if (!input || !hidden || !searchURL) return;
+          const list = document.createElement('ul');
+          list.className = 'absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg hidden';
+          list.setAttribute('role', 'listbox');
+          picker.appendChild(list);
+          let timer = null;
+          let requestID = 0;
+
+          function render(hits) {
+            list.replaceChildren();
+            if (!hits || hits.length === 0) {
+              list.classList.add('hidden');
+              if (help && input.value.trim().length >= 3) help.textContent = 'No matching accounts found.';
+              return;
+            }
+            hits.forEach(function (hit) {
+              const item = document.createElement('li');
+              item.className = 'cursor-pointer px-3 py-2 text-sm hover:bg-indigo-50';
+              item.setAttribute('role', 'option');
+              const name = document.createElement('div');
+              name.className = 'font-medium text-gray-900';
+              name.textContent = hit.name || 'Unnamed account';
+              const detail = document.createElement('div');
+              detail.className = 'text-xs text-gray-500';
+              detail.textContent = [hit.maskedEmail, hit.company].filter(Boolean).join(' · ');
+              item.appendChild(name);
+              item.appendChild(detail);
+              item.addEventListener('mousedown', function (event) {
+                event.preventDefault();
+                input.value = hit.name || hit.maskedEmail || 'Selected account';
+                hidden.value = hit.id;
+                if (help) help.textContent = 'Selected. Saving will add this person as an organization manager.';
+                list.classList.add('hidden');
+              });
+              list.appendChild(item);
+            });
+            list.classList.remove('hidden');
+          }
+
+          input.addEventListener('input', function () {
+            hidden.value = '';
+            const query = input.value.trim();
+            if (timer) clearTimeout(timer);
+            if (query.length < 3) {
+              list.classList.add('hidden');
+              return;
+            }
+            timer = setTimeout(function () {
+              const currentRequest = ++requestID;
+              fetch(searchURL + '?q=' + encodeURIComponent(query), { credentials: 'same-origin' })
+                .then(function (response) {
+                  if (!response.ok) throw new Error('search failed');
+                  return response.json();
+                })
+                .then(function (hits) {
+                  if (currentRequest === requestID) render(hits);
+                })
+                .catch(function () {
+                  list.classList.add('hidden');
+                  if (help) help.textContent = 'Search failed. Try again.';
+                });
+            }, 200);
+          });
+          input.addEventListener('blur', function () {
+            setTimeout(function () { list.classList.add('hidden'); }, 150);
           });
         });
       })();
