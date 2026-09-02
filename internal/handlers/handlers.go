@@ -2681,7 +2681,6 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois_profile.tmpl", &WhoIsProfilePage{
 		Person:           person,
-		ArchiveRain:      whoIsPeopleRain(mustWhoIsDirectory(ctx)),
 		UpdateProfileURL: whoIsProfileEditURL(ctx, r, person),
 		Year:             helpers.CurrentYear(),
 	}); err != nil {
@@ -4902,14 +4901,6 @@ func whoIsPeopleRain(people []*WhoIsPerson) []*HomeArchiveRainItem {
 	return decorativeArchiveRain(assets, 24)
 }
 
-func mustWhoIsDirectory(ctx *config.AppContext) []*WhoIsPerson {
-	people, err := buildWhoIsDirectory(ctx)
-	if err != nil {
-		return nil
-	}
-	return people
-}
-
 func homeArchiveRainDevAssets(assets []*getters.HomepageArchiveAsset, featuredSpeakers []*types.Speaker, perKind int) []*getters.HomepageArchiveAsset {
 	talks := make([]*getters.HomepageArchiveAsset, 0, perKind)
 	speakers := make([]*getters.HomepageArchiveAsset, 0, perKind)
@@ -4948,8 +4939,11 @@ func homeArchiveRainDevAssets(assets []*getters.HomepageArchiveAsset, featuredSp
 }
 
 func repeatHomepageArchiveAssets(assets []*getters.HomepageArchiveAsset, count int) []*getters.HomepageArchiveAsset {
-	if len(assets) == 0 || len(assets) >= count {
-		return assets
+	if len(assets) == 0 || count <= 0 {
+		return nil
+	}
+	if len(assets) >= count {
+		return append([]*getters.HomepageArchiveAsset(nil), assets[:count]...)
 	}
 	result := append([]*getters.HomepageArchiveAsset(nil), assets...)
 	for len(result) < count {

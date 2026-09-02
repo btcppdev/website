@@ -4,8 +4,25 @@ import (
 	"testing"
 	"time"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/types"
 )
+
+func TestRepeatHomepageArchiveAssetsCapsAndPadsToCount(t *testing.T) {
+	many := make([]*getters.HomepageArchiveAsset, 30)
+	for i := range many {
+		many[i] = &getters.HomepageArchiveAsset{Image: string(rune('a' + i))}
+	}
+	if got := repeatHomepageArchiveAssets(many, 24); len(got) != 24 {
+		t.Fatalf("capped archive assets = %d, want 24", len(got))
+	}
+
+	few := []*getters.HomepageArchiveAsset{{Image: "one"}, {Image: "two"}}
+	got := repeatHomepageArchiveAssets(few, 5)
+	if len(got) != 5 || got[2].Image != "one" || got[4].Image != "one" {
+		t.Fatalf("padded archive assets = %#v", got)
+	}
+}
 
 func TestHomeConferenceListsUsePublicationStatus(t *testing.T) {
 	now := time.Now()
