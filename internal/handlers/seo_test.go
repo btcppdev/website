@@ -82,27 +82,6 @@ func TestShouldNoIndexPath(t *testing.T) {
 	}
 }
 
-func TestConfSocialImage(t *testing.T) {
-	tests := []struct {
-		tag  string
-		card string
-		want string
-	}{
-		{"atx22", "standard", SEOHost + "/static/img/atxpromo.png"},
-		{"berlin24", "twitter", SEOHost + "/static/img/berlin24_promo.png"},
-		{"berlin25", "standard", SEOHost + "/static/img/berlin25/og_card_standard.png"},
-		{"berlin25", "twitter", SEOHost + "/static/img/berlin25/og_card_twitter.png"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.tag+"/"+tt.card, func(t *testing.T) {
-			if got := confSocialImage(tt.tag, tt.card); got != tt.want {
-				t.Fatalf("confSocialImage(%q, %q) = %q, want %q", tt.tag, tt.card, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestAbsoluteSEOURL(t *testing.T) {
 	tests := []struct {
 		path string

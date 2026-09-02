@@ -170,7 +170,7 @@ func recordingWatchSocialImage(ctx *config.AppContext, row *RecordingRow, conf *
 		return fmt.Sprintf("/media/png/%s/talk/1080p/%s", url.PathEscape(conf.Tag), url.PathEscape(row.ConfTalk.ID))
 	}
 	if conf != nil {
-		return confSocialImage(conf.Tag, "twitter")
+		return siteSocialCardPath("conference", conf.Tag, conferenceSocialCard(ctx, conf))
 	}
 	return "/static/img/rebrand/breakthroughs.jpg"
 }

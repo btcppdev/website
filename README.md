@@ -64,6 +64,23 @@ corrupt, explicitly rebuild the local dev database with:
 This moves the previous local data directory aside with a `.reset-<timestamp>`
 suffix before creating a fresh one.
 
+### Social-card previews
+
+Public landing-page unfurls are generated as 1200×630 JPEGs on demand and
+cached by a content fingerprint. In development, edit
+`internal/imgproc/site_social_card.html` and preview the source HTML at:
+
+- `/dev/site-social-card?kind=home`
+- `/dev/site-social-card?kind=conference&slug=dev26`
+- `/dev/site-social-card?kind=hackathon&slug=dev26`
+- `/dev/site-social-card?kind=whois`
+- `/dev/site-social-card?kind=person&slug=example-3`
+- `/dev/site-social-card?kind=shop`
+
+The corresponding crawler-facing JPEGs live under `/social-cards/`. Only
+bitcoin++, configured object-storage, and development-local image hosts are
+loaded by the renderer.
+
 
 ## To build
 

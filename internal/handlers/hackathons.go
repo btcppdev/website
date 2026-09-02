@@ -86,6 +86,7 @@ type HackathonPage struct {
 	FlashMessage                string
 	FlashError                  string
 	Year                        uint
+	SocialCardURL               string
 }
 
 type HackathonJudgingResults struct {
@@ -1847,6 +1848,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Year:                    helpers.CurrentYear(),
 	}
 	configureHackathonNavigation(ctx, page)
+	page.SocialCardURL = siteSocialCardPath("hackathon", conf.Tag, hackathonSocialCard(ctx, page))
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s template: %s", competition.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)

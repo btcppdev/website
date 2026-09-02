@@ -344,8 +344,10 @@ func loadTemplates(ctx *config.AppContext) error {
 			}
 			return template.JS("null")
 		},
-		"confSocialImage": confSocialImage,
-		"absoluteSEOURL":  absoluteSEOURL,
+		"conferenceSocialCard": func(conf *types.Conf) string {
+			return siteSocialCardPath("conference", conf.Tag, conferenceSocialCard(ctx, conf))
+		},
+		"absoluteSEOURL": absoluteSEOURL,
 		// rfc3339 formats a time.Time / *time.Time as RFC 3339.
 		// Returns "" for a nil pointer or zero time so templates can
 		// safely emit it into a data-* attribute without leaking
@@ -1076,6 +1078,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/dev/merch-social-card", func(w http.ResponseWriter, r *http.Request) {
 		DevMerchSocialCardPreview(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dev/site-social-card", func(w http.ResponseWriter, r *http.Request) {
+		DevSiteSocialCardPreview(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/social-cards/{kind}.jpg", func(w http.ResponseWriter, r *http.Request) {
+		ServeSiteSocialCard(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/social-cards/{kind}/{slug}.jpg", func(w http.ResponseWriter, r *http.Request) {
+		ServeSiteSocialCard(w, r, app)
 	}).Methods("GET")
 
 	r.HandleFunc("/i/{conf}/sendcal", func(w http.ResponseWriter, r *http.Request) {
@@ -2635,6 +2646,7 @@ func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		ctx.Err.Printf("/whois build directory failed: %s", err)
 		return
 	}
+	directoryPeople := people
 	allCount := len(people)
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	topic := slugifyPublicID(r.URL.Query().Get("topic"))
@@ -2645,17 +2657,18 @@ func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	}
 	talkCount, projectCount, editionCount := whoIsTotals(people)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois.tmpl", &WhoIsPage{
-		People:       people,
-		ArchiveRain:  whoIsPeopleRain(people),
-		AllCount:     allCount,
-		TalkCount:    talkCount,
-		ProjectCount: projectCount,
-		EditionCount: editionCount,
-		Query:        query,
-		Topic:        topic,
-		Event:        event,
-		EventOptions: eventOptions,
-		Year:         helpers.CurrentYear(),
+		People:        people,
+		ArchiveRain:   whoIsPeopleRain(people),
+		AllCount:      allCount,
+		TalkCount:     talkCount,
+		ProjectCount:  projectCount,
+		EditionCount:  editionCount,
+		Query:         query,
+		Topic:         topic,
+		Event:         event,
+		EventOptions:  eventOptions,
+		Year:          helpers.CurrentYear(),
+		SocialCardURL: siteSocialCardPath("whois", "", whoIsSocialCard(ctx, directoryPeople)),
 	}); err != nil {
 		http.Error(w, "Unable to load speaker directory, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/whois ExecuteTemplate failed: %s", err.Error())
@@ -2683,6 +2696,7 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		Person:           person,
 		UpdateProfileURL: whoIsProfileEditURL(ctx, r, person),
 		Year:             helpers.CurrentYear(),
+		SocialCardURL:    siteSocialCardPath("person", person.PublicID, personSocialCard(ctx, person)),
 	}); err != nil {
 		http.Error(w, "Unable to load speaker profile, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/whois/%s ExecuteTemplate failed: %s", slug, err.Error())
@@ -4421,7 +4435,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		tixLeft = currTix.Max - soldCount
 	}
 	tmplTag := "conf/generic.tmpl"
-	err = ctx.TemplateCache.ExecuteTemplate(w, tmplTag, &ConfPage{
+	confPage := &ConfPage{
 		Conf:                    conf,
 		Hotels:                  confHotels,
 		Tix:                     currTix,
@@ -4448,7 +4462,8 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		HackathonPrizePoolSats:  hackathonPrizePoolSats,
 		HackathonCanAdmin:       hackathonCanAdmin,
 		Year:                    helpers.CurrentYear(),
-	})
+	}
+	err = ctx.TemplateCache.ExecuteTemplate(w, tmplTag, confPage)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s ExecuteTemplate failed ! %s", conf.Tag, err.Error())
@@ -4859,6 +4874,7 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		MapMarkers:       homeMapMarkers(enriched),
 		Year:             helpers.CurrentYear(),
 	}
+	data.SocialCardURL = siteSocialCardPath("home", "", homeSocialCard(ctx, enriched))
 
 	template := fmt.Sprintf("embeds/%s.tmpl", page)
 	err := ctx.TemplateCache.ExecuteTemplate(w, template, &data)

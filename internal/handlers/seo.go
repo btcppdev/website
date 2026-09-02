@@ -95,33 +95,6 @@ func shouldNoIndexPath(path string) bool {
 	return false
 }
 
-func confSocialImage(tag, card string) string {
-	tag = strings.TrimSpace(tag)
-	card = strings.TrimSpace(card)
-	if card != "twitter" {
-		card = "standard"
-	}
-
-	switch tag {
-	case "atx22", "atx23", "cdmx22":
-		return SEOHost + "/static/img/atxpromo.png"
-	case "atx24":
-		return SEOHost + "/static/img/atx24.png"
-	case "atx25":
-		return SEOHost + "/static/img/atx25_promo.png"
-	case "ba24":
-		return SEOHost + "/static/img/ba24.png"
-	case "berlin23":
-		return SEOHost + "/static/img/btcpp_berlin_twitter.png"
-	case "berlin24":
-		return SEOHost + "/static/img/berlin24_promo.png"
-	case "floripa":
-		return SEOHost + "/static/img/floripa_promo.png"
-	default:
-		return fmt.Sprintf("%s/static/img/%s/og_card_%s.png", SEOHost, tag, card)
-	}
-}
-
 func absoluteSEOURL(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -136,9 +109,8 @@ func absoluteSEOURL(path string) string {
 	return SEOHost + path
 }
 
-// SEOHost is the canonical absolute base used in robots.txt + sitemap
-// + OG tags. Hardcoded to match what's already baked into the
-// templates/section/og_tags.tmpl partial — keep them in sync.
+// SEOHost is the canonical absolute base used in robots.txt, the sitemap, and
+// the shared site_seo metadata partial.
 const SEOHost = "https://btcpp.dev"
 
 // Robots serves /robots.txt. The file lives in the static/ tree so
