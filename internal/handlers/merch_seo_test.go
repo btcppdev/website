@@ -1,11 +1,28 @@
 package handlers
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"btcpp-web/internal/types"
 )
+
+func TestMerchArchiveRainIsCappedAtTwentyFourCards(t *testing.T) {
+	products := make([]*types.MerchProduct, 30)
+	for i := range products {
+		products[i] = &types.MerchProduct{
+			Name: fmt.Sprintf("Product %d", i),
+			Images: []*types.MerchProductImage{{
+				ObjectKey: fmt.Sprintf("/static/img/merch/product-%d.jpg", i),
+			}},
+		}
+	}
+
+	if got := merchArchiveRain(products); len(got) != 24 {
+		t.Fatalf("merch archive rain = %d cards, want 24", len(got))
+	}
+}
 
 func TestMerchSEODescription(t *testing.T) {
 	product := &types.MerchProduct{
