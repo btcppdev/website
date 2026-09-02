@@ -41,6 +41,7 @@
               <a href="#conferences" data-docs-search-item data-search-label="Conferences API">Conferences</a>
               <a href="#people" data-docs-search-item data-search-label="People API">People</a>
               <a href="#recordings" data-docs-search-item data-search-label="Recordings API">Recordings</a>
+              <a href="#shop-accounting" data-docs-search-item data-search-label="Shop accounting API">Shop accounting</a>
               <a href="#hackathons" data-docs-search-item data-search-label="Hackathons API">Hackathons</a>
               <a href="#account" data-docs-search-item data-search-label="Account and talks API">Account + talks</a>
             </div>
@@ -111,6 +112,16 @@
             </div>
           </section>
 
+          <section id="shop-accounting" class="api-reference__section" data-docs-section>
+            <p class="api-reference__kicker">05 / Global admin</p>
+            <h2>Shop accounting</h2>
+            <p>Global-admin services can synchronize the current merchandise inventory ledger and inventory-affecting sales without receiving customer names, email addresses, shipping data, or payment credentials. Ticket registrations are canonical, so mixed ticket and merchandise checkouts are not counted twice.</p>
+            <div class="api-reference__endpoints">
+              <button type="button" data-api-endpoint="inventory-variants" data-docs-search-item data-search-label="GET shop inventory variants — Accounting inventory snapshot"><span>GET</span><code>/shop/inventory/variants</code><small>Current SKU inventory</small></button>
+              <button type="button" data-api-endpoint="inventory-sales" data-docs-search-item data-search-label="GET shop inventory sales — Accounting sales feed"><span>GET</span><code>/shop/inventory/sales</code><small>Merchandise and ticket sales</small></button>
+            </div>
+          </section>
+
           <section id="hackathons" class="api-reference__section" data-docs-section>
             <p class="api-reference__kicker">05 / Public resources</p>
             <h2>Hackathons</h2>
@@ -158,6 +169,7 @@
               <div><code>talks:write</code><p>Edit talks you speak at.</p></div>
               <div><code>schedule:write</code><p>Schedule talks when you administer the event.</p></div>
               <div><code>recordings:write</code><p>Manage event recording metadata.</p></div>
+              <div><code>shop:accounting:read</code><p>Read PII-free shop inventory and sales. Only global administrators can create or use this credential.</p></div>
               <div><code>offline_access</code><p>OAuth only: request a rotating refresh token.</p></div>
             </div>
           </section>
