@@ -70,16 +70,17 @@ type (
 	}
 
 	SponsorshipEntitlement struct {
-		SponsorshipID            string
-		ConferenceID             string
-		TicketAllocation         int
-		SponsorAwardLimit        int
-		ParticipantContactAccess bool
-		ParticipantContactExport bool
-		CanManageAwardJudges     bool
-		CanEditOrganization      bool
-		CreatedAt                time.Time
-		UpdatedAt                time.Time
+		SponsorshipID                    string
+		ConferenceID                     string
+		TicketAllocation                 int
+		SponsorAwardLimit                int
+		AllHackathonSubmissions          bool
+		AutomaticSubmissionContactAccess bool
+		ParticipantContactAccess         bool
+		ParticipantContactExport         bool
+		CanEditOrganization              bool
+		CreatedAt                        time.Time
+		UpdatedAt                        time.Time
 	}
 
 	SponsorDashboardEvent struct {
@@ -130,6 +131,41 @@ type (
 		Quantity         int
 		CheckoutID       string
 		CreatedAt        time.Time
+	}
+
+	SponsorPrizeEntry struct {
+		AwardID                 string
+		AwardTitle              string
+		AwardStatus             string
+		CompetitionID           string
+		CompetitionTitle        string
+		ConferenceID            string
+		ConferenceTag           string
+		ConferenceTitle         string
+		ProjectID               string
+		ProjectTitle            string
+		ProjectShortDescription string
+		ProjectImageURL         string
+		ProjectStatus           string
+		ProjectNumber           *int
+		GitHubURL               string
+		DemoURL                 string
+		OptedInAt               time.Time
+		Winner                  bool
+		SponsoredPrize          bool
+		AutomaticContact        bool
+		Participants            []*SponsorPrizeParticipant
+	}
+
+	SponsorPrizeParticipant struct {
+		PersonID        string
+		Name            string
+		Photo           string
+		Role            string
+		Email           string
+		PublicID        string
+		AvailableToHire bool
+		ConsentScope    string
 	}
 
 	HackathonSponsorContactConsent struct {

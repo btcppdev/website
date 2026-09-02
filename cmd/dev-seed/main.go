@@ -24,75 +24,81 @@ const (
 	devDay2ID = "00000000-0000-4000-8000-000000000012"
 	devDay3ID = "00000000-0000-4000-8000-000000000013"
 
-	devEarlyTixID            = "00000000-0000-4000-8000-000000000021"
-	devGeneralTixID          = "00000000-0000-4000-8000-000000000022"
-	devAdminID               = "00000000-0000-4000-8000-000000000031"
-	devArchiveSpeakerConfID  = "00000000-0000-4000-8000-000000000033"
-	devArchiveProposalID     = "00000000-0000-4000-8000-000000000034"
-	devArchiveTalkID         = "00000000-0000-4000-8000-000000000035"
-	devArchiveRecordingID    = "00000000-0000-4000-8000-000000000036"
-	devAffiliateDiscountID   = "00000000-0000-4000-8000-000000000037"
-	devVolunteerID           = "00000000-0000-4000-8000-000000000038"
-	devJobTypeID             = "00000000-0000-4000-8000-000000000039"
-	devWorkShiftID           = "00000000-0000-4000-8000-000000000040"
-	devVolInfoID             = "00000000-0000-4000-8000-000000000041"
-	devHomepagePerson7ID     = "00000000-0000-4000-8000-000000000042"
-	devHomepagePerson8ID     = "00000000-0000-4000-8000-000000000043"
-	devVolLoginMissiveID     = "00000000-0000-4000-8000-000000000044"
-	devVolAppMissiveID       = "00000000-0000-4000-8000-000000000045"
-	devVolSignupMissiveID    = "00000000-0000-4000-8000-000000000046"
-	devVolShiftsMissiveID    = "00000000-0000-4000-8000-000000000047"
-	devMerchProduct1ID       = "00000000-0000-4000-8000-000000000051"
-	devMerchProduct2ID       = "00000000-0000-4000-8000-000000000052"
-	devMerchProduct3ID       = "00000000-0000-4000-8000-000000000053"
-	devMerchProduct4ID       = "00000000-0000-4000-8000-000000000054"
-	devMerchProduct5ID       = "00000000-0000-4000-8000-000000000055"
-	devMerchVariant1ID       = "00000000-0000-4000-8000-000000000061"
-	devMerchVariant2ID       = "00000000-0000-4000-8000-000000000062"
-	devMerchVariant3ID       = "00000000-0000-4000-8000-000000000063"
-	devMerchVariant4ID       = "00000000-0000-4000-8000-000000000064"
-	devMerchVariant5ID       = "00000000-0000-4000-8000-000000000065"
-	devShopOrderPickupID     = "00000000-0000-4000-8000-000000000071"
-	devShopOrderShipID       = "00000000-0000-4000-8000-000000000072"
-	devShopOrderPendingID    = "00000000-0000-4000-8000-000000000073"
-	devShopOrderRefundID     = "00000000-0000-4000-8000-000000000074"
-	devShopOrderMixedID      = "00000000-0000-4000-8000-000000000075"
-	devShopItemPickupID      = "00000000-0000-4000-8000-000000000081"
-	devShopItemShipID        = "00000000-0000-4000-8000-000000000082"
-	devShopItemPendingID     = "00000000-0000-4000-8000-000000000083"
-	devShopItemRefundID      = "00000000-0000-4000-8000-000000000084"
-	devShopItemMixedMerchID  = "00000000-0000-4000-8000-000000000085"
-	devShopItemMixedTixID    = "00000000-0000-4000-8000-000000000086"
-	devShopPickupReadyID     = "00000000-0000-4000-8000-000000000087"
-	devShopPickupDoneID      = "00000000-0000-4000-8000-000000000088"
-	devShopRefundID          = "00000000-0000-4000-8000-000000000089"
-	devCheckInGenpopID       = "00000000-0000-4000-8000-000000000a01"
-	devCheckInLocalID        = "00000000-0000-4000-8000-000000000a02"
-	devCheckInSponsorID      = "00000000-0000-4000-8000-000000000a03"
-	devCheckInVolunteerID    = "00000000-0000-4000-8000-000000000a04"
-	devCheckInSpeakerID      = "00000000-0000-4000-8000-000000000a05"
-	devCheckInSponsorOrder   = "00000000-0000-4000-8000-000000000a21"
-	devCheckInSpeakerOrder   = "00000000-0000-4000-8000-000000000a22"
-	devCheckInSponsorItem    = "00000000-0000-4000-8000-000000000a31"
-	devCheckInSpeakerItem1   = "00000000-0000-4000-8000-000000000a32"
-	devCheckInSpeakerItem2   = "00000000-0000-4000-8000-000000000a33"
-	devCheckInSponsorPickup  = "00000000-0000-4000-8000-000000000a41"
-	devCheckInSpeakerPickup1 = "00000000-0000-4000-8000-000000000a42"
-	devCheckInSpeakerPickup2 = "00000000-0000-4000-8000-000000000a43"
-	devNewsletterCompetition = "00000000-0000-4000-8000-000000000b01"
-	devNewsletterProject1    = "00000000-0000-4000-8000-000000000b02"
-	devNewsletterProject2    = "00000000-0000-4000-8000-000000000b03"
-	devNewsletterAward1      = "00000000-0000-4000-8000-000000000b11"
-	devNewsletterAward2      = "00000000-0000-4000-8000-000000000b12"
-	devNewsletterAward3      = "00000000-0000-4000-8000-000000000b13"
-	devNewsletterRecording   = "00000000-0000-4000-8000-000000000b21"
-	devNewsletterRecording2  = "00000000-0000-4000-8000-000000000b22"
-	devNewsletterRecording3  = "00000000-0000-4000-8000-000000000b23"
-	devNewsletterRecording4  = "00000000-0000-4000-8000-000000000b24"
-	devSponsorAward          = "00000000-0000-4000-8000-000000000b31"
-	devSponsorPrize          = "00000000-0000-4000-8000-000000000b32"
-	devSponsorConsentEvent   = "00000000-0000-4000-8000-000000000b33"
-	devPastSponsorship       = "00000000-0000-4000-8000-000000000606"
+	devEarlyTixID             = "00000000-0000-4000-8000-000000000021"
+	devGeneralTixID           = "00000000-0000-4000-8000-000000000022"
+	devAdminID                = "00000000-0000-4000-8000-000000000031"
+	devArchiveSpeakerConfID   = "00000000-0000-4000-8000-000000000033"
+	devArchiveProposalID      = "00000000-0000-4000-8000-000000000034"
+	devArchiveTalkID          = "00000000-0000-4000-8000-000000000035"
+	devArchiveRecordingID     = "00000000-0000-4000-8000-000000000036"
+	devAffiliateDiscountID    = "00000000-0000-4000-8000-000000000037"
+	devVolunteerID            = "00000000-0000-4000-8000-000000000038"
+	devJobTypeID              = "00000000-0000-4000-8000-000000000039"
+	devWorkShiftID            = "00000000-0000-4000-8000-000000000040"
+	devVolInfoID              = "00000000-0000-4000-8000-000000000041"
+	devHomepagePerson7ID      = "00000000-0000-4000-8000-000000000042"
+	devHomepagePerson8ID      = "00000000-0000-4000-8000-000000000043"
+	devVolLoginMissiveID      = "00000000-0000-4000-8000-000000000044"
+	devVolAppMissiveID        = "00000000-0000-4000-8000-000000000045"
+	devVolSignupMissiveID     = "00000000-0000-4000-8000-000000000046"
+	devVolShiftsMissiveID     = "00000000-0000-4000-8000-000000000047"
+	devMerchProduct1ID        = "00000000-0000-4000-8000-000000000051"
+	devMerchProduct2ID        = "00000000-0000-4000-8000-000000000052"
+	devMerchProduct3ID        = "00000000-0000-4000-8000-000000000053"
+	devMerchProduct4ID        = "00000000-0000-4000-8000-000000000054"
+	devMerchProduct5ID        = "00000000-0000-4000-8000-000000000055"
+	devMerchVariant1ID        = "00000000-0000-4000-8000-000000000061"
+	devMerchVariant2ID        = "00000000-0000-4000-8000-000000000062"
+	devMerchVariant3ID        = "00000000-0000-4000-8000-000000000063"
+	devMerchVariant4ID        = "00000000-0000-4000-8000-000000000064"
+	devMerchVariant5ID        = "00000000-0000-4000-8000-000000000065"
+	devShopOrderPickupID      = "00000000-0000-4000-8000-000000000071"
+	devShopOrderShipID        = "00000000-0000-4000-8000-000000000072"
+	devShopOrderPendingID     = "00000000-0000-4000-8000-000000000073"
+	devShopOrderRefundID      = "00000000-0000-4000-8000-000000000074"
+	devShopOrderMixedID       = "00000000-0000-4000-8000-000000000075"
+	devShopItemPickupID       = "00000000-0000-4000-8000-000000000081"
+	devShopItemShipID         = "00000000-0000-4000-8000-000000000082"
+	devShopItemPendingID      = "00000000-0000-4000-8000-000000000083"
+	devShopItemRefundID       = "00000000-0000-4000-8000-000000000084"
+	devShopItemMixedMerchID   = "00000000-0000-4000-8000-000000000085"
+	devShopItemMixedTixID     = "00000000-0000-4000-8000-000000000086"
+	devShopPickupReadyID      = "00000000-0000-4000-8000-000000000087"
+	devShopPickupDoneID       = "00000000-0000-4000-8000-000000000088"
+	devShopRefundID           = "00000000-0000-4000-8000-000000000089"
+	devCheckInGenpopID        = "00000000-0000-4000-8000-000000000a01"
+	devCheckInLocalID         = "00000000-0000-4000-8000-000000000a02"
+	devCheckInSponsorID       = "00000000-0000-4000-8000-000000000a03"
+	devCheckInVolunteerID     = "00000000-0000-4000-8000-000000000a04"
+	devCheckInSpeakerID       = "00000000-0000-4000-8000-000000000a05"
+	devCheckInSponsorOrder    = "00000000-0000-4000-8000-000000000a21"
+	devCheckInSpeakerOrder    = "00000000-0000-4000-8000-000000000a22"
+	devCheckInSponsorItem     = "00000000-0000-4000-8000-000000000a31"
+	devCheckInSpeakerItem1    = "00000000-0000-4000-8000-000000000a32"
+	devCheckInSpeakerItem2    = "00000000-0000-4000-8000-000000000a33"
+	devCheckInSponsorPickup   = "00000000-0000-4000-8000-000000000a41"
+	devCheckInSpeakerPickup1  = "00000000-0000-4000-8000-000000000a42"
+	devCheckInSpeakerPickup2  = "00000000-0000-4000-8000-000000000a43"
+	devNewsletterCompetition  = "00000000-0000-4000-8000-000000000b01"
+	devNewsletterProject1     = "00000000-0000-4000-8000-000000000b02"
+	devNewsletterProject2     = "00000000-0000-4000-8000-000000000b03"
+	devNewsletterAward1       = "00000000-0000-4000-8000-000000000b11"
+	devNewsletterAward2       = "00000000-0000-4000-8000-000000000b12"
+	devNewsletterAward3       = "00000000-0000-4000-8000-000000000b13"
+	devNewsletterRecording    = "00000000-0000-4000-8000-000000000b21"
+	devNewsletterRecording2   = "00000000-0000-4000-8000-000000000b22"
+	devNewsletterRecording3   = "00000000-0000-4000-8000-000000000b23"
+	devNewsletterRecording4   = "00000000-0000-4000-8000-000000000b24"
+	devSponsorAward           = "00000000-0000-4000-8000-000000000b31"
+	devSponsorPrize           = "00000000-0000-4000-8000-000000000b32"
+	devSponsorConsentEvent    = "00000000-0000-4000-8000-000000000b33"
+	devPastSponsorCompetition = "00000000-0000-4000-8000-000000000b40"
+	devPastSponsorProject1    = "00000000-0000-4000-8000-000000000b41"
+	devPastSponsorProject2    = "00000000-0000-4000-8000-000000000b42"
+	devPastGeneralProject     = "00000000-0000-4000-8000-000000000b43"
+	devPastSponsorAward       = "00000000-0000-4000-8000-000000000b44"
+	devPastSponsorPrize       = "00000000-0000-4000-8000-000000000b45"
+	devPastSponsorship        = "00000000-0000-4000-8000-000000000606"
 )
 
 type daySeed struct {
@@ -1905,8 +1911,8 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 		INSERT INTO sponsorships (
 			id, organization_id, name, level, label, status, notes
 		) VALUES (
-			$1::uuid, $2::uuid, 'Signet Systems @ Satoshi', 'Satoshi',
-			'Satoshi Sponsors', 'Paid', 'Local dev past sponsor trophy fixture.'
+			$1::uuid, $2::uuid, 'Signet Systems @ Hackathon', 'Hackathon',
+			'Hackathon Sponsors', 'Paid', 'Local dev past sponsor trophy fixture.'
 		)
 		ON CONFLICT (id) DO UPDATE SET
 			organization_id = EXCLUDED.organization_id,
@@ -1924,13 +1930,22 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 	mustExec(ctx, tx, "seed past sponsor entitlement", `
 		INSERT INTO sponsorship_entitlements (
 			sponsorship_id, conference_id, ticket_allocation,
-			sponsor_award_limit, can_edit_organization
-		) VALUES ($1::uuid, $2::uuid, 10, 1, false)
+			sponsor_award_limit, can_edit_organization,
+			all_hackathon_submissions_access, participant_contact_access,
+			participant_contact_export, automatic_submission_contact_access
+		) VALUES (
+			$1::uuid, $2::uuid, 10, 1, false, true, true, true, true
+		)
 		ON CONFLICT (sponsorship_id, conference_id) DO UPDATE SET
 			ticket_allocation = EXCLUDED.ticket_allocation,
 			sponsor_award_limit = EXCLUDED.sponsor_award_limit,
-			can_edit_organization = EXCLUDED.can_edit_organization
+			can_edit_organization = EXCLUDED.can_edit_organization,
+			all_hackathon_submissions_access = EXCLUDED.all_hackathon_submissions_access,
+			participant_contact_access = EXCLUDED.participant_contact_access,
+			participant_contact_export = EXCLUDED.participant_contact_export,
+			automatic_submission_contact_access = EXCLUDED.automatic_submission_contact_access
 	`, devPastSponsorship, pastConfID)
+	seedPastSponsorHackathon(ctx, tx, pastConfID, devOrgs[0].id)
 
 	// Mara and the local admin exercise a multi-manager sponsor workspace.
 	for _, member := range []struct {
@@ -1951,33 +1966,39 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 	}
 
 	for _, entitlement := range []struct {
-		sponsorshipID                                      string
-		tickets, awards                                    int
-		contacts, exportContacts, judges, editOrganization bool
+		sponsorshipID                              string
+		tickets, awards                            int
+		contacts, exportContacts, editOrganization bool
 	}{
-		{devSponsorships[0].id, 20, 2, true, false, true, true},
-		{devSponsorships[1].id, 12, 1, false, false, true, true},
-		{devSponsorships[2].id, 8, 0, false, false, false, true},
-		{devSponsorships[3].id, 10, 1, true, false, true, true},
-		{devSponsorships[4].id, 2, 0, false, false, false, true},
+		{devSponsorships[0].id, 20, 2, true, false, true},
+		{devSponsorships[1].id, 12, 1, false, false, true},
+		{devSponsorships[2].id, 8, 0, false, false, true},
+		{devSponsorships[3].id, 10, 1, true, false, true},
+		{devSponsorships[4].id, 2, 0, false, false, true},
 	} {
 		mustExec(ctx, tx, "seed sponsorship entitlement", `
 			INSERT INTO sponsorship_entitlements (
 				sponsorship_id, conference_id, ticket_allocation,
 				sponsor_award_limit, participant_contact_access,
-				participant_contact_export, can_manage_award_judges,
-				can_edit_organization
-			) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)
+				participant_contact_export, can_edit_organization,
+				all_hackathon_submissions_access,
+				automatic_submission_contact_access
+			) VALUES ($1::uuid, $2::uuid, $3, $4,
+				$5 OR lower((SELECT level FROM sponsorships WHERE id = $1::uuid)) IN ('headline', 'hackathon'),
+				$6 OR lower((SELECT level FROM sponsorships WHERE id = $1::uuid)) IN ('headline', 'hackathon'), $7,
+				lower((SELECT level FROM sponsorships WHERE id = $1::uuid)) IN ('headline', 'hackathon'),
+				lower((SELECT level FROM sponsorships WHERE id = $1::uuid)) IN ('headline', 'hackathon'))
 			ON CONFLICT (sponsorship_id, conference_id) DO UPDATE SET
 				ticket_allocation = EXCLUDED.ticket_allocation,
 				sponsor_award_limit = EXCLUDED.sponsor_award_limit,
 				participant_contact_access = EXCLUDED.participant_contact_access,
 				participant_contact_export = EXCLUDED.participant_contact_export,
-				can_manage_award_judges = EXCLUDED.can_manage_award_judges,
-				can_edit_organization = EXCLUDED.can_edit_organization
+				can_edit_organization = EXCLUDED.can_edit_organization,
+				all_hackathon_submissions_access = EXCLUDED.all_hackathon_submissions_access,
+				automatic_submission_contact_access = EXCLUDED.automatic_submission_contact_access
 		`, entitlement.sponsorshipID, confID, entitlement.tickets,
 			entitlement.awards, entitlement.contacts, entitlement.exportContacts,
-			entitlement.judges, entitlement.editOrganization)
+			entitlement.editOrganization)
 	}
 
 	// A sponsor award and participant preference make the consent-aware prize
@@ -2047,6 +2068,164 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 			policy_version = EXCLUDED.policy_version,
 			source = EXCLUDED.source
 	`, devSponsorConsentEvent, devNewsletterCompetition, devSpeakers[0].personID)
+}
+
+func seedPastSponsorHackathon(ctx context.Context, tx pgx.Tx, conferenceID, sponsorOrgID string) {
+	mustExec(ctx, tx, "enable past fixture hackathon", `
+		UPDATE conferences SET show_hackathon = true WHERE id = $1::uuid
+	`, conferenceID)
+
+	var competitionID string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO competitions (
+			id, conference_id, title, description, description_format,
+			visibility, lifecycle_override, public_gallery_enabled,
+			public_tables_enabled, public_gallery_at, hacking_starts_at,
+			hacking_ends_at, results_finalized_at, results_finalized_by
+		) VALUES (
+			$1::uuid, $2::uuid, 'Archive Builders Hackathon',
+			'A completed hackathon fixture for sponsor archive and trophy-case testing.',
+			'markdown', 'public', 'closed', true, true,
+			'2024-05-02 18:00:00-05'::timestamptz,
+			'2024-05-01 10:00:00-05'::timestamptz,
+			'2024-05-02 15:00:00-05'::timestamptz,
+			'2024-05-02 17:00:00-05'::timestamptz, $3::uuid
+		)
+		ON CONFLICT (conference_id) DO UPDATE SET
+			title = EXCLUDED.title,
+			description = EXCLUDED.description,
+			description_format = EXCLUDED.description_format,
+			visibility = EXCLUDED.visibility,
+			lifecycle_override = EXCLUDED.lifecycle_override,
+			public_gallery_enabled = EXCLUDED.public_gallery_enabled,
+			public_tables_enabled = EXCLUDED.public_tables_enabled,
+			public_gallery_at = EXCLUDED.public_gallery_at,
+			hacking_starts_at = EXCLUDED.hacking_starts_at,
+			hacking_ends_at = EXCLUDED.hacking_ends_at,
+			results_finalized_at = EXCLUDED.results_finalized_at,
+			results_finalized_by = EXCLUDED.results_finalized_by
+		RETURNING id::text
+	`, devPastSponsorCompetition, conferenceID, devAdminID).Scan(&competitionID); err != nil {
+		log.Fatal(fmt.Errorf("seed past sponsor competition: %w", err))
+	}
+
+	type pastProjectSeed struct {
+		id, ownerID, slug, title, shortDescription, description, imageURL, githubURL string
+		number                                                                       int
+	}
+	projects := []pastProjectSeed{
+		{
+			id: devPastSponsorProject1, ownerID: devSpeakers[1].personID,
+			slug: "archive-node-garden", title: "Node Garden",
+			shortDescription: "A visual lab for growing and breaking regtest node topologies.",
+			description:      "Node Garden turns repeatable bitcoin network scenarios into a collaborative visual workspace for protocol developers.",
+			imageURL:         "/static/img/austin/pleblabhack.jpg", githubURL: "https://github.com/example/node-garden", number: 3,
+		},
+		{
+			id: devPastSponsorProject2, ownerID: devSpeakers[2].personID,
+			slug: "archive-policy-lens", title: "Policy Lens",
+			shortDescription: "Explain mempool policy failures with reproducible transaction fixtures.",
+			description:      "Policy Lens compares node policy decisions and produces a shareable report for debugging rejected transactions.",
+			imageURL:         "/static/img/austin/hack_pool.avif", githubURL: "https://github.com/example/policy-lens", number: 8,
+		},
+		{
+			id: devPastGeneralProject, ownerID: devSpeakers[3].personID,
+			slug: "archive-covenant-canvas", title: "Covenant Canvas",
+			shortDescription: "An interactive notebook for sketching transaction constraint ideas.",
+			description:      "Covenant Canvas helps teams model transaction graphs and communicate proposed spending constraints without entering a sponsor challenge.",
+			imageURL:         "/static/img/berlin_nostr_hack.jpg", githubURL: "https://github.com/example/covenant-canvas", number: 11,
+		},
+	}
+	projectIDs := make(map[string]string, len(projects))
+	for _, project := range projects {
+		var projectID string
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO projects (
+				id, competition_id, created_by_person_id, slug, title,
+				short_description, description, description_format, image_url,
+				github_url, project_number, status, tags, submitted_at
+			) VALUES (
+				$1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, 'markdown',
+				$8, $9, $10, 'submitted', ARRAY['archive', 'developer-tools'],
+				'2024-05-02 12:00:00-05'::timestamptz
+			)
+			ON CONFLICT (competition_id, slug) DO UPDATE SET
+				created_by_person_id = EXCLUDED.created_by_person_id,
+				title = EXCLUDED.title,
+				short_description = EXCLUDED.short_description,
+				description = EXCLUDED.description,
+				description_format = EXCLUDED.description_format,
+				image_url = EXCLUDED.image_url,
+				github_url = EXCLUDED.github_url,
+				project_number = EXCLUDED.project_number,
+				status = EXCLUDED.status,
+				tags = EXCLUDED.tags,
+				submitted_at = EXCLUDED.submitted_at
+			RETURNING id::text
+		`, project.id, competitionID, project.ownerID, project.slug, project.title,
+			project.shortDescription, project.description, project.imageURL,
+			project.githubURL, project.number).Scan(&projectID); err != nil {
+			log.Fatal(fmt.Errorf("seed past sponsor project %s: %w", project.slug, err))
+		}
+		projectIDs[project.slug] = projectID
+		mustExec(ctx, tx, "seed past sponsor project owner", `
+			INSERT INTO project_members (project_id, person_id, role)
+			VALUES ($1::uuid, $2::uuid, 'owner')
+			ON CONFLICT (project_id, person_id) DO UPDATE SET role = EXCLUDED.role
+		`, projectID, project.ownerID)
+	}
+	mustExec(ctx, tx, "seed past sponsor project teammate", `
+		INSERT INTO project_members (project_id, person_id, role)
+		VALUES ($1::uuid, $2::uuid, 'member')
+		ON CONFLICT (project_id, person_id) DO UPDATE SET role = EXCLUDED.role
+	`, projectIDs["archive-node-garden"], devSpeakers[4].personID)
+
+	mustExec(ctx, tx, "seed past sponsor award", `
+		INSERT INTO awards (
+			id, competition_id, sponsored_by_org_id, award_type, title,
+			description, judging_instructions, max_awardees,
+			opt_in_required, status
+		) VALUES (
+			$1::uuid, $2::uuid, $3::uuid, 'challenge',
+			'Best Local Testing Tool',
+			'For a project that makes bitcoin protocol experiments easier to reproduce.',
+			'Prefer a working tool with fixtures another team can run.',
+			1, true, 'awarded'
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			competition_id = EXCLUDED.competition_id,
+			sponsored_by_org_id = EXCLUDED.sponsored_by_org_id,
+			title = EXCLUDED.title,
+			description = EXCLUDED.description,
+			judging_instructions = EXCLUDED.judging_instructions,
+			max_awardees = EXCLUDED.max_awardees,
+			opt_in_required = EXCLUDED.opt_in_required,
+			status = EXCLUDED.status,
+			archived_at = NULL
+	`, devPastSponsorAward, competitionID, sponsorOrgID)
+	mustExec(ctx, tx, "seed past sponsor prize", `
+		INSERT INTO prizes (id, award_id, prize_type, title, description, value_text, status)
+		VALUES ($1::uuid, $2::uuid, 'sats', 'Archive testing prize',
+			'A historical sponsor prize fixture.', '750000', 'awarded')
+		ON CONFLICT (id) DO UPDATE SET
+			award_id = EXCLUDED.award_id,
+			title = EXCLUDED.title,
+			description = EXCLUDED.description,
+			value_text = EXCLUDED.value_text,
+			status = EXCLUDED.status
+	`, devPastSponsorPrize, devPastSponsorAward)
+	for _, slug := range []string{"archive-node-garden", "archive-policy-lens"} {
+		mustExec(ctx, tx, "seed past sponsor award opt in", `
+			INSERT INTO project_award_opt_ins (project_id, award_id, opted_in_at)
+			VALUES ($1::uuid, $2::uuid, '2024-05-02 11:30:00-05'::timestamptz)
+			ON CONFLICT (project_id, award_id) DO UPDATE SET opted_in_at = EXCLUDED.opted_in_at
+		`, projectIDs[slug], devPastSponsorAward)
+	}
+	mustExec(ctx, tx, "seed past sponsor award winner", `
+		INSERT INTO project_awards (project_id, award_id, awarded_at)
+		VALUES ($1::uuid, $2::uuid, '2024-05-02 17:00:00-05'::timestamptz)
+		ON CONFLICT (project_id, award_id) DO UPDATE SET awarded_at = EXCLUDED.awarded_at
+	`, projectIDs["archive-node-garden"], devPastSponsorAward)
 }
 
 func seedHotels(ctx context.Context, tx pgx.Tx, confID string) {

@@ -361,6 +361,88 @@ func ListOrganizationMembers(ctx *config.AppContext, organizationID string) ([]*
 	return out, rows.Err()
 }
 
+func RemoveOrganizationMembership(ctx *config.AppContext, organizationID, actorPersonID, targetPersonID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	actorPersonID = strings.TrimSpace(actorPersonID)
+	targetPersonID = strings.TrimSpace(targetPersonID)
+	if organizationID == "" || actorPersonID == "" || targetPersonID == "" {
+		return fmt.Errorf("organization, actor, and member are required")
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin organization membership removal: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+
+	rows, err := tx.Query(dbctx, `
+		SELECT person_id::text, role
+		FROM organization_memberships
+		WHERE organization_id = $1::uuid AND status = 'active'
+		FOR UPDATE
+	`, organizationID)
+	if err != nil {
+		return fmt.Errorf("lock organization memberships: %w", err)
+	}
+	roles := make(map[string]string)
+	owners := 0
+	for rows.Next() {
+		var personID, role string
+		if err := rows.Scan(&personID, &role); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan organization membership lock: %w", err)
+		}
+		roles[personID] = role
+		if role == OrganizationRoleOwner {
+			owners++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate organization membership lock: %w", err)
+	}
+	rows.Close()
+
+	actorRole, actorActive := roles[actorPersonID]
+	targetRole, targetActive := roles[targetPersonID]
+	if !actorActive {
+		return fmt.Errorf("you are not an active member of this organization")
+	}
+	if !targetActive {
+		return fmt.Errorf("that person is not an active organization member")
+	}
+	removingSelf := actorPersonID == targetPersonID
+	if !removingSelf {
+		allowed := actorRole == OrganizationRoleOwner ||
+			(actorRole == OrganizationRoleManager && targetRole == OrganizationRoleMember)
+		if !allowed {
+			return fmt.Errorf("your organization role cannot remove that member")
+		}
+	}
+	if targetRole == OrganizationRoleOwner && owners <= 1 {
+		return fmt.Errorf("the organization's last active owner cannot be removed")
+	}
+	commandTag, err := tx.Exec(dbctx, `
+		UPDATE organization_memberships
+		SET status = 'removed', updated_at = now()
+		WHERE organization_id = $1::uuid AND person_id = $2::uuid
+		  AND status = 'active'
+	`, organizationID, targetPersonID)
+	if err != nil {
+		return fmt.Errorf("remove organization membership: %w", err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		return fmt.Errorf("organization membership was not removed")
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit organization membership removal: %w", err)
+	}
+	return nil
+}
+
 func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) ([]*types.SponsorDashboardEvent, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
@@ -372,9 +454,10 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			conferences.id::text,
 			coalesce(entitlements.ticket_allocation, 0),
 			coalesce(entitlements.sponsor_award_limit, 0),
+			coalesce(entitlements.all_hackathon_submissions_access, false),
+			coalesce(entitlements.automatic_submission_contact_access, false),
 			coalesce(entitlements.participant_contact_access, false),
 			coalesce(entitlements.participant_contact_export, false),
-			coalesce(entitlements.can_manage_award_judges, false),
 			coalesce(entitlements.can_edit_organization, false),
 			coalesce(entitlements.created_at, sponsorships.created_at),
 			coalesce(entitlements.updated_at, sponsorships.updated_at),
@@ -434,9 +517,10 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			&conferenceID,
 			&event.Entitlement.TicketAllocation,
 			&event.Entitlement.SponsorAwardLimit,
+			&event.Entitlement.AllHackathonSubmissions,
+			&event.Entitlement.AutomaticSubmissionContactAccess,
 			&event.Entitlement.ParticipantContactAccess,
 			&event.Entitlement.ParticipantContactExport,
-			&event.Entitlement.CanManageAwardJudges,
 			&event.Entitlement.CanEditOrganization,
 			&event.Entitlement.CreatedAt, &event.Entitlement.UpdatedAt,
 			&competitionID, &competitionTitle,
@@ -459,6 +543,192 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 		return nil, fmt.Errorf("iterate sponsor dashboard events: %w", err)
 	}
 	return out, nil
+}
+
+func ListSponsorPrizeEntries(ctx *config.AppContext, organizationID string, includeContacts bool) ([]*types.SponsorPrizeEntry, error) {
+	return listSponsorPrizeEntries(ctx, organizationID, includeContacts, false)
+}
+
+func ListSponsorPrizeEntriesForExport(ctx *config.AppContext, organizationID string) ([]*types.SponsorPrizeEntry, error) {
+	return listSponsorPrizeEntries(ctx, organizationID, true, true)
+}
+
+func listSponsorPrizeEntries(ctx *config.AppContext, organizationID string, includeContacts, requireExportAccess bool) ([]*types.SponsorPrizeEntry, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	if organizationID == "" {
+		return nil, fmt.Errorf("organization is required")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		WITH sponsor_access AS (
+			SELECT competitions.id AS competition_id,
+				competitions.title AS competition_title,
+				conferences.id AS conference_id, conferences.tag AS conference_tag,
+				coalesce(nullif(conferences.description, ''), conferences.tag) AS conference_title,
+				conferences.start_date AS conference_start,
+				bool_or(entitlements.all_hackathon_submissions_access
+					AND lower(sponsorships.status) IN ('paid', 'committed')) AS all_submissions,
+				bool_or(entitlements.automatic_submission_contact_access
+					AND lower(sponsorships.status) IN ('paid', 'committed')) AS automatic_contact,
+				bool_or(entitlements.participant_contact_access
+					AND lower(sponsorships.status) IN ('paid', 'committed')) AS contact_access,
+				bool_or(entitlements.participant_contact_export
+					AND lower(sponsorships.status) IN ('paid', 'committed')) AS export_access
+			FROM sponsorships
+			JOIN sponsorships_conferences links ON links.sponsorship_id = sponsorships.id
+			JOIN sponsorship_entitlements entitlements
+			  ON entitlements.sponsorship_id = sponsorships.id
+			 AND entitlements.conference_id = links.conference_id
+			JOIN conferences ON conferences.id = links.conference_id
+			JOIN competitions ON competitions.conference_id = conferences.id
+			WHERE sponsorships.organization_id = $1::uuid
+			  AND sponsorships.archived_at IS NULL
+			GROUP BY competitions.id, competitions.title,
+				conferences.id, conferences.tag, conferences.description, conferences.start_date
+		), visible_entries AS (
+			SELECT awards.id::text AS award_id, awards.title AS award_title,
+				awards.status AS award_status, access.competition_id,
+				access.competition_title, access.conference_id,
+				access.conference_tag, access.conference_title, access.conference_start,
+				projects.id AS project_id, projects.title AS project_title,
+				projects.short_description, projects.image_url, projects.status AS project_status,
+				projects.project_number, projects.github_url, projects.demo_url,
+				opt_ins.opted_in_at AS entered_at,
+				EXISTS (
+					SELECT 1 FROM project_awards winners
+					WHERE winners.project_id = projects.id AND winners.award_id = awards.id
+				) AS winner,
+				true AS sponsored_prize, access.automatic_contact, access.contact_access
+			FROM sponsor_access access
+			JOIN awards ON awards.competition_id = access.competition_id
+			 AND awards.sponsored_by_org_id = $1::uuid
+			 AND awards.archived_at IS NULL
+			JOIN project_award_opt_ins opt_ins ON opt_ins.award_id = awards.id
+			JOIN projects ON projects.id = opt_ins.project_id
+			WHERE projects.status <> 'hidden'
+			  AND (NOT $3::boolean OR (
+				access.export_access
+				AND projects.status IN ('submitted', 'advanced')
+			  ))
+			UNION ALL
+			SELECT '' AS award_id, '' AS award_title, '' AS award_status,
+				access.competition_id, access.competition_title,
+				access.conference_id, access.conference_tag, access.conference_title,
+				access.conference_start,
+				projects.id, projects.title, projects.short_description,
+				projects.image_url, projects.status, projects.project_number,
+				projects.github_url, projects.demo_url,
+				coalesce(projects.submitted_at, projects.updated_at),
+				false AS winner, false AS sponsored_prize,
+				access.automatic_contact, access.contact_access
+			FROM sponsor_access access
+			JOIN projects ON projects.competition_id = access.competition_id
+			WHERE access.all_submissions
+			  AND (NOT $3::boolean OR access.export_access)
+			  AND projects.status IN ('submitted', 'advanced')
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM awards
+				JOIN project_award_opt_ins opt_ins ON opt_ins.award_id = awards.id
+				WHERE awards.competition_id = access.competition_id
+				  AND awards.sponsored_by_org_id = $1::uuid
+				  AND awards.archived_at IS NULL
+				  AND opt_ins.project_id = projects.id
+			  )
+		)
+		SELECT entries.award_id, entries.award_title, entries.award_status,
+			entries.competition_id::text, entries.competition_title,
+			entries.conference_id::text, entries.conference_tag, entries.conference_title,
+			entries.project_id::text, entries.project_title, entries.short_description,
+			entries.image_url, entries.project_status, entries.project_number,
+			entries.github_url, entries.demo_url, entries.entered_at,
+			entries.winner, entries.sponsored_prize, entries.automatic_contact,
+			members.person_id::text, people.name, people.norm_photo_path,
+			people.avail_to_hire,
+			members.role,
+			CASE WHEN $2::boolean AND (
+				(entries.automatic_contact AND entries.project_status IN ('submitted', 'advanced'))
+				OR (entries.contact_access
+					AND (coalesce(consent.all_hackathon_sponsors, false)
+						OR (entries.sponsored_prize AND coalesce(consent.entered_award_sponsors, false))))
+				)
+				THEN coalesce(contact.email, '') ELSE '' END,
+			coalesce(consent.all_hackathon_sponsors, false),
+			coalesce(consent.entered_award_sponsors, false)
+		FROM visible_entries entries
+		JOIN project_members members ON members.project_id = entries.project_id
+		JOIN people ON people.id = members.person_id
+		LEFT JOIN hackathon_sponsor_contact_consents consent
+		  ON consent.competition_id = entries.competition_id
+		 AND consent.person_id = members.person_id
+		LEFT JOIN LATERAL (
+			SELECT person_emails.email::text AS email
+			FROM person_emails
+			WHERE person_emails.person_id = members.person_id
+			ORDER BY person_emails.is_primary DESC,
+				person_emails.verified_at DESC NULLS LAST,
+				person_emails.created_at, person_emails.id
+			LIMIT 1
+		) contact ON true
+		ORDER BY entries.conference_start DESC NULLS LAST, entries.award_title,
+			entries.project_number NULLS LAST, entries.project_title,
+			CASE members.role WHEN 'owner' THEN 0 ELSE 1 END,
+			members.created_at, members.person_id
+	`, organizationID, includeContacts, requireExportAccess)
+	if err != nil {
+		return nil, fmt.Errorf("list sponsor prize entries: %w", err)
+	}
+	defer rows.Close()
+
+	entries := make([]*types.SponsorPrizeEntry, 0)
+	byKey := make(map[string]*types.SponsorPrizeEntry)
+	for rows.Next() {
+		entry := &types.SponsorPrizeEntry{}
+		participant := &types.SponsorPrizeParticipant{}
+		var projectNumber pgtype.Int4
+		var allSponsors, enteredAwardSponsors bool
+		if err := rows.Scan(
+			&entry.AwardID, &entry.AwardTitle, &entry.AwardStatus,
+			&entry.CompetitionID, &entry.CompetitionTitle,
+			&entry.ConferenceID, &entry.ConferenceTag, &entry.ConferenceTitle,
+			&entry.ProjectID, &entry.ProjectTitle, &entry.ProjectShortDescription,
+			&entry.ProjectImageURL, &entry.ProjectStatus, &projectNumber,
+			&entry.GitHubURL, &entry.DemoURL, &entry.OptedInAt, &entry.Winner,
+			&entry.SponsoredPrize, &entry.AutomaticContact,
+			&participant.PersonID, &participant.Name, &participant.Photo,
+			&participant.AvailableToHire,
+			&participant.Role, &participant.Email, &allSponsors, &enteredAwardSponsors,
+		); err != nil {
+			return nil, fmt.Errorf("scan sponsor prize entry: %w", err)
+		}
+		if projectNumber.Valid {
+			n := int(projectNumber.Int32)
+			entry.ProjectNumber = &n
+		}
+		if participant.Email != "" {
+			if entry.AutomaticContact && (entry.ProjectStatus == ProjectStatusSubmitted || entry.ProjectStatus == ProjectStatusAdvanced) {
+				participant.ConsentScope = "included_sponsorship"
+			} else if allSponsors {
+				participant.ConsentScope = "all_sponsors"
+			} else if entry.SponsoredPrize && enteredAwardSponsors {
+				participant.ConsentScope = "entered_award"
+			}
+		}
+		key := entry.AwardID + "|" + entry.ProjectID
+		stored := byKey[key]
+		if stored == nil {
+			stored = entry
+			byKey[key] = stored
+			entries = append(entries, stored)
+		}
+		stored.Participants = append(stored.Participants, participant)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sponsor prize entries: %w", err)
+	}
+	return entries, nil
 }
 
 type SponsorAwardProposalInput struct {
