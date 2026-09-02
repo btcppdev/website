@@ -285,6 +285,8 @@
     "/hackathons/{competition_id}/projects/{project_id}": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}, {"$ref": "#/components/parameters/ProjectID"}], "get": {"operationId": "getHackathonProject", "summary": "Get a public project and teammates without email", "responses": {"200": {"description": "Submitted project", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HackathonProjectResponse"}, "examples": {"default": {"$ref": "#/components/examples/getHackathonProject"}}}}}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/hackathons/{competition_id}/awards": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonAwards", "summary": "List non-draft awards and prizes", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/hackathons/{competition_id}/results": {"parameters": [{"$ref": "#/components/parameters/CompetitionID"}], "get": {"operationId": "listHackathonResults", "summary": "List finalized award results", "responses": {"200": {"description": "Finalized results", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HackathonResultListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listHackathonResults"}}}}}, "404": {"$ref": "#/components/responses/NotFound"}}}},
+    "/shop/inventory/variants": {"get": {"operationId": "listAccountingInventoryVariants", "summary": "List the PII-free merchandise inventory snapshot", "description": "Global administrators only. Includes inactive and archived variants needed for historical accounting.", "security": [{"oauth2": ["shop:accounting:read"]}, {"personalAccessToken": []}], "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}}, {"name": "cursor", "in": "query", "schema": {"type": "string"}}], "responses": {"200": {"description": "PII-free inventory variants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountingInventoryVariantListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listAccountingInventoryVariants"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
+    "/shop/inventory/sales": {"get": {"operationId": "listAccountingInventorySales", "summary": "List PII-free inventory-affecting sales", "description": "Global administrators only. Combines merchandise order lines with canonical ticket registrations and reflects refunds without exposing customer or payment details.", "security": [{"oauth2": ["shop:accounting:read"]}, {"personalAccessToken": []}], "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}}, {"name": "cursor", "in": "query", "schema": {"type": "string"}}], "responses": {"200": {"description": "PII-free sales records", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountingInventorySaleListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listAccountingInventorySales"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
     "/me/identity": {"get": {"operationId": "getMyIdentity", "summary": "Get the token owner's account ID, display name, and current roles", "security": [{"oauth2": ["identity:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"description": "Token owner identity", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountIdentityResponse"}, "examples": {"default": {"$ref": "#/components/examples/getMyIdentity"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
     "/me": {
       "get": {"operationId": "getMe", "summary": "Get the token owner's private profile", "security": [{"oauth2": ["profile:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"description": "Private profile", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountProfileResponse"}, "examples": {"default": {"$ref": "#/components/examples/getMe"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}},
@@ -329,6 +331,7 @@
               "talks:write": "Edit talks the resource owner speaks at",
               "schedule:write": "Manage schedules when live admin roles permit",
               "recordings:write": "Manage recording metadata when live admin roles permit",
+              "shop:accounting:read": "Read PII-free shop inventory and sales when the resource owner is a global administrator",
               "offline_access": "Receive a rotating refresh token"
             }
           }
@@ -531,6 +534,20 @@
         "value": {
           "data": [{"id": "00000000-0000-4000-8000-000000000301", "conference_tag": "dev26", "title": "Package Relay in Practice", "description": "Practical relay policy for production Bitcoin software.", "kind": "Talk", "status": "Scheduled", "desired_duration_minutes": 30, "speaker_person_ids": ["00000000-0000-4000-8000-000000000201"]}],
           "meta": {"request_id": "req_example"}
+        }
+      },
+      "listAccountingInventoryVariants": {
+        "summary": "PII-free merchandise inventory snapshot",
+        "value": {
+          "data": [{"source_id": "00000000-0000-4000-8000-000000000401", "sku": "TEE-L", "product_name": "Bitcoin++ T-shirt", "variant_label": "Large", "on_hand": 24, "updated_at": "2026-09-01T20:00:00Z"}],
+          "meta": {"request_id": "req_example", "limit": 50}
+        }
+      },
+      "listAccountingInventorySales": {
+        "summary": "PII-free inventory-affecting sales",
+        "value": {
+          "data": [{"source_id": "shop_order_item:00000000-0000-4000-8000-000000000501", "sellable_source_id": "00000000-0000-4000-8000-000000000401", "kind": "merch", "product_name": "Bitcoin++ T-shirt", "variant_label": "Large", "sku": "TEE-L", "quantity": 2, "refunded_quantity": 1, "revenue_cents": 3500, "currency": "USD", "sold_at": "2026-08-01T12:00:00Z", "updated_at": "2026-08-15T09:00:00Z"}],
+          "meta": {"request_id": "req_example", "limit": 50}
         }
       },
       "updateConferenceTalkSchedule": {
@@ -1191,6 +1208,10 @@
       "AccountIdentityResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/AccountIdentity"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "AccountProfileResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/AccountProfile"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "AccountTalkListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/AccountTalk"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "AccountingInventoryVariant": {"type": "object", "additionalProperties": false, "required": ["source_id", "sku", "product_name", "variant_label", "on_hand", "updated_at"], "properties": {"source_id": {"type": "string", "format": "uuid"}, "sku": {"type": "string"}, "product_name": {"type": "string"}, "variant_label": {"type": "string"}, "on_hand": {"type": "integer"}, "updated_at": {"type": "string", "format": "date-time"}}},
+      "AccountingInventorySale": {"type": "object", "additionalProperties": false, "required": ["source_id", "sellable_source_id", "kind", "product_name", "variant_label", "sku", "quantity", "refunded_quantity", "revenue_cents", "currency", "sold_at", "updated_at"], "properties": {"source_id": {"type": "string"}, "sellable_source_id": {"type": "string"}, "kind": {"type": "string", "enum": ["merch", "ticket"]}, "product_name": {"type": "string"}, "variant_label": {"type": "string"}, "sku": {"type": "string"}, "quantity": {"type": "integer", "minimum": 1}, "refunded_quantity": {"type": "integer", "minimum": 0}, "revenue_cents": {"type": "integer", "minimum": 0}, "currency": {"type": "string"}, "sold_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}}},
+      "AccountingInventoryVariantListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/AccountingInventoryVariant"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "AccountingInventorySaleListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/AccountingInventorySale"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "Error": {
         "type": "object",
         "required": [

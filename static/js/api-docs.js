@@ -14,6 +14,8 @@
     "broadcast-plans": ["GET", "/recording-broadcast-plans?updated_after=2026-08-20T18%3A00%3A00Z", true, null, "listRecordingBroadcastPlans"],
     "recording-update": ["PUT", "/conferences/dev26/talks/TALK_ID/recording", true, '{"youtube_url":"https://youtube.com/watch?v=…"}', "putConferenceTalkRecording"],
     "broadcast-update": ["PUT", "/recordings/RECORDING_ID/broadcast", true, '{"state":"live","hls_url":"https://stream.btcpp.dev/live/stream-1/index.m3u8"}', "updateRecordingBroadcast"],
+    "inventory-variants": ["GET", "/shop/inventory/variants?limit=100", true, null, "listAccountingInventoryVariants"],
+    "inventory-sales": ["GET", "/shop/inventory/sales?limit=100", true, null, "listAccountingInventorySales"],
     projects: ["GET", "/hackathons/HACKATHON_ID/projects", false, null, "listHackathonProjects"],
     project: ["GET", "/hackathons/HACKATHON_ID/projects/PROJECT_ID", false, null, "getHackathonProject"],
     results: ["GET", "/hackathons/HACKATHON_ID/results", false, null, "listHackathonResults"],
