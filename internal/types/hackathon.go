@@ -189,6 +189,7 @@ type Scorecard struct {
 type Award struct {
 	ID                  string
 	CompetitionID       string
+	PublicSlug          string
 	SponsoredByOrgID    string
 	AwardType           string
 	Title               string

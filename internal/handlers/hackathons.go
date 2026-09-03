@@ -40,6 +40,7 @@ type HackathonPage struct {
 	Conf                        *types.Conf
 	Confs                       []*types.Conf
 	OrgsByID                    map[string]*types.Org
+	Sponsorships                []*types.Sponsorship
 	Projects                    []*types.HackathonProject
 	TableProjects               []*types.HackathonProject
 	ProjectMembersByProject     map[string][]*types.ProjectMember
@@ -87,6 +88,7 @@ type HackathonPage struct {
 	FlashError                  string
 	Year                        uint
 	SocialCardURL               string
+	FocusedAward                *types.Award
 }
 
 type HackathonJudgingResults struct {
@@ -1005,6 +1007,49 @@ func (p *HackathonPage) AwardSponsorLabel(award *types.Award) string {
 	return "Sponsor TBD"
 }
 
+func (p *HackathonPage) AwardSlug(award *types.Award) string {
+	if award == nil {
+		return "award"
+	}
+	if slug := strings.TrimSpace(award.PublicSlug); slug != "" {
+		return slug
+	}
+	if slug := slugifyPublicID(award.Title); slug != "" {
+		return slug
+	}
+	return "award"
+}
+
+func (p *HackathonPage) AwardURL(award *types.Award) string {
+	if p == nil || p.Conf == nil || strings.TrimSpace(p.Conf.Tag) == "" || award == nil {
+		return ""
+	}
+	return "/" + url.PathEscape(p.Conf.Tag) + "/hackathon/awards/" + url.PathEscape(p.AwardSlug(award))
+}
+
+func (p *HackathonPage) AwardBySlug(slug string) *types.Award {
+	slug = strings.TrimSpace(slug)
+	if p == nil || slug == "" {
+		return nil
+	}
+	for _, award := range p.Awards {
+		if award != nil && p.AwardSlug(award) == slug {
+			return award
+		}
+	}
+	return nil
+}
+
+func (p *HackathonPage) SEOPath() string {
+	if p != nil && p.FocusedAward != nil {
+		return p.AwardURL(p.FocusedAward)
+	}
+	if p != nil && p.Conf != nil {
+		return "/" + url.PathEscape(p.Conf.Tag) + "/hackathon"
+	}
+	return "/hackathon"
+}
+
 func (p *HackathonPage) AwardSponsorURL(award *types.Award) string {
 	if org := p.AwardSponsorOrg(award); org != nil && strings.TrimSpace(org.Website) != "" {
 		return strings.TrimSpace(org.Website)
@@ -1138,14 +1183,82 @@ func (p *HackathonPage) AwardPrizeAmount(award *types.Award) string {
 }
 
 func (p *HackathonPage) AwardTotalPrizeValue(award *types.Award) string {
-	var total int64
-	for _, prize := range p.AwardPrizes(award) {
-		total += prizeValueSats(prize)
-	}
+	total := p.awardTotalPrizeSats(award)
 	if total <= 0 {
 		return ""
 	}
 	return strings.TrimSuffix(compactSatoshiLabel(total), " satoshis")
+}
+
+func (p *HackathonPage) awardTotalPrizeSats(award *types.Award) int64 {
+	var total int64
+	for _, prize := range p.AwardPrizes(award) {
+		total += prizeValueSats(prize)
+	}
+	return total
+}
+
+func (p *HackathonPage) AwardPodiumRank(award *types.Award) int {
+	if p.AwardHasSponsor(award) {
+		return 0
+	}
+	rank := hackathonPlaceAwardRank(award)
+	if rank < 1 || rank > 3 {
+		return 0
+	}
+	return rank
+}
+
+func (p *HackathonPage) AwardPodiumLabel(award *types.Award) string {
+	if rank := p.AwardPodiumRank(award); rank > 0 {
+		return ordinal(rank)
+	}
+	return ""
+}
+
+func (p *HackathonPage) PodiumAwards() []*types.Award {
+	if p == nil {
+		return nil
+	}
+	byRank := make(map[int]*types.Award, 3)
+	for _, award := range p.Awards {
+		rank := p.AwardPodiumRank(award)
+		if rank > 0 && byRank[rank] == nil {
+			byRank[rank] = award
+		}
+	}
+	awards := make([]*types.Award, 0, 3)
+	for rank := 1; rank <= 3; rank++ {
+		if award := byRank[rank]; award != nil {
+			awards = append(awards, award)
+		}
+	}
+	return awards
+}
+
+func (p *HackathonPage) OtherAwardsByValue() []*types.Award {
+	if p == nil {
+		return nil
+	}
+	podium := make(map[string]bool, 3)
+	for _, award := range p.PodiumAwards() {
+		podium[award.ID] = true
+	}
+	awards := make([]*types.Award, 0, len(p.Awards)-len(podium))
+	for _, award := range p.Awards {
+		if award != nil && !podium[award.ID] {
+			awards = append(awards, award)
+		}
+	}
+	sort.SliceStable(awards, func(i, j int) bool {
+		left := p.awardTotalPrizeSats(awards[i])
+		right := p.awardTotalPrizeSats(awards[j])
+		if left != right {
+			return left > right
+		}
+		return strings.ToLower(awards[i].Title) < strings.ToLower(awards[j].Title)
+	})
+	return awards
 }
 
 func (p *HackathonPage) AwardDisplayLabel(award *types.Award) string {
@@ -1787,6 +1900,10 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		http.Error(w, "Unable to load sponsors", http.StatusInternalServerError)
 		return
 	}
+	sponsorships, err := getters.ListSponsorships(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/hackathons/%s sponsorships failed (continuing): %s", competition.ID, err)
+	}
 	placeRows, _, err := loadConfHackathonPlaceRows(ctx, competition.ID, competition.ResultsFinalizedAt != nil, orgMap)
 	if err != nil {
 		ctx.Err.Printf("/hackathons/%s place rows: %s", competition.ID, err)
@@ -1828,6 +1945,7 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Competition:             competition,
 		Conf:                    conf,
 		OrgsByID:                orgMap,
+		Sponsorships:            sponsorships,
 		Projects:                projects,
 		TableProjects:           tableProjects,
 		ProjectMembersByProject: projectMembers,
@@ -1848,7 +1966,17 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		Year:                    helpers.CurrentYear(),
 	}
 	configureHackathonNavigation(ctx, page)
-	page.SocialCardURL = siteSocialCardPath("hackathon", conf.Tag, hackathonSocialCard(ctx, page))
+	if awardSlug := strings.TrimSpace(mux.Vars(r)["awardSlug"]); awardSlug != "" {
+		page.FocusedAward = page.AwardBySlug(awardSlug)
+		if page.FocusedAward == nil {
+			http.NotFound(w, r)
+			return
+		}
+		card := awardSocialCard(ctx, page, page.FocusedAward)
+		page.SocialCardURL = siteSocialCardPath("award", conf.Tag+"--"+awardSlug, card)
+	} else {
+		page.SocialCardURL = siteSocialCardPath("hackathon", conf.Tag, hackathonSocialCard(ctx, page))
+	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "hackathon.tmpl", page); err != nil {
 		ctx.Err.Printf("/hackathons/%s template: %s", competition.ID, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)

@@ -14,6 +14,7 @@ type ConfDetailsInput struct {
 	Description                     string
 	EditionType                     string
 	OGFlavor                        string
+	AccentColor                     string
 	Emoji                           string
 	Tagline                         string
 	DateDesc                        string
@@ -179,7 +180,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			hackathon_headline, hackathon_judges_note, hackathon_proof_label,
 			map_embed_url,
 			map_latitude, map_longitude, map_x_percent, map_y_percent, map_label, map_label_side,
-			youtube_playlist_id, youtube_playlist_title
+			youtube_playlist_id, youtube_playlist_title, accent_color
 		FROM conferences
 		`+whereSQL+`
 		ORDER BY start_date NULLS LAST, tag
@@ -253,6 +254,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.MapLabelSide,
 			&conf.YouTubePlaylistID,
 			&conf.YouTubePlaylistTitle,
+			&conf.AccentColor,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)
@@ -481,7 +483,8 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 			speaker_dinner_start = $44,
 			speaker_dinner_location = $45,
 			speaker_dinner_notes = $46,
-			conference_email_campaigns_enabled = $47
+			conference_email_campaigns_enabled = $47,
+			accent_color = $48
 		WHERE id = $1
 	`, confRef, in.Description, in.OGFlavor, in.Emoji, in.Tagline, in.DateDesc,
 		in.StartDate, in.EndDate, in.Timezone, in.Location, in.Venue,
@@ -496,7 +499,7 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 		in.PickupAddressCity, in.PickupAddressRegion, in.PickupAddressPostalCode,
 		in.PickupAddressCountry, in.SpeakerDinnerStart,
 		strings.TrimSpace(in.SpeakerDinnerLocation), strings.TrimSpace(in.SpeakerDinnerNotes),
-		in.ConferenceEmailCampaignsEnabled)
+		in.ConferenceEmailCampaignsEnabled, in.AccentColor)
 	if err != nil {
 		return fmt.Errorf("update conference %s details: %w", confRef, err)
 	}

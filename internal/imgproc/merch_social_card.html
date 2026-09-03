@@ -4,79 +4,50 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=1200, initial-scale=1">
   <style>
-    /*
-      Merchandise link-preview template.
-
-      Keep the canvas at 1200 × 630 for X and Open Graph large-image cards.
-      Everything else in this file can be edited like a normal web page.
-    */
-    :root {
-      --card-background: #f6f3ee;
-      --product-max-width: 1040px;
-      --product-max-height: 520px;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      width: 100%;
-    }
-
-    .social-card {
-      align-items: center;
-      background: var(--card-background);
-      display: flex;
-      height: 630px;
-      justify-content: center;
-      overflow: hidden;
-      position: relative;
-      width: 1200px;
-    }
-
-    .social-card__product {
-      display: block;
-      height: var(--product-max-height);
-      object-fit: contain;
-      width: var(--product-max-width);
-    }
-
-    .social-card__shop-label {
-      color: #0a0a0a;
-      font: 800 32px/1 Arial, Helvetica, sans-serif;
-      letter-spacing: 0.08em;
-      margin: 0;
-      position: absolute;
-      right: 58px;
-      text-transform: lowercase;
-      top: 50px;
-    }
-
-    .social-card__logo {
-      bottom: 48px;
-      display: block;
-      height: auto;
-      left: 56px;
-      position: absolute;
-      width: 260px;
-    }
+    @font-face { font-family: "Ubuntu Brand"; src: url("{{ .BrandFontURL }}") format("truetype"); font-style: italic; font-weight: 700; }
+    * { box-sizing: border-box; }
+    html, body { width: 1200px; height: 630px; margin: 0; overflow: hidden; }
+    body { background: #f6f3ee; font-family: Arial, Helvetica, sans-serif; }
+    .social-card { position: relative; width: 1200px; height: 630px; overflow: hidden; border-top: 14px solid #f9af5e; background: #f6f3ee; color: #0a0a0a; }
+    .social-card::before { content: ""; position: absolute; inset: 0; opacity: .07; background-image: linear-gradient(#0a0a0a 1px, transparent 1px), linear-gradient(90deg, #0a0a0a 1px, transparent 1px); background-size: 42px 42px; }
+    .social-card__label { position: absolute; top: 39px; left: 53px; z-index: 3; padding: 9px 12px; background: #f9af5e; font-size: 17px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+    .social-card__note { position: absolute; top: 102px; left: 53px; z-index: 3; width: 270px; margin: 0; color: #403b35; font-family: Georgia, "Times New Roman", serif; font-size: 31px; font-weight: 700; line-height: 1.08; }
+    .social-card__note em { font-style: italic; }
+    .social-card__product-stage { position: absolute; top: 4px; right: -5px; z-index: 2; width: 1000px; height: 472px; overflow: hidden; border: 7px solid #fff; background: #fff; box-shadow: 0 26px 58px rgba(0,0,0,.24); transform: rotate(1.5deg); }
+    .social-card__product-stage::after { content: ""; position: absolute; right: 18px; bottom: 18px; width: 78px; height: 12px; background: #f9af5e; }
+    .social-card__product { position: absolute; inset: 0; display: block; width: 100%; height: 100%; padding: 0; object-fit: contain; transform: scale(1.2); }
+    .social-card__price-star { position: absolute; top: 288px; left: calc(80% - 77px); z-index: 3; display: grid; width: 154px; height: 154px; place-items: center; padding: 31px; background: #f9af5e; clip-path: polygon(50% 0%, 60% 28%, 85% 15%, 72% 40%, 100% 50%, 72% 60%, 85% 85%, 60% 72%, 50% 100%, 40% 72%, 15% 85%, 28% 60%, 0% 50%, 28% 40%, 15% 15%, 40% 28%); color: #0a0a0a; font-size: 31px; font-weight: 900; letter-spacing: -.055em; line-height: 1; text-align: center; transform: rotate(-7deg); }
+    .social-card__title { position: absolute; right: 54px; bottom: 78px; left: 54px; z-index: 3; max-height: 154px; overflow: hidden; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 68px; font-style: normal; font-weight: 700; letter-spacing: -.045em; line-height: .94; }
+    .social-card__footer { position: absolute; right: 58px; bottom: 27px; left: 58px; z-index: 4; display: flex; align-items: baseline; justify-content: space-between; }
+    .brand-lockup { display: flex; align-items: baseline; gap: 15px; }
+    .wordmark { display: block; font-family: "Ubuntu Brand", sans-serif; font-size: 34px; font-style: italic; font-weight: 700; letter-spacing: -.035em; line-height: 1; white-space: nowrap; }
+    .wordmark__pluses { display: inline-flex; align-items: baseline; letter-spacing: 0; }
+    .wordmark__pluses span + span { margin-left: -.16em; }
+    .brand-tagline { padding-left: 15px; border-left: 2px solid currentColor; font-size: 15px; font-weight: 800; letter-spacing: -.01em; line-height: 1; opacity: .78; white-space: nowrap; }
+    .site { font-size: 20px; font-weight: 900; letter-spacing: .02em; }
+    .card-sparkles { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+    .card-sparkles span { position: absolute; display: block; filter: drop-shadow(2px 2px 0 rgba(10,10,10,.2)); line-height: 1; }
+    .card-sparkles span:nth-child(1) { top: 22px; left: 24px; font-size: 25px; transform: rotate(-12deg); }
+    .card-sparkles span:nth-child(2) { top: 104px; left: 24px; font-size: 15px; transform: rotate(8deg); }
+    .card-sparkles span:nth-child(3) { top: 25px; right: 24px; font-size: 20px; transform: rotate(11deg); }
+    .card-sparkles span:nth-child(4) { top: 310px; right: 22px; font-size: 25px; transform: rotate(-9deg); }
   </style>
 </head>
 <body>
   <main class="social-card">
-    <img
-      id="product-image"
-      class="social-card__product"
-      src="{{ .ProductImageURL }}"
-      alt=""
-    >
-    <p class="social-card__shop-label">merch shop</p>
-    <img class="social-card__logo" src="{{ .LogoImageURL }}" alt="bitcoin++">
+    <div class="social-card__label">merch shop</div>
+    <p class="social-card__note">Wear the <em>frontier.</em></p>
+    <div class="social-card__product-stage"><img id="product-image" class="social-card__product" src="{{ .ProductImageURL }}" alt="{{ .ProductName }}"></div>
+    {{ if .ProductPrice }}<div class="social-card__price-star" aria-label="Price {{ .ProductPrice }}">{{ .ProductPrice }}</div>{{ end }}
+    <h1 class="social-card__title">{{ .ProductName }}</h1>
+    <div class="card-sparkles" aria-hidden="true"><span>✨</span><span>✨</span><span>✨</span><span>✨</span></div>
+    <footer class="social-card__footer">
+      <div class="brand-lockup">
+        <div class="wordmark" aria-label="bitcoin plus plus"><span>bitcoin</span><span class="wordmark__pluses"><span>+</span><span>+</span></span></div>
+        <div class="brand-tagline">Developing the frontier of bitcoin.</div>
+      </div>
+      <div class="site">btcpp.dev</div>
+    </footer>
   </main>
 </body>
 </html>

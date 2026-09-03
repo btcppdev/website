@@ -71,15 +71,24 @@ cached by a content fingerprint. In development, edit
 `internal/imgproc/site_social_card.html` and preview the source HTML at:
 
 - `/dev/site-social-card?kind=home`
+- `/dev/site-social-card?kind=events`
 - `/dev/site-social-card?kind=conference&slug=dev26`
 - `/dev/site-social-card?kind=hackathon&slug=dev26`
+- `/dev/site-social-card?kind=award&slug=dev26--best-signet-infrastructure`
 - `/dev/site-social-card?kind=whois`
 - `/dev/site-social-card?kind=person&slug=example-3`
 - `/dev/site-social-card?kind=shop`
 
-The corresponding crawler-facing JPEGs live under `/social-cards/`. Only
-bitcoin++, configured object-storage, and development-local image hosts are
-loaded by the renderer.
+The corresponding crawler-facing JPEGs live under `/social-cards/`. With
+DigitalOcean Spaces configured, the first request renders and uploads a
+content-addressed object under `social-cards/site/`; subsequent requests are
+redirected to that immutable public object. Without Spaces, the process keeps a
+small bounded in-memory cache. Only bitcoin++, configured object-storage, and
+development-local image hosts are loaded by the renderer.
+
+Conference and hackathon cards use the accent color configured on the event.
+New events default to the bitcoin++ orange (`#f9af5e`). Global administrators
+can change the color from the event-details page without deploying new code.
 
 
 ## To build

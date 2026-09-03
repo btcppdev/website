@@ -156,6 +156,8 @@ type HomeTimelineYear struct {
 
 type HomeMapMarker struct {
 	Conf      *types.Conf
+	X         float64
+	Y         float64
 	Label     string
 	Style     string
 	LabelSide string

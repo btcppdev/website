@@ -1144,7 +1144,7 @@ func listHackathonParticipantProjectsForPersonPostgres(ctx *config.AppContext, p
 			projects.created_at, projects.updated_at,
 			competition.title,
 			conf.id::text, conf.tag, conf.active, conf.publication_status,
-			conf.description, conf.edition_type, conf.og_flavor, conf.emoji,
+			conf.description, conf.edition_type, conf.og_flavor, conf.accent_color, conf.emoji,
 			conf.tagline, conf.date_desc, conf.start_date, conf.end_date,
 			conf.timezone, conf.location,
 			membership.role,
@@ -1183,7 +1183,7 @@ func listHackathonParticipantProjectsForPersonPostgres(ctx *config.AppContext, p
 			&project.CreatedAt, &project.UpdatedAt,
 			&competitionTitle,
 			&conf.Ref, &conf.Tag, &conf.Active, &conf.PublicationStatus,
-			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.Emoji,
+			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.AccentColor, &conf.Emoji,
 			&conf.Tagline, &conf.DateDesc, &confStart, &confEnd,
 			&conf.Timezone, &conf.Location,
 			&memberRole, &teamSize,
@@ -3015,21 +3015,52 @@ func createAwardPostgres(ctx *config.AppContext, in AwardInput) (string, error) 
 	if in.Title == "" {
 		return "", fmt.Errorf("award title is required")
 	}
+	baseSlug := normalizeAwardPublicSlug(in.Title)
 	var id string
-	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+	for suffix := 1; suffix <= 100; suffix++ {
+		publicSlug := baseSlug
+		if suffix > 1 {
+			publicSlug = fmt.Sprintf("%s-%d", baseSlug, suffix)
+		}
+		err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO awards (
-			competition_id, sponsored_by_org_id, award_type, title, description,
+			competition_id, public_slug, sponsored_by_org_id, award_type, title, description,
 			judging_instructions,
 			award_rank, max_awardees, opt_in_required, finalists_only, status
 		)
-		VALUES ($1, NULLIF($2, '')::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		ON CONFLICT (competition_id, public_slug) DO NOTHING
 		RETURNING id::text
-	`, in.CompetitionID, in.SponsoredByOrgID, in.AwardType, in.Title, in.Description,
-		in.JudgingInstructions, in.AwardRank, in.MaxAwardees, in.OptInRequired, in.FinalistsOnly, in.Status).Scan(&id)
-	if err != nil {
-		return "", fmt.Errorf("create award %q: %w", in.Title, err)
+	`, in.CompetitionID, publicSlug, in.SponsoredByOrgID, in.AwardType, in.Title, in.Description,
+			in.JudgingInstructions, in.AwardRank, in.MaxAwardees, in.OptInRequired, in.FinalistsOnly, in.Status).Scan(&id)
+		if err == nil {
+			return id, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return "", fmt.Errorf("create award %q: %w", in.Title, err)
+		}
 	}
-	return id, nil
+	return "", fmt.Errorf("create award %q: could not allocate a unique public slug", in.Title)
+}
+
+func normalizeAwardPublicSlug(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var out strings.Builder
+	lastDash := false
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			out.WriteRune(r)
+			lastDash = false
+		} else if out.Len() > 0 && !lastDash {
+			out.WriteByte('-')
+			lastDash = true
+		}
+	}
+	slug := strings.Trim(out.String(), "-")
+	if slug == "" {
+		return "award"
+	}
+	return slug
 }
 
 func updateAwardPostgres(ctx *config.AppContext, awardID string, in AwardInput) error {
@@ -3224,7 +3255,7 @@ func listAwardsForCompetitionByArchiveStatePostgres(ctx *config.AppContext, comp
 		orderBy = "archived_at DESC, title, id"
 	}
 	query := fmt.Sprintf(`
-				SELECT id::text, competition_id::text, coalesce(sponsored_by_org_id::text, ''),
+				SELECT id::text, competition_id::text, public_slug, coalesce(sponsored_by_org_id::text, ''),
 					award_type, title, description,
 					judging_instructions, award_rank, max_awardees, opt_in_required, finalists_only, status,
 					created_at, updated_at, archived_at
@@ -4081,6 +4112,7 @@ func scanAward(rows pgx.Rows) (*types.Award, error) {
 	if err := rows.Scan(
 		&award.ID,
 		&award.CompetitionID,
+		&award.PublicSlug,
 		&award.SponsoredByOrgID,
 		&award.AwardType,
 		&award.Title,

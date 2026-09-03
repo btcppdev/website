@@ -3,54 +3,429 @@
 <head>
   <meta charset="utf-8">
   <style>
+    @font-face { font-family: "Ubuntu Brand"; src: url("{{ .BrandFontURL }}") format("truetype"); font-style: italic; font-weight: 700; }
+    @font-face { font-family: "Permanent Marker"; src: url("{{ .ChalkFontURL }}") format("truetype"); font-style: normal; font-weight: 400; }
     * { box-sizing: border-box; }
     html, body { width: 1200px; height: 630px; margin: 0; overflow: hidden; }
-    body { background: #0a0a0a; color: #f6f1e8; font-family: Arial, Helvetica, sans-serif; }
-    .card { position: relative; display: grid; grid-template-columns: 58% 42%; width: 100%; height: 100%; background: radial-gradient(circle at 22% 5%, #29241f 0, #111 37%, #080808 78%); }
-    .card::before { content: ""; position: absolute; inset: 0; opacity: .18; background-image: linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px); background-size: 42px 42px; }
-    .copy { position: relative; z-index: 2; display: flex; flex-direction: column; padding: 58px 44px 42px 60px; }
-    .eyebrow { color: #f9af5e; font-size: 20px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-    h1 { max-width: 660px; margin: 22px 0 16px; font-size: 67px; line-height: .96; letter-spacing: -.045em; }
-    .subtitle { max-width: 650px; margin: 0; color: #d2cdc4; font-size: 26px; line-height: 1.28; }
-    .stats { display: flex; gap: 34px; margin-top: auto; }
-    .stat { min-width: 110px; padding-top: 13px; border-top: 3px solid #f9af5e; }
-    .stat strong { display: block; font-size: 30px; line-height: 1; }
-    .stat span { display: block; margin-top: 7px; color: #a9a49c; font-size: 15px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-    .brand { display: flex; align-items: center; gap: 16px; margin-top: 28px; color: #f6f1e8; font-size: 19px; font-weight: 800; }
-    .copy:not(.has-stats) .brand { margin-top: auto; }
-    .brand img { width: 174px; height: auto; filter: invert(1); }
-    .visual { position: relative; z-index: 1; padding: 28px 28px 28px 0; }
-    .images { display: grid; width: 100%; height: 100%; gap: 12px; transform: rotate(2deg); }
-    .images.count-1 { grid-template-columns: 1fr; }
-    .images.count-2 { grid-template-columns: 1fr 1fr; }
-    .images.count-3, .images.count-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-    .image { position: relative; overflow: hidden; min-width: 0; min-height: 0; border: 3px solid rgba(255,255,255,.9); background: #272727; box-shadow: 0 20px 55px rgba(0,0,0,.45); }
-    .image:first-child:last-child { border-radius: 48% 48% 8px 8px; }
-    .image img { width: 100%; height: 100%; object-fit: cover; }
+    body { background: #f6f3ee; font-family: Arial, Helvetica, sans-serif; }
+
+    .card { position: relative; width: 1200px; height: 630px; overflow: hidden; border-top: 14px solid var(--card-accent); background: #f6f3ee; color: #0a0a0a; }
+    .card::before { content: ""; position: absolute; inset: 0; z-index: 0; opacity: .07; background-image: linear-gradient(#0a0a0a 1px, transparent 1px), linear-gradient(90deg, #0a0a0a 1px, transparent 1px); background-size: 42px 42px; }
+    .card::after { display: none; }
+
+    .visual { position: absolute; inset: 0 0 auto auto; z-index: 1; width: 57%; height: 390px; padding: 24px 28px 34px 24px; }
+    .images { display: grid; width: 100%; height: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; transform: rotate(1.25deg); }
+    .images.count-1 { display: block; }
+    .images.count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .images.count-3, .images.count-4 { grid-template-rows: repeat(2, minmax(0, 1fr)); }
     .images.count-3 .image:first-child { grid-row: span 2; }
-    .fallback { display: grid; place-items: center; height: 100%; color: #f9af5e; font-size: 150px; font-weight: 900; }
-    .kind-hackathon .image { border-color: #f9af5e; }
-    .kind-person .image:first-child { border-radius: 50% 50% 10px 10px; }
+    .image { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 4px solid #f6f1e8; background: #24211d; box-shadow: 0 18px 42px rgba(0,0,0,.3); }
+    .image img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .fallback { display: grid; width: 100%; height: 100%; place-items: center; color: currentColor; font: 900 144px/1 Arial, sans-serif; opacity: .25; }
+
+    .copy { position: absolute; inset: 0; z-index: 3; padding: 48px 58px 82px; }
+    .eyebrow { display: table; max-width: 510px; padding: 8px 11px; background: #0a0a0a; color: #fff; font-size: 17px; font-weight: 900; letter-spacing: .13em; line-height: 1.1; text-transform: uppercase; }
+    .subtitle { max-width: 500px; margin: 23px 0 0; font-size: 25px; line-height: 1.28; opacity: .82; }
+    h1 { position: absolute; right: 52px; bottom: 80px; left: 58px; max-width: 1080px; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 72px; font-style: italic; font-weight: 700; letter-spacing: -.052em; line-height: .92; text-wrap: balance; }
+    .stats { display: flex; max-width: 520px; gap: 25px; margin-top: 38px; }
+    .stat { min-width: 94px; padding-top: 11px; border-top: 3px solid currentColor; }
+    .stat strong { display: block; font-size: 30px; line-height: 1; }
+    .stat span { display: block; margin-top: 6px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+    .card-footer { position: absolute; right: 58px; bottom: 27px; left: 58px; z-index: 5; display: flex; align-items: baseline; justify-content: space-between; }
+    .brand-lockup { display: flex; align-items: baseline; gap: 15px; }
+    .wordmark { display: block; color: currentColor; font-family: "Ubuntu Brand", sans-serif; font-size: 34px; font-style: italic; font-weight: 700; letter-spacing: -.035em; line-height: 1; white-space: nowrap; }
+    .wordmark__pluses { display: inline-flex; align-items: baseline; letter-spacing: 0; }
+    .wordmark__pluses span + span { margin-left: -.16em; }
+    .brand-tagline { padding-left: 15px; border-left: 2px solid currentColor; font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 800; letter-spacing: -.01em; line-height: 1; opacity: .78; white-space: nowrap; }
+    .site { font-size: 20px; font-weight: 900; letter-spacing: .02em; }
+    .card-sparkles { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+    .card-sparkles span { position: absolute; display: block; filter: drop-shadow(2px 2px 0 rgba(10,10,10,.2)); line-height: 1; }
+    .card-sparkles span:nth-child(1) { top: 21px; left: 24px; font-size: 25px; transform: rotate(-12deg); }
+    .card-sparkles span:nth-child(2) { top: 64px; left: 30px; font-size: 14px; transform: rotate(9deg); }
+    .card-sparkles span:nth-child(3) { top: 24px; right: 25px; font-size: 19px; transform: rotate(13deg); }
+    .card-sparkles span:nth-child(4) { top: 300px; right: 22px; font-size: 25px; transform: rotate(-8deg); }
+    .card-sparkles span:nth-child(5) { top: 340px; left: 540px; font-size: 15px; transform: rotate(10deg); }
+    .social-card-sponsor-ticker { position: absolute; top: 0; right: 0; left: 0; z-index: 1; height: 126px; overflow: hidden; pointer-events: none; }
+    .social-card-sponsor-ticker::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(246,243,238,.08), rgba(246,243,238,.48)); }
+    .social-card-sponsor-ticker__track { display: flex; width: max-content; height: 100%; align-items: center; animation: social-card-sponsor-march 32s linear infinite; }
+    .social-card-sponsor-ticker__set { display: flex; flex: 0 0 auto; align-items: center; }
+    .social-card-sponsor-ticker__item { display: flex; width: 240px; height: 106px; flex: 0 0 auto; align-items: center; justify-content: center; padding: 22px 30px; }
+    .social-card-sponsor-ticker__item img { display: block; width: 100%; height: 100%; object-fit: contain; filter: grayscale(100%) contrast(.82); opacity: .27; }
+    .social-card-sponsor-ticker__label { position: absolute; top: 12px; left: 18px; z-index: 2; padding: 6px 8px 5px; background: #0a0a0a; color: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    @keyframes social-card-sponsor-march { from { transform: translateX(0); } to { transform: translateX(-16.6667%); } }
+
+    .kind-home { border-top: 0; color: #0a0a0a; }
+    .home-map-backdrop { position: absolute; top: -36px; right: 0; bottom: -36px; left: 0; z-index: 1; overflow: hidden; background: #ded8ce; }
+    .home-map-backdrop > img { display: block; width: 100%; height: 100%; opacity: .18; object-fit: fill; }
+    .home-map-backdrop::after { content: ""; position: absolute; inset: 0; background: rgba(246,243,238,.12); }
+    .home-card-map__points { position: absolute; inset: 0; z-index: 3; }
+    .home-card-map__point, .home-card-map__point.is-upcoming { position: absolute; width: 15px; height: 15px; border: 3px solid #f6f3ee; border-radius: 50%; background: #f9af5e; box-shadow: 0 0 0 2px #0a0a0a, 0 4px 10px rgba(10,10,10,.35); transform: translate(-50%, -50%); }
+    .kind-home .visual { inset: 0; z-index: 2; width: 100%; height: 100%; padding: 0; }
+    .kind-home .images { position: relative; display: block; transform: none; }
+    .kind-home .image { position: absolute; border-width: 4px; opacity: .96; transform-origin: center; }
+    .kind-home .image:nth-child(1) { top: 138px; left: -28px; width: 244px; height: 154px; transform: rotate(-5deg); }
+    .kind-home .image:nth-child(2) { top: 92px; left: 278px; width: 178px; height: 112px; transform: rotate(4deg); }
+    .kind-home .image:nth-child(3) { top: 124px; right: 72px; width: 268px; height: 169px; transform: rotate(5deg); }
+    .kind-home .image:nth-child(4) { top: 315px; right: -30px; width: 192px; height: 122px; transform: rotate(-4deg); }
+    .kind-home .image:nth-child(5) { top: 375px; left: 58px; width: 206px; height: 130px; transform: rotate(3deg); }
+    .kind-home .image:nth-child(6) { top: 399px; right: 228px; width: 224px; height: 141px; transform: rotate(-5deg); }
+    .kind-home .image__label { position: absolute; right: 7px; bottom: 7px; max-width: calc(100% - 14px); padding: 4px 7px; overflow: hidden; background: rgba(10,10,10,.88); color: #fff; font-size: 10px; font-weight: 900; letter-spacing: .055em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+    .kind-home .copy { inset: 0; z-index: 3; width: 100%; height: 100%; padding: 0; overflow: hidden; border: 0; background: transparent; box-shadow: none; }
+    .kind-home .copy > .eyebrow { display: none; }
+    .kind-home .social-card-sponsor-ticker { top: 0; right: 0; left: 0; z-index: 6; height: 112px; border: 0; border-bottom: 5px solid #f9af5e; background: rgba(246,243,238,.97); box-shadow: 0 8px 24px rgba(10,10,10,.18); }
+    .kind-home .social-card-sponsor-ticker::after { background: linear-gradient(90deg, rgba(246,243,238,.85), transparent 18%, transparent 88%, rgba(246,243,238,.72)); }
+    .kind-home .social-card-sponsor-ticker__label { top: 0; bottom: 0; left: 0; display: flex; width: 190px; align-items: center; padding: 0 20px; line-height: 1.35; }
+    .kind-home .social-card-sponsor-ticker__track { padding-left: 190px; }
+    .kind-home .social-card-sponsor-ticker__item { width: 238px; height: 107px; padding: 17px 27px; }
+    .kind-home .social-card-sponsor-ticker__item img { filter: grayscale(100%) brightness(0); opacity: .88; }
+    .home-brand-panel { position: relative; width: 100%; height: 100%; }
+    .home-wordmark { position: absolute; top: 50%; left: 50%; z-index: 1; display: inline-flex; width: max-content; align-items: baseline; color: #0a0a0a; font-family: "Ubuntu Brand", sans-serif; font-size: 207px; font-style: italic; font-weight: 700; letter-spacing: -.045em; line-height: .82; text-align: center; white-space: nowrap; transform: translate(-50%, -50%); -webkit-text-fill-color: #0a0a0a; -webkit-text-stroke: 0; }
+    .home-slogan { position: absolute; top: calc(50% + 105px); left: 50%; z-index: 1; width: max-content; margin: 0; padding: 9px 15px 10px; background: rgba(10,10,10,.92); color: #fff; font-size: 23px; font-weight: 800; letter-spacing: -.012em; line-height: 1; text-align: center; transform: translateX(-50%); }
+    .home-slogan .home-serif { font-family: "Source Serif 4", Georgia, "Times New Roman", serif; font-size: 1.12em; font-style: italic; font-weight: 400; }
+    .home-upcoming { position: absolute; right: 0; bottom: 0; left: 0; z-index: 1; display: flex; height: 70px; align-items: center; gap: 13px; padding: 0 165px 0 22px; background: #0a0a0a; color: #fff; }
+    .home-upcoming span { flex: none; padding: 7px 8px 6px; background: var(--card-accent); color: var(--card-ink); font-size: 11px; font-weight: 900; letter-spacing: .11em; text-transform: uppercase; }
+    .home-upcoming strong { max-width: 500px; overflow: hidden; font-size: 18px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+    .home-upcoming b { overflow: hidden; color: #d7d2ca; font-size: 13px; letter-spacing: .02em; text-overflow: ellipsis; white-space: nowrap; }
+    .home-upcoming b::before { content: "·"; margin-right: 13px; color: var(--card-accent); }
+    .kind-home .card-footer .brand-lockup { visibility: hidden; }
+    .kind-home .card-footer .site { padding: 7px 10px 6px; background: #0a0a0a; color: #fff; }
+
+    .kind-events .visual { inset: 0 0 auto; width: 100%; height: 472px; padding: 14px 0 24px; }
+    .kind-events .images, .kind-events .images.count-1, .kind-events .images.count-2, .kind-events .images.count-3, .kind-events .images.count-4, .kind-events .images.count-5, .kind-events .images.count-6, .kind-events .images.count-7, .kind-events .images.count-8 { position: relative; display: block; transform: none; }
+    .kind-events .image { position: absolute; width: 310px; height: 207px; border-width: 3px; transform-origin: center; }
+    .kind-events .image:nth-child(1) { top: 0; left: -18px; transform: rotate(-1.1deg); }
+    .kind-events .image:nth-child(2) { top: 0; left: 283px; transform: rotate(.8deg); }
+    .kind-events .image:nth-child(3) { top: 0; left: 584px; transform: rotate(-.7deg); }
+    .kind-events .image:nth-child(4) { top: 0; left: 885px; transform: rotate(1deg); }
+    .kind-events .image:nth-child(5) { top: 218px; left: 118px; transform: rotate(.8deg); }
+    .kind-events .image:nth-child(6) { top: 218px; left: 419px; transform: rotate(-1deg); }
+    .kind-events .image:nth-child(7) { top: 218px; left: 720px; transform: rotate(.65deg); }
+    .kind-events .image:nth-child(8) { top: 218px; left: 1021px; transform: rotate(-.85deg); }
+    .kind-events .image__label { position: absolute; right: 7px; bottom: 7px; max-width: calc(100% - 14px); padding: 4px 7px; overflow: hidden; background: rgba(10,10,10,.88); color: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 10px; font-weight: 900; letter-spacing: .055em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+    .kind-events .copy { padding: 0; }
+    .kind-events .eyebrow { position: absolute; bottom: 185px; left: 58px; padding: 12px 16px; background: #0a0a0a; color: #fff; font-size: 26px; letter-spacing: .1em; }
+    .kind-events .subtitle { position: absolute; bottom: 76px; left: 58px; width: 820px; max-width: none; margin: 0; padding: 13px 16px 14px; background: rgba(10,10,10,.92); color: #fff; font-size: 30px; font-weight: 700; line-height: 1.12; opacity: 1; }
+
+    .kind-conference { color: #0a0a0a; }
+    .kind-conference .visual { inset: 0 auto 0 0; z-index: 2; width: 430px; height: 100%; padding: 0; }
+    .kind-conference .images { position: relative; display: block; transform: none; }
+    .kind-conference .image { position: absolute; width: 230px; height: 145px; border-width: 4px; transform-origin: center; }
+    .kind-conference .image:nth-child(1) { top: 177px; left: 34px; z-index: 3; width: 365px; height: 230px; transform: rotate(-1.2deg); }
+    .kind-conference .image:nth-child(2) { top: 72px; left: 18px; z-index: 1; transform: rotate(-4deg); }
+    .kind-conference .image:nth-child(3) { top: 414px; left: 174px; z-index: 2; transform: rotate(3.2deg); }
+    .kind-conference .image__label { position: absolute; right: 9px; bottom: 9px; max-width: calc(100% - 18px); padding: 6px 9px 5px; overflow: hidden; background: rgba(10,10,10,.9); color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+    .kind-conference .image:nth-child(2) .image__label { top: 9px; bottom: auto; }
+    .kind-conference .copy { inset: 0; z-index: 1; padding: 0; }
+    .kind-conference .copy > .eyebrow { display: none; }
+    .conference-map-backdrop { position: absolute; top: -64px; right: -74px; width: 1010px; height: 585px; }
+    .conference-map-backdrop > img { display: block; width: 100%; height: 100%; opacity: .22; object-fit: contain; object-position: left center; }
+    .conference-map-backdrop__points { position: absolute; inset: 0 0 0 10px; }
+    .conference-map-backdrop__point { position: absolute; width: 17px; height: 17px; border: 3px solid #f6f3ee; border-radius: 50%; background: var(--card-accent); box-shadow: 0 0 0 2px #0a0a0a; transform: translate(-50%, -50%); }
+    .conference-date { position: absolute; top: 44px; right: 50px; padding: 10px 13px 9px; border: 2px solid #0a0a0a; background: var(--card-accent); color: var(--card-ink); font-size: 15px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+    .conference-ticket { position: absolute; top: 135px; right: 50px; z-index: 3; display: flex; width: 330px; min-height: 142px; flex-direction: column; justify-content: center; padding: 24px 22px 20px; border-left: 8px solid var(--card-accent); background: #0a0a0a; color: #fff; box-shadow: 8px 8px 0 rgba(10,10,10,.16); }
+    .conference-ticket > span { font-size: 11px; font-weight: 900; letter-spacing: .15em; text-transform: uppercase; }
+    .conference-ticket strong { display: block; margin-top: 5px; color: var(--card-accent); font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 76px; font-weight: 900; letter-spacing: -.07em; line-height: .82; }
+    .conference-ticket small { display: block; margin-top: 13px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,.35); font-size: 11px; font-weight: 900; letter-spacing: .07em; line-height: 1.1; text-transform: uppercase; }
+    .conference-title-block { position: absolute; right: 50px; bottom: 83px; left: 430px; padding: 21px 24px 22px; border-left: 9px solid var(--card-accent); background: rgba(246,243,238,.94); }
+    .conference-title-block h1 { position: static; max-width: none; margin: 0; color: #0a0a0a; font-family: Arial, Helvetica, sans-serif; font-size: 66px; font-weight: 400; letter-spacing: -.052em; line-height: .9; }
+    .conference-title-block h1 span { display: block; }
+    .conference-title-block h1 .conference-title__lead { font-style: normal; }
+    .conference-title-block h1 .conference-title__suffix { font-style: italic; }
+    .conference-title-block p { margin: 12px 0 0; color: #0a0a0a; font-size: 20px; font-weight: 900; line-height: 1.1; opacity: 1; }
+    .kind-conference .card-footer { left: 430px; }
+    .kind-conference .card-footer .brand-lockup { padding: 7px 11px 6px; background: rgba(246,243,238,.94); }
+    .kind-conference .card-footer .site { padding: 7px 10px 6px; background: #0a0a0a; color: #fff; }
+    .kind-conference .social-card-sponsor-ticker { right: 0; left: 430px; height: 120px; background: rgba(246,243,238,.5); }
+    .kind-conference .social-card-sponsor-ticker__item { width: 220px; height: 106px; }
+    .kind-conference .social-card-sponsor-ticker__item img { opacity: .46; }
+    .kind-conference.has-title-sponsor .conference-title-block { bottom: 108px; }
+    .brand-primary { display: flex; flex-direction: column; align-items: flex-start; }
+    .conference-powered-by { display: flex; min-height: 21px; align-items: center; gap: 7px; margin-top: 3px; }
+    .conference-powered-by > span { font-size: 7px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+    .conference-powered-by img { display: block; width: auto; max-width: 108px; height: 19px; object-fit: contain; filter: grayscale(100%) contrast(1.1); }
+
+    .kind-hackathon .visual { inset: 8px auto auto 8px; width: 55%; height: 570px; padding: 0; }
+    .kind-hackathon .images { display: block; transform: none; }
+    .kind-hackathon .image { width: 100%; height: 100%; border: 0; box-shadow: none; transform: none; }
+    .kind-hackathon .image img { object-position: center; }
+    .kind-hackathon .copy { padding-top: 38px; }
+    .kind-hackathon .eyebrow { position: absolute; top: 230px; left: 145px; z-index: 5; max-width: none; padding: 0; background: transparent; color: #f6f3ee; font-family: "Permanent Marker", sans-serif; font-size: 72px; font-style: normal; font-weight: 400; letter-spacing: -.025em; line-height: 1; text-shadow: 1px 0 0 rgba(246,243,238,.28), -1px 1px 0 rgba(246,243,238,.18), 4px 4px 0 rgba(10,10,10,.68); text-transform: uppercase; transform: rotate(-30deg); transform-origin: left center; }
+    .kind-hackathon .eyebrow::after { display: none; }
+    .kind-hackathon h1 { position: absolute; right: 50px; bottom: 274px; left: 676px; width: auto; margin: 0; color: #0a0a0a; font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 58px; font-style: normal; font-weight: 900; letter-spacing: -.062em; line-height: .88; text-wrap: balance; }
+    .kind-hackathon .subtitle { position: absolute; right: 50px; bottom: 390px; left: 676px; max-width: none; margin: 0; padding-bottom: 7px; border-bottom: 3px solid var(--card-accent); color: #0a0a0a; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-style: normal; font-weight: 900; letter-spacing: .02em; line-height: 1.15; opacity: 1; text-transform: uppercase; white-space: nowrap; }
+    .hackathon-value { position: absolute; right: 50px; bottom: 107px; display: flex; width: 462px; height: 140px; gap: 13px; align-items: flex-end; padding: 38px 18px 17px; border-left: 8px solid var(--card-accent); background: #0a0a0a; color: #fff; box-shadow: 7px 7px 0 rgba(10,10,10,.16); }
+    .hackathon-value::before { content: "TOTAL PRIZE POOL"; position: absolute; top: 13px; left: 18px; padding-bottom: 5px; border-bottom: 3px solid var(--card-accent); color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .15em; }
+    .hackathon-value::after { content: "✦"; position: absolute; top: 7px; right: 13px; color: var(--card-accent); font-size: 78px; line-height: 1; opacity: .82; transform: rotate(12deg); }
+    .hackathon-value > span { position: relative; z-index: 1; padding-bottom: 7px; color: #fff; font-size: 12px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+    .hackathon-value strong { position: relative; z-index: 1; color: #fff; font-size: 80px; font-weight: 900; letter-spacing: -.075em; line-height: .72; }
+    .hackathon-value small { margin-left: 7px; color: #fff; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
+    .hackathon-challenge { position: absolute; right: 50px; bottom: 78px; display: flex; width: 462px; justify-content: flex-end; }
+    .hackathon-challenge b { padding: 12px 16px 11px; border: 2px solid #0a0a0a; background: var(--card-accent); color: var(--card-ink); box-shadow: 5px 5px 0 #0a0a0a; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 900; letter-spacing: .075em; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+    .kind-hackathon .card-footer .brand-lockup, .kind-hackathon .card-footer .site { padding: 7px 10px 6px; background: #0a0a0a; color: #fff; }
+
+    .kind-shop .visual { inset: 50px 0 auto; width: 100%; height: 405px; padding: 22px 24px 42px; }
+    .kind-shop .images { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: 1fr; gap: 10px; transform: none; }
+    .kind-shop .images.count-1 { width: min(540px, 100%); margin: 0 auto; }
+    .kind-shop .images.count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kind-shop .images.count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .kind-shop .image { border-width: 4px; background: #fff; box-shadow: 0 16px 36px rgba(0,0,0,.2); }
+    .kind-shop .image:nth-child(1) { transform: rotate(-2.2deg); }
+    .kind-shop .image:nth-child(2) { transform: translateY(13px) rotate(1.4deg); }
+    .kind-shop .image:nth-child(3) { transform: translateY(-5px) rotate(-1deg); }
+    .kind-shop .image:nth-child(4) { transform: translateY(14px) rotate(2deg); }
+    .kind-shop .image img { object-fit: contain; padding: 7px; }
+    .kind-shop .image__label { position: absolute; right: 10px; bottom: 9px; z-index: 2; display: grid; width: 86px; height: 86px; max-width: none; padding: 17px; place-items: center; overflow: visible; background: var(--card-accent); clip-path: polygon(50% 0%, 60% 28%, 85% 15%, 72% 40%, 100% 50%, 72% 60%, 85% 85%, 60% 72%, 50% 100%, 40% 72%, 15% 85%, 28% 60%, 0% 50%, 28% 40%, 15% 15%, 40% 28%); color: #0a0a0a; font-size: 18px; font-weight: 900; letter-spacing: -.04em; line-height: 1; text-align: center; text-transform: none; white-space: nowrap; }
+    .kind-shop .subtitle { display: none; }
+    .kind-shop .eyebrow { background: var(--card-accent); color: #0a0a0a; }
+    .kind-shop h1 { font-family: Georgia, "Times New Roman", serif; font-size: 70px; font-style: normal; font-weight: 700; }
+    .kind-shop h1 em { font-style: italic; font-weight: inherit; }
+
+    .kind-person { border-top: 0; background: #f5f1e9; }
+    .kind-person::before { display: none; }
+    .kind-person::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; z-index: 5; display: block; width: 10px; background: var(--card-accent); }
+    .kind-person .visual { inset: 0 0 auto; z-index: 1; width: 100%; height: 485px; padding: 0; }
+    .kind-person .images { position: relative; display: grid; width: 100%; height: 485px; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; background: #f5f1e9; transform: none; }
+    .kind-person .images.count-1 { grid-template-columns: 1fr; }
+    .kind-person .images.count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kind-person .images.count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .kind-person .images.count-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .kind-person .image, .kind-person .image:first-child, .kind-person .image:nth-child(2), .kind-person .image:nth-child(3), .kind-person .image:nth-child(4), .kind-person .image:nth-child(5) { position: relative; inset: auto; z-index: 1; width: auto; height: 485px; overflow: hidden; border: 0; border-radius: 0; background: #161616; box-shadow: none; transform: none; }
+    .kind-person .image:first-child::before { display: none; }
+    .kind-person .image img { object-fit: contain; filter: grayscale(.05) saturate(.8) contrast(1.05); }
+    .kind-person .image:first-child img { filter: grayscale(.12) saturate(.72) contrast(1.08); }
+    .kind-person .copy { inset: 395px 0 auto; z-index: 3; display: block; width: 100%; height: 190px; padding: 22px 58px 18px; }
+    .kind-person .eyebrow { position: absolute; top: 156px; right: 58px; left: auto; display: flex; width: 420px; max-width: none; align-items: center; justify-content: flex-end; gap: 14px; padding: 0; background: transparent; color: #0a0a0a; font-size: 12px; letter-spacing: .035em; text-align: right; white-space: nowrap; }
+    .kind-person .eyebrow::before { display: none; }
+    .person-social-handle { display: inline-flex; align-items: center; gap: 5px; color: #514b44; font-weight: 700; letter-spacing: -.01em; text-transform: none; }
+    .person-social-handle + .person-social-handle::before { content: "·"; margin-right: 3px; color: #8b847a; font-weight: 900; }
+    .person-social-handle svg { width: 17px; height: 17px; flex: none; fill: #0a0a0a; }
+    .kind-person h1 { position: absolute; right: 58px; bottom: 128px; left: 58px; z-index: 5; max-width: none; margin: 0; color: #f5f1e9; font-family: Georgia, "Times New Roman", serif; font-size: 216px; font-style: normal; font-weight: 700; letter-spacing: -.065em; line-height: .78; text-shadow: 0 3px 0 rgba(10,10,10,.78); white-space: nowrap; }
+    .kind-person h1.is-two-line { white-space: normal; }
+    .kind-person h1 .person-name-line { display: block; width: max-content; }
+    .kind-person .subtitle { position: absolute; top: 110px; right: 58px; display: -webkit-box; width: 420px; max-height: 50px; margin: 0; overflow: hidden; color: #403b35; font-family: Georgia, "Times New Roman", serif; font-size: 17px; font-style: normal; font-weight: 400; line-height: 1.28; opacity: 1; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .person-accomplishments { position: absolute; top: 0; right: 0; left: 10px; z-index: 4; display: flex; height: 42px; align-items: center; margin: 0; padding: 0 22px; overflow: hidden; background: rgba(10,10,10,.9); color: #f5f1e9; font-size: 11px; font-weight: 700; letter-spacing: .025em; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+    .person-accomplishments span { display: inline-flex; align-items: center; }
+    .person-accomplishments span::after { content: "·"; margin: 0 9px; color: var(--card-accent); font-weight: 900; }
+    .person-accomplishments span:last-child::after { content: ""; }
+    .kind-person .stats { position: absolute; top: 101px; left: 58px; display: grid; width: 600px; max-width: none; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: baseline; margin: 0; padding: 0; }
+    .kind-person .stat { display: flex; min-width: 0; align-items: baseline; justify-content: center; padding: 0; border-top: 0; }
+    .kind-person .stat:first-child { justify-content: flex-start; }
+    .kind-person .stat:last-child { justify-content: flex-end; }
+    .kind-person .stat + .stat::before { display: none; }
+    .kind-person .stat strong { display: inline; font-family: Georgia, "Times New Roman", serif; font-size: 55px; font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: -.04em; line-height: 1; }
+    .kind-person .stat span { display: inline; margin: 0 0 0 10px; font-size: 12px; font-weight: 900; letter-spacing: .14em; }
+    .kind-person .person-achievement-stickers, .kind-person > .card-sparkles { display: none; }
+    .kind-person .card-footer { bottom: 17px; }
+    .kind-person .card-footer .brand-lockup, .kind-person .card-footer .site { padding: 6px 0 5px; background: #f5f1e9; }
+
+    .kind-whois { background: #ded9d0; }
+    .kind-whois .visual { inset: 0; width: 100%; height: 100%; padding: 0; }
+    .kind-whois .images { --whois-count: 12; position: relative; display: grid; width: 100%; height: 100%; grid-template-columns: repeat(var(--whois-count), minmax(0, 1fr)); transform: none; }
+    .kind-whois .images.count-1 { --whois-count: 1; }
+    .kind-whois .images.count-2 { --whois-count: 2; }
+    .kind-whois .images.count-3 { --whois-count: 3; }
+    .kind-whois .images.count-4 { --whois-count: 4; }
+    .kind-whois .images.count-5 { --whois-count: 5; }
+    .kind-whois .images.count-6 { --whois-count: 6; }
+    .kind-whois .images.count-7 { --whois-count: 7; }
+    .kind-whois .images.count-8 { --whois-count: 8; }
+    .kind-whois .images.count-9 { --whois-count: 9; }
+    .kind-whois .images.count-10 { --whois-count: 10; }
+    .kind-whois .images.count-11 { --whois-count: 11; }
+    .kind-whois .image { position: relative; top: -72px; width: max(230px, calc(2400px / var(--whois-count) + 40px)); height: 402px; border: 4px solid #f6f3ee; border-radius: 0; background: #24211d; box-shadow: 0 16px 34px rgba(10,10,10,.28); transform: rotate(-3.5deg); transform-origin: center; }
+    .kind-whois .image:nth-child(even) { top: 292px; transform: translateX(-22px) rotate(3deg); }
+    .kind-whois .image:nth-child(3n) { top: -105px; transform: translateX(-8px) rotate(-1.5deg); }
+    .kind-whois .image:nth-child(4n) { top: 268px; transform: translateX(-30px) rotate(4deg); }
+    .kind-whois .images.count-1 .image, .kind-whois .images.count-2 .image, .kind-whois .images.count-3 .image { top: -25px; width: calc(1200px / var(--whois-count) + 28px); height: 680px; transform: rotate(0); }
+    .kind-whois .image img { filter: saturate(.92) contrast(1.04); }
+    .kind-whois .image__label { position: absolute; top: 125px; left: 8px; display: flex; max-width: calc(100% - 16px); align-items: center; gap: 6px; padding: 6px 8px 6px 7px; overflow: hidden; background: rgba(10,10,10,.9); color: #fff; font-size: 12px; font-weight: 900; letter-spacing: -.01em; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+    .kind-whois .image:nth-child(even) .image__label { top: 12px; }
+    .kind-whois .image__label svg { width: 15px; height: 15px; flex: none; fill: currentColor; }
+    .kind-whois .copy { inset: auto auto 75px 58px; z-index: 3; display: flex; width: 650px; min-height: 292px; flex-direction: column; padding: 25px 28px 24px; border: 2px solid #0a0a0a; background: rgba(246,243,238,.96); box-shadow: 11px 11px 0 var(--card-accent); }
+    .kind-whois .eyebrow { order: 1; background: #0a0a0a; color: #fff; }
+    .kind-whois h1 { position: static; order: 2; max-width: 575px; margin: 15px 0 0; font-family: Georgia, "Times New Roman", serif; font-size: 59px; font-style: normal; font-weight: 700; letter-spacing: -.055em; line-height: .88; }
+    .kind-whois .subtitle { order: 3; width: auto; max-width: 560px; margin: 13px 0 0; color: #403b35; font-family: Arial, Helvetica, sans-serif; font-size: 17px; font-style: normal; font-weight: 700; line-height: 1.16; opacity: 1; }
+    .kind-whois .stats { order: 4; max-width: none; gap: 20px; margin-top: 18px; }
+    .kind-whois .stat { min-width: 76px; padding-top: 7px; border-top-width: 2px; }
+    .kind-whois .stat strong { font-size: 24px; }
+    .kind-whois .stat span { margin-top: 4px; font-size: 10px; }
+    .whois-sparkles { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+    .whois-sparkles span { position: absolute; display: block; line-height: 1; filter: drop-shadow(2px 3px 0 rgba(10,10,10,.28)); }
+    .whois-sparkles span:nth-child(1) { top: 105px; left: 345px; font-size: 34px; transform: rotate(-14deg); }
+    .whois-sparkles span:nth-child(2) { top: 178px; right: 102px; font-size: 24px; transform: rotate(12deg); }
+    .whois-sparkles span:nth-child(3) { right: 318px; bottom: 102px; font-size: 42px; transform: rotate(-8deg); }
+    .whois-sparkles span:nth-child(4) { top: 38px; left: 720px; font-size: 19px; transform: rotate(18deg); }
+
+    .kind-award { color: #0a0a0a; }
+    .kind-award::before { opacity: .055; background-size: 36px 36px; }
+    .kind-award::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; display: block; width: 18px; background: var(--card-accent); }
+    .kind-award .copy { inset: 0; padding: 0; }
+    .kind-award .copy > .eyebrow { display: none; }
+    .award-event { position: absolute; top: 36px; right: 450px; left: 58px; display: flex; overflow: hidden; flex-direction: column; gap: 6px; padding-bottom: 11px; border-bottom: 3px solid var(--card-accent); text-transform: uppercase; white-space: nowrap; }
+    .award-event strong, .award-event span { overflow: hidden; text-overflow: ellipsis; }
+    .award-event strong { font-size: 14px; font-weight: 900; letter-spacing: .045em; line-height: 1.1; }
+    .award-event span { color: #59534c; font-size: 11px; font-weight: 800; letter-spacing: .08em; line-height: 1; }
+    .award-logo { position: absolute; top: 24px; right: 58px; display: flex; width: 370px; height: 104px; align-items: center; justify-content: flex-end; }
+    .award-logo img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: right center; }
+    .award-sponsor { position: absolute; top: 136px; right: 58px; z-index: 4; overflow: hidden; width: 370px; color: #59534c; font-size: 10px; font-weight: 900; letter-spacing: .13em; line-height: 1; text-align: right; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+    .award-sponsor::before { content: "Presented by  ·  "; color: #0a0a0a; }
+    .kind-award h1 { position: absolute; top: 216px; right: 58px; left: 58px; display: -webkit-box; max-height: 183px; margin: 0; overflow: hidden; color: #0a0a0a; font-family: "Arial Black", Arial, Helvetica, sans-serif; font-size: 91px; font-style: normal; font-weight: 900; letter-spacing: -.067em; line-height: .88; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .kind-award .subtitle { position: absolute; top: 420px; right: 470px; left: 58px; display: -webkit-box; max-width: none; margin: 0; overflow: hidden; color: #514b44; font-family: Arial, Helvetica, sans-serif; font-size: 20px; font-style: normal; font-weight: 700; line-height: 1.22; opacity: 1; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+    .award-value { position: absolute; right: 58px; bottom: 96px; width: 360px; padding-top: 15px; border-top: 3px solid var(--card-accent); color: #0a0a0a; text-align: right; }
+    .award-value::before { content: "✦"; position: absolute; top: -23px; left: -2px; padding: 0 8px; background: #f6f3ee; color: var(--card-accent); font-size: 27px; line-height: 1; }
+    .award-value > span { display: block; margin-bottom: 9px; color: #59534c; font-size: 10px; font-weight: 900; letter-spacing: .17em; text-transform: uppercase; }
+    .award-value strong { display: flex; align-items: baseline; justify-content: flex-end; color: #0a0a0a; font-size: 102px; font-weight: 900; letter-spacing: -.075em; line-height: .72; white-space: nowrap; }
+    .award-value__decimal { margin-left: .01em; font-size: .72em; letter-spacing: -.08em; opacity: .8; }
+    .award-value__unit { margin-left: .03em; font-size: 1em; font-weight: 400; letter-spacing: -.075em; }
+    .award-value small { margin-left: 10px; color: #59534c; font-size: 14px; letter-spacing: .09em; text-transform: uppercase; }
+    .award-prize-details { display: flex; margin-top: 13px; flex-direction: column; align-items: flex-end; gap: 5px; }
+    .award-prize-details b { max-width: 100%; overflow: hidden; color: #59534c; font-size: 10px; font-weight: 800; letter-spacing: .04em; line-height: 1.15; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+    .kind-award .card-footer .brand-lockup, .kind-award .card-footer .site { padding: 7px 10px 6px; background: #0a0a0a; color: #fff; }
+    .kind-award > .card-sparkles { display: none; }
   </style>
 </head>
 <body>
-  <main class="card kind-{{ .Kind }}" data-card-ready="false">
-    <section class="copy{{ if .Stats }} has-stats{{ end }}">
-      <div class="eyebrow">{{ .Eyebrow }}</div>
+  <main class="card kind-{{ .Kind }}{{ if .CardPoweredBy }} has-title-sponsor{{ end }}" style="{{ .CardStyle }}" data-card-ready="false">
+    {{ if and (eq .Kind "home") .CardMapImage }}<div class="home-map-backdrop" aria-hidden="true"><img src="{{ .CardMapImage }}" alt=""><div class="home-card-map__points">{{ range .CardMapPoints }}<span class="home-card-map__point{{ if .Upcoming }} is-upcoming{{ end }}" style="{{ .Style }}"></span>{{ end }}</div></div>{{ end }}
+    {{ if .CardSponsors }}
+    <div class="social-card-sponsor-ticker" aria-hidden="true">{{ if .SponsorLabel }}<span class="social-card-sponsor-ticker__label">{{ .SponsorLabel }}</span>{{ end }}<div class="social-card-sponsor-ticker__track"><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div></div></div>
+    {{ end }}
+    {{ if eq .Kind "award" }}
+    {{ else if .CardImages }}
+    <section class="visual"><div class="images count-{{ len .CardImages }}">{{ range .CardImages }}<div class="image"><img src="{{ .URL }}" alt="">{{ if .Label }}<span class="image__label">{{ if eq $.Kind "whois" }}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.3 11.3 0 0 0-3.6 22c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2V22c0 .3.2.7.8.6A11.3 11.3 0 0 0 12 .7Z"/></svg>@{{ .Label }}{{ else }}{{ .Label }}{{ end }}</span>{{ end }}</div>{{ end }}</div></section>
+    {{ else }}<section class="visual"><div class="fallback">++</div></section>{{ end }}
+    <section class="copy">
+      <div class="eyebrow">{{ if eq .Kind "person" }}{{ if .XHandle }}<span class="person-social-handle">X @{{ .XHandle }}</span>{{ end }}{{ if .GitHubHandle }}<span class="person-social-handle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.3 11.3 0 0 0-3.6 22c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2V22c0 .3.2.7.8.6A11.3 11.3 0 0 0 12 .7Z"/></svg>@{{ .GitHubHandle }}</span>{{ end }}{{ else }}{{ .Eyebrow }}{{ end }}</div>
+      {{ if eq .Kind "hackathon" }}
       <h1>{{ .Title }}</h1>
       {{ if .Subtitle }}<p class="subtitle">{{ .Subtitle }}</p>{{ end }}
+      {{ if .Value }}<div class="hackathon-value"><strong>{{ .Value }}{{ if .ValueSuffix }} <small>{{ .ValueSuffix }}</small>{{ end }}</strong>{{ if .ValueLabel }}<span>{{ .ValueLabel }}</span>{{ end }}</div>{{ end }}
+      {{ if .Callout }}<div class="hackathon-challenge"><b>{{ .Callout }} →</b></div>{{ end }}
+      {{ else if eq .Kind "home" }}
+      <div class="home-brand-panel">
+        <div class="home-wordmark" aria-label="bitcoin plus plus"><span>bitcoin</span><span class="wordmark__pluses"><span>+</span><span>+</span></span></div>
+        <p class="home-slogan">Developing the <span class="home-serif">frontier</span> of bitcoin.</p>
+        {{ if .Title }}<div class="home-upcoming"><span>{{ .Eyebrow }}</span><strong>{{ .Title }}</strong>{{ if .Subtitle }}<b>{{ .Subtitle }}</b>{{ end }}</div>{{ end }}
+      </div>
+      {{ else if eq .Kind "conference" }}
+      {{ if .CardMapImage }}<div class="conference-map-backdrop" aria-hidden="true"><img src="{{ .CardMapImage }}" alt=""><div class="conference-map-backdrop__points">{{ range .CardMapPoints }}<span class="conference-map-backdrop__point" style="{{ .Style }}"></span>{{ end }}</div></div>{{ end }}
+      {{ if .Eyebrow }}<div class="conference-date">{{ .Eyebrow }}</div>{{ end }}
+      {{ if .Value }}<div class="conference-ticket"><span>{{ .ValueLabel }}</span><strong>{{ .Value }}</strong>{{ if .Callout }}<small>{{ .Callout }}</small>{{ end }}</div>{{ end }}
+      <div class="conference-title-block"><h1><span class="conference-title__lead">{{ .Title }}</span>{{ if .TitleSuffix }}<span class="conference-title__suffix">{{ .TitleSuffix }}</span>{{ end }}</h1>{{ if .Subtitle }}<p>{{ .Subtitle }}</p>{{ end }}</div>
+      {{ else if eq .Kind "award" }}
+      {{ if .Callout }}<div class="award-event"><strong>{{ .Callout }}</strong>{{ if .Location }}<span>{{ .Location }}</span>{{ end }}</div>{{ end }}
+      {{ if .Eyebrow }}<div class="award-sponsor">{{ .Eyebrow }}</div>{{ end }}
+      {{ if .CardImages }}<div class="award-logo">{{ range .CardImages }}<img src="{{ .URL }}" alt="">{{ end }}</div>{{ end }}
+      <h1>{{ .Title }}</h1>
+      {{ if .Subtitle }}<p class="subtitle">{{ .Subtitle }}</p>{{ end }}
+      {{ if .Value }}<div class="award-value"><span>{{ .ValueLabel }}</span><strong><b class="award-value__whole">{{ .AwardValueWhole }}</b>{{ if .AwardValueDecimal }}<b class="award-value__decimal">{{ .AwardValueDecimal }}</b>{{ end }}{{ if .AwardValueUnit }}<b class="award-value__unit">{{ .AwardValueUnit }}</b>{{ end }}{{ if .ValueSuffix }} <small>{{ .ValueSuffix }}</small>{{ end }}</strong>{{ if .Details }}<div class="award-prize-details">{{ range .Details }}<b>+ {{ . }}</b>{{ end }}</div>{{ end }}</div>{{ end }}
+      {{ else }}
+      {{ if .Subtitle }}<p class="subtitle">{{ .Subtitle }}</p>{{ end }}
       {{ if .Stats }}<div class="stats">{{ range .Stats }}<div class="stat"><strong>{{ .Value }}</strong><span>{{ .Label }}</span></div>{{ end }}</div>{{ end }}
-      <div class="brand"><img src="{{ .LogoImageURL }}" alt="bitcoin++">{{ .Footer }}</div>
+      {{ if eq .Kind "shop" }}<h1><span>{{ .Title }}</span>{{ if .TitleSuffix }} <em>{{ .TitleSuffix }}</em>{{ end }}</h1>{{ else if ne .Kind "events" }}<h1>{{ .Title }}</h1>{{ end }}
+      {{ end }}
     </section>
-    <section class="visual">
-      {{ if .ImageURLs }}<div class="images count-{{ len .ImageURLs }}">{{ range .ImageURLs }}<div class="image"><img src="{{ . }}" alt=""></div>{{ end }}</div>{{ else }}<div class="fallback">++</div>{{ end }}
-    </section>
+    {{ if and (eq .Kind "person") .Details }}<div class="person-accomplishments">{{ range .Details }}<span>{{ . }}</span>{{ end }}{{ range .Details }}<span>{{ . }}</span>{{ end }}</div>{{ end }}
+    {{ if eq .Kind "whois" }}<div class="whois-sparkles" aria-hidden="true"><span>✨</span><span>✨</span><span>✨</span><span>✨</span></div>{{ end }}
+    {{ if ne .Kind "person" }}<div class="card-sparkles" aria-hidden="true"><span>✨</span><span>✨</span><span>✨</span><span>✨</span><span>✨</span></div>{{ end }}
+    <footer class="card-footer">
+      <div class="brand-lockup">
+        <div class="brand-primary"><div class="wordmark" aria-label="bitcoin plus plus"><span>bitcoin</span><span class="wordmark__pluses"><span>+</span><span>+</span></span></div>{{ if and (eq .Kind "conference") .CardPoweredBy }}<div class="conference-powered-by"><span>powered by</span>{{ range .CardPoweredBy }}<img src="{{ .URL }}" alt="{{ .Label }}">{{ end }}</div>{{ end }}</div>
+        <div class="brand-tagline">Developing the frontier of bitcoin.</div>
+      </div>
+      <div class="site">btcpp.dev</div>
+    </footer>
   </main>
   <script>
-    Promise.all(Array.from(document.images).map(function (img) {
-      if (img.complete) return Promise.resolve();
-      return new Promise(function (resolve) { img.onload = resolve; img.onerror = resolve; });
-    })).then(function () { document.querySelector('.card').dataset.cardReady = 'true'; });
+    var imageLoadTimeoutMs = 4000;
+    function waitForImage(img) {
+      return new Promise(function (resolve) {
+        var settled = false;
+        var timer;
+        function finish(loaded) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          if (!loaded) {
+            var container = img.closest('.image, .award-logo, .social-card-sponsor-ticker__item, .conference-powered-by img');
+            if (container) container.remove();
+          }
+          resolve();
+        }
+        if (img.complete) { finish(img.naturalWidth > 0 && img.naturalHeight > 0); return; }
+        img.onload = function () { finish(true); };
+        img.onerror = function () { finish(false); };
+        timer = setTimeout(function () { finish(false); }, imageLoadTimeoutMs);
+      });
+    }
+    function fitPersonName() {
+      var name = document.querySelector('.kind-person h1');
+      if (!name) return;
+      var fullName = name.textContent.trim().replace(/\s+/g, ' ');
+      function fits() {
+        var lines = name.querySelectorAll('.person-name-line');
+        if (!lines.length) return name.scrollWidth <= name.clientWidth;
+        return Array.from(lines).every(function (line) { return line.scrollWidth <= name.clientWidth; });
+      }
+      function fitCurrentLayout() {
+        var low = 36;
+        var high = 216;
+        var fitted = low;
+        while (low <= high) {
+          var size = Math.floor((low + high) / 2);
+          name.style.fontSize = size + 'px';
+          if (fits()) {
+            fitted = size;
+            low = size + 1;
+          } else {
+            high = size - 1;
+          }
+        }
+        name.style.fontSize = fitted + 'px';
+        return fitted;
+      }
+      if (fitCurrentLayout() >= 125) return;
+      var words = fullName.split(' ');
+      if (words.length < 2) return;
+      function setLines(splitAt) {
+        name.replaceChildren();
+        [words.slice(0, splitAt).join(' '), words.slice(splitAt).join(' ')].forEach(function (text) {
+          var line = document.createElement('span');
+          line.className = 'person-name-line';
+          line.textContent = text;
+          name.appendChild(line);
+        });
+      }
+      name.classList.add('is-two-line');
+      name.setAttribute('aria-label', fullName);
+      var bestSplit = 1;
+      var bestWidth = Infinity;
+      for (var index = 1; index < words.length; index += 1) {
+        setLines(index);
+        name.style.fontSize = '216px';
+        var widest = Math.max.apply(null, Array.from(name.children).map(function (line) { return line.scrollWidth; }));
+        if (widest < bestWidth) {
+          bestWidth = widest;
+          bestSplit = index;
+        }
+      }
+      setLines(bestSplit);
+      fitCurrentLayout();
+    }
+    Promise.all(Array.from(document.images).map(waitForImage)).then(function () {
+      var card = document.querySelector('.card');
+      var images = document.querySelector('.images');
+      if (images) {
+        var count = images.querySelectorAll('.image').length;
+        if (count === 0) images.replaceWith(Object.assign(document.createElement('div'), { className: 'fallback', textContent: '++' }));
+        else images.className = 'images count-' + count;
+      }
+      document.fonts.ready.then(function () {
+        fitPersonName();
+        card.dataset.cardReady = 'true';
+      });
+    });
   </script>
 </body>
 </html>

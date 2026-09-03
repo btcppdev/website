@@ -1084,10 +1084,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/social-cards/{kind}.jpg", func(w http.ResponseWriter, r *http.Request) {
 		ServeSiteSocialCard(w, r, app)
-	}).Methods("GET")
+	}).Methods("GET", "HEAD")
 	r.HandleFunc("/social-cards/{kind}/{slug}.jpg", func(w http.ResponseWriter, r *http.Request) {
 		ServeSiteSocialCard(w, r, app)
-	}).Methods("GET")
+	}).Methods("GET", "HEAD")
 
 	r.HandleFunc("/i/{conf}/sendcal", func(w http.ResponseWriter, r *http.Request) {
 		if id := requireConfAdmin(w, r, app); id == nil {
@@ -1625,6 +1625,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/hackathon", func(w http.ResponseWriter, r *http.Request) {
+		HackathonShow(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/{conf}/hackathon/awards/{awardSlug}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonShow(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/{conf}/hackathon/schedule", func(w http.ResponseWriter, r *http.Request) {
@@ -4303,6 +4306,8 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	soldCount, err := getters.SoldTix(ctx, conf)
 	if err != nil {
 		ctx.Err.Printf("Unable to fetch sold ticket count for '%s': %s", conf.Tag, err.Error())
+	} else {
+		conf.TixSold = soldCount
 	}
 
 	buckets, err := bucketTalks(ctx, conf, talks)
@@ -4874,7 +4879,11 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		MapMarkers:       homeMapMarkers(enriched),
 		Year:             helpers.CurrentYear(),
 	}
-	data.SocialCardURL = siteSocialCardPath("home", "", homeSocialCard(ctx, enriched))
+	if page == "timeline" {
+		data.SocialCardURL = siteSocialCardPath("events", "", eventsSocialCard(ctx, enriched))
+	} else {
+		data.SocialCardURL = siteSocialCardPath("home", "", homeSocialCard(ctx, enriched))
+	}
 
 	template := fmt.Sprintf("embeds/%s.tmpl", page)
 	err := ctx.TemplateCache.ExecuteTemplate(w, template, &data)
@@ -5083,6 +5092,8 @@ func homeMapMarkers(confs []*types.Conf) []*HomeMapMarker {
 				y: y,
 				marker: &HomeMapMarker{
 					Conf:      conf,
+					X:         x,
+					Y:         y,
 					Label:     label,
 					Style:     fmt.Sprintf("left: %.2f%%; top: %.2f%%;", x, y),
 					LabelSide: side,

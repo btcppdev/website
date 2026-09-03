@@ -3,7 +3,10 @@
 <head>
   {{ template "hackathon_header" . }}
   {{ $socialCard := .SocialCardURL }}{{ if not $socialCard }}{{ $socialCard = printf "%s" (confImage .Conf.Tag "leading") }}{{ end }}
-  {{ template "site_seo" (dict "Title" (printf "%s · bitcoin++ hackathon" .Competition.Title) "Description" "Build something real. Find collaborators, choose a challenge, and ship your project at bitcoin++." "Path" (printf "/%s/hackathon" .Conf.Tag) "Image" $socialCard "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
+  {{ $seoTitle := printf "%s · bitcoin++ hackathon" .Competition.Title }}
+  {{ $seoDescription := "Build something real. Find collaborators, choose a challenge, and ship your project at bitcoin++." }}
+  {{ with .FocusedAward }}{{ $seoTitle = printf "%s · %s" .Title $.Competition.Title }}{{ if .Description }}{{ $seoDescription = .Description }}{{ end }}{{ end }}
+  {{ template "site_seo" (dict "Title" $seoTitle "Description" $seoDescription "Path" .SEOPath "Image" $socialCard "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
 </head>
 <body class="hack-redesign">
   {{ $galleryProjects := .GalleryProjects }}
@@ -155,7 +158,7 @@
         <div class="hack-bounty-grid">
           {{ range $additionalAwards }}
           {{ $award := . }}
-          <article class="hack-bounty-card" id="bounty-{{ .ID }}">
+          <article class="hack-bounty-card" id="bounty-{{ $.AwardSlug . }}">
             <div class="hack-bounty-card__top">
               <div class="hack-bounty-card__sponsor">
                 {{ if $.AwardHasSponsor . }}
@@ -170,7 +173,7 @@
             </div>
               {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
             </div>
-            <h3><a class="hack-bounty-card__permalink" href="#bounty-{{ .ID }}">{{ .Title }} <span aria-hidden="true">#</span></a></h3>
+            <h3><a class="hack-bounty-card__permalink" href="{{ $.AwardURL . }}">{{ .Title }} <span aria-hidden="true">#</span></a></h3>
             {{ if .Description }}<div class="hack-bounty-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
             {{ $prizes := $.AwardPrizes . }}
             {{ if $prizes }}
@@ -200,7 +203,7 @@
         <div class="hack-bounty-grid">
           {{ range $challengeAwards }}
           {{ $award := . }}
-          <article class="hack-bounty-card" id="bounty-{{ .ID }}">
+          <article class="hack-bounty-card" id="bounty-{{ $.AwardSlug . }}">
             <div class="hack-bounty-card__top">
               <div class="hack-bounty-card__sponsor">
                 {{ if $.AwardHasSponsor . }}
@@ -215,7 +218,7 @@
             </div>
               {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}<div class="hack-sponsored-award-logo"><img src="{{ . }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}{{ end }}
             </div>
-            <h3><a class="hack-bounty-card__permalink" href="#bounty-{{ .ID }}">{{ .Title }} <span aria-hidden="true">#</span></a></h3>
+            <h3><a class="hack-bounty-card__permalink" href="{{ $.AwardURL . }}">{{ .Title }} <span aria-hidden="true">#</span></a></h3>
             {{ if .Description }}<div class="hack-bounty-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
             {{ $prizes := $.AwardPrizes . }}
             {{ if $prizes }}
@@ -378,68 +381,18 @@
         </div>
       </div>
       {{ if .Awards }}
-      <div class="hack-card-grid">
-        {{ range .Awards }}
-        {{ $award := . }}
-        <article class="hack-card hack-award-card" id="award-{{ .ID }}">
-          <div class="hack-card__body">
-            <div class="hack-award-card__top">
-              <div class="hack-award-card__label">
-                {{ if $.AwardHasSponsor . }}
-                  {{ with $.AwardSponsorURL . }}<a href="{{ . }}" target="_blank" rel="noreferrer">[ {{ $.AwardSponsorLabel $award }} ]</a>{{ else }}<span>[ {{ $.AwardSponsorLabel $award }} ]</span>{{ end }}
-                {{ else }}
-                  <span>{{ if $.AwardIsChallenge . }}[ {{ $.AwardDisplayLabel . }} ]{{ else }}★ {{ $.AwardDisplayLabel . }}{{ end }}</span>
-                {{ end }}
-              </div>
-              {{ if $.AwardHasSponsor . }}{{ with $.AwardLogoURL . }}
-                {{ with $.AwardSponsorURL $award }}<a class="hack-sponsored-award-logo" href="{{ . }}" target="_blank" rel="noreferrer"><img src="{{ $.AwardLogoURL $award }}" alt="{{ $.AwardLogoAlt $award }}"></a>{{ else }}<div class="hack-sponsored-award-logo"><img src="{{ $.AwardLogoURL $award }}" alt="{{ $.AwardLogoAlt $award }}"></div>{{ end }}
-              {{ end }}{{ end }}
-            </div>
-            <h3><a class="hack-bounty-card__permalink" href="#award-{{ .ID }}">{{ .Title }} <span aria-hidden="true">#</span></a></h3>
-            {{ $prizes := $.AwardPrizes . }}
-            {{ if $prizes }}
-            <div class="hack-award-card__value">
-              {{ with $.AwardTotalPrizeValue . }}
-              <span>Total prize value</span>
-              <strong>{{ . }} <small>sats</small></strong>
-              {{ else }}
-              <span>Prize package</span>
-              <strong>{{ len $prizes }} <small>{{ if eq (len $prizes) 1 }}prize{{ else }}prizes{{ end }}</small></strong>
-              {{ end }}
-            </div>
-            {{ end }}
-            {{ if .Description }}<div class="hack-card__desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
-            {{ $awardees := $.Awardees . }}
-            {{ if $awardees }}
-            <div class="hack-tags" aria-label="Award winners">
-              {{ range $awardees }}
-              <a href="#project-{{ .ProjectID }}" class="hack-badge">★ Winner: {{ .ProjectTitle }}</a>
-              {{ if $.CanAdminEdit }}
-              <form method="POST" action="{{ $.AdminEditURL }}/awards/remove" style="display:inline;">
-                <input type="hidden" name="AwardID" value="{{ .AwardID }}">
-                <input type="hidden" name="ProjectID" value="{{ .ProjectID }}">
-                <input type="hidden" name="Source" value="public">
-                <button type="submit" class="hack-badge" style="border:0;cursor:pointer;">Remove</button>
-              </form>
-              {{ end }}
-              {{ end }}
-            </div>
-            {{ end }}
-            {{ if $prizes }}
-            <div class="hack-award-card__prize-label">Prizes</div>
-            <div class="hack-card__links hack-award-card__prizes">
-              {{ range $prizes }}
-              <div class="hack-award-card__prize">
-                <span>{{ .Title }}{{ if .ValueText }} · {{ $.PrizeValueLabel . }}{{ end }}</span>
-                {{ if .Description }}<div class="hack-award-card__prize-desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
-              </div>
-              {{ end }}
-            </div>
-            {{ end }}
-          </div>
-        </article>
-        {{ end }}
+      {{ $podiumAwards := .PodiumAwards }}
+      {{ if $podiumAwards }}
+      <div class="hack-award-podium">
+        {{ range $podiumAwards }}{{ template "hackathon_award_card" (dict "Page" $ "Award" . "Rank" ($.AwardPodiumRank .)) }}{{ end }}
       </div>
+      {{ end }}
+      {{ $otherAwards := .OtherAwardsByValue }}
+      {{ if $otherAwards }}
+      <div class="hack-card-grid hack-award-grid--additional">
+        {{ range $otherAwards }}{{ template "hackathon_award_card" (dict "Page" $ "Award" . "Rank" 0) }}{{ end }}
+      </div>
+      {{ end }}
       {{ else }}
       <div class="hack-empty">
         <p>Prizes and sponsor challenges will be announced soon.</p>
@@ -517,6 +470,7 @@
           if (panel && panel.dataset.hackathonTabPanel) return panel.dataset.hackathonTabPanel;
           return 'projects';
         }
+        if (document.querySelector('[data-focused-award="true"]')) return 'awards';
         return 'overview';
       }
 
@@ -547,8 +501,9 @@
       function showHashTarget() {
         const name = tabFromHash();
         const panel = setTab(name);
-        if (!window.location.hash) return;
-        const target = document.getElementById(window.location.hash.slice(1)) || panel;
+        const focusedAward = document.querySelector('[data-focused-award="true"]');
+        if (!window.location.hash && !focusedAward) return;
+        const target = window.location.hash ? (document.getElementById(window.location.hash.slice(1)) || panel) : focusedAward;
         scrollToTarget(target, 'auto');
       }
 
@@ -582,6 +537,73 @@
 {{ else }}
 <a href="{{ $action.URL }}" class="hack-button hack-button--accent">{{ $action.Label }}</a>
 {{ end }}
+{{ end }}
+
+{{ define "hackathon_award_card" }}
+{{ $page := .Page }}
+{{ $award := .Award }}
+{{ $rank := .Rank }}
+<article class="hack-card hack-award-card{{ if gt $rank 0 }} hack-award-card--podium hack-award-card--place-{{ $rank }}{{ end }}" id="award-{{ $page.AwardSlug $award }}"{{ if and $page.FocusedAward (eq $page.FocusedAward.ID $award.ID) }} data-focused-award="true"{{ end }}>
+  {{ if eq $rank 1 }}<div class="hack-award-card__trophy"><img src="/static/img/rebrand/hackathon-trophy.jpg" alt="Orange championship trophy" loading="lazy"></div>{{ end }}
+  <div class="hack-card__body">
+    {{ if gt $rank 0 }}<div class="hack-award-card__place">{{ $page.AwardPodiumLabel $award }}</div>{{ end }}
+    <div class="hack-award-card__top">
+      <div class="hack-award-card__label">
+        {{ if gt $rank 0 }}
+          <span>Bitcoin++ hackathon podium</span>
+        {{ else if $page.AwardHasSponsor $award }}
+          {{ with $page.AwardSponsorURL $award }}<a href="{{ . }}" target="_blank" rel="noreferrer">[ {{ $page.AwardSponsorLabel $award }} ]</a>{{ else }}<span>[ {{ $page.AwardSponsorLabel $award }} ]</span>{{ end }}
+        {{ else }}
+          <span>{{ if $page.AwardIsChallenge $award }}[ {{ $page.AwardDisplayLabel $award }} ]{{ else }}★ {{ $page.AwardDisplayLabel $award }}{{ end }}</span>
+        {{ end }}
+      </div>
+      {{ if $page.AwardHasSponsor $award }}{{ with $page.AwardLogoURL $award }}
+        {{ with $page.AwardSponsorURL $award }}<a class="hack-sponsored-award-logo" href="{{ . }}" target="_blank" rel="noreferrer"><img src="{{ $page.AwardLogoURL $award }}" alt="{{ $page.AwardLogoAlt $award }}"></a>{{ else }}<div class="hack-sponsored-award-logo"><img src="{{ $page.AwardLogoURL $award }}" alt="{{ $page.AwardLogoAlt $award }}"></div>{{ end }}
+      {{ end }}{{ end }}
+    </div>
+    <h3><a class="hack-bounty-card__permalink" href="{{ $page.AwardURL $award }}">{{ $award.Title }} <span aria-hidden="true">#</span></a></h3>
+    {{ $prizes := $page.AwardPrizes $award }}
+    {{ if $prizes }}
+    <div class="hack-award-card__value">
+      {{ with $page.AwardTotalPrizeValue $award }}
+      <span>Total prize value</span>
+      <strong>{{ . }} <small>sats</small></strong>
+      {{ else }}
+      <span>Prize package</span>
+      <strong>{{ len $prizes }} <small>{{ if eq (len $prizes) 1 }}prize{{ else }}prizes{{ end }}</small></strong>
+      {{ end }}
+    </div>
+    {{ end }}
+    {{ if $award.Description }}<div class="hack-card__desc">{{ hackathonDescription $award.Description "markdown" }}</div>{{ end }}
+    {{ $awardees := $page.Awardees $award }}
+    {{ if $awardees }}
+    <div class="hack-tags" aria-label="Award winners">
+      {{ range $awardees }}
+      <a href="#project-{{ .ProjectID }}" class="hack-badge">★ Winner: {{ .ProjectTitle }}</a>
+      {{ if $page.CanAdminEdit }}
+      <form method="POST" action="{{ $page.AdminEditURL }}/awards/remove" style="display:inline;">
+        <input type="hidden" name="AwardID" value="{{ .AwardID }}">
+        <input type="hidden" name="ProjectID" value="{{ .ProjectID }}">
+        <input type="hidden" name="Source" value="public">
+        <button type="submit" class="hack-badge" style="border:0;cursor:pointer;">Remove</button>
+      </form>
+      {{ end }}
+      {{ end }}
+    </div>
+    {{ end }}
+    {{ if $prizes }}
+    <div class="hack-award-card__prize-label">Prizes</div>
+    <div class="hack-card__links hack-award-card__prizes">
+      {{ range $prizes }}
+      <div class="hack-award-card__prize">
+        <span>{{ .Title }}{{ if .ValueText }} · {{ $page.PrizeValueLabel . }}{{ end }}</span>
+        {{ if .Description }}<div class="hack-award-card__prize-desc">{{ hackathonDescription .Description "markdown" }}</div>{{ end }}
+      </div>
+      {{ end }}
+    </div>
+    {{ end }}
+  </div>
+</article>
 {{ end }}
 
 {{ define "hackathon_project_card" }}

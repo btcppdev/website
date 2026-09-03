@@ -307,6 +307,7 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("new merchandise social preview missing %q: %s", want, merchNewPage.String())
 		}
 	}
+	firstRank, secondRank, thirdRank := 1, 2, 3
 	var hackathonPage bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&hackathonPage, "hackathon.tmpl", &HackathonPage{
 		Competition: &types.HackathonCompetition{
@@ -318,12 +319,20 @@ func TestLoadTemplates(t *testing.T) {
 		},
 		Conf:     &types.Conf{Tag: "toronto"},
 		Projects: []*types.HackathonProject{{ID: "my-project", Title: "My Project"}},
-		Awards:   []*types.Award{{ID: "sponsor-bounty-id", Title: "Build the future", SponsoredByOrgID: "sponsor-org"}},
+		Awards: []*types.Award{
+			{ID: "third-place", Title: "Third place", AwardRank: &thirdRank},
+			{ID: "sponsor-bounty-id", Title: "Build the future", SponsoredByOrgID: "sponsor-org"},
+			{ID: "first-place", Title: "First place", AwardRank: &firstRank},
+			{ID: "second-place", Title: "Second place", AwardRank: &secondRank},
+		},
 		OrgsByID: map[string]*types.Org{
 			"sponsor-org": {Name: "Future Sponsor", Website: "https://sponsor.example", LogoDark: "https://sponsor.example/logo.svg"},
 		},
 		PrizesByAward: map[string][]*types.Prize{
 			"sponsor-bounty-id": {{Title: "Cash prize", ValueText: "1750000"}},
+			"first-place":       {{Title: "First prize", ValueText: "3000000"}},
+			"second-place":      {{Title: "Second prize", ValueText: "2000000"}},
+			"third-place":       {{Title: "Third prize", ValueText: "1000000"}},
 		},
 		OwnedProjects: map[string]bool{"my-project": true},
 		Viewer: &auth.Identity{
@@ -359,10 +368,15 @@ func TestLoadTemplates(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		`id="bounty-sponsor-bounty-id"`,
-		`href="#bounty-sponsor-bounty-id"`,
-		`id="award-sponsor-bounty-id"`,
-		`href="#award-sponsor-bounty-id"`,
+		`class="hack-award-podium"`,
+		`hack-award-card--place-1`,
+		`hack-award-card--place-2`,
+		`hack-award-card--place-3`,
+		`class="hack-award-card__trophy"`,
+		`class="hack-award-card__place">1st</div>`,
+		`id="bounty-build-the-future"`,
+		`id="award-build-the-future"`,
+		`href="/toronto/hackathon/awards/build-the-future"`,
 		`href="https://sponsor.example" target="_blank" rel="noreferrer">[ Future Sponsor ]</a>`,
 		`class="hack-sponsored-award-logo" href="https://sponsor.example"`,
 		`class="hack-award-card__value"`,
@@ -372,6 +386,11 @@ func TestLoadTemplates(t *testing.T) {
 	} {
 		if !strings.Contains(hackathonPage.String(), want) {
 			t.Fatalf("hackathon award permalink missing %q: %s", want, hackathonPage.String())
+		}
+	}
+	for _, unwanted := range []string{`id="bounty-sponsor-bounty-id"`, `id="award-sponsor-bounty-id"`, `hack-award-card__legacy-anchor`} {
+		if strings.Contains(hackathonPage.String(), unwanted) {
+			t.Fatalf("hackathon still renders legacy award-link infrastructure %q: %s", unwanted, hackathonPage.String())
 		}
 	}
 	var privateHackathonPage bytes.Buffer
