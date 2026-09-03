@@ -182,6 +182,15 @@ func TestMiddlewareUsesRouteTemplate(t *testing.T) {
 	if strings.Contains(text, "private-person-id") {
 		t.Fatalf("raw path leaked into metric labels: %s", text)
 	}
+	for _, want := range []string{
+		`name:"test_routes_http_response_size_bytes"`,
+		`name:"route" value:"/people/{id}"`,
+		`sample_count:1`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("response size metrics omitted %q: %s", want, text)
+		}
+	}
 }
 
 func TestObserveHandlerPhaseUsesRequestMetrics(t *testing.T) {

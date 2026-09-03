@@ -15,12 +15,13 @@ import (
 )
 
 type Metrics struct {
-	namespace string
-	registry  *prometheus.Registry
-	requests  *prometheus.CounterVec
-	duration  *prometheus.HistogramVec
-	inflight  *prometheus.GaugeVec
-	phases    *prometheus.HistogramVec
+	namespace    string
+	registry     *prometheus.Registry
+	requests     *prometheus.CounterVec
+	duration     *prometheus.HistogramVec
+	responseSize *prometheus.HistogramVec
+	inflight     *prometheus.GaugeVec
+	phases       *prometheus.HistogramVec
 }
 
 type metricsContextKey struct{}
@@ -38,6 +39,13 @@ func New(namespace string, businessLoaders ...BusinessMetricsLoader) *Metrics {
 		Name:      "request_duration_seconds",
 		Help:      "HTTP request duration by route and method.",
 		Buckets:   prometheus.DefBuckets,
+	}, []string{"route", "method"})
+	responseSize := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: "http",
+		Name:      "response_size_bytes",
+		Help:      "HTTP response body size by route and method.",
+		Buckets:   []float64{512, 1024, 4 << 10, 16 << 10, 64 << 10, 256 << 10, 1 << 20, 4 << 20, 16 << 20},
 	}, []string{"route", "method"})
 	inflight := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -59,13 +67,14 @@ func New(namespace string, businessLoaders ...BusinessMetricsLoader) *Metrics {
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		requests,
 		duration,
+		responseSize,
 		inflight,
 		phases,
 	)
 	if len(businessLoaders) > 0 && businessLoaders[0] != nil {
 		registry.MustRegister(newBusinessCollector(namespace, businessLoaders[0]))
 	}
-	return &Metrics{namespace: namespace, registry: registry, requests: requests, duration: duration, inflight: inflight, phases: phases}
+	return &Metrics{namespace: namespace, registry: registry, requests: requests, duration: duration, responseSize: responseSize, inflight: inflight, phases: phases}
 }
 
 func (m *Metrics) RegisterDatabasePool(loader DatabasePoolStatsLoader) {
@@ -95,6 +104,7 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 		}
 		m.requests.WithLabelValues(route, method, strconv.Itoa(captured.Code)).Inc()
 		m.duration.WithLabelValues(route, method).Observe(captured.Duration.Seconds())
+		m.responseSize.WithLabelValues(route, method).Observe(float64(captured.Written))
 	})
 }
 

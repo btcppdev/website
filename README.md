@@ -8,7 +8,7 @@ already exported in the shell.
 
 Set `METRICS_TOKEN` to enable the Prometheus endpoint at `/metrics`. The endpoint
 requires `Authorization: Bearer <token>` and returns 404 while the variable is
-unset. It exports HTTP request count, status, duration and in-flight metrics
+unset. It exports HTTP request count, status, duration, response-body size, and in-flight metrics
 using bounded Gorilla route templates, along with Go runtime and process
 metrics. It also exports privacy-safe ticket, check-in, speaker application,
 volunteer application, and recording broadcast totals grouped only by
