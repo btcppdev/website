@@ -37,19 +37,24 @@ type accountingInventoryVariantDTO struct {
 }
 
 type accountingInventorySaleDTO struct {
-	SourceID         string  `json:"source_id"`
-	SellableSourceID string  `json:"sellable_source_id"`
-	EventID          *string `json:"event_id"`
-	Kind             string  `json:"kind"`
-	ProductName      string  `json:"product_name"`
-	VariantLabel     string  `json:"variant_label"`
-	SKU              string  `json:"sku"`
-	Quantity         int     `json:"quantity"`
-	RefundedQuantity int     `json:"refunded_quantity"`
-	RevenueCents     int64   `json:"revenue_cents"`
-	Currency         string  `json:"currency"`
-	SoldAt           string  `json:"sold_at"`
-	UpdatedAt        string  `json:"updated_at"`
+	SourceID          string  `json:"source_id"`
+	SellableSourceID  string  `json:"sellable_source_id"`
+	EventID           *string `json:"event_id"`
+	Kind              string  `json:"kind"`
+	ProductName       string  `json:"product_name"`
+	VariantLabel      string  `json:"variant_label"`
+	SKU               string  `json:"sku"`
+	Quantity          int     `json:"quantity"`
+	RefundedQuantity  int     `json:"refunded_quantity"`
+	RevenueCents      int64   `json:"revenue_cents"`
+	GrossRevenueCents int64   `json:"gross_revenue_cents"`
+	Currency          string  `json:"currency"`
+	CheckoutID        string  `json:"checkout_id"`
+	PaymentProvider   string  `json:"payment_provider"`
+	PaymentProviderID string  `json:"payment_provider_id"`
+	PaymentHash       string  `json:"payment_hash"`
+	SoldAt            string  `json:"sold_at"`
+	UpdatedAt         string  `json:"updated_at"`
 }
 
 type conferenceDTO struct {

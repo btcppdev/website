@@ -367,7 +367,9 @@ func (s *server) accountingInventorySales(w http.ResponseWriter, r *http.Request
 			EventID:     optionalString(item.EventID),
 			ProductName: item.ProductName, VariantLabel: item.VariantLabel, SKU: item.SKU,
 			Quantity: item.Quantity, RefundedQuantity: item.RefundedQuantity,
-			RevenueCents: item.RevenueCents, Currency: item.Currency,
+			RevenueCents: item.RevenueCents, GrossRevenueCents: item.GrossRevenueCents, Currency: item.Currency,
+			CheckoutID: item.CheckoutID, PaymentProvider: item.PaymentProvider,
+			PaymentProviderID: item.PaymentProviderID, PaymentHash: item.PaymentHash,
 			SoldAt: item.SoldAt.UTC().Format(time.RFC3339Nano), UpdatedAt: item.UpdatedAt.UTC().Format(time.RFC3339Nano),
 		})
 	}

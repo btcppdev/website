@@ -205,11 +205,13 @@ func TestAccountingInventoryUsesPrivateKeysetPaginationWithoutPII(t *testing.T) 
 			EventID:     "00000000-0000-4000-8000-000000000101",
 			ProductName: "Developer Ticket", VariantLabel: "genpop", SKU: "ticket:dev26:genpop",
 			Quantity: 1, RefundedQuantity: 0, RevenueCents: 42000, Currency: "USD",
+			GrossRevenueCents: 42000, CheckoutID: "cs_test_1", PaymentProvider: "stripe", PaymentProviderID: "cs_test_1",
 			SoldAt: updated.Add(-time.Hour), UpdatedAt: updated,
 		}, {
 			SourceID: "shop_order_item:merch-1", SellableSourceID: "variant-1", Kind: "merch",
 			ProductName: "Hat", VariantLabel: "Black", SKU: "HAT", Quantity: 1,
-			RevenueCents: 2500, Currency: "USD", SoldAt: updated.Add(-time.Hour), UpdatedAt: updated.Add(time.Second),
+			RevenueCents: 2500, GrossRevenueCents: 2500, Currency: "USD",
+			SoldAt: updated.Add(-time.Hour), UpdatedAt: updated.Add(time.Second),
 		}},
 	}
 	root := mux.NewRouter()
@@ -253,7 +255,7 @@ func TestAccountingInventoryUsesPrivateKeysetPaginationWithoutPII(t *testing.T) 
 	response = httptest.NewRecorder()
 	root.ServeHTTP(response, request)
 	body := response.Body.String()
-	if response.Code != http.StatusOK || !strings.Contains(body, `"sellable_source_id":"sku:ticket:dev26:genpop"`) || !strings.Contains(body, `"event_id":"00000000-0000-4000-8000-000000000101"`) || !strings.Contains(body, `"event_id":null`) || strings.Contains(body, "email") || strings.Contains(body, "payment") {
+	if response.Code != http.StatusOK || !strings.Contains(body, `"sellable_source_id":"sku:ticket:dev26:genpop"`) || !strings.Contains(body, `"event_id":"00000000-0000-4000-8000-000000000101"`) || !strings.Contains(body, `"event_id":null`) || !strings.Contains(body, `"payment_provider_id":"cs_test_1"`) || strings.Contains(body, "email") {
 		t.Fatalf("unexpected sales projection: %d %s", response.Code, body)
 	}
 }
