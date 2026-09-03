@@ -61,14 +61,18 @@ func RunNewMails(ctx *config.AppContext) {
 }
 
 func main() {
+	startupStarted := time.Now()
 	/* Load config from environment / .env */
 	app.Env = loadConfig()
+	databaseStarted := time.Now()
 	err := run(app.Env)
 	if err != nil {
 		log.Fatal(err)
 	}
+	app.Infos.Printf("startup phase database duration=%s", time.Since(databaseStarted))
 
 	/* Start up Spaces (S3-compatible storage) */
+	integrationsStarted := time.Now()
 	spaces.Init(app.Env.Spaces)
 
 	/* OAuth token store for YouTube */
@@ -84,12 +88,15 @@ func main() {
 
 	/* Start up Buffer */
 	buffer.Init(app.Env.BufferAPI)
+	app.Infos.Printf("startup phase integrations duration=%s", time.Since(integrationsStarted))
 
 	/* Set up Routes + Templates */
+	routesStarted := time.Now()
 	routes, err := handlers.Routes(&app)
 	if err != nil {
 		app.Err.Fatal(err)
 	}
+	app.Infos.Printf("startup phase routes duration=%s", time.Since(routesStarted))
 	sessionHandler := app.Session.LoadAndSave(routes)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if bypassSessionMiddleware(r.URL.Path) {
@@ -133,6 +140,7 @@ func main() {
 	handlers.StartConferenceEmailAutomation(&app)
 
 	/* Start the server */
+	app.Infos.Printf("startup ready duration=%s", time.Since(startupStarted))
 	app.Infos.Printf("Starting application on port %s\n", app.Env.Port)
 	app.Infos.Printf("... Current domain is %s\n", app.Env.GetDomain())
 	err = srv.ListenAndServe()

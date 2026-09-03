@@ -251,18 +251,28 @@ func ReconcileNostrCredentialProfiles(ctx *config.AppContext) (int, error) {
 	}
 	rows.Close()
 
-	updated := 0
+	var batch pgx.Batch
 	for _, key := range keys {
 		npub := NostrPubkeyDisplay(key.pubkey)
 		if key.current == npub {
 			continue
 		}
-		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `UPDATE people SET nostr = $2 WHERE id = $1::uuid`, key.personID, npub); err != nil {
-			return updated, fmt.Errorf("reconcile person Nostr profile: %w", err)
-		}
-		updated++
+		batch.Queue(`UPDATE people SET nostr = $2 WHERE id = $1::uuid`, key.personID, npub)
 	}
-	return updated, nil
+	if batch.Len() == 0 {
+		return 0, nil
+	}
+	results := ctx.DB.SendBatch(ctx.DatabaseContext(), &batch)
+	for i := 0; i < batch.Len(); i++ {
+		if _, err := results.Exec(); err != nil {
+			_ = results.Close()
+			return i, fmt.Errorf("reconcile person Nostr profile: %w", err)
+		}
+	}
+	if err := results.Close(); err != nil {
+		return batch.Len(), fmt.Errorf("close Nostr profile reconciliation batch: %w", err)
+	}
+	return batch.Len(), nil
 }
 
 func NormalizeNostrPubkey(value string) (string, error) {
