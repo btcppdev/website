@@ -13,4 +13,9 @@ WHERE publish_at IS NOT NULL
   AND btrim(file_uri) <> ''
   AND btrim(youtube_url) = '';
 
+CREATE INDEX social_posts_youtube_schedule_idx
+ON social_posts (scheduled_at)
+WHERE scheduled_at IS NOT NULL
+  AND posted_to IN ('youtube', 'btcpp-youtube');
+
 COMMIT;

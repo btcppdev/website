@@ -496,29 +496,14 @@ func activeYouTubePublishSlots(slots []*types.YouTubePublishSlot) []*types.YouTu
 
 func occupiedYouTubePublishTimes(ctx *config.AppContext, currentRows []*RecordingRow, rescheduleExisting bool) map[int64]bool {
 	occupied := map[int64]bool{}
-	all, err := getters.ListRecordings(ctx)
+	now := time.Now()
+	times, err := getters.ListOccupiedRecordingPublishTimes(ctx, now, []string{recordingPlatformYouTube, youtubeAutoscheduleChannel})
 	if err != nil {
-		ctx.Err.Printf("autoschedule list recordings for occupied slots: %s", err)
+		ctx.Err.Printf("autoschedule list occupied publish times: %s", err)
 		return occupied
 	}
-	for _, rec := range all {
-		if rec == nil || rec.PublishAt == nil || rec.PublishAt.Before(time.Now()) {
-			continue
-		}
-		occupied[rec.PublishAt.UTC().Unix()] = true
-	}
-	posts, err := getters.ListSocialPosts(ctx)
-	if err == nil {
-		for _, post := range posts {
-			if post == nil || post.ScheduledAt == nil || post.ScheduledAt.Before(time.Now()) {
-				continue
-			}
-			if post.PostedTo == recordingPlatformYouTube || post.PostedTo == youtubeAutoscheduleChannel {
-				occupied[post.ScheduledAt.UTC().Unix()] = true
-			}
-		}
-	} else {
-		ctx.Err.Printf("autoschedule list social posts for occupied slots: %s", err)
+	for _, occupiedAt := range times {
+		occupied[occupiedAt.UTC().Unix()] = true
 	}
 	if rescheduleExisting {
 		for _, row := range currentRows {

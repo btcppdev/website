@@ -143,6 +143,51 @@ func TestDatabaseSmokeSpeakerCreateAndLookup(t *testing.T) {
 	}
 }
 
+func TestDatabaseSmokeOccupiedRecordingPublishTimesAreScoped(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	suffix := databaseSmokeSuffix()
+	prefix := "occupied-publish-" + suffix
+	now := time.Now().UTC().Truncate(time.Second)
+	wanted := now.Add(2 * time.Hour)
+	rows := []struct {
+		ref       string
+		channel   string
+		scheduled time.Time
+	}{
+		{prefix + "-wanted", YouTubePublishChannel, wanted},
+		{prefix + "-other-channel", "x", now.Add(3 * time.Hour)},
+		{prefix + "-past", YouTubePublishChannel, now.Add(-time.Hour)},
+	}
+	for _, row := range rows {
+		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+			INSERT INTO social_posts (ref, posted_to, scheduled_at)
+			VALUES ($1, $2, $3)
+		`, row.ref, row.channel, row.scheduled); err != nil {
+			t.Fatalf("insert occupied publish fixture: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM social_posts WHERE ref LIKE $1`, prefix+"%")
+	})
+
+	times, err := ListOccupiedRecordingPublishTimes(ctx, now, []string{YouTubePublishChannel})
+	if err != nil {
+		t.Fatalf("ListOccupiedRecordingPublishTimes: %v", err)
+	}
+	foundWanted := false
+	for _, candidate := range times {
+		if candidate.Equal(wanted) {
+			foundWanted = true
+		}
+		if candidate.Equal(rows[1].scheduled) || candidate.Equal(rows[2].scheduled) {
+			t.Fatalf("scoped occupied times unexpectedly include %s", candidate)
+		}
+	}
+	if !foundWanted {
+		t.Fatalf("occupied times = %v, want %s", times, wanted)
+	}
+}
+
 func TestDatabaseSmokeOAuthAuthorizationCodeAndRefreshRotation(t *testing.T) {
 	ctx := databaseSmokeContext(t)
 	var oauthSchemaPresent bool

@@ -159,6 +159,49 @@ func ListRecordingsReadyForYouTube(ctx *config.AppContext) ([]*types.Recording, 
 	return out, nil
 }
 
+// ListOccupiedRecordingPublishTimes returns only future recording and social
+// publication timestamps for the requested channels. Autoscheduling uses this
+// instead of hydrating the complete historical recording and social-post sets.
+func ListOccupiedRecordingPublishTimes(ctx *config.AppContext, after time.Time, channels []string) ([]time.Time, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	if after.IsZero() {
+		after = time.Now()
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT occupied_at
+		FROM (
+			SELECT publish_at AS occupied_at
+			FROM recordings
+			WHERE publish_at >= $1
+			UNION
+			SELECT scheduled_at AS occupied_at
+			FROM social_posts
+			WHERE scheduled_at >= $1
+				AND posted_to = ANY($2::text[])
+		) occupied
+		ORDER BY occupied_at
+	`, after, channels)
+	if err != nil {
+		return nil, fmt.Errorf("query occupied recording publish times: %w", err)
+	}
+	defer rows.Close()
+
+	var out []time.Time
+	for rows.Next() {
+		var occupiedAt time.Time
+		if err := rows.Scan(&occupiedAt); err != nil {
+			return nil, fmt.Errorf("scan occupied recording publish time: %w", err)
+		}
+		out = append(out, occupiedAt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate occupied recording publish times: %w", err)
+	}
+	return out, nil
+}
+
 func ListRecordingsForConf(ctx *config.AppContext, confTag string) ([]*types.Recording, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
