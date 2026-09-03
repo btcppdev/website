@@ -99,21 +99,38 @@ func socialPostSuppressesRef(post *types.SocialPost) bool {
 }
 
 func ListPostedRefs(ctx *config.AppContext, conf *types.Conf) (map[string]bool, error) {
-	posts, err := ListSocialPosts(ctx)
+	var (
+		posts []*types.SocialPost
+		err   error
+	)
+	prefix := ""
+	if conf == nil {
+		posts, err = ListSocialPosts(ctx)
+	} else {
+		prefix = conf.Tag + "-"
+		// Social refs begin with the conference tag. A bounded lexical range
+		// can use social_posts_ref_idx and avoids reading the site's complete
+		// post history for one conference's admin screen.
+		posts, err = listSocialPostsPostgres(ctx, "WHERE ref >= $1 AND ref < $2", []any{prefix, prefix + "\uffff"})
+	}
 	if err != nil {
 		return nil, err
 	}
+	return postedRefsFromPosts(posts, prefix), nil
+}
+
+func postedRefsFromPosts(posts []*types.SocialPost, prefix string) map[string]bool {
 	posted := make(map[string]bool)
 	for _, post := range posts {
 		if post == nil || post.Ref == "" || !socialPostSuppressesRef(post) {
 			continue
 		}
-		if conf != nil && !strings.Contains(post.Ref, conf.Tag) {
+		if prefix != "" && !strings.HasPrefix(post.Ref, prefix) {
 			continue
 		}
 		posted[post.Ref] = true
 	}
-	return posted, nil
+	return posted
 }
 
 func RecordSocialPost(ctx *config.AppContext, ref, text, platform string, postedAt time.Time) error {
