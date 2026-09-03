@@ -154,8 +154,8 @@ func TestValidShirtCode(t *testing.T) {
 		"MM":      "MM",
 		"ML":      "ML",
 		"MXL":     "MXL",
-		"MXXL":   "MXXL",
-		"MXXXL":  "MXXXL",
+		"MXXL":    "MXXL",
+		"MXXXL":   "MXXXL",
 		"":        "",
 		"unknown": "",
 		"S":       "", // legacy unisex codes no longer accepted

@@ -156,13 +156,13 @@ func TestRenderLineFolding(t *testing.T) {
 
 func TestMapVenue(t *testing.T) {
 	cases := map[string]string{
-		"one":      "Main Stage",
-		"two":      "Talks Stage",
-		"three":    "Workshops Stage",
-		"  ONE  ":  "Main Stage",
-		"":         "",
-		"unknown":  "",
-		"main":     "",
+		"one":     "Main Stage",
+		"two":     "Talks Stage",
+		"three":   "Workshops Stage",
+		"  ONE  ": "Main Stage",
+		"":        "",
+		"unknown": "",
+		"main":    "",
 	}
 	for in, want := range cases {
 		if got := MapVenue(in); got != want {
