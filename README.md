@@ -14,8 +14,11 @@ metrics. It also exports privacy-safe ticket, check-in, speaker application,
 volunteer application, and recording broadcast totals grouped only by
 conference and bounded workflow state. Database aggregates are cached for two
 minutes; a failed refresh retains the last good snapshot and exposes a failed
-collection health gauge. Never put the raw token in this repository; configure
-it as a secret App Platform environment variable.
+collection health gauge. PostgreSQL pool gauges and counters expose connection
+capacity, saturation, canceled/empty acquisitions, cumulative acquisition wait,
+and connection churn. Alert on sustained acquired connections near the `max`
+state or growth in canceled acquisitions. Never put the raw token in this
+repository; configure it as a secret App Platform environment variable.
 
 The dashboard, home/events pages, and public conference landing pages also export
 `btcpp_web_handler_phase_duration_seconds`, with bounded route and phase

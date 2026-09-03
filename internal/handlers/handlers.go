@@ -909,6 +909,25 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	metrics := appmetrics.New("btcpp_web", func() ([]types.BusinessMetricCount, error) {
 		return getters.ListBusinessMetricCounts(app)
 	})
+	if app.DB != nil {
+		metrics.RegisterDatabasePool(func() appmetrics.DatabasePoolStats {
+			stats := app.DB.Stat()
+			return appmetrics.DatabasePoolStats{
+				AcquiredConnections:     stats.AcquiredConns(),
+				IdleConnections:         stats.IdleConns(),
+				ConstructingConnections: stats.ConstructingConns(),
+				TotalConnections:        stats.TotalConns(),
+				MaxConnections:          stats.MaxConns(),
+				AcquireCount:            stats.AcquireCount(),
+				EmptyAcquireCount:       stats.EmptyAcquireCount(),
+				CanceledAcquireCount:    stats.CanceledAcquireCount(),
+				AcquireDurationSeconds:  stats.AcquireDuration().Seconds(),
+				NewConnectionsCount:     stats.NewConnsCount(),
+				LifetimeDestroyedCount:  stats.MaxLifetimeDestroyCount(),
+				IdleDestroyedCount:      stats.MaxIdleDestroyCount(),
+			}
+		})
+	}
 	r.Handle("/metrics", metrics.Handler(app.Env.MetricsToken)).Methods(http.MethodGet)
 	r.Use(metrics.Middleware)
 

@@ -106,6 +106,45 @@ func TestBusinessMetricsRetainLastSnapshotAfterRefreshFailure(t *testing.T) {
 	}
 }
 
+func TestDatabasePoolMetricsExposeCapacityAndContention(t *testing.T) {
+	m := New("test_pool")
+	m.RegisterDatabasePool(func() DatabasePoolStats {
+		return DatabasePoolStats{
+			AcquiredConnections:     3,
+			IdleConnections:         2,
+			ConstructingConnections: 1,
+			TotalConnections:        6,
+			MaxConnections:          10,
+			AcquireCount:            12,
+			EmptyAcquireCount:       4,
+			CanceledAcquireCount:    1,
+			AcquireDurationSeconds:  0.75,
+			NewConnectionsCount:     7,
+			LifetimeDestroyedCount:  2,
+			IdleDestroyedCount:      3,
+		}
+	})
+	families, err := m.registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := ""
+	for _, family := range families {
+		text += family.String()
+	}
+	text = strings.Join(strings.Fields(text), " ")
+	for _, want := range []string{
+		`name:"test_pool_db_pool_connections"`, `name:"state" value:"max"`, `gauge:{value:10}`,
+		`name:"test_pool_db_pool_acquires_total"`, `name:"outcome" value:"canceled"`,
+		`name:"test_pool_db_pool_acquire_duration_seconds_total"`, `counter:{value:0.75}`,
+		`name:"test_pool_db_pool_new_connections_total"`, `name:"test_pool_db_pool_destroyed_connections_total"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("database pool metrics omitted %q: %s", want, text)
+		}
+	}
+}
+
 func TestDisabledMetricsAreNotFound(t *testing.T) {
 	res := httptest.NewRecorder()
 	New("test_disabled").Handler("").ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/metrics", nil))

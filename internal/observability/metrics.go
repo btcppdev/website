@@ -15,11 +15,12 @@ import (
 )
 
 type Metrics struct {
-	registry *prometheus.Registry
-	requests *prometheus.CounterVec
-	duration *prometheus.HistogramVec
-	inflight *prometheus.GaugeVec
-	phases   *prometheus.HistogramVec
+	namespace string
+	registry  *prometheus.Registry
+	requests  *prometheus.CounterVec
+	duration  *prometheus.HistogramVec
+	inflight  *prometheus.GaugeVec
+	phases    *prometheus.HistogramVec
 }
 
 type metricsContextKey struct{}
@@ -64,7 +65,14 @@ func New(namespace string, businessLoaders ...BusinessMetricsLoader) *Metrics {
 	if len(businessLoaders) > 0 && businessLoaders[0] != nil {
 		registry.MustRegister(newBusinessCollector(namespace, businessLoaders[0]))
 	}
-	return &Metrics{registry: registry, requests: requests, duration: duration, inflight: inflight, phases: phases}
+	return &Metrics{namespace: namespace, registry: registry, requests: requests, duration: duration, inflight: inflight, phases: phases}
+}
+
+func (m *Metrics) RegisterDatabasePool(loader DatabasePoolStatsLoader) {
+	if m == nil || loader == nil {
+		return
+	}
+	m.registry.MustRegister(newDatabasePoolCollector(m.namespace, loader))
 }
 
 func (m *Metrics) Middleware(next http.Handler) http.Handler {
