@@ -185,7 +185,7 @@ func run(env *types.EnvConfig) error {
 	if err != nil {
 		return err
 	}
-	app.DB = pool
+	app.DB = config.NewDatabase(pool)
 	applied, err := db.Migrate(databaseCtx, pool, app.Infos)
 	if err != nil {
 		return fmt.Errorf("run database migrations: %w", err)
@@ -213,7 +213,7 @@ func run(env *types.EnvConfig) error {
 	app.Session.Cookie.Persist = true
 	app.Session.Cookie.SameSite = http.SameSiteLaxMode
 	app.Session.Cookie.Secure = app.InProduction
-	app.Session.Store = pgxstore.New(app.DB)
+	app.Session.Store = pgxstore.New(pool)
 	app.Infos.Println("using postgres session store")
 
 	return nil

@@ -9,7 +9,6 @@ import (
 
 	"btcpp-web/internal/types"
 	"github.com/alexedwards/scs/v2"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const DatabaseOperationTimeout = 15 * time.Second
@@ -17,7 +16,7 @@ const DatabaseOperationTimeout = 15 * time.Second
 /* application configuration settings */
 type AppContext struct {
 	Env *types.EnvConfig
-	DB  *pgxpool.Pool
+	DB  *Database
 
 	InProduction  bool
 	Err           *log.Logger
@@ -27,14 +26,13 @@ type AppContext struct {
 	EmailCache    map[string]*texttemplate.Template
 }
 
-// DatabaseContext bounds both pool acquisition and query execution. Most of
-// the data layer predates request-scoped contexts, so this is a hard safety
-// boundary until callers can pass r.Context() all the way through.
+// DatabaseContext supplies the parent context used by the legacy data layer.
+// Database owns and promptly cancels the per-operation timeout derived from
+// this context.
 func (c *AppContext) DatabaseContext() context.Context {
 	return DatabaseContext()
 }
 
 func DatabaseContext() context.Context {
-	ctx, _ := context.WithTimeout(context.Background(), DatabaseOperationTimeout)
-	return ctx
+	return context.Background()
 }

@@ -46,7 +46,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer pool.Close()
-	valid, err := getters.MagicLoginTokenValid(&config.AppContext{Env: env, DB: pool}, token)
+	valid, err := getters.MagicLoginTokenValid(&config.AppContext{Env: env, DB: config.NewDatabase(pool)}, token)
 	if err != nil {
 		log.Fatal(err)
 	}

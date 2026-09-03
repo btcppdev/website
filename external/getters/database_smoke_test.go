@@ -1212,7 +1212,7 @@ func databaseSmokeContext(t *testing.T) *config.AppContext {
 
 	return &config.AppContext{
 		Env:   &types.EnvConfig{},
-		DB:    pool,
+		DB:    config.NewDatabase(pool),
 		Err:   log.New(io.Discard, "", 0),
 		Infos: log.New(io.Discard, "", 0),
 	}

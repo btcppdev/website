@@ -42,7 +42,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer pool.Close()
-	ctx := &config.AppContext{Env: env, DB: pool, Err: log.Default()}
+	ctx := &config.AppContext{Env: env, DB: config.NewDatabase(pool), Err: log.Default()}
 	link := auth.MagicLink(ctx, *email, *next)
 	if link == "" {
 		log.Fatal("unable to create development login link")
