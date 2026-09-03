@@ -2,9 +2,38 @@ package handlers
 
 import (
 	"testing"
+	"time"
 
 	"btcpp-web/internal/types"
 )
+
+func TestCloneMerchProductsDoesNotShareMutableGraph(t *testing.T) {
+	now := time.Date(2026, time.September, 3, 12, 0, 0, 0, time.UTC)
+	original := []*types.MerchProduct{{
+		ID:            "product-1",
+		Name:          "Original",
+		AvailableFrom: &now,
+		Images:        []*types.MerchProductImage{{ID: "image-1", AltText: "Original image"}},
+		Options: []*types.MerchProductOption{{
+			ID: "option-1", Values: []*types.MerchProductOptionValue{{ID: "value-1", Value: "Small"}},
+		}},
+		Variants: []*types.MerchVariant{{
+			ID: "variant-1", Stock: 4, OptionValues: []*types.MerchProductOptionValue{{ID: "value-1", Value: "Small"}},
+		}},
+	}}
+
+	cloned := cloneMerchProducts(original)
+	cloned[0].Name = "Changed"
+	*cloned[0].AvailableFrom = now.Add(time.Hour)
+	cloned[0].Images[0].AltText = "Changed image"
+	cloned[0].Options[0].Values[0].Value = "Large"
+	cloned[0].Variants[0].Stock = 0
+	cloned[0].Variants[0].OptionValues[0].Value = "Large"
+
+	if original[0].Name != "Original" || !original[0].AvailableFrom.Equal(now) || original[0].Images[0].AltText != "Original image" || original[0].Options[0].Values[0].Value != "Small" || original[0].Variants[0].Stock != 4 || original[0].Variants[0].OptionValues[0].Value != "Small" {
+		t.Fatalf("clone mutated original graph: %+v", original[0])
+	}
+}
 
 func TestMerchProductStockTotalsVariants(t *testing.T) {
 	product := &types.MerchProduct{Variants: []*types.MerchVariant{

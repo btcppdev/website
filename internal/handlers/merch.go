@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"btcpp-web/external/easyship"
@@ -144,6 +145,18 @@ type shopCategory struct {
 	Tone  int
 }
 
+const publicShopCatalogCacheTTL = 15 * time.Second
+
+var publicShopCatalogCache = struct {
+	sync.Mutex
+	app        *config.AppContext
+	products   []*types.MerchProduct
+	expires    time.Time
+	refreshing bool
+}{}
+
+var publicShopCatalogBuildMu sync.Mutex
+
 func StartShopMaintenance(ctx *config.AppContext) {
 	if ctx == nil || ctx.DB == nil {
 		return
@@ -224,7 +237,7 @@ func StartShopMaintenance(ctx *config.AppContext) {
 }
 
 func ShopHome(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	products, err := getters.ListMerchProducts(ctx, false)
+	products, err := cachedPublicShopCatalog(ctx)
 	if err != nil {
 		ctx.Err.Printf("/shop products: %s", err)
 		http.Error(w, "Unable to load shop", http.StatusInternalServerError)
@@ -257,7 +270,7 @@ func merchArchiveRain(products []*types.MerchProduct) []*HomeArchiveRainItem {
 }
 
 func ShopCollection(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	products, err := getters.ListMerchProducts(ctx, false)
+	products, err := cachedPublicShopCatalog(ctx)
 	if err != nil {
 		ctx.Err.Printf("/shop/all products: %s", err)
 		http.Error(w, "Unable to load shop", http.StatusInternalServerError)
@@ -281,13 +294,23 @@ func ShopCollection(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 func ShopItem(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	slug := strings.TrimSpace(mux.Vars(r)["slug"])
-	product, err := getters.GetMerchProductBySlug(ctx, slug, false)
+	products, err := cachedPublicShopCatalog(ctx)
 	if err != nil {
 		ctx.Err.Printf("/shop/%s: %s", slug, err)
 		http.NotFound(w, r)
 		return
 	}
-	products, _ := getters.ListMerchProducts(ctx, false)
+	var product *types.MerchProduct
+	for _, candidate := range products {
+		if candidate != nil && candidate.Slug == slug {
+			product = candidate
+			break
+		}
+	}
+	if product == nil {
+		http.NotFound(w, r)
+		return
+	}
 	var related []*types.MerchProduct
 	for _, p := range products {
 		if p.ID != product.ID && shopCategorySlug(p.ProductType) == shopCategorySlug(product.ProductType) {
@@ -306,6 +329,132 @@ func ShopItem(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	page.Product = product
 	page.Related = related
 	renderShopTemplate(w, r, ctx, "shop/item.tmpl", page)
+}
+
+// cachedPublicShopCatalog shares the read-only product graph used by public
+// shop pages. Checkout loads authoritative product/variant rows again before
+// reserving inventory, so this brief display cache cannot oversell stock or
+// accept a stale price.
+func cachedPublicShopCatalog(ctx *config.AppContext) ([]*types.MerchProduct, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	if !ctx.InProduction {
+		return getters.ListMerchProducts(ctx, false)
+	}
+
+	publicShopCatalogCache.Lock()
+	if publicShopCatalogCache.app == ctx && publicShopCatalogCache.products != nil {
+		products := cloneMerchProducts(publicShopCatalogCache.products)
+		startRefresh := time.Now().After(publicShopCatalogCache.expires) && !publicShopCatalogCache.refreshing
+		if startRefresh {
+			publicShopCatalogCache.refreshing = true
+		}
+		publicShopCatalogCache.Unlock()
+		if startRefresh {
+			go func() {
+				_, err := rebuildPublicShopCatalog(ctx)
+				publicShopCatalogCache.Lock()
+				if publicShopCatalogCache.app == ctx {
+					publicShopCatalogCache.refreshing = false
+				}
+				publicShopCatalogCache.Unlock()
+				if err != nil && ctx.Err != nil {
+					ctx.Err.Printf("public shop catalog background refresh: %s", err)
+				}
+			}()
+		}
+		return products, nil
+	}
+	publicShopCatalogCache.Unlock()
+	return rebuildPublicShopCatalog(ctx)
+}
+
+func rebuildPublicShopCatalog(ctx *config.AppContext) ([]*types.MerchProduct, error) {
+	publicShopCatalogBuildMu.Lock()
+	defer publicShopCatalogBuildMu.Unlock()
+
+	publicShopCatalogCache.Lock()
+	if publicShopCatalogCache.app == ctx && publicShopCatalogCache.products != nil && time.Now().Before(publicShopCatalogCache.expires) {
+		products := cloneMerchProducts(publicShopCatalogCache.products)
+		publicShopCatalogCache.Unlock()
+		return products, nil
+	}
+	publicShopCatalogCache.Unlock()
+
+	products, err := getters.ListMerchProducts(ctx, false)
+	if err != nil {
+		publicShopCatalogCache.Lock()
+		if publicShopCatalogCache.app == ctx && publicShopCatalogCache.products != nil {
+			if ctx.Err != nil {
+				ctx.Err.Printf("public shop catalog refresh failed; serving stale cache: %s", err)
+			}
+			publicShopCatalogCache.expires = time.Now().Add(10 * time.Second)
+			stale := cloneMerchProducts(publicShopCatalogCache.products)
+			publicShopCatalogCache.Unlock()
+			return stale, nil
+		}
+		publicShopCatalogCache.Unlock()
+		return nil, err
+	}
+
+	publicShopCatalogCache.Lock()
+	publicShopCatalogCache.app = ctx
+	publicShopCatalogCache.products = cloneMerchProducts(products)
+	publicShopCatalogCache.expires = time.Now().Add(publicShopCatalogCacheTTL)
+	publicShopCatalogCache.Unlock()
+	return cloneMerchProducts(products), nil
+}
+
+func cloneMerchProducts(products []*types.MerchProduct) []*types.MerchProduct {
+	cloned := make([]*types.MerchProduct, len(products))
+	for i, product := range products {
+		if product == nil {
+			continue
+		}
+		copyProduct := *product
+		copyProduct.AvailableFrom = cloneTime(product.AvailableFrom)
+		copyProduct.AvailableUntil = cloneTime(product.AvailableUntil)
+		copyProduct.PublishedAt = cloneTime(product.PublishedAt)
+		copyProduct.Images = make([]*types.MerchProductImage, len(product.Images))
+		for imageIndex, image := range product.Images {
+			if image != nil {
+				copyImage := *image
+				copyProduct.Images[imageIndex] = &copyImage
+			}
+		}
+		copyProduct.Options = make([]*types.MerchProductOption, len(product.Options))
+		for optionIndex, option := range product.Options {
+			if option == nil {
+				continue
+			}
+			copyOption := *option
+			copyOption.Values = cloneMerchOptionValues(option.Values)
+			copyProduct.Options[optionIndex] = &copyOption
+		}
+		copyProduct.Variants = make([]*types.MerchVariant, len(product.Variants))
+		for variantIndex, variant := range product.Variants {
+			if variant == nil {
+				continue
+			}
+			copyVariant := *variant
+			copyVariant.OptionValues = cloneMerchOptionValues(variant.OptionValues)
+			copyProduct.Variants[variantIndex] = &copyVariant
+		}
+		cloned[i] = &copyProduct
+	}
+	return cloned
+}
+
+func cloneMerchOptionValues(values []*types.MerchProductOptionValue) []*types.MerchProductOptionValue {
+	cloned := make([]*types.MerchProductOptionValue, len(values))
+	for i, value := range values {
+		if value != nil {
+			copyValue := *value
+			cloned[i] = &copyValue
+		}
+	}
+	return cloned
 }
 
 func ShopCart(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
