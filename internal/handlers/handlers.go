@@ -4977,17 +4977,36 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		}
 		return
 	}
+	if page == "timeline" {
+		socialCardStart := time.Now()
+		socialCardURL := siteSocialCardPath("events", "", eventsSocialCard(ctx, confList))
+		appmetrics.ObserveHandlerPhase(r.Context(), "/events", "social_card", time.Since(socialCardStart).Seconds())
+		templateStart := time.Now()
+		err := ctx.TemplateCache.ExecuteTemplate(w, "embeds/timeline.tmpl", &HomePageData{
+			Confs:         confList,
+			Upcoming:      homeUpcomingConfs(confList),
+			Past:          homePastConfs(confList),
+			Years:         homeTimelineYears(confList),
+			Year:          helpers.CurrentYear(),
+			SocialCardURL: socialCardURL,
+		})
+		appmetrics.ObserveHandlerPhase(r.Context(), "/events", "template", time.Since(templateStart).Seconds())
+		if err != nil {
+			http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
+			ctx.Err.Printf("/timeline ExecuteTemplate failed: %s", err)
+		}
+		return
+	}
 
 	routeLabel := "/"
-	if page == "timeline" {
-		routeLabel = "/events"
-	}
 	primaryStart := time.Now()
 	var (
 		confInfosRaw     []*types.ConfInfo
 		confInfosErr     error
 		hackathonConfs   map[string]bool
 		featuredSpeakers []*types.Speaker
+		homeSponsorships []*types.Sponsorship
+		homeSponsorsErr  error
 		primaryGroup     sync.WaitGroup
 	)
 	primaryGroup.Add(3)
@@ -5002,6 +5021,11 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 	go func() {
 		defer primaryGroup.Done()
 		featuredSpeakers = homeFeaturedSpeakers(ctx)
+	}()
+	primaryGroup.Add(1)
+	go func() {
+		defer primaryGroup.Done()
+		homeSponsorships, homeSponsorsErr = loadHomeSponsorships(ctx, confList, time.Now())
 	}()
 	primaryGroup.Wait()
 	appmetrics.ObserveHandlerPhase(r.Context(), routeLabel, "primary_fetch", time.Since(primaryStart).Seconds())
@@ -5048,26 +5072,21 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 	var socialCardURL string
 	secondaryStart := time.Now()
 	var secondaryGroup sync.WaitGroup
-	secondaryGroup.Add(3)
+	secondaryGroup.Add(2)
 	go func() {
 		defer secondaryGroup.Done()
-		if page == "index" {
-			archiveRain = homeArchiveRain(ctx, featuredSpeakers)
-		}
+		archiveRain = homeArchiveRain(ctx, featuredSpeakers)
 	}()
 	go func() {
 		defer secondaryGroup.Done()
-		sponsors = homeSponsors(ctx, enriched, time.Now())
-	}()
-	go func() {
-		defer secondaryGroup.Done()
-		if page == "timeline" {
-			socialCardURL = siteSocialCardPath("events", "", eventsSocialCard(ctx, enriched))
-		} else {
-			socialCardURL = siteSocialCardPath("home", "", homeSocialCard(ctx, enriched))
-		}
+		socialCardURL = siteSocialCardPath("home", "", homeSocialCardWithSponsorships(ctx, enriched, homeSponsorships))
 	}()
 	secondaryGroup.Wait()
+	if homeSponsorsErr != nil {
+		ctx.Err.Printf("homepage sponsorships: %s", homeSponsorsErr)
+	} else {
+		sponsors = homeSponsorsFromSponsorships(homeSponsorships)
+	}
 	appmetrics.ObserveHandlerPhase(r.Context(), routeLabel, "secondary_fetch", time.Since(secondaryStart).Seconds())
 	data := HomePageData{
 		Confs:            enriched,
@@ -5364,14 +5383,18 @@ func clampPercent(v float64) float64 {
 	return v
 }
 
-func homeSponsors(ctx *config.AppContext, confs []*types.Conf, now time.Time) []*HomeSponsor {
+func loadHomeSponsorships(ctx *config.AppContext, confs []*types.Conf, now time.Time) ([]*types.Sponsorship, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, nil
+	}
 	if now.IsZero() {
 		now = time.Now()
 	}
 	currentYear := now.Year()
-	keepLevels := map[string]bool{
-		"Headline": true,
-		"Workshop": true,
+	years := map[int]bool{currentYear - 1: true, currentYear: true}
+	if upcoming := homeUpcomingConfsAt(confs, now); len(upcoming) > 0 {
+		next := upcoming[0]
+		years[next.StartDate.In(next.Loc()).Year()] = true
 	}
 	confRefs := make([]string, 0, len(confs))
 	for _, conf := range confs {
@@ -5379,14 +5402,17 @@ func homeSponsors(ctx *config.AppContext, confs []*types.Conf, now time.Time) []
 			continue
 		}
 		year := conf.StartDate.In(conf.Loc()).Year()
-		if year >= currentYear-1 && year <= currentYear {
+		if years[year] {
 			confRefs = append(confRefs, conf.Ref)
 		}
 	}
-	sponsorships, err := getters.ListSponsorshipsForConferences(ctx, confRefs)
-	if err != nil {
-		ctx.Err.Printf("homepage sponsorships: %s", err)
-		return nil
+	return getters.ListSponsorshipsForConferences(ctx, confRefs)
+}
+
+func homeSponsorsFromSponsorships(sponsorships []*types.Sponsorship) []*HomeSponsor {
+	keepLevels := map[string]bool{
+		"Headline": true,
+		"Workshop": true,
 	}
 	seen := map[string]bool{}
 	var out []*HomeSponsor

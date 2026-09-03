@@ -84,6 +84,26 @@ func TestHomeSocialCardHeadlineSponsorsUsesUpcomingEventYear(t *testing.T) {
 	}
 }
 
+func TestHomeSponsorsFromSponsorshipsFiltersAndDeduplicates(t *testing.T) {
+	org := &types.Org{Ref: "org-1", Name: "Protocol Labs", LogoLight: "/light.svg"}
+	sponsors := homeSponsorsFromSponsorships([]*types.Sponsorship{
+		{Level: "Workshop", Status: "Paid", Org: &types.Org{Ref: "org-2", Name: "Workshop Co"}},
+		{Level: "Headline", Status: "Committed", Org: org},
+		{Level: "Headline", Status: "Paid", Org: org},
+		{Level: "Gold", Status: "Paid", Org: &types.Org{Ref: "org-3", Name: "Gold Co"}},
+		{Level: "Headline", Status: "Pending", Org: &types.Org{Ref: "org-4", Name: "Pending Co"}},
+	})
+	if len(sponsors) != 2 {
+		t.Fatalf("home sponsors = %#v, want two visible unique sponsors", sponsors)
+	}
+	if sponsors[0].Name != "Protocol Labs" || sponsors[0].Level != "Headline" {
+		t.Fatalf("first home sponsor = %#v, want headline sponsor", sponsors[0])
+	}
+	if sponsors[1].Name != "Workshop Co" || sponsors[1].Level != "Workshop" {
+		t.Fatalf("second home sponsor = %#v, want workshop sponsor", sponsors[1])
+	}
+}
+
 func TestEventsSocialCardFeaturesConferenceArchive(t *testing.T) {
 	ctx := &config.AppContext{Env: &types.EnvConfig{Host: "localhost", Port: "8888", Prod: true}}
 	confs := []*types.Conf{

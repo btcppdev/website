@@ -308,6 +308,14 @@ func siteSocialCardStoredImage(prefix, name string) string {
 }
 
 func homeSocialCard(ctx *config.AppContext, confs []*types.Conf) imgproc.SiteSocialCard {
+	sponsorships, err := loadHomeSponsorships(ctx, confs, time.Now())
+	if err != nil && ctx != nil && ctx.Err != nil {
+		ctx.Err.Printf("home social card headline sponsors: %s", err)
+	}
+	return homeSocialCardWithSponsorships(ctx, confs, sponsorships)
+}
+
+func homeSocialCardWithSponsorships(ctx *config.AppContext, confs []*types.Conf, sponsorships []*types.Sponsorship) imgproc.SiteSocialCard {
 	published := make([]*types.Conf, 0, len(confs))
 	for _, conf := range confs {
 		if conf != nil && conf.IsPublished() {
@@ -341,18 +349,9 @@ func homeSocialCard(ctx *config.AppContext, confs []*types.Conf) imgproc.SiteSoc
 		card.Eyebrow = "Up next"
 		card.Subtitle = strings.Join(nonEmptyStrings(location, next.DateDesc), " · ")
 	}
-	if ctx != nil && ctx.DB != nil {
-		sponsorships, err := getters.ListSponsorships(ctx, "")
-		if err != nil {
-			if ctx.Err != nil {
-				ctx.Err.Printf("home social card headline sponsors: %s", err)
-			}
-		} else {
-			card.SponsorLogos, card.SponsorNames = homeSocialCardHeadlineSponsors(sponsorships, sponsorYear)
-			if len(card.SponsorLogos) > 0 {
-				card.SponsorLabel = fmt.Sprintf("%d headline partners", sponsorYear)
-			}
-		}
+	card.SponsorLogos, card.SponsorNames = homeSocialCardHeadlineSponsors(sponsorships, sponsorYear)
+	if len(card.SponsorLogos) > 0 {
+		card.SponsorLabel = fmt.Sprintf("%d headline partners", sponsorYear)
 	}
 	mapPointIndexes := make(map[string]int)
 	for _, marker := range homeMapMarkers(confs) {

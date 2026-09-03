@@ -369,17 +369,25 @@ func listSponsorshipsForConferences(ctx *config.AppContext, confRefs []string) (
 		}
 	}
 
-	if err := hydrateSponsorshipConfsPostgres(ctx, ids, byID); err != nil {
+	if err := hydrateSponsorshipConfsPostgres(ctx, ids, byID, confRefs); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func hydrateSponsorshipConfsPostgres(ctx *config.AppContext, ids []string, byID map[string]*types.Sponsorship) error {
+func hydrateSponsorshipConfsPostgres(ctx *config.AppContext, ids []string, byID map[string]*types.Sponsorship, confRefs []string) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	confs, err := listConferencesOnlyPostgres(ctx)
+	var (
+		confs []*types.Conf
+		err   error
+	)
+	if len(confRefs) > 0 {
+		confs, err = queryConferencesOnlyPostgres(ctx, "sponsorship conferences", "WHERE id = ANY($1::uuid[])", []any{confRefs})
+	} else {
+		confs, err = listConferencesOnlyPostgres(ctx)
+	}
 	if err != nil {
 		return err
 	}
@@ -390,11 +398,17 @@ func hydrateSponsorshipConfsPostgres(ctx *config.AppContext, ids []string, byID 
 		}
 	}
 
+	linkWhere := "WHERE sponsorship_id = ANY($1::uuid[])"
+	linkArgs := []any{ids}
+	if len(confRefs) > 0 {
+		linkWhere += " AND conference_id = ANY($2::uuid[])"
+		linkArgs = append(linkArgs, confRefs)
+	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT sponsorship_id::text, conference_id::text
 		FROM sponsorships_conferences
-		WHERE sponsorship_id = ANY($1::uuid[])
-	`, ids)
+		`+linkWhere+`
+	`, linkArgs...)
 	if err != nil {
 		return fmt.Errorf("query sponsorship conference links: %w", err)
 	}
