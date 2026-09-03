@@ -136,6 +136,27 @@ func LoadTalksFromConfTalks(ctx *config.AppContext, confTag string) ([]*types.Ta
 	return talksFromConfTalks(ctx, confTalks, proposalMap)
 }
 
+// LoadTalksFromConfTalksForConferences builds the talk graph for a set of
+// conferences in one batch. Background media reconciliation uses this instead
+// of repeating the proposal, speaker, recording, and conference reads once per
+// active event.
+func LoadTalksFromConfTalksForConferences(ctx *config.AppContext, confRefs []string) ([]*types.Talk, error) {
+	if len(confRefs) == 0 {
+		return nil, nil
+	}
+	confTalks, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.conference_id = ANY($1::uuid[])", []interface{}{confRefs}, nil)
+	if err != nil {
+		return nil, err
+	}
+	proposalMap := make(map[string]*types.Proposal, len(confTalks))
+	for _, confTalk := range confTalks {
+		if confTalk != nil && confTalk.Proposal != nil {
+			proposalMap[confTalk.Proposal.ID] = confTalk.Proposal
+		}
+	}
+	return talksFromConfTalks(ctx, confTalks, proposalMap)
+}
+
 func talksFromConfTalks(ctx *config.AppContext, confTalks []*types.ConfTalk, proposalMap map[string]*types.Proposal) ([]*types.Talk, error) {
 	if len(confTalks) == 0 {
 		return nil, nil
@@ -449,17 +470,6 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	confs, err := listConferencesOnlyPostgres(ctx)
-	if err != nil {
-		return nil, err
-	}
-	confByID := make(map[string]*types.Conf, len(confs))
-	for _, conf := range confs {
-		if conf != nil {
-			confByID[conf.Ref] = conf
-		}
-	}
-
 	if where == "" {
 		where = "WHERE conf_talks.archived_at IS NULL"
 	} else {
@@ -489,6 +499,7 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 	}
 	var scanned []confTalkRow
 	proposalIDs := make([]string, 0)
+	confIDs := make([]string, 0)
 	for rows.Next() {
 		var ct types.ConfTalk
 		var confID string
@@ -523,11 +534,22 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 			scheduledStart: scheduledStart,
 			scheduledEnd:   scheduledEnd,
 		})
+		confIDs = append(confIDs, confID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate conf talks: %w", err)
 	}
 	rows.Close()
+	confs, err := queryConferencesOnlyPostgres(ctx, "conference talks", "WHERE id = ANY($1::uuid[])", []any{confIDs})
+	if err != nil {
+		return nil, err
+	}
+	confByID := make(map[string]*types.Conf, len(confs))
+	for _, conf := range confs {
+		if conf != nil {
+			confByID[conf.Ref] = conf
+		}
+	}
 
 	if proposalMap == nil {
 		proposals, err := ListProposalsByIDs(ctx, proposalIDs)

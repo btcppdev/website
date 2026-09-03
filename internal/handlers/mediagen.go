@@ -527,14 +527,17 @@ func RefreshSponsorCards(ctx *config.AppContext) {
 	if !mediaUpdatesEnabled(ctx) {
 		return
 	}
-	confs, err := getters.ListConfs(ctx)
+	confs, err := getters.ListConferencesWithoutTickets(ctx)
 	if err != nil {
 		ctx.Err.Printf("media refresh sponsors: failed to fetch confs: %s", err)
 		return
 	}
+	refreshSponsorCardsForConfs(ctx, confs)
+}
 
+func refreshSponsorCardsForConfs(ctx *config.AppContext, confs []*types.Conf) {
 	for _, conf := range confs {
-		if !conf.Active || !conf.InFuture() {
+		if conf == nil || !conf.Active || !conf.InFuture() {
 			continue
 		}
 		RefreshSponsorCardsForConf(ctx, conf)
@@ -559,12 +562,21 @@ func RefreshTalkCards(ctx *config.AppContext, talks []*types.Talk) {
 	if !mediaUpdatesEnabled(ctx) {
 		return
 	}
+	confs, err := getters.ListConferencesWithoutTickets(ctx)
+	if err != nil {
+		ctx.Err.Printf("media refresh talks: failed to fetch confs: %s", err)
+		return
+	}
+	refreshTalkCardsGuarded(ctx, talks, confs)
+}
+
+func refreshTalkCardsGuarded(ctx *config.AppContext, talks []*types.Talk, confs []*types.Conf) {
 	if !atomic.CompareAndSwapInt32(&refreshRunning, 0, 1) {
 		ctx.Infos.Printf("media refresh: skipping, already running")
 		return
 	}
 	defer atomic.StoreInt32(&refreshRunning, 0)
-	refreshTalkCards(ctx, talks, true, false)
+	refreshTalkCards(ctx, talks, confs, true, false)
 }
 
 // RefreshTalkCardsForce is the CLI-friendly variant. No atomic guard (one-
@@ -575,7 +587,12 @@ func RefreshTalkCardsForce(ctx *config.AppContext, talks []*types.Talk) {
 	if !mediaUpdatesEnabled(ctx) {
 		return
 	}
-	refreshTalkCards(ctx, talks, false, false)
+	confs, err := getters.ListConferencesWithoutTickets(ctx)
+	if err != nil {
+		ctx.Err.Printf("media refresh talks: failed to fetch confs: %s", err)
+		return
+	}
+	refreshTalkCards(ctx, talks, confs, false, false)
 }
 
 // RefreshTalkCardsForceOpt is the force-aware variant. force=true
@@ -586,11 +603,15 @@ func RefreshTalkCardsForceOpt(ctx *config.AppContext, talks []*types.Talk, force
 	if !mediaUpdatesEnabled(ctx) {
 		return
 	}
-	refreshTalkCards(ctx, talks, false, force)
+	confs, err := getters.ListConferencesWithoutTickets(ctx)
+	if err != nil {
+		ctx.Err.Printf("media refresh talks: failed to fetch confs: %s", err)
+		return
+	}
+	refreshTalkCards(ctx, talks, confs, false, force)
 }
 
-func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, requireActive, force bool) {
-	confs, _ := getters.ListConfs(ctx)
+func refreshTalkCards(ctx *config.AppContext, talks []*types.Talk, confs []*types.Conf, requireActive, force bool) {
 	confset := helpers.ConfTagSet(confs)
 	changed := make([]*types.Talk, 0, len(talks))
 	for _, talk := range talks {
@@ -728,31 +749,28 @@ func InitMediaRefresh(ctx *config.AppContext) {
 
 	// Scan active conferences only. Persisted hashes make this a cheap
 	// comparison pass; Chrome is not started unless at least one card changed.
-	confs, err := getters.ListConfs(ctx)
-	var talks []*types.Talk
-	if err == nil {
-		for _, conf := range confs {
-			if conf == nil || !conf.Active {
-				continue
-			}
-			confTalks, loadErr := getters.LoadTalksFromConfTalks(ctx, conf.Tag)
-			if loadErr != nil {
-				ctx.Err.Printf("InitMediaRefresh: load talks for %s: %s", conf.Tag, loadErr)
-				continue
-			}
-			talks = append(talks, confTalks...)
+	confs, err := getters.ListConferencesWithoutTickets(ctx)
+	if err != nil {
+		ctx.Err.Printf("InitMediaRefresh: load conferences: %s", err)
+		return
+	}
+	activeConfRefs := make([]string, 0, len(confs))
+	for _, conf := range confs {
+		if conf != nil && conf.Active {
+			activeConfRefs = append(activeConfRefs, conf.Ref)
 		}
 	}
-	if err == nil {
-		ctx.Infos.Println("Running initial media card refresh...")
-		RefreshTalkCards(ctx, talks)
+	talks, talksErr := getters.LoadTalksFromConfTalksForConferences(ctx, activeConfRefs)
+	if talksErr != nil {
+		ctx.Err.Printf("InitMediaRefresh: load active conference talks: %s", talksErr)
 	} else {
-		ctx.Err.Printf("InitMediaRefresh: load conferences: %s", err)
+		ctx.Infos.Println("Running initial media card refresh...")
+		refreshTalkCardsGuarded(ctx, talks, confs)
 	}
 
 	// Initial sponsor card refresh
 	ctx.Infos.Println("Running initial sponsor card refresh...")
-	RefreshSponsorCards(ctx)
+	refreshSponsorCardsForConfs(ctx, confs)
 }
 
 // SpeakerCardURL returns the S3 URL for a speaker card, falling back to dynamic PNG route

@@ -104,6 +104,13 @@ func ListConfs(ctx *config.AppContext) ([]*types.Conf, error) {
 	return confs, nil
 }
 
+// ListConferencesWithoutTickets returns conference metadata without hydrating
+// ticket tiers. Background jobs that only need tags, dates, or active state use
+// this to avoid an unrelated second query and object graph.
+func ListConferencesWithoutTickets(ctx *config.AppContext) ([]*types.Conf, error) {
+	return listConferencesOnlyPostgres(ctx)
+}
+
 func GetConfByTag(ctx *config.AppContext, tag string) (*types.Conf, error) {
 	confs, err := queryConferencesOnlyPostgres(ctx, "conference by tag", "WHERE tag = $1", []any{tag})
 	if err != nil || len(confs) == 0 {
