@@ -3253,11 +3253,11 @@ func slugifyPublicID(raw string) string {
 // per-conf SpeakerConf row so templates referencing Speaker.Company
 // render the conf-specific affiliation rather than the stale top-
 // level Speaker.Company.
-func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*types.Talk) types.Speakers {
+func loadAcceptedSpeakerGraph(ctx *config.AppContext, conf *types.Conf, talks []*types.Talk) (types.Speakers, []*types.Proposal, []*types.SpeakerConf) {
 	var speakers types.Speakers
 	seen := make(map[string]bool)
 	if conf == nil {
-		return speakers
+		return speakers, nil, nil
 	}
 
 	// Source 1: speakers from ConfTalk-backed Talks (the existing
@@ -3292,7 +3292,7 @@ func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*
 	proposals, err := getters.ListProposalsForConf(ctx, conf.Ref)
 	if err != nil {
 		ctx.Err.Printf("acceptedSpeakersForConf %s proposals: %s", conf.Tag, err)
-		return speakers
+		return speakers, nil, nil
 	}
 	proposalMap := make(map[string]*types.Proposal, len(proposals))
 	var speakerConfIDs []string
@@ -3306,21 +3306,10 @@ func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*
 		proposalMap[p.ID] = p
 		speakerConfIDs = append(speakerConfIDs, p.SpeakerConfRefs...)
 	}
-	allSpeakers, err := getters.ListSpeakers(ctx)
-	if err != nil {
-		ctx.Err.Printf("acceptedSpeakersForConf %s speakers: %s", conf.Tag, err)
-		return speakers
-	}
-	speakerMap := make(map[string]*types.Speaker, len(allSpeakers))
-	for _, speaker := range allSpeakers {
-		if speaker != nil {
-			speakerMap[speaker.ID] = speaker
-		}
-	}
-	speakerConfs, err := getters.ListSpeakerConfsByIDs(ctx, speakerConfIDs, speakerMap, proposalMap)
+	speakerConfs, err := getters.ListSpeakerConfsByIDs(ctx, speakerConfIDs, nil, proposalMap)
 	if err != nil {
 		ctx.Err.Printf("acceptedSpeakersForConf %s speakerconfs: %s", conf.Tag, err)
-		return speakers
+		return speakers, proposals, nil
 	}
 	for _, sc := range speakerConfs {
 		if sc == nil || sc.Speaker == nil {
@@ -3341,6 +3330,11 @@ func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*
 			break
 		}
 	}
+	return speakers, proposals, speakerConfs
+}
+
+func acceptedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*types.Talk) types.Speakers {
+	speakers, _, _ := loadAcceptedSpeakerGraph(ctx, conf, talks)
 	return speakers
 }
 
@@ -3349,8 +3343,15 @@ type featuredSpeakerCandidate struct {
 	speaker *types.Speaker
 }
 
-func splitFeaturedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, speakers types.Speakers) ([]*types.Speaker, []*types.Speaker) {
-	if conf == nil {
+func conferenceSpeakersForConf(ctx *config.AppContext, conf *types.Conf, talks []*types.Talk) (types.Speakers, []*types.Speaker, []*types.Speaker) {
+	speakers, proposals, speakerConfs := loadAcceptedSpeakerGraph(ctx, conf, talks)
+	sort.Sort(speakers)
+	featured, community := splitFeaturedSpeakersFromGraph(conf, speakers, proposals, speakerConfs)
+	return speakers, featured, community
+}
+
+func splitFeaturedSpeakersFromGraph(conf *types.Conf, speakers types.Speakers, proposals []*types.Proposal, speakerConfs []*types.SpeakerConf) ([]*types.Speaker, []*types.Speaker) {
+	if conf == nil || len(proposals) == 0 || len(speakerConfs) == 0 {
 		return splitFeaturedSpeakersFallback(speakers)
 	}
 	confTag := conf.Tag
@@ -3359,25 +3360,6 @@ func splitFeaturedSpeakersForConf(ctx *config.AppContext, conf *types.Conf, spea
 		if speaker != nil {
 			speakerByID[speaker.ID] = speaker
 		}
-	}
-
-	proposals, err := getters.ListProposalsForConf(ctx, conf.Ref)
-	if err != nil {
-		ctx.Err.Printf("splitFeaturedSpeakersForConf %s proposals: %s", confTag, err)
-		return splitFeaturedSpeakersFallback(speakers)
-	}
-	proposalMap := make(map[string]*types.Proposal, len(proposals))
-	var speakerConfIDs []string
-	for _, proposal := range proposals {
-		if proposal != nil {
-			proposalMap[proposal.ID] = proposal
-			speakerConfIDs = append(speakerConfIDs, proposal.SpeakerConfRefs...)
-		}
-	}
-	speakerConfs, err := getters.ListSpeakerConfsByIDs(ctx, speakerConfIDs, speakerByID, proposalMap)
-	if err != nil {
-		ctx.Err.Printf("splitFeaturedSpeakersForConf %s speakerconfs: %s", confTag, err)
-		return splitFeaturedSpeakersFallback(speakers)
 	}
 	speakerConfByID := make(map[string]*types.SpeakerConf, len(speakerConfs))
 	for _, speakerConf := range speakerConfs {
@@ -4292,21 +4274,70 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		}
 	}
 
-	talks, err := getters.GetTalksFor(ctx, conf.Tag)
-	if err != nil {
+	// The page's primary datasets are independent. Fetch them concurrently so
+	// request latency follows the slowest query instead of the sum of every
+	// conference, schedule, ticket, and hackathon lookup.
+	loadStart := time.Now()
+	var (
+		talks                []*types.Talk
+		talksErr             error
+		soldCount            uint
+		soldCountErr         error
+		confInfos            []*types.ConfInfo
+		confInfosErr         error
+		confHotels           []*types.Hotel
+		satelliteEvents      []*types.SatelliteEvent
+		satelliteEventsErr   error
+		conferenceMilestones []*types.ConferenceMilestone
+		milestonesErr        error
+		hackathon            *types.HackathonCompetition
+		hackathonErr         error
+		loadGroup            sync.WaitGroup
+	)
+	loadGroup.Add(7)
+	go func() {
+		defer loadGroup.Done()
+		talks, talksErr = getters.GetTalksFor(ctx, conf.Tag)
+	}()
+	go func() {
+		defer loadGroup.Done()
+		soldCount, soldCountErr = getters.SoldTix(ctx, conf)
+	}()
+	go func() {
+		defer loadGroup.Done()
+		confInfos, confInfosErr = getters.ListConfInfos(ctx, conf.Tag)
+	}()
+	go func() {
+		defer loadGroup.Done()
+		confHotels = helpers.HotelsForConf(ctx, conf)
+	}()
+	go func() {
+		defer loadGroup.Done()
+		satelliteEvents, satelliteEventsErr = getters.ListSatelliteEvents(ctx, conf.Ref, false)
+	}()
+	go func() {
+		defer loadGroup.Done()
+		conferenceMilestones, milestonesErr = getters.ListConferenceMilestones(ctx, conf.Ref, false)
+	}()
+	go func() {
+		defer loadGroup.Done()
+		hackathon, hackathonErr = getters.GetCompetitionByConferenceID(ctx, conf.Ref)
+	}()
+	loadGroup.Wait()
+	appmetrics.ObserveHandlerPhase(r.Context(), "/{conf}", "primary_fetch", time.Since(loadStart).Seconds())
+
+	if talksErr != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
-		ctx.Err.Printf("Unable to fetch talks: %s", err.Error())
+		ctx.Err.Printf("Unable to fetch talks: %s", talksErr.Error())
 		return
 	}
 
-	var evSpeakers types.Speakers
-	evSpeakers = acceptedSpeakersForConf(ctx, conf, talks)
-	sort.Sort(evSpeakers)
-	featuredSpeakers, communitySpeakers := splitFeaturedSpeakersForConf(ctx, conf, evSpeakers)
+	speakerStart := time.Now()
+	evSpeakers, featuredSpeakers, communitySpeakers := conferenceSpeakersForConf(ctx, conf, talks)
+	appmetrics.ObserveHandlerPhase(r.Context(), "/{conf}", "speaker_graph", time.Since(speakerStart).Seconds())
 
-	soldCount, err := getters.SoldTix(ctx, conf)
-	if err != nil {
-		ctx.Err.Printf("Unable to fetch sold ticket count for '%s': %s", conf.Tag, err.Error())
+	if soldCountErr != nil {
+		ctx.Err.Printf("Unable to fetch sold ticket count for '%s': %s", conf.Tag, soldCountErr.Error())
 	} else {
 		conf.TixSold = soldCount
 	}
@@ -4329,12 +4360,10 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	// — a fetch failure leaves AgendaDays without time strips, which the
 	// template handles by collapsing to chrono-only.
 	var infosByDay map[int]*types.ConfInfo
-	var confInfos []*types.ConfInfo
-	if cis, err := getters.ListConfInfos(ctx, conf.Tag); err != nil {
-		ctx.Err.Printf("/%s ListConfInfos failed (continuing): %s", conf.Tag, err)
+	if confInfosErr != nil {
+		ctx.Err.Printf("/%s ListConfInfos failed (continuing): %s", conf.Tag, confInfosErr)
 	} else {
-		confInfos = cis
-		infosByDay = confInfosByDay(cis)
+		infosByDay = confInfosByDay(confInfos)
 	}
 	agendaDays := buildAgendaDays(ctx, conf, talks, infosByDay)
 
@@ -4355,21 +4384,17 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	confCopy.CountdownStart, confCopy.CountdownEnd = computeCountdownBounds(&confCopy, infosByDay)
 	confCopy.HasAgenda = anyScheduledTalk(&confCopy, talks)
 
-	confHotels := helpers.HotelsForConf(ctx, conf)
-	satelliteEvents, err := getters.ListSatelliteEvents(ctx, conf.Ref, false)
-	if err != nil {
-		ctx.Err.Printf("/%s satellite events load failed (continuing): %s", conf.Tag, err)
+	if satelliteEventsErr != nil {
+		ctx.Err.Printf("/%s satellite events load failed (continuing): %s", conf.Tag, satelliteEventsErr)
 	}
-	conferenceMilestones, err := getters.ListConferenceMilestones(ctx, conf.Ref, false)
-	if err != nil {
-		ctx.Err.Printf("/%s important dates load failed (continuing): %s", conf.Tag, err)
+	if milestonesErr != nil {
+		ctx.Err.Printf("/%s important dates load failed (continuing): %s", conf.Tag, milestonesErr)
 	}
 
 	viewer := auth.RequireOptional(r, ctx)
 	hackathonCanAdmin := false
-	hackathon, err := getters.GetCompetitionByConferenceID(ctx, conf.Ref)
-	if err != nil {
-		ctx.Err.Printf("/%s hackathon load failed (continuing): %s", conf.Tag, err)
+	if hackathonErr != nil {
+		ctx.Err.Printf("/%s hackathon load failed (continuing): %s", conf.Tag, hackathonErr)
 	}
 	var hackathonScheduleEvents []HackathonScheduleEvent
 	var hackathonJudges []*types.CompetitionJudge
@@ -4378,6 +4403,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	var hackathonPlaceRows []*HackathonPlaceRow
 	var hackathonPrizePoolSats int64
 	var hackathonOrgs map[string]*types.Org
+	hackathonStart := time.Now()
 	if hackathon != nil {
 		hackathonViewer := hackathonViewerFromIdentity(viewer, conf)
 		hackathonCanAdmin = hackathonViewer.Admin || hackathonViewer.Manager
@@ -4427,6 +4453,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 			}
 		}
 	}
+	appmetrics.ObserveHandlerPhase(r.Context(), "/{conf}", "hackathon", time.Since(hackathonStart).Seconds())
 	confCopy.ShowHackathon = hackathon != nil && hackathon.Visibility == getters.CompetitionVisibilityPublic
 	conf = &confCopy
 
@@ -4469,7 +4496,9 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		HackathonCanAdmin:       hackathonCanAdmin,
 		Year:                    helpers.CurrentYear(),
 	}
+	templateStart := time.Now()
 	err = ctx.TemplateCache.ExecuteTemplate(w, tmplTag, confPage)
+	appmetrics.ObserveHandlerPhase(r.Context(), "/{conf}", "template", time.Since(templateStart).Seconds())
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s ExecuteTemplate failed ! %s", conf.Tag, err.Error())
@@ -4819,21 +4848,59 @@ func ContactPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 }
 
 func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, page string) {
-
 	confList := listConfs(w, ctx)
 	if confList == nil {
 		return
 	}
+	if page != "index" && page != "timeline" {
+		templateName := fmt.Sprintf("embeds/%s.tmpl", page)
+		if err := ctx.TemplateCache.ExecuteTemplate(w, templateName, &HomePageData{
+			Confs: confList,
+			Year:  helpers.CurrentYear(),
+		}); err != nil {
+			http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
+			ctx.Err.Printf("/%s ExecuteTemplate failed: %s", page, err)
+		}
+		return
+	}
+
+	routeLabel := "/"
+	if page == "timeline" {
+		routeLabel = "/events"
+	}
+	primaryStart := time.Now()
+	var (
+		confInfosRaw     []*types.ConfInfo
+		confInfosErr     error
+		hackathonConfs   map[string]bool
+		featuredSpeakers []*types.Speaker
+		primaryGroup     sync.WaitGroup
+	)
+	primaryGroup.Add(3)
+	go func() {
+		defer primaryGroup.Done()
+		confInfosRaw, confInfosErr = getters.ListConfInfos(ctx, "")
+	}()
+	go func() {
+		defer primaryGroup.Done()
+		hackathonConfs = publicHackathonConfs(ctx, page)
+	}()
+	go func() {
+		defer primaryGroup.Done()
+		featuredSpeakers = homeFeaturedSpeakers(ctx)
+	}()
+	primaryGroup.Wait()
+	appmetrics.ObserveHandlerPhase(r.Context(), routeLabel, "primary_fetch", time.Since(primaryStart).Seconds())
 
 	// Single Notion call (empty tag = all rows) so the homepage's
 	// countdown widget on each conf card has the same per-day-strip
 	// bounds the per-conf page uses. Bucket by tag → day for cheap
 	// per-conf lookup.
 	infosByTag := map[string]map[int]*types.ConfInfo{}
-	if cis, err := getters.ListConfInfos(ctx, ""); err != nil {
-		ctx.Err.Printf("/%s ListConfInfos for index countdown (continuing): %s", page, err)
+	if confInfosErr != nil {
+		ctx.Err.Printf("/%s ListConfInfos for index countdown (continuing): %s", page, confInfosErr)
 	} else {
-		for _, ci := range cis {
+		for _, ci := range confInfosRaw {
 			if ci == nil || ci.Day < 1 || ci.ConfTag == "" {
 				continue
 			}
@@ -4845,8 +4912,6 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 			m[ci.Day] = ci
 		}
 	}
-
-	hackathonConfs := publicHackathonConfs(ctx, page)
 
 	// Shallow-copy each conf before populating the runtime-only
 	// CountdownStart/End and hackathon link fields.
@@ -4864,30 +4929,49 @@ func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, 
 		enriched = append(enriched, &copy)
 	}
 
-	featuredSpeakers := homeFeaturedSpeakers(ctx)
 	var archiveRain []*HomeArchiveRainItem
-	if page == "index" {
-		archiveRain = homeArchiveRain(ctx, featuredSpeakers)
-	}
+	var sponsors []*HomeSponsor
+	var socialCardURL string
+	secondaryStart := time.Now()
+	var secondaryGroup sync.WaitGroup
+	secondaryGroup.Add(3)
+	go func() {
+		defer secondaryGroup.Done()
+		if page == "index" {
+			archiveRain = homeArchiveRain(ctx, featuredSpeakers)
+		}
+	}()
+	go func() {
+		defer secondaryGroup.Done()
+		sponsors = homeSponsors(ctx, enriched, time.Now())
+	}()
+	go func() {
+		defer secondaryGroup.Done()
+		if page == "timeline" {
+			socialCardURL = siteSocialCardPath("events", "", eventsSocialCard(ctx, enriched))
+		} else {
+			socialCardURL = siteSocialCardPath("home", "", homeSocialCard(ctx, enriched))
+		}
+	}()
+	secondaryGroup.Wait()
+	appmetrics.ObserveHandlerPhase(r.Context(), routeLabel, "secondary_fetch", time.Since(secondaryStart).Seconds())
 	data := HomePageData{
 		Confs:            enriched,
 		Upcoming:         homeUpcomingConfs(enriched),
 		Past:             homePastConfs(enriched),
 		Years:            homeTimelineYears(enriched),
-		Sponsors:         homeSponsors(ctx, enriched, time.Now()),
+		Sponsors:         sponsors,
 		FeaturedSpeakers: featuredSpeakers,
 		ArchiveRain:      archiveRain,
 		MapMarkers:       homeMapMarkers(enriched),
 		Year:             helpers.CurrentYear(),
-	}
-	if page == "timeline" {
-		data.SocialCardURL = siteSocialCardPath("events", "", eventsSocialCard(ctx, enriched))
-	} else {
-		data.SocialCardURL = siteSocialCardPath("home", "", homeSocialCard(ctx, enriched))
+		SocialCardURL:    socialCardURL,
 	}
 
 	template := fmt.Sprintf("embeds/%s.tmpl", page)
+	templateStart := time.Now()
 	err := ctx.TemplateCache.ExecuteTemplate(w, template, &data)
+	appmetrics.ObserveHandlerPhase(r.Context(), routeLabel, "template", time.Since(templateStart).Seconds())
 
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -5163,41 +5247,46 @@ func homeSponsors(ctx *config.AppContext, confs []*types.Conf, now time.Time) []
 		"Headline": true,
 		"Workshop": true,
 	}
-	seen := map[string]bool{}
-	var out []*HomeSponsor
+	confRefs := make([]string, 0, len(confs))
 	for _, conf := range confs {
 		if conf == nil || conf.Ref == "" || conf.StartDate.IsZero() {
 			continue
 		}
 		year := conf.StartDate.In(conf.Loc()).Year()
-		if year < currentYear-1 || year > currentYear {
+		if year >= currentYear-1 && year <= currentYear {
+			confRefs = append(confRefs, conf.Ref)
+		}
+	}
+	sponsorships, err := getters.ListSponsorshipsForConferences(ctx, confRefs)
+	if err != nil {
+		ctx.Err.Printf("homepage sponsorships: %s", err)
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []*HomeSponsor
+	for _, sp := range sponsorships {
+		if sp == nil || sp.Org == nil || !visibleSponsorStatus(sp.Status) {
 			continue
 		}
-		for _, tier := range SponsorTiersForConf(ctx, conf.Ref) {
-			if tier == nil || !keepLevels[tier.Level] {
-				continue
-			}
-			for _, sp := range tier.Sponsors {
-				if sp == nil || sp.Org == nil {
-					continue
-				}
-				key := strings.ToLower(strings.TrimSpace(sp.Org.Ref + "|" + tier.Level))
-				if key == "|"+strings.ToLower(tier.Level) {
-					key = strings.ToLower(strings.TrimSpace(sp.Org.Name + "|" + tier.Level))
-				}
-				if seen[key] {
-					continue
-				}
-				seen[key] = true
-				out = append(out, &HomeSponsor{
-					Name:      sp.Org.Name,
-					Level:     tier.Level,
-					LogoDark:  strings.TrimSpace(sp.Org.LogoDark),
-					LogoLight: strings.TrimSpace(sp.Org.LogoLight),
-					URL:       strings.TrimSpace(sp.Org.Website),
-				})
-			}
+		level := normalizeLevel(sp.Level)
+		if !keepLevels[level] {
+			continue
 		}
+		key := strings.ToLower(strings.TrimSpace(sp.Org.Ref + "|" + level))
+		if key == "|"+strings.ToLower(level) {
+			key = strings.ToLower(strings.TrimSpace(sp.Org.Name + "|" + level))
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, &HomeSponsor{
+			Name:      sp.Org.Name,
+			Level:     level,
+			LogoDark:  strings.TrimSpace(sp.Org.LogoDark),
+			LogoLight: strings.TrimSpace(sp.Org.LogoLight),
+			URL:       strings.TrimSpace(sp.Org.Website),
+		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		ri := homeSponsorRank(out[i].Level)

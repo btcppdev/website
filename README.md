@@ -17,12 +17,18 @@ minutes; a failed refresh retains the last good snapshot and exposes a failed
 collection health gauge. Never put the raw token in this repository; configure
 it as a secret App Platform environment variable.
 
-The dashboard also exports `btcpp_web_handler_phase_duration_seconds`, with
-bounded `route="/dashboard"` and phase labels. To find its slowest p95 phases:
+The dashboard, home/events pages, and public conference landing pages also export
+`btcpp_web_handler_phase_duration_seconds`, with bounded route and phase
+labels. To find the dashboard's slowest p95 phases:
 
 ```promql
 histogram_quantile(0.95, sum by (le, phase) (rate(btcpp_web_handler_phase_duration_seconds_bucket{route="/dashboard"}[5m])))
 ```
+
+Use `route="/{conf}"` to inspect conference `primary_fetch` and
+`speaker_graph` latency without creating a separate time series for every
+conference tag. Home and event archive phases use `route="/"` and
+`route="/events"`.
 
 ## Setup Dependencies
 

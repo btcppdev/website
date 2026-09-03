@@ -49,19 +49,18 @@ func StartRecordingAutopublisher(ctx *config.AppContext) {
 }
 
 func runRecordingAutopublishTick(ctx *config.AppContext) {
-	recs, err := getters.ListRecordings(ctx)
+	if !youtubepkg.IsConfigured() || !youtubepkg.IsConnected() || !youtubepkg.UpdatesEnabled() {
+		return
+	}
+	recs, err := getters.ListRecordingsReadyForYouTube(ctx)
 	if err != nil {
 		ctx.Err.Printf("recording autopublisher recordings: %s", err)
 		return
 	}
-	if !youtubepkg.IsConfigured() || !youtubepkg.IsConnected() || !youtubepkg.UpdatesEnabled() {
-		return
-	}
-	for _, rec := range recs {
-		if rec == nil || rec.PublishAt == nil || rec.FileURI == "" {
+	for _, row := range recordingRowsFromList(ctx, recs, "") {
+		if row == nil || row.Recording == nil {
 			continue
 		}
-		row := buildRecordingRow(ctx, rec)
 		if shouldUploadRecordingToYouTube(row) {
 			runScheduledYouTubeUpload(ctx, row)
 		}

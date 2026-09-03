@@ -116,7 +116,7 @@ func GetConfByTag(ctx *config.AppContext, tag string) (*types.Conf, error) {
 }
 
 func GetConfByRef(ctx *config.AppContext, ref string) (*types.Conf, error) {
-	confs, err := queryConferencesOnlyPostgres(ctx, "conference by ref", "WHERE id::text = $1", []any{ref})
+	confs, err := queryConferencesOnlyPostgres(ctx, "conference by ref", "WHERE id = $1::uuid", []any{ref})
 	if err != nil || len(confs) == 0 {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func hydrateConferenceTicketsPostgres(ctx *config.AppContext, confs []*types.Con
 	if len(refs) == 0 {
 		return nil
 	}
-	tickets, err := queryConfTicketsPostgres(ctx, "conference tickets for conferences", "WHERE conference_id::text = ANY($1::text[])", []any{refs})
+	tickets, err := queryConfTicketsPostgres(ctx, "conference tickets for conferences", "WHERE conference_id = ANY($1::uuid[])", []any{refs})
 	if err != nil {
 		return err
 	}

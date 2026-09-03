@@ -61,12 +61,19 @@ func ListOrgs(ctx *config.AppContext) ([]*types.Org, error) {
 	return queryOrgsPostgres(ctx, "organizations", "", nil, 0)
 }
 
+func FetchOrgsByIDs(ctx *config.AppContext, ids []string) ([]*types.Org, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return queryOrgsPostgres(ctx, "organizations by ids", "WHERE id = ANY($1::uuid[])", []any{ids}, 0)
+}
+
 func GetOrg(ctx *config.AppContext, ref string) (*types.Org, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return nil, fmt.Errorf("org ref is required")
 	}
-	orgs, err := queryOrgsPostgres(ctx, "organization", "WHERE id::text = $1", []any{ref}, 1)
+	orgs, err := queryOrgsPostgres(ctx, "organization", "WHERE id = $1::uuid", []any{ref}, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -264,20 +271,34 @@ func UpdateOrgDetails(ctx *config.AppContext, org *types.Org) error {
 }
 
 func ListSponsorships(ctx *config.AppContext, confRef string) ([]*types.Sponsorship, error) {
+	if strings.TrimSpace(confRef) == "" {
+		return listSponsorshipsForConferences(ctx, nil)
+	}
+	return listSponsorshipsForConferences(ctx, []string{confRef})
+}
+
+func ListSponsorshipsForConferences(ctx *config.AppContext, confRefs []string) ([]*types.Sponsorship, error) {
+	if len(confRefs) == 0 {
+		return nil, nil
+	}
+	return listSponsorshipsForConferences(ctx, confRefs)
+}
+
+func listSponsorshipsForConferences(ctx *config.AppContext, confRefs []string) ([]*types.Sponsorship, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
 
 	args := []interface{}{}
 	where := "WHERE sponsorships.archived_at IS NULL"
-	if confRef != "" {
-		args = append(args, confRef)
+	if len(confRefs) > 0 {
+		args = append(args, confRefs)
 		where += `
 			AND EXISTS (
 				SELECT 1
 				FROM sponsorships_conferences sc
 				WHERE sc.sponsorship_id = sponsorships.id
-					AND sc.conference_id::text = $1
+					AND sc.conference_id = ANY($1::uuid[])
 			)`
 	}
 
@@ -295,20 +316,11 @@ func ListSponsorships(ctx *config.AppContext, confRef string) ([]*types.Sponsors
 	}
 	defer rows.Close()
 
-	orgs, err := ListOrgs(ctx)
-	if err != nil {
-		return nil, err
-	}
-	orgByID := make(map[string]*types.Org, len(orgs))
-	for _, org := range orgs {
-		if org != nil {
-			orgByID[org.Ref] = org
-		}
-	}
-
 	var out []*types.Sponsorship
 	ids := []string{}
 	byID := map[string]*types.Sponsorship{}
+	orgIDBySponsorship := map[string]string{}
+	orgIDSet := map[string]bool{}
 	for rows.Next() {
 		var sp types.Sponsorship
 		var orgID string
@@ -324,14 +336,39 @@ func ListSponsorships(ctx *config.AppContext, confRef string) ([]*types.Sponsors
 		); err != nil {
 			return nil, fmt.Errorf("scan sponsorship: %w", err)
 		}
-		sp.Org = orgByID[orgID]
 		out = append(out, &sp)
 		ids = append(ids, sp.Ref)
 		byID[sp.Ref] = &sp
+		orgIDBySponsorship[sp.Ref] = orgID
+		if orgID != "" {
+			orgIDSet[orgID] = true
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate sponsorships: %w", err)
 	}
+	rows.Close()
+
+	orgIDs := make([]string, 0, len(orgIDSet))
+	for orgID := range orgIDSet {
+		orgIDs = append(orgIDs, orgID)
+	}
+	orgs, err := FetchOrgsByIDs(ctx, orgIDs)
+	if err != nil {
+		return nil, err
+	}
+	orgByID := make(map[string]*types.Org, len(orgs))
+	for _, org := range orgs {
+		if org != nil {
+			orgByID[org.Ref] = org
+		}
+	}
+	for _, sponsorship := range out {
+		if sponsorship != nil {
+			sponsorship.Org = orgByID[orgIDBySponsorship[sponsorship.Ref]]
+		}
+	}
+
 	if err := hydrateSponsorshipConfsPostgres(ctx, ids, byID); err != nil {
 		return nil, err
 	}
@@ -356,7 +393,7 @@ func hydrateSponsorshipConfsPostgres(ctx *config.AppContext, ids []string, byID 
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT sponsorship_id::text, conference_id::text
 		FROM sponsorships_conferences
-		WHERE sponsorship_id::text = ANY($1::text[])
+		WHERE sponsorship_id = ANY($1::uuid[])
 	`, ids)
 	if err != nil {
 		return fmt.Errorf("query sponsorship conference links: %w", err)

@@ -133,6 +133,17 @@ func RecordSocialPost(ctx *config.AppContext, ref, text, platform string, posted
 }
 
 func ListSocialPosts(ctx *config.AppContext) ([]*types.SocialPost, error) {
+	return listSocialPostsPostgres(ctx, "", nil)
+}
+
+func ListSocialPostsByRefs(ctx *config.AppContext, refs []string) ([]*types.SocialPost, error) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	return listSocialPostsPostgres(ctx, "WHERE ref = ANY($1::text[])", []any{refs})
+}
+
+func listSocialPostsPostgres(ctx *config.AppContext, whereSQL string, args []any) ([]*types.SocialPost, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
@@ -142,8 +153,9 @@ func ListSocialPosts(ctx *config.AppContext) ([]*types.SocialPost, error) {
 			url, reply_url, error, error_fingerprint,
 			scheduled_at, posted_at, notified_at
 		FROM social_posts
+		`+whereSQL+`
 		ORDER BY created_at DESC, id
-	`)
+	`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query social posts: %w", err)
 	}

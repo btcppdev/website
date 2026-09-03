@@ -140,22 +140,13 @@ func talksFromConfTalks(ctx *config.AppContext, confTalks []*types.ConfTalk, pro
 	if len(confTalks) == 0 {
 		return nil, nil
 	}
-	speakers, err := ListSpeakers(ctx)
-	if err != nil {
-		return nil, err
-	}
-	speakerMap := make(map[string]*types.Speaker, len(speakers))
-	for _, sp := range speakers {
-		speakerMap[sp.ID] = sp
-	}
-
 	var speakerConfIDs []string
 	for _, proposal := range proposalMap {
 		if proposal != nil {
 			speakerConfIDs = append(speakerConfIDs, proposal.SpeakerConfRefs...)
 		}
 	}
-	sps, err := ListSpeakerConfsByIDs(ctx, speakerConfIDs, speakerMap, proposalMap)
+	sps, err := ListSpeakerConfsByIDs(ctx, speakerConfIDs, nil, proposalMap)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +263,14 @@ func ListConfTalksForConf(ctx *config.AppContext, confRef string, proposalMap ma
 	if strings.TrimSpace(confRef) == "" {
 		return nil, nil
 	}
-	return queryConfTalksPostgres(ctx, "WHERE conf_talks.conference_id::text = $1", []interface{}{confRef}, proposalMap)
+	return queryConfTalksPostgres(ctx, "WHERE conf_talks.conference_id = $1::uuid", []interface{}{confRef}, proposalMap)
+}
+
+func ListConfTalksByIDs(ctx *config.AppContext, ids []string) ([]*types.ConfTalk, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return queryConfTalksPostgres(ctx, "WHERE conf_talks.id = ANY($1::uuid[])", []interface{}{ids}, nil)
 }
 
 // LatestConferenceTalkClipart returns the clipart on the most recently
@@ -303,7 +301,7 @@ func LatestConferenceTalkClipart(ctx *config.AppContext, confRef string) (string
 }
 
 func GetConfTalkByProposal(ctx *config.AppContext, proposalID string) (*types.ConfTalk, error) {
-	rows, err := queryConfTalksPostgres(ctx, "WHERE proposal_id::text = $1", []interface{}{proposalID}, nil)
+	rows, err := queryConfTalksPostgres(ctx, "WHERE proposal_id = $1::uuid", []interface{}{proposalID}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +312,7 @@ func GetConfTalkByProposal(ctx *config.AppContext, proposalID string) (*types.Co
 }
 
 func GetConfTalkByID(ctx *config.AppContext, confTalkID string) (*types.ConfTalk, error) {
-	rows, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.id::text = $1", []interface{}{confTalkID}, nil)
+	rows, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.id = $1::uuid", []interface{}{confTalkID}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +323,7 @@ func GetConfTalkByID(ctx *config.AppContext, confTalkID string) (*types.ConfTalk
 }
 
 func LoadTalkFromConfTalk(ctx *config.AppContext, confTalkID string) (*types.Talk, error) {
-	rows, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.id::text = $1", []interface{}{confTalkID}, nil)
+	rows, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.id = $1::uuid", []interface{}{confTalkID}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +343,7 @@ func LoadTalkFromConfTalk(ctx *config.AppContext, confTalkID string) (*types.Tal
 	}
 
 	proposalMap := map[string]*types.Proposal{ct.Proposal.ID: ct.Proposal}
-	sps, err := ListSpeakerConfs(ctx, nil, proposalMap)
+	sps, err := ListSpeakerConfsByIDs(ctx, ct.Proposal.SpeakerConfRefs, nil, proposalMap)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +401,7 @@ func loadTalksFromConfTalksForConf(ctx *config.AppContext, confTag string) ([]*t
 		}
 	}
 
-	confTalks, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.conference_id::text = $1", []interface{}{conf.Ref}, proposalMap)
+	confTalks, err := queryConfTalksPostgres(ctx, "WHERE conf_talks.conference_id = $1::uuid", []interface{}{conf.Ref}, proposalMap)
 	if err != nil {
 		return nil, err
 	}
@@ -414,19 +412,6 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
-	if proposalMap == nil {
-		proposals, err := ListProposals(ctx)
-		if err != nil {
-			return nil, err
-		}
-		proposalMap = make(map[string]*types.Proposal, len(proposals))
-		for _, proposal := range proposals {
-			if proposal != nil {
-				proposalMap[proposal.ID] = proposal
-			}
-		}
-	}
-
 	confs, err := listConferencesOnlyPostgres(ctx)
 	if err != nil {
 		return nil, err
@@ -458,7 +443,15 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 	}
 	defer rows.Close()
 
-	var out []*types.ConfTalk
+	type confTalkRow struct {
+		confTalk       *types.ConfTalk
+		confID         string
+		proposalID     string
+		scheduledStart pgtype.Timestamptz
+		scheduledEnd   pgtype.Timestamptz
+	}
+	var scanned []confTalkRow
+	proposalIDs := make([]string, 0)
 	for rows.Next() {
 		var ct types.ConfTalk
 		var confID string
@@ -483,20 +476,49 @@ func queryConfTalksPostgres(ctx *config.AppContext, where string, args []interfa
 		); err != nil {
 			return nil, fmt.Errorf("scan conf talk: %w", err)
 		}
-		ct.Conf = confByID[confID]
-		ct.Proposal = proposalMap[proposalID]
-		if scheduledStart.Valid {
-			start := confTalkTimeInConference(scheduledStart.Time, ct.Conf)
-			ct.Sched = &types.Times{Start: start}
-			if scheduledEnd.Valid {
-				end := confTalkTimeInConference(scheduledEnd.Time, ct.Conf)
-				ct.Sched.End = &end
-			}
+		if proposalMap == nil && proposalID != "" {
+			proposalIDs = append(proposalIDs, proposalID)
 		}
-		out = append(out, &ct)
+		scanned = append(scanned, confTalkRow{
+			confTalk:       &ct,
+			confID:         confID,
+			proposalID:     proposalID,
+			scheduledStart: scheduledStart,
+			scheduledEnd:   scheduledEnd,
+		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate conf talks: %w", err)
+	}
+	rows.Close()
+
+	if proposalMap == nil {
+		proposals, err := ListProposalsByIDs(ctx, proposalIDs)
+		if err != nil {
+			return nil, err
+		}
+		proposalMap = make(map[string]*types.Proposal, len(proposals))
+		for _, proposal := range proposals {
+			if proposal != nil {
+				proposalMap[proposal.ID] = proposal
+			}
+		}
+	}
+
+	out := make([]*types.ConfTalk, 0, len(scanned))
+	for _, row := range scanned {
+		ct := row.confTalk
+		ct.Conf = confByID[row.confID]
+		ct.Proposal = proposalMap[row.proposalID]
+		if row.scheduledStart.Valid {
+			start := confTalkTimeInConference(row.scheduledStart.Time, ct.Conf)
+			ct.Sched = &types.Times{Start: start}
+			if row.scheduledEnd.Valid {
+				end := confTalkTimeInConference(row.scheduledEnd.Time, ct.Conf)
+				ct.Sched.End = &end
+			}
+		}
+		out = append(out, ct)
 	}
 	return out, nil
 }

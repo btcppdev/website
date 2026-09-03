@@ -101,7 +101,7 @@ func listSpeakerConfsForSpeaker(ctx *config.AppContext, speaker *types.Speaker) 
 		return nil, nil
 	}
 	speakerMap := map[string]*types.Speaker{speaker.ID: speaker}
-	return querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.speaker_id::text = $1", []interface{}{speaker.ID}, speakerMap, nil)
+	return querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.speaker_id = $1::uuid", []interface{}{speaker.ID}, speakerMap, nil)
 }
 
 // ListSpeakerConfsForSpeaker loads the dashboard graph for an already-resolved
@@ -111,7 +111,7 @@ func ListSpeakerConfsForSpeaker(ctx *config.AppContext, speaker *types.Speaker) 
 }
 
 func FetchSpeakerConfWithSpeaker(ctx *config.AppContext, speakerConfID string) (*types.SpeakerConf, error) {
-	scs, err := querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.id::text = $1", []interface{}{speakerConfID}, nil, nil)
+	scs, err := querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.id = $1::uuid", []interface{}{speakerConfID}, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func GetSpeakerConfsByEmail(ctx *config.AppContext, email string) ([]*types.Spea
 		return nil, nil, nil
 	}
 
-	scs, err := querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.speaker_id::text = ANY($1::text[])", []interface{}{ids}, speakerMap, nil)
+	scs, err := querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.speaker_id = ANY($1::uuid[])", []interface{}{ids}, speakerMap, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -347,7 +347,7 @@ func hydrateSpeakerConfOtherEventsPostgres(ctx *config.AppContext, ids []string,
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT speaker_conf_id::text, conference_id::text
 		FROM speaker_confs_conferences
-		WHERE speaker_conf_id::text = ANY($1::text[])
+		WHERE speaker_conf_id = ANY($1::uuid[])
 	`, ids)
 	if err != nil {
 		return fmt.Errorf("query speaker-conf other events: %w", err)

@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
@@ -20,6 +22,15 @@ type NavConfList struct {
 	Upcoming []*types.Conf
 	Past     []*types.Conf
 }
+
+const navConfCacheTTL = time.Minute
+
+var navConfCache = struct {
+	sync.Mutex
+	app     *config.AppContext
+	value   NavConfList
+	expires time.Time
+}{}
 
 type siteAccountNavView struct {
 	Name          string
@@ -96,6 +107,13 @@ func buildNavConfList(ctx *config.AppContext) NavConfList {
 	if ctx == nil || ctx.DB == nil {
 		return NavConfList{}
 	}
+	if ctx.InProduction {
+		navConfCache.Lock()
+		defer navConfCache.Unlock()
+		if navConfCache.app == ctx && time.Now().Before(navConfCache.expires) {
+			return cloneNavConfList(navConfCache.value)
+		}
+	}
 	confs, err := getters.ListConfs(ctx)
 	if err != nil {
 		ctx.Err.Printf("navConfs: %s", err)
@@ -129,5 +147,18 @@ func buildNavConfList(ctx *config.AppContext) NavConfList {
 	sort.Slice(past, func(i, j int) bool {
 		return past[i].StartDate.After(past[j].StartDate)
 	})
-	return NavConfList{Upcoming: upcoming, Past: past}
+	result := NavConfList{Upcoming: upcoming, Past: past}
+	if ctx.InProduction {
+		navConfCache.app = ctx
+		navConfCache.value = cloneNavConfList(result)
+		navConfCache.expires = time.Now().Add(navConfCacheTTL)
+	}
+	return result
+}
+
+func cloneNavConfList(value NavConfList) NavConfList {
+	return NavConfList{
+		Upcoming: append([]*types.Conf(nil), value.Upcoming...),
+		Past:     append([]*types.Conf(nil), value.Past...),
+	}
 }

@@ -124,6 +124,41 @@ func ListRecordings(ctx *config.AppContext) ([]*types.Recording, error) {
 	return out, nil
 }
 
+// ListRecordingsReadyForYouTube returns only rows the background publisher
+// could act on. Workflow status is checked after social-post hydration, but
+// already-published and incomplete historical rows never enter that graph.
+func ListRecordingsReadyForYouTube(ctx *config.AppContext) ([]*types.Recording, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT id::text, conf_talk_id::text, talk_name, youtube_url, x_url,
+			x_reply_url, file_uri, publish_at
+		FROM recordings
+		WHERE publish_at IS NOT NULL
+			AND btrim(file_uri) <> ''
+			AND btrim(youtube_url) = ''
+		ORDER BY publish_at, id
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query recordings ready for YouTube: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*types.Recording
+	for rows.Next() {
+		rec, err := scanRecording(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate recordings ready for YouTube: %w", err)
+	}
+	return out, nil
+}
+
 func ListRecordingsForConf(ctx *config.AppContext, confTag string) ([]*types.Recording, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
@@ -174,7 +209,7 @@ func ListRecordingsForConfTalks(ctx *config.AppContext, confTalkIDs []string) ([
 		SELECT id::text, conf_talk_id::text, talk_name, youtube_url, x_url,
 			x_reply_url, file_uri, publish_at
 		FROM recordings
-		WHERE conf_talk_id::text = ANY($1::text[])
+		WHERE conf_talk_id = ANY($1::uuid[])
 	`, confTalkIDs)
 	if err != nil {
 		return nil, fmt.Errorf("query recordings for conference talks: %w", err)

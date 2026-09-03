@@ -317,7 +317,7 @@ func recordingRowsFromList(ctx *config.AppContext, recs []*types.Recording, conf
 		}
 		row := buildRecordingRowFromMaps(ctx, rec, confTalksByID, socialPostsByRef)
 		attachRecordingXBroadcast(row, xBroadcasts[rec.ID])
-		if recordingRowBelongsToConf(row, confTag) {
+		if confTag == "" || recordingRowBelongsToConf(row, confTag) {
 			rows = append(rows, row)
 		}
 	}
@@ -349,18 +349,25 @@ func recordingConfTalksByID(ctx *config.AppContext, recs []*types.Recording) map
 	if len(ids) == 0 {
 		return nil
 	}
-	proposals, err := getters.ListProposals(ctx)
+	idList := make([]string, 0, len(ids))
+	for id := range ids {
+		idList = append(idList, id)
+	}
+	confTalks, err := getters.ListConfTalksByIDs(ctx, idList)
 	if err != nil {
-		ctx.Err.Printf("recording rows proposals batch: %s", err)
+		ctx.Err.Printf("recording rows conftalks batch: %s", err)
 		return nil
 	}
-	proposalMap := make(map[string]*types.Proposal, len(proposals))
-	for _, proposal := range proposals {
-		if proposal != nil {
-			proposalMap[proposal.ID] = proposal
+	proposalMap := make(map[string]*types.Proposal, len(confTalks))
+	var speakerConfIDs []string
+	for _, confTalk := range confTalks {
+		if confTalk == nil || confTalk.Proposal == nil {
+			continue
 		}
+		proposalMap[confTalk.Proposal.ID] = confTalk.Proposal
+		speakerConfIDs = append(speakerConfIDs, confTalk.Proposal.SpeakerConfRefs...)
 	}
-	speakerConfs, err := getters.ListSpeakerConfs(ctx, nil, proposalMap)
+	speakerConfs, err := getters.ListSpeakerConfsByIDs(ctx, speakerConfIDs, nil, proposalMap)
 	if err != nil {
 		ctx.Err.Printf("recording rows speakerconfs batch: %s", err)
 	} else {
@@ -373,11 +380,6 @@ func recordingConfTalksByID(ctx *config.AppContext, recs []*types.Recording) map
 		for _, proposal := range proposalMap {
 			attachBatchedProposalSpeakers(proposal, speakerConfMap)
 		}
-	}
-	confTalks, err := getters.ListConfTalks(ctx, proposalMap)
-	if err != nil {
-		ctx.Err.Printf("recording rows conftalks batch: %s", err)
-		return nil
 	}
 	out := make(map[string]*types.ConfTalk, len(ids))
 	for _, ct := range confTalks {
@@ -413,7 +415,11 @@ func recordingSocialPostsByRef(ctx *config.AppContext, recs []*types.Recording) 
 	if len(refs) == 0 {
 		return nil
 	}
-	posts, err := getters.ListSocialPosts(ctx)
+	refList := make([]string, 0, len(refs))
+	for ref := range refs {
+		refList = append(refList, ref)
+	}
+	posts, err := getters.ListSocialPostsByRefs(ctx, refList)
 	if err != nil {
 		ctx.Err.Printf("recording rows socialposts batch: %s", err)
 		return nil

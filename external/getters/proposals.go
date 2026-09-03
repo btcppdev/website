@@ -167,7 +167,7 @@ func ListProposalsForConf(ctx *config.AppContext, confRef string) ([]*types.Prop
 	if strings.TrimSpace(confRef) == "" {
 		return nil, nil
 	}
-	return queryProposalsPostgres(ctx, "WHERE proposals.conference_id::text = $1", confRef)
+	return queryProposalsPostgres(ctx, "WHERE proposals.conference_id = $1::uuid", confRef)
 }
 
 func ListProposalsForSpeakerConfIDs(ctx *config.AppContext, speakerConfIDs []string) ([]*types.Proposal, error) {
@@ -184,8 +184,15 @@ func ListProposalsForSpeakerConfIDs(ctx *config.AppContext, speakerConfIDs []str
 	`, speakerConfIDs)
 }
 
+func ListProposalsByIDs(ctx *config.AppContext, ids []string) ([]*types.Proposal, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return queryProposalsPostgres(ctx, "WHERE proposals.id = ANY($1::uuid[])", ids)
+}
+
 func FetchProposalByID(ctx *config.AppContext, id string) (*types.Proposal, error) {
-	proposals, err := queryProposalsPostgres(ctx, "WHERE proposals.id::text = $1", id)
+	proposals, err := queryProposalsPostgres(ctx, "WHERE proposals.id = $1::uuid", id)
 	if err != nil {
 		return nil, err
 	}

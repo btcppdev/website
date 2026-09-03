@@ -356,14 +356,12 @@ func conferenceSpeakersMarkdown(ctx *config.AppContext, conf *types.Conf, useFea
 	if err != nil {
 		return "", fmt.Errorf("query attendee reminder talks: %w", err)
 	}
-	speakers := acceptedSpeakersForConf(ctx, conf, talks)
+	speakers, featured, community := conferenceSpeakersForConf(ctx, conf, talks)
 	if len(speakers) == 0 {
 		return "", nil
 	}
-	sort.Sort(speakers)
 	ordered := speakers
 	if useFeaturedOrder {
-		featured, community := splitFeaturedSpeakersForConf(ctx, conf, speakers)
 		ordered = append(append(types.Speakers{}, featured...), community...)
 	} else {
 		ordered = recentConferenceSpeakers(ctx, conf, speakers)
