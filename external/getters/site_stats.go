@@ -2,9 +2,21 @@ package getters
 
 import (
 	"fmt"
+	"sync"
+	"time"
 
 	"btcpp-web/internal/config"
 )
+
+const siteStatsCacheTTL = 5 * time.Minute
+
+var siteStatsCache = struct {
+	sync.Mutex
+	app     *config.AppContext
+	value   SiteStatsValues
+	valid   bool
+	expires time.Time
+}{}
 
 // SiteStatsValues holds the raw counts behind the about-page numbers.
 // Format-for-display is left to callers.
@@ -90,11 +102,28 @@ func siteStatsFromDatabase(ctx *config.AppContext) (SiteStatsValues, error) {
 
 // FetchSiteStats returns about-page counters.
 func FetchSiteStats(ctx *config.AppContext) SiteStatsValues {
+	if ctx != nil && ctx.InProduction {
+		siteStatsCache.Lock()
+		defer siteStatsCache.Unlock()
+		if siteStatsCache.app == ctx && siteStatsCache.valid && time.Now().Before(siteStatsCache.expires) {
+			return siteStatsCache.value
+		}
+	}
 	s, err := siteStatsFromDatabase(ctx)
 	if err != nil {
 		ctx.Err.Printf("site stats aggregate: %s", err)
 	} else {
+		if ctx != nil && ctx.InProduction {
+			siteStatsCache.app = ctx
+			siteStatsCache.value = s
+			siteStatsCache.valid = true
+			siteStatsCache.expires = time.Now().Add(siteStatsCacheTTL)
+		}
 		return s
+	}
+	if ctx != nil && ctx.InProduction && siteStatsCache.app == ctx && siteStatsCache.valid {
+		siteStatsCache.expires = time.Now().Add(30 * time.Second)
+		return siteStatsCache.value
 	}
 
 	s, err = siteStatsDirect(ctx)

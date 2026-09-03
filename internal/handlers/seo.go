@@ -139,6 +139,12 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		http.Error(w, "Unable to load confs", http.StatusInternalServerError)
 		return
 	}
+	agendaConfs, err := getters.ListConferenceIDsWithPublicAgenda(ctx)
+	if err != nil {
+		ctx.Err.Printf("/sitemap.xml agendas: %s", err)
+		http.Error(w, "Unable to load agendas", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 
@@ -174,11 +180,7 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			freq = "daily"
 		}
 		writeSitemapURL(w, SEOHost+"/"+c.Tag, "", freq, prio)
-		// Agenda page is gated on Conf.HasAgenda — populated at
-		// render time, not on the cached Conf, so compute it here
-		// against the live talks slice.
-		talks, _ := getters.GetTalksFor(ctx, c.Tag)
-		if anyScheduledTalk(c, talks) {
+		if agendaConfs[c.Ref] {
 			writeSitemapURL(w, SEOHost+"/"+c.Tag+"/agenda", "", freq, "0.6")
 		}
 	}

@@ -300,6 +300,43 @@ func LatestConferenceTalkClipart(ctx *config.AppContext, confRef string) (string
 	return strings.TrimSpace(clipart), nil
 }
 
+// ListConferenceIDsWithPublicAgenda returns the conferences for which the
+// public agenda can render at least one talk. It mirrors publicAgendaTalk's
+// status rules without hydrating the full talk/speaker graph per conference.
+func ListConferenceIDsWithPublicAgenda(ctx *config.AppContext) (map[string]bool, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT DISTINCT conf_talks.conference_id::text
+		FROM conf_talks
+		JOIN proposals ON proposals.id = conf_talks.proposal_id
+		JOIN conferences ON conferences.id = conf_talks.conference_id
+		WHERE conf_talks.archived_at IS NULL
+			AND conf_talks.scheduled_start IS NOT NULL
+			AND (
+				proposals.status = 'Scheduled'
+				OR (conferences.end_date IS NOT NULL AND conferences.end_date < now() AND proposals.status = 'Accepted')
+			)
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query conferences with public agendas: %w", err)
+	}
+	defer rows.Close()
+	out := make(map[string]bool)
+	for rows.Next() {
+		var conferenceID string
+		if err := rows.Scan(&conferenceID); err != nil {
+			return nil, fmt.Errorf("scan conference with public agenda: %w", err)
+		}
+		out[conferenceID] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate conferences with public agendas: %w", err)
+	}
+	return out, nil
+}
+
 func GetConfTalkByProposal(ctx *config.AppContext, proposalID string) (*types.ConfTalk, error) {
 	rows, err := queryConfTalksPostgres(ctx, "WHERE proposal_id = $1::uuid", []interface{}{proposalID}, nil)
 	if err != nil {
