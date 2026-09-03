@@ -71,6 +71,7 @@ func ListAccountingInventorySales(ctx *config.AppContext, after time.Time, after
 			SELECT
 				'shop_order_item:' || item.id::text AS source_id,
 				coalesce(item.variant_id::text, 'sku:' || item.sku_snapshot) AS sellable_source_id,
+				coalesce(item.sale_conference_id::text, '') AS event_id,
 				'merch'::text AS kind,
 				item.product_name_snapshot AS product_name,
 				item.variant_label_snapshot AS variant_label,
@@ -95,6 +96,7 @@ func ListAccountingInventorySales(ctx *config.AppContext, after time.Time, after
 			SELECT
 				'registration:' || registration.id::text AS source_id,
 				'sku:ticket:' || conference.tag || ':' || coalesce(nullif(registration.type, ''), 'general') AS sellable_source_id,
+				conference.id::text AS event_id,
 				'ticket'::text AS kind,
 				coalesce(nullif(registration.item_bought, ''), conference.description) AS product_name,
 				coalesce(nullif(registration.type, ''), 'general') AS variant_label,
@@ -109,7 +111,7 @@ func ListAccountingInventorySales(ctx *config.AppContext, after time.Time, after
 			JOIN conferences conference ON conference.id = registration.conference_id
 			WHERE registration.registered_at IS NOT NULL OR registration.amount_paid IS NOT NULL
 		)
-		SELECT source_id, sellable_source_id, kind, product_name, variant_label, sku,
+		SELECT source_id, sellable_source_id, event_id, kind, product_name, variant_label, sku,
 			quantity, refunded_quantity, revenue_cents, currency, sold_at, updated_at
 		FROM accounting_sales
 		WHERE $1::timestamptz IS NULL OR (updated_at, source_id) > ($1::timestamptz, $2)
@@ -124,7 +126,7 @@ func ListAccountingInventorySales(ctx *config.AppContext, after time.Time, after
 	for rows.Next() {
 		var item types.AccountingInventorySale
 		if err := rows.Scan(
-			&item.SourceID, &item.SellableSourceID, &item.Kind, &item.ProductName,
+			&item.SourceID, &item.SellableSourceID, &item.EventID, &item.Kind, &item.ProductName,
 			&item.VariantLabel, &item.SKU, &item.Quantity, &item.RefundedQuantity,
 			&item.RevenueCents, &item.Currency, &item.SoldAt, &item.UpdatedAt,
 		); err != nil {

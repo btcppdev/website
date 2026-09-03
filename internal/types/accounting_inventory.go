@@ -20,6 +20,7 @@ type AccountingInventoryVariant struct {
 type AccountingInventorySale struct {
 	SourceID         string
 	SellableSourceID string
+	EventID          string
 	Kind             string
 	ProductName      string
 	VariantLabel     string
