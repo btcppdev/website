@@ -79,7 +79,12 @@ func ListAccountingInventorySales(ctx *config.AppContext, after time.Time, after
 				item.quantity::int AS quantity,
 				item.refunded_quantity::int AS refunded_quantity,
 				greatest(item.line_total_cents - coalesce(sum(refund_item.amount_cents) FILTER (WHERE refund.status = 'succeeded'), 0), 0)::bigint AS revenue_cents,
+				item.line_total_cents::bigint AS gross_revenue_cents,
 				upper(shop_order.currency) AS currency,
+				shop_order.payment_provider_id AS checkout_id,
+				lower(shop_order.payment_provider) AS payment_provider,
+				shop_order.payment_provider_id,
+				CASE WHEN lower(shop_order.payment_provider) IN ('cln','lightning','bitcoin','btc') THEN shop_order.payment_provider_id ELSE '' END AS payment_hash,
 				shop_order.paid_at AS sold_at,
 				greatest(item.updated_at, shop_order.updated_at, coalesce(max(refund.completed_at) FILTER (WHERE refund.status = 'succeeded'), item.updated_at)) AS updated_at
 			FROM shop_order_items item
@@ -104,7 +109,12 @@ func ListAccountingInventorySales(ctx *config.AppContext, after time.Time, after
 				1 AS quantity,
 				CASE WHEN registration.revoked THEN 1 ELSE 0 END AS refunded_quantity,
 				CASE WHEN registration.revoked THEN 0 ELSE coalesce(round(registration.amount_paid * 100), 0)::bigint END AS revenue_cents,
+				coalesce(round(registration.amount_paid * 100), 0)::bigint AS gross_revenue_cents,
 				upper(coalesce(nullif(registration.currency, ''), 'USD')) AS currency,
+				registration.checkout_id,
+				lower(registration.platform) AS payment_provider,
+				registration.checkout_id AS payment_provider_id,
+				CASE WHEN lower(registration.platform) IN ('cln','lightning','bitcoin','btc') THEN registration.checkout_id ELSE '' END AS payment_hash,
 				coalesce(registration.registered_at, registration.created_at) AS sold_at,
 				registration.updated_at AS updated_at
 			FROM registrations registration
@@ -112,7 +122,8 @@ func ListAccountingInventorySales(ctx *config.AppContext, after time.Time, after
 			WHERE registration.registered_at IS NOT NULL OR registration.amount_paid IS NOT NULL
 		)
 		SELECT source_id, sellable_source_id, event_id, kind, product_name, variant_label, sku,
-			quantity, refunded_quantity, revenue_cents, currency, sold_at, updated_at
+			quantity, refunded_quantity, revenue_cents, gross_revenue_cents, currency,
+			checkout_id, payment_provider, payment_provider_id, payment_hash, sold_at, updated_at
 		FROM accounting_sales
 		WHERE $1::timestamptz IS NULL OR (updated_at, source_id) > ($1::timestamptz, $2)
 		ORDER BY updated_at, source_id
@@ -128,7 +139,9 @@ func ListAccountingInventorySales(ctx *config.AppContext, after time.Time, after
 		if err := rows.Scan(
 			&item.SourceID, &item.SellableSourceID, &item.EventID, &item.Kind, &item.ProductName,
 			&item.VariantLabel, &item.SKU, &item.Quantity, &item.RefundedQuantity,
-			&item.RevenueCents, &item.Currency, &item.SoldAt, &item.UpdatedAt,
+			&item.RevenueCents, &item.GrossRevenueCents, &item.Currency,
+			&item.CheckoutID, &item.PaymentProvider, &item.PaymentProviderID, &item.PaymentHash,
+			&item.SoldAt, &item.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan accounting inventory sale: %w", err)
 		}

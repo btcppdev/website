@@ -116,12 +116,18 @@ func TestDatabaseSmokeAccountingInventoryDeduplicatesTicketsAndTracksRefunds(t *
 	if merchSale == nil || merchSale.SellableSourceID != variantID || merchSale.EventID != confID || merchSale.Quantity != 2 || merchSale.RevenueCents != 2000 {
 		t.Fatalf("merch accounting sale = %+v", merchSale)
 	}
+	if merchSale.GrossRevenueCents != 2000 || merchSale.PaymentProvider != "stripe" || merchSale.PaymentProviderID != "acct_"+suffix || merchSale.CheckoutID != "acct_"+suffix {
+		t.Fatalf("merch checkout linkage = %+v", merchSale)
+	}
 	if noEventMerchSale == nil || noEventMerchSale.EventID != "" || noEventMerchSale.RevenueCents != 1000 {
 		t.Fatalf("no-event merch accounting sale = %+v", noEventMerchSale)
 	}
 	wantTicketSellable := "sku:ticket:" + confTag + ":" + types.TicketTypeGeneral
 	if ticketSale == nil || ticketSale.SellableSourceID != wantTicketSellable || ticketSale.EventID != confID || ticketSale.Quantity != 1 || ticketSale.RevenueCents != 4200 {
 		t.Fatalf("ticket accounting sale = %+v, want sellable %s", ticketSale, wantTicketSellable)
+	}
+	if ticketSale.GrossRevenueCents != 4200 || ticketSale.PaymentProvider != "stripe" || ticketSale.CheckoutID != "acct-checkout-"+suffix {
+		t.Fatalf("ticket checkout linkage = %+v", ticketSale)
 	}
 
 	if err := RecordShopRefund(ctx, order.ID, merchSale.SourceID[len("shop_order_item:"):], "admin@example.test", "stripe", "refund_"+suffix, "test refund", 1, 1000, true); err != nil {
@@ -133,7 +139,7 @@ func TestDatabaseSmokeAccountingInventoryDeduplicatesTicketsAndTracksRefunds(t *
 	}
 	for _, item := range sales {
 		if item.SourceID == merchSale.SourceID {
-			if item.EventID != confID || item.RefundedQuantity != 1 || item.RevenueCents != 1000 {
+			if item.EventID != confID || item.RefundedQuantity != 1 || item.RevenueCents != 1000 || item.GrossRevenueCents != 2000 {
 				t.Fatalf("refunded accounting sale = %+v", item)
 			}
 			return

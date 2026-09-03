@@ -18,17 +18,22 @@ type AccountingInventoryVariant struct {
 // Ticket registrations and merchandise order items share this projection so
 // the accounting service can apply effective-dated bundle recipes.
 type AccountingInventorySale struct {
-	SourceID         string
-	SellableSourceID string
-	EventID          string
-	Kind             string
-	ProductName      string
-	VariantLabel     string
-	SKU              string
-	Quantity         int
-	RefundedQuantity int
-	RevenueCents     int64
-	Currency         string
-	SoldAt           time.Time
-	UpdatedAt        time.Time
+	SourceID          string
+	SellableSourceID  string
+	EventID           string
+	Kind              string
+	ProductName       string
+	VariantLabel      string
+	SKU               string
+	Quantity          int
+	RefundedQuantity  int
+	RevenueCents      int64
+	GrossRevenueCents int64
+	Currency          string
+	CheckoutID        string
+	PaymentProvider   string
+	PaymentProviderID string
+	PaymentHash       string
+	SoldAt            time.Time
+	UpdatedAt         time.Time
 }
