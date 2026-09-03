@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"image/jpeg"
@@ -161,51 +162,12 @@ func SiteSocialCardID(card SiteSocialCard) string {
 	hash.Write(socialCardBrandFont)
 	hash.Write([]byte{0})
 	hash.Write(socialCardChalkFont)
-	for _, value := range []string{card.Kind, card.Eyebrow, card.Title, card.TitleSuffix, card.Subtitle, card.Location, card.Footer, card.AccentColor, card.TextColor, card.ValueLabel, card.Value, card.ValueSuffix, card.Callout, card.HeroImage, card.SponsorLabel, card.MapImage, card.ProfileHandle, card.XHandle, card.GitHubHandle} {
-		hash.Write([]byte{0})
-		hash.Write([]byte(value))
+	cardJSON, err := json.Marshal(card)
+	if err != nil {
+		panic(fmt.Sprintf("fingerprint site social card: %s", err))
 	}
-	for _, image := range card.Images {
-		hash.Write([]byte{0})
-		hash.Write([]byte(image))
-	}
-	for index, image := range card.SponsorLogos {
-		hash.Write([]byte{0})
-		hash.Write([]byte(image))
-		if index < len(card.SponsorNames) {
-			hash.Write([]byte{0})
-			hash.Write([]byte(card.SponsorNames[index]))
-		}
-	}
-	for index, image := range card.PoweredByLogos {
-		hash.Write([]byte{0})
-		hash.Write([]byte(image))
-		if index < len(card.PoweredByNames) {
-			hash.Write([]byte{0})
-			hash.Write([]byte(card.PoweredByNames[index]))
-		}
-	}
-	for _, label := range card.ImageLabels {
-		hash.Write([]byte{0})
-		hash.Write([]byte(label))
-	}
-	for _, detail := range card.Details {
-		hash.Write([]byte{0})
-		hash.Write([]byte(detail))
-	}
-	for _, badge := range card.Badges {
-		hash.Write([]byte{0})
-		hash.Write([]byte(badge))
-	}
-	for _, stat := range card.Stats {
-		hash.Write([]byte{0})
-		hash.Write([]byte(stat.Value))
-		hash.Write([]byte{0})
-		hash.Write([]byte(stat.Label))
-	}
-	for _, point := range card.MapPoints {
-		hash.Write([]byte(fmt.Sprintf("\x00%.4f\x00%.4f\x00%t", point.X, point.Y, point.Upcoming)))
-	}
+	hash.Write([]byte{0})
+	hash.Write(cardJSON)
 	return hex.EncodeToString(hash.Sum(nil)[:6])
 }
 
