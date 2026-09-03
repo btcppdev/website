@@ -134,6 +134,22 @@ func main() {
 		app.Infos.Printf("media refresh disabled outside production")
 	}
 
+	// Legacy credentials created before profile synchronization may still need
+	// their public npub repaired. Current link/login writes are transactional,
+	// so this idempotent compatibility sweep must not hold up the health check
+	// or make an otherwise healthy deployment fail to start.
+	go func() {
+		time.Sleep(3 * time.Second)
+		profilesSynced, err := getters.ReconcileNostrCredentialProfiles(&app)
+		if err != nil {
+			app.Err.Printf("reconcile legacy Nostr profile keys: %s", err)
+			return
+		}
+		if profilesSynced > 0 {
+			app.Infos.Printf("synchronized %d verified Nostr profile key(s)", profilesSynced)
+		}
+	}()
+
 	handlers.StartRecordingAutopublisher(&app)
 	handlers.StartShopMaintenance(&app)
 	handlers.StartWeeklyNewsletterDrafting(&app)
@@ -193,14 +209,6 @@ func run(env *types.EnvConfig) error {
 	if applied == 0 {
 		app.Infos.Println("database migrations up to date")
 	}
-	profilesSynced, err := getters.ReconcileNostrCredentialProfiles(&app)
-	if err != nil {
-		return fmt.Errorf("reconcile Nostr profile keys: %w", err)
-	}
-	if profilesSynced > 0 {
-		app.Infos.Printf("synchronized %d verified Nostr profile key(s)", profilesSynced)
-	}
-
 	app.Session = scs.New()
 	// A successful magic-link login establishes a durable browser session.
 	// The one-use link itself remains short-lived, but once it has been consumed
