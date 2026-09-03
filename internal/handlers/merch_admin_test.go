@@ -23,6 +23,47 @@ func TestAdminMerchProductURL(t *testing.T) {
 	}
 }
 
+func TestMerchSocialCardNeedsRefreshRequiresExactFingerprint(t *testing.T) {
+	desired := "merch/social/v3/current-fingerprint.jpg"
+	tests := []struct {
+		name         string
+		current      string
+		objectExists bool
+		want         bool
+	}{
+		{name: "missing", want: true},
+		{name: "legacy version", current: "merch/social/v2/current-fingerprint.jpg", objectExists: true, want: true},
+		{name: "stale current version", current: "merch/social/v3/old-fingerprint.jpg", objectExists: true, want: true},
+		{name: "current fingerprint missing object", current: desired, want: true},
+		{name: "current fingerprint", current: desired, objectExists: true, want: false},
+		{name: "surrounding whitespace", current: "  " + desired + "  ", objectExists: true, want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := merchSocialCardNeedsRefresh(test.current, desired, test.objectExists); got != test.want {
+				t.Fatalf("merchSocialCardNeedsRefresh(%q, %q, %t) = %t, want %t", test.current, desired, test.objectExists, got, test.want)
+			}
+		})
+	}
+}
+
+func TestMerchSocialCardObjectKeyTracksRenderedProductData(t *testing.T) {
+	raw := []byte("product-image")
+	base := merchSocialCardObjectKey(raw, "Core Hat", "$35")
+	if got := merchSocialCardObjectKey(raw, "Core Hat", "$35"); got != base {
+		t.Fatalf("merchSocialCardObjectKey is not deterministic: %q != %q", got, base)
+	}
+	for name, got := range map[string]string{
+		"image": merchSocialCardObjectKey([]byte("different-image"), "Core Hat", "$35"),
+		"name":  merchSocialCardObjectKey(raw, "Libre Relay Hat", "$35"),
+		"price": merchSocialCardObjectKey(raw, "Core Hat", "$40"),
+	} {
+		if got == base {
+			t.Fatalf("merchSocialCardObjectKey did not change with %s", name)
+		}
+	}
+}
+
 func TestFilterShopOrdersForAdminCountsAndFiltersShippingQueue(t *testing.T) {
 	orders := []*types.ShopOrder{
 		{PublicID: "ships-two", UnfulfilledShippingQuantity: 2},

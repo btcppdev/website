@@ -32,6 +32,7 @@ import (
 	stripeRefund "github.com/stripe/stripe-go/v86/refund"
 	stripeTaxCalculation "github.com/stripe/stripe-go/v86/tax/calculation"
 	stripeTaxTransaction "github.com/stripe/stripe-go/v86/tax/transaction"
+	"golang.org/x/sync/singleflight"
 )
 
 const shopCartSessionKey = "shop_cart_v1"
@@ -44,6 +45,10 @@ const shopEventPickupCloseDays = 7
 var errShopShippingRatesExpired = errors.New("shipping services expired")
 
 const shopFlatRateShippingCents uint = 2480
+
+const merchSocialCardReconcileInterval = 15 * time.Minute
+
+var merchSocialCardRenderGroup singleflight.Group
 
 type shopCartLine struct {
 	VariantID string `json:"variant_id"`
@@ -144,7 +149,7 @@ func StartShopMaintenance(ctx *config.AppContext) {
 		return
 	}
 	go func() {
-		backfillSocialCards := func() {
+		reconcileSocialCards := func() {
 			if !spaces.IsConfigured() {
 				return
 			}
@@ -153,24 +158,27 @@ func StartShopMaintenance(ctx *config.AppContext) {
 				ctx.Err.Printf("shop maintenance list products for social cards: %s", err)
 				return
 			}
-			generated := 0
+			updated := 0
 			for _, product := range products {
 				if product == nil {
 					continue
 				}
 				for _, image := range product.Images {
-					if image == nil || strings.Contains(strings.TrimSpace(image.SocialObjectKey), "merch/social/v3/") {
+					if image == nil {
 						continue
 					}
-					if err := regenerateMerchSocialCard(context.Background(), ctx, product.ID, image); err != nil {
+					changed, err := ensureMerchSocialCard(context.Background(), ctx, product, image)
+					if err != nil {
 						ctx.Err.Printf("shop maintenance social card product=%s image=%s: %s", product.ID, image.ID, err)
 						continue
 					}
-					generated++
+					if changed {
+						updated++
+					}
 				}
 			}
-			if generated > 0 {
-				ctx.Infos.Printf("shop maintenance generated %d merchandise social cards", generated)
+			if updated > 0 {
+				ctx.Infos.Printf("shop maintenance updated %d merchandise social cards", updated)
 			}
 		}
 		expire := func() {
@@ -193,19 +201,23 @@ func StartShopMaintenance(ctx *config.AppContext) {
 				ctx.Infos.Printf("shop maintenance processed %d Easyship webhook events", count)
 			}
 		}
-		go backfillSocialCards()
+		go reconcileSocialCards()
 		expire()
 		processEasyship()
 		expireTicker := time.NewTicker(time.Minute)
 		webhookTicker := time.NewTicker(5 * time.Second)
+		socialCardTicker := time.NewTicker(merchSocialCardReconcileInterval)
 		defer expireTicker.Stop()
 		defer webhookTicker.Stop()
+		defer socialCardTicker.Stop()
 		for {
 			select {
 			case <-expireTicker.C:
 				expire()
 			case <-webhookTicker.C:
 				processEasyship()
+			case <-socialCardTicker.C:
+				reconcileSocialCards()
 			}
 		}
 	}()
@@ -1072,6 +1084,11 @@ func AdminMerchUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Redirect(w, r, adminMerchProductURL(productID, "err", err.Error()), http.StatusSeeOther)
 		return
 	}
+	if err := refreshMerchProductSocialCards(r.Context(), ctx, productID); err != nil {
+		ctx.Err.Printf("/admin/merch/%s update social cards: %s", productID, err)
+		http.Redirect(w, r, adminMerchProductURL(productID, "err", "Product updated, but its social cards could not be refreshed: "+err.Error()), http.StatusSeeOther)
+		return
+	}
 	http.Redirect(w, r, adminMerchProductURL(productID, "flash", "Product updated."), http.StatusSeeOther)
 }
 
@@ -1113,10 +1130,6 @@ func storeMerchProductImage(ctx *config.AppContext, productID string, raw []byte
 		return "", "", fmt.Errorf("load product for social card: %w", err)
 	}
 	productPrice := merchMoney(merchPrice(product), product)
-	socialCard, err := imgproc.MakeSocialCardJPEG(raw, product.Name, productPrice)
-	if err != nil {
-		return "", "", fmt.Errorf("generate social card: %w", err)
-	}
 	shortID := imgproc.ShortID(raw)
 	key := "merch/" + shortID + ext
 	socialKey := merchSocialCardObjectKey(raw, product.Name, productPrice)
@@ -1126,6 +1139,10 @@ func storeMerchProductImage(ctx *config.AppContext, productID string, raw []byte
 		}
 	}
 	if !spaces.Exists(socialKey) {
+		socialCard, err := imgproc.MakeSocialCardJPEG(raw, product.Name, productPrice)
+		if err != nil {
+			return "", "", fmt.Errorf("generate social card: %w", err)
+		}
 		if _, err := spaces.Upload(socialKey, socialCard, "image/jpeg", ""); err != nil {
 			return "", "", fmt.Errorf("upload social card: %w", err)
 		}
@@ -1152,6 +1169,9 @@ func AdminMerchVariantCreate(w http.ResponseWriter, r *http.Request, ctx *config
 			err = getters.AdjustMerchInventory(ctx, variantID, "initial", stock, id.Email, "initial admin stock")
 		}
 	}
+	if err == nil {
+		err = refreshMerchProductSocialCards(r.Context(), ctx, productID)
+	}
 	adminMerchRedirect(w, r, err, "Variant created.")
 }
 
@@ -1177,6 +1197,9 @@ func AdminMerchVariantUpdate(w http.ResponseWriter, r *http.Request, ctx *config
 		if delta := parseIntForm(r.FormValue("stock_delta"), 0); delta != 0 {
 			err = getters.AdjustMerchInventory(ctx, variantID, "adjustment", delta, id.Email, "admin adjustment")
 		}
+	}
+	if err == nil {
+		err = refreshMerchProductSocialCards(r.Context(), ctx, productID)
 	}
 	adminMerchRedirect(w, r, err, "Variant updated.")
 }
@@ -1234,26 +1257,71 @@ func regenerateMerchSocialCard(requestContext context.Context, app *config.AppCo
 	if err != nil {
 		return fmt.Errorf("load product for social card: %w", err)
 	}
-	raw, err := loadMerchImageBytes(requestContext, image.ObjectKey)
-	if err != nil {
-		return err
+	_, err = ensureMerchSocialCard(requestContext, app, product, image)
+	return err
+}
+
+func refreshMerchProductSocialCards(requestContext context.Context, app *config.AppContext, productID string) error {
+	if !spaces.IsConfigured() {
+		return nil
 	}
-	productPrice := merchMoney(merchPrice(product), product)
-	social, err := imgproc.MakeSocialCardJPEG(raw, product.Name, productPrice)
+	product, err := getters.GetMerchProductByID(app, productID)
 	if err != nil {
-		return fmt.Errorf("generate social card: %w", err)
+		return fmt.Errorf("load product for social cards: %w", err)
 	}
-	socialKey := merchSocialCardObjectKey(raw, product.Name, productPrice)
-	if !spaces.Exists(socialKey) {
-		if _, err := spaces.Upload(socialKey, social, "image/jpeg", ""); err != nil {
-			return fmt.Errorf("upload social card: %w", err)
+	for _, image := range product.Images {
+		if image == nil {
+			continue
+		}
+		if _, err := ensureMerchSocialCard(requestContext, app, product, image); err != nil {
+			return fmt.Errorf("refresh image %s: %w", image.ID, err)
 		}
 	}
-	return getters.SetMerchProductImageSocialObjectKey(app, productID, image.ID, socialKey)
+	return nil
+}
+
+func ensureMerchSocialCard(requestContext context.Context, app *config.AppContext, product *types.MerchProduct, image *types.MerchProductImage) (bool, error) {
+	if product == nil || image == nil {
+		return false, fmt.Errorf("product and product image are required")
+	}
+	raw, err := loadMerchImageBytes(requestContext, image.ObjectKey)
+	if err != nil {
+		return false, err
+	}
+	productPrice := merchMoney(merchPrice(product), product)
+	socialKey := merchSocialCardObjectKey(raw, product.Name, productPrice)
+	desiredObjectExists := spaces.Exists(socialKey)
+	if !merchSocialCardNeedsRefresh(image.SocialObjectKey, socialKey, desiredObjectExists) {
+		return false, nil
+	}
+	_, err, _ = merchSocialCardRenderGroup.Do(socialKey, func() (any, error) {
+		if desiredObjectExists || spaces.Exists(socialKey) {
+			return nil, nil
+		}
+		social, renderErr := imgproc.MakeSocialCardJPEG(raw, product.Name, productPrice)
+		if renderErr != nil {
+			return nil, fmt.Errorf("generate social card: %w", renderErr)
+		}
+		if _, uploadErr := spaces.Upload(socialKey, social, "image/jpeg", ""); uploadErr != nil {
+			return nil, fmt.Errorf("upload social card: %w", uploadErr)
+		}
+		return nil, nil
+	})
+	if err != nil {
+		return false, err
+	}
+	if err := getters.SetMerchProductImageSocialObjectKey(app, product.ID, image.ID, socialKey); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func merchSocialCardObjectKey(raw []byte, productName, productPrice string) string {
 	return "merch/social/v3/" + imgproc.SocialCardID(raw, productName, productPrice) + ".jpg"
+}
+
+func merchSocialCardNeedsRefresh(currentKey, desiredKey string, desiredObjectExists bool) bool {
+	return strings.TrimSpace(currentKey) != strings.TrimSpace(desiredKey) || !desiredObjectExists
 }
 
 func loadMerchImageBytes(ctx context.Context, objectKey string) ([]byte, error) {
