@@ -1809,6 +1809,37 @@ func requireHackathonSchema(t *testing.T, ctx *config.AppContext) {
 	}
 }
 
+func TestDatabaseSmokePublicCompetitionConferenceIDsExcludeHiddenRows(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	publicConferenceID, _ := insertSmokeConference(t, ctx)
+	hiddenConferenceID, _ := insertSmokeConference(t, ctx)
+	createSmokeCompetition(t, ctx, CompetitionInput{
+		ConferenceID: publicConferenceID,
+		Title:        "Public competition " + postgresSmokeSuffix(),
+		Visibility:   CompetitionVisibilityPublic,
+	})
+	createSmokeCompetition(t, ctx, CompetitionInput{
+		ConferenceID: hiddenConferenceID,
+		Title:        "Hidden competition " + postgresSmokeSuffix(),
+		Visibility:   CompetitionVisibilityHidden,
+	})
+
+	ids, err := ListPublicCompetitionConferenceIDs(ctx)
+	if err != nil {
+		t.Fatalf("ListPublicCompetitionConferenceIDs: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, id := range ids {
+		seen[id] = true
+	}
+	if !seen[publicConferenceID] {
+		t.Fatalf("public conference %s missing from %#v", publicConferenceID, ids)
+	}
+	if seen[hiddenConferenceID] {
+		t.Fatalf("hidden conference %s included in %#v", hiddenConferenceID, ids)
+	}
+}
+
 func createSmokeCompetition(t *testing.T, ctx *config.AppContext, in CompetitionInput) string {
 	t.Helper()
 	if strings.TrimSpace(in.ConferenceID) == "" {

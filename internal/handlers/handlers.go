@@ -5493,17 +5493,14 @@ func homeSponsorRank(level string) int {
 }
 
 func publicHackathonConfs(ctx *config.AppContext, page string) map[string]bool {
-	competitions, err := getters.ListCompetitions(ctx)
+	conferenceIDs, err := getters.ListPublicCompetitionConferenceIDs(ctx)
 	if err != nil {
-		ctx.Err.Printf("/%s ListCompetitions for index hackathon links (continuing): %s", page, err)
+		ctx.Err.Printf("/%s list public hackathon conference IDs (continuing): %s", page, err)
 		return nil
 	}
-	confs := make(map[string]bool, len(competitions))
-	for _, competition := range competitions {
-		if competition == nil || competition.Visibility != getters.CompetitionVisibilityPublic || competition.ConferenceID == "" {
-			continue
-		}
-		confs[competition.ConferenceID] = true
+	confs := make(map[string]bool, len(conferenceIDs))
+	for _, conferenceID := range conferenceIDs {
+		confs[conferenceID] = true
 	}
 	return confs
 }

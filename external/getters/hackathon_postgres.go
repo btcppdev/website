@@ -818,6 +818,33 @@ func listCompetitionsPostgres(ctx *config.AppContext) ([]*types.HackathonCompeti
 	return queryCompetitionsPostgres(ctx, "competitions", "", nil)
 }
 
+func listPublicCompetitionConferenceIDsPostgres(ctx *config.AppContext) ([]string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT DISTINCT conference_id::text
+		FROM competitions
+		WHERE visibility = $1 AND conference_id IS NOT NULL
+	`, CompetitionVisibilityPublic)
+	if err != nil {
+		return nil, fmt.Errorf("query public competition conference ids: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan public competition conference id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate public competition conference ids: %w", err)
+	}
+	return ids, nil
+}
+
 func queryCompetitionsPostgres(ctx *config.AppContext, label, whereSQL string, args []any) ([]*types.HackathonCompetition, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("postgres backend selected but AppContext.DB is nil")

@@ -167,6 +167,10 @@ func ListCompetitions(ctx *config.AppContext) ([]*types.HackathonCompetition, er
 	return listCompetitionsPostgres(ctx)
 }
 
+func ListPublicCompetitionConferenceIDs(ctx *config.AppContext) ([]string, error) {
+	return listPublicCompetitionConferenceIDsPostgres(ctx)
+}
+
 func CreateProject(ctx *config.AppContext, in ProjectInput) (string, error) {
 	return createProjectPostgres(ctx, in)
 }
