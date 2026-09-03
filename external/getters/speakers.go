@@ -172,6 +172,16 @@ func FetchSpeakerByID(ctx *config.AppContext, speakerID string) (*types.Speaker,
 	return speakers[0], nil
 }
 
+func FetchSpeakersByIDs(ctx *config.AppContext, speakerIDs []string) ([]*types.Speaker, error) {
+	if len(speakerIDs) == 0 {
+		return nil, nil
+	}
+	return querySpeakersPostgres(ctx, "people by ids", `
+		WHERE people.id = ANY($1::uuid[])
+		ORDER BY lower(people.name), people.id
+	`, speakerIDs)
+}
+
 func SearchSpeakersByNameOrEmail(ctx *config.AppContext, q string, limit int) ([]*types.Speaker, error) {
 	q = strings.TrimSpace(q)
 	if q == "" {

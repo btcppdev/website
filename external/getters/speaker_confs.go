@@ -93,7 +93,7 @@ func ListSpeakerConfsByIDs(ctx *config.AppContext, ids []string, speakerMap map[
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	return querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.id::text = ANY($1::text[])", []interface{}{ids}, speakerMap, proposalMap)
+	return querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.id = ANY($1::uuid[])", []interface{}{ids}, speakerMap, proposalMap)
 }
 
 func listSpeakerConfsForSpeaker(ctx *config.AppContext, speaker *types.Speaker) ([]*types.SpeakerConf, error) {
@@ -102,6 +102,12 @@ func listSpeakerConfsForSpeaker(ctx *config.AppContext, speaker *types.Speaker) 
 	}
 	speakerMap := map[string]*types.Speaker{speaker.ID: speaker}
 	return querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.speaker_id::text = $1", []interface{}{speaker.ID}, speakerMap, nil)
+}
+
+// ListSpeakerConfsForSpeaker loads the dashboard graph for an already-resolved
+// person, avoiding a duplicate people/roles lookup after session resolution.
+func ListSpeakerConfsForSpeaker(ctx *config.AppContext, speaker *types.Speaker) ([]*types.SpeakerConf, error) {
+	return listSpeakerConfsForSpeaker(ctx, speaker)
 }
 
 func FetchSpeakerConfWithSpeaker(ctx *config.AppContext, speakerConfID string) (*types.SpeakerConf, error) {
@@ -145,18 +151,7 @@ func GetSpeakerConfsByEmail(ctx *config.AppContext, email string) ([]*types.Spea
 		return nil, nil, nil
 	}
 
-	proposals, err := ListProposals(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	proposalMap := make(map[string]*types.Proposal, len(proposals))
-	for _, proposal := range proposals {
-		if proposal != nil {
-			proposalMap[proposal.ID] = proposal
-		}
-	}
-
-	scs, err := querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.speaker_id::text = ANY($1::text[])", []interface{}{ids}, speakerMap, proposalMap)
+	scs, err := querySpeakerConfsPostgres(ctx, "WHERE speaker_confs.speaker_id::text = ANY($1::text[])", []interface{}{ids}, speakerMap, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -190,29 +185,13 @@ func querySpeakerConfsPostgres(ctx *config.AppContext, where string, args []inte
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
+	loadSpeakers := speakerMap == nil
 	if speakerMap == nil {
-		speakers, err := ListSpeakers(ctx)
-		if err != nil {
-			return nil, err
-		}
-		speakerMap = make(map[string]*types.Speaker, len(speakers))
-		for _, speaker := range speakers {
-			if speaker != nil {
-				speakerMap[speaker.ID] = speaker
-			}
-		}
+		speakerMap = make(map[string]*types.Speaker)
 	}
+	loadProposals := proposalMap == nil
 	if proposalMap == nil {
-		proposals, err := ListProposals(ctx)
-		if err != nil {
-			return nil, err
-		}
-		proposalMap = make(map[string]*types.Proposal, len(proposals))
-		for _, proposal := range proposals {
-			if proposal != nil {
-				proposalMap[proposal.ID] = proposal
-			}
-		}
+		proposalMap = make(map[string]*types.Proposal)
 	}
 
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
@@ -231,6 +210,8 @@ func querySpeakerConfsPostgres(ctx *config.AppContext, where string, args []inte
 	var out []*types.SpeakerConf
 	byID := map[string]*types.SpeakerConf{}
 	ids := []string{}
+	speakerIDBySpeakerConf := map[string]string{}
+	speakerIDSet := map[string]bool{}
 	for rows.Next() {
 		var sc types.SpeakerConf
 		var speakerID string
@@ -256,7 +237,6 @@ func querySpeakerConfsPostgres(ctx *config.AppContext, where string, args []inte
 		); err != nil {
 			return nil, fmt.Errorf("scan speaker conf: %w", err)
 		}
-		sc.Speaker = speakerMap[speakerID]
 		if invitedAt.Valid {
 			sc.InvitedAt = &invitedAt.Time
 		}
@@ -269,11 +249,44 @@ func querySpeakerConfsPostgres(ctx *config.AppContext, where string, args []inte
 		out = append(out, &sc)
 		byID[sc.ID] = &sc
 		ids = append(ids, sc.ID)
+		speakerIDBySpeakerConf[sc.ID] = speakerID
+		speakerIDSet[speakerID] = true
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate speaker confs: %w", err)
 	}
 	rows.Close()
+
+	if loadSpeakers && len(speakerIDSet) > 0 {
+		speakerIDs := make([]string, 0, len(speakerIDSet))
+		for speakerID := range speakerIDSet {
+			speakerIDs = append(speakerIDs, speakerID)
+		}
+		speakers, err := FetchSpeakersByIDs(ctx, speakerIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, speaker := range speakers {
+			if speaker != nil {
+				speakerMap[speaker.ID] = speaker
+			}
+		}
+	}
+	for _, sc := range out {
+		sc.Speaker = speakerMap[speakerIDBySpeakerConf[sc.ID]]
+	}
+
+	if loadProposals && len(ids) > 0 {
+		proposals, err := ListProposalsForSpeakerConfIDs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		for _, proposal := range proposals {
+			if proposal != nil {
+				proposalMap[proposal.ID] = proposal
+			}
+		}
+	}
 
 	if err := hydrateSpeakerConfProposalsPostgres(ctx, ids, byID, proposalMap); err != nil {
 		return nil, err
@@ -291,7 +304,7 @@ func hydrateSpeakerConfProposalsPostgres(ctx *config.AppContext, ids []string, b
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT speaker_conf_id::text, proposal_id::text
 		FROM proposals_speaker_confs
-		WHERE speaker_conf_id::text = ANY($1::text[])
+		WHERE speaker_conf_id = ANY($1::uuid[])
 	`, ids)
 	if err != nil {
 		return fmt.Errorf("query speaker-conf proposal links: %w", err)

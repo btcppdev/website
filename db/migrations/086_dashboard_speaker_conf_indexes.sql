@@ -1,0 +1,2 @@
+CREATE INDEX proposals_speaker_confs_speaker_conf_idx
+ON proposals_speaker_confs (speaker_conf_id, proposal_id);

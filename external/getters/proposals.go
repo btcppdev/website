@@ -170,6 +170,20 @@ func ListProposalsForConf(ctx *config.AppContext, confRef string) ([]*types.Prop
 	return queryProposalsPostgres(ctx, "WHERE proposals.conference_id::text = $1", confRef)
 }
 
+func ListProposalsForSpeakerConfIDs(ctx *config.AppContext, speakerConfIDs []string) ([]*types.Proposal, error) {
+	if len(speakerConfIDs) == 0 {
+		return nil, nil
+	}
+	return queryProposalsPostgres(ctx, `
+		WHERE EXISTS (
+			SELECT 1
+			FROM proposals_speaker_confs link
+			WHERE link.proposal_id = proposals.id
+			  AND link.speaker_conf_id = ANY($1::uuid[])
+		)
+	`, speakerConfIDs)
+}
+
 func FetchProposalByID(ctx *config.AppContext, id string) (*types.Proposal, error) {
 	proposals, err := queryProposalsPostgres(ctx, "WHERE proposals.id::text = $1", id)
 	if err != nil {
@@ -254,7 +268,7 @@ func hydrateProposalSpeakerConfRefsPostgres(ctx *config.AppContext, ids []string
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT proposal_id::text, speaker_conf_id::text
 		FROM proposals_speaker_confs
-		WHERE proposal_id::text = ANY($1::text[])
+		WHERE proposal_id = ANY($1::uuid[])
 	`, ids)
 	if err != nil {
 		return fmt.Errorf("query proposal speaker-conf links: %w", err)
