@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
@@ -15,6 +16,43 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 )
+
+func TestClonePublicConfsDoesNotShareMutableValues(t *testing.T) {
+	dinner := time.Date(2026, time.September, 1, 18, 0, 0, 0, time.UTC)
+	countdown := time.Date(2026, time.September, 2, 9, 0, 0, 0, time.UTC)
+	enabled := true
+	original := []*types.Conf{{
+		Tag:                             "test26",
+		SpeakerDinnerStart:              &dinner,
+		ConferenceEmailCampaignsEnabled: &enabled,
+		CountdownStart:                  &countdown,
+		Tickets:                         []*types.ConfTicket{{ID: "ticket-1", USD: 100}},
+	}}
+
+	cloned := clonePublicConfs(original)
+	cloned[0].Tag = "changed"
+	cloned[0].SpeakerDinnerStart = nil
+	*cloned[0].ConferenceEmailCampaignsEnabled = false
+	cloned[0].CountdownStart = nil
+	cloned[0].Tickets[0].USD = 250
+	cloned[0].Tickets = append(cloned[0].Tickets, &types.ConfTicket{ID: "ticket-2"})
+
+	if original[0].Tag != "test26" {
+		t.Fatalf("original tag changed to %q", original[0].Tag)
+	}
+	if original[0].SpeakerDinnerStart == nil || !original[0].SpeakerDinnerStart.Equal(dinner) {
+		t.Fatal("original speaker dinner start changed")
+	}
+	if !*original[0].ConferenceEmailCampaignsEnabled {
+		t.Fatal("original campaign setting changed")
+	}
+	if original[0].CountdownStart == nil || !original[0].CountdownStart.Equal(countdown) {
+		t.Fatal("original countdown start changed")
+	}
+	if len(original[0].Tickets) != 1 || original[0].Tickets[0].USD != 100 {
+		t.Fatalf("original tickets changed: %+v", original[0].Tickets)
+	}
+}
 
 func TestSiteAccountNavigationAnonymousDefaultsToDashboardLogin(t *testing.T) {
 	manager := scs.New()

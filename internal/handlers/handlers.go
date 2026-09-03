@@ -2406,6 +2406,16 @@ func listConfs(w http.ResponseWriter, ctx *config.AppContext) []*types.Conf {
 	return confs
 }
 
+func listPublicConfs(w http.ResponseWriter, ctx *config.AppContext) []*types.Conf {
+	confs, err := cachedPublicConfs(ctx)
+	if err != nil {
+		http.Error(w, "Unable to load conferences, please try again later", http.StatusInternalServerError)
+		ctx.Err.Printf("public conference load failed: %s", err)
+		return nil
+	}
+	return confs
+}
+
 func listVolunteerConfs(w http.ResponseWriter, ctx *config.AppContext) []*types.Conf {
 	confs := listConfs(w, ctx)
 	if confs == nil {
@@ -2666,6 +2676,7 @@ func ReloadConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	for _, conf := range confs {
 		getters.UpdateSoldTix(ctx, conf)
 	}
+	invalidatePublicConfCache()
 
 	/* We redirect to home on success */
 	http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -4981,7 +4992,7 @@ func ContactPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 }
 
 func RenderPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, page string) {
-	confList := listConfs(w, ctx)
+	confList := listPublicConfs(w, ctx)
 	if confList == nil {
 		return
 	}
