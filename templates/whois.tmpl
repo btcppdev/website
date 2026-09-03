@@ -44,7 +44,7 @@
             {{ end }}
           </div>
           {{ if or .Query .Topic .Event }}<a class="whois-filters__clear" href="/whois">clear filters</a>{{ end }}
-          <strong class="whois-filters__count">{{ len .People }} MEMBER{{ if ne (len .People) 1 }}S{{ end }}{{ if or .Query .Topic .Event }} · FILTERED{{ end }}</strong>
+          <strong class="whois-filters__count">{{ .ResultCount }} MEMBER{{ if ne .ResultCount 1 }}S{{ end }}{{ if or .Query .Topic .Event }} · FILTERED{{ end }}</strong>
         </div>
 
         <div class="whois-results">
@@ -79,6 +79,13 @@
             <h2>No members match.</h2>
             <p>Try removing a search term or broadening the query.</p>
           </div>
+          {{ end }}
+          {{ if gt .PageCount 1 }}
+          <nav class="whois-pagination" aria-label="Directory pages">
+            {{ if .PreviousURL }}<a href="{{ .PreviousURL }}" rel="prev">← Previous</a>{{ else }}<span aria-hidden="true">← Previous</span>{{ end }}
+            <strong>Page {{ .Page }} / {{ .PageCount }}</strong>
+            {{ if .NextURL }}<a href="{{ .NextURL }}" rel="next">Next →</a>{{ else }}<span aria-hidden="true">Next →</span>{{ end }}
+          </nav>
           {{ end }}
           <div class="whois-directory__footer">
             <span>◇ = community profile</span>

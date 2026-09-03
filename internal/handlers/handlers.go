@@ -72,6 +72,15 @@ var whoIsCache = struct {
 	refreshing bool
 }{}
 
+var whoIsBuildMu sync.Mutex
+
+var homeFeaturedSpeakerCache = struct {
+	sync.Mutex
+	app      *config.AppContext
+	speakers []*types.Speaker
+	expires  time.Time
+}{}
+
 func limitRequestBody(w http.ResponseWriter, r *http.Request, max int64) {
 	r.Body = http.MaxBytesReader(w, r.Body, max)
 }
@@ -2644,7 +2653,10 @@ func ReloadConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 }
 
 func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	people, err := buildWhoIsDirectory(ctx)
+	const pageSize = 48
+	directoryStart := time.Now()
+	people, err := cachedWhoIsDirectory(ctx)
+	appmetrics.ObserveHandlerPhase(r.Context(), "/whois", "directory", time.Since(directoryStart).Seconds())
 	if err != nil {
 		http.Error(w, "Unable to load speaker directory, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/whois build directory failed: %s", err)
@@ -2660,6 +2672,24 @@ func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		people = filterWhoIsPeople(people, query, topic, event)
 	}
 	talkCount, projectCount, editionCount := whoIsTotals(people)
+	resultCount := len(people)
+	pageNumber, err := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("page")))
+	if err != nil || pageNumber < 1 {
+		pageNumber = 1
+	}
+	people, pageNumber, pageCount := paginateWhoIsPeople(people, pageNumber, pageSize)
+	previousURL := ""
+	if pageNumber > 1 {
+		previousURL = whoIsPageURL(r, pageNumber-1)
+	}
+	nextURL := ""
+	if pageNumber < pageCount {
+		nextURL = whoIsPageURL(r, pageNumber+1)
+	}
+	socialCardStart := time.Now()
+	socialCardURL := siteSocialCardPath("whois", "", whoIsSocialCard(ctx, directoryPeople))
+	appmetrics.ObserveHandlerPhase(r.Context(), "/whois", "social_card", time.Since(socialCardStart).Seconds())
+	templateStart := time.Now()
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois.tmpl", &WhoIsPage{
 		People:        people,
 		ArchiveRain:   whoIsPeopleRain(people),
@@ -2671,13 +2701,54 @@ func RenderWhoIs(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		Topic:         topic,
 		Event:         event,
 		EventOptions:  eventOptions,
+		ResultCount:   resultCount,
+		Page:          pageNumber,
+		PageCount:     pageCount,
+		PreviousURL:   previousURL,
+		NextURL:       nextURL,
 		Year:          helpers.CurrentYear(),
-		SocialCardURL: siteSocialCardPath("whois", "", whoIsSocialCard(ctx, directoryPeople)),
+		SocialCardURL: socialCardURL,
 	}); err != nil {
 		http.Error(w, "Unable to load speaker directory, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/whois ExecuteTemplate failed: %s", err.Error())
 		return
 	}
+	appmetrics.ObserveHandlerPhase(r.Context(), "/whois", "template", time.Since(templateStart).Seconds())
+}
+
+func paginateWhoIsPeople(people []*WhoIsPerson, page, pageSize int) ([]*WhoIsPerson, int, int) {
+	if pageSize < 1 {
+		pageSize = 1
+	}
+	pageCount := (len(people) + pageSize - 1) / pageSize
+	if pageCount == 0 {
+		pageCount = 1
+	}
+	if page < 1 {
+		page = 1
+	}
+	if page > pageCount {
+		page = pageCount
+	}
+	start := (page - 1) * pageSize
+	end := start + pageSize
+	if end > len(people) {
+		end = len(people)
+	}
+	return people[start:end], page, pageCount
+}
+
+func whoIsPageURL(r *http.Request, page int) string {
+	query := r.URL.Query()
+	if page <= 1 {
+		query.Del("page")
+	} else {
+		query.Set("page", strconv.Itoa(page))
+	}
+	if encoded := query.Encode(); encoded != "" {
+		return "/whois?" + encoded
+	}
+	return "/whois"
 }
 
 func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -2765,7 +2836,7 @@ func RenderWhoIsArchive(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 }
 
 func findWhoIsPerson(ctx *config.AppContext, slug string) (*WhoIsPerson, error) {
-	people, err := buildWhoIsDirectory(ctx)
+	people, err := cachedWhoIsDirectory(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -3037,26 +3108,35 @@ func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
 		ttl = time.Duration(ctx.Env.CacheTTLSec) * time.Second
 	}
 
-	// Hold the lock while refreshing so a crawler burst produces one database
-	// refresh rather than many identical set-based refreshes.
+	// Serialize rebuilds without holding the cache lock during database work;
+	// readers can continue using the last immutable snapshot while this runs.
+	whoIsBuildMu.Lock()
+	defer whoIsBuildMu.Unlock()
+
 	whoIsCache.Lock()
-	defer whoIsCache.Unlock()
 	if whoIsCache.app == ctx && time.Now().Before(whoIsCache.expires) {
-		return whoIsCache.people, nil
+		people := whoIsCache.people
+		whoIsCache.Unlock()
+		return people, nil
 	}
+	whoIsCache.Unlock()
 
 	profiles, err := getters.ListPublicProfiles(ctx)
 	if err != nil {
 		// Public profiles are archival data. During a brief database incident,
 		// serving the last good snapshot is better than turning every crawler
 		// and visitor into another pool waiter.
+		whoIsCache.Lock()
 		if whoIsCache.app == ctx && whoIsCache.people != nil {
 			if ctx.Err != nil {
 				ctx.Err.Printf("/whois refresh failed; serving stale cache: %s", err)
 			}
 			whoIsCache.expires = time.Now().Add(30 * time.Second)
-			return whoIsCache.people, nil
+			people := whoIsCache.people
+			whoIsCache.Unlock()
+			return people, nil
 		}
+		whoIsCache.Unlock()
 		return nil, err
 	}
 	people := make([]*WhoIsPerson, 0, len(profiles))
@@ -3106,11 +3186,45 @@ func buildWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
 	})
 	publicIDs := assignWhoIsPublicIDs(people)
 	assignWhoIsProjectMemberPublicIDs(people)
+	whoIsCache.Lock()
 	whoIsCache.app = ctx
 	whoIsCache.people = people
 	whoIsCache.publicIDs = publicIDs
 	whoIsCache.expires = time.Now().Add(ttl)
+	whoIsCache.Unlock()
 	return people, nil
+}
+
+// cachedWhoIsDirectory serves an existing immutable snapshot immediately and
+// coalesces an expired refresh in the background. Only the first cold load for
+// an application instance waits for the database graph to be assembled.
+func cachedWhoIsDirectory(ctx *config.AppContext) ([]*WhoIsPerson, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("application context is not configured")
+	}
+	whoIsCache.Lock()
+	if whoIsCache.app == ctx && whoIsCache.people != nil {
+		people := whoIsCache.people
+		startRefresh := time.Now().After(whoIsCache.expires) && !whoIsCache.refreshing
+		if startRefresh {
+			whoIsCache.refreshing = true
+		}
+		whoIsCache.Unlock()
+		if startRefresh {
+			go func() {
+				_, err := buildWhoIsDirectory(ctx)
+				whoIsCache.Lock()
+				whoIsCache.refreshing = false
+				whoIsCache.Unlock()
+				if err != nil && ctx.Err != nil {
+					ctx.Err.Printf("/whois background refresh: %s", err)
+				}
+			}()
+		}
+		return people, nil
+	}
+	whoIsCache.Unlock()
+	return buildWhoIsDirectory(ctx)
 }
 
 func assignWhoIsProjectMemberPublicIDs(people []*WhoIsPerson) {
@@ -3197,7 +3311,7 @@ func resolvedWhoIsPublicID(ctx *config.AppContext, speaker *types.Speaker) (stri
 	if ctx == nil || speaker == nil || strings.TrimSpace(speaker.ID) == "" {
 		return "", false
 	}
-	if _, err := buildWhoIsDirectory(ctx); err != nil {
+	if _, err := cachedWhoIsDirectory(ctx); err != nil {
 		return "", false
 	}
 	whoIsCache.Lock()
@@ -5082,10 +5196,22 @@ func repeatHomepageArchiveAssets(assets []*getters.HomepageArchiveAsset, count i
 }
 
 func homeFeaturedSpeakers(ctx *config.AppContext) []*types.Speaker {
+	if ctx != nil && ctx.InProduction {
+		homeFeaturedSpeakerCache.Lock()
+		defer homeFeaturedSpeakerCache.Unlock()
+		if homeFeaturedSpeakerCache.app == ctx && time.Now().Before(homeFeaturedSpeakerCache.expires) {
+			return append([]*types.Speaker(nil), homeFeaturedSpeakerCache.speakers...)
+		}
+	}
 	speakers, err := getters.ListHomepageFeaturedSpeakers(ctx)
 	if err != nil {
 		ctx.Err.Printf("/ homepage featured speakers (continuing): %s", err)
 		return nil
+	}
+	if ctx != nil && ctx.InProduction {
+		homeFeaturedSpeakerCache.app = ctx
+		homeFeaturedSpeakerCache.speakers = append([]*types.Speaker(nil), speakers...)
+		homeFeaturedSpeakerCache.expires = time.Now().Add(time.Minute)
 	}
 	return speakers
 }

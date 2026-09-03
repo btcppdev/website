@@ -861,11 +861,7 @@ func whoIsSocialCard(ctx *config.AppContext, people []*WhoIsPerson) imgproc.Site
 	applySiteSocialCardPalette(&card, nil)
 	var featured []*types.Speaker
 	if ctx != nil && ctx.DB != nil {
-		var err error
-		featured, err = getters.ListHomepageFeaturedSpeakers(ctx)
-		if err != nil && ctx.Err != nil {
-			ctx.Err.Printf("whois social card featured speakers (continuing): %s", err)
-		}
+		featured = homeFeaturedSpeakers(ctx)
 	}
 	appendWhoIsCardSpeakers(&card, people, featured)
 	return normalizeSiteSocialCard(ctx, card)

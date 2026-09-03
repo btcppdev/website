@@ -1908,6 +1908,34 @@ body.btcpp-rebrand-page {
   border-top: 1px solid var(--whois-ink);
 }
 
+.whois-pagination {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 40px;
+  border-top: 1px solid var(--whois-ink);
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+
+.whois-pagination a,
+.whois-pagination span {
+  color: var(--whois-ink);
+  text-decoration: none;
+}
+
+.whois-pagination a:last-child,
+.whois-pagination span:last-child {
+  text-align: right;
+}
+
+.whois-pagination span {
+  opacity: .3;
+}
+
 .whois-profile-dossier {
   display: grid;
   grid-template-columns: 380px minmax(0, 1fr);
@@ -6800,6 +6828,17 @@ body.btcpp-agenda-dialog-open {
     flex-direction: column;
     padding-right: 18px;
     padding-left: 18px;
+  }
+
+  .whois-pagination {
+    grid-template-columns: 1fr 1fr;
+    padding: 16px 18px;
+  }
+
+  .whois-pagination strong {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    text-align: center;
   }
 
   .whois-profile-identity {

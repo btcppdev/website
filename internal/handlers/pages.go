@@ -184,6 +184,11 @@ type WhoIsPage struct {
 	Topic         string
 	Event         string
 	EventOptions  []*types.Conf
+	ResultCount   int
+	Page          int
+	PageCount     int
+	PreviousURL   string
+	NextURL       string
 	Year          uint
 	SocialCardURL string
 }
