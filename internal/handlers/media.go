@@ -562,22 +562,14 @@ func MakeSponsorCard(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	card := params["card"]
 	sponsorRef := params["sponsorRef"]
 
-	sponsorships, err := getters.ListSponsorships(ctx, "")
+	sp, err := getters.GetSponsorship(ctx, sponsorRef)
 	if err != nil {
-		http.Error(w, "Unable to load sponsorships", http.StatusInternalServerError)
-		ctx.Err.Printf("sponsor card: failed to load sponsorships: %s", err.Error())
+		http.Error(w, "Unable to load sponsorship", http.StatusInternalServerError)
+		ctx.Err.Printf("sponsor card: failed to load sponsorship: %s", err.Error())
 		return
 	}
 
-	var sp *types.Sponsorship
-	for _, s := range sponsorships {
-		if s.Ref == sponsorRef {
-			sp = s
-			break
-		}
-	}
-
-	if sp == nil || sp.Org == nil {
+	if sp == nil || sp.Org == nil || !sponsorshipIncludesConference(sp, confTag) {
 		http.Error(w, "Sponsorship not found", http.StatusNotFound)
 		return
 	}
@@ -617,6 +609,15 @@ func MakeSponsorCard(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("exec %s failed: %s", tmplName, err.Error())
 	}
+}
+
+func sponsorshipIncludesConference(sponsorship *types.Sponsorship, confTag string) bool {
+	for _, conf := range sponsorship.Confs {
+		if conf != nil && conf.Tag == confTag {
+			return true
+		}
+	}
+	return false
 }
 
 func ServeSponsorPng(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

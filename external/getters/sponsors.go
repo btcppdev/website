@@ -272,34 +272,53 @@ func UpdateOrgDetails(ctx *config.AppContext, org *types.Org) error {
 
 func ListSponsorships(ctx *config.AppContext, confRef string) ([]*types.Sponsorship, error) {
 	if strings.TrimSpace(confRef) == "" {
-		return listSponsorshipsForConferences(ctx, nil)
+		return listSponsorshipsPostgres(ctx, nil, "")
 	}
-	return listSponsorshipsForConferences(ctx, []string{confRef})
+	return listSponsorshipsPostgres(ctx, []string{confRef}, "")
 }
 
 func ListSponsorshipsForConferences(ctx *config.AppContext, confRefs []string) ([]*types.Sponsorship, error) {
 	if len(confRefs) == 0 {
 		return nil, nil
 	}
-	return listSponsorshipsForConferences(ctx, confRefs)
+	return listSponsorshipsPostgres(ctx, confRefs, "")
 }
 
-func listSponsorshipsForConferences(ctx *config.AppContext, confRefs []string) ([]*types.Sponsorship, error) {
+func GetSponsorship(ctx *config.AppContext, sponsorshipRef string) (*types.Sponsorship, error) {
+	sponsorshipRef = strings.TrimSpace(sponsorshipRef)
+	if sponsorshipRef == "" {
+		return nil, fmt.Errorf("sponsorship ref is required")
+	}
+	sponsorships, err := listSponsorshipsPostgres(ctx, nil, sponsorshipRef)
+	if err != nil {
+		return nil, err
+	}
+	if len(sponsorships) == 0 {
+		return nil, nil
+	}
+	return sponsorships[0], nil
+}
+
+func listSponsorshipsPostgres(ctx *config.AppContext, confRefs []string, sponsorshipRef string) ([]*types.Sponsorship, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
 
 	args := []interface{}{}
 	where := "WHERE sponsorships.archived_at IS NULL"
+	if sponsorshipRef != "" {
+		args = append(args, sponsorshipRef)
+		where += fmt.Sprintf(" AND sponsorships.id = $%d::uuid", len(args))
+	}
 	if len(confRefs) > 0 {
 		args = append(args, confRefs)
-		where += `
+		where += fmt.Sprintf(`
 			AND EXISTS (
 				SELECT 1
 				FROM sponsorships_conferences sc
 				WHERE sc.sponsorship_id = sponsorships.id
-					AND sc.conference_id = ANY($1::uuid[])
-			)`
+					AND sc.conference_id = ANY($%d::uuid[])
+			)`, len(args))
 	}
 
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
@@ -386,7 +405,14 @@ func hydrateSponsorshipConfsPostgres(ctx *config.AppContext, ids []string, byID 
 	if len(confRefs) > 0 {
 		confs, err = queryConferencesOnlyPostgres(ctx, "sponsorship conferences", "WHERE id = ANY($1::uuid[])", []any{confRefs})
 	} else {
-		confs, err = listConferencesOnlyPostgres(ctx)
+		confs, err = queryConferencesOnlyPostgres(ctx, "sponsorship conferences", `
+			WHERE EXISTS (
+				SELECT 1
+				FROM sponsorships_conferences sc
+				WHERE sc.conference_id = conferences.id
+					AND sc.sponsorship_id = ANY($1::uuid[])
+			)
+		`, []any{ids})
 	}
 	if err != nil {
 		return err

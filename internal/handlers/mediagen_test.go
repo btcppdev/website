@@ -114,3 +114,13 @@ func TestSponsorCardHashUsesSpacesManifestFingerprint(t *testing.T) {
 		t.Fatal("sponsor card hash did not change when the Spaces manifest fingerprint changed")
 	}
 }
+
+func TestSponsorshipIncludesConference(t *testing.T) {
+	sponsorship := &types.Sponsorship{Confs: []*types.Conf{{Tag: "dev26"}, nil, {Tag: "berlin26"}}}
+	if !sponsorshipIncludesConference(sponsorship, "berlin26") {
+		t.Fatal("expected linked conference to match")
+	}
+	if sponsorshipIncludesConference(sponsorship, "other26") {
+		t.Fatal("unexpected unlinked conference match")
+	}
+}
