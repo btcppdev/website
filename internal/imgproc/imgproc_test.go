@@ -9,6 +9,7 @@ import (
 	"image/jpeg"
 	"os"
 	"os/exec"
+	"reflect"
 	"testing"
 )
 
@@ -228,6 +229,49 @@ func TestSiteSocialCardIDTracksContent(t *testing.T) {
 	card.PoweredByNames = []string{"Title Partner"}
 	if got := SiteSocialCardID(card); got == first {
 		t.Fatal("SiteSocialCardID did not change with powered-by sponsor content")
+	}
+}
+
+func TestSiteSocialCardIDTracksEveryCardField(t *testing.T) {
+	cardType := reflect.TypeOf(SiteSocialCard{})
+	base := SiteSocialCardID(SiteSocialCard{})
+	for fieldIndex := 0; fieldIndex < cardType.NumField(); fieldIndex++ {
+		field := cardType.Field(fieldIndex)
+		t.Run(field.Name, func(t *testing.T) {
+			value := reflect.New(cardType).Elem()
+			setSocialCardFingerprintTestValue(t, value.Field(fieldIndex))
+			card := value.Interface().(SiteSocialCard)
+			if got := SiteSocialCardID(card); got == base {
+				t.Fatalf("SiteSocialCardID did not change when %s changed", field.Name)
+			}
+		})
+	}
+}
+
+func setSocialCardFingerprintTestValue(t *testing.T, value reflect.Value) {
+	t.Helper()
+	switch value.Kind() {
+	case reflect.String:
+		value.SetString("changed")
+	case reflect.Bool:
+		value.SetBool(true)
+	case reflect.Float32, reflect.Float64:
+		value.SetFloat(1)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		value.SetInt(1)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		value.SetUint(1)
+	case reflect.Slice:
+		element := reflect.New(value.Type().Elem()).Elem()
+		setSocialCardFingerprintTestValue(t, element)
+		value.Set(reflect.Append(value, element))
+	case reflect.Struct:
+		if value.NumField() == 0 {
+			t.Fatalf("cannot create a non-zero test value for %s", value.Type())
+		}
+		setSocialCardFingerprintTestValue(t, value.Field(0))
+	default:
+		t.Fatalf("add a fingerprint test value for new field type %s", value.Type())
 	}
 }
 
