@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"context"
 	"crypto/subtle"
 	"net/http"
 	"strconv"
@@ -18,7 +19,10 @@ type Metrics struct {
 	requests *prometheus.CounterVec
 	duration *prometheus.HistogramVec
 	inflight *prometheus.GaugeVec
+	phases   *prometheus.HistogramVec
 }
+
+type metricsContextKey struct{}
 
 func New(namespace string, businessLoaders ...BusinessMetricsLoader) *Metrics {
 	requests := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -40,6 +44,13 @@ func New(namespace string, businessLoaders ...BusinessMetricsLoader) *Metrics {
 		Name:      "requests_in_flight",
 		Help:      "HTTP requests currently being served by method.",
 	}, []string{"method"})
+	phases := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: namespace,
+		Subsystem: "handler",
+		Name:      "phase_duration_seconds",
+		Help:      "Server-side handler phase duration by route and phase.",
+		Buckets:   []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15},
+	}, []string{"route", "phase"})
 
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(
@@ -48,11 +59,12 @@ func New(namespace string, businessLoaders ...BusinessMetricsLoader) *Metrics {
 		requests,
 		duration,
 		inflight,
+		phases,
 	)
 	if len(businessLoaders) > 0 && businessLoaders[0] != nil {
 		registry.MustRegister(newBusinessCollector(namespace, businessLoaders[0]))
 	}
-	return &Metrics{registry: registry, requests: requests, duration: duration, inflight: inflight}
+	return &Metrics{registry: registry, requests: requests, duration: duration, inflight: inflight, phases: phases}
 }
 
 func (m *Metrics) Middleware(next http.Handler) http.Handler {
@@ -65,6 +77,7 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 		m.inflight.WithLabelValues(method).Inc()
 		defer m.inflight.WithLabelValues(method).Dec()
 
+		r = r.WithContext(context.WithValue(r.Context(), metricsContextKey{}, m))
 		captured := httpsnoop.CaptureMetrics(next, w, r)
 		route := "unmatched"
 		if current := mux.CurrentRoute(r); current != nil {
@@ -75,6 +88,16 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 		m.requests.WithLabelValues(route, method, strconv.Itoa(captured.Code)).Inc()
 		m.duration.WithLabelValues(route, method).Observe(captured.Duration.Seconds())
 	})
+}
+
+// ObserveHandlerPhase records a bounded, named phase within a request. Route
+// and phase must be fixed call-site values rather than user-controlled input.
+func ObserveHandlerPhase(ctx context.Context, route, phase string, elapsedSeconds float64) {
+	metrics, _ := ctx.Value(metricsContextKey{}).(*Metrics)
+	if metrics == nil || elapsedSeconds < 0 {
+		return
+	}
+	metrics.phases.WithLabelValues(route, phase).Observe(elapsedSeconds)
 }
 
 func (m *Metrics) Handler(token string) http.Handler {

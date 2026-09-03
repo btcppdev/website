@@ -16,6 +16,7 @@ import (
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/helpers"
+	appmetrics "btcpp-web/internal/observability"
 	"btcpp-web/internal/types"
 
 	"github.com/gorilla/mux"
@@ -30,17 +31,14 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 
-	email, encodedHMAC, err := validateVolEmail(r, ctx)
+	identityStart := time.Now()
+	email, resolvedIdentity, err := validatedSessionIdentity(r, ctx, true)
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "identity", time.Since(identityStart).Seconds())
+	encodedHMAC := ""
 	encodedEmail := ""
 	if err != nil {
 		ctx.Infos.Printf("/dashboard session validation failed: %s", err)
 		redirectDashboardLogin(w, r, r.URL.Query().Get("error"))
-		return
-	}
-	resolvedIdentity, resolveErr := auth.Resolve(r, ctx)
-	if resolveErr != nil {
-		ctx.Err.Printf("/dashboard identity for %s: %s", email, resolveErr)
-		http.Error(w, "Unable to resolve account", http.StatusInternalServerError)
 		return
 	}
 	personID := ""
@@ -82,12 +80,16 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	go func() {
 		defer topWg.Done()
 		s := time.Now()
-		if personID != "" {
+		if personID != "" && resolvedIdentity != nil && resolvedIdentity.Speaker != nil {
+			speakers = []*types.Speaker{resolvedIdentity.Speaker}
+			speakerConfs, scErr = getters.ListSpeakerConfsForSpeaker(ctx, resolvedIdentity.Speaker)
+		} else if personID != "" {
 			speakers, speakerConfs, scErr = getters.GetSpeakerConfsByPersonID(ctx, personID)
 		} else {
 			speakers, speakerConfs, scErr = getters.GetSpeakerConfsByEmail(ctx, email)
 		}
 		scDur = time.Since(s)
+		appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "speaker_graph", scDur.Seconds())
 	}()
 	go func() {
 		defer topWg.Done()
@@ -98,6 +100,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			volapps, volErr = getters.ListVolunteerApps(ctx, email)
 		}
 		volDur = time.Since(s)
+		appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "volunteer_apps", volDur.Seconds())
 	}()
 	go func() {
 		defer topWg.Done()
@@ -108,6 +111,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			regs, regErr = getters.ListRegistrationsByEmail(ctx, email)
 		}
 		regDur = time.Since(s)
+		appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "registrations", regDur.Seconds())
 	}()
 	go func() {
 		defer topWg.Done()
@@ -118,6 +122,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			satEvents, satErr = getters.ListSatelliteEventsBySubmitter(ctx, email)
 		}
 		satDur = time.Since(s)
+		appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "satellite_events", satDur.Seconds())
 	}()
 	go func() {
 		defer topWg.Done()
@@ -138,6 +143,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			}
 		}
 		judgeDur = time.Since(s)
+		appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "judging", judgeDur.Seconds())
 	}()
 	go func() {
 		defer topWg.Done()
@@ -146,6 +152,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			hasHackathonProjects, projectsErr = getters.HasHackathonParticipantProjectsForPerson(ctx, personID)
 		}
 		projectsDur = time.Since(s)
+		appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "hackathon_projects", projectsDur.Seconds())
 	}()
 	go func() {
 		defer topWg.Done()
@@ -156,6 +163,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			shopOrders, shopErr = getters.ListShopOrdersByEmail(ctx, email, 5)
 		}
 		shopDur = time.Since(s)
+		appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "shop_orders", shopDur.Seconds())
 	}()
 	go func() {
 		defer topWg.Done()
@@ -164,8 +172,10 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			hasSponsorMembership, sponsorErr = getters.HasActiveOrganizationMembership(ctx, personID)
 		}
 		sponsorDur = time.Since(s)
+		appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "sponsor_membership", sponsorDur.Seconds())
 	}()
 	topWg.Wait()
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "account_fetch", time.Since(t1).Seconds())
 	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s judge=%s projects=%s shop=%s sponsor=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d judgeAssignments=%d hasProjects=%t shopOrders=%d hasSponsorOrg=%t",
 		reqID, time.Since(t1), scDur, volDur, regDur, satDur, judgeDur, projectsDur, shopDur, sponsorDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents), len(judgeAssignments), hasHackathonProjects, len(shopOrders), hasSponsorMembership)
 	if regErr != nil {
@@ -201,7 +211,9 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		}
 		regs = live
 	}
+	qrStart := time.Now()
 	attachRegistrationQRCodes(ctx, regs)
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "ticket_qr", time.Since(qrStart).Seconds())
 
 	if scErr != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
@@ -248,6 +260,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			}(i, vol)
 		}
 		volWg.Wait()
+		appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "volunteer_enrichment", time.Since(t2).Seconds())
 		var maxShift time.Duration
 		for _, d := range shiftDurs {
 			if d > maxShift {
@@ -272,10 +285,12 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 
 	tConfs := time.Now()
 	confs := listConfs(w, ctx)
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "conference_fetch", time.Since(tConfs).Seconds())
 	ctx.Infos.Printf("/dashboard id=%s listConfs=%s", reqID, time.Since(tConfs))
 
 	t3 := time.Now()
 	enrichDashboardProposals(ctx, speakerConfs)
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "proposal_enrichment", time.Since(t3).Seconds())
 	ctx.Infos.Printf("/dashboard id=%s enrich-proposals=%s", reqID, time.Since(t3))
 
 	activeSC, pastSC := splitSpeakerConfsByEnded(speakerConfs)
@@ -300,12 +315,14 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	ctx.Infos.Printf("/dashboard id=%s blocks active=%d past=%d eligible=%d buyable=%d",
 		reqID, len(activeBlocks), len(pastBlocks), len(eligible), len(buyable))
 
-	tRender := time.Now()
+	dashboardEnrichmentStart := time.Now()
 	var topSpeaker *types.Speaker
 	if len(speakers) > 0 {
 		topSpeaker = speakers[0]
 	}
+	entitlementStart := time.Now()
 	ticketEntitlements, entitlementErr := dashboardTicketEntitlements(ctx, speakers)
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "ticket_entitlements", time.Since(entitlementStart).Seconds())
 	if entitlementErr != nil {
 		ctx.Err.Printf("/dashboard ticket entitlements: %s", entitlementErr)
 	}
@@ -315,13 +332,13 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			unclaimedTicketEntitlements++
 		}
 	}
-	hasPublicProfile := hasPublicWhoIsProfile(ctx, topSpeaker)
+	profileStart := time.Now()
+	publicProfileID, hasPublicProfile := dashboardCachedWhoIsPublicID(ctx, topSpeaker)
 	archiveOwnerPath := ""
-	if hasPublicProfile && topSpeaker != nil {
-		if publicID, ok := resolvedWhoIsPublicID(ctx, topSpeaker); ok {
-			archiveOwnerPath = "/whois/" + url.PathEscape(publicID) + "/archive"
-		}
+	if hasPublicProfile {
+		archiveOwnerPath = "/whois/" + url.PathEscape(publicProfileID) + "/archive"
 	}
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "profile_lookup", time.Since(profileStart).Seconds())
 	id := resolvedIdentity
 	if id == nil {
 		id = &auth.Identity{Email: email}
@@ -390,9 +407,10 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 
 	// Populate per-conf countdown bounds for the event-card widget.
-	// Single Notion call (empty tag = all rows), bucket by tag→day,
+	// Single database query (empty tag = all rows), bucket by tag→day,
 	// then shallow-copy each block's Conf so the cached pointer
 	// shared with other readers stays untouched.
+	countdownStart := time.Now()
 	infosByTag := map[string]map[int]*types.ConfInfo{}
 	if cis, err := getters.ListConfInfos(ctx, ""); err != nil {
 		ctx.Err.Printf("/dashboard ListConfInfos for countdown (continuing): %s", err)
@@ -423,7 +441,26 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	for _, b := range pastBlocks {
 		enrichBlock(b)
 	}
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "countdown_fetch", time.Since(countdownStart).Seconds())
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "dashboard_enrichment", time.Since(dashboardEnrichmentStart).Seconds())
 
+	affiliateStart := time.Now()
+	var affiliateCode *types.DiscountCode
+	var affiliateStats *AffiliateStats
+	var affiliateWg sync.WaitGroup
+	affiliateWg.Add(2)
+	go func() {
+		defer affiliateWg.Done()
+		affiliateCode = loadAffiliateCode(ctx, personID, email, len(regs) > 0)
+	}()
+	go func() {
+		defer affiliateWg.Done()
+		affiliateStats = loadAffiliateStats(ctx, personID, email, len(regs) > 0)
+	}()
+	affiliateWg.Wait()
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "affiliate_fetch", time.Since(affiliateStart).Seconds())
+
+	templateStart := time.Now()
 	err = ctx.TemplateCache.ExecuteTemplate(w, "dashboard.tmpl", &DashboardPage{
 		Name:                        name,
 		Hometown:                    hometown,
@@ -454,8 +491,8 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		FlashError:                  r.URL.Query().Get("error"),
 		IsGlobalAdmin:               id.IsGlobalAdmin(),
 		HasAnyTicket:                len(regs) > 0,
-		AffiliateCode:               loadAffiliateCode(ctx, personID, email, len(regs) > 0),
-		AffiliateStats:              loadAffiliateStats(ctx, personID, email, len(regs) > 0),
+		AffiliateCode:               affiliateCode,
+		AffiliateStats:              affiliateStats,
 		TicketEntitlements:          ticketEntitlements,
 		UnclaimedTicketEntitlements: unclaimedTicketEntitlements,
 		TicketClaimConfs:            ticketClaimConfs,
@@ -463,12 +500,47 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		BaseURI:                     ctx.Env.GetURI(),
 		Year:                        helpers.CurrentYear(),
 	})
+	appmetrics.ObserveHandlerPhase(r.Context(), "/dashboard", "template", time.Since(templateStart).Seconds())
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/dashboard ExecuteTemplate failed: %s", err)
 		return
 	}
-	ctx.Infos.Printf("/dashboard id=%s render=%s", reqID, time.Since(tRender))
+	ctx.Infos.Printf("/dashboard id=%s render=%s", reqID, time.Since(templateStart))
+}
+
+// dashboardCachedWhoIsPublicID keeps the public-directory refresh out of the
+// dashboard critical path. The directory itself still refreshes synchronously
+// on /whois, while dashboard requests use the last good snapshot and trigger a
+// single background refresh when that snapshot is stale or absent.
+func dashboardCachedWhoIsPublicID(ctx *config.AppContext, speaker *types.Speaker) (string, bool) {
+	if ctx == nil || speaker == nil || strings.TrimSpace(speaker.ID) == "" {
+		return "", false
+	}
+	whoIsCache.Lock()
+	publicID := ""
+	if whoIsCache.app == ctx && whoIsCache.publicIDs != nil {
+		publicID = whoIsCache.publicIDs[speaker.ID]
+	}
+	needsRefresh := whoIsCache.app != ctx || whoIsCache.publicIDs == nil || time.Now().After(whoIsCache.expires)
+	startRefresh := needsRefresh && !whoIsCache.refreshing
+	if startRefresh {
+		whoIsCache.refreshing = true
+	}
+	whoIsCache.Unlock()
+
+	if startRefresh {
+		go func() {
+			_, err := buildWhoIsDirectory(ctx)
+			whoIsCache.Lock()
+			whoIsCache.refreshing = false
+			whoIsCache.Unlock()
+			if err != nil && ctx.Err != nil {
+				ctx.Err.Printf("/dashboard background whois refresh: %s", err)
+			}
+		}()
+	}
+	return publicID, publicID != ""
 }
 
 func dashboardIdentityEmail(identity *auth.Identity) string {
@@ -1053,7 +1125,7 @@ func dashboardIdentity(speakers []*types.Speaker, speakerConfs []*types.SpeakerC
 //   - proposal.ConfTalk: the ConfTalk row for accepted proposals (Clipart).
 //   - proposal.Recording: the Recording row when one exists (YT link).
 //
-// Two-phase to keep everything parallel: first fan-out fetch every unique
+// Two-phase to keep related work bounded: first batch-fetch every unique
 // co-speaker's SpeakerConf+Speaker, then fan-out per-proposal enrich
 // (ConfTalk → Recording is a serial chain within each proposal goroutine).
 //
@@ -1091,26 +1163,26 @@ func enrichDashboardProposals(ctx *config.AppContext, speakerConfs []*types.Spea
 		}
 	}
 
-	// Phase 1: parallel-fetch every unique co-speaker SpeakerConf.
+	// Phase 1: batch-fetch every unique co-speaker SpeakerConf. The previous
+	// one-goroutine-per-speaker path multiplied database queries and pool
+	// pressure for accounts with many collaborative talks.
 	t1 := time.Now()
 	if len(uniqueRefs) > 0 {
-		var mu sync.Mutex
-		var wg sync.WaitGroup
+		refs := make([]string, 0, len(uniqueRefs))
 		for ref := range uniqueRefs {
-			wg.Add(1)
-			go func(ref string) {
-				defer wg.Done()
-				sc, err := getters.FetchSpeakerConfWithSpeaker(ctx, ref)
-				if err != nil {
-					ctx.Err.Printf("enrich: fetch sc %s: %s", ref, err)
-					return
-				}
-				mu.Lock()
-				scCache[ref] = sc
-				mu.Unlock()
-			}(ref)
+			refs = append(refs, ref)
 		}
-		wg.Wait()
+		speakerRows, err := getters.ListSpeakerConfsByIDs(ctx, refs, nil, nil)
+		if err != nil {
+			ctx.Err.Printf("enrich: fetch %d co-speaker rows: %s", len(refs), err)
+		} else {
+			for _, sc := range speakerRows {
+				if sc == nil {
+					continue
+				}
+				scCache[sc.ID] = sc
+			}
+		}
 	}
 	ctx.Infos.Printf("enrich phase1 (%d co-speaker scs): %s", len(uniqueRefs), time.Since(t1))
 
@@ -1614,7 +1686,7 @@ func loadAffiliateCode(ctx *config.AppContext, personID, email string, eligible 
 }
 
 // loadAffiliateStats sums every AffiliateUsage row for the user via
-// a live Notion query (no cache, since affiliates expect to see
+// a live database query (no cache, since affiliates expect to see
 // their freshest stats on refresh). Returns zeros when the gate is
 // closed; the template renders zeros as "0 tickets sold / $0".
 func loadAffiliateStats(ctx *config.AppContext, personID, email string, eligible bool) *AffiliateStats {

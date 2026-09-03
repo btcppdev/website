@@ -65,10 +65,11 @@ var errUploadTooLarge = errors.New("uploaded file is too large")
 
 var whoIsCache = struct {
 	sync.Mutex
-	app       *config.AppContext
-	people    []*WhoIsPerson
-	publicIDs map[string]string
-	expires   time.Time
+	app        *config.AppContext
+	people     []*WhoIsPerson
+	publicIDs  map[string]string
+	expires    time.Time
+	refreshing bool
 }{}
 
 func limitRequestBody(w http.ResponseWriter, r *http.Request, max int64) {
@@ -6833,29 +6834,34 @@ func redirectVolunteerFindShiftLogin(w http.ResponseWriter, r *http.Request) {
 // deliberately narrow post-magic-link state where a verified email has not
 // created a person profile yet and therefore has no session version.
 func validatedSessionEmail(r *http.Request, ctx *config.AppContext, allowPending bool) (string, error) {
+	email, _, err := validatedSessionIdentity(r, ctx, allowPending)
+	return email, err
+}
+
+func validatedSessionIdentity(r *http.Request, ctx *config.AppContext, allowPending bool) (string, *auth.Identity, error) {
 	email := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionEmailKey))
 	personID := strings.TrimSpace(ctx.Session.GetString(r.Context(), auth.SessionPersonIDKey))
 	if email == "" && personID == "" {
-		return "", fmt.Errorf("missing session credentials")
+		return "", nil, fmt.Errorf("missing session credentials")
 	}
 	// A few isolated handler tests use a session without a database. Production
 	// always has a database and therefore always takes the validated path below.
 	if ctx.DB == nil {
 		if email != "" {
-			return email, nil
+			return email, nil, nil
 		}
-		return "", fmt.Errorf("missing session credentials")
+		return "", nil, fmt.Errorf("missing session credentials")
 	}
 	if email != "" || personID != "" {
 		identity, err := auth.Resolve(r, ctx)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		if identity != nil {
 			if loginEmail := strings.TrimSpace(identity.LoginEmail); loginEmail != "" {
-				return loginEmail, nil
+				return loginEmail, identity, nil
 			}
-			return strings.TrimSpace(identity.PrimaryEmail), nil
+			return strings.TrimSpace(identity.PrimaryEmail), identity, nil
 		}
 		// Resolve clears revoked and pre-version person sessions. The only
 		// session allowed to remain without a resolved person is a pending
@@ -6864,11 +6870,11 @@ func validatedSessionEmail(r *http.Request, ctx *config.AppContext, allowPending
 		if allowPending && email != "" &&
 			ctx.Session.GetString(r.Context(), auth.SessionPersonIDKey) == "" &&
 			auth.Method(ctx.Session.GetString(r.Context(), auth.SessionMethodKey)) == auth.MethodEmailLink {
-			return email, nil
+			return email, nil, nil
 		}
-		return "", fmt.Errorf("missing or revoked session credentials")
+		return "", nil, fmt.Errorf("missing or revoked session credentials")
 	}
-	return "", fmt.Errorf("missing or revoked session credentials")
+	return "", nil, fmt.Errorf("missing or revoked session credentials")
 }
 
 func buildShiftDisplays(vol *types.Volunteer, shifts []*types.WorkShift, selectedShifts []*types.WorkShift) map[string][]*ShiftDisplay {

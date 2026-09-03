@@ -17,6 +17,13 @@ minutes; a failed refresh retains the last good snapshot and exposes a failed
 collection health gauge. Never put the raw token in this repository; configure
 it as a secret App Platform environment variable.
 
+The dashboard also exports `btcpp_web_handler_phase_duration_seconds`, with
+bounded `route="/dashboard"` and phase labels. To find its slowest p95 phases:
+
+```promql
+histogram_quantile(0.95, sum by (le, phase) (rate(btcpp_web_handler_phase_duration_seconds_bucket{route="/dashboard"}[5m])))
+```
+
 ## Setup Dependencies
 
 We use nix for this. Installs go + tailwindcss + air dependencies for Makefile.

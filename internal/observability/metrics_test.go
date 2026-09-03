@@ -144,3 +144,37 @@ func TestMiddlewareUsesRouteTemplate(t *testing.T) {
 		t.Fatalf("raw path leaked into metric labels: %s", text)
 	}
 }
+
+func TestObserveHandlerPhaseUsesRequestMetrics(t *testing.T) {
+	m := New("test_phases")
+	router := mux.NewRouter()
+	router.HandleFunc("/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		ObserveHandlerPhase(r.Context(), "/dashboard", "account_fetch", 0.125)
+		w.WriteHeader(http.StatusOK)
+	})
+	router.Use(m.Middleware)
+
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/dashboard", nil))
+
+	families, err := m.registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := ""
+	for _, family := range families {
+		text += family.String()
+	}
+	text = strings.Join(strings.Fields(text), " ")
+	for _, want := range []string{
+		`name:"test_phases_handler_phase_duration_seconds"`,
+		`name:"route" value:"/dashboard"`,
+		`name:"phase" value:"account_fetch"`,
+		`sample_count:1`,
+		`sample_sum:0.125`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("phase metrics omitted %q: %s", want, text)
+		}
+	}
+}
