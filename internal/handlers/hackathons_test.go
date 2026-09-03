@@ -851,6 +851,34 @@ func TestAwardTotalPrizeValueIncludesEveryPrizeValuation(t *testing.T) {
 	}
 }
 
+func TestHackathonAwardPresentationOrdering(t *testing.T) {
+	first, second, third := 1, 2, 3
+	page := &HackathonPage{
+		Awards: []*types.Award{
+			{ID: "third", Title: "Third place", AwardRank: &third},
+			{ID: "small-sponsor", Title: "Small sponsor prize", AwardType: getters.AwardTypeChallenge, AwardRank: &first, SponsoredByOrgID: "sponsor"},
+			{ID: "first", Title: "First place", AwardRank: &first},
+			{ID: "community", Title: "Community prize"},
+			{ID: "second", Title: "Second place", AwardRank: &second},
+		},
+		PrizesByAward: map[string][]*types.Prize{
+			"first":         {{ValueText: "3000000"}},
+			"second":        {{ValueText: "2000000"}},
+			"third":         {{ValueText: "1000000"}},
+			"community":     {{ValueText: "750000"}},
+			"small-sponsor": {{ValueText: "250000"}},
+		},
+	}
+	podium := page.PodiumAwards()
+	if len(podium) != 3 || podium[0].ID != "first" || podium[1].ID != "second" || podium[2].ID != "third" {
+		t.Fatalf("PodiumAwards() = %+v, want first, second, third", podium)
+	}
+	other := page.OtherAwardsByValue()
+	if len(other) != 2 || other[0].ID != "community" || other[1].ID != "small-sponsor" {
+		t.Fatalf("OtherAwardsByValue() = %+v, want descending prize value", other)
+	}
+}
+
 func TestAttachHackathonPlaceRowMembers(t *testing.T) {
 	member := &types.ProjectMember{ProjectID: "project-1", PersonID: "person-1", Name: "Ada Hacker", Photo: "ada.jpg"}
 	rows := []*HackathonPlaceRow{{ProjectID: "project-1"}, {ProjectID: "project-2"}, nil}

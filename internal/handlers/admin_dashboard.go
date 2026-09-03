@@ -406,10 +406,16 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		return
 	}
 
+	accentColor, validAccentColor := types.NormalizeConferenceAccentColor(r.FormValue("accent_color"))
+	if !validAccentColor {
+		redirectEventDetails(w, r, conf, "Event accent color must be a six-digit hex color such as #f9af5e.")
+		return
+	}
 	in := getters.ConfDetailsInput{
 		Description:                     strings.TrimSpace(r.FormValue("description")),
 		EditionType:                     strings.TrimSpace(r.FormValue("edition_type")),
 		OGFlavor:                        strings.TrimSpace(r.FormValue("og_flavor")),
+		AccentColor:                     accentColor,
 		Emoji:                           strings.TrimSpace(r.FormValue("emoji")),
 		Tagline:                         strings.TrimSpace(r.FormValue("tagline")),
 		DateDesc:                        strings.TrimSpace(r.FormValue("date_desc")),

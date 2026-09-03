@@ -1441,9 +1441,10 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 		Slug:              "award-project-" + postgresSmokeSuffix(),
 		Title:             "Winning Project",
 	})
+	secondOwnerID := insertSmokePerson(t, ctx, "award-second-owner")
 	secondProjectID := createSmokeProject(t, ctx, ProjectInput{
 		CompetitionID:     competitionID,
-		CreatedByPersonID: ownerID,
+		CreatedByPersonID: secondOwnerID,
 		Slug:              "award-second-project-" + postgresSmokeSuffix(),
 		Title:             "Second Project",
 	})
@@ -1467,6 +1468,9 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	}
 	if len(awards) != 1 || awards[0].ID != awardID || awards[0].MaxAwardees == nil || *awards[0].MaxAwardees != maxAwardees || !awards[0].OptInRequired {
 		t.Fatalf("awards mismatch: %+v", awards)
+	}
+	if awards[0].PublicSlug != "best-overall" {
+		t.Fatalf("award public slug = %q, want best-overall", awards[0].PublicSlug)
 	}
 	if err := SetProjectAwardOptIns(ctx, projectID, []string{awardID, awardID, ""}); err != nil {
 		t.Fatalf("SetProjectAwardOptIns: %v", err)
@@ -1494,6 +1498,9 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	}
 	if len(awards) != 1 || awards[0].ID != awardID || awards[0].Title != "Best Overall Updated" || awards[0].Description != "Updated top project" || awards[0].OptInRequired {
 		t.Fatalf("awards after update mismatch: %+v", awards)
+	}
+	if awards[0].PublicSlug != "best-overall" {
+		t.Fatalf("award public slug changed after title edit: %q", awards[0].PublicSlug)
 	}
 	projectOptIns, err = ListProjectAwardOptInsForProject(ctx, projectID)
 	if err != nil {
@@ -1775,6 +1782,19 @@ func TestHackathonAwardsAndPrizes(t *testing.T) {
 	}
 	if err := DeleteArchivedAward(ctx, competitionID, generalAwardID); err == nil {
 		t.Fatalf("DeleteArchivedAward deleted active award")
+	}
+}
+
+func TestNormalizeAwardPublicSlug(t *testing.T) {
+	tests := map[string]string{
+		"Best Signet Infrastructure": "best-signet-infrastructure",
+		"  Sponsor++ One!  ":         "sponsor-one",
+		"***":                        "award",
+	}
+	for input, want := range tests {
+		if got := normalizeAwardPublicSlug(input); got != want {
+			t.Errorf("normalizeAwardPublicSlug(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
 

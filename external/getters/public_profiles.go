@@ -66,7 +66,7 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 			ct.github_repo_url, ct.slides_url, ct.slides_object_key,
 			proposal.title, proposal.description, proposal.talk_type, proposal.status,
 			conf.id::text, conf.tag, conf.active, conf.publication_status,
-			conf.description, conf.edition_type, conf.og_flavor, conf.emoji,
+			conf.description, conf.edition_type, conf.og_flavor, conf.accent_color, conf.emoji,
 			conf.tagline, conf.date_desc, conf.start_date, conf.end_date,
 			conf.timezone, conf.location,
 			coalesce(recording.youtube_url, ''), coalesce(recording.id::text, '')
@@ -114,7 +114,7 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 			&calNotif, &socialCard, &githubRepo, &slidesURL, &slidesObjectKey,
 			&title, &description, &talkType, &status,
 			&conf.Ref, &conf.Tag, &conf.Active, &conf.PublicationStatus,
-			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.Emoji,
+			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.AccentColor, &conf.Emoji,
 			&conf.Tagline, &conf.DateDesc, &confStart, &confEnd,
 			&conf.Timezone, &conf.Location, &recordingURL, &recordingID,
 		); err != nil {
@@ -240,7 +240,7 @@ func addPublicProfileProjects(ctx *config.AppContext, people map[string]*PublicP
 			project.status, project.tags, project.submitted_at,
 			project.created_at, project.updated_at,
 			conf.id::text, conf.tag, conf.active, conf.publication_status,
-			conf.description, conf.edition_type, conf.og_flavor, conf.emoji,
+			conf.description, conf.edition_type, conf.og_flavor, conf.accent_color, conf.emoji,
 			conf.tagline, conf.date_desc, conf.start_date, conf.end_date,
 			conf.timezone, conf.location,
 			team_person.id::text, team_person.name, team_person.norm_photo_path,
@@ -301,7 +301,7 @@ func addPublicProfileProjects(ctx *config.AppContext, people map[string]*PublicP
 			&project.Status, &project.Tags, &submittedAt,
 			&project.CreatedAt, &project.UpdatedAt,
 			&conf.Ref, &conf.Tag, &conf.Active, &conf.PublicationStatus,
-			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.Emoji,
+			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.AccentColor, &conf.Emoji,
 			&conf.Tagline, &conf.DateDesc, &confStart, &confEnd,
 			&conf.Timezone, &conf.Location,
 			&member.PersonID, &member.Name, &member.Photo, &member.Role,
@@ -374,7 +374,7 @@ func addPublicProfileAttendance(ctx *config.AppContext, personIDs []string, peop
 		SELECT DISTINCT
 			person.id::text,
 			conf.id::text, conf.tag, conf.active, conf.publication_status,
-			conf.description, conf.edition_type, conf.og_flavor, conf.emoji,
+			conf.description, conf.edition_type, conf.og_flavor, conf.accent_color, conf.emoji,
 			conf.tagline, conf.date_desc, conf.start_date, conf.end_date,
 			conf.timezone, conf.location
 		FROM people person
@@ -394,7 +394,7 @@ func addPublicProfileAttendance(ctx *config.AppContext, personIDs []string, peop
 		var start, end pgtype.Timestamptz
 		if err := rows.Scan(
 			&personID, &conf.Ref, &conf.Tag, &conf.Active, &conf.PublicationStatus,
-			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.Emoji,
+			&conf.Desc, &conf.EditionType, &conf.OGFlavor, &conf.AccentColor, &conf.Emoji,
 			&conf.Tagline, &conf.DateDesc, &start, &end, &conf.Timezone, &conf.Location,
 		); err != nil {
 			return fmt.Errorf("scan public profile attendance: %w", err)

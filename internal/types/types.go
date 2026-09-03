@@ -13,10 +13,27 @@ import (
 )
 
 const (
-	TicketTypeGeneral   = "genpop"
-	TicketTypeLocal     = "local"
-	TicketTypeSponsored = "sponsored"
+	TicketTypeGeneral            = "genpop"
+	TicketTypeLocal              = "local"
+	TicketTypeSponsored          = "sponsored"
+	DefaultConferenceAccentColor = "#f9af5e"
 )
+
+func NormalizeConferenceAccentColor(value string) (string, bool) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return DefaultConferenceAccentColor, true
+	}
+	if len(value) != 7 || value[0] != '#' {
+		return DefaultConferenceAccentColor, false
+	}
+	for _, character := range value[1:] {
+		if !((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')) {
+			return DefaultConferenceAccentColor, false
+		}
+	}
+	return value, true
+}
 
 func IsSponsoredTicketType(ticketType string) bool {
 	return strings.EqualFold(strings.TrimSpace(ticketType), TicketTypeSponsored)
@@ -156,6 +173,7 @@ type (
 		Tickets               []*ConfTicket
 		TixSold               uint
 		OGFlavor              string
+		AccentColor           string
 		Emoji                 string
 		HeroTitle             string
 		HeroCaption           string

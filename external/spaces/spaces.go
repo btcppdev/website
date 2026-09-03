@@ -77,6 +77,17 @@ func IsConfigured() bool {
 }
 
 func Upload(key string, data []byte, contentType string, hash string) (string, error) {
+	return uploadPublic(key, data, contentType, hash, "public, max-age=300")
+}
+
+// UploadImmutable stores a public content-addressed object with a long cache
+// lifetime. Callers must include a content fingerprint in key so replacing the
+// underlying bytes creates a new URL.
+func UploadImmutable(key string, data []byte, contentType string, hash string) (string, error) {
+	return uploadPublic(key, data, contentType, hash, "public, max-age=31536000, immutable")
+}
+
+func uploadPublic(key string, data []byte, contentType string, hash string, cacheControl string) (string, error) {
 	if client == nil {
 		return "", fmt.Errorf("spaces not configured")
 	}
@@ -91,7 +102,7 @@ func Upload(key string, data []byte, contentType string, hash string) (string, e
 		Key:          aws.String(key),
 		Body:         bytes.NewReader(data),
 		ContentType:  aws.String(contentType),
-		CacheControl: aws.String("public, max-age=300"),
+		CacheControl: aws.String(cacheControl),
 		ACL:          s3types.ObjectCannedACLPublicRead,
 		Metadata:     metadata,
 	})

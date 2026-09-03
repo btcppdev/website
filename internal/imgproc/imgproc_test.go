@@ -96,7 +96,7 @@ func TestMakeAVIF_EmptyInput(t *testing.T) {
 func TestMakeSocialCardJPEG(t *testing.T) {
 	requireChrome(t)
 
-	out, err := MakeSocialCardJPEG(makeTestJPEG(t, 417))
+	out, err := MakeSocialCardJPEG(makeTestJPEG(t, 417), "Core Hat", "$35")
 	if err != nil {
 		t.Fatalf("MakeSocialCardJPEG: %v", err)
 	}
@@ -113,9 +113,9 @@ func TestMakeSocialCardJPEG(t *testing.T) {
 	if len(out) >= 3<<20 {
 		t.Fatalf("social card size = %d bytes, want less than 3 MiB", len(out))
 	}
-	corner := color.RGBAModel.Convert(card.At(0, 0)).(color.RGBA)
-	if !closeColor(corner, color.RGBA{R: 0xf6, G: 0xf3, B: 0xee, A: 0xff}, 4) {
-		t.Fatalf("social card corner = %#v, want template background #f6f3ee", corner)
+	corner := color.RGBAModel.Convert(card.At(10, 10)).(color.RGBA)
+	if !closeColor(corner, color.RGBA{R: 0xf9, G: 0xaf, B: 0x5e, A: 0xff}, 4) {
+		t.Fatalf("social card background = %#v, want template background #f9af5e", corner)
 	}
 	center := color.RGBAModel.Convert(card.At(SocialCardWidth/2, SocialCardHeight/2)).(color.RGBA)
 	if closeColor(center, corner, 8) {
@@ -141,14 +141,14 @@ func TestMakeSocialCardJPEGFromAVIF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MakeAVIF: %v", err)
 	}
-	if _, err := MakeSocialCardJPEG(avif); err != nil {
+	if _, err := MakeSocialCardJPEG(avif, "Core Hat", "$35"); err != nil {
 		t.Fatalf("MakeSocialCardJPEG from AVIF: %v", err)
 	}
 }
 
 func TestMakeSocialCardJPEGRejectsBadInput(t *testing.T) {
 	requireChrome(t)
-	if _, err := MakeSocialCardJPEG([]byte("not an image")); err == nil {
+	if _, err := MakeSocialCardJPEG([]byte("not an image"), "Core Hat", "$35"); err == nil {
 		t.Fatal("MakeSocialCardJPEG accepted invalid image bytes")
 	}
 }
@@ -180,14 +180,20 @@ func TestShortID_Format(t *testing.T) {
 
 func TestSocialCardID(t *testing.T) {
 	data := []byte("product image")
-	if got, want := SocialCardID(data), SocialCardID(data); got != want {
+	if got, want := SocialCardID(data, "Core Hat", "$35"), SocialCardID(data, "Core Hat", "$35"); got != want {
 		t.Fatalf("SocialCardID is not deterministic: %s vs %s", got, want)
 	}
-	if got := SocialCardID(data); len(got) != 12 {
+	if got := SocialCardID(data, "Core Hat", "$35"); len(got) != 12 {
 		t.Fatalf("SocialCardID length = %d, want 12", len(got))
 	}
-	if SocialCardID(data) == ShortID(data) {
+	if SocialCardID(data, "Core Hat", "$35") == ShortID(data) {
 		t.Fatal("SocialCardID does not include the template fingerprint")
+	}
+	if SocialCardID(data, "Core Hat", "$35") == SocialCardID(data, "Libre Relay Hat", "$35") {
+		t.Fatal("SocialCardID does not include the product name")
+	}
+	if SocialCardID(data, "Core Hat", "$35") == SocialCardID(data, "Core Hat", "$40") {
+		t.Fatal("SocialCardID does not include the product price")
 	}
 }
 
@@ -201,20 +207,178 @@ func TestSiteSocialCardIDTracksContent(t *testing.T) {
 	if got := SiteSocialCardID(card); got == first {
 		t.Fatal("SiteSocialCardID did not change with rendered content")
 	}
+	first = SiteSocialCardID(card)
+	card.ImageLabels = []string{"economics / edition 17"}
+	if got := SiteSocialCardID(card); got == first {
+		t.Fatal("SiteSocialCardID did not change with an image label")
+	}
+	first = SiteSocialCardID(card)
+	card.Location = "Austin · Assembly Hall"
+	if got := SiteSocialCardID(card); got == first {
+		t.Fatal("SiteSocialCardID did not change with location content")
+	}
+	first = SiteSocialCardID(card)
+	card.MapImage = "/static/img/home/worldmap.svg"
+	card.MapPoints = []SiteSocialCardMapPoint{{X: 24, Y: 42, Upcoming: true}}
+	if got := SiteSocialCardID(card); got == first {
+		t.Fatal("SiteSocialCardID did not change with map content")
+	}
+	first = SiteSocialCardID(card)
+	card.PoweredByLogos = []string{"/title-sponsor.svg"}
+	card.PoweredByNames = []string{"Title Partner"}
+	if got := SiteSocialCardID(card); got == first {
+		t.Fatal("SiteSocialCardID did not change with powered-by sponsor content")
+	}
 }
 
-func TestRenderSiteSocialCardHTML(t *testing.T) {
+func TestRenderConferenceSiteSocialCardHTMLUsesHomeCardLayout(t *testing.T) {
 	html, err := RenderSiteSocialCardHTML(SiteSocialCard{
-		Kind: "person", Eyebrow: "community profile", Title: "Mara Chen",
-		Subtitle: "Talk: Building Bitcoin", Stats: []SiteSocialCardStat{{Value: "3", Label: "talks"}},
+		Kind: "conference", Eyebrow: "technical bitcoin event · October 2026", Title: "Local Dev", TitleSuffix: "signet edition",
+		Subtitle: "Build the future together.", Location: "Austin · Assembly Hall",
+		Images: []string{"/static/img/dev26/leading.png"}, MapImage: "/static/img/home/worldmap.svg",
+		MapPoints:    []SiteSocialCardMapPoint{{X: 24, Y: 42, Upcoming: true}},
+		SponsorLogos: []string{"/headline.svg"}, SponsorNames: []string{"Headline Partner"},
+		PoweredByLogos: []string{"/title.svg"}, PoweredByNames: []string{"Title Partner"},
 	})
 	if err != nil {
 		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
 	}
-	for _, want := range []string{"Mara Chen", "Building Bitcoin", "community profile", `data-card-ready="false"`} {
+	for _, want := range []string{"kind-conference has-title-sponsor", "conference-map-backdrop", "conference-title-block", "conference-date", `class="conference-title__lead">Local Dev</span>`, `class="conference-title__suffix">signet edition</span>`, "Build the future together.", "conference-map-backdrop__point", "left:24.00%;top:42.00%;", ".kind-conference .visual { inset: 0 auto 0 0;", "social-card-sponsor-ticker", "Headline Partner", "conference-powered-by", "powered by", "Title Partner"} {
+		if !bytes.Contains(html, []byte(want)) {
+			t.Fatalf("rendered conference card missing %q", want)
+		}
+	}
+}
+
+func TestRenderSiteSocialCardHTML(t *testing.T) {
+	html, err := RenderSiteSocialCardHTML(SiteSocialCard{
+		Kind: "events", Eyebrow: "community profile", Title: "Mara Chen",
+		Subtitle: "Talk: Building Bitcoin", Images: []string{"/static/img/atx25/leading.jpg"},
+		ImageLabels: []string{"mempool / edition 9"}, Stats: []SiteSocialCardStat{{Value: "3", Label: "talks"}},
+	})
+	if err != nil {
+		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
+	}
+	for _, want := range []string{"Building Bitcoin", "community profile", "mempool / edition 9", `data-card-ready="false"`, "imageLoadTimeoutMs", "naturalWidth"} {
 		if !bytes.Contains(html, []byte(want)) {
 			t.Fatalf("rendered site card missing %q", want)
 		}
+	}
+	if bytes.Contains(html, []byte("Mara Chen")) {
+		t.Fatal("events card rendered its removed bottom title")
+	}
+}
+
+func TestRenderHomeSiteSocialCardHTMLIncludesSharedFooter(t *testing.T) {
+	html, err := RenderSiteSocialCardHTML(SiteSocialCard{
+		Kind: "home", Title: "Developing the frontier of bitcoin.", MapImage: "/static/img/home/worldmap.svg",
+		MapPoints:    []SiteSocialCardMapPoint{{X: 24, Y: 42, Upcoming: true}, {X: 52, Y: 36}},
+		SponsorLabel: "2026 headline partners", SponsorLogos: []string{"/headline.svg"}, SponsorNames: []string{"Headline Partner"},
+	})
+	if err != nil {
+		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
+	}
+	for _, want := range []string{"kind-home", "Ubuntu Brand", "wordmark__pluses", "Developing the", `<span class="home-serif">frontier</span>`, "of bitcoin.", "btcpp.dev", "card-footer", "card-sparkles", "✨", "home-card-map", "home-card-map__point is-upcoming", "left:24.00%;top:42.00%;", "2026 headline partners", "Headline Partner"} {
+		if !bytes.Contains(html, []byte(want)) {
+			t.Fatalf("rendered home card missing %q", want)
+		}
+	}
+	// The declaration plus the home hero and footer literal bitcoin++ wordmarks
+	// are the only permitted uses of this face.
+	if got := bytes.Count(html, []byte(`font-family: "Ubuntu Brand"`)); got != 3 {
+		t.Fatalf("Ubuntu Brand font-family usage count = %d, want 3 brand-only uses", got)
+	}
+}
+
+func TestRenderAwardSiteSocialCardHTML(t *testing.T) {
+	html, err := RenderSiteSocialCardHTML(SiteSocialCard{
+		Kind: "award", Eyebrow: "Example Sponsor", Title: "Best Signet Infrastructure",
+		Subtitle: "Build reliable tools.", AccentColor: "#2563eb", TextColor: "#ffffff",
+		ValueLabel: "Prize value", Value: "1.75M", ValueSuffix: "sats",
+		Callout: "Local Dev · Austin, TX · Oct 1–3, 2026",
+		Details: []string{"Hardware signing device"},
+	})
+	if err != nil {
+		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
+	}
+	for _, want := range []string{"kind-award", "award-event", "award-logo", "Local Dev", "Best Signet Infrastructure", `award-value__whole">1`, `award-value__decimal">.75`, `award-value__unit">M`, "Presented by", "Example Sponsor", "award-prize-details", "Hardware signing device", "--card-accent:#2563eb"} {
+		if !bytes.Contains(html, []byte(want)) {
+			t.Fatalf("rendered award card missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{"award-trophy", "award-trophy__word"} {
+		if bytes.Contains(html, []byte(unwanted)) {
+			t.Fatalf("rendered award card still contains %q", unwanted)
+		}
+	}
+}
+
+func TestSplitCompactSocialCardValue(t *testing.T) {
+	for _, test := range []struct {
+		value                string
+		whole, decimal, unit string
+	}{
+		{value: "1.0M", whole: "1", unit: "M"},
+		{value: "750k", whole: "750", unit: "k"},
+		{value: "3", whole: "3"},
+	} {
+		whole, decimal, unit := splitCompactSocialCardValue(test.value)
+		if whole != test.whole || decimal != test.decimal || unit != test.unit {
+			t.Fatalf("splitCompactSocialCardValue(%q) = (%q, %q, %q), want (%q, %q, %q)", test.value, whole, decimal, unit, test.whole, test.decimal, test.unit)
+		}
+	}
+}
+
+func TestRenderHackathonSiteSocialCardIncludesSponsorTicker(t *testing.T) {
+	html, err := RenderSiteSocialCardHTML(SiteSocialCard{
+		Kind: "hackathon", Title: "Build something real.",
+		SponsorLogos: []string{"/headline.svg", "/title.svg", "/hackathon.svg"},
+		SponsorNames: []string{"Headline Partner", "Title Partner", "Hackathon Partner"},
+	})
+	if err != nil {
+		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
+	}
+	for _, want := range []string{"social-card-sponsor-ticker", "social-card-sponsor-march", "grayscale(100%)", "Headline Partner", "Title Partner", "Hackathon Partner"} {
+		if !bytes.Contains(html, []byte(want)) {
+			t.Fatalf("rendered hackathon card missing %q", want)
+		}
+	}
+}
+
+func TestRenderSiteSocialCardHTMLRejectsUnsafePaletteValue(t *testing.T) {
+	html, err := RenderSiteSocialCardHTML(SiteSocialCard{Kind: "conference", Title: "Event", AccentColor: "red; display:none"})
+	if err != nil {
+		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
+	}
+	if bytes.Contains(html, []byte("display:none")) || !bytes.Contains(html, []byte("--card-accent:#0a0a0a")) {
+		t.Fatalf("unsafe palette value reached rendered CSS: %s", html)
+	}
+}
+
+func TestPersonSiteSocialCardUsesAustereImageRail(t *testing.T) {
+	html, err := RenderSiteSocialCardHTML(SiteSocialCard{Kind: "person", Title: "Mara Chen", ProfileHandle: "mara", XHandle: "mara_x", GitHubHandle: "mara-gh", Badges: []string{"First Place"}})
+	if err != nil {
+		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
+	}
+	for _, want := range []string{".kind-person .images", "grid-template-columns: repeat(5", "object-fit: contain", ".kind-person .copy { inset: 395px", "fitPersonName", "name.scrollWidth <= name.clientWidth", "fitCurrentLayout() >= 125", "person-name-line", "X @mara_x", "person-social-handle", "@mara-gh"} {
+		if !bytes.Contains(html, []byte(want)) {
+			t.Fatalf("rendered person card missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{`<div class="person-achievement-stickers"`, `<div class="card-sparkles"`, `<span class="person-profile-handle">`} {
+		if bytes.Contains(html, []byte(unwanted)) {
+			t.Fatalf("rendered person card contains %q", unwanted)
+		}
+	}
+}
+
+func TestWhoIsSiteSocialCardIncludesSparkleField(t *testing.T) {
+	html, err := RenderSiteSocialCardHTML(SiteSocialCard{Kind: "whois", Title: "The people building bitcoin."})
+	if err != nil {
+		t.Fatalf("RenderSiteSocialCardHTML: %v", err)
+	}
+	if !bytes.Contains(html, []byte(`class="whois-sparkles"`)) {
+		t.Fatalf("rendered whois card is missing its sparkle field: %s", html)
 	}
 }
 
@@ -241,20 +405,27 @@ func TestMakeSiteSocialCardJPEG(t *testing.T) {
 }
 
 func TestRenderSocialCardHTML(t *testing.T) {
-	rendered, err := RenderSocialCardHTML("/static/img/merch/core-hat.avif")
+	rendered, err := RenderSocialCardHTML("/static/img/merch/core-hat.avif", "Bitcoin Core Hat", "$35")
 	if err != nil {
 		t.Fatalf("RenderSocialCardHTML: %v", err)
 	}
 	if !bytes.Contains(rendered, []byte(`src="/static/img/merch/core-hat.avif"`)) {
 		t.Fatalf("rendered social card does not contain seeded image URL: %s", rendered)
 	}
-	if !bytes.Contains(rendered, []byte(`src="/static/img/logo_blk.svg"`)) {
-		t.Fatalf("rendered social card does not contain bitcoin++ logo: %s", rendered)
+	if !bytes.Contains(rendered, []byte(`url("/static/fonts/Ubuntu-BoldItalic.ttf")`)) {
+		t.Fatalf("rendered social card does not contain the brand font: %s", rendered)
 	}
-	if !bytes.Contains(rendered, []byte(`>merch shop</p>`)) {
-		t.Fatalf("rendered social card does not contain merch shop label: %s", rendered)
+	for _, want := range []string{`>merch shop</div>`, `Wear the <em>frontier.</em>`, `<h1 class="social-card__title">Bitcoin Core Hat</h1>`, `social-card__price-star`, `Price $35`, `>$35</div>`, `Developing the frontier of bitcoin.`, `btcpp.dev`, `brand-lockup`, `card-sparkles`, `✨`} {
+		if !bytes.Contains(rendered, []byte(want)) {
+			t.Fatalf("rendered social card does not contain %q: %s", want, rendered)
+		}
 	}
-	if _, err := RenderSocialCardHTML("javascript:alert(1)"); err == nil {
+	// The declaration and the literal bitcoin++ footer wordmark are the only
+	// permitted uses of the brand face in individual product cards.
+	if got := bytes.Count(rendered, []byte(`font-family: "Ubuntu Brand"`)); got != 2 {
+		t.Fatalf("Ubuntu Brand font-family usage count = %d, want 2 brand-only uses", got)
+	}
+	if _, err := RenderSocialCardHTML("javascript:alert(1)", "Unsafe Hat", "$35"); err == nil {
 		t.Fatal("RenderSocialCardHTML accepted unsafe URL scheme")
 	}
 }

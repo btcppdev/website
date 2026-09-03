@@ -5,6 +5,24 @@ import (
 	"time"
 )
 
+func TestNormalizeConferenceAccentColor(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  string
+		valid bool
+	}{
+		{input: "", want: DefaultConferenceAccentColor, valid: true},
+		{input: " #A1B2C3 ", want: "#a1b2c3", valid: true},
+		{input: "orange", want: DefaultConferenceAccentColor, valid: false},
+		{input: "#abcd", want: DefaultConferenceAccentColor, valid: false},
+	} {
+		got, valid := NormalizeConferenceAccentColor(test.input)
+		if got != test.want || valid != test.valid {
+			t.Errorf("NormalizeConferenceAccentColor(%q) = (%q, %t), want (%q, %t)", test.input, got, valid, test.want, test.valid)
+		}
+	}
+}
+
 func TestConfLocUsesKnownConferenceTimezoneFallback(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

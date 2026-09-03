@@ -85,6 +85,11 @@ const (
 	devNewsletterAward1       = "00000000-0000-4000-8000-000000000b11"
 	devNewsletterAward2       = "00000000-0000-4000-8000-000000000b12"
 	devNewsletterAward3       = "00000000-0000-4000-8000-000000000b13"
+	devNewsletterAward4       = "00000000-0000-4000-8000-000000000b14"
+	devNewsletterPrize1       = "00000000-0000-4000-8000-000000000b15"
+	devNewsletterPrize2       = "00000000-0000-4000-8000-000000000b16"
+	devNewsletterPrize3       = "00000000-0000-4000-8000-000000000b17"
+	devNewsletterPrize4       = "00000000-0000-4000-8000-000000000b18"
 	devNewsletterRecording    = "00000000-0000-4000-8000-000000000b21"
 	devNewsletterRecording2   = "00000000-0000-4000-8000-000000000b22"
 	devNewsletterRecording3   = "00000000-0000-4000-8000-000000000b23"
@@ -121,6 +126,7 @@ type speakerSeed struct {
 	personID, speakerConfID, proposalID, talkID string
 	name, email, photo                          string
 	company, twitter, github, leetcode, website string
+	bio                                         string
 	comingFrom                                  string
 	title, description, talkType                string
 	start, end, venue, clipart                  string
@@ -128,7 +134,7 @@ type speakerSeed struct {
 }
 
 type orgSeed struct {
-	id, name, tagline, logo, website, twitter string
+	id, name, tagline, logo, logoLight, logoDark, website, twitter string
 }
 
 type sponsorshipSeed struct {
@@ -225,6 +231,7 @@ var devSpeakers = []speakerSeed{
 		email:         "mara.chen@example.test",
 		photo:         "../static/img/julien.jpg",
 		company:       "Signet Systems",
+		bio:           "Mara builds practical Bitcoin infrastructure and turns protocol edge cases into tools that other developers can use. She is especially interested in package relay, reproducible testing, and making difficult systems understandable.",
 		twitter:       "mara_signet",
 		github:        "https://github.com/example/mara-signet",
 		leetcode:      "mara-signet",
@@ -353,20 +360,22 @@ var devSpeakers = []speakerSeed{
 
 var devOrgs = []orgSeed{
 	{
-		id:      "00000000-0000-4000-8000-000000000501",
-		name:    "Signet Systems",
-		tagline: "Infrastructure for bitcoin test networks",
-		logo:    "/static/img/sponsors/NYDIG.svg",
-		website: "https://example.test/signet-systems",
-		twitter: "signet_systems",
+		id:        "00000000-0000-4000-8000-000000000501",
+		name:      "Signet Systems",
+		tagline:   "Infrastructure for bitcoin test networks",
+		logoLight: "/static/img/sponsors/nydig_dark.svg",
+		logoDark:  "/static/img/sponsors/NYDIG.svg",
+		website:   "https://example.test/signet-systems",
+		twitter:   "signet_systems",
 	},
 	{
-		id:      "00000000-0000-4000-8000-000000000502",
-		name:    "Anchor Labs",
-		tagline: "Protocol engineering and applied research",
-		logo:    "/static/img/sponsors/vinteum.png",
-		website: "https://example.test/anchor-labs",
-		twitter: "anchor_labs",
+		id:        "00000000-0000-4000-8000-000000000502",
+		name:      "Anchor Labs",
+		tagline:   "Protocol engineering and applied research",
+		logoLight: "/static/img/sponsors/vinteum.png",
+		logoDark:  "/static/img/sponsors/vinteum_white.svg",
+		website:   "https://example.test/anchor-labs",
+		twitter:   "anchor_labs",
 	},
 	{
 		id:      "00000000-0000-4000-8000-000000000503",
@@ -391,6 +400,15 @@ var devOrgs = []orgSeed{
 		logo:    "/static/img/sponsors/bitvmx.png",
 		website: "https://example.test/node-house",
 		twitter: "node_house",
+	},
+	{
+		id:        "00000000-0000-4000-8000-000000000506",
+		name:      "Unchained",
+		tagline:   "Collaborative custody for bitcoin",
+		logoLight: "/static/img/sponsors/unchained.svg",
+		logoDark:  "/static/img/sponsors/unchained_white.svg",
+		website:   "https://example.test/unchained",
+		twitter:   "unchained",
 	},
 }
 
@@ -428,6 +446,13 @@ var devSponsorships = []sponsorshipSeed{
 		orgID:  "00000000-0000-4000-8000-000000000505",
 		level:  "Community",
 		label:  "Community Sponsors",
+		status: "Paid",
+	},
+	{
+		id:     "00000000-0000-4000-8000-000000000607",
+		orgID:  "00000000-0000-4000-8000-000000000506",
+		level:  "Title",
+		label:  "Title Sponsor",
 		status: "Paid",
 	},
 }
@@ -1218,7 +1243,7 @@ func seedConference(ctx context.Context, tx pgx.Tx) string {
 			'Expert Speakers',
 			'Fixture speakers with photos, talks, clipart, and scheduling data.',
 			'https://www.google.com/maps/embed/v1/place?q=Austin%2C%20TX&key=dev',
-			30.2672, -97.7431, 23.5, 47.5, 'Austin', 'right'
+			30.2672, -97.7431, 18.43, 50.13, 'Austin', 'right'
 		)
 		ON CONFLICT (tag) DO UPDATE SET
 			active = EXCLUDED.active,
@@ -1557,12 +1582,12 @@ func seedProgram(ctx context.Context, tx pgx.Tx, confID string) {
 		mustExec(ctx, tx, "seed speaker person", `
 			INSERT INTO people (
 				id, name, norm_photo_path, phone, signal, telegram, twitter_handle,
-				nostr, github_url, instagram, linkedin, leetcode, website_url, company,
+				nostr, github_url, instagram, linkedin, leetcode, website_url, company, bio,
 				org_logo_path, avail_to_hire, looking_to_hire, tshirt
 			)
 			VALUES (
 				$1::uuid, $2, $3, '', '', '', $4,
-				'', $5, '', '', $6, $7, $8, '', false, false, ''
+				'', $5, '', '', $6, $7, $8, $9, '', false, false, ''
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				name = EXCLUDED.name,
@@ -1571,8 +1596,9 @@ func seedProgram(ctx context.Context, tx pgx.Tx, confID string) {
 				github_url = EXCLUDED.github_url,
 				leetcode = EXCLUDED.leetcode,
 				website_url = EXCLUDED.website_url,
-				company = EXCLUDED.company
-		`, sp.personID, sp.name, sp.photo, sp.twitter, sp.github, sp.leetcode, sp.website, sp.company)
+				company = EXCLUDED.company,
+				bio = EXCLUDED.bio
+		`, sp.personID, sp.name, sp.photo, sp.twitter, sp.github, sp.leetcode, sp.website, sp.company, sp.bio)
 		seedPersonEmail(ctx, tx, sp.personID, sp.email)
 
 		mustExec(ctx, tx, "seed speaker conf", `
@@ -1823,23 +1849,26 @@ func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string,
 	}
 
 	type newsletterAwardSeed struct {
-		id, title, description, projectSlug string
-		rank                                int
+		id, slug, title, description, projectSlug, prizeID, prizeValue string
+		rank                                                           *int
 	}
+	firstRank, secondRank, thirdRank := 1, 2, 3
 	awards := []newsletterAwardSeed{
-		{devNewsletterAward1, "Best Overall", "The strongest complete project from the sprint.", "mempool-observatory", 1},
-		{devNewsletterAward2, "Best Developer Tool", "The tool most likely to improve a Bitcoin developer's daily workflow.", "mempool-observatory", 2},
-		{devNewsletterAward3, "Community Choice", "The project selected by sprint participants.", "signet-arcade", 3},
+		{devNewsletterAward1, "first-place", "First Place", "The strongest complete project from the sprint.", "mempool-observatory", devNewsletterPrize1, "3000000", &firstRank},
+		{devNewsletterAward2, "second-place", "Second Place", "An exceptional project with a polished, useful implementation.", "mempool-observatory", devNewsletterPrize2, "2000000", &secondRank},
+		{devNewsletterAward3, "third-place", "Third Place", "A standout project that deserves a place on the podium.", "signet-arcade", devNewsletterPrize3, "1000000", &thirdRank},
+		{devNewsletterAward4, "community-choice", "Community Choice", "The project selected by sprint participants.", "signet-arcade", devNewsletterPrize4, "500000", nil},
 	}
 	for _, award := range awards {
 		mustExec(ctx, tx, "seed newsletter award", `
 			INSERT INTO awards (
-				id, competition_id, title, description, max_awardees,
+				id, competition_id, public_slug, title, description, max_awardees,
 				status, award_type, award_rank
 			)
-			VALUES ($1::uuid, $2::uuid, $3, $4, 1, 'awarded', 'normal', $5)
+			VALUES ($1::uuid, $2::uuid, $3, $4, $5, 1, 'awarded', 'normal', $6)
 			ON CONFLICT (id) DO UPDATE SET
 				competition_id = EXCLUDED.competition_id,
+				public_slug = EXCLUDED.public_slug,
 				title = EXCLUDED.title,
 				description = EXCLUDED.description,
 				max_awardees = EXCLUDED.max_awardees,
@@ -1847,7 +1876,16 @@ func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string,
 				award_type = EXCLUDED.award_type,
 				award_rank = EXCLUDED.award_rank,
 				archived_at = NULL
-		`, award.id, competitionID, award.title, award.description, award.rank)
+		`, award.id, competitionID, award.slug, award.title, award.description, award.rank)
+		mustExec(ctx, tx, "seed newsletter prize", `
+			INSERT INTO prizes (id, award_id, prize_type, title, value_text, status)
+			VALUES ($1::uuid, $2::uuid, 'sats', $3, $4, 'awarded')
+			ON CONFLICT (id) DO UPDATE SET
+				award_id = EXCLUDED.award_id,
+				title = EXCLUDED.title,
+				value_text = EXCLUDED.value_text,
+				status = EXCLUDED.status
+		`, award.prizeID, award.id, award.title+" prize", award.prizeValue)
 		mustExec(ctx, tx, "seed newsletter project award", `
 			INSERT INTO project_awards (project_id, award_id, awarded_at)
 			VALUES ($1::uuid, $2::uuid, now())
@@ -1859,6 +1897,14 @@ func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string,
 
 func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 	for _, org := range devOrgs {
+		logoLight := org.logoLight
+		if logoLight == "" {
+			logoLight = org.logo
+		}
+		logoDark := org.logoDark
+		if logoDark == "" {
+			logoDark = org.logo
+		}
 		mustExec(ctx, tx, "seed organization", `
 			INSERT INTO organizations (
 				id, name, tagline, logo_light_url, logo_dark_url, email,
@@ -1866,8 +1912,8 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 				github_url, twitter_handle, nostr, matrix, hiring, notes
 			)
 			VALUES (
-				$1::uuid, $2, $3, $4, $4, NULL, $5, '', '', '',
-				'', $6, '', '', false, 'Local dev fixture sponsor.'
+				$1::uuid, $2, $3, $4, $5, NULL, $6, '', '', '',
+				'', $7, '', '', false, 'Local dev fixture sponsor.'
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				name = EXCLUDED.name,
@@ -1877,7 +1923,7 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 				website_url = EXCLUDED.website_url,
 				twitter_handle = EXCLUDED.twitter_handle,
 				notes = EXCLUDED.notes
-		`, org.id, org.name, org.tagline, org.logo, org.website, org.twitter)
+		`, org.id, org.name, org.tagline, logoLight, logoDark, org.website, org.twitter)
 	}
 
 	for _, sp := range devSponsorships {
@@ -1975,6 +2021,7 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 		{devSponsorships[2].id, 8, 0, false, false, true},
 		{devSponsorships[3].id, 10, 1, true, false, true},
 		{devSponsorships[4].id, 2, 0, false, false, true},
+		{devSponsorships[5].id, 30, 2, true, true, true},
 	} {
 		mustExec(ctx, tx, "seed sponsorship entitlement", `
 			INSERT INTO sponsorship_entitlements (

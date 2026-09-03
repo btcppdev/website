@@ -135,6 +135,13 @@
           <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">OG flavor</dt>
           <dd class="mt-1"><input type="text" name="og_flavor" value="{{ .Conf.OGFlavor }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
         </div>
+        <div>
+          <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Event accent color</dt>
+          <dd class="mt-1 flex items-center gap-3">
+            <input type="color" name="accent_color" value="{{ if .Conf.AccentColor }}{{ .Conf.AccentColor }}{{ else }}#f9af5e{{ end }}" class="h-10 w-16 cursor-pointer rounded-md border border-gray-300 bg-white p-1 shadow-sm">
+            <span class="text-xs text-gray-500">Used by this event’s generated unfurl cards.</span>
+          </dd>
+        </div>
         <div class="sm:col-span-2">
           <dt class="text-xs font-medium uppercase tracking-wider text-gray-500">Tagline</dt>
           <dd class="mt-1"><input type="text" name="tagline" value="{{ .Conf.Tagline }}" class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></dd>
