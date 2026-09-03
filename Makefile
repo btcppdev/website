@@ -44,9 +44,12 @@ db-start:
 db-migrate: db-start
 	$(GO_ENV) go run ./cmd/db-migrate
 
-.PHONY: build
+.PHONY: build build-prod
 build:
 	$(GO_ENV) go build -v -o target/$(APP_NAME) ./cmd/web/main.go
+
+build-prod:
+	$(GO_ENV) go build -trimpath -ldflags="-s -w" -o target/$(APP_NAME) ./cmd/web/main.go
 
 .PHONY: css-build
 css-build:

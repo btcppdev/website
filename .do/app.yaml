@@ -44,5 +44,5 @@ services:
   instance_count: 1
   instance_size_slug: professional-xs
   name: btcpp-web
-  run_command: ./target/btcpp-web
+  run_command: ./btcpp-web
   source_dir: /
