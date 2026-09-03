@@ -37,18 +37,19 @@ type accountingInventoryVariantDTO struct {
 }
 
 type accountingInventorySaleDTO struct {
-	SourceID         string `json:"source_id"`
-	SellableSourceID string `json:"sellable_source_id"`
-	Kind             string `json:"kind"`
-	ProductName      string `json:"product_name"`
-	VariantLabel     string `json:"variant_label"`
-	SKU              string `json:"sku"`
-	Quantity         int    `json:"quantity"`
-	RefundedQuantity int    `json:"refunded_quantity"`
-	RevenueCents     int64  `json:"revenue_cents"`
-	Currency         string `json:"currency"`
-	SoldAt           string `json:"sold_at"`
-	UpdatedAt        string `json:"updated_at"`
+	SourceID         string  `json:"source_id"`
+	SellableSourceID string  `json:"sellable_source_id"`
+	EventID          *string `json:"event_id"`
+	Kind             string  `json:"kind"`
+	ProductName      string  `json:"product_name"`
+	VariantLabel     string  `json:"variant_label"`
+	SKU              string  `json:"sku"`
+	Quantity         int     `json:"quantity"`
+	RefundedQuantity int     `json:"refunded_quantity"`
+	RevenueCents     int64   `json:"revenue_cents"`
+	Currency         string  `json:"currency"`
+	SoldAt           string  `json:"sold_at"`
+	UpdatedAt        string  `json:"updated_at"`
 }
 
 type conferenceDTO struct {

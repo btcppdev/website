@@ -37,7 +37,7 @@ func TestDatabaseSmokeAccountingInventoryDeduplicatesTicketsAndTracksRefunds(t *
 
 	order, err := CreateShopOrder(ctx, ShopOrderInput{
 		BuyerEmail: "accounting-inventory@example.test", PaymentProvider: "stripe",
-		SubtotalCents: 2000, TotalCents: 2000,
+		SubtotalCents: 3000, TotalCents: 3000,
 	}, []ShopOrderItemInput{
 		{
 			Quantity: 1, UnitPriceCents: 0, LineTotalCents: 0,
@@ -52,11 +52,18 @@ func TestDatabaseSmokeAccountingInventoryDeduplicatesTicketsAndTracksRefunds(t *
 			VariantLabelSnapshot: "Default", SKUSnapshot: "ACCT-" + suffix,
 			FulfillmentMethod: types.ShopFulfillmentShip, SaleConferenceID: confID,
 		},
+		{
+			ProductID: productID, VariantID: variantID, Quantity: 1,
+			UnitPriceCents: 1000, LineTotalCents: 1000,
+			ProductTagSnapshot: "accounting-" + suffix, ProductNameSnapshot: "Accounting test merch",
+			VariantLabelSnapshot: "No event", SKUSnapshot: "ACCT-NO-EVENT-" + suffix,
+			FulfillmentMethod: types.ShopFulfillmentShip,
+		},
 	})
 	if err != nil {
 		t.Fatalf("create accounting order: %v", err)
 	}
-	if transitioned, err := MarkShopOrderPaid(ctx, order.ID, "stripe", "acct_"+suffix, 0, 2000); err != nil || !transitioned {
+	if transitioned, err := MarkShopOrderPaid(ctx, order.ID, "stripe", "acct_"+suffix, 0, 3000); err != nil || !transitioned {
 		t.Fatalf("mark accounting order paid = (%t, %v)", transitioned, err)
 	}
 	registeredAt := time.Now().UTC().Add(-time.Minute)
@@ -85,30 +92,35 @@ func TestDatabaseSmokeAccountingInventoryDeduplicatesTicketsAndTracksRefunds(t *
 			foundVariant = item
 		}
 	}
-	if foundVariant == nil || foundVariant.OnHand != 1 {
-		t.Fatalf("accounting variant = %+v, want on-hand 1", foundVariant)
+	if foundVariant == nil || foundVariant.OnHand != 0 {
+		t.Fatalf("accounting variant = %+v, want on-hand 0", foundVariant)
 	}
 
 	sales, err := ListAccountingInventorySales(ctx, time.Time{}, "", 2000)
 	if err != nil {
 		t.Fatalf("list accounting sales: %v", err)
 	}
-	var merchSale, ticketSale *types.AccountingInventorySale
+	var merchSale, noEventMerchSale, ticketSale *types.AccountingInventorySale
 	for _, item := range sales {
 		switch {
 		case item.SourceID == "registration:"+registrationID:
 			ticketSale = item
 		case item.SKU == "ACCT-"+suffix:
 			merchSale = item
+		case item.SKU == "ACCT-NO-EVENT-"+suffix:
+			noEventMerchSale = item
 		case item.SKU == "ticket-"+suffix:
 			t.Fatalf("ticket-shaped shop order item was exposed alongside its registration: %+v", item)
 		}
 	}
-	if merchSale == nil || merchSale.SellableSourceID != variantID || merchSale.Quantity != 2 || merchSale.RevenueCents != 2000 {
+	if merchSale == nil || merchSale.SellableSourceID != variantID || merchSale.EventID != confID || merchSale.Quantity != 2 || merchSale.RevenueCents != 2000 {
 		t.Fatalf("merch accounting sale = %+v", merchSale)
 	}
+	if noEventMerchSale == nil || noEventMerchSale.EventID != "" || noEventMerchSale.RevenueCents != 1000 {
+		t.Fatalf("no-event merch accounting sale = %+v", noEventMerchSale)
+	}
 	wantTicketSellable := "sku:ticket:" + confTag + ":" + types.TicketTypeGeneral
-	if ticketSale == nil || ticketSale.SellableSourceID != wantTicketSellable || ticketSale.Quantity != 1 || ticketSale.RevenueCents != 4200 {
+	if ticketSale == nil || ticketSale.SellableSourceID != wantTicketSellable || ticketSale.EventID != confID || ticketSale.Quantity != 1 || ticketSale.RevenueCents != 4200 {
 		t.Fatalf("ticket accounting sale = %+v, want sellable %s", ticketSale, wantTicketSellable)
 	}
 
@@ -121,7 +133,7 @@ func TestDatabaseSmokeAccountingInventoryDeduplicatesTicketsAndTracksRefunds(t *
 	}
 	for _, item := range sales {
 		if item.SourceID == merchSale.SourceID {
-			if item.RefundedQuantity != 1 || item.RevenueCents != 1000 {
+			if item.EventID != confID || item.RefundedQuantity != 1 || item.RevenueCents != 1000 {
 				t.Fatalf("refunded accounting sale = %+v", item)
 			}
 			return

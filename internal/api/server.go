@@ -364,6 +364,7 @@ func (s *server) accountingInventorySales(w http.ResponseWriter, r *http.Request
 		}
 		data = append(data, accountingInventorySaleDTO{
 			SourceID: item.SourceID, SellableSourceID: item.SellableSourceID, Kind: item.Kind,
+			EventID:     optionalString(item.EventID),
 			ProductName: item.ProductName, VariantLabel: item.VariantLabel, SKU: item.SKU,
 			Quantity: item.Quantity, RefundedQuantity: item.RefundedQuantity,
 			RevenueCents: item.RevenueCents, Currency: item.Currency,
