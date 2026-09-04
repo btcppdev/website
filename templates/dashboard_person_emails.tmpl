@@ -218,7 +218,7 @@
               <label for="oauth-scope-talks-write"><input id="oauth-scope-talks-write" type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks</span></label>
               <label for="oauth-scope-schedule-write"><input id="oauth-scope-schedule-write" type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage schedules <small>Requires a current admin role.</small></span></label>
               <label for="oauth-scope-recordings-write"><input id="oauth-scope-recordings-write" type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recordings <small>Requires a current admin role.</small></span></label>
-              <label for="oauth-scope-shop-accounting-read"><input id="oauth-scope-shop-accounting-read" type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires a current global-admin role.</small></span></label>
+              <label for="oauth-scope-shop-accounting-read"><input id="oauth-scope-shop-accounting-read" type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires the current user to have <code>accts-admin</code>.</small></span></label>
               <label for="oauth-scope-offline-access"><input id="oauth-scope-offline-access" type="checkbox" name="scopes" value="offline_access" checked><span><code>offline_access</code> Issue rotating refresh tokens</span></label>
             </div>
           </fieldset>
@@ -282,7 +282,7 @@
               <label for="api-token-scope-talks-write"><input id="api-token-scope-talks-write" type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks you can edit</span></label>
               <label for="api-token-scope-schedule-write"><input id="api-token-scope-schedule-write" type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage conference schedules <small>Requires a current admin role.</small></span></label>
               <label for="api-token-scope-recordings-write"><input id="api-token-scope-recordings-write" type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recording metadata <small>Requires a current admin role.</small></span></label>
-              {{ if .IsGlobalAdmin }}<label for="api-token-scope-shop-accounting-read"><input id="api-token-scope-shop-accounting-read" type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires your current global-admin role.</small></span></label>{{ end }}
+              {{ if .IsAccountsAdmin }}<label for="api-token-scope-shop-accounting-read"><input id="api-token-scope-shop-accounting-read" type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires your current <code>accts-admin</code> permission.</small></span></label>{{ end }}
             </div>
           </fieldset>
           <label>EXPIRES
@@ -342,7 +342,7 @@
               <form method="POST" action="/dashboard/emails/resend">
                 <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
                 <input type="hidden" name="email" value="{{ . }}">
-                <button type="submit" class="is-link">Resend email</button>
+                <button type="submit">Resend email</button>
               </form>
             </div>
           </div>

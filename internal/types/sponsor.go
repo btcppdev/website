@@ -116,6 +116,10 @@ type (
 		ReviewNotes         string
 		ReviewedByPersonID  string
 		AwardID             string
+		PrizeID             string
+		ConferenceTitle     string
+		CompetitionTitle    string
+		EditableUntil       *time.Time
 		ReviewedAt          *time.Time
 		CreatedAt           time.Time
 		UpdatedAt           time.Time

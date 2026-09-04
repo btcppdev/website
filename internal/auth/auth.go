@@ -4,16 +4,19 @@
 //
 // Model:
 //
-//   - Each Speaker row has zero or more role tags in the Roles
-//     multi-select. Each tag is "{scope}-{role}" where scope is a
-//     conf tag ("vienna") or the literal "global", and role is one
-//     of "admin" / "staff" / "volcoord" / "hackathon".
+//   - Each person has zero or more role tags. Most are
+//     "{scope}-{role}", where scope is a conf tag ("vienna") or the
+//     literal "global", and role is one of
+//     "admin" / "staff" / "volcoord" / "hackathon".
+//     "accts-admin" is a reserved standalone permission for the
+//     accounts.btcpp.dev workspace.
 //
 //   - admin covers staff, volcoord, and hackathon at the same scope.
 //     The other roles are orthogonal; users carrying multiple tags get
 //     the union of their permissions.
 //
-//   - global-X grants the X role for every conf.
+//   - global-X grants the X role for every conf. It does not grant the
+//     explicit accts-admin permission.
 //
 //   - Identity is established by clicking a magic link that carries
 //     an HMAC of the user's email; the login handler stamps the
@@ -74,8 +77,17 @@ const (
 
 var ErrAmbiguousEmail = errors.New("email belongs to multiple people")
 
-// GlobalScope is the scope tag that means "every conf".
-const GlobalScope = "global"
+const (
+	// GlobalScope is the scope tag that means "every conf".
+	GlobalScope = "global"
+	// AccountsScope is reserved for the standalone accounts.btcpp.dev
+	// permission. It is deliberately not covered by global-admin.
+	AccountsScope = "accts"
+	// AccountsAdminTag is the persisted role tag granted to people who may use
+	// the accounting workspace. Like every person role, it can coexist with any
+	// other profile roles.
+	AccountsAdminTag = AccountsScope + "-" + RoleAdmin
+)
 
 // RoleAdmin / RoleStaff / RoleVolcoord / RoleHackathon are the supported roles.
 //
@@ -202,6 +214,22 @@ func (id *Identity) HasExactRoleForConf(confTag, role string) bool {
 // to gate the role-management panel on the dashboard.
 func (id *Identity) IsGlobalAdmin() bool {
 	return id.Satisfies(Spec{Role: RoleAdmin})
+}
+
+// IsAccountsAdmin reports whether the identity explicitly carries the
+// accts-admin permission. This is intentionally independent of global-admin
+// and conference admin roles: access to accounts.btcpp.dev must be granted and
+// revoked on its own.
+func (id *Identity) IsAccountsAdmin() bool {
+	if id == nil {
+		return false
+	}
+	for _, role := range id.Roles {
+		if role.Scope == AccountsScope && role.Name == RoleAdmin {
+			return true
+		}
+	}
+	return false
 }
 
 // covers checks whether `have` is enough for `want`. admin covers

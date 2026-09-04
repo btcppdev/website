@@ -2,6 +2,7 @@ package getters
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -174,7 +175,7 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 		t.Fatalf("CreateSponsorAwardProposal: %v", err)
 	}
 	proposals, err := ListSponsorAwardProposalsForCompetition(ctx, competitionID)
-	if err != nil || len(proposals) != 1 || proposals[0].Status != "pending" {
+	if err != nil || len(proposals) != 1 || proposals[0].Status != "pending" || proposals[0].EditableUntil == nil || proposals[0].CompetitionTitle == "" {
 		t.Fatalf("ListSponsorAwardProposalsForCompetition: proposals=%+v err=%v", proposals, err)
 	}
 	approved, err := ReviewSponsorAwardProposal(ctx, proposal.ID, competitionID, personID, "approved", "Looks good")
@@ -188,6 +189,45 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 		WHERE awards.id = $1::uuid AND awards.sponsored_by_org_id = $2::uuid
 	`, approved.AwardID, orgID).Scan(&awardStatus, &prizeValue); err != nil || awardStatus != "available" || prizeValue != "1000000" {
 		t.Fatalf("approved sponsor award: status=%q value=%q err=%v", awardStatus, prizeValue, err)
+	}
+	proposalInput.Title = "Updated sponsor challenge " + suffix
+	proposalInput.Description = "Updated challenge description"
+	proposalInput.PrizeTitle = "Updated sponsor sats"
+	proposalInput.PrizeValueText = "2000000"
+	proposalInput.MaxAwardees = 2
+	updated, err := UpdateSponsorAwardProposal(ctx, proposal.ID, orgID, proposalInput)
+	if err != nil || updated.Title != proposalInput.Title || updated.AwardID != approved.AwardID {
+		t.Fatalf("UpdateSponsorAwardProposal: proposal=%+v err=%v", updated, err)
+	}
+	var awardTitle, awardDescription, prizeTitle string
+	var maxAwardees int
+	if err := ctx.DB.QueryRow(context.Background(), `
+		SELECT awards.title, awards.description, awards.max_awardees,
+			prizes.title, prizes.value_text
+		FROM awards JOIN prizes ON prizes.award_id = awards.id
+		WHERE awards.id = $1::uuid
+	`, approved.AwardID).Scan(&awardTitle, &awardDescription, &maxAwardees, &prizeTitle, &prizeValue); err != nil ||
+		awardTitle != proposalInput.Title || awardDescription != proposalInput.Description ||
+		maxAwardees != 2 || prizeTitle != proposalInput.PrizeTitle || prizeValue != "2000000" {
+		t.Fatalf("updated approved challenge: award=%q description=%q max=%d prize=%q value=%q err=%v", awardTitle, awardDescription, maxAwardees, prizeTitle, prizeValue, err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		UPDATE competitions SET hacking_starts_at = now() - interval '1 minute'
+		WHERE id = $1::uuid
+	`, competitionID); err != nil {
+		t.Fatalf("start sponsor fixture hackathon: %v", err)
+	}
+	if _, err := UpdateSponsorAwardProposal(ctx, proposal.ID, orgID, proposalInput); err == nil || !strings.Contains(err.Error(), "hackathon has started") {
+		t.Fatalf("updated sponsor challenge after hacking started: %v", err)
+	}
+	if _, err := CreateSponsorAwardProposal(ctx, proposalInput); err == nil {
+		t.Fatal("created sponsor challenge after hacking started")
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		UPDATE competitions SET hacking_starts_at = now() + interval '30 days'
+		WHERE id = $1::uuid
+	`, competitionID); err != nil {
+		t.Fatalf("restore sponsor fixture hackathon start: %v", err)
 	}
 	proposalInput.Title = "Second sponsor challenge " + suffix
 	secondProposal, err := CreateSponsorAwardProposal(ctx, proposalInput)
@@ -366,7 +406,7 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 
 	invitedPersonID := insertSmokePerson(t, ctx, "sponsor-invited-"+suffix)
 	invitedEmail := smokePersonEmail(t, ctx, invitedPersonID)
-	token, invite, err := CreateOrganizationMemberInvite(ctx, orgID, invitedEmail, OrganizationRoleMember, personID, time.Now().Add(time.Hour))
+	token, invite, err := CreateOrganizationMemberInvite(ctx, orgID, invitedEmail, OrganizationRoleManager, personID, time.Now().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("CreateOrganizationMemberInvite: %v", err)
 	}
@@ -377,12 +417,16 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if err != nil || loadedInvite == nil || loadedInvite.OrganizationName != "Sponsor Dashboard "+suffix {
 		t.Fatalf("GetOrganizationMemberInviteByToken: invite=%+v err=%v", loadedInvite, err)
 	}
-	replacementToken, _, err := CreateOrganizationMemberInvite(ctx, orgID, invitedEmail, OrganizationRoleManager, personID, time.Now().Add(time.Hour))
-	if err != nil {
-		t.Fatalf("replace organization member invite: %v", err)
+	_, pendingInvite, err := CreateOrganizationMemberInvite(ctx, orgID, invitedEmail, OrganizationRoleManager, personID, time.Now().Add(time.Hour))
+	if !errors.Is(err, ErrOrganizationMemberInvitePending) || pendingInvite == nil || pendingInvite.ID != invite.ID {
+		t.Fatalf("duplicate organization invite: pending=%+v err=%v", pendingInvite, err)
+	}
+	replacementToken, replacementInvite, err := ReplaceOrganizationMemberInvite(ctx, orgID, invite.ID, personID, time.Now().Add(72*time.Hour))
+	if err != nil || replacementToken == "" || replacementInvite == nil || replacementInvite.ID == invite.ID || replacementInvite.Email != invite.Email {
+		t.Fatalf("ReplaceOrganizationMemberInvite: token=%q invite=%+v err=%v", replacementToken, replacementInvite, err)
 	}
 	if _, err := AcceptOrganizationMemberInvite(ctx, token, invitedPersonID); err == nil {
-		t.Fatal("superseded organization invitation remained usable")
+		t.Fatal("replaced organization invitation remained usable")
 	}
 	wrongPersonID := insertSmokePerson(t, ctx, "sponsor-wrong-invite-"+suffix)
 	if _, err := AcceptOrganizationMemberInvite(ctx, replacementToken, wrongPersonID); err == nil {

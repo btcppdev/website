@@ -1573,9 +1573,11 @@ func seedAdmin(ctx context.Context, tx pgx.Tx) {
 	`, devAdminID)
 	seedPersonEmail(ctx, tx, devAdminID, "dev-admin@example.test")
 
-	mustExec(ctx, tx, "seed admin role", `
+	mustExec(ctx, tx, "seed admin roles", `
 		INSERT INTO people_roles (person_id, scope, position)
-		VALUES ($1::uuid, 'global', 'admin')
+		VALUES
+			($1::uuid, 'global', 'admin'),
+			($1::uuid, 'accts', 'admin')
 		ON CONFLICT DO NOTHING
 	`, devAdminID)
 }

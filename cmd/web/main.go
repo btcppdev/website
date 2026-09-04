@@ -192,6 +192,16 @@ func run(env *types.EnvConfig) error {
 	if profilesSynced > 0 {
 		app.Infos.Printf("synchronized %d verified Nostr profile key(s)", profilesSynced)
 	}
+	profilesCanonicalized, invalidProfiles, err := getters.CanonicalizeStoredNostrProfiles(&app)
+	if err != nil {
+		return fmt.Errorf("canonicalize stored Nostr profiles: %w", err)
+	}
+	if profilesCanonicalized > 0 {
+		app.Infos.Printf("canonicalized %d stored Nostr profile value(s) to npub", profilesCanonicalized)
+	}
+	if invalidProfiles > 0 {
+		app.Err.Printf("found %d stored Nostr profile value(s) that are not valid public keys", invalidProfiles)
+	}
 
 	app.Session = scs.New()
 	// A successful magic-link login establishes a durable browser session.

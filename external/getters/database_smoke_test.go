@@ -1100,6 +1100,73 @@ func TestDatabaseSmokeDirectSpeakerInvitationDeduplicates(t *testing.T) {
 	}
 }
 
+func TestDatabaseSmokeConferenceVolunteerSelfSchedule(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	confID, tag := insertSmokeConference(t, ctx)
+	if err := UpdateConferenceVolunteerSelfSchedule(ctx, confID, true); err != nil {
+		t.Fatalf("enable volunteer self-scheduling: %v", err)
+	}
+	conf, err := GetConfByTag(ctx, tag)
+	if err != nil || conf == nil {
+		t.Fatalf("reload conference: conf=%+v err=%v", conf, err)
+	}
+	if !conf.VolunteerSelfSchedule {
+		t.Fatal("VolunteerSelfSchedule = false, want true")
+	}
+}
+
+func TestDatabaseSmokeVolunteerShiftAssignmentRespectsCapacity(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	confID, _ := insertSmokeConference(t, ctx)
+	suffix := databaseSmokeSuffix()
+
+	personIDs := make([]string, 0, 2)
+	volunteerIDs := make([]string, 0, 2)
+	for index := 1; index <= 2; index++ {
+		personID, err := CreateSpeaker(ctx, SpeakerInput{
+			Name:  fmt.Sprintf("Capacity Volunteer %d %s", index, suffix),
+			Email: fmt.Sprintf("capacity-volunteer-%d-%s@example.test", index, suffix),
+		})
+		if err != nil {
+			t.Fatalf("create capacity volunteer %d: %v", index, err)
+		}
+		personIDs = append(personIDs, personID)
+		var volunteerID string
+		if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+			INSERT INTO volunteers (person_id, status)
+			VALUES ($1::uuid, 'PendingShifts')
+			RETURNING id::text
+		`, personID).Scan(&volunteerID); err != nil {
+			t.Fatalf("insert capacity volunteer %d: %v", index, err)
+		}
+		volunteerIDs = append(volunteerIDs, volunteerID)
+		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+			INSERT INTO volunteers_conferences (volunteer_id, conference_id, kind)
+			VALUES ($1::uuid, $2::uuid, 'schedule_for')
+		`, volunteerID, confID); err != nil {
+			t.Fatalf("link capacity volunteer %d: %v", index, err)
+		}
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id = ANY($1::uuid[])`, personIDs)
+	})
+
+	var shiftID string
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		INSERT INTO work_shifts (conference_id, name, max_vols, shift_start, shift_end)
+		VALUES ($1::uuid, 'Capacity Test', 1, now() + interval '1 day', now() + interval '2 days')
+		RETURNING id::text
+	`, confID).Scan(&shiftID); err != nil {
+		t.Fatalf("insert capacity shift: %v", err)
+	}
+	if err := AssignVolunteerToShift(ctx, volunteerIDs[0], shiftID); err != nil {
+		t.Fatalf("assign first volunteer: %v", err)
+	}
+	if err := AssignVolunteerToShift(ctx, volunteerIDs[1], shiftID); !errors.Is(err, ErrWorkShiftFull) {
+		t.Fatalf("assign second volunteer = %v, want ErrWorkShiftFull", err)
+	}
+}
+
 func TestDatabaseSmokeWorkShiftScheduleUsesConferenceTimezone(t *testing.T) {
 	ctx := databaseSmokeContext(t)
 	tag := "smoke-shift-nairobi-" + databaseSmokeSuffix()

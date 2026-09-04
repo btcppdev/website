@@ -390,6 +390,13 @@ func CreateSpeaker(ctx *config.AppContext, in SpeakerInput) (string, error) {
 		return "", fmt.Errorf("database is not configured")
 	}
 	in = normalizeSpeakerInput(in)
+	if in.Nostr != "" {
+		var err error
+		in.Nostr, err = CanonicalNostrProfileValue(in.Nostr)
+		if err != nil {
+			return "", err
+		}
+	}
 	dbctx := ctx.DatabaseContext()
 	tx, err := ctx.DB.Begin(dbctx)
 	if err != nil {
@@ -451,6 +458,12 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 	}
 	if verifiedNostr != "" {
 		up.Nostr = verifiedNostr
+	}
+	if up.Nostr != "" {
+		up.Nostr, err = CanonicalNostrProfileValue(up.Nostr)
+		if err != nil {
+			return err
+		}
 	}
 	_, err = ctx.DB.Exec(ctx.DatabaseContext(), `
 		UPDATE people

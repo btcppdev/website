@@ -169,7 +169,7 @@ func TestMeRequiresBearerTokenAndExactScope(t *testing.T) {
 	}
 }
 
-func TestAccountingInventoryRequiresScopeAndGlobalAdmin(t *testing.T) {
+func TestAccountingInventoryRequiresScopeAndAccountsAdmin(t *testing.T) {
 	person := &types.Speaker{ID: "person-1", Name: "Mara", Roles: []string{"dev26-admin"}}
 	token := &types.PersonAPIToken{PersonID: person.ID, Scopes: []string{"shop:accounting:read"}}
 	router := protectedTestRouter(token, person, nil)
@@ -182,6 +182,15 @@ func TestAccountingInventoryRequiresScopeAndGlobalAdmin(t *testing.T) {
 	}
 
 	person.Roles = []string{"global-admin"}
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/shop/inventory/variants", nil)
+	request.Header.Set("Authorization", "Bearer test-secret")
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("global admin status = %d, body = %s", response.Code, response.Body.String())
+	}
+
+	person.Roles = []string{auth.AccountsAdminTag}
 	token.Scopes = []string{"profile:self:read"}
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/shop/inventory/variants", nil)
 	request.Header.Set("Authorization", "Bearer test-secret")
@@ -194,7 +203,7 @@ func TestAccountingInventoryRequiresScopeAndGlobalAdmin(t *testing.T) {
 
 func TestAccountingInventoryUsesPrivateKeysetPaginationWithoutPII(t *testing.T) {
 	updated := time.Date(2026, 9, 1, 12, 0, 0, 123000000, time.UTC)
-	person := &types.Speaker{ID: "person-1", Name: "Mara", Roles: []string{"global-admin"}}
+	person := &types.Speaker{ID: "person-1", Name: "Mara", Roles: []string{auth.AccountsAdminTag}}
 	source := &fakeSource{
 		inventoryVariants: []*types.AccountingInventoryVariant{
 			{SourceID: "variant-1", SKU: "HAT", ProductName: "Hat", VariantLabel: "Black", OnHand: 12, UpdatedAt: updated},
@@ -342,7 +351,7 @@ func TestRecordingBroadcastPlansRequireGlobalAdminAndUseIncrementalCursor(t *tes
 func TestIdentityReturnsOnlyMinimalAccountAndCurrentRoles(t *testing.T) {
 	person := &types.Speaker{
 		ID: "person-1", Name: "Mara", Email: "private@example.test", Phone: "private-phone",
-		Bio: "private biography", Roles: []string{"dev26-admin", "global-admin"},
+		Bio: "private biography", Roles: []string{"dev26-admin", "global-admin", auth.AccountsAdminTag},
 	}
 	router := protectedTestRouter(&types.PersonAPIToken{
 		PersonID: person.ID, Scopes: []string{"identity:self:read"},
@@ -355,7 +364,7 @@ func TestIdentityReturnsOnlyMinimalAccountAndCurrentRoles(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
 	body := response.Body.String()
-	for _, expected := range []string{`"id":"person-1"`, `"name":"Mara"`, `"global-admin"`, `"dev26-admin"`} {
+	for _, expected := range []string{`"id":"person-1"`, `"name":"Mara"`, `"global-admin"`, `"dev26-admin"`, `"accts-admin"`} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("identity response omitted %s: %s", expected, body)
 		}

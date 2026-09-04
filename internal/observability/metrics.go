@@ -8,16 +8,28 @@ import (
 
 	"github.com/felixge/httpsnoop"
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Metrics struct {
-	registry *prometheus.Registry
-	requests *prometheus.CounterVec
-	duration *prometheus.HistogramVec
-	inflight *prometheus.GaugeVec
+	namespace string
+	registry  *prometheus.Registry
+	requests  *prometheus.CounterVec
+	duration  *prometheus.HistogramVec
+	inflight  *prometheus.GaugeVec
+}
+
+// RegisterDBPool exposes the pgx pool's current capacity and cumulative
+// acquisition counters. It is intentionally explicit so tests and tools that
+// use Metrics without a database do not need to construct a pool.
+func (m *Metrics) RegisterDBPool(pool *pgxpool.Pool) {
+	if m == nil || pool == nil {
+		return
+	}
+	m.registry.MustRegister(newDBPoolCollector(m.namespace, pool))
 }
 
 func New(namespace string, businessLoaders ...BusinessMetricsLoader) *Metrics {
@@ -52,7 +64,7 @@ func New(namespace string, businessLoaders ...BusinessMetricsLoader) *Metrics {
 	if len(businessLoaders) > 0 && businessLoaders[0] != nil {
 		registry.MustRegister(newBusinessCollector(namespace, businessLoaders[0]))
 	}
-	return &Metrics{registry: registry, requests: requests, duration: duration, inflight: inflight}
+	return &Metrics{namespace: namespace, registry: registry, requests: requests, duration: duration, inflight: inflight}
 }
 
 func (m *Metrics) Middleware(next http.Handler) http.Handler {

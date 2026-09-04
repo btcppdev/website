@@ -180,7 +180,8 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			hackathon_headline, hackathon_judges_note, hackathon_proof_label,
 			map_embed_url,
 			map_latitude, map_longitude, map_x_percent, map_y_percent, map_label, map_label_side,
-			youtube_playlist_id, youtube_playlist_title, accent_color
+			youtube_playlist_id, youtube_playlist_title, accent_color,
+			volunteer_self_schedule
 		FROM conferences
 		`+whereSQL+`
 		ORDER BY start_date NULLS LAST, tag
@@ -255,6 +256,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.YouTubePlaylistID,
 			&conf.YouTubePlaylistTitle,
 			&conf.AccentColor,
+			&conf.VolunteerSelfSchedule,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)
@@ -291,6 +293,24 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 		return nil, fmt.Errorf("iterate %s: %w", label, err)
 	}
 	return confs, nil
+}
+
+func UpdateConferenceVolunteerSelfSchedule(ctx *config.AppContext, confRef string, enabled bool) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE conferences
+		SET volunteer_self_schedule = $2
+		WHERE id = $1::uuid
+	`, strings.TrimSpace(confRef), enabled)
+	if err != nil {
+		return fmt.Errorf("update conference %s volunteer self-scheduling: %w", confRef, err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return fmt.Errorf("conference %s not found", confRef)
+	}
+	return nil
 }
 
 func listConfTicketsPostgres(ctx *config.AppContext) ([]*types.ConfTicket, error) {

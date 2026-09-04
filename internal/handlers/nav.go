@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
@@ -96,7 +95,7 @@ func buildNavConfList(ctx *config.AppContext) NavConfList {
 	if ctx == nil || ctx.DB == nil {
 		return NavConfList{}
 	}
-	confs, err := getters.ListConfs(ctx)
+	confs, err := cachedConfs(ctx)
 	if err != nil {
 		ctx.Err.Printf("navConfs: %s", err)
 		return NavConfList{}

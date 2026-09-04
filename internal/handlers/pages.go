@@ -1000,6 +1000,7 @@ type PersonEmailsPage struct {
 	NewOAuthClientID        string
 	NewOAuthClientSecret    string
 	IsGlobalAdmin           bool
+	IsAccountsAdmin         bool
 	HasHackathonProjects    bool
 	HasSponsorOrganizations bool
 	PendingEmails           []string
@@ -1104,6 +1105,7 @@ type VolAdminStats struct {
 	ShiftsTotal     int // sum of WorkShift.MaxVols
 	ShiftsLeft      int // ShiftsTotal - ShiftsFilled
 	UnscheduledVols int // # of vols in Applied or PendingShifts
+	PendingNoShifts int // # of PendingShifts vols with zero assignments
 	VolsNeeded      int // ceil(ShiftsLeft / VolShiftQuota)
 }
 
@@ -1121,12 +1123,14 @@ type ShiftDayGroup struct {
 }
 
 type VolAdminShiftsPage struct {
-	Conf     *types.Conf
-	Days     []*ShiftDayGroup
-	VolMap   map[string]*types.Volunteer // ref → volunteer for assignee resolution
-	JobTypes []*types.JobType
-	DaysList []types.CheckItem // for shift form day selector
-	Year     uint
+	Conf       *types.Conf
+	Days       []*ShiftDayGroup
+	VolMap     map[string]*types.Volunteer   // ref → volunteer for assignee resolution
+	Candidates map[string][]*types.Volunteer // shift ref → unassigned, active volunteers
+	JobTypes   []*types.JobType
+	DaysList   []types.CheckItem // for shift form day selector
+	Flash      string
+	Year       uint
 }
 
 type GiftRow struct {

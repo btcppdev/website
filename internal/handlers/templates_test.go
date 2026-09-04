@@ -31,6 +31,19 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
+	mainNav, err := os.ReadFile("templates/section/main_nav.tmpl")
+	if err != nil {
+		t.Fatalf("read global navigation: %v", err)
+	}
+	for _, expected := range []string{
+		`<a href="/talk">/speak</a>`,
+		`<a href="/volunteer">/volunteer</a>`,
+		`<a href="/sponsor">/sponsor</a>`,
+	} {
+		if !strings.Contains(string(mainNav), expected) {
+			t.Fatalf("global navigation omitted %q", expected)
+		}
+	}
 	for _, name := range []string{"developers_api.tmpl", "dashboard_hackathons.tmpl", "dashboard_sponsor.tmpl", "sponsor_invite.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
@@ -115,6 +128,13 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(accountSetupPage.String(), `action="/logout"`) {
 		t.Fatalf("admin speaker creation exposed new-account cancellation: %s", accountSetupPage.String())
 	}
+	profileCSS, err := os.ReadFile("static/css/custom.css")
+	if err != nil {
+		t.Fatalf("read profile stylesheet: %v", err)
+	}
+	if !strings.Contains(string(profileCSS), ".profile-edit-preview.hidden {\n\tdisplay: none;\n}") {
+		t.Fatal("profile photo preview is not hidden before a file is selected")
+	}
 	var settingsPage bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{
 		Emails: []*types.PersonEmail{
@@ -151,6 +171,9 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(settingsPage.String(), `class="profile-edit-back"`) {
 		t.Fatalf("account settings retained redundant back-to-dashboard link: %s", settingsPage.String())
 	}
+	if strings.Contains(settingsPage.String(), `class="is-link">Resend email</button>`) {
+		t.Fatalf("account settings rendered resend email as an undersized link control: %s", settingsPage.String())
+	}
 	settingsCSS, err := os.ReadFile("static/css/custom.css")
 	if err != nil {
 		t.Fatalf("read account settings stylesheet: %v", err)
@@ -182,11 +205,11 @@ func TestLoadTemplates(t *testing.T) {
 		}
 	}
 	if strings.Contains(settingsPage.String(), `value="shop:accounting:read"`) {
-		t.Fatalf("non-global account settings exposed shop accounting scope: %s", settingsPage.String())
+		t.Fatalf("non-accounts-admin settings exposed shop accounting scope: %s", settingsPage.String())
 	}
 	settingsPage.Reset()
-	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{IsGlobalAdmin: true}); err != nil {
-		t.Fatalf("render global-admin settings: %v", err)
+	if err := inlineTemplates.ExecuteTemplate(&settingsPage, "dashboard_person_emails.tmpl", &PersonEmailsPage{IsGlobalAdmin: true, IsAccountsAdmin: true}); err != nil {
+		t.Fatalf("render admin settings: %v", err)
 	}
 	for _, expected := range []string{
 		`value="shop:accounting:read"`,
@@ -194,7 +217,7 @@ func TestLoadTemplates(t *testing.T) {
 		`id="oauth-scope-profile-write" type="checkbox" name="scopes"`,
 	} {
 		if !strings.Contains(settingsPage.String(), expected) {
-			t.Fatalf("global-admin account settings omitted %q: %s", expected, settingsPage.String())
+			t.Fatalf("admin account settings omitted %q: %s", expected, settingsPage.String())
 		}
 	}
 	settingsPage.Reset()
@@ -801,6 +824,17 @@ func TestLoadTemplates(t *testing.T) {
 			{PersonID: "owner-id", Role: getters.OrganizationRoleOwner, Status: "active", PersonName: "Mara", PersonEmail: "mara@example.test"},
 			{PersonID: "member-id", Role: getters.OrganizationRoleMember, Status: "active", PersonName: "Eli", PersonEmail: "eli@example.test"},
 		},
+		PrizeProposals: []*types.SponsorAwardProposal{{
+			ID: "proposal-id", SponsorshipID: "sponsorship-id",
+			ConferenceID: "conference-id", CompetitionID: "competition-id",
+			ConferenceTitle: "Local Dev", CompetitionTitle: "Local Hackathon",
+			Title: "Best Signet Infrastructure", Description: "Make signet easier to use.",
+			JudgingInstructions: "Prefer working demos", MaxAwardees: 1,
+			OptInRequired: true, PrizeType: getters.PrizeTypeSats,
+			PrizeTitle: "1,000,000 sats", PrizeDescription: "Paid after the event.",
+			PrizeValueText: "1000000", Status: "approved",
+			EditableUntil: func() *time.Time { value := time.Date(2099, time.October, 1, 9, 0, 0, 0, time.UTC); return &value }(),
+		}},
 		PrizeEntries: []*types.SponsorPrizeEntry{{
 			AwardID: "award-id", AwardTitle: "Best Signet Infrastructure",
 			ConferenceTag: "dev26", ConferenceTitle: "Local Dev",
@@ -821,7 +855,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render sponsor dashboard: %v", err)
 	}
-	for _, want := range []string{"Signet Systems", "20", "Opt-in only", "Sponsor workspace sections", "Public sponsor card preview", "width: 25%", "width: 50%", `href="/dashboard/hackathons"`, `href="/admin"`, `name="csrf" value="sponsor-csrf"`, `action="/dashboard/sponsor/org-id/profile"`, `action="/dashboard/sponsor/org-id/invites"`, `action="/dashboard/sponsor/org-id/tickets"`, `action="/dashboard/sponsor/org-id/prize-proposals"`, `action="/dashboard/sponsor/org-id/members/member-id/remove"`, `href="/dashboard/sponsor/org-id/hackathon-projects.csv"`, "http://localhost:8888/sponsor-invites/example-token", `class="sponsor-logo-variant__preview is-light"`, `src="/logo-light.svg"`, `class="sponsor-logo-variant__preview is-dark"`, `src="/logo-dark.svg"`, `name="LogoLightFile"`, `name="LogoDarkFile"`, "Teams building for your challenges.", "Fixture Forge", `href="/whois/mara"`, `href="mailto:mara@example.test"`, "Consented through this prize"} {
+	for _, want := range []string{"Signet Systems", "20", "Opt-in only", "Sponsor workspace sections", "Your issued challenges", "Make signet easier to use.", `action="/dashboard/sponsor/org-id/prize-proposals/proposal-id"`, "Save challenge", "Public sponsor card preview", "width: 25%", "width: 50%", `href="/dashboard/hackathons"`, `href="/admin"`, `name="csrf" value="sponsor-csrf"`, `action="/dashboard/sponsor/org-id/profile"`, `action="/dashboard/sponsor/org-id/invites"`, `action="/dashboard/sponsor/org-id/tickets"`, `action="/dashboard/sponsor/org-id/prize-proposals"`, `action="/dashboard/sponsor/org-id/members/member-id/remove"`, `href="/dashboard/sponsor/org-id/hackathon-projects.csv"`, "http://localhost:8888/sponsor-invites/example-token", `class="sponsor-logo-variant__preview is-light"`, `src="/logo-light.svg"`, `class="sponsor-logo-variant__preview is-dark"`, `src="/logo-dark.svg"`, `name="LogoLightFile"`, `name="LogoDarkFile"`, "Teams building for your challenges.", "Fixture Forge", `href="/whois/mara"`, `href="mailto:mara@example.test"`, "Consented through this prize"} {
 		if !strings.Contains(sponsorDashboard.String(), want) {
 			t.Fatalf("sponsor dashboard omitted %q", want)
 		}
@@ -848,13 +882,34 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render event sponsorships: %v", err)
 	}
-	for _, want := range []string{`name="TicketAllocation"`, `value="24"`, `>Tickets</th>`, `name="SponsorAwardLimit"`, `value="3"`, `name="ManagerPersonID"`, `name="ManagerName"`, `name="ManagerEmail"`, "secure 72-hour login link", `data-search-url="/dev26/admin/sponsors/people/search"`, `name="CanEditOrganization"`, "Can edit organization"} {
+	for _, want := range []string{`name="TicketAllocation"`, `value="24"`, `>Tickets</th>`, `name="SponsorAwardLimit"`, `value="3"`, `name="ManagerPersonID"`, `name="ManagerName"`, `name="ManagerEmail"`, "secure 72-hour login link", "Manager access belongs to the organization, not this event", "current and future sponsorships", `data-search-url="/dev26/admin/sponsors/people/search"`, `name="CanEditOrganization"`, "Can edit organization"} {
 		if !strings.Contains(sponsorEvents.String(), want) {
 			t.Fatalf("event sponsorships omitted %q: %s", want, sponsorEvents.String())
 		}
 	}
 	if strings.Contains(sponsorEvents.String(), "CanManageAwardJudges") || strings.Contains(sponsorEvents.String(), "manage prize judges") {
 		t.Fatalf("event sponsorships exposed sponsor judge management: %s", sponsorEvents.String())
+	}
+	var orgDetail bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&orgDetail, "sponsors/detail.tmpl", &OrgDetailPage{
+		Org: &types.Org{Ref: "org-id", Name: "Signet Systems"},
+		Members: []*types.OrganizationMembership{
+			{PersonName: "Mara Manager", PersonEmail: "mara@example.test", Role: getters.OrganizationRoleManager},
+			{PersonName: "Owen Owner", PersonEmail: "owen@example.test", Role: getters.OrganizationRoleOwner},
+		},
+		PendingInvites: []*types.OrganizationMemberInvite{{
+			ID: "pending-invite-id", Email: "pending@example.test", Role: getters.OrganizationRoleManager,
+			ExpiresAt: time.Date(2026, time.September, 6, 12, 0, 0, 0, time.UTC),
+		}},
+		InviteLink:  "http://localhost:8888/sponsor-invites/replacement-token",
+		InviteEmail: "pending@example.test",
+	}); err != nil {
+		t.Fatalf("render organization detail: %v", err)
+	}
+	for _, want := range []string{"Organization members", "current and future sponsor workspaces", "Mara Manager", "mara@example.test", "manager", "Owen Owner", "owner", "Pending invitations", "pending@example.test", "manager · pending", "Expires Sep 6, 2026", `action="/admin/orgs/org-id/invites/pending-invite-id/replace"`, "Create new link", "http://localhost:8888/sponsor-invites/replacement-token", "shown once"} {
+		if !strings.Contains(orgDetail.String(), want) {
+			t.Fatalf("organization detail omitted %q: %s", want, orgDetail.String())
+		}
 	}
 	var sponsorInvite bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&sponsorInvite, "sponsor_invite.tmpl", &SponsorInvitePage{

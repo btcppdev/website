@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nbd-wtf/go-nostr"
 	"github.com/nbd-wtf/go-nostr/nip19"
 )
 
@@ -265,6 +266,54 @@ func ReconcileNostrCredentialProfiles(ctx *config.AppContext) (int, error) {
 	return updated, nil
 }
 
+// CanonicalizeStoredNostrProfiles upgrades legacy profile values such as
+// nprofile, nostr:npub, and hex keys to npub. Invalid legacy values are left
+// untouched and counted so startup can report them for later cleanup.
+func CanonicalizeStoredNostrProfiles(ctx *config.AppContext) (updated, invalid int, err error) {
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT id::text, nostr
+		FROM people
+		WHERE btrim(nostr) <> ''
+		ORDER BY id
+	`)
+	if err != nil {
+		return 0, 0, fmt.Errorf("list stored Nostr profiles: %w", err)
+	}
+	type storedProfile struct{ personID, value string }
+	var profiles []storedProfile
+	for rows.Next() {
+		var profile storedProfile
+		if err := rows.Scan(&profile.personID, &profile.value); err != nil {
+			rows.Close()
+			return 0, 0, err
+		}
+		profiles = append(profiles, profile)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, 0, err
+	}
+	rows.Close()
+
+	for _, profile := range profiles {
+		canonical, normalizeErr := CanonicalNostrProfileValue(profile.value)
+		if normalizeErr != nil {
+			invalid++
+			continue
+		}
+		if canonical == profile.value {
+			continue
+		}
+		if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+			UPDATE people SET nostr = $2 WHERE id = $1::uuid
+		`, profile.personID, canonical); err != nil {
+			return updated, invalid, fmt.Errorf("canonicalize stored Nostr profile %s: %w", profile.personID, err)
+		}
+		updated++
+	}
+	return updated, invalid, nil
+}
+
 func NormalizeNostrPubkey(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	value = strings.TrimPrefix(value, "nostr:")
@@ -278,12 +327,23 @@ func NormalizeNostrPubkey(value string) (string, error) {
 		return strings.ToLower(value), nil
 	}
 	prefix, decoded, err := nip19.Decode(value)
-	if err != nil || prefix != "npub" {
-		return "", errors.New("Nostr public key must be an npub or 32-byte hex key")
+	if err != nil {
+		return "", errors.New("Nostr public key must be an npub, nprofile, or 32-byte hex key")
 	}
-	pubkey, ok := decoded.(string)
-	if !ok {
-		return "", errors.New("invalid npub payload")
+	var pubkey string
+	switch prefix {
+	case "npub":
+		pubkey, _ = decoded.(string)
+	case "nprofile":
+		profile, ok := decoded.(nostr.ProfilePointer)
+		if ok {
+			pubkey = profile.PublicKey
+		}
+	default:
+		return "", errors.New("Nostr public key must be an npub, nprofile, or 32-byte hex key")
+	}
+	if pubkey == "" {
+		return "", errors.New("invalid Nostr public key payload")
 	}
 	if raw, err := hex.DecodeString(pubkey); err != nil || len(raw) != 32 {
 		return "", errors.New("invalid npub public key")
@@ -291,14 +351,29 @@ func NormalizeNostrPubkey(value string) (string, error) {
 	return strings.ToLower(pubkey), nil
 }
 
-func NostrPubkeyDisplay(value string) string {
+// CanonicalNostrProfileValue converts any supported public-key representation
+// into the npub form persisted on people. Relay hints carried by nprofile are
+// intentionally discarded: badges need a stable identifier for the key.
+func CanonicalNostrProfileValue(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
 	pubkey, err := NormalizeNostrPubkey(value)
 	if err != nil {
-		return strings.TrimSpace(value)
+		return "", err
 	}
 	npub, err := nip19.EncodePublicKey(pubkey)
 	if err != nil {
-		return pubkey
+		return "", fmt.Errorf("encode Nostr public key: %w", err)
+	}
+	return npub, nil
+}
+
+func NostrPubkeyDisplay(value string) string {
+	npub, err := CanonicalNostrProfileValue(value)
+	if err != nil {
+		return strings.TrimSpace(value)
 	}
 	return npub
 }

@@ -27,6 +27,65 @@
                 </div>
             </section>
             {{ end }}
+            {{ if .FlashError }}
+            <section class="mb-6">
+                <div class="rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-red-700">{{ .FlashError }}</div>
+            </section>
+            {{ end }}
+            {{ if .InviteLink }}
+            <section class="mb-6 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-4">
+                <label for="PendingInviteLink" class="block text-sm font-semibold text-indigo-950">New secure invitation link{{ if .InviteEmail }} for {{ .InviteEmail }}{{ end }}</label>
+                <input id="PendingInviteLink" value="{{ .InviteLink }}" readonly class="mt-2 block w-full rounded-md border border-indigo-300 bg-white px-3 py-2 text-sm text-gray-900" onclick="this.select()">
+                <p class="mt-2 text-xs text-indigo-800">Copy this link now. It is shown once, expires in 72 hours, and replaces the previous invitation link.</p>
+            </section>
+            {{ end }}
+
+            {{ if not .IsNew }}
+            <section class="mb-6" aria-labelledby="organization-members-heading">
+                <div class="overflow-hidden rounded-lg bg-white shadow">
+                    <div class="border-b border-gray-200 px-6 py-4">
+                        <h2 id="organization-members-heading" class="text-sm font-semibold text-gray-900">Organization members</h2>
+                        <p class="mt-1 text-xs text-gray-500">These people have access to this organization’s current and future sponsor workspaces.</p>
+                    </div>
+                    {{ if .Members }}
+                    <ul class="divide-y divide-gray-200">
+                        {{ range .Members }}
+                        <li class="flex items-center justify-between gap-4 px-6 py-4">
+                            <div class="min-w-0">
+                                <p class="truncate text-sm font-medium text-gray-900">{{ if .PersonName }}{{ .PersonName }}{{ else }}Unnamed member{{ end }}</p>
+                                {{ if .PersonEmail }}<a href="mailto:{{ .PersonEmail }}" class="block truncate text-xs text-indigo-600 hover:text-indigo-900">{{ .PersonEmail }}</a>{{ end }}
+                            </div>
+                            <span class="inline-flex shrink-0 items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium capitalize text-indigo-700">{{ .Role }}</span>
+                        </li>
+                        {{ end }}
+                    </ul>
+                    {{ else }}
+                    <p class="px-6 py-5 text-sm text-gray-500">No organization members yet. Add or invite a manager from an event’s sponsorship form.</p>
+                    {{ end }}
+                    {{ if .PendingInvites }}
+                    <div class="border-t border-gray-200 bg-gray-50 px-6 py-3">
+                        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-500">Pending invitations</h3>
+                    </div>
+                    <ul class="divide-y divide-gray-200">
+                        {{ range .PendingInvites }}
+                        <li class="flex items-center justify-between gap-4 px-6 py-4">
+                            <div class="min-w-0">
+                                <a href="mailto:{{ .Email }}" class="block truncate text-sm font-medium text-indigo-600 hover:text-indigo-900">{{ .Email }}</a>
+                                <p class="mt-0.5 text-xs text-gray-500">Expires {{ .ExpiresAt.Format "Jan 2, 2006 at 3:04 PM MST" }}</p>
+                            </div>
+                            <div class="flex shrink-0 items-center gap-2">
+                                <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium capitalize text-amber-700">{{ .Role }} · pending</span>
+                                <form method="POST" action="/admin/orgs/{{ $.Org.Ref }}/invites/{{ .ID }}/replace" onsubmit="return confirm('Create a new invitation link? The previous link will stop working.');">
+                                    <button type="submit" class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Create new link</button>
+                                </form>
+                            </div>
+                        </li>
+                        {{ end }}
+                    </ul>
+                    {{ end }}
+                </div>
+            </section>
+            {{ end }}
 
             <section class="mb-6">
                 <div class="bg-white shadow rounded-lg px-6 py-6">

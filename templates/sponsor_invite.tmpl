@@ -10,7 +10,7 @@
     <article class="sponsor-invite-card">
       <div class="dashboard-kicker">● Sponsor invitation</div>
       <h1>Join {{ .Invite.OrganizationName }}.</h1>
-      <p class="sponsor-invite-card__intro">This invitation grants <strong>{{ .Invite.Role }}</strong> access to the organization’s bitcoin++ sponsor workspace. It was issued to <strong>{{ .Invite.Email }}</strong>.</p>
+      <p class="sponsor-invite-card__intro">This invitation grants <strong>{{ .Invite.Role }}</strong> access to the organization’s bitcoin++ sponsor workspace, including its current and future sponsorships. It was issued to <strong>{{ .Invite.Email }}</strong>.</p>
       {{ if .Error }}
       <div class="dashboard-flash is-error"><p>{{ .Error }}</p></div>
       {{ else }}

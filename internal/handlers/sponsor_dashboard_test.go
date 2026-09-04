@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/types"
@@ -208,5 +209,31 @@ func TestSponsorDashboardMemberRemovalEligibility(t *testing.T) {
 	page.Membership = member
 	if !page.CanRemoveMember(member) || page.CanRemoveMember(manager) {
 		t.Fatal("ordinary member self-removal permissions are incorrect")
+	}
+}
+
+func TestSponsorDashboardChallengeEditWindow(t *testing.T) {
+	future := time.Now().Add(time.Hour)
+	past := time.Now().Add(-time.Hour)
+	page := &SponsorDashboardPage{CanManage: true}
+
+	if !page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "pending", EditableUntil: &future}) {
+		t.Fatal("manager could not edit a pending challenge before hacking starts")
+	}
+	if !page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "approved", EditableUntil: &future}) {
+		t.Fatal("manager could not edit an approved challenge before hacking starts")
+	}
+	if page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "approved", EditableUntil: &past}) {
+		t.Fatal("manager could edit a challenge after hacking started")
+	}
+	if !page.ChallengeHasStarted(&types.SponsorAwardProposal{Status: "approved", EditableUntil: &past}) {
+		t.Fatal("started challenge was not recognized as read-only")
+	}
+	if page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "rejected", EditableUntil: &future}) {
+		t.Fatal("manager could edit a rejected challenge")
+	}
+	page.CanManage = false
+	if page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "pending", EditableUntil: &future}) {
+		t.Fatal("ordinary organization member could edit a challenge")
 	}
 }

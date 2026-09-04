@@ -13,6 +13,13 @@ import (
 	"btcpp-web/internal/types"
 )
 
+const (
+	generatedShiftPrioritySupport   uint = 0
+	generatedShiftPriorityCheckIn   uint = 1
+	generatedShiftPriorityProgram   uint = 2
+	generatedShiftPriorityMorningAV uint = 3
+)
+
 // MakeWorkShifts bulk-creates the canonical roster of volunteer
 // shifts for a conference based on its ConfInfo per-day strip:
 //
@@ -101,7 +108,7 @@ func MakeWorkShifts(ctx *config.AppContext, conf *types.Conf) (int, error) {
 	dayBefore := day1.AddDate(0, 0, -1)
 	setupStart := time.Date(dayBefore.Year(), dayBefore.Month(), dayBefore.Day(), 10, 0, 0, 0, loc)
 	setupEnd := time.Date(dayBefore.Year(), dayBefore.Month(), dayBefore.Day(), 14, 0, 0, 0, loc)
-	create(setup, "setup", "Setup crew", setupStart, setupEnd, 6, 0)
+	create(setup, "setup", "Setup crew", setupStart, setupEnd, 6, generatedShiftPrioritySupport)
 
 	for i, ci := range clean {
 		if ci.Doors == nil {
@@ -126,7 +133,7 @@ func MakeWorkShifts(ctx *config.AppContext, conf *types.Conf) (int, error) {
 			dayOfEnd := dayOfStart.Add(4 * time.Hour)
 			create(setup, "setup",
 				"Setup, Day of",
-				dayOfStart, dayOfEnd, 6, 0)
+				dayOfStart, dayOfEnd, 6, generatedShiftPrioritySupport)
 		}
 
 		// Check-in AM/PM — per day, not per venue.
@@ -136,10 +143,10 @@ func MakeWorkShifts(ctx *config.AppContext, conf *types.Conf) (int, error) {
 		pmEnd := pmStart.Add(4 * time.Hour)
 		create(checkin, "checkin",
 			fmt.Sprintf("Check-in — AM (day %d)", ci.Day),
-			amStart, amEnd, 3, 1)
+			amStart, amEnd, 3, generatedShiftPriorityCheckIn)
 		create(checkin, "checkin",
 			fmt.Sprintf("Check-in — PM (day %d)", ci.Day),
-			pmStart, pmEnd, 3, 1)
+			pmStart, pmEnd, 3, generatedShiftPriorityCheckIn)
 
 		// Per-venue × {Showrunner, A/V Monitor} × {AM, PM}.
 		// AM: doors open → 13:30. PM: 13:00 → doors close − 1h
@@ -154,17 +161,17 @@ func MakeWorkShifts(ctx *config.AppContext, conf *types.Conf) (int, error) {
 			venueLabel := venueLabelOrTag(conf, venue)
 			create(showrunner, "showrunner",
 				fmt.Sprintf("Showrunner — %s (AM, day %d)", venueLabel, ci.Day),
-				doorsOpen, amVenueEnd, 1, 2)
+				doorsOpen, amVenueEnd, 1, generatedShiftPriorityProgram)
 			create(avdesk, "avdesk",
 				fmt.Sprintf("A/V Monitor — %s (AM, day %d)", venueLabel, ci.Day),
-				doorsOpen, amVenueEnd, 1, 2)
+				doorsOpen, amVenueEnd, 1, generatedShiftPriorityMorningAV)
 			if hasClose {
 				create(showrunner, "showrunner",
 					fmt.Sprintf("Showrunner — %s (PM, day %d)", venueLabel, ci.Day),
-					pmVenueStart, pmVenueEnd, 1, 2)
+					pmVenueStart, pmVenueEnd, 1, generatedShiftPriorityProgram)
 				create(avdesk, "avdesk",
 					fmt.Sprintf("A/V Monitor — %s (PM, day %d)", venueLabel, ci.Day),
-					pmVenueStart, pmVenueEnd, 1, 2)
+					pmVenueStart, pmVenueEnd, 1, generatedShiftPriorityProgram)
 			}
 		}
 
@@ -174,7 +181,7 @@ func MakeWorkShifts(ctx *config.AppContext, conf *types.Conf) (int, error) {
 			tdStart := doorsClose.Add(-2 * time.Hour)
 			create(teardown, "teardown",
 				"Teardown crew",
-				tdStart, doorsClose, 6, 0)
+				tdStart, doorsClose, 6, generatedShiftPrioritySupport)
 		}
 	}
 

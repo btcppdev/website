@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
@@ -69,6 +70,24 @@ func VolunteerApplicationConfirmation(w http.ResponseWriter, r *http.Request, ct
 		}
 		page := &VolunteerApplicationConfirmationPage{Volunteer: vol, Conf: conf, Confirmed: true, Year: helpers.CurrentYear()}
 		var notices []string
+		selfSchedule := false
+		if conf.VolunteerSelfSchedule {
+			shifts, shiftErr := getters.GetShiftsForConf(ctx, conf.Tag)
+			if shiftErr != nil {
+				ctx.Err.Printf("volunteer confirmation load shifts: %s", shiftErr)
+				notices = append(notices, "Your application was saved, but shift availability could not be checked.")
+			} else if canSelfScheduleVolunteer(conf, shifts) {
+				if statusErr := getters.UpdateVolunteerStatus(ctx, vol.Ref, "PendingShifts"); statusErr != nil {
+					ctx.Err.Printf("volunteer confirmation enable shift selection: %s", statusErr)
+					notices = append(notices, "Your application was saved, but shift selection could not be opened.")
+				} else {
+					vol.Status = "PendingShifts"
+					selfSchedule = true
+				}
+			} else {
+				notices = append(notices, "There are not enough open volunteer shifts to complete signup, so your application is waiting for coordinator review.")
+			}
+		}
 		if volinfo, err := getters.GetVolInfo(ctx, conf.Ref); err != nil {
 			ctx.Err.Printf("volunteer confirmation load volinfo: %s", err)
 			notices = append(notices, "The application was saved, but the acknowledgment email could not be prepared.")
@@ -82,6 +101,15 @@ func VolunteerApplicationConfirmation(w http.ResponseWriter, r *http.Request, ct
 			notices = append(notices, "The application was saved, but its email-list setup needs staff attention.")
 		}
 		page.Notice = strings.Join(notices, " ")
+		if selfSchedule {
+			if err := auth.LoginEmail(ctx, r, vol.Email); err != nil {
+				ctx.Err.Printf("volunteer confirmation sign in for shift selection: %s", err)
+				page.Notice = strings.TrimSpace(page.Notice + " Your shifts are ready to choose; sign in from the dashboard to continue.")
+			} else {
+				http.Redirect(w, r, "/vols/shift/"+url.PathEscape(conf.Tag), http.StatusSeeOther)
+				return
+			}
+		}
 		renderVolunteerApplicationConfirmation(w, ctx, page)
 		return
 	}

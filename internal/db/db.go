@@ -21,7 +21,7 @@ func Open(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse DATABASE_URL: %w", err)
 	}
-	cfg.MaxConns = 10
+	cfg.MaxConns = 15
 	cfg.MinConns = 1
 	cfg.HealthCheckPeriod = time.Minute
 	// Keep a blocked statement or forgotten transaction from permanently

@@ -115,7 +115,8 @@
         <div class="flex items-center justify-between gap-4">
           <div>
             <h2 class="text-sm font-semibold text-gray-900">Role manager</h2>
-            <p class="mt-1 text-xs text-gray-500">Add or remove admin, volunteer coordinator, staff, or hackathon manager roles for any speaker. Tag format: <code class="rounded bg-gray-100 px-1">{conftag}-admin</code>, <code class="rounded bg-gray-100 px-1">{conftag}-hackathon</code>, or <code class="rounded bg-gray-100 px-1">global-hackathon</code>. Comma-separated.</p>
+            <p class="mt-1 text-xs text-gray-500">Add or remove admin, volunteer coordinator, staff, hackathon manager, or accounts roles for any profile. Tag format: <code class="rounded bg-gray-100 px-1">{conftag}-admin</code>, <code class="rounded bg-gray-100 px-1">{conftag}-hackathon</code>, <code class="rounded bg-gray-100 px-1">global-hackathon</code>, or <code class="rounded bg-gray-100 px-1">accts-admin</code>. Comma-separated.</p>
+            {{ if not .CanAssignAccountsAdmin }}<p class="mt-1 text-xs font-medium text-amber-700">Only nifty@btcpp.dev can grant <code>accts-admin</code>. You can still manage all other roles.</p>{{ end }}
           </div>
         </div>
 
@@ -136,7 +137,7 @@
           <div>
             <label for="RoleManagerRoles" class="block text-xs font-medium text-gray-700">Roles (comma-separated, leave empty to clear)</label>
             <input type="text" id="RoleManagerRoles" name="roles"
-                   placeholder="e.g. vienna-admin, global-volcoord"
+                   placeholder="e.g. vienna-admin, global-volcoord, accts-admin"
                    class="mt-1 block w-full rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 outline-gray-300 focus:outline-2 focus:outline-indigo-600">
           </div>
 

@@ -875,10 +875,11 @@ func logSlowRequest(ctx *config.AppContext, r *http.Request, id string, start ti
 		return
 	}
 	stats := ctx.DB.Stat()
-	ctx.Err.Printf("request still running id=%s method=%s path=%s duration=%s db_acquired=%d db_idle=%d db_total=%d db_empty_acquires=%d db_canceled_acquires=%d db_acquire_wait=%s",
+	ctx.Err.Printf("request still running id=%s method=%s path=%s duration=%s db_acquired=%d db_idle=%d db_constructing=%d db_total=%d db_max=%d db_acquires=%d db_empty_acquires=%d db_canceled_acquires=%d db_acquire_wait=%s db_empty_acquire_wait=%s",
 		id, r.Method, requestLogPath(r), time.Since(start).Round(time.Millisecond),
-		stats.AcquiredConns(), stats.IdleConns(), stats.TotalConns(), stats.EmptyAcquireCount(),
-		stats.CanceledAcquireCount(), stats.AcquireDuration().Round(time.Millisecond))
+		stats.AcquiredConns(), stats.IdleConns(), stats.ConstructingConns(), stats.TotalConns(), stats.MaxConns(),
+		stats.AcquireCount(), stats.EmptyAcquireCount(), stats.CanceledAcquireCount(),
+		stats.AcquireDuration().Round(time.Millisecond), stats.EmptyAcquireWaitTime().Round(time.Millisecond))
 }
 
 func redirectTrailingSlash(h http.Handler) http.Handler {
@@ -899,12 +900,21 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	metrics := appmetrics.New("btcpp_web", func() ([]types.BusinessMetricCount, error) {
 		return getters.ListBusinessMetricCounts(app)
 	})
+	metrics.RegisterDBPool(app.DB)
 	r.Handle("/metrics", metrics.Handler(app.Env.MetricsToken)).Methods(http.MethodGet)
 	r.Use(metrics.Middleware)
 
 	err := loadTemplates(app)
 	if err != nil {
 		return r, err
+	}
+	// Prime the public conference snapshot before serving traffic. Subsequent
+	// refreshes are stale-while-revalidate, so navigation and 404s never join a
+	// connection-pool queue merely because the cache TTL elapsed.
+	if app.DB != nil {
+		if _, err := cachedConfs(app); err != nil && app.Err != nil {
+			app.Err.Printf("warm conference cache: %s", err)
+		}
 	}
 
 	err = addFaviconRoutes(r)
@@ -1152,6 +1162,14 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		VolAdminAutoAssign(w, r, app)
 	}).Methods("POST")
 
+	r.HandleFunc("/{conf}/volcoord/remind-pending-shifts", func(w http.ResponseWriter, r *http.Request) {
+		VolAdminRemindPendingShifts(w, r, app)
+	}).Methods("POST")
+
+	r.HandleFunc("/{conf}/volcoord/self-schedule", func(w http.ResponseWriter, r *http.Request) {
+		VolAdminSelfScheduleUpdate(w, r, app)
+	}).Methods("POST")
+
 	r.HandleFunc("/{conf}/volcoord/shifts", func(w http.ResponseWriter, r *http.Request) {
 		VolAdminShifts(w, r, app)
 	}).Methods("GET")
@@ -1174,6 +1192,14 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 
 	r.HandleFunc("/{conf}/volcoord/shifts/{shiftRef}/delete", func(w http.ResponseWriter, r *http.Request) {
 		VolAdminDeleteShift(w, r, app)
+	}).Methods("POST")
+
+	r.HandleFunc("/{conf}/volcoord/shifts/{shiftRef}/volunteers", func(w http.ResponseWriter, r *http.Request) {
+		VolAdminShiftAddVolunteer(w, r, app)
+	}).Methods("POST")
+
+	r.HandleFunc("/{conf}/volcoord/shifts/{shiftRef}/volunteers/{volRef}/remove", func(w http.ResponseWriter, r *http.Request) {
+		VolAdminShiftRemoveVolunteer(w, r, app)
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}", func(w http.ResponseWriter, r *http.Request) {
@@ -1238,6 +1264,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/sponsor/{organizationID}/prize-proposals", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboardPrizeProposalCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}/prize-proposals/{proposalID}", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardPrizeProposalUpdate(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/sponsor/{organizationID}/tickets", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboardTicketsIssue(w, r, app)
@@ -2025,6 +2054,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/orgs/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		OrgSave(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/orgs/{ref}/invites/{inviteID}/replace", func(w http.ResponseWriter, r *http.Request) {
+		OrgPendingInviteReplace(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/sponsors", func(w http.ResponseWriter, r *http.Request) {
 		SponsorshipsList(w, r, app)
@@ -2365,7 +2397,7 @@ func addFaviconRoutes(r *mux.Router) error {
 func listConfs(w http.ResponseWriter, ctx *config.AppContext) []*types.Conf {
 	var confs types.ConfList
 	var err error
-	confs, err = getters.ListConfs(ctx)
+	confs, err = cachedConfs(ctx)
 	if err != nil {
 		// FIXME add an internal error page
 		http.Error(w, "Unable to load confereneces, please try again later", http.StatusInternalServerError)
@@ -2411,7 +2443,17 @@ func handle404(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	w.WriteHeader(http.StatusNotFound)
 	ctx.Infos.Printf("404'd: %s", r.URL.Path)
 
-	RenderPage(w, r, ctx, "404")
+	confs, err := cachedConfs(ctx)
+	if err != nil {
+		ctx.Err.Printf("404 conference cache: %s", err)
+		confs = nil
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "embeds/404.tmpl", &HomePageData{
+		Confs: confs,
+		Year:  helpers.CurrentYear(),
+	}); err != nil {
+		ctx.Err.Printf("/404 ExecuteTemplate failed: %s", err)
+	}
 }
 
 // discountSessionKey is the SCS session key under which a per-conf
@@ -6939,25 +6981,8 @@ func buildShiftDisplays(vol *types.Volunteer, shifts []*types.WorkShift, selecte
 			Conflicts:   shift.Intersects(selectedShifts),
 		}
 
-		// Compute CanSelect and Reason
-		if display.IsSelected {
-			display.CanSelect = false
-			display.Reason = "Already selected"
-		} else if !display.IsAvailable {
-			display.CanSelect = false
-			display.Reason = "Not available this day"
-		} else if !display.IsEligible {
-			display.CanSelect = false
-			display.Reason = "Job type not preferred"
-		} else if display.IsFull {
-			display.CanSelect = false
-			display.Reason = "Shift is full"
-		} else if display.Conflicts {
-			display.CanSelect = false
-			display.Reason = "Conflicts with selected shift"
-		} else {
-			display.CanSelect = true
-		}
+		display.Reason = volunteerShiftSelectionReason(vol, shift, selectedShifts)
+		display.CanSelect = display.Reason == ""
 
 		grouped[dayKey] = append(grouped[dayKey], display)
 	}
@@ -6970,6 +6995,31 @@ func buildShiftDisplays(vol *types.Volunteer, shifts []*types.WorkShift, selecte
 	}
 
 	return grouped
+}
+
+func volunteerShiftSelectionReason(vol *types.Volunteer, shift *types.WorkShift, selectedShifts []*types.WorkShift) string {
+	if vol == nil || shift == nil {
+		return "Shift is unavailable"
+	}
+	if shift.IsAssigned(vol.Ref) {
+		return "Already selected"
+	}
+	if len(selectedShifts) >= VolShiftQuota {
+		return "Shift target reached"
+	}
+	if !vol.AvailableOn(shift) {
+		return "Not available this day"
+	}
+	if shift.Type != nil && vol.WillNotWork(shift.Type) {
+		return "Job type not preferred"
+	}
+	if shift.IsFull() {
+		return "Shift is full"
+	}
+	if shift.Intersects(selectedShifts) {
+		return "Conflicts with selected shift"
+	}
+	return ""
 }
 
 func getSelectedShifts(vol *types.Volunteer, shifts []*types.WorkShift) []*types.WorkShift {
@@ -7155,11 +7205,41 @@ func VolunteerSelectShift(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "Volunteer not found", http.StatusNotFound)
 		return
 	}
+	if vol.Status != "PendingShifts" && vol.Status != "Scheduled" {
+		http.Error(w, "Shift selection is not open for this application", http.StatusForbidden)
+		return
+	}
+
+	confShifts, err := getters.GetShiftsForConf(ctx, confTag)
+	if err != nil {
+		http.Error(w, "Unable to load shifts", http.StatusInternalServerError)
+		return
+	}
+	selectedShifts := getSelectedShifts(vol, confShifts)
+	var targetShift *types.WorkShift
+	for _, shift := range confShifts {
+		if shift != nil && shift.Ref == shiftRef {
+			targetShift = shift
+			break
+		}
+	}
+	if targetShift == nil {
+		http.Error(w, "Shift not found for this event", http.StatusNotFound)
+		return
+	}
+	if reason := volunteerShiftSelectionReason(vol, targetShift, selectedShifts); reason != "" && reason != "Already selected" {
+		http.Error(w, reason, http.StatusConflict)
+		return
+	}
 
 	// Assign volunteer to shift
 	err = getters.AssignVolunteerToShift(ctx, vol.Ref, shiftRef)
 	if err != nil {
 		ctx.Err.Printf("/vols/shift/%s/select assign failed: %s", confTag, err.Error())
+		if errors.Is(err, getters.ErrWorkShiftFull) {
+			renderShiftList(w, r, ctx, email, confTag)
+			return
+		}
 		http.Error(w, "Failed to assign shift", http.StatusInternalServerError)
 		return
 	}
@@ -7621,6 +7701,52 @@ func VolAdminPromote(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	http.Redirect(w, r, fmt.Sprintf("/%s/volcoord", conf.Tag), http.StatusSeeOther)
 }
 
+func VolAdminRemindPendingShifts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfVolcoord(w, r, ctx); id == nil {
+		return
+	}
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return
+	}
+	vols, err := getters.ListVolunteersForConf(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/%s/volcoord/remind-pending-shifts load volunteers: %s", conf.Tag, err)
+		http.Error(w, "Unable to load volunteers", http.StatusInternalServerError)
+		return
+	}
+	shifts, err := getters.GetShiftsForConf(ctx, conf.Tag)
+	if err != nil {
+		ctx.Err.Printf("/%s/volcoord/remind-pending-shifts load shifts: %s", conf.Tag, err)
+		http.Error(w, "Unable to load shifts", http.StatusInternalServerError)
+		return
+	}
+
+	targeted, sent := 0, 0
+	for _, vol := range vols {
+		if !volNeedsShiftReminder(vol, shifts) {
+			continue
+		}
+		targeted++
+		if _, err := emails.OnlyForVolSignup(ctx, vol, conf); err != nil {
+			ctx.Err.Printf("/%s/volcoord/remind-pending-shifts email %s: %s", conf.Tag, vol.Email, err)
+			continue
+		}
+		sent++
+	}
+
+	message := "No Pending Shifts volunteers without assignments to remind."
+	if targeted > 0 {
+		message = fmt.Sprintf("Sent shift signup reminders to %d of %d Pending Shifts volunteers without assignments.", sent, targeted)
+	}
+	http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape(message)), http.StatusSeeOther)
+}
+
+func volNeedsShiftReminder(vol *types.Volunteer, shifts []*types.WorkShift) bool {
+	return vol != nil && vol.Status == "PendingShifts" && len(getSelectedShifts(vol, shifts)) == 0
+}
+
 func VolAdminAutoAssign(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireConfVolcoord(w, r, ctx); id == nil {
 		return
@@ -7986,6 +8112,9 @@ func computeVolAdminStats(vols []*types.Volunteer, shifts []*types.WorkShift) *V
 		}
 		if v.Status == "Applied" || v.Status == "PendingShifts" {
 			s.UnscheduledVols++
+		}
+		if v.Status == "PendingShifts" && len(v.WorkShifts) == 0 {
+			s.PendingNoShifts++
 		}
 	}
 	if s.ShiftsLeft > 0 && VolShiftQuota > 0 {
@@ -8571,7 +8700,23 @@ func VolAdminShifts(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		ctx.Err.Printf("/%s/volcoord/shifts failed to load vols: %s", conf.Tag, err.Error())
 	}
 	for _, v := range allVols {
+		v.WorkShifts = getSelectedShifts(v, shifts)
 		volMap[v.Ref] = v
+	}
+	sort.Slice(allVols, func(i, j int) bool {
+		return strings.ToLower(allVols[i].Name) < strings.ToLower(allVols[j].Name)
+	})
+	candidates := make(map[string][]*types.Volunteer, len(shifts))
+	for _, shift := range shifts {
+		assigned := make(map[string]bool, len(shift.AssigneesRef))
+		for _, ref := range shift.AssigneesRef {
+			assigned[ref] = true
+		}
+		for _, vol := range allVols {
+			if !assigned[vol.Ref] && vol.Status != "Declined" {
+				candidates[shift.Ref] = append(candidates[shift.Ref], vol)
+			}
+		}
 	}
 
 	// Per-day ConfInfo strip — used below to widen the gantt's
@@ -8700,12 +8845,14 @@ func VolAdminShifts(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	})
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "volunteers/admin_shifts.tmpl", &VolAdminShiftsPage{
-		Conf:     conf,
-		Days:     dayList,
-		VolMap:   volMap,
-		JobTypes: jobs,
-		DaysList: conf.DaysList("days-", true),
-		Year:     helpers.CurrentYear(),
+		Conf:       conf,
+		Days:       dayList,
+		VolMap:     volMap,
+		Candidates: candidates,
+		JobTypes:   jobs,
+		DaysList:   conf.DaysList("days-", true),
+		Flash:      r.URL.Query().Get("flash"),
+		Year:       helpers.CurrentYear(),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -8715,6 +8862,112 @@ func VolAdminShifts(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 func volAdminShiftsRedirect(w http.ResponseWriter, r *http.Request, conf *types.Conf) {
 	http.Redirect(w, r, fmt.Sprintf("/%s/volcoord/shifts", conf.Tag), http.StatusSeeOther)
+}
+
+func volAdminShiftAssignmentRedirect(w http.ResponseWriter, r *http.Request, conf *types.Conf, shiftRef, message string) {
+	target := fmt.Sprintf("/%s/volcoord/shifts?flash=%s#shift-%s", conf.Tag, url.QueryEscape(message), shiftRef)
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+func volAdminShiftAssignmentTargets(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) (*types.Conf, *types.WorkShift, *types.Volunteer) {
+	conf, err := helpers.FindConf(r, ctx)
+	if err != nil {
+		handle404(w, r, ctx)
+		return nil, nil, nil
+	}
+
+	params := mux.Vars(r)
+	shiftRef := params["shiftRef"]
+	volRef := params["volRef"]
+	if volRef == "" {
+		limitRequestBody(w, r, maxFormBodyBytes)
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return nil, nil, nil
+		}
+		volRef = r.FormValue("volRef")
+	}
+	if shiftRef == "" || volRef == "" {
+		http.Error(w, "Missing shift or volunteer", http.StatusBadRequest)
+		return nil, nil, nil
+	}
+
+	shifts, err := getters.GetShiftsForConf(ctx, conf.Tag)
+	if err != nil {
+		ctx.Err.Printf("/%s/volcoord/shifts assignment failed to load shifts: %s", conf.Tag, err)
+		http.Error(w, "Unable to load shifts", http.StatusInternalServerError)
+		return nil, nil, nil
+	}
+	var shift *types.WorkShift
+	for _, candidate := range shifts {
+		if candidate.Ref == shiftRef {
+			shift = candidate
+			break
+		}
+	}
+	if shift == nil {
+		handle404(w, r, ctx)
+		return nil, nil, nil
+	}
+
+	vols, err := getters.ListVolunteersForConf(ctx, conf.Ref)
+	if err != nil {
+		ctx.Err.Printf("/%s/volcoord/shifts assignment failed to load volunteers: %s", conf.Tag, err)
+		http.Error(w, "Unable to load volunteers", http.StatusInternalServerError)
+		return nil, nil, nil
+	}
+	for _, vol := range vols {
+		if vol.Ref == volRef {
+			return conf, shift, vol
+		}
+	}
+
+	handle404(w, r, ctx)
+	return nil, nil, nil
+}
+
+func VolAdminShiftAddVolunteer(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfVolcoord(w, r, ctx); id == nil {
+		return
+	}
+	conf, shift, vol := volAdminShiftAssignmentTargets(w, r, ctx)
+	if vol == nil {
+		return
+	}
+	if vol.Status == "Declined" {
+		volAdminShiftAssignmentRedirect(w, r, conf, shift.Ref, "Declined volunteers cannot be assigned to shifts")
+		return
+	}
+
+	if err := getters.AssignVolunteerToShift(ctx, vol.Ref, shift.Ref); err != nil {
+		if errors.Is(err, getters.ErrWorkShiftFull) {
+			volAdminShiftAssignmentRedirect(w, r, conf, shift.Ref, "That shift is already full")
+			return
+		}
+		ctx.Err.Printf("/%s/volcoord/shifts add %s to %s failed: %s", conf.Tag, vol.Ref, shift.Ref, err)
+		volAdminShiftAssignmentRedirect(w, r, conf, shift.Ref, "Unable to add volunteer")
+		return
+	}
+
+	volAdminShiftAssignmentRedirect(w, r, conf, shift.Ref, vol.Name+" added to "+shift.Name)
+}
+
+func VolAdminShiftRemoveVolunteer(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireConfVolcoord(w, r, ctx); id == nil {
+		return
+	}
+	conf, shift, vol := volAdminShiftAssignmentTargets(w, r, ctx)
+	if vol == nil {
+		return
+	}
+
+	if err := getters.RemoveVolunteerFromShift(ctx, vol.Ref, shift.Ref); err != nil {
+		ctx.Err.Printf("/%s/volcoord/shifts remove %s from %s failed: %s", conf.Tag, vol.Ref, shift.Ref, err)
+		volAdminShiftAssignmentRedirect(w, r, conf, shift.Ref, "Unable to remove volunteer")
+		return
+	}
+	cancelShiftCalForVol(ctx, vol, shift.Ref, conf.Tag)
+	volAdminShiftAssignmentRedirect(w, r, conf, shift.Ref, vol.Name+" removed from "+shift.Name)
 }
 
 func VolAdminCreateShift(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

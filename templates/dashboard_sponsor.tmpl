@@ -43,10 +43,11 @@
 
       <nav class="sponsor-workspace-nav" aria-label="Sponsor workspace sections">
         <a href="#sponsorships"><span>01</span> Sponsorships</a>
-        <a href="#prize-entrants"><span>02</span> Prize entrants</a>
-        <a href="#team"><span>03</span> Team</a>
-        <a href="#profile"><span>04</span> Public profile</a>
-        {{ if .Past }}<a href="#history"><span>05</span> Trophy case</a>{{ end }}
+        <a href="#challenges"><span>02</span> Challenges</a>
+        <a href="#prize-entrants"><span>03</span> Prize entrants</a>
+        <a href="#team"><span>04</span> Team</a>
+        <a href="#profile"><span>05</span> Public profile</a>
+        {{ if .Past }}<a href="#history"><span>06</span> Trophy case</a>{{ end }}
       </nav>
 
       <section class="sponsor-dashboard-section dashboard-workspace-panel" id="sponsorships">
@@ -90,7 +91,7 @@
               </form>
             </details>
             {{ end }}
-            {{ if .Competition }}
+            {{ if and .Competition ($.EventCanAcceptChallenges .) }}
             {{ $proposalSlots := $.ProposalSlotsRemaining . }}
             {{ if gt $proposalSlots 0 }}
             <details class="sponsor-benefit-action">
@@ -149,6 +150,70 @@
         </div>
         {{ else }}
         <div class="sponsor-dashboard-empty">No upcoming sponsorship is connected to this organization yet.</div>
+        {{ end }}
+      </section>
+
+      <section class="sponsor-dashboard-section dashboard-workspace-panel" id="challenges">
+        <div class="sponsor-dashboard-section__head">
+          <div><div class="dashboard-kicker">§ Hackathon challenges</div><h2>Your issued challenges.</h2></div>
+          <p>Owners and managers can edit pending and approved challenges until hacking begins. After that, challenge terms are read-only.</p>
+        </div>
+        {{ if .PrizeProposals }}
+        <div class="sponsor-event-grid">
+          {{ range .PrizeProposals }}
+          <article class="sponsor-event-card dashboard-workspace-widget">
+            <header class="sponsor-event-card__header">
+              <div class="sponsor-event-card__eyebrow"><span>{{ if .ConferenceTitle }}{{ .ConferenceTitle }}{{ else }}Hackathon{{ end }}</span><span class="is-{{ .Status }}">{{ .Status }}</span></div>
+              <h3>{{ .Title }}</h3>
+              {{ if .CompetitionTitle }}<p>{{ .CompetitionTitle }}</p>{{ end }}
+            </header>
+            {{ if .Description }}<p>{{ .Description }}</p>{{ end }}
+            <dl>
+              <div><dt>Prize</dt><dd>{{ .PrizeTitle }}</dd></div>
+              <div><dt>Value</dt><dd>{{ .PrizeValueText }} sats</dd></div>
+              <div><dt>Maximum winners</dt><dd>{{ .MaxAwardees }}</dd></div>
+              <div><dt>Eligibility</dt><dd>{{ if .OptInRequired }}Opt-in{{ else }}All projects{{ end }}{{ if .FinalistsOnly }} · finalists only{{ end }}</dd></div>
+            </dl>
+            {{ if .ReviewNotes }}<p class="sponsor-dashboard-note"><strong>Organizer note:</strong> {{ .ReviewNotes }}</p>{{ end }}
+            {{ if $.ChallengeCanEdit . }}
+            <details class="sponsor-benefit-action">
+              <summary><span>Edit challenge</span><small>{{ if .EditableUntil }}until {{ .EditableUntil.Format "Jan 2 at 3:04 PM MST" }}{{ else }}before hacking starts{{ end }}</small></summary>
+              <form method="POST" action="/dashboard/sponsor/{{ $.Organization.Ref }}/prize-proposals/{{ .ID }}" class="sponsor-benefit-form sponsor-prize-form">
+                <input type="hidden" name="csrf" value="{{ $.CSRF }}">
+                <fieldset>
+                  <legend>Challenge</legend>
+                  <div class="sponsor-benefit-form__grid">
+                    <label class="is-wide"><span>Challenge title</span><input name="Title" value="{{ .Title }}" required maxlength="160"></label>
+                    <label class="is-wide"><span>Description</span><textarea name="Description" rows="3" maxlength="4000">{{ .Description }}</textarea></label>
+                    <label class="is-wide"><span>Judging guidance</span><textarea name="JudgingInstructions" rows="2" maxlength="4000">{{ .JudgingInstructions }}</textarea></label>
+                    <label><span>Maximum winners</span><input name="MaxAwardees" type="number" min="1" max="100" value="{{ .MaxAwardees }}" required></label>
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Prize</legend>
+                  <div class="sponsor-benefit-form__grid">
+                    <label><span>Prize type</span><select name="PrizeType"><option value="sats" {{ if eq .PrizeType "sats" }}selected{{ end }}>Satoshis</option><option value="in_kind" {{ if eq .PrizeType "in_kind" }}selected{{ end }}>In kind</option><option value="tickets" {{ if eq .PrizeType "tickets" }}selected{{ end }}>Tickets</option><option value="trophy" {{ if eq .PrizeType "trophy" }}selected{{ end }}>Trophy</option></select></label>
+                    <label><span>Prize title</span><input name="PrizeTitle" value="{{ .PrizeTitle }}" required maxlength="160"></label>
+                    <label><span>Value in sats</span><input name="PrizeValueText" value="{{ .PrizeValueText }}" inputmode="numeric" pattern="[0-9]+" required></label>
+                    <label class="is-wide"><span>Prize details</span><textarea name="PrizeDescription" rows="2" maxlength="4000">{{ .PrizeDescription }}</textarea></label>
+                  </div>
+                </fieldset>
+                <fieldset class="sponsor-benefit-options">
+                  <legend>Eligibility</legend>
+                  <label class="sponsor-profile-checkbox"><input name="OptInRequired" type="checkbox" {{ if .OptInRequired }}checked{{ end }}><span>Projects must opt in to compete</span></label>
+                  <label class="sponsor-profile-checkbox"><input name="FinalistsOnly" type="checkbox" {{ if .FinalistsOnly }}checked{{ end }}><span>Only finalists are eligible</span></label>
+                </fieldset>
+                <button type="submit">Save challenge →</button>
+              </form>
+            </details>
+            {{ else if $.ChallengeHasStarted . }}
+            <p class="sponsor-dashboard-note">This challenge is read-only because the hackathon has started.</p>
+            {{ end }}
+          </article>
+          {{ end }}
+        </div>
+        {{ else }}
+        <div class="sponsor-dashboard-empty">No hackathon challenges have been issued yet. Use an active sponsorship above to propose one.</div>
         {{ end }}
       </section>
 

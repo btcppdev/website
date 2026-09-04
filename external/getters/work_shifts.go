@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+var ErrWorkShiftFull = errors.New("work shift is full")
 
 func ListWorkShifts(ctx *config.AppContext) ([]*types.WorkShift, error) {
 	confs, err := listConferencesOnlyPostgres(ctx)
@@ -309,13 +312,61 @@ func AssignVolunteerToShift(ctx *config.AppContext, volRef, shiftRef string) err
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
-	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin volunteer shift assignment: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+
+	var maxVols int
+	if err := tx.QueryRow(dbctx, `
+		SELECT max_vols
+		FROM work_shifts
+		WHERE id = $1::uuid
+		FOR UPDATE
+	`, shiftRef).Scan(&maxVols); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("work shift %s not found", shiftRef)
+		}
+		return fmt.Errorf("lock work shift %s: %w", shiftRef, err)
+	}
+
+	var alreadyAssigned bool
+	if err := tx.QueryRow(dbctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM work_shifts_volunteers
+			WHERE shift_id = $1::uuid AND volunteer_id = $2::uuid AND role = 'assignee'
+		)
+	`, shiftRef, volRef).Scan(&alreadyAssigned); err != nil {
+		return fmt.Errorf("check volunteer %s shift assignment: %w", volRef, err)
+	}
+	if alreadyAssigned {
+		return nil
+	}
+
+	var assigned int
+	if err := tx.QueryRow(dbctx, `
+		SELECT count(*)
+		FROM work_shifts_volunteers
+		WHERE shift_id = $1::uuid AND role = 'assignee'
+	`, shiftRef).Scan(&assigned); err != nil {
+		return fmt.Errorf("count work shift %s assignees: %w", shiftRef, err)
+	}
+	if assigned >= maxVols {
+		return ErrWorkShiftFull
+	}
+
+	_, err = tx.Exec(dbctx, `
 		INSERT INTO work_shifts_volunteers (shift_id, volunteer_id, role)
 		VALUES ($1, $2, 'assignee')
 		ON CONFLICT DO NOTHING
 	`, shiftRef, volRef)
 	if err != nil {
 		return fmt.Errorf("assign volunteer %s to shift %s: %w", volRef, shiftRef, err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit volunteer %s shift %s assignment: %w", volRef, shiftRef, err)
 	}
 	return nil
 }

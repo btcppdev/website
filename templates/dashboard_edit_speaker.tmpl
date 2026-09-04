@@ -132,8 +132,9 @@
             <label>TWITTER / X HANDLE
               <input id="Twitter" name="Twitter" type="text" value="{{ if .Speaker }}{{ .Speaker.Twitter.Handle }}{{ end }}" placeholder="without @">
             </label>
-            <label>NOSTR NPUB
-              <input id="Nostr" name="Nostr" type="text" value="{{ if .Speaker }}{{ .Speaker.Nostr }}{{ end }}">
+            <label>NOSTR NPUB OR NPROFILE
+              <input id="Nostr" name="Nostr" type="text" value="{{ if .Speaker }}{{ .Speaker.Nostr }}{{ end }}" placeholder="npub1… or nprofile1…">
+              <small>We save the public key in canonical npub form.</small>
             </label>
             <label>INSTAGRAM
               <input id="Instagram" name="Instagram" type="text" value="{{ if .Speaker }}{{ .Speaker.Instagram }}{{ end }}">

@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -55,6 +56,27 @@ func (p *SponsorDashboardPage) ProposalsFor(sponsorshipID string) []*types.Spons
 		}
 	}
 	return out
+}
+
+func (p *SponsorDashboardPage) ChallengeCanEdit(proposal *types.SponsorAwardProposal) bool {
+	if p == nil || !p.CanManage || proposal == nil || (proposal.Status != "pending" && proposal.Status != "approved") {
+		return false
+	}
+	return proposal.EditableUntil == nil || proposal.EditableUntil.After(time.Now())
+}
+
+func (p *SponsorDashboardPage) ChallengeHasStarted(proposal *types.SponsorAwardProposal) bool {
+	return proposal != nil && proposal.EditableUntil != nil && !proposal.EditableUntil.After(time.Now())
+}
+
+func (p *SponsorDashboardPage) EventCanAcceptChallenges(event *types.SponsorDashboardEvent) bool {
+	if event == nil || event.Competition == nil {
+		return false
+	}
+	if event.Competition.HackingStartsAt != nil {
+		return event.Competition.HackingStartsAt.After(time.Now())
+	}
+	return event.Conference == nil || event.Conference.StartDate.IsZero() || event.Conference.StartDate.After(time.Now())
 }
 
 func (p *SponsorDashboardPage) TicketIssuancesFor(sponsorshipID string) []*types.SponsorTicketIssuance {
@@ -566,23 +588,10 @@ func SponsorDashboardPrizeProposalCreate(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "Invalid form token", http.StatusBadRequest)
 		return
 	}
-	maxAwardees, err := strconv.Atoi(strings.TrimSpace(r.FormValue("MaxAwardees")))
-	if err != nil {
-		maxAwardees = 0
-	}
-	proposal, err := getters.CreateSponsorAwardProposal(ctx, getters.SponsorAwardProposalInput{
-		SponsorshipID:       r.FormValue("SponsorshipID"),
-		ConferenceID:        r.FormValue("ConferenceID"),
-		CompetitionID:       r.FormValue("CompetitionID"),
-		OrganizationID:      organizationID,
-		SubmittedByPersonID: id.PersonID,
-		Title:               r.FormValue("Title"), Description: r.FormValue("Description"),
-		JudgingInstructions: r.FormValue("JudgingInstructions"), MaxAwardees: maxAwardees,
-		OptInRequired: r.FormValue("OptInRequired") == "on",
-		FinalistsOnly: r.FormValue("FinalistsOnly") == "on",
-		PrizeType:     r.FormValue("PrizeType"), PrizeTitle: r.FormValue("PrizeTitle"),
-		PrizeDescription: r.FormValue("PrizeDescription"), PrizeValueText: r.FormValue("PrizeValueText"),
-	})
+	input := sponsorAwardProposalInputFromForm(r)
+	input.OrganizationID = organizationID
+	input.SubmittedByPersonID = id.PersonID
+	proposal, err := getters.CreateSponsorAwardProposal(ctx, input)
 	if err != nil {
 		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
@@ -593,6 +602,55 @@ func SponsorDashboardPrizeProposalCreate(w http.ResponseWriter, r *http.Request,
 		ctx.Err.Printf("/dashboard/sponsor/%s proposal audit: %s", organizationID, err)
 	}
 	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("Prize proposal sent to the hackathon organizers for approval."), http.StatusSeeOther)
+}
+
+func sponsorAwardProposalInputFromForm(r *http.Request) getters.SponsorAwardProposalInput {
+	maxAwardees, err := strconv.Atoi(strings.TrimSpace(r.FormValue("MaxAwardees")))
+	if err != nil {
+		maxAwardees = 0
+	}
+	return getters.SponsorAwardProposalInput{
+		SponsorshipID: r.FormValue("SponsorshipID"),
+		ConferenceID:  r.FormValue("ConferenceID"),
+		CompetitionID: r.FormValue("CompetitionID"),
+		Title:         r.FormValue("Title"), Description: r.FormValue("Description"),
+		JudgingInstructions: r.FormValue("JudgingInstructions"), MaxAwardees: maxAwardees,
+		OptInRequired: r.FormValue("OptInRequired") == "on",
+		FinalistsOnly: r.FormValue("FinalistsOnly") == "on",
+		PrizeType:     r.FormValue("PrizeType"), PrizeTitle: r.FormValue("PrizeTitle"),
+		PrizeDescription: r.FormValue("PrizeDescription"), PrizeValueText: r.FormValue("PrizeValueText"),
+	}
+}
+
+func SponsorDashboardPrizeProposalUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	proposalID := strings.TrimSpace(mux.Vars(r)["proposalID"])
+	redirectTo := "/dashboard/sponsor/" + url.PathEscape(organizationID)
+	membership := organizationMembershipByID(memberships, organizationID)
+	if membership == nil || !sponsorMembershipCanManage(membership) {
+		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape("Only organization owners and managers can edit sponsor challenges.")+"#challenges", http.StatusSeeOther)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		http.Error(w, "Invalid form token", http.StatusBadRequest)
+		return
+	}
+	proposal, err := getters.UpdateSponsorAwardProposal(ctx, proposalID, organizationID, sponsorAwardProposalInputFromForm(r))
+	if err != nil {
+		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape(err.Error())+"#challenges", http.StatusSeeOther)
+		return
+	}
+	if err := getters.RecordSponsorAuditEvent(ctx, organizationID, proposal.SponsorshipID,
+		proposal.ConferenceID, id.PersonID, "sponsor.award_updated",
+		"sponsor_award_proposal", proposal.ID, map[string]any{"status": proposal.Status}); err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s challenge update audit: %s", organizationID, err)
+	}
+	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("Hackathon challenge updated.")+"#challenges", http.StatusSeeOther)
 }
 
 func SponsorDashboardTicketsIssue(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -654,6 +712,10 @@ func SponsorDashboardInviteCreate(w http.ResponseWriter, r *http.Request, ctx *c
 	}
 	token, invite, err := getters.CreateOrganizationMemberInvite(ctx, organizationID, r.FormValue("email"), r.FormValue("role"), id.PersonID, time.Now().Add(72*time.Hour))
 	if err != nil {
+		if errors.Is(err, getters.ErrOrganizationMemberInvitePending) {
+			http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("An invitation for that email is already pending; its existing link is still valid."), http.StatusSeeOther)
+			return
+		}
 		ctx.Err.Printf("/dashboard/sponsor/%s invite: %s", organizationID, err)
 		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape("The teammate invitation could not be created."), http.StatusSeeOther)
 		return

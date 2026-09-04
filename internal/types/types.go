@@ -150,6 +150,9 @@ type (
 		// ConferenceEmailCampaignsEnabled is a nullable event-level override.
 		// Nil preserves the default-on behavior for existing events.
 		ConferenceEmailCampaignsEnabled *bool
+		// VolunteerSelfSchedule sends newly confirmed applicants directly to
+		// the shift picker when the event has enough open shifts to complete it.
+		VolunteerSelfSchedule bool
 		// PickupAddress is the event venue's structured tax location for
 		// merchandise collected at the conference.
 		PickupAddressLine1      string

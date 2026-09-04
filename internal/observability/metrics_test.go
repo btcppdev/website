@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,49 @@ import (
 	"btcpp-web/internal/types"
 
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestDBPoolMetrics(t *testing.T) {
+	cfg, err := pgxpool.ParseConfig("postgres://example:example@127.0.0.1:1/example?sslmode=disable")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.MaxConns = 7
+	cfg.MinConns = 0
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+
+	m := New("test_pool")
+	m.RegisterDBPool(pool)
+	families, err := m.registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := ""
+	for _, family := range families {
+		text += family.String()
+	}
+	text = strings.Join(strings.Fields(text), " ")
+	for _, expected := range []string{
+		`name:"test_pool_db_pool_connections"`,
+		`name:"state" value:"max"`,
+		`gauge:{value:7`,
+		`name:"test_pool_db_pool_acquires_total"`,
+		`name:"test_pool_db_pool_empty_acquires_total"`,
+		`name:"test_pool_db_pool_canceled_acquires_total"`,
+		`name:"test_pool_db_pool_acquire_duration_seconds_total"`,
+		`name:"test_pool_db_pool_empty_acquire_wait_seconds_total"`,
+		`name:"test_pool_db_pool_new_connections_total"`,
+	} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("database metrics omitted %q: %s", expected, text)
+		}
+	}
+}
 
 func TestMetricsAuthentication(t *testing.T) {
 	m := New("test_auth")

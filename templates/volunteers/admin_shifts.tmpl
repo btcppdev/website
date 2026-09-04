@@ -109,6 +109,12 @@
                 </div>
             </div>
 
+            {{ if .Flash }}
+            <div class="mb-4 rounded-md bg-indigo-50 px-4 py-3 text-sm text-indigo-800" role="status">
+                {{ .Flash }}
+            </div>
+            {{ end }}
+
             <!-- New Shift Form (hidden by default) -->
             <section id="new-shift-form" class="hidden mb-6">
                 <div class="bg-white shadow rounded-lg px-4 py-4 sm:px-6">
@@ -219,9 +225,14 @@
                                         {{ range $shift.AssigneesRef }}
                                         {{ $vol := index $.VolMap . }}
                                         {{ if $vol }}
-                                        <a href="/{{ $.Conf.Tag }}/volcoord/vol/{{ $vol.Ref }}" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200">
-                                            {{ $vol.Name }}
-                                        </a>
+                                        <span class="inline-flex items-center overflow-hidden rounded-full bg-indigo-100 text-xs text-indigo-700">
+                                            <a href="/{{ $.Conf.Tag }}/volcoord/vol/{{ $vol.Ref }}" class="py-0.5 pl-2 pr-1 hover:bg-indigo-200" title="{{ $vol.Email }}">
+                                                {{ $vol.Name }}
+                                            </a>
+                                            <form method="POST" action="/{{ $.Conf.Tag }}/volcoord/shifts/{{ $shift.Ref }}/volunteers/{{ $vol.Ref }}/remove" class="inline-flex">
+                                                <button type="submit" class="px-1.5 py-0.5 font-bold text-indigo-500 hover:bg-red-100 hover:text-red-700" aria-label="Remove {{ $vol.Name }} from {{ $shift.Name }}" title="Remove from shift">&times;</button>
+                                            </form>
+                                        </span>
                                         {{ else }}
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500">unknown vol</span>
                                         {{ end }}
@@ -230,6 +241,24 @@
                                     {{ else }}
                                     <p class="mt-2 text-xs text-gray-500 italic">No volunteers assigned yet.</p>
                                     {{ end }}
+
+                                    {{ $candidates := index $.Candidates $shift.Ref }}
+                                    <form method="POST" action="/{{ $.Conf.Tag }}/volcoord/shifts/{{ $shift.Ref }}/volunteers" class="mt-3 flex max-w-2xl flex-col gap-2 sm:flex-row sm:items-center">
+                                        <label for="add-vol-{{ $shift.Ref }}" class="sr-only">Add a volunteer to {{ $shift.Name }}</label>
+                                        <select id="add-vol-{{ $shift.Ref }}" name="volRef" required
+                                                class="min-w-0 flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                                {{ if or $shift.IsFull (not $candidates) }}disabled{{ end }}>
+                                            <option value="">{{ if $shift.IsFull }}Shift is full{{ else if not $candidates }}No active volunteers available{{ else }}Select a volunteer…{{ end }}</option>
+                                            {{ range $candidates }}
+                                            <option value="{{ .Ref }}">{{ .Name }} — {{ .Status }}{{ if .Email }} — {{ .Email }}{{ end }}</option>
+                                            {{ end }}
+                                        </select>
+                                        <button type="submit"
+                                                class="inline-flex items-center justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                                                {{ if or $shift.IsFull (not $candidates) }}disabled{{ end }}>
+                                            Add volunteer
+                                        </button>
+                                    </form>
                                 </div>
 
                                 <div class="ml-4 flex items-center gap-2 shrink-0">

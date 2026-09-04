@@ -227,6 +227,20 @@ func SpeakerRolesUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		}
 		roles = append(roles, t)
 	}
+	target, err := getters.FetchSpeakerByID(ctx, speakerID)
+	if err != nil {
+		ctx.Err.Printf("%s load roles for %s: %s", r.URL.Path, speakerID, err)
+		http.Error(w, "lookup failed", http.StatusInternalServerError)
+		return
+	}
+	if target == nil {
+		http.Error(w, "profile not found", http.StatusNotFound)
+		return
+	}
+	if !accountsAdminRoleUpdateAllowed(id, target.Roles, roles) {
+		http.Error(w, "Forbidden — only nifty@btcpp.dev can assign accts-admin.", http.StatusForbidden)
+		return
+	}
 	if err := getters.UpdateSpeakerRoles(ctx, speakerID, roles); err != nil {
 		ctx.Err.Printf("%s update roles %s: %s", r.URL.Path, speakerID, err)
 		http.Error(w, "update failed", http.StatusInternalServerError)
@@ -234,6 +248,27 @@ func SpeakerRolesUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	ctx.Infos.Printf("%s %s set roles for %s → %v", r.URL.Path, id.Email, speakerID, roles)
 	http.Redirect(w, r, "/admin?flash="+url.QueryEscape("Roles updated."), http.StatusSeeOther)
+}
+
+const accountsAdminRoleAssignerEmail = "nifty@btcpp.dev"
+
+func canAssignAccountsAdmin(id *auth.Identity) bool {
+	return id != nil && strings.EqualFold(strings.TrimSpace(id.PrimaryEmail), accountsAdminRoleAssignerEmail)
+}
+
+func accountsAdminRoleUpdateAllowed(id *auth.Identity, existingRoles, requestedRoles []string) bool {
+	return !hasRoleTag(requestedRoles, auth.AccountsAdminTag) ||
+		hasRoleTag(existingRoles, auth.AccountsAdminTag) ||
+		canAssignAccountsAdmin(id)
+}
+
+func hasRoleTag(roles []string, wanted string) bool {
+	for _, role := range roles {
+		if strings.TrimSpace(role) == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 // inviteLinkBail redirects an unusable /invite-speaker click to the

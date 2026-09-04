@@ -98,14 +98,14 @@ func TestPersonEmailAdditionVerificationIsNotLoginCopy(t *testing.T) {
 	}
 }
 
-func TestShopAccountingTokenScopeRequiresGlobalAdmin(t *testing.T) {
+func TestShopAccountingTokenScopeRequiresAccountsAdmin(t *testing.T) {
 	if validPersonalAPITokenScopes([]string{"shop:accounting:read"}, false) {
-		t.Fatal("non-global admin accepted shop accounting scope")
+		t.Fatal("profile without accts-admin accepted shop accounting scope")
 	}
 	if !validPersonalAPITokenScopes([]string{"shop:accounting:read"}, true) {
-		t.Fatal("global admin rejected shop accounting scope")
+		t.Fatal("accts-admin profile rejected shop accounting scope")
 	}
 	if !validPersonalAPITokenScopes([]string{"profile:self:read"}, false) {
-		t.Fatal("ordinary profile scope unexpectedly requires global admin")
+		t.Fatal("ordinary profile scope unexpectedly requires accts-admin")
 	}
 }

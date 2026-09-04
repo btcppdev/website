@@ -132,6 +132,7 @@ func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.A
 		NewOAuthClientID:        newOAuthClientID,
 		NewOAuthClientSecret:    newOAuthClientSecret,
 		IsGlobalAdmin:           id.IsGlobalAdmin(),
+		IsAccountsAdmin:         id.IsAccountsAdmin(),
 		HasHackathonProjects:    hasHackathonProjects,
 		HasSponsorOrganizations: hasSponsorOrganizations,
 		PendingEmails:           pendingEmails,
@@ -198,10 +199,10 @@ func DashboardAPITokenCreate(w http.ResponseWriter, r *http.Request, ctx *config
 		return
 	}
 	scopes := r.Form["scopes"]
-	if !validPersonalAPITokenScopes(scopes, viewer.IsGlobalAdmin()) {
-		if containsString(scopes, "shop:accounting:read") && !viewer.IsGlobalAdmin() {
-			recordAuthAudit(ctx, r, viewer.PersonID, "api_token", "api_token_creation_rejected", map[string]any{"reason": "global_admin_scope_required", "scope": "shop:accounting:read"})
-			redirectPersonEmails(w, r, "", "Only a global administrator can create a shop accounting token.")
+	if !validPersonalAPITokenScopes(scopes, viewer.IsAccountsAdmin()) {
+		if containsString(scopes, "shop:accounting:read") && !viewer.IsAccountsAdmin() {
+			recordAuthAudit(ctx, r, viewer.PersonID, "api_token", "api_token_creation_rejected", map[string]any{"reason": "accounts_admin_scope_required", "scope": "shop:accounting:read"})
+			redirectPersonEmails(w, r, "", "The accts-admin permission is required to create a shop accounting token.")
 			return
 		}
 		redirectPersonEmails(w, r, "", "Choose at least one valid API token scope.")
@@ -232,8 +233,8 @@ func DashboardAPITokenCreate(w http.ResponseWriter, r *http.Request, ctx *config
 	renderAccountSettings(w, r, ctx, viewer, plaintext, "", "")
 }
 
-func validPersonalAPITokenScopes(scopes []string, isGlobalAdmin bool) bool {
-	return auth.ValidAPITokenScopes(scopes) && (isGlobalAdmin || !containsString(scopes, "shop:accounting:read"))
+func validPersonalAPITokenScopes(scopes []string, isAccountsAdmin bool) bool {
+	return auth.ValidAPITokenScopes(scopes) && (isAccountsAdmin || !containsString(scopes, "shop:accounting:read"))
 }
 
 func DashboardAPITokenRevoke(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

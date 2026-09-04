@@ -18,6 +18,7 @@ import (
 type GlobalAdminDashboardPage struct {
 	FlashMessage            string
 	Year                    uint
+	CanAssignAccountsAdmin  bool
 	FeaturedSpeakerSlots    []*types.Speaker
 	SubscriberSummary       getters.AdminSubscriberSummary
 	SubscriberStatsReady    bool
@@ -103,6 +104,7 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/dashboard.tmpl", &GlobalAdminDashboardPage{
 		FlashMessage:            r.URL.Query().Get("flash"),
 		Year:                    helpers.CurrentYear(),
+		CanAssignAccountsAdmin:  canAssignAccountsAdmin(id),
 		FeaturedSpeakerSlots:    slots,
 		SubscriberSummary:       subscriberSummary,
 		SubscriberStatsReady:    subscriberErr == nil,
@@ -465,6 +467,7 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		redirectEventDetails(w, r, conf, "Could not update event details.")
 		return
 	}
+	invalidateConferenceCache(ctx)
 	redirectEventDetails(w, r, conf, "Event details updated.")
 }
 
@@ -592,6 +595,7 @@ func GlobalAdminUpdateConfTicket(w http.ResponseWriter, r *http.Request, ctx *co
 		redirectEventDetails(w, r, conf, "Could not update ticket pricing.")
 		return
 	}
+	invalidateConferenceCache(ctx)
 	redirectEventDetails(w, r, conf, "Ticket pricing updated.")
 }
 
@@ -651,6 +655,7 @@ func GlobalAdminUpdateConfState(w http.ResponseWriter, r *http.Request, ctx *con
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Could not update event state.")), http.StatusSeeOther)
 		return
 	}
+	invalidateConferenceCache(ctx)
 
 	http.Redirect(w, r, fmt.Sprintf("/%s/admin/details?flash=%s", conf.Tag, url.QueryEscape("Event marked "+status+".")), http.StatusSeeOther)
 }

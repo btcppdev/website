@@ -76,94 +76,119 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		sponsorErr           error
 	)
 	t1 := time.Now()
+	// Keep one dashboard request from monopolizing the shared pool. Three
+	// concurrent reads preserve most of the fan-out speed while leaving room
+	// for sessions, public traffic, and background work.
+	dbSlots := make(chan struct{}, 3)
+	withDBSlot := func(fn func()) {
+		dbSlots <- struct{}{}
+		defer func() { <-dbSlots }()
+		fn()
+	}
 	var topWg sync.WaitGroup
 	topWg.Add(8)
 	var scDur, volDur, regDur, satDur, judgeDur, projectsDur, shopDur, sponsorDur time.Duration
 	go func() {
 		defer topWg.Done()
-		s := time.Now()
-		if personID != "" {
-			speakers, speakerConfs, scErr = getters.GetSpeakerConfsByPersonID(ctx, personID)
-		} else {
-			speakers, speakerConfs, scErr = getters.GetSpeakerConfsByEmail(ctx, email)
-		}
-		scDur = time.Since(s)
-	}()
-	go func() {
-		defer topWg.Done()
-		s := time.Now()
-		if personID != "" {
-			volapps, volErr = getters.ListVolunteerAppsForPerson(ctx, personID)
-		} else {
-			volapps, volErr = getters.ListVolunteerApps(ctx, email)
-		}
-		volDur = time.Since(s)
-	}()
-	go func() {
-		defer topWg.Done()
-		s := time.Now()
-		if personID != "" {
-			regs, regErr = getters.ListRegistrationsForPerson(ctx, personID)
-		} else {
-			regs, regErr = getters.ListRegistrationsByEmail(ctx, email)
-		}
-		regDur = time.Since(s)
-	}()
-	go func() {
-		defer topWg.Done()
-		s := time.Now()
-		if personID != "" {
-			satEvents, satErr = getters.ListSatelliteEventsForPerson(ctx, personID)
-		} else {
-			satEvents, satErr = getters.ListSatelliteEventsBySubmitter(ctx, email)
-		}
-		satDur = time.Since(s)
-	}()
-	go func() {
-		defer topWg.Done()
-		s := time.Now()
-		if personID != "" {
-			judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsForPerson(ctx, personID)
-			if judgeErr == nil {
-				var sponsorAssignments []*types.CompetitionJudgeAssignment
-				sponsorAssignments, judgeErr = getters.ListAwardJudgeAssignmentsForPerson(ctx, personID)
-				judgeAssignments = append(judgeAssignments, sponsorAssignments...)
+		withDBSlot(func() {
+			s := time.Now()
+			if personID != "" {
+				speakers, speakerConfs, scErr = getters.GetSpeakerConfsByPersonID(ctx, personID)
+			} else {
+				speakers, speakerConfs, scErr = getters.GetSpeakerConfsByEmail(ctx, email)
 			}
-		} else {
-			judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsByEmail(ctx, email)
-			if judgeErr == nil {
-				var sponsorAssignments []*types.CompetitionJudgeAssignment
-				sponsorAssignments, judgeErr = getters.ListAwardJudgeAssignmentsByEmail(ctx, email)
-				judgeAssignments = append(judgeAssignments, sponsorAssignments...)
+			scDur = time.Since(s)
+		})
+	}()
+	go func() {
+		defer topWg.Done()
+		withDBSlot(func() {
+			s := time.Now()
+			if personID != "" {
+				volapps, volErr = getters.ListVolunteerAppsForPerson(ctx, personID)
+			} else {
+				volapps, volErr = getters.ListVolunteerApps(ctx, email)
 			}
-		}
-		judgeDur = time.Since(s)
+			volDur = time.Since(s)
+		})
 	}()
 	go func() {
 		defer topWg.Done()
-		s := time.Now()
-		if personID != "" {
-			hasHackathonProjects, projectsErr = getters.HasHackathonParticipantProjectsForPerson(ctx, personID)
-		}
-		projectsDur = time.Since(s)
+		withDBSlot(func() {
+			s := time.Now()
+			if personID != "" {
+				regs, regErr = getters.ListRegistrationsForPerson(ctx, personID)
+			} else {
+				regs, regErr = getters.ListRegistrationsByEmail(ctx, email)
+			}
+			regDur = time.Since(s)
+		})
 	}()
 	go func() {
 		defer topWg.Done()
-		s := time.Now()
-		if personID != "" {
-			shopOrders, shopErr = getters.ListShopOrdersForPerson(ctx, personID, 5)
-		} else {
-			shopOrders, shopErr = getters.ListShopOrdersByEmail(ctx, email, 5)
-		}
-		shopDur = time.Since(s)
+		withDBSlot(func() {
+			s := time.Now()
+			if personID != "" {
+				satEvents, satErr = getters.ListSatelliteEventsForPerson(ctx, personID)
+			} else {
+				satEvents, satErr = getters.ListSatelliteEventsBySubmitter(ctx, email)
+			}
+			satDur = time.Since(s)
+		})
 	}()
 	go func() {
 		defer topWg.Done()
-		s := time.Now()
-		if personID != "" {
-			hasSponsorMembership, sponsorErr = getters.HasActiveOrganizationMembership(ctx, personID)
-		}
-		sponsorDur = time.Since(s)
+		withDBSlot(func() {
+			s := time.Now()
+			if personID != "" {
+				judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsForPerson(ctx, personID)
+				if judgeErr == nil {
+					var sponsorAssignments []*types.CompetitionJudgeAssignment
+					sponsorAssignments, judgeErr = getters.ListAwardJudgeAssignmentsForPerson(ctx, personID)
+					judgeAssignments = append(judgeAssignments, sponsorAssignments...)
+				}
+			} else {
+				judgeAssignments, judgeErr = getters.ListCompetitionJudgeAssignmentsByEmail(ctx, email)
+				if judgeErr == nil {
+					var sponsorAssignments []*types.CompetitionJudgeAssignment
+					sponsorAssignments, judgeErr = getters.ListAwardJudgeAssignmentsByEmail(ctx, email)
+					judgeAssignments = append(judgeAssignments, sponsorAssignments...)
+				}
+			}
+			judgeDur = time.Since(s)
+		})
+	}()
+	go func() {
+		defer topWg.Done()
+		withDBSlot(func() {
+			s := time.Now()
+			if personID != "" {
+				hasHackathonProjects, projectsErr = getters.HasHackathonParticipantProjectsForPerson(ctx, personID)
+			}
+			projectsDur = time.Since(s)
+		})
+	}()
+	go func() {
+		defer topWg.Done()
+		withDBSlot(func() {
+			s := time.Now()
+			if personID != "" {
+				shopOrders, shopErr = getters.ListShopOrdersForPerson(ctx, personID, 5)
+			} else {
+				shopOrders, shopErr = getters.ListShopOrdersByEmail(ctx, email, 5)
+			}
+			shopDur = time.Since(s)
+		})
+	}()
+	go func() {
+		defer topWg.Done()
+		withDBSlot(func() {
+			s := time.Now()
+			if personID != "" {
+				hasSponsorMembership, sponsorErr = getters.HasActiveOrganizationMembership(ctx, personID)
+			}
+			sponsorDur = time.Since(s)
+		})
 	}()
 	topWg.Wait()
 	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s judge=%s projects=%s shop=%s sponsor=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d judgeAssignments=%d hasProjects=%t shopOrders=%d hasSponsorOrg=%t",
@@ -224,9 +249,11 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		volWg.Add(1)
 		go func() {
 			defer volWg.Done()
-			s := time.Now()
-			volInfosByConf, volInfoErr = getters.GetVolInfoMap(ctx)
-			volInfoDur = time.Since(s)
+			withDBSlot(func() {
+				s := time.Now()
+				volInfosByConf, volInfoErr = getters.GetVolInfoMap(ctx)
+				volInfoDur = time.Since(s)
+			})
 		}()
 		shiftDurs := make([]time.Duration, len(volapps))
 		for i, vol := range volapps {
@@ -236,15 +263,17 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			volWg.Add(1)
 			go func(i int, vol *types.Volunteer) {
 				defer volWg.Done()
-				s := time.Now()
-				confTag := vol.ScheduleFor[0].Tag
-				confShifts, err := getters.GetShiftsForConf(ctx, confTag)
-				if err != nil {
-					ctx.Err.Printf("/dashboard get shifts for %s failed: %s", confTag, err)
-					return
-				}
-				vol.WorkShifts = getSelectedShifts(vol, confShifts)
-				shiftDurs[i] = time.Since(s)
+				withDBSlot(func() {
+					s := time.Now()
+					confTag := vol.ScheduleFor[0].Tag
+					confShifts, err := getters.GetShiftsForConf(ctx, confTag)
+					if err != nil {
+						ctx.Err.Printf("/dashboard get shifts for %s failed: %s", confTag, err)
+						return
+					}
+					vol.WorkShifts = getSelectedShifts(vol, confShifts)
+					shiftDurs[i] = time.Since(s)
+				})
 			}(i, vol)
 		}
 		volWg.Wait()

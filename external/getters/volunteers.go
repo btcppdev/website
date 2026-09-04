@@ -57,6 +57,13 @@ func registerConfirmedVolunteer(ctx *config.AppContext, vol *types.Volunteer) er
 		return fmt.Errorf("registerConfirmedVolunteer: volunteer is nil")
 	}
 	normalizeVolunteerInput(vol)
+	if vol.Nostr != "" {
+		var err error
+		vol.Nostr, err = CanonicalNostrProfileValue(vol.Nostr)
+		if err != nil {
+			return fmt.Errorf("registerConfirmedVolunteer: %w", err)
+		}
+	}
 	vol.Shirt = types.ValidShirtSizeCode(vol.Shirt)
 	if vol.Shirt == "" {
 		return fmt.Errorf("registerConfirmedVolunteer: valid shirt size required")

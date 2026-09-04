@@ -2,6 +2,7 @@ package volunteers
 
 import (
 	"sort"
+	"strings"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
@@ -10,14 +11,46 @@ import (
 
 const targetShiftsPerVol = 3
 
-// shiftsByPriority sorts shifts by descending Priority (higher first), with
-// nil ShiftTime sinking to the bottom.
+// shiftsByPriority sorts shifts by descending Priority (higher first). At an
+// equal configured priority, morning A/V coverage wins, followed by the
+// earlier start. That tie-break protects older generated rosters where AM and
+// PM A/V shifts were both stored at priority 2; coordinators can still use a
+// higher explicit Priority to override it.
 type shiftsByPriority []*types.WorkShift
 
 func (s shiftsByPriority) Len() int      { return len(s) }
 func (s shiftsByPriority) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s shiftsByPriority) Less(i, j int) bool {
-	return s[i].Priority > s[j].Priority
+	left, right := s[i], s[j]
+	if left.Priority != right.Priority {
+		return left.Priority > right.Priority
+	}
+	leftMorningAV := isMorningAVShift(left)
+	rightMorningAV := isMorningAVShift(right)
+	if leftMorningAV != rightMorningAV {
+		return leftMorningAV
+	}
+	if left.ShiftTime != nil && right.ShiftTime != nil && !left.ShiftTime.Start.Equal(right.ShiftTime.Start) {
+		return left.ShiftTime.Start.Before(right.ShiftTime.Start)
+	}
+	if left.ShiftTime != nil && right.ShiftTime == nil {
+		return true
+	}
+	if left.ShiftTime == nil && right.ShiftTime != nil {
+		return false
+	}
+	return left.Ref < right.Ref
+}
+
+func isMorningAVShift(shift *types.WorkShift) bool {
+	if shift == nil || shift.Type == nil || !strings.EqualFold(strings.TrimSpace(shift.Type.Tag), "avdesk") || shift.ShiftTime == nil {
+		return false
+	}
+	start := shift.ShiftTime.Start
+	if shift.Conf != nil {
+		start = start.In(shift.Conf.Loc())
+	}
+	return start.Hour() < 12
 }
 
 // volsByShiftCount sorts volunteers ascending by number of currently assigned

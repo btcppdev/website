@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/mail"
@@ -30,11 +31,16 @@ type OrgListPage struct {
 }
 
 type OrgDetailPage struct {
-	Org          *types.Org
-	IsNew        bool
-	FlashMessage string
-	SpacesReady  bool
-	Year         uint
+	Org            *types.Org
+	Members        []*types.OrganizationMembership
+	PendingInvites []*types.OrganizationMemberInvite
+	InviteLink     string
+	InviteEmail    string
+	IsNew          bool
+	FlashMessage   string
+	FlashError     string
+	SpacesReady    bool
+	Year           uint
 }
 
 type OrgNewPage struct {
@@ -216,17 +222,62 @@ func OrgDetail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		handle404(w, r, ctx)
 		return
 	}
+	members, err := getters.ListOrganizationMembers(ctx, org.Ref)
+	if err != nil {
+		http.Error(w, "Unable to load organization members", http.StatusInternalServerError)
+		ctx.Err.Printf("/admin/orgs/%s members failed: %s", ref, err.Error())
+		return
+	}
+	pendingInvites, err := getters.ListPendingOrganizationMemberInvites(ctx, org.Ref)
+	if err != nil {
+		http.Error(w, "Unable to load pending organization invitations", http.StatusInternalServerError)
+		ctx.Err.Printf("/admin/orgs/%s pending invitations failed: %s", ref, err.Error())
+		return
+	}
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "sponsors/detail.tmpl", &OrgDetailPage{
-		Org:          org,
-		FlashMessage: r.URL.Query().Get("flash"),
-		SpacesReady:  spaces.IsConfigured(),
-		Year:         helpers.CurrentYear(),
+		Org:            org,
+		Members:        members,
+		PendingInvites: pendingInvites,
+		InviteLink:     ctx.Session.PopString(r.Context(), "admin_org_invite_link"),
+		InviteEmail:    ctx.Session.PopString(r.Context(), "admin_org_invite_email"),
+		FlashMessage:   r.URL.Query().Get("flash"),
+		FlashError:     r.URL.Query().Get("error"),
+		SpacesReady:    spaces.IsConfigured(),
+		Year:           helpers.CurrentYear(),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
 		ctx.Err.Printf("/admin/orgs/%s template failed: %s", ref, err.Error())
 	}
+}
+
+func OrgPendingInviteReplace(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireGlobalAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	organizationID := strings.TrimSpace(mux.Vars(r)["ref"])
+	inviteID := strings.TrimSpace(mux.Vars(r)["inviteID"])
+	destination := "/admin/orgs/" + url.PathEscape(organizationID)
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	token, invite, err := getters.ReplaceOrganizationMemberInvite(ctx, organizationID, inviteID, id.PersonID, time.Now().Add(72*time.Hour))
+	if err != nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	ctx.Session.Put(r.Context(), "admin_org_invite_link", ctx.Env.GetURI()+"/sponsor-invites/"+url.PathEscape(token))
+	ctx.Session.Put(r.Context(), "admin_org_invite_email", invite.Email)
+	if err := getters.RecordSponsorAuditEvent(ctx, organizationID, "", "", id.PersonID,
+		"organization.member_invite_replaced", "organization_member_invite", invite.ID,
+		map[string]any{"email": invite.Email, "replaced_invite_id": inviteID}); err != nil {
+		ctx.Err.Printf("/admin/orgs/%s invitation replacement audit: %s", organizationID, err)
+	}
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("A new invitation link was created for "+invite.Email+". The previous link is no longer valid."), http.StatusSeeOther)
 }
 
 // OrgNew renders the GET form for creating a new Org. Optional `return`
@@ -552,6 +603,10 @@ func SponsorshipCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 	if managerEmail != "" {
 		if err := sendSponsorshipManagerInvitation(ctx, conf, org, id.PersonID, managerName, managerEmail); err != nil {
+			if errors.Is(err, getters.ErrOrganizationMemberInvitePending) {
+				http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Sponsorship created. A manager invitation for "+managerEmail+" is already pending; its existing link is still valid."), http.StatusSeeOther)
+				return
+			}
 			ctx.Err.Printf("/%s/admin/sponsors/new manager invitation: %s", conf.Tag, err)
 			http.Redirect(w, r, dest+"?flash="+url.QueryEscape(flash)+"&error="+url.QueryEscape("The sponsorship was saved, but the manager invitation could not be sent: "+err.Error()), http.StatusSeeOther)
 			return
@@ -662,6 +717,10 @@ func SponsorshipUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 	if managerEmail != "" {
 		if err := sendSponsorshipManagerInvitation(ctx, conf, org, id.PersonID, managerName, managerEmail); err != nil {
+			if errors.Is(err, getters.ErrOrganizationMemberInvitePending) {
+				http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Sponsorship updated. A manager invitation for "+managerEmail+" is already pending; its existing link is still valid."), http.StatusSeeOther)
+				return
+			}
 			ctx.Err.Printf("/%s/admin/sponsors/%s manager invitation: %s", conf.Tag, ref, err)
 			http.Redirect(w, r, dest+"?flash="+url.QueryEscape(flash)+"&error="+url.QueryEscape("The sponsorship was saved, but the manager invitation could not be sent: "+err.Error()), http.StatusSeeOther)
 			return

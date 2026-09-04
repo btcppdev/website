@@ -571,7 +571,7 @@ func oauthScopeDescriptions() map[string]string {
 		"talks:write":          "Edit talks you speak at",
 		"schedule:write":       "Update event schedules when your current admin role permits it",
 		"recordings:write":     "Manage recording metadata when your current admin role permits it",
-		"shop:accounting:read": "Read PII-free shop inventory and sales data when you are a global administrator",
+		"shop:accounting:read": "Read PII-free shop inventory and sales data when you have accts-admin permission",
 		"offline_access":       "Stay connected when you are not actively using the app",
 	}
 }

@@ -231,3 +231,19 @@ func TestHackathonRolesAreScopedAndCoveredByAdmin(t *testing.T) {
 		t.Fatal("volunteer coordinator grants hackathon management")
 	}
 }
+
+func TestAccountsAdminIsExplicitAndAdditive(t *testing.T) {
+	accountsAdmin := &Identity{Roles: ParseRoles([]string{"toronto-volcoord", AccountsAdminTag})}
+	if !accountsAdmin.IsAccountsAdmin() {
+		t.Fatal("accts-admin permission was not recognized")
+	}
+	if !accountsAdmin.HasRoleForConf("toronto", RoleVolcoord) {
+		t.Fatal("adding accts-admin discarded an existing role")
+	}
+
+	for _, roles := range [][]string{{"global-admin"}, {"toronto-admin"}, {"global-staff"}} {
+		if (&Identity{Roles: ParseRoles(roles)}).IsAccountsAdmin() {
+			t.Fatalf("roles %v implicitly granted accounts administration", roles)
+		}
+	}
+}

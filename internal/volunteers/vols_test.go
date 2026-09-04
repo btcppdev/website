@@ -210,6 +210,40 @@ func TestAssignShifts_PriorityOrder(t *testing.T) {
 	}
 }
 
+func TestAssignShifts_MorningAVWinsEqualPriority(t *testing.T) {
+	av := &types.JobType{Ref: "av", Tag: "avdesk"}
+	afternoon := mkShift("pm-av", "A/V PM", 1, 2,
+		tm(2026, 6, 10, 13, 0), tmPtr(2026, 6, 10, 17, 0), av)
+	morning := mkShift("am-av", "A/V AM", 1, 2,
+		tm(2026, 6, 10, 9, 0), tmPtr(2026, 6, 10, 13, 30), av)
+	vol := mkVol("v1", []string{"06/10/2026"}, nil, tm(2026, 1, 1, 0, 0))
+
+	var log []assignment
+	if err := assignShiftsCore([]*types.Volunteer{vol}, []*types.WorkShift{afternoon, morning}, recordingAssign(&log)); err != nil {
+		t.Fatalf("assignShiftsCore: %v", err)
+	}
+	if len(log) != 1 || log[0].ShiftRef != morning.Ref {
+		t.Fatalf("assignments = %+v, want morning A/V first", log)
+	}
+}
+
+func TestAssignShifts_ExplicitPriorityOverridesMorningAV(t *testing.T) {
+	av := &types.JobType{Ref: "av", Tag: "avdesk"}
+	morning := mkShift("am-av", "A/V AM", 1, 2,
+		tm(2026, 6, 10, 9, 0), tmPtr(2026, 6, 10, 13, 30), av)
+	critical := mkShift("manual-critical", "Coordinator priority", 1, 10,
+		tm(2026, 6, 10, 9, 0), tmPtr(2026, 6, 10, 13, 30), nil)
+	vol := mkVol("v1", []string{"06/10/2026"}, nil, tm(2026, 1, 1, 0, 0))
+
+	var log []assignment
+	if err := assignShiftsCore([]*types.Volunteer{vol}, []*types.WorkShift{morning, critical}, recordingAssign(&log)); err != nil {
+		t.Fatalf("assignShiftsCore: %v", err)
+	}
+	if len(log) != 1 || log[0].ShiftRef != critical.Ref {
+		t.Fatalf("assignments = %+v, want explicit higher priority first", log)
+	}
+}
+
 func TestAssignShifts_SkipsFullShifts(t *testing.T) {
 	// Shift already at capacity should be skipped
 	s := mkShift("s1", "Full", 1, 1, tm(2026, 6, 10, 9, 0), tmPtr(2026, 6, 10, 13, 0), nil)

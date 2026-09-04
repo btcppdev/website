@@ -283,8 +283,8 @@ func (s *server) accountingPrincipal(w http.ResponseWriter, r *http.Request) (*a
 	if principal == nil {
 		return nil, r
 	}
-	if principal.Identity == nil || !principal.Identity.IsGlobalAdmin() {
-		s.writeError(w, r, http.StatusForbidden, "forbidden", "A current global administrator role is required for shop accounting data.")
+	if principal.Identity == nil || !principal.Identity.IsAccountsAdmin() {
+		s.writeError(w, r, http.StatusForbidden, "forbidden", "The accts-admin permission is required for shop accounting data.")
 		return nil, r
 	}
 	return principal, r

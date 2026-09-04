@@ -120,6 +120,29 @@
             </section>
             {{ end }}
 
+            <section id="signup-settings" class="mb-6">
+                <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-4 shadow">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h3 class="text-sm font-semibold text-indigo-950">Volunteer signup flow</h3>
+                            <p class="mt-1 text-xs text-indigo-800">When enabled, applicants who confirm their email go directly to the shift picker when at least three shifts have space. Disable it to review applications before promoting them.</p>
+                        </div>
+                        <form method="POST" action="/{{ .Conf.Tag }}/volcoord/self-schedule" class="shrink-0">
+                            <label class="inline-flex cursor-pointer items-center gap-3 rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-950">
+                                <input type="checkbox" name="volunteer_self_schedule" value="1" {{ if .Conf.VolunteerSelfSchedule }}checked{{ end }} class="rounded border-indigo-300 text-indigo-700 focus:ring-indigo-600">
+                                Allow applicants to pick shifts
+                            </label>
+                            <button type="submit" class="ml-2 rounded-md bg-indigo-700 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-800">Save</button>
+                        </form>
+                    </div>
+                    {{ if .Conf.VolunteerSelfSchedule }}
+                    <p class="mt-3 text-xs font-semibold text-green-700">Enabled · email confirmation still happens before shift selection.</p>
+                    {{ else }}
+                    <p class="mt-3 text-xs font-semibold text-gray-600">Review required · confirmed applications remain Applied.</p>
+                    {{ end }}
+                </div>
+            </section>
+
             <!-- Status Filter -->
             <section id="filters" class="mb-6">
                 <div class="bg-white shadow rounded-lg px-4 py-4 sm:px-6">
@@ -170,6 +193,14 @@
                             <button type="submit" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                                     onclick="return confirm('Auto-assign PendingShifts volunteers to open shifts? Each volunteer will be filled up to 3 shifts based on availability and preferences.')">
                                 Auto-Assign Shifts
+                            </button>
+                        </form>
+                        <form method="POST" action="/{{ .Conf.Tag }}/volcoord/remind-pending-shifts" class="inline">
+                            <button type="submit"
+                                    class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-amber-900 bg-amber-100 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                    {{ if eq .Stats.PendingNoShifts 0 }}disabled{{ end }}
+                                    onclick="return confirm('Resend the shift signup email to {{ .Stats.PendingNoShifts }} Pending Shifts volunteer(s) who have selected no shifts?')">
+                                Remind Pending Without Shifts ({{ .Stats.PendingNoShifts }})
                             </button>
                         </form>
                     </div>

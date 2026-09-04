@@ -92,16 +92,19 @@
                             </select>
                             <p class="mt-1 text-xs text-gray-500" data-hackathon-access-note>Headline and Hackathon sponsors receive all-submission access automatically.</p>
                         </div>
+                        <div class="md:col-span-8 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">
+                            Manager access belongs to the organization, not this event. Anyone already managing the selected organization will automatically be able to manage this sponsorship too; leave the manager fields blank unless you’re adding someone new.
+                        </div>
                         <div class="relative md:col-span-4" data-sponsor-manager-picker data-search-url="/{{ .Conf.Tag }}/admin/sponsors/people/search">
-                            <label for="ManagerSearch" class="block text-xs font-medium text-gray-700 mb-1">Existing organization manager</label>
+                            <label for="ManagerSearch" class="block text-xs font-medium text-gray-700 mb-1">Add another organization manager</label>
                             <input type="search" id="ManagerSearch" autocomplete="off" data-manager-search
                                 class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
                                 placeholder="Search by name, email, or phone">
                             <input type="hidden" name="ManagerPersonID" data-manager-person-id>
-                            <p class="mt-1 text-xs text-gray-500" data-manager-help>Optional. Select an existing account for immediate sponsor-dashboard access.</p>
+                            <p class="mt-1 text-xs text-gray-500" data-manager-help>Optional. Existing organization managers already have access.</p>
                         </div>
                         <fieldset class="md:col-span-4">
-                            <legend class="block text-xs font-medium text-gray-700 mb-1">Or invite a new manager</legend>
+                            <legend class="block text-xs font-medium text-gray-700 mb-1">Or invite someone new to the organization</legend>
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <label class="block text-xs text-gray-700">Name
                                     <input type="text" name="ManagerName" autocomplete="name" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="Ada Nakamoto">
@@ -110,7 +113,7 @@
                                     <input type="email" name="ManagerEmail" autocomplete="email" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="ada@example.com">
                                 </label>
                             </div>
-                            <p class="mt-1 text-xs text-gray-500">We’ll email a secure 72-hour login link. New users complete account setup first.</p>
+                            <p class="mt-1 text-xs text-gray-500">We’ll email a secure 72-hour login link. Once accepted, they can manage this organization’s current and future sponsorships.</p>
                         </fieldset>
                         <fieldset class="md:col-span-8">
                             <legend class="block text-xs font-medium text-gray-700 mb-1">Sponsor dashboard permissions</legend>
@@ -268,15 +271,15 @@
                                             <p class="mt-1 text-xs text-gray-500" data-hackathon-access-note>Headline and Hackathon sponsors receive all-submission access automatically.</p>
                                         </div>
                                         <div class="relative md:col-span-3" data-sponsor-manager-picker data-search-url="/{{ $.Conf.Tag }}/admin/sponsors/people/search">
-                                            <label class="block text-xs font-medium text-gray-700 mb-1">Add existing organization manager</label>
+                                            <label class="block text-xs font-medium text-gray-700 mb-1">Add another organization manager</label>
                                             <input type="search" autocomplete="off" data-manager-search
                                                 class="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
                                                 placeholder="Search by name, email, or phone">
                                             <input type="hidden" name="ManagerPersonID" data-manager-person-id>
-                                            <p class="mt-1 text-xs text-gray-500" data-manager-help>Optional. Existing managers are not removed.</p>
+                                            <p class="mt-1 text-xs text-gray-500" data-manager-help>Optional. Existing organization managers already have access to every sponsorship for this organization.</p>
                                         </div>
                                         <fieldset class="md:col-span-3">
-                                            <legend class="block text-xs font-medium text-gray-700 mb-1">Or invite a new manager</legend>
+                                            <legend class="block text-xs font-medium text-gray-700 mb-1">Or invite someone new to the organization</legend>
                                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                                 <label class="block text-xs text-gray-700">Name
                                                     <input type="text" name="ManagerName" autocomplete="name" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="Ada Nakamoto">
@@ -285,7 +288,7 @@
                                                     <input type="email" name="ManagerEmail" autocomplete="email" class="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm" placeholder="ada@example.com">
                                                 </label>
                                             </div>
-                                            <p class="mt-1 text-xs text-gray-500">We’ll email a secure 72-hour login link. New users complete account setup first.</p>
+                                            <p class="mt-1 text-xs text-gray-500">We’ll email a secure 72-hour login link. Once accepted, they can manage this organization’s current and future sponsorships.</p>
                                         </fieldset>
                                         <fieldset class="md:col-span-6">
                                             <legend class="block text-xs font-medium text-gray-700 mb-1">Sponsor dashboard permissions</legend>

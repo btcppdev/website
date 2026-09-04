@@ -23,6 +23,8 @@ func organizationInviteTokenHash(token string) string {
 	return fmt.Sprintf("%x", sum[:])
 }
 
+var ErrOrganizationMemberInvitePending = errors.New("an unexpired invitation is already pending for that email")
+
 func CreateOrganizationMemberInvite(ctx *config.AppContext, organizationID, email, role, invitedByPersonID string, expiresAt time.Time) (string, *types.OrganizationMemberInvite, error) {
 	if ctx == nil || ctx.DB == nil {
 		return "", nil, fmt.Errorf("database is not configured")
@@ -70,6 +72,24 @@ func CreateOrganizationMemberInvite(ctx *config.AppContext, organizationID, emai
 	if alreadyMember {
 		return "", nil, fmt.Errorf("that email already belongs to an active organization member")
 	}
+	var pendingInvite types.OrganizationMemberInvite
+	err = tx.QueryRow(dbctx, `
+		SELECT id::text, organization_id::text, email::text, role,
+			coalesce(invited_by_person_id::text, ''), expires_at, created_at
+		FROM organization_member_invites
+		WHERE organization_id = $1::uuid AND email = $2::citext
+		  AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+	`, organizationID, email).Scan(
+		&pendingInvite.ID, &pendingInvite.OrganizationID, &pendingInvite.Email,
+		&pendingInvite.Role, &pendingInvite.InvitedByPersonID,
+		&pendingInvite.ExpiresAt, &pendingInvite.CreatedAt,
+	)
+	if err == nil {
+		return "", &pendingInvite, ErrOrganizationMemberInvitePending
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", nil, fmt.Errorf("check pending organization member invite: %w", err)
+	}
 	if _, err := tx.Exec(dbctx, `
 		UPDATE organization_member_invites
 		SET revoked_at = now()
@@ -100,6 +120,106 @@ func CreateOrganizationMemberInvite(ctx *config.AppContext, organizationID, emai
 		return "", nil, fmt.Errorf("commit organization member invite: %w", err)
 	}
 	return token, invite, nil
+}
+
+// ReplaceOrganizationMemberInvite explicitly rotates a pending invitation.
+// Raw tokens are never stored, so replacing is the only safe way to provide a
+// link again after its one-time display.
+func ReplaceOrganizationMemberInvite(ctx *config.AppContext, organizationID, inviteID, invitedByPersonID string, expiresAt time.Time) (string, *types.OrganizationMemberInvite, error) {
+	if ctx == nil || ctx.DB == nil {
+		return "", nil, fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	inviteID = strings.TrimSpace(inviteID)
+	invitedByPersonID = strings.TrimSpace(invitedByPersonID)
+	if organizationID == "" || inviteID == "" {
+		return "", nil, fmt.Errorf("organization and invitation are required")
+	}
+	if expiresAt.IsZero() {
+		expiresAt = time.Now().Add(72 * time.Hour)
+	}
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", nil, fmt.Errorf("generate replacement organization invite: %w", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("begin replacement organization invite: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+
+	invite := &types.OrganizationMemberInvite{
+		OrganizationID: organizationID, InvitedByPersonID: invitedByPersonID,
+		ExpiresAt: expiresAt,
+	}
+	if err := tx.QueryRow(dbctx, `
+		SELECT email::text, role
+		FROM organization_member_invites
+		WHERE id = $1::uuid AND organization_id = $2::uuid
+		  AND accepted_at IS NULL AND revoked_at IS NULL
+		FOR UPDATE
+	`, inviteID, organizationID).Scan(&invite.Email, &invite.Role); err != nil {
+		return "", nil, fmt.Errorf("pending organization invitation not found")
+	}
+	if _, err := tx.Exec(dbctx, `
+		UPDATE organization_member_invites SET revoked_at = now()
+		WHERE id = $1::uuid
+	`, inviteID); err != nil {
+		return "", nil, fmt.Errorf("revoke previous organization invite: %w", err)
+	}
+	if err := tx.QueryRow(dbctx, `
+		INSERT INTO organization_member_invites (
+			organization_id, email, role, token_hash,
+			invited_by_person_id, expires_at
+		) VALUES ($1::uuid, $2::citext, $3, $4, NULLIF($5, '')::uuid, $6)
+		RETURNING id::text, created_at
+	`, organizationID, invite.Email, invite.Role, organizationInviteTokenHash(token),
+		invitedByPersonID, expiresAt).Scan(&invite.ID, &invite.CreatedAt); err != nil {
+		return "", nil, fmt.Errorf("create replacement organization invite: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return "", nil, fmt.Errorf("commit replacement organization invite: %w", err)
+	}
+	return token, invite, nil
+}
+
+func ListPendingOrganizationMemberInvites(ctx *config.AppContext, organizationID string) ([]*types.OrganizationMemberInvite, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	if organizationID == "" {
+		return nil, nil
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT id::text, organization_id::text, email::text, role,
+			coalesce(invited_by_person_id::text, ''), expires_at, created_at
+		FROM organization_member_invites
+		WHERE organization_id = $1::uuid
+		  AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+		ORDER BY created_at DESC
+	`, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("list pending organization member invites %s: %w", organizationID, err)
+	}
+	defer rows.Close()
+	var out []*types.OrganizationMemberInvite
+	for rows.Next() {
+		invite := &types.OrganizationMemberInvite{}
+		if err := rows.Scan(
+			&invite.ID, &invite.OrganizationID, &invite.Email, &invite.Role,
+			&invite.InvitedByPersonID, &invite.ExpiresAt, &invite.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan pending organization member invite: %w", err)
+		}
+		out = append(out, invite)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pending organization member invites: %w", err)
+	}
+	return out, nil
 }
 
 func GetOrganizationMemberInviteByToken(ctx *config.AppContext, token string) (*types.OrganizationMemberInvite, error) {
@@ -462,6 +582,7 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			coalesce(entitlements.created_at, sponsorships.created_at),
 			coalesce(entitlements.updated_at, sponsorships.updated_at),
 			coalesce(competitions.id::text, ''), coalesce(competitions.title, ''),
+			competitions.hacking_starts_at,
 			(SELECT count(*) FROM awards
 			 JOIN competitions ON competitions.id = awards.competition_id
 			 WHERE competitions.conference_id = conferences.id
@@ -510,6 +631,7 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			Entitlement: &types.SponsorshipEntitlement{},
 		}
 		var conferenceID, competitionID, competitionTitle string
+		var hackingStartsAt pgtype.Timestamptz
 		if err := rows.Scan(
 			&event.Sponsorship.Ref, &event.Sponsorship.Name,
 			&event.Sponsorship.Level, &event.Sponsorship.Label,
@@ -523,7 +645,7 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 			&event.Entitlement.ParticipantContactExport,
 			&event.Entitlement.CanEditOrganization,
 			&event.Entitlement.CreatedAt, &event.Entitlement.UpdatedAt,
-			&competitionID, &competitionTitle,
+			&competitionID, &competitionTitle, &hackingStartsAt,
 			&event.AwardCount, &event.WinnerCount, &event.TicketsIssued,
 		); err != nil {
 			return nil, fmt.Errorf("scan sponsor dashboard event: %w", err)
@@ -536,6 +658,10 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 		}
 		if competitionID != "" {
 			event.Competition = &types.HackathonCompetition{ID: competitionID, ConferenceID: conferenceID, Title: competitionTitle}
+			if hackingStartsAt.Valid {
+				value := hackingStartsAt.Time
+				event.Competition.HackingStartsAt = &value
+			}
 		}
 		out = append(out, event)
 	}
@@ -749,10 +875,7 @@ type SponsorAwardProposalInput struct {
 	PrizeValueText      string
 }
 
-func CreateSponsorAwardProposal(ctx *config.AppContext, in SponsorAwardProposalInput) (*types.SponsorAwardProposal, error) {
-	if ctx == nil || ctx.DB == nil {
-		return nil, fmt.Errorf("database is not configured")
-	}
+func normalizeSponsorAwardProposalInput(in SponsorAwardProposalInput) (SponsorAwardProposalInput, error) {
 	in.SponsorshipID = strings.TrimSpace(in.SponsorshipID)
 	in.ConferenceID = strings.TrimSpace(in.ConferenceID)
 	in.CompetitionID = strings.TrimSpace(in.CompetitionID)
@@ -766,21 +889,33 @@ func CreateSponsorAwardProposal(ctx *config.AppContext, in SponsorAwardProposalI
 	in.PrizeDescription = strings.TrimSpace(in.PrizeDescription)
 	in.PrizeValueText = strings.TrimSpace(in.PrizeValueText)
 	if in.Title == "" || in.PrizeTitle == "" {
-		return nil, fmt.Errorf("award and prize titles are required")
+		return SponsorAwardProposalInput{}, fmt.Errorf("award and prize titles are required")
 	}
 	if in.MaxAwardees < 1 || in.MaxAwardees > 100 {
-		return nil, fmt.Errorf("max awardees must be between 1 and 100")
+		return SponsorAwardProposalInput{}, fmt.Errorf("max awardees must be between 1 and 100")
 	}
 	switch in.PrizeType {
 	case PrizeTypeSats, PrizeTypeInKind, PrizeTypeTickets, PrizeTypeTrophy:
 	default:
-		return nil, fmt.Errorf("unsupported prize type")
+		return SponsorAwardProposalInput{}, fmt.Errorf("unsupported prize type")
 	}
 	value, err := strconv.ParseInt(in.PrizeValueText, 10, 64)
 	if err != nil || value <= 0 {
-		return nil, fmt.Errorf("prize value must be a positive whole number of satoshis")
+		return SponsorAwardProposalInput{}, fmt.Errorf("prize value must be a positive whole number of satoshis")
 	}
 	in.PrizeValueText = strconv.FormatInt(value, 10)
+	return in, nil
+}
+
+func CreateSponsorAwardProposal(ctx *config.AppContext, in SponsorAwardProposalInput) (*types.SponsorAwardProposal, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	var err error
+	in, err = normalizeSponsorAwardProposalInput(in)
+	if err != nil {
+		return nil, err
+	}
 
 	dbctx := ctx.DatabaseContext()
 	tx, err := ctx.DB.Begin(dbctx)
@@ -802,6 +937,8 @@ func CreateSponsorAwardProposal(ctx *config.AppContext, in SponsorAwardProposalI
 		  AND sponsorships.archived_at IS NULL
 		  AND lower(sponsorships.status) IN ('paid', 'committed')
 		  AND (conferences.end_date IS NULL OR conferences.end_date >= now())
+		  AND (coalesce(competitions.hacking_starts_at, conferences.start_date) IS NULL
+		       OR coalesce(competitions.hacking_starts_at, conferences.start_date) > now())
 		FOR UPDATE OF entitlements
 	`, in.SponsorshipID, in.ConferenceID, in.CompetitionID, in.OrganizationID).Scan(&proposalLimit); err != nil {
 		return nil, fmt.Errorf("this sponsorship cannot propose prizes for that hackathon")
@@ -853,6 +990,136 @@ func CreateSponsorAwardProposal(ctx *config.AppContext, in SponsorAwardProposalI
 	return proposal, nil
 }
 
+// UpdateSponsorAwardProposal updates both proposals awaiting review and the
+// live award/prize created from an approved proposal. The database timing
+// check is authoritative so a stale dashboard cannot edit after hacking starts.
+func UpdateSponsorAwardProposal(ctx *config.AppContext, proposalID, organizationID string, in SponsorAwardProposalInput) (*types.SponsorAwardProposal, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	proposalID = strings.TrimSpace(proposalID)
+	organizationID = strings.TrimSpace(organizationID)
+	var err error
+	in, err = normalizeSponsorAwardProposalInput(in)
+	if err != nil {
+		return nil, err
+	}
+	if proposalID == "" || organizationID == "" {
+		return nil, fmt.Errorf("challenge and organization are required")
+	}
+
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin sponsor challenge update: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+
+	proposal := &types.SponsorAwardProposal{}
+	var awardID, prizeID string
+	var hackingStartsAt, conferenceStartsAt pgtype.Timestamptz
+	if err := tx.QueryRow(dbctx, `
+		SELECT proposals.id::text, proposals.sponsorship_id::text,
+			proposals.conference_id::text, proposals.competition_id::text,
+			sponsorships.organization_id::text, proposals.status,
+			coalesce(proposals.award_id::text, ''),
+			coalesce(primary_prize.id::text, ''),
+			competitions.hacking_starts_at, conferences.start_date
+		FROM sponsor_award_proposals proposals
+		JOIN sponsorships ON sponsorships.id = proposals.sponsorship_id
+		JOIN competitions ON competitions.id = proposals.competition_id
+		JOIN conferences ON conferences.id = proposals.conference_id
+		LEFT JOIN LATERAL (
+			SELECT prizes.id FROM prizes
+			WHERE prizes.award_id = proposals.award_id
+			ORDER BY prizes.created_at, prizes.id LIMIT 1
+		) primary_prize ON true
+		WHERE proposals.id = $1::uuid
+		  AND sponsorships.organization_id = $2::uuid
+		FOR UPDATE OF proposals
+	`, proposalID, organizationID).Scan(
+		&proposal.ID, &proposal.SponsorshipID, &proposal.ConferenceID,
+		&proposal.CompetitionID, &proposal.OrganizationID, &proposal.Status,
+		&awardID, &prizeID, &hackingStartsAt, &conferenceStartsAt,
+	); err != nil {
+		return nil, fmt.Errorf("sponsor challenge not found")
+	}
+	if proposal.Status != "pending" && proposal.Status != "approved" {
+		return nil, fmt.Errorf("only pending or approved challenges can be edited")
+	}
+	startsAt := conferenceStartsAt
+	if hackingStartsAt.Valid {
+		startsAt = hackingStartsAt
+	}
+	if startsAt.Valid && !startsAt.Time.After(time.Now()) {
+		return nil, fmt.Errorf("this challenge is read-only because the hackathon has started")
+	}
+
+	if _, err := tx.Exec(dbctx, `
+		UPDATE sponsor_award_proposals SET
+			title = $2, description = $3, judging_instructions = $4,
+			max_awardees = $5, opt_in_required = $6, finalists_only = $7,
+			prize_type = $8, prize_title = $9, prize_description = $10,
+			prize_value_text = $11
+		WHERE id = $1::uuid
+	`, proposal.ID, in.Title, in.Description, in.JudgingInstructions,
+		in.MaxAwardees, in.OptInRequired, in.FinalistsOnly, in.PrizeType,
+		in.PrizeTitle, in.PrizeDescription, in.PrizeValueText); err != nil {
+		return nil, fmt.Errorf("update sponsor challenge proposal: %w", err)
+	}
+	if proposal.Status == "approved" {
+		if awardID == "" || prizeID == "" {
+			return nil, fmt.Errorf("approved challenge is missing its award or prize")
+		}
+		commandTag, err := tx.Exec(dbctx, `
+			UPDATE awards SET title = $3, description = $4, judging_instructions = $5,
+				max_awardees = $6, opt_in_required = $7, finalists_only = $8
+			WHERE id = $1::uuid AND competition_id = $2::uuid
+			  AND sponsored_by_org_id = $9::uuid AND archived_at IS NULL
+		`, awardID, proposal.CompetitionID, in.Title, in.Description,
+			in.JudgingInstructions, in.MaxAwardees, in.OptInRequired,
+			in.FinalistsOnly, organizationID)
+		if err != nil {
+			return nil, fmt.Errorf("update approved sponsor challenge: %w", err)
+		}
+		if commandTag.RowsAffected() != 1 {
+			return nil, fmt.Errorf("approved sponsor challenge is no longer available")
+		}
+		if !in.OptInRequired {
+			if _, err := tx.Exec(dbctx, `DELETE FROM project_award_opt_ins WHERE award_id = $1::uuid`, awardID); err != nil {
+				return nil, fmt.Errorf("clear sponsor challenge opt-ins: %w", err)
+			}
+		}
+		commandTag, err = tx.Exec(dbctx, `
+			UPDATE prizes SET prize_type = $3, title = $4, description = $5, value_text = $6
+			WHERE id = $1::uuid AND award_id = $2::uuid
+		`, prizeID, awardID, in.PrizeType, in.PrizeTitle,
+			in.PrizeDescription, in.PrizeValueText)
+		if err != nil {
+			return nil, fmt.Errorf("update approved sponsor challenge prize: %w", err)
+		}
+		if commandTag.RowsAffected() != 1 {
+			return nil, fmt.Errorf("approved sponsor challenge prize is no longer available")
+		}
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return nil, fmt.Errorf("commit sponsor challenge update: %w", err)
+	}
+	proposal.Title = in.Title
+	proposal.Description = in.Description
+	proposal.JudgingInstructions = in.JudgingInstructions
+	proposal.MaxAwardees = in.MaxAwardees
+	proposal.OptInRequired = in.OptInRequired
+	proposal.FinalistsOnly = in.FinalistsOnly
+	proposal.PrizeType = in.PrizeType
+	proposal.PrizeTitle = in.PrizeTitle
+	proposal.PrizeDescription = in.PrizeDescription
+	proposal.PrizeValueText = in.PrizeValueText
+	proposal.AwardID = awardID
+	proposal.PrizeID = prizeID
+	return proposal, nil
+}
+
 func ListSponsorAwardProposalsForOrganization(ctx *config.AppContext, organizationID string) ([]*types.SponsorAwardProposal, error) {
 	return listSponsorAwardProposals(ctx, `WHERE sponsorships.organization_id = $1::uuid`, strings.TrimSpace(organizationID))
 }
@@ -875,11 +1142,21 @@ func listSponsorAwardProposals(ctx *config.AppContext, where string, arg string)
 			proposals.prize_type, proposals.prize_title, proposals.prize_description,
 			proposals.prize_value_text, proposals.status, proposals.review_notes,
 			coalesce(proposals.reviewed_by_person_id::text, ''), proposals.reviewed_at,
-			coalesce(proposals.award_id::text, ''), proposals.created_at, proposals.updated_at
+			coalesce(proposals.award_id::text, ''), proposals.created_at, proposals.updated_at,
+			coalesce(primary_prize.id::text, ''),
+			coalesce(nullif(conferences.description, ''), conferences.tag), competitions.title,
+			coalesce(competitions.hacking_starts_at, conferences.start_date)
 		FROM sponsor_award_proposals proposals
 		JOIN sponsorships ON sponsorships.id = proposals.sponsorship_id
 		JOIN organizations ON organizations.id = sponsorships.organization_id
+		JOIN competitions ON competitions.id = proposals.competition_id
+		JOIN conferences ON conferences.id = proposals.conference_id
 		LEFT JOIN people submitter ON submitter.id = proposals.submitted_by_person_id
+		LEFT JOIN LATERAL (
+			SELECT prizes.id FROM prizes
+			WHERE prizes.award_id = proposals.award_id
+			ORDER BY prizes.created_at, prizes.id LIMIT 1
+		) primary_prize ON true
 		`+where+`
 		ORDER BY proposals.created_at DESC
 	`, arg)
@@ -890,7 +1167,7 @@ func listSponsorAwardProposals(ctx *config.AppContext, where string, arg string)
 	var out []*types.SponsorAwardProposal
 	for rows.Next() {
 		proposal := &types.SponsorAwardProposal{}
-		var reviewedAt pgtype.Timestamptz
+		var reviewedAt, editableUntil pgtype.Timestamptz
 		if err := rows.Scan(&proposal.ID, &proposal.SponsorshipID, &proposal.ConferenceID,
 			&proposal.CompetitionID, &proposal.OrganizationID, &proposal.OrganizationName,
 			&proposal.SubmittedByPersonID, &proposal.SubmittedByName, &proposal.Title,
@@ -898,12 +1175,18 @@ func listSponsorAwardProposals(ctx *config.AppContext, where string, arg string)
 			&proposal.OptInRequired, &proposal.FinalistsOnly, &proposal.PrizeType,
 			&proposal.PrizeTitle, &proposal.PrizeDescription, &proposal.PrizeValueText,
 			&proposal.Status, &proposal.ReviewNotes, &proposal.ReviewedByPersonID,
-			&reviewedAt, &proposal.AwardID, &proposal.CreatedAt, &proposal.UpdatedAt); err != nil {
+			&reviewedAt, &proposal.AwardID, &proposal.CreatedAt, &proposal.UpdatedAt,
+			&proposal.PrizeID, &proposal.ConferenceTitle, &proposal.CompetitionTitle,
+			&editableUntil); err != nil {
 			return nil, fmt.Errorf("scan sponsor award proposal: %w", err)
 		}
 		if reviewedAt.Valid {
 			value := reviewedAt.Time
 			proposal.ReviewedAt = &value
+		}
+		if editableUntil.Valid {
+			value := editableUntil.Time
+			proposal.EditableUntil = &value
 		}
 		out = append(out, proposal)
 	}
