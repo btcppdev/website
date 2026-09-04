@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
-	"os"
+	"strings"
 	"time"
 
 	"btcpp-web/internal/auth"
@@ -24,14 +25,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if env.Prod {
-		log.Fatal("refusing to mint dev login link while PROD=true")
-	}
-	env.HMACKey, err = types.DeriveHMACKey(os.Getenv("HMAC_SECRET"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := env.Validate(); err != nil {
+	if err := validateDevLoginEnv(env); err != nil {
 		log.Fatal(err)
 	}
 
@@ -48,4 +42,24 @@ func main() {
 		log.Fatal("unable to create development login link")
 	}
 	fmt.Println(link)
+}
+
+// validateDevLoginEnv checks only what this one-purpose helper consumes.
+// Full server validation includes optional runtime integrations such as X
+// Studio; those should not prevent a local, database-backed login link from
+// being minted.
+func validateDevLoginEnv(env *types.EnvConfig) error {
+	if env == nil {
+		return errors.New("nil environment config")
+	}
+	if env.Prod {
+		return errors.New("refusing to mint dev login link while PROD=true")
+	}
+	if strings.TrimSpace(env.DatabaseURL) == "" {
+		return errors.New("missing required config: DATABASE_URL")
+	}
+	if strings.TrimSpace(env.Host) == "" {
+		return errors.New("missing required config: HOST")
+	}
+	return nil
 }

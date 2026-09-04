@@ -423,6 +423,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	for _, b := range pastBlocks {
 		enrichBlock(b)
 	}
+	pendingSpeakerInvitations := dashboardPendingSpeakerInvitations(activeBlocks)
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "dashboard.tmpl", &DashboardPage{
 		Name:                        name,
@@ -435,6 +436,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		ArchiveOwnerPath:            archiveOwnerPath,
 		SpeakerConfs:                activeSC,
 		PastSpeakerConfs:            pastSC,
+		PendingSpeakerInvitations:   pendingSpeakerInvitations,
 		VolApps:                     activeVol,
 		PastVolApps:                 pastVol,
 		VolInfos:                    volInfosByConf,
@@ -469,6 +471,24 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 	ctx.Infos.Printf("/dashboard id=%s render=%s", reqID, time.Since(tRender))
+}
+
+func dashboardPendingSpeakerInvitations(blocks []*EventBlock) []*types.Proposal {
+	seen := make(map[string]bool)
+	var invitations []*types.Proposal
+	for _, block := range blocks {
+		if block == nil || block.SpeakerConf == nil {
+			continue
+		}
+		for _, proposal := range block.SpeakerConf.Proposals {
+			if proposal == nil || proposal.Status != "Invited" || seen[proposal.ID] {
+				continue
+			}
+			seen[proposal.ID] = true
+			invitations = append(invitations, proposal)
+		}
+	}
+	return invitations
 }
 
 func dashboardIdentityEmail(identity *auth.Identity) string {

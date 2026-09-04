@@ -4027,7 +4027,33 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 
 		ctx.Infos.Printf("parsed talkapp: %v", talkapp)
 
-		submitResult, err := newSubmitPipeline(ctx).Submit(&talkapp)
+		var pendingInvitation *types.Proposal
+		if identity, resolveErr := auth.Resolve(r, ctx); resolveErr == nil && identity != nil {
+			if submittedPerson, personErr := getters.GetPersonByEmail(ctx, talkapp.Email); personErr == nil && submittedPerson != nil && submittedPerson.ID == identity.PersonID {
+				pendingInvitation, err = getters.GetPendingDirectSpeakerInvitation(ctx, identity.PersonID, conf.Ref)
+				if err != nil {
+					ctx.Err.Printf("/talk/%s pending direct invitation lookup failed: %s", conf.Tag, err)
+					w.Write([]byte(helpers.ErrSpeakerApp("Unable to check your speaker invitation.")))
+					return
+				}
+			}
+		}
+
+		claimedInvitation := pendingInvitation != nil
+		var submitResult SubmitResult
+		if claimedInvitation {
+			submitResult, err = newSubmitPipeline(ctx).JoinProposal(&talkapp, pendingInvitation.ID)
+			if err == nil {
+				dur := durationFromPresType(talkapp.PresType)
+				err = getters.UpdateProposal(ctx, pendingInvitation.ID, getters.ProposalInput{
+					Title: talkapp.TalkTitle, Description: talkapp.Description, Setup: talkapp.Setup,
+					Comments: talkapp.Comments, TalkType: mapPresTypeToTalkType(talkapp.PresType),
+					DesiredDuration: dur, AvailDuration: dur,
+				})
+			}
+		} else {
+			submitResult, err = newSubmitPipeline(ctx).Submit(&talkapp)
+		}
 		if err != nil {
 			ctx.Err.Printf("/talk/{conf} submit pipeline failed %s", err)
 			if errors.Is(err, ErrDuplicateSpeakerEmail) {
@@ -4058,22 +4084,46 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 			ctx.Err.Printf("!!! Unable to subscribe to newsletter %s: %v", err, talkapp)
 		}
 
-		/* Send the application-received ack via the OnlyFor
-		   "talkapp" letter. */
-		sendTalkAppLetter(ctx, conf, submitResult, talkapp.Email)
+		if claimedInvitation {
+			acceptRes, acceptErr := newAcceptPipeline(ctx).AcceptProposal(pendingInvitation.ID)
+			if acceptErr != nil {
+				ctx.Err.Printf("/talk/%s claim direct invitation failed: %s", conf.Tag, acceptErr)
+				w.Write([]byte(helpers.ErrSpeakerApp("Your details were saved, but the invitation could not be accepted. Please try again from your dashboard.")))
+				return
+			}
+			if !acceptRes.AlreadyAccepted {
+				pendingInvitation.Title = talkapp.TalkTitle
+				pendingInvitation.Description = talkapp.Description
+				pendingInvitation.Setup = talkapp.Setup
+				pendingInvitation.TalkType = mapPresTypeToTalkType(talkapp.PresType)
+				fanoutAcceptedProposal(ctx, pendingInvitation, conf)
+			}
+		} else {
+			/* Send the application-received ack via the OnlyFor
+			   "talkapp" letter. */
+			sendTalkAppLetter(ctx, conf, submitResult, talkapp.Email)
+		}
 
 		/* When the form was opened from the dashboard, bounce the user
 		   back to the dashboard rather than dropping them on a
 		   standalone success page. HTMX consumes HX-Redirect to
 		   navigate the whole page. */
 		if r.URL.Query().Get("from") == "dashboard" {
-			flash := url.QueryEscape("Thanks — your talk proposal is in.")
+			message := "Thanks — your talk proposal is in."
+			if claimedInvitation {
+				message = "Invitation accepted — your talk details are saved."
+			}
+			flash := url.QueryEscape(message)
 			w.Header().Set("HX-Redirect", "/dashboard?flash="+flash)
 			w.WriteHeader(http.StatusOK)
 			return
 		}
 
-		w.Write([]byte(helpers.SuccessApp("Your speaker application has been submitted! We'll be in touch.")))
+		if claimedInvitation {
+			w.Write([]byte(helpers.SuccessApp("Invitation accepted! Your talk details are saved and your speaker ticket is on the way.")))
+		} else {
+			w.Write([]byte(helpers.SuccessApp("Your speaker application has been submitted! We'll be in touch.")))
+		}
 		return
 	}
 

@@ -16,13 +16,15 @@
         <div class="text-4xl">&#9989;</div>
         <div class="flex-1">
           <h1 class="text-xl font-bold text-gray-900">
-            {{ if .AttachedToExisting }}Co-speaker invited{{ else }}Invite sent{{ end }}
+            {{ if .AttachedToExisting }}Co-speaker invited{{ else if .ReusedInvitation }}Invitation already pending{{ else }}Invite sent{{ end }}
           </h1>
           {{ if .Speaker }}
           <p class="mt-1 text-sm text-gray-600">{{ .Speaker.Name }} &lt;{{ .Speaker.Email }}&gt; will receive the magic link by email.</p>
           {{ end }}
           {{ if .AttachedToExisting }}
           <p class="mt-1 text-sm text-gray-600">Attached as a co-speaker on <span class="font-medium">{{ .Proposal.Title }}</span>. They'll fill in their own SpeakerConf info via the link below.</p>
+          {{ else if .ReusedInvitation }}
+          <p class="mt-1 text-sm text-gray-600">This speaker already had a pending invitation for this event, so no duplicate proposal was created. The existing invitation link was reused and emailed again.</p>
           {{ else }}
           <p class="mt-1 text-sm text-gray-600">A placeholder proposal is in <span class="font-medium">Invited</span> status. The speaker uses the link below to fill in their talk title, description, and bio.</p>
           {{ end }}

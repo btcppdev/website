@@ -15024,6 +15024,84 @@ border-bottom: 1px solid var(--hack-ink);
 	box-shadow: 4px 4px 0 #e7dfd3;
 }
 
+.dashboard-invitation-panel {
+	margin: 0 0 24px;
+	padding: 24px 26px;
+	border-color: #b56a18 !important;
+	background: #fff8e8 !important;
+	box-shadow: 6px 6px 0 #f9af5e !important;
+}
+
+.dashboard-invitation-panel h2 {
+	margin: 5px 0 4px;
+	font-size: clamp(25px, 3vw, 34px);
+	font-weight: 800;
+	letter-spacing: -.035em;
+}
+
+.dashboard-invitation-panel > p {
+	margin: 0 0 18px;
+	color: #635b50;
+}
+
+.dashboard-invitation-list {
+	display: grid;
+	gap: 10px;
+}
+
+.dashboard-invitation-card {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+	padding: 15px 16px;
+	border: 1px solid #d8b47d;
+	background: #fff;
+}
+
+.dashboard-invitation-card strong,
+.dashboard-invitation-card span {
+	display: block;
+}
+
+.dashboard-invitation-card span {
+	margin-top: 3px;
+	color: #746b60;
+	font-size: 12px;
+}
+
+.dashboard-invitation-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+}
+
+.dashboard-invitation-actions a,
+.dashboard-invitation-actions button {
+	display: inline-flex;
+	align-items: center;
+	min-height: 36px;
+	box-sizing: border-box;
+	border: 1px solid #1b1a17;
+	background: #1b1a17;
+	color: #fff;
+	padding: 7px 12px;
+	font: 700 12px/1.2 "IBM Plex Mono", ui-monospace, monospace;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.dashboard-invitation-actions button.is-secondary {
+	background: #fff;
+	color: #4d473f;
+}
+
+@media (max-width: 680px) {
+	.dashboard-invitation-card { align-items: flex-start; flex-direction: column; }
+	.dashboard-invitation-actions { width: 100%; flex-wrap: wrap; }
+}
+
 .btcpp-dashboard-page .dashboard-workspace-widget {
 	border-color: var(--workspace-line);
 	background: #fff;

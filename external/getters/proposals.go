@@ -3,6 +3,7 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"strings"
@@ -21,6 +22,71 @@ type ProposalInput struct {
 	AvailDuration   int
 	ScheduleForTag  string // Conf tag, written to the ScheduleFor select
 	Status          string // initial value: "Applied"
+}
+
+// GetOrCreateDirectSpeakerInvitation atomically reuses an unresolved direct
+// invitation for a person/event. The partial unique index is the final guard
+// against concurrent admin submissions creating duplicates.
+func GetOrCreateDirectSpeakerInvitation(ctx *config.AppContext, speakerID, confTag, title, talkType string) (*types.Proposal, bool, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, false, fmt.Errorf("database is not configured")
+	}
+	speakerID = strings.TrimSpace(speakerID)
+	confTag = strings.TrimSpace(confTag)
+	if speakerID == "" || confTag == "" {
+		return nil, false, fmt.Errorf("speaker and conference are required")
+	}
+	confID, err := proposalConferenceIDPostgres(ctx, confTag)
+	if err != nil || confID == nil {
+		return nil, false, fmt.Errorf("conference %s not found", confTag)
+	}
+	var proposalID string
+	err = ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		INSERT INTO proposals (
+			conference_id, direct_invitee_person_id, title, description,
+			talk_type, status
+		) VALUES ($1, $2::uuid, $3, $4, $5, 'Invited')
+		ON CONFLICT (conference_id, direct_invitee_person_id)
+			WHERE status = 'Invited' AND direct_invitee_person_id IS NOT NULL
+		DO NOTHING
+		RETURNING id::text
+	`, confID, speakerID, strings.TrimSpace(title), types.PlaceholderDescription,
+		strings.TrimSpace(talkType)).Scan(&proposalID)
+	created := err == nil
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = ctx.DB.QueryRow(ctx.DatabaseContext(), `
+			SELECT id::text FROM proposals
+			WHERE conference_id = $1 AND direct_invitee_person_id = $2::uuid
+			  AND status = 'Invited'
+		`, confID, speakerID).Scan(&proposalID)
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("create or reuse direct speaker invitation: %w", err)
+	}
+	proposal, err := GetProposal(ctx, proposalID)
+	if err != nil {
+		return nil, false, err
+	}
+	return proposal, created, nil
+}
+
+func GetPendingDirectSpeakerInvitation(ctx *config.AppContext, speakerID, confRef string) (*types.Proposal, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	var proposalID string
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT id::text FROM proposals
+		WHERE conference_id = $1::uuid AND direct_invitee_person_id = $2::uuid
+		  AND status = 'Invited'
+	`, strings.TrimSpace(confRef), strings.TrimSpace(speakerID)).Scan(&proposalID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find pending direct speaker invitation: %w", err)
+	}
+	return GetProposal(ctx, proposalID)
 }
 
 // ProposalPatch is the API-editable proposal subset. Nil leaves a value

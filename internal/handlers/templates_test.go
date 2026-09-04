@@ -765,6 +765,22 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(adminDashboard.String(), `dashboard-workspace-hero__mark`) {
 		t.Fatalf("global admin dashboard retained workspace mark: %s", adminDashboard.String())
 	}
+	var personalDashboard bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&personalDashboard, "dashboard.tmpl", &DashboardPage{
+		Name: "Ada", Stats: &DashboardStats{},
+		PendingSpeakerInvitations: []*types.Proposal{{
+			ID: "speaker-invite-id", Title: types.PlaceholderTitlePrefix + "Ada)",
+			Status: "Invited", InviteToken: "invite-token",
+			ScheduleFor: &types.Conf{Tag: "dev26", Desc: "Local Dev", DateDesc: "Oct 2026", Location: "Austin"},
+		}},
+	}); err != nil {
+		t.Fatalf("render dashboard speaker invitation: %v", err)
+	}
+	for _, want := range []string{"Action needed · speaker invitation", "You’re invited to speak", "Local Dev speaker invitation", `href="/invite-speaker/speaker-invite-id?t=invite-token"`, "Complete invitation", `action="/dashboard/talks/speaker-invite-id/decline"`} {
+		if !strings.Contains(personalDashboard.String(), want) {
+			t.Fatalf("dashboard speaker invitation omitted %q: %s", want, personalDashboard.String())
+		}
+	}
 
 	var sponsorDashboard bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&sponsorDashboard, "dashboard_sponsor.tmpl", &SponsorDashboardPage{

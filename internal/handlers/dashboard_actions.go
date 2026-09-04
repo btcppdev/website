@@ -1280,6 +1280,14 @@ func DashboardAcceptInvite(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "This talk isn't currently invited — nothing to accept."), http.StatusSeeOther)
 		return
 	}
+	if proposal.Status == "Invited" && strings.HasPrefix(proposal.Title, types.PlaceholderTitlePrefix) {
+		if proposal.InviteToken == "" {
+			http.Redirect(w, r, dashboardRedirect(encHMAC, encEmail, "This invitation is missing its setup link. Please contact the organizers."), http.StatusSeeOther)
+			return
+		}
+		http.Redirect(w, r, helpers.InviteLink(ctx, proposal.ID, proposal.InviteToken), http.StatusSeeOther)
+		return
+	}
 	res, err := newAcceptPipeline(ctx).AcceptProposal(proposalID)
 	if err != nil {
 		ctx.Err.Printf("/dashboard accept pipeline: %s", err)

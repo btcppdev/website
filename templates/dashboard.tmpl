@@ -51,6 +51,32 @@
         </dl>
       </header>
 
+{{ if .PendingSpeakerInvitations }}
+<section id="speaker-invitations" class="dashboard-invitation-panel dashboard-workspace-panel">
+  <div class="dashboard-kicker">● Action needed · speaker invitation</div>
+  <h2>You’re invited to speak.</h2>
+  <p>Review each invitation, complete any missing talk details, and let the organizers know whether you can join.</p>
+  <div class="dashboard-invitation-list">
+    {{ range .PendingSpeakerInvitations }}
+    <article class="dashboard-invitation-card">
+      <div>
+        <strong>{{ if hasPrefix .Title "TBD (" }}{{ if .ScheduleFor }}{{ .ScheduleFor.Desc }}{{ else }}bitcoin++{{ end }} speaker invitation{{ else }}{{ .Title }}{{ end }}</strong>
+        <span>{{ if .ScheduleFor }}{{ .ScheduleFor.DateDesc }}{{ if .ScheduleFor.Location }} · {{ .ScheduleFor.Location }}{{ end }}{{ end }}</span>
+      </div>
+      <div class="dashboard-invitation-actions">
+        {{ if and (hasPrefix .Title "TBD (") .InviteToken }}
+        <a href="/invite-speaker/{{ .ID }}?t={{ .InviteToken | urlquery }}">Complete invitation →</a>
+        {{ else }}
+        <form method="POST" action="/dashboard/talks/{{ .ID }}/accept"><button type="submit">Accept invitation</button></form>
+        {{ end }}
+        <form method="POST" action="/dashboard/talks/{{ .ID }}/decline"><button type="submit" class="is-secondary">Decline</button></form>
+      </div>
+    </article>
+    {{ end }}
+  </div>
+</section>
+{{ end }}
+
 {{/* ---- Affiliate ---- */}}
 {{ if .HasAnyTicket }}
 <section id="affiliate" class="dashboard-affiliate dashboard-affiliate-cta">
@@ -415,6 +441,10 @@
                 </a>
                 {{ end }}
                 {{ if eq .Status "Invited" }}
+                {{ if and (hasPrefix .Title "TBD (") .InviteToken }}
+                <a href="/invite-speaker/{{ .ID }}?t={{ .InviteToken | urlquery }}"
+                   class="dashboard-inline-action is-primary">Complete invitation</a>
+                {{ else }}
                 <form method="POST" action="/dashboard/talks/{{ .ID }}/accept" class="inline">
                   <button type="submit"
                           class="dashboard-inline-action is-primary"
@@ -422,6 +452,7 @@
                     Accept invitation
                   </button>
                 </form>
+                {{ end }}
                 <form method="POST" action="/dashboard/talks/{{ .ID }}/decline" class="inline">
                   <button type="submit"
                           class="dashboard-inline-action"

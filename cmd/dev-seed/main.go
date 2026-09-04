@@ -42,6 +42,9 @@ const (
 	devVolAppMissiveID        = "00000000-0000-4000-8000-000000000045"
 	devVolSignupMissiveID     = "00000000-0000-4000-8000-000000000046"
 	devVolShiftsMissiveID     = "00000000-0000-4000-8000-000000000047"
+	devInvitedSpeakerID       = "00000000-0000-4000-8000-000000000048"
+	devInvitedSpeakerConfID   = "00000000-0000-4000-8000-000000000049"
+	devInvitedProposalID      = "00000000-0000-4000-8000-00000000004a"
 	devMerchProduct1ID        = "00000000-0000-4000-8000-000000000051"
 	devMerchProduct2ID        = "00000000-0000-4000-8000-000000000052"
 	devMerchProduct3ID        = "00000000-0000-4000-8000-000000000053"
@@ -580,7 +583,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Printf("seeded local dev conferences and dashboard fixture for dev-admin@example.test")
+	log.Printf("seeded local dev conferences and dashboard fixtures for dev-admin@example.test and dev-invited-speaker@example.test")
 }
 
 func seedCheckInPreviews(ctx context.Context, tx pgx.Tx, confID string) {
@@ -2386,6 +2389,80 @@ func seedDashboardFixtures(ctx context.Context, tx pgx.Tx, confID, pastConfID st
 	seedDashboardAffiliate(ctx, tx, confID, pastConfID)
 	seedDashboardArchiveTalk(ctx, tx, pastConfID)
 	seedDashboardVolunteer(ctx, tx, confID)
+	seedDashboardSpeakerInvitation(ctx, tx, confID)
+}
+
+func seedDashboardSpeakerInvitation(ctx context.Context, tx pgx.Tx, confID string) {
+	mustExec(ctx, tx, "seed invited speaker person", `
+		INSERT INTO people (id, name, company, bio, tshirt)
+		VALUES (
+			$1::uuid, 'Ivy Invitee', 'Pending Speakers Club',
+			'A local development fixture for reviewing the pending speaker invitation flow.',
+			'MM'
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			name = EXCLUDED.name,
+			company = EXCLUDED.company,
+			bio = EXCLUDED.bio,
+			tshirt = EXCLUDED.tshirt
+	`, devInvitedSpeakerID)
+	seedPersonEmail(ctx, tx, devInvitedSpeakerID, "dev-invited-speaker@example.test")
+
+	mustExec(ctx, tx, "seed invited speaker conf", `
+		INSERT INTO speaker_confs (
+			id, speaker_id, coming_from, availability, record_ok, visa,
+			first_event, dinner_rsvp, sponsor, company, invited_at
+		)
+		VALUES (
+			$1::uuid, $2::uuid, 'Chicago, IL', ARRAY[]::text[], '', 'Not needed',
+			true, false, false, 'Pending Speakers Club', now()
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			speaker_id = EXCLUDED.speaker_id,
+			coming_from = EXCLUDED.coming_from,
+			availability = EXCLUDED.availability,
+			company = EXCLUDED.company,
+			invited_at = EXCLUDED.invited_at,
+			viewed_at = NULL,
+			accepted_at = NULL
+	`, devInvitedSpeakerConfID, devInvitedSpeakerID)
+
+	mustExec(ctx, tx, "seed invited speaker conf conference link", `
+		INSERT INTO speaker_confs_conferences (speaker_conf_id, conference_id)
+		VALUES ($1::uuid, $2::uuid)
+		ON CONFLICT DO NOTHING
+	`, devInvitedSpeakerConfID, confID)
+
+	mustExec(ctx, tx, "seed invited speaker proposal", `
+		INSERT INTO proposals (
+			id, conference_id, direct_invitee_person_id, title, description,
+			setup, comments, talk_type, status, desired_duration_min,
+			avail_duration_min, invite_token
+		)
+		VALUES (
+			$1::uuid, $2::uuid, $3::uuid, 'TBD (Ivy Invitee)',
+			'The invited speaker will fill this in.', '',
+			'Seeded by cmd/dev-seed for pending invitation dashboard QA.',
+			'talk', 'Invited', 30, 30, 'dev-invited-speaker-token'
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			conference_id = EXCLUDED.conference_id,
+			direct_invitee_person_id = EXCLUDED.direct_invitee_person_id,
+			title = EXCLUDED.title,
+			description = EXCLUDED.description,
+			comments = EXCLUDED.comments,
+			talk_type = EXCLUDED.talk_type,
+			status = EXCLUDED.status,
+			desired_duration_min = EXCLUDED.desired_duration_min,
+			avail_duration_min = EXCLUDED.avail_duration_min,
+			invite_token = EXCLUDED.invite_token
+	`, devInvitedProposalID, confID, devInvitedSpeakerID)
+
+	mustExec(ctx, tx, "seed invited proposal speaker link", `
+		INSERT INTO proposals_speaker_confs (proposal_id, speaker_conf_id)
+		VALUES ($1::uuid, $2::uuid)
+		ON CONFLICT DO NOTHING
+	`, devInvitedProposalID, devInvitedSpeakerConfID)
 }
 
 func seedDashboardRegistrations(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {

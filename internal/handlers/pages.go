@@ -444,8 +444,9 @@ type DashboardPage struct {
 	HasPublicProfile bool
 
 	// Speaker side, split by whether the linked conf has ended.
-	SpeakerConfs     []*types.SpeakerConf
-	PastSpeakerConfs []*types.SpeakerConf
+	SpeakerConfs              []*types.SpeakerConf
+	PastSpeakerConfs          []*types.SpeakerConf
+	PendingSpeakerInvitations []*types.Proposal
 
 	// Volunteer side, same split.
 	VolApps     []*types.Volunteer
@@ -757,6 +758,7 @@ type AdminInviteSpeakerSentPage struct {
 	Proposal           *types.Proposal
 	MagicLink          string
 	AttachedToExisting bool
+	ReusedInvitation   bool
 	Year               uint
 }
 

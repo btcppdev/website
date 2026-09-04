@@ -106,7 +106,7 @@ func AdminInviteSpeakerSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 	}
 
 	// 2. Resolve proposal: attach to existing or create a fresh one.
-	proposal, attachedToExisting, err := resolveOrCreateInvitedProposal(ctx, conf, speaker, attachProposalID, talkType)
+	proposal, attachedToExisting, reusedInvitation, err := resolveOrCreateInvitedProposal(ctx, conf, speaker, attachProposalID, talkType)
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/invite-speaker resolve proposal: %s", conf.Tag, err)
 		formErr("Couldn't create or attach the proposal — see logs.")
@@ -165,8 +165,8 @@ func AdminInviteSpeakerSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 	// 7. Redirect (POST/redirect/GET) to the sent page so a refresh
 	// doesn't re-fire the invite.
 	http.Redirect(w, r,
-		fmt.Sprintf("/%s/admin/invite-speaker/sent?proposal=%s&existing=%t",
-			conf.Tag, proposal.ID, attachedToExisting),
+		fmt.Sprintf("/%s/admin/invite-speaker/sent?proposal=%s&existing=%t&reused=%t",
+			conf.Tag, proposal.ID, attachedToExisting, reusedInvitation),
 		http.StatusSeeOther)
 }
 
@@ -229,6 +229,7 @@ func AdminInviteSpeakerSent(w http.ResponseWriter, r *http.Request, ctx *config.
 		Proposal:           proposal,
 		MagicLink:          helpers.InviteLink(ctx, proposal.ID, proposal.InviteToken),
 		AttachedToExisting: r.URL.Query().Get("existing") == "true",
+		ReusedInvitation:   r.URL.Query().Get("reused") == "true",
 		Year:               helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/invite_speaker_sent.tmpl", page); err != nil {
@@ -275,43 +276,23 @@ func resolveOrCreateSpeaker(ctx *config.AppContext, speakerID, name, email strin
 // (panel co-speaker case) or a fresh Invited-status proposal seeded
 // with placeholder title/description. Returns the proposal and a flag
 // indicating whether an existing one was reused.
-func resolveOrCreateInvitedProposal(ctx *config.AppContext, conf *types.Conf, speaker *types.Speaker, attachProposalID, talkType string) (*types.Proposal, bool, error) {
+func resolveOrCreateInvitedProposal(ctx *config.AppContext, conf *types.Conf, speaker *types.Speaker, attachProposalID, talkType string) (*types.Proposal, bool, bool, error) {
 	if attachProposalID != "" {
 		p, err := getters.GetProposal(ctx, attachProposalID)
 		if err != nil || p == nil {
-			return nil, false, fmt.Errorf("attach proposal lookup: %w", err)
+			return nil, false, false, fmt.Errorf("attach proposal lookup: %w", err)
 		}
 		if p.ScheduleFor == nil || p.ScheduleFor.Ref != conf.Ref {
-			return nil, false, fmt.Errorf("attach proposal %s does not belong to conf %s", attachProposalID, conf.Tag)
+			return nil, false, false, fmt.Errorf("attach proposal %s does not belong to conf %s", attachProposalID, conf.Tag)
 		}
-		return p, true, nil
+		return p, true, false, nil
 	}
 	title := types.PlaceholderTitlePrefix + speaker.Name + ")"
-	pid, err := getters.CreateProposal(ctx, getters.ProposalInput{
-		Title:          title,
-		Description:    types.PlaceholderDescription,
-		TalkType:       talkType,
-		Status:         "Invited",
-		ScheduleForTag: conf.Tag,
-	})
+	p, created, err := getters.GetOrCreateDirectSpeakerInvitation(ctx, speaker.ID, conf.Tag, title, talkType)
 	if err != nil {
-		return nil, false, fmt.Errorf("create proposal: %w", err)
+		return nil, false, false, fmt.Errorf("create proposal: %w", err)
 	}
-	p, err := getters.GetProposal(ctx, pid)
-	if err != nil || p == nil {
-		// Worst case — fabricate a minimal Proposal so the rest of the
-		// flow can proceed; the next page render will pick up the real
-		// row from Notion.
-		return &types.Proposal{
-			ID:          pid,
-			Title:       title,
-			Description: types.PlaceholderDescription,
-			TalkType:    talkType,
-			Status:      "Invited",
-			ScheduleFor: conf,
-		}, false, nil
-	}
-	return p, false, nil
+	return p, false, !created, nil
 }
 
 // attachableProposals lists the proposals the organizer can attach a

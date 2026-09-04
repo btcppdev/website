@@ -1067,6 +1067,39 @@ func TestDatabaseSmokeUpsertSpeakerConfNormalizesNilAvailability(t *testing.T) {
 	}
 }
 
+func TestDatabaseSmokeDirectSpeakerInvitationDeduplicates(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	confID, tag := insertSmokeConference(t, ctx)
+	suffix := databaseSmokeSuffix()
+	speakerID, err := CreateSpeaker(ctx, SpeakerInput{
+		Name: "Direct Invite " + suffix, Email: "direct-invite-" + suffix + "@example.test",
+	})
+	if err != nil {
+		t.Fatalf("CreateSpeaker: %v", err)
+	}
+	t.Cleanup(func() { _, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id = $1::uuid`, speakerID) })
+
+	first, created, err := GetOrCreateDirectSpeakerInvitation(ctx, speakerID, tag, "TBD (Direct Invite)", "talk")
+	if err != nil || !created || first == nil {
+		t.Fatalf("first direct invitation: proposal=%+v created=%t err=%v", first, created, err)
+	}
+	second, created, err := GetOrCreateDirectSpeakerInvitation(ctx, speakerID, tag, "TBD (Direct Invite)", "workshop")
+	if err != nil || created || second == nil || second.ID != first.ID {
+		t.Fatalf("duplicate direct invitation: first=%+v second=%+v created=%t err=%v", first, second, created, err)
+	}
+	pending, err := GetPendingDirectSpeakerInvitation(ctx, speakerID, confID)
+	if err != nil || pending == nil || pending.ID != first.ID {
+		t.Fatalf("pending direct invitation: proposal=%+v err=%v", pending, err)
+	}
+	if err := UpdateProposalStatus(ctx, first.ID, "Accepted"); err != nil {
+		t.Fatalf("accept first direct invitation: %v", err)
+	}
+	third, created, err := GetOrCreateDirectSpeakerInvitation(ctx, speakerID, tag, "TBD (Second Talk)", "talk")
+	if err != nil || !created || third == nil || third.ID == first.ID {
+		t.Fatalf("new invitation after acceptance: proposal=%+v created=%t err=%v", third, created, err)
+	}
+}
+
 func TestDatabaseSmokeWorkShiftScheduleUsesConferenceTimezone(t *testing.T) {
 	ctx := databaseSmokeContext(t)
 	tag := "smoke-shift-nairobi-" + databaseSmokeSuffix()
