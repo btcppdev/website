@@ -1486,6 +1486,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/hackathons/{competitionID}/projects/{projectID}", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminUpdateProject(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/hackathons/{competitionID}/projects/{projectID}/members", func(w http.ResponseWriter, r *http.Request) {
+		HackathonAdminAddProjectMember(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/hackathons/{competitionID}/projects/{projectID}/delete", func(w http.ResponseWriter, r *http.Request) {
 		HackathonAdminDeleteProject(w, r, app)
 	}).Methods("POST")

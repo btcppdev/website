@@ -490,6 +490,13 @@ func (p *HackathonAdminPage) ProjectDeleteURL(project *types.HackathonProject) s
 	return p.ProjectAdminURL(project) + "/delete"
 }
 
+func (p *HackathonAdminPage) ProjectMemberAddURL(project *types.HackathonProject) string {
+	if p == nil || project == nil {
+		return "/admin/hackathons"
+	}
+	return p.ProjectAdminURL(project) + "/members"
+}
+
 func (p *HackathonAdminPage) AssignProjectNumbersURL() string {
 	if p == nil || p.Competition == nil {
 		return "/admin/hackathons"
@@ -1450,6 +1457,70 @@ func HackathonAdminUpdateProject(w http.ResponseWriter, r *http.Request, ctx *co
 		return
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Project updated"), http.StatusSeeOther)
+}
+
+func HackathonAdminAddProjectMember(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+		return
+	}
+	vars := mux.Vars(r)
+	competitionID := strings.TrimSpace(vars["competitionID"])
+	projectID := strings.TrimSpace(vars["projectID"])
+	dest := hackathonAdminRequestURL(r, competitionID, "/projects")
+
+	competition, err := getters.GetCompetitionByID(ctx, competitionID)
+	if err != nil || competition == nil {
+		handle404(w, r, ctx)
+		return
+	}
+	project, err := getters.GetProjectByID(ctx, projectID)
+	if err != nil || project == nil || project.CompetitionID != competition.ID {
+		handle404(w, r, ctx)
+		return
+	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil || conf == nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects/%s add member conference: %v", competitionID, projectID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to load the conference."), http.StatusSeeOther)
+		return
+	}
+
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Bad form"), http.StatusSeeOther)
+		return
+	}
+	personIDs := personIDsFromForm(r, "PersonID")
+	if len(personIDs) != 1 {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Choose one person to add to the team."), http.StatusSeeOther)
+		return
+	}
+	person, err := getters.FetchSpeakerByID(ctx, personIDs[0])
+	if err != nil || person == nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects/%s add member person %s: %v", competitionID, projectID, personIDs[0], err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("The selected person could not be found."), http.StatusSeeOther)
+		return
+	}
+	hasTicket, err := personHasConferenceTicket(ctx, conf, person.ID)
+	if err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects/%s add member ticket %s: %s", competitionID, projectID, person.ID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to verify the selected person's conference ticket."), http.StatusSeeOther)
+		return
+	}
+	if !hasTicket {
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("The selected person needs a conference ticket before joining this team."), http.StatusSeeOther)
+		return
+	}
+	if err := getters.AddProjectMember(ctx, project.ID, person.ID, getters.ProjectMemberRoleMember); err != nil {
+		ctx.Err.Printf("/admin/hackathons/%s/projects/%s add member %s: %s", competitionID, projectID, person.ID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	name := strings.TrimSpace(person.Name)
+	if name == "" {
+		name = "Team member"
+	}
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(name+" added to "+project.Title), http.StatusSeeOther)
 }
 
 func HackathonAdminDeleteProject(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

@@ -502,7 +502,7 @@ func TestLoadTemplates(t *testing.T) {
 	projectNumber := 7
 	var adminProjects bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&adminProjects, "admin/hackathon_projects.tmpl", &HackathonAdminPage{
-		Competition: &types.HackathonCompetition{ID: "competition-id", Title: "Hackathon"},
+		Competition: &types.HackathonCompetition{ID: "competition-id", ConferenceID: "conference-id", Title: "Hackathon"},
 		Conf:        &types.Conf{Ref: "conference-id", Tag: "toronto"},
 		Projects: []*types.HackathonProject{
 			{ID: "draft-project", Title: "Draft", Status: getters.ProjectStatusCreated, ProjectNumber: &projectNumber},
@@ -515,7 +515,7 @@ func TestLoadTemplates(t *testing.T) {
 	if got := strings.Count(adminProjects.String(), ">\n                    Submit project\n"); got != 1 {
 		t.Fatalf("admin projects rendered %d submit actions, want one for the draft: %s", got, adminProjects.String())
 	}
-	for _, want := range []string{`name="Status" value="submitted"`, `name="ProjectNumber" value="7"`, `bypasses the submission deadline`} {
+	for _, want := range []string{`name="Status" value="submitted"`, `name="ProjectNumber" value="7"`, `bypasses the submission deadline`, `action="/toronto/admin/hackathon/projects/draft-project/members"`, `data-person-picker-name="PersonID"`, `data-person-picker-max="1"`, `>Add member</button>`} {
 		if !strings.Contains(adminProjects.String(), want) {
 			t.Fatalf("admin draft submit action missing %q: %s", want, adminProjects.String())
 		}

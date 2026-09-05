@@ -4023,10 +4023,18 @@ func viewerHasConferenceTicket(ctx *config.AppContext, conf *types.Conf, id *aut
 	if ctx == nil || conf == nil || id == nil {
 		return false, nil
 	}
-	if strings.TrimSpace(id.PersonID) == "" || strings.TrimSpace(conf.Ref) == "" {
+	return personHasConferenceTicket(ctx, conf, id.PersonID)
+}
+
+func personHasConferenceTicket(ctx *config.AppContext, conf *types.Conf, personID string) (bool, error) {
+	if ctx == nil || conf == nil {
 		return false, nil
 	}
-	registrations, err := getters.ListRegistrationsForPerson(ctx, id.PersonID)
+	personID = strings.TrimSpace(personID)
+	if personID == "" || strings.TrimSpace(conf.Ref) == "" {
+		return false, nil
+	}
+	registrations, err := getters.ListRegistrationsForPerson(ctx, personID)
 	if err != nil {
 		return false, err
 	}
