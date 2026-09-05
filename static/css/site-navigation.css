@@ -114,6 +114,49 @@
 .site-account__popover form button:hover,
 .site-account__popover form button:focus-visible { background: #f9af5e; color: #0a0a0a; outline: 0; }
 
+.site-nav__events-menu { position: relative; flex: 0 0 auto; }
+.site-nav__events-menu > summary {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 5px;
+  color: #0a0a0a;
+  cursor: pointer;
+  font: 500 12px/1.2 "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  list-style: none;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.site-nav__events-menu > summary::-webkit-details-marker { display: none; }
+.site-nav__events-menu > summary:hover,
+.site-nav__events-menu > summary:focus-visible { color: #c36a10; outline: 0; }
+.site-nav__events-menu > summary i { font-style: normal; transition: transform .15s ease; }
+.site-nav__events-menu[open] > summary i { transform: rotate(180deg); }
+.site-nav__events-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: -14px;
+  z-index: 70;
+  display: grid;
+  width: 190px;
+  border: 1px solid #0a0a0a;
+  background: #f6f3ee;
+  box-shadow: 6px 6px 0 #0a0a0a;
+}
+.site-nav__events-popover a {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  border-bottom: 1px solid rgba(10, 10, 10, .16);
+  color: #0a0a0a;
+  padding: 0 16px;
+  font: 600 11px "IBM Plex Mono", ui-monospace, monospace;
+  text-decoration: none;
+}
+.site-nav__events-popover a:last-child { border-bottom: 0; }
+.site-nav__events-popover a:hover,
+.site-nav__events-popover a:focus-visible { background: #f9af5e; color: #0a0a0a; outline: 0; }
+
 .site-conf-nav {
   position: sticky;
   top: calc(var(--btcpp-site-nav-top) + 68px);
@@ -204,7 +247,8 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
 @media (max-width: 1120px) {
   .site-nav__inner { padding-right: 24px; padding-left: 24px; }
   .site-nav__links { gap: 14px; }
-  .site-nav__links > a { font-size: 11px; }
+  .site-nav__links > a,
+  .site-nav__events-menu > summary { font-size: 11px; }
   .site-account__menu > summary b { display: none; }
 }
 
@@ -236,26 +280,50 @@ html:has(body .site-conf-nav) { --btcpp-anchor-offset: calc(152px + var(--btcpp-
     -webkit-overflow-scrolling: touch;
   }
   .site-nav__toggle:checked ~ .site-nav__links { display: grid; }
-  .site-nav__links > a {
+  .site-nav__links > a,
+  .site-nav__events-menu > summary {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     width: 100%;
-    min-height: 48px;
-    margin-top: 8px;
-    padding: 0 14px;
-    border: 1px solid #0a0a0a;
-    background: #fffdf8;
-    box-shadow: 3px 3px 0 #0a0a0a;
+    min-height: 44px;
+    margin: 0;
+    padding: 12px 0;
+    border: 0;
+    border-bottom: 1px solid rgba(10, 10, 10, .16);
+    background: transparent;
+    box-shadow: none;
     font-size: 13px;
     font-weight: 700;
-    text-decoration: none;
+    text-decoration: underline;
+    text-underline-offset: 4px;
   }
-  .site-nav__links > a::after { color: #f9af5e; content: "→"; font-size: 18px; }
+  .site-nav__events-menu { width: 100%; }
+  .site-nav__events-menu > summary { justify-content: space-between; }
   .site-nav__links > a:hover,
-  .site-nav__links > a:focus-visible { background: #f9af5e; color: #0a0a0a; }
-  .site-nav__links > a:hover::after,
-  .site-nav__links > a:focus-visible::after { color: #0a0a0a; }
+  .site-nav__links > a:focus-visible,
+  .site-nav__events-menu > summary:hover,
+  .site-nav__events-menu > summary:focus-visible { background: transparent; color: #c36a10; }
+  .site-nav__events-popover {
+    position: static;
+    width: auto;
+    margin: 2px 0 6px 10px;
+    border: 0;
+    border-left: 2px solid #f9af5e;
+    background: transparent;
+    box-shadow: none;
+  }
+  .site-nav__events-popover a {
+    min-height: 40px;
+    padding: 10px 0 10px 16px;
+    border-bottom: 1px solid rgba(10, 10, 10, .1);
+    background: transparent;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .site-nav__events-popover a:hover,
+  .site-nav__events-popover a:focus-visible { background: transparent; color: #c36a10; }
   .site-account--mobile {
     display: block;
     width: 100%;

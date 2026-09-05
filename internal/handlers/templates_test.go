@@ -36,9 +36,12 @@ func TestLoadTemplates(t *testing.T) {
 		t.Fatalf("read global navigation: %v", err)
 	}
 	for _, expected := range []string{
+		`<details class="site-nav__events-menu">`,
+		`<summary>/events <i aria-hidden="true">⌄</i></summary>`,
+		`<a href="/events">/attend</a>`,
 		`<a href="/talk">/speak</a>`,
-		`<a href="/volunteer">/volunteer</a>`,
 		`<a href="/sponsor">/sponsor</a>`,
+		`<a href="/volunteer">/volunteer</a>`,
 	} {
 		if !strings.Contains(string(mainNav), expected) {
 			t.Fatalf("global navigation omitted %q", expected)
@@ -668,7 +671,7 @@ func TestLoadTemplates(t *testing.T) {
 	if !strings.Contains(nav.String(), `aria-label="Primary navigation"`) || !strings.Contains(nav.String(), `class="site-conf-nav"`) || strings.Contains(nav.String(), `class="rebrand-nav"`) {
 		t.Fatalf("conference page did not use unified global navigation: %s", nav.String())
 	}
-	if !strings.Contains(nav.String(), `href="/">/home</a>`) || !strings.Contains(nav.String(), `href="/events">/events</a>`) || strings.Contains(nav.String(), `href="/#events"`) || strings.Contains(nav.String(), `href="/timeline"`) {
+	if !strings.Contains(nav.String(), `href="/">/home</a>`) || !strings.Contains(nav.String(), `href="/events">/attend</a>`) || strings.Contains(nav.String(), `href="/events">/events</a>`) || strings.Contains(nav.String(), `href="/#events"`) || strings.Contains(nav.String(), `href="/timeline"`) {
 		t.Fatalf("conference navigation did not expose the single canonical events destination: %s", nav.String())
 	}
 	if !strings.Contains(nav.String(), `/static/js/brand-wordmark.js?v=20260831-1`) {

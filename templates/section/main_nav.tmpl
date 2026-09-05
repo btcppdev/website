@@ -44,10 +44,15 @@
     <input class="site-nav__toggle" type="checkbox" id="site-nav-toggle" aria-label="Toggle navigation">
     <div class="site-nav__links">
       <a href="/">/home</a>
-      <a href="/events">/events</a>
-      <a href="/talk">/speak</a>
-      <a href="/volunteer">/volunteer</a>
-      <a href="/sponsor">/sponsor</a>
+      <details class="site-nav__events-menu">
+        <summary>/events <i aria-hidden="true">⌄</i></summary>
+        <div class="site-nav__events-popover">
+          <a href="/events">/attend</a>
+          <a href="/talk">/speak</a>
+          <a href="/sponsor">/sponsor</a>
+          <a href="/volunteer">/volunteer</a>
+        </div>
+      </details>
       <a href="/whois">/whois</a>
       <a href="/shop">/shop</a>
       <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">/insider</a>
