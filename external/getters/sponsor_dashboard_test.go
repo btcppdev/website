@@ -484,4 +484,70 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if err != nil || removedMembership != nil {
 		t.Fatalf("removed membership remained active: membership=%+v err=%v", removedMembership, err)
 	}
+
+	directPersonID := insertSmokePerson(t, ctx, "sponsor-direct-member-"+suffix)
+	if err := AddOrganizationMembershipAsAdmin(ctx, orgID, directPersonID, OrganizationRoleMember, personID); err != nil {
+		t.Fatalf("AddOrganizationMembershipAsAdmin: %v", err)
+	}
+	if err := AddOrganizationMembershipAsAdmin(ctx, orgID, directPersonID, OrganizationRoleManager, personID); err == nil {
+		t.Fatal("AddOrganizationMembershipAsAdmin replaced an active membership")
+	}
+	directMembership, err := GetOrganizationMembership(ctx, directPersonID, orgID)
+	if err != nil || directMembership == nil || directMembership.Role != OrganizationRoleMember {
+		t.Fatalf("direct organization membership: membership=%+v err=%v", directMembership, err)
+	}
+	if err := UpdateOrganizationMembershipRoleAsAdmin(ctx, orgID, directPersonID, OrganizationRoleOwner); err != nil {
+		t.Fatalf("promote direct organization member: %v", err)
+	}
+	if err := UpdateOrganizationMembershipRoleAsAdmin(ctx, orgID, personID, OrganizationRoleManager); err != nil {
+		t.Fatalf("demote original owner with another owner active: %v", err)
+	}
+	if err := UpdateOrganizationMembershipRoleAsAdmin(ctx, orgID, directPersonID, OrganizationRoleMember); err == nil {
+		t.Fatal("demoted the organization's last active owner")
+	}
+	if err := UpdateOrganizationMembershipRoleAsAdmin(ctx, orgID, personID, OrganizationRoleOwner); err != nil {
+		t.Fatalf("restore original organization owner: %v", err)
+	}
+	if err := UpdateOrganizationMembershipRoleAsAdmin(ctx, orgID, directPersonID, OrganizationRoleManager); err != nil {
+		t.Fatalf("change direct member role: %v", err)
+	}
+	if err := RemoveOrganizationMembershipAsAdmin(ctx, orgID, directPersonID); err != nil {
+		t.Fatalf("RemoveOrganizationMembershipAsAdmin: %v", err)
+	}
+	if err := RemoveOrganizationMembershipAsAdmin(ctx, orgID, personID); err == nil {
+		t.Fatal("admin removed the organization's last active owner")
+	}
+
+	revokedInvitePersonID := insertSmokePerson(t, ctx, "sponsor-revoked-invite-"+suffix)
+	revokedInviteEmail := smokePersonEmail(t, ctx, revokedInvitePersonID)
+	revokedToken, revokedInvite, err := CreateOrganizationMemberInvite(ctx, orgID, revokedInviteEmail, OrganizationRoleManager, personID, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatalf("create invitation to update and revoke: %v", err)
+	}
+	if err := UpdateOrganizationMemberInviteRoleAsAdmin(ctx, orgID, revokedInvite.ID, OrganizationRoleMember); err != nil {
+		t.Fatalf("UpdateOrganizationMemberInviteRoleAsAdmin: %v", err)
+	}
+	updatedInvite, err := GetOrganizationMemberInviteByToken(ctx, revokedToken)
+	if err != nil || updatedInvite == nil || updatedInvite.Role != OrganizationRoleMember {
+		t.Fatalf("updated pending invitation: invite=%+v err=%v", updatedInvite, err)
+	}
+	if err := RevokeOrganizationMemberInviteAsAdmin(ctx, orgID, revokedInvite.ID); err != nil {
+		t.Fatalf("RevokeOrganizationMemberInviteAsAdmin: %v", err)
+	}
+	if _, err := AcceptOrganizationMemberInvite(ctx, revokedToken, revokedInvitePersonID); err == nil {
+		t.Fatal("accepted an admin-revoked organization invitation")
+	}
+
+	directPendingPersonID := insertSmokePerson(t, ctx, "sponsor-direct-pending-"+suffix)
+	directPendingEmail := smokePersonEmail(t, ctx, directPendingPersonID)
+	directPendingToken, _, err := CreateOrganizationMemberInvite(ctx, orgID, directPendingEmail, OrganizationRoleMember, personID, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatalf("create invitation before direct add: %v", err)
+	}
+	if err := AddOrganizationMembershipAsAdmin(ctx, orgID, directPendingPersonID, OrganizationRoleManager, personID); err != nil {
+		t.Fatalf("directly add pending invitee: %v", err)
+	}
+	if _, err := AcceptOrganizationMemberInvite(ctx, directPendingToken, directPendingPersonID); err == nil {
+		t.Fatal("direct add left the person's pending invitation usable")
+	}
 }

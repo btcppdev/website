@@ -899,8 +899,8 @@ func TestLoadTemplates(t *testing.T) {
 	if err := ctx.TemplateCache.ExecuteTemplate(&orgDetail, "sponsors/detail.tmpl", &OrgDetailPage{
 		Org: &types.Org{Ref: "org-id", Name: "Signet Systems"},
 		Members: []*types.OrganizationMembership{
-			{PersonName: "Mara Manager", PersonEmail: "mara@example.test", Role: getters.OrganizationRoleManager},
-			{PersonName: "Owen Owner", PersonEmail: "owen@example.test", Role: getters.OrganizationRoleOwner},
+			{PersonID: "manager-id", PersonName: "Mara Manager", PersonEmail: "mara@example.test", Role: getters.OrganizationRoleManager},
+			{PersonID: "owner-id", PersonName: "Owen Owner", PersonEmail: "owen@example.test", Role: getters.OrganizationRoleOwner},
 		},
 		PendingInvites: []*types.OrganizationMemberInvite{{
 			ID: "pending-invite-id", Email: "pending@example.test", Role: getters.OrganizationRoleManager,
@@ -911,7 +911,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render organization detail: %v", err)
 	}
-	for _, want := range []string{"Organization members", "current and future sponsor workspaces", "Mara Manager", "mara@example.test", "manager", "Owen Owner", "owner", "Pending invitations", "pending@example.test", "manager · pending", "Expires Sep 6, 2026", `action="/admin/orgs/org-id/invites/pending-invite-id/replace"`, "Create new link", "http://localhost:8888/sponsor-invites/replacement-token", "shown once"} {
+	for _, want := range []string{"Organization members", "current and future sponsor workspaces", "Mara Manager", "mara@example.test", "Owen Owner", "Pending invitations", "pending@example.test", "Expires Sep 6, 2026", "Add an existing account", "Invite by email", `data-person-picker-search-url="/api/people/search"`, `action="/admin/orgs/org-id/members"`, `action="/admin/orgs/org-id/members/manager-id/role"`, `action="/admin/orgs/org-id/members/manager-id/remove"`, `action="/admin/orgs/org-id/invites"`, `action="/admin/orgs/org-id/invites/pending-invite-id/role"`, `action="/admin/orgs/org-id/invites/pending-invite-id/replace"`, `action="/admin/orgs/org-id/invites/pending-invite-id/revoke"`, "Create new link", "http://localhost:8888/sponsor-invites/replacement-token", "shown once"} {
 		if !strings.Contains(orgDetail.String(), want) {
 			t.Fatalf("organization detail omitted %q: %s", want, orgDetail.String())
 		}

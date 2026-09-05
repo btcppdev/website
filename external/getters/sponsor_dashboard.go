@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -481,14 +482,202 @@ func ListOrganizationMembers(ctx *config.AppContext, organizationID string) ([]*
 	return out, rows.Err()
 }
 
+func AddOrganizationMembershipAsAdmin(ctx *config.AppContext, organizationID, personID, role, addedByPersonID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	personID = strings.TrimSpace(personID)
+	role = strings.ToLower(strings.TrimSpace(role))
+	addedByPersonID = strings.TrimSpace(addedByPersonID)
+	if organizationID == "" || personID == "" {
+		return fmt.Errorf("organization and person are required")
+	}
+	if !validOrganizationRole(role, true) {
+		return fmt.Errorf("organization role must be owner, manager, or member")
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin add organization membership: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	commandTag, err := tx.Exec(dbctx, `
+		INSERT INTO organization_memberships (
+			organization_id, person_id, role, status, invited_by_person_id
+		) VALUES ($1::uuid, $2::uuid, $3, 'active', NULLIF($4, '')::uuid)
+		ON CONFLICT (organization_id, person_id) DO UPDATE SET
+			role = EXCLUDED.role, status = 'active',
+			invited_by_person_id = EXCLUDED.invited_by_person_id
+		WHERE organization_memberships.status = 'removed'
+	`, organizationID, personID, role, addedByPersonID)
+	if err != nil {
+		return fmt.Errorf("add organization membership: %w", err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		return fmt.Errorf("that person is already an active organization member")
+	}
+	if _, err := tx.Exec(dbctx, `
+		UPDATE organization_member_invites invites
+		SET revoked_at = now()
+		WHERE invites.organization_id = $1::uuid
+		  AND invites.accepted_at IS NULL AND invites.revoked_at IS NULL
+		  AND EXISTS (
+			SELECT 1 FROM person_emails
+			WHERE person_emails.person_id = $2::uuid
+			  AND person_emails.email = invites.email
+		  )
+	`, organizationID, personID); err != nil {
+		return fmt.Errorf("revoke obsolete organization invitations: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit add organization membership: %w", err)
+	}
+	return nil
+}
+
+func UpdateOrganizationMembershipRoleAsAdmin(ctx *config.AppContext, organizationID, personID, role string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	personID = strings.TrimSpace(personID)
+	role = strings.ToLower(strings.TrimSpace(role))
+	if organizationID == "" || personID == "" {
+		return fmt.Errorf("organization and person are required")
+	}
+	if !validOrganizationRole(role, true) {
+		return fmt.Errorf("organization role must be owner, manager, or member")
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin organization membership role update: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+
+	roles, owners, err := lockedActiveOrganizationRoles(dbctx, tx, organizationID)
+	if err != nil {
+		return err
+	}
+	currentRole, active := roles[personID]
+	if !active {
+		return fmt.Errorf("that person is not an active organization member")
+	}
+	if currentRole == OrganizationRoleOwner && role != OrganizationRoleOwner && owners <= 1 {
+		return fmt.Errorf("the organization's last active owner cannot be demoted")
+	}
+	if _, err := tx.Exec(dbctx, `
+		UPDATE organization_memberships SET role = $3, updated_at = now()
+		WHERE organization_id = $1::uuid AND person_id = $2::uuid AND status = 'active'
+	`, organizationID, personID, role); err != nil {
+		return fmt.Errorf("update organization membership role: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit organization membership role update: %w", err)
+	}
+	return nil
+}
+
+func UpdateOrganizationMemberInviteRoleAsAdmin(ctx *config.AppContext, organizationID, inviteID, role string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	inviteID = strings.TrimSpace(inviteID)
+	role = strings.ToLower(strings.TrimSpace(role))
+	if organizationID == "" || inviteID == "" {
+		return fmt.Errorf("organization and invitation are required")
+	}
+	if !validOrganizationRole(role, false) {
+		return fmt.Errorf("invitation role must be manager or member")
+	}
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE organization_member_invites SET role = $3
+		WHERE id = $1::uuid AND organization_id = $2::uuid
+		  AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+	`, inviteID, organizationID, role)
+	if err != nil {
+		return fmt.Errorf("update organization invitation role: %w", err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		return fmt.Errorf("pending organization invitation not found")
+	}
+	return nil
+}
+
+func RevokeOrganizationMemberInviteAsAdmin(ctx *config.AppContext, organizationID, inviteID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	inviteID = strings.TrimSpace(inviteID)
+	if organizationID == "" || inviteID == "" {
+		return fmt.Errorf("organization and invitation are required")
+	}
+	commandTag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE organization_member_invites SET revoked_at = now()
+		WHERE id = $1::uuid AND organization_id = $2::uuid
+		  AND accepted_at IS NULL AND revoked_at IS NULL
+	`, inviteID, organizationID)
+	if err != nil {
+		return fmt.Errorf("revoke organization invitation: %w", err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		return fmt.Errorf("pending organization invitation not found")
+	}
+	return nil
+}
+
+func validOrganizationRole(role string, allowOwner bool) bool {
+	return role == OrganizationRoleManager || role == OrganizationRoleMember || (allowOwner && role == OrganizationRoleOwner)
+}
+
+func lockedActiveOrganizationRoles(dbctx context.Context, tx pgx.Tx, organizationID string) (map[string]string, int, error) {
+	rows, err := tx.Query(dbctx, `
+		SELECT person_id::text, role
+		FROM organization_memberships
+		WHERE organization_id = $1::uuid AND status = 'active'
+		FOR UPDATE
+	`, organizationID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("lock organization memberships: %w", err)
+	}
+	defer rows.Close()
+	roles := make(map[string]string)
+	owners := 0
+	for rows.Next() {
+		var lockedPersonID, lockedRole string
+		if err := rows.Scan(&lockedPersonID, &lockedRole); err != nil {
+			return nil, 0, fmt.Errorf("scan organization membership lock: %w", err)
+		}
+		roles[lockedPersonID] = lockedRole
+		if lockedRole == OrganizationRoleOwner {
+			owners++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate organization memberships: %w", err)
+	}
+	return roles, owners, nil
+}
+
 func RemoveOrganizationMembership(ctx *config.AppContext, organizationID, actorPersonID, targetPersonID string) error {
+	return removeOrganizationMembership(ctx, organizationID, actorPersonID, targetPersonID, false)
+}
+
+func RemoveOrganizationMembershipAsAdmin(ctx *config.AppContext, organizationID, targetPersonID string) error {
+	return removeOrganizationMembership(ctx, organizationID, "", targetPersonID, true)
+}
+
+func removeOrganizationMembership(ctx *config.AppContext, organizationID, actorPersonID, targetPersonID string, admin bool) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
 	organizationID = strings.TrimSpace(organizationID)
 	actorPersonID = strings.TrimSpace(actorPersonID)
 	targetPersonID = strings.TrimSpace(targetPersonID)
-	if organizationID == "" || actorPersonID == "" || targetPersonID == "" {
+	if organizationID == "" || (!admin && actorPersonID == "") || targetPersonID == "" {
 		return fmt.Errorf("organization, actor, and member are required")
 	}
 	dbctx := ctx.DatabaseContext()
@@ -498,44 +687,21 @@ func RemoveOrganizationMembership(ctx *config.AppContext, organizationID, actorP
 	}
 	defer tx.Rollback(dbctx)
 
-	rows, err := tx.Query(dbctx, `
-		SELECT person_id::text, role
-		FROM organization_memberships
-		WHERE organization_id = $1::uuid AND status = 'active'
-		FOR UPDATE
-	`, organizationID)
+	roles, owners, err := lockedActiveOrganizationRoles(dbctx, tx, organizationID)
 	if err != nil {
-		return fmt.Errorf("lock organization memberships: %w", err)
+		return err
 	}
-	roles := make(map[string]string)
-	owners := 0
-	for rows.Next() {
-		var personID, role string
-		if err := rows.Scan(&personID, &role); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan organization membership lock: %w", err)
-		}
-		roles[personID] = role
-		if role == OrganizationRoleOwner {
-			owners++
-		}
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("iterate organization membership lock: %w", err)
-	}
-	rows.Close()
 
 	actorRole, actorActive := roles[actorPersonID]
 	targetRole, targetActive := roles[targetPersonID]
-	if !actorActive {
+	if !admin && !actorActive {
 		return fmt.Errorf("you are not an active member of this organization")
 	}
 	if !targetActive {
 		return fmt.Errorf("that person is not an active organization member")
 	}
-	removingSelf := actorPersonID == targetPersonID
-	if !removingSelf {
+	removingSelf := !admin && actorPersonID == targetPersonID
+	if !admin && !removingSelf {
 		allowed := actorRole == OrganizationRoleOwner ||
 			(actorRole == OrganizationRoleManager && targetRole == OrganizationRoleMember)
 		if !allowed {

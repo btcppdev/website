@@ -280,6 +280,160 @@ func OrgPendingInviteReplace(w http.ResponseWriter, r *http.Request, ctx *config
 	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("A new invitation link was created for "+invite.Email+". The previous link is no longer valid."), http.StatusSeeOther)
 }
 
+func OrgMemberAdd(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireGlobalAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	organizationID, destination := adminOrganizationMutationTarget(r)
+	if !parseAdminOrganizationForm(w, r) {
+		return
+	}
+	personID := strings.TrimSpace(r.FormValue("PersonID"))
+	role := strings.ToLower(strings.TrimSpace(r.FormValue("Role")))
+	person, err := getters.FetchSpeakerByID(ctx, personID)
+	if err != nil || person == nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("The selected person could not be found."), http.StatusSeeOther)
+		return
+	}
+	if err := getters.AddOrganizationMembershipAsAdmin(ctx, organizationID, person.ID, role, id.PersonID); err != nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	recordAdminOrganizationAudit(ctx, organizationID, id.PersonID, "organization.member_added_by_admin", "person", person.ID, map[string]any{"role": role})
+	name := strings.TrimSpace(person.Name)
+	if name == "" {
+		name = "Organization member"
+	}
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape(name+" added as "+role+"."), http.StatusSeeOther)
+}
+
+func OrgMemberRoleUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireGlobalAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	organizationID, destination := adminOrganizationMutationTarget(r)
+	if !parseAdminOrganizationForm(w, r) {
+		return
+	}
+	personID := strings.TrimSpace(mux.Vars(r)["personID"])
+	role := strings.ToLower(strings.TrimSpace(r.FormValue("Role")))
+	current, err := getters.GetOrganizationMembership(ctx, personID, organizationID)
+	if err != nil || current == nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("That person is not an active organization member."), http.StatusSeeOther)
+		return
+	}
+	if err := getters.UpdateOrganizationMembershipRoleAsAdmin(ctx, organizationID, personID, role); err != nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	recordAdminOrganizationAudit(ctx, organizationID, id.PersonID, "organization.member_role_changed_by_admin", "person", personID, map[string]any{"from": current.Role, "to": role})
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("Organization member role updated."), http.StatusSeeOther)
+}
+
+func OrgMemberRemove(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireGlobalAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	organizationID, destination := adminOrganizationMutationTarget(r)
+	if !parseAdminOrganizationForm(w, r) {
+		return
+	}
+	personID := strings.TrimSpace(mux.Vars(r)["personID"])
+	if err := getters.RemoveOrganizationMembershipAsAdmin(ctx, organizationID, personID); err != nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	recordAdminOrganizationAudit(ctx, organizationID, id.PersonID, "organization.member_removed_by_admin", "person", personID, nil)
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("Organization member removed."), http.StatusSeeOther)
+}
+
+func OrgMemberInviteCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireGlobalAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	organizationID, destination := adminOrganizationMutationTarget(r)
+	if !parseAdminOrganizationForm(w, r) {
+		return
+	}
+	token, invite, err := getters.CreateOrganizationMemberInvite(
+		ctx, organizationID, r.FormValue("Email"), r.FormValue("Role"),
+		id.PersonID, time.Now().Add(72*time.Hour),
+	)
+	if err != nil {
+		message := err.Error()
+		if errors.Is(err, getters.ErrOrganizationMemberInvitePending) {
+			message = "An active invitation already exists for that email. Replace its link below if needed."
+		}
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape(message), http.StatusSeeOther)
+		return
+	}
+	ctx.Session.Put(r.Context(), "admin_org_invite_link", ctx.Env.GetURI()+"/sponsor-invites/"+url.PathEscape(token))
+	ctx.Session.Put(r.Context(), "admin_org_invite_email", invite.Email)
+	recordAdminOrganizationAudit(ctx, organizationID, id.PersonID, "organization.member_invited_by_admin", "organization_member_invite", invite.ID, map[string]any{"email": invite.Email, "role": invite.Role})
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("Invitation created for "+invite.Email+". Copy its secure link below."), http.StatusSeeOther)
+}
+
+func OrgPendingInviteRoleUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireGlobalAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	organizationID, destination := adminOrganizationMutationTarget(r)
+	if !parseAdminOrganizationForm(w, r) {
+		return
+	}
+	inviteID := strings.TrimSpace(mux.Vars(r)["inviteID"])
+	role := strings.ToLower(strings.TrimSpace(r.FormValue("Role")))
+	if err := getters.UpdateOrganizationMemberInviteRoleAsAdmin(ctx, organizationID, inviteID, role); err != nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	recordAdminOrganizationAudit(ctx, organizationID, id.PersonID, "organization.member_invite_role_changed_by_admin", "organization_member_invite", inviteID, map[string]any{"role": role})
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("Pending invitation role updated."), http.StatusSeeOther)
+}
+
+func OrgPendingInviteRevoke(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id := requireGlobalAdmin(w, r, ctx)
+	if id == nil {
+		return
+	}
+	organizationID, destination := adminOrganizationMutationTarget(r)
+	if !parseAdminOrganizationForm(w, r) {
+		return
+	}
+	inviteID := strings.TrimSpace(mux.Vars(r)["inviteID"])
+	if err := getters.RevokeOrganizationMemberInviteAsAdmin(ctx, organizationID, inviteID); err != nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	recordAdminOrganizationAudit(ctx, organizationID, id.PersonID, "organization.member_invite_revoked_by_admin", "organization_member_invite", inviteID, nil)
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("Pending invitation revoked."), http.StatusSeeOther)
+}
+
+func adminOrganizationMutationTarget(r *http.Request) (string, string) {
+	organizationID := strings.TrimSpace(mux.Vars(r)["ref"])
+	return organizationID, "/admin/orgs/" + url.PathEscape(organizationID)
+}
+
+func parseAdminOrganizationForm(w http.ResponseWriter, r *http.Request) bool {
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+func recordAdminOrganizationAudit(ctx *config.AppContext, organizationID, actorPersonID, action, targetType, targetID string, details map[string]any) {
+	if err := getters.RecordSponsorAuditEvent(ctx, organizationID, "", "", actorPersonID, action, targetType, targetID, details); err != nil {
+		ctx.Err.Printf("/admin/orgs/%s audit %s: %s", organizationID, action, err)
+	}
+}
+
 // OrgNew renders the GET form for creating a new Org. Optional `return`
 // query param (caller-supplied URL, must be relative to the site) tells
 // OrgCreate where to redirect after a successful create — we round-trip

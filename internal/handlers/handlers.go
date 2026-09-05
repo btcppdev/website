@@ -2057,8 +2057,26 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/orgs/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		OrgSave(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/orgs/{ref}/members", func(w http.ResponseWriter, r *http.Request) {
+		OrgMemberAdd(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/orgs/{ref}/members/{personID}/role", func(w http.ResponseWriter, r *http.Request) {
+		OrgMemberRoleUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/orgs/{ref}/members/{personID}/remove", func(w http.ResponseWriter, r *http.Request) {
+		OrgMemberRemove(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/orgs/{ref}/invites", func(w http.ResponseWriter, r *http.Request) {
+		OrgMemberInviteCreate(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/orgs/{ref}/invites/{inviteID}/replace", func(w http.ResponseWriter, r *http.Request) {
 		OrgPendingInviteReplace(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/orgs/{ref}/invites/{inviteID}/role", func(w http.ResponseWriter, r *http.Request) {
+		OrgPendingInviteRoleUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/admin/orgs/{ref}/invites/{inviteID}/revoke", func(w http.ResponseWriter, r *http.Request) {
+		OrgPendingInviteRevoke(w, r, app)
 	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/admin/sponsors", func(w http.ResponseWriter, r *http.Request) {
