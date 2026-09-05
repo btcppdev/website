@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type (
 	Org struct {
@@ -84,13 +87,25 @@ type (
 	}
 
 	SponsorDashboardEvent struct {
-		Sponsorship   *Sponsorship
-		Conference    *Conf
-		Competition   *HackathonCompetition
-		Entitlement   *SponsorshipEntitlement
-		AwardCount    int
-		WinnerCount   int
-		TicketsIssued int
+		Sponsorship         *Sponsorship
+		Conference          *Conf
+		Competition         *HackathonCompetition
+		Entitlement         *SponsorshipEntitlement
+		SpeakerApplications []*SponsorSpeakerApplication
+		AwardCount          int
+		WinnerCount         int
+		TicketsIssued       int
+	}
+
+	SponsorSpeakerApplication struct {
+		ProposalID     string
+		ConferenceID   string
+		Title          string
+		TalkType       string
+		Status         string
+		DesiredMinutes int
+		MemberNames    []string
+		SubmittedAt    time.Time
 	}
 
 	SponsorAwardProposal struct {
@@ -181,3 +196,21 @@ type (
 		UpdatedAt            time.Time
 	}
 )
+
+func (a *SponsorSpeakerApplication) StatusLabel() string {
+	if a == nil {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(a.Status)) {
+	case "", "applied":
+		return "Applied"
+	case "inreview":
+		return "In review"
+	case "theydecline":
+		return "Withdrawn"
+	case "wedecline", "rejected":
+		return "Declined"
+	default:
+		return strings.TrimSpace(a.Status)
+	}
+}

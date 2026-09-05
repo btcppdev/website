@@ -15,7 +15,7 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	suffix := postgresSmokeSuffix()
 	personID := insertSmokePerson(t, ctx, "sponsor-member-"+suffix)
 	managerPersonID := insertSmokePerson(t, ctx, "sponsor-manager-"+suffix)
-	confID, _ := insertSmokeConference(t, ctx)
+	confID, confTag := insertSmokeConference(t, ctx)
 	if _, err := ctx.DB.Exec(context.Background(), `
 		UPDATE conferences SET start_date = now() + interval '30 days', end_date = now() + interval '32 days'
 		WHERE id = $1::uuid
@@ -106,6 +106,27 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	managerMembership, err := GetOrganizationMembership(ctx, managerPersonID, orgID)
 	if err != nil || managerMembership == nil || managerMembership.Role != OrganizationRoleManager || managerMembership.Status != "active" {
 		t.Fatalf("assigned organization manager: membership=%+v err=%v", managerMembership, err)
+	}
+	talkProposalID, err := CreateProposal(ctx, ProposalInput{
+		ScheduleForTag: confTag, Title: "Team member talk " + suffix,
+		TalkType: "Talk", Status: "Applied", DesiredDuration: 30, AvailDuration: 30,
+	})
+	if err != nil {
+		t.Fatalf("create organization speaker proposal: %v", err)
+	}
+	for _, speakerID := range []string{personID, managerPersonID} {
+		if _, err := UpsertSpeakerConf(ctx, SpeakerConfInput{
+			SpeakerID: speakerID, ConfTag: confTag, ProposalID: talkProposalID,
+		}); err != nil {
+			t.Fatalf("attach organization speaker %s: %v", speakerID, err)
+		}
+	}
+	speakerApplications, err := ListSponsorSpeakerApplications(ctx, orgID)
+	if err != nil || len(speakerApplications) != 1 {
+		t.Fatalf("ListSponsorSpeakerApplications: applications=%+v err=%v", speakerApplications, err)
+	}
+	if application := speakerApplications[0]; application.ProposalID != talkProposalID || application.ConferenceID != confID || application.Status != "Applied" || len(application.MemberNames) != 2 {
+		t.Fatalf("organization speaker application mismatch: %+v", application)
 	}
 	registered := &types.Sponsorship{
 		Org:   &types.Org{Ref: orgID, Name: "Sponsor Dashboard " + suffix},

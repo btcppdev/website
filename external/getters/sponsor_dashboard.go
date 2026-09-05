@@ -671,6 +671,70 @@ func ListSponsorDashboardEvents(ctx *config.AppContext, organizationID string) (
 	return out, nil
 }
 
+// ListSponsorSpeakerApplications returns proposals for sponsored conferences
+// when at least one attached speaker is an active member of the organization.
+// The grouping prevents a co-speaker proposal from appearing more than once.
+func ListSponsorSpeakerApplications(ctx *config.AppContext, organizationID string) ([]*types.SponsorSpeakerApplication, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	if organizationID == "" {
+		return nil, fmt.Errorf("organization is required")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		WITH sponsored_conferences AS (
+			SELECT DISTINCT links.conference_id
+			FROM sponsorships
+			JOIN sponsorships_conferences links ON links.sponsorship_id = sponsorships.id
+			WHERE sponsorships.organization_id = $1::uuid
+			  AND sponsorships.archived_at IS NULL
+		)
+		SELECT proposals.id::text, proposals.conference_id::text,
+			proposals.title, proposals.talk_type, proposals.status,
+			proposals.desired_duration_min, proposals.created_at,
+			array_agg(DISTINCT people.name ORDER BY people.name)
+		FROM sponsored_conferences
+		JOIN conferences ON conferences.id = sponsored_conferences.conference_id
+		JOIN proposals ON proposals.conference_id = sponsored_conferences.conference_id
+		JOIN proposals_speaker_confs proposal_speakers
+		  ON proposal_speakers.proposal_id = proposals.id
+		JOIN speaker_confs ON speaker_confs.id = proposal_speakers.speaker_conf_id
+		JOIN organization_memberships memberships
+		  ON memberships.person_id = speaker_confs.speaker_id
+		 AND memberships.organization_id = $1::uuid
+		 AND memberships.status = 'active'
+		JOIN people ON people.id = memberships.person_id
+		WHERE conferences.end_date IS NULL OR conferences.end_date >= now()
+		GROUP BY proposals.id, proposals.conference_id, proposals.title,
+			proposals.talk_type, proposals.status, proposals.desired_duration_min,
+			proposals.created_at, conferences.start_date
+		ORDER BY conferences.start_date, proposals.created_at, lower(proposals.title), proposals.id
+	`, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("list sponsor speaker applications: %w", err)
+	}
+	defer rows.Close()
+
+	var applications []*types.SponsorSpeakerApplication
+	for rows.Next() {
+		application := &types.SponsorSpeakerApplication{}
+		if err := rows.Scan(
+			&application.ProposalID, &application.ConferenceID,
+			&application.Title, &application.TalkType, &application.Status,
+			&application.DesiredMinutes, &application.SubmittedAt,
+			&application.MemberNames,
+		); err != nil {
+			return nil, fmt.Errorf("scan sponsor speaker application: %w", err)
+		}
+		applications = append(applications, application)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sponsor speaker applications: %w", err)
+	}
+	return applications, nil
+}
+
 func ListSponsorPrizeEntries(ctx *config.AppContext, organizationID string, includeContacts bool) ([]*types.SponsorPrizeEntry, error) {
 	return listSponsorPrizeEntries(ctx, organizationID, includeContacts, false)
 }

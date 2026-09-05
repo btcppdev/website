@@ -4330,6 +4330,13 @@ body.btcpp-admin-page {
 .sponsor-event-card__links { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 18px 24px; border-bottom: 1px solid var(--sponsor-border); }
 .sponsor-event-card__links a { display: inline-flex; min-height: 38px; align-items: center; padding: 7px 11px; border: 1px solid #b8afa2; background: #fff; color: #6f3a05; font-size: 12px; font-weight: 800; text-decoration: none; }
 .sponsor-event-card__links a:hover { border-color: var(--sponsor-orange); background: var(--sponsor-orange-soft); }
+.sponsor-speaker-applications { padding: 18px 24px; border-bottom: 1px solid var(--sponsor-border); background: #fffaf3; }
+.sponsor-speaker-applications > strong { display: block; margin-bottom: 7px; color: #6f675e; font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.sponsor-speaker-applications article { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid #e5ded4; }
+.sponsor-speaker-applications article > div { min-width: 0; }
+.sponsor-speaker-applications h4 { margin: 0; overflow-wrap: anywhere; font-size: 15px; line-height: 1.25; }
+.sponsor-speaker-applications p { margin: 4px 0 0; color: var(--sponsor-muted); font-size: 11px; line-height: 1.4; }
+.sponsor-speaker-applications article > span { flex: 0 0 auto; padding: 4px 7px; background: var(--sponsor-orange-soft); color: #7b4207; font-size: 9px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
 .sponsor-benefit-action { margin: 16px 24px 0; border: 1px solid var(--sponsor-border); background: #faf7f1; }
 .sponsor-event-card > .sponsor-benefit-action:last-of-type { margin-bottom: 24px; }
 .sponsor-benefit-action[open] { border-color: #c8a58f; background: #fffaf6; }
@@ -4540,6 +4547,8 @@ body.btcpp-admin-page {
 	.sponsor-event-card dt { font-size: 10px; }
 	.sponsor-event-card__links { padding: 15px 18px; }
 	.sponsor-event-card__links a { width: 100%; justify-content: space-between; }
+	.sponsor-speaker-applications { padding: 15px 18px; }
+	.sponsor-speaker-applications article { align-items: flex-start; }
 	.sponsor-benefit-action { margin-inline: 18px; }
 	.sponsor-event-card > .sponsor-benefit-action:last-of-type { margin-bottom: 18px; }
 	.sponsor-benefit-history { margin-inline: 18px; }

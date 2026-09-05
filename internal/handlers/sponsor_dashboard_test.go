@@ -127,6 +127,25 @@ func TestSponsorDashboardSeparatesCurrentAndPastHackathonEntries(t *testing.T) {
 	}
 }
 
+func TestAttachSponsorSpeakerApplicationsByConference(t *testing.T) {
+	first := &types.SponsorDashboardEvent{Conference: &types.Conf{Ref: "first-conf"}}
+	second := &types.SponsorDashboardEvent{Conference: &types.Conf{Ref: "second-conf"}}
+	firstApplication := &types.SponsorSpeakerApplication{ProposalID: "first-proposal", ConferenceID: "first-conf"}
+	secondApplication := &types.SponsorSpeakerApplication{ProposalID: "second-proposal", ConferenceID: "second-conf"}
+
+	attachSponsorSpeakerApplications(
+		[]*types.SponsorDashboardEvent{first, nil, second},
+		[]*types.SponsorSpeakerApplication{secondApplication, nil, firstApplication},
+	)
+
+	if len(first.SpeakerApplications) != 1 || first.SpeakerApplications[0] != firstApplication {
+		t.Fatalf("first event applications = %+v", first.SpeakerApplications)
+	}
+	if len(second.SpeakerApplications) != 1 || second.SpeakerApplications[0] != secondApplication {
+		t.Fatalf("second event applications = %+v", second.SpeakerApplications)
+	}
+}
+
 func TestSponsorParticipantCSVRowsDeduplicateProjectParticipants(t *testing.T) {
 	projectNumber := 7
 	participant := &types.SponsorPrizeParticipant{

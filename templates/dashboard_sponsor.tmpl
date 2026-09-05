@@ -74,6 +74,20 @@
               <a href="/{{ .Conference.Tag }}">Event page →</a>
               {{ if .Conference.ShowHackathon }}<a href="/{{ .Conference.Tag }}/hackathon">Browse hackathon →</a>{{ end }}
             </nav>
+            {{ if .SpeakerApplications }}
+            <div class="sponsor-speaker-applications">
+              <strong>Team speaker applications</strong>
+              {{ range .SpeakerApplications }}
+              <article>
+                <div>
+                  <h4>{{ .Title }}</h4>
+                  <p>{{ range $index, $name := .MemberNames }}{{ if $index }}, {{ end }}{{ $name }}{{ end }}{{ if .TalkType }} · {{ .TalkType }}{{ end }}{{ if gt .DesiredMinutes 0 }} · {{ .DesiredMinutes }} min{{ end }}</p>
+                </div>
+                <span>{{ .StatusLabel }}</span>
+              </article>
+              {{ end }}
+            </div>
+            {{ end }}
             {{ if $.CanManage }}
             {{ $remainingTickets := $.TicketsRemaining . }}
             {{ $batchMaximum := $.TicketBatchMaximum . }}

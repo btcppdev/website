@@ -243,6 +243,13 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Error(w, "Unable to load sponsor dashboard", http.StatusInternalServerError)
 		return
 	}
+	speakerApplications, err := getters.ListSponsorSpeakerApplications(ctx, organizationID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s speaker applications: %s", organizationID, err)
+		http.Error(w, "Unable to load organization speaker applications", http.StatusInternalServerError)
+		return
+	}
+	attachSponsorSpeakerApplications(events, speakerApplications)
 	members, err := getters.ListOrganizationMembers(ctx, organizationID)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s members: %s", organizationID, err)
@@ -339,6 +346,20 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_sponsor.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s template: %s", organizationID, err)
 		http.Error(w, "Unable to load sponsor dashboard", http.StatusInternalServerError)
+	}
+}
+
+func attachSponsorSpeakerApplications(events []*types.SponsorDashboardEvent, applications []*types.SponsorSpeakerApplication) {
+	byConference := make(map[string][]*types.SponsorSpeakerApplication)
+	for _, application := range applications {
+		if application != nil && application.ConferenceID != "" {
+			byConference[application.ConferenceID] = append(byConference[application.ConferenceID], application)
+		}
+	}
+	for _, event := range events {
+		if event != nil && event.Conference != nil {
+			event.SpeakerApplications = byConference[event.Conference.Ref]
+		}
 	}
 }
 
