@@ -271,6 +271,7 @@ type VideoStatus struct {
 	ID            string
 	PrivacyStatus string
 	UploadStatus  string
+	Embeddable    bool
 	PublishAt     *time.Time
 }
 
@@ -427,6 +428,7 @@ func GetVideoStatus(ctx context.Context, videoID string) (*VideoStatus, error) {
 		ID:            videoID,
 		PrivacyStatus: st.PrivacyStatus,
 		UploadStatus:  st.UploadStatus,
+		Embeddable:    st.Embeddable,
 	}
 	if strings.TrimSpace(st.PublishAt) != "" {
 		if t, err := time.Parse(time.RFC3339, st.PublishAt); err == nil {
@@ -455,11 +457,8 @@ func ScheduleExistingVideo(ctx context.Context, videoID string, publishAt time.T
 		return fmt.Errorf("youtube: new service: %w", err)
 	}
 	video := &youtubeapi.Video{
-		Id: videoID,
-		Status: &youtubeapi.VideoStatus{
-			PrivacyStatus: "private",
-			PublishAt:     publishAt.UTC().Format(time.RFC3339),
-		},
+		Id:     videoID,
+		Status: writableVideoStatus("private", publishAt),
 	}
 	if _, err := svc.Videos.Update([]string{"status"}, video).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("youtube videos.update schedule: %w", err)
@@ -483,10 +482,8 @@ func ClearExistingVideoSchedule(ctx context.Context, videoID string) error {
 		return fmt.Errorf("youtube: new service: %w", err)
 	}
 	video := &youtubeapi.Video{
-		Id: videoID,
-		Status: &youtubeapi.VideoStatus{
-			PrivacyStatus: "unlisted",
-		},
+		Id:     videoID,
+		Status: writableVideoStatus("unlisted", time.Time{}),
 	}
 	if _, err := svc.Videos.Update([]string{"status"}, video).Context(ctx).Do(); err != nil {
 		return fmt.Errorf("youtube videos.update clear schedule: %w", err)
@@ -521,12 +518,7 @@ func Upload(ctx context.Context, p UploadParams, src io.Reader, size int64) (str
 			Title:       p.Title,
 			Description: p.Description,
 		},
-		Status: &youtubeapi.VideoStatus{
-			PrivacyStatus: p.PrivacyStatus,
-		},
-	}
-	if !p.PublishAt.IsZero() {
-		video.Status.PublishAt = p.PublishAt.UTC().Format(time.RFC3339)
+		Status: writableVideoStatus(p.PrivacyStatus, p.PublishAt),
 	}
 	// Media() configures a resumable upload internally; the SDK's
 	// default chunk size (8 MiB) is fine for a few-GB longform talk.
@@ -543,6 +535,20 @@ func Upload(ctx context.Context, p UploadParams, src io.Reader, size int64) (str
 		return "", fmt.Errorf("youtube: videos.insert returned no id: %s", string(raw))
 	}
 	return fmt.Sprintf("https://youtu.be/%s", resp.Id), nil
+}
+
+// writableVideoStatus centralizes the status fields that every bitcoin++
+// upload and schedule update must preserve. Embedding is explicit rather than
+// relying on a channel default, since recordings are played on btcpp.dev.
+func writableVideoStatus(privacyStatus string, publishAt time.Time) *youtubeapi.VideoStatus {
+	status := &youtubeapi.VideoStatus{
+		PrivacyStatus: strings.TrimSpace(privacyStatus),
+		Embeddable:    true,
+	}
+	if !publishAt.IsZero() {
+		status.PublishAt = publishAt.UTC().Format(time.RFC3339)
+	}
+	return status
 }
 
 // SetThumbnail uploads a custom thumbnail for an existing video.

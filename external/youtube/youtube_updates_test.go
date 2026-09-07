@@ -2,11 +2,35 @@ package youtube
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestWritableVideoStatusAlwaysAllowsEmbedding(t *testing.T) {
+	publishAt := time.Date(2026, time.September, 8, 15, 30, 0, 0, time.FixedZone("CDT", -5*60*60))
+	status := writableVideoStatus("private", publishAt)
+	if !status.Embeddable {
+		t.Fatal("writable YouTube status did not allow embedding")
+	}
+	payload, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(payload)
+	for _, want := range []string{`"embeddable":true`, `"privacyStatus":"private"`, `"publishAt":"2026-09-08T20:30:00Z"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("YouTube status payload missing %s: %s", want, got)
+		}
+	}
+
+	unscheduled := writableVideoStatus("unlisted", time.Time{})
+	if !unscheduled.Embeddable || unscheduled.PublishAt != "" {
+		t.Fatalf("unscheduled YouTube status = %+v", unscheduled)
+	}
+}
 
 func TestYouTubeMutationsAreBlockedWhenUpdatesDisabled(t *testing.T) {
 	Init("", "", "", false)
