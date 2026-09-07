@@ -24,6 +24,10 @@ func normalizeOrgInput(org *types.Org) {
 	org.Nostr = strings.TrimSpace(org.Nostr)
 	org.Matrix = strings.TrimSpace(org.Matrix)
 	org.Notes = strings.TrimSpace(org.Notes)
+	org.MembershipPolicy = strings.ToLower(strings.TrimSpace(org.MembershipPolicy))
+	if org.MembershipPolicy == "" {
+		org.MembershipPolicy = OrganizationMembershipPolicyRequest
+	}
 }
 
 func normalizeOrgUpdate(up OrgUpdate) OrgUpdate {

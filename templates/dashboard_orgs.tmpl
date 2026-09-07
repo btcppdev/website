@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+{{/* Every signed-in account gets this organization landing page. */}}
+<head>
+  <title>your organizations - bitcoin++</title>
+  {{ block "header" . }}{{ end }}
+</head>
+<body class="btcpp-dashboard-page organization-dashboard-page">
+  {{ block "mainnav" . }}{{ end }}
+  {{ template "dashboard_tabs" (dict "Active" "orgs" "ShowHackathons" .HasHackathonProjects "ShowSponsors" .ShowSponsors "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
+  <div class="dashboard-shell">
+    <main class="dashboard-main">
+      {{ if .FlashMessage }}<div class="dashboard-flash is-success"><p>{{ .FlashMessage }}</p></div>{{ end }}
+      {{ if .FlashError }}<div class="dashboard-flash is-error"><p>{{ .FlashError }}</p></div>{{ end }}
+
+      <header class="dashboard-workspace-hero organization-dashboard-hero">
+        <div class="dashboard-workspace-hero__identity">
+          <div class="dashboard-workspace-hero__mark"><span>O</span></div>
+          <div class="dashboard-workspace-hero__copy">
+            <div class="dashboard-kicker">● Organization workspace</div>
+            <h1>Your organizations.</h1>
+            <p>See the communities and projects you belong to, or manage their team and public profile.</p>
+          </div>
+        </div>
+        <dl class="dashboard-workspace-hero__facts" aria-label="Organization summary">
+          <div><dt>Memberships</dt><dd>{{ len .Memberships }}</dd></div>
+          <div><dt>Managed</dt><dd>{{ .ManagedCount }}</dd></div>
+        </dl>
+      </header>
+
+      {{ if .PendingInvites }}
+      <section class="organization-dashboard-pending dashboard-workspace-panel" aria-labelledby="pending-organization-invitations">
+        <div class="organization-dashboard-section__head">
+          <div>
+            <div class="dashboard-kicker">● Action needed</div>
+            <h2 id="pending-organization-invitations">Pending invitations.</h2>
+          </div>
+          <p>These invitations match a verified email on your account.</p>
+        </div>
+        <div class="organization-dashboard-pending__list">
+          {{ range .PendingInvites }}
+          <article class="organization-dashboard-pending__invite">
+            <div>
+              <strong>{{ .OrganizationName }}</strong>
+              <span>Invited as {{ .Role }} via {{ .Email }}</span>
+              <small>Expires {{ .ExpiresAt.Format "Jan 2, 2006 at 3:04 PM MST" }}</small>
+            </div>
+            <form method="POST" action="/dashboard/orgs/invites/{{ .ID }}/accept">
+              <input type="hidden" name="csrf" value="{{ $.CSRF }}">
+              <button type="submit">Accept invitation</button>
+            </form>
+          </article>
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
+
+      {{ if .Memberships }}
+      <section class="organization-dashboard-list" aria-label="Your organizations">
+        {{ range .Memberships }}
+        <article class="organization-dashboard-card dashboard-workspace-panel">
+          <div class="organization-dashboard-card__mark">
+            {{ if .Organization.LogoLight }}<img src="{{ .Organization.LogoLight | safeURL }}" alt="">{{ else }}<span>{{ printf "%.1s" .Organization.Name }}</span>{{ end }}
+          </div>
+          <div class="organization-dashboard-card__body">
+            <div class="dashboard-kicker">§ {{ .Role }}</div>
+            <h2>{{ .Organization.Name }}</h2>
+            <p>{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}No public description has been added yet.{{ end }}</p>
+            <a href="/dashboard/orgs/{{ .OrganizationID }}">{{ if or (eq .Role "owner") (eq .Role "manager") }}Manage organization{{ else }}View membership{{ end }} →</a>
+          </div>
+        </article>
+        {{ end }}
+      </section>
+      {{ else }}
+      <section class="organization-dashboard-empty dashboard-workspace-panel">
+        <div class="dashboard-kicker">§ Memberships</div>
+        <h2>No organizations yet.</h2>
+        <p>Browse the directory below to join an open organization or request membership.</p>
+      </section>
+      {{ end }}
+
+      <section class="organization-dashboard-section dashboard-workspace-panel" id="discover">
+        <div class="organization-dashboard-section__head">
+          <div><div class="dashboard-kicker">§ Directory</div><h2>Discover organizations.</h2></div>
+          <p>Find bitcoin communities and projects already represented at bitcoin++.</p>
+        </div>
+        <div class="organization-directory-grid">
+          {{ range .Directory }}
+          <article class="organization-directory-card">
+            <div class="organization-dashboard-card__mark">{{ if .Organization.LogoLight }}<img src="{{ .Organization.LogoLight | safeURL }}" alt="">{{ else }}<span>{{ printf "%.1s" .Organization.Name }}</span>{{ end }}</div>
+            <div><h3>{{ .Organization.Name }}</h3><p>{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}No description yet.{{ end }}</p></div>
+            {{ if .MembershipRole }}
+            <a href="/dashboard/orgs/{{ .Organization.Ref }}">Member · {{ .MembershipRole }} →</a>
+            {{ else if eq .RequestStatus "pending" }}
+            <strong class="organization-directory-status">Request awaiting review</strong>
+            {{ else if eq .Organization.MembershipPolicy "closed" }}
+            <span class="organization-directory-status">Not accepting requests</span>
+            {{ else }}
+            <form method="POST" action="/dashboard/orgs/{{ .Organization.Ref }}/membership-requests">
+              <input type="hidden" name="csrf" value="{{ $.CSRF }}">
+              {{ if eq .Organization.MembershipPolicy "request" }}<label><span>Optional note</span><textarea name="message" rows="2" placeholder="How are you connected to this organization?"></textarea></label>{{ end }}
+              <button type="submit">{{ if eq .Organization.MembershipPolicy "open" }}Join now{{ else }}Request membership{{ end }} →</button>
+            </form>
+            {{ end }}
+          </article>
+          {{ else }}
+          <p>No organizations have been added yet.</p>
+          {{ end }}
+        </div>
+      </section>
+
+      <section class="organization-dashboard-section dashboard-workspace-panel" id="propose">
+        <div class="organization-dashboard-section__head">
+          <div><div class="dashboard-kicker">§ New organization</div><h2>Propose an organization.</h2></div>
+          <p>Can’t find your community or project? Send it to the bitcoin++ administrators for review.</p>
+        </div>
+        {{ if .Applications }}
+        <div class="organization-application-history">
+          {{ range .Applications }}<div><strong>{{ .Name }}</strong><span class="organization-application-status is-{{ .Status }}">{{ .Status }}</span>{{ if .ReviewNote }}<p>{{ .ReviewNote }}</p>{{ end }}</div>{{ end }}
+        </div>
+        {{ end }}
+        <details class="sponsor-profile-editor organization-application-form">
+          <summary>Propose a new organization</summary>
+          <form method="POST" action="/dashboard/orgs/applications" class="sponsor-profile-form">
+            <input type="hidden" name="csrf" value="{{ .CSRF }}">
+            <div class="sponsor-profile-grid">
+              <label><span>Organization name</span><input name="name" required></label>
+              <label><span>Public contact email</span><input name="contact_email" type="email"></label>
+              <label class="is-wide"><span>Tagline</span><textarea name="tagline" rows="2" required></textarea></label>
+              <label><span>Website</span><input name="website" type="url" placeholder="https://"></label>
+              <label><span>GitHub</span><input name="github" type="url" placeholder="https://github.com/"></label>
+              <label class="is-wide"><span>Why should this organization be added?</span><textarea name="notes" rows="4" required></textarea></label>
+            </div>
+            <button type="submit">Submit for review →</button>
+          </form>
+        </details>
+      </section>
+    </main>
+  </div>
+  {{ block "footer" . }}{{ end }}
+</body>
+</html>

@@ -491,11 +491,12 @@ type DashboardPage struct {
 	// HasUpcomingTalk / HasUpcomingVol gate the per-channel "Need
 	// help?" block in the footer. True when at least one
 	// ActiveBlock has a SpeakerConf / VolApp respectively.
-	HasUpcomingTalk         bool
-	HasUpcomingVol          bool
-	HasHackathonProjects    bool
-	HasSponsorOrganizations bool
-	HackathonProjects       []*DashboardHackathonProject
+	HasUpcomingTalk       bool
+	HasUpcomingVol        bool
+	HasHackathonProjects  bool
+	ShowSponsors          bool
+	HackathonProjects     []*DashboardHackathonProject
+	PendingOrgInviteCount int
 
 	FlashMessage string
 	// FlashError is the parallel red-banner message — used when
@@ -986,29 +987,30 @@ type EditSpeakerPage struct {
 }
 
 type PersonEmailsPage struct {
-	Speaker                 *types.Speaker
-	Emails                  []*types.PersonEmail
-	OAuthIdentities         []*OAuthIdentityView
-	OAuthProviders          []*OAuthProviderView
-	NostrCredentials        []*NostrCredentialView
-	HasPassword             bool
-	Passkeys                []*types.PersonPasskeyCredential
-	APITokens               []*types.PersonAPIToken
-	NewAPIToken             string
-	OAuthClients            []*types.OAuthClient
-	OAuthConsents           []*types.OAuthConsent
-	NewOAuthClientID        string
-	NewOAuthClientSecret    string
-	IsGlobalAdmin           bool
-	IsAccountsAdmin         bool
-	HasHackathonProjects    bool
-	HasSponsorOrganizations bool
-	PendingEmails           []string
-	MergeRequests           []*types.PersonMergeRequest
-	AuthMethodsCSRF         string
-	FlashMessage            string
-	FlashError              string
-	Year                    uint
+	Speaker               *types.Speaker
+	Emails                []*types.PersonEmail
+	OAuthIdentities       []*OAuthIdentityView
+	OAuthProviders        []*OAuthProviderView
+	NostrCredentials      []*NostrCredentialView
+	HasPassword           bool
+	Passkeys              []*types.PersonPasskeyCredential
+	APITokens             []*types.PersonAPIToken
+	NewAPIToken           string
+	OAuthClients          []*types.OAuthClient
+	OAuthConsents         []*types.OAuthConsent
+	NewOAuthClientID      string
+	NewOAuthClientSecret  string
+	IsGlobalAdmin         bool
+	IsAccountsAdmin       bool
+	HasHackathonProjects  bool
+	ShowSponsors          bool
+	PendingOrgInviteCount int
+	PendingEmails         []string
+	MergeRequests         []*types.PersonMergeRequest
+	AuthMethodsCSRF       string
+	FlashMessage          string
+	FlashError            string
+	Year                  uint
 }
 
 type NostrCredentialView struct {

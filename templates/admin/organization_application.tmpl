@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>{{ .Application.Name }} application @ bitcoin++</title>
+  {{ block "header" . }}{{ end }}
+</head>
+<body class="btcpp-admin-page">
+  {{ block "mainnav" . }}{{ end }}
+  <main class="mx-auto w-full max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
+    <section class="mb-6 overflow-hidden rounded-lg bg-white shadow">
+      <div class="px-6 py-5"><a href="/admin/orgs#applications" class="text-sm text-indigo-600">← Organization applications</a><h1 class="mt-2 text-2xl font-bold text-gray-900">Review {{ .Application.Name }}</h1><p class="mt-1 text-sm text-gray-500">Submitted by {{ .Application.ApplicantName }} · {{ .Application.ApplicantEmail }} on {{ .Application.CreatedAt.Format "Jan 2, 2006" }}</p></div>
+    </section>
+    {{ if .FlashMessage }}<div class="mb-6 rounded-lg border border-green-400 bg-green-100 px-4 py-3 text-green-800">{{ .FlashMessage }}</div>{{ end }}
+    {{ if .FlashError }}<div class="mb-6 rounded-lg border border-red-400 bg-red-100 px-4 py-3 text-red-800">{{ .FlashError }}</div>{{ end }}
+    <form method="POST" action="/admin/org-applications/{{ .Application.ID }}" class="space-y-5 rounded-lg bg-white p-6 shadow">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block text-sm font-medium text-gray-700">Organization name<input class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" name="name" required value="{{ .Application.Name }}"{{ if ne .Application.Status "pending" }} readonly{{ end }}></label>
+        <label class="block text-sm font-medium text-gray-700">Public contact email<input class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" name="contact_email" type="email" value="{{ .Application.ContactEmail }}"{{ if ne .Application.Status "pending" }} readonly{{ end }}></label>
+        <label class="block text-sm font-medium text-gray-700 sm:col-span-2">Tagline<textarea class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" name="tagline" rows="2"{{ if ne .Application.Status "pending" }} readonly{{ end }}>{{ .Application.Tagline }}</textarea></label>
+        <label class="block text-sm font-medium text-gray-700">Website<input class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" name="website" type="url" value="{{ .Application.Website }}"{{ if ne .Application.Status "pending" }} readonly{{ end }}></label>
+        <label class="block text-sm font-medium text-gray-700">GitHub<input class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" name="github" type="url" value="{{ .Application.Github }}"{{ if ne .Application.Status "pending" }} readonly{{ end }}></label>
+        <label class="block text-sm font-medium text-gray-700 sm:col-span-2">Applicant notes<textarea class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" name="notes" rows="4"{{ if ne .Application.Status "pending" }} readonly{{ end }}>{{ .Application.Notes }}</textarea></label>
+        <label class="block text-sm font-medium text-gray-700 sm:col-span-2">Decision note<textarea class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" name="review_note" rows="3"{{ if ne .Application.Status "pending" }} readonly{{ end }}>{{ .Application.ReviewNote }}</textarea></label>
+      </div>
+      {{ if eq .Application.Status "pending" }}<div class="flex flex-wrap gap-3"><button class="rounded-md bg-green-700 px-4 py-2 font-semibold text-white" type="submit" name="decision" value="approved">Approve and create organization</button><button class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white" type="submit" name="decision" value="denied">Deny application</button></div>{{ else }}<p class="font-semibold">Decision: {{ .Application.Status }}{{ if .Application.ReviewedAt }} · {{ .Application.ReviewedAt.Format "Jan 2, 2006 at 3:04 PM MST" }}{{ end }}</p>{{ end }}
+    </form>
+  </main>
+  {{ block "footer" . }}{{ end }}
+</body>
+</html>

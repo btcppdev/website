@@ -7,22 +7,67 @@ import (
 
 type (
 	Org struct {
-		Ref       string
-		Name      string
-		Tagline   string
-		LogoLight string // URL to light mode logo on Spaces
-		LogoDark  string // URL to dark mode logo on Spaces
-		Email     string
-		Website   string
-		LinkedIn  string
-		Instagram string
-		Youtube   string
-		Github    string
-		Twitter   Twitter
-		Nostr     string
-		Matrix    string
-		Hiring    bool
-		Notes     string
+		Ref              string
+		Name             string
+		Tagline          string
+		LogoLight        string // URL to light mode logo on Spaces
+		LogoDark         string // URL to dark mode logo on Spaces
+		Email            string
+		Website          string
+		LinkedIn         string
+		Instagram        string
+		Youtube          string
+		Github           string
+		Twitter          Twitter
+		Nostr            string
+		Matrix           string
+		Hiring           bool
+		Notes            string
+		MembershipPolicy string
+	}
+
+	OrganizationDirectoryEntry struct {
+		Organization     *Org
+		MembershipRole   string
+		MembershipStatus string
+		RequestID        string
+		RequestStatus    string
+	}
+
+	OrganizationMembershipRequest struct {
+		ID                 string
+		OrganizationID     string
+		OrganizationName   string
+		PersonID           string
+		PersonName         string
+		PersonEmail        string
+		Message            string
+		Status             string
+		ReviewedByPersonID string
+		ReviewNote         string
+		ReviewedAt         *time.Time
+		CreatedAt          time.Time
+		UpdatedAt          time.Time
+	}
+
+	OrganizationApplication struct {
+		ID                  string
+		SubmittedByPersonID string
+		ApplicantName       string
+		ApplicantEmail      string
+		Name                string
+		Tagline             string
+		ContactEmail        string
+		Website             string
+		Github              string
+		Notes               string
+		Status              string
+		ReviewNote          string
+		ReviewedByPersonID  string
+		ReviewedAt          *time.Time
+		OrganizationID      string
+		CreatedAt           time.Time
+		UpdatedAt           time.Time
 	}
 
 	Sponsorship struct {

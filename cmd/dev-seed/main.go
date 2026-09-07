@@ -45,6 +45,8 @@ const (
 	devInvitedSpeakerID       = "00000000-0000-4000-8000-000000000048"
 	devInvitedSpeakerConfID   = "00000000-0000-4000-8000-000000000049"
 	devInvitedProposalID      = "00000000-0000-4000-8000-00000000004a"
+	devOrgMembershipRequestID = "00000000-0000-4000-8000-00000000004b"
+	devOrganizationApplyID    = "00000000-0000-4000-8000-00000000004c"
 	devMerchProduct1ID        = "00000000-0000-4000-8000-000000000051"
 	devMerchProduct2ID        = "00000000-0000-4000-8000-000000000052"
 	devMerchProduct3ID        = "00000000-0000-4000-8000-000000000053"
@@ -138,6 +140,7 @@ type speakerSeed struct {
 
 type orgSeed struct {
 	id, name, tagline, logo, logoLight, logoDark, website, twitter string
+	membershipPolicy                                               string
 }
 
 type sponsorshipSeed struct {
@@ -363,30 +366,33 @@ var devSpeakers = []speakerSeed{
 
 var devOrgs = []orgSeed{
 	{
-		id:        "00000000-0000-4000-8000-000000000501",
-		name:      "Signet Systems",
-		tagline:   "Infrastructure for bitcoin test networks",
-		logoLight: "/static/img/sponsors/nydig_dark.svg",
-		logoDark:  "/static/img/sponsors/NYDIG.svg",
-		website:   "https://example.test/signet-systems",
-		twitter:   "signet_systems",
+		id:               "00000000-0000-4000-8000-000000000501",
+		name:             "Signet Systems",
+		tagline:          "Infrastructure for bitcoin test networks",
+		membershipPolicy: "request",
+		logoLight:        "/static/img/sponsors/nydig_dark.svg",
+		logoDark:         "/static/img/sponsors/NYDIG.svg",
+		website:          "https://example.test/signet-systems",
+		twitter:          "signet_systems",
 	},
 	{
-		id:        "00000000-0000-4000-8000-000000000502",
-		name:      "Anchor Labs",
-		tagline:   "Protocol engineering and applied research",
-		logoLight: "/static/img/sponsors/vinteum.png",
-		logoDark:  "/static/img/sponsors/vinteum_white.svg",
-		website:   "https://example.test/anchor-labs",
-		twitter:   "anchor_labs",
+		id:               "00000000-0000-4000-8000-000000000502",
+		name:             "Anchor Labs",
+		tagline:          "Protocol engineering and applied research",
+		membershipPolicy: "open",
+		logoLight:        "/static/img/sponsors/vinteum.png",
+		logoDark:         "/static/img/sponsors/vinteum_white.svg",
+		website:          "https://example.test/anchor-labs",
+		twitter:          "anchor_labs",
 	},
 	{
-		id:      "00000000-0000-4000-8000-000000000503",
-		name:    "Relay Club",
-		tagline: "Developer tooling for routing and payments",
-		logo:    "/static/img/sponsors/stak.svg",
-		website: "https://example.test/relay-club",
-		twitter: "relay_club",
+		id:               "00000000-0000-4000-8000-000000000503",
+		name:             "Relay Club",
+		tagline:          "Developer tooling for routing and payments",
+		membershipPolicy: "closed",
+		logo:             "/static/img/sponsors/stak.svg",
+		website:          "https://example.test/relay-club",
+		twitter:          "relay_club",
 	},
 	{
 		id:      "00000000-0000-4000-8000-000000000504",
@@ -583,7 +589,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Printf("seeded local dev conferences and dashboard fixtures for dev-admin@example.test and dev-invited-speaker@example.test")
+	log.Printf("seeded local dev conferences and dashboard fixtures for dev-admin@example.test and dev-invited-speaker@example.test; organization workflows are available at /dashboard/orgs")
 }
 
 func seedCheckInPreviews(ctx context.Context, tx pgx.Tx, confID string) {
@@ -1902,6 +1908,10 @@ func seedWeeklyNewsletterFixtures(ctx context.Context, tx pgx.Tx, confID string,
 
 func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 	for _, org := range devOrgs {
+		membershipPolicy := org.membershipPolicy
+		if membershipPolicy == "" {
+			membershipPolicy = "request"
+		}
 		logoLight := org.logoLight
 		if logoLight == "" {
 			logoLight = org.logo
@@ -1914,11 +1924,11 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 			INSERT INTO organizations (
 				id, name, tagline, logo_light_url, logo_dark_url, email,
 				website_url, linkedin_url, instagram_url, youtube_url,
-				github_url, twitter_handle, nostr, matrix, hiring, notes
+				github_url, twitter_handle, nostr, matrix, hiring, notes, membership_policy
 			)
 			VALUES (
 				$1::uuid, $2, $3, $4, $5, NULL, $6, '', '', '',
-				'', $7, '', '', false, 'Local dev fixture sponsor.'
+				'', $7, '', '', false, 'Local dev fixture sponsor.', $8
 			)
 			ON CONFLICT (id) DO UPDATE SET
 				name = EXCLUDED.name,
@@ -1927,8 +1937,9 @@ func seedSponsors(ctx context.Context, tx pgx.Tx, confID, pastConfID string) {
 				logo_dark_url = EXCLUDED.logo_dark_url,
 				website_url = EXCLUDED.website_url,
 				twitter_handle = EXCLUDED.twitter_handle,
-				notes = EXCLUDED.notes
-		`, org.id, org.name, org.tagline, logoLight, logoDark, org.website, org.twitter)
+				notes = EXCLUDED.notes,
+				membership_policy = EXCLUDED.membership_policy
+		`, org.id, org.name, org.tagline, logoLight, logoDark, org.website, org.twitter, membershipPolicy)
 	}
 
 	for _, sp := range devSponsorships {
@@ -2392,6 +2403,52 @@ func seedDashboardFixtures(ctx context.Context, tx pgx.Tx, confID, pastConfID st
 	seedDashboardArchiveTalk(ctx, tx, pastConfID)
 	seedDashboardVolunteer(ctx, tx, confID)
 	seedDashboardSpeakerInvitation(ctx, tx, confID)
+	seedOrganizationCommunityFixtures(ctx, tx)
+}
+
+func seedOrganizationCommunityFixtures(ctx context.Context, tx pgx.Tx) {
+	mustExec(ctx, tx, "seed pending organization membership request", `
+		INSERT INTO organization_membership_requests (
+			id, organization_id, person_id, status, message
+		)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, 'pending', 'I would like to help with community events.')
+		ON CONFLICT (id) DO UPDATE SET
+			organization_id = EXCLUDED.organization_id,
+			person_id = EXCLUDED.person_id,
+			status = 'pending',
+			message = EXCLUDED.message,
+			review_note = '',
+			reviewed_by_person_id = NULL,
+			reviewed_at = NULL
+	`, devOrgMembershipRequestID, devOrgs[0].id, devInvitedSpeakerID)
+
+	mustExec(ctx, tx, "seed pending organization application", `
+		INSERT INTO organization_applications (
+			id, submitted_by_person_id, applicant_email, name, tagline,
+			contact_email, website_url, github_url, notes, status
+		)
+		VALUES (
+			$1::uuid, $2::uuid, 'dev-invited-speaker@example.test',
+			'Nairobi BitDevs', 'A Bitcoin developer community in Nairobi',
+			'dev-invited-speaker@example.test', 'https://example.test/nairobi-bitdevs',
+			'https://github.com/example/nairobi-bitdevs',
+			'We host regular technical meetups and would like a home on Bitcoin++.', 'pending'
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			submitted_by_person_id = EXCLUDED.submitted_by_person_id,
+			applicant_email = EXCLUDED.applicant_email,
+			name = EXCLUDED.name,
+			tagline = EXCLUDED.tagline,
+			contact_email = EXCLUDED.contact_email,
+			website_url = EXCLUDED.website_url,
+			github_url = EXCLUDED.github_url,
+			notes = EXCLUDED.notes,
+			status = 'pending',
+			review_note = '',
+			reviewed_by_person_id = NULL,
+			reviewed_at = NULL,
+			organization_id = NULL
+	`, devOrganizationApplyID, devInvitedSpeakerID)
 }
 
 func seedDashboardSpeakerInvitation(ctx context.Context, tx pgx.Tx, confID string) {

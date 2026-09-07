@@ -72,8 +72,6 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		projectsErr          error
 		shopOrders           []*types.ShopOrder
 		shopErr              error
-		hasSponsorMembership bool
-		sponsorErr           error
 	)
 	t1 := time.Now()
 	// Keep one dashboard request from monopolizing the shared pool. Three
@@ -86,8 +84,8 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		fn()
 	}
 	var topWg sync.WaitGroup
-	topWg.Add(8)
-	var scDur, volDur, regDur, satDur, judgeDur, projectsDur, shopDur, sponsorDur time.Duration
+	topWg.Add(7)
+	var scDur, volDur, regDur, satDur, judgeDur, projectsDur, shopDur time.Duration
 	go func() {
 		defer topWg.Done()
 		withDBSlot(func() {
@@ -180,19 +178,9 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			shopDur = time.Since(s)
 		})
 	}()
-	go func() {
-		defer topWg.Done()
-		withDBSlot(func() {
-			s := time.Now()
-			if personID != "" {
-				hasSponsorMembership, sponsorErr = getters.HasActiveOrganizationMembership(ctx, personID)
-			}
-			sponsorDur = time.Since(s)
-		})
-	}()
 	topWg.Wait()
-	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s judge=%s projects=%s shop=%s sponsor=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d judgeAssignments=%d hasProjects=%t shopOrders=%d hasSponsorOrg=%t",
-		reqID, time.Since(t1), scDur, volDur, regDur, satDur, judgeDur, projectsDur, shopDur, sponsorDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents), len(judgeAssignments), hasHackathonProjects, len(shopOrders), hasSponsorMembership)
+	ctx.Infos.Printf("/dashboard id=%s fetch wall=%s (sc=%s vol=%s reg=%s sat=%s judge=%s projects=%s shop=%s) → speakers=%d speakerConfs=%d volapps=%d regs=%d satellites=%d judgeAssignments=%d hasProjects=%t shopOrders=%d",
+		reqID, time.Since(t1), scDur, volDur, regDur, satDur, judgeDur, projectsDur, shopDur, len(speakers), len(speakerConfs), len(volapps), len(regs), len(satEvents), len(judgeAssignments), hasHackathonProjects, len(shopOrders))
 	if regErr != nil {
 		ctx.Err.Printf("/dashboard listregs failed (continuing): %s", regErr)
 	}
@@ -209,10 +197,6 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if shopErr != nil {
 		ctx.Err.Printf("/dashboard shop orders failed (continuing): %s", shopErr)
 		shopOrders = nil
-	}
-	if sponsorErr != nil {
-		ctx.Err.Printf("/dashboard sponsor memberships failed (continuing): %s", sponsorErr)
-		hasSponsorMembership = false
 	}
 	// Drop revoked tickets and sponsored-builder purchases. Both stay
 	// in the database for staff reporting, but neither is an attendee
@@ -453,6 +437,8 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		enrichBlock(b)
 	}
 	pendingSpeakerInvitations := dashboardPendingSpeakerInvitations(activeBlocks)
+	pendingOrgInviteCount := pendingOrganizationInviteCount(ctx, personID, "/dashboard")
+	showSponsors := hasManagedSponsorOrganization(ctx, personID, "/dashboard")
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "dashboard.tmpl", &DashboardPage{
 		Name:                        name,
@@ -466,6 +452,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		SpeakerConfs:                activeSC,
 		PastSpeakerConfs:            pastSC,
 		PendingSpeakerInvitations:   pendingSpeakerInvitations,
+		PendingOrgInviteCount:       pendingOrgInviteCount,
 		VolApps:                     activeVol,
 		PastVolApps:                 pastVol,
 		VolInfos:                    volInfosByConf,
@@ -480,7 +467,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		HasUpcomingTalk:             hasUpTalk,
 		HasUpcomingVol:              hasUpVol,
 		HasHackathonProjects:        hasHackathonProjects,
-		HasSponsorOrganizations:     hasSponsorMembership,
+		ShowSponsors:                showSponsors,
 		FlashMessage:                r.URL.Query().Get("flash"),
 		FlashError:                  r.URL.Query().Get("error"),
 		IsGlobalAdmin:               id.IsGlobalAdmin(),
@@ -558,10 +545,6 @@ func DashboardHackathons(w http.ResponseWriter, r *http.Request, ctx *config.App
 	name := email
 	photo := ""
 	isGlobalAdmin := id.IsGlobalAdmin()
-	hasSponsorMembership, sponsorErr := getters.HasActiveOrganizationMembership(ctx, id.PersonID)
-	if sponsorErr != nil {
-		ctx.Err.Printf("/dashboard/hackathons sponsor memberships for %s: %s", id.PersonID, sponsorErr)
-	}
 	if id.Speaker != nil {
 		if strings.TrimSpace(id.Speaker.Name) != "" {
 			name = id.Speaker.Name
@@ -569,15 +552,16 @@ func DashboardHackathons(w http.ResponseWriter, r *http.Request, ctx *config.App
 		photo = id.Speaker.Photo
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_hackathons.tmpl", &DashboardPage{
-		Name:                    name,
-		Photo:                   photo,
-		Email:                   encodedEmail,
-		HMAC:                    encodedHMAC,
-		HackathonProjects:       buildDashboardHackathonProjects(participantProjects),
-		HasHackathonProjects:    true,
-		HasSponsorOrganizations: hasSponsorMembership,
-		IsGlobalAdmin:           isGlobalAdmin,
-		Year:                    helpers.CurrentYear(),
+		Name:                  name,
+		Photo:                 photo,
+		Email:                 encodedEmail,
+		HMAC:                  encodedHMAC,
+		HackathonProjects:     buildDashboardHackathonProjects(participantProjects),
+		HasHackathonProjects:  true,
+		ShowSponsors:          hasManagedSponsorOrganization(ctx, id.PersonID, "/dashboard/hackathons"),
+		PendingOrgInviteCount: pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/hackathons"),
+		IsGlobalAdmin:         isGlobalAdmin,
+		Year:                  helpers.CurrentYear(),
 	}); err != nil {
 		ctx.Err.Printf("/dashboard/hackathons render: %s", err)
 		http.Error(w, "Unable to load hackathon projects", http.StatusInternalServerError)

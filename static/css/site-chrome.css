@@ -377,7 +377,29 @@ body.btcpp-api-docs-page {
 }
 
 html {
+	min-height: 100%;
 	scroll-padding-top: var(--btcpp-anchor-offset);
+}
+
+/* Keep the shared footer at the viewport edge on short pages. Nested wrappers
+   cover the homepage and the few legacy views that contain their footer. */
+body:has(.redesign-footer) {
+	display: flex;
+	min-height: 100vh;
+	min-height: 100dvh;
+	flex-direction: column;
+}
+
+body:has(.redesign-footer) > :has(> .redesign-footer) {
+	display: flex;
+	min-width: 0;
+	flex: 1 0 auto;
+	flex-direction: column;
+}
+
+body > .redesign-footer,
+body > :has(> .redesign-footer) > .redesign-footer {
+	margin-top: auto;
 }
 
 :where(section[id], article[id], main[id], aside[id], header[id], footer[id], div[id], form[id], details[id], h1[id], h2[id], h3[id], li[id]) {

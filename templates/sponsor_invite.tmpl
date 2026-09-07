@@ -4,13 +4,13 @@
   <title>Join {{ .Invite.OrganizationName }} - bitcoin++</title>
   {{ block "header" . }}{{ end }}
 </head>
-<body class="btcpp-dashboard-page sponsor-dashboard-page">
+<body class="btcpp-dashboard-page organization-dashboard-page">
   {{ block "mainnav" . }}{{ end }}
   <main class="dashboard-main sponsor-invite-page">
     <article class="sponsor-invite-card">
-      <div class="dashboard-kicker">● Sponsor invitation</div>
+      <div class="dashboard-kicker">● Organization invitation</div>
       <h1>Join {{ .Invite.OrganizationName }}.</h1>
-      <p class="sponsor-invite-card__intro">This invitation grants <strong>{{ .Invite.Role }}</strong> access to the organization’s bitcoin++ sponsor workspace, including its current and future sponsorships. It was issued to <strong>{{ .Invite.Email }}</strong>.</p>
+      <p class="sponsor-invite-card__intro">This invitation adds you to the organization as a <strong>{{ .Invite.Role }}</strong>. It was issued to <strong>{{ .Invite.Email }}</strong>.</p>
       {{ if .Error }}
       <div class="dashboard-flash is-error"><p>{{ .Error }}</p></div>
       {{ else }}
@@ -18,7 +18,7 @@
         <input type="hidden" name="csrf" value="{{ .CSRF }}">
         <button type="submit">Accept invitation →</button>
       </form>
-      <p class="sponsor-dashboard-note">You’re signed in with the invited email. Acceptance is one-time and takes you directly to the organization’s sponsor dashboard.</p>
+      <p class="sponsor-dashboard-note">You’re signed in with the invited email. Acceptance is one-time and takes you directly to the organization dashboard.</p>
       {{ end }}
     </article>
   </main>

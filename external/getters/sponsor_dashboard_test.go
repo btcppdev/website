@@ -15,6 +15,7 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	suffix := postgresSmokeSuffix()
 	personID := insertSmokePerson(t, ctx, "sponsor-member-"+suffix)
 	managerPersonID := insertSmokePerson(t, ctx, "sponsor-manager-"+suffix)
+	ordinaryMemberID := insertSmokePerson(t, ctx, "sponsor-ordinary-member-"+suffix)
 	confID, confTag := insertSmokeConference(t, ctx)
 	if _, err := ctx.DB.Exec(context.Background(), `
 		UPDATE conferences SET start_date = now() + interval '30 days', end_date = now() + interval '32 days'
@@ -51,8 +52,9 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	}
 	if _, err := ctx.DB.Exec(context.Background(), `
 		INSERT INTO organization_memberships (organization_id, person_id, role, status)
-		VALUES ($1::uuid, $2::uuid, 'owner', 'active')
-	`, orgID, personID); err != nil {
+		VALUES ($1::uuid, $2::uuid, 'owner', 'active'),
+		       ($1::uuid, $3::uuid, 'member', 'active')
+	`, orgID, personID, ordinaryMemberID); err != nil {
 		t.Fatalf("insert sponsor membership: %v", err)
 	}
 	if _, err := ctx.DB.Exec(context.Background(), `
@@ -78,6 +80,14 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	hasMembership, err := HasActiveOrganizationMembership(ctx, personID)
 	if err != nil || !hasMembership {
 		t.Fatalf("HasActiveOrganizationMembership: has=%t err=%v", hasMembership, err)
+	}
+	sponsoredOrganizationIDs, err := ListSponsoredOrganizationIDsForPerson(ctx, personID)
+	if err != nil || len(sponsoredOrganizationIDs) != 1 || sponsoredOrganizationIDs[0] != orgID {
+		t.Fatalf("ListSponsoredOrganizationIDsForPerson: ids=%v err=%v", sponsoredOrganizationIDs, err)
+	}
+	ordinaryMemberSponsorIDs, err := ListSponsoredOrganizationIDsForPerson(ctx, ordinaryMemberID)
+	if err != nil || len(ordinaryMemberSponsorIDs) != 0 {
+		t.Fatalf("ordinary member sponsor access: ids=%v err=%v", ordinaryMemberSponsorIDs, err)
 	}
 
 	events, err := ListSponsorDashboardEvents(ctx, orgID)
@@ -442,6 +452,14 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if !errors.Is(err, ErrOrganizationMemberInvitePending) || pendingInvite == nil || pendingInvite.ID != invite.ID {
 		t.Fatalf("duplicate organization invite: pending=%+v err=%v", pendingInvite, err)
 	}
+	personInvites, err := ListPendingOrganizationMemberInvitesForPerson(ctx, invitedPersonID)
+	if err != nil || len(personInvites) != 1 || personInvites[0].ID != invite.ID || personInvites[0].OrganizationName != "Sponsor Dashboard "+suffix {
+		t.Fatalf("pending invitations for person: invites=%+v err=%v", personInvites, err)
+	}
+	pendingCount, err := CountPendingOrganizationMemberInvitesForPerson(ctx, invitedPersonID)
+	if err != nil || pendingCount != 1 {
+		t.Fatalf("pending invitation count = %d, err=%v", pendingCount, err)
+	}
 	replacementToken, replacementInvite, err := ReplaceOrganizationMemberInvite(ctx, orgID, invite.ID, personID, time.Now().Add(72*time.Hour))
 	if err != nil || replacementToken == "" || replacementInvite == nil || replacementInvite.ID == invite.ID || replacementInvite.Email != invite.Email {
 		t.Fatalf("ReplaceOrganizationMemberInvite: token=%q invite=%+v err=%v", replacementToken, replacementInvite, err)
@@ -453,9 +471,9 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if _, err := AcceptOrganizationMemberInvite(ctx, replacementToken, wrongPersonID); err == nil {
 		t.Fatal("accepted an organization invitation from an account without the invited verified email")
 	}
-	accepted, err := AcceptOrganizationMemberInvite(ctx, replacementToken, invitedPersonID)
+	accepted, err := AcceptOrganizationMemberInviteByID(ctx, replacementInvite.ID, invitedPersonID)
 	if err != nil || accepted.OrganizationID != orgID {
-		t.Fatalf("AcceptOrganizationMemberInvite: invite=%+v err=%v", accepted, err)
+		t.Fatalf("AcceptOrganizationMemberInviteByID: invite=%+v err=%v", accepted, err)
 	}
 	if _, err := AcceptOrganizationMemberInvite(ctx, replacementToken, invitedPersonID); err == nil {
 		t.Fatal("AcceptOrganizationMemberInvite reused a one-time invitation")
@@ -495,6 +513,22 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	directMembership, err := GetOrganizationMembership(ctx, directPersonID, orgID)
 	if err != nil || directMembership == nil || directMembership.Role != OrganizationRoleMember {
 		t.Fatalf("direct organization membership: membership=%+v err=%v", directMembership, err)
+	}
+	if err := UpdateOrganizationMembershipRole(ctx, orgID, directPersonID, directPersonID, OrganizationRoleManager); err == nil {
+		t.Fatal("ordinary organization member changed their own role")
+	}
+	if err := UpdateOrganizationMembershipRole(ctx, orgID, personID, personID, OrganizationRoleManager); err == nil {
+		t.Fatal("organization owner demoted the last active owner")
+	}
+	if err := UpdateOrganizationMembershipRole(ctx, orgID, personID, directPersonID, OrganizationRoleManager); err != nil {
+		t.Fatalf("owner promoted organization member: %v", err)
+	}
+	promotedMembership, err := GetOrganizationMembership(ctx, directPersonID, orgID)
+	if err != nil || promotedMembership == nil || promotedMembership.Role != OrganizationRoleManager {
+		t.Fatalf("owner-authorized organization role update: membership=%+v err=%v", promotedMembership, err)
+	}
+	if err := UpdateOrganizationMembershipRole(ctx, orgID, personID, directPersonID, OrganizationRoleMember); err != nil {
+		t.Fatalf("owner restored organization member role: %v", err)
 	}
 	if err := UpdateOrganizationMembershipRoleAsAdmin(ctx, orgID, directPersonID, OrganizationRoleOwner); err != nil {
 		t.Fatalf("promote direct organization member: %v", err)

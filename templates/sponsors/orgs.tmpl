@@ -26,6 +26,18 @@
             </section>
             {{ end }}
 
+            <section class="mb-6" id="applications">
+                <div class="overflow-hidden rounded-lg bg-white shadow">
+                    <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                        <div><h2 class="text-sm font-semibold text-gray-900">Pending organization applications</h2><p class="mt-1 text-xs text-gray-500">Review attendee proposals before they become organizations.</p></div>
+                        <span class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{{ len .PendingApplications }} pending</span>
+                    </div>
+                    {{ if .PendingApplications }}<ul class="divide-y divide-gray-200">{{ range .PendingApplications }}
+                        <li class="flex items-center justify-between gap-4 px-6 py-4"><div><strong class="text-sm text-gray-900">{{ .Name }}</strong><p class="text-xs text-gray-500">Submitted by {{ .ApplicantName }} · {{ .ApplicantEmail }}</p></div><a href="/admin/org-applications/{{ .ID }}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-900">Review →</a></li>
+                    {{ end }}</ul>{{ else }}<p class="px-6 py-5 text-sm text-gray-500">No applications are waiting for review.</p>{{ end }}
+                </div>
+            </section>
+
             {{ if .Orgs }}
             <section class="mb-6">
                 <div class="bg-white shadow rounded-lg overflow-hidden">

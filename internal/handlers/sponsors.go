@@ -25,9 +25,10 @@ import (
 )
 
 type OrgListPage struct {
-	Orgs         []*types.Org
-	FlashMessage string
-	Year         uint
+	Orgs                []*types.Org
+	PendingApplications []*types.OrganizationApplication
+	FlashMessage        string
+	Year                uint
 }
 
 type OrgDetailPage struct {
@@ -183,11 +184,18 @@ func OrgList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	sort.SliceStable(orgs, func(i, j int) bool {
 		return orgs[i].Name < orgs[j].Name
 	})
+	pendingApplications, err := getters.ListOrganizationApplications(ctx, "pending")
+	if err != nil {
+		http.Error(w, "Unable to load organization applications", http.StatusInternalServerError)
+		ctx.Err.Printf("/admin/orgs applications failed: %s", err)
+		return
+	}
 
 	err = ctx.TemplateCache.ExecuteTemplate(w, "sponsors/orgs.tmpl", &OrgListPage{
-		Orgs:         orgs,
-		FlashMessage: r.URL.Query().Get("flash"),
-		Year:         helpers.CurrentYear(),
+		Orgs:                orgs,
+		PendingApplications: pendingApplications,
+		FlashMessage:        r.URL.Query().Get("flash"),
+		Year:                helpers.CurrentYear(),
 	})
 	if err != nil {
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -502,21 +510,22 @@ func OrgCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 
 	org := &types.Org{
-		Name:      strings.TrimSpace(r.FormValue("Name")),
-		Tagline:   strings.TrimSpace(r.FormValue("Tagline")),
-		Email:     strings.TrimSpace(r.FormValue("Email")),
-		Website:   strings.TrimSpace(r.FormValue("Website")),
-		Twitter:   types.ParseTwitter(r.FormValue("Twitter")),
-		Nostr:     strings.TrimSpace(r.FormValue("Nostr")),
-		Matrix:    strings.TrimSpace(r.FormValue("Matrix")),
-		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
-		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
-		Youtube:   strings.TrimSpace(r.FormValue("Youtube")),
-		Github:    strings.TrimSpace(r.FormValue("Github")),
-		LogoLight: strings.TrimSpace(r.FormValue("LogoLight")),
-		LogoDark:  strings.TrimSpace(r.FormValue("LogoDark")),
-		Hiring:    r.FormValue("Hiring") == "on",
-		Notes:     strings.TrimSpace(r.FormValue("Notes")),
+		Name:             strings.TrimSpace(r.FormValue("Name")),
+		Tagline:          strings.TrimSpace(r.FormValue("Tagline")),
+		Email:            strings.TrimSpace(r.FormValue("Email")),
+		Website:          strings.TrimSpace(r.FormValue("Website")),
+		Twitter:          types.ParseTwitter(r.FormValue("Twitter")),
+		Nostr:            strings.TrimSpace(r.FormValue("Nostr")),
+		Matrix:           strings.TrimSpace(r.FormValue("Matrix")),
+		LinkedIn:         strings.TrimSpace(r.FormValue("LinkedIn")),
+		Instagram:        strings.TrimSpace(r.FormValue("Instagram")),
+		Youtube:          strings.TrimSpace(r.FormValue("Youtube")),
+		Github:           strings.TrimSpace(r.FormValue("Github")),
+		LogoLight:        strings.TrimSpace(r.FormValue("LogoLight")),
+		LogoDark:         strings.TrimSpace(r.FormValue("LogoDark")),
+		Hiring:           r.FormValue("Hiring") == "on",
+		Notes:            strings.TrimSpace(r.FormValue("Notes")),
+		MembershipPolicy: strings.TrimSpace(r.FormValue("MembershipPolicy")),
 	}
 	trimOrg(org)
 
@@ -558,22 +567,23 @@ func OrgSave(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 
 	org := &types.Org{
-		Ref:       ref,
-		Name:      strings.TrimSpace(r.FormValue("Name")),
-		Tagline:   strings.TrimSpace(r.FormValue("Tagline")),
-		Email:     strings.TrimSpace(r.FormValue("Email")),
-		Website:   strings.TrimSpace(r.FormValue("Website")),
-		Twitter:   types.ParseTwitter(r.FormValue("Twitter")),
-		Nostr:     strings.TrimSpace(r.FormValue("Nostr")),
-		Matrix:    strings.TrimSpace(r.FormValue("Matrix")),
-		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
-		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
-		Youtube:   strings.TrimSpace(r.FormValue("Youtube")),
-		Github:    strings.TrimSpace(r.FormValue("Github")),
-		LogoLight: strings.TrimSpace(r.FormValue("LogoLight")),
-		LogoDark:  strings.TrimSpace(r.FormValue("LogoDark")),
-		Hiring:    r.FormValue("Hiring") == "on",
-		Notes:     strings.TrimSpace(r.FormValue("Notes")),
+		Ref:              ref,
+		Name:             strings.TrimSpace(r.FormValue("Name")),
+		Tagline:          strings.TrimSpace(r.FormValue("Tagline")),
+		Email:            strings.TrimSpace(r.FormValue("Email")),
+		Website:          strings.TrimSpace(r.FormValue("Website")),
+		Twitter:          types.ParseTwitter(r.FormValue("Twitter")),
+		Nostr:            strings.TrimSpace(r.FormValue("Nostr")),
+		Matrix:           strings.TrimSpace(r.FormValue("Matrix")),
+		LinkedIn:         strings.TrimSpace(r.FormValue("LinkedIn")),
+		Instagram:        strings.TrimSpace(r.FormValue("Instagram")),
+		Youtube:          strings.TrimSpace(r.FormValue("Youtube")),
+		Github:           strings.TrimSpace(r.FormValue("Github")),
+		LogoLight:        strings.TrimSpace(r.FormValue("LogoLight")),
+		LogoDark:         strings.TrimSpace(r.FormValue("LogoDark")),
+		Hiring:           r.FormValue("Hiring") == "on",
+		Notes:            strings.TrimSpace(r.FormValue("Notes")),
+		MembershipPolicy: strings.TrimSpace(r.FormValue("MembershipPolicy")),
 	}
 	trimOrg(org)
 

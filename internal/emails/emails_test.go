@@ -146,3 +146,51 @@ func TestSendWeeklyNewsletterDraftReviewIncludesDirectEditorLink(t *testing.T) {
 		t.Fatal("repeat test reviews reused the same mailer request")
 	}
 }
+
+func TestOrganizationApplicationEmailsIncludeReviewAndDecisionLinks(t *testing.T) {
+	var requests []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode mailer request: %v", err)
+		}
+		requests = append(requests, request)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"code":200}`))
+	}))
+	defer server.Close()
+
+	ctx := &config.AppContext{
+		Env:           &types.EnvConfig{Prod: true, Host: "btcpp.dev", MailEndpoint: server.URL, MailerSecret: "test-secret"},
+		Infos:         log.New(io.Discard, "", 0),
+		EmailCache:    make(map[string]*texttemplate.Template),
+		TemplateCache: htmltemplate.Must(htmltemplate.New("root").Parse(`{{ define "emails/tmp.tmpl" }}<html><body><main>{{ .Content }}</main></body></html>{{ end }}`)),
+	}
+	application := &types.OrganizationApplication{
+		ID: "application-id", ApplicantEmail: "applicant@example.com",
+		Name: "Nairobi BitDevs", Status: "pending",
+	}
+	if err := SendOrganizationApplicationAdminNotice(ctx, application, "admin@example.com", "https://btcpp.dev/admin/org-applications/application-id"); err != nil {
+		t.Fatalf("SendOrganizationApplicationAdminNotice: %v", err)
+	}
+	application.Status = "approved"
+	application.ReviewNote = "Welcome aboard."
+	if err := SendOrganizationApplicationDecision(ctx, application, "https://btcpp.dev/dashboard/orgs/org-id"); err != nil {
+		t.Fatalf("SendOrganizationApplicationDecision: %v", err)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("organization application email requests = %d, want 2", len(requests))
+	}
+	adminPayload, _ := json.Marshal(requests[0])
+	for _, want := range []string{"admin@example.com", "Nairobi BitDevs", "https://btcpp.dev/admin/org-applications/application-id", "Review, edit, approve, or deny"} {
+		if !strings.Contains(string(adminPayload), want) {
+			t.Errorf("administrator email missing %q: %s", want, adminPayload)
+		}
+	}
+	applicantPayload, _ := json.Marshal(requests[1])
+	for _, want := range []string{"applicant@example.com", "Your organization was approved", "Welcome aboard.", "https://btcpp.dev/dashboard/orgs/org-id"} {
+		if !strings.Contains(string(applicantPayload), want) {
+			t.Errorf("applicant email missing %q: %s", want, applicantPayload)
+		}
+	}
+}

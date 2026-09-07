@@ -7,7 +7,7 @@
 </head>
 <body class="btcpp-dashboard-page btcpp-admin-page bg-gray-50 text-gray-900">
   {{ block "mainnav" . }} {{ end }}
-  {{ template "dashboard_tabs" (dict "Active" "admin" "ShowHackathons" .HasHackathonProjects "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" true) }}
+  {{ template "dashboard_tabs" (dict "Active" "admin" "ShowHackathons" .HasHackathonProjects "ShowSponsors" .ShowSponsors "ShowAdmin" true "PendingOrgInviteCount" .PendingOrgInviteCount) }}
   <div class="dashboard-channel-shell">
     {{ if .FlashMessage }}
     <div class="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ .FlashMessage }}</div>

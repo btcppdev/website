@@ -93,10 +93,6 @@ func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.A
 	if err != nil {
 		ctx.Err.Printf("/dashboard/settings hackathon participant projects %s: %s", id.PersonID, err)
 	}
-	hasSponsorOrganizations, err := getters.HasActiveOrganizationMembership(ctx, id.PersonID)
-	if err != nil {
-		ctx.Err.Printf("/dashboard/settings sponsor memberships %s: %s", id.PersonID, err)
-	}
 	csrf, err := ensureAuthMethodsCSRF(ctx, r)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/emails auth CSRF: %s", err)
@@ -118,29 +114,30 @@ func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.A
 	}
 	w.Header().Set("Cache-Control", "private, no-store")
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_person_emails.tmpl", &PersonEmailsPage{
-		Speaker:                 id.Speaker,
-		Emails:                  addresses,
-		OAuthIdentities:         identityViews,
-		OAuthProviders:          providerViews,
-		NostrCredentials:        nostrViews,
-		HasPassword:             passwordCredential != nil,
-		Passkeys:                passkeys,
-		APITokens:               apiTokens,
-		NewAPIToken:             newAPIToken,
-		OAuthClients:            oauthClients,
-		OAuthConsents:           oauthConsents,
-		NewOAuthClientID:        newOAuthClientID,
-		NewOAuthClientSecret:    newOAuthClientSecret,
-		IsGlobalAdmin:           id.IsGlobalAdmin(),
-		IsAccountsAdmin:         id.IsAccountsAdmin(),
-		HasHackathonProjects:    hasHackathonProjects,
-		HasSponsorOrganizations: hasSponsorOrganizations,
-		PendingEmails:           pendingEmails,
-		MergeRequests:           mergeRequests,
-		AuthMethodsCSRF:         csrf,
-		FlashMessage:            r.URL.Query().Get("flash"),
-		FlashError:              r.URL.Query().Get("error"),
-		Year:                    helpers.CurrentYear(),
+		Speaker:               id.Speaker,
+		Emails:                addresses,
+		OAuthIdentities:       identityViews,
+		OAuthProviders:        providerViews,
+		NostrCredentials:      nostrViews,
+		HasPassword:           passwordCredential != nil,
+		Passkeys:              passkeys,
+		APITokens:             apiTokens,
+		NewAPIToken:           newAPIToken,
+		OAuthClients:          oauthClients,
+		OAuthConsents:         oauthConsents,
+		NewOAuthClientID:      newOAuthClientID,
+		NewOAuthClientSecret:  newOAuthClientSecret,
+		IsGlobalAdmin:         id.IsGlobalAdmin(),
+		IsAccountsAdmin:       id.IsAccountsAdmin(),
+		HasHackathonProjects:  hasHackathonProjects,
+		ShowSponsors:          hasManagedSponsorOrganization(ctx, id.PersonID, "/dashboard/settings"),
+		PendingOrgInviteCount: pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/settings"),
+		PendingEmails:         pendingEmails,
+		MergeRequests:         mergeRequests,
+		AuthMethodsCSRF:       csrf,
+		FlashMessage:          r.URL.Query().Get("flash"),
+		FlashError:            r.URL.Query().Get("error"),
+		Year:                  helpers.CurrentYear(),
 	}); err != nil {
 		ctx.Err.Printf("/dashboard/emails render: %s", err)
 		http.Error(w, "Unable to render email addresses", http.StatusInternalServerError)

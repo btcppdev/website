@@ -223,6 +223,85 @@ func ListPendingOrganizationMemberInvites(ctx *config.AppContext, organizationID
 	return out, nil
 }
 
+// ListPendingOrganizationMemberInvitesForPerson returns live invitations sent
+// to any verified email on the person's account. Using verified emails here
+// keeps dashboard discovery subject to the same ownership proof as acceptance.
+func ListPendingOrganizationMemberInvitesForPerson(ctx *config.AppContext, personID string) ([]*types.OrganizationMemberInvite, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, nil
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT invites.id::text, invites.organization_id::text,
+			organizations.name, invites.email::text, invites.role,
+			coalesce(invites.invited_by_person_id::text, ''),
+			invites.expires_at, invites.created_at
+		FROM organization_member_invites invites
+		JOIN organizations ON organizations.id = invites.organization_id
+		WHERE invites.accepted_at IS NULL
+		  AND invites.revoked_at IS NULL
+		  AND invites.expires_at > now()
+		  AND EXISTS (
+			SELECT 1 FROM person_emails
+			WHERE person_emails.person_id = $1::uuid
+			  AND person_emails.email = invites.email
+			  AND person_emails.verified_at IS NOT NULL
+		  )
+		ORDER BY invites.created_at DESC
+	`, personID)
+	if err != nil {
+		return nil, fmt.Errorf("list pending organization member invites for person %s: %w", personID, err)
+	}
+	defer rows.Close()
+	var out []*types.OrganizationMemberInvite
+	for rows.Next() {
+		invite := &types.OrganizationMemberInvite{}
+		if err := rows.Scan(
+			&invite.ID, &invite.OrganizationID, &invite.OrganizationName,
+			&invite.Email, &invite.Role, &invite.InvitedByPersonID,
+			&invite.ExpiresAt, &invite.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan pending organization member invite for person: %w", err)
+		}
+		out = append(out, invite)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate pending organization member invites for person: %w", err)
+	}
+	return out, nil
+}
+
+func CountPendingOrganizationMemberInvitesForPerson(ctx *config.AppContext, personID string) (int, error) {
+	if ctx == nil || ctx.DB == nil {
+		return 0, fmt.Errorf("database is not configured")
+	}
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return 0, nil
+	}
+	var count int
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		SELECT count(*)
+		FROM organization_member_invites invites
+		WHERE invites.accepted_at IS NULL
+		  AND invites.revoked_at IS NULL
+		  AND invites.expires_at > now()
+		  AND EXISTS (
+			SELECT 1 FROM person_emails
+			WHERE person_emails.person_id = $1::uuid
+			  AND person_emails.email = invites.email
+			  AND person_emails.verified_at IS NOT NULL
+		  )
+	`, personID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count pending organization member invites for person %s: %w", personID, err)
+	}
+	return count, nil
+}
+
 func GetOrganizationMemberInviteByToken(ctx *config.AppContext, token string) (*types.OrganizationMemberInvite, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
@@ -263,8 +342,24 @@ func GetOrganizationMemberInviteByToken(ctx *config.AppContext, token string) (*
 }
 
 func AcceptOrganizationMemberInvite(ctx *config.AppContext, token, personID string) (*types.OrganizationMemberInvite, error) {
+	return acceptOrganizationMemberInvite(ctx, organizationInviteTokenHash(token), personID, false)
+}
+
+// AcceptOrganizationMemberInviteByID supports acceptance from the signed-in
+// dashboard. The transaction still proves the invite email is a verified email
+// on personID, so knowing an invitation UUID alone grants no access.
+func AcceptOrganizationMemberInviteByID(ctx *config.AppContext, inviteID, personID string) (*types.OrganizationMemberInvite, error) {
+	return acceptOrganizationMemberInvite(ctx, strings.TrimSpace(inviteID), personID, true)
+}
+
+func acceptOrganizationMemberInvite(ctx *config.AppContext, lookup, personID string, lookupByID bool) (*types.OrganizationMemberInvite, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
+	}
+	lookup = strings.TrimSpace(lookup)
+	personID = strings.TrimSpace(personID)
+	if lookup == "" || personID == "" {
+		return nil, fmt.Errorf("organization invitation and person are required")
 	}
 	dbctx := ctx.DatabaseContext()
 	tx, err := ctx.DB.Begin(dbctx)
@@ -275,13 +370,23 @@ func AcceptOrganizationMemberInvite(ctx *config.AppContext, token, personID stri
 
 	var invite types.OrganizationMemberInvite
 	var acceptedAt, revokedAt pgtype.Timestamptz
-	err = tx.QueryRow(dbctx, `
+	query := `
 		SELECT id::text, organization_id::text, email::text, role,
 			expires_at, accepted_at, revoked_at
 		FROM organization_member_invites
 		WHERE token_hash = $1
 		FOR UPDATE
-	`, organizationInviteTokenHash(token)).Scan(
+	`
+	if lookupByID {
+		query = `
+			SELECT id::text, organization_id::text, email::text, role,
+				expires_at, accepted_at, revoked_at
+			FROM organization_member_invites
+			WHERE id = $1::uuid
+			FOR UPDATE
+		`
+	}
+	err = tx.QueryRow(dbctx, query, lookup).Scan(
 		&invite.ID, &invite.OrganizationID, &invite.Email, &invite.Role,
 		&invite.ExpiresAt, &acceptedAt, &revokedAt,
 	)
@@ -365,6 +470,45 @@ func HasActiveOrganizationMembership(ctx *config.AppContext, personID string) (b
 	return exists, nil
 }
 
+func ListSponsoredOrganizationIDsForPerson(ctx *config.AppContext, personID string) ([]string, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	personID = strings.TrimSpace(personID)
+	if personID == "" {
+		return nil, nil
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT DISTINCT memberships.organization_id::text
+		FROM organization_memberships memberships
+		JOIN sponsorships
+		  ON sponsorships.organization_id = memberships.organization_id
+		 AND sponsorships.archived_at IS NULL
+		JOIN sponsorships_conferences
+		  ON sponsorships_conferences.sponsorship_id = sponsorships.id
+		WHERE memberships.person_id = $1::uuid
+		  AND memberships.status = 'active'
+		  AND memberships.role IN ('owner', 'manager')
+		ORDER BY memberships.organization_id::text
+	`, personID)
+	if err != nil {
+		return nil, fmt.Errorf("list sponsored organizations for person %s: %w", personID, err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var organizationID string
+		if err := rows.Scan(&organizationID); err != nil {
+			return nil, fmt.Errorf("scan sponsored organization: %w", err)
+		}
+		out = append(out, organizationID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sponsored organizations: %w", err)
+	}
+	return out, nil
+}
+
 func ListOrganizationMembershipsForPerson(ctx *config.AppContext, personID string) ([]*types.OrganizationMembership, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
@@ -384,7 +528,7 @@ func ListOrganizationMembershipsForPerson(ctx *config.AppContext, personID strin
 			organizations.github_url, organizations.twitter_handle,
 			organizations.nostr, organizations.matrix, organizations.linkedin_url,
 			organizations.instagram_url, organizations.youtube_url,
-			organizations.hiring
+			organizations.hiring, organizations.membership_policy
 		FROM organization_memberships memberships
 		JOIN organizations ON organizations.id = memberships.organization_id
 		WHERE memberships.person_id = $1::uuid
@@ -411,7 +555,7 @@ func ListOrganizationMembershipsForPerson(ctx *config.AppContext, personID strin
 			&twitterHandle, &membership.Organization.Nostr,
 			&membership.Organization.Matrix, &membership.Organization.LinkedIn,
 			&membership.Organization.Instagram, &membership.Organization.Youtube,
-			&membership.Organization.Hiring,
+			&membership.Organization.Hiring, &membership.Organization.MembershipPolicy,
 		); err != nil {
 			return nil, fmt.Errorf("scan organization membership: %w", err)
 		}
@@ -575,6 +719,61 @@ func UpdateOrganizationMembershipRoleAsAdmin(ctx *config.AppContext, organizatio
 	}
 	if err := tx.Commit(dbctx); err != nil {
 		return fmt.Errorf("commit organization membership role update: %w", err)
+	}
+	return nil
+}
+
+// UpdateOrganizationMembershipRole applies an owner-authorized role change.
+// Keeping this check in the transaction prevents a concurrent demotion from
+// bypassing the last-owner invariant.
+func UpdateOrganizationMembershipRole(ctx *config.AppContext, organizationID, actorPersonID, targetPersonID, role string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	organizationID = strings.TrimSpace(organizationID)
+	actorPersonID = strings.TrimSpace(actorPersonID)
+	targetPersonID = strings.TrimSpace(targetPersonID)
+	role = strings.ToLower(strings.TrimSpace(role))
+	if organizationID == "" || actorPersonID == "" || targetPersonID == "" {
+		return fmt.Errorf("organization, actor, and member are required")
+	}
+	if !validOrganizationRole(role, true) {
+		return fmt.Errorf("organization role must be owner, manager, or member")
+	}
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return fmt.Errorf("begin organization role update: %w", err)
+	}
+	defer tx.Rollback(dbctx)
+	roles, owners, err := lockedActiveOrganizationRoles(dbctx, tx, organizationID)
+	if err != nil {
+		return err
+	}
+	if roles[actorPersonID] != OrganizationRoleOwner {
+		return fmt.Errorf("only organization owners can change member roles")
+	}
+	currentRole, active := roles[targetPersonID]
+	if !active {
+		return fmt.Errorf("that person is not an active organization member")
+	}
+	if currentRole == OrganizationRoleOwner && role != OrganizationRoleOwner && owners <= 1 {
+		return fmt.Errorf("the organization's last active owner cannot be demoted")
+	}
+	commandTag, err := tx.Exec(dbctx, `
+		UPDATE organization_memberships
+		SET role = $3, updated_at = now()
+		WHERE organization_id = $1::uuid AND person_id = $2::uuid
+		  AND status = 'active'
+	`, organizationID, targetPersonID, role)
+	if err != nil {
+		return fmt.Errorf("update organization member role: %w", err)
+	}
+	if commandTag.RowsAffected() != 1 {
+		return fmt.Errorf("organization member role was not updated")
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return fmt.Errorf("commit organization role update: %w", err)
 	}
 	return nil
 }

@@ -48,8 +48,8 @@
 
 {{ define "header" }}
     <link rel="stylesheet" href="/static/css/mini.css" />
-    <link rel="stylesheet" href="/static/css/site-chrome.css" />
-    <link rel="stylesheet" href="/static/css/custom.css?v=20260820-1" />
+    <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260904-1" />
+    <link rel="stylesheet" href="/static/css/custom.css?v=20260904-5" />
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1" />
     {{ template "head_meta" . }}
     {{ template "shared_head_scripts" . }}
@@ -57,7 +57,7 @@
 
 {{ define "rebrand_header" }}
     {{ template "head_meta" . }}
-    <link rel="stylesheet" href="/static/css/site-chrome.css" />
+    <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260904-1" />
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css" />
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1" />
     {{ template "shared_head_scripts" . }}
@@ -67,9 +67,9 @@
 {{ define "hackathon_header" }}
     {{ template "head_meta" . }}
     <link rel="stylesheet" href="/static/css/mini.css" />
-    <link rel="stylesheet" href="/static/css/site-chrome.css" />
+    <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260904-1" />
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css" />
-    <link rel="stylesheet" href="/static/css/custom.css?v=20260820-1" />
+    <link rel="stylesheet" href="/static/css/custom.css?v=20260904-5" />
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1" />
     {{ template "shared_head_scripts" . }}
     <script src="/static/js/btcpp-redesign.js" type="text/javascript" defer></script>
@@ -82,6 +82,6 @@
 
 {{ define "checkout_header" }}
     {{ template "rebrand_header" . }}
-    <link rel="stylesheet" href="/static/css/custom.css?v=20260820-1" />
+    <link rel="stylesheet" href="/static/css/custom.css?v=20260904-5" />
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1" />
 {{ end }}

@@ -1244,6 +1244,51 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/hackathons", func(w http.ResponseWriter, r *http.Request) {
 		DashboardHackathons(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/orgs", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardIndex(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/orgs/invites/{inviteID}/accept", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardInviteAccept(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/applications", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationApplicationCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/membership-requests", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationMembershipRequestCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/membership-policy", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationMembershipPolicyUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/membership-requests/{requestID}", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationMembershipRequestReview(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboard(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/people/search", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardPersonSearch(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/members", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardMemberAdd(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/profile", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardProfileUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/invites", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardInviteCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/invites/{inviteID}/replace", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardInviteReplace(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/invites/{inviteID}/revoke", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardInviteRevoke(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/members/{personID}/role", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardMemberRoleUpdate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/members/{personID}/remove", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardMemberRemove(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/dashboard/sponsor", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboardIndex(w, r, app)
 	}).Methods("GET")
@@ -2040,6 +2085,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/orgs", func(w http.ResponseWriter, r *http.Request) {
 		OrgList(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/org-applications", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationApplicationAdminList(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/org-applications/{applicationID}", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationApplicationAdminDetail(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/admin/org-applications/{applicationID}", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationApplicationAdminReview(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/admin/orgs/new", func(w http.ResponseWriter, r *http.Request) {
 		OrgNew(w, r, app)

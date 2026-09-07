@@ -57,6 +57,17 @@ func TestSponsorStatusGrantsCapabilities(t *testing.T) {
 	}
 }
 
+func TestSponsorWorkspaceRequiresOrganizationManagementRole(t *testing.T) {
+	for _, role := range []string{getters.OrganizationRoleOwner, getters.OrganizationRoleManager} {
+		if !sponsorMembershipCanManage(&types.OrganizationMembership{Role: role, Status: "active"}) {
+			t.Fatalf("%s could not access sponsor workspace", role)
+		}
+	}
+	if sponsorMembershipCanManage(&types.OrganizationMembership{Role: getters.OrganizationRoleMember, Status: "active"}) {
+		t.Fatal("ordinary organization member could access sponsor workspace")
+	}
+}
+
 func TestSponsorTicketAllocationFromForm(t *testing.T) {
 	for _, test := range []struct {
 		raw     string

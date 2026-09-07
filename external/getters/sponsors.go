@@ -41,15 +41,16 @@ func RegisterOrg(ctx *config.AppContext, org *types.Org) (string, error) {
 		INSERT INTO organizations (
 			name, tagline, logo_light_url, logo_dark_url, email, website_url,
 			linkedin_url, instagram_url, youtube_url, github_url, twitter_handle,
-			nostr, matrix, hiring, notes
+			nostr, matrix, hiring, notes, membership_policy
 		) VALUES (
 			$1, $2, $3, $4, NULLIF($5, '')::citext, $6, $7, $8, $9, $10,
-			$11, $12, $13, $14, $15
+			$11, $12, $13, $14, $15, $16
 		)
 		RETURNING id::text
 	`, org.Name, org.Tagline, org.LogoLight, org.LogoDark, org.Email,
 		org.Website, org.LinkedIn, org.Instagram, org.Youtube, org.Github,
-		org.Twitter.Handle, org.Nostr, org.Matrix, org.Hiring, org.Notes).Scan(&orgID)
+		org.Twitter.Handle, org.Nostr, org.Matrix, org.Hiring, org.Notes,
+		org.MembershipPolicy).Scan(&orgID)
 	if err != nil {
 		return "", fmt.Errorf("insert org %q: %w", org.Name, err)
 	}
@@ -94,7 +95,8 @@ func queryOrgsPostgres(ctx *config.AppContext, label string, whereSQL string, ar
 	sql := `
 		SELECT id::text, name, tagline, logo_light_url, logo_dark_url,
 			coalesce(email::text, ''), website_url, github_url, twitter_handle,
-			nostr, matrix, linkedin_url, instagram_url, youtube_url, hiring, notes
+			nostr, matrix, linkedin_url, instagram_url, youtube_url, hiring, notes,
+			membership_policy
 		FROM organizations
 		` + whereSQL + `
 		ORDER BY name
@@ -130,6 +132,7 @@ func queryOrgsPostgres(ctx *config.AppContext, label string, whereSQL string, ar
 			&org.Youtube,
 			&org.Hiring,
 			&org.Notes,
+			&org.MembershipPolicy,
 		); err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)
 		}
@@ -249,11 +252,13 @@ func UpdateOrgDetails(ctx *config.AppContext, org *types.Org) error {
 			nostr = $13,
 			matrix = $14,
 			hiring = $15,
-			notes = $16
+			notes = $16,
+			membership_policy = $17
 		WHERE id = $1
 	`, org.Ref, org.Name, org.Tagline, org.LogoLight, org.LogoDark, org.Email,
 		org.Website, org.LinkedIn, org.Instagram, org.Youtube, org.Github,
-		org.Twitter.Handle, org.Nostr, org.Matrix, org.Hiring, org.Notes)
+		org.Twitter.Handle, org.Nostr, org.Matrix, org.Hiring, org.Notes,
+		org.MembershipPolicy)
 	if err != nil {
 		return fmt.Errorf("update org details %s: %w", org.Ref, err)
 	}

@@ -6,7 +6,7 @@
 </head>
 <body class="btcpp-profile-edit-page account-settings-page">
   {{ block "mainnav" . }} {{ end }}
-  {{ template "dashboard_tabs" (dict "Active" "settings" "ShowHackathons" .HasHackathonProjects "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" .IsGlobalAdmin) }}
+  {{ template "dashboard_tabs" (dict "Active" "settings" "ShowHackathons" .HasHackathonProjects "ShowSponsors" .ShowSponsors "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
 
   <main class="profile-edit-shell person-emails-page">
     <header class="profile-edit-hero account-settings-hero">

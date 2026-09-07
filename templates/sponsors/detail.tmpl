@@ -167,6 +167,14 @@
                                 <input type="email" name="Email" id="Email" value="{{ .Org.Email }}"
                                     class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                             </div>
+                            <div>
+                                <label for="MembershipPolicy" class="block text-sm font-medium text-gray-700">Membership requests</label>
+                                <select name="MembershipPolicy" id="MembershipPolicy" class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
+                                    <option value="request" {{ if or (eq .Org.MembershipPolicy "request") (not .Org.MembershipPolicy) }}selected{{ end }}>Managers approve each request</option>
+                                    <option value="open" {{ if eq .Org.MembershipPolicy "open" }}selected{{ end }}>Automatically approve everyone</option>
+                                    <option value="closed" {{ if eq .Org.MembershipPolicy "closed" }}selected{{ end }}>Do not accept requests</option>
+                                </select>
+                            </div>
 
                             <hr class="my-2">
 

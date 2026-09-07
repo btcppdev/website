@@ -26,6 +26,7 @@ import (
 
 type SponsorDashboardPage struct {
 	Memberships                    []*types.OrganizationMembership
+	SponsorMemberships             []*types.OrganizationMembership
 	Membership                     *types.OrganizationMembership
 	Organization                   *types.Org
 	Upcoming                       []*types.SponsorDashboardEvent
@@ -39,6 +40,7 @@ type SponsorDashboardPage struct {
 	CanManage                      bool
 	CanEditOrg                     bool
 	HasHackathonProjects           bool
+	PendingOrgInviteCount          int
 	IsGlobalAdmin                  bool
 	SpacesReady                    bool
 	CSRF                           string
@@ -46,6 +48,15 @@ type SponsorDashboardPage struct {
 	FlashError                     string
 	InviteLink                     string
 	Year                           uint
+}
+
+func hasManagedSponsorOrganization(ctx *config.AppContext, personID, logContext string) bool {
+	organizationIDs, err := getters.ListSponsoredOrganizationIDsForPerson(ctx, personID)
+	if err != nil {
+		ctx.Err.Printf("%s managed sponsor organizations: %s", logContext, err)
+		return false
+	}
+	return len(organizationIDs) > 0
 }
 
 func (p *SponsorDashboardPage) ProposalsFor(sponsorshipID string) []*types.SponsorAwardProposal {
@@ -210,16 +221,21 @@ type SponsorInvitePage struct {
 }
 
 func SponsorDashboardIndex(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
+	id, _, ok := sponsorDashboardIdentity(w, r, ctx)
 	if !ok {
 		return
 	}
-	if len(memberships) == 0 {
-		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("You do not manage a sponsor organization yet."), http.StatusSeeOther)
+	organizationIDs, err := getters.ListSponsoredOrganizationIDsForPerson(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor organizations for %s: %s", id.PersonID, err)
+		http.Error(w, "Unable to load sponsor access", http.StatusInternalServerError)
 		return
 	}
-	_ = id
-	http.Redirect(w, r, "/dashboard/sponsor/"+url.PathEscape(memberships[0].OrganizationID), http.StatusSeeOther)
+	if len(organizationIDs) == 0 {
+		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("Only organization owners and managers can access sponsor workspaces."), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/dashboard/sponsor/"+url.PathEscape(organizationIDs[0]), http.StatusSeeOther)
 }
 
 func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -229,9 +245,29 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	}
 	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
 	membership := organizationMembershipByID(memberships, organizationID)
-	if membership == nil {
-		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("You do not have access to that sponsor organization."), http.StatusSeeOther)
+	if membership == nil || !sponsorMembershipCanManage(membership) {
+		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("Only organization owners and managers can access sponsor workspaces."), http.StatusSeeOther)
 		return
+	}
+	sponsoredOrganizationIDs, err := getters.ListSponsoredOrganizationIDsForPerson(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s organization switcher: %s", organizationID, err)
+		http.Error(w, "Unable to load sponsor organizations", http.StatusInternalServerError)
+		return
+	}
+	sponsoredIDSet := make(map[string]bool, len(sponsoredOrganizationIDs))
+	for _, sponsoredOrganizationID := range sponsoredOrganizationIDs {
+		sponsoredIDSet[sponsoredOrganizationID] = true
+	}
+	if !sponsoredIDSet[organizationID] {
+		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("That organization does not have an active sponsor workspace."), http.StatusSeeOther)
+		return
+	}
+	sponsorMemberships := make([]*types.OrganizationMembership, 0, len(sponsoredOrganizationIDs))
+	for _, candidate := range memberships {
+		if candidate != nil && sponsoredIDSet[candidate.OrganizationID] {
+			sponsorMemberships = append(sponsorMemberships, candidate)
+		}
 	}
 	hasHackathonProjects, projectsErr := getters.HasHackathonParticipantProjectsForPerson(ctx, id.PersonID)
 	if projectsErr != nil {
@@ -250,12 +286,6 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 	attachSponsorSpeakerApplications(events, speakerApplications)
-	members, err := getters.ListOrganizationMembers(ctx, organizationID)
-	if err != nil {
-		ctx.Err.Printf("/dashboard/sponsor/%s members: %s", organizationID, err)
-		http.Error(w, "Unable to load sponsor team", http.StatusInternalServerError)
-		return
-	}
 	proposals, err := getters.ListSponsorAwardProposalsForOrganization(ctx, organizationID)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s proposals: %s", organizationID, err)
@@ -268,7 +298,7 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Error(w, "Unable to load sponsor tickets", http.StatusInternalServerError)
 		return
 	}
-	canManage := sponsorMembershipCanManage(membership)
+	canManage := true
 	prizeEntries, err := getters.ListSponsorPrizeEntries(ctx, organizationID, canManage)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s prize entries: %s", organizationID, err)
@@ -322,11 +352,11 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 
 	page := &SponsorDashboardPage{
 		Memberships:                    memberships,
+		SponsorMemberships:             sponsorMemberships,
 		Membership:                     membership,
 		Organization:                   membership.Organization,
 		Upcoming:                       upcoming,
 		Past:                           past,
-		Members:                        members,
 		PrizeProposals:                 proposals,
 		TicketIssuances:                issuances,
 		PrizeEntries:                   prizeEntries,
@@ -335,6 +365,7 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		CanManage:                      canManage,
 		CanEditOrg:                     canManage && canEditOrg,
 		HasHackathonProjects:           hasHackathonProjects,
+		PendingOrgInviteCount:          pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/sponsor"),
 		IsGlobalAdmin:                  id.IsGlobalAdmin(),
 		SpacesReady:                    spaces.IsConfigured(),
 		CSRF:                           csrf,
@@ -756,8 +787,8 @@ func SponsorDashboardMemberRemove(w http.ResponseWriter, r *http.Request, ctx *c
 	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
 	targetPersonID := strings.TrimSpace(mux.Vars(r)["personID"])
 	redirectTo := "/dashboard/sponsor/" + url.PathEscape(organizationID)
-	if organizationMembershipByID(memberships, organizationID) == nil {
-		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("You do not have access to that sponsor organization."), http.StatusSeeOther)
+	if membership := organizationMembershipByID(memberships, organizationID); !sponsorMembershipCanManage(membership) {
+		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("Only organization owners and managers can manage sponsor workspaces."), http.StatusSeeOther)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -778,7 +809,7 @@ func SponsorDashboardMemberRemove(w http.ResponseWriter, r *http.Request, ctx *c
 		ctx.Err.Printf("/dashboard/sponsor/%s member removal audit: %s", organizationID, err)
 	}
 	if id.PersonID == targetPersonID {
-		http.Redirect(w, r, "/dashboard?flash="+url.QueryEscape("You left the sponsor organization."), http.StatusSeeOther)
+		http.Redirect(w, r, "/dashboard/orgs?flash="+url.QueryEscape("You left the organization."), http.StatusSeeOther)
 		return
 	}
 	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("Organization member removed."), http.StatusSeeOther)
@@ -849,7 +880,7 @@ func SponsorInviteAccept(w http.ResponseWriter, r *http.Request, ctx *config.App
 	if err := getters.RecordSponsorAuditEvent(ctx, invite.OrganizationID, "", "", id.PersonID, "organization.member_invite_accepted", "organization_member_invite", invite.ID, nil); err != nil {
 		ctx.Err.Printf("sponsor invite acceptance audit: %s", err)
 	}
-	http.Redirect(w, r, "/dashboard/sponsor/"+url.PathEscape(invite.OrganizationID)+"?flash="+url.QueryEscape("You joined the sponsor organization."), http.StatusSeeOther)
+	http.Redirect(w, r, "/dashboard/orgs/"+url.PathEscape(invite.OrganizationID)+"?flash="+url.QueryEscape("You joined the organization."), http.StatusSeeOther)
 }
 
 func SponsorDashboardProfileUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

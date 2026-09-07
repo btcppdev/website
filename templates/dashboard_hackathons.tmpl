@@ -7,7 +7,7 @@
 </head>
 <body class="btcpp-dashboard-page">
   {{ block "mainnav" . }} {{ end }}
-  {{ template "dashboard_tabs" (dict "Active" "hackathons" "ShowHackathons" true "ShowSponsor" .HasSponsorOrganizations "ShowAdmin" .IsGlobalAdmin) }}
+  {{ template "dashboard_tabs" (dict "Active" "hackathons" "ShowHackathons" true "ShowSponsors" .ShowSponsors "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
   <div class="dashboard-shell">
     <main class="dashboard-main">
       <header class="dashboard-workspace-hero dashboard-hackathon-header">
