@@ -1247,6 +1247,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/orgs", func(w http.ResponseWriter, r *http.Request) {
 		OrganizationDashboardIndex(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/orgs/discover", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardDirectory(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/dashboard/orgs/invites/{inviteID}/accept", func(w http.ResponseWriter, r *http.Request) {
 		OrganizationDashboardInviteAccept(w, r, app)
 	}).Methods("POST")

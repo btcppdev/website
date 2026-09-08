@@ -48,6 +48,17 @@ func TestOrganizationCommunityMembershipAndApplications(t *testing.T) {
 	if !found {
 		t.Fatalf("directory omitted request-only organization: %+v", directory)
 	}
+	filteredDirectory, err := ListOrganizationDirectoryForPersonFiltered(ctx, requesterID, "Community "+suffix, 0)
+	if err != nil || len(filteredDirectory) != 1 || filteredDirectory[0].Organization.Ref != organizationID {
+		t.Fatalf("filtered organization directory = %+v err=%v", filteredDirectory, err)
+	}
+	limitedDirectory, err := ListOrganizationDirectoryForPersonFiltered(ctx, requesterID, "", 1)
+	if err != nil || len(limitedDirectory) != 1 {
+		t.Fatalf("limited organization directory = %+v err=%v", limitedDirectory, err)
+	}
+	if _, err := ListOrganizationDirectoryForPersonFiltered(ctx, requesterID, "", -1); err == nil {
+		t.Fatal("organization directory accepted a negative limit")
+	}
 
 	request, autoApproved, err := CreateOrganizationMembershipRequest(ctx, organizationID, requesterID, "I contribute locally")
 	if err != nil || autoApproved || request.Status != "pending" {
@@ -88,12 +99,23 @@ func TestOrganizationCommunityMembershipAndApplications(t *testing.T) {
 	application := &types.OrganizationApplication{
 		SubmittedByPersonID: applicantID, ApplicantEmail: applicantEmail,
 		Name: "Proposed " + suffix, Tagline: "A proposed community",
-		Website: "https://example.test", Notes: "We meet every month.",
+		Website: "https://example.test", LogoLight: "https://cdn.example.test/logo-light.svg",
+		LogoDark: "https://cdn.example.test/logo-dark.svg", Notes: "We meet every month.",
 	}
 	invalidContact := *application
 	invalidContact.ContactEmail = "not-an-email"
 	if err := CreateOrganizationApplication(ctx, &invalidContact); err == nil {
 		t.Fatal("organization application accepted an invalid contact email")
+	}
+	missingLightLogo := *application
+	missingLightLogo.LogoLight = ""
+	if err := CreateOrganizationApplication(ctx, &missingLightLogo); err == nil {
+		t.Fatal("organization application accepted a missing light-background logo")
+	}
+	missingDarkLogo := *application
+	missingDarkLogo.LogoDark = ""
+	if err := CreateOrganizationApplication(ctx, &missingDarkLogo); err == nil {
+		t.Fatal("organization application accepted a missing dark-background logo")
 	}
 	if err := CreateOrganizationApplication(ctx, application); err != nil {
 		t.Fatalf("CreateOrganizationApplication: %v", err)
@@ -121,5 +143,9 @@ func TestOrganizationCommunityMembershipAndApplications(t *testing.T) {
 	}
 	if membership, err := GetOrganizationMembership(ctx, applicantID, approved.OrganizationID); err != nil || membership == nil || membership.Role != OrganizationRoleOwner {
 		t.Fatalf("application owner membership = %+v err=%v", membership, err)
+	}
+	approvedOrganization, err := GetOrg(ctx, approved.OrganizationID)
+	if err != nil || approvedOrganization.LogoLight != application.LogoLight || approvedOrganization.LogoDark != application.LogoDark {
+		t.Fatalf("approved organization logos = %+v err=%v", approvedOrganization, err)
 	}
 }

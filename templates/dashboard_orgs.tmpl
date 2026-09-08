@@ -79,32 +79,23 @@
       </section>
       {{ end }}
 
-      <section class="organization-dashboard-section dashboard-workspace-panel" id="discover">
+      <section class="organization-dashboard-section organization-directory-preview dashboard-workspace-panel" id="discover">
         <div class="organization-dashboard-section__head">
           <div><div class="dashboard-kicker">§ Directory</div><h2>Discover organizations.</h2></div>
           <p>Find bitcoin communities and projects already represented at bitcoin++.</p>
         </div>
+        <div class="organization-directory-tools">
+          <form method="GET" action="/dashboard/orgs/discover" role="search">
+            <label for="organization-search">Search organizations</label>
+            <div class="organization-directory-search-row"><input id="organization-search" name="q" type="search" placeholder="Search by name or description"><button class="organization-directory-search-button" type="submit">Search →</button></div>
+          </form>
+          <a class="organization-directory-secondary-action" href="/dashboard/orgs/discover">View all organizations →</a>
+        </div>
         <div class="organization-directory-grid">
           {{ range .Directory }}
-          <article class="organization-directory-card">
-            <div class="organization-dashboard-card__mark">{{ if .Organization.LogoLight }}<img src="{{ .Organization.LogoLight | safeURL }}" alt="">{{ else }}<span>{{ printf "%.1s" .Organization.Name }}</span>{{ end }}</div>
-            <div><h3>{{ .Organization.Name }}</h3><p>{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}No description yet.{{ end }}</p></div>
-            {{ if .MembershipRole }}
-            <a href="/dashboard/orgs/{{ .Organization.Ref }}">Member · {{ .MembershipRole }} →</a>
-            {{ else if eq .RequestStatus "pending" }}
-            <strong class="organization-directory-status">Request awaiting review</strong>
-            {{ else if eq .Organization.MembershipPolicy "closed" }}
-            <span class="organization-directory-status">Not accepting requests</span>
-            {{ else }}
-            <form method="POST" action="/dashboard/orgs/{{ .Organization.Ref }}/membership-requests">
-              <input type="hidden" name="csrf" value="{{ $.CSRF }}">
-              {{ if eq .Organization.MembershipPolicy "request" }}<label><span>Optional note</span><textarea name="message" rows="2" placeholder="How are you connected to this organization?"></textarea></label>{{ end }}
-              <button type="submit">{{ if eq .Organization.MembershipPolicy "open" }}Join now{{ else }}Request membership{{ end }} →</button>
-            </form>
-            {{ end }}
-          </article>
+          {{ template "organization_directory_card" (dict "Entry" . "CSRF" $.CSRF) }}
           {{ else }}
-          <p>No organizations have been added yet.</p>
+          <p class="organization-directory-empty">No organizations have been added yet.</p>
           {{ end }}
         </div>
       </section>
@@ -121,7 +112,8 @@
         {{ end }}
         <details class="sponsor-profile-editor organization-application-form">
           <summary>Propose a new organization</summary>
-          <form method="POST" action="/dashboard/orgs/applications" class="sponsor-profile-form">
+          {{ if .SpacesReady }}
+          <form method="POST" enctype="multipart/form-data" action="/dashboard/orgs/applications" class="sponsor-profile-form">
             <input type="hidden" name="csrf" value="{{ .CSRF }}">
             <div class="sponsor-profile-grid">
               <label><span>Organization name</span><input name="name" required></label>
@@ -131,8 +123,27 @@
               <label><span>GitHub</span><input name="github" type="url" placeholder="https://github.com/"></label>
               <label class="is-wide"><span>Why should this organization be added?</span><textarea name="notes" rows="4" required></textarea></label>
             </div>
+            <fieldset class="sponsor-profile-group organization-application-logos">
+              <legend>Logo variants</legend>
+              <p>Both variants are required. Upload a version that reads clearly on each background. PNG, JPEG, GIF, WebP, and SVG are supported.</p>
+              <div class="sponsor-logo-variants">
+                <div class="sponsor-logo-variant">
+                  <span>Light background</span>
+                  <div class="sponsor-logo-variant__preview is-light"><em>Light-background logo</em></div>
+                  <label><span>Choose file</span><input name="LogoLightFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" required></label>
+                </div>
+                <div class="sponsor-logo-variant">
+                  <span>Dark background</span>
+                  <div class="sponsor-logo-variant__preview is-dark"><em>Dark-background logo</em></div>
+                  <label><span>Choose file</span><input name="LogoDarkFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" required></label>
+                </div>
+              </div>
+            </fieldset>
             <button type="submit">Submit for review →</button>
           </form>
+          {{ else }}
+          <p>Organization proposals are temporarily unavailable because logo uploads are not configured.</p>
+          {{ end }}
         </details>
       </section>
     </main>

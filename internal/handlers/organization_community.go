@@ -95,7 +95,9 @@ func OrganizationApplicationCreate(w http.ResponseWriter, r *http.Request, ctx *
 	if !ok {
 		return
 	}
-	if !parseOrganizationDashboardForm(w, r, ctx) {
+	limitRequestBody(w, r, maxMultipartBodyBytes)
+	if err := r.ParseMultipartForm(maxUploadFileBytes); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		http.Error(w, "Invalid form", http.StatusBadRequest)
 		return
 	}
 	applicantEmail := strings.TrimSpace(id.PrimaryEmail)
@@ -111,6 +113,39 @@ func OrganizationApplicationCreate(w http.ResponseWriter, r *http.Request, ctx *
 		Website:             r.FormValue("website"),
 		Github:              r.FormValue("github"),
 		Notes:               r.FormValue("notes"),
+	}
+	type applicationLogoUpload struct {
+		target      *string
+		raw         []byte
+		contentType string
+		ext         string
+	}
+	logoUploads := []applicationLogoUpload{
+		{target: &application.LogoLight},
+		{target: &application.LogoDark},
+	}
+	for i, field := range []string{"LogoLightFile", "LogoDarkFile"} {
+		raw, contentType, ext, fileErr := readMultipartLogoFile(r, field)
+		if fileErr == http.ErrMissingFile {
+			http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("Both light- and dark-background logos are required."), http.StatusSeeOther)
+			return
+		}
+		if fileErr != nil {
+			http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("The logo upload could not be read."), http.StatusSeeOther)
+			return
+		}
+		logoUploads[i].raw = raw
+		logoUploads[i].contentType = contentType
+		logoUploads[i].ext = ext
+	}
+	for _, upload := range logoUploads {
+		logoURL, uploadErr := uploadSponsorDashboardLogo(ctx, upload.raw, upload.contentType, upload.ext)
+		if uploadErr != nil {
+			ctx.Err.Printf("/dashboard/orgs application logo: %s", uploadErr)
+			http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape(uploadErr.Error()), http.StatusSeeOther)
+			return
+		}
+		*upload.target = logoURL
 	}
 	if err := getters.CreateOrganizationApplication(ctx, application); err != nil {
 		message := err.Error()

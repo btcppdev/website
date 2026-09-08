@@ -837,14 +837,38 @@ func TestLoadTemplates(t *testing.T) {
 			{Organization: &types.Org{Ref: "request-org", Name: "Review Group", MembershipPolicy: getters.OrganizationMembershipPolicyRequest}, RequestStatus: "pending"},
 		},
 		Applications:          []*types.OrganizationApplication{{ID: "application-id", Name: "Nairobi BitDevs", Status: "pending"}},
-		PendingOrgInviteCount: 1, HasHackathonProjects: true, ShowSponsors: true, ManagedCount: 1, CSRF: "org-index-csrf",
+		PendingOrgInviteCount: 1, HasHackathonProjects: true, ShowSponsors: true, SpacesReady: true, ManagedCount: 1, CSRF: "org-index-csrf",
 	}); err != nil {
 		t.Fatalf("render organizations dashboard: %v", err)
 	}
-	for _, want := range []string{`class="dashboard-tab__badge"`, `>1</span>`, `href="/dashboard/hackathons"`, "Your organizations.", "Pending invitations.", "NDK Project", "Invited as member via ada@example.test", `action="/dashboard/orgs/invites/pending-invite-id/accept"`, `name="csrf" value="org-index-csrf"`, "Signet Systems", "Test networks", "§ manager", `href="/dashboard/orgs/org-id"`, "Manage organization", "Discover organizations.", "Open Builders", `action="/dashboard/orgs/open-org/membership-requests"`, "Join now", "Request awaiting review", "Propose an organization.", `action="/dashboard/orgs/applications"`, "Nairobi BitDevs"} {
+	for _, want := range []string{`class="dashboard-tab__badge"`, `>1</span>`, `href="/dashboard/hackathons"`, "Your organizations.", "Pending invitations.", "NDK Project", "Invited as member via ada@example.test", `action="/dashboard/orgs/invites/pending-invite-id/accept"`, `name="csrf" value="org-index-csrf"`, "Signet Systems", "Test networks", "§ manager", `href="/dashboard/orgs/org-id"`, "Manage organization", "Discover organizations.", "Open Builders", `action="/dashboard/orgs/open-org/membership-requests"`, "Join now", "Request awaiting review", `method="GET" action="/dashboard/orgs/discover" role="search"`, `class="organization-directory-search-row"`, `class="organization-directory-search-button" type="submit"`, `href="/dashboard/orgs/discover">View all organizations`, "Propose an organization.", `action="/dashboard/orgs/applications"`, `enctype="multipart/form-data"`, `name="LogoLightFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" required`, `name="LogoDarkFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" required`, "Both variants are required.", "Nairobi BitDevs"} {
 		if !strings.Contains(organizationsDashboard.String(), want) {
 			t.Fatalf("organizations dashboard omitted %q: %s", want, organizationsDashboard.String())
 		}
+	}
+	var organizationsDashboardWithoutUploads bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&organizationsDashboardWithoutUploads, "dashboard_orgs.tmpl", &OrganizationDashboardIndexPage{}); err != nil {
+		t.Fatalf("render organizations dashboard without uploads: %v", err)
+	}
+	if !strings.Contains(organizationsDashboardWithoutUploads.String(), "Organization proposals are temporarily unavailable because logo uploads are not configured.") || strings.Contains(organizationsDashboardWithoutUploads.String(), `action="/dashboard/orgs/applications"`) {
+		t.Fatalf("organizations dashboard exposed proposal form without logo uploads: %s", organizationsDashboardWithoutUploads.String())
+	}
+	var organizationDirectory bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&organizationDirectory, "dashboard_org_discover.tmpl", &OrganizationDirectoryPage{
+		Directory: []*types.OrganizationDirectoryEntry{{
+			Organization: &types.Org{Ref: "open-org", Name: "Open Builders", Tagline: "Anyone can join", MembershipPolicy: getters.OrganizationMembershipPolicyOpen},
+		}},
+		Search: "Open", PendingOrgInviteCount: 1, HasHackathonProjects: true, ShowSponsors: true, IsGlobalAdmin: true, CSRF: "directory-csrf",
+	}); err != nil {
+		t.Fatalf("render organization directory: %v", err)
+	}
+	for _, want := range []string{`href="/dashboard/orgs">← Back to your organizations</a>`, `action="/dashboard/orgs/discover"`, `name="q" type="search" value="Open"`, `class="organization-directory-search-row"`, `class="organization-directory-search-button" type="submit"`, `href="/dashboard/orgs/discover">Clear search</a>`, "Showing 1 result", "Open Builders", `action="/dashboard/orgs/open-org/membership-requests"`, `name="csrf" value="directory-csrf"`} {
+		if !strings.Contains(organizationDirectory.String(), want) {
+			t.Fatalf("organization directory omitted %q: %s", want, organizationDirectory.String())
+		}
+	}
+	if strings.Contains(organizationDirectory.String(), "autofocus") {
+		t.Fatalf("organization directory search unexpectedly autofocuses on mobile: %s", organizationDirectory.String())
 	}
 
 	var organizationDashboard bytes.Buffer
@@ -869,7 +893,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render organization dashboard: %v", err)
 	}
-	for _, want := range []string{`href="/dashboard/hackathons"`, "Organization workspace · owner", "How Signet Systems appears.", "Your organization team.", "Mara", "Eli", "Add a teammate.", "Find a bitcoin++ person.", "Invite someone new.", "Search name, email, or phone", "Send invitation →", `src="/static/js/person-picker.js"`, `data-person-picker-search-url="/dashboard/orgs/org-id/people/search"`, `action="/dashboard/orgs/org-id/members"`, "Pending invitations", "pending@example.test", `action="/dashboard/orgs/org-id/profile"`, `action="/dashboard/orgs/org-id/invites"`, `action="/dashboard/orgs/org-id/invites/invite-id/replace"`, `action="/dashboard/orgs/org-id/invites/invite-id/revoke"`, `action="/dashboard/orgs/org-id/members/member-id/role"`, `action="/dashboard/orgs/org-id/members/member-id/remove"`, `href="/dashboard/sponsor/org-id"`, `name="csrf" value="org-csrf"`, "http://localhost:8888/sponsor-invites/new-token", "shown here once", "Who can join?", `action="/dashboard/orgs/org-id/membership-policy"`, "Managers approve each request", "Membership requests.", "Rae", "I contribute", `action="/dashboard/orgs/org-id/membership-requests/request-id"`} {
+	for _, want := range []string{`href="/dashboard/hackathons"`, "Organization workspace · owner", "How Signet Systems appears.", "Your organization team.", "Mara", "Eli", "Add a teammate.", "Find a bitcoin++ person.", "Invite someone new.", "Search name, email, or phone", "Send invitation →", `src="/static/js/person-picker.js"`, `data-person-picker-search-url="/dashboard/orgs/org-id/people/search"`, `action="/dashboard/orgs/org-id/members"`, "Pending invitations", "pending@example.test", `action="/dashboard/orgs/org-id/profile"`, `action="/dashboard/orgs/org-id/invites"`, `action="/dashboard/orgs/org-id/invites/invite-id/replace"`, `action="/dashboard/orgs/org-id/invites/invite-id/revoke"`, `action="/dashboard/orgs/org-id/members/member-id/role"`, `action="/dashboard/orgs/org-id/members/member-id/remove"`, `href="/dashboard/sponsor/org-id"`, `name="csrf" value="org-csrf"`, "http://localhost:8888/sponsor-invites/new-token", "shown here once", "Who can join?", `action="/dashboard/orgs/org-id/membership-policy"`, "Managers approve each request", "Membership requests.", "Rae", "I contribute", `action="/dashboard/orgs/org-id/membership-requests/request-id"`, `class="organization-review-action is-primary"`, `class="organization-review-action is-secondary"`} {
 		if !strings.Contains(organizationDashboard.String(), want) {
 			t.Fatalf("organization dashboard omitted %q: %s", want, organizationDashboard.String())
 		}
@@ -885,12 +909,15 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(memberOrganizationDashboard.String(), `href="/dashboard/sponsor/org-id"`) || strings.Contains(memberOrganizationDashboard.String(), "Open sponsor workspace") {
 		t.Fatalf("ordinary organization member sees sponsor workspace link: %s", memberOrganizationDashboard.String())
 	}
+	if strings.Contains(memberOrganizationDashboard.String(), `href="#profile"`) || strings.Contains(memberOrganizationDashboard.String(), "How Signet Systems appears.") {
+		t.Fatalf("ordinary organization member sees organization profile management section: %s", memberOrganizationDashboard.String())
+	}
 
 	var organizationApplication bytes.Buffer
-	if err := ctx.TemplateCache.ExecuteTemplate(&organizationApplication, "admin/organization_application.tmpl", &OrganizationApplicationAdminPage{Application: &types.OrganizationApplication{ID: "application-id", Name: "Nairobi BitDevs", ApplicantName: "Ada", ApplicantEmail: "ada@example.test", Status: "pending", CreatedAt: time.Now()}}); err != nil {
+	if err := ctx.TemplateCache.ExecuteTemplate(&organizationApplication, "admin/organization_application.tmpl", &OrganizationApplicationAdminPage{Application: &types.OrganizationApplication{ID: "application-id", Name: "Nairobi BitDevs", ApplicantName: "Ada", ApplicantEmail: "ada@example.test", LogoLight: "https://cdn.example.test/light.svg", LogoDark: "https://cdn.example.test/dark.svg", Status: "pending", CreatedAt: time.Now()}}); err != nil {
 		t.Fatalf("render organization application review: %v", err)
 	}
-	for _, want := range []string{"Review Nairobi BitDevs", "Submitted by Ada", `action="/admin/org-applications/application-id"`, `value="approved"`, "Approve and create organization", `value="denied"`, "Deny application"} {
+	for _, want := range []string{"Review Nairobi BitDevs", "Submitted by Ada", `action="/admin/org-applications/application-id"`, "Proposed logo variants", "https://cdn.example.test/light.svg", "https://cdn.example.test/dark.svg", `value="approved"`, "Approve and create organization", `value="denied"`, "Deny application", `class="organization-review-action is-primary"`, `class="organization-review-action is-secondary"`} {
 		if !strings.Contains(organizationApplication.String(), want) {
 			t.Fatalf("organization application review omitted %q: %s", want, organizationApplication.String())
 		}

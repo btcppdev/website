@@ -2425,13 +2425,15 @@ func seedOrganizationCommunityFixtures(ctx context.Context, tx pgx.Tx) {
 	mustExec(ctx, tx, "seed pending organization application", `
 		INSERT INTO organization_applications (
 			id, submitted_by_person_id, applicant_email, name, tagline,
-			contact_email, website_url, github_url, notes, status
+			contact_email, website_url, github_url, logo_light_url,
+			logo_dark_url, notes, status
 		)
 		VALUES (
 			$1::uuid, $2::uuid, 'dev-invited-speaker@example.test',
 			'Nairobi BitDevs', 'A Bitcoin developer community in Nairobi',
 			'dev-invited-speaker@example.test', 'https://example.test/nairobi-bitdevs',
-			'https://github.com/example/nairobi-bitdevs',
+			'https://github.com/example/nairobi-bitdevs', '/static/img/sponsors/vinteum.png',
+			'/static/img/sponsors/vinteum_white.svg',
 			'We host regular technical meetups and would like a home on Bitcoin++.', 'pending'
 		)
 		ON CONFLICT (id) DO UPDATE SET
@@ -2442,6 +2444,8 @@ func seedOrganizationCommunityFixtures(ctx context.Context, tx pgx.Tx) {
 			contact_email = EXCLUDED.contact_email,
 			website_url = EXCLUDED.website_url,
 			github_url = EXCLUDED.github_url,
+			logo_light_url = EXCLUDED.logo_light_url,
+			logo_dark_url = EXCLUDED.logo_dark_url,
 			notes = EXCLUDED.notes,
 			status = 'pending',
 			review_note = '',

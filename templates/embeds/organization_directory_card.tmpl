@@ -1,0 +1,19 @@
+{{ define "organization_directory_card" }}
+<article class="organization-directory-card">
+  <div class="organization-dashboard-card__mark">{{ if .Entry.Organization.LogoLight }}<img src="{{ .Entry.Organization.LogoLight | safeURL }}" alt="">{{ else }}<span>{{ printf "%.1s" .Entry.Organization.Name }}</span>{{ end }}</div>
+  <div><h3>{{ .Entry.Organization.Name }}</h3><p>{{ if .Entry.Organization.Tagline }}{{ .Entry.Organization.Tagline }}{{ else }}No description yet.{{ end }}</p></div>
+  {{ if .Entry.MembershipRole }}
+  <a href="/dashboard/orgs/{{ .Entry.Organization.Ref }}">Member · {{ .Entry.MembershipRole }} →</a>
+  {{ else if eq .Entry.RequestStatus "pending" }}
+  <strong class="organization-directory-status">Request awaiting review</strong>
+  {{ else if eq .Entry.Organization.MembershipPolicy "closed" }}
+  <span class="organization-directory-status">Not accepting requests</span>
+  {{ else }}
+  <form method="POST" action="/dashboard/orgs/{{ .Entry.Organization.Ref }}/membership-requests">
+    <input type="hidden" name="csrf" value="{{ .CSRF }}">
+    {{ if eq .Entry.Organization.MembershipPolicy "request" }}<label><span>Optional note</span><textarea name="message" rows="2" placeholder="How are you connected to this organization?"></textarea></label>{{ end }}
+    <button type="submit">{{ if eq .Entry.Organization.MembershipPolicy "open" }}Join now{{ else }}Request membership{{ end }} →</button>
+  </form>
+  {{ end }}
+</article>
+{{ end }}

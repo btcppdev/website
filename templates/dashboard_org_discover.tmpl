@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>discover organizations - bitcoin++</title>
+  {{ block "header" . }}{{ end }}
+</head>
+<body class="btcpp-dashboard-page organization-dashboard-page organization-directory-page">
+  {{ block "mainnav" . }}{{ end }}
+  {{ template "dashboard_tabs" (dict "Active" "orgs" "ShowHackathons" .HasHackathonProjects "ShowSponsors" .ShowSponsors "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
+  <div class="dashboard-shell">
+    <main class="dashboard-main">
+      <a class="organization-directory-back" href="/dashboard/orgs">← Back to your organizations</a>
+      <header class="dashboard-workspace-hero organization-dashboard-hero">
+        <div class="dashboard-workspace-hero__identity">
+          <div class="dashboard-workspace-hero__mark"><span>O</span></div>
+          <div class="dashboard-workspace-hero__copy">
+            <div class="dashboard-kicker">● Organization directory</div>
+            <h1>Discover organizations.</h1>
+            <p>Find bitcoin communities and projects already represented at bitcoin++.</p>
+          </div>
+        </div>
+        <dl class="dashboard-workspace-hero__facts" aria-label="Organization directory summary">
+          <div><dt>Results</dt><dd>{{ len .Directory }}</dd></div>
+        </dl>
+      </header>
+
+      <section class="organization-dashboard-section dashboard-workspace-panel">
+        <div class="organization-directory-tools organization-directory-tools--full">
+          <form method="GET" action="/dashboard/orgs/discover" role="search">
+            <label for="organization-directory-search">Search organizations</label>
+            <div class="organization-directory-search-row"><input id="organization-directory-search" name="q" type="search" value="{{ .Search }}" placeholder="Search by name or description"><button class="organization-directory-search-button" type="submit">Search →</button></div>
+          </form>
+          {{ if .Search }}<a class="organization-directory-secondary-action" href="/dashboard/orgs/discover">Clear search</a>{{ end }}
+        </div>
+        {{ if .Search }}<p class="organization-directory-results-summary">Showing {{ len .Directory }} result{{ if ne (len .Directory) 1 }}s{{ end }} for <strong>“{{ .Search }}”</strong></p>{{ end }}
+        <div class="organization-directory-grid">
+          {{ range .Directory }}
+          {{ template "organization_directory_card" (dict "Entry" . "CSRF" $.CSRF) }}
+          {{ else }}
+          <p class="organization-directory-empty">{{ if .Search }}Try a different name or description.{{ else }}No organizations have been added yet.{{ end }}</p>
+          {{ end }}
+        </div>
+      </section>
+    </main>
+  </div>
+  {{ block "footer" . }}{{ end }}
+</body>
+</html>

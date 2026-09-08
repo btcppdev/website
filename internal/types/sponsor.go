@@ -60,6 +60,8 @@ type (
 		ContactEmail        string
 		Website             string
 		Github              string
+		LogoLight           string
+		LogoDark            string
 		Notes               string
 		Status              string
 		ReviewNote          string

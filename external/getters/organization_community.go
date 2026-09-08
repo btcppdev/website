@@ -51,8 +51,17 @@ func UpdateOrganizationMembershipPolicy(ctx *config.AppContext, organizationID, 
 }
 
 func ListOrganizationDirectoryForPerson(ctx *config.AppContext, personID string) ([]*types.OrganizationDirectoryEntry, error) {
+	return ListOrganizationDirectoryForPersonFiltered(ctx, personID, "", 0)
+}
+
+func ListOrganizationDirectoryForPersonFiltered(ctx *config.AppContext, personID, search string, limit int) ([]*types.OrganizationDirectoryEntry, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
+	}
+	personID = strings.TrimSpace(personID)
+	search = strings.TrimSpace(search)
+	if limit < 0 {
+		return nil, fmt.Errorf("organization directory limit cannot be negative")
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT organizations.id::text, organizations.name, organizations.tagline,
@@ -72,8 +81,12 @@ func ListOrganizationDirectoryForPerson(ctx *config.AppContext, personID string)
 			WHERE organization_id = organizations.id AND person_id = $1::uuid
 			ORDER BY created_at DESC LIMIT 1
 		) requests ON true
+		WHERE ($2 = ''
+			OR strpos(lower(organizations.name), lower($2)) > 0
+			OR strpos(lower(organizations.tagline), lower($2)) > 0)
 		ORDER BY lower(organizations.name), organizations.id
-	`, strings.TrimSpace(personID))
+		LIMIT NULLIF($3::integer, 0)
+	`, personID, search, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list organization directory: %w", err)
 	}
@@ -264,9 +277,14 @@ func CreateOrganizationApplication(ctx *config.AppContext, application *types.Or
 	application.ContactEmail = strings.ToLower(strings.TrimSpace(application.ContactEmail))
 	application.Website = strings.TrimSpace(application.Website)
 	application.Github = strings.TrimSpace(application.Github)
+	application.LogoLight = strings.TrimSpace(application.LogoLight)
+	application.LogoDark = strings.TrimSpace(application.LogoDark)
 	application.Notes = strings.TrimSpace(application.Notes)
 	if application.Name == "" || application.SubmittedByPersonID == "" {
 		return fmt.Errorf("organization name and applicant are required")
+	}
+	if application.LogoLight == "" || application.LogoDark == "" {
+		return fmt.Errorf("both light- and dark-background organization logos are required")
 	}
 	if parsed, err := mail.ParseAddress(application.ApplicantEmail); err != nil || !strings.EqualFold(parsed.Address, application.ApplicantEmail) {
 		return fmt.Errorf("a valid applicant email is required")
@@ -292,12 +310,13 @@ func CreateOrganizationApplication(ctx *config.AppContext, application *types.Or
 	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO organization_applications (
 			submitted_by_person_id, applicant_email, name, tagline, contact_email,
-			website_url, github_url, notes
-		) VALUES ($1::uuid, $2::citext, $3, $4, NULLIF($5, '')::citext, $6, $7, $8)
+			website_url, github_url, logo_light_url, logo_dark_url, notes
+		) VALUES ($1::uuid, $2::citext, $3, $4, NULLIF($5, '')::citext, $6, $7, $8, $9, $10)
 		RETURNING id::text, status, created_at, updated_at
 	`, application.SubmittedByPersonID, application.ApplicantEmail, application.Name,
 		application.Tagline, application.ContactEmail, application.Website,
-		application.Github, application.Notes).Scan(&application.ID, &application.Status,
+		application.Github, application.LogoLight, application.LogoDark,
+		application.Notes).Scan(&application.ID, &application.Status,
 		&application.CreatedAt, &application.UpdatedAt); err != nil {
 		return fmt.Errorf("create organization application: %w", err)
 	}
@@ -328,7 +347,8 @@ func queryOrganizationApplications(ctx *config.AppContext, where string, arg any
 		SELECT applications.id::text, applications.submitted_by_person_id::text,
 			people.name, applications.applicant_email::text, applications.name,
 			applications.tagline, coalesce(applications.contact_email::text, ''),
-			applications.website_url, applications.github_url, applications.notes,
+			applications.website_url, applications.github_url,
+			applications.logo_light_url, applications.logo_dark_url, applications.notes,
 			applications.status, applications.review_note,
 			coalesce(applications.reviewed_by_person_id::text, ''),
 			applications.reviewed_at, coalesce(applications.organization_id::text, ''),
@@ -350,7 +370,8 @@ func queryOrganizationApplications(ctx *config.AppContext, where string, arg any
 			&application.ID, &application.SubmittedByPersonID, &application.ApplicantName,
 			&application.ApplicantEmail, &application.Name, &application.Tagline,
 			&application.ContactEmail, &application.Website, &application.Github,
-			&application.Notes, &application.Status, &application.ReviewNote,
+			&application.LogoLight, &application.LogoDark, &application.Notes,
+			&application.Status, &application.ReviewNote,
 			&application.ReviewedByPersonID, &reviewedAt, &application.OrganizationID,
 			&application.CreatedAt, &application.UpdatedAt,
 		); err != nil {
@@ -384,9 +405,11 @@ func ReviewOrganizationApplication(ctx *config.AppContext, applicationID, review
 	defer tx.Rollback(dbctx)
 	application := &types.OrganizationApplication{ID: strings.TrimSpace(applicationID)}
 	if err := tx.QueryRow(dbctx, `
-		SELECT submitted_by_person_id::text, applicant_email::text, status
+		SELECT submitted_by_person_id::text, applicant_email::text, status,
+			logo_light_url, logo_dark_url
 		FROM organization_applications WHERE id = $1::uuid FOR UPDATE
-	`, application.ID).Scan(&application.SubmittedByPersonID, &application.ApplicantEmail, &application.Status); err != nil {
+	`, application.ID).Scan(&application.SubmittedByPersonID, &application.ApplicantEmail,
+		&application.Status, &application.LogoLight, &application.LogoDark); err != nil {
 		return nil, fmt.Errorf("pending organization application not found")
 	}
 	if application.Status != "pending" {
@@ -413,11 +436,12 @@ func ReviewOrganizationApplication(ctx *config.AppContext, applicationID, review
 			return nil, fmt.Errorf("an organization with that name already exists")
 		}
 		if err := tx.QueryRow(dbctx, `
-			INSERT INTO organizations (name, tagline, email, website_url, github_url, notes, membership_policy)
-			VALUES ($1, $2, NULLIF($3, '')::citext, $4, $5, $6, 'request')
+			INSERT INTO organizations (name, tagline, email, website_url, github_url, logo_light_url, logo_dark_url, notes, membership_policy)
+			VALUES ($1, $2, NULLIF($3, '')::citext, $4, $5, $6, $7, $8, 'request')
 			RETURNING id::text
 		`, application.Name, application.Tagline, application.ContactEmail,
-			application.Website, application.Github, application.Notes).Scan(&application.OrganizationID); err != nil {
+			application.Website, application.Github, application.LogoLight,
+			application.LogoDark, application.Notes).Scan(&application.OrganizationID); err != nil {
 			return nil, fmt.Errorf("create approved organization: %w", err)
 		}
 		if _, err := tx.Exec(dbctx, `
@@ -431,14 +455,16 @@ func ReviewOrganizationApplication(ctx *config.AppContext, applicationID, review
 	if err := tx.QueryRow(dbctx, `
 		UPDATE organization_applications SET
 			name = $2, tagline = $3, contact_email = NULLIF($4, '')::citext,
-			website_url = $5, github_url = $6, notes = $7, status = $8,
-			review_note = $9, reviewed_by_person_id = $10::uuid,
-			reviewed_at = now(), organization_id = NULLIF($11, '')::uuid
+			website_url = $5, github_url = $6, logo_light_url = $7,
+			logo_dark_url = $8, notes = $9, status = $10,
+			review_note = $11, reviewed_by_person_id = $12::uuid,
+			reviewed_at = now(), organization_id = NULLIF($13, '')::uuid
 		WHERE id = $1::uuid
 		RETURNING status, reviewed_at, updated_at
 	`, application.ID, application.Name, application.Tagline, application.ContactEmail,
-		application.Website, application.Github, application.Notes, decision,
-		application.ReviewNote, reviewerPersonID, application.OrganizationID).Scan(
+		application.Website, application.Github, application.LogoLight,
+		application.LogoDark, application.Notes, decision, application.ReviewNote,
+		reviewerPersonID, application.OrganizationID).Scan(
 		&application.Status, &reviewedAt, &application.UpdatedAt); err != nil {
 		return nil, fmt.Errorf("record organization application decision: %w", err)
 	}

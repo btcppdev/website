@@ -22,7 +22,16 @@
         <label class="block text-sm font-medium text-gray-700 sm:col-span-2">Applicant notes<textarea class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" name="notes" rows="4"{{ if ne .Application.Status "pending" }} readonly{{ end }}>{{ .Application.Notes }}</textarea></label>
         <label class="block text-sm font-medium text-gray-700 sm:col-span-2">Decision note<textarea class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2" name="review_note" rows="3"{{ if ne .Application.Status "pending" }} readonly{{ end }}>{{ .Application.ReviewNote }}</textarea></label>
       </div>
-      {{ if eq .Application.Status "pending" }}<div class="flex flex-wrap gap-3"><button class="rounded-md bg-green-700 px-4 py-2 font-semibold text-white" type="submit" name="decision" value="approved">Approve and create organization</button><button class="rounded-md bg-red-700 px-4 py-2 font-semibold text-white" type="submit" name="decision" value="denied">Deny application</button></div>{{ else }}<p class="font-semibold">Decision: {{ .Application.Status }}{{ if .Application.ReviewedAt }} · {{ .Application.ReviewedAt.Format "Jan 2, 2006 at 3:04 PM MST" }}{{ end }}</p>{{ end }}
+      {{ if or .Application.LogoLight .Application.LogoDark }}
+      <fieldset class="sponsor-profile-group organization-application-logos">
+        <legend>Proposed logo variants</legend>
+        <div class="sponsor-logo-variants">
+          <div class="sponsor-logo-variant"><span>Light background</span><div class="sponsor-logo-variant__preview is-light">{{ if .Application.LogoLight }}<img src="{{ .Application.LogoLight | safeURL }}" alt="{{ .Application.Name }} light-background logo">{{ else }}<em>Not provided</em>{{ end }}</div></div>
+          <div class="sponsor-logo-variant"><span>Dark background</span><div class="sponsor-logo-variant__preview is-dark">{{ if .Application.LogoDark }}<img src="{{ .Application.LogoDark | safeURL }}" alt="{{ .Application.Name }} dark-background logo">{{ else }}<em>Not provided</em>{{ end }}</div></div>
+        </div>
+      </fieldset>
+      {{ end }}
+      {{ if eq .Application.Status "pending" }}<div class="flex flex-wrap gap-3"><button class="organization-review-action is-primary" type="submit" name="decision" value="approved">Approve and create organization</button><button class="organization-review-action is-secondary" type="submit" name="decision" value="denied">Deny application</button></div>{{ else }}<p class="font-semibold">Decision: {{ .Application.Status }}{{ if .Application.ReviewedAt }} · {{ .Application.ReviewedAt.Format "Jan 2, 2006 at 3:04 PM MST" }}{{ end }}</p>{{ end }}
     </form>
   </main>
   {{ block "footer" . }}{{ end }}

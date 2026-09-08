@@ -28,6 +28,7 @@ type OrganizationDashboardIndexPage struct {
 	PendingOrgInviteCount int
 	HasHackathonProjects  bool
 	ShowSponsors          bool
+	SpacesReady           bool
 	ManagedCount          int
 	IsGlobalAdmin         bool
 	CSRF                  string
@@ -56,6 +57,17 @@ type OrganizationDashboardPage struct {
 	InviteEmail           string
 	FlashMessage          string
 	FlashError            string
+	Year                  uint
+}
+
+type OrganizationDirectoryPage struct {
+	Directory             []*types.OrganizationDirectoryEntry
+	Search                string
+	PendingOrgInviteCount int
+	HasHackathonProjects  bool
+	ShowSponsors          bool
+	IsGlobalAdmin         bool
+	CSRF                  string
 	Year                  uint
 }
 
@@ -98,7 +110,7 @@ func OrganizationDashboardIndex(w http.ResponseWriter, r *http.Request, ctx *con
 		http.Error(w, "Unable to load organization invitations", http.StatusInternalServerError)
 		return
 	}
-	directory, err := getters.ListOrganizationDirectoryForPerson(ctx, id.PersonID)
+	directory, err := getters.ListOrganizationDirectoryForPersonFiltered(ctx, id.PersonID, "", 8)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/orgs directory for %s: %s", id.PersonID, err)
 		http.Error(w, "Unable to load organization directory", http.StatusInternalServerError)
@@ -125,6 +137,7 @@ func OrganizationDashboardIndex(w http.ResponseWriter, r *http.Request, ctx *con
 		PendingOrgInviteCount: len(pendingInvites), ManagedCount: managed,
 		HasHackathonProjects: hasHackathonProjects,
 		ShowSponsors:         hasManagedSponsorOrganization(ctx, id.PersonID, "/dashboard/orgs"),
+		SpacesReady:          spaces.IsConfigured(),
 		IsGlobalAdmin:        id.IsGlobalAdmin(), CSRF: csrf,
 		FlashMessage: r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"),
 		Year: helpers.CurrentYear(),
@@ -132,6 +145,45 @@ func OrganizationDashboardIndex(w http.ResponseWriter, r *http.Request, ctx *con
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_orgs.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/orgs template: %s", err)
 		http.Error(w, "Unable to load organizations", http.StatusInternalServerError)
+	}
+}
+
+func OrganizationDashboardDirectory(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, _, ok := organizationDashboardIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+	directory, err := getters.ListOrganizationDirectoryForPersonFiltered(ctx, id.PersonID, search, 0)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orgs/discover directory for %s: %s", id.PersonID, err)
+		http.Error(w, "Unable to load organization directory", http.StatusInternalServerError)
+		return
+	}
+	pendingInvites, err := getters.ListPendingOrganizationMemberInvitesForPerson(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orgs/discover pending invitations for %s: %s", id.PersonID, err)
+		http.Error(w, "Unable to load organization invitations", http.StatusInternalServerError)
+		return
+	}
+	csrf, err := ensureAuthMethodsCSRF(ctx, r)
+	if err != nil {
+		http.Error(w, "Unable to prepare organization directory", http.StatusInternalServerError)
+		return
+	}
+	hasHackathonProjects, err := getters.HasHackathonParticipantProjectsForPerson(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orgs/discover hackathon projects for %s: %s", id.PersonID, err)
+	}
+	page := &OrganizationDirectoryPage{
+		Directory: directory, Search: search, PendingOrgInviteCount: len(pendingInvites),
+		HasHackathonProjects: hasHackathonProjects,
+		ShowSponsors:         hasManagedSponsorOrganization(ctx, id.PersonID, "/dashboard/orgs/discover"),
+		IsGlobalAdmin:        id.IsGlobalAdmin(), CSRF: csrf, Year: helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_org_discover.tmpl", page); err != nil {
+		ctx.Err.Printf("/dashboard/orgs/discover template: %s", err)
+		http.Error(w, "Unable to load organization directory", http.StatusInternalServerError)
 	}
 }
 

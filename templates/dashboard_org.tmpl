@@ -39,12 +39,13 @@
       </header>
 
       <nav class="organization-dashboard-local-nav" aria-label="Organization sections">
-        <a href="#profile">/profile</a>
+        {{ if .CanManage }}<a href="#profile">/profile</a>{{ end }}
         <a href="#members">/members</a>
         {{ if .CanManage }}<a href="#requests">/join requests{{ if .PendingRequests }} ({{ len .PendingRequests }}){{ end }}</a>{{ end }}
         {{ if and .CanManage .SponsorEvents }}<a href="/dashboard/sponsor/{{ .Organization.Ref }}">/sponsorships</a>{{ end }}
       </nav>
 
+      {{ if .CanManage }}
       <section class="organization-dashboard-section dashboard-workspace-panel" id="profile">
         <div class="organization-dashboard-section__head">
           <div><div class="dashboard-kicker">§ Public profile</div><h2>How {{ .Organization.Name }} appears.</h2></div>
@@ -115,6 +116,7 @@
         </details>
         {{ end }}
       </section>
+      {{ end }}
 
       <section class="organization-dashboard-section dashboard-workspace-panel" id="members">
         <div class="organization-dashboard-section__head">
@@ -165,8 +167,8 @@
             <form method="POST" action="/dashboard/orgs/{{ $.Organization.Ref }}/membership-requests/{{ .ID }}">
               <input type="hidden" name="csrf" value="{{ $.CSRF }}">
               <label><span class="sr-only">Review note for {{ .PersonName }}</span><input name="review_note" placeholder="Optional note"></label>
-              <button type="submit" name="decision" value="approved">Approve</button>
-              <button type="submit" name="decision" value="denied">Deny</button>
+              <button class="organization-review-action is-primary" type="submit" name="decision" value="approved">Approve</button>
+              <button class="organization-review-action is-secondary" type="submit" name="decision" value="denied">Deny</button>
             </form>
           </article>
           {{ end }}
