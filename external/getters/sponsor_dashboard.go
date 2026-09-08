@@ -1680,6 +1680,76 @@ func ListSponsorAwardProposalsForCompetition(ctx *config.AppContext, competition
 	return listSponsorAwardProposals(ctx, `WHERE proposals.competition_id = $1::uuid`, strings.TrimSpace(competitionID))
 }
 
+func GetSponsorAwardProposal(ctx *config.AppContext, proposalID string) (*types.SponsorAwardProposal, error) {
+	proposals, err := listSponsorAwardProposals(ctx, `WHERE proposals.id = $1::uuid`, strings.TrimSpace(proposalID))
+	if err != nil {
+		return nil, err
+	}
+	if len(proposals) == 0 {
+		return nil, fmt.Errorf("sponsor award proposal not found")
+	}
+	return proposals[0], nil
+}
+
+// ListSponsorResultNotificationRecipients returns the managers of every
+// organization entitled to see the finalized competition: sponsors with full
+// submission access and organizations that issued an award are both included.
+func ListSponsorResultNotificationRecipients(ctx *config.AppContext, competitionID string) ([]*types.SponsorOrganizationRecipient, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		WITH eligible_organizations AS (
+			SELECT sponsorships.organization_id
+			FROM competitions
+			JOIN sponsorships_conferences links ON links.conference_id = competitions.conference_id
+			JOIN sponsorships ON sponsorships.id = links.sponsorship_id
+			JOIN sponsorship_entitlements entitlements
+			  ON entitlements.sponsorship_id = sponsorships.id
+			 AND entitlements.conference_id = competitions.conference_id
+			WHERE competitions.id = $1::uuid
+			  AND sponsorships.archived_at IS NULL
+			  AND lower(sponsorships.status) IN ('paid', 'committed')
+			  AND entitlements.all_hackathon_submissions_access
+			UNION
+			SELECT awards.sponsored_by_org_id
+			FROM awards
+			WHERE awards.competition_id = $1::uuid
+			  AND awards.sponsored_by_org_id IS NOT NULL
+			  AND awards.archived_at IS NULL
+		)
+		SELECT organizations.id::text, organizations.name,
+			memberships.person_id::text, people.name, contact.email::text
+		FROM eligible_organizations eligible
+		JOIN organizations ON organizations.id = eligible.organization_id
+		JOIN organization_memberships memberships
+		  ON memberships.organization_id = eligible.organization_id
+		JOIN people ON people.id = memberships.person_id
+		JOIN LATERAL (
+			SELECT email FROM person_emails
+			WHERE person_id = people.id AND verified_at IS NOT NULL
+			ORDER BY is_primary DESC, verified_at DESC, created_at, id LIMIT 1
+		) contact ON true
+		WHERE memberships.status = 'active'
+		  AND memberships.role IN ('owner', 'manager')
+		ORDER BY organizations.name, lower(contact.email::text), memberships.person_id
+	`, strings.TrimSpace(competitionID))
+	if err != nil {
+		return nil, fmt.Errorf("list sponsor result notification recipients: %w", err)
+	}
+	defer rows.Close()
+	var recipients []*types.SponsorOrganizationRecipient
+	for rows.Next() {
+		recipient := &types.SponsorOrganizationRecipient{}
+		if err := rows.Scan(&recipient.OrganizationID, &recipient.OrganizationName,
+			&recipient.PersonID, &recipient.Name, &recipient.Email); err != nil {
+			return nil, fmt.Errorf("scan sponsor result notification recipient: %w", err)
+		}
+		recipients = append(recipients, recipient)
+	}
+	return recipients, rows.Err()
+}
+
 func listSponsorAwardProposals(ctx *config.AppContext, where string, arg string) ([]*types.SponsorAwardProposal, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
@@ -1818,7 +1888,7 @@ func ReviewSponsorAwardProposal(ctx *config.AppContext, proposalID, competitionI
 	proposal.Status = decision
 	proposal.ReviewNotes = strings.TrimSpace(notes)
 	proposal.ReviewedByPersonID = strings.TrimSpace(reviewerPersonID)
-	return proposal, nil
+	return GetSponsorAwardProposal(ctx, proposal.ID)
 }
 
 func IssueSponsorTickets(ctx *config.AppContext, organizationID, sponsorshipID, conferenceID, issuedByPersonID, email string, quantity int) (*types.SponsorTicketIssuance, error) {

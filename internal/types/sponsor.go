@@ -105,6 +105,20 @@ type (
 		UpdatedAt         time.Time
 	}
 
+	NotificationRecipient struct {
+		PersonID string
+		Name     string
+		Email    string
+	}
+
+	SponsorOrganizationRecipient struct {
+		OrganizationID   string
+		OrganizationName string
+		PersonID         string
+		Name             string
+		Email            string
+	}
+
 	OrganizationMemberInvite struct {
 		ID                 string
 		OrganizationID     string

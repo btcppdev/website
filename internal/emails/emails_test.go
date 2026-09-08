@@ -194,3 +194,72 @@ func TestOrganizationApplicationEmailsIncludeReviewAndDecisionLinks(t *testing.T
 		}
 	}
 }
+
+func TestOrganizationMembershipAndSponsorNotificationEmails(t *testing.T) {
+	var requests []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode mailer request: %v", err)
+		}
+		requests = append(requests, request)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"code":200}`))
+	}))
+	defer server.Close()
+
+	ctx := &config.AppContext{
+		Env:           &types.EnvConfig{Prod: true, Host: "btcpp.dev", MailEndpoint: server.URL, MailerSecret: "test-secret"},
+		Infos:         log.New(io.Discard, "", 0),
+		EmailCache:    make(map[string]*texttemplate.Template),
+		TemplateCache: htmltemplate.Must(htmltemplate.New("root").Parse(`{{ define "emails/tmp.tmpl" }}<html><body><main>{{ .Content }}</main></body></html>{{ end }}`)),
+	}
+	request := &types.OrganizationMembershipRequest{
+		ID: "request-id", OrganizationID: "org-id", OrganizationName: "Nairobi BitDevs",
+		PersonID: "person-id", PersonName: "Amina", PersonEmail: "amina@example.com", Message: "I organize meetups", Status: "pending",
+	}
+	manager := &types.NotificationRecipient{PersonID: "manager-id", Name: "Manager", Email: "manager@example.com"}
+	if err := SendOrganizationMembershipRequestReceipt(ctx, request, "https://btcpp.dev/dashboard/orgs", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := SendOrganizationMembershipRequestManagerNotice(ctx, request, manager, "https://btcpp.dev/dashboard/orgs/org-id#requests", false); err != nil {
+		t.Fatal(err)
+	}
+	request.Status = "approved"
+	request.ReviewNote = "Welcome!"
+	if err := SendOrganizationMembershipDecision(ctx, request, "https://btcpp.dev/dashboard/orgs"); err != nil {
+		t.Fatal(err)
+	}
+	application := &types.OrganizationApplication{ID: "application-id", Name: "Nairobi BitDevs", ApplicantEmail: "amina@example.com"}
+	if err := SendOrganizationApplicationReceipt(ctx, application, "https://btcpp.dev/dashboard/orgs"); err != nil {
+		t.Fatal(err)
+	}
+	proposal := &types.SponsorAwardProposal{ID: "proposal-id", OrganizationID: "org-id", OrganizationName: "Spiral", Title: "Best Lightning Tool", CompetitionTitle: "Austin Hackathon", Status: "approved", ReviewNotes: "Looks great"}
+	if err := SendSponsorAwardProposalAdminNotice(ctx, proposal, "admin@example.com", "https://btcpp.dev/austin/admin/hackathon/awards#sponsor-proposals"); err != nil {
+		t.Fatal(err)
+	}
+	if err := SendSponsorAwardProposalDecision(ctx, proposal, manager, "https://btcpp.dev/dashboard/sponsor/org-id#challenges"); err != nil {
+		t.Fatal(err)
+	}
+	conf := &types.Conf{Tag: "austin", Desc: "bitcoin++ Austin"}
+	competition := &types.HackathonCompetition{ID: "competition-id", Title: "Austin Hackathon"}
+	sponsorManager := &types.SponsorOrganizationRecipient{OrganizationID: "org-id", OrganizationName: "Spiral", PersonID: "manager-id", Email: "manager@example.com"}
+	if err := SendSponsorResultsNotice(ctx, conf, competition, sponsorManager, "https://btcpp.dev/austin/hackathon#awards", "https://btcpp.dev/dashboard/sponsor/org-id/projects"); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 7 {
+		t.Fatalf("notification email requests = %d, want 7", len(requests))
+	}
+	payload, _ := json.Marshal(requests)
+	got := string(payload)
+	for _, want := range []string{
+		"Membership request received", "I organize meetups", "Welcome!",
+		"Organization application received", "Review sponsor prize proposal",
+		"Sponsor prize proposal approved", "View public results", "View sponsor projects",
+		"sponsor-award-proposal-proposal-id-approved-manager-",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("notification payloads missing %q: %s", want, got)
+		}
+	}
+}

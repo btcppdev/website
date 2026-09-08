@@ -213,6 +213,18 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if err != nil || approved.AwardID == "" || approved.Status != "approved" {
 		t.Fatalf("ReviewSponsorAwardProposal: proposal=%+v err=%v", approved, err)
 	}
+	if approved.OrganizationName == "" || approved.CompetitionTitle == "" {
+		t.Fatalf("reviewed sponsor proposal omitted notification details: %+v", approved)
+	}
+	resultRecipients, err := ListSponsorResultNotificationRecipients(ctx, competitionID)
+	if err != nil || len(resultRecipients) != 2 {
+		t.Fatalf("sponsor result recipients = %+v err=%v, want owner and manager", resultRecipients, err)
+	}
+	for _, recipient := range resultRecipients {
+		if recipient.OrganizationID != orgID || recipient.OrganizationName == "" || recipient.Email == "" || recipient.PersonID == ordinaryMemberID {
+			t.Fatalf("invalid sponsor result recipient: %+v", recipient)
+		}
+	}
 	var awardStatus, prizeValue string
 	if err := ctx.DB.QueryRow(context.Background(), `
 		SELECT awards.status, prizes.value_text

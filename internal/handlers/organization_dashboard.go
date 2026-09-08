@@ -451,7 +451,12 @@ func OrganizationDashboardInviteReplace(w http.ResponseWriter, r *http.Request, 
 	ctx.Session.Put(r.Context(), organizationInviteLinkSessionKey, ctx.Env.GetURI()+"/sponsor-invites/"+url.PathEscape(token))
 	ctx.Session.Put(r.Context(), organizationInviteLinkSessionKey+"_email", invite.Email)
 	recordOrganizationDashboardAudit(ctx, organizationID, id.PersonID, "organization.member_invite_replaced", "organization_member_invite", invite.ID, map[string]any{"email": invite.Email, "replaced_invite_id": inviteID})
-	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("A new invitation link was created. The previous link is no longer valid."), http.StatusSeeOther)
+	if sendErr := sendOrganizationMemberInvitationEmail(ctx, organizationID, invite, token); sendErr != nil {
+		ctx.Err.Printf("/dashboard/orgs/%s replacement invitation email to %s: %s", organizationID, invite.Email, sendErr)
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("The invitation was replaced, but its email could not be sent. Copy the secure link below instead."), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("A replacement invitation was emailed. The previous link is no longer valid."), http.StatusSeeOther)
 }
 
 func OrganizationDashboardInviteRevoke(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

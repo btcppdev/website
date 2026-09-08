@@ -47,6 +47,21 @@ func OrganizationMembershipRequestCreate(w http.ResponseWriter, r *http.Request,
 		flash = "You joined " + request.OrganizationName + "."
 	}
 	recordOrganizationDashboardAudit(ctx, organizationID, id.PersonID, action, "organization_membership_request", request.ID, nil)
+	dashboardURL := ctx.Env.GetURI() + "/dashboard/orgs"
+	if sendErr := emails.SendOrganizationMembershipRequestReceipt(ctx, request, dashboardURL, autoApproved); sendErr != nil {
+		ctx.Err.Printf("/dashboard/orgs membership request %s applicant email: %s", request.ID, sendErr)
+	}
+	managers, managerErr := getters.ListOrganizationManagerRecipients(ctx, organizationID)
+	if managerErr != nil {
+		ctx.Err.Printf("/dashboard/orgs membership request %s managers: %s", request.ID, managerErr)
+	} else {
+		reviewURL := ctx.Env.GetURI() + "/dashboard/orgs/" + url.PathEscape(organizationID) + "#requests"
+		for _, manager := range managers {
+			if sendErr := emails.SendOrganizationMembershipRequestManagerNotice(ctx, request, manager, reviewURL, autoApproved); sendErr != nil {
+				ctx.Err.Printf("/dashboard/orgs membership request %s notify manager %s: %s", request.ID, manager.Email, sendErr)
+			}
+		}
+	}
 	http.Redirect(w, r, "/dashboard/orgs?flash="+url.QueryEscape(flash), http.StatusSeeOther)
 }
 
@@ -83,6 +98,9 @@ func OrganizationMembershipRequestReview(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	recordOrganizationDashboardAudit(ctx, organizationID, id.PersonID, "organization.membership_request_"+decision, "organization_membership_request", request.ID, map[string]any{"person_id": request.PersonID})
+	if sendErr := emails.SendOrganizationMembershipDecision(ctx, request, ctx.Env.GetURI()+"/dashboard/orgs"); sendErr != nil {
+		ctx.Err.Printf("/dashboard/orgs membership request %s decision email: %s", request.ID, sendErr)
+	}
 	label := "denied"
 	if decision == "approved" {
 		label = "approved and added as a member"
@@ -154,6 +172,9 @@ func OrganizationApplicationCreate(w http.ResponseWriter, r *http.Request, ctx *
 		}
 		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape(message), http.StatusSeeOther)
 		return
+	}
+	if sendErr := emails.SendOrganizationApplicationReceipt(ctx, application, ctx.Env.GetURI()+"/dashboard/orgs"); sendErr != nil {
+		ctx.Err.Printf("/dashboard/orgs application %s applicant receipt: %s", application.ID, sendErr)
 	}
 	admins, err := getters.ListSpeakersWithRole(ctx, "global-admin")
 	if err != nil {

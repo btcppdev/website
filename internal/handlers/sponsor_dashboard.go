@@ -16,6 +16,7 @@ import (
 	"btcpp-web/external/spaces"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/missives"
@@ -775,12 +776,57 @@ func SponsorDashboardPrizeProposalCreate(w http.ResponseWriter, r *http.Request,
 		http.Redirect(w, r, redirectTo+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
+	if fullProposal, loadErr := getters.GetSponsorAwardProposal(ctx, proposal.ID); loadErr != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s proposal %s details: %s", organizationID, proposal.ID, loadErr)
+	} else {
+		proposal = fullProposal
+	}
 	if err := getters.RecordSponsorAuditEvent(ctx, organizationID, proposal.SponsorshipID,
 		proposal.ConferenceID, id.PersonID, "sponsor.award_proposed",
 		"sponsor_award_proposal", proposal.ID, nil); err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s proposal audit: %s", organizationID, err)
 	}
+	notifySponsorAwardProposalReviewers(ctx, proposal)
 	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("Prize proposal sent to the hackathon organizers for approval."), http.StatusSeeOther)
+}
+
+func notifySponsorAwardProposalReviewers(ctx *config.AppContext, proposal *types.SponsorAwardProposal) {
+	if proposal == nil {
+		return
+	}
+	competition, err := getters.GetCompetitionByID(ctx, proposal.CompetitionID)
+	if err != nil || competition == nil {
+		ctx.Err.Printf("sponsor proposal %s competition for notifications: %v", proposal.ID, err)
+		return
+	}
+	conf, err := getters.GetConfByRef(ctx, competition.ConferenceID)
+	if err != nil || conf == nil {
+		ctx.Err.Printf("sponsor proposal %s conference for notifications: %v", proposal.ID, err)
+		return
+	}
+	roles := []string{conf.Tag + "-" + auth.RoleHackathon, auth.GlobalScope + "-" + auth.RoleHackathon, "global-admin"}
+	seen := map[string]bool{}
+	reviewURL := ctx.Env.GetURI() + "/" + url.PathEscape(conf.Tag) + "/admin/hackathon/awards#sponsor-proposals"
+	for _, role := range roles {
+		recipients, loadErr := getters.ListSpeakersWithRole(ctx, role)
+		if loadErr != nil {
+			ctx.Err.Printf("sponsor proposal %s recipients for %s: %s", proposal.ID, role, loadErr)
+			continue
+		}
+		for _, recipient := range recipients {
+			if recipient == nil {
+				continue
+			}
+			email := strings.ToLower(strings.TrimSpace(recipient.Email))
+			if email == "" || seen[email] {
+				continue
+			}
+			seen[email] = true
+			if sendErr := emails.SendSponsorAwardProposalAdminNotice(ctx, proposal, recipient.Email, reviewURL); sendErr != nil {
+				ctx.Err.Printf("sponsor proposal %s notify %s: %s", proposal.ID, recipient.Email, sendErr)
+			}
+		}
+	}
 }
 
 func sponsorAwardProposalInputFromForm(r *http.Request) getters.SponsorAwardProposalInput {

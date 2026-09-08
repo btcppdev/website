@@ -285,7 +285,12 @@ func OrgPendingInviteReplace(w http.ResponseWriter, r *http.Request, ctx *config
 		map[string]any{"email": invite.Email, "replaced_invite_id": inviteID}); err != nil {
 		ctx.Err.Printf("/admin/orgs/%s invitation replacement audit: %s", organizationID, err)
 	}
-	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("A new invitation link was created for "+invite.Email+". The previous link is no longer valid."), http.StatusSeeOther)
+	if sendErr := sendOrganizationMemberInvitationEmail(ctx, organizationID, invite, token); sendErr != nil {
+		ctx.Err.Printf("/admin/orgs/%s replacement invitation email to %s: %s", organizationID, invite.Email, sendErr)
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("The invitation was replaced, but its email could not be sent. Copy the secure link below instead."), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("A replacement invitation was emailed to "+invite.Email+". The previous link is no longer valid."), http.StatusSeeOther)
 }
 
 func OrgMemberAdd(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -382,7 +387,29 @@ func OrgMemberInviteCreate(w http.ResponseWriter, r *http.Request, ctx *config.A
 	ctx.Session.Put(r.Context(), "admin_org_invite_link", ctx.Env.GetURI()+"/sponsor-invites/"+url.PathEscape(token))
 	ctx.Session.Put(r.Context(), "admin_org_invite_email", invite.Email)
 	recordAdminOrganizationAudit(ctx, organizationID, id.PersonID, "organization.member_invited_by_admin", "organization_member_invite", invite.ID, map[string]any{"email": invite.Email, "role": invite.Role})
-	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("Invitation created for "+invite.Email+". Copy its secure link below."), http.StatusSeeOther)
+	if sendErr := sendOrganizationMemberInvitationEmail(ctx, organizationID, invite, token); sendErr != nil {
+		ctx.Err.Printf("/admin/orgs/%s invitation email to %s: %s", organizationID, invite.Email, sendErr)
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("The invitation was created, but its email could not be sent. Copy the secure link below instead."), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("Invitation emailed to "+invite.Email+"."), http.StatusSeeOther)
+}
+
+func sendOrganizationMemberInvitationEmail(ctx *config.AppContext, organizationID string, invite *types.OrganizationMemberInvite, token string) error {
+	if invite == nil {
+		return fmt.Errorf("organization invitation is required")
+	}
+	org, err := getters.GetOrg(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	invite.OrganizationName = org.Name
+	next := "/sponsor-invites/" + url.PathEscape(token)
+	loginURL := auth.MagicLink(ctx, invite.Email, next)
+	if loginURL == "" {
+		return fmt.Errorf("could not create invitation login link")
+	}
+	return emails.SendOrganizationMemberInvitation(ctx, invite, loginURL)
 }
 
 func OrgPendingInviteRoleUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

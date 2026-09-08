@@ -171,6 +171,18 @@ func CreateOrganizationMembershipRequest(ctx *config.AppContext, organizationID,
 		value := reviewedAt.Time
 		request.ReviewedAt = &value
 	}
+	if err := tx.QueryRow(dbctx, `
+		SELECT people.name, coalesce(contact.email::text, '')
+		FROM people
+		LEFT JOIN LATERAL (
+			SELECT email FROM person_emails
+			WHERE person_id = people.id AND verified_at IS NOT NULL
+			ORDER BY is_primary DESC, verified_at DESC, created_at, id LIMIT 1
+		) contact ON true
+		WHERE people.id = $1::uuid
+	`, personID).Scan(&request.PersonName, &request.PersonEmail); err != nil {
+		return nil, false, fmt.Errorf("load membership requester: %w", err)
+	}
 	if err := tx.Commit(dbctx); err != nil {
 		return nil, false, fmt.Errorf("commit organization membership request: %w", err)
 	}
@@ -228,9 +240,20 @@ func ReviewOrganizationMembershipRequest(ctx *config.AppContext, organizationID,
 	defer tx.Rollback(dbctx)
 	request := &types.OrganizationMembershipRequest{ID: strings.TrimSpace(requestID), OrganizationID: strings.TrimSpace(organizationID)}
 	if err := tx.QueryRow(dbctx, `
-		SELECT person_id::text, message, status FROM organization_membership_requests
-		WHERE id = $1::uuid AND organization_id = $2::uuid FOR UPDATE
-	`, request.ID, request.OrganizationID).Scan(&request.PersonID, &request.Message, &request.Status); err != nil {
+		SELECT requests.person_id::text, organizations.name, people.name,
+			coalesce(contact.email::text, ''), requests.message, requests.status
+		FROM organization_membership_requests requests
+		JOIN organizations ON organizations.id = requests.organization_id
+		JOIN people ON people.id = requests.person_id
+		LEFT JOIN LATERAL (
+			SELECT email FROM person_emails
+			WHERE person_id = people.id AND verified_at IS NOT NULL
+			ORDER BY is_primary DESC, verified_at DESC, created_at, id LIMIT 1
+		) contact ON true
+		WHERE requests.id = $1::uuid AND requests.organization_id = $2::uuid
+		FOR UPDATE OF requests
+	`, request.ID, request.OrganizationID).Scan(&request.PersonID, &request.OrganizationName,
+		&request.PersonName, &request.PersonEmail, &request.Message, &request.Status); err != nil {
 		return nil, fmt.Errorf("pending membership request not found")
 	}
 	if request.Status != "pending" {
@@ -262,6 +285,42 @@ func ReviewOrganizationMembershipRequest(ctx *config.AppContext, organizationID,
 		return nil, fmt.Errorf("commit organization membership decision: %w", err)
 	}
 	return request, nil
+}
+
+// ListOrganizationManagerRecipients returns active owners and managers at a
+// currently verified address. It is intentionally narrower than the member
+// list used by the UI so notification fan-out never falls back to stale mail.
+func ListOrganizationManagerRecipients(ctx *config.AppContext, organizationID string) ([]*types.NotificationRecipient, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT memberships.person_id::text, people.name, contact.email::text
+		FROM organization_memberships memberships
+		JOIN people ON people.id = memberships.person_id
+		JOIN LATERAL (
+			SELECT email FROM person_emails
+			WHERE person_id = people.id AND verified_at IS NOT NULL
+			ORDER BY is_primary DESC, verified_at DESC, created_at, id LIMIT 1
+		) contact ON true
+		WHERE memberships.organization_id = $1::uuid
+		  AND memberships.status = 'active'
+		  AND memberships.role IN ('owner', 'manager')
+		ORDER BY lower(contact.email::text), memberships.person_id
+	`, strings.TrimSpace(organizationID))
+	if err != nil {
+		return nil, fmt.Errorf("list organization manager recipients: %w", err)
+	}
+	defer rows.Close()
+	var recipients []*types.NotificationRecipient
+	for rows.Next() {
+		recipient := &types.NotificationRecipient{}
+		if err := rows.Scan(&recipient.PersonID, &recipient.Name, &recipient.Email); err != nil {
+			return nil, fmt.Errorf("scan organization manager recipient: %w", err)
+		}
+		recipients = append(recipients, recipient)
+	}
+	return recipients, rows.Err()
 }
 
 func CreateOrganizationApplication(ctx *config.AppContext, application *types.OrganizationApplication) error {

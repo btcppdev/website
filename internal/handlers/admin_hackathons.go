@@ -2535,6 +2535,17 @@ func HackathonAdminReviewSponsorAwardProposal(w http.ResponseWriter, r *http.Req
 		map[string]any{"review_notes": proposal.ReviewNotes, "award_id": proposal.AwardID}); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s sponsor proposal audit: %s", competitionID, err)
 	}
+	managers, managerErr := getters.ListOrganizationManagerRecipients(ctx, proposal.OrganizationID)
+	if managerErr != nil {
+		ctx.Err.Printf("/admin/hackathons/%s sponsor proposal %s managers: %s", competitionID, proposal.ID, managerErr)
+	} else {
+		dashboardURL := ctx.Env.GetURI() + "/dashboard/sponsor/" + url.PathEscape(proposal.OrganizationID) + "#challenges"
+		for _, manager := range managers {
+			if sendErr := emails.SendSponsorAwardProposalDecision(ctx, proposal, manager, dashboardURL); sendErr != nil {
+				ctx.Err.Printf("/admin/hackathons/%s sponsor proposal %s notify %s: %s", competitionID, proposal.ID, manager.Email, sendErr)
+			}
+		}
+	}
 	message := "Sponsor prize proposal rejected"
 	if proposal.Status == "approved" {
 		message = "Sponsor prize proposal approved and added to the hackathon"
@@ -2785,9 +2796,9 @@ func HackathonAdminFinalizeResults(w http.ResponseWriter, r *http.Request, ctx *
 	}
 	flash := "Results finalized and winners published"
 	if sent, failed := sendFinalizedAwardNotifications(r, ctx, competitionID); failed > 0 {
-		flash += fmt.Sprintf("; sent %d award notifications, %d failed", sent, failed)
+		flash += fmt.Sprintf("; sent %d result notifications, %d failed", sent, failed)
 	} else if sent > 0 {
-		flash += fmt.Sprintf("; emailed %d winning team members", sent)
+		flash += fmt.Sprintf("; emailed %d winners and sponsor managers", sent)
 	}
 	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(flash), http.StatusSeeOther)
 }
@@ -2900,6 +2911,24 @@ func sendFinalizedAwardNotifications(r *http.Request, ctx *config.AppContext, co
 			notification := emails.AwardNotification{Person: member, Project: project, Awards: projectAwards}
 			if err := emails.SendAwardNotification(ctx, conf, competition, notification, publicURL); err != nil {
 				ctx.Err.Printf("hackathon award notification %s/%s: %s", projectID, member.PersonID, err)
+				failed++
+			} else {
+				sent++
+			}
+		}
+	}
+	sponsorRecipients, recipientErr := getters.ListSponsorResultNotificationRecipients(ctx, competitionID)
+	if recipientErr != nil {
+		ctx.Err.Printf("hackathon result sponsor notifications %s recipients: %s", competitionID, recipientErr)
+		failed++
+	} else {
+		for _, recipient := range sponsorRecipients {
+			if recipient == nil || strings.TrimSpace(recipient.Email) == "" {
+				continue
+			}
+			projectsURL := absoluteURL(r, "/dashboard/sponsor/"+url.PathEscape(recipient.OrganizationID)+"/projects")
+			if sendErr := emails.SendSponsorResultsNotice(ctx, conf, competition, recipient, publicURL, projectsURL); sendErr != nil {
+				ctx.Err.Printf("hackathon result sponsor notification %s/%s: %s", recipient.OrganizationID, recipient.PersonID, sendErr)
 				failed++
 			} else {
 				sent++

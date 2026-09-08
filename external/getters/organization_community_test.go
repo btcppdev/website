@@ -64,6 +64,13 @@ func TestOrganizationCommunityMembershipAndApplications(t *testing.T) {
 	if err != nil || autoApproved || request.Status != "pending" {
 		t.Fatalf("manual membership request = %+v auto=%t err=%v", request, autoApproved, err)
 	}
+	if request.PersonName == "" || request.PersonEmail == "" || request.OrganizationName == "" {
+		t.Fatalf("membership request omitted notification details: %+v", request)
+	}
+	managerRecipients, err := ListOrganizationManagerRecipients(ctx, organizationID)
+	if err != nil || len(managerRecipients) != 1 || managerRecipients[0].PersonID != ownerID || managerRecipients[0].Email == "" {
+		t.Fatalf("organization manager recipients = %+v err=%v", managerRecipients, err)
+	}
 	if _, _, err := CreateOrganizationMembershipRequest(ctx, organizationID, requesterID, "again"); !errors.Is(err, ErrOrganizationMembershipRequestPending) {
 		t.Fatalf("duplicate membership request error = %v", err)
 	}
@@ -71,8 +78,12 @@ func TestOrganizationCommunityMembershipAndApplications(t *testing.T) {
 	if err != nil || len(pending) != 1 || pending[0].PersonID != requesterID {
 		t.Fatalf("pending requests = %+v err=%v", pending, err)
 	}
-	if _, err := ReviewOrganizationMembershipRequest(ctx, organizationID, request.ID, ownerID, "approved", "welcome"); err != nil {
+	reviewedRequest, err := ReviewOrganizationMembershipRequest(ctx, organizationID, request.ID, ownerID, "approved", "welcome")
+	if err != nil {
 		t.Fatalf("approve membership request: %v", err)
+	}
+	if reviewedRequest.PersonEmail == "" || reviewedRequest.OrganizationName == "" || reviewedRequest.ReviewNote != "welcome" {
+		t.Fatalf("reviewed request omitted notification details: %+v", reviewedRequest)
 	}
 	if membership, err := GetOrganizationMembership(ctx, requesterID, organizationID); err != nil || membership == nil || membership.Role != OrganizationRoleMember {
 		t.Fatalf("approved membership = %+v err=%v", membership, err)
