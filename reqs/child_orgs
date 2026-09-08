@@ -1,0 +1,334 @@
+# Related and child organizations
+
+Status: deferred
+
+## Purpose
+
+Allow an organization to have a public relationship with another organization. A supporting organization could eventually use its own sponsorship benefits while presenting a hackathon challenge under a related project's identity.
+
+Example: Spiral supports the LDK project. A Spiral manager could use Spiral's sponsorship prize allowance to create a challenge that appears publicly as an LDK challenge.
+
+This feature is intentionally deferred. It crosses organization authorization, sponsorship accounting, public attribution, participant-data access, and historical reporting. It should not be implemented as a single `parent_organization_id` column or by implicitly granting one organization's managers unrestricted access to another organization.
+
+## Terminology
+
+- **Supporting organization**: the organization providing the relationship, sponsorship, or resources. This is sometimes informally called the parent organization.
+- **Related organization**: the project, chapter, or other organization being supported. This is sometimes informally called the child organization.
+- **Funding organization**: the organization whose sponsorship and entitlements pay for an event benefit.
+- **Presenting organization**: the organization whose name, logo, and profile are shown on a challenge or other public item.
+- **Delegation**: an explicit permission allowing managers of one organization to perform a limited action on behalf of another.
+
+Use "supporting" and "related" in user-facing copy where possible. "Parent" and "child" imply ownership and a strict tree, which may not accurately describe relationships such as open-source projects, fiscal sponsorships, chapters, or associations.
+
+## Product principles
+
+1. An organization relationship and permission to act are separate concepts.
+2. A relationship must not automatically transfer membership, profile control, sponsorship access, participant data, or financial controls.
+3. Sponsorship entitlements remain attached to the organization that owns the sponsorship.
+4. Public attribution may use a related organization's identity, but the funding organization must remain discoverable.
+5. Every delegated action must record the actor, funding organization, presenting organization, and delegation used.
+6. Either organization must be able to end future delegated access without rewriting historical records.
+7. Results and trophies must not be double-counted in organization rankings.
+
+## Relationship model
+
+Relationships should be represented as their own records rather than a column on `organizations`. This permits multiple relationships and avoids forcing all associations into a strict hierarchy.
+
+Suggested `organization_relationships` fields:
+
+- `id`
+- `supporting_organization_id`
+- `related_organization_id`
+- `relationship_type`
+- `public_label`
+- `status`
+- `show_publicly`
+- `requested_by_person_id`
+- `supporting_approved_by_person_id`
+- `supporting_approved_at`
+- `related_approved_by_person_id`
+- `related_approved_at`
+- `ended_by_person_id`
+- `ended_at`
+- `created_at`
+- `updated_at`
+
+Initial relationship types could include:
+
+- `project`
+- `chapter`
+- `fiscally_sponsored`
+- `associated`
+
+Initial statuses:
+
+- `pending`
+- `active`
+- `declined`
+- `ended`
+
+Constraints should prevent an organization from relating to itself and prevent duplicate active relationships in the same direction and type. If hierarchy-like relationship types are introduced, the application must also prevent cycles. General associations may be modeled as directional for permissions even when their public presentation is conceptually symmetrical.
+
+## Delegated permissions
+
+Relationship permissions should be stored separately, for example in `organization_relationship_permissions` with one row per relationship and permission. Avoid a single boolean that means "manage the child organization."
+
+The first supported permission should be:
+
+- `sponsor_prizes`: managers of the supporting organization may use that organization's sponsorship allowance to create and edit challenges presented as the related organization.
+
+Possible future permissions, each requiring separate product and security review:
+
+- `manage_profile`
+- `manage_members`
+- `represent_in_sponsorships`
+
+The first release must not grant these future permissions. In particular:
+
+- Supporting-organization managers do not become members or managers of the related organization.
+- Related-organization managers do not gain access to the supporting organization's sponsorship workspace, tickets, contacts, or financial information.
+- A delegation applies to current active managers of the supporting organization. If person-specific delegation is later needed, it should be modeled explicitly rather than inferred.
+
+## Approval and revocation flow
+
+1. A manager of either organization proposes a relationship.
+2. Managers of the other organization receive a dashboard invitation and email.
+3. Public association and each requested delegation are shown separately.
+4. Both organizations approve before the relationship becomes active.
+5. A global administrator may bootstrap a relationship when an organization has no active manager, with an audit record explaining the override.
+6. Either organization's managers may end the relationship or revoke an individual permission.
+7. Revocation blocks new actions immediately. Existing challenges and historical attribution remain intact unless a global administrator explicitly corrects them.
+
+An organization should be able to approve a public relationship without approving delegated sponsor-prize access.
+
+## Sponsor prize behavior
+
+### Dashboard experience
+
+When creating a challenge, an eligible sponsor manager should choose a presenting identity:
+
+```text
+Presented as
+( ) Spiral
+( ) LDK
+
+This challenge uses Spiral's sponsorship allowance and appears under LDK's profile.
+```
+
+The selector should include only:
+
+- the funding organization itself; and
+- related organizations connected by an active relationship with an active `sponsor_prizes` delegation.
+
+Existing challenges should be labeled clearly in the sponsor dashboard:
+
+```text
+LDK challenge
+Funded through Spiral's DEV26 sponsorship
+```
+
+Creating a challenge as a related organization must consume the funding organization's existing challenge allowance. It must not create or infer an entitlement for the related organization.
+
+### Public presentation
+
+The public challenge should lead with the presenting organization:
+
+```text
+Issued by LDK
+Supported by Spiral
+```
+
+Both names should link to their organization profiles. The funding attribution should not be hidden because it explains why the presenting organization has sponsor benefits and provides accountability.
+
+### Editing and lifecycle
+
+- Managers of the funding organization may edit a delegated challenge only while the relationship permission remains active and the normal event editing window is open.
+- Related-organization managers should be able to see challenges presented as their organization. Whether they can edit or request removal is an open product decision; they must at least have a clear reporting/escalation path.
+- Ending a relationship must not remove, rename, or reattribute previously published challenges automatically.
+- Global admins retain the ability to correct attribution.
+
+## Required sponsorship and award data changes
+
+The current model assumes that one organization is simultaneously the sponsorship owner, authorized dashboard organization, and public award sponsor:
+
+- `sponsorships.organization_id` owns the sponsorship.
+- `sponsor_award_proposals` references a sponsorship but does not store a separate presenting organization.
+- Approved proposals copy the sponsorship organization into `awards.sponsored_by_org_id`.
+- Several authorization and participant-visibility queries compare `awards.sponsored_by_org_id` directly with organization membership and sponsorship entitlements.
+
+That assumption must be separated before delegated prizes are enabled.
+
+Suggested changes:
+
+- Add `presented_by_organization_id` to `sponsor_award_proposals`, defaulting to the sponsorship's organization for existing behavior.
+- Preserve `sponsorship_id` or equivalent funding provenance on an approved `award`.
+- Treat `awards.sponsored_by_org_id` as the public presenting organization, or rename it in a larger migration if that can be done safely.
+- Authorize sponsor dashboard access and participant visibility through the funding sponsorship, not through the presenting organization.
+- Store the relationship/delegation used when a proposal is submitted so later relationship changes do not make historical provenance ambiguous.
+
+The exact database shape should be validated against deletion behavior. Archiving or deleting a sponsorship or relationship must not erase the historical funding and presenting attribution from an award.
+
+## Authorization requirements
+
+Before accepting a delegated sponsor-prize action, the server must verify all of the following in one authoritative database operation:
+
+- The actor is an active manager or owner of the funding organization.
+- The sponsorship belongs to the funding organization.
+- The sponsorship is active for the requested conference.
+- Its prize entitlement has remaining capacity.
+- The competition belongs to that conference.
+- The event's challenge-editing window is still open.
+- The presenting organization is either the funding organization or has an active relationship and `sponsor_prizes` delegation from it.
+
+Do not rely on a presenting-organization ID supplied by the browser without rechecking the relationship. Stale forms must fail safely if permission has been revoked.
+
+Participant contact and submission visibility must continue to follow existing consent rules. Delegation must never broaden the underlying sponsorship's access. Managers of the presenting organization do not receive participant data merely because their logo appears on a challenge.
+
+## Audit requirements
+
+Audit events for delegated actions should include:
+
+- acting person
+- funding organization
+- presenting organization
+- sponsorship and conference
+- relationship and delegated permission
+- proposal, award, or prize identifier
+- action and timestamp
+- previous and new values for material edits
+
+Relevant actions include relationship requests, approvals, denials, permission grants, permission revocations, delegated proposal creation, edits, review, and administrative attribution corrections.
+
+## Organization dashboard UX
+
+Each organization dashboard could contain a **Relationships** section showing:
+
+- Organizations this organization supports
+- Organizations that support this organization
+- Pending relationship requests
+- Public/private status
+- Granted capabilities
+- Request, approve, decline, revoke, and end controls appropriate to the viewer
+
+Public organization profiles may show relationship cards such as:
+
+- "LDK is a project supported by Spiral"
+- "Spiral supports LDK"
+
+The copy should come from a controlled relationship type plus an optional reviewed label. Do not allow arbitrary HTML.
+
+## Notifications
+
+Send dashboard notifications and email for:
+
+- New relationship request
+- Relationship accepted or declined
+- Delegated permission requested, granted, or declined
+- Permission or relationship revoked
+- A delegated challenge submitted or materially edited
+
+Emails should identify both organizations, the requesting person, the requested permissions, and link directly to the review page. Avoid implying that a public association automatically grants account access.
+
+## Rankings, results, and historical reporting
+
+For a future organization leaderboard:
+
+- A sponsored challenge is attributed to its presenting organization.
+- Funding support may be reported separately as "supported projects" or similar.
+- Team results remain governed by participant membership rules, not sponsor relationships.
+- A trophy or placement must count only once in global rankings.
+- A supporting organization may optionally display an aggregate of related-project results, but the aggregate must be labeled and must not create duplicate ranked results.
+- Historical reports should use the relationship and attribution that existed at the time of the event, not today's relationship state.
+
+## Security and abuse considerations
+
+- Prevent a recognizable organization from being attached publicly without approval from its managers or a documented global-admin override.
+- Do not let a supporting organization silently replace the related organization's profile, logo, contact information, or membership.
+- Make public funding attribution visible to reduce misleading sponsorship claims.
+- Rate-limit relationship requests and prevent repeated requests after denial.
+- Notify both sides when permission changes.
+- Preserve audit history after a relationship ends.
+- Review how suspended, removed, or managerless organizations affect active delegations.
+- Define conflict handling if two supporting organizations attempt to present sponsorship benefits as the same project for one event.
+
+## Migration and compatibility
+
+- Existing organizations have no relationships.
+- Existing sponsorships, sponsor prize proposals, and awards behave as though the funding and presenting organizations are identical.
+- Backfill presenting organization values from the current sponsorship/award organization.
+- Update every query that currently uses `awards.sponsored_by_org_id` for authorization, sponsor entry visibility, prize limits, exports, or contact access.
+- Preserve existing URLs where possible; use organization IDs rather than mutable names for relationship routes.
+- Add indexes for active relationships in both directions and active permissions.
+- Roll out relationship display before delegated actions if a staged release is desired.
+
+## Suggested delivery phases
+
+### Phase 1: relationships only
+
+- Relationship request and mutual approval.
+- Dashboard relationship management.
+- Optional public relationship display.
+- No delegated capabilities.
+
+### Phase 2: delegated sponsor prizes
+
+- `sponsor_prizes` permission.
+- Presenting-organization selector.
+- Funding versus presentation data separation.
+- Updated authorization, quota, participant-visibility, and audit paths.
+- Public dual attribution.
+
+### Phase 3: reporting
+
+- Relationship history.
+- Supported-project views.
+- Carefully defined leaderboard aggregation.
+
+Profile or membership delegation should be considered separate projects rather than assumed Phase 3 work.
+
+## Testing requirements
+
+At minimum, automated and smoke tests should cover:
+
+- Both organizations approving and declining relationship requests.
+- One side approving the public relationship but denying delegation.
+- Non-managers being unable to request, approve, revoke, or use delegation.
+- A funding manager creating a challenge as the funding organization.
+- A funding manager creating a challenge as an authorized related organization.
+- An unrelated organization being rejected even if its ID is submitted manually.
+- Prize allowance consumption belonging to the funding sponsorship.
+- Public challenge attribution showing both presenting and supporting organizations.
+- Funding managers retaining only the participant access allowed by their sponsorship and consent.
+- Related-organization managers not receiving funding-organization participant data.
+- Permission revocation invalidating a stale challenge form.
+- Relationship revocation preserving existing challenge history.
+- Event start time preventing edits under the same rules as ordinary sponsor challenges.
+- Existing non-delegated sponsor challenges remaining unchanged after migration.
+- Audit records identifying the actor, funding organization, presenting organization, and delegation.
+
+## Open product decisions
+
+Before implementation, decide:
+
+1. Can either side initiate every relationship type, or are some types restricted?
+2. Is mutual manager approval sufficient, or do some relationships require global-admin review?
+3. Can the related organization's managers edit, hide, or withdraw a challenge presented under their identity?
+4. Does `sponsor_prizes` cover only creation/editing, or also judging and entrant visibility?
+5. Can a related organization be presented by multiple funding organizations at the same event?
+6. Should public funding attribution always be mandatory?
+7. What happens to pending proposals when a delegation is revoked?
+8. Should managerless organizations be eligible only through a global-admin bootstrap flow?
+9. Which relationship types are hierarchical, and must hierarchy cycles be prohibited?
+10. How should relationship history appear after an organization is archived or merged?
+
+## Explicitly out of scope for the initial version
+
+- Automatic membership inheritance
+- Automatic manager inheritance
+- Unrestricted "act as organization" access
+- Related-organization access to sponsor tickets or billing
+- Related-organization access to participant contact data by default
+- Automatic profile editing rights
+- GitHub-derived relationships or membership
+- Automatic leaderboard aggregation
+- Rewriting historical attribution when a relationship changes
