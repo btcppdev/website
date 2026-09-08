@@ -113,13 +113,14 @@ type agendaDTO struct {
 }
 
 type personSummaryDTO struct {
-	ID         string  `json:"id"`
-	PublicID   string  `json:"public_id"`
-	ProfileURL string  `json:"profile_url"`
-	Name       string  `json:"name"`
-	AvatarURL  string  `json:"avatar_url"`
-	Company    *string `json:"company"`
-	Biography  *string `json:"biography"`
+	ID          string  `json:"id"`
+	PublicID    string  `json:"public_id"`
+	ProfileURL  string  `json:"profile_url"`
+	Name        string  `json:"name"`
+	AvatarURL   string  `json:"avatar_url"`
+	Company     *string `json:"company"`
+	Biography   *string `json:"biography"`
+	NostrPubkey *string `json:"nostr_pubkey"`
 }
 
 type personLinksDTO struct {
@@ -208,6 +209,21 @@ type accountIdentityDTO struct {
 	ID    string   `json:"id"`
 	Name  string   `json:"name"`
 	Roles []string `json:"roles"`
+}
+
+type organizationAccessMemberDTO struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Role        string  `json:"role"`
+	NostrPubkey *string `json:"nostr_pubkey"`
+	ProfileURL  *string `json:"profile_url"`
+}
+
+type organizationAccessDTO struct {
+	Organization organizationDTO               `json:"organization"`
+	Role         string                        `json:"role"`
+	CanManage    bool                          `json:"can_manage"`
+	Members      []organizationAccessMemberDTO `json:"members,omitempty"`
 }
 
 type accountProfileDTO struct {

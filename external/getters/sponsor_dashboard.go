@@ -592,7 +592,8 @@ func ListOrganizationMembers(ctx *config.AppContext, organizationID string) ([]*
 			memberships.role, memberships.status,
 			coalesce(memberships.invited_by_person_id::text, ''),
 			memberships.created_at, memberships.updated_at,
-			people.name, coalesce(primary_email.email::text, '')
+			people.name, coalesce(primary_email.email::text, ''),
+			coalesce(nostr.pubkey_hex, '')
 		FROM organization_memberships memberships
 		JOIN people ON people.id = memberships.person_id
 		LEFT JOIN LATERAL (
@@ -602,6 +603,11 @@ func ListOrganizationMembers(ctx *config.AppContext, organizationID string) ([]*
 			ORDER BY person_emails.is_primary DESC, person_emails.verified_at DESC NULLS LAST
 			LIMIT 1
 		) primary_email ON true
+		LEFT JOIN LATERAL (
+			SELECT pubkey_hex FROM person_nostr_credentials
+			WHERE person_id = people.id AND verified_at IS NOT NULL
+			ORDER BY verified_at DESC, created_at DESC LIMIT 1
+		) nostr ON true
 		WHERE memberships.organization_id = $1::uuid
 			AND memberships.status <> 'removed'
 		ORDER BY CASE memberships.role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,
@@ -618,7 +624,7 @@ func ListOrganizationMembers(ctx *config.AppContext, organizationID string) ([]*
 			&membership.OrganizationID, &membership.PersonID, &membership.Role,
 			&membership.Status, &membership.InvitedByPersonID,
 			&membership.CreatedAt, &membership.UpdatedAt,
-			&membership.PersonName, &membership.PersonEmail,
+			&membership.PersonName, &membership.PersonEmail, &membership.PersonNostr,
 		); err != nil {
 			return nil, fmt.Errorf("scan organization member: %w", err)
 		}

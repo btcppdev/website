@@ -29,27 +29,30 @@ import (
 const publicCacheControl = "public, max-age=60, stale-while-revalidate=300"
 
 type server struct {
-	app                 *config.AppContext
-	source              dataSource
-	now                 func() time.Time
-	authenticateToken   func(string) (*auth.BearerGrant, error)
-	loadPerson          func(string) (*types.Speaker, error)
-	listPersonEmails    func(string) ([]*types.PersonEmail, error)
-	listPersonConfs     func(string) ([]*types.SpeakerConf, error)
-	updateProfile       func(string, getters.SpeakerProfilePatch) error
-	loadConfTalk        func(string) (*types.ConfTalk, error)
-	loadTalk            func(string) (*types.Talk, error)
-	updateProposal      func(string, getters.ProposalPatch) error
-	updateTalkResources func(string, string, string, string) error
-	updateTalkSchedule  func(string, string, time.Time, time.Time) (getters.ScheduleConflict, error)
-	listConfRecordings  func(string) ([]*types.Recording, error)
-	listBroadcastPlans  func(getters.RecordingBroadcastPlanFilter) ([]*types.RecordingBroadcastPlan, error)
-	upsertRecording     func(string, getters.RecordingUpsert) (*types.Recording, error)
-	loadRecording       func(string) (*types.Recording, error)
-	loadBroadcast       func(string) (*types.RecordingBroadcast, error)
-	upsertBroadcast     func(string, getters.RecordingBroadcastUpdate) (*types.RecordingBroadcast, error)
-	recordAudit         func(*types.AuthAuditEvent) error
-	limiter             *rateLimiter
+	app                         *config.AppContext
+	source                      dataSource
+	now                         func() time.Time
+	authenticateToken           func(string) (*auth.BearerGrant, error)
+	loadPerson                  func(string) (*types.Speaker, error)
+	listPersonEmails            func(string) ([]*types.PersonEmail, error)
+	listPersonConfs             func(string) ([]*types.SpeakerConf, error)
+	listOrganizationMemberships func(string) ([]*types.OrganizationMembership, error)
+	listOrganizationMembers     func(string) ([]*types.OrganizationMembership, error)
+	listVerifiedNostrPubkeys    func([]string) (map[string]string, error)
+	updateProfile               func(string, getters.SpeakerProfilePatch) error
+	loadConfTalk                func(string) (*types.ConfTalk, error)
+	loadTalk                    func(string) (*types.Talk, error)
+	updateProposal              func(string, getters.ProposalPatch) error
+	updateTalkResources         func(string, string, string, string) error
+	updateTalkSchedule          func(string, string, time.Time, time.Time) (getters.ScheduleConflict, error)
+	listConfRecordings          func(string) ([]*types.Recording, error)
+	listBroadcastPlans          func(getters.RecordingBroadcastPlanFilter) ([]*types.RecordingBroadcastPlan, error)
+	upsertRecording             func(string, getters.RecordingUpsert) (*types.Recording, error)
+	loadRecording               func(string) (*types.Recording, error)
+	loadBroadcast               func(string) (*types.RecordingBroadcast, error)
+	upsertBroadcast             func(string, getters.RecordingBroadcastUpdate) (*types.RecordingBroadcast, error)
+	recordAudit                 func(*types.AuthAuditEvent) error
+	limiter                     *rateLimiter
 }
 
 type apiPrincipal struct {
@@ -76,6 +79,15 @@ func Register(root *mux.Router, app *config.AppContext) {
 		listPersonConfs: func(personID string) ([]*types.SpeakerConf, error) {
 			_, confs, err := getters.GetSpeakerConfsByPersonID(app, personID)
 			return confs, err
+		},
+		listOrganizationMemberships: func(personID string) ([]*types.OrganizationMembership, error) {
+			return getters.ListOrganizationMembershipsForPerson(app, personID)
+		},
+		listOrganizationMembers: func(organizationID string) ([]*types.OrganizationMembership, error) {
+			return getters.ListOrganizationMembers(app, organizationID)
+		},
+		listVerifiedNostrPubkeys: func(personIDs []string) (map[string]string, error) {
+			return getters.ListVerifiedNostrPubkeys(app, personIDs)
 		},
 		updateProfile: func(personID string, patch getters.SpeakerProfilePatch) error {
 			return getters.UpdateSpeakerProfile(app, personID, patch)
@@ -132,6 +144,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/people", s.people).Methods(http.MethodGet)
 	r.HandleFunc("/people/{personID}", s.person).Methods(http.MethodGet)
 	r.HandleFunc("/me/identity", s.identity).Methods(http.MethodGet)
+	r.HandleFunc("/me/organizations", s.myOrganizations).Methods(http.MethodGet)
 	r.HandleFunc("/me", s.me).Methods(http.MethodGet)
 	r.HandleFunc("/me", s.patchMe).Methods(http.MethodPatch)
 	r.HandleFunc("/me/talks", s.myTalks).Methods(http.MethodGet)
@@ -481,6 +494,57 @@ func (s *server) identity(w http.ResponseWriter, r *http.Request) {
 	s.writePrivate(w, r, http.StatusOK, accountIdentityDTO{
 		ID: principal.Person.ID, Name: principal.Person.Name, Roles: roles,
 	})
+}
+
+func (s *server) myOrganizations(w http.ResponseWriter, r *http.Request) {
+	principal, r := s.requireScope(w, r, "organizations:self:read")
+	if principal == nil {
+		return
+	}
+	if s.listOrganizationMemberships == nil || s.listOrganizationMembers == nil {
+		s.internalError(w, r, "load organization access", io.ErrClosedPipe)
+		return
+	}
+	memberships, err := s.listOrganizationMemberships(principal.Person.ID)
+	if err != nil {
+		s.internalError(w, r, "list organization access", err)
+		return
+	}
+	_, publicIDs, ok := s.publicProfiles(w, r)
+	if !ok {
+		return
+	}
+	result := make([]organizationAccessDTO, 0, len(memberships))
+	for _, membership := range memberships {
+		if membership == nil || membership.Organization == nil || membership.Status != "active" {
+			continue
+		}
+		canManage := membership.Role == getters.OrganizationRoleOwner || membership.Role == getters.OrganizationRoleManager
+		item := organizationAccessDTO{Organization: organizationFromDomain(membership.Organization), Role: membership.Role, CanManage: canManage}
+		if canManage {
+			members, err := s.listOrganizationMembers(membership.OrganizationID)
+			if err != nil {
+				s.internalError(w, r, "list managed organization members", err)
+				return
+			}
+			item.Members = make([]organizationAccessMemberDTO, 0, len(members))
+			for _, member := range members {
+				if member == nil || member.Status != "active" {
+					continue
+				}
+				var profileURL *string
+				if publicID := publicIDs[member.PersonID]; publicID != "" {
+					profileURL = optionalString("/whois/" + publicID)
+				}
+				item.Members = append(item.Members, organizationAccessMemberDTO{
+					ID: member.PersonID, Name: member.PersonName, Role: member.Role, NostrPubkey: optionalString(member.PersonNostr),
+					ProfileURL: profileURL,
+				})
+			}
+		}
+		result = append(result, item)
+	}
+	s.writePrivate(w, r, http.StatusOK, result)
 }
 
 func (s *server) patchMe(w http.ResponseWriter, r *http.Request) {
@@ -1141,10 +1205,27 @@ func (s *server) people(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	personIDs := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		if profile != nil && profile.Speaker != nil {
+			personIDs = append(personIDs, profile.Speaker.ID)
+		}
+	}
+	verified := map[string]string{}
+	if s.listVerifiedNostrPubkeys != nil {
+		var err error
+		verified, err = s.listVerifiedNostrPubkeys(personIDs)
+		if err != nil {
+			s.internalError(w, r, "load verified public Nostr identities", err)
+			return
+		}
+	}
 	data := make([]personSummaryDTO, 0, len(profiles))
 	for _, profile := range profiles {
 		if profile != nil && profile.Speaker != nil {
-			data = append(data, personSummaryFromDomain(profile.Speaker, publicIDs[profile.Speaker.ID]))
+			item := personSummaryFromDomain(profile.Speaker, publicIDs[profile.Speaker.ID])
+			item.NostrPubkey = optionalString(verified[profile.Speaker.ID])
+			data = append(data, item)
 		}
 	}
 	writePublicCollection(s, w, r, data)
@@ -1158,7 +1239,16 @@ func (s *server) person(w http.ResponseWriter, r *http.Request) {
 	personID := strings.TrimSpace(mux.Vars(r)["personID"])
 	for _, profile := range profiles {
 		if profile != nil && profile.Speaker != nil && profile.Speaker.ID == personID {
-			s.writePublic(w, r, http.StatusOK, personFromDomain(profile, publicIDs))
+			item := personFromDomain(profile, publicIDs)
+			if s.listVerifiedNostrPubkeys != nil {
+				verified, err := s.listVerifiedNostrPubkeys([]string{personID})
+				if err != nil {
+					s.internalError(w, r, "load verified public Nostr identity", err)
+					return
+				}
+				item.NostrPubkey = optionalString(verified[personID])
+			}
+			s.writePublic(w, r, http.StatusOK, item)
 			return
 		}
 	}

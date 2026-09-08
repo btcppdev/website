@@ -9,6 +9,7 @@ const APITokenVersion = "btcpp_v1"
 
 var APITokenScopes = []string{
 	"identity:self:read",
+	"organizations:self:read",
 	"profile:self:read",
 	"profile:self:write",
 	"talks:read",

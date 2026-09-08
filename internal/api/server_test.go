@@ -134,7 +134,7 @@ func testRouter(source dataSource, now time.Time) http.Handler {
 func protectedTestRouter(token *types.PersonAPIToken, person *types.Speaker, emails []*types.PersonEmail) http.Handler {
 	root := mux.NewRouter()
 	s := &server{
-		source: &fakeSource{}, now: time.Now,
+		source: &fakeSource{profiles: []*getters.PublicProfile{{Speaker: person}}}, now: time.Now,
 		authenticateToken: func(raw string) (*auth.BearerGrant, error) {
 			if raw != "test-secret" {
 				return nil, nil
@@ -301,7 +301,7 @@ func TestRecordingBroadcastPlansRequireGlobalAdminAndUseIncrementalCursor(t *tes
 	var received getters.RecordingBroadcastPlanFilter
 	root := mux.NewRouter()
 	s := &server{
-		source: &fakeSource{}, now: time.Now,
+		source: &fakeSource{profiles: []*getters.PublicProfile{{Speaker: person}}}, now: time.Now,
 		authenticateToken: func(raw string) (*auth.BearerGrant, error) {
 			return &auth.BearerGrant{PersonID: person.ID, Scopes: []string{"recordings:write"}, Kind: "personal_access_token"}, nil
 		},
@@ -376,6 +376,45 @@ func TestIdentityReturnsOnlyMinimalAccountAndCurrentRoles(t *testing.T) {
 	}
 	if response.Header().Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("Cache-Control = %q", response.Header().Get("Cache-Control"))
+	}
+}
+
+func TestMyOrganizationsReturnsManagedRosterWithVerifiedNostrKeys(t *testing.T) {
+	person := &types.Speaker{ID: "person-1", Name: "Mara"}
+	organization := &types.Org{Ref: "org-1", Name: "Base58", Website: "https://base58.school", Nostr: "npub1organization"}
+	root := mux.NewRouter()
+	s := &server{
+		source: &fakeSource{profiles: []*getters.PublicProfile{{Speaker: person}}}, now: time.Now,
+		authenticateToken: func(raw string) (*auth.BearerGrant, error) {
+			return &auth.BearerGrant{PersonID: person.ID, Scopes: []string{"organizations:self:read"}}, nil
+		},
+		loadPerson: func(string) (*types.Speaker, error) { return person, nil },
+		listOrganizationMemberships: func(string) ([]*types.OrganizationMembership, error) {
+			return []*types.OrganizationMembership{{OrganizationID: organization.Ref, PersonID: person.ID, Role: getters.OrganizationRoleManager, Status: "active", Organization: organization}}, nil
+		},
+		listOrganizationMembers: func(string) ([]*types.OrganizationMembership, error) {
+			return []*types.OrganizationMembership{
+				{PersonID: person.ID, PersonName: "Mara", PersonNostr: strings.Repeat("a", 64), Role: getters.OrganizationRoleManager, Status: "active"},
+				{PersonID: "person-2", PersonName: "No key yet", Role: getters.OrganizationRoleMember, Status: "active"},
+			}, nil
+		},
+	}
+	s.register(root.PathPrefix("/api/v1").Subrouter())
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/me/organizations", nil)
+	request.Header.Set("Authorization", "Bearer test-secret")
+	response := httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, expected := range []string{`"can_manage":true`, `"name":"Base58"`, `"nostr_pubkey":"` + strings.Repeat("a", 64) + `"`, `"nostr_pubkey":null`, `"profile_url":"/whois/mara"`} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("organization access response omitted %s: %s", expected, body)
+		}
+	}
+	if strings.Contains(body, "@") {
+		t.Fatalf("organization access response leaked email data: %s", body)
 	}
 }
 
@@ -639,6 +678,26 @@ func TestPersonEndpointIsHolisticAndNeverExposesPrivateContactFields(t *testing.
 	}
 }
 
+func TestPeopleExposeOnlyVerifiedNostrIdentityProjection(t *testing.T) {
+	person := &types.Speaker{ID: "00000000-0000-4000-8000-000000000201", Name: "Mara", Nostr: "npub1legacyprofiletext"}
+	root := mux.NewRouter()
+	s := &server{
+		source: &fakeSource{profiles: []*getters.PublicProfile{{Speaker: person}}}, now: time.Now,
+		listVerifiedNostrPubkeys: func(ids []string) (map[string]string, error) {
+			if len(ids) != 1 || ids[0] != person.ID {
+				t.Fatalf("person IDs = %#v", ids)
+			}
+			return map[string]string{person.ID: strings.Repeat("a", 64)}, nil
+		},
+	}
+	s.register(root.PathPrefix("/api/v1").Subrouter())
+	response := httptest.NewRecorder()
+	root.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/people", nil))
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), strings.Repeat("a", 64)) || strings.Contains(response.Body.String(), "legacyprofiletext") {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
 func TestPublicRecordingsHideSourceFilesAndFuturePublications(t *testing.T) {
 	conf := publishedConference("dev26")
 	talkID := "00000000-0000-4000-8000-000000000111"
@@ -746,6 +805,7 @@ func TestOpenAPIContractListsEveryV1RouteAndNoTranscriptSurface(t *testing.T) {
 		"/hackathons/{competition_id}/awards",
 		"/hackathons/{competition_id}/results",
 		"/me/identity",
+		"/me/organizations",
 		"/me",
 		"/me/talks",
 	} {
@@ -811,7 +871,8 @@ func TestOpenAPIContractIncludesDocumentationExamples(t *testing.T) {
 		"putConferenceTalkRecording":  "RecordingAdminResponse", "updateRecordingBroadcast": "RecordingBroadcastResponse",
 		"listHackathonProjects": "HackathonProjectListResponse", "getHackathonProject": "HackathonProjectResponse",
 		"listHackathonResults": "HackathonResultListResponse", "getMyIdentity": "AccountIdentityResponse",
-		"getMe": "AccountProfileResponse", "updateMe": "AccountProfileResponse", "listMyTalks": "AccountTalkListResponse",
+		"listMyOrganizations": "OrganizationAccessListResponse",
+		"getMe":               "AccountProfileResponse", "updateMe": "AccountProfileResponse", "listMyTalks": "AccountTalkListResponse",
 		"updateConferenceTalkSchedule": "TalkResponse",
 	}
 	for operationID, schema := range expectedSchemas {
@@ -843,6 +904,7 @@ func TestOpenAPIContractIncludesDocumentationExamples(t *testing.T) {
 	assertOpenAPIExample[hackathonProjectDTO](t, contract.Components.Examples, "getHackathonProject")
 	assertOpenAPIExample[[]resultDTO](t, contract.Components.Examples, "listHackathonResults")
 	assertOpenAPIExample[accountIdentityDTO](t, contract.Components.Examples, "getMyIdentity")
+	assertOpenAPIExample[[]organizationAccessDTO](t, contract.Components.Examples, "listMyOrganizations")
 	assertOpenAPIExample[accountProfileDTO](t, contract.Components.Examples, "getMe")
 	assertOpenAPIExample[accountProfileDTO](t, contract.Components.Examples, "updateMe")
 	assertOpenAPIExample[[]accountTalkDTO](t, contract.Components.Examples, "listMyTalks")

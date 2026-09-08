@@ -564,15 +564,16 @@ func writeOAuthTokenError(w http.ResponseWriter, status int, code, description s
 
 func oauthScopeDescriptions() map[string]string {
 	return map[string]string{
-		"identity:self:read":   "View your account identity and current roles",
-		"profile:self:read":    "View your bitcoin++ profile and verified email addresses",
-		"profile:self:write":   "Update your public bitcoin++ profile",
-		"talks:read":           "View your submitted and accepted talks",
-		"talks:write":          "Edit talks you speak at",
-		"schedule:write":       "Update event schedules when your current admin role permits it",
-		"recordings:write":     "Manage recording metadata when your current admin role permits it",
-		"shop:accounting:read": "Read PII-free shop inventory and sales data when you have accts-admin permission",
-		"offline_access":       "Stay connected when you are not actively using the app",
+		"identity:self:read":      "View your account identity and current roles",
+		"organizations:self:read": "View your organization memberships and managed member rosters",
+		"profile:self:read":       "View your bitcoin++ profile and verified email addresses",
+		"profile:self:write":      "Update your public bitcoin++ profile",
+		"talks:read":              "View your submitted and accepted talks",
+		"talks:write":             "Edit talks you speak at",
+		"schedule:write":          "Update event schedules when your current admin role permits it",
+		"recordings:write":        "Manage recording metadata when your current admin role permits it",
+		"shop:accounting:read":    "Read PII-free shop inventory and sales data when you have accts-admin permission",
+		"offline_access":          "Stay connected when you are not actively using the app",
 	}
 }
 

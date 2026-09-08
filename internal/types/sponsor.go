@@ -98,6 +98,7 @@ type (
 		PersonID          string
 		PersonName        string
 		PersonEmail       string
+		PersonNostr       string
 		Role              string
 		Status            string
 		Organization      *Org

@@ -288,6 +288,7 @@
     "/shop/inventory/variants": {"get": {"operationId": "listAccountingInventoryVariants", "summary": "List the PII-free merchandise inventory snapshot", "description": "Global administrators only. Includes inactive and archived variants needed for historical accounting.", "security": [{"oauth2": ["shop:accounting:read"]}, {"personalAccessToken": []}], "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}}, {"name": "cursor", "in": "query", "schema": {"type": "string"}}], "responses": {"200": {"description": "PII-free inventory variants", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountingInventoryVariantListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listAccountingInventoryVariants"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
     "/shop/inventory/sales": {"get": {"operationId": "listAccountingInventorySales", "summary": "List PII-free inventory-affecting sales", "description": "Global administrators only. Combines merchandise order lines with canonical ticket registrations, includes each row's stable event identifier when applicable, reflects refunds, and exposes non-PII checkout identifiers for deterministic accounting reconciliation.", "security": [{"oauth2": ["shop:accounting:read"]}, {"personalAccessToken": []}], "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}}, {"name": "cursor", "in": "query", "schema": {"type": "string"}}], "responses": {"200": {"description": "PII-free sales records", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountingInventorySaleListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listAccountingInventorySales"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
     "/me/identity": {"get": {"operationId": "getMyIdentity", "summary": "Get the token owner's account ID, display name, and current roles", "security": [{"oauth2": ["identity:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"description": "Token owner identity", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountIdentityResponse"}, "examples": {"default": {"$ref": "#/components/examples/getMyIdentity"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
+    "/me/organizations": {"get": {"operationId": "listMyOrganizations", "summary": "List organization memberships and managed member rosters", "security": [{"oauth2": ["organizations:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"description": "Organization access available to the token owner", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/OrganizationAccessListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listMyOrganizations"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}},
     "/me": {
       "get": {"operationId": "getMe", "summary": "Get the token owner's private profile", "security": [{"oauth2": ["profile:self:read"]}, {"personalAccessToken": []}], "responses": {"200": {"description": "Private profile", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountProfileResponse"}, "examples": {"default": {"$ref": "#/components/examples/getMe"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}},
       "patch": {"operationId": "updateMe", "summary": "Update the token owner's public profile fields", "security": [{"oauth2": ["profile:self:write"]}, {"personalAccessToken": []}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProfilePatch"}}}}, "responses": {"200": {"description": "Updated private profile", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountProfileResponse"}, "examples": {"default": {"$ref": "#/components/examples/updateMe"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}}}
@@ -325,6 +326,7 @@
             "refreshUrl": "https://btcpp.dev/oauth/token",
             "scopes": {
               "identity:self:read": "Read the resource owner's account ID, display name, and current roles",
+              "organizations:self:read": "Read organization memberships and managed member rosters",
               "profile:self:read": "Read the resource owner's private profile",
               "profile:self:write": "Update the resource owner's public profile",
               "talks:read": "Read the resource owner's talks",
@@ -421,14 +423,14 @@
       "listConferenceSpeakers": {
         "summary": "Public speakers at a conference",
         "value": {
-          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator."}],
+          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator.", "nostr_pubkey": null}],
           "meta": {"request_id": "req_example", "limit": 20}
         }
       },
       "listPeople": {
         "summary": "Public people directory",
         "value": {
-          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator."}],
+          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator.", "nostr_pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],
           "meta": {"request_id": "req_example", "limit": 20, "next_cursor": "eyJpZCI6Ii4uLiJ9"}
         }
       },
@@ -443,6 +445,7 @@
             "avatar_url": "/static/img/dev26/speakers/mara.jpg",
             "company": "Example Labs",
             "biography": "Bitcoin protocol engineer and educator.",
+            "nostr_pubkey": null,
             "links": {"website": "https://example.com", "nostr": null, "x": "https://x.com/marachen", "github": "https://github.com/marachen", "instagram": null, "linkedin": null, "leetcode": null},
             "stats": {"editions": 2, "talks": 3, "projects": 1},
             "editions": [{"conference": {"id": "00000000-0000-4000-8000-000000000001", "tag": "dev26", "description": "bitcoin++ Local Dev 2026", "edition_type": "global", "tagline": "signet edition", "timezone": "America/Chicago", "location": "Austin, Texas", "venue": "Bitcoin Commons", "starts_at": "2026-08-20T09:00:00-05:00", "ends_at": "2026-08-21T18:00:00-05:00"}}],
@@ -514,6 +517,9 @@
           "data": {"id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "roles": ["dev26:speaker", "dev26:admin"]},
           "meta": {"request_id": "req_example"}
         }
+      },
+      "listMyOrganizations": {
+        "value": {"data": [{"organization": {"id": "22345678-1234-4234-8234-123456789abc", "name": "Base58", "tagline": "Bitcoin protocol education", "logo_light_url": null, "logo_dark_url": null, "website_url": "https://base58.school", "linkedin_url": null, "instagram_url": null, "youtube_url": null, "github_url": null, "x_url": null, "nostr": null, "matrix": null, "hiring": false}, "role": "manager", "can_manage": true, "members": [{"id": "12345678-1234-4234-8234-123456789abc", "name": "Mara", "role": "member", "nostr_pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "profile_url": "/whois/mara"}, {"id": "32345678-1234-4234-8234-123456789abc", "name": "No key yet", "role": "member", "nostr_pubkey": null, "profile_url": "/whois/no-key-yet"}]}], "meta": {"request_id": "req_example"}}
       },
       "getMe": {
         "summary": "Authenticated private profile",
@@ -1007,11 +1013,12 @@
       },
       "PersonSummary": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography"],
+        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "nostr_pubkey"],
         "properties": {
           "id": {"type": "string", "format": "uuid"}, "public_id": {"type": "string"}, "profile_url": {"type": "string"},
           "name": {"type": "string"}, "avatar_url": {"type": "string"},
-          "company": {"type": ["string", "null"]}, "biography": {"type": ["string", "null"]}
+          "company": {"type": ["string", "null"]}, "biography": {"type": ["string", "null"]},
+          "nostr_pubkey": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Signature-verified Nostr identity; never populated from legacy profile text."}
         }
       },
       "PersonLinks": {
@@ -1069,10 +1076,11 @@
       },
       "Person": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "links", "stats", "editions", "talks", "projects"],
+        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "nostr_pubkey", "links", "stats", "editions", "talks", "projects"],
         "properties": {
           "id": {"type": "string", "format": "uuid"}, "public_id": {"type": "string"}, "profile_url": {"type": "string"},
           "name": {"type": "string"}, "avatar_url": {"type": "string"}, "company": {"type": ["string", "null"]}, "biography": {"type": ["string", "null"]},
+          "nostr_pubkey": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
           "links": {"$ref": "#/components/schemas/PersonLinks"}, "stats": {"$ref": "#/components/schemas/PersonStats"},
           "editions": {"type": "array", "items": {"$ref": "#/components/schemas/PersonEdition"}},
           "talks": {"type": "array", "items": {"$ref": "#/components/schemas/PersonTalk"}},
@@ -1176,6 +1184,9 @@
         "type": "object", "additionalProperties": false, "required": ["id", "name", "roles"],
         "properties": {"id": {"type": "string", "format": "uuid"}, "name": {"type": "string"}, "roles": {"type": "array", "items": {"type": "string"}}}
       },
+      "Organization": {"type": "object", "additionalProperties": false, "required": ["id", "name", "tagline", "logo_light_url", "logo_dark_url", "website_url", "linkedin_url", "instagram_url", "youtube_url", "github_url", "x_url", "nostr", "matrix", "hiring"], "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "tagline": {"type": "string"}, "logo_light_url": {"type": ["string", "null"]}, "logo_dark_url": {"type": ["string", "null"]}, "website_url": {"type": ["string", "null"]}, "linkedin_url": {"type": ["string", "null"]}, "instagram_url": {"type": ["string", "null"]}, "youtube_url": {"type": ["string", "null"]}, "github_url": {"type": ["string", "null"]}, "x_url": {"type": ["string", "null"]}, "nostr": {"type": ["string", "null"]}, "matrix": {"type": ["string", "null"]}, "hiring": {"type": "boolean"}}},
+      "OrganizationAccessMember": {"type": "object", "additionalProperties": false, "required": ["id", "name", "role", "nostr_pubkey", "profile_url"], "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "role": {"type": "string"}, "nostr_pubkey": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}, "profile_url": {"type": ["string", "null"]}}},
+      "OrganizationAccess": {"type": "object", "additionalProperties": false, "required": ["organization", "role", "can_manage"], "properties": {"organization": {"$ref": "#/components/schemas/Organization"}, "role": {"type": "string"}, "can_manage": {"type": "boolean"}, "members": {"type": "array", "items": {"$ref": "#/components/schemas/OrganizationAccessMember"}}}},
       "AccountProfile": {
         "type": "object", "additionalProperties": false,
         "required": ["id", "name", "photo", "company", "biography", "website", "x", "github", "instagram", "linkedin", "leetcode", "nostr", "emails", "roles"],
@@ -1206,6 +1217,7 @@
       "HackathonProjectResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/HackathonProject"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "HackathonResultListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/HackathonResult"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "AccountIdentityResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/AccountIdentity"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
+      "OrganizationAccessListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/OrganizationAccess"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "AccountProfileResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"$ref": "#/components/schemas/AccountProfile"}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "AccountTalkListResponse": {"type": "object", "additionalProperties": false, "required": ["data", "meta"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/AccountTalk"}}, "meta": {"$ref": "#/components/schemas/Meta"}}},
       "AccountingInventoryVariant": {"type": "object", "additionalProperties": false, "required": ["source_id", "sku", "product_name", "variant_label", "on_hand", "updated_at"], "properties": {"source_id": {"type": "string", "format": "uuid"}, "sku": {"type": "string"}, "product_name": {"type": "string"}, "variant_label": {"type": "string"}, "on_hand": {"type": "integer"}, "updated_at": {"type": "string", "format": "date-time"}}},
