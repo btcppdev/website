@@ -49,6 +49,25 @@
 
         <div class="whois-profile-archive">
 
+      {{ if and .Badges (or .Badges.Issued .Badges.Pending) }}
+      <section class="whois-profile-section whois-credential-section">
+        <div class="whois-section-head"><div><p class="whois-section-tag">§ CREDENTIALS</p><h2>Recognition from the community.</h2></div></div>
+        <div class="whois-credential-grid">
+          {{ range .Badges.Issued }}
+          <article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}">
+            <div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="Artwork for {{ .Definition.Name }}" loading="lazy"></div>
+            <div><small>{{ if .Award.Revocation }}revoked{{ else }}nostr + open badges 3.0{{ end }}</small><h3>{{ .Definition.Name }}</h3>{{ if .Definition.Description }}<p>{{ .Definition.Description }}</p>{{ end }}{{ if .Award.Revocation }}<span>Revoked by issuer{{ if .Award.Revocation.Reason }} · {{ .Award.Revocation.Reason }}{{ end }}</span>{{ else if .CredentialURL }}<a href="{{ .CredentialURL }}">View credential →</a>{{ end }}</div>
+          </article>
+          {{ end }}
+          {{ range .Badges.Pending }}
+          <article class="whois-credential is-pending">
+            {{ if .Badge }}<div class="whois-credential-art"><img src="{{ .Badge.ImageURL }}" alt="Artwork for {{ .Badge.Name }}" loading="lazy"></div><div><small>waiting for verified nostr key</small><h3>{{ .Badge.Name }}</h3>{{ if .Badge.Description }}<p>{{ .Badge.Description }}</p>{{ end }}<a href="/dashboard/settings#settings-nostr">Add your Nostr key →</a></div>{{ end }}
+          </article>
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
+
       <section class="whois-profile-section">
         <div class="whois-section-head">
           <div>

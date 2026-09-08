@@ -45,6 +45,7 @@ type OrganizationDashboardPage struct {
 	PendingInvites        []*types.OrganizationMemberInvite
 	PendingRequests       []*types.OrganizationMembershipRequest
 	SponsorEvents         []*types.SponsorDashboardEvent
+	Badges                *WhoIsBadgeProfile
 	CanManage             bool
 	IsOwner               bool
 	IsGlobalAdmin         bool
@@ -270,9 +271,16 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 			return
 		}
 	}
+	var badgeProfile *WhoIsBadgeProfile
+	if ctx.Env != nil && ctx.Env.BadgeStudioURL != "" {
+		badgeProfile, err = loadBadgeStudioProfile(r.Context(), ctx.Env.BadgeStudioURL, id.PersonID)
+		if err != nil && ctx.Err != nil {
+			ctx.Err.Printf("/dashboard/orgs/%s Badge Studio profile: %s", organizationID, err)
+		}
+	}
 	page := &OrganizationDashboardPage{
 		Memberships: memberships, Membership: membership, Organization: membership.Organization,
-		Members: members, PendingInvites: pendingInvites, PendingRequests: pendingRequests, SponsorEvents: sponsorEvents,
+		Members: members, PendingInvites: pendingInvites, PendingRequests: pendingRequests, SponsorEvents: sponsorEvents, Badges: badgeProfile,
 		CanManage: canManage, IsOwner: membership.Role == getters.OrganizationRoleOwner,
 		IsGlobalAdmin: id.IsGlobalAdmin(), SpacesReady: spaces.IsConfigured(), CSRF: csrf,
 		PendingOrgInviteCount: pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/orgs/"+organizationID),

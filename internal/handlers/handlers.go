@@ -2829,8 +2829,16 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		handle404(w, r, ctx)
 		return
 	}
+	var badgeProfile *WhoIsBadgeProfile
+	if ctx.Env != nil && ctx.Env.BadgeStudioURL != "" {
+		badgeProfile, err = loadBadgeStudioProfile(r.Context(), ctx.Env.BadgeStudioURL, person.Speaker.ID)
+		if err != nil && ctx.Err != nil {
+			ctx.Err.Printf("/whois/%s Badge Studio profile: %s", slug, err)
+		}
+	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois_profile.tmpl", &WhoIsProfilePage{
 		Person:           person,
+		Badges:           badgeProfile,
 		UpdateProfileURL: whoIsProfileEditURL(ctx, r, person),
 		Year:             helpers.CurrentYear(),
 		SocialCardURL:    siteSocialCardPath("person", person.PublicID, personSocialCard(ctx, person)),

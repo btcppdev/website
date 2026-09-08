@@ -190,9 +190,40 @@ type WhoIsPage struct {
 
 type WhoIsProfilePage struct {
 	Person           *WhoIsPerson
+	Badges           *WhoIsBadgeProfile
 	UpdateProfileURL string
 	Year             uint
 	SocialCardURL    string
+}
+
+type WhoIsBadgeProfile struct {
+	Issued  []WhoIsIssuedBadge
+	Pending []WhoIsPendingBadge
+}
+
+type WhoIsBadgeDefinition struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	ImageURL    string `json:"image_url"`
+}
+
+type WhoIsIssuedBadge struct {
+	Definition WhoIsBadgeDefinition `json:"definition"`
+	Award      struct {
+		EventID    string   `json:"event_id"`
+		Recipients []string `json:"recipients"`
+		Revocation *struct {
+			CreatedAt time.Time `json:"created_at"`
+			Reason    string    `json:"reason"`
+		} `json:"revocation"`
+	} `json:"award"`
+	CredentialURL string `json:"-"`
+}
+
+type WhoIsPendingBadge struct {
+	RecipientName string                `json:"recipient_name"`
+	CreatedAt     time.Time             `json:"created_at"`
+	Badge         *WhoIsBadgeDefinition `json:"badge"`
 }
 
 type WhoIsPerson struct {

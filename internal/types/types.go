@@ -77,6 +77,7 @@ type (
 		OAuth                OAuthConfig
 		Recordings           RecordingsConfig
 		TaxFormEncryptionKey string
+		BadgeStudioURL       string
 	}
 
 	OAuthConfig struct {

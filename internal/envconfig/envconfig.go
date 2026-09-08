@@ -80,6 +80,7 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 		BufferAPI:            os.Getenv("BUFFER_KEY"),
 		CacheTTLSec:          envInt("CACHE_TTL_SEC", 0),
 		TaxFormEncryptionKey: os.Getenv("TAX_FORM_ENCRYPTION_KEY"),
+		BadgeStudioURL:       strings.TrimRight(strings.TrimSpace(os.Getenv("BADGE_STUDIO_URL")), "/"),
 		OpenNode: types.OpenNodeConfig{
 			Key:      os.Getenv("OPENNODE_KEY"),
 			Endpoint: os.Getenv("OPENNODE_ENDPOINT"),

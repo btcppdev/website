@@ -38,8 +38,24 @@
         {{ end }}
       </header>
 
+      {{ if .Badges }}
+      <section class="organization-dashboard-section dashboard-workspace-panel" id="badges">
+        <div class="organization-dashboard-section__head">
+          <div><div class="dashboard-kicker">§ Accepting badges</div><h2>Your organization credentials.</h2></div>
+          <p>Badges are issued to your verified Nostr key. Pending badges appear here before you add one.</p>
+        </div>
+        {{ if or .Badges.Issued .Badges.Pending }}
+        <div class="whois-credential-grid">
+          {{ range .Badges.Issued }}<article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}"><div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="" loading="lazy"></div><div><small>{{ if .Award.Revocation }}revoked{{ else }}issued{{ end }}</small><h3>{{ .Definition.Name }}</h3>{{ if and (not .Award.Revocation) .CredentialURL }}<a href="{{ .CredentialURL }}">View and accept →</a>{{ end }}</div></article>{{ end }}
+          {{ range .Badges.Pending }}{{ if .Badge }}<article class="whois-credential is-pending"><div class="whois-credential-art"><img src="{{ .Badge.ImageURL }}" alt="" loading="lazy"></div><div><small>waiting for nostr</small><h3>{{ .Badge.Name }}</h3><a href="/dashboard/settings#settings-nostr">Add or verify your Nostr key →</a></div></article>{{ end }}{{ end }}
+        </div>
+        {{ else }}<p>No badges have been issued to this profile yet.</p>{{ end }}
+      </section>
+      {{ end }}
+
       <nav class="organization-dashboard-local-nav" aria-label="Organization sections">
         {{ if .CanManage }}<a href="#profile">/profile</a>{{ end }}
+        {{ if .Badges }}<a href="#badges">/badges</a>{{ end }}
         <a href="#members">/members</a>
         {{ if .CanManage }}<a href="#requests">/join requests{{ if .PendingRequests }} ({{ len .PendingRequests }}){{ end }}</a>{{ end }}
         {{ if and .CanManage .SponsorEvents }}<a href="/dashboard/sponsor/{{ .Organization.Ref }}">/sponsorships</a>{{ end }}
