@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>{{ .Organization.Name }} hackathon projects - bitcoin++</title>
+  {{ block "header" . }}{{ end }}
+</head>
+<body class="btcpp-dashboard-page sponsor-dashboard-page sponsor-project-directory-page">
+  {{ block "mainnav" . }}{{ end }}
+  {{ template "dashboard_tabs" (dict "Active" "sponsors" "ShowHackathons" .HasHackathonProjects "ShowSponsors" true "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
+  <div class="dashboard-shell">
+    <main class="dashboard-main">
+      <a class="sponsor-project-directory__back" href="/dashboard/sponsor/{{ .Organization.Ref }}">← Back to {{ .Organization.Name }} sponsor workspace</a>
+      <header class="dashboard-workspace-hero sponsor-dashboard-hero">
+        <div class="dashboard-workspace-hero__identity">
+          <div class="dashboard-workspace-hero__mark sponsor-dashboard-hero__logo">
+            {{ if .Organization.LogoLight }}<img src="{{ .Organization.LogoLight | safeURL }}" alt="{{ .Organization.Name }}">{{ else }}<span>{{ printf "%.1s" .Organization.Name }}</span>{{ end }}
+          </div>
+          <div class="dashboard-workspace-hero__copy sponsor-dashboard-hero__copy">
+            <div class="dashboard-kicker">● {{ .Organization.Name }} · sponsor projects</div>
+            <h1>Hackathon projects.</h1>
+            <p>{{ if .CanViewAllHackathonSubmissions }}Review every submitted project available through this sponsorship.{{ else }}Review teams that entered an approved {{ .Organization.Name }} challenge.{{ end }}</p>
+          </div>
+        </div>
+        <dl class="dashboard-workspace-hero__facts sponsor-dashboard-hero__facts" aria-label="Sponsor project summary">
+          <div><dt>Projects</dt><dd>{{ len .PrizeEntries }}</dd></div>
+          <div><dt>Current</dt><dd>{{ len .CurrentHackathonEntries }}</dd></div>
+          <div><dt>Archived</dt><dd>{{ len .PastHackathonEntries }}</dd></div>
+        </dl>
+      </header>
+
+      <section class="sponsor-dashboard-section dashboard-workspace-panel">
+        <div class="sponsor-dashboard-section__head">
+          <div><div class="dashboard-kicker">§ Hackathon projects</div><h2>{{ if .CanViewAllHackathonSubmissions }}All submitted projects.{{ else }}Teams building for your challenges.{{ end }}</h2></div>
+          <div class="sponsor-project-export">
+            <p>Contact details appear only when included in the sponsorship terms or explicitly shared by that participant.</p>
+            {{ if .CanExportParticipants }}<a href="/dashboard/sponsor/{{ .Organization.Ref }}/hackathon-projects.csv">Download participant CSV ↓</a>{{ end }}
+          </div>
+        </div>
+        {{ if .PrizeEntries }}
+        {{ with .CurrentHackathonEntries }}
+        <div class="sponsor-project-era">
+          <div class="sponsor-project-era__head"><span>Current hackathons</span><strong>{{ len . }} project{{ if ne (len .) 1 }}s{{ end }}</strong></div>
+          <div class="sponsor-prize-entry-grid">{{ range . }}{{ template "sponsor_prize_entry" . }}{{ end }}</div>
+        </div>
+        {{ end }}
+        {{ with .PastHackathonEntries }}
+        <div class="sponsor-project-era sponsor-project-era--archive">
+          <div class="sponsor-project-era__head"><span>Past hackathons</span><strong>{{ len . }} archived project{{ if ne (len .) 1 }}s{{ end }}</strong></div>
+          <div class="sponsor-prize-entry-grid">{{ range . }}{{ template "sponsor_prize_entry" . }}{{ end }}</div>
+        </div>
+        {{ end }}
+        {{ else }}
+        <div class="sponsor-dashboard-empty">{{ if .CanViewAllHackathonSubmissions }}No hackathon projects have been submitted yet.{{ else }}No projects have entered an approved {{ .Organization.Name }} prize yet.{{ end }}</div>
+        {{ end }}
+      </section>
+    </main>
+  </div>
+  {{ block "footer" . }}{{ end }}
+</body>
+</html>

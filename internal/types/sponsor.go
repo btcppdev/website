@@ -181,6 +181,7 @@ type (
 		PrizeID             string
 		ConferenceTitle     string
 		CompetitionTitle    string
+		OrganizerManaged    bool
 		EditableUntil       *time.Time
 		ReviewedAt          *time.Time
 		CreatedAt           time.Time
@@ -218,6 +219,7 @@ type (
 		DemoURL                 string
 		OptedInAt               time.Time
 		Winner                  bool
+		GeneralPodiumWinner     bool
 		SponsoredPrize          bool
 		AutomaticContact        bool
 		Participants            []*SponsorPrizeParticipant

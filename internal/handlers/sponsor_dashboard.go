@@ -50,6 +50,8 @@ type SponsorDashboardPage struct {
 	Year                           uint
 }
 
+const sponsorDashboardProjectPreviewLimit = 4
+
 func hasManagedSponsorOrganization(ctx *config.AppContext, personID, logContext string) bool {
 	organizationIDs, err := getters.ListSponsoredOrganizationIDsForPerson(ctx, personID)
 	if err != nil {
@@ -70,7 +72,7 @@ func (p *SponsorDashboardPage) ProposalsFor(sponsorshipID string) []*types.Spons
 }
 
 func (p *SponsorDashboardPage) ChallengeCanEdit(proposal *types.SponsorAwardProposal) bool {
-	if p == nil || !p.CanManage || proposal == nil || (proposal.Status != "pending" && proposal.Status != "approved") {
+	if p == nil || !p.CanManage || proposal == nil || proposal.OrganizerManaged || proposal.ID == "" || (proposal.Status != "pending" && proposal.Status != "approved") {
 		return false
 	}
 	return proposal.EditableUntil == nil || proposal.EditableUntil.After(time.Now())
@@ -106,6 +108,43 @@ func (p *SponsorDashboardPage) CurrentHackathonEntries() []*types.SponsorPrizeEn
 
 func (p *SponsorDashboardPage) PastHackathonEntries() []*types.SponsorPrizeEntry {
 	return p.hackathonEntriesByHistory(true)
+}
+
+func (p *SponsorDashboardPage) PreviewHackathonEntries() []*types.SponsorPrizeEntry {
+	if p == nil {
+		return nil
+	}
+	return previewSponsorPrizeEntries(p.PrizeEntries)
+}
+
+func previewSponsorPrizeEntries(prizeEntries []*types.SponsorPrizeEntry) []*types.SponsorPrizeEntry {
+	latestConferenceID := ""
+	for _, entry := range prizeEntries {
+		if entry != nil && entry.ConferenceID != "" {
+			latestConferenceID = entry.ConferenceID
+			break
+		}
+	}
+	entries := make([]*types.SponsorPrizeEntry, 0, len(prizeEntries))
+	for _, entry := range prizeEntries {
+		if latestConferenceID != "" && (entry == nil || entry.ConferenceID != latestConferenceID) {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		iWinner := entries[i] != nil && (entries[i].Winner || entries[i].GeneralPodiumWinner)
+		jWinner := entries[j] != nil && (entries[j].Winner || entries[j].GeneralPodiumWinner)
+		return iWinner && !jWinner
+	})
+	if len(entries) <= sponsorDashboardProjectPreviewLimit {
+		return entries
+	}
+	return entries[:sponsorDashboardProjectPreviewLimit]
+}
+
+func (p *SponsorDashboardPage) HasMoreHackathonEntries() bool {
+	return p != nil && len(previewSponsorPrizeEntries(p.PrizeEntries)) < len(p.PrizeEntries)
 }
 
 func (p *SponsorDashboardPage) hackathonEntriesByHistory(wantPast bool) []*types.SponsorPrizeEntry {
@@ -286,7 +325,7 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 	attachSponsorSpeakerApplications(events, speakerApplications)
-	proposals, err := getters.ListSponsorAwardProposalsForOrganization(ctx, organizationID)
+	proposals, err := getters.ListSponsorChallengesForOrganization(ctx, organizationID)
 	if err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s proposals: %s", organizationID, err)
 		http.Error(w, "Unable to load sponsor prize proposals", http.StatusInternalServerError)
@@ -307,7 +346,8 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	}
 	attachSponsorPrizeEntryPublicIDs(ctx, prizeEntries)
 	if canManage {
-		contactCount := sponsorPrizeEntryContactCount(prizeEntries)
+		visiblePrizeEntries := previewSponsorPrizeEntries(prizeEntries)
+		contactCount := sponsorPrizeEntryContactCount(visiblePrizeEntries)
 		if contactCount > 0 {
 			if err := getters.RecordSponsorAuditEvent(ctx, organizationID, "", "", id.PersonID,
 				"sponsor.participant_contacts_viewed", "organization", organizationID,
@@ -377,6 +417,93 @@ func SponsorDashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_sponsor.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s template: %s", organizationID, err)
 		http.Error(w, "Unable to load sponsor dashboard", http.StatusInternalServerError)
+	}
+}
+
+func SponsorDashboardProjects(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, memberships, ok := sponsorDashboardIdentity(w, r, ctx)
+	if !ok {
+		return
+	}
+	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	membership := organizationMembershipByID(memberships, organizationID)
+	if membership == nil || !sponsorMembershipCanManage(membership) {
+		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("Only organization owners and managers can access sponsor workspaces."), http.StatusSeeOther)
+		return
+	}
+	sponsoredOrganizationIDs, err := getters.ListSponsoredOrganizationIDsForPerson(ctx, id.PersonID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s/projects sponsor access: %s", organizationID, err)
+		http.Error(w, "Unable to load sponsor projects", http.StatusInternalServerError)
+		return
+	}
+	authorized := false
+	for _, sponsoredOrganizationID := range sponsoredOrganizationIDs {
+		if sponsoredOrganizationID == organizationID {
+			authorized = true
+			break
+		}
+	}
+	if !authorized {
+		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("That organization does not have an active sponsor workspace."), http.StatusSeeOther)
+		return
+	}
+	events, err := getters.ListSponsorDashboardEvents(ctx, organizationID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s/projects events: %s", organizationID, err)
+		http.Error(w, "Unable to load sponsor projects", http.StatusInternalServerError)
+		return
+	}
+	entries, err := getters.ListSponsorPrizeEntries(ctx, organizationID, true)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s/projects entries: %s", organizationID, err)
+		http.Error(w, "Unable to load sponsor projects", http.StatusInternalServerError)
+		return
+	}
+	attachSponsorPrizeEntryPublicIDs(ctx, entries)
+	if contactCount := sponsorPrizeEntryContactCount(entries); contactCount > 0 {
+		if err := getters.RecordSponsorAuditEvent(ctx, organizationID, "", "", id.PersonID,
+			"sponsor.participant_contacts_viewed", "organization", organizationID,
+			map[string]any{"contact_count": contactCount, "source": "project_directory"}); err != nil {
+			ctx.Err.Printf("/dashboard/sponsor/%s/projects contact audit: %s", organizationID, err)
+		}
+	}
+	now := time.Now()
+	var upcoming, past []*types.SponsorDashboardEvent
+	canViewAllHackathonSubmissions := false
+	canExportParticipants := false
+	for _, event := range events {
+		if event == nil || event.Conference == nil {
+			continue
+		}
+		if event.Sponsorship != nil && event.Entitlement != nil && sponsorStatusGrantsCapabilities(event.Sponsorship.Status) {
+			canViewAllHackathonSubmissions = canViewAllHackathonSubmissions || event.Entitlement.AllHackathonSubmissions
+			canExportParticipants = canExportParticipants || event.Entitlement.ParticipantContactExport
+		}
+		if !event.Conference.EndDate.IsZero() && event.Conference.EndDate.Before(now) {
+			past = append(past, event)
+		} else {
+			upcoming = append(upcoming, event)
+		}
+	}
+	hasHackathonProjects, projectsErr := getters.HasHackathonParticipantProjectsForPerson(ctx, id.PersonID)
+	if projectsErr != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s/projects hackathon projects for %s: %s", organizationID, id.PersonID, projectsErr)
+	}
+	page := &SponsorDashboardPage{
+		Memberships: memberships, Membership: membership, Organization: membership.Organization,
+		Upcoming: upcoming, Past: past, PrizeEntries: entries,
+		CanViewAllHackathonSubmissions: canViewAllHackathonSubmissions,
+		CanExportParticipants:          canExportParticipants,
+		CanManage:                      true,
+		HasHackathonProjects:           hasHackathonProjects,
+		PendingOrgInviteCount:          pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/sponsor/projects"),
+		IsGlobalAdmin:                  id.IsGlobalAdmin(),
+		Year:                           helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_sponsor_projects.tmpl", page); err != nil {
+		ctx.Err.Printf("/dashboard/sponsor/%s/projects template: %s", organizationID, err)
+		http.Error(w, "Unable to load sponsor projects", http.StatusInternalServerError)
 	}
 }
 

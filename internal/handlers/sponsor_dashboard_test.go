@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -138,6 +139,38 @@ func TestSponsorDashboardSeparatesCurrentAndPastHackathonEntries(t *testing.T) {
 	}
 }
 
+func TestSponsorDashboardLimitsProjectPreview(t *testing.T) {
+	page := &SponsorDashboardPage{}
+	for i := 0; i < 7; i++ {
+		conferenceID := "latest-conference"
+		if i >= 5 {
+			conferenceID = "older-conference"
+		}
+		page.PrizeEntries = append(page.PrizeEntries, &types.SponsorPrizeEntry{
+			ProjectID: fmt.Sprintf("project-%d", i), ConferenceID: conferenceID,
+		})
+	}
+	page.PrizeEntries[3].Winner = true
+	page.PrizeEntries[4].GeneralPodiumWinner = true
+	page.PrizeEntries[5].Winner = true
+	preview := page.PreviewHackathonEntries()
+	if len(preview) != sponsorDashboardProjectPreviewLimit ||
+		preview[0].ProjectID != "project-3" || preview[1].ProjectID != "project-4" ||
+		preview[2].ProjectID != "project-0" || preview[3].ProjectID != "project-1" {
+		t.Fatalf("project preview = %+v", preview)
+	}
+	if page.PrizeEntries[0].ProjectID != "project-0" {
+		t.Fatalf("preview reordered the full project list: %+v", page.PrizeEntries)
+	}
+	if !page.HasMoreHackathonEntries() {
+		t.Fatal("older and overflow projects did not report additional entries")
+	}
+	page.PrizeEntries = page.PrizeEntries[:sponsorDashboardProjectPreviewLimit]
+	if page.HasMoreHackathonEntries() {
+		t.Fatal("four projects incorrectly reported additional entries")
+	}
+}
+
 func TestAttachSponsorSpeakerApplicationsByConference(t *testing.T) {
 	first := &types.SponsorDashboardEvent{Conference: &types.Conf{Ref: "first-conf"}}
 	second := &types.SponsorDashboardEvent{Conference: &types.Conf{Ref: "second-conf"}}
@@ -247,23 +280,26 @@ func TestSponsorDashboardChallengeEditWindow(t *testing.T) {
 	past := time.Now().Add(-time.Hour)
 	page := &SponsorDashboardPage{CanManage: true}
 
-	if !page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "pending", EditableUntil: &future}) {
+	if !page.ChallengeCanEdit(&types.SponsorAwardProposal{ID: "pending-proposal", Status: "pending", EditableUntil: &future}) {
 		t.Fatal("manager could not edit a pending challenge before hacking starts")
 	}
-	if !page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "approved", EditableUntil: &future}) {
+	if !page.ChallengeCanEdit(&types.SponsorAwardProposal{ID: "approved-proposal", Status: "approved", EditableUntil: &future}) {
 		t.Fatal("manager could not edit an approved challenge before hacking starts")
 	}
-	if page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "approved", EditableUntil: &past}) {
+	if page.ChallengeCanEdit(&types.SponsorAwardProposal{ID: "started-proposal", Status: "approved", EditableUntil: &past}) {
 		t.Fatal("manager could edit a challenge after hacking started")
+	}
+	if page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "approved", OrganizerManaged: true, EditableUntil: &future}) {
+		t.Fatal("manager could edit an organizer-managed challenge")
 	}
 	if !page.ChallengeHasStarted(&types.SponsorAwardProposal{Status: "approved", EditableUntil: &past}) {
 		t.Fatal("started challenge was not recognized as read-only")
 	}
-	if page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "rejected", EditableUntil: &future}) {
+	if page.ChallengeCanEdit(&types.SponsorAwardProposal{ID: "rejected-proposal", Status: "rejected", EditableUntil: &future}) {
 		t.Fatal("manager could edit a rejected challenge")
 	}
 	page.CanManage = false
-	if page.ChallengeCanEdit(&types.SponsorAwardProposal{Status: "pending", EditableUntil: &future}) {
+	if page.ChallengeCanEdit(&types.SponsorAwardProposal{ID: "pending-proposal", Status: "pending", EditableUntil: &future}) {
 		t.Fatal("ordinary organization member could edit a challenge")
 	}
 }

@@ -277,6 +277,36 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if _, err := CreateSponsorAwardProposal(ctx, proposalInput); err != nil {
 		t.Fatalf("rejected sponsor proposal did not release its allowance: %v", err)
 	}
+	var organizerManagedAwardID string
+	if err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO awards (
+			competition_id, sponsored_by_org_id, award_type, title, description,
+			judging_instructions, max_awardees, opt_in_required, status
+		) VALUES ($1::uuid, $2::uuid, 'challenge', $3, 'Created directly by organizers',
+			'Working demos preferred', 1, true, 'available')
+		RETURNING id::text
+	`, competitionID, orgID, "Organizer-managed challenge "+suffix).Scan(&organizerManagedAwardID); err != nil {
+		t.Fatalf("insert organizer-managed sponsor award: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO prizes (award_id, prize_type, title, value_text, status)
+		VALUES ($1::uuid, 'sats', 'Organizer-managed sats', '250000', 'available')
+	`, organizerManagedAwardID); err != nil {
+		t.Fatalf("insert organizer-managed sponsor prize: %v", err)
+	}
+	challenges, err := ListSponsorChallengesForOrganization(ctx, orgID)
+	if err != nil {
+		t.Fatalf("ListSponsorChallengesForOrganization: %v", err)
+	}
+	organizerManagedFound := false
+	for _, challenge := range challenges {
+		if challenge.AwardID == organizerManagedAwardID {
+			organizerManagedFound = challenge.OrganizerManaged && challenge.ID == "" && challenge.PrizeTitle == "Organizer-managed sats"
+		}
+	}
+	if !organizerManagedFound {
+		t.Fatalf("organizer-managed award omitted from sponsor challenges: %+v", challenges)
+	}
 
 	consent := &types.HackathonSponsorContactConsent{
 		CompetitionID:        competitionID,
@@ -302,6 +332,21 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if err := SetProjectAwardOptIns(ctx, projectID, []string{approved.AwardID}); err != nil {
 		t.Fatalf("SetProjectAwardOptIns sponsor entry: %v", err)
 	}
+	var firstPlaceAwardID string
+	if err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO awards (
+			competition_id, award_type, award_rank, title, max_awardees, status
+		) VALUES ($1::uuid, 'normal', 1, $2, 1, 'awarded')
+		RETURNING id::text
+	`, competitionID, "First place "+suffix).Scan(&firstPlaceAwardID); err != nil {
+		t.Fatalf("insert first-place award: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO project_awards (project_id, award_id)
+		VALUES ($1::uuid, $2::uuid)
+	`, projectID, firstPlaceAwardID); err != nil {
+		t.Fatalf("award first place to sponsor entry: %v", err)
+	}
 	nonConsentingPersonID := insertSmokePerson(t, ctx, "sponsor-entry-private-"+suffix)
 	if err := AddProjectMember(ctx, projectID, nonConsentingPersonID, ProjectMemberRoleMember); err != nil {
 		t.Fatalf("AddProjectMember non-consenting sponsor entry member: %v", err)
@@ -310,7 +355,8 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListSponsorPrizeEntries: %v", err)
 	}
-	if len(entries) != 1 || entries[0].AwardID != approved.AwardID || entries[0].ProjectID != projectID || len(entries[0].Participants) != 2 {
+	if len(entries) != 1 || entries[0].AwardID != approved.AwardID || entries[0].ProjectID != projectID ||
+		!entries[0].GeneralPodiumWinner || len(entries[0].Participants) != 2 {
 		t.Fatalf("sponsor prize entries mismatch: %+v", entries)
 	}
 	contacts := map[string]string{}
@@ -333,6 +379,21 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	})
 	if err := SubmitProject(ctx, generalProjectID); err != nil {
 		t.Fatalf("SubmitProject general sponsor entry: %v", err)
+	}
+	var secondPlaceAwardID string
+	if err := ctx.DB.QueryRow(context.Background(), `
+		INSERT INTO awards (
+			competition_id, award_type, award_rank, title, max_awardees, status
+		) VALUES ($1::uuid, 'normal', 2, $2, 1, 'awarded')
+		RETURNING id::text
+	`, competitionID, "Second place "+suffix).Scan(&secondPlaceAwardID); err != nil {
+		t.Fatalf("insert second-place award: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO project_awards (project_id, award_id)
+		VALUES ($1::uuid, $2::uuid)
+	`, generalProjectID, secondPlaceAwardID); err != nil {
+		t.Fatalf("award second place to general entry: %v", err)
 	}
 	if _, err := ctx.DB.Exec(context.Background(), `
 		UPDATE projects SET submitted_at = '2020-01-01 00:00:00+00'::timestamptz
@@ -387,7 +448,8 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 			generalEntry = entry
 		}
 	}
-	if generalEntry == nil || generalEntry.SponsoredPrize || generalEntry.AwardID != "" || len(generalEntry.Participants) != 1 {
+	if generalEntry == nil || generalEntry.SponsoredPrize || generalEntry.AwardID != "" ||
+		!generalEntry.GeneralPodiumWinner || len(generalEntry.Participants) != 1 {
 		t.Fatalf("general hackathon submission mismatch: %+v", generalEntry)
 	}
 	if generalEntry.Participants[0].Email != smokePersonEmail(t, ctx, personID) || generalEntry.Participants[0].ConsentScope != "included_sponsorship" {

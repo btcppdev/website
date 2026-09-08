@@ -1298,6 +1298,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/sponsor/{organizationID}", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboard(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/sponsor/{organizationID}/projects", func(w http.ResponseWriter, r *http.Request) {
+		SponsorDashboardProjects(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/dashboard/sponsor/{organizationID}/hackathon-projects.csv", func(w http.ResponseWriter, r *http.Request) {
 		SponsorDashboardHackathonCSV(w, r, app)
 	}).Methods("GET")

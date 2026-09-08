@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1155,6 +1156,16 @@ func listSponsorPrizeEntries(ctx *config.AppContext, organizationID string, incl
 					SELECT 1 FROM project_awards winners
 					WHERE winners.project_id = projects.id AND winners.award_id = awards.id
 				) AS winner,
+				EXISTS (
+					SELECT 1
+					FROM project_awards podium_wins
+					JOIN awards podium_awards ON podium_awards.id = podium_wins.award_id
+					WHERE podium_wins.project_id = projects.id
+					  AND podium_awards.competition_id = access.competition_id
+					  AND podium_awards.archived_at IS NULL
+					  AND podium_awards.award_type = 'normal'
+					  AND podium_awards.award_rank BETWEEN 1 AND 3
+				) AS general_podium_winner,
 				true AS sponsored_prize, access.automatic_contact, access.contact_access
 			FROM sponsor_access access
 			JOIN awards ON awards.competition_id = access.competition_id
@@ -1176,7 +1187,18 @@ func listSponsorPrizeEntries(ctx *config.AppContext, organizationID string, incl
 				projects.image_url, projects.status, projects.project_number,
 				projects.github_url, projects.demo_url,
 				coalesce(projects.submitted_at, projects.updated_at),
-				false AS winner, false AS sponsored_prize,
+				false AS winner,
+				EXISTS (
+					SELECT 1
+					FROM project_awards podium_wins
+					JOIN awards podium_awards ON podium_awards.id = podium_wins.award_id
+					WHERE podium_wins.project_id = projects.id
+					  AND podium_awards.competition_id = access.competition_id
+					  AND podium_awards.archived_at IS NULL
+					  AND podium_awards.award_type = 'normal'
+					  AND podium_awards.award_rank BETWEEN 1 AND 3
+				) AS general_podium_winner,
+				false AS sponsored_prize,
 				access.automatic_contact, access.contact_access
 			FROM sponsor_access access
 			JOIN projects ON projects.competition_id = access.competition_id
@@ -1199,7 +1221,8 @@ func listSponsorPrizeEntries(ctx *config.AppContext, organizationID string, incl
 			entries.project_id::text, entries.project_title, entries.short_description,
 			entries.image_url, entries.project_status, entries.project_number,
 			entries.github_url, entries.demo_url, entries.entered_at,
-			entries.winner, entries.sponsored_prize, entries.automatic_contact,
+			entries.winner, entries.general_podium_winner,
+			entries.sponsored_prize, entries.automatic_contact,
 			members.person_id::text, people.name, people.norm_photo_path,
 			people.avail_to_hire,
 			members.role,
@@ -1251,6 +1274,7 @@ func listSponsorPrizeEntries(ctx *config.AppContext, organizationID string, incl
 			&entry.ProjectID, &entry.ProjectTitle, &entry.ProjectShortDescription,
 			&entry.ProjectImageURL, &entry.ProjectStatus, &projectNumber,
 			&entry.GitHubURL, &entry.DemoURL, &entry.OptedInAt, &entry.Winner,
+			&entry.GeneralPodiumWinner,
 			&entry.SponsoredPrize, &entry.AutomaticContact,
 			&participant.PersonID, &participant.Name, &participant.Photo,
 			&participant.AvailableToHire,
@@ -1551,6 +1575,105 @@ func UpdateSponsorAwardProposal(ctx *config.AppContext, proposalID, organization
 
 func ListSponsorAwardProposalsForOrganization(ctx *config.AppContext, organizationID string) ([]*types.SponsorAwardProposal, error) {
 	return listSponsorAwardProposals(ctx, `WHERE sponsorships.organization_id = $1::uuid`, strings.TrimSpace(organizationID))
+}
+
+// ListSponsorChallengesForOrganization includes both challenges submitted
+// through the sponsor proposal workflow and older/organizer-created awards.
+// Organizer-created awards have no sponsor proposal to update and are exposed
+// as read-only records in the sponsor workspace.
+func ListSponsorChallengesForOrganization(ctx *config.AppContext, organizationID string) ([]*types.SponsorAwardProposal, error) {
+	organizationID = strings.TrimSpace(organizationID)
+	proposals, err := ListSponsorAwardProposalsForOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	legacy, err := listOrganizerManagedSponsorAwards(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	proposals = append(proposals, legacy...)
+	sort.SliceStable(proposals, func(i, j int) bool {
+		return proposals[i].CreatedAt.After(proposals[j].CreatedAt)
+	})
+	return proposals, nil
+}
+
+func listOrganizerManagedSponsorAwards(ctx *config.AppContext, organizationID string) ([]*types.SponsorAwardProposal, error) {
+	if ctx == nil || ctx.DB == nil {
+		return nil, fmt.Errorf("database is not configured")
+	}
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+		SELECT awards.id::text, awards.competition_id::text,
+			organizations.id::text, organizations.name,
+			awards.title, awards.description, awards.judging_instructions,
+			awards.max_awardees, awards.opt_in_required, awards.finalists_only,
+			awards.status, awards.created_at, awards.updated_at,
+			coalesce(primary_prize.id::text, ''), coalesce(primary_prize.prize_type, ''),
+			coalesce(primary_prize.title, ''), coalesce(primary_prize.description, ''),
+			coalesce(primary_prize.value_text, ''),
+			conferences.id::text,
+			coalesce(nullif(conferences.description, ''), conferences.tag),
+			competitions.title,
+			coalesce(competitions.hacking_starts_at, conferences.start_date)
+		FROM awards
+		JOIN organizations ON organizations.id = awards.sponsored_by_org_id
+		JOIN competitions ON competitions.id = awards.competition_id
+		JOIN conferences ON conferences.id = competitions.conference_id
+		LEFT JOIN LATERAL (
+			SELECT prizes.id, prizes.prize_type, prizes.title, prizes.description,
+				prizes.value_text
+			FROM prizes
+			WHERE prizes.award_id = awards.id
+			ORDER BY prizes.created_at, prizes.id
+			LIMIT 1
+		) primary_prize ON true
+		WHERE awards.sponsored_by_org_id = $1::uuid
+		  AND awards.archived_at IS NULL
+		  AND NOT EXISTS (
+			SELECT 1 FROM sponsor_award_proposals proposals
+			WHERE proposals.award_id = awards.id
+		  )
+		  AND EXISTS (
+			SELECT 1
+			FROM sponsorships
+			JOIN sponsorships_conferences links ON links.sponsorship_id = sponsorships.id
+			WHERE sponsorships.organization_id = awards.sponsored_by_org_id
+			  AND links.conference_id = conferences.id
+			  AND sponsorships.archived_at IS NULL
+		  )
+		ORDER BY awards.created_at DESC, awards.id
+	`, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("list organizer-managed sponsor awards: %w", err)
+	}
+	defer rows.Close()
+	var out []*types.SponsorAwardProposal
+	for rows.Next() {
+		challenge := &types.SponsorAwardProposal{OrganizerManaged: true}
+		var editableUntil pgtype.Timestamptz
+		if err := rows.Scan(
+			&challenge.AwardID, &challenge.CompetitionID,
+			&challenge.OrganizationID, &challenge.OrganizationName,
+			&challenge.Title, &challenge.Description, &challenge.JudgingInstructions,
+			&challenge.MaxAwardees, &challenge.OptInRequired, &challenge.FinalistsOnly,
+			&challenge.Status, &challenge.CreatedAt, &challenge.UpdatedAt,
+			&challenge.PrizeID, &challenge.PrizeType, &challenge.PrizeTitle,
+			&challenge.PrizeDescription, &challenge.PrizeValueText,
+			&challenge.ConferenceID, &challenge.ConferenceTitle,
+			&challenge.CompetitionTitle, &editableUntil,
+		); err != nil {
+			return nil, fmt.Errorf("scan organizer-managed sponsor award: %w", err)
+		}
+		if editableUntil.Valid {
+			value := editableUntil.Time
+			challenge.EditableUntil = &value
+		}
+		out = append(out, challenge)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate organizer-managed sponsor awards: %w", err)
+	}
+	return out, nil
 }
 
 func ListSponsorAwardProposalsForCompetition(ctx *config.AppContext, competitionID string) ([]*types.SponsorAwardProposal, error) {

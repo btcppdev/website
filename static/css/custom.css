@@ -4378,6 +4378,7 @@ body.btcpp-admin-page {
 .sponsor-project-export a { display: inline-flex; min-height: 40px; align-items: center; padding: 8px 12px; border: 1px solid var(--sponsor-ink); background: var(--sponsor-orange); color: var(--sponsor-ink); font-size: 11px; font-weight: 900; letter-spacing: .05em; text-decoration: none; text-transform: uppercase; box-shadow: 3px 3px 0 var(--sponsor-ink); }
 .sponsor-project-export a:hover,
 .sponsor-project-export a:focus-visible { translate: 1px 1px; box-shadow: 2px 2px 0 var(--sponsor-ink); }
+.sponsor-project-directory__back { display: inline-flex; min-height: 36px; align-items: center; margin: 0 0 10px; color: var(--sponsor-ink); font: 800 11px "IBM Plex Mono", ui-monospace, monospace; text-decoration: underline; text-underline-offset: 4px; }
 .sponsor-dashboard-columns { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); gap: 20px; }
 .sponsor-dashboard-panel { min-width: 0; }
 
@@ -4388,6 +4389,7 @@ body.btcpp-admin-page {
 .sponsor-event-card__eyebrow span:last-child { padding: 4px 8px; background: var(--sponsor-orange-soft); color: #7b4207; }
 .sponsor-event-card h3 { margin: 18px 0 5px; font-size: 30px; line-height: 1.05; }
 .sponsor-event-card__header > p { margin: 0; color: var(--sponsor-muted); }
+.sponsor-challenge-description { margin: 0; padding: 18px 24px; color: var(--sponsor-muted); line-height: 1.55; }
 .sponsor-event-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0; background: var(--sponsor-border); border: 1px solid var(--sponsor-border); }
 .sponsor-event-card dl div { min-width: 0; padding: 15px 18px; background: #fff; }
 .sponsor-event-card dt { color: var(--sponsor-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
@@ -4462,6 +4464,8 @@ body.btcpp-admin-page {
 .sponsor-project-era--past > summary strong { color: #6b645b; }
 .sponsor-project-era--past > summary span::before { content: "+ "; color: #9b5810; }
 .sponsor-project-era--past[open] > summary span::before { content: "− "; }
+.sponsor-project-era--archive .sponsor-project-era__head { background: #e9e2d7; color: var(--sponsor-ink); }
+.sponsor-project-era--archive .sponsor-project-era__head strong { color: #6b645b; }
 .sponsor-prize-entry { min-width: 0; overflow: hidden; border: 1px solid #bdb5a8; background: #fff; box-shadow: 4px 4px 0 #e9e2d7; }
 .sponsor-prize-entry > header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; padding: 19px 20px; border-bottom: 1px solid var(--sponsor-border); background: #faf7f1; }
 .sponsor-prize-entry > header > div:first-child { min-width: 0; }
@@ -4613,6 +4617,7 @@ body.btcpp-admin-page {
 	.sponsor-event-card { box-shadow: 3px 3px 0 #e9e2d7; }
 	.sponsor-event-card__header { padding: 19px 18px; }
 	.sponsor-event-card h3 { font-size: 26px; }
+	.sponsor-challenge-description { padding: 15px 18px; }
 	.sponsor-event-card dl div { padding: 11px 9px; }
 	.sponsor-event-card dt { font-size: 10px; }
 	.sponsor-event-card__links { padding: 15px 18px; }
@@ -4627,6 +4632,7 @@ body.btcpp-admin-page {
 	.sponsor-dashboard-section__head > p { margin-top: 10px; }
 	.sponsor-project-export { max-width: none; margin-top: 12px; }
 	.sponsor-project-export a { width: 100%; justify-content: center; box-sizing: border-box; }
+	.sponsor-project-directory__back { margin-bottom: 6px; }
 	.sponsor-profile-grid .is-wide, .sponsor-profile-grid .sponsor-profile-checkbox { grid-column: auto; }
 	.sponsor-ticket-form, .sponsor-benefit-form__grid { grid-template-columns: minmax(0, 1fr); }
 	.sponsor-benefit-form__grid .is-wide { grid-column: auto; }

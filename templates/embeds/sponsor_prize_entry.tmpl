@@ -1,0 +1,45 @@
+{{ define "sponsor_prize_entry" }}
+<article class="sponsor-prize-entry">
+  <header>
+    <div>
+      <span>{{ .ConferenceTitle }}{{ if .SponsoredPrize }} · {{ .AwardTitle }}{{ else }} · Hackathon submission{{ end }}</span>
+      <h3>{{ with .ProjectNumber }}<b>#{{ . }}</b> {{ end }}{{ .ProjectTitle }}</h3>
+    </div>
+    <div class="sponsor-prize-entry__status">
+      {{ if .Winner }}<strong>Prize winner</strong>{{ else if .GeneralPodiumWinner }}<strong>Top 3</strong>{{ end }}
+      <span>{{ .ProjectStatus }}</span>
+    </div>
+  </header>
+  {{ if .ProjectImageURL }}<a class="sponsor-prize-entry__image" href="/{{ .ConferenceTag }}/hackathon/projects/{{ .ProjectID }}"><img src="{{ .ProjectImageURL | safeURL }}" alt=""></a>{{ end }}
+  <div class="sponsor-prize-entry__body">
+    {{ if .ProjectShortDescription }}<p>{{ .ProjectShortDescription }}</p>{{ end }}
+    <nav aria-label="{{ .ProjectTitle }} links">
+      <a href="/{{ .ConferenceTag }}/hackathon/projects/{{ .ProjectID }}">View project →</a>
+      {{ if .GitHubURL }}<a href="{{ .GitHubURL | safeURL }}" target="_blank" rel="noopener noreferrer">Repository ↗</a>{{ end }}
+      {{ if .DemoURL }}<a href="{{ .DemoURL | safeURL }}" target="_blank" rel="noopener noreferrer">Demo ↗</a>{{ end }}
+    </nav>
+  </div>
+  <div class="sponsor-prize-entry__team">
+    <strong>Team · {{ len .Participants }}</strong>
+    {{ range .Participants }}
+    <div class="sponsor-prize-participant">
+      {{ if .PublicID }}<a class="sponsor-prize-participant__identity" href="/whois/{{ .PublicID }}">{{ else }}<span class="sponsor-prize-participant__identity">{{ end }}
+        <span class="sponsor-prize-participant__avatar">
+          <img src="{{ speakerPhoto .Photo }}" alt="" loading="lazy" data-image-fallback>
+          <span data-image-fallback-copy hidden aria-hidden="true">++</span>
+        </span>
+        <span><b>{{ .Name }}</b><small>{{ .Role }}</small></span>
+      {{ if .PublicID }}</a>{{ else }}</span>{{ end }}
+      <div class="sponsor-prize-participant__contact">
+        {{ if .Email }}
+        <a href="mailto:{{ .Email }}">{{ .Email }}</a>
+        <small>{{ if eq .ConsentScope "included_sponsorship" }}Included with submission{{ else if eq .ConsentScope "all_sponsors" }}Consented to other hackathon sponsors{{ else }}Consented through this prize{{ end }}</small>
+        {{ else }}
+        <span>Contact not shared</span>
+        {{ end }}
+      </div>
+    </div>
+    {{ end }}
+  </div>
+</article>
+{{ end }}

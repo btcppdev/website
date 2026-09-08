@@ -188,7 +188,7 @@
               <h3>{{ .Title }}</h3>
               {{ if .CompetitionTitle }}<p>{{ .CompetitionTitle }}</p>{{ end }}
             </header>
-            {{ if .Description }}<p>{{ .Description }}</p>{{ end }}
+            {{ if .Description }}<p class="sponsor-challenge-description">{{ .Description }}</p>{{ end }}
             <dl>
               <div><dt>Prize</dt><dd>{{ .PrizeTitle }}</dd></div>
               <div><dt>Value</dt><dd>{{ .PrizeValueText }} sats</dd></div>
@@ -227,6 +227,8 @@
                 <button type="submit">Save challenge →</button>
               </form>
             </details>
+            {{ else if .OrganizerManaged }}
+            <p class="sponsor-dashboard-note">This challenge was created by bitcoin++ organizers and is shown here as read-only.</p>
             {{ else if $.ChallengeHasStarted . }}
             <p class="sponsor-dashboard-note">This challenge is read-only because the hackathon has started.</p>
             {{ end }}
@@ -243,21 +245,16 @@
           <div><div class="dashboard-kicker">§ Hackathon projects</div><h2>{{ if .CanViewAllHackathonSubmissions }}All submitted projects.{{ else }}Teams building for your challenges.{{ end }}</h2></div>
           <div class="sponsor-project-export">
             <p>{{ if .CanViewAllHackathonSubmissions }}Your sponsorship includes access to hackathon participant contact information{{ else }}Every project below explicitly entered an approved prize sponsored by {{ .Organization.Name }}. Contact details appear only through the included submission terms or an additional participant choice.{{ end }}</p>
+            <a href="/dashboard/sponsor/{{ .Organization.Ref }}/projects">View all {{ len .PrizeEntries }} project{{ if ne (len .PrizeEntries) 1 }}s{{ end }} →</a>
             {{ if .CanExportParticipants }}<a href="/dashboard/sponsor/{{ .Organization.Ref }}/hackathon-projects.csv">Download participant CSV ↓</a>{{ end }}
           </div>
         </div>
         {{ if .PrizeEntries }}
-        {{ with .CurrentHackathonEntries }}
+        {{ with .PreviewHackathonEntries }}
         <div class="sponsor-project-era">
-          <div class="sponsor-project-era__head"><span>Current hackathon</span><strong>{{ len . }} project{{ if ne (len .) 1 }}s{{ end }}</strong></div>
+          <div class="sponsor-project-era__head"><span>Latest projects</span><strong>Showing {{ len . }}{{ if $.HasMoreHackathonEntries }} of {{ len $.PrizeEntries }}{{ end }}</strong></div>
           <div class="sponsor-prize-entry-grid">{{ range . }}{{ template "sponsor_prize_entry" . }}{{ end }}</div>
         </div>
-        {{ end }}
-        {{ with .PastHackathonEntries }}
-        <details class="sponsor-project-era sponsor-project-era--past">
-          <summary><span>Past hackathons</span><strong>{{ len . }} archived project{{ if ne (len .) 1 }}s{{ end }}</strong></summary>
-          <div class="sponsor-prize-entry-grid">{{ range . }}{{ template "sponsor_prize_entry" . }}{{ end }}</div>
-        </details>
         {{ end }}
         {{ else }}
         <div class="sponsor-dashboard-empty">{{ if .CanViewAllHackathonSubmissions }}No hackathon projects have been submitted yet.{{ else }}No projects have entered an approved {{ .Organization.Name }} prize yet.{{ end }}</div>
@@ -281,49 +278,3 @@
   {{ block "footer" . }}{{ end }}
 </body>
 </html>
-
-{{ define "sponsor_prize_entry" }}
-<article class="sponsor-prize-entry">
-  <header>
-    <div>
-      <span>{{ .ConferenceTitle }}{{ if .SponsoredPrize }} · {{ .AwardTitle }}{{ else }} · Hackathon submission{{ end }}</span>
-      <h3>{{ with .ProjectNumber }}<b>#{{ . }}</b> {{ end }}{{ .ProjectTitle }}</h3>
-    </div>
-    <div class="sponsor-prize-entry__status">
-      {{ if .Winner }}<strong>Winner</strong>{{ end }}
-      <span>{{ .ProjectStatus }}</span>
-    </div>
-  </header>
-  {{ if .ProjectImageURL }}<a class="sponsor-prize-entry__image" href="/{{ .ConferenceTag }}/hackathon/projects/{{ .ProjectID }}"><img src="{{ .ProjectImageURL | safeURL }}" alt=""></a>{{ end }}
-  <div class="sponsor-prize-entry__body">
-    {{ if .ProjectShortDescription }}<p>{{ .ProjectShortDescription }}</p>{{ end }}
-    <nav aria-label="{{ .ProjectTitle }} links">
-      <a href="/{{ .ConferenceTag }}/hackathon/projects/{{ .ProjectID }}">View project →</a>
-      {{ if .GitHubURL }}<a href="{{ .GitHubURL | safeURL }}" target="_blank" rel="noopener noreferrer">Repository ↗</a>{{ end }}
-      {{ if .DemoURL }}<a href="{{ .DemoURL | safeURL }}" target="_blank" rel="noopener noreferrer">Demo ↗</a>{{ end }}
-    </nav>
-  </div>
-  <div class="sponsor-prize-entry__team">
-    <strong>Team · {{ len .Participants }}</strong>
-    {{ range .Participants }}
-    <div class="sponsor-prize-participant">
-      {{ if .PublicID }}<a class="sponsor-prize-participant__identity" href="/whois/{{ .PublicID }}">{{ else }}<span class="sponsor-prize-participant__identity">{{ end }}
-        <span class="sponsor-prize-participant__avatar">
-          <img src="{{ speakerPhoto .Photo }}" alt="" loading="lazy" data-image-fallback>
-          <span data-image-fallback-copy hidden aria-hidden="true">++</span>
-        </span>
-        <span><b>{{ .Name }}</b><small>{{ .Role }}</small></span>
-      {{ if .PublicID }}</a>{{ else }}</span>{{ end }}
-      <div class="sponsor-prize-participant__contact">
-        {{ if .Email }}
-        <a href="mailto:{{ .Email }}">{{ .Email }}</a>
-        <small>{{ if eq .ConsentScope "included_sponsorship" }}Included with submission{{ else if eq .ConsentScope "all_sponsors" }}Consented to other hackathon sponsors{{ else }}Consented through this prize{{ end }}</small>
-        {{ else }}
-        <span>Contact not shared</span>
-        {{ end }}
-      </div>
-    </div>
-    {{ end }}
-  </div>
-</article>
-{{ end }}
