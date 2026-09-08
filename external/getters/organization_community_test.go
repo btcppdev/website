@@ -48,6 +48,25 @@ func TestOrganizationCommunityMembershipAndApplications(t *testing.T) {
 	if !found {
 		t.Fatalf("directory omitted request-only organization: %+v", directory)
 	}
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE organizations SET hidden_from_directory = true WHERE id = $1::uuid`, organizationID); err != nil {
+		t.Fatalf("hide organization from directory: %v", err)
+	}
+	hiddenDirectory, err := ListOrganizationDirectoryForPerson(ctx, requesterID)
+	if err != nil {
+		t.Fatalf("list directory with hidden organization: %v", err)
+	}
+	for _, entry := range hiddenDirectory {
+		if entry.Organization.Ref == organizationID {
+			t.Fatalf("hidden organization appeared in directory: %+v", entry)
+		}
+	}
+	hiddenOrg, err := GetOrg(ctx, organizationID)
+	if err != nil || !hiddenOrg.HiddenFromDirectory {
+		t.Fatalf("administrative organization lookup lost visibility setting: %+v err=%v", hiddenOrg, err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `UPDATE organizations SET hidden_from_directory = false WHERE id = $1::uuid`, organizationID); err != nil {
+		t.Fatalf("restore organization directory visibility: %v", err)
+	}
 	filteredDirectory, err := ListOrganizationDirectoryForPersonFiltered(ctx, requesterID, "Community "+suffix, 0)
 	if err != nil || len(filteredDirectory) != 1 || filteredDirectory[0].Organization.Ref != organizationID {
 		t.Fatalf("filtered organization directory = %+v err=%v", filteredDirectory, err)

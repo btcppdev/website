@@ -81,7 +81,8 @@ func ListOrganizationDirectoryForPersonFiltered(ctx *config.AppContext, personID
 			WHERE organization_id = organizations.id AND person_id = $1::uuid
 			ORDER BY created_at DESC LIMIT 1
 		) requests ON true
-		WHERE ($2 = ''
+		WHERE NOT organizations.hidden_from_directory
+		  AND ($2 = ''
 			OR strpos(lower(organizations.name), lower($2)) > 0
 			OR strpos(lower(organizations.tagline), lower($2)) > 0)
 		ORDER BY lower(organizations.name), organizations.id

@@ -7,23 +7,24 @@ import (
 
 type (
 	Org struct {
-		Ref              string
-		Name             string
-		Tagline          string
-		LogoLight        string // URL to light mode logo on Spaces
-		LogoDark         string // URL to dark mode logo on Spaces
-		Email            string
-		Website          string
-		LinkedIn         string
-		Instagram        string
-		Youtube          string
-		Github           string
-		Twitter          Twitter
-		Nostr            string
-		Matrix           string
-		Hiring           bool
-		Notes            string
-		MembershipPolicy string
+		Ref                 string
+		Name                string
+		Tagline             string
+		LogoLight           string // URL to light mode logo on Spaces
+		LogoDark            string // URL to dark mode logo on Spaces
+		Email               string
+		Website             string
+		LinkedIn            string
+		Instagram           string
+		Youtube             string
+		Github              string
+		Twitter             Twitter
+		Nostr               string
+		Matrix              string
+		Hiring              bool
+		Notes               string
+		MembershipPolicy    string
+		HiddenFromDirectory bool
 	}
 
 	OrganizationDirectoryEntry struct {

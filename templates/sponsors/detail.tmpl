@@ -175,6 +175,12 @@
                                     <option value="closed" {{ if eq .Org.MembershipPolicy "closed" }}selected{{ end }}>Do not accept requests</option>
                                 </select>
                             </div>
+							<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+								<label for="DirectoryVisible" class="flex items-start gap-3">
+									<input id="DirectoryVisible" name="DirectoryVisible" type="checkbox"{{ if not .Org.HiddenFromDirectory }} checked{{ end }} class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+									<span><span class="block text-sm font-medium text-gray-900">Show in organization directory</span><span class="mt-1 block text-xs text-gray-500">When off, this organization is hidden from dashboard discovery and search. Existing members and administrators can still manage it.</span></span>
+								</label>
+							</div>
 
                             <hr class="my-2">
 
