@@ -2163,6 +2163,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		SocialAdmin(w, r, app)
 	}).Methods("GET")
 
+	r.HandleFunc("/{conf}/admin/social/media", func(w http.ResponseWriter, r *http.Request) {
+		SocialMediaUpload(w, r, app)
+	}).Methods("POST")
+
 	r.HandleFunc("/{conf}/admin/social/post", func(w http.ResponseWriter, r *http.Request) {
 		SocialPost(w, r, app)
 	}).Methods("POST")

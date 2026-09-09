@@ -401,6 +401,20 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		return
 	}
 
+	// Validate all selected attachments before queueing any external posts.
+	media := make(map[string][]SocialMediaItem)
+	for group, ids := range map[string][]string{"speaker": selectedSpeakers, "talk": selectedTalks, "sponsor": selectedSponsorRefs} {
+		for _, id := range ids {
+			field := group + "_" + id
+			asset, err := socialMediaSelection(r, conf.Tag, field)
+			if err != nil {
+				http.Redirect(w, r, "/"+conf.Tag+"/admin/social?err="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+				return
+			}
+			media[field] = asset
+		}
+	}
+
 	// Get target channels
 	allChannels, err := buffer.FetchChannels()
 	if err != nil {
@@ -424,6 +438,7 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	posted := 0
 	tracked := 0
 	var trackingErrors []string
+	var postingErrors []string
 
 	// Process selected speakers
 	for _, speakerID := range selectedSpeakers {
@@ -433,26 +448,15 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 			continue
 		}
 
-		speakerPhotoURL := r.FormValue("speakerphoto_speaker_" + speakerID)
 		talkID := r.FormValue("talkid_speaker" + speakerID)
-		photoURL := r.FormValue("photo_speaker_" + speakerID)
-		instaPhotoURL := r.FormValue("instaphoto_speaker_" + speakerID)
 
 		queued := false
 		for _, ch := range targetChannels {
-			var imgs []string
-			if (ch.Service == "instagram" || ch.Service == "twitter") && instaPhotoURL != "" {
-				imgs = append(imgs, instaPhotoURL)
-			} else if photoURL != "" {
-				imgs = append(imgs, photoURL)
-			}
-			if speakerPhotoURL != "" {
-				imgs = append(imgs, speakerPhotoURL)
-			}
-			ctx.Infos.Printf("Posting speaker %s to %s with images: %v", speakerID, ch.Service, imgs)
-			_, err := buffer.CreatePost(ch.ID, postText, imgs, ch.Service)
+			assets := selectedSocialAssets(r, "speaker_"+speakerID, ch.Service, media["speaker_"+speakerID])
+			_, err := buffer.CreateMediaPost(ch.ID, postText, assets, ch.Service)
 			if err != nil {
 				ctx.Err.Printf("Failed to post speaker %s to %s: %s", speakerID, ch.Service, err.Error())
+				postingErrors = append(postingErrors, fmt.Sprintf("speaker %s to %s: %s", speakerID, ch.Service, err))
 				continue
 			}
 			posted++
@@ -478,17 +482,12 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 			continue
 		}
 
-		photoURL := r.FormValue("photo_talk_" + talkID)
-		var imgs []string
-		if photoURL != "" {
-			imgs = append(imgs, photoURL)
-		}
-
 		queued := false
 		for _, ch := range targetChannels {
-			_, err := buffer.CreatePost(ch.ID, postText, imgs, ch.Service)
+			_, err := buffer.CreateMediaPost(ch.ID, postText, selectedSocialAssets(r, "talk_"+talkID, ch.Service, media["talk_"+talkID]), ch.Service)
 			if err != nil {
 				ctx.Err.Printf("Failed to post talk %s to %s: %s", talkID, ch.Service, err.Error())
+				postingErrors = append(postingErrors, fmt.Sprintf("talk %s to %s: %s", talkID, ch.Service, err))
 				continue
 			}
 			posted++
@@ -524,20 +523,17 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		return sponsorSortOrder(selectedSponsors[i].level) < sponsorSortOrder(selectedSponsors[j].level)
 	})
 
-	// For non-Instagram channels, send individual sponsor posts
+	// Send individual sponsor posts, including video sponsors on Instagram.
 	for _, sp := range selectedSponsors {
-		var imgs []string
-		if sp.cardURL != "" {
-			imgs = append(imgs, sp.cardURL)
-		}
 		queued := false
 		for _, ch := range targetChannels {
-			if ch.Service == "instagram" {
+			if ch.Service == "instagram" && !socialSelectionHasVideo(media["sponsor_"+sp.ref]) {
 				continue
 			}
-			_, err := buffer.CreatePost(ch.ID, sp.text, imgs, ch.Service)
+			_, err := buffer.CreateMediaPost(ch.ID, sp.text, selectedSocialAssets(r, "sponsor_"+sp.ref, ch.Service, media["sponsor_"+sp.ref]), ch.Service)
 			if err != nil {
 				ctx.Err.Printf("Failed to post sponsor %s to %s: %s", sp.ref, ch.Service, err.Error())
+				postingErrors = append(postingErrors, fmt.Sprintf("sponsor %s to %s: %s", sp.ref, ch.Service, err))
 				continue
 			}
 			posted++
@@ -555,29 +551,33 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		}
 	}
 
-	// For Instagram, send one batch post with all sponsor images as a carousel
-	if len(selectedSponsors) > 0 {
-		batchText := r.FormValue("text_sponsor_batch")
-		var batchImgs []string
-		for _, sp := range selectedSponsors {
-			if sp.cardURL != "" {
-				batchImgs = append(batchImgs, sp.cardURL)
-			}
+	// Video sponsors have their own Instagram posts; batch the remaining images.
+	var batchSponsors []selectedSponsor
+	var batchAssets []buffer.Asset
+	for _, sp := range selectedSponsors {
+		if socialSelectionHasVideo(media["sponsor_"+sp.ref]) {
+			continue
 		}
-		if batchText != "" && len(batchImgs) > 0 {
+		batchSponsors = append(batchSponsors, sp)
+		batchAssets = append(batchAssets, selectedSocialAssets(r, "sponsor_"+sp.ref, "instagram", media["sponsor_"+sp.ref])...)
+	}
+	if len(batchSponsors) > 0 {
+		batchText := r.FormValue("text_sponsor_batch")
+		if batchText != "" && len(batchAssets) > 0 {
 			for _, ch := range targetChannels {
 				if ch.Service != "instagram" {
 					continue
 				}
-				_, err := buffer.CreatePost(ch.ID, batchText, batchImgs, ch.Service)
+				_, err := buffer.CreateMediaPost(ch.ID, batchText, batchAssets, ch.Service)
 				if err != nil {
 					ctx.Err.Printf("Failed to post sponsor batch to instagram: %s", err.Error())
+					postingErrors = append(postingErrors, "Instagram sponsor batch: "+err.Error())
 					continue
 				}
 				posted++
 
-				ctx.Infos.Printf("Queued sponsor batch post to instagram with %d images", len(batchImgs))
-				if err := RecordInstagramBatch(ctx, conf, selectedSponsors, batchText, ch); err != nil {
+				ctx.Infos.Printf("Queued sponsor batch post to instagram with %d images", len(batchAssets))
+				if err := RecordInstagramBatch(ctx, conf, batchSponsors, batchText, ch); err != nil {
 					ctx.Err.Printf("Failed to track Instagram sponsor batch: %s", err)
 					trackingErrors = append(trackingErrors, "Instagram sponsor batch")
 				}
@@ -587,6 +587,11 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 
 	if len(trackingErrors) > 0 {
 		msg := fmt.Sprintf("%d Buffer post(s) were queued, but %d item(s) could not be recorded locally (%s). Do not submit them again until the tracking issue is resolved.", posted, len(trackingErrors), strings.Join(trackingErrors, ", "))
+		http.Redirect(w, r, "/"+conf.Tag+"/admin/social?err="+url.QueryEscape(msg), http.StatusSeeOther)
+		return
+	}
+	if len(postingErrors) > 0 {
+		msg := fmt.Sprintf("%d posts queued; %d failed (%s). Review the Buffer queue before retrying to avoid duplicates.", posted, len(postingErrors), strings.Join(postingErrors, "; "))
 		http.Redirect(w, r, "/"+conf.Tag+"/admin/social?err="+url.QueryEscape(msg), http.StatusSeeOther)
 		return
 	}

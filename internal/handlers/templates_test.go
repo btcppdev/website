@@ -1049,6 +1049,21 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(sponsorEvents.String(), "CanManageAwardJudges") || strings.Contains(sponsorEvents.String(), "manage prize judges") {
 		t.Fatalf("event sponsorships exposed sponsor judge management: %s", sponsorEvents.String())
 	}
+	var socialPage bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&socialPage, "talks/social.tmpl", &SocialAdminPage{
+		Conf: &types.Conf{Tag: "berlin26", Desc: "Berlin"}, BufferOK: true,
+		SpeakerRows: []*SocialSpeakerRow{{ID: "speaker-id", Name: "Ada", PhotoURL: "/speaker-card.png", InstaPhotoURL: "/speaker-square.png", SpeakerPhotoURL: "/speaker-portrait.jpg"}},
+		TalkRows:    []*SocialTalkRow{{ID: "talk-id", Name: "Bitcoin"}},
+		SponsorRows: []*SocialSponsorRow{{Ref: "sponsor-id", OrgName: "Builders"}},
+	}); err != nil {
+		t.Fatalf("render social upload controls: %v", err)
+	}
+	for _, want := range []string{`data-media-upload-url="/berlin26/admin/social/media"`, `name="media_items_speaker_speaker-id"`, `name="media_items_talk_talk-id"`, `name="media_items_sponsor_sponsor-id"`, `data-source="photo"`, `src="/speaker-portrait.jpg"`, `src="/speaker-card.png"`, `src="/speaker-square.png"`, `src="/static/js/social-media-upload.js"`, "Review the media in posting order"} {
+		if !strings.Contains(socialPage.String(), want) {
+			t.Errorf("social page missing %q", want)
+		}
+	}
+
 	var orgDetail bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&orgDetail, "sponsors/detail.tmpl", &OrgDetailPage{
 		Org: &types.Org{Ref: "org-id", Name: "Signet Systems"},
