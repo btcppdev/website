@@ -136,6 +136,9 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 	}
 	if tenant == "person" && tenantID == identity.PersonID {
 		page.TenantName, page.Role = identity.Speaker.Name, "member"
+		if err := validateManagedSignerRequest(page); err != nil {
+			return nil, err
+		}
 		return page, nil
 	}
 	if tenant != "organization" {
@@ -147,10 +150,46 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 			if membership.Organization != nil {
 				page.TenantName = membership.Organization.Name
 			}
+			if err := validateManagedSignerRequest(page); err != nil {
+				return nil, err
+			}
 			return page, nil
 		}
 	}
 	return nil, errors.New("organization owner or manager access is required")
+}
+
+func validateManagedSignerRequest(page *ManagedSignerAuthorizationPage) error {
+	if page.Action != "sign" {
+		return nil
+	}
+	if page.Tenant == "person" {
+		if page.EventKind != 27235 && page.EventKind != 10008 {
+			return errors.New("personal signer cannot authorize this event kind")
+		}
+		page.ActionLabel = map[int]string{27235: "sign in to an application", 10008: "accept badges on Nostr"}[page.EventKind]
+		return nil
+	}
+	switch page.EventKind {
+	case 27235:
+		page.ActionLabel = "sign in to an application"
+	case 30009:
+		page.ActionLabel = "publish a badge definition"
+	case 8:
+		if page.RecipientCount < 1 || page.RecipientCount > 100 {
+			return errors.New("badge issuance must contain between 1 and 100 recipients")
+		}
+		if page.RecipientCount == 1 {
+			page.ActionLabel = "issue one badge award"
+		} else {
+			page.ActionLabel = "issue " + strconv.Itoa(page.RecipientCount) + " badge awards"
+		}
+	case 5:
+		page.ActionLabel = "revoke a badge award"
+	default:
+		return errors.New("organization signer cannot authorize this event kind")
+	}
+	return nil
 }
 
 func requireSignerAuthentication(identity *auth.Identity, page *ManagedSignerAuthorizationPage) error {

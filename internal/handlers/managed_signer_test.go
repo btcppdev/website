@@ -38,3 +38,27 @@ func TestManagedSignerAuthenticationRejectsMissingTimestamp(t *testing.T) {
 		t.Fatalf("expected recent authentication error, got %v", err)
 	}
 }
+
+func TestManagedSignerRequestValidationMatchesBunkerSurface(t *testing.T) {
+	tests := []struct {
+		name      string
+		page      ManagedSignerAuthorizationPage
+		wantLabel string
+		wantErr   bool
+	}{
+		{"organization badge batch", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 8, RecipientCount: 21}, "issue 21 badge awards", false},
+		{"one independently revocable award", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 8, RecipientCount: 1}, "issue one badge award", false},
+		{"oversized batch", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 8, RecipientCount: 101}, "", true},
+		{"personal acceptance", ManagedSignerAuthorizationPage{Tenant: "person", Action: "sign", EventKind: 10008}, "accept badges on Nostr", false},
+		{"personal award denied", ManagedSignerAuthorizationPage{Tenant: "person", Action: "sign", EventKind: 8, RecipientCount: 1}, "", true},
+		{"organization arbitrary event denied", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 1}, "", true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateManagedSignerRequest(&test.page)
+			if (err != nil) != test.wantErr || (!test.wantErr && test.page.ActionLabel != test.wantLabel) {
+				t.Fatalf("label=%q error=%v", test.page.ActionLabel, err)
+			}
+		})
+	}
+}
