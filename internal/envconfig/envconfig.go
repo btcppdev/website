@@ -81,6 +81,8 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 		CacheTTLSec:          envInt("CACHE_TTL_SEC", 0),
 		TaxFormEncryptionKey: os.Getenv("TAX_FORM_ENCRYPTION_KEY"),
 		BadgeStudioURL:       strings.TrimRight(strings.TrimSpace(os.Getenv("BADGE_STUDIO_URL")), "/"),
+		SignerAuthPrivateKey: strings.TrimSpace(os.Getenv("BTCPP_SIGNER_AUTH_PRIVATE_KEY")),
+		SignerURL:            strings.TrimRight(strings.TrimSpace(os.Getenv("SIGNER_URL")), "/"),
 		OpenNode: types.OpenNodeConfig{
 			Key:      os.Getenv("OPENNODE_KEY"),
 			Endpoint: os.Getenv("OPENNODE_ENDPOINT"),

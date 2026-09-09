@@ -1,0 +1,16 @@
+{{ define "managed_signer_authorize.tmpl" -}}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize signer · bitcoin++</title><link rel="stylesheet" href="/static/css/btcpp-redesign.css"></head>
+<body class="managed-signer-consent"><main>
+  <p class="eyebrow">bitcoin++ managed signer</p>
+  <h1>Review this signing request.</h1>
+  <p><strong>{{ .PersonName }}</strong> is authorizing the isolated signer for <strong>{{ .TenantName }}</strong>.</p>
+  {{ if .Error }}<p class="managed-signer-consent__error" role="alert">{{ .Error }}</p>{{ end }}
+  <dl><div><dt>action</dt><dd>{{ .ActionLabel }}</dd></div><div><dt>account</dt><dd>{{ .Tenant }} · {{ .Role }}</dd></div>{{ if .EventKind }}<div><dt>nostr event</dt><dd>kind {{ .EventKind }}</dd></div>{{ end }}{{ if .RecipientCount }}<div><dt>recipients</dt><dd>{{ .RecipientCount }}</dd></div>{{ end }}{{ if .EventHash }}<div><dt>exact event hash</dt><dd><code>{{ .EventHash }}</code></dd></div>{{ end }}{{ if .Target }}<div><dt>exact connection</dt><dd><code>{{ .Target }}</code></dd></div>{{ end }}</dl>
+  <p class="managed-signer-consent__note">The authorization expires in one minute, works once, and cannot approve a different action or event.</p>
+  <form method="post" action="/signer/authorize">
+    <input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="return_to" value="{{ .ReturnTo }}"><input type="hidden" name="tenant" value="{{ .Tenant }}"><input type="hidden" name="tenant_id" value="{{ .TenantID }}"><input type="hidden" name="action" value="{{ .Action }}"><input type="hidden" name="event_hash" value="{{ .EventHash }}"><input type="hidden" name="target" value="{{ .Target }}"><input type="hidden" name="event_kind" value="{{ .EventKind }}"><input type="hidden" name="recipient_count" value="{{ .RecipientCount }}">
+    <button name="decision" value="deny">Cancel</button><button class="is-primary" name="decision" value="allow">Authorize with bitcoin++ →</button>
+  </form>
+</main><footer>bitcoin++ · signer authorization · {{ .Year }}</footer></body></html>
+{{- end }}

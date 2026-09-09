@@ -1,0 +1,4 @@
+{{ define "managed_signer_continue.tmpl" -}}
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Continue to signer · bitcoin++</title><link rel="stylesheet" href="/static/css/btcpp-redesign.css"></head>
+<body class="managed-signer-consent"><main><p class="eyebrow">authorization ready</p><h1>Continue to the isolated signer.</h1><p>The one-time authorization is ready. It expires in one minute.</p><form method="post" action="{{ .ReturnTo }}"><input type="hidden" name="authorization" value="{{ .Token }}"><button class="is-primary" type="submit">Continue securely →</button></form></main><footer>bitcoin++ · signer authorization · {{ .Year }}</footer></body></html>
+{{- end }}

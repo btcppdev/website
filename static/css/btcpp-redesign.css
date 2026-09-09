@@ -6919,3 +6919,24 @@ body.btcpp-agenda-dialog-open {
     padding-inline: 10px;
   }
 }
+/* Managed signer consent deliberately stays small and auditable. */
+.managed-signer-consent { min-height: 100vh; margin: 0; display: grid; grid-template-rows: 1fr auto; background: #f6f0e8; color: #211d18; font-family: Ubuntu, system-ui, sans-serif; }
+.managed-signer-consent main { width: min(680px, calc(100% - 32px)); margin: auto; padding: clamp(28px, 7vw, 70px); border: 1px solid #c9beb2; background: #fffaf3; box-shadow: 12px 12px 0 #d9eee8; }
+.managed-signer-consent h1 { margin: 0 0 20px; font: 800 italic clamp(34px, 7vw, 60px)/.96 Ubuntu, system-ui, sans-serif; letter-spacing: -.05em; }
+.managed-signer-consent .eyebrow { color: #73529b; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: lowercase; }
+.managed-signer-consent dl { margin: 28px 0; border-top: 1px solid #d7cdc1; }
+.managed-signer-consent dl div { display: grid; grid-template-columns: 130px 1fr; gap: 16px; padding: 13px 0; border-bottom: 1px solid #d7cdc1; }
+.managed-signer-consent dt { color: #70665d; font-size: 11px; font-weight: 700; text-transform: lowercase; }
+.managed-signer-consent dd { margin: 0; overflow-wrap: anywhere; }
+.managed-signer-consent code { font: 11px ui-monospace, monospace; }
+.managed-signer-consent form { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.managed-signer-consent button { min-height: 46px; padding: 10px 18px; border: 1px solid #312b26; border-radius: 999px; background: transparent; color: inherit; font-weight: 800; cursor: pointer; }
+.managed-signer-consent button.is-primary { background: #211d18; color: #fff; }
+.managed-signer-consent__note { color: #70665d; font-size: 13px; line-height: 1.5; }
+.managed-signer-consent__error { padding: 12px; border-left: 3px solid #a94435; background: #f8e5df; color: #7b2e25; }
+.managed-signer-consent footer { padding: 18px; color: #70665d; font-size: 11px; text-align: center; text-transform: lowercase; }
+@media (max-width: 520px) { .managed-signer-consent main { width: calc(100% - 20px); padding: 28px 20px; box-shadow: 6px 6px 0 #d9eee8; } .managed-signer-consent dl div { grid-template-columns: 1fr; gap: 4px; } .managed-signer-consent form { display: grid; grid-template-columns: 1fr; } .managed-signer-consent button { width: 100%; } }
+
+.organization-badge-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; }
+.organization-badge-actions a { display: inline-flex; align-items: center; min-height: 2.75rem; padding: .65rem 1rem; border: 1px solid currentColor; color: inherit; font-size: .75rem; font-weight: 800; text-decoration: none; }
+@media (max-width: 640px) { .organization-badge-actions { display: grid; } .organization-badge-actions a { justify-content: center; } }

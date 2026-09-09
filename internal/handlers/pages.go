@@ -218,6 +218,7 @@ type WhoIsIssuedBadge struct {
 		} `json:"revocation"`
 	} `json:"award"`
 	CredentialURL string `json:"-"`
+	ClaimURL      string `json:"-"`
 }
 
 type WhoIsPendingBadge struct {
@@ -1042,6 +1043,7 @@ type PersonEmailsPage struct {
 	AuthMethodsCSRF       string
 	FlashMessage          string
 	FlashError            string
+	SignerURL             string
 	Year                  uint
 }
 
