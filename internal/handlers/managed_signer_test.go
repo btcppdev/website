@@ -1,10 +1,15 @@
 package handlers
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"btcpp-web/internal/auth"
+	"btcpp-web/internal/config"
+	"btcpp-web/internal/types"
 )
 
 func TestManagedSignerAuthenticationEscalation(t *testing.T) {
@@ -60,5 +65,35 @@ func TestManagedSignerRequestValidationMatchesBunkerSurface(t *testing.T) {
 				t.Fatalf("label=%q error=%v", test.page.ActionLabel, err)
 			}
 		})
+	}
+}
+
+func TestManagedBadgeBatchReviewBindsExactRecipients(t *testing.T) {
+	target := strings.Repeat("a", 48)
+	eventHash := strings.Repeat("b", 64)
+	issuer := strings.Repeat("c", 64)
+	recipient := strings.Repeat("d", 64)
+	signer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/authorizations/requests/"+target {
+			t.Fatalf("request path = %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + target + `","tenant":"organization","tenant_id":"org-1","event_hash":"` + eventHash + `","event_kind":8,"recipient_count":1,"badge_address":"30009:` + issuer + `:mentor","recipients":[{"pubkey":"` + recipient + `","subject_profile_url":"https://btcpp.dev/whois/example"}]}`))
+	}))
+	defer signer.Close()
+
+	ctx := &config.AppContext{Env: &types.EnvConfig{SignerURL: signer.URL}}
+	page := &ManagedSignerAuthorizationPage{Tenant: "organization", TenantID: "org-1", Action: "sign", Target: target, EventHash: eventHash, EventKind: 8, RecipientCount: 1}
+	request := httptest.NewRequest(http.MethodGet, "/signer/authorize", nil)
+	if err := validateManagedBadgeBatch(request, ctx, page); err != nil {
+		t.Fatal(err)
+	}
+	if page.BadgeAddress != "30009:"+issuer+":mentor" || len(page.BatchRecipients) != 1 || page.BatchRecipients[0].Pubkey != recipient {
+		t.Fatalf("reviewed page = %#v", page)
+	}
+
+	page.EventHash = strings.Repeat("e", 64)
+	if err := validateManagedBadgeBatch(request, ctx, page); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("tampered authorization was accepted: %v", err)
 	}
 }

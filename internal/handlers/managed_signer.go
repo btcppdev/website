@@ -3,7 +3,10 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,22 +21,43 @@ import (
 )
 
 type ManagedSignerAuthorizationPage struct {
-	PersonName     string
-	Tenant         string
-	TenantID       string
-	TenantName     string
-	Role           string
-	Action         string
-	ActionLabel    string
-	EventHash      string
-	Target         string
-	EventKind      int
-	RecipientCount int
-	CSRF           string
-	ReturnTo       string
-	Token          string
-	Error          string
-	Year           uint
+	PersonName      string
+	Tenant          string
+	TenantID        string
+	TenantName      string
+	Role            string
+	Action          string
+	ActionLabel     string
+	EventHash       string
+	Target          string
+	EventKind       int
+	RecipientCount  int
+	VerifiedGrants  int
+	BadgeAddress    string
+	BatchRecipients []ManagedSignerBatchRecipient
+	CSRF            string
+	ReturnTo        string
+	Token           string
+	Error           string
+	Year            uint
+}
+
+type ManagedSignerBatchRecipient struct {
+	Pubkey            string `json:"pubkey"`
+	PersonID          string `json:"person_id"`
+	GrantID           string `json:"grant_id"`
+	SubjectProfileURL string `json:"subject_profile_url"`
+}
+
+type managedSignerBatchReview struct {
+	ID             string                        `json:"id"`
+	Tenant         string                        `json:"tenant"`
+	TenantID       string                        `json:"tenant_id"`
+	EventHash      string                        `json:"event_hash"`
+	EventKind      int                           `json:"event_kind"`
+	RecipientCount int                           `json:"recipient_count"`
+	BadgeAddress   string                        `json:"badge_address"`
+	Recipients     []ManagedSignerBatchRecipient `json:"recipients"`
 }
 
 func ManagedSignerAuthorize(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -131,12 +155,18 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 	if action == "sign" && !isLowerHex(page.EventHash, 64) {
 		return nil, errors.New("signing authorization requires an exact event hash")
 	}
+	if (action == "connect" || action == "sign") && !isLowerHex(page.Target, 48) {
+		return nil, errors.New("signer authorization requires an exact pending request")
+	}
 	if action == "revoke_connection" && !isLowerHex(page.Target, 48) {
 		return nil, errors.New("connection revocation requires an exact connection target")
 	}
 	if tenant == "person" && tenantID == identity.PersonID {
 		page.TenantName, page.Role = identity.Speaker.Name, "member"
 		if err := validateManagedSignerRequest(page); err != nil {
+			return nil, err
+		}
+		if err := validateManagedBadgeBatch(r, ctx, page); err != nil {
 			return nil, err
 		}
 		return page, nil
@@ -153,10 +183,66 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 			if err := validateManagedSignerRequest(page); err != nil {
 				return nil, err
 			}
+			if err := validateManagedBadgeBatch(r, ctx, page); err != nil {
+				return nil, err
+			}
 			return page, nil
 		}
 	}
 	return nil, errors.New("organization owner or manager access is required")
+}
+
+func validateManagedBadgeBatch(r *http.Request, ctx *config.AppContext, page *ManagedSignerAuthorizationPage) error {
+	if page.Action != "sign" || page.EventKind != 8 {
+		return nil
+	}
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimRight(ctx.Env.SignerURL, "/")+"/api/authorizations/requests/"+page.Target, nil)
+	if err != nil {
+		return errors.New("badge batch review is unavailable")
+	}
+	client := &http.Client{Timeout: 4 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	response, err := client.Do(request)
+	if err != nil {
+		return errors.New("the managed signer could not provide the badge batch for review")
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
+		return errors.New("the managed signer no longer has this badge batch")
+	}
+	var review managedSignerBatchReview
+	decoder := json.NewDecoder(io.LimitReader(response.Body, 256<<10))
+	if decoder.Decode(&review) != nil || review.ID != page.Target || review.Tenant != page.Tenant || review.TenantID != page.TenantID || review.EventHash != page.EventHash || review.EventKind != page.EventKind || review.RecipientCount != page.RecipientCount || len(review.Recipients) != page.RecipientCount {
+		return errors.New("badge batch review does not match the requested authorization")
+	}
+	parts := strings.SplitN(review.BadgeAddress, ":", 3)
+	if len(parts) != 3 || parts[0] != "30009" || !isLowerHex(parts[1], 64) || strings.TrimSpace(parts[2]) == "" {
+		return errors.New("badge batch uses an invalid badge definition")
+	}
+	verified := 0
+	seen := make(map[string]struct{}, len(review.Recipients))
+	for _, recipient := range review.Recipients {
+		if !isLowerHex(recipient.Pubkey, 64) {
+			return errors.New("badge batch contains an invalid recipient")
+		}
+		if _, duplicate := seen[recipient.Pubkey]; duplicate {
+			return errors.New("badge batch contains a duplicate recipient")
+		}
+		seen[recipient.Pubkey] = struct{}{}
+		if recipient.GrantID == "" {
+			continue
+		}
+		grant, err := getters.GetBadgeGrant(ctx, recipient.GrantID)
+		if err != nil || grant == nil {
+			return fmt.Errorf("Bitcoin++ badge grant %s was not found", recipient.GrantID)
+		}
+		if grant.OrganizationID != page.TenantID || grant.IssuerPubkey != parts[1] || grant.BadgeIdentifier != parts[2] || grant.RecipientPubkey != recipient.Pubkey || grant.RecipientPersonID != recipient.PersonID || grant.SubjectProfileURL != recipient.SubjectProfileURL || (grant.State != getters.BadgeGrantStateReady && grant.State != getters.BadgeGrantStateDeliveryError) {
+			return fmt.Errorf("Bitcoin++ badge grant %s no longer matches this award", recipient.GrantID)
+		}
+		verified++
+	}
+	page.BadgeAddress, page.BatchRecipients, page.VerifiedGrants = review.BadgeAddress, review.Recipients, verified
+	return nil
 }
 
 func validateManagedSignerRequest(page *ManagedSignerAuthorizationPage) error {

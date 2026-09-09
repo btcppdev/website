@@ -6955,6 +6955,11 @@ body.btcpp-agenda-dialog-open {
 .managed-signer-consent button.is-primary { background: #211d18; color: #fff; }
 .managed-signer-consent__note { color: #70665d; font-size: 13px; line-height: 1.5; }
 .managed-signer-consent__error { padding: 12px; border-left: 3px solid #a94435; background: #f8e5df; color: #7b2e25; }
+.managed-signer-consent details { margin: -12px 0 28px; border: 1px solid #d7cdc1; background: #f6f0e8; }
+.managed-signer-consent summary { padding: 13px; font-size: 12px; font-weight: 800; cursor: pointer; text-transform: lowercase; }
+.managed-signer-consent details ol { max-height: 240px; margin: 0; padding: 0 13px 13px 42px; overflow: auto; }
+.managed-signer-consent details li { padding: 8px 0; color: #70665d; font-size: 12px; overflow-wrap: anywhere; }
+.managed-signer-consent details a { color: #654c8b; font-weight: 800; }
 .managed-signer-consent footer { padding: 18px; color: #70665d; font-size: 11px; text-align: center; text-transform: lowercase; }
 @media (max-width: 520px) { .managed-signer-consent main { width: calc(100% - 20px); padding: 28px 20px; box-shadow: 6px 6px 0 #d9eee8; } .managed-signer-consent dl div { grid-template-columns: 1fr; gap: 4px; } .managed-signer-consent form { display: grid; grid-template-columns: 1fr; } .managed-signer-consent button { width: 100%; } }
 
