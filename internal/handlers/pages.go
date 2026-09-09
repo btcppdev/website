@@ -212,8 +212,12 @@ type WhoIsBadgeDefinition struct {
 type WhoIsIssuedBadge struct {
 	Definition WhoIsBadgeDefinition `json:"definition"`
 	Award      struct {
-		EventID    string   `json:"event_id"`
-		Recipients []string `json:"recipients"`
+		EventID     string   `json:"event_id"`
+		Recipients  []string `json:"recipients"`
+		Acceptances map[string]struct {
+			EventID   string    `json:"event_id"`
+			CreatedAt time.Time `json:"created_at"`
+		} `json:"acceptances"`
 		Revocation *struct {
 			CreatedAt time.Time `json:"created_at"`
 			Reason    string    `json:"reason"`
@@ -221,6 +225,7 @@ type WhoIsIssuedBadge struct {
 	} `json:"award"`
 	CredentialURL string `json:"-"`
 	ClaimURL      string `json:"-"`
+	Accepted      bool   `json:"-"`
 }
 
 type WhoIsPendingBadge struct {

@@ -39,8 +39,12 @@ func loadBadgeStudioProfile(ctx context.Context, baseURL, personID string) (*Who
 	for index := range profile.Issued {
 		award := &profile.Issued[index]
 		if len(award.Award.Recipients) == 1 {
-			award.CredentialURL = baseURL + "/credentials/" + url.PathEscape(award.Award.EventID) + "/" + url.PathEscape(award.Award.Recipients[0])
-			award.ClaimURL = baseURL + "/claim/" + url.PathEscape(award.Award.EventID)
+			recipient := award.Award.Recipients[0]
+			award.CredentialURL = baseURL + "/credentials/" + url.PathEscape(award.Award.EventID) + "/" + url.PathEscape(recipient)
+			_, award.Accepted = award.Award.Acceptances[recipient]
+			if !award.Accepted && award.Award.Revocation == nil {
+				award.ClaimURL = baseURL + "/claim/" + url.PathEscape(award.Award.EventID)
+			}
 		}
 	}
 	return &profile, nil

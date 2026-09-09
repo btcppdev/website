@@ -13,7 +13,7 @@ func TestLoadBadgeStudioProfileBuildsCredentialLinks(t *testing.T) {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"issued":[{"definition":{"name":"Mentor","image_url":"https://media.example/mentor.png"},"award":{"event_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","recipients":["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]}}],"pending":[{"recipient_name":"Mara","badge":{"name":"Host"}}]}`))
+		_, _ = w.Write([]byte(`{"issued":[{"definition":{"name":"Mentor","image_url":"https://media.example/mentor.png"},"award":{"event_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","recipients":["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],"acceptances":{"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb":{"event_id":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","created_at":"2026-09-05T12:00:00Z"}}}}],"pending":[{"recipient_name":"Mara","badge":{"name":"Host"}}]}`))
 	}))
 	defer server.Close()
 	previous := badgeStudioHTTPClient
@@ -23,7 +23,26 @@ func TestLoadBadgeStudioProfileBuildsCredentialLinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(profile.Issued) != 1 || len(profile.Pending) != 1 || profile.Issued[0].CredentialURL != server.URL+"/credentials/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" || profile.Issued[0].ClaimURL != server.URL+"/claim/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+	if len(profile.Issued) != 1 || len(profile.Pending) != 1 || !profile.Issued[0].Accepted || profile.Issued[0].CredentialURL != server.URL+"/credentials/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" || profile.Issued[0].ClaimURL != "" {
+		t.Fatalf("profile = %#v", profile)
+	}
+}
+
+func TestLoadBadgeStudioProfileBuildsClaimLinkForUnacceptedAward(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"issued":[{"definition":{"name":"Mentor"},"award":{"event_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","recipients":["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]}}]}`))
+	}))
+	defer server.Close()
+	previous := badgeStudioHTTPClient
+	badgeStudioHTTPClient = server.Client()
+	t.Cleanup(func() { badgeStudioHTTPClient = previous })
+
+	profile, err := loadBadgeStudioProfile(context.Background(), server.URL, "person-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(profile.Issued) != 1 || profile.Issued[0].Accepted || profile.Issued[0].ClaimURL != server.URL+"/claim/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
 		t.Fatalf("profile = %#v", profile)
 	}
 }
