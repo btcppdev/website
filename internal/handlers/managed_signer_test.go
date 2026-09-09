@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
@@ -34,6 +35,39 @@ func TestManagedSignerAuthenticationEscalation(t *testing.T) {
 				t.Fatalf("error = %v, wantErr = %v", err, test.wantErr)
 			}
 		})
+	}
+}
+
+func TestManagedBadgeBatchReviewVerifiesGrantSnapshot(t *testing.T) {
+	target := strings.Repeat("1", 48)
+	eventHash := strings.Repeat("2", 64)
+	issuer := strings.Repeat("3", 64)
+	recipient := strings.Repeat("4", 64)
+	organizationID := "00000000-0000-4000-8000-000000000010"
+	personID := "00000000-0000-4000-8000-000000000011"
+	grantID := "00000000-0000-4000-8000-000000000012"
+	profileURL := "https://btcpp.dev/whois/example"
+	signer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + target + `","tenant":"organization","tenant_id":"` + organizationID + `","event_hash":"` + eventHash + `","event_kind":8,"recipient_count":1,"badge_address":"30009:` + issuer + `:mentor","recipients":[{"pubkey":"` + recipient + `","person_id":"` + personID + `","grant_id":"` + grantID + `","subject_profile_url":"` + profileURL + `"}]}`))
+	}))
+	defer signer.Close()
+	previous := loadManagedSignerBadgeGrant
+	loadManagedSignerBadgeGrant = func(_ *config.AppContext, id string) (*types.OrganizationBadgeGrant, error) {
+		return &types.OrganizationBadgeGrant{ID: id, OrganizationID: organizationID, IssuerPubkey: issuer, BadgeIdentifier: "mentor", RecipientPubkey: recipient, RecipientPersonID: personID, SubjectProfileURL: profileURL, State: getters.BadgeGrantStateReady}, nil
+	}
+	t.Cleanup(func() { loadManagedSignerBadgeGrant = previous })
+	ctx := &config.AppContext{Env: &types.EnvConfig{SignerURL: signer.URL}}
+	page := &ManagedSignerAuthorizationPage{Tenant: "organization", TenantID: organizationID, Action: "sign", Target: target, EventHash: eventHash, EventKind: 8, RecipientCount: 1}
+	request := httptest.NewRequest(http.MethodGet, "/signer/authorize", nil)
+	if err := validateManagedBadgeBatch(request, ctx, page); err != nil || page.VerifiedGrants != 1 {
+		t.Fatalf("verified grants = %d, %v", page.VerifiedGrants, err)
+	}
+	loadManagedSignerBadgeGrant = func(_ *config.AppContext, id string) (*types.OrganizationBadgeGrant, error) {
+		return &types.OrganizationBadgeGrant{ID: id, OrganizationID: organizationID, IssuerPubkey: issuer, BadgeIdentifier: "different", RecipientPubkey: recipient, RecipientPersonID: personID, SubjectProfileURL: profileURL, State: getters.BadgeGrantStateReady}, nil
+	}
+	if err := validateManagedBadgeBatch(request, ctx, page); err == nil || !strings.Contains(err.Error(), "no longer matches") {
+		t.Fatalf("changed grant was accepted: %v", err)
 	}
 }
 

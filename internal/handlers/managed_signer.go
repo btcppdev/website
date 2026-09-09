@@ -60,6 +60,8 @@ type managedSignerBatchReview struct {
 	Recipients     []ManagedSignerBatchRecipient `json:"recipients"`
 }
 
+var loadManagedSignerBadgeGrant = getters.GetBadgeGrant
+
 func ManagedSignerAuthorize(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	setManagedSignerHeaders(w, ctx)
 	identity, memberships, ok := organizationDashboardIdentity(w, r, ctx)
@@ -232,7 +234,7 @@ func validateManagedBadgeBatch(r *http.Request, ctx *config.AppContext, page *Ma
 		if recipient.GrantID == "" {
 			continue
 		}
-		grant, err := getters.GetBadgeGrant(ctx, recipient.GrantID)
+		grant, err := loadManagedSignerBadgeGrant(ctx, recipient.GrantID)
 		if err != nil || grant == nil {
 			return fmt.Errorf("Bitcoin++ badge grant %s was not found", recipient.GrantID)
 		}
