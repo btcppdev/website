@@ -154,14 +154,8 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 	page := &ManagedSignerAuthorizationPage{PersonName: identity.Speaker.Name, Tenant: tenant, TenantID: tenantID, Action: action, ActionLabel: strings.ReplaceAll(action, "_", " "), EventHash: strings.TrimSpace(r.FormValue("event_hash")), Target: strings.TrimSpace(r.FormValue("target")), ReturnTo: ctx.Env.SignerURL + "/api/authorizations/callback"}
 	page.EventKind, _ = strconv.Atoi(r.FormValue("event_kind"))
 	page.RecipientCount, _ = strconv.Atoi(r.FormValue("recipient_count"))
-	if action == "sign" && !isLowerHex(page.EventHash, 64) {
-		return nil, errors.New("signing authorization requires an exact event hash")
-	}
-	if (action == "connect" || action == "sign") && !isLowerHex(page.Target, 48) {
-		return nil, errors.New("signer authorization requires an exact pending request")
-	}
-	if action == "revoke_connection" && !isLowerHex(page.Target, 48) {
-		return nil, errors.New("connection revocation requires an exact connection target")
+	if err := validateManagedSignerBinding(page); err != nil {
+		return nil, err
 	}
 	if tenant == "person" && tenantID == identity.PersonID {
 		page.TenantName, page.Role = identity.Speaker.Name, "member"
@@ -192,6 +186,22 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 		}
 	}
 	return nil, errors.New("organization owner or manager access is required")
+}
+
+func validateManagedSignerBinding(page *ManagedSignerAuthorizationPage) error {
+	if page.Action == "sign" && !isLowerHex(page.EventHash, 64) {
+		return errors.New("signing authorization requires an exact event hash")
+	}
+	if page.Action == "sign" && !isLowerHex(page.Target, 48) {
+		return errors.New("signer authorization requires an exact pending request")
+	}
+	if page.Action == "connect" && (page.EventHash != "" || page.Target != "") && (!isLowerHex(page.EventHash, 64) || !isLowerHex(page.Target, 48)) {
+		return errors.New("application connection requires an exact pending request")
+	}
+	if page.Action == "revoke_connection" && !isLowerHex(page.Target, 48) {
+		return errors.New("connection revocation requires an exact connection target")
+	}
+	return nil
 }
 
 func validateManagedBadgeBatch(r *http.Request, ctx *config.AppContext, page *ManagedSignerAuthorizationPage) error {

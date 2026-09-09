@@ -78,6 +78,25 @@ func TestManagedSignerAuthenticationRejectsMissingTimestamp(t *testing.T) {
 	}
 }
 
+func TestManagedSignerBindingDistinguishesDashboardAndNIP46Connect(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		page    ManagedSignerAuthorizationPage
+		wantErr bool
+	}{
+		{"open signer dashboard", ManagedSignerAuthorizationPage{Action: "connect"}, false},
+		{"exact NIP-46 connection", ManagedSignerAuthorizationPage{Action: "connect", EventHash: strings.Repeat("a", 64), Target: strings.Repeat("b", 48)}, false},
+		{"partial NIP-46 connection", ManagedSignerAuthorizationPage{Action: "connect", EventHash: strings.Repeat("a", 64)}, true},
+		{"sign without pending target", ManagedSignerAuthorizationPage{Action: "sign", EventHash: strings.Repeat("a", 64)}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := validateManagedSignerBinding(&test.page); (err != nil) != test.wantErr {
+				t.Fatalf("error = %v, wantErr = %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
 func TestManagedSignerRequestValidationMatchesBunkerSurface(t *testing.T) {
 	tests := []struct {
 		name      string
