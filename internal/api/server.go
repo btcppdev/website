@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -23,7 +24,9 @@ import (
 	"btcpp-web/internal/requestid"
 	"btcpp-web/internal/types"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/nbd-wtf/go-nostr"
 )
 
 const publicCacheControl = "public, max-age=60, stale-while-revalidate=300"
@@ -38,7 +41,12 @@ type server struct {
 	listPersonConfs             func(string) ([]*types.SpeakerConf, error)
 	listOrganizationMemberships func(string) ([]*types.OrganizationMembership, error)
 	listOrganizationMembers     func(string) ([]*types.OrganizationMembership, error)
+	listOrganizationBadgeGrants func(string) ([]*types.OrganizationBadgeGrant, error)
 	listVerifiedNostrPubkeys    func([]string) (map[string]string, error)
+	loadBadgeGrant              func(string) (*types.OrganizationBadgeGrant, error)
+	markBadgeGrantIssued        func(string, string, time.Time) error
+	markBadgeGrantAccepted      func(string, string, time.Time) error
+	markBadgeGrantRevoked       func(string, string, string, time.Time) error
 	updateProfile               func(string, getters.SpeakerProfilePatch) error
 	loadConfTalk                func(string) (*types.ConfTalk, error)
 	loadTalk                    func(string) (*types.Talk, error)
@@ -86,8 +94,23 @@ func Register(root *mux.Router, app *config.AppContext) {
 		listOrganizationMembers: func(organizationID string) ([]*types.OrganizationMembership, error) {
 			return getters.ListOrganizationMembers(app, organizationID)
 		},
+		listOrganizationBadgeGrants: func(organizationID string) ([]*types.OrganizationBadgeGrant, error) {
+			return getters.ListOrganizationBadgeGrants(app, organizationID)
+		},
 		listVerifiedNostrPubkeys: func(personIDs []string) (map[string]string, error) {
 			return getters.ListVerifiedNostrPubkeys(app, personIDs)
+		},
+		loadBadgeGrant: func(grantID string) (*types.OrganizationBadgeGrant, error) {
+			return getters.GetBadgeGrant(app, grantID)
+		},
+		markBadgeGrantIssued: func(grantID, eventID string, at time.Time) error {
+			return getters.MarkBadgeGrantIssued(app, grantID, eventID, at)
+		},
+		markBadgeGrantAccepted: func(grantID, eventID string, at time.Time) error {
+			return getters.MarkBadgeGrantAccepted(app, grantID, eventID, at)
+		},
+		markBadgeGrantRevoked: func(grantID, eventID, reason string, at time.Time) error {
+			return getters.MarkBadgeGrantRevoked(app, grantID, eventID, reason, at)
 		},
 		updateProfile: func(personID string, patch getters.SpeakerProfilePatch) error {
 			return getters.UpdateSpeakerProfile(app, personID, patch)
@@ -150,6 +173,9 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/me/talks", s.myTalks).Methods(http.MethodGet)
 	r.HandleFunc("/conferences/{tag}/sponsors", s.conferenceSponsors).Methods(http.MethodGet)
 	r.HandleFunc("/organizations/{organizationID}", s.organization).Methods(http.MethodGet)
+	r.HandleFunc("/badge-grants/{grantID}/issued", s.badgeGrantIssued).Methods(http.MethodPost)
+	r.HandleFunc("/badge-grants/{grantID}/accepted", s.badgeGrantAccepted).Methods(http.MethodPost)
+	r.HandleFunc("/badge-grants/{grantID}/revoked", s.badgeGrantRevoked).Methods(http.MethodPost)
 	r.HandleFunc("/recordings", s.recordings).Methods(http.MethodGet)
 	r.HandleFunc("/recordings/{recordingID}", s.recording).Methods(http.MethodGet)
 	r.HandleFunc("/recordings/{recordingID}/broadcast", s.putRecordingBroadcast).Methods(http.MethodPut)
@@ -161,6 +187,194 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/hackathons/{competitionID}/results", s.hackathonResults).Methods(http.MethodGet)
 	r.HandleFunc("/shop/inventory/variants", s.accountingInventoryVariants).Methods(http.MethodGet)
 	r.HandleFunc("/shop/inventory/sales", s.accountingInventorySales).Methods(http.MethodGet)
+}
+
+func (s *server) badgeGrantIssued(w http.ResponseWriter, r *http.Request) {
+	grant, event, ok := s.verifiedBadgeGrantEvent(w, r, "issued")
+	if !ok {
+		return
+	}
+	if event.Kind != 8 || event.PubKey != grant.IssuerPubkey || event.Content != "" || !exactBadgeAwardTags(event.Tags, grant) {
+		s.writeError(w, r, http.StatusUnprocessableEntity, "invalid_badge_award", "The signed event does not exactly match this grant.")
+		return
+	}
+	if grant.State == getters.BadgeGrantStateIssued && grant.AwardEventID == event.ID {
+		s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateIssued, "award_event_id": event.ID})
+		return
+	}
+	if grant.State != getters.BadgeGrantStateReady && grant.State != getters.BadgeGrantStateDeliveryError {
+		s.writeError(w, r, http.StatusConflict, "grant_not_ready", "This grant is not ready to issue.")
+		return
+	}
+	if err := s.markBadgeGrantIssued(grant.ID, event.ID, time.Unix(int64(event.CreatedAt), 0).UTC()); err != nil {
+		s.internalError(w, r, "mark badge grant issued", err)
+		return
+	}
+	s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateIssued, "award_event_id": event.ID})
+}
+
+func (s *server) badgeGrantAccepted(w http.ResponseWriter, r *http.Request) {
+	grant, event, ok := s.verifiedBadgeGrantEvent(w, r, "accepted")
+	if !ok {
+		return
+	}
+	if event.Kind != 10008 || event.PubKey != grant.RecipientPubkey || event.Content != "" || !profileBadgeContains(event.Tags, grant) {
+		s.writeError(w, r, http.StatusUnprocessableEntity, "invalid_badge_acceptance", "The signed profile event does not accept this grant's award.")
+		return
+	}
+	if grant.State == getters.BadgeGrantStateAccepted && grant.AcceptanceEventID == event.ID {
+		s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateAccepted, "acceptance_event_id": event.ID})
+		return
+	}
+	if grant.State != getters.BadgeGrantStateIssued {
+		s.writeError(w, r, http.StatusConflict, "grant_not_issued", "This grant has not been issued or was already accepted.")
+		return
+	}
+	if err := s.markBadgeGrantAccepted(grant.ID, event.ID, time.Unix(int64(event.CreatedAt), 0).UTC()); err != nil {
+		s.internalError(w, r, "mark badge grant accepted", err)
+		return
+	}
+	s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateAccepted, "acceptance_event_id": event.ID})
+}
+
+func (s *server) badgeGrantRevoked(w http.ResponseWriter, r *http.Request) {
+	grant, event, ok := s.verifiedBadgeGrantEvent(w, r, "revoked")
+	if !ok {
+		return
+	}
+	if event.Kind != 5 || event.PubKey != grant.IssuerPubkey || !exactBadgeRevocationTags(event.Tags, grant.AwardEventID) || len(event.Content) > 500 {
+		s.writeError(w, r, http.StatusUnprocessableEntity, "invalid_badge_revocation", "The signed deletion event does not revoke this grant's award.")
+		return
+	}
+	if grant.State == getters.BadgeGrantStateRevoked && grant.RevocationEventID == event.ID {
+		s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateRevoked, "revocation_event_id": event.ID})
+		return
+	}
+	if grant.State != getters.BadgeGrantStateIssued && grant.State != getters.BadgeGrantStateAccepted {
+		s.writeError(w, r, http.StatusConflict, "grant_not_issued", "This grant is not an active issued award.")
+		return
+	}
+	if err := s.markBadgeGrantRevoked(grant.ID, event.ID, strings.TrimSpace(event.Content), time.Unix(int64(event.CreatedAt), 0).UTC()); err != nil {
+		s.internalError(w, r, "mark badge grant revoked", err)
+		return
+	}
+	s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateRevoked, "revocation_event_id": event.ID})
+}
+
+func (s *server) verifiedBadgeGrantEvent(w http.ResponseWriter, r *http.Request, action string) (*types.OrganizationBadgeGrant, *nostr.Event, bool) {
+	if !s.requireMutationLimit(w, r, nil, true) {
+		return nil, nil, false
+	}
+	if s.loadBadgeGrant == nil || (action == "issued" && s.markBadgeGrantIssued == nil) || (action == "accepted" && s.markBadgeGrantAccepted == nil) || (action == "revoked" && s.markBadgeGrantRevoked == nil) {
+		s.internalError(w, r, "badge grant integration", io.ErrClosedPipe)
+		return nil, nil, false
+	}
+	grantID := strings.TrimSpace(mux.Vars(r)["grantID"])
+	if _, err := uuid.Parse(grantID); err != nil {
+		s.writeError(w, r, http.StatusBadRequest, "invalid_badge_grant", "Badge grant ID is invalid.")
+		return nil, nil, false
+	}
+	grant, err := s.loadBadgeGrant(grantID)
+	if err != nil {
+		s.internalError(w, r, "load badge grant for "+action, err)
+		return nil, nil, false
+	}
+	if grant == nil {
+		s.writeError(w, r, http.StatusNotFound, "badge_grant_not_found", "Badge grant not found.")
+		return nil, nil, false
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	var event nostr.Event
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&event); err != nil {
+		s.writeError(w, r, http.StatusBadRequest, "invalid_event", "A signed Nostr event is required.")
+		return nil, nil, false
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		s.writeError(w, r, http.StatusBadRequest, "invalid_event", "The request must contain exactly one Nostr event.")
+		return nil, nil, false
+	}
+	valid, err := event.CheckSignature()
+	created := time.Unix(int64(event.CreatedAt), 0)
+	timestampInvalid := created.After(s.now().Add(2 * time.Minute))
+	if action == "issued" && !grant.GrantedAt.IsZero() {
+		timestampInvalid = timestampInvalid || created.Before(grant.GrantedAt.Add(-2*time.Minute))
+	}
+	if action == "revoked" && grant.IssuedAt != nil {
+		timestampInvalid = timestampInvalid || created.Before(grant.IssuedAt.Add(-2*time.Minute))
+	}
+	if err != nil || !valid || event.ID == "" || timestampInvalid {
+		s.writeError(w, r, http.StatusUnprocessableEntity, "invalid_event", "The Nostr signature or timestamp is invalid.")
+		return nil, nil, false
+	}
+	return grant, &event, true
+}
+
+func exactBadgeRevocationTags(tags nostr.Tags, awardEventID string) bool {
+	if len(tags) != 2 {
+		return false
+	}
+	foundEvent, foundKind := false, false
+	for _, tag := range tags {
+		if len(tag) < 2 {
+			return false
+		}
+		switch tag[0] {
+		case "e":
+			if foundEvent || tag[1] != awardEventID {
+				return false
+			}
+			foundEvent = true
+		case "k":
+			if foundKind || tag[1] != "8" {
+				return false
+			}
+			foundKind = true
+		default:
+			return false
+		}
+	}
+	return foundEvent && foundKind
+}
+
+func exactBadgeAwardTags(tags nostr.Tags, grant *types.OrganizationBadgeGrant) bool {
+	wantAddress := "30009:" + grant.IssuerPubkey + ":" + grant.BadgeIdentifier
+	addressCount, recipientCount := 0, 0
+	for _, tag := range tags {
+		if len(tag) == 0 {
+			return false
+		}
+		switch tag[0] {
+		case "a":
+			addressCount++
+			if len(tag) < 2 || tag[1] != wantAddress {
+				return false
+			}
+		case "p":
+			recipientCount++
+			if len(tag) < 2 || tag[1] != grant.RecipientPubkey {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return addressCount == 1 && recipientCount == 1
+}
+
+func profileBadgeContains(tags nostr.Tags, grant *types.OrganizationBadgeGrant) bool {
+	wantAddress := "30009:" + grant.IssuerPubkey + ":" + grant.BadgeIdentifier
+	found := false
+	for index := 0; index < len(tags); index += 2 {
+		if index+1 >= len(tags) || len(tags[index]) < 2 || tags[index][0] != "a" || len(tags[index+1]) < 2 || tags[index+1][0] != "e" {
+			return false
+		}
+		if tags[index][1] == wantAddress && tags[index+1][1] == grant.AwardEventID {
+			found = true
+		}
+	}
+	return found
 }
 
 func (s *server) middleware(next http.Handler) http.Handler {
@@ -527,6 +741,20 @@ func (s *server) myOrganizations(w http.ResponseWriter, r *http.Request) {
 				s.internalError(w, r, "list managed organization members", err)
 				return
 			}
+			memberIDs := make([]string, 0, len(members))
+			for _, member := range members {
+				if member != nil && member.Status == "active" {
+					memberIDs = append(memberIDs, member.PersonID)
+				}
+			}
+			verified := map[string]string{}
+			if s.listVerifiedNostrPubkeys != nil {
+				verified, err = s.listVerifiedNostrPubkeys(memberIDs)
+				if err != nil {
+					s.internalError(w, r, "list managed organization verified Nostr keys", err)
+					return
+				}
+			}
 			item.Members = make([]organizationAccessMemberDTO, 0, len(members))
 			for _, member := range members {
 				if member == nil || member.Status != "active" {
@@ -537,9 +765,27 @@ func (s *server) myOrganizations(w http.ResponseWriter, r *http.Request) {
 					profileURL = optionalString("/whois/" + publicID)
 				}
 				item.Members = append(item.Members, organizationAccessMemberDTO{
-					ID: member.PersonID, Name: member.PersonName, Role: member.Role, NostrPubkey: optionalString(member.PersonNostr),
+					ID: member.PersonID, Name: member.PersonName, Role: member.Role, NostrPubkey: optionalString(verified[member.PersonID]),
 					ProfileURL: profileURL,
 				})
+			}
+			if s.listOrganizationBadgeGrants != nil {
+				grants, grantErr := s.listOrganizationBadgeGrants(membership.OrganizationID)
+				if grantErr != nil {
+					s.internalError(w, r, "list managed organization badge grants", grantErr)
+					return
+				}
+				for _, grant := range grants {
+					if grant == nil || (grant.State != getters.BadgeGrantStateGranted && grant.State != getters.BadgeGrantStateReady && grant.State != getters.BadgeGrantStateDeliveryError) {
+						continue
+					}
+					item.BadgeGrants = append(item.BadgeGrants, organizationBadgeGrantDTO{
+						ID: grant.ID, RecipientPersonID: grant.RecipientPersonID, RecipientName: grant.RecipientName,
+						IssuerPubkey: grant.IssuerPubkey, BadgeIdentifier: grant.BadgeIdentifier,
+						BadgeName: grant.BadgeName, BadgeImageURL: grant.BadgeImageURL,
+						SubjectProfileURL: grant.SubjectProfileURL, RecipientPubkey: optionalString(grant.RecipientPubkey), State: grant.State,
+					})
+				}
 			}
 		}
 		result = append(result, item)

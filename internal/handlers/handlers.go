@@ -1040,6 +1040,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/whois/{speaker}", func(w http.ResponseWriter, r *http.Request) {
 		RenderWhoIsProfile(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/organizations/{organizationID}", func(w http.ResponseWriter, r *http.Request) {
+		RenderOrganizationProfile(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/watch/{recordingID}", func(w http.ResponseWriter, r *http.Request) {
 		RecordingWatch(w, r, app)
 	}).Methods("GET")
@@ -1273,6 +1276,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/orgs/{organizationID}/people/search", func(w http.ResponseWriter, r *http.Request) {
 		OrganizationDashboardPersonSearch(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/badge-grants", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardBadgeGrantCreate(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/badge-grants/{grantID}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardBadgeGrantCancel(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/dashboard/orgs/{organizationID}/members", func(w http.ResponseWriter, r *http.Request) {
 		OrganizationDashboardMemberAdd(w, r, app)
 	}).Methods("POST")
@@ -2842,9 +2851,15 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 			ctx.Err.Printf("/whois/%s Badge Studio profile: %s", slug, err)
 		}
 	}
+	badgeGrants, grantErr := getters.ListPersonBadgeGrants(ctx, person.Speaker.ID)
+	if grantErr != nil && ctx.Err != nil {
+		ctx.Err.Printf("/whois/%s Bitcoin++ badge grants: %s", slug, grantErr)
+	}
+	badgeGrants = pendingBadgeGrants(badgeGrants)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois_profile.tmpl", &WhoIsProfilePage{
 		Person:           person,
 		Badges:           badgeProfile,
+		BadgeGrants:      badgeGrants,
 		UpdateProfileURL: whoIsProfileEditURL(ctx, r, person),
 		Year:             helpers.CurrentYear(),
 		SocialCardURL:    siteSocialCardPath("person", person.PublicID, personSocialCard(ctx, person)),
@@ -2852,6 +2867,16 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		http.Error(w, "Unable to load speaker profile, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/whois/%s ExecuteTemplate failed: %s", slug, err.Error())
 	}
+}
+
+func pendingBadgeGrants(grants []*types.OrganizationBadgeGrant) []*types.OrganizationBadgeGrant {
+	result := make([]*types.OrganizationBadgeGrant, 0, len(grants))
+	for _, grant := range grants {
+		if grant != nil && (grant.State == getters.BadgeGrantStateGranted || grant.State == getters.BadgeGrantStateReady || grant.State == getters.BadgeGrantStateDeliveryError) {
+			result = append(result, grant)
+		}
+	}
+	return result
 }
 
 func RenderWhoIsArchive(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

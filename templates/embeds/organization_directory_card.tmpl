@@ -1,7 +1,7 @@
 {{ define "organization_directory_card" }}
 <article class="organization-directory-card">
   <div class="organization-dashboard-card__mark">{{ if .Entry.Organization.LogoLight }}<img src="{{ .Entry.Organization.LogoLight | safeURL }}" alt="">{{ else }}<span>{{ printf "%.1s" .Entry.Organization.Name }}</span>{{ end }}</div>
-  <div><h3>{{ .Entry.Organization.Name }}</h3><p>{{ if .Entry.Organization.Tagline }}{{ .Entry.Organization.Tagline }}{{ else }}No description yet.{{ end }}</p></div>
+  <div><h3><a href="/organizations/{{ .Entry.Organization.Ref }}">{{ .Entry.Organization.Name }}</a></h3><p>{{ if .Entry.Organization.Tagline }}{{ .Entry.Organization.Tagline }}{{ else }}No description yet.{{ end }}</p></div>
   {{ if .Entry.MembershipRole }}
   <a href="/dashboard/orgs/{{ .Entry.Organization.Ref }}">Member · {{ .Entry.MembershipRole }} →</a>
   {{ else if eq .Entry.RequestStatus "pending" }}
@@ -15,5 +15,6 @@
     <button type="submit">{{ if eq .Entry.Organization.MembershipPolicy "open" }}Join now{{ else }}Request membership{{ end }} →</button>
   </form>
   {{ end }}
+  <a class="organization-directory-profile-link" href="/organizations/{{ .Entry.Organization.Ref }}">View public profile →</a>
 </article>
 {{ end }}

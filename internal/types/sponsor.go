@@ -73,6 +73,36 @@ type (
 		UpdatedAt           time.Time
 	}
 
+	OrganizationBadgeGrant struct {
+		ID                 string
+		OrganizationID     string
+		OrganizationName   string
+		RecipientPersonID  string
+		RecipientName      string
+		CreatedByPersonID  string
+		IssuerPubkey       string
+		BadgeIdentifier    string
+		BadgeName          string
+		BadgeDescription   string
+		BadgeImageURL      string
+		SubjectProfileURL  string
+		RecipientPubkey    string
+		State              string
+		AwardEventID       string
+		AcceptanceEventID  string
+		RevocationEventID  string
+		RevocationReason   string
+		DeliveryError      string
+		CorrectedByGrantID string
+		GrantedAt          time.Time
+		ReadyAt            *time.Time
+		IssuedAt           *time.Time
+		AcceptedAt         *time.Time
+		RevokedAt          *time.Time
+		CanceledAt         *time.Time
+		UpdatedAt          time.Time
+	}
+
 	Sponsorship struct {
 		Ref   string
 		Name  string

@@ -224,6 +224,20 @@ type organizationAccessDTO struct {
 	Role         string                        `json:"role"`
 	CanManage    bool                          `json:"can_manage"`
 	Members      []organizationAccessMemberDTO `json:"members,omitempty"`
+	BadgeGrants  []organizationBadgeGrantDTO   `json:"badge_grants,omitempty"`
+}
+
+type organizationBadgeGrantDTO struct {
+	ID                string  `json:"id"`
+	RecipientPersonID string  `json:"recipient_person_id"`
+	RecipientName     string  `json:"recipient_name"`
+	IssuerPubkey      string  `json:"issuer_pubkey"`
+	BadgeIdentifier   string  `json:"badge_identifier"`
+	BadgeName         string  `json:"badge_name"`
+	BadgeImageURL     string  `json:"badge_image_url"`
+	SubjectProfileURL string  `json:"subject_profile_url"`
+	RecipientPubkey   *string `json:"recipient_pubkey"`
+	State             string  `json:"state"`
 }
 
 type accountProfileDTO struct {

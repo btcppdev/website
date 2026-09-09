@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  {{ template "rebrand_header" . }}
+  {{ template "site_seo" (dict "Title" (printf "%s @ bitcoin++" .Organization.Name) "Description" .Organization.Tagline "Path" (printf "/organizations/%s" .Organization.Ref) "Image" "/static/img/rebrand/breakthroughs.jpg" "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630 "Type" "profile") }}
+  <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
+</head>
+<body class="btcpp-redesign btcpp-rebrand-page organization-public-page">
+  {{ template "mainnav" . }}
+  <main class="organization-public-shell">
+    <a class="organization-public-back" href="/dashboard/orgs/discover">← browse organizations</a>
+    <header class="organization-public-hero">
+      <div class="organization-public-mark">
+        {{ if .Organization.LogoLight }}<img src="{{ .Organization.LogoLight | safeURL }}" alt="{{ .Organization.Name }}">{{ else }}<span>{{ printf "%.1s" .Organization.Name }}</span>{{ end }}
+      </div>
+      <div>
+        <p class="organization-public-eyebrow">bitcoin++ organization</p>
+        <h1>{{ .Organization.Name }}</h1>
+        <p class="organization-public-tagline">{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}A community organization in the bitcoin++ universe.{{ end }}</p>
+        <nav class="organization-public-links" aria-label="Organization links">
+          {{ if .Organization.Website }}<a href="{{ .Organization.Website | safeURL }}" target="_blank" rel="noopener noreferrer">website ↗</a>{{ end }}
+          {{ if .Organization.Github }}<a href="{{ .Organization.Github | safeURL }}" target="_blank" rel="noopener noreferrer">github ↗</a>{{ end }}
+          {{ if .Organization.LinkedIn }}<a href="{{ .Organization.LinkedIn | safeURL }}" target="_blank" rel="noopener noreferrer">linkedin ↗</a>{{ end }}
+          {{ if .Organization.Nostr }}<span>nostr · {{ .Organization.Nostr }}</span>{{ end }}
+        </nav>
+      </div>
+    </header>
+
+    <section class="organization-public-badges" aria-labelledby="organization-badges-title">
+      <div class="organization-public-section-head">
+        <div><p class="organization-public-eyebrow">published badge definitions</p><h2 id="organization-badges-title">Recognition from {{ .Organization.Name }}.</h2></div>
+        {{ if .BadgeCatalog }}<a href="{{ .BadgeCatalog.CatalogURL }}" target="_blank" rel="noopener noreferrer">verify in badge studio ↗</a>{{ end }}
+      </div>
+      {{ if .BadgeCatalogUnavailable }}
+        <p class="organization-public-state">The credential catalog is temporarily unavailable. This organization profile is still online.</p>
+      {{ else if and .BadgeCatalog .BadgeCatalog.Badges }}
+        <div class="organization-public-badge-grid">
+          {{ range .BadgeCatalog.Badges }}
+          <article>
+            <div><img src="{{ .ImageURL | safeURL }}" alt="Artwork for {{ .Name }}" loading="lazy"></div>
+            <small>published badge</small><h3>{{ .Name }}</h3>{{ if .Description }}<p>{{ .Description }}</p>{{ end }}
+          </article>
+          {{ end }}
+        </div>
+      {{ else if .BadgeCatalog }}
+        <p class="organization-public-state">This organization has not published any badge definitions yet.</p>
+      {{ else }}
+        <p class="organization-public-state">This organization has not linked a verified Badge Studio issuer yet.</p>
+      {{ end }}
+      <p class="organization-public-explainer">Published definitions describe recognition an organization can issue. They are not automatically claimable.</p>
+    </section>
+  </main>
+  {{ block "footer" . }}{{ end }}
+</body>
+</html>

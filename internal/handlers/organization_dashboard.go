@@ -47,6 +47,8 @@ type OrganizationDashboardPage struct {
 	SponsorEvents         []*types.SponsorDashboardEvent
 	Badges                *WhoIsBadgeProfile
 	BadgeCatalog          *OrganizationBadgeCatalog
+	OrganizationGrants    []*types.OrganizationBadgeGrant
+	PersonalGrants        []*types.OrganizationBadgeGrant
 	BadgeStudioURL        string
 	SignerURL             string
 	CanManage             bool
@@ -286,9 +288,21 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 			ctx.Err.Printf("/dashboard/orgs/%s badge catalog: %s", organizationID, err)
 		}
 	}
+	personalGrants, grantsErr := getters.ListPersonBadgeGrants(ctx, id.PersonID)
+	if grantsErr != nil && ctx.Err != nil {
+		ctx.Err.Printf("/dashboard/orgs/%s personal badge grants: %s", organizationID, grantsErr)
+	}
+	var organizationGrants []*types.OrganizationBadgeGrant
+	if canManage {
+		organizationGrants, grantsErr = getters.ListOrganizationBadgeGrants(ctx, organizationID)
+		if grantsErr != nil && ctx.Err != nil {
+			ctx.Err.Printf("/dashboard/orgs/%s organization badge grants: %s", organizationID, grantsErr)
+		}
+	}
 	page := &OrganizationDashboardPage{
 		Memberships: memberships, Membership: membership, Organization: membership.Organization,
 		Members: members, PendingInvites: pendingInvites, PendingRequests: pendingRequests, SponsorEvents: sponsorEvents, Badges: badgeProfile, BadgeCatalog: badgeCatalog,
+		OrganizationGrants: organizationGrants, PersonalGrants: personalGrants,
 		CanManage: canManage, IsOwner: membership.Role == getters.OrganizationRoleOwner,
 		IsGlobalAdmin: id.IsGlobalAdmin(), SpacesReady: spaces.IsConfigured(), CSRF: csrf,
 		PendingOrgInviteCount: pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/orgs/"+organizationID),
@@ -304,6 +318,88 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 		ctx.Err.Printf("/dashboard/orgs/%s template: %s", organizationID, err)
 		http.Error(w, "Unable to load organization", http.StatusInternalServerError)
 	}
+}
+
+func OrganizationDashboardBadgeGrantCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, _, organizationID, destination, ok := organizationManagerMutation(w, r, ctx)
+	if !ok {
+		return
+	}
+	if !parseOrganizationDashboardForm(w, r, ctx) {
+		return
+	}
+	badgeIdentifier := strings.TrimSpace(r.FormValue("badge_identifier"))
+	recipientPersonID := strings.TrimSpace(r.FormValue("recipient_person_id"))
+	if badgeIdentifier == "" || recipientPersonID == "" {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("Choose a published badge and a Bitcoin++ person."), http.StatusSeeOther)
+		return
+	}
+	catalog, err := loadOrganizationBadgeCatalog(r.Context(), ctx.Env.BadgeStudioURL, organizationID)
+	if err != nil || catalog == nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("The linked Badge Studio catalog is unavailable."), http.StatusSeeOther)
+		return
+	}
+	var definition *WhoIsBadgeDefinition
+	for index := range catalog.Badges {
+		if catalog.Badges[index].Identifier == badgeIdentifier {
+			definition = &catalog.Badges[index]
+			break
+		}
+	}
+	if definition == nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("That badge is not in the organization's published catalog."), http.StatusSeeOther)
+		return
+	}
+	recipient, err := getters.FetchSpeakerByID(ctx, recipientPersonID)
+	if err != nil || recipient == nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("The selected Bitcoin++ profile was not found."), http.StatusSeeOther)
+		return
+	}
+	publicID, hasPublicProfile := resolvedWhoIsPublicID(ctx, recipient)
+	if !hasPublicProfile {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("That person needs a public Bitcoin++ profile before receiving a profile-linked grant."), http.StatusSeeOther)
+		return
+	}
+	subjectURL := strings.TrimRight(ctx.Env.GetURI(), "/") + "/whois/" + url.PathEscape(publicID)
+	grant, err := getters.CreateOrganizationBadgeGrant(ctx, getters.OrganizationBadgeGrantInput{
+		OrganizationID: organizationID, RecipientPersonID: recipientPersonID, CreatedByPersonID: id.PersonID,
+		IssuerPubkey: catalog.IssuerPubkey, BadgeIdentifier: definition.Identifier, BadgeName: definition.Name,
+		BadgeDescription: definition.Description, BadgeImageURL: definition.ImageURL, SubjectProfileURL: subjectURL,
+	})
+	if errors.Is(err, getters.ErrBadgeGrantConflict) {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("That person already has an active grant for this badge."), http.StatusSeeOther)
+		return
+	}
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orgs/%s badge grant: %s", organizationID, err)
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("The badge grant could not be saved."), http.StatusSeeOther)
+		return
+	}
+	recordOrganizationDashboardAudit(ctx, organizationID, id.PersonID, "organization.badge_granted", "organization_badge_grant", grant.ID, map[string]any{"recipient_person_id": recipientPersonID, "badge_identifier": badgeIdentifier, "state": grant.State})
+	message := "Badge granted to " + recipient.Name + "."
+	if grant.State == getters.BadgeGrantStateReady {
+		message += " Their verified Nostr key is ready for issuance."
+	} else {
+		message += " They will be prompted to add a verified Nostr key."
+	}
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape(message)+"#badge-grants", http.StatusSeeOther)
+}
+
+func OrganizationDashboardBadgeGrantCancel(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, _, organizationID, destination, ok := organizationManagerMutation(w, r, ctx)
+	if !ok {
+		return
+	}
+	if !parseOrganizationDashboardForm(w, r, ctx) {
+		return
+	}
+	grantID := strings.TrimSpace(mux.Vars(r)["grantID"])
+	if err := getters.CancelOrganizationBadgeGrant(ctx, organizationID, grantID, id.PersonID); err != nil {
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	recordOrganizationDashboardAudit(ctx, organizationID, id.PersonID, "organization.badge_grant_canceled", "organization_badge_grant", grantID, nil)
+	http.Redirect(w, r, destination+"?flash="+url.QueryEscape("Badge grant canceled.")+"#badge-grants", http.StatusSeeOther)
 }
 
 func OrganizationDashboardProfileUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

@@ -50,16 +50,51 @@
         {{ if .CanManage }}<div class="organization-badge-actions">{{ if .SignerURL }}<a href="{{ .SignerURL }}/?tenant=organization&amp;tenant_id={{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Set up or open managed signer ↗</a>{{ end }}{{ if .BadgeStudioURL }}<a href="{{ .BadgeStudioURL }}" target="_blank" rel="noopener noreferrer">Open Badge Studio ↗</a>{{ end }}</div>{{ end }}
       </section>
 
-      {{ if .Badges }}
+      {{ if .CanManage }}
+      <section class="organization-dashboard-section dashboard-workspace-panel" id="badge-grants">
+        <div class="organization-dashboard-section__head">
+          <div><div class="dashboard-kicker">§ Badge grants</div><h2>Recognize any bitcoin++ member.</h2></div>
+          <p>A grant records the organization’s intent here first. If the person has a verified Nostr key it becomes ready to issue; otherwise Bitcoin++ asks them to add one.</p>
+        </div>
+        {{ if and .BadgeCatalog .BadgeCatalog.Badges }}
+        <form method="POST" action="/dashboard/orgs/{{ .Organization.Ref }}/badge-grants" class="organization-badge-grant-form">
+          <input type="hidden" name="csrf" value="{{ .CSRF }}">
+          <label><span>Published badge</span><select name="badge_identifier" required><option value="">Choose a badge</option>{{ range .BadgeCatalog.Badges }}<option value="{{ .Identifier }}">{{ .Name }}</option>{{ end }}</select></label>
+          <div class="organization-person-picker" data-person-picker data-person-picker-required="true" data-person-picker-max="1" data-person-picker-name="recipient_person_id" data-person-picker-search-url="/dashboard/orgs/{{ .Organization.Ref }}/people/search">
+            <label for="BadgeGrantRecipient"><span>Bitcoin++ person</span></label>
+            <input id="BadgeGrantRecipient" type="search" data-person-picker-input placeholder="Search name, email, or phone">
+            <p class="hidden" data-person-picker-flash></p>
+          </div>
+          <button type="submit">Grant badge →</button>
+        </form>
+        {{ else }}<p>Publish and link an organization badge definition before creating grants.</p>{{ end }}
+        {{ if .OrganizationGrants }}
+        <div class="organization-badge-grant-list">
+          {{ range .OrganizationGrants }}
+          <article>
+            <img src="{{ .BadgeImageURL | safeURL }}" alt="" loading="lazy">
+            <div><small>{{ if eq .State "ready_to_issue" }}ready to issue{{ else if eq .State "delivery_error" }}delivery needs attention{{ else }}{{ .State }}{{ end }}</small><strong>{{ .BadgeName }} → {{ .RecipientName }}</strong><span>{{ if eq .State "granted" }}Waiting for a verified Nostr key.{{ else if eq .State "ready_to_issue" }}Verified key: {{ .RecipientPubkey }}{{ else if eq .State "issued" }}Nostr award: {{ .AwardEventID }}{{ else if eq .State "accepted" }}Accepted into the recipient’s Nostr profile.{{ else if eq .State "revoked" }}Revoked by the issuer{{ if .RevocationReason }} · {{ .RevocationReason }}{{ end }}{{ else if .DeliveryError }}{{ .DeliveryError }}{{ end }}</span></div>
+            <div class="organization-badge-grant-actions">
+              {{ if eq .State "ready_to_issue" }}{{ if $.BadgeStudioURL }}<a href="{{ $.BadgeStudioURL }}/?btcpp_org={{ $.Organization.Ref }}&amp;grant={{ .ID }}" target="_blank" rel="noopener noreferrer">Issue in Studio ↗</a>{{ end }}{{ end }}
+              {{ if or (eq .State "granted") (eq .State "ready_to_issue") }}<form method="POST" action="/dashboard/orgs/{{ $.Organization.Ref }}/badge-grants/{{ .ID }}/cancel" onsubmit="return confirm('Cancel this badge grant?');"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Cancel</button></form>{{ end }}
+            </div>
+          </article>
+          {{ end }}
+        </div>
+        {{ else }}<p>No Bitcoin++ badge grants have been created by this organization yet.</p>{{ end }}
+      </section>
+      {{ end }}
+
+      {{ if or .Badges .PersonalGrants }}
       <section class="organization-dashboard-section dashboard-workspace-panel" id="badges">
         <div class="organization-dashboard-section__head">
           <div><div class="dashboard-kicker">§ Badges for you</div><h2>Your credentials from organizations.</h2></div>
           <p>Badges are issued to your verified Nostr key. Pending badges appear here before you add one.</p>
         </div>
-        {{ if or .Badges.Issued .Badges.Pending }}
+        {{ if or (and .Badges (or .Badges.Issued .Badges.Pending)) .PersonalGrants }}
         <div class="whois-credential-grid">
-          {{ range .Badges.Issued }}<article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}"><div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="" loading="lazy"></div><div><small>{{ if .Award.Revocation }}revoked{{ else }}issued{{ end }}</small><h3>{{ .Definition.Name }}</h3>{{ if not .Award.Revocation }}{{ if .CredentialURL }}<a href="{{ .CredentialURL }}">View credential →</a>{{ end }}{{ if .ClaimURL }} <a href="{{ .ClaimURL }}">Accept on Nostr →</a>{{ end }}{{ end }}</div></article>{{ end }}
-          {{ range .Badges.Pending }}{{ if .Badge }}<article class="whois-credential is-pending"><div class="whois-credential-art"><img src="{{ .Badge.ImageURL }}" alt="" loading="lazy"></div><div><small>waiting for nostr</small><h3>{{ .Badge.Name }}</h3><a href="/dashboard/settings#settings-sign-in">Add or verify your Nostr key →</a></div></article>{{ end }}{{ end }}
+          {{ if .Badges }}{{ range .Badges.Issued }}<article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}"><div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="" loading="lazy"></div><div><small>{{ if .Award.Revocation }}revoked{{ else }}issued{{ end }}</small><h3>{{ .Definition.Name }}</h3>{{ if not .Award.Revocation }}{{ if .CredentialURL }}<a href="{{ .CredentialURL }}">View credential →</a>{{ end }}{{ if .ClaimURL }} <a href="{{ .ClaimURL }}">Accept on Nostr →</a>{{ end }}{{ end }}</div></article>{{ end }}{{ end }}
+          {{ range .PersonalGrants }}<article class="whois-credential{{ if or (eq .State "granted") (eq .State "ready_to_issue") }} is-pending{{ end }}"><div class="whois-credential-art"><img src="{{ .BadgeImageURL | safeURL }}" alt="" loading="lazy"></div><div><small>bitcoin++ grant · {{ if eq .State "ready_to_issue" }}ready to issue{{ else }}{{ .State }}{{ end }}</small><h3>{{ .BadgeName }}</h3>{{ if eq .State "granted" }}<a href="/dashboard/settings#settings-sign-in">Add or verify your Nostr key →</a>{{ else if eq .State "ready_to_issue" }}<span>The organization can now issue this to your verified key.</span>{{ end }}</div></article>{{ end }}
         </div>
         {{ else }}<p>No badges have been issued to this profile yet.</p>{{ end }}
       </section>
@@ -68,6 +103,7 @@
       <nav class="organization-dashboard-local-nav" aria-label="Organization sections">
 		<a href="#badge-catalog">/badge catalog</a>
         {{ if .CanManage }}<a href="#profile">/profile</a>{{ end }}
+        {{ if .CanManage }}<a href="#badge-grants">/badge grants{{ if .OrganizationGrants }} ({{ len .OrganizationGrants }}){{ end }}</a>{{ end }}
         {{ if .Badges }}<a href="#badges">/badges</a>{{ end }}
         <a href="#members">/members</a>
         {{ if .CanManage }}<a href="#requests">/join requests{{ if .PendingRequests }} ({{ len .PendingRequests }}){{ end }}</a>{{ end }}
@@ -78,7 +114,7 @@
       <section class="organization-dashboard-section dashboard-workspace-panel" id="profile">
         <div class="organization-dashboard-section__head">
           <div><div class="dashboard-kicker">§ Public profile</div><h2>How {{ .Organization.Name }} appears.</h2></div>
-          {{ if .CanManage }}<p>Owners and managers can keep the organization’s identity and contact details current.</p>{{ else }}<p>Ask an organization owner or manager to update these details.</p>{{ end }}
+          {{ if .CanManage }}<p>Owners and managers can keep the organization’s identity and contact details current. <a href="/organizations/{{ .Organization.Ref }}">View public profile →</a></p>{{ else }}<p>Ask an organization owner or manager to update these details.</p>{{ end }}
         </div>
         <div class="sponsor-profile-preview">
           <div class="sponsor-profile-preview__logo">

@@ -19,6 +19,7 @@ import (
 	"btcpp-web/internal/types"
 
 	"github.com/gorilla/mux"
+	"github.com/nbd-wtf/go-nostr"
 )
 
 type fakeSource struct {
@@ -398,6 +399,12 @@ func TestMyOrganizationsReturnsManagedRosterWithVerifiedNostrKeys(t *testing.T) 
 				{PersonID: "person-2", PersonName: "No key yet", Role: getters.OrganizationRoleMember, Status: "active"},
 			}, nil
 		},
+		listVerifiedNostrPubkeys: func([]string) (map[string]string, error) {
+			return map[string]string{person.ID: strings.Repeat("a", 64)}, nil
+		},
+		listOrganizationBadgeGrants: func(string) ([]*types.OrganizationBadgeGrant, error) {
+			return []*types.OrganizationBadgeGrant{{ID: "grant-1", RecipientPersonID: person.ID, RecipientName: "Mara", IssuerPubkey: strings.Repeat("b", 64), BadgeIdentifier: "relay-operator", BadgeName: "Relay Operator", BadgeImageURL: "https://cdn.example/badge.png", SubjectProfileURL: "https://btcpp.dev/whois/mara", RecipientPubkey: strings.Repeat("a", 64), State: getters.BadgeGrantStateReady}}, nil
+		},
 	}
 	s.register(root.PathPrefix("/api/v1").Subrouter())
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/me/organizations", nil)
@@ -408,13 +415,107 @@ func TestMyOrganizationsReturnsManagedRosterWithVerifiedNostrKeys(t *testing.T) 
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
 	body := response.Body.String()
-	for _, expected := range []string{`"can_manage":true`, `"name":"Base58"`, `"nostr_pubkey":"` + strings.Repeat("a", 64) + `"`, `"nostr_pubkey":null`, `"profile_url":"/whois/mara"`} {
+	for _, expected := range []string{`"can_manage":true`, `"name":"Base58"`, `"nostr_pubkey":"` + strings.Repeat("a", 64) + `"`, `"nostr_pubkey":null`, `"profile_url":"/whois/mara"`, `"badge_grants":[`, `"badge_identifier":"relay-operator"`, `"state":"ready_to_issue"`} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("organization access response omitted %s: %s", expected, body)
 		}
 	}
 	if strings.Contains(body, "@") {
 		t.Fatalf("organization access response leaked email data: %s", body)
+	}
+}
+
+func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
+	now := time.Date(2026, time.September, 8, 20, 0, 0, 0, time.UTC)
+	issuerSecret := nostr.GeneratePrivateKey()
+	issuerPubkey, err := nostr.GetPublicKey(issuerSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipientSecret := nostr.GeneratePrivateKey()
+	recipientPubkey, err := nostr.GetPublicKey(recipientSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant := &types.OrganizationBadgeGrant{ID: "00000000-0000-4000-8000-000000000091", IssuerPubkey: issuerPubkey, RecipientPubkey: recipientPubkey, BadgeIdentifier: "relay-operator", State: getters.BadgeGrantStateReady}
+	var issuedID, acceptedID, revokedID string
+	s := &server{
+		now:            func() time.Time { return now },
+		loadBadgeGrant: func(string) (*types.OrganizationBadgeGrant, error) { return grant, nil },
+		markBadgeGrantIssued: func(_ string, eventID string, _ time.Time) error {
+			issuedID = eventID
+			grant.State = getters.BadgeGrantStateIssued
+			grant.AwardEventID = eventID
+			return nil
+		},
+		markBadgeGrantAccepted: func(_ string, eventID string, _ time.Time) error {
+			acceptedID = eventID
+			grant.State = getters.BadgeGrantStateAccepted
+			grant.AcceptanceEventID = eventID
+			return nil
+		},
+		markBadgeGrantRevoked: func(_ string, eventID, reason string, _ time.Time) error {
+			revokedID = eventID
+			grant.State = getters.BadgeGrantStateRevoked
+			grant.RevocationEventID = eventID
+			grant.RevocationReason = reason
+			return nil
+		},
+	}
+	root := mux.NewRouter()
+	s.register(root.PathPrefix("/api/v1").Subrouter())
+	award := nostr.Event{PubKey: issuerPubkey, CreatedAt: nostr.Timestamp(now.Unix()), Kind: 8, Tags: nostr.Tags{{"a", "30009:" + issuerPubkey + ":relay-operator"}, {"p", recipientPubkey, "wss://relay.example"}}, Content: ""}
+	if err := award.Sign(issuerSecret); err != nil {
+		t.Fatal(err)
+	}
+	requestBody, _ := json.Marshal(award)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/badge-grants/"+grant.ID+"/issued", bytes.NewReader(requestBody))
+	request.Header.Set("Accept", "application/json")
+	response := httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || issuedID != award.ID {
+		t.Fatalf("issue status=%d id=%q body=%s", response.Code, issuedID, response.Body.String())
+	}
+
+	acceptance := nostr.Event{PubKey: recipientPubkey, CreatedAt: nostr.Timestamp(now.Add(time.Minute).Unix()), Kind: 10008, Tags: nostr.Tags{{"a", "30009:" + issuerPubkey + ":relay-operator"}, {"e", award.ID, "wss://relay.example"}}, Content: ""}
+	if err := acceptance.Sign(recipientSecret); err != nil {
+		t.Fatal(err)
+	}
+	requestBody, _ = json.Marshal(acceptance)
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/badge-grants/"+grant.ID+"/accepted", bytes.NewReader(requestBody))
+	request.Header.Set("Accept", "application/json")
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || acceptedID != acceptance.ID {
+		t.Fatalf("accept status=%d id=%q body=%s", response.Code, acceptedID, response.Body.String())
+	}
+
+	revocation := nostr.Event{PubKey: issuerPubkey, CreatedAt: nostr.Timestamp(now.Add(2 * time.Minute).Unix()), Kind: 5, Tags: nostr.Tags{{"e", award.ID}, {"k", "8"}}, Content: "Issued in error"}
+	if err := revocation.Sign(issuerSecret); err != nil {
+		t.Fatal(err)
+	}
+	requestBody, _ = json.Marshal(revocation)
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/badge-grants/"+grant.ID+"/revoked", bytes.NewReader(requestBody))
+	request.Header.Set("Accept", "application/json")
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || revokedID != revocation.ID || grant.RevocationReason != "Issued in error" {
+		t.Fatalf("revoke status=%d id=%q body=%s", response.Code, revokedID, response.Body.String())
+	}
+
+	grant.State, grant.AwardEventID, issuedID = getters.BadgeGrantStateReady, "", ""
+	wrong := award
+	wrong.Tags = nostr.Tags{{"a", "30009:" + issuerPubkey + ":different"}, {"p", recipientPubkey}}
+	if err := wrong.Sign(issuerSecret); err != nil {
+		t.Fatal(err)
+	}
+	requestBody, _ = json.Marshal(wrong)
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/badge-grants/"+grant.ID+"/issued", bytes.NewReader(requestBody))
+	request.Header.Set("Accept", "application/json")
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusUnprocessableEntity || issuedID != "" {
+		t.Fatalf("mismatch status=%d id=%q body=%s", response.Code, issuedID, response.Body.String())
 	}
 }
 

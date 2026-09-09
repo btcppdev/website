@@ -191,6 +191,7 @@ type WhoIsPage struct {
 type WhoIsProfilePage struct {
 	Person           *WhoIsPerson
 	Badges           *WhoIsBadgeProfile
+	BadgeGrants      []*types.OrganizationBadgeGrant
 	UpdateProfileURL string
 	Year             uint
 	SocialCardURL    string
@@ -198,10 +199,11 @@ type WhoIsProfilePage struct {
 
 type WhoIsBadgeProfile struct {
 	Issued  []WhoIsIssuedBadge
-	Pending []WhoIsPendingBadge
+	Pending []WhoIsPendingBadge // Legacy Badge Studio grants; new grants live in Bitcoin++.
 }
 
 type WhoIsBadgeDefinition struct {
+	Identifier  string `json:"identifier"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	ImageURL    string `json:"image_url"`
