@@ -47,7 +47,7 @@
           {{ if .BadgeCatalog.Badges }}<div class="whois-credential-grid">{{ range .BadgeCatalog.Badges }}<article class="whois-credential"><div class="whois-credential-art"><img src="{{ .ImageURL }}" alt="" loading="lazy"></div><div><small>published badge</small><h3>{{ .Name }}</h3><p>{{ .Description }}</p></div></article>{{ end }}</div>{{ else }}<p>No badge definitions have been published yet.</p>{{ end }}
           <p><a href="{{ .BadgeCatalog.CatalogURL }}" target="_blank" rel="noopener noreferrer">View public badge catalog ↗</a></p>
         {{ else }}<p>This organization has not linked a Badge Studio issuer yet.</p>{{ end }}
-        {{ if .CanManage }}<div class="organization-badge-actions">{{ if .SignerURL }}<a href="{{ .SignerURL }}/?tenant=organization&amp;tenant_id={{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Set up or open managed signer ↗</a>{{ end }}{{ if .BadgeStudioURL }}<a href="{{ .BadgeStudioURL }}" target="_blank" rel="noopener noreferrer">Open Badge Studio ↗</a>{{ end }}</div>{{ end }}
+		{{ if .CanManage }}<div class="organization-badge-actions">{{ if .SignerURL }}<a href="{{ .SignerURL }}/?tenant=organization&amp;tenant_id={{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Set up or open managed signer ↗</a>{{ end }}{{ if .BadgeStudioURL }}<a href="{{ .BadgeStudioURL }}/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3D{{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Open Badge Studio with bitcoin++ ↗</a>{{ end }}</div>{{ end }}
       </section>
 
       {{ if .CanManage }}
@@ -75,7 +75,7 @@
             <img src="{{ .BadgeImageURL | safeURL }}" alt="" loading="lazy">
             <div><small>{{ if eq .State "ready_to_issue" }}ready to issue{{ else if eq .State "delivery_error" }}delivery needs attention{{ else }}{{ .State }}{{ end }}</small><strong>{{ .BadgeName }} → {{ .RecipientName }}</strong><span>{{ if eq .State "granted" }}Waiting for a verified Nostr key.{{ else if eq .State "ready_to_issue" }}Verified key: {{ .RecipientPubkey }}{{ else if eq .State "issued" }}Nostr award: {{ .AwardEventID }}{{ else if eq .State "accepted" }}Accepted into the recipient’s Nostr profile.{{ else if eq .State "revoked" }}Revoked by the issuer{{ if .RevocationReason }} · {{ .RevocationReason }}{{ end }}{{ else if .DeliveryError }}{{ .DeliveryError }}{{ end }}</span></div>
             <div class="organization-badge-grant-actions">
-              {{ if eq .State "ready_to_issue" }}{{ if $.BadgeStudioURL }}<a href="{{ $.BadgeStudioURL }}/?btcpp_org={{ $.Organization.Ref }}&amp;grant={{ .ID }}" target="_blank" rel="noopener noreferrer">Issue in Studio ↗</a>{{ end }}{{ end }}
+			  {{ if eq .State "ready_to_issue" }}{{ if $.BadgeStudioURL }}<a href="{{ $.BadgeStudioURL }}/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3D{{ $.Organization.Ref }}%26grant%3D{{ .ID }}" target="_blank" rel="noopener noreferrer">Issue in Studio with bitcoin++ ↗</a>{{ end }}{{ end }}
               {{ if or (eq .State "granted") (eq .State "ready_to_issue") }}<form method="POST" action="/dashboard/orgs/{{ $.Organization.Ref }}/badge-grants/{{ .ID }}/cancel" onsubmit="return confirm('Cancel this badge grant?');"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Cancel</button></form>{{ end }}
             </div>
           </article>

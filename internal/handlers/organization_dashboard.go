@@ -25,6 +25,9 @@ type OrganizationDashboardIndexPage struct {
 	Directory             []*types.OrganizationDirectoryEntry
 	PendingInvites        []*types.OrganizationMemberInvite
 	Applications          []*types.OrganizationApplication
+	Badges                *WhoIsBadgeProfile
+	PersonalGrants        []*types.OrganizationBadgeGrant
+	BadgeStudioURL        string
 	PendingOrgInviteCount int
 	HasHackathonProjects  bool
 	ShowSponsors          bool
@@ -137,9 +140,22 @@ func OrganizationDashboardIndex(w http.ResponseWriter, r *http.Request, ctx *con
 	if err != nil {
 		ctx.Err.Printf("/dashboard/orgs hackathon projects for %s: %s", id.PersonID, err)
 	}
+	var badgeProfile *WhoIsBadgeProfile
+	if ctx.Env != nil && ctx.Env.BadgeStudioURL != "" {
+		badgeProfile, err = loadBadgeStudioProfile(r.Context(), ctx.Env.BadgeStudioURL, id.PersonID)
+		if err != nil && ctx.Err != nil {
+			ctx.Err.Printf("/dashboard/orgs Badge Studio profile for %s: %s", id.PersonID, err)
+		}
+	}
+	personalGrants, grantsErr := getters.ListPersonBadgeGrants(ctx, id.PersonID)
+	if grantsErr != nil && ctx.Err != nil {
+		ctx.Err.Printf("/dashboard/orgs personal badge grants for %s: %s", id.PersonID, grantsErr)
+	}
+	personalGrants = pendingBadgeGrants(personalGrants)
 	page := &OrganizationDashboardIndexPage{
 		Memberships: memberships, Directory: directory, PendingInvites: pendingInvites,
-		Applications:          applications,
+		Applications: applications, Badges: badgeProfile, PersonalGrants: personalGrants,
+		BadgeStudioURL:        strings.TrimRight(ctx.Env.BadgeStudioURL, "/"),
 		PendingOrgInviteCount: len(pendingInvites), ManagedCount: managed,
 		HasHackathonProjects: hasHackathonProjects,
 		ShowSponsors:         hasManagedSponsorOrganization(ctx, id.PersonID, "/dashboard/orgs"),
@@ -292,6 +308,7 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 	if grantsErr != nil && ctx.Err != nil {
 		ctx.Err.Printf("/dashboard/orgs/%s personal badge grants: %s", organizationID, grantsErr)
 	}
+	personalGrants = pendingBadgeGrants(personalGrants)
 	var organizationGrants []*types.OrganizationBadgeGrant
 	if canManage {
 		organizationGrants, grantsErr = getters.ListOrganizationBadgeGrants(ctx, organizationID)

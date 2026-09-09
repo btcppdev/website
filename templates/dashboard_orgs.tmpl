@@ -55,6 +55,25 @@
       </section>
       {{ end }}
 
+		{{ if .BadgeStudioURL }}
+		<section class="organization-dashboard-section dashboard-workspace-panel" id="badge-inbox">
+			<div class="organization-dashboard-section__head">
+				<div><div class="dashboard-kicker">§ Badge inbox</div><h2>Your credentials.</h2></div>
+				<p>See every badge awarded to your verified Nostr key and accept new awards into your public profile.</p>
+			</div>
+			{{ if or (and .Badges .Badges.Issued) .PersonalGrants }}
+			<div class="whois-credential-grid">
+				{{ if .Badges }}{{ range .Badges.Issued }}
+				<article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}"><div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="Artwork for {{ .Definition.Name }}" loading="lazy"></div><div><small>{{ if .Award.Revocation }}revoked{{ else if .Accepted }}accepted on nostr{{ else }}awarded · acceptance pending{{ end }}</small><h3>{{ .Definition.Name }}</h3>{{ if .Definition.Description }}<p>{{ .Definition.Description }}</p>{{ end }}{{ if not .Award.Revocation }}{{ if .CredentialURL }}<a href="{{ .CredentialURL }}">View credential →</a>{{ end }}{{ if .ClaimURL }} <a href="{{ .ClaimURL }}">Accept on Nostr →</a>{{ end }}{{ end }}</div></article>
+				{{ end }}{{ end }}
+				{{ range .PersonalGrants }}
+				<article class="whois-credential is-pending"><div class="whois-credential-art"><img src="{{ .BadgeImageURL | safeURL }}" alt="Artwork for {{ .BadgeName }}" loading="lazy"></div><div><small>bitcoin++ grant · {{ if eq .State "ready_to_issue" }}ready to issue{{ else if eq .State "delivery_error" }}delivery needs attention{{ else }}{{ .State }}{{ end }}</small><h3>{{ .BadgeName }}</h3>{{ if .BadgeDescription }}<p>{{ .BadgeDescription }}</p>{{ end }}{{ if eq .State "granted" }}<a href="/dashboard/settings#settings-sign-in">Add or verify your Nostr key →</a>{{ else if eq .State "ready_to_issue" }}<span>The organization can now issue this to your verified key.</span>{{ else if .DeliveryError }}<span>The issuer needs to retry delivery.</span>{{ end }}</div></article>
+				{{ end }}
+			</div>
+			{{ else }}<p>No badges are waiting for you. Awards will appear here as soon as an organization issues one to your verified key.</p>{{ end }}
+		</section>
+		{{ end }}
+
       {{ if .Memberships }}
       <section class="organization-dashboard-list" aria-label="Your organizations">
         {{ range .Memberships }}

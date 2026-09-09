@@ -43,7 +43,8 @@ func loadBadgeStudioProfile(ctx context.Context, baseURL, personID string) (*Who
 			award.CredentialURL = baseURL + "/credentials/" + url.PathEscape(award.Award.EventID) + "/" + url.PathEscape(recipient)
 			_, award.Accepted = award.Award.Acceptances[recipient]
 			if !award.Accepted && award.Award.Revocation == nil {
-				award.ClaimURL = baseURL + "/claim/" + url.PathEscape(award.Award.EventID)
+				claimPath := "/claim/" + url.PathEscape(award.Award.EventID)
+				award.ClaimURL = baseURL + "/api/auth/btcpp/continue?return_to=" + url.QueryEscape(claimPath)
 			}
 		}
 	}

@@ -42,7 +42,7 @@ func TestLoadBadgeStudioProfileBuildsClaimLinkForUnacceptedAward(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(profile.Issued) != 1 || profile.Issued[0].Accepted || profile.Issued[0].ClaimURL != server.URL+"/claim/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+	if len(profile.Issued) != 1 || profile.Issued[0].Accepted || profile.Issued[0].ClaimURL != server.URL+"/api/auth/btcpp/continue?return_to=%2Fclaim%2Faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
 		t.Fatalf("profile = %#v", profile)
 	}
 }
