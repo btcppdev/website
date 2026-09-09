@@ -61,3 +61,21 @@ func TestBuildAssetsBlockEmpty(t *testing.T) {
 		t.Fatalf("empty assets block = %q, want empty", got)
 	}
 }
+
+func TestBuildCreateMediaPostMutation(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		assets         []Asset
+		want, postType string
+	}{
+		{"image first", []Asset{{URL: "https://cdn.example.com/extra.png", Kind: "image"}, {URL: "https://cdn.example.com/card.png", Kind: "image"}}, `assets: [{ image: { url: "https://cdn.example.com/extra.png" } }, { image: { url: "https://cdn.example.com/card.png" } }]`, "carousel"},
+		{"video reel", []Asset{{URL: "https://cdn.example.com/clip.mp4", Kind: "video"}}, `assets: [{ video: { url: "https://cdn.example.com/clip.mp4" } }]`, "reel"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildCreateMediaPostMutation("channel", "copy", tc.assets, "instagram", nil)
+			if !strings.Contains(got, tc.want) || !strings.Contains(got, "type: "+tc.postType) {
+				t.Fatalf("unexpected mutation: %s", got)
+			}
+		})
+	}
+}

@@ -152,17 +152,48 @@ func FetchChannels() ([]Channel, error) {
 	return channels, nil
 }
 
+// Asset is one ordered image or video attachment.
+type Asset struct {
+	URL  string `json:"url"`
+	Kind string `json:"kind"`
+}
+
+func ImageAssets(urls []string) []Asset {
+	assets := make([]Asset, 0, len(urls))
+	for _, u := range urls {
+		assets = append(assets, Asset{URL: u, Kind: "image"})
+	}
+	return assets
+}
+
 func buildAssetsBlock(imageURLs []string) string {
-	if len(imageURLs) == 0 {
+	return buildMediaAssetsBlock(ImageAssets(imageURLs))
+}
+
+func buildMediaAssetsBlock(media []Asset) string {
+	if len(media) == 0 {
 		return ""
 	}
-
 	var assets []string
-	for _, u := range imageURLs {
-		escaped, _ := json.Marshal(u)
-		assets = append(assets, fmt.Sprintf(`{ image: { url: %s } }`, string(escaped)))
+	for _, asset := range media {
+		escaped, _ := json.Marshal(asset.URL)
+		kind := "image"
+		if asset.Kind == "video" {
+			kind = "video"
+		}
+		assets = append(assets, fmt.Sprintf(`{ %s: { url: %s } }`, kind, string(escaped)))
 	}
 	return fmt.Sprintf(`, assets: [%s]`, strings.Join(assets, ", "))
+}
+
+// CreateMediaPost preserves the supplied attachment order.
+func CreateMediaPost(channelID, text string, assets []Asset, service string) (*PostResult, error) {
+	for _, asset := range assets {
+		if asset.Kind != "image" && asset.Kind != "video" {
+			return nil, fmt.Errorf("unsupported media kind %q", asset.Kind)
+		}
+	}
+	return createMediaPost(channelID, text, assets, service, nil)
 }
 
 func CreatePost(channelID, text string, imageURLs []string, service string) (*PostResult, error) {
@@ -177,7 +208,11 @@ func CreateScheduledPost(channelID, text string, imageURLs []string, service str
 }
 
 func createPost(channelID, text string, imageURLs []string, service string, dueAt *time.Time) (*PostResult, error) {
-	query := buildCreatePostMutation(channelID, text, imageURLs, service, dueAt)
+	return createMediaPost(channelID, text, ImageAssets(imageURLs), service, dueAt)
+}
+
+func createMediaPost(channelID, text string, assets []Asset, service string, dueAt *time.Time) (*PostResult, error) {
+	query := buildCreateMediaPostMutation(channelID, text, assets, service, dueAt)
 	data, err := graphqlRequest(query)
 	if err != nil {
 		return nil, err
@@ -197,6 +232,9 @@ func createPost(channelID, text string, imageURLs []string, service string, dueA
 		return nil, fmt.Errorf("buffer post error: %s", result.CreatePost.Message)
 	}
 
+	if result.CreatePost.Post == nil || result.CreatePost.Post.ID == "" {
+		return nil, fmt.Errorf("buffer returned no created post")
+	}
 	return result.CreatePost.Post, nil
 }
 
@@ -224,15 +262,21 @@ func EditScheduledPost(postID, text string, imageURLs []string, service string, 
 }
 
 func buildCreatePostMutation(channelID, text string, imageURLs []string, service string, dueAt *time.Time) string {
+	return buildCreateMediaPostMutation(channelID, text, ImageAssets(imageURLs), service, dueAt)
+}
+
+func buildCreateMediaPostMutation(channelID, text string, assets []Asset, service string, dueAt *time.Time) string {
 	textEscaped, _ := json.Marshal(text)
 
-	assetsBlock := buildAssetsBlock(imageURLs)
+	assetsBlock := buildMediaAssetsBlock(assets)
 
 	var metadataBlock string
 	if service == "instagram" {
 		igType := "post"
-		if len(imageURLs) > 1 {
+		if len(assets) > 1 {
 			igType = "carousel"
+		} else if len(assets) == 1 && assets[0].Kind == "video" {
+			igType = "reel"
 		}
 		metadataBlock = fmt.Sprintf(`, metadata: { instagram: { type: %s, shouldShareToFeed: true } }`, igType)
 	}
