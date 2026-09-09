@@ -38,22 +38,35 @@
         {{ end }}
       </header>
 
+      <section class="organization-dashboard-section dashboard-workspace-panel" id="badge-catalog">
+        <div class="organization-dashboard-section__head">
+          <div><div class="dashboard-kicker">§ Badge catalog</div><h2>Recognition from {{ .Organization.Name }}.</h2></div>
+          <p>Anyone can receive these badges. Owners and managers can issue to any Nostr pubkey or use the bitcoin++ directory to find members.</p>
+        </div>
+        {{ if .BadgeCatalog }}
+          {{ if .BadgeCatalog.Badges }}<div class="whois-credential-grid">{{ range .BadgeCatalog.Badges }}<article class="whois-credential"><div class="whois-credential-art"><img src="{{ .ImageURL }}" alt="" loading="lazy"></div><div><small>published badge</small><h3>{{ .Name }}</h3><p>{{ .Description }}</p></div></article>{{ end }}</div>{{ else }}<p>No badge definitions have been published yet.</p>{{ end }}
+          <p><a href="{{ .BadgeCatalog.CatalogURL }}" target="_blank" rel="noopener noreferrer">View public badge catalog ↗</a></p>
+        {{ else }}<p>This organization has not linked a Badge Studio issuer yet.</p>{{ end }}
+        {{ if .CanManage }}<div class="organization-badge-actions">{{ if .SignerURL }}<a href="{{ .SignerURL }}/?tenant=organization&amp;tenant_id={{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Set up or open managed signer ↗</a>{{ end }}{{ if .BadgeStudioURL }}<a href="{{ .BadgeStudioURL }}" target="_blank" rel="noopener noreferrer">Open Badge Studio ↗</a>{{ end }}</div>{{ end }}
+      </section>
+
       {{ if .Badges }}
       <section class="organization-dashboard-section dashboard-workspace-panel" id="badges">
         <div class="organization-dashboard-section__head">
-          <div><div class="dashboard-kicker">§ Accepting badges</div><h2>Your organization credentials.</h2></div>
+          <div><div class="dashboard-kicker">§ Badges for you</div><h2>Your credentials from organizations.</h2></div>
           <p>Badges are issued to your verified Nostr key. Pending badges appear here before you add one.</p>
         </div>
         {{ if or .Badges.Issued .Badges.Pending }}
         <div class="whois-credential-grid">
-          {{ range .Badges.Issued }}<article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}"><div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="" loading="lazy"></div><div><small>{{ if .Award.Revocation }}revoked{{ else }}issued{{ end }}</small><h3>{{ .Definition.Name }}</h3>{{ if and (not .Award.Revocation) .CredentialURL }}<a href="{{ .CredentialURL }}">View and accept →</a>{{ end }}</div></article>{{ end }}
-          {{ range .Badges.Pending }}{{ if .Badge }}<article class="whois-credential is-pending"><div class="whois-credential-art"><img src="{{ .Badge.ImageURL }}" alt="" loading="lazy"></div><div><small>waiting for nostr</small><h3>{{ .Badge.Name }}</h3><a href="/dashboard/settings#settings-nostr">Add or verify your Nostr key →</a></div></article>{{ end }}{{ end }}
+          {{ range .Badges.Issued }}<article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}"><div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="" loading="lazy"></div><div><small>{{ if .Award.Revocation }}revoked{{ else }}issued{{ end }}</small><h3>{{ .Definition.Name }}</h3>{{ if not .Award.Revocation }}{{ if .CredentialURL }}<a href="{{ .CredentialURL }}">View credential →</a>{{ end }}{{ if .ClaimURL }} <a href="{{ .ClaimURL }}">Accept on Nostr →</a>{{ end }}{{ end }}</div></article>{{ end }}
+          {{ range .Badges.Pending }}{{ if .Badge }}<article class="whois-credential is-pending"><div class="whois-credential-art"><img src="{{ .Badge.ImageURL }}" alt="" loading="lazy"></div><div><small>waiting for nostr</small><h3>{{ .Badge.Name }}</h3><a href="/dashboard/settings#settings-sign-in">Add or verify your Nostr key →</a></div></article>{{ end }}{{ end }}
         </div>
         {{ else }}<p>No badges have been issued to this profile yet.</p>{{ end }}
       </section>
       {{ end }}
 
       <nav class="organization-dashboard-local-nav" aria-label="Organization sections">
+		<a href="#badge-catalog">/badge catalog</a>
         {{ if .CanManage }}<a href="#profile">/profile</a>{{ end }}
         {{ if .Badges }}<a href="#badges">/badges</a>{{ end }}
         <a href="#members">/members</a>

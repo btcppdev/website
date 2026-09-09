@@ -46,6 +46,9 @@ type OrganizationDashboardPage struct {
 	PendingRequests       []*types.OrganizationMembershipRequest
 	SponsorEvents         []*types.SponsorDashboardEvent
 	Badges                *WhoIsBadgeProfile
+	BadgeCatalog          *OrganizationBadgeCatalog
+	BadgeStudioURL        string
+	SignerURL             string
 	CanManage             bool
 	IsOwner               bool
 	IsGlobalAdmin         bool
@@ -272,15 +275,20 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 		}
 	}
 	var badgeProfile *WhoIsBadgeProfile
+	var badgeCatalog *OrganizationBadgeCatalog
 	if ctx.Env != nil && ctx.Env.BadgeStudioURL != "" {
 		badgeProfile, err = loadBadgeStudioProfile(r.Context(), ctx.Env.BadgeStudioURL, id.PersonID)
 		if err != nil && ctx.Err != nil {
 			ctx.Err.Printf("/dashboard/orgs/%s Badge Studio profile: %s", organizationID, err)
 		}
+		badgeCatalog, err = loadOrganizationBadgeCatalog(r.Context(), ctx.Env.BadgeStudioURL, organizationID)
+		if err != nil && ctx.Err != nil {
+			ctx.Err.Printf("/dashboard/orgs/%s badge catalog: %s", organizationID, err)
+		}
 	}
 	page := &OrganizationDashboardPage{
 		Memberships: memberships, Membership: membership, Organization: membership.Organization,
-		Members: members, PendingInvites: pendingInvites, PendingRequests: pendingRequests, SponsorEvents: sponsorEvents, Badges: badgeProfile,
+		Members: members, PendingInvites: pendingInvites, PendingRequests: pendingRequests, SponsorEvents: sponsorEvents, Badges: badgeProfile, BadgeCatalog: badgeCatalog,
 		CanManage: canManage, IsOwner: membership.Role == getters.OrganizationRoleOwner,
 		IsGlobalAdmin: id.IsGlobalAdmin(), SpacesReady: spaces.IsConfigured(), CSRF: csrf,
 		PendingOrgInviteCount: pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/orgs/"+organizationID),
@@ -289,6 +297,7 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 		InviteLink:            ctx.Session.PopString(r.Context(), organizationInviteLinkSessionKey),
 		InviteEmail:           ctx.Session.PopString(r.Context(), organizationInviteLinkSessionKey+"_email"),
 		FlashMessage:          r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"),
+		BadgeStudioURL: strings.TrimRight(ctx.Env.BadgeStudioURL, "/"), SignerURL: strings.TrimRight(ctx.Env.SignerURL, "/"),
 		Year: helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_org.tmpl", page); err != nil {
