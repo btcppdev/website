@@ -64,7 +64,7 @@ func TestLoadOrganizationBadgeCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if catalog.IssuerPubkey != issuer || len(catalog.Badges) != 1 || catalog.CatalogURL != server.URL+"/organizations/"+issuer {
+	if catalog.IssuerPubkey != issuer || len(catalog.Badges) != 1 || catalog.CatalogURL != server.URL+"/btcpp/organizations/org-1" {
 		t.Fatalf("catalog = %#v", catalog)
 	}
 }

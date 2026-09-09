@@ -92,5 +92,5 @@ func loadOrganizationBadgeCatalog(ctx context.Context, baseURL, organizationID s
 	if len(payload.Organization.Pubkey) != 64 {
 		return nil, fmt.Errorf("organization badge catalog returned invalid issuer")
 	}
-	return &OrganizationBadgeCatalog{IssuerPubkey: payload.Organization.Pubkey, Badges: payload.Badges, CatalogURL: baseURL + "/organizations/" + payload.Organization.Pubkey}, nil
+	return &OrganizationBadgeCatalog{IssuerPubkey: payload.Organization.Pubkey, Badges: payload.Badges, CatalogURL: baseURL + "/btcpp/organizations/" + url.PathEscape(organizationID)}, nil
 }
