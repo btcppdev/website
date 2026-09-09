@@ -246,6 +246,9 @@ func validateManagedBadgeBatch(r *http.Request, ctx *config.AppContext, page *Ma
 }
 
 func validateManagedSignerRequest(page *ManagedSignerAuthorizationPage) error {
+	if page.Action == "rotate_identity" && page.Tenant != "organization" {
+		return errors.New("personal Nostr identities cannot be transparently rotated")
+	}
 	if page.Action != "sign" {
 		return nil
 	}
