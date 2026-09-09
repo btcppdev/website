@@ -226,6 +226,26 @@ func UpdateOrg(ctx *config.AppContext, orgID string, up OrgUpdate) error {
 	return nil
 }
 
+// UpdateOrgDirectoryVisibility updates only the organization's directory visibility.
+func UpdateOrgDirectoryVisibility(ctx *config.AppContext, ref string, visible bool) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	if strings.TrimSpace(ref) == "" {
+		return fmt.Errorf("org ref is required")
+	}
+	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `
+		UPDATE organizations SET hidden_from_directory = $2 WHERE id = $1
+	`, ref, !visible)
+	if err != nil {
+		return fmt.Errorf("update org directory visibility %s: %w", ref, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("org %s not found", ref)
+	}
+	return nil
+}
+
 func UpdateOrgDetails(ctx *config.AppContext, org *types.Org) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")

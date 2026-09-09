@@ -2117,6 +2117,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/orgs/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		OrgSave(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/orgs/{ref}/visibility", func(w http.ResponseWriter, r *http.Request) {
+		OrgUpdateVisibility(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/admin/orgs/{ref}/members", func(w http.ResponseWriter, r *http.Request) {
 		OrgMemberAdd(w, r, app)
 	}).Methods("POST")

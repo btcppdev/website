@@ -27,6 +27,7 @@ import (
 type OrgListPage struct {
 	Orgs                []*types.Org
 	PendingApplications []*types.OrganizationApplication
+	FlashError          string
 	FlashMessage        string
 	Year                uint
 }
@@ -194,6 +195,7 @@ func OrgList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	err = ctx.TemplateCache.ExecuteTemplate(w, "sponsors/orgs.tmpl", &OrgListPage{
 		Orgs:                orgs,
 		PendingApplications: pendingApplications,
+		FlashError:          r.URL.Query().Get("error"),
 		FlashMessage:        r.URL.Query().Get("flash"),
 		Year:                helpers.CurrentYear(),
 	})
@@ -575,6 +577,34 @@ func OrgCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}
 	dest = appendFlash(dest, "Org "+org.Name+" created")
 	http.Redirect(w, r, dest, http.StatusFound)
+}
+
+// OrgUpdateVisibility changes directory visibility without overwriting profile fields.
+func OrgUpdateVisibility(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+		return
+	}
+	ref := strings.TrimSpace(mux.Vars(r)["ref"])
+	if ref == "" {
+		handle404(w, r, ctx)
+		return
+	}
+	limitRequestBody(w, r, maxFormBodyBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	visible := r.PostForm.Get("DirectoryVisible")
+	if visible != "on" && visible != "off" {
+		http.Error(w, "DirectoryVisible must be on or off", http.StatusBadRequest)
+		return
+	}
+	if err := getters.UpdateOrgDirectoryVisibility(ctx, ref, visible == "on"); err != nil {
+		ctx.Err.Printf("/admin/orgs/%s visibility: %s", ref, err)
+		http.Redirect(w, r, "/admin/orgs?error="+url.QueryEscape("Unable to update directory visibility"), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/admin/orgs?flash="+url.QueryEscape("Directory visibility saved"), http.StatusSeeOther)
 }
 
 func OrgSave(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
