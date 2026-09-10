@@ -237,6 +237,9 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 	}
 	tenant, tenantID := strings.TrimSpace(r.FormValue("tenant")), strings.TrimSpace(r.FormValue("tenant_id"))
 	page := &ManagedSignerAuthorizationPage{PersonName: identity.Speaker.Name, Tenant: tenant, TenantID: tenantID, Action: action, ActionLabel: strings.ReplaceAll(action, "_", " "), EventHash: strings.TrimSpace(r.FormValue("event_hash")), Target: strings.TrimSpace(r.FormValue("target")), ReturnTo: ctx.Env.SignerURL + "/api/authorizations/callback"}
+	if action == "create_identity" {
+		page.ActionLabel = "create a new Nostr signer"
+	}
 	if action == "protect_identity" {
 		page.ActionLabel = "add a two-factor unlock passphrase"
 	}

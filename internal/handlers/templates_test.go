@@ -81,6 +81,17 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("managed signer continuation omitted %q: %s", expected, signerContinue.String())
 		}
 	}
+	var signerSetup bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&signerSetup, "managed_signer_authorize.tmpl", &ManagedSignerAuthorizationPage{
+		PersonName: "Mara Chen", Tenant: "organization", TenantName: "Signet Systems", Role: "manager", Action: "create_identity", ActionLabel: "create a new Nostr signer", CSRF: "csrf", ReturnTo: "https://signer.example/api/authorizations/callback", Year: 2026,
+	}); err != nil {
+		t.Fatalf("render managed signer setup authorization: %v", err)
+	}
+	for _, expected := range []string{"Create a Nostr signer for Signet Systems?", "dedicated Nostr identity for <strong>Signet Systems</strong>", "Why this is needed", "Every Nostr badge must be cryptographically signed.", "without sharing an <code>nsec</code>", "What happens next", "The Bitcoin++ website never receives the private key or your passphrase.", "organization", "Signet Systems", "your role", "manager", "create a new Nostr signer", "Continue to signer setup →", "Cancel setup"} {
+		if !strings.Contains(signerSetup.String(), expected) {
+			t.Fatalf("managed signer setup omitted %q: %s", expected, signerSetup.String())
+		}
+	}
 	var apiDocs bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&apiDocs, "developers_api.tmpl", nil); err != nil {
 		t.Fatalf("render API documentation: %v", err)

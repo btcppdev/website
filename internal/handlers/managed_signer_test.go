@@ -84,6 +84,33 @@ func TestManagedSignerAuthenticationRejectsMissingTimestamp(t *testing.T) {
 	}
 }
 
+func TestManagedSignerCreatePageNamesOrganizationAndAction(t *testing.T) {
+	organizationID := "00000000-0000-4000-8000-000000000501"
+	signerURL := "https://signer.example"
+	query := url.Values{
+		"return_to": {signerURL + "/api/authorizations/callback"},
+		"tenant":    {"organization"},
+		"tenant_id": {organizationID},
+		"action":    {"create_identity"},
+	}
+	request := httptest.NewRequest(http.MethodGet, "/signer/authorize?"+query.Encode(), nil)
+	identity := &auth.Identity{Speaker: &types.Speaker{Name: "Mara Chen"}}
+	memberships := []*types.OrganizationMembership{{
+		OrganizationID: organizationID,
+		Role:           getters.OrganizationRoleManager,
+		Status:         "active",
+		Organization:   &types.Org{Name: "Signet Systems"},
+	}}
+
+	page, err := managedSignerAuthorizationPage(request, &config.AppContext{Env: &types.EnvConfig{SignerURL: signerURL}}, identity, memberships)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.TenantName != "Signet Systems" || page.Role != getters.OrganizationRoleManager || page.ActionLabel != "create a new Nostr signer" {
+		t.Fatalf("managed signer setup context = %#v", page)
+	}
+}
+
 func TestPendingManagedSignerAuthorizationIsBoundAndOneUse(t *testing.T) {
 	manager := scs.New()
 	requestContext, err := manager.Load(context.Background(), "")

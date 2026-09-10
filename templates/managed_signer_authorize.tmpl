@@ -3,15 +3,24 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize signer · bitcoin++</title><link rel="stylesheet" href="/static/css/btcpp-redesign.css"></head>
 <body class="managed-signer-consent"><main>
   <p class="eyebrow">bitcoin++ managed signer</p>
+  {{ if eq .Action "create_identity" }}
+  <h1>Create a Nostr signer for {{ .TenantName }}?</h1>
+  <p class="managed-signer-consent__intro">This creates a dedicated Nostr identity for <strong>{{ .TenantName }}</strong> to create and manage Bitcoin++ badges.</p>
+  <section class="managed-signer-consent__explanation" aria-label="About this signer setup">
+    <div><h2>Why this is needed</h2><p>Every Nostr badge must be cryptographically signed. A managed signer lets approved {{ .TenantName }} managers issue and revoke badges without sharing an <code>nsec</code> or storing it in the Bitcoin++ website.</p></div>
+    <div><h2>What happens next</h2><p>The signer will generate a new Nostr key and ask you to choose an unlock passphrase. The Bitcoin++ website never receives the private key or your passphrase.</p></div>
+  </section>
+  {{ else }}
   <h1>{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }}Review this badge batch.{{ else }}Review this signing request.{{ end }}</h1>
-  <p><strong>{{ .PersonName }}</strong> is authorizing the isolated signer for <strong>{{ .TenantName }}</strong>.</p>
+  <p><strong>{{ .PersonName }}</strong> is authorizing the managed signer for <strong>{{ .TenantName }}</strong>.</p>
+  {{ end }}
   {{ if .Error }}<p class="managed-signer-consent__error" role="alert">{{ .Error }}</p>{{ end }}
-  <dl><div><dt>action</dt><dd>{{ .ActionLabel }}</dd></div><div><dt>account</dt><dd>{{ .Tenant }} · {{ .Role }}</dd></div>{{ if .EventKind }}<div><dt>nostr event</dt><dd>kind {{ .EventKind }}{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }} · one event per recipient{{ end }}</dd></div>{{ end }}{{ if .RecipientCount }}<div><dt>recipients</dt><dd>{{ .RecipientCount }}{{ if .VerifiedGrants }} · {{ .VerifiedGrants }} bitcoin++ grant{{ if ne .VerifiedGrants 1 }}s{{ end }} verified{{ end }}</dd></div>{{ end }}{{ if .BadgeAddress }}<div><dt>badge definition</dt><dd><code>{{ .BadgeAddress }}</code></dd></div>{{ end }}{{ if .EventHash }}<div><dt>{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }}exact batch hash{{ else }}exact event hash{{ end }}</dt><dd><code>{{ .EventHash }}</code></dd></div>{{ end }}{{ if .Target }}<div><dt>pending request</dt><dd><code>{{ .Target }}</code></dd></div>{{ end }}</dl>
+  <dl><div><dt>{{ if eq .Tenant "organization" }}organization{{ else }}account{{ end }}</dt><dd><strong>{{ .TenantName }}</strong></dd></div><div><dt>your role</dt><dd>{{ .Role }}</dd></div><div><dt>requested action</dt><dd>{{ .ActionLabel }}</dd></div>{{ if .EventKind }}<div><dt>nostr event</dt><dd>kind {{ .EventKind }}{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }} · one event per recipient{{ end }}</dd></div>{{ end }}{{ if .RecipientCount }}<div><dt>recipients</dt><dd>{{ .RecipientCount }}{{ if .VerifiedGrants }} · {{ .VerifiedGrants }} bitcoin++ grant{{ if ne .VerifiedGrants 1 }}s{{ end }} verified{{ end }}</dd></div>{{ end }}{{ if .BadgeAddress }}<div><dt>badge definition</dt><dd><code>{{ .BadgeAddress }}</code></dd></div>{{ end }}{{ if .EventHash }}<div><dt>{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }}exact batch hash{{ else }}exact event hash{{ end }}</dt><dd><code>{{ .EventHash }}</code></dd></div>{{ end }}{{ if .Target }}<div><dt>pending request</dt><dd><code>{{ .Target }}</code></dd></div>{{ end }}</dl>
   {{ if .BatchRecipients }}<details><summary>review exact recipients</summary><ol>{{ range .BatchRecipients }}<li><code>{{ .Pubkey }}</code>{{ if .SubjectProfileURL }} · <a href="{{ .SubjectProfileURL }}" rel="noreferrer">profile</a>{{ end }}{{ if .GrantID }} · verified bitcoin++ grant{{ end }}</li>{{ end }}</ol></details>{{ end }}
   <p class="managed-signer-consent__note">The authorization expires in one minute, works once, and cannot approve a different action{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }}, recipient list, or batch{{ else }} or event{{ end }}.</p>
   <form method="post" action="/signer/authorize">
     <input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="return_to" value="{{ .ReturnTo }}"><input type="hidden" name="tenant" value="{{ .Tenant }}"><input type="hidden" name="tenant_id" value="{{ .TenantID }}"><input type="hidden" name="action" value="{{ .Action }}"><input type="hidden" name="event_hash" value="{{ .EventHash }}"><input type="hidden" name="target" value="{{ .Target }}"><input type="hidden" name="event_kind" value="{{ .EventKind }}"><input type="hidden" name="recipient_count" value="{{ .RecipientCount }}">
-    <button name="decision" value="deny">Cancel</button><button class="is-primary" name="decision" value="allow">Authorize with bitcoin++ →</button>
+    <button name="decision" value="deny">{{ if eq .Action "create_identity" }}Cancel setup{{ else }}Cancel{{ end }}</button><button class="is-primary" name="decision" value="allow">{{ if eq .Action "create_identity" }}Continue to signer setup →{{ else }}Authorize with bitcoin++ →{{ end }}</button>
   </form>
 </main><footer>bitcoin++ · signer authorization · {{ .Year }}</footer></body></html>
 {{- end }}
