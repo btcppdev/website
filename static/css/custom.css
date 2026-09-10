@@ -15448,6 +15448,116 @@ border-bottom: 1px solid var(--hack-ink);
 .organization-workspace-tabs a:focus-visible { outline: 3px solid var(--organization-orange); outline-offset: -3px; }
 .organization-workspace-tabs a.is-active { background: var(--organization-orange); color: var(--organization-ink); }
 
+.organization-badges-page .whois-credential-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	gap: 14px;
+}
+
+.organization-badges-page .whois-credential {
+	display: grid;
+	min-width: 0;
+	grid-template-columns: 84px minmax(0, 1fr);
+	gap: 14px;
+	align-items: center;
+	border: 1px solid var(--organization-line);
+	background: #fffaf3;
+	padding: 14px;
+}
+
+.organization-badges-page .whois-credential-art,
+.organization-badges-page .whois-credential-art img {
+	display: block;
+	width: 84px;
+	height: 84px;
+}
+
+.organization-badges-page .whois-credential-art img { border-radius: 50%; object-fit: cover; }
+.organization-badges-page .whois-credential > div:last-child { min-width: 0; }
+.organization-badges-page .whois-credential small { color: #73529b; font: 800 9px/1.2 "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .08em; text-transform: lowercase; }
+.organization-badges-page .whois-credential h3 { margin: 5px 0; font-size: 19px; line-height: 1.1; overflow-wrap: anywhere; }
+.organization-badges-page .whois-credential p,
+.organization-badges-page .whois-credential span { color: var(--organization-muted); font-size: 12px; line-height: 1.45; }
+.organization-badges-page .whois-credential p { margin: 0; }
+.organization-badges-page .whois-credential.is-pending { border-style: dashed; }
+.organization-badges-page .whois-credential.is-revoked { background: #f1e8e8; opacity: .7; }
+
+.organization-badges-page .organization-badge-button,
+.organization-badges-page button.organization-badge-button {
+	display: inline-flex;
+	min-height: 46px;
+	box-sizing: border-box;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--organization-ink);
+	border-radius: 0;
+	padding: 10px 16px;
+	box-shadow: 3px 3px 0 var(--organization-ink);
+	font: 800 11px/1.15 "IBM Plex Mono", ui-monospace, monospace;
+	letter-spacing: .02em;
+	text-align: center;
+	text-decoration: none;
+	cursor: pointer;
+	transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.organization-badges-page .organization-badge-button.is-primary { background: var(--organization-orange); color: var(--organization-ink); }
+.organization-badges-page .organization-badge-button.is-secondary { background: #fff; color: var(--organization-ink); }
+.organization-badges-page .organization-badge-button.is-danger { border-color: #9b3428; background: #fff1ee; color: #84291f; box-shadow: 3px 3px 0 #9b3428; }
+.organization-badges-page .organization-badge-button.is-compact { min-height: 40px; padding: 8px 12px; font-size: 10px; }
+.organization-badges-page .organization-badge-button:hover { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--organization-ink); }
+.organization-badges-page .organization-badge-button.is-danger:hover { background: #9b3428; color: #fff; box-shadow: 1px 1px 0 #9b3428; }
+.organization-badges-page .organization-badge-button:focus-visible { outline: 3px solid rgba(249, 175, 94, .55); outline-offset: 3px; }
+
+.organization-badge-actions,
+.organization-credential-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+	margin-top: 18px;
+}
+
+.organization-badge-grant-form {
+	display: grid;
+	grid-template-columns: minmax(180px, .7fr) minmax(260px, 1.3fr) auto;
+	gap: 14px;
+	align-items: end;
+	margin: 24px 0 32px;
+	border: 1px solid var(--organization-line);
+	background: #fffaf3;
+	padding: 20px;
+}
+
+.organization-badge-grant-form label span { display: block; margin-bottom: 7px; color: var(--organization-muted); font: 800 10px/1.2 "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .04em; text-transform: lowercase; }
+.organization-badge-grant-form select,
+.organization-badge-grant-form input {
+	width: 100%;
+	min-width: 0;
+	min-height: 46px;
+	box-sizing: border-box;
+	border: 1px solid #7e756d;
+	border-radius: 0;
+	background: #fff;
+	color: var(--organization-ink);
+	padding: 9px 11px;
+}
+
+.organization-badge-grant-form select:focus,
+.organization-badge-grant-form input:focus { border-color: #9b5810; outline: 3px solid rgba(249, 175, 94, .35); outline-offset: 1px; }
+
+.organization-badge-grant-list { display: grid; gap: 10px; }
+.organization-badge-grant-list article { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 14px; align-items: center; border: 1px solid var(--organization-line); background: #fffaf3; padding: 12px; }
+.organization-badge-grant-list article > img { width: 58px; aspect-ratio: 1; object-fit: cover; }
+.organization-badge-grant-list article > div { min-width: 0; }
+.organization-badge-grant-list small,
+.organization-badge-grant-list strong,
+.organization-badge-grant-list span { display: block; overflow-wrap: anywhere; }
+.organization-badge-grant-list small { color: #73529b; font: 800 10px/1.2 "IBM Plex Mono", ui-monospace, monospace; text-transform: lowercase; }
+.organization-badge-grant-list span { margin-top: 4px; color: var(--organization-muted); font-size: 12px; }
+.organization-badge-grant-actions { display: flex; gap: 10px; align-items: center; }
+.organization-badge-grant-actions form { margin: 0; }
+
 .organization-dashboard-list {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -16004,6 +16114,19 @@ button.organization-review-action.is-secondary {
 @media (max-width: 760px) {
 	.organization-workspace-tabs { margin-bottom: 13px; box-shadow: 3px 3px 0 #ded6ca; }
 	.organization-workspace-tabs a { min-height: 50px; padding: 0 12px; }
+	.organization-badges-page .whois-credential-grid { grid-template-columns: minmax(0, 1fr); }
+	.organization-badges-page .whois-credential { grid-template-columns: 64px minmax(0, 1fr); padding: 12px; }
+	.organization-badges-page .whois-credential-art,
+	.organization-badges-page .whois-credential-art img { width: 64px; height: 64px; }
+	.organization-badge-actions,
+	.organization-credential-actions,
+	.organization-badge-grant-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+	.organization-badges-page .organization-badge-button,
+	.organization-badges-page button.organization-badge-button { width: 100%; min-height: 48px; }
+	.organization-badge-grant-form { grid-template-columns: minmax(0, 1fr); padding: 15px; }
+	.organization-badge-grant-list article { grid-template-columns: 48px minmax(0, 1fr); align-items: start; }
+	.organization-badge-grant-list article > img { width: 48px; }
+	.organization-badge-grant-actions { grid-column: 1 / -1; }
 	.organization-dashboard-list { grid-template-columns: minmax(0, 1fr); }
 	.organization-dashboard-card { grid-template-columns: 68px minmax(0, 1fr); gap: 15px; padding: 19px 17px; }
 	.organization-dashboard-card__mark { width: 68px; height: 68px; }

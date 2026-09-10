@@ -28,9 +28,13 @@
         </div>
         {{ if .BadgeCatalog }}
           {{ if .BadgeCatalog.Badges }}<div class="whois-credential-grid">{{ range .BadgeCatalog.Badges }}<article class="whois-credential"><div class="whois-credential-art"><img src="{{ .ImageURL }}" alt="" loading="lazy"></div><div><small>published badge</small><h3>{{ .Name }}</h3><p>{{ .Description }}</p></div></article>{{ end }}</div>{{ else }}<p>No badge definitions have been published yet.</p>{{ end }}
-          <p><a href="{{ .BadgeCatalog.CatalogURL }}" target="_blank" rel="noopener noreferrer">View public badge catalog ↗</a></p>
         {{ else }}<p>This organization has not linked a Badge Studio issuer yet.</p>{{ end }}
-        {{ if .CanManage }}<div class="organization-badge-actions">{{ if .SignerURL }}<a href="{{ .SignerURL }}/?tenant=organization&amp;tenant_id={{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Set up or open managed signer ↗</a>{{ end }}{{ if .BadgeStudioURL }}<a href="{{ .BadgeStudioURL }}/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3D{{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Open Badge Studio with bitcoin++ ↗</a>{{ end }}</div>{{ end }}
+        {{ if or .BadgeCatalog .CanManage }}
+        <div class="organization-badge-actions">
+          {{ if .BadgeCatalog }}<a class="organization-badge-button is-secondary" href="{{ .BadgeCatalog.CatalogURL }}" target="_blank" rel="noopener noreferrer">View public catalog ↗</a>{{ end }}
+          {{ if .CanManage }}{{ if .SignerURL }}<a class="organization-badge-button is-secondary" href="{{ .SignerURL }}/?tenant=organization&amp;tenant_id={{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Set up or open signer ↗</a>{{ end }}{{ if .BadgeStudioURL }}<a class="organization-badge-button is-primary" href="{{ .BadgeStudioURL }}/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3D{{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Open Badge Studio ↗</a>{{ end }}{{ end }}
+        </div>
+        {{ end }}
       </section>
 
       {{ if .CanManage }}
@@ -48,7 +52,7 @@
             <input id="BadgeGrantRecipient" type="search" data-person-picker-input placeholder="Search name, email, or phone">
             <p class="hidden" data-person-picker-flash></p>
           </div>
-          <button type="submit">Grant badge →</button>
+          <button class="organization-badge-button is-primary" type="submit">Grant badge →</button>
         </form>
         {{ else }}<p>Publish and link an organization badge definition before creating grants.</p>{{ end }}
         {{ if .OrganizationGrants }}
@@ -58,8 +62,8 @@
             <img src="{{ .BadgeImageURL | safeURL }}" alt="" loading="lazy">
             <div><small>{{ if eq .State "ready_to_issue" }}ready to issue{{ else if eq .State "delivery_error" }}delivery needs attention{{ else }}{{ .State }}{{ end }}</small><strong>{{ .BadgeName }} → {{ .RecipientName }}</strong><span>{{ if eq .State "granted" }}Waiting for a verified Nostr key.{{ else if eq .State "ready_to_issue" }}Verified key: {{ .RecipientPubkey }}{{ else if eq .State "issued" }}Nostr award: {{ .AwardEventID }}{{ else if eq .State "accepted" }}Accepted into the recipient’s Nostr profile.{{ else if eq .State "revoked" }}Revoked by the issuer{{ if .RevocationReason }} · {{ .RevocationReason }}{{ end }}{{ else if .DeliveryError }}{{ .DeliveryError }}{{ end }}</span></div>
             <div class="organization-badge-grant-actions">
-              {{ if eq .State "ready_to_issue" }}{{ if $.BadgeStudioURL }}<a href="{{ $.BadgeStudioURL }}/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3D{{ $.Organization.Ref }}%26grant%3D{{ .ID }}" target="_blank" rel="noopener noreferrer">Issue in Studio with bitcoin++ ↗</a>{{ end }}{{ end }}
-              {{ if or (eq .State "granted") (eq .State "ready_to_issue") }}<form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/badge-grants/{{ .ID }}/cancel" onsubmit="return confirm('Cancel this badge grant?');"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Cancel</button></form>{{ end }}
+              {{ if eq .State "ready_to_issue" }}{{ if $.BadgeStudioURL }}<a class="organization-badge-button is-primary is-compact" href="{{ $.BadgeStudioURL }}/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3D{{ $.Organization.Ref }}%26grant%3D{{ .ID }}" target="_blank" rel="noopener noreferrer">Issue in Studio ↗</a>{{ end }}{{ end }}
+              {{ if or (eq .State "granted") (eq .State "ready_to_issue") }}<form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/badge-grants/{{ .ID }}/cancel" onsubmit="return confirm('Cancel this badge grant?');"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button class="organization-badge-button is-danger is-compact" type="submit">Cancel grant</button></form>{{ end }}
             </div>
           </article>
           {{ end }}
@@ -76,8 +80,8 @@
         </div>
         {{ if or (and .Badges (or .Badges.Issued .Badges.Pending)) .PersonalGrants }}
         <div class="whois-credential-grid">
-          {{ if .Badges }}{{ range .Badges.Issued }}<article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}"><div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="" loading="lazy"></div><div><small>{{ if .Award.Revocation }}revoked{{ else if .Accepted }}accepted on nostr{{ else }}awarded · acceptance pending{{ end }}</small><h3>{{ .Definition.Name }}</h3>{{ if not .Award.Revocation }}{{ if .CredentialURL }}<a href="{{ .CredentialURL }}">View credential →</a>{{ end }}{{ if .ClaimURL }} <a href="{{ .ClaimURL }}">Accept on Nostr →</a>{{ end }}{{ end }}</div></article>{{ end }}{{ end }}
-          {{ range .PersonalGrants }}<article class="whois-credential{{ if or (eq .State "granted") (eq .State "ready_to_issue") }} is-pending{{ end }}"><div class="whois-credential-art"><img src="{{ .BadgeImageURL | safeURL }}" alt="" loading="lazy"></div><div><small>bitcoin++ grant · {{ if eq .State "ready_to_issue" }}ready to issue{{ else }}{{ .State }}{{ end }}</small><h3>{{ .BadgeName }}</h3>{{ if eq .State "granted" }}<a href="/dashboard/settings#settings-sign-in">Add or verify your Nostr key →</a>{{ else if eq .State "ready_to_issue" }}<span>The organization can now issue this to your verified key.</span>{{ end }}</div></article>{{ end }}
+          {{ if .Badges }}{{ range .Badges.Issued }}<article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}"><div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="" loading="lazy"></div><div><small>{{ if .Award.Revocation }}revoked{{ else if .Accepted }}accepted on nostr{{ else }}awarded · acceptance pending{{ end }}</small><h3>{{ .Definition.Name }}</h3>{{ if not .Award.Revocation }}<div class="organization-credential-actions">{{ if .CredentialURL }}<a class="organization-badge-button is-secondary is-compact" href="{{ .CredentialURL }}">View credential →</a>{{ end }}{{ if .ClaimURL }}<a class="organization-badge-button is-primary is-compact" href="{{ .ClaimURL }}">Accept on Nostr →</a>{{ end }}</div>{{ end }}</div></article>{{ end }}{{ end }}
+          {{ range .PersonalGrants }}<article class="whois-credential{{ if or (eq .State "granted") (eq .State "ready_to_issue") }} is-pending{{ end }}"><div class="whois-credential-art"><img src="{{ .BadgeImageURL | safeURL }}" alt="" loading="lazy"></div><div><small>bitcoin++ grant · {{ if eq .State "ready_to_issue" }}ready to issue{{ else }}{{ .State }}{{ end }}</small><h3>{{ .BadgeName }}</h3>{{ if eq .State "granted" }}<div class="organization-credential-actions"><a class="organization-badge-button is-primary is-compact" href="/dashboard/settings#settings-sign-in">Add or verify your Nostr key →</a></div>{{ else if eq .State "ready_to_issue" }}<span>The organization can now issue this to your verified key.</span>{{ end }}</div></article>{{ end }}
         </div>
         {{ else }}<p>No badges have been issued to this profile yet.</p>{{ end }}
       </section>
