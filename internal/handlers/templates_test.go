@@ -72,6 +72,15 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("reauthentication prompt omitted %q: %s", expected, reauthPage.String())
 		}
 	}
+	var signerContinue bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&signerContinue, "managed_signer_continue.tmpl", &ManagedSignerAuthorizationPage{ReturnTo: "https://signer.example/api/authorizations/callback", Token: "one-time-token", Year: 2026}); err != nil {
+		t.Fatalf("render managed signer continuation: %v", err)
+	}
+	for _, expected := range []string{"Returning to your signer…", "You’ll continue automatically.", `src="/static/js/managed-signer-continue.js"`, `data-managed-signer-continue`, `action="https://signer.example/api/authorizations/callback"`, `value="one-time-token"`} {
+		if !strings.Contains(signerContinue.String(), expected) {
+			t.Fatalf("managed signer continuation omitted %q: %s", expected, signerContinue.String())
+		}
+	}
 	var apiDocs bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&apiDocs, "developers_api.tmpl", nil); err != nil {
 		t.Fatalf("render API documentation: %v", err)
