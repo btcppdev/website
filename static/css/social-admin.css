@@ -67,3 +67,8 @@ body.social-admin-page { background: #f5f3ef; }
 .social-admin-page .social-carousel-preview a { display: block; }
 .social-admin-page .social-carousel-preview img { display: block; width: 100%; height: 160px; object-fit: contain; background: #ece9e2; }
 .social-admin-page .social-carousel-preview p { margin: 8px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+
+.social-admin-page .social-ticket-reply { margin-top: 18px; padding: 14px; border-left: 3px solid #f9af5e; background: #faf9f6; }
+.social-admin-page .social-ticket-reply h4 { margin: 0 0 8px; font: 600 11px/1.4 "IBM Plex Mono", monospace; text-transform: uppercase; }
+.social-admin-page .social-ticket-reply p { margin: 0 0 8px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.social-admin-page .social-ticket-reply small { font-size: 11px; color: #666; }

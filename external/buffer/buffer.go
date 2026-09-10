@@ -186,14 +186,14 @@ func buildMediaAssetsBlock(media []Asset) string {
 	return fmt.Sprintf(`, assets: [%s]`, strings.Join(assets, ", "))
 }
 
-// CreateMediaPost preserves the supplied attachment order.
-func CreateMediaPost(channelID, text string, assets []Asset, service string) (*PostResult, error) {
+// CreateMediaPost preserves attachment order and appends optional text replies on X.
+func CreateMediaPost(channelID, text string, assets []Asset, service string, replies ...string) (*PostResult, error) {
 	for _, asset := range assets {
 		if asset.Kind != "image" && asset.Kind != "video" {
 			return nil, fmt.Errorf("unsupported media kind %q", asset.Kind)
 		}
 	}
-	return createMediaPost(channelID, text, assets, service, nil)
+	return createMediaPost(channelID, text, assets, service, nil, replies...)
 }
 
 func CreatePost(channelID, text string, imageURLs []string, service string) (*PostResult, error) {
@@ -211,8 +211,8 @@ func createPost(channelID, text string, imageURLs []string, service string, dueA
 	return createMediaPost(channelID, text, ImageAssets(imageURLs), service, dueAt)
 }
 
-func createMediaPost(channelID, text string, assets []Asset, service string, dueAt *time.Time) (*PostResult, error) {
-	query := buildCreateMediaPostMutation(channelID, text, assets, service, dueAt)
+func createMediaPost(channelID, text string, assets []Asset, service string, dueAt *time.Time, replies ...string) (*PostResult, error) {
+	query := buildCreateMediaPostMutation(channelID, text, assets, service, dueAt, replies...)
 	data, err := graphqlRequest(query)
 	if err != nil {
 		return nil, err
@@ -265,7 +265,7 @@ func buildCreatePostMutation(channelID, text string, imageURLs []string, service
 	return buildCreateMediaPostMutation(channelID, text, ImageAssets(imageURLs), service, dueAt)
 }
 
-func buildCreateMediaPostMutation(channelID, text string, assets []Asset, service string, dueAt *time.Time) string {
+func buildCreateMediaPostMutation(channelID, text string, assets []Asset, service string, dueAt *time.Time, replies ...string) string {
 	textEscaped, _ := json.Marshal(text)
 
 	assetsBlock := buildMediaAssetsBlock(assets)
@@ -279,6 +279,16 @@ func buildCreateMediaPostMutation(channelID, text string, assets []Asset, servic
 			igType = "reel"
 		}
 		metadataBlock = fmt.Sprintf(`, metadata: { instagram: { type: %s, shouldShareToFeed: true } }`, igType)
+	}
+	if service == "twitter" && len(replies) > 0 {
+		// Buffer's thread array includes the first post and owns its media.
+		thread := []string{fmt.Sprintf(`{ text: %s%s }`, string(textEscaped), assetsBlock)}
+		for _, reply := range replies {
+			escaped, _ := json.Marshal(reply)
+			thread = append(thread, fmt.Sprintf(`{ text: %s }`, string(escaped)))
+		}
+		metadataBlock = fmt.Sprintf(`, metadata: { twitter: { thread: [%s] } }`, strings.Join(thread, ", "))
+		assetsBlock = ""
 	}
 	modeBlock := "mode: addToQueue"
 	if dueAt != nil {

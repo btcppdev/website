@@ -1,6 +1,7 @@
 package buffer
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -77,5 +78,29 @@ func TestBuildCreateMediaPostMutation(t *testing.T) {
 				t.Fatalf("unexpected mutation: %s", got)
 			}
 		})
+	}
+}
+
+func TestXTicketThreadIncludesOriginalPostAndMedia(t *testing.T) {
+	const original = "Meet Ada at bitcoin++"
+	const reply = "Tickets are going fast -> https://btcpp.dev/berlin26#tickets"
+	replyJSON, _ := json.Marshal(reply)
+	for _, kind := range []string{"image", "video"} {
+		t.Run(kind, func(t *testing.T) {
+			got := buildCreateMediaPostMutation("x-channel", original, []Asset{{URL: "https://cdn.test/first", Kind: kind}}, "twitter", nil, reply)
+			want := `twitter: { thread: [{ text: "Meet Ada at bitcoin++", assets: [{ ` + kind + `: { url: "https://cdn.test/first" } }] }, { text: ` + string(replyJSON) + ` }] }`
+			if !strings.Contains(got, want) {
+				t.Fatalf("thread missing original post, media, or second reply: %s", got)
+			}
+			if strings.Count(got, `text: "`+original+`"`) != 2 || strings.Count(got, "assets:") != 1 {
+				t.Fatalf("original text or media duplicated incorrectly: %s", got)
+			}
+		})
+	}
+	for _, service := range []string{"instagram", "linkedin"} {
+		got := buildCreateMediaPostMutation("channel", original, nil, service, nil, reply)
+		if strings.Contains(got, "thread:") || strings.Contains(got, reply) {
+			t.Fatalf("X reply leaked to %s: %s", service, got)
+		}
 	}
 }

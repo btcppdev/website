@@ -50,3 +50,14 @@ func TestSpeakerSocialAlreadyPostedRecognizesLegacyTalkRef(t *testing.T) {
 		t.Fatal("expected a post recorded with the legacy talk ID to suppress the speaker row")
 	}
 }
+
+func TestSocialTicketReplyUsesEventDetails(t *testing.T) {
+	conf := &types.Conf{Tag: "berlin26", Location: "Berlin", DateDesc: "September"}
+	want := "Tickets are going fast, don't miss the chance to catch the frontier of bitcoin in Berlin this September -> https://btcpp.dev/berlin26#tickets"
+	if got := socialTicketReply(conf); got != want {
+		t.Fatalf("ticket reply = %q, want %q", got, want)
+	}
+	if got := (&SocialAdminPage{Conf: conf}).XTicketReply(); got != want {
+		t.Fatalf("preview differs from queued reply: %q", got)
+	}
+}
