@@ -453,7 +453,7 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		queued := false
 		for _, ch := range targetChannels {
 			assets := selectedSocialAssets(r, "speaker_"+speakerID, ch.Service, media["speaker_"+speakerID])
-			_, err := createSocialPost(conf, ch, postText, assets)
+			_, err := createSocialPost(ch, postText, assets, socialTicketReplyFromForm(conf, r, "speaker_"+speakerID))
 			if err != nil {
 				ctx.Err.Printf("Failed to post speaker %s to %s: %s", speakerID, ch.Service, err.Error())
 				postingErrors = append(postingErrors, fmt.Sprintf("speaker %s to %s: %s", speakerID, ch.Service, err))
@@ -484,7 +484,7 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 
 		queued := false
 		for _, ch := range targetChannels {
-			_, err := createSocialPost(conf, ch, postText, selectedSocialAssets(r, "talk_"+talkID, ch.Service, media["talk_"+talkID]))
+			_, err := createSocialPost(ch, postText, selectedSocialAssets(r, "talk_"+talkID, ch.Service, media["talk_"+talkID]), socialTicketReplyFromForm(conf, r, "talk_"+talkID))
 			if err != nil {
 				ctx.Err.Printf("Failed to post talk %s to %s: %s", talkID, ch.Service, err.Error())
 				postingErrors = append(postingErrors, fmt.Sprintf("talk %s to %s: %s", talkID, ch.Service, err))
@@ -530,7 +530,7 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 			if ch.Service == "instagram" && !socialSelectionHasVideo(media["sponsor_"+sp.ref]) {
 				continue
 			}
-			_, err := createSocialPost(conf, ch, sp.text, selectedSocialAssets(r, "sponsor_"+sp.ref, ch.Service, media["sponsor_"+sp.ref]))
+			_, err := createSocialPost(ch, sp.text, selectedSocialAssets(r, "sponsor_"+sp.ref, ch.Service, media["sponsor_"+sp.ref]), socialTicketReplyFromForm(conf, r, "sponsor_"+sp.ref))
 			if err != nil {
 				ctx.Err.Printf("Failed to post sponsor %s to %s: %s", sp.ref, ch.Service, err.Error())
 				postingErrors = append(postingErrors, fmt.Sprintf("sponsor %s to %s: %s", sp.ref, ch.Service, err))
@@ -568,7 +568,7 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 				if ch.Service != "instagram" {
 					continue
 				}
-				_, err := createSocialPost(conf, ch, batchText, batchAssets)
+				_, err := createSocialPost(ch, batchText, batchAssets, "")
 				if err != nil {
 					ctx.Err.Printf("Failed to post sponsor batch to instagram: %s", err.Error())
 					postingErrors = append(postingErrors, "Instagram sponsor batch: "+err.Error())
@@ -668,9 +668,16 @@ func (p *SocialAdminPage) XTicketReply() string {
 	return socialTicketReply(p.Conf)
 }
 
-func createSocialPost(conf *types.Conf, channel buffer.Channel, text string, assets []buffer.Asset) (*buffer.PostResult, error) {
+func createSocialPost(channel buffer.Channel, text string, assets []buffer.Asset, reply string) (*buffer.PostResult, error) {
 	if channel.Service == "twitter" {
-		return buffer.CreateMediaPost(channel.ID, text, assets, channel.Service, socialTicketReply(conf))
+		return buffer.CreateMediaPost(channel.ID, text, assets, channel.Service, reply)
 	}
 	return buffer.CreateMediaPost(channel.ID, text, assets, channel.Service)
+}
+
+func socialTicketReplyFromForm(conf *types.Conf, r *http.Request, field string) string {
+	if reply := strings.TrimSpace(r.FormValue("reply_" + field)); reply != "" {
+		return reply
+	}
+	return socialTicketReply(conf)
 }

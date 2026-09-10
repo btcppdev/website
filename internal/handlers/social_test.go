@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	"btcpp-web/internal/helpers"
@@ -59,5 +61,24 @@ func TestSocialTicketReplyUsesEventDetails(t *testing.T) {
 	}
 	if got := (&SocialAdminPage{Conf: conf}).XTicketReply(); got != want {
 		t.Fatalf("preview differs from queued reply: %q", got)
+	}
+}
+
+func TestSocialTicketReplyFromForm(t *testing.T) {
+	conf := &types.Conf{Tag: "berlin26", Location: "Berlin", DateDesc: "September"}
+	for _, group := range []string{"speaker", "talk", "sponsor"} {
+		field := group + "_one"
+		for _, raw := range []string{"My edited reply\nhttps://btcpp.dev/berlin26#tickets", "", "  "} {
+			form := url.Values{"reply_" + field: {raw}, "reply_" + group + "_other": {"Other post's reply"}}
+			r := httptest.NewRequest("POST", "/", strings.NewReader(form.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			want := raw
+			if strings.TrimSpace(raw) == "" {
+				want = socialTicketReply(conf)
+			}
+			if got := socialTicketReplyFromForm(conf, r, field); got != want {
+				t.Fatalf("%s: got %q, want %q", field, got, want)
+			}
+		}
 	}
 }

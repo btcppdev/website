@@ -50,7 +50,7 @@
                                 </div>
       <div class="social-post-copy"><h3>Post text</h3>
                                     <textarea name="text_speaker_{{ .ID }}" rows="7" class="w-full rounded border border-gray-300 px-3 py-2 text-sm font-mono">{{ .PostText }}</textarea>
-                                    <aside class="social-ticket-reply"><h4>X thread · Post 2</h4><p>{{ $.XTicketReply }}</p><small>Automatically included after this post on X.</small></aside>
+                                    <aside class="social-ticket-reply"><label for="reply_speaker_{{ .ID }}">X thread · Post 2</label><textarea id="reply_speaker_{{ .ID }}" name="reply_speaker_{{ .ID }}" rows="4">{{ $.XTicketReply }}</textarea><small>Sent after this post on X. Leave blank to use the default ticket reply.</small></aside>
 
                                 </div></div>
     </article>
@@ -81,7 +81,7 @@
                                 </div>
       <div class="social-post-copy"><h3>Post text</h3>
                                     <textarea name="text_talk_{{ .ID }}" rows="7" class="w-full rounded border border-gray-300 px-3 py-2 text-sm font-mono">{{ .PostText }}</textarea>
-                                    <aside class="social-ticket-reply"><h4>X thread · Post 2</h4><p>{{ $.XTicketReply }}</p><small>Automatically included after this post on X.</small></aside>
+                                    <aside class="social-ticket-reply"><label for="reply_talk_{{ .ID }}">X thread · Post 2</label><textarea id="reply_talk_{{ .ID }}" name="reply_talk_{{ .ID }}" rows="4">{{ $.XTicketReply }}</textarea><small>Sent after this post on X. Leave blank to use the default ticket reply.</small></aside>
 
                                 </div></div>
     </article>
@@ -114,7 +114,7 @@
                                 </div>
       <div class="social-post-copy"><h3>Post text</h3>
                                     <textarea name="text_sponsor_{{ .Ref }}" rows="7" class="w-full rounded border border-gray-300 px-3 py-2 text-sm font-mono">{{ .PostText }}</textarea>
-                                    <aside class="social-ticket-reply"><h4>X thread · Post 2</h4><p>{{ $.XTicketReply }}</p><small>Automatically included after this post on X.</small></aside>
+                                    <aside class="social-ticket-reply"><label for="reply_sponsor_{{ .Ref }}">X thread · Post 2</label><textarea id="reply_sponsor_{{ .Ref }}" name="reply_sponsor_{{ .Ref }}" rows="4">{{ $.XTicketReply }}</textarea><small>Sent after this post on X. Leave blank to use the default ticket reply.</small></aside>
 
                                 </div></div>
     </article>
