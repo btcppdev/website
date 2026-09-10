@@ -50,7 +50,7 @@ func NostrLinkChallenge(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	viewer, err := auth.Resolve(r, ctx)
 	if err != nil || !recentAuthentication(viewer) {
-		writeNostrAuthError(w, http.StatusUnauthorized, "Sign in again before linking a Nostr key.")
+		writeNostrReauthError(w, "Sign in again before linking a Nostr key.", reauthenticationURL("/dashboard/settings?resume=nostr-link", false))
 		return
 	}
 	startNostrChallenge(w, r, ctx, "/dashboard/settings", nostrLinkVerifyURL(ctx))
@@ -295,4 +295,11 @@ func writeNostrAuthError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+func writeNostrReauthError(w http.ResponseWriter, message, reauthURL string) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message, "reauth_url": reauthURL})
 }

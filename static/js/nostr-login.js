@@ -26,6 +26,10 @@
         headers: {Accept: 'application/json'},
       });
       const challenge = await challengeResponse.json();
+      if (!challengeResponse.ok && challenge.reauth_url) {
+        window.location.assign(challenge.reauth_url);
+        return;
+      }
       if (!challengeResponse.ok) throw new Error(challenge.error || 'Unable to start Nostr sign-in.');
       const event = await window.nostr.signEvent({
         kind: challenge.kind,
@@ -52,4 +56,14 @@
       button.disabled = false;
     }
   }));
+
+  const location = new URL(window.location.href);
+  if (location.searchParams.get('resume') === 'nostr-link') {
+    const button = document.querySelector('[data-nostr-link]');
+    if (button) {
+      location.searchParams.delete('resume');
+      window.history.replaceState({}, '', location.pathname + location.search + location.hash);
+      queueMicrotask(() => button.click());
+    }
+  }
 })();

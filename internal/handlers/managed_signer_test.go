@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +13,8 @@ import (
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
+
+	"github.com/alexedwards/scs/v2"
 )
 
 func TestManagedSignerAuthenticationEscalation(t *testing.T) {
@@ -77,6 +81,39 @@ func TestManagedSignerAuthenticationRejectsMissingTimestamp(t *testing.T) {
 	err := requireSignerAuthentication(&auth.Identity{Method: auth.MethodPasskey}, &ManagedSignerAuthorizationPage{Action: "create_identity"})
 	if err == nil {
 		t.Fatalf("expected recent authentication error, got %v", err)
+	}
+}
+
+func TestPendingManagedSignerAuthorizationIsBoundAndOneUse(t *testing.T) {
+	manager := scs.New()
+	requestContext, err := manager.Load(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := url.Values{
+		"return_to": {"https://signer.example/api/authorizations/callback"},
+		"tenant":    {"organization"}, "tenant_id": {"org-1"}, "action": {"import_identity"},
+		"csrf": {"must-not-be-replayed"}, "decision": {"allow"},
+	}
+	request := httptest.NewRequest(http.MethodPost, "/signer/authorize", strings.NewReader(values.Encode())).WithContext(requestContext)
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx := &config.AppContext{Session: manager}
+	id, err := storePendingSignerAuthorization(ctx, request, "person-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pending, err := takePendingSignerAuthorization(ctx, request, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending.PersonID != "person-1" || pending.Values["tenant_id"][0] != "org-1" {
+		t.Fatalf("pending authorization = %#v", pending)
+	}
+	if _, exists := pending.Values["csrf"]; exists {
+		t.Fatal("pending authorization retained CSRF token")
+	}
+	if _, err := takePendingSignerAuthorization(ctx, request, id); err == nil {
+		t.Fatal("pending signer authorization was reusable")
 	}
 }
 

@@ -1,0 +1,81 @@
+{{ define "reauth_method" -}}
+  {{ $method := .Method }}{{ $page := .Page }}
+  {{ if $method.URL }}
+  <a class="reauth-method{{ if .Primary }} is-primary{{ end }}" href="{{ $method.URL }}">
+    <span class="reauth-method__mark" aria-hidden="true">{{ if eq $method.Key "github" }}GH{{ else if eq $method.Key "discord" }}DI{{ else if eq $method.Key "gitlab" }}GL{{ else }}ID{{ end }}</span>
+    <span><strong>{{ $method.Label }}</strong><small>{{ $method.Description }}</small></span><span aria-hidden="true">→</span>
+  </a>
+  {{ else if eq $method.Key "passkey" }}
+  <button type="button" class="reauth-method{{ if .Primary }} is-primary{{ end }}" data-passkey-login data-next="{{ $page.Next }}">
+    <span class="reauth-method__mark" aria-hidden="true">⌁</span>
+    <span><strong>{{ $method.Label }}</strong><small data-passkey-status>{{ $method.Description }}</small></span><span aria-hidden="true">→</span>
+  </button>
+  {{ else if eq $method.Key "nostr" }}
+  <button type="button" class="reauth-method{{ if .Primary }} is-primary{{ end }}" data-nostr-login data-next="{{ $page.Next }}">
+    <span class="reauth-method__mark" aria-hidden="true">⚡</span>
+    <span><strong>{{ $method.Label }}</strong><small data-nostr-status>{{ $method.Description }}</small></span><span aria-hidden="true">→</span>
+  </button>
+  {{ else if eq $method.Key "password" }}
+  <form method="post" action="/login/password" class="reauth-inline-form{{ if .Primary }} is-primary{{ end }}">
+    <input type="hidden" name="Next" value="{{ $page.Next }}"><input type="hidden" name="csrf" value="{{ $page.CSRF }}"><input type="hidden" name="Email" value="{{ $page.Email }}">
+    <label><span>Password</span><input type="password" name="Password" autocomplete="current-password" required></label>
+    <button type="submit">Continue →</button>
+  </form>
+  {{ else if eq $method.Key "email_link" }}
+  <form method="post" action="/login" class="reauth-inline-form{{ if .Primary }} is-primary{{ end }}">
+    <input type="hidden" name="Next" value="{{ $page.Next }}"><input type="hidden" name="csrf" value="{{ $page.CSRF }}"><input type="hidden" name="Email" value="{{ $page.Email }}">
+    <span><strong>{{ $method.Label }}</strong><small>{{ $method.Description }}</small></span>
+    <button type="submit">Send link →</button>
+  </form>
+  {{ end }}
+{{- end }}
+
+{{ define "reauth.tmpl" -}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Confirm it’s you · bitcoin++</title>
+  <link rel="stylesheet" href="/static/css/custom.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#128272;</text></svg>">
+</head>
+<body class="reauth-page">
+  <div class="reauth-backdrop" aria-hidden="true"><span>bitcoin++</span></div>
+  <dialog class="reauth-dialog" open aria-modal="true" aria-labelledby="reauth-title" aria-describedby="reauth-description">
+    <a class="reauth-dialog__close" href="{{ .CancelURL }}" aria-label="Cancel and return">×</a>
+    <p class="reauth-dialog__eyebrow">§ security check</p>
+    <h1 id="reauth-title">Confirm it’s <em>you.</em></h1>
+    <p id="reauth-description">You’re still signed in as <strong>{{ .PersonName }}</strong>. Because this action is sensitive, please sign in again{{ if .Strong }} with a passkey or verified Nostr key{{ end }}.</p>
+    {{ if .FlashError }}<p class="reauth-alert" role="alert">{{ .FlashError }}</p>{{ end }}
+
+    {{ if .Preferred }}
+      <div class="reauth-preferred">
+        <span class="reauth-preferred__label">{{ if .PreferredWasLast }}last used{{ else }}recommended for this action{{ end }}</span>
+        {{ template "reauth_method" (dict "Method" .Preferred "Page" . "Primary" true) }}
+      </div>
+    {{ else }}
+      <div class="reauth-alert" role="alert">This account does not have a {{ if .Strong }}passkey or verified Nostr key{{ else }}reusable sign-in method{{ end }} yet. Return to account settings to add one.</div>
+    {{ end }}
+
+    {{ if or .Alternatives .DevLoginEnabled }}
+    <details class="reauth-alternatives">
+      <summary>Use another sign-in method <span aria-hidden="true">⌄</span></summary>
+      <div class="reauth-alternatives__list">
+        {{ range .Alternatives }}{{ template "reauth_method" (dict "Method" . "Page" $ "Primary" false) }}{{ end }}
+        {{ if .DevLoginEnabled }}
+        <form method="post" action="/login" class="reauth-dev">
+          <input type="hidden" name="Next" value="{{ .Next }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="ReauthStrength" value="{{ if .Strong }}strong{{ else }}recent{{ end }}">
+          <label><span>development email login-skip</span><input type="email" name="Email" value="{{ if .Email }}{{ .Email }}{{ else }}mara.chen@example.test{{ end }}" required></label>
+          <button type="submit" name="Action" value="dev-reauth">Skip login →</button>
+        </form>
+        {{ end }}
+      </div>
+    </details>
+    {{ end }}
+
+    <p class="reauth-dialog__note">We only ask again when your last proof is too old for the action you chose.</p>
+  </dialog>
+  <script src="/static/js/nostr-login.js" defer></script><script src="/static/js/passkey.js" defer></script>
+</body>
+</html>
+{{- end }}

@@ -101,7 +101,7 @@ func PasskeyLoginVerify(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 func PasskeyRegisterChallenge(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	viewer, err := auth.Resolve(r, ctx)
 	if err != nil || !recentAuthentication(viewer) {
-		writePasskeyError(w, http.StatusUnauthorized, "Sign in again before adding a passkey.")
+		writePasskeyReauthError(w, "Sign in again before adding a passkey.", reauthenticationURL("/dashboard/settings?resume=passkey-register", false))
 		return
 	}
 	user, err := auth.LoadPasskeyUser(ctx, viewer.PersonID)
@@ -285,4 +285,11 @@ func writePasskeyError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+func writePasskeyReauthError(w http.ResponseWriter, message, reauthURL string) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message, "reauth_url": reauthURL})
 }

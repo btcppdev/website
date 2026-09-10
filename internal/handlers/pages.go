@@ -1050,6 +1050,7 @@ type PersonEmailsPage struct {
 	AuthMethodsCSRF       string
 	FlashMessage          string
 	FlashError            string
+	RecentAuthentication  bool
 	SignerURL             string
 	Year                  uint
 }

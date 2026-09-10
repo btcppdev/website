@@ -137,6 +137,7 @@ func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.A
 		AuthMethodsCSRF:       csrf,
 		FlashMessage:          r.URL.Query().Get("flash"),
 		FlashError:            r.URL.Query().Get("error"),
+		RecentAuthentication:  recentAuthentication(id),
 		SignerURL:             strings.TrimRight(ctx.Env.SignerURL, "/"),
 		Year:                  helpers.CurrentYear(),
 	}); err != nil {

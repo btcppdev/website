@@ -47,7 +47,7 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("global navigation omitted %q", expected)
 		}
 	}
-	for _, name := range []string{"developers_api.tmpl", "dashboard_hackathons.tmpl", "dashboard_org_discover.tmpl", "dashboard_sponsor.tmpl", "dashboard_sponsor_projects.tmpl", "sponsor_invite.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
+	for _, name := range []string{"reauth.tmpl", "developers_api.tmpl", "dashboard_hackathons.tmpl", "dashboard_org_discover.tmpl", "dashboard_sponsor.tmpl", "dashboard_sponsor_projects.tmpl", "sponsor_invite.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
 		}
@@ -58,6 +58,19 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if _, err := inlineTemplates.Parse(`{{ define "mainnav" }}<nav>test</nav>{{ end }}`); err != nil {
 		t.Fatalf("override inline missive test nav: %v", err)
+	}
+	var reauthPage bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&reauthPage, "reauth.tmpl", &ReauthenticationPage{
+		Next: "/dashboard/settings?resume=passkey-register", CancelURL: "/dashboard/settings", PersonName: "Mara Chen", Email: "mara@example.test", CSRF: "csrf",
+		Preferred: &ReauthenticationMethodView{Key: "passkey", Label: "Use your passkey", Description: "Touch ID"}, PreferredWasLast: true,
+		Alternatives: []*ReauthenticationMethodView{{Key: "nostr", Label: "Sign with Nostr", Description: "NIP-07"}}, DevLoginEnabled: true,
+	}); err != nil {
+		t.Fatalf("render reauthentication prompt: %v", err)
+	}
+	for _, expected := range []string{"Confirm it’s <em>you.</em>", "last used", "Use your passkey", "Use another sign-in method", "development email login-skip", `value="dev-reauth"`} {
+		if !strings.Contains(reauthPage.String(), expected) {
+			t.Fatalf("reauthentication prompt omitted %q: %s", expected, reauthPage.String())
+		}
 	}
 	var apiDocs bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&apiDocs, "developers_api.tmpl", nil); err != nil {

@@ -46,15 +46,19 @@ func TestDashboardIdentityEmailSupportsPersonBackedLogin(t *testing.T) {
 }
 
 func TestLoginRejectsDevLoginInProduction(t *testing.T) {
-	form := url.Values{"Email": {"rafael.silva@example.test"}, "Action": {"dev-login"}}
-	r := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
-	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
+	for _, action := range []string{"dev-login", "dev-reauth"} {
+		t.Run(action, func(t *testing.T) {
+			form := url.Values{"Email": {"rafael.silva@example.test"}, "Action": {action}}
+			r := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
 
-	Login(w, r, &config.AppContext{Env: &types.EnvConfig{Prod: true}, InProduction: true})
+			Login(w, r, &config.AppContext{Env: &types.EnvConfig{Prod: true}, InProduction: true})
 
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("production dev login status = %d, want %d", w.Code, http.StatusNotFound)
+			if w.Code != http.StatusNotFound {
+				t.Fatalf("production %s status = %d, want %d", action, w.Code, http.StatusNotFound)
+			}
+		})
 	}
 }
 

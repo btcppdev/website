@@ -4,7 +4,7 @@
   <title>Account settings · bitcoin++</title>
   {{ block "header" . }} {{ end }}
 </head>
-<body class="btcpp-profile-edit-page account-settings-page">
+<body class="btcpp-profile-edit-page account-settings-page" data-reauth-required="{{ if .RecentAuthentication }}false{{ else }}true{{ end }}">
   {{ block "mainnav" . }} {{ end }}
   {{ template "dashboard_tabs" (dict "Active" "settings" "ShowHackathons" .HasHackathonProjects "ShowSponsors" .ShowSponsors "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
 
@@ -402,6 +402,7 @@
   </main>
 
   {{ block "footer" . }} {{ end }}
+  <script src="/static/js/account-reauth.js" defer></script>
   <script src="/static/js/nostr-login.js" defer></script>
   <script src="/static/js/passkey.js" defer></script>
 </body>

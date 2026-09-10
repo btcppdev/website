@@ -1343,6 +1343,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		Login(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/reauth", func(w http.ResponseWriter, r *http.Request) {
+		Reauthenticate(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
 		OAuthServerMetadata(w, r, app)
 	}).Methods("GET")
@@ -1370,6 +1373,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/signer/authorize", func(w http.ResponseWriter, r *http.Request) {
 		ManagedSignerAuthorizeDecision(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/signer/authorize/resume", func(w http.ResponseWriter, r *http.Request) {
+		ManagedSignerAuthorizeResume(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/login/password", func(w http.ResponseWriter, r *http.Request) {
 		PasswordLogin(w, r, app)
 	}).Methods("POST")

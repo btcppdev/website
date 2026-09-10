@@ -96,6 +96,9 @@ func OAuthStart(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	mode := "login"
 	if auth.RequireOptional(r, ctx) != nil {
 		mode = "link"
+		if r.URL.Query().Get("reauth") == "1" {
+			mode = "reauth"
+		}
 	}
 	next := auth.SafeNext(r.URL.Query().Get("next"), "/dashboard")
 	clearOAuthFlow(ctx, r, provider.Key())

@@ -81,6 +81,14 @@
       }
       const challengeResponse = await fetch(challengeURL, {credentials: 'same-origin', headers: {Accept: 'application/json'}});
       const challenge = await challengeResponse.json();
+      if (!challengeResponse.ok && challenge.reauth_url) {
+        if (mode === 'register') {
+          const nameInput = container.querySelector('[data-passkey-name]');
+          try { sessionStorage.setItem('btcpp:resume-passkey-name', nameInput && nameInput.value ? nameInput.value : 'Passkey'); } catch (_) {}
+        }
+        window.location.assign(challenge.reauth_url);
+        return;
+      }
       if (!challengeResponse.ok) throw new Error(challenge.error || 'Unable to start the passkey request.');
       const credential = mode === 'register'
         ? await navigator.credentials.create({publicKey: creationOptions(challenge.publicKey)})
@@ -108,4 +116,21 @@
   document.querySelectorAll('[data-passkey-register]').forEach((button) => {
     button.addEventListener('click', () => perform(button, 'register'));
   });
+
+  const location = new URL(window.location.href);
+  if (location.searchParams.get('resume') === 'passkey-register') {
+    const button = document.querySelector('[data-passkey-register]');
+    if (button) {
+      const container = button.parentElement.parentElement;
+      const nameInput = container.querySelector('[data-passkey-name]');
+      try {
+        const savedName = sessionStorage.getItem('btcpp:resume-passkey-name');
+        if (savedName && nameInput) nameInput.value = savedName;
+        sessionStorage.removeItem('btcpp:resume-passkey-name');
+      } catch (_) {}
+      location.searchParams.delete('resume');
+      window.history.replaceState({}, '', location.pathname + location.search + location.hash);
+      queueMicrotask(() => perform(button, 'register'));
+    }
+  }
 })();

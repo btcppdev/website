@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +20,8 @@ import (
 	"btcpp-web/internal/signer"
 	"btcpp-web/internal/types"
 )
+
+const managedSignerPendingAuthorizationKey = "managed_signer_pending_authorization"
 
 type ManagedSignerAuthorizationPage struct {
 	PersonName      string
@@ -58,6 +61,13 @@ type managedSignerBatchReview struct {
 	RecipientCount int                           `json:"recipient_count"`
 	BadgeAddress   string                        `json:"badge_address"`
 	Recipients     []ManagedSignerBatchRecipient `json:"recipients"`
+}
+
+type managedSignerPendingAuthorization struct {
+	ID        string              `json:"id"`
+	PersonID  string              `json:"person_id"`
+	Values    map[string][]string `json:"values"`
+	ExpiresAt time.Time           `json:"expires_at"`
 }
 
 var loadManagedSignerBadgeGrant = getters.GetBadgeGrant
@@ -106,11 +116,56 @@ func ManagedSignerAuthorizeDecision(w http.ResponseWriter, r *http.Request, ctx 
 		return
 	}
 	if err := requireSignerAuthentication(identity, page); err != nil {
-		page.Error, page.CSRF, page.Year = err.Error(), r.FormValue("csrf"), helpers.CurrentYear()
-		w.WriteHeader(http.StatusForbidden)
-		_ = ctx.TemplateCache.ExecuteTemplate(w, "managed_signer_authorize.tmpl", page)
+		pendingID, pendingErr := storePendingSignerAuthorization(ctx, r, identity.PersonID)
+		if pendingErr != nil {
+			ctx.Err.Printf("store pending managed signer authorization: %s", pendingErr)
+			page.Error, page.CSRF, page.Year = err.Error(), r.FormValue("csrf"), helpers.CurrentYear()
+			w.WriteHeader(http.StatusForbidden)
+			_ = ctx.TemplateCache.ExecuteTemplate(w, "managed_signer_authorize.tmpl", page)
+			return
+		}
+		resume := "/signer/authorize/resume?id=" + url.QueryEscape(pendingID)
+		http.Redirect(w, r, reauthenticationURL(resume, signerActionRequiresStrongAuthentication(page)), http.StatusSeeOther)
 		return
 	}
+	renderManagedSignerAuthorization(w, r, ctx, identity, page)
+}
+
+// ManagedSignerAuthorizeResume consumes the exact authorization the person
+// already approved before step-up authentication. It is short-lived, bound to
+// the same person and session, and re-runs membership and batch validation.
+func ManagedSignerAuthorizeResume(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	setManagedSignerHeaders(w, ctx)
+	pending, err := takePendingSignerAuthorization(ctx, r, strings.TrimSpace(r.URL.Query().Get("id")))
+	if err != nil {
+		http.Error(w, "That signer authorization expired. Return to the signer and try again.", http.StatusBadRequest)
+		return
+	}
+	identity, memberships, ok := organizationDashboardIdentity(w, r, ctx)
+	if !ok || identity == nil {
+		return
+	}
+	if pending.PersonID != identity.PersonID {
+		http.Error(w, "Sign in with the same bitcoin++ account that approved this request.", http.StatusForbidden)
+		return
+	}
+	resumed := r.Clone(r.Context())
+	resumed.Method = http.MethodPost
+	resumed.Form = url.Values(pending.Values)
+	resumed.PostForm = url.Values(pending.Values)
+	page, err := managedSignerAuthorizationPage(resumed, ctx, identity, memberships)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := requireSignerAuthentication(identity, page); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	renderManagedSignerAuthorization(w, resumed, ctx, identity, page)
+}
+
+func renderManagedSignerAuthorization(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, identity *auth.Identity, page *ManagedSignerAuthorizationPage) {
 	issuer, err := signer.NewIssuer(ctx.Env.SignerAuthPrivateKey)
 	if err != nil {
 		ctx.Err.Printf("managed signer issuer: %s", err)
@@ -138,6 +193,36 @@ func ManagedSignerAuthorizeDecision(w http.ResponseWriter, r *http.Request, ctx 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "managed_signer_continue.tmpl", page); err != nil {
 		http.Error(w, "Unable to continue to managed signer.", http.StatusInternalServerError)
 	}
+}
+
+func storePendingSignerAuthorization(ctx *config.AppContext, r *http.Request, personID string) (string, error) {
+	id, err := randomSignerTokenID()
+	if err != nil {
+		return "", err
+	}
+	values := make(map[string][]string)
+	for _, key := range []string{"return_to", "tenant", "tenant_id", "action", "event_hash", "target", "event_kind", "recipient_count"} {
+		if value := strings.TrimSpace(r.FormValue(key)); value != "" {
+			values[key] = []string{value}
+		}
+	}
+	pending := managedSignerPendingAuthorization{ID: id, PersonID: personID, Values: values, ExpiresAt: time.Now().UTC().Add(5 * time.Minute)}
+	encoded, err := json.Marshal(pending)
+	if err != nil {
+		return "", err
+	}
+	ctx.Session.Put(r.Context(), managedSignerPendingAuthorizationKey, string(encoded))
+	return id, nil
+}
+
+func takePendingSignerAuthorization(ctx *config.AppContext, r *http.Request, id string) (*managedSignerPendingAuthorization, error) {
+	encoded := ctx.Session.GetString(r.Context(), managedSignerPendingAuthorizationKey)
+	ctx.Session.Remove(r.Context(), managedSignerPendingAuthorizationKey)
+	var pending managedSignerPendingAuthorization
+	if encoded == "" || json.Unmarshal([]byte(encoded), &pending) != nil || id == "" || !secureTokenEqual(pending.ID, id) || pending.PersonID == "" || time.Now().UTC().After(pending.ExpiresAt) {
+		return nil, errors.New("pending signer authorization is missing or expired")
+	}
+	return &pending, nil
 }
 
 func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, identity *auth.Identity, memberships []*types.OrganizationMembership) (*ManagedSignerAuthorizationPage, error) {
@@ -312,7 +397,7 @@ func validateManagedSignerRequest(page *ManagedSignerAuthorizationPage) error {
 }
 
 func requireSignerAuthentication(identity *auth.Identity, page *ManagedSignerAuthorizationPage) error {
-	strong := page.Action == "create_identity" || page.Action == "import_identity" || page.Action == "export_identity" || page.Action == "protect_identity" || page.Action == "recover_identity" || page.Action == "create_unlock_enrollment" || page.Action == "accept_unlock_enrollment" || page.Action == "rotate_identity" || page.Action == "revoke_connection" || (page.Action == "sign" && (page.EventKind == 5 || page.RecipientCount > 20))
+	strong := signerActionRequiresStrongAuthentication(page)
 	maxAge := 15 * time.Minute
 	if strong {
 		maxAge = 5 * time.Minute
@@ -327,6 +412,10 @@ func requireSignerAuthentication(identity *auth.Identity, page *ManagedSignerAut
 		return errors.New("This action requires a recent passkey or verified Nostr sign-in.")
 	}
 	return nil
+}
+
+func signerActionRequiresStrongAuthentication(page *ManagedSignerAuthorizationPage) bool {
+	return page != nil && (page.Action == "create_identity" || page.Action == "import_identity" || page.Action == "export_identity" || page.Action == "protect_identity" || page.Action == "recover_identity" || page.Action == "create_unlock_enrollment" || page.Action == "accept_unlock_enrollment" || page.Action == "rotate_identity" || page.Action == "revoke_connection" || (page.Action == "sign" && (page.EventKind == 5 || page.RecipientCount > 20)))
 }
 
 func signerAuthMethod(method auth.Method) string {

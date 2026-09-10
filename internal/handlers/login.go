@@ -50,7 +50,7 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		}
 		next := auth.SafeNext(r.PostForm.Get("Next"), "/dashboard")
 		email := strings.TrimSpace(r.PostForm.Get("Email"))
-		if r.PostForm.Get("Action") == "dev-login" {
+		if r.PostForm.Get("Action") == "dev-login" || r.PostForm.Get("Action") == "dev-reauth" {
 			if !dashboardDevLoginEnabled(ctx) {
 				http.NotFound(w, r)
 				return
@@ -67,6 +67,17 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 				ctx.Err.Printf("/login development login failed: %s", err)
 				http.Redirect(w, r, "/login?next="+url.QueryEscape(next)+"&error="+url.QueryEscape("Unable to sign in as that email."), http.StatusSeeOther)
 				return
+			}
+			// Development's email login-skip must also exercise strong signer
+			// flows without pretending that this escape hatch exists in
+			// production. Mark only this local session proof as passkey-strength;
+			// the route is hard-disabled by dashboardDevLoginEnabled above.
+			if r.PostForm.Get("Action") == "dev-reauth" && r.PostForm.Get("ReauthStrength") == "strong" {
+				identity, resolveErr := auth.Resolve(r, ctx)
+				if resolveErr != nil || identity == nil || identity.PersonID == "" || auth.LoginPerson(ctx, r, identity.PersonID, auth.MethodPasskey) != nil {
+					http.Redirect(w, r, "/reauth?next="+url.QueryEscape(next)+"&strength=strong&error="+url.QueryEscape("Unable to refresh that development session."), http.StatusSeeOther)
+					return
+				}
 			}
 			http.Redirect(w, r, next, http.StatusSeeOther)
 			return
