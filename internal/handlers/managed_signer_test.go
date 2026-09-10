@@ -25,6 +25,8 @@ func TestManagedSignerAuthenticationEscalation(t *testing.T) {
 		{"stale connect", &auth.Identity{Method: auth.MethodEmailLink, AuthenticatedAt: now.Add(-16 * time.Minute)}, &ManagedSignerAuthorizationPage{Action: "connect"}, true},
 		{"import rejects password", &auth.Identity{Method: auth.MethodPassword, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "import_identity"}, true},
 		{"import accepts passkey", &auth.Identity{Method: auth.MethodPasskey, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "import_identity"}, false},
+		{"protection upgrade rejects email", &auth.Identity{Method: auth.MethodEmailLink, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "protect_identity"}, true},
+		{"nsec recovery accepts nostr", &auth.Identity{Method: auth.MethodNostr, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "recover_identity"}, false},
 		{"revocation rejects old passkey", &auth.Identity{Method: auth.MethodPasskey, AuthenticatedAt: now.Add(-6 * time.Minute)}, &ManagedSignerAuthorizationPage{Action: "sign", EventKind: 5}, true},
 		{"large award accepts nostr", &auth.Identity{Method: auth.MethodNostr, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "sign", EventKind: 8, RecipientCount: 21}, false},
 	}
@@ -88,6 +90,8 @@ func TestManagedSignerBindingDistinguishesDashboardAndNIP46Connect(t *testing.T)
 		{"exact NIP-46 connection", ManagedSignerAuthorizationPage{Action: "connect", EventHash: strings.Repeat("a", 64), Target: strings.Repeat("b", 48)}, false},
 		{"partial NIP-46 connection", ManagedSignerAuthorizationPage{Action: "connect", EventHash: strings.Repeat("a", 64)}, true},
 		{"sign without pending target", ManagedSignerAuthorizationPage{Action: "sign", EventHash: strings.Repeat("a", 64)}, true},
+		{"manager enrollment exact target", ManagedSignerAuthorizationPage{Action: "accept_unlock_enrollment", Target: strings.Repeat("c", 48)}, false},
+		{"manager enrollment missing target", ManagedSignerAuthorizationPage{Action: "accept_unlock_enrollment"}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if err := validateManagedSignerBinding(&test.page); (err != nil) != test.wantErr {

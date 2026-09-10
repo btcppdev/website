@@ -146,12 +146,24 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 	}
 	action := strings.TrimSpace(r.FormValue("action"))
 	switch action {
-	case "connect", "create_identity", "import_identity", "export_identity", "rotate_identity", "revoke_connection", "sign":
+	case "connect", "create_identity", "import_identity", "export_identity", "protect_identity", "recover_identity", "create_unlock_enrollment", "accept_unlock_enrollment", "rotate_identity", "revoke_connection", "sign":
 	default:
 		return nil, errors.New("unsupported managed signer action")
 	}
 	tenant, tenantID := strings.TrimSpace(r.FormValue("tenant")), strings.TrimSpace(r.FormValue("tenant_id"))
 	page := &ManagedSignerAuthorizationPage{PersonName: identity.Speaker.Name, Tenant: tenant, TenantID: tenantID, Action: action, ActionLabel: strings.ReplaceAll(action, "_", " "), EventHash: strings.TrimSpace(r.FormValue("event_hash")), Target: strings.TrimSpace(r.FormValue("target")), ReturnTo: ctx.Env.SignerURL + "/api/authorizations/callback"}
+	if action == "protect_identity" {
+		page.ActionLabel = "add a two-factor unlock passphrase"
+	}
+	if action == "recover_identity" {
+		page.ActionLabel = "recover an identity with its original nsec"
+	}
+	if action == "create_unlock_enrollment" {
+		page.ActionLabel = "invite another manager to unlock this signer"
+	}
+	if action == "accept_unlock_enrollment" {
+		page.ActionLabel = "enroll this manager to unlock the organization signer"
+	}
 	page.EventKind, _ = strconv.Atoi(r.FormValue("event_kind"))
 	page.RecipientCount, _ = strconv.Atoi(r.FormValue("recipient_count"))
 	if err := validateManagedSignerBinding(page); err != nil {
@@ -200,6 +212,9 @@ func validateManagedSignerBinding(page *ManagedSignerAuthorizationPage) error {
 	}
 	if page.Action == "revoke_connection" && !isLowerHex(page.Target, 48) {
 		return errors.New("connection revocation requires an exact connection target")
+	}
+	if page.Action == "accept_unlock_enrollment" && !isLowerHex(page.Target, 48) {
+		return errors.New("manager enrollment requires an exact invitation target")
 	}
 	return nil
 }
@@ -261,6 +276,9 @@ func validateManagedSignerRequest(page *ManagedSignerAuthorizationPage) error {
 	if page.Action == "rotate_identity" && page.Tenant != "organization" {
 		return errors.New("personal Nostr identities cannot be transparently rotated")
 	}
+	if (page.Action == "create_unlock_enrollment" || page.Action == "accept_unlock_enrollment") && page.Tenant != "organization" {
+		return errors.New("manager unlock enrollment is only available for organizations")
+	}
 	if page.Action != "sign" {
 		return nil
 	}
@@ -294,7 +312,7 @@ func validateManagedSignerRequest(page *ManagedSignerAuthorizationPage) error {
 }
 
 func requireSignerAuthentication(identity *auth.Identity, page *ManagedSignerAuthorizationPage) error {
-	strong := page.Action == "create_identity" || page.Action == "import_identity" || page.Action == "export_identity" || page.Action == "rotate_identity" || page.Action == "revoke_connection" || (page.Action == "sign" && (page.EventKind == 5 || page.RecipientCount > 20))
+	strong := page.Action == "create_identity" || page.Action == "import_identity" || page.Action == "export_identity" || page.Action == "protect_identity" || page.Action == "recover_identity" || page.Action == "create_unlock_enrollment" || page.Action == "accept_unlock_enrollment" || page.Action == "rotate_identity" || page.Action == "revoke_connection" || (page.Action == "sign" && (page.EventKind == 5 || page.RecipientCount > 20))
 	maxAge := 15 * time.Minute
 	if strong {
 		maxAge = 5 * time.Minute
