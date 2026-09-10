@@ -401,6 +401,20 @@ func SocialPost(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		return
 	}
 
+	// Re-read the event program: an open admin page may have stale statuses.
+	if len(selectedSpeakers)+len(selectedTalks) > 0 {
+		talks, err := getters.LoadTalksFromConfTalks(ctx, conf.Tag)
+		if err != nil {
+			ctx.Err.Printf("/%s/admin/social eligibility: %s", conf.Tag, err)
+			http.Error(w, "Unable to verify speaker eligibility; no posts were queued", http.StatusInternalServerError)
+			return
+		}
+		if err := validateSocialProgramSelection(talks, r.Form); err != nil {
+			http.Redirect(w, r, "/"+conf.Tag+"/admin/social?err="+url.QueryEscape(err.Error()+". No posts were queued; reload and review your selection."), http.StatusSeeOther)
+			return
+		}
+	}
+
 	// Validate all selected attachments before queueing any external posts.
 	media := make(map[string][]SocialMediaItem)
 	for group, ids := range map[string][]string{"speaker": selectedSpeakers, "talk": selectedTalks, "sponsor": selectedSponsorRefs} {
@@ -680,4 +694,34 @@ func socialTicketReplyFromForm(conf *types.Conf, r *http.Request, field string) 
 		return reply
 	}
 	return socialTicketReply(conf)
+}
+
+// talks must come from the current conference, not the submitted form.
+func validateSocialProgramSelection(talks []*types.Talk, form url.Values) error {
+	eligible := make(map[string]*types.Talk)
+	for _, talk := range eligibleSocialTalks(talks) {
+		eligible[talk.ID] = talk
+	}
+	for _, speakerID := range selectedSocialIDs(form, "selected_speaker") {
+		talk := eligible[form.Get("talkid_speaker"+speakerID)]
+		associated := false
+		if talk != nil {
+			for _, speaker := range talk.Speakers {
+				if speaker != nil && speaker.ID == speakerID {
+					associated = true
+					break
+				}
+			}
+		}
+		if !associated {
+			return fmt.Errorf("Speaker %s is not associated with the selected Accepted or Scheduled talk in this event", speakerID)
+		}
+	}
+	for _, talkID := range selectedSocialIDs(form, "selected_talk") {
+		talk := eligible[talkID]
+		if talk == nil || isTBDTitle(talk.Name) {
+			return fmt.Errorf("Talk %s is no longer eligible for a social post", talkID)
+		}
+	}
+	return nil
 }

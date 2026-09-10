@@ -82,3 +82,38 @@ func TestSocialTicketReplyFromForm(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateSocialProgramSelection(t *testing.T) {
+	for _, status := range []string{StatusAccepted, StatusScheduled, "Applied", "Rejected", "Withdrawn", ""} {
+		t.Run(status, func(t *testing.T) {
+			talks := []*types.Talk{{ID: "talk", Name: "Bitcoin", Status: status, Speakers: []*types.Speaker{{ID: "speaker"}}}}
+			for _, form := range []url.Values{
+				{"selected_speaker": {"speaker"}, "talkid_speakerspeaker": {"talk"}},
+				{"selected_talk": {"talk"}},
+			} {
+				err := validateSocialProgramSelection(talks, form)
+				want := status == StatusAccepted || status == StatusScheduled
+				if (err == nil) != want {
+					t.Fatalf("status %q form %v: error %v", status, form, err)
+				}
+			}
+		})
+	}
+	talks := []*types.Talk{{ID: "accepted", Name: "Bitcoin", Status: StatusAccepted, Speakers: []*types.Speaker{nil, {ID: "speaker"}}}, {ID: "placeholder", Name: "TBD", Status: StatusScheduled, Speakers: []*types.Speaker{{ID: "speaker"}}}}
+	for _, form := range []url.Values{
+		{"selected_speaker": {"speaker"}, "talkid_speakerspeaker": {"other-event-talk"}},
+		{"selected_speaker": {"other-speaker"}, "talkid_speakerother-speaker": {"accepted"}},
+		{"selected_speaker": {"speaker"}},
+		{"selected_talk": {"other-event-talk"}},
+		{"selected_talk": {"placeholder"}},
+		{"selected_talk": {"accepted", "rejected"}},
+	} {
+		if err := validateSocialProgramSelection(talks, form); err == nil {
+			t.Fatalf("accepted invalid selection %v", form)
+		}
+	}
+	// An accepted/scheduled speaker can be announced while their title is TBD.
+	if err := validateSocialProgramSelection(talks, url.Values{"selected_speaker": {"speaker"}, "talkid_speakerspeaker": {"placeholder"}}); err != nil {
+		t.Fatal(err)
+	}
+}
