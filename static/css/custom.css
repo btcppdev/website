@@ -132,8 +132,6 @@
 .reauth-inline-form > span small { color: #6f6861; font-size: .76rem; }
 .reauth-dev { border: 1px dashed #f15a29; background: #fff4ea; }
 .reauth-alert { margin: 1rem 0; padding: .8rem; border-left: 4px solid #c7352b; background: #ffeae6; color: #7c1f19; font-size: .84rem; }
-.reauth-dialog__note { margin: 1.3rem 0 0; color: #6f6861; font-size: .75rem; }
-
 @media (max-width: 520px) {
   .reauth-dialog { width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); margin: .5rem auto; padding: 1.35rem 1.1rem 1.5rem; box-shadow: 5px 5px 0 #f15a29; }
   .reauth-method { grid-template-columns: 1.7rem 1fr auto; gap: .55rem; padding: .8rem .65rem; }
