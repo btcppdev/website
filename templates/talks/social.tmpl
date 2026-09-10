@@ -100,7 +100,7 @@
                                     <div class="text-xs text-gray-400">{{ .Level }}</div>
                                 </div></header>
       <div class="social-post-body"><div class="social-post-media"><h3>Media <span>Left to right = posting order</span></h3>
-                                    <div data-social-media data-media-field="sponsor_{{ .Ref }}">
+                                    <div data-social-media data-media-field="sponsor_{{ .Ref }}" data-sponsor-name="{{ .OrgName }}">
                                         <ol data-media-list aria-label="Post media in order" class="flex items-start gap-3 overflow-x-auto max-w-sm">{{ if .CardURL }}<li data-media-item data-source="card" class="mb-3 shrink-0 rounded border border-gray-200 p-2"><strong class="block text-xs" data-media-label>Social card</strong><img src="{{ .CardURL | safeURL }}" alt="Social card" loading="lazy" class="w-32 rounded"></li>{{ end }}</ol>
                                         <input type="hidden" name="media_items_sponsor_{{ .Ref }}" data-media-items>
                                         <p data-media-validation role="status" class="text-xs text-red-700"></p>
@@ -117,7 +117,9 @@
     </article>
     {{ else }}<p class="social-empty">No sponsors found.</p>{{ end }}
 </section>
-      {{ if .SponsorBatchText }}<section class="social-batch"><h2>Instagram sponsor carousel</h2><p>Image sponsors are combined in sponsor order, using the media order from each row. Video sponsors are posted individually.</p><label for="social-batch-copy">Carousel post text</label><textarea id="social-batch-copy" name="text_sponsor_batch" rows="4">{{ .SponsorBatchText }}</textarea></section>{{ end }}
+      {{ if .SponsorBatchText }}<section class="social-batch"><h2>Instagram sponsor carousel</h2><p>Image sponsors are combined in sponsor order, using the media order from each row. Video sponsors are posted individually.</p><p data-carousel-summary role="status">Select sponsors above to preview their carousel images.</p>
+      <ol class="social-carousel-preview" data-carousel-preview aria-label="Instagram carousel images in posting order"></ol>
+      <label for="social-batch-copy">Carousel post text</label><textarea id="social-batch-copy" name="text_sponsor_batch" rows="4">{{ .SponsorBatchText }}</textarea></section>{{ end }}
       <footer class="social-submit-bar"><p>Select the posts you want to queue.<br><span>MP4, MOV, JPEG or PNG · Up to 300 MB per file.</span></p><button type="submit" data-social-submit>Queue selected posts to Buffer →</button></footer>
     </form>{{ end }}
   </main>

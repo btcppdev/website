@@ -3,10 +3,45 @@
     if (!form) return;
     const submit = form.querySelector('[data-social-submit]');
     const editors = [];
+    const carousel = form.querySelector('[data-carousel-preview]');
+    const carouselSummary = form.querySelector('[data-carousel-summary]');
+    function renderCarousel() {
+        if (!carousel) return;
+        const slides = [];
+        let videoPosts = 0;
+        // Editors follow the server's sponsor-level/name ordering in the page.
+        editors.filter(editor => editor.sponsor && editor.selected() && editor.copy.value !== '').forEach(editor => {
+            const nodes = editor.items();
+            if (nodes.some(node => node.dataset.kind === 'video')) { videoPosts++; return; }
+            nodes.forEach(node => {
+                const source = node.querySelector('img');
+                if (!source) return;
+                const slide = document.createElement('li');
+                const link = document.createElement('a');
+                link.href = source.src;
+                link.target = '_blank';
+                link.rel = 'noopener';
+                const image = document.createElement('img');
+                image.src = source.src;
+                image.alt = editor.name + ' — carousel image ' + (slides.length + 1);
+                image.loading = 'lazy';
+                link.append(image);
+                const caption = document.createElement('p');
+                caption.textContent = (slides.length + 1) + '. ' + editor.name;
+                slide.append(link, caption);
+                slides.push(slide);
+            });
+        });
+        carousel.replaceChildren(...slides);
+        carouselSummary.textContent = slides.length ? slides.length + ' image(s), shown in posting order. Edit media in the sponsor rows above; click an image to view it full size.' : 'Select sponsors with images above to preview the carousel.';
+        if (videoPosts) carouselSummary.textContent += ' ' + videoPosts + ' video sponsor(s) will be posted separately.';
+        if (slides.length && !form.querySelector('[name="text_sponsor_batch"]').value) carouselSummary.textContent += ' Add carousel post text to queue these images.';
+    }
     let pending = 0;
     let submitting = false;
     const updateSubmit = () => {
         submit.disabled = submitting || pending > 0 || editors.some(editor => editor.selected() && !editor.valid());
+        renderCarousel();
     };
 
     form.querySelectorAll('[data-social-media]').forEach(container => {
@@ -57,7 +92,10 @@
             node.append(actions);
         }
         items().forEach(controls);
-        editors.push({ selected: () => selection.checked, valid: () => valid });
+        editors.push({ selected: () => selection.checked, valid: () => valid, items,
+            sponsor: selection.dataset.selectionGroup === 'sponsor',
+            name: container.dataset.sponsorName,
+            copy: container.closest('[data-social-row]').querySelector('textarea') });
         selection.addEventListener('change', updateSubmit);
         sync();
         fileInput.addEventListener('change', async () => {
@@ -112,6 +150,7 @@
     });
     // Select All changes checkbox properties without emitting their change events.
     form.addEventListener('click', updateSubmit);
+    form.addEventListener('input', renderCarousel);
     form.addEventListener('submit', event => {
         updateSubmit();
         if (submit.disabled || !window.confirm('Queue selected posts to Buffer?')) event.preventDefault();
