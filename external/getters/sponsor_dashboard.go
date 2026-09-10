@@ -604,9 +604,12 @@ func ListOrganizationMembers(ctx *config.AppContext, organizationID string) ([]*
 			LIMIT 1
 		) primary_email ON true
 		LEFT JOIN LATERAL (
-			SELECT pubkey_hex FROM person_nostr_credentials
-			WHERE person_id = people.id AND verified_at IS NOT NULL
-			ORDER BY verified_at DESC, created_at DESC LIMIT 1
+			SELECT person_nostr_credentials.pubkey_hex FROM person_nostr_credentials
+			WHERE person_nostr_credentials.person_id = people.id
+				AND person_nostr_credentials.verified_at IS NOT NULL
+			ORDER BY person_nostr_credentials.verified_at DESC,
+				person_nostr_credentials.linked_at DESC
+			LIMIT 1
 		) nostr ON true
 		WHERE memberships.organization_id = $1::uuid
 			AND memberships.status <> 'removed'

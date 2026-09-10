@@ -659,3 +659,29 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 		t.Fatal("direct add left the person's pending invitation usable")
 	}
 }
+
+func TestListOrganizationMembersIncludesVerifiedNostrCredential(t *testing.T) {
+	ctx := postgresSmokeContext(t)
+	personID := insertSmokePerson(t, ctx, "organization-roster")
+	organizationID := insertSmokeOrg(t, ctx, "organization-roster")
+	pubkey := strings.Repeat("a", 64)
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO organization_memberships (organization_id, person_id, role, status)
+		VALUES ($1::uuid, $2::uuid, 'owner', 'active')
+	`, organizationID, personID); err != nil {
+		t.Fatalf("seed organization roster membership: %v", err)
+	}
+	if _, err := ctx.DB.Exec(context.Background(), `
+		INSERT INTO person_nostr_credentials (person_id, pubkey_hex, verified_at)
+		VALUES ($1::uuid, $2, now())
+	`, personID, pubkey); err != nil {
+		t.Fatalf("seed organization roster Nostr credential: %v", err)
+	}
+	members, err := ListOrganizationMembers(ctx, organizationID)
+	if err != nil {
+		t.Fatalf("ListOrganizationMembers: %v", err)
+	}
+	if len(members) != 1 || members[0].PersonID != personID || members[0].Role != OrganizationRoleOwner || members[0].PersonNostr != pubkey {
+		t.Fatalf("organization roster mismatch: %+v", members)
+	}
+}
