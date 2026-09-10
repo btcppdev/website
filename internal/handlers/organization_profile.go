@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 
 	"btcpp-web/external/getters"
@@ -23,14 +24,23 @@ type OrganizationProfilePage struct {
 }
 
 func RenderOrganizationProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
-	if organizationID == "" {
+	organizationReference := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	if organizationReference == "" {
 		handle404(w, r, ctx)
 		return
 	}
-	organization, err := getters.GetOrg(ctx, organizationID)
+	organization, err := getters.GetOrg(ctx, organizationReference)
 	if err != nil || organization.HiddenFromDirectory {
 		handle404(w, r, ctx)
+		return
+	}
+	organizationID := organization.Ref
+	if organizationReference != organizationPathRef(organization) {
+		canonicalPath := "/organizations/" + url.PathEscape(organizationPathRef(organization))
+		if r.URL.RawQuery != "" {
+			canonicalPath += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, canonicalPath, http.StatusPermanentRedirect)
 		return
 	}
 

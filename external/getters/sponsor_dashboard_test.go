@@ -664,6 +664,14 @@ func TestListOrganizationMembersIncludesVerifiedNostrCredential(t *testing.T) {
 	ctx := postgresSmokeContext(t)
 	personID := insertSmokePerson(t, ctx, "organization-roster")
 	organizationID := insertSmokeOrg(t, ctx, "organization-roster")
+	organization, err := GetOrg(ctx, organizationID)
+	if err != nil || organization.Slug == "" {
+		t.Fatalf("organization slug: organization=%+v err=%v", organization, err)
+	}
+	organizationBySlug, err := GetOrg(ctx, organization.Slug)
+	if err != nil || organizationBySlug.Ref != organizationID {
+		t.Fatalf("organization lookup by slug: organization=%+v err=%v", organizationBySlug, err)
+	}
 	pubkey := strings.Repeat("a", 64)
 	if _, err := ctx.DB.Exec(context.Background(), `
 		INSERT INTO organization_memberships (organization_id, person_id, role, status)

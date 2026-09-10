@@ -40,3 +40,19 @@ func TestOrganizationDashboardMemberRemovalEligibility(t *testing.T) {
 		t.Fatal("ordinary member removal permissions are incorrect")
 	}
 }
+
+func TestOrganizationDashboardReferencesPreferPublicSlug(t *testing.T) {
+	membership := &types.OrganizationMembership{
+		OrganizationID: "00000000-0000-4000-8000-000000000501",
+		Organization:   &types.Org{Ref: "00000000-0000-4000-8000-000000000501", Slug: "signet-systems", Name: "Signet Systems"},
+	}
+	memberships := []*types.OrganizationMembership{membership}
+	for _, reference := range []string{"signet-systems", "SIGNET-SYSTEMS", membership.OrganizationID} {
+		if got := organizationMembershipByReference(memberships, reference); got != membership {
+			t.Fatalf("reference %q resolved to %#v", reference, got)
+		}
+	}
+	if got := organizationDashboardPath(membership); got != "/dashboard/orgs/signet-systems" {
+		t.Fatalf("dashboard path = %q", got)
+	}
+}

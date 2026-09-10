@@ -64,7 +64,7 @@ func ListOrganizationDirectoryForPersonFiltered(ctx *config.AppContext, personID
 		return nil, fmt.Errorf("organization directory limit cannot be negative")
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
-		SELECT organizations.id::text, organizations.name, organizations.tagline,
+		SELECT organizations.id::text, organizations.public_slug, organizations.name, organizations.tagline,
 			organizations.logo_light_url, organizations.logo_dark_url,
 			organizations.website_url, organizations.github_url,
 			organizations.membership_policy,
@@ -96,7 +96,7 @@ func ListOrganizationDirectoryForPersonFiltered(ctx *config.AppContext, personID
 	for rows.Next() {
 		entry := &types.OrganizationDirectoryEntry{Organization: &types.Org{}}
 		if err := rows.Scan(
-			&entry.Organization.Ref, &entry.Organization.Name, &entry.Organization.Tagline,
+			&entry.Organization.Ref, &entry.Organization.Slug, &entry.Organization.Name, &entry.Organization.Tagline,
 			&entry.Organization.LogoLight, &entry.Organization.LogoDark,
 			&entry.Organization.Website, &entry.Organization.Github,
 			&entry.Organization.MembershipPolicy, &entry.MembershipRole,

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   {{ template "rebrand_header" . }}
-  {{ template "site_seo" (dict "Title" (printf "%s @ bitcoin++" .Organization.Name) "Description" .Organization.Tagline "Path" (printf "/organizations/%s" .Organization.Ref) "Image" "/static/img/rebrand/breakthroughs.jpg" "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630 "Type" "profile") }}
+  {{ template "site_seo" (dict "Title" (printf "%s @ bitcoin++" .Organization.Name) "Description" .Organization.Tagline "Path" (printf "/organizations/%s" (orgPathRef .Organization)) "Image" "/static/img/rebrand/breakthroughs.jpg" "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630 "Type" "profile") }}
   <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
   <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
 </head>

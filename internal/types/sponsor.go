@@ -8,6 +8,7 @@ import (
 type (
 	Org struct {
 		Ref                 string
+		Slug                string
 		Name                string
 		Tagline             string
 		LogoLight           string // URL to light mode logo on Spaces

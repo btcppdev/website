@@ -853,15 +853,15 @@ func TestLoadTemplates(t *testing.T) {
 	if err := ctx.TemplateCache.ExecuteTemplate(&organizationsDashboard, "dashboard_orgs.tmpl", &OrganizationDashboardIndexPage{
 		Memberships: []*types.OrganizationMembership{{
 			OrganizationID: "org-id", Role: getters.OrganizationRoleManager,
-			Organization: &types.Org{Name: "Signet Systems", Tagline: "Test networks"},
+			Organization: &types.Org{Ref: "org-id", Slug: "signet-systems", Name: "Signet Systems", Tagline: "Test networks"},
 		}},
 		PendingInvites: []*types.OrganizationMemberInvite{{
 			ID: "pending-invite-id", OrganizationName: "NDK Project", Email: "ada@example.test",
 			Role: getters.OrganizationRoleMember, ExpiresAt: time.Date(2026, time.September, 8, 12, 0, 0, 0, time.UTC),
 		}},
 		Directory: []*types.OrganizationDirectoryEntry{
-			{Organization: &types.Org{Ref: "open-org", Name: "Open Builders", Tagline: "Anyone can join", MembershipPolicy: getters.OrganizationMembershipPolicyOpen}},
-			{Organization: &types.Org{Ref: "request-org", Name: "Review Group", MembershipPolicy: getters.OrganizationMembershipPolicyRequest}, RequestStatus: "pending"},
+			{Organization: &types.Org{Ref: "open-org", Slug: "open-builders", Name: "Open Builders", Tagline: "Anyone can join", MembershipPolicy: getters.OrganizationMembershipPolicyOpen}},
+			{Organization: &types.Org{Ref: "request-org", Slug: "review-group", Name: "Review Group", MembershipPolicy: getters.OrganizationMembershipPolicyRequest}, RequestStatus: "pending"},
 		},
 		Applications:   []*types.OrganizationApplication{{ID: "application-id", Name: "Nairobi BitDevs", Status: "pending"}},
 		Badges:         &WhoIsBadgeProfile{Issued: []WhoIsIssuedBadge{{Definition: WhoIsBadgeDefinition{Name: "Mentor", Description: "Shared knowledge", ImageURL: "https://cdn.example/mentor.png"}, CredentialURL: "https://badges.example/credentials/award/recipient", ClaimURL: "https://badges.example/api/auth/btcpp/continue?return_to=%2Fclaim%2Faward"}}},
@@ -870,7 +870,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render organizations dashboard: %v", err)
 	}
-	for _, want := range []string{`class="dashboard-tab__badge"`, `>1</span>`, `href="/dashboard/hackathons"`, "Your organizations.", "Pending invitations.", "NDK Project", "Invited as member via ada@example.test", `action="/dashboard/orgs/invites/pending-invite-id/accept"`, `name="csrf" value="org-index-csrf"`, "Badge inbox", "Mentor", "Shared knowledge", "Accept on Nostr", "Host", "Add or verify your Nostr key", "Signet Systems", "Test networks", "§ manager", `href="/dashboard/orgs/org-id"`, "Manage organization", "Discover organizations.", "Open Builders", `action="/dashboard/orgs/open-org/membership-requests"`, "Join now", "Request awaiting review", `method="GET" action="/dashboard/orgs/discover" role="search"`, `class="organization-directory-search-row"`, `class="organization-directory-search-button" type="submit"`, `href="/dashboard/orgs/discover">View all organizations`, "Propose an organization.", `action="/dashboard/orgs/applications"`, `enctype="multipart/form-data"`, `name="LogoLightFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" required`, `name="LogoDarkFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" required`, "Both variants are required.", "Nairobi BitDevs"} {
+	for _, want := range []string{`class="dashboard-tab__badge"`, `>1</span>`, `href="/dashboard/hackathons"`, "Your organizations.", "Pending invitations.", "NDK Project", "Invited as member via ada@example.test", `action="/dashboard/orgs/invites/pending-invite-id/accept"`, `name="csrf" value="org-index-csrf"`, "Badge inbox", "Mentor", "Shared knowledge", "Accept on Nostr", "Host", "Add or verify your Nostr key", "Signet Systems", "Test networks", "§ manager", `href="/dashboard/orgs/signet-systems"`, "Manage organization", "Discover organizations.", "Open Builders", `action="/dashboard/orgs/open-builders/membership-requests"`, "Join now", "Request awaiting review", `method="GET" action="/dashboard/orgs/discover" role="search"`, `class="organization-directory-search-row"`, `class="organization-directory-search-button" type="submit"`, `href="/dashboard/orgs/discover">View all organizations`, "Propose an organization.", `action="/dashboard/orgs/applications"`, `enctype="multipart/form-data"`, `name="LogoLightFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" required`, `name="LogoDarkFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" required`, "Both variants are required.", "Nairobi BitDevs"} {
 		if !strings.Contains(organizationsDashboard.String(), want) {
 			t.Fatalf("organizations dashboard omitted %q: %s", want, organizationsDashboard.String())
 		}
@@ -885,13 +885,13 @@ func TestLoadTemplates(t *testing.T) {
 	var organizationDirectory bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&organizationDirectory, "dashboard_org_discover.tmpl", &OrganizationDirectoryPage{
 		Directory: []*types.OrganizationDirectoryEntry{{
-			Organization: &types.Org{Ref: "open-org", Name: "Open Builders", Tagline: "Anyone can join", MembershipPolicy: getters.OrganizationMembershipPolicyOpen},
+			Organization: &types.Org{Ref: "open-org", Slug: "open-builders", Name: "Open Builders", Tagline: "Anyone can join", MembershipPolicy: getters.OrganizationMembershipPolicyOpen},
 		}},
 		Search: "Open", PendingOrgInviteCount: 1, HasHackathonProjects: true, ShowSponsors: true, IsGlobalAdmin: true, CSRF: "directory-csrf",
 	}); err != nil {
 		t.Fatalf("render organization directory: %v", err)
 	}
-	for _, want := range []string{`href="/dashboard/orgs">← Back to your organizations</a>`, `action="/dashboard/orgs/discover"`, `name="q" type="search" value="Open"`, `class="organization-directory-search-row"`, `class="organization-directory-search-button" type="submit"`, `href="/dashboard/orgs/discover">Clear search</a>`, "Showing 1 result", "Open Builders", `action="/dashboard/orgs/open-org/membership-requests"`, `name="csrf" value="directory-csrf"`} {
+	for _, want := range []string{`href="/dashboard/orgs">← Back to your organizations</a>`, `action="/dashboard/orgs/discover"`, `name="q" type="search" value="Open"`, `class="organization-directory-search-row"`, `class="organization-directory-search-button" type="submit"`, `href="/dashboard/orgs/discover">Clear search</a>`, "Showing 1 result", "Open Builders", `action="/dashboard/orgs/open-builders/membership-requests"`, `name="csrf" value="directory-csrf"`} {
 		if !strings.Contains(organizationDirectory.String(), want) {
 			t.Fatalf("organization directory omitted %q: %s", want, organizationDirectory.String())
 		}
@@ -899,7 +899,7 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(organizationDirectory.String(), "autofocus") {
 		t.Fatalf("organization directory search unexpectedly autofocuses on mobile: %s", organizationDirectory.String())
 	}
-	for _, want := range []string{`href="/organizations/open-org"`, "View public profile"} {
+	for _, want := range []string{`href="/organizations/open-builders"`, "View public profile"} {
 		if !strings.Contains(organizationDirectory.String(), want) {
 			t.Fatalf("organization directory omitted public profile affordance %q: %s", want, organizationDirectory.String())
 		}
@@ -907,7 +907,7 @@ func TestLoadTemplates(t *testing.T) {
 
 	var organizationProfile bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&organizationProfile, "organization_profile.tmpl", &OrganizationProfilePage{
-		Organization: &types.Org{Ref: "org-id", Name: "Signet Systems", Tagline: "Test networks", LogoLight: "/logo-light.svg", Website: "https://signet.example", Nostr: "npub1example"},
+		Organization: &types.Org{Ref: "org-id", Slug: "signet-systems", Name: "Signet Systems", Tagline: "Test networks", LogoLight: "/logo-light.svg", Website: "https://signet.example", Nostr: "npub1example"},
 		BadgeCatalog: &OrganizationBadgeCatalog{IssuerPubkey: strings.Repeat("a", 64), CatalogURL: "https://badges.btcpp.dev/organizations/issuer", Badges: []WhoIsBadgeDefinition{{Name: "Relay Operator", Description: "Keeps packets moving.", ImageURL: "https://cdn.example/badge.png"}}},
 	}); err != nil {
 		t.Fatalf("render public organization profile: %v", err)
@@ -930,9 +930,9 @@ func TestLoadTemplates(t *testing.T) {
 	var organizationDashboard bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&organizationDashboard, "dashboard_org.tmpl", &OrganizationDashboardPage{
 		Membership:   &types.OrganizationMembership{OrganizationID: "org-id", PersonID: "owner-id", Role: getters.OrganizationRoleOwner},
-		Organization: &types.Org{Ref: "org-id", Name: "Signet Systems", Tagline: "Test networks", LogoLight: "/logo-light.svg", LogoDark: "/logo-dark.svg", Github: "https://github.com/example", MembershipPolicy: getters.OrganizationMembershipPolicyRequest},
+		Organization: &types.Org{Ref: "org-id", Slug: "signet-systems", Name: "Signet Systems", Tagline: "Test networks", LogoLight: "/logo-light.svg", LogoDark: "/logo-dark.svg", Github: "https://github.com/example", MembershipPolicy: getters.OrganizationMembershipPolicyRequest},
 		Memberships: []*types.OrganizationMembership{{
-			OrganizationID: "org-id", Organization: &types.Org{Name: "Signet Systems"},
+			OrganizationID: "org-id", Organization: &types.Org{Ref: "org-id", Slug: "signet-systems", Name: "Signet Systems"},
 		}},
 		Members: []*types.OrganizationMembership{
 			{PersonID: "owner-id", Role: getters.OrganizationRoleOwner, Status: "active", PersonName: "Mara", PersonEmail: "mara@example.test"},
@@ -952,7 +952,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render organization dashboard: %v", err)
 	}
-	for _, want := range []string{`href="/dashboard/hackathons"`, "Organization workspace · owner", "How Signet Systems appears.", `href="/organizations/org-id"`, "Your organization team.", "Mara", "Eli", "Badge catalog", "Mentor", "Open Badge Studio with bitcoin++", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id"`, "Issue in Studio with bitcoin++", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id%26grant%3Dgrant-id"`, "Add a teammate.", "Find a bitcoin++ person.", "Invite someone new.", "Search name, email, or phone", "Send invitation →", `src="/static/js/person-picker.js"`, `data-person-picker-search-url="/dashboard/orgs/org-id/people/search"`, `action="/dashboard/orgs/org-id/members"`, "Pending invitations", "pending@example.test", `action="/dashboard/orgs/org-id/profile"`, `action="/dashboard/orgs/org-id/invites"`, `action="/dashboard/orgs/org-id/invites/invite-id/replace"`, `action="/dashboard/orgs/org-id/invites/invite-id/revoke"`, `action="/dashboard/orgs/org-id/members/member-id/role"`, `action="/dashboard/orgs/org-id/members/member-id/remove"`, `href="/dashboard/sponsor/org-id"`, `name="csrf" value="org-csrf"`, "http://localhost:8888/sponsor-invites/new-token", "shown here once", "Who can join?", `action="/dashboard/orgs/org-id/membership-policy"`, "Managers approve each request", "Membership requests.", "Rae", "I contribute", `action="/dashboard/orgs/org-id/membership-requests/request-id"`, `class="organization-review-action is-primary"`, `class="organization-review-action is-secondary"`} {
+	for _, want := range []string{`href="/dashboard/hackathons"`, "Organization workspace · owner", "How Signet Systems appears.", `href="/organizations/signet-systems"`, "Your organization team.", "Mara", "Eli", "Badge catalog", "Mentor", "Open Badge Studio with bitcoin++", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id"`, "Issue in Studio with bitcoin++", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id%26grant%3Dgrant-id"`, "Add a teammate.", "Find a bitcoin++ person.", "Invite someone new.", "Search name, email, or phone", "Send invitation →", `src="/static/js/person-picker.js"`, `data-person-picker-search-url="/dashboard/orgs/signet-systems/people/search"`, `action="/dashboard/orgs/signet-systems/members"`, "Pending invitations", "pending@example.test", `action="/dashboard/orgs/signet-systems/profile"`, `action="/dashboard/orgs/signet-systems/invites"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/replace"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/revoke"`, `action="/dashboard/orgs/signet-systems/members/member-id/role"`, `action="/dashboard/orgs/signet-systems/members/member-id/remove"`, `href="/dashboard/sponsor/org-id"`, `name="csrf" value="org-csrf"`, "http://localhost:8888/sponsor-invites/new-token", "shown here once", "Who can join?", `action="/dashboard/orgs/signet-systems/membership-policy"`, "Managers approve each request", "Membership requests.", "Rae", "I contribute", `action="/dashboard/orgs/signet-systems/membership-requests/request-id"`, `class="organization-review-action is-primary"`, `class="organization-review-action is-secondary"`} {
 		if !strings.Contains(organizationDashboard.String(), want) {
 			t.Fatalf("organization dashboard omitted %q: %s", want, organizationDashboard.String())
 		}

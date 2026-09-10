@@ -246,10 +246,19 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 	if !ok {
 		return
 	}
-	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
-	membership := organizationMembershipByID(memberships, organizationID)
+	organizationReference := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	membership := organizationMembershipByReference(memberships, organizationReference)
 	if membership == nil {
 		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("You are not a member of that organization."), http.StatusSeeOther)
+		return
+	}
+	organizationID := membership.OrganizationID
+	canonicalPath := organizationDashboardPath(membership)
+	if organizationReference != organizationPathRef(membership.Organization) {
+		if r.URL.RawQuery != "" {
+			canonicalPath += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, canonicalPath, http.StatusPermanentRedirect)
 		return
 	}
 	members, err := getters.ListOrganizationMembers(ctx, organizationID)
@@ -550,18 +559,13 @@ func OrganizationDashboardMemberAdd(w http.ResponseWriter, r *http.Request, ctx 
 }
 
 func OrganizationDashboardPersonSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id := auth.RequireOptional(r, ctx)
-	if id == nil || strings.TrimSpace(id.PersonID) == "" {
+	id, memberships, ok := organizationDashboardIdentity(w, r, ctx)
+	if !ok || id == nil || strings.TrimSpace(id.PersonID) == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
-	membership, err := getters.GetOrganizationMembership(ctx, id.PersonID, organizationID)
-	if err != nil {
-		ctx.Err.Printf("/dashboard/orgs/%s people search authorization: %s", organizationID, err)
-		http.Error(w, "search failed", http.StatusInternalServerError)
-		return
-	}
+	organizationReference := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	membership := organizationMembershipByReference(memberships, organizationReference)
 	if membership == nil || !sponsorMembershipCanManage(membership) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
@@ -638,13 +642,15 @@ func OrganizationDashboardMemberRemove(w http.ResponseWriter, r *http.Request, c
 	if !ok {
 		return
 	}
-	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	organizationReference := strings.TrimSpace(mux.Vars(r)["organizationID"])
 	targetPersonID := strings.TrimSpace(mux.Vars(r)["personID"])
-	destination := "/dashboard/orgs/" + url.PathEscape(organizationID)
-	if organizationMembershipByID(memberships, organizationID) == nil {
+	membership := organizationMembershipByReference(memberships, organizationReference)
+	if membership == nil {
 		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("You are not a member of that organization."), http.StatusSeeOther)
 		return
 	}
+	organizationID := membership.OrganizationID
+	destination := organizationDashboardPath(membership)
 	if !parseOrganizationDashboardForm(w, r, ctx) {
 		return
 	}
@@ -688,14 +694,60 @@ func organizationManagerMutation(w http.ResponseWriter, r *http.Request, ctx *co
 	if !ok {
 		return nil, nil, "", "", false
 	}
-	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
-	destination := "/dashboard/orgs/" + url.PathEscape(organizationID)
-	membership := organizationMembershipByID(memberships, organizationID)
+	organizationReference := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	destination := "/dashboard/orgs/" + url.PathEscape(organizationReference)
+	membership := organizationMembershipByReference(memberships, organizationReference)
 	if membership == nil || !sponsorMembershipCanManage(membership) {
 		http.Redirect(w, r, destination+"?error="+url.QueryEscape("Only organization owners and managers can make that change."), http.StatusSeeOther)
-		return nil, nil, organizationID, destination, false
+		return nil, nil, organizationReference, destination, false
 	}
+	organizationID := membership.OrganizationID
+	destination = organizationDashboardPath(membership)
 	return id, membership, organizationID, destination, true
+}
+
+func organizationMembershipByReference(memberships []*types.OrganizationMembership, reference string) *types.OrganizationMembership {
+	reference = strings.ToLower(strings.TrimSpace(reference))
+	for _, membership := range memberships {
+		if membership == nil {
+			continue
+		}
+		if strings.ToLower(membership.OrganizationID) == reference || (membership.Organization != nil && strings.ToLower(membership.Organization.Slug) == reference) {
+			return membership
+		}
+	}
+	return nil
+}
+
+func organizationPathRef(organization *types.Org) string {
+	if organization == nil {
+		return ""
+	}
+	if slug := strings.TrimSpace(organization.Slug); slug != "" {
+		return slug
+	}
+	return strings.TrimSpace(organization.Ref)
+}
+
+func organizationDashboardPath(membership *types.OrganizationMembership) string {
+	if membership == nil {
+		return "/dashboard/orgs"
+	}
+	reference := organizationPathRef(membership.Organization)
+	if reference == "" {
+		reference = membership.OrganizationID
+	}
+	return "/dashboard/orgs/" + url.PathEscape(reference)
+}
+
+func organizationMembershipPathRef(membership *types.OrganizationMembership) string {
+	if membership == nil {
+		return ""
+	}
+	if reference := organizationPathRef(membership.Organization); reference != "" {
+		return reference
+	}
+	return strings.TrimSpace(membership.OrganizationID)
 }
 
 func parseOrganizationDashboardForm(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) bool {

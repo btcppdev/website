@@ -85,7 +85,7 @@
             <div class="dashboard-kicker">§ {{ .Role }}</div>
             <h2>{{ .Organization.Name }}</h2>
             <p>{{ if .Organization.Tagline }}{{ .Organization.Tagline }}{{ else }}No public description has been added yet.{{ end }}</p>
-            <a href="/dashboard/orgs/{{ .OrganizationID }}">{{ if or (eq .Role "owner") (eq .Role "manager") }}Manage organization{{ else }}View membership{{ end }} →</a>
+            <a href="/dashboard/orgs/{{ orgMembershipPathRef . }}">{{ if or (eq .Role "owner") (eq .Role "manager") }}Manage organization{{ else }}View membership{{ end }} →</a>
           </div>
         </article>
         {{ end }}

@@ -30,7 +30,13 @@ func OrganizationMembershipRequestCreate(w http.ResponseWriter, r *http.Request,
 	if !parseOrganizationDashboardForm(w, r, ctx) {
 		return
 	}
-	organizationID := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	organizationReference := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	organization, err := getters.GetOrg(ctx, organizationReference)
+	if err != nil {
+		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("That organization was not found."), http.StatusSeeOther)
+		return
+	}
+	organizationID := organization.Ref
 	request, autoApproved, err := getters.CreateOrganizationMembershipRequest(ctx, organizationID, id.PersonID, r.FormValue("message"))
 	if err != nil {
 		message := err.Error()
@@ -55,7 +61,7 @@ func OrganizationMembershipRequestCreate(w http.ResponseWriter, r *http.Request,
 	if managerErr != nil {
 		ctx.Err.Printf("/dashboard/orgs membership request %s managers: %s", request.ID, managerErr)
 	} else {
-		reviewURL := ctx.Env.GetURI() + "/dashboard/orgs/" + url.PathEscape(organizationID) + "#requests"
+		reviewURL := ctx.Env.GetURI() + "/dashboard/orgs/" + url.PathEscape(organizationPathRef(organization)) + "#requests"
 		for _, manager := range managers {
 			if sendErr := emails.SendOrganizationMembershipRequestManagerNotice(ctx, request, manager, reviewURL, autoApproved); sendErr != nil {
 				ctx.Err.Printf("/dashboard/orgs membership request %s notify manager %s: %s", request.ID, manager.Email, sendErr)

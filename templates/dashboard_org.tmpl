@@ -32,7 +32,7 @@
         {{ if gt (len .Memberships) 1 }}
         <nav class="sponsor-dashboard-org-switcher" aria-label="Your organizations">
           {{ range .Memberships }}
-          <a href="/dashboard/orgs/{{ .OrganizationID }}"{{ if eq .OrganizationID $.Organization.Ref }} class="is-active" aria-current="page"{{ end }}>{{ .Organization.Name }}</a>
+          <a href="/dashboard/orgs/{{ orgMembershipPathRef . }}"{{ if eq .OrganizationID $.Organization.Ref }} class="is-active" aria-current="page"{{ end }}>{{ .Organization.Name }}</a>
           {{ end }}
         </nav>
         {{ end }}
@@ -57,10 +57,10 @@
           <p>A grant records the organization’s intent here first. If the person has a verified Nostr key it becomes ready to issue; otherwise Bitcoin++ asks them to add one.</p>
         </div>
         {{ if and .BadgeCatalog .BadgeCatalog.Badges }}
-        <form method="POST" action="/dashboard/orgs/{{ .Organization.Ref }}/badge-grants" class="organization-badge-grant-form">
+        <form method="POST" action="/dashboard/orgs/{{ orgPathRef .Organization }}/badge-grants" class="organization-badge-grant-form">
           <input type="hidden" name="csrf" value="{{ .CSRF }}">
           <label><span>Published badge</span><select name="badge_identifier" required><option value="">Choose a badge</option>{{ range .BadgeCatalog.Badges }}<option value="{{ .Identifier }}">{{ .Name }}</option>{{ end }}</select></label>
-          <div class="organization-person-picker" data-person-picker data-person-picker-required="true" data-person-picker-max="1" data-person-picker-name="recipient_person_id" data-person-picker-search-url="/dashboard/orgs/{{ .Organization.Ref }}/people/search">
+          <div class="organization-person-picker" data-person-picker data-person-picker-required="true" data-person-picker-max="1" data-person-picker-name="recipient_person_id" data-person-picker-search-url="/dashboard/orgs/{{ orgPathRef .Organization }}/people/search">
             <label for="BadgeGrantRecipient"><span>Bitcoin++ person</span></label>
             <input id="BadgeGrantRecipient" type="search" data-person-picker-input placeholder="Search name, email, or phone">
             <p class="hidden" data-person-picker-flash></p>
@@ -76,7 +76,7 @@
             <div><small>{{ if eq .State "ready_to_issue" }}ready to issue{{ else if eq .State "delivery_error" }}delivery needs attention{{ else }}{{ .State }}{{ end }}</small><strong>{{ .BadgeName }} → {{ .RecipientName }}</strong><span>{{ if eq .State "granted" }}Waiting for a verified Nostr key.{{ else if eq .State "ready_to_issue" }}Verified key: {{ .RecipientPubkey }}{{ else if eq .State "issued" }}Nostr award: {{ .AwardEventID }}{{ else if eq .State "accepted" }}Accepted into the recipient’s Nostr profile.{{ else if eq .State "revoked" }}Revoked by the issuer{{ if .RevocationReason }} · {{ .RevocationReason }}{{ end }}{{ else if .DeliveryError }}{{ .DeliveryError }}{{ end }}</span></div>
             <div class="organization-badge-grant-actions">
 			  {{ if eq .State "ready_to_issue" }}{{ if $.BadgeStudioURL }}<a href="{{ $.BadgeStudioURL }}/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3D{{ $.Organization.Ref }}%26grant%3D{{ .ID }}" target="_blank" rel="noopener noreferrer">Issue in Studio with bitcoin++ ↗</a>{{ end }}{{ end }}
-              {{ if or (eq .State "granted") (eq .State "ready_to_issue") }}<form method="POST" action="/dashboard/orgs/{{ $.Organization.Ref }}/badge-grants/{{ .ID }}/cancel" onsubmit="return confirm('Cancel this badge grant?');"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Cancel</button></form>{{ end }}
+              {{ if or (eq .State "granted") (eq .State "ready_to_issue") }}<form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/badge-grants/{{ .ID }}/cancel" onsubmit="return confirm('Cancel this badge grant?');"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Cancel</button></form>{{ end }}
             </div>
           </article>
           {{ end }}
@@ -114,7 +114,7 @@
       <section class="organization-dashboard-section dashboard-workspace-panel" id="profile">
         <div class="organization-dashboard-section__head">
           <div><div class="dashboard-kicker">§ Public profile</div><h2>How {{ .Organization.Name }} appears.</h2></div>
-          {{ if .CanManage }}<p>Owners and managers can keep the organization’s identity and contact details current. <a href="/organizations/{{ .Organization.Ref }}">View public profile →</a></p>{{ else }}<p>Ask an organization owner or manager to update these details.</p>{{ end }}
+          {{ if .CanManage }}<p>Owners and managers can keep the organization’s identity and contact details current. <a href="/organizations/{{ orgPathRef .Organization }}">View public profile →</a></p>{{ else }}<p>Ask an organization owner or manager to update these details.</p>{{ end }}
         </div>
         <div class="sponsor-profile-preview">
           <div class="sponsor-profile-preview__logo">
@@ -135,7 +135,7 @@
         {{ if .CanManage }}
         <details class="sponsor-profile-editor">
           <summary>Edit public profile</summary>
-          <form method="POST" enctype="multipart/form-data" action="/dashboard/orgs/{{ .Organization.Ref }}/profile" class="sponsor-profile-form">
+          <form method="POST" enctype="multipart/form-data" action="/dashboard/orgs/{{ orgPathRef .Organization }}/profile" class="sponsor-profile-form">
             <input type="hidden" name="csrf" value="{{ .CSRF }}">
             <fieldset class="sponsor-profile-group">
               <legend>Organization details</legend>
@@ -194,7 +194,7 @@
             <div><strong>{{ .PersonName }}</strong>{{ if or $.CanManage (eq $.Membership.PersonID .PersonID) }}<span>{{ .PersonEmail }}</span>{{ end }}</div>
             <div class="sponsor-team-row__actions">
               {{ if $.IsOwner }}
-              <form method="POST" action="/dashboard/orgs/{{ $.Organization.Ref }}/members/{{ .PersonID }}/role" class="organization-role-form">
+              <form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/members/{{ .PersonID }}/role" class="organization-role-form">
                 <input type="hidden" name="csrf" value="{{ $.CSRF }}">
                 <label><span class="sr-only">Role for {{ .PersonName }}</span><select name="role" aria-label="Role for {{ .PersonName }}"><option value="owner"{{ if eq .Role "owner" }} selected{{ end }}>Owner</option><option value="manager"{{ if eq .Role "manager" }} selected{{ end }}>Manager</option><option value="member"{{ if eq .Role "member" }} selected{{ end }}>Member</option></select></label>
                 <button type="submit">Save role</button>
@@ -203,7 +203,7 @@
               <span class="sponsor-team-role">{{ .Role }}</span>
               {{ end }}
               {{ if $.CanRemoveMember . }}
-              <form method="POST" action="/dashboard/orgs/{{ $.Organization.Ref }}/members/{{ .PersonID }}/remove" onsubmit="return confirm('{{ if eq $.Membership.PersonID .PersonID }}Leave this organization?{{ else }}Remove {{ .PersonName }} from this organization?{{ end }}');">
+              <form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/members/{{ .PersonID }}/remove" onsubmit="return confirm('{{ if eq $.Membership.PersonID .PersonID }}Leave this organization?{{ else }}Remove {{ .PersonName }} from this organization?{{ end }}');">
                 <input type="hidden" name="csrf" value="{{ $.CSRF }}">
                 <button type="submit">{{ if eq $.Membership.PersonID .PersonID }}Leave{{ else }}Remove{{ end }}</button>
               </form>
@@ -216,7 +216,7 @@
         {{ if .CanManage }}
         <div class="organization-membership-policy">
           <div><div class="dashboard-kicker">§ Join policy</div><h3>Who can join?</h3><p>Choose whether new members need review, join immediately, or cannot request access.</p></div>
-          <form method="POST" action="/dashboard/orgs/{{ .Organization.Ref }}/membership-policy">
+          <form method="POST" action="/dashboard/orgs/{{ orgPathRef .Organization }}/membership-policy">
             <input type="hidden" name="csrf" value="{{ .CSRF }}">
             <label><span>Membership requests</span><select name="membership_policy"><option value="request"{{ if eq .Organization.MembershipPolicy "request" }} selected{{ end }}>Managers approve each request</option><option value="open"{{ if eq .Organization.MembershipPolicy "open" }} selected{{ end }}>Automatically approve everyone</option><option value="closed"{{ if eq .Organization.MembershipPolicy "closed" }} selected{{ end }}>Do not accept requests</option></select></label>
             <button type="submit">Save join policy</button>
@@ -229,7 +229,7 @@
           {{ range .PendingRequests }}
           <article>
             <div><strong>{{ .PersonName }}</strong>{{ if .PersonEmail }}<span>{{ .PersonEmail }}</span>{{ end }}{{ if .Message }}<p>{{ .Message }}</p>{{ end }}<small>Requested {{ .CreatedAt.Format "Jan 2, 2006" }}</small></div>
-            <form method="POST" action="/dashboard/orgs/{{ $.Organization.Ref }}/membership-requests/{{ .ID }}">
+            <form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/membership-requests/{{ .ID }}">
               <input type="hidden" name="csrf" value="{{ $.CSRF }}">
               <label><span class="sr-only">Review note for {{ .PersonName }}</span><input name="review_note" placeholder="Optional note"></label>
               <button class="organization-review-action is-primary" type="submit" name="decision" value="approved">Approve</button>
@@ -246,7 +246,7 @@
             <p>Choose an existing bitcoin++ profile, or send a secure invitation by email.</p>
           </header>
           <div class="organization-teammate-actions">
-            <form method="POST" action="/dashboard/orgs/{{ .Organization.Ref }}/members" class="organization-teammate-card organization-teammate-card--existing">
+            <form method="POST" action="/dashboard/orgs/{{ orgPathRef .Organization }}/members" class="organization-teammate-card organization-teammate-card--existing">
               <input type="hidden" name="csrf" value="{{ .CSRF }}">
               <div class="organization-teammate-card__intro">
                 <span class="organization-teammate-card__number">01</span>
@@ -255,7 +255,7 @@
                 <p>Search existing profiles and grant access immediately.</p>
               </div>
               <div class="organization-teammate-card__fields">
-                <div class="organization-person-picker" data-person-picker data-person-picker-required="true" data-person-picker-max="1" data-person-picker-name="person_id" data-person-picker-search-url="/dashboard/orgs/{{ .Organization.Ref }}/people/search">
+                <div class="organization-person-picker" data-person-picker data-person-picker-required="true" data-person-picker-max="1" data-person-picker-name="person_id" data-person-picker-search-url="/dashboard/orgs/{{ orgPathRef .Organization }}/people/search">
                   <label for="OrganizationTeammateSearch"><span>Person</span></label>
                   <input id="OrganizationTeammateSearch" type="search" data-person-picker-input placeholder="Search name, email, or phone">
                   <p class="hidden" data-person-picker-flash></p>
@@ -265,7 +265,7 @@
               <button type="submit">Add teammate →</button>
             </form>
 
-            <form method="POST" action="/dashboard/orgs/{{ .Organization.Ref }}/invites" class="organization-teammate-card organization-teammate-card--invite">
+            <form method="POST" action="/dashboard/orgs/{{ orgPathRef .Organization }}/invites" class="organization-teammate-card organization-teammate-card--invite">
               <input type="hidden" name="csrf" value="{{ .CSRF }}">
               <div class="organization-teammate-card__intro">
                 <span class="organization-teammate-card__number">02</span>
@@ -291,8 +291,8 @@
           <div class="organization-pending-invite">
             <div><strong>{{ .Email }}</strong><span>{{ .Role }} · expires {{ .ExpiresAt.Format "Jan 2, 2006" }}</span></div>
             <div>
-              <form method="POST" action="/dashboard/orgs/{{ $.Organization.Ref }}/invites/{{ .ID }}/replace"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Create new link</button></form>
-              <form method="POST" action="/dashboard/orgs/{{ $.Organization.Ref }}/invites/{{ .ID }}/revoke" onsubmit="return confirm('Revoke the invitation for {{ .Email }}?');"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Revoke</button></form>
+              <form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/invites/{{ .ID }}/replace"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Create new link</button></form>
+              <form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/invites/{{ .ID }}/revoke" onsubmit="return confirm('Revoke the invitation for {{ .Email }}?');"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Revoke</button></form>
             </div>
           </div>
           {{ end }}

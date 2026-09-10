@@ -529,8 +529,10 @@ func loadTemplates(ctx *config.AppContext) error {
 		"merchVariantAvailable": func(v *types.MerchVariant) bool {
 			return merchVariantAvailable(v, 1)
 		},
-		"merchProductSoldOut": merchProductSoldOut,
-		"merchJSON":           merchJSON,
+		"merchProductSoldOut":  merchProductSoldOut,
+		"orgPathRef":           organizationPathRef,
+		"orgMembershipPathRef": organizationMembershipPathRef,
+		"merchJSON":            merchJSON,
 		"isShopPage": func(v any) bool {
 			_, ok := v.(*shopPage)
 			return ok

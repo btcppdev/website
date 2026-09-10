@@ -36,7 +36,7 @@ func RegisterOrg(ctx *config.AppContext, org *types.Org) (string, error) {
 		return "", fmt.Errorf("RegisterOrg: org name is required")
 	}
 
-	var orgID string
+	var orgID, publicSlug string
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO organizations (
 			name, tagline, logo_light_url, logo_dark_url, email, website_url,
@@ -46,15 +46,16 @@ func RegisterOrg(ctx *config.AppContext, org *types.Org) (string, error) {
 			$1, $2, $3, $4, NULLIF($5, '')::citext, $6, $7, $8, $9, $10,
 			$11, $12, $13, $14, $15, $16, $17
 		)
-		RETURNING id::text
+		RETURNING id::text, public_slug
 	`, org.Name, org.Tagline, org.LogoLight, org.LogoDark, org.Email,
 		org.Website, org.LinkedIn, org.Instagram, org.Youtube, org.Github,
 		org.Twitter.Handle, org.Nostr, org.Matrix, org.Hiring, org.Notes,
-		org.MembershipPolicy, org.HiddenFromDirectory).Scan(&orgID)
+		org.MembershipPolicy, org.HiddenFromDirectory).Scan(&orgID, &publicSlug)
 	if err != nil {
 		return "", fmt.Errorf("insert org %q: %w", org.Name, err)
 	}
 	org.Ref = orgID
+	org.Slug = publicSlug
 	return orgID, nil
 }
 
@@ -67,7 +68,7 @@ func GetOrg(ctx *config.AppContext, ref string) (*types.Org, error) {
 	if ref == "" {
 		return nil, fmt.Errorf("org ref is required")
 	}
-	orgs, err := queryOrgsPostgres(ctx, "organization", "WHERE id::text = $1", []any{ref}, 1)
+	orgs, err := queryOrgsPostgres(ctx, "organization", "WHERE id::text = $1 OR public_slug = lower($1)", []any{ref}, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +94,7 @@ func queryOrgsPostgres(ctx *config.AppContext, label string, whereSQL string, ar
 		return nil, fmt.Errorf("database is not configured")
 	}
 	sql := `
-		SELECT id::text, name, tagline, logo_light_url, logo_dark_url,
+		SELECT id::text, public_slug, name, tagline, logo_light_url, logo_dark_url,
 			coalesce(email::text, ''), website_url, github_url, twitter_handle,
 			nostr, matrix, linkedin_url, instagram_url, youtube_url, hiring, notes,
 			membership_policy, hidden_from_directory
@@ -117,6 +118,7 @@ func queryOrgsPostgres(ctx *config.AppContext, label string, whereSQL string, ar
 		var twitterHandle string
 		if err := rows.Scan(
 			&org.Ref,
+			&org.Slug,
 			&org.Name,
 			&org.Tagline,
 			&org.LogoLight,
