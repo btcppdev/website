@@ -109,6 +109,7 @@ const (
 	devPastSponsorAward       = "00000000-0000-4000-8000-000000000b44"
 	devPastSponsorPrize       = "00000000-0000-4000-8000-000000000b45"
 	devPastSponsorship        = "00000000-0000-4000-8000-000000000606"
+	devBadgeStudioOAuthID     = "btcpp_client_badge_studio_local"
 )
 
 type daySeed struct {
@@ -574,6 +575,7 @@ func main() {
 	seedTickets(ctx, tx, confID, newsletterSendAt)
 	seedConferenceMilestones(ctx, tx, confID)
 	seedAdmin(ctx, tx)
+	seedOAuthClients(ctx, tx)
 	seedProgram(ctx, tx, confID)
 	seedMerch(ctx, tx, confID)
 	seedWeeklyNewsletterFixtures(ctx, tx, confID, newsletterSendAt)
@@ -590,6 +592,26 @@ func main() {
 	}
 
 	log.Printf("seeded local dev conferences and dashboard fixtures for dev-admin@example.test and dev-invited-speaker@example.test; organization workflows are available at /dashboard/orgs")
+}
+
+func seedOAuthClients(ctx context.Context, tx pgx.Tx) {
+	mustExec(ctx, tx, "seed Badge Studio OAuth client", `
+		INSERT INTO oauth_clients (
+			client_id, client_secret_hash, name, redirect_uris, allowed_scopes,
+			token_endpoint_auth_method, created_by_person_id, revoked_at
+		) VALUES (
+			$1, NULL, 'Badge Studio (local)', ARRAY['http://localhost:35173/api/auth/btcpp/callback'],
+			ARRAY['identity:self:read', 'organizations:self:read'], 'none', $2::uuid, NULL
+		)
+		ON CONFLICT (client_id) DO UPDATE SET
+			name = EXCLUDED.name,
+			redirect_uris = EXCLUDED.redirect_uris,
+			allowed_scopes = EXCLUDED.allowed_scopes,
+			token_endpoint_auth_method = EXCLUDED.token_endpoint_auth_method,
+			client_secret_hash = NULL,
+			created_by_person_id = EXCLUDED.created_by_person_id,
+			revoked_at = NULL
+	`, devBadgeStudioOAuthID, devAdminID)
 }
 
 func seedCheckInPreviews(ctx context.Context, tx pgx.Tx, confID string) {

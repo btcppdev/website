@@ -4,6 +4,7 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 app := "btcpp-web"
 goenv := "CGO_ENABLED=0 GOSUMDB=sum.golang.org"
 dev_database_url := "postgres://btcpp@127.0.0.1:55432/btcpp_dev?sslmode=disable"
+badge_dev_env := "../nostr-badges/.dev/bunker.env"
 
 # Show available commands.
 default:
@@ -11,7 +12,16 @@ default:
 
 # Run the app with live reload.
 dev:
-  make dev-run
+  just dev-integrations
+  @set -a; [ ! -f "{{badge_dev_env}}" ] || source "{{badge_dev_env}}"; set +a; BADGE_STUDIO_URL=http://localhost:35173 SIGNER_URL=http://localhost:38081 make dev-run
+
+# Generate the ignored local signer keys shared with the sibling Badge Studio checkout.
+dev-integrations:
+  @if [ -f ../nostr-badges/Makefile ]; then \
+    make -C ../nostr-badges dev-keys; \
+  else \
+    echo "Badge Studio sibling checkout not found; managed signer integration will be unavailable."; \
+  fi
 
 # Create a local .env from the tracked dev-safe example, if needed.
 dev-bootstrap:
@@ -25,6 +35,7 @@ dev-bootstrap:
 # Bootstrap, migrate, seed, print a dev login link, and run the app.
 dev-up:
   just dev-bootstrap
+  just dev-integrations
   make db-start
   {{goenv}} go run ./cmd/db-migrate
   {{goenv}} go run ./cmd/dev-seed
@@ -34,7 +45,7 @@ dev-up:
   @echo "Open http://localhost:8888 once the server reports it is listening."
   @echo "Use the login URL printed above for admin access."
   @echo ""
-  make dev-run
+  @set -a; [ ! -f "{{badge_dev_env}}" ] || source "{{badge_dev_env}}"; set +a; BADGE_STUDIO_URL=http://localhost:35173 SIGNER_URL=http://localhost:38081 make dev-run
 
 # Stop local services used by the dev harness.
 dev-down:
