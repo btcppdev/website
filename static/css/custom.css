@@ -15419,6 +15419,35 @@ border-bottom: 1px solid var(--hack-ink);
 	color: var(--organization-ink);
 }
 
+.organization-workspace-tabs {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	margin: 0 0 16px;
+	border: 1px solid var(--organization-ink);
+	background: var(--organization-paper);
+	box-shadow: 4px 4px 0 #ded6ca;
+}
+
+.organization-workspace-tabs a {
+	display: flex;
+	min-height: 48px;
+	align-items: center;
+	justify-content: center;
+	border-left: 1px solid var(--organization-ink);
+	background: var(--organization-paper);
+	color: var(--organization-ink);
+	font: 800 11px/1.2 "IBM Plex Mono", ui-monospace, monospace;
+	letter-spacing: .08em;
+	text-decoration: none;
+	text-transform: lowercase;
+}
+
+.organization-workspace-tabs a:first-child { border-left: 0; }
+.organization-workspace-tabs a:hover,
+.organization-workspace-tabs a:focus-visible { background: #fff1dc; color: var(--organization-ink); }
+.organization-workspace-tabs a:focus-visible { outline: 3px solid var(--organization-orange); outline-offset: -3px; }
+.organization-workspace-tabs a.is-active { background: var(--organization-orange); color: var(--organization-ink); }
+
 .organization-dashboard-list {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -15973,6 +16002,8 @@ button.organization-review-action.is-secondary {
 }
 
 @media (max-width: 760px) {
+	.organization-workspace-tabs { margin-bottom: 13px; box-shadow: 3px 3px 0 #ded6ca; }
+	.organization-workspace-tabs a { min-height: 50px; padding: 0 12px; }
 	.organization-dashboard-list { grid-template-columns: minmax(0, 1fr); }
 	.organization-dashboard-card { grid-template-columns: 68px minmax(0, 1fr); gap: 15px; padding: 19px 17px; }
 	.organization-dashboard-card__mark { width: 68px; height: 68px; }

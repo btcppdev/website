@@ -927,8 +927,7 @@ func TestLoadTemplates(t *testing.T) {
 		t.Fatalf("public organization profile omitted fail-open catalog state: %s", unavailableOrganizationProfile.String())
 	}
 
-	var organizationDashboard bytes.Buffer
-	if err := ctx.TemplateCache.ExecuteTemplate(&organizationDashboard, "dashboard_org.tmpl", &OrganizationDashboardPage{
+	organizationDashboardPage := &OrganizationDashboardPage{
 		Membership:   &types.OrganizationMembership{OrganizationID: "org-id", PersonID: "owner-id", Role: getters.OrganizationRoleOwner},
 		Organization: &types.Org{Ref: "org-id", Slug: "signet-systems", Name: "Signet Systems", Tagline: "Test networks", LogoLight: "/logo-light.svg", LogoDark: "/logo-dark.svg", Github: "https://github.com/example", MembershipPolicy: getters.OrganizationMembershipPolicyRequest},
 		Memberships: []*types.OrganizationMembership{{
@@ -949,13 +948,33 @@ func TestLoadTemplates(t *testing.T) {
 		BadgeStudioURL:     "https://badges.example", SignerURL: "https://signer.example",
 		CanManage: true, IsOwner: true, HasHackathonProjects: true, ShowSponsors: true, SpacesReady: true, CSRF: "org-csrf",
 		InviteLink: "http://localhost:8888/sponsor-invites/new-token", InviteEmail: "pending@example.test",
-	}); err != nil {
+	}
+	var organizationDashboard bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&organizationDashboard, "dashboard_org.tmpl", organizationDashboardPage); err != nil {
 		t.Fatalf("render organization dashboard: %v", err)
 	}
-	for _, want := range []string{`href="/dashboard/hackathons"`, "Organization workspace · owner", "How Signet Systems appears.", `href="/organizations/signet-systems"`, "Your organization team.", "Mara", "Eli", "Badge catalog", "Mentor", "Open Badge Studio with bitcoin++", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id"`, "Issue in Studio with bitcoin++", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id%26grant%3Dgrant-id"`, "Add a teammate.", "Find a bitcoin++ person.", "Invite someone new.", "Search name, email, or phone", "Send invitation →", `src="/static/js/person-picker.js"`, `data-person-picker-search-url="/dashboard/orgs/signet-systems/people/search"`, `action="/dashboard/orgs/signet-systems/members"`, "Pending invitations", "pending@example.test", `action="/dashboard/orgs/signet-systems/profile"`, `action="/dashboard/orgs/signet-systems/invites"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/replace"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/revoke"`, `action="/dashboard/orgs/signet-systems/members/member-id/role"`, `action="/dashboard/orgs/signet-systems/members/member-id/remove"`, `href="/dashboard/sponsor/org-id"`, `name="csrf" value="org-csrf"`, "http://localhost:8888/sponsor-invites/new-token", "shown here once", "Who can join?", `action="/dashboard/orgs/signet-systems/membership-policy"`, "Managers approve each request", "Membership requests.", "Rae", "I contribute", `action="/dashboard/orgs/signet-systems/membership-requests/request-id"`, `class="organization-review-action is-primary"`, `class="organization-review-action is-secondary"`} {
+	for _, want := range []string{`href="/dashboard/hackathons"`, "Organization workspace · owner", `aria-label="Signet Systems workspace"`, `href="/dashboard/orgs/signet-systems" class="is-active" aria-current="page">/organization`, `href="/dashboard/orgs/signet-systems/badges">/badges`, "How Signet Systems appears.", `href="/organizations/signet-systems"`, "Your organization team.", "Mara", "Eli", "Add a teammate.", "Find a bitcoin++ person.", "Invite someone new.", "Search name, email, or phone", "Send invitation →", `src="/static/js/person-picker.js"`, `data-person-picker-search-url="/dashboard/orgs/signet-systems/people/search"`, `action="/dashboard/orgs/signet-systems/members"`, "Pending invitations", "pending@example.test", `action="/dashboard/orgs/signet-systems/profile"`, `action="/dashboard/orgs/signet-systems/invites"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/replace"`, `action="/dashboard/orgs/signet-systems/invites/invite-id/revoke"`, `action="/dashboard/orgs/signet-systems/members/member-id/role"`, `action="/dashboard/orgs/signet-systems/members/member-id/remove"`, `href="/dashboard/sponsor/org-id"`, `name="csrf" value="org-csrf"`, "http://localhost:8888/sponsor-invites/new-token", "shown here once", "Who can join?", `action="/dashboard/orgs/signet-systems/membership-policy"`, "Managers approve each request", "Membership requests.", "Rae", "I contribute", `action="/dashboard/orgs/signet-systems/membership-requests/request-id"`, `class="organization-review-action is-primary"`, `class="organization-review-action is-secondary"`} {
 		if !strings.Contains(organizationDashboard.String(), want) {
 			t.Fatalf("organization dashboard omitted %q: %s", want, organizationDashboard.String())
 		}
+	}
+	for _, excluded := range []string{"Badge catalog", "Open Badge Studio with bitcoin++", "Issue in Studio with bitcoin++"} {
+		if strings.Contains(organizationDashboard.String(), excluded) {
+			t.Fatalf("organization dashboard still includes badge management %q: %s", excluded, organizationDashboard.String())
+		}
+	}
+
+	var organizationBadgeDashboard bytes.Buffer
+	if err := ctx.TemplateCache.ExecuteTemplate(&organizationBadgeDashboard, "dashboard_org_badges.tmpl", organizationDashboardPage); err != nil {
+		t.Fatalf("render organization badge dashboard: %v", err)
+	}
+	for _, want := range []string{`href="/dashboard/orgs/signet-systems">/organization`, `href="/dashboard/orgs/signet-systems/badges" class="is-active" aria-current="page">/badges`, `aria-label="Badge sections"`, "Badge catalog", "Mentor", "Open Badge Studio with bitcoin++", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id"`, "Issue &amp; manage", "Issue in Studio with bitcoin++", `href="https://badges.example/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3Dorg-id%26grant%3Dgrant-id"`, `data-person-picker-search-url="/dashboard/orgs/signet-systems/people/search"`, `action="/dashboard/orgs/signet-systems/badge-grants"`, `action="/dashboard/orgs/signet-systems/badge-grants/grant-id/cancel"`} {
+		if !strings.Contains(organizationBadgeDashboard.String(), want) {
+			t.Fatalf("organization badge dashboard omitted %q: %s", want, organizationBadgeDashboard.String())
+		}
+	}
+	if strings.Contains(organizationBadgeDashboard.String(), "Your organization team.") || strings.Contains(organizationBadgeDashboard.String(), "How Signet Systems appears.") {
+		t.Fatalf("organization badge dashboard includes organization management sections: %s", organizationBadgeDashboard.String())
 	}
 	var memberOrganizationDashboard bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&memberOrganizationDashboard, "dashboard_org.tmpl", &OrganizationDashboardPage{

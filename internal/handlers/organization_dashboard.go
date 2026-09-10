@@ -301,34 +301,9 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 			return
 		}
 	}
-	var badgeProfile *WhoIsBadgeProfile
-	var badgeCatalog *OrganizationBadgeCatalog
-	if ctx.Env != nil && ctx.Env.BadgeStudioURL != "" {
-		badgeProfile, err = loadBadgeStudioProfile(r.Context(), ctx.Env.BadgeStudioURL, id.PersonID)
-		if err != nil && ctx.Err != nil {
-			ctx.Err.Printf("/dashboard/orgs/%s Badge Studio profile: %s", organizationID, err)
-		}
-		badgeCatalog, err = loadOrganizationBadgeCatalog(r.Context(), ctx.Env.BadgeStudioURL, organizationID)
-		if err != nil && ctx.Err != nil {
-			ctx.Err.Printf("/dashboard/orgs/%s badge catalog: %s", organizationID, err)
-		}
-	}
-	personalGrants, grantsErr := getters.ListPersonBadgeGrants(ctx, id.PersonID)
-	if grantsErr != nil && ctx.Err != nil {
-		ctx.Err.Printf("/dashboard/orgs/%s personal badge grants: %s", organizationID, grantsErr)
-	}
-	personalGrants = pendingBadgeGrants(personalGrants)
-	var organizationGrants []*types.OrganizationBadgeGrant
-	if canManage {
-		organizationGrants, grantsErr = getters.ListOrganizationBadgeGrants(ctx, organizationID)
-		if grantsErr != nil && ctx.Err != nil {
-			ctx.Err.Printf("/dashboard/orgs/%s organization badge grants: %s", organizationID, grantsErr)
-		}
-	}
 	page := &OrganizationDashboardPage{
 		Memberships: memberships, Membership: membership, Organization: membership.Organization,
-		Members: members, PendingInvites: pendingInvites, PendingRequests: pendingRequests, SponsorEvents: sponsorEvents, Badges: badgeProfile, BadgeCatalog: badgeCatalog,
-		OrganizationGrants: organizationGrants, PersonalGrants: personalGrants,
+		Members: members, PendingInvites: pendingInvites, PendingRequests: pendingRequests, SponsorEvents: sponsorEvents,
 		CanManage: canManage, IsOwner: membership.Role == getters.OrganizationRoleOwner,
 		IsGlobalAdmin: id.IsGlobalAdmin(), SpacesReady: spaces.IsConfigured(), CSRF: csrf,
 		PendingOrgInviteCount: pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/orgs/"+organizationID),
@@ -337,8 +312,7 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 		InviteLink:            ctx.Session.PopString(r.Context(), organizationInviteLinkSessionKey),
 		InviteEmail:           ctx.Session.PopString(r.Context(), organizationInviteLinkSessionKey+"_email"),
 		FlashMessage:          r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"),
-		BadgeStudioURL: strings.TrimRight(ctx.Env.BadgeStudioURL, "/"), SignerURL: strings.TrimRight(ctx.Env.SignerURL, "/"),
-		Year: helpers.CurrentYear(),
+		Year:                  helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_org.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/orgs/%s template: %s", organizationID, err)
@@ -346,11 +320,100 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 	}
 }
 
-func OrganizationDashboardBadgeGrantCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id, _, organizationID, destination, ok := organizationManagerMutation(w, r, ctx)
+func OrganizationDashboardBadges(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, memberships, ok := organizationDashboardIdentity(w, r, ctx)
 	if !ok {
 		return
 	}
+	organizationReference := strings.TrimSpace(mux.Vars(r)["organizationID"])
+	membership := organizationMembershipByReference(memberships, organizationReference)
+	if membership == nil {
+		http.Redirect(w, r, "/dashboard/orgs?error="+url.QueryEscape("You are not a member of that organization."), http.StatusSeeOther)
+		return
+	}
+	canonicalPath := organizationDashboardBadgesPath(membership)
+	if organizationReference != organizationPathRef(membership.Organization) {
+		if r.URL.RawQuery != "" {
+			canonicalPath += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, canonicalPath, http.StatusPermanentRedirect)
+		return
+	}
+
+	organizationID := membership.OrganizationID
+	members, err := getters.ListOrganizationMembers(ctx, organizationID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orgs/%s/badges members: %s", organizationID, err)
+		http.Error(w, "Unable to load organization members", http.StatusInternalServerError)
+		return
+	}
+	sponsorEvents, err := getters.ListSponsorDashboardEvents(ctx, organizationID)
+	if err != nil {
+		ctx.Err.Printf("/dashboard/orgs/%s/badges sponsorships: %s", organizationID, err)
+		http.Error(w, "Unable to load organization sponsorships", http.StatusInternalServerError)
+		return
+	}
+	csrf, err := ensureAuthMethodsCSRF(ctx, r)
+	if err != nil {
+		http.Error(w, "Unable to prepare badge management", http.StatusInternalServerError)
+		return
+	}
+	hasHackathonProjects, projectsErr := getters.HasHackathonParticipantProjectsForPerson(ctx, id.PersonID)
+	if projectsErr != nil {
+		ctx.Err.Printf("/dashboard/orgs/%s/badges hackathon projects for %s: %s", organizationID, id.PersonID, projectsErr)
+	}
+
+	canManage := sponsorMembershipCanManage(membership)
+	var badgeProfile *WhoIsBadgeProfile
+	var badgeCatalog *OrganizationBadgeCatalog
+	if ctx.Env != nil && ctx.Env.BadgeStudioURL != "" {
+		badgeProfile, err = loadBadgeStudioProfile(r.Context(), ctx.Env.BadgeStudioURL, id.PersonID)
+		if err != nil && ctx.Err != nil {
+			ctx.Err.Printf("/dashboard/orgs/%s/badges Badge Studio profile: %s", organizationID, err)
+		}
+		badgeCatalog, err = loadOrganizationBadgeCatalog(r.Context(), ctx.Env.BadgeStudioURL, organizationID)
+		if err != nil && ctx.Err != nil {
+			ctx.Err.Printf("/dashboard/orgs/%s/badges catalog: %s", organizationID, err)
+		}
+	}
+	personalGrants, grantsErr := getters.ListPersonBadgeGrants(ctx, id.PersonID)
+	if grantsErr != nil && ctx.Err != nil {
+		ctx.Err.Printf("/dashboard/orgs/%s/badges personal grants: %s", organizationID, grantsErr)
+	}
+	personalGrants = pendingBadgeGrants(personalGrants)
+	var organizationGrants []*types.OrganizationBadgeGrant
+	if canManage {
+		organizationGrants, grantsErr = getters.ListOrganizationBadgeGrants(ctx, organizationID)
+		if grantsErr != nil && ctx.Err != nil {
+			ctx.Err.Printf("/dashboard/orgs/%s/badges organization grants: %s", organizationID, grantsErr)
+		}
+	}
+
+	page := &OrganizationDashboardPage{
+		Memberships: memberships, Membership: membership, Organization: membership.Organization,
+		Members: members, SponsorEvents: sponsorEvents, Badges: badgeProfile, BadgeCatalog: badgeCatalog,
+		OrganizationGrants: organizationGrants, PersonalGrants: personalGrants,
+		CanManage: canManage, IsOwner: membership.Role == getters.OrganizationRoleOwner,
+		IsGlobalAdmin: id.IsGlobalAdmin(), CSRF: csrf,
+		PendingOrgInviteCount: pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/orgs/"+organizationID+"/badges"),
+		HasHackathonProjects:  hasHackathonProjects,
+		ShowSponsors:          hasManagedSponsorOrganization(ctx, id.PersonID, "/dashboard/orgs/"+organizationID+"/badges"),
+		FlashMessage:          r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"),
+		BadgeStudioURL: strings.TrimRight(ctx.Env.BadgeStudioURL, "/"), SignerURL: strings.TrimRight(ctx.Env.SignerURL, "/"),
+		Year: helpers.CurrentYear(),
+	}
+	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_org_badges.tmpl", page); err != nil {
+		ctx.Err.Printf("/dashboard/orgs/%s/badges template: %s", organizationID, err)
+		http.Error(w, "Unable to load badge management", http.StatusInternalServerError)
+	}
+}
+
+func OrganizationDashboardBadgeGrantCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	id, membership, organizationID, _, ok := organizationManagerMutation(w, r, ctx)
+	if !ok {
+		return
+	}
+	destination := organizationDashboardBadgesPath(membership)
 	if !parseOrganizationDashboardForm(w, r, ctx) {
 		return
 	}
@@ -412,10 +475,11 @@ func OrganizationDashboardBadgeGrantCreate(w http.ResponseWriter, r *http.Reques
 }
 
 func OrganizationDashboardBadgeGrantCancel(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id, _, organizationID, destination, ok := organizationManagerMutation(w, r, ctx)
+	id, membership, organizationID, _, ok := organizationManagerMutation(w, r, ctx)
 	if !ok {
 		return
 	}
+	destination := organizationDashboardBadgesPath(membership)
 	if !parseOrganizationDashboardForm(w, r, ctx) {
 		return
 	}
@@ -738,6 +802,10 @@ func organizationDashboardPath(membership *types.OrganizationMembership) string 
 		reference = membership.OrganizationID
 	}
 	return "/dashboard/orgs/" + url.PathEscape(reference)
+}
+
+func organizationDashboardBadgesPath(membership *types.OrganizationMembership) string {
+	return organizationDashboardPath(membership) + "/badges"
 }
 
 func organizationMembershipPathRef(membership *types.OrganizationMembership) string {

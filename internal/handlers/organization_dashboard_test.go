@@ -55,4 +55,7 @@ func TestOrganizationDashboardReferencesPreferPublicSlug(t *testing.T) {
 	if got := organizationDashboardPath(membership); got != "/dashboard/orgs/signet-systems" {
 		t.Fatalf("dashboard path = %q", got)
 	}
+	if got := organizationDashboardBadgesPath(membership); got != "/dashboard/orgs/signet-systems/badges" {
+		t.Fatalf("badge dashboard path = %q", got)
+	}
 }

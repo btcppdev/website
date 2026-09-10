@@ -1275,6 +1275,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/orgs/{organizationID}", func(w http.ResponseWriter, r *http.Request) {
 		OrganizationDashboard(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/orgs/{organizationID}/badges", func(w http.ResponseWriter, r *http.Request) {
+		OrganizationDashboardBadges(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/dashboard/orgs/{organizationID}/people/search", func(w http.ResponseWriter, r *http.Request) {
 		OrganizationDashboardPersonSearch(w, r, app)
 	}).Methods("GET")

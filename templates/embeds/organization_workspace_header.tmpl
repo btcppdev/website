@@ -1,0 +1,32 @@
+{{ define "organization_workspace_header" }}
+{{ $page := .Page }}
+{{ $active := .Active }}
+<header class="dashboard-workspace-hero organization-dashboard-hero">
+  <div class="dashboard-workspace-hero__identity">
+    <div class="dashboard-workspace-hero__mark">
+      {{ if $page.Organization.LogoLight }}<img src="{{ $page.Organization.LogoLight | safeURL }}" alt="{{ $page.Organization.Name }}">{{ else }}<span>{{ printf "%.1s" $page.Organization.Name }}</span>{{ end }}
+    </div>
+    <div class="dashboard-workspace-hero__copy">
+      <div class="dashboard-kicker">● Organization workspace · {{ $page.Membership.Role }}</div>
+      <h1>{{ $page.Organization.Name }}</h1>
+      <p>{{ if $page.Organization.Tagline }}{{ $page.Organization.Tagline }}{{ else }}Manage this organization’s members, identity, and bitcoin++ activity.{{ end }}</p>
+    </div>
+  </div>
+  <dl class="dashboard-workspace-hero__facts" aria-label="Organization summary">
+    <div><dt>Members</dt><dd>{{ len $page.Members }}</dd></div>
+    <div><dt>Sponsorships</dt><dd>{{ len $page.SponsorEvents }}</dd></div>
+    <div><dt>Access</dt><dd>{{ if $page.CanManage }}Manage{{ else }}Member{{ end }}</dd></div>
+  </dl>
+  {{ if gt (len $page.Memberships) 1 }}
+  <nav class="sponsor-dashboard-org-switcher" aria-label="Your organizations">
+    {{ range $page.Memberships }}
+    <a href="/dashboard/orgs/{{ orgMembershipPathRef . }}{{ if eq $active "badges" }}/badges{{ end }}"{{ if eq .OrganizationID $page.Organization.Ref }} class="is-active" aria-current="page"{{ end }}>{{ .Organization.Name }}</a>
+    {{ end }}
+  </nav>
+  {{ end }}
+</header>
+<nav class="organization-workspace-tabs" aria-label="{{ $page.Organization.Name }} workspace">
+  <a href="/dashboard/orgs/{{ orgPathRef $page.Organization }}"{{ if eq .Active "organization" }} class="is-active" aria-current="page"{{ end }}>/organization</a>
+  <a href="/dashboard/orgs/{{ orgPathRef $page.Organization }}/badges"{{ if eq .Active "badges" }} class="is-active" aria-current="page"{{ end }}>/badges</a>
+</nav>
+{{ end }}
