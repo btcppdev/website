@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -39,6 +40,13 @@ func TestTickerWidgets(t *testing.T) {
 		if strings.Count(body, logo) != 2 {
 			t.Fatalf("both reel groups must include %s", logo)
 		}
+	}
+	var websiteReel bytes.Buffer
+	if err := app.TemplateCache.ExecuteTemplate(&websiteReel, "sponsor_marquee", map[string]interface{}{"Sponsors": page.Sponsors, "IncludeBrands": false}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(websiteReel.String(), `alt="bitcoin++`) || strings.Count(websiteReel.String(), `alt="Example sponsor"`) != 2 {
+		t.Fatal("website reel must include sponsors in both groups without widget brand logos")
 	}
 	if strings.Contains(body, "Supported by") || strings.Contains(body, `<header`) {
 		t.Fatal("widget includes page chrome")

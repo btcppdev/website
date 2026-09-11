@@ -17,7 +17,7 @@
   <p class="sponsor-banner__label mx-auto max-w-7xl px-6 lg:px-8 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
     Supported by
   </p>
-  {{ template "sponsor_marquee" $sponsors }}
+  {{ template "sponsor_marquee" (dict "Sponsors" $sponsors "IncludeBrands" false) }}
 </section>
 {{ end }}
 {{ end }}
@@ -50,12 +50,12 @@
   <div class="sponsor-marquee sponsor-banner__viewport relative">
     <div class="sponsor-marquee-track flex items-center">
       <div class="sponsor-marquee-set" data-sponsor-original>
-        {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
-        {{ template "sponsor_marquee_brands" . }}
+        {{ range .Sponsors }}{{ template "sponsor_marquee_item" . }}{{ end }}
+        {{ if .IncludeBrands }}{{ template "sponsor_marquee_brands" . }}{{ end }}
       </div>
       <div class="sponsor-marquee-set" data-sponsor-copy aria-hidden="true" inert>
-        {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
-        {{ template "sponsor_marquee_brands" . }}
+        {{ range .Sponsors }}{{ template "sponsor_marquee_item" . }}{{ end }}
+        {{ if .IncludeBrands }}{{ template "sponsor_marquee_brands" . }}{{ end }}
       </div>
     </div>
   </div>

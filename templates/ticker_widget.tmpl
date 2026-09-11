@@ -18,7 +18,7 @@
 </head>
 <body>
   {{ if .SponsorsMode }}
-    <div data-widget-sponsors>{{ template "sponsor_marquee" .Sponsors }}</div>
+    <div data-widget-sponsors>{{ template "sponsor_marquee" (dict "Sponsors" .Sponsors "IncludeBrands" true) }}</div>
     <script>
       // Retain the current animation when the public sponsor list is unchanged.
       // Failed refreshes leave the last successful frame on screen.
