@@ -151,6 +151,7 @@ func OrganizationDashboardIndex(w http.ResponseWriter, r *http.Request, ctx *con
 	if grantsErr != nil && ctx.Err != nil {
 		ctx.Err.Printf("/dashboard/orgs personal badge grants for %s: %s", id.PersonID, grantsErr)
 	}
+	retryRecipientBadgeNotifications(ctx, personalGrants, "/dashboard/orgs")
 	personalGrants = pendingBadgeGrants(personalGrants)
 	page := &OrganizationDashboardIndexPage{
 		Memberships: memberships, Directory: directory, PendingInvites: pendingInvites,
@@ -312,7 +313,7 @@ func OrganizationDashboard(w http.ResponseWriter, r *http.Request, ctx *config.A
 		InviteLink:            ctx.Session.PopString(r.Context(), organizationInviteLinkSessionKey),
 		InviteEmail:           ctx.Session.PopString(r.Context(), organizationInviteLinkSessionKey+"_email"),
 		FlashMessage:          r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"),
-		Year:                  helpers.CurrentYear(),
+		Year: helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_org.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/orgs/%s template: %s", organizationID, err)
@@ -380,6 +381,7 @@ func OrganizationDashboardBadges(w http.ResponseWriter, r *http.Request, ctx *co
 	if grantsErr != nil && ctx.Err != nil {
 		ctx.Err.Printf("/dashboard/orgs/%s/badges personal grants: %s", organizationID, grantsErr)
 	}
+	retryRecipientBadgeNotifications(ctx, personalGrants, "/dashboard/orgs/"+organizationID+"/badges")
 	personalGrants = pendingBadgeGrants(personalGrants)
 	var organizationGrants []*types.OrganizationBadgeGrant
 	if canManage {
@@ -387,6 +389,7 @@ func OrganizationDashboardBadges(w http.ResponseWriter, r *http.Request, ctx *co
 		if grantsErr != nil && ctx.Err != nil {
 			ctx.Err.Printf("/dashboard/orgs/%s/badges organization grants: %s", organizationID, grantsErr)
 		}
+		retryManagerBadgeNotifications(ctx, organizationGrants, "/dashboard/orgs/"+organizationID+"/badges")
 	}
 
 	page := &OrganizationDashboardPage{
@@ -405,6 +408,47 @@ func OrganizationDashboardBadges(w http.ResponseWriter, r *http.Request, ctx *co
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_org_badges.tmpl", page); err != nil {
 		ctx.Err.Printf("/dashboard/orgs/%s/badges template: %s", organizationID, err)
 		http.Error(w, "Unable to load badge management", http.StatusInternalServerError)
+	}
+}
+
+// Badge notification jobs use stable keys in the mailer. Retrying while the
+// relevant dashboard is open is therefore safe, and repairs transient mailer
+// failures without duplicating successfully scheduled messages.
+func retryRecipientBadgeNotifications(ctx *config.AppContext, grants []*types.OrganizationBadgeGrant, logContext string) {
+	for _, grant := range grants {
+		if grant == nil {
+			continue
+		}
+		var errs []error
+		switch grant.State {
+		case getters.BadgeGrantStateGranted, getters.BadgeGrantStateReady, getters.BadgeGrantStateDeliveryError:
+			errs = emails.NotifyBadgeGrantCreated(ctx, grant)
+		case getters.BadgeGrantStateIssued:
+			errs = emails.NotifyBadgeGrantIssued(ctx, grant)
+		case getters.BadgeGrantStateRevoked:
+			errs = emails.NotifyBadgeGrantRevoked(ctx, grant)
+		}
+		for _, err := range errs {
+			ctx.Err.Printf("%s retry recipient badge notification for %s: %s", logContext, grant.ID, err)
+		}
+	}
+}
+
+func retryManagerBadgeNotifications(ctx *config.AppContext, grants []*types.OrganizationBadgeGrant, logContext string) {
+	for _, grant := range grants {
+		if grant == nil {
+			continue
+		}
+		var errs []error
+		switch grant.State {
+		case getters.BadgeGrantStateReady, getters.BadgeGrantStateDeliveryError:
+			errs = emails.NotifyBadgeGrantReady(ctx, grant)
+		case getters.BadgeGrantStateAccepted:
+			errs = emails.NotifyBadgeGrantAccepted(ctx, grant)
+		}
+		for _, err := range errs {
+			ctx.Err.Printf("%s retry manager badge notification for %s: %s", logContext, grant.ID, err)
+		}
 	}
 }
 
@@ -464,7 +508,13 @@ func OrganizationDashboardBadgeGrantCreate(w http.ResponseWriter, r *http.Reques
 		http.Redirect(w, r, destination+"?error="+url.QueryEscape("The badge grant could not be saved."), http.StatusSeeOther)
 		return
 	}
+	if membership.Organization != nil {
+		grant.OrganizationName = membership.Organization.Name
+	}
 	recordOrganizationDashboardAudit(ctx, organizationID, id.PersonID, "organization.badge_granted", "organization_badge_grant", grant.ID, map[string]any{"recipient_person_id": recipientPersonID, "badge_identifier": badgeIdentifier, "state": grant.State})
+	for _, notifyErr := range emails.NotifyBadgeGrantCreated(ctx, grant) {
+		ctx.Err.Printf("/dashboard/orgs/%s badge grant %s recipient notification: %s", organizationID, grant.ID, notifyErr)
+	}
 	message := "Badge granted to " + recipient.Name + "."
 	if grant.State == getters.BadgeGrantStateReady {
 		message += " Their verified Nostr key is ready for issuance."

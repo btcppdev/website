@@ -439,6 +439,7 @@ func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
 	}
 	grant := &types.OrganizationBadgeGrant{ID: "00000000-0000-4000-8000-000000000091", IssuerPubkey: issuerPubkey, RecipientPubkey: recipientPubkey, BadgeIdentifier: "relay-operator", State: getters.BadgeGrantStateReady}
 	var issuedID, acceptedID, revokedID string
+	var issuedNotices, acceptedNotices, revokedNotices int
 	s := &server{
 		now:            func() time.Time { return now },
 		loadBadgeGrant: func(string) (*types.OrganizationBadgeGrant, error) { return grant, nil },
@@ -461,6 +462,27 @@ func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
 			grant.RevocationReason = reason
 			return nil
 		},
+		notifyBadgeGrantIssued: func(current *types.OrganizationBadgeGrant) []error {
+			if current.State != getters.BadgeGrantStateIssued || current.AwardEventID == "" {
+				t.Fatalf("issued notification received stale grant: %+v", current)
+			}
+			issuedNotices++
+			return nil
+		},
+		notifyBadgeGrantAccepted: func(current *types.OrganizationBadgeGrant) []error {
+			if current.State != getters.BadgeGrantStateAccepted || current.AcceptanceEventID == "" {
+				t.Fatalf("accepted notification received stale grant: %+v", current)
+			}
+			acceptedNotices++
+			return nil
+		},
+		notifyBadgeGrantRevoked: func(current *types.OrganizationBadgeGrant) []error {
+			if current.State != getters.BadgeGrantStateRevoked || current.RevocationEventID == "" || current.RevocationReason != "Issued in error" {
+				t.Fatalf("revoked notification received stale grant: %+v", current)
+			}
+			revokedNotices++
+			return nil
+		},
 	}
 	root := mux.NewRouter()
 	s.register(root.PathPrefix("/api/v1").Subrouter())
@@ -473,7 +495,7 @@ func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
 	request.Header.Set("Accept", "application/json")
 	response := httptest.NewRecorder()
 	root.ServeHTTP(response, request)
-	if response.Code != http.StatusOK || issuedID != award.ID {
+	if response.Code != http.StatusOK || issuedID != award.ID || issuedNotices != 1 {
 		t.Fatalf("issue status=%d id=%q body=%s", response.Code, issuedID, response.Body.String())
 	}
 
@@ -486,7 +508,7 @@ func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
 	request.Header.Set("Accept", "application/json")
 	response = httptest.NewRecorder()
 	root.ServeHTTP(response, request)
-	if response.Code != http.StatusOK || acceptedID != acceptance.ID {
+	if response.Code != http.StatusOK || acceptedID != acceptance.ID || acceptedNotices != 1 {
 		t.Fatalf("accept status=%d id=%q body=%s", response.Code, acceptedID, response.Body.String())
 	}
 
@@ -499,7 +521,7 @@ func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
 	request.Header.Set("Accept", "application/json")
 	response = httptest.NewRecorder()
 	root.ServeHTTP(response, request)
-	if response.Code != http.StatusOK || revokedID != revocation.ID || grant.RevocationReason != "Issued in error" {
+	if response.Code != http.StatusOK || revokedID != revocation.ID || grant.RevocationReason != "Issued in error" || revokedNotices != 1 {
 		t.Fatalf("revoke status=%d id=%q body=%s", response.Code, revokedID, response.Body.String())
 	}
 

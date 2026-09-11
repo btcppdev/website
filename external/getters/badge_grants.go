@@ -125,21 +125,78 @@ func validBadgeCredentialURL(value string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-func refreshPendingBadgeGrants(ctx *config.AppContext, personID string) error {
+// PromotePendingBadgeGrants binds durable Bitcoin++ grants to a newly verified
+// Nostr key. Rows are locked before the state change so concurrent requests
+// cannot both report the same transition as new.
+func PromotePendingBadgeGrants(ctx *config.AppContext, personID string) ([]*types.OrganizationBadgeGrant, error) {
 	if ctx == nil || ctx.DB == nil {
-		return fmt.Errorf("database is not configured")
+		return nil, fmt.Errorf("database is not configured")
 	}
 	dbctx := ctx.DatabaseContext()
-	if _, err := ctx.DB.Exec(dbctx, `
-		UPDATE organization_badge_grants grants
-		SET recipient_pubkey=credentials.pubkey_hex, state='ready_to_issue', ready_at=coalesce(grants.ready_at, now()), delivery_error=''
-		FROM person_nostr_credentials credentials
-		WHERE grants.recipient_person_id=credentials.person_id AND credentials.verified_at IS NOT NULL
-		  AND grants.state IN ('granted','ready_to_issue','delivery_error')
-		  AND ($1='' OR grants.recipient_person_id=NULLIF($1,'')::uuid)
-		  AND (grants.recipient_pubkey<>credentials.pubkey_hex OR grants.state<>'ready_to_issue')`, personID); err != nil {
-		return fmt.Errorf("promote badge grants with verified Nostr keys: %w", err)
+	tx, err := ctx.DB.Begin(dbctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin badge grant promotion: %w", err)
 	}
+	defer tx.Rollback(dbctx)
+	rows, err := tx.Query(dbctx, `
+		SELECT grants.id::text
+		FROM organization_badge_grants grants
+		JOIN person_nostr_credentials credentials
+		  ON credentials.person_id=grants.recipient_person_id AND credentials.verified_at IS NOT NULL
+		WHERE grants.state IN ('granted','ready_to_issue','delivery_error')
+		  AND ($1='' OR grants.recipient_person_id=NULLIF($1,'')::uuid)
+		  AND (grants.recipient_pubkey<>credentials.pubkey_hex OR grants.state<>'ready_to_issue')
+		ORDER BY grants.granted_at, grants.id
+		FOR UPDATE OF grants`, strings.TrimSpace(personID))
+	if err != nil {
+		return nil, fmt.Errorf("lock badge grants for promotion: %w", err)
+	}
+	var grantIDs []string
+	for rows.Next() {
+		var grantID string
+		if err := rows.Scan(&grantID); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan badge grant promotion: %w", err)
+		}
+		grantIDs = append(grantIDs, grantID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("iterate badge grant promotions: %w", err)
+	}
+	rows.Close()
+	for _, grantID := range grantIDs {
+		if _, err := tx.Exec(dbctx, `
+			UPDATE organization_badge_grants grants
+			SET recipient_pubkey=credentials.pubkey_hex, state='ready_to_issue',
+				ready_at=now(), delivery_error=''
+			FROM person_nostr_credentials credentials
+			WHERE grants.id=$1::uuid AND credentials.person_id=grants.recipient_person_id
+			  AND credentials.verified_at IS NOT NULL`, grantID); err != nil {
+			return nil, fmt.Errorf("promote badge grant %s: %w", grantID, err)
+		}
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return nil, fmt.Errorf("commit badge grant promotion: %w", err)
+	}
+	promoted := make([]*types.OrganizationBadgeGrant, 0, len(grantIDs))
+	for _, grantID := range grantIDs {
+		grant, err := GetBadgeGrant(ctx, grantID)
+		if err != nil {
+			return nil, fmt.Errorf("load promoted badge grant %s: %w", grantID, err)
+		}
+		if grant != nil {
+			promoted = append(promoted, grant)
+		}
+	}
+	return promoted, nil
+}
+
+func refreshPendingBadgeGrants(ctx *config.AppContext, personID string) error {
+	if _, err := PromotePendingBadgeGrants(ctx, personID); err != nil {
+		return err
+	}
+	dbctx := ctx.DatabaseContext()
 	if _, err := ctx.DB.Exec(dbctx, `
 		UPDATE organization_badge_grants grants
 		SET recipient_pubkey='', state='granted', ready_at=NULL, delivery_error=''

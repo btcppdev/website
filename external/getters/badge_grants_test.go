@@ -49,6 +49,14 @@ func TestOrganizationBadgeGrantLifecycle(t *testing.T) {
 	if _, err := ctx.DB.Exec(context.Background(), `INSERT INTO person_nostr_credentials (person_id, pubkey_hex, verified_at) VALUES ($1::uuid,$2,now())`, recipientID, recipientPubkey); err != nil {
 		t.Fatal(err)
 	}
+	promoted, err := PromotePendingBadgeGrants(ctx, recipientID)
+	if err != nil || len(promoted) != 1 || promoted[0].ID != grant.ID || promoted[0].State != BadgeGrantStateReady {
+		t.Fatalf("promoted grants=%+v err=%v", promoted, err)
+	}
+	promotedAgain, err := PromotePendingBadgeGrants(ctx, recipientID)
+	if err != nil || len(promotedAgain) != 0 {
+		t.Fatalf("duplicate promotion=%+v err=%v", promotedAgain, err)
+	}
 	personGrants, err := ListPersonBadgeGrants(ctx, recipientID)
 	if err != nil || len(personGrants) != 1 || personGrants[0].State != BadgeGrantStateReady || personGrants[0].RecipientPubkey != recipientPubkey || personGrants[0].ReadyAt == nil {
 		t.Fatalf("ready grants=%+v err=%v", personGrants, err)

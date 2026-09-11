@@ -10,6 +10,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/emails"
 
 	"github.com/nbd-wtf/go-nostr"
 )
@@ -187,6 +188,16 @@ func NostrLinkVerify(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return
 	}
 	linkedAt := time.Now().UTC()
+	promoted, promotionErr := getters.PromotePendingBadgeGrants(ctx, viewer.PersonID)
+	if promotionErr != nil {
+		ctx.Err.Printf("promote badge grants after Nostr link for %s: %s", viewer.PersonID, promotionErr)
+	} else {
+		for _, grant := range promoted {
+			for _, notifyErr := range emails.NotifyBadgeGrantReady(ctx, grant) {
+				ctx.Err.Printf("notify badge grant %s ready: %s", grant.ID, notifyErr)
+			}
+		}
+	}
 	sendAccountSecurityNotice(ctx, viewer.PersonID, identitySecurityEmail(viewer),
 		"Nostr sign-in linked", getters.NostrPubkeyDisplay(credential.PubkeyHex)+" was added as a sign-in method.", linkedAt)
 	recordAuthAudit(ctx, r, viewer.PersonID, string(auth.MethodNostr), "nostr_credential_linked", map[string]any{"credential_id": credential.ID, "pubkey": credential.PubkeyHex})
