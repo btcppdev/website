@@ -31,6 +31,7 @@ type ManagedSignerAuthorizationPage struct {
 	Role            string
 	Action          string
 	ActionLabel     string
+	ApplicationURL  string
 	EventHash       string
 	Target          string
 	EventKind       int
@@ -231,7 +232,7 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 	}
 	action := strings.TrimSpace(r.FormValue("action"))
 	switch action {
-	case "connect", "create_identity", "import_identity", "export_identity", "protect_identity", "recover_identity", "create_unlock_enrollment", "accept_unlock_enrollment", "rotate_identity", "revoke_connection", "sign":
+	case "connect", "connect_login", "create_identity", "import_identity", "export_identity", "protect_identity", "recover_identity", "create_unlock_enrollment", "accept_unlock_enrollment", "rotate_identity", "revoke_connection", "sign":
 	default:
 		return nil, errors.New("unsupported managed signer action")
 	}
@@ -239,6 +240,13 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 	page := &ManagedSignerAuthorizationPage{PersonName: identity.Speaker.Name, Tenant: tenant, TenantID: tenantID, Action: action, ActionLabel: strings.ReplaceAll(action, "_", " "), EventHash: strings.TrimSpace(r.FormValue("event_hash")), Target: strings.TrimSpace(r.FormValue("target")), ReturnTo: ctx.Env.SignerURL + "/api/authorizations/callback"}
 	if action == "create_identity" {
 		page.ActionLabel = "create a new Nostr signer"
+	}
+	if action == "connect_login" {
+		page.ActionLabel = "connect Badge Studio and sign in"
+		page.ApplicationURL = strings.TrimRight(ctx.Env.BadgeStudioURL, "/") + "/api/auth/session"
+		if strings.TrimSpace(ctx.Env.BadgeStudioURL) == "" {
+			return nil, errors.New("Badge Studio connection is not configured")
+		}
 	}
 	if action == "protect_identity" {
 		page.ActionLabel = "add a two-factor unlock passphrase"
@@ -297,6 +305,9 @@ func validateManagedSignerBinding(page *ManagedSignerAuthorizationPage) error {
 	}
 	if page.Action == "connect" && (page.EventHash != "" || page.Target != "") && (!isLowerHex(page.EventHash, 64) || !isLowerHex(page.Target, 48)) {
 		return errors.New("application connection requires an exact pending request")
+	}
+	if page.Action == "connect_login" && (!isLowerHex(page.EventHash, 64) || !isLowerHex(page.Target, 48) || page.EventKind != 27235 || page.RecipientCount != 0) {
+		return errors.New("Badge Studio connection and login requires an exact pending request")
 	}
 	if page.Action == "revoke_connection" && !isLowerHex(page.Target, 48) {
 		return errors.New("connection revocation requires an exact connection target")

@@ -141,10 +141,10 @@
           {{ if .SignerURL }}
           <div class="person-email-row settings-method-row">
             <div>
-              <strong>Managed Nostr signer</strong><span class="is-primary">NIP-46</span>
-              <small>Create a portable key or import an nsec into the isolated signer. Sensitive setup requires a recent passkey or verified Nostr sign-in.</small>
+              <strong>Bitcoin++ key vault</strong><span class="is-primary">NIP-46</span>
+              <small>Create a protected Nostr key or import an nsec into the isolated vault. Sensitive setup requires a recent passkey or verified Nostr sign-in.</small>
             </div>
-            <div class="person-email-actions"><a class="person-oauth-link" href="{{ .SignerURL }}/?tenant=person&amp;tenant_id={{ .Speaker.ID }}" target="_blank" rel="noopener noreferrer">Set up signer ↗</a></div>
+            <div class="person-email-actions"><a class="person-oauth-link" href="{{ .SignerURL }}/?tenant=person&amp;tenant_id={{ .Speaker.ID }}" target="_blank" rel="noopener noreferrer">Open key vault ↗</a></div>
           </div>
           {{ end }}
         </div>

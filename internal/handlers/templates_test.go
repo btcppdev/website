@@ -92,6 +92,17 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("managed signer setup omitted %q: %s", expected, signerSetup.String())
 		}
 	}
+	var combinedLogin bytes.Buffer
+	if err := inlineTemplates.ExecuteTemplate(&combinedLogin, "managed_signer_authorize.tmpl", &ManagedSignerAuthorizationPage{
+		PersonName: "Mara Chen", Tenant: "organization", TenantName: "Signet Systems", Role: "manager", Action: "connect_login", ActionLabel: "connect Badge Studio and sign in", ApplicationURL: "https://badges.example/api/auth/session", EventKind: 27235, EventHash: strings.Repeat("a", 64), Target: strings.Repeat("b", 48), CSRF: "csrf", ReturnTo: "https://signer.example/api/authorizations/callback", Year: 2026,
+	}); err != nil {
+		t.Fatalf("render combined signer authorization: %v", err)
+	}
+	for _, expected := range []string{"Connect and sign in to Badge Studio?", "Connect Badge Studio", "Sign in once", "https://badges.example/api/auth/session", "exact connection request hash", "connect Badge Studio and sign in", "Connect &amp; sign in →"} {
+		if !strings.Contains(combinedLogin.String(), expected) {
+			t.Fatalf("combined signer authorization omitted %q: %s", expected, combinedLogin.String())
+		}
+	}
 	var apiDocs bytes.Buffer
 	if err := inlineTemplates.ExecuteTemplate(&apiDocs, "developers_api.tmpl", nil); err != nil {
 		t.Fatalf("render API documentation: %v", err)

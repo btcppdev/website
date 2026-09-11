@@ -152,6 +152,8 @@ func TestManagedSignerBindingDistinguishesDashboardAndNIP46Connect(t *testing.T)
 	}{
 		{"open signer dashboard", ManagedSignerAuthorizationPage{Action: "connect"}, false},
 		{"exact NIP-46 connection", ManagedSignerAuthorizationPage{Action: "connect", EventHash: strings.Repeat("a", 64), Target: strings.Repeat("b", 48)}, false},
+		{"exact combined Badge Studio login", ManagedSignerAuthorizationPage{Action: "connect_login", EventHash: strings.Repeat("a", 64), Target: strings.Repeat("b", 48), EventKind: 27235}, false},
+		{"combined login without NIP-98 kind", ManagedSignerAuthorizationPage{Action: "connect_login", EventHash: strings.Repeat("a", 64), Target: strings.Repeat("b", 48)}, true},
 		{"partial NIP-46 connection", ManagedSignerAuthorizationPage{Action: "connect", EventHash: strings.Repeat("a", 64)}, true},
 		{"sign without pending target", ManagedSignerAuthorizationPage{Action: "sign", EventHash: strings.Repeat("a", 64)}, true},
 		{"manager enrollment exact target", ManagedSignerAuthorizationPage{Action: "accept_unlock_enrollment", Target: strings.Repeat("c", 48)}, false},

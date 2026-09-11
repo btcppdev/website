@@ -32,7 +32,7 @@
         {{ if or .BadgeCatalog .CanManage }}
         <div class="organization-badge-actions">
           {{ if .BadgeCatalog }}<a class="organization-badge-button is-secondary" href="{{ .BadgeCatalog.CatalogURL }}" target="_blank" rel="noopener noreferrer">View public catalog ↗</a>{{ end }}
-          {{ if .CanManage }}{{ if .SignerURL }}<a class="organization-badge-button is-secondary" href="{{ .SignerURL }}/?tenant=organization&amp;tenant_id={{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Set up or open signer ↗</a>{{ end }}{{ if .BadgeStudioURL }}<a class="organization-badge-button is-primary" href="{{ .BadgeStudioURL }}/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3D{{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Open Badge Studio ↗</a>{{ end }}{{ end }}
+          {{ if .CanManage }}{{ if .SignerURL }}<a class="organization-badge-button is-secondary" href="{{ .SignerURL }}/?tenant=organization&amp;tenant_id={{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Set up or open key vault ↗</a>{{ end }}{{ if .BadgeStudioURL }}<a class="organization-badge-button is-primary" href="{{ .BadgeStudioURL }}/api/auth/btcpp/continue?return_to=%2F%3Fbtcpp_org%3D{{ .Organization.Ref }}" target="_blank" rel="noopener noreferrer">Open Badge Studio ↗</a>{{ end }}{{ end }}
         </div>
         {{ end }}
       </section>

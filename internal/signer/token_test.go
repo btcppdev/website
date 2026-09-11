@@ -14,7 +14,7 @@ func TestIssuerSignsCompactEdDSAToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	token, err := issuer.Sign(Claims{Issuer: "https://btcpp.dev", Audience: "https://signer.btcpp.dev", TokenID: "token"})
+	token, err := issuer.Sign(Claims{Issuer: "https://btcpp.dev", Audience: "https://bunker.btcpp.dev", TokenID: "token"})
 	if err != nil || len(strings.Split(token, ".")) != 3 {
 		t.Fatalf("token = %q, err = %v", token, err)
 	}
