@@ -922,6 +922,8 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		return r, err
 	}
 
+	registerTickerWidgets(r, app)
+
 	/* Handle 404s */
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handle404(w, r, app)

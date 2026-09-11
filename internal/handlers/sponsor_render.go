@@ -240,7 +240,10 @@ func defaultLabelForLevel(level string) string {
 // alphabetically by org name within each tier so the banner order is
 // stable across renders.
 func SponsorBannerForConf(ctx *config.AppContext, confRef string) []*types.Sponsorship {
-	tiers := SponsorTiersForConf(ctx, confRef)
+	return sponsorBannerFromTiers(SponsorTiersForConf(ctx, confRef))
+}
+
+func sponsorBannerFromTiers(tiers []*SponsorTier) []*types.Sponsorship {
 	keep := map[string]bool{
 		"Headline": true,
 		"Diamond":  true,

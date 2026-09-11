@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {{ template "head_meta" . }}
+  <title>bitcoin++ {{ if .SponsorsMode }}sponsor{{ else }}news{{ end }} ticker</title>
+  <base target="_blank">
+  <link rel="stylesheet" href="/static/css/site-chrome.css">
+  <style>
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; }
+    body { background:{{ if .SponsorsMode }}#f6f3ee{{ else }}#0a0a0a{{ end }}; }
+    .site-ticker { position:static; }
+    .sponsor-banner__viewport { width:100%; }
+  </style>
+</head>
+<body>
+  {{ if .SponsorsMode }}
+    <div data-widget-sponsors>{{ template "sponsor_marquee" .Sponsors }}</div>
+    <script>
+      // Retain the current animation when the public sponsor list is unchanged.
+      // Failed refreshes leave the last successful frame on screen.
+      window.setInterval(async function () {
+        try {
+          const response = await fetch(window.location.href, {cache:'no-store', credentials:'omit'});
+          if (!response.ok) return;
+          const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+          const next = doc.querySelector('[data-widget-sponsors]');
+          const current = document.querySelector('[data-widget-sponsors]');
+          if (next && current && next.innerHTML !== current.innerHTML) current.replaceChildren(...next.childNodes);
+        } catch (_) {}
+      }, 60000);
+    </script>
+  {{ else }}
+    {{ template "site_ticker" .Nav }}
+  {{ end }}
+</body>
+</html>

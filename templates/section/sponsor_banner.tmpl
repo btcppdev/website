@@ -18,20 +18,7 @@
   <p class="sponsor-banner__label mx-auto max-w-7xl px-6 lg:px-8 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
     Supported by
   </p>
-  <div class="sponsor-marquee sponsor-banner__viewport relative">
-    {{/* Track contains exactly 2 copies of the sponsor list so
-         translateX(-50%) lands the second copy where the first
-         started — the loop is seamless. Spacing lives on each
-         item's margin-right (not a flex gap) so every item
-         contributes a uniform amount of width including the last
-         in each copy. With a flex gap, the last item has no
-         trailing space and the -50% reset lands inside a gap,
-         producing a visible jump. */}}
-    <div class="sponsor-marquee-track flex items-center">
-      {{ range $sponsors }}{{ template "sponsor_marquee_item" . }}{{ end }}
-      {{ range $sponsors }}{{ template "sponsor_marquee_item" . }}{{ end }}
-    </div>
-  </div>
+  {{ template "sponsor_marquee" $sponsors }}
 </section>
 {{ end }}
 {{ end }}
@@ -58,4 +45,21 @@
   {{ end }}
 </a>
 {{ end }}
+{{ end }}
+
+{{ define "sponsor_marquee" }}
+  <div class="sponsor-marquee sponsor-banner__viewport relative">
+    {{/* Track contains exactly 2 copies of the sponsor list so
+         translateX(-50%) lands the second copy where the first
+         started — the loop is seamless. Spacing lives on each
+         item's margin-right (not a flex gap) so every item
+         contributes a uniform amount of width including the last
+         in each copy. With a flex gap, the last item has no
+         trailing space and the -50% reset lands inside a gap,
+         producing a visible jump. */}}
+    <div class="sponsor-marquee-track flex items-center">
+      {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
+      {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
+    </div>
+  </div>
 {{ end }}
