@@ -423,11 +423,12 @@ func DispatchShiftICS(ctx *config.AppContext, shift *types.WorkShift, conf *type
 	stamp := ics.CalNotif{UID: uid, Sequence: seq, HashHex: stampHash}.String()
 	if err := getters.ShiftUpdateCalNotif(ctx, shift.Ref, stamp); err != nil {
 		ctx.Err.Printf("dispatchShiftICS %q calnotif writeback: %s", shift.Name, err)
+		return fmt.Errorf("calendar state save failed: %w", err)
 	} else {
 		ctx.Infos.Printf("dispatchShiftICS %q: %s seq=%d sent=%d/%d hash=%s",
 			shift.Name, method, seq, sentCount, len(recipients), stampHash)
 	}
-	return nil
+	return firstErr
 }
 
 // DispatchShiftICSCancelForVol fires a CANCEL ICS to one
@@ -478,6 +479,10 @@ func DispatchShiftICSCancelForVol(ctx *config.AppContext, shift *types.WorkShift
 // vols don't get an automatic update; the volcoord broadcast
 // button covers that case.
 func DispatchOrientICS(ctx *config.AppContext, conf *types.Conf, vol ics.Attendee, start, end time.Time, orientLink string) error {
+	return dispatchOrientICS(ctx, conf, vol, start, end, orientLink, kindRequest)
+}
+
+func dispatchOrientICS(ctx *config.AppContext, conf *types.Conf, vol ics.Attendee, start, end time.Time, orientLink string, kind dispatchKind) error {
 	if conf == nil {
 		return fmt.Errorf("dispatchOrientICS: nil conf")
 	}
@@ -518,11 +523,16 @@ func DispatchOrientICS(ctx *config.AppContext, conf *types.Conf, vol ics.Attende
 		stamp = true
 	}
 
+	if kind == kindCancel {
+		seq = prev.Sequence + 1
+		stamp = true
+	}
+
 	event := ics.Event{
-		Method:        ics.MethodRequest,
+		Method:        kind.method(),
 		UID:           uid,
 		Sequence:      seq,
-		Status:        ics.StatusConfirmed,
+		Status:        statusForKind(kind),
 		Summary:       fmt.Sprintf("vol orientation @ btc++: %s", conf.Desc),
 		Description:   "Volunteer orientation — please attend before doors open.",
 		Location:      orientationLocation(orientLink),
@@ -538,16 +548,16 @@ func DispatchOrientICS(ctx *config.AppContext, conf *types.Conf, vol ics.Attende
 		conf.Desc, start.In(conf.Loc()).Format("Mon Jan 2 · 3:04 PM"), conf.Timezone, orientationLocation(orientLink))
 	htmlBody, _ := emails.BuildHTMLEmail(ctx, []byte(body))
 	mail := &emails.Mail{
-		JobKey:   fmt.Sprintf("orient-%s-s%d-%s", conf.Tag, seq, vol.Email),
+		JobKey:   fmt.Sprintf("orient-%s-s%d-%s-%s", conf.Tag, seq, vol.Email, kind.method()),
 		Email:    vol.Email,
-		Title:    fmt.Sprintf("[%s] Volunteer orientation", conf.Desc),
+		Title:    fmt.Sprintf("[%s] Volunteer orientation — %s", conf.Desc, kind.summaryVerb()),
 		SendAt:   time.Now(),
 		ReplyTo:  ics.ReplyToShift,
 		TextBody: []byte(body),
 		HTMLBody: htmlBody,
 		Files: []*emails.EmailFile{{
 			Bytes:       icsBytes,
-			ContentType: "text/calendar; method=REQUEST; charset=utf-8",
+			ContentType: icsContentType(kind),
 			Name:        "invite.ics",
 		}},
 	}
@@ -562,6 +572,7 @@ func DispatchOrientICS(ctx *config.AppContext, conf *types.Conf, vol ics.Attende
 		s := ics.CalNotif{UID: uid, Sequence: seq, HashHex: newHash}.String()
 		if err := getters.ConfUpdateOrientCalNotif(ctx, conf.Ref, s); err != nil {
 			ctx.Err.Printf("dispatchOrientICS %s calnotif writeback: %s", conf.Tag, err)
+			return fmt.Errorf("orientation state save failed: %w", err)
 		}
 	}
 	return nil
@@ -657,9 +668,10 @@ func BroadcastOrientICS(ctx *config.AppContext, conf *types.Conf, start, end tim
 	stamp := ics.CalNotif{UID: uid, Sequence: seq, HashHex: newHash}.String()
 	if wErr := getters.ConfUpdateOrientCalNotif(ctx, conf.Ref, stamp); wErr != nil {
 		ctx.Err.Printf("broadcastOrientICS %s calnotif writeback: %s", conf.Tag, wErr)
+		return sent, fmt.Errorf("orientation state save failed: %w", wErr)
 	}
 	ctx.Infos.Printf("broadcastOrientICS %s: seq=%d sent=%d/%d hash=%s", conf.Tag, seq, sent, len(recipients), newHash)
-	return sent, nil
+	return sent, firstErr
 }
 
 func orientationLocation(orientLink string) string {

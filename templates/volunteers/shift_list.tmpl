@@ -19,7 +19,9 @@
             <div class="bg-indigo-600 h-2.5 rounded-full" style="width: 100%"></div>
             {{ end }}
         </div>
-        {{ if .CanSubmit }}
+        {{ if eq .Vol.Status "Scheduled" }}
+        <p class="mt-2 text-sm text-green-600">Your volunteer shifts are confirmed.</p>
+        {{ else if .CanSubmit }}
         <p class="mt-2 text-sm text-green-600">You've selected enough shifts! Submit when ready.</p>
         {{ else }}
         <p class="mt-2 text-sm text-gray-500">Please select at least {{ .MinShifts }} shifts to continue.</p>
@@ -28,6 +30,7 @@
 </section>
 
 <!-- Submit Button -->
+{{ if ne .Vol.Status "Scheduled" }}
 <section id="submit" class="mb-6">
     <div class="flex justify-end">
         {{ if .CanSubmit }}
@@ -46,6 +49,8 @@
         {{ end }}
     </div>
 </section>
+
+{{ end }}
 
 <!-- Selected Shifts Summary -->
 {{ if .SelectedShifts }}

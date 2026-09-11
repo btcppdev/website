@@ -114,5 +114,10 @@
         </div>
     </div>
     {{ block "footer" . }} {{ end }}
+  <script>
+      document.body.addEventListener('htmx:responseError', function (event) {
+        window.alert(event.detail.xhr.responseText || 'The action could not be completed. Please reload and try again.');
+      });
+    </script>
   </body>
 </html>

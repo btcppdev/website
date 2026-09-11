@@ -77,9 +77,9 @@ func VolunteerApplicationConfirmation(w http.ResponseWriter, r *http.Request, ct
 				ctx.Err.Printf("volunteer confirmation load shifts: %s", shiftErr)
 				notices = append(notices, "Your application was saved, but shift availability could not be checked.")
 			} else if canSelfScheduleVolunteer(conf, shifts) {
-				if statusErr := getters.UpdateVolunteerStatus(ctx, vol.Ref, "PendingShifts"); statusErr != nil {
+				if statusErr := changeVolunteerStatus(ctx, vol, conf, shifts, "PendingShifts"); statusErr != nil {
 					ctx.Err.Printf("volunteer confirmation enable shift selection: %s", statusErr)
-					notices = append(notices, "Your application was saved, but shift selection could not be opened.")
+					notices = append(notices, "Your application was saved, but shift signup setup did not fully complete. Please contact the volunteer coordinator.")
 				} else {
 					vol.Status = "PendingShifts"
 					selfSchedule = true

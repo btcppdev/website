@@ -1148,11 +1148,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 			return
 		}
 		SendVolCals(w, r, app)
-
-		params := mux.Vars(r)
-		confTag := params["conf"]
-		http.Redirect(w, r, "/"+confTag+"/volcoord?flash=Shift+calendar+invites+sent", http.StatusFound)
-	}).Methods("GET", "POST")
+	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/promote", func(w http.ResponseWriter, r *http.Request) {
 		VolAdminPromote(w, r, app)
@@ -1205,6 +1201,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}", func(w http.ResponseWriter, r *http.Request) {
 		VolAdminDetails(w, r, app)
 	}).Methods("GET")
+
+	r.HandleFunc("/{conf}/volcoord/vol/{volRef}/resend-signup", func(w http.ResponseWriter, r *http.Request) {
+		VolAdminResendSignup(w, r, app)
+	}).Methods("POST")
 
 	r.HandleFunc("/{conf}/volcoord/vol/{volRef}/status", func(w http.ResponseWriter, r *http.Request) {
 		VolAdminUpdateStatus(w, r, app)
@@ -7200,7 +7200,7 @@ func VolunteerShiftSignup(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 
 	minShifts := 3
-	canSubmit := len(selectedShifts) >= minShifts
+	canSubmit := vol.Status == "PendingShifts" && len(selectedShifts) >= minShifts
 
 	encodedHMAC := r.URL.Query().Get("hr")
 	encodedEmail := r.URL.Query().Get("em")
@@ -7332,6 +7332,11 @@ func VolunteerSelectShift(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
+	if err := notifyScheduledShiftAssignment(ctx, vol, targetShift.Conf, targetShift.Ref); err != nil {
+		http.Error(w, "Shift assigned, but calendar invitation failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	// Re-render the shift list
 	renderShiftList(w, r, ctx, email, confTag)
 }
@@ -7371,6 +7376,16 @@ func VolunteerRemoveShift(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
+	shifts, err := getters.GetShiftsForConf(ctx, confTag)
+	if err != nil {
+		http.Error(w, "Unable to load shifts", http.StatusInternalServerError)
+		return
+	}
+	if !volunteerShiftInEvent(shifts, shiftRef) || (vol.Status != "PendingShifts" && vol.Status != "Scheduled") {
+		http.Error(w, "Shift removal is not available for this application", http.StatusForbidden)
+		return
+	}
+
 	// Prevent removal within two weeks of conference start
 	if len(vol.ScheduleFor) > 0 && vol.ScheduleFor[0].WithinTwoWeeks() {
 		http.Error(w, "Cannot modify shifts within two weeks of the conference", http.StatusBadRequest)
@@ -7386,8 +7401,11 @@ func VolunteerRemoveShift(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	}
 
 	// CANCEL ICS for this volunteer's calendar entry.
-	// Best-effort — log on error, don't fail the remove.
-	cancelShiftCalForVol(ctx, vol, shiftRef, confTag)
+	// Report calendar delivery failures after saving the removal.
+	if err := cancelShiftCalForVol(ctx, vol, shiftRef, confTag); err != nil {
+		http.Error(w, "Shift removed, but calendar cancellation failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// Re-render the shift list
 	renderShiftList(w, r, ctx, email, confTag)
@@ -7396,33 +7414,28 @@ func VolunteerRemoveShift(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 // cancelShiftCalForVol looks up the shift + conf and fires a
 // CANCEL ICS to the given volunteer, removing the dropped shift
 // from their calendar. No-op when the shift has no CalNotif
-// (never invited) or the lookups fail. Logged-only; never fails
-// the surrounding remove.
-func cancelShiftCalForVol(ctx *config.AppContext, vol *types.Volunteer, shiftRef, confTag string) {
+// (never invited). Lookup and delivery failures are returned to the caller.
+func cancelShiftCalForVol(ctx *config.AppContext, vol *types.Volunteer, shiftRef, confTag string) error {
 	if vol == nil || vol.Email == "" {
-		return
+		return nil
 	}
 	conf, err := getters.GetConfByTag(ctx, confTag)
 	if err != nil {
-		ctx.Err.Printf("cancelShiftCalForVol conf: %s", err)
-		return
+		return err
 	}
 	if conf == nil {
-		return
+		return fmt.Errorf("conference not found")
 	}
 	shifts, err := getters.GetShiftsForConf(ctx, confTag)
 	if err != nil {
-		ctx.Err.Printf("cancelShiftCalForVol shifts %s: %s", confTag, err)
-		return
+		return err
 	}
-	for _, s := range shifts {
-		if s != nil && s.Ref == shiftRef {
-			if err := DispatchShiftICSCancelForVol(ctx, s, conf, vol.Email, vol.Name); err != nil {
-				ctx.Err.Printf("cancelShiftCalForVol dispatch %q: %s", s.Name, err)
-			}
-			return
+	for _, shift := range shifts {
+		if shift != nil && shift.Ref == shiftRef {
+			return DispatchShiftICSCancelForVol(ctx, shift, conf, vol.Email, vol.Name)
 		}
 	}
+	return fmt.Errorf("shift not found for event")
 }
 
 func renderShiftList(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, email, confTag string) {
@@ -7457,7 +7470,7 @@ func renderShiftList(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	}
 
 	minShifts := 3
-	canSubmit := len(selectedShifts) >= minShifts
+	canSubmit := vol.Status == "PendingShifts" && len(selectedShifts) >= minShifts
 
 	encodedHMAC := r.URL.Query().Get("hr")
 	encodedEmail := r.URL.Query().Get("em")
@@ -7505,6 +7518,11 @@ func VolunteerSubmitShifts(w http.ResponseWriter, r *http.Request, ctx *config.A
 		return
 	}
 
+	if vol.Status != "PendingShifts" {
+		http.Error(w, "Only Pending Shifts volunteers can submit shifts", http.StatusConflict)
+		return
+	}
+
 	// Get shifts and verify minimum
 	confShifts, err := getters.GetShiftsForConf(ctx, confTag)
 	if err != nil {
@@ -7535,28 +7553,32 @@ func VolunteerSubmitShifts(w http.ResponseWriter, r *http.Request, ctx *config.A
 }
 
 // runScheduledFlow runs the post-status-update logic that promotes a volunteer
-// to "Scheduled": updates Notion status, sends the onboarding email, issues a
-// ticket, subscribes to the volunteer newsletter, and sends calendar invites
-// (if Google Calendar is connected). Caller must have already populated
+// to "Scheduled": updates status, sends onboarding, issues a ticket, subscribes
+// to the volunteer newsletter, and sends calendar invites. Caller must populate
 // vol.WorkShifts with the assigned shifts. Failures in non-critical steps
-// (email, calendar invites) are logged but don't abort the flow.
+// (email, calendar invites) are collected and returned after attempting all steps.
 func runScheduledFlow(ctx *config.AppContext, vol *types.Volunteer, conf *types.Conf) error {
+	var failures []error
 	// Update status
 	err := getters.UpdateVolunteerStatus(ctx, vol.Ref, "Scheduled")
 	if err != nil {
 		return fmt.Errorf("status update: %w", err)
 	}
 
+	vol.Status = "Scheduled"
+	vol.ScheduleFor = []*types.Conf{conf}
+
 	// Look up VolInfo for orientation details
 	volinfo, err := getters.GetVolInfo(ctx, conf.Ref)
 	if err != nil {
 		ctx.Err.Printf("scheduled flow: failed to get volinfo for %s: %s", conf.Tag, err)
-		// continue without volinfo
+		failures = append(failures, fmt.Errorf("orientation details: %w", err))
 	}
 
 	// Send onboarding email
 	_, err = emails.OnlyForVolShift(ctx, volinfo, vol)
 	if err != nil {
+		failures = append(failures, fmt.Errorf("onboarding email: %w", err))
 		ctx.Err.Printf("scheduled flow: failed to send onboarding email to %s: %s", vol.Email, err)
 	}
 
@@ -7584,6 +7606,7 @@ func runScheduledFlow(ctx *config.AppContext, vol *types.Volunteer, conf *types.
 
 	err = missives.NewTicketSub(ctx, vol.Email, conf.Tag, tixType, true)
 	if err != nil {
+		failures = append(failures, fmt.Errorf("newsletter: %w", err))
 		ctx.Err.Printf("scheduled flow: newsletter sub failed for %s: %s", vol.Email, err)
 	}
 
@@ -7599,18 +7622,20 @@ func runScheduledFlow(ctx *config.AppContext, vol *types.Volunteer, conf *types.
 		if shift == nil || shift.ShiftTime == nil || shift.ShiftTime.End == nil {
 			continue
 		}
-		if err := DispatchShiftICS(ctx, shift, conf, []ics.Attendee{recipient}, kindRequest, false); err != nil {
+		if err := dispatchVolunteerShiftInvite(ctx, shift, conf, recipient); err != nil {
+			failures = append(failures, fmt.Errorf("shift calendar invite: %w", err))
 			ctx.Err.Printf("scheduled flow: cal invite failed for shift %s: %s", shift.Name, err)
 		}
 	}
 
 	if volinfo != nil && volinfo.OrientTimes != nil && volinfo.OrientTimes.End != nil {
 		if err := DispatchOrientICS(ctx, conf, recipient, volinfo.OrientTimes.Start, *volinfo.OrientTimes.End, volinfo.OrientLink); err != nil {
+			failures = append(failures, fmt.Errorf("orientation calendar invite: %w", err))
 			ctx.Err.Printf("scheduled flow: orientation cal invite failed: %s", err)
 		}
 	}
 
-	return nil
+	return errors.Join(failures...)
 }
 
 func VolAdmin(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -7751,8 +7776,8 @@ func VolAdminPromote(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	targetStatus := r.FormValue("target_status")
 	fromStatus := r.FormValue("from_status")
 
-	if targetStatus == "" || fromStatus == "" {
-		http.Error(w, "Missing status parameters", http.StatusBadRequest)
+	if targetStatus != "PendingShifts" || fromStatus != "Applied" {
+		http.Error(w, "Bulk promotion supports Applied to Pending Shifts only", http.StatusBadRequest)
 		return
 	}
 
@@ -7762,31 +7787,23 @@ func VolAdminPromote(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return
 	}
 
-	promoted := 0
+	promoted, failed := 0, 0
 	for _, vol := range vols {
 		if vol.Status != fromStatus {
 			continue
 		}
 
-		err = getters.UpdateVolunteerStatus(ctx, vol.Ref, targetStatus)
-		if err != nil {
-			ctx.Err.Printf("/%s/volcoord/promote failed to update %s: %s", conf.Tag, vol.Name, err.Error())
+		if err := changeVolunteerStatus(ctx, vol, conf, nil, targetStatus); err != nil {
+			ctx.Err.Printf("/%s/volcoord/promote action failed for %s: %s", conf.Tag, vol.Email, err)
+			failed++
 			continue
-		}
-
-		// Send shift signup email when promoting to PendingShifts
-		if targetStatus == "PendingShifts" {
-			_, emailErr := emails.OnlyForVolSignup(ctx, vol, conf)
-			if emailErr != nil {
-				ctx.Err.Printf("/%s/volcoord/promote email failed for %s: %s", conf.Tag, vol.Email, emailErr)
-			}
 		}
 
 		promoted++
 	}
 
-	// Redirect back to admin page
-	http.Redirect(w, r, fmt.Sprintf("/%s/volcoord", conf.Tag), http.StatusSeeOther)
+	message := fmt.Sprintf("Promoted and queued signup invitations for %d volunteers; %d actions failed. Failed email sends may leave volunteers Pending Shifts; use Remind Pending Without Shifts to retry.", promoted, failed)
+	http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape(message)), http.StatusSeeOther)
 }
 
 func VolAdminRemindPendingShifts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -7873,6 +7890,8 @@ func VolAdminAutoAssign(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	err = volunteers.AssignShifts(ctx, eligibleVols, shifts)
 	if err != nil {
 		ctx.Err.Printf("/%s/volcoord/auto-assign failed: %s", conf.Tag, err.Error())
+		http.Error(w, "Shift assignment did not fully complete; reload to review assigned shifts", http.StatusInternalServerError)
+		return
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/%s/volcoord", conf.Tag), http.StatusSeeOther)
@@ -7917,31 +7936,15 @@ func VolunteerDecline(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 
-	// Release any shift assignments
 	confShifts, err := getters.GetShiftsForConf(ctx, confTag)
 	if err != nil {
-		ctx.Err.Printf("/vols/shift/%s/decline failed to load shifts: %s", confTag, err.Error())
-	} else {
-		releaseVolunteerShifts(ctx, conf, vol, confShifts, "vols/shift/decline")
+		http.Error(w, "Unable to load shifts; cancellation was not completed", http.StatusInternalServerError)
+		return
 	}
-
-	// Update status to Declined
-	err = getters.UpdateVolunteerStatus(ctx, vol.Ref, "Declined")
-	if err != nil {
-		ctx.Err.Printf("/vols/shift/%s/decline status update failed: %s", confTag, err.Error())
-	}
-
-	// Send cancellation email
-	_, err = emails.OnlyForVolCancel(ctx, vol, conf)
-	if err != nil {
-		ctx.Err.Printf("/vols/shift/%s/decline email failed: %s", confTag, err)
-	}
-
-	// Revoke their ticket if one was issued
-	ctx.Infos.Printf("revoking ticket with id %s", vol.RegisID())
-	err = getters.RevokeTicket(ctx, vol.RegisID())
-	if err != nil {
-		ctx.Err.Printf("/vols/shift/%s/decline ticket revoke failed: %s", confTag, err.Error())
+	if err := changeVolunteerStatus(ctx, vol, conf, confShifts, "Declined"); err != nil {
+		ctx.Err.Printf("volunteer decline: %s", err)
+		http.Error(w, "Cancellation did not fully complete: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// Redirect back to the session-authenticated shift dashboard.
@@ -8070,6 +8073,11 @@ func volAdminLoadVol(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		return nil, nil, nil
 	}
 	if vol == nil {
+		handle404(w, r, ctx)
+		return nil, nil, nil
+	}
+
+	if !volunteerBelongsToConf(vol, conf) {
 		handle404(w, r, ctx)
 		return nil, nil, nil
 	}
@@ -8247,14 +8255,9 @@ func VolAdminUpdateStatus(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
-	if status == "Declined" {
-		releaseVolunteerShifts(ctx, conf, vol, shifts, "volcoord/status-decline")
-	}
-
-	err := getters.UpdateVolunteerStatus(ctx, vol.Ref, status)
-	if err != nil {
-		ctx.Err.Printf("vol admin update status failed: %s", err)
-		http.Error(w, "Failed to update status", http.StatusInternalServerError)
+	if err := changeVolunteerStatus(ctx, vol, conf, shifts, status); err != nil {
+		ctx.Err.Printf("vol admin status action: %s", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -8336,7 +8339,7 @@ func VolAdminAddShift(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 
-	conf, vol, _ := volAdminLoadVol(w, r, ctx)
+	conf, vol, shifts := volAdminLoadVol(w, r, ctx)
 	if vol == nil {
 		return
 	}
@@ -8352,10 +8355,20 @@ func VolAdminAddShift(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 
+	if !volunteerShiftInEvent(shifts, shiftRef) || vol.Status == "Declined" {
+		http.Error(w, "Shift or volunteer is not eligible for this event", http.StatusBadRequest)
+		return
+	}
+
 	err := getters.AssignVolunteerToShift(ctx, vol.Ref, shiftRef)
 	if err != nil {
 		ctx.Err.Printf("vol admin add shift failed: %s", err)
 		http.Error(w, "Failed to add shift", http.StatusInternalServerError)
+		return
+	}
+
+	if err := notifyScheduledShiftAssignment(ctx, vol, conf, shiftRef); err != nil {
+		http.Error(w, "Shift assigned, but calendar invitation failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -8367,7 +8380,7 @@ func VolAdminRemoveShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 		return
 	}
 
-	conf, vol, _ := volAdminLoadVol(w, r, ctx)
+	conf, vol, shifts := volAdminLoadVol(w, r, ctx)
 	if vol == nil {
 		return
 	}
@@ -8380,6 +8393,11 @@ func VolAdminRemoveShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 	shiftRef := r.FormValue("shiftRef")
 	if shiftRef == "" {
 		http.Error(w, "Missing shiftRef", http.StatusBadRequest)
+		return
+	}
+
+	if !volunteerShiftInEvent(shifts, shiftRef) || vol.Status == "Declined" {
+		http.Error(w, "Shift or volunteer is not eligible for this event", http.StatusBadRequest)
 		return
 	}
 
@@ -8393,7 +8411,10 @@ func VolAdminRemoveShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 	// CANCEL ICS for this volunteer's calendar entry — vol
 	// admin removed them from the shift, so it shouldn't sit
 	// on their calendar.
-	cancelShiftCalForVol(ctx, vol, shiftRef, conf.Tag)
+	if err := cancelShiftCalForVol(ctx, vol, shiftRef, conf.Tag); err != nil {
+		http.Error(w, "Shift removed, but calendar cancellation failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	volAdminRedirect(w, r, conf, vol.Ref)
 }
@@ -8408,20 +8429,17 @@ func VolAdminMarkScheduled(w http.ResponseWriter, r *http.Request, ctx *config.A
 		return
 	}
 
+	if vol.Status != "PendingShifts" && vol.Status != "Scheduled" {
+		http.Error(w, "Move the volunteer to Pending Shifts before scheduling", http.StatusConflict)
+		return
+	}
 	if len(vol.WorkShifts) == 0 {
 		http.Error(w, "Cannot schedule a volunteer with zero assigned shifts", http.StatusBadRequest)
 		return
 	}
-
-	// Make sure ScheduleFor is set so runScheduledFlow has the conf
-	if len(vol.ScheduleFor) == 0 {
-		vol.ScheduleFor = []*types.Conf{conf}
-	}
-
-	err := runScheduledFlow(ctx, vol, conf)
-	if err != nil {
+	if err := runScheduledFlow(ctx, vol, conf); err != nil {
 		ctx.Err.Printf("vol admin mark scheduled failed for %s: %s", vol.Ref, err)
-		http.Error(w, "Failed to schedule volunteer", http.StatusInternalServerError)
+		http.Error(w, "Scheduling did not fully complete: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -8646,7 +8664,10 @@ func VolAdminDeclineSelected(w http.ResponseWriter, r *http.Request, ctx *config
 		}
 		sent++
 
-		releaseVolunteerShifts(ctx, conf, v, shifts, "volcoord/decline-selected")
+		if err := releaseVolunteerShifts(ctx, conf, v, shifts, "volcoord/decline-selected"); err != nil {
+			ctx.Err.Printf("decline cleanup: %s", err)
+			continue
+		}
 		if err := getters.UpdateVolunteerStatus(ctx, v.Ref, "Declined"); err != nil {
 			ctx.Err.Printf("/%s/volcoord/decline-selected status %s failed: %s", conf.Tag, v.Email, err)
 			continue
@@ -8695,7 +8716,8 @@ func validateVolDeclineDiscount(ctx *config.AppContext, conf *types.Conf, code s
 	return discount, nil
 }
 
-func releaseVolunteerShifts(ctx *config.AppContext, conf *types.Conf, vol *types.Volunteer, shifts []*types.WorkShift, label string) {
+func releaseVolunteerShifts(ctx *config.AppContext, conf *types.Conf, vol *types.Volunteer, shifts []*types.WorkShift, label string) error {
+	var failures []error
 	selectedShifts := vol.WorkShifts
 	if selectedShifts == nil {
 		selectedShifts = getSelectedShifts(vol, shifts)
@@ -8705,13 +8727,16 @@ func releaseVolunteerShifts(ctx *config.AppContext, conf *types.Conf, vol *types
 			continue
 		}
 		if err := getters.RemoveVolunteerFromShift(ctx, vol.Ref, shift.Ref); err != nil {
+			failures = append(failures, err)
 			ctx.Err.Printf("/%s/%s remove shift %s for %s failed: %s", conf.Tag, label, shift.Name, vol.Email, err)
 			continue
 		}
 		if dErr := DispatchShiftICSCancelForVol(ctx, shift, conf, vol.Email, vol.Name); dErr != nil {
+			failures = append(failures, dErr)
 			ctx.Err.Printf("/%s/%s cancel-cal %q for %s: %s", conf.Tag, label, shift.Name, vol.Email, dErr)
 		}
 	}
+	return errors.Join(failures...)
 }
 
 // parseShiftFormTimes turns a date (YYYY-MM-DD or 01/02/2006) plus two HH:MM
@@ -9037,6 +9062,11 @@ func VolAdminShiftAddVolunteer(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 
+	if err := notifyScheduledShiftAssignment(ctx, vol, conf, shift.Ref); err != nil {
+		http.Error(w, "Shift assigned, but calendar invitation failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	volAdminShiftAssignmentRedirect(w, r, conf, shift.Ref, vol.Name+" added to "+shift.Name)
 }
 
@@ -9054,7 +9084,10 @@ func VolAdminShiftRemoveVolunteer(w http.ResponseWriter, r *http.Request, ctx *c
 		volAdminShiftAssignmentRedirect(w, r, conf, shift.Ref, "Unable to remove volunteer")
 		return
 	}
-	cancelShiftCalForVol(ctx, vol, shift.Ref, conf.Tag)
+	if err := cancelShiftCalForVol(ctx, vol, shift.Ref, conf.Tag); err != nil {
+		http.Error(w, "Shift removed, but calendar cancellation failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	volAdminShiftAssignmentRedirect(w, r, conf, shift.Ref, vol.Name+" removed from "+shift.Name)
 }
 
@@ -9117,6 +9150,15 @@ func VolAdminUpdateShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 	}
 
 	shiftRef := mux.Vars(r)["shiftRef"]
+	shift, err := getters.GetWorkShiftByRef(ctx, shiftRef)
+	if err != nil {
+		http.Error(w, "Unable to load shift", http.StatusInternalServerError)
+		return
+	}
+	if shift == nil || shift.Conf == nil || shift.Conf.Ref != conf.Ref {
+		http.NotFound(w, r)
+		return
+	}
 
 	limitRequestBody(w, r, maxFormBodyBytes)
 	if err := r.ParseForm(); err != nil {
@@ -9148,6 +9190,11 @@ func VolAdminUpdateShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 	if err != nil {
 		ctx.Err.Printf("/%s/volcoord/shifts/%s/update failed: %s", conf.Tag, shiftRef, err.Error())
 		http.Error(w, "Failed to update shift: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := dispatchShiftCalAfterReschedule(ctx, conf, shiftRef); err != nil {
+		http.Error(w, "Shift saved, but calendar update failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -9187,6 +9234,11 @@ func VolAdminDeleteShift(w http.ResponseWriter, r *http.Request, ctx *config.App
 		http.Error(w, "shift not found", http.StatusNotFound)
 		return
 	}
+	if err := cancelDeletedShift(ctx, conf, shifts, shiftRef); err != nil {
+		http.Error(w, "Calendar cancellations failed; shift was not deleted: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	if err := getters.DeleteShift(ctx, shiftRef); err != nil {
 		ctx.Err.Printf("/%s/volcoord/shifts/%s/delete failed: %s", conf.Tag, shiftRef, err.Error())
 		http.Error(w, "Failed to delete shift: "+err.Error(), http.StatusInternalServerError)
@@ -9213,6 +9265,15 @@ func VolShiftReschedule(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		return
 	}
 	shiftRef := mux.Vars(r)["shiftRef"]
+	shift, err := getters.GetWorkShiftByRef(ctx, shiftRef)
+	if err != nil {
+		http.Error(w, "Unable to load shift", http.StatusInternalServerError)
+		return
+	}
+	if shift == nil || shift.Conf == nil || shift.Conf.Ref != conf.Ref {
+		http.NotFound(w, r)
+		return
+	}
 
 	var req struct {
 		Day      string `json:"day"`
@@ -9251,9 +9312,11 @@ func VolShiftReschedule(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	// shift. Hash check inside dispatch suppresses email when
 	// the time genuinely didn't change (same start/end after a
 	// no-op drag); changed times bump SEQUENCE on the
-	// assignees' calendars. Best-effort — log on error, don't
-	// fail the schedule write.
-	dispatchShiftCalAfterReschedule(ctx, conf, shiftRef)
+	// assignees' calendars. Report delivery failures after saving the time.
+	if err := dispatchShiftCalAfterReschedule(ctx, conf, shiftRef); err != nil {
+		http.Error(w, "Shift saved, but calendar update failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -9263,11 +9326,11 @@ func VolShiftReschedule(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 // fans the cal-invite update to each via DispatchShiftICS. force=
 // false so the hash check inside dispatch silently skips when
 // times didn't actually move.
-func dispatchShiftCalAfterReschedule(ctx *config.AppContext, conf *types.Conf, shiftRef string) {
+func dispatchShiftCalAfterReschedule(ctx *config.AppContext, conf *types.Conf, shiftRef string) error {
 	shifts, err := getters.GetShiftsForConf(ctx, conf.Tag)
 	if err != nil {
 		ctx.Err.Printf("shift cal-fire: load shifts %s: %s", conf.Tag, err)
-		return
+		return err
 	}
 	var shift *types.WorkShift
 	for _, s := range shifts {
@@ -9277,16 +9340,16 @@ func dispatchShiftCalAfterReschedule(ctx *config.AppContext, conf *types.Conf, s
 		}
 	}
 	if shift == nil || shift.ShiftTime == nil || shift.ShiftTime.End == nil {
-		return
+		return nil
 	}
 	if len(shift.AssigneesRef) == 0 {
-		return
+		return nil
 	}
 
 	vols, err := getters.ListVolunteersForConf(ctx, conf.Ref)
 	if err != nil {
 		ctx.Err.Printf("shift cal-fire: load vols %s: %s", conf.Tag, err)
-		return
+		return err
 	}
 	volByRef := make(map[string]ics.Attendee, len(vols))
 	for _, v := range vols {
@@ -9302,11 +9365,9 @@ func dispatchShiftCalAfterReschedule(ctx *config.AppContext, conf *types.Conf, s
 		}
 	}
 	if len(recipients) == 0 {
-		return
+		return nil
 	}
-	if err := DispatchShiftICS(ctx, shift, conf, recipients, kindRequest, false); err != nil {
-		ctx.Err.Printf("shift cal-fire %q: %s", shift.Name, err)
-	}
+	return DispatchShiftICS(ctx, shift, conf, recipients, kindRequest, false)
 }
 
 // AdminGifts renders /{conf}/admin/gifts — the per-event Speaker
@@ -11117,7 +11178,7 @@ func SendVolOrientation(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 
 	sent, err := BroadcastOrientICS(ctx, conf, volinfo.OrientTimes.Start, *volinfo.OrientTimes.End, volinfo.OrientLink, recipients)
-	if err != nil && sent == 0 {
+	if err != nil {
 		ctx.Err.Printf("/%s/volcoord/send-orientation: %s", conf.Tag, err)
 		http.Redirect(w, r,
 			fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag,
@@ -11183,7 +11244,7 @@ func VolAdminScheduleOrientation(w http.ResponseWriter, r *http.Request, ctx *co
 		return
 	}
 	sent, err := BroadcastOrientICS(ctx, conf, start, end, orientLink, recipients)
-	if err != nil && sent == 0 {
+	if err != nil {
 		ctx.Err.Printf("/%s/volcoord/orientation broadcast: %s", conf.Tag, err)
 		http.Redirect(w, r, fmt.Sprintf("/%s/volcoord?flash=%s", conf.Tag, url.QueryEscape("Orientation saved, but invite send failed: "+err.Error())), http.StatusSeeOther)
 		return
@@ -11302,17 +11363,19 @@ func SendVolCals(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	// the rendered ICS carries CN= alongside mailto:.
 	volByRef := make(map[string]ics.Attendee)
 	for _, vol := range vols {
-		if vol == nil || vol.Email == "" {
+		if vol == nil || vol.Email == "" || vol.Status != "Scheduled" {
 			continue
 		}
 		volByRef[vol.Ref] = ics.Attendee{Email: vol.Email, Name: vol.Name}
 	}
 
+	failed := 0
 	for _, shift := range shifts {
 		if len(shift.AssigneesRef) == 0 {
 			continue
 		}
 		if shift.ShiftTime == nil || shift.ShiftTime.End == nil {
+			failed++
 			ctx.Err.Printf("Skipping shift %s: no end time", shift.Name)
 			continue
 		}
@@ -11327,8 +11390,12 @@ func SendVolCals(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 			continue
 		}
 
-		if err := DispatchShiftICS(ctx, shift, conf, recipients, kindRequest, false); err != nil {
+		if err := DispatchShiftICS(ctx, shift, conf, recipients, kindRequest, true); err != nil {
+			failed++
 			ctx.Err.Printf("vol sendcal %q: %s", shift.Name, err)
 		}
 	}
+	message := fmt.Sprintf("Shift calendar invite requests completed; %d shifts failed.", failed)
+	http.Redirect(w, r, "/"+conf.Tag+"/volcoord?flash="+url.QueryEscape(message), http.StatusSeeOther)
+
 }

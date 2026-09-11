@@ -458,3 +458,13 @@ func RevokeTicket(ctx *config.AppContext, lookupID string) error {
 	}
 	return nil
 }
+
+// RevokeVolunteerTicket is retryable even when scheduling failed before a
+// ticket was issued. It only touches volunteer tickets from this signup.
+func RevokeVolunteerTicket(ctx *config.AppContext, lookupID string) error {
+	if ctx == nil || ctx.DB == nil {
+		return fmt.Errorf("database is not configured")
+	}
+	_, err := ctx.DB.Exec(ctx.DatabaseContext(), `UPDATE registrations SET revoked = true WHERE checkout_id = $1 AND type = 'volunteer'`, lookupID)
+	return err
+}
