@@ -18,6 +18,7 @@ type tickerWidgetPage struct {
 }
 
 func registerTickerWidgets(router *mux.Router, app *config.AppContext) {
+	registerClockWidget(router, app)
 	router.HandleFunc("/widgets/ticker", func(w http.ResponseWriter, r *http.Request) {
 		renderTickerWidget(w, r, app, tickerWidgetPage{Nav: buildNavConfList(app)})
 	}).Methods(http.MethodGet)

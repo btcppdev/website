@@ -48,6 +48,16 @@ func TestTickerWidgets(t *testing.T) {
 	}
 	router := mux.NewRouter()
 	registerTickerWidgets(router, app)
+	for _, path := range []string{"/widgets/clock", "/widgets/clock/status"} {
+		rr = httptest.NewRecorder()
+		router.ServeHTTP(rr, httptest.NewRequest("GET", path, nil))
+		if rr.Code != 200 || !strings.Contains(rr.Body.String(), "UTC") || rr.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("clock route failed: %s: %s", path, rr.Body.String())
+		}
+		if path == "/widgets/clock" && (!strings.Contains(rr.Body.String(), "Montserrat") || !strings.Contains(rr.Body.String(), "/static/js/clock-widget.js") || rr.Header().Get("Content-Security-Policy") != "frame-ancestors *") {
+			t.Fatal("clock embed is missing font, script, or framing headers")
+		}
+	}
 	rr = httptest.NewRecorder()
 	router.ServeHTTP(rr, httptest.NewRequest("GET", "/widgets/ticker", nil))
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "data-site-ticker") || !strings.Contains(rr.Body.String(), "/live/status") {
