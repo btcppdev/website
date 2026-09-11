@@ -439,8 +439,10 @@ func rebrandEmailCSS(palette string) htmltemplate.CSS {
 	return htmltemplate.CSS(fmt.Sprintf(`
 body { margin: 0; padding: 0; background: %s; }
 a { color: inherit; }
+.btcpp-inner table { border-collapse: collapse; }
+.btcpp-content { overflow-wrap: break-word; word-wrap: break-word; }
 .btcpp-shell { background: %s; }
-.btcpp-inner { width: 640px; max-width: 100%%; table-layout: fixed; background: %s; color: #1C1C1E; border: 1px solid #1C1C1E; font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; }
+.btcpp-inner { width: 100%%; max-width: 640px; table-layout: fixed; background: %s; color: #1C1C1E; border: 1px solid #1C1C1E; font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; }
 .btcpp-row { padding: 24px 32px; border-bottom: 1px solid #1C1C1E; }
 .btcpp-ticker { max-width: 0; overflow: hidden; white-space: nowrap; }
 .btcpp-ticker-window { width: 100%%; height: 14px; max-height: 14px; overflow: hidden; white-space: nowrap; }
@@ -461,6 +463,23 @@ a { color: inherit; }
 .btcpp-section-label { color: #F57247; font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
 @media only screen and (max-width: 680px) {
   .btcpp-inner { border: 0 !important; }
+  .btcpp-gutter { padding: 0 !important; }
+  .btcpp-row, .btcpp-padding { padding-left: 16px !important; padding-right: 16px !important; }
+  .btcpp-cta { padding: 24px 16px !important; }
+  .btcpp-content h1 { font-size: 32px !important; line-height: 1.1 !important; letter-spacing: -1px !important; }
+  .btcpp-content h2, .btcpp-cta-title { font-size: 26px !important; line-height: 1.15 !important; letter-spacing: -.5px !important; }
+  .btcpp-button { max-width: 100%% !important; box-sizing: border-box !important; padding: 14px 16px !important; white-space: normal !important; }
+  .btcpp-header-cell, .btcpp-news-cell, .btcpp-stat { display: block !important; width: auto !important; }
+  .btcpp-issue { text-align: left !important; padding-top: 12px !important; }
+  .btcpp-news-number { padding-bottom: 8px !important; }
+  .btcpp-news-tag { text-align: left !important; padding-top: 8px !important; }
+  .btcpp-stat { border-right: 0 !important; border-bottom: 1px solid #1C1C1E; }
+  .btcpp-hero { height: auto !important; max-height: none !important; }
+  .btcpp-ticker, .btcpp-ticker-window, .btcpp-ticker-track, .btcpp-ticker-set { height: auto !important; max-height: none !important; white-space: normal !important; }
+  .btcpp-ticker { padding: 12px 16px !important; }
+  .btcpp-ticker-track { animation: none !important; }
+  .btcpp-ticker-set { padding-right: 0 !important; }
+  .btcpp-ticker-duplicate { display: none !important; }
 }
 `, outer, outer, paper))
 }
@@ -477,11 +496,11 @@ func rebrandPalette(name string) (paper string, outer string) {
 }
 
 func rebrandButton(label, href string) string {
-	return fmt.Sprintf(`<a href="%s" style="display:inline-block;background:#F57247;color:#000;border:1px solid #F57247;padding:14px 24px;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;letter-spacing:1.5px;text-decoration:none;text-transform:uppercase;">%s &#8594;</a>`, htmltemplate.HTMLEscapeString(href), htmltemplate.HTMLEscapeString(label))
+	return fmt.Sprintf(`<a class="btcpp-button" href="%s" style="display:inline-block;background:#F57247;color:#000;border:1px solid #F57247;padding:14px 24px;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;letter-spacing:1.5px;text-decoration:none;text-transform:uppercase;">%s &#8594;</a>`, htmltemplate.HTMLEscapeString(href), htmltemplate.HTMLEscapeString(label))
 }
 
 func rebrandCTA(eyebrow, title, subtitle, label, href string) string {
-	return fmt.Sprintf(`<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="border-top:1px solid #1C1C1E;border-bottom:1px solid #1C1C1E;background:#F57247;"><tr><td style="padding:32px 28px;"><div style="font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">%s</div><div style="font-size:36px;line-height:1;font-weight:700;letter-spacing:-1.5px;margin-bottom:10px;">%s</div><div style="font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.35;margin-bottom:20px;">%s</div><a href="%s" style="display:inline-block;background:#1C1C1E;color:#fff;border:1px solid #1C1C1E;padding:14px 24px;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;letter-spacing:1.5px;text-decoration:none;text-transform:uppercase;">%s &#8594;</a></td></tr></table>`,
+	return fmt.Sprintf(`<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="border-top:1px solid #1C1C1E;border-bottom:1px solid #1C1C1E;background:#F57247;"><tr><td class="btcpp-cta" style="padding:32px 28px;"><div style="font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">%s</div><div class="btcpp-cta-title" style="font-size:36px;line-height:1;font-weight:700;letter-spacing:-1.5px;margin-bottom:10px;">%s</div><div style="font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.35;margin-bottom:20px;">%s</div><a class="btcpp-button" href="%s" style="display:inline-block;background:#1C1C1E;color:#fff;border:1px solid #1C1C1E;padding:14px 24px;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:700;letter-spacing:1.5px;text-decoration:none;text-transform:uppercase;">%s &#8594;</a></td></tr></table>`,
 		htmltemplate.HTMLEscapeString(eyebrow), htmltemplate.HTMLEscapeString(title), rebrandInlineStrong(subtitle), htmltemplate.HTMLEscapeString(href), htmltemplate.HTMLEscapeString(label))
 }
 
@@ -500,11 +519,11 @@ func rebrandInlineStrong(value string) string {
 }
 
 func rebrandHero(src, caption string) string {
-	out := fmt.Sprintf(`<img src="%s" width="640" height="270" style="width:100%%;max-width:640px;height:270px;max-height:270px;object-fit:cover;display:block;border-bottom:1px solid #1C1C1E;">`, htmltemplate.HTMLEscapeString(src))
+	out := fmt.Sprintf(`<img class="btcpp-hero" src="%s" width="640" height="270" style="width:100%%;max-width:640px;height:270px;max-height:270px;object-fit:cover;display:block;border-bottom:1px solid #1C1C1E;">`, htmltemplate.HTMLEscapeString(src))
 	if strings.TrimSpace(caption) == "" {
 		return out
 	}
-	return out + fmt.Sprintf(`<div style="padding:10px 32px;background:#E8E2D5;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:1.5px;color:#6B655C;border-bottom:1px solid #1C1C1E;">&#8627; %s</div>`, htmltemplate.HTMLEscapeString(caption))
+	return out + fmt.Sprintf(`<div class="btcpp-padding" style="padding:10px 32px;background:#E8E2D5;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:1.5px;color:#6B655C;border-bottom:1px solid #1C1C1E;">&#8627; %s</div>`, htmltemplate.HTMLEscapeString(caption))
 }
 
 func rebrandLead(eyebrow, title, deck string) string {
@@ -524,8 +543,8 @@ func rebrandNewsList(items []string) string {
 		title, blurb, tag, href := fieldAt(parts, 0), fieldAt(parts, 1), fieldAt(parts, 2), fieldAt(parts, 3)
 		b.WriteString(`<tr><td style="padding:18px 0;border-top:1px solid #1C1C1E;">`)
 		b.WriteString(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>`)
-		b.WriteString(fmt.Sprintf(`<td style="width:48px;vertical-align:top;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#F57247;font-weight:600;">%02d</td>`, i+1))
-		b.WriteString(`<td style="vertical-align:top;">`)
+		b.WriteString(fmt.Sprintf(`<td class="btcpp-news-cell btcpp-news-number" style="width:48px;vertical-align:top;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#F57247;font-weight:600;">%02d</td>`, i+1))
+		b.WriteString(`<td class="btcpp-news-cell" style="vertical-align:top;">`)
 		if href != "" {
 			b.WriteString(fmt.Sprintf(`<a href="%s" style="color:#1C1C1E;text-decoration:none;">`, htmltemplate.HTMLEscapeString(href)))
 		}
@@ -538,7 +557,7 @@ func rebrandNewsList(items []string) string {
 			b.WriteString(`<div style="font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#F57247;margin-top:8px;letter-spacing:1px;">READ &#8594;</div>`)
 		}
 		b.WriteString(`</td>`)
-		b.WriteString(fmt.Sprintf(`<td style="width:80px;vertical-align:top;text-align:right;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:1px;color:#6B655C;">%s</td>`, htmltemplate.HTMLEscapeString(strings.ToUpper(tag))))
+		b.WriteString(fmt.Sprintf(`<td class="btcpp-news-cell btcpp-news-tag" style="width:80px;vertical-align:top;text-align:right;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:1px;color:#6B655C;">%s</td>`, htmltemplate.HTMLEscapeString(strings.ToUpper(tag))))
 		b.WriteString(`</tr></table></td></tr>`)
 	}
 	b.WriteString(`</table>`)
@@ -554,7 +573,7 @@ func rebrandStats(items []string) string {
 	b.WriteString(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #1C1C1E;border-bottom:1px solid #1C1C1E;"><tr>`)
 	for _, raw := range items {
 		parts := splitPipeFields(raw)
-		b.WriteString(fmt.Sprintf(`<td style="padding:18px 12px;text-align:center;border-right:1px solid #1C1C1E;"><div style="font-size:36px;font-weight:700;line-height:1;letter-spacing:-1px;">%s</div><div style="font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#6B655C;margin-top:6px;">%s</div></td>`, htmltemplate.HTMLEscapeString(fieldAt(parts, 0)), htmltemplate.HTMLEscapeString(fieldAt(parts, 1))))
+		b.WriteString(fmt.Sprintf(`<td class="btcpp-stat" style="padding:18px 12px;text-align:center;border-right:1px solid #1C1C1E;"><div style="font-size:36px;font-weight:700;line-height:1;letter-spacing:-1px;">%s</div><div style="font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#6B655C;margin-top:6px;">%s</div></td>`, htmltemplate.HTMLEscapeString(fieldAt(parts, 0)), htmltemplate.HTMLEscapeString(fieldAt(parts, 1))))
 	}
 	b.WriteString(`</tr></table>`)
 	return b.String()

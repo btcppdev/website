@@ -12,14 +12,14 @@
 <body>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="btcpp-shell">
     <tr>
-      <td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="640" cellpadding="0" cellspacing="0" class="btcpp-inner" style="width:640px;max-width:100%;table-layout:fixed;">
+      <td align="center" class="btcpp-gutter" style="padding:24px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="btcpp-inner" style="width:100%;max-width:640px;table-layout:fixed;border-collapse:collapse;">
           {{ if .Config.Ticker }}
           <tr>
             <td class="btcpp-ticker" style="max-width:0;background:#1C1C1E;color:#FFFFFF;padding:10px 20px;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:14px;letter-spacing:1.5px;white-space:nowrap;overflow:hidden;">
               <div class="btcpp-ticker-window" style="display:block;width:100%;height:14px;line-height:14px;max-height:14px;overflow:hidden;white-space:nowrap;">
                 <div class="btcpp-ticker-track" style="display:inline-block;line-height:14px;white-space:nowrap;">
-                  <span class="btcpp-ticker-set" style="display:inline-block;padding-right:32px;white-space:nowrap;">{{ range $i, $item := .Config.Ticker }}{{ if $i }}<span style="color:#6B655C;margin:0 12px;">&bull;</span>{{ end }}<span>{{ $item }}</span>{{ end }}</span><span class="btcpp-ticker-set" aria-hidden="true" style="display:inline-block;padding-right:32px;white-space:nowrap;">{{ range $i, $item := .Config.Ticker }}{{ if $i }}<span style="color:#6B655C;margin:0 12px;">&bull;</span>{{ end }}<span>{{ $item }}</span>{{ end }}</span>
+                  <span class="btcpp-ticker-set" style="display:inline-block;padding-right:32px;white-space:nowrap;">{{ range $i, $item := .Config.Ticker }}{{ if $i }}<span style="color:#6B655C;margin:0 12px;">&bull;</span>{{ end }}<span>{{ $item }}</span>{{ end }}</span><span class="btcpp-ticker-set btcpp-ticker-duplicate" aria-hidden="true" style="display:inline-block;padding-right:32px;white-space:nowrap;">{{ range $i, $item := .Config.Ticker }}{{ if $i }}<span style="color:#6B655C;margin:0 12px;">&bull;</span>{{ end }}<span>{{ $item }}</span>{{ end }}</span>
                 </div>
               </div>
             </td>
@@ -29,7 +29,7 @@
             <td class="btcpp-row" style="padding:22px 32px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="vertical-align:bottom;">
+                  <td class="btcpp-header-cell" style="vertical-align:bottom;">
                     <div style="font-size:28px;font-weight:700;letter-spacing:-1px;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;line-height:1;">
                       bitcoin<span style="color:#F57247;">++</span>
                     </div>
@@ -37,7 +37,7 @@
                       a dispatch from the frontier
                     </div>
                   </td>
-                  <td style="vertical-align:bottom;text-align:right;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11px;letter-spacing:1.2px;color:#6B655C;">
+                  <td class="btcpp-header-cell btcpp-issue" style="vertical-align:bottom;text-align:right;font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11px;letter-spacing:1.2px;color:#6B655C;">
                     <div>ISSUE {{ .Config.Issue }}</div>
                     <div>{{ .Config.Date }}</div>
                   </td>
@@ -48,17 +48,17 @@
           {{ if .Config.Hero }}
           <tr>
             <td style="padding:0;border-bottom:1px solid #1C1C1E;">
-              <img src="{{ .Config.Hero }}" width="640" height="270" style="width:100%;max-width:640px;height:270px;max-height:270px;object-fit:cover;display:block;" alt="">
+              <img class="btcpp-hero" src="{{ .Config.Hero }}" width="640" height="270" style="width:100%;max-width:640px;height:270px;max-height:270px;object-fit:cover;display:block;" alt="">
             </td>
           </tr>
           {{ end }}
           <tr>
-            <td class="btcpp-row btcpp-content">
+            <td class="btcpp-row btcpp-content" style="padding:24px 32px;">
               {{ .Content }}
             </td>
           </tr>
           <tr>
-            <td style="padding:28px 32px;border-top:1px solid #1C1C1E;">
+            <td class="btcpp-padding" style="padding:28px 32px;border-top:1px solid #1C1C1E;">
               <div style="font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11px;letter-spacing:1px;color:#6B655C;">
                 bitcoin<span style="color:#F57247;">++</span> / protocol dispatches, conference notes, and builder signals
               </div>
@@ -66,7 +66,7 @@
           </tr>
           {{ if .Unsubscribe }}
           <tr>
-            <td style="padding:16px 32px;border-top:1px solid #1C1C1E;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#6B655C;">
+            <td class="btcpp-padding" style="padding:16px 32px;border-top:1px solid #1C1C1E;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#6B655C;">
               <a style="color:#1C1C1E;text-underline-offset:4px;text-decoration-line:underline;font-weight:400;" href="{{ .URI }}/newsletter/unsubscribe/{{ .Unsubscribe }}">Unsubscribe</a> from this newsletter
             </td>
           </tr>
