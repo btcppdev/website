@@ -4,7 +4,7 @@
   {{ template "head_meta" . }}
   <title>bitcoin++ {{ if .SponsorsMode }}sponsor{{ else }}news{{ end }} ticker</title>
   <base target="_blank">
-  <link rel="stylesheet" href="/static/css/site-chrome.css">
+  <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260911-marquee">
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; }
     body { background:{{ if .SponsorsMode }}#f6f3ee{{ else }}#0a0a0a{{ end }}; }
@@ -22,6 +22,7 @@
     <script>
       // Retain the current animation when the public sponsor list is unchanged.
       // Failed refreshes leave the last successful frame on screen.
+      let sponsorMarkup = document.querySelector('[data-widget-sponsors]').innerHTML;
       window.setInterval(async function () {
         try {
           const response = await fetch(window.location.href, {cache:'no-store', credentials:'omit'});
@@ -29,7 +30,12 @@
           const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
           const next = doc.querySelector('[data-widget-sponsors]');
           const current = document.querySelector('[data-widget-sponsors]');
-          if (next && current && next.innerHTML !== current.innerHTML) current.replaceChildren(...next.childNodes);
+          if (next && current && next.innerHTML !== sponsorMarkup) {
+            sponsorMarkup = next.innerHTML;
+            window.btcppSponsorMarquee?.dispose(current);
+            current.replaceChildren(...next.childNodes);
+            window.btcppSponsorMarquee?.init(current);
+          }
         } catch (_) {}
       }, 60000);
     </script>

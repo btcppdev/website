@@ -3,10 +3,9 @@
   sponsors (Title / Diamond / Workshop). Sits under the conf intro
   to surface high-value sponsors above the fold.
 
-  Implementation: two side-by-side copies of the sponsor list inside
-  a flex track that scrolls left via @keyframes. The duplicate makes
-  the loop seamless — when track reaches -50% (one full copy width),
-  it resets to 0% with no visible jump. CSS-only; no JS needed.
+  Each of two identical groups repeats the sponsor list until it spans
+  the viewport. Scrolling by half the track then loops without empty space,
+  including on wide broadcast canvases with a short sponsor list.
 
   Expects context: a *types.Conf in `.Conf`. Renders nothing when
   the banner set is empty.
@@ -49,17 +48,14 @@
 
 {{ define "sponsor_marquee" }}
   <div class="sponsor-marquee sponsor-banner__viewport relative">
-    {{/* Track contains exactly 2 copies of the sponsor list so
-         translateX(-50%) lands the second copy where the first
-         started — the loop is seamless. Spacing lives on each
-         item's margin-right (not a flex gap) so every item
-         contributes a uniform amount of width including the last
-         in each copy. With a flex gap, the last item has no
-         trailing space and the -50% reset lands inside a gap,
-         producing a visible jump. */}}
     <div class="sponsor-marquee-track flex items-center">
-      {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
-      {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
+      <div class="sponsor-marquee-set" data-sponsor-original>
+        {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
+      </div>
+      <div class="sponsor-marquee-set" data-sponsor-copy aria-hidden="true" inert>
+        {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
+      </div>
     </div>
   </div>
+  <script src="/static/js/sponsor-marquee.js" defer></script>
 {{ end }}

@@ -589,6 +589,13 @@ body:has(.site-nav--conference) {
 	animation: sponsor-marquee-scroll 40s linear infinite;
 }
 
+.sponsor-marquee-set {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	width: max-content;
+}
+
 .sponsor-banner__item {
 	display: flex;
 	flex: 0 0 auto;
