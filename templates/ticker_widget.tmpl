@@ -8,7 +8,11 @@
   <style>
     html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; }
     body { background:{{ if .SponsorsMode }}#f6f3ee{{ else }}#0a0a0a{{ end }}; }
-    .site-ticker { position:static; }
+    /* Broadcast-sized version; the website ticker keeps its original size. */
+    .site-ticker { position:static; height:68px; min-height:68px; font-size:22px; }
+    .site-ticker__label, .site-ticker__live { padding:16px 32px; }
+    .site-ticker__track { height:100%; animation-duration:56s; }
+    .site-ticker__items { height:100%; padding:16px 32px; gap:32px; }
     .sponsor-banner__viewport { width:100%; }
   </style>
 </head>
