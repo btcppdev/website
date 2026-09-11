@@ -2866,11 +2866,11 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	if grantErr != nil && ctx.Err != nil {
 		ctx.Err.Printf("/whois/%s Bitcoin++ badge grants: %s", slug, grantErr)
 	}
-	badgeGrants = pendingBadgeGrants(badgeGrants)
+	whoIsGrants := whoIsBadgeGrants(badgeGrants, badgeProfile, ctx.Env.BadgeStudioURL)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois_profile.tmpl", &WhoIsProfilePage{
 		Person:           person,
 		Badges:           badgeProfile,
-		BadgeGrants:      badgeGrants,
+		BadgeGrants:      whoIsGrants,
 		UpdateProfileURL: whoIsProfileEditURL(ctx, r, person),
 		Year:             helpers.CurrentYear(),
 		SocialCardURL:    siteSocialCardPath("person", person.PublicID, personSocialCard(ctx, person)),
@@ -2878,6 +2878,37 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		http.Error(w, "Unable to load speaker profile, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/whois/%s ExecuteTemplate failed: %s", slug, err.Error())
 	}
+}
+
+func whoIsBadgeGrants(grants []*types.OrganizationBadgeGrant, profile *WhoIsBadgeProfile, badgeStudioURL string) []*WhoIsBadgeGrant {
+	representedAwards := make(map[string]struct{})
+	if profile != nil {
+		for _, badge := range profile.Issued {
+			if badge.Award.EventID != "" {
+				representedAwards[badge.Award.EventID] = struct{}{}
+			}
+		}
+	}
+	studio := strings.TrimRight(strings.TrimSpace(badgeStudioURL), "/")
+	result := make([]*WhoIsBadgeGrant, 0, len(grants))
+	for _, grant := range grants {
+		if grant == nil || grant.State == getters.BadgeGrantStateCanceled || grant.State == getters.BadgeGrantStateCorrected {
+			continue
+		}
+		if _, represented := representedAwards[grant.AwardEventID]; grant.AwardEventID != "" && represented {
+			continue
+		}
+		item := &WhoIsBadgeGrant{OrganizationBadgeGrant: grant}
+		if studio != "" && grant.AwardEventID != "" && grant.RecipientPubkey != "" {
+			item.CredentialURL = studio + "/credentials/" + url.PathEscape(grant.AwardEventID) + "/" + url.PathEscape(grant.RecipientPubkey)
+			if grant.State == getters.BadgeGrantStateIssued {
+				claimPath := "/claim/" + url.PathEscape(grant.AwardEventID)
+				item.ClaimURL = studio + "/api/auth/btcpp/continue?return_to=" + url.QueryEscape(claimPath)
+			}
+		}
+		result = append(result, item)
+	}
+	return result
 }
 
 func pendingBadgeGrants(grants []*types.OrganizationBadgeGrant) []*types.OrganizationBadgeGrant {

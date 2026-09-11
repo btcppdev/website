@@ -584,6 +584,7 @@ func main() {
 	seedSatelliteEvents(ctx, tx, confID)
 	seedHomepageFeaturedSpeakers(ctx, tx)
 	seedDashboardFixtures(ctx, tx, confID, pastConfID)
+	seedBadgeGrantFixtures(ctx, tx)
 	seedCheckInPreviews(ctx, tx, confID)
 	seedMissives(ctx, tx)
 
@@ -592,6 +593,93 @@ func main() {
 	}
 
 	log.Printf("seeded local dev conferences and dashboard fixtures for dev-admin@example.test and dev-invited-speaker@example.test; organization workflows are available at /dashboard/orgs")
+}
+
+func seedBadgeGrantFixtures(ctx context.Context, tx pgx.Tx) {
+	issuerPubkey := strings.Repeat("a", 64)
+	recipientPubkey := strings.Repeat("b", 64)
+	mustExec(ctx, tx, "seed verified Nostr credential for badge fixtures", `
+		INSERT INTO person_nostr_credentials (person_id, pubkey_hex, verified_at, last_login_at)
+		VALUES ($1::uuid, $2, now(), now())
+		ON CONFLICT (pubkey_hex) DO UPDATE SET
+			person_id = EXCLUDED.person_id,
+			verified_at = EXCLUDED.verified_at,
+			last_login_at = EXCLUDED.last_login_at
+	`, devSpeakers[0].personID, recipientPubkey)
+
+	type badgeGrantSeed struct {
+		id, personID, identifier, name, description, imageURL, subjectURL, state string
+		awardID, acceptanceID, revocationID, revocationReason                    string
+	}
+	grants := []badgeGrantSeed{
+		{
+			id: "00000000-0000-4000-8000-000000009101", personID: devSpeakers[0].personID,
+			identifier: "signet-steward", name: "Signet steward", description: "Keeps shared Bitcoin test infrastructure reliable.",
+			imageURL: "http://localhost:8888/static/img/floripa26/leading.png", subjectURL: "http://localhost:8888/whois/example-3", state: "ready_to_issue",
+		},
+		{
+			id: "00000000-0000-4000-8000-000000009102", personID: devSpeakers[0].personID,
+			identifier: "relay-operator", name: "Relay operator", description: "Recognized for dependable public relay operations.",
+			imageURL: "http://localhost:8888/static/img/stacks_drinks.avif", subjectURL: "http://localhost:8888/whois/example-3", state: "accepted",
+			awardID: strings.Repeat("c", 64), acceptanceID: strings.Repeat("d", 64),
+		},
+		{
+			id: "00000000-0000-4000-8000-000000009103", personID: devSpeakers[0].personID,
+			identifier: "protocol-guide", name: "Protocol guide", description: "Shared clear, practical protocol guidance with the community.",
+			imageURL: "http://localhost:8888/static/img/sponsors/vinteum.png", subjectURL: "http://localhost:8888/whois/example-3", state: "revoked",
+			awardID: strings.Repeat("e", 64), revocationID: strings.Repeat("f", 64), revocationReason: "Superseded by a corrected credential",
+		},
+		{
+			id: "00000000-0000-4000-8000-000000009104", personID: devSpeakers[1].personID,
+			identifier: "workshop-builder", name: "Workshop builder", description: "A pending grant for testing the no-npub member path.",
+			imageURL: "http://localhost:8888/static/img/floripa26/leading_two.png", subjectURL: "http://localhost:8888/whois/example-00000000", state: "granted",
+		},
+	}
+	for _, grant := range grants {
+		recipientKey := ""
+		if grant.state != "granted" {
+			recipientKey = recipientPubkey
+		}
+		mustExec(ctx, tx, "seed badge grant "+grant.identifier, `
+			INSERT INTO organization_badge_grants (
+				id, organization_id, recipient_person_id, created_by_person_id,
+				issuer_pubkey, badge_identifier, badge_name, badge_description,
+				badge_image_url, subject_profile_url, recipient_pubkey, state,
+				award_event_id, acceptance_event_id, revocation_event_id, revocation_reason,
+				ready_at, issued_at, accepted_at, revoked_at
+			) VALUES (
+				$1::uuid, $2::uuid, $3::uuid, $4::uuid,
+				$5, $6, $7, $8, $9, $10, $11, $12,
+				$13, $14, $15, $16,
+				CASE WHEN $12 <> 'granted' THEN now() - interval '4 days' END,
+				CASE WHEN $12 IN ('issued','accepted','revoked') THEN now() - interval '3 days' END,
+				CASE WHEN $12 = 'accepted' THEN now() - interval '2 days' END,
+				CASE WHEN $12 = 'revoked' THEN now() - interval '1 day' END
+			)
+			ON CONFLICT (id) DO UPDATE SET
+				organization_id = EXCLUDED.organization_id,
+				recipient_person_id = EXCLUDED.recipient_person_id,
+				created_by_person_id = EXCLUDED.created_by_person_id,
+				issuer_pubkey = EXCLUDED.issuer_pubkey,
+				badge_identifier = EXCLUDED.badge_identifier,
+				badge_name = EXCLUDED.badge_name,
+				badge_description = EXCLUDED.badge_description,
+				badge_image_url = EXCLUDED.badge_image_url,
+				subject_profile_url = EXCLUDED.subject_profile_url,
+				recipient_pubkey = EXCLUDED.recipient_pubkey,
+				state = EXCLUDED.state,
+				award_event_id = EXCLUDED.award_event_id,
+				acceptance_event_id = EXCLUDED.acceptance_event_id,
+				revocation_event_id = EXCLUDED.revocation_event_id,
+				revocation_reason = EXCLUDED.revocation_reason,
+				ready_at = EXCLUDED.ready_at,
+				issued_at = EXCLUDED.issued_at,
+				accepted_at = EXCLUDED.accepted_at,
+				revoked_at = EXCLUDED.revoked_at
+		`, grant.id, devOrgs[0].id, grant.personID, devAdminID, issuerPubkey,
+			grant.identifier, grant.name, grant.description, grant.imageURL, grant.subjectURL,
+			recipientKey, grant.state, grant.awardID, grant.acceptanceID, grant.revocationID, grant.revocationReason)
+	}
 }
 
 func seedOAuthClients(ctx context.Context, tx pgx.Tx) {

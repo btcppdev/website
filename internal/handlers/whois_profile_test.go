@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
 )
@@ -73,5 +74,27 @@ func TestProjectOnlyWhoIsProfileShowsEventBadges(t *testing.T) {
 	hackathonProjectsIndex := strings.Index(html, `§02 · HACKATHON PROJECTS`)
 	if eventBadgesIndex == -1 || hackathonProjectsIndex == -1 || eventBadgesIndex > hackathonProjectsIndex {
 		t.Fatalf("WhoIs profile sections are out of order: event badges index %d, hackathon projects index %d", eventBadgesIndex, hackathonProjectsIndex)
+	}
+}
+
+func TestWhoIsBadgeGrantsKeepLifecycleFallbackAndDedupeStudioAwards(t *testing.T) {
+	profile := &WhoIsBadgeProfile{Issued: []WhoIsIssuedBadge{{}}}
+	profile.Issued[0].Award.EventID = strings.Repeat("a", 64)
+	grants := []*types.OrganizationBadgeGrant{
+		{ID: "represented", State: getters.BadgeGrantStateAccepted, AwardEventID: strings.Repeat("a", 64), RecipientPubkey: strings.Repeat("1", 64)},
+		{ID: "issued", State: getters.BadgeGrantStateIssued, AwardEventID: strings.Repeat("b", 64), RecipientPubkey: strings.Repeat("2", 64)},
+		{ID: "pending", State: getters.BadgeGrantStateGranted},
+		{ID: "revoked", State: getters.BadgeGrantStateRevoked, AwardEventID: strings.Repeat("c", 64), RecipientPubkey: strings.Repeat("3", 64)},
+		{ID: "canceled", State: getters.BadgeGrantStateCanceled},
+	}
+	visible := whoIsBadgeGrants(grants, profile, "https://badges.btcpp.dev/")
+	if len(visible) != 3 || visible[0].ID != "issued" || visible[1].ID != "pending" || visible[2].ID != "revoked" {
+		t.Fatalf("unexpected visible grants: %+v", visible)
+	}
+	if visible[0].CredentialURL == "" || visible[0].ClaimURL == "" {
+		t.Fatalf("issued fallback is missing actions: %+v", visible[0])
+	}
+	if visible[2].CredentialURL == "" || visible[2].ClaimURL != "" {
+		t.Fatalf("revoked fallback actions are wrong: %+v", visible[2])
 	}
 }

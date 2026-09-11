@@ -2142,41 +2142,50 @@ body.btcpp-rebrand-page {
 
 .whois-credential-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--whois-ink);
+  border-left: 1px solid var(--whois-ink);
 }
 
 .whois-credential {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-width: 0;
-  border: 1px solid var(--whois-ink);
-  padding: 14px;
+  min-height: 184px;
+  border-right: 1px solid var(--whois-ink);
+  border-bottom: 1px solid var(--whois-ink);
+  padding: 18px;
   background: #fffdf7;
 }
 
 .whois-credential-art,
 .whois-credential-art img {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  border-radius: 5px;
 }
 
 .whois-credential-art img { object-fit: cover; }
-.whois-credential small { color: #6750a4; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: lowercase; }
-.whois-credential h3 { margin: 5px 0 3px; font-size: 19px; line-height: 1.1; }
+.whois-credential > div:last-child { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.whois-credential h3 { margin: 0 0 5px; font-size: 17px; line-height: 1.12; }
 .whois-credential p { margin: 0 0 8px; color: #666; font-size: 12px; line-height: 1.4; }
+.whois-credential-issuer { margin: 0 0 8px; color: #777; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.whois-credential-status { display: inline-flex; width: max-content; max-width: 100%; margin-top: auto; padding: 3px 7px; background: var(--whois-accent); color: #000; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; font-weight: 800; letter-spacing: .05em; line-height: 1.3; text-transform: lowercase; }
+.whois-credential-actions { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 9px; color: #666; font-size: 10px; line-height: 1.35; }
 .whois-credential a { color: var(--whois-ink); font-size: 11px; font-weight: 800; text-underline-offset: 3px; }
-.whois-credential.is-pending { border-style: dashed; }
+.whois-credential.is-pending { background: #fff4e4; }
+.whois-credential.is-pending .whois-credential-status { background: transparent; outline: 1px dashed var(--whois-ink); }
 .whois-credential.is-revoked { opacity: .65; background: #f1e8e8; }
 .whois-credential.is-revoked .whois-credential-art { filter: grayscale(1); }
 
+@media (max-width: 1120px) {
+  .whois-credential-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 760px) {
   .whois-credential-grid { grid-template-columns: 1fr; }
-  .whois-credential { grid-template-columns: 72px minmax(0, 1fr); padding: 11px; }
-  .whois-credential-art,
-  .whois-credential-art img { width: 72px; height: 72px; }
+  .whois-credential { min-height: 0; padding: 15px; }
 }
 
 .organization-badge-grant-form { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(260px, 1.3fr) auto; gap: 14px; align-items: end; margin: 24px 0 32px; padding: 20px; border: 1px solid #c9beb2; background: #fffaf3; }

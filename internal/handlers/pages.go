@@ -191,10 +191,16 @@ type WhoIsPage struct {
 type WhoIsProfilePage struct {
 	Person           *WhoIsPerson
 	Badges           *WhoIsBadgeProfile
-	BadgeGrants      []*types.OrganizationBadgeGrant
+	BadgeGrants      []*WhoIsBadgeGrant
 	UpdateProfileURL string
 	Year             uint
 	SocialCardURL    string
+}
+
+type WhoIsBadgeGrant struct {
+	*types.OrganizationBadgeGrant
+	CredentialURL string
+	ClaimURL      string
 }
 
 type WhoIsBadgeProfile struct {
