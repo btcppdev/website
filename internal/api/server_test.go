@@ -802,10 +802,11 @@ func TestPersonEndpointIsHolisticAndNeverExposesPrivateContactFields(t *testing.
 }
 
 func TestPeopleExposeOnlyVerifiedNostrIdentityProjection(t *testing.T) {
-	person := &types.Speaker{ID: "00000000-0000-4000-8000-000000000201", Name: "Mara", Nostr: "npub1legacyprofiletext"}
+	person := &types.Speaker{ID: "00000000-0000-4000-8000-000000000201", Name: "Mara", Company: "Signet Systems", Nostr: "npub1legacyprofiletext"}
+	conf := publishedConference("dev26")
 	root := mux.NewRouter()
 	s := &server{
-		source: &fakeSource{profiles: []*getters.PublicProfile{{Speaker: person}}}, now: time.Now,
+		source: &fakeSource{profiles: []*getters.PublicProfile{{Speaker: person, Talks: []*getters.PublicProfileTalk{{Talk: &types.Talk{ID: "talk-1"}, Conf: conf}}}}}, now: time.Now,
 		listVerifiedNostrPubkeys: func(ids []string) (map[string]string, error) {
 			if len(ids) != 1 || ids[0] != person.ID {
 				t.Fatalf("person IDs = %#v", ids)
@@ -815,9 +816,15 @@ func TestPeopleExposeOnlyVerifiedNostrIdentityProjection(t *testing.T) {
 	}
 	s.register(root.PathPrefix("/api/v1").Subrouter())
 	response := httptest.NewRecorder()
-	root.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/people", nil))
-	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), strings.Repeat("a", 64)) || strings.Contains(response.Body.String(), "legacyprofiletext") {
+	root.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/people?q=signet&conference=dev26&participation=speaker&nostr=verified", nil))
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), strings.Repeat("a", 64)) || !strings.Contains(response.Body.String(), `"conference_tag":"dev26"`) || !strings.Contains(response.Body.String(), `"role":"speaker"`) || strings.Contains(response.Body.String(), "legacyprofiletext") {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/people?participation=volunteer", nil))
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "invalid_filter") {
+		t.Fatalf("invalid filter status = %d, body = %s", response.Code, response.Body.String())
 	}
 }
 

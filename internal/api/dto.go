@@ -113,14 +113,21 @@ type agendaDTO struct {
 }
 
 type personSummaryDTO struct {
-	ID          string  `json:"id"`
-	PublicID    string  `json:"public_id"`
-	ProfileURL  string  `json:"profile_url"`
-	Name        string  `json:"name"`
-	AvatarURL   string  `json:"avatar_url"`
-	Company     *string `json:"company"`
-	Biography   *string `json:"biography"`
-	NostrPubkey *string `json:"nostr_pubkey"`
+	ID            string                   `json:"id"`
+	PublicID      string                   `json:"public_id"`
+	ProfileURL    string                   `json:"profile_url"`
+	Name          string                   `json:"name"`
+	AvatarURL     string                   `json:"avatar_url"`
+	Company       *string                  `json:"company"`
+	Biography     *string                  `json:"biography"`
+	NostrPubkey   *string                  `json:"nostr_pubkey"`
+	Participation []personParticipationDTO `json:"participation"`
+}
+
+type personParticipationDTO struct {
+	ConferenceTag  string `json:"conference_tag"`
+	ConferenceName string `json:"conference_name"`
+	Role           string `json:"role"`
 }
 
 type personLinksDTO struct {

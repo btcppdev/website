@@ -254,7 +254,7 @@
     "/conferences/{tag}/speakers": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceSpeakers", "summary": "List public conference speakers", "responses": {"200": {"description": "Conference speakers", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PersonSummaryListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listConferenceSpeakers"}}}}}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/conferences/{tag}/sponsors": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceSponsors", "summary": "List visible paid or committed sponsors", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/conferences/{tag}/hackathons": {"parameters": [{"$ref": "#/components/parameters/ConferenceTag"}], "get": {"operationId": "listConferenceHackathons", "summary": "List public hackathons", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
-    "/people": {"get": {"operationId": "listPeople", "summary": "List public people", "responses": {"200": {"description": "Public people", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PersonSummaryListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listPeople"}}}}}}}},
+    "/people": {"get": {"operationId": "listPeople", "summary": "Search public people", "description": "Searches public Bitcoin++ profiles and exposes only signature-verified Nostr keys. Filters are applied before cursor pagination.", "parameters": [{"name": "q", "in": "query", "required": false, "schema": {"type": "string", "maxLength": 120}}, {"name": "conference", "in": "query", "required": false, "schema": {"type": "string", "maxLength": 80}}, {"name": "participation", "in": "query", "required": false, "schema": {"type": "string", "enum": ["speaker", "builder", "attendee"]}}, {"name": "nostr", "in": "query", "required": false, "schema": {"type": "string", "enum": ["any", "verified", "missing"], "default": "any"}}, {"$ref": "#/components/parameters/Limit"}, {"$ref": "#/components/parameters/Cursor"}], "responses": {"200": {"description": "Public people", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PersonSummaryListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listPeople"}}}}}, "400": {"$ref": "#/components/responses/ValidationError"}}}},
     "/people/{person_id}": {"parameters": [{"$ref": "#/components/parameters/PersonID"}], "get": {"operationId": "getPerson", "summary": "Get a holistic public profile with talks and projects", "responses": {"200": {"description": "Public person", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PersonResponse"}, "examples": {"default": {"$ref": "#/components/examples/getPerson"}}}}}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/organizations/{organization_id}": {"parameters": [{"$ref": "#/components/parameters/OrganizationID"}], "get": {"operationId": "getOrganization", "summary": "Get a publicly referenced organization", "responses": {"200": {"$ref": "#/components/responses/Success"}, "404": {"$ref": "#/components/responses/NotFound"}}}},
     "/recordings": {"get": {"operationId": "listRecordings", "summary": "List published recording links", "responses": {"200": {"description": "Published recordings", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listRecordings"}}}}}}}},
@@ -427,14 +427,14 @@
       "listConferenceSpeakers": {
         "summary": "Public speakers at a conference",
         "value": {
-          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator.", "nostr_pubkey": null}],
+          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator.", "nostr_pubkey": null, "participation": [{"conference_tag": "dev26", "conference_name": "bitcoin++ Local Dev 2026", "role": "speaker"}]}],
           "meta": {"request_id": "req_example", "limit": 20}
         }
       },
       "listPeople": {
         "summary": "Public people directory",
         "value": {
-          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator.", "nostr_pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],
+          "data": [{"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "avatar_url": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator.", "nostr_pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "participation": [{"conference_tag": "dev26", "conference_name": "bitcoin++ Local Dev 2026", "role": "speaker"}]}],
           "meta": {"request_id": "req_example", "limit": 20, "next_cursor": "eyJpZCI6Ii4uLiJ9"}
         }
       },
@@ -450,6 +450,7 @@
             "company": "Example Labs",
             "biography": "Bitcoin protocol engineer and educator.",
             "nostr_pubkey": null,
+            "participation": [{"conference_tag": "dev26", "conference_name": "bitcoin++ Local Dev 2026", "role": "speaker"}, {"conference_tag": "dev26", "conference_name": "bitcoin++ Local Dev 2026", "role": "builder"}],
             "links": {"website": "https://example.com", "nostr": null, "x": "https://x.com/marachen", "github": "https://github.com/marachen", "instagram": null, "linkedin": null, "leetcode": null},
             "stats": {"editions": 2, "talks": 3, "projects": 1},
             "editions": [{"conference": {"id": "00000000-0000-4000-8000-000000000001", "tag": "dev26", "description": "bitcoin++ Local Dev 2026", "edition_type": "global", "tagline": "signet edition", "timezone": "America/Chicago", "location": "Austin, Texas", "venue": "Bitcoin Commons", "starts_at": "2026-08-20T09:00:00-05:00", "ends_at": "2026-08-21T18:00:00-05:00"}}],
@@ -1017,14 +1018,16 @@
       },
       "PersonSummary": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "nostr_pubkey"],
+        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "nostr_pubkey", "participation"],
         "properties": {
           "id": {"type": "string", "format": "uuid"}, "public_id": {"type": "string"}, "profile_url": {"type": "string"},
           "name": {"type": "string"}, "avatar_url": {"type": "string"},
           "company": {"type": ["string", "null"]}, "biography": {"type": ["string", "null"]},
-          "nostr_pubkey": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Signature-verified Nostr identity; never populated from legacy profile text."}
+          "nostr_pubkey": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Signature-verified Nostr identity; never populated from legacy profile text."},
+          "participation": {"type": "array", "items": {"$ref": "#/components/schemas/PersonParticipation"}}
         }
       },
+      "PersonParticipation": {"type": "object", "additionalProperties": false, "required": ["conference_tag", "conference_name", "role"], "properties": {"conference_tag": {"type": "string"}, "conference_name": {"type": "string"}, "role": {"type": "string", "enum": ["speaker", "builder", "attendee"]}}},
       "PersonLinks": {
         "type": "object", "additionalProperties": false,
         "required": ["website", "nostr", "x", "github", "instagram", "linkedin", "leetcode"],
@@ -1080,11 +1083,12 @@
       },
       "Person": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "nostr_pubkey", "links", "stats", "editions", "talks", "projects"],
+        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "nostr_pubkey", "participation", "links", "stats", "editions", "talks", "projects"],
         "properties": {
           "id": {"type": "string", "format": "uuid"}, "public_id": {"type": "string"}, "profile_url": {"type": "string"},
           "name": {"type": "string"}, "avatar_url": {"type": "string"}, "company": {"type": ["string", "null"]}, "biography": {"type": ["string", "null"]},
           "nostr_pubkey": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "participation": {"type": "array", "items": {"$ref": "#/components/schemas/PersonParticipation"}},
           "links": {"$ref": "#/components/schemas/PersonLinks"}, "stats": {"$ref": "#/components/schemas/PersonStats"},
           "editions": {"type": "array", "items": {"$ref": "#/components/schemas/PersonEdition"}},
           "talks": {"type": "array", "items": {"$ref": "#/components/schemas/PersonTalk"}},

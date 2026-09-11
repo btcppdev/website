@@ -1485,6 +1485,22 @@ func (s *server) people(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+	conference := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("conference")))
+	participation := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("participation")))
+	nostr := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("nostr")))
+	if len(query) > 120 || len(conference) > 80 {
+		s.writeError(w, r, http.StatusBadRequest, "invalid_filter", "Directory filters are too long.")
+		return
+	}
+	if participation != "" && participation != "speaker" && participation != "builder" && participation != "attendee" {
+		s.writeError(w, r, http.StatusBadRequest, "invalid_filter", "participation must be speaker, builder, or attendee.")
+		return
+	}
+	if nostr != "" && nostr != "any" && nostr != "verified" && nostr != "missing" {
+		s.writeError(w, r, http.StatusBadRequest, "invalid_filter", "nostr must be any, verified, or missing.")
+		return
+	}
 	personIDs := make([]string, 0, len(profiles))
 	for _, profile := range profiles {
 		if profile != nil && profile.Speaker != nil {
@@ -1505,9 +1521,30 @@ func (s *server) people(w http.ResponseWriter, r *http.Request) {
 		if profile != nil && profile.Speaker != nil {
 			item := personSummaryFromDomain(profile.Speaker, publicIDs[profile.Speaker.ID])
 			item.NostrPubkey = optionalString(verified[profile.Speaker.ID])
+			item.Participation = personParticipationFromProfile(profile)
+			haystack := strings.ToLower(strings.Join([]string{item.Name, valueOrEmpty(item.Company), item.PublicID}, " "))
+			if query != "" && !strings.Contains(haystack, query) {
+				continue
+			}
+			if conference != "" && !hasPersonParticipation(item.Participation, conference, "") {
+				continue
+			}
+			if participation != "" && !hasPersonParticipation(item.Participation, conference, participation) {
+				continue
+			}
+			if nostr == "verified" && item.NostrPubkey == nil || nostr == "missing" && item.NostrPubkey != nil {
+				continue
+			}
 			data = append(data, item)
 		}
 	}
+	sort.SliceStable(data, func(i, j int) bool {
+		left, right := strings.ToLower(data[i].Name), strings.ToLower(data[j].Name)
+		if left != right {
+			return left < right
+		}
+		return data[i].PublicID < data[j].PublicID
+	})
 	writePublicCollection(s, w, r, data)
 }
 
@@ -1544,12 +1581,30 @@ func (s *server) conferenceSpeakers(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data := make([]personSummaryDTO, 0)
+	personIDs := make([]string, 0)
+	for _, profile := range profiles {
+		if profile != nil && profile.Speaker != nil && profileHasTalkAtConference(profile, conf.Tag) {
+			personIDs = append(personIDs, profile.Speaker.ID)
+		}
+	}
+	verified := map[string]string{}
+	if s.listVerifiedNostrPubkeys != nil {
+		var err error
+		verified, err = s.listVerifiedNostrPubkeys(personIDs)
+		if err != nil {
+			s.internalError(w, r, "load verified conference speaker Nostr identities", err)
+			return
+		}
+	}
+	data := make([]personSummaryDTO, 0, len(personIDs))
 	for _, profile := range profiles {
 		if profile == nil || profile.Speaker == nil || !profileHasTalkAtConference(profile, conf.Tag) {
 			continue
 		}
-		data = append(data, personSummaryFromDomain(profile.Speaker, publicIDs[profile.Speaker.ID]))
+		item := personSummaryFromDomain(profile.Speaker, publicIDs[profile.Speaker.ID])
+		item.NostrPubkey = optionalString(verified[profile.Speaker.ID])
+		item.Participation = personParticipationFromProfile(profile)
+		data = append(data, item)
 	}
 	writePublicCollection(s, w, r, data)
 }
@@ -2092,6 +2147,59 @@ func personSummaryFromDomain(speaker *types.Speaker, slug string) personSummaryD
 	}
 }
 
+func personParticipationFromProfile(profile *getters.PublicProfile) []personParticipationDTO {
+	if profile == nil {
+		return []personParticipationDTO{}
+	}
+	result := make([]personParticipationDTO, 0)
+	seen := make(map[string]bool)
+	add := func(conf *types.Conf, role string) {
+		if conf == nil || strings.TrimSpace(conf.Tag) == "" {
+			return
+		}
+		key := strings.ToLower(conf.Tag) + "\x00" + role
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		result = append(result, personParticipationDTO{ConferenceTag: conf.Tag, ConferenceName: conf.Desc, Role: role})
+	}
+	for _, row := range profile.Talks {
+		if row != nil {
+			add(row.Conf, "speaker")
+		}
+	}
+	for _, row := range profile.Projects {
+		if row != nil {
+			add(row.Conf, "builder")
+		}
+	}
+	for _, conf := range profile.Attendance {
+		add(conf, "attendee")
+	}
+	return result
+}
+
+func hasPersonParticipation(items []personParticipationDTO, conference, role string) bool {
+	for _, item := range items {
+		if conference != "" && !strings.EqualFold(item.ConferenceTag, conference) {
+			continue
+		}
+		if role != "" && item.Role != role {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
 func personFromDomain(profile *getters.PublicProfile, publicIDs map[string]string) personDTO {
 	speaker := profile.Speaker
 	out := personDTO{
@@ -2108,6 +2216,7 @@ func personFromDomain(profile *getters.PublicProfile, publicIDs map[string]strin
 		Talks:    make([]personTalkDTO, 0, len(profile.Talks)),
 		Projects: make([]personProjectDTO, 0, len(profile.Projects)),
 	}
+	out.Participation = personParticipationFromProfile(profile)
 	for _, conf := range profile.Editions {
 		if conf != nil {
 			out.Editions = append(out.Editions, personEditionDTO{Conference: conferenceFromDomain(conf)})

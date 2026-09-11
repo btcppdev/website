@@ -15,10 +15,11 @@ import (
 // PublicProfile is the small, public projection needed by /whois. It avoids
 // hydrating the much larger admin/dashboard object graph for every profile hit.
 type PublicProfile struct {
-	Speaker  *types.Speaker
-	Talks    []*PublicProfileTalk
-	Projects []*PublicProfileProject
-	Editions []*types.Conf
+	Speaker    *types.Speaker
+	Talks      []*PublicProfileTalk
+	Projects   []*PublicProfileProject
+	Editions   []*types.Conf
+	Attendance []*types.Conf
 }
 
 type PublicProfileTalk struct {
@@ -406,6 +407,7 @@ func addPublicProfileAttendance(ctx *config.AppContext, personIDs []string, peop
 			confs[conf.Ref] = confView
 		}
 		if profile := people[personID]; profile != nil {
+			profile.Attendance = append(profile.Attendance, confView)
 			addPublicProfileEdition(profile, confView, seen)
 		}
 	}
