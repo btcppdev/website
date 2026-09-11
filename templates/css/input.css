@@ -5,5 +5,7 @@
 @font-face {
   font-family: "Ubuntu-BoldItalic";
   src: url("../fonts/Ubuntu-BoldItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
 }
-

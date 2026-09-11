@@ -2,13 +2,25 @@
 @font-face {
 	font-family: "Ubuntu-BoldItalic";
 	src: url("../fonts/Ubuntu-BoldItalic.ttf") format("truetype");
+	font-style: italic;
+	font-weight: 700;
 	font-display: swap;
 }
 
-/* Keep the bitcoin++ pluses joined at their horizontal crossbar in visible copy. */
+/*
+ * Bitcoin++ wordmark contract:
+ * - Ubuntu Bold Italic is reserved for the wordmark.
+ * - "bitcoin" keeps the typeface's natural tracking.
+ * - only the second + overlaps the first +.
+ */
 btcpp-wordmark {
-	display: inline;
+	display: inline-flex;
+	align-items: baseline;
 	white-space: nowrap;
+	font-family: "Ubuntu-BoldItalic", Ubuntu, sans-serif;
+	font-style: italic;
+	font-weight: 700;
+	letter-spacing: normal;
 }
 
 btcpp-pluses {
@@ -25,7 +37,7 @@ btcpp-plus {
 }
 
 btcpp-plus + btcpp-plus {
-	margin-left: -.14em;
+	margin-left: -.16em;
 }
 
 :root {
@@ -369,7 +381,10 @@ body.btcpp-api-docs-page {
 }
 
 .font-bitcoin {
-	font-family: "Ubuntu-BoldItalic", sans-serif;
+	font-family: "Ubuntu-BoldItalic", Ubuntu, sans-serif;
+	font-style: italic;
+	font-weight: 700;
+	letter-spacing: normal;
 }
 
 :root {
