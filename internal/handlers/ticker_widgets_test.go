@@ -34,6 +34,12 @@ func TestTickerWidgets(t *testing.T) {
 	if !strings.Contains(body, `class="sponsor-marquee sponsor-banner__viewport relative"`) || strings.Count(body, `alt="Example sponsor"`) != 2 {
 		t.Fatal("widget does not reuse duplicated sponsor viewport")
 	}
+
+	for _, logo := range []string{`alt="bitcoin++ Insider Edition"`, `alt="bitcoin++"`} {
+		if strings.Count(body, logo) != 2 {
+			t.Fatalf("both reel groups must include %s", logo)
+		}
+	}
 	if strings.Contains(body, "Supported by") || strings.Contains(body, `<header`) {
 		t.Fatal("widget includes page chrome")
 	}

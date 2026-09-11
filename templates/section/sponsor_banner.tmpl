@@ -51,11 +51,27 @@
     <div class="sponsor-marquee-track flex items-center">
       <div class="sponsor-marquee-set" data-sponsor-original>
         {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
+        {{ template "sponsor_marquee_brands" . }}
       </div>
       <div class="sponsor-marquee-set" data-sponsor-copy aria-hidden="true" inert>
         {{ range . }}{{ template "sponsor_marquee_item" . }}{{ end }}
+        {{ template "sponsor_marquee_brands" . }}
       </div>
     </div>
   </div>
   <script src="/static/js/sponsor-marquee.js" defer></script>
+{{ end }}
+
+{{ define "sponsor_marquee_brands" }}
+<a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer"
+   class="sponsor-banner__item shrink-0 flex items-center justify-center px-4 mr-12 sm:mr-16">
+  <img src="/static/img/insider/edition-logo.png" alt="bitcoin++ Insider Edition"
+       class="sponsor-banner__logo h-20 w-auto max-w-[10rem] object-center"
+       style="width:160px;object-fit:cover;" />
+</a>
+<a href="https://btcpp.dev/" target="_blank" rel="noopener noreferrer"
+   class="sponsor-banner__item shrink-0 flex items-center justify-center px-4 mr-12 sm:mr-16">
+  <img src="/static/img/logo_blk.svg" alt="bitcoin++"
+       class="sponsor-banner__logo h-20 w-auto max-w-[10rem] object-contain object-center" />
+</a>
 {{ end }}
