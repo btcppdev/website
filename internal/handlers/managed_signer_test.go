@@ -59,10 +59,20 @@ func TestManagedBadgeBatchReviewVerifiesGrantSnapshot(t *testing.T) {
 	}))
 	defer signer.Close()
 	previous := loadManagedSignerBadgeGrant
+	previousProfile := loadManagedSignerSubjectProfileURL
 	loadManagedSignerBadgeGrant = func(_ *config.AppContext, id string) (*types.OrganizationBadgeGrant, error) {
 		return &types.OrganizationBadgeGrant{ID: id, OrganizationID: organizationID, IssuerPubkey: issuer, BadgeIdentifier: "mentor", RecipientPubkey: recipient, RecipientPersonID: personID, SubjectProfileURL: profileURL, State: getters.BadgeGrantStateReady}, nil
 	}
-	t.Cleanup(func() { loadManagedSignerBadgeGrant = previous })
+	loadManagedSignerSubjectProfileURL = func(_ *config.AppContext, id string) (string, error) {
+		if id != personID {
+			t.Fatalf("profile person = %q", id)
+		}
+		return profileURL, nil
+	}
+	t.Cleanup(func() {
+		loadManagedSignerBadgeGrant = previous
+		loadManagedSignerSubjectProfileURL = previousProfile
+	})
 	ctx := &config.AppContext{Env: &types.EnvConfig{SignerURL: signer.URL}}
 	page := &ManagedSignerAuthorizationPage{Tenant: "organization", TenantID: organizationID, Action: "sign", Target: target, EventHash: eventHash, EventKind: 8, RecipientCount: 1}
 	request := httptest.NewRequest(http.MethodGet, "/signer/authorize", nil)

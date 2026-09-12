@@ -242,7 +242,7 @@ type organizationBadgeGrantDTO struct {
 	BadgeIdentifier   string  `json:"badge_identifier"`
 	BadgeName         string  `json:"badge_name"`
 	BadgeImageURL     string  `json:"badge_image_url"`
-	SubjectProfileURL string  `json:"subject_profile_url"`
+	SubjectProfileURL *string `json:"subject_profile_url,omitempty"`
 	RecipientPubkey   *string `json:"recipient_pubkey"`
 	State             string  `json:"state"`
 }

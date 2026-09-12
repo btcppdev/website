@@ -2,6 +2,8 @@ package getters
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
@@ -26,6 +28,7 @@ func TestOrganizationBadgeGrantLifecycle(t *testing.T) {
 	suffix := postgresSmokeSuffix()
 	managerID := insertSmokePerson(t, ctx, "badge-grant-manager-"+suffix)
 	recipientID := insertSmokePerson(t, ctx, "badge-grant-recipient-"+suffix)
+	hiddenRecipientID := insertSmokePerson(t, ctx, "badge-grant-hidden-recipient-"+suffix)
 	var organizationID string
 	if err := ctx.DB.QueryRow(context.Background(), `INSERT INTO organizations (name) VALUES ($1) RETURNING id::text`, "Badge Grant "+suffix).Scan(&organizationID); err != nil {
 		t.Fatal(err)
@@ -45,7 +48,15 @@ func TestOrganizationBadgeGrantLifecycle(t *testing.T) {
 	if _, err := CreateOrganizationBadgeGrant(ctx, input); !errors.Is(err, ErrBadgeGrantConflict) {
 		t.Fatalf("duplicate grant error=%v", err)
 	}
-	recipientPubkey := strings.Repeat("b", 64)
+	hiddenInput := input
+	hiddenInput.RecipientPersonID = hiddenRecipientID
+	hiddenInput.BadgeIdentifier, hiddenInput.BadgeName, hiddenInput.SubjectProfileURL = "private-roster", "Private roster", ""
+	hiddenGrant, err := CreateOrganizationBadgeGrant(ctx, hiddenInput)
+	if err != nil || hiddenGrant.SubjectProfileURL != "" || hiddenGrant.RecipientPersonID != hiddenRecipientID {
+		t.Fatalf("hidden recipient grant=%+v err=%v", hiddenGrant, err)
+	}
+	pubkeyHash := sha256.Sum256([]byte(suffix))
+	recipientPubkey := hex.EncodeToString(pubkeyHash[:])
 	if _, err := ctx.DB.Exec(context.Background(), `INSERT INTO person_nostr_credentials (person_id, pubkey_hex, verified_at) VALUES ($1::uuid,$2,now())`, recipientID, recipientPubkey); err != nil {
 		t.Fatal(err)
 	}

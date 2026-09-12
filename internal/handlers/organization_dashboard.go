@@ -489,11 +489,10 @@ func OrganizationDashboardBadgeGrantCreate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	publicID, hasPublicProfile := resolvedWhoIsPublicID(ctx, recipient)
-	if !hasPublicProfile {
-		http.Redirect(w, r, destination+"?error="+url.QueryEscape("That person needs a public Bitcoin++ profile before receiving a profile-linked grant."), http.StatusSeeOther)
-		return
+	subjectURL := ""
+	if hasPublicProfile {
+		subjectURL = strings.TrimRight(ctx.Env.GetURI(), "/") + "/whois/" + url.PathEscape(publicID)
 	}
-	subjectURL := strings.TrimRight(ctx.Env.GetURI(), "/") + "/whois/" + url.PathEscape(publicID)
 	grant, err := getters.CreateOrganizationBadgeGrant(ctx, getters.OrganizationBadgeGrantInput{
 		OrganizationID: organizationID, RecipientPersonID: recipientPersonID, CreatedByPersonID: id.PersonID,
 		IssuerPubkey: catalog.IssuerPubkey, BadgeIdentifier: definition.Identifier, BadgeName: definition.Name,

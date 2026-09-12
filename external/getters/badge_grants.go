@@ -46,8 +46,8 @@ func CreateOrganizationBadgeGrant(ctx *config.AppContext, input OrganizationBadg
 	input.BadgeDescription = strings.TrimSpace(input.BadgeDescription)
 	input.BadgeImageURL = strings.TrimSpace(input.BadgeImageURL)
 	input.SubjectProfileURL = strings.TrimSpace(input.SubjectProfileURL)
-	if input.OrganizationID == "" || input.RecipientPersonID == "" || input.CreatedByPersonID == "" || len(input.IssuerPubkey) != 64 || input.BadgeIdentifier == "" || input.BadgeName == "" || !validBadgeCredentialURL(input.BadgeImageURL) || !validBadgeCredentialURL(input.SubjectProfileURL) {
-		return nil, fmt.Errorf("organization, recipient, issuer, badge, artwork, and public subject profile are required")
+	if input.OrganizationID == "" || input.RecipientPersonID == "" || input.CreatedByPersonID == "" || len(input.IssuerPubkey) != 64 || input.BadgeIdentifier == "" || input.BadgeName == "" || !validBadgeCredentialURL(input.BadgeImageURL) || (input.SubjectProfileURL != "" && !validBadgeCredentialURL(input.SubjectProfileURL)) {
+		return nil, fmt.Errorf("organization, recipient, issuer, badge, and artwork are required; a subject profile must be a public URL when present")
 	}
 	dbctx := ctx.DatabaseContext()
 	tx, err := ctx.DB.Begin(dbctx)

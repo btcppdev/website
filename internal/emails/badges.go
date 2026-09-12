@@ -26,7 +26,10 @@ func NotifyBadgeGrantCreated(ctx *config.AppContext, grant *types.OrganizationBa
 	}
 	base := strings.TrimRight(ctx.Env.GetURI(), "/")
 	heading := grant.OrganizationName + " granted you a badge"
-	detail := fmt.Sprintf("**%s** granted you the **%s** badge. It is already recorded on your public Bitcoin++ profile.", grant.OrganizationName, grant.BadgeName)
+	detail := fmt.Sprintf("**%s** granted you the **%s** badge. It is recorded in your private Bitcoin++ badge inbox.", grant.OrganizationName, grant.BadgeName)
+	if grant.SubjectProfileURL != "" {
+		detail += " Because you currently publish a Bitcoin++ profile, the grant can also appear there."
+	}
 	actionLabel := "Open your badge inbox"
 	actionURL := base + "/dashboard/orgs#badge-inbox"
 	if grant.State == getters.BadgeGrantStateGranted {
@@ -36,7 +39,7 @@ func NotifyBadgeGrantCreated(ctx *config.AppContext, grant *types.OrganizationBa
 	} else {
 		detail += " Your verified Nostr key is ready; the organization can now issue the portable credential."
 	}
-	body := fmt.Sprintf("# %s\n\nHi %s,\n\n%s\n\n[%s](button#%s)\n\nYour Bitcoin++ profile remains the permanent subject of this credential even if your Nostr key changes later.", heading, badgeRecipientName(grant), detail, actionLabel, actionURL)
+	body := fmt.Sprintf("# %s\n\nHi %s,\n\n%s\n\n[%s](button#%s)\n\nThe grant remains associated with your Bitcoin++ account. Receiving it does not publish or expose a Bitcoin++ profile.", heading, badgeRecipientName(grant), detail, actionLabel, actionURL)
 	if err := SendHackathonMessage(ctx, "organization-badge-grant-"+grant.ID+"-recipient-created", email, "[bitcoin++] "+heading, body); err != nil {
 		return []error{err}
 	}
@@ -69,7 +72,7 @@ func NotifyBadgeGrantIssued(ctx *config.AppContext, grant *types.OrganizationBad
 		return nil
 	}
 	heading := grant.BadgeName + " was issued to you"
-	body := fmt.Sprintf("# %s\n\nHi %s,\n\n**%s** signed and published your **%s** Nostr badge. Accept it to add the award to your public Nostr profile badge list.\n\n[Review your badge](button#%s)", heading, badgeRecipientName(grant), grant.OrganizationName, grant.BadgeName, grant.SubjectProfileURL)
+	body := fmt.Sprintf("# %s\n\nHi %s,\n\n**%s** signed and published your **%s** Nostr badge. Accept it to add the award to your public Nostr profile badge list.\n\n[Review your badge](button#%s)", heading, badgeRecipientName(grant), grant.OrganizationName, grant.BadgeName, badgeCredentialURL(ctx, grant))
 	if err := SendHackathonMessage(ctx, "organization-badge-grant-"+grant.ID+"-recipient-issued", email, "[bitcoin++] "+heading, body); err != nil {
 		return []error{err}
 	}
@@ -85,11 +88,11 @@ func NotifyBadgeGrantAccepted(ctx *config.AppContext, grant *types.OrganizationB
 	return notifyBadgeManagers(ctx, grant, "accepted",
 		badgeRecipientName(grant)+" accepted "+grant.BadgeName,
 		fmt.Sprintf("**%s** accepted the **%s** badge from **%s** into their public Nostr profile.", badgeRecipientName(grant), grant.BadgeName, grant.OrganizationName),
-		"View the public profile", grant.SubjectProfileURL)
+		"View the credential", badgeCredentialURL(ctx, grant))
 }
 
 // NotifyBadgeGrantRevoked tells the recipient when an issued credential is no
-// longer valid. The public Bitcoin++ profile remains the canonical status page.
+// longer valid. Badge Studio remains available even without a public profile.
 func NotifyBadgeGrantRevoked(ctx *config.AppContext, grant *types.OrganizationBadgeGrant) []error {
 	if grant == nil {
 		return []error{fmt.Errorf("badge grant is required")}
@@ -106,7 +109,7 @@ func NotifyBadgeGrantRevoked(ctx *config.AppContext, grant *types.OrganizationBa
 	if reason := strings.TrimSpace(grant.RevocationReason); reason != "" {
 		detail += "\n\n**Reason:** " + reason
 	}
-	body := fmt.Sprintf("# %s\n\nHi %s,\n\n%s\n\n[View credential status](button#%s)", heading, badgeRecipientName(grant), detail, grant.SubjectProfileURL)
+	body := fmt.Sprintf("# %s\n\nHi %s,\n\n%s\n\n[View credential status](button#%s)", heading, badgeRecipientName(grant), detail, badgeCredentialURL(ctx, grant))
 	if err := SendHackathonMessage(ctx, "organization-badge-grant-"+grant.ID+"-recipient-revoked", email, "[bitcoin++] "+heading, body); err != nil {
 		return []error{err}
 	}
@@ -152,6 +155,14 @@ func badgeGrantStudioURL(ctx *config.AppContext, grant *types.OrganizationBadgeG
 	}
 	returnTo := "/?btcpp_org=" + url.QueryEscape(grant.OrganizationID) + "&grant=" + url.QueryEscape(grant.ID)
 	return studio + "/api/auth/btcpp/continue?return_to=" + url.QueryEscape(returnTo)
+}
+
+func badgeCredentialURL(ctx *config.AppContext, grant *types.OrganizationBadgeGrant) string {
+	studio := strings.TrimRight(ctx.Env.BadgeStudioURL, "/")
+	if studio != "" && grant.AwardEventID != "" && grant.RecipientPubkey != "" {
+		return studio + "/credentials/" + url.PathEscape(grant.AwardEventID) + "/" + url.PathEscape(grant.RecipientPubkey)
+	}
+	return strings.TrimRight(ctx.Env.GetURI(), "/") + "/dashboard/orgs#badge-inbox"
 }
 
 func badgeRecipientName(grant *types.OrganizationBadgeGrant) string {

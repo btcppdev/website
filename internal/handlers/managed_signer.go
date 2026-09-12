@@ -72,6 +72,18 @@ type managedSignerPendingAuthorization struct {
 }
 
 var loadManagedSignerBadgeGrant = getters.GetBadgeGrant
+var loadManagedSignerSubjectProfileURL = currentManagedSignerSubjectProfileURL
+
+func currentManagedSignerSubjectProfileURL(ctx *config.AppContext, personID string) (string, error) {
+	person, err := getters.FetchSpeakerByID(ctx, personID)
+	if err != nil || person == nil {
+		return "", err
+	}
+	if publicID, public := resolvedWhoIsPublicID(ctx, person); public {
+		return strings.TrimRight(ctx.Env.GetURI(), "/") + "/whois/" + url.PathEscape(publicID), nil
+	}
+	return "", nil
+}
 
 func ManagedSignerAuthorize(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	setManagedSignerHeaders(w, ctx)
@@ -362,7 +374,11 @@ func validateManagedBadgeBatch(r *http.Request, ctx *config.AppContext, page *Ma
 		if err != nil || grant == nil {
 			return fmt.Errorf("Bitcoin++ badge grant %s was not found", recipient.GrantID)
 		}
-		if grant.OrganizationID != page.TenantID || grant.IssuerPubkey != parts[1] || grant.BadgeIdentifier != parts[2] || grant.RecipientPubkey != recipient.Pubkey || grant.RecipientPersonID != recipient.PersonID || grant.SubjectProfileURL != recipient.SubjectProfileURL || (grant.State != getters.BadgeGrantStateReady && grant.State != getters.BadgeGrantStateDeliveryError) {
+		expectedProfileURL, personErr := loadManagedSignerSubjectProfileURL(ctx, grant.RecipientPersonID)
+		if personErr != nil {
+			return fmt.Errorf("Bitcoin++ badge grant %s recipient was not found", recipient.GrantID)
+		}
+		if grant.OrganizationID != page.TenantID || grant.IssuerPubkey != parts[1] || grant.BadgeIdentifier != parts[2] || grant.RecipientPubkey != recipient.Pubkey || grant.RecipientPersonID != recipient.PersonID || expectedProfileURL != recipient.SubjectProfileURL || (grant.State != getters.BadgeGrantStateReady && grant.State != getters.BadgeGrantStateDeliveryError) {
 			return fmt.Errorf("Bitcoin++ badge grant %s no longer matches this award", recipient.GrantID)
 		}
 		verified++

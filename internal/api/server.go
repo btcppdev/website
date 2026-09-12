@@ -817,7 +817,7 @@ func (s *server) myOrganizations(w http.ResponseWriter, r *http.Request) {
 						ID: grant.ID, RecipientPersonID: grant.RecipientPersonID, RecipientName: grant.RecipientName,
 						IssuerPubkey: grant.IssuerPubkey, BadgeIdentifier: grant.BadgeIdentifier,
 						BadgeName: grant.BadgeName, BadgeImageURL: grant.BadgeImageURL,
-						SubjectProfileURL: grant.SubjectProfileURL, RecipientPubkey: optionalString(grant.RecipientPubkey), State: grant.State,
+						SubjectProfileURL: currentPublicProfileURL(publicIDs, grant.RecipientPersonID), RecipientPubkey: optionalString(grant.RecipientPubkey), State: grant.State,
 					})
 				}
 			}
@@ -825,6 +825,14 @@ func (s *server) myOrganizations(w http.ResponseWriter, r *http.Request) {
 		result = append(result, item)
 	}
 	s.writePrivate(w, r, http.StatusOK, result)
+}
+
+func currentPublicProfileURL(publicIDs map[string]string, personID string) *string {
+	publicID := strings.TrimSpace(publicIDs[personID])
+	if publicID == "" {
+		return nil
+	}
+	return optionalString("/whois/" + url.PathEscape(publicID))
 }
 
 func (s *server) patchMe(w http.ResponseWriter, r *http.Request) {
