@@ -71,6 +71,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		hasHackathonProjects bool
 		projectsErr          error
 		shopOrders           []*types.ShopOrder
+		posPurchases         []getters.POSPurchase
 		shopErr              error
 	)
 	t1 := time.Now()
@@ -172,6 +173,9 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			s := time.Now()
 			if personID != "" {
 				shopOrders, shopErr = getters.ListShopOrdersForPerson(ctx, personID, 5)
+				if shopErr == nil {
+					posPurchases, shopErr = getters.POSPurchasesForPerson(ctx, personID, 5)
+				}
 			} else {
 				shopOrders, shopErr = getters.ListShopOrdersByEmail(ctx, email, 5)
 			}
@@ -478,6 +482,7 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		UnclaimedTicketEntitlements: unclaimedTicketEntitlements,
 		TicketClaimConfs:            ticketClaimConfs,
 		RecentShopOrders:            shopOrders,
+		POSPurchases:                posPurchases,
 		BaseURI:                     ctx.Env.GetURI(),
 		Year:                        helpers.CurrentYear(),
 	})
@@ -702,13 +707,19 @@ func DashboardOrders(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		http.Error(w, "Unable to load orders", http.StatusInternalServerError)
 		return
 	}
+	posPurchases, err := getters.POSPurchasesForPerson(ctx, id.PersonID, 100)
+	if err != nil {
+		http.Error(w, "Unable to load purchases", 500)
+		return
+	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_orders.tmpl", &DashboardPage{
-		Name:       email,
-		Email:      encodedEmail,
-		HMAC:       encodedHMAC,
-		ShopOrders: orders,
-		BaseURI:    ctx.Env.GetURI(),
-		Year:       helpers.CurrentYear(),
+		Name:         email,
+		Email:        encodedEmail,
+		HMAC:         encodedHMAC,
+		ShopOrders:   orders,
+		POSPurchases: posPurchases,
+		BaseURI:      ctx.Env.GetURI(),
+		Year:         helpers.CurrentYear(),
 	}); err != nil {
 		ctx.Err.Printf("/dashboard/orders render: %s", err)
 		http.Error(w, "Unable to load orders", http.StatusInternalServerError)

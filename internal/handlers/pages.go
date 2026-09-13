@@ -429,11 +429,12 @@ type SpeakerPage struct {
 }
 
 type DashboardPage struct {
-	Name     string
-	Hometown string
-	Photo    string // Speaker.Photo filename, empty if none
-	Email    string // base64-encoded
-	HMAC     string // base64-encoded
+	POSPurchases []getters.POSPurchase
+	Name         string
+	Hometown     string
+	Photo        string // Speaker.Photo filename, empty if none
+	Email        string // base64-encoded
+	HMAC         string // base64-encoded
 
 	// Speaker is the user's row in the Speakers DB (looked up by
 	// email). Nil means the user is volunteer- or ticket-only and

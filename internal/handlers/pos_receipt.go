@@ -23,9 +23,18 @@ type posReceiptItem struct {
 	Unit, Total string
 }
 type posReceipt struct {
+	AccountView         bool
 	Sale                *types.POSSale
 	Event, Total, Local string
 	Items               []posReceiptItem
+}
+
+func posReceiptData(conf *types.Conf, sale *types.POSSale) posReceipt {
+	data := posReceipt{Sale: sale, Event: conf.Location, Total: fmt.Sprintf("%d sats", sale.TotalSats), Local: fmt.Sprintf("≈ %.2f %s", float64(sale.TotalSats)*sale.LocalPerBTC/1e8, sale.Currency)}
+	for _, item := range sale.Items {
+		data.Items = append(data.Items, posReceiptItem{Name: item.Name, Label: item.Label, Quantity: item.Quantity, Unit: fmt.Sprintf("%d sats", item.PriceSats), Total: fmt.Sprintf("%d sats", item.PriceSats*int64(item.Quantity))})
+	}
+	return data
 }
 
 func composePOSReceipt(app *config.AppContext, conf *types.Conf, sale *types.POSSale, recipient, requestID string) (*emails.Mail, error) {
@@ -40,12 +49,10 @@ func composePOSReceipt(app *config.AppContext, conf *types.Conf, sale *types.POS
 	if _, err := uuid.Parse(requestID); err != nil {
 		return nil, fmt.Errorf("reload the sale and try again")
 	}
-	data := posReceipt{Sale: sale, Event: conf.Location, Total: fmt.Sprintf("%d sats", sale.TotalSats), Local: fmt.Sprintf("≈ %.2f %s", float64(sale.TotalSats)*sale.LocalPerBTC/1e8, sale.Currency)}
+	data := posReceiptData(conf, sale)
 	var plain strings.Builder
 	fmt.Fprintf(&plain, "bitcoin++ %s merch receipt\nSale %s\nPaid with Lightning\n", conf.Location, sale.ID)
-	for _, item := range sale.Items {
-		row := posReceiptItem{Name: item.Name, Label: item.Label, Quantity: item.Quantity, Unit: fmt.Sprintf("%d sats", item.PriceSats), Total: fmt.Sprintf("%d sats", item.PriceSats*int64(item.Quantity))}
-		data.Items = append(data.Items, row)
+	for _, row := range data.Items {
 		fmt.Fprintf(&plain, "%d × %s (%s) at %s each: %s\n", row.Quantity, row.Name, row.Label, row.Unit, row.Total)
 	}
 	fmt.Fprintf(&plain, "Total paid: %s\n%s (estimate at purchase)\nSave this receipt for your records.\n", data.Total, data.Local)
@@ -70,6 +77,11 @@ func posEmailReceipt(w http.ResponseWriter, r *http.Request, app *config.AppCont
 	}
 	p := &posPage{Conf: conf, CSRF: csrf, Sale: sale, RequestID: r.PostForm.Get("receipt_request"), ReceiptEmail: r.PostForm.Get("email")}
 	message, err := composePOSReceipt(app, conf, sale, p.ReceiptEmail, p.RequestID)
+	if err == nil {
+		if linkErr := getters.POSLinkVerifiedBuyer(app, saleID, conf.Ref, message.Email); linkErr != nil {
+			err = fmt.Errorf("could not save receipt details; please retry")
+		}
+	}
 	if err == nil {
 		if app.Env.MailOff {
 			err = fmt.Errorf("email delivery is disabled here; no receipt was sent")

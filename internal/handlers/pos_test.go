@@ -181,6 +181,9 @@ func TestPOSFlow(t *testing.T) {
 		})
 	}
 	registerPOSRoutes(router, app)
+	router.HandleFunc("/dashboard/orders", func(w http.ResponseWriter, r *http.Request) { DashboardOrders(w, r, app) }).Methods("GET")
+	router.HandleFunc("/dashboard/pos-purchases/{sale}", func(w http.ResponseWriter, r *http.Request) { DashboardPOSReceipt(w, r, app) }).Methods("GET")
+
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	var adminID string
 	must(pool.QueryRow(c, `INSERT INTO people(name) VALUES('POS preview admin') RETURNING id::text`).Scan(&adminID))
@@ -340,10 +343,11 @@ func TestPOSFlow(t *testing.T) {
 	}))
 	defer mockMail.Close()
 	app.Env.MailEndpoint = mockMail.URL
+	receiptValues.Set("email", suffix+"@example.test")
 	if _, receiptBody, _ := post(receiptValues); !strings.Contains(receiptBody, "Receipt queued") {
 		t.Fatal("receipt failed", receiptBody)
 	}
-	if !strings.Contains(mailPayload, "buyer@example.com") || !strings.Contains(mailPayload, "50000 sats") {
+	if !strings.Contains(mailPayload, suffix+"@example.test") || !strings.Contains(mailPayload, "50000 sats") {
 		t.Fatal("wrong mail payload", mailPayload)
 	}
 	receiptValues.Set("email", "bad-email")
@@ -370,6 +374,9 @@ func TestPOSFlow(t *testing.T) {
 	if sale.HandedOverAt == nil {
 		t.Fatal("handover not persisted")
 	}
+	if code, _ := get(server.URL + "/dashboard/pos-purchases/" + saleID); code != 404 {
+		t.Fatalf("PIN-only receipt access=%d", code)
+	}
 	if status, _, _ = post(url.Values{"csrf": {csrf}, "action": {"lock"}}); status != 200 {
 		t.Fatalf("lock=%d", status)
 	}
@@ -383,6 +390,15 @@ func TestPOSFlow(t *testing.T) {
 	}
 	if !strings.Contains(html, `class="site-nav`) || !strings.Contains(html, `class="stock-thumb"`) || !strings.Contains(html, "/static/img/merch/core-hat.avif") || strings.Contains(html, `class="pos-header"`) {
 		t.Fatal("setup must use shared admin navigation and product photos")
+	}
+	if code, orderHTML := get(server.URL + "/dashboard/orders"); code != 200 || !strings.Contains(orderHTML, "/dashboard/pos-purchases/"+saleID) {
+		t.Fatalf("purchase not in account history: %d %s", code, orderHTML)
+	}
+	if code, receiptHTML := get(server.URL + "/dashboard/pos-purchases/" + saleID); code != 200 || !strings.Contains(receiptHTML, "50000 sats") {
+		t.Fatalf("owned receipt: %d %s", code, receiptHTML)
+	}
+	if code, _ := get(server.URL + "/dashboard/pos-purchases/" + uuid.NewString()); code != 404 {
+		t.Fatalf("unknown receipt=%d", code)
 	}
 	dashboardStatus, dashboardHTML := get(server.URL + "/" + tag + "/admin")
 	if dashboardStatus != 200 || !strings.Contains(dashboardHTML, "/"+tag+"/admin/merch-pos") {

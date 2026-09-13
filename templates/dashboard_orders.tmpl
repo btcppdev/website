@@ -24,7 +24,7 @@
 
       <section class="dashboard-purchase-ledger dashboard-purchase-ledger--full">
         <div class="dashboard-purchase-ledger__head">
-          <div class="dashboard-kicker">§ Orders · {{ len .ShopOrders }}</div>
+          <div class="dashboard-kicker">§ Online and conference purchases</div>
         </div>
         <div class="dashboard-purchase-ledger__rows">
           {{ range .ShopOrders }}
@@ -39,7 +39,9 @@
               <a href="/dashboard/orders/{{ .PublicID }}/receipt">download receipt</a>
             </div>
           </article>
-          {{ else }}
+          {{ end }}
+ {{ template "pos_purchase_rows" . }}
+ {{ if not (or .ShopOrders .POSPurchases) }}
           <div class="dashboard-empty-state">
             <h2>No merch orders yet.</h2>
             <p>Ticket-only purchases still live on the event cards.</p>
@@ -52,3 +54,6 @@
   </div>
 </body>
 </html>
+{{ define "pos_purchase_rows" }}{{ range .POSPurchases }}
+<article class="dashboard-purchase-row"><div class="dashboard-purchase-row__main"><strong>{{ .Event }} · Conference merch</strong><span>{{ .CreatedAt.Format "Jan 2, 2006" }} · Paid with Lightning</span></div><div class="dashboard-purchase-row__side"><strong>{{ .TotalSats }} sats</strong><span style="color:#777">≈ {{ printf "%.2f" .LocalEstimate }} {{ .Currency }}</span><a href="/dashboard/pos-purchases/{{ .ID }}">view receipt</a></div></article>
+{{ end }}{{ end }}

@@ -176,6 +176,7 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "satellite_events", PersonColumn: "submitter_person_id", PrimaryKey: []string{"id"}, Label: "satellite event submissions"},
 	{Table: "scorecards", PersonColumn: "judge_person_id", PrimaryKey: []string{"id"}, Label: "judge ballots"},
 	{Table: "shop_orders", PersonColumn: "buyer_person_id", PrimaryKey: []string{"id"}, Label: "shop orders"},
+	{Table: "conference_pos_sales", PersonColumn: "buyer_person_id", PrimaryKey: []string{"id"}, Label: "conference merch purchases"},
 	{Table: "speaker_confs", PersonColumn: "speaker_id", PrimaryKey: []string{"id"}, Label: "conference speaker records"},
 	{Table: "volunteers", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "volunteer applications"},
 }

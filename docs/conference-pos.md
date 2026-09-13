@@ -39,7 +39,12 @@ Refreshing an invoice page retains the sale. Recent sales lets another volunteer
 resume it. A shared PIN identifies a register session, not a named volunteer.
 After payment, **Email receipt (optional)** sends an itemized sats receipt using the
 online shop’s mail service, with the saved purchase-time local estimate. It remains
-available after handover from the sale screen. No mailing-list signup is created.
+available after handover from the sale screen. No mailing-list signup is created. A receipt address matching an existing verified
+account email links the paid purchase to that account, including secondary email
+addresses. Purchases appear on the dashboard and `/dashboard/orders`, with an
+account-only receipt view. Unknown addresses do not create accounts. A resend
+cannot move an already-linked purchase to another account. Account matching happens
+when the valid receipt action is submitted, even if mail delivery later fails.
 The confirmation means queued for delivery, not confirmed inbox delivery.
 
 Handover is recorded separately from payment so a paid order is not handed out
@@ -73,7 +78,7 @@ admin/provider reconciliation, rather than silently overselling stock.
 
 ## Validation and rollout
 
-Migration: `094_conference_pos.sql`. Apply it through the normal migration runner
+Migrations: `094_conference_pos.sql` and `095_conference_pos_accounts.sql`. Apply it through the normal migration runner
 before starting the new code. OpenNode uses the existing environment credentials.
 No real charges or production inventory are needed for the automated tests.
 

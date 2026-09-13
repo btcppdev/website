@@ -789,10 +789,10 @@
 </section>
 {{ end }}
 
-{{ if .RecentShopOrders }}
+{{ if or .RecentShopOrders .POSPurchases }}
 <section id="purchases" class="dashboard-purchase-ledger dashboard-workspace-panel">
   <div class="dashboard-purchase-ledger__head">
-    <div class="dashboard-kicker">§ Purchases · {{ len .RecentShopOrders }}</div>
+    <div class="dashboard-kicker">§ Recent purchases</div>
     <a href="/dashboard/orders">view order history &rarr;</a>
   </div>
   <div class="dashboard-purchase-ledger__rows">
@@ -809,6 +809,7 @@
       </div>
     </article>
     {{ end }}
+ {{ template "pos_purchase_rows" . }}
   </div>
 </section>
 {{ end }}
