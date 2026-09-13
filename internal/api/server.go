@@ -45,9 +45,9 @@ type server struct {
 	listOrganizationBadgeGrants func(string) ([]*types.OrganizationBadgeGrant, error)
 	listVerifiedNostrPubkeys    func([]string) (map[string]string, error)
 	loadBadgeGrant              func(string) (*types.OrganizationBadgeGrant, error)
-	markBadgeGrantIssued        func(string, string, time.Time) error
-	markBadgeGrantAccepted      func(string, string, time.Time) error
-	markBadgeGrantRevoked       func(string, string, string, time.Time) error
+	markBadgeGrantIssued        func(string, string, time.Time) (bool, error)
+	markBadgeGrantAccepted      func(string, string, time.Time) (bool, error)
+	markBadgeGrantRevoked       func(string, string, string, time.Time) (bool, error)
 	notifyBadgeGrantIssued      func(*types.OrganizationBadgeGrant) []error
 	notifyBadgeGrantAccepted    func(*types.OrganizationBadgeGrant) []error
 	notifyBadgeGrantRevoked     func(*types.OrganizationBadgeGrant) []error
@@ -107,13 +107,13 @@ func Register(root *mux.Router, app *config.AppContext) {
 		loadBadgeGrant: func(grantID string) (*types.OrganizationBadgeGrant, error) {
 			return getters.GetBadgeGrant(app, grantID)
 		},
-		markBadgeGrantIssued: func(grantID, eventID string, at time.Time) error {
+		markBadgeGrantIssued: func(grantID, eventID string, at time.Time) (bool, error) {
 			return getters.MarkBadgeGrantIssued(app, grantID, eventID, at)
 		},
-		markBadgeGrantAccepted: func(grantID, eventID string, at time.Time) error {
+		markBadgeGrantAccepted: func(grantID, eventID string, at time.Time) (bool, error) {
 			return getters.MarkBadgeGrantAccepted(app, grantID, eventID, at)
 		},
-		markBadgeGrantRevoked: func(grantID, eventID, reason string, at time.Time) error {
+		markBadgeGrantRevoked: func(grantID, eventID, reason string, at time.Time) (bool, error) {
 			return getters.MarkBadgeGrantRevoked(app, grantID, eventID, reason, at)
 		},
 		notifyBadgeGrantIssued: func(grant *types.OrganizationBadgeGrant) []error {
@@ -211,22 +211,24 @@ func (s *server) badgeGrantIssued(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusUnprocessableEntity, "invalid_badge_award", "The signed event does not exactly match this grant.")
 		return
 	}
-	if grant.State == getters.BadgeGrantStateIssued && grant.AwardEventID == event.ID {
-		s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateIssued, "award_event_id": event.ID})
-		return
-	}
-	if grant.State != getters.BadgeGrantStateReady && grant.State != getters.BadgeGrantStateDeliveryError {
-		s.writeError(w, r, http.StatusConflict, "grant_not_ready", "This grant is not ready to issue.")
-		return
-	}
 	issuedAt := time.Unix(int64(event.CreatedAt), 0).UTC()
-	if err := s.markBadgeGrantIssued(grant.ID, event.ID, issuedAt); err != nil {
+	applied, err := s.markBadgeGrantIssued(grant.ID, event.ID, issuedAt)
+	if errors.Is(err, getters.ErrBadgeGrantEventConflict) {
+		s.writeError(w, r, http.StatusConflict, "badge_grant_event_conflict", "This grant is already bound to a different award event.")
+		return
+	}
+	if err != nil {
 		s.internalError(w, r, "mark badge grant issued", err)
 		return
 	}
-	grant.State, grant.AwardEventID, grant.IssuedAt = getters.BadgeGrantStateIssued, event.ID, &issuedAt
-	s.reportBadgeNotification(grant.ID, "issued", s.notifyBadgeGrantIssued, grant)
-	s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateIssued, "award_event_id": event.ID})
+	grant, ok = s.reloadBadgeGrant(w, r, grant.ID, "issued")
+	if !ok {
+		return
+	}
+	if applied {
+		s.reportBadgeNotification(grant.ID, "issued", s.notifyBadgeGrantIssued, grant)
+	}
+	s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": grant.State, "award_event_id": grant.AwardEventID})
 }
 
 func (s *server) badgeGrantAccepted(w http.ResponseWriter, r *http.Request) {
@@ -238,22 +240,24 @@ func (s *server) badgeGrantAccepted(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusUnprocessableEntity, "invalid_badge_acceptance", "The signed profile event does not accept this grant's award.")
 		return
 	}
-	if grant.State == getters.BadgeGrantStateAccepted && grant.AcceptanceEventID == event.ID {
-		s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateAccepted, "acceptance_event_id": event.ID})
-		return
-	}
-	if grant.State != getters.BadgeGrantStateIssued {
-		s.writeError(w, r, http.StatusConflict, "grant_not_issued", "This grant has not been issued or was already accepted.")
-		return
-	}
 	acceptedAt := time.Unix(int64(event.CreatedAt), 0).UTC()
-	if err := s.markBadgeGrantAccepted(grant.ID, event.ID, acceptedAt); err != nil {
+	applied, err := s.markBadgeGrantAccepted(grant.ID, event.ID, acceptedAt)
+	if errors.Is(err, getters.ErrBadgeGrantEventConflict) {
+		s.writeError(w, r, http.StatusConflict, "badge_grant_event_conflict", "This grant is already bound to a different acceptance event or has not been issued.")
+		return
+	}
+	if err != nil {
 		s.internalError(w, r, "mark badge grant accepted", err)
 		return
 	}
-	grant.State, grant.AcceptanceEventID, grant.AcceptedAt = getters.BadgeGrantStateAccepted, event.ID, &acceptedAt
-	s.reportBadgeNotification(grant.ID, "accepted", s.notifyBadgeGrantAccepted, grant)
-	s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateAccepted, "acceptance_event_id": event.ID})
+	grant, ok = s.reloadBadgeGrant(w, r, grant.ID, "accepted")
+	if !ok {
+		return
+	}
+	if applied {
+		s.reportBadgeNotification(grant.ID, "accepted", s.notifyBadgeGrantAccepted, grant)
+	}
+	s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": grant.State, "acceptance_event_id": grant.AcceptanceEventID})
 }
 
 func (s *server) badgeGrantRevoked(w http.ResponseWriter, r *http.Request) {
@@ -265,23 +269,37 @@ func (s *server) badgeGrantRevoked(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, r, http.StatusUnprocessableEntity, "invalid_badge_revocation", "The signed deletion event does not revoke this grant's award.")
 		return
 	}
-	if grant.State == getters.BadgeGrantStateRevoked && grant.RevocationEventID == event.ID {
-		s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateRevoked, "revocation_event_id": event.ID})
-		return
-	}
-	if grant.State != getters.BadgeGrantStateIssued && grant.State != getters.BadgeGrantStateAccepted {
-		s.writeError(w, r, http.StatusConflict, "grant_not_issued", "This grant is not an active issued award.")
-		return
-	}
 	revokedAt := time.Unix(int64(event.CreatedAt), 0).UTC()
 	reason := strings.TrimSpace(event.Content)
-	if err := s.markBadgeGrantRevoked(grant.ID, event.ID, reason, revokedAt); err != nil {
+	applied, err := s.markBadgeGrantRevoked(grant.ID, event.ID, reason, revokedAt)
+	if errors.Is(err, getters.ErrBadgeGrantEventConflict) {
+		s.writeError(w, r, http.StatusConflict, "badge_grant_event_conflict", "This grant is already bound to a different revocation event or has not been issued.")
+		return
+	}
+	if err != nil {
 		s.internalError(w, r, "mark badge grant revoked", err)
 		return
 	}
-	grant.State, grant.RevocationEventID, grant.RevocationReason, grant.RevokedAt = getters.BadgeGrantStateRevoked, event.ID, reason, &revokedAt
-	s.reportBadgeNotification(grant.ID, "revoked", s.notifyBadgeGrantRevoked, grant)
-	s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": getters.BadgeGrantStateRevoked, "revocation_event_id": event.ID})
+	grant, ok = s.reloadBadgeGrant(w, r, grant.ID, "revoked")
+	if !ok {
+		return
+	}
+	if applied {
+		s.reportBadgeNotification(grant.ID, "revoked", s.notifyBadgeGrantRevoked, grant)
+	}
+	s.writePrivate(w, r, http.StatusOK, map[string]string{"id": grant.ID, "state": grant.State, "revocation_event_id": grant.RevocationEventID})
+}
+
+func (s *server) reloadBadgeGrant(w http.ResponseWriter, r *http.Request, grantID, action string) (*types.OrganizationBadgeGrant, bool) {
+	grant, err := s.loadBadgeGrant(grantID)
+	if err != nil || grant == nil {
+		if err == nil {
+			err = io.ErrUnexpectedEOF
+		}
+		s.internalError(w, r, "reload badge grant after "+action, err)
+		return nil, false
+	}
+	return grant, true
 }
 
 func (s *server) reportBadgeNotification(grantID, action string, notify func(*types.OrganizationBadgeGrant) []error, grant *types.OrganizationBadgeGrant) {

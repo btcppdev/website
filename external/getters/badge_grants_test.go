@@ -73,20 +73,41 @@ func TestOrganizationBadgeGrantLifecycle(t *testing.T) {
 		t.Fatalf("ready grants=%+v err=%v", personGrants, err)
 	}
 	awardID := strings.Repeat("c", 64)
-	if err := MarkBadgeGrantIssued(ctx, grant.ID, awardID, time.Now().UTC()); err != nil {
-		t.Fatal(err)
+	if applied, err := MarkBadgeGrantIssued(ctx, grant.ID, awardID, time.Now().UTC()); err != nil || !applied {
+		t.Fatalf("mark issued applied=%t err=%v", applied, err)
+	}
+	if applied, err := MarkBadgeGrantIssued(ctx, grant.ID, awardID, time.Now().UTC()); err != nil || applied {
+		t.Fatalf("replay issued applied=%t err=%v", applied, err)
+	}
+	if _, err := MarkBadgeGrantIssued(ctx, grant.ID, strings.Repeat("f", 64), time.Now().UTC()); !errors.Is(err, ErrBadgeGrantEventConflict) {
+		t.Fatalf("conflicting issue error=%v", err)
 	}
 	acceptanceID := strings.Repeat("d", 64)
-	if err := MarkBadgeGrantAccepted(ctx, grant.ID, acceptanceID, time.Now().UTC()); err != nil {
-		t.Fatal(err)
+	if applied, err := MarkBadgeGrantAccepted(ctx, grant.ID, acceptanceID, time.Now().UTC()); err != nil || !applied {
+		t.Fatalf("mark accepted applied=%t err=%v", applied, err)
+	}
+	if applied, err := MarkBadgeGrantAccepted(ctx, grant.ID, acceptanceID, time.Now().UTC()); err != nil || applied {
+		t.Fatalf("replay accepted applied=%t err=%v", applied, err)
+	}
+	if _, err := MarkBadgeGrantAccepted(ctx, grant.ID, strings.Repeat("3", 64), time.Now().UTC()); !errors.Is(err, ErrBadgeGrantEventConflict) {
+		t.Fatalf("conflicting acceptance error=%v", err)
 	}
 	finished, err := GetBadgeGrant(ctx, grant.ID)
 	if err != nil || finished.State != BadgeGrantStateAccepted || finished.AwardEventID != awardID || finished.AcceptanceEventID != acceptanceID {
 		t.Fatalf("finished grant=%+v err=%v", finished, err)
 	}
 	revocationID := strings.Repeat("e", 64)
-	if err := MarkBadgeGrantRevoked(ctx, grant.ID, revocationID, "Issued in error", time.Now().UTC()); err != nil {
-		t.Fatal(err)
+	if applied, err := MarkBadgeGrantRevoked(ctx, grant.ID, revocationID, "Issued in error", time.Now().UTC()); err != nil || !applied {
+		t.Fatalf("mark revoked applied=%t err=%v", applied, err)
+	}
+	if applied, err := MarkBadgeGrantRevoked(ctx, grant.ID, revocationID, "Ignored replay reason", time.Now().UTC()); err != nil || applied {
+		t.Fatalf("replay revoked applied=%t err=%v", applied, err)
+	}
+	if _, err := MarkBadgeGrantRevoked(ctx, grant.ID, strings.Repeat("4", 64), "Different event", time.Now().UTC()); !errors.Is(err, ErrBadgeGrantEventConflict) {
+		t.Fatalf("conflicting revocation error=%v", err)
+	}
+	if applied, err := MarkBadgeGrantIssued(ctx, grant.ID, awardID, time.Now().UTC()); err != nil || applied {
+		t.Fatalf("replay issue after revocation applied=%t err=%v", applied, err)
 	}
 	finished, err = GetBadgeGrant(ctx, grant.ID)
 	if err != nil || finished.State != BadgeGrantStateRevoked || finished.RevocationEventID != revocationID || finished.RevocationReason != "Issued in error" || finished.RevokedAt == nil {
@@ -107,8 +128,43 @@ func TestOrganizationBadgeGrantLifecycle(t *testing.T) {
 	if err != nil || localGrant.SubjectProfileURL != input.SubjectProfileURL {
 		t.Fatalf("local fixture grant=%+v err=%v", localGrant, err)
 	}
+	concurrentInput := input
+	concurrentInput.BadgeIdentifier, concurrentInput.BadgeName = "concurrent", "Concurrent"
+	concurrentInput.BadgeImageURL, concurrentInput.SubjectProfileURL = "https://cdn.example/concurrent.png", ""
+	concurrentGrant, err := CreateOrganizationBadgeGrant(ctx, concurrentInput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type transitionResult struct {
+		applied bool
+		err     error
+	}
+	start := make(chan struct{})
+	results := make(chan transitionResult, 2)
+	for _, eventID := range []string{strings.Repeat("1", 64), strings.Repeat("2", 64)} {
+		go func() {
+			<-start
+			applied, transitionErr := MarkBadgeGrantIssued(ctx, concurrentGrant.ID, eventID, time.Now().UTC())
+			results <- transitionResult{applied: applied, err: transitionErr}
+		}()
+	}
+	close(start)
+	winners, conflicts := 0, 0
+	for range 2 {
+		result := <-results
+		if result.applied && result.err == nil {
+			winners++
+		} else if !result.applied && errors.Is(result.err, ErrBadgeGrantEventConflict) {
+			conflicts++
+		} else {
+			t.Fatalf("unexpected concurrent transition result=%+v", result)
+		}
+	}
+	if winners != 1 || conflicts != 1 {
+		t.Fatalf("concurrent transition winners=%d conflicts=%d", winners, conflicts)
+	}
 	visible, err := ListPersonBadgeGrants(ctx, recipientID)
-	if err != nil || len(visible) != 2 {
+	if err != nil || len(visible) != 3 {
 		t.Fatalf("canceled recipient grants=%+v err=%v", visible, err)
 	}
 }

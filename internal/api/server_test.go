@@ -443,24 +443,42 @@ func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
 	s := &server{
 		now:            func() time.Time { return now },
 		loadBadgeGrant: func(string) (*types.OrganizationBadgeGrant, error) { return grant, nil },
-		markBadgeGrantIssued: func(_ string, eventID string, _ time.Time) error {
+		markBadgeGrantIssued: func(_ string, eventID string, _ time.Time) (bool, error) {
+			if grant.AwardEventID != "" {
+				if grant.AwardEventID == eventID {
+					return false, nil
+				}
+				return false, getters.ErrBadgeGrantEventConflict
+			}
 			issuedID = eventID
 			grant.State = getters.BadgeGrantStateIssued
 			grant.AwardEventID = eventID
-			return nil
+			return true, nil
 		},
-		markBadgeGrantAccepted: func(_ string, eventID string, _ time.Time) error {
+		markBadgeGrantAccepted: func(_ string, eventID string, _ time.Time) (bool, error) {
+			if grant.AcceptanceEventID != "" {
+				if grant.AcceptanceEventID == eventID {
+					return false, nil
+				}
+				return false, getters.ErrBadgeGrantEventConflict
+			}
 			acceptedID = eventID
 			grant.State = getters.BadgeGrantStateAccepted
 			grant.AcceptanceEventID = eventID
-			return nil
+			return true, nil
 		},
-		markBadgeGrantRevoked: func(_ string, eventID, reason string, _ time.Time) error {
+		markBadgeGrantRevoked: func(_ string, eventID, reason string, _ time.Time) (bool, error) {
+			if grant.RevocationEventID != "" {
+				if grant.RevocationEventID == eventID {
+					return false, nil
+				}
+				return false, getters.ErrBadgeGrantEventConflict
+			}
 			revokedID = eventID
 			grant.State = getters.BadgeGrantStateRevoked
 			grant.RevocationEventID = eventID
 			grant.RevocationReason = reason
-			return nil
+			return true, nil
 		},
 		notifyBadgeGrantIssued: func(current *types.OrganizationBadgeGrant) []error {
 			if current.State != getters.BadgeGrantStateIssued || current.AwardEventID == "" {
@@ -498,6 +516,26 @@ func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
 	if response.Code != http.StatusOK || issuedID != award.ID || issuedNotices != 1 {
 		t.Fatalf("issue status=%d id=%q body=%s", response.Code, issuedID, response.Body.String())
 	}
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/badge-grants/"+grant.ID+"/issued", bytes.NewReader(requestBody))
+	request.Header.Set("Accept", "application/json")
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || issuedNotices != 1 {
+		t.Fatalf("issue replay status=%d notices=%d body=%s", response.Code, issuedNotices, response.Body.String())
+	}
+	conflictingAward := award
+	conflictingAward.CreatedAt++
+	if err := conflictingAward.Sign(issuerSecret); err != nil {
+		t.Fatal(err)
+	}
+	conflictingBody, _ := json.Marshal(conflictingAward)
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/badge-grants/"+grant.ID+"/issued", bytes.NewReader(conflictingBody))
+	request.Header.Set("Accept", "application/json")
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusConflict || issuedNotices != 1 || grant.AwardEventID != award.ID {
+		t.Fatalf("conflicting issue status=%d notices=%d grant=%+v body=%s", response.Code, issuedNotices, grant, response.Body.String())
+	}
 
 	acceptance := nostr.Event{PubKey: recipientPubkey, CreatedAt: nostr.Timestamp(now.Add(time.Minute).Unix()), Kind: 10008, Tags: nostr.Tags{{"a", "30009:" + issuerPubkey + ":relay-operator"}, {"e", award.ID, "wss://relay.example"}}, Content: ""}
 	if err := acceptance.Sign(recipientSecret); err != nil {
@@ -511,6 +549,13 @@ func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
 	if response.Code != http.StatusOK || acceptedID != acceptance.ID || acceptedNotices != 1 {
 		t.Fatalf("accept status=%d id=%q body=%s", response.Code, acceptedID, response.Body.String())
 	}
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/badge-grants/"+grant.ID+"/accepted", bytes.NewReader(requestBody))
+	request.Header.Set("Accept", "application/json")
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || acceptedNotices != 1 {
+		t.Fatalf("accept replay status=%d notices=%d body=%s", response.Code, acceptedNotices, response.Body.String())
+	}
 
 	revocation := nostr.Event{PubKey: issuerPubkey, CreatedAt: nostr.Timestamp(now.Add(2 * time.Minute).Unix()), Kind: 5, Tags: nostr.Tags{{"e", award.ID}, {"k", "8"}}, Content: "Issued in error"}
 	if err := revocation.Sign(issuerSecret); err != nil {
@@ -523,6 +568,13 @@ func TestBadgeGrantReceiptsRequireExactSignedEvents(t *testing.T) {
 	root.ServeHTTP(response, request)
 	if response.Code != http.StatusOK || revokedID != revocation.ID || grant.RevocationReason != "Issued in error" || revokedNotices != 1 {
 		t.Fatalf("revoke status=%d id=%q body=%s", response.Code, revokedID, response.Body.String())
+	}
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/badge-grants/"+grant.ID+"/revoked", bytes.NewReader(requestBody))
+	request.Header.Set("Accept", "application/json")
+	response = httptest.NewRecorder()
+	root.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || revokedNotices != 1 {
+		t.Fatalf("revoke replay status=%d notices=%d body=%s", response.Code, revokedNotices, response.Body.String())
 	}
 
 	grant.State, grant.AwardEventID, issuedID = getters.BadgeGrantStateReady, "", ""

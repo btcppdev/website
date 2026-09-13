@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -26,7 +27,10 @@ const (
 	BadgeGrantStateCorrected     = "corrected"
 )
 
-var ErrBadgeGrantConflict = errors.New("an active grant already exists for this person and badge")
+var (
+	ErrBadgeGrantConflict      = errors.New("an active grant already exists for this person and badge")
+	ErrBadgeGrantEventConflict = errors.New("badge grant is already bound to a different event")
+)
 
 type OrganizationBadgeGrantInput struct {
 	OrganizationID, RecipientPersonID, CreatedByPersonID                                         string
@@ -274,35 +278,65 @@ func GetBadgeGrant(ctx *config.AppContext, grantID string) (*types.OrganizationB
 	return items[0], nil
 }
 
-func MarkBadgeGrantIssued(ctx *config.AppContext, grantID, eventID string, issuedAt time.Time) error {
-	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `UPDATE organization_badge_grants SET state='issued', award_event_id=$2, issued_at=$3, delivery_error='' WHERE id=$1::uuid AND state IN ('ready_to_issue','delivery_error')`, grantID, eventID, issuedAt)
-	if err != nil {
-		return fmt.Errorf("mark badge grant issued: %w", err)
-	}
-	if tag.RowsAffected() != 1 {
-		return fmt.Errorf("badge grant is not ready to issue")
-	}
-	return nil
+func MarkBadgeGrantIssued(ctx *config.AppContext, grantID, eventID string, issuedAt time.Time) (bool, error) {
+	return transitionBadgeGrantEvent(ctx, grantID, eventID, []string{BadgeGrantStateReady, BadgeGrantStateDeliveryError}, func(dbctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(dbctx, `UPDATE organization_badge_grants SET state='issued', award_event_id=$2, issued_at=$3, delivery_error='' WHERE id=$1::uuid`, grantID, eventID, issuedAt)
+		return err
+	}, "award_event_id")
 }
 
-func MarkBadgeGrantAccepted(ctx *config.AppContext, grantID, eventID string, acceptedAt time.Time) error {
-	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `UPDATE organization_badge_grants SET state='accepted', acceptance_event_id=$2, accepted_at=$3 WHERE id=$1::uuid AND state='issued'`, grantID, eventID, acceptedAt)
-	if err != nil {
-		return fmt.Errorf("mark badge grant accepted: %w", err)
-	}
-	if tag.RowsAffected() != 1 {
-		return fmt.Errorf("badge grant is not issued")
-	}
-	return nil
+func MarkBadgeGrantAccepted(ctx *config.AppContext, grantID, eventID string, acceptedAt time.Time) (bool, error) {
+	return transitionBadgeGrantEvent(ctx, grantID, eventID, []string{BadgeGrantStateIssued}, func(dbctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(dbctx, `UPDATE organization_badge_grants SET state='accepted', acceptance_event_id=$2, accepted_at=$3 WHERE id=$1::uuid`, grantID, eventID, acceptedAt)
+		return err
+	}, "acceptance_event_id")
 }
 
-func MarkBadgeGrantRevoked(ctx *config.AppContext, grantID, eventID, reason string, revokedAt time.Time) error {
-	tag, err := ctx.DB.Exec(ctx.DatabaseContext(), `UPDATE organization_badge_grants SET state='revoked', revocation_event_id=$2, revocation_reason=$3, revoked_at=$4 WHERE id=$1::uuid AND state IN ('issued','accepted')`, grantID, eventID, strings.TrimSpace(reason), revokedAt)
+func MarkBadgeGrantRevoked(ctx *config.AppContext, grantID, eventID, reason string, revokedAt time.Time) (bool, error) {
+	return transitionBadgeGrantEvent(ctx, grantID, eventID, []string{BadgeGrantStateIssued, BadgeGrantStateAccepted}, func(dbctx context.Context, tx pgx.Tx) error {
+		_, err := tx.Exec(dbctx, `UPDATE organization_badge_grants SET state='revoked', revocation_event_id=$2, revocation_reason=$3, revoked_at=$4 WHERE id=$1::uuid`, grantID, eventID, strings.TrimSpace(reason), revokedAt)
+		return err
+	}, "revocation_event_id")
+}
+
+// transitionBadgeGrantEvent serializes lifecycle changes for one grant. The
+// first valid event wins; replaying that exact event is a successful no-op,
+// while a different event can never replace the established binding.
+func transitionBadgeGrantEvent(ctx *config.AppContext, grantID, eventID string, allowedStates []string, update func(context.Context, pgx.Tx) error, eventColumn string) (bool, error) {
+	dbctx := ctx.DatabaseContext()
+	tx, err := ctx.DB.Begin(dbctx)
 	if err != nil {
-		return fmt.Errorf("mark badge grant revoked: %w", err)
+		return false, fmt.Errorf("begin badge grant event transition: %w", err)
 	}
-	if tag.RowsAffected() != 1 {
-		return fmt.Errorf("badge grant is not issued")
+	defer tx.Rollback(dbctx)
+	var state, boundEventID string
+	query := `SELECT state, ` + eventColumn + ` FROM organization_badge_grants WHERE id=$1::uuid FOR UPDATE`
+	if err := tx.QueryRow(dbctx, query, strings.TrimSpace(grantID)).Scan(&state, &boundEventID); errors.Is(err, pgx.ErrNoRows) {
+		return false, fmt.Errorf("badge grant was not found")
+	} else if err != nil {
+		return false, fmt.Errorf("lock badge grant event transition: %w", err)
 	}
-	return nil
+	if boundEventID != "" {
+		if boundEventID == eventID {
+			return false, nil
+		}
+		return false, ErrBadgeGrantEventConflict
+	}
+	allowed := false
+	for _, candidate := range allowedStates {
+		if state == candidate {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return false, ErrBadgeGrantEventConflict
+	}
+	if err := update(dbctx, tx); err != nil {
+		return false, fmt.Errorf("update badge grant event transition: %w", err)
+	}
+	if err := tx.Commit(dbctx); err != nil {
+		return false, fmt.Errorf("commit badge grant event transition: %w", err)
+	}
+	return true, nil
 }
