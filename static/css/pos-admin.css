@@ -1,0 +1,41 @@
+/* Setup content only; shared admin navigation keeps its own styles. */
+.pos-admin .intro { display:flex; align-items:center; justify-content:space-between; gap:24px; margin:16px 0 24px; }
+.pos-admin h1 { font-size:26px; font-weight:700; margin:6px 0; }
+.pos-admin h2 { font-size:14px; font-weight:600; margin:0 0 4px; }
+.pos-admin p { color:#666; font-size:13px; }
+.pos-admin .eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#666; }
+.pos-admin button,.pos-admin .button { display:inline-block; border:1px solid #111; border-radius:6px; background:#111; color:#fff; font-size:13px; font-weight:600; padding:10px 14px; min-height:44px; text-decoration:none; cursor:pointer; }
+.pos-admin .secondary { background:#fff; color:#111; }
+.pos-admin button:hover,.pos-admin .button:hover { background:#333; color:white; }
+.pos-admin input:not([type=hidden]):not([type=checkbox]) { width:100%; border:1px solid #d1d5db; border-radius:6px; padding:9px 10px; font-size:16px; background:white; min-height:44px; }
+.pos-admin label { display:block; font-size:12px; font-weight:600; }
+.pos-admin label input { margin-top:6px; }
+.pos-admin .check { display:flex; align-items:center; gap:8px; }
+.pos-admin .check input { width:18px; height:18px; margin:0; }
+.pos-admin .settings { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; background:white; border:1px solid #e5e7eb; border-radius:6px; margin:16px 0; }
+.pos-admin .hint { font-size:12px; margin:16px 0; }
+.pos-admin .stock-list { display:grid; gap:12px; }
+.pos-admin .stock-card { display:grid; grid-template-columns:minmax(240px,2fr) minmax(100px,1fr) minmax(100px,1fr) minmax(100px,1fr) auto; gap:16px; align-items:center; background:white; border:1px solid #e5e7eb; border-radius:6px; padding:16px; }
+.pos-admin .stock-card>*,.pos-admin .stock-product>* { min-width:0; }
+.pos-admin .stock-product { display:flex; gap:14px; align-items:center; }
+.pos-admin .stock-thumb { width:76px; height:76px; flex:0 0 76px; object-fit:contain; background:#f6f3ee; border:1px solid #e5e7eb; border-radius:4px; }
+.pos-admin .stock-product p { font-size:11px; margin:0; overflow-wrap:anywhere; }
+.pos-admin .stock { display:block; font-size:11px; color:#666; margin-top:5px; }
+.pos-admin .local { display:block; font-size:11px; color:#76716a; font-weight:400; }
+.pos-admin .notice { padding:12px 16px; background:#effaf0; border:1px solid #bbd9c0; border-radius:6px; margin:16px 0; }
+.pos-admin .error { background:#fff0ec; border-color:#edc2b5; }
+.pos-admin .recent { margin-top:24px; }
+.pos-admin summary { cursor:pointer; font-size:14px; font-weight:600; padding:12px 0; }
+.pos-admin .recent-sale { display:flex; justify-content:space-between; gap:16px; border-bottom:1px solid #e5e7eb; padding:12px 0; font-size:12px; }
+.pos-admin .recent-sale>span { min-width:0; overflow-wrap:anywhere; }
+.pos-admin .recent-sale small { display:block; color:#666; font-size:11px; }
+.pos-admin .recent-sale>span:last-child { text-align:right; }
+@media(max-width:1000px) {
+ .pos-admin .stock-card { grid-template-columns:1fr 1fr; }
+ .pos-admin .stock-product { grid-column:1/-1; }
+ .pos-admin .stock-card button { grid-column:1/-1; }
+}
+@media(max-width:640px) {
+ .pos-admin .intro,.pos-admin .settings { align-items:flex-start; flex-direction:column; gap:12px; }
+ .pos-admin h1 { font-size:24px; }
+}

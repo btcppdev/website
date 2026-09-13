@@ -82,7 +82,8 @@ They cover exact-sats payloads, PIN/CSRF/admin gates, duplicate requests, concur
 stock reservations, price tampering, signed callback verification, expiry,
 cancellation, late payments and handover. Set `POS_BROWSER_PREVIEW=1` when running
 `TestPOSFlow` to serve a local mock-payment preview on 127.0.0.1:19433; the test
-prints its URL and PIN. Stable shortcuts are `/dev26/admin/merch-pos` for
+prints its URL and PIN. Stable shortcuts are `/dev26/admin` for the conference dashboard,
+`/dev26/admin/merch-pos` for
 admin setup and `/dev26/merch/sell` for the register; they redirect to the current
 isolated demo event. These aliases and the demo admin login exist only in the
 test preview server, never in production. The demo includes Core, Libbit and LibreRelay hats with

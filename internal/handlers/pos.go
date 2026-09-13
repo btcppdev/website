@@ -79,7 +79,11 @@ func posRender(w http.ResponseWriter, app *config.AppContext, p *posPage) {
 		p.Audit[i].CreatedAt = p.Audit[i].CreatedAt.In(p.Conf.Loc())
 	}
 	var b bytes.Buffer
-	if err := app.TemplateCache.ExecuteTemplate(&b, "pos.tmpl", p); err != nil {
+	templateName := "pos.tmpl"
+	if p.Admin {
+		templateName = "admin/merch_pos.tmpl"
+	}
+	if err := app.TemplateCache.ExecuteTemplate(&b, templateName, p); err != nil {
 		app.Err.Printf("POS template: %s", err)
 		http.Error(w, "Unable to load register", 500)
 		return
@@ -217,6 +221,10 @@ func POSAdmin(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
 		http.Error(w, "Unable to load event stock", 500)
 		return
 	}
+	if err = posProductImages(app, p.Products); err != nil {
+		http.Error(w, "Unable to load product photos", 500)
+		return
+	}
 	p.Currency, err = posCurrency(conf)
 	if err != nil {
 		p.Error = err.Error()
@@ -328,17 +336,9 @@ func POSRegister(w http.ResponseWriter, r *http.Request, app *config.AppContext)
 		http.Error(w, "Unable to load stock", 500)
 		return
 	}
-	products, e := getters.ListMerchProducts(app, true)
-	if e == nil {
-		images := map[string]string{}
-		for _, product := range products {
-			for _, v := range product.Variants {
-				images[v.ID] = merchImage(product)
-			}
-		}
-		for i := range p.Products {
-			p.Products[i].Image = images[p.Products[i].VariantID]
-		}
+	if err = posProductImages(app, p.Products); err != nil {
+		http.Error(w, "Unable to load product photos", 500)
+		return
 	}
 	p.RequestID = uuid.NewString()
 	p.Recent, err = getters.POSRecentSales(app, conf.Ref)
@@ -505,4 +505,21 @@ func reconcilePOSPayments(app *config.AppContext) {
 			return
 		}
 	}
+}
+
+func posProductImages(app *config.AppContext, rows []types.POSProduct) error {
+	products, err := getters.ListMerchProducts(app, true)
+	if err != nil {
+		return err
+	}
+	images := map[string]string{}
+	for _, product := range products {
+		for _, variant := range product.Variants {
+			images[variant.ID] = merchImage(product)
+		}
+	}
+	for i := range rows {
+		rows[i].Image = images[rows[i].VariantID]
+	}
+	return nil
 }

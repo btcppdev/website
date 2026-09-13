@@ -166,6 +166,9 @@ func TestPOSFlow(t *testing.T) {
 	router := mux.NewRouter()
 	if os.Getenv("POS_BROWSER_PREVIEW") == "1" {
 		// Familiar development-event URLs resolve to the current isolated fixture.
+		router.HandleFunc("/dev26/admin", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/preview/dashboard", http.StatusSeeOther)
+		}).Methods("GET")
 		router.HandleFunc("/dev26/admin/merch-pos", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/preview/admin", http.StatusSeeOther)
 		}).Methods("GET")
@@ -184,6 +187,13 @@ func TestPOSFlow(t *testing.T) {
 	must(err)
 	_, err = pool.Exec(c, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,$2,'admin')`, adminID, tag)
 	must(err)
+	router.HandleFunc("/preview/dashboard", func(w http.ResponseWriter, r *http.Request) {
+		if err := auth.LoginPerson(app, r, adminID, auth.MethodPassword); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		http.Redirect(w, r, "/"+tag+"/admin", http.StatusSeeOther)
+	})
 	router.HandleFunc("/preview/admin", func(w http.ResponseWriter, r *http.Request) {
 		if err := auth.LoginPerson(app, r, adminID, auth.MethodPassword); err != nil {
 			http.Error(w, err.Error(), 500)
@@ -192,6 +202,7 @@ func TestPOSFlow(t *testing.T) {
 		http.Redirect(w, r, "/"+tag+"/admin/merch-pos", 303)
 	})
 	router.HandleFunc("/preview", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/"+tag+"/merch/sell", 303) })
+	router.HandleFunc("/{conf}/admin", func(w http.ResponseWriter, r *http.Request) { OrganizerDashboard(w, r, app) }).Methods("GET")
 	if os.Getenv("POS_BROWSER_PREVIEW") == "1" {
 		router.HandleFunc("/preview/pay", func(w http.ResponseWriter, r *http.Request) {
 			lock.Lock()
@@ -329,6 +340,13 @@ func TestPOSFlow(t *testing.T) {
 	status, html = get(server.URL + "/preview/admin")
 	if status != 200 || !strings.Contains(html, "Set up the merch table.") {
 		t.Fatalf("admin page %d: %s", status, html)
+	}
+	if !strings.Contains(html, `class="site-nav`) || !strings.Contains(html, `class="stock-thumb"`) || !strings.Contains(html, "/static/img/merch/core-hat.avif") || strings.Contains(html, `class="pos-header"`) {
+		t.Fatal("setup must use shared admin navigation and product photos")
+	}
+	dashboardStatus, dashboardHTML := get(server.URL + "/" + tag + "/admin")
+	if dashboardStatus != 200 || !strings.Contains(dashboardHTML, "/"+tag+"/admin/merch-pos") {
+		t.Fatalf("dashboard POS link missing: %d %s", dashboardStatus, dashboardHTML)
 	}
 	csrf = re.FindStringSubmatch(html)[1]
 	operation := regexp.MustCompile(`name="operation_id" value="([^"]+)"`).FindStringSubmatch(html)[1]
