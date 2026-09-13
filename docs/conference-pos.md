@@ -37,6 +37,11 @@ on the phone comes from OpenNode's Lightning invoice response.
 Wait for **Payment received**, then tap **Items handed over · Next customer**.
 Refreshing an invoice page retains the sale. Recent sales lets another volunteer
 resume it. A shared PIN identifies a register session, not a named volunteer.
+After payment, **Email receipt (optional)** sends an itemized sats receipt using the
+online shop’s mail service, with the saved purchase-time local estimate. It remains
+available after handover from the sale screen. No mailing-list signup is created.
+The confirmation means queued for delivery, not confirmed inbox delivery.
+
 Handover is recorded separately from payment so a paid order is not handed out
 again by accident. Locking the register also clears that browser's check-in PIN.
 
@@ -47,7 +52,7 @@ are stored in the `conference_pos_*` tables. This is a sats-denominated ledger;
 POS sales are available on the event setup/register pages, not in the fiat-cent
 online-shop order list. Online products, variants and central stock are shared.
 The admin page exposes the recent stock/price/payment audit history. Refunds,
-receipts, discounts and additional payment methods are outside this version.
+discounts and additional payment methods are outside this version.
 
 Each checkout request has a persistent unique key and reserves stock in a
 transaction. Concurrent registers cannot reserve the same last item. Provider

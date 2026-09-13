@@ -25,21 +25,22 @@ type posItemEdit struct {
 }
 
 type posPage struct {
-	Edits     map[string]*posItemEdit
-	Audit     []getters.POSAuditEvent
-	Conf      *types.Conf
-	Admin     bool
-	NeedsPIN  bool
-	CSRF      string
-	RequestID string
-	Products  []types.POSProduct
-	Enabled   bool
-	Currency  string
-	Rate      float64
-	Error     string
-	Flash     string
-	Sale      *types.POSSale
-	Recent    []*types.POSSale
+	ReceiptEmail string
+	Edits        map[string]*posItemEdit
+	Audit        []getters.POSAuditEvent
+	Conf         *types.Conf
+	Admin        bool
+	NeedsPIN     bool
+	CSRF         string
+	RequestID    string
+	Products     []types.POSProduct
+	Enabled      bool
+	Currency     string
+	Rate         float64
+	Error        string
+	Flash        string
+	Sale         *types.POSSale
+	Recent       []*types.POSSale
 }
 
 func registerPOSRoutes(r *mux.Router, app *config.AppContext) {
@@ -276,7 +277,10 @@ func POSRegister(w http.ResponseWriter, r *http.Request, app *config.AppContext)
 		http.Error(w, "Session unavailable", 500)
 		return
 	}
-	p := &posPage{Conf: conf, CSRF: csrf}
+	p := &posPage{Conf: conf, CSRF: csrf, RequestID: uuid.NewString()}
+	if r.URL.Query().Get("receipt") == "queued" {
+		p.Flash = "Receipt queued for email delivery."
+	}
 	if r.Method == "POST" {
 		if !posPost(w, r, app) {
 			return
@@ -310,6 +314,10 @@ func POSRegister(w http.ResponseWriter, r *http.Request, app *config.AppContext)
 		}
 		if action == "checkout" {
 			posCheckout(w, r, app, conf)
+			return
+		}
+		if action == "receipt" {
+			posEmailReceipt(w, r, app, conf, csrf)
 			return
 		}
 		if action == "handover" {

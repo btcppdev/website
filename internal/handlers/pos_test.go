@@ -103,6 +103,7 @@ func TestPOSFlow(t *testing.T) {
 	_, err = getters.AddMerchProductImage(app, product, "/static/img/merch/core-hat.avif", "", "Core hat", 0, true)
 	must(err)
 	if os.Getenv("POS_BROWSER_PREVIEW") == "1" {
+		app.Env.MailOff = true
 		for _, demo := range []struct {
 			name, image, label string
 			price              int64
@@ -273,6 +274,10 @@ func TestPOSFlow(t *testing.T) {
 	}
 	parsed, _ := url.Parse(saleURL)
 	saleID := parsed.Query().Get("sale")
+	receiptValues := url.Values{"csrf": {csrf}, "action": {"receipt"}, "sale": {saleID}, "email": {"buyer@example.com"}, "receipt_request": {uuid.NewString()}}
+	if _, receiptBody, _ := post(receiptValues); !strings.Contains(receiptBody, "only after payment") {
+		t.Fatal("unpaid receipt accepted", receiptBody)
+	}
 	status, _ = get(base + "/qr/" + saleID)
 	if status != 200 {
 		t.Fatalf("QR=%d", status)
@@ -321,6 +326,41 @@ func TestPOSFlow(t *testing.T) {
 	if !strings.Contains(body, `"status":"paid"`) {
 		t.Fatal(body)
 	}
+	var mailPayload string
+	mailFailure := false
+	mockMail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mailPayload = string(b)
+		if mailFailure {
+			w.WriteHeader(500)
+			io.WriteString(w, `{"success":false,"code":500}`)
+			return
+		}
+		io.WriteString(w, `{"success":true,"code":200}`)
+	}))
+	defer mockMail.Close()
+	app.Env.MailEndpoint = mockMail.URL
+	if _, receiptBody, _ := post(receiptValues); !strings.Contains(receiptBody, "Receipt queued") {
+		t.Fatal("receipt failed", receiptBody)
+	}
+	if !strings.Contains(mailPayload, "buyer@example.com") || !strings.Contains(mailPayload, "50000 sats") {
+		t.Fatal("wrong mail payload", mailPayload)
+	}
+	receiptValues.Set("email", "bad-email")
+	if _, receiptBody, _ := post(receiptValues); !strings.Contains(receiptBody, "valid email") {
+		t.Fatal("invalid email accepted")
+	}
+	receiptValues.Set("email", "buyer@example.com")
+	mailFailure = true
+	if _, receiptBody, _ := post(receiptValues); !strings.Contains(receiptBody, "could not queue") || !strings.Contains(receiptBody, `value="buyer@example.com"`) {
+		t.Fatal("failure did not retain email", receiptBody)
+	}
+	mailFailure = false
+	app.Env.MailOff = true
+	if _, receiptBody, _ := post(receiptValues); !strings.Contains(receiptBody, "no receipt was sent") {
+		t.Fatal("disabled mail claimed success")
+	}
+	app.Env.MailOff = false
 	status, _, _ = post(url.Values{"csrf": {csrf}, "action": {"handover"}, "sale": {saleID}})
 	if status != 200 {
 		t.Fatalf("handover=%d", status)
