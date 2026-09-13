@@ -348,9 +348,12 @@ func TestPOSFlow(t *testing.T) {
 	if dashboardStatus != 200 || !strings.Contains(dashboardHTML, "/"+tag+"/admin/merch-pos") {
 		t.Fatalf("dashboard POS link missing: %d %s", dashboardStatus, dashboardHTML)
 	}
+	if strings.Count(html, ">Save items</button>") != 2 || strings.Contains(html, ">Save item</button>") {
+		t.Fatal("expected table-level save controls at top and bottom")
+	}
 	csrf = re.FindStringSubmatch(html)[1]
 	operation := regexp.MustCompile(`name="operation_id" value="([^"]+)"`).FindStringSubmatch(html)[1]
-	adminValues := url.Values{"csrf": {csrf}, "action": {"stock"}, "operation_id": {operation}, "variant": {variant}, "enabled": {"on"}, "price": {"26000"}, "transfer": {"-1"}}
+	adminValues := url.Values{"csrf": {csrf}, "action": {"items"}, "operation_id": {operation}, "variant": {variant}, "enabled_" + variant: {"on"}, "price_" + variant: {"26000"}, "transfer_" + variant: {"-1"}}
 	for i := 0; i < 2; i++ {
 		resp, e := client.PostForm(server.URL+"/"+tag+"/admin/merch-pos", adminValues)
 		must(e)
@@ -365,5 +368,21 @@ func TestPOSFlow(t *testing.T) {
 	must(pool.QueryRow(c, `SELECT available,price_sats FROM conference_pos_stock WHERE conference_id=$1 AND variant_id=$2`, conf, variant).Scan(&available, &price))
 	if available != 5 || price != 26000 {
 		t.Fatalf("admin save/replay: stock=%d price=%d", available, price)
+	}
+
+	adminValues.Set("operation_id", uuid.NewString())
+	adminValues.Set("price_"+variant, "27000")
+	adminValues.Set("transfer_"+variant, "999999")
+	response, e := client.PostForm(server.URL+"/"+tag+"/admin/merch-pos", adminValues)
+	must(e)
+	raw, e := io.ReadAll(response.Body)
+	response.Body.Close()
+	must(e)
+	if response.StatusCode != 200 || !strings.Contains(string(raw), `value="27000"`) || !strings.Contains(string(raw), `value="999999"`) {
+		t.Fatal("failed bulk save did not retain entered values")
+	}
+	must(pool.QueryRow(c, `SELECT available,price_sats FROM conference_pos_stock WHERE conference_id=$1 AND variant_id=$2`, conf, variant).Scan(&available, &price))
+	if available != 5 || price != 26000 {
+		t.Fatal("failed save changed inventory or price")
 	}
 }

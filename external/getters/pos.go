@@ -34,15 +34,49 @@ func POSProducts(ctx *config.AppContext, confID string) ([]types.POSProduct, boo
 }
 
 // Transfers are deltas, so concurrent sales cannot turn an absolute stock edit into a restock.
+type POSItemUpdate struct {
+	VariantID string
+	Enabled   bool
+	PriceSats int64
+	Transfer  int
+}
+
 func POSConfigure(ctx *config.AppContext, confID, variantID, actor, operationID string, enabled bool, price int64, transfer int) error {
-	if price < 0 || price > 500000000 || (enabled && price == 0) || transfer < -1000000 || transfer > 1000000 {
-		return fmt.Errorf("enter a valid sats price and stock transfer")
+	return POSConfigureItems(ctx, confID, actor, operationID, []POSItemUpdate{{VariantID: variantID, Enabled: enabled, PriceSats: price, Transfer: transfer}})
+}
+
+// Save the entire table atomically: a bad row cannot leave earlier transfers committed.
+func POSConfigureItems(ctx *config.AppContext, confID, actor, operationID string, items []POSItemUpdate) error {
+	if len(items) == 0 || len(items) > 2000 {
+		return fmt.Errorf("choose between 1 and 2000 items")
 	}
+	seen := map[string]bool{}
+	for _, item := range items {
+		if _, err := uuid.Parse(item.VariantID); err != nil || seen[item.VariantID] {
+			return fmt.Errorf("invalid or duplicate item")
+		}
+		seen[item.VariantID] = true
+		if item.PriceSats < 0 || item.PriceSats > 500000000 || (item.Enabled && item.PriceSats == 0) || item.Transfer < -1000000 || item.Transfer > 1000000 {
+			return fmt.Errorf("each enabled item needs a positive sats price and a valid stock transfer")
+		}
+	}
+	items = append([]POSItemUpdate(nil), items...)
+	sort.Slice(items, func(i, j int) bool { return items[i].VariantID < items[j].VariantID })
 	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx.DatabaseContext())
+	for _, item := range items {
+		if err = posConfigureItem(ctx, tx, confID, item.VariantID, actor, operationID, item.Enabled, item.PriceSats, item.Transfer); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx.DatabaseContext())
+}
+
+func posConfigureItem(ctx *config.AppContext, tx pgx.Tx, confID, variantID, actor, operationID string, enabled bool, price int64, transfer int) error {
+	var err error
 	if _, err := uuid.Parse(operationID); err != nil {
 		return fmt.Errorf("invalid stock operation")
 	}
@@ -92,7 +126,7 @@ func POSConfigure(ctx *config.AppContext, confID, variantID, actor, operationID 
 	if err != nil {
 		return err
 	}
-	return tx.Commit(ctx.DatabaseContext())
+	return nil
 }
 func POSSetEnabled(ctx *config.AppContext, confID, actor string, enabled bool) error {
 	tx, err := ctx.DB.Begin(ctx.DatabaseContext())

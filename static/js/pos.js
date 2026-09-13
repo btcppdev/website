@@ -7,7 +7,7 @@
   try{return '≈ '+new Intl.NumberFormat(undefined,{style:'currency',currency}).format(sats*rate/1e8)}catch{return 'Local estimate unavailable'}
  }
  document.querySelectorAll('[data-local-sats]').forEach(e=>{e.textContent=local(Number(e.dataset.localSats),Number(e.dataset.rate||body.dataset.posRate),e.dataset.currency||body.dataset.posCurrency)});
- document.querySelectorAll('.stock-card input[name="price"]').forEach(e=>e.addEventListener('input',()=>{e.parentElement.querySelector('.local').textContent=local(Number(e.value))}));
+ document.querySelectorAll('.stock-card input[data-pos-price]').forEach(e=>e.addEventListener('input',()=>{e.parentElement.querySelector('.local').textContent=local(Number(e.value))}));
  const cart=new Map(),form=document.querySelector('#checkout');
  const storageKey='pos-cart:'+base;
  let stored;try{stored=JSON.parse(sessionStorage.getItem(storageKey)||'null')}catch{}

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -187,5 +188,54 @@ func TestPOSInventoryLifecycle(t *testing.T) {
 	}
 	if err = app.DB.QueryRow(c, `SELECT sum(quantity_delta) FROM merch_inventory_events WHERE variant_id=$1`, variant).Scan(&stock); err != nil || stock != 8 {
 		t.Fatalf("central final=%d err=%v", stock, err)
+	}
+}
+
+func TestPOSConfigureItemsAtomic(t *testing.T) {
+	app := databaseSmokeContext(t)
+	conf, _ := insertSmokeConference(t, app)
+	c := context.Background()
+	var product string
+	key := uuid.NewString()
+	if err := app.DB.QueryRow(c, `INSERT INTO merch_products(tag,slug,name,status) VALUES($1,$1,'Bulk setup test','published') RETURNING id::text`, key).Scan(&product); err != nil {
+		t.Fatal(err)
+	}
+	ids := []string{uuid.NewString(), uuid.NewString()}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if _, err := app.DB.Exec(c, `INSERT INTO merch_variants(id,product_id,sku,label) VALUES($1,$2,$3,'Test size')`, id, product, id); err != nil {
+			t.Fatal(err)
+		}
+		if err := AdjustMerchInventory(app, id, "initial", 2, "", "test"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	operation := uuid.NewString()
+	items := []POSItemUpdate{{VariantID: ids[0], Enabled: true, PriceSats: 1000, Transfer: 1}, {VariantID: ids[1], Enabled: true, PriceSats: 2000, Transfer: 3}}
+	if err := POSConfigureItems(app, conf, "", operation, items); err == nil {
+		t.Fatal("accepted insufficient stock")
+	}
+	var count int
+	if err := app.DB.QueryRow(c, `SELECT count(*) FROM conference_pos_stock WHERE conference_id=$1`, conf).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("failed bulk save left partial rows: %d %v", count, err)
+	}
+	for _, id := range ids {
+		var stock int
+		if err := app.DB.QueryRow(c, `SELECT sum(quantity_delta) FROM merch_inventory_events WHERE variant_id=$1`, id).Scan(&stock); err != nil || stock != 2 {
+			t.Fatalf("partial inventory transfer: %d %v", stock, err)
+		}
+	}
+	items[1].Transfer = 1
+	for i := 0; i < 2; i++ {
+		if err := POSConfigureItems(app, conf, "", operation, items); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var available int
+	if err := app.DB.QueryRow(c, `SELECT sum(available) FROM conference_pos_stock WHERE conference_id=$1`, conf).Scan(&available); err != nil || available != 2 {
+		t.Fatalf("bulk save/replay stock: %d %v", available, err)
+	}
+	if err := app.DB.QueryRow(c, `SELECT count(*) FROM conference_pos_events WHERE conference_id=$1 AND operation_id=$2`, conf, operation).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("bulk audit/replay: %d %v", count, err)
 	}
 }

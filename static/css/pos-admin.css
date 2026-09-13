@@ -15,7 +15,7 @@
 .pos-admin .settings { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; background:white; border:1px solid #e5e7eb; border-radius:6px; margin:16px 0; }
 .pos-admin .hint { font-size:12px; margin:16px 0; }
 .pos-admin .stock-list { display:grid; gap:12px; }
-.pos-admin .stock-card { display:grid; grid-template-columns:minmax(240px,2fr) minmax(100px,1fr) minmax(100px,1fr) minmax(100px,1fr) auto; gap:16px; align-items:center; background:white; border:1px solid #e5e7eb; border-radius:6px; padding:16px; }
+.pos-admin .stock-card { display:grid; grid-template-columns:minmax(240px,2fr) minmax(100px,1fr) minmax(100px,1fr) minmax(100px,1fr); gap:16px; align-items:center; background:white; border:1px solid #e5e7eb; border-radius:6px; padding:16px; }
 .pos-admin .stock-card>*,.pos-admin .stock-product>* { min-width:0; }
 .pos-admin .stock-product { display:flex; gap:14px; align-items:center; }
 .pos-admin .stock-thumb { width:76px; height:76px; flex:0 0 76px; object-fit:contain; background:#f6f3ee; border:1px solid #e5e7eb; border-radius:4px; }
@@ -39,3 +39,5 @@
  .pos-admin .intro,.pos-admin .settings { align-items:flex-start; flex-direction:column; gap:12px; }
  .pos-admin h1 { font-size:24px; }
 }
+
+.pos-admin .stock-actions { display:flex; justify-content:flex-end; padding:12px 0; }

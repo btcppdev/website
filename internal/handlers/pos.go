@@ -19,7 +19,13 @@ import (
 	"time"
 )
 
+type posItemEdit struct {
+	Price, Transfer string
+	Enabled         bool
+}
+
 type posPage struct {
+	Edits     map[string]*posItemEdit
 	Audit     []getters.POSAuditEvent
 	Conf      *types.Conf
 	Admin     bool
@@ -174,6 +180,23 @@ func POSAdmin(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
 				err = currencyErr
 			} else {
 				err = getters.POSSetEnabled(app, conf.Ref, id.Email, r.PostForm.Get("enabled") == "on")
+			}
+		}
+		if r.PostForm.Get("action") == "items" {
+			p.Edits = map[string]*posItemEdit{}
+			var updates []getters.POSItemUpdate
+			for _, variant := range r.PostForm["variant"] {
+				edit := &posItemEdit{Price: r.PostForm.Get("price_" + variant), Transfer: r.PostForm.Get("transfer_" + variant), Enabled: r.PostForm.Get("enabled_"+variant) == "on"}
+				p.Edits[variant] = edit
+				price, e1 := strconv.ParseInt(edit.Price, 10, 64)
+				transfer, e2 := strconv.Atoi(edit.Transfer)
+				if e1 != nil || e2 != nil {
+					err = fmt.Errorf("enter whole sats and whole stock transfers for every item")
+				}
+				updates = append(updates, getters.POSItemUpdate{VariantID: variant, Enabled: edit.Enabled, PriceSats: price, Transfer: transfer})
+			}
+			if err == nil {
+				err = getters.POSConfigureItems(app, conf.Ref, id.Email, r.PostForm.Get("operation_id"), updates)
 			}
 		}
 		if r.PostForm.Get("action") == "stock" {

@@ -10,7 +10,9 @@ Mobile register: `/{conf}/merch/sell`.
    secondary price estimates (EUR for Berlin). Conflicting ticket-tier currencies
    must be resolved before opening sales.
 3. On the POS setup page, enable each variant, enter its final price in whole sats,
-   and transfer physical stock to the event. Positive transfers deduct central
+   and transfer physical stock to the event. Use **Save items** above or below
+   the table to save all rows together. If any row fails validation, no changes
+   are applied and entered values remain available to correct. Positive transfers deduct central
    online stock; negative transfers return unreserved event stock. Repeated form
    submissions do not repeat a transfer. Prices are final totals; this first
    version does not calculate tax or issue tax invoices.
