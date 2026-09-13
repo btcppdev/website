@@ -164,6 +164,18 @@ func TestPOSFlow(t *testing.T) {
 	defer provider.Close()
 	app.Env.OpenNode = types.OpenNodeConfig{Endpoint: provider.URL + "/v1", Key: "mock-key"}
 	router := mux.NewRouter()
+	if os.Getenv("POS_BROWSER_PREVIEW") == "1" {
+		// Familiar development-event URLs resolve to the current isolated fixture.
+		router.HandleFunc("/dev26/admin/merch-pos", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/preview/admin", http.StatusSeeOther)
+		}).Methods("GET")
+		router.HandleFunc("/dev26/merch/sell", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/preview", http.StatusSeeOther) }).Methods("GET")
+		router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusNotFound)
+			io.WriteString(w, `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>POS preview · Page not found</title><link rel="stylesheet" href="/static/css/pos.css"></head><body><header class="pos-header"><img src="/static/img/logo_blk.svg" alt="bitcoin++"><div><strong>Local preview</strong><span>Merch register</span></div></header><main class="pos-main"><section class="unlock"><span class="eyebrow">404 / Demo page not found</span><h1>Try the demo event.</h1><p>This preview contains one test event. Use these links to open its register or manage its stock and pricing.</p><p><a class="button" href="/dev26/admin/merch-pos">Admin setup →</a></p><p><a href="/dev26/merch/sell">Open mobile register →</a></p></section></main></body></html>`)
+		})
+	}
 	registerPOSRoutes(router, app)
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	var adminID string
