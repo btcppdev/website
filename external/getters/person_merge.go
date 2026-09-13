@@ -141,6 +141,26 @@ type personMergeManifest struct {
 }
 
 var personMergeRelationshipSpecs = []mergeRelationshipSpec{
+	{Table: "oauth_clients", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "OAuth app creators"},
+	{Table: "oauth_consents", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "client_id"}, DuplicateKey: []string{"client_id"}, Label: "connected app permissions"},
+	{Table: "oauth_authorization_codes", PersonColumn: "person_id", PrimaryKey: []string{"code_hash"}, Label: "OAuth authorization codes"},
+	{Table: "oauth_access_tokens", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "OAuth access tokens"},
+	{Table: "oauth_refresh_tokens", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "OAuth refresh tokens"},
+	{Table: "organization_memberships", PersonColumn: "person_id", PrimaryKey: []string{"organization_id", "person_id"}, DuplicateKey: []string{"organization_id"}, Label: "organization memberships"},
+	{Table: "organization_memberships", PersonColumn: "invited_by_person_id", PrimaryKey: []string{"organization_id", "person_id"}, Label: "organization membership inviters"},
+	{Table: "hackathon_sponsor_contact_consents", PersonColumn: "person_id", PrimaryKey: []string{"competition_id", "person_id"}, DuplicateKey: []string{"competition_id"}, Label: "sponsor contact-sharing choices"},
+	{Table: "hackathon_sponsor_contact_consent_events", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "sponsor consent history"},
+	{Table: "sponsor_audit_events", PersonColumn: "actor_person_id", PrimaryKey: []string{"id"}, Label: "sponsor audit actors"},
+	{Table: "organization_member_invites", PersonColumn: "invited_by_person_id", PrimaryKey: []string{"id"}, Label: "organization invitation senders"},
+	{Table: "organization_member_invites", PersonColumn: "accepted_by_person_id", PrimaryKey: []string{"id"}, Label: "accepted organization invitations"},
+	{Table: "sponsor_award_proposals", PersonColumn: "submitted_by_person_id", PrimaryKey: []string{"id"}, Label: "sponsor award submissions"},
+	{Table: "sponsor_award_proposals", PersonColumn: "reviewed_by_person_id", PrimaryKey: []string{"id"}, Label: "sponsor award reviewers"},
+	{Table: "sponsor_ticket_issuances", PersonColumn: "issued_by_person_id", PrimaryKey: []string{"id"}, Label: "sponsor ticket issuers"},
+	{Table: "proposals", PersonColumn: "direct_invitee_person_id", PrimaryKey: []string{"id"}, Label: "direct speaker invitations"},
+	{Table: "organization_membership_requests", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "organization membership requests"},
+	{Table: "organization_membership_requests", PersonColumn: "reviewed_by_person_id", PrimaryKey: []string{"id"}, Label: "organization membership reviewers"},
+	{Table: "organization_applications", PersonColumn: "submitted_by_person_id", PrimaryKey: []string{"id"}, Label: "organization applications"},
+	{Table: "organization_applications", PersonColumn: "reviewed_by_person_id", PrimaryKey: []string{"id"}, Label: "organization application reviewers"},
 	{Table: "affiliate_usages", PersonColumn: "affiliate_person_id", PrimaryKey: []string{"id"}, Label: "affiliate usages"},
 	{Table: "auth_audit_events", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "authentication audit events"},
 	{Table: "award_distributions", PersonColumn: "completed_by", PrimaryKey: []string{"id"}, Label: "award completions"},
@@ -348,7 +368,12 @@ func personMergeConflicts(queryCtx context.Context, db personMergeQuerier, canon
 			Description: fmt.Sprintf("Both people submitted rankings in %q. Remove one person's ballot for that event first.", event),
 		})
 	}
-	return conflicts, rows.Err()
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	extra, err := personMergeAccountConflicts(queryCtx, db, canonicalPersonID, sourcePersonID)
+	return append(conflicts, extra...), err
 }
 
 func MergePeople(ctx *config.AppContext, input PersonMergeInput) (string, error) {
@@ -423,6 +448,20 @@ func MergePeople(ctx *config.AppContext, input PersonMergeInput) (string, error)
 		}
 		if len(snapshot.Before) > 0 {
 			manifest.Relationships = append(manifest.Relationships, snapshot)
+		}
+	}
+	// A later relationship can update another person column on the same row.
+	// Record the final row, rather than the intermediate state, for undo previews.
+	for i := range manifest.Relationships {
+		relation := &manifest.Relationships[i]
+		for j, after := range relation.After {
+			current, found, err := loadRelationshipRow(dbctx, tx, relation.Spec, after, canonicalID)
+			if err != nil {
+				return "", err
+			}
+			if found {
+				relation.After[j] = current
+			}
 		}
 	}
 	var verifiedNostrPubkey string
@@ -832,6 +871,7 @@ func GetPersonMergeUndoPreview(ctx *config.AppContext, eventID string) (*PersonM
 		Retains: []string{
 			"Records created after the merge remain attached to the canonical person.",
 			"New email aliases added after the merge remain on the canonical person.",
+			"OAuth revocations and consumed authorization codes remain effective after undo.",
 		},
 	}
 	currentCanonical, err := personSnapshot(ctx.DatabaseContext(), ctx.DB, event.CanonicalPersonID)
@@ -976,10 +1016,21 @@ func UndoPersonMerge(ctx *config.AppContext, eventID, actorPersonID string, warn
 	if _, err := tx.Exec(dbctx, `INSERT INTO people SELECT (jsonb_populate_record(NULL::people, $1::jsonb)).*`, sourceRaw); err != nil {
 		return fmt.Errorf("restore source person: %w", err)
 	}
-	for _, relation := range manifest.Relationships {
+	for i := len(manifest.Relationships) - 1; i >= 0; i-- {
+		relation := manifest.Relationships[i]
 		deleted := snapshotKeySet(relation.Spec, relation.Deleted)
 		for _, before := range relation.Before {
 			if deleted[relationshipRowKey(relation.Spec, before)] {
+				// A consent deduplicated at merge time must inherit a later revocation.
+				if relation.Spec.Table == "oauth_consents" {
+					current, found, err := loadRelationshipRow(dbctx, tx, relation.Spec, before, event.CanonicalPersonID)
+					if err != nil {
+						return err
+					}
+					if found && current["revoked_at"] != nil {
+						before["revoked_at"] = current["revoked_at"]
+					}
+				}
 				if err := insertSnapshotRow(dbctx, tx, relation.Spec.Table, before); err != nil {
 					return err
 				}
@@ -1059,7 +1110,12 @@ func restoreRelationshipRow(queryCtx context.Context, tx pgx.Tx, spec mergeRelat
 	assignments := make([]string, 0, len(columns))
 	for _, column := range columns {
 		quoted := quoteMergeIdentifier(column)
-		assignments = append(assignments, quoted+" = restored."+quoted)
+		value := "restored." + quoted
+		// Restoring ownership must not reactivate a revoked token or replay a spent code.
+		if (spec.Table == "oauth_access_tokens" || spec.Table == "oauth_refresh_tokens" || spec.Table == "oauth_authorization_codes" || spec.Table == "oauth_consents") && (column == "revoked_at" || column == "consumed_at" || column == "replaced_by_id") {
+			value = "coalesce(row." + quoted + ", restored." + quoted + ")"
+		}
+		assignments = append(assignments, quoted+" = "+value)
 	}
 	queryArgs := append([]any{raw}, args...)
 	tag, err := tx.Exec(queryCtx, `
