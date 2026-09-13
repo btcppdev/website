@@ -4,16 +4,16 @@
 body {
   margin:0;
   background:#f6f3ee;
-  color:#20241f;
-  font:14px/1.5 Montserrat,system-ui,sans-serif;
+  color:#0a0a0a;
+  font:14px/1.5 "IBM Plex Sans",system-ui,sans-serif;
 }
 button,input {
   font:inherit;
 }
 button,.button {
   border:0;
-  border-radius:10px;
-  background:#244b35;
+  border-radius:0;
+  background:#0a0a0a;
   color:white;
   font-weight:600;
   padding:14px 18px;
@@ -27,30 +27,30 @@ button:disabled {
   cursor:default;
 }
 button:hover:not(:disabled) {
-  background:#173724;
+  background:#353535;
 }
 .secondary {
-  background:#e4e8e1;
-  color:#244b35;
+  background:#efeae2;
+  color:#0a0a0a;
 }
 .quiet {
   background:transparent;
-  color:#244b35;
+  color:#0a0a0a;
   padding:10px;
 }
 a {
-  color:#244b35;
+  color:#0a0a0a;
 }
 input {
   width:100%;
   padding:12px;
-  border:1px solid #c8cec5;
-  border-radius:8px;
+  border:1px solid #0a0a0a;
+  border-radius:0;
   background:#fff;
   min-height:48px;
 }
 input:focus,button:focus-visible,a:focus-visible {
-  outline:3px solid #da8d41;
+  outline:3px solid #f9af5e;
   outline-offset:3px;
 }
 label {
@@ -66,8 +66,8 @@ label input {
   align-items:center;
   gap:20px;
   padding:18px max(20px,calc((100vw - 1080px)/2));
-  border-bottom:1px solid #dcded5;
-  background:#fff;
+  border-bottom:1px solid #0a0a0a;
+  background:#f6f3ee;
 }
 .pos-header img {
   width:108px;
@@ -78,7 +78,7 @@ label input {
 }
 .pos-header span {
   font-size:11px;
-  color:#6c766b;
+  color:#666;
 }
 .pos-header form {
   margin-left:auto;
@@ -100,7 +100,7 @@ label input {
   letter-spacing:.14em;
   font-size:10px;
   font-weight:700;
-  color:#657460;
+  color:#666;
 }
 h1 {
   font-size:clamp(26px,5vw,38px);
@@ -114,7 +114,7 @@ h2 {
   margin:0 0 4px;
 }
 p {
-  color:#657060;
+  color:#666;
   margin:6px 0 16px;
 }
 .products {
@@ -124,13 +124,13 @@ p {
 }
 .product {
   background:white;
-  border:1px solid #e1e4da;
-  border-radius:16px;
+  border:1px solid #0a0a0a;
+  border-radius:0;
   overflow:hidden;
 }
 .product-image {
   height:180px;
-  background:#eaece4;
+  background:#efeae2;
   display:grid;
   place-items:center;
 }
@@ -142,7 +142,7 @@ p {
 .product-image span {
   font-size:24px;
   font-weight:700;
-  color:#86907e;
+  color:#666;
 }
 .product-info {
   padding:16px;
@@ -162,12 +162,12 @@ p {
 }
 .local {
   font-size:11px;
-  color:#80867c;
+  color:#76716a;
   font-weight:400;
 }
 .stock {
   display:block;
-  color:#637259;
+  color:#666;
   font-size:11px;
   margin:9px 0;
 }
@@ -181,8 +181,8 @@ p {
   width:48px;
   padding:8px;
   font-size:24px;
-  background:#edf0e8;
-  color:#244b35;
+  background:#f6f3ee;
+  color:#0a0a0a;
 }
 .stepper output {
   flex:1;
@@ -203,8 +203,8 @@ p {
   padding:18px max(20px,calc((100vw - 1040px)/2));
   padding-bottom:max(18px,env(safe-area-inset-bottom));
   background:#fff;
-  border-top:1px solid #d7dece;
-  box-shadow:0 -8px 30px #20241f08;
+  border-top:1px solid #0a0a0a;
+  box-shadow:0 -8px 30px #0a0a0a08;
 }
 .cart-bar small,.cart-bar strong {
   display:block;
@@ -219,15 +219,15 @@ p {
   padding:16px;
   background:#e2efdf;
   border:1px solid #c2d5bc;
-  border-radius:10px;
+  border-radius:0;
 }
 .error {
   background:#f7e5db;
   border-color:#dfb5a0;
 }
 .status-pill {
-  background:#e3e8dc;
-  border-radius:24px;
+  background:#f9af5e;
+  border-radius:0;
   padding:8px 12px;
   white-space:nowrap;
   font-size:11px;
@@ -264,7 +264,7 @@ p {
   height:auto;
   background:white;
   border:12px solid white;
-  border-radius:12px;
+  border-radius:0;
 }
 .sale-items {
   list-style:none;
@@ -277,11 +277,11 @@ p {
   justify-content:space-between;
   gap:16px;
   padding:14px 0;
-  border-bottom:1px solid #dcded5;
+  border-bottom:1px solid #0a0a0a;
 }
 .sale-items small {
   display:block;
-  color:#747c70;
+  color:#666;
 }
 .sale-items strong {
   font-size:12px;
@@ -304,7 +304,7 @@ p {
   justify-content:space-between;
   padding:20px;
   background:white;
-  border-radius:12px;
+  border-radius:0;
   margin-bottom:20px;
 }
 .check {
@@ -327,8 +327,8 @@ p {
   align-items:center;
   gap:16px;
   background:#fff;
-  border:1px solid #e1e4da;
-  border-radius:12px;
+  border:1px solid #0a0a0a;
+  border-radius:0;
   padding:20px;
 }
 .stock-card p {
@@ -347,14 +347,14 @@ p {
   display:flex;
   justify-content:space-between;
   gap:18px;
-  border-bottom:1px solid #dcded5;
+  border-bottom:1px solid #0a0a0a;
   padding:14px 0;
   text-decoration:none;
   font-size:12px;
 }
 .recent-sale small {
   display:block;
-  color:#747c70;
+  color:#666;
   font-size:10px;
   overflow-wrap:anywhere;
 }
@@ -434,4 +434,60 @@ p {
 }
 .pos-header strong {
   overflow-wrap:anywhere;
+}
+
+/* The same paper, ink, orange and editorial rules as the public merch shop. */
+body { -webkit-font-smoothing:antialiased; }
+input { font-size:16px; }
+.pos-header { border-top:6px solid #f9af5e; gap:16px; }
+.pos-header strong { font-size:15px; }
+.pos-header span, .eyebrow, .stock, .status-pill, .local, .recent summary,
+.cart-bar small, .hint, .product-info > p, #expiry {
+  font-family:"IBM Plex Mono",monospace;
+}
+.pos-header span { text-transform:uppercase; font-size:9px; letter-spacing:.09em; }
+.pos-header .quiet { border:1px solid #0a0a0a; padding:10px 14px; }
+button, .button { border:1px solid #0a0a0a; }
+.quiet:hover:not(:disabled), .secondary:hover:not(:disabled) { background:#f9af5e; color:#0a0a0a; }
+h1 { font-weight:600; letter-spacing:-.055em; }
+.intro { border-bottom:1px solid #0a0a0a; padding-bottom:24px; }
+.intro h1 { font-size:clamp(38px,7vw,56px); }
+.brand-plus { color:#ba5500; margin-left:6px; letter-spacing:-.08em; }
+.eyebrow { font-size:10px; letter-spacing:.09em; }
+.status-pill { border:1px solid #0a0a0a; text-transform:uppercase; letter-spacing:.04em; }
+.product { background:#f6f3ee; }
+.product-image { border-bottom:1px solid #0a0a0a; background:linear-gradient(135deg,#e6bb8e,#8fb7ad); }
+.product-image .product-wordmark { width:76%; height:auto; max-height:90px; }
+.product h2 { font-weight:600; }
+.price strong, .payment-total strong, .cart-bar strong { font-variant-numeric:tabular-nums; letter-spacing:-.035em; }
+.stepper { gap:0; border:1px solid #0a0a0a; }
+.stepper button { border:0; background:#f9af5e; color:#0a0a0a; }
+.stepper button:first-child { border-right:1px solid #0a0a0a; }
+.stepper button:last-child { border-left:1px solid #0a0a0a; }
+.stepper button:disabled { opacity:1; background:#efeae2; color:#aaa; }
+.stepper button:hover:not(:disabled) { background:#0a0a0a; color:#f9af5e; }
+.cart-bar { background:#0a0a0a; color:#f6f3ee; border-top:4px solid #f9af5e; box-shadow:none; }
+.cart-bar .local { color:#aaa49a; }
+.cart-bar #charge { background:#f9af5e; color:#0a0a0a; font-size:17px; }
+.cart-bar #charge:hover:not(:disabled) { background:#ffd09b; }
+.cart-bar #charge:disabled { opacity:1; background:#302d29; color:#b8b0a5; border-color:#746d64; }
+.payment { padding-top:14px; }
+.payment > .eyebrow { display:block; padding:9px; background:#f9af5e; border:1px solid #0a0a0a; color:#0a0a0a; }
+.payment h1 { margin-top:24px; font-size:clamp(34px,6vw,46px); }
+.payment-total { padding:18px 0; border-top:1px solid #0a0a0a; border-bottom:1px solid #0a0a0a; }
+.qr { outline:1px solid #0a0a0a; }
+.payment[data-status="paid"] #payment-title::before { content:"✓"; display:block; margin:0 auto 16px; width:56px; background:#f9af5e; border:1px solid #0a0a0a; font-size:36px; }
+.unlock { border-top:6px solid #f9af5e; padding-top:24px; }
+.unlock h1 { font-size:44px; }
+.unlock button { background:#f9af5e; color:#0a0a0a; }
+.settings { border:1px solid #0a0a0a; }
+@media(max-width:760px) {
+ .pos-main { padding-top:24px; }
+ .intro { gap:12px; margin-bottom:20px; padding-bottom:20px; }
+ .intro h1 { margin-top:8px; margin-bottom:8px; }
+ .intro p { margin-bottom:0; }
+ .product-image { height:132px; }
+ .product-info { padding:12px; }
+ .price { gap:4px 8px; }
+ .cart-bar strong { font-size:26px; }
 }

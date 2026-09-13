@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ .Conf.Tag }} · merch register</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/css/pos.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/pos.css?v=bitcoin-plus-plus">
 <script src="/static/js/pos.js" defer></script>
 </head>
 <body data-pos-currency="{{ .Currency }}" data-pos-rate="{{ .Rate }}" data-pos-base="/{{ .Conf.Tag }}/merch/sell">
-<header class="pos-header"><a href="/{{ .Conf.Tag }}"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a><div><strong>{{ .Conf.Tag }}</strong><span>Merch {{ if .Admin }}setup{{ else }}register{{ end }}</span></div>{{ if and (not .Admin) (not .NeedsPIN) }}<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="quiet" name="action" value="lock">Lock</button></form>{{ end }}</header>
+<header class="pos-header"><a href="/{{ .Conf.Tag }}"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a><div><strong>{{ .Conf.Location }}</strong><span>Merch {{ if .Admin }}setup{{ else }}register{{ end }}</span></div>{{ if and (not .Admin) (not .NeedsPIN) }}<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="quiet" name="action" value="lock">Lock</button></form>{{ end }}</header>
 <main class="pos-main {{ if .Admin }}pos-main--admin{{ end }}">
 {{ if .Error }}<p class="notice error" role="alert">{{ .Error }}</p>{{ end }}
 {{ if .Flash }}<p class="notice" role="status">{{ .Flash }}</p>{{ end }}
@@ -38,10 +38,10 @@
 </section>
 {{ end }}
 {{ else }}
-<div class="intro"><div><span class="eyebrow">The conference merch table</span><h1>What looks good?</h1><p>Choose a variant, add it to the cart, and charge in sats.</p></div><span class="status-pill">{{ if .Enabled }}Register open{{ else }}Register closed{{ end }}</span></div>
+<div class="intro"><div><span class="eyebrow">§ 01 / Conference merch</span><h1>Merch desk<span class="brand-plus" aria-hidden="true">++</span></h1><p>Pick your gear. Pay in sats.</p></div><span class="status-pill">{{ if .Enabled }}Register open{{ else }}Register closed{{ end }}</span></div>
 {{ if not .Enabled }}<p class="notice">An admin needs to open this register before you can sell.</p>{{ end }}
 <section class="products" aria-label="Products">
-{{ range .Products }}{{ if .Enabled }}<article class="product" data-variant="{{ .VariantID }}" data-price="{{ .PriceSats }}" data-name="{{ .Name }}" data-label="{{ .Label }}" data-stock="{{ .Available }}"><div class="product-image">{{ if .Image }}<img src="{{ .Image }}" alt="{{ .Name }}" loading="lazy">{{ else }}<span>bitcoin++</span>{{ end }}</div><div class="product-info"><h2>{{ .Name }}</h2><p>{{ .Label }}</p><div class="price"><strong data-format-sats="{{ .PriceSats }}">{{ .PriceSats }} sats</strong><small class="local" data-local-sats="{{ .PriceSats }}"></small></div><span class="stock">{{ .Available }} available</span><div class="stepper"><button type="button" data-delta="-1" aria-label="Remove one {{ .Name }} {{ .Label }}" disabled>−</button><output aria-live="polite">0</output><button type="button" data-delta="1" aria-label="Add one {{ .Name }} {{ .Label }}" {{ if or (not $.Enabled) (le .Available 0) }}disabled{{ end }}>+</button></div></div></article>{{ end }}{{ end }}
+{{ range .Products }}{{ if .Enabled }}<article class="product" data-variant="{{ .VariantID }}" data-price="{{ .PriceSats }}" data-name="{{ .Name }}" data-label="{{ .Label }}" data-stock="{{ .Available }}"><div class="product-image">{{ if .Image }}<img src="{{ .Image }}" alt="{{ .Name }}" loading="lazy">{{ else }}<img class="product-wordmark" src="/static/img/logo_blk.svg" alt="">{{ end }}</div><div class="product-info"><h2>{{ .Name }}</h2><p>{{ .Label }}</p><div class="price"><strong data-format-sats="{{ .PriceSats }}">{{ .PriceSats }} sats</strong><small class="local" data-local-sats="{{ .PriceSats }}"></small></div><span class="stock">{{ .Available }} available</span><div class="stepper"><button type="button" data-delta="-1" aria-label="Remove one {{ .Name }} {{ .Label }}" disabled>−</button><output aria-live="polite">0</output><button type="button" data-delta="1" aria-label="Add one {{ .Name }} {{ .Label }}" {{ if or (not $.Enabled) (le .Available 0) }}disabled{{ end }}>+</button></div></div></article>{{ end }}{{ end }}
 </section>
 <form method="post" id="checkout" class="cart-bar"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="request_id" value="{{ .RequestID }}"><input type="hidden" name="action" value="checkout"><input type="hidden" name="cart" id="cart-json"><div><small id="cart-count">No items selected</small><strong id="cart-total">0 sats</strong><small class="local" id="cart-local"></small></div><button id="charge" disabled {{ if or (not .Enabled) (le .Rate 0.0) }}data-unavailable="true"{{ end }}>Charge →</button></form>
 {{ template "pos_recent" . }}
