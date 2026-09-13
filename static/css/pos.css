@@ -491,3 +491,14 @@ h1 { font-weight:600; letter-spacing:-.055em; }
  .price { gap:4px 8px; }
  .cart-bar strong { font-size:26px; }
 }
+.product-image {
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr);
+  overflow:hidden;
+}
+.product-image img {
+  display:block;
+  min-width:0;
+  min-height:0;
+  max-height:100%;
+}

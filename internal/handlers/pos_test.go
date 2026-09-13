@@ -98,8 +98,29 @@ func TestPOSFlow(t *testing.T) {
 		}
 	}
 	must(pool.QueryRow(c, `INSERT INTO conferences(tag,active,description,date_desc,start_date,end_date,timezone,location,venue) VALUES($1,true,'Berlin POS preview','September 2026',now(),now()+interval '2 days','Europe/Berlin','Berlin','Test venue') RETURNING id::text`, tag).Scan(&conf))
-	must(pool.QueryRow(c, `INSERT INTO merch_products(tag,slug,name,status) VALUES($1,$1,'Core tee','published') RETURNING id::text`, suffix).Scan(&product))
-	must(pool.QueryRow(c, `INSERT INTO merch_variants(product_id,sku,label) VALUES($1,$2,'Medium / black') RETURNING id::text`, product, suffix).Scan(&variant))
+	must(pool.QueryRow(c, `INSERT INTO merch_products(tag,slug,name,status) VALUES($1,$1,'Core hat','published') RETURNING id::text`, suffix).Scan(&product))
+	must(pool.QueryRow(c, `INSERT INTO merch_variants(product_id,sku,label) VALUES($1,$2,'One size / rust') RETURNING id::text`, product, suffix).Scan(&variant))
+	_, err = getters.AddMerchProductImage(app, product, "/static/img/merch/core-hat.avif", "", "Core hat", 0, true)
+	must(err)
+	if os.Getenv("POS_BROWSER_PREVIEW") == "1" {
+		for _, demo := range []struct {
+			name, image, label string
+			price              int64
+			stock              int
+		}{
+			{"Libbit hat", "/static/img/merch/libbit-hat.avif", "One size / black", 30000, 6},
+			{"LibreRelay hat", "/static/img/merch/librerelay-hat.avif", "One size / blue", 35000, 0},
+		} {
+			demoKey := uuid.NewString()
+			var demoProduct, demoVariant string
+			must(pool.QueryRow(c, `INSERT INTO merch_products(tag,slug,name,status) VALUES($1,$1,$2,'published') RETURNING id::text`, demoKey, demo.name).Scan(&demoProduct))
+			must(pool.QueryRow(c, `INSERT INTO merch_variants(product_id,sku,label) VALUES($1,$2,$3) RETURNING id::text`, demoProduct, demoKey, demo.label).Scan(&demoVariant))
+			_, err = getters.AddMerchProductImage(app, demoProduct, demo.image, "", demo.name, 0, true)
+			must(err)
+			must(getters.AdjustMerchInventory(app, demoVariant, "initial", 12, "", "preview"))
+			must(getters.POSConfigure(app, conf, demoVariant, "", uuid.NewString(), true, demo.price, demo.stock))
+		}
+	}
 	// Reuse the real getter's ticket input so currency hydration follows production.
 	_, err = pool.Exec(c, `INSERT INTO conference_tickets(conference_id,ticket_key,tier,currency) VALUES($1,$2,'General','EUR')`, conf, suffix)
 	must(err)

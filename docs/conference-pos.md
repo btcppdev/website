@@ -82,7 +82,8 @@ They cover exact-sats payloads, PIN/CSRF/admin gates, duplicate requests, concur
 stock reservations, price tampering, signed callback verification, expiry,
 cancellation, late payments and handover. Set `POS_BROWSER_PREVIEW=1` when running
 `TestPOSFlow` to serve a local mock-payment preview on 127.0.0.1:19433; the test
-prints its URL and PIN. `/preview/pay` simulates payment in that test server only.
+prints its URL and PIN. The demo includes Core, Libbit and LibreRelay hats with
+repository product photos, event prices, and a sold-out variant. `/preview/pay` simulates payment in that test server only.
 
 Before enabling a real event, verify its configured stock and final prices, then
 complete a controlled Lightning payment and confirm the received amount and
