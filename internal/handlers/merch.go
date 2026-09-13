@@ -149,6 +149,14 @@ func StartShopMaintenance(ctx *config.AppContext) {
 		return
 	}
 	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			reconcilePOSPayments(ctx)
+			<-ticker.C
+		}
+	}()
+	go func() {
 		reconcileSocialCards := func() {
 			if !spaces.IsConfigured() {
 				return

@@ -1663,6 +1663,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		HackathonAdminUpdate(w, r, app)
 	}).Methods("POST")
 	registerConferenceHackathonAdminRoutes(r, app)
+	registerPOSRoutes(r, app)
 	r.HandleFunc("/admin/easyship", func(w http.ResponseWriter, r *http.Request) {
 		AdminEasyship(w, r, app)
 	}).Methods("GET")
@@ -5582,7 +5583,7 @@ func CheckIn(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 				ctx.Err.Printf("/check-in ExecuteTemplate failed ! %s", err.Error())
 				return
 			}
-			ctx.Err.Printf("/check-in wrong pin submitted! %s", pin)
+			ctx.Err.Print("/check-in wrong pin submitted")
 			return
 		}
 

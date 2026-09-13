@@ -636,16 +636,17 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 			var inventoryPolicy, variantStatus string
 			var stock int
 			if err := tx.QueryRow(ctx.DatabaseContext(), `
-				SELECT inventory_policy, status, coalesce((
-					SELECT sum(quantity_delta)::int
-					FROM merch_inventory_events mie
-					WHERE mie.variant_id = merch_variants.id
-				), 0) AS stock
+				SELECT inventory_policy, status
 				FROM merch_variants
 				WHERE id = $1::uuid
 				FOR UPDATE
-			`, item.VariantID).Scan(&inventoryPolicy, &variantStatus, &stock); err != nil {
+			`, item.VariantID).Scan(&inventoryPolicy, &variantStatus); err != nil {
 				return nil, fmt.Errorf("check merch inventory: %w", err)
+			}
+			// Read the ledger after acquiring the variant lock so a concurrent
+			// event transfer or online reservation is visible in this snapshot.
+			if err := tx.QueryRow(ctx.DatabaseContext(), `SELECT coalesce(sum(quantity_delta),0) FROM merch_inventory_events WHERE variant_id=$1`, item.VariantID).Scan(&stock); err != nil {
+				return nil, err
 			}
 			if strings.TrimSpace(variantStatus) != "active" {
 				return nil, fmt.Errorf("item is not available")
