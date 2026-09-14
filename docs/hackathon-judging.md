@@ -43,4 +43,8 @@ BTCPP_POSTGRES_SMOKE=1 JUDGING_BROWSER_PREVIEW=1 DATABASE_URL='<local test datab
 
 Open http://127.0.0.1:8094/preview. The fixture's `/preview/close` route closes the round and opens results.
 
-An existing broader schema test reports three unrelated badge relationships missing from the person-merge manifest: `organization_badge_grants.recipient_person_id`, `organization_badge_grants.created_by_person_id`, and `person_badge_presentations.person_id`. This port registers ballot history; it does not change badge merging.
+The account-merge manifest now covers badge recipients, badge grant creators, and profile badge presentation preferences as well as ballot history. The foreign-key coverage test and account merge/undo tests pass.
+
+Merging preserves grant IDs, signed events, and correction links. Two non-canceled/non-corrected grants for the same organization, issuer and badge are reported as a conflict before merging, including revoked grants; they cannot be silently deduplicated. Resolve the grants through their normal lifecycle first. Signed recipient public keys and subject URLs are not rewritten by an account merge.
+
+For display preferences, the canonical account's choice wins when both accounts configure the same badge. Its featured slots also take precedence: source badges that collide remain visible but unfeatured, while free source slots and hidden preferences transfer. Undo restores the original preferences. Undo restores badge account references without rolling back issuance, acceptance, correction, or revocation changes made after merging. No additional database migration is required for this handling.

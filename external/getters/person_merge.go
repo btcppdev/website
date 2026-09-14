@@ -141,6 +141,9 @@ type personMergeManifest struct {
 }
 
 var personMergeRelationshipSpecs = []mergeRelationshipSpec{
+	{Table: "organization_badge_grants", PersonColumn: "recipient_person_id", PrimaryKey: []string{"id"}, Label: "organization badge grants"},
+	{Table: "organization_badge_grants", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "badge grant creators"},
+	{Table: "person_badge_presentations", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "badge_ref"}, DuplicateKey: []string{"badge_ref"}, Label: "badge display preferences"},
 	{Table: "judge_ballot_submissions", PersonColumn: "judge_person_id", PrimaryKey: []string{"judge_event_id", "judge_person_id"}, DuplicateKey: []string{"judge_event_id"}, Label: "judge ballot submission history"},
 	{Table: "oauth_clients", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "OAuth app creators"},
 	{Table: "oauth_consents", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "client_id"}, DuplicateKey: []string{"client_id"}, Label: "connected app permissions"},
@@ -654,6 +657,18 @@ func mergeRelationship(queryCtx context.Context, tx pgx.Tx, spec mergeRelationsh
 			}
 		}
 	}
+	if spec.Table == "person_badge_presentations" {
+		// Preserve the canonical profile's featured slots. Source badges whose
+		// slots are occupied remain visible but unfeatured; Before retains the
+		// original positions and duplicate preferences for merge undo.
+		if _, err := tx.Exec(queryCtx, `UPDATE person_badge_presentations source
+            SET featured_position = NULL
+            WHERE source.person_id=$2 AND source.featured_position IS NOT NULL
+            AND EXISTS (SELECT 1 FROM person_badge_presentations canonical
+                WHERE canonical.person_id=$1 AND canonical.featured_position=source.featured_position)`, canonicalID, sourceID); err != nil {
+			return snapshot, fmt.Errorf("resolve merged badge display positions: %w", err)
+		}
+	}
 	if _, err := tx.Exec(queryCtx, `UPDATE `+quoteMergeIdentifier(spec.Table)+`
 		SET `+quoteMergeIdentifier(spec.PersonColumn)+` = $1::uuid
 		WHERE `+quoteMergeIdentifier(spec.PersonColumn)+` = $2::uuid`, canonicalID, sourceID); err != nil {
@@ -873,6 +888,7 @@ func GetPersonMergeUndoPreview(ctx *config.AppContext, eventID string) (*PersonM
 			"Records created after the merge remain attached to the canonical person.",
 			"New email aliases added after the merge remain on the canonical person.",
 			"OAuth revocations and consumed authorization codes remain effective after undo.",
+			"Badge issuance, acceptance, correction, and revocation changes remain effective after undo.",
 		},
 	}
 	currentCanonical, err := personSnapshot(ctx.DatabaseContext(), ctx.DB, event.CanonicalPersonID)
@@ -1105,6 +1121,12 @@ func restoreRelationshipRow(queryCtx context.Context, tx pgx.Tx, spec mergeRelat
 	raw, _ := json.Marshal(before)
 	columns := make([]string, 0, len(before))
 	for column := range before {
+		// Signed credentials may have been issued, accepted, revoked or
+		// corrected after a merge. Undo restores account references only;
+		// never roll back the grant's lifecycle or its signed event IDs.
+		if spec.Table == "organization_badge_grants" && column != spec.PersonColumn {
+			continue
+		}
 		columns = append(columns, column)
 	}
 	sort.Strings(columns)

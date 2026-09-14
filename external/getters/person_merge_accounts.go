@@ -9,6 +9,11 @@ import (
 // must be resolved explicitly before combining identities.
 func personMergeAccountConflicts(ctx context.Context, db personMergeQuerier, canonical, source string) ([]PersonMergeConflict, error) {
 	checks := []struct{ kind, description, query string }{
+		{"organization_badge_grant", "Both profiles have a grant for the same organization badge. Resolve the duplicate grants before merging; issued credentials and revocation history cannot be silently discarded.", `SELECT EXISTS (
+            SELECT 1 FROM organization_badge_grants a JOIN organization_badge_grants b
+            USING (organization_id, issuer_pubkey, badge_identifier)
+            WHERE a.recipient_person_id=$1 AND b.recipient_person_id=$2
+            AND a.state NOT IN ('canceled','corrected') AND b.state NOT IN ('canceled','corrected'))`},
 		{"organization_membership", "The profiles have different roles or membership statuses in the same organization. Resolve those memberships before merging.", `SELECT EXISTS(SELECT 1 FROM organization_memberships a JOIN organization_memberships b USING(organization_id) WHERE a.person_id=$1 AND b.person_id=$2 AND (a.role<>b.role OR a.status<>b.status))`},
 		{"sponsor_contact_consent", "The profiles have different sponsor contact-sharing choices for the same hackathon. Resolve those consent choices before merging.", `SELECT EXISTS(SELECT 1 FROM hackathon_sponsor_contact_consents a JOIN hackathon_sponsor_contact_consents b USING(competition_id) WHERE a.person_id=$1 AND b.person_id=$2 AND (a.all_hackathon_sponsors<>b.all_hackathon_sponsors OR a.entered_award_sponsors<>b.entered_award_sponsors))`},
 		{"oauth_consent", "The profiles have different permissions or revocation states for the same connected app. Resolve those app permissions before merging.", `SELECT EXISTS(SELECT 1 FROM oauth_consents a JOIN oauth_consents b USING(client_id) WHERE a.person_id=$1 AND b.person_id=$2 AND (NOT(a.scopes @> b.scopes AND b.scopes @> a.scopes) OR (a.revoked_at IS NULL)<>(b.revoked_at IS NULL)))`},
