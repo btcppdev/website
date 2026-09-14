@@ -55,8 +55,17 @@ func SendOrganizationWelcomeEmail(ctx *config.AppContext, organizationID, person
 	} else if conf := nextOrganizationWelcomeConference(confs, time.Now()); conf != nil {
 		heroURL = baseURI + "/static/img/" + url.PathEscape(conf.Tag) + "/leading.png"
 	}
-	organizationURL := baseURI + "/organizations/" + url.PathEscape(organizationWelcomePathRef(membership.Organization))
-	mail, err := BuildOrganizationWelcomeMail(ctx, membership, name, email, organizationURL, heroURL)
+	organizationURL := baseURI + "/dashboard/orgs/" + url.PathEscape(organizationWelcomePathRef(membership.Organization))
+	addedByName := ""
+	if membership.InvitedByPersonID != "" {
+		addedBy, lookupErr := getters.FetchSpeakerByID(ctx, membership.InvitedByPersonID)
+		if lookupErr != nil {
+			ctx.Err.Printf("organization welcome added-by lookup: %s", lookupErr)
+		} else if addedBy != nil {
+			addedByName = addedBy.Name
+		}
+	}
+	mail, err := BuildOrganizationWelcomeMail(ctx, membership, name, email, organizationURL, heroURL, addedByName)
 	if err != nil {
 		return err
 	}
@@ -64,8 +73,5 @@ func SendOrganizationWelcomeEmail(ctx *config.AppContext, organizationID, person
 }
 
 func organizationWelcomePathRef(org *types.Org) string {
-	if slug := strings.TrimSpace(org.Slug); slug != "" {
-		return slug
-	}
 	return strings.TrimSpace(org.Ref)
 }
