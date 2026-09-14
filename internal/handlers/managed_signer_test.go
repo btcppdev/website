@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -208,7 +210,11 @@ func TestManagedSignerRequestValidationMatchesBunkerSurface(t *testing.T) {
 		{"oversized batch", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 8, RecipientCount: 101}, "", true},
 		{"personal acceptance", ManagedSignerAuthorizationPage{Tenant: "person", Action: "sign", EventKind: 10008}, "accept badges on Nostr", false},
 		{"personal award denied", ManagedSignerAuthorizationPage{Tenant: "person", Action: "sign", EventKind: 8, RecipientCount: 1}, "", true},
-		{"organization arbitrary event denied", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 1}, "", true},
+		{"organization note", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 1}, "publish a note, reply, or announcement", false},
+		{"organization article", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 30023}, "publish or update a long-form article", false},
+		{"organization live stream", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 30311}, "publish or update a live stream", false},
+		{"personal article denied", ManagedSignerAuthorizationPage{Tenant: "person", Action: "sign", EventKind: 30023}, "", true},
+		{"organization arbitrary event denied", ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 9999}, "", true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -305,5 +311,25 @@ func TestManagedSignerCancellationPreservesVaultContext(t *testing.T) {
 		if destination.Host != "bunker.btcpp.dev" || destination.Path != "/" || query.Get("authorization") != "denied" || query.Get("tenant") != tenant || query.Get("tenant_id") != page.TenantID || len(query) != 3 {
 			t.Fatalf("unexpected cancellation destination: %s", destination)
 		}
+	}
+}
+
+func TestManagedSignerPublishingReviewEscapesContent(t *testing.T) {
+	tmpl, err := template.ParseFiles("../../templates/managed_signer_authorize.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	page := ManagedSignerAuthorizationPage{Tenant: "organization", Action: "sign", EventKind: 30311, ContentTitle: "Insider live", ContentIdentifier: "stream-1", ContentBody: "<script>alert(1)</script>", StreamStatus: "planned", ContentTags: [][]string{{"streaming", "https://insider.btcpp.dev/live"}}}
+	if err := tmpl.ExecuteTemplate(&output, "managed_signer_authorize.tmpl", page); err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"Insider live", "stream-1", "planned", "https://insider.btcpp.dev/live", "&lt;script&gt;"} {
+		if !strings.Contains(output.String(), expected) {
+			t.Fatalf("review missing %q", expected)
+		}
+	}
+	if strings.Contains(output.String(), "<script>alert(1)</script>") {
+		t.Fatal("content rendered as executable HTML")
 	}
 }

@@ -30,6 +30,11 @@
     {{ if .ApplicationURL }}<div><dt>application address</dt><dd><code>{{ .ApplicationURL }}</code></dd></div>{{ end }}
     {{ if .ClientPubkey }}<div><dt>revocable client key</dt><dd><code>{{ .ClientPubkey }}</code></dd></div>{{ end }}
     {{ if .Permissions }}<div><dt>requested permissions</dt><dd>{{ range $index, $permission := .Permissions }}{{ if $index }} · {{ end }}<code>{{ $permission }}</code>{{ end }}</dd></div>{{ end }}
+    {{ if .ContentTitle }}<div><dt>title</dt><dd>{{ .ContentTitle }}</dd></div>{{ end }}
+    {{ if .ContentIdentifier }}<div><dt>content identifier</dt><dd><code>{{ .ContentIdentifier }}</code></dd></div>{{ end }}
+    {{ if .StreamStatus }}<div><dt>live stream status</dt><dd><strong>{{ .StreamStatus }}</strong></dd></div>{{ end }}
+    {{ if .ContentBody }}<div><dt>content to sign</dt><dd>{{ .ContentBody }}</dd></div>{{ end }}
+    {{ if .ContentTags }}<div><dt>content metadata</dt><dd><details><summary>Review all event tags</summary>{{ range .ContentTags }}<p>{{ range . }}<code>{{ . }}</code> {{ end }}</p>{{ end }}</details></dd></div>{{ end }}
     {{ if .HTTPURL }}<div><dt>exact login destination</dt><dd><strong>{{ .HTTPMethod }}</strong> <code>{{ .HTTPURL }}</code></dd></div>{{ end }}
     {{ if .BadgeName }}<div><dt>badge being published</dt><dd><strong>{{ .BadgeName }}</strong> · <code>{{ .BadgeIdentifier }}</code></dd></div>{{ end }}
     {{ if .BadgeImage }}<div><dt>badge artwork URL</dt><dd><code>{{ .BadgeImage }}</code></dd></div>{{ end }}

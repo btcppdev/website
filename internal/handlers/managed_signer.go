@@ -24,6 +24,11 @@ import (
 const managedSignerPendingAuthorizationKey = "managed_signer_pending_authorization"
 
 type ManagedSignerAuthorizationPage struct {
+	ContentTitle      string
+	ContentIdentifier string
+	ContentBody       string
+	ContentTags       [][]string
+	StreamStatus      string
 	PersonName        string
 	Tenant            string
 	TenantID          string
@@ -68,6 +73,11 @@ type ManagedSignerBatchRecipient struct {
 }
 
 type managedSignerRequestReview struct {
+	ContentTitle      string                        `json:"content_title"`
+	ContentIdentifier string                        `json:"content_identifier"`
+	ContentBody       string                        `json:"content_body"`
+	ContentTags       [][]string                    `json:"content_tags"`
+	StreamStatus      string                        `json:"stream_status"`
 	ID                string                        `json:"id"`
 	Tenant            string                        `json:"tenant"`
 	TenantID          string                        `json:"tenant_id"`
@@ -413,6 +423,7 @@ func validateManagedBadgeBatch(r *http.Request, ctx *config.AppContext, page *Ma
 	if (review.Method != "sign_event" && review.Method != "sign_event_batch") || review.EventKind != page.EventKind || review.RecipientCount != page.RecipientCount {
 		return errors.New("signed event review does not match the requested authorization")
 	}
+	page.ContentTitle, page.ContentIdentifier, page.ContentBody, page.ContentTags, page.StreamStatus = review.ContentTitle, review.ContentIdentifier, review.ContentBody, review.ContentTags, review.StreamStatus
 	page.ClientPubkey, page.RequestMethod = review.ClientPubkey, review.Method
 	page.HTTPURL, page.HTTPMethod = review.HTTPURL, review.HTTPMethod
 	page.BadgeIdentifier, page.BadgeName, page.BadgeImage, page.BadgeDescription = review.BadgeIdentifier, review.BadgeName, review.BadgeImage, review.BadgeDescription
@@ -476,6 +487,12 @@ func validateManagedSignerRequest(page *ManagedSignerAuthorizationPage) error {
 		return nil
 	}
 	switch page.EventKind {
+	case 1:
+		page.ActionLabel = "publish a note, reply, or announcement"
+	case 30023:
+		page.ActionLabel = "publish or update a long-form article"
+	case 30311:
+		page.ActionLabel = "publish or update a live stream"
 	case 27235:
 		page.ActionLabel = "sign in to an application"
 	case 30009:
