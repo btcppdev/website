@@ -3,7 +3,7 @@
 The account API exposes `GET /api/v1/me/newsletters` with
 `newsletters:self:read` and `PUT /api/v1/me/newsletters` with
 `newsletters:self:write`. Register those scopes on the Alerts OAuth client before
-enabling the integration. Apply migration 096 before serving these endpoints.
+enabling the integration. Apply migration 101 before serving these endpoints.
 This worktree has not been deployed.
 
 GET returns the standard private `data`/`meta` envelope. Data contains both
@@ -38,3 +38,13 @@ opt-out followed by an old opt-in retry, key/client conflicts, rejected unowned
 email, rollback on consent-write failure, and eight concurrent retries producing
 one consent record. Account-handler tests also pass. End-to-end Alerts consent
 verification and the consent retention policy remain pending.
+
+Migration 101 was originally numbered 096 during isolated development. It was
+renumbered before deployment to follow Insider migrations 096–100. Do not deploy
+both historical versions. Existing disposable test databases may retain the old
+number; production has not received either version from this worktree.
+
+The combined 89-migration sequence (Insider 096–100 plus Alerts 101) applied
+successfully to a fresh isolated PostgreSQL 18.6 database. Newsletter transaction
+and concurrent retry tests pass against that combined schema with the race detector.
+This validates database compatibility, not a merge of the two API implementations.
