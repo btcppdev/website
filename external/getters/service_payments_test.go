@@ -187,4 +187,52 @@ func TestServicePaymentsPostgres(t *testing.T) {
 	if status != "pending" || !settled {
 		t.Fatalf("edited order: %s settled=%v", status, settled)
 	}
+	// Review is observational: discover unresolved money without changing state.
+	fourthPerson, fourthPurchase := create()
+	fourth, err := BeginServicePayment(app, fourthPerson, fourthPurchase.OrderID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkReview := func(asOf time.Time, wantFourth bool) {
+		t.Helper()
+		found := map[string]ServicePaymentReview{}
+		after := ""
+		for {
+			page, err := ReviewServicePayments(app, after, asOf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(page.Items) > 100 {
+				t.Fatal("unbounded review page")
+			}
+			for _, item := range page.Items {
+				if _, ok := found[item.AttemptID]; ok {
+					t.Fatal("repeated review row")
+				}
+				found[item.AttemptID] = item
+			}
+			if page.Next == "" {
+				break
+			}
+			if page.Next <= after {
+				t.Fatal("review cursor did not advance")
+			}
+			after = page.Next
+		}
+		if _, ok := found[attempt.ID]; ok {
+			t.Fatal("refunded order needs no payment replay")
+		}
+		if found[second.ID].Reason != "payment_after_cancellation" {
+			t.Fatalf("cancelled review: %+v", found[second.ID])
+		}
+		if got := found[third.ID]; got.Reason != "order_amount_mismatch" || got.ExpectedCents != 500 || got.OrderCents != 1 {
+			t.Fatalf("edited review: %+v", got)
+		}
+		got, ok := found[fourth.ID]
+		if ok != wantFourth || ok && got.Reason != "payment_unresolved" {
+			t.Fatalf("stale attempt review: %+v present=%v", got, ok)
+		}
+	}
+	checkReview(time.Now(), false)
+	checkReview(time.Now().Add(16*time.Minute), true)
 }

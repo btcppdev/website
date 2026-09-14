@@ -54,9 +54,23 @@ without being marked paid. Product access is never granted here.
 
 There are no public service payment handlers or live provider calls yet. Failed
 attempt transitions, safe replacement after confirmed provider cancellation,
-reconciliation queues, access fulfillment, BTC/satoshi settlement amounts and
+reconciliation actions, access fulfillment, BTC/satoshi settlement amounts and
 receipt generation remain to implement. The event ledger currently records
 verified USD settlement amounts, not a complete Bitcoin payment receipt.
+
+`ReviewServicePayments` supplies a read-only, cursor-paginated operator/worker
+report (100 rows per page). It identifies payments received after cancellation,
+settled orders with changed financial totals, settlement not applied to an order,
+paid purchases whose account was removed, paid orders awaiting item fulfillment,
+and attempts unresolved after 15 minutes. References and amounts are included;
+buyer emails/names and raw provider payloads are not. A report entry authorizes no
+money movement or access grant. The report is not yet exposed through an operator
+route, and there is no provider lookup/reconciliation worker consuming it.
+
+Fully refunded orders do not re-enter paid-order fulfillment checks. Unsettled
+attempts still need investigation even if the local order was canceled: local
+cancellation does not prove that a provider charge was canceled. Scan all pages
+and then start a fresh scan to find rows whose state changed behind the cursor.
 
 Snapshots cannot be edited or deleted through ordinary SQL; account deletion
 clears the account reference and retains purchase evidence. Existing order/item
