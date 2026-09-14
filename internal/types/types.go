@@ -891,6 +891,18 @@ func clipartAnchorTag(clipart string) string {
 	return strings.TrimSuffix(name, filepath.Ext(name))
 }
 
+// TypeTitle exposes the job title to stored volunteer email templates.
+// Older or untyped shifts fall back to their own name.
+func (s *WorkShift) TypeTitle() string {
+	if s == nil {
+		return ""
+	}
+	if s.Type != nil && strings.TrimSpace(s.Type.Title) != "" {
+		return s.Type.Title
+	}
+	return s.Name
+}
+
 // TypeLongDesc returns this shift's JobType.LongDesc when set, "" otherwise.
 // Lets templates pull a Description for cal-invite UI without inline nil
 // checks against the optional *JobType pointer.

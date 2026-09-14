@@ -70,3 +70,34 @@ func TestNewVolunteerReceivesAlreadyStampedShift(t *testing.T) {
 	}
 
 }
+
+func TestOrientationRetryAcceptsAlreadyQueuedInvite(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		io.WriteString(w, `{"success":false,"code":400,"error":"UNIQUE constraint failed: scheduled.idem_key"}`)
+	}))
+	defer server.Close()
+	ctx := &config.AppContext{
+		Env:   &types.EnvConfig{Prod: true, Host: "btcpp.dev", MailEndpoint: server.URL, MailerSecret: "test"},
+		Infos: log.New(io.Discard, "", 0), Err: log.New(io.Discard, "", 0),
+		TemplateCache: template.Must(template.New("root").Parse(`{{define "emails/rebrand.tmpl"}}<html>{{.Content}}</html>{{end}}`)),
+	}
+	start := time.Date(2026, 10, 1, 10, 0, 0, 0, time.UTC)
+	end := start.Add(time.Hour)
+	conf := &types.Conf{Ref: "conf", Tag: "test", Desc: "Test", Timezone: "UTC"}
+	conf.OrientCalNotif = ics.CalNotif{UID: ics.NewUID("orient", conf.Tag), Sequence: 3, HashHex: ics.ContentHash(start, end, conf.Tag, "Volunteer Orientation: "+conf.Desc)}.String()
+	if err := DispatchOrientICS(ctx, conf, ics.Attendee{Email: "volunteer@example.test"}, start, end, ""); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 1 {
+		t.Fatalf("requests=%d", requests)
+	}
+	// A duplicate queue response must not mask a failed local state writeback.
+	conf.OrientCalNotif = ""
+	if err := DispatchOrientICS(ctx, conf, ics.Attendee{Email: "volunteer@example.test"}, start, end, ""); err == nil || !strings.Contains(err.Error(), "orientation state save failed") {
+		t.Fatalf("missing writeback error: %v", err)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -317,6 +318,16 @@ func addAuthStamp(ctx *config.AppContext, req *http.Request) {
 	req.Header.Set("X-Base58-Timestamp", timestamp)
 }
 
+type mailerRequestError struct {
+	endpoint string
+	code     int
+	message  string
+}
+
+func (e *mailerRequestError) Error() string {
+	return fmt.Sprintf("Mailer request %s failed (%d): %s", e.endpoint, e.code, e.message)
+}
+
 func sendMailerReq(ctx *config.AppContext, endpoint string, method string, payload []byte) error {
 	client := &http.Client{Timeout: 15 * time.Second}
 
@@ -346,7 +357,7 @@ func sendMailerReq(ctx *config.AppContext, endpoint string, method string, paylo
 	}
 
 	if !ret.Success {
-		return fmt.Errorf("Mailer request %s failed (%d): %s", endpoint, ret.Code, ret.Message)
+		return &mailerRequestError{endpoint: endpoint, code: ret.Code, message: ret.Message}
 	}
 
 	return nil
@@ -410,7 +421,16 @@ func SendMailRequest(ctx *config.AppContext, mail *mailer.MailRequest) error {
 
 	err = sendMailerReq(ctx, "/job", http.MethodPut, payload)
 	if err != nil {
-		return fmt.Errorf("Unable to schedule mail: %s", err)
+		var rejection *mailerRequestError
+		if request.JobKey != "" && errors.As(err, &rejection) && rejection.endpoint == "/job" &&
+			(rejection.code == http.StatusBadRequest || rejection.code == http.StatusConflict) &&
+			strings.TrimSpace(rejection.message) == "UNIQUE constraint failed: scheduled.idem_key" {
+			// The stable job key already exists. Do not change the key or enqueue a
+			// second copy; callers can finish local state persistence on this retry.
+			ctx.Infos.Printf("Mail job already queued: %s", request.JobKey)
+			return nil
+		}
+		return fmt.Errorf("Unable to schedule mail: %w", err)
 	}
 
 	ctx.Infos.Printf("Sent mail to %s at domain %s", request.ToAddr, request.Domain)
