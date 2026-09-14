@@ -38,6 +38,7 @@ func ReviewServicePayments(app *config.AppContext, after string, asOf time.Time)
 				OR o.subtotal_cents<>(r.quote_snapshot->>'total_cents')::bigint-(r.quote_snapshot->>'tax_cents')::bigint
 				OR o.shipping_amount_cents<>0 OR o.discount_amount_cents<>0 OR o.import_duty_amount_cents<>0 OR o.import_tax_amount_cents<>0
 			) THEN 'order_amount_mismatch'
+			WHEN a.settled_at IS NOT NULL AND o.status NOT IN ('refunded','partially_refunded') AND NOT `+serviceItemsMatchQuoteSQL+` THEN 'order_item_mismatch'
 			WHEN a.settled_at IS NOT NULL AND o.status='pending' THEN 'settlement_not_applied'
 			WHEN a.settled_at IS NOT NULL AND o.status='paid' AND r.person_id IS NULL THEN 'paid_account_removed'
 			WHEN a.settled_at IS NOT NULL AND o.status='paid' AND (

@@ -49,8 +49,15 @@ adapter output after successful provider verification, checks immutable quoted
 amount/currency/provider and the bound reference, then atomically records the
 event and settlement. It marks an unchanged pending order paid. Duplicate events
 cannot overwrite a refund; reused event IDs with different content conflict.
-Canceled or financially edited orders retain settlement evidence for reconciliation
+Canceled or edited orders retain settlement evidence for reconciliation
 without being marked paid. Product access is never granted here.
+
+Settlement also requires exactly one order item matching the immutable quote's
+product, resource, quantity, price, tax, name, fulfillment method and access period.
+Existing item rows are locked during validation. Missing or altered lines appear
+as `order_item_mismatch` in reconciliation; the paid financial event remains
+recorded. Future access fulfillment must revalidate or consume the immutable
+snapshot because legacy order items remain editable after settlement.
 
 There are no public service payment handlers or live provider calls yet. Failed
 attempt transitions, safe replacement after confirmed provider cancellation,

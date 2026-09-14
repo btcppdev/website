@@ -147,10 +147,17 @@ func RecordServicePayment(app *config.AppContext, payment VerifiedServicePayment
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `UPDATE shop_orders SET status='paid',paid_at=$2,payment_provider_id=$3
-		WHERE id=$1 AND status='pending' AND currency='USD' AND payment_provider=$4
-		AND total_cents=$5 AND sales_tax_amount_cents=$6 AND subtotal_cents=$5-$6
-		AND shipping_amount_cents=0 AND discount_amount_cents=0 AND import_duty_amount_cents=0 AND import_tax_amount_cents=0`, orderID, payment.PaidAt, reference, provider, quote.TotalCents, quote.TaxCents)
+	// Prevent a concurrent edit of existing lines between validation and commit.
+	// The order lock also blocks new FK references being inserted during settlement.
+	if _, err = tx.Exec(ctx, `SELECT id FROM shop_order_items WHERE order_id=$1 FOR UPDATE`, orderID); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `UPDATE shop_orders o SET status='paid',paid_at=$2,payment_provider_id=$3
+		FROM service_purchase_requests r
+		WHERE o.id=$1 AND r.order_id=o.id AND o.status='pending' AND o.currency='USD' AND o.payment_provider=$4
+		AND o.total_cents=$5 AND o.sales_tax_amount_cents=$6 AND o.subtotal_cents=$5-$6
+		AND o.shipping_amount_cents=0 AND o.discount_amount_cents=0 AND o.import_duty_amount_cents=0 AND o.import_tax_amount_cents=0
+		AND `+serviceItemsMatchQuoteSQL, orderID, payment.PaidAt, reference, provider, quote.TotalCents, quote.TaxCents)
 	if err != nil {
 		return err
 	}

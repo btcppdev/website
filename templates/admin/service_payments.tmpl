@@ -28,6 +28,7 @@
         <tr>
           <td>{{ if eq .Reason "payment_after_cancellation" }}Payment after cancellation
               {{ else if eq .Reason "order_amount_mismatch" }}Order differs from paid quote
+              {{ else if eq .Reason "order_item_mismatch" }}Purchased items differ from paid quote
               {{ else if eq .Reason "settlement_not_applied" }}Settlement not applied
               {{ else if eq .Reason "paid_account_removed" }}Paid account removed
               {{ else if eq .Reason "paid_order_unfulfilled" }}Paid; fulfillment pending

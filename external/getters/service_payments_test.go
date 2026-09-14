@@ -11,7 +11,7 @@ import (
 func TestServicePaymentsPostgres(t *testing.T) {
 	app := databaseSmokeContext(t)
 	ctx := context.Background()
-	create := func() (string, *ServicePurchase) {
+	create := func(quotes ...ServiceQuote) (string, *ServicePurchase) {
 		t.Helper()
 		var person string
 		if err := app.DB.QueryRow(ctx, `INSERT INTO people(name) VALUES('Service payment test') RETURNING id::text`).Scan(&person); err != nil {
@@ -26,6 +26,9 @@ func TestServicePaymentsPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 		quote := ServiceQuote{ProductCode: "insider.article", ResourceID: "article-test", Name: "Article access", Provider: "stripe", Quantity: 1, UnitCents: 500, TotalCents: 500, TaxCents: 20, ExpiresAt: time.Now().Add(time.Hour)}
+		if len(quotes) > 0 {
+			quote = quotes[0]
+		}
 		purchase, err := CreateServicePurchase(app, person, "payment-purchase-01", quote)
 		if err != nil {
 			t.Fatal(err)
@@ -235,4 +238,65 @@ func TestServicePaymentsPostgres(t *testing.T) {
 	}
 	checkReview(time.Now(), false)
 	checkReview(time.Now().Add(16*time.Minute), true)
+	start := time.Now().UTC().Truncate(time.Second)
+	end := start.AddDate(1, 0, 0)
+	serviceQuote := ServiceQuote{ProductCode: "alerts.repository-slots", Name: "Alerts slots", Provider: "stripe", Quantity: 1, UnitCents: 1200, TotalCents: 1200, PeriodStart: &start, PeriodEnd: &end, ExpiresAt: start.Add(time.Hour)}
+	for _, mutation := range []string{
+		"",
+		`UPDATE shop_order_items SET quantity=2 WHERE order_id=$1`,
+		`UPDATE shop_order_items SET unit_price_cents=1 WHERE order_id=$1`,
+		`UPDATE shop_order_items SET service_product_code='insider.membership' WHERE order_id=$1`,
+		`UPDATE shop_order_items SET service_resource_id='other-resource' WHERE order_id=$1`,
+		`UPDATE shop_order_items SET service_period_end=service_period_end+interval '1 day' WHERE order_id=$1`,
+		`DELETE FROM shop_order_items WHERE order_id=$1`,
+	} {
+		buyer, order := create(serviceQuote)
+		a, err := BeginServicePayment(app, buyer, order.OrderID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reference := "test-charge-" + a.ID
+		if err := BindServicePayment(app, a.ID, "stripe", reference); err != nil {
+			t.Fatal(err)
+		}
+		if mutation != "" {
+			if _, err := app.DB.Exec(ctx, mutation, order.OrderID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		verified := VerifiedServicePayment{AttemptID: a.ID, Provider: "stripe", Reference: reference, EventID: "test-event-" + a.ID, Currency: "USD", TotalCents: 1200, PaidAt: start}
+		if err := RecordServicePayment(app, verified); err != nil {
+			t.Fatal(err)
+		}
+		wantStatus, wantReason := "pending", "order_item_mismatch"
+		if mutation == "" {
+			wantStatus, wantReason = "paid", "paid_order_unfulfilled"
+		}
+		if err := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, order.OrderID).Scan(&status); err != nil || status != wantStatus {
+			t.Fatalf("item settlement status: %s want %s err=%v", status, wantStatus, err)
+		}
+		after := ""
+		found := false
+		for {
+			page, err := ReviewServicePayments(app, after, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, item := range page.Items {
+				if item.AttemptID == a.ID {
+					found = true
+					if item.Reason != wantReason {
+						t.Fatalf("item review reason: %s", item.Reason)
+					}
+				}
+			}
+			if page.Next == "" {
+				break
+			}
+			after = page.Next
+		}
+		if !found {
+			t.Fatal("changed item missing from reconciliation")
+		}
+	}
 }
