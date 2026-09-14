@@ -8,12 +8,12 @@
   {{ else if eq $method.Key "passkey" }}
   <button type="button" class="reauth-method{{ if .Primary }} is-primary{{ end }}" data-passkey-login data-next="{{ $page.Next }}">
     <span class="reauth-method__mark" aria-hidden="true">⌁</span>
-    <span><strong>{{ $method.Label }}</strong><small data-passkey-status>{{ $method.Description }}</small></span><span aria-hidden="true">→</span>
+    <span><strong>{{ $method.Label }}</strong><small data-passkey-status role="status" aria-live="polite">{{ $method.Description }}</small></span><span aria-hidden="true">→</span>
   </button>
   {{ else if eq $method.Key "nostr" }}
   <button type="button" class="reauth-method{{ if .Primary }} is-primary{{ end }}" data-nostr-login data-next="{{ $page.Next }}">
     <span class="reauth-method__mark" aria-hidden="true">⚡</span>
-    <span><strong>{{ $method.Label }}</strong><small data-nostr-status>{{ $method.Description }}</small></span><span aria-hidden="true">→</span>
+    <span><strong>{{ $method.Label }}</strong><small data-nostr-status role="status" aria-live="polite">{{ $method.Description }}</small></span><span aria-hidden="true">→</span>
   </button>
   {{ else if eq $method.Key "password" }}
   <form method="post" action="/login/password" class="reauth-inline-form{{ if .Primary }} is-primary{{ end }}">
@@ -36,16 +36,17 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Confirm it’s you · bitcoin++</title>
-  <link rel="stylesheet" href="/static/css/custom.css">
+  <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+  <link rel="stylesheet" href="/static/css/managed-signer-vaults.css?v=1">
+  <link rel="stylesheet" href="/static/css/reauth.css?v=1">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#128272;</text></svg>">
 </head>
-<body class="reauth-page">
-  <div class="reauth-backdrop" aria-hidden="true"><span>bitcoin++</span></div>
-  <dialog class="reauth-dialog" open aria-modal="true" aria-labelledby="reauth-title" aria-describedby="reauth-description">
-    <a class="reauth-dialog__close" href="{{ .CancelURL }}" aria-label="Cancel and return">×</a>
-    <p class="reauth-dialog__eyebrow">§ security check</p>
+<body class="managed-signer-consent managed-signer-vaults managed-signer-reauth">
+  <header class="vault-picker-header"><a class="vault-picker-brand" href="/" aria-label="bitcoin++ home"><img src="/static/img/logo_blk.svg" alt="bitcoin++" width="152" height="44"></a><span class="vault-picker-product">security check</span></header>
+  <main aria-labelledby="reauth-title" aria-describedby="reauth-description">
+    <p class="eyebrow">signed in as {{ .PersonName }}</p>
     <h1 id="reauth-title">Confirm it’s <em>you.</em></h1>
-    <p id="reauth-description">You’re still signed in as <strong>{{ .PersonName }}</strong>. Because this action is sensitive, please sign in again{{ if .Strong }} with a passkey or verified Nostr key{{ end }}.</p>
+    <p id="reauth-description" class="managed-signer-consent__intro">You’re still signed in as <strong>{{ .PersonName }}</strong>. Because this action is sensitive, please sign in again{{ if .Strong }} with a passkey or verified Nostr key{{ end }}.</p>
     {{ if .FlashError }}<p class="reauth-alert" role="alert">{{ .FlashError }}</p>{{ end }}
 
     {{ if .Preferred }}
@@ -73,7 +74,9 @@
     </details>
     {{ end }}
 
-  </dialog>
+    <a class="reauth-cancel" href="{{ .CancelURL }}">Cancel and return</a>
+  </main>
+  <footer>bitcoin++ · account security · {{ .Year }}</footer>
   <script src="/static/js/nostr-login.js" defer></script><script src="/static/js/passkey.js" defer></script>
 </body>
 </html>

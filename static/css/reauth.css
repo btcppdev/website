@@ -1,0 +1,72 @@
+/* Reauthentication shares the vault picker's page, header and card styles. */
+.managed-signer-reauth h1 em { font-style: normal; }
+.managed-signer-reauth .managed-signer-consent__intro strong { overflow-wrap: anywhere; }
+.managed-signer-reauth .reauth-preferred { margin: 28px 0; }
+.managed-signer-reauth .reauth-preferred__label {
+  display: block;
+  margin-bottom: 10px;
+  color: #73529b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: lowercase;
+}
+.managed-signer-reauth .reauth-method {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 74px;
+  padding: 14px 20px;
+  border: 1px solid #312b26;
+  border-radius: 999px;
+  background: transparent;
+  color: #211d18;
+  text-align: left;
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+}
+.managed-signer-reauth .reauth-method.is-primary { background: #211d18; color: #fffaf3; }
+.managed-signer-reauth .reauth-method:hover { background: #f6f0e8; }
+.managed-signer-reauth .reauth-method.is-primary:hover { background: #393029; }
+.managed-signer-reauth .reauth-method__mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+.managed-signer-reauth .reauth-method strong,
+.managed-signer-reauth .reauth-inline-form strong { display: block; font-size: 16px; line-height: 1.4; }
+.managed-signer-reauth .reauth-method small,
+.managed-signer-reauth .reauth-inline-form small { display: block; margin-top: 3px; font-size: 13px; line-height: 1.5; font-weight: 400; overflow-wrap: anywhere; }
+.managed-signer-reauth .reauth-alternatives { margin: 0 0 28px; }
+.managed-signer-reauth .reauth-alternatives summary { display: flex; justify-content: space-between; gap: 12px; padding: 18px; }
+.managed-signer-reauth .reauth-alternatives__list { display: grid; gap: 14px; padding: 0 18px 18px; }
+.managed-signer-reauth .reauth-inline-form,
+.managed-signer-reauth .reauth-dev { display: grid; grid-template-columns: minmax(0,1fr); gap: 14px; margin: 0; }
+.managed-signer-reauth .reauth-inline-form label,
+.managed-signer-reauth .reauth-dev label { display: grid; gap: 8px; font-size: 13px; font-weight: 700; }
+.managed-signer-reauth input { width: 100%; min-height: 46px; padding: 12px; border: 1px solid #c9beb2; background: #fffaf3; color: #211d18; font: inherit; border-radius: 4px; }
+.managed-signer-reauth .reauth-inline-form.is-primary button { background: #211d18; color: #fffaf3; }
+.managed-signer-reauth .reauth-dev { border-top: 1px solid #d7cdc1; padding-top: 18px; }
+.managed-signer-reauth .reauth-dev label span { color: #70665d; font-size: 11px; }
+.managed-signer-reauth .reauth-alert { margin: 24px 0; padding: 14px 16px; border-left: 3px solid #a94435; background: #f8e5df; color: #7b2e25; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.managed-signer-reauth .reauth-cancel { display: inline-block; font-size: 14px; text-underline-offset: 4px; }
+.managed-signer-reauth :is(button, input, summary):focus-visible { outline: 3px solid #73529b; outline-offset: 5px; }
+@media (max-width: 520px) {
+  .managed-signer-reauth .reauth-method { grid-template-columns: 30px minmax(0,1fr) 12px; padding: 14px; gap: 10px; }
+  .managed-signer-reauth .reauth-method__mark { width: 30px; height: 30px; }
+  .managed-signer-reauth .reauth-method strong { font-size: 14px; }
+  .managed-signer-reauth .reauth-method small { font-size: 12px; }
+  .managed-signer-reauth .reauth-alternatives__list { padding: 0 12px 14px; }
+}
+
+.managed-signer-reauth .reauth-method:disabled { cursor: wait; opacity: .75; }
+.managed-signer-reauth .reauth-method .text-red-700 { color: #9c3328; }
+.managed-signer-reauth .reauth-method.is-primary .text-red-700 { color: #ffb6aa; }
