@@ -11,6 +11,142 @@
     }
   ],
   "paths": {
+    "/me/newsletters": {
+      "get": {
+        "operationId": "getMyNewsletters",
+        "summary": "Read verified account newsletter preferences",
+        "security": [
+          {
+            "oauth2": [
+              "newsletters:self:read"
+            ]
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current preferences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/NewsletterPreference"
+                      }
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "operationId": "setMyNewsletterPreference",
+        "summary": "Record an explicit newsletter choice",
+        "security": [
+          {
+            "oauth2": [
+              "newsletters:self:write"
+            ]
+          },
+          {
+            "personalAccessToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Choice recorded; a replay does not reapply an earlier choice",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "recorded"
+                      ],
+                      "properties": {
+                        "recorded": {
+                          "const": true
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "400": {
+            "description": "Invalid JSON or unknown fields"
+          },
+          "409": {
+            "description": "Key previously used for a different request or client"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          },
+          "422": {
+            "description": "Missing choice, invalid key, email, or newsletter"
+          }
+        },
+        "description": "Changes only the selected newsletter. Email ownership and verification are checked against the bearer token owner. Retry the exact request with the same key after a transport failure; use a new key for a new choice. GET returns the current state after a replay.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewsletterPreference"
+              }
+            }
+          }
+        }
+      }
+    },
     "/openapi.json": {
       "get": {
         "operationId": "getOpenAPIContract",
@@ -330,6 +466,8 @@
             "tokenUrl": "https://btcpp.dev/oauth/token",
             "refreshUrl": "https://btcpp.dev/oauth/token",
             "scopes": {
+          "newsletters:self:read": "Read newsletter preferences for verified account email addresses",
+          "newsletters:self:write": "Change one newsletter preference for a verified account email address",
               "identity:self:read": "Read the resource owner's account ID, display name, and current roles",
               "organizations:self:read": "Read organization memberships and managed member rosters",
               "profile:self:read": "Read the resource owner's private profile",
@@ -573,6 +711,32 @@
       }
     },
     "schemas": {
+      "NewsletterPreference": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "email",
+          "newsletter",
+          "subscribed"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          },
+          "newsletter": {
+            "type": "string",
+            "enum": [
+              "newsletter",
+              "insider"
+            ]
+          },
+          "subscribed": {
+            "type": "boolean"
+          }
+        }
+      },
       "GenericResponse": {
         "type": "object", "required": ["data", "meta"],
         "properties": {"data": true, "meta": {"$ref": "#/components/schemas/Meta"}}

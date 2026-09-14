@@ -1,0 +1,40 @@
+# Alerts newsletter integration
+
+The account API exposes `GET /api/v1/me/newsletters` with
+`newsletters:self:read` and `PUT /api/v1/me/newsletters` with
+`newsletters:self:write`. Register those scopes on the Alerts OAuth client before
+enabling the integration. Apply migration 096 before serving these endpoints.
+This worktree has not been deployed.
+
+GET returns the standard private `data`/`meta` envelope. Data contains both
+`newsletter` (Bitcoin++ news) and `insider` (Insider Edition) preferences for each
+verified account email, including unsubscribed choices. Responses are not cached.
+
+PUT accepts exactly `email`, `newsletter`, and boolean `subscribed`. The email
+must belong to the authenticated account and be verified. There is no caller
+supplied person ID. Send `Content-Type: application/json` and a fresh random
+`Idempotency-Key` of 16–128 characters for each explicit user choice.
+
+Only the named membership changes; other newsletters are preserved. Membership
+and the consent record commit together. The record includes account, verified
+email, newsletter, choice, authenticated client, request key, and server time.
+Retry the exact request with the same key after a transport failure. A successful
+replay acknowledges the original request without restoring that old preference
+over a later choice. Reusing a key with different contents or client returns 409.
+GET again to display current preferences after a retry.
+
+Alerts must present an optional, unchecked newsletter choice separately from
+release notifications. A footer invitation does not constitute consent. Do not
+request write access or issue a subscription change merely because somebody
+creates an Alerts account. The transient OAuth token lifecycle and restoration
+of the user's saved choice must be handled by the Alerts integration before
+this feature is enabled there.
+
+Validation so far: API tests cover scope separation, explicit false versus a
+missing choice, rejected account-ID injection, verified-email failures, and key
+conflicts. The full migration chain through 096 applied to an isolated PostgreSQL
+18.6 database. Race-enabled database tests passed for preserved memberships,
+opt-out followed by an old opt-in retry, key/client conflicts, rejected unowned
+email, rollback on consent-write failure, and eight concurrent retries producing
+one consent record. Account-handler tests also pass. End-to-end Alerts consent
+verification and the consent retention policy remain pending.

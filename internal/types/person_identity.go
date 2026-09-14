@@ -12,6 +12,8 @@ var APITokenScopes = []string{
 	"organizations:self:read",
 	"profile:self:read",
 	"profile:self:write",
+	"newsletters:self:read",
+	"newsletters:self:write",
 	"talks:read",
 	"talks:write",
 	"schedule:write",

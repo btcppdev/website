@@ -68,6 +68,8 @@ type server struct {
 	loadConferenceBroadcast     func(string) (*types.ConferenceBroadcast, error)
 	recordAudit                 func(*types.AuthAuditEvent) error
 	limiter                     *rateLimiter
+	listNewsletters     func(string) ([]getters.NewsletterPreference, error)
+	setNewsletter       func(string, string, string, getters.NewsletterPreference) error
 }
 
 type apiPrincipal struct {
@@ -81,6 +83,12 @@ type principalContextKey struct{}
 // Register installs API v1 before the website's broad conference routes.
 func Register(root *mux.Router, app *config.AppContext) {
 	s := &server{
+		listNewsletters: func(personID string) ([]getters.NewsletterPreference, error) {
+			return getters.ListNewsletterPreferences(app, personID)
+		},
+		setNewsletter: func(personID, client, key string, p getters.NewsletterPreference) error {
+			return getters.SetNewsletterPreference(app, personID, client, key, p)
+		},
 		app: app, source: postgresSource{app: app}, now: time.Now,
 		listVerifiedPGPKeys: func(personID string) ([]*types.PersonPGPKey, error) {
 			return getters.ListPersonPGPKeys(app, personID, true)
@@ -189,6 +197,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/conferences/{tag}/speakers", s.conferenceSpeakers).Methods(http.MethodGet)
 	r.HandleFunc("/people", s.people).Methods(http.MethodGet)
 	r.HandleFunc("/people/{personID}", s.person).Methods(http.MethodGet)
+	r.HandleFunc("/me/newsletters", s.newsletters).Methods(http.MethodGet, http.MethodPut)
 	r.HandleFunc("/me/identity", s.identity).Methods(http.MethodGet)
 	r.HandleFunc("/me/organizations", s.myOrganizations).Methods(http.MethodGet)
 	r.HandleFunc("/me", s.me).Methods(http.MethodGet)
