@@ -52,6 +52,24 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("conference live=%v rendered incorrect player state", live)
 		}
 	}
+	var serviceReview bytes.Buffer
+	reviewTemplates, err := ctx.TemplateCache.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reviewTemplates.ExecuteTemplate(&serviceReview, "admin/service_payments.tmpl", &shopPage{Admin: true, PaymentReview: &getters.ServicePaymentReviewPage{
+		Items: []getters.ServicePaymentReview{{Reason: "payment_after_cancellation", Provider: "stripe", ProviderReference: "<script>alert(1)</script>", ExpectedCents: 500, OrderCents: 500}}, Next: "00000000-0000-0000-0000-000000000001",
+	}}); err != nil {
+		t.Fatalf("service payment template: %v", err)
+	}
+	for _, want := range []string{"Payment after cancellation", "Next page", "&lt;script&gt;"} {
+		if !strings.Contains(serviceReview.String(), want) {
+			t.Fatalf("service review missing %q", want)
+		}
+	}
+	if strings.Contains(serviceReview.String(), "<script>alert(1)</script>") {
+		t.Fatal("unescaped payment reference")
+	}
 	navTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {
 		t.Fatal(err)

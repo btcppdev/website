@@ -64,8 +64,13 @@ settled orders with changed financial totals, settlement not applied to an order
 paid purchases whose account was removed, paid orders awaiting item fulfillment,
 and attempts unresolved after 15 minutes. References and amounts are included;
 buyer emails/names and raw provider payloads are not. A report entry authorizes no
-money movement or access grant. The report is not yet exposed through an operator
-route, and there is no provider lookup/reconciliation worker consuming it.
+money movement or access grant. Global admins can view the report at
+`/admin/service-payments`, linked from the Orders page. The route uses the existing
+global-admin authorization, private/no-store responses, validated UUID cursors,
+and escaped HTML rendering. No mutation actions are offered. There is no provider
+lookup/reconciliation worker consuming it yet. Authentication redirect and template
+escaping tests pass; browser layout and a real authenticated admin session still
+need verification before deployment.
 
 Fully refunded orders do not re-enter paid-order fulfillment checks. Unsettled
 attempts still need investigation even if the local order was canceled: local

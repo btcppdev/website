@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Service payments · bitcoin++</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260904-1">
+  <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+  <link rel="stylesheet" href="/static/css/shop.css?v=shipping-queue-1">
+  <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
+</head>
+<body class="shop-page shop-admin-page">
+{{ template "mainnav" . }}
+<main class="shop-admin shop-admin--wide">
+  <section class="shop-admin__intro">
+    <p class="shop-kicker">§ billing admin</p>
+    <h1>Service payments.</h1>
+    <p>Payments and fulfillment that need review. Confirm the provider's payment state before taking action.</p>
+    <p>Unresolved attempts appear after 15 minutes. This report does not retry charges, issue refunds, or grant access.</p>
+    <a class="shop-button" href="/admin/service-payments">Refresh from first page</a>
+    <a class="shop-button" href="/admin/merch/orders">Orders</a>
+  </section>
+  <section class="shop-admin-table-wrap">
+    <table class="shop-admin-table">
+      <thead><tr><th>Needs review</th><th>Order / attempt</th><th>Provider / reference</th><th>Quoted USD cents</th><th>Order USD cents</th><th>Attempt created (UTC)</th></tr></thead>
+      <tbody>
+      {{ range .PaymentReview.Items }}
+        <tr>
+          <td>{{ if eq .Reason "payment_after_cancellation" }}Payment after cancellation
+              {{ else if eq .Reason "order_amount_mismatch" }}Order differs from paid quote
+              {{ else if eq .Reason "settlement_not_applied" }}Settlement not applied
+              {{ else if eq .Reason "paid_account_removed" }}Paid account removed
+              {{ else if eq .Reason "paid_order_unfulfilled" }}Paid; fulfillment pending
+              {{ else if eq .Reason "payment_unresolved" }}Payment unresolved
+              {{ else }}Needs investigation{{ end }}</td>
+          <td><code>{{ .OrderID }}</code><br><code>{{ .AttemptID }}</code></td>
+          <td>{{ .Provider }}<br>{{ if .ProviderReference }}<code>{{ .ProviderReference }}</code>{{ else }}No charge reference recorded{{ end }}</td>
+          <td>{{ .ExpectedCents }}</td><td>{{ .OrderCents }}</td>
+          <td>{{ .CreatedAt.UTC.Format "2006-01-02 15:04:05" }}</td>
+        </tr>
+      {{ else }}
+        <tr><td colspan="6">No payment issues on this page.</td></tr>
+      {{ end }}
+      </tbody>
+    </table>
+  </section>
+  {{ if .PaymentReview.Next }}<a class="shop-button" href="/admin/service-payments?after={{ .PaymentReview.Next }}">Next page</a>{{ end }}
+</main>
+</body>
+</html>
