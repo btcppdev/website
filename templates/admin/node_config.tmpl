@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <title>Lightning node configuration - bitcoin++</title>
+ {{ block "header" . }}{{ end }}
+ {{ template "admin_favicon" "" }}
+ <link rel="stylesheet" href="/static/css/node-config.css?v=2">
+ <script src="/static/js/node-config.js?v=1" defer></script>
+</head>
+<body class="btcpp-dashboard-page btcpp-admin-page bg-gray-50 text-gray-900">
+ {{ block "mainnav" . }}{{ end }}
+ <main class="dashboard-channel-shell node-config">
+  <a class="node-config-back" href="/dashboard/emails">← Account settings</a>
+  <header class="dashboard-workspace-hero dashboard-admin-hero">
+   <div class="dashboard-workspace-hero__copy">
+    <p class="profile-edit-tag">§ Accounts workspace · accounts-admin</p>
+    <h1>Lightning <span>node.</span></h1>
+    <p>Connect community prize pools to your Core Lightning node.</p>
+   </div>
+  </header>
+  {{ if .Error }}<div class="node-config-notice node-config-error" role="alert">{{ .Error }}</div>{{ end }}
+  {{ if .Message }}<div class="node-config-notice" role="status">{{ .Message }}</div>{{ end }}
+  <form method="post" action="/admin/node-config" class="node-config-form" autocomplete="off">
+   <input type="hidden" name="csrf" value="{{ .CSRF }}">
+   <input type="hidden" name="revision" value="{{ .Revision }}">
+   <section class="dashboard-workspace-panel node-config-panel">
+    <h2>Node connection</h2>
+    <p>Use the node’s Lightning peer port with Commando enabled. Changes apply without restarting the website.</p>
+    <div class="node-config-grid">
+     <label>Host and port<input name="host" value="{{ .Host }}" placeholder="node.example.com:9735" maxlength="300" spellcheck="false" autocapitalize="none"></label>
+     <label>Network<select name="network"><option value="bitcoin" {{ if eq .Network "bitcoin" }}selected{{ end }}>Bitcoin mainnet</option><option value="testnet" {{ if eq .Network "testnet" }}selected{{ end }}>Testnet</option><option value="signet" {{ if eq .Network "signet" }}selected{{ end }}>Signet</option><option value="regtest" {{ if eq .Network "regtest" }}selected{{ end }}>Regtest</option></select></label>
+     <label class="node-config-wide">Node public key<input name="node_id" value="{{ .NodeID }}" placeholder="02… or 03…" maxlength="66" spellcheck="false" autocapitalize="none"></label>
+    </div>
+   </section>
+   <section class="dashboard-workspace-panel node-config-panel">
+    <h2>Node permissions</h2>
+    <p>Saved credentials stay hidden. Leave a field blank to keep its current value, or enter a replacement. Neither rune needs spending permissions.</p>
+    <details class="node-config-runes">
+     <summary>Create the service runes</summary>
+     <p>Run these commands in a terminal on your CLN node, using your usual lightning-cli connection and network options. Each command creates a separate credential for this service.</p>
+     <h3>1. Create the monitoring rune</h3>
+     <pre><code id="node-monitor-command">{{ .MonitorCommand }}</code></pre>
+     <button type="button" data-copy-command="node-monitor-command">Copy monitoring command</button>
+     <p>Paste the <code>rune</code> value from the JSON response into <strong>Monitoring rune</strong> below.</p>
+     <h3>2. Create the provisioning rune</h3>
+     <pre><code id="node-provision-command">{{ .ProvisionCommand }}</code></pre>
+     <button type="button" data-copy-command="node-provision-command">Copy provisioning command</button>
+     <p>Paste that response’s <code>rune</code> value into <strong>Provisioning rune</strong>, then save the configuration.</p>
+     <p class="node-config-help">The monitoring rune can read node-wide invoices. The provisioning rune can manage offers and clnurl endpoints. Neither allows spending or creating more runes. Keep the returned credentials private.</p>
+     <p class="node-config-help">Do not add a client-ID restriction: this service currently uses a fresh connection identity for each request. These commands use <a href="https://docs.corelightning.org/reference/createrune" target="_blank" rel="noopener noreferrer">Core Lightning’s createrune</a> (v23.08 or newer).</p>
+     <p class="node-config-copy-status" role="status" aria-live="polite"></p>
+    </details>
+    <div class="node-config-grid">
+     <div><label>Monitoring rune <small>{{ if .MonitorSaved }}Saved{{ else }}Not set{{ end }}</small><input type="password" name="monitor_rune" autocomplete="new-password" maxlength="4096"></label><p class="node-config-help">Allows getinfo, waitanyinvoice, and listinvoices.</p>{{ if .MonitorSaved }}<label class="node-config-check"><input type="checkbox" name="clear_monitor_rune" value="yes"> Remove saved monitoring rune</label>{{ end }}</div>
+     <div><label>Provisioning rune <small>{{ if .ProvisionSaved }}Saved{{ else }}Not set{{ end }}</small><input type="password" name="provision_rune" autocomplete="new-password" maxlength="4096"></label><p class="node-config-help">Allows getinfo, offer, disableoffer, clnurl-list, clnurl-add, and clnurl-remove.</p>{{ if .ProvisionSaved }}<label class="node-config-check"><input type="checkbox" name="clear_provision_rune" value="yes"> Remove saved provisioning rune</label>{{ end }}</div>
+    </div>
+   </section>
+   <section class="dashboard-workspace-panel node-config-panel">
+    <h2>Donation addresses</h2>
+    <p>Each event gets a Lightning address and BIP353 record. Your domain needs working DNSSEC and HTTPS routing to clnurl.</p>
+    <div class="node-config-grid">
+     <label>Address domain<input name="domain" value="{{ .Domain }}" required maxlength="253" spellcheck="false" autocapitalize="none"></label>
+     <label>Cloudflare zone ID<input name="cf_zone" value="{{ .CFZone }}" maxlength="100" spellcheck="false" autocapitalize="none"></label>
+     <div class="node-config-wide"><label>Cloudflare DNS token <small>{{ if .DNS }}Saved{{ else }}Not set{{ end }}</small><input type="password" name="cf_token" autocomplete="new-password" maxlength="4096"></label><p class="node-config-help">Use the zap.btcplusplus.dev zone ID and a token with DNS editing permission for that zone only.</p>{{ if .DNS }}<label class="node-config-check"><input type="checkbox" name="clear_cf_token" value="yes"> Remove saved DNS token</label>{{ end }}</div>
+    </div>
+   </section>
+   <section class="dashboard-workspace-panel node-config-panel">
+    <h2>Payment monitoring</h2>
+    <label class="node-config-check"><input type="checkbox" name="enabled" value="yes" {{ if .Active }}checked{{ end }}> Enable community prize payment monitoring</label>
+    <p>Turning this off pauses updates on the website. It does not stop the node accepting payments. When enabled again, monitoring catches up without counting payments twice.</p>
+    <p class="node-config-help">Existing pools keep their original node, network, and address domain. Close an event’s funding from its hackathon admin page.</p>
+    <button class="node-config-primary" type="submit" name="action" value="save">Save configuration</button>
+   </section>
+  </form>
+  <section class="dashboard-workspace-panel node-config-panel">
+   <h2>Check the saved connection</h2>
+   <p>Check connectivity, node identity, and network using the saved monitoring rune. This does not create an invoice or change anything on your node.</p>
+   <form method="post" action="/admin/node-config"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="revision" value="{{ .Revision }}"><button type="submit" name="action" value="test">Test saved connection</button></form>
+  </section>
+ </main>
+ {{ block "footer" . }}{{ end }}
+</body>
+</html>

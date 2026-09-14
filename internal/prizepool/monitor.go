@@ -68,3 +68,51 @@ func Run(ctx context.Context, db *pgxpool.Pool, rpc RPC, s Settings, logger *log
 		}
 	}
 }
+
+// RunConfigured follows database configuration on every instance. A changed or
+// disabled configuration cancels in-flight Commando calls before replacement.
+func RunConfigured(ctx context.Context, db *pgxpool.Pool, secret string, logger *log.Logger) {
+	followNodeConfig(ctx, 5*time.Second, func(ctx context.Context) (NodeConfig, error) {
+		return LoadNodeConfig(ctx, db, secret)
+	}, func(ctx context.Context, c NodeConfig) {
+		Run(ctx, db, Commando{Host: c.Host, NodeID: c.NodeID, Rune: c.Rune}, c.Settings, logger)
+	}, logger)
+}
+func followNodeConfig(ctx context.Context, interval time.Duration, load func(context.Context) (NodeConfig, error), run func(context.Context, NodeConfig), logger *log.Logger) {
+	var stop context.CancelFunc
+	var done chan struct{}
+	var current NodeConfig
+	cancelWorker := func() {
+		if stop != nil {
+			stop()
+			<-done
+			stop = nil
+		}
+	}
+	defer cancelWorker()
+	timer := time.NewTicker(interval)
+	defer timer.Stop()
+	for {
+		readCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		next, err := load(readCtx)
+		cancel()
+		if err != nil {
+			cancelWorker()
+			logger.Print("Prize pool configuration unavailable; monitoring paused")
+		} else if stop == nil || next != current {
+			cancelWorker()
+			current = next
+			if next.Active && next.Enabled() && ctx.Err() == nil {
+				var worker context.Context
+				worker, stop = context.WithCancel(ctx)
+				done = make(chan struct{})
+				go func(c NodeConfig, finished chan struct{}) { defer close(finished); run(worker, c) }(next, done)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+	}
+}

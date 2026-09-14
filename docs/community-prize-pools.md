@@ -41,35 +41,61 @@ notes remain admin-only and are HTML-escaped. CLN supplies optional payer notes
 through `listinvoices.invreq_payer_note`; LNURL descriptions are not donor notes.
 
 Addresses default to the conference tag,
-for example `berlin26@btcplusplus.dev`. A pool keeps its original address mapping;
+for example `berlin26@zap.btcplusplus.dev`. A pool keeps its original address mapping;
 custom address names do not change public event routes. Renaming conference tags is not an address migration. Endpoint collisions with a
 changed description and conflicting existing DNS records stop setup for review.
 
-## Deployment secrets
+## Node configuration
 
+Apply migrations 105 and 106, then open `/admin/node-config`. Only an explicit
+`accts-admin` identity can view or submit this page; global-admin and conference
+admin alone do not grant access. Links appear in Account settings and (for users
+who also have global-admin) the global admin tools. Event admins still manage
+individual pools, but cannot change the shared connection or see credentials.
+
+Enter the CLN host and Lightning port, compressed node public key, network,
+monitoring and provisioning runes, address domain (default `zap.btcplusplus.dev`),
+Cloudflare zone ID for `zap.btcplusplus.dev` and a DNS edit token scoped to that
+zone. Enable monitoring explicitly.
+There is no environment-variable fallback or automatic import of the old prize
+connection variables. Existing installations start with monitoring disabled.
+
+Settings are encrypted in PostgreSQL using AES-GCM with a domain-separated key
+derived from the existing application `HMAC_SECRET`; no new deployment secret is
+required. Keep that secret with database backups. Rotating it requires coordinated
+re-encryption of node settings before switching; otherwise the settings cannot be
+read. Credential fields are write-only: blank preserves, replacement rotates,
+and an explicit remove checkbox clears. Audits contain actor, revision, activation
+state and time, never credentials. Concurrent stale forms are rejected.
+
+Each application instance reloads configuration every five seconds, cancels the
+previous monitor on change or read/decryption failure, and starts the replacement
+only when enabled. Disabling monitoring does not close offers or stop receipts at
+the node. Resuming catches up from the durable cursor. Existing pool node/network
+and domain bindings cannot be changed through this form; host/rune rotation is
+allowed. Pool provisioning and creation hold a shared configuration lock so they
+cannot race a destination change.
+
+The **Test saved connection** action calls only `getinfo` with the saved monitoring
+rune and checks node identity/network. It does not prove the remaining permissions,
+provisioning, DNS or a wallet payment. Confirm CLN supports Commando, BOLT12 and
+this clnurl fork. Both transports and DNS integration run in the backend. The
+copied accts transport uses a fresh BOLT-8 connection per RPC, with cancellation
+closing the dedicated socket across init and writes.
+
+The **Create the service runes** helper on `/admin/node-config` provides copyable
+commands to run locally on your CLN node. Paste each response's `rune` value into
+the corresponding field; the website never receives your node's rune-creation
+permission. Use your normal CLI connection/network options when running:
+
+```sh
+lightning-cli createrune -k restrictions='[["method=getinfo","method=waitanyinvoice","method=listinvoices"]]'
+lightning-cli createrune -k restrictions='[["method=getinfo","method=offer","method=disableoffer","method=clnurl-list","method=clnurl-add","method=clnurl-remove"]]'
 ```
-PRIZE_CLN_HOST=node-host:9735
-PRIZE_CLN_NODE_ID=<compressed public key>
-PRIZE_CLN_NETWORK=bitcoin
-PRIZE_CLN_MONITOR_RUNE=<observer rune>
-PRIZE_CLN_PROVISION_RUNE=<provisioning rune>
-PRIZE_ADDRESS_DOMAIN=btcplusplus.dev
-PRIZE_CLOUDFLARE_TOKEN=<zone-scoped DNS edit token>
-PRIZE_CLOUDFLARE_ZONE=<zone ID>
-```
 
-The monitor is disabled until host, node ID and observer rune are all supplied.
-Apply migration 105 before enabling it. Confirm CLN supports Commando, BOLT12 and
-this clnurl fork. Both client transports and DNS integration run in the backend;
-secrets are never returned to the browser. The copied accts transport uses a fresh
-BOLT-8 connection per RPC, with cancellation closing the dedicated socket across
-init and writes. CLN's returned node identity/network must match the configuration.
-
-Suggested observer rune method restriction (test with `checkrune` on your node):
-
-```json
-[["method=getinfo","method=waitanyinvoice","method=listinvoices"]]
-```
+These use [CLN createrune](https://docs.corelightning.org/reference/createrune),
+available since v23.08. Exact method alternatives belong in one inner array (OR),
+not separate arrays (AND). No broad `readonly` or unrestricted rune is needed.
 
 The provisioning rune requires `getinfo`, `offer`, `disableoffer`, `clnurl-list`,
 `clnurl-add`, and `clnurl-remove`. It needs no spending RPCs. Scope to a dedicated

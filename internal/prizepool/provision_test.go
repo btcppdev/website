@@ -55,7 +55,7 @@ func TestProvisionRetryAndDestinationConflict(t *testing.T) {
 		}
 		return nil, errors.New("unexpected method")
 	}}
-	s := Settings{NodeID: "node", Domain: "btcplusplus.dev", Network: "bitcoin"}
+	s := Settings{NodeID: "node", Domain: "zap.btcplusplus.dev", Network: "bitcoin"}
 	dns := &fakeDNS{fail: true}
 	if Provision(ctx, db, conf, "admin", s, rpc, dns) == nil {
 		t.Fatal("expected DNS failure")

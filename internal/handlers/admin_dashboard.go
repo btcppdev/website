@@ -21,6 +21,7 @@ type GlobalAdminDashboardPage struct {
 	FlashMessage           string
 	Year                   uint
 	CanAssignAccountsAdmin bool
+	IsAccountsAdmin        bool
 	FeaturedSpeakerSlots   []*types.Speaker
 	SubscriberSummary      getters.AdminSubscriberSummary
 	SubscriberStatsReady   bool
@@ -115,6 +116,7 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		FlashMessage:           r.URL.Query().Get("flash"),
 		Year:                   helpers.CurrentYear(),
 		CanAssignAccountsAdmin: canAssignAccountsAdmin(id),
+		IsAccountsAdmin:        id.IsAccountsAdmin(),
 		FeaturedSpeakerSlots:   slots,
 		SubscriberSummary:      subscriberSummary,
 		SubscriberStatsReady:   subscriberErr == nil,

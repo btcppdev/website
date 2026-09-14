@@ -27,7 +27,7 @@ func TestCommunityPoolIntegration(t *testing.T) {
 	}
 	now := time.Now()
 	conf := &types.Conf{Tag: "berlin26", Desc: "bitcoin++ Berlin", Location: "Berlin", Tagline: "Build on Bitcoin", ShowHackathon: true, StartDate: now, DateDesc: "September 2026"}
-	pool := &prizepool.Pool{ID: "preview-community", Slug: conf.Tag, Domain: "btcplusplus.dev", TotalMSat: 1250000000, Count: 42, Status: "open", SyncedAt: &now, Offer: "lno1preview-not-a-payable-offer"}
+	pool := &prizepool.Pool{ID: "preview-community", Slug: conf.Tag, Domain: "zap.btcplusplus.dev", TotalMSat: 1250000000, Count: 42, Status: "open", SyncedAt: &now, Offer: "lno1preview-not-a-payable-offer"}
 	competition := &types.HackathonCompetition{ID: "preview-hackathon", Title: "Build on Bitcoin", Visibility: "public"}
 	confPage := &ConfPage{Conf: conf, Hackathon: competition, CommunityPool: pool}
 	hackPage := &HackathonPage{Conf: conf, Competition: competition, CommunityPool: pool, CommunityShare: true}
@@ -39,7 +39,7 @@ func TestCommunityPoolIntegration(t *testing.T) {
 		if err := app.TemplateCache.ExecuteTemplate(&b, c.name, c.data); err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
-		for _, needle := range []string{"community-prize", "1250000", "2M sats", "berlin26@btcplusplus.dev"} {
+		for _, needle := range []string{"community-prize", "1250000", "2M sats", "berlin26@zap.btcplusplus.dev"} {
 			if !strings.Contains(b.String(), needle) {
 				t.Fatalf("%s missing %s", c.name, needle)
 			}

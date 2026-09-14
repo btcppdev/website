@@ -186,3 +186,10 @@ func TestLoadReadsOAuthProviderConfigs(t *testing.T) {
 		t.Fatalf("OAuth config = %+v", env.OAuth)
 	}
 }
+
+func TestNodeConfigEncryptionUsesExistingAppSecret(t *testing.T) {
+	t.Setenv("HMAC_SECRET", "test-existing-root-secret")
+	if got := FromEnv().HMACSecret; got != "test-existing-root-secret" {
+		t.Fatal("application secret unavailable to node settings")
+	}
+}

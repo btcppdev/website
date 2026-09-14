@@ -27,14 +27,14 @@ func TestPrizePoolTemplates(t *testing.T) {
 	now := time.Now()
 	conf := &types.Conf{Tag: "berlin26", Desc: "bitcoin++ Berlin", Ref: "preview"}
 	admin := &HackathonAdminPage{Conf: conf, Confs: []*types.Conf{conf}, Competition: &types.HackathonCompetition{ID: "preview", Title: "Build on Bitcoin", ConferenceID: conf.Ref}, ActiveTab: "community"}
-	page := prizePoolPage{HackathonAdminPage: admin, Admin: true, Conf: conf, Domain: "btcplusplus.dev", Pool: &prizepool.Pool{Slug: "berlin-prizes", Domain: "btcplusplus.dev", Status: "open", Description: "Help Berlin's Bitcoin builders", TotalMSat: 210000123, Count: 2, SyncedAt: &now}, Payments: []prizepool.Payment{{Hash: strings.Repeat("a", 64), PaidAt: now, AmountMSat: 200000000, OfferID: "offer", Description: "Help Berlin's Bitcoin builders", Note: "Build great things! <script>alert(1)</script>"}, {Hash: strings.Repeat("b", 64), PaidAt: now.Add(-time.Hour), AmountMSat: 10000123, Description: `[["text/plain","Berlin community prize"],["text/identifier","berlin-prizes@btcplusplus.dev"]]`, Late: true}}}
+	page := prizePoolPage{HackathonAdminPage: admin, Admin: true, Conf: conf, Domain: "zap.btcplusplus.dev", Pool: &prizepool.Pool{Slug: "berlin-prizes", Domain: "zap.btcplusplus.dev", Status: "open", Description: "Help Berlin's Bitcoin builders", TotalMSat: 210000123, Count: 2, SyncedAt: &now}, Payments: []prizepool.Payment{{Hash: strings.Repeat("a", 64), PaidAt: now, AmountMSat: 200000000, OfferID: "offer", Description: "Help Berlin's Bitcoin builders", Note: "Build great things! <script>alert(1)</script>"}, {Hash: strings.Repeat("b", 64), PaidAt: now.Add(-time.Hour), AmountMSat: 10000123, Description: `[["text/plain","Berlin community prize"],["text/identifier","berlin-prizes@zap.btcplusplus.dev"]]`, Late: true}}}
 	for _, payments := range []bool{false, true} {
 		page.PaymentsTab = payments
 		var b bytes.Buffer
 		if err := app.TemplateCache.ExecuteTemplate(&b, "prize_pool.tmpl", page); err != nil {
 			t.Fatal(err)
 		}
-		for _, text := range []string{"210000.123", "berlin-prizes@btcplusplus.dev", "Successful payments", "/berlin26/admin/hackathon/community-pool"} {
+		for _, text := range []string{"210000.123", "berlin-prizes@zap.btcplusplus.dev", "Successful payments", "/berlin26/admin/hackathon/community-pool"} {
 			if !strings.Contains(b.String(), text) {
 				t.Fatal("missing " + text)
 			}
@@ -106,8 +106,8 @@ func TestCommunitySetupValues(t *testing.T) {
 			t.Fatal("invalid defaults")
 		}
 	}
-	pool := prizepool.Pool{Slug: "builders", EventTag: "berlin26", Domain: "btcplusplus.dev"}
-	if pool.SharePath() != "/berlin26/hackathon?prize=community#community-prize" || pool.Address() != "builders@btcplusplus.dev" {
+	pool := prizepool.Pool{Slug: "builders", EventTag: "berlin26", Domain: "zap.btcplusplus.dev"}
+	if pool.SharePath() != "/berlin26/hackathon?prize=community#community-prize" || pool.Address() != "builders@zap.btcplusplus.dev" {
 		t.Fatal("address name changed event route")
 	}
 }

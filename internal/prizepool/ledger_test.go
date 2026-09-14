@@ -17,12 +17,12 @@ import (
 
 func TestIdentifier(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{`[["text/plain","Community berlin26@btcplusplus.dev"],["text/identifier","berlin26@btcplusplus.dev"]]`, "berlin26@btcplusplus.dev"},
-		{`{"kind":9734,"content":"berlin26@btcplusplus.dev"}`, ""},
-		{`[["text/plain","berlin26@btcplusplus.dev"]]`, ""},
-		{`[["text/identifier","berlin26@btcplusplus.dev"],["text/identifier","other@btcplusplus.dev"]]`, ""},
+		{`[["text/plain","Community berlin26@zap.btcplusplus.dev"],["text/identifier","berlin26@zap.btcplusplus.dev"]]`, "berlin26@zap.btcplusplus.dev"},
+		{`{"kind":9734,"content":"berlin26@zap.btcplusplus.dev"}`, ""},
+		{`[["text/plain","berlin26@zap.btcplusplus.dev"]]`, ""},
+		{`[["text/identifier","berlin26@zap.btcplusplus.dev"],["text/identifier","other@zap.btcplusplus.dev"]]`, ""},
 		{`[["text/identifier","berlin26@evil.example"]]`, "berlin26@evil.example"},
-		{`[["text/identifier","../bad@btcplusplus.dev"]]`, ""},
+		{`[["text/identifier","../bad@zap.btcplusplus.dev"]]`, ""},
 	}
 	for _, c := range cases {
 		if got := Identifier(c.in); got != c.want {
@@ -81,6 +81,13 @@ func testDB(t *testing.T) *pgxpool.Pool {
 	if _, err = isolated.Exec(ctx, string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	migration, err = os.ReadFile("../../db/migrations/106_community_node_config.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = isolated.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
 	return isolated
 }
 func seedPool(t *testing.T, db *pgxpool.Pool, slug, offer string) string {
@@ -101,7 +108,7 @@ func TestReceiptReplayAndConcurrentCredit(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 	pool := seedPool(t, db, "berlin26", strings.Repeat("b", 64))
-	in := Invoice{Hash: strings.Repeat("a", 64), Index: 1, Amount: 1234567, PaidAt: 1700000000, Status: "paid", Description: `[["text/plain","Prize pool"],["text/identifier","berlin26@btcplusplus.dev"]]`}
+	in := Invoice{Hash: strings.Repeat("a", 64), Index: 1, Amount: 1234567, PaidAt: 1700000000, Status: "paid", Description: `[["text/plain","Prize pool"],["text/identifier","berlin26@zap.btcplusplus.dev"]]`}
 	var wg sync.WaitGroup
 	errs := make(chan error, 8)
 	for i := 0; i < 8; i++ {
@@ -141,7 +148,7 @@ func TestReceiptReplayAndConcurrentCredit(t *testing.T) {
 	pending := in
 	pending.Hash = strings.Repeat("d", 64)
 	pending.Index = 3
-	pending.Description = `[["text/identifier","new26@btcplusplus.dev"]]`
+	pending.Description = `[["text/identifier","new26@zap.btcplusplus.dev"]]`
 	if err := Credit(ctx, db, "node", pending); err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +263,7 @@ func TestDraftSetupWithoutCredentials(t *testing.T) {
 	if _, err := db.Exec(ctx, `INSERT INTO conferences VALUES($1)`, conf); err != nil {
 		t.Fatal(err)
 	}
-	settings := Settings{Domain: "btcplusplus.dev"}
+	settings := Settings{Domain: "zap.btcplusplus.dev"}
 	for i := 0; i < 2; i++ {
 		if err := Create(ctx, db, conf, "builders", "Fund Bitcoin builders", "admin", settings); err != nil {
 			t.Fatal(err)

@@ -35,6 +35,7 @@ type prizePoolPage struct {
 }
 
 func registerPrizePoolRoutes(r *mux.Router, app *config.AppContext) {
+	r.HandleFunc("/admin/node-config", func(w http.ResponseWriter, r *http.Request) { AdminNodeConfig(w, r, app) }).Methods("GET", "POST")
 	r.HandleFunc("/{conf}/prize-pool/events", func(w http.ResponseWriter, r *http.Request) { communityPoolStream(w, r, app) }).Methods("GET")
 	r.HandleFunc("/{conf}/prize-pool/status", func(w http.ResponseWriter, r *http.Request) { communityPoolStatus(w, r, app) }).Methods("GET")
 	r.HandleFunc("/{conf}/prize-pool", func(w http.ResponseWriter, r *http.Request) {
@@ -47,12 +48,7 @@ func registerPrizePoolRoutes(r *mux.Router, app *config.AppContext) {
 	r.HandleFunc("/{conf}/prize-pool/qr", func(w http.ResponseWriter, r *http.Request) { prizePoolQR(w, r, app) }).Methods("GET")
 }
 func StartPrizePoolMonitor(app *config.AppContext) {
-	s := prizepool.Environment()
-	if !s.Enabled() {
-		return
-	}
-	rpc := prizepool.Commando{Host: s.Host, NodeID: s.NodeID, Rune: s.Rune}
-	go prizepool.Run(context.Background(), app.DB, rpc, s, app.Err)
+	go prizepool.RunConfigured(context.Background(), app.DB, app.Env.HMACSecret, app.Err)
 }
 func prizePoolHandler(w http.ResponseWriter, r *http.Request, app *config.AppContext, admin bool) {
 	w.Header().Set("Cache-Control", "no-store")
@@ -69,8 +65,33 @@ func prizePoolHandler(w http.ResponseWriter, r *http.Request, app *config.AppCon
 		}
 		actor = id.Email
 	}
-	s := prizepool.Environment()
-	page := prizePoolPage{Conf: conf, Admin: admin, Configured: s.Enabled() && s.ProvisionRune != "" && s.CFToken != "" && s.CFZone != ""}
+	// Serialize destination-changing actions with node configuration edits.
+	// Enabling a draft takes this lock within saveCommunitySetup instead.
+	if r.Method == http.MethodPost {
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		if r.ParseForm() != nil {
+			http.Error(w, "Invalid form", 400)
+			return
+		}
+		action := r.PostForm.Get("action")
+		if action == "setup" || action == "close" {
+			lockCtx, lockCancel := context.WithTimeout(r.Context(), 90*time.Second)
+			defer lockCancel()
+			release, lockErr := prizepool.LockNodeConfig(lockCtx, app.DB)
+			if lockErr != nil {
+				http.Error(w, "Node configuration is busy", 503)
+				return
+			}
+			defer release()
+		}
+	}
+	nodeConfig, err := prizepool.LoadNodeConfig(r.Context(), app.DB, app.Env.HMACSecret)
+	if err != nil {
+		http.Error(w, "Node configuration is unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	s := nodeConfig.Settings
+	page := prizePoolPage{Conf: conf, Admin: admin, Configured: nodeConfig.Active && s.Enabled() && s.ProvisionRune != "" && s.CFToken != "" && s.CFZone != ""}
 	competition, err := getters.GetCompetitionByConferenceID(app, conf.Ref)
 	if err != nil || competition == nil {
 		http.NotFound(w, r)
@@ -313,5 +334,16 @@ func saveCommunitySetup(r *http.Request, app *config.AppContext, confID, actor s
 	if err != nil {
 		return err
 	}
-	return prizepool.Create(r.Context(), app.DB, confID, slug, description, actor, prizepool.Environment())
+	lockCtx, lockCancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer lockCancel()
+	release, err := prizepool.LockNodeConfig(lockCtx, app.DB)
+	if err != nil {
+		return err
+	}
+	defer release()
+	nodeConfig, err := prizepool.LoadNodeConfig(r.Context(), app.DB, app.Env.HMACSecret)
+	if err != nil {
+		return err
+	}
+	return prizepool.Create(r.Context(), app.DB, confID, slug, description, actor, nodeConfig.Settings)
 }

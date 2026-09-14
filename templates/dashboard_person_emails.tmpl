@@ -26,6 +26,7 @@
       <a href="#settings-sign-in">/sign-in</a>
       <a href="#settings-apps">/apps</a>
       {{ if .IsGlobalAdmin }}<a href="#settings-oauth-server">/oauth server</a>{{ end }}
+ {{ if .IsAccountsAdmin }}<a href="/admin/node-config">/node config</a>{{ end }}
       <a href="#settings-api">/api tokens</a>
       <a href="#settings-emails">/emails</a>
     </nav>

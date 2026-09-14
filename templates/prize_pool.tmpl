@@ -22,7 +22,7 @@
 {{ else }}
 <p><b>Lightning address:</b> {{ .Pool.Address }}</p><p><b>Invoice description:</b> {{ .Pool.Description }}</p><p class="text-sm">Address and description are fixed for this pool so retries recover the same endpoint and offer.</p>
 {{ if eq .Pool.Status "draft" }}
-{{ if not .Configured }}<p>CLN and Cloudflare credentials must be configured before registering this address.</p>{{ end }}
+{{ if not .Configured }}<p>An accounts admin must configure the node and DNS credentials and enable monitoring before this address can be registered.</p>{{ end }}
 <form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button name="action" value="setup" {{ if not .Configured }}disabled{{ end }}>Register address / retry</button></form>
 <p>LNURL registered: {{ .Pool.EndpointCreated }} · BIP353 published: {{ .Pool.DNSPublished }}</p>
 {{ if .Pool.EndpointCreated }}<p><a href="https://{{ .Pool.Domain }}/.well-known/lnurlp/{{ .Pool.Slug }}">Inspect Lightning address ↗</a></p>{{ end }}

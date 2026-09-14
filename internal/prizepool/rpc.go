@@ -6,23 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"time"
 )
 
 type Settings struct{ Host, NodeID, Rune, ProvisionRune, Domain, Network, CFToken, CFZone string }
 
-func Environment() Settings {
-	s := Settings{Host: os.Getenv("PRIZE_CLN_HOST"), NodeID: strings.ToLower(os.Getenv("PRIZE_CLN_NODE_ID")), Rune: os.Getenv("PRIZE_CLN_MONITOR_RUNE"), ProvisionRune: os.Getenv("PRIZE_CLN_PROVISION_RUNE"), Domain: os.Getenv("PRIZE_ADDRESS_DOMAIN"), Network: os.Getenv("PRIZE_CLN_NETWORK"), CFToken: os.Getenv("PRIZE_CLOUDFLARE_TOKEN"), CFZone: os.Getenv("PRIZE_CLOUDFLARE_ZONE")}
-	if s.Domain == "" {
-		s.Domain = "btcplusplus.dev"
-	}
-	if s.Network == "" {
-		s.Network = "bitcoin"
-	}
-	return s
-}
 func (s Settings) Enabled() bool { return s.Host != "" && s.NodeID != "" && s.Rune != "" }
 
 type RPC interface {

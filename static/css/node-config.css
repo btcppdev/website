@@ -1,0 +1,27 @@
+.node-config { max-width: 1000px; padding-bottom: 3rem; }
+.node-config-back { display: inline-block; margin: 1rem 0; text-decoration: underline; }
+.node-config-panel { padding: clamp(1rem, 3vw, 2rem); margin-top: 1.25rem; }
+.node-config-panel h2 { font-size: 1.25rem; font-weight: 700; margin: 0 0 .6rem; }
+.node-config-panel p { margin: .65rem 0 1.25rem; line-height: 1.6; }
+.node-config-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+.node-config-wide { grid-column: 1 / -1; }
+.node-config label { display: block; font-weight: 600; }
+.node-config input:not([type=hidden]):not([type=checkbox]), .node-config select { display: block; width: 100%; min-width: 0; box-sizing: border-box; background: #fff; color: #211d18; border: 1px solid #aaa398; border-radius: .5rem; padding: .75rem; margin-top: .5rem; font: inherit; }
+.node-config small { display: inline-block; margin-left: .5rem; padding: .1rem .5rem; border-radius: 1rem; background: #f0eee7; color: #514b43; font-weight: 400; }
+.node-config label.node-config-check { display: flex; align-items: flex-start; gap: .65rem; font-weight: 500; line-height: 1.5; }
+.node-config input[type=checkbox] { margin-top: .25rem; width: 1rem; height: 1rem; flex-shrink: 0; accent-color: #211d18; }
+.node-config .node-config-help { font-size: .85rem; color: #5b554c; overflow-wrap: anywhere; }
+.node-config button { border: 1px solid #211d18; border-radius: 999px; padding: .75rem 1.25rem; font-weight: 600; background: #fffaf3; color: #211d18; }
+.node-config button.node-config-primary { background: #211d18; color: #fffaf3; }
+.node-config :is(input,select,button,a):focus-visible { outline: 3px solid #73529b; outline-offset: 3px; }
+.node-config-notice { padding: 1rem; border: 1px solid #72a58b; background: #eef9f1; border-radius: .6rem; margin: 1rem 0; }
+.node-config-error { border-color: #b93838; background: #fff1f1; color: #8b2424; }
+@media (max-width: 600px) { .node-config-grid { grid-template-columns: minmax(0, 1fr); } .node-config button { width: 100%; } }
+
+.node-config-runes { border: 1px solid #c9c1b6; border-radius: .6rem; padding: 1rem; margin: 1rem 0 1.5rem; background: #f8f5ee; }
+.node-config-runes summary { cursor: pointer; font-weight: 700; }
+.node-config-runes h3 { font-size: 1rem; font-weight: 700; margin: 1.5rem 0 .5rem; }
+.node-config-runes pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #211d18; color: #fffaf3; padding: 1rem; border-radius: .4rem; margin: .75rem 0; font-size: .85rem; line-height: 1.6; }
+.node-config-runes a { text-decoration: underline; }
+.node-config-runes .node-config-copy-status:empty { display: none; }
+.node-config-runes pre code { background: transparent; color: inherit; border: 0; padding: 0; font: inherit; }

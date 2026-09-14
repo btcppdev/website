@@ -66,6 +66,7 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 		Host:                 os.Getenv("HOST"),
 		LocalExternal:        os.Getenv("LOCAL_EXTERNAL"),
 		DatabaseURL:          os.Getenv("DATABASE_URL"),
+		HMACSecret:           os.Getenv("HMAC_SECRET"),
 		MailerSecret:         os.Getenv("MAILER_SECRET"),
 		MailEndpoint:         os.Getenv("MAILER_ENDPOINT"),
 		DevEmailOverride:     os.Getenv("DEV_EMAIL_OVERRIDE"),

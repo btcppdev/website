@@ -205,7 +205,7 @@ part of the first prize-pool phase; checkout integration follows separately.
 
 The user clarified that the reference is Afterglow, located in `../bolt12-tracker`.
 Its offer-ID matching and persisted payment-hash deduplication informed the
-PostgreSQL receipt/credit ledger used here. Address domain: `{event}@btcplusplus.dev`.
+PostgreSQL receipt/credit ledger used here. Address domain: `{event}@zap.btcplusplus.dev`.
 Nostr zaps are separate from dedicated prize-pool payments.
 
 Use the existing modified `../clnurl` for LNURL discovery and invoice creation,
@@ -217,7 +217,7 @@ well-known address URL to clnurl with a controlled canonical host.
 Use clnurl unchanged for the proof of concept. It already lets us configure each
 endpoint description. For ordinary LNURL payments, CLN stores the advertised JSON
 metadata as the invoice description, including `text/plain` and the structured
-`text/identifier` value such as `berlin26@btcpp.dev`.
+`text/identifier` value such as `berlin26@zap.btcplusplus.dev`.
 
 The monitor should parse that JSON and map the exact full identifier to a registered
 pool on this node. A human-readable description may end with the address, but no
@@ -315,7 +315,7 @@ receipt ingestion, conflicting attribution, and replay without duplicate notices
 
 User requirement: each event can collect community contributions through a custom
 Lightning address and a reusable BOLT12 offer. Suggested example:
-`berlin26@btcpp.dev`, with `₿berlin26@btcpp.dev` for BIP353 display.
+`berlin26@zap.btcplusplus.dev`, with `₿berlin26@zap.btcplusplus.dev` for BIP353 display.
 These are proposed names, not provisioned addresses.
 
 Two discovery mechanisms can lead to the same pool:
@@ -326,7 +326,7 @@ Two discovery mechanisms can lead to the same pool:
   required identifier metadata and implement applicable invoice metadata binding;
   rate-limit public invoice creation and return protocol errors for closed pools.
 - BIP353: a DNSSEC-signed TXT record at
-  `berlin26.user._bitcoin-payment.btcpp.dev` contains
+  `berlin26.user._bitcoin-payment.zap.btcplusplus.dev` contains
   `bitcoin:?lno=<pool BOLT12 offer>`. Publish one logical TXT record, splitting
   long values into DNS character strings as needed. DNSSEC delegation and chain
   validation are deployment requirements, not just an extra TXT record.
