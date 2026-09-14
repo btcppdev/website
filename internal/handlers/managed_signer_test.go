@@ -279,3 +279,31 @@ func TestManagedSignerKeyCustodyRequiresActiveOwner(t *testing.T) {
 		}
 	}
 }
+
+func TestManagedSignerHeadersPreserveCallbackOrigin(t *testing.T) {
+	response := httptest.NewRecorder()
+	ctx := &config.AppContext{Env: &types.EnvConfig{SignerURL: "https://bunker.btcpp.dev"}}
+	setManagedSignerHeaders(response, ctx)
+	// Native cross-origin form POSTs send Origin: null under no-referrer.
+	// strict-origin preserves the callback origin without exposing URL queries.
+	if got := response.Header().Get("Referrer-Policy"); got != "strict-origin" {
+		t.Fatalf("callback referrer policy = %q, want strict-origin", got)
+	}
+	if got := response.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("authorization cache policy = %q, want no-store", got)
+	}
+}
+
+func TestManagedSignerCancellationPreservesVaultContext(t *testing.T) {
+	for _, tenant := range []string{"organization", "person"} {
+		page := &ManagedSignerAuthorizationPage{Tenant: tenant, TenantID: "id with & punctuation", Action: "import_identity"}
+		destination, err := url.Parse(managedSignerDeniedURL("https://bunker.btcpp.dev/", page))
+		if err != nil {
+			t.Fatal(err)
+		}
+		query := destination.Query()
+		if destination.Host != "bunker.btcpp.dev" || destination.Path != "/" || query.Get("authorization") != "denied" || query.Get("tenant") != tenant || query.Get("tenant_id") != page.TenantID || len(query) != 3 {
+			t.Fatalf("unexpected cancellation destination: %s", destination)
+		}
+	}
+}

@@ -154,7 +154,7 @@ func ManagedSignerAuthorizeDecision(w http.ResponseWriter, r *http.Request, ctx 
 	}
 	if r.FormValue("decision") != "allow" {
 		recordAuthAudit(ctx, r, identity.PersonID, "managed_signer", "signer_authorization_denied", map[string]any{"tenant": page.Tenant, "tenant_id": page.TenantID, "action": page.Action})
-		http.Redirect(w, r, ctx.Env.SignerURL+"/?authorization=denied", http.StatusSeeOther)
+		http.Redirect(w, r, managedSignerDeniedURL(ctx.Env.SignerURL, page), http.StatusSeeOther)
 		return
 	}
 	if err := requireSignerAuthentication(identity, page); err != nil {
@@ -542,9 +542,19 @@ func isLowerHex(value string, size int) bool {
 	return err == nil
 }
 
+// Preserve the validated vault context even when another tab last selected a
+// different vault. Cancellation never carries an authorization or action handle.
+func managedSignerDeniedURL(signerURL string, page *ManagedSignerAuthorizationPage) string {
+	query := url.Values{"authorization": {"denied"}, "tenant": {page.Tenant}, "tenant_id": {page.TenantID}}
+	return strings.TrimRight(signerURL, "/") + "/?" + query.Encode()
+}
+
 func setManagedSignerHeaders(w http.ResponseWriter, ctx *config.AppContext) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self' "+ctx.Env.SignerURL)
-	w.Header().Set("Referrer-Policy", "no-referrer")
+	// The cross-origin callback is a form POST: no-referrer would make its
+	// Origin header null, which the signer must reject. Send only the origin,
+	// never the authorization URL path or query, and suppress HTTPS downgrades.
+	w.Header().Set("Referrer-Policy", "strict-origin")
 	w.Header().Set("X-Frame-Options", "DENY")
 }
