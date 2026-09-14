@@ -581,6 +581,16 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 	}
 	in.Source = firstNonEmpty(strings.TrimSpace(in.Source), types.ShopOrderSourceOnline)
 	in.CheckoutKind = firstNonEmpty(strings.TrimSpace(in.CheckoutKind), types.ShopCheckoutKindMerch)
+	// Service purchases need verified settlement and product-specific fulfillment.
+	// Keep them out of the merchandise reservation/checkout path.
+	if in.CheckoutKind == "service" || in.CheckoutKind == "digital" {
+		return nil, fmt.Errorf("service purchases require service checkout")
+	}
+	for _, item := range items {
+		if item.FulfillmentMethod == "service" || item.FulfillmentMethod == "digital" {
+			return nil, fmt.Errorf("service purchases require service checkout")
+		}
+	}
 	in.Currency = strings.ToUpper(firstNonEmpty(in.Currency, "USD"))
 	checkoutExpiresAt := time.Now().UTC().Add(types.ShopCheckoutSessionTTL)
 	reservationExpiresAt := time.Now().UTC().Add(types.ShopInventoryReservationTTL)
