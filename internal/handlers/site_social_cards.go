@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -1194,7 +1195,7 @@ func loadHackathonSocialCard(ctx *config.AppContext, tag string) (imgproc.SiteSo
 	if err != nil {
 		return imgproc.SiteSocialCard{}, fmt.Errorf("load hackathon sponsors for %q: %w", tag, err)
 	}
-	page := &HackathonPage{Competition: competition, Conf: conf, Projects: projects, Awards: awards, PrizesByAward: prizes, PrizePoolByAward: pool, Sponsorships: sponsorships}
+	page := &HackathonPage{Competition: competition, Conf: conf, Projects: projects, Awards: awards, PrizesByAward: prizes, PrizePoolByAward: pool, Sponsorships: sponsorships, CommunityPool: publicCommunityPool(context.Background(), ctx, conf)}
 	return hackathonSocialCard(ctx, page), nil
 }
 
@@ -1254,6 +1255,16 @@ func loadSiteSocialCard(ctx *config.AppContext, kind, slug string) (imgproc.Site
 			}
 		}
 		return conferenceSocialCard(ctx, conf, talks), err
+	case "community":
+		conf, err := getters.GetConfByTag(ctx, slug)
+		if err != nil || conf == nil || !conf.IsPublished() {
+			return imgproc.SiteSocialCard{}, fmt.Errorf("conference not found")
+		}
+		pool := publicCommunityPool(context.Background(), ctx, conf)
+		if pool == nil {
+			return imgproc.SiteSocialCard{}, fmt.Errorf("pool not found")
+		}
+		return communitySocialCard(ctx, conf, pool), nil
 	case "hackathon":
 		return loadHackathonSocialCard(ctx, slug)
 	case "award":

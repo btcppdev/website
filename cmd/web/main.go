@@ -129,6 +129,7 @@ func main() {
 
 	handlers.StartRecordingAutopublisher(&app)
 	handlers.StartShopMaintenance(&app)
+	handlers.StartPrizePoolMonitor(&app)
 	handlers.StartWeeklyNewsletterDrafting(&app)
 	handlers.StartConferenceEmailAutomation(&app)
 

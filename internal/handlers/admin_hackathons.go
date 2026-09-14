@@ -20,11 +20,14 @@ import (
 	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
 	"btcpp-web/internal/payoutdocs"
+	"btcpp-web/internal/prizepool"
 	"btcpp-web/internal/types"
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5"
 )
 
 type HackathonAdminPage struct {
+	CommunityPool               *prizepool.Pool
 	Competitions                []*types.HackathonCompetition
 	Conf                        *types.Conf
 	Confs                       []*types.Conf
@@ -3689,7 +3692,8 @@ func HackathonAdminNew(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 }
 
 func HackathonAdminCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireHackathonAdmin(w, r, ctx); id == nil {
+	actor := requireHackathonAdmin(w, r, ctx)
+	if actor == nil {
 		return
 	}
 	in, err := hackathonCompetitionInputFromRequest(w, r)
@@ -3705,10 +3709,26 @@ func HackathonAdminCreate(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Redirect(w, r, "/admin/hackathons/"+url.PathEscape(existing.ID)+"?setup=1&flash="+url.QueryEscape("That conference already has a hackathon"), http.StatusSeeOther)
 		return
 	}
+	if r.PostFormValue("CommunityEnabled") == "yes" {
+		conf, err := getters.GetConfByRef(ctx, in.ConferenceID)
+		if err != nil || conf == nil {
+			http.Error(w, "Unable to load conference", 503)
+			return
+		}
+		if _, _, err = communitySetupValues(r, conf); err != nil {
+			http.Redirect(w, r, "/admin/hackathons/new?conf="+url.QueryEscape(in.ConferenceID)+"&error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+			return
+		}
+	}
 	id, err := getters.CreateCompetition(ctx, in)
 	if err != nil {
 		ctx.Err.Printf("/admin/hackathons create: %s", err)
 		http.Redirect(w, r, "/admin/hackathons/new?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := saveCommunitySetup(r, ctx, in.ConferenceID, actor.Email); err != nil {
+		ctx.Err.Printf("community pool setup: %v", err)
+		http.Redirect(w, r, "/admin/hackathons/"+url.PathEscape(id)+"?setup=1&error="+url.QueryEscape("Hackathon created, but community pool was not enabled. Check the address name and retry."), http.StatusSeeOther)
 		return
 	}
 	dest := "/admin/hackathons/" + url.PathEscape(id) + "?setup=2"
@@ -3793,6 +3813,14 @@ func HackathonAdminEdit(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		FlashError:   r.URL.Query().Get("error"),
 		Year:         helpers.CurrentYear(),
 	}
+	page.CommunityPool, err = prizepool.Load(r.Context(), ctx.DB, competition.ConferenceID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, "Unable to load community funding", 503)
+		return
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		page.CommunityPool = nil
+	}
 	if page.Conf != nil && helpers.FindConfByRef(page.Confs, page.Conf.Ref) == nil {
 		page.Confs = append(page.Confs, page.Conf)
 	}
@@ -3849,9 +3877,31 @@ func HackathonAdminUpdate(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("That conference already has a hackathon"), http.StatusSeeOther)
 		return
 	}
+	if in.ConferenceID != existingCompetition.ConferenceID {
+		pool, err := prizepool.Load(r.Context(), ctx.DB, existingCompetition.ConferenceID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "Unable to check community pool", 503)
+			return
+		}
+		if pool != nil {
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape("A hackathon with a community pool cannot move to another conference."), http.StatusSeeOther)
+			return
+		}
+	}
+	if r.PostFormValue("CommunityEnabled") == "yes" {
+		if _, _, err = communitySetupValues(r, targetConf); err != nil {
+			http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+			return
+		}
+	}
 	if err := getters.UpdateCompetition(ctx, competitionID, in); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s update: %s", competitionID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if err := saveCommunitySetup(r, ctx, in.ConferenceID, id.Email); err != nil {
+		ctx.Err.Printf("community pool setup: %v", err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Hackathon saved, but community pool was not enabled. Check the address name and retry."), http.StatusSeeOther)
 		return
 	}
 	dest = "/" + url.PathEscape(targetConf.Tag) + "/admin/hackathon"
@@ -4999,4 +5049,23 @@ func parseAdminLocalTimeInLocation(value string, loc *time.Location) (*time.Time
 		}
 	}
 	return nil, fmt.Errorf("invalid date/time")
+}
+
+func (p *HackathonAdminPage) CommunityPoolURL(c *types.HackathonCompetition) string {
+	return p.adminBaseURL(c) + "/community-pool"
+}
+func (p *HackathonAdminPage) CommunitySlug() string {
+	if p.CommunityPool != nil {
+		return p.CommunityPool.Slug
+	}
+	if p.Conf != nil {
+		return p.Conf.Tag
+	}
+	return ""
+}
+func (p *HackathonAdminPage) CommunityDescription() string {
+	if p.CommunityPool != nil {
+		return p.CommunityPool.Description
+	}
+	return ""
 }

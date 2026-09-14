@@ -1,0 +1,23 @@
+{{ define "community_pool_tracker" }}
+<link rel="stylesheet" href="/static/css/community-pool.css"><script src="/static/js/community-pool.js" defer></script>
+<section id="community-prize" class="community-pool" data-community-pool="{{ .ID }}" data-stream-url="/{{ .RouteTag }}/prize-pool/events" data-status-url="/{{ .RouteTag }}/prize-pool/status" data-milestone="{{ .Milestone }}">
+<div class="community-pool__art"><img src="/static/img/rebrand/hackathon-trophy.jpg" alt="Orange hackathon trophy" loading="lazy"><span>Built together.<br>Backed by you.</span></div>
+<div class="community-pool__body"><div class="community-pool__eyebrow">★ A prize powered by us <span data-pool-count>{{ .Count }} contributions</span></div>
+<h3 class="community-pool__headline">Back the builders.<br><em>Grow the prize.</em></h3>
+<p class="community-pool__pitch">Great Bitcoin projects start with people willing to build. Put some sats behind them—your contribution grows this hackathon’s community prize.</p>
+<div class="community-pool__total"><span data-pool-sats>{{ .Sats }}</span> <small>sats</small></div>
+<div class="community-pool__goal"><span><span data-pool-goal-label>{{ if .GoalReached }}Goal reached{{ else }}Goal{{ end }}</span> <b data-pool-goal>{{ .GoalLabel }} sats</b></span></div>
+<progress max="100" value="{{ .Progress }}" aria-label="Community prize funding progress"></progress>
+
+<p class="community-pool__status" data-pool-status>{{ if .Stale }}Updates delayed · showing confirmed funding{{ else if eq .Status "open" }}Lightning only · confirmed contributions{{ else }}Funding closed · previously issued payments still tracked{{ end }}</p>
+<div class="community-pool__actions">{{ if eq .Status "open" }}<button type="button" class="community-pool__donate" data-contribute aria-haspopup="dialog" aria-controls="contribute-{{ .ID }}">Add sats to the prize <span aria-hidden="true">↗</span></button>{{ end }}<a href="{{ .SharePath }}" class="community-pool__share">Spread the word ↗</a></div>
+{{ if eq .Status "open" }}
+<dialog id="contribute-{{ .ID }}" class="community-dialog" aria-labelledby="contribute-title-{{ .ID }}" aria-describedby="contribute-help-{{ .ID }}">
+<button type="button" class="community-dialog__close" data-close-dialog aria-label="Close contribution dialog" autofocus>×</button>
+<div class="community-dialog__intro"><span class="community-dialog__eyebrow">Community funded. Builder rewarded.</span><h2 id="contribute-title-{{ .ID }}">A few sats.<br><em>A bigger prize.</em></h2><p id="contribute-help-{{ .ID }}">Send any amount from your Lightning wallet. Every contribution adds to the prize for this event’s hackers.</p></div>
+<div class="community-dialog__ways"><div class="community-dialog__copy"><span class="community-dialog__label">Lightning address</span><button type="button" class="community-dialog__address" data-copy-address data-copy-value="{{ .Address }}" aria-label="Copy Lightning address {{ .Address }}"><span>{{ .Address }}</span><b data-copy-label>Copy ↗</b></button><p>Tap to copy, then paste into your wallet.</p><div class="community-dialog__bip353"><span class="community-dialog__label">BIP353 · Bitcoin address</span><button type="button" class="community-dialog__address" data-copy-bip353 data-copy-value="₿{{ .Address }}" aria-label="Copy BIP353 address ₿{{ .Address }}"><span>₿{{ .Address }}</span><b>Copy ↗</b></button><p>For wallets that support BIP353.</p></div><div class="community-dialog__offer"><span class="community-dialog__label">Using a BOLT12 wallet?</span><button type="button" data-copy-offer data-copy-value="{{ .Offer }}">Copy BOLT12 offer <span aria-hidden="true">↗</span></button><code data-offer-preview>{{ .Offer }}</code></div><output aria-live="polite" role="status"></output></div><figure><img src="/{{ .RouteTag }}/prize-pool/qr" alt="BOLT12 offer QR code" width="200" height="200"><figcaption>Or scan with a BOLT12 wallet</figcaption></figure></div>
+<div class="community-dialog__footer">Lightning only · You choose the amount</div>
+</dialog>
+{{ end }}
+</div></section>
+{{ end }}

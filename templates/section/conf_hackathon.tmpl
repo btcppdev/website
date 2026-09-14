@@ -6,6 +6,7 @@
 {{ $proofLabel := .Conf.HackathonProofLabel }}{{ if not $proofLabel }}{{ $proofLabel = "Last edition · 37 projects · 90 hackers" }}{{ end }}
 {{ $prizePool := .HackathonPrizePoolValue }}
 <section id="hackathon" class="conf-hackathon-redesign">
+  {{ if .CommunityPool }}{{ template "community_pool_tracker" .CommunityPool }}{{ else }}
   <div class="conf-hackathon-redesign__prize-hero" aria-label="Hackathon prize pool">
     <div class="conf-hackathon-redesign__trophy">
       <img src="/static/img/rebrand/hackathon-trophy.jpg" alt="An orange championship trophy" loading="lazy">
@@ -22,6 +23,7 @@
       <a href="{{ .HackathonURL }}#awards">See what you can win →</a>
     </div>
   </div>
+  {{ end }}
   <div class="conf-hackathon-redesign__inner">
     <div class="conf-hackathon-redesign__copy">
       <p class="rebrand-section-label">{{ $sectionLabel }}</p>

@@ -283,10 +283,16 @@
     .award-prize-details b { max-width: 100%; overflow: hidden; color: #59534c; font-size: 10px; font-weight: 800; letter-spacing: .04em; line-height: 1.15; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
     .kind-award .card-footer .brand-lockup, .kind-award .card-footer .site { padding: 7px 10px 6px; background: #0a0a0a; color: #fff; }
     .kind-award > .card-sparkles { display: none; }
+    .kind-community .eyebrow { font-size: 62px; max-width: 550px; overflow-wrap: anywhere; }
+    .kind-community .hackathon-value { display: block; padding-top: 48px; }
+    .kind-community .hackathon-value::before { content: "CONFIRMED COMMUNITY FUNDING"; }
+    .kind-community .hackathon-value::after { display: none; }
+    .kind-community .hackathon-value strong { display: block; font-size: 52px; line-height: 1; letter-spacing: -.04em; white-space: nowrap; }
+    .kind-community .hackathon-value > span { display: none; }
   </style>
 </head>
 <body>
-  <main class="card kind-{{ .Kind }}{{ if .CardPoweredBy }} has-title-sponsor{{ end }}" style="{{ .CardStyle }}" data-card-ready="false">
+  <main class="card kind-{{ .Kind }}{{ if eq .Kind "community" }} kind-hackathon{{ end }}{{ if .CardPoweredBy }} has-title-sponsor{{ end }}" style="{{ .CardStyle }}" data-card-ready="false">
     {{ if and (eq .Kind "home") .CardMapImage }}<div class="home-map-backdrop" aria-hidden="true"><img src="{{ .CardMapImage }}" alt=""><div class="home-card-map__points">{{ range .CardMapPoints }}<span class="home-card-map__point{{ if .Upcoming }} is-upcoming{{ end }}" style="{{ .Style }}"></span>{{ end }}</div></div>{{ end }}
     {{ if .CardSponsors }}
     <div class="social-card-sponsor-ticker" aria-hidden="true">{{ if .SponsorLabel }}<span class="social-card-sponsor-ticker__label">{{ .SponsorLabel }}</span>{{ end }}<div class="social-card-sponsor-ticker__track"><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div><div class="social-card-sponsor-ticker__set">{{ range .CardSponsors }}<span class="social-card-sponsor-ticker__item"><img src="{{ .URL }}" alt="{{ .Label }}"></span>{{ end }}</div></div></div>
@@ -297,7 +303,7 @@
     {{ else }}<section class="visual"><div class="fallback">++</div></section>{{ end }}
     <section class="copy">
       <div class="eyebrow">{{ if eq .Kind "person" }}{{ if .XHandle }}<span class="person-social-handle">X @{{ .XHandle }}</span>{{ end }}{{ if .GitHubHandle }}<span class="person-social-handle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .7a11.3 11.3 0 0 0-3.6 22c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2V22c0 .3.2.7.8.6A11.3 11.3 0 0 0 12 .7Z"/></svg>@{{ .GitHubHandle }}</span>{{ end }}{{ else }}{{ .Eyebrow }}{{ end }}</div>
-      {{ if eq .Kind "hackathon" }}
+      {{ if or (eq .Kind "hackathon") (eq .Kind "community") }}
       <h1>{{ .Title }}</h1>
       {{ if .Subtitle }}<p class="subtitle">{{ .Subtitle }}</p>{{ end }}
       {{ if .Value }}<div class="hackathon-value"><strong>{{ .Value }}{{ if .ValueSuffix }} <small>{{ .ValueSuffix }}</small>{{ end }}</strong>{{ if .ValueLabel }}<span>{{ .ValueLabel }}</span>{{ end }}</div>{{ end }}

@@ -1706,6 +1706,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	registerConferenceHackathonAdminRoutes(r, app)
 	registerPOSRoutes(r, app)
+	registerPrizePoolRoutes(r, app)
 	r.HandleFunc("/admin/easyship", func(w http.ResponseWriter, r *http.Request) {
 		AdminEasyship(w, r, app)
 	}).Methods("GET")
@@ -4797,6 +4798,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 	}
 	tmplTag := "conf/generic.tmpl"
 	confPage := &ConfPage{
+		CommunityPool:           publicCommunityPool(r.Context(), ctx, conf),
 		Conf:                    conf,
 		Hotels:                  confHotels,
 		Tix:                     currTix,

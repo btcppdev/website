@@ -20,6 +20,7 @@
       Awards
       <span class="admin-hackathon-tab__count">{{ .AwardCount }}</span>
     </a>
+    <a href="{{ .CommunityPoolURL .Competition }}" class="admin-hackathon-tab{{ if eq .ActiveTab "community" }} is-active{{ end }}">Community pool</a>
     <a href="{{ .PayoutsURL .Competition }}"
        class="admin-hackathon-tab{{ if eq .ActiveTab "payouts" }} is-active{{ end }}">Payouts</a>
     <a href="{{ .ManagersURL .Competition }}"

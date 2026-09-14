@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"btcpp-web/internal/prizepool"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -35,6 +36,8 @@ import (
 var bitcoinPrizeAmountPattern = regexp.MustCompile(`[-+]?\d[\d,]*(?:\.\d+)?`)
 
 type HackathonPage struct {
+	CommunityPool               *prizepool.Pool
+	CommunityShare              bool
 	Competition                 *types.HackathonCompetition
 	Competitions                []*types.HackathonCompetition
 	Conf                        *types.Conf
@@ -1071,6 +1074,9 @@ func (p *HackathonPage) AwardBySlug(slug string) *types.Award {
 }
 
 func (p *HackathonPage) SEOPath() string {
+	if p != nil && p.CommunityShare && p.CommunityPool != nil {
+		return "/" + url.PathEscape(p.Conf.Tag) + "/hackathon?prize=community"
+	}
 	if p != nil && p.FocusedAward != nil {
 		return p.AwardURL(p.FocusedAward)
 	}
@@ -1336,6 +1342,14 @@ func (p *HackathonPage) AdditionalOverviewAwards() []*types.Award {
 	return awards
 }
 
+func (p *HackathonPage) PublicAwardCount() int {
+	n := len(p.Awards)
+	if p.CommunityPool != nil {
+		n++
+	}
+	return n
+}
+
 func (p *HackathonPage) PrizePoolValue() string {
 	sats := p.PrizePoolSats()
 	return strings.TrimSuffix(compactSatoshiLabel(sats), " satoshis")
@@ -1350,9 +1364,18 @@ func (p *HackathonPage) PrizePoolSats() int64 {
 		prizesByAward = p.PrizesByAward
 	}
 	var total int64
+	linked := map[string]bool{}
+	if p.CommunityPool != nil {
+		total = p.CommunityPool.TotalMSat / 1000
+		for _, id := range p.CommunityPool.LinkedPrizeIDs {
+			linked[id] = true
+		}
+	}
 	for _, prizes := range prizesByAward {
 		for _, prize := range prizes {
-			total += prizeValueSats(prize)
+			if prize != nil && !linked[prize.ID] {
+				total += prizeValueSats(prize)
+			}
 		}
 	}
 	return total
@@ -1972,6 +1995,8 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		}
 	}
 	page := &HackathonPage{
+		CommunityPool:           publicCommunityPool(r.Context(), ctx, conf),
+		CommunityShare:          r.URL.Query().Get("prize") == "community",
 		Competition:             competition,
 		Conf:                    conf,
 		OrgsByID:                orgMap,
@@ -2004,6 +2029,8 @@ func HackathonShow(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		}
 		card := awardSocialCard(ctx, page, page.FocusedAward)
 		page.SocialCardURL = siteSocialCardPath("award", conf.Tag+"--"+awardSlug, card)
+	} else if page.CommunityShare && page.CommunityPool != nil {
+		page.SocialCardURL = siteSocialCardPath("community", conf.Tag, communitySocialCard(ctx, page.Conf, page.CommunityPool))
 	} else {
 		page.SocialCardURL = siteSocialCardPath("hackathon", conf.Tag, hackathonSocialCard(ctx, page))
 	}

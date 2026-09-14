@@ -6,6 +6,7 @@
   {{ $seoTitle := printf "%s · bitcoin++ hackathon" .Competition.Title }}
   {{ $seoDescription := "Build something real. Find collaborators, choose a challenge, and ship your project at bitcoin++." }}
   {{ with .FocusedAward }}{{ $seoTitle = printf "%s · %s" .Title $.Competition.Title }}{{ if .Description }}{{ $seoDescription = .Description }}{{ end }}{{ end }}
+  {{ if and .CommunityShare .CommunityPool }}{{ $seoTitle = printf "Community prize · %s sats · %s" .CommunityPool.Sats .Competition.Title }}{{ $seoDescription = printf "Fund the community hackathon prize. Help reach %s sats with %s." .CommunityPool.GoalLabel .CommunityPool.Address }}{{ end }}
   {{ template "site_seo" (dict "Title" $seoTitle "Description" $seoDescription "Path" .SEOPath "Image" $socialCard "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
 </head>
 <body class="hack-redesign">
@@ -53,13 +54,14 @@
           </div>
           <dl class="hack-control__facts">
             <div><dt>Team limit</dt><dd>{{ with .Competition.MaxTeamSize }}{{ . }} builders{{ else }}Open{{ end }}</dd></div>
-            <div><dt>Awards</dt><dd>{{ len .Awards }}</dd></div>
+            <div><dt>Awards</dt><dd>{{ .PublicAwardCount }}</dd></div>
             <div><dt>Projects</dt><dd>{{ len $galleryProjects }}</dd></div>
           </dl>
         </aside>
       </div>
     </section>
 
+    {{ with .CommunityPool }}{{ template "community_pool_tracker" . }}{{ end }}
     {{ if .FlashMessage }}
     <div class="mx-6 mt-6 border border-green-700 bg-green-50 px-4 py-3 text-sm text-green-900">{{ .FlashMessage }}</div>
     {{ end }}
@@ -380,6 +382,7 @@
           <div class="hack-section__cta">{{ template "hackathon_primary_action" . }}</div>
         </div>
       </div>
+      {{ with .CommunityPool }}<article class="hack-bounty-card community-award"><div class="hack-bounty-card__sponsor">[ Community funded ]</div><h3>Community prize</h3><div class="hack-bounty-card__prize-head"><span>Confirmed prize funding</span><strong>{{ .Sats }} sats</strong></div><p>Funded by Bitcoin builders and supporters. The award grows with every contribution.</p><a href="#community-prize" class="hack-button hack-button--light">Contribute to the prize →</a></article>{{ end }}
       {{ if .Awards }}
       {{ $podiumAwards := .PodiumAwards }}
       {{ if $podiumAwards }}

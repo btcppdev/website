@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"btcpp-web/internal/prizepool"
 	"strings"
 	"time"
 
@@ -42,6 +43,7 @@ func (d *Day) Venues() []string {
 }
 
 type ConfPage struct {
+	CommunityPool     *prizepool.Pool
 	Conf              *types.Conf
 	Hotels            []*types.Hotel
 	Tix               *types.ConfTicket

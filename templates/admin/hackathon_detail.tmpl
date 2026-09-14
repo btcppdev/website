@@ -244,6 +244,17 @@
             <p class="mt-2 text-xs text-gray-500">Controls how the public description is rendered.</p>
           </div>
         </div>
+        <fieldset class="rounded-md border border-gray-200 p-4 space-y-3">
+          <legend class="font-semibold">Community prize pool</legend>
+          {{ if .CommunityPool }}<p>Enabled: {{ .CommunityPool.Address }} · {{ .CommunityPool.Status }}</p><a class="text-indigo-600 underline" href="{{ .CommunityPoolURL .Competition }}">Manage funding and view payments →</a>
+          {{ else }}
+          <label class="flex items-center gap-2"><input type="checkbox" name="CommunityEnabled" value="yes"> Enable a Lightning-funded community prize</label>
+          <label class="block text-sm">Address name<input name="CommunitySlug" maxlength="64" pattern="[a-z0-9][a-z0-9._-]{0,63}" value="{{ .CommunitySlug }}" placeholder="Defaults to the conference tag" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"></label>
+          <p class="text-xs text-gray-600">The name before @ in the Lightning address. Leave blank to use the selected conference tag.</p>
+          <label class="block text-sm">LNURL invoice description<textarea name="CommunityDescription" maxlength="500" rows="2" placeholder="Defaults to bitcoin++ {conference tag} community prize pool" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2">{{ .CommunityDescription }}</textarea></label>
+          <p class="text-xs text-gray-600">Saved as a private draft. Register the address and open funding from the Community pool tab.</p>
+          {{ end }}
+        </fieldset>
         {{ end }}
       </div>
       <div class="flex items-center justify-end gap-3 border-t border-gray-200 px-4 py-4 sm:px-6">
