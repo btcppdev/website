@@ -1,5 +1,7 @@
 package api
 
+import "btcpp-web/internal/types"
+
 type responseMeta struct {
 	RequestID        string `json:"request_id"`
 	NextCursor       string `json:"next_cursor,omitempty"`
@@ -198,6 +200,7 @@ type personProjectDTO struct {
 }
 
 type personDTO struct {
+	PGPKeys []*types.PersonPGPKey `json:"pgp_keys"`
 	personSummaryDTO
 	Links    personLinksDTO     `json:"links"`
 	Stats    personStatsDTO     `json:"stats"`

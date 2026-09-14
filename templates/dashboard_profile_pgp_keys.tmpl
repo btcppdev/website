@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>PGP keys · bitcoin++</title>
+  {{ template "rebrand_header" . }}
+  <link rel="stylesheet" href="/static/css/profile-pgp-keys.css?v=1">
+</head>
+<body class="btcpp-redesign btcpp-rebrand-page">
+  {{ template "mainnav" . }}
+  <main class="pgp-settings">
+    <a class="pgp-back" href="/dashboard/profile">← profile settings</a>
+    <header class="pgp-heading"><p class="whois-section-tag">§ PUBLIC IDENTITY</p><h1>Your PGP keys.</h1><p>Prove a key is yours, then share it with the community.</p></header>
+    {{ if .FlashMessage }}<p class="pgp-notice" role="status">{{ .FlashMessage }}</p>{{ end }}
+    {{ if .FlashError }}<p class="pgp-notice is-error" role="alert">{{ .FlashError }}</p>{{ end }}
+    <section class="pgp-card">
+      <h2>Add a public key</h2>
+      <p>Add as many keys as you use. Each stays private until you sign a verification challenge. Your key's user IDs, including any email addresses, will become public with it.</p>
+      <details><summary>Export a public key with GnuPG</summary><pre><code>gpg --armor --export YOUR_FULL_FINGERPRINT</code></pre><p>Paste the output below. Never paste a private key.</p></details>
+      <form method="post" action="/dashboard/profile/keys">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <label for="public-key">ASCII-armored public key</label>
+        <textarea id="public-key" name="public_key" rows="6" maxlength="131072" spellcheck="false" autocapitalize="off" required placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----"></textarea>
+        <button class="pgp-button" name="action" value="add">Add key →</button>
+      </form>
+    </section>
+    <section aria-label="Your saved keys" class="pgp-saved">
+      {{ range .Keys }}
+      <article class="pgp-card" id="key-{{ .Fingerprint }}">
+        <div class="pgp-key-heading"><h2>PGP <code>{{ .KeyID }}</code></h2><span class="pgp-status{{ if .VerifiedAt }} is-verified{{ end }}">{{ if .VerifiedAt }}✓ Verified{{ else }}Private · unverified{{ end }}</span></div>
+        <p class="pgp-fingerprint"><span>Full fingerprint</span><code>{{ .Fingerprint }}</code></p>
+        {{ if .VerifiedAt }}
+        <p>Signing control verified on {{ .VerifiedAt.Format "Jan 2, 2006" }}. Available publicly while the uploaded certificate is valid.</p>
+        {{ else }}
+        {{ if .Challenge }}
+        <ol class="pgp-steps">
+          <li><a href="/dashboard/profile/keys?challenge={{ .Fingerprint }}">Download your challenge</a><p>Expires {{ .ChallengeExpiresAt.UTC.Format "Jan 2, 15:04 UTC" }}. Sign the downloaded file exactly as provided.</p></li>
+          <li>Sign it on your own computer:<pre><code>gpg --armor --local-user {{ .Fingerprint }} --detach-sign btcpp-pgp-challenge.txt</code></pre></li>
+          <li>Open <code>btcpp-pgp-challenge.txt.asc</code> and paste its contents below.</li>
+        </ol>
+        <form method="post" action="/dashboard/profile/keys">
+          <input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="fingerprint" value="{{ .Fingerprint }}">
+          <label for="signature-{{ .Fingerprint }}">Detached signature</label>
+          <textarea id="signature-{{ .Fingerprint }}" name="signature" rows="5" maxlength="32768" spellcheck="false" autocapitalize="off" required placeholder="-----BEGIN PGP SIGNATURE-----"></textarea>
+          <button class="pgp-button" name="action" value="verify">Verify & publish →</button>
+        </form>
+        {{ end }}
+        <form method="post" action="/dashboard/profile/keys" class="pgp-inline-form">
+          <input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="fingerprint" value="{{ .Fingerprint }}">
+          <button class="pgp-button is-secondary" name="action" value="challenge">{{ if .Challenge }}Generate a new challenge{{ else }}Generate signing challenge →{{ end }}</button>
+        </form>
+        {{ end }}
+        <form method="post" action="/dashboard/profile/keys" class="pgp-inline-form">
+          <input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="fingerprint" value="{{ .Fingerprint }}">
+          <button class="pgp-button is-remove" name="action" value="remove">Remove key</button>
+        </form>
+      </article>
+      {{ else }}<p class="pgp-empty">No keys yet. Add your first public key above.</p>{{ end }}
+    </section>
+    <p class="pgp-footnote">Verification proves signing control, not a legal identity. The 16-character key ID is a short label; use the full fingerprint to identify a key. Removing a key here does not revoke it on the OpenPGP network.</p>
+  </main>
+  {{ template "generic_conf_footer" . }}
+</body>
+</html>

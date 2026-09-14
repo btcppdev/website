@@ -145,6 +145,7 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "organization_badge_grants", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "badge grant creators"},
 	{Table: "person_badge_presentations", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "badge_ref"}, DuplicateKey: []string{"badge_ref"}, Label: "badge display preferences"},
 	{Table: "judge_ballot_submissions", PersonColumn: "judge_person_id", PrimaryKey: []string{"judge_event_id", "judge_person_id"}, DuplicateKey: []string{"judge_event_id"}, Label: "judge ballot submission history"},
+	{Table: "person_pgp_keys", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "fingerprint"}, DuplicateKey: []string{"fingerprint"}, Label: "public PGP keys"},
 	{Table: "oauth_clients", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "OAuth app creators"},
 	{Table: "oauth_consents", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "client_id"}, DuplicateKey: []string{"client_id"}, Label: "connected app permissions"},
 	{Table: "oauth_authorization_codes", PersonColumn: "person_id", PrimaryKey: []string{"code_hash"}, Label: "OAuth authorization codes"},

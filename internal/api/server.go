@@ -33,6 +33,7 @@ import (
 const publicCacheControl = "public, max-age=60, stale-while-revalidate=300"
 
 type server struct {
+	listVerifiedPGPKeys         func(string) ([]*types.PersonPGPKey, error)
 	app                         *config.AppContext
 	source                      dataSource
 	now                         func() time.Time
@@ -79,6 +80,9 @@ type principalContextKey struct{}
 func Register(root *mux.Router, app *config.AppContext) {
 	s := &server{
 		app: app, source: postgresSource{app: app}, now: time.Now,
+		listVerifiedPGPKeys: func(personID string) ([]*types.PersonPGPKey, error) {
+			return getters.ListPersonPGPKeys(app, personID, true)
+		},
 		authenticateToken: func(raw string) (*auth.BearerGrant, error) {
 			return auth.AuthenticateBearerToken(app, raw)
 		},
@@ -1591,7 +1595,20 @@ func (s *server) person(w http.ResponseWriter, r *http.Request) {
 				}
 				item.NostrPubkey = optionalString(verified[personID])
 			}
-			s.writePublic(w, r, http.StatusOK, item)
+			item.PGPKeys = make([]*types.PersonPGPKey, 0)
+			if s.listVerifiedPGPKeys != nil {
+				keys, err := s.listVerifiedPGPKeys(personID)
+				if err != nil {
+					s.internalError(w, r, "load verified PGP keys", err)
+					return
+				}
+				for _, key := range keys {
+					if key != nil && key.VerifiedAt != nil {
+						item.PGPKeys = append(item.PGPKeys, key)
+					}
+				}
+			}
+			s.writePrivate(w, r, http.StatusOK, item)
 			return
 		}
 	}

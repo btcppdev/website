@@ -1036,6 +1036,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/whois", func(w http.ResponseWriter, r *http.Request) {
 		RenderWhoIs(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/whois/{speaker}/key.{format:asc|gpg}", func(w http.ResponseWriter, r *http.Request) {
+		RenderWhoIsPGPKeys(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/whois/{speaker}/keys/{fingerprint:[0-9A-Fa-f]+}.{format:asc|gpg}", func(w http.ResponseWriter, r *http.Request) {
+		RenderWhoIsPGPKeys(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/whois/{speaker}/badges", func(w http.ResponseWriter, r *http.Request) {
 		RenderWhoIsBadges(w, r, app)
 	}).Methods("GET")
@@ -1926,6 +1932,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/profile", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditSpeaker(w, r, app)
+	}).Methods("GET", "POST")
+	r.HandleFunc("/dashboard/profile/keys", func(w http.ResponseWriter, r *http.Request) {
+		DashboardProfilePGPKeys(w, r, app)
 	}).Methods("GET", "POST")
 	r.HandleFunc("/dashboard/profile/badges", func(w http.ResponseWriter, r *http.Request) {
 		DashboardProfileBadges(w, r, app)
@@ -2864,6 +2873,11 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		handle404(w, r, ctx)
 		return
 	}
+	pgpKeys, err := getters.ListPersonPGPKeys(ctx, person.Speaker.ID, true)
+	if err != nil {
+		http.Error(w, "Unable to load profile keys", http.StatusInternalServerError)
+		return
+	}
 	badgeCollection := loadWhoIsBadgeCollection(r, ctx, person, "/whois/"+slug, true)
 	manageBadgesURL := ""
 	updateProfileURL := whoIsProfileEditURL(ctx, r, person)
@@ -2872,6 +2886,7 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois_profile.tmpl", &WhoIsProfilePage{
 		Person:           person,
+		PGPKeys:          pgpKeys,
 		BadgeCollection:  badgeCollection,
 		UpdateProfileURL: updateProfileURL,
 		ManageBadgesURL:  manageBadgesURL,

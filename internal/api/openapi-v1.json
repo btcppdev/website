@@ -450,6 +450,7 @@
             "company": "Example Labs",
             "biography": "Bitcoin protocol engineer and educator.",
             "nostr_pubkey": null,
+            "pgp_keys": [],
             "participation": [{"conference_tag": "dev26", "conference_name": "bitcoin++ Local Dev 2026", "role": "speaker"}, {"conference_tag": "dev26", "conference_name": "bitcoin++ Local Dev 2026", "role": "builder"}],
             "links": {"website": "https://example.com", "nostr": null, "x": "https://x.com/marachen", "github": "https://github.com/marachen", "instagram": null, "linkedin": null, "leetcode": null},
             "stats": {"editions": 2, "talks": 3, "projects": 1},
@@ -1081,10 +1082,21 @@
           "awards": {"type": "array", "items": {"$ref": "#/components/schemas/ProjectAward"}}
         }
       },
+      "PersonPGPKey": {
+        "type": "object", "additionalProperties": false,
+        "required": ["fingerprint", "key_id", "public_key", "verified_at"],
+        "properties": {
+          "fingerprint": {"type": "string", "pattern": "^([0-9A-F]{40}|[0-9A-F]{64})$", "description": "Full fingerprint; use this for key identification."},
+          "key_id": {"type": "string", "pattern": "^[0-9A-F]{16}$", "description": "64-bit OpenPGP key ID for display only."},
+          "public_key": {"type": "string", "description": "ASCII-armored public OpenPGP certificate, including its public user IDs."},
+          "verified_at": {"type": "string", "format": "date-time"}
+        }
+      },
       "Person": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "nostr_pubkey", "participation", "links", "stats", "editions", "talks", "projects"],
+        "required": ["id", "public_id", "profile_url", "name", "avatar_url", "company", "biography", "nostr_pubkey", "participation", "links", "stats", "editions", "talks", "projects", "pgp_keys"],
         "properties": {
+          "pgp_keys": {"type": "array", "description": "Only keys with verified signing control and a currently valid uploaded certificate. No private challenges are exposed.", "items": {"$ref": "#/components/schemas/PersonPGPKey"}},
           "id": {"type": "string", "format": "uuid"}, "public_id": {"type": "string"}, "profile_url": {"type": "string"},
           "name": {"type": "string"}, "avatar_url": {"type": "string"}, "company": {"type": ["string", "null"]}, "biography": {"type": ["string", "null"]},
           "nostr_pubkey": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},

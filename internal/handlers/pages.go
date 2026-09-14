@@ -189,6 +189,7 @@ type WhoIsPage struct {
 }
 
 type WhoIsProfilePage struct {
+	PGPKeys          []*types.PersonPGPKey
 	Person           *WhoIsPerson
 	Badges           *WhoIsBadgeProfile
 	BadgeGrants      []*WhoIsBadgeGrant

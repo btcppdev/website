@@ -16,7 +16,8 @@
     </div>
     <div>
       {{ if .PublicURL }}<a href="{{ .PublicURL }}">VIEW PUBLIC →</a>{{ end }}
-      {{ if and (eq .Mode "edit") (not .IsAdmin) }}<a href="/dashboard/profile/badges">MANAGE BADGES →</a>{{ end }}
+      {{ if and (eq .Mode "edit") (not .IsAdmin) }}<a href="/dashboard/profile/badges">MANAGE BADGES →</a>
+      <a href="/dashboard/profile/keys">PGP KEYS →</a>{{ end }}
       <button type="submit" form="SpeakerProfileForm">{{ if eq .Mode "edit" }}SAVE CHANGES{{ else if .IsAdmin }}CREATE PROFILE{{ else }}CREATE ACCOUNT{{ end }}</button>
     </div>
   </div>
