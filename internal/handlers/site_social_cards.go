@@ -976,13 +976,16 @@ func personSocialCard(ctx *config.AppContext, person *WhoIsPerson) imgproc.SiteS
 	}
 	seenImages := make(map[string]bool)
 	appendArtifact := func(image string) {
-		image = strings.TrimSpace(image)
-		if image == "" || seenImages[image] || len(card.Images) >= 3 {
+		image = siteSocialCardImageURL(ctx, image)
+		if image == "" || seenImages[image] || len(card.Images) >= 5 {
 			return
 		}
 		seenImages[image] = true
 		card.Images = append(card.Images, image)
 	}
+	// Reserve the first panel for the portrait and deduplicate it with the artwork.
+	appendArtifact(siteSocialCardStoredImage("speakers", person.Speaker.Photo))
+	hasPortrait := len(card.Images) > 0
 	var talkArtifacts []string
 	for _, talk := range person.Talks {
 		if talk == nil || talk.Talk == nil {
@@ -1048,18 +1051,12 @@ func personSocialCard(ctx *config.AppContext, person *WhoIsPerson) imgproc.SiteS
 	for _, artifact := range append(append(remainingTalkArtifacts, remainingEventArtifacts...), projectArtifacts...) {
 		appendArtifact(artifact)
 	}
-	if photo := strings.TrimSpace(person.Speaker.Photo); photo != "" {
-		photo = siteSocialCardStoredImage("speakers", photo)
-		if photo != "" {
-			card.Images = append([]string{photo}, card.Images...)
-		}
-	}
 	// A complete, evenly paced image rail is more legible than stretching two
-	// archival images into oversized crops. Repeat the available supporting
-	// work when necessary; keep the profile photo as the first panel.
+	// archival images into oversized crops. Only repeat after exhausting every
+	// unique candidate; keep the profile photo as the first panel.
 	if len(card.Images) > 0 && len(card.Images) < 5 {
 		repeat := card.Images
-		if len(card.Images) > 1 {
+		if hasPortrait && len(card.Images) > 1 {
 			repeat = card.Images[1:]
 		}
 		for index := 0; len(card.Images) < 5; index++ {

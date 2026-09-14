@@ -636,3 +636,38 @@ func TestRedirectToSiteSocialCardObject(t *testing.T) {
 		t.Fatalf("Location = %q", got)
 	}
 }
+
+func TestPersonSocialCardUsesUniquePhotosBeforeRepeating(t *testing.T) {
+	ctx := &config.AppContext{Env: &types.EnvConfig{Host: "localhost", Port: "8888"}}
+	for _, tc := range []struct {
+		name, portrait string
+		artwork        []string
+		unique         int
+	}{
+		{"portrait plus four images", "http://localhost:8888/portrait.jpg", []string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg"}, 5},
+		{"five images without portrait", "", []string{"a.jpg", "b.jpg", "c.jpg", "d.jpg", "e.jpg", "f.jpg"}, 5},
+		{"duplicates and rejected URLs do not consume slots", "http://localhost:8888/portrait.jpg", []string{"http://localhost:8888/portrait.jpg", "https://example.invalid/rejected.jpg", "a.jpg", "a.jpg", "b.jpg", "c.jpg", "d.jpg"}, 5},
+		{"repeat only when unique images run out", "http://localhost:8888/portrait.jpg", []string{"a.jpg", "a.jpg"}, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			person := &WhoIsPerson{Speaker: &types.Speaker{Name: "Builder", Photo: tc.portrait}}
+			for _, art := range tc.artwork {
+				person.Talks = append(person.Talks, &WhoIsTalk{Talk: &types.Talk{Name: "Talk", Clipart: art}})
+			}
+			card := personSocialCard(ctx, person)
+			if len(card.Images) != 5 {
+				t.Fatalf("image count = %d, want 5", len(card.Images))
+			}
+			seen := map[string]bool{}
+			for _, image := range card.Images {
+				seen[image] = true
+			}
+			if len(seen) != tc.unique {
+				t.Fatalf("got %d unique images, want %d: %v", len(seen), tc.unique, card.Images)
+			}
+			if tc.portrait != "" && card.Images[0] != tc.portrait {
+				t.Fatalf("portrait was not first: %v", card.Images)
+			}
+		})
+	}
+}
