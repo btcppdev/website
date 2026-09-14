@@ -3,21 +3,15 @@
 <head>
   <title>Judging - {{ .Competition.Title }} - bitcoin++ hackathon</title>
   {{ block "header" . }} {{ end }}
-  <link rel="stylesheet" href="/static/css/hackathon-judging.css?v=1">
+  <link rel="stylesheet" href="/static/css/hackathon-judging.css?v=2">
   <script src="/static/js/hackathon-live-results.js" defer></script>
 </head>
 <body class="hack-redesign">
   {{ template "hackathon_conf_nav" . }}
   <main class="hack-shell">
-    <section class="hack-section">
-      <div class="hack-section__head">
-        <div>
-          <div class="hack-label">§ Judging</div>
-          <h1 style="margin:0;font-size:clamp(48px,7vw,88px);font-weight:700;line-height:.92;">Rank the <span class="hack-serif">projects.</span></h1>
-        </div>
-        <div class="hack-section__deck">Submit scores for the current judging round. Admins open and advance rounds from the backend.</div>
-      </div>
-    </section>
+    <header class="hack-judging-heading">
+      <h1>{{ if .JudgingResultsSelected }}Judging results{{ else }}Judge projects{{ end }}</h1>
+    </header>
 
     {{ if .FlashMessage }}
     <div class="hack-alert hack-alert--success">{{ .FlashMessage }}</div>
@@ -69,42 +63,19 @@
     {{ $event := .CurrentJudgeEvent }}
     <section class="hack-section hack-judging-round">
       {{ if $event }}
-      <div class="hack-current-round{{ if .CanScoreJudgeEvent $event }} hack-current-round--open{{ end }}">
-        <div class="hack-current-round__label">{{ if .CanScoreJudgeEvent $event }}Open now{{ else }}Current judging round{{ end }}</div>
-        <div class="hack-current-round__body">
-          <div>
-            <div class="hack-label">{{ .JudgeTypeLabel $event.PlaybookType }}</div>
-            <h2>{{ $event.Name }}</h2>
-            <p class="hack-current-round__summary">{{ if .CanScoreJudgeEvent $event }}This is the active ballot. Rank the projects, then submit your choices when you are ready.{{ else }}This round is selected, but it is not currently accepting scores for your account.{{ end }}</p>
-          </div>
-          <div class="hack-current-round__meta">
-            <span>{{ .RankLimit $event }} ranks</span>
-            <span>{{ .JudgeEventStateLabel $event }}</span>
-            <span>{{ len .Projects }} project{{ if ne (len .Projects) 1 }}s{{ end }}</span>
-            {{ if $event.StartingProjectNumber }}<span>Starts at #{{ $event.StartingProjectNumber }}</span>{{ end }}
-          </div>
+      <div class="hack-round-summary">
+        <div class="hack-round-summary__title">
+          <h2>{{ $event.Name }}</h2>
+          <span class="hack-round-status">{{ if .CanScoreJudgeEvent $event }}Open now{{ else }}{{ .JudgeEventStateLabel $event }}{{ end }}</span>
         </div>
-        <div class="hack-current-round__times">
-          {{ if or $event.StartsAt $event.EndsAt }}
-          {{ if $event.StartsAt }}<div><span>Starts</span><time class="hackathon-judging-time" datetime="{{ $event.StartsAt.Format "2006-01-02T15:04:05Z07:00" }}">{{ $event.StartsAt.Format "2006-01-02 15:04" }}</time></div>{{ end }}
-          {{ if $event.EndsAt }}<div><span>Ends</span><time class="hackathon-judging-time" datetime="{{ $event.EndsAt.Format "2006-01-02T15:04:05Z07:00" }}">{{ $event.EndsAt.Format "2006-01-02 15:04" }}</time></div>{{ end }}
-          {{ else }}
-          <div><span>Schedule</span><strong>Time TBA</strong></div>
-          {{ end }}
-        </div>
+        <p>{{ len .Projects }} projects · {{ .RankLimit $event }} ranks{{ if $event.StartingProjectNumber }} · Starts at #{{ $event.StartingProjectNumber }}{{ end }}{{ if $event.EndsAt }} · Ends <time class="hackathon-judging-time" datetime="{{ $event.EndsAt.Format "2006-01-02T15:04:05Z07:00" }}">{{ $event.EndsAt.Format "2006-01-02 15:04" }}</time>{{ end }}</p>
       </div>
 
       {{ if .Projects }}
       <form id="event-{{ $event.ID }}" method="POST" action="{{ .JudgingURL }}/scorecards" class="hack-form hack-judging-ballot" data-judge-ballot data-ballot-submitted="{{ if .HasSubmittedBallot $event }}true{{ else }}false{{ end }}">
         {{ if .CanScoreJudgeEvent $event }}
         <input type="hidden" name="JudgeEventID" value="{{ $event.ID }}">
-        <div class="hack-form__body">
-          <div>
-            <div class="hack-label" style="margin-bottom:8px;">Ballot</div>
-            <h3 style="margin:0;font-size:32px;font-weight:700;">Current ranking</h3>
-          </div>
-          <p class="hack-judging-ballot__note">Choose each rank once. Your choices are not recorded until you submit them.</p>
-        </div>
+        <p class="hack-ballot-instructions">Choose each rank once, then submit your choices.</p>
         <div class="hack-table-wrap">
           <table class="hack-table">
             <thead>
