@@ -24,26 +24,40 @@ import (
 const managedSignerPendingAuthorizationKey = "managed_signer_pending_authorization"
 
 type ManagedSignerAuthorizationPage struct {
-	PersonName      string
-	Tenant          string
-	TenantID        string
-	TenantName      string
-	Role            string
-	Action          string
-	ActionLabel     string
-	ApplicationURL  string
-	EventHash       string
-	Target          string
-	EventKind       int
-	RecipientCount  int
-	VerifiedGrants  int
-	BadgeAddress    string
-	BatchRecipients []ManagedSignerBatchRecipient
-	CSRF            string
-	ReturnTo        string
-	Token           string
-	Error           string
-	Year            uint
+	PersonName        string
+	Tenant            string
+	TenantID          string
+	TenantName        string
+	Role              string
+	Action            string
+	ActionLabel       string
+	ApplicationURL    string
+	ApplicationName   string
+	ClientPubkey      string
+	Permissions       []string
+	RequestMethod     string
+	HTTPURL           string
+	HTTPMethod        string
+	BadgeIdentifier   string
+	BadgeName         string
+	BadgeImage        string
+	BadgeDescription  string
+	AwardRecipient    string
+	RevocationEventID string
+	RevocationReason  string
+	ProfileBadgeCount int
+	EventHash         string
+	Target            string
+	EventKind         int
+	RecipientCount    int
+	VerifiedGrants    int
+	BadgeAddress      string
+	BatchRecipients   []ManagedSignerBatchRecipient
+	CSRF              string
+	ReturnTo          string
+	Token             string
+	Error             string
+	Year              uint
 }
 
 type ManagedSignerBatchRecipient struct {
@@ -53,15 +67,30 @@ type ManagedSignerBatchRecipient struct {
 	SubjectProfileURL string `json:"subject_profile_url"`
 }
 
-type managedSignerBatchReview struct {
-	ID             string                        `json:"id"`
-	Tenant         string                        `json:"tenant"`
-	TenantID       string                        `json:"tenant_id"`
-	EventHash      string                        `json:"event_hash"`
-	EventKind      int                           `json:"event_kind"`
-	RecipientCount int                           `json:"recipient_count"`
-	BadgeAddress   string                        `json:"badge_address"`
-	Recipients     []ManagedSignerBatchRecipient `json:"recipients"`
+type managedSignerRequestReview struct {
+	ID                string                        `json:"id"`
+	Tenant            string                        `json:"tenant"`
+	TenantID          string                        `json:"tenant_id"`
+	ClientPubkey      string                        `json:"client_pubkey"`
+	Method            string                        `json:"method"`
+	EventHash         string                        `json:"event_hash"`
+	EventKind         int                           `json:"event_kind"`
+	RecipientCount    int                           `json:"recipient_count"`
+	Permissions       []string                      `json:"permissions"`
+	ApplicationName   string                        `json:"application_name"`
+	ApplicationURL    string                        `json:"application_url"`
+	HTTPURL           string                        `json:"http_url"`
+	HTTPMethod        string                        `json:"http_method"`
+	BadgeIdentifier   string                        `json:"badge_identifier"`
+	BadgeName         string                        `json:"badge_name"`
+	BadgeImage        string                        `json:"badge_image"`
+	BadgeDescription  string                        `json:"badge_description"`
+	BadgeAddress      string                        `json:"badge_address"`
+	AwardRecipient    string                        `json:"award_recipient"`
+	RevocationEventID string                        `json:"revocation_event_id"`
+	RevocationReason  string                        `json:"revocation_reason"`
+	ProfileBadgeCount int                           `json:"profile_badge_count"`
+	Recipients        []ManagedSignerBatchRecipient `json:"recipients"`
 }
 
 type managedSignerPendingAuthorization struct {
@@ -239,7 +268,8 @@ func takePendingSignerAuthorization(ctx *config.AppContext, r *http.Request, id 
 }
 
 func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, identity *auth.Identity, memberships []*types.OrganizationMembership) (*ManagedSignerAuthorizationPage, error) {
-	if ctx.Env.SignerURL == "" || r.FormValue("return_to") != ctx.Env.SignerURL+"/api/authorizations/callback" {
+	returnTo, err := managedSignerReturnURL(ctx.Env.SignerURL, r.FormValue("return_to"))
+	if err != nil {
 		return nil, errors.New("invalid managed signer return URL")
 	}
 	action := strings.TrimSpace(r.FormValue("action"))
@@ -249,7 +279,7 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 		return nil, errors.New("unsupported managed signer action")
 	}
 	tenant, tenantID := strings.TrimSpace(r.FormValue("tenant")), strings.TrimSpace(r.FormValue("tenant_id"))
-	page := &ManagedSignerAuthorizationPage{PersonName: identity.Speaker.Name, Tenant: tenant, TenantID: tenantID, Action: action, ActionLabel: strings.ReplaceAll(action, "_", " "), EventHash: strings.TrimSpace(r.FormValue("event_hash")), Target: strings.TrimSpace(r.FormValue("target")), ReturnTo: ctx.Env.SignerURL + "/api/authorizations/callback"}
+	page := &ManagedSignerAuthorizationPage{PersonName: identity.Speaker.Name, Tenant: tenant, TenantID: tenantID, Action: action, ActionLabel: strings.ReplaceAll(action, "_", " "), EventHash: strings.TrimSpace(r.FormValue("event_hash")), Target: strings.TrimSpace(r.FormValue("target")), ReturnTo: returnTo}
 	if action == "create_identity" {
 		page.ActionLabel = "create a new Nostr signer"
 	}
@@ -308,6 +338,23 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 	return nil, errors.New("organization owner or manager access is required")
 }
 
+func managedSignerReturnURL(signerURL, raw string) (string, error) {
+	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(signerURL), "/"))
+	if err != nil || base.Scheme == "" || base.Host == "" {
+		return "", errors.New("managed signer is not configured")
+	}
+	candidate, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || candidate.Scheme != base.Scheme || candidate.Host != base.Host || candidate.User != nil || candidate.Path != "/api/authorizations/callback" || candidate.Fragment != "" {
+		return "", errors.New("invalid managed signer callback")
+	}
+	query := candidate.Query()
+	state := query.Get("state")
+	if len(query) != 1 || len(query["state"]) != 1 || !isLowerHex(state, 64) {
+		return "", errors.New("managed signer callback has no browser state")
+	}
+	return candidate.String(), nil
+}
+
 func validateManagedSignerBinding(page *ManagedSignerAuthorizationPage) error {
 	if page.Action == "sign" && !isLowerHex(page.EventHash, 64) {
 		return errors.New("signing authorization requires an exact event hash")
@@ -331,26 +378,47 @@ func validateManagedSignerBinding(page *ManagedSignerAuthorizationPage) error {
 }
 
 func validateManagedBadgeBatch(r *http.Request, ctx *config.AppContext, page *ManagedSignerAuthorizationPage) error {
-	if page.Action != "sign" || page.EventKind != 8 {
+	if page.Target == "" || (page.Action != "sign" && page.Action != "connect" && page.Action != "connect_login") {
 		return nil
 	}
 	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, strings.TrimRight(ctx.Env.SignerURL, "/")+"/api/authorizations/requests/"+page.Target, nil)
 	if err != nil {
-		return errors.New("badge batch review is unavailable")
+		return errors.New("signer request review is unavailable")
 	}
 	client := &http.Client{Timeout: 4 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(request)
 	if err != nil {
-		return errors.New("the managed signer could not provide the badge batch for review")
+		return errors.New("the managed signer could not provide this request for review")
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
-		return errors.New("the managed signer no longer has this badge batch")
+		return errors.New("the managed signer no longer has this request")
 	}
-	var review managedSignerBatchReview
+	var review managedSignerRequestReview
 	decoder := json.NewDecoder(io.LimitReader(response.Body, 256<<10))
-	if decoder.Decode(&review) != nil || review.ID != page.Target || review.Tenant != page.Tenant || review.TenantID != page.TenantID || review.EventHash != page.EventHash || review.EventKind != page.EventKind || review.RecipientCount != page.RecipientCount || len(review.Recipients) != page.RecipientCount {
+	if decoder.Decode(&review) != nil || review.ID != page.Target || review.Tenant != page.Tenant || review.TenantID != page.TenantID || review.EventHash != page.EventHash || review.ClientPubkey == "" {
+		return errors.New("signer request review does not match the requested authorization")
+	}
+	if page.Action == "connect" || page.Action == "connect_login" {
+		if review.Method != "connect" || len(review.Permissions) == 0 {
+			return errors.New("application connection review is incomplete")
+		}
+		page.ApplicationName, page.ApplicationURL, page.ClientPubkey, page.Permissions, page.RequestMethod = review.ApplicationName, review.ApplicationURL, review.ClientPubkey, review.Permissions, review.Method
+		return nil
+	}
+	if (review.Method != "sign_event" && review.Method != "sign_event_batch") || review.EventKind != page.EventKind || review.RecipientCount != page.RecipientCount {
+		return errors.New("signed event review does not match the requested authorization")
+	}
+	page.ClientPubkey, page.RequestMethod = review.ClientPubkey, review.Method
+	page.HTTPURL, page.HTTPMethod = review.HTTPURL, review.HTTPMethod
+	page.BadgeIdentifier, page.BadgeName, page.BadgeImage, page.BadgeDescription = review.BadgeIdentifier, review.BadgeName, review.BadgeImage, review.BadgeDescription
+	page.BadgeAddress, page.AwardRecipient = review.BadgeAddress, review.AwardRecipient
+	page.RevocationEventID, page.RevocationReason, page.ProfileBadgeCount = review.RevocationEventID, review.RevocationReason, review.ProfileBadgeCount
+	if review.Method != "sign_event_batch" {
+		return nil
+	}
+	if review.EventKind != 8 || len(review.Recipients) != page.RecipientCount {
 		return errors.New("badge batch review does not match the requested authorization")
 	}
 	parts := strings.SplitN(review.BadgeAddress, ":", 3)
@@ -445,7 +513,7 @@ func requireSignerAuthentication(identity *auth.Identity, page *ManagedSignerAut
 }
 
 func signerActionRequiresStrongAuthentication(page *ManagedSignerAuthorizationPage) bool {
-	return page != nil && (page.Action == "create_identity" || page.Action == "import_identity" || page.Action == "export_identity" || page.Action == "protect_identity" || page.Action == "recover_identity" || page.Action == "create_unlock_enrollment" || page.Action == "accept_unlock_enrollment" || page.Action == "rotate_identity" || page.Action == "revoke_connection" || (page.Action == "sign" && (page.EventKind == 5 || page.RecipientCount > 20)))
+	return page != nil && (page.Action == "connect" || page.Action == "connect_login" || page.Action == "create_identity" || page.Action == "import_identity" || page.Action == "export_identity" || page.Action == "protect_identity" || page.Action == "recover_identity" || page.Action == "create_unlock_enrollment" || page.Action == "accept_unlock_enrollment" || page.Action == "rotate_identity" || page.Action == "revoke_connection" || (page.Action == "sign" && (page.EventKind == 27235 || page.EventKind == 5 || page.RecipientCount > 20)))
 }
 
 func signerAuthMethod(method auth.Method) string {

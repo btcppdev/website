@@ -25,7 +25,8 @@ func TestManagedSignerAuthenticationEscalation(t *testing.T) {
 		page     *ManagedSignerAuthorizationPage
 		wantErr  bool
 	}{
-		{"recent ordinary connect", &auth.Identity{Method: auth.MethodEmailLink, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "connect"}, false},
+		{"connection rejects email", &auth.Identity{Method: auth.MethodEmailLink, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "connect"}, true},
+		{"connection accepts passkey", &auth.Identity{Method: auth.MethodPasskey, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "connect"}, false},
 		{"stale connect", &auth.Identity{Method: auth.MethodEmailLink, AuthenticatedAt: now.Add(-16 * time.Minute)}, &ManagedSignerAuthorizationPage{Action: "connect"}, true},
 		{"import rejects password", &auth.Identity{Method: auth.MethodPassword, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "import_identity"}, true},
 		{"import accepts passkey", &auth.Identity{Method: auth.MethodPasskey, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "import_identity"}, false},
@@ -33,6 +34,7 @@ func TestManagedSignerAuthenticationEscalation(t *testing.T) {
 		{"nsec recovery accepts nostr", &auth.Identity{Method: auth.MethodNostr, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "recover_identity"}, false},
 		{"revocation rejects old passkey", &auth.Identity{Method: auth.MethodPasskey, AuthenticatedAt: now.Add(-6 * time.Minute)}, &ManagedSignerAuthorizationPage{Action: "sign", EventKind: 5}, true},
 		{"large award accepts nostr", &auth.Identity{Method: auth.MethodNostr, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "sign", EventKind: 8, RecipientCount: 21}, false},
+		{"HTTP auth rejects email", &auth.Identity{Method: auth.MethodEmailLink, AuthenticatedAt: now.Add(-time.Minute)}, &ManagedSignerAuthorizationPage{Action: "sign", EventKind: 27235}, true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -55,7 +57,7 @@ func TestManagedBadgeBatchReviewVerifiesGrantSnapshot(t *testing.T) {
 	profileURL := "https://btcpp.dev/whois/example"
 	signer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"` + target + `","tenant":"organization","tenant_id":"` + organizationID + `","event_hash":"` + eventHash + `","event_kind":8,"recipient_count":1,"badge_address":"30009:` + issuer + `:mentor","recipients":[{"pubkey":"` + recipient + `","person_id":"` + personID + `","grant_id":"` + grantID + `","subject_profile_url":"` + profileURL + `"}]}`))
+		_, _ = w.Write([]byte(`{"id":"` + target + `","tenant":"organization","tenant_id":"` + organizationID + `","client_pubkey":"` + strings.Repeat("5", 64) + `","method":"sign_event_batch","event_hash":"` + eventHash + `","event_kind":8,"recipient_count":1,"badge_address":"30009:` + issuer + `:mentor","recipients":[{"pubkey":"` + recipient + `","person_id":"` + personID + `","grant_id":"` + grantID + `","subject_profile_url":"` + profileURL + `"}]}`))
 	}))
 	defer signer.Close()
 	previous := loadManagedSignerBadgeGrant
@@ -98,7 +100,7 @@ func TestManagedSignerCreatePageNamesOrganizationAndAction(t *testing.T) {
 	organizationID := "00000000-0000-4000-8000-000000000501"
 	signerURL := "https://signer.example"
 	query := url.Values{
-		"return_to": {signerURL + "/api/authorizations/callback"},
+		"return_to": {signerURL + "/api/authorizations/callback?state=" + strings.Repeat("a", 64)},
 		"tenant":    {"organization"},
 		"tenant_id": {organizationID},
 		"action":    {"create_identity"},
@@ -118,6 +120,23 @@ func TestManagedSignerCreatePageNamesOrganizationAndAction(t *testing.T) {
 	}
 	if page.TenantName != "Signet Systems" || page.Role != getters.OrganizationRoleManager || page.ActionLabel != "create a new Nostr signer" {
 		t.Fatalf("managed signer setup context = %#v", page)
+	}
+}
+
+func TestManagedSignerReturnURLRequiresExactOriginPathAndState(t *testing.T) {
+	valid := "https://bunker.btcpp.dev/api/authorizations/callback?state=" + strings.Repeat("a", 64)
+	if result, err := managedSignerReturnURL("https://bunker.btcpp.dev", valid); err != nil || result != valid {
+		t.Fatalf("valid callback = %q, %v", result, err)
+	}
+	for _, candidate := range []string{
+		"https://bunker.btcpp.dev/api/authorizations/callback",
+		"https://bunker.btcpp.dev.evil.example/api/authorizations/callback?state=" + strings.Repeat("a", 64),
+		"https://bunker.btcpp.dev/api/authorizations/callback?state=" + strings.Repeat("a", 63),
+		"https://bunker.btcpp.dev/api/authorizations/callback?state=" + strings.Repeat("a", 64) + "&next=evil",
+	} {
+		if _, err := managedSignerReturnURL("https://bunker.btcpp.dev", candidate); err == nil {
+			t.Fatalf("unsafe callback was accepted: %s", candidate)
+		}
 	}
 }
 
@@ -211,7 +230,7 @@ func TestManagedBadgeBatchReviewBindsExactRecipients(t *testing.T) {
 			t.Fatalf("request path = %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"` + target + `","tenant":"organization","tenant_id":"org-1","event_hash":"` + eventHash + `","event_kind":8,"recipient_count":1,"badge_address":"30009:` + issuer + `:mentor","recipients":[{"pubkey":"` + recipient + `","subject_profile_url":"https://btcpp.dev/whois/example"}]}`))
+		_, _ = w.Write([]byte(`{"id":"` + target + `","tenant":"organization","tenant_id":"org-1","client_pubkey":"` + strings.Repeat("1", 64) + `","method":"sign_event_batch","event_hash":"` + eventHash + `","event_kind":8,"recipient_count":1,"badge_address":"30009:` + issuer + `:mentor","recipients":[{"pubkey":"` + recipient + `","subject_profile_url":"https://btcpp.dev/whois/example"}]}`))
 	}))
 	defer signer.Close()
 

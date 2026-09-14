@@ -22,7 +22,30 @@
   <p><strong>{{ .PersonName }}</strong> is authorizing the managed signer for <strong>{{ .TenantName }}</strong>.</p>
   {{ end }}
   {{ if .Error }}<p class="managed-signer-consent__error" role="alert">{{ .Error }}</p>{{ end }}
-  <dl><div><dt>{{ if eq .Tenant "organization" }}organization{{ else }}account{{ end }}</dt><dd><strong>{{ .TenantName }}</strong></dd></div><div><dt>your role</dt><dd>{{ .Role }}</dd></div><div><dt>requested action</dt><dd>{{ .ActionLabel }}</dd></div>{{ if .EventKind }}<div><dt>nostr event</dt><dd>kind {{ .EventKind }}{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }} · one event per recipient{{ end }}</dd></div>{{ end }}{{ if .RecipientCount }}<div><dt>recipients</dt><dd>{{ .RecipientCount }}{{ if .VerifiedGrants }} · {{ .VerifiedGrants }} bitcoin++ grant{{ if ne .VerifiedGrants 1 }}s{{ end }} verified{{ end }}</dd></div>{{ end }}{{ if .BadgeAddress }}<div><dt>badge definition</dt><dd><code>{{ .BadgeAddress }}</code></dd></div>{{ end }}{{ if .EventHash }}<div><dt>{{ if eq .Action "connect_login" }}exact connection request hash{{ else if and (eq .EventKind 8) (gt .RecipientCount 1) }}exact batch hash{{ else }}exact event hash{{ end }}</dt><dd><code>{{ .EventHash }}</code></dd></div>{{ end }}{{ if .Target }}<div><dt>pending request</dt><dd><code>{{ .Target }}</code></dd></div>{{ end }}</dl>
+  <dl>
+    <div><dt>{{ if eq .Tenant "organization" }}organization{{ else }}account{{ end }}</dt><dd><strong>{{ .TenantName }}</strong></dd></div>
+    <div><dt>your role</dt><dd>{{ .Role }}</dd></div>
+    <div><dt>requested action</dt><dd>{{ .ActionLabel }}</dd></div>
+    {{ if .ApplicationName }}<div><dt>requesting application</dt><dd>{{ .ApplicationName }}</dd></div>{{ end }}
+    {{ if .ApplicationURL }}<div><dt>application address</dt><dd><code>{{ .ApplicationURL }}</code></dd></div>{{ end }}
+    {{ if .ClientPubkey }}<div><dt>revocable client key</dt><dd><code>{{ .ClientPubkey }}</code></dd></div>{{ end }}
+    {{ if .Permissions }}<div><dt>requested permissions</dt><dd>{{ range $index, $permission := .Permissions }}{{ if $index }} · {{ end }}<code>{{ $permission }}</code>{{ end }}</dd></div>{{ end }}
+    {{ if .HTTPURL }}<div><dt>exact login destination</dt><dd><strong>{{ .HTTPMethod }}</strong> <code>{{ .HTTPURL }}</code></dd></div>{{ end }}
+    {{ if .BadgeName }}<div><dt>badge being published</dt><dd><strong>{{ .BadgeName }}</strong> · <code>{{ .BadgeIdentifier }}</code></dd></div>{{ end }}
+    {{ if .BadgeImage }}<div><dt>badge artwork URL</dt><dd><code>{{ .BadgeImage }}</code></dd></div>{{ end }}
+    {{ if .BadgeDescription }}<div><dt>badge description</dt><dd>{{ .BadgeDescription }}</dd></div>{{ end }}
+    {{ if .EventKind }}<div><dt>nostr event</dt><dd>kind {{ .EventKind }}{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }} · one event per recipient{{ end }}</dd></div>{{ end }}
+    {{ if .RecipientCount }}<div><dt>recipients</dt><dd>{{ .RecipientCount }}{{ if .VerifiedGrants }} · {{ .VerifiedGrants }} bitcoin++ grant{{ if ne .VerifiedGrants 1 }}s{{ end }} verified{{ end }}</dd></div>{{ end }}
+    {{ if .AwardRecipient }}<div><dt>exact recipient</dt><dd><code>{{ .AwardRecipient }}</code></dd></div>{{ end }}
+    {{ if .BadgeAddress }}<div><dt>badge definition</dt><dd><code>{{ .BadgeAddress }}</code></dd></div>{{ end }}
+    {{ if .RevocationEventID }}<div><dt>award being revoked</dt><dd><code>{{ .RevocationEventID }}</code>{{ if .RevocationReason }} · {{ .RevocationReason }}{{ end }}</dd></div>{{ end }}
+    {{ if .ProfileBadgeCount }}<div><dt>accepted badges</dt><dd>{{ .ProfileBadgeCount }}</dd></div>{{ end }}
+    {{ if .EventHash }}<div><dt>{{ if eq .Action "connect_login" }}exact connection request hash{{ else if and (eq .EventKind 8) (gt .RecipientCount 1) }}exact batch hash{{ else }}exact event hash{{ end }}</dt><dd><code>{{ .EventHash }}</code></dd></div>{{ end }}
+    {{ if .Target }}<div><dt>pending request</dt><dd><code>{{ .Target }}</code></dd></div>{{ end }}
+  </dl>
+  {{ if and .ApplicationName (ne .Action "connect_login") }}<p class="managed-signer-consent__note">Application names and addresses are supplied by the requesting client. Verify them before approving.</p>{{ end }}
+  {{ if eq .Action "rotate_identity" }}<p class="managed-signer-consent__error">Rotation creates a new Nostr key and encryption key. It revokes every application connection and removes every other manager unlock; reconnect and re-enroll them afterward.</p>{{ end }}
+  {{ if eq .Action "recover_identity" }}<p class="managed-signer-consent__error">Recovery keeps the same Nostr identity, but replaces every manager unlock and revokes every application connection.</p>{{ end }}
   {{ if .BatchRecipients }}<details><summary>review exact recipients</summary><ol>{{ range .BatchRecipients }}<li><code>{{ .Pubkey }}</code>{{ if .SubjectProfileURL }} · <a href="{{ .SubjectProfileURL }}" rel="noreferrer">profile</a>{{ end }}{{ if .GrantID }} · verified bitcoin++ grant{{ end }}</li>{{ end }}</ol></details>{{ end }}
   <p class="managed-signer-consent__note">The authorization expires in one minute, works once, and cannot approve a different action{{ if eq .Action "connect_login" }}, client, or login destination{{ else if and (eq .EventKind 8) (gt .RecipientCount 1) }}, recipient list, or batch{{ else }} or event{{ end }}.</p>
   <form method="post" action="/signer/authorize">
