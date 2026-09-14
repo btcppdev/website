@@ -40,6 +40,22 @@ type ServicePurchase struct {
 // quote. It does not contact a provider or grant access. Exact retries return the
 // original order even after quote expiry; changed quotes require a new key.
 func CreateServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote) (*ServicePurchase, error) {
+	return createServicePurchase(app, personID, key, quote, nil)
+}
+
+// CreateTaxedServicePurchase atomically stores the trusted pricing snapshot and
+// its provider tax evidence. Retrying a key cannot replace the tax calculation.
+func CreateTaxedServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote, tax TaxQuoteInput) (*ServicePurchase, error) {
+	if tax.Provider != "stripe" {
+		return nil, ErrServiceQuote
+	}
+	if !strings.HasPrefix(tax.ProviderQuoteID, "taxcalc_") || int64(tax.SalesTaxAmountCents) != quote.TaxCents || tax.ExpiresAt == nil || quote.ExpiresAt.After(*tax.ExpiresAt) || strings.TrimSpace(tax.DestinationCountry) == "" || !json.Valid([]byte(tax.RawResponse)) {
+		return nil, ErrServiceQuote
+	}
+	return createServicePurchase(app, personID, key, quote, &tax)
+}
+
+func createServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote, tax *TaxQuoteInput) (*ServicePurchase, error) {
 	if len(key) < 16 || len(key) > 128 || strings.TrimSpace(personID) == "" {
 		return nil, ErrServiceQuote
 	}
@@ -65,6 +81,16 @@ func CreateServicePurchase(app *config.AppContext, personID, key string, quote S
 	if err == nil {
 		if !same {
 			return nil, ErrServicePurchaseConflict
+		}
+		if tax != nil {
+			var sameTax bool
+			err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM tax_quotes WHERE order_id=$1 AND sales_tax_provider=$2 AND provider_quote_id=$3 AND sales_tax_amount_cents=$4 AND destination_country=$5 AND destination_region=$6 AND destination_postal_code=$7 AND raw_tax_response=$8::jsonb AND expires_at=$9)`, purchase.OrderID, tax.Provider, tax.ProviderQuoteID, int64(tax.SalesTaxAmountCents), tax.DestinationCountry, tax.DestinationRegion, tax.DestinationPostalCode, tax.RawResponse, tax.ExpiresAt).Scan(&sameTax)
+			if err != nil {
+				return nil, err
+			}
+			if !sameTax {
+				return nil, ErrServicePurchaseConflict
+			}
 		}
 		return &purchase, tx.Commit(ctx)
 	}
@@ -117,6 +143,12 @@ func CreateServicePurchase(app *config.AppContext, personID, key string, quote S
 	_, err = tx.Exec(ctx, `INSERT INTO service_purchase_requests(person_id,request_key,order_id,quote_snapshot) VALUES($1,$2,$3,$4)`, personID, key, purchase.OrderID, snapshot)
 	if err != nil {
 		return nil, err
+	}
+	if tax != nil {
+		_, err = tx.Exec(ctx, `INSERT INTO tax_quotes(order_id,sales_tax_provider,provider_quote_id,sales_tax_amount_cents,destination_country,destination_region,destination_postal_code,raw_tax_response,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`, purchase.OrderID, tax.Provider, tax.ProviderQuoteID, int64(tax.SalesTaxAmountCents), tax.DestinationCountry, tax.DestinationRegion, tax.DestinationPostalCode, tax.RawResponse, tax.ExpiresAt)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &purchase, tx.Commit(ctx)
 }

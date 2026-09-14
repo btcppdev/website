@@ -13,17 +13,19 @@ import (
 var ErrServicePayment = errors.New("service payment does not match its purchase")
 
 type ServicePaymentAttempt struct {
-	ID         string
-	Provider   string
-	Reference  string
-	TotalCents int64
+	BuyerEmail    string
+	OrderPublicID string
+	ID            string
+	Provider      string
+	Reference     string
+	TotalCents    int64
 	// False means lookup/reconciliation only; do not create a provider charge.
 	CanCreateCharge bool
 }
 
 // BeginServicePayment allocates a durable provider idempotency key before any
-// network call. Retry the same attempt after ambiguous provider failures; never
-// create another charge merely because an HTTP request timed out.
+// network call. Stripe may retry using this attempt's idempotency key. OpenNode
+// creation is claimed once; ambiguous failures require lookup/reconciliation.
 func BeginServicePayment(app *config.AppContext, personID, orderID string) (*ServicePaymentAttempt, error) {
 	ctx := app.DatabaseContext()
 	tx, err := app.DB.Begin(ctx)
@@ -46,6 +48,26 @@ func BeginServicePayment(app *config.AppContext, personID, orderID string) (*Ser
 		return nil, err
 	}
 	var attempt ServicePaymentAttempt
+	if status == "pending" && quote.ExpiresAt.After(time.Now()) {
+		// Freeze line edits while checking the order against its immutable quote.
+		// This runs under the same order lock as charge-attempt allocation.
+		if _, err = tx.Exec(ctx, `SELECT id FROM shop_order_items WHERE order_id=$1 FOR UPDATE`, orderID); err != nil {
+			return nil, err
+		}
+		var valid bool
+		err = tx.QueryRow(ctx, `SELECT o.currency='USD' AND o.payment_provider=$2
+			AND o.total_cents=$3 AND o.sales_tax_amount_cents=$4 AND o.subtotal_cents=$3-$4
+			AND o.shipping_amount_cents=0 AND o.discount_amount_cents=0 AND o.import_duty_amount_cents=0 AND o.import_tax_amount_cents=0
+			AND NOT EXISTS(SELECT 1 FROM shop_order_items i WHERE i.order_id=o.id AND (i.status<>'pending' OR i.fulfilled_quantity<>0 OR i.refunded_quantity<>0))
+			AND `+serviceItemsMatchQuoteSQL+`,o.buyer_email,o.public_id
+			FROM shop_orders o JOIN service_purchase_requests r ON r.order_id=o.id WHERE o.id=$1`, orderID, quote.Provider, quote.TotalCents, quote.TaxCents).Scan(&valid, &attempt.BuyerEmail, &attempt.OrderPublicID)
+		if err != nil {
+			return nil, err
+		}
+		if !valid {
+			return nil, ErrServicePayment
+		}
+	}
 	err = tx.QueryRow(ctx, `SELECT id::text,provider,coalesce(provider_reference,'') FROM service_payment_attempts WHERE purchase_id=$1`, purchaseID).Scan(&attempt.ID, &attempt.Provider, &attempt.Reference)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if status != "pending" || !quote.ExpiresAt.After(time.Now()) {
@@ -58,6 +80,13 @@ func BeginServicePayment(app *config.AppContext, personID, orderID string) (*Ser
 	}
 	attempt.TotalCents = quote.TotalCents
 	attempt.CanCreateCharge = status == "pending" && quote.ExpiresAt.After(time.Now()) && attempt.Reference == ""
+	if attempt.CanCreateCharge && attempt.Provider == "opennode" {
+		result, err := tx.Exec(ctx, `INSERT INTO service_charge_creation_claims(attempt_id) VALUES($1) ON CONFLICT DO NOTHING`, attempt.ID)
+		if err != nil {
+			return nil, err
+		}
+		attempt.CanCreateCharge = result.RowsAffected() == 1
+	}
 	return &attempt, tx.Commit(ctx)
 }
 
@@ -95,7 +124,11 @@ type VerifiedServicePayment struct {
 // order to paid. It grants no access. A canceled or edited order still retains
 // settlement evidence but requires reconciliation before product fulfillment.
 func RecordServicePayment(app *config.AppContext, payment VerifiedServicePayment) error {
-	if strings.TrimSpace(payment.EventID) == "" || len(payment.EventID) > 255 || payment.PaidAt.IsZero() || payment.Currency != "USD" {
+	return recordServicePayment(app, payment, false)
+}
+
+func recordServicePayment(app *config.AppContext, payment VerifiedServicePayment, observedPaid bool) error {
+	if strings.TrimSpace(payment.EventID) == "" || len(payment.EventID) > 255 || (!observedPaid && payment.PaidAt.IsZero()) || payment.Currency != "USD" || (observedPaid && payment.Provider != "opennode") {
 		return ErrServicePayment
 	}
 	ctx := app.DatabaseContext()
@@ -127,14 +160,29 @@ func RecordServicePayment(app *config.AppContext, payment VerifiedServicePayment
 	if provider != payment.Provider || reference == "" || reference != payment.Reference || quote.Provider != provider || quote.TotalCents != payment.TotalCents {
 		return ErrServicePayment
 	}
-	result, err := tx.Exec(ctx, `INSERT INTO service_payment_events(provider,event_id,attempt_id,total_cents,currency,paid_at)
-		VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(provider,event_id) DO NOTHING`, provider, payment.EventID, payment.AttemptID, payment.TotalCents, payment.Currency, payment.PaidAt)
+	if observedPaid {
+		// The charge-info API does not promise a payment timestamp. Persist our
+		// first verified observation, explicitly labeled as such. The order lock
+		// serializes concurrent observations; retries reuse the original instant.
+		err = tx.QueryRow(ctx, `SELECT paid_at FROM service_payment_events WHERE provider=$1 AND event_id=$2`, provider, payment.EventID).Scan(&payment.PaidAt)
+		if errors.Is(err, pgx.ErrNoRows) {
+			payment.PaidAt = time.Now().UTC().Truncate(time.Microsecond)
+		} else if err != nil {
+			return err
+		}
+	}
+	timeSource := "provider"
+	if observedPaid {
+		timeSource = "first_verified_observation"
+	}
+	result, err := tx.Exec(ctx, `INSERT INTO service_payment_events(provider,event_id,attempt_id,total_cents,currency,paid_at,time_source)
+		VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(provider,event_id) DO NOTHING`, provider, payment.EventID, payment.AttemptID, payment.TotalCents, payment.Currency, payment.PaidAt, timeSource)
 	if err != nil {
 		return err
 	}
 	if result.RowsAffected() == 0 {
 		var same bool
-		err = tx.QueryRow(ctx, `SELECT attempt_id=$3 AND total_cents=$4 AND currency=$5 AND paid_at=$6 FROM service_payment_events WHERE provider=$1 AND event_id=$2`, provider, payment.EventID, payment.AttemptID, payment.TotalCents, payment.Currency, payment.PaidAt).Scan(&same)
+		err = tx.QueryRow(ctx, `SELECT attempt_id=$3 AND total_cents=$4 AND currency=$5 AND paid_at=$6 AND time_source=$7 FROM service_payment_events WHERE provider=$1 AND event_id=$2`, provider, payment.EventID, payment.AttemptID, payment.TotalCents, payment.Currency, payment.PaidAt, timeSource).Scan(&same)
 		if err != nil {
 			return err
 		}

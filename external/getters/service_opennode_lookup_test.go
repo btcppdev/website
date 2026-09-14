@@ -1,0 +1,158 @@
+package getters
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+func TestOpenNodeOriginalAmount(t *testing.T) {
+	for _, amount := range []string{"12.34", "12.3400"} {
+		if !(OpenNodeServiceCharge{Currency: "USD", SourceFiatValue: json.Number(amount)}).matchesUSD(1234) {
+			t.Fatal(amount)
+		}
+	}
+	for _, amount := range []string{"", "12.339999999999999999", "12.340000000000000001", "12.35", "-12.34", "1234/100", "1.234e1", "NaN"} {
+		if (OpenNodeServiceCharge{Currency: "USD", SourceFiatValue: json.Number(amount)}).matchesUSD(1234) {
+			t.Fatal("accepted", amount)
+		}
+	}
+	if (OpenNodeServiceCharge{Currency: "EUR", SourceFiatValue: "12.34"}).matchesUSD(1234) {
+		t.Fatal("currency mismatch")
+	}
+}
+
+func TestOpenNodeServiceLookupPostgres(t *testing.T) {
+	app := databaseSmokeContext(t)
+	ctx := context.Background()
+	var person string
+	if err := app.DB.QueryRow(ctx, `INSERT INTO people(name) VALUES('Local charge lookup test') RETURNING id::text`).Scan(&person); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.DB.Exec(ctx, `INSERT INTO person_emails(person_id,email,is_primary,verified_at) VALUES($1,$2,true,now())`, person, "lookup-"+person+"@example.test"); err != nil {
+		t.Fatal(err)
+	}
+	starts := time.Now().UTC().Truncate(time.Microsecond)
+	ends := starts.AddDate(1, 0, 0)
+	quote := ServiceQuote{ProductCode: "alerts.repository-slots", ResourceID: "lookup-test", Name: "Service item", Provider: "opennode", Quantity: 1, UnitCents: 1234, TotalCents: 1234, PeriodStart: &starts, PeriodEnd: &ends, ExpiresAt: time.Now().Add(time.Hour)}
+	purchase, err := CreateServicePurchase(app, person, "lookup-purchase-test", quote)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := ServiceOrderForPerson(ctx, app, person, purchase.PublicID)
+	if err != nil || view.PaymentVerified || view.Status != "pending" {
+		t.Fatal("pending order view", err)
+	}
+	if _, err := ServiceOrderForPerson(ctx, app, uuid.NewString(), purchase.PublicID); err == nil {
+		t.Fatal("cross-account order disclosure")
+	}
+	attempt, err := BeginServicePayment(app, person, purchase.OrderID)
+	if err != nil || !attempt.CanCreateCharge {
+		t.Fatal("creation claim", err)
+	}
+	chargeID := uuid.NewString()
+	status, currency, amount, orderID, responseID := "paid", "USD", json.Number("12.34"), attempt.ID, chargeID
+	redirect := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || r.URL.Path != "/v2/charge/"+chargeID || r.Header.Get("Authorization") != "local-lookup-key" {
+			t.Error("incorrect lookup request")
+		}
+		if redirect {
+			w.Header().Set("Location", "/must-not-follow")
+			w.WriteHeader(302)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": responseID, "order_id": orderID, "status": status, "currency": currency, "source_fiat_value": amount, "fiat_value": 999}})
+	}))
+	defer server.Close()
+	app.Env.OpenNode.Endpoint, app.Env.OpenNode.Key = server.URL+"/v1", "local-lookup-key"
+	for _, bad := range []string{"amount", "currency", "order", "id", "redirect"} {
+		switch bad {
+		case "amount":
+			amount = "12.339999999999999999"
+		case "currency":
+			currency = "EUR"
+		case "order":
+			orderID = uuid.NewString()
+		case "id":
+			responseID = uuid.NewString()
+		case "redirect":
+			redirect = true
+		}
+		if _, err := lookupOpenNodeServiceCharge(ctx, app, chargeID, server.Client()); err == nil {
+			t.Fatal("accepted", bad)
+		}
+		var bound string
+		if err := app.DB.QueryRow(ctx, `SELECT coalesce(provider_reference,'') FROM service_payment_attempts WHERE id=$1`, attempt.ID).Scan(&bound); err != nil || bound != "" {
+			t.Fatal("invalid lookup bound reference", err)
+		}
+		amount, currency, orderID, responseID, redirect = "12.34", "USD", attempt.ID, chargeID, false
+	}
+	for _, current := range []string{"unpaid", "processing", "paid", "paid"} {
+		status = current
+		charge, err := lookupOpenNodeServiceCharge(ctx, app, chargeID, server.Client())
+		if err != nil || charge.Status != current || charge.AttemptID != attempt.ID {
+			t.Fatal("lookup", err)
+		}
+	}
+	var orderStatus string
+	if err := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, purchase.OrderID).Scan(&orderStatus); err != nil || orderStatus != "pending" {
+		t.Fatal("lookup granted settlement", err)
+	}
+	var bound string
+	if err := app.DB.QueryRow(ctx, `SELECT provider_reference FROM service_payment_attempts WHERE id=$1`, attempt.ID).Scan(&bound); err != nil || bound != chargeID {
+		t.Fatal("uncertain creation not reconciled", err)
+	}
+	for _, pending := range []string{"unpaid", "processing", "underpaid", "expired"} {
+		status = pending
+		if paid, err := reconcileOpenNodeServiceCharge(ctx, app, chargeID, server.Client()); err != nil || paid {
+			t.Fatal("non-final status settled", pending, err)
+		}
+	}
+	status = "paid"
+	var wg sync.WaitGroup
+	for i := 0; i < 6; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if paid, err := reconcileOpenNodeServiceCharge(ctx, app, chargeID, server.Client()); err != nil || !paid {
+				t.Error("settlement replay", err)
+			}
+		}()
+	}
+	wg.Wait()
+	var events, grants int
+	var source string
+	var paidAt time.Time
+	if err := app.DB.QueryRow(ctx, `SELECT count(*),min(time_source),min(paid_at) FROM service_payment_events WHERE attempt_id=$1`, attempt.ID).Scan(&events, &source, &paidAt); err != nil || events != 1 || source != "first_verified_observation" || paidAt.IsZero() {
+		t.Fatal("settlement evidence", events, source, err)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_entitlements e JOIN service_purchase_requests r ON r.id=e.purchase_id WHERE r.order_id=$1`, purchase.OrderID).Scan(&grants); err != nil || grants != 1 {
+		t.Fatal("duplicate or missing grant", grants, err)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, purchase.OrderID).Scan(&orderStatus); err != nil || orderStatus != "paid" {
+		t.Fatal("order not settled", err)
+	}
+	entitlements, err := ActiveServiceEntitlements(app, person, starts.Add(time.Minute))
+	if err != nil || len(entitlements) != 1 {
+		t.Fatal("missing paid allowance", err)
+	}
+	grant := entitlements[0]
+	if grant.ProductCode != "alerts.repository-slots" || grant.Quantity != 1 || grant.StartsAt == nil || grant.EndsAt == nil || !grant.StartsAt.Equal(starts) || !grant.EndsAt.Equal(ends) {
+		t.Fatal("purchased access changed", grant)
+	}
+	expired, err := ActiveServiceEntitlements(app, person, ends)
+	if err != nil || len(expired) != 0 {
+		t.Fatal("access extended beyond purchased term", err)
+	}
+	view, err = ServiceOrderForPerson(ctx, app, person, purchase.PublicID)
+	if err != nil || !view.PaymentVerified || view.Status != "paid" || view.AccessState != "active" || view.TotalCents != quote.TotalCents {
+		t.Fatal("paid order view", view, err)
+	}
+}

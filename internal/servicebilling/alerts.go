@@ -10,6 +10,9 @@ import (
 
 const AlertsFreeRepositories int64 = 5
 const AlertsMonthlySlotCents int64 = 100
+
+// Hosted SaaS for personal use; confirmed product classification for Alerts.
+const AlertsStripeTaxCode = "txcd_10103000"
 const maxOrderCents int64 = 2147483647
 
 var ErrAlertsPrice = errors.New("invalid Alerts pricing request")

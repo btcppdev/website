@@ -1182,6 +1182,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/callback/opennode", func(w http.ResponseWriter, r *http.Request) {
 		OpenNodeCallback(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/callback/services/opennode", func(w http.ResponseWriter, r *http.Request) {
+		ServiceOpenNodeCallback(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/services/orders/{order}", func(w http.ResponseWriter, r *http.Request) {
+		ServiceOrder(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/services/orders/{order}/pay", func(w http.ResponseWriter, r *http.Request) {
+		ServiceOrderPay(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/callbacks/easyship", func(w http.ResponseWriter, r *http.Request) {
 		EasyshipCallback(w, r, app)
 	}).Methods("POST")

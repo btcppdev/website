@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Your order · bitcoin++</title>{{ block "header" . }}{{ end }}
+<link rel="stylesheet" href="/static/css/login-layout.css?v=2">
+</head>
+<body class="btcpp-login-page">
+{{ block "mainnav" . }}{{ end }}
+<main class="auth-shell auth-shell--simple">
+<section class="auth-card">
+<header class="auth-card__head"><span class="auth-kicker">YOUR ORDER</span><h1>{{ .Heading }}</h1><p role="status">{{ .Message }}</p></header>
+<dl>
+<dt>Order number</dt><dd>{{ .Order.PublicID }}</dd>
+<dt>Purchased</dt><dd>{{ .Order.Quote.Name }}</dd>
+<dt>Quantity</dt><dd>{{ .Order.Quote.Quantity }}</dd>
+<dt>Order total (USD, including tax)</dt><dd>{{ .Total }}</dd>
+<dt>Included tax</dt><dd>{{ .Tax }}</dd>
+{{ with .Order.Quote.PeriodStart }}<dt>Access starts (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
+{{ with .Order.Quote.PeriodEnd }}<dt>Access ends (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
+</dl>
+{{ if .CanPay }}
+<form method="post" action="/services/orders/{{ .Order.PublicID }}/pay">
+<input type="hidden" name="csrf" value="{{ .CSRF }}">
+<button type="submit" class="auth-primary">Pay {{ .Total }} with Bitcoin →</button>
+<p>Continue to OpenNode to pay with Lightning or on-chain Bitcoin.</p>
+</form>
+{{ end }}
+<p><a href="/services/orders/{{ .Order.PublicID }}">Refresh payment status</a></p>
+{{ if .ReturnURL }}<p><a class="auth-primary" href="{{ .ReturnURL }}">Go to My alerts →</a></p>{{ end }}
+<p><a href="/dashboard/orders">View all your orders</a></p>
+</section>
+</main>
+</body>
+</html>
