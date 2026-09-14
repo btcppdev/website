@@ -48,7 +48,7 @@
           {{ if .Config.Hero }}
           <tr>
             <td style="padding:0;border-bottom:1px solid #1C1C1E;">
-              <img class="btcpp-hero" src="{{ .Config.Hero }}" width="640" height="270" style="width:100%;max-width:640px;height:270px;max-height:270px;object-fit:cover;display:block;" alt="">
+              <img class="btcpp-hero" src="{{ .Config.Hero }}" width="640" height="270" style="width:100%;max-width:640px;height:auto;aspect-ratio:64 / 27;max-height:270px;object-fit:cover;object-position:center;display:block;" alt="">
             </td>
           </tr>
           {{ end }}

@@ -407,6 +407,11 @@ func OrganizationDashboardMemberAdd(w http.ResponseWriter, r *http.Request, ctx 
 		return
 	}
 	recordOrganizationDashboardAudit(ctx, organizationID, id.PersonID, "organization.member_added", "person", person.ID, map[string]any{"role": role})
+	if sendErr := emails.SendOrganizationWelcomeEmail(ctx, organizationID, person.ID, person.Name); sendErr != nil {
+		ctx.Err.Printf("organization %s welcome email for %s: %s", organizationID, person.ID, sendErr)
+		http.Redirect(w, r, destination+"?error="+url.QueryEscape("The person was added, but their welcome email could not be sent."), http.StatusSeeOther)
+		return
+	}
 	name := strings.TrimSpace(person.Name)
 	if name == "" {
 		name = "Teammate"

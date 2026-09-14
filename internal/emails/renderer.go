@@ -519,7 +519,7 @@ func rebrandInlineStrong(value string) string {
 }
 
 func rebrandHero(src, caption string) string {
-	out := fmt.Sprintf(`<img class="btcpp-hero" src="%s" width="640" height="270" style="width:100%%;max-width:640px;height:270px;max-height:270px;object-fit:cover;display:block;border-bottom:1px solid #1C1C1E;">`, htmltemplate.HTMLEscapeString(src))
+	out := fmt.Sprintf(`<img class="btcpp-hero" src="%s" width="640" height="270" style="width:100%%;max-width:640px;height:auto;aspect-ratio:64 / 27;max-height:270px;object-fit:cover;object-position:center;display:block;border-bottom:1px solid #1C1C1E;">`, htmltemplate.HTMLEscapeString(src))
 	if strings.TrimSpace(caption) == "" {
 		return out
 	}

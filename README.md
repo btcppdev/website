@@ -219,3 +219,7 @@ Then follow the instructions to run.
 The Docker image uses environment variables in App Platform. For local
 build testing, make sure the needed values are present in `.env` or exported
 in your shell.
+
+### Organization welcome email launch
+
+After deploying organization welcome emails, complete the required [existing-member backfill](cmd/backfill-organization-welcomes/README.md). Review the dry run, send notices to existing active members/managers/owners, and resolve any missing-email or delivery failures before marking the rollout complete.
