@@ -2024,6 +2024,13 @@ func MarkShopOrderPaid(ctx *config.AppContext, orderID, provider, providerID str
 	`, orderID); err != nil {
 		return false, fmt.Errorf("record shop paid event: %w", err)
 	}
+	// Queue an operational notice atomically with payment. Ticket-only orders
+	// have no merchandise variant and do not notify the fulfillment team.
+	if _, err := tx.Exec(ctx.DatabaseContext(), `INSERT INTO merch_sale_notifications(order_id)
+ SELECT $1::uuid WHERE EXISTS (SELECT 1 FROM shop_order_items WHERE order_id=$1 AND variant_id IS NOT NULL)
+ ON CONFLICT (order_id) DO NOTHING`, orderID); err != nil {
+		return false, fmt.Errorf("queue merch sale notification: %w", err)
+	}
 	if err := tx.Commit(ctx.DatabaseContext()); err != nil {
 		return false, err
 	}

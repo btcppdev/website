@@ -1,0 +1,11 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New merch order</title></head>
+<body style="margin:0;background:#f6f3ee;color:#171717;font-family:Arial,sans-serif">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#fff;border:1px solid #171717">
+<tr><td style="padding:24px;background:#ffb65e;font-weight:bold">bitcoin++ / merch</td></tr>
+<tr><td style="padding:24px"><p style="font-size:12px;letter-spacing:1px">PAYMENT CONFIRMED</p><h1 style="font-size:28px;margin:12px 0">A new order is here.</h1><p>Order <strong>{{ .Order.PublicID }}</strong> is ready to review.</p>
+<table width="100%" cellspacing="0" cellpadding="0">{{ range .Order.Items }}{{ if .VariantID }}<tr><td style="padding:14px 0;border-bottom:1px solid #ddd"><strong>{{ .Quantity }} × {{ .ProductNameSnapshot }}</strong><br><span style="font-size:14px;color:#555">{{ .VariantLabelSnapshot }}<br>{{ shopFulfillmentLabel .FulfillmentMethod }}</span></td></tr>{{ end }}{{ end }}</table>
+<p><strong>Order total: {{ merchMoney .Order.TotalCents nil }} {{ .Order.Currency }}</strong></p>
+<p style="margin:28px 0"><a href="{{ .URL }}" style="display:inline-block;padding:14px 20px;background:#171717;color:#fff;text-decoration:none;font-weight:bold">Manage order →</a></p>
+<p style="font-size:12px;color:#666">You’re receiving this because you’re a bitcoin++ merch admin.</p>
+</td></tr></table></td></tr></table></body></html>

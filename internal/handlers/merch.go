@@ -156,6 +156,15 @@ type shopCategory struct {
 }
 
 func StartShopMaintenance(ctx *config.AppContext) {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			processMerchSaleNotifications(ctx)
+			<-ticker.C
+		}
+	}()
+
 	if ctx == nil || ctx.DB == nil {
 		return
 	}
@@ -988,7 +997,7 @@ func finalizeShopTaxTransaction(ctx *config.AppContext, orderID string) error {
 }
 
 func AdminMerch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+	if id := requireMerchAdmin(w, r, ctx); id == nil {
 		return
 	}
 	products, err := getters.ListMerchProducts(ctx, true)
@@ -1010,7 +1019,7 @@ func AdminMerch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 }
 
 func AdminMerchNew(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+	if id := requireMerchAdmin(w, r, ctx); id == nil {
 		return
 	}
 	page := baseShopPage(ctx, r, "new merch item")
@@ -1052,7 +1061,7 @@ func DevMerchSocialCardPreview(w http.ResponseWriter, r *http.Request, ctx *conf
 }
 
 func AdminMerchProduct(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+	if id := requireMerchAdmin(w, r, ctx); id == nil {
 		return
 	}
 	productID := strings.TrimSpace(mux.Vars(r)["id"])
@@ -1070,7 +1079,7 @@ func AdminMerchProduct(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 }
 
 func AdminMerchCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id := requireGlobalAdmin(w, r, ctx)
+	id := requireMerchAdmin(w, r, ctx)
 	if id == nil {
 		return
 	}
@@ -1127,7 +1136,7 @@ func parseMerchAdminForm(r *http.Request) error {
 }
 
 func AdminMerchUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if requireGlobalAdmin(w, r, ctx) == nil {
+	if requireMerchAdmin(w, r, ctx) == nil {
 		return
 	}
 	productID := strings.TrimSpace(mux.Vars(r)["id"])
@@ -1154,7 +1163,7 @@ func AdminMerchUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 }
 
 func AdminMerchUploadImage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+	if id := requireMerchAdmin(w, r, ctx); id == nil {
 		return
 	}
 	productID := strings.TrimSpace(mux.Vars(r)["id"])
@@ -1215,7 +1224,7 @@ func storeMerchProductImage(ctx *config.AppContext, productID string, raw []byte
 }
 
 func AdminMerchVariantCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id := requireGlobalAdmin(w, r, ctx)
+	id := requireMerchAdmin(w, r, ctx)
 	if id == nil {
 		return
 	}
@@ -1242,7 +1251,7 @@ func AdminMerchVariantCreate(w http.ResponseWriter, r *http.Request, ctx *config
 }
 
 func AdminMerchVariantUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id := requireGlobalAdmin(w, r, ctx)
+	id := requireMerchAdmin(w, r, ctx)
 	if id == nil {
 		return
 	}
@@ -1276,7 +1285,7 @@ func AdminMerchVariantUpdate(w http.ResponseWriter, r *http.Request, ctx *config
 }
 
 func AdminMerchImageUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if requireGlobalAdmin(w, r, ctx) == nil {
+	if requireMerchAdmin(w, r, ctx) == nil {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -1295,7 +1304,7 @@ func AdminMerchImageUpdate(w http.ResponseWriter, r *http.Request, ctx *config.A
 }
 
 func AdminMerchImageSocialCard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if requireGlobalAdmin(w, r, ctx) == nil {
+	if requireMerchAdmin(w, r, ctx) == nil {
 		return
 	}
 	productID := strings.TrimSpace(mux.Vars(r)["id"])
@@ -1430,7 +1439,7 @@ func loadMerchImageBytes(ctx context.Context, objectKey string) ([]byte, error) 
 }
 
 func AdminMerchOptionSave(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if requireGlobalAdmin(w, r, ctx) == nil {
+	if requireMerchAdmin(w, r, ctx) == nil {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -1470,7 +1479,7 @@ func adminMerchProductURL(productID, key, message string) string {
 }
 
 func AdminMerchOrders(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+	if id := requireMerchAdmin(w, r, ctx); id == nil {
 		return
 	}
 	orders, err := getters.ListShopOrders(ctx, 200)
@@ -1512,7 +1521,7 @@ func filterShopOrdersForAdmin(orders []*types.ShopOrder, view string) ([]*types.
 }
 
 func AdminMerchOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	if id := requireGlobalAdmin(w, r, ctx); id == nil {
+	if id := requireMerchAdmin(w, r, ctx); id == nil {
 		return
 	}
 	publicID := strings.TrimSpace(mux.Vars(r)["order"])
@@ -1563,7 +1572,7 @@ func shopOrderUsesAutomatedStripeRefund(order *types.ShopOrder) bool {
 }
 
 func AdminMerchOrderAction(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	id := requireGlobalAdmin(w, r, ctx)
+	id := requireMerchAdmin(w, r, ctx)
 	if id == nil {
 		return
 	}
