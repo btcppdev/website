@@ -24,7 +24,8 @@ func (s *server) entitlements(w http.ResponseWriter, r *http.Request) {
 		grants = []getters.ServiceEntitlement{}
 	}
 	s.writePrivate(w, r, http.StatusOK, struct {
+		AccountID    string                       `json:"accountId"`
 		AsOf         time.Time                    `json:"asOf"`
 		Entitlements []getters.ServiceEntitlement `json:"entitlements"`
-	}{at, grants})
+	}{principal.Person.ID, at, grants})
 }

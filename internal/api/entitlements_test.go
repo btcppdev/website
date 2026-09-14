@@ -66,6 +66,7 @@ func TestAccountEntitlementsAuthorization(t *testing.T) {
 			}
 			var body struct {
 				Data struct {
+					AccountID    string                       `json:"accountId"`
 					AsOf         time.Time                    `json:"asOf"`
 					Entitlements []getters.ServiceEntitlement `json:"entitlements"`
 				} `json:"data"`
@@ -73,7 +74,7 @@ func TestAccountEntitlementsAuthorization(t *testing.T) {
 			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 				t.Fatal(err)
 			}
-			if !body.Data.AsOf.Equal(now) || body.Data.Entitlements == nil {
+			if body.Data.AccountID != "owner" || !body.Data.AsOf.Equal(now) || body.Data.Entitlements == nil {
 				t.Fatalf("invalid response: %s", w.Body.String())
 			}
 			if !tc.empty && (len(body.Data.Entitlements) != 1 || body.Data.Entitlements[0].ResourceID != "publication-123") {

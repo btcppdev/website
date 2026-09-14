@@ -41,6 +41,7 @@
                 "data": {
                   "type": "object",
                   "required": [
+                    "accountId",
                     "asOf",
                     "entitlements"
                   ],
@@ -96,6 +97,10 @@
                           }
                         }
                       }
+                    },
+                    "accountId": {
+                      "type": "string",
+                      "description": "Stable account ID from the authenticated token principal"
                     }
                   }
                 },

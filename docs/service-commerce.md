@@ -87,7 +87,7 @@ and article access. Identity/profile/newsletter scopes alone do not grant access
 The response uses the standard API envelope:
 
 ```json
-{"data":{"asOf":"2026-09-14T12:00:00Z","entitlements":[]},"meta":{"request_id":"..."}}
+{"data":{"accountId":"account-uuid","asOf":"2026-09-14T12:00:00Z","entitlements":[]},"meta":{"request_id":"..."}}
 ```
 
 Each grant includes `id`, `productCode`, `resourceId`, `quantity`, `startsAt` and
@@ -96,7 +96,9 @@ Only active grants are returned; an empty array means no current purchased acces
 This is not a subscription history, upcoming-renewal schedule or total repository
 allowance: Alerts must add its free allowance and apply product billing state.
 
-The account and evaluation time come from authentication and the server clock;
+`accountId` is the stable token-owner ID; consumers must match it to the local
+signed-in account before accepting access. The account and evaluation time come
+from authentication and the server clock;
 query parameters cannot override either. Responses are private/no-store. Consumers
 must respect end times and refresh for refunds/revocations; they must not treat a
 successful old response as indefinite access. OAuth clients need the new scope
