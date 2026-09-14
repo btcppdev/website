@@ -230,6 +230,7 @@ func ListPersonBadgeGrants(ctx *config.AppContext, personID string) ([]*types.Or
 func queryBadgeGrants(ctx *config.AppContext, where string, arg any) ([]*types.OrganizationBadgeGrant, error) {
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT grants.id::text, grants.organization_id::text, organizations.name,
+			organizations.public_slug, organizations.logo_light_url,
 			grants.recipient_person_id::text, people.name, coalesce(grants.created_by_person_id::text,''),
 			grants.issuer_pubkey, grants.badge_identifier, grants.badge_name, grants.badge_description,
 			grants.badge_image_url, grants.subject_profile_url, grants.recipient_pubkey, grants.state,
@@ -248,7 +249,7 @@ func queryBadgeGrants(ctx *config.AppContext, where string, arg any) ([]*types.O
 	var out []*types.OrganizationBadgeGrant
 	for rows.Next() {
 		grant := &types.OrganizationBadgeGrant{}
-		if err := rows.Scan(&grant.ID, &grant.OrganizationID, &grant.OrganizationName, &grant.RecipientPersonID, &grant.RecipientName, &grant.CreatedByPersonID, &grant.IssuerPubkey, &grant.BadgeIdentifier, &grant.BadgeName, &grant.BadgeDescription, &grant.BadgeImageURL, &grant.SubjectProfileURL, &grant.RecipientPubkey, &grant.State, &grant.AwardEventID, &grant.AcceptanceEventID, &grant.RevocationEventID, &grant.RevocationReason, &grant.DeliveryError, &grant.CorrectedByGrantID, &grant.GrantedAt, &grant.ReadyAt, &grant.IssuedAt, &grant.AcceptedAt, &grant.RevokedAt, &grant.CanceledAt, &grant.UpdatedAt); err != nil {
+		if err := rows.Scan(&grant.ID, &grant.OrganizationID, &grant.OrganizationName, &grant.OrganizationSlug, &grant.OrganizationLogoURL, &grant.RecipientPersonID, &grant.RecipientName, &grant.CreatedByPersonID, &grant.IssuerPubkey, &grant.BadgeIdentifier, &grant.BadgeName, &grant.BadgeDescription, &grant.BadgeImageURL, &grant.SubjectProfileURL, &grant.RecipientPubkey, &grant.State, &grant.AwardEventID, &grant.AcceptanceEventID, &grant.RevocationEventID, &grant.RevocationReason, &grant.DeliveryError, &grant.CorrectedByGrantID, &grant.GrantedAt, &grant.ReadyAt, &grant.IssuedAt, &grant.AcceptedAt, &grant.RevokedAt, &grant.CanceledAt, &grant.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan badge grant: %w", err)
 		}
 		out = append(out, grant)

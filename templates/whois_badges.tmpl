@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {{ template "rebrand_header" . }}
+    {{ $socialCard := .SocialCardURL }}{{ if not $socialCard }}{{ $socialCard = "/static/img/rebrand/breakthroughs.jpg" }}{{ end }}
+    {{ template "site_seo" (dict "Title" (printf "%s's badges @ bitcoin++" .Person.Speaker.Name) "Description" (printf "Badges earned by %s in the Bitcoin++ community." .Person.Speaker.Name) "Path" (printf "/whois/%s/badges" .Person.PublicID) "Image" $socialCard "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630 "Type" "profile") }}
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/static/favicon/apple-touch-icon.png">
+  </head>
+  <body class="btcpp-redesign btcpp-rebrand-page whois-page whois-badges-page">
+    {{ template "mainnav" . }}
+
+    <main class="whois-shell whois-badges-shell">
+      <div class="whois-profile-breadcrumb"><a href="/whois/{{ .Person.PublicID }}">← {{ .Person.Speaker.Name }}'s profile</a></div>
+
+      <header class="whois-badges-hero">
+        <div class="whois-badges-hero__identity">
+          <span class="whois-badges-hero__avatar">
+            <img loading="lazy" src="{{ speakerPhoto .Person.Speaker.Photo }}" alt="" data-image-fallback>
+            <span data-image-fallback-copy hidden aria-hidden="true">{{ printf "%.1s" .Person.Speaker.Name }}</span>
+          </span>
+          <div><p class="whois-section-tag">§ BADGE COLLECTION</p><h1>{{ .Person.Speaker.Name }}'s badges.</h1><p>{{ .Badges.TotalVisible }} visible badge{{ if ne .Badges.TotalVisible 1 }}s{{ end }}, collected across Bitcoin.</p></div>
+        </div>
+        {{ if .ManageBadgesURL }}<a class="whois-badges-manage" href="{{ .ManageBadgesURL }}">Manage display →</a>{{ end }}
+      </header>
+
+      {{ if .Badges.Featured }}
+      <section class="whois-profile-section whois-credential-section whois-badges-featured">
+        <div class="whois-section-head"><div><p class="whois-section-tag">§01 · FEATURED</p><h2>Featured badges.</h2></div></div>
+        <div class="whois-credential-grid">
+          {{ range .Badges.Featured }}
+          <article class="whois-credential">
+            <div class="whois-credential-art"><img src="{{ .ImageURL | safeURL }}" alt="Artwork for {{ .Name }}" loading="lazy"></div>
+            <div><h3>{{ .Name }}</h3>{{ if .Description }}<p>{{ .Description }}</p>{{ end }}{{ template "whois_badge_issuer" .Issuer }}</div>
+          </article>
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
+
+      <section class="whois-badge-collection">
+        <div class="whois-section-head"><div><p class="whois-section-tag">§02 · ALL BADGES</p><h2>By issuer.</h2></div></div>
+        {{ if .Badges.Groups }}
+        <div class="whois-badge-issuer-groups">
+          {{ range .Badges.Groups }}
+          <section class="whois-badge-issuer-group">
+            <header class="whois-badge-issuer-group__head">
+              {{ if .Issuer.ProfileURL }}<a href="{{ .Issuer.ProfileURL }}">{{ else }}<div>{{ end }}
+                <span class="whois-badge-issuer-group__logo">{{ if .Issuer.LogoURL }}<img src="{{ .Issuer.LogoURL | safeURL }}" alt="" loading="lazy">{{ else }}<span aria-hidden="true">++</span>{{ end }}</span>
+                <span><small>issued by</small><strong>{{ .Issuer.Name }}</strong></span>
+              {{ if .Issuer.ProfileURL }}</a>{{ else }}</div>{{ end }}
+              <span>{{ len .Badges }} badge{{ if ne (len .Badges) 1 }}s{{ end }}</span>
+            </header>
+            <div class="whois-badge-issuer-group__list">
+              {{ range .Badges }}
+              <article class="whois-badge-row">
+                <div class="whois-badge-row__art"><img src="{{ .ImageURL | safeURL }}" alt="Artwork for {{ .Name }}" loading="lazy"></div>
+                <div><h3>{{ .Name }}</h3>{{ if .Description }}<p>{{ .Description }}</p>{{ end }}</div>
+              </article>
+              {{ end }}
+            </div>
+          </section>
+          {{ end }}
+        </div>
+        {{ else }}
+        <p class="whois-profile-empty">No public badges are connected to this profile yet.</p>
+        {{ end }}
+      </section>
+    </main>
+
+    {{ template "generic_conf_footer" . }}
+  </body>
+</html>

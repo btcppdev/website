@@ -192,15 +192,67 @@ type WhoIsProfilePage struct {
 	Person           *WhoIsPerson
 	Badges           *WhoIsBadgeProfile
 	BadgeGrants      []*WhoIsBadgeGrant
+	BadgeCollection  *WhoIsBadgeCollection
 	UpdateProfileURL string
+	ManageBadgesURL  string
 	Year             uint
 	SocialCardURL    string
 }
 
 type WhoIsBadgeGrant struct {
 	*types.OrganizationBadgeGrant
-	CredentialURL string
-	ClaimURL      string
+	Issuer WhoIsBadgeIssuer
+}
+
+type WhoIsBadgeIssuer struct {
+	Pubkey     string
+	Name       string
+	LogoURL    string
+	ProfileURL string
+}
+
+type WhoIsProfileBadge struct {
+	Reference        string
+	Name             string
+	Description      string
+	ImageURL         string
+	Issuer           WhoIsBadgeIssuer
+	Hidden           bool
+	Featured         bool
+	FeaturedPosition int
+	Configured       bool
+}
+
+type WhoIsBadgeIssuerGroup struct {
+	Issuer WhoIsBadgeIssuer
+	Badges []*WhoIsProfileBadge
+}
+
+type WhoIsBadgeCollection struct {
+	All          []*WhoIsProfileBadge
+	Featured     []*WhoIsProfileBadge
+	OtherVisible []*WhoIsProfileBadge
+	Hidden       []*WhoIsProfileBadge
+	Groups       []*WhoIsBadgeIssuerGroup
+	TotalVisible int
+	HasMore      bool
+}
+
+type WhoIsBadgesPage struct {
+	Person          *WhoIsPerson
+	Badges          *WhoIsBadgeCollection
+	ManageBadgesURL string
+	Year            uint
+	SocialCardURL   string
+}
+
+type ProfileBadgesPage struct {
+	Person       *WhoIsPerson
+	Badges       *WhoIsBadgeCollection
+	CSRF         string
+	FlashMessage string
+	FlashError   string
+	Year         uint
 }
 
 type WhoIsBadgeProfile struct {
@@ -209,10 +261,11 @@ type WhoIsBadgeProfile struct {
 }
 
 type WhoIsBadgeDefinition struct {
-	Identifier  string `json:"identifier"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	ImageURL    string `json:"image_url"`
+	IssuerPubkey string `json:"issuer_pubkey"`
+	Identifier   string `json:"identifier"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	ImageURL     string `json:"image_url"`
 }
 
 type WhoIsIssuedBadge struct {
@@ -229,15 +282,20 @@ type WhoIsIssuedBadge struct {
 			Reason    string    `json:"reason"`
 		} `json:"revocation"`
 	} `json:"award"`
-	CredentialURL string `json:"-"`
-	ClaimURL      string `json:"-"`
-	Accepted      bool   `json:"-"`
+	CredentialURL string           `json:"-"`
+	ClaimURL      string           `json:"-"`
+	Accepted      bool             `json:"-"`
+	Issuer        WhoIsBadgeIssuer `json:"-"`
+	GrantID       string           `json:"-"`
 }
 
 type WhoIsPendingBadge struct {
+	ID            string                `json:"id"`
+	IssuerPubkey  string                `json:"issuer_pubkey"`
 	RecipientName string                `json:"recipient_name"`
 	CreatedAt     time.Time             `json:"created_at"`
 	Badge         *WhoIsBadgeDefinition `json:"badge"`
+	Issuer        WhoIsBadgeIssuer      `json:"-"`
 }
 
 type WhoIsPerson struct {

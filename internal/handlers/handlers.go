@@ -1036,6 +1036,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/whois", func(w http.ResponseWriter, r *http.Request) {
 		RenderWhoIs(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/whois/{speaker}/badges", func(w http.ResponseWriter, r *http.Request) {
+		RenderWhoIsBadges(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/whois/{speaker}/archive", func(w http.ResponseWriter, r *http.Request) {
 		RenderWhoIsArchive(w, r, app)
 	}).Methods("GET")
@@ -1920,6 +1923,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/profile", func(w http.ResponseWriter, r *http.Request) {
 		DashboardEditSpeaker(w, r, app)
+	}).Methods("GET", "POST")
+	r.HandleFunc("/dashboard/profile/badges", func(w http.ResponseWriter, r *http.Request) {
+		DashboardProfileBadges(w, r, app)
 	}).Methods("GET", "POST")
 	r.HandleFunc("/dashboard/speaker", func(w http.ResponseWriter, r *http.Request) {
 		target := "/dashboard/profile"
@@ -2855,23 +2861,17 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		handle404(w, r, ctx)
 		return
 	}
-	var badgeProfile *WhoIsBadgeProfile
-	if ctx.Env != nil && ctx.Env.BadgeStudioURL != "" {
-		badgeProfile, err = loadBadgeStudioProfile(r.Context(), ctx.Env.BadgeStudioURL, person.Speaker.ID)
-		if err != nil && ctx.Err != nil {
-			ctx.Err.Printf("/whois/%s Badge Studio profile: %s", slug, err)
-		}
+	badgeCollection := loadWhoIsBadgeCollection(r, ctx, person, "/whois/"+slug)
+	manageBadgesURL := ""
+	updateProfileURL := whoIsProfileEditURL(ctx, r, person)
+	if updateProfileURL != "" {
+		manageBadgesURL = "/dashboard/profile/badges"
 	}
-	badgeGrants, grantErr := getters.ListPersonBadgeGrants(ctx, person.Speaker.ID)
-	if grantErr != nil && ctx.Err != nil {
-		ctx.Err.Printf("/whois/%s Bitcoin++ badge grants: %s", slug, grantErr)
-	}
-	whoIsGrants := whoIsBadgeGrants(badgeGrants, badgeProfile, ctx.Env.BadgeStudioURL)
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois_profile.tmpl", &WhoIsProfilePage{
 		Person:           person,
-		Badges:           badgeProfile,
-		BadgeGrants:      whoIsGrants,
-		UpdateProfileURL: whoIsProfileEditURL(ctx, r, person),
+		BadgeCollection:  badgeCollection,
+		UpdateProfileURL: updateProfileURL,
+		ManageBadgesURL:  manageBadgesURL,
 		Year:             helpers.CurrentYear(),
 		SocialCardURL:    siteSocialCardPath("person", person.PublicID, personSocialCard(ctx, person)),
 	}); err != nil {
@@ -2880,7 +2880,20 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	}
 }
 
-func whoIsBadgeGrants(grants []*types.OrganizationBadgeGrant, profile *WhoIsBadgeProfile, badgeStudioURL string) []*WhoIsBadgeGrant {
+func publicWhoIsBadgeProfile(profile *WhoIsBadgeProfile) *WhoIsBadgeProfile {
+	if profile == nil {
+		return nil
+	}
+	issued := make([]WhoIsIssuedBadge, 0, len(profile.Issued))
+	for _, badge := range profile.Issued {
+		if badge.Award.Revocation == nil {
+			issued = append(issued, badge)
+		}
+	}
+	return &WhoIsBadgeProfile{Issued: issued, Pending: profile.Pending}
+}
+
+func whoIsBadgeGrants(grants []*types.OrganizationBadgeGrant, profile *WhoIsBadgeProfile) []*WhoIsBadgeGrant {
 	representedAwards := make(map[string]struct{})
 	if profile != nil {
 		for _, badge := range profile.Issued {
@@ -2889,26 +2902,80 @@ func whoIsBadgeGrants(grants []*types.OrganizationBadgeGrant, profile *WhoIsBadg
 			}
 		}
 	}
-	studio := strings.TrimRight(strings.TrimSpace(badgeStudioURL), "/")
 	result := make([]*WhoIsBadgeGrant, 0, len(grants))
 	for _, grant := range grants {
-		if grant == nil || grant.State == getters.BadgeGrantStateCanceled || grant.State == getters.BadgeGrantStateCorrected {
+		if grant == nil || grant.State == getters.BadgeGrantStateCanceled || grant.State == getters.BadgeGrantStateCorrected || grant.State == getters.BadgeGrantStateRevoked {
 			continue
 		}
 		if _, represented := representedAwards[grant.AwardEventID]; grant.AwardEventID != "" && represented {
 			continue
 		}
-		item := &WhoIsBadgeGrant{OrganizationBadgeGrant: grant}
-		if studio != "" && grant.AwardEventID != "" && grant.RecipientPubkey != "" {
-			item.CredentialURL = studio + "/credentials/" + url.PathEscape(grant.AwardEventID) + "/" + url.PathEscape(grant.RecipientPubkey)
-			if grant.State == getters.BadgeGrantStateIssued {
-				claimPath := "/claim/" + url.PathEscape(grant.AwardEventID)
-				item.ClaimURL = studio + "/api/auth/btcpp/continue?return_to=" + url.QueryEscape(claimPath)
-			}
-		}
-		result = append(result, item)
+		result = append(result, &WhoIsBadgeGrant{OrganizationBadgeGrant: grant, Issuer: whoIsBadgeIssuer(grant)})
 	}
 	return result
+}
+
+func attachWhoIsBadgeIssuers(profile *WhoIsBadgeProfile, grants []*types.OrganizationBadgeGrant) {
+	if profile == nil {
+		return
+	}
+	byEventID := make(map[string]*types.OrganizationBadgeGrant)
+	byPubkey := make(map[string]*types.OrganizationBadgeGrant)
+	for _, grant := range grants {
+		if grant == nil {
+			continue
+		}
+		issuer := whoIsBadgeIssuer(grant)
+		if issuer.Name == "" {
+			continue
+		}
+		if grant.AwardEventID != "" {
+			byEventID[grant.AwardEventID] = grant
+		}
+		if grant.IssuerPubkey != "" {
+			byPubkey[grant.IssuerPubkey] = grant
+		}
+	}
+	for index := range profile.Issued {
+		badge := &profile.Issued[index]
+		grant := byEventID[badge.Award.EventID]
+		if grant == nil {
+			grant = byPubkey[badge.Definition.IssuerPubkey]
+		}
+		if grant != nil {
+			badge.Issuer = whoIsBadgeIssuer(grant)
+			badge.GrantID = grant.ID
+		}
+	}
+	for index := range profile.Pending {
+		badge := &profile.Pending[index]
+		grant := byPubkey[badge.IssuerPubkey]
+		if grant == nil && badge.Badge != nil {
+			grant = byPubkey[badge.Badge.IssuerPubkey]
+		}
+		if grant != nil {
+			badge.Issuer = whoIsBadgeIssuer(grant)
+		}
+	}
+}
+
+func whoIsBadgeIssuer(grant *types.OrganizationBadgeGrant) WhoIsBadgeIssuer {
+	if grant == nil {
+		return WhoIsBadgeIssuer{}
+	}
+	issuer := WhoIsBadgeIssuer{
+		Pubkey:  strings.TrimSpace(grant.IssuerPubkey),
+		Name:    strings.TrimSpace(grant.OrganizationName),
+		LogoURL: strings.TrimSpace(grant.OrganizationLogoURL),
+	}
+	reference := strings.TrimSpace(grant.OrganizationSlug)
+	if reference == "" {
+		reference = strings.TrimSpace(grant.OrganizationID)
+	}
+	if reference != "" {
+		issuer.ProfileURL = "/organizations/" + url.PathEscape(reference)
+	}
+	return issuer
 }
 
 func pendingBadgeGrants(grants []*types.OrganizationBadgeGrant) []*types.OrganizationBadgeGrant {

@@ -2179,13 +2179,597 @@ body.btcpp-rebrand-page {
 .whois-credential.is-revoked { opacity: .65; background: #f1e8e8; }
 .whois-credential.is-revoked .whois-credential-art { filter: grayscale(1); }
 
+/* Public profiles treat credentials as a showcase, not a management grid. */
+.whois-page .whois-credential-section {
+  container: whois-badges / inline-size;
+  position: relative;
+  overflow: hidden;
+  background: var(--whois-paper);
+}
+
+.whois-page .whois-credential-section .whois-section-head {
+  position: relative;
+  z-index: 1;
+}
+
+.whois-page .whois-credential-section .whois-credential-grid {
+  position: relative;
+  z-index: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: start;
+  gap: 18px;
+  border: 0;
+  padding: 4px 40px 30px;
+}
+
+.whois-page .whois-credential-section .whois-credential {
+  position: relative;
+  align-items: flex-start;
+  min-height: 0;
+  border: 0;
+  padding: 8px 0 12px;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.whois-page .whois-credential-section .whois-credential-art {
+  position: relative;
+  display: grid;
+  width: 132px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  place-items: center;
+  flex: 0 0 auto;
+  margin: 2px 0 12px;
+  overflow: hidden;
+  border: 1px solid rgba(10, 10, 10, .48);
+  border-radius: 0;
+  background: #f6f3ee;
+  box-shadow:
+    5px 6px 0 rgba(10, 10, 10, .16),
+    0 18px 26px -18px rgba(10, 10, 10, .72);
+  animation: whois-badge-float 6.4s ease-in-out infinite;
+  isolation: isolate;
+}
+
+.whois-page .whois-credential-section .whois-credential:nth-child(2n) .whois-credential-art {
+  animation-delay: -1.7s;
+}
+
+.whois-page .whois-credential-section .whois-credential:nth-child(3n) .whois-credential-art {
+  animation-delay: -3.4s;
+}
+
+.whois-page .whois-credential-section .whois-credential-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: cover;
+}
+
+.whois-page .whois-credential-section .whois-credential-art::after {
+  position: absolute;
+  z-index: 2;
+  top: -35%;
+  bottom: -35%;
+  left: 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .18) 25%, rgba(255, 255, 255, .92) 50%, rgba(255, 255, 255, .18) 75%, transparent);
+  content: "";
+  filter: blur(.5px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(-180%, 0, 0);
+  animation: whois-badge-glint 8.5s ease-in-out infinite;
+}
+
+.whois-page .whois-credential-section .whois-credential:nth-child(2n) .whois-credential-art::after {
+  animation-delay: 1.8s;
+}
+
+.whois-page .whois-credential-section .whois-credential:nth-child(3n) .whois-credential-art::after {
+  animation-delay: 3.6s;
+}
+
+.whois-page .whois-credential-section .whois-credential > div:last-child {
+  display: block;
+  flex: 0 1 auto;
+}
+
+.whois-page .whois-credential-section .whois-credential h3 {
+  margin: 0 0 8px;
+  font-size: clamp(20px, 2.2vw, 25px);
+  line-height: 1.05;
+}
+
+.whois-page .whois-credential-section .whois-credential p {
+  max-width: 30ch;
+  margin: 0;
+  color: #625a52;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer {
+  margin: 12px 0 0;
+  color: var(--whois-ink);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer > a,
+.whois-page .whois-credential-section .whois-credential-issuer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: inherit;
+  font-size: inherit;
+  text-decoration: none;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer > a:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer__logo,
+.whois-page .whois-credential-section .whois-credential-issuer__logo img,
+.whois-page .whois-credential-section .whois-credential-issuer__logo > span {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer__logo {
+  display: grid;
+  flex: 0 0 24px;
+  overflow: hidden;
+  border: 1px solid rgba(10, 10, 10, .34);
+  background: #fffdf7;
+  place-items: center;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer__logo img {
+  display: block;
+  padding: 2px;
+  object-fit: contain;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer__logo > span {
+  display: grid;
+  background: var(--whois-ink);
+  color: var(--whois-accent);
+  font-size: 8px;
+  font-weight: 900;
+  place-items: center;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer__copy small {
+  color: #80766d;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: lowercase;
+}
+
+.whois-page .whois-credential-section .whois-credential-issuer__copy strong {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes whois-badge-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -5px, 0); }
+}
+
+@keyframes whois-badge-glint {
+  0%, 48% { opacity: 0; transform: translate3d(-180%, 0, 0); }
+  54% { opacity: .85; }
+  65%, 100% { opacity: 0; transform: translate3d(360%, 0, 0); }
+}
+
 @media (max-width: 1120px) {
   .whois-credential-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .whois-page .whois-credential-section .whois-credential-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
   .whois-credential-grid { grid-template-columns: 1fr; }
   .whois-credential { min-height: 0; padding: 15px; }
+  .whois-page .whois-credential-section .whois-credential-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 2px 18px 22px;
+  }
+  .whois-page .whois-credential-section .whois-credential {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    align-items: flex-start;
+    border-bottom: 0;
+    padding: 14px 4px 18px;
+    text-align: left;
+  }
+  .whois-page .whois-credential-section .whois-credential:last-child { border-bottom: 0; }
+  .whois-page .whois-credential-section .whois-credential-art {
+    width: 96px;
+    margin: 0;
+  }
+  .whois-page .whois-credential-section .whois-credential p {
+    margin: 0;
+  }
+}
+
+@media (max-width: 390px) {
+  .whois-page .whois-credential-section .whois-credential {
+    grid-template-columns: 78px minmax(0, 1fr);
+    gap: 12px;
+    padding: 11px 4px 15px;
+  }
+  .whois-page .whois-credential-section .whois-credential-art { width: 78px; }
+}
+
+/* Choose divisors of six so the featured showcase never leaves a lone card. */
+@container whois-badges (min-width: 600px) {
+  .whois-page .whois-credential-section .whois-credential-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container whois-badges (min-width: 960px) {
+  .whois-page .whois-credential-section .whois-credential-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .whois-page .whois-credential-section .whois-credential-art,
+  .whois-page .whois-credential-section .whois-credential-art::after {
+    animation: none;
+  }
+  .whois-page .whois-credential-section .whois-credential-art::after { display: none; }
+}
+
+.whois-credential-head-actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.whois-credential-head-actions a,
+.whois-credential-all-link a {
+  color: var(--whois-ink);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: lowercase;
+  text-underline-offset: 4px;
+}
+
+.whois-credential-all-link {
+  padding: 0 40px 30px;
+}
+
+.whois-badges-shell {
+  min-height: 0;
+}
+
+.whois-badges-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 28px;
+  padding: 34px 40px;
+  border-bottom: 1px solid var(--whois-ink);
+}
+
+.whois-badges-hero__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 20px;
+}
+
+.whois-badges-hero__identity h1 {
+  margin: 0;
+  font-size: clamp(34px, 6vw, 56px);
+  line-height: .98;
+}
+
+.whois-badges-hero__identity p:last-child {
+  margin: 10px 0 0;
+  color: #665f57;
+  font-family: "Source Serif 4", Georgia, serif;
+}
+
+.whois-badges-hero__avatar,
+.whois-badges-hero__avatar img,
+.whois-badges-hero__avatar > span {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+}
+
+.whois-badges-hero__avatar {
+  display: grid;
+  flex: 0 0 70px;
+  overflow: hidden;
+  border: 1px solid var(--whois-ink);
+  background: var(--whois-accent);
+  place-items: center;
+}
+
+.whois-badges-hero__avatar img { object-fit: cover; }
+.whois-badges-hero__avatar > span { display: grid; font-size: 24px; font-weight: 800; place-items: center; }
+
+.whois-page a.whois-badges-manage {
+  flex: 0 0 auto;
+  padding: 11px 14px;
+  border: 1px solid var(--whois-ink);
+  background: var(--whois-ink);
+  color: var(--whois-paper);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+  text-transform: lowercase;
+}
+
+.whois-badges-featured {
+  border-bottom: 1px solid var(--whois-ink);
+}
+
+.whois-badge-collection > .whois-section-head {
+  border-bottom: 1px solid var(--whois-ink);
+}
+
+.whois-badge-issuer-groups {
+  display: block;
+}
+
+.whois-badge-issuer-group {
+  width: 100%;
+  border-bottom: 1px solid var(--whois-ink);
+}
+
+.whois-badge-issuer-group__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 40px;
+  border-bottom: 1px solid rgba(10, 10, 10, .28);
+  background: #ece6dc;
+}
+
+.whois-badge-issuer-group__head > a,
+.whois-badge-issuer-group__head > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+  color: var(--whois-ink);
+  text-decoration: none;
+}
+
+.whois-badge-issuer-group__head > a:hover strong { text-decoration: underline; text-underline-offset: 4px; }
+
+.whois-badge-issuer-group__logo,
+.whois-badge-issuer-group__logo img,
+.whois-badge-issuer-group__logo > span {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+}
+
+.whois-badge-issuer-group__logo {
+  display: grid;
+  flex: 0 0 38px;
+  overflow: hidden;
+  border: 1px solid rgba(10, 10, 10, .4);
+  background: #fffdf7;
+  place-items: center;
+}
+
+.whois-badge-issuer-group__logo img { padding: 3px; object-fit: contain; }
+.whois-badge-issuer-group__logo > span { display: grid; background: var(--whois-ink); color: var(--whois-accent); font-size: 10px; font-weight: 900; place-items: center; }
+.whois-badge-issuer-group__head > a > span:last-child,
+.whois-badge-issuer-group__head > div > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.whois-badge-issuer-group__head small,
+.whois-badge-issuer-group__head > span { color: #756c63; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; font-weight: 700; text-transform: lowercase; }
+.whois-badge-issuer-group__head strong { font-size: 16px; }
+
+.whois-badge-issuer-group__list {
+  display: block;
+}
+
+.whois-badge-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 40px;
+  border-bottom: 1px solid rgba(10, 10, 10, .16);
+}
+
+.whois-badge-row:last-child { border-bottom: 0; }
+
+.whois-badge-row__art,
+.whois-badge-row__art img {
+  width: 82px;
+  height: 82px;
+}
+
+.whois-badge-row__art {
+  flex: 0 0 82px;
+  overflow: hidden;
+  border: 1px solid rgba(10, 10, 10, .4);
+  box-shadow: 4px 5px 0 rgba(10, 10, 10, .12);
+}
+
+.whois-badge-row__art img { display: block; object-fit: cover; }
+.whois-badge-row h3 { margin: 0 0 6px; font-size: 22px; line-height: 1.05; }
+.whois-badge-row p { max-width: 68ch; margin: 0; color: #625a52; font-family: "Source Serif 4", Georgia, serif; font-size: 14px; line-height: 1.45; }
+
+.profile-badges-page {
+  background: #eee9df;
+}
+
+.profile-badges-shell {
+  width: min(960px, calc(100% - 40px));
+  margin: 36px auto 64px;
+  border: 1px solid #171411;
+  background: #f8f4ed;
+  color: #171411;
+}
+
+.profile-badges-breadcrumb {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 24px;
+  border-bottom: 1px solid #171411;
+}
+
+.profile-badges-breadcrumb a {
+  color: inherit;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: lowercase;
+  text-underline-offset: 3px;
+}
+
+.profile-badges-hero {
+  padding: 38px 40px;
+  border-bottom: 1px solid #171411;
+}
+
+.profile-badges-hero h1 { margin: 0; font-size: clamp(38px, 7vw, 64px); line-height: .95; }
+.profile-badges-hero > p:last-child { max-width: 68ch; margin: 16px 0 0; color: #5f574f; font-family: "Source Serif 4", Georgia, serif; font-size: 16px; line-height: 1.5; }
+
+.profile-badges-flash {
+  margin: 22px 24px 0;
+  padding: 12px 14px;
+  border: 1px solid #171411;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.profile-badges-flash.is-success { background: #dff0d2; }
+.profile-badges-flash.is-error { background: #f3d7d0; }
+
+.profile-badges-section {
+  padding: 28px 40px 34px;
+  border-bottom: 1px solid #171411;
+}
+
+.profile-badges-section:last-child { border-bottom: 0; }
+.profile-badges-section > header { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin-bottom: 18px; }
+.profile-badges-section > header > div { display: flex; align-items: baseline; gap: 12px; }
+.profile-badges-section > header span { color: #9a6a31; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10px; font-weight: 800; }
+.profile-badges-section > header h2 { margin: 0; font-size: 26px; }
+.profile-badges-section > header p { margin: 0; color: #756c63; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; text-align: right; text-transform: lowercase; }
+
+.profile-badges-list {
+  border-top: 1px solid #171411;
+}
+
+.profile-badge-control {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(23, 20, 17, .22);
+}
+
+.profile-badges-list.is-featured .profile-badge-control { grid-template-columns: 26px 58px minmax(0, 1fr) auto; }
+.profile-badge-control__position { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; text-align: center; }
+.profile-badge-control__art,
+.profile-badge-control__art img { width: 58px; height: 58px; }
+.profile-badge-control__art { overflow: hidden; border: 1px solid #655e57; box-shadow: 3px 3px 0 rgba(23, 20, 17, .13); }
+.profile-badge-control__art img { display: block; object-fit: cover; }
+.profile-badge-control__copy { min-width: 0; }
+.profile-badge-control__copy h3 { overflow: hidden; margin: 0 0 4px; font-size: 17px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.profile-badge-control__copy p { overflow: hidden; margin: 0; color: #756c63; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.profile-badge-control__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.profile-badge-control__actions form { margin: 0; }
+.profile-badge-control__actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #171411;
+  background: #171411;
+  color: #fffaf2;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: lowercase;
+  cursor: pointer;
+}
+.profile-badge-control__actions button:hover:not(:disabled),
+.profile-badge-control__actions button:focus-visible { background: #f9af5e; color: #171411; }
+.profile-badge-control__actions button.is-secondary { background: transparent; color: #171411; }
+.profile-badge-control__actions button.is-danger { border-color: #9a3224; background: transparent; color: #8d2c20; }
+.profile-badge-control__actions button:disabled { opacity: .28; cursor: not-allowed; }
+.profile-badges-empty { margin: 0; padding: 18px; border: 1px dashed #8b8177; color: #6d645c; font-family: "Source Serif 4", Georgia, serif; }
+.profile-badges-section.is-hidden-badges { background: #eee8de; }
+
+@media (max-width: 760px) {
+  .whois-credential-head-actions { width: 100%; justify-content: flex-start; }
+  .whois-credential-all-link { padding: 0 18px 24px; }
+  .whois-badges-hero { align-items: flex-start; padding: 25px 20px; }
+  .whois-badges-hero__identity { align-items: flex-start; gap: 12px; }
+  .whois-badges-hero__avatar,
+  .whois-badges-hero__avatar img,
+  .whois-badges-hero__avatar > span { width: 48px; height: 48px; }
+  .whois-badges-hero__avatar { flex-basis: 48px; }
+  .whois-badges-hero__identity h1 { font-size: 31px; }
+  .whois-badges-manage { padding: 8px 9px; font-size: 8px; }
+  .whois-badge-issuer-group__head { padding: 14px 18px; }
+  .whois-badge-row { gap: 14px; padding: 15px 18px; }
+  .whois-badge-row__art,
+  .whois-badge-row__art img { width: 68px; height: 68px; }
+  .whois-badge-row__art { flex-basis: 68px; }
+  .whois-badge-row h3 { font-size: 18px; }
+  .whois-badge-row p { font-size: 12px; }
+  .profile-badges-shell { width: min(100% - 24px, 960px); margin: 18px auto 42px; }
+  .profile-badges-hero { padding: 28px 20px; }
+  .profile-badges-hero h1 { font-size: 39px; }
+  .profile-badges-section { padding: 24px 18px 28px; }
+  .profile-badges-section > header { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .profile-badges-section > header p { text-align: left; }
+  .profile-badge-control,
+  .profile-badges-list.is-featured .profile-badge-control { grid-template-columns: 24px 52px minmax(0, 1fr); gap: 10px; }
+  .profile-badges-list:not(.is-featured) .profile-badge-control { grid-template-columns: 52px minmax(0, 1fr); }
+  .profile-badge-control__art,
+  .profile-badge-control__art img { width: 52px; height: 52px; }
+  .profile-badge-control__actions { grid-column: 1 / -1; justify-content: flex-start; padding-left: 34px; }
+  .profile-badges-list:not(.is-featured) .profile-badge-control__actions { padding-left: 62px; }
+  .profile-badge-control__actions button { min-height: 38px; }
 }
 
 .organization-badge-grant-form { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(260px, 1.3fr) auto; gap: 14px; align-items: end; margin: 24px 0 32px; padding: 20px; border: 1px solid #c9beb2; background: #fffaf3; }

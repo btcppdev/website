@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Manage profile badges · bitcoin++</title>
+    {{ template "rebrand_header" . }}
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#128444;</text></svg>">
+  </head>
+  <body class="btcpp-redesign btcpp-rebrand-page profile-badges-page">
+    {{ template "mainnav" . }}
+
+    <main class="profile-badges-shell">
+      <div class="profile-badges-breadcrumb"><a href="/dashboard/profile">← profile settings</a>{{ if .Person.PublicID }}<a href="/whois/{{ .Person.PublicID }}/badges">view public badges →</a>{{ end }}</div>
+
+      <header class="profile-badges-hero">
+        <p class="whois-section-tag">§ PROFILE DISPLAY</p>
+        <h1>Arrange your badges.</h1>
+        <p>Choose up to six badges to lead your public profile. Hiding a badge removes it from Bitcoin++ profile pages without deleting or revoking the credential.</p>
+      </header>
+
+      {{ if .FlashMessage }}<div class="profile-badges-flash is-success">{{ .FlashMessage }}</div>{{ end }}
+      {{ if .FlashError }}<div class="profile-badges-flash is-error">{{ .FlashError }}</div>{{ end }}
+
+      <section class="profile-badges-section">
+        <header><div><span>01</span><h2>Featured</h2></div><p>{{ len .Badges.Featured }} of 6 · shown on your main profile</p></header>
+        {{ if .Badges.Featured }}
+        <div class="profile-badges-list is-featured">
+          {{ range $index, $badge := .Badges.Featured }}
+          <article class="profile-badge-control">
+            <strong class="profile-badge-control__position">{{ $badge.FeaturedPosition }}</strong>
+            <div class="profile-badge-control__art"><img src="{{ $badge.ImageURL | safeURL }}" alt=""></div>
+            <div class="profile-badge-control__copy"><h3>{{ $badge.Name }}</h3><p>{{ $badge.Issuer.Name }}</p></div>
+            <div class="profile-badge-control__actions">
+              <form method="POST" action="/dashboard/profile/badges"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="badge_ref" value="{{ $badge.Reference }}"><button name="action" value="move_up"{{ if eq $badge.FeaturedPosition 1 }} disabled{{ end }} aria-label="Move {{ $badge.Name }} earlier">↑</button></form>
+              <form method="POST" action="/dashboard/profile/badges"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="badge_ref" value="{{ $badge.Reference }}"><button name="action" value="move_down"{{ if eq $badge.FeaturedPosition (len $.Badges.Featured) }} disabled{{ end }} aria-label="Move {{ $badge.Name }} later">↓</button></form>
+              <form method="POST" action="/dashboard/profile/badges"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="badge_ref" value="{{ $badge.Reference }}"><button class="is-secondary" name="action" value="unfeature">unfeature</button></form>
+              <form method="POST" action="/dashboard/profile/badges"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="badge_ref" value="{{ $badge.Reference }}"><button class="is-danger" name="action" value="hide">hide</button></form>
+            </div>
+          </article>
+          {{ end }}
+        </div>
+        {{ else }}<p class="profile-badges-empty">No featured badges. Visible credentials still appear on your complete badge page.</p>{{ end }}
+      </section>
+
+      <section class="profile-badges-section">
+        <header><div><span>02</span><h2>Other visible badges</h2></div><p>public on your complete badge page</p></header>
+        {{ if .Badges.OtherVisible }}
+        <div class="profile-badges-list">
+          {{ range .Badges.OtherVisible }}
+          <article class="profile-badge-control">
+            <div class="profile-badge-control__art"><img src="{{ .ImageURL | safeURL }}" alt=""></div>
+            <div class="profile-badge-control__copy"><h3>{{ .Name }}</h3><p>{{ .Issuer.Name }}</p></div>
+            <div class="profile-badge-control__actions">
+              {{ if lt (len $.Badges.Featured) 6 }}<form method="POST" action="/dashboard/profile/badges"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="badge_ref" value="{{ .Reference }}"><button name="action" value="feature">feature</button></form>{{ end }}
+              <form method="POST" action="/dashboard/profile/badges"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="badge_ref" value="{{ .Reference }}"><button class="is-danger" name="action" value="hide">hide</button></form>
+            </div>
+          </article>
+          {{ end }}
+        </div>
+        {{ else }}<p class="profile-badges-empty">Every visible badge is currently featured.</p>{{ end }}
+      </section>
+
+      <section class="profile-badges-section is-hidden-badges">
+        <header><div><span>03</span><h2>Hidden</h2></div><p>visible only to you here</p></header>
+        {{ if .Badges.Hidden }}
+        <div class="profile-badges-list">
+          {{ range .Badges.Hidden }}
+          <article class="profile-badge-control">
+            <div class="profile-badge-control__art"><img src="{{ .ImageURL | safeURL }}" alt=""></div>
+            <div class="profile-badge-control__copy"><h3>{{ .Name }}</h3><p>{{ .Issuer.Name }}</p></div>
+            <div class="profile-badge-control__actions"><form method="POST" action="/dashboard/profile/badges"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><input type="hidden" name="badge_ref" value="{{ .Reference }}"><button name="action" value="show">show on profile</button></form></div>
+          </article>
+          {{ end }}
+        </div>
+        {{ else }}<p class="profile-badges-empty">You have not hidden any badges.</p>{{ end }}
+      </section>
+    </main>
+
+    {{ template "generic_conf_footer" . }}
+  </body>
+</html>

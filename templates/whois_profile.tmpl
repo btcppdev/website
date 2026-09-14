@@ -49,31 +49,6 @@
 
         <div class="whois-profile-archive">
 
-      {{ if or (and .Badges (or .Badges.Issued .Badges.Pending)) .BadgeGrants }}
-      <section class="whois-profile-section whois-credential-section">
-        <div class="whois-section-head"><div><p class="whois-section-tag">§ CREDENTIALS</p><h2>Recognition from the community.</h2></div></div>
-        <div class="whois-credential-grid">
-          {{ if .Badges }}{{ range .Badges.Issued }}
-          <article class="whois-credential{{ if .Award.Revocation }} is-revoked{{ end }}">
-            <div class="whois-credential-art"><img src="{{ .Definition.ImageURL }}" alt="Artwork for {{ .Definition.Name }}" loading="lazy"></div>
-            <div><h3>{{ .Definition.Name }}</h3>{{ if .Definition.Description }}<p>{{ .Definition.Description }}</p>{{ end }}<small class="whois-credential-status">{{ if .Award.Revocation }}revoked{{ else if .Accepted }}accepted on nostr{{ else }}awarded · acceptance pending{{ end }}</small><div class="whois-credential-actions">{{ if .Award.Revocation }}<span>Revoked by issuer{{ if .Award.Revocation.Reason }} · {{ .Award.Revocation.Reason }}{{ end }}</span>{{ else }}{{ if .CredentialURL }}<a href="{{ .CredentialURL }}">View credential →</a>{{ end }}{{ if .ClaimURL }}<a href="{{ .ClaimURL }}">Accept on Nostr →</a>{{ end }}{{ end }}</div></div>
-          </article>
-          {{ end }}{{ end }}
-          {{ if .Badges }}{{ range .Badges.Pending }}{{ if .Badge }}
-          <article class="whois-credential is-pending">
-            <div class="whois-credential-art"><img src="{{ .Badge.ImageURL | safeURL }}" alt="Artwork for {{ .Badge.Name }}" loading="lazy"></div>
-            <div><h3>{{ .Badge.Name }}</h3>{{ if .Badge.Description }}<p>{{ .Badge.Description }}</p>{{ end }}<small class="whois-credential-status">grant pending</small><div class="whois-credential-actions"><span>This badge is waiting to be issued.</span></div></div>
-          </article>
-          {{ end }}{{ end }}{{ end }}
-          {{ range .BadgeGrants }}
-          <article class="whois-credential{{ if or (eq .State "granted") (eq .State "ready_to_issue") (eq .State "delivery_error") }} is-pending{{ end }}{{ if eq .State "revoked" }} is-revoked{{ end }}">
-            <div class="whois-credential-art"><img src="{{ .BadgeImageURL | safeURL }}" alt="Artwork for {{ .BadgeName }}" loading="lazy"></div><div><h3>{{ .BadgeName }}</h3>{{ if .BadgeDescription }}<p>{{ .BadgeDescription }}</p>{{ end }}{{ if .OrganizationName }}<span class="whois-credential-issuer">{{ .OrganizationName }}</span>{{ end }}<small class="whois-credential-status">{{ if eq .State "ready_to_issue" }}ready to issue{{ else if eq .State "delivery_error" }}delivery needs attention{{ else if eq .State "issued" }}awarded · acceptance pending{{ else if eq .State "accepted" }}accepted on nostr{{ else if eq .State "revoked" }}revoked{{ else }}grant pending{{ end }}</small><div class="whois-credential-actions">{{ if eq .State "granted" }}{{ if $.UpdateProfileURL }}<a href="/dashboard/settings?resume=nostr-link#settings-sign-in">Add your verified Nostr key →</a>{{ else }}<span>Waiting for the recipient’s verified Nostr key.</span>{{ end }}{{ else if eq .State "ready_to_issue" }}<span>The issuer can now publish the Nostr award.</span>{{ else if eq .State "delivery_error" }}<span>The issuer needs to retry publication.</span>{{ else if eq .State "revoked" }}<span>Revoked by issuer{{ if .RevocationReason }} · {{ .RevocationReason }}{{ end }}</span>{{ if .CredentialURL }}<a href="{{ .CredentialURL }}">View credential →</a>{{ end }}{{ else }}{{ if .CredentialURL }}<a href="{{ .CredentialURL }}">View credential →</a>{{ end }}{{ if .ClaimURL }}<a href="{{ .ClaimURL }}">Accept on Nostr →</a>{{ end }}{{ end }}</div></div>
-          </article>
-          {{ end }}
-        </div>
-      </section>
-      {{ end }}
-
       <section class="whois-profile-section">
         <div class="whois-section-head">
           <div>
@@ -203,6 +178,24 @@
         </div>
       </section>
       {{ end }}
+
+      {{ if and .BadgeCollection .BadgeCollection.TotalVisible }}
+      <section class="whois-profile-section whois-credential-section">
+        <div class="whois-section-head">
+          <div><p class="whois-section-tag">§{{ if and .Person.Projects .Person.Talks }}04{{ else if or .Person.Projects .Person.Talks }}03{{ else }}02{{ end }} · CREDENTIALS</p><h2>Badges earned.</h2></div>
+          <div class="whois-credential-head-actions">{{ if .ManageBadgesURL }}<a href="{{ .ManageBadgesURL }}">manage display →</a>{{ end }}{{ if .BadgeCollection.HasMore }}<a href="/whois/{{ .Person.PublicID }}/badges">all badges →</a>{{ end }}</div>
+        </div>
+        <div class="whois-credential-grid">
+          {{ range .BadgeCollection.Featured }}
+          <article class="whois-credential">
+            <div class="whois-credential-art"><img src="{{ .ImageURL | safeURL }}" alt="Artwork for {{ .Name }}" loading="lazy"></div>
+            <div><h3>{{ .Name }}</h3>{{ if .Description }}<p>{{ .Description }}</p>{{ end }}{{ template "whois_badge_issuer" .Issuer }}</div>
+          </article>
+          {{ end }}
+        </div>
+        {{ if .BadgeCollection.HasMore }}<div class="whois-credential-all-link"><a href="/whois/{{ .Person.PublicID }}/badges">View all {{ .BadgeCollection.TotalVisible }} badges →</a></div>{{ end }}
+      </section>
+      {{ end }}
         </div>
       </div>
 
@@ -215,6 +208,17 @@
     {{ template "generic_conf_footer" . }}
   </body>
 </html>
+
+{{ define "whois_badge_issuer" }}
+{{ if .Name }}
+<div class="whois-credential-issuer">
+  {{ if .ProfileURL }}<a href="{{ .ProfileURL }}" aria-label="View {{ .Name }} organization profile">{{ else }}<span>{{ end }}
+    <span class="whois-credential-issuer__logo">{{ if .LogoURL }}<img src="{{ .LogoURL | safeURL }}" alt="" loading="lazy">{{ else }}<span aria-hidden="true">++</span>{{ end }}</span>
+    <span class="whois-credential-issuer__copy"><small>issued by</small><strong>{{ .Name }}</strong></span>
+  {{ if .ProfileURL }}</a>{{ else }}</span>{{ end }}
+</div>
+{{ end }}
+{{ end }}
 
 {{ define "whois_talk_dialog" }}
 {{ $talk := .Talk }}
