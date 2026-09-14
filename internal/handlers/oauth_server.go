@@ -73,7 +73,10 @@ func OAuthAuthorize(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	}
 	if identity == nil || identity.PersonID == "" {
 		next := r.URL.RequestURI()
-		http.Redirect(w, r, "/login?next="+url.QueryEscape(next), http.StatusSeeOther)
+		if email, err := validatedSessionEmail(r, ctx, true); err == nil && email != "" {
+			identity = &auth.Identity{LoginEmail: email}
+		}
+		http.Redirect(w, r, oauthAccountSetupURL(identity, next), http.StatusSeeOther)
 		return
 	}
 	csrf, err := ensureAuthMethodsCSRF(ctx, r)
@@ -90,6 +93,20 @@ func OAuthAuthorize(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		ctx.Err.Printf("render OAuth consent: %s", err)
 		http.Error(w, "Unable to render authorization.", http.StatusInternalServerError)
 	}
+}
+
+// A verified email session may not have a profile yet. Keep the validated OAuth
+// request through profile creation instead of sending that user back to login.
+func oauthAccountSetupURL(identity *auth.Identity, next string) string {
+	if identity != nil && identity.PersonID == "" && strings.TrimSpace(identity.LoginEmail) != "" {
+		return dashboardProfileURLWithFlash("", "", next, "Create your profile to connect this application.")
+	}
+	return "/login?next=" + url.QueryEscape(next)
+}
+
+func isOAuthProfileSetup(next string) bool {
+	u, err := url.Parse(next)
+	return err == nil && !u.IsAbs() && u.Host == "" && u.Path == "/oauth/authorize"
 }
 
 func OAuthAuthorizeDecision(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
