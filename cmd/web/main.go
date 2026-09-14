@@ -90,7 +90,7 @@ func main() {
 	if err != nil {
 		app.Err.Fatal(err)
 	}
-	sessionHandler := app.Session.LoadAndSave(routes)
+	sessionHandler := handlers.SessionMiddleware(&app, routes)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if bypassSessionMiddleware(r.URL.Path) {
 			routes.ServeHTTP(w, r)

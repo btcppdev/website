@@ -201,3 +201,49 @@ func TestPersonMergeUndoPreservesOAuthRevocation(t *testing.T) {
 		}
 	}
 }
+
+func TestPersonMergeBallotHistoryAndUndo(t *testing.T) {
+	f := newMergeAccountsFixture(t)
+	c := context.Background()
+	if err := ReplaceCompetitionScheduleSegments(f.app, f.competition, []CompetitionScheduleSegmentInput{{SegmentType: JudgeTypeExpo, Title: "Expo", DefaultDurationMinutes: 60}, {SegmentType: JudgeTypeFinals, Title: "Finals", DefaultDurationMinutes: 60}}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := ListJudgeEvents(f.app, f.competition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events: %v", events)
+	}
+	for _, e := range events {
+		if _, err = f.app.DB.Exec(c, `INSERT INTO judge_ballot_submissions(judge_event_id,judge_person_id) VALUES($1,$2)`, e.ID, f.source); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Duplicate history keeps the canonical record and archives the source in
+	// the existing merge manifest, so undo can restore the exact original rows.
+	if _, err = f.app.DB.Exec(c, `INSERT INTO judge_ballot_submissions(judge_event_id,judge_person_id) VALUES($1,$2)`, events[0].ID, f.canonical); err != nil {
+		t.Fatal(err)
+	}
+	event, err := MergePeople(f.app, PersonMergeInput{CanonicalPersonID: f.canonical, SourcePersonID: f.source, MergedByPersonID: f.canonical})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err = f.app.DB.QueryRow(c, `SELECT count(*) FROM judge_ballot_submissions WHERE judge_person_id=$1`, f.canonical).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("merged history %d: %v", count, err)
+	}
+	preview, err := GetPersonMergeUndoPreview(f.app, event)
+	if err != nil || preview.Changed {
+		t.Fatalf("undo preview: %+v %v", preview, err)
+	}
+	if err = UndoPersonMerge(f.app, event, f.canonical, preview); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.app.DB.QueryRow(c, `SELECT count(*) FROM judge_ballot_submissions WHERE judge_person_id=$1`, f.source).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("restored history %d: %v", count, err)
+	}
+	if err = f.app.DB.QueryRow(c, `SELECT count(*) FROM judge_ballot_submissions WHERE judge_person_id=$1`, f.canonical).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("canonical history %d: %v", count, err)
+	}
+}

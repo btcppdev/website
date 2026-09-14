@@ -1,0 +1,60 @@
+{{ define "hackathon_judging_results_live" }}
+{{ $results := .JudgingResults }}
+<div class="hack-results-toolbar">
+  <div>
+    <div class="hack-label">{{ .JudgeTypeLabel $results.Event.PlaybookType }}</div>
+    <h3>{{ $results.Event.Name }}</h3>
+  </div>
+  <div class="hack-live-results-status" data-live-results-status role="status">
+    <span aria-hidden="true"></span>
+    <span data-live-results-label>Live results</span>
+  </div>
+</div>
+<div class="hack-results-stats">
+  <div><span>Judges invited</span><strong>{{ $results.InvitedJudgeCount }}</strong></div>
+  <div><span>Ballots submitted</span><strong>{{ $results.SubmittedBallotCount }}</strong></div>
+  <div><span>Projects ranked</span><strong>{{ $results.RankedProjectCount }}</strong></div>
+  <div><span>Last ballot</span><strong>{{ $results.LastSubmittedAtLabel }}</strong></div>
+</div>
+
+<div class="hack-results-block">
+  <div class="hack-results-block__head">
+    <div>
+      <div class="hack-label">Aggregate ranking</div>
+      <h3>Project standings</h3>
+    </div>
+    <span>{{ len $results.Summaries }} projects</span>
+  </div>
+  {{ if $results.Summaries }}
+  <div class="hack-table-wrap">
+    <table class="hack-table">
+      <thead>
+        <tr>
+          <th scope="col">Project</th>
+          <th scope="col">#</th>
+          <th scope="col">Ranked by</th>
+          <th scope="col">Points</th>
+          <th scope="col">Avg rank</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $results.Summaries }}
+        {{ if .CutoffBefore }}
+        <tr class="hack-deliberation-cutoff"><td colspan="5"><span>Eliminated below</span></td></tr>
+        {{ end }}
+        <tr>
+          <td><a href="{{ $.ProjectURLByID .ProjectID }}" class="hack-judging-project-link">{{ .ProjectTitle }}</a></td>
+          <td>{{ .ProjectNumber }}</td>
+          <td>{{ .ScoredScorecards }} judge{{ if ne .ScoredScorecards 1 }}s{{ end }}</td>
+          <td><strong>{{ .PointsLabel }}</strong></td>
+          <td>{{ .RankAverage }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+  {{ else }}
+  <div class="hack-empty">No projects are available in this round.</div>
+  {{ end }}
+</div>
+{{ end }}

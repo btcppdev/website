@@ -141,6 +141,7 @@ type personMergeManifest struct {
 }
 
 var personMergeRelationshipSpecs = []mergeRelationshipSpec{
+	{Table: "judge_ballot_submissions", PersonColumn: "judge_person_id", PrimaryKey: []string{"judge_event_id", "judge_person_id"}, DuplicateKey: []string{"judge_event_id"}, Label: "judge ballot submission history"},
 	{Table: "oauth_clients", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "OAuth app creators"},
 	{Table: "oauth_consents", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "client_id"}, DuplicateKey: []string{"client_id"}, Label: "connected app permissions"},
 	{Table: "oauth_authorization_codes", PersonColumn: "person_id", PrimaryKey: []string{"code_hash"}, Label: "OAuth authorization codes"},

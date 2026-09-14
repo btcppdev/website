@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Choices submitted - {{ .Competition.Title }} - bitcoin++ hackathon</title>
+  {{ block "header" . }} {{ end }}
+  <link rel="stylesheet" href="/static/css/hackathon-judging.css?v=1">
+  {{ if .CelebrateBallot }}<script src="/static/js/hackathon-confetti.js" defer></script>{{ end }}
+</head>
+<body class="hack-redesign">
+  {{ template "hackathon_conf_nav" . }}
+  {{ if .CelebrateBallot }}<canvas class="hack-ballot-confetti" data-ballot-confetti aria-hidden="true"></canvas>{{ end }}
+  <main class="hack-ballot-confirmation">
+    <div class="hack-ballot-confirmation__inner">
+      <div class="hack-label">{{ .SubmittedJudgeEvent.Name }} ballot submitted</div>
+      <h1>Your choices<br><span class="hack-serif">are in.</span></h1>
+      <p>Your ranking is saved. You can update your choices while this round is open. Results are available once the round closes.</p>
+      <a href="{{ .JudgingURL }}" class="hack-button hack-button--accent hack-ballot-confirmation__action">Back to judging &rarr;</a>
+    </div>
+  </main>
+</body>
+</html>

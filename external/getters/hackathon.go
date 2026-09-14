@@ -359,6 +359,10 @@ func ReplaceScorecardRankings(ctx *config.AppContext, in ScorecardRankingsInput)
 	return replaceScorecardRankingsPostgres(ctx, in)
 }
 
+func SubmitScorecardRankings(ctx *config.AppContext, in ScorecardRankingsInput) (bool, error) {
+	return submitScorecardRankingsPostgres(ctx, in)
+}
+
 func DeleteScorecardRankings(ctx *config.AppContext, competitionID, judgeEventID, judgePersonID string) error {
 	return deleteScorecardRankingsPostgres(ctx, competitionID, judgeEventID, judgePersonID)
 }
