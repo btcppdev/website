@@ -184,6 +184,7 @@ func SpeakerRolesGet(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	w.Header().Set("Cache-Control", "private, no-store")
 	speakerID := mux.Vars(r)["speakerID"]
 	speaker, err := getters.FetchSpeakerByID(ctx, speakerID)
 	if err != nil {
@@ -211,6 +212,10 @@ func SpeakerRolesUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	limitRequestBody(w, r, maxFormBodyBytes)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	if !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.PostFormValue("csrf")) {
+		http.Error(w, "Reload the role editor and try again.", http.StatusForbidden)
 		return
 	}
 	speakerID := strings.TrimSpace(r.FormValue("speakerID"))

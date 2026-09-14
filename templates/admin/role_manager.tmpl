@@ -1,0 +1,30 @@
+{{ define "admin_role_manager" }}
+<section id="role-manager" class="dashboard-workspace-panel admin-role-manager">
+<header><h2>People &amp; permissions</h2><p>Find a person to inspect their current roles, then choose which permissions to add or remove.</p></header>
+<form method="POST" action="/admin/roles" data-role-form data-can-assign-accounts="{{ .CanAssignAccountsAdmin }}">
+<input type="hidden" name="csrf" value="{{ .RoleCSRF }}">
+<input type="hidden" name="speakerID" data-role-person>
+<input type="hidden" name="roles" data-role-values>
+<label for="role-person-search">Find a person</label>
+<input id="role-person-search" type="search" autocomplete="off" placeholder="Search by name or email" aria-describedby="role-search-status">
+<p id="role-search-status" role="status">Select a person to view their roles.</p>
+<ul data-role-hits hidden aria-label="People matching your search"></ul>
+<section data-role-editor hidden>
+<h3 data-role-person-name></h3>
+<p>Current assignments <span data-role-count></span></p>
+<div data-role-current></div>
+<div class="admin-role-picker">
+<label for="role-choice">Add a permission</label>
+<select id="role-choice" aria-describedby="role-choice-help"><option value="">Choose a role…</option>
+{{ range .RoleOptions }}<option value="{{ .Value }}" data-description="{{ .Description }}"{{ if and .Restricted (not $.CanAssignAccountsAdmin) }} disabled{{ end }}>{{ .Label }}</option>{{ end }}
+</select>
+<p id="role-choice-help">Roles describe both what a person can do and where that access applies.</p>
+<button type="button" data-role-add disabled>Add role</button>
+</div>
+<div data-role-changes aria-live="polite"></div>
+<div class="admin-role-actions"><button type="button" data-role-reset disabled>Discard changes</button><button type="submit" data-role-save disabled>Save role changes</button></div>
+</section>
+</form>
+<noscript>Enable JavaScript to search people and manage their roles.</noscript>
+</section>
+{{ end }}

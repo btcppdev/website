@@ -16,6 +16,8 @@ import (
 )
 
 type GlobalAdminDashboardPage struct {
+	RoleOptions            []adminRoleOption
+	RoleCSRF               string
 	FlashMessage           string
 	Year                   uint
 	CanAssignAccountsAdmin bool
@@ -97,7 +99,19 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	if err != nil {
 		ctx.Err.Printf("/admin hackathon participant projects failed: %s", err)
 	}
+	confs, confErr := getters.ListConfs(ctx)
+	if confErr != nil {
+		ctx.Err.Printf("/admin role conferences: %s", confErr)
+	}
+	csrf, csrfErr := ensureAuthMethodsCSRF(ctx, r)
+	if csrfErr != nil {
+		http.Error(w, "Unable to prepare role editor", 500)
+		return
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/dashboard.tmpl", &GlobalAdminDashboardPage{
+		RoleOptions:            adminRoleOptions(confs),
+		RoleCSRF:               csrf,
 		FlashMessage:           r.URL.Query().Get("flash"),
 		Year:                   helpers.CurrentYear(),
 		CanAssignAccountsAdmin: canAssignAccountsAdmin(id),

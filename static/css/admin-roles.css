@@ -1,0 +1,21 @@
+.admin-role-manager { margin-top: 28px; padding: 24px; background: #fff; border: 1px solid #d6d2c8; }
+.admin-role-manager h2 { font-size: 22px; margin: 0 0 8px; }
+.admin-role-manager p { font-size: 13px; color: #595959; line-height: 1.5; margin: 8px 0 16px; }
+.admin-role-manager label { display: block; margin: 16px 0 8px; font-weight: 600; font-size: 13px; }
+.admin-role-manager input[type=search], .admin-role-manager select { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; padding: 12px; border: 1px solid #aaa; background: white; }
+.admin-role-manager button { padding: 9px 14px; border: 1px solid #777; background: white; color: #171717; cursor: pointer; }
+.admin-role-manager button:disabled { opacity: .5; cursor: default; }
+.admin-role-manager [data-role-save] { background: #171717; color: #fff; }
+.admin-role-manager [data-role-hits] { max-height: 250px; overflow-y: auto; border: 1px solid #aaa; padding: 0; list-style: none; }
+.admin-role-manager [data-role-hits] button { text-align: left; border: 0; border-bottom: 1px solid #ddd; width: 100%; }
+.admin-role-manager button:hover:not(:disabled) { background: #ffb65e; color: #171717; }
+.admin-role-manager button:focus-visible, .admin-role-manager select:focus-visible, .admin-role-manager input:focus-visible { outline: 3px solid #d26800; outline-offset: 2px; }
+.admin-role-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid #ddd; }
+.admin-role-row > div { min-width: 0; }
+.admin-role-row small, .admin-role-row code { display: block; font-size: 12px; margin-top: 5px; overflow-wrap: anywhere; }
+.admin-role-row small { color: #595959; }
+.admin-role-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.admin-role-picker { background: #f6f3ee; padding: 8px 16px 16px; margin-top: 20px; }
+.admin-role-manager [data-role-changes] { font-size: 13px; margin-top: 16px; }
+.admin-role-manager [hidden] { display: none !important; }
+@media(max-width:540px) { .admin-role-manager { padding: 16px; } .admin-role-row { align-items: flex-start; } .admin-role-row button { padding: 8px; } }
