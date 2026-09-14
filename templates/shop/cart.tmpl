@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20260914-1">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
   </head>
   <body class="shop-page">
@@ -21,13 +21,13 @@
         <form method="POST" action="/shop/cart" class="shop-cart-list">
           {{ range .Cart }}
           <div class="shop-cart-row">
-            <a class="shop-cart-row__img" href="/shop/{{ .Product.Slug }}">{{ if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="{{ .Product.Name }}">{{ end }}</a>
+            <a class="shop-cart-row__img" href="/shop/{{ .Product.Slug }}">{{ if  .Image }}<img src="{{  .Image | safeURL }}" alt="{{ .Product.Name }}">{{ end }}</a>
             <div class="shop-cart-row__body">
               <strong>{{ .Product.Name }}</strong>
-              <span>{{ .Variant.Label }} · {{ merchMoney .UnitPriceCents .Product }} ea</span>
-              <input type="number" name="qty_{{ .Variant.ID }}" min="0" max="20" value="{{ .Qty }}">
+              <span>{{ .Label }} · {{ template "shop_amount" (dict "Cents" .UnitPriceCents "Product" .Product) }} ea</span>
+              <input type="number" name="qty_{{ .Key }}" min="0" max="20" value="{{ .Qty }}">
             </div>
-            <b>{{ merchMoney .LineTotalCents .Product }}</b>
+            <b>{{ template "shop_amount" (dict "Cents" .LineTotalCents "Product" .Product) }}</b>
           </div>
           {{ end }}
           <button class="shop-button" type="submit">Update cart</button>
@@ -48,8 +48,8 @@
   <div><span>Subtotal</span><b>{{ merchMoney .SubtotalCents nil }}</b></div>
   <div><span>Tax (calculated at checkout)</span><b>{{ merchMoney .TaxCents nil }}</b></div>
   <div><span>Shipping</span><b>{{ if eq .ShippingCents 0 }}free{{ else }}{{ merchMoney .ShippingCents nil }}{{ end }}</b></div>
-  <div class="is-total"><span>Total</span><b>{{ merchMoney .TotalCents nil }}</b></div>
-  <small>≈ {{ merchSats .TotalCents }} sats · shipping/tax finalized at checkout</small>
+  <div class="is-total"><span>Total</span><b>{{ template "shop_amount" (dict "Cents" .TotalCents "Product" nil) }}</b></div>
+  <small>Prices refresh at checkout. Shipping and tax are additional.</small>
   {{ if .Cart }}
   <div class="shop-summary__actions">
     <a class="shop-button" href="/shop/all">← Keep shopping</a>

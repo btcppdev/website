@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
     <link rel="stylesheet" href="/static/css/shop.css?v=20260718-11">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
-    <script src="/static/js/shop-checkout.js?v=20260718-10" defer></script>
+    <script src="/static/js/shop-checkout.js?v=20260914-2" defer></script>
   </head>
   <body class="shop-page">
     {{ template "mainnav" . }}
@@ -89,9 +89,9 @@
             <div class="shop-confirm__items">
               {{ range .Cart }}
               <div class="shop-confirm-item">
-                <div class="shop-confirm-item__image">{{ if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="">{{ end }}</div>
-                <div><strong>{{ .Product.Name }}</strong><span>{{ .Variant.Label }} · qty {{ .Qty }}</span></div>
-                <b>{{ merchMoney .LineTotalCents .Product }}</b>
+                <div class="shop-confirm-item__image">{{ if  .Image }}<img src="{{  .Image | safeURL }}" alt="">{{ end }}</div>
+                <div><strong>{{ .Product.Name }}</strong><span>{{ .Label }} · qty {{ .Qty }}</span></div>
+                <b>{{ template "shop_amount" (dict "Cents" .LineTotalCents "Product" .Product) }}</b>
               </div>
               {{ end }}
             </div>
@@ -125,8 +125,8 @@
         <div><span>Subtotal</span><b>{{ merchMoney .SubtotalCents nil }}</b></div>
         <div><span>Tax</span><b data-summary-tax>{{ merchMoney .TaxCents nil }}</b></div>
         <div><span>Shipping</span><b data-summary-shipping>{{ if eq .ShippingCents 0 }}free{{ else }}{{ merchMoney .ShippingCents nil }}{{ end }}</b></div>
-        <div class="is-total"><span>Total</span><b data-summary-total data-subtotal-cents="{{ .SubtotalCents }}" data-tax-cents="{{ .TaxCents }}">{{ merchMoney .TotalCents nil }}</b></div>
-        <small>≈ {{ merchSats .TotalCents }} sats · shipping/tax finalized at checkout</small>
+        <div class="is-total"><span>Total</span><b data-summary-total data-btc-usd="{{ merchUSDQuote }}" data-subtotal-cents="{{ .SubtotalCents }}" data-tax-cents="{{ .TaxCents }}">{{ template "shop_amount" (dict "Cents" .TotalCents "Product" nil) }}</b></div>
+        <small>Prices refreshed for checkout. The payment invoice sets the final bitcoin amount.</small>
         <button class="shop-button is-primary" type="submit" form="shop-checkout-form" data-shop-summary-action>Shipping →</button>
       </aside>
     </main>

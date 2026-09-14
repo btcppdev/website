@@ -82,13 +82,18 @@
     return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
   }
 
+  function totalPrice(cents) {
+    var rate = Number(summaryTotal && summaryTotal.getAttribute("data-btc-usd"));
+    return rate > 0 ? Math.round(cents * 1000 / rate) + "k sats (" + money(cents) + ")" : money(cents);
+  }
+
   function updateSummary(shippingCents, taxCents) {
     var subtotal = summaryTotal ? Number(summaryTotal.getAttribute("data-subtotal-cents") || 0) : 0;
     var tax = taxCents === undefined ? Number(summaryTotal.getAttribute("data-tax-cents") || 0) : Number(taxCents || 0);
     if (summaryTotal) summaryTotal.setAttribute("data-tax-cents", String(tax));
     if (summaryShipping) summaryShipping.textContent = shippingCents === 0 ? "free" : money(shippingCents);
     if (summaryTax) summaryTax.textContent = money(tax);
-    if (summaryTotal) summaryTotal.textContent = money(subtotal + tax + shippingCents);
+    if (summaryTotal) summaryTotal.textContent = totalPrice(subtotal + tax + shippingCents);
   }
 
   function shippingAddressKey() {
@@ -144,7 +149,7 @@
     if (summaryTotal) {
       var subtotal = Number(summaryTotal.getAttribute("data-subtotal-cents") || 0);
       var tax = Number(summaryTotal.getAttribute("data-tax-cents") || 0);
-      summaryTotal.textContent = money(subtotal + tax);
+      summaryTotal.textContent = totalPrice(subtotal + tax);
     }
     invalidateTaxQuote();
     setShippingStatus(

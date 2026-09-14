@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title">
+<title id="title">Your badge on a square canvas</title>
+<path fill="#ece7dc" d="M0 0h800v800H0z"/>
+<g transform="rotate(-6 400 400)">
+<path fill="#c5bdac" d="M200 190h440v460H200z"/>
+<path fill="#fcfbf7" stroke="#22251f" stroke-width="2" d="M180 170h440v460H180z"/>
+<circle cx="400" cy="375" r="132" fill="#f9b45f" stroke="#22251f" stroke-width="2"/>
+<path d="M333 375h58m-29-29v58m53-29h58m-29-29v58" stroke="#22251f" stroke-width="10"/>
+<text x="400" y="565" text-anchor="middle" font-family="monospace" font-size="19" fill="#22251f">YOUR BADGE. YOUR WALL.</text>
+</g>
+</svg>

@@ -5,26 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20260914-1">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
   </head>
   <body class="shop-page">
     {{ template "mainnav" . }}
     {{ template "shop_header" . }}
-    <div class="shop-breadcrumb"><a href="/shop">shop</a><span>/</span><a href="/shop/all">{{ .Product.ProductType }}</a><span>/</span><b>{{ .Product.Name }}</b></div>
+    <div class="shop-breadcrumb"><a href="/shop">shop</a><span>/</span><a href="/shop/all">{{ .Product.CategoryName }}</a><span>/</span><b>{{ .Product.Name }}</b></div>
     <main class="shop-item">
       <div class="shop-item__media">
-        {{ if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="{{ .Product.Name }}">{{ else }}<span>{{ .Product.ProductType }}</span>{{ end }}
+        {{ if .SelectedCanvasBadge }}<div class="badge-canvas-mockup"><img data-canvas-preview src="{{ .SelectedCanvasBadge.ArtworkURL | safeURL }}" alt="{{ .SelectedCanvasBadge.BadgeName }} canvas preview"></div>{{ else if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="{{ .Product.Name }}">{{ else }}<span>{{ .Product.CategoryName }}</span>{{ end }}
       </div>
       <section class="shop-item__details">
-        <p class="shop-kicker">{{ .Product.ProductType }}</p>
+        <p class="shop-kicker">{{ .Product.CategoryName }}</p>
         <h1>{{ .Product.Name }}</h1>
         <div class="shop-price">
-          <strong>{{ merchMoney (merchPrice .Product) .Product }}</strong>
-          <span>≈ {{ merchSats (merchPrice .Product) }} sats</span>
+          {{ template "shop_product_price" .Product }}
         </div>
         <p>{{ .Product.Description }}</p>
-        {{ if merchProductSoldOut .Product }}
+        <p class="shop-canvas-note">Shipping and tax are additional. Prices refresh at checkout.</p>
+        {{ if and (eq .Product.ProductType "badge_canvas") (not .CanvasSignedIn) }}
+        <a class="shop-button is-primary" href="/login?next=/shop/{{ .Product.Slug }}">Sign in to choose your badge →</a>
+        {{ else if and (eq .Product.ProductType "badge_canvas") (not .CanvasBadges) }}
+        <div class="shop-empty">You don't have any issued Badge Studio badges to print yet. Your badges will appear here once issued.</div>
+        {{ else if merchProductSoldOut .Product }}
         <div class="shop-sold-out-panel">
           <strong>SOLD OUT</strong>
           <span>This item is out of stock right now.</span>
@@ -32,6 +36,15 @@
         {{ else if .Product.Variants }}
         <form method="POST" action="/shop/cart/add" class="shop-buy-box">
           <input type="hidden" name="redirect" value="/shop/cart">
+          {{ if eq .Product.ProductType "badge_canvas" }}
+          <input type="hidden" name="csrf" value="{{ .CanvasCSRF }}">
+          <label>Your badge
+            <select name="badge_ref" data-canvas-selector required>
+              {{ range .CanvasBadges }}<option value="{{ .Reference }}" data-artwork="{{ .ArtworkURL }}"{{ if and $.SelectedCanvasBadge (eq .Reference $.SelectedCanvasBadge.Reference) }} selected{{ end }}>{{ .BadgeName }}</option>{{ end }}
+            </select>
+          </label>
+          <p class="shop-canvas-note">Made from a badge issued to your account. The complete artwork stays visible on the square canvas.</p>
+          {{ end }}
           <label>variant
             <select name="variant_id">
               {{ range .Product.Variants }}
@@ -42,7 +55,7 @@
           <label>quantity
             <input type="number" name="qty" min="1" max="20" value="1">
           </label>
-          <button class="shop-button is-primary" type="submit">Add to cart · {{ merchMoney (merchPrice .Product) .Product }}</button>
+          <button class="shop-button is-primary" type="submit">Add to cart · {{ with merchSats (merchPrice .Product) .Product.Currency }}{{ . }} sats{{ else }}{{ merchMoney (merchPrice $.Product) $.Product }}{{ end }}</button>
         </form>
         {{ else }}
         <div class="shop-empty">This item needs a variant before it can be sold.</div>
@@ -54,10 +67,11 @@
         </div>
       </section>
     </main>
-    <section class="shop-section">
+    {{ if .Related }}<section class="shop-section">
       <div class="shop-section__label">§ goes well with</div>
       {{ template "shop_product_grid" .Related }}
-    </section>
+    </section>{{ end }}
     {{ template "shop_footer" . }}
+    {{ if eq .Product.ProductType "badge_canvas" }}<script src="/static/js/badge-canvas.js?v=1" defer></script>{{ end }}
   </body>
 </html>

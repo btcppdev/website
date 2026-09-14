@@ -196,6 +196,7 @@ type ShopLowStockItem struct {
 }
 
 type ShopOrderItem struct {
+	BadgeCanvas          *BadgeCanvas
 	ID                   string
 	OrderID              string
 	ProductID            string

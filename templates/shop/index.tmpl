@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20260914-1">
     <link rel="stylesheet" href="/static/css/archive-rain.css">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
   </head>
@@ -15,45 +15,36 @@
     {{ template "archive_rain" .ArchiveRain }}
     {{ template "shop_header" . }}
     <main class="shop-public-shell">
-    {{ if .Product }}
-    <section class="shop-hero">
-      <a class="shop-hero__media" href="/shop/{{ .Product.Slug }}">
-        {{ if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="{{ .Product.Name }}">{{ else }}<span>{{ .Product.ProductType }}</span>{{ end }}
-      </a>
-      <div class="shop-hero__copy">
-        <p class="shop-kicker">▶ the drop · new this week</p>
+    <section class="shop-spotlight">
+      <div class="shop-spotlight__copy">
+        <p class="shop-kicker">§ bitcoin++ goods</p>
+        {{ if .Product }}
         <h1>{{ .Product.Name }}</h1>
-        <p>{{ .Product.Description }}</p>
-        <div class="shop-price">
-          <strong>{{ merchMoney (merchPrice .Product) .Product }}</strong>
-          <span>≈ {{ merchSats (merchPrice .Product) }} sats</span>
-        </div>
-        <div class="shop-actions">
-          <a class="shop-button is-primary{{ if merchProductSoldOut .Product }} is-disabled{{ end }}" href="/shop/{{ .Product.Slug }}">{{ if merchProductSoldOut .Product }}Sold out{{ else }}Shop this drop →{{ end }}</a>
-          <a class="shop-button" href="/shop/all">Browse everything</a>
-        </div>
-      </div>
-    </section>
-    {{ end }}
-    <section class="shop-section">
-      <div class="shop-section__label">§ shop by category</div>
-      <div class="shop-category-grid">
-        {{ range .Categories }}
-        <a class="shop-category-card" href="/shop/all?cat={{ .Slug }}" style="--tone: {{ .Tone }}">
-          <span>{{ .Count }} items</span>
-          <strong>{{ .Label }}</strong>
-          <em>shop →</em>
-        </a>
+        <p>{{ if eq .Product.ProductType "badge_canvas" }}You earned it. Give it a place on your wall. A 9×9-inch canvas of a badge issued to you.{{ else }}{{ .Product.Subtitle }}{{ end }}</p>
+        <div class="shop-price">{{ template "shop_product_price" .Product }}</div>
+        <div class="shop-actions"><a class="shop-button is-primary" href="/shop/{{ .Product.Slug }}">{{ if eq .Product.ProductType "badge_canvas" }}Choose your badge →{{ else }}Take a closer look →{{ end }}</a><a class="shop-spotlight__browse" href="#collection">Browse the collection ↓</a></div>
+        {{ else }}
+        <h1>Made for your bitcoin side.</h1>
+        <p>Wear it. Carry it. Make it yours.</p>
+        <a class="shop-button is-primary" href="#collection">Shop the collection ↓</a>
         {{ end }}
       </div>
+      {{ if .Product }}<a class="shop-spotlight__image" href="/shop/{{ .Product.Slug }}">{{ if merchImage .Product }}<img src="{{ merchImage .Product | safeURL }}" alt="{{ .Product.Name }}">{{ else }}<span>bitcoin++</span>{{ end }}</a>{{ end }}
     </section>
-    <section class="shop-section">
-      <div class="shop-section__label">
-        <span>§ bestsellers</span>
-        <a href="/shop/all">all products →</a>
-      </div>
+    <section class="shop-section shop-browse" id="collection">
+      <div class="shop-section__label"><span>§ shop the collection</span><a href="/shop/all">All products →</a></div>
+      {{ template "shop_category_nav" . }}
       {{ template "shop_product_grid" .Products }}
     </section>
+    {{ if .CanvasProduct }}
+    <section class="shop-canvas-feature">
+      <a class="shop-canvas-feature__art" href="{{ .CanvasFeatureURL }}">{{ if .SelectedCanvasBadge }}<img src="{{ .SelectedCanvasBadge.ArtworkURL | safeURL }}" alt="{{ .SelectedCanvasBadge.BadgeName }} on canvas">{{ else }}<img src="{{ merchImage .CanvasProduct | safeURL }}" alt="An example of a personalized badge canvas">{{ end }}</a>
+      <div><p class="shop-kicker">§ earned by you</p><h2>{{ if .SelectedCanvasBadge }}Your badge. Your wall.{{ else }}Some things deserve more than a screen.{{ end }}</h2>
+      <p>{{ if .SelectedCanvasBadge }}Turn your {{ .SelectedCanvasBadge.BadgeName }} badge into a 9×9-inch canvas.{{ else }}Choose a badge issued to your Badge Studio account and make it part of your space.{{ end }}</p>
+      <div class="shop-price">{{ template "shop_product_price" .CanvasProduct }}</div>
+      <a class="shop-button is-primary" href="{{ .CanvasFeatureURL }}">{{ if .SelectedCanvasBadge }}Print one of your badges →{{ else }}Explore badge canvases →{{ end }}</a></div>
+    </section>
+    {{ end }}
     </main>
     {{ template "shop_footer" . }}
   </body>
@@ -73,16 +64,15 @@
   {{ range . }}
   <a class="shop-card{{ if merchProductSoldOut . }} is-sold-out{{ end }}" href="/shop/{{ .Slug }}">
     <div class="shop-card__image">
-      {{ if merchImage . }}<img src="{{ merchImage . | safeURL }}" alt="{{ .Name }}">{{ else }}<span>{{ .ProductType }}</span>{{ end }}
+      {{ if merchImage . }}<img src="{{ merchImage . | safeURL }}" alt="{{ .Name }}">{{ else }}<span>{{ .CategoryName }}</span>{{ end }}
       {{ if merchProductSoldOut . }}<b class="shop-sold-out-badge">sold out</b>{{ end }}
     </div>
     <div class="shop-card__body">
-      <div class="shop-card__meta"><span>{{ .ProductType }}</span>{{ if merchProductSoldOut . }}<b>sold out</b>{{ else if .Variants }}{{ with index .Variants 0 }}{{ if and (ne .InventoryPolicy "unlimited") (le .Stock 6) }}<b>low stock · {{ .Stock }} left</b>{{ end }}{{ end }}{{ end }}</div>
+      <div class="shop-card__meta"><span>{{ .CategoryName }}</span>{{ if merchProductSoldOut . }}<b>sold out</b>{{ else if .Variants }}{{ with index .Variants 0 }}{{ if and (ne .InventoryPolicy "unlimited") (le .Stock 6) }}<b>low stock · {{ .Stock }} left</b>{{ end }}{{ end }}{{ end }}</div>
       <h2>{{ .Name }}</h2>
       <p>{{ .Subtitle }}</p>
       <div class="shop-price is-small">
-        <strong>{{ merchMoney (merchPrice .) . }}</strong>
-        <span>≈ {{ merchSats (merchPrice .) }} sats</span>
+        {{ template "shop_product_price" . }}
       </div>
     </div>
   </a>
@@ -90,4 +80,20 @@
   <div class="shop-empty">No products are published yet.</div>
   {{ end }}
 </div>
+{{ end }}
+
+{{ define "shop_product_price" }}
+  {{ with merchSats (merchPrice .) .Currency }}<strong>{{ . }} sats</strong><span>{{ merchMoney (merchPrice $) $ }} {{ $.Currency }}</span>{{ else }}<strong>{{ merchMoney (merchPrice .) . }} {{ .Currency }}</strong><span>Bitcoin amount calculated at checkout</span>{{ end }}
+{{ end }}
+
+{{ define "shop_amount" }}
+  {{ $currency := "USD" }}{{ with .Product }}{{ $currency = .Currency }}{{ end }}
+  {{ with merchSats .Cents $currency }}{{ . }} sats <small>({{ with $.Product }}{{ merchMoney $.Cents . }}{{ else }}{{ merchMoney $.Cents nil }}{{ end }})</small>{{ else }}{{ with .Product }}{{ merchMoney $.Cents . }}{{ else }}{{ merchMoney .Cents nil }}{{ end }}{{ end }}
+{{ end }}
+
+{{ define "shop_category_nav" }}
+<nav class="shop-category-nav" aria-label="Shop categories">
+  <a href="/shop/all"{{ if not .ActiveCategory }} aria-current="page"{{ end }}>All</a>
+  {{ range .Categories }}<a href="/shop/all?cat={{ .Slug }}"{{ if eq $.ActiveCategory .Slug }} aria-current="page"{{ end }}>{{ .Label }} <span>{{ .Count }}</span></a>{{ end }}
+</nav>
 {{ end }}

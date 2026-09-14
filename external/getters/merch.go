@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -46,6 +47,7 @@ type MerchVariantInput struct {
 }
 
 type ShopOrderInput struct {
+	BuyerPersonID       string
 	BuyerEmail          string
 	BuyerName           string
 	Source              string
@@ -61,6 +63,7 @@ type ShopOrderInput struct {
 }
 
 type ShopOrderItemInput struct {
+	BadgeReference       string
 	ProductID            string
 	VariantID            string
 	Quantity             uint
@@ -582,6 +585,22 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 	checkoutExpiresAt := time.Now().UTC().Add(types.ShopCheckoutSessionTTL)
 	reservationExpiresAt := time.Now().UTC().Add(types.ShopInventoryReservationTTL)
 
+	studioSelections := map[string]*types.BadgeCanvas{}
+	for _, item := range items {
+		if item.BadgeReference != "" {
+			if in.BuyerPersonID == "" {
+				return nil, fmt.Errorf("sign in to purchase an issued badge canvas")
+			}
+			badges, err := ListPersonCanvasBadges(ctx, in.BuyerPersonID)
+			if err != nil {
+				return nil, err
+			}
+			for _, badge := range badges {
+				studioSelections[badge.Reference] = badge
+			}
+			break
+		}
+	}
 	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return nil, err
@@ -596,7 +615,7 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 			total_cents, checkout_expires_at
 		) VALUES (
 			gen_random_uuid()::text, NULLIF($1, '')::citext,
-			(SELECT person_id FROM person_emails WHERE email = NULLIF($1, '')::citext),
+			coalesce(NULLIF($13, '')::uuid, (SELECT person_id FROM person_emails WHERE email = NULLIF($1, '')::citext)),
 			$2, 'pending', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 		)
 		RETURNING id::text, public_id::text, coalesce(buyer_email::text, ''), buyer_name,
@@ -607,7 +626,7 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 	`, strings.ToLower(strings.TrimSpace(in.BuyerEmail)), strings.TrimSpace(in.BuyerName),
 		in.Source, in.CheckoutKind, strings.TrimSpace(in.PaymentProvider), in.Currency,
 		int64(in.SubtotalCents), int64(in.DiscountAmountCents), int64(in.ShippingAmountCents),
-		int64(in.SalesTaxAmountCents), int64(in.TotalCents), checkoutExpiresAt).Scan(
+		int64(in.SalesTaxAmountCents), int64(in.TotalCents), checkoutExpiresAt, in.BuyerPersonID).Scan(
 		&order.ID, &order.PublicID, &order.BuyerEmail, &order.BuyerName,
 		&order.Status, &order.Source, &order.CheckoutKind, &order.PaymentProvider,
 		&order.PaymentProviderID, &order.AdminNotes, &order.Currency, &order.SubtotalCents, &order.DiscountAmountCents,
@@ -631,6 +650,54 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 	}
 
 	for _, item := range items {
+		var canvas *types.BadgeCanvas
+		if item.VariantID != "" {
+			var productID string
+			if err := tx.QueryRow(ctx.DatabaseContext(), `SELECT product_id::text FROM merch_variants WHERE id=$1`, item.VariantID).Scan(&productID); err != nil {
+				return nil, err
+			}
+			if item.ProductID != productID {
+				return nil, fmt.Errorf("variant does not belong to this product")
+			}
+		}
+		if item.ProductID != "" {
+			var productType, productStatus string
+			var allowPickup bool
+			var price int
+			var currency string
+			if err := tx.QueryRow(ctx.DatabaseContext(), `SELECT product_type,status,allow_event_pickup,base_price_cents,currency FROM merch_products WHERE id=$1 FOR SHARE`, item.ProductID).Scan(&productType, &productStatus, &allowPickup, &price, &currency); err != nil {
+				return nil, err
+			}
+			if productType == types.MerchProductTypeBadgeCanvas {
+				if productStatus != types.MerchProductStatusPublished || in.Source != types.ShopOrderSourceOnline {
+					return nil, fmt.Errorf("badge canvases are available through the online shop")
+				}
+				if price <= 0 || currency != "USD" {
+					return nil, fmt.Errorf("canvas pricing has not been configured")
+				}
+				if item.FulfillmentMethod != types.ShopFulfillmentShip && !(item.FulfillmentMethod == types.ShopFulfillmentEventPickup && allowPickup) {
+					return nil, fmt.Errorf("this delivery option is not available for the canvas")
+				}
+				if studioSelections[item.BadgeReference] == nil {
+					return nil, fmt.Errorf("this badge is not available to print for your account")
+				}
+				if strings.HasPrefix(item.BadgeReference, "studio:") {
+					canvas = studioSelections[item.BadgeReference]
+					if canvas == nil {
+						return nil, fmt.Errorf("this Badge Studio award is not available to print for your account")
+					}
+				} else {
+					canvas, err = canvasBadgeForOrder(ctx.DatabaseContext(), tx, in.BuyerPersonID, item.BadgeReference)
+					if err != nil {
+						return nil, err
+					}
+				}
+			} else if item.BadgeReference != "" {
+				return nil, fmt.Errorf("this product does not accept a badge design")
+			}
+		} else if item.BadgeReference != "" {
+			return nil, fmt.Errorf("a canvas product is required")
+		}
 		item.Status = firstNonEmpty(item.Status, types.ShopItemStatusPending)
 		if strings.TrimSpace(item.VariantID) != "" {
 			var inventoryPolicy, variantStatus string
@@ -686,6 +753,16 @@ func CreateShopOrder(ctx *config.AppContext, in ShopOrderInput, items []ShopOrde
 		)
 		if err != nil {
 			return nil, fmt.Errorf("create shop order item: %w", err)
+		}
+		if canvas != nil {
+			raw, err := json.Marshal(canvas)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := tx.Exec(ctx.DatabaseContext(), `UPDATE shop_order_items SET badge_canvas=$2 WHERE id=$1`, row.ID, raw); err != nil {
+				return nil, err
+			}
+			row.BadgeCanvas = canvas
 		}
 		order.Items = append(order.Items, &row)
 		if item.FulfillmentMethod == types.ShopFulfillmentEventPickup && item.PickupConferenceID != "" {
@@ -1194,7 +1271,7 @@ func ListShopPickupsForConference(ctx *config.AppContext, confID string) ([]*typ
 			soi.quantity, soi.fulfilled_quantity, soi.refunded_quantity, soi.unit_price_cents,
 			soi.discount_amount_cents, soi.tax_amount_cents, soi.line_total_cents, soi.product_tag_snapshot,
 			soi.product_name_snapshot, soi.variant_label_snapshot, soi.sku_snapshot,
-			'' AS image_object_key,
+			'' AS image_object_key, soi.badge_canvas,
 			soi.fulfillment_method, coalesce(soi.sale_conference_id::text, ''),
 			coalesce(sale_conf.tag, ''),
 			coalesce(soi.pickup_conference_id::text, ''), soi.status, soi.created_at, soi.updated_at
@@ -1226,7 +1303,7 @@ func ListShopPickupsForTicket(ctx *config.AppContext, ticketRef string) ([]*type
 			soi.quantity, soi.fulfilled_quantity, soi.refunded_quantity, soi.unit_price_cents,
 			soi.discount_amount_cents, soi.tax_amount_cents, soi.line_total_cents, soi.product_tag_snapshot,
 			soi.product_name_snapshot, soi.variant_label_snapshot, soi.sku_snapshot,
-			'' AS image_object_key,
+			'' AS image_object_key, soi.badge_canvas,
 			soi.fulfillment_method, coalesce(soi.sale_conference_id::text, ''),
 			coalesce(sale_conf.tag, ''),
 			coalesce(soi.pickup_conference_id::text, ''), soi.status, soi.created_at, soi.updated_at
@@ -2250,7 +2327,7 @@ func listShopOrderItems(ctx *config.AppContext, orderID string) ([]*types.ShopOr
 			soi.quantity, soi.fulfilled_quantity, soi.refunded_quantity, soi.unit_price_cents,
 			soi.discount_amount_cents, soi.tax_amount_cents, soi.line_total_cents, soi.product_tag_snapshot,
 			soi.product_name_snapshot, soi.variant_label_snapshot, soi.sku_snapshot,
-			coalesce(img.object_key, '') AS image_object_key,
+			coalesce(img.object_key, '') AS image_object_key, soi.badge_canvas,
 			soi.fulfillment_method, coalesce(soi.sale_conference_id::text, ''),
 			coalesce(sale_conf.tag, ''),
 			coalesce(soi.pickup_conference_id::text, ''), soi.status, soi.created_at, soi.updated_at
@@ -2288,7 +2365,7 @@ func scanShopOrderItems(rows shopOrderItemRows, label string) ([]*types.ShopOrde
 			&item.Quantity, &item.FulfilledQuantity, &item.RefundedQuantity,
 			&item.UnitPriceCents, &item.DiscountAmountCents, &item.TaxAmountCents, &item.LineTotalCents,
 			&item.ProductTagSnapshot, &item.ProductNameSnapshot,
-			&item.VariantLabelSnapshot, &item.SKUSnapshot, &item.ImageObjectKey, &item.FulfillmentMethod,
+			&item.VariantLabelSnapshot, &item.SKUSnapshot, &item.ImageObjectKey, &item.BadgeCanvas, &item.FulfillmentMethod,
 			&item.SaleConferenceID, &item.SaleConferenceTag, &item.PickupConferenceID, &item.Status,
 			&item.CreatedAt, &item.UpdatedAt,
 		); err != nil {

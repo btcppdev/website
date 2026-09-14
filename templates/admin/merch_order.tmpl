@@ -67,6 +67,16 @@
             <span>fulfilled {{ .FulfilledQuantity }}</span>
             <span>{{ .SKUSnapshot }}</span>
           </div>
+          {{ if .BadgeCanvas }}
+          <div class="shop-canvas-fulfillment">
+            <img src="{{ .BadgeCanvas.ArtworkURL | safeURL }}" alt="{{ .BadgeCanvas.BadgeName }}">
+            <div><strong>Canvas artwork: {{ .BadgeCanvas.BadgeName }}</strong>
+              <p>{{ .VariantLabelSnapshot }} · print the complete artwork without cropping.</p>
+              <a href="{{ .BadgeCanvas.ArtworkURL | safeURL }}" target="_blank" rel="noopener noreferrer">Open source artwork ↗</a>
+              <details><summary>Badge issuance record</summary><p>Badge reference: <code>{{ .BadgeCanvas.Reference }}</code></p><p>Award: <code>{{ .BadgeCanvas.AwardEventID }}</code></p><p>Issuer: <code>{{ .BadgeCanvas.IssuerPubkey }}</code></p></details>
+            </div>
+          </div>
+          {{ end }}
           {{ if and (eq .FulfillmentMethod "event_pickup") (ne .Status "fulfilled") }}
           <form method="POST" action="/admin/merch/orders/{{ $.Order.PublicID }}/pickup" class="shop-inline-form">
             <input type="hidden" name="item_id" value="{{ .ID }}">

@@ -525,6 +525,7 @@ func loadTemplates(ctx *config.AppContext) error {
 		"ticketCheckoutMoney":         ticketCheckoutMoney,
 		"merchInches":                 merchInches,
 		"merchSats":                   merchSats,
+		"merchUSDQuote":               merchUSDQuote,
 		"merchVariantPrice":           merchVariantPrice,
 		"merchVariantAvailable": func(v *types.MerchVariant) bool {
 			return merchVariantAvailable(v, 1)

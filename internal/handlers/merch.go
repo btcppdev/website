@@ -51,11 +51,13 @@ const merchSocialCardReconcileInterval = 15 * time.Minute
 var merchSocialCardRenderGroup singleflight.Group
 
 type shopCartLine struct {
-	VariantID string `json:"variant_id"`
-	Qty       uint   `json:"qty"`
+	BadgeReference string `json:"badge_ref,omitempty"`
+	VariantID      string `json:"variant_id"`
+	Qty            uint   `json:"qty"`
 }
 
 type shopCartItem struct {
+	BadgeCanvas    *types.BadgeCanvas
 	Product        *types.MerchProduct
 	Variant        *types.MerchVariant
 	Qty            uint
@@ -64,6 +66,15 @@ type shopCartItem struct {
 }
 
 type shopPage struct {
+	ActiveCategory            string
+	CollectionHeading         string
+	CollectionDescription     string
+	CanvasProduct             *types.MerchProduct
+	CanvasFeatureURL          string
+	CanvasBadges              []*types.BadgeCanvas
+	CanvasSignedIn            bool
+	CanvasCSRF                string
+	SelectedCanvasBadge       *types.BadgeCanvas
 	Title                     string
 	Year                      int
 	ArchiveRain               []*HomeArchiveRainItem
@@ -239,11 +250,26 @@ func ShopHome(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 	page := baseShopPage(ctx, r, "bitcoin++ shop")
-	page.Products = products
+	page.Products = shopLandingProducts(products)
 	page.ArchiveRain = merchArchiveRain(products)
 	page.Categories = shopCategories(products)
-	if len(products) > 0 {
-		page.Product = products[0]
+	page.Product = shopFeaturedProduct(products)
+	for _, p := range products {
+		if p.ProductType == types.MerchProductTypeBadgeCanvas && !merchProductSoldOut(p) {
+			page.CanvasProduct = p
+			page.CanvasFeatureURL = "/shop/" + p.Slug
+			break
+		}
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
+	if page.CanvasProduct != nil {
+		identity, authErr := auth.Resolve(r, ctx)
+		if authErr == nil && identity != nil && identity.PersonID != "" {
+			if badges, badgeErr := canvasBadgesForRequest(ctx, r, identity.PersonID); badgeErr == nil && len(badges) > 0 {
+				page.SelectedCanvasBadge = badges[0]
+				page.CanvasFeatureURL += "?badge=" + url.QueryEscape(badges[0].Reference)
+			}
+		}
 	}
 	page.SocialCardURL = siteSocialCardPath("shop", "", shopSocialCard(ctx, products))
 	renderShopTemplate(w, r, ctx, "shop/index.tmpl", page)
@@ -271,19 +297,14 @@ func ShopCollection(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		http.Error(w, "Unable to load shop", http.StatusInternalServerError)
 		return
 	}
-	cat := strings.TrimSpace(r.URL.Query().Get("cat"))
-	if cat != "" {
-		filtered := products[:0]
-		for _, p := range products {
-			if shopCategorySlug(p.ProductType) == cat {
-				filtered = append(filtered, p)
-			}
-		}
-		products = filtered
-	}
-	page := baseShopPage(ctx, r, "shop all")
-	page.Products = products
+	page := baseShopPage(ctx, r, "All merch · bitcoin++ shop")
 	page.Categories = shopCategories(products)
+	setShopCollection(page, r.URL.Query().Get("cat"))
+	for _, p := range products {
+		if page.ActiveCategory == "" || shopCollectionSlug(p.ProductType) == page.ActiveCategory {
+			page.Products = append(page.Products, p)
+		}
+	}
 	renderShopTemplate(w, r, ctx, "shop/collection.tmpl", page)
 }
 
@@ -296,31 +317,21 @@ func ShopItem(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		return
 	}
 	products, _ := getters.ListMerchProducts(ctx, false)
-	var related []*types.MerchProduct
-	for _, p := range products {
-		if p.ID != product.ID && shopCategorySlug(p.ProductType) == shopCategorySlug(product.ProductType) {
-			related = append(related, p)
-		}
-	}
-	for _, p := range products {
-		if len(related) >= 4 {
-			break
-		}
-		if p.ID != product.ID && shopCategorySlug(p.ProductType) != shopCategorySlug(product.ProductType) {
-			related = append(related, p)
-		}
-	}
 	page := baseShopPage(ctx, r, product.Name)
 	page.Product = product
-	page.Related = related
+	page.Related = shopRecommendations(product, products)
+	if !prepareCanvasProduct(w, r, ctx, page) {
+		return
+	}
 	renderShopTemplate(w, r, ctx, "shop/item.tmpl", page)
 }
 
 func ShopCart(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	page := baseShopPage(ctx, r, "cart")
 	cart, err := loadShopCart(ctx, r)
 	if err != nil {
-		page.Error = "Some cart items could not be loaded."
+		page.Error = "Some items are unavailable. Sign in again or set their quantity to zero to remove them."
 	}
 	page.Cart = cart
 	fillCartTotals(page)
@@ -338,10 +349,22 @@ func ShopCartAdd(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	if qty == 0 {
 		qty = 1
 	}
-	variant, _, err := getters.GetMerchVariant(ctx, variantID)
+	variant, product, err := getters.GetMerchVariant(ctx, variantID)
 	if err != nil {
 		http.Error(w, "unknown variant", http.StatusBadRequest)
 		return
+	}
+	grantID := strings.TrimSpace(r.PostFormValue("badge_ref"))
+	if product.ProductType == types.MerchProductTypeBadgeCanvas && !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.PostFormValue("csrf")) {
+		http.Error(w, "Reload the canvas page and try again.", http.StatusForbidden)
+		return
+	}
+	if _, err := loadCanvasSelection(ctx, r, product, grantID); err != nil {
+		http.Redirect(w, r, "/shop/cart?err="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+	if qty > 20 {
+		qty = 20
 	}
 	if !merchVariantAvailable(variant, qty) {
 		http.Redirect(w, r, "/shop/cart?err="+url.QueryEscape("That item is sold out."), http.StatusSeeOther)
@@ -350,7 +373,7 @@ func ShopCartAdd(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 	lines := readShopCart(ctx, r)
 	found := false
 	for i := range lines {
-		if lines[i].VariantID == variantID {
+		if lines[i].Key() == canvasCartKey(variantID, grantID) {
 			lines[i].Qty += qty
 			if lines[i].Qty > 20 {
 				lines[i].Qty = 20
@@ -364,7 +387,7 @@ func ShopCartAdd(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		}
 	}
 	if !found {
-		lines = append(lines, shopCartLine{VariantID: variantID, Qty: qty})
+		lines = append(lines, shopCartLine{VariantID: variantID, BadgeReference: grantID, Qty: qty})
 	}
 	saveShopCart(ctx, r, lines)
 	redirect := r.FormValue("redirect")
@@ -383,7 +406,7 @@ func ShopCartUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	lines := readShopCart(ctx, r)
 	next := make([]shopCartLine, 0, len(lines))
 	for _, line := range lines {
-		qty := parseUintForm(r.FormValue("qty_"+line.VariantID), line.Qty)
+		qty := parseUintForm(r.FormValue("qty_"+line.Key()), line.Qty)
 		if qty == 0 {
 			continue
 		}
@@ -395,13 +418,14 @@ func ShopCartUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			http.Redirect(w, r, "/shop/cart?err="+url.QueryEscape("One of those items is sold out or does not have enough stock."), http.StatusSeeOther)
 			return
 		}
-		next = append(next, shopCartLine{VariantID: line.VariantID, Qty: qty})
+		next = append(next, shopCartLine{VariantID: line.VariantID, BadgeReference: line.BadgeReference, Qty: qty})
 	}
 	saveShopCart(ctx, r, next)
 	http.Redirect(w, r, "/shop/cart", http.StatusSeeOther)
 }
 
 func ShopCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	page := baseShopPage(ctx, r, "checkout")
 	page.PendingCheckout = pendingShopCheckout(ctx, r, page.Email)
 	cart, err := loadShopCart(ctx, r)
@@ -409,6 +433,7 @@ func ShopCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		http.Redirect(w, r, "/shop/cart?err="+url.QueryEscape("Your cart is empty."), http.StatusSeeOther)
 		return
 	}
+	shopRate.refresh()
 	page.Cart = cart
 	page.Checkout = defaultShopCheckoutDetails(page.Email)
 	fillCartTotals(page)
@@ -636,9 +661,26 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 	page.TaxCents = taxQuote.SalesTaxAmountCents
 	page.TotalCents = page.SubtotalCents + page.ShippingCents + page.TaxCents
 
+	buyerPersonID := ""
+	for _, item := range cart {
+		if item.BadgeCanvas != nil {
+			identity, err := auth.Resolve(r, ctx)
+			if err != nil || identity == nil {
+				http.Error(w, "Sign in to purchase a badge canvas.", http.StatusUnauthorized)
+				return
+			}
+			buyerPersonID = identity.PersonID
+			break
+		}
+	}
 	items := make([]getters.ShopOrderItemInput, 0, len(cart))
 	for _, item := range cart {
+		grantID := ""
+		if item.BadgeCanvas != nil {
+			grantID = item.BadgeCanvas.Reference
+		}
 		items = append(items, getters.ShopOrderItemInput{
+			BadgeReference:       grantID,
 			ProductID:            item.Product.ID,
 			VariantID:            item.Variant.ID,
 			Quantity:             item.Qty,
@@ -646,7 +688,7 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 			LineTotalCents:       item.LineTotalCents,
 			ProductTagSnapshot:   item.Product.Tag,
 			ProductNameSnapshot:  item.Product.Name,
-			VariantLabelSnapshot: item.Variant.Label,
+			VariantLabelSnapshot: item.Label(),
 			SKUSnapshot:          item.Variant.SKU,
 			FulfillmentMethod:    fulfillment,
 			PickupConferenceID:   pickupConfID,
@@ -654,6 +696,7 @@ func ShopCheckoutCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		})
 	}
 	order, err := getters.CreateShopOrder(ctx, getters.ShopOrderInput{
+		BuyerPersonID:       buyerPersonID,
 		BuyerEmail:          email,
 		BuyerName:           name,
 		Source:              types.ShopOrderSourceOnline,
@@ -747,7 +790,7 @@ func shopStripeCheckoutParams(order *types.ShopOrder, cart []*shopCartItem, doma
 		}
 		name := item.Product.Name
 		if item.Variant.Label != "" && item.Variant.Label != "Default" {
-			name += " · " + item.Variant.Label
+			name += " · " + item.Label()
 		}
 		productData := &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
 			Name:        stripe.String(name),
@@ -1036,6 +1079,7 @@ func AdminMerchCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+
 	var imageRaw []byte
 	var imageContentType, imageExt string
 	imageRaw, imageContentType, imageExt, err := readMultipartImageFile(r, "file", false)
@@ -1088,6 +1132,7 @@ func AdminMerchUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+
 	if err := getters.UpdateMerchProduct(ctx, productID, merchProductInputFromForm(r)); err != nil {
 		http.Redirect(w, r, adminMerchProductURL(productID, "err", err.Error()), http.StatusSeeOther)
 		return
@@ -1171,6 +1216,7 @@ func AdminMerchVariantCreate(w http.ResponseWriter, r *http.Request, ctx *config
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+
 	variantID, err := getters.CreateMerchVariant(ctx, merchVariantInputFromForm(r, productID))
 	if err == nil {
 		if stock := parseIntForm(r.FormValue("stock"), 0); stock > 0 {
@@ -1194,6 +1240,7 @@ func AdminMerchVariantUpdate(w http.ResponseWriter, r *http.Request, ctx *config
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+
 	variant, product, err := getters.GetMerchVariant(ctx, variantID)
 	if err == nil && (variant == nil || product == nil || product.ID != productID) {
 		err = fmt.Errorf("variant does not belong to product")
@@ -1884,8 +1931,10 @@ func shopCheckoutDetailsFromRequest(r *http.Request, fallbackEmail string) *shop
 }
 
 func loadShopCart(ctx *config.AppContext, r *http.Request) ([]*shopCartItem, error) {
+	r = canvasCartRequest(r)
 	lines := readShopCart(ctx, r)
 	var out []*shopCartItem
+	var selectionError error
 	for _, line := range lines {
 		if line.Qty == 0 {
 			continue
@@ -1894,16 +1943,24 @@ func loadShopCart(ctx *config.AppContext, r *http.Request) ([]*shopCartItem, err
 		if err != nil {
 			return out, err
 		}
+		canvas, err := loadCanvasSelection(ctx, r, product, line.BadgeReference)
+		if err != nil {
+			selectionError = err
+			if line.BadgeReference != "" {
+				canvas = &types.BadgeCanvas{Reference: line.BadgeReference, BadgeName: "Unavailable badge"}
+			}
+		}
 		unit := merchVariantPrice(product, variant)
 		out = append(out, &shopCartItem{
 			Product:        product,
+			BadgeCanvas:    canvas,
 			Variant:        variant,
 			Qty:            line.Qty,
 			UnitPriceCents: unit,
 			LineTotalCents: unit * line.Qty,
 		})
 	}
-	return out, nil
+	return out, selectionError
 }
 
 func readShopCart(ctx *config.AppContext, r *http.Request) []shopCartLine {
@@ -1934,15 +1991,15 @@ func restoreShopOrderCart(lines []shopCartLine, order *types.ShopOrder) []shopCa
 	required := shopOrderVariantQuantities(order)
 	out := append([]shopCartLine(nil), lines...)
 	for i := range out {
-		if quantity := required[out[i].VariantID]; quantity > 0 {
+		if quantity := required[out[i].Key()]; quantity > 0 {
 			if out[i].Qty < quantity {
 				out[i].Qty = quantity
 			}
-			delete(required, out[i].VariantID)
+			delete(required, out[i].Key())
 		}
 	}
 	for variantID, quantity := range required {
-		out = append(out, shopCartLine{VariantID: variantID, Qty: quantity})
+		out = append(out, canvasLineFromKey(variantID, quantity))
 	}
 	return out
 }
@@ -1951,7 +2008,7 @@ func removeShopOrderFromCart(lines []shopCartLine, order *types.ShopOrder) []sho
 	purchased := shopOrderVariantQuantities(order)
 	out := make([]shopCartLine, 0, len(lines))
 	for _, line := range lines {
-		quantity := purchased[line.VariantID]
+		quantity := purchased[line.Key()]
 		if quantity >= line.Qty {
 			continue
 		}
@@ -1968,7 +2025,11 @@ func shopOrderVariantQuantities(order *types.ShopOrder) map[string]uint {
 	}
 	for _, item := range order.Items {
 		if item != nil && strings.TrimSpace(item.VariantID) != "" && item.Quantity > 0 {
-			quantities[item.VariantID] += item.Quantity
+			grantID := ""
+			if item.BadgeCanvas != nil {
+				grantID = item.BadgeCanvas.Reference
+			}
+			quantities[canvasCartKey(item.VariantID, grantID)] += item.Quantity
 		}
 	}
 	return quantities
@@ -2058,6 +2119,13 @@ func pendingShopCheckout(ctx *config.AppContext, r *http.Request, email string) 
 }
 
 func fillCartTotals(page *shopPage) {
+	for _, item := range page.Cart {
+		if item != nil && item.Product != nil && item.Product.ProductType == types.MerchProductTypeBadgeCanvas && !item.Product.AllowEventPickup {
+			page.PickupConf = nil
+			break
+		}
+	}
+
 	subtotalCents := shopCartSubtotal(page.Cart)
 	page.SubtotalCents = subtotalCents
 	if subtotalCents == 0 {
@@ -2229,7 +2297,7 @@ func shopShippingCartKey(cart []*shopCartItem) string {
 		if item == nil || item.Variant == nil {
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("%s:%d:%d:%d:%d:%d:%d", item.Variant.ID, item.Qty,
+		lines = append(lines, fmt.Sprintf("%s:%d:%d:%d:%d:%d:%d", item.Key(), item.Qty,
 			item.UnitPriceCents, item.Variant.WeightGrams, item.Variant.LengthMM,
 			item.Variant.WidthMM, item.Variant.HeightMM))
 	}
@@ -2399,7 +2467,7 @@ func shopStripeTaxParams(cart []*shopCartItem, address *types.ShopAddress, shipp
 		params.LineItems = append(params.LineItems, &stripe.TaxCalculationLineItemParams{
 			Amount:      stripe.Int64(int64(item.LineTotalCents)),
 			Quantity:    stripe.Int64(int64(item.Qty)),
-			Reference:   stripe.String(item.Variant.ID),
+			Reference:   stripe.String(item.Key()),
 			TaxBehavior: stripe.String("exclusive"),
 			TaxCode:     stripe.String(taxCode),
 		})
@@ -2524,24 +2592,16 @@ func validateShopPickupSelection(conf *types.Conf, selectedConfID string) error 
 }
 
 func shopCategories(products []*types.MerchProduct) []shopCategory {
-	labels := map[string]string{
-		"apparel":     "Apparel",
-		"accessories": "Accessories",
-		"stickers":    "Stickers & patches",
-		"pins":        "Pins",
-		"exclusive":   "Attendee exclusives",
-		"standard":    "Merch",
-	}
-	tones := map[string]int{"apparel": 28, "accessories": 190, "stickers": 145, "pins": 275, "exclusive": 45, "standard": 28}
 	counts := map[string]int{}
 	for _, p := range products {
-		counts[shopCategorySlug(p.ProductType)]++
+		counts[shopCollectionSlug(p.ProductType)]++
 	}
 	var out []shopCategory
-	for slug, count := range counts {
-		out = append(out, shopCategory{Slug: slug, Label: firstNonEmpty(labels[slug], slug), Count: count, Tone: tones[slug]})
+	for _, c := range shopCollections {
+		if counts[c.Slug] > 0 {
+			out = append(out, shopCategory{Slug: c.Slug, Label: c.Label, Count: counts[c.Slug]})
+		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
 	return out
 }
 
@@ -2555,7 +2615,7 @@ func ticketCheckoutAddOnProducts(ctx *config.AppContext, conf *types.Conf) []*ty
 	}
 	out := make([]*types.MerchProduct, 0, 3)
 	for _, product := range products {
-		if product.AllowEventPickup && len(product.Variants) > 0 && !merchProductSoldOut(product) {
+		if product.ProductType != types.MerchProductTypeBadgeCanvas && product.AllowEventPickup && len(product.Variants) > 0 && !merchProductSoldOut(product) {
 			out = append(out, product)
 		}
 		if len(out) == 3 {
@@ -2813,6 +2873,9 @@ func shopOrderItemImage(item *types.ShopOrderItem) string {
 	if item == nil {
 		return ""
 	}
+	if item.BadgeCanvas != nil {
+		return item.BadgeCanvas.ArtworkURL
+	}
 	key := strings.TrimSpace(item.ImageObjectKey)
 	if key == "" {
 		if confTag := strings.TrimSpace(item.SaleConferenceTag); confTag != "" {
@@ -2928,14 +2991,6 @@ func merchDimensionMMFromForm(r *http.Request, dimension string) int {
 		return 0
 	}
 	return int(math.Round(inches * 25.4))
-}
-
-func merchSats(amount uint) string {
-	if amount == 0 {
-		return "0"
-	}
-	sats := int64(math.Round((float64(amount) / 100 / 107500) * 100000000))
-	return groupSatsCommas(sats)
 }
 
 func merchJSON(v any) template.JS {

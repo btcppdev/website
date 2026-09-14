@@ -114,3 +114,12 @@ func fetch(currency string) (float64, error) {
 	}
 	return price, nil
 }
+
+// FreshBitcoinPrice bypasses the accounting cache for a current shop quote.
+func FreshBitcoinPrice(currency string) (float64, error) {
+	cur := strings.ToLower(strings.TrimSpace(currency))
+	if cur == "" {
+		return 0, fmt.Errorf("coingecko: empty currency")
+	}
+	return fetch(cur)
+}
