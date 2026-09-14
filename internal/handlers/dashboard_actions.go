@@ -1049,10 +1049,8 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			http.StatusSeeOther)
 		return
 	}
-	// Mirror the talk-application form's required set: Name (already
-	// checked above), Phone, Signal, Github, and a profile photo. The
-	// browser-side `required` attrs gate normal submissions; this is
-	// the server-side backstop for handcrafted POSTs.
+	// Account setup requires a name, Signal contact and profile photo.
+	// Phone numbers are optional; retain one when the person provides it.
 	in := getters.SpeakerInput{
 		Name:      name,
 		Email:     email,
@@ -1070,7 +1068,7 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
 	if !strings.HasPrefix(nextURL, "/sponsor-invites/") {
-		if missing := firstMissingProfileField(in.Phone, in.Signal, hasNewPic); missing != "" {
+		if missing := firstMissingProfileField(in.Signal, hasNewPic); missing != "" {
 			http.Redirect(w, r,
 				dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, missing+" is required."),
 				http.StatusSeeOther)
@@ -1112,10 +1110,7 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 // required profile field that's empty, or "" when all are filled.
 // hasPhoto is the boolean form because the photo lives outside the
 // form's text values (multipart blob).
-func firstMissingProfileField(phone, signal string, hasPhoto bool) string {
-	if phone == "" {
-		return "Phone"
-	}
+func firstMissingProfileField(signal string, hasPhoto bool) string {
 	if signal == "" {
 		return "Signal"
 	}

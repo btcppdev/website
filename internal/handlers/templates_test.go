@@ -166,6 +166,9 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("OAuth account setup omitted %q: %s", expected, accountSetupPage.String())
 		}
 	}
+	if strings.Contains(accountSetupPage.String(), `id="Phone" name="Phone" type="tel" required`) || !strings.Contains(accountSetupPage.String(), "PHONE (OPTIONAL)") {
+		t.Fatal("account signup should label phone optional and omit required validation")
+	}
 	if strings.Contains(accountSetupPage.String(), "Arrange <span>your</span> record") {
 		t.Fatalf("new-account onboarding used edit-profile copy: %s", accountSetupPage.String())
 	}

@@ -166,8 +166,8 @@
             </div>
           </div>
           <div class="profile-edit-fields">
-            <label>PHONE {{ if .RequireFullProfile }}*{{ end }}
-              <input id="Phone" name="Phone" type="tel" {{ if .RequireFullProfile }}required{{ end }} value="{{ if .Speaker }}{{ .Speaker.Phone }}{{ end }}">
+            <label>PHONE (OPTIONAL)
+              <input id="Phone" name="Phone" type="tel" value="{{ if .Speaker }}{{ .Speaker.Phone }}{{ end }}">
             </label>
             <label>SIGNAL {{ if .RequireFullProfile }}*{{ end }}
               <input id="Signal" name="Signal" type="text" {{ if .RequireFullProfile }}required{{ end }} value="{{ if .Speaker }}{{ .Speaker.Signal }}{{ end }}">
