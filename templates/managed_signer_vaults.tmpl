@@ -1,0 +1,14 @@
+{{ define "managed_signer_vaults.tmpl" -}}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Choose a key vault · bitcoin++</title><link rel="stylesheet" href="/static/css/btcpp-redesign.css"></head>
+<body class="managed-signer-consent">
+<header><a href="/">bitcoin++</a><span>key vault</span></header>
+<main>
+  <p class="managed-signer-consent__eyebrow">{{ if .PersonName }}signed in as {{ .PersonName }}{{ else }}your bitcoin++ account{{ end }}</p>
+  <h1>Choose a key vault.</h1>
+  <p class="managed-signer-consent__intro">Open your personal vault or one for an organization you manage. We’ll check whether it’s ready or needs setup.</p>
+  <dl>{{ range .Vaults }}<div><dt>{{ .Kind }}</dt><dd><a href="{{ .URL }}">{{ .Name }} →</a></dd></div>{{ end }}</dl>
+  <p class="managed-signer-consent__note">Only organizations where you’re an active owner or manager appear here.</p>
+  <a href="/dashboard">Back to your bitcoin++ account</a>
+</main><footer>bitcoin++ · key vault · {{ .Year }}</footer></body></html>
+{{- end }}

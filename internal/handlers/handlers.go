@@ -1384,6 +1384,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/oauth/revoke", func(w http.ResponseWriter, r *http.Request) {
 		OAuthTokenPreflight(w, r, app)
 	}).Methods("OPTIONS")
+	r.HandleFunc("/signer/vaults", func(w http.ResponseWriter, r *http.Request) {
+		ManagedSignerVaults(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/signer/authorize", func(w http.ResponseWriter, r *http.Request) {
 		ManagedSignerAuthorize(w, r, app)
 	}).Methods("GET")
