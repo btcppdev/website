@@ -71,3 +71,15 @@ Studio lookup failures fall back to the generic feature. Product recommendations
 use complementary category priorities, skip unavailable products, exclude other
 badge canvases on canvas pages, and never exceed four. These are editorial rules,
 not sales-ranked or purchase-history recommendations.
+
+## Admin editor
+
+The product editor has section links, a separate pricing area, collapsed advanced
+settings and expandable variant rows. Base prices and variant adjustments use
+exact decimal currency inputs; cents-only requests remain compatible. Invalid
+fractional cents and out-of-range prices are rejected. The browser shows a USD
+satoshi preview and warns about unsaved form changes. Existing canvas behavior
+is preserved when editing its category; it remains a personalized Prints item.
+
+The local fixture also serves `/preview/admin` and `/preview/admin/new` for
+visual review. These pages have no save routes; they do not modify real products.

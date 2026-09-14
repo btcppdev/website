@@ -1079,6 +1079,10 @@ func AdminMerchCreate(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+	if err := normalizeMerchAdminPrices(r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	var imageRaw []byte
 	var imageContentType, imageExt string
@@ -1130,6 +1134,10 @@ func AdminMerchUpdate(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 	limitRequestBody(w, r, maxFormBodyBytes)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	if err := normalizeMerchAdminPrices(r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -1216,6 +1224,10 @@ func AdminMerchVariantCreate(w http.ResponseWriter, r *http.Request, ctx *config
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+	if err := normalizeMerchAdminPrices(r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	variantID, err := getters.CreateMerchVariant(ctx, merchVariantInputFromForm(r, productID))
 	if err == nil {
@@ -1238,6 +1250,10 @@ func AdminMerchVariantUpdate(w http.ResponseWriter, r *http.Request, ctx *config
 	variantID := strings.TrimSpace(mux.Vars(r)["variant"])
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	if err := normalizeMerchAdminPrices(r); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

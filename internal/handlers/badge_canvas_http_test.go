@@ -99,6 +99,23 @@ func TestBadgeCanvasShopFlow(t *testing.T) {
 	root.HandleFunc("/shop/checkout", func(w http.ResponseWriter, r *http.Request) { ShopCheckout(w, r, app) }).Methods("GET")
 	// No payment or notification endpoints are mounted in the preview.
 	root.HandleFunc("/shop/{slug}", func(w http.ResponseWriter, r *http.Request) { ShopItem(w, r, app) }).Methods("GET")
+	root.HandleFunc("/preview/admin", func(w http.ResponseWriter, r *http.Request) {
+		p, err := getters.GetMerchProductBySlug(app, slug, false)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		page := baseShopPage(app, r, "Admin editor preview")
+		page.Product = p
+		page.Flash = "Local editor preview · changes are not saved"
+		renderShopTemplate(w, r, app, "admin/merch_edit.tmpl", page)
+	}).Methods("GET")
+	root.HandleFunc("/preview/admin/new", func(w http.ResponseWriter, r *http.Request) {
+		page := baseShopPage(app, r, "New product preview")
+		page.Product = &types.MerchProduct{Status: "draft", Currency: "USD"}
+		page.Flash = "Local editor preview · changes are not saved"
+		renderShopTemplate(w, r, app, "admin/merch_new.tmpl", page)
+	}).Methods("GET")
 	handler := app.Session.LoadAndSave(root)
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -208,6 +225,11 @@ func TestBadgeCanvasShopFlow(t *testing.T) {
 	post("/shop/cart", url.Values{"qty_" + standardVariant: {"0"}})
 	testRate.Store(100000)
 	shopRate.refresh()
+	for _, path := range []string{"/preview/admin", "/preview/admin/new"} {
+		if code, body := get(path); code != 200 || !strings.Contains(body, `name="base_price"`) || !strings.Contains(body, "Shipping &amp; advanced settings") {
+			t.Fatal("admin editor render", path, code)
+		}
+	}
 	if os.Getenv("CANVAS_BROWSER_PREVIEW") == "1" {
 		pool.Exec(context.Background(), `UPDATE organization_badge_grants SET state='issued' WHERE id=$1`, one)
 		studio := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

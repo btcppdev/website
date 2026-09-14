@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20260914-2">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
   </head>
   <body class="shop-page shop-admin-page">
     {{ template "mainnav" . }}
     {{ template "shop_header" . }}
-    <main class="shop-admin shop-admin--editor">
+    <main class="shop-admin shop-admin--editor" data-merch-editor data-btc-usd="{{ merchUSDQuote }}">
       <section class="shop-admin__intro shop-admin__intro--actions">
         <div>
           <p class="shop-kicker">§ new product</p>
@@ -29,13 +29,15 @@
         <section class="shop-admin-editor-section">
           <div class="shop-admin-editor-section__head"><span>02</span><h2>Initial variant</h2></div>
           <div class="shop-form-grid">
-            <label>SKU<input name="sku" required></label>
+            <label>SKU<input name="sku" placeholder="Generated from the internal tag"><small>Leave blank to generate automatically.</small></label>
             <label>label<input name="variant_label" value="Default" required></label>
             <label>initial stock<input type="number" name="stock" value="0" min="0"></label>
-            <label>weight grams<input type="number" name="weight_grams" value="0" min="0"></label>
-            <label>length inches<input type="number" name="length_inches" min="0" step="0.01" value="0"></label>
-            <label>width inches<input type="number" name="width_inches" min="0" step="0.01" value="0"></label>
-            <label>height inches<input type="number" name="height_inches" min="0" step="0.01" value="0"></label>
+            <details class="merch-editor-details"><summary>Parcel dimensions &amp; weight</summary><div class="shop-form-grid">
+            <label>Packed weight (g)<input type="number" name="weight_grams" value="0" min="0"></label>
+            <label>Packed length (in)<input type="number" name="length_inches" min="0" step="0.01" value="0"></label>
+            <label>Packed width (in)<input type="number" name="width_inches" min="0" step="0.01" value="0"></label>
+            <label>Packed height (in)<input type="number" name="height_inches" min="0" step="0.01" value="0"></label>
+            </div></details>
           </div>
         </section>
         <section class="shop-admin-editor-section">
@@ -66,5 +68,6 @@
       </form>
     </main>
     <script src="/static/js/merch-social-preview.js"></script>
+  <script src="/static/js/merch-admin-editor.js?v=1" defer></script>
   </body>
 </html>

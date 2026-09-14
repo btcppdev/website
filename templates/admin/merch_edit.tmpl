@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
-    <link rel="stylesheet" href="/static/css/shop.css">
+    <link rel="stylesheet" href="/static/css/shop.css?v=20260914-2">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
   </head>
   <body class="shop-page shop-admin-page">
     {{ template "mainnav" . }}
     {{ template "shop_header" . }}
-    <main class="shop-admin shop-admin--editor">
+    <main class="shop-admin shop-admin--editor" data-merch-editor data-btc-usd="{{ merchUSDQuote }}">
       {{ $product := .Product }}
       <section class="shop-admin__intro shop-admin__intro--actions">
         <div>
@@ -24,10 +24,11 @@
           <a class="shop-button" href="/shop/{{ .Product.Slug }}">View product ↗</a>
         </div>
       </section>
-      {{ if .Flash }}<p class="shop-flash is-success">{{ .Flash }}</p>{{ end }}
+
+      <nav class="merch-editor-nav" aria-label="Product editor sections"><a href="#overview">Overview</a><a href="#pricing">Pricing</a><a href="#variants">Variants &amp; stock</a><a href="#images">Images</a><a href="#options">Options</a><a href="#advanced">Advanced</a></nav>
       {{ if .Error }}<p class="shop-flash is-error">{{ .Error }}</p>{{ end }}
 
-      <section class="shop-admin-editor-section">
+      <section class="shop-admin-editor-section" id="product-details">
         <div class="shop-admin-editor-section__head"><span>01</span><h2>Product details</h2></div>
         <form method="POST" action="/admin/merch/{{ .Product.ID }}" class="shop-admin-form shop-admin-editor-form">
           {{ template "admin_merch_fields" .Product }}
@@ -35,20 +36,21 @@
         </form>
       </section>
 
-      <section class="shop-admin-editor-section">
+      <section class="shop-admin-editor-section" id="variants">
         <div class="shop-admin-editor-section__head"><span>02</span><h2>Variants</h2></div>
         <div class="shop-admin-editor-stack">
           {{ range .Product.Variants }}
+          <details class="merch-editor-details"><summary><strong>{{ .Label }}</strong><span>{{ merchMoney (merchVariantPrice $product .) $product }} · {{ .Stock }} in stock · {{ .Status }}</span></summary>
           <form method="POST" action="/admin/merch/{{ $product.ID }}/variants/{{ .ID }}" class="shop-admin-form shop-form-grid">
             <label>SKU<input name="sku" value="{{ .SKU }}" required></label>
             <label>label<input name="variant_label" value="{{ .Label }}" required></label>
-            <label>price delta cents<input type="number" name="price_delta_cents" value="{{ .PriceDeltaCents }}"></label>
+            <label>Price adjustment ({{ $product.Currency }})<input type="number" name="price_adjustment" step="0.01" value="{{ merchDecimal .PriceDeltaCents }}"></label>
             <label>stock on hand<input value="{{ .Stock }}" disabled></label>
             <label>stock adjustment<input type="number" name="stock_delta" value="0"></label>
-            <label>weight grams<input type="number" name="weight_grams" value="{{ .WeightGrams }}"></label>
-            <label>length inches<input type="number" name="length_inches" min="0" step="0.01" value="{{ merchInches .LengthMM }}"></label>
-            <label>width inches<input type="number" name="width_inches" min="0" step="0.01" value="{{ merchInches .WidthMM }}"></label>
-            <label>height inches<input type="number" name="height_inches" min="0" step="0.01" value="{{ merchInches .HeightMM }}"></label>
+            <label>Packed weight (g)<input type="number" name="weight_grams" value="{{ .WeightGrams }}"></label>
+            <label>Packed length (in)<input type="number" name="length_inches" min="0" step="0.01" value="{{ merchInches .LengthMM }}"></label>
+            <label>Packed width (in)<input type="number" name="width_inches" min="0" step="0.01" value="{{ merchInches .WidthMM }}"></label>
+            <label>Packed height (in)<input type="number" name="height_inches" min="0" step="0.01" value="{{ merchInches .HeightMM }}"></label>
             <label>inventory policy
               <select name="inventory_policy">
                 <option value="deny" {{ if eq .InventoryPolicy "deny" }}selected{{ end }}>deny overselling</option>
@@ -63,25 +65,25 @@
               </select>
             </label>
             <button class="shop-button" type="submit">Save variant</button>
-          </form>
+          </form></details>
           {{ end }}
-          <form method="POST" action="/admin/merch/{{ .Product.ID }}/variants" class="shop-admin-form shop-form-grid">
+          <details class="merch-editor-details"><summary>+ Add variant</summary><form method="POST" action="/admin/merch/{{ .Product.ID }}/variants" class="shop-admin-form shop-form-grid">
             <label>new SKU<input name="sku" required></label>
             <label>label<input name="variant_label" required></label>
-            <label>price delta cents<input type="number" name="price_delta_cents" value="0"></label>
+            <label>Price adjustment ({{ $product.Currency }})<input type="number" name="price_adjustment" step="0.01" value="0.00"></label>
             <label>initial stock<input type="number" name="stock" value="0" min="0"></label>
-            <label>weight grams<input type="number" name="weight_grams" value="0"></label>
-            <label>length inches<input type="number" name="length_inches" min="0" step="0.01" value="0"></label>
-            <label>width inches<input type="number" name="width_inches" min="0" step="0.01" value="0"></label>
-            <label>height inches<input type="number" name="height_inches" min="0" step="0.01" value="0"></label>
+            <label>Packed weight (g)<input type="number" name="weight_grams" value="0"></label>
+            <label>Packed length (in)<input type="number" name="length_inches" min="0" step="0.01" value="0"></label>
+            <label>Packed width (in)<input type="number" name="width_inches" min="0" step="0.01" value="0"></label>
+            <label>Packed height (in)<input type="number" name="height_inches" min="0" step="0.01" value="0"></label>
             <input type="hidden" name="inventory_policy" value="deny">
             <input type="hidden" name="variant_status" value="active">
             <button class="shop-button" type="submit">Add variant</button>
-          </form>
+          </form></details>
         </div>
       </section>
 
-      <section class="shop-admin-editor-section">
+      <section class="shop-admin-editor-section" id="options">
         <div class="shop-admin-editor-section__head"><span>03</span><h2>Options</h2></div>
         <div class="shop-admin-editor-stack">
           {{ range .Product.Options }}
@@ -104,24 +106,23 @@
         </div>
       </section>
 
-      <section class="shop-admin-editor-section">
+      <section class="shop-admin-editor-section" id="images">
         <div class="shop-admin-editor-section__head"><span>04</span><h2>Images</h2></div>
         <div class="shop-admin-editor-stack">
           {{ range .Product.Images }}
           <form method="POST" action="/admin/merch/{{ .ProductID }}/images/{{ .ID }}" class="shop-admin-form shop-form-grid">
-            <label>object<input value="{{ .ObjectKey }}" disabled></label>
+            <img class="merch-editor-thumbnail" src="{{ merchObjectURL .ObjectKey | safeURL }}" alt="{{ .AltText }}">
             <label>alt text<input name="alt_text" value="{{ .AltText }}"></label>
             <label>display order<input type="number" name="display_order" value="{{ .DisplayOrder }}"></label>
             <label class="shop-checkbox"><input type="checkbox" name="primary" {{ if .IsPrimary }}checked{{ end }}> primary</label>
-            <div class="shop-social-preview-field">
+            <details class="shop-social-preview-field"><summary>Social card preview</summary>
               <div class="shop-social-preview-label"><strong>X / social card</strong><span>1200 × 630 JPEG</span></div>
               {{ with merchImageSocialPreview . }}
               <div class="shop-social-preview has-image"><img src="{{ . | safeURL }}" alt="Generated social card preview"></div>
               {{ else }}
               <div class="shop-social-preview is-missing"><p>No social card has been generated for this image yet.</p></div>
               {{ end }}
-            </div>
-            <button class="shop-button" type="submit">Save image</button>
+            </details><button class="shop-button" type="submit">Save image</button>
             <button class="shop-button" type="submit" formaction="/admin/merch/{{ .ProductID }}/images/{{ .ID }}/social-card">{{ if .SocialObjectKey }}Regenerate social card{{ else }}Generate social card{{ end }}</button>
             <button class="shop-button" type="submit" name="delete" value="1" onclick="return confirm('Remove this image from the product?');">Remove</button>
           </form>
@@ -146,5 +147,6 @@
       </section>
     </main>
     <script src="/static/js/merch-social-preview.js"></script>
+  <script src="/static/js/merch-admin-editor.js?v=1" defer></script>
   </body>
 </html>

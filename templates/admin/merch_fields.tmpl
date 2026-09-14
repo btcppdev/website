@@ -1,28 +1,37 @@
 {{ define "admin_merch_fields" }}
+<div id="overview" class="merch-editor-group">
+<h3>Overview</h3>
 <div class="shop-form-grid">
-  <label>name<input name="name" value="{{ .Name }}" required></label>
-  <label>tag<input name="tag" value="{{ .Tag }}" placeholder="core-hat" required></label>
-  <label>slug<input name="slug" value="{{ .Slug }}" placeholder="core-hat" required></label>
-  <label>status
-    <select name="status">
-      <option value="draft" {{ if eq .Status "draft" }}selected{{ end }}>draft</option>
-      <option value="published" {{ if eq .Status "published" }}selected{{ end }}>published</option>
-      <option value="archived" {{ if eq .Status "archived" }}selected{{ end }}>archived</option>
-    </select>
-  </label>
-  <label>subtitle<input name="subtitle" value="{{ .Subtitle }}"></label>
-  <label>category/tag<input name="product_type" value="{{ .ProductType }}" placeholder="apparel"></label>
-  <label>base price cents<input type="number" name="base_price_cents" value="{{ .BasePriceCents }}" min="0" required></label>
-  <label>currency<input name="currency" value="{{ if .Currency }}{{ .Currency }}{{ else }}USD{{ end }}"></label>
-  <label>symbol<input name="symbol" value="{{ if .Symbol }}{{ .Symbol }}{{ else }}${{ end }}"></label>
-  <label>Stripe tax code<input name="stripe_tax_code" value="{{ .StripeTaxCode }}"></label>
-  <label>Easyship category<input name="easyship_category" value="{{ .EasyshipCategory }}" placeholder="fashion"></label>
-  <label>HS code<input name="hs_code" value="{{ .HSCode }}"></label>
-  <label>country of origin<input name="country_of_origin" value="{{ .CountryOfOrigin }}" placeholder="US" maxlength="2"></label>
+<label>Product name<input name="name" value="{{ .Name }}" required></label>
+<label>Short description<input name="subtitle" value="{{ .Subtitle }}"></label>
+<label>Shop category
+{{ if eq .ProductType "badge_canvas" }}<input value="Prints" readonly><input type="hidden" name="product_type" value="badge_canvas"><small>Personalized badge canvas · customers choose their issued badge.</small>
+{{ else }}<select name="product_type">
+<option value="{{ .ProductType }}" selected>{{ if .ProductType }}{{ .ProductType }} (current){{ else }}Choose a category{{ end }}</option>
+<option value="apparel">Apparel</option><option value="accessories">Accessories</option><option value="prints">Prints</option><option value="stickers">Stickers &amp; pins</option><option value="exclusive">Attendee exclusives</option><option value="standard">More merch</option>
+</select>{{ end }}</label>
 </div>
-<label class="shop-admin-form__full">description<textarea name="description" rows="4">{{ .Description }}</textarea></label>
-<div class="shop-checks">
-  <label><input type="checkbox" name="requires_shipping" {{ if .RequiresShipping }}checked{{ end }}> requires shipping</label>
-  <label><input type="checkbox" name="allow_event_pickup" {{ if .AllowEventPickup }}checked{{ end }}> allow event pickup</label>
+<label>Description<textarea name="description" rows="3">{{ .Description }}</textarea></label>
 </div>
+<div id="pricing" class="merch-editor-group">
+<h3>Pricing &amp; availability</h3>
+<div class="shop-form-grid">
+<label>Base price<input type="number" name="base_price" data-merch-base-price value="{{ merchDecimal .BasePriceCents }}" min="0" step="0.01" required><small data-merch-price-preview>{{ with merchSats .BasePriceCents .Currency }}{{ . }} sats on the storefront{{ else }}Satoshi price available when the exchange rate loads{{ end }}</small></label>
+<label>Currency<input name="currency" value="{{ if .Currency }}{{ .Currency }}{{ else }}USD{{ end }}" maxlength="3" required></label>
+<label>Visibility<select name="status"><option value="draft" {{ if eq .Status "draft" }}selected{{ end }}>Draft</option><option value="published" {{ if eq .Status "published" }}selected{{ end }}>Published</option><option value="archived" {{ if eq .Status "archived" }}selected{{ end }}>Archived</option></select></label>
+</div>
+<div class="shop-checks"><label><input type="checkbox" name="requires_shipping" {{ if .RequiresShipping }}checked{{ end }}> Ship to customers</label><label><input type="checkbox" name="allow_event_pickup" {{ if .AllowEventPickup }}checked{{ end }}> Offer event pickup</label></div>
+<small>Save as a draft while you prepare images, variants and fulfillment.</small>
+</div>
+<details id="advanced" class="merch-editor-details"><summary>Shipping &amp; advanced settings</summary>
+<div class="shop-form-grid">
+<label>Internal tag<input name="tag" value="{{ .Tag }}" placeholder="core-hat" required></label>
+<label>Product URL slug<input name="slug" value="{{ .Slug }}" placeholder="core-hat" required></label>
+<label>Currency symbol<input name="symbol" value="{{ if .Symbol }}{{ .Symbol }}{{ else }}${{ end }}"></label>
+<label>Stripe tax code<input name="stripe_tax_code" value="{{ .StripeTaxCode }}"></label>
+<label>Shipping category<input name="easyship_category" value="{{ .EasyshipCategory }}" placeholder="fashion"></label>
+<label>Customs HS code<input name="hs_code" value="{{ .HSCode }}"></label>
+<label>Country of origin<input name="country_of_origin" value="{{ .CountryOfOrigin }}" placeholder="US" maxlength="2"></label>
+</div><p>Set packed weight and dimensions per variant. Product size and parcel size may differ.</p>
+</details>
 {{ end }}

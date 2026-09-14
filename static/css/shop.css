@@ -1080,3 +1080,32 @@
  .shop-browse .shop-price, .shop-listing .shop-price { flex-wrap: wrap; gap: 4px; }
  .shop-browse .shop-price strong, .shop-listing .shop-price strong { font-size: 18px; }
 }
+
+/* Product editing: a short navigation bar and expandable operational details. */
+.merch-editor-nav { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 0; margin-bottom: 20px; background: #f6f3ee; border-bottom: 1px solid #cfc9bf; }
+.merch-editor-nav a { padding: 8px 12px; color: #171717; background: white; border: 1px solid #cfc9bf; font-size: 13px; text-decoration: none; }
+.merch-editor-nav a:focus-visible, .merch-editor-details summary:focus-visible { outline: 3px solid #d26800; outline-offset: 3px; }
+.merch-editor-group, .merch-editor-details { scroll-margin-top: 130px; }
+.merch-editor-group h3 { font-size: 18px; margin: 0 0 16px; }
+.merch-editor-group { display: flex; flex-direction: column; gap: 12px; padding: 0 0 24px; border-bottom: 1px solid #e4ded3; }
+.merch-editor-details { border: 1px solid #d5cfc5; background: #fff; padding: 16px; }
+.merch-editor-details summary { cursor: pointer; font-weight: 600; }
+.merch-editor-details summary span { display: inline-block; margin-left: 20px; font-weight: 400; color: #555; font-size: 13px; }
+.merch-editor-details[open] > summary { margin-bottom: 20px; }
+.merch-editor-details .shop-admin-form { border: 0; padding: 0; }
+.merch-editor-save-status { color: #805000; grid-column: 1 / -1; }
+.merch-editor-thumbnail { width: 120px; height: 120px; object-fit: contain; background: #eee8df; }
+.shop-admin--editor .shop-admin-editor-section { scroll-margin-top: 130px; }
+@media (max-width: 540px) {
+ .merch-editor-nav { gap: 4px; }
+ .merch-editor-nav a { padding: 8px; font-size: 11px; }
+ .merch-editor-details summary span { display: block; margin: 8px 0 0; }
+}
+.shop-admin--editor .shop-admin__intro { margin-bottom: 20px; }
+.shop-admin--editor .shop-admin__intro h1 { font-size: clamp(28px, 3vw, 40px); line-height: 1.08; }
+.shop-admin--editor .shop-admin__intro p { font-size: 13px; overflow-wrap: anywhere; }
+.shop-admin--editor input, .shop-admin--editor select, .shop-admin--editor textarea { box-sizing: border-box; max-width: 100%; }
+.shop-admin--editor label small { text-transform: none; letter-spacing: normal; font-size: 12px; font-weight: normal; line-height: 1.5; }
+.shop-admin--editor .shop-button { box-sizing: border-box; max-width: 100%; white-space: normal; }
+.shop-admin--editor > *, .shop-admin--editor form > *, .shop-admin--editor .shop-form-grid > *, .shop-admin--editor .shop-merch-image-create > * { min-width: 0; }
+.shop-admin--editor input, .shop-admin--editor select { min-width: 0; }
