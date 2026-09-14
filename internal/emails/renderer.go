@@ -462,7 +462,8 @@ a { color: inherit; }
 .btcpp-content li { font-size: 15px; line-height: 1.6; margin: 8px 0; }
 .btcpp-section-label { color: #F57247; font-family: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
 @media only screen and (max-width: 680px) {
-  .btcpp-inner { border: 0 !important; }
+  .btcpp-inner { width: 100%% !important; border: 0 !important; }
+  .btcpp-content h1, .btcpp-content p { overflow-wrap: anywhere; }
   .btcpp-gutter { padding: 0 !important; }
   .btcpp-row, .btcpp-padding { padding-left: 16px !important; padding-right: 16px !important; }
   .btcpp-cta { padding: 24px 16px !important; }

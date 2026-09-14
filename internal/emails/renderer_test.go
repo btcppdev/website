@@ -303,7 +303,7 @@ func TestRebrandEmailCSSRemovesOuterBorderOnMobile(t *testing.T) {
 	if !strings.Contains(css, ".btcpp-inner { width: 100%; max-width: 640px; table-layout: fixed;") || !strings.Contains(css, "border: 1px solid #1C1C1E;") {
 		t.Fatalf("desktop newsletter border missing: %s", css)
 	}
-	if !strings.Contains(css, "@media only screen and (max-width: 680px)") || !strings.Contains(css, ".btcpp-inner { border: 0 !important; }") {
+	if !strings.Contains(css, "@media only screen and (max-width: 680px)") || !strings.Contains(css, ".btcpp-inner { width: 100% !important; border: 0 !important; }") {
 		t.Fatalf("mobile newsletter border override missing: %s", css)
 	}
 	if !strings.Contains(css, "@keyframes btcpp-ticker-scroll") || !strings.Contains(css, ".btcpp-ticker { max-width: 0; overflow: hidden; white-space: nowrap; }") || !strings.Contains(css, "width: 100%; height: 14px; max-height: 14px; overflow: hidden; white-space: nowrap;") {
