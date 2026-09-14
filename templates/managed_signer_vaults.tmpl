@@ -1,10 +1,10 @@
 {{ define "managed_signer_vaults.tmpl" -}}
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Choose a key vault · bitcoin++</title><link rel="stylesheet" href="/static/css/btcpp-redesign.css"></head>
-<body class="managed-signer-consent">
-<header><a href="/">bitcoin++</a><span>key vault</span></header>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Choose a key vault · bitcoin++</title><link rel="stylesheet" href="/static/css/btcpp-redesign.css"><link rel="stylesheet" href="/static/css/managed-signer-vaults.css?v=1"></head>
+<body class="managed-signer-consent managed-signer-vaults">
+<header class="vault-picker-header"><a class="vault-picker-brand" href="/" aria-label="bitcoin++ home"><img src="/static/img/logo_blk.svg" alt="bitcoin++" width="152" height="44"></a><span class="vault-picker-product">key vault</span></header>
 <main>
-  <p class="managed-signer-consent__eyebrow">{{ if .PersonName }}signed in as {{ .PersonName }}{{ else }}your bitcoin++ account{{ end }}</p>
+  <p class="eyebrow">{{ if .PersonName }}signed in as {{ .PersonName }}{{ else }}your bitcoin++ account{{ end }}</p>
   <h1>Choose a key vault.</h1>
   <p class="managed-signer-consent__intro">Open your personal vault or one for an organization you manage. We’ll check whether it’s ready or needs setup.</p>
   <dl>{{ range .Vaults }}<div><dt>{{ .Kind }}</dt><dd><a href="{{ .URL }}">{{ .Name }} →</a></dd></div>{{ end }}</dl>

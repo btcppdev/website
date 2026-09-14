@@ -1,0 +1,49 @@
+/* The picker has a header, unlike the two-row authorization screens. */
+.managed-signer-vaults {
+  grid-template-rows: auto 1fr auto;
+  gap: 32px;
+  padding-top: 28px;
+  box-sizing: border-box;
+}
+.managed-signer-vaults *,
+.managed-signer-vaults *::before,
+.managed-signer-vaults *::after { box-sizing: border-box; }
+.vault-picker-header {
+  width: min(820px, calc(100% - 48px));
+  margin: 0 auto;
+  padding-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #c9beb2;
+}
+.vault-picker-brand { display: inline-flex; flex-shrink: 0; }
+.vault-picker-brand img { display: block; width: 152px; height: 44px; object-fit: contain; }
+.vault-picker-product {
+  padding: 7px 11px;
+  border: 1px solid #73529b;
+  border-radius: 4px;
+  color: #73529b;
+  font: 700 11px/1.2 system-ui, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.managed-signer-vaults main {
+  width: min(760px, calc(100% - 48px));
+  min-width: 0;
+  padding: clamp(24px, 5vw, 56px);
+}
+.managed-signer-vaults dl div { align-items: center; }
+.managed-signer-vaults a { color: inherit; }
+.managed-signer-vaults dd a { display: block; padding: 12px 0; font-weight: 700; text-underline-offset: 4px; }
+.managed-signer-vaults a:focus-visible { outline: 3px solid #73529b; outline-offset: 5px; }
+.managed-signer-vaults footer { padding-top: 0; }
+@media (max-width: 520px) {
+  .managed-signer-vaults { gap: 24px; padding-top: 18px; }
+  .vault-picker-header { width: calc(100% - 40px); gap: 12px; padding-bottom: 16px; }
+  .vault-picker-brand img { width: 130px; height: 38px; }
+  .vault-picker-product { padding: 6px 8px; font-size: 10px; }
+  .managed-signer-vaults main { width: calc(100% - 40px); padding: 24px 20px; }
+}
