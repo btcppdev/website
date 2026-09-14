@@ -587,6 +587,7 @@ func AuthRedirect(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		http.Error(w, "session error", http.StatusInternalServerError)
 		return
 	}
+	RememberLoginMethod(w, MethodEmailLink, ctx.Env.Prod)
 	http.Redirect(w, r, SafeNext(dest, "/dashboard"), http.StatusSeeOther)
 }
 

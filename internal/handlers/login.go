@@ -19,6 +19,7 @@ import (
 // `next` path. Used by every page guarded by auth.RequireRole when
 // the user isn't authenticated yet.
 type LoginPage struct {
+	PreferredMethod string
 	Next            string
 	FlashMessage    string
 	FlashError      string
@@ -42,6 +43,7 @@ type MagicLinkPage struct {
 // with a flash, regardless of whether the email is on file — that
 // keeps us from leaking whether an email is registered.
 func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	if r.Method == http.MethodPost {
 		limitRequestBody(w, r, maxFormBodyBytes)
 		if err := r.ParseForm(); err != nil {
@@ -122,7 +124,8 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		providers = oauthProviderViews(ctx.Env, next)
 	}
 	page := &LoginPage{
-		Next: next, FlashMessage: r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"),
+		PreferredMethod: auth.PreferredLoginMethod(r),
+		Next:            next, FlashMessage: r.URL.Query().Get("flash"), FlashError: r.URL.Query().Get("error"),
 		OAuthProviders: providers, DevLoginEnabled: dashboardDevLoginEnabled(ctx), CSRF: csrf, Year: helpers.CurrentYear(),
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "login.tmpl", page); err != nil {

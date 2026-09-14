@@ -3,28 +3,18 @@
 <head>
   <title>Sign in · bitcoin++</title>
   {{ block "header" . }} {{ end }}
+  <link rel="stylesheet" href="/static/css/login-layout.css?v=2">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>&#128272;</text></svg>">
 </head>
 <body class="btcpp-login-page">
   {{ block "mainnav" . }} {{ end }}
 
-  <main class="auth-shell">
-    <aside class="auth-poster" aria-hidden="true">
-      <div class="auth-poster__eyebrow">BITCOIN++ / ACCESS</div>
-      <div class="auth-poster__mark">++</div>
-      <div>
-        <p>One profile.</p>
-        <p>Every event.</p>
-        <p class="auth-poster__accent">Your keys.</p>
-      </div>
-      <span class="auth-poster__note">Talks · tickets · hackathons · volunteering</span>
-    </aside>
-
-    <section class="auth-card" id="login">
+  <main class="auth-shell auth-shell--simple">
+    <section class="auth-card" id="login" data-preferred-method="{{ .PreferredMethod }}">
       <header class="auth-card__head">
         <span class="auth-kicker">§ SIGN IN</span>
-        <h1>Welcome <em>back.</em></h1>
-        <p>Choose any method connected to your bitcoin++ profile.</p>
+        <h1>Welcome.</h1>
+        <p>Sign in or create your free account.</p>
       </header>
 
       {{ if .FlashMessage }}
@@ -34,11 +24,48 @@
       <div class="auth-alert auth-alert--error">{{ .FlashError }}</div>
       {{ end }}
 
+      <section id="auth-preferred" hidden aria-label="Last used sign-in method">
+        <p>You last signed in on this device with <strong id="auth-preferred-label"></strong>.</p>
+        <div id="auth-preferred-slot"></div>
+        <button id="auth-use-another" type="button" class="auth-secondary">Use another method</button>
+      </section>
+      <div id="auth-standard">
+      <form id="auth-email-start" method="POST" action="/login" class="auth-form">
+        <input type="hidden" name="Next" value="{{ .Next }}">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <label>EMAIL<input id="auth-email" type="email" name="Email" autocomplete="email" placeholder="you@example.com" required></label>
+        <button id="auth-email-continue" class="auth-primary" type="submit">Continue with email <span>→</span></button>
+      </form>
+      <div id="auth-email-options">
+        <p id="auth-email-help">New here? Choose an email link to verify your address and create your profile.</p>
+        <button class="auth-secondary" type="submit" form="auth-email-start">Email me a sign-in link</button>
+        <details class="auth-email-link">
+          <summary>Use a password instead</summary>
+          <form id="auth-password-form" method="POST" action="/login/password" class="auth-form">
+            <input type="hidden" name="Next" value="{{ .Next }}">
+            <input type="hidden" name="csrf" value="{{ .CSRF }}">
+            <label class="auth-password-email">EMAIL<input type="email" name="Email" autocomplete="username" required></label>
+            <div class="auth-password-heading"><label for="auth-password">PASSWORD</label><a href="/forgot-password">Forgot password?</a></div>
+            <input id="auth-password" type="password" name="Password" autocomplete="current-password" required>
+            <div class="auth-form__actions"><button class="auth-primary" type="submit">Sign in with password →</button></div>
+          </form>
+        </details>
+      </div>
+      <div class="auth-divider"><span>or</span></div>
+      <div class="auth-methods auth-methods--native">
+        <button type="button" class="auth-method" data-passkey-login data-next="{{ .Next }}">
+          <span class="auth-method__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.5 9.5a5.5 5.5 0 1 0-4 5.3V18h2v2h2v2h3v-3h-3v-4.2a5.5 5.5 0 0 0 0-5.3Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="9.5" r="1.2" fill="currentColor"/></svg></span>
+          <span class="auth-method__copy"><strong>Sign in with a passkey</strong><small data-passkey-status>Touch ID, Face ID, or a security key</small></span>
+          <span class="auth-method__arrow" aria-hidden="true">→</span>
+        </button>
+      </div>
+      <details class="auth-email-link auth-more-options">
+        <summary>More sign-in options</summary>
       {{ if .OAuthProviders }}
       <div class="auth-methods" aria-label="OAuth sign-in methods">
         {{ range .OAuthProviders }}
           {{ if .Enabled }}
-          <a class="auth-method auth-method--{{ .Key }}" href="{{ .LinkURL }}">
+          <a data-login-provider="{{ .Key }}" class="auth-method auth-method--{{ .Key }}" href="{{ .LinkURL }}">
           {{ else }}
           <span class="auth-method auth-method--disabled auth-method--{{ .Key }}" aria-disabled="true" title="Add this provider's client ID and secret to .env">
           {{ end }}
@@ -60,44 +87,18 @@
       </div>
       {{ end }}
 
-      <div class="auth-methods auth-methods--native">
-        <button type="button" class="auth-method" data-passkey-login data-next="{{ .Next }}">
-          <span class="auth-method__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.5 9.5a5.5 5.5 0 1 0-4 5.3V18h2v2h2v2h3v-3h-3v-4.2a5.5 5.5 0 0 0 0-5.3Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="9.5" r="1.2" fill="currentColor"/></svg></span>
-          <span class="auth-method__copy"><strong>Sign in with a passkey</strong><small data-passkey-status>Touch ID, Face ID, or a security key</small></span>
-          <span class="auth-method__arrow" aria-hidden="true">→</span>
-        </button>
+        <div class="auth-methods">
         <button type="button" class="auth-method auth-method--nostr" data-nostr-login data-next="{{ .Next }}">
           <span class="auth-method__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="m13.2 1-8 12h5.2L9.8 23l9-13h-5.4L13.2 1Z"/></svg></span>
           <span class="auth-method__copy"><strong>Sign in with Nostr</strong><small data-nostr-status>Sign with Alby or another NIP-07 extension</small></span>
           <span class="auth-method__arrow" aria-hidden="true">→</span>
         </button>
-      </div>
-
-      <div class="auth-divider"><span>or use your email</span></div>
-
-      <form method="POST" action="/login/password" class="auth-form">
-        <input type="hidden" name="Next" value="{{ .Next }}">
-        <input type="hidden" name="csrf" value="{{ .CSRF }}">
-        <label>EMAIL<input type="email" name="Email" autocomplete="email" placeholder="you@example.com" required></label>
-        <label>PASSWORD<input type="password" name="Password" autocomplete="current-password" placeholder="••••••••••••" required></label>
-        <div class="auth-form__actions">
-          <button class="auth-primary" type="submit">Sign in with password <span>→</span></button>
-          <a href="/forgot-password">Forgot password?</a>
         </div>
-      </form>
-
-      <details class="auth-email-link">
-        <summary>Email me a one-time sign-in link</summary>
-        <form method="POST" action="/login" class="auth-form auth-form--compact">
-          <input type="hidden" name="Next" value="{{ .Next }}">
-          <input type="hidden" name="csrf" value="{{ .CSRF }}">
-          <label>EMAIL<input type="email" name="Email" autocomplete="email" placeholder="you@example.com" required></label>
-          <button class="auth-secondary" type="submit">Send sign-in link</button>
-        </form>
       </details>
 
+      </div>
       {{ if .DevLoginEnabled }}
-      <aside class="auth-dev">
+      <details class="auth-dev"><summary>Developer tools</summary>
         <div><strong>LOCAL DEVELOPMENT</strong><span>No email is sent.</span></div>
         <form method="POST" action="/login">
           <input type="hidden" name="Next" value="{{ .Next }}">
@@ -105,12 +106,13 @@
           <input type="email" name="Email" value="mara.chen@example.test" aria-label="Seeded development email" required>
           <button type="submit" name="Action" value="dev-login">Dev sign in →</button>
         </form>
-      </aside>
+      </details>
       {{ end }}
     </section>
   </main>
 
   {{ block "footer" . }} {{ end }}
+  <script src="/static/js/login-layout.js?v=2" defer></script>
   <script src="/static/js/nostr-login.js" defer></script>
   <script src="/static/js/passkey.js" defer></script>
 </body>

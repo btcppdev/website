@@ -77,6 +77,7 @@ func PasswordLogin(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		redirectPasswordLogin(w, r, next, "Unable to start your session. Try again.")
 		return
 	}
+	auth.RememberLoginMethod(w, auth.MethodPassword, ctx.Env.Prod)
 	recordAuthAudit(ctx, r, personID, string(auth.MethodPassword), "login_succeeded", nil)
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
@@ -246,6 +247,7 @@ func ResetPassword(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 			http.Redirect(w, r, "/login?flash="+url.QueryEscape("Password reset. Sign in with your new password."), http.StatusSeeOther)
 			return
 		}
+		auth.RememberLoginMethod(w, auth.MethodPassword, ctx.Env.Prod)
 		recordAuthAudit(ctx, r, personID, string(auth.MethodPassword), "password_reset_completed", nil)
 		primary, _ := getters.GetPrimaryPersonEmail(ctx, personID)
 		sendPasswordChangedNotice(ctx, personID, primary, true, time.Now().UTC())

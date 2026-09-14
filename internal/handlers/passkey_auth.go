@@ -94,6 +94,7 @@ func PasskeyLoginVerify(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		writePasskeyError(w, http.StatusInternalServerError, "The passkey was valid, but the session could not be started.")
 		return
 	}
+	auth.RememberLoginMethod(w, auth.MethodPasskey, ctx.Env.Prod)
 	recordAuthAudit(ctx, r, user.PersonID, string(auth.MethodPasskey), "login_succeeded", nil)
 	writePasskeyJSON(w, map[string]string{"redirect": next})
 }

@@ -197,6 +197,7 @@ func OAuthCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 			redirectOAuthError(w, r, ctx, provider.Label()+" was verified, but the session could not be started. Try again.")
 			return
 		}
+		auth.RememberLoginMethod(w, auth.Method(provider.Key()), ctx.Env.Prod)
 		recordAuthAudit(ctx, r, linked.PersonID, provider.Key(), "login_succeeded", map[string]any{"oauth_identity_id": providerIdentity.ID})
 		if mode == "link" {
 			next = "/dashboard/settings?flash=" + url.QueryEscape(oauthIdentityLabel(provider.Label(), providerIdentity.Username)+" is already linked.")
@@ -439,6 +440,7 @@ func OAuthConfirmAccept(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		redirectPersonEmails(w, r, "", provider.Label()+" was linked, but the session could not be refreshed.")
 		return
 	}
+	auth.RememberLoginMethod(w, auth.Method(provider.Key()), ctx.Env.Prod)
 	recordAuthAudit(ctx, r, viewer.PersonID, provider.Key(), "oauth_identity_linked", map[string]any{"oauth_identity_id": linked.ID})
 	destination := oauthLinkSuccessDestination(pending.Next)
 	http.Redirect(w, r, appendFlash(destination, oauthIdentityLabel(provider.Label(), linked.Username)+" is now linked."), http.StatusSeeOther)

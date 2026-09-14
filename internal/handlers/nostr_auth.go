@@ -137,6 +137,7 @@ func NostrVerify(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 		writeNostrAuthError(w, http.StatusInternalServerError, "The signature was valid, but the session could not be started.")
 		return
 	}
+	auth.RememberLoginMethod(w, auth.MethodNostr, ctx.Env.Prod)
 	recordAuthAudit(ctx, r, person.ID, string(auth.MethodNostr), "login_succeeded", map[string]any{"pubkey": strings.ToLower(event.PubKey)})
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Type", "application/json")
