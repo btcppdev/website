@@ -109,7 +109,7 @@ func TestManagedSignerCreatePageNamesOrganizationAndAction(t *testing.T) {
 	identity := &auth.Identity{Speaker: &types.Speaker{Name: "Mara Chen"}}
 	memberships := []*types.OrganizationMembership{{
 		OrganizationID: organizationID,
-		Role:           getters.OrganizationRoleManager,
+		Role:           getters.OrganizationRoleOwner,
 		Status:         "active",
 		Organization:   &types.Org{Name: "Signet Systems"},
 	}}
@@ -118,7 +118,7 @@ func TestManagedSignerCreatePageNamesOrganizationAndAction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.TenantName != "Signet Systems" || page.Role != getters.OrganizationRoleManager || page.ActionLabel != "create a new Nostr signer" {
+	if page.TenantName != "Signet Systems" || page.Role != getters.OrganizationRoleOwner || page.ActionLabel != "create a new Nostr signer" {
 		t.Fatalf("managed signer setup context = %#v", page)
 	}
 }
@@ -247,5 +247,35 @@ func TestManagedBadgeBatchReviewBindsExactRecipients(t *testing.T) {
 	page.EventHash = strings.Repeat("e", 64)
 	if err := validateManagedBadgeBatch(request, ctx, page); err == nil || !strings.Contains(err.Error(), "does not match") {
 		t.Fatalf("tampered authorization was accepted: %v", err)
+	}
+}
+
+func TestManagedSignerKeyCustodyRequiresActiveOwner(t *testing.T) {
+	ctx := &config.AppContext{Env: &types.EnvConfig{SignerURL: "https://bunker.example"}}
+	identity := &auth.Identity{PersonID: "person-1", Speaker: &types.Speaker{Name: "Person"}}
+	for _, action := range []string{"create_identity", "import_identity", "rotate_identity", "export_identity"} {
+		for _, role := range []string{"owner", "manager", "member"} {
+			for _, status := range []string{"active", "pending", "removed"} {
+				t.Run(action+"/"+role+"/"+status, func(t *testing.T) {
+					values := url.Values{"tenant": {"organization"}, "tenant_id": {"org-1"}, "action": {action}, "return_to": {"https://bunker.example/api/authorizations/callback?state=" + strings.Repeat("a", 64)}}
+					request := httptest.NewRequest(http.MethodGet, "/signer/authorize?"+values.Encode(), nil)
+					memberships := []*types.OrganizationMembership{{OrganizationID: "org-1", Role: role, Status: status, Organization: &types.Org{Name: "Org"}}}
+					_, err := managedSignerAuthorizationPage(request, ctx, identity, memberships)
+					if role == "owner" && status == "active" {
+						if err != nil {
+							t.Fatal(err)
+						}
+					} else if err == nil {
+						t.Fatal("unauthorized organization key action accepted")
+					}
+				})
+			}
+		}
+	}
+	for _, action := range []string{"create_identity", "import_identity", "export_identity"} {
+		values := url.Values{"tenant": {"person"}, "tenant_id": {"person-1"}, "action": {action}, "return_to": {"https://bunker.example/api/authorizations/callback?state=" + strings.Repeat("a", 64)}}
+		if _, err := managedSignerAuthorizationPage(httptest.NewRequest(http.MethodGet, "/signer/authorize?"+values.Encode(), nil), ctx, identity, nil); err != nil {
+			t.Fatalf("personal %s: %v", action, err)
+		}
 	}
 }

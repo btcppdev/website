@@ -322,6 +322,9 @@ func managedSignerAuthorizationPage(r *http.Request, ctx *config.AppContext, ide
 	}
 	for _, membership := range memberships {
 		if membership != nil && membership.OrganizationID == tenantID && membership.Status == "active" && (membership.Role == getters.OrganizationRoleOwner || membership.Role == getters.OrganizationRoleManager) {
+			if membership.Role != getters.OrganizationRoleOwner && (action == "create_identity" || action == "import_identity" || action == "rotate_identity" || action == "export_identity") {
+				return nil, errors.New("Only organization owners can create, import, rotate, or export keys.")
+			}
 			page.Role = membership.Role
 			if membership.Organization != nil {
 				page.TenantName = membership.Organization.Name

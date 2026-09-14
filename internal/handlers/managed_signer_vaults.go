@@ -53,21 +53,21 @@ func managedSignerVaultChoices(signerURL string, identity *auth.Identity, member
 	if identity.Speaker != nil && strings.TrimSpace(identity.Speaker.Name) != "" {
 		name = identity.Speaker.Name
 	}
-	choice := func(tenant, id, name, kind string) managedSignerVaultChoice {
-		query := url.Values{"tenant": {tenant}, "tenant_id": {id}, "tenant_name": {name}}
+	choice := func(tenant, id, name, kind, role string) managedSignerVaultChoice {
+		query := url.Values{"tenant": {tenant}, "tenant_id": {id}, "tenant_name": {name}, "role": {role}}
 		if tenant == "person" {
 			query.Set("open", "1")
 		}
 		return managedSignerVaultChoice{Name: name, Kind: kind, URL: strings.TrimRight(signerURL, "/") + "/?" + query.Encode()}
 	}
-	choices := []managedSignerVaultChoice{choice("person", identity.PersonID, name, "My personal vault")}
+	choices := []managedSignerVaultChoice{choice("person", identity.PersonID, name, "My personal vault", "member")}
 	seen := map[string]bool{}
 	for _, membership := range memberships {
 		if membership == nil || membership.Organization == nil || membership.OrganizationID == "" || membership.Status != "active" || (membership.Role != getters.OrganizationRoleOwner && membership.Role != getters.OrganizationRoleManager) || seen[membership.OrganizationID] {
 			continue
 		}
 		seen[membership.OrganizationID] = true
-		choices = append(choices, choice("organization", membership.OrganizationID, membership.Organization.Name, "Organization vault"))
+		choices = append(choices, choice("organization", membership.OrganizationID, membership.Organization.Name, "Organization vault", membership.Role))
 	}
 	return choices
 }
