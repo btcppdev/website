@@ -1089,126 +1089,120 @@ func dashboardIdentity(speakers []*types.Speaker, speakerConfs []*types.SpeakerC
 	return "there", ""
 }
 
-// enrichDashboardProposals walks every proposal across the user's
-// SpeakerConfs and attaches the data needed by the talk card:
-//
-//   - proposal.Speakers: full SpeakerConf+Speaker for every speaker on the
-//     proposal (so we can render avatars).
-//   - proposal.ConfTalk: the ConfTalk row for accepted proposals (Clipart).
-//   - proposal.Recording: the Recording row when one exists (YT link).
-//
-// Two-phase to keep everything parallel: first fan-out fetch every unique
-// co-speaker's SpeakerConf+Speaker, then fan-out per-proposal enrich
-// (ConfTalk → Recording is a serial chain within each proposal goroutine).
-//
-// Best-effort — individual fetches that fail just leave the field nil. The
-// dashboard renders without that piece rather than 500ing.
-func enrichDashboardProposals(ctx *config.AppContext, speakerConfs []*types.SpeakerConf) {
-	scCache := make(map[string]*types.SpeakerConf)
-	// Seed the cache with the user's own SpeakerConfs (their Speaker is
-	// already resolved by GetSpeakerConfsByEmail) so we don't re-fetch.
-	for _, sc := range speakerConfs {
-		if sc != nil {
-			scCache[sc.ID] = sc
-		}
-	}
-
-	// Walk proposals once to collect unique work items + which proposals
-	// to enrich. Avoids enriching the same proposal twice when shared
-	// across the user's SpeakerConfs (rare, but cheap to defend).
-	uniqueRefs := make(map[string]struct{})
-	seenProp := make(map[string]bool)
-	var proposals []*types.Proposal
-	for _, sc := range speakerConfs {
-		for _, p := range sc.Proposals {
-			if p == nil || seenProp[p.ID] {
-				continue
-			}
-			seenProp[p.ID] = true
-			proposals = append(proposals, p)
-			for _, ref := range p.SpeakerConfRefs {
-				if _, ok := scCache[ref]; ok {
-					continue
-				}
-				uniqueRefs[ref] = struct{}{}
-			}
-		}
-	}
-
-	// Phase 1: parallel-fetch every unique co-speaker SpeakerConf.
-	t1 := time.Now()
-	if len(uniqueRefs) > 0 {
-		var mu sync.Mutex
-		var wg sync.WaitGroup
-		for ref := range uniqueRefs {
-			wg.Add(1)
-			go func(ref string) {
-				defer wg.Done()
-				sc, err := getters.FetchSpeakerConfWithSpeaker(ctx, ref)
-				if err != nil {
-					ctx.Err.Printf("enrich: fetch sc %s: %s", ref, err)
-					return
-				}
-				mu.Lock()
-				scCache[ref] = sc
-				mu.Unlock()
-			}(ref)
-		}
-		wg.Wait()
-	}
-	ctx.Infos.Printf("enrich phase1 (%d co-speaker scs): %s", len(uniqueRefs), time.Since(t1))
-
-	// Phase 2: parallel-enrich each proposal. Cache is now read-only —
-	// each goroutine attaches its own ConfTalk + Recording chain.
-	t2 := time.Now()
-	var wg sync.WaitGroup
-	for _, p := range proposals {
-		wg.Add(1)
-		go func(p *types.Proposal) {
-			defer wg.Done()
-			enrichProposal(ctx, p, scCache)
-		}(p)
-	}
-	wg.Wait()
-	ctx.Infos.Printf("enrich phase2 (%d proposals): %s", len(proposals), time.Since(t2))
+type dashboardEnrichmentLoaders struct {
+	speakers   func(*config.AppContext, []string, map[string]*types.Speaker, map[string]*types.Proposal) ([]*types.SpeakerConf, error)
+	talks      func(*config.AppContext, map[string]*types.Proposal) ([]*types.ConfTalk, error)
+	recordings func(*config.AppContext, []string) ([]*types.Recording, error)
 }
 
-// enrichProposal attaches Speakers (from the prebuilt cache), ConfTalk,
-// and Recording to a single proposal. Safe to call concurrently across
-// proposals — only the proposal's own fields are mutated and scCache is
-// read-only at this point.
-func enrichProposal(ctx *config.AppContext, p *types.Proposal, scCache map[string]*types.SpeakerConf) {
-	p.Speakers = nil
-	for _, refID := range p.SpeakerConfRefs {
-		if sc := scCache[refID]; sc != nil {
-			p.Speakers = append(p.Speakers, sc)
+// enrichDashboardProposals batches co-speakers, active sessions, and recordings
+// across the account history. Failed batches leave optional data unavailable
+// without preventing the dashboard from rendering.
+func enrichDashboardProposals(ctx *config.AppContext, speakerConfs []*types.SpeakerConf) {
+	enrichDashboardProposalsWith(ctx, speakerConfs, dashboardEnrichmentLoaders{
+		speakers:   getters.ListSpeakerConfsByIDs,
+		talks:      getters.ListConfTalksForProposals,
+		recordings: getters.ListRecordingsForConfTalks,
+	})
+}
+
+func enrichDashboardProposalsWith(ctx *config.AppContext, speakerConfs []*types.SpeakerConf, load dashboardEnrichmentLoaders) {
+	scCache := make(map[string]*types.SpeakerConf)
+	proposals := make(map[string]*types.Proposal)
+	for _, sc := range speakerConfs {
+		if sc == nil {
+			continue
+		}
+		scCache[sc.ID] = sc
+		for _, p := range sc.Proposals {
+			if p != nil {
+				proposals[p.ID] = p
+			}
 		}
 	}
-
-	// Both Accepted (admin draft) and Scheduled (cal invite sent)
-	// have a ConfTalk row that the dashboard wants to surface — clipart
-	// in the card thumbnail and the "Add to calendar" picker for the
-	// Scheduled branch. Pre-Accepted statuses have no ConfTalk yet;
-	// terminal-decline statuses keep one but we don't need the
-	// enrichment for them.
-	if p.Status != StatusAccepted && p.Status != StatusScheduled {
-		return
+	refs := make(map[string]bool)
+	scheduled := make(map[string]*types.Proposal)
+	for _, p := range proposals {
+		for _, ref := range p.SpeakerConfRefs {
+			if scCache[ref] == nil {
+				refs[ref] = true
+			}
+		}
+		if p.Status == StatusAccepted || p.Status == StatusScheduled {
+			scheduled[p.ID] = p
+			p.ConfTalk = nil
+			p.Recording = nil
+		}
 	}
-	ct, err := getters.GetConfTalkByProposal(ctx, p.ID)
-	if err != nil {
-		ctx.Err.Printf("enrich proposal %s: conftalk: %s", p.ID, err)
-		return
+	ids := make([]string, 0, len(refs))
+	for ref := range refs {
+		ids = append(ids, ref)
 	}
-	p.ConfTalk = ct
-	if ct == nil {
-		return
+	started := time.Now()
+	if len(ids) > 0 {
+		// Reuse the proposals already loaded for this dashboard. The speaker loader
+		// resolves its supporting data once for the whole batch, not once per person.
+		coSpeakers, err := load.speakers(ctx, ids, nil, proposals)
+		if err != nil {
+			ctx.Err.Printf("dashboard co-speaker batch: %s", err)
+		}
+		for _, sc := range coSpeakers {
+			if sc != nil {
+				scCache[sc.ID] = sc
+			}
+		}
 	}
-	rec, err := getters.GetRecordingByConfTalk(ctx, ct.ID)
-	if err != nil {
-		ctx.Err.Printf("enrich proposal %s: recording: %s", p.ID, err)
-		return
+	for _, p := range proposals {
+		p.Speakers = nil
+		for _, ref := range p.SpeakerConfRefs {
+			if sc := scCache[ref]; sc != nil {
+				p.Speakers = append(p.Speakers, sc)
+			}
+		}
 	}
-	p.Recording = rec
+	ctx.Infos.Printf("enrich phase1 (%d co-speaker scs, batched): %s", len(ids), time.Since(started))
+	started = time.Now()
+	if len(scheduled) > 0 {
+		talks, err := load.talks(ctx, scheduled)
+		if err != nil {
+			ctx.Err.Printf("dashboard conference-talk batch: %s", err)
+		}
+		talkIDs := make([]string, 0, len(talks))
+		byTalk := make(map[string]*types.Proposal)
+		for _, ct := range talks {
+			if ct == nil || ct.Proposal == nil {
+				continue
+			}
+			p := scheduled[ct.Proposal.ID]
+			if p == nil {
+				continue
+			}
+			// Preserve GetConfTalkByProposal's first-active-session selection.
+			if _, exists := byTalk[ct.ID]; exists {
+				continue
+			}
+			if p.ConfTalk != nil {
+				continue
+			}
+			p.ConfTalk = ct
+			byTalk[ct.ID] = p
+			talkIDs = append(talkIDs, ct.ID)
+		}
+		if len(talkIDs) > 0 {
+			recordings, err := load.recordings(ctx, talkIDs)
+			if err != nil {
+				ctx.Err.Printf("dashboard recording batch: %s", err)
+			}
+			for _, rec := range recordings {
+				if rec != nil {
+					if p := byTalk[rec.ConfTalkID]; p != nil {
+						p.Recording = rec
+					}
+				}
+			}
+		}
+	}
+	ctx.Infos.Printf("enrich phase2 (%d proposals, batched): %s", len(proposals), time.Since(started))
 }
 
 // buildEventBlocks consolidates the user's per-event relationships

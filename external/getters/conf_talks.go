@@ -302,6 +302,18 @@ func LatestConferenceTalkClipart(ctx *config.AppContext, confRef string) (string
 	return strings.TrimSpace(clipart), nil
 }
 
+// ListConfTalksForProposals loads only the requested proposals' active sessions.
+func ListConfTalksForProposals(ctx *config.AppContext, proposals map[string]*types.Proposal) ([]*types.ConfTalk, error) {
+	if len(proposals) == 0 {
+		return nil, nil
+	}
+	ids := make([]string, 0, len(proposals))
+	for id := range proposals {
+		ids = append(ids, id)
+	}
+	return queryConfTalksPostgres(ctx, "WHERE proposal_id = ANY($1::uuid[])", []interface{}{ids}, proposals)
+}
+
 func GetConfTalkByProposal(ctx *config.AppContext, proposalID string) (*types.ConfTalk, error) {
 	rows, err := queryConfTalksPostgres(ctx, "WHERE proposal_id::text = $1", []interface{}{proposalID}, nil)
 	if err != nil {
