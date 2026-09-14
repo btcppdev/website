@@ -42,6 +42,8 @@ func ReviewServicePayments(app *config.AppContext, after string, asOf time.Time)
 			WHEN a.settled_at IS NOT NULL AND o.status='pending' THEN 'settlement_not_applied'
 			WHEN a.settled_at IS NOT NULL AND o.status='paid' AND r.person_id IS NULL THEN 'paid_account_removed'
 			WHEN a.settled_at IS NOT NULL AND o.status='paid' AND (
+				NOT EXISTS(SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id)
+				OR
 				NOT EXISTS(SELECT 1 FROM shop_order_items i WHERE i.order_id=o.id)
 				OR EXISTS(SELECT 1 FROM shop_order_items i WHERE i.order_id=o.id AND i.fulfilled_quantity<i.quantity-i.refunded_quantity)
 			) THEN 'paid_order_unfulfilled'

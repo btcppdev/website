@@ -19,7 +19,7 @@ Next work:
 
 1. Connect product pricing to account subscription state, tax allocation and expiring quotes.
 2. Connect authenticated provider adapters to payment attempts and settlement records.
-3. Subscription/prepaid records, product-specific access grants and reconciliation.
+3. Subscription/prepaid state, product API integration and reconciliation workers.
 4. Receipts, refunds and migration of Insider membership fulfillment.
 5. Alerts quantity changes and tax-inclusive proration.
 
@@ -56,8 +56,28 @@ Settlement also requires exactly one order item matching the immutable quote's
 product, resource, quantity, price, tax, name, fulfillment method and access period.
 Existing item rows are locked during validation. Missing or altered lines appear
 as `order_item_mismatch` in reconciliation; the paid financial event remains
-recorded. Future access fulfillment must revalidate or consume the immutable
-snapshot because legacy order items remain editable after settlement.
+recorded. Access fulfillment revalidates the immutable snapshot because legacy
+order items remain editable after settlement.
+
+Migration 105 adds durable service access grants. `FulfillServicePurchase` locks
+the order and items, requires verified settlement and an unchanged paid purchase,
+then creates one grant per purchase and marks its item fulfilled atomically.
+Unpaid, canceled, refunded, expired, altered or partially processed purchases need
+review. Retrying fulfillment returns the original grant without reactivating it.
+Grant fields cannot be rewritten; revocation requires a recorded actor and reason.
+
+`ActiveServiceEntitlements` returns only the requesting account's grants within
+their purchased periods, with an exclusive end boundary. Revoked grants and orders
+in refund states provide no access. Partial refunds currently withhold access
+pending product-specific quantity reconciliation; that lifecycle must be finished
+before partial refunds are exposed. Account removal clears the grant's account
+reference but preserves financial evidence.
+
+These are internal persistence APIs. No worker invokes fulfillment yet and neither
+Alerts' allowance cache nor Insider's OAuth membership/article claims consume the
+new grants. Subscription renewals, quantity changes and provider switching still
+need the product-level state machine. Tests cover concurrent fulfillment, period
+boundaries, account isolation, refunded purchases and replay after revocation.
 
 There are no public service payment handlers or live provider calls yet. Failed
 attempt transitions, safe replacement after confirmed provider cancellation,

@@ -238,6 +238,12 @@ func TestServicePaymentsPostgres(t *testing.T) {
 	}
 	checkReview(time.Now(), false)
 	checkReview(time.Now().Add(16*time.Minute), true)
+	if _, err := FulfillServicePurchase(app, fourthPurchase.OrderID); !errors.Is(err, ErrServiceFulfillment) {
+		t.Fatalf("unpaid fulfillment: %v", err)
+	}
+	if _, err := FulfillServicePurchase(app, purchase.OrderID); !errors.Is(err, ErrServiceFulfillment) {
+		t.Fatalf("refunded fulfillment: %v", err)
+	}
 	start := time.Now().UTC().Truncate(time.Second)
 	end := start.AddDate(1, 0, 0)
 	serviceQuote := ServiceQuote{ProductCode: "alerts.repository-slots", Name: "Alerts slots", Provider: "stripe", Quantity: 1, UnitCents: 1200, TotalCents: 1200, PeriodStart: &start, PeriodEnd: &end, ExpiresAt: start.Add(time.Hour)}
@@ -297,6 +303,76 @@ func TestServicePaymentsPostgres(t *testing.T) {
 		}
 		if !found {
 			t.Fatal("changed item missing from reconciliation")
+		}
+		if mutation != "" {
+			if _, err := FulfillServicePurchase(app, order.OrderID); !errors.Is(err, ErrServiceFulfillment) {
+				t.Fatalf("changed item fulfillment: %v", err)
+			}
+			continue
+		}
+		ids := make(chan string, 6)
+		fulfillmentErrors := make(chan error, 6)
+		for i := 0; i < 6; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				id, err := FulfillServicePurchase(app, order.OrderID)
+				ids <- id
+				fulfillmentErrors <- err
+			}()
+		}
+		wg.Wait()
+		close(ids)
+		close(fulfillmentErrors)
+		for err := range fulfillmentErrors {
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		grantID := ""
+		for id := range ids {
+			if grantID != "" && id != grantID {
+				t.Fatal("duplicate entitlement")
+			}
+			grantID = id
+		}
+		checkAccess := func(at time.Time, want int) {
+			t.Helper()
+			grants, err := ActiveServiceEntitlements(app, buyer, at)
+			if err != nil || len(grants) != want {
+				t.Fatalf("active grants=%+v want=%d err=%v", grants, want, err)
+			}
+			if want == 1 && (grants[0].ID != grantID || grants[0].ProductCode != "alerts.repository-slots" || grants[0].Quantity != 1 || !grants[0].EndsAt.Equal(end)) {
+				t.Fatalf("incorrect access: %+v", grants[0])
+			}
+		}
+		checkAccess(start.Add(-time.Nanosecond), 0)
+		checkAccess(start, 1)
+		checkAccess(end, 0)
+		grants, err := ActiveServiceEntitlements(app, other, start)
+		if err != nil || len(grants) != 0 {
+			t.Fatalf("cross-account grants: %+v %v", grants, err)
+		}
+		if _, err := app.DB.Exec(ctx, `UPDATE shop_orders SET status='refunded' WHERE id=$1`, order.OrderID); err != nil {
+			t.Fatal(err)
+		}
+		checkAccess(start, 0)
+		if id, err := FulfillServicePurchase(app, order.OrderID); err != nil || id != grantID {
+			t.Fatalf("refund replay: %s %v", id, err)
+		}
+		checkAccess(start, 0)
+		if _, err := app.DB.Exec(ctx, `UPDATE shop_orders SET status='paid' WHERE id=$1`, order.OrderID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := app.DB.Exec(ctx, `UPDATE service_entitlements SET revoked_at=now(),revocation_actor='test',revocation_reason='Test revocation' WHERE id=$1`, grantID); err != nil {
+			t.Fatal(err)
+		}
+		if id, err := FulfillServicePurchase(app, order.OrderID); err != nil || id != grantID {
+			t.Fatalf("revocation replay: %s %v", id, err)
+		}
+		checkAccess(start, 0)
+		if _, err := app.DB.Exec(ctx, `UPDATE service_entitlements SET revoked_at=NULL,revocation_actor='',revocation_reason='' WHERE id=$1`, grantID); err == nil {
+			t.Fatal("reactivated revoked grant")
 		}
 	}
 }
