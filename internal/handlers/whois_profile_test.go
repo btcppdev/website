@@ -78,9 +78,7 @@ func TestProjectOnlyWhoIsProfileShowsEventBadges(t *testing.T) {
 	}
 }
 
-func TestWhoIsBadgeGrantsHideRevokedAndDedupeStudioAwards(t *testing.T) {
-	profile := &WhoIsBadgeProfile{Issued: []WhoIsIssuedBadge{{}}}
-	profile.Issued[0].Award.EventID = strings.Repeat("a", 64)
+func TestWhoIsBadgeGrantsOnlyIncludeUnissuedGrants(t *testing.T) {
 	grants := []*types.OrganizationBadgeGrant{
 		{ID: "represented", State: getters.BadgeGrantStateAccepted, AwardEventID: strings.Repeat("a", 64), RecipientPubkey: strings.Repeat("1", 64)},
 		{ID: "issued", State: getters.BadgeGrantStateIssued, AwardEventID: strings.Repeat("b", 64), RecipientPubkey: strings.Repeat("2", 64)},
@@ -88,8 +86,8 @@ func TestWhoIsBadgeGrantsHideRevokedAndDedupeStudioAwards(t *testing.T) {
 		{ID: "revoked", State: getters.BadgeGrantStateRevoked, AwardEventID: strings.Repeat("c", 64), RecipientPubkey: strings.Repeat("3", 64)},
 		{ID: "canceled", State: getters.BadgeGrantStateCanceled},
 	}
-	visible := whoIsBadgeGrants(grants, profile)
-	if len(visible) != 2 || visible[0].ID != "issued" || visible[1].ID != "pending" {
+	visible := whoIsBadgeGrants(grants)
+	if len(visible) != 1 || visible[0].ID != "pending" {
 		t.Fatalf("unexpected visible grants: %+v", visible)
 	}
 }
@@ -140,7 +138,7 @@ func TestWhoIsProfileBadgesShowcaseAtBottomWithIssuer(t *testing.T) {
 	originalProfile := profile
 	profile, badgeGrants = organizationOnlyProfileBadges(profile, badgeGrants)
 	attachWhoIsBadgeIssuers(profile, badgeGrants)
-	grants := whoIsBadgeGrants(badgeGrants, profile)
+	grants := whoIsBadgeGrants(badgeGrants)
 	collection := buildWhoIsBadgeCollection(publicWhoIsBadgeProfile(profile), grants, nil)
 
 	var output bytes.Buffer

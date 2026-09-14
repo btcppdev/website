@@ -2918,24 +2918,19 @@ func publicWhoIsBadgeProfile(profile *WhoIsBadgeProfile) *WhoIsBadgeProfile {
 	return &WhoIsBadgeProfile{Issued: issued, Pending: profile.Pending}
 }
 
-func whoIsBadgeGrants(grants []*types.OrganizationBadgeGrant, profile *WhoIsBadgeProfile) []*WhoIsBadgeGrant {
-	representedAwards := make(map[string]struct{})
-	if profile != nil {
-		for _, badge := range profile.Issued {
-			if badge.Award.EventID != "" {
-				representedAwards[badge.Award.EventID] = struct{}{}
-			}
-		}
-	}
+// Only not-yet-issued grants may be displayed from local state. Issued awards
+// must come from Studio's active-only profile API: absence can mean expiration
+// or revocation, and an unavailable API cannot confirm current validity.
+func whoIsBadgeGrants(grants []*types.OrganizationBadgeGrant) []*WhoIsBadgeGrant {
 	result := make([]*WhoIsBadgeGrant, 0, len(grants))
 	for _, grant := range grants {
-		if grant == nil || grant.State == getters.BadgeGrantStateCanceled || grant.State == getters.BadgeGrantStateCorrected || grant.State == getters.BadgeGrantStateRevoked {
+		if grant == nil || grant.AwardEventID != "" || grant.AcceptanceEventID != "" || grant.IssuedAt != nil || grant.AcceptedAt != nil {
 			continue
 		}
-		if _, represented := representedAwards[grant.AwardEventID]; grant.AwardEventID != "" && represented {
-			continue
+		switch grant.State {
+		case getters.BadgeGrantStateGranted, getters.BadgeGrantStateReady, getters.BadgeGrantStateDeliveryError:
+			result = append(result, &WhoIsBadgeGrant{OrganizationBadgeGrant: grant, Issuer: whoIsBadgeIssuer(grant)})
 		}
-		result = append(result, &WhoIsBadgeGrant{OrganizationBadgeGrant: grant, Issuer: whoIsBadgeIssuer(grant)})
 	}
 	return result
 }

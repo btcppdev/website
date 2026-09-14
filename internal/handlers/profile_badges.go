@@ -43,7 +43,7 @@ func loadWhoIsBadgeCollection(r *http.Request, ctx *config.AppContext, person *W
 		profile, badgeGrants = organizationOnlyProfileBadges(profile, badgeGrants)
 	}
 	attachWhoIsBadgeIssuers(profile, badgeGrants)
-	visibleGrants := whoIsBadgeGrants(badgeGrants, profile)
+	visibleGrants := whoIsBadgeGrants(badgeGrants)
 	profile = publicWhoIsBadgeProfile(profile)
 	presentations, err := getters.ListPersonBadgePresentations(ctx, person.Speaker.ID)
 	if err != nil {
