@@ -2861,7 +2861,7 @@ func RenderWhoIsProfile(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		handle404(w, r, ctx)
 		return
 	}
-	badgeCollection := loadWhoIsBadgeCollection(r, ctx, person, "/whois/"+slug)
+	badgeCollection := loadWhoIsBadgeCollection(r, ctx, person, "/whois/"+slug, true)
 	manageBadgesURL := ""
 	updateProfileURL := whoIsProfileEditURL(ctx, r, person)
 	if updateProfileURL != "" {

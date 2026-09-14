@@ -17,7 +17,7 @@ import (
 
 const whoIsFeaturedBadgeLimit = 6
 
-func loadWhoIsBadgeCollection(r *http.Request, ctx *config.AppContext, person *WhoIsPerson, label string) *WhoIsBadgeCollection {
+func loadWhoIsBadgeCollection(r *http.Request, ctx *config.AppContext, person *WhoIsPerson, label string, publicOnly bool) *WhoIsBadgeCollection {
 	if person == nil || person.Speaker == nil {
 		return &WhoIsBadgeCollection{}
 	}
@@ -39,6 +39,9 @@ func loadWhoIsBadgeCollection(r *http.Request, ctx *config.AppContext, person *W
 		}
 		badgeGrants = nil
 	}
+	if publicOnly {
+		profile, badgeGrants = organizationOnlyProfileBadges(profile, badgeGrants)
+	}
 	attachWhoIsBadgeIssuers(profile, badgeGrants)
 	visibleGrants := whoIsBadgeGrants(badgeGrants, profile)
 	profile = publicWhoIsBadgeProfile(profile)
@@ -50,6 +53,33 @@ func loadWhoIsBadgeCollection(r *http.Request, ctx *config.AppContext, person *W
 		presentations = nil
 	}
 	return buildWhoIsBadgeCollection(profile, visibleGrants, presentations)
+}
+
+// Public profiles require a local organization grant, not an issuer label or
+// an arbitrary Studio award linked only to the recipient's bitcoin++ identity.
+func organizationOnlyProfileBadges(profile *WhoIsBadgeProfile, grants []*types.OrganizationBadgeGrant) (*WhoIsBadgeProfile, []*types.OrganizationBadgeGrant) {
+	eligible := make([]*types.OrganizationBadgeGrant, 0, len(grants))
+	byAward := make(map[string]*types.OrganizationBadgeGrant)
+	for _, grant := range grants {
+		if grant == nil || grant.OrganizationID == "" || grant.State == getters.BadgeGrantStateCanceled || grant.State == getters.BadgeGrantStateCorrected || grant.State == getters.BadgeGrantStateRevoked {
+			continue
+		}
+		eligible = append(eligible, grant)
+		if grant.AwardEventID != "" {
+			byAward[grant.AwardEventID] = grant
+		}
+	}
+	filtered := &WhoIsBadgeProfile{}
+	if profile != nil {
+		for _, badge := range profile.Issued {
+			grant := byAward[badge.Award.EventID]
+			if grant != nil && grant.IssuerPubkey != "" && grant.IssuerPubkey == badge.Definition.IssuerPubkey {
+				filtered.Issued = append(filtered.Issued, badge)
+			}
+		}
+	}
+	// Pending badges come from the authoritative local grants, never Studio metadata.
+	return filtered, eligible
 }
 
 func buildWhoIsBadgeCollection(profile *WhoIsBadgeProfile, grants []*WhoIsBadgeGrant, presentations []*types.PersonBadgePresentation) *WhoIsBadgeCollection {
@@ -240,7 +270,7 @@ func RenderWhoIsBadges(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		manageURL = "/dashboard/profile/badges"
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "whois_badges.tmpl", &WhoIsBadgesPage{
-		Person: person, Badges: loadWhoIsBadgeCollection(r, ctx, person, "/whois/"+slug+"/badges"),
+		Person: person, Badges: loadWhoIsBadgeCollection(r, ctx, person, "/whois/"+slug+"/badges", true),
 		ManageBadgesURL: manageURL, Year: helpers.CurrentYear(),
 		SocialCardURL: siteSocialCardPath("person", person.PublicID, personSocialCard(ctx, person)),
 	}); err != nil {
@@ -260,7 +290,7 @@ func DashboardProfileBadges(w http.ResponseWriter, r *http.Request, ctx *config.
 	if slug, ok := resolvedWhoIsPublicID(ctx, identity.Speaker); ok {
 		person.PublicID = slug
 	}
-	collection := loadWhoIsBadgeCollection(r, ctx, person, "/dashboard/profile/badges")
+	collection := loadWhoIsBadgeCollection(r, ctx, person, "/dashboard/profile/badges", false)
 	if r.Method == http.MethodPost {
 		limitRequestBody(w, r, maxFormBodyBytes)
 		if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {

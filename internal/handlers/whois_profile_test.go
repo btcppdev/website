@@ -137,6 +137,8 @@ func TestWhoIsProfileBadgesShowcaseAtBottomWithIssuer(t *testing.T) {
 		{ID: "grant", BadgeName: "Open-source host", BadgeDescription: "Makes everyone welcome.", BadgeImageURL: "https://cdn.example/host.png", OrganizationID: "guild-id", OrganizationSlug: "open-source-guild", OrganizationName: "Open-source Guild", State: getters.BadgeGrantStateGranted},
 		{ID: "revoked", BadgeName: "Revoked database badge", BadgeDescription: "Must not appear.", BadgeImageURL: "https://cdn.example/revoked-grant.png", State: getters.BadgeGrantStateRevoked},
 	}
+	originalProfile := profile
+	profile, badgeGrants = organizationOnlyProfileBadges(profile, badgeGrants)
 	attachWhoIsBadgeIssuers(profile, badgeGrants)
 	grants := whoIsBadgeGrants(badgeGrants, profile)
 	collection := buildWhoIsBadgeCollection(publicWhoIsBadgeProfile(profile), grants, nil)
@@ -154,7 +156,6 @@ func TestWhoIsProfileBadgesShowcaseAtBottomWithIssuer(t *testing.T) {
 		"Badges earned.", "issued by",
 		`alt="Artwork for Community mentor"`, "Community mentor", "Shares knowledge.",
 		`href="/organizations/signet-systems"`, `src="https://cdn.example/signet-logo.png"`, "Signet Systems",
-		`alt="Artwork for Future builder"`, "Future builder", "Builds what comes next.",
 		`alt="Artwork for Open-source host"`, "Open-source host", "Makes everyone welcome.", "Open-source Guild",
 	} {
 		if !strings.Contains(html, visible) {
@@ -162,7 +163,7 @@ func TestWhoIsProfileBadgesShowcaseAtBottomWithIssuer(t *testing.T) {
 		}
 	}
 	for _, private := range []string{
-		"Revoked studio badge", "Revoked database badge",
+		"Revoked studio badge", "Revoked database badge", "Future builder",
 		"accepted on nostr", "awarded · acceptance pending", "grant pending", "ready to issue",
 		"delivery needs attention", "View credential", "Accept on Nostr",
 		"whois-credential-status", "whois-credential-actions", "is-revoked", "is-pending",
@@ -171,7 +172,7 @@ func TestWhoIsProfileBadgesShowcaseAtBottomWithIssuer(t *testing.T) {
 			t.Fatalf("WhoIs badge profile exposes lifecycle detail %q: %s", private, html)
 		}
 	}
-	if len(profile.Issued) != 2 {
+	if len(originalProfile.Issued) != 2 {
 		t.Fatalf("public profile filtering mutated shared Badge Studio data: %+v", profile.Issued)
 	}
 	if eventIndex, badgeIndex := strings.Index(html, "§01 · EVENT BADGES"), strings.Index(html, "Badges earned."); eventIndex == -1 || badgeIndex == -1 || badgeIndex < eventIndex {
@@ -212,5 +213,32 @@ func TestBuildWhoIsBadgeCollectionFeaturesSixAndGroupsAllVisibleByIssuer(t *test
 	}
 	if len(collection.Groups) != 2 || len(collection.Groups[0].Badges) != 4 || len(collection.Groups[1].Badges) != 3 {
 		t.Fatalf("unexpected issuer groups: %+v", collection.Groups)
+	}
+}
+
+func TestOrganizationOnlyProfileBadgesRequiresExactLocalGrant(t *testing.T) {
+	grants := []*types.OrganizationBadgeGrant{
+		{ID: "valid", OrganizationID: "org", IssuerPubkey: "issuer", AwardEventID: "valid", State: getters.BadgeGrantStateIssued},
+		{ID: "revoked", OrganizationID: "org", IssuerPubkey: "issuer", AwardEventID: "revoked", State: getters.BadgeGrantStateRevoked},
+		{ID: "unlinked", AwardEventID: "unlinked", State: getters.BadgeGrantStateIssued},
+	}
+	profile := &WhoIsBadgeProfile{}
+	for _, id := range []string{"valid", "unrelated-same-issuer", "revoked", "unlinked"} {
+		badge := WhoIsIssuedBadge{Definition: WhoIsBadgeDefinition{IssuerPubkey: "issuer"}}
+		badge.Award.EventID = id
+		profile.Issued = append(profile.Issued, badge)
+	}
+	got, local := organizationOnlyProfileBadges(profile, grants)
+	if len(got.Issued) != 1 || got.Issued[0].Award.EventID != "valid" || len(local) != 1 {
+		t.Fatalf("unexpected public badges: %+v, %+v", got, local)
+	}
+	got, local = organizationOnlyProfileBadges(profile, nil)
+	if len(got.Issued) != 0 || len(local) != 0 {
+		t.Fatal("unverified Studio awards leaked without local grants")
+	}
+	profile.Issued[0].Definition.IssuerPubkey = "different-issuer"
+	got, _ = organizationOnlyProfileBadges(profile, grants)
+	if len(got.Issued) != 0 {
+		t.Fatal("mismatched issuer accepted")
 	}
 }
