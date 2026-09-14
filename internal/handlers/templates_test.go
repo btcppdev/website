@@ -97,7 +97,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render OAuth account setup: %v", err)
 	}
-	for _, expected := range []string{"NEW ACCOUNT", "Finish setting up", "GitHub sign-in is verified", "CREATE ACCOUNT", "profile-edit-actions__create-account", `action="/logout"`, `name="csrf" value="cancel-csrf"`} {
+	for _, expected := range []string{"NEW ACCOUNT", "Finish setting up", "GitHub sign-in is verified", "CREATE ACCOUNT", "profile-edit-actions__create-account", `name="Subscribe" value="on" checked`, "newsletter!", `action="/logout"`, `name="csrf" value="cancel-csrf"`} {
 		if !strings.Contains(accountSetupPage.String(), expected) {
 			t.Fatalf("OAuth account setup omitted %q: %s", expected, accountSetupPage.String())
 		}
@@ -118,6 +118,9 @@ func TestLoadTemplates(t *testing.T) {
 	if !strings.Contains(accountSetupPage.String(), "You’ll continue to your sponsor invitation next.") || !strings.Contains(accountSetupPage.String(), `value="Ada Nakamoto"`) {
 		t.Fatalf("sponsor account setup omitted destination context: %s", accountSetupPage.String())
 	}
+	if !strings.Contains(accountSetupPage.String(), `name="Subscribe" value="on" checked`) {
+		t.Fatal("organization invitation signup omitted newsletter opt-in")
+	}
 	if strings.Contains(accountSetupPage.String(), `id="PicFile" type="file" accept="image/*" required`) || strings.Contains(accountSetupPage.String(), `id="Phone" name="Phone" type="tel" required`) || strings.Contains(accountSetupPage.String(), `id="Signal" name="Signal" type="text" required`) {
 		t.Fatalf("sponsor account setup required speaker-only profile fields: %s", accountSetupPage.String())
 	}
@@ -130,6 +133,17 @@ func TestLoadTemplates(t *testing.T) {
 	}
 	if strings.Contains(accountSetupPage.String(), `action="/logout"`) {
 		t.Fatalf("admin speaker creation exposed new-account cancellation: %s", accountSetupPage.String())
+	}
+
+	if strings.Contains(accountSetupPage.String(), `name="Subscribe"`) {
+		t.Fatal("admin profile creation exposed personal newsletter opt-in")
+	}
+	accountSetupPage.Reset()
+	if err := inlineTemplates.ExecuteTemplate(&accountSetupPage, "dashboard_edit_speaker.tmpl", &EditSpeakerPage{Mode: "edit", Speaker: &types.Speaker{}}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(accountSetupPage.String(), `name="Subscribe"`) {
+		t.Fatal("profile edits exposed signup newsletter opt-in")
 	}
 	profileCSS, err := os.ReadFile("static/css/custom.css")
 	if err != nil {

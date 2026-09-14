@@ -1083,6 +1083,15 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			http.StatusSeeOther)
 		return
 	}
+	flash := "Profile created."
+	// Only the signup form's opt-in can subscribe the authenticated email.
+	// An unchecked checkbox must not change an existing subscription.
+	if r.PostFormValue("Subscribe") == "on" {
+		if _, err := getters.SubscribeEmail(ctx, email, "newsletter"); err != nil {
+			ctx.Err.Printf("/dashboard/profile newsletter signup for %s: %s", personID, err)
+			flash = "Profile created, but newsletter signup failed. Please try subscribing from the newsletter page."
+		}
+	}
 	if err := auth.LoginPersonWithEmail(ctx, r, personID, email); err != nil {
 		ctx.Err.Printf("/dashboard/profile login new person %s: %s", personID, err)
 		http.Error(w, "Profile created, but the session could not be updated. Sign in again.", http.StatusInternalServerError)
@@ -1091,7 +1100,7 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	if hasNewPic {
 		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
 	}
-	http.Redirect(w, r, dashboardProfileSuccessRedirect(encHMAC, encEmail, nextURL, "Profile created."), http.StatusSeeOther)
+	http.Redirect(w, r, dashboardProfileSuccessRedirect(encHMAC, encEmail, nextURL, flash), http.StatusSeeOther)
 }
 
 // firstMissingProfileField returns the user-facing label of the first

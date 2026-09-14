@@ -238,6 +238,21 @@
       </section>
       {{ end }}
 
+      {{ if and (eq .Mode "create") (not .IsAdmin) }}
+      <section class="profile-edit-section">
+        <div class="profile-edit-section__index">✉</div>
+        <div class="profile-edit-section__body">
+          <div class="profile-edit-section__head">
+            <div><p>§ STAY IN THE LOOP</p><h2>Newsletter</h2></div>
+          </div>
+          <label for="sub-newsletter" style="display:flex;align-items:center;gap:12px;line-height:1.5;cursor:pointer;">
+            <input id="sub-newsletter" type="checkbox" name="Subscribe" value="on" checked style="width:18px;height:18px;flex-shrink:0;accent-color:#F57247;">
+            <span>Add me to the <span class="font-bitcoin">bitcoin++</span> newsletter!</span>
+          </label>
+        </div>
+      </section>
+      {{ end }}
+
       <section class="profile-edit-section is-verified">
         <div class="profile-edit-section__index">▶</div>
         <div class="profile-edit-section__body">
