@@ -575,6 +575,7 @@ func oauthScopeDescriptions() map[string]string {
 		"shop:accounting:read":    "Read PII-free shop inventory and sales data when you have accts-admin permission",
 		"offline_access":          "Stay connected when you are not actively using the app",
 		"newsletters:self:read":  "View newsletter preferences for your verified email addresses",
+		"entitlements:self:read": "View your active purchased service and article access",
 		"newsletters:self:write": "Change newsletter subscriptions for your verified email addresses",
 	}
 }

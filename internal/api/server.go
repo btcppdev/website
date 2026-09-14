@@ -68,6 +68,7 @@ type server struct {
 	loadConferenceBroadcast     func(string) (*types.ConferenceBroadcast, error)
 	recordAudit                 func(*types.AuthAuditEvent) error
 	limiter                     *rateLimiter
+	listEntitlements    func(string, time.Time) ([]getters.ServiceEntitlement, error)
 	listNewsletters     func(string) ([]getters.NewsletterPreference, error)
 	setNewsletter       func(string, string, string, getters.NewsletterPreference) error
 }
@@ -83,6 +84,9 @@ type principalContextKey struct{}
 // Register installs API v1 before the website's broad conference routes.
 func Register(root *mux.Router, app *config.AppContext) {
 	s := &server{
+		listEntitlements: func(personID string, at time.Time) ([]getters.ServiceEntitlement, error) {
+			return getters.ActiveServiceEntitlements(app, personID, at)
+		},
 		listNewsletters: func(personID string) ([]getters.NewsletterPreference, error) {
 			return getters.ListNewsletterPreferences(app, personID)
 		},
@@ -198,6 +202,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/people", s.people).Methods(http.MethodGet)
 	r.HandleFunc("/people/{personID}", s.person).Methods(http.MethodGet)
 	r.HandleFunc("/me/newsletters", s.newsletters).Methods(http.MethodGet, http.MethodPut)
+	r.HandleFunc("/me/entitlements", s.entitlements).Methods(http.MethodGet)
 	r.HandleFunc("/me/identity", s.identity).Methods(http.MethodGet)
 	r.HandleFunc("/me/organizations", s.myOrganizations).Methods(http.MethodGet)
 	r.HandleFunc("/me", s.me).Methods(http.MethodGet)

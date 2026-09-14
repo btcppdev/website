@@ -73,11 +73,35 @@ pending product-specific quantity reconciliation; that lifecycle must be finishe
 before partial refunds are exposed. Account removal clears the grant's account
 reference but preserves financial evidence.
 
-These are internal persistence APIs. No worker invokes fulfillment yet and neither
+No worker invokes fulfillment yet and neither
 Alerts' allowance cache nor Insider's OAuth membership/article claims consume the
 new grants. Subscription renewals, quantity changes and provider switching still
 need the product-level state machine. Tests cover concurrent fulfillment, period
 boundaries, account isolation, refunded purchases and replay after revocation.
+
+## Account access API
+
+`GET /api/v1/me/entitlements` requires `entitlements:self:read` on an OAuth access
+token or personal access token. The explicit consent label covers purchased service
+and article access. Identity/profile/newsletter scopes alone do not grant access.
+The response uses the standard API envelope:
+
+```json
+{"data":{"asOf":"2026-09-14T12:00:00Z","entitlements":[]},"meta":{"request_id":"..."}}
+```
+
+Each grant includes `id`, `productCode`, `resourceId`, `quantity`, `startsAt` and
+`endsAt`. Article grants have null time boundaries and an exact publication ID.
+Only active grants are returned; an empty array means no current purchased access.
+This is not a subscription history, upcoming-renewal schedule or total repository
+allowance: Alerts must add its free allowance and apply product billing state.
+
+The account and evaluation time come from authentication and the server clock;
+query parameters cannot override either. Responses are private/no-store. Consumers
+must respect end times and refresh for refunds/revocations; they must not treat a
+successful old response as indefinite access. OAuth clients need the new scope
+registered and consented before calling this route. Product integration and live
+OAuth verification remain to implement.
 
 There are no public service payment handlers or live provider calls yet. Failed
 attempt transitions, safe replacement after confirmed provider cancellation,

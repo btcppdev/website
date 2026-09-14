@@ -11,6 +11,111 @@
     }
   ],
   "paths": {
+    "/me/entitlements": {
+  "get": {
+    "operationId": "getMyEntitlements",
+    "summary": "Read active purchased service and article access",
+    "description": "Uses the token owner and server time. Requires entitlements:self:read for OAuth and personal access tokens. Refund and revocation state excludes access. Period ends are exclusive. Responses are private and no-store.",
+    "security": [
+      {
+        "oauth2": [
+          "entitlements:self:read"
+        ]
+      },
+      {
+        "personalAccessToken": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Current account access",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "data",
+                "meta"
+              ],
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": [
+                    "asOf",
+                    "entitlements"
+                  ],
+                  "properties": {
+                    "asOf": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "entitlements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "productCode",
+                          "resourceId",
+                          "quantity",
+                          "startsAt",
+                          "endsAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "productCode": {
+                            "type": "string",
+                            "enum": [
+                              "alerts.repository-slots",
+                              "insider.membership",
+                              "insider.article"
+                            ]
+                          },
+                          "resourceId": {
+                            "type": "string"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "startsAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "endsAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "meta": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "#/components/responses/Unauthorized"
+      },
+      "403": {
+        "$ref": "#/components/responses/Forbidden"
+      }
+    }
+  }
+},
     "/me/newsletters": {
       "get": {
         "operationId": "getMyNewsletters",
@@ -466,6 +571,7 @@
             "tokenUrl": "https://btcpp.dev/oauth/token",
             "refreshUrl": "https://btcpp.dev/oauth/token",
             "scopes": {
+          "entitlements:self:read": "Read active purchased service and article access",
           "newsletters:self:read": "Read newsletter preferences for verified account email addresses",
           "newsletters:self:write": "Change one newsletter preference for a verified account email address",
               "identity:self:read": "Read the resource owner's account ID, display name, and current roles",
