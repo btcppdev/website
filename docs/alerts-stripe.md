@@ -42,10 +42,19 @@ creating a second Stripe Tax transaction.
 
 Remaining integration:
 
+The account-owned `/services/alerts/checkout/{checkout}` return page now reads
+verified invoice records and redirects to the shared receipt when available.
+Without an invoice, it distinguishes pending confirmation, bound subscriptions,
+closed checkouts and expired sessions. A CSRF-protected POST can resume the same
+stored unpaid checkout; GET never creates a Stripe session or grants access.
+Success/cancel query parameters are not payment evidence. The page returns users
+to `https://alerts.btcpp.dev/alerts`. Handler presentation/template tests pass;
+browser and Stripe test-mode end-to-end verification remain open.
+
 - Implement failed-renewal grace, cancellation, pause and refund transitions.
 - Implement immediate prorated increases and next-renewal decreases.
 - Reconcile expired/abandoned sessions before releasing the account reservation.
-- Expose authenticated checkout routes and connect the Alerts review screen,
+- Expose the authenticated checkout-start route and connect the Alerts review screen,
   including resuming the originally selected repository/plugin after payment.
 - Exercise the full flow with Stripe test mode before enabling paid checkout.
 

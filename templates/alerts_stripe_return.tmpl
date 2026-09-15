@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Alerts checkout · bitcoin++</title>{{ block "header" . }}{{ end }}
+<link rel="stylesheet" href="/static/css/login-layout.css?v=2">
+</head>
+<body class="btcpp-login-page">
+{{ block "mainnav" . }}{{ end }}
+<main class="auth-shell auth-shell--simple"><section class="auth-card">
+<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>{{ .Heading }}</h1><p role="status">{{ .Message }}</p></header>
+<dl><dt>Additional repositories</dt><dd>{{ .Slots }}</dd><dt>Monthly price (USD, including applicable tax)</dt><dd>{{ .Total }}</dd><dt>Checkout reference</dt><dd>{{ .ID }}</dd></dl>
+{{ if .CanPay }}<form method="post" action="/services/alerts/checkout/{{ .ID }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button type="submit" class="auth-primary">Continue with card</button></form><p>Renews monthly. You can cancel future renewals.</p>{{ end }}
+<p><a href="/services/alerts/checkout/{{ .ID }}">Refresh payment status</a></p>
+<p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
+</section></main>
+</body></html>
