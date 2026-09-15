@@ -134,3 +134,9 @@ func (c Client) Open(ctx context.Context, in Intent, reference string, now time.
 	}
 	return session.ID, session.URL, nil
 }
+
+// ValidateIntent validates a frozen checkout before it is reserved in storage.
+func ValidateIntent(in Intent, now time.Time) error {
+	_, err := checkoutParams(context.Background(), in, now)
+	return err
+}

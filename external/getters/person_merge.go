@@ -116,6 +116,7 @@ type PersonMergeUndoPreview struct {
 }
 
 type mergeRelationshipSpec struct {
+	Immutable    bool
 	Table        string
 	PersonColumn string
 	PrimaryKey   []string
@@ -146,6 +147,11 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "person_badge_presentations", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "badge_ref"}, DuplicateKey: []string{"badge_ref"}, Label: "badge display preferences"},
 	{Table: "judge_ballot_submissions", PersonColumn: "judge_person_id", PrimaryKey: []string{"judge_event_id", "judge_person_id"}, DuplicateKey: []string{"judge_event_id"}, Label: "judge ballot submission history"},
 	{Table: "person_pgp_keys", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "fingerprint"}, DuplicateKey: []string{"fingerprint"}, Label: "public PGP keys"},
+	{Table: "alerts_stripe_checkouts", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "Stripe checkout records", Immutable: true},
+	{Table: "service_checkout_quotes", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "service checkout quotes", Immutable: true},
+	{Table: "service_purchase_requests", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "service purchase records", Immutable: true},
+	{Table: "service_entitlements", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "purchased service access", Immutable: true},
+	{Table: "newsletter_consent_requests", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "request_key"}, Label: "newsletter consent records", Immutable: true},
 	{Table: "oauth_clients", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "OAuth app creators"},
 	{Table: "oauth_consents", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "client_id"}, DuplicateKey: []string{"client_id"}, Label: "connected app permissions"},
 	{Table: "oauth_authorization_codes", PersonColumn: "person_id", PrimaryKey: []string{"code_hash"}, Label: "OAuth authorization codes"},
@@ -376,6 +382,18 @@ func personMergeConflicts(queryCtx context.Context, db personMergeQuerier, canon
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	for _, spec := range personMergeRelationshipSpecs {
+		if !spec.Immutable {
+			continue
+		}
+		var exists bool
+		if err := db.QueryRow(queryCtx, `SELECT EXISTS(SELECT 1 FROM `+quoteMergeIdentifier(spec.Table)+` WHERE `+quoteMergeIdentifier(spec.PersonColumn)+`=$1::uuid)`, sourcePersonID).Scan(&exists); err != nil {
+			return nil, err
+		}
+		if exists {
+			conflicts = append(conflicts, PersonMergeConflict{Kind: "immutable_account_records", Description: "The source account has " + spec.Label + ". These records cannot be reassigned by a profile merge; account migration support is required."})
+		}
 	}
 	extra, err := personMergeAccountConflicts(queryCtx, db, canonicalPersonID, sourcePersonID)
 	return append(conflicts, extra...), err
@@ -626,6 +644,9 @@ func mergeRelationship(queryCtx context.Context, tx pgx.Tx, spec mergeRelationsh
 	snapshot.Before, err = snapshotRows(queryCtx, tx, spec.Table, spec.PersonColumn, sourceID)
 	if err != nil || len(snapshot.Before) == 0 {
 		return snapshot, err
+	}
+	if spec.Immutable {
+		return snapshot, fmt.Errorf("cannot reassign immutable %s", spec.Label)
 	}
 	if spec.Singleton {
 		var canonicalExists bool

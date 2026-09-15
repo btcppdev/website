@@ -117,6 +117,15 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 			return nil, ErrAlertsBillingChanged
 		}
 	}
+	if quote.ProductCode == "alerts.repository-slots" {
+		var stripePending bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_checkouts WHERE person_id=$1 AND closed_at IS NULL)`, personID).Scan(&stripePending); err != nil {
+			return nil, err
+		}
+		if stripePending {
+			return nil, ErrAlertsStripeCheckoutConflict
+		}
+	}
 	method := "service"
 	switch quote.ProductCode {
 	case "alerts.repository-slots", "insider.membership":
