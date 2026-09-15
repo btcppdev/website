@@ -104,8 +104,8 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <span class="block text-sm/6 font-semibold text-gray-900">Logo (light bg)</span>
-          <p class="text-xs text-gray-500">For light backgrounds.</p>
+          <span class="block text-sm/6 font-semibold text-gray-900">For light backgrounds (dark logo)</span>
+          <p class="text-xs text-gray-500">Upload a dark-colored logo that is visible on white.</p>
           <input id="LogoLight" name="LogoLight" type="hidden" value="">
           <div class="mt-2 flex items-center gap-3">
             <button type="button" data-target="LogoLight" {{ if not .SpacesReady }}disabled{{ end }}
@@ -121,8 +121,8 @@
           <p id="LogoLight-status" class="mt-1 text-xs text-gray-500">{{ if .SpacesReady }}No file selected.{{ else }}Spaces is not configured, so uploads are disabled.{{ end }}</p>
         </div>
         <div>
-          <span class="block text-sm/6 font-semibold text-gray-900">Logo (dark bg)</span>
-          <p class="text-xs text-gray-500">For dark backgrounds.</p>
+          <span class="block text-sm/6 font-semibold text-gray-900">For dark backgrounds (light logo)</span>
+          <p class="text-xs text-gray-500">Upload a white or light-colored logo that is visible on black.</p>
           <input id="LogoDark" name="LogoDark" type="hidden" value="">
           <div class="mt-2 flex items-center gap-3">
             <button type="button" data-target="LogoDark" {{ if not .SpacesReady }}disabled{{ end }}

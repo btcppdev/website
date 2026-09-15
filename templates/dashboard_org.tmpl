@@ -76,14 +76,14 @@
               <legend>Logos</legend>
               <div class="sponsor-logo-variants">
                 <div class="sponsor-logo-variant">
-                  <span>Light background</span>
+                  <span>For light backgrounds (dark logo)</span>
                   <div class="sponsor-logo-variant__preview is-light">{{ if .Organization.LogoLight }}<img src="{{ .Organization.LogoLight | safeURL }}" alt="{{ .Organization.Name }} light-background logo">{{ else }}<em>No logo uploaded</em>{{ end }}</div>
-                  <label><span>Replace light-background logo</span><input name="LogoLightFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"></label>
+                  <label><span>Replace dark logo</span><input name="LogoLightFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"></label>
                 </div>
                 <div class="sponsor-logo-variant">
-                  <span>Dark background</span>
+                  <span>For dark backgrounds (light logo)</span>
                   <div class="sponsor-logo-variant__preview is-dark">{{ if .Organization.LogoDark }}<img src="{{ .Organization.LogoDark | safeURL }}" alt="{{ .Organization.Name }} dark-background logo">{{ else }}<em>No logo uploaded</em>{{ end }}</div>
-                  <label><span>Replace dark-background logo</span><input name="LogoDarkFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"></label>
+                  <label><span>Replace light logo</span><input name="LogoDarkFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"></label>
                 </div>
               </div>
             </fieldset>

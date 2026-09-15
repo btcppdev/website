@@ -26,8 +26,8 @@
       <fieldset class="sponsor-profile-group organization-application-logos">
         <legend>Proposed logo variants</legend>
         <div class="sponsor-logo-variants">
-          <div class="sponsor-logo-variant"><span>Light background</span><div class="sponsor-logo-variant__preview is-light">{{ if .Application.LogoLight }}<img src="{{ .Application.LogoLight | safeURL }}" alt="{{ .Application.Name }} light-background logo">{{ else }}<em>Not provided</em>{{ end }}</div></div>
-          <div class="sponsor-logo-variant"><span>Dark background</span><div class="sponsor-logo-variant__preview is-dark">{{ if .Application.LogoDark }}<img src="{{ .Application.LogoDark | safeURL }}" alt="{{ .Application.Name }} dark-background logo">{{ else }}<em>Not provided</em>{{ end }}</div></div>
+          <div class="sponsor-logo-variant"><span>For light backgrounds (dark logo)</span><div class="sponsor-logo-variant__preview is-light">{{ if .Application.LogoLight }}<img src="{{ .Application.LogoLight | safeURL }}" alt="{{ .Application.Name }} light-background logo">{{ else }}<em>Not provided</em>{{ end }}</div></div>
+          <div class="sponsor-logo-variant"><span>For dark backgrounds (light logo)</span><div class="sponsor-logo-variant__preview is-dark">{{ if .Application.LogoDark }}<img src="{{ .Application.LogoDark | safeURL }}" alt="{{ .Application.Name }} dark-background logo">{{ else }}<em>Not provided</em>{{ end }}</div></div>
         </div>
       </fieldset>
       {{ end }}
