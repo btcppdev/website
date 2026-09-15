@@ -99,7 +99,8 @@
       <ul class="divide-y divide-gray-100 border border-gray-100 rounded-md">
         {{ range .Speakers }}
         {{ if .Speaker }}
-        <li class="flex items-center justify-between gap-3 px-3 py-2">
+        <li class="px-3 py-3">
+          <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-2 min-w-0">
             <img src="{{ if .Speaker.Photo }}{{ speakerPhoto .Speaker.Photo }}{{ else }}/static/img/speaker-placeholder.png{{ end }}"
                  alt="{{ .Speaker.Name }}"
@@ -120,6 +121,8 @@
               Remove
             </button>
           </form>
+          </div>
+          {{ template "admin_speakerconf_details" (dict "Conf" $.Conf "SpeakerConf" .) }}
         </li>
         {{ end }}
         {{ end }}

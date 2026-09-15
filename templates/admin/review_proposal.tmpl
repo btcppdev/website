@@ -108,11 +108,7 @@
               {{ else if $sc.Company }}
               <p class="mt-2 text-xs text-gray-500">{{ $sc.Company }}</p>
               {{ end }}
-              {{ if $sc.Availability }}
-              <p class="mt-2 text-xs text-gray-500">
-                Available: {{ range $i, $d := $sc.Availability }}{{ if $i }}, {{ end }}{{ $d }}{{ end }}
-              </p>
-              {{ end }}
+              {{ template "admin_speakerconf_details" (dict "Conf" $.Conf "SpeakerConf" $sc) }}
             </div>
           </div>
           {{ end }}

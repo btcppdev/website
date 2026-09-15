@@ -1,0 +1,17 @@
+{{ define "admin_speakerconf_details" }}
+{{ $sc := .SpeakerConf }}
+<div class="mt-3 border-t border-gray-200 pt-3 text-xs text-gray-700">
+  <p class="font-semibold text-gray-900">Speaker details for {{ .Conf.Desc }}</p>
+  <dl class="mt-2 grid gap-3 sm:grid-cols-2">
+    <div><dt class="font-semibold">Available days</dt><dd>{{ if $sc.Availability }}{{ range $i, $day := $sc.Availability }}{{ if $i }} · {{ end }}{{ $label := $day }}{{ range $.Conf.DaysList "" false }}{{ if eq .ItemID $day }}{{ $label = .ItemDesc }}{{ end }}{{ end }}{{ $label }}{{ end }}{{ else }}Not provided{{ end }}</dd></div>
+    <div><dt class="font-semibold">Traveling from</dt><dd>{{ if and $sc.ComingFrom (ne $sc.ComingFrom "unknown") }}{{ $sc.ComingFrom }}{{ else }}Not provided{{ end }}</dd></div>
+    <div><dt class="font-semibold">Company / organization</dt><dd>{{ if $sc.Company }}{{ $sc.Company }}{{ else }}Not provided{{ end }}</dd></div>
+    <div><dt class="font-semibold">Recording permission</dt><dd>{{ if eq $sc.RecordOK "RecordingOK" }}Recording OK{{ else if eq $sc.RecordOK "NoRecord" }}Do not record{{ else if eq $sc.RecordOK "AudioOnly" }}Audio only — do not show face{{ else if $sc.RecordOK }}{{ $sc.RecordOK }}{{ else }}Not provided{{ end }}</dd></div>
+    <div><dt class="font-semibold">Needs a visa</dt><dd>{{ if eq $sc.Visa "IDK" }}Unsure{{ else if $sc.Visa }}{{ $sc.Visa }}{{ else }}Not provided{{ end }}</dd></div>
+    <div><dt class="font-semibold">Speaker dinner RSVP</dt><dd>{{ if $sc.DinnerRSVP }}Yes{{ else }}Not opted in{{ end }}</dd></div>
+    <div><dt class="font-semibold">First bitcoin++ event</dt><dd>{{ if $sc.FirstEvent }}Yes{{ else }}Not marked as first event{{ end }}</dd></div>
+    <div><dt class="font-semibold">Sponsorship interest</dt><dd>{{ if $sc.Sponsor }}Yes{{ else }}Not opted in{{ end }}</dd></div>
+  </dl>
+  <a href="/{{ .Conf.Tag }}/admin/speakerconfs/{{ $sc.ID }}/edit" class="mt-3 inline-block font-semibold underline">Edit conference speaker details →</a>
+</div>
+{{ end }}
