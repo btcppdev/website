@@ -1185,6 +1185,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/callback/services/opennode", func(w http.ResponseWriter, r *http.Request) {
 		ServiceOpenNodeCallback(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/services/quotes/{quote}", func(w http.ResponseWriter, r *http.Request) {
+		ServiceQuoteReview(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/services/quotes/{quote}/confirm", func(w http.ResponseWriter, r *http.Request) {
+		ServiceQuoteConfirm(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/services/orders/{order}", func(w http.ResponseWriter, r *http.Request) {
 		ServiceOrder(w, r, app)
 	}).Methods("GET")

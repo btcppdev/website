@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Review your Alerts plan · bitcoin++</title>{{ block "header" . }}{{ end }}
+<link rel="stylesheet" href="/static/css/login-layout.css?v=2">
+</head>
+<body class="btcpp-login-page">
+{{ block "mainnav" . }}{{ end }}
+<main class="auth-shell auth-shell--simple"><section class="auth-card">
+<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>Review your plan</h1><p role="status">{{ .Message }}</p></header>
+<dl>
+<dt>Projects added beyond your free five</dt><dd>{{ .Stored.Quote.Quantity }}</dd>
+<dt>{{ if .Stored.Quote.BaseOrderID }}Prorated total{{ else }}Term total{{ end }} (USD, including tax)</dt><dd>{{ .Total }}</dd>
+<dt>Included tax</dt><dd>{{ .Tax }}</dd>
+{{ with .Stored.Quote.PeriodStart }}<dt>Access starts (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
+{{ with .Stored.Quote.PeriodEnd }}<dt>Access ends (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
+<dt>Quote valid until (UTC)</dt><dd>{{ .Stored.Quote.ExpiresAt.UTC.Format "January 2, 2006, 15:04" }}</dd>
+</dl>
+{{ if eq .Stored.Quote.Provider "opennode" }}<p>Bitcoin payment via OpenNode. This is prepaid access with no automatic renewal.</p>{{ end }}
+{{ if not .Expired }}
+<form method="post" action="/services/quotes/{{ .Stored.ID }}/confirm">
+<input type="hidden" name="csrf" value="{{ .CSRF }}">
+<button type="submit" class="auth-primary">Confirm {{ .Total }} order →</button>
+</form>
+{{ end }}
+<p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
+</section></main>
+</body></html>
