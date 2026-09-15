@@ -139,8 +139,8 @@ Retention and anonymization of financial history still need final policy review.
 ## Alerts pricing
 
 `internal/servicebilling` now calculates gross USD prices for monthly Stripe
-slots and 12/24/120-month OpenNode terms, at 100 cents per paid slot per month.
-Its slot input excludes the five free repositories. Amounts are checked against
+slots and 12/24/120-month OpenNode terms, at 200 cents per paid slot per month.
+Its slot input excludes the three free repositories. Amounts are checked against
 the existing order schema's integer range before multiplication.
 
 Calendar periods use UTC and clamp an anniversary to the last day of its target

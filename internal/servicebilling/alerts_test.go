@@ -14,10 +14,10 @@ func TestAlertsTerms(t *testing.T) {
 		unit     int64
 		end      string
 	}{
-		{"stripe", 1, 100, "2028-03-29"},
-		{"opennode", 12, 1200, "2029-02-28"},
-		{"opennode", 24, 2400, "2030-02-28"},
-		{"opennode", 120, 12000, "2038-02-28"},
+		{"stripe", 1, 200, "2028-03-29"},
+		{"opennode", 12, 2400, "2029-02-28"},
+		{"opennode", 24, 4800, "2030-02-28"},
+		{"opennode", 120, 24000, "2038-02-28"},
 	} {
 		p, err := AlertsTerm(tc.provider, 3, tc.months, start)
 		if err != nil || p.UnitCents != tc.unit || p.TotalCents != 3*tc.unit || p.End.Format("2006-01-02") != tc.end || p.End.Hour() != 12 || p.End.Minute() != 30 {
@@ -56,8 +56,8 @@ func TestAlertsProration(t *testing.T) {
 			at   time.Time
 			unit int64
 		}{
-			{start, int64(months) * 100},
-			{start.Add(full.End.Sub(start) / 2), int64(months) * 50},
+			{start, int64(months) * 200},
+			{start.Add(full.End.Sub(start) / 2), int64(months) * 100},
 			{full.End.Add(-time.Nanosecond), 0},
 		} {
 			p, err := AlertsIncrease("opennode", 3, months, start, full.End, tc.at)
@@ -74,13 +74,13 @@ func TestAlertsProration(t *testing.T) {
 			t.Fatal("accepted changed expiry")
 		}
 	}
-	// A 30-day month has exactly half a cent remaining at 3h36m to expiry.
+	// A 30-day month has exactly half a cent remaining at 1h48m to expiry.
 	full, _ := AlertsTerm("stripe", 2, 1, start)
 	for _, tc := range []struct {
 		remaining time.Duration
 		want      int64
 	}{
-		{216 * time.Minute, 1}, {216*time.Minute - time.Nanosecond, 0},
+		{108 * time.Minute, 1}, {108*time.Minute - time.Nanosecond, 0},
 	} {
 		p, err := AlertsIncrease("stripe", 2, 1, start, full.End, full.End.Add(-tc.remaining))
 		if err != nil || p.UnitCents != tc.want || p.TotalCents != 2*tc.want {

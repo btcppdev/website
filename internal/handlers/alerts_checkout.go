@@ -18,7 +18,7 @@ var ErrAlertsPlanReview = errors.New("existing Alerts periods require reconcilia
 var ErrAlertsRenewalChange = errors.New("equal or lower allowances must be handled at renewal")
 
 // PrepareAlertsCheckout uses account-scoped billing evidence to quote a desired
-// total number of PAID slots (the five free projects are not included). Prices,
+// total number of PAID slots (the three free projects are not included). Prices,
 // existing quantities, and upgrade periods are never supplied by the browser.
 // Confirmation must persist this exact quote with CreateTaxedServicePurchase;
 // AccountRevision prevents a second confirmation from silently changing it.

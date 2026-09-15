@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-const AlertsFreeRepositories int64 = 5
-const AlertsMonthlySlotCents int64 = 100
+const AlertsFreeRepositories int64 = 3
+const AlertsMonthlySlotCents int64 = 200
 
 // Hosted SaaS for personal use; confirmed product classification for Alerts.
 const AlertsStripeTaxCode = "txcd_10103000"

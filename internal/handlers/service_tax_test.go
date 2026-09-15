@@ -18,7 +18,7 @@ func TestAlertsInclusiveTaxQuote(t *testing.T) {
 		t.Run(scenario, func(t *testing.T) {
 			start := time.Now().UTC()
 			quote, tax, err := alertsTermTaxQuote(context.Background(), "opennode", 2, 12, start, address, func(p *stripe.TaxCalculationParams) (*stripe.TaxCalculation, error) {
-				if *p.Currency != "usd" || *p.CustomerDetails.AddressSource != "billing" || *p.CustomerDetails.Address.Country != "US" || len(p.LineItems) != 1 || *p.LineItems[0].Amount != 2400 || *p.LineItems[0].Quantity != 2 || *p.LineItems[0].TaxBehavior != "inclusive" || *p.LineItems[0].TaxCode != "txcd_10103000" || p.ShippingCost != nil {
+				if *p.Currency != "usd" || *p.CustomerDetails.AddressSource != "billing" || *p.CustomerDetails.Address.Country != "US" || len(p.LineItems) != 1 || *p.LineItems[0].Amount != 4800 || *p.LineItems[0].Quantity != 2 || *p.LineItems[0].TaxBehavior != "inclusive" || *p.LineItems[0].TaxCode != "txcd_10103000" || p.ShippingCost != nil {
 					t.Fatal("incorrect inclusive calculation request")
 				}
 				if _, ok := p.Context.Deadline(); !ok {
@@ -28,8 +28,8 @@ func TestAlertsInclusiveTaxQuote(t *testing.T) {
 				if scenario == "zero-tax" {
 					tax = 0
 				}
-				line := &stripe.TaxCalculationLineItem{Amount: 2400, AmountTax: tax, Quantity: 2, Reference: "alerts.repository-slots", TaxBehavior: "inclusive", TaxCode: "txcd_10103000"}
-				c := &stripe.TaxCalculation{ID: "taxcalc_local", Currency: "usd", AmountTotal: 2400, TaxAmountInclusive: tax, ExpiresAt: start.Add(time.Hour).Unix(), LineItems: &stripe.TaxCalculationLineItemList{Data: []*stripe.TaxCalculationLineItem{line}}}
+				line := &stripe.TaxCalculationLineItem{Amount: 4800, AmountTax: tax, Quantity: 2, Reference: "alerts.repository-slots", TaxBehavior: "inclusive", TaxCode: "txcd_10103000"}
+				c := &stripe.TaxCalculation{ID: "taxcalc_local", Currency: "usd", AmountTotal: 4800, TaxAmountInclusive: tax, ExpiresAt: start.Add(time.Hour).Unix(), LineItems: &stripe.TaxCalculationLineItemList{Data: []*stripe.TaxCalculationLineItem{line}}}
 				switch scenario {
 				case "exclusive":
 					c.TaxAmountExclusive = 200
@@ -53,7 +53,7 @@ func TestAlertsInclusiveTaxQuote(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || quote.TotalCents != 2400 || quote.UnitCents != 1200 || quote.TaxCents != int64(tax.SalesTaxAmountCents) || !quote.PeriodEnd.Equal(start.AddDate(1, 0, 0)) || quote.ExpiresAt.After(start.Add(11*time.Minute)) || tax.ProviderQuoteID != "taxcalc_local" {
+			if err != nil || quote.TotalCents != 4800 || quote.UnitCents != 2400 || quote.TaxCents != int64(tax.SalesTaxAmountCents) || !quote.PeriodEnd.Equal(start.AddDate(1, 0, 0)) || quote.ExpiresAt.After(start.Add(11*time.Minute)) || tax.ProviderQuoteID != "taxcalc_local" {
 				t.Fatal("incorrect quote", quote, tax, err)
 			}
 		})
@@ -81,7 +81,7 @@ func TestAlertsProratedTaxQuote(t *testing.T) {
 				t.Fatal(err)
 			}
 			effective := start.Add(full.End.Sub(start) / 2)
-			want := int64(term.months) * 100 // two slots, each half the full price
+			want := int64(term.months) * 200 // two slots, each half the full price
 			quote, tax, err := alertsIncreaseTaxQuote(context.Background(), term.provider, 2, term.months, start, full.End, effective, address, func(p *stripe.TaxCalculationParams) (*stripe.TaxCalculation, error) {
 				if *p.LineItems[0].Amount != want || *p.LineItems[0].Quantity != 2 || *p.LineItems[0].TaxBehavior != "inclusive" {
 					t.Fatal("wrong prorated tax request")

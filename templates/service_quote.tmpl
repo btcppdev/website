@@ -8,7 +8,7 @@
 <main class="auth-shell auth-shell--simple"><section class="auth-card">
 <header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>Review your plan</h1><p role="status">{{ .Message }}</p></header>
 <dl>
-<dt>Projects added beyond your free five</dt><dd>{{ .Stored.Quote.Quantity }}</dd>
+<dt>Projects added beyond your free three</dt><dd>{{ .Stored.Quote.Quantity }}</dd>
 <dt>{{ if .Stored.Quote.BaseOrderID }}Prorated total{{ else }}Term total{{ end }} (USD, including tax)</dt><dd>{{ .Total }}</dd>
 <dt>Included tax</dt><dd>{{ .Tax }}</dd>
 {{ with .Stored.Quote.PeriodStart }}<dt>Access starts (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}

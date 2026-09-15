@@ -32,7 +32,7 @@ func TestPrepareAlertsCheckout(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if quote.TotalCents != int64(term.months)*200 || quote.Quantity != 2 || quote.AccountRevision != state.Revision || quote.BillingMonths != term.months || quote.BaseOrderID != "" {
+			if quote.TotalCents != int64(term.months)*400 || quote.Quantity != 2 || quote.AccountRevision != state.Revision || quote.BillingMonths != term.months || quote.BaseOrderID != "" {
 				t.Fatalf("incorrect new term: %+v", quote)
 			}
 			state.Orders = []getters.AlertsBillingOrder{{OrderID: "base", Status: "paid", Quote: *quote, Granted: true}}
@@ -42,7 +42,7 @@ func TestPrepareAlertsCheckout(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if increase.TotalCents != int64(term.months)*50 || increase.Quantity != 1 || increase.BaseOrderID != "base" || increase.AccountRevision != state.Revision || !increase.PeriodEnd.Equal(*quote.PeriodEnd) {
+			if increase.TotalCents != int64(term.months)*100 || increase.Quantity != 1 || increase.BaseOrderID != "base" || increase.AccountRevision != state.Revision || !increase.PeriodEnd.Equal(*quote.PeriodEnd) {
 				t.Fatalf("incorrect increase: %+v", increase)
 			}
 			state.Orders = append(state.Orders, getters.AlertsBillingOrder{OrderID: "upgrade", Status: "paid", Granted: true, Quote: *increase})
