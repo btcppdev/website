@@ -18,17 +18,19 @@ var ErrServiceBuyer = errors.New("service buyer needs a verified account email")
 // adapters must resolve pricing, tax and access periods before calling this API.
 // Amounts are USD cents; UnitCents and TotalCents include TaxCents.
 type ServiceQuote struct {
-	ProductCode string     `json:"product_code"`
-	ResourceID  string     `json:"resource_id"`
-	Name        string     `json:"name"`
-	Provider    string     `json:"provider"`
-	Quantity    int64      `json:"quantity"`
-	UnitCents   int64      `json:"unit_cents"`
-	TotalCents  int64      `json:"total_cents"`
-	TaxCents    int64      `json:"tax_cents"`
-	PeriodStart *time.Time `json:"period_start"`
-	PeriodEnd   *time.Time `json:"period_end"`
-	ExpiresAt   time.Time  `json:"expires_at"`
+	// Alerts account evidence captured by the server during quote preparation.
+	AccountRevision string     `json:"account_revision,omitempty"`
+	ProductCode     string     `json:"product_code"`
+	ResourceID      string     `json:"resource_id"`
+	Name            string     `json:"name"`
+	Provider        string     `json:"provider"`
+	Quantity        int64      `json:"quantity"`
+	UnitCents       int64      `json:"unit_cents"`
+	TotalCents      int64      `json:"total_cents"`
+	TaxCents        int64      `json:"tax_cents"`
+	PeriodStart     *time.Time `json:"period_start"`
+	PeriodEnd       *time.Time `json:"period_end"`
+	ExpiresAt       time.Time  `json:"expires_at"`
 }
 
 type ServicePurchase struct {
@@ -96,6 +98,18 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
+	}
+	if quote.AccountRevision != "" {
+		if quote.ProductCode != "alerts.repository-slots" {
+			return nil, ErrServiceQuote
+		}
+		revision, err := alertsBillingRevision(ctx, tx, personID)
+		if err != nil {
+			return nil, err
+		}
+		if revision != quote.AccountRevision {
+			return nil, ErrAlertsBillingChanged
+		}
 	}
 	method := "service"
 	switch quote.ProductCode {
