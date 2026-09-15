@@ -10,6 +10,7 @@
 <dl><dt>Additional repositories</dt><dd>{{ .Slots }}</dd><dt>Monthly price (USD, including applicable tax)</dt><dd>{{ .Total }}</dd><dt>Checkout reference</dt><dd>{{ .ID }}</dd></dl>
 {{ if .CanPay }}<form method="post" action="/services/alerts/checkout/{{ .ID }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button type="submit" class="auth-primary">Continue with card</button></form><p>Renews monthly. You can cancel future renewals.</p>{{ end }}
 <p><a href="/services/alerts/checkout/{{ .ID }}">Refresh payment status</a></p>
+{{ if .CanCheck }}<form method="post" action="/services/alerts/checkout/{{ .ID }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="check"><button type="submit">Check with Stripe</button></form>{{ end }}
 <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
 </section></main>
 </body></html>

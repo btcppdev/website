@@ -22,17 +22,22 @@ type alertsStripeReturnPage struct {
 	ID, Heading, Message, Total, CSRF string
 	Slots                             int64
 	CanPay                            bool
+	CanCheck                          bool
 }
 
 func alertsStripeReturnPresentation(stored *getters.AlertsStripeCheckout, bound, enabled bool, now time.Time) alertsStripeReturnPage {
 	total := stored.Intent.PaidSlots * servicebilling.AlertsMonthlySlotCents
 	page := alertsStripeReturnPage{ID: stored.Intent.ID, Slots: stored.Intent.PaidSlots, Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Heading: "Awaiting payment confirmation", Message: "Payment has not yet been verified. If you just paid, refresh this page shortly to check again."}
+	page.CanCheck = enabled && stored.Reference != "" && !stored.Closed
 	if stored.Closed {
 		page.Heading, page.Message = "Checkout closed", "This checkout is closed. Return to My alerts to review your subscriptions."
 	} else if bound {
 		page.Message = "Your checkout is recorded. We are waiting for the verified invoice before activating paid access."
 	} else if !stored.Intent.CreatedAt.Add(2 * time.Hour).After(now) {
 		page.Heading, page.Message = "Checkout needs review", "This checkout can no longer be resumed here. If you paid, confirmation may still arrive. Contact support with the checkout reference below before starting another purchase."
+		if page.CanCheck {
+			page.Message = "This checkout can no longer be resumed here. Use Check with Stripe to verify whether payment completed or the checkout expired."
+		}
 	} else {
 		page.CanPay = enabled && (stored.Reference != "" || !now.After(stored.Intent.CreatedAt.Add(90*time.Minute)))
 	}
@@ -104,6 +109,29 @@ func AlertsStripeReturn(w http.ResponseWriter, r *http.Request, app *config.AppC
 	enabled := strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "sk_test_") || strings.HasPrefix(key, "rk_live_") || strings.HasPrefix(key, "rk_test_")
 	page := alertsStripeReturnPresentation(stored, bound, enabled, time.Now())
 	if r.Method == http.MethodPost {
+		if len(r.PostForm["action"]) > 1 {
+			http.Error(w, "Invalid action", 400)
+			return
+		}
+		action := r.PostForm.Get("action")
+		if action == "check" {
+			if !page.CanCheck {
+				http.Error(w, "This checkout cannot be checked yet", 409)
+				return
+			}
+			live := strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_")
+			err := getters.RecoverAlertsStripeCheckout(r.Context(), app, identity.PersonID, stored.Intent.ID, alertsstripe.NewClient(live))
+			if err != nil && !errors.Is(err, alertsstripe.ErrReconcile) {
+				http.Error(w, "Unable to verify payment status. Your checkout is saved; please try again shortly.", 503)
+				return
+			}
+			http.Redirect(w, r, r.URL.Path, 303)
+			return
+		}
+		if action != "" && action != "pay" {
+			http.Error(w, "Invalid action", 400)
+			return
+		}
 		if !page.CanPay {
 			http.Error(w, "This checkout cannot be resumed. Reload to check its status.", 409)
 			return
@@ -121,7 +149,7 @@ func AlertsStripeReturn(w http.ResponseWriter, r *http.Request, app *config.AppC
 		http.Redirect(w, r, destination, 303)
 		return
 	}
-	if page.CanPay {
+	if page.CanPay || page.CanCheck {
 		page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 		if err != nil {
 			http.Error(w, "Unable to prepare checkout", 500)

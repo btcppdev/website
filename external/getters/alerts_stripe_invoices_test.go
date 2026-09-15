@@ -53,6 +53,14 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	if err != nil || len(grants) != 0 {
 		t.Fatal("binding alone granted access", grants, err)
 	}
+	session.Invoice = &stripe.Invoice{ID: inv.ID}
+	if err = RecoverAlertsStripeCheckout(ctx, app, person, reserved.Intent.ID, client); err != nil {
+		t.Fatal("missed payment callback recovery", err)
+	}
+	grants, err = ActiveServiceEntitlements(app, person, now)
+	if err != nil || len(grants) != 1 || grants[0].Quantity != 2 {
+		t.Fatal("recovery did not activate verified invoice", grants, err)
+	}
 	const n = 5
 	var wg sync.WaitGroup
 	results := make(chan *ServicePurchase, n)

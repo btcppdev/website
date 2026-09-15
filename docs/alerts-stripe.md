@@ -58,12 +58,18 @@ browser and Stripe test-mode end-to-end verification remain open.
 
 - Implement failed-renewal grace, cancellation, pause and refund transitions.
 - Implement immediate prorated increases and next-renewal decreases.
-- Recover missing expiry webhooks and ambiguous creations without a session ID.
+- Add unattended recovery and recover ambiguous creations without a session ID.
   The signed `checkout.session.expired` path now re-fetches the session and only
   closes a matching, expired, unpaid session with no invoice or subscription.
   Closure and subscription binding share account/row locks. Duplicate expiration
   events preserve the closed record and cannot affect a replacement checkout.
   Local age or a browser cancellation alone never releases the reservation.
+  The return page now offers a CSRF-protected "Check with Stripe" action for
+  saved sessions. It closes verified unpaid expirations or recovers a completed
+  checkout's initial invoice through the existing binding and paid-invoice
+  validators. It never creates provider sessions or charges. HTTP/PostgreSQL
+  tests cover missing-expiry recovery, verified paid-invoice recovery and retries.
+  Automatic recovery of missed renewal invoices remains open.
 - Verify the new `/services/alerts/subscribe?account=...&slots=...` review/start
   route and Alerts handoff end to end. GET preserves the selection through login;
   POST requires the matching account and CSRF, reserves an immutable intent and

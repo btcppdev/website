@@ -197,6 +197,30 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if code, body, _ := call("/fixture/login/"+people[0], nil); code != 204 {
+		t.Fatal(code, body)
+	}
+	code, html, _ = call(returnPath, nil)
+	if code != 200 {
+		t.Fatal(code, html)
+	}
+	checkForm := url.Values{"action": {"check"}, "csrf": {"wrong"}}
+	if code, _, _ := call(returnPath, checkForm); code != 403 {
+		t.Fatal("recovery CSRF", code)
+	}
+	checkForm.Set("csrf", field("csrf"))
+	if code, body, location := call(returnPath, checkForm); code != 303 || location != returnPath {
+		t.Fatal(code, body, location)
+	}
+	if code, body, _ := call(returnPath, nil); code != 200 || !strings.Contains(body, "Checkout closed") {
+		t.Fatal("missed webhook recovery", code, body)
+	}
+	lock.Lock()
+	gotCreates = creates
+	lock.Unlock()
+	if gotCreates != 1 {
+		t.Fatal("recovery created another payment", gotCreates)
+	}
 	handled, err := processAlertsStripeEvent(ctx, app, stripe.Event{Type: "checkout.session.expired", Data: &stripe.EventData{Raw: raw}}, alertsstripe.NewClient(false))
 	if err != nil || !handled {
 		t.Fatal("expiry callback reconciliation", handled, err)
