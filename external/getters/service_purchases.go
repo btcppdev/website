@@ -50,13 +50,17 @@ func CreateServicePurchase(app *config.AppContext, personID, key string, quote S
 // CreateTaxedServicePurchase atomically stores the trusted pricing snapshot and
 // its provider tax evidence. Retrying a key cannot replace the tax calculation.
 func CreateTaxedServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote, tax TaxQuoteInput) (*ServicePurchase, error) {
-	if tax.Provider != "stripe" {
-		return nil, ErrServiceQuote
-	}
-	if !strings.HasPrefix(tax.ProviderQuoteID, "taxcalc_") || int64(tax.SalesTaxAmountCents) != quote.TaxCents || tax.ExpiresAt == nil || quote.ExpiresAt.After(*tax.ExpiresAt) || strings.TrimSpace(tax.DestinationCountry) == "" || !json.Valid([]byte(tax.RawResponse)) {
-		return nil, ErrServiceQuote
+	if err := validateServiceTaxQuote(quote, tax); err != nil {
+		return nil, err
 	}
 	return createServicePurchase(app, personID, key, quote, &tax)
+}
+
+func validateServiceTaxQuote(quote ServiceQuote, tax TaxQuoteInput) error {
+	if tax.Provider != "stripe" || !strings.HasPrefix(tax.ProviderQuoteID, "taxcalc_") || int64(tax.SalesTaxAmountCents) != quote.TaxCents || tax.ExpiresAt == nil || quote.ExpiresAt.After(*tax.ExpiresAt) || strings.TrimSpace(tax.DestinationCountry) == "" || !json.Valid([]byte(tax.RawResponse)) {
+		return ErrServiceQuote
+	}
+	return nil
 }
 
 func createServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote, tax *TaxQuoteInput) (*ServicePurchase, error) {

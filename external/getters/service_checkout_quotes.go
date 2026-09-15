@@ -1,0 +1,82 @@
+package getters
+
+import (
+	"encoding/hex"
+	"encoding/json"
+	"strings"
+	"time"
+
+	"btcpp-web/internal/config"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+)
+
+type ServiceCheckoutQuote struct {
+	ID    string
+	Quote ServiceQuote
+	Tax   TaxQuoteInput
+}
+
+// SaveAlertsCheckoutQuote accepts only trusted output from the account-aware
+// pricing coordinator. Storage does not create an order, contact a provider, or
+// change entitlements. Account state is checked again on confirmation.
+func SaveAlertsCheckoutQuote(app *config.AppContext, personID string, quote ServiceQuote, tax TaxQuoteInput) (*ServiceCheckoutQuote, error) {
+	revision, err := hex.DecodeString(quote.AccountRevision)
+	if err != nil || len(revision) != 32 || quote.ProductCode != "alerts.repository-slots" || strings.TrimSpace(personID) == "" ||
+		quote.PeriodStart == nil || quote.PeriodEnd == nil || !quote.PeriodEnd.After(*quote.PeriodStart) || quote.ExpiresAt.After(*quote.PeriodEnd) ||
+		!quote.ExpiresAt.After(time.Now()) || quote.Quantity < 1 || quote.Quantity > 2147483647 || quote.UnitCents < 1 || quote.UnitCents > 2147483647 ||
+		quote.TotalCents < 1 || quote.TotalCents > 2147483647 || quote.Quantity*quote.UnitCents != quote.TotalCents || quote.TaxCents < 0 || quote.TaxCents > quote.TotalCents {
+		return nil, ErrServiceQuote
+	}
+	if err = validateServiceTaxQuote(quote, tax); err != nil {
+		return nil, err
+	}
+	rawQuote, err := json.Marshal(quote)
+	if err != nil {
+		return nil, err
+	}
+	rawTax, err := json.Marshal(tax)
+	if err != nil {
+		return nil, err
+	}
+	result := &ServiceCheckoutQuote{Quote: quote, Tax: tax}
+	err = app.DB.QueryRow(app.DatabaseContext(), `INSERT INTO service_checkout_quotes(person_id,quote_snapshot,tax_snapshot,expires_at)
+ VALUES($1,$2,$3,$4) RETURNING id::text`, personID, rawQuote, rawTax, quote.ExpiresAt).Scan(&result.ID)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ServiceCheckoutQuoteForPerson includes expired quotes so the confirmation page
+// can show their original terms and offer a new quote. Ownership is always checked.
+func ServiceCheckoutQuoteForPerson(app *config.AppContext, personID, id string) (*ServiceCheckoutQuote, error) {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return nil, pgx.ErrNoRows
+	}
+	var rawQuote, rawTax []byte
+	result := &ServiceCheckoutQuote{ID: parsed.String()}
+	err = app.DB.QueryRow(app.DatabaseContext(), `SELECT quote_snapshot,tax_snapshot FROM service_checkout_quotes WHERE id=$1 AND person_id=$2`, parsed.String(), personID).Scan(&rawQuote, &rawTax)
+	if err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(rawQuote, &result.Quote); err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(rawTax, &result.Tax); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ConfirmServiceCheckoutQuote creates exactly one order from the stored quote.
+// Expiry/revision checks apply to new orders; retries return the original order.
+// It does not charge the buyer. The existing order checkout starts payment.
+func ConfirmServiceCheckoutQuote(app *config.AppContext, personID, id string) (*ServicePurchase, error) {
+	stored, err := ServiceCheckoutQuoteForPerson(app, personID, id)
+	if err != nil {
+		return nil, err
+	}
+	return CreateTaxedServicePurchase(app, personID, "checkout-quote:"+stored.ID, stored.Quote, stored.Tax)
+}
