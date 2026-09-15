@@ -47,7 +47,7 @@ func VerifyMonthlyInvoice(in *stripe.Invoice, price *stripe.Price, b Binding) (*
 	if in.Total != total || in.AmountPaid != total || in.AmountRemaining != 0 || in.AmountPaidOffStripe != 0 || in.PostPaymentCreditNotesAmount != 0 || in.PrePaymentCreditNotesAmount != 0 || len(in.Discounts) != 0 || in.AutomaticTax == nil || !in.AutomaticTax.Enabled || in.AutomaticTax.Status != "complete" || in.StatusTransitions == nil || in.StatusTransitions.PaidAt <= 0 {
 		return nil, ErrInvoice
 	}
-	if price.ID != b.PriceID || price.Livemode != b.Live || price.Currency != "usd" || price.UnitAmount != servicebilling.AlertsMonthlySlotCents || price.TaxBehavior != "inclusive" || price.Type != "recurring" || price.Recurring == nil || price.Recurring.Interval != "month" || price.Recurring.IntervalCount != 1 || price.Product == nil || price.Product.ID != b.ProductID || price.Product.TaxCode == nil || price.Product.TaxCode.ID != servicebilling.AlertsStripeTaxCode {
+	if !validMonthlyPrice(price, b) {
 		return nil, ErrInvoice
 	}
 	if in.Lines == nil || in.Lines.HasMore || len(in.Lines.Data) != 1 {
@@ -97,4 +97,8 @@ func (c Client) PaidInvoice(ctx context.Context, id string, b Binding) (*PaidPer
 		return nil, err
 	}
 	return VerifyMonthlyInvoice(inv, price, b)
+}
+
+func validMonthlyPrice(price *stripe.Price, b Binding) bool {
+	return price != nil && !(price.ID != b.PriceID || price.Livemode != b.Live || price.Currency != "usd" || price.UnitAmount != servicebilling.AlertsMonthlySlotCents || price.TaxBehavior != "inclusive" || price.Type != "recurring" || price.Recurring == nil || price.Recurring.Interval != "month" || price.Recurring.IntervalCount != 1 || price.Product == nil || price.Product.ID != b.ProductID || price.Product.TaxCode == nil || price.Product.TaxCode.ID != servicebilling.AlertsStripeTaxCode)
 }

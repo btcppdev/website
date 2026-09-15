@@ -31,11 +31,17 @@ full initial and renewal invoices are handled by this verifier. Quantity-change
 invoices require a separate proration transaction. Neither visiting the return
 URL nor observing an active subscription grants access on its own.
 
+Migrations 111 and the existing signed `/callback/stripe` endpoint connect
+completed sessions to immutable subscription/customer/price bindings. A completion
+event can recover a session reference after a lost creation response. `invoice.paid`
+re-reads provider evidence and atomically records one shared order, line item,
+purchase snapshot, payment attempt/event and access grant per invoice. Full-month
+periods cannot overlap; exact replays preserve refund/revocation state. Stripe's
+automatic invoice tax is recorded in the order and purchase snapshot without
+creating a second Stripe Tax transaction.
+
 Remaining integration:
 
-- Persist verified subscription/customer/price bindings from completed sessions.
-- Receive signed events and reconcile Stripe state before recording payment.
-- Write each paid invoice into the shared orders/payment/access records once.
 - Implement failed-renewal grace, cancellation, pause and refund transitions.
 - Implement immediate prorated increases and next-renewal decreases.
 - Reconcile expired/abandoned sessions before releasing the account reservation.
