@@ -16167,3 +16167,6 @@ button.organization-review-action.is-secondary {
 	.organization-directory-secondary-action { width: 100%; }
 	.organization-directory-back { margin-bottom: 6px; }
 }
+
+/* Prize fields follow the selected reward type. */
+.sponsor-prize-form [hidden] { display: none !important; }

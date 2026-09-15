@@ -1350,22 +1350,30 @@ func normalizeSponsorAwardProposalInput(in SponsorAwardProposalInput) (SponsorAw
 	in.PrizeTitle = strings.TrimSpace(in.PrizeTitle)
 	in.PrizeDescription = strings.TrimSpace(in.PrizeDescription)
 	in.PrizeValueText = strings.TrimSpace(in.PrizeValueText)
-	if in.Title == "" || in.PrizeTitle == "" {
-		return SponsorAwardProposalInput{}, fmt.Errorf("award and prize titles are required")
+	if in.Title == "" {
+		return SponsorAwardProposalInput{}, fmt.Errorf("challenge name is required")
 	}
 	if in.MaxAwardees < 1 || in.MaxAwardees > 100 {
 		return SponsorAwardProposalInput{}, fmt.Errorf("max awardees must be between 1 and 100")
 	}
 	switch in.PrizeType {
-	case PrizeTypeSats, PrizeTypeInKind, PrizeTypeTickets, PrizeTypeTrophy:
+	case PrizeTypeSats, PrizeTypeInKind:
 	default:
-		return SponsorAwardProposalInput{}, fmt.Errorf("unsupported prize type")
+		return SponsorAwardProposalInput{}, fmt.Errorf("sponsors can offer only Bitcoin or a physical prize; ticket prizes must be added by hackathon administrators")
 	}
-	value, err := strconv.ParseInt(in.PrizeValueText, 10, 64)
-	if err != nil || value <= 0 {
-		return SponsorAwardProposalInput{}, fmt.Errorf("prize value must be a positive whole number of satoshis")
+	if in.PrizeType == PrizeTypeInKind && in.PrizeTitle == "" {
+		return SponsorAwardProposalInput{}, fmt.Errorf("describe the physical prize each winner will receive")
 	}
-	in.PrizeValueText = strconv.FormatInt(value, 10)
+	if in.PrizeType == PrizeTypeSats || in.PrizeValueText != "" {
+		value, err := strconv.ParseInt(in.PrizeValueText, 10, 64)
+		if err != nil || value <= 0 {
+			return SponsorAwardProposalInput{}, fmt.Errorf("prize amount or estimated value must be a positive whole number of satoshis")
+		}
+		in.PrizeValueText = strconv.FormatInt(value, 10)
+		if in.PrizeType == PrizeTypeSats && in.PrizeTitle == "" {
+			in.PrizeTitle = in.PrizeValueText + " sats per winner"
+		}
+	}
 	return in, nil
 }
 

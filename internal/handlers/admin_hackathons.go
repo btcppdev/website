@@ -4443,6 +4443,10 @@ func prizeInputFromRequest(w http.ResponseWriter, r *http.Request) (getters.Priz
 	if in.Title == "" {
 		return getters.PrizeInput{}, fmt.Errorf("prize title is required")
 	}
+	if in.PrizeType == getters.PrizeTypeInKind && in.ValueText == "" {
+		in.PoolURL = ""
+		return in, nil
+	}
 	value, err := strconv.ParseInt(in.ValueText, 10, 64)
 	if err != nil || value <= 0 {
 		return getters.PrizeInput{}, fmt.Errorf("prize value must be a positive whole number of satoshis")

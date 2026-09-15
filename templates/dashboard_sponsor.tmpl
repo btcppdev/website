@@ -124,9 +124,9 @@
                 <input type="hidden" name="CompetitionID" value="{{ .Competition.ID }}">
                 <p class="sponsor-benefit-form__intro">{{ $proposalSlots }} proposal slot{{ if ne $proposalSlots 1 }}s{{ end }} remaining. Organizers review proposals before they appear publicly.</p>
                 <fieldset>
-                  <legend>Award</legend>
+                  <legend>Challenge</legend>
                   <div class="sponsor-benefit-form__grid">
-                    <label class="is-wide"><span>Award title</span><input name="Title" required maxlength="160" placeholder="Best privacy project"></label>
+                    <label class="is-wide"><span>Challenge name</span><input name="Title" required maxlength="160" placeholder="Best privacy project"></label>
                     <label class="is-wide"><span>Description</span><textarea name="Description" rows="3" maxlength="4000" placeholder="What kind of work should this award celebrate?"></textarea></label>
                     <label class="is-wide"><span>Judging guidance</span><textarea name="JudgingInstructions" rows="2" maxlength="4000" placeholder="What should judges pay attention to?"></textarea></label>
                     <label><span>Maximum winners</span><input name="MaxAwardees" type="number" min="1" max="100" value="1" required></label>
@@ -135,9 +135,10 @@
                 <fieldset>
                   <legend>Prize</legend>
                   <div class="sponsor-benefit-form__grid">
-                    <label><span>Prize type</span><select name="PrizeType"><option value="sats">Satoshis</option><option value="in_kind">In kind</option><option value="tickets">Tickets</option><option value="trophy">Trophy</option></select></label>
-                    <label><span>Prize title</span><input name="PrizeTitle" required maxlength="160" placeholder="1,000,000 sats"></label>
-                    <label><span>Value in sats</span><input name="PrizeValueText" inputmode="numeric" pattern="[0-9]+" required placeholder="1000000"></label>
+                    <label class="is-wide"><span>What will each winner receive?</span><select name="PrizeType"><option value="sats">Bitcoin</option><option value="in_kind">Physical prize</option></select></label>
+                    <label class="is-wide" data-prize-title><span>Describe the physical prize</span><input name="PrizeTitle" maxlength="160" placeholder="One hardware wallet per winner"><small>Required for physical prizes. Bitcoin prizes are named automatically from the amount.</small></label>
+                    <label class="is-wide"><span data-prize-value-label>Amount per winner (sats)</span><input name="PrizeValueText" inputmode="numeric" pattern="[0-9]+" placeholder="1000000"><small data-prize-value-help>Enter a whole number of sats. Required for Bitcoin; optional estimated value for physical prizes.</small></label>
+                    <p class="is-wide sponsor-benefit-form__intro">Each winning project receives the full prize described here. With multiple winners, provide one prize per winning project.</p>
                     <label class="is-wide"><span>Prize details</span><textarea name="PrizeDescription" rows="2" maxlength="4000" placeholder="Include delivery details or any non-cash components."></textarea></label>
                   </div>
                 </fieldset>
@@ -191,7 +192,7 @@
             {{ if .Description }}<p class="sponsor-challenge-description">{{ .Description }}</p>{{ end }}
             <dl>
               <div><dt>Prize</dt><dd>{{ .PrizeTitle }}</dd></div>
-              <div><dt>Value</dt><dd>{{ .PrizeValueText }} sats</dd></div>
+              {{ if .PrizeValueText }}<div><dt>{{ if eq .PrizeType "sats" }}Amount per winner{{ else }}Estimated value per winner{{ end }}</dt><dd>{{ .PrizeValueText }} sats</dd></div>{{ end }}
               <div><dt>Maximum winners</dt><dd>{{ .MaxAwardees }}</dd></div>
               <div><dt>Eligibility</dt><dd>{{ if .OptInRequired }}Opt-in{{ else }}All projects{{ end }}{{ if .FinalistsOnly }} · finalists only{{ end }}</dd></div>
             </dl>
@@ -204,7 +205,7 @@
                 <fieldset>
                   <legend>Challenge</legend>
                   <div class="sponsor-benefit-form__grid">
-                    <label class="is-wide"><span>Challenge title</span><input name="Title" value="{{ .Title }}" required maxlength="160"></label>
+                    <label class="is-wide"><span>Challenge name</span><input name="Title" value="{{ .Title }}" required maxlength="160"></label>
                     <label class="is-wide"><span>Description</span><textarea name="Description" rows="3" maxlength="4000">{{ .Description }}</textarea></label>
                     <label class="is-wide"><span>Judging guidance</span><textarea name="JudgingInstructions" rows="2" maxlength="4000">{{ .JudgingInstructions }}</textarea></label>
                     <label><span>Maximum winners</span><input name="MaxAwardees" type="number" min="1" max="100" value="{{ .MaxAwardees }}" required></label>
@@ -213,9 +214,10 @@
                 <fieldset>
                   <legend>Prize</legend>
                   <div class="sponsor-benefit-form__grid">
-                    <label><span>Prize type</span><select name="PrizeType"><option value="sats" {{ if eq .PrizeType "sats" }}selected{{ end }}>Satoshis</option><option value="in_kind" {{ if eq .PrizeType "in_kind" }}selected{{ end }}>In kind</option><option value="tickets" {{ if eq .PrizeType "tickets" }}selected{{ end }}>Tickets</option><option value="trophy" {{ if eq .PrizeType "trophy" }}selected{{ end }}>Trophy</option></select></label>
-                    <label><span>Prize title</span><input name="PrizeTitle" value="{{ .PrizeTitle }}" required maxlength="160"></label>
-                    <label><span>Value in sats</span><input name="PrizeValueText" value="{{ .PrizeValueText }}" inputmode="numeric" pattern="[0-9]+" required></label>
+                    <label class="is-wide"><span>What will each winner receive?</span><select name="PrizeType"><option value="sats" {{ if eq .PrizeType "sats" }}selected{{ end }}>Bitcoin</option><option value="in_kind" {{ if or (eq .PrizeType "in_kind") (eq .PrizeType "trophy") }}selected{{ end }}>Physical prize</option></select></label>
+                    <label class="is-wide" data-prize-title><span>Describe the physical prize</span><input name="PrizeTitle" value="{{ .PrizeTitle }}" maxlength="160" placeholder="One hardware wallet per winner"><small>Required for physical prizes. Bitcoin prizes are named automatically from the amount.</small></label>
+                    <label class="is-wide"><span data-prize-value-label>Amount per winner (sats)</span><input name="PrizeValueText" value="{{ .PrizeValueText }}" inputmode="numeric" pattern="[0-9]+" placeholder="1000000"><small data-prize-value-help>Enter a whole number of sats. Required for Bitcoin; optional estimated value for physical prizes.</small></label>
+                    <p class="is-wide sponsor-benefit-form__intro">Each winning project receives the full prize described here. With multiple winners, provide one prize per winning project.</p>
                     <label class="is-wide"><span>Prize details</span><textarea name="PrizeDescription" rows="2" maxlength="4000">{{ .PrizeDescription }}</textarea></label>
                   </div>
                 </fieldset>
@@ -227,6 +229,8 @@
                 <button type="submit">Save challenge →</button>
               </form>
             </details>
+            {{ else if eq .PrizeType "tickets" }}
+            <p class="sponsor-dashboard-note">Ticket prizes are managed by bitcoin++ hackathon administrators.</p>
             {{ else if .OrganizerManaged }}
             <p class="sponsor-dashboard-note">This challenge was created by bitcoin++ organizers and is shown here as read-only.</p>
             {{ else if $.ChallengeHasStarted . }}
@@ -276,5 +280,6 @@
     </main>
   </div>
   {{ block "footer" . }}{{ end }}
+  <script src="/static/js/sponsor-prize-form.js" defer></script>
 </body>
 </html>

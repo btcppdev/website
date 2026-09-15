@@ -73,7 +73,7 @@ func (p *SponsorDashboardPage) ProposalsFor(sponsorshipID string) []*types.Spons
 }
 
 func (p *SponsorDashboardPage) ChallengeCanEdit(proposal *types.SponsorAwardProposal) bool {
-	if p == nil || !p.CanManage || proposal == nil || proposal.OrganizerManaged || proposal.ID == "" || (proposal.Status != "pending" && proposal.Status != "approved") {
+	if p == nil || !p.CanManage || proposal == nil || proposal.OrganizerManaged || proposal.PrizeType == getters.PrizeTypeTickets || proposal.ID == "" || (proposal.Status != "pending" && proposal.Status != "approved") {
 		return false
 	}
 	return proposal.EditableUntil == nil || proposal.EditableUntil.After(time.Now())

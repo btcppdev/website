@@ -4489,6 +4489,9 @@ func validatePrizeInput(in PrizeInput) (PrizeInput, error) {
 	if in.PrizeType == "" {
 		return PrizeInput{}, fmt.Errorf("prize type is required")
 	}
+	if in.PrizeType == PrizeTypeInKind && in.ValueText == "" {
+		return in, nil
+	}
 	value, err := strconv.ParseInt(in.ValueText, 10, 64)
 	if err != nil || value <= 0 {
 		return PrizeInput{}, fmt.Errorf("prize value must be a positive whole number of satoshis")
