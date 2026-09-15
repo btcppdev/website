@@ -40,6 +40,9 @@ func processAlertsStripeEvent(ctx context.Context, app *config.AppContext, event
 	if person == "" {
 		return true, nil
 	}
+	if event.Type == "checkout.session.expired" {
+		return true, getters.CloseExpiredAlertsStripeCheckout(ctx, app, person, intent, sessionID, client)
+	}
 	if sessionID != "" {
 		if _, err = getters.ResolveAlertsStripeSubscription(ctx, app, person, intent, client, sessionID); err != nil {
 			return true, err
@@ -66,7 +69,7 @@ func alertsStripeEventReferences(event stripe.Event) (intent, sessionID, invoice
 		return "", "", "", false, nil
 	}
 	switch event.Type {
-	case "checkout.session.completed":
+	case "checkout.session.completed", "checkout.session.expired":
 		var s stripe.CheckoutSession
 		if err = json.Unmarshal(event.Data.Raw, &s); err != nil {
 			return "", "", "", true, err

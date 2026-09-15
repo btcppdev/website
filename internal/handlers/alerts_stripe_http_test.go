@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/types"
@@ -60,6 +61,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	sessionID := "cs_fixture_" + strings.ReplaceAll(people[0], "-", "")
 	var lock sync.Mutex
 	creates, reads := 0, 0
 	var session map[string]any
@@ -76,8 +78,8 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 				t.Error("incorrect Stripe request", r.Form)
 			}
 			intent := r.Form.Get("client_reference_id")
-			session = map[string]any{"id": "cs_fixture", "object": "checkout.session", "mode": "subscription", "status": "open", "livemode": false, "expires_at": time.Now().Add(time.Hour).Unix(), "client_reference_id": intent, "metadata": map[string]string{"account_id": people[0], "checkout_intent": intent, "product": "alerts.repository-slots"}, "url": "https://checkout.stripe.com/c/pay/cs_fixture"}
-		} else if r.Method == "GET" && r.URL.Path == "/v1/checkout/sessions/cs_fixture" {
+			session = map[string]any{"id": sessionID, "object": "checkout.session", "mode": "subscription", "status": "open", "livemode": false, "expires_at": time.Now().Add(time.Hour).Unix(), "client_reference_id": intent, "metadata": map[string]string{"account_id": people[0], "checkout_intent": intent, "product": "alerts.repository-slots"}, "url": "https://checkout.stripe.com/c/pay/" + sessionID}
+		} else if r.Method == "GET" && r.URL.Path == "/v1/checkout/sessions/"+sessionID {
 			reads++
 		} else {
 			t.Error("unexpected provider request", r.Method, r.URL)
@@ -154,7 +156,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	form.Set("csrf", field("csrf"))
 	for i := 0; i < 2; i++ {
 		code, body, location := call("/services/alerts/subscribe?slots=999&account="+people[1], form)
-		if code != 303 || location != "https://checkout.stripe.com/c/pay/cs_fixture" {
+		if code != 303 || location != "https://checkout.stripe.com/c/pay/"+sessionID {
 			t.Fatal(code, body, location)
 		}
 	}
@@ -186,5 +188,23 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	}
 	if code, _, _ := call(returnPath, nil); code != 404 {
 		t.Fatal("cross-account checkout visible", code)
+	}
+	lock.Lock()
+	session["status"] = "expired"
+	session["payment_status"] = "unpaid"
+	raw, err := json.Marshal(session)
+	lock.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	handled, err := processAlertsStripeEvent(ctx, app, stripe.Event{Type: "checkout.session.expired", Data: &stripe.EventData{Raw: raw}}, alertsstripe.NewClient(false))
+	if err != nil || !handled {
+		t.Fatal("expiry callback reconciliation", handled, err)
+	}
+	if code, body, _ := call("/fixture/login/"+people[0], nil); code != 204 {
+		t.Fatal(code, body)
+	}
+	if code, body, _ := call(returnPath, nil); code != 200 || !strings.Contains(body, "Checkout closed") {
+		t.Fatal(code, body)
 	}
 }

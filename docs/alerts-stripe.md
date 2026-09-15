@@ -40,6 +40,11 @@ periods cannot overlap; exact replays preserve refund/revocation state. Stripe's
 automatic invoice tax is recorded in the order and purchase snapshot without
 creating a second Stripe Tax transaction.
 
+Configure that Stripe webhook endpoint to deliver `checkout.session.completed`,
+`checkout.session.expired` and `invoice.paid` for this flow, alongside the existing
+merchandise events. The expiry event is documented in Stripe's
+[event reference](https://docs.stripe.com/api/events/types#event_types-checkout.session.expired).
+
 Remaining integration:
 
 The account-owned `/services/alerts/checkout/{checkout}` return page now reads
@@ -53,7 +58,12 @@ browser and Stripe test-mode end-to-end verification remain open.
 
 - Implement failed-renewal grace, cancellation, pause and refund transitions.
 - Implement immediate prorated increases and next-renewal decreases.
-- Reconcile expired/abandoned sessions before releasing the account reservation.
+- Recover missing expiry webhooks and ambiguous creations without a session ID.
+  The signed `checkout.session.expired` path now re-fetches the session and only
+  closes a matching, expired, unpaid session with no invoice or subscription.
+  Closure and subscription binding share account/row locks. Duplicate expiration
+  events preserve the closed record and cannot affect a replacement checkout.
+  Local age or a browser cancellation alone never releases the reservation.
 - Verify the new `/services/alerts/subscribe?account=...&slots=...` review/start
   route and Alerts handoff end to end. GET preserves the selection through login;
   POST requires the matching account and CSRF, reserves an immutable intent and

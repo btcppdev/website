@@ -22,6 +22,7 @@ func TestAlertsStripeEventRouting(t *testing.T) {
 		session, invoice string
 	}{
 		{"completion only binds", "checkout.session.completed", `{"id":"cs_test","metadata":{"product":"alerts.repository-slots","checkout_intent":"intent"},"invoice":"in_not_proof"}`, true, "cs_test", ""},
+		{"expiry requires provider lookup", "checkout.session.expired", `{"id":"cs_test","metadata":{"product":"alerts.repository-slots","checkout_intent":"intent"}}`, true, "cs_test", ""},
 		{"invoice verifies payment", "invoice.paid", `{"id":"in_test","parent":{"subscription_details":{"metadata":{"product":"alerts.repository-slots","checkout_intent":"intent"}}}}`, true, "", "in_test"},
 		{"merch checkout untouched", "checkout.session.completed", `{"id":"cs_merch","metadata":{"product":"merch"}}`, false, "", ""},
 		{"other invoice untouched", "invoice.paid", `{"id":"in_other"}`, false, "", ""},
