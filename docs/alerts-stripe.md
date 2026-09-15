@@ -54,8 +54,14 @@ browser and Stripe test-mode end-to-end verification remain open.
 - Implement failed-renewal grace, cancellation, pause and refund transitions.
 - Implement immediate prorated increases and next-renewal decreases.
 - Reconcile expired/abandoned sessions before releasing the account reservation.
-- Expose the authenticated checkout-start route and connect the Alerts review screen,
-  including resuming the originally selected repository/plugin after payment.
+- Verify the new `/services/alerts/subscribe?account=...&slots=...` review/start
+  route and Alerts handoff end to end. GET preserves the selection through login;
+  POST requires the matching account and CSRF, reserves an immutable intent and
+  opens the same Stripe session. Ambiguous creation errors return to the durable
+  checkout page. Existing subscriptions still require the quantity-change flow.
+  Alerts gates this handoff with `ALERTS_CARD_CHECKOUT_ENABLED` (default off),
+  connects billing before checkout and activates oldest saved selections after
+  a verified paid-access snapshot arrives.
 - Exercise the full flow with Stripe test mode before enabling paid checkout.
 
 References: [Checkout Session creation](https://docs.stripe.com/api/checkout/sessions/create),
