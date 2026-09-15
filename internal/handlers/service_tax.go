@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -25,6 +26,35 @@ func alertsTermTaxQuote(ctx context.Context, provider string, slots int64, month
 	price, err := servicebilling.AlertsTerm(provider, slots, months, start)
 	if err != nil {
 		return nil, nil, err
+	}
+	return alertsPriceTaxQuote(ctx, provider, price, address, calculate)
+}
+
+// ErrAlertsZeroCharge requires the billing coordinator to handle a zero-cost
+// change without creating a payment. It must still verify the account revision.
+var ErrAlertsZeroCharge = errors.New("prorated Alerts change has no payable amount")
+
+// AlertsIncreaseTaxQuote prices only added slots for the remaining paid period.
+// The caller must load and bind the period and effective time to the account's
+// billing revision; these parameters are not trusted HTTP form values.
+func AlertsIncreaseTaxQuote(ctx context.Context, provider string, slots int64, months int, start, end, effective time.Time, address *types.ShopAddress) (*getters.ServiceQuote, *getters.TaxQuoteInput, error) {
+	return alertsIncreaseTaxQuote(ctx, provider, slots, months, start, end, effective, address, stripeTaxCalculation.New)
+}
+
+func alertsIncreaseTaxQuote(ctx context.Context, provider string, slots int64, months int, start, end, effective time.Time, address *types.ShopAddress, calculate func(*stripe.TaxCalculationParams) (*stripe.TaxCalculation, error)) (*getters.ServiceQuote, *getters.TaxQuoteInput, error) {
+	price, err := servicebilling.AlertsIncrease(provider, slots, months, start, end, effective)
+	if err != nil {
+		return nil, nil, err
+	}
+	return alertsPriceTaxQuote(ctx, provider, price, address, calculate)
+}
+
+func alertsPriceTaxQuote(ctx context.Context, provider string, price servicebilling.AlertsPrice, address *types.ShopAddress, calculate func(*stripe.TaxCalculationParams) (*stripe.TaxCalculation, error)) (*getters.ServiceQuote, *getters.TaxQuoteInput, error) {
+	if !price.End.After(time.Now()) {
+		return nil, nil, servicebilling.ErrAlertsPrice
+	}
+	if price.TotalCents == 0 {
+		return nil, nil, ErrAlertsZeroCharge
 	}
 	taxCode := servicebilling.AlertsStripeTaxCode
 	if address == nil || strings.TrimSpace(address.Country) == "" || strings.TrimSpace(address.Line1) == "" || strings.TrimSpace(address.City) == "" {
@@ -59,6 +89,12 @@ func alertsTermTaxQuote(ctx context.Context, provider string, slots int64, month
 	expiry := time.Unix(calculation.ExpiresAt, 0).UTC()
 	if cap := now.Add(10 * time.Minute); expiry.After(cap) {
 		expiry = cap
+	}
+	if expiry.After(price.End) {
+		expiry = price.End
+	}
+	if !expiry.After(now) {
+		return nil, nil, servicebilling.ErrAlertsPrice
 	}
 	raw, err := json.Marshal(calculation)
 	if err != nil {
