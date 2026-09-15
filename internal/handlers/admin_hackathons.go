@@ -1817,7 +1817,7 @@ func HackathonAdminUpdateTimeline(w http.ResponseWriter, r *http.Request, ctx *c
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Timeline could not be saved"), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Timeline saved"), http.StatusSeeOther)
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(judgeCalendarFlash(ctx, competitionID, "Timeline saved")), http.StatusSeeOther)
 }
 
 func HackathonAdminPersonSearch(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -3478,7 +3478,7 @@ func HackathonAdminAddJudge(w http.ResponseWriter, r *http.Request, ctx *config.
 	} else {
 		message = "Selected people are already judges"
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(message), http.StatusSeeOther)
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(judgeCalendarFlash(ctx, competitionID, message)), http.StatusSeeOther)
 }
 
 func HackathonAdminCreateJudgeInvite(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -3586,7 +3586,7 @@ func HackathonAdminUpdateJudgeRoles(w http.ResponseWriter, r *http.Request, ctx 
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Unable to save judge order. Please try again."), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, dest+"?flash="+url.QueryEscape("Judge roles saved"), http.StatusSeeOther)
+	http.Redirect(w, r, dest+"?flash="+url.QueryEscape(judgeCalendarFlash(ctx, competitionID, "Judge roles saved")), http.StatusSeeOther)
 }
 
 func HackathonAdminUpdateJudgeOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
@@ -3637,6 +3637,11 @@ func HackathonAdminRemoveJudge(w http.ResponseWriter, r *http.Request, ctx *conf
 		return
 	}
 	personID := strings.TrimSpace(r.FormValue("PersonID"))
+	if err := syncHackathonJudgeCalendars(ctx, competitionID, personID); err != nil {
+		ctx.Err.Printf("hackathon %s remove judge calendars: %v", competitionID, err)
+		http.Redirect(w, r, dest+"?error="+url.QueryEscape("Calendar cancellations did not fully complete. Retry removing the judge."), http.StatusSeeOther)
+		return
+	}
 	if err := getters.RemoveCompetitionJudge(ctx, competitionID, personID, getters.JudgeTypeExpo); err != nil {
 		ctx.Err.Printf("/admin/hackathons/%s/judging/judges remove: %s", competitionID, err)
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
@@ -3774,6 +3779,7 @@ func handleHackathonSetupStep2(w http.ResponseWriter, r *http.Request, ctx *conf
 		http.Redirect(w, r, dest+"?setup=2&error="+url.QueryEscape("Timeline saved, but schedule segments could not be saved"), http.StatusSeeOther)
 		return true
 	}
+	flash = judgeCalendarFlash(ctx, competitionID, flash)
 	switch r.PostFormValue("NextSetupStep") {
 	case "1":
 		http.Redirect(w, r, dest+"?setup=1&flash="+url.QueryEscape(flash), http.StatusSeeOther)

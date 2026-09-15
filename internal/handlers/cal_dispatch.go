@@ -50,6 +50,7 @@ func DispatchTalkICSForProposal(ctx *config.AppContext, proposal *types.Proposal
 	talk := &types.Talk{
 		ID:          ct.ID,
 		Name:        proposal.Title,
+		Type:        proposal.TalkType,
 		Description: proposal.Description,
 		Sched:       ct.Sched,
 		Speakers:    speakers,
@@ -212,6 +213,12 @@ func (k dispatchKind) summaryVerb() string {
 // exist, swap the per-recipient ComposeAndSendMail call to
 // emails.ExecLetter with the appropriate OnlyFor tag.
 func DispatchTalkICSForTalk(ctx *config.AppContext, talk *types.Talk, conf *types.Conf, kind dispatchKind, force bool) error {
+	return dispatchTalkICSForTalk(ctx, talk, conf, kind, force, false)
+}
+
+// ensureRecipients reuses the current sequence when content is unchanged:
+// new recipients get an invite, and retries use the mailer's existing job key.
+func dispatchTalkICSForTalk(ctx *config.AppContext, talk *types.Talk, conf *types.Conf, kind dispatchKind, force, ensureRecipients bool) error {
 	if talk == nil || conf == nil {
 		return fmt.Errorf("dispatchTalkICS: nil talk or conf")
 	}
@@ -231,6 +238,9 @@ func DispatchTalkICSForTalk(ctx *config.AppContext, talk *types.Talk, conf *type
 
 	newHash := ics.ContentHash(talk.Sched.Start, end, conf.Tag, talk.Name)
 	seq, send := ics.NextSeq(prev, prevValid, newHash, force || kind == kindCancel)
+	if !send && ensureRecipients {
+		seq, send = prev.Sequence, true
+	}
 	if !send {
 		ctx.Infos.Printf("dispatchTalkICS %q: hash unchanged, skipping", talk.Name)
 		return nil
@@ -247,6 +257,11 @@ func DispatchTalkICSForTalk(ctx *config.AppContext, talk *types.Talk, conf *type
 	htmlBody, _ := emails.BuildHTMLEmail(ctx, []byte(body))
 	title := fmt.Sprintf("[%s] %s — talk %s", conf.Desc, talk.Name, kind.summaryVerb())
 
+	summary := "speak @ btc++: " + talk.Name
+	if talk.Type == "hackathon" {
+		summary = "hackathon @ btc++: " + talk.Name
+		title = fmt.Sprintf("[%s] %s — %s", conf.Desc, talk.Name, kind.summaryVerb())
+	}
 	var firstErr error
 	sentCount := 0
 	for _, sp := range talk.Speakers {
@@ -258,7 +273,7 @@ func DispatchTalkICSForTalk(ctx *config.AppContext, talk *types.Talk, conf *type
 			UID:           uid,
 			Sequence:      seq,
 			Status:        statusForKind(kind),
-			Summary:       "speak @ btc++: " + talk.Name,
+			Summary:       summary,
 			Description:   talk.Description,
 			Location:      location,
 			Start:         talk.Sched.Start,
@@ -295,6 +310,9 @@ func DispatchTalkICSForTalk(ctx *config.AppContext, talk *types.Talk, conf *type
 		sentCount++
 	}
 
+	if ensureRecipients && firstErr != nil {
+		return firstErr
+	}
 	if sentCount == 0 {
 		return firstErr
 	}
@@ -312,6 +330,9 @@ func DispatchTalkICSForTalk(ctx *config.AppContext, talk *types.Talk, conf *type
 	stamp := ics.CalNotif{UID: uid, Sequence: seq, HashHex: stampHash}.String()
 	if err := getters.TalkUpdateCalNotif(ctx, talk.ID, stamp); err != nil {
 		ctx.Err.Printf("dispatchTalkICS %q calnotif writeback: %s", talk.Name, err)
+		if ensureRecipients {
+			return fmt.Errorf("calendar state save failed: %w", err)
+		}
 	} else {
 		ctx.Infos.Printf("dispatchTalkICS %q: %s seq=%d sent=%d/%d hash=%s",
 			talk.Name, method, seq, sentCount, len(talk.Speakers), stampHash)
@@ -715,6 +736,13 @@ func shiftJobKey(shiftRef string, seq int, email string, k dispatchKind) string 
 // once the talkspeakerinvite / talkunscheduled letters are
 // authored.
 func buildTalkBody(kind dispatchKind, talk *types.Talk, conf *types.Conf, dateLabel, location string) string {
+	if talk.Type == "hackathon" {
+		if kind == kindCancel {
+			return fmt.Sprintf("Your invitation to hackathon session %q at %s has been cancelled. The attached calendar cancellation updates your calendar.\n", talk.Name, conf.Desc)
+		}
+		return fmt.Sprintf("You are invited to %q at %s.\n\nWhen: %s (%s)\nWhere: %s\n\nPlease use the attached calendar invitation to add or update this hackathon session.\n", talk.Name, conf.Desc, dateLabel, conf.Timezone, location)
+	}
+
 	if kind == kindCancel {
 		return fmt.Sprintf(
 			"Your talk %q at %s has been removed from the schedule.\n\n"+

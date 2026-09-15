@@ -3292,7 +3292,7 @@ func HackathonJudgeInviteAccept(w http.ResponseWriter, r *http.Request, ctx *con
 		http.Error(w, "Unable to load conference", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, hackathonURLForConf(conf)+"/judging?flash="+url.QueryEscape("Judge access enabled"), http.StatusSeeOther)
+	http.Redirect(w, r, hackathonURLForConf(conf)+"/judging?flash="+url.QueryEscape(judgeCalendarFlash(ctx, invite.CompetitionID, "Judge access enabled")), http.StatusSeeOther)
 }
 
 func loadPublicHackathonAwards(ctx *config.AppContext, competitionID string, publishWinners bool) ([]*types.Award, map[string][]*types.Prize, map[string][]*types.Prize, map[string][]*types.ProjectAward, error) {

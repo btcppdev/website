@@ -1722,7 +1722,7 @@ func acceptCompetitionJudgeInvitePostgres(ctx *config.AppContext, token, personI
 			judge_types, coalesce(accepted_by_person_id::text, ''), accepted_at, expires_at, created_at
 		FROM competition_judge_invites
 		WHERE token_hash = $1
-		FOR UPDATE OF event
+		FOR UPDATE
 	`, tokenHash).Scan(
 		&invite.ID,
 		&invite.CompetitionID,
