@@ -100,8 +100,24 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	inv.ID += "_renewal"
 	inv.BillingReason = "subscription_cycle"
 	inv.Lines.Data[0].Period = &stripe.Period{Start: end.Unix(), End: end.AddDate(0, 1, 0).Unix()}
-	if _, err := ReconcileAlertsStripeInvoice(ctx, app, person, reserved.Intent.ID, inv.ID, client); err != nil {
-		t.Fatal(err)
+	invoiceReads := 0
+	client.Invoice = func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { invoiceReads++; return inv, nil }
+	client.ListInvoices = func(p *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+		if p.StartingAfter == nil {
+			return &stripe.InvoiceList{ListMeta: stripe.ListMeta{HasMore: true}, Data: []*stripe.Invoice{{ID: "in_" + reserved.Intent.ID, Status: "paid", Customer: session.Customer}}}, nil
+		}
+		if *p.StartingAfter != "in_"+reserved.Intent.ID {
+			t.Fatal("unexpected recovery cursor", *p.StartingAfter)
+		}
+		return &stripe.InvoiceList{Data: []*stripe.Invoice{inv}}, nil
+	}
+	for i := 0; i < 2; i++ {
+		if err = RecoverAlertsStripePayments(ctx, app, person, reserved.Intent.ID, client); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if invoiceReads != 1 {
+		t.Fatal("already recorded invoice was reprocessed", invoiceReads)
 	}
 	grants, err = ActiveServiceEntitlements(app, person, end)
 	if err != nil || len(grants) != 1 || grants[0].Quantity != 2 {
@@ -124,6 +140,34 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	grants, err = ActiveServiceEntitlements(app, person, now)
 	if err != nil || len(grants) != 0 {
 		t.Fatal("refund replay restored access", grants, err)
+	}
+	client.ListInvoices = func(*stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+		return &stripe.InvoiceList{Data: []*stripe.Invoice{inv}}, nil
+	}
+	beforeReads := invoiceReads
+	if err = RecoverAlertsStripePayments(ctx, app, person, reserved.Intent.ID, client); err != nil {
+		t.Fatal(err)
+	}
+	if invoiceReads != beforeReads {
+		t.Fatal("polling revisited refunded invoice")
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_checkouts SET next_reconcile_at='1970-01-01' WHERE id=$1`, reserved.Intent.ID); err != nil {
+		t.Fatal(err)
+	}
+	polled := false
+	_, err = reconcileDueAlertsStripeCheckouts(ctx, app, func(_ context.Context, _ string, id string) error {
+		if id != reserved.Intent.ID {
+			return nil
+		}
+		polled = true
+		var scheduled bool
+		if err := app.DB.QueryRow(ctx, `SELECT next_reconcile_at>now()+interval '59 minutes' FROM alerts_stripe_checkouts WHERE id=$1`, id).Scan(&scheduled); err != nil || !scheduled {
+			t.Fatal("paid subscription hourly recovery", scheduled, err)
+		}
+		return nil
+	})
+	if err != nil || !polled {
+		t.Fatal("paid subscription excluded from recovery", polled, err)
 	}
 	var snapshot []byte
 	if err := app.DB.QueryRow(ctx, `SELECT quote_snapshot FROM service_purchase_requests WHERE order_id=$1`, first.OrderID).Scan(&snapshot); err != nil {

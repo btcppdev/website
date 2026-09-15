@@ -34,15 +34,25 @@ type Intent struct {
 }
 
 type Client struct {
-	Invoice  func(string, *stripe.InvoiceParams) (*stripe.Invoice, error)
-	Price    func(string, *stripe.PriceParams) (*stripe.Price, error)
-	Create   func(*stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error)
-	Retrieve func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error)
-	Live     bool
+	ListInvoices func(*stripe.InvoiceListParams) (*stripe.InvoiceList, error)
+	Invoice      func(string, *stripe.InvoiceParams) (*stripe.Invoice, error)
+	Price        func(string, *stripe.PriceParams) (*stripe.Price, error)
+	Create       func(*stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error)
+	Retrieve     func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error)
+	Live         bool
 }
 
 func NewClient(live bool) Client {
-	return Client{Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Live: live}
+	return Client{Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+		params.Single = true
+		iter := stripeInvoice.List(params)
+		for iter.Next() {
+		}
+		if err := iter.Err(); err != nil {
+			return nil, err
+		}
+		return iter.InvoiceList(), nil
+	}}
 }
 
 func checkoutParams(ctx context.Context, in Intent, now time.Time) (*stripe.CheckoutSessionParams, error) {

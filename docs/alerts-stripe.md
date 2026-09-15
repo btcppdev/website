@@ -58,7 +58,7 @@ browser and Stripe test-mode end-to-end verification remain open.
 
 - Implement failed-renewal grace, cancellation, pause and refund transitions.
 - Implement immediate prorated increases and next-renewal decreases.
-- Recover ambiguous creations without a session ID and missed renewal invoices.
+- Recover ambiguous creations without a session ID.
   The signed `checkout.session.expired` path now re-fetches the session and only
   closes a matching, expired, unpaid session with no invoice or subscription.
   Closure and subscription binding share account/row locks. Duplicate expiration
@@ -69,7 +69,7 @@ browser and Stripe test-mode end-to-end verification remain open.
   checkout's initial invoice through the existing binding and paid-invoice
   validators. It never creates provider sessions or charges. HTTP/PostgreSQL
   tests cover missing-expiry recovery, verified paid-invoice recovery and retries.
-  Automatic recovery of missed renewal invoices remains open.
+  Paid renewal invoices are now also recovered by the background worker below.
 - Verify the new `/services/alerts/subscribe?account=...&slots=...` review/start
   route and Alerts handoff end to end. GET preserves the selection through login;
   POST requires the matching account and CSRF, reserves an immutable intent and
@@ -83,14 +83,20 @@ browser and Stripe test-mode end-to-end verification remain open.
 Migration 112 adds a durable recovery schedule to checkout intents. Set
 `ALERTS_STRIPE_RECONCILIATION_ENABLED=true` on Bitcoin++ to enable background
 recovery with the configured Stripe key. Each minute the worker checks up to 20
-known unfinished sessions within a three-minute batch deadline. Each checkout is
+known sessions/subscriptions within a three-minute batch deadline. Each checkout is
 claimed separately using `FOR UPDATE SKIP LOCKED`, advancing its schedule before
 provider I/O. A one-minute attempt deadline is shorter than the 15-minute retry
-lease; attempts older than seven days retry daily. Crashes leave a future retry
-time rather than dropping the work. Closed sessions, deleted accounts, sessions
-without provider references and checkouts with recorded invoices are skipped.
-Concurrency/retry tests passed against PostgreSQL. This worker only recovers
-initial checkout invoices; renewal reconciliation requires subscription polling.
+lease; unpaid attempts older than seven days retry daily. Subscriptions with
+recorded invoices are checked hourly. Crashes leave a future retry time rather
+than dropping the work. Closed sessions, deleted accounts and sessions without
+provider references are skipped. For bound subscriptions, the worker lists paid
+invoices scoped to the saved customer/subscription, paginating at 100 per page.
+It skips recorded invoice IDs, and re-fetches each new invoice and its Price for
+full payment/period/quantity/tax validation before granting access. Up to 100 pages
+are allowed within the attempt deadline; partial progress is durable and retries
+skip it. Local refunds remain untouched. Tests cover a missed renewal on a later
+page, repeat polling, hourly scheduling and refund preservation. Proration and
+subscription quantity changes still require their separate coordinator.
 
 `TestAlertsStripeHTTPPostgres` exercises the start/return handlers with real
 PostgreSQL records, cookie-backed account sessions and Stripe SDK HTTP calls to a
@@ -101,4 +107,5 @@ test passed against the isolated migrated database; it is not evidence of an
 actual Stripe test-mode payment or deployed webhook delivery.
 
 References: [Checkout Session creation](https://docs.stripe.com/api/checkout/sessions/create),
-[subscription webhook events](https://docs.stripe.com/billing/subscriptions/webhooks).
+[subscription webhook events](https://docs.stripe.com/billing/subscriptions/webhooks),
+[invoice listing and pagination](https://docs.stripe.com/api/invoices/list).

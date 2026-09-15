@@ -10,12 +10,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// ReconcileDueAlertsStripeCheckouts retries known, unfinished sessions only.
+// ReconcileDueAlertsStripeCheckouts recovers known sessions and paid invoices.
 // The schedule is also a lease: advance one row before provider I/O, with a
 // one-minute attempt deadline shorter than the minimum 15-minute lease.
 func ReconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppContext, client alertsstripe.Client) (int, error) {
 	return reconcileDueAlertsStripeCheckouts(ctx, app, func(ctx context.Context, person, id string) error {
-		return RecoverAlertsStripeCheckout(ctx, app, person, id, client)
+		return RecoverAlertsStripePayments(ctx, app, person, id, client)
 	})
 }
 
@@ -30,9 +30,9 @@ func reconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppConte
  SELECT c.id FROM alerts_stripe_checkouts c
  WHERE c.person_id IS NOT NULL AND c.stripe_session_id IS NOT NULL
  AND c.closed_at IS NULL AND c.next_reconcile_at<=now()
- AND NOT EXISTS(SELECT 1 FROM alerts_stripe_invoices i WHERE i.checkout_id=c.id)
  ORDER BY c.next_reconcile_at,c.id LIMIT 1 FOR UPDATE OF c SKIP LOCKED
 ) UPDATE alerts_stripe_checkouts c SET next_reconcile_at=now()+CASE
+ WHEN EXISTS(SELECT 1 FROM alerts_stripe_invoices i WHERE i.checkout_id=c.id) THEN interval '1 hour'
  WHEN c.created_at<now()-interval '7 days' THEN interval '1 day' ELSE interval '15 minutes' END
  FROM due WHERE c.id=due.id RETURNING c.person_id::text,c.id::text`).Scan(&person, &id)
 		if errors.Is(err, pgx.ErrNoRows) {
