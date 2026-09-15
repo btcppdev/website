@@ -58,7 +58,7 @@ browser and Stripe test-mode end-to-end verification remain open.
 
 - Implement failed-renewal grace, cancellation, pause and refund transitions.
 - Implement immediate prorated increases and next-renewal decreases.
-- Add unattended recovery and recover ambiguous creations without a session ID.
+- Recover ambiguous creations without a session ID and missed renewal invoices.
   The signed `checkout.session.expired` path now re-fetches the session and only
   closes a matching, expired, unpaid session with no invoice or subscription.
   Closure and subscription binding share account/row locks. Duplicate expiration
@@ -79,6 +79,18 @@ browser and Stripe test-mode end-to-end verification remain open.
   connects billing before checkout and activates oldest saved selections after
   a verified paid-access snapshot arrives.
 - Exercise the full flow with Stripe test mode before enabling paid checkout.
+
+Migration 112 adds a durable recovery schedule to checkout intents. Set
+`ALERTS_STRIPE_RECONCILIATION_ENABLED=true` on Bitcoin++ to enable background
+recovery with the configured Stripe key. Each minute the worker checks up to 20
+known unfinished sessions within a three-minute batch deadline. Each checkout is
+claimed separately using `FOR UPDATE SKIP LOCKED`, advancing its schedule before
+provider I/O. A one-minute attempt deadline is shorter than the 15-minute retry
+lease; attempts older than seven days retry daily. Crashes leave a future retry
+time rather than dropping the work. Closed sessions, deleted accounts, sessions
+without provider references and checkouts with recorded invoices are skipped.
+Concurrency/retry tests passed against PostgreSQL. This worker only recovers
+initial checkout invoices; renewal reconciliation requires subscription polling.
 
 `TestAlertsStripeHTTPPostgres` exercises the start/return handlers with real
 PostgreSQL records, cookie-backed account sessions and Stripe SDK HTTP calls to a

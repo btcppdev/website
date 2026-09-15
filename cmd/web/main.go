@@ -131,6 +131,7 @@ func main() {
 	handlers.StartShopMaintenance(&app)
 	handlers.StartPrizePoolMonitor(&app)
 	handlers.StartServicePaymentReconciliation(&app)
+	handlers.StartAlertsStripeReconciliation(&app)
 	handlers.StartWeeklyNewsletterDrafting(&app)
 	handlers.StartConferenceEmailAutomation(&app)
 
