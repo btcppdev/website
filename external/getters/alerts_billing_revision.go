@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 
 	"btcpp-web/internal/config"
@@ -11,6 +12,66 @@ import (
 )
 
 var ErrAlertsBillingChanged = errors.New("Alerts billing changed; request a new quote")
+
+type AlertsBillingOrder struct {
+	OrderID        string
+	Status         string
+	Quote          ServiceQuote
+	Granted        bool
+	Revoked        bool
+	PaymentStarted bool
+}
+
+type AlertsBillingState struct {
+	Revision string
+	Orders   []AlertsBillingOrder
+}
+
+// LoadAlertsBillingState reads pricing evidence and its revision while holding
+// the same locks used to confirm a purchase. No provider calls run under locks.
+func LoadAlertsBillingState(app *config.AppContext, personID string) (*AlertsBillingState, error) {
+	ctx := app.DatabaseContext()
+	tx, err := app.DB.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+personID); err != nil {
+		return nil, err
+	}
+	revision, err := alertsBillingRevision(ctx, tx, personID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, `SELECT o.id::text,o.status,r.quote_snapshot,e.id IS NOT NULL,e.revoked_at IS NOT NULL,
+ EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=r.id)
+ FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id
+ LEFT JOIN service_entitlements e ON e.purchase_id=r.id AND e.person_id=r.person_id
+ WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code'='alerts.repository-slots' ORDER BY r.created_at,r.id`, personID)
+	if err != nil {
+		return nil, err
+	}
+	state := &AlertsBillingState{Revision: revision, Orders: []AlertsBillingOrder{}}
+	for rows.Next() {
+		var order AlertsBillingOrder
+		var raw []byte
+		if err = rows.Scan(&order.OrderID, &order.Status, &raw, &order.Granted, &order.Revoked, &order.PaymentStarted); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if err = json.Unmarshal(raw, &order.Quote); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		state.Orders = append(state.Orders, order)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	return state, tx.Commit(ctx)
+}
 
 // AlertsBillingRevision binds checkout preparation to the account's purchase and
 // entitlement evidence, including pending orders and scheduled or revoked access.

@@ -114,6 +114,19 @@ func TestAlertsBillingRevisionPostgres(t *testing.T) {
 	if err != nil || revoked == active {
 		t.Fatal("revocation did not change revision", err)
 	}
+	state, err := LoadAlertsBillingState(app, person)
+	if err != nil || state.Revision != revoked || len(state.Orders) != 2 {
+		t.Fatal("state and revision diverged", state, err)
+	}
+	var found bool
+	for _, order := range state.Orders {
+		if order.OrderID == fresh.OrderID {
+			found = order.Granted && order.Revoked && order.PaymentStarted && order.Quote.Quantity == 1
+		}
+	}
+	if !found {
+		t.Fatal("billing state lost payment/grant evidence")
+	}
 	// Empty account histories must still produce account-specific revisions.
 	var other string
 	if err := app.DB.QueryRow(ctx, `INSERT INTO people(name) VALUES('Other revision account') RETURNING id::text`).Scan(&other); err != nil {

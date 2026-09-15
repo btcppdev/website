@@ -19,6 +19,8 @@ var ErrServiceBuyer = errors.New("service buyer needs a verified account email")
 // Amounts are USD cents; UnitCents and TotalCents include TaxCents.
 type ServiceQuote struct {
 	// Alerts account evidence captured by the server during quote preparation.
+	BaseOrderID     string     `json:"base_order_id,omitempty"`
+	BillingMonths   int        `json:"billing_months,omitempty"`
 	AccountRevision string     `json:"account_revision,omitempty"`
 	ProductCode     string     `json:"product_code"`
 	ResourceID      string     `json:"resource_id"`
