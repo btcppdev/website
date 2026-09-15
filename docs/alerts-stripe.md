@@ -64,5 +64,13 @@ browser and Stripe test-mode end-to-end verification remain open.
   a verified paid-access snapshot arrives.
 - Exercise the full flow with Stripe test mode before enabling paid checkout.
 
+`TestAlertsStripeHTTPPostgres` exercises the start/return handlers with real
+PostgreSQL records, cookie-backed account sessions and Stripe SDK HTTP calls to a
+local mock provider. It verifies login continuation, account matching, CSRF,
+server pricing, POST/query parameter isolation, repeat-submit session reuse,
+changed-quantity conflicts and return-URL forgery without access grants. This
+test passed against the isolated migrated database; it is not evidence of an
+actual Stripe test-mode payment or deployed webhook delivery.
+
 References: [Checkout Session creation](https://docs.stripe.com/api/checkout/sessions/create),
 [subscription webhook events](https://docs.stripe.com/billing/subscriptions/webhooks).
