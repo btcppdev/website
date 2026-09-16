@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en"><head><title>Manage Alerts billing · bitcoin++</title>{{ block "header" . }}{{ end }}
+<link rel="stylesheet" href="/static/css/login-layout.css?v=2"></head>
+<body class="btcpp-login-page">{{ block "mainnav" . }}{{ end }}
+<main class="auth-shell auth-shell--simple"><section class="auth-card">
+<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>{{ .Heading }}</h1></header>
+<p role="status">{{ .Message }}</p>
+{{ if .Period }}<p>Current billing period ends {{ .Period }}.</p>{{ end }}
+<p>After paid access ends, your three free projects remain active. Your other subscriptions and notification settings stay saved.</p>
+{{ if .CanCancel }}<form method="post" action="/services/alerts/manage">
+<input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="revision" value="{{ .Revision }}"><input type="hidden" name="periodEnd" value="{{ .PeriodEnd }}">
+<button type="submit" class="auth-primary">Cancel future renewals</button></form>{{ end }}
+<p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
+</section></main></body></html>

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"btcpp-web/external/getters"
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
@@ -39,7 +40,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	}
 	defer pool.Close()
 	app := &config.AppContext{DB: pool, Session: scs.New(), Env: &types.EnvConfig{Host: "localhost", Port: "8898", StripeKey: "sk_test_local_fixture"}}
-	app.TemplateCache, err = template.ParseFiles("../../templates/alerts_stripe_start.tmpl", "../../templates/alerts_stripe_return.tmpl")
+	app.TemplateCache, err = template.ParseFiles("../../templates/alerts_stripe_start.tmpl", "../../templates/alerts_stripe_return.tmpl", "../../templates/alerts_stripe_manage.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,10 +66,27 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	var lock sync.Mutex
 	creates, reads := 0, 0
 	var session map[string]any
+	var managed *stripe.Subscription
+	cancellations := 0
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lock.Lock()
 		defer lock.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+		if managed != nil && r.URL.Path == "/v1/subscriptions/"+managed.ID {
+			if r.Method == "POST" {
+				if err := r.ParseForm(); err != nil {
+					t.Error(err)
+				}
+				if r.Form.Get("cancel_at_period_end") != "true" || r.Header.Get("Idempotency-Key") == "" {
+					t.Error("unsafe cancellation request")
+				}
+				cancellations++
+				managed.CancelAtPeriodEnd = true
+			}
+			json.NewEncoder(w).Encode(managed)
+			return
+		}
+
 		if r.Method == "POST" && r.URL.Path == "/v1/checkout/sessions" {
 			creates++
 			if err := r.ParseForm(); err != nil {
@@ -94,6 +112,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	stripe.Key = app.Env.StripeKey
 	defer func() { stripe.SetBackend(stripe.APIBackend, previous); stripe.Key = key }()
 	router := mux.NewRouter()
+	router.HandleFunc("/services/alerts/manage", func(w http.ResponseWriter, r *http.Request) { AlertsStripeManage(w, r, app) })
 	router.HandleFunc("/fixture/login/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if err := auth.LoginPerson(app, r, mux.Vars(r)["id"], auth.MethodPassword); err != nil {
 			http.Error(w, err.Error(), 500)
@@ -126,6 +145,9 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		}
 		return response.StatusCode, string(raw), response.Header.Get("Location")
 	}
+	if code, _, location := call("/services/alerts/manage?account="+people[0], nil); code != 303 || !strings.Contains(location, "account%3D"+people[0]) {
+		t.Fatal("management login lost account", code, location)
+	}
 	path := "/services/alerts/subscribe?account=" + people[0] + "&slots=2"
 	code, _, location := call(path, nil)
 	if code != 303 || !strings.Contains(location, "slots%3D2") {
@@ -136,6 +158,15 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	}
 	if code, _, _ := call("/services/alerts/subscribe?account="+people[1]+"&slots=2", nil); code != 403 {
 		t.Fatal("cross-account start", code)
+	}
+	if code, body, _ := call("/services/alerts/manage?account="+people[0], nil); code != 200 || !strings.Contains(body, "No card subscription") || strings.Contains(body, "Cancel future renewals") {
+		t.Fatal("empty management page", code, body)
+	}
+	if code, _, _ := call("/services/alerts/manage?account="+people[1], nil); code != 403 {
+		t.Fatal("wrong management account", code)
+	}
+	if code, _, _ := call("/services/alerts/manage", url.Values{"csrf": {"wrong"}, "checkout": {people[0]}, "key": {people[1]}, "revision": {"1"}, "periodEnd": {"1"}}); code != 403 {
+		t.Fatal("management CSRF", code)
 	}
 	code, html, _ := call(path, nil)
 	if code != 200 {
@@ -231,4 +262,59 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	if code, body, _ := call(returnPath, nil); code != 200 || !strings.Contains(body, "Checkout closed") {
 		t.Fatal(code, body)
 	}
+	// A separate, account-owned subscription exercises the management flow.
+	saved, e := getters.ReserveAlertsStripeCheckout(app, people[1], "management-checkout-fixture", 2, "https://btcpp.dev")
+	if e != nil {
+		t.Fatal(e)
+	}
+	b := alertsstripe.Binding{IntentID: saved.Intent.ID, PersonID: people[1], SubscriptionID: "sub_" + saved.Intent.ID, CustomerID: "cus_" + people[1], PriceID: "price_" + saved.Intent.ID, ProductID: "prod_" + saved.Intent.ID, PaidSlots: 2}
+	rawBinding, e := json.Marshal(b)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = pool.Exec(ctx, `INSERT INTO alerts_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3)`, b.IntentID, b.SubscriptionID, rawBinding); e != nil {
+		t.Fatal(e)
+	}
+	lock.Lock()
+	managed = &stripe.Subscription{ID: b.SubscriptionID, Status: "active", Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: map[string]string{"account_id": b.PersonID, "checkout_intent": b.IntentID, "product": "alerts.repository-slots"}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 2, CurrentPeriodStart: time.Now().Add(-time.Hour).Unix(), CurrentPeriodEnd: time.Now().Add(24 * time.Hour).Unix(), Price: &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}}}}}
+	lock.Unlock()
+	if code, _, _ := call("/fixture/login/"+people[1], nil); code != 204 {
+		t.Fatal(code)
+	}
+	code, html, _ = call("/services/alerts/manage?cancelled=true", nil)
+	if code != 200 || !strings.Contains(html, "Cancel future renewals") {
+		t.Fatal("missing cancellation review", code, html)
+	}
+	cancelForm := url.Values{"checkout": {field("checkout")}, "csrf": {field("csrf")}, "key": {field("key")}, "revision": {field("revision")}, "periodEnd": {field("periodEnd")}}
+	if code, _, _ := call("/fixture/login/"+people[0], nil); code != 204 {
+		t.Fatal(code)
+	}
+	// The CSRF token is account-session bound; either fence prevents foreign mutation.
+	if code, _, _ := call("/services/alerts/manage", cancelForm); code != 403 && code != 404 {
+		t.Fatal("foreign cancellation accepted", code)
+	}
+	if code, _, _ := call("/fixture/login/"+people[1], nil); code != 204 {
+		t.Fatal(code)
+	}
+	code, html, _ = call("/services/alerts/manage", nil)
+	if code != 200 {
+		t.Fatal(code, html)
+	}
+	cancelForm.Set("csrf", field("csrf"))
+	for i := 0; i < 2; i++ {
+		if code, body, location := call("/services/alerts/manage", cancelForm); code != 303 || location != "/services/alerts/manage" {
+			t.Fatal(code, body, location)
+		}
+	}
+	code, html, _ = call("/services/alerts/manage", nil)
+	if code != 200 || !strings.Contains(html, "scheduled to stop renewing") || strings.Contains(html, "Cancel future renewals") {
+		t.Fatal("missing confirmed cancellation", code, html)
+	}
+	lock.Lock()
+	count := cancellations
+	lock.Unlock()
+	if count != 1 {
+		t.Fatal("repeated POST duplicated cancellation", count)
+	}
+
 }

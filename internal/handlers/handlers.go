@@ -1188,6 +1188,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/services/quotes/{quote}", func(w http.ResponseWriter, r *http.Request) {
 		ServiceQuoteReview(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/services/alerts/manage", func(w http.ResponseWriter, r *http.Request) {
+		AlertsStripeManage(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/services/alerts/renew/{invoice}", func(w http.ResponseWriter, r *http.Request) {
 		AlertsStripeRenew(w, r, app)
 	}).Methods("GET")

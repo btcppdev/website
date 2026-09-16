@@ -156,9 +156,7 @@ still match the saved plan and original period. Transport errors remain ambiguou
 the caller must not report success or construct a replacement request. This method
 does not revoke paid grants, refund payments, cancel immediately, or resume billing.
 
-The durable cancellation coordinator is described below. The account confirmation
-page and dashboard management link remain to implement; no customer route invokes
-the adapter yet.
+The durable cancellation coordinator and account management page are described below.
 Provider-adapter tests and the existing PostgreSQL Alerts checkout/invoice tests
 pass. No real Stripe cancellation has been performed.
 
@@ -178,4 +176,26 @@ invoice recovery. Reservation makes the checkout immediately eligible; pending
 cancellations use a 15-minute retry lease. A lost-response PostgreSQL test verifies
 committed consent, recovery without a second mutation, duplicate submissions,
 account isolation, immutable confirmed outcomes, and preserved paid-through dates.
-The customer confirmation page and management link still remain to implement.
+The customer confirmation page and management link are described below.
+
+
+## Account management page
+
+`GET /services/alerts/manage` requires account sign-in and shows the most recent
+account-owned card subscription after reading Stripe. The optional `account` query
+binds the dashboard handoff to the same Bitcoin++ account. Redirect query flags
+cannot claim cancellation. GET performs no provider mutation.
+
+The confirmation form posts the checkout, reviewed revision/period, request UUID,
+and CSRF token. POST reserves durable consent, attempts cancellation, and redirects
+to the page. Pending and review outcomes remain visible and suppress another form;
+provider errors do not discard the saved request. Paid access is never revoked by
+this page. Accounts without a card subscription receive an explanation that Bitcoin
+prepayments do not renew automatically.
+
+Alerts exposes a Manage card subscription link when the card-checkout rollout flag
+is enabled, using its configured Bitcoin++ origin and authenticated account ID.
+Local HTTP/Stripe-SDK tests with PostgreSQL cover login continuation, CSRF, foreign
+accounts, reviewed confirmation, duplicate POSTs producing one provider mutation,
+and confirmed status. Svelte checks and build pass. Browser visual review of this
+new central management page and live Stripe test-mode validation remain outstanding.
