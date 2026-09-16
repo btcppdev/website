@@ -181,8 +181,13 @@ review/confirm/order/OpenNode flow. Browser prices, tax amounts and query-string
 overrides are ignored. Preparing a quote does not start payment or grant access.
 Both OpenNode and Stripe tax credentials are required. Real-session PostgreSQL
 tests with a local Stripe tax fixture verify ownership, CSRF, inclusive SaaS tax,
-the stored term, and absence of orders at quote preparation. Browser review and
-live OpenNode settlement remain outstanding.
+the stored term, and absence of orders at quote preparation. The same HTTP test
+now continues through quote review, repeated order confirmation, repeated hosted
+checkout handoff, signed callback, authenticated unpaid/paid lookup, tax transaction
+recording, account-access projection and the paid receipt. Forged callback payment
+fields cannot grant access; retries create one charge, payment event and grant,
+with exactly the purchased quantity and term. This uses local provider fixtures,
+not real OpenNode settlement. Browser review and live settlement remain outstanding.
 
 Run the tests with a disposable migrated test database:
 
