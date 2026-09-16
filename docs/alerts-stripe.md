@@ -298,3 +298,15 @@ reviewed-invoice validator keeps paid fulfillment and payment links aligned.
 This adapter still needs the account-owned HTTP handoff and submission coordinator.
 Stripe's [hosted invoice page](https://docs.stripe.com/invoicing/hosted-invoice-page)
 provides payment and card-authentication UI; real test-mode validation remains.
+
+Migration 119 persists upgrade submission attempts before provider I/O, with a
+two-minute lease, attempt fencing and an immutable returned invoice reference.
+`SubmitAlertsStripeIncrease` requires a saved confirmation and rechecks its billing
+revision before claiming. Repeated requests reuse the same quote/idempotency key;
+requests with an already saved invoice return that reference without another
+provider call. A quote that expired without any attempt becomes expired; an
+attempted operation stays pending until reconciliation resolves the ambiguity.
+PostgreSQL tests cover concurrent claims, lease retry, cross-account rejection,
+reference immutability, unattempted expiry and preservation of ambiguous attempts.
+This coordinator is not yet invoked by HTTP or the worker: unpaid-reference
+discovery, terminal provider-state handling and the customer UI remain required.

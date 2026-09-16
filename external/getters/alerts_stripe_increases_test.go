@@ -90,6 +90,51 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	claims := make(chan *alertsIncreaseSubmissionClaim, 5)
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			claim, e := claimAlertsStripeIncreaseSubmission(ctx, app, person, quote.ID)
+			if e != nil && !errors.Is(e, alertsstripe.ErrReconcile) {
+				t.Error(e)
+			}
+			claims <- claim
+		}()
+	}
+	wg.Wait()
+	close(claims)
+	winners := 0
+	for claim := range claims {
+		if claim != nil {
+			winners++
+			if claim.Attempt != 1 || claim.Intent.ID != quote.ID || claim.Binding.PaidSlots != 2 {
+				t.Fatal(claim)
+			}
+		}
+	}
+	if winners != 1 {
+		t.Fatal("concurrent submission claims", winners)
+	}
+	if _, err = claimAlertsStripeIncreaseSubmission(ctx, app, uuid.NewString(), quote.ID); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("foreign submission claim", err)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increase_submissions SET lease_until=now()-interval '1 second' WHERE quote_id=$1`, quote.ID); err != nil {
+		t.Fatal(err)
+	}
+	retry, e := claimAlertsStripeIncreaseSubmission(ctx, app, person, quote.ID)
+	if e != nil || retry == nil || retry.Attempt != 2 || retry.Intent.ID != quote.ID {
+		t.Fatal("stable retry", retry, e)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increase_submissions SET invoice_id=$2 WHERE quote_id=$1`, quote.ID, "in_claim_"+quote.ID); err != nil {
+		t.Fatal(err)
+	}
+	if invoice, e := SubmitAlertsStripeIncrease(ctx, app, person, quote.ID, alertsstripe.Client{}); e != nil || invoice != "in_claim_"+quote.ID {
+		t.Fatal("saved reference retry used provider", invoice, e)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increase_submissions SET invoice_id='in_other' WHERE quote_id=$1`, quote.ID); err == nil {
+		t.Fatal("invoice reference mutable")
+	}
 	if _, err = ReserveAlertsStripeIncrease(ctx, app, person, second.ID); !errors.Is(err, alertsstripe.ErrSubscription) {
 		t.Fatal("overlapping upgrade", err)
 	}
@@ -104,6 +149,17 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	}
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increases SET state='pending' WHERE quote_id=$1`, quote.ID); err == nil {
 		t.Fatal("resolved instruction reopened")
+	}
+	// An expired quote with no submission can be released without provider I/O.
+	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_increases(quote_id,checkout_id) VALUES($1,$2)`, expiredID, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = claimAlertsStripeIncreaseSubmission(ctx, app, person, expiredID); !errors.Is(err, alertsstripe.ErrReconcile) {
+		t.Fatal("expired submission claimed", err)
+	}
+	var expiredState string
+	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, expiredID).Scan(&expiredState); err != nil || expiredState != "expired" {
+		t.Fatal(expiredState, err)
 	}
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_subscription_state SET revision=2 WHERE checkout_id=$1`, id); err != nil {
 		t.Fatal(err)
@@ -124,5 +180,23 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	grants, err := ActiveServiceEntitlements(app, person, now)
 	if err != nil || len(grants) != 0 {
 		t.Fatal("reservation granted access", grants, err)
+	}
+	// Expiry cannot release an ambiguous attempted operation. Seed persisted
+	// crash evidence directly to exercise recovery after the review window.
+	var ambiguousID string
+	if err = app.DB.QueryRow(ctx, `INSERT INTO alerts_stripe_increase_quotes(checkout_id,revision,preview,created_at,expires_at) VALUES($1,2,$2,$3,$4) RETURNING id::text`, id, expiredRaw, now.Add(-11*time.Minute), expired.ExpiresAt).Scan(&ambiguousID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_increases(quote_id,checkout_id) VALUES($1,$2)`, ambiguousID, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_increase_submissions(quote_id,lease_until) VALUES($1,now()-interval '1 second')`, ambiguousID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = claimAlertsStripeIncreaseSubmission(ctx, app, person, ambiguousID); !errors.Is(err, alertsstripe.ErrReconcile) {
+		t.Fatal("expired attempted claim", err)
+	}
+	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, ambiguousID).Scan(&expiredState); err != nil || expiredState != "pending" {
+		t.Fatal("ambiguous operation released", expiredState, err)
 	}
 }
