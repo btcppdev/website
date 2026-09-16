@@ -17,7 +17,7 @@ func RecoverAlertsStripePayments(ctx context.Context, app *config.AppContext, pe
 	var increase string
 	err := app.DB.QueryRow(ctx, `SELECT i.quote_id::text FROM alerts_stripe_increases i JOIN alerts_stripe_checkouts c ON c.id=i.checkout_id WHERE c.id=$1 AND c.person_id=$2 AND i.state='pending'`, id, person).Scan(&increase)
 	if err == nil {
-		if _, err = RecoverAlertsStripeIncrease(ctx, app, person, increase, client); err != nil {
+		if err = ProcessAlertsStripeIncrease(ctx, app, person, increase, client); err != nil {
 			return err
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {

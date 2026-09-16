@@ -12,7 +12,7 @@ import (
 
 // ReconcileDueAlertsStripeCheckouts recovers known sessions and paid invoices.
 // The schedule is also a lease: advance one row before provider I/O, with a
-// one-minute attempt deadline shorter than the minimum 15-minute lease.
+// one-minute attempt deadline shorter than the minimum two-minute lease.
 func ReconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppContext, client alertsstripe.Client) (int, error) {
 	return reconcileDueAlertsStripeCheckouts(ctx, app, func(ctx context.Context, person, id string) error {
 		return RecoverAlertsStripePayments(ctx, app, person, id, client)
@@ -33,7 +33,7 @@ func reconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppConte
  ORDER BY c.next_reconcile_at,c.id LIMIT 1 FOR UPDATE OF c SKIP LOCKED
 ) UPDATE alerts_stripe_checkouts c SET next_reconcile_at=now()+CASE
  WHEN EXISTS(SELECT 1 FROM alerts_stripe_cancellations x WHERE x.checkout_id=c.id AND x.state='pending') THEN interval '15 minutes'
- WHEN EXISTS(SELECT 1 FROM alerts_stripe_increases x WHERE x.checkout_id=c.id AND x.state='pending') THEN interval '15 minutes'
+ WHEN EXISTS(SELECT 1 FROM alerts_stripe_increases x WHERE x.checkout_id=c.id AND x.state='pending') THEN interval '2 minutes'
  WHEN EXISTS(SELECT 1 FROM alerts_stripe_invoices i WHERE i.checkout_id=c.id) THEN interval '1 hour'
  WHEN c.created_at<now()-interval '7 days' THEN interval '1 day' ELSE interval '15 minutes' END
  FROM due WHERE c.id=due.id RETURNING c.person_id::text,c.id::text`).Scan(&person, &id)

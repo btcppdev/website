@@ -297,4 +297,61 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 	if err != nil || len(grants) != 3 || total != 4 {
 		t.Fatal("second allowance", grants, err)
 	}
+	// Simulate a crash after consent was committed but before HTTP submission.
+	// The background worker must finish without another customer page visit.
+	lock.Lock()
+	desired = 5
+	reviewed = 0
+	lock.Unlock()
+	code, body, thirdPath := call("/services/alerts/subscribe?account="+person+"&slots=5", nil)
+	if code != 303 {
+		t.Fatal("background quote", code, body)
+	}
+	thirdID := strings.TrimPrefix(thirdPath, "/services/alerts/upgrade/")
+	if _, err = getters.ReserveAlertsStripeIncrease(ctx, app, person, thirdID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `UPDATE alerts_stripe_checkouts SET stripe_session_id=$2,next_reconcile_at=now() WHERE id=$1`, id, "cs_fixture_"+id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = getters.ReconcileDueAlertsStripeCheckouts(ctx, app, alertsstripe.NewClient(false)); err != nil {
+		t.Fatal("background submission", err)
+	}
+	lock.Lock()
+	if updates != 3 {
+		t.Error("background mutation count", updates)
+	}
+	lock.Unlock()
+	var leased bool
+	if err = pool.QueryRow(ctx, `SELECT next_reconcile_at>now()+interval '1 minute' AND next_reconcile_at<now()+interval '3 minutes' FROM alerts_stripe_checkouts WHERE id=$1`, id).Scan(&leased); err != nil || !leased {
+		t.Fatal("upgrade retry lease", leased, err)
+	}
+	if _, err = getters.ReconcileDueAlertsStripeCheckouts(ctx, app, alertsstripe.NewClient(false)); err != nil {
+		t.Fatal(err)
+	}
+	lock.Lock()
+	if updates != 3 {
+		t.Error("worker retried before lease", updates)
+	}
+	upgrade.Status = "paid"
+	upgrade.AmountPaid = 195
+	upgrade.AmountRemaining = 0
+	upgrade.StatusTransitions = &stripe.InvoiceStatusTransitions{PaidAt: time.Now().Unix()}
+	sub.PendingUpdate = nil
+	sub.Items.Data[0].Quantity = 5
+	lock.Unlock()
+	if _, err = pool.Exec(ctx, `UPDATE alerts_stripe_checkouts SET next_reconcile_at=now() WHERE id=$1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = getters.ReconcileDueAlertsStripeCheckouts(ctx, app, alertsstripe.NewClient(false)); err != nil {
+		t.Fatal("background payment fulfillment", err)
+	}
+	grants, err = getters.ActiveServiceEntitlements(app, person, time.Now())
+	total = 0
+	for _, g := range grants {
+		total += g.Quantity
+	}
+	if err != nil || len(grants) != 4 || total != 5 {
+		t.Fatal("background allowance", grants, err)
+	}
 }

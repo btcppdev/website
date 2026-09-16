@@ -381,3 +381,14 @@ Adapter tests reject unpaid, credited, mismatched-period/quantity and wrong-ID
 funding evidence. Stripe adapter and targeted PostgreSQL tests pass. Real Stripe
 validation, browser review, unattended submission recovery and next-renewal
 decreases remain outstanding.
+
+`ProcessAlertsStripeIncrease` now unifies browser-confirmation processing with
+the opt-in background reconciliation worker. It requires durable consent, tries
+payment/reference recovery first, uses the fenced submission coordinator and
+fulfills a synchronous paid result. Pending upgrade checkouts receive a two-minute
+worker lease (longer than its one-minute attempt deadline) rather than waiting
+past the quote's ten-minute validity window. The HTTP/PostgreSQL fixture also
+simulates a crash immediately after confirmation: the actual worker submits once,
+respects its lease, and later fulfills verified payment without a browser visit.
+No real provider charge was made; production worker enablement and real test-mode
+verification remain deployment checks.

@@ -88,11 +88,8 @@ func AlertsStripeUpgrade(w http.ResponseWriter, r *http.Request, app *config.App
 				return
 			}
 			if state == "pending" {
-				// Consent survives transport failures. Recover before attempting again.
-				recovered, recoveryErr := getters.RecoverAlertsStripeIncrease(r.Context(), app, identity.PersonID, id, client)
-				if recoveryErr == nil && !recovered {
-					_, _ = getters.SubmitAlertsStripeIncrease(r.Context(), app, identity.PersonID, id, client)
-				}
+				// Consent survives transport failures and is resumed by the worker.
+				_ = getters.ProcessAlertsStripeIncrease(r.Context(), app, identity.PersonID, id, client)
 			}
 			http.Redirect(w, r, "/services/alerts/upgrade/"+url.PathEscape(id), 303)
 			return
