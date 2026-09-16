@@ -23,6 +23,15 @@ func RecoverAlertsStripePayments(ctx context.Context, app *config.AppContext, pe
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
+	var decrease string
+	err = app.DB.QueryRow(ctx, `SELECT d.quote_id::text FROM alerts_stripe_decreases d JOIN alerts_stripe_checkouts c ON c.id=d.checkout_id WHERE c.id=$1 AND c.person_id=$2 AND d.state IN ('pending','scheduled')`, id, person).Scan(&decrease)
+	if err == nil {
+		if err = ProcessAlertsStripeDecrease(ctx, app, person, decrease, client); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
 	var raw []byte
 	err = app.DB.QueryRow(ctx, `SELECT s.binding FROM alerts_stripe_current_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.id=$1 AND c.person_id=$2`, id, person).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {

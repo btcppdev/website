@@ -513,3 +513,13 @@ without moving its due date, and rejection of unmatched or unapplied decreases.
 The existing 14-day grace/reminder policy uses that verified one-slot renewal
 fact. Full renewal HTTP/provider fixtures and customer controls remain required
 before enabling decreases.
+
+Confirmed decreases now wake the existing opt-in Stripe reconciliation worker.
+Pending requests receive its two-minute lease and resume attachment followed by
+verified phase scheduling; scheduled requests observe renewal transitions before
+invoice recovery. The shared coordinator refuses unconfirmed/foreign requests
+and preserves separate durable leases for each provider mutation. Local
+PostgreSQL tests cover queue wake-up, lease timing, ownership and scheduled
+pre-renewal no-ops, alongside the existing adapter/recovery tests. The worker
+still requires `ALERTS_STRIPE_RECONCILIATION_ENABLED=true`; customer-facing
+decrease controls and complete provider HTTP lifecycle fixtures remain pending.

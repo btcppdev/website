@@ -86,6 +86,12 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	var wg sync.WaitGroup
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_checkouts SET stripe_session_id=$2,next_reconcile_at=now()+interval '1 day' WHERE id=$1`, id, "cs_"+id); err != nil {
+		t.Fatal(err)
+	}
+	if err = ProcessAlertsStripeDecrease(ctx, app, person, q.ID, alertsstripe.Client{}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("unconfirmed decrease processed", err)
+	}
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
@@ -97,6 +103,25 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	var due bool
+	if err = app.DB.QueryRow(ctx, `SELECT next_reconcile_at<=now() FROM alerts_stripe_checkouts WHERE id=$1`, id).Scan(&due); err != nil || !due {
+		t.Fatal("confirmation did not wake worker", due, err)
+	}
+	workerCalls := 0
+	_, err = reconcileDueAlertsStripeCheckouts(ctx, app, func(attempt context.Context, owner, checkoutID string) error {
+		if checkoutID != id {
+			return nil
+		}
+		workerCalls++
+		var leased bool
+		if e := app.DB.QueryRow(ctx, `SELECT next_reconcile_at>now()+interval '1 minute' AND next_reconcile_at<=now()+interval '2 minutes' FROM alerts_stripe_checkouts WHERE id=$1`, id).Scan(&leased); e != nil || !leased {
+			t.Fatal("decrease worker lease", leased, e)
+		}
+		return nil
+	})
+	if err != nil || workerCalls != 1 {
+		t.Fatal("confirmed decrease not queued", workerCalls, err)
+	}
 	if _, err = claimAlertsStripeDecreaseAttachment(ctx, app, uuid.NewString(), q.ID); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatal("foreign attachment", err)
 	}
@@ -217,6 +242,12 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 	}
 	if status, e := ReserveAlertsStripeDecrease(ctx, app, person, q.ID); e != nil || status != "scheduled" {
 		t.Fatal("scheduled retry", status, e)
+	}
+	if err = ProcessAlertsStripeDecrease(ctx, app, person, q.ID, alertsstripe.Client{}); err != nil {
+		t.Fatal("scheduled decrease before renewal", err)
+	}
+	if err = ProcessAlertsStripeDecrease(ctx, app, uuid.NewString(), q.ID, alertsstripe.Client{}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("foreign process", err)
 	}
 	t.Run("renewal transition preserves history", func(t *testing.T) {
 		tx, e := app.DB.Begin(ctx)
