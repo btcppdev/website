@@ -59,7 +59,7 @@ func lockAlertsIncrease(ctx context.Context, tx pgx.Tx, person, checkout string,
 	}
 	var raw, stateRaw []byte
 	var current int64
-	if err := tx.QueryRow(ctx, `SELECT b.binding,s.snapshot,s.revision FROM alerts_stripe_checkouts c JOIN alerts_stripe_subscriptions b ON b.checkout_id=c.id JOIN alerts_stripe_subscription_state s ON s.checkout_id=c.id WHERE c.id=$1 AND c.person_id=$2 AND c.closed_at IS NULL FOR UPDATE OF c`, checkout, person).Scan(&raw, &stateRaw, &current); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT b.binding,s.snapshot,s.revision FROM alerts_stripe_checkouts c JOIN alerts_stripe_current_subscriptions b ON b.checkout_id=c.id JOIN alerts_stripe_subscription_state s ON s.checkout_id=c.id WHERE c.id=$1 AND c.person_id=$2 AND c.closed_at IS NULL FOR UPDATE OF c`, checkout, person).Scan(&raw, &stateRaw, &current); err != nil {
 		return err
 	}
 	var b alertsstripe.Binding

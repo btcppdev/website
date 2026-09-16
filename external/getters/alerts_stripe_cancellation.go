@@ -99,7 +99,7 @@ func ProcessAlertsStripeCancellation(ctx context.Context, app *config.AppContext
 	var in alertsstripe.CancellationIntent
 	var raw []byte
 	var status, checkout string
-	err = tx.QueryRow(ctx, `SELECT x.id::text,x.period_end,x.created_at,x.state,x.checkout_id::text,s.binding FROM alerts_stripe_cancellations x JOIN alerts_stripe_checkouts c ON c.id=x.checkout_id JOIN alerts_stripe_subscriptions s ON s.checkout_id=c.id WHERE x.id=$1 AND c.person_id=$2 FOR UPDATE OF x,c`, id, person).Scan(&in.ID, &in.PeriodEnd, &in.CreatedAt, &status, &checkout, &raw)
+	err = tx.QueryRow(ctx, `SELECT x.id::text,x.period_end,x.created_at,x.state,x.checkout_id::text,s.binding FROM alerts_stripe_cancellations x JOIN alerts_stripe_checkouts c ON c.id=x.checkout_id JOIN alerts_stripe_current_subscriptions s ON s.checkout_id=c.id WHERE x.id=$1 AND c.person_id=$2 FOR UPDATE OF x,c`, id, person).Scan(&in.ID, &in.PeriodEnd, &in.CreatedAt, &status, &checkout, &raw)
 	if err != nil {
 		return "", err
 	}

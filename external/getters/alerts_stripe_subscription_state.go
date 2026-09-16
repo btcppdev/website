@@ -26,7 +26,7 @@ func refreshAlertsStripeSubscriptionAt(ctx context.Context, app *config.AppConte
 		return err
 	}
 	var raw []byte
-	if err = tx.QueryRow(ctx, `SELECT s.binding FROM alerts_stripe_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.id=$1 AND c.person_id=$2 FOR UPDATE OF c`, id, person).Scan(&raw); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT s.binding FROM alerts_stripe_current_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.id=$1 AND c.person_id=$2 FOR UPDATE OF c`, id, person).Scan(&raw); err != nil {
 		return err
 	}
 	var binding alertsstripe.Binding

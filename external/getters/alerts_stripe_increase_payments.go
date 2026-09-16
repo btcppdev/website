@@ -84,5 +84,8 @@ func recordAlertsStripeIncreasePayment(ctx context.Context, app *config.AppConte
 	if _, err = tx.Exec(ctx, `UPDATE alerts_stripe_increases SET state='applied',updated_at=now() WHERE quote_id=$1`, paid.QuoteID); err != nil {
 		return nil, err
 	}
+	if _, err = tx.Exec(ctx, `UPDATE alerts_stripe_subscription_state SET revision=revision+1,observed_at=now() WHERE checkout_id=$1`, quote.CheckoutID); err != nil {
+		return nil, err
+	}
 	return out, tx.Commit(ctx)
 }

@@ -264,6 +264,16 @@ lines split rounding cents when necessary so their unit prices multiply correctl
 
 PostgreSQL tests exercise concurrent duplicates, missing confirmation/base payment,
 late transaction failure, exact slot totals/expiry, receipt rounding and immutable
-quantity evidence. This is still internal groundwork: current-binding readers,
-renewal handling and provider recovery must consume the quantity history before
-the upgrade UI or submission worker is enabled.
+quantity evidence. This is still internal groundwork; the upgrade UI and submission
+worker remain disabled until provider recovery is connected.
+
+Migration 118 exposes the latest paid quantity binding to subscription refresh,
+cancellation, new upgrade review, monthly invoice reconciliation and renewal-link
+checks. Original checkout replay still uses the original immutable binding.
+Upgrade fulfillment advances the reviewed-state revision. Previously recorded
+monthly invoices retain their original quantity on callback replay. Recovery skips
+already recorded upgrade invoices rather than misclassifying them as monthly bills.
+Failed-renewal eligibility includes paid, unrevoked upgrade grants in the preceding
+period. A PostgreSQL integration test verifies refresh after upgrading from two to
+five paid slots, grace for five, renewal at five, and replay of the original
+two-slot invoice without duplicate access.

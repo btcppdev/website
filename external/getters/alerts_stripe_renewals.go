@@ -52,6 +52,14 @@ func projectAlertsStripeRenewal(ctx context.Context, tx pgx.Tx, b alertsstripe.B
 	if err = json.Unmarshal(raw, &previous); err != nil {
 		return err
 	}
+	// The preceding paid period may consist of a base invoice plus upgrades.
+	// Only paid, unrevoked grants ending at this renewal support grace.
+	var added int64
+	err = tx.QueryRow(ctx, `SELECT COALESCE(sum(e.quantity),0) FROM alerts_stripe_increase_payments i JOIN shop_orders o ON o.id=i.order_id JOIN service_purchase_requests p ON p.order_id=o.id JOIN service_entitlements e ON e.purchase_id=p.id WHERE i.checkout_id=$1 AND e.starts_at>=$2 AND e.ends_at=$3 AND o.status='paid' AND o.paid_at<=$4 AND e.revoked_at IS NULL`, b.IntentID, previous.Start, previous.End, now).Scan(&added)
+	if err != nil {
+		return err
+	}
+	previous.Quantity += added
 	failure, err := client.FailedRenewalInvoice(ctx, state.LatestInvoice, b, previous, now)
 	if errors.Is(err, alertsstripe.ErrInvoice) {
 		return nil

@@ -13,7 +13,7 @@ import (
 // Existing evidence (including refunded orders) is never overwritten by polling.
 func RecoverAlertsStripePayments(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client) error {
 	var raw []byte
-	err := app.DB.QueryRow(ctx, `SELECT s.binding FROM alerts_stripe_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.id=$1 AND c.person_id=$2`, id, person).Scan(&raw)
+	err := app.DB.QueryRow(ctx, `SELECT s.binding FROM alerts_stripe_current_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.id=$1 AND c.person_id=$2`, id, person).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RecoverAlertsStripeCheckout(ctx, app, person, id, client)
 	}
@@ -53,7 +53,7 @@ func RecoverAlertsStripePayments(ctx context.Context, app *config.AppContext, pe
 			}
 			seen[invoice] = true
 			var recorded bool
-			if err = app.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_invoices WHERE invoice_id=$1 AND checkout_id=$2)`, invoice, id).Scan(&recorded); err != nil {
+			if err = app.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_invoices WHERE invoice_id=$1 AND checkout_id=$2 UNION ALL SELECT 1 FROM alerts_stripe_increase_payments WHERE invoice_id=$1 AND checkout_id=$2)`, invoice, id).Scan(&recorded); err != nil {
 				return err
 			}
 			if recorded {

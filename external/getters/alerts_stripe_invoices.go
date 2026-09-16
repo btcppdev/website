@@ -73,7 +73,7 @@ func ResolveAlertsStripeSubscription(ctx context.Context, app *config.AppContext
 // once, with invoice ID as the durable deduplication key.
 func ReconcileAlertsStripeInvoice(ctx context.Context, app *config.AppContext, person, checkoutID, invoiceID string, client alertsstripe.Client) (*ServicePurchase, error) {
 	var raw []byte
-	err := app.DB.QueryRow(app.DatabaseContext(), `SELECT s.binding FROM alerts_stripe_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.person_id=$1 AND c.id=$2`, person, checkoutID).Scan(&raw)
+	err := app.DB.QueryRow(app.DatabaseContext(), `SELECT s.binding FROM alerts_stripe_current_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.person_id=$1 AND c.id=$2`, person, checkoutID).Scan(&raw)
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +83,19 @@ func ReconcileAlertsStripeInvoice(ctx context.Context, app *config.AppContext, p
 	}
 	if binding.PersonID != person || binding.IntentID != checkoutID {
 		return nil, alertsstripe.ErrInvoice
+	}
+	// A repeated callback for an older paid month must use that month's
+	// quantity, rather than the current upgraded allowance.
+	var recorded []byte
+	err = app.DB.QueryRow(ctx, `SELECT paid_period FROM alerts_stripe_invoices WHERE invoice_id=$1 AND checkout_id=$2`, invoiceID, checkoutID).Scan(&recorded)
+	if err == nil {
+		var original alertsstripe.PaidPeriod
+		if json.Unmarshal(recorded, &original) != nil {
+			return nil, alertsstripe.ErrInvoice
+		}
+		binding.PaidSlots = original.Quantity
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
 	}
 	paid, err := client.PaidInvoice(ctx, invoiceID, binding)
 	if err != nil {
@@ -111,13 +124,11 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 	}
 	var email string
 	var same bool
-	err = tx.QueryRow(ctx, `SELECT c.intent->>'Email',s.binding=$3::jsonb FROM alerts_stripe_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.id=$1 AND c.person_id=$2 FOR UPDATE OF c`, b.IntentID, b.PersonID, rawBinding).Scan(&email, &same)
+	err = tx.QueryRow(ctx, `SELECT c.intent->>'Email',s.binding=$3::jsonb FROM alerts_stripe_current_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.id=$1 AND c.person_id=$2 FOR UPDATE OF c`, b.IntentID, b.PersonID, rawBinding).Scan(&email, &same)
 	if err != nil {
 		return nil, err
 	}
-	if !same {
-		return nil, alertsstripe.ErrInvoice
-	}
+	currentBinding := same
 	out := &ServicePurchase{}
 	err = tx.QueryRow(ctx, `SELECT o.id::text,o.public_id,i.checkout_id=$2 AND i.paid_period=$3::jsonb FROM alerts_stripe_invoices i JOIN shop_orders o ON o.id=i.order_id WHERE i.invoice_id=$1`, paid.InvoiceID, b.IntentID, rawPaid).Scan(&out.OrderID, &out.PublicID, &same)
 	if err == nil {
@@ -128,6 +139,9 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
+	}
+	if !currentBinding {
+		return nil, alertsstripe.ErrInvoice
 	}
 	// Full-month invoices for this subscription cannot overlap. Upgrade invoices
 	// use a separate quantity-change path and cannot pass the monthly verifier.

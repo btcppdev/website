@@ -35,7 +35,7 @@ func AlertsStripeRenew(w http.ResponseWriter, r *http.Request, app *config.AppCo
 	id := mux.Vars(r)["invoice"]
 	var raw []byte
 	var state string
-	err = app.DB.QueryRow(r.Context(), `SELECT s.binding,r.state FROM alerts_stripe_renewals r JOIN alerts_stripe_checkouts c ON c.id=r.checkout_id JOIN alerts_stripe_subscriptions s ON s.checkout_id=c.id WHERE r.invoice_id=$1 AND c.person_id=$2`, id, identity.PersonID).Scan(&raw, &state)
+	err = app.DB.QueryRow(r.Context(), `SELECT s.binding,r.state FROM alerts_stripe_renewals r JOIN alerts_stripe_checkouts c ON c.id=r.checkout_id JOIN alerts_stripe_current_subscriptions s ON s.checkout_id=c.id WHERE r.invoice_id=$1 AND c.person_id=$2`, id, identity.PersonID).Scan(&raw, &state)
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.NotFound(w, r)
 		return
