@@ -355,3 +355,14 @@ confirmed upgrade always resumes its own review even if the cart changed.
 HTTP/PostgreSQL tests verify handoff/reload reuse, covered selections and pending
 confirmation preservation. Full successful HTTP payment and live provider tests,
 repeat upgrades within one period, and browser visual review remain outstanding.
+
+`TestAlertsStripeUpgradeHTTPPostgres` now exercises fresh quote creation through
+the actual subscribe handoff, rendered review, two confirmation POSTs, an open
+invoice requiring payment, the account-owned hosted-invoice redirect and eventual
+paid fulfillment. It uses real account sessions, PostgreSQL and Stripe SDK HTTP
+serialization against a local provider fixture. It verifies fixed proration timing,
+payment-gated update parameters, one provider mutation despite duplicate POSTs,
+ignored browser amount/quantity and success flags, no unpaid access and one
+added-slot grant after repeated paid-page loads. Targeted Alerts Stripe tests pass.
+This is not a real Stripe payment or browser visual test; those checks and repeat
+upgrades within the same period remain outstanding.
