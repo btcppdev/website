@@ -173,6 +173,17 @@ Validation: migration 102 applied transactionally to the disposable PostgreSQL
 database containing the combined Alerts/Insider migrations. Migration 103 and
 purchase tests were also verified there, including eight concurrent retries,
 changed quotes, account isolation, immutable evidence and injected rollback.
+Alerts Bitcoin checkout now starts at `/services/alerts/prepay?account=...&slots=...&months=...`.
+GET preserves the account and 12/24/120-month choice through login, verifies account
+ownership and shows the billing-address form. Its CSRF-protected POST derives
+tax-inclusive pricing from central billing state and stores a quote for the existing
+review/confirm/order/OpenNode flow. Browser prices, tax amounts and query-string
+overrides are ignored. Preparing a quote does not start payment or grant access.
+Both OpenNode and Stripe tax credentials are required. Real-session PostgreSQL
+tests with a local Stripe tax fixture verify ownership, CSRF, inclusive SaaS tax,
+the stored term, and absence of orders at quote preparation. Browser review and
+live OpenNode settlement remain outstanding.
+
 Run the tests with a disposable migrated test database:
 
 ```sh

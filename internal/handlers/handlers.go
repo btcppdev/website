@@ -1200,6 +1200,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/services/alerts/subscribe", func(w http.ResponseWriter, r *http.Request) {
 		AlertsStripeStart(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/services/alerts/prepay", func(w http.ResponseWriter, r *http.Request) {
+		AlertsBitcoinStart(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/services/quotes/{quote}/confirm", func(w http.ResponseWriter, r *http.Request) {
 		ServiceQuoteConfirm(w, r, app)
 	}).Methods("POST")

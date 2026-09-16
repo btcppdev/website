@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Prepay for Alerts · bitcoin++</title>{{ block "header" . }}{{ end }}
+<link rel="stylesheet" href="/static/css/login-layout.css?v=2"></head>
+<body class="btcpp-login-page">{{ block "mainnav" . }}{{ end }}
+<main class="auth-shell auth-shell--simple"><section class="auth-card">
+<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>Pay with Bitcoin</h1><p>Your first three repositories are free. A new {{ .Months }}-month term for {{ .Slots }} additional repositories costs {{ .Total }}, including applicable tax.</p></header>
+<p>No automatic renewal. If you already have a prepaid plan, the next page shows the prorated price for added repositories through your existing paid-through date.</p>
+{{ if .Enabled }}<form method="post" action="/services/alerts/prepay">
+<input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="months" value="{{ .Months }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
+<p>Your billing address determines the tax included in the price.</p>
+<label>Street address<input name="line1" autocomplete="address-line1" maxlength="200" required></label>
+<label>Apartment or suite (optional)<input name="line2" autocomplete="address-line2" maxlength="200"></label>
+<label>City<input name="city" autocomplete="address-level2" maxlength="200" required></label>
+<label>State or region<input name="region" autocomplete="address-level1" maxlength="200"></label>
+<label>Postal code<input name="postal" autocomplete="postal-code" maxlength="200"></label>
+<label>Country code<input name="country" autocomplete="country" placeholder="US" pattern="[A-Za-z]{2}" minlength="2" maxlength="2" required></label>
+<button type="submit" class="auth-primary">Review your quote</button></form>
+{{ else }}<p role="status">Bitcoin checkout is not configured here yet.</p>{{ end }}
+<p><a href="https://alerts.btcpp.dev/terms">Terms</a> · <a href="https://alerts.btcpp.dev/privacy">Privacy</a></p>
+<p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
+</section></main></body></html>
