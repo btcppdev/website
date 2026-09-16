@@ -45,6 +45,22 @@ Configure that Stripe webhook endpoint to deliver `checkout.session.completed`,
 merchandise events. The expiry event is documented in Stripe's
 [event reference](https://docs.stripe.com/api/events/types#event_types-checkout.session.expired).
 
+Migration 113 records verified subscription state. Also subscribe to
+`customer.subscription.updated`, `.deleted`, `.paused` and `.resumed` (each with
+the full `customer.subscription` prefix). These events and background polling
+re-fetch the saved subscription, verify account/customer/price/quantity, and save
+a revisioned state under the account billing lock. Duplicate observations do not
+increment the revision. No subscription status changes paid-through dates.
+
+The state distinguishes collection pauses, paused subscriptions, pending user
+cancellation, completed cancellation, disputed payments, unpaid renewals and an
+unpaid first purchase. Automatic cancellation with reason `payment_failed` remains
+an unpaid-renewal candidate; it is not treated as a user-requested cancellation.
+`renewal_unpaid` is not sufficient to grant grace: failed-invoice verification,
+previous-paid-period eligibility and the account API's lifecycle projection remain
+to build. See [Stripe subscription states](https://docs.stripe.com/billing/subscriptions/overview)
+and [collection pauses](https://docs.stripe.com/billing/subscriptions/pause-payment).
+
 Remaining integration:
 
 The account-owned `/services/alerts/checkout/{checkout}` return page now reads

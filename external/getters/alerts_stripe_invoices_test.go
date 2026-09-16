@@ -93,6 +93,26 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	if err != nil || len(grants) != 1 || grants[0].Quantity != 2 || !grants[0].EndsAt.Equal(end) {
 		t.Fatal("paid allowance", grants, err)
 	}
+	sub := &stripe.Subscription{ID: session.Subscription.ID, Customer: session.Customer, Metadata: session.Metadata, Status: "active", Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 2, Price: price, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
+	client.Subscription = func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) { return sub, nil }
+	for i := 0; i < 2; i++ {
+		if err = RefreshAlertsStripeSubscription(ctx, app, person, reserved.Intent.ID, client); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sub.CancelAtPeriodEnd = true
+	if err = RefreshAlertsStripeSubscription(ctx, app, person, reserved.Intent.ID, client); err != nil {
+		t.Fatal(err)
+	}
+	var revision int64
+	var state string
+	if err = app.DB.QueryRow(ctx, `SELECT revision,snapshot->>'state' FROM alerts_stripe_subscription_state WHERE checkout_id=$1`, reserved.Intent.ID).Scan(&revision, &state); err != nil || revision != 2 || state != "cancelling" {
+		t.Fatal(revision, state, err)
+	}
+	grants, err = ActiveServiceEntitlements(app, person, now)
+	if err != nil || len(grants) != 1 || !grants[0].EndsAt.Equal(end) {
+		t.Fatal("scheduled cancellation changed paid-through access", grants, err)
+	}
 	if _, err := ReconcileAlertsStripeInvoice(ctx, app, "00000000-0000-0000-0000-000000000000", reserved.Intent.ID, inv.ID, client); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatal("cross-account invoice", err)
 	}

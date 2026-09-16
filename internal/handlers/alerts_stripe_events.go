@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/alertsstripe"
@@ -43,6 +44,9 @@ func processAlertsStripeEvent(ctx context.Context, app *config.AppContext, event
 	if event.Type == "checkout.session.expired" {
 		return true, getters.CloseExpiredAlertsStripeCheckout(ctx, app, person, intent, sessionID, client)
 	}
+	if strings.HasPrefix(string(event.Type), "customer.subscription.") {
+		return true, getters.RefreshAlertsStripeSubscription(ctx, app, person, intent, client)
+	}
 	if sessionID != "" {
 		if _, err = getters.ResolveAlertsStripeSubscription(ctx, app, person, intent, client, sessionID); err != nil {
 			return true, err
@@ -69,6 +73,15 @@ func alertsStripeEventReferences(event stripe.Event) (intent, sessionID, invoice
 		return "", "", "", false, nil
 	}
 	switch event.Type {
+	case "customer.subscription.updated", "customer.subscription.deleted", "customer.subscription.paused", "customer.subscription.resumed":
+		var subscription stripe.Subscription
+		if err = json.Unmarshal(event.Data.Raw, &subscription); err != nil {
+			return "", "", "", true, err
+		}
+		if subscription.Metadata["product"] != "alerts.repository-slots" {
+			return "", "", "", false, nil
+		}
+		return subscription.Metadata["checkout_intent"], "", "", true, nil
 	case "checkout.session.completed", "checkout.session.expired":
 		var s stripe.CheckoutSession
 		if err = json.Unmarshal(event.Data.Raw, &s); err != nil {

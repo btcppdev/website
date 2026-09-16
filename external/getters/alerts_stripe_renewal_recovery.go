@@ -27,6 +27,9 @@ func RecoverAlertsStripePayments(ctx context.Context, app *config.AppContext, pe
 	if binding.IntentID != id || binding.PersonID != person {
 		return alertsstripe.ErrInvoice
 	}
+	if err = RefreshAlertsStripeSubscription(ctx, app, person, id, client); err != nil {
+		return err
+	}
 	cursor := ""
 	seen := map[string]bool{}
 	var firstErr error
