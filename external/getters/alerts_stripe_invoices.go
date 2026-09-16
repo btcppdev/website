@@ -140,33 +140,7 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 		return nil, alertsstripe.ErrInvoice
 	}
 	quote := ServiceQuote{ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts additional repositories", Provider: "stripe", Quantity: paid.Quantity, UnitCents: servicebilling.AlertsMonthlySlotCents, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 1}
-	snapshot, err := json.Marshal(quote)
-	if err != nil {
-		return nil, err
-	}
-	err = tx.QueryRow(ctx, `INSERT INTO shop_orders(public_id,buyer_email,buyer_person_id,checkout_kind,payment_provider,payment_provider_id,currency,subtotal_cents,sales_tax_amount_cents,total_cents,status,paid_at) VALUES(gen_random_uuid()::text,$1,$2,'service','stripe',$3,'USD',$4,$5,$6,'paid',$7) RETURNING id::text,public_id`, email, b.PersonID, paid.InvoiceID, paid.TotalCents-paid.TaxCents, paid.TaxCents, paid.TotalCents, paid.PaidAt).Scan(&out.OrderID, &out.PublicID)
-	if err != nil {
-		return nil, err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO shop_order_items(order_id,quantity,unit_price_cents,tax_amount_cents,line_total_cents,product_name_snapshot,fulfillment_method,service_product_code,service_resource_id,service_period_start,service_period_end,fulfilled_quantity,status) VALUES($1,$2,$3,$4,$5,$6,'service','alerts.repository-slots','',$7,$8,$2,'fulfilled')`, out.OrderID, paid.Quantity, quote.UnitCents, paid.TaxCents, paid.TotalCents, quote.Name, paid.Start, paid.End)
-	if err != nil {
-		return nil, err
-	}
-	var purchaseID, attemptID string
-	err = tx.QueryRow(ctx, `INSERT INTO service_purchase_requests(person_id,request_key,order_id,quote_snapshot) VALUES($1,$2,$3,$4) RETURNING id::text`, b.PersonID, "stripe-invoice:"+paid.InvoiceID, out.OrderID, snapshot).Scan(&purchaseID)
-	if err != nil {
-		return nil, err
-	}
-	err = tx.QueryRow(ctx, `INSERT INTO service_payment_attempts(purchase_id,provider,provider_reference,settled_at) VALUES($1,'stripe',$2,$3) RETURNING id::text`, purchaseID, paid.InvoiceID, paid.PaidAt).Scan(&attemptID)
-	if err != nil {
-		return nil, err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO service_payment_events(provider,event_id,attempt_id,total_cents,currency,paid_at) VALUES('stripe',$1,$2,$3,'USD',$4)`, "invoice-paid:"+paid.InvoiceID, attemptID, paid.TotalCents, paid.PaidAt)
-	if err != nil {
-		return nil, err
-	}
-	_, err = tx.Exec(ctx, `INSERT INTO service_entitlements(purchase_id,person_id,product_code,quantity,starts_at,ends_at) VALUES($1,$2,'alerts.repository-slots',$3,$4,$5)`, purchaseID, b.PersonID, paid.Quantity, paid.Start, paid.End)
-	if err != nil {
+	if err = recordStripeServicePayment(ctx, tx, b.PersonID, email, paid, quote, out); err != nil {
 		return nil, err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_invoices(invoice_id,checkout_id,order_id,paid_period,starts_at,ends_at) VALUES($1,$2,$3,$4,$5,$6)`, paid.InvoiceID, b.IntentID, out.OrderID, rawPaid, paid.Start, paid.End)
@@ -177,4 +151,57 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 		return nil, err
 	}
 	return out, tx.Commit(ctx)
+}
+
+// recordStripeServicePayment shares the existing receipt and entitlement ledger
+// between monthly renewals and prorations. The caller owns verification,
+// serialization, invoice deduplication and the transaction commit.
+func recordStripeServicePayment(ctx context.Context, tx pgx.Tx, person, email string, paid alertsstripe.PaidPeriod, quote ServiceQuote, out *ServicePurchase) error {
+	snapshot, err := json.Marshal(quote)
+	if err != nil {
+		return err
+	}
+	err = tx.QueryRow(ctx, `INSERT INTO shop_orders(public_id,buyer_email,buyer_person_id,checkout_kind,payment_provider,payment_provider_id,currency,subtotal_cents,sales_tax_amount_cents,total_cents,status,paid_at) VALUES(gen_random_uuid()::text,$1,$2,'service','stripe',$3,'USD',$4,$5,$6,'paid',$7) RETURNING id::text,public_id`, email, person, paid.InvoiceID, paid.TotalCents-paid.TaxCents, paid.TaxCents, paid.TotalCents, paid.PaidAt).Scan(&out.OrderID, &out.PublicID)
+	if err != nil {
+		return err
+	}
+	// A prorated total may not divide evenly by the slot count. Split the
+	// rounding cent across two receipt lines rather than misstate a unit price.
+	remainder := paid.TotalCents % paid.Quantity
+	quantities := []int64{paid.Quantity - remainder, remainder}
+	units := []int64{paid.TotalCents / paid.Quantity, paid.TotalCents/paid.Quantity + 1}
+	taxLeft := paid.TaxCents
+	for i, quantity := range quantities {
+		if quantity == 0 {
+			continue
+		}
+		total := quantity * units[i]
+		tax := taxLeft
+		if i == 0 && remainder != 0 && paid.TotalCents > 0 {
+			tax = paid.TaxCents * total / paid.TotalCents
+		}
+		taxLeft -= tax
+		_, err = tx.Exec(ctx, `INSERT INTO shop_order_items(order_id,quantity,unit_price_cents,tax_amount_cents,line_total_cents,product_name_snapshot,fulfillment_method,service_product_code,service_resource_id,service_period_start,service_period_end,fulfilled_quantity,status) VALUES($1,$2,$3,$4,$5,$6,'service','alerts.repository-slots','',$7,$8,$2,'fulfilled')`, out.OrderID, quantity, units[i], tax, total, quote.Name, paid.Start, paid.End)
+		if err != nil {
+			return err
+		}
+	}
+	var purchaseID, attemptID string
+	err = tx.QueryRow(ctx, `INSERT INTO service_purchase_requests(person_id,request_key,order_id,quote_snapshot) VALUES($1,$2,$3,$4) RETURNING id::text`, person, "stripe-invoice:"+paid.InvoiceID, out.OrderID, snapshot).Scan(&purchaseID)
+	if err != nil {
+		return err
+	}
+	err = tx.QueryRow(ctx, `INSERT INTO service_payment_attempts(purchase_id,provider,provider_reference,settled_at) VALUES($1,'stripe',$2,$3) RETURNING id::text`, purchaseID, paid.InvoiceID, paid.PaidAt).Scan(&attemptID)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO service_payment_events(provider,event_id,attempt_id,total_cents,currency,paid_at) VALUES('stripe',$1,$2,$3,'USD',$4)`, "invoice-paid:"+paid.InvoiceID, attemptID, paid.TotalCents, paid.PaidAt)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO service_entitlements(purchase_id,person_id,product_code,quantity,starts_at,ends_at) VALUES($1,$2,'alerts.repository-slots',$3,$4,$5)`, purchaseID, person, paid.Quantity, paid.Start, paid.End)
+	if err != nil {
+		return err
+	}
+	return nil
 }

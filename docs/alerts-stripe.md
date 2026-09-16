@@ -251,5 +251,19 @@ proration timestamp to the existing period end. It is deliberately distinct from
 `PaidPeriod`; the monthly invoice verifier continues rejecting prorations.
 Tests reject unpaid/partial payments, foreign ownership, changed quantities or
 periods, wrong tax/price, credits, extra lines and incomplete pagination. This does
-not yet fulfill an upgrade: atomic invoice recording, quantity revisions and
-durable provider recovery remain needed before connecting customer confirmation.
+not itself fulfill an upgrade. The transaction below handles recording; provider
+recovery and quantity-history integration remain needed before customer confirmation.
+
+Migration 117 and `recordAlertsStripeIncreasePayment` add the transaction that
+records verified upgrade evidence, a shop receipt, its payment event, the added
+slot entitlement and an immutable updated quantity binding. It requires a saved
+confirmation and a paid, unrevoked base-period grant. Repeated evidence returns
+the same receipt; conflicting evidence rolls back the entire transaction. The
+original monthly subscription/invoice evidence remains immutable. Prorated receipt
+lines split rounding cents when necessary so their unit prices multiply correctly.
+
+PostgreSQL tests exercise concurrent duplicates, missing confirmation/base payment,
+late transaction failure, exact slot totals/expiry, receipt rounding and immutable
+quantity evidence. This is still internal groundwork: current-binding readers,
+renewal handling and provider recovery must consume the quantity history before
+the upgrade UI or submission worker is enabled.
