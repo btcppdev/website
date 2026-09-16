@@ -56,9 +56,17 @@ The state distinguishes collection pauses, paused subscriptions, pending user
 cancellation, completed cancellation, disputed payments, unpaid renewals and an
 unpaid first purchase. Automatic cancellation with reason `payment_failed` remains
 an unpaid-renewal candidate; it is not treated as a user-requested cancellation.
-`renewal_unpaid` is not sufficient to grant grace: failed-invoice verification,
-previous-paid-period eligibility and the account API's lifecycle projection remain
-to build. See [Stripe subscription states](https://docs.stripe.com/billing/subscriptions/overview)
+`renewal_unpaid` is not sufficient to grant grace. `FailedRenewalInvoice` now
+re-fetches the invoice and Price and verifies the same account, quantity, full
+monthly period and inclusive tax terms as a paid invoice. It additionally requires
+an attempted automatic-collection renewal with an unpaid balance and an immediately
+preceding paid period for the same subscription/quantity. Initial purchases,
+unattempted invoices, voids, prorations and discontinuous periods are rejected.
+Its due time is the original renewal period start and never moves with retries.
+The coordinator must load the preceding period from non-refunded settlement
+records, verify current subscription state and persist the renewal outcome.
+That coordinator and the account API's lifecycle projection remain to build.
+See [Stripe subscription states](https://docs.stripe.com/billing/subscriptions/overview)
 and [collection pauses](https://docs.stripe.com/billing/subscriptions/pause-payment).
 
 Remaining integration:

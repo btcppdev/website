@@ -30,11 +30,23 @@ type PaidPeriod struct {
 // authenticated Price lookup. Prorations require their own quantity-change
 // transaction; treating a proration as a full month's access would overgrant.
 func VerifyMonthlyInvoice(in *stripe.Invoice, price *stripe.Price, b Binding) (*PaidPeriod, error) {
+	period, err := verifyMonthlyInvoiceTerms(in, price, b)
+	if err != nil {
+		return nil, err
+	}
+	if in.Status != "paid" || in.AmountPaid != period.TotalCents || in.AmountRemaining != 0 || in.StatusTransitions == nil || in.StatusTransitions.PaidAt <= 0 {
+		return nil, ErrInvoice
+	}
+	period.PaidAt = time.Unix(in.StatusTransitions.PaidAt, 0).UTC()
+	return period, nil
+}
+
+func verifyMonthlyInvoiceTerms(in *stripe.Invoice, price *stripe.Price, b Binding) (*PaidPeriod, error) {
 	if in == nil || price == nil || b.IntentID == "" || b.PersonID == "" || !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(b.PriceID, "price_") || !strings.HasPrefix(b.ProductID, "prod_") || b.PaidSlots < 1 || b.PaidSlots > 2147483647/servicebilling.AlertsMonthlySlotCents {
 		return nil, ErrInvoice
 	}
 	total := b.PaidSlots * servicebilling.AlertsMonthlySlotCents
-	if !strings.HasPrefix(in.ID, "in_") || in.Status != "paid" || in.Livemode != b.Live || in.Currency != "usd" || in.Customer == nil || in.Customer.ID != b.CustomerID || in.Parent == nil || in.Parent.Type != "subscription_details" || in.Parent.SubscriptionDetails == nil || in.Parent.SubscriptionDetails.Subscription == nil || in.Parent.SubscriptionDetails.Subscription.ID != b.SubscriptionID {
+	if !strings.HasPrefix(in.ID, "in_") || in.Livemode != b.Live || in.Currency != "usd" || in.Customer == nil || in.Customer.ID != b.CustomerID || in.Parent == nil || in.Parent.Type != "subscription_details" || in.Parent.SubscriptionDetails == nil || in.Parent.SubscriptionDetails.Subscription == nil || in.Parent.SubscriptionDetails.Subscription.ID != b.SubscriptionID {
 		return nil, ErrInvoice
 	}
 	meta := in.Parent.SubscriptionDetails.Metadata
@@ -44,7 +56,7 @@ func VerifyMonthlyInvoice(in *stripe.Invoice, price *stripe.Price, b Binding) (*
 	if in.BillingReason != "subscription_create" && in.BillingReason != "subscription_cycle" {
 		return nil, ErrInvoice
 	}
-	if in.Total != total || in.AmountPaid != total || in.AmountRemaining != 0 || in.AmountPaidOffStripe != 0 || in.PostPaymentCreditNotesAmount != 0 || in.PrePaymentCreditNotesAmount != 0 || len(in.Discounts) != 0 || in.AutomaticTax == nil || !in.AutomaticTax.Enabled || in.AutomaticTax.Status != "complete" || in.StatusTransitions == nil || in.StatusTransitions.PaidAt <= 0 {
+	if in.Total != total || in.AmountPaidOffStripe != 0 || in.PostPaymentCreditNotesAmount != 0 || in.PrePaymentCreditNotesAmount != 0 || len(in.Discounts) != 0 || in.AutomaticTax == nil || !in.AutomaticTax.Enabled || in.AutomaticTax.Status != "complete" {
 		return nil, ErrInvoice
 	}
 	if !validMonthlyPrice(price, b) {
@@ -68,7 +80,7 @@ func VerifyMonthlyInvoice(in *stripe.Invoice, price *stripe.Price, b Binding) (*
 		}
 		tax += t.Amount
 	}
-	return &PaidPeriod{InvoiceID: in.ID, SubscriptionID: b.SubscriptionID, Quantity: b.PaidSlots, TotalCents: total, TaxCents: tax, Start: start, End: end, PaidAt: time.Unix(in.StatusTransitions.PaidAt, 0).UTC()}, nil
+	return &PaidPeriod{InvoiceID: in.ID, SubscriptionID: b.SubscriptionID, Quantity: b.PaidSlots, TotalCents: total, TaxCents: tax, Start: start, End: end}, nil
 }
 
 // PaidInvoice re-reads Stripe rather than trusting a webhook body or return URL.
