@@ -187,7 +187,11 @@ checkout handoff, signed callback, authenticated unpaid/paid lookup, tax transac
 recording, account-access projection and the paid receipt. Forged callback payment
 fields cannot grant access; retries create one charge, payment event and grant,
 with exactly the purchased quantity and term. This uses local provider fixtures,
-not real OpenNode settlement. Browser review and live settlement remain outstanding.
+not real OpenNode settlement. The prepaid entry template and production styles
+were visually checked using fixture data at 390px and 1280px. The review fixed
+inline address labels/inputs by applying the shared form styles and responsive
+columns. Live settlement and a browser pass with real account sessions remain
+outstanding.
 
 Run the tests with a disposable migrated test database:
 

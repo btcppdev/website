@@ -15,6 +15,12 @@
 .auth-shell--simple .auth-dev { display: block; }
 .auth-shell--simple .auth-dev summary { cursor: pointer; }
 .auth-shell--simple .auth-dev[open] > div { margin-top: 14px; }
+.auth-shell--simple .alerts-billing-address { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 24px; }
+.alerts-billing-address label { display: grid; gap: 6px; min-width: 0; }
+.alerts-billing-address input { box-sizing: border-box; width: 100%; margin: 0; }
+.alerts-billing-address__wide { grid-column: 1 / -1; }
+.alerts-billing-address + p { margin-top: 16px; }
 @media (max-width: 600px) {
   .btcpp-login-page .auth-shell--simple { margin: 24px auto; padding: 0 16px; }
+  .auth-shell--simple .alerts-billing-address { grid-template-columns: 1fr; }
 }
