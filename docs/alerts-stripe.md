@@ -366,3 +366,18 @@ ignored browser amount/quantity and success flags, no unpaid access and one
 added-slot grant after repeated paid-page loads. Targeted Alerts Stripe tests pass.
 This is not a real Stripe payment or browser visual test; those checks and repeat
 upgrades within the same period remain outstanding.
+
+Repeat upgrades within one period are now supported. Quote preparation selects
+the recorded, unrevoked payment supporting the current quantity: either the
+period's full monthly invoice or its latest paid upgrade. Its reference and prior
+review are frozen with the new quote. The adapter freshly verifies that invoice
+at preview and confirmation, including the paid quantity and period; nested
+history is omitted. This also permits checking the recorded paid invoice when a
+later void invoice occupies Stripe's latest-invoice field.
+
+The HTTP fixture now completes two sequential upgrades (two → three → four paid
+slots) before renewal and verifies that all grants retain the same expiry.
+Adapter tests reject unpaid, credited, mismatched-period/quantity and wrong-ID
+funding evidence. Stripe adapter and targeted PostgreSQL tests pass. Real Stripe
+validation, browser review, unattended submission recovery and next-renewal
+decreases remain outstanding.

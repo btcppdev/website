@@ -77,6 +77,8 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 	var lock sync.Mutex
 	var upgrade *stripe.Invoice
 	var reviewed int64
+	desired := int64(3)
+	upgradeInvoices := map[string]*stripe.Invoice{}
 	updates := 0
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		lock.Lock()
@@ -87,8 +89,8 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 			json.NewEncoder(w).Encode(price)
 		case r.Method == "GET" && r.URL.Path == "/v1/invoices/"+base.ID:
 			json.NewEncoder(w).Encode(base)
-		case r.Method == "GET" && upgrade != nil && r.URL.Path == "/v1/invoices/"+upgrade.ID:
-			json.NewEncoder(w).Encode(upgrade)
+		case r.Method == "GET" && upgradeInvoices[strings.TrimPrefix(r.URL.Path, "/v1/invoices/")] != nil:
+			json.NewEncoder(w).Encode(upgradeInvoices[strings.TrimPrefix(r.URL.Path, "/v1/invoices/")])
 		case r.Method == "GET" && r.URL.Path == "/v1/invoices":
 			invoices := []*stripe.Invoice{base}
 			if upgrade != nil && upgrade.Status == "paid" {
@@ -107,7 +109,7 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 				t.Error("proration changed after review")
 			}
 			reviewed = at
-			if r.Form.Get("subscription_details[items][0][quantity]") != "3" {
+			if r.Form.Get("subscription_details[items][0][quantity]") != strconv.FormatInt(desired, 10) {
 				t.Error("wrong desired quantity", r.Form)
 			}
 			preview := *base
@@ -119,20 +121,21 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 			preview.AmountPaid = 0
 			preview.StatusTransitions = nil
 			preview.TotalTaxes = []*stripe.InvoiceTotalTax{{Amount: 15, TaxBehavior: "inclusive"}}
-			preview.Lines = &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{line(2, -390, at, true), line(3, 585, at, true)}}
+			preview.Lines = &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{line(desired-1, -(desired-1)*195, at, true), line(desired, desired*195, at, true)}}
 			json.NewEncoder(w).Encode(&preview)
 		case r.URL.Path == "/v1/subscriptions/"+b.SubscriptionID:
 			if r.Method == "POST" {
 				if err := r.ParseForm(); err != nil {
 					t.Error(err)
 				}
-				if r.Form.Get("payment_behavior") != "pending_if_incomplete" || r.Form.Get("proration_behavior") != "always_invoice" || r.Form.Get("items[0][quantity]") != "3" || r.Form.Get("proration_date") != strconv.FormatInt(reviewed, 10) || r.Header.Get("Idempotency-Key") == "" {
+				if r.Form.Get("payment_behavior") != "pending_if_incomplete" || r.Form.Get("proration_behavior") != "always_invoice" || r.Form.Get("items[0][quantity]") != strconv.FormatInt(desired, 10) || r.Form.Get("proration_date") != strconv.FormatInt(reviewed, 10) || r.Header.Get("Idempotency-Key") == "" {
 					t.Error("unsafe upgrade request", r.Form)
 				}
 				updates++
 				copy := *base
 				upgrade = &copy
-				upgrade.ID = "in_upgrade_" + id
+				upgrade.ID = "in_upgrade_" + strconv.Itoa(updates) + "_" + id
+				upgradeInvoices[upgrade.ID] = upgrade
 				upgrade.Status = "open"
 				upgrade.BillingReason = "subscription_update"
 				upgrade.AmountPaid = 0
@@ -141,10 +144,10 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 				upgrade.AmountRemaining = 195
 				upgrade.StatusTransitions = nil
 				upgrade.TotalTaxes = []*stripe.InvoiceTotalTax{{Amount: 15, TaxBehavior: "inclusive"}}
-				upgrade.Lines = &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{line(2, -390, reviewed, true), line(3, 585, reviewed, true)}}
+				upgrade.Lines = &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{line(desired-1, -(desired-1)*195, reviewed, true), line(desired, desired*195, reviewed, true)}}
 				upgrade.HostedInvoiceURL = "https://invoice.stripe.com/i/acct_fixture/upgrade"
 				sub.LatestInvoice = &stripe.Invoice{ID: upgrade.ID}
-				sub.PendingUpdate = &stripe.SubscriptionPendingUpdate{ExpiresAt: now.Add(time.Hour).Unix(), SubscriptionItems: []*stripe.SubscriptionItem{{ID: "si_" + id, Quantity: 3, Price: price}}}
+				sub.PendingUpdate = &stripe.SubscriptionPendingUpdate{ExpiresAt: now.Add(time.Hour).Unix(), SubscriptionItems: []*stripe.SubscriptionItem{{ID: "si_" + id, Quantity: desired, Price: price}}}
 			}
 			json.NewEncoder(w).Encode(sub)
 		default:
@@ -246,5 +249,52 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 	}
 	if err != nil || len(grants) != 2 || total != 3 {
 		t.Fatal("fulfilled allowance", grants, err)
+	}
+	// A second upgrade must verify the first proration, not interpret it as a
+	// full-month invoice or require waiting until the next renewal.
+	lock.Lock()
+	desired = 4
+	reviewed = 0
+	lock.Unlock()
+	code, body, secondPath := call("/services/alerts/subscribe?account="+person+"&slots=4", nil)
+	if code != 303 || !strings.HasPrefix(secondPath, "/services/alerts/upgrade/") || secondPath == path {
+		t.Fatal("second upgrade prepare", code, body, secondPath)
+	}
+	code, body, _ = call(secondPath, nil)
+	if code != 200 || !strings.Contains(body, "$8.00") {
+		t.Fatal("second review", code, body)
+	}
+	token = regexp.MustCompile(`name="csrf" value="([^"]+)"`).FindStringSubmatch(body)
+	if len(token) != 2 {
+		t.Fatal("second csrf")
+	}
+	if code, body, location := call(secondPath, url.Values{"csrf": {token[1]}, "action": {"confirm"}}); code != 303 || location != secondPath {
+		t.Fatal("second confirmation", code, body, location)
+	}
+	lock.Lock()
+	if updates != 2 {
+		t.Error("second update count", updates)
+	}
+	upgrade.Status = "paid"
+	upgrade.AmountPaid = 195
+	upgrade.AmountRemaining = 0
+	upgrade.StatusTransitions = &stripe.InvoiceStatusTransitions{PaidAt: time.Now().Unix()}
+	sub.PendingUpdate = nil
+	sub.Items.Data[0].Quantity = 4
+	lock.Unlock()
+	code, body, _ = call(secondPath, nil)
+	if code != 200 || !strings.Contains(body, "Payment verified") {
+		t.Fatal("second fulfillment", code, body)
+	}
+	grants, err = getters.ActiveServiceEntitlements(app, person, time.Now())
+	total = 0
+	for _, g := range grants {
+		total += g.Quantity
+		if !g.EndsAt.Equal(end) {
+			t.Fatal("upgrade extended expiry", g)
+		}
+	}
+	if err != nil || len(grants) != 3 || total != 4 {
+		t.Fatal("second allowance", grants, err)
 	}
 }

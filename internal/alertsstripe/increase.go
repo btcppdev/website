@@ -37,7 +37,7 @@ func (c Client) SubmitIncrease(ctx context.Context, b Binding, in IncreaseIntent
 	defer cancel()
 	// Recheck ownership, the paid base period, item and exact reviewed totals.
 	// Reusing the original timestamp keeps the proration unchanged during review.
-	fresh, err := c.PreviewIncrease(ctx, b, q.PaidSlots, time.Unix(q.ProrationDate, 0))
+	fresh, err := c.PreviewIncrease(ctx, b, q.PaidSlots, time.Unix(q.ProrationDate, 0), q.Funding)
 	if err != nil {
 		return nil, err
 	}

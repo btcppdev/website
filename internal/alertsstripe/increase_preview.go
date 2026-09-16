@@ -18,12 +18,27 @@ type IncreasePreview struct {
 	PeriodStart, PeriodEnd, ProrationDate int64
 	TotalCents, TaxCents                  int64
 	ExpiresAt                             time.Time
+	Funding                               *IncreaseFunding `json:",omitempty"`
 }
 
-func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now time.Time) (*IncreasePreview, error) {
+// Funding comes from recorded payments, never a browser. A prior proration's
+// frozen review lets another upgrade verify the currently paid quantity.
+type IncreaseFunding struct {
+	InvoiceID string
+	Prior     *IncreaseIntent `json:",omitempty"`
+}
+
+func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now time.Time, funding ...*IncreaseFunding) (*IncreasePreview, error) {
 	// Stripe's proration timestamp has second precision. Keep the saved expiry
 	// reproducible when confirmation rechecks that exact timestamp.
 	now = now.UTC().Truncate(time.Second)
+	if len(funding) > 1 {
+		return nil, ErrInvoice
+	}
+	var proof *IncreaseFunding
+	if len(funding) == 1 {
+		proof = funding[0]
+	}
 	if c.PreviewInvoice == nil || c.Subscription == nil || c.Live != b.Live || slots <= b.PaidSlots {
 		return nil, ErrSubscription
 	}
@@ -47,14 +62,8 @@ func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now
 	if !strings.HasPrefix(item.ID, "si_") || len(item.Discounts) != 0 {
 		return nil, ErrSubscription
 	}
-	// Stripe can credit unpaid time during an upgrade. Require the current full
-	// period's paid invoice before asking it to preview a credit for that period.
-	paid, err := c.PaidInvoice(ctx, state.LatestInvoice, b)
-	if err != nil {
+	if err = c.verifyIncreaseFunding(ctx, b, state, proof, now); err != nil {
 		return nil, err
-	}
-	if paid.Start.Unix() != state.PeriodStart || paid.End.Unix() != state.PeriodEnd || paid.PaidAt.After(now) {
-		return nil, ErrInvoice
 	}
 	request := &stripe.InvoiceCreatePreviewParams{Customer: stripe.String(b.CustomerID), Subscription: stripe.String(b.SubscriptionID), PreviewMode: stripe.String("next"), SubscriptionDetails: &stripe.InvoiceCreatePreviewSubscriptionDetailsParams{ProrationBehavior: stripe.String("always_invoice"), ProrationDate: stripe.Int64(now.Unix()), Items: []*stripe.InvoiceCreatePreviewSubscriptionDetailsItemParams{{ID: stripe.String(item.ID), Quantity: stripe.Int64(slots)}}}}
 	request.Context = ctx
@@ -63,6 +72,7 @@ func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now
 		return nil, err
 	}
 	out := &IncreasePreview{SubscriptionItemID: item.ID, PreviousSlots: b.PaidSlots, PaidSlots: slots, PeriodStart: state.PeriodStart, PeriodEnd: state.PeriodEnd, ProrationDate: now.Unix(), ExpiresAt: now.Add(10 * time.Minute)}
+	out.Funding = proof
 	if end := time.Unix(state.PeriodEnd, 0); out.ExpiresAt.After(end) {
 		out.ExpiresAt = end
 	}
@@ -70,6 +80,37 @@ func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now
 		return nil, err
 	}
 	return out, nil
+}
+
+func (c Client) verifyIncreaseFunding(ctx context.Context, b Binding, state SubscriptionState, proof *IncreaseFunding, now time.Time) error {
+	id := state.LatestInvoice
+	if proof != nil {
+		id = proof.InvoiceID
+	}
+	if proof != nil && proof.Prior != nil {
+		prior := proof.Prior
+		if prior.Preview.PaidSlots != b.PaidSlots || prior.Preview.PeriodStart != state.PeriodStart || prior.Preview.PeriodEnd != state.PeriodEnd || prior.Preview.Funding != nil {
+			return ErrInvoice
+		}
+		previous := b
+		previous.PaidSlots = prior.Preview.PreviousSlots
+		paid, err := c.PaidIncreaseInvoice(ctx, id, previous, *prior)
+		if err != nil {
+			return err
+		}
+		if paid.PaidAt.After(now) || paid.Start.After(now) {
+			return ErrInvoice
+		}
+		return nil
+	}
+	paid, err := c.PaidInvoice(ctx, id, b)
+	if err != nil {
+		return err
+	}
+	if paid.Start.Unix() != state.PeriodStart || paid.End.Unix() != state.PeriodEnd || paid.PaidAt.After(now) {
+		return ErrInvoice
+	}
+	return nil
 }
 
 func verifyIncreasePreview(in *stripe.Invoice, b Binding, out *IncreasePreview) error {
