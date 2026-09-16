@@ -11,10 +11,11 @@ import (
 )
 
 type alertsDecreaseAttachmentClaim struct {
-	Binding    alertsstripe.Binding
-	Quote      AlertsStripeDecreaseQuote
-	Attempt    int64
-	ScheduleID string
+	Binding      alertsstripe.Binding
+	Quote        AlertsStripeDecreaseQuote
+	Attempt      int64
+	ScheduleID   string
+	FirstAttempt time.Time
 }
 
 // Commit the lease before provider I/O. Keep ambiguous attempts pending even
@@ -47,7 +48,7 @@ func claimAlertsStripeDecreaseAttachment(ctx context.Context, app *config.AppCon
 		return nil, alertsstripe.ErrSubscription
 	}
 	var lease time.Time
-	err = tx.QueryRow(ctx, `SELECT attempts,lease_until,COALESCE(schedule_id,'') FROM alerts_stripe_decrease_attachments WHERE quote_id=$1`, id).Scan(&out.Attempt, &lease, &out.ScheduleID)
+	err = tx.QueryRow(ctx, `SELECT attempts,lease_until,COALESCE(schedule_id,''),first_attempt_at FROM alerts_stripe_decrease_attachments WHERE quote_id=$1`, id).Scan(&out.Attempt, &lease, &out.ScheduleID, &out.FirstAttempt)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
@@ -55,14 +56,21 @@ func claimAlertsStripeDecreaseAttachment(ctx context.Context, app *config.AppCon
 		return out, tx.Commit(ctx)
 	}
 	now := time.Now().UTC()
-	if !now.Before(q.Preview.ExpiresAt) {
-		if out.Attempt == 0 {
-			if _, err = tx.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='expired',updated_at=now() WHERE quote_id=$1`, id); err != nil {
-				return nil, err
-			}
-			if err = tx.Commit(ctx); err != nil {
-				return nil, err
-			}
+	if !now.Before(q.Preview.ExpiresAt) && out.Attempt == 0 {
+		if _, err = tx.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='expired',updated_at=now() WHERE quote_id=$1`, id); err != nil {
+			return nil, err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		return nil, alertsstripe.ErrReconcile
+	}
+	if out.Attempt > 0 && (out.FirstAttempt.After(now) || !out.FirstAttempt.Before(q.Preview.ExpiresAt) || !now.Before(out.FirstAttempt.Add(23*time.Hour)) || now.Unix() >= q.Preview.EffectiveAt) {
+		if _, err = tx.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='review',updated_at=now() WHERE quote_id=$1`, id); err != nil {
+			return nil, err
+		}
+		if err = tx.Commit(ctx); err != nil {
+			return nil, err
 		}
 		return nil, alertsstripe.ErrReconcile
 	}
@@ -70,10 +78,10 @@ func claimAlertsStripeDecreaseAttachment(ctx context.Context, app *config.AppCon
 		return nil, alertsstripe.ErrReconcile
 	}
 	var s alertsstripe.SubscriptionState
-	if json.Unmarshal(snapshot, &s) != nil || revision != q.Revision || out.Binding.PaidSlots != q.Preview.PreviousSlots || s.State != "active" || s.ProviderStatus != "active" || s.CancelAtPeriodEnd || s.CancelAt != 0 || s.CollectionPaused || s.PeriodStart != q.Preview.PeriodStart || s.PeriodEnd != q.Preview.EffectiveAt {
+	if json.Unmarshal(snapshot, &s) != nil || (out.Attempt == 0 && revision != q.Revision) || out.Binding.PaidSlots != q.Preview.PreviousSlots || s.State != "active" || s.ProviderStatus != "active" || s.CancelAtPeriodEnd || s.CancelAt != 0 || s.CollectionPaused || s.PeriodStart != q.Preview.PeriodStart || s.PeriodEnd != q.Preview.EffectiveAt {
 		return nil, alertsstripe.ErrSubscription
 	}
-	err = tx.QueryRow(ctx, `INSERT INTO alerts_stripe_decrease_attachments(quote_id,lease_until) VALUES($1,now()+interval '2 minutes') ON CONFLICT(quote_id) DO UPDATE SET attempts=alerts_stripe_decrease_attachments.attempts+1,lease_until=excluded.lease_until RETURNING attempts`, id).Scan(&out.Attempt)
+	err = tx.QueryRow(ctx, `INSERT INTO alerts_stripe_decrease_attachments(quote_id,lease_until) VALUES($1,now()+interval '2 minutes') ON CONFLICT(quote_id) DO UPDATE SET attempts=alerts_stripe_decrease_attachments.attempts+1,lease_until=excluded.lease_until RETURNING attempts,first_attempt_at`, id).Scan(&out.Attempt, &out.FirstAttempt)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +98,7 @@ func AttachAlertsStripeDecrease(ctx context.Context, app *config.AppContext, per
 	if claim.ScheduleID != "" {
 		return claim.ScheduleID, nil
 	}
-	schedule, err := client.AttachDecreaseSchedule(ctx, claim.Binding, id, claim.Quote.Preview, time.Now().UTC())
+	schedule, err := client.ResumeDecreaseSchedule(ctx, claim.Binding, id, claim.Quote.Preview, claim.FirstAttempt, time.Now().UTC())
 	if err != nil {
 		return "", err
 	}

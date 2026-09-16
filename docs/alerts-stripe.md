@@ -450,6 +450,18 @@ without provider creation. An expired review with no attempt can expire safely;
 an ambiguous attempted attachment remains pending for recovery. PostgreSQL tests
 cover concurrent claims, retry leases, foreign accounts, late responses and
 reference immutability. Targeted Stripe getter/handler tests pass against the
-local database. Recovery after review expiry, verified phase updates, worker/UI
-wiring and renewal-time quantity transitions remain required before enabling
-decreases.
+local database.
+
+Attachment recovery now accepts the immutable database first-attempt time as
+evidence that consent was valid before review expiry. It repeats the identical
+creation key/parameters for up to 23 hours, always before the reviewed renewal
+boundary. Expired reviews without attempts expire; attempted requests beyond
+the retry horizon move to review instead of allowing another creation. A routine
+state refresh may advance the revision during recovery, but current ownership,
+quantity, period and active status must still match. Adapter and PostgreSQL tests
+cover recovery after review expiry and preservation of the first-attempt time.
+The retry horizon stays below Stripe's documented 24-hour minimum idempotency
+retention: https://docs.stripe.com/api/idempotent_requests.
+Verified phase updates, worker/UI wiring, operator resolution of overdue
+ambiguous attempts and renewal-time quantity transitions remain required before
+enabling decreases.

@@ -6,10 +6,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stripe/stripe-go/v86"
 	"testing"
+	"time"
 )
 
 func TestDecreaseScheduleAttachment(t *testing.T) {
-	for _, scenario := range []string{"retry", "customer", "subscription", "mode", "quantity", "price", "period", "cancel", "existing", "expired"} {
+	for _, scenario := range []string{"retry", "resume", "retry-expired", "retry-future", "retry-late-consent", "retry-renewed", "customer", "subscription", "mode", "quantity", "price", "period", "cancel", "existing", "expired"} {
 		t.Run(scenario, func(t *testing.T) {
 			c, b, sub, _, _, now, _ := increaseFixture(t)
 			q, err := c.PreviewDecrease(context.Background(), b, 1, now)
@@ -17,6 +18,7 @@ func TestDecreaseScheduleAttachment(t *testing.T) {
 				t.Fatal(err)
 			}
 			id := uuid.NewString()
+			firstAttempt := now
 			s := &stripe.SubscriptionSchedule{ID: "sub_sched_test", Livemode: b.Live, Status: "active", EndBehavior: "release", Customer: &stripe.Customer{ID: b.CustomerID}, Subscription: &stripe.Subscription{ID: b.SubscriptionID}, CurrentPhase: &stripe.SubscriptionScheduleCurrentPhase{StartDate: q.PeriodStart, EndDate: q.EffectiveAt}, Phases: []*stripe.SubscriptionSchedulePhase{{StartDate: q.PeriodStart, EndDate: q.EffectiveAt, Items: []*stripe.SubscriptionSchedulePhaseItem{{Price: &stripe.Price{ID: b.PriceID}, Quantity: b.PaidSlots}}}}}
 			switch scenario {
 			case "customer":
@@ -37,6 +39,17 @@ func TestDecreaseScheduleAttachment(t *testing.T) {
 				sub.Schedule = &stripe.SubscriptionSchedule{ID: "sub_sched_other"}
 			case "expired":
 				now = q.ExpiresAt
+			case "resume":
+				now = now.Add(11 * time.Minute)
+			case "retry-expired":
+				now = now.Add(23 * time.Hour)
+			case "retry-future":
+				firstAttempt = now.Add(time.Minute)
+			case "retry-late-consent":
+				firstAttempt = q.ExpiresAt
+				now = q.ExpiresAt.Add(time.Minute)
+			case "retry-renewed":
+				now = time.Unix(q.EffectiveAt, 0)
 			}
 			calls := 0
 			lost := errors.New("response lost")
@@ -54,7 +67,12 @@ func TestDecreaseScheduleAttachment(t *testing.T) {
 				}
 				return s, nil
 			}
-			got, err := c.AttachDecreaseSchedule(context.Background(), b, id, *q, now)
+			var got string
+			if scenario == "resume" || scenario == "retry-expired" || scenario == "retry-future" || scenario == "retry-late-consent" || scenario == "retry-renewed" {
+				got, err = c.ResumeDecreaseSchedule(context.Background(), b, id, *q, firstAttempt, now)
+			} else {
+				got, err = c.AttachDecreaseSchedule(context.Background(), b, id, *q, now)
+			}
 			if scenario == "retry" {
 				if !errors.Is(err, lost) {
 					t.Fatal(got, err)
@@ -63,11 +81,18 @@ func TestDecreaseScheduleAttachment(t *testing.T) {
 				if err != nil || got != s.ID || calls != 2 || sub.Items.Data[0].Quantity != b.PaidSlots {
 					t.Fatal(got, err, calls)
 				}
+			} else if scenario == "resume" {
+				if err != nil || got != s.ID || calls != 1 {
+					t.Fatal(got, err, calls)
+				}
 			} else if err == nil || got != "" {
 				t.Fatal("accepted invalid schedule", got, err)
 			}
 			if scenario == "expired" && calls != 0 {
 				t.Fatal("expired consent created schedule")
+			}
+			if (scenario == "retry-expired" || scenario == "retry-future" || scenario == "retry-late-consent" || scenario == "retry-renewed") && calls != 0 {
+				t.Fatal("unsafe retry reached provider")
 			}
 		})
 	}

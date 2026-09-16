@@ -174,6 +174,46 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='pending' WHERE quote_id=$1`, q.ID); err == nil {
 		t.Fatal("resolved decrease reopened")
 	}
+	for _, attempted := range []bool{false, true} {
+		// Persist historical evidence directly to exercise expiry without sleeps.
+		historical := preview
+		historical.ExpiresAt = now.Add(-time.Minute)
+		encoded, _ := json.Marshal(historical)
+		historyID := uuid.NewString()
+		if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_decrease_quotes(id,checkout_id,revision,preview,created_at,expires_at) VALUES($1,$2,1,$3,$4,$5)`, historyID, id, encoded, now.Add(-10*time.Minute), historical.ExpiresAt); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_decreases(quote_id,checkout_id,created_at) VALUES($1,$2,$3)`, historyID, id, now.Add(-5*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+		if attempted {
+			if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_decrease_attachments(quote_id,first_attempt_at,lease_until) VALUES($1,$2,$3)`, historyID, now.Add(-5*time.Minute), now.Add(-3*time.Minute)); err != nil {
+				t.Fatal(err)
+			}
+			// A harmless provider refresh can advance the revision after consent.
+			if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_subscription_state SET revision=2 WHERE checkout_id=$1`, id); err != nil {
+				t.Fatal(err)
+			}
+		}
+		historyClaim, e := claimAlertsStripeDecreaseAttachment(ctx, app, person, historyID)
+		var status string
+		if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_decreases WHERE quote_id=$1`, historyID).Scan(&status); err != nil {
+			t.Fatal(err)
+		}
+		if attempted {
+			if e != nil || historyClaim.Attempt != 2 || status != "pending" || !historyClaim.FirstAttempt.Equal(now.Add(-5*time.Minute)) {
+				t.Fatal(historyClaim, status, e)
+			}
+			if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='cancelled' WHERE quote_id=$1`, historyID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_subscription_state SET revision=1 WHERE checkout_id=$1`, id); err != nil {
+				t.Fatal(err)
+			}
+		} else if !errors.Is(e, alertsstripe.ErrReconcile) || status != "expired" {
+			t.Fatal(status, e)
+		}
+	}
 	if _, err = ReserveAlertsStripeIncrease(ctx, app, person, up.ID); err != nil {
 		t.Fatal(err)
 	}

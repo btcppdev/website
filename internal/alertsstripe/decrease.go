@@ -23,11 +23,28 @@ type DecreasePreview struct {
 // reference before changing phases. Retry an ambiguous response with the same
 // id: never adopt the subscription's existing schedule as proof of ownership.
 func (c Client) AttachDecreaseSchedule(ctx context.Context, b Binding, id string, q DecreasePreview, now time.Time) (string, error) {
+	return c.attachDecreaseSchedule(ctx, b, id, q, now, now)
+}
+
+// ResumeDecreaseSchedule uses a database-recorded first attempt, never a browser
+// timestamp. Consent must have been valid then. Stop before Stripe can prune the
+// idempotency key (24h), and before the reviewed renewal boundary.
+func (c Client) ResumeDecreaseSchedule(ctx context.Context, b Binding, id string, q DecreasePreview, firstAttempt, now time.Time) (string, error) {
+	if firstAttempt.IsZero() || firstAttempt.After(now) || !now.Before(firstAttempt.Add(23*time.Hour)) || now.Unix() >= q.EffectiveAt {
+		return "", ErrReconcile
+	}
+	return c.attachDecreaseSchedule(ctx, b, id, q, firstAttempt, now)
+}
+
+func (c Client) attachDecreaseSchedule(ctx context.Context, b Binding, id string, q DecreasePreview, validatedAt, now time.Time) (string, error) {
 	if c.CreateSchedule == nil || c.Subscription == nil || c.Live != b.Live {
 		return "", ErrSubscription
 	}
-	if _, err := decreaseScheduleParams(ctx, b, id, q, now); err != nil {
+	if _, err := decreaseScheduleParams(ctx, b, id, q, validatedAt); err != nil {
 		return "", err
+	}
+	if now.Unix() >= q.EffectiveAt {
+		return "", ErrReconcile
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
