@@ -73,10 +73,17 @@ func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now
 }
 
 func verifyIncreasePreview(in *stripe.Invoice, b Binding, out *IncreasePreview) error {
-	if in == nil || !strings.HasPrefix(in.ID, "upcoming_in_") || in.Livemode != b.Live || in.Currency != "usd" || in.Customer == nil || in.Customer.ID != b.CustomerID || in.Parent == nil || in.Parent.SubscriptionDetails == nil || in.Parent.SubscriptionDetails.Subscription == nil || in.Parent.SubscriptionDetails.Subscription.ID != b.SubscriptionID || in.BillingReason != "subscription_update" {
+	if in == nil || !strings.HasPrefix(in.ID, "upcoming_in_") || in.AmountPaid != 0 {
 		return ErrInvoice
 	}
-	if in.AutomaticTax == nil || !in.AutomaticTax.Enabled || in.AutomaticTax.Status != "complete" || len(in.Discounts) != 0 || in.StartingBalance != 0 || in.EndingBalance != 0 || in.AmountPaid != 0 || in.AmountPaidOffStripe != 0 || in.PrePaymentCreditNotesAmount != 0 || in.PostPaymentCreditNotesAmount != 0 || in.AmountDue != in.Total || in.Total < 0 || in.Total > (out.PaidSlots-out.PreviousSlots)*servicebilling.AlertsMonthlySlotCents {
+	return verifyIncreaseTerms(in, b, out)
+}
+
+func verifyIncreaseTerms(in *stripe.Invoice, b Binding, out *IncreasePreview) error {
+	if in == nil || in.Livemode != b.Live || in.Currency != "usd" || in.Customer == nil || in.Customer.ID != b.CustomerID || in.Parent == nil || in.Parent.Type != "subscription_details" || in.Parent.SubscriptionDetails == nil || in.Parent.SubscriptionDetails.Subscription == nil || in.Parent.SubscriptionDetails.Subscription.ID != b.SubscriptionID || in.BillingReason != "subscription_update" {
+		return ErrInvoice
+	}
+	if in.AutomaticTax == nil || !in.AutomaticTax.Enabled || in.AutomaticTax.Status != "complete" || len(in.Discounts) != 0 || in.StartingBalance != 0 || in.EndingBalance != 0 || in.AmountPaidOffStripe != 0 || in.PrePaymentCreditNotesAmount != 0 || in.PostPaymentCreditNotesAmount != 0 || in.AmountDue != in.Total || in.Total < 0 || in.Total > (out.PaidSlots-out.PreviousSlots)*servicebilling.AlertsMonthlySlotCents {
 		return ErrInvoice
 	}
 	// This entry point accepts a single licensed monthly item with a credit for

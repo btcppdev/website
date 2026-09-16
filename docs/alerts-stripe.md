@@ -227,7 +227,7 @@ cancellations mutually exclude one another under the account billing lock.
 PostgreSQL tests cover ownership, expiry, stale reviews, concurrent confirmations,
 immutable quotes and resolved outcomes, conflicts in both directions, and no
 entitlement grant from reservation. This storage is not exposed through HTTP yet:
-provider coordination/recovery, paid proration verification, quantity versioning and
+provider coordination/recovery, paid proration fulfillment, quantity versioning and
 the customer review UI remain required before enabling upgrades.
 
 The `SubmitIncrease` provider adapter now rechecks the frozen preview at its
@@ -243,3 +243,13 @@ Adapter tests cover request parameters, pending and applied responses, changed
 review evidence, invalid provider responses and transport ambiguity. Real Stripe
 test-mode validation, durable submission/recovery and paid invoice fulfillment
 are still outstanding. Reference: [Stripe pending updates](https://docs.stripe.com/billing/subscriptions/pending-updates).
+
+`PaidIncreaseInvoice` now re-reads the invoice and expanded price from Stripe and
+verifies payment, ownership, the original quote's exact totals/tax, and both
+proration lines. Its `PaidIncrease` evidence carries only the added slots from the
+proration timestamp to the existing period end. It is deliberately distinct from
+`PaidPeriod`; the monthly invoice verifier continues rejecting prorations.
+Tests reject unpaid/partial payments, foreign ownership, changed quantities or
+periods, wrong tax/price, credits, extra lines and incomplete pagination. This does
+not yet fulfill an upgrade: atomic invoice recording, quantity revisions and
+durable provider recovery remain needed before connecting customer confirmation.
