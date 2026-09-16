@@ -87,7 +87,22 @@ to `https://alerts.btcpp.dev/alerts`. Handler presentation/template tests pass;
 browser and Stripe test-mode end-to-end verification remain open.
 
 - Implement failed-renewal grace, cancellation, pause and refund transitions.
-- Implement immediate prorated increases and next-renewal decreases.
+- Complete immediate prorated increases and next-renewal decreases. The read-only
+  `PreviewIncrease` adapter now verifies the current paid period, requests an
+  immediate-proration preview at a fixed timestamp, and validates the returned
+  credit/debit lines, account/customer/subscription item, quantity, price, USD total
+  and inclusive tax. It rejects unpaid time, pending changes, schedules, discounts,
+  customer balance adjustments, unrelated lines and partial pages. Tests verify
+  that previewing never mutates the subscription. This currently covers the
+  two-line credit/replacement shape; real Stripe test-mode confirmation remains
+  required before enabling it. Reviewed-quote persistence, pending-payment update
+  submission, versioned quantity evidence, upgrade invoice fulfillment, renewal
+  schedules and customer controls remain unfinished.
+
+  The implementation follows Stripe's [invoice preview](https://docs.stripe.com/api/invoices/create_preview)
+  guidance for reusing the proration timestamp. Confirmation will use
+  [pending updates](https://docs.stripe.com/billing/subscriptions/pending-updates)
+  so an unpaid increase cannot become an active quantity change.
 - Recover ambiguous creations without a session ID.
   The signed `checkout.session.expired` path now re-fetches the session and only
   closes a matching, expired, unpaid session with no invoice or subscription.
