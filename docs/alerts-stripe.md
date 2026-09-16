@@ -514,6 +514,15 @@ The existing 14-day grace/reminder policy uses that verified one-slot renewal
 fact. Full renewal HTTP/provider fixtures and customer controls remain required
 before enabling decreases.
 
+The decrease review preparer now verifies account ownership before provider reads,
+refreshes the current binding/revision, and saves the reviewed lower quantity,
+tax-inclusive monthly total and renewal date. Reloads reuse an unexpired unchanged
+review; an existing pending/scheduled/review-needed instruction resumes its
+original quote instead of silently replacing consent. Zero paid slots is reserved
+for cancellation. PostgreSQL tests cover foreign accounts, invalid quantities,
+review reuse, no implicit confirmation and resuming saved consent. Customer-facing
+review/confirmation pages still need wiring.
+
 Confirmed decreases now wake the existing opt-in Stripe reconciliation worker.
 Pending requests receive its two-minute lease and resume attachment followed by
 verified phase scheduling; scheduled requests observe renewal transitions before

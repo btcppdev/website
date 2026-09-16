@@ -58,6 +58,36 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	priceForReview := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	subForReview := &stripe.Subscription{ID: b.SubscriptionID, Status: "active", CollectionMethod: "charge_automatically", Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{ID: "si_review", Quantity: 3, Price: priceForReview, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
+	reads := 0
+	readClient := alertsstripe.Client{Subscription: func(got string, p *stripe.SubscriptionParams) (*stripe.Subscription, error) {
+		reads++
+		if got != b.SubscriptionID {
+			t.Fatal(got)
+		}
+		return subForReview, nil
+	}}
+	if _, err = PrepareAlertsStripeDecrease(ctx, app, uuid.NewString(), id, 2, readClient); !errors.Is(err, pgx.ErrNoRows) || reads != 0 {
+		t.Fatal("foreign review reached provider", err, reads)
+	}
+	fresh, err := PrepareAlertsStripeDecrease(ctx, app, person, id, 2, readClient)
+	if err != nil || fresh.Preview.PaidSlots != 2 || fresh.Preview.MonthlyCents != 400 || fresh.Preview.EffectiveAt != end.Unix() {
+		t.Fatal(fresh, err)
+	}
+	repeat, err := PrepareAlertsStripeDecrease(ctx, app, person, id, 2, readClient)
+	if err != nil || repeat.ID != fresh.ID {
+		t.Fatal("duplicate review", repeat, err)
+	}
+	for _, slots := range []int64{0, -1, 3, 4} {
+		if _, err = PrepareAlertsStripeDecrease(ctx, app, person, id, slots, readClient); !errors.Is(err, alertsstripe.ErrSubscription) {
+			t.Fatal("invalid decrease", slots, err)
+		}
+	}
+	var confirmed int
+	if err = app.DB.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_decreases WHERE checkout_id=$1`, id).Scan(&confirmed); err != nil || confirmed != 0 {
+		t.Fatal("review confirmed decrease", confirmed, err)
+	}
 	up, err := SaveAlertsStripeIncreaseQuote(ctx, app, person, id, 1, alertsstripe.IncreasePreview{SubscriptionItemID: "si_test", PreviousSlots: 3, PaidSlots: 4, PeriodStart: start.Unix(), PeriodEnd: end.Unix(), ProrationDate: now.Unix(), TotalCents: 100, ExpiresAt: now.Add(10 * time.Minute)})
 	if err != nil {
 		t.Fatal(err)
@@ -103,6 +133,10 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	resumed, err := PrepareAlertsStripeDecrease(ctx, app, person, id, 2, alertsstripe.Client{})
+	if err != nil || resumed.ID != q.ID || resumed.Preview.PaidSlots != 1 {
+		t.Fatal("pending consent replaced by new selection", resumed, err)
+	}
 	var due bool
 	if err = app.DB.QueryRow(ctx, `SELECT next_reconcile_at<=now() FROM alerts_stripe_checkouts WHERE id=$1`, id).Scan(&due); err != nil || !due {
 		t.Fatal("confirmation did not wake worker", due, err)
