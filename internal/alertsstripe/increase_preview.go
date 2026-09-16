@@ -21,6 +21,9 @@ type IncreasePreview struct {
 }
 
 func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now time.Time) (*IncreasePreview, error) {
+	// Stripe's proration timestamp has second precision. Keep the saved expiry
+	// reproducible when confirmation rechecks that exact timestamp.
+	now = now.UTC().Truncate(time.Second)
 	if c.PreviewInvoice == nil || c.Subscription == nil || c.Live != b.Live || slots <= b.PaidSlots {
 		return nil, ErrSubscription
 	}

@@ -227,5 +227,19 @@ cancellations mutually exclude one another under the account billing lock.
 PostgreSQL tests cover ownership, expiry, stale reviews, concurrent confirmations,
 immutable quotes and resolved outcomes, conflicts in both directions, and no
 entitlement grant from reservation. This storage is not exposed through HTTP yet:
-provider submission/recovery, paid proration verification, quantity versioning and
+provider coordination/recovery, paid proration verification, quantity versioning and
 the customer review UI remain required before enabling upgrades.
+
+The `SubmitIncrease` provider adapter now rechecks the frozen preview at its
+original second-precision proration timestamp and submits the existing item with
+`always_invoice` and `pending_if_incomplete`. The durable quote ID supplies the
+idempotency key. A changed review, unpaid base period or existing pending change
+prevents submission. The result is only an invoice reference for reconciliation,
+including whether Stripe left the change pending; it cannot grant access. Lost
+responses propagate as errors for the coordinator to reconcile. Applied or pending
+changes are not blindly resubmitted by this adapter.
+
+Adapter tests cover request parameters, pending and applied responses, changed
+review evidence, invalid provider responses and transport ambiguity. Real Stripe
+test-mode validation, durable submission/recovery and paid invoice fulfillment
+are still outstanding. Reference: [Stripe pending updates](https://docs.stripe.com/billing/subscriptions/pending-updates).
