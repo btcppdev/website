@@ -288,3 +288,13 @@ reservation makes the checkout immediately eligible. PostgreSQL tests cover lost
 reference recovery, unpaid and foreign-account rejection, and concurrent verified
 callbacks returning one receipt. Submission orchestration, unpaid/authentication
 flows, expiry handling and the customer review screen remain unfinished.
+
+The `IncreasePaymentLink` adapter re-reads an existing invoice and price, checks
+the exact saved quote and ownership, then returns only an HTTPS
+`invoice.stripe.com/i/` URL for an unpaid open invoice. It neither charges nor
+grants access. Paid, void, partially paid, mismatched and unsafe-link responses
+are rejected. Adapter tests cover those cases and provider failures. The shared
+reviewed-invoice validator keeps paid fulfillment and payment links aligned.
+This adapter still needs the account-owned HTTP handoff and submission coordinator.
+Stripe's [hosted invoice page](https://docs.stripe.com/invoicing/hosted-invoice-page)
+provides payment and card-authentication UI; real test-mode validation remains.

@@ -22,24 +22,10 @@ type PaidIncrease struct {
 
 func VerifyIncreaseInvoice(in *stripe.Invoice, price *stripe.Price, b Binding, intent IncreaseIntent) (*PaidIncrease, error) {
 	q := intent.Preview
-	if _, err := uuid.Parse(intent.ID); err != nil {
-		return nil, ErrInvoice
-	}
-	if b.IntentID == "" || b.PersonID == "" || !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(q.SubscriptionItemID, "si_") || b.PaidSlots < 1 || q.PreviousSlots != b.PaidSlots || q.PaidSlots <= q.PreviousSlots || q.PeriodStart <= 0 || q.ProrationDate < q.PeriodStart || q.ProrationDate >= q.PeriodEnd || !validMonthlyPrice(price, b) {
-		return nil, ErrInvoice
-	}
-	if _, err := servicebilling.AlertsTerm("stripe", q.PaidSlots, 1, time.Unix(q.ProrationDate, 0)); err != nil {
-		return nil, ErrInvoice
-	}
-	if in == nil || !strings.HasPrefix(in.ID, "in_") || in.Status != "paid" || in.AmountPaid != q.TotalCents || in.AmountRemaining != 0 || in.StatusTransitions == nil || in.StatusTransitions.PaidAt < q.ProrationDate {
-		return nil, ErrInvoice
-	}
-	actual := q
-	if err := verifyIncreaseTerms(in, b, &actual); err != nil {
+	if err := verifyReviewedIncreaseInvoice(in, price, b, intent); err != nil {
 		return nil, err
 	}
-	meta := in.Parent.SubscriptionDetails.Metadata
-	if meta["product"] != "alerts.repository-slots" || meta["account_id"] != b.PersonID || meta["checkout_intent"] != b.IntentID || actual.TotalCents != q.TotalCents || actual.TaxCents != q.TaxCents {
+	if in == nil || !strings.HasPrefix(in.ID, "in_") || in.Status != "paid" || in.AmountPaid != q.TotalCents || in.AmountRemaining != 0 || in.StatusTransitions == nil || in.StatusTransitions.PaidAt < q.ProrationDate {
 		return nil, ErrInvoice
 	}
 	return &PaidIncrease{QuoteID: intent.ID, InvoiceID: in.ID, SubscriptionID: b.SubscriptionID, PreviousSlots: q.PreviousSlots, PaidSlots: q.PaidSlots, AdditionalSlots: q.PaidSlots - q.PreviousSlots, TotalCents: q.TotalCents, TaxCents: q.TaxCents, Start: time.Unix(q.ProrationDate, 0).UTC(), End: time.Unix(q.PeriodEnd, 0).UTC(), PaidAt: time.Unix(in.StatusTransitions.PaidAt, 0).UTC()}, nil
@@ -70,4 +56,29 @@ func (c Client) PaidIncreaseInvoice(ctx context.Context, id string, b Binding, i
 		return nil, err
 	}
 	return VerifyIncreaseInvoice(invoice, price, b, in)
+}
+
+func verifyReviewedIncreaseInvoice(in *stripe.Invoice, price *stripe.Price, b Binding, intent IncreaseIntent) error {
+	q := intent.Preview
+	if _, err := uuid.Parse(intent.ID); err != nil {
+		return ErrInvoice
+	}
+	if b.IntentID == "" || b.PersonID == "" || !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(q.SubscriptionItemID, "si_") || b.PaidSlots < 1 || q.PreviousSlots != b.PaidSlots || q.PaidSlots <= q.PreviousSlots || q.PeriodStart <= 0 || q.ProrationDate < q.PeriodStart || q.ProrationDate >= q.PeriodEnd || !validMonthlyPrice(price, b) {
+		return ErrInvoice
+	}
+	if _, err := servicebilling.AlertsTerm("stripe", q.PaidSlots, 1, time.Unix(q.ProrationDate, 0)); err != nil {
+		return ErrInvoice
+	}
+	if in == nil || !strings.HasPrefix(in.ID, "in_") {
+		return ErrInvoice
+	}
+	actual := q
+	if err := verifyIncreaseTerms(in, b, &actual); err != nil {
+		return err
+	}
+	meta := in.Parent.SubscriptionDetails.Metadata
+	if meta["product"] != "alerts.repository-slots" || meta["account_id"] != b.PersonID || meta["checkout_intent"] != b.IntentID || actual.TotalCents != q.TotalCents || actual.TaxCents != q.TaxCents {
+		return ErrInvoice
+	}
+	return nil
 }
