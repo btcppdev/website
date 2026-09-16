@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"btcpp-web/internal/alertsstripe"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stripe/stripe-go/v86"
 )
@@ -100,9 +101,59 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	sub.CancelAtPeriodEnd = true
-	if err = RefreshAlertsStripeSubscription(ctx, app, person, reserved.Intent.ID, client); err != nil {
+	requestID := uuid.NewString()
+	if _, err = ReserveAlertsStripeCancellation(ctx, app, person, reserved.Intent.ID, requestID, 999, end.Unix()); !errors.Is(err, alertsstripe.ErrSubscription) {
+		t.Fatal("stale cancellation review accepted", err)
+	}
+	cancellation, err := ReserveAlertsStripeCancellation(ctx, app, person, reserved.Intent.ID, requestID, 1, end.Unix())
+	if err != nil {
 		t.Fatal(err)
+	}
+	other, err := ReserveAlertsStripeCancellation(ctx, app, person, reserved.Intent.ID, uuid.NewString(), 1, end.Unix())
+	if err != nil || other.Intent.ID != cancellation.Intent.ID {
+		t.Fatal("duplicate pending instruction", other, err)
+	}
+	if _, err = ProcessAlertsStripeCancellation(ctx, app, "00000000-0000-0000-0000-000000000000", requestID, client); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("cross-account cancellation", err)
+	}
+	updates := 0
+	lost := errors.New("response lost after provider applied cancellation")
+	client.UpdateSubscription = func(id string, p *stripe.SubscriptionParams) (*stripe.Subscription, error) {
+		updates++
+		var saved string
+		if e := app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_cancellations WHERE id=$1`, requestID).Scan(&saved); e != nil || saved != "pending" {
+			t.Fatal("provider called without committed consent", saved, e)
+		}
+		if p.IdempotencyKey == nil || *p.IdempotencyKey != "alerts-cancel:"+requestID {
+			t.Fatal("wrong cancellation key")
+		}
+		sub.CancelAtPeriodEnd = true
+		return nil, lost
+	}
+	if _, err = ProcessAlertsStripeCancellation(ctx, app, person, requestID, client); !errors.Is(err, lost) {
+		t.Fatal("ambiguous response lost", err)
+	}
+	var persisted string
+	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_cancellations WHERE id=$1`, requestID).Scan(&persisted); err != nil || persisted != "pending" {
+		t.Fatal("lost pending request", persisted, err)
+	}
+	client.ListInvoices = func(*stripe.InvoiceListParams) (*stripe.InvoiceList, error) { return &stripe.InvoiceList{}, nil }
+	if err = RecoverAlertsStripePayments(ctx, app, person, reserved.Intent.ID, client); err != nil {
+		t.Fatal("background payment recovery did not reconcile cancellation", err)
+	}
+	for i := 0; i < 2; i++ {
+		if outcome, e := ProcessAlertsStripeCancellation(ctx, app, person, requestID, client); e != nil || outcome != "confirmed" {
+			t.Fatal(outcome, e)
+		}
+	}
+	if updates != 1 {
+		t.Fatal("recovery sent another mutation", updates)
+	}
+	if _, err = ReserveAlertsStripeCancellation(ctx, app, person, reserved.Intent.ID, requestID, 1, end.Unix()); err != nil {
+		t.Fatal("repeated consent lost original result", err)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_cancellations SET state='pending' WHERE id=$1`, requestID); err == nil {
+		t.Fatal("reopened confirmed cancellation")
 	}
 	var revision int64
 	var state string

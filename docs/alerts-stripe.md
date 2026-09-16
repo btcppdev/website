@@ -156,9 +156,26 @@ still match the saved plan and original period. Transport errors remain ambiguou
 the caller must not report success or construct a replacement request. This method
 does not revoke paid grants, refund payments, cancel immediately, or resume billing.
 
-The durable cancellation coordinator, account confirmation page, and dashboard
-management link remain to implement; no customer route invokes the adapter yet.
+The durable cancellation coordinator is described below. The account confirmation
+page and dashboard management link remain to implement; no customer route invokes
+the adapter yet.
 Provider-adapter tests and the existing PostgreSQL Alerts checkout/invoice tests
 pass. No real Stripe cancellation has been performed.
 
 Reference: [Stripe end-of-period cancellation](https://docs.stripe.com/billing/subscriptions/cancel).
+
+Migration 115 now persists cancellation intents with immutable identity and
+reviewed period. `ReserveAlertsStripeCancellation` checks account ownership and
+subscription revision, commits consent before provider I/O, and reuses pending
+instructions across duplicate submissions. `ProcessAlertsStripeCancellation`
+serializes account billing changes, reads current provider state before retrying,
+and atomically records the verified subscription/renewal state and cancellation
+outcome. Verified paid grants are left intact. Ambiguous errors remain pending;
+changed periods and requests past the safe retry window become `review`.
+
+The existing opt-in reconciliation worker processes pending cancellations before
+invoice recovery. Reservation makes the checkout immediately eligible; pending
+cancellations use a 15-minute retry lease. A lost-response PostgreSQL test verifies
+committed consent, recovery without a second mutation, duplicate submissions,
+account isolation, immutable confirmed outcomes, and preserved paid-through dates.
+The customer confirmation page and management link still remain to implement.

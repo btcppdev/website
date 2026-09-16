@@ -27,6 +27,15 @@ func RecoverAlertsStripePayments(ctx context.Context, app *config.AppContext, pe
 	if binding.IntentID != id || binding.PersonID != person {
 		return alertsstripe.ErrInvoice
 	}
+	var cancellation string
+	err = app.DB.QueryRow(ctx, `SELECT id::text FROM alerts_stripe_cancellations WHERE checkout_id=$1 AND state='pending'`, id).Scan(&cancellation)
+	if err == nil {
+		if _, err = ProcessAlertsStripeCancellation(ctx, app, person, cancellation, client); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
 	if err = RefreshAlertsStripeSubscription(ctx, app, person, id, client); err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"btcpp-web/internal/config"
 	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5"
 	"time"
 )
 
@@ -39,17 +40,24 @@ func refreshAlertsStripeSubscriptionAt(ctx context.Context, app *config.AppConte
 	if err != nil {
 		return err
 	}
-	raw, err = json.Marshal(state)
+	if err = saveAlertsStripeSubscriptionState(ctx, tx, binding, state, client, now); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func saveAlertsStripeSubscriptionState(ctx context.Context, tx pgx.Tx, binding alertsstripe.Binding, state alertsstripe.SubscriptionState, client alertsstripe.Client, now time.Time) error {
+	raw, err := json.Marshal(state)
 	if err != nil {
 		return err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_subscription_state(checkout_id,revision,snapshot) VALUES($1,1,$2)
- ON CONFLICT(checkout_id) DO UPDATE SET revision=alerts_stripe_subscription_state.revision+CASE WHEN alerts_stripe_subscription_state.snapshot<>excluded.snapshot THEN 1 ELSE 0 END,snapshot=excluded.snapshot,observed_at=now()`, id, raw)
+ ON CONFLICT(checkout_id) DO UPDATE SET revision=alerts_stripe_subscription_state.revision+CASE WHEN alerts_stripe_subscription_state.snapshot<>excluded.snapshot THEN 1 ELSE 0 END,snapshot=excluded.snapshot,observed_at=now()`, binding.IntentID, raw)
 	if err != nil {
 		return err
 	}
 	if err = projectAlertsStripeRenewal(ctx, tx, binding, state, client, now); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
