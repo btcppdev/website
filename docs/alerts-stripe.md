@@ -414,9 +414,9 @@ boundary, then sets the lower quantity for a monthly phase and releases the
 schedule afterward so the subscription continues at that quantity. Both the
 update and phase transitions disable proration; automatic tax and the verified
 price are retained. Tests cover these parameters, expired reviews, zero-slot
-handling and conflicting subscription state. No schedule API mutation is wired
-yet. Durable consent, schedule creation/reference recovery, verified phase
-updates, renewal quantity transition and customer controls remain required.
+handling and conflicting subscription state. The builder is not yet connected
+to the billing coordinator. Verified phase updates, renewal quantity transition
+and customer controls remain required.
 
 Stripe requires separate attach/update calls when scheduling changes on an
 existing subscription: [subscription schedules](https://docs.stripe.com/billing/subscriptions/subscription-schedules),
@@ -430,5 +430,15 @@ the account billing lock. Upgrade/cancellation reservations exclude decreases in
 the opposite direction as well. Confirmation never changes current access.
 PostgreSQL tests cover concurrency, ownership, stale/expired review, immutable
 evidence, conflicts in both directions and preserved current quantity/expiry.
-No decrease HTTP path or provider mutation is enabled yet; schedule attachment,
-phase verification, recovery and renewal-time quantity transitions remain required.
+No decrease HTTP path or provider mutation is enabled in the coordinator yet.
+
+The Stripe adapter can now attach a schedule using `from_subscription` alone,
+with a stable key derived from the persisted confirmation ID. It checks current
+ownership, quantity and reviewed billing period before calling Stripe, then
+verifies the returned schedule/customer/subscription, release behavior and
+unchanged current phase. A retry after a lost response repeats the same creation;
+it never adopts an arbitrary existing schedule. Unit tests cover that retry,
+expired consent and mismatched provider responses. These are mocked provider
+tests, not live Stripe validation. The caller must persist the returned schedule
+reference before updating phases. Durable attachment claims/reference recovery,
+phase verification and renewal-time quantity transitions remain required.

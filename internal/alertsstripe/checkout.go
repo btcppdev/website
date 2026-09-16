@@ -18,6 +18,7 @@ import (
 	stripeInvoice "github.com/stripe/stripe-go/v86/invoice"
 	stripePrice "github.com/stripe/stripe-go/v86/price"
 	stripeSubscription "github.com/stripe/stripe-go/v86/subscription"
+	stripeSchedule "github.com/stripe/stripe-go/v86/subscriptionschedule"
 )
 
 var ErrCheckout = errors.New("invalid Alerts Stripe checkout")
@@ -35,6 +36,7 @@ type Intent struct {
 }
 
 type Client struct {
+	CreateSchedule     func(*stripe.SubscriptionScheduleParams) (*stripe.SubscriptionSchedule, error)
 	PreviewInvoice     func(*stripe.InvoiceCreatePreviewParams) (*stripe.Invoice, error)
 	UpdateSubscription func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error)
 	Subscription       func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error)
@@ -47,7 +49,7 @@ type Client struct {
 }
 
 func NewClient(live bool) Client {
-	return Client{PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+	return Client{CreateSchedule: stripeSchedule.New, PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
 		params.Single = true
 		iter := stripeInvoice.List(params)
 		for iter.Next() {

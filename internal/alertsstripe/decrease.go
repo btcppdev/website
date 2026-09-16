@@ -5,6 +5,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/stripe/stripe-go/v86"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,53 @@ type DecreasePreview struct {
 	PeriodStart, EffectiveAt int64
 	MonthlyCents             int64
 	ExpiresAt                time.Time
+}
+
+// AttachDecreaseSchedule migrates a subscription without changing its terms.
+// The caller must durably reserve id before calling and persist the returned
+// reference before changing phases. Retry an ambiguous response with the same
+// id: never adopt the subscription's existing schedule as proof of ownership.
+func (c Client) AttachDecreaseSchedule(ctx context.Context, b Binding, id string, q DecreasePreview, now time.Time) (string, error) {
+	if c.CreateSchedule == nil || c.Subscription == nil || c.Live != b.Live {
+		return "", ErrSubscription
+	}
+	if _, err := decreaseScheduleParams(ctx, b, id, q, now); err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	p := &stripe.SubscriptionParams{}
+	p.Context = ctx
+	p.AddExpand("items.data.price.product")
+	sub, err := c.Subscription(b.SubscriptionID, p)
+	if err != nil {
+		return "", err
+	}
+	state, err := verifySubscription(sub, b)
+	if err != nil || state.State != "active" || state.ProviderStatus != "active" || state.PeriodStart != q.PeriodStart || state.PeriodEnd != q.EffectiveAt || sub.PendingUpdate != nil || sub.CollectionMethod != "charge_automatically" || len(sub.Discounts) != 0 || len(sub.Items.Data[0].Discounts) != 0 {
+		return "", ErrSubscription
+	}
+	// Stripe's from_subscription call cannot include phase changes or metadata.
+	// An existing schedule is allowed only so this exact creation can be replayed
+	// after a lost response; Stripe rejects a new migration of a scheduled sub.
+	create := &stripe.SubscriptionScheduleParams{FromSubscription: stripe.String(b.SubscriptionID)}
+	create.Context = ctx
+	create.SetIdempotencyKey("alerts-decrease-create:" + id)
+	s, err := c.CreateSchedule(create)
+	if err != nil {
+		return "", err
+	}
+	if s == nil || !strings.HasPrefix(s.ID, "sub_sched_") || s.Livemode != b.Live || s.Status != "active" || s.EndBehavior != "release" || s.Subscription == nil || s.Subscription.ID != b.SubscriptionID || s.Customer == nil || s.Customer.ID != b.CustomerID || s.CurrentPhase == nil || s.CurrentPhase.StartDate != q.PeriodStart || s.CurrentPhase.EndDate != q.EffectiveAt || len(s.Phases) != 1 {
+		return "", ErrSubscription
+	}
+	if sub.Schedule != nil && sub.Schedule.ID != s.ID {
+		return "", ErrSubscription
+	}
+	phase := s.Phases[0]
+	if phase == nil || phase.StartDate != q.PeriodStart || phase.EndDate != q.EffectiveAt || len(phase.Items) != 1 || phase.Items[0] == nil || phase.Items[0].Price == nil || phase.Items[0].Price.ID != b.PriceID || phase.Items[0].Quantity != b.PaidSlots {
+		return "", ErrSubscription
+	}
+	return s.ID, nil
 }
 
 func (c Client) PreviewDecrease(ctx context.Context, b Binding, slots int64, now time.Time) (*DecreasePreview, error) {
