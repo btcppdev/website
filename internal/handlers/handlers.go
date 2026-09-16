@@ -9547,9 +9547,8 @@ func dispatchShiftCalAfterReschedule(ctx *config.AppContext, conf *types.Conf, s
 // Gifts list. Conf is in the URL (no dropdown), auth gated by
 // requireConfStaff. Each row is one speaker (deduped — a speaker
 // on multiple talks appears once, with the clipart from their
-// "most interesting" talk: fewer co-speakers wins, so a solo keynote
-// outranks a panel appearance). Ties break on first-encountered, with
-// a non-empty clipart beating an empty one. {conf}-staff volunteers
+// illustrated talk with the fewest co-speakers; usable panel artwork
+// beats a solo talk without artwork. Ties break on first-encountered. {conf}-staff volunteers
 // also appear, using the conf's leading.png as their gift clipart.
 func AdminGifts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if id := requireConfStaff(w, r, ctx); id == nil {
@@ -9569,72 +9568,7 @@ func AdminGifts(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		return
 	}
 
-	// Pick the smallest-panel talk per speaker. Key on Speaker.ID
-	// when available, fall back to lower-cased name (older rows
-	// may lack stable IDs).
-	type pick struct {
-		name    string
-		clipart string
-		panelN  int
-	}
-	best := map[string]*pick{}
-	for _, talk := range talks {
-		if talk == nil {
-			continue
-		}
-		n := len(talk.Speakers)
-		for _, sp := range talk.Speakers {
-			if sp == nil {
-				continue
-			}
-			key := sp.ID
-			if key == "" {
-				key = "name:" + strings.ToLower(strings.TrimSpace(sp.Name))
-			}
-			prev, ok := best[key]
-			if !ok {
-				best[key] = &pick{name: sp.Name, clipart: talk.Clipart, panelN: n}
-				continue
-			}
-			// Fewer co-speakers wins. On tie, prefer the
-			// non-empty clipart so a panel-with-art doesn't
-			// lose to a same-size panel-without-art.
-			if n < prev.panelN || (n == prev.panelN && prev.clipart == "" && talk.Clipart != "") {
-				prev.clipart = talk.Clipart
-				prev.panelN = n
-				prev.name = sp.Name
-			}
-		}
-	}
-
-	rows := make([]*GiftRow, 0, len(best))
-	for _, p := range best {
-		rows = append(rows, &GiftRow{Clipart: p.clipart, SpeakerName: p.name})
-	}
-
-	// {conf}-staff Speakers row too — leading.png as their
-	// clipart, skipped if they're already on a talk.
-	for _, sp := range staffSpeakersForConf(ctx, conf.Tag) {
-		if sp == nil {
-			continue
-		}
-		key := sp.ID
-		if key == "" {
-			key = "name:" + strings.ToLower(strings.TrimSpace(sp.Name))
-		}
-		if _, ok := best[key]; ok {
-			continue
-		}
-		best[key] = &pick{} // mark to dedupe across staff list itself
-		rows = append(rows, &GiftRow{
-			Clipart:     "leading.png",
-			SpeakerName: sp.Name,
-		})
-	}
-
-	sort.SliceStable(rows, func(i, j int) bool {
-		return strings.ToLower(rows[i].SpeakerName) < strings.ToLower(rows[j].SpeakerName)
-	})
+	rows := speakerGiftRows(talks, staffSpeakersForConf(ctx, conf.Tag))
 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "talks/gifts.tmpl", &TalksGiftsPage{
 		Conf:     conf,
