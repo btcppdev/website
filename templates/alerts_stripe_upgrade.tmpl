@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en"><head><title>Upgrade Alerts · bitcoin++</title>{{ block "header" . }}{{ end }}
+<link rel="stylesheet" href="/static/css/login-layout.css?v=3"></head>
+<body class="btcpp-login-page">{{ block "mainnav" . }}{{ end }}
+<main class="auth-shell auth-shell--simple"><section class="auth-card">
+<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>Upgrade your alerts</h1></header>
+<p role="status">{{ .Message }}</p>
+<dl><dt>Paid project subscriptions</dt><dd>{{ .Previous }} → {{ .Desired }}, plus your three free projects</dd>
+<dt>Prorated upgrade charge</dt><dd>{{ .Charge }} through {{ .Period }}</dd>
+<dt>Included tax</dt><dd>{{ .Tax }}</dd>
+<dt>New monthly total</dt><dd>{{ .Monthly }}, including applicable tax</dd></dl>
+{{ if .CanConfirm }}<p>Confirming authorizes the prorated charge using your saved payment method. Additional authentication may be required.</p>
+<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="confirm"><button type="submit" class="auth-primary">Confirm upgrade · {{ .Charge }}</button></form>{{ end }}
+{{ if .CanPay }}<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="pay"><button type="submit" class="auth-primary">Complete payment with Stripe</button></form>{{ end }}
+<p><a href="/services/alerts/manage">Manage billing</a> · <a href="https://alerts.btcpp.dev/alerts">My alerts</a></p>
+</section></main></body></html>

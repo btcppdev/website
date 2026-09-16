@@ -332,3 +332,15 @@ invoice, an active submission lease or an unresolved provider update remains
 pending. Adapter and PostgreSQL tests cover those distinctions, repeated
 resolution and immutable evidence. The customer review/status/payment pages and
 automatic submission wiring remain outstanding.
+
+`/services/alerts/upgrade/{quote}` now renders the account-owned saved review and
+durable status. It displays the prorated charge, included tax, new paid-slot count,
+period end and tax-inclusive monthly total. A CSRF-protected confirmation POST
+reserves consent, tries read-only recovery and then submits using the durable
+claim. Provider failures preserve the confirmation. A separate payment POST
+resolves the saved invoice to Stripe; GET never submits a charge. Login continuation,
+owner checks and a one-minute request deadline protect the handoff. HTTP tests
+with PostgreSQL verify rendering, ignored forged success/amount query flags,
+CSRF, foreign-account isolation and stale review rejection after cancellation.
+The entry point that prepares a quote from the Alerts cart, full successful
+HTTP confirmation/payment tests and browser visual review remain outstanding.

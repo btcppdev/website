@@ -40,7 +40,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	}
 	defer pool.Close()
 	app := &config.AppContext{DB: pool, Session: scs.New(), Env: &types.EnvConfig{Host: "localhost", Port: "8898", StripeKey: "sk_test_local_fixture"}}
-	app.TemplateCache, err = template.ParseFiles("../../templates/alerts_stripe_start.tmpl", "../../templates/alerts_stripe_return.tmpl", "../../templates/alerts_stripe_manage.tmpl")
+	app.TemplateCache, err = template.ParseFiles("../../templates/alerts_stripe_start.tmpl", "../../templates/alerts_stripe_return.tmpl", "../../templates/alerts_stripe_manage.tmpl", "../../templates/alerts_stripe_upgrade.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,6 +112,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	stripe.Key = app.Env.StripeKey
 	defer func() { stripe.SetBackend(stripe.APIBackend, previous); stripe.Key = key }()
 	router := mux.NewRouter()
+	router.HandleFunc("/services/alerts/upgrade/{quote}", func(w http.ResponseWriter, r *http.Request) { AlertsStripeUpgrade(w, r, app) })
 	router.HandleFunc("/services/alerts/manage", func(w http.ResponseWriter, r *http.Request) { AlertsStripeManage(w, r, app) })
 	router.HandleFunc("/fixture/login/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if err := auth.LoginPerson(app, r, mux.Vars(r)["id"], auth.MethodPassword); err != nil {
@@ -286,12 +287,28 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal("missing cancellation review", code, html)
 	}
 	cancelForm := url.Values{"checkout": {field("checkout")}, "csrf": {field("csrf")}, "key": {field("key")}, "revision": {field("revision")}, "periodEnd": {field("periodEnd")}}
+	now := time.Now().UTC().Truncate(time.Second)
+	quote, e := getters.SaveAlertsStripeIncreaseQuote(ctx, app, people[1], b.IntentID, 1, alertsstripe.IncreasePreview{SubscriptionItemID: "si_test", PreviousSlots: 2, PaidSlots: 3, PeriodStart: managed.Items.Data[0].CurrentPeriodStart, PeriodEnd: managed.Items.Data[0].CurrentPeriodEnd, ProrationDate: now.Unix(), TotalCents: 195, TaxCents: 15, ExpiresAt: now.Add(10 * time.Minute)})
+	if e != nil {
+		t.Fatal(e)
+	}
+	upgradePath := "/services/alerts/upgrade/" + quote.ID
+	code, html, _ = call(upgradePath+"?paid=true&total=1", nil)
+	if code != 200 || !strings.Contains(html, "$1.95") || !strings.Contains(html, "$0.15") || !strings.Contains(html, "$6.00") || !strings.Contains(html, "Confirm upgrade") || strings.Contains(html, "Payment verified") {
+		t.Fatal("upgrade review", code, html)
+	}
+	if code, _, _ := call(upgradePath, url.Values{"csrf": {"wrong"}, "action": {"confirm"}}); code != 403 {
+		t.Fatal("upgrade csrf", code)
+	}
 	if code, _, _ := call("/fixture/login/"+people[0], nil); code != 204 {
 		t.Fatal(code)
 	}
 	// The CSRF token is account-session bound; either fence prevents foreign mutation.
 	if code, _, _ := call("/services/alerts/manage", cancelForm); code != 403 && code != 404 {
 		t.Fatal("foreign cancellation accepted", code)
+	}
+	if code, _, _ := call(upgradePath, nil); code != 404 {
+		t.Fatal("foreign upgrade readable", code)
 	}
 	if code, _, _ := call("/fixture/login/"+people[1], nil); code != 204 {
 		t.Fatal(code)
@@ -305,6 +322,13 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		if code, body, location := call("/services/alerts/manage", cancelForm); code != 303 || location != "/services/alerts/manage" {
 			t.Fatal(code, body, location)
 		}
+	}
+	code, html, _ = call(upgradePath, nil)
+	if code != 200 {
+		t.Fatal(code, html)
+	}
+	if code, _, _ := call(upgradePath, url.Values{"csrf": {field("csrf")}, "action": {"confirm"}}); code != 409 {
+		t.Fatal("stale upgrade confirmation", code)
 	}
 	code, html, _ = call("/services/alerts/manage", nil)
 	if code != 200 || !strings.Contains(html, "scheduled to stop renewing") || strings.Contains(html, "Cancel future renewals") {
