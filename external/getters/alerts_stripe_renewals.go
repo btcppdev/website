@@ -60,6 +60,13 @@ func projectAlertsStripeRenewal(ctx context.Context, tx pgx.Tx, b alertsstripe.B
 		return err
 	}
 	previous.Quantity += added
+	previous, err = alertsStripeRenewalPreviousQuantity(ctx, tx, b, previous)
+	if errors.Is(err, alertsstripe.ErrInvoice) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
 	failure, err := client.FailedRenewalInvoice(ctx, state.LatestInvoice, b, previous, now)
 	if errors.Is(err, alertsstripe.ErrInvoice) {
 		return nil
@@ -81,4 +88,31 @@ func projectAlertsStripeRenewal(ctx context.Context, tx pgx.Tx, b alertsstripe.B
 		return alertsstripe.ErrInvoice
 	}
 	return nil
+}
+
+// A verified decrease can reduce the portion of the preceding paid allowance
+// carried into grace. Require the exact transition at this renewal; an arbitrary
+// lower invoice quantity or an older schedule cannot establish eligibility.
+// This operates on a copy and never rewrites the settled invoice ledger.
+func alertsStripeRenewalPreviousQuantity(ctx context.Context, tx pgx.Tx, b alertsstripe.Binding, previous alertsstripe.PaidPeriod) (alertsstripe.PaidPeriod, error) {
+	if previous.Quantity == b.PaidSlots {
+		return previous, nil
+	}
+	if previous.Quantity < b.PaidSlots || b.PaidSlots < 1 {
+		return previous, alertsstripe.ErrInvoice
+	}
+	raw, err := json.Marshal(b)
+	if err != nil {
+		return previous, err
+	}
+	var verified bool
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_decrease_transitions t JOIN alerts_stripe_decrease_quotes q ON q.id=t.quote_id JOIN alerts_stripe_decreases d ON d.quote_id=t.quote_id WHERE t.checkout_id=$1 AND t.effective_at=$2 AND t.binding=$3::jsonb AND d.state='applied' AND (q.preview->>'PreviousSlots')::bigint=$4 AND (q.preview->>'PaidSlots')::bigint=$5)`, b.IntentID, previous.End, raw, previous.Quantity, b.PaidSlots).Scan(&verified)
+	if err != nil {
+		return previous, err
+	}
+	if !verified {
+		return previous, alertsstripe.ErrInvoice
+	}
+	previous.Quantity = b.PaidSlots
+	return previous, nil
 }

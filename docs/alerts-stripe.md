@@ -501,6 +501,15 @@ scheduled decrease is reconciled before subscription refresh validates the
 current quantity. Persisting its observed transition marks it applied and updates
 the billing snapshot, without issuing grants. PostgreSQL tests verify lower
 current quantity, preserved original binding/invoice quantity and idempotent
-history insertion; targeted Stripe getter/handler suites pass. Decrease-aware
-grace projection, full renewal HTTP/provider fixtures and customer controls are
-still required before enabling decreases.
+history insertion; targeted Stripe getter/handler suites pass.
+
+Failed renewal projection now carries only the newly selected quantity into grace
+when an immutable applied decrease matches the exact renewal boundary, old paid
+quantity and current binding. The prior invoice remains unchanged, and arbitrary
+quantity mismatches remain ineligible. The same failed-invoice verifier then
+checks ownership, price, attempted payment and monthly terms. PostgreSQL tests
+exercise a three-to-one decrease with a one-slot failed invoice, repeat recovery
+without moving its due date, and rejection of unmatched or unapplied decreases.
+The existing 14-day grace/reminder policy uses that verified one-slot renewal
+fact. Full renewal HTTP/provider fixtures and customer controls remain required
+before enabling decreases.

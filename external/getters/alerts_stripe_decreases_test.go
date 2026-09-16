@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stripe/stripe-go/v86"
@@ -36,7 +37,7 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	start := now.Add(-time.Hour)
 	end := start.AddDate(0, 1, 0)
-	b := alertsstripe.Binding{IntentID: id, PersonID: person, SubscriptionID: "sub_" + id, PaidSlots: 3}
+	b := alertsstripe.Binding{IntentID: id, PersonID: person, SubscriptionID: "sub_" + id, CustomerID: "cus_" + id, PriceID: "price_" + id, ProductID: "prod_" + id, PaidSlots: 3}
 	raw, _ := json.Marshal(b)
 	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3)`, id, b.SubscriptionID, raw); err != nil {
 		t.Fatal(err)
@@ -229,6 +230,10 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 		next := b
 		next.PaidSlots = 1
 		observation := alertsstripe.DecreaseTransition{Binding: next, ScheduleID: schedule, EffectiveAt: preview.EffectiveAt, State: alertsstripe.SubscriptionState{State: "active", ProviderStatus: "active", PeriodStart: end.Unix(), PeriodEnd: end.AddDate(0, 1, 0).Unix()}}
+		previous := alertsstripe.PaidPeriod{InvoiceID: "in_decrease_base_" + id, SubscriptionID: b.SubscriptionID, Quantity: 3, Start: start, End: end, PaidAt: start}
+		if _, e = alertsStripeRenewalPreviousQuantity(ctx, tx, next, previous); !errors.Is(e, alertsstripe.ErrInvoice) {
+			t.Fatal("unapplied decrease supplied grace", e)
+		}
 		if e = recordAlertsStripeDecreaseTransition(ctx, tx, *q, b, observation, now); !errors.Is(e, alertsstripe.ErrSubscription) {
 			t.Fatal("early transition", e)
 		}
@@ -237,7 +242,60 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 				t.Fatal(e)
 			}
 		}
+		eligible, e := alertsStripeRenewalPreviousQuantity(ctx, tx, next, previous)
+		if e != nil || eligible.Quantity != 1 || previous.Quantity != 3 || !eligible.End.Equal(previous.End) || eligible.InvoiceID != previous.InvoiceID {
+			t.Fatal("decrease grace allowance", eligible, e)
+		}
+		for _, scenario := range []string{"different boundary", "insufficient prior payment", "different previous quantity", "foreign binding"} {
+			p := previous
+			bound := next
+			switch scenario {
+			case "different boundary":
+				p.End = p.End.Add(time.Second)
+			case "insufficient prior payment":
+				p.Quantity = 0
+			case "different previous quantity":
+				p.Quantity = 4
+			case "foreign binding":
+				bound.PersonID = uuid.NewString()
+			}
+			if _, e = alertsStripeRenewalPreviousQuantity(ctx, tx, bound, p); !errors.Is(e, alertsstripe.ErrInvoice) {
+				t.Fatal(scenario, e)
+			}
+		}
 		var current, original int64
+		invoiceID := "in_decreased_renewal_" + id
+		invoiceJSON := fmt.Sprintf(`{"id":%q,"status":"open","currency":"usd","customer":%q,"billing_reason":"subscription_cycle","total":200,"amount_paid":0,"amount_remaining":200,"attempted":true,"attempt_count":1,"collection_method":"charge_automatically","automatic_tax":{"enabled":true,"status":"complete"},"parent":{"type":"subscription_details","subscription_details":{"subscription":%q,"metadata":{"product":"alerts.repository-slots","account_id":%q,"checkout_intent":%q}}},"lines":{"data":[{"currency":"usd","amount":200,"quantity":1,"period":{"start":%d,"end":%d},"parent":{"type":"subscription_item_details","subscription_item_details":{"subscription":%q,"proration":false}},"pricing":{"price_details":{"price":%q,"product":%q}}}]}}`, invoiceID, b.CustomerID, b.SubscriptionID, person, id, end.Unix(), end.AddDate(0, 1, 0).Unix(), b.SubscriptionID, b.PriceID, b.ProductID)
+		var invoice stripe.Invoice
+		if e = json.Unmarshal([]byte(invoiceJSON), &invoice); e != nil {
+			t.Fatal(e)
+		}
+		price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+		client := alertsstripe.Client{Invoice: func(got string, p *stripe.InvoiceParams) (*stripe.Invoice, error) {
+			if got != invoiceID {
+				t.Fatal(got)
+			}
+			return &invoice, nil
+		}, Price: func(got string, p *stripe.PriceParams) (*stripe.Price, error) {
+			if got != b.PriceID {
+				t.Fatal(got)
+			}
+			return price, nil
+		}}
+		failureState := observation.State
+		failureState.State = "renewal_unpaid"
+		failureState.ProviderStatus = "past_due"
+		failureState.LatestInvoice = invoiceID
+		for _, delay := range []time.Duration{time.Hour, 48 * time.Hour} {
+			if e = projectAlertsStripeRenewal(ctx, tx, next, failureState, client, end.Add(delay)); e != nil {
+				t.Fatal(e)
+			}
+		}
+		var graceSlots int64
+		var due time.Time
+		if e = tx.QueryRow(ctx, `SELECT paid_slots,due_at FROM alerts_stripe_renewals WHERE invoice_id=$1`, invoiceID).Scan(&graceSlots, &due); e != nil || graceSlots != 1 || !due.Equal(end) {
+			t.Fatal("decreased renewal grace", graceSlots, due, e)
+		}
 		var status string
 		var transitions int
 		if e = tx.QueryRow(ctx, `SELECT (c.binding->>'PaidSlots')::bigint,(o.binding->>'PaidSlots')::bigint,d.state FROM alerts_stripe_current_subscriptions c JOIN alerts_stripe_subscriptions o USING(checkout_id) JOIN alerts_stripe_decreases d USING(checkout_id) WHERE d.quote_id=$1`, q.ID).Scan(&current, &original, &status); e != nil || current != 1 || original != 3 || status != "applied" {
