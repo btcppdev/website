@@ -482,3 +482,13 @@ single revision advancement and unchanged paid allowance. Targeted Stripe
 adapter/getter/handler tests pass locally. Worker/UI wiring, operator resolution
 of overdue ambiguous attempts and renewal-time quantity transitions remain
 required before enabling decreases.
+
+The read-only renewal transition adapter now checks that the saved schedule has
+entered its lower-quantity phase, or has completed/released after reaching that
+phase, and that the current subscription has the expected lower quantity and
+renewed period. It rejects early transitions, foreign references and mismatched
+quantities. Active and unpaid renewals both produce an expected billing binding;
+neither grants access. Paid invoices and eligible failure grace still require
+their separate verification. Adapter tests cover active/unpaid transitions,
+completed/released schedules and invalid observations. Durable quantity-history
+integration and grace projection for decreases are still pending.
