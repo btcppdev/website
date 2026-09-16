@@ -37,6 +37,11 @@ func (c Client) CurrentSubscription(ctx context.Context, b Binding) (Subscriptio
 	if err != nil {
 		return out, err
 	}
+	return verifySubscription(s, b)
+}
+
+func verifySubscription(s *stripe.Subscription, b Binding) (SubscriptionState, error) {
+	var out SubscriptionState
 	if s == nil || s.ID != b.SubscriptionID || s.Livemode != b.Live || s.Customer == nil || s.Customer.ID != b.CustomerID || s.Metadata["account_id"] != b.PersonID || s.Metadata["checkout_intent"] != b.IntentID || s.Metadata["product"] != "alerts.repository-slots" || s.Items == nil || s.Items.HasMore || len(s.Items.Data) != 1 {
 		return out, ErrSubscription
 	}

@@ -139,3 +139,26 @@ actual Stripe test-mode payment or deployed webhook delivery.
 References: [Checkout Session creation](https://docs.stripe.com/api/checkout/sessions/create),
 [subscription webhook events](https://docs.stripe.com/billing/subscriptions/webhooks),
 [invoice listing and pagination](https://docs.stripe.com/api/invoices/list).
+
+## End-of-period cancellation adapter
+
+`Client.ScheduleCancellation` implements the provider operation for stopping future
+renewals. The account coordinator must persist a `CancellationIntent` before calling
+it and serialize billing changes. The intent binds a UUID idempotency key, creation
+time, and reviewed period end. Requests older than 23 hours or past the reviewed
+period require reconciliation instead of another mutation.
+
+The adapter re-fetches the subscription, verifies its saved account/customer/price/
+quantity, rejects changed periods, custom cancellation dates, managed schedules and
+pending updates, and submits only `cancel_at_period_end=true`. An already verified
+end-of-period cancellation returns without another mutation. The response must
+still match the saved plan and original period. Transport errors remain ambiguous;
+the caller must not report success or construct a replacement request. This method
+does not revoke paid grants, refund payments, cancel immediately, or resume billing.
+
+The durable cancellation coordinator, account confirmation page, and dashboard
+management link remain to implement; no customer route invokes the adapter yet.
+Provider-adapter tests and the existing PostgreSQL Alerts checkout/invoice tests
+pass. No real Stripe cancellation has been performed.
+
+Reference: [Stripe end-of-period cancellation](https://docs.stripe.com/billing/subscriptions/cancel).
