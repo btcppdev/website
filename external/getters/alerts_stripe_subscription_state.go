@@ -5,12 +5,17 @@ import (
 	"btcpp-web/internal/config"
 	"context"
 	"encoding/json"
+	"time"
 )
 
 // RefreshAlertsStripeSubscription serializes the provider lookup with account
 // billing operations so a slower older response cannot replace a newer state.
 // Subscription status alone never rewrites paid-through dates or grants grace.
 func RefreshAlertsStripeSubscription(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client) error {
+	return refreshAlertsStripeSubscriptionAt(ctx, app, person, id, client, time.Now().UTC())
+}
+
+func refreshAlertsStripeSubscriptionAt(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client, now time.Time) error {
 	tx, err := app.DB.Begin(ctx)
 	if err != nil {
 		return err
@@ -41,6 +46,9 @@ func RefreshAlertsStripeSubscription(ctx context.Context, app *config.AppContext
 	_, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_subscription_state(checkout_id,revision,snapshot) VALUES($1,1,$2)
  ON CONFLICT(checkout_id) DO UPDATE SET revision=alerts_stripe_subscription_state.revision+CASE WHEN alerts_stripe_subscription_state.snapshot<>excluded.snapshot THEN 1 ELSE 0 END,snapshot=excluded.snapshot,observed_at=now()`, id, raw)
 	if err != nil {
+		return err
+	}
+	if err = projectAlertsStripeRenewal(ctx, tx, binding, state, client, now); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

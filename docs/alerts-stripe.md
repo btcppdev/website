@@ -63,9 +63,15 @@ an attempted automatic-collection renewal with an unpaid balance and an immediat
 preceding paid period for the same subscription/quantity. Initial purchases,
 unattempted invoices, voids, prorations and discontinuous periods are rejected.
 Its due time is the original renewal period start and never moves with retries.
-The coordinator must load the preceding period from non-refunded settlement
-records, verify current subscription state and persist the renewal outcome.
-That coordinator and the account API's lifecycle projection remain to build.
+Migration 114 and the coordinator now load the preceding period from non-refunded,
+non-revoked settlement records, verify the current subscription and persist a
+revisioned renewal outcome. `invoice.payment_failed`, subscription callbacks and
+background refreshes use this path. Repeated failure observations keep the same
+revision and due time. Pause/cancellation/dispute states resolve pending failures;
+verified payment resolves them atomically with the paid invoice/access grant.
+Database triggers protect renewal identity and prevent resolved failures from
+reopening. The account API's lifecycle projection and Alerts-side automatic grace
+and reminder integration remain to build.
 See [Stripe subscription states](https://docs.stripe.com/billing/subscriptions/overview)
 and [collection pauses](https://docs.stripe.com/billing/subscriptions/pause-payment).
 

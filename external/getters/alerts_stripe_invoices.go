@@ -173,5 +173,8 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 	if err != nil {
 		return nil, err
 	}
+	if _, err = tx.Exec(ctx, `UPDATE alerts_stripe_renewals SET state='recovered',revision=revision+1,observed_at=now() WHERE invoice_id=$1 AND checkout_id=$2 AND state<>'recovered'`, paid.InvoiceID, b.IntentID); err != nil {
+		return nil, err
+	}
 	return out, tx.Commit(ctx)
 }

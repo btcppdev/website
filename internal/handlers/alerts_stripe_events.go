@@ -63,6 +63,9 @@ func processAlertsStripeEvent(ctx context.Context, app *config.AppContext, event
 		}
 	}
 	if invoiceID != "" {
+		if event.Type == "invoice.payment_failed" {
+			return true, getters.RefreshAlertsStripeSubscription(ctx, app, person, intent, client)
+		}
 		_, err = getters.ReconcileAlertsStripeInvoice(ctx, app, person, intent, invoiceID, client)
 	}
 	return true, err
@@ -93,7 +96,7 @@ func alertsStripeEventReferences(event stripe.Event) (intent, sessionID, invoice
 		// Payment activation happens on invoice.paid. Completion may still require
 		// payment authentication, so it only establishes the subscription binding.
 		return s.Metadata["checkout_intent"], s.ID, "", true, nil
-	case "invoice.paid":
+	case "invoice.paid", "invoice.payment_failed":
 		var i stripe.Invoice
 		if err = json.Unmarshal(event.Data.Raw, &i); err != nil {
 			return "", "", "", true, err

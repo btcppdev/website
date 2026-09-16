@@ -120,6 +120,50 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	inv.ID += "_renewal"
 	inv.BillingReason = "subscription_cycle"
 	inv.Lines.Data[0].Period = &stripe.Period{Start: end.Unix(), End: end.AddDate(0, 1, 0).Unix()}
+	// Failed renewals retain their original due time through retries and pauses.
+	sub.Status = "past_due"
+	sub.CancelAtPeriodEnd = false
+	sub.LatestInvoice = &stripe.Invoice{ID: inv.ID}
+	sub.Items.Data[0].CurrentPeriodStart = end.Unix()
+	sub.Items.Data[0].CurrentPeriodEnd = inv.Lines.Data[0].Period.End
+	inv.Status = "open"
+	inv.Attempted = true
+	inv.AttemptCount = 1
+	inv.CollectionMethod = "charge_automatically"
+	inv.AmountPaid = 0
+	inv.AmountRemaining = 400
+	inv.StatusTransitions.PaidAt = 0
+	for i := 0; i < 2; i++ {
+		if err = refreshAlertsStripeSubscriptionAt(ctx, app, person, reserved.Intent.ID, client, end.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var due time.Time
+	if err = app.DB.QueryRow(ctx, `SELECT state,revision,due_at FROM alerts_stripe_renewals WHERE invoice_id=$1`, inv.ID).Scan(&state, &revision, &due); err != nil || state != "failed" || revision != 1 || !due.Equal(end) {
+		t.Fatal(state, revision, due, err)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_renewals SET due_at=due_at+interval '1 hour' WHERE invoice_id=$1`, inv.ID); err == nil {
+		t.Fatal("renewal due time was mutable")
+	}
+	sub.PauseCollection = &stripe.SubscriptionPauseCollection{Behavior: "void"}
+	if err = refreshAlertsStripeSubscriptionAt(ctx, app, person, reserved.Intent.ID, client, end.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	sub.PauseCollection = nil
+	if err = refreshAlertsStripeSubscriptionAt(ctx, app, person, reserved.Intent.ID, client, end.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err = app.DB.QueryRow(ctx, `SELECT state,revision FROM alerts_stripe_renewals WHERE invoice_id=$1`, inv.ID).Scan(&state, &revision); err != nil || state != "paused" || revision != 2 {
+		t.Fatal("resolved failure reopened", state, revision, err)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_renewals SET state='failed',revision=revision+1 WHERE invoice_id=$1`, inv.ID); err == nil {
+		t.Fatal("database allowed resolved renewal to reopen")
+	}
+	sub.Status = "active"
+	inv.Status = "paid"
+	inv.AmountPaid = 400
+	inv.AmountRemaining = 0
+	inv.StatusTransitions.PaidAt = now.Unix()
 	invoiceReads := 0
 	client.Invoice = func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { invoiceReads++; return inv, nil }
 	client.ListInvoices = func(p *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
@@ -138,6 +182,9 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	}
 	if invoiceReads != 1 {
 		t.Fatal("already recorded invoice was reprocessed", invoiceReads)
+	}
+	if err = app.DB.QueryRow(ctx, `SELECT state,revision FROM alerts_stripe_renewals WHERE invoice_id=$1`, inv.ID).Scan(&state, &revision); err != nil || state != "recovered" || revision != 3 {
+		t.Fatal("payment did not resolve renewal", state, revision, err)
 	}
 	grants, err = ActiveServiceEntitlements(app, person, end)
 	if err != nil || len(grants) != 1 || grants[0].Quantity != 2 {
