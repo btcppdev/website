@@ -277,3 +277,14 @@ Failed-renewal eligibility includes paid, unrevoked upgrade grants in the preced
 period. A PostgreSQL integration test verifies refresh after upgrading from two to
 five paid slots, grace for five, renewal at five, and replay of the original
 two-slot invoice without duplicate access.
+
+`ReconcileAlertsStripeIncreaseInvoice` connects authenticated paid-invoice
+verification to the atomic receipt/access transaction and requires the saved
+confirmation. `RecoverAlertsStripeIncrease` can discover a lost invoice reference
+through bounded paid-invoice pagination without making another charge attempt.
+The existing reconciliation worker recovers pending upgrades before refreshing
+subscription quantities; pending confirmations use a 15-minute retry lease and
+reservation makes the checkout immediately eligible. PostgreSQL tests cover lost
+reference recovery, unpaid and foreign-account rejection, and concurrent verified
+callbacks returning one receipt. Submission orchestration, unpaid/authentication
+flows, expiry handling and the customer review screen remain unfinished.

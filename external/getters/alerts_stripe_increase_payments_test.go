@@ -70,13 +70,32 @@ func TestAlertsStripeIncreasePaymentPostgres(t *testing.T) {
 	if err != nil || len(grants) != 1 || grants[0].Quantity != 2 {
 		t.Fatal("failed transaction leaked grant", grants, err)
 	}
+	upgradePrice := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	upgradeInvoice := &stripe.Invoice{ID: paid.InvoiceID, Status: "paid", Currency: "usd", Customer: &stripe.Customer{ID: b.CustomerID}, BillingReason: "subscription_update", Total: 295, AmountDue: 295, AmountPaid: 295, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, TotalTaxes: []*stripe.InvoiceTotalTax{{Amount: 25, TaxBehavior: "inclusive"}}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}}}, Lines: &stripe.InvoiceLineItemList{}}
+	for _, line := range []struct{ quantity, amount int64 }{{2, -200}, {5, 495}} {
+		upgradeInvoice.Lines.Data = append(upgradeInvoice.Lines.Data, &stripe.InvoiceLineItem{Currency: "usd", Quantity: line.quantity, Amount: line.amount, Period: &stripe.Period{Start: now.Unix(), End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: b.SubscriptionID, SubscriptionItem: "si_test", Proration: true}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: upgradePrice, Product: b.ProductID}}})
+	}
+	upgradeClient := alertsstripe.Client{Price: func(string, *stripe.PriceParams) (*stripe.Price, error) { return upgradePrice, nil }, Invoice: func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { return upgradeInvoice, nil }, ListInvoices: func(*stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+		return &stripe.InvoiceList{Data: []*stripe.Invoice{upgradeInvoice}}, nil
+	}}
+	upgradeInvoice.Status = "open"
+	if _, err = ReconcileAlertsStripeIncreaseInvoice(ctx, app, person, q.ID, paid.InvoiceID, upgradeClient); err == nil {
+		t.Fatal("unpaid provider invoice granted access")
+	}
+	upgradeInvoice.Status = "paid"
+	if _, err = ReconcileAlertsStripeIncreaseInvoice(ctx, app, "00000000-0000-0000-0000-000000000000", q.ID, paid.InvoiceID, upgradeClient); err == nil {
+		t.Fatal("foreign account reconciled upgrade")
+	}
+	if recovered, e := RecoverAlertsStripeIncrease(ctx, app, person, q.ID, upgradeClient); e != nil || !recovered {
+		t.Fatal("lost invoice reference recovery", recovered, e)
+	}
 	var wg sync.WaitGroup
 	results := make(chan *ServicePurchase, 5)
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			out, e := recordAlertsStripeIncreasePayment(ctx, app, person, paid)
+			out, e := ReconcileAlertsStripeIncreaseInvoice(ctx, app, person, q.ID, paid.InvoiceID, upgradeClient)
 			if e != nil {
 				t.Error(e)
 			}

@@ -133,5 +133,8 @@ func ReserveAlertsStripeIncrease(ctx context.Context, app *config.AppContext, pe
 	if _, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_increases(quote_id,checkout_id) VALUES($1,$2)`, id, quote.CheckoutID); err != nil {
 		return "", err
 	}
+	if _, err = tx.Exec(ctx, `UPDATE alerts_stripe_checkouts SET next_reconcile_at=now() WHERE id=$1`, quote.CheckoutID); err != nil {
+		return "", err
+	}
 	return "pending", tx.Commit(ctx)
 }
