@@ -91,6 +91,9 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	if resumed, e := PrepareAlertsStripeIncrease(ctx, app, person, id, 4, alertsstripe.Client{}); e != nil || resumed == nil || resumed.ID != quote.ID || resumed.Preview.PaidSlots != 3 {
+		t.Fatal("pending upgrade replaced by new cart", resumed, e)
+	}
 	claims := make(chan *alertsIncreaseSubmissionClaim, 5)
 	for i := 0; i < 5; i++ {
 		wg.Add(1)

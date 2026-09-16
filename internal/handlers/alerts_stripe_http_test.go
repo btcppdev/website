@@ -293,6 +293,14 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	upgradePath := "/services/alerts/upgrade/" + quote.ID
+	for i := 0; i < 2; i++ {
+		if code, body, location := call("/services/alerts/subscribe?account="+people[1]+"&slots=3", nil); code != 303 || location != upgradePath {
+			t.Fatal("existing-plan upgrade handoff", code, body, location)
+		}
+	}
+	if code, _, location := call("/services/alerts/subscribe?account="+people[1]+"&slots=2", nil); code != 303 || location != "/services/alerts/manage" {
+		t.Fatal("already covered selection", code, location)
+	}
 	code, html, _ = call(upgradePath+"?paid=true&total=1", nil)
 	if code != 200 || !strings.Contains(html, "$1.95") || !strings.Contains(html, "$0.15") || !strings.Contains(html, "$6.00") || !strings.Contains(html, "Confirm upgrade") || strings.Contains(html, "Payment verified") {
 		t.Fatal("upgrade review", code, html)

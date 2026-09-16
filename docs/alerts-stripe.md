@@ -344,3 +344,14 @@ with PostgreSQL verify rendering, ignored forged success/amount query flags,
 CSRF, foreign-account isolation and stale review rejection after cancellation.
 The entry point that prepares a quote from the Alerts cart, full successful
 HTTP confirmation/payment tests and browser visual review remain outstanding.
+
+The existing `/services/alerts/subscribe` handoff now recognizes an account's
+bound card subscription. Larger selections prepare a prorated upgrade review;
+already covered selections go to billing management. New subscriptions retain
+their existing checkout path. `PrepareAlertsStripeIncrease` refreshes provider
+state, loads the current binding/revision, previews the change and saves the
+quote with a revision recheck. Unchanged unexpired reviews are reused. A pending
+confirmed upgrade always resumes its own review even if the cart changed.
+HTTP/PostgreSQL tests verify handoff/reload reuse, covered selections and pending
+confirmation preservation. Full successful HTTP payment and live provider tests,
+repeat upgrades within one period, and browser visual review remain outstanding.

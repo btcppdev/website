@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/alertsstripe"
@@ -15,6 +17,7 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/servicebilling"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type alertsStripeStartPage struct {
@@ -38,6 +41,9 @@ func alertsStripeSelection(values url.Values) (string, int64, error) {
 // GET only reviews a proposed count. POST binds it to the signed-in account,
 // reserves an immutable purchase intent, then opens that same Stripe checkout.
 func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	r = r.WithContext(ctx)
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
@@ -82,6 +88,37 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 		key = app.Env.StripeKey
 	}
 	enabled := strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "sk_test_") || strings.HasPrefix(key, "rk_live_") || strings.HasPrefix(key, "rk_test_")
+	if r.Method == http.MethodPost && (len(values["csrf"]) != 1 || !secureTokenEqual(app.Session.GetString(r.Context(), authMethodsCSRFKey), values.Get("csrf"))) {
+		http.Error(w, "Reload checkout and try again", 403)
+		return
+	}
+	if enabled {
+		var checkout string
+		var currentSlots int64
+		err = app.DB.QueryRow(r.Context(), `SELECT c.id::text,(s.binding->>'PaidSlots')::bigint FROM alerts_stripe_checkouts c JOIN alerts_stripe_current_subscriptions s ON s.checkout_id=c.id WHERE c.person_id=$1 AND c.closed_at IS NULL ORDER BY c.created_at DESC LIMIT 1`, account).Scan(&checkout, &currentSlots)
+		if err == nil {
+			if slots <= currentSlots {
+				http.Redirect(w, r, "/services/alerts/manage", 303)
+				return
+			}
+			client := alertsstripe.NewClient(strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_"))
+			quote, e := getters.PrepareAlertsStripeIncrease(r.Context(), app, account, checkout, slots, client)
+			if errors.Is(e, alertsstripe.ErrSubscription) || errors.Is(e, alertsstripe.ErrInvoice) {
+				http.Error(w, "Your current plan cannot be upgraded yet. Check billing before trying again.", 409)
+				return
+			}
+			if e != nil {
+				http.Error(w, "Unable to prepare your upgrade. Please try again shortly.", 503)
+				return
+			}
+			http.Redirect(w, r, "/services/alerts/upgrade/"+quote.ID, 303)
+			return
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "Unable to load billing", 503)
+			return
+		}
+	}
 	if r.Method == http.MethodPost {
 		if len(values["csrf"]) != 1 || !secureTokenEqual(app.Session.GetString(r.Context(), authMethodsCSRFKey), values.Get("csrf")) {
 			http.Error(w, "Reload checkout and try again", 403)
