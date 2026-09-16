@@ -68,6 +68,13 @@ func ReserveAlertsStripeCancellation(ctx context.Context, app *config.AppContext
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
+	var increasing bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_increases WHERE checkout_id=$1 AND state='pending')`, checkout).Scan(&increasing); err != nil {
+		return nil, err
+	}
+	if increasing {
+		return nil, alertsstripe.ErrSubscription
+	}
 	err = tx.QueryRow(ctx, `INSERT INTO alerts_stripe_cancellations(id,checkout_id,period_end) VALUES($1,$2,$3) RETURNING id::text,period_end,created_at,state`, id, checkout, periodEnd).Scan(&out.Intent.ID, &out.Intent.PeriodEnd, &out.Intent.CreatedAt, &out.State)
 	if err != nil {
 		return nil, err

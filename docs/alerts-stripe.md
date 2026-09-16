@@ -214,3 +214,18 @@ Local HTTP/Stripe-SDK tests with PostgreSQL cover login continuation, CSRF, fore
 accounts, reviewed confirmation, duplicate POSTs producing one provider mutation,
 and confirmed status. Svelte checks and build pass. Browser visual review of this
 new central management page and live Stripe test-mode validation remain outstanding.
+
+## Durable increase confirmation storage
+
+Migration 116 stores immutable, account-owned increase quotes from the trusted
+preview adapter. Saving and confirming recheck the reviewed subscription revision,
+quantity, active state and billing period. Quotes expire within ten minutes or at
+the period boundary. Confirmation reserves one pending instruction per checkout;
+repeated confirmations recover its original outcome. Pending increases and
+cancellations mutually exclude one another under the account billing lock.
+
+PostgreSQL tests cover ownership, expiry, stale reviews, concurrent confirmations,
+immutable quotes and resolved outcomes, conflicts in both directions, and no
+entitlement grant from reservation. This storage is not exposed through HTTP yet:
+provider submission/recovery, paid proration verification, quantity versioning and
+the customer review UI remain required before enabling upgrades.
