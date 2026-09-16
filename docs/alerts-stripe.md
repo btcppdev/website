@@ -471,6 +471,14 @@ rejected rather than silently discarded. An already-applied matching update is
 recovered read-only, including after the write retry horizon. Adapter tests cover
 phase boundaries, returned quantity mismatches, ownership, conflicting states,
 preserved overrides and a lost update response. These tests use provider mocks.
-Durable recording of the verified phase update, worker/UI wiring, operator
-resolution of overdue ambiguous attempts and renewal-time quantity transitions
-remain required before enabling decreases.
+Migration 123 and the schedule coordinator now persist phase-update leases and
+immutable verified schedule snapshots. The schedule reference is constrained to
+the saved attachment. Only a verified provider result can atomically mark the
+decrease scheduled and advance the billing revision; duplicate completion is a
+no-op and late responses from older attempts are rejected. Current binding and
+paid grants remain unchanged. PostgreSQL tests cover ownership, lease/retry
+behavior, invalid provider quantities, immutable evidence, idempotent completion,
+single revision advancement and unchanged paid allowance. Targeted Stripe
+adapter/getter/handler tests pass locally. Worker/UI wiring, operator resolution
+of overdue ambiguous attempts and renewal-time quantity transitions remain
+required before enabling decreases.

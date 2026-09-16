@@ -7,6 +7,7 @@ import (
 	"errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/stripe/stripe-go/v86"
 	"sync"
 	"testing"
 	"time"
@@ -159,8 +160,59 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 	if err != nil || len(grants) != 1 || grants[0].Quantity != 3 || !grants[0].EndsAt.Equal(end) {
 		t.Fatal("current paid allowance changed", grants, err)
 	}
-	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='scheduled' WHERE quote_id=$1`, q.ID); err != nil {
+	if _, err = claimAlertsStripeDecreaseSchedule(ctx, app, uuid.NewString(), q.ID); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("foreign schedule", err)
+	}
+	phaseClaim, err := claimAlertsStripeDecreaseSchedule(ctx, app, person, q.ID)
+	if err != nil || phaseClaim.Attempt != 1 || phaseClaim.Complete {
+		t.Fatal(phaseClaim, err)
+	}
+	if _, err = claimAlertsStripeDecreaseSchedule(ctx, app, person, q.ID); !errors.Is(err, alertsstripe.ErrReconcile) {
+		t.Fatal("phase lease bypassed", err)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decrease_schedules SET lease_until=now()-interval '1 second' WHERE quote_id=$1`, q.ID); err != nil {
 		t.Fatal(err)
+	}
+	newClaim, err := claimAlertsStripeDecreaseSchedule(ctx, app, person, q.ID)
+	if err != nil || newClaim.Attempt != 2 {
+		t.Fatal(newClaim, err)
+	}
+	provider := &stripe.SubscriptionSchedule{ID: schedule, Status: "active", EndBehavior: "release", Customer: &stripe.Customer{ID: b.CustomerID}, Subscription: &stripe.Subscription{ID: b.SubscriptionID}, CurrentPhase: &stripe.SubscriptionScheduleCurrentPhase{StartDate: preview.PeriodStart, EndDate: preview.EffectiveAt}, Metadata: map[string]string{"alerts_decrease": q.ID, "account_id": person, "checkout_intent": id}}
+	method := stripe.SubscriptionCollectionMethod("charge_automatically")
+	for _, quantity := range []int64{3, 1} {
+		provider.Phases = append(provider.Phases, &stripe.SubscriptionSchedulePhase{Currency: "usd", CollectionMethod: &method, AutomaticTax: &stripe.SubscriptionAutomaticTax{Enabled: true}, ProrationBehavior: "none", Metadata: map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}, Items: []*stripe.SubscriptionSchedulePhaseItem{{Price: &stripe.Price{ID: b.PriceID}, Quantity: quantity}}})
+	}
+	provider.Phases[0].StartDate = preview.PeriodStart
+	provider.Phases[0].EndDate = preview.EffectiveAt
+	provider.Phases[1].StartDate = preview.EffectiveAt
+	provider.Phases[1].EndDate = end.AddDate(0, 1, 0).Unix()
+	if err = recordAlertsStripeDecreaseSchedule(ctx, app, phaseClaim, provider); !errors.Is(err, alertsstripe.ErrReconcile) {
+		t.Fatal("stale phase response", err)
+	}
+	provider.Phases[1].Items[0].Quantity = 99
+	if err = recordAlertsStripeDecreaseSchedule(ctx, app, newClaim, provider); !errors.Is(err, alertsstripe.ErrSubscription) {
+		t.Fatal("bad provider phase", err)
+	}
+	provider.Phases[1].Items[0].Quantity = 1
+	if err = recordAlertsStripeDecreaseSchedule(ctx, app, newClaim, provider); err != nil {
+		t.Fatal(err)
+	}
+	if err = recordAlertsStripeDecreaseSchedule(ctx, app, newClaim, provider); err != nil {
+		t.Fatal("repeat evidence", err)
+	}
+	if err = ScheduleAlertsStripeDecrease(ctx, app, person, q.ID, alertsstripe.Client{}); err != nil {
+		t.Fatal("scheduled retry called provider", err)
+	}
+	var revision int64
+	if err = app.DB.QueryRow(ctx, `SELECT revision FROM alerts_stripe_subscription_state WHERE checkout_id=$1`, id).Scan(&revision); err != nil || revision != 2 {
+		t.Fatal("revision changed more than once", revision, err)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decrease_schedules SET snapshot='{}' WHERE quote_id=$1`, q.ID); err == nil {
+		t.Fatal("verified schedule mutable")
+	}
+	grants, err = ActiveServiceEntitlements(app, person, now)
+	if err != nil || len(grants) != 1 || grants[0].Quantity != 3 || !grants[0].EndsAt.Equal(end) {
+		t.Fatal("scheduling changed access", grants, err)
 	}
 	if status, e := ReserveAlertsStripeDecrease(ctx, app, person, q.ID); e != nil || status != "scheduled" {
 		t.Fatal("scheduled retry", status, e)
@@ -173,6 +225,11 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 	}
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='pending' WHERE quote_id=$1`, q.ID); err == nil {
 		t.Fatal("resolved decrease reopened")
+	}
+	// Subsequent conflict fixtures use the original revision after this resolved
+	// schedule; production refreshes would issue new reviews at the new revision.
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_subscription_state SET revision=1 WHERE checkout_id=$1`, id); err != nil {
+		t.Fatal(err)
 	}
 	for _, attempted := range []bool{false, true} {
 		// Persist historical evidence directly to exercise expiry without sleeps.

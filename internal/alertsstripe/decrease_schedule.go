@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// VerifyDecreaseSchedule checks a provider observation against frozen consent.
+// Callers must obtain the observation through authenticated provider APIs.
+func VerifyDecreaseSchedule(s *stripe.SubscriptionSchedule, b Binding, id, scheduleID string, q DecreasePreview) error {
+	if !decreaseScheduleIdentity(s, b, scheduleID, q) || !verifiedDecreasePhases(s, b, id, q) {
+		return ErrSubscription
+	}
+	return nil
+}
+
 // SetDecreaseSchedule requires a durably saved attachment reference and first
 // attempt timestamp. It changes only future quantity, never current access.
 // A previously applied update is recovered by verifying its current phases.
