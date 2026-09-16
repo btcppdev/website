@@ -3114,8 +3114,6 @@
 /* Shared public header, matched to the current homepage nav. */
 :root {
 	--btcpp-anchor-offset: 112px;
-	--btcpp-site-nav-height: 68px;
-	--btcpp-site-nav-top: 0px;
 }
 
 html {
@@ -4270,7 +4268,7 @@ body.btcpp-admin-page {
 
 .dashboard-tabs {
 	position: sticky;
-	top: calc(var(--btcpp-site-nav-top) + 68px);
+	top: calc(var(--btcpp-site-nav-top) + var(--btcpp-site-nav-height));
 	z-index: 39;
 	display: flex;
 	min-height: 50px;
@@ -4835,7 +4833,7 @@ body.btcpp-admin-page {
 @media (max-width: 760px) {
 	.dashboard-tabs {
 		position: sticky;
-		top: calc(var(--btcpp-site-nav-top) + 68px);
+		top: calc(var(--btcpp-site-nav-top) + var(--btcpp-site-nav-height));
 		right: auto;
 		bottom: auto;
 		left: auto;

@@ -43,6 +43,7 @@ btcpp-plus + btcpp-plus {
 :root {
 	--btcpp-site-banner-height: 0px;
 	--btcpp-site-ticker-height: 34px;
+	--btcpp-site-nav-height: 69px;
 	--btcpp-site-nav-top: calc(var(--btcpp-site-banner-height) + var(--btcpp-site-ticker-height));
 }
 
@@ -1067,7 +1068,7 @@ body.btcpp-legal-page {
 
 .api-reference__bar {
 	position: sticky;
-	top: var(--btcpp-site-nav-top, 0px);
+	top: calc(var(--btcpp-site-nav-top) + var(--btcpp-site-nav-height));
 	z-index: 35;
 	display: grid;
 	grid-template-columns: 260px minmax(280px, 560px) 1fr;
@@ -1120,7 +1121,7 @@ body.btcpp-legal-page {
 	position: relative;
 	border-right: 1px solid var(--docs-line);
 }
-.api-reference__sidebar > nav { position: sticky; top: calc(var(--btcpp-site-nav-top, 0px) + 87px); max-height: calc(100vh - 100px); overflow: auto; padding: 34px 22px 70px; }
+.api-reference__sidebar > nav { position: sticky; top: calc(var(--btcpp-site-nav-top) + var(--btcpp-site-nav-height) + var(--btcpp-api-bar-height, 66px) + 20px); max-height: calc(100dvh - var(--btcpp-site-nav-top) - var(--btcpp-site-nav-height) - var(--btcpp-api-bar-height, 66px) - 20px); overflow: auto; padding: 34px 22px 70px; }
 .api-reference__nav-group { display: flex; flex-direction: column; gap: 3px; margin-bottom: 28px; }
 .api-reference__nav-group p { margin: 0 0 8px; color: #969087; font: 700 9px "IBM Plex Mono", monospace; letter-spacing: 1.2px; text-transform: uppercase; }
 .api-reference__nav-group a { padding: 5px 8px; border-left: 2px solid transparent; color: #59554f; font-size: 12px; text-decoration: none; }
@@ -1171,7 +1172,7 @@ body.btcpp-legal-page {
 .api-reference__facts code { overflow-wrap: anywhere; font: 600 11px "IBM Plex Mono", monospace; }
 
 .api-reference__examples { min-width: 0; border-left: 1px solid #292929; background: #111; color: #eee; }
-.api-example { position: sticky; top: calc(var(--btcpp-site-nav-top, 0px) + 87px); max-height: calc(100vh - 100px); overflow: auto; }
+.api-example { position: sticky; top: calc(var(--btcpp-site-nav-top) + var(--btcpp-site-nav-height) + var(--btcpp-api-bar-height, 66px) + 20px); max-height: calc(100dvh - var(--btcpp-site-nav-top) - var(--btcpp-site-nav-height) - var(--btcpp-api-bar-height, 66px) - 20px); overflow: auto; }
 .api-example__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; padding: 24px; border-bottom: 1px solid #303030; }
 .api-example__header > div { display: flex; min-width: 0; flex-direction: column; gap: 7px; }
 .api-example__header span { color: #65d69a; font: 800 9px "IBM Plex Mono", monospace; }
