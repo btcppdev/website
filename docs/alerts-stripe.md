@@ -421,3 +421,14 @@ updates, renewal quantity transition and customer controls remain required.
 Stripe requires separate attach/update calls when scheduling changes on an
 existing subscription: [subscription schedules](https://docs.stripe.com/billing/subscriptions/subscription-schedules),
 [create schedule](https://docs.stripe.com/api/subscription_schedules/create).
+
+Migration 121 persists immutable decrease quotes and account-owned confirmation
+records. Saving/confirming rechecks the paid quantity, billing revision and renewal
+boundary; duplicate confirmations recover the saved state. Pending, scheduled or
+review-needed decreases exclude other decreases, upgrades and cancellations under
+the account billing lock. Upgrade/cancellation reservations exclude decreases in
+the opposite direction as well. Confirmation never changes current access.
+PostgreSQL tests cover concurrency, ownership, stale/expired review, immutable
+evidence, conflicts in both directions and preserved current quantity/expiry.
+No decrease HTTP path or provider mutation is enabled yet; schedule attachment,
+phase verification, recovery and renewal-time quantity transitions remain required.

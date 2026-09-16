@@ -68,7 +68,7 @@ func lockAlertsIncrease(ctx context.Context, tx pgx.Tx, person, checkout string,
 		return alertsstripe.ErrSubscription
 	}
 	var pending bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_cancellations WHERE checkout_id=$1 AND state='pending')`, checkout).Scan(&pending); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_cancellations WHERE checkout_id=$1 AND state='pending') OR EXISTS(SELECT 1 FROM alerts_stripe_decreases WHERE checkout_id=$1 AND state IN ('pending','scheduled','review'))`, checkout).Scan(&pending); err != nil {
 		return err
 	}
 	if pending {

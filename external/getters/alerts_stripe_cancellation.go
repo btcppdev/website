@@ -69,7 +69,7 @@ func ReserveAlertsStripeCancellation(ctx context.Context, app *config.AppContext
 		return nil, err
 	}
 	var increasing bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_increases WHERE checkout_id=$1 AND state='pending')`, checkout).Scan(&increasing); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_increases WHERE checkout_id=$1 AND state='pending') OR EXISTS(SELECT 1 FROM alerts_stripe_decreases WHERE checkout_id=$1 AND state IN ('pending','scheduled','review'))`, checkout).Scan(&increasing); err != nil {
 		return nil, err
 	}
 	if increasing {
