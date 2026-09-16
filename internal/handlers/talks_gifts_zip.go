@@ -87,7 +87,7 @@ func AdminGiftsClipartZip(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 	seen := map[string]bool{}
 
 	for _, t := range talks {
-		if t == nil || t.Clipart == "" {
+		if !giftTalkEligible(t) || t.Clipart == "" {
 			continue
 		}
 		// Multiple talks with the same Clipart filename are

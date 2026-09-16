@@ -6,6 +6,19 @@ import (
 	"strings"
 )
 
+// Keep legacy talks without proposal status, as on the conference schedule.
+func giftTalkEligible(talk *types.Talk) bool {
+	if talk == nil {
+		return false
+	}
+	switch talk.Status {
+	case "", StatusAccepted, StatusScheduled:
+		return true
+	default:
+		return false
+	}
+}
+
 func speakerGiftRows(talks []*types.Talk, staff []*types.Speaker) []*GiftRow {
 	// Prefer available artwork, then the smallest-panel talk per speaker. Key on Speaker.ID
 	// when available, fall back to lower-cased name (older rows
@@ -17,7 +30,7 @@ func speakerGiftRows(talks []*types.Talk, staff []*types.Speaker) []*GiftRow {
 	}
 	best := map[string]*pick{}
 	for _, talk := range talks {
-		if talk == nil {
+		if !giftTalkEligible(talk) {
 			continue
 		}
 		n := len(talk.Speakers)
