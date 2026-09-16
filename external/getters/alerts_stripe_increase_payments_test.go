@@ -83,6 +83,35 @@ func TestAlertsStripeIncreasePaymentPostgres(t *testing.T) {
 		t.Fatal("unpaid provider invoice granted access")
 	}
 	upgradeInvoice.Status = "paid"
+	// Simulate a committed attempt whose response/reference was lost while
+	// Stripe left the upgrade awaiting payment.
+	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_increase_submissions(quote_id,lease_until) VALUES($1,now()-interval '1 second')`, q.ID); err != nil {
+		t.Fatal(err)
+	}
+	upgradeInvoice.Status = "open"
+	upgradeInvoice.AmountPaid = 0
+	upgradeInvoice.AmountRemaining = 295
+	upgradeInvoice.StatusTransitions = nil
+	upgradeInvoice.HostedInvoiceURL = "https://invoice.stripe.com/i/acct_test/upgrade"
+	upgradeClient.Subscription = func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) {
+		return &stripe.Subscription{ID: b.SubscriptionID, Customer: upgradeInvoice.Customer, Metadata: upgradeInvoice.Parent.SubscriptionDetails.Metadata, Status: "active", LatestInvoice: &stripe.Invoice{ID: paid.InvoiceID}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{ID: "si_test", Quantity: 2, Price: upgradePrice, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}, nil
+	}
+	if observed, e := RecoverAlertsStripeIncreaseReference(ctx, app, person, q.ID, upgradeClient); e != nil || observed == nil || observed.Status != "open" {
+		t.Fatal("unpaid reference recovery", observed, e)
+	}
+	if link, e := AlertsStripeIncreasePaymentLink(ctx, app, person, q.ID, upgradeClient); e != nil || link != upgradeInvoice.HostedInvoiceURL {
+		t.Fatal("account payment handoff", link, e)
+	}
+	if _, e := AlertsStripeIncreasePaymentLink(ctx, app, "00000000-0000-0000-0000-000000000000", q.ID, upgradeClient); e == nil {
+		t.Fatal("foreign payment handoff")
+	}
+	if recovered, e := RecoverAlertsStripeIncrease(ctx, app, person, q.ID, upgradeClient); e != nil || recovered {
+		t.Fatal("unpaid invoice fulfilled", recovered, e)
+	}
+	upgradeInvoice.Status = "paid"
+	upgradeInvoice.AmountPaid = 295
+	upgradeInvoice.AmountRemaining = 0
+	upgradeInvoice.StatusTransitions = &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}
 	if _, err = ReconcileAlertsStripeIncreaseInvoice(ctx, app, "00000000-0000-0000-0000-000000000000", q.ID, paid.InvoiceID, upgradeClient); err == nil {
 		t.Fatal("foreign account reconciled upgrade")
 	}

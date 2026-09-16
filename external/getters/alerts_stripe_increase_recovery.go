@@ -55,6 +55,23 @@ func RecoverAlertsStripeIncrease(ctx context.Context, app *config.AppContext, pe
 	if json.Unmarshal(raw, &b) != nil || b.PersonID != person || b.IntentID != quote.CheckoutID {
 		return false, alertsstripe.ErrInvoice
 	}
+	var attempted bool
+	if err = app.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_increase_submissions WHERE quote_id=$1)`, quoteID).Scan(&attempted); err != nil {
+		return false, err
+	}
+	if attempted {
+		observed, e := RecoverAlertsStripeIncreaseReference(ctx, app, person, quoteID, client)
+		if e == nil {
+			if observed.Status != "paid" {
+				return false, nil
+			}
+			_, e = ReconcileAlertsStripeIncreaseInvoice(ctx, app, person, quoteID, observed.InvoiceID, client)
+			return e == nil, e
+		}
+		if !errors.Is(e, alertsstripe.ErrInvoice) {
+			return false, e
+		}
+	}
 	cursor := ""
 	seen := map[string]bool{}
 	for page := 0; page < 100; page++ {

@@ -310,3 +310,15 @@ PostgreSQL tests cover concurrent claims, lease retry, cross-account rejection,
 reference immutability, unattempted expiry and preservation of ambiguous attempts.
 This coordinator is not yet invoked by HTTP or the worker: unpaid-reference
 discovery, terminal provider-state handling and the customer UI remain required.
+
+Unpaid reference recovery is now implemented: `LatestIncreaseInvoice` reads the
+subscription and verifies its candidate invoice against the saved quote, while
+`InspectIncreaseInvoice` rechecks a known reference. The account-owned recovery
+getter persists that reference without another mutation at Stripe. Pending-upgrade
+recovery leaves an open invoice unpaid and fulfills it only after paid verification.
+`AlertsStripeIncreasePaymentLink` derives the invoice from this stored reference
+and scopes the handoff to the quote owner. Adapter and PostgreSQL tests exercise
+a lost response followed by open-invoice discovery, owner-only payment-link access,
+no unpaid grant and eventual paid fulfillment. Terminal observations alone still
+do not release the reservation; subscription-state confirmation and HTTP/UI wiring
+remain unfinished.
