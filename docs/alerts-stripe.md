@@ -401,3 +401,23 @@ uses Ubuntu Bold Italic with the shared joined-plus renderer. Computed layout
 checks found no horizontal overflow at the mobile sizes. The upgrade HTTP tests
 still pass after the markup changes. This does not verify real account navigation
 or Stripe-hosted payment pages.
+
+## Scheduled decreases in progress
+
+The read-only `PreviewDecrease` adapter verifies account/subscription identity,
+current quantity, period and absence of conflicting pending changes. It presents
+the lower tax-inclusive monthly total effective at the existing renewal boundary.
+Zero paid slots is represented as end-of-period cancellation.
+
+The schedule parameter builder preserves the current quantity through that
+boundary, then sets the lower quantity for a monthly phase and releases the
+schedule afterward so the subscription continues at that quantity. Both the
+update and phase transitions disable proration; automatic tax and the verified
+price are retained. Tests cover these parameters, expired reviews, zero-slot
+handling and conflicting subscription state. No schedule API mutation is wired
+yet. Durable consent, schedule creation/reference recovery, verified phase
+updates, renewal quantity transition and customer controls remain required.
+
+Stripe requires separate attach/update calls when scheduling changes on an
+existing subscription: [subscription schedules](https://docs.stripe.com/billing/subscriptions/subscription-schedules),
+[create schedule](https://docs.stripe.com/api/subscription_schedules/create).
