@@ -440,5 +440,16 @@ unchanged current phase. A retry after a lost response repeats the same creation
 it never adopts an arbitrary existing schedule. Unit tests cover that retry,
 expired consent and mismatched provider responses. These are mocked provider
 tests, not live Stripe validation. The caller must persist the returned schedule
-reference before updating phases. Durable attachment claims/reference recovery,
-phase verification and renewal-time quantity transitions remain required.
+reference before updating phases.
+
+Migration 122 and the attachment coordinator now persist a two-minute lease,
+attempt counter and immutable schedule reference. Account ownership and the
+reviewed billing revision/period are rechecked before claiming an attempt;
+late responses are fenced by the attempt number. Saved references are reused
+without provider creation. An expired review with no attempt can expire safely;
+an ambiguous attempted attachment remains pending for recovery. PostgreSQL tests
+cover concurrent claims, retry leases, foreign accounts, late responses and
+reference immutability. Targeted Stripe getter/handler tests pass against the
+local database. Recovery after review expiry, verified phase updates, worker/UI
+wiring and renewal-time quantity transitions remain required before enabling
+decreases.

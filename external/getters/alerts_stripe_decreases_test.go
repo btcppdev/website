@@ -95,6 +95,57 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	if _, err = claimAlertsStripeDecreaseAttachment(ctx, app, uuid.NewString(), q.ID); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("foreign attachment", err)
+	}
+	claims := make(chan *alertsDecreaseAttachmentClaim, 5)
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			claim, e := claimAlertsStripeDecreaseAttachment(ctx, app, person, q.ID)
+			if e == nil {
+				claims <- claim
+			} else if !errors.Is(e, alertsstripe.ErrReconcile) {
+				t.Errorf("attachment claim: %v", e)
+			}
+		}()
+	}
+	wg.Wait()
+	close(claims)
+	if len(claims) != 1 {
+		t.Fatalf("concurrent claims: %d", len(claims))
+	}
+	claim := <-claims
+	if claim.Attempt != 1 || claim.Binding.PaidSlots != 3 {
+		t.Fatal(claim)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decrease_attachments SET lease_until=now()-interval '1 second' WHERE quote_id=$1`, q.ID); err != nil {
+		t.Fatal(err)
+	}
+	claim, err = claimAlertsStripeDecreaseAttachment(ctx, app, person, q.ID)
+	if err != nil || claim.Attempt != 2 {
+		t.Fatal(claim, err)
+	}
+	stale, err := app.DB.Exec(ctx, `UPDATE alerts_stripe_decrease_attachments SET schedule_id='sub_sched_stale' WHERE quote_id=$1 AND attempts=1`, q.ID)
+	if err != nil || stale.RowsAffected() != 0 {
+		t.Fatal("late response accepted", err)
+	}
+	schedule := "sub_sched_" + q.ID
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decrease_attachments SET schedule_id=$2 WHERE quote_id=$1 AND attempts=2`, q.ID, schedule); err != nil {
+		t.Fatal(err)
+	}
+	// Saved references bypass provider creation even while the lease is active.
+	got, err := AttachAlertsStripeDecrease(ctx, app, person, q.ID, alertsstripe.Client{})
+	if err != nil || got != schedule {
+		t.Fatal(got, err)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decrease_attachments SET schedule_id='sub_sched_other' WHERE quote_id=$1`, q.ID); err == nil {
+		t.Fatal("schedule reference mutable")
+	}
+	if _, err = app.DB.Exec(ctx, `DELETE FROM alerts_stripe_decrease_attachments WHERE quote_id=$1`, q.ID); err == nil {
+		t.Fatal("attachment evidence deleted")
+	}
 	if _, err = ReserveAlertsStripeDecrease(ctx, app, person, second.ID); !errors.Is(err, alertsstripe.ErrSubscription) {
 		t.Fatal("overlapping decrease", err)
 	}
