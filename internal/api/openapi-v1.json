@@ -43,9 +43,26 @@
                   "required": [
                     "accountId",
                     "asOf",
-                    "entitlements"
+                    "entitlements",
+                    "renewals"
                   ],
                   "properties": {
+                    "renewals": {
+                      "type": "array",
+                      "description": "Verified Alerts renewal states, read in the same database snapshot as entitlements. Only failed renewals qualify for grace; retry attempts retain the original dueAt.",
+                      "items": {
+                        "type": "object",
+                        "required": ["renewalId", "state", "revision", "dueAt", "paidSlots", "renewalUrl"],
+                        "properties": {
+                          "renewalId": {"type": "string"},
+                          "state": {"type": "string", "enum": ["failed", "recovered", "cancelled", "paused", "expired", "refunded", "disputed"]},
+                          "revision": {"type": "integer", "minimum": 1},
+                          "dueAt": {"type": "string", "format": "date-time"},
+                          "paidSlots": {"type": "integer", "minimum": 1},
+                          "renewalUrl": {"type": "string", "format": "uri"}
+                        }
+                      }
+                    },
                     "asOf": {
                       "type": "string",
                       "format": "date-time"

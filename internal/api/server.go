@@ -68,6 +68,7 @@ type server struct {
 	loadConferenceBroadcast     func(string) (*types.ConferenceBroadcast, error)
 	recordAudit                 func(*types.AuthAuditEvent) error
 	limiter                     *rateLimiter
+	listAccountAccess   func(context.Context, string, time.Time) (*getters.AccountAccessSnapshot, error)
 	listEntitlements    func(string, time.Time) ([]getters.ServiceEntitlement, error)
 	listNewsletters     func(string) ([]getters.NewsletterPreference, error)
 	setNewsletter       func(string, string, string, getters.NewsletterPreference) error
@@ -84,6 +85,9 @@ type principalContextKey struct{}
 // Register installs API v1 before the website's broad conference routes.
 func Register(root *mux.Router, app *config.AppContext) {
 	s := &server{
+		listAccountAccess: func(ctx context.Context, person string, at time.Time) (*getters.AccountAccessSnapshot, error) {
+			return getters.AccountAccess(ctx, app, person, at)
+		},
 		listEntitlements: func(personID string, at time.Time) ([]getters.ServiceEntitlement, error) {
 			return getters.ActiveServiceEntitlements(app, personID, at)
 		},

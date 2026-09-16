@@ -1,6 +1,7 @@
 package getters
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"time"
@@ -92,7 +93,15 @@ func FulfillServicePurchase(app *config.AppContext, orderID string) (string, err
 // immediately, even before a separate refund worker records explicit revocation.
 // Partial refunds are withheld pending product-specific quantity reconciliation.
 func ActiveServiceEntitlements(app *config.AppContext, personID string, at time.Time) ([]ServiceEntitlement, error) {
-	rows, err := app.DB.Query(app.DatabaseContext(), `SELECT e.id::text,e.product_code,e.resource_id,e.quantity,e.starts_at,e.ends_at
+	return queryServiceEntitlements(app.DatabaseContext(), app.DB, personID, at)
+}
+
+type serviceAccessReader interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+func queryServiceEntitlements(ctx context.Context, reader serviceAccessReader, personID string, at time.Time) ([]ServiceEntitlement, error) {
+	rows, err := reader.Query(ctx, `SELECT e.id::text,e.product_code,e.resource_id,e.quantity,e.starts_at,e.ends_at
 		FROM service_entitlements e JOIN service_purchase_requests r ON r.id=e.purchase_id JOIN shop_orders o ON o.id=r.order_id
 		WHERE e.person_id=$1 AND r.person_id=e.person_id AND e.revoked_at IS NULL AND o.status='paid'
 		AND (e.starts_at IS NULL OR e.starts_at<=$2) AND (e.ends_at IS NULL OR e.ends_at>$2)

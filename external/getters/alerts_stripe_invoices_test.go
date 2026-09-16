@@ -139,6 +139,14 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 		}
 	}
 	var due time.Time
+	access, accessErr := AccountAccess(ctx, app, person, end.Add(time.Hour))
+	if accessErr != nil || access.AccountID != person || len(access.Renewals) != 1 || access.Renewals[0].State != "failed" || access.Renewals[0].RenewalID != inv.ID || !access.Renewals[0].DueAt.Equal(end) || access.Renewals[0].PaidSlots != 2 || len(access.Entitlements) != 0 {
+		t.Fatal("inconsistent renewal/access snapshot", access, accessErr)
+	}
+	otherAccess, accessErr := AccountAccess(ctx, app, "00000000-0000-0000-0000-000000000000", end.Add(time.Hour))
+	if accessErr != nil || len(otherAccess.Renewals) != 0 || len(otherAccess.Entitlements) != 0 {
+		t.Fatal("cross-account renewal evidence", otherAccess, accessErr)
+	}
 	if err = app.DB.QueryRow(ctx, `SELECT state,revision,due_at FROM alerts_stripe_renewals WHERE invoice_id=$1`, inv.ID).Scan(&state, &revision, &due); err != nil || state != "failed" || revision != 1 || !due.Equal(end) {
 		t.Fatal(state, revision, due, err)
 	}

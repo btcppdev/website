@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"strings"
@@ -33,15 +34,15 @@ func TestAccountEntitlementsAuthorization(t *testing.T) {
 					return &auth.BearerGrant{PersonID: "owner", Scopes: []string{tc.scope}}, nil
 				},
 				loadPerson: func(id string) (*types.Speaker, error) { return &types.Speaker{ID: id}, nil },
-				listEntitlements: func(id string, at time.Time) ([]getters.ServiceEntitlement, error) {
+				listAccountAccess: func(ctx context.Context, id string, at time.Time) (*getters.AccountAccessSnapshot, error) {
 					calls++
 					if id != "owner" || !at.Equal(now) {
 						t.Fatalf("untrusted identity/time: %s %v", id, at)
 					}
 					if tc.empty {
-						return nil, nil
+						return &getters.AccountAccessSnapshot{AccountID: id, AsOf: at, Entitlements: []getters.ServiceEntitlement{}, Renewals: []getters.AlertsRenewalAccess{}}, nil
 					}
-					return []getters.ServiceEntitlement{{ID: "grant", ProductCode: "insider.article", ResourceID: "publication-123", Quantity: 1}}, nil
+					return &getters.AccountAccessSnapshot{AccountID: id, AsOf: at, Entitlements: []getters.ServiceEntitlement{{ID: "grant", ProductCode: "insider.article", ResourceID: "publication-123", Quantity: 1}}, Renewals: []getters.AlertsRenewalAccess{{RenewalID: "in_renewal", State: "failed", Revision: 1, DueAt: now, PaidSlots: 2, RenewalURL: "https://btcpp.dev/services/alerts/renew/in_renewal"}}}, nil
 				},
 			}
 			router := mux.NewRouter()
@@ -66,9 +67,10 @@ func TestAccountEntitlementsAuthorization(t *testing.T) {
 			}
 			var body struct {
 				Data struct {
-					AccountID    string                       `json:"accountId"`
-					AsOf         time.Time                    `json:"asOf"`
-					Entitlements []getters.ServiceEntitlement `json:"entitlements"`
+					AccountID    string                        `json:"accountId"`
+					AsOf         time.Time                     `json:"asOf"`
+					Renewals     []getters.AlertsRenewalAccess `json:"renewals"`
+					Entitlements []getters.ServiceEntitlement  `json:"entitlements"`
 				} `json:"data"`
 			}
 			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
@@ -76,6 +78,9 @@ func TestAccountEntitlementsAuthorization(t *testing.T) {
 			}
 			if body.Data.AccountID != "owner" || !body.Data.AsOf.Equal(now) || body.Data.Entitlements == nil {
 				t.Fatalf("invalid response: %s", w.Body.String())
+			}
+			if body.Data.Renewals == nil || (!tc.empty && (len(body.Data.Renewals) != 1 || body.Data.Renewals[0].RenewalID != "in_renewal")) {
+				t.Fatal("missing renewal evidence")
 			}
 			if !tc.empty && (len(body.Data.Entitlements) != 1 || body.Data.Entitlements[0].ResourceID != "publication-123") {
 				t.Fatal("lost publication access")
