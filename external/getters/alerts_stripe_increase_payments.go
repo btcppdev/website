@@ -48,7 +48,7 @@ func recordAlertsStripeIncreasePayment(ctx context.Context, app *config.AppConte
 	}
 	var raw []byte
 	var email, status string
-	err = tx.QueryRow(ctx, `SELECT COALESCE((SELECT p.binding FROM alerts_stripe_increase_payments p WHERE p.checkout_id=c.id ORDER BY p.sequence DESC LIMIT 1),s.binding),c.intent->>'Email',i.state FROM alerts_stripe_checkouts c JOIN alerts_stripe_subscriptions s ON s.checkout_id=c.id JOIN alerts_stripe_increases i ON i.checkout_id=c.id WHERE c.id=$1 AND c.person_id=$2 AND i.quote_id=$3 FOR UPDATE OF c,i`, quote.CheckoutID, person, paid.QuoteID).Scan(&raw, &email, &status)
+	err = tx.QueryRow(ctx, `SELECT s.binding,c.intent->>'Email',i.state FROM alerts_stripe_checkouts c JOIN alerts_stripe_current_subscriptions s ON s.checkout_id=c.id JOIN alerts_stripe_increases i ON i.checkout_id=c.id WHERE c.id=$1 AND c.person_id=$2 AND i.quote_id=$3 FOR UPDATE OF c,i`, quote.CheckoutID, person, paid.QuoteID).Scan(&raw, &email, &status)
 	if err != nil {
 		return nil, err
 	}

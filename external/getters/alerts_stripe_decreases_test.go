@@ -217,6 +217,45 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 	if status, e := ReserveAlertsStripeDecrease(ctx, app, person, q.ID); e != nil || status != "scheduled" {
 		t.Fatal("scheduled retry", status, e)
 	}
+	t.Run("renewal transition preserves history", func(t *testing.T) {
+		tx, e := app.DB.Begin(ctx)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer tx.Rollback(ctx)
+		if _, e = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+person); e != nil {
+			t.Fatal(e)
+		}
+		next := b
+		next.PaidSlots = 1
+		observation := alertsstripe.DecreaseTransition{Binding: next, ScheduleID: schedule, EffectiveAt: preview.EffectiveAt, State: alertsstripe.SubscriptionState{State: "active", ProviderStatus: "active", PeriodStart: end.Unix(), PeriodEnd: end.AddDate(0, 1, 0).Unix()}}
+		if e = recordAlertsStripeDecreaseTransition(ctx, tx, *q, b, observation, now); !errors.Is(e, alertsstripe.ErrSubscription) {
+			t.Fatal("early transition", e)
+		}
+		for i := 0; i < 2; i++ {
+			if e = recordAlertsStripeDecreaseTransition(ctx, tx, *q, b, observation, end.Add(time.Second)); e != nil {
+				t.Fatal(e)
+			}
+		}
+		var current, original int64
+		var status string
+		var transitions int
+		if e = tx.QueryRow(ctx, `SELECT (c.binding->>'PaidSlots')::bigint,(o.binding->>'PaidSlots')::bigint,d.state FROM alerts_stripe_current_subscriptions c JOIN alerts_stripe_subscriptions o USING(checkout_id) JOIN alerts_stripe_decreases d USING(checkout_id) WHERE d.quote_id=$1`, q.ID).Scan(&current, &original, &status); e != nil || current != 1 || original != 3 || status != "applied" {
+			t.Fatal(current, original, status, e)
+		}
+		if e = tx.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_quantity_history WHERE decrease_quote_id=$1`, q.ID).Scan(&transitions); e != nil || transitions != 1 {
+			t.Fatal(transitions, e)
+		}
+		var paidSlots int64
+		if e = tx.QueryRow(ctx, `SELECT (paid_period->>'Quantity')::bigint FROM alerts_stripe_invoices WHERE checkout_id=$1`, id).Scan(&paidSlots); e != nil || paidSlots != 3 {
+			t.Fatal("old invoice changed", paidSlots, e)
+		}
+		// Roll back this simulated future so the remaining conflict fixtures can
+		// continue testing the actual current period and scheduled state.
+		if e = tx.Rollback(ctx); e != nil {
+			t.Fatal(e)
+		}
+	})
 	if _, err = ReserveAlertsStripeIncrease(ctx, app, person, up.ID); !errors.Is(err, alertsstripe.ErrSubscription) {
 		t.Fatal("scheduled decrease overwritten", err)
 	}

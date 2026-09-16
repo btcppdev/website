@@ -490,5 +490,17 @@ renewed period. It rejects early transitions, foreign references and mismatched
 quantities. Active and unpaid renewals both produce an expected billing binding;
 neither grants access. Paid invoices and eligible failure grace still require
 their separate verification. Adapter tests cover active/unpaid transitions,
-completed/released schedules and invalid observations. Durable quantity-history
-integration and grace projection for decreases are still pending.
+completed/released schedules and invalid observations.
+
+Migration 124 adds immutable decrease transition evidence and a shared ordered
+quantity history for upgrades and decreases. Existing upgrade evidence is
+backfilled; triggers append subsequent verified changes in the same transaction.
+Current subscription readers (including upgrade fulfillment) use this history,
+while original checkout bindings and invoice facts remain immutable. A due
+scheduled decrease is reconciled before subscription refresh validates the
+current quantity. Persisting its observed transition marks it applied and updates
+the billing snapshot, without issuing grants. PostgreSQL tests verify lower
+current quantity, preserved original binding/invoice quantity and idempotent
+history insertion; targeted Stripe getter/handler suites pass. Decrease-aware
+grace projection, full renewal HTTP/provider fixtures and customer controls are
+still required before enabling decreases.

@@ -5,6 +5,7 @@ import (
 	"btcpp-web/internal/config"
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/jackc/pgx/v5"
 	"time"
 )
@@ -17,6 +18,17 @@ func RefreshAlertsStripeSubscription(ctx context.Context, app *config.AppContext
 }
 
 func refreshAlertsStripeSubscriptionAt(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client, now time.Time) error {
+	// Observe a due scheduled decrease before validating the subscription against
+	// its current binding, since Stripe may already report the lower quantity.
+	var decrease string
+	err := app.DB.QueryRow(ctx, `SELECT d.quote_id::text FROM alerts_stripe_decreases d JOIN alerts_stripe_decrease_quotes q ON q.id=d.quote_id JOIN alerts_stripe_checkouts c ON c.id=d.checkout_id WHERE c.id=$1 AND c.person_id=$2 AND d.state='scheduled' AND (q.preview->>'EffectiveAt')::bigint<=$3`, id, person, now.Unix()).Scan(&decrease)
+	if err == nil {
+		if err = reconcileAlertsStripeDecreaseAt(ctx, app, person, decrease, client, now); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
 	tx, err := app.DB.Begin(ctx)
 	if err != nil {
 		return err
