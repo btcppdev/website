@@ -180,8 +180,7 @@ func ReviewProposals(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	if current != nil {
 		page.Current = current
 		page.Speakers = resolveProposalSpeakers(current, ctx)
-		// Pre-compute the next URL so the action POSTs can simply pick
-		// it off the page; saves recomputing in each handler.
+		// Pre-compute the next pending proposal for the skip link.
 		if next := nextProposalAfter(pending, current.ID); next != nil {
 			page.NextID = next.ID
 		}
@@ -288,12 +287,9 @@ func ReviewProposalAction(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		return
 	}
 
-	// Default: advance to the next un-actioned proposal in the
-	// review queue. The cache invalidation in UpdateProposalStatus +
-	// the in-place mutation we wired earlier means the next call
-	// sees this proposal's new status and skips it.
-	pending, _ := splitProposalsByPending(loadConfProposals(ctx, conf))
-	next := nextProposalAfter(pending, proposalID)
+	// Keep the decided proposal as an ordering anchor. Filtering it out first
+	// loses its position and incorrectly restarts the queue after every action.
+	next := nextProposalAfter(loadConfProposals(ctx, conf), proposalID)
 	if next != nil {
 		http.Redirect(w, r,
 			fmt.Sprintf("/%s/admin/review?id=%s&flash=%s",
@@ -635,22 +631,22 @@ func pickProposal(pending []*types.Proposal, wantedID string) (*types.Proposal, 
 	return pending[0], 1
 }
 
-// nextProposalAfter returns the first proposal in pending that comes
-// strictly after fromID, or nil at the end of the queue. Useful for
-// "advance to next" redirects.
-func nextProposalAfter(pending []*types.Proposal, fromID string) *types.Proposal {
-	seenFrom := false
-	for _, p := range pending {
-		if seenFrom {
-			return p
-		}
-		if p.ID == fromID {
-			seenFrom = true
+// nextProposalAfter walks forward from the current proposal, wrapping once.
+// The input may include decisioned proposals so a just-decided row retains its
+// place in the queue. Only pending proposals other than fromID are eligible.
+func nextProposalAfter(proposals []*types.Proposal, fromID string) *types.Proposal {
+	start := -1
+	for i, p := range proposals {
+		if p != nil && p.ID == fromID {
+			start = i
+			break
 		}
 	}
-	// fromID not in pending (already actioned) — return whatever's first.
-	if len(pending) > 0 {
-		return pending[0]
+	for offset := 1; offset <= len(proposals); offset++ {
+		p := proposals[(start+offset)%len(proposals)]
+		if p != nil && p.ID != fromID && pendingReviewStatuses[p.Status] {
+			return p
+		}
 	}
 	return nil
 }
