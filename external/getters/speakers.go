@@ -320,7 +320,7 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 			people.linkedin, people.leetcode, people.website_url, people.company, people.org_logo_path,
 			people.bio, people.avail_to_hire, people.looking_to_hire, people.tshirt,
 			people.lightning_address, people.bitcoin_address, people.tax_form_type,
-			people.tax_form_object_key, people.tax_form_original_name, people.tax_form_uploaded_at
+			people.tax_form_object_key, people.tax_form_original_name, people.tax_form_uploaded_at, people.is_deleted_account
 		FROM people
 		LEFT JOIN LATERAL (
 			SELECT pe.email
@@ -368,6 +368,7 @@ func querySpeakersPostgres(ctx *config.AppContext, label string, clause string, 
 			&speaker.TaxFormObjectKey,
 			&speaker.TaxFormOriginalName,
 			&speaker.TaxFormUploadedAt,
+			&speaker.IsDeletedAccount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)

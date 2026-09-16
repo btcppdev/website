@@ -432,6 +432,7 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 				platform = EXCLUDED.platform,
 				registered_at = EXCLUDED.registered_at,
 				revoked = false
+			WHERE registrations.revoked_before_account_deletion IS NULL
 		`, refID, entry.ID, entry.ConfRef, entry.DiscountRef, item.Type, email,
 			item.Desc, amountPaid, entry.Currency, src, entry.Created)
 		if err != nil {

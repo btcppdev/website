@@ -397,7 +397,7 @@ func MergePeople(ctx *config.AppContext, input PersonMergeInput) (string, error)
 		return "", fmt.Errorf("begin person merge: %w", err)
 	}
 	defer tx.Rollback(dbctx)
-	rows, err := tx.Query(dbctx, `SELECT id::text FROM people WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE`, []string{canonicalID, sourceID})
+	rows, err := tx.Query(dbctx, `SELECT id::text FROM people WHERE id = ANY($1::uuid[]) AND NOT is_deleted_account ORDER BY id FOR UPDATE`, []string{canonicalID, sourceID})
 	if err != nil {
 		return "", fmt.Errorf("lock merge people: %w", err)
 	}

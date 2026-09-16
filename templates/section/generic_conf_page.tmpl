@@ -200,12 +200,12 @@
 {{ define "generic_conf_speaker" }}
 {{ $s := .Speaker }}
 <article class="rebrand-speaker-card">
-  <a class="rebrand-speaker-card__profile" href="{{ speakerPublicPath $s }}">
+  {{ if $path := speakerPublicPath $s }}<a class="rebrand-speaker-card__profile" href="{{ $path }}">{{ else }}<div class="rebrand-speaker-card__profile">{{ end }}
     <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
-  </a>
+  {{ if speakerPublicPath $s }}</a>{{ else }}</div>{{ end }}
   <div>
     <span>#{{ printf "%02d" (add .Idx 1) }}</span>
-    <h3><a href="{{ speakerPublicPath $s }}">{{ $s.Name }}</a></h3>
+    <h3>{{ if $path := speakerPublicPath $s }}<a href="{{ $path }}">{{ $s.Name }}</a>{{ else }}{{ $s.Name }}{{ end }}</h3>
     {{ if $s.Company }}<p>{{ $s.Company }}</p>{{ end }}
   </div>
 </article>
@@ -214,12 +214,12 @@
 {{ define "generic_conf_featured_speaker" }}
 {{ $s := .Speaker }}
 <article class="rebrand-featured-card">
-  <a class="rebrand-featured-card__profile" href="{{ speakerPublicPath $s }}">
+  {{ if $path := speakerPublicPath $s }}<a class="rebrand-featured-card__profile" href="{{ $path }}">{{ else }}<div class="rebrand-featured-card__profile">{{ end }}
     <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
-  </a>
+  {{ if speakerPublicPath $s }}</a>{{ else }}</div>{{ end }}
   <div>
     <p>★ FEAT #{{ printf "%02d" (add .Idx 1) }}</p>
-    <h3><a href="{{ speakerPublicPath $s }}">{{ $s.Name }}</a></h3>
+    <h3>{{ if $path := speakerPublicPath $s }}<a href="{{ $path }}">{{ $s.Name }}</a>{{ else }}{{ $s.Name }}{{ end }}</h3>
     {{ if $s.FeaturedTalkTitle }}<strong class="rebrand-featured-card__talk">{{ $s.FeaturedTalkTitle }}</strong>{{ end }}
     {{ if $s.Company }}<span>{{ $s.Company }}</span>{{ end }}
   </div>
@@ -229,12 +229,12 @@
 {{ define "generic_conf_large_speaker" }}
 {{ $s := .Speaker }}
 <article class="rebrand-featured-card rebrand-speaker-directory-card">
-  <a class="rebrand-featured-card__profile" href="{{ speakerPublicPath $s }}">
+  {{ if $path := speakerPublicPath $s }}<a class="rebrand-featured-card__profile" href="{{ $path }}">{{ else }}<div class="rebrand-featured-card__profile">{{ end }}
     <img loading="lazy" src="{{ speakerPhoto $s.Photo }}" alt="{{ $s.Name }}">
-  </a>
+  {{ if speakerPublicPath $s }}</a>{{ else }}</div>{{ end }}
   <div>
     <p>ATTENDEE #{{ printf "%02d" (add .Idx 1) }}</p>
-    <h3><a href="{{ speakerPublicPath $s }}">{{ $s.Name }}</a></h3>
+    <h3>{{ if $path := speakerPublicPath $s }}<a href="{{ $path }}">{{ $s.Name }}</a>{{ else }}{{ $s.Name }}{{ end }}</h3>
     {{ if $s.Company }}<span>{{ $s.Company }}</span>{{ end }}
     {{ if $s.OrgLogo }}
     <img class="rebrand-speaker-directory-card__logo" loading="lazy" src="{{ spacesURL (printf "sponsors/%s" $s.OrgLogo) }}" alt="{{ if $s.Company }}{{ $s.Company }}{{ else }}{{ $s.Name }}{{ end }} logo">

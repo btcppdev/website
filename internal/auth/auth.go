@@ -362,6 +362,10 @@ func establishSession(ctx *config.AppContext, r *http.Request, personID, loginEm
 			if err != nil {
 				return err
 			}
+			if version <= 0 {
+				Logout(ctx, r)
+				return errors.New("account is unavailable")
+			}
 			ctx.Session.Put(r.Context(), SessionVersionKey, version)
 		}
 	}

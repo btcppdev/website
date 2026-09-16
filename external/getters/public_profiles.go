@@ -79,6 +79,7 @@ func ListPublicProfiles(ctx *config.AppContext) ([]*PublicProfile, error) {
 		JOIN conferences conf ON conf.id = ct.conference_id
 		LEFT JOIN recordings recording ON recording.conf_talk_id = ct.id
 		WHERE ct.archived_at IS NULL
+		  AND NOT person.is_deleted_account
 		  AND proposal.status IN ('', 'Accepted', 'Scheduled')
 		  AND conf.publication_status = 'published'
 		ORDER BY conf.start_date DESC NULLS LAST, ct.id, person.name, person.id
@@ -261,6 +262,8 @@ func addPublicProfileProjects(ctx *config.AppContext, people map[string]*PublicP
 			ON award.id = project_award.award_id
 			AND award.archived_at IS NULL
 		WHERE project.status IN ('submitted', 'advanced')
+		  AND NOT person.is_deleted_account
+		  AND NOT team_person.is_deleted_account
 		  AND competition.visibility = 'public'
 		  AND competition.public_gallery_enabled = true
 		  AND conf.publication_status = 'published'
@@ -382,6 +385,7 @@ func addPublicProfileAttendance(ctx *config.AppContext, personIDs []string, peop
 		JOIN registrations registration ON registration.person_id = person.id
 		JOIN conferences conf ON conf.id = registration.conference_id
 		WHERE person.id::text = ANY($1::text[])
+		  AND NOT person.is_deleted_account
 		  AND registration.revoked = false
 		  AND conf.publication_status = 'published'
 	`, personIDs)

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"btcpp-web/internal/config"
 	"testing"
+	"time"
 
 	"btcpp-web/internal/types"
 )
@@ -49,5 +51,31 @@ func TestAssignWhoIsProjectMemberPublicIDs(t *testing.T) {
 	assignWhoIsProjectMemberPublicIDs(people)
 	if member.PublicID != "teammate" {
 		t.Fatalf("member PublicID = %q, want teammate", member.PublicID)
+	}
+}
+
+func TestDeletedSpeakerHasNoPublicPath(t *testing.T) {
+	if got := whoIsPublicPath(nil, &types.Speaker{ID: "deleted", Name: "Deleted account", IsDeletedAccount: true}); got != "" {
+		t.Fatalf("deleted account URL: %s", got)
+	}
+}
+
+func TestWhoIsInvalidationDiscardsStalePersonalData(t *testing.T) {
+	app := &config.AppContext{}
+	whoIsCache.Lock()
+	whoIsCache.app = app
+	whoIsCache.people = []*WhoIsPerson{{Speaker: &types.Speaker{ID: "removed"}}}
+	whoIsCache.publicIDs = map[string]string{"removed": "old-profile"}
+	whoIsCache.expires = time.Now().Add(time.Hour)
+	whoIsCache.Unlock()
+	t.Cleanup(invalidateWhoIsDirectoryCache)
+	invalidateWhoIsDirectoryCache()
+	if people, err := buildWhoIsDirectory(app); err == nil || len(people) != 0 {
+		t.Fatalf("stale data served after deletion: %v, %v", people, err)
+	}
+	whoIsCache.Lock()
+	defer whoIsCache.Unlock()
+	if len(whoIsCache.publicIDs) != 0 {
+		t.Fatal("stale profile URLs retained")
 	}
 }

@@ -365,6 +365,7 @@ type (
 	}
 
 	Speaker struct {
+		IsDeletedAccount    bool
 		ID                  string
 		Name                string
 		Photo               string

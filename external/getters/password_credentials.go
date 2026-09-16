@@ -183,16 +183,20 @@ func PersonSessionVersion(ctx *config.AppContext, personID string) (int64, error
 	var version int64
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		WITH inserted AS (
-			INSERT INTO person_auth_security (person_id) VALUES ($1::uuid)
+			INSERT INTO person_auth_security (person_id) SELECT id FROM people WHERE id=$1::uuid AND NOT is_deleted_account
 			ON CONFLICT (person_id) DO NOTHING
 			RETURNING session_version
 		)
 		SELECT session_version FROM inserted
 		UNION ALL
 		SELECT session_version FROM person_auth_security WHERE person_id = $1::uuid
+		AND EXISTS (SELECT 1 FROM people WHERE id=$1::uuid AND NOT is_deleted_account)
 		LIMIT 1
 	`, personID).Scan(&version)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("person session version: %w", err)
 	}
 	return version, nil

@@ -1543,6 +1543,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/discounts", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminDiscounts(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/admin/people/delete", func(w http.ResponseWriter, r *http.Request) {
+		AdminPersonDelete(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/admin/people", func(w http.ResponseWriter, r *http.Request) {
 		AdminPeople(w, r, app)
 	}).Methods("GET")
@@ -3444,6 +3447,9 @@ func assignWhoIsProjectMemberPublicIDs(people []*WhoIsPerson) {
 
 func invalidateWhoIsDirectoryCache() {
 	whoIsCache.Lock()
+	// Discard stale personal data as well as expiring the cache.
+	whoIsCache.people = nil
+	whoIsCache.publicIDs = nil
 	whoIsCache.expires = time.Time{}
 	whoIsCache.Unlock()
 }
@@ -3515,7 +3521,7 @@ func resolvedWhoIsPublicID(ctx *config.AppContext, speaker *types.Speaker) (stri
 }
 
 func whoIsPublicPath(ctx *config.AppContext, speaker *types.Speaker) string {
-	if speaker == nil {
+	if speaker == nil || speaker.IsDeletedAccount {
 		return ""
 	}
 	if slug, ok := resolvedWhoIsPublicID(ctx, speaker); ok {

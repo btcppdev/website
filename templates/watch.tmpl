@@ -14,7 +14,7 @@
         <div class="watch-hero__label"><span aria-hidden="true">●</span> bitcoin++ watch</div>
         <h1>{{ .Title }}</h1>
         {{ if .Speakers }}
-        <p class="watch-hero__speakers">with {{ range $idx, $speaker := .Speakers }}{{ if $idx }}, {{ end }}<a href="{{ speakerPublicPath $speaker }}">{{ $speaker.Name }}</a>{{ end }}</p>
+        <p class="watch-hero__speakers">with {{ range $idx, $speaker := .Speakers }}{{ if $idx }}, {{ end }}{{ if $path := speakerPublicPath $speaker }}<a href="{{ $path }}">{{ $speaker.Name }}</a>{{ else }}{{ $speaker.Name }}{{ end }}{{ end }}</p>
         {{ end }}
       </section>
 
