@@ -322,3 +322,13 @@ a lost response followed by open-invoice discovery, owner-only payment-link acce
 no unpaid grant and eventual paid fulfillment. Terminal observations alone still
 do not release the reservation; subscription-state confirmation and HTTP/UI wiring
 remain unfinished.
+
+Migration 120 records immutable void-resolution evidence. Recovery now releases
+an attempted upgrade only after its submission lease has elapsed, a fresh invoice
+lookup verifies `void`, and a fresh subscription lookup confirms the original
+quantity with no pending update or schedule. It records that evidence and marks
+the confirmation expired in one account-serialized transaction. An uncollectible
+invoice, an active submission lease or an unresolved provider update remains
+pending. Adapter and PostgreSQL tests cover those distinctions, repeated
+resolution and immutable evidence. The customer review/status/payment pages and
+automatic submission wiring remain outstanding.

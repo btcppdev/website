@@ -11,6 +11,7 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/stripe/stripe-go/v86"
 )
 
 func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
@@ -35,7 +36,7 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	id := checkout.Intent.ID
 	now := time.Now().UTC().Truncate(time.Second)
 	preview := alertsstripe.IncreasePreview{SubscriptionItemID: "si_test", PreviousSlots: 2, PaidSlots: 3, PeriodStart: now.Add(-time.Hour).Unix(), PeriodEnd: now.AddDate(0, 1, 0).Unix(), ProrationDate: now.Unix(), TotalCents: 195, TaxCents: 15, ExpiresAt: now.Add(10 * time.Minute)}
-	b, _ := json.Marshal(alertsstripe.Binding{IntentID: id, PersonID: person, SubscriptionID: "sub_" + id, PaidSlots: 2})
+	b, _ := json.Marshal(alertsstripe.Binding{IntentID: id, PersonID: person, SubscriptionID: "sub_" + id, CustomerID: "cus_" + id, PriceID: "price_" + id, ProductID: "prod_" + id, PaidSlots: 2})
 	s, _ := json.Marshal(alertsstripe.SubscriptionState{State: "active", ProviderStatus: "active", PeriodStart: preview.PeriodStart, PeriodEnd: preview.PeriodEnd})
 	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3)`, id, "sub_"+id, b); err != nil {
 		t.Fatal(err)
@@ -198,5 +199,38 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	}
 	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, ambiguousID).Scan(&expiredState); err != nil || expiredState != "pending" {
 		t.Fatal("ambiguous operation released", expiredState, err)
+	}
+	price := &stripe.Price{ID: "price_" + id, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_" + id, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	meta := map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}
+	invoice := &stripe.Invoice{ID: "in_void_" + ambiguousID, Status: "void", Currency: "usd", Customer: &stripe.Customer{ID: "cus_" + id}, BillingReason: "subscription_update", Total: 195, AmountDue: 195, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, TotalTaxes: []*stripe.InvoiceTotalTax{{Amount: 15, TaxBehavior: "inclusive"}}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: "sub_" + id}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{}}
+	for _, line := range []struct{ quantity, amount int64 }{{2, -200}, {3, 395}} {
+		invoice.Lines.Data = append(invoice.Lines.Data, &stripe.InvoiceLineItem{Currency: "usd", Quantity: line.quantity, Amount: line.amount, Period: &stripe.Period{Start: expired.ProrationDate, End: expired.PeriodEnd}, Parent: &stripe.InvoiceLineItemParent{SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: "sub_" + id, SubscriptionItem: "si_test", Proration: true}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: price.Product.ID}}})
+	}
+	sub := &stripe.Subscription{ID: "sub_" + id, Customer: invoice.Customer, Metadata: meta, Status: "active", Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{ID: "si_test", Quantity: 2, Price: price, CurrentPeriodStart: expired.PeriodStart, CurrentPeriodEnd: expired.PeriodEnd}}}}
+	client := alertsstripe.Client{Invoice: func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { return invoice, nil }, Price: func(string, *stripe.PriceParams) (*stripe.Price, error) { return price, nil }, Subscription: func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) { return sub, nil }}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increase_submissions SET invoice_id=$2,lease_until=now()+interval '1 minute' WHERE quote_id=$1`, ambiguousID, invoice.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = ResolveVoidedAlertsStripeIncrease(ctx, app, person, ambiguousID, client); !errors.Is(err, alertsstripe.ErrReconcile) {
+		t.Fatal("released live submission", err)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increase_submissions SET lease_until=now()-interval '1 second' WHERE quote_id=$1`, ambiguousID); err != nil {
+		t.Fatal(err)
+	}
+	sub.PendingUpdate = &stripe.SubscriptionPendingUpdate{}
+	if err = ResolveVoidedAlertsStripeIncrease(ctx, app, person, ambiguousID, client); !errors.Is(err, alertsstripe.ErrReconcile) {
+		t.Fatal("released pending provider update", err)
+	}
+	sub.PendingUpdate = nil
+	for i := 0; i < 2; i++ {
+		if err = ResolveVoidedAlertsStripeIncrease(ctx, app, person, ambiguousID, client); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, ambiguousID).Scan(&expiredState); err != nil || expiredState != "expired" {
+		t.Fatal(expiredState, err)
+	}
+	if _, err = app.DB.Exec(ctx, `DELETE FROM alerts_stripe_increase_expirations WHERE quote_id=$1`, ambiguousID); err == nil {
+		t.Fatal("expiry evidence deleted")
 	}
 }

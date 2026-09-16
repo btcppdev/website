@@ -62,6 +62,9 @@ func RecoverAlertsStripeIncrease(ctx context.Context, app *config.AppContext, pe
 	if attempted {
 		observed, e := RecoverAlertsStripeIncreaseReference(ctx, app, person, quoteID, client)
 		if e == nil {
+			if observed.Status == "void" {
+				return false, ResolveVoidedAlertsStripeIncrease(ctx, app, person, quoteID, client)
+			}
 			if observed.Status != "paid" {
 				return false, nil
 			}
