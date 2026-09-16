@@ -392,3 +392,12 @@ simulates a crash immediately after confirmation: the actual worker submits once
 respects its lease, and later fulfills verified payment without a browser visit.
 No real provider charge was made; production worker enablement and real test-mode
 verification remain deployment checks.
+
+Browser review of the production upgrade template/shared styles (local fixture,
+without central navigation) covered review, pending payment and paid states at
+320px, 390px and 1280px. Pricing now uses separated summary rows, secondary period
+and tax copy, full-width wrapping actions and spaced footer links. The wordmark
+uses Ubuntu Bold Italic with the shared joined-plus renderer. Computed layout
+checks found no horizontal overflow at the mobile sizes. The upgrade HTTP tests
+still pass after the markup changes. This does not verify real account navigation
+or Stripe-hosted payment pages.
