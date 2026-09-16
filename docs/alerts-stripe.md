@@ -462,6 +462,15 @@ quantity, period and active status must still match. Adapter and PostgreSQL test
 cover recovery after review expiry and preservation of the first-attempt time.
 The retry horizon stays below Stripe's documented 24-hour minimum idempotency
 retention: https://docs.stripe.com/api/idempotent_requests.
-Verified phase updates, worker/UI wiring, operator resolution of overdue
-ambiguous attempts and renewal-time quantity transitions remain required before
-enabling decreases.
+The schedule update adapter now reads the saved schedule and current subscription
+before writing. It preserves the current quantity until renewal, sets the lower
+quantity afterward with no proration, and verifies both returned phases and
+ownership metadata. Schedule defaults remain untouched; phase payment methods,
+descriptions and metadata carry forward. Unsupported billing overrides are
+rejected rather than silently discarded. An already-applied matching update is
+recovered read-only, including after the write retry horizon. Adapter tests cover
+phase boundaries, returned quantity mismatches, ownership, conflicting states,
+preserved overrides and a lost update response. These tests use provider mocks.
+Durable recording of the verified phase update, worker/UI wiring, operator
+resolution of overdue ambiguous attempts and renewal-time quantity transitions
+remain required before enabling decreases.

@@ -36,6 +36,8 @@ type Intent struct {
 }
 
 type Client struct {
+	Schedule           func(string, *stripe.SubscriptionScheduleParams) (*stripe.SubscriptionSchedule, error)
+	UpdateSchedule     func(string, *stripe.SubscriptionScheduleParams) (*stripe.SubscriptionSchedule, error)
 	CreateSchedule     func(*stripe.SubscriptionScheduleParams) (*stripe.SubscriptionSchedule, error)
 	PreviewInvoice     func(*stripe.InvoiceCreatePreviewParams) (*stripe.Invoice, error)
 	UpdateSubscription func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error)
@@ -49,7 +51,7 @@ type Client struct {
 }
 
 func NewClient(live bool) Client {
-	return Client{CreateSchedule: stripeSchedule.New, PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+	return Client{Schedule: stripeSchedule.Get, UpdateSchedule: stripeSchedule.Update, CreateSchedule: stripeSchedule.New, PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
 		params.Single = true
 		iter := stripeInvoice.List(params)
 		for iter.Next() {
