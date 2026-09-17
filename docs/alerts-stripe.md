@@ -606,3 +606,14 @@ Local preview: `/private/tmp/alerts-decrease-preview.go` (stopped after checking
 Mobile artifact: `/private/tmp/alerts-billing-mobile.png`. Targeted Stripe handler
 tests pass after the template/CSS changes. Full signed-in browser/provider
 validation remains separate from this layout check.
+
+`TestAlertsStripeDecreaseRenewalHTTPPostgres` covers the renewal boundary with
+historical saved consent and the real Stripe SDK against a local HTTP provider.
+The reconciler observes the scheduled two-to-one change, records one quantity
+transition and grants one-slot grace for the failed renewal without creating paid
+access. Subsequent verified payment creates exactly one one-slot entitlement,
+settles the grace record as recovered, and preserves the old two-slot invoice for
+idempotent replay. Repeated recovery does not duplicate invoices or transitions.
+The full targeted Stripe getter/handler suites pass. Provider mutations are
+rejected by this fixture: renewal recovery is read-only. Real Stripe test-mode
+validation and production account/delivery/deployment checks remain outstanding.
