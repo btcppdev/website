@@ -93,6 +93,8 @@ func TestBusinessMetricsAreBoundedAndCached(t *testing.T) {
 			{Metric: "speaker_applications", Conference: "dev26", State: "pending", Count: 7},
 			{Metric: "volunteer_applications", Conference: "dev26", State: "scheduled", Count: 5},
 			{Metric: "recording_broadcasts", Conference: "dev26", State: "live", Count: 1},
+			{Metric: "service_receipt_jobs", Conference: "private-id", State: "review", Count: 2},
+			{Metric: "service_receipt_oldest_pending_timestamp_seconds", Conference: "private-id", State: "unexpected", Count: 1700000000},
 			{Metric: "unknown", Conference: "private-id", State: "unexpected", Count: 99},
 		}, nil
 	})
@@ -111,6 +113,8 @@ func TestBusinessMetricsAreBoundedAndCached(t *testing.T) {
 			`name:"test_business_ticket_checkins"`, `name:"test_business_speaker_applications"`,
 			`name:"test_business_volunteer_applications"`, `name:"test_business_recording_broadcasts"`,
 			`name:"test_business_business_metrics_collection_success"`,
+			`name:"test_business_service_receipt_jobs"`, `name:"state" value:"review"`,
+			`name:"test_business_service_receipt_oldest_pending_timestamp_seconds"`,
 		} {
 			if !strings.Contains(text, expected) {
 				t.Fatalf("metrics omitted %q: %s", expected, text)

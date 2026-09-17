@@ -13,6 +13,12 @@ func TestDatabaseSmokeBusinessMetrics(t *testing.T) {
 		"volunteer_applications": true, "recording_broadcasts": true,
 	}
 	for _, count := range counts {
+		if count.Metric == "service_receipt_jobs" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" {
+			if count.Conference != "" || count.Count < 0 {
+				t.Fatalf("invalid receipt aggregate: %+v", count)
+			}
+			continue
+		}
 		if !known[count.Metric] || count.Conference == "" || count.Count < 0 {
 			t.Fatalf("invalid business metric row: %+v", count)
 		}

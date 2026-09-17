@@ -65,6 +65,35 @@ func TestServiceReceiptQueuePostgres(t *testing.T) {
 		t.Fatal("duplicate settlement job", count, err)
 	}
 	at := time.Now().Add(time.Second)
+	assertReceiptMetrics := func() {
+		t.Helper()
+		counts, err := ListBusinessMetricCounts(app)
+		if err != nil {
+			t.Fatal(err)
+		}
+		states := 0
+		oldest := false
+		for _, metric := range counts {
+			if metric.Metric == "service_receipt_jobs" {
+				var want float64
+				if err := app.DB.QueryRow(ctx, "SELECT count(*)::float8 FROM service_receipt_jobs WHERE state=$1", metric.State).Scan(&want); err != nil || metric.Count != want {
+					t.Fatalf("receipt state %s: got %v want %v: %v", metric.State, metric.Count, want, err)
+				}
+				states++
+			}
+			if metric.Metric == "service_receipt_oldest_pending_timestamp_seconds" {
+				var want float64
+				if err := app.DB.QueryRow(ctx, "SELECT coalesce(extract(epoch FROM min(created_at)),0)::float8 FROM service_receipt_jobs WHERE state='pending'").Scan(&want); err != nil || metric.Count != want {
+					t.Fatalf("oldest pending: got %v want %v: %v", metric.Count, want, err)
+				}
+				oldest = true
+			}
+		}
+		if states != 4 || !oldest {
+			t.Fatalf("missing receipt metrics: states=%d oldest=%v", states, oldest)
+		}
+	}
+	assertReceiptMetrics()
 	first, err := ClaimServiceReceipt(ctx, app, purchase.OrderID, at)
 	if err != nil || first.Recipient != email || first.PersonID != person {
 		t.Fatal(first, err)
@@ -95,6 +124,7 @@ func TestServiceReceiptQueuePostgres(t *testing.T) {
 	if _, err = ClaimServiceReceipt(ctx, app, purchase.OrderID, at.Add(time.Hour)); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatal("accepted receipt replayed", err)
 	}
+	assertReceiptMetrics()
 	if _, err = app.DB.Exec(ctx, "UPDATE service_receipt_jobs SET recipient='other@example.test' WHERE order_id=$1", purchase.OrderID); err == nil {
 		t.Fatal("receipt recipient changed")
 	}

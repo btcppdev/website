@@ -647,4 +647,20 @@ and the mailer's success response; acceptance does not prove inbox delivery.
 Database and local HTTP fixtures cover settlement rollback, duplicate callbacks,
 lease recovery, stale responses, retry delays, disabled mail and accepted-job
 replay. No real receipt emails have been sent. Live provider and mailer validation,
-operational monitoring and operator recovery tooling remain outstanding.
+live alert routing and operator recovery tooling remain outstanding.
+
+The existing protected Prometheus endpoint now exposes
+`btcpp_web_service_receipt_jobs{state="pending|accepted|cancelled|review"}`
+(four separate state series) and
+`btcpp_web_service_receipt_oldest_pending_timestamp_seconds` (zero when empty).
+These are current database gauges, not lifetime counters; account deletion may
+reduce them. They contain no recipient, order, account or provider identifiers.
+The existing business collector caches successful reads for two minutes and keeps
+its last snapshot on failure, so alert evaluation must also check
+`btcpp_web_business_metrics_collection_success == 1` and freshness of
+`btcpp_web_business_metrics_last_success_timestamp_seconds`. Watch for review
+counts above zero and nonzero oldest-pending timestamps more than 24 hours old.
+The latter detects a disabled or stalled worker as well as persistent mail errors.
+PostgreSQL tests compare aggregates before and after acceptance; collector tests
+verify receipt labels omit unrelated identifiers. Production scraping, alert
+threshold validation and routing to an operator remain unverified.

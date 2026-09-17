@@ -29,6 +29,8 @@ type businessCollector struct {
 	speakerApplications   *prometheus.Desc
 	volunteerApplications *prometheus.Desc
 	recordingBroadcasts   *prometheus.Desc
+	serviceReceiptJobs    *prometheus.Desc
+	serviceReceiptOldest  *prometheus.Desc
 	collectionSuccess     *prometheus.Desc
 	lastSuccessfulRefresh *prometheus.Desc
 }
@@ -36,6 +38,8 @@ type businessCollector struct {
 func newBusinessCollector(namespace string, loader BusinessMetricsLoader) *businessCollector {
 	return &businessCollector{
 		loader:                loader,
+		serviceReceiptJobs:    prometheus.NewDesc(namespace+"_service_receipt_jobs", "Current service receipt jobs by delivery state.", []string{"state"}, nil),
+		serviceReceiptOldest:  prometheus.NewDesc(namespace+"_service_receipt_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending service receipt; zero when none are pending.", nil, nil),
 		tickets:               prometheus.NewDesc(namespace+"_tickets", "Current ticket registrations by conference and state.", []string{"conference", "state"}, nil),
 		ticketCheckins:        prometheus.NewDesc(namespace+"_ticket_checkins", "Current non-revoked ticket check-ins by conference.", []string{"conference"}, nil),
 		speakerApplications:   prometheus.NewDesc(namespace+"_speaker_applications", "Current speaker applications by conference and review state.", []string{"conference", "state"}, nil),
@@ -52,6 +56,8 @@ func (c *businessCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.speakerApplications
 	ch <- c.volunteerApplications
 	ch <- c.recordingBroadcasts
+	ch <- c.serviceReceiptJobs
+	ch <- c.serviceReceiptOldest
 	ch <- c.collectionSuccess
 	ch <- c.lastSuccessfulRefresh
 }
@@ -67,6 +73,12 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 		if count.Metric == "ticket_checkins" {
 			labels = []string{count.Conference}
 		}
+		if count.Metric == "service_receipt_jobs" {
+			labels = []string{count.State}
+		}
+		if count.Metric == "service_receipt_oldest_pending_timestamp_seconds" {
+			labels = nil
+		}
 		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, count.Count, labels...)
 	}
 	successValue := 0.0
@@ -81,6 +93,10 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 
 func (c *businessCollector) metricDesc(metric string) *prometheus.Desc {
 	switch metric {
+	case "service_receipt_jobs":
+		return c.serviceReceiptJobs
+	case "service_receipt_oldest_pending_timestamp_seconds":
+		return c.serviceReceiptOldest
 	case "tickets":
 		return c.tickets
 	case "ticket_checkins":

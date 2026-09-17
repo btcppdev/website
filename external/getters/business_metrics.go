@@ -82,6 +82,19 @@ func ListBusinessMetricCounts(ctx *config.AppContext) ([]types.BusinessMetricCou
 		JOIN conferences c ON c.id = ct.conference_id
 		GROUP BY c.tag, rb.state
 
+		UNION ALL
+
+		SELECT 'service_receipt_jobs', '', states.state, count(j.order_id)::float8
+		FROM (VALUES ('pending'), ('accepted'), ('cancelled'), ('review')) states(state)
+		LEFT JOIN service_receipt_jobs j ON j.state=states.state
+		GROUP BY states.state
+
+		UNION ALL
+
+		SELECT 'service_receipt_oldest_pending_timestamp_seconds', '', '',
+			coalesce(extract(epoch FROM min(created_at)), 0)::float8
+		FROM service_receipt_jobs WHERE state='pending'
+
 		ORDER BY 1, 2, 3
 	`)
 	if err != nil {
