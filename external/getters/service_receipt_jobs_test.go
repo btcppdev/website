@@ -118,8 +118,64 @@ func TestServiceReceiptQueuePostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if applied, err := FinishServiceReceipt(ctx, app, third, "accepted", at.Add(14*time.Minute)); err != nil || !applied {
+	if applied, err := FinishServiceReceipt(ctx, app, third, "review", time.Now()); err != nil || !applied {
 		t.Fatal(applied, err)
+	}
+	if applied, err := RecoverServiceReceipt(ctx, app, purchase.PublicID, third.Attempt-1, "fixture", "mailer repaired"); err != nil || applied {
+		t.Fatal("stale recovery applied", applied, err)
+	}
+	if applied, err := RecoverServiceReceipt(ctx, app, purchase.PublicID, third.Attempt, "fixture", "mailer repaired"); err != nil || !applied {
+		t.Fatal("recovery failed", applied, err)
+	}
+	if applied, err := RecoverServiceReceipt(ctx, app, purchase.PublicID, third.Attempt, "fixture", "duplicate"); err != nil || applied {
+		t.Fatal("duplicate recovery applied", applied, err)
+	}
+	if applied, err := FinishServiceReceipt(ctx, app, third, "accepted", time.Now()); err != nil || applied {
+		t.Fatal("pre-recovery response accepted", applied, err)
+	}
+	statuses, err := ListServiceReceipts(ctx, app, purchase.PublicID)
+	if err != nil || len(statuses) != 1 || statuses[0].State != "pending" || statuses[0].RetryAfterAttempt != third.Attempt {
+		t.Fatal("recovery inspection", statuses, err)
+	}
+	if err := app.DB.QueryRow(ctx, "SELECT count(*) FROM service_receipt_recoveries WHERE order_id=$1 AND actor='fixture' AND reason='mailer repaired'", purchase.OrderID).Scan(&count); err != nil || count != 1 {
+		t.Fatal("recovery audit missing", count, err)
+	}
+	recovered, err := ClaimServiceReceipt(ctx, app, purchase.OrderID, at.Add(15*time.Minute))
+	if err != nil || recovered.Attempt != third.Attempt+1 || recovered.Recipient != first.Recipient || recovered.PublicID != first.PublicID {
+		t.Fatal("recovery changed identity or did not advance attempt", recovered, err)
+	}
+	// A recovery grants exactly twelve additional attempts, without resetting the
+	// monotonic attempt number used to fence earlier workers.
+	for i := 0; i < 12; i++ {
+		if i > 0 {
+			recovered, err = ClaimServiceReceipt(ctx, app, purchase.OrderID, at.Add(time.Duration(i)*7*time.Hour))
+			if err != nil {
+				t.Fatal("recovery budget exhausted early", i, err)
+			}
+		}
+		if applied, err := FinishServiceReceipt(ctx, app, recovered, "retry", time.Now()); err != nil || !applied {
+			t.Fatal("retry finish", applied, err)
+		}
+	}
+	if _, err := ClaimServiceReceipt(ctx, app, purchase.OrderID, at.Add(100*time.Hour)); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("recovery exceeded bounded budget", err)
+	}
+	statuses, err = ListServiceReceipts(ctx, app, purchase.PublicID)
+	if err != nil || len(statuses) != 1 || statuses[0].State != "review" || statuses[0].Attempts != third.Attempt+12 {
+		t.Fatal("exhausted receipt not in review", statuses, err)
+	}
+	if applied, err := RecoverServiceReceipt(ctx, app, purchase.PublicID, recovered.Attempt, "fixture", "second repair"); err != nil || !applied {
+		t.Fatal("second bounded recovery", applied, err)
+	}
+	recovered, err = ClaimServiceReceipt(ctx, app, purchase.OrderID, at.Add(101*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if applied, err := FinishServiceReceipt(ctx, app, recovered, "accepted", at.Add(101*time.Hour)); err != nil || !applied {
+		t.Fatal(applied, err)
+	}
+	if applied, err := RecoverServiceReceipt(ctx, app, purchase.PublicID, recovered.Attempt, "fixture", "already accepted"); err != nil || applied {
+		t.Fatal("accepted receipt recovered", applied, err)
 	}
 	if _, err = ClaimServiceReceipt(ctx, app, purchase.OrderID, at.Add(time.Hour)); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatal("accepted receipt replayed", err)

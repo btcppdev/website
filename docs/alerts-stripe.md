@@ -647,7 +647,7 @@ and the mailer's success response; acceptance does not prove inbox delivery.
 Database and local HTTP fixtures cover settlement rollback, duplicate callbacks,
 lease recovery, stale responses, retry delays, disabled mail and accepted-job
 replay. No real receipt emails have been sent. Live provider and mailer validation,
-live alert routing and operator recovery tooling remain outstanding.
+live alert routing remain outstanding.
 
 The existing protected Prometheus endpoint now exposes
 `btcpp_web_service_receipt_jobs{state="pending|accepted|cancelled|review"}`
@@ -664,3 +664,33 @@ The latter detects a disabled or stalled worker as well as persistent mail error
 PostgreSQL tests compare aggregates before and after acceptance; collector tests
 verify receipt labels omit unrelated identifiers. Production scraping, alert
 threshold validation and routing to an operator remain unverified.
+
+### Receipt recovery
+
+Migration 127 adds a bounded recovery budget and an audit table. From the central
+repository, with DATABASE_URL configured for the intended environment, inspect:
+
+```sh
+go run ./cmd/service-receipts
+go run ./cmd/service-receipts -order PUBLIC_ORDER_ID
+```
+
+The first command lists up to 100 pending/review jobs, oldest first; the second
+can inspect any receipt state. Output includes timestamps and attempt numbers,
+but no recipient or account ID. After investigating and fixing the cause, requeue
+one reviewed, paid receipt using the attempt number from inspection:
+
+```sh
+go run ./cmd/service-receipts -order PUBLIC_ORDER_ID -requeue \
+  -expected-attempt 12 -actor OPERATOR_NAME -reason 'Mailer configuration repaired'
+```
+
+This atomically records the actor/reason and grants twelve additional attempts.
+Do not put personal data or secrets in the reason. Duplicate/stale requests,
+active leases and accepted/cancelled receipts cannot be requeued. Attempt numbers
+remain monotonic, and late pre-recovery responses cannot finish the new budget.
+The saved recipient, order and stable mailer key remain unchanged. Requeueing
+does not send mail directly; the enabled worker rechecks verified paid status
+before sending. Mailer idempotency still needs live verification for ambiguous
+timeouts. The command is source-runnable; deployment packaging and a production
+recovery exercise remain outstanding.

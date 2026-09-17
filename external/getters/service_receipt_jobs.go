@@ -17,12 +17,12 @@ type ServiceReceiptJob struct {
 // orderID can narrow an operator/test recovery attempt; empty chooses any due job.
 func ClaimServiceReceipt(ctx context.Context, app *config.AppContext, orderID string, now time.Time) (*ServiceReceiptJob, error) {
 	var job ServiceReceiptJob
-	if _, err := app.DB.Exec(ctx, `UPDATE service_receipt_jobs SET state='review' WHERE state='pending' AND attempts>=12 AND lease_until<=$2 AND ($1='' OR order_id::text=$1)`, orderID, now); err != nil {
+	if _, err := app.DB.Exec(ctx, `UPDATE service_receipt_jobs SET state='review' WHERE state='pending' AND attempts-retry_after_attempt>=12 AND lease_until<=$2 AND ($1='' OR order_id::text=$1)`, orderID, now); err != nil {
 		return nil, err
 	}
 	err := app.DB.QueryRow(ctx, `WITH due AS (
  SELECT order_id FROM service_receipt_jobs WHERE state='pending'
- AND attempts<12 AND next_attempt_at<=$2 AND lease_until<=$2 AND ($1='' OR order_id::text=$1)
+ AND attempts-retry_after_attempt<12 AND next_attempt_at<=$2 AND lease_until<=$2 AND ($1='' OR order_id::text=$1)
  ORDER BY next_attempt_at,order_id FOR UPDATE SKIP LOCKED LIMIT 1
  ), claimed AS (
  UPDATE service_receipt_jobs j SET attempts=attempts+1,lease_until=$3 FROM due
@@ -47,9 +47,6 @@ func FinishServiceReceipt(ctx context.Context, app *config.AppContext, job *Serv
 	case "cancelled", "review":
 	case "retry":
 		state = "pending"
-		if job.Attempt >= 12 {
-			state = "review"
-		}
 		delay := 5 * time.Minute
 		for i := int64(1); i < job.Attempt && delay < 6*time.Hour; i++ {
 			delay *= 2
@@ -61,7 +58,9 @@ func FinishServiceReceipt(ctx context.Context, app *config.AppContext, job *Serv
 	default:
 		return false, errors.New("invalid receipt outcome")
 	}
-	result, err := app.DB.Exec(ctx, `UPDATE service_receipt_jobs SET state=$3,next_attempt_at=$4,lease_until=$5,accepted_at=$6
- WHERE order_id=$1 AND attempts=$2 AND state='pending'`, job.OrderID, job.Attempt, state, next, now, accepted)
+	result, err := app.DB.Exec(ctx, `UPDATE service_receipt_jobs SET
+ state=CASE WHEN $3='pending' AND attempts-retry_after_attempt>=12 THEN 'review' ELSE $3 END,
+ next_attempt_at=$4,lease_until=$5,accepted_at=$6
+ WHERE order_id=$1 AND attempts=$2 AND attempts>retry_after_attempt AND state='pending'`, job.OrderID, job.Attempt, state, next, now, accepted)
 	return err == nil && result.RowsAffected() == 1, err
 }
