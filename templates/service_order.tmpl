@@ -2,21 +2,26 @@
 <html lang="en">
 <head><title>Your order · bitcoin++</title>{{ block "header" . }}{{ end }}
 <link rel="stylesheet" href="/static/css/login-layout.css?v=2">
+<link rel="stylesheet" href="/static/css/service-receipt.css?v=1">
 </head>
-<body class="btcpp-login-page">
+<body class="btcpp-login-page service-order-page">
 {{ block "mainnav" . }}{{ end }}
 <main class="auth-shell auth-shell--simple">
 <section class="auth-card">
-<header class="auth-card__head"><span class="auth-kicker">YOUR ORDER</span><h1>{{ .Heading }}</h1><p role="status">{{ .Message }}</p></header>
-<dl>
+<header class="auth-card__head"><span class="receipt-brand">bitcoin<span class="receipt-plus">++</span></span><span class="auth-kicker">{{ if .Order.PaymentVerified }}PAYMENT RECEIPT{{ else }}YOUR ORDER · NOT A PAYMENT RECEIPT{{ end }}</span><h1>{{ .Heading }}</h1><p role="status">{{ .Message }}</p></header>
+<dl class="receipt-details">
 <dt>Order number</dt><dd>{{ .Order.PublicID }}</dd>
+{{ if not .Order.CreatedAt.IsZero }}<dt>Order placed (UTC)</dt><dd>{{ .Order.CreatedAt.UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
 <dt>Purchased</dt><dd>{{ .Order.Quote.Name }}</dd>
 <dt>Quantity</dt><dd>{{ .Order.Quote.Quantity }}</dd>
+{{ if eq .Order.Quote.Provider "stripe" }}<dt>Payment method</dt><dd>Card via Stripe</dd>{{ else if eq .Order.Quote.Provider "opennode" }}<dt>Payment method</dt><dd>Bitcoin via OpenNode</dd>{{ end }}
 <dt>Order total (USD, including tax)</dt><dd>{{ .Total }}</dd>
 <dt>Included tax</dt><dd>{{ .Tax }}</dd>
 {{ with .Order.Quote.PeriodStart }}<dt>Access starts (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
 {{ with .Order.Quote.PeriodEnd }}<dt>Access ends (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
 </dl>
+<div class="receipt-actions">
+{{ if .Order.PaymentVerified }}<button type="button" class="auth-primary" onclick="window.print()">Print or save receipt</button>{{ end }}
 {{ if .CanPay }}
 <form method="post" action="/services/orders/{{ .Order.PublicID }}/pay">
 <input type="hidden" name="csrf" value="{{ .CSRF }}">
@@ -27,6 +32,7 @@
 <p><a href="/services/orders/{{ .Order.PublicID }}">Refresh payment status</a></p>
 {{ if .ReturnURL }}<p><a class="auth-primary" href="{{ .ReturnURL }}">Go to My alerts →</a></p>{{ end }}
 <p><a href="/dashboard/orders">View all your orders</a></p>
+</div>
 </section>
 </main>
 </body>

@@ -617,3 +617,14 @@ idempotent replay. Repeated recovery does not duplicate invoices or transitions.
 The full targeted Stripe getter/handler suites pass. Provider mutations are
 rejected by this fixture: renewal recovery is read-only. Real Stripe test-mode
 validation and production account/delivery/deployment checks remain outstanding.
+
+Service order pages now offer print/save for provider-verified payments, including
+order date, payment method, tax-inclusive totals and access-period dates. Pending
+orders are explicitly labeled as not payment receipts and have no print action.
+Print CSS removes navigation/actions and decorative card styling; the receipt
+wordmark uses Ubuntu Bold Italic with touching plus signs. Template tests cover
+verified/unverified presentation and escaping. Browser fixture checks used the
+production template and styles at 390px and 320px, plus print media at 794px;
+there was no mobile horizontal overflow and print controls were hidden. Fixtures
+omit central navigation and real account/payment integration. Emailed receipts,
+real provider validation and live signed-in browser checks remain outstanding.

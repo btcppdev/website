@@ -1,0 +1,43 @@
+.service-order-page .receipt-brand {
+  display: block;
+  font-family: "Ubuntu-BoldItalic", sans-serif;
+  font-size: 1.6rem;
+  font-weight: normal;
+  margin-bottom: 1rem;
+}
+.service-order-page .receipt-plus { letter-spacing: -.16em; padding-right: .16em; }
+.service-order-page .receipt-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: .65rem 1rem;
+  margin: 1.5rem 0;
+}
+.service-order-page .receipt-details dt { font-weight: 600; }
+.service-order-page .receipt-details dd { margin: 0; overflow-wrap: anywhere; }
+.service-order-page .receipt-actions { display: grid; gap: .9rem; border-top: 1px solid #d5d5d5; padding-top: 1.25rem; }
+.service-order-page .receipt-actions > p { margin: 0; }
+@media (max-width: 420px) {
+  .service-order-page .receipt-details { grid-template-columns: 1fr; gap: .25rem; }
+  .service-order-page .receipt-details dd { margin-bottom: .6rem; }
+}
+@media print {
+  @page { margin: 18mm; }
+  body.service-order-page { display: block !important; background: white !important; color: black !important; }
+  body.service-order-page > :not(main) { display: none !important; }
+  .service-order-page .receipt-actions { display: none !important; }
+  .service-order-page .auth-shell,
+  .service-order-page .auth-card {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    min-height: 0 !important;
+  }
+  .service-order-page .auth-card__head { color: black !important; }
+  .service-order-page .receipt-details { break-inside: avoid; }
+}

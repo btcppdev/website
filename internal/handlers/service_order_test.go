@@ -53,6 +53,17 @@ func TestServiceOrderPresentation(t *testing.T) {
 	if strings.Contains(out.String(), "<script>bad()") || !strings.Contains(out.String(), "September 14, 2027") || !strings.Contains(out.String(), "https://alerts.btcpp.dev/alerts") {
 		t.Fatal("unsafe or incomplete order rendering")
 	}
+	if !strings.Contains(out.String(), "PAYMENT RECEIPT") || !strings.Contains(out.String(), "Print or save receipt") {
+		t.Fatal("verified payment has no printable receipt")
+	}
+	page.Order.PaymentVerified = false
+	out.Reset()
+	if err := tmpl.Execute(&out, page); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "Print or save receipt") || !strings.Contains(out.String(), "NOT A PAYMENT RECEIPT") {
+		t.Fatal("unverified order presented as a paid receipt")
+	}
 }
 
 func TestServiceOrderPaymentAvailability(t *testing.T) {
