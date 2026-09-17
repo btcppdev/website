@@ -583,3 +583,14 @@ and monthly price, with a link back to billing for cancellation or other changes
 HTTP/PostgreSQL fixtures cover controls, CSRF, unconfirmed-request rejection,
 status rendering and replay of completed withdrawal. Full successful provider
 HTTP lifecycle coverage and browser visual verification remain outstanding.
+
+`TestAlertsStripeDecreaseHTTPPostgres` now exercises real account sessions,
+handlers, PostgreSQL transactions and Stripe SDK HTTP serialization against a
+local provider server. It follows billing selection through reviewed confirmation,
+schedule attachment/update, withdrawal, and subsequent end-of-period cancellation.
+Repeated confirmation/withdrawal sends exactly one mutation per step; forged
+quantity/price form fields do not alter saved consent. The fixture verifies restored
+cancellation controls, retained original quantity and unchanged paid-through time.
+The complete targeted Stripe getter/handler suites pass with this fixture. This is
+not a real Stripe test-mode run; live provider validation, a full renewal-boundary
+fixture and browser visual verification remain outstanding.
