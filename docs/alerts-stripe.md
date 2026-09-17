@@ -628,3 +628,15 @@ production template and styles at 390px and 320px, plus print media at 794px;
 there was no mobile horizontal overflow and print controls were hidden. Fixtures
 omit central navigation and real account/payment integration. Emailed receipts,
 real provider validation and live signed-in browser checks remain outstanding.
+
+`emails.ServiceReceiptMail` now prepares HTML and plain-text service receipt
+messages from provider-verified paid order views, with included tax, access dates,
+an account-protected print link and an Alerts management link. The recipient must
+come from the saved order. The stable `service-receipt:{publicID}` job key reuses
+the existing commerce mailer's deduplication convention. Builder tests cover
+escaping, invalid/unpaid/refunded orders, recipient validation and URL validation.
+This builder does not send mail or queue delivery. A durable receipt outbox and
+worker are still needed, including settlement-transaction enqueueing, retry leases,
+mailer acceptance tracking and disabled-mail handling. In particular, the existing
+`ComposeAndSendMail` returns nil when MailOff is set; a worker must not interpret
+that as an accepted receipt. No real receipt emails have been sent.
