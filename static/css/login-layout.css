@@ -29,6 +29,14 @@
 .alerts-upgrade-action { margin-top: 20px; }
 .alerts-upgrade-action .auth-primary { width: 100%; white-space: normal; }
 .alerts-upgrade-page .alerts-upgrade-links { margin-top: 24px; font-size: 14px; }
+.alerts-manage-page .auth-card > p { margin: 12px 0; }
+.alerts-quantity-form { border-top: 1px solid #d7d3ca; padding-top: 20px; }
+.alerts-quantity-form label { display: block; margin-bottom: 8px; font-weight: 600; }
+.alerts-quantity-form input[type="number"] { display: block; box-sizing: border-box; width: 7rem; max-width: 100%; margin: 0 0 12px; padding: 10px 12px; font: inherit; }
+.alerts-quantity-form p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
+.alerts-cancel-form { margin-top: 24px; padding-top: 24px; border-top: 1px solid #d7d3ca; }
+.alerts-cancel-form .auth-primary { width: 100%; white-space: normal; background: transparent; color: #171813; border: 1px solid #171813; }
+.alerts-cancel-form .auth-primary:hover { background: #f2efe7; }
 @media (max-width: 600px) {
 	.alerts-upgrade-page .auth-card { padding: 28px 24px; }
   .btcpp-login-page .auth-shell--simple { margin: 24px auto; padding: 0 16px; }

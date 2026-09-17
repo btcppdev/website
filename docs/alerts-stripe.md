@@ -594,3 +594,15 @@ cancellation controls, retained original quantity and unchanged paid-through tim
 The complete targeted Stripe getter/handler suites pass with this fixture. This is
 not a real Stripe test-mode run; live provider validation, a full renewal-boundary
 fixture and browser visual verification remain outstanding.
+
+Browser layout verification (production templates/shared CSS with sample data,
+without the central navigation or live account session) covered billing management
+at 390px, 320px and 1280px, scheduled decreases at 390px and withdrawn status at
+320px. The check found a crowded quantity label/input and adjacent primary actions.
+The billing form now stacks the labeled quantity field, separates its sections,
+and uses an outlined cancellation action. The 320px page has no horizontal
+scroll overflow; the original Ubuntu Bold Italic wordmark remains in place.
+Local preview: `/private/tmp/alerts-decrease-preview.go` (stopped after checking).
+Mobile artifact: `/private/tmp/alerts-billing-mobile.png`. Targeted Stripe handler
+tests pass after the template/CSS changes. Full signed-in browser/provider
+validation remains separate from this layout check.
