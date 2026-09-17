@@ -544,6 +544,16 @@ Withdrawing a saved schedule and canceling while a decrease is scheduled still
 need implementation; browser verification and full successful provider lifecycle
 fixtures also remain outstanding.
 
+The schedule withdrawal adapter now releases an owned, verified decrease schedule
+before renewal, preserving the current subscription quantity and cancellation
+date. It checks the current subscription before release and re-reads it afterward;
+a lost response recovers an already released schedule without another write.
+Writes stop within 30 seconds of the renewal boundary and after the 23-hour
+request retry horizon. Adapter tests cover retained quantity, response loss,
+foreign/mismatched references, changed quantity and unsafe timing. Durable
+withdrawal consent/evidence, worker processing and customer controls are not yet
+wired. Stripe release semantics: https://docs.stripe.com/api/subscription_schedules/release.
+
 Confirmed decreases now wake the existing opt-in Stripe reconciliation worker.
 Pending requests receive its two-minute lease and resume attachment followed by
 verified phase scheduling; scheduled requests observe renewal transitions before
