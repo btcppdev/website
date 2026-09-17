@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
 	"log"
@@ -263,5 +264,68 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 	var grants, events int
 	if err = pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM service_entitlements WHERE person_id=$1),(SELECT count(*) FROM service_payment_events p JOIN service_payment_attempts a ON a.id=p.attempt_id JOIN service_purchase_requests r ON r.id=a.purchase_id WHERE r.person_id=$1)`, user).Scan(&grants, &events); err != nil || grants != 1 || events != 1 {
 		t.Fatal("duplicate settlement", grants, events, err)
+	}
+	var orderID string
+	var receiptJobs int
+	if err = pool.QueryRow(ctx, `SELECT o.id::text,(SELECT count(*) FROM service_receipt_jobs j WHERE j.order_id=o.id) FROM shop_orders o WHERE o.public_id=$1`, strings.TrimPrefix(orderPath, "/services/orders/")).Scan(&orderID, &receiptJobs); err != nil || receiptJobs != 1 {
+		t.Fatal("missing or duplicate receipt job", receiptJobs, err)
+	}
+	var mailCalls atomic.Int32
+	var firstKey string
+	mailServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Error(err)
+		}
+		// The mailer API uses its shared request serialization and stable job key.
+		raw, _ := json.Marshal(payload)
+		if r.Method != "PUT" || r.URL.Path != "/job" || !strings.Contains(string(raw), "service-receipt:") || !strings.Contains(string(raw), "$48.00") || !strings.Contains(string(raw), user+"@example.test") {
+			t.Error("invalid receipt request", r.Method, r.URL.Path, string(raw))
+		}
+		key := ""
+		for name, value := range payload {
+			if strings.EqualFold(name, "jobkey") || strings.EqualFold(name, "job_key") {
+				key, _ = value.(string)
+			}
+		}
+		if firstKey == "" {
+			firstKey = key
+		} else if key != firstKey {
+			t.Error("receipt retry changed identity")
+		}
+		if mailCalls.Add(1) == 1 {
+			http.Error(w, "temporary failure", 503)
+			return
+		}
+		fmt.Fprint(w, `{"success":true}`)
+	}))
+	defer mailServer.Close()
+	app.Env.MailEndpoint = mailServer.URL
+	app.Env.LocalExternal = "https://btcpp.dev"
+	app.Infos = log.New(io.Discard, "", 0)
+	at := time.Now().Add(time.Second)
+	app.Env.MailOff = true
+	if worked, err := processServiceReceipt(ctx, app, orderID, at); err != nil || worked {
+		t.Fatal("disabled mail consumed job", worked, err)
+	}
+	var attempts int
+	if err := pool.QueryRow(ctx, "SELECT attempts FROM service_receipt_jobs WHERE order_id=$1", orderID).Scan(&attempts); err != nil || attempts != 0 {
+		t.Fatal("disabled mail leased job", attempts, err)
+	}
+	app.Env.MailOff = false
+	if worked, err := processServiceReceipt(ctx, app, orderID, at); err == nil || !worked {
+		t.Fatal("missing mail retry", worked, err)
+	}
+	if worked, err := processServiceReceipt(ctx, app, orderID, at.Add(time.Minute)); err != nil || worked {
+		t.Fatal("ignored receipt backoff", worked, err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := processServiceReceipt(ctx, app, orderID, at.Add(6*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var receiptState string
+	if err := pool.QueryRow(ctx, "SELECT state FROM service_receipt_jobs WHERE order_id=$1", orderID).Scan(&receiptState); err != nil || receiptState != "accepted" || mailCalls.Load() != 2 || firstKey == "" {
+		t.Fatal("receipt acceptance or deduplication", receiptState, mailCalls.Load(), firstKey, err)
 	}
 }

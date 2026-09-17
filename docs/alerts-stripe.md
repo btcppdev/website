@@ -635,8 +635,16 @@ an account-protected print link and an Alerts management link. The recipient mus
 come from the saved order. The stable `service-receipt:{publicID}` job key reuses
 the existing commerce mailer's deduplication convention. Builder tests cover
 escaping, invalid/unpaid/refunded orders, recipient validation and URL validation.
-This builder does not send mail or queue delivery. A durable receipt outbox and
-worker are still needed, including settlement-transaction enqueueing, retry leases,
-mailer acceptance tracking and disabled-mail handling. In particular, the existing
-`ComposeAndSendMail` returns nil when MailOff is set; a worker must not interpret
-that as an accepted receipt. No real receipt emails have been sent.
+Migration 126 queues one receipt per order in the verified-settlement transaction,
+without backfilling historical payments. The worker requires
+`SERVICE_RECEIPTS_ENABLED=true`, enabled mail and a configured mail endpoint.
+It leases jobs for two minutes, fences stale responses by attempt number, and
+retries with the same mailer key using exponential delays from five minutes to
+six hours. After twelve attempts, delivery requires operator review. Invalid
+receipt data also enters review; orders no longer verified and paid are cancelled.
+MailOff leaves jobs untouched. Acceptance requires both a successful HTTP status
+and the mailer's success response; acceptance does not prove inbox delivery.
+Database and local HTTP fixtures cover settlement rollback, duplicate callbacks,
+lease recovery, stale responses, retry delays, disabled mail and accepted-job
+replay. No real receipt emails have been sent. Live provider and mailer validation,
+operational monitoring and operator recovery tooling remain outstanding.

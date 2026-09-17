@@ -346,6 +346,9 @@ func sendMailerReq(ctx *config.AppContext, endpoint string, method string, paylo
 	}
 
 	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("mailer request failed with HTTP status %d", resp.StatusCode)
+	}
 
 	var ret mailer.ReturnVal
 	data, err := ioutil.ReadAll(resp.Body)
