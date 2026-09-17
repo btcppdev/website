@@ -21,6 +21,7 @@ type alertsStripeDecreasePage struct {
 	CSRF, Monthly, Period, Message string
 	Previous, Desired              int64
 	CanConfirm                     bool
+	CanWithdraw, Retained          bool
 }
 
 func AlertsStripeDecrease(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
@@ -75,6 +76,23 @@ func AlertsStripeDecrease(w http.ResponseWriter, r *http.Request, app *config.Ap
 			http.Error(w, "Reload the review and try again", 403)
 			return
 		}
+		if r.PostForm.Get("action") == "withdraw" {
+			state, e := getters.ReserveAlertsStripeDecreaseWithdrawal(ctx, app, identity.PersonID, id)
+			if errors.Is(e, alertsstripe.ErrSubscription) || errors.Is(e, pgx.ErrNoRows) {
+				http.Error(w, "This decrease can no longer be withdrawn. Reload billing to check its status.", 409)
+				return
+			}
+			if e != nil {
+				http.Error(w, "Unable to save your withdrawal request", 503)
+				return
+			}
+			if state == "pending" {
+				client := alertsstripe.NewClient(strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_"))
+				_ = getters.ProcessAlertsStripeDecreaseWithdrawal(ctx, app, identity.PersonID, id, client)
+			}
+			http.Redirect(w, r, "/services/alerts/decrease/"+url.PathEscape(id), 303)
+			return
+		}
 		if r.PostForm.Get("action") != "confirm" {
 			http.Error(w, "Invalid action", 400)
 			return
@@ -115,6 +133,7 @@ func AlertsStripeDecrease(w http.ResponseWriter, r *http.Request, app *config.Ap
 		page.Message = "Your request is saved. We are waiting for Stripe to confirm the change. You do not need to submit it again."
 	case "scheduled":
 		page.Message = "Your decrease is scheduled. Your current allowance stays available until the effective date below."
+		page.CanWithdraw = time.Now().Add(30*time.Second).Unix() < q.EffectiveAt
 	case "applied":
 		page.Message = "Your lower subscription quantity has taken effect. Paid access depends on your renewal payment."
 	case "expired":
@@ -123,6 +142,26 @@ func AlertsStripeDecrease(w http.ResponseWriter, r *http.Request, app *config.Ap
 		page.Message = "This decrease was cancelled."
 	default:
 		page.Message = "This change needs review. Contact support before submitting another request."
+	}
+	var withdrawal string
+	err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_decrease_withdrawals WHERE quote_id=$1`, id).Scan(&withdrawal)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, "Unable to load withdrawal status", 503)
+		return
+	}
+	if withdrawal != "" {
+		page.CanWithdraw = false
+		page.CanConfirm = false
+		switch withdrawal {
+		case "pending":
+			page.Message = "Your request to keep your current plan is saved. We are waiting for Stripe to confirm it."
+		case "released":
+			page.Message = "The planned decrease was withdrawn. Your existing monthly plan continues. You can manage or cancel future renewals from billing."
+			page.Retained = true
+			page.Monthly = fmt.Sprintf("$%d.00", q.PreviousSlots*2)
+		default:
+			page.Message = "Your withdrawal request needs review. Contact support before submitting another billing change."
+		}
 	}
 	page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 	if err != nil {

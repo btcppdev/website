@@ -332,6 +332,50 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	if e = pool.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_decreases WHERE quote_id=$1`, decrease.ID).Scan(&confirmedDecreases); e != nil || confirmedDecreases != 0 {
 		t.Fatal("GET confirmed decrease", confirmedDecreases, e)
 	}
+	if code, _, _ := call(decreasePath, url.Values{"csrf": {field("csrf")}, "action": {"withdraw"}}); code != 409 {
+		t.Fatal("unconfirmed decrease withdrawn", code)
+	}
+	withdrawQuote, e := getters.SaveAlertsStripeDecreaseQuote(ctx, app, people[1], b.IntentID, 1, decrease.Preview)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, statement := range []string{
+		`INSERT INTO alerts_stripe_decreases(quote_id,checkout_id,state) VALUES($1,$2,'scheduled')`,
+		`INSERT INTO alerts_stripe_decrease_attachments(quote_id,lease_until,schedule_id) VALUES($1,now(),'sub_sched_' || $2::text)`,
+		`INSERT INTO alerts_stripe_decrease_schedules(quote_id,schedule_id,lease_until,snapshot,verified_at) VALUES($1,'sub_sched_' || $2::text,now(),'{}',now())`,
+	} {
+		if _, e = pool.Exec(ctx, statement, withdrawQuote.ID, b.IntentID); e != nil {
+			t.Fatal(e)
+		}
+	}
+	withdrawPath := "/services/alerts/decrease/" + withdrawQuote.ID
+	code, html, _ = call(withdrawPath, nil)
+	if code != 200 || !strings.Contains(html, "Keep my current plan") || strings.Contains(html, "Confirm decrease") {
+		t.Fatal("withdrawal control", code, html)
+	}
+	if code, _, _ := call(withdrawPath, url.Values{"csrf": {"wrong"}, "action": {"withdraw"}}); code != 403 {
+		t.Fatal("withdrawal csrf", code)
+	}
+	if _, e = pool.Exec(ctx, `INSERT INTO alerts_stripe_decrease_withdrawals(quote_id) VALUES($1)`, withdrawQuote.ID); e != nil {
+		t.Fatal(e)
+	}
+	code, html, _ = call(withdrawPath, nil)
+	if code != 200 || !strings.Contains(html, "request to keep your current plan is saved") || strings.Contains(html, "name=\"action\"") {
+		t.Fatal("pending withdrawal", code, html)
+	}
+	if _, e = pool.Exec(ctx, `UPDATE alerts_stripe_decrease_withdrawals SET state='released',snapshot='{}' WHERE quote_id=$1`, withdrawQuote.ID); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = pool.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='cancelled' WHERE quote_id=$1`, withdrawQuote.ID); e != nil {
+		t.Fatal(e)
+	}
+	code, html, _ = call(withdrawPath, nil)
+	if code != 200 || !strings.Contains(html, "Continuing monthly total") || !strings.Contains(html, "$4.00") || strings.Contains(html, "2 → 1") {
+		t.Fatal("withdrawn plan summary", code, html)
+	}
+	if code, _, location := call(withdrawPath, url.Values{"csrf": {cancelForm.Get("csrf")}, "action": {"withdraw"}}); code != 303 || location != withdrawPath {
+		t.Fatal("withdrawal replay", code, location)
+	}
 	for i := 0; i < 2; i++ {
 		if code, body, location := call("/services/alerts/subscribe?account="+people[1]+"&slots=3", nil); code != 303 || location != upgradePath {
 			t.Fatal("existing-plan upgrade handoff", code, body, location)

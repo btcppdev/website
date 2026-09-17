@@ -574,3 +574,12 @@ PostgreSQL tests cover queue wake-up, lease timing, ownership and scheduled
 pre-renewal no-ops, alongside the existing adapter/recovery tests. The worker
 still requires `ALERTS_STRIPE_RECONCILIATION_ENABLED=true`; customer-facing
 decrease controls and complete provider HTTP lifecycle fixtures remain pending.
+
+The saved decrease screen now offers “Keep my current plan” for scheduled changes
+before the renewal cutoff. Its CSRF-protected POST persists withdrawal consent and
+runs the shared withdrawal processor. Pending/review-needed withdrawals hide
+conflicting actions; confirmed release displays the continuing original quantity
+and monthly price, with a link back to billing for cancellation or other changes.
+HTTP/PostgreSQL fixtures cover controls, CSRF, unconfirmed-request rejection,
+status rendering and replay of completed withdrawal. Full successful provider
+HTTP lifecycle coverage and browser visual verification remain outstanding.
