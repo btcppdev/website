@@ -40,7 +40,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	}
 	defer pool.Close()
 	app := &config.AppContext{DB: pool, Session: scs.New(), Env: &types.EnvConfig{Host: "localhost", Port: "8898", StripeKey: "sk_test_local_fixture"}}
-	app.TemplateCache, err = template.ParseFiles("../../templates/alerts_stripe_start.tmpl", "../../templates/alerts_stripe_return.tmpl", "../../templates/alerts_stripe_manage.tmpl", "../../templates/alerts_stripe_upgrade.tmpl")
+	app.TemplateCache, err = template.ParseFiles("../../templates/alerts_stripe_start.tmpl", "../../templates/alerts_stripe_return.tmpl", "../../templates/alerts_stripe_manage.tmpl", "../../templates/alerts_stripe_upgrade.tmpl", "../../templates/alerts_stripe_decrease.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,6 +113,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	defer func() { stripe.SetBackend(stripe.APIBackend, previous); stripe.Key = key }()
 	router := mux.NewRouter()
 	router.HandleFunc("/services/alerts/upgrade/{quote}", func(w http.ResponseWriter, r *http.Request) { AlertsStripeUpgrade(w, r, app) })
+	router.HandleFunc("/services/alerts/decrease/{quote}", func(w http.ResponseWriter, r *http.Request) { AlertsStripeDecrease(w, r, app) })
 	router.HandleFunc("/services/alerts/manage", func(w http.ResponseWriter, r *http.Request) { AlertsStripeManage(w, r, app) })
 	router.HandleFunc("/fixture/login/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if err := auth.LoginPerson(app, r, mux.Vars(r)["id"], auth.MethodPassword); err != nil {
@@ -293,6 +294,25 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	upgradePath := "/services/alerts/upgrade/" + quote.ID
+	decrease, e := getters.SaveAlertsStripeDecreaseQuote(ctx, app, people[1], b.IntentID, 1, alertsstripe.DecreasePreview{PreviousSlots: 2, PaidSlots: 1, MonthlyCents: 200, PeriodStart: managed.Items.Data[0].CurrentPeriodStart, EffectiveAt: managed.Items.Data[0].CurrentPeriodEnd, ExpiresAt: now.Add(10 * time.Minute)})
+	if e != nil {
+		t.Fatal(e)
+	}
+	decreasePath := "/services/alerts/decrease/" + decrease.ID
+	code, html, _ = call(decreasePath+"?state=scheduled&total=1&slots=99", nil)
+	if code != 200 || !strings.Contains(html, "$2.00") || !strings.Contains(html, "2 → 1") || !strings.Contains(html, "Confirm decrease") || strings.Contains(html, "Your decrease is scheduled") {
+		t.Fatal("decrease review", code, html)
+	}
+	if code, _, _ = call(decreasePath, url.Values{"csrf": {"wrong"}, "action": {"confirm"}}); code != 403 {
+		t.Fatal("decrease csrf", code)
+	}
+	if code, _, _ = call(decreasePath, url.Values{"csrf": {field("csrf")}, "action": {"unknown"}}); code != 400 {
+		t.Fatal("decrease action", code)
+	}
+	var confirmedDecreases int
+	if e = pool.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_decreases WHERE quote_id=$1`, decrease.ID).Scan(&confirmedDecreases); e != nil || confirmedDecreases != 0 {
+		t.Fatal("GET confirmed decrease", confirmedDecreases, e)
+	}
 	for i := 0; i < 2; i++ {
 		if code, body, location := call("/services/alerts/subscribe?account="+people[1]+"&slots=3", nil); code != 303 || location != upgradePath {
 			t.Fatal("existing-plan upgrade handoff", code, body, location)
@@ -318,6 +338,9 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	if code, _, _ := call(upgradePath, nil); code != 404 {
 		t.Fatal("foreign upgrade readable", code)
 	}
+	if code, _, _ := call(decreasePath, nil); code != 404 {
+		t.Fatal("foreign decrease readable", code)
+	}
 	if code, _, _ := call("/fixture/login/"+people[1], nil); code != 204 {
 		t.Fatal(code)
 	}
@@ -337,6 +360,13 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	}
 	if code, _, _ := call(upgradePath, url.Values{"csrf": {field("csrf")}, "action": {"confirm"}}); code != 409 {
 		t.Fatal("stale upgrade confirmation", code)
+	}
+	code, html, _ = call(decreasePath, nil)
+	if code != 200 {
+		t.Fatal(code, html)
+	}
+	if code, _, _ := call(decreasePath, url.Values{"csrf": {field("csrf")}, "action": {"confirm"}}); code != 409 {
+		t.Fatal("stale decrease confirmation", code)
 	}
 	code, html, _ = call("/services/alerts/manage", nil)
 	if code != 200 || !strings.Contains(html, "scheduled to stop renewing") || strings.Contains(html, "Cancel future renewals") {

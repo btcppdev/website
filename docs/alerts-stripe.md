@@ -521,7 +521,17 @@ review; an existing pending/scheduled/review-needed instruction resumes its
 original quote instead of silently replacing consent. Zero paid slots is reserved
 for cancellation. PostgreSQL tests cover foreign accounts, invalid quantities,
 review reuse, no implicit confirmation and resuming saved consent. Customer-facing
-review/confirmation pages still need wiring.
+review selection from the billing page still needs wiring.
+
+`GET/POST /services/alerts/decrease/{quote}` now renders an account-owned saved
+review with its lower quantity, tax-inclusive monthly total and UTC effective
+date. GET only displays persisted state. CSRF-protected confirmation saves consent
+and starts the shared decrease coordinator; transport failures leave a resumable
+pending request. Status copy distinguishes pending, scheduled, applied, expired
+and review-needed outcomes. The screen reuses the compact upgrade layout.
+Local HTTP/PostgreSQL tests cover rendering, forged query values, no GET-side
+confirmation, foreign ownership, CSRF and stale review rejection. Visual browser
+verification and the complete successful provider HTTP flow remain pending.
 
 Confirmed decreases now wake the existing opt-in Stripe reconciliation worker.
 Pending requests receive its two-minute lease and resume attachment followed by

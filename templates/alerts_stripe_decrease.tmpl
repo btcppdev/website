@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en"><head><title>Change Alerts subscription · bitcoin++</title>{{ block "header" . }}{{ end }}
+<link rel="stylesheet" href="/static/css/login-layout.css?v=4"></head>
+<body class="btcpp-login-page alerts-upgrade-page">{{ block "mainnav" . }}{{ end }}
+<main class="auth-shell auth-shell--simple"><section class="auth-card">
+<header class="auth-card__head"><span class="auth-kicker">bitcoin++ Alerts</span><h1>Reduce your subscription</h1></header>
+<p role="status">{{ .Message }}</p>
+<dl class="alerts-upgrade-summary"><div><dt>Paid project subscriptions</dt><dd>{{ .Previous }} → {{ .Desired }}<small>Plus your three free projects</small></dd></div>
+<div><dt>Effective date</dt><dd>{{ .Period }}</dd></div>
+<div><dt>New monthly total</dt><dd>{{ .Monthly }}<small>Including applicable tax</small></dd></div></dl>
+{{ if .CanConfirm }}<p>Confirming schedules this lower quantity for your next renewal. Your current paid period stays unchanged.</p>
+<form method="post" class="alerts-upgrade-action"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="confirm"><button type="submit" class="auth-primary">Confirm decrease · {{ .Monthly }}/month</button></form>{{ end }}
+<p class="alerts-upgrade-links"><a href="/services/alerts/manage">Manage billing</a> · <a href="https://alerts.btcpp.dev/alerts">My alerts</a></p>
+</section></main></body></html>
