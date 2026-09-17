@@ -1,0 +1,26 @@
+groups:
+  - name: btcpp-service-receipts
+    rules:
+      - alert: BitcoinPlusPlusReceiptNeedsReview
+        expr: |
+          (btcpp_web_service_receipt_jobs{state="review"} > 0)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Service receipt delivery needs operator review
+          description: Inspect receipts with target/service-receipts and resolve the underlying failure before requeueing.
+      - alert: BitcoinPlusPlusReceiptQueueStalled
+        expr: |
+          (btcpp_web_service_receipt_oldest_pending_timestamp_seconds > 0)
+          and (time() - btcpp_web_service_receipt_oldest_pending_timestamp_seconds > 86400)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: A service receipt has been pending for more than a day
+          description: Check SERVICE_RECEIPTS_ENABLED, mail configuration and provider availability; acceptance does not prove inbox delivery.

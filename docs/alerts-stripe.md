@@ -665,6 +665,15 @@ PostgreSQL tests compare aggregates before and after acceptance; collector tests
 verify receipt labels omit unrelated identifiers. Production scraping, alert
 threshold validation and routing to an operator remain unverified.
 
+`ops/service-receipt-alerts.yml` provides warning rules for review jobs persisting
+ten minutes and pending receipts older than a day for fifteen minutes. Both
+require a successful business refresh less than five minutes old; pair them with
+central scrape/collector-failure alerts so stale data is not silently ignored.
+`promtool test rules ops/service-receipt-alerts.test.yml` verifies delays,
+recovery, failed/stale refresh suppression and the empty-queue sentinel. Import
+the rules into the monitoring deployment and configure an operator route before
+enabling production receipts; the rule file alone does not deliver alerts.
+
 ### Receipt recovery
 
 Migration 127 adds a bounded recovery budget and an audit table. From the central
@@ -692,5 +701,11 @@ remain monotonic, and late pre-recovery responses cannot finish the new budget.
 The saved recipient, order and stable mailer key remain unchanged. Requeueing
 does not send mail directly; the enabled worker rechecks verified paid status
 before sending. Mailer idempotency still needs live verification for ambiguous
-timeouts. The command is source-runnable; deployment packaging and a production
-recovery exercise remain outstanding.
+timeouts. `make build-ops` produces `target/service-receipts`; the Dockerfile
+builds this alongside the web binary. Inside the deployed container, use
+`./target/service-receipts` with the same flags from `/app`, inheriting the
+service's environment. The compiled binary's help and read-only lookup were
+verified against the isolated database. This command does not start a web server,
+poll releases or send mail. Docker is unavailable in the development environment,
+so container build/runtime verification and a production recovery exercise remain
+outstanding.

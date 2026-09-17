@@ -48,6 +48,10 @@ db-migrate: db-start
 build:
 	$(GO_ENV) go build -v -o target/$(APP_NAME) ./cmd/web/main.go
 
+.PHONY: build-ops
+build-ops:
+	$(GO_ENV) go build -v -o target/service-receipts ./cmd/service-receipts
+
 .PHONY: css-build
 css-build:
 	@echo "mini.css is checked in as a legacy stylesheet; no CSS build step is required."

@@ -83,6 +83,10 @@ run:
 build:
   make build
 
+# Build operational commands included in the deployment image.
+build-ops:
+  make build-ops
+
 # Build the Tailwind CSS bundle.
 css:
   make css-build

@@ -1,0 +1,87 @@
+rule_files:
+  - service-receipt-alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_receipt_jobs{job="btcpp",instance="stale",state="review"}'
+        values: '1+0x1460'
+      - series: 'btcpp_web_service_receipt_oldest_pending_timestamp_seconds{job="btcpp",instance="stale"}'
+        values: '1+0x1460'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="stale"}'
+        values: '1+0x1460'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="stale"}'
+        values: '0+0x1460'
+      - series: 'btcpp_web_service_receipt_oldest_pending_timestamp_seconds{job="btcpp",instance="empty"}'
+        values: '0+0x1460'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="empty"}'
+        values: '1+0x1460'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="empty"}'
+        values: '0+60x1460'
+    alert_rule_test:
+      - eval_time: 24h16m
+        alertname: BitcoinPlusPlusReceiptNeedsReview
+        exp_alerts: []
+      - eval_time: 24h16m
+        alertname: BitcoinPlusPlusReceiptQueueStalled
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_receipt_jobs{job="btcpp",instance="web",state="review"}'
+        values: '1+0x19 0+0x10'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '1+0x30'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x30'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: BitcoinPlusPlusReceiptNeedsReview
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: BitcoinPlusPlusReceiptNeedsReview
+        exp_alerts:
+          - exp_labels:
+              job: btcpp
+              instance: web
+              state: review
+              severity: warning
+            exp_annotations:
+              summary: Service receipt delivery needs operator review
+              description: Inspect receipts with target/service-receipts and resolve the underlying failure before requeueing.
+      - eval_time: 20m
+        alertname: BitcoinPlusPlusReceiptNeedsReview
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_receipt_jobs{job="btcpp",instance="web",state="review"}'
+        values: '1+0x20'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '0+0x20'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: BitcoinPlusPlusReceiptNeedsReview
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_receipt_oldest_pending_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '1+0x1460'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '1+0x1460'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x1460'
+    alert_rule_test:
+      - eval_time: 24h15m
+        alertname: BitcoinPlusPlusReceiptQueueStalled
+        exp_alerts: []
+      - eval_time: 24h16m
+        alertname: BitcoinPlusPlusReceiptQueueStalled
+        exp_alerts:
+          - exp_labels:
+              job: btcpp
+              instance: web
+              severity: warning
+            exp_annotations:
+              summary: A service receipt has been pending for more than a day
+              description: Check SERVICE_RECEIPTS_ENABLED, mail configuration and provider availability; acceptance does not prove inbox delivery.

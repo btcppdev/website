@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
 	--mount=type=cache,target=/root/.cache/go-build \
-	make build \
+	make build build-ops \
     && mkdir -p static/security \
     && printf 'System CA trust policy: 2026-10-22\n' > static/security/container-trust.txt \
     && GO111MODULE=off GOTOOLCHAIN=local go run /tmp/container-trust.go verify /etc/ssl/certs >> static/security/container-trust.txt \
