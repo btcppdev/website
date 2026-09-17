@@ -299,6 +299,25 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	decreasePath := "/services/alerts/decrease/" + decrease.ID
+	decreaseForm := url.Values{"checkout": {b.IntentID}, "csrf": {cancelForm.Get("csrf")}, "action": {"decrease"}, "slots": {"1"}}
+	for i := 0; i < 2; i++ {
+		if code, body, location := call("/services/alerts/manage", decreaseForm); code != 303 || location != decreasePath {
+			t.Fatal("decrease review handoff", code, body, location)
+		}
+	}
+	decreaseForm.Set("slots", "0")
+	if code, _, _ := call("/services/alerts/manage", decreaseForm); code != 400 {
+		t.Fatal("zero slots must use cancellation", code)
+	}
+	decreaseForm.Set("slots", "2")
+	if code, _, _ := call("/services/alerts/manage", decreaseForm); code != 409 {
+		t.Fatal("non-decrease accepted", code)
+	}
+	decreaseForm.Set("slots", "1")
+	decreaseForm.Set("csrf", "wrong")
+	if code, _, _ := call("/services/alerts/manage", decreaseForm); code != 403 {
+		t.Fatal("decrease selection csrf", code)
+	}
 	code, html, _ = call(decreasePath+"?state=scheduled&total=1&slots=99", nil)
 	if code != 200 || !strings.Contains(html, "$2.00") || !strings.Contains(html, "2 → 1") || !strings.Contains(html, "Confirm decrease") || strings.Contains(html, "Your decrease is scheduled") {
 		t.Fatal("decrease review", code, html)

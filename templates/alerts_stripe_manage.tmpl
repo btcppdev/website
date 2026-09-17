@@ -1,12 +1,19 @@
 <!DOCTYPE html>
 <html lang="en"><head><title>Manage Alerts billing · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/login-layout.css?v=2"></head>
-<body class="btcpp-login-page">{{ block "mainnav" . }}{{ end }}
+<link rel="stylesheet" href="/static/css/login-layout.css?v=4"></head>
+<body class="btcpp-login-page alerts-upgrade-page">{{ block "mainnav" . }}{{ end }}
 <main class="auth-shell auth-shell--simple"><section class="auth-card">
-<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>{{ .Heading }}</h1></header>
+<header class="auth-card__head"><span class="auth-kicker">bitcoin++ Alerts</span><h1>{{ .Heading }}</h1></header>
 <p role="status">{{ .Message }}</p>
 {{ if .Period }}<p>Current billing period ends {{ .Period }}.</p>{{ end }}
 <p>After paid access ends, your three free projects remain active. Your other subscriptions and notification settings stay saved.</p>
+{{ if .PaidSlots }}<p>Current paid project allowance: <strong>{{ .PaidSlots }}</strong>, plus three free projects.</p>{{ end }}
+{{ if .DecreasePath }}<p><a href="{{ .DecreasePath }}">View subscription change</a></p>{{ end }}
+{{ if .CanDecrease }}<form method="post" action="/services/alerts/manage" class="alerts-upgrade-action">
+<input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="decrease">
+<label for="paid-projects">Paid projects after renewal</label><input id="paid-projects" name="slots" type="number" min="1" max="{{ .MaxDecrease }}" value="{{ .MaxDecrease }}" required>
+<p>Each paid project costs $2/month including applicable tax. Your current allowance stays available until renewal.</p>
+<button type="submit" class="auth-primary">Review lower monthly total</button></form>{{ end }}
 {{ if .CanCancel }}<form method="post" action="/services/alerts/manage">
 <input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="revision" value="{{ .Revision }}"><input type="hidden" name="periodEnd" value="{{ .PeriodEnd }}">
 <button type="submit" class="auth-primary">Cancel future renewals</button></form>{{ end }}

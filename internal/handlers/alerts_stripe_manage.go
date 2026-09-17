@@ -6,6 +6,7 @@ import (
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
@@ -21,11 +22,17 @@ type alertsStripeManagePage struct {
 	Checkout, CSRF, Key, Heading, Message, Period string
 	Revision, PeriodEnd                           int64
 	CanCancel                                     bool
+	CanDecrease                                   bool
+	PaidSlots, MaxDecrease                        int64
+	DecreasePath                                  string
 }
 
 // GET reads verified provider state. Only an owned, CSRF-protected POST can
 // persist consent and schedule cancellation. Redirect parameters prove nothing.
 func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
+	defer cancel()
+	r = r.WithContext(ctx)
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	if r.Method != "GET" && r.Method != "POST" {
@@ -57,7 +64,17 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 			http.Error(w, "Invalid request", 400)
 			return
 		}
-		for _, field := range []string{"csrf", "checkout", "key", "revision", "periodEnd"} {
+		fields := []string{"csrf", "checkout"}
+		if len(r.PostForm["action"]) > 1 || (r.PostForm.Get("action") != "" && r.PostForm.Get("action") != "decrease" && r.PostForm.Get("action") != "cancel") {
+			http.Error(w, "Invalid action", 400)
+			return
+		}
+		if r.PostForm.Get("action") == "decrease" {
+			fields = append(fields, "slots")
+		} else {
+			fields = append(fields, "key", "revision", "periodEnd")
+		}
+		for _, field := range fields {
 			if len(r.PostForm[field]) != 1 {
 				http.Error(w, "Reload billing and try again", 400)
 				return
@@ -98,6 +115,24 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 		}
 		client := alertsstripe.NewClient(strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_"))
 		if r.Method == "POST" {
+			if r.PostForm.Get("action") == "decrease" {
+				slots, e := strconv.ParseInt(r.PostForm.Get("slots"), 10, 64)
+				if e != nil || slots < 1 {
+					http.Error(w, "Choose at least one paid project, or cancel future renewals to return to the free plan.", 400)
+					return
+				}
+				quote, e := getters.PrepareAlertsStripeDecrease(r.Context(), app, identity.PersonID, page.Checkout, slots, client)
+				if errors.Is(e, alertsstripe.ErrSubscription) {
+					http.Error(w, "This quantity is unavailable or billing changed. Reload billing and try again.", 409)
+					return
+				}
+				if e != nil {
+					http.Error(w, "Unable to prepare your subscription change. Please try again shortly.", 503)
+					return
+				}
+				http.Redirect(w, r, "/services/alerts/decrease/"+url.PathEscape(quote.ID), 303)
+				return
+			}
 			rev, e1 := strconv.ParseInt(r.PostForm.Get("revision"), 10, 64)
 			end, e2 := strconv.ParseInt(r.PostForm.Get("periodEnd"), 10, 64)
 			if e1 != nil || e2 != nil || rev < 1 || end <= 0 {
@@ -155,7 +190,39 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 			page.CanCancel = false
 			page.Message = "Your cancellation request needs review because the billing period changed or confirmation took too long. Contact support before submitting another request."
 		}
-		if page.CanCancel {
+		var bindingRaw []byte
+		if err = app.DB.QueryRow(r.Context(), `SELECT binding FROM alerts_stripe_current_subscriptions WHERE checkout_id=$1`, page.Checkout).Scan(&bindingRaw); err != nil {
+			http.Error(w, "Unable to read subscription quantity", 503)
+			return
+		}
+		var binding alertsstripe.Binding
+		if json.Unmarshal(bindingRaw, &binding) != nil {
+			http.Error(w, "Unable to read subscription quantity", 503)
+			return
+		}
+		page.PaidSlots = binding.PaidSlots
+		page.MaxDecrease = binding.PaidSlots - 1
+		page.CanDecrease = page.CanCancel && state.State == "active" && binding.PaidSlots > 1 && outcome != "pending" && outcome != "review"
+		var decreaseID, decreaseState string
+		err = app.DB.QueryRow(r.Context(), `SELECT quote_id::text,state FROM alerts_stripe_decreases WHERE checkout_id=$1 AND state IN ('pending','scheduled','review')`, page.Checkout).Scan(&decreaseID, &decreaseState)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "Unable to read subscription change", 503)
+			return
+		}
+		if decreaseID != "" {
+			page.CanDecrease = false
+			page.CanCancel = false
+			page.DecreasePath = "/services/alerts/decrease/" + decreaseID
+			switch decreaseState {
+			case "scheduled":
+				page.Message = "A lower project quantity is scheduled for renewal. View the saved change for its price and effective date."
+			case "pending":
+				page.Message = "Your subscription change is saved and awaiting Stripe confirmation."
+			default:
+				page.Message = "Your subscription change needs review. Contact support before submitting another change."
+			}
+		}
+		if page.CanCancel || page.CanDecrease {
 			page.Key = uuid.NewString()
 			page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 			if err != nil {

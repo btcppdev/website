@@ -533,6 +533,17 @@ Local HTTP/PostgreSQL tests cover rendering, forged query values, no GET-side
 confirmation, foreign ownership, CSRF and stale review rejection. Visual browser
 verification and the complete successful provider HTTP flow remain pending.
 
+Billing management now shows the current paid quantity and a lower-quantity
+selection for eligible active subscriptions. The CSRF-protected selection POST
+prepares a review and redirects to its saved terms; it does not confirm the
+change. Zero paid slots directs users to cancellation. Pending/scheduled decreases
+show a link back to their status and suppress conflicting controls. The page uses
+the existing compact billing styling and lowercase bitcoin++ wordmark. HTTP
+tests cover review handoff/reuse, zero or unchanged quantities and CSRF rejection.
+Withdrawing a saved schedule and canceling while a decrease is scheduled still
+need implementation; browser verification and full successful provider lifecycle
+fixtures also remain outstanding.
+
 Confirmed decreases now wake the existing opt-in Stripe reconciliation worker.
 Pending requests receive its two-minute lease and resume attachment followed by
 verified phase scheduling; scheduled requests observe renewal transitions before
