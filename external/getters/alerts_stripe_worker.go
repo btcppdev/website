@@ -35,6 +35,7 @@ func reconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppConte
  WHEN EXISTS(SELECT 1 FROM alerts_stripe_cancellations x WHERE x.checkout_id=c.id AND x.state='pending') THEN interval '15 minutes'
  WHEN EXISTS(SELECT 1 FROM alerts_stripe_increases x WHERE x.checkout_id=c.id AND x.state='pending') THEN interval '2 minutes'
  WHEN EXISTS(SELECT 1 FROM alerts_stripe_decreases x WHERE x.checkout_id=c.id AND x.state='pending') THEN interval '2 minutes'
+ WHEN EXISTS(SELECT 1 FROM alerts_stripe_decrease_withdrawals w JOIN alerts_stripe_decreases d ON d.quote_id=w.quote_id WHERE d.checkout_id=c.id AND w.state='pending') THEN interval '2 minutes'
  WHEN EXISTS(SELECT 1 FROM alerts_stripe_invoices i WHERE i.checkout_id=c.id) THEN interval '1 hour'
  WHEN c.created_at<now()-interval '7 days' THEN interval '1 day' ELSE interval '15 minutes' END
  FROM due WHERE c.id=due.id RETURNING c.person_id::text,c.id::text`).Scan(&person, &id)

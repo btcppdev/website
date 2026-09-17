@@ -382,8 +382,48 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 	if _, err = ReserveAlertsStripeIncrease(ctx, app, person, up.ID); !errors.Is(err, alertsstripe.ErrSubscription) {
 		t.Fatal("scheduled decrease overwritten", err)
 	}
-	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='cancelled' WHERE quote_id=$1`, q.ID); err != nil {
-		t.Fatal(err)
+	if _, err = ReserveAlertsStripeDecreaseWithdrawal(ctx, app, uuid.NewString(), q.ID); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("foreign withdrawal", err)
+	}
+	for i := 0; i < 3; i++ {
+		status, e := ReserveAlertsStripeDecreaseWithdrawal(ctx, app, person, q.ID)
+		if e != nil || status != "pending" {
+			t.Fatal("withdrawal consent", status, e)
+		}
+	}
+	withdrawal, e := claimAlertsStripeDecreaseWithdrawal(ctx, app, person, q.ID)
+	if e != nil || withdrawal.Attempt != 1 {
+		t.Fatal(withdrawal, e)
+	}
+	if _, e = claimAlertsStripeDecreaseWithdrawal(ctx, app, person, q.ID); !errors.Is(e, alertsstripe.ErrReconcile) {
+		t.Fatal("withdrawal lease ignored", e)
+	}
+	if _, e = app.DB.Exec(ctx, `UPDATE alerts_stripe_decrease_withdrawals SET lease_until=now()-interval '1 second' WHERE id=$1`, withdrawal.ID); e != nil {
+		t.Fatal(e)
+	}
+	retryWithdrawal, e := claimAlertsStripeDecreaseWithdrawal(ctx, app, person, q.ID)
+	if e != nil || retryWithdrawal.Attempt != 2 || retryWithdrawal.ID != withdrawal.ID || !retryWithdrawal.CreatedAt.Equal(withdrawal.CreatedAt) {
+		t.Fatal(retryWithdrawal, e)
+	}
+	releasedState := alertsstripe.SubscriptionState{State: "active", ProviderStatus: "active", PeriodStart: start.Unix(), PeriodEnd: end.Unix()}
+	if e = recordAlertsStripeDecreaseWithdrawal(ctx, app, withdrawal, releasedState); !errors.Is(e, alertsstripe.ErrReconcile) {
+		t.Fatal("late withdrawal response", e)
+	}
+	if e = recordAlertsStripeDecreaseWithdrawal(ctx, app, retryWithdrawal, releasedState); e != nil {
+		t.Fatal(e)
+	}
+	if e = ProcessAlertsStripeDecreaseWithdrawal(ctx, app, person, q.ID, alertsstripe.Client{}); e != nil {
+		t.Fatal("completed withdrawal called provider", e)
+	}
+	if status, e := ReserveAlertsStripeDecreaseWithdrawal(ctx, app, person, q.ID); e != nil || status != "released" {
+		t.Fatal(status, e)
+	}
+	if _, e = app.DB.Exec(ctx, `UPDATE alerts_stripe_decrease_withdrawals SET snapshot='{}' WHERE id=$1`, withdrawal.ID); e == nil {
+		t.Fatal("withdrawal evidence mutable")
+	}
+	grants, err = ActiveServiceEntitlements(app, person, now)
+	if err != nil || len(grants) != 1 || grants[0].Quantity != 3 || !grants[0].EndsAt.Equal(end) {
+		t.Fatal("withdrawal changed paid access", grants, err)
 	}
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decreases SET state='pending' WHERE quote_id=$1`, q.ID); err == nil {
 		t.Fatal("resolved decrease reopened")

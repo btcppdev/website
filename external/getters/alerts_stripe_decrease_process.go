@@ -4,6 +4,8 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/config"
 	"context"
+	"errors"
+	"github.com/jackc/pgx/v5"
 )
 
 // ProcessAlertsStripeDecrease only operates on durable customer confirmation.
@@ -16,6 +18,17 @@ func ProcessAlertsStripeDecrease(ctx context.Context, app *config.AppContext, pe
 	var state string
 	if err := app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_decreases WHERE quote_id=$1`, id).Scan(&state); err != nil {
 		return err
+	}
+	var withdrawal string
+	err := app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_decrease_withdrawals WHERE quote_id=$1`, id).Scan(&withdrawal)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if withdrawal == "pending" {
+		return ProcessAlertsStripeDecreaseWithdrawal(ctx, app, person, id, client)
+	}
+	if withdrawal == "review" {
+		return alertsstripe.ErrReconcile
 	}
 	switch state {
 	case "pending":

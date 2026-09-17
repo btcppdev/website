@@ -554,6 +554,17 @@ foreign/mismatched references, changed quantity and unsafe timing. Durable
 withdrawal consent/evidence, worker processing and customer controls are not yet
 wired. Stripe release semantics: https://docs.stripe.com/api/subscription_schedules/release.
 
+Migration 125 now stores account-owned withdrawal consent, immutable request IDs
+and timestamps, retry leases and verified release evidence. Verified completion
+atomically cancels the planned decrease and refreshes the unchanged subscription
+snapshot; existing paid grants remain intact. Pending withdrawals wake the billing
+worker, receive a two-minute lease and run before scheduled-decrease observation.
+Unsafe or conflicting provider observations enter review instead of issuing
+another mutation. PostgreSQL tests cover ownership, repeated consent, stable retry
+identity, late-response fencing, immutable evidence and preserved paid access.
+Targeted Stripe getter/handler suites pass. Customer-facing withdrawal controls
+and full provider HTTP lifecycle fixtures remain outstanding.
+
 Confirmed decreases now wake the existing opt-in Stripe reconciliation worker.
 Pending requests receive its two-minute lease and resume attachment followed by
 verified phase scheduling; scheduled requests observe renewal transitions before
