@@ -68,10 +68,10 @@ type server struct {
 	loadConferenceBroadcast     func(string) (*types.ConferenceBroadcast, error)
 	recordAudit                 func(*types.AuthAuditEvent) error
 	limiter                     *rateLimiter
-	listAccountAccess   func(context.Context, string, time.Time) (*getters.AccountAccessSnapshot, error)
-	listEntitlements    func(string, time.Time) ([]getters.ServiceEntitlement, error)
-	listNewsletters     func(string) ([]getters.NewsletterPreference, error)
-	setNewsletter       func(string, string, string, getters.NewsletterPreference) error
+	listAccountAccess           func(context.Context, string, time.Time) (*getters.AccountAccessSnapshot, error)
+	listEntitlements            func(string, time.Time) ([]getters.ServiceEntitlement, error)
+	listNewsletters             func(string) ([]getters.NewsletterPreference, error)
+	setNewsletter               func(string, string, string, getters.NewsletterPreference) error
 }
 
 type apiPrincipal struct {

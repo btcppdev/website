@@ -1,5 +1,11 @@
 # Alerts newsletter integration
 
+Migration note: the incremental, unpublished Alerts migrations described in the
+implementation history below are consolidated into `110_alerts_service_billing.sql`.
+Deploy this migration after the existing bitcoin++ master migrations. Development
+databases containing the earlier migration sequence must be recreated separately;
+do not rewrite their recorded migration checksums.
+
 The account API exposes `GET /api/v1/me/newsletters` with
 `newsletters:self:read` and `PUT /api/v1/me/newsletters` with
 `newsletters:self:write`. Register those scopes on the Alerts OAuth client before

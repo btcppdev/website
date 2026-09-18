@@ -1,5 +1,11 @@
 # Alerts Stripe subscriptions
 
+Migration note: the incremental, unpublished Alerts migrations described in the
+implementation history below are consolidated into `110_alerts_service_billing.sql`.
+Deploy this migration after the existing bitcoin++ master migrations. Development
+databases containing the earlier migration sequence must be recreated separately;
+do not rewrite their recorded migration checksums.
+
 Implementation is in `internal/alertsstripe` and
 `external/getters/alerts_stripe_checkout.go`. This is not yet a public, enabled
 payment flow.

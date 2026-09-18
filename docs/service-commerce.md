@@ -1,5 +1,11 @@
 # Shared service commerce
 
+Migration note: the incremental, unpublished Alerts migrations described in the
+implementation history below are consolidated into `110_alerts_service_billing.sql`.
+Deploy this migration after the existing bitcoin++ master migrations. Development
+databases containing the earlier migration sequence must be recreated separately;
+do not rewrite their recorded migration checksums.
+
 Migration 102 extends existing `shop_orders` and `shop_order_items` for
 `service` and `digital` purchases. It follows Alerts newsletter migration 101
 and does not conflict with Insider migrations 096–100.

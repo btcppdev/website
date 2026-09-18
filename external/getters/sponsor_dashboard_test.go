@@ -277,6 +277,13 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if err != nil || secondProposal.Status != "pending" {
 		t.Fatalf("second CreateSponsorAwardProposal: proposal=%+v err=%v", secondProposal, err)
 	}
+	// The entitlement was increased from two to three above. One approved
+	// award plus two pending proposals fills the updated allowance.
+	proposalInput.Title = "Third sponsor challenge " + suffix
+	thirdProposal, err := CreateSponsorAwardProposal(ctx, proposalInput)
+	if err != nil || thirdProposal.Status != "pending" {
+		t.Fatalf("third CreateSponsorAwardProposal: proposal=%+v err=%v", thirdProposal, err)
+	}
 	proposalInput.Title = "Over limit " + suffix
 	if _, err := CreateSponsorAwardProposal(ctx, proposalInput); err == nil {
 		t.Fatal("created a sponsor award proposal beyond the entitlement limit")
@@ -384,8 +391,9 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 	if err := SubmitProject(ctx, projectID); err != nil {
 		t.Fatalf("SubmitProject sponsor entry: %v", err)
 	}
+	generalParticipantID := insertSmokePerson(t, ctx, "general-sponsor-participant-"+suffix)
 	generalProjectID := createSmokeProject(t, ctx, ProjectInput{
-		CompetitionID: competitionID, CreatedByPersonID: personID,
+		CompetitionID: competitionID, CreatedByPersonID: generalParticipantID,
 		Slug: "general-sponsor-entry-" + suffix, Title: "General entry " + suffix,
 		ShortDescription: "A submitted project that did not enter the sponsor challenge.",
 	})
@@ -464,7 +472,7 @@ func TestSponsorDashboardMembershipEntitlementsAndConsent(t *testing.T) {
 		!generalEntry.GeneralPodiumWinner || len(generalEntry.Participants) != 1 {
 		t.Fatalf("general hackathon submission mismatch: %+v", generalEntry)
 	}
-	if generalEntry.Participants[0].Email != smokePersonEmail(t, ctx, personID) || generalEntry.Participants[0].ConsentScope != "included_sponsorship" {
+	if generalEntry.Participants[0].Email != smokePersonEmail(t, ctx, generalParticipantID) || generalEntry.Participants[0].ConsentScope != "included_sponsorship" {
 		t.Fatalf("included sponsorship did not disclose submitted participant email: %+v", generalEntry.Participants[0])
 	}
 	exportEntries, err = ListSponsorPrizeEntriesForExport(ctx, orgID)

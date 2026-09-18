@@ -346,10 +346,6 @@ func sendMailerReq(ctx *config.AppContext, endpoint string, method string, paylo
 	}
 
 	defer resp.Body.Close()
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("mailer request failed with HTTP status %d", resp.StatusCode)
-	}
-
 	var ret mailer.ReturnVal
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -359,6 +355,14 @@ func sendMailerReq(ctx *config.AppContext, endpoint string, method string, paylo
 		return err
 	}
 
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		// Preserve structured rejections for legacy idempotent calendar retries,
+		// but never accept a success body carried by an unsuccessful HTTP response.
+		if !ret.Success && ret.Code == resp.StatusCode {
+			return &mailerRequestError{endpoint: endpoint, code: ret.Code, message: ret.Message}
+		}
+		return fmt.Errorf("mailer request failed with HTTP status %d", resp.StatusCode)
+	}
 	if !ret.Success {
 		return &mailerRequestError{endpoint: endpoint, code: ret.Code, message: ret.Message}
 	}
