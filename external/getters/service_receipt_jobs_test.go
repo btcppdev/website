@@ -185,3 +185,59 @@ func TestServiceReceiptQueuePostgres(t *testing.T) {
 		t.Fatal("receipt recipient changed")
 	}
 }
+
+func TestServiceReceiptDeletedAccountPostgres(t *testing.T) {
+	app := databaseSmokeContext(t)
+	ctx := context.Background()
+	for _, state := range []string{"pending", "review", "accepted"} {
+		t.Run(state, func(t *testing.T) {
+			person := insertSmokePerson(t, app, "receipt-deleted-"+state)
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			end := now.AddDate(1, 0, 0)
+			purchase, err := CreateServicePurchase(app, person, "deleted-receipt-fixture", ServiceQuote{ProductCode: "alerts.repository-slots", Name: "Alerts", Provider: "opennode", Quantity: 1, UnitCents: 2400, TotalCents: 2400, PeriodStart: &now, PeriodEnd: &end, ExpiresAt: now.Add(time.Hour)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Make recovery otherwise eligible; account removal must be the reason
+			// a reviewed job cannot be requeued.
+			if _, err := app.DB.Exec(ctx, `UPDATE shop_orders SET status='paid' WHERE id=$1`, purchase.OrderID); err != nil {
+				t.Fatal(err)
+			}
+			var accepted *time.Time
+			if state == "accepted" {
+				accepted = &now
+			}
+			_, err = app.DB.Exec(ctx, `INSERT INTO service_receipt_jobs(order_id,recipient,state,attempts,accepted_at) VALUES($1,'deleted@example.test',$2,1,$3)`, purchase.OrderID, state, accepted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = app.DB.Exec(ctx, `DELETE FROM people WHERE id=$1`, person); err != nil {
+				t.Fatal(err)
+			}
+			if applied, err := RecoverServiceReceipt(ctx, app, purchase.PublicID, 1, "fixture", "account removed"); err != nil || applied {
+				t.Fatal("deleted account recovered", applied, err)
+			}
+			for i := 0; i < 2; i++ {
+				if _, err := ClaimServiceReceipt(ctx, app, purchase.OrderID, now.Add(time.Hour)); !errors.Is(err, pgx.ErrNoRows) {
+					t.Fatal("deleted account claimed", err)
+				}
+			}
+			statuses, err := ListServiceReceipts(ctx, app, purchase.PublicID)
+			want := "cancelled"
+			if state == "accepted" {
+				want = "accepted"
+			}
+			if err != nil || len(statuses) != 1 || statuses[0].State != want || statuses[0].Attempts != 1 {
+				t.Fatal("unexpected deleted receipt state", statuses, err)
+			}
+			late := &ServiceReceiptJob{OrderID: purchase.OrderID, Attempt: 1}
+			if applied, err := FinishServiceReceipt(ctx, app, late, "retry", now); err != nil || applied {
+				t.Fatal("late completion revived deleted receipt", applied, err)
+			}
+			var exists bool
+			if err := app.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM service_purchase_requests WHERE order_id=$1 AND person_id IS NULL)`, purchase.OrderID).Scan(&exists); err != nil || !exists {
+				t.Fatal("purchase evidence lost", exists, err)
+			}
+		})
+	}
+}
