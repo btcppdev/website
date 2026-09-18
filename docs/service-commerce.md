@@ -254,3 +254,12 @@ lifecycle is still Alerts-specific, Insider fixed-term checkout does not establi
 a recurring agreement, and durable product dispatch/recovery still needs work.
 Insider's proposal to relax immutable purchase/account bindings was not imported;
 account merges require a coordinated design covering all provider/quote bindings.
+
+Migration atomicity follow-up: removed transaction wrappers inherited from the
+three Insider migration sources. The consolidated file uses only the runner's
+transaction. A scratch-database exercise appended a deliberate exception after
+all statements and verified that service tables, Insider projection tables and
+the migration record were absent after rollback. Applying the unmodified file
+then succeeded; repeat startup applied zero migrations. The unit suite rejects
+standalone transaction-control statements in migration 128. Earlier local test
+databases retain their original checksums; no deployed database was modified.

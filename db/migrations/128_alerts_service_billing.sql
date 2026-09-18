@@ -665,7 +665,6 @@ CREATE TABLE service_receipt_recoveries (
 );
 
 -- Insider shared integration: insider_subscriber_projection.sql
-BEGIN;
 
 -- Informational only. Insider remains authoritative for access, grants,
 -- purchases, stream consent, cadence, pauses, and notifications.
@@ -686,10 +685,8 @@ CREATE TRIGGER insider_subscriber_projections_set_updated_at
 BEFORE UPDATE ON insider_subscriber_projections
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-COMMIT;
 
 -- Insider shared integration: insider_campaigns.sql
-BEGIN;
 
 CREATE TABLE insider_campaigns (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -777,10 +774,8 @@ CREATE TRIGGER insider_campaign_recipients_set_updated_at
 BEFORE UPDATE ON insider_campaign_recipients
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-COMMIT;
 
 -- Insider shared integration: insider_campaign_tracking.sql
-BEGIN;
 
 ALTER TABLE insider_campaigns
 ADD COLUMN last_error text NOT NULL DEFAULT '';
@@ -798,4 +793,3 @@ CREATE INDEX email_delivery_suppressions_active_idx
 ON email_delivery_suppressions (email)
 WHERE lifted_at IS NULL;
 
-COMMIT;

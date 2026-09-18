@@ -3,6 +3,7 @@ package db
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -42,5 +43,19 @@ func writeMigration(t *testing.T, dir string, name string, sql string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(sql), 0644); err != nil {
 		t.Fatalf("write migration %s: %v", name, err)
+	}
+}
+
+// The runner owns the transaction, including recording the migration checksum.
+// Embedded transaction control would commit partial schema changes before a later
+// statement fails, even though a clean-install smoke test can still pass.
+func TestConsolidatedServiceMigrationUsesRunnerTransaction(t *testing.T) {
+	data, err := os.ReadFile("../../db/migrations/128_alerts_service_billing.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	transactionControl := regexp.MustCompile(`(?im)^\s*(BEGIN|COMMIT|ROLLBACK|START TRANSACTION)\s*;`)
+	if statement := transactionControl.Find(data); statement != nil {
+		t.Fatalf("migration must not control its own transaction: %s", statement)
 	}
 }
