@@ -952,8 +952,10 @@ func (s *server) accountProfile(w http.ResponseWriter, r *http.Request, person *
 	}
 	roles := append([]string(nil), person.Roles...)
 	sort.Strings(roles)
+	publicID := publicid.SpeakerSlug(person)
 	return accountProfileDTO{
-		ID: person.ID, Name: person.Name, Photo: person.Photo, Company: person.Company,
+		ID: person.ID, PublicID: publicID, ProfileURL: "/whois/" + url.PathEscape(publicID),
+		Name: person.Name, Photo: person.Photo, Company: person.Company,
 		Biography: person.Bio, Website: person.Website, X: person.Twitter.Handle,
 		GitHub: person.Github, Instagram: person.Instagram, LinkedIn: person.LinkedIn,
 		LeetCode: person.LeetCode, Nostr: person.Nostr, Emails: addresses, Roles: roles,

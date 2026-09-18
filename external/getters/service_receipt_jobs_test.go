@@ -61,6 +61,9 @@ func TestServiceReceiptQueuePostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if err := CompleteExternalServiceFulfillment(app, purchase.OrderID); !errors.Is(err, ErrServiceFulfillment) {
+		t.Fatalf("Alerts purchase completed through external product fulfillment: %v", err)
+	}
 	if err = app.DB.QueryRow(ctx, "SELECT count(*) FROM service_receipt_jobs WHERE order_id=$1", purchase.OrderID).Scan(&count); err != nil || count != 1 {
 		t.Fatal("duplicate settlement job", count, err)
 	}

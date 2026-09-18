@@ -663,3 +663,139 @@ CREATE TABLE service_receipt_recoveries (
  created_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(order_id,after_attempt)
 );
+
+-- Insider shared integration: insider_subscriber_projection.sql
+BEGIN;
+
+-- Informational only. Insider remains authoritative for access, grants,
+-- purchases, stream consent, cadence, pauses, and notifications.
+CREATE TABLE insider_subscriber_projections (
+  person_id uuid PRIMARY KEY REFERENCES people(id) ON DELETE CASCADE,
+  subscriber_tier text NOT NULL CHECK (subscriber_tier IN ('none','free','paid')),
+  newsletter_status text NOT NULL CHECK (newsletter_status IN ('subscribed','not_subscribed')),
+  version bigint NOT NULL CHECK (version > 0),
+  as_of timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE insider_subscriber_projections IS
+  'Minimal private dashboard projection from Insider; never authoritative for access or email delivery.';
+
+CREATE TRIGGER insider_subscriber_projections_set_updated_at
+BEFORE UPDATE ON insider_subscriber_projections
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+COMMIT;
+
+-- Insider shared integration: insider_campaigns.sql
+BEGIN;
+
+CREATE TABLE insider_campaigns (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  publication_id text NOT NULL,
+  idempotency_key text NOT NULL UNIQUE,
+  series text NOT NULL,
+  access text NOT NULL,
+  subject text NOT NULL,
+  preview_text text NOT NULL DEFAULT '',
+  body_markdown text NOT NULL,
+  canonical_url text NOT NULL,
+  streams text[] NOT NULL,
+  delivery_mode text NOT NULL DEFAULT 'as_published',
+  audience_frozen_at timestamptz NOT NULL,
+  suppressed_count integer NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'accepted',
+  send_at timestamptz NOT NULL,
+  missive_id uuid UNIQUE REFERENCES missives(id) ON DELETE RESTRICT,
+  recipient_count integer NOT NULL DEFAULT 0,
+  queued_at timestamptz,
+  sent_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (publication_id <> ''),
+  CHECK (idempotency_key <> ''),
+  CHECK (series IN ('last-week-in-bitcoin', 'bitcoin-core', 'deep-dives', 'interviews', 'podcasts', 'friday-show')),
+  CHECK (access IN ('public', 'subscribers', 'members')),
+  CHECK (subject <> ''),
+  CHECK (body_markdown <> ''),
+  CHECK (canonical_url ~ '^https?://'),
+  CHECK (cardinality(streams) > 0),
+  CHECK (streams <@ ARRAY[
+    'insider.last-week-in-bitcoin',
+    'insider.bitcoin-core',
+    'insider.deep-dives',
+    'insider.interviews',
+    'insider.podcasts',
+    'insider.friday-show'
+  ]::text[]),
+  CHECK (delivery_mode IN ('as_published', 'weekly_digest')),
+  CHECK (status IN ('accepted', 'queued', 'sent', 'failed', 'canceled')),
+  CHECK (recipient_count >= 0),
+  CHECK (suppressed_count >= 0)
+);
+
+CREATE INDEX insider_campaigns_publication_idx
+ON insider_campaigns (publication_id, created_at DESC);
+
+CREATE INDEX insider_campaigns_send_idx
+ON insider_campaigns (status, send_at)
+WHERE status IN ('accepted', 'queued');
+
+CREATE TRIGGER insider_campaigns_set_updated_at
+BEFORE UPDATE ON insider_campaigns
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE insider_campaign_recipients (
+  campaign_id uuid NOT NULL REFERENCES insider_campaigns(id) ON DELETE CASCADE,
+  subscriber_id text NOT NULL,
+  email citext NOT NULL,
+  shared_contact_id uuid REFERENCES subscribers(id) ON DELETE SET NULL,
+  article_url text NOT NULL,
+  preferences_url text NOT NULL,
+  open_tracking_url text NOT NULL,
+  status text NOT NULL DEFAULT 'accepted',
+  provider_message_id text NOT NULL DEFAULT '',
+  delivered_at timestamptz,
+  bounced_at timestamptz,
+  complained_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (campaign_id, subscriber_id),
+  CHECK (subscriber_id <> ''),
+  CHECK (email <> ''),
+  CHECK (article_url ~ '^https?://'),
+  CHECK (preferences_url ~ '^https?://'),
+  CHECK (open_tracking_url ~ '^https?://'),
+  CHECK (status IN ('accepted', 'scheduled', 'sent', 'delivered', 'bounced', 'complained', 'canceled'))
+);
+
+CREATE UNIQUE INDEX insider_campaign_recipients_email_idx
+ON insider_campaign_recipients (campaign_id, email);
+
+CREATE TRIGGER insider_campaign_recipients_set_updated_at
+BEFORE UPDATE ON insider_campaign_recipients
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+COMMIT;
+
+-- Insider shared integration: insider_campaign_tracking.sql
+BEGIN;
+
+ALTER TABLE insider_campaigns
+ADD COLUMN last_error text NOT NULL DEFAULT '';
+
+CREATE TABLE email_delivery_suppressions (
+  email citext PRIMARY KEY,
+  reason text NOT NULL,
+  provider_event_id text UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  lifted_at timestamptz,
+  CHECK (reason IN ('bounce', 'complaint', 'manual'))
+);
+
+CREATE INDEX email_delivery_suppressions_active_idx
+ON email_delivery_suppressions (email)
+WHERE lifted_at IS NULL;
+
+COMMIT;

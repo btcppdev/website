@@ -41,7 +41,9 @@ type (
 		ShopOrderID string  `json:"shop-order-id,omitempty"`
 		AddOnCents  int64   `json:"add-on-cents,omitempty"`
 		// TicketTotalCents records the exact post-discount ticket subtotal.
-		TicketTotalCents int64 `json:"ticket-total-cents,omitempty"`
+		TicketTotalCents int64  `json:"ticket-total-cents,omitempty"`
+		ServiceAttemptID string `json:"service-attempt-id,omitempty"`
+		ServiceOrderID   string `json:"service-order-id,omitempty"`
 		// PreDiscountCents is the per-ticket price in cents
 		// before any discount is applied. Webhook reads this to
 		// compute originalCents = PreDiscountCents × Quantity

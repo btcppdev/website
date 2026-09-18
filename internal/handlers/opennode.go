@@ -22,13 +22,14 @@ type (
 	}
 
 	Charge struct {
-		ID          string                  `json:"id"`
-		Status      string                  `json:"status"`
-		Description string                  `json:"description"`
-		FiatVal     float64                 `json:"fiat_value"`
-		Price       int64                   `json:"price"`
-		CreatedAt   openNodeUnixTime        `json:"created_at"`
-		Metadata    *types.OpenNodeMetadata `json:"metadata"`
+		ID                string                  `json:"id"`
+		Status            string                  `json:"status"`
+		Description       string                  `json:"description"`
+		FiatVal           float64                 `json:"fiat_value"`
+		Price             int64                   `json:"price"`
+		CreatedAt         openNodeUnixTime        `json:"created_at"`
+		HostedCheckoutURL string                  `json:"hosted_checkout_url"`
+		Metadata          *types.OpenNodeMetadata `json:"metadata"`
 	}
 
 	envelope struct {

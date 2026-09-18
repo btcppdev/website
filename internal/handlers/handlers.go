@@ -967,6 +967,24 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 
 	// Register the versioned API before broad conference and catch-all routes.
 	api.Register(r, app)
+	r.HandleFunc("/api/internal/insider/campaigns", func(w http.ResponseWriter, r *http.Request) {
+		AcceptInsiderCampaign(w, r, app)
+	}).Methods(http.MethodPost)
+	r.HandleFunc("/api/internal/insider/campaigns/{id}", func(w http.ResponseWriter, r *http.Request) {
+		InsiderCampaignStats(w, r, app)
+	}).Methods(http.MethodGet)
+	r.HandleFunc("/api/internal/insider/audiences/resolve", func(w http.ResponseWriter, r *http.Request) {
+		ResolveInsiderAudience(w, r, app)
+	}).Methods(http.MethodPost)
+	r.HandleFunc("/api/internal/insider/transactional-emails", func(w http.ResponseWriter, r *http.Request) {
+		AcceptInsiderTransactionalEmail(w, r, app)
+	}).Methods(http.MethodPost)
+	r.HandleFunc("/api/internal/insider/subscriber-projections", func(w http.ResponseWriter, r *http.Request) {
+		ApplyInsiderSubscriberProjection(w, r, app)
+	}).Methods(http.MethodPost)
+	r.HandleFunc("/api/internal/insider/checkouts", func(w http.ResponseWriter, r *http.Request) {
+		CreateInsiderCheckout(w, r, app)
+	}).Methods(http.MethodPost)
 
 	// Set up the routes, we'll have one page per course
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -2050,6 +2068,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/settings", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmails(w, r, app)
+	}).Methods("GET")
+	r.HandleFunc("/dashboard/insider", func(w http.ResponseWriter, r *http.Request) {
+		DashboardInsiderPreferences(w, r, app)
 	}).Methods("GET")
 	r.HandleFunc("/dashboard/settings/api-tokens", func(w http.ResponseWriter, r *http.Request) {
 		DashboardAPITokenCreate(w, r, app)
@@ -6216,8 +6237,36 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-
 	ctx.Infos.Println("opennode charge!", charge)
+	if attemptID := strings.TrimSpace(charge.Metadata.ServiceAttemptID); attemptID != "" {
+		paymentContext, err := getters.GetServicePaymentContext(ctx, attemptID)
+		if err != nil || strings.TrimSpace(charge.Metadata.ServiceOrderID) != paymentContext.OrderID ||
+			paymentContext.Quote.Provider != "opennode" || strings.ToUpper(strings.TrimSpace(charge.Metadata.Currency)) != "USD" ||
+			int64(fiatValueCents(charge.FiatVal)) != paymentContext.Quote.TotalCents {
+			ctx.Err.Printf("opennode Insider callback does not match its service order: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		// Binding here recovers safely when provider creation succeeded but the
+		// original response was lost before the reference reached our database.
+		if err := getters.BindServicePayment(ctx, attemptID, "opennode", charge.ID); err != nil {
+			ctx.Err.Printf("opennode Insider charge %s could not be bound to its payment attempt: %s", charge.ID, err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if err := settleInsiderServicePayment(r.Context(), ctx, getters.VerifiedServicePayment{
+			AttemptID: attemptID, Provider: "opennode", Reference: charge.ID, EventID: charge.ID,
+			Currency: strings.ToUpper(strings.TrimSpace(charge.Metadata.Currency)), TotalCents: int64(fiatValueCents(charge.FiatVal)), PaidAt: time.Now().UTC(),
+			SettledSats: charge.Price,
+		}); err != nil {
+			ctx.Err.Printf("opennode Insider settlement %s: %s", charge.ID, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		ctx.Infos.Printf("Fulfilled Insider service checkout %s", charge.ID)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	if charge.Metadata.ShopOrderID != "" && charge.Metadata.ConfRef == "" {
 		if err := markOpenNodeShopOrderPaid(ctx, charge); err != nil {
 			ctx.Err.Printf("opennode callback: unable to mark shop order %s paid: %s", charge.Metadata.ShopOrderID, err)
@@ -7101,6 +7150,40 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		if err != nil {
 			ctx.Err.Printf("Error parsing webhook JSON: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if attemptID := strings.TrimSpace(checkout.Metadata["service-attempt-id"]); attemptID != "" {
+			if checkout.PaymentStatus != stripe.CheckoutSessionPaymentStatusPaid {
+				ctx.Infos.Printf("Stripe Insider checkout %s completed without final payment", checkout.ID)
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			paymentContext, err := getters.GetServicePaymentContext(ctx, attemptID)
+			if err != nil || strings.TrimSpace(checkout.Metadata["service-order-id"]) != paymentContext.OrderID ||
+				paymentContext.Quote.Provider != "stripe" || strings.ToUpper(string(checkout.Currency)) != "USD" ||
+				checkout.AmountTotal != paymentContext.Quote.TotalCents {
+				ctx.Err.Printf("Stripe Insider checkout %s does not match its service order: %v", checkout.ID, err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			// The signed webhook can repair a missing reference left by an
+			// ambiguous checkout-creation response.
+			if err := getters.BindServicePayment(ctx, attemptID, "stripe", checkout.ID); err != nil {
+				ctx.Err.Printf("Stripe Insider checkout %s could not be bound to its payment attempt: %s", checkout.ID, err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if err := settleInsiderServicePayment(r.Context(), ctx, getters.VerifiedServicePayment{
+				AttemptID: attemptID, Provider: "stripe", Reference: checkout.ID, EventID: event.ID,
+				Currency: strings.ToUpper(string(checkout.Currency)), TotalCents: checkout.AmountTotal,
+				PaidAt: time.Unix(event.Created, 0).UTC(),
+			}); err != nil {
+				ctx.Err.Printf("Stripe Insider settlement %s: %s", checkout.ID, err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			ctx.Infos.Printf("Fulfilled Insider service checkout %s", checkout.ID)
+			w.WriteHeader(http.StatusOK)
 			return
 		}
 

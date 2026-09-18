@@ -64,6 +64,49 @@ corrupt, explicitly rebuild the local dev database with:
 This moves the previous local data directory aside with a `.reset-<timestamp>`
 suffix before creating a fresh one.
 
+## Insider account, delivery, and membership
+
+Insider owns newsletter consent, stream/cadence choices, access grants,
+purchases, and every reader-facing management screen. `btcpp.dev` provides
+OAuth identity plus shared payment and mail transport. Its private
+`/dashboard/insider` page shows only Insider's versioned `none`/`free`/`paid`
+tier and coarse subscribed/not-subscribed projection, then links back to
+`https://insider.btcpp.dev/account`. Public profile recognition is handled by
+separately issued and accepted organization badges; the projection is never
+rendered directly on `/whois`.
+
+All internal Insider endpoints use `INSIDER_SERVICE_TOKEN` (falling back to
+`MAILER_SECRET`). Insider resolves stream consent and freezes each campaign's
+recipient list. The shared mailer applies global suppression and transports
+that explicit list; it does not own or reinterpret Insider preferences.
+
+Shared service checkout is configuration-gated:
+
+```text
+INSIDER_SERVICE_TOKEN=...
+INSIDER_FULFILLMENT_ENDPOINT=https://insider.btcpp.dev/api/internal/commerce/open-access
+INSIDER_FULFILLMENT_TOKEN=...
+INSIDER_ALLOWED_RETURN_ORIGINS=https://insider.btcpp.dev,https://beta.btcpp.dev
+INSIDER_MERCHANT_NAME="Exact legal merchant name"
+STRIPE_KEY=...
+STRIPE_END_SECRET=...
+OPENNODE_KEY=...
+OPENNODE_ENDPOINT=https://api.opennode.com/v1
+```
+
+The product adapter revalidates the fixed $21 one-month, $210 one-year, and
+$2.10 article prices, freezes the product-owned fulfillment payload, creates a
+durable payment attempt before contacting Stripe or OpenNode, and allowlists
+all browser return origins. Stripe webhooks are signature-verified; OpenNode
+callbacks trigger a server-side charge fetch. Only an exact final settlement
+advances the immutable order and dispatches access to Insider. A browser return
+never grants access.
+
+The current monthly and annual options buy fixed access terms; they do not yet
+auto-renew. Recurring Stripe subscription state, cancel-at-period-end, full
+refund/reversal dispatch, and OpenNode renewal reminders must be completed and
+rehearsed before describing these as automatically renewing subscriptions.
+
 ### Social-card previews
 
 Public landing-page unfurls are generated as 1200×630 JPEGs on demand and

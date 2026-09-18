@@ -287,7 +287,7 @@ func TestMeReturnsPrivateProfileWithoutCredentialSecrets(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
 	body := response.Body.String()
-	if !strings.Contains(body, "mara@example.test") || strings.Contains(body, "private-phone") || strings.Contains(body, "private-tax-form") || strings.Contains(body, "legacy@example.test") {
+	if !strings.Contains(body, "mara@example.test") || !strings.Contains(body, `"public_id":"mara"`) || !strings.Contains(body, `"profile_url":"/whois/mara"`) || strings.Contains(body, "insider_subscriptions") || strings.Contains(body, "insider_membership") || strings.Contains(body, "private-phone") || strings.Contains(body, "private-tax-form") || strings.Contains(body, "legacy@example.test") {
 		t.Fatalf("unexpected private profile projection: %s", body)
 	}
 	if response.Header().Get("Cache-Control") != "private, no-store" {

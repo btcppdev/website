@@ -42,6 +42,8 @@ type Mail struct {
 	Missive  string
 	Email    string
 	ReplyTo  string
+	FromAddr string
+	FromName string
 	Title    string
 	SendAt   time.Time
 	HTMLBody []byte
@@ -263,13 +265,20 @@ func ComposeAndSendMail(ctx *config.AppContext, mail *Mail) error {
 	}
 
 	/* Build a mail to send */
+	fromAddr, fromName := strings.TrimSpace(mail.FromAddr), strings.TrimSpace(mail.FromName)
+	if fromAddr == "" {
+		fromAddr = "hello@btcpp.dev"
+	}
+	if fromName == "" {
+		fromName = "bitcoin++ ✨"
+	}
 	mailReq := &mailer.MailRequest{
 		JobKey:       "btcpp:" + mail.JobKey,
 		Subscription: mail.Sub,
 		Missive:      mail.Missive,
 		ToAddr:       mail.Email,
-		FromAddr:     "hello@btcpp.dev",
-		FromName:     "bitcoin++ ✨",
+		FromAddr:     fromAddr,
+		FromName:     fromName,
 		ReplyTo:      mail.ReplyTo,
 		Title:        mail.Title,
 		HTMLBody:     string(mail.HTMLBody),
@@ -482,9 +491,28 @@ func SendNewsletterMissive(ctx *config.AppContext, sub *mtypes.Subscriber, lette
 	}
 
 	var htmlBody []byte
-	textBody := buf.Bytes()
+	renderedBody := buf.Bytes()
+	textBody := renderedBody
 	if letter.OnlyFor == mtypes.OnlyForTemplated {
-		htmlBody, textBody, err = BuildTemplatedNewsletterEmailAt(ctx, letter.ImgRef(), buf.Bytes(), subToken, sendAt)
+		preferencesURL := ""
+		openTrackingURL := ""
+		previewText := ""
+		if !preview && letterTargetsInsider(letter) {
+			preferencesURL = strings.TrimSpace(sub.InsiderPreferencesURL)
+			openTrackingURL = strings.TrimSpace(sub.InsiderOpenTrackingURL)
+			previewText = strings.TrimSpace(sub.InsiderPreviewText)
+			if articleURL := strings.TrimSpace(sub.InsiderArticleURL); articleURL != "" {
+				if canonicalURL := strings.TrimSpace(sub.InsiderCanonicalURL); canonicalURL != "" {
+					renderedBody = bytes.ReplaceAll(renderedBody, []byte(canonicalURL), []byte(articleURL))
+				}
+				textBody = renderedBody
+			}
+		}
+		if preferencesURL != "" {
+			htmlBody, textBody, err = BuildTemplatedNewsletterEmailWithPreferencesAndTrackingAt(ctx, letter.ImgRef(), renderedBody, preferencesURL, openTrackingURL, previewText, sendAt)
+		} else {
+			htmlBody, textBody, err = BuildTemplatedNewsletterEmailAt(ctx, letter.ImgRef(), renderedBody, subToken, sendAt)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -504,10 +532,26 @@ func SendNewsletterMissive(ctx *config.AppContext, sub *mtypes.Subscriber, lette
 		TextBody: textBody,
 		HTMLBody: htmlBody,
 	}
+	if letterTargetsInsider(letter) {
+		mail.FromAddr = "insider@btcpp.dev"
+		mail.FromName = "Bitcoin++ Insider Edition"
+	}
 
 	ctx.Infos.Printf("Sending (%s)%s to %s at %s", subkey, letter.Title, sub.Email, sendAt)
 
 	return htmlBody, ComposeAndSendMail(ctx, mail)
+}
+
+func letterTargetsInsider(letter *mtypes.Letter) bool {
+	if letter == nil {
+		return false
+	}
+	for _, newsletter := range letter.Newsletters {
+		if strings.HasPrefix(newsletter, "insider.") {
+			return true
+		}
+	}
+	return false
 }
 
 // SendWeeklyNewsletterDraftReview alerts the editorial inbox that the Monday

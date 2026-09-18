@@ -71,6 +71,16 @@ func TestServicePaymentsPostgres(t *testing.T) {
 	if _, err := BeginServicePayment(app, other, purchase.OrderID); !errors.Is(err, ErrServicePayment) {
 		t.Fatalf("cross-account attempt: %v", err)
 	}
+	openNodeQuote := ServiceQuote{ProductCode: "insider.article", ResourceID: "opennode-article", Name: "Article access", Provider: "opennode", Quantity: 1, UnitCents: 500, TotalCents: 500, ExpiresAt: time.Now().Add(time.Hour)}
+	openNodePerson, openNodePurchase := create(openNodeQuote)
+	openNodeAttempt, err := BeginServicePayment(app, openNodePerson, openNodePurchase.OrderID)
+	if err != nil || !openNodeAttempt.CanCreateCharge {
+		t.Fatalf("first OpenNode attempt = %+v, %v", openNodeAttempt, err)
+	}
+	openNodeRetry, err := BeginServicePayment(app, openNodePerson, openNodePurchase.OrderID)
+	if err != nil || openNodeRetry.ID != openNodeAttempt.ID || openNodeRetry.CanCreateCharge {
+		t.Fatalf("OpenNode attempt was unsafe to retry = %+v, %v", openNodeRetry, err)
+	}
 	ref := "test-charge-" + attempt.ID
 	for i := 0; i < 2; i++ {
 		if err := BindServicePayment(app, attempt.ID, "stripe", ref); err != nil {
@@ -102,6 +112,10 @@ func TestServicePaymentsPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	ready, err := GetFulfillableServicePaymentContext(app, attempt.ID)
+	if err != nil || ready.OrderID != purchase.OrderID || ready.Quote.ProductCode != "insider.article" || !ready.PaidAt.Equal(payment.PaidAt) {
+		t.Fatalf("fulfillable payment = %+v, %v", ready, err)
+	}
 	var status string
 	var events, fulfilled int
 	if err := app.DB.QueryRow(ctx, `SELECT status,(SELECT count(*) FROM service_payment_events WHERE attempt_id=$2),
@@ -115,19 +129,26 @@ func TestServicePaymentsPostgres(t *testing.T) {
 	if err != nil || retry.ID != attempt.ID || retry.CanCreateCharge {
 		t.Fatalf("settled attempt retry: %+v %v", retry, err)
 	}
+	changed := payment
+	changed.PaidAt = changed.PaidAt.Add(time.Second)
+	if err := RecordServicePayment(app, changed); !errors.Is(err, ErrServicePayment) {
+		t.Fatalf("changed provider event was accepted: %v", err)
+	}
+	ready, err = GetFulfillableServicePaymentContext(app, attempt.ID)
+	if err != nil || !ready.PaidAt.Equal(payment.PaidAt) {
+		t.Fatalf("provider retry changed stored payment time: %+v, %v", ready, err)
+	}
 	if _, err := app.DB.Exec(ctx, `UPDATE shop_orders SET status='refunded' WHERE id=$1`, purchase.OrderID); err != nil {
 		t.Fatal(err)
 	}
 	if err := RecordServicePayment(app, payment); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := GetFulfillableServicePaymentContext(app, attempt.ID); !errors.Is(err, ErrServicePayment) {
+		t.Fatalf("refunded payment became fulfillable: %v", err)
+	}
 	if err := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, purchase.OrderID).Scan(&status); err != nil || status != "refunded" {
 		t.Fatalf("replay overwrote refund: %s %v", status, err)
-	}
-	changed := payment
-	changed.PaidAt = changed.PaidAt.Add(time.Second)
-	if err := RecordServicePayment(app, changed); !errors.Is(err, ErrServicePayment) {
-		t.Fatalf("changed event: %v", err)
 	}
 	second, err := BeginServicePayment(app, other, otherPurchase.OrderID)
 	if err != nil {
@@ -189,6 +210,9 @@ func TestServicePaymentsPostgres(t *testing.T) {
 	}
 	if status != "pending" || !settled {
 		t.Fatalf("edited order: %s settled=%v", status, settled)
+	}
+	if _, err := GetFulfillableServicePaymentContext(app, third.ID); !errors.Is(err, ErrServicePayment) {
+		t.Fatalf("edited order became fulfillable: %v", err)
 	}
 	// Review is observational: discover unresolved money without changing state.
 	fourthPerson, fourthPurchase := create()

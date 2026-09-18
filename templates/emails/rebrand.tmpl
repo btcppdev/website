@@ -10,6 +10,7 @@
   <style type="text/css">{{ .Styles }}</style>
 </head>
 <body>
+  {{ if .PreviewText }}<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;mso-hide:all;">{{ .PreviewText }}</div>{{ end }}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="btcpp-shell">
     <tr>
       <td align="center" class="btcpp-gutter" style="padding:24px 12px;">
@@ -64,10 +65,17 @@
               </div>
             </td>
           </tr>
-          {{ if .Unsubscribe }}
+          {{ if or .Unsubscribe .PreferencesURL }}
           <tr>
             <td class="btcpp-padding" style="padding:16px 32px;border-top:1px solid #1C1C1E;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#6B655C;">
-              <a style="color:#1C1C1E;text-underline-offset:4px;text-decoration-line:underline;font-weight:400;" href="{{ .URI }}/newsletter/unsubscribe/{{ .Unsubscribe }}">Unsubscribe</a> from this newsletter
+              {{ if .PreferencesURL }}<a style="color:#1C1C1E;text-underline-offset:4px;text-decoration-line:underline;font-weight:400;" href="{{ .PreferencesURL }}">Manage Insider delivery</a>{{ else }}<a style="color:#1C1C1E;text-underline-offset:4px;text-decoration-line:underline;font-weight:400;" href="{{ .URI }}/newsletter/unsubscribe/{{ .Unsubscribe }}">Unsubscribe</a> from this newsletter{{ end }}
+            </td>
+          </tr>
+          {{ end }}
+          {{ if .OpenTrackingURL }}
+          <tr>
+            <td style="height:1px;line-height:1px;font-size:1px;">
+              <img src="{{ .OpenTrackingURL }}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;">
             </td>
           </tr>
           {{ end }}

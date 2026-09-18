@@ -17,7 +17,7 @@ const serviceItemsMatchQuoteSQL = `(
       AND i.product_name_snapshot=r.quote_snapshot->>'name'
       AND i.service_period_start IS NOT DISTINCT FROM (r.quote_snapshot->>'period_start')::timestamptz
       AND i.service_period_end IS NOT DISTINCT FROM (r.quote_snapshot->>'period_end')::timestamptz
-      AND i.fulfillment_method=CASE WHEN r.quote_snapshot->>'product_code'='insider.article' THEN 'digital' ELSE 'service' END
+      AND i.fulfillment_method=CASE WHEN r.quote_snapshot->>'product_code' IN ('insider.article','insider.open-access') THEN 'digital' ELSE 'service' END
       AND o.checkout_kind=i.fulfillment_method
       AND i.product_id IS NULL AND i.variant_id IS NULL
       AND i.sale_conference_id IS NULL AND i.pickup_conference_id IS NULL

@@ -32,9 +32,14 @@ type (
 	}
 
 	Subscriber struct {
-		Email string
-		Subs  []*Subscription
-		Pages []string
+		Email                  string
+		Subs                   []*Subscription
+		Pages                  []string
+		InsiderArticleURL      string
+		InsiderCanonicalURL    string
+		InsiderPreferencesURL  string
+		InsiderOpenTrackingURL string
+		InsiderPreviewText     string
 	}
 
 	Subscription struct {

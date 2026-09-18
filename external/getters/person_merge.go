@@ -142,6 +142,7 @@ type personMergeManifest struct {
 }
 
 var personMergeRelationshipSpecs = []mergeRelationshipSpec{
+	{Table: "insider_subscriber_projections", PersonColumn: "person_id", PrimaryKey: []string{"person_id"}, Singleton: true, Label: "Insider status projection"},
 	{Table: "organization_badge_grants", PersonColumn: "recipient_person_id", PrimaryKey: []string{"id"}, Label: "organization badge grants"},
 	{Table: "organization_badge_grants", PersonColumn: "created_by_person_id", PrimaryKey: []string{"id"}, Label: "badge grant creators"},
 	{Table: "person_badge_presentations", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "badge_ref"}, DuplicateKey: []string{"badge_ref"}, Label: "badge display preferences"},

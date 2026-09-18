@@ -251,20 +251,22 @@ type organizationBadgeGrantDTO struct {
 }
 
 type accountProfileDTO struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Photo     string            `json:"photo"`
-	Company   string            `json:"company"`
-	Biography string            `json:"biography"`
-	Website   string            `json:"website"`
-	X         string            `json:"x"`
-	GitHub    string            `json:"github"`
-	Instagram string            `json:"instagram"`
-	LinkedIn  string            `json:"linkedin"`
-	LeetCode  string            `json:"leetcode"`
-	Nostr     string            `json:"nostr"`
-	Emails    []accountEmailDTO `json:"emails"`
-	Roles     []string          `json:"roles"`
+	ID         string            `json:"id"`
+	PublicID   string            `json:"public_id"`
+	ProfileURL string            `json:"profile_url"`
+	Name       string            `json:"name"`
+	Photo      string            `json:"photo"`
+	Company    string            `json:"company"`
+	Biography  string            `json:"biography"`
+	Website    string            `json:"website"`
+	X          string            `json:"x"`
+	GitHub     string            `json:"github"`
+	Instagram  string            `json:"instagram"`
+	LinkedIn   string            `json:"linkedin"`
+	LeetCode   string            `json:"leetcode"`
+	Nostr      string            `json:"nostr"`
+	Emails     []accountEmailDTO `json:"emails"`
+	Roles      []string          `json:"roles"`
 }
 
 type accountTalkDTO struct {

@@ -23,6 +23,83 @@ type ServicePaymentAttempt struct {
 	CanCreateCharge bool
 }
 
+// ServicePaymentContext is the immutable product and buyer data associated
+// with a provider attempt. It is loaded only after the provider adapter has
+// authenticated or fetched settlement evidence.
+type ServicePaymentContext struct {
+	AttemptID  string
+	PurchaseID string
+	OrderID    string
+	PublicID   string
+	PersonID   string
+	BuyerEmail string
+	PaidAt     time.Time
+	Quote      ServiceQuote
+}
+
+func GetServicePaymentContext(app *config.AppContext, attemptID string) (*ServicePaymentContext, error) {
+	var result ServicePaymentContext
+	var raw []byte
+	err := app.DB.QueryRow(app.DatabaseContext(), `SELECT a.id::text,r.id::text,o.id::text,o.public_id,
+		r.person_id::text,o.buyer_email::text,r.quote_snapshot
+		FROM service_payment_attempts a
+		JOIN service_purchase_requests r ON r.id=a.purchase_id
+		JOIN shop_orders o ON o.id=r.order_id
+		WHERE a.id=$1`, strings.TrimSpace(attemptID)).Scan(&result.AttemptID, &result.PurchaseID,
+		&result.OrderID, &result.PublicID, &result.PersonID, &result.BuyerEmail, &raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrServicePayment
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(raw, &result.Quote); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetFulfillableServicePaymentContext returns the immutable purchase only while
+// its verified payment and mutable order are still safe to send to an external
+// product owner. Recording payment evidence is intentionally a separate step:
+// canceled or altered orders must remain visible to reconciliation without
+// becoming Insider access.
+func GetFulfillableServicePaymentContext(app *config.AppContext, attemptID string) (*ServicePaymentContext, error) {
+	var result ServicePaymentContext
+	var raw []byte
+	err := app.DB.QueryRow(app.DatabaseContext(), `SELECT a.id::text,r.id::text,o.id::text,o.public_id,
+		r.person_id::text,o.buyer_email::text,a.settled_at,r.quote_snapshot
+		FROM service_payment_attempts a
+		JOIN service_purchase_requests r ON r.id=a.purchase_id
+		JOIN shop_orders o ON o.id=r.order_id
+		WHERE a.id=$1 AND a.settled_at IS NOT NULL AND o.status='paid'
+		AND o.currency='USD' AND o.payment_provider=a.provider
+		AND o.payment_provider_id=a.provider_reference
+		AND a.provider=r.quote_snapshot->>'provider'
+		AND o.total_cents=(r.quote_snapshot->>'total_cents')::bigint
+		AND o.sales_tax_amount_cents=(r.quote_snapshot->>'tax_cents')::bigint
+		AND o.subtotal_cents=(r.quote_snapshot->>'total_cents')::bigint-(r.quote_snapshot->>'tax_cents')::bigint
+		AND o.shipping_amount_cents=0 AND o.discount_amount_cents=0
+		AND o.import_duty_amount_cents=0 AND o.import_tax_amount_cents=0
+		AND NOT EXISTS(SELECT 1 FROM shop_order_items i WHERE i.order_id=o.id
+		  AND (i.status NOT IN ('pending','fulfilled') OR i.refunded_quantity<>0
+		  OR (i.status='pending' AND i.fulfilled_quantity<>0)
+		  OR (i.status='fulfilled' AND i.fulfilled_quantity<>i.quantity)))
+		AND `+serviceItemsMatchQuoteSQL,
+		strings.TrimSpace(attemptID)).Scan(&result.AttemptID, &result.PurchaseID,
+		&result.OrderID, &result.PublicID, &result.PersonID, &result.BuyerEmail, &result.PaidAt, &raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrServicePayment
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(raw, &result.Quote); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // BeginServicePayment allocates a durable provider idempotency key before any
 // network call. Stripe may retry using this attempt's idempotency key. OpenNode
 // creation is claimed once; ambiguous failures require lookup/reconciliation.
@@ -118,6 +195,9 @@ type VerifiedServicePayment struct {
 	Currency   string
 	TotalCents int64
 	PaidAt     time.Time
+	// SettledSats is populated by Lightning adapters for branded receipts; it
+	// is not used to establish the frozen USD order total.
+	SettledSats int64
 }
 
 // RecordServicePayment persists settlement and advances an unchanged pending

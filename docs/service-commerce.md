@@ -10,6 +10,37 @@ Migration 102 extends existing `shop_orders` and `shop_order_items` for
 `service` and `digital` purchases. It follows Alerts newsletter migration 101
 and does not conflict with Insider migrations 096–100.
 
+## Product boundary and convergence status
+
+This branch is based directly on the committed Alerts commerce implementation;
+it does not replay Insider's earlier copies of migrations 102–105. Alerts'
+migrations 106–108 and its OpenNode reconciliation, tax, account-revision, and
+payment-time behavior remain the shared implementation. A blank database has
+been migrated through the combined sequence and the focused Alerts and Insider
+PostgreSQL commerce tests run together.
+
+Shared commerce owns provider credentials, immutable quotes, orders, attempts,
+settlement/refund evidence, tax facts, reconciliation, and canonical financial
+receipt facts. Product adapters may choose server-side prices and validate their
+own resource identifiers. The generic quote stores an opaque fulfillment
+payload, and the generic external-fulfillment path dispatches verified settlement
+without interpreting that payload or creating a second product ledger.
+
+Insider remains authoritative for memberships, article access, policy grants,
+open-access campaigns, subscriber consent, streams, cadence, and its customer
+interface. Bitcoin++ stores only the versioned `none`/`free`/`paid` dashboard
+projection and the delivery-provider records necessary to transport mail. The
+renamed migration `096_insider_subscriber_projection` makes that limited role
+explicit.
+
+The old Insider-only refund draft is intentionally excluded. Recurring Stripe
+invoice/subscription state, refunds, and provider-object mappings must be added
+once here as generic commerce primitives and then dispatched to each product.
+The account-merge manifest includes newsletter consent, service purchases, and
+service entitlements. Their `person_id` fields are current account links that may
+move through that audited merge workflow; immutable quote, order, product,
+amount, period, settlement, and revocation evidence remains protected.
+
 Service lines carry a server-selected product code and an explicit start/end
 period. Digital lines carry a product code and exact resource identifier, with
 no subscription period. Both exclude merchandise variants and conference
@@ -204,3 +235,22 @@ Run the tests with a disposable migrated test database:
 ```sh
 BTCPP_POSTGRES_SMOKE=1 DATABASE_URL=... go test -race ./external/getters -run 'TestService(Payments|Purchase|OrderShape)Postgres' -count=1
 ```
+
+## Combined Alerts/Insider checkpoint
+
+The current linear integration branch incorporates the additive Insider convergence
+work from `a1669b33` over the current Alerts implementation. Projection/campaign
+tables are included in the single unpublished migration 128. Existing development
+databases need a fresh combined schema; no applied migration history is rewritten.
+Shared purchase validation accepts Insider monthly/annual, article and open-access
+products. Insider acknowledges fulfillment without a central content-access grant;
+central grants remain Alerts-only. External fulfillment rejects Alerts purchases.
+The Alerts receipt worker retires Insider jobs without sending, leaving Insider's
+receipt presentation/delivery path responsible for them.
+
+Fresh combined migration application and the complete PostgreSQL getter/handler
+suites pass. This is not a complete shared subscription implementation: the Stripe
+lifecycle is still Alerts-specific, Insider fixed-term checkout does not establish
+a recurring agreement, and durable product dispatch/recovery still needs work.
+Insider's proposal to relax immutable purchase/account bindings was not imported;
+account merges require a coordinated design covering all provider/quote bindings.

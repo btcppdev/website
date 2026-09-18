@@ -51,7 +51,7 @@ func RecoverServiceReceipt(ctx context.Context, app *config.AppContext, publicID
 	result, err := app.DB.Exec(ctx, `WITH recovered AS (
  UPDATE service_receipt_jobs j SET state='pending',retry_after_attempt=attempts,next_attempt_at=now(),lease_until=now()
  FROM shop_orders o WHERE o.id=j.order_id AND o.public_id=$1 AND o.status='paid'
- AND EXISTS(SELECT 1 FROM service_purchase_requests r WHERE r.order_id=j.order_id AND r.person_id IS NOT NULL)
+ AND EXISTS(SELECT 1 FROM service_purchase_requests r WHERE r.order_id=j.order_id AND r.person_id IS NOT NULL AND r.quote_snapshot->>'product_code'='alerts.repository-slots')
  AND j.state='review' AND j.attempts=$2 AND j.lease_until<=now()
  RETURNING j.order_id,j.attempts
  ) INSERT INTO service_receipt_recoveries(order_id,after_attempt,actor,reason)

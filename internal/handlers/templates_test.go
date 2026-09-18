@@ -90,7 +90,7 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("global navigation omitted %q", expected)
 		}
 	}
-	for _, name := range []string{"reauth.tmpl", "developers_api.tmpl", "dashboard_hackathons.tmpl", "dashboard_org_discover.tmpl", "dashboard_sponsor.tmpl", "dashboard_sponsor_projects.tmpl", "sponsor_invite.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_ballot_submitted.tmpl", "section/hackathon_judging_results.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
+	for _, name := range []string{"dashboard_insider.tmpl", "reauth.tmpl", "developers_api.tmpl", "dashboard_hackathons.tmpl", "dashboard_org_discover.tmpl", "dashboard_sponsor.tmpl", "dashboard_sponsor_projects.tmpl", "sponsor_invite.tmpl", "hackathon.tmpl", "hackathon_judging.tmpl", "hackathon_ballot_submitted.tmpl", "section/hackathon_judging_results.tmpl", "hackathon_project.tmpl", "hackathon_schedule.tmpl", "admin/hackathon_projects.tmpl", "admin/hackathon_judging.tmpl", "admin/hackathon_managers.tmpl", "admin/hackathon_scores.tmpl", "admin/hackathon_awards.tmpl", "admin/subscribers.tmpl", "admin/global_discounts.tmpl", "admin/inline_missive.tmpl", "admin/templated_missives_index.tmpl", "admin/conference_missives.tmpl"} {
 		if ctx.TemplateCache.Lookup(name) == nil {
 			t.Fatalf("template %s was not loaded", name)
 		}

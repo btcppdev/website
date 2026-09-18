@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -159,4 +160,56 @@ func InitOpenNodeShopCheckout(ctx *config.AppContext, order *types.ShopOrder) (*
 	}
 
 	return onresp.Data, nil
+}
+
+// InitOpenNodeServiceCheckout creates a Lightning checkout for a durable
+// service-payment attempt. The attempt UUID is provider metadata so a fetched,
+// paid charge can be matched to the immutable quote before fulfillment.
+func InitOpenNodeServiceCheckout(ctx *config.AppContext, attempt *ServicePaymentAttempt, purchase *ServicePurchase, quote ServiceQuote, successURL string) (*types.OpenNodePayment, error) {
+	if attempt == nil || purchase == nil || attempt.ID == "" || purchase.OrderID == "" || quote.TotalCents <= 0 {
+		return nil, fmt.Errorf("missing service checkout")
+	}
+	metadata := &types.OpenNodeMetadata{
+		Email: purchase.BuyerEmail, Quantity: float64(quote.Quantity), Currency: "USD",
+		ServiceAttemptID: attempt.ID, ServiceOrderID: purchase.OrderID,
+	}
+	request := &types.OpenNodeRequest{
+		Amount: float64(quote.TotalCents) / 100, Description: quote.Name, Currency: "USD",
+		CallbackURL: strings.TrimRight(ctx.Env.GetURI(), "/") + "/callback/opennode",
+		SuccessURL:  successURL, AutoSettle: false, TTL: uint(types.ShopCheckoutSessionTTL / time.Minute),
+		Metadata: metadata, NotifEmail: purchase.BuyerEmail, CustomerEmail: purchase.BuyerEmail,
+		// OpenNode receives the durable attempt as its merchant order key. If
+		// creation times out, a retry carries the same provider-visible key.
+		OrderID: attempt.ID,
+	}
+	payload, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(ctx.Env.OpenNode.Endpoint, "/")+CHARGES_ENDPOINT, bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", ctx.Env.OpenNode.Key)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := openNodeHTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("error returned from opennode %d: %s", resp.StatusCode, body)
+	}
+	var response types.OpenNodeResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("decode opennode response: %w", err)
+	}
+	if response.Data == nil || strings.TrimSpace(response.Data.ID) == "" || strings.TrimSpace(response.Data.HostedCheckoutURL) == "" {
+		return nil, fmt.Errorf("opennode response is missing service charge data")
+	}
+	return response.Data, nil
 }

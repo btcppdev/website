@@ -283,12 +283,15 @@ type templatedNewsletterConfig struct {
 }
 
 type templatedNewsletterEmail struct {
-	Content     htmltemplate.HTML
-	ImgRef      string
-	URI         string
-	Unsubscribe string
-	Config      templatedNewsletterConfig
-	Styles      htmltemplate.CSS
+	Content         htmltemplate.HTML
+	ImgRef          string
+	URI             string
+	Unsubscribe     string
+	PreferencesURL  string
+	OpenTrackingURL string
+	PreviewText     string
+	Config          templatedNewsletterConfig
+	Styles          htmltemplate.CSS
 }
 
 func BuildTemplatedNewsletterEmail(ctx *config.AppContext, imgRef string, markdown []byte, unsubscribe string) ([]byte, []byte, error) {
@@ -296,6 +299,22 @@ func BuildTemplatedNewsletterEmail(ctx *config.AppContext, imgRef string, markdo
 }
 
 func BuildTemplatedNewsletterEmailAt(ctx *config.AppContext, imgRef string, markdown []byte, unsubscribe string, displayTime time.Time) ([]byte, []byte, error) {
+	return buildTemplatedNewsletterEmailAt(ctx, imgRef, markdown, unsubscribe, "", displayTime)
+}
+
+func BuildTemplatedNewsletterEmailWithPreferencesAt(ctx *config.AppContext, imgRef string, markdown []byte, preferencesURL string, displayTime time.Time) ([]byte, []byte, error) {
+	return buildTemplatedNewsletterEmailAt(ctx, imgRef, markdown, "", preferencesURL, displayTime)
+}
+
+func BuildTemplatedNewsletterEmailWithPreferencesAndTrackingAt(ctx *config.AppContext, imgRef string, markdown []byte, preferencesURL, openTrackingURL, previewText string, displayTime time.Time) ([]byte, []byte, error) {
+	return buildTemplatedNewsletterEmailWithTrackingAt(ctx, imgRef, markdown, "", preferencesURL, openTrackingURL, previewText, displayTime)
+}
+
+func buildTemplatedNewsletterEmailAt(ctx *config.AppContext, imgRef string, markdown []byte, unsubscribe, preferencesURL string, displayTime time.Time) ([]byte, []byte, error) {
+	return buildTemplatedNewsletterEmailWithTrackingAt(ctx, imgRef, markdown, unsubscribe, preferencesURL, "", "", displayTime)
+}
+
+func buildTemplatedNewsletterEmailWithTrackingAt(ctx *config.AppContext, imgRef string, markdown []byte, unsubscribe, preferencesURL, openTrackingURL, previewText string, displayTime time.Time) ([]byte, []byte, error) {
 	cfg, body := parseTemplatedNewsletterFrontmatter(string(markdown))
 	if cfg.Template == "" {
 		cfg.Template = "roundup"
@@ -318,18 +337,22 @@ func BuildTemplatedNewsletterEmailAt(ctx *config.AppContext, imgRef string, mark
 	htmlOut := mdToHTML([]byte(body))
 	var email bytes.Buffer
 	err := ctx.TemplateCache.ExecuteTemplate(&email, "emails/rebrand.tmpl", &templatedNewsletterEmail{
-		Content:     htmltemplate.HTML(htmlOut),
-		ImgRef:      imgRef,
-		URI:         ctx.Env.GetURI(),
-		Unsubscribe: unsubscribe,
-		Config:      cfg,
-		Styles:      rebrandEmailCSS(cfg.Palette),
+		Content: htmltemplate.HTML(htmlOut), ImgRef: imgRef, URI: ctx.Env.GetURI(),
+		Unsubscribe: unsubscribe, PreferencesURL: preferencesURL, OpenTrackingURL: openTrackingURL,
+		PreviewText: previewText, Config: cfg, Styles: rebrandEmailCSS(cfg.Palette),
 	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return email.Bytes(), []byte(body), nil
+	textBody := strings.TrimSpace(body)
+	switch {
+	case preferencesURL != "":
+		textBody += "\n\nManage Insider delivery: " + preferencesURL
+	case unsubscribe != "":
+		textBody += "\n\nUnsubscribe from this newsletter: " + strings.TrimRight(ctx.Env.GetURI(), "/") + "/newsletter/unsubscribe/" + unsubscribe
+	}
+	return email.Bytes(), []byte(textBody + "\n"), nil
 }
 
 func formatTemplatedNewsletterDate(t time.Time) string {

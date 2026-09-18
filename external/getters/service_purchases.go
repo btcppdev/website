@@ -33,11 +33,17 @@ type ServiceQuote struct {
 	PeriodStart     *time.Time `json:"period_start"`
 	PeriodEnd       *time.Time `json:"period_end"`
 	ExpiresAt       time.Time  `json:"expires_at"`
+	// Fulfillment is an immutable, product-owned payload. Shared commerce
+	// persists and returns it after settlement; it never interprets access
+	// policy from browser input.
+	Fulfillment json.RawMessage `json:"fulfillment,omitempty"`
 }
 
 type ServicePurchase struct {
-	OrderID  string
-	PublicID string
+	PurchaseID string
+	OrderID    string
+	PublicID   string
+	BuyerEmail string
 }
 
 // CreateServicePurchase atomically persists one pending order and its immutable
@@ -83,9 +89,9 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 	}
 	var purchase ServicePurchase
 	var same bool
-	err = tx.QueryRow(ctx, `SELECT o.id::text,o.public_id,r.quote_snapshot=$3::jsonb
+	err = tx.QueryRow(ctx, `SELECT r.id::text,o.id::text,o.public_id,o.buyer_email::text,r.quote_snapshot=$3::jsonb
 		FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id
-		WHERE r.person_id=$1 AND r.request_key=$2`, personID, key, snapshot).Scan(&purchase.OrderID, &purchase.PublicID, &same)
+		WHERE r.person_id=$1 AND r.request_key=$2`, personID, key, snapshot).Scan(&purchase.PurchaseID, &purchase.OrderID, &purchase.PublicID, &purchase.BuyerEmail, &same)
 	if err == nil {
 		if !same {
 			return nil, ErrServicePurchaseConflict
@@ -128,11 +134,11 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 	}
 	method := "service"
 	switch quote.ProductCode {
-	case "alerts.repository-slots", "insider.membership":
+	case "alerts.repository-slots", "insider.membership", "insider.membership.annual", "insider.membership.monthly":
 		if quote.PeriodStart == nil || quote.PeriodEnd == nil || !quote.PeriodEnd.After(*quote.PeriodStart) {
 			return nil, ErrServiceQuote
 		}
-	case "insider.article":
+	case "insider.article", "insider.open-access":
 		method = "digital"
 		if strings.TrimSpace(quote.ResourceID) == "" || quote.Quantity != 1 || quote.PeriodStart != nil || quote.PeriodEnd != nil {
 			return nil, ErrServiceQuote
@@ -155,6 +161,7 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 	if err != nil {
 		return nil, err
 	}
+	purchase.BuyerEmail = email
 	err = tx.QueryRow(ctx, `INSERT INTO shop_orders(public_id,buyer_email,buyer_person_id,checkout_kind,
 		payment_provider,currency,subtotal_cents,sales_tax_amount_cents,total_cents,checkout_expires_at)
 		VALUES(gen_random_uuid()::text,$1,$2,$3,$4,'USD',$5,$6,$7,$8) RETURNING id::text,public_id`,
@@ -169,7 +176,8 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 	if err != nil {
 		return nil, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO service_purchase_requests(person_id,request_key,order_id,quote_snapshot) VALUES($1,$2,$3,$4)`, personID, key, purchase.OrderID, snapshot)
+	err = tx.QueryRow(ctx, `INSERT INTO service_purchase_requests(person_id,request_key,order_id,quote_snapshot)
+		VALUES($1,$2,$3,$4) RETURNING id::text`, personID, key, purchase.OrderID, snapshot).Scan(&purchase.PurchaseID)
 	if err != nil {
 		return nil, err
 	}

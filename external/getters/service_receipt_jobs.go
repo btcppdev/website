@@ -17,12 +17,12 @@ type ServiceReceiptJob struct {
 // orderID can narrow an operator/test recovery attempt; empty chooses any due job.
 func ClaimServiceReceipt(ctx context.Context, app *config.AppContext, orderID string, now time.Time) (*ServiceReceiptJob, error) {
 	var job ServiceReceiptJob
-	// Account removal nulls immutable purchase ownership. Retire those jobs in
-	// bounded batches instead of leasing them and failing to scan a NULL owner.
+	// Account removal nulls purchase ownership. Insider owns its receipt delivery.
+	// Retire these jobs in bounded batches instead of leasing them for Alerts.
 	if _, err := app.DB.Exec(ctx, `WITH orphaned AS (
  SELECT j.order_id FROM service_receipt_jobs j
  JOIN service_purchase_requests r ON r.order_id=j.order_id
- WHERE j.state IN ('pending','review') AND r.person_id IS NULL
+ WHERE j.state IN ('pending','review') AND (r.person_id IS NULL OR r.quote_snapshot->>'product_code'<>'alerts.repository-slots')
  AND ($1='' OR j.order_id::text=$1)
  ORDER BY j.order_id FOR UPDATE OF j SKIP LOCKED LIMIT 100
  ) UPDATE service_receipt_jobs j SET state='cancelled',lease_until=$2
@@ -34,7 +34,7 @@ func ClaimServiceReceipt(ctx context.Context, app *config.AppContext, orderID st
 	}
 	err := app.DB.QueryRow(ctx, `WITH due AS (
  SELECT order_id FROM service_receipt_jobs j WHERE state='pending'
- AND EXISTS(SELECT 1 FROM service_purchase_requests r WHERE r.order_id=j.order_id AND r.person_id IS NOT NULL)
+ AND EXISTS(SELECT 1 FROM service_purchase_requests r WHERE r.order_id=j.order_id AND r.person_id IS NOT NULL AND r.quote_snapshot->>'product_code'='alerts.repository-slots')
  AND attempts-retry_after_attempt<12 AND next_attempt_at<=$2 AND lease_until<=$2 AND ($1='' OR order_id::text=$1)
  ORDER BY next_attempt_at,order_id FOR UPDATE SKIP LOCKED LIMIT 1
  ), claimed AS (

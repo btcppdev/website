@@ -56,6 +56,10 @@ func FulfillServicePurchase(app *config.AppContext, orderID string) (string, err
 	if err = json.Unmarshal(raw, &quote); err != nil {
 		return "", err
 	}
+	// Insider access is granted by its own fulfillment receiver, not here.
+	if quote.ProductCode != "alerts.repository-slots" {
+		return "", ErrServiceFulfillment
+	}
 	if quote.PeriodEnd != nil && !quote.PeriodEnd.After(time.Now()) {
 		return "", ErrServiceFulfillment
 	}

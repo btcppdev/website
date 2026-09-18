@@ -187,7 +187,6 @@ func ConfirmEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		http.Error(w, "Your subscription is saved, but follow-up emails could not be scheduled. Please retry this link.", http.StatusServiceUnavailable)
 		return
 	}
-
 	var confs types.ConfList
 	confs, _ = getters.ListConfs(ctx)
 	sort.Sort(confs)

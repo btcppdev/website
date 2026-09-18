@@ -46,7 +46,8 @@ func ReviewServicePayments(app *config.AppContext, after string, asOf time.Time)
 			AND NOT EXISTS(SELECT 1 FROM tax_transactions t WHERE t.order_id=o.id AND t.provider='stripe' AND t.status='recorded')
 			THEN 'tax_transaction_missing'
 			WHEN a.settled_at IS NOT NULL AND o.status='paid' AND (
-				NOT EXISTS(SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id)
+				((r.quote_snapshot->>'product_code') NOT LIKE 'insider.%'
+				  AND NOT EXISTS(SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id))
 				OR
 				NOT EXISTS(SELECT 1 FROM shop_order_items i WHERE i.order_id=o.id)
 				OR EXISTS(SELECT 1 FROM shop_order_items i WHERE i.order_id=o.id AND i.fulfilled_quantity<i.quantity-i.refunded_quantity)

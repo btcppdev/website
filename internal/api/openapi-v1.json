@@ -798,14 +798,14 @@
       "getMe": {
         "summary": "Authenticated private profile",
         "value": {
-          "data": {"id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "photo": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator.", "website": "https://example.com", "x": "marachen", "github": "https://github.com/marachen", "instagram": "", "linkedin": "", "leetcode": "", "nostr": "npub1example", "emails": [{"email": "mara.chen@example.test", "is_primary": true, "verified_at": "2026-08-01T12:00:00Z"}], "roles": ["dev26:speaker", "dev26:admin"]},
+          "data": {"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "photo": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Bitcoin protocol engineer and educator.", "website": "https://example.com", "x": "marachen", "github": "https://github.com/marachen", "instagram": "", "linkedin": "", "leetcode": "", "nostr": "npub1example", "emails": [{"email": "mara.chen@example.test", "is_primary": true, "verified_at": "2026-08-01T12:00:00Z"}], "roles": ["dev26:speaker", "dev26:admin"]},
           "meta": {"request_id": "req_example"}
         }
       },
       "updateMe": {
         "summary": "Updated private profile",
         "value": {
-          "data": {"id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "photo": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Building useful Bitcoin software.", "website": "https://example.com", "x": "marachen", "github": "https://github.com/marachen", "instagram": "", "linkedin": "", "leetcode": "", "nostr": "npub1example", "emails": [{"email": "mara.chen@example.test", "is_primary": true, "verified_at": "2026-08-01T12:00:00Z"}], "roles": ["dev26:speaker", "dev26:admin"]},
+          "data": {"id": "00000000-0000-4000-8000-000000000201", "public_id": "mara-chen", "profile_url": "/whois/mara-chen", "name": "Mara Chen", "photo": "/static/img/dev26/speakers/mara.jpg", "company": "Example Labs", "biography": "Building useful Bitcoin software.", "website": "https://example.com", "x": "marachen", "github": "https://github.com/marachen", "instagram": "", "linkedin": "", "leetcode": "", "nostr": "npub1example", "emails": [{"email": "mara.chen@example.test", "is_primary": true, "verified_at": "2026-08-01T12:00:00Z"}], "roles": ["dev26:speaker", "dev26:admin"]},
           "meta": {"request_id": "req_example"}
         }
       },
@@ -1508,9 +1508,9 @@
       "BadgeGrantReceipt": {"type": "object", "additionalProperties": true, "required": ["id", "state"], "properties": {"id": {"type": "string", "format": "uuid"}, "state": {"type": "string", "enum": ["issued", "accepted", "revoked"]}, "award_event_id": {"type": "string"}, "acceptance_event_id": {"type": "string"}, "revocation_event_id": {"type": "string"}}},
       "AccountProfile": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "name", "photo", "company", "biography", "website", "x", "github", "instagram", "linkedin", "leetcode", "nostr", "emails", "roles"],
+        "required": ["id", "public_id", "profile_url", "name", "photo", "company", "biography", "website", "x", "github", "instagram", "linkedin", "leetcode", "nostr", "emails", "roles"],
         "properties": {
-          "id": {"type": "string", "format": "uuid"}, "name": {"type": "string"}, "photo": {"type": "string"}, "company": {"type": "string"},
+          "id": {"type": "string", "format": "uuid"}, "public_id": {"type": "string"}, "profile_url": {"type": "string"}, "name": {"type": "string"}, "photo": {"type": "string"}, "company": {"type": "string"},
           "biography": {"type": "string"}, "website": {"type": "string"}, "x": {"type": "string"}, "github": {"type": "string"},
           "instagram": {"type": "string"}, "linkedin": {"type": "string"}, "leetcode": {"type": "string"}, "nostr": {"type": "string"},
           "emails": {"type": "array", "items": {"$ref": "#/components/schemas/AccountEmail"}}, "roles": {"type": "array", "items": {"type": "string"}}
