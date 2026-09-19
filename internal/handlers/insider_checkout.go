@@ -284,7 +284,7 @@ func ensureInsiderJSONEnd(decoder *json.Decoder) error {
 	return nil
 }
 
-var insiderFulfillmentHTTPClient = &http.Client{Timeout: 15 * time.Second}
+var insiderFulfillmentHTTPClient = &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 func settleInsiderServicePayment(ctx context.Context, app *config.AppContext, payment getters.VerifiedServicePayment) error {
 	purchase, err := getters.GetServicePaymentContext(app, payment.AttemptID)
@@ -306,13 +306,18 @@ func settleInsiderServicePayment(ctx context.Context, app *config.AppContext, pa
 	if err := getters.RecordServicePayment(app, payment); err != nil {
 		return err
 	}
-	purchase, err = getters.GetFulfillableServicePaymentContext(app, payment.AttemptID)
+	_, err = processServiceFulfillment(ctx, app, payment.AttemptID, time.Now())
+	return err
+}
+
+func buildInsiderSettlement(app *config.AppContext, payment getters.VerifiedServicePayment) (insiderSettlementEvent, error) {
+	purchase, err := getters.GetFulfillableServicePaymentContext(app, payment.AttemptID)
 	if err != nil {
-		return err
+		return insiderSettlementEvent{}, err
 	}
 	var snapshot insiderFulfillmentSnapshot
 	if err := json.Unmarshal(purchase.Quote.Fulfillment, &snapshot); err != nil {
-		return fmt.Errorf("decode Insider fulfillment: %w", err)
+		return insiderSettlementEvent{}, fmt.Errorf("decode Insider fulfillment: %w", err)
 	}
 	event := insiderSettlementEvent{
 		EventID: payment.Provider + ":" + payment.EventID, EventKind: "settled",
@@ -344,10 +349,7 @@ func settleInsiderServicePayment(ctx context.Context, app *config.AppContext, pa
 		}
 		event.AccessStartsAt, event.AccessEndsAt = &startsAt, &endsAt
 	}
-	if err := postInsiderSettlement(ctx, app, event); err != nil {
-		return err
-	}
-	return getters.CompleteExternalServiceFulfillment(app, purchase.OrderID)
+	return event, nil
 }
 
 func postInsiderSettlement(ctx context.Context, app *config.AppContext, event insiderSettlementEvent) error {

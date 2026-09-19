@@ -793,3 +793,16 @@ CREATE INDEX email_delivery_suppressions_active_idx
 ON email_delivery_suppressions (email)
 WHERE lifted_at IS NULL;
 
+
+-- Verified external product fulfillment outbox; saved with payment evidence.
+CREATE TABLE service_fulfillment_jobs (
+ attempt_id uuid PRIMARY KEY REFERENCES service_payment_attempts(id) ON DELETE RESTRICT,
+ payment jsonb NOT NULL CHECK(jsonb_typeof(payment)='object'),
+ payload jsonb CHECK(jsonb_typeof(payload)='object'),
+ state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','accepted','review')),
+ attempts bigint NOT NULL DEFAULT 0 CHECK(attempts>=0),
+ next_attempt_at timestamptz NOT NULL DEFAULT now(),
+ lease_until timestamptz NOT NULL DEFAULT now(),
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX service_fulfillment_due ON service_fulfillment_jobs(next_attempt_at,lease_until) WHERE state='pending';

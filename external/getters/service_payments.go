@@ -269,6 +269,15 @@ func recordServicePayment(app *config.AppContext, payment VerifiedServicePayment
 		if !same {
 			return ErrServicePayment
 		}
+		if strings.HasPrefix(quote.ProductCode, "insider.") {
+			evidence, marshalErr := json.Marshal(payment)
+			if marshalErr != nil {
+				return marshalErr
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO service_fulfillment_jobs(attempt_id,payment) VALUES($1,$2) ON CONFLICT(attempt_id) DO NOTHING`, payment.AttemptID, evidence); err != nil {
+				return err
+			}
+		}
 		return tx.Commit(ctx)
 	}
 	_, err = tx.Exec(ctx, `UPDATE service_payment_attempts SET settled_at=$2 WHERE id=$1 AND settled_at IS NULL`, payment.AttemptID, payment.PaidAt)
@@ -288,6 +297,15 @@ func recordServicePayment(app *config.AppContext, payment VerifiedServicePayment
 		AND `+serviceItemsMatchQuoteSQL, orderID, payment.PaidAt, reference, provider, quote.TotalCents, quote.TaxCents)
 	if err != nil {
 		return err
+	}
+	if strings.HasPrefix(quote.ProductCode, "insider.") {
+		evidence, marshalErr := json.Marshal(payment)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO service_fulfillment_jobs(attempt_id,payment) VALUES($1,$2) ON CONFLICT(attempt_id) DO NOTHING`, payment.AttemptID, evidence); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }

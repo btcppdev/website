@@ -133,6 +133,7 @@ func main() {
 	handlers.StartServicePaymentReconciliation(&app)
 	handlers.StartAlertsStripeReconciliation(&app)
 	handlers.StartServiceReceipts(&app)
+	handlers.StartServiceFulfillment(&app)
 	handlers.StartWeeklyNewsletterDrafting(&app)
 	handlers.StartConferenceEmailAutomation(&app)
 

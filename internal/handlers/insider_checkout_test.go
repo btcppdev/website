@@ -112,6 +112,10 @@ func TestSettleInsiderServicePaymentPostgres(t *testing.T) {
 			return
 		}
 		received = append(received, string(body))
+		if len(received) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer fulfillment.Close()
@@ -157,8 +161,26 @@ func TestSettleInsiderServicePaymentPostgres(t *testing.T) {
 		AttemptID: attempt.ID, Provider: "stripe", Reference: reference, EventID: "evt_" + strings.ReplaceAll(attempt.ID, "-", ""),
 		Currency: "USD", TotalCents: insiderAnnualMembershipCents, PaidAt: paidAt,
 	}
-	if err := settleInsiderServicePayment(ctx, app, payment); err != nil {
+	if err := settleInsiderServicePayment(ctx, app, payment); err == nil {
+		t.Fatal("expected unavailable product receiver")
+	}
+	// A later worker recovers without another provider callback. Configuration
+	// changes must not alter the frozen receipt/fulfillment payload on retry.
+	claimedAt := time.Now().Add(2 * time.Minute)
+	abandoned, err := getters.ClaimServiceFulfillment(ctx, app, attempt.ID, claimedAt)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if _, err := getters.ClaimServiceFulfillment(ctx, app, attempt.ID, claimedAt.Add(30*time.Second)); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("active fulfillment lease reused", err)
+	}
+	app.Env.InsiderMerchantName = "Changed configuration"
+	if worked, err := processServiceFulfillment(ctx, app, attempt.ID, claimedAt.Add(2*time.Minute)); err != nil || !worked {
+		t.Fatal("durable recovery", worked, err)
+	}
+
+	if applied, err := getters.FinishServiceFulfillment(ctx, app, abandoned, "retry", time.Now()); err != nil || applied {
+		t.Fatal("stale worker changed recovered fulfillment", applied, err)
 	}
 	if _, err := getters.FulfillServicePurchase(app, purchase.OrderID); !errors.Is(err, getters.ErrServiceFulfillment) {
 		t.Fatalf("Insider purchase reached central access grants: %v", err)

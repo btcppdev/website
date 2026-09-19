@@ -263,3 +263,29 @@ the migration record were absent after rollback. Applying the unmodified file
 then succeeded; repeat startup applied zero migrations. The unit suite rejects
 standalone transaction-control statements in migration 128. Earlier local test
 databases retain their original checksums; no deployed database was modified.
+
+## Durable external fulfillment
+
+Verified Insider settlement now creates `service_fulfillment_jobs` in the same
+transaction as the payment evidence. The primary key is the payment attempt, so
+provider retries cannot create a second fulfillment job. Initial callbacks try
+immediate dispatch; `SERVICE_FULFILLMENT_ENABLED=true` starts the background worker
+when the Insider endpoint, token and merchant name are configured. No callback
+retry is required to recover a queued job after process restart or receiver outage.
+
+Jobs have one-minute leases and monotonic attempt numbers. The worker rechecks
+paid order integrity before sending, freezes its first rendered JSON payload and
+uses a stable event ID. Failures back off from one minute to one hour. Accepted
+jobs are terminal; late worker responses cannot change a newer attempt. A lost
+acknowledgement may repeat the same event, so the receiver must remain idempotent.
+Product acknowledgement precedes marking the service item fulfilled; a crash in
+between retries the same event. HTTP redirects are refused. Invalid/cancelled
+orders move to review rather than granting access.
+
+PostgreSQL tests cover an unavailable receiver, byte-identical retry after merchant
+configuration changes, lease exclusion/recovery, late responses, repeated provider
+callbacks, cross-product grants and receipt separation. Full getter/handler suites
+pass against the fresh combined schema. Monitoring, reviewed operator recovery,
+account deletion/redaction and refund/revocation dispatch remain to complete. This
+queue currently dispatches verified settlement only, not the complete subscription
+lifecycle, and has not been enabled against a live product endpoint.
