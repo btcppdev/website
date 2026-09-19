@@ -15,7 +15,7 @@ import (
 
 func TestDeletedAccountCancellationPostgres(t *testing.T) {
 	for _, product := range []string{"alerts.repository-slots", "insider.membership.monthly", "insider.membership.annual"} {
-		for _, scenario := range []string{"lost reply", "unbound", "wrong customer", "open checkout", "expired checkout", "completed checkout"} {
+		for _, scenario := range []string{"lost reply", "unbound", "wrong customer", "open checkout", "expired checkout", "completed checkout", "recover reference"} {
 			t.Run(product+"/"+scenario, func(t *testing.T) {
 				app := databaseSmokeContext(t)
 				ctx := context.Background()
@@ -79,7 +79,12 @@ func TestDeletedAccountCancellationPostgres(t *testing.T) {
 					sub.CancelAt = sub.Items.Data[0].CurrentPeriodEnd
 					return nil, errors.New("lost response")
 				}}
-				session := &stripe.CheckoutSession{ID: "cs_" + id, Mode: "subscription", Status: "complete", ClientReferenceID: id, Metadata: sub.Metadata, Customer: sub.Customer, Subscription: sub, LineItems: &stripe.LineItemList{Data: []*stripe.LineItem{{Quantity: b.Quantity, Price: price}}}}
+				session := &stripe.CheckoutSession{ID: "cs_" + id, Created: now.Unix(), Mode: "subscription", Status: "complete", ClientReferenceID: id, Metadata: sub.Metadata, Customer: sub.Customer, Subscription: sub, LineItems: &stripe.LineItemList{Data: []*stripe.LineItem{{Quantity: b.Quantity, Price: price}}}}
+				if scenario == "recover reference" {
+					client.ListCheckouts = func(*stripe.CheckoutSessionListParams) (*stripe.CheckoutSessionList, error) {
+						return &stripe.CheckoutSessionList{Data: []*stripe.CheckoutSession{session}}, nil
+					}
+				}
 				if scenario == "open checkout" {
 					session.Status = "open"
 					session.Subscription = nil
@@ -112,7 +117,13 @@ func TestDeletedAccountCancellationPostgres(t *testing.T) {
 					}
 					return
 				}
-				if scenario != "lost reply" && scenario != "completed checkout" {
+				if scenario == "unbound" {
+					if state != "pending" || updates != 0 {
+						t.Fatal("missing lookup capability incorrectly completed", state, updates)
+					}
+					return
+				}
+				if scenario != "lost reply" && scenario != "completed checkout" && scenario != "recover reference" {
 					if state != "review" || updates != 0 {
 						t.Fatal("unsafe checkout mutated", state, updates)
 					}
@@ -120,6 +131,12 @@ func TestDeletedAccountCancellationPostgres(t *testing.T) {
 				}
 				if state != "pending" || updates != 1 {
 					t.Fatal("ambiguous response lost", state, updates)
+				}
+				if scenario == "recover reference" {
+					var saved string
+					if err := app.DB.QueryRow(ctx, `SELECT stripe_session_id FROM service_stripe_checkouts WHERE id=$1`, id).Scan(&saved); err != nil || saved != session.ID {
+						t.Fatal("recovered reference not saved", saved, err)
+					}
 				}
 				if n, err := ReconcileDeletedAccountCancellation(ctx, app, id, client, now); n != 0 || err != nil {
 					t.Fatal("backoff bypassed", n, err)

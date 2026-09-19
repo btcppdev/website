@@ -24,6 +24,7 @@ type CheckoutIntent struct {
 	ReturnOrigin, SuccessURL, CancelURL       string
 }
 type CheckoutClient struct {
+	List     func(*stripe.CheckoutSessionListParams) (*stripe.CheckoutSessionList, error)
 	Expire   func(string, *stripe.CheckoutSessionExpireParams) (*stripe.CheckoutSession, error)
 	Create   func(*stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error)
 	Retrieve func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error)

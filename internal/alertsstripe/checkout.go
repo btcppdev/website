@@ -32,6 +32,7 @@ type Intent struct {
 }
 
 type Client struct {
+	ListCheckouts      func(*stripe.CheckoutSessionListParams) (*stripe.CheckoutSessionList, error)
 	Expire             func(string, *stripe.CheckoutSessionExpireParams) (*stripe.CheckoutSession, error)
 	ReleaseSchedule    func(string, *stripe.SubscriptionScheduleReleaseParams) (*stripe.SubscriptionSchedule, error)
 	Schedule           func(string, *stripe.SubscriptionScheduleParams) (*stripe.SubscriptionSchedule, error)
@@ -49,7 +50,7 @@ type Client struct {
 }
 
 func NewClient(live bool) Client {
-	return Client{Expire: checkout.Expire, ReleaseSchedule: stripeSchedule.Release, Schedule: stripeSchedule.Get, UpdateSchedule: stripeSchedule.Update, CreateSchedule: stripeSchedule.New, PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+	return Client{ListCheckouts: listCheckoutPage, Expire: checkout.Expire, ReleaseSchedule: stripeSchedule.Release, Schedule: stripeSchedule.Get, UpdateSchedule: stripeSchedule.Update, CreateSchedule: stripeSchedule.New, PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
 		params.Single = true
 		iter := stripeInvoice.List(params)
 		for iter.Next() {
@@ -84,4 +85,18 @@ func (c Client) Open(ctx context.Context, in Intent, reference string, now time.
 func ValidateIntent(in Intent, now time.Time) error {
 	_, err := checkoutParams(context.Background(), in, now)
 	return err
+}
+
+func listCheckoutPage(p *stripe.CheckoutSessionListParams) (*stripe.CheckoutSessionList, error) {
+	p.Single = true
+	iter := checkout.List(p)
+	for iter.Next() {
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+	return iter.CheckoutSessionList(), nil
+}
+func (c Client) FindExistingCheckout(ctx context.Context, in Intent) (string, error) {
+	return (servicestripe.CheckoutClient{List: c.ListCheckouts, Live: c.Live}).FindExistingCheckout(ctx, serviceCheckoutIntent(in))
 }

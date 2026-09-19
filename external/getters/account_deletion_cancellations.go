@@ -54,13 +54,33 @@ func ReconcileDeletedAccountCancellation(ctx context.Context, app *config.AppCon
 		return 1, cause
 	}
 	if len(raw) == 0 || subscription == "" {
-		if reference == "" {
-			return finish("review", errors.New("deleted account checkout has no saved provider reference"))
+		saveReference := func(found string) error {
+			result, err := app.DB.Exec(ctx, `UPDATE service_stripe_checkouts SET stripe_session_id=$2 WHERE id=$1 AND person_id IS NULL AND (stripe_session_id IS NULL OR stripe_session_id=$2)`, id, found)
+			if err != nil {
+				return err
+			}
+			if result.RowsAffected() != 1 {
+				return servicestripe.ErrCheckout
+			}
+			reference = found
+			return nil
 		}
 		if product == "alerts.repository-slots" {
 			var in alertsstripe.Intent
 			if json.Unmarshal(intent, &in) != nil || in.ID != id || in.PersonID != person {
 				return finish("review", servicestripe.ErrCheckout)
+			}
+			if reference == "" {
+				found, lookupErr := client.FindExistingCheckout(ctx, in)
+				if lookupErr == nil {
+					lookupErr = saveReference(found)
+				}
+				if errors.Is(lookupErr, servicestripe.ErrCheckout) {
+					return finish("review", lookupErr)
+				}
+				if lookupErr != nil {
+					return finish("pending", lookupErr)
+				}
 			}
 			var recovered *alertsstripe.Binding
 			recovered, err = client.ResolveDeletedCheckout(ctx, in, reference)
@@ -72,6 +92,18 @@ func ReconcileDeletedAccountCancellation(ctx context.Context, app *config.AppCon
 			var in servicestripe.CheckoutIntent
 			if json.Unmarshal(intent, &in) != nil || in.ID != id || in.PersonID != person || in.ProductCode != product {
 				return finish("review", servicestripe.ErrCheckout)
+			}
+			if reference == "" {
+				found, lookupErr := (servicestripe.CheckoutClient{List: client.ListCheckouts, Live: client.Live}).FindExistingCheckout(ctx, in)
+				if lookupErr == nil {
+					lookupErr = saveReference(found)
+				}
+				if errors.Is(lookupErr, servicestripe.ErrCheckout) {
+					return finish("review", lookupErr)
+				}
+				if lookupErr != nil {
+					return finish("pending", lookupErr)
+				}
 			}
 			var recovered *servicestripe.Binding
 			recovered, err = (servicestripe.CheckoutClient{Retrieve: client.Retrieve, Expire: client.Expire, Live: client.Live}).ResolveDeletedCheckout(ctx, in, reference)
