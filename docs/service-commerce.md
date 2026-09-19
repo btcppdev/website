@@ -529,6 +529,17 @@ update Insider's external access ledger, and Alerts currently withholds refunded
 orders pending product-specific reconciliation. No proportional access policy is
 inferred from the money amount.
 
+`servicestripe.RefundClient.Verify` now supplies the Stripe verification primitive:
+it fetches the refund, charge and saved Checkout session or invoice, requires a
+successful USD refund against a fully captured charge, and checks original totals,
+payment identity and test/live mode. Invoice attribution requires one fully paid
+invoice payment, with no truncated payment list. Split/ambiguous allocations need
+manual review. It does not create refunds or yet write them into the ledger.
+Stripe's refund `created` field is preserved as provider creation time, not
+described as a completion timestamp. See the official
+[Refund object](https://docs.stripe.com/api/refunds/object) and
+[Invoice Payment object](https://docs.stripe.com/api/invoice-payment/object).
+
 Fresh PostgreSQL tests cover duplicate concurrent refunds, competing refunds that
 would exceed the paid total, mismatched/unsettled payments, immutable evidence and
 settlement replay after refund. The schema remains in consolidated migration 128.
