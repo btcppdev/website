@@ -308,3 +308,25 @@ annual prepaid remains supported. Alerts prepaid continues through its existing
 calculation still require integration; the registry alone does not collect tax or
 make the existing fixed-term Insider checkout recurring. Tests cover prices,
 quantity separation, unsupported plans/providers and calendar boundaries.
+
+## Shared Stripe invoice verification
+
+`internal/servicestripe` now verifies paid full-period invoices against a trusted
+product binding and the server plan registry. Alerts' existing invoice, renewal,
+and failed-invoice terms checks delegate through an explicit Alerts binding.
+Insider monthly and annual plans enforce one membership, exclusive tax, and the
+matching recurring interval. The configured product tax code is mandatory; Insider
+cannot inherit Alerts' SaaS tax code by default. Exclusive totals equal the fixed
+line price plus verified nonnegative tax, with bounded arithmetic; inclusive Alerts
+totals remain fixed. Refund/credit/proration and incomplete-line cases remain
+ineligible for this full-period path.
+
+Tax amount handling follows Stripe's invoice reference:
+https://docs.stripe.com/api/invoices/object?api-version=2025-11-17.clover
+
+Tests cover cross-product metadata, changed plans/quantities/intervals/tax codes,
+extra charges, tax overflow, annual/monthly periods and zero tax. Existing Alerts
+Stripe tests and targeted PostgreSQL lifecycle/settlement suites pass. This extracts
+provider verification only: shared subscription storage, Insider subscription
+checkout, invoice-to-order fulfillment and recurring cancellation/renewal wiring
+remain required before Insider recurring billing is enabled.
