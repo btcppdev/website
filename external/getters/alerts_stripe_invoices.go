@@ -171,6 +171,10 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 // between monthly renewals and prorations. The caller owns verification,
 // serialization, invoice deduplication and the transaction commit.
 func recordStripeServicePayment(ctx context.Context, tx pgx.Tx, person, email string, paid alertsstripe.PaidPeriod, quote ServiceQuote, out *ServicePurchase) error {
+	external := quote.ProductCode == servicebilling.InsiderMonthlyProduct || quote.ProductCode == servicebilling.InsiderAnnualProduct
+	if quote.ProductCode != servicebilling.AlertsProduct && !external {
+		return ErrServiceQuote
+	}
 	snapshot, err := json.Marshal(quote)
 	if err != nil {
 		return err
@@ -195,7 +199,11 @@ func recordStripeServicePayment(ctx context.Context, tx pgx.Tx, person, email st
 			tax = paid.TaxCents * total / paid.TotalCents
 		}
 		taxLeft -= tax
-		_, err = tx.Exec(ctx, `INSERT INTO shop_order_items(order_id,quantity,unit_price_cents,tax_amount_cents,line_total_cents,product_name_snapshot,fulfillment_method,service_product_code,service_resource_id,service_period_start,service_period_end,fulfilled_quantity,status) VALUES($1,$2,$3,$4,$5,$6,'service','alerts.repository-slots','',$7,$8,$2,'fulfilled')`, out.OrderID, quantity, units[i], tax, total, quote.Name, paid.Start, paid.End)
+		fulfilled, status := quantity, "fulfilled"
+		if external {
+			fulfilled, status = 0, "pending"
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO shop_order_items(order_id,quantity,unit_price_cents,tax_amount_cents,line_total_cents,product_name_snapshot,fulfillment_method,service_product_code,service_resource_id,service_period_start,service_period_end,fulfilled_quantity,status) VALUES($1,$2,$3,$4,$5,$6,'service',$9,'',$7,$8,$10,$11)`, out.OrderID, quantity, units[i], tax, total, quote.Name, paid.Start, paid.End, quote.ProductCode, fulfilled, status)
 		if err != nil {
 			return err
 		}
@@ -211,6 +219,16 @@ func recordStripeServicePayment(ctx context.Context, tx pgx.Tx, person, email st
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO service_payment_events(provider,event_id,attempt_id,total_cents,currency,paid_at) VALUES('stripe',$1,$2,$3,'USD',$4)`, "invoice-paid:"+paid.InvoiceID, attemptID, paid.TotalCents, paid.PaidAt)
 	if err != nil {
+		return err
+	}
+	out.PurchaseID, out.BuyerEmail = purchaseID, email
+	if external {
+		payment := VerifiedServicePayment{AttemptID: attemptID, Provider: "stripe", Reference: paid.InvoiceID, EventID: "invoice-paid:" + paid.InvoiceID, Currency: "USD", TotalCents: paid.TotalCents, PaidAt: paid.PaidAt}
+		evidence, err := json.Marshal(payment)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO service_fulfillment_jobs(attempt_id,payment) VALUES($1,$2)`, attemptID, evidence)
 		return err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO service_entitlements(purchase_id,person_id,product_code,quantity,starts_at,ends_at) VALUES($1,$2,'alerts.repository-slots',$3,$4,$5)`, purchaseID, person, paid.Quantity, paid.Start, paid.End)

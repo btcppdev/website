@@ -127,6 +127,47 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 	if err != nil || len(grants) != 0 {
 		t.Fatal("binding granted access", grants, err)
 	}
+	now := time.Now().UTC().Truncate(time.Second)
+	start = now.Add(-24 * time.Hour)
+	end = start.AddDate(0, 1, 0)
+	inv := &stripe.Invoice{ID: "in_" + first.Intent.ID, Status: "paid", Currency: "usd", Customer: session.Customer, BillingReason: "subscription_create", Total: 2310, AmountPaid: 2310, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: session.Subscription, Metadata: session.Metadata}}, TotalTaxes: []*stripe.InvoiceTotalTax{{Amount: 210, TaxBehavior: "exclusive"}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Amount: 2100, Quantity: 1, Period: &stripe.Period{Start: start.Unix(), End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: session.Subscription.ID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: price.Product.ID}}}}}}
+	invoices := servicestripe.InvoiceClient{Invoice: func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { return inv, nil }, Price: func(string, *stripe.PriceParams) (*stripe.Price, error) { return price, nil }}
+	var orderID string
+	for i := 0; i < 2; i++ {
+		purchase, err := ReconcileServiceStripeInvoice(ctx, app, person, first.Intent.ID, terms.ProductCode, inv.ID, invoices)
+		if err != nil {
+			t.Fatal("invoice recording", err)
+		}
+		if i > 0 && purchase.OrderID != orderID {
+			t.Fatal("duplicate invoice order")
+		}
+		orderID = purchase.OrderID
+	}
+	var attemptID string
+	if err := app.DB.QueryRow(ctx, `SELECT a.id::text FROM service_payment_attempts a JOIN service_purchase_requests r ON r.id=a.purchase_id WHERE r.order_id=$1`, orderID).Scan(&attemptID); err != nil {
+		t.Fatal(err)
+	}
+	ready, err := GetFulfillableServicePaymentContext(app, attemptID)
+	if err != nil || !ready.Quote.RecurringInvoice || !ready.Quote.PeriodStart.Equal(start) || ready.Quote.TotalCents != 2310 || ready.Quote.TaxCents != 210 {
+		t.Fatal("fulfillment evidence", ready, err)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_fulfillment_jobs WHERE attempt_id=$1 AND state='pending'`, attemptID).Scan(&count); err != nil || count != 1 {
+		t.Fatal("missing/duplicate delivery", count, err)
+	}
+	grants, err = ActiveServiceEntitlements(app, person, time.Now())
+	if err != nil || len(grants) != 0 {
+		t.Fatal("Insider invoice created central access", grants, err)
+	}
+	inv.ID = "in_overlap_" + first.Intent.ID
+	if _, err := ReconcileServiceStripeInvoice(ctx, app, person, first.Intent.ID, terms.ProductCode, inv.ID, invoices); err == nil {
+		t.Fatal("overlapping invoice accepted")
+	}
+	inv.Lines.Data[0].Period.Start = end.Unix()
+	inv.Lines.Data[0].Period.End = end.AddDate(0, 1, 0).Unix()
+	if _, err := ReconcileServiceStripeInvoice(ctx, app, person, first.Intent.ID, terms.ProductCode, inv.ID, invoices); err != nil {
+		t.Fatal("renewal rejected", err)
+	}
+
 	session.Subscription.ID = "sub_replaced"
 	if _, err := ResolveServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, client); err == nil {
 		t.Fatal("binding overwritten")

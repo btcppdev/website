@@ -85,6 +85,11 @@ func TestAllowedInsiderReturnURLUsesExactConfiguredOrigin(t *testing.T) {
 }
 
 func TestSettleInsiderServicePaymentPostgres(t *testing.T) {
+	t.Run("fixed-term", func(t *testing.T) { testSettleInsiderServicePaymentPostgres(t, false) })
+	t.Run("recurring-period", func(t *testing.T) { testSettleInsiderServicePaymentPostgres(t, true) })
+}
+
+func testSettleInsiderServicePaymentPostgres(t *testing.T, recurring bool) {
 	if os.Getenv("BTCPP_POSTGRES_SMOKE") != "1" || os.Getenv("DATABASE_URL") == "" {
 		t.Skip("BTCPP_POSTGRES_SMOKE=1 and DATABASE_URL are required")
 	}
@@ -140,7 +145,8 @@ func TestSettleInsiderServicePaymentPostgres(t *testing.T) {
 	quotedAt := time.Now().UTC().Truncate(time.Microsecond)
 	quotedEnd := quotedAt.AddDate(1, 0, 0)
 	quote := getters.ServiceQuote{
-		ProductCode: "insider.membership.annual", Name: "Bitcoin++ Insider annual membership", Provider: "stripe",
+		RecurringInvoice: recurring,
+		ProductCode:      "insider.membership.annual", Name: "Bitcoin++ Insider annual membership", Provider: "stripe",
 		Quantity: 1, UnitCents: insiderAnnualMembershipCents, TotalCents: insiderAnnualMembershipCents,
 		PeriodStart: &quotedAt, PeriodEnd: &quotedEnd, ExpiresAt: quotedAt.Add(insiderQuoteTTL), Fulfillment: json.RawMessage(`{}`),
 	}
@@ -201,7 +207,11 @@ func TestSettleInsiderServicePaymentPostgres(t *testing.T) {
 	if err := json.Unmarshal([]byte(received[0]), &event); err != nil {
 		t.Fatal(err)
 	}
-	if !event.OccurredAt.Equal(paidAt) || event.AccessStartsAt == nil || !event.AccessStartsAt.Equal(paidAt) || event.AccessEndsAt == nil || !event.AccessEndsAt.Equal(paidAt.AddDate(1, 0, 0)) {
+	expectedStart, expectedEnd := paidAt, paidAt.AddDate(1, 0, 0)
+	if recurring {
+		expectedStart, expectedEnd = quotedAt, quotedEnd
+	}
+	if !event.OccurredAt.Equal(paidAt) || event.AccessStartsAt == nil || !event.AccessStartsAt.Equal(expectedStart) || event.AccessEndsAt == nil || !event.AccessEndsAt.Equal(expectedEnd) {
 		t.Fatalf("settlement dates = %+v", event)
 	}
 	var status string

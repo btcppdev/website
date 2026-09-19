@@ -18,6 +18,8 @@ var ErrServiceBuyer = errors.New("service buyer needs a verified account email")
 // adapters must resolve pricing, tax and access periods before calling this API.
 // Amounts are USD cents; UnitCents and TotalCents include TaxCents.
 type ServiceQuote struct {
+	// RecurringInvoice preserves provider-verified billing boundaries on fulfillment.
+	RecurringInvoice bool `json:"recurring_invoice,omitempty"`
 	// Alerts account evidence captured by the server during quote preparation.
 	BaseOrderID     string     `json:"base_order_id,omitempty"`
 	BillingMonths   int        `json:"billing_months,omitempty"`

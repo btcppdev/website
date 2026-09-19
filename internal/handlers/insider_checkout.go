@@ -335,13 +335,16 @@ func buildInsiderSettlement(app *config.AppContext, payment getters.VerifiedServ
 	}
 	// Membership time belongs to the reader from verified settlement, not from
 	// the earlier moment when the short-lived checkout quote was rendered.
-	if purchase.Quote.ProductCode == "insider.membership.annual" || purchase.Quote.ProductCode == "insider.membership.monthly" {
+	if !purchase.Quote.RecurringInvoice && (purchase.Quote.ProductCode == "insider.membership.annual" || purchase.Quote.ProductCode == "insider.membership.monthly") {
 		startsAt := purchase.PaidAt.UTC()
 		_, endsAt, err := servicebilling.ProductTerm(purchase.Quote.ProductCode, payment.Provider, 1, startsAt)
 		if err != nil {
 			return insiderSettlementEvent{}, err
 		}
 		event.AccessStartsAt, event.AccessEndsAt = &startsAt, &endsAt
+	}
+	if purchase.Quote.RecurringInvoice {
+		event.QuotedAt = purchase.PaidAt.UTC()
 	}
 	return event, nil
 }

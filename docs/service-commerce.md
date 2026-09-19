@@ -396,3 +396,17 @@ Repeated binding is idempotent and cannot replace the provider subscription.
 Binding alone creates neither an entitlement nor an external fulfillment event.
 The public Insider recurring route still awaits invoice-ledger and lifecycle
 integration before activation.
+
+Verified Insider recurring invoices now create shared shop orders, immutable
+purchase/payment evidence, a product-scoped invoice record and a durable external
+fulfillment job in one transaction. Invoice IDs deduplicate callbacks; overlapping
+billing periods are rejected. Insider items remain pending until the receiver
+acknowledges delivery and never create central Alerts entitlements. The common
+Stripe payment writer retains Alerts' existing entitlement behavior.
+
+Recurring purchase snapshots explicitly preserve the verified invoice period;
+late settlement does not shift membership dates. Fixed-term purchases retain
+settlement-relative access. PostgreSQL tests cover invoice replay, next-period
+renewal, overlap rejection, fulfillment eligibility and queue deduplication.
+Receiver tests exercise retries and both access-period policies. Public recurring
+checkout is still disabled pending webhook/recovery and lifecycle integration.
