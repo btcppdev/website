@@ -5,14 +5,10 @@ package alertsstripe
 
 import (
 	"context"
-	"errors"
-	"net/mail"
-	"net/url"
-	"strings"
 	"time"
 
 	"btcpp-web/internal/servicebilling"
-	"github.com/google/uuid"
+	"btcpp-web/internal/servicestripe"
 	"github.com/stripe/stripe-go/v86"
 	checkout "github.com/stripe/stripe-go/v86/checkout/session"
 	stripeInvoice "github.com/stripe/stripe-go/v86/invoice"
@@ -21,8 +17,8 @@ import (
 	stripeSchedule "github.com/stripe/stripe-go/v86/subscriptionschedule"
 )
 
-var ErrCheckout = errors.New("invalid Alerts Stripe checkout")
-var ErrReconcile = errors.New("existing Stripe checkout must be reconciled")
+var ErrCheckout = servicestripe.ErrCheckout
+var ErrReconcile = servicestripe.ErrReconcile
 
 // Intent is a frozen, server-owned checkout request, not an HTTP request DTO.
 // Reuse every field (including CreatedAt) when retrying an ambiguous creation.
@@ -64,95 +60,15 @@ func NewClient(live bool) Client {
 	}}
 }
 
-func checkoutParams(ctx context.Context, in Intent, now time.Time) (*stripe.CheckoutSessionParams, error) {
-	if _, err := uuid.Parse(in.ID); err != nil {
-		return nil, ErrCheckout
-	}
-	if _, err := uuid.Parse(in.PersonID); err != nil {
-		return nil, ErrCheckout
-	}
-	address, err := mail.ParseAddress(in.Email)
-	if err != nil || address.Address != in.Email || len(in.Email) > 254 {
-		return nil, ErrCheckout
-	}
-	plan, _, err := servicebilling.ProductTerm(servicebilling.AlertsProduct, "stripe", in.PaidSlots, in.CreatedAt)
-	if err != nil {
-		return nil, ErrCheckout
-	}
-	// Stripe permits sessions lasting 30 minutes to 24 hours. A fixed two-hour
-	// expiry permits retry for 90 minutes without changing idempotent parameters.
-	if in.CreatedAt.After(now.Add(time.Minute)) || !now.Before(in.CreatedAt.Add(90*time.Minute)) {
-		return nil, ErrReconcile
-	}
-	base, err := url.Parse(in.ReturnBaseURL)
-	if err != nil || base.User != nil || base.RawQuery != "" || base.Fragment != "" || base.Path != "" || base.Opaque != "" || base.Host == "" || (base.Scheme != "https" && !(base.Scheme == "http" && (base.Hostname() == "localhost" || base.Hostname() == "127.0.0.1"))) {
-		return nil, ErrCheckout
-	}
-	metadata := map[string]string{"product": plan.Code, "checkout_intent": in.ID, "account_id": in.PersonID}
-	p := &stripe.CheckoutSessionParams{
-		Mode:                     stripe.String("subscription"),
-		ClientReferenceID:        stripe.String(in.ID),
-		CustomerEmail:            stripe.String(in.Email),
-		SuccessURL:               stripe.String(in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=returned"),
-		CancelURL:                stripe.String(in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=cancelled"),
-		ExpiresAt:                stripe.Int64(in.CreatedAt.Add(2 * time.Hour).Unix()),
-		BillingAddressCollection: stripe.String("required"),
-		AutomaticTax:             &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(true)},
-		AllowPromotionCodes:      stripe.Bool(false),
-		PaymentMethodTypes:       stripe.StringSlice([]string{"card"}),
-		Metadata:                 metadata,
-		SubscriptionData:         &stripe.CheckoutSessionSubscriptionDataParams{Metadata: map[string]string{"product": metadata["product"], "checkout_intent": in.ID, "account_id": in.PersonID}},
-		LineItems: []*stripe.CheckoutSessionLineItemParams{{Quantity: stripe.Int64(in.PaidSlots), PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
-			Currency: stripe.String(plan.Currency), UnitAmount: stripe.Int64(plan.UnitCents), TaxBehavior: stripe.String(plan.TaxBehavior),
-			Recurring:   &stripe.CheckoutSessionLineItemPriceDataRecurringParams{Interval: stripe.String("month"), IntervalCount: stripe.Int64(1)},
-			ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{Name: stripe.String(plan.Name), TaxCode: stripe.String(plan.StripeTaxCode)},
-		}}},
-	}
-	p.Context = ctx
-	p.SetIdempotencyKey("alerts-checkout:" + in.ID)
-	return p, nil
+func serviceCheckoutIntent(in Intent) servicestripe.CheckoutIntent {
+	return servicestripe.CheckoutIntent{ID: in.ID, PersonID: in.PersonID, Email: in.Email, ProductCode: servicebilling.AlertsProduct, TaxCode: servicebilling.AlertsStripeTaxCode, Quantity: in.PaidSlots, CreatedAt: in.CreatedAt, ReturnOrigin: in.ReturnBaseURL, SuccessURL: in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=returned", CancelURL: in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=cancelled"}
 }
-
-// Open creates or retrieves a hosted session. A saved reference is lookup-only,
-// including expired/completed sessions; it never silently starts a replacement.
+func checkoutParams(ctx context.Context, in Intent, now time.Time) (*stripe.CheckoutSessionParams, error) {
+	return servicestripe.CheckoutParams(ctx, serviceCheckoutIntent(in), now)
+}
 func (c Client) Open(ctx context.Context, in Intent, reference string, now time.Time) (string, string, error) {
-	var session *stripe.CheckoutSession
-	var err error
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	if reference != "" {
-		if !strings.HasPrefix(reference, "cs_") || len(reference) > 255 || c.Retrieve == nil {
-			return "", "", ErrCheckout
-		}
-		params := &stripe.CheckoutSessionParams{}
-		params.Context = ctx
-		session, err = c.Retrieve(reference, params)
-	} else {
-		params, e := checkoutParams(ctx, in, now)
-		if e != nil {
-			return "", "", e
-		}
-		if c.Create == nil {
-			return "", "", ErrCheckout
-		}
-		session, err = c.Create(params)
-	}
-	if err != nil {
-		return "", "", err
-	}
-	if session == nil || !strings.HasPrefix(session.ID, "cs_") || (reference != "" && session.ID != reference) || session.Mode != "subscription" || session.Livemode != c.Live || session.ClientReferenceID != in.ID || session.Metadata["account_id"] != in.PersonID || session.Metadata["checkout_intent"] != in.ID || session.Metadata["product"] != "alerts.repository-slots" {
-		return "", "", ErrCheckout
-	}
-	// Preserve the authenticated session ID even when no longer payable, allowing
-	// the caller to reconcile its invoice instead of making a second subscription.
-	if session.Status != "open" || session.ExpiresAt <= now.Unix() {
-		return session.ID, "", ErrReconcile
-	}
-	target, e := url.Parse(session.URL)
-	if e != nil || target.Scheme != "https" || target.Host != "checkout.stripe.com" || target.User != nil || target.Path != "/c/pay/"+session.ID {
-		return session.ID, "", ErrCheckout
-	}
-	return session.ID, session.URL, nil
+	shared := servicestripe.CheckoutClient{Create: c.Create, Retrieve: c.Retrieve, Live: c.Live}
+	return shared.Open(ctx, serviceCheckoutIntent(in), reference, now)
 }
 
 // ValidateIntent validates a frozen checkout before it is reserved in storage.

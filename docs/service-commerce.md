@@ -355,3 +355,22 @@ storage tests cover same-account/same-key coexistence, Insider plan-family
 conflicts, immutable product identity, view visibility/mutation isolation and
 provider subscription uniqueness. Shared storage is ready for the new coordinator;
 Insider recurring checkout/renewal/cancellation remains unwired.
+
+## Shared hosted subscription checkout
+
+`internal/servicestripe.CheckoutParams` and `CheckoutClient.Open` now implement
+subscription session creation/retrieval for server-owned product plans. Alerts'
+existing adapter delegates to them while preserving its frozen return URLs and
+`alerts-checkout:` idempotency keys. Insider plans generate quantity-one monthly
+or annual sessions with exclusive tax, a configured classification, product-bound
+metadata and return-to-Insider links. Product code, quantity, tax code and return
+origin are validated even on saved-session lookup. The caller must authorize the
+return origin for its product before freezing it; this is not a browser-controlled
+allowlist. Provider responses must match account, checkout, product and live mode.
+
+Tests cover stable retries, monthly/annual pricing and intervals, invalid return
+origins, missing tax configuration, unknown products, extra membership quantity
+and cross-product session responses. Existing Alerts checkout and targeted
+PostgreSQL billing suites pass. Insider's public endpoint still uses fixed-term
+payments until durable subscription reservation, binding and invoice fulfillment
+are connected; this extraction alone does not enable recurring Insider charges.
