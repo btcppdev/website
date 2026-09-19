@@ -112,6 +112,20 @@ func ListBusinessMetricCounts(ctx *config.AppContext) ([]types.BusinessMetricCou
         SELECT 'service_refund_oldest_pending_timestamp_seconds', '', '',
             coalesce(extract(epoch FROM min(created_at)),0)::float8
         FROM service_refund_jobs WHERE state='pending'
+
+ UNION ALL
+ SELECT 'account_deletion_delivery_jobs', '', states.state, count(j.person_id)::float8
+ FROM (VALUES ('pending'), ('accepted')) states(state)
+ LEFT JOIN account_deletion_deliveries j ON j.state=states.state GROUP BY states.state
+ UNION ALL
+ SELECT 'account_deletion_delivery_oldest_pending_timestamp_seconds', '', '', coalesce(extract(epoch FROM min(created_at)),0)::float8 FROM account_deletion_deliveries WHERE state='pending'
+
+ UNION ALL
+ SELECT 'account_deletion_cancellation_jobs', '', states.state, count(j.checkout_id)::float8
+ FROM (VALUES ('pending'), ('confirmed'), ('review')) states(state)
+ LEFT JOIN account_deletion_cancellations j ON j.state=states.state GROUP BY states.state
+ UNION ALL
+ SELECT 'account_deletion_cancellation_oldest_pending_timestamp_seconds', '', '', coalesce(extract(epoch FROM min(requested_at)),0)::float8 FROM account_deletion_cancellations WHERE state='pending'
 		ORDER BY 1, 2, 3
 	`)
 	if err != nil {

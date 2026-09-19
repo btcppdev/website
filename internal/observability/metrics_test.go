@@ -99,6 +99,10 @@ func TestBusinessMetricsAreBoundedAndCached(t *testing.T) {
 			{Metric: "service_refund_oldest_pending_timestamp_seconds", Conference: "private-id", State: "unexpected", Count: 1700000000},
 			{Metric: "service_receipt_jobs", Conference: "private-id", State: "review", Count: 2},
 			{Metric: "service_receipt_oldest_pending_timestamp_seconds", Conference: "private-id", State: "unexpected", Count: 1700000000},
+			{Metric: "account_deletion_delivery_jobs", Conference: "private-id", State: "pending", Count: 2},
+			{Metric: "account_deletion_delivery_oldest_pending_timestamp_seconds", Conference: "private-id", State: "unexpected", Count: 1700000000},
+			{Metric: "account_deletion_cancellation_jobs", Conference: "private-id", State: "pending", Count: 2},
+			{Metric: "account_deletion_cancellation_oldest_pending_timestamp_seconds", Conference: "private-id", State: "unexpected", Count: 1700000000},
 			{Metric: "unknown", Conference: "private-id", State: "unexpected", Count: 99},
 		}, nil
 	})
@@ -119,6 +123,10 @@ func TestBusinessMetricsAreBoundedAndCached(t *testing.T) {
 			`name:"test_business_business_metrics_collection_success"`,
 			`name:"test_business_service_fulfillment_jobs"`,
 			`name:"test_business_service_refund_jobs"`,
+			`name:"test_business_account_deletion_cancellation_jobs"`,
+			`name:"test_business_account_deletion_cancellation_oldest_pending_timestamp_seconds"`,
+			`name:"test_business_account_deletion_delivery_jobs"`,
+			`name:"test_business_account_deletion_delivery_oldest_pending_timestamp_seconds"`,
 			`name:"test_business_service_fulfillment_oldest_pending_timestamp_seconds"`,
 			`name:"test_business_service_refund_oldest_pending_timestamp_seconds"`,
 			`name:"test_business_service_receipt_jobs"`, `name:"state" value:"review"`,

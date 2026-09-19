@@ -24,37 +24,45 @@ type businessCollector struct {
 	lastSuccessful time.Time
 	lastSuccess    bool
 
-	tickets                  *prometheus.Desc
-	ticketCheckins           *prometheus.Desc
-	speakerApplications      *prometheus.Desc
-	volunteerApplications    *prometheus.Desc
-	recordingBroadcasts      *prometheus.Desc
-	serviceFulfillmentJobs   *prometheus.Desc
-	serviceRefundJobs        *prometheus.Desc
-	serviceFulfillmentOldest *prometheus.Desc
-	serviceRefundOldest      *prometheus.Desc
-	serviceReceiptJobs       *prometheus.Desc
-	serviceReceiptOldest     *prometheus.Desc
-	collectionSuccess        *prometheus.Desc
-	lastSuccessfulRefresh    *prometheus.Desc
+	tickets                           *prometheus.Desc
+	ticketCheckins                    *prometheus.Desc
+	speakerApplications               *prometheus.Desc
+	volunteerApplications             *prometheus.Desc
+	recordingBroadcasts               *prometheus.Desc
+	serviceFulfillmentJobs            *prometheus.Desc
+	accountDeletionDeliveryJobs       *prometheus.Desc
+	accountDeletionDeliveryOldest     *prometheus.Desc
+	accountDeletionCancellationJobs   *prometheus.Desc
+	accountDeletionCancellationOldest *prometheus.Desc
+	serviceRefundJobs                 *prometheus.Desc
+	serviceFulfillmentOldest          *prometheus.Desc
+	serviceRefundOldest               *prometheus.Desc
+	serviceReceiptJobs                *prometheus.Desc
+	serviceReceiptOldest              *prometheus.Desc
+	collectionSuccess                 *prometheus.Desc
+	lastSuccessfulRefresh             *prometheus.Desc
 }
 
 func newBusinessCollector(namespace string, loader BusinessMetricsLoader) *businessCollector {
 	return &businessCollector{
-		loader:                   loader,
-		serviceFulfillmentJobs:   prometheus.NewDesc(namespace+"_service_fulfillment_jobs", "Current external service fulfillment jobs by delivery state.", []string{"state"}, nil),
-		serviceRefundJobs:        prometheus.NewDesc(namespace+"_service_refund_jobs", "Current service refund adjustment jobs by delivery state.", []string{"state"}, nil),
-		serviceFulfillmentOldest: prometheus.NewDesc(namespace+"_service_fulfillment_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending external service fulfillment; zero when none are pending.", nil, nil),
-		serviceRefundOldest:      prometheus.NewDesc(namespace+"_service_refund_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending service refund adjustment; zero when none are pending.", nil, nil),
-		serviceReceiptJobs:       prometheus.NewDesc(namespace+"_service_receipt_jobs", "Current service receipt jobs by delivery state.", []string{"state"}, nil),
-		serviceReceiptOldest:     prometheus.NewDesc(namespace+"_service_receipt_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending service receipt; zero when none are pending.", nil, nil),
-		tickets:                  prometheus.NewDesc(namespace+"_tickets", "Current ticket registrations by conference and state.", []string{"conference", "state"}, nil),
-		ticketCheckins:           prometheus.NewDesc(namespace+"_ticket_checkins", "Current non-revoked ticket check-ins by conference.", []string{"conference"}, nil),
-		speakerApplications:      prometheus.NewDesc(namespace+"_speaker_applications", "Current speaker applications by conference and review state.", []string{"conference", "state"}, nil),
-		volunteerApplications:    prometheus.NewDesc(namespace+"_volunteer_applications", "Current volunteer applications by conference and workflow state.", []string{"conference", "state"}, nil),
-		recordingBroadcasts:      prometheus.NewDesc(namespace+"_recording_broadcasts", "Current recording broadcasts by conference and state.", []string{"conference", "state"}, nil),
-		collectionSuccess:        prometheus.NewDesc(namespace+"_business_metrics_collection_success", "Whether the latest business metric refresh succeeded.", nil, nil),
-		lastSuccessfulRefresh:    prometheus.NewDesc(namespace+"_business_metrics_last_success_timestamp_seconds", "Unix timestamp of the latest successful business metric refresh.", nil, nil),
+		loader:                            loader,
+		accountDeletionCancellationJobs:   prometheus.NewDesc(namespace+"_account_deletion_cancellation_jobs", "Current account deletion jobs by state.", []string{"state"}, nil),
+		accountDeletionCancellationOldest: prometheus.NewDesc(namespace+"_account_deletion_cancellation_oldest_pending_timestamp_seconds", "Request timestamp of oldest pending account deletion job; zero when none are pending.", nil, nil),
+		accountDeletionDeliveryJobs:       prometheus.NewDesc(namespace+"_account_deletion_delivery_jobs", "Current account deletion jobs by state.", []string{"state"}, nil),
+		accountDeletionDeliveryOldest:     prometheus.NewDesc(namespace+"_account_deletion_delivery_oldest_pending_timestamp_seconds", "Request timestamp of oldest pending account deletion job; zero when none are pending.", nil, nil),
+		serviceFulfillmentJobs:            prometheus.NewDesc(namespace+"_service_fulfillment_jobs", "Current external service fulfillment jobs by delivery state.", []string{"state"}, nil),
+		serviceRefundJobs:                 prometheus.NewDesc(namespace+"_service_refund_jobs", "Current service refund adjustment jobs by delivery state.", []string{"state"}, nil),
+		serviceFulfillmentOldest:          prometheus.NewDesc(namespace+"_service_fulfillment_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending external service fulfillment; zero when none are pending.", nil, nil),
+		serviceRefundOldest:               prometheus.NewDesc(namespace+"_service_refund_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending service refund adjustment; zero when none are pending.", nil, nil),
+		serviceReceiptJobs:                prometheus.NewDesc(namespace+"_service_receipt_jobs", "Current service receipt jobs by delivery state.", []string{"state"}, nil),
+		serviceReceiptOldest:              prometheus.NewDesc(namespace+"_service_receipt_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending service receipt; zero when none are pending.", nil, nil),
+		tickets:                           prometheus.NewDesc(namespace+"_tickets", "Current ticket registrations by conference and state.", []string{"conference", "state"}, nil),
+		ticketCheckins:                    prometheus.NewDesc(namespace+"_ticket_checkins", "Current non-revoked ticket check-ins by conference.", []string{"conference"}, nil),
+		speakerApplications:               prometheus.NewDesc(namespace+"_speaker_applications", "Current speaker applications by conference and review state.", []string{"conference", "state"}, nil),
+		volunteerApplications:             prometheus.NewDesc(namespace+"_volunteer_applications", "Current volunteer applications by conference and workflow state.", []string{"conference", "state"}, nil),
+		recordingBroadcasts:               prometheus.NewDesc(namespace+"_recording_broadcasts", "Current recording broadcasts by conference and state.", []string{"conference", "state"}, nil),
+		collectionSuccess:                 prometheus.NewDesc(namespace+"_business_metrics_collection_success", "Whether the latest business metric refresh succeeded.", nil, nil),
+		lastSuccessfulRefresh:             prometheus.NewDesc(namespace+"_business_metrics_last_success_timestamp_seconds", "Unix timestamp of the latest successful business metric refresh.", nil, nil),
 	}
 }
 
@@ -65,6 +73,10 @@ func (c *businessCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.volunteerApplications
 	ch <- c.recordingBroadcasts
 	ch <- c.serviceFulfillmentJobs
+	ch <- c.accountDeletionDeliveryJobs
+	ch <- c.accountDeletionDeliveryOldest
+	ch <- c.accountDeletionCancellationJobs
+	ch <- c.accountDeletionCancellationOldest
 	ch <- c.serviceRefundJobs
 	ch <- c.serviceFulfillmentOldest
 	ch <- c.serviceRefundOldest
@@ -85,10 +97,10 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 		if count.Metric == "ticket_checkins" {
 			labels = []string{count.Conference}
 		}
-		if count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_refund_jobs" {
+		if count.Metric == "account_deletion_cancellation_jobs" || count.Metric == "account_deletion_delivery_jobs" || count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_refund_jobs" {
 			labels = []string{count.State}
 		}
-		if count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" {
+		if count.Metric == "account_deletion_cancellation_oldest_pending_timestamp_seconds" || count.Metric == "account_deletion_delivery_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" {
 			labels = nil
 		}
 		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, count.Count, labels...)
@@ -105,6 +117,14 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 
 func (c *businessCollector) metricDesc(metric string) *prometheus.Desc {
 	switch metric {
+	case "account_deletion_cancellation_jobs":
+		return c.accountDeletionCancellationJobs
+	case "account_deletion_cancellation_oldest_pending_timestamp_seconds":
+		return c.accountDeletionCancellationOldest
+	case "account_deletion_delivery_jobs":
+		return c.accountDeletionDeliveryJobs
+	case "account_deletion_delivery_oldest_pending_timestamp_seconds":
+		return c.accountDeletionDeliveryOldest
 	case "service_refund_jobs":
 		return c.serviceRefundJobs
 	case "service_refund_oldest_pending_timestamp_seconds":

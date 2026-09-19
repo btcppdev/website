@@ -108,3 +108,20 @@ repeated requests and confirmed jobs cannot requeue. The command makes no Stripe
 requests. The worker still verifies all provider identities and schedules
 cancellation at period end; recovery never issues a refund or forces success.
 Jobs without a discoverable checkout remain pending for retry and investigation.
+
+## Queue monitoring
+
+Protected business metrics expose `btcpp_web_account_deletion_delivery_jobs`
+(pending/accepted) and `btcpp_web_account_deletion_cancellation_jobs`
+(pending/confirmed/review). Each queue also exposes its
+`_oldest_pending_timestamp_seconds` gauge, with zero for an empty queue. These are
+current database aggregates; labels contain only bounded states, never account,
+checkout, provider or recipient identifiers.
+
+`ops/account-deletion-alerts.yml` warns when cancellation review persists for ten
+minutes or either queue's oldest pending request exceeds fifteen minutes for five
+minutes. Rules require successful, fresh business-metric collection. General
+collection-failure monitoring must remain enabled so database outages are visible.
+Use `promtool test rules ops/account-deletion-alerts.test.yml` to verify timing,
+resolution and stale/failed-collection handling. Deployment to metrics.btcpp.dev
+and notification routing remain launch tasks.

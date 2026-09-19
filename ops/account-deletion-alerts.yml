@@ -1,0 +1,38 @@
+groups:
+  - name: btcpp-account-deletion
+    rules:
+      - alert: BitcoinPlusPlusDeletionCancellationNeedsReview
+        expr: |
+          (btcpp_web_account_deletion_cancellation_jobs{state="review"} > 0)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Deleted-account subscription cancellation needs operator review
+          description: Inspect service-account-cancellations, correct the provider identity or configuration issue, then requeue the reviewed attempt.
+      - alert: BitcoinPlusPlusDeletionCancellationQueueStalled
+        expr: |
+          (btcpp_web_account_deletion_cancellation_oldest_pending_timestamp_seconds > 0)
+          and (time() - btcpp_web_account_deletion_cancellation_oldest_pending_timestamp_seconds > 900)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Deleted-account subscription cancellation has been pending for more than fifteen minutes
+          description: Inspect service-account-cancellations and check SERVICE_STRIPE_RECONCILIATION_ENABLED and Stripe availability.
+      - alert: BitcoinPlusPlusDeletionDeliveryQueueStalled
+        expr: |
+          (btcpp_web_account_deletion_delivery_oldest_pending_timestamp_seconds > 0)
+          and (time() - btcpp_web_account_deletion_delivery_oldest_pending_timestamp_seconds > 900)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Account deletion delivery has been pending for more than fifteen minutes
+          description: Check ALERTS_ACCOUNT_EVENTS_ENDPOINT, the shared token and Alerts receiver availability; pending deliveries retry automatically.
