@@ -80,3 +80,31 @@ Deleted accounts are excluded from `/whois` listings, profile lookups, and neste
 Deletion transfers project ownership to the oldest remaining live teammate (membership date, then ID). The anonymous contribution stays as a member. With no live teammates, no owner is assigned; hackathon managers and administrators retain project management access.
 
 Tickets record their previous revocation status before anonymization. Reports use that historical status, while ticket access stays revoked. Repeated ticket imports skip anonymized registrations, and a database trigger protects their identity fields and disabled access from other updates. Shared proposal text needs manual review for embedded personal information.
+
+## Recovering recurring-billing cancellation jobs
+
+The local `service-account-cancellations` command lists the oldest 100 unresolved
+jobs by default. Use `-checkout <UUID>` to inspect one job, including a confirmed
+job. Output includes state, attempt, lease and presence of saved Stripe references;
+it omits account contact details and payment payloads.
+
+After investigating and correcting the cause of a `review` job, an operator with
+database access can requeue the inspected attempt:
+
+```sh
+go run ./cmd/service-account-cancellations -checkout <UUID> \
+  -requeue -expected-attempt <NUMBER> -actor <GLOBAL_ADMIN_UUID> \
+  -reason 'Cause investigated and corrected'
+```
+
+The actor must currently hold the global-admin role. This is trusted local
+operator tooling: the actor flag supplies audit attribution, not browser
+authentication. Keep secrets and personal details out of the reason.
+
+Recovery requires the exact reviewed attempt, an expired lease, a deleted
+account and its durable deletion marker. It atomically records an immutable
+actor/reason audit entry and changes the job to pending. Stale inspections,
+repeated requests and confirmed jobs cannot requeue. The command makes no Stripe
+requests. The worker still verifies all provider identities and schedules
+cancellation at period end; recovery never issues a refund or forces success.
+Jobs without a discoverable checkout remain pending for retry and investigation.

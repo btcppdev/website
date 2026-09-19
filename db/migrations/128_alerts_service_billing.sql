@@ -968,3 +968,14 @@ BEGIN
 END $$;
 CREATE TRIGGER account_deletion_cancellation_protected BEFORE UPDATE OR DELETE ON account_deletion_cancellations
  FOR EACH ROW EXECUTE FUNCTION protect_account_deletion_cancellation();
+
+CREATE TABLE account_deletion_cancellation_recoveries (
+ checkout_id uuid NOT NULL REFERENCES account_deletion_cancellations(checkout_id),
+ after_attempt bigint NOT NULL CHECK(after_attempt>0),
+ actor_id uuid NOT NULL,
+ reason text NOT NULL CHECK(length(reason) BETWEEN 1 AND 1000),
+ recorded_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(checkout_id,after_attempt)
+);
+CREATE TRIGGER account_deletion_cancellation_recovery_immutable BEFORE UPDATE OR DELETE ON account_deletion_cancellation_recoveries
+ FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();

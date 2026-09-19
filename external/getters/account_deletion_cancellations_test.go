@@ -127,6 +127,46 @@ func TestDeletedAccountCancellationPostgres(t *testing.T) {
 					if state != "review" || updates != 0 {
 						t.Fatal("unsafe checkout mutated", state, updates)
 					}
+					outsider := insertSmokePerson(t, app, "Not an admin")
+					if ok, err := RecoverAccountDeletionCancellation(ctx, app, id, 1, outsider, "retry"); ok || !errors.Is(err, ErrAccountCancellationAdmin) {
+						t.Fatal("non-admin recovery", ok, err)
+					}
+					if _, err := app.DB.Exec(ctx, `UPDATE account_deletion_cancellations SET lease_until=now()+interval '1 hour' WHERE checkout_id=$1`, id); err != nil {
+						t.Fatal(err)
+					}
+					if ok, err := RecoverAccountDeletionCancellation(ctx, app, id, 1, admin, "retry"); ok || err != nil {
+						t.Fatal("active lease bypassed", ok, err)
+					}
+					if _, err := app.DB.Exec(ctx, `UPDATE account_deletion_cancellations SET lease_until=now()-interval '1 second' WHERE checkout_id=$1`, id); err != nil {
+						t.Fatal(err)
+					}
+					if ok, err := RecoverAccountDeletionCancellation(ctx, app, id, 2, admin, "retry"); ok || err != nil {
+						t.Fatal("stale inspection accepted", ok, err)
+					}
+					if ok, err := RecoverAccountDeletionCancellation(ctx, app, id, 1, admin, "  Provider identity corrected  "); !ok || err != nil {
+						t.Fatal("recovery", ok, err)
+					}
+					if ok, err := RecoverAccountDeletionCancellation(ctx, app, id, 1, admin, "retry"); ok || err != nil {
+						t.Fatal("repeated recovery", ok, err)
+					}
+					var recordedActor, reason string
+					if err := app.DB.QueryRow(ctx, `SELECT actor_id::text,reason FROM account_deletion_cancellation_recoveries WHERE checkout_id=$1 AND after_attempt=1`, id).Scan(&recordedActor, &reason); err != nil || recordedActor != admin || reason != "Provider identity corrected" {
+						t.Fatal("recovery audit", recordedActor, reason, err)
+					}
+					if _, err := app.DB.Exec(ctx, `UPDATE account_deletion_cancellation_recoveries SET reason='changed' WHERE checkout_id=$1`, id); err == nil {
+						t.Fatal("audit mutable")
+					}
+					if _, err := app.DB.Exec(ctx, `DELETE FROM account_deletion_cancellation_recoveries WHERE checkout_id=$1`, id); err == nil {
+						t.Fatal("audit deletable")
+					}
+					// Requeue never bypasses the original provider identity check.
+					if n, err := ReconcileDeletedAccountCancellation(ctx, app, id, client, now.Add(time.Minute)); n != 1 || err == nil || updates != 0 {
+						t.Fatal("unsafe recovery", n, err, updates)
+					}
+					items, err := ListAccountDeletionCancellations(ctx, app, id)
+					if err != nil || len(items) != 1 || items[0].State != "review" || items[0].Attempts != 2 || !items[0].HasBinding {
+						t.Fatal("inspection", items, err)
+					}
 					return
 				}
 				if state != "pending" || updates != 1 {
@@ -149,6 +189,9 @@ func TestDeletedAccountCancellationPostgres(t *testing.T) {
 				}
 				if n, err := ReconcileDeletedAccountCancellation(ctx, app, id, client, now.Add(time.Hour)); n != 0 || err != nil {
 					t.Fatal("confirmed job repeated", n, err)
+				}
+				if ok, err := RecoverAccountDeletionCancellation(ctx, app, id, 2, admin, "retry"); ok || err != nil {
+					t.Fatal("confirmed job requeued", ok, err)
 				}
 			})
 		}
