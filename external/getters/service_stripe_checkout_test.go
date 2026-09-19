@@ -295,4 +295,51 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 		t.Fatal("binding overwritten")
 	}
 
+	// Lost workers cannot acknowledge a lease reclaimed by another worker, and
+	// later revisions cannot pass an earlier unacknowledged event.
+	now = time.Now().Add(time.Second)
+	job, err := ClaimServiceLifecycle(ctx, app, first.Intent.ID, now)
+	if err != nil || job.Revision != 1 || job.Attempt != 1 {
+		t.Fatal("first lifecycle claim", job, err)
+	}
+	if exists, err := ServiceLifecycleAccountExists(ctx, app, job); err != nil || !exists {
+		t.Fatal("owned lifecycle account missing", exists, err)
+	}
+	if _, err := ClaimServiceLifecycle(ctx, app, first.Intent.ID, now); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("later revision passed active lease", err)
+	}
+	reclaimed, err := ClaimServiceLifecycle(ctx, app, first.Intent.ID, now.Add(2*time.Minute))
+	if err != nil || reclaimed.Revision != 1 || reclaimed.Attempt != 2 || string(reclaimed.Payload) != string(job.Payload) {
+		t.Fatal("reclaimed event changed", reclaimed, err)
+	}
+	if changed, err := FinishServiceLifecycle(ctx, app, job, "accepted", now); err != nil || changed {
+		t.Fatal("stale worker acknowledged event", changed, err)
+	}
+	if changed, err := FinishServiceLifecycle(ctx, app, reclaimed, "retry", now.Add(2*time.Minute)); err != nil || !changed {
+		t.Fatal("retry failed", changed, err)
+	}
+	if _, err := ClaimServiceLifecycle(ctx, app, first.Intent.ID, now.Add(3*time.Minute)); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("retry backoff or ordering bypassed", err)
+	}
+	retried, err := ClaimServiceLifecycle(ctx, app, first.Intent.ID, now.Add(4*time.Minute))
+	if err != nil || retried.Revision != 1 || retried.Attempt != 3 {
+		t.Fatal("retry claim", retried, err)
+	}
+	if changed, err := FinishServiceLifecycle(ctx, app, retried, "accepted", now.Add(4*time.Minute)); err != nil || !changed {
+		t.Fatal("acknowledgment failed", changed, err)
+	}
+	next, err := ClaimServiceLifecycle(ctx, app, first.Intent.ID, now.Add(4*time.Minute))
+	if err != nil || next.Revision != 2 {
+		t.Fatal("next revision missing", next, err)
+	}
+	if _, err := FinishServiceLifecycle(ctx, app, next, "review", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ClaimServiceLifecycle(ctx, app, first.Intent.ID, now.Add(24*time.Hour)); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("later revision bypassed review", err)
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE service_lifecycle_jobs SET state='pending' WHERE checkout_id=$1 AND revision=1`, first.Intent.ID); err == nil {
+		t.Fatal("accepted event reopened")
+	}
+
 }

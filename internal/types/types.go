@@ -82,6 +82,7 @@ type (
 		SignerURL                   string
 		InsiderServiceToken         string
 		InsiderFulfillmentEndpoint  string
+		InsiderLifecycleEndpoint    string
 		InsiderFulfillmentToken     string
 		InsiderAllowedReturnOrigins string
 		InsiderMerchantName         string

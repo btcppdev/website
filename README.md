@@ -85,6 +85,8 @@ Shared service checkout is configuration-gated:
 ```text
 INSIDER_SERVICE_TOKEN=...
 INSIDER_FULFILLMENT_ENDPOINT=https://insider.btcpp.dev/api/internal/commerce/open-access
+# Leave unset until the Insider lifecycle receiver is deployed:
+# INSIDER_LIFECYCLE_ENDPOINT=https://insider.btcpp.dev/api/internal/commerce/subscription-state
 INSIDER_FULFILLMENT_TOKEN=...
 INSIDER_ALLOWED_RETURN_ORIGINS=https://insider.btcpp.dev,https://beta.btcpp.dev
 INSIDER_MERCHANT_NAME="Exact legal merchant name"

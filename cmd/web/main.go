@@ -134,6 +134,7 @@ func main() {
 	handlers.StartServiceStripeReconciliation(&app)
 	handlers.StartServiceReceipts(&app)
 	handlers.StartServiceFulfillment(&app)
+	handlers.StartServiceLifecycle(&app)
 	handlers.StartWeeklyNewsletterDrafting(&app)
 	handlers.StartConferenceEmailAutomation(&app)
 

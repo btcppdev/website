@@ -521,14 +521,26 @@ identity and the verified subscription state. Repeated observations retain the
 original event; background cancellation recovery uses the same path. These events
 report billing state and do not grant access.
 
-The lifecycle delivery worker and Insider receiver are not yet connected. Queued
-events alone do not send cancellation confirmation emails. Before enabling
-delivery, the receiver must deduplicate event IDs, fence checkout revisions, and
-durably enqueue confirmation mail before acknowledging the event.
+The lifecycle delivery worker runs under `SERVICE_FULFILLMENT_ENABLED` when
+`INSIDER_LIFECYCLE_ENDPOINT` and `INSIDER_FULFILLMENT_TOKEN` are configured. The
+endpoint requires HTTPS (loopback HTTP is allowed for tests). It receives the
+saved JSON with a bearer token and the event ID as `Idempotency-Key`; redirects
+are refused. Only HTTP 200 or 204 acknowledges durable acceptance, not 202.
+
+Each checkout is delivered in revision order. A one-minute lease permits crash
+recovery; retries retain the original payload and back off from one minute to one
+hour. Attempt fencing prevents a stale worker from acknowledging a reclaimed job.
+An event needing review blocks later revisions for that checkout. Missing or
+changed account ownership goes to review before sending.
+
+The Insider receiver is not yet connected. Leave the endpoint unset until the
+receiver deduplicates event IDs, fences checkout revisions, and durably enqueues
+confirmation mail before acknowledging an event. Queued events alone do not send
+cancellation confirmation emails.
 
 Fresh-database regression coverage verifies repeated-observation deduplication,
 recovered cancellation events, preserved event evidence and database rejection of
-event rewriting/deletion.
+event rewriting/deletion, ordered claims, retry backoff and stale-worker fencing.
 
 ## Insider subscription management API
 
