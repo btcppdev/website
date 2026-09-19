@@ -374,3 +374,16 @@ and cross-product session responses. Existing Alerts checkout and targeted
 PostgreSQL billing suites pass. Insider's public endpoint still uses fixed-term
 payments until durable subscription reservation, binding and invoice fulfillment
 are connected; this extraction alone does not enable recurring Insider charges.
+
+Shared checkout reservations now persist Insider monthly/annual intent before
+Stripe I/O, serialize against other account purchases, and reuse the frozen
+verified email and checkout terms on retry. Monthly and annual membership share
+one active reservation; Alerts has its own product family. Both directions of
+membership prepaid/recurring overlap are guarded under the same account lock.
+Saved session lookup requires the owning account and exact product; completed
+sessions require reconciliation rather than a replacement charge. PostgreSQL
+coverage exercises concurrent reservations, verified-email requirements,
+account/product isolation, prepaid conflicts and provider session reuse.
+These are internal primitives only: the public Insider checkout remains on its
+existing fixed-term flow until recurring invoice fulfillment and lifecycle
+handling are connected.

@@ -132,6 +132,15 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 			return nil, ErrAlertsStripeCheckoutConflict
 		}
 	}
+	if quote.ProductCode == "insider.membership" || quote.ProductCode == "insider.membership.monthly" || quote.ProductCode == "insider.membership.annual" {
+		var stripePending bool
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM service_stripe_checkouts WHERE person_id=$1 AND product_family='insider' AND closed_at IS NULL)`, personID).Scan(&stripePending); err != nil {
+			return nil, err
+		}
+		if stripePending {
+			return nil, ErrServiceStripeCheckoutConflict
+		}
+	}
 	method := "service"
 	switch quote.ProductCode {
 	case "alerts.repository-slots", "insider.membership", "insider.membership.annual", "insider.membership.monthly":
