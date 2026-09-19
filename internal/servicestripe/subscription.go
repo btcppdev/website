@@ -24,8 +24,9 @@ type SubscriptionState struct {
 }
 
 type SubscriptionClient struct {
-	Subscription func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error)
-	Live         bool
+	UpdateSubscription func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error)
+	Subscription       func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error)
+	Live               bool
 }
 
 func (c SubscriptionClient) CurrentSubscription(ctx context.Context, b Binding) (SubscriptionState, error) {

@@ -486,3 +486,14 @@ Integration tests cover stale cancellation events, paused payment failure and
 unchanged invoice/fulfillment counts. Full PostgreSQL getter/handler suites pass.
 Customer management, lifecycle delivery to Insider and public recurring checkout
 activation remain outstanding.
+
+Cancel-at-period-end provider mutation is now shared for Alerts and Insider.
+It verifies account/product/price/interval and the reviewed period before changing
+Stripe, refuses conflicting schedules or pending updates, and confirms returned
+state. Repeated confirmed cancellation makes no second mutation; ambiguous errors
+remain errors for the durable coordinator to retry. Alerts keeps its original
+idempotency prefix; other service products use `service-cancel:`. Monthly/annual
+Insider tests cover stale periods, conflicting changes, ambiguous provider errors
+and unconfirmed responses alongside the existing Alerts cancellation suite.
+The Insider account-owned cancellation coordinator and management API are not yet
+connected; exposing cancellation still requires that durable consent boundary.
