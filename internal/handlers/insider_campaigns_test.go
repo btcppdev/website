@@ -8,6 +8,7 @@ func TestValidInsiderTransactionalKind(t *testing.T) {
 		"insider.editorial_test",
 		"insider.receipt",
 		"insider.receipt_adjustment",
+		"insider.subscription_cancellation",
 	} {
 		if !validInsiderTransactionalKind(kind) {
 			t.Fatalf("rejected supported Insider transactional kind %q", kind)

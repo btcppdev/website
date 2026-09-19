@@ -234,7 +234,7 @@ func AcceptInsiderTransactionalEmail(w http.ResponseWriter, r *http.Request, ctx
 
 func validInsiderTransactionalKind(kind string) bool {
 	switch kind {
-	case "insider.subscription_confirmation", "insider.editorial_test", "insider.receipt", "insider.receipt_adjustment":
+	case "insider.subscription_confirmation", "insider.editorial_test", "insider.receipt", "insider.receipt_adjustment", "insider.subscription_cancellation":
 		return true
 	default:
 		return false

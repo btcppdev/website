@@ -533,10 +533,12 @@ hour. Attempt fencing prevents a stale worker from acknowledging a reclaimed job
 An event needing review blocks later revisions for that checkout. Missing or
 changed account ownership goes to review before sending.
 
-The Insider receiver is not yet connected. Leave the endpoint unset until the
-receiver deduplicates event IDs, fences checkout revisions, and durably enqueues
-confirmation mail before acknowledging an event. Queued events alone do not send
-cancellation confirmation emails.
+The Insider integration branch implements the receiver at
+`/api/internal/commerce/subscription-state`. It deduplicates identical events,
+requires consecutive checkout revisions and atomically queues a cancellation
+confirmation before acknowledging acceptance. Its migration 002 and this backend's
+`insider.subscription_cancellation` transactional-mail allowlist must be deployed
+before enabling the endpoint. Live cross-service delivery remains unverified.
 
 Fresh-database regression coverage verifies repeated-observation deduplication,
 recovered cancellation events, preserved event evidence and database rejection of
