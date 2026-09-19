@@ -164,8 +164,28 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 	}
 	inv.Lines.Data[0].Period.Start = end.Unix()
 	inv.Lines.Data[0].Period.End = end.AddDate(0, 1, 0).Unix()
-	if _, err := ReconcileServiceStripeInvoice(ctx, app, person, first.Intent.ID, terms.ProductCode, inv.ID, invoices); err != nil {
-		t.Fatal("renewal rejected", err)
+	pages := 0
+	invoices.ListInvoices = func(p *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+		pages++
+		if p.StartingAfter == nil {
+			return &stripe.InvoiceList{ListMeta: stripe.ListMeta{HasMore: true}, Data: []*stripe.Invoice{{ID: "in_" + first.Intent.ID, Status: "paid", Customer: session.Customer}}}, nil
+		}
+		if *p.StartingAfter != "in_"+first.Intent.ID {
+			t.Fatal("incorrect recovery cursor")
+		}
+		return &stripe.InvoiceList{Data: []*stripe.Invoice{inv}}, nil
+	}
+	if err := RecoverServiceStripePayments(ctx, app, person, first.Intent.ID, terms.ProductCode, client, invoices); err != nil {
+		t.Fatal("missed renewal recovery", err)
+	}
+	if pages != 2 {
+		t.Fatal("recovery pagination", pages)
+	}
+	if err := RecoverServiceStripePayments(ctx, app, person, first.Intent.ID, terms.ProductCode, client, invoices); err != nil {
+		t.Fatal("repeated recovery", err)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_stripe_invoices WHERE checkout_id=$1`, first.Intent.ID).Scan(&count); err != nil || count != 2 {
+		t.Fatal("recovery duplicate or missing invoices", count, err)
 	}
 
 	session.Subscription.ID = "sub_replaced"

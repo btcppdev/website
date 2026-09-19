@@ -433,3 +433,12 @@ reconciles its initial invoice without creating a charge. Integration tests cove
 forged expiry state, repeated expiration, replacement reservation, bound-checkout
 protection and missed completion/payment callbacks. Scheduled polling and renewal
 lifecycle recovery still need wiring before public recurring checkout activation.
+
+Subscription-state verification and paid-invoice discovery now live in the shared
+Stripe package, with Alerts adapters retaining existing behavior. Verification
+keeps failed renewal, voluntary cancellation, disputes, initial nonpayment and
+paused collection distinct; observing state alone never grants access. Insider
+payment recovery pages through paid invoices for the saved customer/subscription,
+fully verifies unrecorded candidates, and preserves existing financial evidence.
+Tests cover lifecycle distinctions and paginated renewal recovery with duplicate
+replay. Scheduling and persisted Insider lifecycle state still need integration.

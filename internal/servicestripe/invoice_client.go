@@ -10,9 +10,10 @@ import (
 // InvoiceClient retrieves current provider evidence; webhook payloads alone
 // cannot establish a paid period.
 type InvoiceClient struct {
-	Invoice func(string, *stripe.InvoiceParams) (*stripe.Invoice, error)
-	Price   func(string, *stripe.PriceParams) (*stripe.Price, error)
-	Live    bool
+	ListInvoices func(*stripe.InvoiceListParams) (*stripe.InvoiceList, error)
+	Invoice      func(string, *stripe.InvoiceParams) (*stripe.Invoice, error)
+	Price        func(string, *stripe.PriceParams) (*stripe.Price, error)
+	Live         bool
 }
 
 func (c InvoiceClient) PaidInvoice(ctx context.Context, id string, b Binding) (*PaidPeriod, error) {
