@@ -497,3 +497,17 @@ Insider tests cover stale periods, conflicting changes, ambiguous provider error
 and unconfirmed responses alongside the existing Alerts cancellation suite.
 The Insider account-owned cancellation coordinator and management API are not yet
 connected; exposing cancellation still requires that durable consent boundary.
+
+Cancellation consent now uses shared `service_stripe_cancellations` and one
+product-scoped reservation function; Alerts retains a filtered compatibility
+view and its quantity-aware processing adapter. Insider cancellation processing
+requires a persisted account-owned request, serializes provider I/O, and preserves
+ambiguous failures as pending. Recovery can confirm a provider mutation whose
+response was lost without mutating twice. Pending requests wake scheduled recovery
+and retry on its fifteen-minute cancellation schedule. Stale reviewed revisions,
+conflicting requests and expired mutation windows cannot silently create a fresh
+instruction. Confirmed cancellation only stops renewal; it does not refund or
+rewrite paid access. Fresh `commerce_cancellation_20260918` migration and full
+getter/handler suites pass; tests cover duplicate tabs, stale consent, lost provider
+response recovery and Alerts/Insider isolation. The authenticated Insider management
+API and cancellation confirmation delivery remain to be connected.

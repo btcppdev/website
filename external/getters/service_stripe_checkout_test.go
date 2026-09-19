@@ -4,6 +4,7 @@ import (
 	"btcpp-web/internal/servicestripe"
 	"context"
 	"errors"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stripe/stripe-go/v86"
 	"sync"
@@ -210,11 +211,50 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_subscription_state WHERE checkout_id=$1`, first.Intent.ID).Scan(&count); err != nil || count != 0 {
 		t.Fatal("Insider visible to Alerts lifecycle", count, err)
 	}
+	sub.CancelAtPeriodEnd = false
+	if err := RefreshServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, subscriptions); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReserveServiceStripeCancellation(ctx, app, person, first.Intent.ID, terms.ProductCode, uuid.NewString(), 2, end.Unix()); err == nil {
+		t.Fatal("stale cancellation review accepted")
+	}
+	cancelID := uuid.NewString()
+	reservedCancel, err := ReserveServiceStripeCancellation(ctx, app, person, first.Intent.ID, terms.ProductCode, cancelID, 3, end.Unix())
+	if err != nil {
+		t.Fatal("cancellation reservation", err)
+	}
+	other, err := ReserveServiceStripeCancellation(ctx, app, person, first.Intent.ID, terms.ProductCode, uuid.NewString(), 3, end.Unix())
+	if err != nil || other.Intent.ID != reservedCancel.Intent.ID {
+		t.Fatal("second tab replaced cancellation", err)
+	}
+	updates := 0
+	subscriptions.UpdateSubscription = func(id string, p *stripe.SubscriptionParams) (*stripe.Subscription, error) {
+		updates++
+		sub.CancelAtPeriodEnd = true
+		return nil, errors.New("lost provider response")
+	}
+	if _, err := ProcessServiceStripeCancellation(ctx, app, person, cancelID, terms.ProductCode, subscriptions); err == nil {
+		t.Fatal("ambiguous mutation reported success")
+	}
+	var cancellationState string
+	if err := app.DB.QueryRow(ctx, `SELECT state FROM service_stripe_cancellations WHERE id=$1`, cancelID).Scan(&cancellationState); err != nil || cancellationState != "pending" {
+		t.Fatal("lost retry instruction", cancellationState, err)
+	}
+	if result, err := ProcessServiceStripeCancellation(ctx, app, person, cancelID, terms.ProductCode, subscriptions); err != nil || result != "confirmed" {
+		t.Fatal("cancellation recovery", result, err)
+	}
+	if updates != 1 {
+		t.Fatal("cancellation repeated provider mutation", updates)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_cancellations WHERE id=$1`, cancelID).Scan(&count); err != nil || count != 0 {
+		t.Fatal("Insider cancellation visible to Alerts", count, err)
+	}
+
 	sub.Customer = &stripe.Customer{ID: "cus_other"}
 	if err := RefreshServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, subscriptions); err == nil {
 		t.Fatal("foreign subscription persisted")
 	}
-	if err := app.DB.QueryRow(ctx, `SELECT revision FROM service_stripe_subscription_state WHERE checkout_id=$1`, first.Intent.ID).Scan(&revision); err != nil || revision != 2 {
+	if err := app.DB.QueryRow(ctx, `SELECT revision FROM service_stripe_subscription_state WHERE checkout_id=$1`, first.Intent.ID).Scan(&revision); err != nil || revision != 4 {
 		t.Fatal("failed verification changed state", revision, err)
 	}
 

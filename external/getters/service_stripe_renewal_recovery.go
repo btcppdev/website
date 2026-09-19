@@ -15,6 +15,15 @@ func RecoverServiceStripePayments(ctx context.Context, app *config.AppContext, p
 	if _, err := ServiceStripeCheckoutForPerson(app, person, id, product); err != nil {
 		return err
 	}
+	var cancellation string
+	pendingErr := app.DB.QueryRow(ctx, `SELECT id::text FROM service_stripe_cancellations WHERE checkout_id=$1 AND state='pending'`, id).Scan(&cancellation)
+	if pendingErr == nil {
+		if _, err := ProcessServiceStripeCancellation(ctx, app, person, cancellation, product, subscriptions); err != nil {
+			return err
+		}
+	} else if !errors.Is(pendingErr, pgx.ErrNoRows) {
+		return pendingErr
+	}
 	var raw []byte
 	err := app.DB.QueryRow(ctx, `SELECT binding FROM service_stripe_subscriptions WHERE checkout_id=$1`, id).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {

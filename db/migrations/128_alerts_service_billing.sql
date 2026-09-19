@@ -342,7 +342,7 @@ CREATE TRIGGER alerts_renewal_protected BEFORE UPDATE OR DELETE ON alerts_stripe
 FOR EACH ROW EXECUTE FUNCTION protect_alerts_renewal_identity();
 
 -- alerts stripe cancellations
-CREATE TABLE alerts_stripe_cancellations (
+CREATE TABLE service_stripe_cancellations (
  id uuid PRIMARY KEY,
  checkout_id uuid NOT NULL REFERENCES service_stripe_subscriptions(checkout_id),
  period_end bigint NOT NULL CHECK(period_end>0),
@@ -350,7 +350,7 @@ CREATE TABLE alerts_stripe_cancellations (
  state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','confirmed','review')),
  updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX alerts_stripe_cancellation_pending ON alerts_stripe_cancellations(checkout_id) WHERE state='pending';
+CREATE UNIQUE INDEX alerts_stripe_cancellation_pending ON service_stripe_cancellations(checkout_id) WHERE state='pending';
 CREATE FUNCTION protect_alerts_cancellation_identity() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='DELETE' OR NEW.id IS DISTINCT FROM OLD.id OR NEW.checkout_id IS DISTINCT FROM OLD.checkout_id
@@ -361,7 +361,7 @@ BEGIN
  RETURN NEW;
 END;
 $$;
-CREATE TRIGGER alerts_cancellation_protected BEFORE UPDATE OR DELETE ON alerts_stripe_cancellations
+CREATE TRIGGER alerts_cancellation_protected BEFORE UPDATE OR DELETE ON service_stripe_cancellations
 FOR EACH ROW EXECUTE FUNCTION protect_alerts_cancellation_identity();
 
 -- alerts stripe increases
@@ -824,5 +824,9 @@ CREATE VIEW alerts_stripe_invoices AS SELECT * FROM service_stripe_invoices
 
 -- Product-filtered compatibility projection for existing Alerts lifecycle readers.
 CREATE VIEW alerts_stripe_subscription_state AS SELECT * FROM service_stripe_subscription_state
+ WHERE checkout_id IN (SELECT id FROM service_stripe_checkouts WHERE product_family='alerts')
+ WITH CASCADED CHECK OPTION;
+
+CREATE VIEW alerts_stripe_cancellations AS SELECT * FROM service_stripe_cancellations
  WHERE checkout_id IN (SELECT id FROM service_stripe_checkouts WHERE product_family='alerts')
  WITH CASCADED CHECK OPTION;

@@ -32,6 +32,7 @@ func reconcileDueServiceStripeCheckouts(ctx context.Context, app *config.AppCont
  AND c.closed_at IS NULL AND c.next_reconcile_at<=now()
  ORDER BY c.next_reconcile_at,c.id LIMIT 1 FOR UPDATE OF c SKIP LOCKED
 ) UPDATE service_stripe_checkouts c SET next_reconcile_at=now()+CASE
+ WHEN EXISTS(SELECT 1 FROM service_stripe_cancellations x WHERE x.checkout_id=c.id AND x.state='pending') THEN interval '15 minutes'
  WHEN EXISTS(SELECT 1 FROM service_stripe_invoices i WHERE i.checkout_id=c.id) THEN interval '1 hour'
  WHEN c.created_at<now()-interval '7 days' THEN interval '1 day' ELSE interval '15 minutes' END
  FROM due WHERE c.id=due.id RETURNING c.person_id::text,c.id::text,c.product_code`).Scan(&person, &id, &product)

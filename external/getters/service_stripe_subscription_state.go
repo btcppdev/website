@@ -5,6 +5,7 @@ import (
 	"btcpp-web/internal/servicestripe"
 	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5"
 )
 
 // RefreshServiceStripeSubscription serializes the authenticated lookup with
@@ -37,14 +38,19 @@ func RefreshServiceStripeSubscription(ctx context.Context, app *config.AppContex
 	if err != nil {
 		return err
 	}
-	raw, err = json.Marshal(state)
+	if err = saveServiceStripeSubscriptionState(ctx, tx, id, state); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func saveServiceStripeSubscriptionState(ctx context.Context, tx pgx.Tx, id string, state servicestripe.SubscriptionState) error {
+	raw, err := json.Marshal(state)
 	if err != nil {
 		return err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO service_stripe_subscription_state(checkout_id,revision,snapshot) VALUES($1,1,$2)
  ON CONFLICT(checkout_id) DO UPDATE SET revision=service_stripe_subscription_state.revision+CASE WHEN service_stripe_subscription_state.snapshot<>excluded.snapshot THEN 1 ELSE 0 END,snapshot=excluded.snapshot,observed_at=now()`, id, raw)
-	if err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return err
 }
