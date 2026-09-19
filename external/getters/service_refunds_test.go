@@ -1,8 +1,10 @@
 package getters
 
 import (
+	"btcpp-web/internal/servicestripe"
 	"context"
 	"errors"
+	"github.com/stripe/stripe-go/v86"
 	"sync"
 	"testing"
 	"time"
@@ -32,12 +34,34 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reference := "pi_" + attempt.ID
+	reference := "cs_" + attempt.ID
 	if err := BindServicePayment(app, attempt.ID, "stripe", reference); err != nil {
 		t.Fatal(err)
 	}
 	paidAt := time.Now().UTC().Truncate(time.Second)
 	refund := VerifiedServiceRefund{AttemptID: attempt.ID, Provider: "stripe", PaymentReference: reference, RefundReference: "re_" + attempt.ID, AmountCents: 300, Currency: "USD", RefundedAt: paidAt.Add(time.Second), Reason: "requested_by_customer"}
+	pi := &stripe.PaymentIntent{ID: "pi_" + attempt.ID}
+	providerRefund := &stripe.Refund{ID: refund.RefundReference, Status: "succeeded", Amount: refund.AmountCents, Currency: "usd", Created: refund.RefundedAt.Unix(), Reason: "requested_by_customer", Charge: &stripe.Charge{ID: "ch_" + attempt.ID}, PaymentIntent: pi}
+	client := servicestripe.RefundClient{
+		Refund: func(id string, p *stripe.RefundParams) (*stripe.Refund, error) {
+			if id != refund.RefundReference {
+				t.Error("wrong refund lookup")
+			}
+			return providerRefund, nil
+		},
+		Charge: func(id string, p *stripe.ChargeParams) (*stripe.Charge, error) {
+			return &stripe.Charge{ID: providerRefund.Charge.ID, Paid: true, Captured: true, Amount: 500, AmountCaptured: 500, AmountRefunded: 300, Currency: "usd", PaymentIntent: pi}, nil
+		},
+		Checkout: func(id string, p *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+			if id != reference {
+				t.Error("did not use saved checkout")
+			}
+			return &stripe.CheckoutSession{ID: reference, Mode: "payment", Status: "complete", PaymentStatus: "paid", Currency: "usd", AmountTotal: 500, PaymentIntent: pi}, nil
+		},
+	}
+	if err := ReconcileServiceStripeRefund(ctx, app, attempt.ID, refund.RefundReference, servicestripe.RefundClient{}); !errors.Is(err, ErrServiceRefund) {
+		t.Fatal("unsettled payment reached provider", err)
+	}
 	if err := RecordServiceRefund(ctx, app, refund); !errors.Is(err, ErrServiceRefund) {
 		t.Fatal("unpaid refund accepted", err)
 	}
@@ -45,6 +69,15 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 	if err := RecordServicePayment(app, payment); err != nil {
 		t.Fatal(err)
 	}
+	providerRefund.Status = "pending"
+	if err := ReconcileServiceStripeRefund(ctx, app, attempt.ID, refund.RefundReference, client); !errors.Is(err, servicestripe.ErrRefund) {
+		t.Fatal("pending provider refund recorded", err)
+	}
+	var beforeStatus string
+	if err := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, purchase.OrderID).Scan(&beforeStatus); err != nil || beforeStatus != "paid" {
+		t.Fatal("failed verification changed order", beforeStatus, err)
+	}
+	providerRefund.Status = "succeeded"
 	wrong := refund
 	wrong.PaymentReference = "pi_foreign"
 	if err := RecordServiceRefund(ctx, app, wrong); !errors.Is(err, ErrServiceRefund) {
@@ -54,7 +87,10 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 	results := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
-		go func() { defer wg.Done(); results <- RecordServiceRefund(ctx, app, refund) }()
+		go func() {
+			defer wg.Done()
+			results <- ReconcileServiceStripeRefund(ctx, app, attempt.ID, refund.RefundReference, client)
+		}()
 	}
 	wg.Wait()
 	close(results)

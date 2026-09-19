@@ -522,7 +522,7 @@ atomically. Identical retries do not count twice; conflicting facts are rejected
 Original quotes, settlement events and payment amounts remain unchanged.
 
 This function does not initiate provider refunds and is not connected to a public
-route or webhook yet. Provider refund verification, ordered product reversal
+route or webhook yet. Provider event routing, ordered product reversal
 delivery and receipt adjustment dispatch remain unfinished. Do not enable refund
 ingestion before those pieces are connected: order refund state alone does not
 update Insider's external access ledger, and Alerts currently withholds refunded
@@ -534,11 +534,22 @@ it fetches the refund, charge and saved Checkout session or invoice, requires a
 successful USD refund against a fully captured charge, and checks original totals,
 payment identity and test/live mode. Invoice attribution requires one fully paid
 invoice payment, with no truncated payment list. Split/ambiguous allocations need
-manual review. It does not create refunds or yet write them into the ledger.
+manual review. It does not create refunds.
 Stripe's refund `created` field is preserved as provider creation time, not
 described as a completion timestamp. See the official
 [Refund object](https://docs.stripe.com/api/refunds/object) and
 [Invoice Payment object](https://docs.stripe.com/api/invoice-payment/object).
+
+`ReconcileServiceStripeRefund` connects verification to the ledger: it loads the
+settled Stripe payment's reference and gross total from saved records, fetches
+provider evidence and passes verified facts to the transactional recorder. It
+accepts only attempt/refund identifiers from its caller, never caller-supplied
+amounts or payment references. PostgreSQL tests exercise pending-provider rejection
+without order mutation and concurrent verified replay producing one refund row.
+The ledger's `refunded_at` currently stores provider refund creation time for
+Stripe; `recorded_at` records local acceptance of succeeded status. Neither is
+represented as a provider completion timestamp. No webhook or scheduler invokes
+the coordinator until product refund delivery is ready.
 
 Fresh PostgreSQL tests cover duplicate concurrent refunds, competing refunds that
 would exceed the paid total, mismatched/unsettled payments, immutable evidence and
