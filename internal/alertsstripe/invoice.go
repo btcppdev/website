@@ -3,8 +3,6 @@ package alertsstripe
 import (
 	"btcpp-web/internal/servicestripe"
 	"context"
-	"strings"
-	"time"
 
 	"btcpp-web/internal/servicebilling"
 	"github.com/stripe/stripe-go/v86"
@@ -39,26 +37,5 @@ func validMonthlyPrice(price *stripe.Price, b Binding) bool {
 // It returns verified billing evidence only; the caller records/fulfills it in
 // one durable transaction keyed by invoice ID before reporting paid access.
 func (c Client) PaidInvoice(ctx context.Context, id string, b Binding) (*PaidPeriod, error) {
-	if !strings.HasPrefix(id, "in_") || len(id) > 255 || c.Invoice == nil || c.Price == nil || b.Live != c.Live {
-		return nil, ErrInvoice
-	}
-	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-	defer cancel()
-	params := &stripe.InvoiceParams{}
-	params.Context = ctx
-	inv, err := c.Invoice(id, params)
-	if err != nil {
-		return nil, err
-	}
-	if inv == nil || inv.ID != id {
-		return nil, ErrInvoice
-	}
-	priceParams := &stripe.PriceParams{}
-	priceParams.Context = ctx
-	priceParams.AddExpand("product")
-	price, err := c.Price(b.PriceID, priceParams)
-	if err != nil {
-		return nil, err
-	}
-	return VerifyMonthlyInvoice(inv, price, b)
+	return (servicestripe.InvoiceClient{Invoice: c.Invoice, Price: c.Price, Live: c.Live}).PaidInvoice(ctx, id, serviceBinding(b))
 }

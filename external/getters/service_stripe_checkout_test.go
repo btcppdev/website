@@ -109,4 +109,27 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 		t.Fatal("completed session replaced", err)
 	}
 
+	session.Customer = &stripe.Customer{ID: "cus_" + person}
+	session.Subscription = &stripe.Subscription{ID: "sub_" + first.Intent.ID}
+	price := &stripe.Price{ID: "price_" + first.Intent.ID, Currency: "usd", UnitAmount: 2100, TaxBehavior: "exclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_" + first.Intent.ID, TaxCode: &stripe.TaxCode{ID: terms.TaxCode}}}
+	session.LineItems = &stripe.LineItemList{Data: []*stripe.LineItem{{Quantity: 1, Price: price}}}
+	for i := 0; i < 2; i++ {
+		bound, err := ResolveServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, client)
+		if err != nil || bound.SubscriptionID != session.Subscription.ID {
+			t.Fatal("subscription binding", bound, err)
+		}
+	}
+	var count int
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_stripe_subscriptions WHERE checkout_id=$1`, first.Intent.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatal("binding not deduplicated", count, err)
+	}
+	grants, err := ActiveServiceEntitlements(app, person, time.Now())
+	if err != nil || len(grants) != 0 {
+		t.Fatal("binding granted access", grants, err)
+	}
+	session.Subscription.ID = "sub_replaced"
+	if _, err := ResolveServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, client); err == nil {
+		t.Fatal("binding overwritten")
+	}
+
 }

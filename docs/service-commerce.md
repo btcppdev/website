@@ -387,3 +387,12 @@ account/product isolation, prepaid conflicts and provider session reuse.
 These are internal primitives only: the public Insider checkout remains on its
 existing fixed-term flow until recurring invoice fulfillment and lifecycle
 handling are connected.
+
+Subscription ownership binding and authenticated invoice lookup now use the
+shared Stripe package. Alerts delegates through its existing adapter; Insider
+can persist a product-scoped immutable binding after checking the completed
+session, expanded recurring price, tax code, interval, account and quantity.
+Repeated binding is idempotent and cannot replace the provider subscription.
+Binding alone creates neither an entitlement nor an external fulfillment event.
+The public Insider recurring route still awaits invoice-ledger and lifecycle
+integration before activation.
