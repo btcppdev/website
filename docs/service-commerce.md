@@ -410,3 +410,16 @@ settlement-relative access. PostgreSQL tests cover invoice replay, next-period
 renewal, overlap rejection, fulfillment eligibility and queue deduplication.
 Receiver tests exercise retries and both access-period policies. Public recurring
 checkout is still disabled pending webhook/recovery and lifecycle integration.
+
+The signature-verified Stripe callback now routes Insider recurring checkout
+completion and paid invoices through product-scoped shared billing. Completion
+only binds ownership; paid invoices are fetched again from Stripe before ledger
+recording. Invoice-before-completion ordering can recover a saved session binding;
+replays produce one invoice/order/fulfillment job. Fixed-term Insider checkout and
+Alerts routing remain separate. Tests cover unsigned rejection, event ownership,
+out-of-order delivery, duplicate delivery and deleted accounts. Pending external
+fulfillment for a deleted account is ineligible and moves to review, preserving
+financial evidence without granting access or retrying a NULL account forever.
+
+Scheduled recovery, expiration and subscription lifecycle routing remain to be
+connected before public recurring checkout is enabled.

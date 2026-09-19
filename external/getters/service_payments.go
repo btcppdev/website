@@ -72,7 +72,7 @@ func GetFulfillableServicePaymentContext(app *config.AppContext, attemptID strin
 		FROM service_payment_attempts a
 		JOIN service_purchase_requests r ON r.id=a.purchase_id
 		JOIN shop_orders o ON o.id=r.order_id
-		WHERE a.id=$1 AND a.settled_at IS NOT NULL AND o.status='paid'
+		WHERE a.id=$1 AND r.person_id IS NOT NULL AND a.settled_at IS NOT NULL AND o.status='paid'
 		AND o.currency='USD' AND o.payment_provider=a.provider
 		AND o.payment_provider_id=a.provider_reference
 		AND a.provider=r.quote_snapshot->>'provider'

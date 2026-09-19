@@ -7108,6 +7108,16 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
+	if handled, err := handleServiceStripeEvent(r.Context(), ctx, event); handled {
+		if err != nil {
+			ctx.Err.Printf("Service Stripe event %s requires retry", event.ID)
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	if handled, err := handleAlertsStripeEvent(r.Context(), ctx, event); handled {
 		if err != nil {
 			ctx.Err.Printf("Alerts Stripe event %s: %v", event.ID, err)
