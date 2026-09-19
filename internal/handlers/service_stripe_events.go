@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stripe/stripe-go/v86"
+	"strings"
 )
 
 type serviceStripeReference struct{ Product, Intent, Session, Invoice string }
@@ -20,7 +21,7 @@ type serviceStripeReference struct{ Product, Intent, Session, Invoice string }
 // locates saved state; authenticated provider lookups establish payment facts.
 func handleServiceStripeEvent(ctx context.Context, app *config.AppContext, event stripe.Event) (bool, error) {
 	client := alertsstripe.NewClient(event.Livemode)
-	return processServiceStripeEvent(ctx, app, event, servicestripe.CheckoutClient{Retrieve: client.Retrieve, Live: client.Live}, servicestripe.InvoiceClient{Invoice: client.Invoice, Price: client.Price, Live: client.Live})
+	return processServiceStripeEvent(ctx, app, event, servicestripe.CheckoutClient{Retrieve: client.Retrieve, Live: client.Live}, servicestripe.InvoiceClient{Invoice: client.Invoice, Price: client.Price, Live: client.Live}, servicestripe.SubscriptionClient{Subscription: client.Subscription, Live: client.Live})
 }
 
 func serviceStripeEventReference(event stripe.Event) (ref serviceStripeReference, handled bool, err error) {
@@ -37,7 +38,13 @@ func serviceStripeEventReference(event stripe.Event) (ref serviceStripeReference
 			return ref, false, nil
 		}
 		ref = serviceStripeReference{Product: s.Metadata["product"], Intent: s.Metadata["checkout_intent"], Session: s.ID}
-	case "invoice.paid":
+	case "customer.subscription.updated", "customer.subscription.deleted", "customer.subscription.paused", "customer.subscription.resumed":
+		var sub stripe.Subscription
+		if err = json.Unmarshal(event.Data.Raw, &sub); err != nil {
+			return ref, true, err
+		}
+		ref = serviceStripeReference{Product: sub.Metadata["product"], Intent: sub.Metadata["checkout_intent"]}
+	case "invoice.paid", "invoice.payment_failed":
 		var i stripe.Invoice
 		if err = json.Unmarshal(event.Data.Raw, &i); err != nil {
 			return ref, true, err
@@ -57,7 +64,7 @@ func serviceStripeEventReference(event stripe.Event) (ref serviceStripeReference
 	return ref, true, nil
 }
 
-func processServiceStripeEvent(ctx context.Context, app *config.AppContext, event stripe.Event, checkout servicestripe.CheckoutClient, invoices servicestripe.InvoiceClient) (bool, error) {
+func processServiceStripeEvent(ctx context.Context, app *config.AppContext, event stripe.Event, checkout servicestripe.CheckoutClient, invoices servicestripe.InvoiceClient, subscriptions servicestripe.SubscriptionClient) (bool, error) {
 	ref, handled, err := serviceStripeEventReference(event)
 	if !handled || err != nil {
 		return handled, err
@@ -65,7 +72,7 @@ func processServiceStripeEvent(ctx context.Context, app *config.AppContext, even
 	if _, err = uuid.Parse(ref.Intent); err != nil {
 		return true, servicestripe.ErrCheckout
 	}
-	if checkout.Live != event.Livemode || invoices.Live != event.Livemode {
+	if checkout.Live != event.Livemode || invoices.Live != event.Livemode || subscriptions.Live != event.Livemode {
 		return true, servicestripe.ErrCheckout
 	}
 	var person string
@@ -95,6 +102,9 @@ func processServiceStripeEvent(ctx context.Context, app *config.AppContext, even
 		if _, err = getters.ResolveServiceStripeSubscription(ctx, app, person, ref.Intent, ref.Product, checkout); err != nil {
 			return true, err
 		}
+	}
+	if event.Type == "invoice.payment_failed" || strings.HasPrefix(string(event.Type), "customer.subscription.") {
+		return true, getters.RefreshServiceStripeSubscription(ctx, app, person, ref.Intent, ref.Product, subscriptions)
 	}
 	_, err = getters.ReconcileServiceStripeInvoice(ctx, app, person, ref.Intent, ref.Product, ref.Invoice, invoices)
 	return true, err

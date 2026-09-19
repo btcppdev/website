@@ -164,6 +164,8 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 	}
 	inv.Lines.Data[0].Period.Start = end.Unix()
 	inv.Lines.Data[0].Period.End = end.AddDate(0, 1, 0).Unix()
+	sub := &stripe.Subscription{ID: session.Subscription.ID, Customer: session.Customer, Status: "active", Metadata: session.Metadata, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 1, Price: price, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
+	subscriptions := servicestripe.SubscriptionClient{Subscription: func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) { return sub, nil }}
 	pages := 0
 	invoices.ListInvoices = func(p *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
 		pages++
@@ -175,21 +177,19 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 		}
 		return &stripe.InvoiceList{Data: []*stripe.Invoice{inv}}, nil
 	}
-	if err := RecoverServiceStripePayments(ctx, app, person, first.Intent.ID, terms.ProductCode, client, invoices); err != nil {
+	if err := RecoverServiceStripePayments(ctx, app, person, first.Intent.ID, terms.ProductCode, client, invoices, subscriptions); err != nil {
 		t.Fatal("missed renewal recovery", err)
 	}
 	if pages != 2 {
 		t.Fatal("recovery pagination", pages)
 	}
-	if err := RecoverServiceStripePayments(ctx, app, person, first.Intent.ID, terms.ProductCode, client, invoices); err != nil {
+	if err := RecoverServiceStripePayments(ctx, app, person, first.Intent.ID, terms.ProductCode, client, invoices, subscriptions); err != nil {
 		t.Fatal("repeated recovery", err)
 	}
 	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_stripe_invoices WHERE checkout_id=$1`, first.Intent.ID).Scan(&count); err != nil || count != 2 {
 		t.Fatal("recovery duplicate or missing invoices", count, err)
 	}
 
-	sub := &stripe.Subscription{ID: session.Subscription.ID, Customer: session.Customer, Status: "active", Metadata: session.Metadata, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 1, Price: price, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
-	subscriptions := servicestripe.SubscriptionClient{Subscription: func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) { return sub, nil }}
 	for i := 0; i < 2; i++ {
 		if err := RefreshServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, subscriptions); err != nil {
 			t.Fatal(err)

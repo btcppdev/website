@@ -13,9 +13,9 @@ import (
 // ReconcileDueServiceStripeCheckouts recovers known sessions and paid invoices.
 // The schedule is also a lease: advance one row before provider I/O, with a
 // one-minute attempt deadline shorter than the minimum fifteen-minute lease.
-func ReconcileDueServiceStripeCheckouts(ctx context.Context, app *config.AppContext, checkout servicestripe.CheckoutClient, invoices servicestripe.InvoiceClient) (int, error) {
+func ReconcileDueServiceStripeCheckouts(ctx context.Context, app *config.AppContext, checkout servicestripe.CheckoutClient, invoices servicestripe.InvoiceClient, subscriptions servicestripe.SubscriptionClient) (int, error) {
 	return reconcileDueServiceStripeCheckouts(ctx, app, func(ctx context.Context, person, id, product string) error {
-		return RecoverServiceStripePayments(ctx, app, person, id, product, checkout, invoices)
+		return RecoverServiceStripePayments(ctx, app, person, id, product, checkout, invoices, subscriptions)
 	})
 }
 

@@ -99,14 +99,36 @@ func TestServiceStripeEventPostgres(t *testing.T) {
 		t.Fatal("missed callback recovery", err)
 	}
 	for i := 0; i < 2; i++ {
-		if handled, err := processServiceStripeEvent(ctx, app, event, checkout, invoices); !handled || err != nil {
+		if handled, err := processServiceStripeEvent(ctx, app, event, checkout, invoices, servicestripe.SubscriptionClient{}); !handled || err != nil {
 			t.Fatal("invoice before completion", handled, err)
 		}
 	}
 	raw, _ = json.Marshal(session)
-	if handled, err := processServiceStripeEvent(ctx, app, stripe.Event{Type: "checkout.session.completed", Data: &stripe.EventData{Raw: raw}}, checkout, invoices); !handled || err != nil {
+	if handled, err := processServiceStripeEvent(ctx, app, stripe.Event{Type: "checkout.session.completed", Data: &stripe.EventData{Raw: raw}}, checkout, invoices, servicestripe.SubscriptionClient{}); !handled || err != nil {
 		t.Fatal("late completion", handled, err)
 	}
+	sub := &stripe.Subscription{ID: session.Subscription.ID, Customer: session.Customer, Status: "active", Metadata: meta, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 1, Price: price, CurrentPeriodStart: now.Unix(), CurrentPeriodEnd: now.AddDate(0, 1, 0).Unix()}}}}
+	subscriptions := servicestripe.SubscriptionClient{Subscription: func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) { return sub, nil }}
+	stale := *sub
+	stale.Status = "canceled"
+	staleRaw, _ := json.Marshal(stale)
+	lifecycle := stripe.Event{Type: "customer.subscription.deleted", Data: &stripe.EventData{Raw: staleRaw}}
+	if handled, err := processServiceStripeEvent(ctx, app, lifecycle, checkout, invoices, subscriptions); !handled || err != nil {
+		t.Fatal("lifecycle refresh", handled, err)
+	}
+	var state string
+	if err = pool.QueryRow(ctx, `SELECT snapshot->>'state' FROM service_stripe_subscription_state WHERE checkout_id=$1`, id).Scan(&state); err != nil || state != "active" {
+		t.Fatal("stale webhook replaced current state", state, err)
+	}
+	sub.PauseCollection = &stripe.SubscriptionPauseCollection{Behavior: "void"}
+	failed := stripe.Event{Type: "invoice.payment_failed", Data: event.Data}
+	if handled, err := processServiceStripeEvent(ctx, app, failed, checkout, invoices, subscriptions); !handled || err != nil {
+		t.Fatal("payment failure refresh", handled, err)
+	}
+	if err = pool.QueryRow(ctx, `SELECT snapshot->>'state' FROM service_stripe_subscription_state WHERE checkout_id=$1`, id).Scan(&state); err != nil || state != "paused" {
+		t.Fatal("pause confused with renewal failure", state, err)
+	}
+
 	var count int
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_fulfillment_jobs j JOIN service_payment_attempts a ON a.id=j.attempt_id JOIN service_purchase_requests r ON r.id=a.purchase_id WHERE r.person_id=$1`, person).Scan(&count); err != nil || count != 1 {
 		t.Fatal("fulfillment not deduplicated", count, err)
@@ -114,7 +136,7 @@ func TestServiceStripeEventPostgres(t *testing.T) {
 	if _, err = pool.Exec(ctx, `DELETE FROM people WHERE id=$1`, person); err != nil {
 		t.Fatal(err)
 	}
-	if handled, err := processServiceStripeEvent(ctx, app, event, checkout, invoices); !handled || err != nil {
+	if handled, err := processServiceStripeEvent(ctx, app, event, checkout, invoices, servicestripe.SubscriptionClient{}); !handled || err != nil {
 		t.Fatal("deleted account", handled, err)
 	}
 
@@ -161,12 +183,12 @@ func TestServiceStripeExpirationPostgres(t *testing.T) {
 	raw, _ := json.Marshal(session)
 	event := stripe.Event{Type: "checkout.session.expired", Data: &stripe.EventData{Raw: raw}}
 	session.Status = "open"
-	if handled, err := processServiceStripeEvent(ctx, app, event, checkout, servicestripe.InvoiceClient{}); !handled || err == nil {
+	if handled, err := processServiceStripeEvent(ctx, app, event, checkout, servicestripe.InvoiceClient{}, servicestripe.SubscriptionClient{}); !handled || err == nil {
 		t.Fatal("webhook alone closed checkout", handled, err)
 	}
 	session.Status = "expired"
 	for i := 0; i < 2; i++ {
-		if handled, err := processServiceStripeEvent(ctx, app, event, checkout, servicestripe.InvoiceClient{}); !handled || err != nil {
+		if handled, err := processServiceStripeEvent(ctx, app, event, checkout, servicestripe.InvoiceClient{}, servicestripe.SubscriptionClient{}); !handled || err != nil {
 			t.Fatal("expiry failed", handled, err)
 		}
 	}

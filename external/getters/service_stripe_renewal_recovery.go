@@ -11,7 +11,7 @@ import (
 
 // RecoverServiceStripePayments discovers missed initial and renewal payments.
 // Existing financial evidence, including refunded orders, is never overwritten.
-func RecoverServiceStripePayments(ctx context.Context, app *config.AppContext, person, id, product string, checkout servicestripe.CheckoutClient, invoices servicestripe.InvoiceClient) error {
+func RecoverServiceStripePayments(ctx context.Context, app *config.AppContext, person, id, product string, checkout servicestripe.CheckoutClient, invoices servicestripe.InvoiceClient, subscriptions servicestripe.SubscriptionClient) error {
 	if _, err := ServiceStripeCheckoutForPerson(app, person, id, product); err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func RecoverServiceStripePayments(ctx context.Context, app *config.AppContext, p
 			}
 		}
 		if next == "" {
-			return firstErr
+			return errors.Join(firstErr, RefreshServiceStripeSubscription(ctx, app, person, id, product, subscriptions))
 		}
 		cursor = next
 	}

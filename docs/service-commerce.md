@@ -475,3 +475,14 @@ periods or grant grace. The updated single migration 128 was applied to fresh
 Full PostgreSQL getter/handler suites and migration unit tests pass, including
 Alerts compatibility, Insider visibility isolation and cancellation observations.
 Lifecycle webhook/polling dispatch and management are still to be connected.
+
+Insider lifecycle webhooks (subscription updated/deleted/paused/resumed and
+invoice payment failure) now trigger authenticated subscription refresh after
+loading the saved product/account binding. A stale webhook is only a lookup hint;
+it cannot overwrite current provider state. Scheduled paid-invoice recovery also
+refreshes lifecycle state after processing invoice pages, so a state verification
+failure does not prevent already verified invoice payments from being recorded.
+Integration tests cover stale cancellation events, paused payment failure and
+unchanged invoice/fulfillment counts. Full PostgreSQL getter/handler suites pass.
+Customer management, lifecycle delivery to Insider and public recurring checkout
+activation remain outstanding.
