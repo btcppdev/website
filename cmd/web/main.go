@@ -132,6 +132,7 @@ func main() {
 	handlers.StartPrizePoolMonitor(&app)
 	handlers.StartServicePaymentReconciliation(&app)
 	handlers.StartAlertsStripeReconciliation(&app)
+	handlers.StartServiceStripeReconciliation(&app)
 	handlers.StartServiceReceipts(&app)
 	handlers.StartServiceFulfillment(&app)
 	handlers.StartWeeklyNewsletterDrafting(&app)

@@ -442,3 +442,16 @@ payment recovery pages through paid invoices for the saved customer/subscription
 fully verifies unrecorded candidates, and preserves existing financial evidence.
 Tests cover lifecycle distinctions and paginated renewal recovery with duplicate
 replay. Scheduling and persisted Insider lifecycle state still need integration.
+
+`SERVICE_STRIPE_RECONCILIATION_ENABLED=true` starts scheduled Insider Stripe
+payment recovery in the web process (default false). It requires a configured
+Stripe test/live key, checks due work every minute, and handles at most 20 saved
+checkouts per pass under a three-minute overall deadline. Each provider attempt
+has a one-minute deadline and a durable schedule lease acquired before I/O.
+Unpaid recent sessions retry after 15 minutes; sessions with recorded payments
+are checked hourly; older unconfirmed sessions daily. Closed/deleted accounts,
+missing provider references and Alerts checkouts are excluded. Recovery never
+creates charges. PostgreSQL tests exercise simultaneous workers, durable leases,
+provider failures, delayed retries and product/account exclusions. The web binary
+builds with startup wiring. Insider lifecycle persistence/management and public
+recurring checkout activation remain outstanding.
