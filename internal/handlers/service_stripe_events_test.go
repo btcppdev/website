@@ -84,8 +84,15 @@ func TestServiceStripeEventPostgres(t *testing.T) {
 	session := &stripe.CheckoutSession{ID: "cs_" + id, Mode: "subscription", Status: "open", ExpiresAt: time.Now().Add(time.Hour).Unix(), ClientReferenceID: id, Metadata: meta, Customer: &stripe.Customer{ID: "cus_" + person}, Subscription: &stripe.Subscription{ID: "sub_" + id}, LineItems: &stripe.LineItemList{Data: []*stripe.LineItem{{Quantity: 1, Price: price}}}}
 	session.URL = "https://checkout.stripe.com/c/pay/" + session.ID
 	checkout := servicestripe.CheckoutClient{Create: func(*stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }, Retrieve: func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }}
-	if _, err = getters.OpenServiceStripeCheckout(ctx, app, person, id, terms.ProductCode, checkout); err != nil {
-		t.Fatal(err)
+	app.Env = &types.EnvConfig{InsiderStripeTaxCode: terms.TaxCode, InsiderAllowedReturnOrigins: "https://insider.btcpp.dev", InsiderFulfillmentEndpoint: "https://insider.btcpp.dev/api/internal/commerce/open-access", InsiderLifecycleEndpoint: "https://insider.btcpp.dev/api/internal/commerce/subscription-state", InsiderFulfillmentToken: "test-fulfillment", InsiderMerchantName: "Test merchant"}
+	checkoutRequest := insiderCheckoutRequest{BillingMode: "recurring", RequestID: "insider-event-checkout", PersonID: person, ProductCode: terms.ProductCode, PaymentProvider: "stripe", AmountCents: 2100, Currency: "USD", QuoteExpiresAt: time.Now().Add(10 * time.Minute), SuccessURL: terms.SuccessURL, CancelURL: terms.CancelURL}
+	for i := 0; i < 2; i++ {
+		out := httptest.NewRecorder()
+		serveInsiderRecurringCheckout(out, httptest.NewRequest("POST", "/api/internal/insider/checkouts", nil), app, checkoutRequest, checkout)
+		var result insiderCheckoutResponse
+		if out.Code != 201 || json.Unmarshal(out.Body.Bytes(), &result) != nil || result.CheckoutID != id || result.CheckoutURL != session.URL || result.OrderID != "" {
+			t.Fatal("recurring adapter or replay", out.Code, out.Body.String())
+		}
 	}
 	session.Status = "complete"
 	now := time.Now().UTC().Truncate(time.Second)

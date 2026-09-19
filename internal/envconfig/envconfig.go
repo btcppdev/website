@@ -87,6 +87,7 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 		InsiderServiceToken:         firstNonEmpty(os.Getenv("INSIDER_SERVICE_TOKEN"), os.Getenv("MAILER_SECRET")),
 		InsiderFulfillmentEndpoint:  os.Getenv("INSIDER_FULFILLMENT_ENDPOINT"),
 		InsiderLifecycleEndpoint:    os.Getenv("INSIDER_LIFECYCLE_ENDPOINT"),
+		InsiderStripeTaxCode:        strings.TrimSpace(os.Getenv("INSIDER_STRIPE_TAX_CODE")),
 		InsiderFulfillmentToken:     os.Getenv("INSIDER_FULFILLMENT_TOKEN"),
 		InsiderAllowedReturnOrigins: firstNonEmpty(os.Getenv("INSIDER_ALLOWED_RETURN_ORIGINS"), "https://insider.btcpp.dev,https://beta.btcpp.dev"),
 		InsiderMerchantName:         os.Getenv("INSIDER_MERCHANT_NAME"),

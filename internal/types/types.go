@@ -83,6 +83,7 @@ type (
 		InsiderServiceToken         string
 		InsiderFulfillmentEndpoint  string
 		InsiderLifecycleEndpoint    string
+		InsiderStripeTaxCode        string
 		InsiderFulfillmentToken     string
 		InsiderAllowedReturnOrigins string
 		InsiderMerchantName         string

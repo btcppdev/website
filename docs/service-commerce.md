@@ -546,6 +546,22 @@ event rewriting/deletion, ordered claims, retry backoff and stale-worker fencing
 
 ## Insider subscription management API
 
+The authenticated `/api/internal/insider/checkouts` adapter accepts an explicit
+`billing_mode: "recurring"` for Stripe monthly/annual memberships. It uses shared
+checkout reservations and returns `checkout_id` plus `checkout_url`; no shop order
+exists until a verified invoice is recorded. Missing or `fixed_term` mode preserves
+the existing fixed-term contract. Unknown modes are rejected.
+
+Recurring mode requires `INSIDER_STRIPE_TAX_CODE`, configured settlement delivery
+and lifecycle delivery. Tax classification comes only from server configuration;
+it does not copy Alerts' SaaS classification. Price must match the product registry
+($21 monthly or $210 annually, before applicable tax), and both return URLs must
+share an allowed origin. Campaign attribution and public credit are rejected for
+this adapter because the recurring settlement contract does not yet carry them.
+Checkout conflicts return 409; provider ambiguity retains the reservation for retry
+or background reconciliation. Insider's purchase UI must explicitly disclose
+renewal and send recurring mode before this becomes a public product flow.
+
 Authenticated Insider servers can POST JSON to:
 
 - `/api/internal/insider/subscriptions/status`: `person_id`, `checkout_id`,

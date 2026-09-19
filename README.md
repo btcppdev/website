@@ -87,6 +87,7 @@ INSIDER_SERVICE_TOKEN=...
 INSIDER_FULFILLMENT_ENDPOINT=https://insider.btcpp.dev/api/internal/commerce/open-access
 # Leave unset until the Insider lifecycle receiver and migration 002 are deployed:
 # INSIDER_LIFECYCLE_ENDPOINT=https://insider.btcpp.dev/api/internal/commerce/subscription-state
+# INSIDER_STRIPE_TAX_CODE must be set to the merchant's chosen publication tax classification before recurring checkout is available.
 INSIDER_FULFILLMENT_TOKEN=...
 INSIDER_ALLOWED_RETURN_ORIGINS=https://insider.btcpp.dev,https://beta.btcpp.dev
 INSIDER_MERCHANT_NAME="Exact legal merchant name"

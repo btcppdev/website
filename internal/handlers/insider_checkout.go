@@ -15,6 +15,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/servicebilling"
+	"btcpp-web/internal/servicestripe"
 
 	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
@@ -29,6 +30,7 @@ const (
 )
 
 type insiderCheckoutRequest struct {
+	BillingMode               string          `json:"billing_mode,omitempty"`
 	RequestID                 string          `json:"request_id"`
 	ProductCode               string          `json:"product_code"`
 	ResourceID                string          `json:"resource_id,omitempty"`
@@ -76,6 +78,7 @@ type insiderSettlementEvent struct {
 type insiderCheckoutResponse struct {
 	CheckoutURL string `json:"checkout_url"`
 	OrderID     string `json:"order_id"`
+	CheckoutID  string `json:"checkout_id,omitempty"`
 }
 
 // CreateInsiderCheckout is the narrow product adapter between Insider and
@@ -99,6 +102,14 @@ func CreateInsiderCheckout(w http.ResponseWriter, r *http.Request, app *config.A
 	}
 	if strings.TrimSpace(r.Header.Get("Idempotency-Key")) != request.RequestID {
 		writeInsiderCampaignError(w, http.StatusBadRequest, "The checkout idempotency key is invalid.")
+		return
+	}
+	if request.BillingMode == "recurring" {
+		serveInsiderRecurringCheckout(w, r, app, request, servicestripe.CheckoutClient{Create: session.New, Retrieve: session.Get, Live: strings.HasPrefix(app.Env.StripeKey, "sk_live_")})
+		return
+	}
+	if request.BillingMode != "" && request.BillingMode != "fixed_term" {
+		writeInsiderCampaignError(w, http.StatusUnprocessableEntity, "The billing mode is invalid.")
 		return
 	}
 	if strings.TrimSpace(app.Env.InsiderFulfillmentEndpoint) == "" || strings.TrimSpace(app.Env.InsiderFulfillmentToken) == "" || strings.TrimSpace(app.Env.InsiderMerchantName) == "" {
