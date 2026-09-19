@@ -464,3 +464,14 @@ delayed retries and product/account exclusions. Dispatch tests verify independen
 budgets and that one product's failure does not suppress the other. Insider
 lifecycle persistence/management and public recurring checkout activation remain
 outstanding.
+
+Subscription observations now use `service_stripe_subscription_state`, with an
+updatable Alerts-only compatibility view. Insider refreshes verify the saved
+product/account binding and fetch Stripe under the account billing lock before
+saving state. Identical observations preserve the revision; changed state advances
+it. Failed verification leaves state unchanged. Observations do not rewrite paid
+periods or grant grace. The updated single migration 128 was applied to fresh
+`commerce_lifecycle_20260918`; prior scratch databases/checksums were unchanged.
+Full PostgreSQL getter/handler suites and migration unit tests pass, including
+Alerts compatibility, Insider visibility isolation and cancellation observations.
+Lifecycle webhook/polling dispatch and management are still to be connected.

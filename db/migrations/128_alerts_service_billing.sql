@@ -309,7 +309,7 @@ CREATE INDEX alerts_stripe_checkout_recovery_due ON service_stripe_checkouts(nex
  WHERE closed_at IS NULL AND person_id IS NOT NULL AND stripe_session_id IS NOT NULL;
 
 -- alerts stripe subscription state
-CREATE TABLE alerts_stripe_subscription_state (
+CREATE TABLE service_stripe_subscription_state (
  checkout_id uuid PRIMARY KEY REFERENCES service_stripe_subscriptions(checkout_id),
  revision bigint NOT NULL CHECK(revision>0),
  snapshot jsonb NOT NULL CHECK(jsonb_typeof(snapshot)='object'),
@@ -819,5 +819,10 @@ CREATE VIEW alerts_stripe_subscriptions AS SELECT * FROM service_stripe_subscrip
  WHERE checkout_id IN (SELECT id FROM service_stripe_checkouts WHERE product_family='alerts')
  WITH CASCADED CHECK OPTION;
 CREATE VIEW alerts_stripe_invoices AS SELECT * FROM service_stripe_invoices
+ WHERE checkout_id IN (SELECT id FROM service_stripe_checkouts WHERE product_family='alerts')
+ WITH CASCADED CHECK OPTION;
+
+-- Product-filtered compatibility projection for existing Alerts lifecycle readers.
+CREATE VIEW alerts_stripe_subscription_state AS SELECT * FROM service_stripe_subscription_state
  WHERE checkout_id IN (SELECT id FROM service_stripe_checkouts WHERE product_family='alerts')
  WITH CASCADED CHECK OPTION;

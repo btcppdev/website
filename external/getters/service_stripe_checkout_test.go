@@ -188,6 +188,36 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 		t.Fatal("recovery duplicate or missing invoices", count, err)
 	}
 
+	sub := &stripe.Subscription{ID: session.Subscription.ID, Customer: session.Customer, Status: "active", Metadata: session.Metadata, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 1, Price: price, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
+	subscriptions := servicestripe.SubscriptionClient{Subscription: func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) { return sub, nil }}
+	for i := 0; i < 2; i++ {
+		if err := RefreshServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, subscriptions); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var revision int64
+	var state string
+	if err := app.DB.QueryRow(ctx, `SELECT revision,snapshot->>'state' FROM service_stripe_subscription_state WHERE checkout_id=$1`, first.Intent.ID).Scan(&revision, &state); err != nil || revision != 1 || state != "active" {
+		t.Fatal("unchanged state revision", revision, state, err)
+	}
+	sub.CancelAtPeriodEnd = true
+	if err := RefreshServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, subscriptions); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT revision,snapshot->>'state' FROM service_stripe_subscription_state WHERE checkout_id=$1`, first.Intent.ID).Scan(&revision, &state); err != nil || revision != 2 || state != "cancelling" {
+		t.Fatal("cancellation state", revision, state, err)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_subscription_state WHERE checkout_id=$1`, first.Intent.ID).Scan(&count); err != nil || count != 0 {
+		t.Fatal("Insider visible to Alerts lifecycle", count, err)
+	}
+	sub.Customer = &stripe.Customer{ID: "cus_other"}
+	if err := RefreshServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, subscriptions); err == nil {
+		t.Fatal("foreign subscription persisted")
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT revision FROM service_stripe_subscription_state WHERE checkout_id=$1`, first.Intent.ID).Scan(&revision); err != nil || revision != 2 {
+		t.Fatal("failed verification changed state", revision, err)
+	}
+
 	session.Subscription.ID = "sub_replaced"
 	if _, err := ResolveServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, client); err == nil {
 		t.Fatal("binding overwritten")

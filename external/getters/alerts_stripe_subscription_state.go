@@ -63,8 +63,8 @@ func saveAlertsStripeSubscriptionState(ctx context.Context, tx pgx.Tx, binding a
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_subscription_state(checkout_id,revision,snapshot) VALUES($1,1,$2)
- ON CONFLICT(checkout_id) DO UPDATE SET revision=alerts_stripe_subscription_state.revision+CASE WHEN alerts_stripe_subscription_state.snapshot<>excluded.snapshot THEN 1 ELSE 0 END,snapshot=excluded.snapshot,observed_at=now()`, binding.IntentID, raw)
+	_, err = tx.Exec(ctx, `INSERT INTO service_stripe_subscription_state(checkout_id,revision,snapshot) VALUES($1,1,$2)
+ ON CONFLICT(checkout_id) DO UPDATE SET revision=service_stripe_subscription_state.revision+CASE WHEN service_stripe_subscription_state.snapshot<>excluded.snapshot THEN 1 ELSE 0 END,snapshot=excluded.snapshot,observed_at=now()`, binding.IntentID, raw)
 	if err != nil {
 		return err
 	}
