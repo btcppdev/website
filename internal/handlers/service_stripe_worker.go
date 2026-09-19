@@ -27,6 +27,9 @@ func StartServiceStripeReconciliation(app *config.AppContext) {
 		for range ticker.C {
 			client := alertsstripe.NewClient(live)
 			runServiceStripeRecoveryPass(context.Background(), []serviceStripeRecoveryTask{
+				{"deleted-accounts", func(ctx context.Context) (int, error) {
+					return getters.ReconcileDeletedAccountCancellation(ctx, app, "", client, time.Now())
+				}},
 				{"alerts", func(ctx context.Context) (int, error) {
 					return getters.ReconcileDueAlertsStripeCheckouts(ctx, app, client)
 				}},

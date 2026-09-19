@@ -562,10 +562,17 @@ lock used by checkout/binding/quantity operations. These records survive account
 removal and roll back if deletion fails. Ordinary cancellation policy still means
 stopping renewals at period end without refunds.
 
-Provider execution of these cancellation records remains unfinished: storing the
-intent does not stop Stripe billing. That worker must verify provider identity,
-handle currently bound subscriptions and in-flight checkouts, and reconcile any
-ambiguous response before marking the job confirmed. Deletion does not yet
+The shared Stripe reconciliation worker now processes these records as a separate
+`deleted-accounts` task under `SERVICE_STRIPE_RECONCILIATION_ENABLED`. It claims a
+two-minute lease, checks the account is removed, loads the latest quantity binding
+for Alerts or the canonical Insider binding, and verifies account/checkout/product/
+subscription identity before calling Stripe. Verified scheduled or terminal
+cancellations become confirmed. Transport failures retry with capped backoff;
+invalid bindings and unbound checkouts become review work, never false success.
+PostgreSQL tests cover both products, wrong-customer rejection, missing bindings,
+retry backoff and a lost successful provider response without duplicate mutation.
+In-flight checkout recovery and reviewed-job operator controls remain unfinished.
+Deletion does not yet
 propagate to Insider or redact messages already accepted by the remote mailer.
 
 The shared Stripe client now has the verified cancellation operation for these
@@ -576,9 +583,10 @@ deterministic checkout-and-period key. After a prolonged outage the operation
 verifies the current period rather than replaying an expired browser confirmation;
 after a lost successful response it observes the existing cancellation without a
 second mutation. Tests cover Alerts and both Insider plans, terminal subscriptions,
-wrong customer identity, lost responses and changed periods. The queue coordinator,
-in-flight checkout handling and actual provider rehearsal remain unfinished; this
-primitive is not yet called by a running deletion cancellation worker.
+wrong customer identity, lost responses and changed periods. The queue coordinator
+uses this operation for bound subscriptions. In-flight checkout handling and actual
+provider rehearsal remain unfinished; an enabled worker does not guarantee all
+deletion cancellations finish without review.
 
 ## Shared refund ledger foundation
 
