@@ -605,6 +605,25 @@ Fresh PostgreSQL tests cover duplicate concurrent refunds, competing refunds tha
 would exceed the paid total, mismatched/unsettled payments, immutable evidence and
 settlement replay after refund. The schema remains in consolidated migration 128.
 
+Operators can inspect this ledger with the read-only `cmd/service-refunds` tool:
+
+```sh
+go run ./cmd/service-refunds
+go run ./cmd/service-refunds -attempt PAYMENT_ATTEMPT_UUID
+```
+
+Use the deployment's database configuration (`DATABASE_URL`, optionally `.env`).
+The default lists the oldest 100 unresolved jobs; an attempt filter includes its
+accepted jobs for audit. JSON shows original settlement state, refund revision,
+earlier-unacknowledged-refund status, immutable amount/currency, admin decision,
+and delivery attempts/lease/backoff. An empty decision means delivery is waiting
+for an admin decision. An original settlement that is not accepted also blocks
+Insider adjustment delivery. `not_queued` is a literal absence of an external
+settlement job, including products such as Alerts that use local fulfillment.
+No recipient address, payload, or provider credentials are exposed. This command
+does not reconcile provider refunds, make decisions, change access, requeue jobs,
+or send messages; mutating admin controls remain unfinished.
+
 ## Durable Insider lifecycle events
 
 Verified Insider subscription observations now enqueue `service_lifecycle_jobs`

@@ -155,6 +155,13 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 		t.Fatal("refund delivery not atomically queued", count, err)
 	}
 	now := time.Now().Add(time.Second)
+	inspection, err := ListServiceRefunds(ctx, app, attempt.ID)
+	if err != nil || len(inspection) != 2 {
+		t.Fatal("refund inspection", inspection, err)
+	}
+	if inspection[0].Revision != 1 || inspection[0].AccessAction != "" || inspection[0].OriginalSettlementState == "accepted" || inspection[0].EarlierRefundPending || !inspection[1].EarlierRefundPending {
+		t.Fatal("inspection hid delivery blockers", inspection)
+	}
 	if _, err := ClaimInsiderRefundDelivery(ctx, app, attempt.ID, now); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatal("refund overtook original settlement", err)
 	}
@@ -214,5 +221,16 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 	}
 	if _, err := app.DB.Exec(ctx, `UPDATE service_refund_access_decisions SET action='revoke' WHERE provider='stripe' AND refund_reference=$1`, refund.RefundReference); err == nil {
 		t.Fatal("admin refund decision changed")
+	}
+	inspection, err = ListServiceRefunds(ctx, app, attempt.ID)
+	if err != nil || len(inspection) != 2 {
+		t.Fatal("refund decision inspection", inspection, err)
+	}
+	if inspection[0].State != "accepted" || inspection[0].AccessAction != "retain" || inspection[0].DecisionActor != person || inspection[0].DecisionAt == nil || inspection[1].AccessAction != "revoke" || inspection[1].EarlierRefundPending {
+		t.Fatal("inspection did not reflect acknowledgment and decisions", inspection)
+	}
+	missing, err := ListServiceRefunds(ctx, app, "00000000-0000-0000-0000-000000000000")
+	if err != nil || len(missing) != 0 {
+		t.Fatal("inspection crossed attempt boundary", missing, err)
 	}
 }
