@@ -571,7 +571,19 @@ server identity by the future admin command. Repeated identical decisions succee
 conflicting changes are rejected. Insider claims remain blocked until a decision
 exists, even after settlement acknowledgment. This is not a customer refund path
 and does not initiate a provider refund or cancel a subscription. The decision
-record alone does not yet adjust Alerts/Insider entitlements.
+record now affects Alerts' existing entitlement lookup; Insider delivery remains
+unfinished. Alerts preserves the original allowance and dates only when every
+recorded refund has an explicit retain decision and the refund totals match the
+order's partial/full refund state. Missing decisions, any revoke decision, or a
+separate grant revocation withhold the allowance. Retention never extends expiry
+or creates another grant. Access decisions lock the order and participate in the
+billing revision, invalidating reviews prepared before the decision.
+
+Existing proration/funding calculations still require paid financial evidence;
+retained access is not new payment credit. Review purchases involving refunded
+periods before enabling automated refund intake. Tests cover partial and full
+refund retention/revocation, unchanged quantities and expiry, and quote-revision
+invalidation.
 
 Fresh PostgreSQL tests cover duplicate concurrent refunds, competing refunds that
 would exceed the paid total, mismatched/unsettled payments, immutable evidence and

@@ -93,9 +93,9 @@ func FulfillServicePurchase(app *config.AppContext, orderID string) (string, err
 	return id, tx.Commit(ctx)
 }
 
-// ActiveServiceEntitlements is account-scoped. Refund state suppresses access
-// immediately, even before a separate refund worker records explicit revocation.
-// Partial refunds are withheld pending product-specific quantity reconciliation.
+// ActiveServiceEntitlements is account-scoped. Refunds with missing decisions
+// are withheld. Explicit admin retention preserves the original allowance and
+// dates only; any revoke decision or direct grant revocation still removes it.
 func ActiveServiceEntitlements(app *config.AppContext, personID string, at time.Time) ([]ServiceEntitlement, error) {
 	return queryServiceEntitlements(app.DatabaseContext(), app.DB, personID, at)
 }
@@ -107,7 +107,20 @@ type serviceAccessReader interface {
 func queryServiceEntitlements(ctx context.Context, reader serviceAccessReader, personID string, at time.Time) ([]ServiceEntitlement, error) {
 	rows, err := reader.Query(ctx, `SELECT e.id::text,e.product_code,e.resource_id,e.quantity,e.starts_at,e.ends_at
 		FROM service_entitlements e JOIN service_purchase_requests r ON r.id=e.purchase_id JOIN shop_orders o ON o.id=r.order_id
-		WHERE e.person_id=$1 AND r.person_id=e.person_id AND e.revoked_at IS NULL AND o.status='paid'
+		WHERE e.person_id=$1 AND r.person_id=e.person_id AND e.revoked_at IS NULL AND (
+          (o.status='paid' AND NOT EXISTS(SELECT 1 FROM service_payment_refunds f JOIN service_payment_attempts a ON a.id=f.attempt_id WHERE a.purchase_id=r.id))
+          OR (o.status IN ('refunded','partially_refunded') AND o.total_cents=(r.quote_snapshot->>'total_cents')::bigint
+            AND EXISTS(SELECT 1 FROM service_payment_attempts a
+              JOIN service_payment_refunds f ON f.attempt_id=a.id
+              LEFT JOIN service_refund_access_decisions d ON d.provider=f.provider AND d.refund_reference=f.refund_reference
+              WHERE a.purchase_id=r.id AND a.settled_at IS NOT NULL
+                AND a.provider=o.payment_provider AND a.provider_reference=o.payment_provider_id
+                AND f.provider=a.provider AND f.payment_reference=a.provider_reference AND f.currency=o.currency
+              GROUP BY a.id HAVING bool_and(coalesce(d.action='retain',false))
+                AND sum(f.amount_cents)>0 AND sum(f.amount_cents)<=o.total_cents
+                AND ((o.status='refunded' AND sum(f.amount_cents)=o.total_cents)
+                  OR (o.status='partially_refunded' AND sum(f.amount_cents)<o.total_cents))))
+        )
 		AND (e.starts_at IS NULL OR e.starts_at<=$2) AND (e.ends_at IS NULL OR e.ends_at>$2)
 		ORDER BY e.created_at,e.id`, personID, at)
 	if err != nil {

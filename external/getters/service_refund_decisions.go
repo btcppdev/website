@@ -32,12 +32,15 @@ func RecordServiceRefundAccessDecision(ctx context.Context, app *config.AppConte
 	if err != nil {
 		return err
 	}
-	var exists bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM service_payment_refunds WHERE provider=$1 AND refund_reference=$2)`, provider, reference).Scan(&exists); err != nil {
-		return err
-	}
-	if !exists {
+	var order string
+	err = tx.QueryRow(ctx, `SELECT o.id::text FROM service_payment_refunds f
+ JOIN service_payment_attempts a ON a.id=f.attempt_id JOIN service_purchase_requests r ON r.id=a.purchase_id
+ JOIN shop_orders o ON o.id=r.order_id WHERE f.provider=$1 AND f.refund_reference=$2 FOR UPDATE OF o`, provider, reference).Scan(&order)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrServiceRefund
+	}
+	if err != nil {
+		return err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO service_refund_access_decisions(provider,refund_reference,action,actor_id,reason) VALUES($1,$2,$3,$4,$5) ON CONFLICT(provider,refund_reference) DO NOTHING`, provider, reference, action, actor, reason)
 	if err != nil {

@@ -107,7 +107,11 @@ func alertsBillingRevision(ctx context.Context, tx pgx.Tx, personID string) (str
 	var snapshot string
 	err := tx.QueryRow(ctx, `SELECT coalesce(jsonb_agg(jsonb_build_object(
   'purchase',r.id,'quote',r.quote_snapshot,'order',o.id,'status',o.status,
-  'grant',e.id,'quantity',e.quantity,'starts',extract(epoch from e.starts_at),'ends',extract(epoch from e.ends_at),'revoked',extract(epoch from e.revoked_at)
+  'grant',e.id,'quantity',e.quantity,'starts',extract(epoch from e.starts_at),'ends',extract(epoch from e.ends_at),'revoked',extract(epoch from e.revoked_at),
+  'refunds',(SELECT coalesce(jsonb_agg(jsonb_build_object('provider',f.provider,'reference',f.refund_reference,'amount',f.amount_cents,'access',d.action) ORDER BY f.provider,f.refund_reference),'[]'::jsonb)
+    FROM service_payment_attempts a JOIN service_payment_refunds f ON f.attempt_id=a.id
+    LEFT JOIN service_refund_access_decisions d ON d.provider=f.provider AND d.refund_reference=f.refund_reference
+    WHERE a.purchase_id=r.id)
  ) ORDER BY r.id),'[]'::jsonb)::text
  FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id
  LEFT JOIN service_entitlements e ON e.purchase_id=r.id AND e.person_id=r.person_id
