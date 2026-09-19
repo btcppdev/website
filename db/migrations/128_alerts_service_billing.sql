@@ -874,3 +874,37 @@ END;
 $$;
 CREATE TRIGGER service_lifecycle_protected BEFORE UPDATE OR DELETE ON service_lifecycle_jobs
  FOR EACH ROW EXECUTE FUNCTION protect_service_lifecycle_event();
+
+-- Refund delivery is queued atomically with financial acceptance, independently
+-- of the product's eventual access-adjustment policy.
+CREATE TABLE service_refund_jobs (
+ provider text NOT NULL,
+ refund_reference text NOT NULL,
+ attempt_id uuid NOT NULL REFERENCES service_payment_attempts(id),
+ revision bigint NOT NULL CHECK(revision>0),
+ state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','accepted','review')),
+ attempts bigint NOT NULL DEFAULT 0 CHECK(attempts>=0),
+ payload jsonb CHECK(payload IS NULL OR jsonb_typeof(payload)='object'),
+ next_attempt_at timestamptz NOT NULL DEFAULT now(),
+ lease_until timestamptz NOT NULL DEFAULT now(),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(provider,refund_reference),
+ UNIQUE(attempt_id,revision),
+ FOREIGN KEY(provider,refund_reference) REFERENCES service_payment_refunds(provider,refund_reference)
+);
+CREATE INDEX service_refund_jobs_due ON service_refund_jobs(next_attempt_at,attempt_id,revision) WHERE state='pending';
+CREATE FUNCTION protect_service_refund_job() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='DELETE' OR NEW.provider IS DISTINCT FROM OLD.provider
+ OR NEW.refund_reference IS DISTINCT FROM OLD.refund_reference
+ OR NEW.attempt_id IS DISTINCT FROM OLD.attempt_id OR NEW.revision IS DISTINCT FROM OLD.revision
+ OR NEW.created_at IS DISTINCT FROM OLD.created_at OR NEW.attempts<OLD.attempts
+ OR (OLD.payload IS NOT NULL AND NEW.payload IS DISTINCT FROM OLD.payload)
+ OR (OLD.state='accepted' AND NEW.state<>'accepted') THEN
+  RAISE EXCEPTION 'Refund delivery evidence cannot be rewritten' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+CREATE TRIGGER service_refund_job_protected BEFORE UPDATE OR DELETE ON service_refund_jobs
+ FOR EACH ROW EXECUTE FUNCTION protect_service_refund_job();

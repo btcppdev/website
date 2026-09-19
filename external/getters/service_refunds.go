@@ -72,6 +72,10 @@ func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund Ver
 		return err
 	}
 	status = "partially_refunded"
+	if _, err = tx.Exec(ctx, `INSERT INTO service_refund_jobs(provider,refund_reference,attempt_id,revision)
+ SELECT $1,$2,$3,count(*) FROM service_payment_refunds WHERE attempt_id=$3`, refund.Provider, refund.RefundReference, refund.AttemptID); err != nil {
+		return err
+	}
 	if refunded+refund.AmountCents == total {
 		status = "refunded"
 	}

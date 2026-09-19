@@ -514,6 +514,12 @@ API and cancellation confirmation delivery remain to be connected.
 
 ## Shared refund ledger foundation
 
+Normal cancellation stops renewal at period end without refunding the current
+period. There is no customer refund flow. Refund infrastructure is for exceptional
+admin actions, provider reversals and the agreed permanent-closure policy. Partial
+refunds must carry an explicit admin access decision; do not infer one from the
+amount. Access adjustment commands and their authorization remain to implement.
+
 `RecordServiceRefund` accepts trusted, provider-verified refund facts for an
 already-settled service payment. It locks the original payment/order, records an
 immutable refund keyed by provider/refund reference, caps cumulative refunds at
@@ -550,6 +556,12 @@ The ledger's `refunded_at` currently stores provider refund creation time for
 Stripe; `recorded_at` records local acceptance of succeeded status. Neither is
 represented as a provider completion timestamp. No webhook or scheduler invokes
 the coordinator until product refund delivery is ready.
+
+Refund acceptance also atomically inserts `service_refund_jobs`, with a monotonic
+revision per original payment. Insider refund claims wait for original settlement
+acknowledgment and all earlier refunds. Leases, frozen payloads and attempt fencing
+protect retries. No running dispatcher calls the claim function yet; rendering
+the product adjustment and enforcing the admin access decision remain unfinished.
 
 Fresh PostgreSQL tests cover duplicate concurrent refunds, competing refunds that
 would exceed the paid total, mismatched/unsettled payments, immutable evidence and

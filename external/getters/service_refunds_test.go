@@ -4,6 +4,7 @@ import (
 	"btcpp-web/internal/servicestripe"
 	"context"
 	"errors"
+	"github.com/jackc/pgx/v5"
 	"github.com/stripe/stripe-go/v86"
 	"sync"
 	"testing"
@@ -149,5 +150,42 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 		if _, err := app.DB.Exec(ctx, sql, attempt.ID); err == nil {
 			t.Fatal("refund evidence mutation allowed")
 		}
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_refund_jobs WHERE attempt_id=$1`, attempt.ID).Scan(&count); err != nil || count != 2 {
+		t.Fatal("refund delivery not atomically queued", count, err)
+	}
+	now := time.Now().Add(time.Second)
+	if _, err := ClaimInsiderRefundDelivery(ctx, app, attempt.ID, now); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("refund overtook original settlement", err)
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE service_fulfillment_jobs SET state='accepted',payload='{"fixture":"settled"}' WHERE attempt_id=$1`, attempt.ID); err != nil {
+		t.Fatal(err)
+	}
+	job, err := ClaimInsiderRefundDelivery(ctx, app, attempt.ID, now)
+	if err != nil || job.Revision != 1 || job.Refund.AmountCents != 300 {
+		t.Fatal("refund claim", job, err)
+	}
+	if err := FreezeServiceRefundDelivery(ctx, app, job, []byte(`{"event":"frozen"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ClaimInsiderRefundDelivery(ctx, app, attempt.ID, now); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("refund order bypassed lease", err)
+	}
+	reclaimed, err := ClaimInsiderRefundDelivery(ctx, app, attempt.ID, now.Add(2*time.Minute))
+	if err != nil || reclaimed.Revision != 1 || string(reclaimed.Payload) != string(job.Payload) {
+		t.Fatal("refund retry changed payload", reclaimed, err)
+	}
+	if changed, err := FinishServiceRefundDelivery(ctx, app, job, "accepted", now); err != nil || changed {
+		t.Fatal("stale worker accepted refund", changed, err)
+	}
+	if changed, err := FinishServiceRefundDelivery(ctx, app, reclaimed, "accepted", now); err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	next, err := ClaimInsiderRefundDelivery(ctx, app, attempt.ID, now.Add(2*time.Minute))
+	if err != nil || next.Revision != 2 || next.Refund.AmountCents != 200 {
+		t.Fatal("second refund order", next, err)
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE service_refund_jobs SET payload='{}' WHERE attempt_id=$1 AND revision=1`, attempt.ID); err == nil {
+		t.Fatal("frozen refund payload rewritten")
 	}
 }
