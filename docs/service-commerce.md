@@ -624,6 +624,18 @@ No recipient address, payload, or provider credentials are exposed. This command
 does not reconcile provider refunds, make decisions, change access, requeue jobs,
 or send messages; mutating admin controls remain unfinished.
 
+Refund delivery also exports `btcpp_web_service_refund_jobs{state}` for pending,
+accepted and review jobs, plus
+`btcpp_web_service_refund_oldest_pending_timestamp_seconds` (zero when empty).
+These include jobs waiting for decisions or earlier events, so an unclaimable job
+cannot silently disappear from monitoring. Labels contain no payment, account,
+provider-reference or recipient identifiers. Rules in `ops/service-refund-alerts.yml`
+warn after ten minutes of review backlog or five minutes of a queue whose oldest
+pending job exceeds fifteen minutes. They require successful, fresh collection.
+PostgreSQL aggregate checks, collector privacy checks and promtool tests cover
+firing, recovery, empty queues and stale/failed collection. Deploying the rules to
+metrics.btcpp.dev and routing notifications remain operational launch tasks.
+
 ## Durable Insider lifecycle events
 
 Verified Insider subscription observations now enqueue `service_lifecycle_jobs`

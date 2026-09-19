@@ -30,7 +30,9 @@ type businessCollector struct {
 	volunteerApplications    *prometheus.Desc
 	recordingBroadcasts      *prometheus.Desc
 	serviceFulfillmentJobs   *prometheus.Desc
+	serviceRefundJobs        *prometheus.Desc
 	serviceFulfillmentOldest *prometheus.Desc
+	serviceRefundOldest      *prometheus.Desc
 	serviceReceiptJobs       *prometheus.Desc
 	serviceReceiptOldest     *prometheus.Desc
 	collectionSuccess        *prometheus.Desc
@@ -41,7 +43,9 @@ func newBusinessCollector(namespace string, loader BusinessMetricsLoader) *busin
 	return &businessCollector{
 		loader:                   loader,
 		serviceFulfillmentJobs:   prometheus.NewDesc(namespace+"_service_fulfillment_jobs", "Current external service fulfillment jobs by delivery state.", []string{"state"}, nil),
+		serviceRefundJobs:        prometheus.NewDesc(namespace+"_service_refund_jobs", "Current service refund adjustment jobs by delivery state.", []string{"state"}, nil),
 		serviceFulfillmentOldest: prometheus.NewDesc(namespace+"_service_fulfillment_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending external service fulfillment; zero when none are pending.", nil, nil),
+		serviceRefundOldest:      prometheus.NewDesc(namespace+"_service_refund_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending service refund adjustment; zero when none are pending.", nil, nil),
 		serviceReceiptJobs:       prometheus.NewDesc(namespace+"_service_receipt_jobs", "Current service receipt jobs by delivery state.", []string{"state"}, nil),
 		serviceReceiptOldest:     prometheus.NewDesc(namespace+"_service_receipt_oldest_pending_timestamp_seconds", "Creation timestamp of the oldest pending service receipt; zero when none are pending.", nil, nil),
 		tickets:                  prometheus.NewDesc(namespace+"_tickets", "Current ticket registrations by conference and state.", []string{"conference", "state"}, nil),
@@ -61,7 +65,9 @@ func (c *businessCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.volunteerApplications
 	ch <- c.recordingBroadcasts
 	ch <- c.serviceFulfillmentJobs
+	ch <- c.serviceRefundJobs
 	ch <- c.serviceFulfillmentOldest
+	ch <- c.serviceRefundOldest
 	ch <- c.serviceReceiptJobs
 	ch <- c.serviceReceiptOldest
 	ch <- c.collectionSuccess
@@ -79,10 +85,10 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 		if count.Metric == "ticket_checkins" {
 			labels = []string{count.Conference}
 		}
-		if count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" {
+		if count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_refund_jobs" {
 			labels = []string{count.State}
 		}
-		if count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" {
+		if count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" {
 			labels = nil
 		}
 		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, count.Count, labels...)
@@ -99,6 +105,10 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 
 func (c *businessCollector) metricDesc(metric string) *prometheus.Desc {
 	switch metric {
+	case "service_refund_jobs":
+		return c.serviceRefundJobs
+	case "service_refund_oldest_pending_timestamp_seconds":
+		return c.serviceRefundOldest
 	case "service_fulfillment_jobs":
 		return c.serviceFulfillmentJobs
 	case "service_fulfillment_oldest_pending_timestamp_seconds":
