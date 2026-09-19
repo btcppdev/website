@@ -135,6 +135,7 @@ func main() {
 	handlers.StartServiceReceipts(&app)
 	handlers.StartServiceFulfillment(&app)
 	handlers.StartServiceLifecycle(&app)
+	handlers.StartAccountDeletionDelivery(&app)
 	handlers.StartWeeklyNewsletterDrafting(&app)
 	handlers.StartConferenceEmailAutomation(&app)
 

@@ -921,3 +921,25 @@ CREATE TABLE service_refund_access_decisions (
 );
 CREATE TRIGGER service_refund_access_decision_immutable BEFORE UPDATE OR DELETE ON service_refund_access_decisions
  FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+
+-- No person FK: delivery must survive removal of the source account. Identity is
+-- the removed UUID, never its replacement historical attribution identity.
+CREATE TABLE account_deletion_deliveries (
+ person_id uuid PRIMARY KEY,
+ state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','accepted')),
+ attempts bigint NOT NULL DEFAULT 0 CHECK(attempts>=0),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ next_attempt_at timestamptz NOT NULL DEFAULT now(),
+ lease_until timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX account_deletion_deliveries_due ON account_deletion_deliveries(next_attempt_at) WHERE state='pending';
+CREATE FUNCTION protect_account_deletion_delivery() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='DELETE' OR NEW.person_id IS DISTINCT FROM OLD.person_id OR NEW.created_at IS DISTINCT FROM OLD.created_at
+ OR (OLD.state='accepted' AND NEW.state<>'accepted') THEN
+  RAISE EXCEPTION 'account deletion delivery identity is immutable';
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER account_deletion_delivery_protected BEFORE UPDATE OR DELETE ON account_deletion_deliveries
+ FOR EACH ROW EXECUTE FUNCTION protect_account_deletion_delivery();

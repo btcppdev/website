@@ -204,6 +204,9 @@ func DeletePerson(app *config.AppContext, personID, actorID string) error {
 			return fmt.Errorf("remove account data: %w", err)
 		}
 	}
+	if _, err = tx.Exec(ctx, `INSERT INTO account_deletion_deliveries(person_id) VALUES($1::uuid)`, personID); err != nil {
+		return fmt.Errorf("queue account deletion delivery: %w", err)
+	}
 	if _, err = tx.Exec(ctx, `DELETE FROM people WHERE id=$1::uuid`, personID); err != nil {
 		return fmt.Errorf("delete account: %w", err)
 	}

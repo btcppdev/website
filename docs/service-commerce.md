@@ -512,6 +512,31 @@ getter/handler suites pass; tests cover duplicate tabs, stale consent, lost prov
 response recovery and Alerts/Insider isolation. The authenticated Insider management
 API and cancellation confirmation delivery remain to be connected.
 
+## Account deletion delivery to Alerts
+
+`DeletePerson` now inserts a durable `account_deletion_deliveries` row in the same
+transaction as account removal. A failed deletion leaves no outgoing event. The
+row retains only the removed UUID and delivery state/timing, without a person FK
+or email address. It does not use the replacement historical attribution UUID.
+
+Configure `ALERTS_ACCOUNT_EVENTS_ENDPOINT` with Alerts'
+`https://alerts.btcpp.dev/api/internal/accounts/deleted` and
+`ALERTS_ACCOUNT_EVENTS_TOKEN` with the dedicated 32+ character secret matching
+Alerts' `BTCPP_ACCOUNT_EVENTS_TOKEN`. The worker starts when these are configured;
+it is independent of billing fulfillment flags. Unconfigured delivery stays queued.
+HTTPS is required except on loopback, redirects are refused, and no browser cookie
+or OAuth access token is used. It posts schema version 1, person_id and deterministic
+event_id `account-deleted:<UUID>`, also sent as the Idempotency-Key.
+
+Only HTTP 204 acknowledges committed erasure. Network failures and other statuses
+retry with exponential backoff from one minute to one hour. One-minute leases and
+attempt fencing recover after crashes without stale acknowledgments. PostgreSQL
+tests cover atomic rollback, identity survival, lease recovery and retry fencing;
+transport tests cover stable events, authentication headers, 202 rejection and
+redirect refusal. A connected process rehearsal and production secrets/deployment
+remain required. This does not cancel provider subscriptions, propagate deletions
+to Insider, or redact messages already accepted by the remote mailer.
+
 ## Shared refund ledger foundation
 
 Normal cancellation stops renewal at period end without refunding the current

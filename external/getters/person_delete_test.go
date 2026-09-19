@@ -3,7 +3,9 @@ package getters
 import (
 	"btcpp-web/internal/types"
 	"context"
+	"errors"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"regexp"
 	"strings"
 	"testing"
@@ -124,6 +126,37 @@ func TestDatabaseSmokeDeletePersonPreservesHistory(t *testing.T) {
 	}
 	if err := DeletePerson(app, source, actor); err != nil {
 		t.Fatal(err)
+	}
+	now := time.Now().Add(time.Second)
+	job, err := ClaimAccountDeletionDelivery(ctx, app, source, now)
+	if err != nil || job.PersonID != source || job.Attempt != 1 {
+		t.Fatal("deletion event did not survive account removal", job, err)
+	}
+	if _, err := ClaimAccountDeletionDelivery(ctx, app, source, now); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("active deletion lease reused", err)
+	}
+	reclaimed, err := ClaimAccountDeletionDelivery(ctx, app, source, now.Add(2*time.Minute))
+	if err != nil || reclaimed.Attempt != 2 {
+		t.Fatal("deletion not recovered after worker loss", reclaimed, err)
+	}
+	if changed, err := FinishAccountDeletionDelivery(ctx, app, job, true, now); err != nil || changed {
+		t.Fatal("stale deletion worker acknowledged", changed, err)
+	}
+	if changed, err := FinishAccountDeletionDelivery(ctx, app, reclaimed, false, now.Add(2*time.Minute)); err != nil || !changed {
+		t.Fatal("deletion retry failed", changed, err)
+	}
+	if _, err := ClaimAccountDeletionDelivery(ctx, app, source, now.Add(3*time.Minute)); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("deletion backoff bypassed", err)
+	}
+	final, err := ClaimAccountDeletionDelivery(ctx, app, source, now.Add(5*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := FinishAccountDeletionDelivery(ctx, app, final, true, now.Add(5*time.Minute)); err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	if _, err := ClaimAccountDeletionDelivery(ctx, app, source, now.Add(time.Hour)); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("acknowledged deletion redelivered", err)
 	}
 	replacement := scalar(`SELECT speaker_id::text FROM speaker_confs WHERE id=$1`, speaker)
 	t.Cleanup(func() {
@@ -258,6 +291,10 @@ func TestDatabaseSmokeDeletePersonGuardsAndRollback(t *testing.T) {
 	app.DB.QueryRow(ctx, `SELECT count(*) FROM people WHERE is_deleted_account`).Scan(&after)
 	if before != after {
 		t.Fatal("replacement committed after failure")
+	}
+	var deliveries int
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM account_deletion_deliveries WHERE person_id=$1`, source).Scan(&deliveries); err != nil || deliveries != 0 {
+		t.Fatal("deletion delivery committed after account rollback", deliveries, err)
 	}
 	var exists bool
 	app.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM people WHERE id=$1)`, source).Scan(&exists)
