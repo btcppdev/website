@@ -539,3 +539,12 @@ not create subscriptions, alter email consent, issue refunds or grant content.
 Tests cover boundary rejection, actual PostgreSQL status/cancellation, cross-account
 requests, and pending-to-confirmed replay after a lost provider response. Reader UI
 wiring and cancellation confirmation delivery remain outstanding.
+
+Status requests may alternatively send only `person_id`. Shared commerce resolves
+the account's open, bound Insider subscription and returns its checkout/product
+identifiers with the verified state. Partial identity pairs are rejected; explicit
+checkout requests still require the matching product. Cancellation always requires
+the explicit identity and reviewed revision/period returned by status. This lets
+Insider keep its existing order references without duplicating the recurring
+subscription mapping. Account discovery never returns Alerts subscriptions or
+another reader's agreement; absence returns 404.

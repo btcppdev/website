@@ -145,6 +145,16 @@ func TestServiceStripeEventPostgres(t *testing.T) {
 	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &summary) != nil || summary.State.State != "paused" || summary.State.LatestInvoice != "" {
 		t.Fatal("management status", response.Code, response.Body.String())
 	}
+
+	management.CheckoutID = ""
+	management.ProductCode = ""
+	discovered := sendManagement(false)
+	var current getters.ServiceSubscriptionStatus
+	if discovered.Code != 200 || json.Unmarshal(discovered.Body.Bytes(), &current) != nil || current.CheckoutID != id || current.ProductCode != terms.ProductCode {
+		t.Fatal("account subscription discovery", discovered.Code, discovered.Body.String())
+	}
+	management.CheckoutID = id
+	management.ProductCode = terms.ProductCode
 	management.RequestID = id
 	management.Revision = summary.Revision
 	management.PeriodEnd = summary.State.PeriodEnd
@@ -166,6 +176,12 @@ func TestServiceStripeEventPostgres(t *testing.T) {
 	response = sendManagement(true)
 	if response.Code != 404 || mutations != 1 {
 		t.Fatal("foreign account cancellation", response.Code, mutations)
+	}
+
+	management = insiderSubscriptionRequest{PersonID: "00000000-0000-0000-0000-000000000001"}
+	response = sendManagement(false)
+	if response.Code != 404 {
+		t.Fatal("discovery exposed another account", response.Code, response.Body.String())
 	}
 
 	var count int

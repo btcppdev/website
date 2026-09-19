@@ -35,3 +35,10 @@ func ServiceStripeSubscriptionStatus(ctx context.Context, app *config.AppContext
 	out.State.LatestInvoice = ""
 	return out, nil
 }
+
+// CurrentInsiderStripeCheckout resolves the reader's active recurring agreement
+// without requiring Insider to maintain its own provider-object mapping.
+func CurrentInsiderStripeCheckout(ctx context.Context, app *config.AppContext, person string) (id, product string, err error) {
+	err = app.DB.QueryRow(ctx, `SELECT c.id::text,c.product_code FROM service_stripe_checkouts c JOIN service_stripe_subscriptions s ON s.checkout_id=c.id WHERE c.person_id=$1 AND c.product_family='insider' AND c.closed_at IS NULL`, person).Scan(&id, &product)
+	return
+}

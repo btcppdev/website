@@ -53,12 +53,19 @@ func serveInsiderSubscription(w http.ResponseWriter, r *http.Request, app *confi
 		writeInsiderCampaignError(w, 400, "The subscription request is invalid.")
 		return
 	}
-	plan, err := servicebilling.LookupProductPlan(request.ProductCode)
 	_, personErr := uuid.Parse(request.PersonID)
-	_, checkoutErr := uuid.Parse(request.CheckoutID)
-	if err != nil || plan.Family != "insider" || personErr != nil || checkoutErr != nil {
+	discover := !cancel && request.CheckoutID == "" && request.ProductCode == ""
+	if personErr != nil {
 		writeInsiderCampaignError(w, 422, "The subscription request could not be verified.")
 		return
+	}
+	if !discover {
+		plan, err := servicebilling.LookupProductPlan(request.ProductCode)
+		_, checkoutErr := uuid.Parse(request.CheckoutID)
+		if err != nil || plan.Family != "insider" || checkoutErr != nil {
+			writeInsiderCampaignError(w, 422, "The subscription request could not be verified.")
+			return
+		}
 	}
 	if cancel {
 		_, err := uuid.Parse(request.RequestID)
@@ -69,6 +76,14 @@ func serveInsiderSubscription(w http.ResponseWriter, r *http.Request, app *confi
 	} else if request.RequestID != "" || request.Revision != 0 || request.PeriodEnd != 0 {
 		writeInsiderCampaignError(w, 400, "Status requests must not include cancellation instructions.")
 		return
+	}
+	if discover {
+		var err error
+		request.CheckoutID, request.ProductCode, err = getters.CurrentInsiderStripeCheckout(r.Context(), app, request.PersonID)
+		if err != nil {
+			writeInsiderSubscriptionError(w, err)
+			return
+		}
 	}
 	var client servicestripe.SubscriptionClient
 	if injected != nil {
