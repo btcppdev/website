@@ -519,7 +519,7 @@ period. There is no customer refund flow. Refund infrastructure is for exception
 admin actions, provider reversals and the agreed permanent-closure policy. Partial
 refunds must carry an explicit admin access decision; do not infer one from the
 amount. Admin commands/UI remain to implement. Alerts allowance lookup and
-standalone Insider membership delivery now apply those decisions.
+standalone Insider membership/article delivery now apply those decisions.
 
 `RecordServiceRefund` accepts trusted, provider-verified refund facts for an
 already-settled service payment. It locks the original payment/order, records an
@@ -562,19 +562,22 @@ Refund acceptance also atomically inserts `service_refund_jobs`, with a monotoni
 revision per original payment. Insider refund claims wait for original settlement
 acknowledgment and all earlier refunds. Leases, frozen payloads and attempt fencing
 protect retries. The shared fulfillment worker now delivers standalone Insider
-membership adjustments through the configured fulfillment endpoint. It copies the
+membership and article adjustments through the configured fulfillment endpoint. It copies the
 acknowledged original event's financial and merchant facts, adds the refund
 reference/amount and explicit access decision, and freezes the payload before
 network delivery. It never re-renders receipt facts from current configuration.
 Only HTTP 200/204 acknowledge either the original settlement or its adjustment;
 202 and outages retry with backoff, holding later refund revisions. Missing
-accounts and unsupported article/campaign adjustments go to review.
+accounts and unsupported campaign adjustments go to review. Article adjustments
+preserve the original resource ID, gross amount and tax alongside the separate
+refund amount.
 
-Deploy Insider migration `003_membership_refund_access.sql` and its explicit
-`access_action` receiver before enabling delivery. A refund arriving before its
+Deploy Insider migrations `003_membership_refund_access.sql` and
+`004_article_refund_access.sql` with their explicit `access_action` receiver before
+enabling delivery. A refund arriving before its
 original settlement acknowledgment still requires review: the existing paid-order
-fulfillment guard rejects refund states. Resolving that ordering case, article/
-campaign decisions, and Alerts adjustment receipts remain launch requirements.
+fulfillment guard rejects refund states. Resolving that ordering case, campaign
+decisions, and Alerts adjustment receipts remain launch requirements.
 No public route or provider webhook currently creates these refund jobs.
 
 `RecordServiceRefundAccessDecision` now requires a current global-admin role,
@@ -585,7 +588,7 @@ conflicting changes are rejected. Insider claims remain blocked until a decision
 exists, even after settlement acknowledgment. This is not a customer refund path
 and does not initiate a provider refund or cancel a subscription. The decision
 record now affects Alerts' existing entitlement lookup and standalone Insider
-membership delivery. Alerts preserves the original allowance and dates only when every
+membership/article delivery. Alerts preserves the original allowance and dates only when every
 recorded refund has an explicit retain decision and the refund totals match the
 order's partial/full refund state. Missing decisions, any revoke decision, or a
 separate grant revocation withhold the allowance. Retention never extends expiry

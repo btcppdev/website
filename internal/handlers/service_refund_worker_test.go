@@ -100,7 +100,7 @@ func TestBuildInsiderRefundRejectsMismatchedEvidence(t *testing.T) {
 		{"amount", func(e *insiderSettlementEvent, j *getters.ServiceRefundJob) { j.Refund.AmountCents = 2276 }},
 		{"decision", func(e *insiderSettlementEvent, j *getters.ServiceRefundJob) { j.AccessAction = "" }},
 		{"campaign", func(e *insiderSettlementEvent, j *getters.ServiceRefundJob) { e.ContributionPublicationID = "article" }},
-		{"article", func(e *insiderSettlementEvent, j *getters.ServiceRefundJob) { e.ProductCode = "insider.article" }},
+		{"article without resource", func(e *insiderSettlementEvent, j *getters.ServiceRefundJob) { e.ProductCode = "insider.article" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, j := original, job
@@ -110,5 +110,15 @@ func TestBuildInsiderRefundRejectsMismatchedEvidence(t *testing.T) {
 				t.Fatal("invalid refund accepted")
 			}
 		})
+	}
+}
+
+func TestBuildInsiderArticleRefundPreservesReceipt(t *testing.T) {
+	original := insiderSettlementEvent{EventKind: "settled", EventID: "stripe:article-paid", ProductCode: "insider.article", ResourceID: "article-one", PersonID: "reader", Provider: "stripe", ProviderReference: "cs_article", AmountCents: 227, TaxCents: 17, Currency: "USD", MerchantName: "Original merchant", SourceReference: "service-purchase:article"}
+	raw, _ := json.Marshal(original)
+	job := getters.ServiceRefundJob{AccessAction: "retain", Refund: getters.VerifiedServiceRefund{Provider: "stripe", PaymentReference: "cs_article", RefundReference: "re_article", AmountCents: 100, Currency: "USD", RefundedAt: time.Now()}}
+	event, err := buildInsiderRefund(raw, "reader", &job)
+	if err != nil || event.ResourceID != original.ResourceID || event.AmountCents != 227 || event.TaxCents != 17 || event.AdjustmentAmountCents != 100 || event.AccessAction != "retain" || event.ReversesEventID != original.EventID || event.MerchantName != original.MerchantName {
+		t.Fatal("article adjustment changed original receipt", event, err)
 	}
 }
