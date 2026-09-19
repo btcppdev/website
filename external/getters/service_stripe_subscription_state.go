@@ -5,7 +5,9 @@ import (
 	"btcpp-web/internal/servicestripe"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/jackc/pgx/v5"
+	"time"
 )
 
 // RefreshServiceStripeSubscription serializes the authenticated lookup with
@@ -50,7 +52,38 @@ func saveServiceStripeSubscriptionState(ctx context.Context, tx pgx.Tx, id strin
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO service_stripe_subscription_state(checkout_id,revision,snapshot) VALUES($1,1,$2)
- ON CONFLICT(checkout_id) DO UPDATE SET revision=service_stripe_subscription_state.revision+CASE WHEN service_stripe_subscription_state.snapshot<>excluded.snapshot THEN 1 ELSE 0 END,snapshot=excluded.snapshot,observed_at=now()`, id, raw)
+
+	var revision int64
+	var observed time.Time
+	err = tx.QueryRow(ctx, `INSERT INTO service_stripe_subscription_state(checkout_id,revision,snapshot) VALUES($1,1,$2)
+ ON CONFLICT(checkout_id) DO UPDATE SET revision=service_stripe_subscription_state.revision+CASE WHEN service_stripe_subscription_state.snapshot<>excluded.snapshot THEN 1 ELSE 0 END,snapshot=excluded.snapshot,observed_at=now() RETURNING revision,observed_at`, id, raw).Scan(&revision, &observed)
+	if err != nil {
+		return err
+	}
+	var person, email, product string
+	if err = tx.QueryRow(ctx, `SELECT person_id::text,intent->>'Email',product_code FROM service_stripe_checkouts WHERE id=$1 AND product_family='insider' AND person_id IS NOT NULL`, id).Scan(&person, &email, &product); err != nil {
+		return err
+	}
+	event := ServiceLifecycleEvent{SchemaVersion: 1, EventID: fmt.Sprintf("subscription:%s:%d", id, revision), EventKind: "subscription_state", CheckoutID: id, Revision: revision, PersonID: person, BuyerEmail: email, ProductCode: product, ObservedAt: observed.UTC(), Subscription: state}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO service_lifecycle_jobs(checkout_id,revision,event) VALUES($1,$2,$3) ON CONFLICT(checkout_id,revision) DO NOTHING`, id, revision, payload)
 	return err
+}
+
+// ServiceLifecycleEvent reports verified billing state, never an access grant.
+// Consumers fence revisions per checkout and deduplicate confirmations by event ID.
+type ServiceLifecycleEvent struct {
+	SchemaVersion int                             `json:"schema_version"`
+	EventID       string                          `json:"event_id"`
+	EventKind     string                          `json:"event_kind"`
+	CheckoutID    string                          `json:"checkout_id"`
+	Revision      int64                           `json:"revision"`
+	PersonID      string                          `json:"person_id"`
+	BuyerEmail    string                          `json:"buyer_email"`
+	ProductCode   string                          `json:"product_code"`
+	ObservedAt    time.Time                       `json:"observed_at"`
+	Subscription  servicestripe.SubscriptionState `json:"subscription"`
 }

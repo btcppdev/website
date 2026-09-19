@@ -3,6 +3,7 @@ package getters
 import (
 	"btcpp-web/internal/servicestripe"
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -202,6 +203,17 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 		t.Fatal("unchanged state revision", revision, state, err)
 	}
 	sub.CancelAtPeriodEnd = true
+	var originalEvent []byte
+	if err := app.DB.QueryRow(ctx, `SELECT event FROM service_lifecycle_jobs WHERE checkout_id=$1 AND revision=1`, first.Intent.ID).Scan(&originalEvent); err != nil {
+		t.Fatal("missing lifecycle event", err)
+	}
+	var event ServiceLifecycleEvent
+	if err := json.Unmarshal(originalEvent, &event); err != nil || event.PersonID != person || event.BuyerEmail != email || event.ProductCode != terms.ProductCode || event.Revision != 1 || event.Subscription.State != "active" {
+		t.Fatal("incorrect lifecycle identity or state", event, err)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_lifecycle_jobs WHERE checkout_id=$1`, first.Intent.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatal("unchanged observations duplicated lifecycle events", count, err)
+	}
 	if err := RefreshServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, subscriptions); err != nil {
 		t.Fatal(err)
 	}
@@ -245,6 +257,26 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 	}
 	if updates != 1 {
 		t.Fatal("cancellation repeated provider mutation", updates)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_lifecycle_jobs WHERE checkout_id=$1`, first.Intent.ID).Scan(&count); err != nil || count != 4 {
+		t.Fatal("verified transitions did not enqueue once each", count, err)
+	}
+	var confirmedEvent []byte
+	if err := app.DB.QueryRow(ctx, `SELECT event FROM service_lifecycle_jobs WHERE checkout_id=$1 AND revision=4`, first.Intent.ID).Scan(&confirmedEvent); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(confirmedEvent, &event); err != nil || event.Subscription.State != "cancelling" || !event.Subscription.CancelAtPeriodEnd || event.Revision != 4 {
+		t.Fatal("recovered cancellation not enqueued", event, err)
+	}
+	var preserved []byte
+	if err := app.DB.QueryRow(ctx, `SELECT event FROM service_lifecycle_jobs WHERE checkout_id=$1 AND revision=1`, first.Intent.ID).Scan(&preserved); err != nil || string(preserved) != string(originalEvent) {
+		t.Fatal("original lifecycle evidence changed", err)
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE service_lifecycle_jobs SET event='{}' WHERE checkout_id=$1 AND revision=1`, first.Intent.ID); err == nil {
+		t.Fatal("lifecycle evidence rewrite allowed")
+	}
+	if _, err := app.DB.Exec(ctx, `DELETE FROM service_lifecycle_jobs WHERE checkout_id=$1 AND revision=1`, first.Intent.ID); err == nil {
+		t.Fatal("lifecycle evidence deletion allowed")
 	}
 	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_cancellations WHERE id=$1`, cancelID).Scan(&count); err != nil || count != 0 {
 		t.Fatal("Insider cancellation visible to Alerts", count, err)

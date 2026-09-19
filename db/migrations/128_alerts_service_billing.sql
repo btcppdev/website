@@ -830,3 +830,30 @@ CREATE VIEW alerts_stripe_subscription_state AS SELECT * FROM service_stripe_sub
 CREATE VIEW alerts_stripe_cancellations AS SELECT * FROM service_stripe_cancellations
  WHERE checkout_id IN (SELECT id FROM service_stripe_checkouts WHERE product_family='alerts')
  WITH CASCADED CHECK OPTION;
+
+-- Product lifecycle events are separate from financial settlement attempts.
+CREATE TABLE service_lifecycle_jobs (
+ checkout_id uuid NOT NULL REFERENCES service_stripe_subscriptions(checkout_id),
+ revision bigint NOT NULL CHECK(revision>0),
+ event jsonb NOT NULL CHECK(jsonb_typeof(event)='object'),
+ state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','accepted','review')),
+ attempts bigint NOT NULL DEFAULT 0 CHECK(attempts>=0),
+ next_attempt_at timestamptz NOT NULL DEFAULT now(),
+ lease_until timestamptz NOT NULL DEFAULT now(),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(checkout_id,revision)
+);
+CREATE INDEX service_lifecycle_due ON service_lifecycle_jobs(next_attempt_at,checkout_id,revision) WHERE state='pending';
+CREATE FUNCTION protect_service_lifecycle_event() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='DELETE' OR NEW.checkout_id IS DISTINCT FROM OLD.checkout_id
+ OR NEW.revision IS DISTINCT FROM OLD.revision OR NEW.event IS DISTINCT FROM OLD.event
+ OR NEW.created_at IS DISTINCT FROM OLD.created_at OR NEW.attempts<OLD.attempts
+ OR (OLD.state='accepted' AND NEW.state<>'accepted') THEN
+  RAISE EXCEPTION 'Service lifecycle evidence cannot be rewritten' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+CREATE TRIGGER service_lifecycle_protected BEFORE UPDATE OR DELETE ON service_lifecycle_jobs
+ FOR EACH ROW EXECUTE FUNCTION protect_service_lifecycle_event();

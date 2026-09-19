@@ -512,6 +512,24 @@ getter/handler suites pass; tests cover duplicate tabs, stale consent, lost prov
 response recovery and Alerts/Insider isolation. The authenticated Insider management
 API and cancellation confirmation delivery remain to be connected.
 
+## Durable Insider lifecycle events
+
+Verified Insider subscription observations now enqueue `service_lifecycle_jobs`
+in the same transaction as the canonical subscription-state update. Each checkout
+revision has one immutable event, with a stable event ID, saved account/product
+identity and the verified subscription state. Repeated observations retain the
+original event; background cancellation recovery uses the same path. These events
+report billing state and do not grant access.
+
+The lifecycle delivery worker and Insider receiver are not yet connected. Queued
+events alone do not send cancellation confirmation emails. Before enabling
+delivery, the receiver must deduplicate event IDs, fence checkout revisions, and
+durably enqueue confirmation mail before acknowledging the event.
+
+Fresh-database regression coverage verifies repeated-observation deduplication,
+recovered cancellation events, preserved event evidence and database rejection of
+event rewriting/deletion.
+
 ## Insider subscription management API
 
 Authenticated Insider servers can POST JSON to:
