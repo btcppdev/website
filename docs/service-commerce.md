@@ -533,8 +533,27 @@ retry with exponential backoff from one minute to one hour. One-minute leases an
 attempt fencing recover after crashes without stale acknowledgments. PostgreSQL
 tests cover atomic rollback, identity survival, lease recovery and retry fencing;
 transport tests cover stable events, authentication headers, 202 rejection and
-redirect refusal. A connected process rehearsal and production secrets/deployment
-remain required. This does not cancel provider subscriptions, propagate deletions
+redirect refusal. The opt-in connected rehearsal also passes: the real Alerts
+executable uses a temporary SQLite database while the central deletion transaction
+and worker use local PostgreSQL. It simulates an outage and a lost acknowledgment
+after receiver commit, restarts Alerts, then verifies identical replay, removed
+account/sessions, persisted deletion marker and durable mail cancellation intent.
+The central worker is invoked directly with advanced retry times; this does not
+test its five-second scheduler or actual remote-mailer cancellation.
+
+After building Alerts' `cmd/alertsd`, run against a migrated dedicated loopback
+database whose name starts with `commerce_account_deletion_`:
+
+```sh
+BTCPP_POSTGRES_SMOKE=1 \
+ALERTS_TEST_BINARY=/absolute/path/to/alertsd \
+DATABASE_URL='postgres://USER@127.0.0.1:PORT/commerce_account_deletion_test?sslmode=disable' \
+go test ./internal/handlers -run TestAccountDeletionConnectedAlertsPostgres -count=1 -v
+```
+
+The rehearsal requires `sqlite3`, supplies synthetic identities, and does not pass
+real credentials to Alerts. Production secrets/deployment remain required.
+This does not cancel provider subscriptions, propagate deletions
 to Insider, or redact messages already accepted by the remote mailer.
 
 ## Shared refund ledger foundation
