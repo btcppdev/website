@@ -568,6 +568,18 @@ handle currently bound subscriptions and in-flight checkouts, and reconcile any
 ambiguous response before marking the job confirmed. Deletion does not yet
 propagate to Insider or redact messages already accepted by the remote mailer.
 
+The shared Stripe client now has the verified cancellation operation for these
+durable deletion jobs. It fetches current subscription identity/terms, recognizes
+already-ended subscriptions, and schedules cancellation at the current period end
+without quantity/proration changes or refunds. Repeated attempts reuse a
+deterministic checkout-and-period key. After a prolonged outage the operation
+verifies the current period rather than replaying an expired browser confirmation;
+after a lost successful response it observes the existing cancellation without a
+second mutation. Tests cover Alerts and both Insider plans, terminal subscriptions,
+wrong customer identity, lost responses and changed periods. The queue coordinator,
+in-flight checkout handling and actual provider rehearsal remain unfinished; this
+primitive is not yet called by a running deletion cancellation worker.
+
 ## Shared refund ledger foundation
 
 Normal cancellation stops renewal at period end without refunding the current

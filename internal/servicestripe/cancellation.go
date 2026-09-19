@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/stripe/stripe-go/v86"
+	"strconv"
 	"time"
 )
 
@@ -14,6 +15,29 @@ type CancellationIntent struct {
 	ID        string
 	PeriodEnd int64
 	CreatedAt time.Time
+}
+
+// ScheduleDeletedAccountCancellation is only for a persisted account-deletion
+// cancellation job. That durable authorization survives the browser consent
+// window: each retry verifies current provider state before any mutation. It
+// never issues a refund or changes a purchased quantity/period.
+func (c SubscriptionClient) ScheduleDeletedAccountCancellation(ctx context.Context, b Binding, now time.Time) (SubscriptionState, error) {
+	checkout, err := uuid.Parse(b.IntentID)
+	if err != nil || checkout == uuid.Nil || now.IsZero() {
+		return SubscriptionState{}, ErrSubscription
+	}
+	state, err := c.CurrentSubscription(ctx, b)
+	if err != nil {
+		return SubscriptionState{}, err
+	}
+	if state.ProviderStatus == "canceled" || state.ProviderStatus == "incomplete_expired" {
+		return state, nil
+	}
+	// A retry after a prolonged outage may observe a newly started period. Use
+	// the verified current period, never a stale saved boundary or a new charge.
+	// The deterministic key is reused within that period, including lost replies.
+	key := uuid.NewSHA1(checkout, []byte("deleted-account-cancel:"+strconv.FormatInt(state.PeriodEnd, 10))).String()
+	return c.ScheduleCancellation(ctx, b, CancellationIntent{ID: key, PeriodEnd: state.PeriodEnd, CreatedAt: now}, now)
 }
 
 // ScheduleCancellation stops future renewals without changing quantities,
