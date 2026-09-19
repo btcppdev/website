@@ -568,10 +568,17 @@ two-minute lease, checks the account is removed, loads the latest quantity bindi
 for Alerts or the canonical Insider binding, and verifies account/checkout/product/
 subscription identity before calling Stripe. Verified scheduled or terminal
 cancellations become confirmed. Transport failures retry with capped backoff;
-invalid bindings and unbound checkouts become review work, never false success.
+invalid bindings and missing checkout references become review work, never false success.
 PostgreSQL tests cover both products, wrong-customer rejection, missing bindings,
 retry backoff and a lost successful provider response without duplicate mutation.
-In-flight checkout recovery and reviewed-job operator controls remain unfinished.
+For an unbound checkout with a saved Stripe session reference, the worker verifies
+the frozen intent against authenticated provider identity. It expires an open
+session with a stable idempotency key, accepts an already-expired session only when
+it has no subscription, or recovers and durably records a completed session's
+verified subscription binding before cancellation. It never creates a replacement
+checkout. Tests cover these three paths for all plans, lost expiration responses,
+identity/mode mismatch and unconfirmed expiration. Missing-reference recovery and
+reviewed-job operator controls remain unfinished.
 Deletion does not yet
 propagate to Insider or redact messages already accepted by the remote mailer.
 
@@ -584,8 +591,8 @@ verifies the current period rather than replaying an expired browser confirmatio
 after a lost successful response it observes the existing cancellation without a
 second mutation. Tests cover Alerts and both Insider plans, terminal subscriptions,
 wrong customer identity, lost responses and changed periods. The queue coordinator
-uses this operation for bound subscriptions. In-flight checkout handling and actual
-provider rehearsal remain unfinished; an enabled worker does not guarantee all
+uses this operation for bound and recovered subscriptions. Missing-reference
+recovery and actual provider rehearsal remain unfinished; an enabled worker does not guarantee all
 deletion cancellations finish without review.
 
 ## Shared refund ledger foundation

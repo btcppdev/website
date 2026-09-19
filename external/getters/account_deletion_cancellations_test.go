@@ -15,7 +15,7 @@ import (
 
 func TestDeletedAccountCancellationPostgres(t *testing.T) {
 	for _, product := range []string{"alerts.repository-slots", "insider.membership.monthly", "insider.membership.annual"} {
-		for _, scenario := range []string{"lost reply", "unbound", "wrong customer"} {
+		for _, scenario := range []string{"lost reply", "unbound", "wrong customer", "open checkout", "expired checkout", "completed checkout"} {
 			t.Run(product+"/"+scenario, func(t *testing.T) {
 				app := databaseSmokeContext(t)
 				ctx := context.Background()
@@ -39,15 +39,24 @@ func TestDeletedAccountCancellationPostgres(t *testing.T) {
 					b.TaxCode = "txcd_10103000"
 					b.Quantity = 2
 				}
-				if _, err := app.DB.Exec(ctx, `INSERT INTO service_stripe_checkouts(id,product_code,person_id,request_key,intent) VALUES($1,$2,$3,$4,'{}')`, id, product, person, "deletion-"+id); err != nil {
+				intent, _ := json.Marshal(servicestripe.CheckoutIntent{ID: id, PersonID: person, Email: "deleted@example.test", ProductCode: product, TaxCode: b.TaxCode, Quantity: b.Quantity, CreatedAt: time.Now(), ReturnOrigin: "https://insider.btcpp.dev", SuccessURL: "https://insider.btcpp.dev/account", CancelURL: "https://insider.btcpp.dev/account"})
+				if product == "alerts.repository-slots" {
+					intent, _ = json.Marshal(alertsstripe.Intent{ID: id, PersonID: person, Email: "deleted@example.test", PaidSlots: 2, CreatedAt: time.Now(), ReturnBaseURL: "https://btcpp.dev"})
+				}
+				if _, err := app.DB.Exec(ctx, `INSERT INTO service_stripe_checkouts(id,product_code,person_id,request_key,intent) VALUES($1,$2,$3,$4,$5)`, id, product, person, "deletion-"+id, intent); err != nil {
 					t.Fatal(err)
 				}
 				raw, _ := json.Marshal(b)
 				if product == "alerts.repository-slots" {
 					raw, _ = json.Marshal(alertsstripe.Binding{IntentID: id, PersonID: person, SubscriptionID: subID, CustomerID: b.CustomerID, PriceID: b.PriceID, ProductID: b.ProductID, PaidSlots: 2})
 				}
-				if scenario != "unbound" {
+				if scenario == "lost reply" || scenario == "wrong customer" {
 					if _, err := app.DB.Exec(ctx, `INSERT INTO service_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3)`, id, subID, raw); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if scenario == "open checkout" || scenario == "expired checkout" || scenario == "completed checkout" {
+					if _, err := app.DB.Exec(ctx, `UPDATE service_stripe_checkouts SET stripe_session_id=$2 WHERE id=$1`, id, "cs_"+id); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -70,14 +79,40 @@ func TestDeletedAccountCancellationPostgres(t *testing.T) {
 					sub.CancelAt = sub.Items.Data[0].CurrentPeriodEnd
 					return nil, errors.New("lost response")
 				}}
-				if n, err := ReconcileDeletedAccountCancellation(ctx, app, id, client, now); n != 1 || err == nil {
+				session := &stripe.CheckoutSession{ID: "cs_" + id, Mode: "subscription", Status: "complete", ClientReferenceID: id, Metadata: sub.Metadata, Customer: sub.Customer, Subscription: sub, LineItems: &stripe.LineItemList{Data: []*stripe.LineItem{{Quantity: b.Quantity, Price: price}}}}
+				if scenario == "open checkout" {
+					session.Status = "open"
+					session.Subscription = nil
+				}
+				if scenario == "expired checkout" {
+					session.Status = "expired"
+					session.Subscription = nil
+				}
+				client.Retrieve = func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }
+				expirations := 0
+				client.Expire = func(reference string, p *stripe.CheckoutSessionExpireParams) (*stripe.CheckoutSession, error) {
+					expirations++
+					if reference != session.ID || p.IdempotencyKey == nil || *p.IdempotencyKey != "deleted-account-expire:"+id {
+						t.Fatal("unsafe expiration")
+					}
+					session.Status = "expired"
+					return session, nil
+				}
+				closed := scenario == "open checkout" || scenario == "expired checkout"
+				if n, err := ReconcileDeletedAccountCancellation(ctx, app, id, client, now); n != 1 || (err == nil) != closed {
 					t.Fatal("first attempt", n, err)
 				}
 				var state string
 				if err := app.DB.QueryRow(ctx, `SELECT state FROM account_deletion_cancellations WHERE checkout_id=$1`, id).Scan(&state); err != nil {
 					t.Fatal(err)
 				}
-				if scenario != "lost reply" {
+				if closed {
+					if state != "confirmed" || updates != 0 || (scenario == "open checkout" && expirations != 1) || (scenario == "expired checkout" && expirations != 0) {
+						t.Fatal("checkout not closed correctly", state, updates, expirations)
+					}
+					return
+				}
+				if scenario != "lost reply" && scenario != "completed checkout" {
 					if state != "review" || updates != 0 {
 						t.Fatal("unsafe checkout mutated", state, updates)
 					}

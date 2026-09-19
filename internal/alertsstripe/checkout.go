@@ -32,6 +32,7 @@ type Intent struct {
 }
 
 type Client struct {
+	Expire             func(string, *stripe.CheckoutSessionExpireParams) (*stripe.CheckoutSession, error)
 	ReleaseSchedule    func(string, *stripe.SubscriptionScheduleReleaseParams) (*stripe.SubscriptionSchedule, error)
 	Schedule           func(string, *stripe.SubscriptionScheduleParams) (*stripe.SubscriptionSchedule, error)
 	UpdateSchedule     func(string, *stripe.SubscriptionScheduleParams) (*stripe.SubscriptionSchedule, error)
@@ -48,7 +49,7 @@ type Client struct {
 }
 
 func NewClient(live bool) Client {
-	return Client{ReleaseSchedule: stripeSchedule.Release, Schedule: stripeSchedule.Get, UpdateSchedule: stripeSchedule.Update, CreateSchedule: stripeSchedule.New, PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+	return Client{Expire: checkout.Expire, ReleaseSchedule: stripeSchedule.Release, Schedule: stripeSchedule.Get, UpdateSchedule: stripeSchedule.Update, CreateSchedule: stripeSchedule.New, PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
 		params.Single = true
 		iter := stripeInvoice.List(params)
 		for iter.Next() {
@@ -62,6 +63,14 @@ func NewClient(live bool) Client {
 
 func serviceCheckoutIntent(in Intent) servicestripe.CheckoutIntent {
 	return servicestripe.CheckoutIntent{ID: in.ID, PersonID: in.PersonID, Email: in.Email, ProductCode: servicebilling.AlertsProduct, TaxCode: servicebilling.AlertsStripeTaxCode, Quantity: in.PaidSlots, CreatedAt: in.CreatedAt, ReturnOrigin: in.ReturnBaseURL, SuccessURL: in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=returned", CancelURL: in.ReturnBaseURL + "/services/alerts/checkout/" + in.ID + "?result=cancelled"}
+}
+
+func (c Client) ResolveDeletedCheckout(ctx context.Context, in Intent, reference string) (*Binding, error) {
+	b, err := (servicestripe.CheckoutClient{Retrieve: c.Retrieve, Expire: c.Expire, Live: c.Live}).ResolveDeletedCheckout(ctx, serviceCheckoutIntent(in), reference)
+	if err != nil || b == nil {
+		return nil, err
+	}
+	return &Binding{IntentID: b.IntentID, PersonID: b.PersonID, SubscriptionID: b.SubscriptionID, CustomerID: b.CustomerID, PriceID: b.PriceID, ProductID: b.ProductID, PaidSlots: b.Quantity, Live: b.Live}, nil
 }
 func checkoutParams(ctx context.Context, in Intent, now time.Time) (*stripe.CheckoutSessionParams, error) {
 	return servicestripe.CheckoutParams(ctx, serviceCheckoutIntent(in), now)
