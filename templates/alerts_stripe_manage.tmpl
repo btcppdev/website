@@ -15,6 +15,7 @@
 <p>Each paid project costs $2/month including applicable tax. Your current allowance stays available until renewal.</p>
 <button type="submit" class="auth-primary">Review lower monthly total</button></form>{{ end }}
 {{ if .CanCancel }}<form method="post" action="/services/alerts/manage" class="alerts-cancel-form">
+<p>Cancellation stops future renewals. Your paid allowance continues through the current period, with no refund for that period.</p>
 <input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="revision" value="{{ .Revision }}"><input type="hidden" name="periodEnd" value="{{ .PeriodEnd }}">
 <button type="submit" class="auth-primary">Cancel future renewals</button></form>{{ end }}
 <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>

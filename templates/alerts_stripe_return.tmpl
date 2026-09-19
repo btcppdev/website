@@ -8,7 +8,7 @@
 <main class="auth-shell auth-shell--simple"><section class="auth-card">
 <header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>{{ .Heading }}</h1><p role="status">{{ .Message }}</p></header>
 <dl><dt>Additional repositories</dt><dd>{{ .Slots }}</dd><dt>Monthly price (USD, including applicable tax)</dt><dd>{{ .Total }}</dd><dt>Checkout reference</dt><dd>{{ .ID }}</dd></dl>
-{{ if .CanPay }}<form method="post" action="/services/alerts/checkout/{{ .ID }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button type="submit" class="auth-primary">Continue with card</button></form><p>Renews monthly. You can cancel future renewals.</p>{{ end }}
+{{ if .CanPay }}<form method="post" action="/services/alerts/checkout/{{ .ID }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button type="submit" class="auth-primary">Continue with card</button></form><p>Renews monthly. Cancel future renewals through billing management; your paid allowance continues until the current period ends. Cancellation does not refund that period.</p>{{ end }}
 <p><a href="/services/alerts/checkout/{{ .ID }}">Refresh payment status</a></p>
 {{ if .CanCheck }}<form method="post" action="/services/alerts/checkout/{{ .ID }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="check"><button type="submit">Check with Stripe</button></form>{{ end }}
 <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>

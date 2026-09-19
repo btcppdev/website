@@ -6,6 +6,7 @@
 <main class="auth-shell auth-shell--simple"><section class="auth-card">
 <header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>Review your monthly plan</h1><p>Your first three repositories are free. Add {{ .Slots }} more for {{ .Total }} per month.</p></header>
 <p>USD, including applicable tax. Renews monthly until canceled. Your selections activate after payment is verified.</p>
+<p>Cancel future renewals through billing management. Your paid allowance continues until the current period ends; cancellation does not refund that period.</p>
 {{ if .Enabled }}<form method="post" action="/services/alerts/subscribe">
 <input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
 <button type="submit" class="auth-primary">Continue with card · {{ .Total }}/month</button></form>
