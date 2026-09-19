@@ -132,7 +132,7 @@ browser and Stripe test-mode end-to-end verification remain open.
 - Exercise the full flow with Stripe test mode before enabling paid checkout.
 
 Migration 112 adds a durable recovery schedule to checkout intents. Set
-`ALERTS_STRIPE_RECONCILIATION_ENABLED=true` on Bitcoin++ to enable background
+`SERVICE_STRIPE_RECONCILIATION_ENABLED=true` on Bitcoin++ to enable background
 recovery with the configured Stripe key. Each minute the worker checks up to 20
 known sessions/subscriptions within a three-minute batch deadline. Each checkout is
 claimed separately using `FOR UPDATE SKIP LOCKED`, advancing its schedule before
@@ -578,7 +578,7 @@ invoice recovery. The shared coordinator refuses unconfirmed/foreign requests
 and preserves separate durable leases for each provider mutation. Local
 PostgreSQL tests cover queue wake-up, lease timing, ownership and scheduled
 pre-renewal no-ops, alongside the existing adapter/recovery tests. The worker
-still requires `ALERTS_STRIPE_RECONCILIATION_ENABLED=true`; customer-facing
+still requires `SERVICE_STRIPE_RECONCILIATION_ENABLED=true`; customer-facing
 decrease controls and complete provider HTTP lifecycle fixtures remain pending.
 
 The saved decrease screen now offers “Keep my current plan” for scheduled changes

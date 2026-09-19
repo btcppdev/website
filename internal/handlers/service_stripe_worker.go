@@ -25,13 +25,39 @@ func StartServiceStripeReconciliation(app *config.AppContext) {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			client := alertsstripe.NewClient(live)
-			count, err := getters.ReconcileDueServiceStripeCheckouts(ctx, app, servicestripe.CheckoutClient{Retrieve: client.Retrieve, Live: live}, servicestripe.InvoiceClient{Invoice: client.Invoice, Price: client.Price, ListInvoices: client.ListInvoices, Live: live})
-			cancel()
-			if err != nil {
-				app.Err.Printf("Service Stripe checkout recovery failed; checked=%d", count)
-			}
+			runServiceStripeRecoveryPass(context.Background(), []serviceStripeRecoveryTask{
+				{"alerts", func(ctx context.Context) (int, error) {
+					return getters.ReconcileDueAlertsStripeCheckouts(ctx, app, client)
+				}},
+				{"insider", func(ctx context.Context) (int, error) {
+					return getters.ReconcileDueServiceStripeCheckouts(ctx, app, servicestripe.CheckoutClient{Retrieve: client.Retrieve, Live: live}, servicestripe.InvoiceClient{Invoice: client.Invoice, Price: client.Price, ListInvoices: client.ListInvoices, Live: live})
+				}},
+			}, func(product string, count int, err error) {
+				if err != nil {
+					app.Err.Printf("Service Stripe recovery failed; product=%s checked=%d", product, count)
+				}
+			})
 		}
 	}()
+}
+
+type serviceStripeRecoveryTask struct {
+	product string
+	recover func(context.Context) (int, error)
+}
+
+// Each product gets its own budget: an outage or backlog in one product must
+// not prevent the other product from reconciling. Database leases prevent
+// duplicate work across instances; one startup loop owns both dispatches.
+func runServiceStripeRecoveryPass(ctx context.Context, tasks []serviceStripeRecoveryTask, report func(string, int, error)) {
+	for _, task := range tasks {
+		if ctx.Err() != nil {
+			return
+		}
+		attempt, cancel := context.WithTimeout(ctx, 90*time.Second)
+		count, err := task.recover(attempt)
+		cancel()
+		report(task.product, count, err)
+	}
 }

@@ -443,15 +443,24 @@ fully verifies unrecorded candidates, and preserves existing financial evidence.
 Tests cover lifecycle distinctions and paginated renewal recovery with duplicate
 replay. Scheduling and persisted Insider lifecycle state still need integration.
 
-`SERVICE_STRIPE_RECONCILIATION_ENABLED=true` starts scheduled Insider Stripe
-payment recovery in the web process (default false). It requires a configured
-Stripe test/live key, checks due work every minute, and handles at most 20 saved
-checkouts per pass under a three-minute overall deadline. Each provider attempt
-has a one-minute deadline and a durable schedule lease acquired before I/O.
-Unpaid recent sessions retry after 15 minutes; sessions with recorded payments
-are checked hourly; older unconfirmed sessions daily. Closed/deleted accounts,
-missing provider references and Alerts checkouts are excluded. Recovery never
-creates charges. PostgreSQL tests exercise simultaneous workers, durable leases,
-provider failures, delayed retries and product/account exclusions. The web binary
-builds with startup wiring. Insider lifecycle persistence/management and public
-recurring checkout activation remain outstanding.
+`SERVICE_STRIPE_RECONCILIATION_ENABLED=true` starts one shared recovery loop for
+Alerts and Insider in the web process (default false). It requires a configured
+Stripe test/live key and checks due work every minute. Each product receives an
+independent 90-second pass budget and handles at most 20 saved checkouts; provider
+attempts have a one-minute deadline and acquire a durable schedule lease before
+I/O. A failure in one product does not prevent the other product's pass.
+
+Alerts keeps its proration, scheduled decrease and cancellation recovery. Insider
+uses saved checkout and paid-invoice recovery: recent unpaid sessions retry after
+15 minutes, sessions with recorded payments hourly, older unconfirmed sessions
+daily. Each product queue excludes closed/deleted accounts and missing provider
+references. The queues deliberately select separate product families, while the
+single startup worker dispatches both. Recovery never creates new checkout
+charges. The former `ALERTS_STRIPE_RECONCILIATION_ENABLED` setting is superseded;
+use the shared flag for both products.
+
+PostgreSQL tests exercise simultaneous workers, durable leases, provider failures,
+delayed retries and product/account exclusions. Dispatch tests verify independent
+budgets and that one product's failure does not suppress the other. Insider
+lifecycle persistence/management and public recurring checkout activation remain
+outstanding.
