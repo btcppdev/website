@@ -330,3 +330,28 @@ Stripe tests and targeted PostgreSQL lifecycle/settlement suites pass. This extr
 provider verification only: shared subscription storage, Insider subscription
 checkout, invoice-to-order fulfillment and recurring cancellation/renewal wiring
 remain required before Insider recurring billing is enabled.
+
+## Shared subscription storage
+
+The consolidated schema now stores checkout intents, subscription bindings and
+invoice/order mappings in `service_stripe_checkouts`, `service_stripe_subscriptions`
+and `service_stripe_invoices`. Checkout rows have an immutable product code and a
+computed product family. Open checkout and request-key uniqueness are scoped to
+account plus family, permitting concurrent Alerts and Insider purchases while
+keeping monthly/annual Insider membership in one family. Provider session,
+subscription and invoice identifiers remain globally unique.
+
+The old `alerts_stripe_*` names for these three relations are filtered updatable
+views over the shared tables, with check options; they are compatibility adapters,
+not duplicate ledgers. Alerts workers and ownership checks still use those views.
+The subscription insert that requires ON CONFLICT uses the canonical table after
+loading the account-bound Alerts-only checkout. New shared/Insider coordinators
+must bind and validate their expected product rather than use an Alerts view.
+Account-merge manifests refer to the canonical checkout table and retain immutable
+purchase/binding protections.
+
+Fresh-schema migration and complete PostgreSQL getter/handler suites pass. Added
+storage tests cover same-account/same-key coexistence, Insider plan-family
+conflicts, immutable product identity, view visibility/mutation isolation and
+provider subscription uniqueness. Shared storage is ready for the new coordinator;
+Insider recurring checkout/renewal/cancellation remains unwired.

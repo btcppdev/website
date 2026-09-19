@@ -50,7 +50,7 @@ func ResolveAlertsStripeSubscription(ctx context.Context, app *config.AppContext
 	if err != nil {
 		return nil, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3) ON CONFLICT(checkout_id) DO NOTHING`, id, binding.SubscriptionID, raw)
+	_, err = tx.Exec(ctx, `INSERT INTO service_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3) ON CONFLICT(checkout_id) DO NOTHING`, id, binding.SubscriptionID, raw)
 	if err != nil {
 		return nil, err
 	}

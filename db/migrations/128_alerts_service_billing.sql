@@ -242,23 +242,27 @@ FOR EACH ROW EXECUTE FUNCTION protect_service_checkout_quote();
 -- alerts stripe checkouts
 -- Checkout intents are account-owned before contacting Stripe. Session IDs are
 -- bound once; an ambiguous timeout retains the original idempotency key.
-CREATE TABLE alerts_stripe_checkouts (
+CREATE TABLE service_stripe_checkouts (
  id uuid PRIMARY KEY,
+ product_code text NOT NULL DEFAULT 'alerts.repository-slots'
+ CHECK(product_code IN ('alerts.repository-slots','insider.membership.monthly','insider.membership.annual')),
+ product_family text GENERATED ALWAYS AS (CASE WHEN product_code='alerts.repository-slots' THEN 'alerts' ELSE 'insider' END) STORED,
  person_id uuid REFERENCES people(id) ON DELETE SET NULL,
  request_key text NOT NULL CHECK(length(request_key) BETWEEN 16 AND 128),
  intent jsonb NOT NULL CHECK(jsonb_typeof(intent)='object'),
  stripe_session_id text UNIQUE CHECK(stripe_session_id LIKE 'cs_%'),
  created_at timestamptz NOT NULL DEFAULT now(),
  closed_at timestamptz,
- UNIQUE(person_id,request_key)
+ UNIQUE(person_id,product_family,request_key)
 );
-CREATE UNIQUE INDEX alerts_stripe_checkout_open_account ON alerts_stripe_checkouts(person_id) WHERE closed_at IS NULL;
+CREATE UNIQUE INDEX alerts_stripe_checkout_open_account ON service_stripe_checkouts(person_id,product_family) WHERE closed_at IS NULL;
 CREATE FUNCTION protect_alerts_stripe_checkout() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='DELETE' THEN
   RAISE EXCEPTION 'Stripe checkout evidence cannot be deleted' USING ERRCODE='23514';
  END IF;
- IF NEW.id IS DISTINCT FROM OLD.id OR NEW.request_key IS DISTINCT FROM OLD.request_key
+ IF NEW.product_code IS DISTINCT FROM OLD.product_code
+  OR NEW.id IS DISTINCT FROM OLD.id OR NEW.request_key IS DISTINCT FROM OLD.request_key
   OR NEW.intent IS DISTINCT FROM OLD.intent OR NEW.created_at IS DISTINCT FROM OLD.created_at
   OR (NEW.person_id IS DISTINCT FROM OLD.person_id AND NEW.person_id IS NOT NULL)
   OR (OLD.stripe_session_id IS NOT NULL AND NEW.stripe_session_id IS DISTINCT FROM OLD.stripe_session_id)
@@ -269,44 +273,44 @@ BEGIN
  RETURN NEW;
 END;
 $$;
-CREATE TRIGGER alerts_stripe_checkout_protected BEFORE UPDATE OR DELETE ON alerts_stripe_checkouts
+CREATE TRIGGER alerts_stripe_checkout_protected BEFORE UPDATE OR DELETE ON service_stripe_checkouts
 FOR EACH ROW EXECUTE FUNCTION protect_alerts_stripe_checkout();
 
 -- alerts stripe subscriptions
-CREATE TABLE alerts_stripe_subscriptions (
- checkout_id uuid PRIMARY KEY REFERENCES alerts_stripe_checkouts(id),
+CREATE TABLE service_stripe_subscriptions (
+ checkout_id uuid PRIMARY KEY REFERENCES service_stripe_checkouts(id),
  subscription_id text NOT NULL UNIQUE,
  binding jsonb NOT NULL CHECK(jsonb_typeof(binding)='object'),
  created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE TABLE alerts_stripe_invoices (
+CREATE TABLE service_stripe_invoices (
  invoice_id text PRIMARY KEY,
- checkout_id uuid NOT NULL REFERENCES alerts_stripe_subscriptions(checkout_id),
+ checkout_id uuid NOT NULL REFERENCES service_stripe_subscriptions(checkout_id),
  order_id uuid NOT NULL UNIQUE REFERENCES shop_orders(id),
  paid_period jsonb NOT NULL CHECK(jsonb_typeof(paid_period)='object'),
  starts_at timestamptz NOT NULL,
  ends_at timestamptz NOT NULL CHECK(ends_at>starts_at),
  created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX alerts_stripe_invoice_periods ON alerts_stripe_invoices(checkout_id,starts_at,ends_at);
+CREATE INDEX alerts_stripe_invoice_periods ON service_stripe_invoices(checkout_id,starts_at,ends_at);
 CREATE FUNCTION protect_alerts_stripe_evidence() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  RAISE EXCEPTION 'Stripe subscription and invoice evidence is immutable' USING ERRCODE='23514';
 END;
 $$;
-CREATE TRIGGER alerts_stripe_subscription_protected BEFORE UPDATE OR DELETE ON alerts_stripe_subscriptions
+CREATE TRIGGER alerts_stripe_subscription_protected BEFORE UPDATE OR DELETE ON service_stripe_subscriptions
 FOR EACH ROW EXECUTE FUNCTION protect_alerts_stripe_evidence();
-CREATE TRIGGER alerts_stripe_invoice_protected BEFORE UPDATE OR DELETE ON alerts_stripe_invoices
+CREATE TRIGGER alerts_stripe_invoice_protected BEFORE UPDATE OR DELETE ON service_stripe_invoices
 FOR EACH ROW EXECUTE FUNCTION protect_alerts_stripe_evidence();
 
 -- alerts stripe recovery schedule
-ALTER TABLE alerts_stripe_checkouts ADD COLUMN next_reconcile_at timestamptz NOT NULL DEFAULT now();
-CREATE INDEX alerts_stripe_checkout_recovery_due ON alerts_stripe_checkouts(next_reconcile_at,id)
+ALTER TABLE service_stripe_checkouts ADD COLUMN next_reconcile_at timestamptz NOT NULL DEFAULT now();
+CREATE INDEX alerts_stripe_checkout_recovery_due ON service_stripe_checkouts(next_reconcile_at,id)
  WHERE closed_at IS NULL AND person_id IS NOT NULL AND stripe_session_id IS NOT NULL;
 
 -- alerts stripe subscription state
 CREATE TABLE alerts_stripe_subscription_state (
- checkout_id uuid PRIMARY KEY REFERENCES alerts_stripe_subscriptions(checkout_id),
+ checkout_id uuid PRIMARY KEY REFERENCES service_stripe_subscriptions(checkout_id),
  revision bigint NOT NULL CHECK(revision>0),
  snapshot jsonb NOT NULL CHECK(jsonb_typeof(snapshot)='object'),
  observed_at timestamptz NOT NULL DEFAULT now()
@@ -315,7 +319,7 @@ CREATE TABLE alerts_stripe_subscription_state (
 -- alerts stripe renewals
 CREATE TABLE alerts_stripe_renewals (
  invoice_id text PRIMARY KEY CHECK(invoice_id LIKE 'in_%'),
- checkout_id uuid NOT NULL REFERENCES alerts_stripe_subscriptions(checkout_id),
+ checkout_id uuid NOT NULL REFERENCES service_stripe_subscriptions(checkout_id),
  revision bigint NOT NULL DEFAULT 1 CHECK(revision>0),
  state text NOT NULL CHECK(state IN ('failed','recovered','cancelled','paused','expired','refunded','disputed')),
  due_at timestamptz NOT NULL,
@@ -340,7 +344,7 @@ FOR EACH ROW EXECUTE FUNCTION protect_alerts_renewal_identity();
 -- alerts stripe cancellations
 CREATE TABLE alerts_stripe_cancellations (
  id uuid PRIMARY KEY,
- checkout_id uuid NOT NULL REFERENCES alerts_stripe_subscriptions(checkout_id),
+ checkout_id uuid NOT NULL REFERENCES service_stripe_subscriptions(checkout_id),
  period_end bigint NOT NULL CHECK(period_end>0),
  created_at timestamptz NOT NULL DEFAULT now(),
  state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','confirmed','review')),
@@ -363,7 +367,7 @@ FOR EACH ROW EXECUTE FUNCTION protect_alerts_cancellation_identity();
 -- alerts stripe increases
 CREATE TABLE alerts_stripe_increase_quotes (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- checkout_id uuid NOT NULL REFERENCES alerts_stripe_subscriptions(checkout_id),
+ checkout_id uuid NOT NULL REFERENCES service_stripe_subscriptions(checkout_id),
  revision bigint NOT NULL CHECK(revision>0),
  preview jsonb NOT NULL CHECK(jsonb_typeof(preview)='object'),
  created_at timestamptz NOT NULL DEFAULT now(),
@@ -413,12 +417,12 @@ FOR EACH ROW EXECUTE FUNCTION protect_alerts_stripe_evidence();
 -- alerts stripe current bindings
 -- Subscription identity is immutable. Paid quantity changes append evidence;
 -- operational readers use its latest binding while original checkout replay
--- continues comparing against alerts_stripe_subscriptions itself.
+-- continues comparing against service_stripe_subscriptions itself.
 CREATE VIEW alerts_stripe_current_subscriptions AS
 SELECT s.checkout_id,s.subscription_id,s.created_at,
  COALESCE((SELECT p.binding FROM alerts_stripe_increase_payments p
            WHERE p.checkout_id=s.checkout_id ORDER BY p.sequence DESC LIMIT 1),s.binding) AS binding
-FROM alerts_stripe_subscriptions s;
+FROM service_stripe_subscriptions s;
 
 -- alerts stripe increase submissions
 CREATE TABLE alerts_stripe_increase_submissions (
@@ -456,7 +460,7 @@ FOR EACH ROW EXECUTE FUNCTION protect_alerts_stripe_evidence();
 -- alerts stripe decreases
 CREATE TABLE alerts_stripe_decrease_quotes (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
- checkout_id uuid NOT NULL REFERENCES alerts_stripe_subscriptions(checkout_id),
+ checkout_id uuid NOT NULL REFERENCES service_stripe_subscriptions(checkout_id),
  revision bigint NOT NULL CHECK(revision>0),
  preview jsonb NOT NULL CHECK(jsonb_typeof(preview)='object'),
  created_at timestamptz NOT NULL DEFAULT now(),
@@ -552,7 +556,7 @@ FOR EACH ROW EXECUTE FUNCTION protect_alerts_stripe_evidence();
 -- locks serialize writers; old checkout bindings and invoice facts stay intact.
 CREATE TABLE alerts_stripe_quantity_history (
  sequence bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
- checkout_id uuid NOT NULL REFERENCES alerts_stripe_subscriptions(checkout_id),
+ checkout_id uuid NOT NULL REFERENCES service_stripe_subscriptions(checkout_id),
  binding jsonb NOT NULL CHECK(jsonb_typeof(binding)='object'),
  increase_quote_id uuid UNIQUE REFERENCES alerts_stripe_increase_payments(quote_id),
  decrease_quote_id uuid UNIQUE REFERENCES alerts_stripe_decrease_transitions(quote_id),
@@ -580,7 +584,7 @@ FOR EACH ROW EXECUTE FUNCTION append_alerts_stripe_quantity_history();
 CREATE OR REPLACE VIEW alerts_stripe_current_subscriptions AS
 SELECT s.checkout_id,s.subscription_id,s.created_at,
  COALESCE((SELECT h.binding FROM alerts_stripe_quantity_history h WHERE h.checkout_id=s.checkout_id ORDER BY h.sequence DESC LIMIT 1),s.binding) AS binding
-FROM alerts_stripe_subscriptions s;
+FROM service_stripe_subscriptions s;
 
 -- alerts stripe decrease withdrawals
 CREATE TABLE alerts_stripe_decrease_withdrawals (
@@ -806,3 +810,14 @@ CREATE TABLE service_fulfillment_jobs (
  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX service_fulfillment_due ON service_fulfillment_jobs(next_attempt_at,lease_until) WHERE state='pending';
+
+-- Transitional Alerts adapters over shared records, not separate financial ledgers.
+-- Filtering keeps Alerts workers and account checks away from Insider subscriptions.
+CREATE VIEW alerts_stripe_checkouts AS SELECT * FROM service_stripe_checkouts
+ WHERE product_family='alerts' WITH CASCADED CHECK OPTION;
+CREATE VIEW alerts_stripe_subscriptions AS SELECT * FROM service_stripe_subscriptions
+ WHERE checkout_id IN (SELECT id FROM service_stripe_checkouts WHERE product_family='alerts')
+ WITH CASCADED CHECK OPTION;
+CREATE VIEW alerts_stripe_invoices AS SELECT * FROM service_stripe_invoices
+ WHERE checkout_id IN (SELECT id FROM service_stripe_checkouts WHERE product_family='alerts')
+ WITH CASCADED CHECK OPTION;

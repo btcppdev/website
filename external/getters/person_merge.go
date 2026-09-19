@@ -148,7 +148,7 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "person_badge_presentations", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "badge_ref"}, DuplicateKey: []string{"badge_ref"}, Label: "badge display preferences"},
 	{Table: "judge_ballot_submissions", PersonColumn: "judge_person_id", PrimaryKey: []string{"judge_event_id", "judge_person_id"}, DuplicateKey: []string{"judge_event_id"}, Label: "judge ballot submission history"},
 	{Table: "person_pgp_keys", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "fingerprint"}, DuplicateKey: []string{"fingerprint"}, Label: "public PGP keys"},
-	{Table: "alerts_stripe_checkouts", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "Stripe checkout records", Immutable: true},
+	{Table: "service_stripe_checkouts", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "Stripe checkout records", Immutable: true},
 	{Table: "service_checkout_quotes", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "service checkout quotes", Immutable: true},
 	{Table: "service_purchase_requests", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "service purchase records", Immutable: true},
 	{Table: "service_entitlements", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "purchased service access", Immutable: true},
