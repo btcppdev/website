@@ -518,7 +518,8 @@ Normal cancellation stops renewal at period end without refunding the current
 period. There is no customer refund flow. Refund infrastructure is for exceptional
 admin actions, provider reversals and the agreed permanent-closure policy. Partial
 refunds must carry an explicit admin access decision; do not infer one from the
-amount. Access adjustment commands and their authorization remain to implement.
+amount. Admin commands/UI and application of those decisions in each product
+remain to implement.
 
 `RecordServiceRefund` accepts trusted, provider-verified refund facts for an
 already-settled service payment. It locks the original payment/order, records an
@@ -562,6 +563,15 @@ revision per original payment. Insider refund claims wait for original settlemen
 acknowledgment and all earlier refunds. Leases, frozen payloads and attempt fencing
 protect retries. No running dispatcher calls the claim function yet; rendering
 the product adjustment and enforcing the admin access decision remain unfinished.
+
+`RecordServiceRefundAccessDecision` now requires a current global-admin role,
+locks that role during authorization, and stores an immutable `retain` or `revoke`
+decision with actor and reason. The actor must be derived from authenticated
+server identity by the future admin command. Repeated identical decisions succeed;
+conflicting changes are rejected. Insider claims remain blocked until a decision
+exists, even after settlement acknowledgment. This is not a customer refund path
+and does not initiate a provider refund or cancel a subscription. The decision
+record alone does not yet adjust Alerts/Insider entitlements.
 
 Fresh PostgreSQL tests cover duplicate concurrent refunds, competing refunds that
 would exceed the paid total, mismatched/unsettled payments, immutable evidence and

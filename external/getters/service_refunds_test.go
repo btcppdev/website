@@ -161,8 +161,32 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 	if _, err := app.DB.Exec(ctx, `UPDATE service_fulfillment_jobs SET state='accepted',payload='{"fixture":"settled"}' WHERE attempt_id=$1`, attempt.ID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := ClaimInsiderRefundDelivery(ctx, app, attempt.ID, now); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("refund claimed without admin decision", err)
+	}
+	if err := RecordServiceRefundAccessDecision(ctx, app, person, "stripe", refund.RefundReference, "retain", "Manual goodwill exception"); !errors.Is(err, ErrServiceRefundAdmin) {
+		t.Fatal("non-admin refund access decision accepted", err)
+	}
+	if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := RecordServiceRefundAccessDecision(ctx, app, person, "stripe", refund.RefundReference, "retain", "Manual goodwill exception"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := RecordServiceRefundAccessDecision(ctx, app, person, "stripe", refund.RefundReference, "revoke", "Changed decision"); !errors.Is(err, ErrServiceRefund) {
+		t.Fatal("frozen decision overwritten", err)
+	}
+	var secondReference string
+	if err := app.DB.QueryRow(ctx, `SELECT refund_reference FROM service_refund_jobs WHERE attempt_id=$1 AND revision=2`, attempt.ID).Scan(&secondReference); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordServiceRefundAccessDecision(ctx, app, person, "stripe", secondReference, "revoke", "Manual final refund"); err != nil {
+		t.Fatal(err)
+	}
 	job, err := ClaimInsiderRefundDelivery(ctx, app, attempt.ID, now)
-	if err != nil || job.Revision != 1 || job.Refund.AmountCents != 300 {
+	if err != nil || job.Revision != 1 || job.Refund.AmountCents != 300 || job.AccessAction != "retain" {
 		t.Fatal("refund claim", job, err)
 	}
 	if err := FreezeServiceRefundDelivery(ctx, app, job, []byte(`{"event":"frozen"}`)); err != nil {
@@ -182,10 +206,13 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 		t.Fatal(changed, err)
 	}
 	next, err := ClaimInsiderRefundDelivery(ctx, app, attempt.ID, now.Add(2*time.Minute))
-	if err != nil || next.Revision != 2 || next.Refund.AmountCents != 200 {
+	if err != nil || next.Revision != 2 || next.Refund.AmountCents != 200 || next.AccessAction != "revoke" {
 		t.Fatal("second refund order", next, err)
 	}
 	if _, err := app.DB.Exec(ctx, `UPDATE service_refund_jobs SET payload='{}' WHERE attempt_id=$1 AND revision=1`, attempt.ID); err == nil {
 		t.Fatal("frozen refund payload rewritten")
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE service_refund_access_decisions SET action='revoke' WHERE provider='stripe' AND refund_reference=$1`, refund.RefundReference); err == nil {
+		t.Fatal("admin refund decision changed")
 	}
 }

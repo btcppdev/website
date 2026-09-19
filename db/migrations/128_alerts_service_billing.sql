@@ -908,3 +908,16 @@ END;
 $$;
 CREATE TRIGGER service_refund_job_protected BEFORE UPDATE OR DELETE ON service_refund_jobs
  FOR EACH ROW EXECUTE FUNCTION protect_service_refund_job();
+
+CREATE TABLE service_refund_access_decisions (
+ provider text NOT NULL,
+ refund_reference text NOT NULL,
+ action text NOT NULL CHECK(action IN ('retain','revoke')),
+ actor_id uuid NOT NULL,
+ reason text NOT NULL CHECK(length(reason) BETWEEN 1 AND 1000),
+ decided_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(provider,refund_reference),
+ FOREIGN KEY(provider,refund_reference) REFERENCES service_payment_refunds(provider,refund_reference)
+);
+CREATE TRIGGER service_refund_access_decision_immutable BEFORE UPDATE OR DELETE ON service_refund_access_decisions
+ FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();

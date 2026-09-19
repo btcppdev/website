@@ -9,6 +9,7 @@ import (
 )
 
 type ServiceRefundJob struct {
+	AccessAction      string
 	Refund            VerifiedServiceRefund
 	Revision, Attempt int64
 	Payload           json.RawMessage
@@ -21,6 +22,7 @@ func ClaimInsiderRefundDelivery(ctx context.Context, app *config.AppContext, att
 	var job ServiceRefundJob
 	err := app.DB.QueryRow(ctx, `WITH due AS (
  SELECT j.provider,j.refund_reference FROM service_refund_jobs j
+ JOIN service_refund_access_decisions decision ON decision.provider=j.provider AND decision.refund_reference=j.refund_reference
  JOIN service_fulfillment_jobs original ON original.attempt_id=j.attempt_id AND original.state='accepted'
  JOIN service_payment_attempts a ON a.id=j.attempt_id
  JOIN service_purchase_requests r ON r.id=a.purchase_id
@@ -32,8 +34,9 @@ func ClaimInsiderRefundDelivery(ctx context.Context, app *config.AppContext, att
  ), claimed AS (
  UPDATE service_refund_jobs j SET attempts=attempts+1,lease_until=$3 FROM due
  WHERE j.provider=due.provider AND j.refund_reference=due.refund_reference RETURNING j.*
- ) SELECT j.attempt_id::text,j.provider,j.refund_reference,r.payment_reference,r.amount_cents,r.currency,r.refunded_at,r.reason,j.revision,j.attempts,j.payload
- FROM claimed j JOIN service_payment_refunds r USING(provider,refund_reference)`, attemptID, now, now.Add(time.Minute)).Scan(&job.Refund.AttemptID, &job.Refund.Provider, &job.Refund.RefundReference, &job.Refund.PaymentReference, &job.Refund.AmountCents, &job.Refund.Currency, &job.Refund.RefundedAt, &job.Refund.Reason, &job.Revision, &job.Attempt, &job.Payload)
+ ) SELECT j.attempt_id::text,j.provider,j.refund_reference,r.payment_reference,r.amount_cents,r.currency,r.refunded_at,r.reason,j.revision,j.attempts,j.payload,decision.action
+ FROM claimed j JOIN service_payment_refunds r USING(provider,refund_reference)
+ JOIN service_refund_access_decisions decision USING(provider,refund_reference)`, attemptID, now, now.Add(time.Minute)).Scan(&job.Refund.AttemptID, &job.Refund.Provider, &job.Refund.RefundReference, &job.Refund.PaymentReference, &job.Refund.AmountCents, &job.Refund.Currency, &job.Refund.RefundedAt, &job.Refund.Reason, &job.Revision, &job.Attempt, &job.Payload, &job.AccessAction)
 	return &job, err
 }
 
