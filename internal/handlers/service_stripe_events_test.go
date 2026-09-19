@@ -12,6 +12,7 @@ import (
 	"github.com/stripe/stripe-go/v86"
 	"io"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -188,8 +189,50 @@ func TestServiceStripeEventPostgres(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_fulfillment_jobs j JOIN service_payment_attempts a ON a.id=j.attempt_id JOIN service_purchase_requests r ON r.id=a.purchase_id WHERE r.person_id=$1`, person).Scan(&count); err != nil || count != 1 {
 		t.Fatal("fulfillment not deduplicated", count, err)
 	}
+	// Exercise the actual database-backed worker after verified provider events,
+	// including an outage and retry, rather than testing HTTP transport alone.
+	var deliveries [][]byte
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var delivered getters.ServiceLifecycleEvent
+		if json.Unmarshal(body, &delivered) != nil || delivered.CheckoutID != id || delivered.PersonID != person || r.Header.Get("Authorization") != "Bearer lifecycle-secret" || r.Header.Get("Idempotency-Key") != delivered.EventID {
+			t.Error("incorrect lifecycle envelope")
+			w.WriteHeader(400)
+			return
+		}
+		deliveries = append(deliveries, body)
+		if len(deliveries) == 1 {
+			w.WriteHeader(503)
+			return
+		}
+		w.WriteHeader(204)
+	}))
+	defer receiver.Close()
+	app.Env.InsiderLifecycleEndpoint, app.Env.InsiderFulfillmentToken = receiver.URL, "lifecycle-secret"
+	deliveryAt := time.Now().Add(time.Second)
+	if worked, err := processServiceLifecycle(ctx, app, id, deliveryAt); !worked || err == nil {
+		t.Fatal("outage acknowledged lifecycle event", worked, err)
+	}
+	if worked, err := processServiceLifecycle(ctx, app, id, deliveryAt.Add(30*time.Second)); worked || err != nil {
+		t.Fatal("later revision bypassed backoff", worked, err)
+	}
+	if worked, err := processServiceLifecycle(ctx, app, id, deliveryAt.Add(time.Minute)); !worked || err != nil {
+		t.Fatal("lifecycle retry failed", worked, err)
+	}
+	if len(deliveries) != 2 || string(deliveries[0]) != string(deliveries[1]) {
+		t.Fatal("retry changed lifecycle payload")
+	}
+	if err := pool.QueryRow(ctx, `SELECT state FROM service_lifecycle_jobs WHERE checkout_id=$1 AND revision=1`, id).Scan(&state); err != nil || state != "accepted" {
+		t.Fatal("receiver acknowledgment not saved", state, err)
+	}
 	if _, err = pool.Exec(ctx, `DELETE FROM people WHERE id=$1`, person); err != nil {
 		t.Fatal(err)
+	}
+	if worked, err := processServiceLifecycle(ctx, app, id, deliveryAt.Add(2*time.Minute)); !worked || err == nil || len(deliveries) != 2 {
+		t.Fatal("deleted account event sent", worked, len(deliveries), err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT state FROM service_lifecycle_jobs WHERE checkout_id=$1 AND revision=2`, id).Scan(&state); err != nil || state != "review" {
+		t.Fatal("deleted account not held for review", state, err)
 	}
 	if handled, err := processServiceStripeEvent(ctx, app, event, checkout, invoices, servicestripe.SubscriptionClient{}); !handled || err != nil {
 		t.Fatal("deleted account", handled, err)
