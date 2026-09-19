@@ -124,8 +124,21 @@ func TestDatabaseSmokeDeletePersonPreservesHistory(t *testing.T) {
 	if err != nil || preview.Talks != 1 || preview.Projects != 1 {
 		t.Fatalf("preview %+v %v", preview, err)
 	}
+	for _, product := range []string{"alerts.repository-slots", "insider.membership.monthly", "insider.membership.annual"} {
+		exec(`INSERT INTO service_stripe_checkouts(id,product_code,person_id,request_key,intent,closed_at) VALUES($1,$2,$3,$4,'{}',now())`, uuid.NewString(), product, source, "delete-checkout-"+uuid.NewString())
+	}
+	exec(`INSERT INTO service_stripe_checkouts(id,person_id,request_key,intent) VALUES($1,$2,$3,'{}')`, uuid.NewString(), teammate, "other-checkout-"+uuid.NewString())
 	if err := DeletePerson(app, source, actor); err != nil {
 		t.Fatal(err)
+	}
+	if got := scalar(`SELECT count(*)::text FROM account_deletion_cancellations j JOIN service_stripe_checkouts c ON c.id=j.checkout_id WHERE j.person_id=$1 AND j.actor_id=$2 AND j.state='pending' AND c.person_id IS NULL`, source, actor); got != "3" {
+		t.Fatal("recurring cancellation intent lost", got)
+	}
+	if got := scalar(`SELECT count(*)::text FROM account_deletion_cancellations WHERE person_id=$1`, teammate); got != "0" {
+		t.Fatal("other account cancellation queued", got)
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE account_deletion_cancellations SET person_id=$2 WHERE person_id=$1`, source, teammate); err == nil {
+		t.Fatal("cancellation ownership rewritten")
 	}
 	now := time.Now().Add(time.Second)
 	job, err := ClaimAccountDeletionDelivery(ctx, app, source, now)
@@ -283,6 +296,9 @@ func TestDatabaseSmokeDeletePersonGuardsAndRollback(t *testing.T) {
 	}
 	t.Cleanup(func() { app.DB.Exec(ctx, `DROP TABLE deletion_test_blocker`) })
 	app.DB.Exec(ctx, `INSERT INTO deletion_test_blocker VALUES($1)`, source)
+	if _, err := app.DB.Exec(ctx, `INSERT INTO service_stripe_checkouts(id,person_id,request_key,intent) VALUES($1,$2,$3,'{}')`, uuid.NewString(), source, "rollback-checkout-"+uuid.NewString()); err != nil {
+		t.Fatal(err)
+	}
 	var before, after int
 	app.DB.QueryRow(ctx, `SELECT count(*) FROM people WHERE is_deleted_account`).Scan(&before)
 	if err := DeletePerson(app, source, actor); err == nil || !strings.Contains(err.Error(), "deletion_test_blocker") {
@@ -295,6 +311,9 @@ func TestDatabaseSmokeDeletePersonGuardsAndRollback(t *testing.T) {
 	var deliveries int
 	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM account_deletion_deliveries WHERE person_id=$1`, source).Scan(&deliveries); err != nil || deliveries != 0 {
 		t.Fatal("deletion delivery committed after account rollback", deliveries, err)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM account_deletion_cancellations WHERE person_id=$1`, source).Scan(&deliveries); err != nil || deliveries != 0 {
+		t.Fatal("renewal cancellation committed after deletion rollback", deliveries, err)
 	}
 	var exists bool
 	app.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM people WHERE id=$1)`, source).Scan(&exists)

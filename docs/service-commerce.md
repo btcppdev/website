@@ -553,8 +553,20 @@ go test ./internal/handlers -run TestAccountDeletionConnectedAlertsPostgres -cou
 
 The rehearsal requires `sqlite3`, supplies synthetic identities, and does not pass
 real credentials to Alerts. Production secrets/deployment remain required.
-This does not cancel provider subscriptions, propagate deletions
-to Insider, or redact messages already accepted by the remote mailer.
+Deletion also captures every owned recurring checkout in
+`account_deletion_cancellations` before clearing its account relationship. The
+immutable snapshot records the checkout, removed account UUID and deleting admin;
+it includes unbound/in-flight and closed checkouts so reconciliation can determine
+their provider state. The deletion transaction takes the shared account billing
+lock used by checkout/binding/quantity operations. These records survive account
+removal and roll back if deletion fails. Ordinary cancellation policy still means
+stopping renewals at period end without refunds.
+
+Provider execution of these cancellation records remains unfinished: storing the
+intent does not stop Stripe billing. That worker must verify provider identity,
+handle currently bound subscriptions and in-flight checkouts, and reconcile any
+ambiguous response before marking the job confirmed. Deletion does not yet
+propagate to Insider or redact messages already accepted by the remote mailer.
 
 ## Shared refund ledger foundation
 

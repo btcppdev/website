@@ -943,3 +943,28 @@ BEGIN
 END $$;
 CREATE TRIGGER account_deletion_delivery_protected BEFORE UPDATE OR DELETE ON account_deletion_deliveries
  FOR EACH ROW EXECUTE FUNCTION protect_account_deletion_delivery();
+
+-- Capture every recurring checkout before its nullable person link is cleared.
+-- An unbound checkout can still be in flight at Stripe and must be reconciled.
+CREATE TABLE account_deletion_cancellations (
+ checkout_id uuid PRIMARY KEY REFERENCES service_stripe_checkouts(id),
+ person_id uuid NOT NULL,
+ actor_id uuid NOT NULL,
+ requested_at timestamptz NOT NULL DEFAULT now(),
+ state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','confirmed','review')),
+ attempts bigint NOT NULL DEFAULT 0 CHECK(attempts>=0),
+ next_attempt_at timestamptz NOT NULL DEFAULT now(),
+ lease_until timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX account_deletion_cancellations_due ON account_deletion_cancellations(next_attempt_at) WHERE state='pending';
+CREATE FUNCTION protect_account_deletion_cancellation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='DELETE' OR NEW.checkout_id IS DISTINCT FROM OLD.checkout_id OR NEW.person_id IS DISTINCT FROM OLD.person_id
+ OR NEW.actor_id IS DISTINCT FROM OLD.actor_id OR NEW.requested_at IS DISTINCT FROM OLD.requested_at
+ OR (OLD.state='confirmed' AND NEW.state<>'confirmed') THEN
+  RAISE EXCEPTION 'account deletion cancellation identity is immutable';
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER account_deletion_cancellation_protected BEFORE UPDATE OR DELETE ON account_deletion_cancellations
+ FOR EACH ROW EXECUTE FUNCTION protect_account_deletion_cancellation();

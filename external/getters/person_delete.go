@@ -61,6 +61,11 @@ func DeletePerson(app *config.AppContext, personID, actorID string) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	// Use the same lock order as checkout, quantity changes and provider binding.
+	// A committed deletion must capture all preceding recurring checkout intents.
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+personID); err != nil {
+		return err
+	}
 	var deleted bool
 	if err = tx.QueryRow(ctx, `SELECT is_deleted_account FROM people WHERE id=$1::uuid FOR UPDATE`, personID).Scan(&deleted); err != nil {
 		return fmt.Errorf("person no longer exists")
@@ -206,6 +211,10 @@ func DeletePerson(app *config.AppContext, personID, actorID string) error {
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO account_deletion_deliveries(person_id) VALUES($1::uuid)`, personID); err != nil {
 		return fmt.Errorf("queue account deletion delivery: %w", err)
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO account_deletion_cancellations(checkout_id,person_id,actor_id)
+	 SELECT id,person_id,$2::uuid FROM service_stripe_checkouts WHERE person_id=$1::uuid`, personID, actorID); err != nil {
+		return fmt.Errorf("queue deleted account renewal cancellation: %w", err)
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM people WHERE id=$1::uuid`, personID); err != nil {
 		return fmt.Errorf("delete account: %w", err)
