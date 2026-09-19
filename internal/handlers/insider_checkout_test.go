@@ -84,6 +84,20 @@ func TestAllowedInsiderReturnURLUsesExactConfiguredOrigin(t *testing.T) {
 	}
 }
 
+func TestInsiderSettlementRequiresDurableAcknowledgment(t *testing.T) {
+	for _, status := range []int{200, 204, 202, 201, 503} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(status) }))
+			defer receiver.Close()
+			app := &config.AppContext{Env: &types.EnvConfig{InsiderFulfillmentEndpoint: receiver.URL, InsiderFulfillmentToken: "test-token"}}
+			err := postInsiderSettlement(context.Background(), app, insiderSettlementEvent{EventID: "test"})
+			if (err == nil) != (status == 200 || status == 204) {
+				t.Fatalf("status %d: %v", status, err)
+			}
+		})
+	}
+}
+
 func TestSettleInsiderServicePaymentPostgres(t *testing.T) {
 	t.Run("fixed-term", func(t *testing.T) { testSettleInsiderServicePaymentPostgres(t, false) })
 	t.Run("recurring-period", func(t *testing.T) { testSettleInsiderServicePaymentPostgres(t, true) })
@@ -224,4 +238,5 @@ func testSettleInsiderServicePaymentPostgres(t *testing.T, recurring bool) {
 	if status != "paid" || fulfilled != 1 || entitlements != 0 {
 		t.Fatalf("shared fulfillment status=%s fulfilled=%d local_entitlements=%d", status, fulfilled, entitlements)
 	}
+	testInsiderRefundDelivery(t, app, attempt.ID, event)
 }

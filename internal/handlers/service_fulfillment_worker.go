@@ -26,6 +26,12 @@ func StartServiceFulfillment(app *config.AppContext) {
 			if err != nil {
 				app.Err.Printf("service fulfillment requires retry or review")
 			}
+			ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+			_, err = processServiceRefund(ctx, app, "", time.Now())
+			cancel()
+			if err != nil {
+				app.Err.Printf("service refund delivery requires retry or review")
+			}
 		}
 	}()
 }

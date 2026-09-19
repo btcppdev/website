@@ -51,6 +51,11 @@ type insiderFulfillmentSnapshot struct {
 }
 
 type insiderSettlementEvent struct {
+	AccessAction              string          `json:"access_action,omitempty"`
+	ReversesEventID           string          `json:"reverses_event_id,omitempty"`
+	AdjustmentReference       string          `json:"adjustment_reference,omitempty"`
+	AdjustmentAmountCents     int64           `json:"adjustment_amount_cents,omitempty"`
+	AdjustmentReason          string          `json:"adjustment_reason,omitempty"`
 	EventID                   string          `json:"event_id"`
 	EventKind                 string          `json:"event_kind"`
 	ProductCode               string          `json:"product_code"`
@@ -382,7 +387,9 @@ func postInsiderSettlement(ctx context.Context, app *config.AppContext, event in
 		return err
 	}
 	defer response.Body.Close()
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+	// The refund queue may proceed only after durable settlement acceptance.
+	// In particular, 202 means pending work rather than an acknowledgment.
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("Insider fulfillment returned %s", response.Status)
 	}
 	return nil

@@ -518,8 +518,8 @@ Normal cancellation stops renewal at period end without refunding the current
 period. There is no customer refund flow. Refund infrastructure is for exceptional
 admin actions, provider reversals and the agreed permanent-closure policy. Partial
 refunds must carry an explicit admin access decision; do not infer one from the
-amount. Admin commands/UI and application of those decisions in each product
-remain to implement.
+amount. Admin commands/UI remain to implement. Alerts allowance lookup and
+standalone Insider membership delivery now apply those decisions.
 
 `RecordServiceRefund` accepts trusted, provider-verified refund facts for an
 already-settled service payment. It locks the original payment/order, records an
@@ -529,8 +529,8 @@ atomically. Identical retries do not count twice; conflicting facts are rejected
 Original quotes, settlement events and payment amounts remain unchanged.
 
 This function does not initiate provider refunds and is not connected to a public
-route or webhook yet. Provider event routing, ordered product reversal
-delivery and receipt adjustment dispatch remain unfinished. Do not enable refund
+route or webhook yet. Provider event routing and complete product coverage
+remain unfinished. Do not enable refund
 ingestion before those pieces are connected: order refund state alone does not
 update Insider's external access ledger, and Alerts currently withholds refunded
 orders pending product-specific reconciliation. No proportional access policy is
@@ -561,8 +561,21 @@ the coordinator until product refund delivery is ready.
 Refund acceptance also atomically inserts `service_refund_jobs`, with a monotonic
 revision per original payment. Insider refund claims wait for original settlement
 acknowledgment and all earlier refunds. Leases, frozen payloads and attempt fencing
-protect retries. No running dispatcher calls the claim function yet; rendering
-the product adjustment and enforcing the admin access decision remain unfinished.
+protect retries. The shared fulfillment worker now delivers standalone Insider
+membership adjustments through the configured fulfillment endpoint. It copies the
+acknowledged original event's financial and merchant facts, adds the refund
+reference/amount and explicit access decision, and freezes the payload before
+network delivery. It never re-renders receipt facts from current configuration.
+Only HTTP 200/204 acknowledge either the original settlement or its adjustment;
+202 and outages retry with backoff, holding later refund revisions. Missing
+accounts and unsupported article/campaign adjustments go to review.
+
+Deploy Insider migration `003_membership_refund_access.sql` and its explicit
+`access_action` receiver before enabling delivery. A refund arriving before its
+original settlement acknowledgment still requires review: the existing paid-order
+fulfillment guard rejects refund states. Resolving that ordering case, article/
+campaign decisions, and Alerts adjustment receipts remain launch requirements.
+No public route or provider webhook currently creates these refund jobs.
 
 `RecordServiceRefundAccessDecision` now requires a current global-admin role,
 locks that role during authorization, and stores an immutable `retain` or `revoke`
@@ -571,8 +584,8 @@ server identity by the future admin command. Repeated identical decisions succee
 conflicting changes are rejected. Insider claims remain blocked until a decision
 exists, even after settlement acknowledgment. This is not a customer refund path
 and does not initiate a provider refund or cancel a subscription. The decision
-record now affects Alerts' existing entitlement lookup; Insider delivery remains
-unfinished. Alerts preserves the original allowance and dates only when every
+record now affects Alerts' existing entitlement lookup and standalone Insider
+membership delivery. Alerts preserves the original allowance and dates only when every
 recorded refund has an explicit retain decision and the refund totals match the
 order's partial/full refund state. Missing decisions, any revoke decision, or a
 separate grant revocation withhold the allowance. Retention never extends expiry

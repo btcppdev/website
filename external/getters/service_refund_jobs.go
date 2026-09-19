@@ -17,7 +17,6 @@ type ServiceRefundJob struct {
 
 // Claims preserve refund acceptance order. Insider reversals cannot overtake
 // original settlement acknowledgment; an earlier review blocks later refunds.
-// No running worker calls this until product adjustment semantics are ready.
 func ClaimInsiderRefundDelivery(ctx context.Context, app *config.AppContext, attemptID string, now time.Time) (*ServiceRefundJob, error) {
 	var job ServiceRefundJob
 	err := app.DB.QueryRow(ctx, `WITH due AS (
@@ -38,6 +37,21 @@ func ClaimInsiderRefundDelivery(ctx context.Context, app *config.AppContext, att
  FROM claimed j JOIN service_payment_refunds r USING(provider,refund_reference)
  JOIN service_refund_access_decisions decision USING(provider,refund_reference)`, attemptID, now, now.Add(time.Minute)).Scan(&job.Refund.AttemptID, &job.Refund.Provider, &job.Refund.RefundReference, &job.Refund.PaymentReference, &job.Refund.AmountCents, &job.Refund.Currency, &job.Refund.RefundedAt, &job.Refund.Reason, &job.Revision, &job.Attempt, &job.Payload, &job.AccessAction)
 	return &job, err
+}
+
+// Load the acknowledged original event and current account identity. Refund
+// rendering must preserve its receipt facts rather than regenerate a settlement
+// from mutable configuration or a now-refunded order.
+func InsiderRefundOriginal(ctx context.Context, app *config.AppContext, attemptID string) (json.RawMessage, string, error) {
+	var payload json.RawMessage
+	var person string
+	err := app.DB.QueryRow(ctx, `SELECT original.payload,r.person_id::text
+	 FROM service_fulfillment_jobs original
+	 JOIN service_payment_attempts a ON a.id=original.attempt_id
+	 JOIN service_purchase_requests r ON r.id=a.purchase_id
+	 JOIN people p ON p.id=r.person_id
+	 WHERE original.attempt_id=$1 AND original.state='accepted' AND original.payload IS NOT NULL`, attemptID).Scan(&payload, &person)
+	return payload, person, err
 }
 
 func FreezeServiceRefundDelivery(ctx context.Context, app *config.AppContext, job *ServiceRefundJob, payload []byte) error {
