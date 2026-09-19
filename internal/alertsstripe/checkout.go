@@ -75,7 +75,8 @@ func checkoutParams(ctx context.Context, in Intent, now time.Time) (*stripe.Chec
 	if err != nil || address.Address != in.Email || len(in.Email) > 254 {
 		return nil, ErrCheckout
 	}
-	if _, err = servicebilling.AlertsTerm("stripe", in.PaidSlots, 1, in.CreatedAt); err != nil {
+	plan, _, err := servicebilling.ProductTerm(servicebilling.AlertsProduct, "stripe", in.PaidSlots, in.CreatedAt)
+	if err != nil {
 		return nil, ErrCheckout
 	}
 	// Stripe permits sessions lasting 30 minutes to 24 hours. A fixed two-hour
@@ -87,7 +88,7 @@ func checkoutParams(ctx context.Context, in Intent, now time.Time) (*stripe.Chec
 	if err != nil || base.User != nil || base.RawQuery != "" || base.Fragment != "" || base.Path != "" || base.Opaque != "" || base.Host == "" || (base.Scheme != "https" && !(base.Scheme == "http" && (base.Hostname() == "localhost" || base.Hostname() == "127.0.0.1"))) {
 		return nil, ErrCheckout
 	}
-	metadata := map[string]string{"product": "alerts.repository-slots", "checkout_intent": in.ID, "account_id": in.PersonID}
+	metadata := map[string]string{"product": plan.Code, "checkout_intent": in.ID, "account_id": in.PersonID}
 	p := &stripe.CheckoutSessionParams{
 		Mode:                     stripe.String("subscription"),
 		ClientReferenceID:        stripe.String(in.ID),
@@ -102,9 +103,9 @@ func checkoutParams(ctx context.Context, in Intent, now time.Time) (*stripe.Chec
 		Metadata:                 metadata,
 		SubscriptionData:         &stripe.CheckoutSessionSubscriptionDataParams{Metadata: map[string]string{"product": metadata["product"], "checkout_intent": in.ID, "account_id": in.PersonID}},
 		LineItems: []*stripe.CheckoutSessionLineItemParams{{Quantity: stripe.Int64(in.PaidSlots), PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
-			Currency: stripe.String("usd"), UnitAmount: stripe.Int64(servicebilling.AlertsMonthlySlotCents), TaxBehavior: stripe.String("inclusive"),
+			Currency: stripe.String(plan.Currency), UnitAmount: stripe.Int64(plan.UnitCents), TaxBehavior: stripe.String(plan.TaxBehavior),
 			Recurring:   &stripe.CheckoutSessionLineItemPriceDataRecurringParams{Interval: stripe.String("month"), IntervalCount: stripe.Int64(1)},
-			ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{Name: stripe.String("Bitcoin++ Alerts additional repositories"), TaxCode: stripe.String(servicebilling.AlertsStripeTaxCode)},
+			ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{Name: stripe.String(plan.Name), TaxCode: stripe.String(plan.StripeTaxCode)},
 		}}},
 	}
 	p.Context = ctx

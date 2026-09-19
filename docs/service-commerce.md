@@ -289,3 +289,22 @@ pass against the fresh combined schema. Monitoring, reviewed operator recovery,
 account deletion/redaction and refund/revocation dispatch remain to complete. This
 queue currently dispatches verified settlement only, not the complete subscription
 lifecycle, and has not been enabled against a live product endpoint.
+
+## Shared server-owned plans
+
+`internal/servicebilling/products.go` now resolves Alerts repository slots and
+Insider monthly/annual membership plans. Alerts Stripe checkout and Insider quote
+and settlement-date construction use this registry. Membership quantity is one;
+Alerts permits paid slot quantities. The registry distinguishes Alerts inclusive
+tax from Insider exclusive tax, and separates their subscription families so an
+Insider interval change will not be mistaken for a separate Alerts subscription.
+The family is currently policy metadata; database subscription uniqueness and
+lifecycle coordinators still need to consume it.
+
+Membership boundaries use the shared calendar-clamping rule, including January 31
+and annual February 29 starts. Insider monthly OpenNode requests are rejected;
+annual prepaid remains supported. Alerts prepaid continues through its existing
+12/24/120-month pricing adapter. Insider's tax classification and provider tax
+calculation still require integration; the registry alone does not collect tax or
+make the existing fixed-term Insider checkout recurring. Tests cover prices,
+quantity separation, unsupported plans/providers and calendar boundaries.

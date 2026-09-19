@@ -14,14 +14,15 @@ import (
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 
 	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
 )
 
 const (
-	insiderAnnualMembershipCents  = int64(21_000)
-	insiderMonthlyMembershipCents = int64(2_100)
+	insiderAnnualMembershipCents  = servicebilling.InsiderAnnualCents
+	insiderMonthlyMembershipCents = servicebilling.InsiderMonthlyCents
 	insiderArticleUnlockCents     = int64(210)
 	insiderQuoteTTL               = 45 * time.Minute
 	insiderQuoteMaxFuture         = 50 * time.Minute
@@ -177,20 +178,13 @@ func resolveInsiderServiceQuote(request insiderCheckoutRequest, now time.Time) (
 		ExpiresAt: request.QuoteExpiresAt.UTC(), Fulfillment: fulfillment,
 	}
 	switch request.ProductCode {
-	case "insider.membership.annual":
-		if request.AmountCents != insiderAnnualMembershipCents || request.ResourceID != "" {
+	case servicebilling.InsiderAnnualProduct, servicebilling.InsiderMonthlyProduct:
+		start := request.QuoteExpiresAt.UTC().Add(-insiderQuoteTTL)
+		plan, end, err := servicebilling.ProductTerm(request.ProductCode, request.PaymentProvider, 1, start)
+		if err != nil || request.AmountCents != plan.UnitCents || request.ResourceID != "" || (request.ProductCode == servicebilling.InsiderMonthlyProduct && request.ContributionPublicationID != "") {
 			return getters.ServiceQuote{}, getters.ErrServiceQuote
 		}
-		start := request.QuoteExpiresAt.UTC().Add(-insiderQuoteTTL)
-		end := start.AddDate(1, 0, 0)
-		quote.Name, quote.PeriodStart, quote.PeriodEnd = "Bitcoin++ Insider annual membership", &start, &end
-	case "insider.membership.monthly":
-		if request.AmountCents != insiderMonthlyMembershipCents || request.ResourceID != "" || request.ContributionPublicationID != "" {
-			return getters.ServiceQuote{}, getters.ErrServiceQuote
-		}
-		start := request.QuoteExpiresAt.UTC().Add(-insiderQuoteTTL)
-		end := start.AddDate(0, 1, 0)
-		quote.Name, quote.PeriodStart, quote.PeriodEnd = "Bitcoin++ Insider one-month membership", &start, &end
+		quote.Name, quote.PeriodStart, quote.PeriodEnd = plan.Name, &start, &end
 	case "insider.article":
 		if request.AmountCents != insiderArticleUnlockCents || request.ResourceID == "" ||
 			(request.ContributionPublicationID != "" && request.ResourceID != request.ContributionPublicationID) {
@@ -343,9 +337,9 @@ func buildInsiderSettlement(app *config.AppContext, payment getters.VerifiedServ
 	// the earlier moment when the short-lived checkout quote was rendered.
 	if purchase.Quote.ProductCode == "insider.membership.annual" || purchase.Quote.ProductCode == "insider.membership.monthly" {
 		startsAt := purchase.PaidAt.UTC()
-		endsAt := startsAt.AddDate(0, 1, 0)
-		if purchase.Quote.ProductCode == "insider.membership.annual" {
-			endsAt = startsAt.AddDate(1, 0, 0)
+		_, endsAt, err := servicebilling.ProductTerm(purchase.Quote.ProductCode, payment.Provider, 1, startsAt)
+		if err != nil {
+			return insiderSettlementEvent{}, err
 		}
 		event.AccessStartsAt, event.AccessEndsAt = &startsAt, &endsAt
 	}
