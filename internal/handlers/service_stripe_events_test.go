@@ -93,6 +93,11 @@ func TestServiceStripeEventPostgres(t *testing.T) {
 	invoices := servicestripe.InvoiceClient{Invoice: func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { calls++; return inv, nil }, Price: func(string, *stripe.PriceParams) (*stripe.Price, error) { return price, nil }}
 	raw, _ := json.Marshal(inv)
 	event := stripe.Event{Type: "invoice.paid", Data: &stripe.EventData{Raw: raw}}
+
+	session.Invoice = &stripe.Invoice{ID: inv.ID}
+	if err = getters.RecoverServiceStripeCheckout(ctx, app, person, id, terms.ProductCode, checkout, invoices); err != nil {
+		t.Fatal("missed callback recovery", err)
+	}
 	for i := 0; i < 2; i++ {
 		if handled, err := processServiceStripeEvent(ctx, app, event, checkout, invoices); !handled || err != nil {
 			t.Fatal("invoice before completion", handled, err)
@@ -120,7 +125,67 @@ func TestServiceStripeEventPostgres(t *testing.T) {
 	if _, err = getters.GetFulfillableServicePaymentContext(app, attempt); !errors.Is(err, getters.ErrServicePayment) {
 		t.Fatal("deleted account remained fulfillable", err)
 	}
-	if calls != 2 {
+	if calls != 3 {
 		t.Fatal("deleted account reached provider", calls)
+	}
+}
+
+func TestServiceStripeExpirationPostgres(t *testing.T) {
+	if os.Getenv("BTCPP_POSTGRES_SMOKE") != "1" || os.Getenv("DATABASE_URL") == "" {
+		t.Skip("PostgreSQL smoke disabled")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	app := &config.AppContext{DB: pool}
+	var person string
+	if err = pool.QueryRow(ctx, `INSERT INTO people(name) VALUES('Insider recurring event test') RETURNING id::text`).Scan(&person); err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Exec(ctx, `DELETE FROM people WHERE id=$1`, person)
+	if _, err = pool.Exec(ctx, `INSERT INTO person_emails(person_id,email,is_primary,verified_at) VALUES($1,$2,true,now())`, person, "events-"+person+"@example.test"); err != nil {
+		t.Fatal(err)
+	}
+	terms := servicestripe.CheckoutIntent{ProductCode: "insider.membership.monthly", Quantity: 1, TaxCode: "txcd_test", ReturnOrigin: "https://insider.btcpp.dev", SuccessURL: "https://insider.btcpp.dev/account/success", CancelURL: "https://insider.btcpp.dev/account/cancel"}
+	reserved, err := getters.ReserveServiceStripeCheckout(app, person, "insider-event-checkout", terms)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id := reserved.Intent.ID
+	session := &stripe.CheckoutSession{ID: "cs_" + id, Mode: "subscription", Status: "expired", PaymentStatus: "unpaid", ClientReferenceID: id, Metadata: map[string]string{"product": terms.ProductCode, "account_id": person, "checkout_intent": id}}
+	checkout := servicestripe.CheckoutClient{Retrieve: func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }}
+	raw, _ := json.Marshal(session)
+	event := stripe.Event{Type: "checkout.session.expired", Data: &stripe.EventData{Raw: raw}}
+	session.Status = "open"
+	if handled, err := processServiceStripeEvent(ctx, app, event, checkout, servicestripe.InvoiceClient{}); !handled || err == nil {
+		t.Fatal("webhook alone closed checkout", handled, err)
+	}
+	session.Status = "expired"
+	for i := 0; i < 2; i++ {
+		if handled, err := processServiceStripeEvent(ctx, app, event, checkout, servicestripe.InvoiceClient{}); !handled || err != nil {
+			t.Fatal("expiry failed", handled, err)
+		}
+	}
+	stored, err := getters.ServiceStripeCheckoutForPerson(app, person, id, terms.ProductCode)
+	if err != nil || !stored.Closed || stored.Reference != session.ID {
+		t.Fatal("lost response reference not preserved", stored, err)
+	}
+	next, err := getters.ReserveServiceStripeCheckout(app, person, "replacement-checkout-key", terms)
+	if err != nil || next.Intent.ID == id {
+		t.Fatal("reservation not released", next, err)
+	}
+	session.ClientReferenceID = next.Intent.ID
+	session.Metadata["checkout_intent"] = next.Intent.ID
+	session.ID = "cs_" + next.Intent.ID
+	binding := `{"test":true}`
+	if _, err = pool.Exec(ctx, `INSERT INTO service_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3)`, next.Intent.ID, "sub_"+next.Intent.ID, binding); err != nil {
+		t.Fatal(err)
+	}
+	if err = getters.CloseExpiredServiceStripeCheckout(ctx, app, person, next.Intent.ID, terms.ProductCode, session.ID, checkout); err == nil {
+		t.Fatal("bound subscription released")
 	}
 }

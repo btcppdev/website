@@ -28,7 +28,7 @@ func serviceStripeEventReference(event stripe.Event) (ref serviceStripeReference
 		return
 	}
 	switch event.Type {
-	case "checkout.session.completed":
+	case "checkout.session.completed", "checkout.session.expired":
 		var s stripe.CheckoutSession
 		if err = json.Unmarshal(event.Data.Raw, &s); err != nil {
 			return ref, true, err
@@ -79,6 +79,9 @@ func processServiceStripeEvent(ctx context.Context, app *config.AppContext, even
 	// Deleted accounts retain financial evidence but cannot regain access.
 	if person == "" {
 		return true, nil
+	}
+	if event.Type == "checkout.session.expired" {
+		return true, getters.CloseExpiredServiceStripeCheckout(ctx, app, person, ref.Intent, ref.Product, ref.Session, checkout)
 	}
 	if ref.Session != "" {
 		_, err = getters.ResolveServiceStripeSubscription(ctx, app, person, ref.Intent, ref.Product, checkout, ref.Session)

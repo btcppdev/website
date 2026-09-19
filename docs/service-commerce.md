@@ -423,3 +423,13 @@ financial evidence without granting access or retrying a NULL account forever.
 
 Scheduled recovery, expiration and subscription lifecycle routing remain to be
 connected before public recurring checkout is enabled.
+
+Insider checkout expiration now uses shared authenticated provider verification.
+Only expired, unpaid sessions with no subscription, invoice or payment intent
+release a reservation; the database also rejects closure of a bound checkout.
+Expired callbacks can recover a lost session reference and are idempotent. Shared
+checkout recovery reads the saved session, binds a completed subscription and
+reconciles its initial invoice without creating a charge. Integration tests cover
+forged expiry state, repeated expiration, replacement reservation, bound-checkout
+protection and missed completion/payment callbacks. Scheduled polling and renewal
+lifecycle recovery still need wiring before public recurring checkout activation.
