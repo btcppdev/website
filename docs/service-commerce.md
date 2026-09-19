@@ -511,3 +511,31 @@ rewrite paid access. Fresh `commerce_cancellation_20260918` migration and full
 getter/handler suites pass; tests cover duplicate tabs, stale consent, lost provider
 response recovery and Alerts/Insider isolation. The authenticated Insider management
 API and cancellation confirmation delivery remain to be connected.
+
+## Insider subscription management API
+
+Authenticated Insider servers can POST JSON to:
+
+- `/api/internal/insider/subscriptions/status`: `person_id`, `checkout_id`,
+  `product_code` (Insider monthly or annual membership only). Refreshes verified
+  Stripe state and returns `checkout_id`, `product_code`, `revision`, `observed_at`
+  and `subscription`. The subscription snapshot includes `state`,
+  `providerStatus`, `cancelAtPeriodEnd`, `collectionPaused`, `cancelAt`,
+  `PeriodStart` and `PeriodEnd` (Unix seconds). Provider invoice IDs are omitted
+  from the value exposed to the product. This describes billing, not content access.
+- `/api/internal/insider/subscriptions/cancel`: the same identity fields plus
+  UUID `request_id`, reviewed `revision` and `period_end`. Send matching
+  `Idempotency-Key`. The account/product-scoped request is persisted before provider
+  I/O. Returns `request_id` and `state`: `confirmed`, `pending`, or `review`.
+  Pending work returns HTTP 202, including an ambiguous provider response; retry
+  the same request ID, never invent a replacement because of a network error.
+
+Both require the private Insider service bearer token and return no-store JSON.
+Insider must authenticate its reader, derive `person_id` from that session, enforce
+browser CSRF protection, and keep this service credential server-side. Missing
+owned subscriptions return 404; stale reviewed state returns 409. Status refresh
+failure returns 503 rather than treating stale data as current. These routes do
+not create subscriptions, alter email consent, issue refunds or grant content.
+Tests cover boundary rejection, actual PostgreSQL status/cancellation, cross-account
+requests, and pending-to-confirmed replay after a lost provider response. Reader UI
+wiring and cancellation confirmation delivery remain outstanding.

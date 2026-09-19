@@ -129,6 +129,45 @@ func TestServiceStripeEventPostgres(t *testing.T) {
 		t.Fatal("pause confused with renewal failure", state, err)
 	}
 
+	app.Env = &types.EnvConfig{InsiderServiceToken: "private-management-test"}
+	management := insiderSubscriptionRequest{PersonID: person, CheckoutID: id, ProductCode: terms.ProductCode}
+	sendManagement := func(cancel bool) *httptest.ResponseRecorder {
+		body, _ := json.Marshal(management)
+		request := httptest.NewRequest("POST", "/api/internal/insider/subscriptions/status", strings.NewReader(string(body)))
+		request.Header.Set("Authorization", "Bearer private-management-test")
+		request.Header.Set("Idempotency-Key", management.RequestID)
+		response := httptest.NewRecorder()
+		serveInsiderSubscription(response, request, app, cancel, &subscriptions)
+		return response
+	}
+	response := sendManagement(false)
+	var summary getters.ServiceSubscriptionStatus
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &summary) != nil || summary.State.State != "paused" || summary.State.LatestInvoice != "" {
+		t.Fatal("management status", response.Code, response.Body.String())
+	}
+	management.RequestID = id
+	management.Revision = summary.Revision
+	management.PeriodEnd = summary.State.PeriodEnd
+	mutations := 0
+	subscriptions.UpdateSubscription = func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) {
+		mutations++
+		sub.CancelAtPeriodEnd = true
+		return nil, errors.New("ambiguous provider response")
+	}
+	response = sendManagement(true)
+	if response.Code != 202 || !strings.Contains(response.Body.String(), `"state":"pending"`) {
+		t.Fatal("durable pending response", response.Code, response.Body.String())
+	}
+	response = sendManagement(true)
+	if response.Code != 200 || !strings.Contains(response.Body.String(), `"state":"confirmed"`) || mutations != 1 {
+		t.Fatal("confirmed cancellation replay", response.Code, response.Body.String(), mutations)
+	}
+	management.PersonID = "00000000-0000-0000-0000-000000000001"
+	response = sendManagement(true)
+	if response.Code != 404 || mutations != 1 {
+		t.Fatal("foreign account cancellation", response.Code, mutations)
+	}
+
 	var count int
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_fulfillment_jobs j JOIN service_payment_attempts a ON a.id=j.attempt_id JOIN service_purchase_requests r ON r.id=a.purchase_id WHERE r.person_id=$1`, person).Scan(&count); err != nil || count != 1 {
 		t.Fatal("fulfillment not deduplicated", count, err)

@@ -982,6 +982,8 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/api/internal/insider/subscriber-projections", func(w http.ResponseWriter, r *http.Request) {
 		ApplyInsiderSubscriberProjection(w, r, app)
 	}).Methods(http.MethodPost)
+	r.HandleFunc("/api/internal/insider/subscriptions/status", func(w http.ResponseWriter, r *http.Request) { ManageInsiderSubscription(w, r, app) }).Methods(http.MethodPost)
+	r.HandleFunc("/api/internal/insider/subscriptions/cancel", func(w http.ResponseWriter, r *http.Request) { CancelInsiderSubscription(w, r, app) }).Methods(http.MethodPost)
 	r.HandleFunc("/api/internal/insider/checkouts", func(w http.ResponseWriter, r *http.Request) {
 		CreateInsiderCheckout(w, r, app)
 	}).Methods(http.MethodPost)
