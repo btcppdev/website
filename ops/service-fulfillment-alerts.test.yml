@@ -1,0 +1,87 @@
+rule_files:
+  - service-fulfillment-alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_fulfillment_jobs{job="btcpp",instance="stale",state="review"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_service_fulfillment_oldest_pending_timestamp_seconds{job="btcpp",instance="stale"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="stale"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="stale"}'
+        values: '0+0x40'
+      - series: 'btcpp_web_service_fulfillment_oldest_pending_timestamp_seconds{job="btcpp",instance="empty"}'
+        values: '0+0x40'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="empty"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="empty"}'
+        values: '0+60x40'
+    alert_rule_test:
+      - eval_time: 21m
+        alertname: BitcoinPlusPlusFulfillmentNeedsReview
+        exp_alerts: []
+      - eval_time: 21m
+        alertname: BitcoinPlusPlusFulfillmentQueueStalled
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_fulfillment_jobs{job="btcpp",instance="web",state="review"}'
+        values: '1+0x19 0+0x10'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '1+0x30'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x30'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: BitcoinPlusPlusFulfillmentNeedsReview
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: BitcoinPlusPlusFulfillmentNeedsReview
+        exp_alerts:
+          - exp_labels:
+              job: btcpp
+              instance: web
+              state: review
+              severity: warning
+            exp_annotations:
+              summary: Service access fulfillment needs operator review
+              description: Inspect the fulfillment queue and payment evidence; resolve the underlying failure before retrying reviewed work.
+      - eval_time: 20m
+        alertname: BitcoinPlusPlusFulfillmentNeedsReview
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_fulfillment_jobs{job="btcpp",instance="web",state="review"}'
+        values: '1+0x20'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '0+0x20'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: BitcoinPlusPlusFulfillmentNeedsReview
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_fulfillment_oldest_pending_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: BitcoinPlusPlusFulfillmentQueueStalled
+        exp_alerts: []
+      - eval_time: 21m
+        alertname: BitcoinPlusPlusFulfillmentQueueStalled
+        exp_alerts:
+          - exp_labels:
+              job: btcpp
+              instance: web
+              severity: warning
+            exp_annotations:
+              summary: Service access fulfillment has been pending for more than fifteen minutes
+              description: Check SERVICE_FULFILLMENT_ENABLED, the product endpoint and credentials, and receiver availability.

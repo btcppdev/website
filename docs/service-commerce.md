@@ -548,3 +548,13 @@ the explicit identity and reviewed revision/period returned by status. This lets
 Insider keep its existing order references without duplicating the recurring
 subscription mapping. Account discovery never returns Alerts subscriptions or
 another reader's agreement; absence returns 404.
+
+External fulfillment exposes aggregate Prometheus gauges for pending/accepted/
+review jobs and oldest pending creation time. Labels contain only the bounded
+state, never accounts, recipients or payment IDs. Protected collection uses the
+existing business-metrics freshness/success signals. The fulfillment rules in
+`ops/service-fulfillment-alerts.yml` warn on reviewed jobs and pending access
+delivery older than fifteen minutes, with sustained-condition delays and fresh
+collection required. PostgreSQL aggregate checks, collector privacy tests and
+promtool rule tests pass. Deploying these rules and routing alerts to operators
+remain launch tasks; no monitoring system was changed by this implementation.

@@ -1,0 +1,26 @@
+groups:
+  - name: btcpp-service-fulfillments
+    rules:
+      - alert: BitcoinPlusPlusFulfillmentNeedsReview
+        expr: |
+          (btcpp_web_service_fulfillment_jobs{state="review"} > 0)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Service access fulfillment needs operator review
+          description: Inspect the fulfillment queue and payment evidence; resolve the underlying failure before retrying reviewed work.
+      - alert: BitcoinPlusPlusFulfillmentQueueStalled
+        expr: |
+          (btcpp_web_service_fulfillment_oldest_pending_timestamp_seconds > 0)
+          and (time() - btcpp_web_service_fulfillment_oldest_pending_timestamp_seconds > 900)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Service access fulfillment has been pending for more than fifteen minutes
+          description: Check SERVICE_FULFILLMENT_ENABLED, the product endpoint and credentials, and receiver availability.
