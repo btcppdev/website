@@ -141,6 +141,23 @@ $$;
 CREATE TRIGGER service_payment_event_immutable BEFORE UPDATE OR DELETE ON service_payment_events
 FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
 
+-- Verified provider refunds are separate immutable facts from payment settlement.
+CREATE TABLE service_payment_refunds (
+ provider text NOT NULL CHECK(provider IN ('stripe','opennode')),
+ refund_reference text NOT NULL CHECK(length(refund_reference) BETWEEN 1 AND 255),
+ attempt_id uuid NOT NULL REFERENCES service_payment_attempts(id) ON DELETE RESTRICT,
+ payment_reference text NOT NULL CHECK(length(payment_reference) BETWEEN 1 AND 255),
+ amount_cents bigint NOT NULL CHECK(amount_cents>0),
+ currency text NOT NULL CHECK(currency='USD'),
+ refunded_at timestamptz NOT NULL,
+ reason text NOT NULL CHECK(length(reason)<=1000),
+ recorded_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(provider,refund_reference)
+);
+CREATE INDEX service_payment_refunds_attempt ON service_payment_refunds(attempt_id);
+CREATE TRIGGER service_payment_refund_immutable BEFORE UPDATE OR DELETE ON service_payment_refunds
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+
 -- service entitlements
 CREATE TABLE service_entitlements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

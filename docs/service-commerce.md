@@ -512,6 +512,27 @@ getter/handler suites pass; tests cover duplicate tabs, stale consent, lost prov
 response recovery and Alerts/Insider isolation. The authenticated Insider management
 API and cancellation confirmation delivery remain to be connected.
 
+## Shared refund ledger foundation
+
+`RecordServiceRefund` accepts trusted, provider-verified refund facts for an
+already-settled service payment. It locks the original payment/order, records an
+immutable refund keyed by provider/refund reference, caps cumulative refunds at
+the original gross payment, and updates the order to partial/full refund status
+atomically. Identical retries do not count twice; conflicting facts are rejected.
+Original quotes, settlement events and payment amounts remain unchanged.
+
+This function does not initiate provider refunds and is not connected to a public
+route or webhook yet. Provider refund verification, ordered product reversal
+delivery and receipt adjustment dispatch remain unfinished. Do not enable refund
+ingestion before those pieces are connected: order refund state alone does not
+update Insider's external access ledger, and Alerts currently withholds refunded
+orders pending product-specific reconciliation. No proportional access policy is
+inferred from the money amount.
+
+Fresh PostgreSQL tests cover duplicate concurrent refunds, competing refunds that
+would exceed the paid total, mismatched/unsettled payments, immutable evidence and
+settlement replay after refund. The schema remains in consolidated migration 128.
+
 ## Durable Insider lifecycle events
 
 Verified Insider subscription observations now enqueue `service_lifecycle_jobs`

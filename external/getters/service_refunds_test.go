@@ -1,0 +1,117 @@
+package getters
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+)
+
+func TestServiceRefundLedgerPostgres(t *testing.T) {
+	app := databaseSmokeContext(t)
+	ctx := context.Background()
+	var person string
+	if err := app.DB.QueryRow(ctx, `INSERT INTO people(name) VALUES('Refund test') RETURNING id::text`).Scan(&person); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := app.DB.Exec(ctx, `DELETE FROM people WHERE id=$1`, person); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := app.DB.Exec(ctx, `INSERT INTO person_emails(person_id,email,is_primary) VALUES($1,$2,true)`, person, "refund-"+person+"@example.test"); err != nil {
+		t.Fatal(err)
+	}
+	quote := ServiceQuote{ProductCode: "insider.article", ResourceID: "refund-article", Name: "Article", Provider: "stripe", Quantity: 1, UnitCents: 500, TotalCents: 500, TaxCents: 20, ExpiresAt: time.Now().Add(time.Hour)}
+	purchase, err := CreateServicePurchase(app, person, "refund-purchase-test", quote)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attempt, err := BeginServicePayment(app, person, purchase.OrderID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reference := "pi_" + attempt.ID
+	if err := BindServicePayment(app, attempt.ID, "stripe", reference); err != nil {
+		t.Fatal(err)
+	}
+	paidAt := time.Now().UTC().Truncate(time.Second)
+	refund := VerifiedServiceRefund{AttemptID: attempt.ID, Provider: "stripe", PaymentReference: reference, RefundReference: "re_" + attempt.ID, AmountCents: 300, Currency: "USD", RefundedAt: paidAt.Add(time.Second), Reason: "requested_by_customer"}
+	if err := RecordServiceRefund(ctx, app, refund); !errors.Is(err, ErrServiceRefund) {
+		t.Fatal("unpaid refund accepted", err)
+	}
+	payment := VerifiedServicePayment{AttemptID: attempt.ID, Provider: "stripe", Reference: reference, EventID: "evt_" + attempt.ID, Currency: "USD", TotalCents: 500, PaidAt: paidAt}
+	if err := RecordServicePayment(app, payment); err != nil {
+		t.Fatal(err)
+	}
+	wrong := refund
+	wrong.PaymentReference = "pi_foreign"
+	if err := RecordServiceRefund(ctx, app, wrong); !errors.Is(err, ErrServiceRefund) {
+		t.Fatal("foreign payment refund accepted", err)
+	}
+	var wg sync.WaitGroup
+	results := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); results <- RecordServiceRefund(ctx, app, refund) }()
+	}
+	wg.Wait()
+	close(results)
+	for err := range results {
+		if err != nil {
+			t.Fatal("duplicate refund failed", err)
+		}
+	}
+	var count, total int64
+	if err := app.DB.QueryRow(ctx, `SELECT count(*),sum(amount_cents) FROM service_payment_refunds WHERE attempt_id=$1`, attempt.ID).Scan(&count, &total); err != nil || count != 1 || total != 300 {
+		t.Fatal("duplicate refund counted", count, total, err)
+	}
+	changed := refund
+	changed.AmountCents = 301
+	if err := RecordServiceRefund(ctx, app, changed); !errors.Is(err, ErrServiceRefund) {
+		t.Fatal("refund evidence changed", err)
+	}
+	// Competing distinct refunds cannot exceed the remaining paid balance.
+	results = make(chan error, 2)
+	for _, suffix := range []string{"a", "b"} {
+		wg.Add(1)
+		go func(suffix string) {
+			defer wg.Done()
+			next := refund
+			next.RefundReference += "_" + suffix
+			next.AmountCents = 200
+			results <- RecordServiceRefund(ctx, app, next)
+		}(suffix)
+	}
+	wg.Wait()
+	close(results)
+	succeeded, rejected := 0, 0
+	for err := range results {
+		if err == nil {
+			succeeded++
+		} else if errors.Is(err, ErrServiceRefund) {
+			rejected++
+		} else {
+			t.Fatal(err)
+		}
+	}
+	if succeeded != 1 || rejected != 1 {
+		t.Fatal("concurrent over-refund", succeeded, rejected)
+	}
+	var status string
+	if err := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, purchase.OrderID).Scan(&status); err != nil || status != "refunded" {
+		t.Fatal(status, err)
+	}
+	if err := RecordServicePayment(app, payment); err != nil {
+		t.Fatal("settlement replay after refund", err)
+	}
+	if err := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, purchase.OrderID).Scan(&status); err != nil || status != "refunded" {
+		t.Fatal("settlement reopened refund", status, err)
+	}
+	for _, sql := range []string{`UPDATE service_payment_refunds SET amount_cents=1 WHERE attempt_id=$1`, `DELETE FROM service_payment_refunds WHERE attempt_id=$1`} {
+		if _, err := app.DB.Exec(ctx, sql, attempt.ID); err == nil {
+			t.Fatal("refund evidence mutation allowed")
+		}
+	}
+}
