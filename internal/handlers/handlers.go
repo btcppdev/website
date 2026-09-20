@@ -2358,6 +2358,12 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/admin/proposal/{proposalID}/edit", func(w http.ResponseWriter, r *http.Request) {
 		AdminEditProposal(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/{conf}/admin/proposal/{proposalID}/resources", func(w http.ResponseWriter, r *http.Request) {
+		AdminTalkResources(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/proposal/{proposalID}/recording", func(w http.ResponseWriter, r *http.Request) {
+		AdminAttachRecording(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/{conf}/admin/proposal/{proposalID}/speakers/attach", func(w http.ResponseWriter, r *http.Request) {
 		AdminEditProposalAttachSpeaker(w, r, app)
 	}).Methods("POST")

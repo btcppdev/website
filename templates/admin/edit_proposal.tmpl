@@ -132,6 +132,62 @@
       {{ end }}
     </section>
 
+    <section id="resources" class="mb-6 bg-white shadow rounded-lg p-6">
+      <h2 class="text-sm font-semibold text-gray-900">Talk resources</h2>
+      {{ if .Proposal.ConfTalk }}
+      <p class="mt-1 mb-4 text-sm text-gray-500">Slides and GitHub links appear on the public agenda and speaker profile.</p>
+      <form method="POST" enctype="multipart/form-data" action="/{{ .Conf.Tag }}/admin/proposal/{{ .Proposal.ID }}/resources" class="space-y-4">
+        <input type="hidden" name="csrf" value="{{ .ResourcesCSRF }}">
+        <input type="hidden" name="ReturnURL" value="{{ .ReturnURL }}">
+        <div>
+          <label for="GithubRepoURL" class="block text-sm font-semibold">GitHub link</label>
+          <input id="GithubRepoURL" name="GithubRepoURL" type="url" value="{{ .Proposal.ConfTalk.GithubRepoURL }}" placeholder="https://github.com/org/repo" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2">
+          {{ if .Proposal.ConfTalk.GithubRepoURL }}<a class="text-sm text-indigo-600 underline" href="{{ .Proposal.ConfTalk.GithubRepoURL | safeURL }}" target="_blank" rel="noopener noreferrer">View current GitHub link</a>{{ end }}
+          <p class="text-xs text-gray-500">Clear the field to remove the link.</p>
+        </div>
+        <div>
+          <label for="SlidesURL" class="block text-sm font-semibold">Slides link</label>
+          <input id="SlidesURL" name="SlidesURL" type="url" value="{{ .Proposal.ConfTalk.SlidesURL }}" placeholder="https://example.com/slides.pdf" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2">
+          {{ if .Proposal.ConfTalk.SlidesURL }}<a class="text-sm text-indigo-600 underline" href="{{ .Proposal.ConfTalk.SlidesURL | safeURL }}" target="_blank" rel="noopener noreferrer">View current slides</a>{{ end }}
+        </div>
+        <div>
+          <label for="SlidesFile" class="block text-sm font-semibold">Upload slides</label>
+          <input id="SlidesFile" name="SlidesFile" type="file" accept=".pdf,.ppt,.pptx,.key,.odp" class="mt-1 block w-full text-sm">
+          <p class="mt-1 text-xs text-gray-500">PDF, PPT, PPTX, Keynote, or ODP, up to 40 MiB. A new upload replaces the current slides link. To use a new URL instead, leave the file picker empty.</p>
+        </div>
+        {{ if .Proposal.ConfTalk.SlidesURL }}
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="RemoveSlides" value="1">Remove slides from this talk</label>
+        {{ end }}
+        <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save resources</button>
+      </form>
+      {{ else }}
+      <p class="mt-2 text-sm text-gray-500">Resources can be added once this proposal has an accepted talk.</p>
+      {{ end }}
+    </section>
+
+    <section id="recording" class="mb-6 bg-white shadow rounded-lg p-6">
+      <h2 class="text-sm font-semibold text-gray-900">Attach recording</h2>
+      {{ if .Proposal.ConfTalk }}
+      <p class="mt-1 mb-4 text-sm text-gray-500">Finish uploading your video to Spaces, then paste its URL or object key here.</p>
+      {{ if .Proposal.Recording }}
+      <p class="mb-3 text-sm"><a href="/{{ .Conf.Tag }}/admin/recordings/{{ .Proposal.Recording.ID }}" class="text-indigo-600 underline">Manage recording and publishing</a></p>
+      {{ end }}
+      <form method="POST" action="/{{ .Conf.Tag }}/admin/proposal/{{ .Proposal.ID }}/recording" class="space-y-4">
+        <input type="hidden" name="csrf" value="{{ .ResourcesCSRF }}">
+        <input type="hidden" name="ReturnURL" value="{{ .ReturnURL }}">
+        <div>
+          <label for="RecordingSource" class="block text-sm font-semibold">Spaces URL or object key</label>
+          <input id="RecordingSource" name="RecordingSource" type="text" required value="{{ if .Proposal.Recording }}{{ .Proposal.Recording.FileURI }}{{ end }}" placeholder="{{ .Conf.Tag }}/recordings/talk-final.mp4" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2">
+          <p class="mt-1 text-xs text-gray-500">Use a file in this site's Spaces bucket. For example: {{ .Conf.Tag }}/recordings/talk-final.mp4. Saving attaches the source file; YouTube and X publishing are managed separately.</p>
+          {{ if .Proposal.Recording }}{{ if .Proposal.Recording.FileURI }}<p class="mt-1 text-xs text-gray-500">Changing this field replaces the recording's source file. Existing published links and its publishing schedule are preserved.</p>{{ end }}{{ end }}
+        </div>
+        <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">{{ if .Proposal.Recording }}Save recording source{{ else }}Attach recording{{ end }}</button>
+      </form>
+      {{ else }}
+      <p class="mt-2 text-sm text-gray-500">A recording can be attached once this proposal has an accepted talk.</p>
+      {{ end }}
+    </section>
+
     <form method="POST" action="/{{ .Conf.Tag }}/admin/proposal/{{ .Proposal.ID }}/edit?return={{ .ReturnURL }}"
           class="space-y-6 bg-white shadow rounded-lg p-6">
 

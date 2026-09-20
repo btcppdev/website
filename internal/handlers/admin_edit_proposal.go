@@ -42,7 +42,8 @@ type AdminEditProposalPage struct {
 	// /{conf}/admin/applicants by default, /{conf}/admin/schedule
 	// when the admin came from the schedule grid. Threaded
 	// through ?return=…
-	ReturnURL string
+	ReturnURL     string
+	ResourcesCSRF string
 }
 
 // AdminEditProposal serves the admin proposal editor. GET renders
@@ -73,6 +74,31 @@ func AdminEditProposal(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		http.Redirect(w, r,
 			fmt.Sprintf("/%s/admin/applicants?flash=%s", conf.Tag, url.QueryEscape("Proposal not found.")),
 			http.StatusSeeOther)
+		return
+	}
+	if proposal.ScheduleFor == nil || proposal.ScheduleFor.Tag != conf.Tag {
+		http.Error(w, "Talk not found in this event", http.StatusNotFound)
+		return
+	}
+	proposal.ConfTalk, err = getters.GetConfTalkByProposal(ctx, proposalID)
+	if err != nil {
+		http.Error(w, "Unable to load talk resources", http.StatusInternalServerError)
+		return
+	}
+	if proposal.ConfTalk != nil && !adminTalkResourcesInConference(proposal.ConfTalk, conf.Tag) {
+		http.Error(w, "Talk not found in this event", http.StatusNotFound)
+		return
+	}
+	if proposal.ConfTalk != nil {
+		proposal.Recording, err = getters.GetRecordingByConfTalk(ctx, proposal.ConfTalk.ID)
+		if err != nil {
+			http.Error(w, "Unable to load recording", http.StatusInternalServerError)
+			return
+		}
+	}
+	resourcesCSRF, err := ensureAuthMethodsCSRF(ctx, r)
+	if err != nil {
+		http.Error(w, "Unable to secure resources form", http.StatusInternalServerError)
 		return
 	}
 
@@ -108,15 +134,16 @@ func AdminEditProposal(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 				inviteURL = helpers.InviteLink(ctx, proposal.ID, proposal.InviteToken)
 			}
 			renderAdminEditProposal(w, ctx, &AdminEditProposalPage{
-				Conf:      conf,
-				Proposal:  proposal,
-				TalkTypes: adminTalkTypes(proposal.TalkType),
-				Durations: adminTalkDurations,
-				Speakers:  resolveProposalSpeakers(proposal, ctx),
-				InviteURL: inviteURL,
-				FlashErr:  "Couldn't save — see server logs.",
-				ReturnURL: returnURL,
-				Year:      helpers.CurrentYear(),
+				Conf:          conf,
+				Proposal:      proposal,
+				TalkTypes:     adminTalkTypes(proposal.TalkType),
+				Durations:     adminTalkDurations,
+				Speakers:      resolveProposalSpeakers(proposal, ctx),
+				InviteURL:     inviteURL,
+				FlashErr:      "Couldn't save — see server logs.",
+				ResourcesCSRF: resourcesCSRF,
+				ReturnURL:     returnURL,
+				Year:          helpers.CurrentYear(),
 			})
 			return
 		}
@@ -131,16 +158,17 @@ func AdminEditProposal(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		inviteURL = helpers.InviteLink(ctx, proposal.ID, proposal.InviteToken)
 	}
 	renderAdminEditProposal(w, ctx, &AdminEditProposalPage{
-		Conf:      conf,
-		Proposal:  proposal,
-		TalkTypes: adminTalkTypes(proposal.TalkType),
-		Durations: adminTalkDurations,
-		Speakers:  resolveProposalSpeakers(proposal, ctx),
-		InviteURL: inviteURL,
-		Flash:     r.URL.Query().Get("flash"),
-		FlashErr:  r.URL.Query().Get("error"),
-		ReturnURL: returnURL,
-		Year:      helpers.CurrentYear(),
+		Conf:          conf,
+		Proposal:      proposal,
+		TalkTypes:     adminTalkTypes(proposal.TalkType),
+		Durations:     adminTalkDurations,
+		Speakers:      resolveProposalSpeakers(proposal, ctx),
+		InviteURL:     inviteURL,
+		Flash:         r.URL.Query().Get("flash"),
+		ResourcesCSRF: resourcesCSRF,
+		FlashErr:      r.URL.Query().Get("error"),
+		ReturnURL:     returnURL,
+		Year:          helpers.CurrentYear(),
 	})
 }
 
