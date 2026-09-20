@@ -48,10 +48,12 @@ type liveSpeakerLink struct {
 }
 
 type liveStatusResponse struct {
-	Live     bool              `json:"live"`
-	WatchURL string            `json:"watch_url,omitempty"`
-	Title    string            `json:"title,omitempty"`
-	Speakers []liveSpeakerLink `json:"speakers,omitempty"`
+	HLSURL    string            `json:"hls_url,omitempty"`
+	StartedAt *time.Time        `json:"started_at,omitempty"`
+	Live      bool              `json:"live"`
+	WatchURL  string            `json:"watch_url,omitempty"`
+	Title     string            `json:"title,omitempty"`
+	Speakers  []liveSpeakerLink `json:"speakers,omitempty"`
 }
 
 type liveStatusCache struct {
@@ -328,6 +330,8 @@ func loadLiveStatus(ctx *config.AppContext, now time.Time) (liveStatusResponse, 
 		return response, nil
 	}
 	response.Live = true
+	response.HLSURL = broadcast.HLSURL
+	response.StartedAt = broadcast.StartedAt
 	response.WatchURL = recordingWatchPath(rec.ID)
 	response.Title = strings.TrimSpace(rec.TalkName)
 	if confTalk.Proposal != nil && strings.TrimSpace(confTalk.Proposal.Title) != "" {

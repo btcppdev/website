@@ -8,6 +8,8 @@
   second row; every other page passes only Page.
 */}}
 {{ define "site_header" }}
+<link rel="stylesheet" href="/static/css/live-inset.css">
+<script src="/static/js/live-inset.js" defer></script>
 {{ $nav := navConfs }}
 {{ $page := .Page }}
 {{ $conf := .Conference }}

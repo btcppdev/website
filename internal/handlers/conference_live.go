@@ -99,5 +99,5 @@ func loadConferenceLiveStatus(ctx *config.AppContext, now time.Time) (liveStatus
 		return liveStatusResponse{}, nil
 	}
 	page := conferenceLivePage(conf, broadcast, now)
-	return liveStatusResponse{Live: true, WatchURL: page.Path, Title: liveTickerTitle(page.Title)}, nil
+	return liveStatusResponse{Live: true, HLSURL: broadcast.HLSURL, StartedAt: broadcast.StartedAt, WatchURL: page.Path, Title: liveTickerTitle(page.Title)}, nil
 }
