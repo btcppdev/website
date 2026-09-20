@@ -64,6 +64,8 @@ type server struct {
 	loadRecording               func(string) (*types.Recording, error)
 	loadBroadcast               func(string) (*types.RecordingBroadcast, error)
 	upsertBroadcast             func(string, getters.RecordingBroadcastUpdate) (*types.RecordingBroadcast, error)
+	upsertConferenceBroadcast   func(string, getters.ConferenceBroadcastUpdate) (*types.ConferenceBroadcast, error)
+	loadConferenceBroadcast     func(string) (*types.ConferenceBroadcast, error)
 	recordAudit                 func(*types.AuthAuditEvent) error
 	limiter                     *rateLimiter
 }
@@ -148,7 +150,11 @@ func Register(root *mux.Router, app *config.AppContext) {
 		upsertRecording: func(id string, update getters.RecordingUpsert) (*types.Recording, error) {
 			return getters.UpsertRecordingForConfTalk(app, id, update)
 		},
-		loadRecording: func(id string) (*types.Recording, error) { return getters.GetRecordingByID(app, id) },
+		loadRecording:           func(id string) (*types.Recording, error) { return getters.GetRecordingByID(app, id) },
+		loadConferenceBroadcast: func(id string) (*types.ConferenceBroadcast, error) { return getters.GetConferenceBroadcast(app, id) },
+		upsertConferenceBroadcast: func(id string, update getters.ConferenceBroadcastUpdate) (*types.ConferenceBroadcast, error) {
+			return getters.UpsertConferenceBroadcast(app, id, update)
+		},
 		loadBroadcast: func(id string) (*types.RecordingBroadcast, error) { return getters.GetRecordingBroadcast(app, id) },
 		upsertBroadcast: func(id string, update getters.RecordingBroadcastUpdate) (*types.RecordingBroadcast, error) {
 			return getters.UpsertRecordingBroadcast(app, id, update)
@@ -195,6 +201,7 @@ func (s *server) register(r *mux.Router) {
 	r.HandleFunc("/badge-grants/{grantID}/revoked", s.badgeGrantRevoked).Methods(http.MethodPost)
 	r.HandleFunc("/recordings", s.recordings).Methods(http.MethodGet)
 	r.HandleFunc("/recordings/{recordingID}", s.recording).Methods(http.MethodGet)
+	r.HandleFunc("/conferences/{tag}/broadcast", s.putConferenceBroadcast).Methods(http.MethodPut)
 	r.HandleFunc("/recordings/{recordingID}/broadcast", s.putRecordingBroadcast).Methods(http.MethodPut)
 	r.HandleFunc("/conferences/{tag}/hackathons", s.conferenceHackathons).Methods(http.MethodGet)
 	r.HandleFunc("/hackathons/{competitionID}", s.hackathon).Methods(http.MethodGet)

@@ -269,6 +269,7 @@
         "responses": {"200": {"description": "Recording broadcast plans", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RecordingBroadcastPlanListResponse"}, "examples": {"default": {"$ref": "#/components/examples/listRecordingBroadcastPlans"}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"$ref": "#/components/responses/Forbidden"}, "422": {"$ref": "#/components/responses/ValidationError"}}
       }
     },
+    "/conferences/{tag}/broadcast": {"parameters":[{"$ref":"#/components/parameters/ConferenceTag"}],"put":{"operationId":"updateConferenceBroadcast","summary":"Update a conference-wide live broadcast and heartbeat","description":"A live update also acts as a heartbeat. Send it at least once per minute; public playback stops advertising a live stream after two minutes without a heartbeat.","security":[{"oauth2":["recordings:write"]},{"personalAccessToken":[]}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ConferenceBroadcastUpdate"}}}},"responses":{"200":{"description":"Updated broadcast state","content":{"application/json":{"schema":{"$ref":"#/components/schemas/RecordingBroadcastResponse"},"examples":{"default":{"$ref":"#/components/examples/updateConferenceBroadcast"}}}}},"401":{"$ref":"#/components/responses/Unauthorized"},"403":{"$ref":"#/components/responses/Forbidden"},"404":{"$ref":"#/components/responses/NotFound"}}}},
     "/recordings/{recording_id}/broadcast": {
       "parameters": [{"$ref": "#/components/parameters/RecordingID"}],
       "put": {
@@ -489,6 +490,7 @@
           "meta": {"request_id": "req_example"}
         }
       },
+      "updateConferenceBroadcast": {"summary":"Live recording broadcast heartbeat","value":{"data":{"state":"live","hls_url":"https://stream.btcpp.dev/live/stream-1/index.m3u8","x_broadcast_url":null,"started_at":"2026-08-21T14:59:58Z","ended_at":null,"heartbeat_at":"2026-08-21T15:00:43Z","is_live":true},"meta":{"request_id":"req_example"}}},
       "updateRecordingBroadcast": {
         "summary": "Live recording broadcast heartbeat",
         "value": {
@@ -602,6 +604,7 @@
           "x_url": {"type": "string"}, "x_reply_url": {"type": "string"}, "published_at": {"type": "string", "description": "RFC 3339 timestamp; empty clears publication time"}
         }
       },
+      "ConferenceBroadcastUpdate": {"type":"object","additionalProperties":false,"required":["state"],"properties":{"state":{"type":"string","enum":["scheduled","live","ended","failed"]},"hls_url":{"type":"string","format":"uri","description":"Required for live updates."},"x_broadcast_url":{"type":"string","format":"uri"},"title":{"type":"string","maxLength":200}}},
       "RecordingBroadcastUpdate": {
         "type": "object", "additionalProperties": false, "required": ["state"],
         "properties": {
