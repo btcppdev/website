@@ -510,9 +510,11 @@ type SpeakerPage struct {
 	// Captcha / OtherEvents) are hidden and the form posts to
 	// /invite-speaker/{Proposal.ID}?t={InviteToken} instead of
 	// /talk/{Conf.Tag}.
-	InviteMode  bool
-	InviteToken string
-	Proposal    *types.Proposal
+	InviteMode      bool
+	InviteToken     string
+	InviteRecipient string
+	InviteSignature string
+	Proposal        *types.Proposal
 	// KnownSpeakerConf is the existing SpeakerConf for the
 	// recipient at this conf — used to pre-fill ComingFrom / Visa
 	// / Availability / Company / etc. so the speaker only has to

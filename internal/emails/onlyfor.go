@@ -284,7 +284,7 @@ func SendOnlyForProposal(ctx *config.AppContext, onlyFor string, proposal *types
 			Email:           sp.Email,
 			TalkConfirmLink: helpers.EmailLink(ctx, sp.Email, "/dashboard/talks/"+proposal.ID+"/confirm"),
 			DashboardLink:   helpers.EmailLink(ctx, sp.Email, "/dashboard"),
-			MagicLink:       helpers.InviteLink(ctx, proposal.ID, proposal.InviteToken),
+			MagicLink:       helpers.SpeakerInviteLink(ctx, proposal.ID, proposal.InviteToken, sp.ID),
 			Note:            note,
 			URI:             ctx.Env.GetURI(),
 		}

@@ -47,9 +47,15 @@
                 </div>
             </div>
             <div class="btcpp-form-panel">
+            {{ if and .InviteMode .InviteRecipient .KnownSpeaker }}
+            <p class="mx-auto mt-6 max-w-xl text-sm" data-invitation-recipient>
+                This invitation is for <strong>{{ .KnownSpeaker.Name }}</strong> ({{ .KnownSpeaker.Email }}).
+                If that is not you, ask the organizer for your own invitation.
+            </p>
+            {{ end }}
             <form action="#"
             {{ if .InviteMode }}
-            hx-post="/invite-speaker/{{ .Proposal.ID }}?t={{ .InviteToken }}"
+            hx-post="/invite-speaker/{{ .Proposal.ID }}?t={{ .InviteToken }}{{if .InviteRecipient}}&amp;recipient={{ .InviteRecipient }}&amp;signature={{ .InviteSignature }}{{end}}"
             {{ else if .ReturnToDashboard }}
             hx-post="/talk/{{ .Conf.Tag }}?from=dashboard"
             {{ else }}
@@ -537,7 +543,7 @@
                  nesting), so the Accept submit + this Decline submit
                  don't trigger each other. Standard POST (not htmx)
                  because we redirect away on success. */}}
-            <form method="POST" action="/invite-speaker/{{ .Proposal.ID }}/decline?t={{ .InviteToken }}" class="btcpp-form-secondary-action mx-auto mt-4 max-w-xl">
+            <form method="POST" action="/invite-speaker/{{ .Proposal.ID }}/decline?t={{ .InviteToken }}{{if .InviteRecipient}}&amp;recipient={{ .InviteRecipient }}&amp;signature={{ .InviteSignature }}{{end}}" class="btcpp-form-secondary-action mx-auto mt-4 max-w-xl">
                 <button type="submit"
                         onclick="return confirm('Decline this invitation? Your talk will not be added to the program and your co-speakers (if any) will be notified.');"
                         class="inline-flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-3.5 py-2.5 text-center text-sm font-semibold text-gray-700 hover:bg-gray-50">

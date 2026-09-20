@@ -1452,12 +1452,9 @@ func DashboardInviteCoSpeaker(w http.ResponseWriter, r *http.Request, ctx *confi
 // upserts Speaker + Org and links the new SpeakerConf to the existing
 // proposal.
 //
-// The token in the URL is matched against proposal.InviteToken — a
-// random value stored on the Notion row. Admins revoke a leaked link
-// by clearing or rotating the field in Notion; the next request 403s.
-// Anyone with the link can submit — that's the point. The proposal
-// can't be mutated beyond "add a speaker" via this path, so the blast
-// radius of a leaked link is bounded.
+// The proposal token can be revoked by clearing or rotating it. Personalized
+// invitations additionally bind the recipient with a server-key signature.
+// Shared links never prefill or authorize changes to an existing account.
 func InviteSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	proposalID := mux.Vars(r)["proposalID"]
 	token := r.URL.Query().Get("t")
@@ -1481,33 +1478,17 @@ func InviteSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		return
 	}
 
-	confs := listConfs(w, ctx)
-
-	if r.Method == http.MethodPost {
-		handleInviteSpeakerPOST(w, r, ctx, proposal, conf, confs)
+	// Only a recipient-bound signature can select an existing speaker. Shared
+	// proposal links never guess identity from panel order or viewed timestamps.
+	inviteeSC, err := resolveSpeakerInviteRecipient(ctx, r, proposal)
+	if err != nil {
+		inviteLinkBail(w, r, "That invitation does not identify a valid recipient. Ask the organizer for a fresh invitation addressed to you.")
 		return
 	}
-
-	// Pick out the SpeakerConf the admin invited (has InvitedAt set).
-	// Prefer one whose ViewedAt is still nil so we identify the
-	// just-arriving speaker on a panel where one co-speaker already
-	// opened the link. Used both to stamp ViewedAt and to surface the
-	// existing Speaker record as KnownSpeaker so the form can hide
-	// fields we already know.
-	var inviteeSC *types.SpeakerConf
-	for _, ref := range proposal.SpeakerConfRefs {
-		sc, err := getters.GetSpeakerConfByID(ctx, ref)
-		if err != nil {
-			ctx.Err.Printf("/invite-speaker speakerconf %s: %s", ref, err)
-			http.Error(w, "Unable to load invite", http.StatusInternalServerError)
-			return
-		}
-		if sc == nil || sc.InvitedAt == nil {
-			continue
-		}
-		if inviteeSC == nil || (inviteeSC.ViewedAt != nil && sc.ViewedAt == nil) {
-			inviteeSC = sc
-		}
+	confs := listConfs(w, ctx)
+	if r.Method == http.MethodPost {
+		handleInviteSpeakerPOST(w, r, ctx, proposal, conf, confs, inviteeSC)
+		return
 	}
 	if inviteeSC != nil && inviteeSC.ViewedAt == nil {
 		if err := getters.SetSpeakerConfViewedAt(ctx, inviteeSC.ID, time.Now()); err != nil {
@@ -1572,6 +1553,8 @@ func InviteSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		RecordingOptions: recOpts,
 		InviteMode:       true,
 		InviteToken:      token,
+		InviteRecipient:  r.URL.Query().Get("recipient"),
+		InviteSignature:  r.URL.Query().Get("signature"),
 		Proposal:         proposal,
 		EditTalkContent:  strings.HasPrefix(proposal.Title, types.PlaceholderTitlePrefix),
 		IsInvited:        proposal.Status == "Invited",
@@ -1618,6 +1601,10 @@ func InviteSpeakerDecline(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		inviteLinkBail(w, r, "That invite link has expired or been revoked. Ask the organizer for a fresh one.")
 		return
 	}
+	if _, err := resolveSpeakerInviteRecipient(ctx, r, proposal); err != nil {
+		inviteLinkBail(w, r, "That invitation does not identify a valid recipient. Ask the organizer for a fresh invitation.")
+		return
+	}
 	if proposal.Status != "Invited" {
 		inviteLinkBail(w, r, "This talk isn't currently invited — nothing to decline.")
 		return
@@ -1640,7 +1627,7 @@ func InviteSpeakerDecline(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 // (no new Proposal, attach to the inviter's existing one). The submit
 // pipeline returns ErrSpeakerApp-shaped responses on failure so HTMX
 // renders the inline error block in the form.
-func handleInviteSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, proposal *types.Proposal, conf *types.Conf, confs []*types.Conf) {
+func handleInviteSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, proposal *types.Proposal, conf *types.Conf, confs []*types.Conf, invitee *types.SpeakerConf) {
 	limitRequestBody(w, r, maxMultipartBodyBytes)
 	if err := r.ParseMultipartForm(maxUploadFileBytes); err != nil {
 		ctx.Err.Printf("/invite-speaker parseform: %s", err)
@@ -1660,7 +1647,16 @@ func handleInviteSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	talkapp.OtherEvents = helpers.ParseFormConfs("conf-", r.PostForm, confs)
 	talkapp.ScheduleFor = conf
 
-	if alreadyOnProposal(proposal, talkapp.Email) {
+	existing, lookupErr := getters.GetPersonByEmail(ctx, talkapp.Email)
+	if lookupErr != nil {
+		w.Write([]byte(helpers.ErrSpeakerApp("Unable to verify the invitation recipient.")))
+		return
+	}
+	if err := validateSpeakerInviteIdentity(invitee, existing, talkapp.Email); err != nil {
+		w.Write([]byte(helpers.ErrSpeakerApp(err.Error())))
+		return
+	}
+	if invitee == nil && alreadyOnProposal(proposal, talkapp.Email) {
 		w.Write([]byte(helpers.ErrSpeakerApp("You're already a speaker on this talk.")))
 		return
 	}

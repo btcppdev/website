@@ -326,6 +326,27 @@ func InviteLink(ctx *config.AppContext, proposalID, inviteToken string) string {
 	return u.String()
 }
 
+// SpeakerInviteLink binds a proposal invitation to one recipient. The signature
+// uses the server key so possession of a shared panel token cannot change it.
+func SpeakerInviteLink(ctx *config.AppContext, proposalID, token, personID string) string {
+	if token == "" || personID == "" {
+		return ""
+	}
+	u, err := url.Parse(InviteLink(ctx, proposalID, token))
+	if err != nil {
+		return ""
+	}
+	q := u.Query()
+	q.Set("recipient", personID)
+	q.Set("signature", CreateScopedHMAC(ctx, "speaker-invite-recipient", proposalID+"\x00"+token+"\x00"+personID))
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func VerifySpeakerInviteRecipient(ctx *config.AppContext, proposalID, token, personID, signature string) bool {
+	return personID != "" && token != "" && signature != "" && VerifyScopedHMAC(ctx, "speaker-invite-recipient", proposalID+"\x00"+token+"\x00"+personID, signature)
+}
+
 func VolShiftLink(ctx *config.AppContext, vol *types.Volunteer) string {
 	return EmailLink(ctx, vol.Email, "/vols/shift")
 }

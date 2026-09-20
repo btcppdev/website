@@ -96,8 +96,8 @@ func AdminInviteSpeakerSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		return
 	}
 
-	// 1. Resolve speaker: prefer the autocomplete-picked SpeakerID, else
-	// look up by email; create a new row if neither matches.
+	// 1. Resolve speaker by email, checking that any autocomplete selection
+	// refers to the same person; otherwise create a new row.
 	speaker, err := resolveOrCreateSpeaker(ctx, speakerID, name, email)
 	if err != nil {
 		ctx.Err.Printf("/%s/admin/invite-speaker resolve speaker: %s", conf.Tag, err)
@@ -165,8 +165,8 @@ func AdminInviteSpeakerSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 	// 7. Redirect (POST/redirect/GET) to the sent page so a refresh
 	// doesn't re-fire the invite.
 	http.Redirect(w, r,
-		fmt.Sprintf("/%s/admin/invite-speaker/sent?proposal=%s&existing=%t&reused=%t",
-			conf.Tag, proposal.ID, attachedToExisting, reusedInvitation),
+		fmt.Sprintf("/%s/admin/invite-speaker/sent?proposal=%s&existing=%t&reused=%t&recipient=%s",
+			conf.Tag, proposal.ID, attachedToExisting, reusedInvitation, speaker.ID),
 		http.StatusSeeOther)
 }
 
@@ -201,33 +201,30 @@ func AdminInviteSpeakerSent(w http.ResponseWriter, r *http.Request, ctx *config.
 		handle404(w, r, ctx)
 		return
 	}
-	// Recipient is the most-recently-invited SpeakerConf on the
-	// proposal — the one we just created. Keeping it generic so a
-	// refreshed page still renders something useful even if multiple
-	// invites have been sent.
+	// Keep the confirmation link bound to the recipient from this send, even
+	// if another organizer invites a panelist before this page is refreshed.
 	var recipient *types.Speaker
-	var latest *time.Time
 	for _, ref := range proposal.SpeakerConfRefs {
 		sc, err := getters.GetSpeakerConfByID(ctx, ref)
 		if err != nil {
-			ctx.Err.Printf("/%s/admin/invite-speaker/sent speakerconf %s: %s", conf.Tag, ref, err)
-			http.Error(w, "render failed", http.StatusInternalServerError)
+			http.Error(w, "Unable to load invitation", http.StatusInternalServerError)
 			return
 		}
-		if sc == nil || sc.Speaker == nil {
-			continue
-		}
-		if latest == nil || (sc.InvitedAt != nil && sc.InvitedAt.After(*latest)) {
-			latest = sc.InvitedAt
+		if sc != nil && sc.Speaker != nil && sc.Speaker.ID == r.URL.Query().Get("recipient") {
 			recipient = sc.Speaker
+			break
 		}
+	}
+	if recipient == nil {
+		http.Error(w, "Select the intended speaker and send a fresh invitation.", http.StatusBadRequest)
+		return
 	}
 
 	page := &AdminInviteSpeakerSentPage{
 		Conf:               conf,
 		Speaker:            recipient,
 		Proposal:           proposal,
-		MagicLink:          helpers.InviteLink(ctx, proposal.ID, proposal.InviteToken),
+		MagicLink:          helpers.SpeakerInviteLink(ctx, proposal.ID, proposal.InviteToken, recipient.ID),
 		AttachedToExisting: r.URL.Query().Get("existing") == "true",
 		ReusedInvitation:   r.URL.Query().Get("reused") == "true",
 		Year:               helpers.CurrentYear(),
@@ -238,25 +235,15 @@ func AdminInviteSpeakerSent(w http.ResponseWriter, r *http.Request, ctx *config.
 	}
 }
 
-// resolveOrCreateSpeaker prefers the autocomplete-picked speakerID, then
-// the email-based lookup, then creates a new row. Returns the resolved
-// speaker. Errors are returned as-is.
+// resolveOrCreateSpeaker resolves by email and validates any autocomplete ID.
+// A stale or tampered selection cannot redirect an invitation to another person.
 func resolveOrCreateSpeaker(ctx *config.AppContext, speakerID, name, email string) (*types.Speaker, error) {
-	if speakerID != "" {
-		// Autocomplete supplied an ID; trust it but fall back to lookup
-		// if the row disappeared.
-		speaker, err := getters.FetchSpeakerByID(ctx, speakerID)
-		if err != nil {
-			return nil, fmt.Errorf("lookup by id: %w", err)
-		}
-		if speaker != nil {
-			return speaker, nil
-		}
-		// Fall through: treat as if no ID was picked.
-	}
 	person, err := getters.GetPersonByEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("lookup by email: %w", err)
+	}
+	if speakerID != "" && (person == nil || person.ID != speakerID) {
+		return nil, fmt.Errorf("selected speaker does not own the supplied email; clear the selection and try again")
 	}
 	if person != nil {
 		return person, nil
