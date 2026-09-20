@@ -1000,8 +1000,10 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	   prefix; any preserved query string + hash fragment carries
 	   through (the fragment never reaches the server but the
 	   browser preserves it across a 301). */
-	r.HandleFunc("/conf/{conf}/live", func(w http.ResponseWriter, r *http.Request) { ConferenceLive(w, r, app) }).Methods("GET")
-	r.HandleFunc("/conf/{conf}/live/status", func(w http.ResponseWriter, r *http.Request) { ConferenceLiveStatus(w, r, app) }).Methods("GET")
+	r.HandleFunc("/{conf}/live", func(w http.ResponseWriter, r *http.Request) { ConferenceLive(w, r, app) }).Methods("GET")
+	r.HandleFunc("/conf/{conf}/live", redirectStripConfPrefix).Methods("GET")
+	r.HandleFunc("/{conf}/live/status", func(w http.ResponseWriter, r *http.Request) { ConferenceLiveStatus(w, r, app) }).Methods("GET")
+	r.HandleFunc("/conf/{conf}/live/status", redirectStripConfPrefix).Methods("GET")
 	r.HandleFunc("/conf/{conf}", func(w http.ResponseWriter, r *http.Request) {
 		redirectStripConfPrefix(w, r)
 	}).Methods("GET")

@@ -17,7 +17,7 @@ import (
 )
 
 func conferenceLivePath(tag string) string {
-	return "/conf/" + url.PathEscape(tag) + "/live"
+	return "/" + url.PathEscape(tag) + "/live"
 }
 
 func conferenceLivePage(conf *types.Conf, broadcast *types.ConferenceBroadcast, now time.Time) *RecordingWatchPage {
