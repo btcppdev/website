@@ -9,6 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
+	_ "image/png"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -154,6 +157,17 @@ func (c *Client) UploadPoster(ctx context.Context, sessionID, filename, contentT
 	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(filename) == "" || reader == nil {
 		return nil, errors.New("session ID, poster filename, and reader are required")
 	}
+	raw, err := io.ReadAll(io.LimitReader(reader, MaxPosterSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("read poster: %w", err)
+	}
+	if len(raw) > MaxPosterSize {
+		return nil, errors.New("poster exceeds 10 MiB input limit")
+	}
+	raw, filename, contentType, err = preparePoster(raw, filename, contentType)
+	if err != nil {
+		return nil, err
+	}
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	header := make(textproto.MIMEHeader)
@@ -169,20 +183,19 @@ func (c *Client) UploadPoster(ctx context.Context, sessionID, filename, contentT
 	if err != nil {
 		return nil, fmt.Errorf("create poster form: %w", err)
 	}
-	written, err := io.Copy(part, io.LimitReader(reader, MaxPosterSize+1))
+	_, err = part.Write(raw)
 	if err != nil {
 		return nil, fmt.Errorf("read poster: %w", err)
 	}
-	if written > MaxPosterSize {
-		return nil, errors.New("poster exceeds 10 MiB limit")
-	}
+
 	if err := writer.Close(); err != nil {
 		return nil, fmt.Errorf("finish poster form: %w", err)
 	}
 	var response envelope[string]
+	payloadBytes := body.Len()
 	meta, err := c.do(ctx, http.MethodPost, "/api/live/upload-poster-image?rwebShell=1", sessionID, writer.FormDataContentType(), &body, &response)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("upload poster (%d-byte request): %w", payloadBytes, err)
 	}
 	if err := checkEnvelope(response.Error); err != nil {
 		return nil, err
@@ -261,7 +274,11 @@ func (c *Client) do(ctx context.Context, method, path, sessionID, contentType st
 		return meta, fmt.Errorf("read X Studio response: %w", err)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return meta, &HTTPError{response.StatusCode, safeDetail(raw, c.config), meta}
+		detail := safeDetail(raw, c.config)
+		if response.StatusCode == http.StatusRequestEntityTooLarge {
+			detail = "request body rejected as too large"
+		}
+		return meta, fmt.Errorf("%s: %w", strings.Split(path, "?")[0], &HTTPError{response.StatusCode, detail, meta})
 	}
 	if err := json.Unmarshal(raw, output); err != nil {
 		return meta, fmt.Errorf("decode X Studio response: %w", err)
@@ -305,4 +322,35 @@ func safeDetail(raw []byte, config Config) string {
 func escapeQuoted(value string) string {
 	value = strings.ReplaceAll(value, `\`, `\\`)
 	return strings.ReplaceAll(value, `"`, `\"`)
+}
+
+// This is a conservative payload budget, not a documented X endpoint limit.
+// Leave room for multipart framing under common 1 MiB proxy body limits.
+const posterUploadBudget = 768 << 10
+
+func preparePoster(raw []byte, filename, contentType string) ([]byte, string, string, error) {
+	if len(raw) <= posterUploadBudget {
+		return raw, filename, contentType, nil
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil {
+		return nil, "", "", fmt.Errorf("decode oversized poster: %w", err)
+	}
+	if cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > 16000000 {
+		return nil, "", "", errors.New("poster dimensions exceed 16 megapixels; export a smaller social card")
+	}
+	img, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, "", "", fmt.Errorf("decode poster: %w", err)
+	}
+	for _, quality := range []int{90, 80, 70, 60, 50, 40} {
+		var b bytes.Buffer
+		if err := jpeg.Encode(&b, img, &jpeg.Options{Quality: quality}); err != nil {
+			return nil, "", "", fmt.Errorf("compress poster: %w", err)
+		}
+		if b.Len() <= posterUploadBudget {
+			return b.Bytes(), strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename)) + ".jpg", "image/jpeg", nil
+		}
+	}
+	return nil, "", "", errors.New("poster remains too large after compression; export a lower-resolution social card")
 }
