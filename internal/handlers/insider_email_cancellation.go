@@ -32,7 +32,7 @@ func CancelInsiderTransactionalEmail(w http.ResponseWriter, r *http.Request, app
 		return
 	}
 	// The caller cannot select another product's job namespace or a whole recipient.
-	if err := emails.SuppressJob(r.Context(), app, "insider-transactional:"+request.IdempotencyKey); err != nil {
+	if err := emails.SuppressJob(r.Context(), app, "btcpp:insider-transactional:"+request.IdempotencyKey); err != nil {
 		http.Error(w, "Cancellation not confirmed; retry the same request", 503)
 		return
 	}

@@ -20,7 +20,7 @@ func TestInsiderTransactionalCancellation(t *testing.T) {
 	mailer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		var request map[string]string
-		if json.NewDecoder(r.Body).Decode(&request) != nil || len(request) != 2 || request["scope"] != "job" || request["key"] != "insider-transactional:fixture-job" || r.Method != "PUT" || r.URL.Path != "/suppression" {
+		if json.NewDecoder(r.Body).Decode(&request) != nil || len(request) != 2 || request["scope"] != "job" || request["key"] != "btcpp:insider-transactional:fixture-job" || r.Method != "PUT" || r.URL.Path != "/suppression" {
 			t.Error("unsafe suppression request", request, r.Method, r.URL.Path)
 		}
 		stamp := r.Header.Get("X-Base58-Timestamp")

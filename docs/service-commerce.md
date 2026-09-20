@@ -836,7 +836,7 @@ remain launch tasks; no monitoring system was changed by this implementation.
 `POST /api/internal/insider/transactional-emails/cancel` accepts the private Insider
 service bearer token, JSON `{"schema_version":1,"idempotency_key":"<original message key>"}`,
 and the matching `Idempotency-Key` header. It maps that key to the same
-`insider-transactional:` mailer job namespace used for enqueueing. Callers cannot
+`btcpp:insider-transactional:` mailer job namespace used for enqueueing. Callers cannot
 supply a different namespace, recipient-wide suppression or subscription scope.
 
 The adapter sends authenticated `PUT /suppression` with scope `job` to the shared
