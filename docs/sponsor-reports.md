@@ -1,0 +1,65 @@
+# Event sponsor reports
+
+`/admin/reports` is an event chooser. `/admin/reports?event=nairobi` opens the first event draft. The global admin dashboard links here. Only global administrators can view or save reports.
+
+The report is now an event recap: cover, event scorecard, nifty’s note, highlighted speakers and popular sessions, core panels, hackathon winning projects, judge portraits, closing note, and definitions. It prints to PDF. Migration `111_sponsor_reports.sql` stores the draft; no production deployment or migration has been performed.
+
+## Nairobi first edition
+
+The initial letter uses nifty’s own reflection that bringing bitcoin++ to Africa was a highlight of 2026. Her earlier annual letter, including Jake’s contribution and the economics edition, is preserved in `2026-sponsor-letter-draft.md`; those facts are not automatically attributed to Nairobi.
+
+First-use Nairobi defaults select six speakers and its program’s panels, with all choices editable. Default selection is editorial, never a popularity ranking. The draft context identifies open source as the event theme and points readers to the program and hackathon pages.
+
+A public-source preview lives in `nairobi-report-draft.json`. It includes six selected speakers, three panels, the three published overall winners, and eleven listed judges with their actual profile photos. Its private metrics remain blank. It is not a production database fixture and is never loaded by the application handler.
+
+Sources retrieved 16 September 2026:
+
+- [Nairobi program and speaker profiles](https://btcpp.dev/nairobi).
+- [Hackathon results, project descriptions, and judge roster](https://btcpp.dev/nairobi/hackathon).
+
+The public event heading says 17–19 June; structured metadata spans into early 20 June and older emails describe four days. The PDF uses the advertised program dates. The live report uses the event’s display dates and derives daily-entry dates from scheduled program sessions, falling back to the configured event range when no sessions exist.
+
+The PDF draft is at `artifacts/bitcoin-plus-plus-nairobi-2026-sponsor-report-draft.pdf`. Its project and judge pages have been rendered and visually checked.
+
+The report adapts the visual design of `bitcoinpp-sponsor-kit-2027-4.pdf`: landscape pages, black frames and page tabs, lavender/gold gradients, an oversized italic wordmark, Archivo headings, and Space Mono body text. Fonts are served locally with their OFL licenses in `static/fonts`, so PDF export does not depend on a font service. The 1200 × 675 CSS-pixel print canvas preserves the kit’s widescreen proportions; choose fit-to-page for physical paper. Reference-kit statistics are not used as event data.
+
+## Metric definitions
+
+| Item | How it works |
+| --- | --- |
+| Unique attendees | Checked-in registrations that were not revoked before account deletion deduplicated by linked person, email alias, or normalized email. Unlinked aliases can still overcount. |
+| Daily attendance | Not collected; omitted from the report and editor. |
+
+| Delivered talks/workshops/panels | Select sessions actually delivered and confirm the program review. Until reviewed, totals are blank. Talks include keynotes; panels and workshops are separate. Future or undated session endings cannot be confirmed. |
+| Applications | Verified intake count with a source. Current proposal records include invitations and admin-created sessions, so the editor sees their count but sponsors do not receive it mislabeled as applications. |
+| Volunteers | Unique people assigned to event shifts, including leaders; not verified on-site attendance. |
+| Hackathon teams | Submitted/advanced project entries; one project team per entry. Not every registered hacker or unsubmitted idea. Multiple submissions from the same people may count more than once. |
+| Participants | Distinct members of included projects within the event. |
+| Sats distributed | Sats distribution records marked sent/claimed. Excludes pending/cancelled awards, non-sats prizes, and announced pool totals. Reconcile historical, pooled, or external payments separately. |
+| Winners | Awarded, unarchived prizes assigned to submitted/advanced projects, only after results are finalized. Multiple awards do not multiply project cards or payouts. |
+| Popular sessions | Top five among imported session analytics, sorted using one comparable metric (YouTube views or X video views), reporting period, export date, and source. Does not establish in-room popularity. |
+| Speaker/judge portraits | Existing profile photographs. Missing photos are marked rather than synthesized. Judge roster combines ranked judges and sponsor-award judges without duplicate people. |
+
+## Editing and export
+
+Drafts store narrative, speaker/panel choices, delivery confirmations, judge notes, application count, and per-session view counts. Save before printing. Counts require non-negative integers and imports require provenance. Draft revisions prevent stale saves overwriting another administrator’s work.
+
+The event draft key uses `event-v2/<conference ID>`; earlier annual drafts are retained under their original keys. Database metrics and content load in a read-only repeatable-read transaction. The report never includes contact details, tax records, or payment addresses.
+
+Print / Save as PDF freezes the displayed edition. Enable background graphics and turn off browser-added headers/footers. The live view refreshes from current records; this is not a server-side immutable snapshot or an automatic analytics integration.
+
+## Verification
+
+`nix develop --command go test ./internal/handlers ./internal/db -count=1`
+
+Set `REPORT_TEST_DATABASE_URL` to an isolated PostgreSQL instance for the report SQL and persistence checks. Tests use session-local tables and cover cross-event isolation, check-in deduplication, project status, volunteer deduplication, finalized awards, duplicate awards, payout states, stale saves, local dates, count provenance, and output escaping.
+
+`REPORT_PREVIEW=1 go test ./internal/handlers -run TestReportRender -count=1 -timeout=0 -v` serves the public-source Nairobi draft on port 8102.
+
+## Charts
+
+Dedicated print pages show delivered talks/keynotes, workshops and panels; the top five sessions by one sourced view metric; and recorded sats distributed by finalized winning project. Bars start at zero, values are printed beside them, and prize charts paginate after five projects with a shared scale. Public-source previews show explicit pending-data panels rather than fabricated values. Daily attendance and attendee-days are omitted because they are not collected.
+
+### Reference design verification
+
+Checked against the supplied PDF’s embedded fonts, drawing colors, and rendered pages: Archivo display type (including the real italic face), Space Mono regular/bold/italic, paper #ececec, black #000000, lavender #c8b3f5, gold #f7b500, pink #f6b9dc. Display headings use expanded Archivo; CSS gradients reproduce the reference’s color treatment rather than embedding flattened page images. All font files are served locally under the existing OFL licenses.

@@ -1,0 +1,207 @@
+{
+  "Preview": true,
+  "Event": {
+    "ID": "public-nairobi",
+    "Tag": "nairobi",
+    "Title": "Open Source Edition",
+    "Location": "Nairobi, Kenya",
+    "Timezone": "Africa/Nairobi",
+    "Start": "2026-06-17T09:00:00+03:00",
+    "End": "2026-06-19T18:00:00+03:00",
+    "Period": "17–19 June 2026"
+  },
+  "Generated": "16 September 2026 · public-source draft; private metrics not loaded",
+  "Message": "Nairobi draft from public program and results. Attendance, payout, delivery, and popularity figures await verification.",
+  "Speakers": [
+    {
+      "ID": "public-0",
+      "Name": "Fabian Jahr",
+      "Company": "Brink",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/fabian.png"
+    },
+    {
+      "ID": "public-1",
+      "Name": "Naiyoma",
+      "Company": "bitcoin-core contributor ",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/e8b34251b476-400.avif"
+    },
+    {
+      "ID": "public-2",
+      "Name": "Femi Longe",
+      "Company": "HRF",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/9f78009c465f-400.avif"
+    },
+    {
+      "ID": "public-3",
+      "Name": "Sabina Waithira Gitau",
+      "Company": "Tando LTD",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/sabina.png"
+    },
+    {
+      "ID": "public-4",
+      "Name": "Rita Anene",
+      "Company": "Btrust",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/279a864abfa0-400.avif"
+    },
+    {
+      "ID": "public-5",
+      "Name": "Sy⚡",
+      "Company": "BTrust",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/1b186b8c0f94.jpg"
+    }
+  ],
+  "Judges": [
+    {
+      "ID": "judge-0",
+      "Name": "Alex Gleason",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/gleason.png",
+      "Company": "Soapbox",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-1",
+      "Name": "Fabian Jahr",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/fabian.png",
+      "Company": "Brink",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-2",
+      "Name": "Hadi Alamdar",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/f3917d69e098-400.avif",
+      "Company": "",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-3",
+      "Name": "Jodom",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/238d87ec09c8.jpg",
+      "Company": "Fedimint",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-4",
+      "Name": "Judy Imasuen",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/285059d51079-400.avif",
+      "Company": "HRF",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-5",
+      "Name": "Kelvin Isievwore",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/41743cd9cfb9-400.avif",
+      "Company": "",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-6",
+      "Name": "Mark Kamau",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/315d52a3ef44-400.avif",
+      "Company": "Designing Africa",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-7",
+      "Name": "Marvin Charles",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/2688a0a7fe16.jpg",
+      "Company": "",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-8",
+      "Name": "Mikey",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/7a0d08cb61ae-400.avif",
+      "Company": "",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-9",
+      "Name": "niftynei",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/nifty.jpg",
+      "Company": "bitcoin++",
+      "Role": "Hackathon judge"
+    },
+    {
+      "ID": "judge-10",
+      "Name": "Sy⚡",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/1b186b8c0f94.jpg",
+      "Company": "",
+      "Role": "Hackathon judge"
+    }
+  ],
+  "Winners": [
+    {
+      "ID": "featured-0907cf92-a330-4088-8d6a-3c352eed3356",
+      "Title": "WestToEast",
+      "Description": "A Lightning and LNURL bridge connecting West/Central African currencies with Kenyan shillings through Tando.",
+      "Awards": "1st Overall",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/westtoeast/05df5ac5212b.avif",
+      "Members": "nourou4them Nourou",
+      "GitHub": "",
+      "Demo": "https://btcpp.dev/nairobi/hackathon/projects/0907cf92-a330-4088-8d6a-3c352eed3356"
+    },
+    {
+      "ID": "featured-3082d770-2dbd-4e71-9b9c-645fcf79d630",
+      "Title": "Robin",
+      "Description": "A learning tool for prospective open-source contributors preparing their first pull request.",
+      "Awards": "2nd Overall",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/way2foss/8c916ef4da99.avif",
+      "Members": "Fidel Otieno, Chris Oketch",
+      "GitHub": "https://github.com/itschrisoketch/Robin",
+      "Demo": "https://btcpp.dev/nairobi/hackathon/projects/3082d770-2dbd-4e71-9b9c-645fcf79d630"
+    },
+    {
+      "ID": "featured-d45fff28-4ea9-4721-a541-ddbdad3bef15",
+      "Title": "nairobi2",
+      "Description": "A permissionless ridesharing prototype using Bitcoin notarization to address Sybil resistance.",
+      "Awards": "3rd Overall",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/nairobi2/78f01a78886e.avif",
+      "Members": "Anon Ym",
+      "GitHub": "https://github.com/f321x/nairobi2",
+      "Demo": "https://btcpp.dev/nairobi/hackathon/projects/d45fff28-4ea9-4721-a541-ddbdad3bef15"
+    }
+  ],
+  "Sessions": [
+    {
+      "ID": "nairobi_femi_4013",
+      "Title": "Built Here, Used Everywhere: Closing the African Open Source Founder Gap",
+      "Kind": "panel",
+      "Speakers": "Femi Longe, Wisdom Nji, takinbrrrr, Jodom",
+      "Start": "2026-06-17T11:45:00+03:00",
+      "End": "2026-06-17T12:30:00+03:00",
+      "WatchURL": "https://btcpp.dev/watch/c6941a45-7127-4b8f-bd2d-8d1aa1e0267f"
+    },
+    {
+      "ID": "nairobi_working_b877",
+      "Title": "Working on Bitcoin",
+      "Kind": "panel",
+      "Speakers": "niftynei, Naiyoma, Fabian Jahr",
+      "Start": "2026-06-18T16:00:00+03:00",
+      "End": "2026-06-18T17:00:00+03:00",
+      "WatchURL": "https://btcpp.dev/watch/723ee3b1-573b-4a7b-a227-31ddef0a80b7"
+    },
+    {
+      "ID": "nairobi_panel_4d9e",
+      "Title": "Open Sourcing Developer Community",
+      "Kind": "panel",
+      "Speakers": "Mubarak, Bright Kportiklah, Sadiq Rabiu, Sy⚡",
+      "Start": "2026-06-19T16:00:00+03:00",
+      "End": "2026-06-19T17:00:00+03:00",
+      "WatchURL": "https://btcpp.dev/watch/541dbfcb-0ed3-4db3-b69a-ad0557a7f24d"
+    }
+  ],
+  "Saved": {
+    "speaker_public-0": "yes",
+    "speaker_public-1": "yes",
+    "speaker_public-2": "yes",
+    "speaker_public-3": "yes",
+    "speaker_public-4": "yes",
+    "speaker_public-5": "yes",
+    "panel_nairobi_femi_4013": "yes",
+    "panel_nairobi_working_b877": "yes",
+    "panel_nairobi_panel_4d9e": "yes",
+    "session_note_nairobi_femi_4013": "A question for the recap: what would help more African open-source contributors become founders of projects used around the world?",
+    "session_note_nairobi_working_b877": "A question for the recap: what does contributing to Bitcoin look like in practice, and how can new contributors find a useful place to start?",
+    "session_note_nairobi_panel_4d9e": "A question for the recap: how can local communities help builders learn together and stay involved in open-source development?"
+  }
+}
