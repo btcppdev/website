@@ -979,6 +979,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/api/internal/insider/transactional-emails", func(w http.ResponseWriter, r *http.Request) {
 		AcceptInsiderTransactionalEmail(w, r, app)
 	}).Methods(http.MethodPost)
+	r.HandleFunc("/api/internal/insider/transactional-emails/cancel", func(w http.ResponseWriter, r *http.Request) {
+		CancelInsiderTransactionalEmail(w, r, app)
+	}).Methods(http.MethodPost)
 	r.HandleFunc("/api/internal/insider/subscriber-projections", func(w http.ResponseWriter, r *http.Request) {
 		ApplyInsiderSubscriberProjection(w, r, app)
 	}).Methods(http.MethodPost)

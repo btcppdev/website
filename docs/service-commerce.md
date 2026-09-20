@@ -830,3 +830,23 @@ delivery older than fifteen minutes, with sustained-condition delays and fresh
 collection required. PostgreSQL aggregate checks, collector privacy tests and
 promtool rule tests pass. Deploying these rules and routing alerts to operators
 remain launch tasks; no monitoring system was changed by this implementation.
+
+## Insider transactional mail cancellation
+
+`POST /api/internal/insider/transactional-emails/cancel` accepts the private Insider
+service bearer token, JSON `{"schema_version":1,"idempotency_key":"<original message key>"}`,
+and the matching `Idempotency-Key` header. It maps that key to the same
+`insider-transactional:` mailer job namespace used for enqueueing. Callers cannot
+supply a different namespace, recipient-wide suppression or subscription scope.
+
+The adapter sends authenticated `PUT /suppression` with scope `job` to the shared
+mailer. HTTP 204 is returned only after HTTP 200 and a successful code-200 mailer
+acknowledgment. Network errors, redirects, asynchronous responses and malformed
+acknowledgments return 503; retry the identical request. HTTPS is required except
+on loopback. Mailer suppression is durable and prevents delayed enqueue or queued
+retry of the same job. Messages already accepted by the external email provider
+cannot be recalled. This endpoint cancels delivery, not stored personal data.
+
+Insider still needs a durable cancellation outbox and deletion-worker integration
+before this completes its account-erasure flow. Campaign recipient cancellation
+requires a separate mapping; this endpoint covers transactional messages only.
