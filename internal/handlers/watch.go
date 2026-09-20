@@ -20,6 +20,7 @@ import (
 )
 
 type RecordingWatchPage struct {
+	ConferenceWide bool
 	Recording      *types.Recording
 	ConfTalk       *types.ConfTalk
 	Conf           *types.Conf
@@ -299,6 +300,11 @@ func LiveStatus(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 }
 
 func loadLiveStatus(ctx *config.AppContext, now time.Time) (liveStatusResponse, error) {
+	// A conference-wide broadcast takes precedence in the single site ticker.
+	conference, err := loadConferenceLiveStatus(ctx, now)
+	if err != nil || conference.Live {
+		return conference, err
+	}
 	broadcast, err := getters.GetActiveRecordingBroadcast(ctx, now.Add(-2*time.Minute))
 	if err != nil {
 		return liveStatusResponse{}, err

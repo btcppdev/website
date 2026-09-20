@@ -33,6 +33,25 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
+	now := time.Now()
+	conf := &types.Conf{Tag: "toronto", Desc: "Toronto"}
+	watchTemplates, err := ctx.TemplateCache.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, live := range []bool{false, true} {
+		var broadcast *types.ConferenceBroadcast
+		if live {
+			broadcast = &types.ConferenceBroadcast{Title: "Day 3", RecordingBroadcast: types.RecordingBroadcast{State: "live", HLSURL: "https://stream.example/live.m3u8", HeartbeatAt: &now}}
+		}
+		var watch bytes.Buffer
+		if err := watchTemplates.ExecuteTemplate(&watch, "watch.tmpl", conferenceLivePage(conf, broadcast, now)); err != nil {
+			t.Fatalf("conference watch template: %v", err)
+		}
+		if strings.Contains(watch.String(), `id="watch-live-video"`) != live || strings.Contains(watch.String(), "Currently offline") == live {
+			t.Fatalf("conference live=%v rendered incorrect player state", live)
+		}
+	}
 	mainNav, err := os.ReadFile("templates/section/main_nav.tmpl")
 	if err != nil {
 		t.Fatalf("read global navigation: %v", err)

@@ -41,6 +41,8 @@
             <strong>{{ .PublishLabel }}</strong>
             <p data-watch-countdown="{{ .PublishRFC3339 }}">Come back here when the talk goes live.</p>
           </div>
+        {{ else if .ConferenceWide }}
+          <div class="watch-player__standby"><span>Conference livestream</span><strong>Currently offline</strong><p>The video will appear here when the conference goes live.</p></div>
         {{ else }}
           <div class="watch-player__standby"><span>Recording status</span><strong>Coming soon</strong><p>This talk is being prepared for broadcast.</p></div>
         {{ end }}
@@ -115,6 +117,16 @@
           } catch (_) {}
         }, 20000);
       })();
+    </script>
+    {{ else if .ConferenceWide }}
+    <script>
+      window.setInterval(async () => {
+        try {
+          const response = await fetch(`${window.location.pathname}/status`, { cache: 'no-store' });
+          const status = await response.json();
+          if (status.state === 'live') window.location.reload();
+        } catch (_) {}
+      }, 20000);
     </script>
     {{ else if eq .State "scheduled" }}
     <script>
