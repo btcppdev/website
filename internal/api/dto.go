@@ -307,6 +307,7 @@ type scheduleUpdateDTO struct {
 
 type recordingCandidateDTO struct {
 	TalkID          string                     `json:"talk_id"`
+	SocialCard      string                     `json:"social_card"`
 	Title           string                     `json:"title"`
 	Status          string                     `json:"status"`
 	StartsAt        *string                    `json:"starts_at"`
