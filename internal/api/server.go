@@ -2144,7 +2144,8 @@ func recordingCandidateFromDomain(talk *types.Talk, recording *types.Recording, 
 	}
 	return recordingCandidateDTO{
 		TalkID: talk.ID, Title: talk.Name, Status: talk.Status, StartsAt: startsAt,
-		EndsAt: endsAt, Venue: talk.Venue, Speakers: talkSpeakersFromDomain(talk.Speakers),
+		SocialCard: talk.TalkCardURL,
+		EndsAt:     endsAt, Venue: talk.Venue, Speakers: talkSpeakersFromDomain(talk.Speakers),
 		RecordingPolicy: policy, Eligible: eligible, Reasons: reasons,
 		Recording:     recordingAdminFromDomain(recording),
 		BroadcastPlan: recordingBroadcastPlanPtrFromDomain(plan),

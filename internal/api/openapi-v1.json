@@ -472,7 +472,7 @@
       "listRecordingCandidates": {
         "summary": "Admin recording work queue",
         "value": {
-          "data": [{"talk_id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "status": "Scheduled", "starts_at": "2026-08-20T10:00:00-05:00", "ends_at": "2026-08-20T10:30:00-05:00", "venue": "Main Stage", "speakers": [{"person_id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "company": "Example Labs"}], "recording_policy": "record", "eligible": true, "reasons": [], "recording": {"id": "00000000-0000-4000-8000-000000000b22", "talk_id": "00000000-0000-4000-8000-000000000301", "talk_name": "Package Relay in Practice", "file_uri": "dev26/recordings/package-relay.mp4", "youtube_url": "", "x_url": "", "x_reply_url": "", "published_at": "2026-08-21T15:00:00Z"}, "broadcast_plan": {"recording_id": "00000000-0000-4000-8000-000000000b22", "conference_tag": "dev26", "talk_id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "source": {"kind": "spaces", "object_key": "dev26/recordings/package-relay.mp4"}, "publish_at": "2026-08-21T15:00:00Z", "status": "scheduled", "scheduled_at": "2026-08-21T15:00:00Z", "x_broadcast_url": "https://x.com/i/broadcasts/1example", "destinations": ["website_hls", "x"], "updated_at": "2026-08-20T18:15:00Z"}}],
+          "data": [{"talk_id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "status": "Scheduled", "social_card": "/dev26/talks/saved-card-1080p.png", "starts_at": "2026-08-20T10:00:00-05:00", "ends_at": "2026-08-20T10:30:00-05:00", "venue": "Main Stage", "speakers": [{"person_id": "00000000-0000-4000-8000-000000000201", "name": "Mara Chen", "company": "Example Labs"}], "recording_policy": "record", "eligible": true, "reasons": [], "recording": {"id": "00000000-0000-4000-8000-000000000b22", "talk_id": "00000000-0000-4000-8000-000000000301", "talk_name": "Package Relay in Practice", "file_uri": "dev26/recordings/package-relay.mp4", "youtube_url": "", "x_url": "", "x_reply_url": "", "published_at": "2026-08-21T15:00:00Z"}, "broadcast_plan": {"recording_id": "00000000-0000-4000-8000-000000000b22", "conference_tag": "dev26", "talk_id": "00000000-0000-4000-8000-000000000301", "title": "Package Relay in Practice", "source": {"kind": "spaces", "object_key": "dev26/recordings/package-relay.mp4"}, "publish_at": "2026-08-21T15:00:00Z", "status": "scheduled", "scheduled_at": "2026-08-21T15:00:00Z", "x_broadcast_url": "https://x.com/i/broadcasts/1example", "destinations": ["website_hls", "x"], "updated_at": "2026-08-20T18:15:00Z"}}],
           "meta": {"request_id": "req_example"}
         }
       },
@@ -1130,9 +1130,10 @@
       },
       "RecordingCandidate": {
         "type": "object", "additionalProperties": false,
-        "required": ["talk_id", "title", "status", "starts_at", "ends_at", "venue", "speakers", "recording_policy", "eligible", "reasons", "recording", "broadcast_plan"],
+        "required": ["talk_id", "title", "status", "social_card", "starts_at", "ends_at", "venue", "speakers", "recording_policy", "eligible", "reasons", "recording", "broadcast_plan"],
         "properties": {
           "talk_id": {"type": "string", "format": "uuid"}, "title": {"type": "string"}, "status": {"type": "string"},
+          "social_card": {"type": "string", "description": "Saved talk-card object path in Spaces, possibly with a leading slash. Empty when no card is associated. Use this path rather than deriving a filename from the talk ID."},
           "starts_at": {"type": ["string", "null"], "format": "date-time"}, "ends_at": {"type": ["string", "null"], "format": "date-time"}, "venue": {"type": "string"},
           "speakers": {"type": "array", "items": {"$ref": "#/components/schemas/TalkSpeaker"}}, "recording_policy": {"type": "string"},
           "eligible": {"type": "boolean"}, "reasons": {"type": "array", "items": {"type": "string"}},
