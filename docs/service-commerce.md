@@ -512,18 +512,24 @@ getter/handler suites pass; tests cover duplicate tabs, stale consent, lost prov
 response recovery and Alerts/Insider isolation. The authenticated Insider management
 API and cancellation confirmation delivery remain to be connected.
 
-## Account deletion delivery to Alerts
+## Account deletion delivery to connected services
 
-`DeletePerson` now inserts a durable `account_deletion_deliveries` row in the same
-transaction as account removal. A failed deletion leaves no outgoing event. The
-row retains only the removed UUID and delivery state/timing, without a person FK
+`DeletePerson` inserts one durable `account_deletion_deliveries` row for Alerts and
+one for Insider in the same transaction as account removal. A failed deletion
+leaves no outgoing events. Each row retains the service, removed UUID and delivery state/timing, without a person FK
 or email address. It does not use the replacement historical attribution UUID.
 
 Configure `ALERTS_ACCOUNT_EVENTS_ENDPOINT` with Alerts'
 `https://alerts.btcpp.dev/api/internal/accounts/deleted` and
 `ALERTS_ACCOUNT_EVENTS_TOKEN` with the dedicated 32+ character secret matching
-Alerts' `BTCPP_ACCOUNT_EVENTS_TOKEN`. The worker starts when these are configured;
-it is independent of billing fulfillment flags. Unconfigured delivery stays queued.
+Alerts' `BTCPP_ACCOUNT_EVENTS_TOKEN`. Insider delivery uses independent
+`INSIDER_ACCOUNT_EVENTS_ENDPOINT` and `INSIDER_ACCOUNT_EVENTS_TOKEN` settings.
+The Insider receiver and erasure implementation are still outstanding; leave its
+endpoint unconfigured until they are verified. Each service worker starts when its
+settings are configured, independently of the other service and billing fulfillment
+flags. Unconfigured delivery stays queued and remains visible in queue metrics.
+Leases, attempts and acknowledgments are scoped to the service; successful Alerts
+delivery cannot acknowledge, postpone or suppress Insider delivery.
 HTTPS is required except on loopback, redirects are refused, and no browser cookie
 or OAuth access token is used. It posts schema version 1, person_id and deterministic
 event_id `account-deleted:<UUID>`, also sent as the Idempotency-Key.

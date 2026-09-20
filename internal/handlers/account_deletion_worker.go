@@ -29,34 +29,37 @@ func validAccountDeletionEndpoint(endpoint, token string) bool {
 }
 
 func StartAccountDeletionDelivery(app *config.AppContext) {
-	endpoint := strings.TrimSpace(os.Getenv("ALERTS_ACCOUNT_EVENTS_ENDPOINT"))
-	token := os.Getenv("ALERTS_ACCOUNT_EVENTS_TOKEN")
-	if endpoint == "" && token == "" {
-		return
-	}
-	if !validAccountDeletionEndpoint(endpoint, token) {
-		app.Err.Printf("account deletion delivery configuration is invalid")
-		return
-	}
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			_, err := processAccountDeletionDelivery(ctx, app, "", endpoint, token, time.Now())
-			cancel()
-			if err != nil {
-				app.Err.Printf("account deletion delivery requires retry")
-			}
+	for _, service := range []string{"alerts", "insider"} {
+		endpoint := strings.TrimSpace(os.Getenv(strings.ToUpper(service) + "_ACCOUNT_EVENTS_ENDPOINT"))
+		token := os.Getenv(strings.ToUpper(service) + "_ACCOUNT_EVENTS_TOKEN")
+		if endpoint == "" && token == "" {
+			continue
 		}
-	}()
+		if !validAccountDeletionEndpoint(endpoint, token) {
+			app.Err.Printf("%s account deletion delivery configuration is invalid", service)
+			continue
+		}
+
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				_, err := processAccountDeletionDelivery(ctx, app, "", service, endpoint, token, time.Now())
+				cancel()
+				if err != nil {
+					app.Err.Printf("%s account deletion delivery requires retry", service)
+				}
+			}
+		}()
+	}
 }
 
-func processAccountDeletionDelivery(ctx context.Context, app *config.AppContext, personID, endpoint, token string, now time.Time) (bool, error) {
+func processAccountDeletionDelivery(ctx context.Context, app *config.AppContext, personID, service, endpoint, token string, now time.Time) (bool, error) {
 	if !validAccountDeletionEndpoint(endpoint, token) {
 		return false, errors.New("invalid account deletion endpoint")
 	}
-	job, err := getters.ClaimAccountDeletionDelivery(ctx, app, personID, now)
+	job, err := getters.ClaimAccountDeletionDelivery(ctx, app, personID, service, now)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}

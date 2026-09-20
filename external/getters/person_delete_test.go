@@ -141,14 +141,21 @@ func TestDatabaseSmokeDeletePersonPreservesHistory(t *testing.T) {
 		t.Fatal("cancellation ownership rewritten")
 	}
 	now := time.Now().Add(time.Second)
-	job, err := ClaimAccountDeletionDelivery(ctx, app, source, now)
+	job, err := ClaimAccountDeletionDelivery(ctx, app, source, "alerts", now)
 	if err != nil || job.PersonID != source || job.Attempt != 1 {
 		t.Fatal("deletion event did not survive account removal", job, err)
 	}
-	if _, err := ClaimAccountDeletionDelivery(ctx, app, source, now); !errors.Is(err, pgx.ErrNoRows) {
+	if _, err := ClaimAccountDeletionDelivery(ctx, app, source, "alerts", now); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatal("active deletion lease reused", err)
 	}
-	reclaimed, err := ClaimAccountDeletionDelivery(ctx, app, source, now.Add(2*time.Minute))
+	insiderJob, err := ClaimAccountDeletionDelivery(ctx, app, source, "insider", now)
+	if err != nil || insiderJob.Service != "insider" || insiderJob.Attempt != 1 {
+		t.Fatal("service lease not independent", insiderJob, err)
+	}
+	if changed, err := FinishAccountDeletionDelivery(ctx, app, insiderJob, false, now); err != nil || !changed {
+		t.Fatal("insider retry", changed, err)
+	}
+	reclaimed, err := ClaimAccountDeletionDelivery(ctx, app, source, "alerts", now.Add(2*time.Minute))
 	if err != nil || reclaimed.Attempt != 2 {
 		t.Fatal("deletion not recovered after worker loss", reclaimed, err)
 	}
@@ -158,18 +165,34 @@ func TestDatabaseSmokeDeletePersonPreservesHistory(t *testing.T) {
 	if changed, err := FinishAccountDeletionDelivery(ctx, app, reclaimed, false, now.Add(2*time.Minute)); err != nil || !changed {
 		t.Fatal("deletion retry failed", changed, err)
 	}
-	if _, err := ClaimAccountDeletionDelivery(ctx, app, source, now.Add(3*time.Minute)); !errors.Is(err, pgx.ErrNoRows) {
+	if _, err := ClaimAccountDeletionDelivery(ctx, app, source, "alerts", now.Add(3*time.Minute)); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatal("deletion backoff bypassed", err)
 	}
-	final, err := ClaimAccountDeletionDelivery(ctx, app, source, now.Add(5*time.Minute))
+	final, err := ClaimAccountDeletionDelivery(ctx, app, source, "alerts", now.Add(5*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if changed, err := FinishAccountDeletionDelivery(ctx, app, final, true, now.Add(5*time.Minute)); err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if _, err := ClaimAccountDeletionDelivery(ctx, app, source, now.Add(time.Hour)); !errors.Is(err, pgx.ErrNoRows) {
+	if _, err := ClaimAccountDeletionDelivery(ctx, app, source, "alerts", now.Add(time.Hour)); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatal("acknowledged deletion redelivered", err)
+	}
+	insiderRetry, err := ClaimAccountDeletionDelivery(ctx, app, source, "insider", now.Add(time.Hour))
+	if err != nil || insiderRetry.Attempt != 2 {
+		t.Fatal("Alerts acknowledgment lost Insider retry", insiderRetry, err)
+	}
+	if changed, err := FinishAccountDeletionDelivery(ctx, app, insiderJob, true, now.Add(time.Hour)); err != nil || changed {
+		t.Fatal("stale Insider acknowledgment", changed, err)
+	}
+	if changed, err := FinishAccountDeletionDelivery(ctx, app, insiderRetry, true, now.Add(time.Hour)); err != nil || !changed {
+		t.Fatal("Insider acknowledgment", changed, err)
+	}
+	if got := scalar(`SELECT count(*)::text FROM account_deletion_deliveries WHERE person_id=$1 AND state='accepted'`, source); got != "2" {
+		t.Fatal("service acknowledgments not preserved", got)
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE account_deletion_deliveries SET service='unknown' WHERE person_id=$1`, source); err == nil {
+		t.Fatal("delivery service identity mutable")
 	}
 	replacement := scalar(`SELECT speaker_id::text FROM speaker_confs WHERE id=$1`, speaker)
 	t.Cleanup(func() {

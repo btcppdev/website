@@ -158,7 +158,7 @@ func TestAccountDeletionConnectedAlertsPostgres(t *testing.T) {
 	}
 	now := time.Now().Add(time.Second)
 	for index, offset := range []time.Duration{0, 2 * time.Minute, 5 * time.Minute} {
-		worked, err := processAccountDeletionDelivery(ctx, app, person, proxy.URL, token, now.Add(offset))
+		worked, err := processAccountDeletionDelivery(ctx, app, person, "alerts", proxy.URL, token, now.Add(offset))
 		if !worked || (index < 2 && err == nil) || (index == 2 && err != nil) {
 			t.Fatal("central delivery", index, worked, err)
 		}
@@ -182,7 +182,7 @@ func TestAccountDeletionConnectedAlertsPostgres(t *testing.T) {
 	if sql(`SELECT count(*) FROM deleted_accounts`) != "1" {
 		t.Fatal("deletion marker lost on restart")
 	}
-	if worked, err := processAccountDeletionDelivery(ctx, app, person, proxy.URL, token, now.Add(time.Hour)); err != nil || worked {
+	if worked, err := processAccountDeletionDelivery(ctx, app, person, "alerts", proxy.URL, token, now.Add(time.Hour)); err != nil || worked {
 		t.Fatal("accepted deletion delivered again", worked, err)
 	}
 }
