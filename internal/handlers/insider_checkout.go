@@ -94,7 +94,7 @@ func CreateInsiderCheckout(w http.ResponseWriter, r *http.Request, app *config.A
 	w.Header().Set("Cache-Control", "private, no-store")
 	if !validInsiderServiceAuthorization(r.Header.Get("Authorization"), app.Env.InsiderServiceToken) {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="btcpp-insider"`)
-		writeInsiderCampaignError(w, http.StatusUnauthorized, "A valid Insider service token is required.")
+		writeInsiderServiceError(w, http.StatusUnauthorized, "A valid Insider service token is required.")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
@@ -102,11 +102,11 @@ func CreateInsiderCheckout(w http.ResponseWriter, r *http.Request, app *config.A
 	decoder.DisallowUnknownFields()
 	var request insiderCheckoutRequest
 	if err := decoder.Decode(&request); err != nil || ensureInsiderJSONEnd(decoder) != nil {
-		writeInsiderCampaignError(w, http.StatusBadRequest, "The checkout request is invalid.")
+		writeInsiderServiceError(w, http.StatusBadRequest, "The checkout request is invalid.")
 		return
 	}
 	if strings.TrimSpace(r.Header.Get("Idempotency-Key")) != request.RequestID {
-		writeInsiderCampaignError(w, http.StatusBadRequest, "The checkout idempotency key is invalid.")
+		writeInsiderServiceError(w, http.StatusBadRequest, "The checkout idempotency key is invalid.")
 		return
 	}
 	if request.BillingMode == "recurring" {
@@ -114,16 +114,16 @@ func CreateInsiderCheckout(w http.ResponseWriter, r *http.Request, app *config.A
 		return
 	}
 	if request.BillingMode != "" && request.BillingMode != "fixed_term" {
-		writeInsiderCampaignError(w, http.StatusUnprocessableEntity, "The billing mode is invalid.")
+		writeInsiderServiceError(w, http.StatusUnprocessableEntity, "The billing mode is invalid.")
 		return
 	}
 	if strings.TrimSpace(app.Env.InsiderFulfillmentEndpoint) == "" || strings.TrimSpace(app.Env.InsiderFulfillmentToken) == "" || strings.TrimSpace(app.Env.InsiderMerchantName) == "" {
-		writeInsiderCampaignError(w, http.StatusServiceUnavailable, "Insider fulfillment is not configured.")
+		writeInsiderServiceError(w, http.StatusServiceUnavailable, "Insider fulfillment is not configured.")
 		return
 	}
 	quote, err := resolveInsiderServiceQuote(request, time.Now().UTC())
 	if err != nil || !allowedInsiderReturnURL(request.SuccessURL, app.Env.InsiderAllowedReturnOrigins) || !allowedInsiderReturnURL(request.CancelURL, app.Env.InsiderAllowedReturnOrigins) {
-		writeInsiderCampaignError(w, http.StatusUnprocessableEntity, "The checkout request could not be verified.")
+		writeInsiderServiceError(w, http.StatusUnprocessableEntity, "The checkout request could not be verified.")
 		return
 	}
 	purchase, err := getters.CreateServicePurchase(app, request.PersonID, request.RequestID, quote)
@@ -133,25 +133,25 @@ func CreateInsiderCheckout(w http.ResponseWriter, r *http.Request, app *config.A
 			status = http.StatusInternalServerError
 			app.Err.Printf("create Insider purchase: %s", err)
 		}
-		writeInsiderCampaignError(w, status, "The purchase could not be created.")
+		writeInsiderServiceError(w, status, "The purchase could not be created.")
 		return
 	}
 	attempt, err := getters.BeginServicePayment(app, request.PersonID, purchase.OrderID)
 	if err != nil {
 		app.Err.Printf("begin Insider payment for order %s: %s", purchase.OrderID, err)
-		writeInsiderCampaignError(w, http.StatusInternalServerError, "The payment could not be started.")
+		writeInsiderServiceError(w, http.StatusInternalServerError, "The payment could not be started.")
 		return
 	}
 	checkoutURL, reference, err := startInsiderProviderCheckout(app, request, quote, purchase, attempt)
 	if err != nil {
 		app.Err.Printf("start Insider %s checkout for order %s: %s", quote.Provider, purchase.OrderID, err)
-		writeInsiderCampaignError(w, http.StatusBadGateway, "The payment provider is temporarily unavailable.")
+		writeInsiderServiceError(w, http.StatusBadGateway, "The payment provider is temporarily unavailable.")
 		return
 	}
 	if attempt.Reference == "" {
 		if err := getters.BindServicePayment(app, attempt.ID, quote.Provider, reference); err != nil {
 			app.Err.Printf("bind Insider payment for order %s: %s", purchase.OrderID, err)
-			writeInsiderCampaignError(w, http.StatusInternalServerError, "The payment could not be saved.")
+			writeInsiderServiceError(w, http.StatusInternalServerError, "The payment could not be saved.")
 			return
 		}
 	}

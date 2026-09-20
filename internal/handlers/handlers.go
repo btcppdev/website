@@ -967,21 +967,6 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 
 	// Register the versioned API before broad conference and catch-all routes.
 	api.Register(r, app)
-	r.HandleFunc("/api/internal/insider/campaigns", func(w http.ResponseWriter, r *http.Request) {
-		AcceptInsiderCampaign(w, r, app)
-	}).Methods(http.MethodPost)
-	r.HandleFunc("/api/internal/insider/campaigns/{id}", func(w http.ResponseWriter, r *http.Request) {
-		InsiderCampaignStats(w, r, app)
-	}).Methods(http.MethodGet)
-	r.HandleFunc("/api/internal/insider/audiences/resolve", func(w http.ResponseWriter, r *http.Request) {
-		ResolveInsiderAudience(w, r, app)
-	}).Methods(http.MethodPost)
-	r.HandleFunc("/api/internal/insider/transactional-emails", func(w http.ResponseWriter, r *http.Request) {
-		AcceptInsiderTransactionalEmail(w, r, app)
-	}).Methods(http.MethodPost)
-	r.HandleFunc("/api/internal/insider/transactional-emails/cancel", func(w http.ResponseWriter, r *http.Request) {
-		CancelInsiderTransactionalEmail(w, r, app)
-	}).Methods(http.MethodPost)
 	r.HandleFunc("/api/internal/insider/subscriber-projections", func(w http.ResponseWriter, r *http.Request) {
 		ApplyInsiderSubscriberProjection(w, r, app)
 	}).Methods(http.MethodPost)

@@ -121,38 +121,6 @@ func QueueMissiveByUID(ctx *config.AppContext, uid uint64) (*mtypes.Letter, bool
 	return letter, started, nil
 }
 
-// QueueInsiderCampaignByUID fans out only the durable recipient snapshot
-// selected when btcpp.dev accepted the campaign. The Insider worker calls the
-// campaign endpoint at send time, so pause and consent are resolved immediately
-// before these provider jobs are created.
-func QueueInsiderCampaignByUID(ctx *config.AppContext, campaignID string, uid uint64) (bool, error) {
-	letter, err := getters.GetLetter(ctx, uid)
-	if err != nil {
-		return false, err
-	}
-	subscribers, err := getters.ListInsiderCampaignSubscribers(ctx, campaignID)
-	if err != nil {
-		return false, err
-	}
-	started := startMissiveSchedule(uid, func() {
-		defer func() {
-			if recovered := recover(); recovered != nil {
-				ctx.Err.Printf("Insider campaign %s panicked: %v", campaignID, recovered)
-				_ = getters.MarkInsiderCampaignQueued(ctx, campaignID, false, fmt.Sprint(recovered))
-			}
-		}()
-		if err := scheduleMissives(ctx, subscribers, []*mtypes.Letter{letter}); err != nil {
-			ctx.Err.Printf("Insider campaign %s failed: %s", campaignID, err)
-			_ = getters.MarkInsiderCampaignQueued(ctx, campaignID, false, err.Error())
-			return
-		}
-		if err := getters.MarkInsiderCampaignQueued(ctx, campaignID, true, ""); err != nil {
-			ctx.Err.Printf("mark Insider campaign %s queued: %s", campaignID, err)
-		}
-	})
-	return started, nil
-}
-
 // CancelMissiveByUID removes every non-sent mailer job associated with the
 // missive. Reserving the same process-local key used by QueueMissiveByUID
 // prevents cancellation from racing an in-progress subscriber fan-out.

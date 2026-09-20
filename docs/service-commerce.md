@@ -831,26 +831,17 @@ collection required. PostgreSQL aggregate checks, collector privacy tests and
 promtool rule tests pass. Deploying these rules and routing alerts to operators
 remain launch tasks; no monitoring system was changed by this implementation.
 
-## Insider transactional mail cancellation
+## Insider mail delivery boundary
 
-`POST /api/internal/insider/transactional-emails/cancel` accepts the private Insider
-service bearer token, JSON `{"schema_version":1,"idempotency_key":"<original message key>"}`,
-and the matching `Idempotency-Key` header. It maps that key to the same
-`btcpp:insider-transactional:` mailer job namespace used for enqueueing. Callers cannot
-supply a different namespace, recipient-wide suppression or subscription scope.
+Insider owns its campaign and transactional queues and calls the shared mailer
+for recipient suppression checks, delivery, cancellation and erasure. The owner
+confirmed that the former bitcoin++ relay only had local test usage. Its campaign,
+audience-resolution, transactional-email and cancellation endpoints and unused
+campaign/suppression tables have been removed from the unmerged integration.
 
-The adapter sends authenticated `PUT /suppression` with scope `job` to the shared
-mailer. HTTP 204 is returned only after HTTP 200 and a successful code-200 mailer
-acknowledgment. Network errors, redirects, asynchronous responses and malformed
-acknowledgments return 503; retry the identical request. HTTPS is required except
-on loopback. Mailer suppression is durable and prevents delayed enqueue or queued
-retry of the same job. Messages already accepted by the external email provider
-cannot be recalled. This endpoint cancels delivery, not stored personal data.
-
-Insider still needs a durable cancellation outbox and deletion-worker integration
-before this completes its account-erasure flow. Campaign recipient cancellation
-requires a separate mapping; this endpoint covers transactional messages only.
-
+Bitcoin++ still owns accounts, checkout and billing lifecycle delivery, and accepts
+minimal subscriber projections. The Insider service token remains necessary for
+those integrations. No production migration or mail delivery was performed.
 
 ### Insider projections after account deletion
 

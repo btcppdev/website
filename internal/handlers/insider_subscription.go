@@ -37,12 +37,12 @@ func serveInsiderSubscription(w http.ResponseWriter, r *http.Request, app *confi
 	w.Header().Set("Cache-Control", "private, no-store")
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", "POST")
-		writeInsiderCampaignError(w, 405, "POST is required.")
+		writeInsiderServiceError(w, 405, "POST is required.")
 		return
 	}
 	if app == nil || app.Env == nil || !validInsiderServiceAuthorization(r.Header.Get("Authorization"), app.Env.InsiderServiceToken) {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="btcpp-insider"`)
-		writeInsiderCampaignError(w, 401, "A valid Insider service token is required.")
+		writeInsiderServiceError(w, 401, "A valid Insider service token is required.")
 		return
 	}
 	var request insiderSubscriptionRequest
@@ -50,31 +50,31 @@ func serveInsiderSubscription(w http.ResponseWriter, r *http.Request, app *confi
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&request); err != nil || ensureInsiderJSONEnd(decoder) != nil {
-		writeInsiderCampaignError(w, 400, "The subscription request is invalid.")
+		writeInsiderServiceError(w, 400, "The subscription request is invalid.")
 		return
 	}
 	_, personErr := uuid.Parse(request.PersonID)
 	discover := !cancel && request.CheckoutID == "" && request.ProductCode == ""
 	if personErr != nil {
-		writeInsiderCampaignError(w, 422, "The subscription request could not be verified.")
+		writeInsiderServiceError(w, 422, "The subscription request could not be verified.")
 		return
 	}
 	if !discover {
 		plan, err := servicebilling.LookupProductPlan(request.ProductCode)
 		_, checkoutErr := uuid.Parse(request.CheckoutID)
 		if err != nil || plan.Family != "insider" || checkoutErr != nil {
-			writeInsiderCampaignError(w, 422, "The subscription request could not be verified.")
+			writeInsiderServiceError(w, 422, "The subscription request could not be verified.")
 			return
 		}
 	}
 	if cancel {
 		_, err := uuid.Parse(request.RequestID)
 		if err != nil || r.Header.Get("Idempotency-Key") != request.RequestID || request.Revision < 1 || request.PeriodEnd <= 0 {
-			writeInsiderCampaignError(w, 400, "A reviewed subscription and matching request key are required.")
+			writeInsiderServiceError(w, 400, "A reviewed subscription and matching request key are required.")
 			return
 		}
 	} else if request.RequestID != "" || request.Revision != 0 || request.PeriodEnd != 0 {
-		writeInsiderCampaignError(w, 400, "Status requests must not include cancellation instructions.")
+		writeInsiderServiceError(w, 400, "Status requests must not include cancellation instructions.")
 		return
 	}
 	if discover {
@@ -92,7 +92,7 @@ func serveInsiderSubscription(w http.ResponseWriter, r *http.Request, app *confi
 		key := app.Env.StripeKey
 		live := strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_")
 		if !live && !strings.HasPrefix(key, "sk_test_") && !strings.HasPrefix(key, "rk_test_") {
-			writeInsiderCampaignError(w, 503, "Subscription management is unavailable.")
+			writeInsiderServiceError(w, 503, "Subscription management is unavailable.")
 			return
 		}
 		provider := alertsstripe.NewClient(live)
@@ -135,10 +135,10 @@ func serveInsiderSubscription(w http.ResponseWriter, r *http.Request, app *confi
 func writeInsiderSubscriptionError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		writeInsiderCampaignError(w, 404, "The subscription was not found.")
+		writeInsiderServiceError(w, 404, "The subscription was not found.")
 	case errors.Is(err, servicestripe.ErrSubscription):
-		writeInsiderCampaignError(w, 409, "The subscription changed. Refresh it before trying again.")
+		writeInsiderServiceError(w, 409, "The subscription changed. Refresh it before trying again.")
 	default:
-		writeInsiderCampaignError(w, 503, "Subscription management is temporarily unavailable.")
+		writeInsiderServiceError(w, 503, "Subscription management is temporarily unavailable.")
 	}
 }

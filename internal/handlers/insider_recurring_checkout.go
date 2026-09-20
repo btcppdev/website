@@ -17,16 +17,16 @@ import (
 // idempotency header. Recurring membership uses the shared subscription ledger.
 func serveInsiderRecurringCheckout(w http.ResponseWriter, r *http.Request, app *config.AppContext, request insiderCheckoutRequest, client servicestripe.CheckoutClient) {
 	if !serviceFulfillmentReady(app) || strings.TrimSpace(app.Env.InsiderStripeTaxCode) == "" {
-		writeInsiderCampaignError(w, 503, "Recurring Insider billing is not configured.")
+		writeInsiderServiceError(w, 503, "Recurring Insider billing is not configured.")
 		return
 	}
 	if _, err := lifecycleEndpoint(app); err != nil {
-		writeInsiderCampaignError(w, 503, "Recurring Insider lifecycle delivery is not configured.")
+		writeInsiderServiceError(w, 503, "Recurring Insider lifecycle delivery is not configured.")
 		return
 	}
 	terms, err := insiderRecurringTerms(request, app.Env.InsiderAllowedReturnOrigins, app.Env.InsiderStripeTaxCode, time.Now().UTC())
 	if err != nil {
-		writeInsiderCampaignError(w, 422, "The recurring checkout request could not be verified.")
+		writeInsiderServiceError(w, 422, "The recurring checkout request could not be verified.")
 		return
 	}
 	reserved, err := getters.ReserveServiceStripeCheckout(app, request.PersonID, request.RequestID, terms)
@@ -38,12 +38,12 @@ func serveInsiderRecurringCheckout(w http.ResponseWriter, r *http.Request, app *
 		if errors.Is(err, getters.ErrServiceBuyer) {
 			status = 422
 		}
-		writeInsiderCampaignError(w, status, "The recurring checkout could not be reserved.")
+		writeInsiderServiceError(w, status, "The recurring checkout could not be reserved.")
 		return
 	}
 	checkoutURL, err := getters.OpenServiceStripeCheckout(r.Context(), app, request.PersonID, reserved.Intent.ID, terms.ProductCode, client)
 	if err != nil {
-		writeInsiderCampaignError(w, 502, "The saved checkout needs retry or reconciliation.")
+		writeInsiderServiceError(w, 502, "The saved checkout needs retry or reconciliation.")
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
