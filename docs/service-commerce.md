@@ -850,3 +850,21 @@ cannot be recalled. This endpoint cancels delivery, not stored personal data.
 Insider still needs a durable cancellation outbox and deletion-worker integration
 before this completes its account-erasure flow. Campaign recipient cancellation
 requires a separate mapping; this endpoint covers transactional messages only.
+
+
+### Insider projections after account deletion
+
+Subscriber-status projection intake only writes to an existing person whose
+`is_deleted_account` flag is false. A delayed projection for a removed account, or
+for an anonymous historical contributor, is discarded (`applied: false`) so the
+caller can stop retrying obsolete state. It does not recreate an account or attach
+membership/newsletter status to retained anonymous history. Reads also exclude
+anonymous deleted-account records. The people foreign key still protects a race
+between projection insertion and account removal; deletion cascades existing
+projections.
+
+The PostgreSQL regression performs a real `DeletePerson`, submits a newer delayed
+projection, verifies no projection is restored, and checks that an unrelated
+reader's projection remains unchanged. This complements Insider's own blocked
+account checks; neither side treats the projection as access authority or email
+consent.

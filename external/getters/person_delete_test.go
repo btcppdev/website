@@ -344,3 +344,44 @@ func TestDatabaseSmokeDeletePersonGuardsAndRollback(t *testing.T) {
 		t.Fatal("source deleted on failure")
 	}
 }
+
+func TestDatabaseSmokeDeletedAccountRejectsInsiderProjection(t *testing.T) {
+	app := databaseSmokeContext(t)
+	ctx := context.Background()
+	actor := insertSmokePerson(t, app, "Projection deletion admin")
+	source := insertSmokePerson(t, app, "Projection deletion source")
+	other := insertSmokePerson(t, app, "Projection preserved reader")
+	if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, actor); err != nil {
+		t.Fatal(err)
+	}
+	projection := InsiderSubscriberProjection{PersonID: source, SubscriberTier: "paid", NewsletterStatus: "subscribed", Version: 1, AsOf: time.Now().UTC()}
+	for _, id := range []string{source, other} {
+		projection.PersonID = id
+		applied, err := ApplyInsiderSubscriberProjection(app, projection)
+		if err != nil || !applied {
+			t.Fatal(applied, err)
+		}
+	}
+	if err := DeletePerson(app, source, actor); err != nil {
+		t.Fatal(err)
+	}
+	projection.PersonID = source
+	projection.Version = 100
+	if applied, err := ApplyInsiderSubscriberProjection(app, projection); err != nil || applied {
+		t.Fatal("late projection was not discarded", applied, err)
+	}
+	if got, err := GetInsiderSubscriberProjection(app, source); err != nil || got != nil {
+		t.Fatal("deleted projection retained", got, err)
+	}
+	if got, err := GetInsiderSubscriberProjection(app, other); err != nil || got == nil || got.Version != 1 {
+		t.Fatal("unrelated projection changed", got, err)
+	}
+	anonymous := insertSmokePerson(t, app, "Anonymous historical contributor")
+	if _, err := app.DB.Exec(ctx, `UPDATE people SET is_deleted_account=true WHERE id=$1`, anonymous); err != nil {
+		t.Fatal(err)
+	}
+	projection.PersonID = anonymous
+	if applied, err := ApplyInsiderSubscriberProjection(app, projection); err != nil || applied {
+		t.Fatal("projection attached to anonymous history", applied, err)
+	}
+}

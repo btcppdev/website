@@ -27,7 +27,8 @@ func ApplyInsiderSubscriberProjection(ctx *config.AppContext, projection Insider
 	}
 	command, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		INSERT INTO insider_subscriber_projections(person_id,subscriber_tier,newsletter_status,version,as_of)
-		VALUES($1::uuid,$2,$3,$4,$5)
+		SELECT person.id,$2,$3,$4,$5 FROM people person
+ WHERE person.id=$1::uuid AND NOT person.is_deleted_account
 		ON CONFLICT(person_id) DO UPDATE SET
 		  subscriber_tier=excluded.subscriber_tier,
 		  newsletter_status=excluded.newsletter_status,
@@ -49,6 +50,7 @@ func GetInsiderSubscriberProjection(ctx *config.AppContext, personID string) (*I
 	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
 		SELECT person_id::text,subscriber_tier,newsletter_status,version,as_of
 		FROM insider_subscriber_projections WHERE person_id=$1::uuid
+ AND EXISTS(SELECT 1 FROM people p WHERE p.id=person_id AND NOT p.is_deleted_account)
 	`, strings.TrimSpace(personID)).Scan(&projection.PersonID, &projection.SubscriberTier,
 		&projection.NewsletterStatus, &projection.Version, &projection.AsOf)
 	if err == pgx.ErrNoRows {
