@@ -524,8 +524,13 @@ Configure `ALERTS_ACCOUNT_EVENTS_ENDPOINT` with Alerts'
 `ALERTS_ACCOUNT_EVENTS_TOKEN` with the dedicated 32+ character secret matching
 Alerts' `BTCPP_ACCOUNT_EVENTS_TOKEN`. Insider delivery uses independent
 `INSIDER_ACCOUNT_EVENTS_ENDPOINT` and `INSIDER_ACCOUNT_EVENTS_TOKEN` settings.
-The Insider receiver and erasure implementation are still outstanding; leave its
-endpoint unconfigured until they are verified. Each service worker starts when its
+The Insider receiver is implemented at `/api/internal/accounts/deleted`. Its
+`INSIDER_ACCOUNT_EVENTS_TOKEN` must match the central token and contain at least
+32 characters. It returns 202 while cancellation/local redaction/remote mailer
+erasure are pending and 204 only after their acknowledgements. This is stricter
+than Alerts, which acknowledges durable remote intent. Verify deployed mailer
+erasure support and rehearse the complete flow before configuring the production
+endpoint. Each service worker starts when its
 settings are configured, independently of the other service and billing fulfillment
 flags. Unconfigured delivery stays queued and remains visible in queue metrics.
 Leases, attempts and acknowledgments are scoped to the service; successful Alerts
