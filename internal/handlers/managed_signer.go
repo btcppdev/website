@@ -567,11 +567,26 @@ func managedSignerDeniedURL(signerURL string, page *ManagedSignerAuthorizationPa
 }
 
 func setManagedSignerHeaders(w http.ResponseWriter, ctx *config.AppContext) {
+	ancestor := managedSignerFrameAncestor(ctx.Env.BadgeStudioURL)
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self' "+ctx.Env.SignerURL)
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors "+ancestor+"; form-action 'self' "+ctx.Env.SignerURL)
 	// The cross-origin callback is a form POST: no-referrer would make its
 	// Origin header null, which the signer must reject. Send only the origin,
 	// never the authorization URL path or query, and suppress HTTPS downgrades.
 	w.Header().Set("Referrer-Policy", "strict-origin")
-	w.Header().Set("X-Frame-Options", "DENY")
+	if ancestor == "'none'" {
+		w.Header().Set("X-Frame-Options", "DENY")
+	} else {
+		w.Header().Del("X-Frame-Options")
+	}
+}
+
+// Only the configured Badge Studio origin may host signer consent.
+func managedSignerFrameAncestor(value string) string {
+	u, err := url.Parse(value)
+	if err != nil || u.Host == "" || u.User != nil || strings.ContainsAny(u.Host, "*; \t\r\n") ||
+		(u.Scheme != "https" && !(u.Scheme == "http" && u.Hostname() == "localhost")) {
+		return "'none'"
+	}
+	return u.Scheme + "://" + u.Host
 }

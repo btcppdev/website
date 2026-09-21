@@ -1,0 +1,8 @@
+.managed-signer-permissions { margin: 28px 0; }
+.managed-signer-permissions h2 { margin: 0 0 8px; font-size: 21px; }
+.managed-signer-permissions > p { margin: 0 0 16px; color: #554d46; font-size: 14px; line-height: 1.55; }
+.managed-signer-permissions ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.managed-signer-permissions li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; padding: 16px; border: 1px solid #c4d9d0; border-radius: 8px; background: #eef5f0; }
+.managed-signer-permissions__check { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: #285d49; color: #fff; font-size: 17px; font-weight: 800; }
+.managed-signer-permissions strong { display: block; margin: 2px 0 5px; font-size: 15px; line-height: 1.4; }
+.managed-signer-permissions li p { margin: 0; color: #46594f; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }

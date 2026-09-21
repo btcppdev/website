@@ -1,6 +1,6 @@
 {{ define "managed_signer_authorize.tmpl" -}}
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize signer · bitcoin++</title><link rel="stylesheet" href="/static/css/btcpp-redesign.css"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize signer · bitcoin++</title><link rel="stylesheet" href="/static/css/btcpp-redesign.css"><link rel="stylesheet" href="/static/css/managed-signer-consent.css"></head>
 <body class="managed-signer-consent"><main>
   <p class="eyebrow">bitcoin++ managed signer</p>
   {{ if eq .Action "create_identity" }}
@@ -14,7 +14,7 @@
   <h1>Connect and sign in to Badge Studio?</h1>
   <p><strong>{{ .PersonName }}</strong> is connecting the managed signer for <strong>{{ .TenantName }}</strong>.</p>
   <section class="managed-signer-consent__explanation" aria-label="About this Badge Studio connection">
-    <div><h2>Connect Badge Studio</h2><p>Create an independently revocable NIP-46 connection for the Badge Studio client that made this exact request.</p></div>
+    <div><h2>Connect Badge Studio</h2><p>Let Badge Studio request the actions listed below using this signer. You can revoke this connection later.</p></div>
     <div><h2>Sign in once</h2><p>Sign a fresh, one-use login event for <code>{{ .ApplicationURL }}</code>. This approval cannot sign in to another website or authorize later badge actions.</p></div>
   </section>
   {{ else }}
@@ -28,8 +28,6 @@
     <div><dt>requested action</dt><dd>{{ .ActionLabel }}</dd></div>
     {{ if .ApplicationName }}<div><dt>requesting application</dt><dd>{{ .ApplicationName }}</dd></div>{{ end }}
     {{ if .ApplicationURL }}<div><dt>application address</dt><dd><code>{{ .ApplicationURL }}</code></dd></div>{{ end }}
-    {{ if .ClientPubkey }}<div><dt>revocable client key</dt><dd><code>{{ .ClientPubkey }}</code></dd></div>{{ end }}
-    {{ if .Permissions }}<div><dt>requested permissions</dt><dd>{{ range $index, $permission := .Permissions }}{{ if $index }} · {{ end }}<code>{{ $permission }}</code>{{ end }}</dd></div>{{ end }}
     {{ if .ContentTitle }}<div><dt>title</dt><dd>{{ .ContentTitle }}</dd></div>{{ end }}
     {{ if .ContentIdentifier }}<div><dt>content identifier</dt><dd><code>{{ .ContentIdentifier }}</code></dd></div>{{ end }}
     {{ if .StreamStatus }}<div><dt>live stream status</dt><dd><strong>{{ .StreamStatus }}</strong></dd></div>{{ end }}
@@ -39,15 +37,36 @@
     {{ if .BadgeName }}<div><dt>badge being published</dt><dd><strong>{{ .BadgeName }}</strong> · <code>{{ .BadgeIdentifier }}</code></dd></div>{{ end }}
     {{ if .BadgeImage }}<div><dt>badge artwork URL</dt><dd><code>{{ .BadgeImage }}</code></dd></div>{{ end }}
     {{ if .BadgeDescription }}<div><dt>badge description</dt><dd>{{ .BadgeDescription }}</dd></div>{{ end }}
-    {{ if .EventKind }}<div><dt>nostr event</dt><dd>kind {{ .EventKind }}{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }} · one event per recipient{{ end }}</dd></div>{{ end }}
     {{ if .RecipientCount }}<div><dt>recipients</dt><dd>{{ .RecipientCount }}{{ if .VerifiedGrants }} · {{ .VerifiedGrants }} bitcoin++ grant{{ if ne .VerifiedGrants 1 }}s{{ end }} verified{{ end }}</dd></div>{{ end }}
     {{ if .AwardRecipient }}<div><dt>exact recipient</dt><dd><code>{{ .AwardRecipient }}</code></dd></div>{{ end }}
     {{ if .BadgeAddress }}<div><dt>badge definition</dt><dd><code>{{ .BadgeAddress }}</code></dd></div>{{ end }}
     {{ if .RevocationEventID }}<div><dt>award being revoked</dt><dd><code>{{ .RevocationEventID }}</code>{{ if .RevocationReason }} · {{ .RevocationReason }}{{ end }}</dd></div>{{ end }}
     {{ if .ProfileBadgeCount }}<div><dt>accepted badges</dt><dd>{{ .ProfileBadgeCount }}</dd></div>{{ end }}
-    {{ if .EventHash }}<div><dt>{{ if eq .Action "connect_login" }}exact connection request hash{{ else if and (eq .EventKind 8) (gt .RecipientCount 1) }}exact batch hash{{ else }}exact event hash{{ end }}</dt><dd><code>{{ .EventHash }}</code></dd></div>{{ end }}
-    {{ if .Target }}<div><dt>pending request</dt><dd><code>{{ .Target }}</code></dd></div>{{ end }}
+    {{ if and .EventHash (ne .Action "connect_login") }}<div><dt>{{ if and (eq .EventKind 8) (gt .RecipientCount 1) }}exact batch hash{{ else }}exact event hash{{ end }}</dt><dd><code>{{ .EventHash }}</code></dd></div>{{ end }}
   </dl>
+  {{ if .Permissions }}
+  <section class="managed-signer-permissions" aria-labelledby="permissions-title">
+    <h2 id="permissions-title">Requested permissions</h2>
+    <p>This connection can request the following actions. Future signing requests still need your approval.</p>
+    <ul role="list">
+      {{ range .Permissions }}
+      <li><span class="managed-signer-permissions__check" aria-hidden="true">✓</span><div>
+        {{ if eq . "sign_event:27235" }}<strong>Sign in</strong><p>Prove your identity to the application with a signed login request.</p>
+        {{ else if eq . "sign_event:30009" }}<strong>Create and update badges</strong><p>Sign badge definitions, including their name, description, and artwork.</p>
+        {{ else if eq . "sign_event:8" }}<strong>Award badges</strong><p>Sign a badge award for a recipient.</p>
+        {{ else if eq . "sign_event_batch:8" }}<strong>Award badges to a group</strong><p>Sign a batch of badge awards, with one award per recipient.</p>
+        {{ else if eq . "sign_event:5" }}<strong>Revoke badges</strong><p>Sign a deletion request to revoke a previously issued badge award.</p>
+        {{ else if eq . "sign_event:10008" }}<strong>Display accepted badges</strong><p>Sign the list of badges you accept and display on your profile.</p>
+        {{ else if eq . "sign_event:1" }}<strong>Publish short posts</strong><p>Sign short text posts for publication on Nostr.</p>
+        {{ else if eq . "sign_event:30023" }}<strong>Publish articles</strong><p>Sign long-form articles and updates to them.</p>
+        {{ else if eq . "sign_event:30311" }}<strong>Publish live stream details</strong><p>Sign a live stream’s title, schedule, status, and other details.</p>
+        {{ else }}<strong>Additional permission</strong><p><code>{{ . }}</code></p>
+        {{ end }}
+      </div></li>
+      {{ end }}
+    </ul>
+  </section>
+  {{ end }}
   {{ if and .ApplicationName (ne .Action "connect_login") }}<p class="managed-signer-consent__note">Application names and addresses are supplied by the requesting client. Verify them before approving.</p>{{ end }}
   {{ if eq .Action "rotate_identity" }}<p class="managed-signer-consent__error">Rotation creates a new Nostr key and encryption key. It revokes every application connection and removes every other manager unlock; reconnect and re-enroll them afterward.</p>{{ end }}
   {{ if eq .Action "recover_identity" }}<p class="managed-signer-consent__error">Recovery keeps the same Nostr identity, but replaces every manager unlock and revokes every application connection.</p>{{ end }}
