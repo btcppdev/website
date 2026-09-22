@@ -39,8 +39,8 @@ func projectAlertsStripeRenewal(ctx context.Context, tx pgx.Tx, b alertsstripe.B
 	}
 	var raw []byte
 	err := tx.QueryRow(ctx, `SELECT i.paid_period FROM alerts_stripe_invoices i JOIN shop_orders o ON o.id=i.order_id
- JOIN service_purchase_requests p ON p.order_id=o.id JOIN service_entitlements e ON e.purchase_id=p.id
- WHERE i.checkout_id=$1 AND i.ends_at=$2 AND o.status='paid' AND e.revoked_at IS NULL`, b.IntentID, time.Unix(state.PeriodStart, 0)).Scan(&raw)
+ JOIN service_purchase_requests r ON r.order_id=o.id JOIN service_entitlements e ON e.purchase_id=r.id
+ WHERE i.checkout_id=$1 AND i.ends_at=$2 AND `+servicePurchaseAccessSQL+` AND e.revoked_at IS NULL`, b.IntentID, time.Unix(state.PeriodStart, 0)).Scan(&raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		_, err = tx.Exec(ctx, `UPDATE alerts_stripe_renewals SET state='expired',revision=revision+1,observed_at=now() WHERE invoice_id=$1 AND checkout_id=$2 AND state='failed'`, state.LatestInvoice, b.IntentID)
 		return err
@@ -53,9 +53,10 @@ func projectAlertsStripeRenewal(ctx context.Context, tx pgx.Tx, b alertsstripe.B
 		return err
 	}
 	// The preceding paid period may consist of a base invoice plus upgrades.
-	// Only paid, unrevoked grants ending at this renewal support grace.
+	// Verified retained refunds preserve the original grant for grace too.
+	// Unreviewed refunds, revoke decisions and direct revocations do not.
 	var added int64
-	err = tx.QueryRow(ctx, `SELECT COALESCE(sum(e.quantity),0) FROM alerts_stripe_increase_payments i JOIN shop_orders o ON o.id=i.order_id JOIN service_purchase_requests p ON p.order_id=o.id JOIN service_entitlements e ON e.purchase_id=p.id WHERE i.checkout_id=$1 AND e.starts_at>=$2 AND e.ends_at=$3 AND o.status='paid' AND o.paid_at<=$4 AND e.revoked_at IS NULL`, b.IntentID, previous.Start, previous.End, now).Scan(&added)
+	err = tx.QueryRow(ctx, `SELECT COALESCE(sum(e.quantity),0) FROM alerts_stripe_increase_payments i JOIN shop_orders o ON o.id=i.order_id JOIN service_purchase_requests r ON r.order_id=o.id JOIN service_entitlements e ON e.purchase_id=r.id WHERE i.checkout_id=$1 AND e.starts_at>=$2 AND e.ends_at=$3 AND `+servicePurchaseAccessSQL+` AND o.paid_at<=$4 AND e.revoked_at IS NULL`, b.IntentID, previous.Start, previous.End, now).Scan(&added)
 	if err != nil {
 		return err
 	}

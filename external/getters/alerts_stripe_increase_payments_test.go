@@ -12,6 +12,12 @@ import (
 )
 
 func TestAlertsStripeIncreasePaymentPostgres(t *testing.T) {
+	for _, action := range []string{"none", "retain", "revoke", "unreviewed"} {
+		t.Run(action, func(t *testing.T) { testAlertsStripeIncreasePayment(t, action) })
+	}
+}
+
+func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	app := databaseSmokeContext(t)
 	ctx := context.Background()
 	var person string
@@ -184,11 +190,39 @@ func TestAlertsStripeIncreasePaymentPostgres(t *testing.T) {
 	sub.LatestInvoice = &stripe.Invoice{ID: inv.ID}
 	sub.Items.Data[0].CurrentPeriodStart = end.Unix()
 	sub.Items.Data[0].CurrentPeriodEnd = nextEnd.Unix()
+
+	if refundAction != "none" {
+		if _, err = app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
+			t.Fatal(err)
+		}
+		for _, invoice := range []string{"in_base_" + id, paid.InvoiceID} {
+			var attempt, reference string
+			if err = app.DB.QueryRow(ctx, `SELECT a.id::text,a.provider_reference FROM service_payment_attempts a WHERE a.provider='stripe' AND a.provider_reference=$1`, invoice).Scan(&attempt, &reference); err != nil {
+				t.Fatal(err)
+			}
+			refund := VerifiedServiceRefund{AttemptID: attempt, Provider: "stripe", PaymentReference: reference, RefundReference: "re_" + attempt, AmountCents: 1, Currency: "USD", RefundedAt: now.Add(time.Second)}
+			if err = RecordServiceRefund(ctx, app, refund); err != nil {
+				t.Fatal(err)
+			}
+			if refundAction != "unreviewed" {
+				if err = RecordServiceRefundAccessDecision(ctx, app, person, "stripe", refund.RefundReference, refundAction, "Exceptional refund grace fixture"); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
 	if err = refreshAlertsStripeSubscriptionAt(ctx, app, person, id, client, end.Add(time.Hour)); err != nil {
 		t.Fatal("failed upgraded renewal", err)
 	}
-	if err = app.DB.QueryRow(ctx, `SELECT paid_slots FROM alerts_stripe_renewals WHERE invoice_id=$1`, inv.ID).Scan(&slots); err != nil || slots != 5 {
-		t.Fatal("upgrade missing from grace", slots, err)
+	if refundAction == "revoke" || refundAction == "unreviewed" {
+		var rows int
+		if err = app.DB.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_renewals WHERE invoice_id=$1 AND state='failed'`, inv.ID).Scan(&rows); err != nil || rows != 0 {
+			t.Fatal("revoked payment generated grace", rows, err)
+		}
+	} else {
+		if err = app.DB.QueryRow(ctx, `SELECT paid_slots FROM alerts_stripe_renewals WHERE invoice_id=$1`, inv.ID).Scan(&slots); err != nil || slots != 5 {
+			t.Fatal("upgrade missing from grace", slots, err)
+		}
 	}
 	inv.Status = "paid"
 	inv.AmountPaid = 1000
