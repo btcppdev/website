@@ -20,6 +20,7 @@ type AlertsBillingOrder struct {
 	Granted        bool
 	Revoked        bool
 	PaymentStarted bool
+	RefundRetained bool
 }
 
 type AlertsBillingState struct {
@@ -44,7 +45,8 @@ func LoadAlertsBillingState(app *config.AppContext, personID string) (*AlertsBil
 		return nil, err
 	}
 	rows, err := tx.Query(ctx, `SELECT o.id::text,o.status,r.quote_snapshot,e.id IS NOT NULL,e.revoked_at IS NOT NULL,
- EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=r.id)
+ EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=r.id),
+ (o.status IN ('refunded','partially_refunded') AND `+servicePurchaseAccessSQL+`)
  FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id
  LEFT JOIN service_entitlements e ON e.purchase_id=r.id AND e.person_id=r.person_id
  WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code'='alerts.repository-slots' ORDER BY r.created_at,r.id`, personID)
@@ -55,7 +57,7 @@ func LoadAlertsBillingState(app *config.AppContext, personID string) (*AlertsBil
 	for rows.Next() {
 		var order AlertsBillingOrder
 		var raw []byte
-		if err = rows.Scan(&order.OrderID, &order.Status, &raw, &order.Granted, &order.Revoked, &order.PaymentStarted); err != nil {
+		if err = rows.Scan(&order.OrderID, &order.Status, &raw, &order.Granted, &order.Revoked, &order.PaymentStarted, &order.RefundRetained); err != nil {
 			rows.Close()
 			return nil, err
 		}

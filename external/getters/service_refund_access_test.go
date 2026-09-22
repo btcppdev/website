@@ -2,6 +2,7 @@ package getters
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -20,7 +21,7 @@ func TestRefundAccessDecisionPostgres(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			if _, err := app.DB.Exec(ctx, `INSERT INTO person_emails(person_id,email,is_primary) VALUES($1,$2,true)`, person, "allowance-"+person+"@example.test"); err != nil {
+			if _, err := app.DB.Exec(ctx, `INSERT INTO person_emails(person_id,email,is_primary,verified_at) VALUES($1,$2,true,now())`, person, "allowance-"+person+"@example.test"); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
@@ -77,6 +78,14 @@ func TestRefundAccessDecisionPostgres(t *testing.T) {
 			}
 			check(start, 1)
 			check(end, 0)
+			state, err := LoadAlertsBillingState(app, person)
+			if err != nil || len(state.Orders) != 1 || !state.Orders[0].RefundRetained {
+				t.Fatalf("retained refund missing from pricing evidence: %+v %v", state, err)
+			}
+			if _, err := ReserveAlertsStripeCheckout(app, person, "retained-refund-overlap", 1, "https://btcpp.dev"); !errors.Is(err, ErrAlertsStripeCheckoutConflict) {
+				t.Fatal("retained access allowed overlapping subscription", err)
+			}
+
 			refund.RefundReference += "_remaining"
 			refund.AmountCents = 900
 			if err := RecordServiceRefund(ctx, app, refund); err != nil {
@@ -91,10 +100,19 @@ func TestRefundAccessDecisionPostgres(t *testing.T) {
 				expected = 1
 			}
 			check(start, expected)
+			if finalAction == "retain" {
+				if _, err := ReserveAlertsStripeCheckout(app, person, "full-refund-overlap", 1, "https://btcpp.dev"); !errors.Is(err, ErrAlertsStripeCheckoutConflict) {
+					t.Fatal("fully refunded retained access allowed overlapping subscription", err)
+				}
+			}
+
 			if _, err := app.DB.Exec(ctx, `UPDATE service_entitlements SET revoked_at=now(),revocation_actor='admin test',revocation_reason='Separate revocation' WHERE id=$1`, grant); err != nil {
 				t.Fatal(err)
 			}
 			check(start, 0)
+			if _, err := ReserveAlertsStripeCheckout(app, person, "after-access-revocation", 1, "https://btcpp.dev"); err != nil {
+				t.Fatal("revoked access blocked a replacement subscription", err)
+			}
 		})
 	}
 }

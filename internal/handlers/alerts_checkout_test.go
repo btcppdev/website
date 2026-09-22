@@ -78,6 +78,7 @@ func TestPrepareAlertsCheckoutUnresolvedState(t *testing.T) {
 		order getters.AlertsBillingOrder
 		want  error
 	}{
+		{"retained refund", getters.AlertsBillingOrder{Status: "partially_refunded", Granted: true, RefundRetained: true, Quote: quote}, ErrAlertsPlanReview},
 		{"pending", getters.AlertsBillingOrder{Status: "pending", Quote: quote}, ErrAlertsPendingPurchase},
 		{"unfulfilled", getters.AlertsBillingOrder{Status: "paid", Quote: quote}, ErrAlertsPendingPurchase},
 		{"scheduled", getters.AlertsBillingOrder{Status: "paid", Granted: true, Quote: func() getters.ServiceQuote { q := quote; s := now.Add(time.Hour); q.PeriodStart = &s; return q }()}, ErrAlertsPlanReview},

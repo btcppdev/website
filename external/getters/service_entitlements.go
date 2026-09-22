@@ -104,11 +104,9 @@ type serviceAccessReader interface {
 	Query(context.Context, string, ...any) (pgx.Rows, error)
 }
 
-func queryServiceEntitlements(ctx context.Context, reader serviceAccessReader, personID string, at time.Time) ([]ServiceEntitlement, error) {
-	rows, err := reader.Query(ctx, `SELECT e.id::text,e.product_code,e.resource_id,e.quantity,e.starts_at,e.ends_at
-		FROM service_entitlements e JOIN service_purchase_requests r ON r.id=e.purchase_id JOIN shop_orders o ON o.id=r.order_id
-		WHERE e.person_id=$1 AND r.person_id=e.person_id AND e.revoked_at IS NULL AND (
-          (o.status='paid' AND NOT EXISTS(SELECT 1 FROM service_payment_refunds f JOIN service_payment_attempts a ON a.id=f.attempt_id WHERE a.purchase_id=r.id))
+// servicePurchaseAccessSQL requires order alias o and purchase alias r. Keep
+// entitlement and checkout decisions bound to the same verified refund evidence.
+const servicePurchaseAccessSQL = `((o.status='paid' AND NOT EXISTS(SELECT 1 FROM service_payment_refunds f JOIN service_payment_attempts a ON a.id=f.attempt_id WHERE a.purchase_id=r.id))
           OR (o.status IN ('refunded','partially_refunded') AND o.total_cents=(r.quote_snapshot->>'total_cents')::bigint
             AND EXISTS(SELECT 1 FROM service_payment_attempts a
               JOIN service_payment_refunds f ON f.attempt_id=a.id
@@ -119,7 +117,13 @@ func queryServiceEntitlements(ctx context.Context, reader serviceAccessReader, p
               GROUP BY a.id HAVING bool_and(coalesce(d.action='retain',false))
                 AND sum(f.amount_cents)>0 AND sum(f.amount_cents)<=o.total_cents
                 AND ((o.status='refunded' AND sum(f.amount_cents)=o.total_cents)
-                  OR (o.status='partially_refunded' AND sum(f.amount_cents)<o.total_cents))))
+                  OR (o.status='partially_refunded' AND sum(f.amount_cents)<o.total_cents)))))`
+
+func queryServiceEntitlements(ctx context.Context, reader serviceAccessReader, personID string, at time.Time) ([]ServiceEntitlement, error) {
+	rows, err := reader.Query(ctx, `SELECT e.id::text,e.product_code,e.resource_id,e.quantity,e.starts_at,e.ends_at
+		FROM service_entitlements e JOIN service_purchase_requests r ON r.id=e.purchase_id JOIN shop_orders o ON o.id=r.order_id
+		WHERE e.person_id=$1 AND r.person_id=e.person_id AND e.revoked_at IS NULL AND (
+          `+servicePurchaseAccessSQL+`
         )
 		AND (e.starts_at IS NULL OR e.starts_at<=$2) AND (e.ends_at IS NULL OR e.ends_at>$2)
 		ORDER BY e.created_at,e.id`, personID, at)

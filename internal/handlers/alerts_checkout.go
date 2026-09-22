@@ -44,6 +44,11 @@ func prepareAlertsCheckout(ctx context.Context, state *getters.AlertsBillingStat
 		if order.Status == "pending" && (q.ExpiresAt.After(at) || order.PaymentStarted) {
 			return nil, nil, ErrAlertsPendingPurchase
 		}
+		// Retention preserves access, not the original amount as a proration
+		// credit. Do not silently charge for overlapping access after a refund.
+		if order.RefundRetained && !order.Revoked && (q.PeriodEnd == nil || q.PeriodEnd.After(at)) {
+			return nil, nil, ErrAlertsPlanReview
+		}
 		if order.Status != "paid" || order.Revoked {
 			continue
 		}

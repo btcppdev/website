@@ -53,7 +53,7 @@ func ReserveAlertsStripeCheckout(app *config.AppContext, person, key string, slo
 		return nil, err
 	}
 	var occupied bool
-	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM service_purchase_requests p JOIN shop_orders o ON o.id=p.order_id WHERE p.person_id=$1 AND p.quote_snapshot->>'product_code'='alerts.repository-slots' AND ((o.status='pending' AND (o.checkout_expires_at>now() OR EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=p.id))) OR (o.status='paid' AND (p.quote_snapshot->>'period_end')::timestamptz>now())))`, person).Scan(&occupied)
+	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code'='alerts.repository-slots' AND ((o.status='pending' AND (o.checkout_expires_at>now() OR EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=r.id))) OR ((o.status='paid' OR (`+servicePurchaseAccessSQL+` AND EXISTS(SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id AND e.revoked_at IS NULL))) AND (r.quote_snapshot->>'period_end')::timestamptz>now())))`, person).Scan(&occupied)
 	if err != nil {
 		return nil, err
 	}
