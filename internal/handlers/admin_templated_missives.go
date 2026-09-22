@@ -824,6 +824,11 @@ func weeklyNewsletterUpdatesMarkdown(updates *getters.WeeklyNewsletterUpdateBund
 		eventTitle := firstNonEmpty(change.Conf.Desc, change.Conf.Location, change.Conf.Tag)
 		bullets = append(bullets, "- Ticket prices for ["+markdownNewsletterText(eventTitle)+"]("+eventURL+") rise from "+weeklyNewsletterTicketPrice(change.Current)+" to "+weeklyNewsletterTicketPrice(change.Next)+" on "+change.Current.SalesEndAt.Format("Monday, January 2")+". Get them before they're gone.")
 	}
+	for _, challenge := range updates.SponsorChallenges {
+		page := &HackathonPage{Conf: &types.Conf{Tag: challenge.ConfTag}}
+		challengeURL := weeklyNewsletterSiteURL(page.AwardURL(&types.Award{Title: challenge.Title, PublicSlug: challenge.PublicSlug}))
+		bullets = append(bullets, "- New sponsor challenge: ["+markdownNewsletterText(challenge.Title)+"]("+challengeURL+") from "+markdownNewsletterText(challenge.SponsorName)+" at "+markdownNewsletterText(challenge.Competition)+".")
+	}
 	for _, winner := range updates.HackathonWinners[:min(len(updates.HackathonWinners), 3)] {
 		projectURL := weeklyNewsletterSiteURL("/" + url.PathEscape(winner.ConfTag) + "/hackathon/projects/" + url.PathEscape(winner.ProjectID))
 		bullets = append(bullets, "- Hackathon winner: ["+markdownNewsletterText(winner.ProjectTitle)+"]("+projectURL+") won "+markdownNewsletterText(winner.Awards)+" at "+markdownNewsletterText(winner.Competition)+".")

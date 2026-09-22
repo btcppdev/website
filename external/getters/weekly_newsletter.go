@@ -45,6 +45,16 @@ type WeeklyNewsletterTicketChange struct {
 	Next    *types.ConfTicket
 }
 
+type WeeklyNewsletterChallenge struct {
+	ConfTag     string
+	Competition string
+	AwardID     string
+	PublicSlug  string
+	Title       string
+	SponsorName string
+	PublishedAt time.Time
+}
+
 type WeeklyNewsletterHackathonWinner struct {
 	ConfTag       string
 	CompetitionID string
@@ -82,6 +92,7 @@ type WeeklyNewsletterUpdateBundle struct {
 	SpeakerGroups      []WeeklyNewsletterSpeakerGroup
 	TicketChanges      []WeeklyNewsletterTicketChange
 	HackathonWinners   []WeeklyNewsletterHackathonWinner
+	SponsorChallenges  []WeeklyNewsletterChallenge
 	NewSponsorGroups   []WeeklyNewsletterSponsorGroup
 	SupportingSponsors []WeeklyNewsletterSponsor
 	MerchUpdates       []WeeklyNewsletterMerchUpdate
@@ -109,6 +120,10 @@ func WeeklyNewsletterUpdates(ctx *config.AppContext, issueSendAt time.Time) (*We
 	}
 	updates.Talks, updates.Broadcasts = organizeWeeklyNewsletterTalks(publishedTalks, updates.TalkOfWeek)
 	updates.SpeakerGroups, err = weeklyNewsletterSpeakers(ctx, issueSendAt.AddDate(0, 0, -7), issueSendAt)
+	if err != nil {
+		return nil, err
+	}
+	updates.SponsorChallenges, err = weeklyNewsletterSponsorChallenges(ctx, talkStart, talkEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -651,6 +666,39 @@ func weeklyNewsletterSupportingSponsors(ctx *config.AppContext, issueSendAt time
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate weekly newsletter supporting sponsors: %w", err)
+	}
+	return out, nil
+}
+
+// Challenges use first availability, not draft creation or the last edit.
+func weeklyNewsletterSponsorChallenges(ctx *config.AppContext, start, end time.Time) ([]WeeklyNewsletterChallenge, error) {
+	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
+  SELECT c.tag, h.title, a.id::text, a.public_slug, a.title, o.name, a.published_at
+  FROM awards a
+  JOIN competitions h ON h.id = a.competition_id
+  JOIN conferences c ON c.id = h.conference_id
+  JOIN organizations o ON o.id = a.sponsored_by_org_id
+  WHERE a.award_type = 'challenge'
+   AND a.archived_at IS NULL
+   AND a.status IN ('available', 'unawarded', 'awarded')
+   AND a.published_at >= $1 AND a.published_at < $2
+   AND h.visibility = 'public' AND c.publication_status = 'published'
+  ORDER BY a.published_at, c.tag, a.title, a.id
+ `, start, end)
+	if err != nil {
+		return nil, fmt.Errorf("query weekly newsletter sponsor challenges: %w", err)
+	}
+	defer rows.Close()
+	var out []WeeklyNewsletterChallenge
+	for rows.Next() {
+		var item WeeklyNewsletterChallenge
+		if err := rows.Scan(&item.ConfTag, &item.Competition, &item.AwardID, &item.PublicSlug, &item.Title, &item.SponsorName, &item.PublishedAt); err != nil {
+			return nil, fmt.Errorf("scan weekly newsletter sponsor challenge: %w", err)
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate weekly newsletter sponsor challenges: %w", err)
 	}
 	return out, nil
 }

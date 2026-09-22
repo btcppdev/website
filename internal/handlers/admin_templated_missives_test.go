@@ -608,3 +608,17 @@ func TestWeeklyNewsletterInsiderMarkdownUsesOnlyThreeBullets(t *testing.T) {
 		t.Fatalf("Insider markdown does not use the newsletter section heading: %s", markdown)
 	}
 }
+
+func TestWeeklyNewsletterIncludesSponsorChallenges(t *testing.T) {
+	updates := &getters.WeeklyNewsletterUpdateBundle{SponsorChallenges: []getters.WeeklyNewsletterChallenge{{ConfTag: "seoul", Competition: "Seoul Hackathon", Title: "Build [something]", PublicSlug: "original-challenge-slug", SponsorName: "Sponsor Labs"}}}
+	got := weeklyNewsletterUpdatesMarkdown(updates)
+	for _, want := range []string{"New sponsor challenge:", "/seoul/hackathon/awards/original-challenge-slug", "Sponsor Labs", "Seoul Hackathon", markdownNewsletterText("Build [something]")} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in %s", want, got)
+		}
+	}
+	form := weeklyNewsletterForm(time.Now(), nil, updates, nil)
+	if !strings.Contains(form.ContentMarkdown, "original-challenge-slug") {
+		t.Fatal("challenge-only newsletter omitted updates")
+	}
+}
