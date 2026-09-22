@@ -12,7 +12,7 @@ import (
 )
 
 func TestAlertsStripeIncreasePaymentPostgres(t *testing.T) {
-	for _, action := range []string{"none", "retain", "revoke", "unreviewed"} {
+	for _, action := range []string{"none", "retain", "revoke", "unreviewed", "late-upgrade-revoke"} {
 		t.Run(action, func(t *testing.T) { testAlertsStripeIncreasePayment(t, action) })
 	}
 }
@@ -191,7 +191,7 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	sub.Items.Data[0].CurrentPeriodStart = end.Unix()
 	sub.Items.Data[0].CurrentPeriodEnd = nextEnd.Unix()
 
-	if refundAction != "none" {
+	if refundAction != "none" && refundAction != "late-upgrade-revoke" {
 		if _, err = app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
 			t.Fatal(err)
 		}
@@ -222,6 +222,42 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	} else {
 		if err = app.DB.QueryRow(ctx, `SELECT paid_slots FROM alerts_stripe_renewals WHERE invoice_id=$1`, inv.ID).Scan(&slots); err != nil || slots != 5 {
 			t.Fatal("upgrade missing from grace", slots, err)
+		}
+	}
+
+	if refundAction == "late-upgrade-revoke" {
+		if _, err = app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
+			t.Fatal(err)
+		}
+		var attempt string
+		if err = app.DB.QueryRow(ctx, `SELECT id::text FROM service_payment_attempts WHERE provider='stripe' AND provider_reference=$1`, paid.InvoiceID).Scan(&attempt); err != nil {
+			t.Fatal(err)
+		}
+		refund := VerifiedServiceRefund{AttemptID: attempt, Provider: "stripe", PaymentReference: paid.InvoiceID, RefundReference: "re_late_" + attempt, AmountCents: 1, Currency: "USD", RefundedAt: end.Add(2 * time.Hour)}
+		if err = RecordServiceRefund(ctx, app, refund); err != nil {
+			t.Fatal(err)
+		}
+		if err = RecordServiceRefundAccessDecision(ctx, app, person, "stripe", refund.RefundReference, "revoke", "Revoke upgrade after grace started"); err != nil {
+			t.Fatal(err)
+		}
+		remaining, e := ActiveServiceEntitlements(app, person, now)
+		if e != nil || len(remaining) != 1 || remaining[0].Quantity != 2 || !remaining[0].EndsAt.Equal(end) {
+			t.Fatal("upgrade refund changed unrelated base entitlement", remaining, e)
+		}
+		for _, delay := range []time.Duration{3 * time.Hour, 4 * time.Hour} {
+			if err = refreshAlertsStripeSubscriptionAt(ctx, app, person, id, client, end.Add(delay)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var lifecycle string
+		var revision int64
+		var due time.Time
+		if err = app.DB.QueryRow(ctx, `SELECT state,revision,due_at,paid_slots FROM alerts_stripe_renewals WHERE invoice_id=$1`, inv.ID).Scan(&lifecycle, &revision, &due, &slots); err != nil || lifecycle != "expired" || revision != 2 || !due.Equal(end) || slots != 5 {
+			t.Fatal("stale grace or altered evidence", lifecycle, revision, due, slots, err)
+		}
+		snapshot, err := AccountAccess(ctx, app, person, end.Add(4*time.Hour))
+		if err != nil || len(snapshot.Renewals) != 1 || snapshot.Renewals[0].State != "expired" {
+			t.Fatal("access API retained stale grace", snapshot, err)
 		}
 	}
 	inv.Status = "paid"

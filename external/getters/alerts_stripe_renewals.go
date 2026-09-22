@@ -63,7 +63,11 @@ func projectAlertsStripeRenewal(ctx context.Context, tx pgx.Tx, b alertsstripe.B
 	previous.Quantity += added
 	previous, err = alertsStripeRenewalPreviousQuantity(ctx, tx, b, previous)
 	if errors.Is(err, alertsstripe.ErrInvoice) {
-		return nil
+		// A refund/revocation can remove upgrade funding after grace was recorded.
+		// Preserve immutable invoice facts, but stop an already-ineligible grace
+		// period instead of leaving its old allowance and reminders active.
+		_, err = tx.Exec(ctx, `UPDATE alerts_stripe_renewals SET state='expired',revision=revision+1,observed_at=now() WHERE invoice_id=$1 AND checkout_id=$2 AND state='failed'`, state.LatestInvoice, b.IntentID)
+		return err
 	}
 	if err != nil {
 		return err
