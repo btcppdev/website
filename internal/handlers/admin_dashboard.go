@@ -31,21 +31,22 @@ type GlobalAdminDashboardPage struct {
 }
 
 type EventDetailsPage struct {
-	Conf                      *types.Conf
-	FlashMessage              string
-	Days                      []*EventDetailsDay
-	Venues                    []string
-	Tickets                   []*EventDetailsTicket
-	Milestones                []*EventDetailsMilestone
-	MerchProducts             []*types.MerchProduct
-	MerchUpsellSlots          []*types.MerchProduct
-	MerchUpsellProductIDs     map[string]bool
-	StartInput                string
-	EndInput                  string
-	SpeakerDinnerInput        string
-	CampaignAutomationSetting string
-	NextDay                   int
-	Year                      uint
+	Conf                          *types.Conf
+	FlashMessage                  string
+	Days                          []*EventDetailsDay
+	Venues                        []string
+	Tickets                       []*EventDetailsTicket
+	Milestones                    []*EventDetailsMilestone
+	MerchProducts                 []*types.MerchProduct
+	MerchUpsellSlots              []*types.MerchProduct
+	MerchUpsellProductIDs         map[string]bool
+	StartInput                    string
+	SpeakerApplicationsCloseInput string
+	EndInput                      string
+	SpeakerDinnerInput            string
+	CampaignAutomationSetting     string
+	NextDay                       int
+	Year                          uint
 }
 
 type EventDetailsMilestone struct {
@@ -272,6 +273,10 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 	if speakerDinner != nil {
 		dinnerInput = datetimeLocalInput(*speakerDinner)
 	}
+	speakerApplicationsCloseInput := ""
+	if conf.SpeakerApplicationsClose != nil {
+		speakerApplicationsCloseInput = datetimeLocalInput(conf.SpeakerApplicationsClose.In(conf.Loc()))
+	}
 	campaignAutomationSetting := ""
 	if conf.ConferenceEmailCampaignsEnabled != nil {
 		if *conf.ConferenceEmailCampaignsEnabled {
@@ -282,21 +287,22 @@ func GlobalAdminEventDetails(w http.ResponseWriter, r *http.Request, ctx *config
 	}
 
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/event_details.tmpl", &EventDetailsPage{
-		Conf:                      conf,
-		FlashMessage:              r.URL.Query().Get("flash"),
-		Days:                      days,
-		Venues:                    venues,
-		Tickets:                   tickets,
-		Milestones:                milestones,
-		MerchProducts:             merchProducts,
-		MerchUpsellSlots:          merchUpsellSlots,
-		MerchUpsellProductIDs:     merchUpsellProductIDs,
-		StartInput:                datetimeLocalInput(conf.StartDate),
-		EndInput:                  datetimeLocalInput(conf.EndDate),
-		SpeakerDinnerInput:        dinnerInput,
-		CampaignAutomationSetting: campaignAutomationSetting,
-		NextDay:                   nextDay,
-		Year:                      helpers.CurrentYear(),
+		Conf:                          conf,
+		FlashMessage:                  r.URL.Query().Get("flash"),
+		Days:                          days,
+		Venues:                        venues,
+		Tickets:                       tickets,
+		Milestones:                    milestones,
+		MerchProducts:                 merchProducts,
+		MerchUpsellSlots:              merchUpsellSlots,
+		MerchUpsellProductIDs:         merchUpsellProductIDs,
+		StartInput:                    datetimeLocalInput(conf.StartDate),
+		SpeakerApplicationsCloseInput: speakerApplicationsCloseInput,
+		EndInput:                      datetimeLocalInput(conf.EndDate),
+		SpeakerDinnerInput:            dinnerInput,
+		CampaignAutomationSetting:     campaignAutomationSetting,
+		NextDay:                       nextDay,
+		Year:                          helpers.CurrentYear(),
 	}); err != nil {
 		ctx.Err.Printf("/%s/admin/details template failed: %s", conf.Tag, err)
 		http.Error(w, "Unable to load page", http.StatusInternalServerError)
@@ -385,6 +391,9 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 	if timezoneName != "" {
 		if loaded, err := time.LoadLocation(timezoneName); err == nil {
 			loc = loaded
+		} else {
+			redirectEventDetails(w, r, conf, "Invalid timezone. Use an IANA timezone such as Asia/Seoul.")
+			return
 		}
 	}
 	start, err := parseOptionalDatetimeLocal(r.FormValue("start_date"), loc)
@@ -395,6 +404,11 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 	end, err := parseOptionalDatetimeLocal(r.FormValue("end_date"), loc)
 	if err != nil {
 		redirectEventDetails(w, r, conf, "Invalid end date.")
+		return
+	}
+	speakerApplicationsClose, err := parseOptionalDatetimeLocal(r.FormValue("speaker_applications_close"), loc)
+	if err != nil {
+		redirectEventDetails(w, r, conf, "Invalid speaker application deadline.")
 		return
 	}
 	speakerDinnerStart, err := parseOptionalDatetimeLocal(r.FormValue("speaker_dinner_start"), loc)
@@ -435,6 +449,7 @@ func GlobalAdminUpdateConfDetails(w http.ResponseWriter, r *http.Request, ctx *c
 		Tagline:                         strings.TrimSpace(r.FormValue("tagline")),
 		DateDesc:                        strings.TrimSpace(r.FormValue("date_desc")),
 		StartDate:                       start,
+		SpeakerApplicationsClose:        speakerApplicationsClose,
 		EndDate:                         end,
 		Timezone:                        timezoneName,
 		Location:                        strings.TrimSpace(r.FormValue("location")),

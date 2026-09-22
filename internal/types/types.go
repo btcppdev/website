@@ -139,8 +139,10 @@ type (
 		DateDesc          string
 		StartDate         time.Time
 		EndDate           time.Time
-		Location          string
-		Venue             string
+		// SpeakerApplicationsClose overrides the default deadline; nil restores the event rule.
+		SpeakerApplicationsClose *time.Time
+		Location                 string
+		Venue                    string
 		// VenueMap is a Google Maps / OpenStreetMap link to the
 		// venue's location; rendered in the ticket email.
 		VenueMap string
@@ -1244,10 +1246,8 @@ func (c *Conf) CanInvite() bool {
 }
 
 // TalksDueDays returns the number of days before StartDate at which talk
-// applications close. Most confs use 45; some shorter cycles use 35.
-//
-// Centralized here so dashboard, the apply form, and any deadline-checking
-// code stay in sync.
+// applications close by default. Most confs use 45; Nairobi uses 35.
+// Use TalksDueDate for the effective deadline, including any admin override.
 func (c *Conf) TalksDueDays() int {
 	if c.Tag == "nairobi" {
 		return 35
@@ -1257,7 +1257,15 @@ func (c *Conf) TalksDueDays() int {
 
 // TalksDueDate returns the absolute time at which talk applications close.
 func (c *Conf) TalksDueDate() time.Time {
+	if c.SpeakerApplicationsClose != nil {
+		return *c.SpeakerApplicationsClose
+	}
 	return c.StartDate.AddDate(0, 0, -c.TalksDueDays())
+}
+
+// TalksDueLabel displays the effective deadline in the event timezone.
+func (c *Conf) TalksDueLabel() string {
+	return c.TalksDueDate().In(c.Loc()).Format("Mon. Jan 2, 2006 at 3:04 PM MST (UTC-07:00)")
 }
 
 // TalksOpen reports whether talk applications are currently being accepted

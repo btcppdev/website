@@ -20,6 +20,7 @@ type ConfDetailsInput struct {
 	DateDesc                        string
 	StartDate                       *time.Time
 	EndDate                         *time.Time
+	SpeakerApplicationsClose        *time.Time
 	Timezone                        string
 	Location                        string
 	Venue                           string
@@ -181,7 +182,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			map_embed_url,
 			map_latitude, map_longitude, map_x_percent, map_y_percent, map_label, map_label_side,
 			youtube_playlist_id, youtube_playlist_title, accent_color,
-			volunteer_self_schedule
+			volunteer_self_schedule, speaker_applications_close
 		FROM conferences
 		`+whereSQL+`
 		ORDER BY start_date NULLS LAST, tag
@@ -257,6 +258,7 @@ func queryConferencesOnlyPostgres(ctx *config.AppContext, label string, whereSQL
 			&conf.YouTubePlaylistTitle,
 			&conf.AccentColor,
 			&conf.VolunteerSelfSchedule,
+			&conf.SpeakerApplicationsClose,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan %s: %w", label, err)
@@ -504,7 +506,8 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 			speaker_dinner_location = $45,
 			speaker_dinner_notes = $46,
 			conference_email_campaigns_enabled = $47,
-			accent_color = $48
+			accent_color = $48,
+			speaker_applications_close = $49
 		WHERE id = $1
 	`, confRef, in.Description, in.OGFlavor, in.Emoji, in.Tagline, in.DateDesc,
 		in.StartDate, in.EndDate, in.Timezone, in.Location, in.Venue,
@@ -519,7 +522,7 @@ func UpdateConfDetails(ctx *config.AppContext, confRef string, in ConfDetailsInp
 		in.PickupAddressCity, in.PickupAddressRegion, in.PickupAddressPostalCode,
 		in.PickupAddressCountry, in.SpeakerDinnerStart,
 		strings.TrimSpace(in.SpeakerDinnerLocation), strings.TrimSpace(in.SpeakerDinnerNotes),
-		in.ConferenceEmailCampaignsEnabled, in.AccentColor)
+		in.ConferenceEmailCampaignsEnabled, in.AccentColor, in.SpeakerApplicationsClose)
 	if err != nil {
 		return fmt.Errorf("update conference %s details: %w", confRef, err)
 	}

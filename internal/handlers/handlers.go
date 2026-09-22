@@ -4212,10 +4212,10 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 	}
 
 	if !conf.TalksOpen() {
-		dueDate := conf.DateBeforeStart(conf.TalksDueDays())
+		dueDate := conf.TalksDueLabel()
 		if r.Method == http.MethodPost {
 			w.WriteHeader(http.StatusGone)
-			w.Write([]byte(helpers.ErrSpeakerApp("Talk applications closed at midnight on " + dueDate + ".")))
+			w.Write([]byte(helpers.ErrSpeakerApp("Talk applications closed on " + dueDate + ".")))
 			return
 		}
 		w.WriteHeader(http.StatusGone)
@@ -4260,7 +4260,7 @@ func RenderSpeakerConf(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 			Conf:                   conf,
 			Confs:                  confs,
 			ConfItems:              helpers.GetOtherConfs(confs, *conf),
-			DueDate:                conf.DateBeforeStart(conf.TalksDueDays()),
+			DueDate:                conf.TalksDueLabel(),
 			DaysList:               daylist[1:],
 			RSVPFor:                daylist[0].ItemDesc,
 			PresentationType:       helpers.GetPresentationTypes(),
