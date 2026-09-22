@@ -93,3 +93,31 @@ func TestServiceOrderPaymentAvailability(t *testing.T) {
 		t.Fatal("unconfigured provider offered")
 	}
 }
+
+func TestRefundReceiptSeparatesMoneyFromAccess(t *testing.T) {
+	data, err := os.ReadFile("../../templates/service_order.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl, err := template.New("service_order.tmpl").Parse(string(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, refunded := range []int64{300, 500} {
+		page := serviceOrderPresentation(&getters.ServiceOrderView{PublicID: "refund-receipt", Status: "partially_refunded", AccessState: "pending", PaymentVerified: true, TotalCents: 500, TaxCents: 20, RefundedCents: refunded})
+		var out bytes.Buffer
+		if err = tmpl.Execute(&out, page); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(page.Message, "inactive") || !strings.Contains(out.String(), "Refunded (USD)") || !strings.Contains(out.String(), "Net paid after refunds (USD)") || !strings.Contains(out.String(), "Print or save receipt") {
+			t.Fatal("incomplete or misleading refund receipt", out.String())
+		}
+		want := "$2.00"
+		if refunded == 500 {
+			want = "$0.00"
+		}
+		if page.NetPaid != want || page.Total != "$5.00" || page.Tax != "$0.20" {
+			t.Fatal(page)
+		}
+	}
+}

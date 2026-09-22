@@ -17,10 +17,10 @@ import (
 )
 
 type serviceOrderPage struct {
-	CanPay                                  bool
-	CSRF                                    string
-	Order                                   *getters.ServiceOrderView
-	Heading, Message, Total, Tax, ReturnURL string
+	CanPay                                                     bool
+	CSRF                                                       string
+	Order                                                      *getters.ServiceOrderView
+	Heading, Message, Total, Tax, Refunded, NetPaid, ReturnURL string
 }
 
 func ServiceOrder(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
@@ -113,13 +113,16 @@ func ServiceOrderPay(w http.ResponseWriter, r *http.Request, app *config.AppCont
 
 func serviceOrderPresentation(order *getters.ServiceOrderView) serviceOrderPage {
 	page := serviceOrderPage{Order: order, Heading: "Awaiting payment", Message: "Your payment has not yet been verified. If you just paid, confirmation may take a little time. Refresh this page to check again.", Total: fmt.Sprintf("$%d.%02d", order.TotalCents/100, order.TotalCents%100), Tax: fmt.Sprintf("$%d.%02d", order.TaxCents/100, order.TaxCents%100)}
+	page.Refunded = fmt.Sprintf("$%d.%02d", order.RefundedCents/100, order.RefundedCents%100)
+	net := order.TotalCents - order.RefundedCents
+	page.NetPaid = fmt.Sprintf("$%d.%02d", net/100, net%100)
 	if order.Quote.ProductCode == "alerts.repository-slots" {
 		page.ReturnURL = "https://alerts.btcpp.dev/alerts"
 	}
 	switch {
 	case order.Status == "refunded" || order.Status == "partially_refunded":
 		page.Heading = "Refund recorded"
-		page.Message = "A refund has been recorded for this order. Access from this purchase is inactive."
+		page.Message = "A refund has been recorded for this order. Check your product account for your current access status."
 	case order.Status == "cancelled" && !order.PaymentVerified:
 		page.Heading = "Order canceled"
 		page.Message = "This order is canceled."

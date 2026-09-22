@@ -16,7 +16,11 @@
 <dt>Quantity</dt><dd>{{ .Order.Quote.Quantity }}</dd>
 {{ if eq .Order.Quote.Provider "stripe" }}<dt>Payment method</dt><dd>Card via Stripe</dd>{{ else if eq .Order.Quote.Provider "opennode" }}<dt>Payment method</dt><dd>Bitcoin via OpenNode</dd>{{ end }}
 <dt>Order total (USD, including tax)</dt><dd>{{ .Total }}</dd>
-<dt>Included tax</dt><dd>{{ .Tax }}</dd>
+<dt>Included tax on original order</dt><dd>{{ .Tax }}</dd>
+{{ if gt .Order.RefundedCents 0 }}
+<dt>Refunded (USD)</dt><dd>{{ .Refunded }}</dd>
+<dt>Net paid after refunds (USD)</dt><dd>{{ .NetPaid }}</dd>
+{{ end }}
 {{ with .Order.Quote.PeriodStart }}<dt>Access starts (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
 {{ with .Order.Quote.PeriodEnd }}<dt>Access ends (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
 </dl>

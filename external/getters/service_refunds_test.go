@@ -104,6 +104,10 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 	if err := app.DB.QueryRow(ctx, `SELECT count(*),sum(amount_cents) FROM service_payment_refunds WHERE attempt_id=$1`, attempt.ID).Scan(&count, &total); err != nil || count != 1 || total != 300 {
 		t.Fatal("duplicate refund counted", count, total, err)
 	}
+	view, err := ServiceOrderForPerson(ctx, app, person, purchase.PublicID)
+	if err != nil || view.RefundedCents != 300 || view.TotalCents != 500 || view.TaxCents != 20 || !view.PaymentVerified {
+		t.Fatalf("partial refund receipt: %+v %v", view, err)
+	}
 	changed := refund
 	changed.AmountCents = 301
 	if err := RecordServiceRefund(ctx, app, changed); !errors.Is(err, ErrServiceRefund) {
@@ -135,6 +139,10 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 	}
 	if succeeded != 1 || rejected != 1 {
 		t.Fatal("concurrent over-refund", succeeded, rejected)
+	}
+	view, err = ServiceOrderForPerson(ctx, app, person, purchase.PublicID)
+	if err != nil || view.RefundedCents != 500 || view.TotalCents != 500 || !view.PaymentVerified {
+		t.Fatalf("full refund receipt: %+v %v", view, err)
 	}
 	var status string
 	if err := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, purchase.OrderID).Scan(&status); err != nil || status != "refunded" {
