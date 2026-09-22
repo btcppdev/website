@@ -299,6 +299,9 @@ func speakerInputFromTalkApp(app *types.TalkApp) getters.SpeakerInput {
 // values from the new submission. Curated values are not overwritten.
 func buildSpeakerUpdateFromForm(sp *types.Speaker, app *types.TalkApp) getters.SpeakerUpdate {
 	up := getters.SpeakerUpdate{}
+	if sp.InvitationNamePending() && app.Name != "" && app.Name != types.InvitedSpeakerName {
+		up.Name = app.Name
+	}
 	if sp.Photo == "" && app.NormPhoto != "" {
 		up.Photo = avif400Name(app.NormPhoto)
 	}

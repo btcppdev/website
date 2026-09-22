@@ -64,6 +64,7 @@
         </a>
         {{ end }}
       </div>
+      <p class="mb-3 text-sm"><a href="/{{ .Conf.Tag }}/admin/invite-speaker?proposal={{ .Proposal.ID }}" class="font-semibold text-indigo-600 hover:text-indigo-800">Invite speaker by email →</a><span class="block mt-1 text-xs text-gray-500">Only an email address is needed. The invitation will be for this talk.</span></p>
       {{/*
         Add-existing-speaker search box. Hits /api/speakers/search
         (returns up to 10 JSON matches by name/email substring),

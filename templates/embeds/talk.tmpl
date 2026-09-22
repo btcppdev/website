@@ -69,7 +69,7 @@
             enctype="multipart/form-data"
             >
                 <div class="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
-                    {{ if and $.KnownSpeaker $.KnownSpeaker.Name }}
+                    {{ if and $.KnownSpeaker (not $.KnownSpeaker.InvitationNamePending) }}
                     <input type="hidden" name="Name" value="{{ $.KnownSpeaker.Name }}" />
                     {{ else }}
                     <div class="sm:col-span-2">

@@ -1776,3 +1776,10 @@ func (ws *WorkShift) Intersects(shifts []*WorkShift) bool {
 
 	return false
 }
+
+// InvitedSpeakerName is a non-identifying placeholder until an email-only invitee supplies a name.
+const InvitedSpeakerName = "Invited speaker"
+
+func (s *Speaker) InvitationNamePending() bool {
+	return s != nil && (s.Name == "" || s.Name == InvitedSpeakerName)
+}

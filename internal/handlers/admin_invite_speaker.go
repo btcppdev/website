@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -34,6 +35,20 @@ func AdminInviteSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppC
 		PresentationTypes:   helpers.GetPresentationTypes(),
 		AttachableProposals: attachableProposals(ctx, conf),
 		Year:                helpers.CurrentYear(),
+	}
+	if selected := strings.TrimSpace(r.URL.Query().Get("proposal")); selected != "" {
+		found := false
+		for _, p := range page.AttachableProposals {
+			if p.ID == selected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			http.Error(w, "Talk is not available for invitations in this event.", http.StatusBadRequest)
+			return
+		}
+		page.Form.AttachProposalID = selected
 	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/invite_speaker.tmpl", page); err != nil {
 		ctx.Err.Printf("/%s/admin/invite-speaker render: %s", conf.Tag, err)
@@ -91,9 +106,23 @@ func AdminInviteSpeakerSubmit(w http.ResponseWriter, r *http.Request, ctx *confi
 		formErr("Email is required.")
 		return
 	}
-	if name == "" {
-		formErr("Name is required.")
+	address, err := mail.ParseAddress(email)
+	if err != nil || !strings.EqualFold(address.Address, email) {
+		formErr("Enter a valid email address.")
 		return
+	}
+	if attachProposalID != "" {
+		found := false
+		for _, p := range attachableProposals(ctx, conf) {
+			if p.ID == attachProposalID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			formErr("Choose an available talk from this event.")
+			return
+		}
 	}
 
 	// 1. Resolve speaker by email, checking that any autocomplete selection
@@ -247,6 +276,9 @@ func resolveOrCreateSpeaker(ctx *config.AppContext, speakerID, name, email strin
 	}
 	if person != nil {
 		return person, nil
+	}
+	if name == "" {
+		name = types.InvitedSpeakerName
 	}
 	id, err := getters.CreateSpeaker(ctx, getters.SpeakerInput{
 		Name:  name,

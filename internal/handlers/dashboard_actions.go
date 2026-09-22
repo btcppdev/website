@@ -1469,7 +1469,7 @@ func InviteSpeaker(w http.ResponseWriter, r *http.Request, ctx *config.AppContex
 		return
 	}
 	conf := proposal.ScheduleFor
-	if isTerminalProposalStatus(proposal.Status) {
+	if isTerminalProposalStatus(proposal.Status) && proposal.Status != StatusAccepted {
 		inviteLinkBail(w, r, "This talk is already finalized — no further changes can be made via the invite link.")
 		return
 	}
@@ -1655,6 +1655,15 @@ func handleInviteSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	if err := validateSpeakerInviteIdentity(invitee, existing, talkapp.Email); err != nil {
 		w.Write([]byte(helpers.ErrSpeakerApp(err.Error())))
 		return
+	}
+	if strings.TrimSpace(talkapp.Name) == "" || strings.TrimSpace(talkapp.Email) == "" {
+		w.Write([]byte(helpers.ErrSpeakerApp("Name and email are required.")))
+		return
+	}
+	if !strings.HasPrefix(proposal.Title, types.PlaceholderTitlePrefix) {
+		talkapp.TalkTitle = ""
+		talkapp.Description = ""
+		talkapp.Setup = ""
 	}
 	if invitee == nil && alreadyOnProposal(proposal, talkapp.Email) {
 		w.Write([]byte(helpers.ErrSpeakerApp("You're already a speaker on this talk.")))
