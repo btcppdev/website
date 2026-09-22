@@ -42,3 +42,10 @@
   .btcpp-login-page .auth-shell--simple { margin: 24px auto; padding: 0 16px; }
   .auth-shell--simple .alerts-billing-address { grid-template-columns: 1fr; }
 }
+
+/* Keep every login path in the same full-width vertical stack. */
+.btcpp-login-page .auth-methods,
+.btcpp-login-page .auth-form,
+.btcpp-login-page .auth-dev form { grid-template-columns: minmax(0, 1fr); }
+.btcpp-login-page .auth-primary,
+.btcpp-login-page .auth-secondary { box-sizing: border-box; width: 100%; }
