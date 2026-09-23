@@ -73,6 +73,10 @@ func (c Client) ResolveDeletedCheckout(ctx context.Context, in Intent, reference
 	}
 	return &Binding{IntentID: b.IntentID, PersonID: b.PersonID, SubscriptionID: b.SubscriptionID, CustomerID: b.CustomerID, PriceID: b.PriceID, ProductID: b.ProductID, PaidSlots: b.Quantity, Live: b.Live}, nil
 }
+func (c Client) ExpireConflictingCheckout(ctx context.Context, in Intent, reference string) error {
+	return (servicestripe.CheckoutClient{Retrieve: c.Retrieve, Expire: c.Expire, Live: c.Live}).ExpireConflictingCheckout(ctx, serviceCheckoutIntent(in), reference)
+}
+
 func checkoutParams(ctx context.Context, in Intent, now time.Time) (*stripe.CheckoutSessionParams, error) {
 	return servicestripe.CheckoutParams(ctx, serviceCheckoutIntent(in), now)
 }

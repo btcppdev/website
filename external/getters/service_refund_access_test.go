@@ -101,6 +101,28 @@ func TestRefundAccessDecisionPostgres(t *testing.T) {
 			if err := RecordServiceRefundAccessDecision(ctx, app, person, "stripe", refund.RefundReference, "retain", "Keep paid allowance after exceptional refund"); err != nil {
 				t.Fatal(err)
 			}
+			session := &stripe.CheckoutSession{ID: sessionID, Status: "open", Mode: "subscription", PaymentStatus: "unpaid", ClientReferenceID: saved.Intent.ID, Metadata: map[string]string{"product": "alerts.repository-slots", "account_id": person, "checkout_intent": saved.Intent.ID}}
+			client.Retrieve = func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }
+			expirationCalls := 0
+			client.Expire = func(string, *stripe.CheckoutSessionExpireParams) (*stripe.CheckoutSession, error) {
+				expirationCalls++
+				session.Status = "expired"
+				return nil, errors.New("lost expiration acknowledgement")
+			}
+			if handled, e := expireConflictingAlertsCheckout(ctx, app, person, saved.Intent.ID, client); !handled || e == nil {
+				t.Fatal("ambiguous expiration accepted", handled, e)
+			}
+			stored, e = AlertsStripeCheckoutForPerson(app, person, saved.Intent.ID)
+			if e != nil || stored.Closed {
+				t.Fatal("unconfirmed expiration closed locally", stored, e)
+			}
+			if handled, e := expireConflictingAlertsCheckout(ctx, app, person, saved.Intent.ID, client); !handled || e != nil {
+				t.Fatal("expiration recovery", handled, e)
+			}
+			stored, e = AlertsStripeCheckoutForPerson(app, person, saved.Intent.ID)
+			if e != nil || !stored.Closed || expirationCalls != 1 {
+				t.Fatal("expiration failed to close or replayed provider mutation", stored, e, expirationCalls)
+			}
 			after, err := AlertsBillingRevision(app, person)
 			if err != nil || before == after {
 				t.Fatal("access decision did not invalidate old billing review", err)

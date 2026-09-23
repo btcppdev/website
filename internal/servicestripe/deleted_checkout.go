@@ -11,6 +11,18 @@ import (
 // checkout's binding for cancellation. Nil binding and nil error means confirmed
 // expiration. It never creates a new checkout or grants access.
 func (c CheckoutClient) ResolveDeletedCheckout(ctx context.Context, in CheckoutIntent, reference string) (*Binding, error) {
+	return c.resolveCheckout(ctx, in, reference, "deleted-account-expire:", true)
+}
+
+// ExpireConflictingCheckout expires only a verified open, unpaid session.
+// Completed sessions require payment reconciliation; they are never cancelled
+// or refunded by this operation. A timeout is not confirmation of expiration.
+func (c CheckoutClient) ExpireConflictingCheckout(ctx context.Context, in CheckoutIntent, reference string) error {
+	_, err := c.resolveCheckout(ctx, in, reference, "access-conflict-expire:", false)
+	return err
+}
+
+func (c CheckoutClient) resolveCheckout(ctx context.Context, in CheckoutIntent, reference, prefix string, bindCompleted bool) (*Binding, error) {
 	if _, err := CheckoutParams(ctx, in, in.CreatedAt); err != nil {
 		return nil, err
 	}
@@ -31,26 +43,32 @@ func (c CheckoutClient) ResolveDeletedCheckout(ctx context.Context, in CheckoutI
 	if !valid(s) {
 		return nil, ErrCheckout
 	}
+	if !bindCompleted && s.Status != "complete" && (s.PaymentStatus != "unpaid" || s.Invoice != nil || s.PaymentIntent != nil) {
+		return nil, ErrCheckout
+	}
 	switch s.Status {
 	case "complete":
+		if !bindCompleted {
+			return nil, ErrReconcile
+		}
 		return c.CompletedBinding(ctx, in, reference)
 	case "expired":
-		if s.Subscription != nil {
+		if s.Subscription != nil || s.PaymentStatus == "paid" {
 			return nil, ErrCheckout
 		}
 		return nil, nil
 	case "open":
-		if c.Expire == nil || s.Subscription != nil {
+		if c.Expire == nil || s.Subscription != nil || s.PaymentStatus == "paid" {
 			return nil, ErrCheckout
 		}
 		p := &stripe.CheckoutSessionExpireParams{}
 		p.Context = ctx
-		p.SetIdempotencyKey("deleted-account-expire:" + in.ID)
+		p.SetIdempotencyKey(prefix + in.ID)
 		expired, err := c.Expire(reference, p)
 		if err != nil {
 			return nil, err
 		}
-		if !valid(expired) || expired.Status != "expired" || expired.Subscription != nil {
+		if !valid(expired) || expired.Status != "expired" || expired.Subscription != nil || expired.PaymentStatus == "paid" {
 			return nil, ErrCheckout
 		}
 		return nil, nil

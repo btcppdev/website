@@ -15,6 +15,10 @@ import (
 // one-minute attempt deadline shorter than the minimum two-minute lease.
 func ReconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppContext, client alertsstripe.Client) (int, error) {
 	return reconcileDueAlertsStripeCheckouts(ctx, app, func(ctx context.Context, person, id string) error {
+		handled, err := expireConflictingAlertsCheckout(ctx, app, person, id, client)
+		if err != nil || handled {
+			return err
+		}
 		return RecoverAlertsStripePayments(ctx, app, person, id, client)
 	})
 }
@@ -53,4 +57,38 @@ func reconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppConte
 		}
 	}
 	return 20, firstErr
+}
+
+// The existing checkout row/reference and reconciliation schedule are the durable
+// retry intent. Never close locally before confirmed provider expiration, and
+// never run this path for an already-bound recurring subscription.
+func expireConflictingAlertsCheckout(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client) (bool, error) {
+	var bound bool
+	if err := app.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_subscriptions WHERE checkout_id=$1)`, id).Scan(&bound); err != nil {
+		return false, err
+	}
+	if bound {
+		return false, nil
+	}
+	var conflict bool
+	if err := app.DB.QueryRow(ctx, alertsStripePurchaseConflictSQL, person).Scan(&conflict); err != nil {
+		return false, err
+	}
+	if !conflict {
+		return false, nil
+	}
+	stored, err := AlertsStripeCheckoutForPerson(app, person, id)
+	if err != nil {
+		return true, err
+	}
+	if stored.Closed {
+		return true, nil
+	}
+	if err = client.ExpireConflictingCheckout(ctx, stored.Intent, stored.Reference); err != nil {
+		if errors.Is(err, alertsstripe.ErrReconcile) {
+			return true, ErrAlertsStripeCheckoutConflict
+		}
+		return true, err
+	}
+	return true, CloseExpiredAlertsStripeCheckout(ctx, app, person, id, stored.Reference, client)
 }
