@@ -68,7 +68,7 @@ func TestAlertsStripeRecoverySchedulePostgres(t *testing.T) {
 		go func() { defer wg.Done(); _, _ = reconcileDueAlertsStripeCheckouts(ctx, app, recover) }()
 	}
 	wg.Wait()
-	if seen[ids[0]] != 1 || seen[ids[1]] != 1 || seen[ids[2]] != 0 || seen[ids[3]] != 0 {
+	if seen[ids[0]] != 1 || seen[ids[1]] != 1 || seen[ids[2]] != 0 || seen[ids[3]] != 1 {
 		t.Fatal("duplicate or ineligible work", seen)
 	}
 	if _, err := reconcileDueAlertsStripeCheckouts(ctx, app, recover); err != nil {

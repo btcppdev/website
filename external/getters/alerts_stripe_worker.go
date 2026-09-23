@@ -15,6 +15,9 @@ import (
 // one-minute attempt deadline shorter than the minimum two-minute lease.
 func ReconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppContext, client alertsstripe.Client) (int, error) {
 	return reconcileDueAlertsStripeCheckouts(ctx, app, func(ctx context.Context, person, id string) error {
+		if _, err := recoverAlertsStripeCheckoutReference(ctx, app, person, id, client); err != nil {
+			return err
+		}
 		handled, err := expireConflictingAlertsCheckout(ctx, app, person, id, client)
 		if err != nil || handled {
 			return err
@@ -32,7 +35,7 @@ func reconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppConte
 		var person, id string
 		err := app.DB.QueryRow(ctx, `WITH due AS (
  SELECT c.id FROM alerts_stripe_checkouts c
- WHERE c.person_id IS NOT NULL AND c.stripe_session_id IS NOT NULL
+ WHERE c.person_id IS NOT NULL
  AND c.closed_at IS NULL AND c.next_reconcile_at<=now()
  ORDER BY c.next_reconcile_at,c.id LIMIT 1 FOR UPDATE OF c SKIP LOCKED
 ) UPDATE alerts_stripe_checkouts c SET next_reconcile_at=now()+CASE
