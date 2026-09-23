@@ -312,3 +312,6 @@ func (a *SponsorSpeakerApplication) StatusLabel() string {
 		return strings.TrimSpace(a.Status)
 	}
 }
+
+// Expired is for display only; invitation acceptance is enforced by the database.
+func (i OrganizationMemberInvite) Expired() bool { return !i.ExpiresAt.After(time.Now()) }

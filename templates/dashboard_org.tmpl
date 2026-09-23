@@ -183,7 +183,7 @@
                 <span class="organization-teammate-card__number">02</span>
                 <div class="dashboard-kicker">§ Email invitation</div>
                 <h4>Invite someone new.</h4>
-                <p>Email a secure 72-hour invitation to someone new.</p>
+                <p>Email a secure 14-day invitation to someone new.</p>
               </div>
               <div class="organization-teammate-card__fields">
                 <label><span>Email</span><input name="email" type="email" required autocomplete="email" placeholder="teammate@example.com"></label>
@@ -194,14 +194,14 @@
           </div>
         </div>
         {{ if .InviteLink }}
-        <div class="sponsor-invite-link"><strong>Secure invite link{{ if .InviteEmail }} for {{ .InviteEmail }}{{ end }}</strong><input readonly value="{{ .InviteLink }}" aria-label="Secure invite link"><p>Share it only with the invited email address. It expires in 72 hours and is shown here once.</p></div>
+        <div class="sponsor-invite-link"><strong>Secure invite link{{ if .InviteEmail }} for {{ .InviteEmail }}{{ end }}</strong><input readonly value="{{ .InviteLink }}" aria-label="Secure invite link"><p>Share it only with the invited email address. It expires in 14 days and is shown here once.</p></div>
         {{ end }}
         {{ if .PendingInvites }}
         <div class="organization-pending-invites">
           <h3>Pending invitations</h3>
           {{ range .PendingInvites }}
           <div class="organization-pending-invite">
-            <div><strong>{{ .Email }}</strong><span>{{ .Role }} · expires {{ .ExpiresAt.Format "Jan 2, 2006" }}</span></div>
+            <div><strong>{{ .Email }}</strong><span>{{ .Role }} · {{if .Expired}}Expired{{else}}Expires{{end}} {{ .ExpiresAt.Format "Jan 2, 2006" }}</span></div>
             <div>
               <form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/invites/{{ .ID }}/replace"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Create new link</button></form>
               <form method="POST" action="/dashboard/orgs/{{ orgPathRef $.Organization }}/invites/{{ .ID }}/revoke" onsubmit="return confirm('Revoke the invitation for {{ .Email }}?');"><input type="hidden" name="csrf" value="{{ $.CSRF }}"><button type="submit">Revoke</button></form>

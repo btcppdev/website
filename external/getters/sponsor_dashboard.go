@@ -25,6 +25,9 @@ func organizationInviteTokenHash(token string) string {
 	return fmt.Sprintf("%x", sum[:])
 }
 
+// OrganizationMemberInviteLifetime applies to new and replacement organization/sponsor invitations.
+const OrganizationMemberInviteLifetime = 14 * 24 * time.Hour
+
 var ErrOrganizationMemberInvitePending = errors.New("an unexpired invitation is already pending for that email")
 
 func CreateOrganizationMemberInvite(ctx *config.AppContext, organizationID, email, role, invitedByPersonID string, expiresAt time.Time) (string, *types.OrganizationMemberInvite, error) {
@@ -45,7 +48,7 @@ func CreateOrganizationMemberInvite(ctx *config.AppContext, organizationID, emai
 		return "", nil, fmt.Errorf("invite role must be manager or member")
 	}
 	if expiresAt.IsZero() {
-		expiresAt = time.Now().Add(72 * time.Hour)
+		expiresAt = time.Now().Add(OrganizationMemberInviteLifetime)
 	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
@@ -138,7 +141,7 @@ func ReplaceOrganizationMemberInvite(ctx *config.AppContext, organizationID, inv
 		return "", nil, fmt.Errorf("organization and invitation are required")
 	}
 	if expiresAt.IsZero() {
-		expiresAt = time.Now().Add(72 * time.Hour)
+		expiresAt = time.Now().Add(OrganizationMemberInviteLifetime)
 	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
@@ -187,6 +190,7 @@ func ReplaceOrganizationMemberInvite(ctx *config.AppContext, organizationID, inv
 	return token, invite, nil
 }
 
+// Includes expired, unaccepted invitations so managers can replace their links.
 func ListPendingOrganizationMemberInvites(ctx *config.AppContext, organizationID string) ([]*types.OrganizationMemberInvite, error) {
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
@@ -200,7 +204,7 @@ func ListPendingOrganizationMemberInvites(ctx *config.AppContext, organizationID
 			coalesce(invited_by_person_id::text, ''), expires_at, created_at
 		FROM organization_member_invites
 		WHERE organization_id = $1::uuid
-		  AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+		  AND accepted_at IS NULL AND revoked_at IS NULL
 		ORDER BY created_at DESC
 	`, organizationID)
 	if err != nil {

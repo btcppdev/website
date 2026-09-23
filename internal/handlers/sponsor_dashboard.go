@@ -935,7 +935,7 @@ func SponsorDashboardInviteCreate(w http.ResponseWriter, r *http.Request, ctx *c
 		http.Error(w, "Invalid form token", http.StatusBadRequest)
 		return
 	}
-	token, invite, err := getters.CreateOrganizationMemberInvite(ctx, organizationID, r.FormValue("email"), r.FormValue("role"), id.PersonID, time.Now().Add(72*time.Hour))
+	token, invite, err := getters.CreateOrganizationMemberInvite(ctx, organizationID, r.FormValue("email"), r.FormValue("role"), id.PersonID, time.Now().Add(getters.OrganizationMemberInviteLifetime))
 	if err != nil {
 		if errors.Is(err, getters.ErrOrganizationMemberInvitePending) {
 			http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("An invitation for that email is already pending; its existing link is still valid."), http.StatusSeeOther)
@@ -949,7 +949,7 @@ func SponsorDashboardInviteCreate(w http.ResponseWriter, r *http.Request, ctx *c
 	if err := getters.RecordSponsorAuditEvent(ctx, organizationID, "", "", id.PersonID, "organization.member_invited", "organization_member_invite", invite.ID, map[string]any{"email": invite.Email, "role": invite.Role}); err != nil {
 		ctx.Err.Printf("/dashboard/sponsor/%s invite audit: %s", organizationID, err)
 	}
-	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("Invitation created. Copy the secure link below; it expires in 72 hours."), http.StatusSeeOther)
+	http.Redirect(w, r, redirectTo+"?flash="+url.QueryEscape("Invitation created. Copy the secure link below; it expires in 14 days."), http.StatusSeeOther)
 }
 
 func SponsorDashboardMemberRemove(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

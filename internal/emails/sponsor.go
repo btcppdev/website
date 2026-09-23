@@ -21,7 +21,7 @@ func SendSponsorManagerInvitation(ctx *config.AppContext, conf *types.Conf, invi
 	if inviteeName != "" {
 		greeting = "Hi " + inviteeName
 	}
-	body := fmt.Sprintf("# Sponsor dashboard invitation\n\n%s,\n\nYou've been invited to manage **%s**'s sponsor workspace, including its sponsorship for **%s** and future bitcoin++ events.\n\n[Set up sponsor access](button#%s)\n\nIf you don't have a bitcoin++ account yet, we'll ask you to set up your profile before taking you to the sponsor dashboard. This secure link expires in 72 hours and is intended for %s.",
+	body := fmt.Sprintf("# Sponsor dashboard invitation\n\n%s,\n\nYou've been invited to manage **%s**'s sponsor workspace, including its sponsorship for **%s** and future bitcoin++ events.\n\n[Set up sponsor access](button#%s)\n\nIf you don't have a bitcoin++ account yet, we'll ask you to set up your profile before taking you to the sponsor dashboard. This secure link expires in 14 days and is intended for %s.",
 		greeting, invite.OrganizationName, conf.Desc, loginURL, invite.Email)
 	return SendHackathonMessage(ctx, "sponsor-manager-invite-"+invite.ID, invite.Email,
 		"["+conf.Tag+"] Sponsor dashboard invitation", body)
@@ -77,7 +77,7 @@ func SendOrganizationMemberInvitation(ctx *config.AppContext, invite *types.Orga
 	if role == "" {
 		role = "member"
 	}
-	body := fmt.Sprintf("# You're invited to join %s\n\nYou've been invited to join **%s** as a **%s** on bitcoin++.\n\n[Accept organization invitation](button#%s)\n\nSign in with %s to accept. This secure invitation expires in 72 hours.",
+	body := fmt.Sprintf("# You're invited to join %s\n\nYou've been invited to join **%s** as a **%s** on bitcoin++.\n\n[Accept organization invitation](button#%s)\n\nSign in with %s to accept. This secure invitation expires in 14 days.",
 		invite.OrganizationName, invite.OrganizationName, role, loginURL, invite.Email)
 	return SendHackathonMessage(ctx, "organization-member-invite-"+invite.ID, invite.Email,
 		"[bitcoin++] Invitation to join "+invite.OrganizationName, body)

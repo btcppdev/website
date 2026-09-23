@@ -606,7 +606,7 @@ func OrganizationDashboardInviteCreate(w http.ResponseWriter, r *http.Request, c
 	if !parseOrganizationDashboardForm(w, r, ctx) {
 		return
 	}
-	token, invite, err := getters.CreateOrganizationMemberInvite(ctx, organizationID, r.FormValue("email"), r.FormValue("role"), id.PersonID, time.Now().Add(72*time.Hour))
+	token, invite, err := getters.CreateOrganizationMemberInvite(ctx, organizationID, r.FormValue("email"), r.FormValue("role"), id.PersonID, time.Now().Add(getters.OrganizationMemberInviteLifetime))
 	if err != nil {
 		message := "The organization invitation could not be created."
 		if errors.Is(err, getters.ErrOrganizationMemberInvitePending) {
@@ -695,7 +695,7 @@ func OrganizationDashboardInviteReplace(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	inviteID := strings.TrimSpace(mux.Vars(r)["inviteID"])
-	token, invite, err := getters.ReplaceOrganizationMemberInvite(ctx, organizationID, inviteID, id.PersonID, time.Now().Add(72*time.Hour))
+	token, invite, err := getters.ReplaceOrganizationMemberInvite(ctx, organizationID, inviteID, id.PersonID, time.Now().Add(getters.OrganizationMemberInviteLifetime))
 	if err != nil {
 		http.Redirect(w, r, destination+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return

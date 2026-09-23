@@ -85,7 +85,7 @@ func sendSponsorshipManagerInvitation(ctx *config.AppContext, conf *types.Conf, 
 	if strings.TrimSpace(email) == "" {
 		return nil
 	}
-	token, invite, err := getters.CreateOrganizationMemberInvite(ctx, org.Ref, email, getters.OrganizationRoleManager, invitedByPersonID, time.Now().Add(72*time.Hour))
+	token, invite, err := getters.CreateOrganizationMemberInvite(ctx, org.Ref, email, getters.OrganizationRoleManager, invitedByPersonID, time.Now().Add(getters.OrganizationMemberInviteLifetime))
 	if err != nil {
 		return err
 	}
@@ -275,7 +275,7 @@ func OrgPendingInviteReplace(w http.ResponseWriter, r *http.Request, ctx *config
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	token, invite, err := getters.ReplaceOrganizationMemberInvite(ctx, organizationID, inviteID, id.PersonID, time.Now().Add(72*time.Hour))
+	token, invite, err := getters.ReplaceOrganizationMemberInvite(ctx, organizationID, inviteID, id.PersonID, time.Now().Add(getters.OrganizationMemberInviteLifetime))
 	if err != nil {
 		http.Redirect(w, r, destination+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
@@ -381,7 +381,7 @@ func OrgMemberInviteCreate(w http.ResponseWriter, r *http.Request, ctx *config.A
 	}
 	token, invite, err := getters.CreateOrganizationMemberInvite(
 		ctx, organizationID, r.FormValue("Email"), r.FormValue("Role"),
-		id.PersonID, time.Now().Add(72*time.Hour),
+		id.PersonID, time.Now().Add(getters.OrganizationMemberInviteLifetime),
 	)
 	if err != nil {
 		message := err.Error()
