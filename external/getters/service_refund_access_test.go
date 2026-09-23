@@ -1,8 +1,10 @@
 package getters
 
 import (
+	"btcpp-web/internal/alertsstripe"
 	"context"
 	"errors"
+	"github.com/stripe/stripe-go/v86"
 	"testing"
 	"time"
 )
@@ -65,9 +67,36 @@ func TestRefundAccessDecisionPostgres(t *testing.T) {
 				t.Fatal(err)
 			}
 			check(start, 0)
+			saved, err := ReserveAlertsStripeCheckout(app, person, "saved-before-admin-retention", 1, "https://btcpp.dev")
+			if err != nil {
+				t.Fatal(err)
+			}
 			before, err := AlertsBillingRevision(app, person)
 			if err != nil {
 				t.Fatal(err)
+			}
+			// Admin retention races with a provider response. Its reference must be
+			// saved for reconciliation, but no overlapping payment URL may escape.
+			sessionID := "cs_test_" + saved.Intent.ID
+			client := alertsstripe.Client{Create: func(*stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+				if e := RecordServiceRefundAccessDecision(ctx, app, person, "stripe", refund.RefundReference, "retain", "Keep paid allowance after exceptional refund"); e != nil {
+					t.Fatal(e)
+				}
+				return &stripe.CheckoutSession{ID: sessionID, Status: "open", Mode: "subscription", ExpiresAt: time.Now().Add(time.Hour).Unix(), ClientReferenceID: saved.Intent.ID, Metadata: map[string]string{"product": "alerts.repository-slots", "account_id": person, "checkout_intent": saved.Intent.ID}, URL: "https://checkout.stripe.com/c/pay/" + sessionID}, nil
+			}}
+			if destination, e := OpenAlertsStripeCheckout(ctx, app, person, saved.Intent.ID, client); !errors.Is(e, ErrAlertsStripeCheckoutConflict) || destination != "" {
+				t.Fatal("concurrent retained access exposed payment link", destination, e)
+			}
+			stored, e := AlertsStripeCheckoutForPerson(app, person, saved.Intent.ID)
+			if e != nil || stored.Reference != sessionID {
+				t.Fatal("provider reference lost after conflict", stored, e)
+			}
+			client.Retrieve = func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
+				t.Fatal("saved checkout bypassed retained access check")
+				return nil, nil
+			}
+			if destination, e := OpenAlertsStripeCheckout(ctx, app, person, saved.Intent.ID, client); !errors.Is(e, ErrAlertsStripeCheckoutConflict) || destination != "" {
+				t.Fatal("retained access resumed saved checkout", destination, e)
 			}
 			if err := RecordServiceRefundAccessDecision(ctx, app, person, "stripe", refund.RefundReference, "retain", "Keep paid allowance after exceptional refund"); err != nil {
 				t.Fatal(err)

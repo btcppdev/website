@@ -15,6 +15,9 @@ import (
 
 var ErrAlertsStripeCheckoutConflict = errors.New("an Alerts checkout or subscription already needs attention")
 
+// Shared by initial reservation and saved checkout handoff.
+const alertsStripePurchaseConflictSQL = `SELECT EXISTS(SELECT 1 FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code'='alerts.repository-slots' AND ((o.status='pending' AND (o.checkout_expires_at>now() OR EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=r.id))) OR ((o.status='paid' OR (` + servicePurchaseAccessSQL + ` AND EXISTS(SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id AND e.revoked_at IS NULL))) AND (r.quote_snapshot->>'period_end')::timestamptz>now())))`
+
 type AlertsStripeCheckout struct {
 	Intent    alertsstripe.Intent
 	Reference string
@@ -37,6 +40,14 @@ func ReserveAlertsStripeCheckout(app *config.AppContext, person, key string, slo
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+person); err != nil {
 		return nil, err
 	}
+	var occupied bool
+	err = tx.QueryRow(ctx, alertsStripePurchaseConflictSQL, person).Scan(&occupied)
+	if err != nil {
+		return nil, err
+	}
+	if occupied {
+		return nil, ErrAlertsStripeCheckoutConflict
+	}
 	var raw []byte
 	out := &AlertsStripeCheckout{}
 	err = tx.QueryRow(ctx, `SELECT intent,coalesce(stripe_session_id,''),closed_at IS NOT NULL FROM alerts_stripe_checkouts WHERE person_id=$1 AND (request_key=$2 OR closed_at IS NULL) ORDER BY (request_key=$2) DESC LIMIT 1`, person, key).Scan(&raw, &out.Reference, &out.Closed)
@@ -51,14 +62,6 @@ func ReserveAlertsStripeCheckout(app *config.AppContext, person, key string, slo
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
-	}
-	var occupied bool
-	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1 AND r.quote_snapshot->>'product_code'='alerts.repository-slots' AND ((o.status='pending' AND (o.checkout_expires_at>now() OR EXISTS(SELECT 1 FROM service_payment_attempts a WHERE a.purchase_id=r.id))) OR ((o.status='paid' OR (`+servicePurchaseAccessSQL+` AND EXISTS(SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id AND e.revoked_at IS NULL))) AND (r.quote_snapshot->>'period_end')::timestamptz>now())))`, person).Scan(&occupied)
-	if err != nil {
-		return nil, err
-	}
-	if occupied {
-		return nil, ErrAlertsStripeCheckoutConflict
 	}
 	var email string
 	err = tx.QueryRow(ctx, `SELECT email::text FROM person_emails WHERE person_id=$1 AND verified_at IS NOT NULL ORDER BY is_primary DESC,email LIMIT 1 FOR SHARE`, person).Scan(&email)
@@ -107,6 +110,13 @@ func OpenAlertsStripeCheckout(ctx context.Context, app *config.AppContext, perso
 	if stored.Closed {
 		return "", ErrAlertsStripeCheckoutConflict
 	}
+	var occupied bool
+	if err = app.DB.QueryRow(ctx, alertsStripePurchaseConflictSQL, person).Scan(&occupied); err != nil {
+		return "", err
+	}
+	if occupied {
+		return "", ErrAlertsStripeCheckoutConflict
+	}
 	reference, destination, providerErr := client.Open(ctx, stored.Intent, stored.Reference, time.Now().UTC())
 	if reference != "" {
 		result, err := app.DB.Exec(app.DatabaseContext(), `UPDATE alerts_stripe_checkouts SET stripe_session_id=$3 WHERE person_id=$1 AND id=$2 AND (stripe_session_id IS NULL OR stripe_session_id=$3)`, person, id, reference)
@@ -119,6 +129,15 @@ func OpenAlertsStripeCheckout(ctx context.Context, app *config.AppContext, perso
 	}
 	if providerErr != nil {
 		return "", providerErr
+	}
+	// A provider request runs outside database locks. Recheck after saving its
+	// reference so a concurrent access adjustment cannot yield a payment link,
+	// and recovery can still inspect any session the provider created.
+	if err = app.DB.QueryRow(ctx, alertsStripePurchaseConflictSQL, person).Scan(&occupied); err != nil {
+		return "", err
+	}
+	if occupied {
+		return "", ErrAlertsStripeCheckoutConflict
 	}
 	return destination, nil
 }

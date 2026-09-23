@@ -138,6 +138,10 @@ func AlertsStripeReturn(w http.ResponseWriter, r *http.Request, app *config.AppC
 		}
 		live := strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_")
 		destination, err := getters.OpenAlertsStripeCheckout(r.Context(), app, identity.PersonID, stored.Intent.ID, alertsstripe.NewClient(live))
+		if errors.Is(err, getters.ErrAlertsStripeCheckoutConflict) {
+			http.Error(w, "Your Alerts access has changed. Return to My alerts to review your plan before paying.", http.StatusConflict)
+			return
+		}
 		if errors.Is(err, alertsstripe.ErrReconcile) {
 			http.Redirect(w, r, r.URL.Path, 303)
 			return

@@ -151,6 +151,10 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 		}
 		live := strings.HasPrefix(key, "sk_live_") || strings.HasPrefix(key, "rk_live_")
 		destination, err := getters.OpenAlertsStripeCheckout(r.Context(), app, account, stored.Intent.ID, alertsstripe.NewClient(live))
+		if errors.Is(err, getters.ErrAlertsStripeCheckoutConflict) {
+			http.Error(w, "Your Alerts access has changed. Return to My alerts to review your plan before paying.", http.StatusConflict)
+			return
+		}
 		if err != nil {
 			// The durable return page is safe even after an ambiguous provider
 			// response. Never create another intent to recover a timeout.
