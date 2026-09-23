@@ -896,3 +896,31 @@ require payment/admin review; do not create a replacement charge from a timeout.
 Local PostgreSQL/collector tests and `promtool test rules
 ops/alerts-checkout-alerts.test.yml` pass. Production scraping, rule installation,
 and alert routing remain deployment work.
+
+### Inspecting Alerts checkout recovery
+
+Use the read-only operator command with the deployed database configuration:
+
+```sh
+./target/service-checkouts
+./target/service-checkouts -checkout CHECKOUT_UUID
+```
+
+The default lists at most 100 oldest unresolved, account-owned checkouts. An
+explicit UUID also returns a closed checkout or one bound to a subscription.
+Deleted-account rows are omitted; their separate cancellation workflow owns
+recovery. Results contain checkout/session references, recovery state, creation
+and reconciliation timestamps, closure time, and whether another purchase
+conflicts with unbound checkout access. Buyer emails, frozen intent payloads,
+credentials, and payment links are not returned.
+
+`referenced` is a local recovery state, not proof of payment. `access_conflict`
+means the normal checkout eligibility query currently finds conflicting purchase
+or retained-access evidence; it does not prove that the Stripe session completed.
+The command performs no provider calls or mutations. Review provider status and
+recorded payment facts before taking any separate recovery action.
+
+`make build-ops` now builds `service-checkouts`, `service-receipts`,
+`service-refunds`, and `service-account-cancellations`; the Docker build invokes
+that target. Local builds, command help, a read-only empty lookup, and PostgreSQL
+inspection regressions pass. Container runtime verification remains open.

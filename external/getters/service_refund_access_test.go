@@ -101,6 +101,10 @@ func TestRefundAccessDecisionPostgres(t *testing.T) {
 			if err := RecordServiceRefundAccessDecision(ctx, app, person, "stripe", refund.RefundReference, "retain", "Keep paid allowance after exceptional refund"); err != nil {
 				t.Fatal(err)
 			}
+			inspected, e := ListAlertsCheckouts(ctx, app, saved.Intent.ID)
+			if e != nil || len(inspected) != 1 || !inspected[0].AccessConflict || inspected[0].State != "referenced" || inspected[0].SessionReference != sessionID {
+				t.Fatal("operator inspection hid retained access conflict", inspected, e)
+			}
 			session := &stripe.CheckoutSession{ID: sessionID, Status: "open", Mode: "subscription", PaymentStatus: "unpaid", ClientReferenceID: saved.Intent.ID, Metadata: map[string]string{"product": "alerts.repository-slots", "account_id": person, "checkout_intent": saved.Intent.ID}}
 			client.Retrieve = func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }
 			expirationCalls := 0

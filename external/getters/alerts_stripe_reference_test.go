@@ -3,9 +3,11 @@ package getters
 import (
 	"btcpp-web/internal/alertsstripe"
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
 	"github.com/stripe/stripe-go/v86"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +29,17 @@ func TestAlertsLostCheckoutReferencePostgres(t *testing.T) {
 	stored, err := ReserveAlertsStripeCheckout(app, person, uuid.NewString(), 1, "https://btcpp.dev")
 	if err != nil {
 		t.Fatal(err)
+	}
+	inspected, e := ListAlertsCheckouts(ctx, app, stored.Intent.ID)
+	if e != nil || len(inspected) != 1 || inspected[0].State != "missing_reference" || inspected[0].AccessConflict {
+		t.Fatal("missing-reference inspection", inspected, e)
+	}
+	encoded, e := json.Marshal(inspected)
+	if e != nil || strings.Contains(string(encoded), "@example.test") || strings.Contains(string(encoded), "Email") {
+		t.Fatal("buyer details exposed", e)
+	}
+	if _, e := ListAlertsCheckouts(ctx, nil, "not-a-uuid"); e == nil {
+		t.Fatal("invalid inspection key accepted")
 	}
 	calls := 0
 	found := false
@@ -77,6 +90,22 @@ func TestAlertsLostCheckoutReferencePostgres(t *testing.T) {
 	session.Status = "expired"
 	if err = CloseExpiredAlertsStripeCheckout(ctx, app, person, stored.Intent.ID, session.ID, client); err != nil {
 		t.Fatal(err)
+	}
+	inspected, e = ListAlertsCheckouts(ctx, app, stored.Intent.ID)
+	if e != nil || len(inspected) != 1 || inspected[0].State != "closed" || inspected[0].ClosedAt == nil {
+		t.Fatal("closed inspection", inspected, e)
+	}
+	pending, e := ListAlertsCheckouts(ctx, app, "")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(pending) > 100 {
+		t.Fatal("unbounded operator query")
+	}
+	for _, item := range pending {
+		if item.CheckoutID == stored.Intent.ID {
+			t.Fatal("closed checkout listed as unresolved")
+		}
 	}
 	other, err := ReserveAlertsStripeCheckout(app, person, uuid.NewString(), 1, "https://btcpp.dev")
 	if err != nil {

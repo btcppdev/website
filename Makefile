@@ -51,6 +51,9 @@ build:
 .PHONY: build-ops
 build-ops:
 	$(GO_ENV) go build -v -o target/service-receipts ./cmd/service-receipts
+	$(GO_ENV) go build -v -o target/service-checkouts ./cmd/service-checkouts
+	$(GO_ENV) go build -v -o target/service-refunds ./cmd/service-refunds
+	$(GO_ENV) go build -v -o target/service-account-cancellations ./cmd/service-account-cancellations
 
 .PHONY: css-build
 css-build:
