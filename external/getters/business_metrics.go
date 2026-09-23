@@ -126,6 +126,21 @@ func ListBusinessMetricCounts(ctx *config.AppContext) ([]types.BusinessMetricCou
  LEFT JOIN account_deletion_cancellations j ON j.state=states.state GROUP BY states.state
  UNION ALL
  SELECT 'account_deletion_cancellation_oldest_pending_timestamp_seconds', '', '', coalesce(extract(epoch FROM min(requested_at)),0)::float8 FROM account_deletion_cancellations WHERE state='pending'
+
+ UNION ALL
+ SELECT 'alerts_checkout_recovery_jobs','',states.state,count(c.id)::float8
+ FROM (VALUES ('missing_reference'),('referenced'),('bound')) states(state)
+ LEFT JOIN alerts_stripe_checkouts c ON c.person_id IS NOT NULL AND c.closed_at IS NULL
+ AND states.state=CASE WHEN EXISTS(SELECT 1 FROM alerts_stripe_subscriptions b WHERE b.checkout_id=c.id) THEN 'bound'
+ WHEN c.stripe_session_id IS NULL THEN 'missing_reference' ELSE 'referenced' END
+ GROUP BY states.state
+ UNION ALL
+ SELECT 'alerts_checkout_oldest_due_timestamp_seconds','','',coalesce(extract(epoch FROM min(next_reconcile_at)),0)::float8
+ FROM alerts_stripe_checkouts WHERE person_id IS NOT NULL AND closed_at IS NULL
+ UNION ALL
+ SELECT 'alerts_checkout_oldest_unresolved_timestamp_seconds','','',coalesce(extract(epoch FROM min(c.created_at)),0)::float8
+ FROM alerts_stripe_checkouts c WHERE c.person_id IS NOT NULL AND c.closed_at IS NULL
+ AND NOT EXISTS(SELECT 1 FROM alerts_stripe_subscriptions b WHERE b.checkout_id=c.id)
 		ORDER BY 1, 2, 3
 	`)
 	if err != nil {

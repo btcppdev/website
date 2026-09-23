@@ -864,3 +864,35 @@ projection, verifies no projection is restored, and checks that an unrelated
 reader's projection remains unchanged. This complements Insider's own blocked
 account checks; neither side treats the projection as access authority or email
 consent.
+
+### Alerts checkout recovery monitoring
+
+Protected business metrics expose aggregate recovery state without account,
+checkout, session or payment identifiers:
+
+- `btcpp_web_alerts_checkout_recovery_jobs{state="missing_reference|referenced|bound"}`:
+  counts open, account-owned checkout records. Bound means a verified subscription
+  binding exists; it does not mean the latest invoice is paid.
+- `btcpp_web_alerts_checkout_oldest_due_timestamp_seconds`: earliest scheduled
+  reconciliation among open records. Zero means no work exists; a future timestamp
+  is normal. The schedule also acts as the provider-attempt lease.
+- `btcpp_web_alerts_checkout_oldest_unresolved_timestamp_seconds`: creation time of
+  the oldest open checkout without a subscription binding. This includes missing
+  references and completed-payment conflicts awaiting review. Retrying does not
+  reset this age. Closed and deleted-account records are excluded.
+
+`ops/alerts-checkout-alerts.yml` warns when reconciliation is more than 15 minutes
+overdue for five minutes, or an unbound checkout remains unresolved beyond four
+hours for ten minutes. The latter exceeds the normal two-hour hosted checkout
+window and catches repeated failures even while the schedule advances. Age is
+an operational signal, never proof that payment failed or a session expired.
+
+Rules require successful, fresh business metrics. Existing metrics-health alerts
+must also be installed so collection failure cannot silently mask these signals.
+Verify `SERVICE_STRIPE_RECONCILIATION_ENABLED`, provider availability, and saved
+checkout references before taking recovery action. Completed-payment conflicts
+require payment/admin review; do not create a replacement charge from a timeout.
+
+Local PostgreSQL/collector tests and `promtool test rules
+ops/alerts-checkout-alerts.test.yml` pass. Production scraping, rule installation,
+and alert routing remain deployment work.

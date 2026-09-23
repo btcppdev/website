@@ -1,0 +1,27 @@
+groups:
+  - name: btcpp-alerts-checkout-recovery
+    rules:
+      - alert: BitcoinPlusPlusAlertsCheckoutRecoveryStalled
+        expr: |
+          (btcpp_web_alerts_checkout_oldest_due_timestamp_seconds > 0)
+          and (time() - btcpp_web_alerts_checkout_oldest_due_timestamp_seconds > 900)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Alerts checkout reconciliation is overdue
+          description: Check SERVICE_STRIPE_RECONCILIATION_ENABLED and worker health before reviewing provider failures.
+      - alert: BitcoinPlusPlusAlertsCheckoutUnresolved
+        expr: |
+          (btcpp_web_alerts_checkout_oldest_unresolved_timestamp_seconds > 0)
+          and (time() - btcpp_web_alerts_checkout_oldest_unresolved_timestamp_seconds > 14400)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: An Alerts checkout remains unresolved after four hours
+          description: Review lost session references, provider errors and completed-payment conflicts. Do not create a replacement charge or infer expiration from age.

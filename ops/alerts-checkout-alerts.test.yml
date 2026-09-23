@@ -1,0 +1,196 @@
+{
+  "rule_files": [
+    "alerts-checkout-alerts.yml"
+  ],
+  "evaluation_interval": "1m",
+  "tests": [
+    {
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "btcpp_web_alerts_checkout_oldest_due_timestamp_seconds{job=\"btcpp\",instance=\"web\"}",
+          "values": "1+0x21 0+0x2"
+        },
+        {
+          "series": "btcpp_web_business_metrics_collection_success{job=\"btcpp\",instance=\"web\"}",
+          "values": "1+0x24"
+        },
+        {
+          "series": "btcpp_web_business_metrics_last_success_timestamp_seconds{job=\"btcpp\",instance=\"web\"}",
+          "values": "0+60x24"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "20m",
+          "alertname": "BitcoinPlusPlusAlertsCheckoutRecoveryStalled",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "21m",
+          "alertname": "BitcoinPlusPlusAlertsCheckoutRecoveryStalled",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "btcpp",
+                "instance": "web",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "Alerts checkout reconciliation is overdue",
+                "description": "Check SERVICE_STRIPE_RECONCILIATION_ENABLED and worker health before reviewing provider failures."
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "22m",
+          "alertname": "BitcoinPlusPlusAlertsCheckoutRecoveryStalled",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "btcpp_web_alerts_checkout_oldest_due_timestamp_seconds{job=\"btcpp\",instance=\"empty\"}",
+          "values": "0+0x22"
+        },
+        {
+          "series": "btcpp_web_business_metrics_collection_success{job=\"btcpp\",instance=\"empty\"}",
+          "values": "1+0x22"
+        },
+        {
+          "series": "btcpp_web_business_metrics_last_success_timestamp_seconds{job=\"btcpp\",instance=\"empty\"}",
+          "values": "0+60x22"
+        },
+        {
+          "series": "btcpp_web_alerts_checkout_oldest_due_timestamp_seconds{job=\"btcpp\",instance=\"failed\"}",
+          "values": "1+0x22"
+        },
+        {
+          "series": "btcpp_web_business_metrics_collection_success{job=\"btcpp\",instance=\"failed\"}",
+          "values": "0+0x22"
+        },
+        {
+          "series": "btcpp_web_business_metrics_last_success_timestamp_seconds{job=\"btcpp\",instance=\"failed\"}",
+          "values": "0+60x22"
+        },
+        {
+          "series": "btcpp_web_alerts_checkout_oldest_due_timestamp_seconds{job=\"btcpp\",instance=\"stale\"}",
+          "values": "1+0x22"
+        },
+        {
+          "series": "btcpp_web_business_metrics_collection_success{job=\"btcpp\",instance=\"stale\"}",
+          "values": "1+0x22"
+        },
+        {
+          "series": "btcpp_web_business_metrics_last_success_timestamp_seconds{job=\"btcpp\",instance=\"stale\"}",
+          "values": "0+0x22"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "21m",
+          "alertname": "BitcoinPlusPlusAlertsCheckoutRecoveryStalled",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "btcpp_web_alerts_checkout_oldest_unresolved_timestamp_seconds{job=\"btcpp\",instance=\"web\"}",
+          "values": "1+0x251 0+0x2"
+        },
+        {
+          "series": "btcpp_web_business_metrics_collection_success{job=\"btcpp\",instance=\"web\"}",
+          "values": "1+0x254"
+        },
+        {
+          "series": "btcpp_web_business_metrics_last_success_timestamp_seconds{job=\"btcpp\",instance=\"web\"}",
+          "values": "0+60x254"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "250m",
+          "alertname": "BitcoinPlusPlusAlertsCheckoutUnresolved",
+          "exp_alerts": []
+        },
+        {
+          "eval_time": "251m",
+          "alertname": "BitcoinPlusPlusAlertsCheckoutUnresolved",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "job": "btcpp",
+                "instance": "web",
+                "severity": "warning"
+              },
+              "exp_annotations": {
+                "summary": "An Alerts checkout remains unresolved after four hours",
+                "description": "Review lost session references, provider errors and completed-payment conflicts. Do not create a replacement charge or infer expiration from age."
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "252m",
+          "alertname": "BitcoinPlusPlusAlertsCheckoutUnresolved",
+          "exp_alerts": []
+        }
+      ]
+    },
+    {
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "btcpp_web_alerts_checkout_oldest_unresolved_timestamp_seconds{job=\"btcpp\",instance=\"empty\"}",
+          "values": "0+0x252"
+        },
+        {
+          "series": "btcpp_web_business_metrics_collection_success{job=\"btcpp\",instance=\"empty\"}",
+          "values": "1+0x252"
+        },
+        {
+          "series": "btcpp_web_business_metrics_last_success_timestamp_seconds{job=\"btcpp\",instance=\"empty\"}",
+          "values": "0+60x252"
+        },
+        {
+          "series": "btcpp_web_alerts_checkout_oldest_unresolved_timestamp_seconds{job=\"btcpp\",instance=\"failed\"}",
+          "values": "1+0x252"
+        },
+        {
+          "series": "btcpp_web_business_metrics_collection_success{job=\"btcpp\",instance=\"failed\"}",
+          "values": "0+0x252"
+        },
+        {
+          "series": "btcpp_web_business_metrics_last_success_timestamp_seconds{job=\"btcpp\",instance=\"failed\"}",
+          "values": "0+60x252"
+        },
+        {
+          "series": "btcpp_web_alerts_checkout_oldest_unresolved_timestamp_seconds{job=\"btcpp\",instance=\"stale\"}",
+          "values": "1+0x252"
+        },
+        {
+          "series": "btcpp_web_business_metrics_collection_success{job=\"btcpp\",instance=\"stale\"}",
+          "values": "1+0x252"
+        },
+        {
+          "series": "btcpp_web_business_metrics_last_success_timestamp_seconds{job=\"btcpp\",instance=\"stale\"}",
+          "values": "0+0x252"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "251m",
+          "alertname": "BitcoinPlusPlusAlertsCheckoutUnresolved",
+          "exp_alerts": []
+        }
+      ]
+    }
+  ]
+}

@@ -39,12 +39,18 @@ type businessCollector struct {
 	serviceRefundOldest               *prometheus.Desc
 	serviceReceiptJobs                *prometheus.Desc
 	serviceReceiptOldest              *prometheus.Desc
+	alertsCheckoutJobs                *prometheus.Desc
+	alertsCheckoutDue                 *prometheus.Desc
+	alertsCheckoutUnresolved          *prometheus.Desc
 	collectionSuccess                 *prometheus.Desc
 	lastSuccessfulRefresh             *prometheus.Desc
 }
 
 func newBusinessCollector(namespace string, loader BusinessMetricsLoader) *businessCollector {
 	return &businessCollector{
+		alertsCheckoutJobs:                prometheus.NewDesc(namespace+"_alerts_checkout_recovery_jobs", "Open Alerts checkouts by recovery state.", []string{"state"}, nil),
+		alertsCheckoutDue:                 prometheus.NewDesc(namespace+"_alerts_checkout_oldest_due_timestamp_seconds", "Earliest scheduled reconciliation among open Alerts checkouts; zero when none exist.", nil, nil),
+		alertsCheckoutUnresolved:          prometheus.NewDesc(namespace+"_alerts_checkout_oldest_unresolved_timestamp_seconds", "Creation time of the oldest unbound Alerts checkout; zero when none exist.", nil, nil),
 		loader:                            loader,
 		accountDeletionCancellationJobs:   prometheus.NewDesc(namespace+"_account_deletion_cancellation_jobs", "Current account deletion jobs by state.", []string{"state"}, nil),
 		accountDeletionCancellationOldest: prometheus.NewDesc(namespace+"_account_deletion_cancellation_oldest_pending_timestamp_seconds", "Request timestamp of oldest pending account deletion job; zero when none are pending.", nil, nil),
@@ -67,6 +73,9 @@ func newBusinessCollector(namespace string, loader BusinessMetricsLoader) *busin
 }
 
 func (c *businessCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.alertsCheckoutJobs
+	ch <- c.alertsCheckoutDue
+	ch <- c.alertsCheckoutUnresolved
 	ch <- c.tickets
 	ch <- c.ticketCheckins
 	ch <- c.speakerApplications
@@ -97,10 +106,10 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 		if count.Metric == "ticket_checkins" {
 			labels = []string{count.Conference}
 		}
-		if count.Metric == "account_deletion_cancellation_jobs" || count.Metric == "account_deletion_delivery_jobs" || count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_refund_jobs" {
+		if count.Metric == "alerts_checkout_recovery_jobs" || count.Metric == "account_deletion_cancellation_jobs" || count.Metric == "account_deletion_delivery_jobs" || count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_refund_jobs" {
 			labels = []string{count.State}
 		}
-		if count.Metric == "account_deletion_cancellation_oldest_pending_timestamp_seconds" || count.Metric == "account_deletion_delivery_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" {
+		if count.Metric == "alerts_checkout_oldest_due_timestamp_seconds" || count.Metric == "alerts_checkout_oldest_unresolved_timestamp_seconds" || count.Metric == "account_deletion_cancellation_oldest_pending_timestamp_seconds" || count.Metric == "account_deletion_delivery_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" {
 			labels = nil
 		}
 		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, count.Count, labels...)
@@ -117,6 +126,12 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 
 func (c *businessCollector) metricDesc(metric string) *prometheus.Desc {
 	switch metric {
+	case "alerts_checkout_recovery_jobs":
+		return c.alertsCheckoutJobs
+	case "alerts_checkout_oldest_due_timestamp_seconds":
+		return c.alertsCheckoutDue
+	case "alerts_checkout_oldest_unresolved_timestamp_seconds":
+		return c.alertsCheckoutUnresolved
 	case "account_deletion_cancellation_jobs":
 		return c.accountDeletionCancellationJobs
 	case "account_deletion_cancellation_oldest_pending_timestamp_seconds":

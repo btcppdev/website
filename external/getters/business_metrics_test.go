@@ -1,6 +1,10 @@
 package getters
 
 import (
+	"btcpp-web/internal/alertsstripe"
+	"context"
+	"encoding/json"
+	"github.com/google/uuid"
 	"strings"
 	"testing"
 )
@@ -16,7 +20,7 @@ func TestDatabaseSmokeBusinessMetrics(t *testing.T) {
 		"volunteer_applications": true, "recording_broadcasts": true,
 	}
 	for _, count := range counts {
-		if strings.HasPrefix(count.Metric, "account_deletion_") || count.Metric == "service_refund_jobs" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_jobs" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" {
+		if strings.HasPrefix(count.Metric, "alerts_checkout_") || strings.HasPrefix(count.Metric, "account_deletion_") || count.Metric == "service_refund_jobs" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_jobs" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" {
 			if count.Conference != "" || count.Count < 0 {
 				t.Fatalf("invalid receipt aggregate: %+v", count)
 			}
@@ -131,5 +135,74 @@ func TestAccountDeletionMetricsPostgres(t *testing.T) {
 	}
 	if len(expected) != 0 {
 		t.Fatal("missing deletion metrics", expected)
+	}
+}
+
+func TestAlertsCheckoutRecoveryMetricsPostgres(t *testing.T) {
+	app := databaseSmokeContext(t)
+	ctx := context.Background()
+	snapshot := func() map[string]float64 {
+		t.Helper()
+		rows, err := ListBusinessMetricCounts(app)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]float64{}
+		for _, r := range rows {
+			if strings.HasPrefix(r.Metric, "alerts_checkout_") {
+				if r.Conference != "" {
+					t.Fatal("identity label", r)
+				}
+				out[r.Metric+":"+r.State] = r.Count
+			}
+		}
+		return out
+	}
+	before := snapshot()
+	person := uuid.NewString()
+	if _, err := app.DB.Exec(ctx, `INSERT INTO people(id,name) VALUES($1,'Checkout metrics fixture')`, person); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := app.DB.Exec(ctx, `DELETE FROM people WHERE id=$1`, person); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := app.DB.Exec(ctx, `INSERT INTO person_emails(person_id,email,is_primary,verified_at) VALUES($1,$2,true,now())`, person, person+"@example.test"); err != nil {
+		t.Fatal(err)
+	}
+	checkout, err := ReserveAlertsStripeCheckout(app, person, uuid.NewString(), 1, "https://btcpp.dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := "alerts_checkout_recovery_jobs:"
+	current := snapshot()
+	if current[key+"missing_reference"] != before[key+"missing_reference"]+1 || current["alerts_checkout_oldest_unresolved_timestamp_seconds:"] <= 0 || current["alerts_checkout_oldest_due_timestamp_seconds:"] <= 0 {
+		t.Fatal("lost reference invisible", current)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_checkouts SET stripe_session_id=$2 WHERE id=$1`, checkout.Intent.ID, "cs_metrics_"+checkout.Intent.ID); err != nil {
+		t.Fatal(err)
+	}
+	current = snapshot()
+	if current[key+"missing_reference"] != before[key+"missing_reference"] || current[key+"referenced"] != before[key+"referenced"]+1 {
+		t.Fatal("reference discovery not reflected", current)
+	}
+	b := alertsstripe.Binding{IntentID: checkout.Intent.ID, PersonID: person, SubscriptionID: "sub_metrics_" + checkout.Intent.ID, CustomerID: "cus_metrics", PriceID: "price_metrics", ProductID: "prod_metrics", PaidSlots: 1}
+	raw, _ := json.Marshal(b)
+	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3)`, checkout.Intent.ID, b.SubscriptionID, raw); err != nil {
+		t.Fatal(err)
+	}
+	current = snapshot()
+	if current[key+"referenced"] != before[key+"referenced"] || current[key+"bound"] != before[key+"bound"]+1 {
+		t.Fatal("bound checkout misclassified", current)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_checkouts SET closed_at=now() WHERE id=$1`, checkout.Intent.ID); err != nil {
+		t.Fatal(err)
+	}
+	current = snapshot()
+	for _, state := range []string{"missing_reference", "referenced", "bound"} {
+		if current[key+state] != before[key+state] {
+			t.Fatal("closed checkout counted", current)
+		}
 	}
 }
