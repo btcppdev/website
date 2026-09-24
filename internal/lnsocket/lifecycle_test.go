@@ -35,23 +35,32 @@ func TestHandshakeDeadlineAndCancellation(t *testing.T) {
 					accepted <- conn
 				}
 			}()
-			key, _ := btcec.NewPrivateKey()
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			key, err := btcec.NewPrivateKey()
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Cold elliptic-curve initialization can exceed a short deadline under
+			// the race detector. Finish key setup before timing the handshake.
+			pubkey := hex.EncodeToString(key.PubKey().SerializeCompressed())
+			client := &LNSocket{}
+			client.GenKey()
+			defer client.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			if cancelOnly {
 				cancel()
 				ctx, cancel = context.WithCancel(context.Background())
 			}
 			defer cancel()
 			result := make(chan error, 1)
-			client := &LNSocket{}
-			defer client.Close()
 			go func() {
-				result <- client.ConnectContext(ctx, listener.Addr().String(), hex.EncodeToString(key.PubKey().SerializeCompressed()))
+				result <- client.ConnectContext(ctx, listener.Addr().String(), pubkey)
 			}()
 			select {
 			case conn := <-accepted:
 				defer conn.Close()
-			case <-time.After(2 * time.Second):
+			case err := <-result:
+				t.Fatalf("connection failed before the stalled handshake: %v", err)
+			case <-time.After(5 * time.Second):
 				t.Fatal("connection not accepted")
 			}
 			if cancelOnly {
