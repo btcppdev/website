@@ -70,6 +70,12 @@ build-all: build
 test:
 	$(GO_ENV) go test ./...
 
+# A dedicated loopback PostgreSQL server must already be running.
+# Every run creates a new database and leaves it available for inspection.
+.PHONY: test-acceptance
+test-acceptance:
+	sh ops/test-acceptance.sh
+
 .PHONY: db-pull-sanitized
 db-pull-sanitized: db-start
 	@test -n "$$PROD_DATABASE_URL" || (echo "PROD_DATABASE_URL is required"; exit 1)

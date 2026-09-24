@@ -21,6 +21,7 @@
             ffmpeg
             git
             postgresql_18
+            sqlite
             rclone
           ]) ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
           shellHook = ''
