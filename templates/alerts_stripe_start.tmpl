@@ -9,6 +9,12 @@
 <p>Cancel future renewals through billing management. Your paid allowance continues until the current period ends; cancellation does not refund that period.</p>
 {{ if .Enabled }}<form method="post" action="/services/alerts/subscribe">
 <input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
+{{ with .Policy }}
+<details><summary>Read the Terms of Service · {{ .Version }}</summary><div style="white-space:pre-wrap">{{ .TermsText }}</div></details>
+<details><summary>Read the Privacy Policy · {{ .Version }}</summary><div style="white-space:pre-wrap">{{ .PrivacyText }}</div></details>
+<input type="hidden" name="legal_version" value="{{ .Version }}">
+<label><input type="checkbox" name="accept_terms" value="yes" required> I agree to these Terms of Service and acknowledge the Privacy Policy.</label>
+{{ end }}
 <button type="submit" class="auth-primary">Continue with card · {{ .Total }}/month</button></form>
 {{ else }}<p role="status">Card checkout is not configured here yet.</p>{{ end }}
 <p><a href="https://alerts.btcpp.dev/terms">Terms</a> · <a href="https://alerts.btcpp.dev/privacy">Privacy</a></p>

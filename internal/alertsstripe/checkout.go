@@ -23,12 +23,13 @@ var ErrReconcile = servicestripe.ErrReconcile
 // Intent is a frozen, server-owned checkout request, not an HTTP request DTO.
 // Reuse every field (including CreatedAt) when retrying an ambiguous creation.
 type Intent struct {
-	ID            string
-	PersonID      string
-	Email         string
-	PaidSlots     int64
-	CreatedAt     time.Time
-	ReturnBaseURL string
+	LegalAcceptance *servicebilling.LegalAcceptance `json:"legal_acceptance,omitempty"`
+	ID              string
+	PersonID        string
+	Email           string
+	PaidSlots       int64
+	CreatedAt       time.Time
+	ReturnBaseURL   string
 }
 
 type Client struct {

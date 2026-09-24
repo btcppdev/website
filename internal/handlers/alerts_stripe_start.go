@@ -21,6 +21,7 @@ import (
 )
 
 type alertsStripeStartPage struct {
+	Policy                    *getters.ServiceLegalPolicy
 	Account, CSRF, Key, Total string
 	Slots                     int64
 	Enabled                   bool
@@ -119,6 +120,11 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 			return
 		}
 	}
+	policy, err := getters.CurrentServiceLegalPolicy(app, servicebilling.AlertsProduct)
+	if err != nil {
+		http.Error(w, "Unable to load checkout policy", 503)
+		return
+	}
 	if r.Method == http.MethodPost {
 		if len(values["csrf"]) != 1 || !secureTokenEqual(app.Session.GetString(r.Context(), authMethodsCSRFKey), values.Get("csrf")) {
 			http.Error(w, "Reload checkout and try again", 403)
@@ -136,7 +142,19 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 			http.Error(w, "Invalid checkout request", 400)
 			return
 		}
-		stored, err := getters.ReserveAlertsStripeCheckout(app, account, values.Get("key"), slots, app.Env.GetURI())
+		acceptedVersion := ""
+		if policy != nil {
+			if len(values["accept_terms"]) != 1 || values.Get("accept_terms") != "yes" || len(values["legal_version"]) != 1 || values.Get("legal_version") != policy.Version {
+				http.Error(w, "Review and accept the current Alerts Terms before paying", 409)
+				return
+			}
+			acceptedVersion = policy.Version
+		}
+		stored, err := getters.ReserveAlertsStripeCheckoutWithPolicy(app, account, values.Get("key"), slots, app.Env.GetURI(), acceptedVersion)
+		if errors.Is(err, getters.ErrServiceLegalReview) {
+			http.Error(w, "Checkout terms have changed. Reload and review before paying.", 409)
+			return
+		}
 		if errors.Is(err, getters.ErrAlertsStripeCheckoutConflict) {
 			http.Error(w, "An existing Alerts purchase needs attention. Return to My alerts before starting another subscription.", 409)
 			return
@@ -170,7 +188,7 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 		return
 	}
 	total := slots * servicebilling.AlertsMonthlySlotCents
-	page := alertsStripeStartPage{Account: account, Slots: slots, CSRF: csrf, Key: uuid.NewString(), Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Enabled: enabled}
+	page := alertsStripeStartPage{Policy: policy, Account: account, Slots: slots, CSRF: csrf, Key: uuid.NewString(), Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Enabled: enabled}
 	var html bytes.Buffer
 	if err = app.TemplateCache.ExecuteTemplate(&html, "alerts_stripe_start.tmpl", page); err != nil {
 		http.Error(w, "Unable to show checkout", 500)

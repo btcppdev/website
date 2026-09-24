@@ -28,6 +28,11 @@ type AlertsStripeCheckout struct {
 // freezes the email, quantity, callback origin and timestamp before provider I/O.
 // It starts NEW subscriptions only; paid accounts use the quantity-change flow.
 func ReserveAlertsStripeCheckout(app *config.AppContext, person, key string, slots int64, returnBase string) (*AlertsStripeCheckout, error) {
+	return ReserveAlertsStripeCheckoutWithPolicy(app, person, key, slots, returnBase, "")
+}
+
+// acceptedVersion is supplied only after authenticated, CSRF-checked confirmation.
+func ReserveAlertsStripeCheckoutWithPolicy(app *config.AppContext, person, key string, slots int64, returnBase, acceptedVersion string) (*AlertsStripeCheckout, error) {
 	if _, err := uuid.Parse(person); err != nil || len(key) < 16 || len(key) > 128 || slots < 1 || slots > 2147483647/servicebilling.AlertsMonthlySlotCents {
 		return nil, ErrServiceQuote
 	}
@@ -58,9 +63,26 @@ func ReserveAlertsStripeCheckout(app *config.AppContext, person, key string, slo
 		if out.Intent.PaidSlots != slots || out.Intent.ReturnBaseURL != returnBase || out.Closed {
 			return nil, ErrAlertsStripeCheckoutConflict
 		}
+		if out.Intent.LegalAcceptance != nil {
+			if out.Intent.LegalAcceptance.Version != acceptedVersion {
+				return nil, ErrServiceLegalReview
+			}
+		} else {
+			policy, err := serviceLegalAcceptanceTx(ctx, tx, servicebilling.AlertsProduct, acceptedVersion)
+			if err != nil {
+				return nil, err
+			}
+			if policy != nil {
+				return nil, ErrServiceLegalReview
+			}
+		}
 		return out, tx.Commit(ctx)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	acceptance, err := serviceLegalAcceptanceTx(ctx, tx, servicebilling.AlertsProduct, acceptedVersion)
+	if err != nil {
 		return nil, err
 	}
 	var email string
@@ -71,7 +93,7 @@ func ReserveAlertsStripeCheckout(app *config.AppContext, person, key string, slo
 	if err != nil {
 		return nil, err
 	}
-	out.Intent = alertsstripe.Intent{ID: uuid.NewString(), PersonID: person, Email: email, PaidSlots: slots, ReturnBaseURL: returnBase, CreatedAt: time.Now().UTC().Truncate(time.Second)}
+	out.Intent = alertsstripe.Intent{LegalAcceptance: acceptance, ID: uuid.NewString(), PersonID: person, Email: email, PaidSlots: slots, ReturnBaseURL: returnBase, CreatedAt: time.Now().UTC().Truncate(time.Second)}
 	if err = alertsstripe.ValidateIntent(out.Intent, time.Now().UTC()); err != nil {
 		return nil, err
 	}

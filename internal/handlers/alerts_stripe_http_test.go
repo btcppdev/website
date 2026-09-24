@@ -20,6 +20,7 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"btcpp-web/internal/types"
 	"github.com/alexedwards/scs/v2"
 	"github.com/gorilla/mux"
@@ -170,6 +171,15 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	if code, _, _ := call("/services/alerts/manage", url.Values{"csrf": {"wrong"}, "checkout": {people[0]}, "key": {people[1]}, "revision": {"1"}, "periodEnd": {"1"}}); code != 403 {
 		t.Fatal("management CSRF", code)
 	}
+	policyVersion := "http-policy-" + people[0]
+	policy := getters.ServiceLegalPolicy{ProductCode: servicebilling.AlertsProduct, Version: policyVersion, TermsText: "Reviewed <terms>", PrivacyText: "Reviewed privacy", EffectiveAt: time.Now().UTC().Add(-time.Hour).Truncate(time.Second)}
+	if err := getters.RegisterServiceLegalPolicy(app, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := getters.ActivateServiceLegalPolicy(app, policy.ProductCode, policy.Version); err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
 	code, html, _ := call(path, nil)
 	if code != 200 {
 		t.Fatal(code, html)
@@ -187,6 +197,18 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal("missing CSRF fence", code)
 	}
 	form.Set("csrf", field("csrf"))
+	if !strings.Contains(html, "Reviewed &lt;terms&gt;") || !strings.Contains(html, `name="accept_terms" value="yes" required`) {
+		t.Fatal("review lacks escaped policy and required agreement", html)
+	}
+	if code, _, _ := call("/services/alerts/subscribe", form); code != 409 {
+		t.Fatal("missing agreement accepted", code)
+	}
+	form.Set("accept_terms", "yes")
+	form.Set("legal_version", "stale")
+	if code, _, _ := call("/services/alerts/subscribe", form); code != 409 {
+		t.Fatal("stale agreement accepted", code)
+	}
+	form.Set("legal_version", field("legal_version"))
 	for i := 0; i < 2; i++ {
 		code, body, location := call("/services/alerts/subscribe?slots=999&account="+people[1], form)
 		if code != 303 || location != "https://checkout.stripe.com/c/pay/"+sessionID {
@@ -265,7 +287,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(code, body)
 	}
 	// A separate, account-owned subscription exercises the management flow.
-	saved, e := getters.ReserveAlertsStripeCheckout(app, people[1], "management-checkout-fixture", 2, "https://btcpp.dev")
+	saved, e := getters.ReserveAlertsStripeCheckoutWithPolicy(app, people[1], "management-checkout-fixture", 2, "https://btcpp.dev", policyVersion)
 	if e != nil {
 		t.Fatal(e)
 	}

@@ -873,3 +873,21 @@ CREATE TABLE account_deletion_cancellation_recoveries (
 );
 CREATE TRIGGER account_deletion_cancellation_recovery_immutable BEFORE UPDATE OR DELETE ON account_deletion_cancellation_recoveries
  FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+
+-- Reviewed service policies are product-specific and independent of customer data.
+CREATE TABLE service_legal_revisions (
+ product_code text NOT NULL CHECK(product_code IN ('alerts.repository-slots','insider.membership','insider.article','insider.membership.monthly','insider.membership.annual')),
+ version text NOT NULL CHECK(length(version) BETWEEN 1 AND 200),
+ terms_text text NOT NULL CHECK(length(terms_text)>0),
+ privacy_text text NOT NULL CHECK(length(privacy_text)>0),
+ content_sha256 text NOT NULL CHECK(length(content_sha256)=64),
+ effective_at timestamptz NOT NULL,
+ PRIMARY KEY(product_code,version)
+);
+CREATE TRIGGER service_legal_revision_immutable BEFORE UPDATE OR DELETE ON service_legal_revisions
+ FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+CREATE TABLE service_legal_current (
+ product_code text PRIMARY KEY,
+ version text NOT NULL,
+ FOREIGN KEY(product_code,version) REFERENCES service_legal_revisions(product_code,version)
+);
