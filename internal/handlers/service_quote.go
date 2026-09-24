@@ -16,6 +16,7 @@ import (
 )
 
 type serviceQuotePage struct {
+	Policy                    *getters.ServiceLegalPolicy
 	Stored                    *getters.ServiceCheckoutQuote
 	CSRF, Total, Tax, Message string
 	Expired                   bool
@@ -42,7 +43,21 @@ func ServiceQuoteReview(w http.ResponseWriter, r *http.Request, app *config.AppC
 		http.Error(w, "Unable to load this quote", 503)
 		return
 	}
+	confirmed, err := getters.ConfirmedServiceQuoteOrder(app, id.PersonID, stored.ID)
+	if err == nil {
+		http.Redirect(w, r, "/services/orders/"+url.PathEscape(confirmed), http.StatusSeeOther)
+		return
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, "Unable to load confirmation", 503)
+		return
+	}
 	page := serviceQuotePresentation(stored, time.Now())
+	page.Policy, err = getters.CurrentServiceLegalPolicy(app, stored.Quote.ProductCode)
+	if err != nil {
+		http.Error(w, "Unable to load checkout policy", 503)
+		return
+	}
 	if !page.Expired {
 		page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 		if err != nil {
@@ -86,7 +101,15 @@ func ServiceQuoteConfirm(w http.ResponseWriter, r *http.Request, app *config.App
 		return
 	}
 	// No browser-supplied quantities, prices, or tax evidence are read here.
-	purchase, err := getters.ConfirmServiceCheckoutQuote(app, id.PersonID, mux.Vars(r)["quote"])
+	acceptedVersion := ""
+	if r.PostForm.Get("accept_terms") == "yes" && len(r.PostForm["accept_terms"]) == 1 && len(r.PostForm["legal_version"]) == 1 {
+		acceptedVersion = r.PostForm.Get("legal_version")
+	}
+	purchase, err := getters.ConfirmServiceCheckoutQuoteWithPolicy(app, id.PersonID, mux.Vars(r)["quote"], acceptedVersion)
+	if errors.Is(err, getters.ErrServiceLegalReview) {
+		http.Error(w, "Review and accept the current Terms on the quote page before confirming.", 409)
+		return
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		http.NotFound(w, r)
 		return

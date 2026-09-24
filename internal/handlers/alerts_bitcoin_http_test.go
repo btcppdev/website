@@ -21,6 +21,7 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"btcpp-web/internal/types"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
@@ -201,6 +202,15 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_purchase_requests WHERE person_id=$1`, user).Scan(&orders); err != nil || orders != 0 || taxCalls != 1 {
 		t.Fatal("quote started payment", orders, taxCalls, err)
 	}
+	policyVersion := "bitcoin-policy-" + user
+	policy := getters.ServiceLegalPolicy{ProductCode: servicebilling.AlertsProduct, Version: policyVersion, TermsText: "Reviewed prepaid <terms>", PrivacyText: "Reviewed prepaid privacy", EffectiveAt: time.Now().Add(-time.Hour).UTC().Truncate(time.Second)}
+	if err := getters.RegisterServiceLegalPolicy(app, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := getters.ActivateServiceLegalPolicy(app, policy.ProductCode, policy.Version); err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
 	quotePath := location
 	code, body, _ = call(quotePath, nil)
 	if code != 200 || !strings.Contains(body, "$48.00") || !strings.Contains(body, "$2.00") {
@@ -211,6 +221,18 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 		t.Fatal(body)
 	}
 	confirm := url.Values{"csrf": {csrf[1]}, "quantity": {"999"}, "price": {"1"}}
+	if !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") || !strings.Contains(body, `name="accept_terms" value="yes" required`) {
+		t.Fatal("missing policy review", body)
+	}
+	if code, _, _ := call(quotePath+"/confirm", confirm); code != 409 {
+		t.Fatal("missing agreement created order", code)
+	}
+	confirm.Set("accept_terms", "yes")
+	confirm.Set("legal_version", "stale")
+	if code, _, _ := call(quotePath+"/confirm", confirm); code != 409 {
+		t.Fatal("stale agreement created order", code)
+	}
+	confirm.Set("legal_version", policyVersion)
 	code, body, orderPath := call(quotePath+"/confirm", confirm)
 	if code != 303 || !strings.HasPrefix(orderPath, "/services/orders/") {
 		t.Fatal("confirm", code, body, orderPath)
@@ -218,8 +240,11 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 	if code, _, repeat := call(quotePath+"/confirm", confirm); code != 303 || repeat != orderPath {
 		t.Fatal("repeat confirmation", code, repeat)
 	}
+	if code, _, resume := call(quotePath, nil); code != 303 || resume != orderPath {
+		t.Fatal("confirmed quote did not resume original order", code, resume)
+	}
 	code, body, _ = call(orderPath, nil)
-	if code != 200 || !strings.Contains(body, "Pay $48.00 with Bitcoin") {
+	if code != 200 || !strings.Contains(body, "Pay $48.00 with Bitcoin") || !strings.Contains(body, "Accepted policy version") || !strings.Contains(body, policyVersion) || !strings.Contains(body, "Reviewed prepaid &lt;terms&gt;") {
 		t.Fatal("order", code, body)
 	}
 	csrf = regexp.MustCompile(`name="csrf" value="([^"]+)"`).FindStringSubmatch(body)

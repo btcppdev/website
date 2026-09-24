@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,6 +19,7 @@ var ErrServiceBuyer = errors.New("service buyer needs a verified account email")
 // adapters must resolve pricing, tax and access periods before calling this API.
 // Amounts are USD cents; UnitCents and TotalCents include TaxCents.
 type ServiceQuote struct {
+	LegalAcceptance *servicebilling.LegalAcceptance `json:"legal_acceptance,omitempty"`
 	// RecurringInvoice preserves provider-verified billing boundaries on fulfillment.
 	RecurringInvoice bool `json:"recurring_invoice,omitempty"`
 	// Alerts account evidence captured by the server during quote preparation.
@@ -52,16 +54,20 @@ type ServicePurchase struct {
 // quote. It does not contact a provider or grant access. Exact retries return the
 // original order even after quote expiry; changed quotes require a new key.
 func CreateServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote) (*ServicePurchase, error) {
-	return createServicePurchase(app, personID, key, quote, nil)
+	return createServicePurchase(app, personID, key, quote, nil, "")
 }
 
 // CreateTaxedServicePurchase atomically stores the trusted pricing snapshot and
 // its provider tax evidence. Retrying a key cannot replace the tax calculation.
 func CreateTaxedServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote, tax TaxQuoteInput) (*ServicePurchase, error) {
+	return CreateTaxedServicePurchaseWithPolicy(app, personID, key, quote, tax, "")
+}
+
+func CreateTaxedServicePurchaseWithPolicy(app *config.AppContext, personID, key string, quote ServiceQuote, tax TaxQuoteInput, acceptedVersion string) (*ServicePurchase, error) {
 	if err := validateServiceTaxQuote(quote, tax); err != nil {
 		return nil, err
 	}
-	return createServicePurchase(app, personID, key, quote, &tax)
+	return createServicePurchase(app, personID, key, quote, &tax, acceptedVersion)
 }
 
 func validateServiceTaxQuote(quote ServiceQuote, tax TaxQuoteInput) error {
@@ -71,7 +77,11 @@ func validateServiceTaxQuote(quote ServiceQuote, tax TaxQuoteInput) error {
 	return nil
 }
 
-func createServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote, tax *TaxQuoteInput) (*ServicePurchase, error) {
+func createServicePurchase(app *config.AppContext, personID, key string, quote ServiceQuote, tax *TaxQuoteInput, acceptedVersion string) (*ServicePurchase, error) {
+	// Only this transaction may construct acceptance evidence.
+	if quote.LegalAcceptance != nil {
+		return nil, ErrServiceLegalReview
+	}
 	if len(key) < 16 || len(key) > 128 || strings.TrimSpace(personID) == "" {
 		return nil, ErrServiceQuote
 	}
@@ -91,10 +101,14 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 	}
 	var purchase ServicePurchase
 	var same bool
-	err = tx.QueryRow(ctx, `SELECT r.id::text,o.id::text,o.public_id,o.buyer_email::text,r.quote_snapshot=$3::jsonb
+	var storedVersion string
+	err = tx.QueryRow(ctx, `SELECT r.id::text,o.id::text,o.public_id,o.buyer_email::text,(r.quote_snapshot-'legal_acceptance')=$3::jsonb,coalesce(r.quote_snapshot->'legal_acceptance'->>'version','')
 		FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id
-		WHERE r.person_id=$1 AND r.request_key=$2`, personID, key, snapshot).Scan(&purchase.PurchaseID, &purchase.OrderID, &purchase.PublicID, &purchase.BuyerEmail, &same)
+		WHERE r.person_id=$1 AND r.request_key=$2`, personID, key, snapshot).Scan(&purchase.PurchaseID, &purchase.OrderID, &purchase.PublicID, &purchase.BuyerEmail, &same, &storedVersion)
 	if err == nil {
+		if storedVersion != acceptedVersion {
+			return nil, ErrServiceLegalReview
+		}
 		if !same {
 			return nil, ErrServicePurchaseConflict
 		}
@@ -162,6 +176,14 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 		quote.TotalCents < 1 || quote.TotalCents > 2147483647 || quote.Quantity*quote.UnitCents != quote.TotalCents ||
 		quote.TaxCents < 0 || quote.TaxCents > quote.TotalCents || !quote.ExpiresAt.After(time.Now()) {
 		return nil, ErrServiceQuote
+	}
+	quote.LegalAcceptance, err = serviceLegalAcceptanceTx(ctx, tx, quote.ProductCode, acceptedVersion)
+	if err != nil {
+		return nil, err
+	}
+	snapshot, err = json.Marshal(quote)
+	if err != nil {
+		return nil, err
 	}
 	var email string
 	err = tx.QueryRow(ctx, `SELECT email::text FROM person_emails WHERE person_id=$1 AND verified_at IS NOT NULL

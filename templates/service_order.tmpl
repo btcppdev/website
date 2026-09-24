@@ -23,7 +23,15 @@
 {{ end }}
 {{ with .Order.Quote.PeriodStart }}<dt>Access starts (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
 {{ with .Order.Quote.PeriodEnd }}<dt>Access ends (UTC)</dt><dd>{{ .UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
+{{ with .Order.Quote.LegalAcceptance }}
+<dt>Accepted policy version</dt><dd>{{ .Version }}</dd>
+<dt>Accepted (UTC)</dt><dd>{{ .AcceptedAt.UTC.Format "January 2, 2006, 15:04" }}</dd>
+{{ end }}
 </dl>
+{{ with .Order.Quote.LegalAcceptance }}
+<details><summary>Terms accepted for this order</summary><div style="white-space:pre-wrap">{{ .TermsText }}</div></details>
+<details><summary>Privacy Policy shown for this order</summary><div style="white-space:pre-wrap">{{ .PrivacyText }}</div></details>
+{{ end }}
 <div class="receipt-actions">
 {{ if .Order.PaymentVerified }}<button type="button" class="auth-primary" onclick="window.print()">Print or save receipt</button>{{ end }}
 {{ if .CanPay }}

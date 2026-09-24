@@ -22,7 +22,7 @@ type ServiceCheckoutQuote struct {
 // change entitlements. Account state is checked again on confirmation.
 func SaveAlertsCheckoutQuote(app *config.AppContext, personID string, quote ServiceQuote, tax TaxQuoteInput) (*ServiceCheckoutQuote, error) {
 	revision, err := hex.DecodeString(quote.AccountRevision)
-	if err != nil || len(revision) != 32 || quote.ProductCode != "alerts.repository-slots" || strings.TrimSpace(personID) == "" ||
+	if quote.LegalAcceptance != nil || err != nil || len(revision) != 32 || quote.ProductCode != "alerts.repository-slots" || strings.TrimSpace(personID) == "" ||
 		quote.PeriodStart == nil || quote.PeriodEnd == nil || !quote.PeriodEnd.After(*quote.PeriodStart) || quote.ExpiresAt.After(*quote.PeriodEnd) ||
 		!quote.ExpiresAt.After(time.Now()) || quote.Quantity < 1 || quote.Quantity > 2147483647 || quote.UnitCents < 1 || quote.UnitCents > 2147483647 ||
 		quote.TotalCents < 1 || quote.TotalCents > 2147483647 || quote.Quantity*quote.UnitCents != quote.TotalCents || quote.TaxCents < 0 || quote.TaxCents > quote.TotalCents {
@@ -74,9 +74,25 @@ func ServiceCheckoutQuoteForPerson(app *config.AppContext, personID, id string) 
 // Expiry/revision checks apply to new orders; retries return the original order.
 // It does not charge the buyer. The existing order checkout starts payment.
 func ConfirmServiceCheckoutQuote(app *config.AppContext, personID, id string) (*ServicePurchase, error) {
+	return ConfirmServiceCheckoutQuoteWithPolicy(app, personID, id, "")
+}
+
+func ConfirmServiceCheckoutQuoteWithPolicy(app *config.AppContext, personID, id, acceptedVersion string) (*ServicePurchase, error) {
 	stored, err := ServiceCheckoutQuoteForPerson(app, personID, id)
 	if err != nil {
 		return nil, err
 	}
-	return CreateTaxedServicePurchase(app, personID, "checkout-quote:"+stored.ID, stored.Quote, stored.Tax)
+	return CreateTaxedServicePurchaseWithPolicy(app, personID, "checkout-quote:"+stored.ID, stored.Quote, stored.Tax, acceptedVersion)
+}
+
+// ConfirmedServiceQuoteOrder returns only the account-owned order already created
+// for this quote. Reopening its review page should resume that order, not ask the
+// buyer to accept a newer policy for an unchanged purchase.
+func ConfirmedServiceQuoteOrder(app *config.AppContext, personID, quoteID string) (string, error) {
+	if _, err := uuid.Parse(quoteID); err != nil {
+		return "", pgx.ErrNoRows
+	}
+	var publicID string
+	err := app.DB.QueryRow(app.DatabaseContext(), `SELECT o.public_id FROM service_purchase_requests r JOIN shop_orders o ON o.id=r.order_id WHERE r.person_id=$1 AND r.request_key=$2`, personID, "checkout-quote:"+quoteID).Scan(&publicID)
+	return publicID, err
 }

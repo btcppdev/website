@@ -19,6 +19,12 @@
 {{ if not .Expired }}
 <form method="post" action="/services/quotes/{{ .Stored.ID }}/confirm">
 <input type="hidden" name="csrf" value="{{ .CSRF }}">
+{{ with .Policy }}
+<details><summary>Read the Terms of Service · {{ .Version }}</summary><div style="white-space:pre-wrap">{{ .TermsText }}</div></details>
+<details><summary>Read the Privacy Policy · {{ .Version }}</summary><div style="white-space:pre-wrap">{{ .PrivacyText }}</div></details>
+<input type="hidden" name="legal_version" value="{{ .Version }}">
+<label><input type="checkbox" name="accept_terms" value="yes" required> I agree to these Terms of Service and acknowledge the Privacy Policy.</label>
+{{ end }}
 <button type="submit" class="auth-primary">Confirm {{ .Total }} order →</button>
 </form>
 {{ end }}

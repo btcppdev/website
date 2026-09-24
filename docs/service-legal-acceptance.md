@@ -1,6 +1,7 @@
 # Shared service checkout policy acceptance
 
-Initial Alerts Stripe subscriptions now support explicit policy acceptance.
+Initial Alerts Stripe subscriptions and stored prepaid quote confirmation now
+support explicit policy acceptance.
 `service_legal_revisions` holds immutable, product-specific reviewed text and its
 content hash. `service_legal_current` selects a revision; registration alone does
 not make it active. No launch policy is seeded or activated by the migration.
@@ -26,6 +27,20 @@ so agreement does not rely on a mutable external link. Operator publication and
 cross-service rollout tooling remain to build; the exported registration and
 activation functions are not public HTTP endpoints.
 
+## Prepaid orders
+
+The quote review page loads the current policy and requires explicit agreement.
+Confirmation rechecks the revision under the activation lock and freezes the
+server-created acceptance in the purchase quote snapshot, in the same transaction
+as the order and tax evidence. Caller-supplied acceptance objects are rejected.
+The idempotency comparison preserves all pricing/tax checks while retaining the
+first acceptance time; submitting another version cannot rewrite an existing order.
+
+An already-confirmed quote redirects to its account-owned order. That order and
+its receipt show the original policy version, acceptance time and escaped policy
+text. A later policy update does not relabel the purchase. This is separate from
+starting payment; confirmation still creates no provider charge.
+
 ## Verification
 
 Fresh normal migrations, then all command/internal/external race suites were run.
@@ -39,9 +54,10 @@ No live Stripe calls or real payments occurred.
 
 ## Remaining rollout work
 
-- OpenNode prepaid confirmation, prorated upgrades and Insider checkout acceptance.
-- Copy the original agreement reference into downstream order/receipt views where
-  needed; it currently remains reachable through the checkout record.
+- Stripe prorated upgrades and Insider checkout acceptance; provider/browser
+  rehearsals of all prepaid terms and prepaid increase paths.
+- Propagate the original card agreement reference into invoice/receipt views;
+  prepaid order/receipt pages already expose their frozen agreement.
 - Reviewed policy publication/activation tooling and cross-service consistency.
 - Decide and implement handling of legacy open checkouts without acceptance before
   activating policies in an environment that already issued hosted payment URLs.
@@ -52,3 +68,12 @@ This is not a completed legal launch gate. Existing subscriptions and automatic
 renewals are not retroactively asserted to have accepted a newly published policy.
 The tables extend the unmerged consolidated migration 128; verification uses fresh
 databases, with no migration checksum or hook bypass.
+
+Prepaid follow-up (September 24): full handler/getter race suites passed. Tests
+reject missing/stale agreement without creating orders, preserve evidence across
+policy changes and retries, reject caller-forged acceptance and forbid stored
+snapshot changes. The real-session HTTP fixture covers required escaped review,
+OpenNode order/payment flow and duplicate confirmation. A targeted final handler
+run verifies confirmed-quote redirects and the policy text in order/receipt views.
+Logs: `/private/tmp/alerts-prepaid-legal-20260924.log` and
+`/private/tmp/alerts-prepaid-legal-view-20260924.log`. Providers remain local mocks.
