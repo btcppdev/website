@@ -5,6 +5,7 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"bytes"
 	"context"
 	"errors"
@@ -18,6 +19,7 @@ import (
 )
 
 type alertsStripeUpgradePage struct {
+	Policy                                          *getters.ServiceLegalPolicy
 	ID, CSRF, Charge, Tax, Monthly, Period, Message string
 	Previous, Desired                               int64
 	CanConfirm, CanPay                              bool
@@ -78,7 +80,15 @@ func AlertsStripeUpgrade(w http.ResponseWriter, r *http.Request, app *config.App
 		}
 		switch r.PostForm.Get("action") {
 		case "confirm":
-			state, e := getters.ReserveAlertsStripeIncrease(r.Context(), app, identity.PersonID, id)
+			acceptedVersion := ""
+			if len(r.PostForm["accept_terms"]) == 1 && r.PostForm.Get("accept_terms") == "yes" && len(r.PostForm["legal_version"]) == 1 {
+				acceptedVersion = r.PostForm.Get("legal_version")
+			}
+			state, e := getters.ReserveAlertsStripeIncreaseWithPolicy(r.Context(), app, identity.PersonID, id, acceptedVersion)
+			if errors.Is(e, getters.ErrServiceLegalReview) {
+				http.Error(w, "Reload the upgrade and accept the current terms before confirming.", 409)
+				return
+			}
 			if errors.Is(e, alertsstripe.ErrSubscription) {
 				http.Error(w, "This quote expired or billing changed. Request a new upgrade quote.", 409)
 				return
@@ -139,6 +149,13 @@ func AlertsStripeUpgrade(w http.ResponseWriter, r *http.Request, app *config.App
 		page.Message = "This upgrade has expired. It did not add any paid project allowance."
 	default:
 		page.Message = "This upgrade needs review. Contact support before submitting another request."
+	}
+	if page.CanConfirm {
+		page.Policy, err = getters.CurrentServiceLegalPolicy(app, servicebilling.AlertsProduct)
+		if err != nil {
+			http.Error(w, "Unable to load service terms", 503)
+			return
+		}
 	}
 	page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 	if err != nil {

@@ -97,6 +97,10 @@ func AlertsStripeIncreaseQuoteForPerson(ctx context.Context, app *config.AppCont
 // provider mutation. Retries recover the original record even after quote expiry.
 // A distinct reviewed quote cannot replace an unresolved instruction.
 func ReserveAlertsStripeIncrease(ctx context.Context, app *config.AppContext, person, id string) (string, error) {
+	return ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, id, "")
+}
+
+func ReserveAlertsStripeIncreaseWithPolicy(ctx context.Context, app *config.AppContext, person, id, acceptedVersion string) (string, error) {
 	quote, err := AlertsStripeIncreaseQuoteForPerson(ctx, app, person, id)
 	if err != nil {
 		return "", err
@@ -109,9 +113,12 @@ func ReserveAlertsStripeIncrease(ctx context.Context, app *config.AppContext, pe
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+person); err != nil {
 		return "", err
 	}
-	var status string
-	err = tx.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, id).Scan(&status)
+	var status, savedVersion string
+	err = tx.QueryRow(ctx, `SELECT state,coalesce(legal_acceptance->>'version','') FROM alerts_stripe_increases WHERE quote_id=$1`, id).Scan(&status, &savedVersion)
 	if err == nil {
+		if savedVersion != acceptedVersion {
+			return "", ErrServiceLegalReview
+		}
 		return status, tx.Commit(ctx)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -130,7 +137,18 @@ func ReserveAlertsStripeIncrease(ctx context.Context, app *config.AppContext, pe
 	if pending {
 		return "", alertsstripe.ErrSubscription
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_increases(quote_id,checkout_id) VALUES($1,$2)`, id, quote.CheckoutID); err != nil {
+	acceptance, err := serviceLegalAcceptanceTx(ctx, tx, servicebilling.AlertsProduct, acceptedVersion)
+	if err != nil {
+		return "", err
+	}
+	var raw []byte
+	if acceptance != nil {
+		raw, err = json.Marshal(acceptance)
+		if err != nil {
+			return "", err
+		}
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_increases(quote_id,checkout_id,legal_acceptance) VALUES($1,$2,$3)`, id, quote.CheckoutID, raw); err != nil {
 		return "", err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE alerts_stripe_checkouts SET next_reconcile_at=now() WHERE id=$1`, quote.CheckoutID); err != nil {

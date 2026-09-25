@@ -1,6 +1,6 @@
 # Shared service checkout policy acceptance
 
-Initial Alerts Stripe subscriptions and stored prepaid quote confirmation now
+Initial Alerts Stripe subscriptions, prorated card upgrades and stored prepaid quote confirmation now
 support explicit policy acceptance.
 `service_legal_revisions` holds immutable, product-specific reviewed text and its
 content hash. `service_legal_current` selects a revision; registration alone does
@@ -41,6 +41,17 @@ its receipt show the original policy version, acceptance time and escaped policy
 text. A later policy update does not relabel the purchase. This is separate from
 starting payment; confirmation still creates no provider charge.
 
+## Prorated Stripe upgrades
+
+Upgrade review displays the current policy with an unchecked agreement box.
+Confirmation stores the exact policy text, hash and server timestamp in
+`alerts_stripe_increases.legal_acceptance`, atomically with the authorization and
+before provider mutation. Activation and confirmation share the policy lock.
+The existing immutable quote still determines the amount and proration date.
+The database rejects changes to the saved acceptance; retries must supply its
+original version even after policy replacement. Existing confirmed upgrades can
+continue through recovery and invoice payment without authorizing a second charge.
+
 ## Verification
 
 Fresh normal migrations, then all command/internal/external race suites were run.
@@ -54,7 +65,7 @@ No live Stripe calls or real payments occurred.
 
 ## Remaining rollout work
 
-- Stripe prorated upgrades and Insider checkout acceptance; provider/browser
+- Insider checkout acceptance; provider/browser
   rehearsals of all prepaid terms and prepaid increase paths.
 - Propagate the original card agreement reference into invoice/receipt views;
   prepaid order/receipt pages already expose their frozen agreement.
@@ -77,3 +88,15 @@ OpenNode order/payment flow and duplicate confirmation. A targeted final handler
 run verifies confirmed-quote redirects and the policy text in order/receipt views.
 Logs: `/private/tmp/alerts-prepaid-legal-20260924.log` and
 `/private/tmp/alerts-prepaid-legal-view-20260924.log`. Providers remain local mocks.
+
+Prorated card upgrade follow-up (September 24): fresh migration 128 and all
+command/internal/external race suites passed in
+`commerce_account_deletion_acceptance_20260924235759_20304`. The final HTTP
+regression also passed, covering escaped policy text, required agreement, no
+Stripe update on missing/stale acceptance, repeated confirmation, invoice payment
+and worker recovery. PostgreSQL coverage verifies concurrent reservation, policy
+replacement, unchanged first acceptance and database immutability. Logs:
+`/private/tmp/alerts-upgrade-legal-20260924.log` and
+`/private/tmp/alerts-upgrade-legal-http-20260924.log`. Connected account-deletion
+tests used the existing September 23 Alerts executable; this run does not verify
+the later Alerts signup policy UI. No real payments occurred.

@@ -396,6 +396,7 @@ FOR EACH ROW EXECUTE FUNCTION protect_alerts_stripe_evidence();
 
 CREATE TABLE alerts_stripe_increases (
  quote_id uuid PRIMARY KEY,
+ legal_acceptance jsonb CHECK(jsonb_typeof(legal_acceptance)='object'),
  checkout_id uuid NOT NULL,
  state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','applied','expired','review')),
  created_at timestamptz NOT NULL DEFAULT now(),
@@ -406,6 +407,7 @@ CREATE UNIQUE INDEX alerts_stripe_increase_pending ON alerts_stripe_increases(ch
 CREATE FUNCTION protect_alerts_increase_identity() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='DELETE' OR NEW.quote_id IS DISTINCT FROM OLD.quote_id OR NEW.checkout_id IS DISTINCT FROM OLD.checkout_id
+ OR NEW.legal_acceptance IS DISTINCT FROM OLD.legal_acceptance
  OR NEW.created_at IS DISTINCT FROM OLD.created_at OR (OLD.state<>'pending' AND NEW.state IS DISTINCT FROM OLD.state) THEN
  RAISE EXCEPTION 'Increase identity and resolved outcomes cannot be changed' USING ERRCODE='23514';
  END IF;

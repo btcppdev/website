@@ -5,6 +5,7 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"btcpp-web/internal/types"
 	"context"
 	"encoding/json"
@@ -195,6 +196,14 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 		}
 		return res.StatusCode, string(body), res.Header.Get("Location")
 	}
+	policy := getters.ServiceLegalPolicy{ProductCode: servicebilling.AlertsProduct, Version: "upgrade-" + person, TermsText: "Upgrade <terms>", PrivacyText: "Upgrade privacy", EffectiveAt: now.Add(-time.Hour)}
+	if err := getters.RegisterServiceLegalPolicy(app, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := getters.ActivateServiceLegalPolicy(app, policy.ProductCode, policy.Version); err != nil {
+		t.Fatal(err)
+	}
+	defer app.DB.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
 	call("/login-fixture", nil)
 	code, body, path := call("/services/alerts/subscribe?account="+person+"&slots=3", nil)
 	if code != 303 || !strings.HasPrefix(path, "/services/alerts/upgrade/") {
@@ -204,11 +213,30 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 	if code != 200 || !strings.Contains(body, "$1.95") || !strings.Contains(body, "$6.00") {
 		t.Fatal("review", code, body)
 	}
+	if !strings.Contains(body, "Upgrade &lt;terms&gt;") || !strings.Contains(body, `name="accept_terms" value="yes" required`) {
+		t.Fatal("missing escaped policy agreement", body)
+	}
 	token := regexp.MustCompile(`name="csrf" value="([^"]+)"`).FindStringSubmatch(body)
 	if len(token) != 2 {
 		t.Fatal("missing csrf")
 	}
 	form := url.Values{"csrf": {token[1]}, "action": {"confirm"}, "total": {"1"}, "slots": {"999"}}
+	for _, version := range []string{"", "stale"} {
+		form.Set("legal_version", version)
+		if version != "" {
+			form.Set("accept_terms", "yes")
+		}
+		if code, body, _ := call(path, form); code != 409 {
+			t.Fatal("unaccepted upgrade", code, body)
+		}
+	}
+	lock.Lock()
+	if updates != 0 {
+		t.Error("unaccepted upgrade reached Stripe", updates)
+	}
+	lock.Unlock()
+	form.Set("legal_version", policy.Version)
+	form.Set("accept_terms", "yes")
 	for i := 0; i < 2; i++ {
 		if code, body, location := call(path, form); code != 303 || location != path {
 			t.Fatal("confirm", code, body, location)
@@ -268,7 +296,7 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 	if len(token) != 2 {
 		t.Fatal("second csrf")
 	}
-	if code, body, location := call(secondPath, url.Values{"csrf": {token[1]}, "action": {"confirm"}}); code != 303 || location != secondPath {
+	if code, body, location := call(secondPath, url.Values{"csrf": {token[1]}, "action": {"confirm"}, "accept_terms": {"yes"}, "legal_version": {policy.Version}}); code != 303 || location != secondPath {
 		t.Fatal("second confirmation", code, body, location)
 	}
 	lock.Lock()
@@ -308,7 +336,7 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 		t.Fatal("background quote", code, body)
 	}
 	thirdID := strings.TrimPrefix(thirdPath, "/services/alerts/upgrade/")
-	if _, err = getters.ReserveAlertsStripeIncrease(ctx, app, person, thirdID); err != nil {
+	if _, err = getters.ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, thirdID, policy.Version); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(ctx, `UPDATE alerts_stripe_checkouts SET stripe_session_id=$2,next_reconcile_at=now() WHERE id=$1`, id, "cs_fixture_"+id); err != nil {

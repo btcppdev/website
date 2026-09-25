@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"btcpp-web/internal/alertsstripe"
+	"btcpp-web/internal/servicebilling"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stripe/stripe-go/v86"
@@ -79,18 +80,65 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increase_quotes SET preview='{}' WHERE id=$1`, quote.ID); err == nil {
 		t.Fatal("quote mutable")
 	}
+	policy := ServiceLegalPolicy{ProductCode: servicebilling.AlertsProduct, Version: uuid.NewString(), TermsText: "Upgrade terms", PrivacyText: "Upgrade privacy", EffectiveAt: now.Add(-time.Hour)}
+	if err := RegisterServiceLegalPolicy(app, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := ActivateServiceLegalPolicy(app, policy.ProductCode, policy.Version); err != nil {
+		t.Fatal(err)
+	}
+	defer app.DB.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
+	for _, version := range []string{"", "stale"} {
+		if _, err := ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, quote.ID, version); !errors.Is(err, ErrServiceLegalReview) {
+			t.Fatal("unaccepted upgrade reserved", err)
+		}
+	}
+	var count int
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_increases WHERE quote_id=$1`, quote.ID).Scan(&count); err != nil || count != 0 {
+		t.Fatal("rejected agreement authorized upgrade", count, err)
+	}
 	var wg sync.WaitGroup
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			status, e := ReserveAlertsStripeIncrease(ctx, app, person, quote.ID)
+			status, e := ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, quote.ID, policy.Version)
 			if e != nil || status != "pending" {
 				t.Errorf("reservation %s %v", status, e)
 			}
 		}()
 	}
 	wg.Wait()
+	var raw []byte
+	if err := app.DB.QueryRow(ctx, `SELECT legal_acceptance FROM alerts_stripe_increases WHERE quote_id=$1`, quote.ID).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var evidence servicebilling.LegalAcceptance
+	if err := json.Unmarshal(raw, &evidence); err != nil || evidence.Version != policy.Version || evidence.TermsText != policy.TermsText || evidence.PrivacyText != policy.PrivacyText || len(evidence.ContentSHA256) != 64 || evidence.AcceptedAt.IsZero() {
+		t.Fatal("missing acceptance evidence", evidence, err)
+	}
+	next := policy
+	next.Version = uuid.NewString()
+	next.EffectiveAt = now.Add(-time.Minute)
+	if err := RegisterServiceLegalPolicy(app, next); err != nil {
+		t.Fatal(err)
+	}
+	if err := ActivateServiceLegalPolicy(app, next.ProductCode, next.Version); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, quote.ID, next.Version); !errors.Is(err, ErrServiceLegalReview) {
+		t.Fatal("retry rewrote agreement", err)
+	}
+	if _, err := ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, quote.ID, policy.Version); err != nil {
+		t.Fatal("original retry rejected", err)
+	}
+	var retryRaw []byte
+	if err := app.DB.QueryRow(ctx, `SELECT legal_acceptance FROM alerts_stripe_increases WHERE quote_id=$1`, quote.ID).Scan(&retryRaw); err != nil || string(raw) != string(retryRaw) {
+		t.Fatal("retry changed evidence", err)
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE alerts_stripe_increases SET legal_acceptance=NULL WHERE quote_id=$1`, quote.ID); err == nil {
+		t.Fatal("acceptance mutable")
+	}
 	if resumed, e := PrepareAlertsStripeIncrease(ctx, app, person, id, 4, alertsstripe.Client{}); e != nil || resumed == nil || resumed.ID != quote.ID || resumed.Preview.PaidSlots != 3 {
 		t.Fatal("pending upgrade replaced by new cart", resumed, e)
 	}
@@ -148,7 +196,7 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increases SET state='expired' WHERE quote_id=$1`, quote.ID); err != nil {
 		t.Fatal(err)
 	}
-	if status, e := ReserveAlertsStripeIncrease(ctx, app, person, quote.ID); e != nil || status != "expired" {
+	if status, e := ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, quote.ID, policy.Version); e != nil || status != "expired" {
 		t.Fatal("resolved retry", status, e)
 	}
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increases SET state='pending' WHERE quote_id=$1`, quote.ID); err == nil {
