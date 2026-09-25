@@ -59,6 +59,7 @@ func TestOpenNodeServiceLookupPostgres(t *testing.T) {
 	chargeID := uuid.NewString()
 	status, currency, amount, orderID, responseID := "paid", "USD", json.Number("12.34"), attempt.ID, chargeID
 	redirect := false
+	price := int64(25000)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" || r.URL.Path != "/v2/charge/"+chargeID || r.Header.Get("Authorization") != "local-lookup-key" {
 			t.Error("incorrect lookup request")
@@ -68,7 +69,7 @@ func TestOpenNodeServiceLookupPostgres(t *testing.T) {
 			w.WriteHeader(302)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": responseID, "order_id": orderID, "status": status, "currency": currency, "source_fiat_value": amount, "fiat_value": 999}})
+		json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": responseID, "order_id": orderID, "status": status, "currency": currency, "source_fiat_value": amount, "fiat_value": 999, "price": price, "fee": 250, "missing_amt": 0, "overpaid_by": 50}})
 	}))
 	defer server.Close()
 	app.Env.OpenNode.Endpoint, app.Env.OpenNode.Key = server.URL+"/v1", "local-lookup-key"
@@ -116,6 +117,15 @@ func TestOpenNodeServiceLookupPostgres(t *testing.T) {
 		}
 	}
 	status = "paid"
+	price = 0
+	if paid, err := reconcileOpenNodeServiceCharge(ctx, app, chargeID, server.Client()); err == nil || paid {
+		t.Fatal("missing Bitcoin price accepted", err)
+	}
+	var rejectedEvents int
+	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_payment_events WHERE attempt_id=$1`, attempt.ID).Scan(&rejectedEvents); err != nil || rejectedEvents != 0 {
+		t.Fatal("invalid Bitcoin evidence persisted settlement", rejectedEvents, err)
+	}
+	price = 25000
 	var wg sync.WaitGroup
 	for i := 0; i < 6; i++ {
 		wg.Add(1)
@@ -127,6 +137,22 @@ func TestOpenNodeServiceLookupPostgres(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	var evidence OpenNodeBitcoinEvidence
+	var evidenceBytes []byte
+	if err := app.DB.QueryRow(ctx, `SELECT opennode_bitcoin FROM service_payment_events WHERE attempt_id=$1`, attempt.ID).Scan(&evidenceBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(evidenceBytes, &evidence); err != nil || evidence.PriceSatoshis != 25000 || evidence.FeeSatoshis == nil || *evidence.FeeSatoshis != 250 || evidence.OverpaidSatoshis == nil || *evidence.OverpaidSatoshis != 50 {
+		t.Fatal("original Bitcoin evidence lost", evidence, err)
+	}
+	price++
+	if paid, err := reconcileOpenNodeServiceCharge(ctx, app, chargeID, server.Client()); err == nil || paid {
+		t.Fatal("changed Bitcoin evidence accepted on replay", err)
+	}
+	price--
+	if _, err := app.DB.Exec(ctx, `UPDATE service_payment_events SET opennode_bitcoin=NULL WHERE attempt_id=$1`, attempt.ID); err == nil {
+		t.Fatal("Bitcoin settlement evidence was mutable")
+	}
 	var events, grants int
 	var source string
 	var paidAt time.Time

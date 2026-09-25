@@ -893,3 +893,13 @@ CREATE TABLE service_legal_current (
  version text NOT NULL,
  FOREIGN KEY(product_code,version) REFERENCES service_legal_revisions(product_code,version)
 );
+
+-- Authenticated Bitcoin price evidence is frozen with the payment event. Legacy
+-- or non-OpenNode events may have no evidence and cannot establish a BTC refund.
+ALTER TABLE service_payment_events ADD COLUMN opennode_bitcoin jsonb
+ CHECK(opennode_bitcoin IS NULL OR
+   (provider='opennode' AND jsonb_typeof(opennode_bitcoin)='object'
+    AND opennode_bitcoin ? 'price_satoshis'
+    AND jsonb_typeof(opennode_bitcoin->'price_satoshis')='number'
+    AND (opennode_bitcoin->>'price_satoshis')::numeric BETWEEN 1 AND 2100000000000000
+    AND trunc((opennode_bitcoin->>'price_satoshis')::numeric)=(opennode_bitcoin->>'price_satoshis')::numeric));

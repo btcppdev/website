@@ -197,7 +197,8 @@ type VerifiedServicePayment struct {
 	PaidAt     time.Time
 	// SettledSats is populated by Lightning adapters for branded receipts; it
 	// is not used to establish the frozen USD order total.
-	SettledSats int64
+	SettledSats     int64
+	OpenNodeBitcoin *OpenNodeBitcoinEvidence `json:",omitempty"`
 }
 
 // RecordServicePayment persists settlement and advances an unchanged pending
@@ -210,6 +211,17 @@ func RecordServicePayment(app *config.AppContext, payment VerifiedServicePayment
 func recordServicePayment(app *config.AppContext, payment VerifiedServicePayment, observedPaid bool) error {
 	if strings.TrimSpace(payment.EventID) == "" || len(payment.EventID) > 255 || (!observedPaid && payment.PaidAt.IsZero()) || payment.Currency != "USD" || (observedPaid && payment.Provider != "opennode") {
 		return ErrServicePayment
+	}
+	var bitcoinEvidence []byte
+	if observedPaid || payment.OpenNodeBitcoin != nil {
+		if payment.Provider != "opennode" || !payment.OpenNodeBitcoin.valid() {
+			return ErrServicePayment
+		}
+		var err error
+		bitcoinEvidence, err = json.Marshal(payment.OpenNodeBitcoin)
+		if err != nil {
+			return err
+		}
 	}
 	ctx := app.DatabaseContext()
 	tx, err := app.DB.Begin(ctx)
@@ -255,14 +267,14 @@ func recordServicePayment(app *config.AppContext, payment VerifiedServicePayment
 	if observedPaid {
 		timeSource = "first_verified_observation"
 	}
-	result, err := tx.Exec(ctx, `INSERT INTO service_payment_events(provider,event_id,attempt_id,total_cents,currency,paid_at,time_source)
-		VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(provider,event_id) DO NOTHING`, provider, payment.EventID, payment.AttemptID, payment.TotalCents, payment.Currency, payment.PaidAt, timeSource)
+	result, err := tx.Exec(ctx, `INSERT INTO service_payment_events(provider,event_id,attempt_id,total_cents,currency,paid_at,time_source,opennode_bitcoin)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(provider,event_id) DO NOTHING`, provider, payment.EventID, payment.AttemptID, payment.TotalCents, payment.Currency, payment.PaidAt, timeSource, bitcoinEvidence)
 	if err != nil {
 		return err
 	}
 	if result.RowsAffected() == 0 {
 		var same bool
-		err = tx.QueryRow(ctx, `SELECT attempt_id=$3 AND total_cents=$4 AND currency=$5 AND paid_at=$6 AND time_source=$7 FROM service_payment_events WHERE provider=$1 AND event_id=$2`, provider, payment.EventID, payment.AttemptID, payment.TotalCents, payment.Currency, payment.PaidAt, timeSource).Scan(&same)
+		err = tx.QueryRow(ctx, `SELECT attempt_id=$3 AND total_cents=$4 AND currency=$5 AND paid_at=$6 AND time_source=$7 AND opennode_bitcoin IS NOT DISTINCT FROM $8::jsonb FROM service_payment_events WHERE provider=$1 AND event_id=$2`, provider, payment.EventID, payment.AttemptID, payment.TotalCents, payment.Currency, payment.PaidAt, timeSource, bitcoinEvidence).Scan(&same)
 		if err != nil {
 			return err
 		}

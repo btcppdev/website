@@ -36,7 +36,8 @@ func reconcileOpenNodeServiceCharge(ctx context.Context, app *config.AppContext,
 	if err := json.Unmarshal(raw, &quote); err != nil {
 		return false, err
 	}
-	err = recordServicePayment(app, VerifiedServicePayment{AttemptID: charge.AttemptID, Provider: "opennode", Reference: charge.ID, EventID: "charge-paid:" + charge.ID, Currency: "USD", TotalCents: quote.TotalCents}, true)
+	evidence := &OpenNodeBitcoinEvidence{PriceSatoshis: charge.PriceSatoshis, FeeSatoshis: charge.FeeSatoshis, OverpaidSatoshis: charge.OverpaidSatoshis, MissingSatoshis: charge.MissingSatoshis}
+	err = recordServicePayment(app, VerifiedServicePayment{AttemptID: charge.AttemptID, Provider: "opennode", Reference: charge.ID, EventID: "charge-paid:" + charge.ID, Currency: "USD", TotalCents: quote.TotalCents, OpenNodeBitcoin: evidence}, true)
 	if err != nil {
 		return false, err
 	}

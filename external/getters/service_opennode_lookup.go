@@ -23,6 +23,37 @@ type OpenNodeServiceCharge struct {
 	Status            string      `json:"status"`
 	Currency          string      `json:"currency"`
 	SourceFiatValue   json.Number `json:"source_fiat_value"`
+	PriceSatoshis     int64       `json:"price"`
+	FeeSatoshis       *int64      `json:"fee"`
+	OverpaidSatoshis  *int64      `json:"overpaid_by"`
+	MissingSatoshis   *int64      `json:"missing_amt"`
+}
+
+// OpenNodeBitcoinEvidence preserves the authenticated charge's original Bitcoin
+// price separately from USD accounting. Overpayments are not silently included
+// in the purchased service's refund basis; payout review must account for them.
+// Optional fields remain nil when the provider omitted them, rather than
+// inventing evidence that the fee or overpayment was zero.
+type OpenNodeBitcoinEvidence struct {
+	PriceSatoshis    int64  `json:"price_satoshis"`
+	FeeSatoshis      *int64 `json:"fee_satoshis"`
+	OverpaidSatoshis *int64 `json:"overpaid_satoshis"`
+	MissingSatoshis  *int64 `json:"missing_satoshis"`
+}
+
+func (e *OpenNodeBitcoinEvidence) valid() bool {
+	const maxSats int64 = 21_000_000 * 100_000_000
+	if e == nil || e.PriceSatoshis <= 0 || e.PriceSatoshis > maxSats {
+		return false
+	}
+	for _, amount := range []*int64{e.FeeSatoshis, e.OverpaidSatoshis, e.MissingSatoshis} {
+		if amount != nil && (*amount < 0 || *amount > maxSats) {
+			return false
+		}
+	}
+	return (e.FeeSatoshis == nil || *e.FeeSatoshis <= e.PriceSatoshis) &&
+		(e.OverpaidSatoshis == nil || *e.OverpaidSatoshis <= maxSats-e.PriceSatoshis) &&
+		(e.MissingSatoshis == nil || *e.MissingSatoshis == 0)
 }
 
 // LookupOpenNodeServiceCharge accepts a candidate charge ID, including one from a

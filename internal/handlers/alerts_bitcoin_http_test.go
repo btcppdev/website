@@ -101,7 +101,7 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 			if paid.Load() {
 				status = "paid"
 			}
-			json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": chargeID, "order_id": attemptID.Load(), "status": status, "currency": "USD", "source_fiat_value": 48, "hosted_checkout_url": "https://checkout.opennode.com/" + chargeID}})
+			json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": chargeID, "order_id": attemptID.Load(), "status": status, "currency": "USD", "source_fiat_value": 48, "price": 48000, "fee": 480, "missing_amt": 0, "hosted_checkout_url": "https://checkout.opennode.com/" + chargeID}})
 			return
 		}
 		if r.Method != "POST" || r.URL.Path != "/v1/tax/calculations" {
