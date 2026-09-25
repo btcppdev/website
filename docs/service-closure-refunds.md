@@ -5,6 +5,9 @@ paid, without converting the original USD price at the refund-date exchange rate
 This applies to permanent closure; ordinary cancellation does not issue a refund.
 Confirmed rounding: round down to the nearest whole satoshi, capped at the
 original payment. Use `FloorSatoshis` from the calculator for this rule.
+Confirmed payout flow: an admin reviews the amounts and pays from our wallet;
+shared Bitcoin++ commerce records verified payout evidence. V1 does not initiate
+OpenNode withdrawals. This recording flow must be shared with Insider.
 
 `servicebilling.EstimateBitcoinClosureRefund` computes the unused proportion for
 one funded service period. It returns both floor and ceiling satoshi amounts,
@@ -58,12 +61,14 @@ Provider calls used local fixtures; no real payment or refund was made.
   fields in its [charge webhook guide](https://developers.opennode.com/docs/charges-webhooks);
   the authenticated [charge lookup](https://developers.opennode.com/reference/charge-info)
   must establish the refund basis. A callback alone is insufficient evidence.
-- Resolve refund timing and payout mechanism; persist the confirmed rounding rule and
+- Resolve refund timing and implement verified recording of admin wallet payouts;
+  persist the confirmed rounding rule and
   closure timestamp used for an executable refund plan.
 - Verify the original-asset refund ledger and closure preview against provider
   refund evidence before issuing payouts. Preview output is not a payout instruction.
-- Provide a reviewable per-order plan, stop renewals, terminate access at closure,
-  execute with durable identities, reconcile ambiguous responses and issue receipts.
+- Provide durable per-order approval/allocation, stop renewals, terminate access
+  at closure, verify admin wallet payout evidence without duplicate allocation,
+  reconcile ambiguous/manual payments and issue receipts.
 - Rehearse provider-backed completion before treating closure refunds as shipped.
 
 ## Prior refunds and operator preview
@@ -90,8 +95,10 @@ overpayment evidence also produce review reasons and a null remaining amount.
 Ordinary cancellation still does not issue refunds.
 
 The preview neither reserves funds nor changes access, queues delivery, or calls
-a payment provider. A future executor must revalidate and reserve under the same
-order lock, freeze the reviewed closure time, and reconcile ambiguous payouts.
+a payment provider. The manual payout workflow must revalidate and reserve under
+the same order lock, freeze the reviewed closure time, and reconcile payout
+evidence before recording completion. A transaction ID alone is not sufficient
+to establish the paid amount and its allocation to an order.
 USD/tax accounting for actual Bitcoin refunds—including amounts below one USD
 cent—still needs implementation before payout execution; the current generic
 refund recorder requires a positive USD accounting amount.
