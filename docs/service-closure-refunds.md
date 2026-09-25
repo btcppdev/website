@@ -106,3 +106,20 @@ floor rounding, previous closure refunds and expired periods. Log:
 The actual CLI was also run against its synthetic 1,001-satoshi payment at the
 period midpoint: 500 satoshis unused, minus 200 already refunded, leaves 300.
 No real payment, refund, access change or message was issued.
+
+## Reuse with Insider
+
+Alerts and Insider use the same central service orders, settlement evidence,
+refund ledger and closure-preview function. A PostgreSQL race test runs the same
+floor-rounding/prior-refund/expiry cases for `alerts.repository-slots` and
+`insider.membership.annual`; both passed on September 25
+(`/private/tmp/shared-insider-closure-20260925.log`). Product access handling and
+receipt branding remain separate from these shared financial facts.
+
+Insider already has reversal handling, access decisions and adjustment receipts.
+Its current adjustment event and receipt model carry USD cents, but do not yet
+carry the newly recorded refunded-satoshi amount. That field must be propagated
+through the shared dispatch and Insider receipt storage/rendering. The separate
+`codex/insider-commerce-converged` worktree is also behind this shared branch;
+reconcile via rebase and connected tests before claiming deployed integration.
+No separate Insider payment/refund ledger should be introduced.

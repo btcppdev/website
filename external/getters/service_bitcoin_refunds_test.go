@@ -12,6 +12,10 @@ import (
 )
 
 func bitcoinRefundFixture(t *testing.T, evidence *OpenNodeBitcoinEvidence) (*config.AppContext, VerifiedServiceRefund, time.Time) {
+	return bitcoinRefundProductFixture(t, evidence, "alerts.repository-slots")
+}
+
+func bitcoinRefundProductFixture(t *testing.T, evidence *OpenNodeBitcoinEvidence, product string) (*config.AppContext, VerifiedServiceRefund, time.Time) {
 	t.Helper()
 	app := databaseSmokeContext(t)
 	ctx := context.Background()
@@ -24,7 +28,7 @@ func bitcoinRefundFixture(t *testing.T, evidence *OpenNodeBitcoinEvidence) (*con
 	}
 	start := time.Now().UTC().Truncate(time.Second)
 	end := start.AddDate(1, 0, 0)
-	quote := ServiceQuote{ProductCode: "alerts.repository-slots", ResourceID: "closure-test", Name: "Prepaid service", Provider: "opennode", Quantity: 1, UnitCents: 1000, TotalCents: 1000, PeriodStart: &start, PeriodEnd: &end, ExpiresAt: start.Add(time.Hour)}
+	quote := ServiceQuote{ProductCode: product, ResourceID: "closure-test", Name: "Prepaid service", Provider: "opennode", Quantity: 1, UnitCents: 1000, TotalCents: 1000, PeriodStart: &start, PeriodEnd: &end, ExpiresAt: start.Add(time.Hour)}
 	purchase, err := CreateServicePurchase(app, person, uuid.NewString(), quote)
 	if err != nil {
 		t.Fatal(err)
@@ -109,28 +113,35 @@ func TestBitcoinRefundLedgerPostgres(t *testing.T) {
 }
 
 func TestBitcoinClosurePlanPostgres(t *testing.T) {
-	zero := int64(0)
-	app, refund, closure := bitcoinRefundFixture(t, &OpenNodeBitcoinEvidence{PriceSatoshis: 1001, OverpaidSatoshis: &zero})
-	ctx := context.Background()
-	plan, err := PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure)
-	if err != nil || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 500 || len(plan.ReviewReasons) != 0 {
-		t.Fatal("floor estimate", plan, err)
-	}
-	if records, err := ListServiceRefunds(ctx, app, refund.AttemptID); err != nil || len(records) != 0 {
-		t.Fatal("preview recorded a refund", records, err)
-	}
-	amount := int64(200)
-	refund.AmountSatoshis = &amount
-	if err := RecordServiceRefund(ctx, app, refund); err != nil {
-		t.Fatal(err)
-	}
-	plan, err = PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure)
-	if err != nil || plan.PreviouslyRefundedSatoshis == nil || *plan.PreviouslyRefundedSatoshis != 200 || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 300 {
-		t.Fatal("prior closure refund not deducted", plan, err)
-	}
-	plan, err = PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure.AddDate(2, 0, 0))
-	if err != nil || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 0 {
-		t.Fatal("expired refund", plan, err)
+	for _, product := range []string{"alerts.repository-slots", "insider.membership.annual"} {
+		t.Run(product, func(t *testing.T) {
+			zero := int64(0)
+			app, refund, closure := bitcoinRefundProductFixture(t, &OpenNodeBitcoinEvidence{PriceSatoshis: 1001, OverpaidSatoshis: &zero}, product)
+			ctx := context.Background()
+			plan, err := PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure)
+			if err != nil || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 500 || len(plan.ReviewReasons) != 0 {
+				t.Fatal("floor estimate", plan, err)
+			}
+			if plan.ProductCode != product {
+				t.Fatal("preview changed product identity", plan.ProductCode)
+			}
+			if records, err := ListServiceRefunds(ctx, app, refund.AttemptID); err != nil || len(records) != 0 {
+				t.Fatal("preview recorded a refund", records, err)
+			}
+			amount := int64(200)
+			refund.AmountSatoshis = &amount
+			if err := RecordServiceRefund(ctx, app, refund); err != nil {
+				t.Fatal(err)
+			}
+			plan, err = PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure)
+			if err != nil || plan.PreviouslyRefundedSatoshis == nil || *plan.PreviouslyRefundedSatoshis != 200 || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 300 {
+				t.Fatal("prior closure refund not deducted", plan, err)
+			}
+			plan, err = PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure.AddDate(2, 0, 0))
+			if err != nil || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 0 {
+				t.Fatal("expired refund", plan, err)
+			}
+		})
 	}
 }
 
