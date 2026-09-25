@@ -39,7 +39,7 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 	}
 	defer pool.Close()
 	app := &config.AppContext{DB: pool, Session: scs.New(), Env: &types.EnvConfig{Host: "localhost", Port: "8898", StripeKey: "sk_test_upgrade_fixture"}}
-	app.TemplateCache, err = template.ParseFiles("../../templates/alerts_stripe_upgrade.tmpl", "../../templates/alerts_stripe_start.tmpl")
+	app.TemplateCache, err = template.ParseFiles("../../templates/alerts_stripe_upgrade.tmpl", "../../templates/alerts_stripe_start.tmpl", "../../templates/service_order.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,6 +171,7 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 		}
 		w.WriteHeader(204)
 	})
+	router.HandleFunc("/services/orders/{order}", func(w http.ResponseWriter, r *http.Request) { ServiceOrder(w, r, app) })
 	router.HandleFunc("/services/alerts/subscribe", func(w http.ResponseWriter, r *http.Request) { AlertsStripeStart(w, r, app) })
 	router.HandleFunc("/services/alerts/upgrade/{quote}", func(w http.ResponseWriter, r *http.Request) { AlertsStripeUpgrade(w, r, app) })
 	server := httptest.NewServer(app.Session.LoadAndSave(router))
@@ -277,6 +278,14 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 	}
 	if err != nil || len(grants) != 2 || total != 3 {
 		t.Fatal("fulfilled allowance", grants, err)
+	}
+	var receiptID string
+	if err := app.DB.QueryRow(ctx, `SELECT o.public_id FROM alerts_stripe_increase_payments p JOIN shop_orders o ON o.id=p.order_id WHERE p.quote_id=$1`, strings.TrimPrefix(path, "/services/alerts/upgrade/")).Scan(&receiptID); err != nil {
+		t.Fatal(err)
+	}
+	code, body, _ = call("/services/orders/"+receiptID, nil)
+	if code != 200 || !strings.Contains(body, "Accepted policy version") || !strings.Contains(body, policy.Version) || !strings.Contains(body, "Upgrade &lt;terms&gt;") || !strings.Contains(body, "Print or save receipt") {
+		t.Fatal("paid upgrade receipt agreement", code, body)
 	}
 	// A second upgrade must verify the first proration, not interpret it as a
 	// full-month invoice or require waiting until the next renewal.

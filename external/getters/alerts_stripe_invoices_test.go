@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"btcpp-web/internal/alertsstripe"
+	"btcpp-web/internal/servicebilling"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stripe/stripe-go/v86"
@@ -29,8 +30,26 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	if _, err := app.DB.Exec(ctx, `INSERT INTO person_emails(person_id,email,is_primary,verified_at) VALUES($1,$2,true,now())`, person, "invoice-"+person+"@example.test"); err != nil {
 		t.Fatal(err)
 	}
-	reserved, err := ReserveAlertsStripeCheckout(app, person, "invoice-activation-key", 2, "https://btcpp.dev")
+	policy := ServiceLegalPolicy{ProductCode: servicebilling.AlertsProduct, Version: uuid.NewString(), TermsText: "Subscription terms", PrivacyText: "Subscription privacy", EffectiveAt: time.Now().Add(-time.Hour)}
+	if err := RegisterServiceLegalPolicy(app, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := ActivateServiceLegalPolicy(app, policy.ProductCode, policy.Version); err != nil {
+		t.Fatal(err)
+	}
+	defer app.DB.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
+	reserved, err := ReserveAlertsStripeCheckoutWithPolicy(app, person, "invoice-activation-key", 2, "https://btcpp.dev", policy.Version)
 	if err != nil {
+		t.Fatal(err)
+	}
+	next := policy
+	next.Version = uuid.NewString()
+	next.TermsText = "Replacement policy"
+	next.EffectiveAt = time.Now().Add(-time.Minute)
+	if err := RegisterServiceLegalPolicy(app, next); err != nil {
+		t.Fatal(err)
+	}
+	if err := ActivateServiceLegalPolicy(app, next.ProductCode, next.Version); err != nil {
 		t.Fatal(err)
 	}
 	price := &stripe.Price{ID: "price_" + reserved.Intent.ID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_" + reserved.Intent.ID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
@@ -302,5 +321,31 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	var quote ServiceQuote
 	if err := json.Unmarshal(snapshot, &quote); err != nil || quote.TaxCents != 36 || quote.TotalCents != 400 {
 		t.Fatal("lost tax snapshot", quote, err)
+	}
+	if quote.LegalAcceptance == nil || *quote.LegalAcceptance != *reserved.Intent.LegalAcceptance {
+		t.Fatal("receipt lost original agreement", quote.LegalAcceptance)
+	}
+	rows, err := app.DB.Query(ctx, `SELECT r.quote_snapshot FROM service_purchase_requests r JOIN alerts_stripe_invoices i ON i.order_id=r.order_id WHERE i.checkout_id=$1`, reserved.Intent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	count := 0
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		var q ServiceQuote
+		if err := json.Unmarshal(raw, &q); err != nil {
+			t.Fatal(err)
+		}
+		if q.LegalAcceptance == nil || *q.LegalAcceptance != *reserved.Intent.LegalAcceptance {
+			t.Fatal("renewal relabeled original agreement", q.LegalAcceptance)
+		}
+		count++
+	}
+	if rows.Err() != nil || count < 2 {
+		t.Fatal("missing renewal coverage", count, rows.Err())
 	}
 }

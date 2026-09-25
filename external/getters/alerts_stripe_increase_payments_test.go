@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"btcpp-web/internal/alertsstripe"
+	"btcpp-web/internal/servicebilling"
 	"github.com/stripe/stripe-go/v86"
 )
 
@@ -57,13 +58,31 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	if _, err = recordAlertsStripeIncreasePayment(ctx, app, person, paid); err == nil {
 		t.Fatal("unconfirmed quote fulfilled")
 	}
-	if _, err = ReserveAlertsStripeIncrease(ctx, app, person, q.ID); err != nil {
+	policy := ServiceLegalPolicy{ProductCode: servicebilling.AlertsProduct, Version: "upgrade-" + person, TermsText: "Upgrade agreement", PrivacyText: "Upgrade privacy", EffectiveAt: now.Add(-time.Hour)}
+	if err := RegisterServiceLegalPolicy(app, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := ActivateServiceLegalPolicy(app, policy.ProductCode, policy.Version); err != nil {
+		t.Fatal(err)
+	}
+	defer app.DB.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
+	if _, err = ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, q.ID, policy.Version); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = recordAlertsStripeIncreasePayment(ctx, app, person, paid); err == nil {
 		t.Fatal("unpaid base granted upgrade")
 	}
 	if _, err = recordAlertsStripeInvoice(app, b, alertsstripe.PaidPeriod{InvoiceID: "in_base_" + id, SubscriptionID: b.SubscriptionID, Quantity: 2, TotalCents: 400, TaxCents: 30, Start: start, End: end, PaidAt: start}); err != nil {
+		t.Fatal(err)
+	}
+	next := policy
+	next.Version += "-next"
+	next.TermsText = "Replacement terms"
+	next.EffectiveAt = now.Add(-time.Minute)
+	if err := RegisterServiceLegalPolicy(app, next); err != nil {
+		t.Fatal(err)
+	}
+	if err := ActivateServiceLegalPolicy(app, next.ProductCode, next.Version); err != nil {
 		t.Fatal(err)
 	}
 	// Force an error late in the transaction. No receipt or grant may leak.
@@ -162,6 +181,21 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	}
 	if quantity != 5 {
 		t.Fatal("wrong total allowance", quantity)
+	}
+	var receiptRaw, acceptanceRaw []byte
+	if err := app.DB.QueryRow(ctx, `SELECT r.quote_snapshot,i.legal_acceptance FROM service_purchase_requests r JOIN alerts_stripe_increase_payments p ON p.order_id=r.order_id JOIN alerts_stripe_increases i ON i.quote_id=p.quote_id WHERE r.order_id=$1`, order).Scan(&receiptRaw, &acceptanceRaw); err != nil {
+		t.Fatal(err)
+	}
+	var receipt ServiceQuote
+	var accepted servicebilling.LegalAcceptance
+	if err := json.Unmarshal(receiptRaw, &receipt); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(acceptanceRaw, &accepted); err != nil {
+		t.Fatal(err)
+	}
+	if receipt.LegalAcceptance == nil || *receipt.LegalAcceptance != accepted || accepted.Version != policy.Version {
+		t.Fatal("receipt changed upgrade agreement", receipt.LegalAcceptance)
 	}
 	var total, tax, count int64
 	var consistent bool

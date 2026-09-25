@@ -7,6 +7,7 @@ import (
 
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -46,11 +47,17 @@ func recordAlertsStripeIncreasePayment(ctx context.Context, app *config.AppConte
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
-	var raw []byte
+	var raw, acceptanceRaw []byte
 	var email, status string
-	err = tx.QueryRow(ctx, `SELECT s.binding,c.intent->>'Email',i.state FROM alerts_stripe_checkouts c JOIN alerts_stripe_current_subscriptions s ON s.checkout_id=c.id JOIN alerts_stripe_increases i ON i.checkout_id=c.id WHERE c.id=$1 AND c.person_id=$2 AND i.quote_id=$3 FOR UPDATE OF c,i`, quote.CheckoutID, person, paid.QuoteID).Scan(&raw, &email, &status)
+	err = tx.QueryRow(ctx, `SELECT s.binding,c.intent->>'Email',i.state,i.legal_acceptance FROM alerts_stripe_checkouts c JOIN alerts_stripe_current_subscriptions s ON s.checkout_id=c.id JOIN alerts_stripe_increases i ON i.checkout_id=c.id WHERE c.id=$1 AND c.person_id=$2 AND i.quote_id=$3 FOR UPDATE OF c,i`, quote.CheckoutID, person, paid.QuoteID).Scan(&raw, &email, &status, &acceptanceRaw)
 	if err != nil {
 		return nil, err
+	}
+	var acceptance *servicebilling.LegalAcceptance
+	if len(acceptanceRaw) > 0 {
+		if err = json.Unmarshal(acceptanceRaw, &acceptance); err != nil {
+			return nil, err
+		}
 	}
 	var b alertsstripe.Binding
 	if json.Unmarshal(raw, &b) != nil || b.PersonID != person || b.IntentID != quote.CheckoutID || b.SubscriptionID != paid.SubscriptionID || b.PaidSlots != paid.PreviousSlots || status != "pending" {
@@ -69,7 +76,7 @@ func recordAlertsStripeIncreasePayment(ctx context.Context, app *config.AppConte
 	period := alertsstripe.PaidPeriod{InvoiceID: paid.InvoiceID, SubscriptionID: paid.SubscriptionID, Quantity: paid.AdditionalSlots, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, Start: paid.Start, End: paid.End, PaidAt: paid.PaidAt}
 	// Stripe prorates the old and replacement quantities independently. The net
 	// total need not divide evenly by the added slot count; retain the exact total.
-	serviceQuote := ServiceQuote{ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts prorated additional repositories", Provider: "stripe", Quantity: paid.AdditionalSlots, UnitCents: paid.TotalCents / paid.AdditionalSlots, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 1}
+	serviceQuote := ServiceQuote{LegalAcceptance: acceptance, ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts prorated additional repositories", Provider: "stripe", Quantity: paid.AdditionalSlots, UnitCents: paid.TotalCents / paid.AdditionalSlots, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 1}
 	if err = recordStripeServicePayment(ctx, tx, person, email, period, serviceQuote, out); err != nil {
 		return nil, err
 	}

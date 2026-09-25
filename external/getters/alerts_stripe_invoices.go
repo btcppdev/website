@@ -123,9 +123,14 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 		return nil, err
 	}
 	var email string
+	var intentRaw []byte
 	var same bool
-	err = tx.QueryRow(ctx, `SELECT c.intent->>'Email',s.binding=$3::jsonb FROM alerts_stripe_current_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.id=$1 AND c.person_id=$2 FOR UPDATE OF c`, b.IntentID, b.PersonID, rawBinding).Scan(&email, &same)
+	err = tx.QueryRow(ctx, `SELECT c.intent->>'Email',c.intent,s.binding=$3::jsonb FROM alerts_stripe_current_subscriptions s JOIN alerts_stripe_checkouts c ON c.id=s.checkout_id WHERE c.id=$1 AND c.person_id=$2 FOR UPDATE OF c`, b.IntentID, b.PersonID, rawBinding).Scan(&email, &intentRaw, &same)
 	if err != nil {
+		return nil, err
+	}
+	var intent alertsstripe.Intent
+	if err = json.Unmarshal(intentRaw, &intent); err != nil {
 		return nil, err
 	}
 	currentBinding := same
@@ -153,7 +158,7 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 	if overlaps {
 		return nil, alertsstripe.ErrInvoice
 	}
-	quote := ServiceQuote{ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts additional repositories", Provider: "stripe", Quantity: paid.Quantity, UnitCents: servicebilling.AlertsMonthlySlotCents, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 1}
+	quote := ServiceQuote{LegalAcceptance: intent.LegalAcceptance, ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts additional repositories", Provider: "stripe", Quantity: paid.Quantity, UnitCents: servicebilling.AlertsMonthlySlotCents, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 1}
 	if err = recordStripeServicePayment(ctx, tx, b.PersonID, email, paid, quote, out); err != nil {
 		return nil, err
 	}

@@ -52,6 +52,17 @@ The database rejects changes to the saved acceptance; retries must supply its
 original version even after policy replacement. Existing confirmed upgrades can
 continue through recovery and invoice payment without authorizing a second charge.
 
+## Stripe order and receipt evidence
+
+Newly recorded Alerts subscription invoices copy acceptance from the immutable
+checkout intent into the order quote. Renewals retain that same original evidence
+and timestamp; they do not claim fresh acceptance of the current policy. Prorated
+upgrade invoices instead copy the upgrade confirmation's own immutable agreement.
+The existing account-owned order/printable receipt page displays its version,
+acceptance time and escaped Terms/Privacy text. Legacy purchases without recorded
+agreement remain without one; this change does not invent historical consent or
+rewrite existing immutable orders. Receipt emails continue linking to the order.
+
 ## Verification
 
 Fresh normal migrations, then all command/internal/external race suites were run.
@@ -67,8 +78,8 @@ No live Stripe calls or real payments occurred.
 
 - Insider checkout acceptance; provider/browser
   rehearsals of all prepaid terms and prepaid increase paths.
-- Propagate the original card agreement reference into invoice/receipt views;
-  prepaid order/receipt pages already expose their frozen agreement.
+- Decide whether future renewal policy changes need a separate reacceptance flow;
+  existing renewals retain the original subscription agreement.
 - Reviewed policy publication/activation tooling and cross-service consistency.
 - Decide and implement handling of legacy open checkouts without acceptance before
   activating policies in an environment that already issued hosted payment URLs.
@@ -100,3 +111,11 @@ replacement, unchanged first acceptance and database immutability. Logs:
 `/private/tmp/alerts-upgrade-legal-http-20260924.log`. Connected account-deletion
 tests used the existing September 23 Alerts executable; this run does not verify
 the later Alerts signup policy UI. No real payments occurred.
+
+Card receipt follow-up (September 24): full getter race suite passed, including
+initial invoice, renewal and prorated upgrade agreement preservation after a
+policy replacement. The real-session HTTP upgrade fixture also passed its new
+paid receipt assertion (version, escaped text and print/save control). Logs:
+`/private/tmp/alerts-card-receipt-legal-20260924.log` and
+`/private/tmp/alerts-card-receipt-http-20260924.log`. No provider calls or real
+charges were made; provider responses were local fixtures.
