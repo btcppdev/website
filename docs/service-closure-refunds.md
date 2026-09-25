@@ -60,8 +60,49 @@ Provider calls used local fixtures; no real payment or refund was made.
   must establish the refund basis. A callback alone is insufficient evidence.
 - Resolve refund timing and payout mechanism; persist the confirmed rounding rule and
   closure timestamp used for an executable refund plan.
-- Reconcile previous refunds in the original asset before issuing more. This pure
-  estimate must not be sent directly to a provider as a payout instruction.
+- Verify the original-asset refund ledger and closure preview against provider
+  refund evidence before issuing payouts. Preview output is not a payout instruction.
 - Provide a reviewable per-order plan, stop renewals, terminate access at closure,
   execute with durable identities, reconcile ambiguous responses and issue receipts.
 - Rehearse provider-backed completion before treating closure refunds as shipped.
+
+## Prior refunds and operator preview
+
+`VerifiedServiceRefund.AmountSatoshis` records a verified Bitcoin refund alongside
+its USD accounting amount. Unknown amounts remain null. The ledger serializes on
+the order/payment lock, checks both asset balances, and rejects conflicting replays
+or concurrent refunds that would exceed the original Bitcoin price. Missing or
+conflicting original Bitcoin evidence, or an earlier refund with unknown satoshis,
+prevents recording a further Bitcoin-denominated refund. No exchange rate fills
+these gaps. The immutable refund trigger also protects the satoshi amount.
+
+Inspect one prepaid order without sending a payment:
+
+```sh
+service-refunds -attempt PAYMENT_ATTEMPT_UUID -closure-at 2030-01-01T00:00:00Z
+```
+
+This reads the order's actual funded period and original charge price in a single
+database snapshot. `remaining_refund_satoshis` uses the floor estimate minus earlier
+verified refunds marked `permanent_closure`, never less than zero. Earlier goodwill
+refunds need allocation review. Unknown Bitcoin amounts and absent/nonzero
+overpayment evidence also produce review reasons and a null remaining amount.
+Ordinary cancellation still does not issue refunds.
+
+The preview neither reserves funds nor changes access, queues delivery, or calls
+a payment provider. A future executor must revalidate and reserve under the same
+order lock, freeze the reviewed closure time, and reconcile ambiguous payouts.
+USD/tax accounting for actual Bitcoin refunds—including amounts below one USD
+cent—still needs implementation before payout execution; the current generic
+refund recorder requires a positive USD accounting amount.
+
+Verification (September 25): the complete fresh-database acceptance suite passed
+with race detection and randomized order after these changes. Tests cover
+concurrent Bitcoin balance exhaustion even when USD capacity remains, replay
+identity, immutable satoshi amounts, unknown prior amounts, overpayment review,
+floor rounding, previous closure refunds and expired periods. Log:
+`/private/tmp/bitcoin-refund-planning-20260925.log`; database:
+`commerce_account_deletion_acceptance_20260925170252_47672`.
+The actual CLI was also run against its synthetic 1,001-satoshi payment at the
+period midpoint: 500 satoshis unused, minus 200 already refunded, leaves 300.
+No real payment, refund, access change or message was issued.

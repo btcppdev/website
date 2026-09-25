@@ -33,9 +33,9 @@ func ClaimInsiderRefundDelivery(ctx context.Context, app *config.AppContext, att
  ), claimed AS (
  UPDATE service_refund_jobs j SET attempts=attempts+1,lease_until=$3 FROM due
  WHERE j.provider=due.provider AND j.refund_reference=due.refund_reference RETURNING j.*
- ) SELECT j.attempt_id::text,j.provider,j.refund_reference,r.payment_reference,r.amount_cents,r.currency,r.refunded_at,r.reason,j.revision,j.attempts,j.payload,decision.action
+ ) SELECT j.attempt_id::text,j.provider,j.refund_reference,r.payment_reference,r.amount_cents,r.currency,r.refunded_at,r.reason,j.revision,j.attempts,j.payload,decision.action,r.amount_satoshis
  FROM claimed j JOIN service_payment_refunds r USING(provider,refund_reference)
- JOIN service_refund_access_decisions decision USING(provider,refund_reference)`, attemptID, now, now.Add(time.Minute)).Scan(&job.Refund.AttemptID, &job.Refund.Provider, &job.Refund.RefundReference, &job.Refund.PaymentReference, &job.Refund.AmountCents, &job.Refund.Currency, &job.Refund.RefundedAt, &job.Refund.Reason, &job.Revision, &job.Attempt, &job.Payload, &job.AccessAction)
+ JOIN service_refund_access_decisions decision USING(provider,refund_reference)`, attemptID, now, now.Add(time.Minute)).Scan(&job.Refund.AttemptID, &job.Refund.Provider, &job.Refund.RefundReference, &job.Refund.PaymentReference, &job.Refund.AmountCents, &job.Refund.Currency, &job.Refund.RefundedAt, &job.Refund.Reason, &job.Revision, &job.Attempt, &job.Payload, &job.AccessAction, &job.Refund.AmountSatoshis)
 	return &job, err
 }
 

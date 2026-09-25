@@ -903,3 +903,6 @@ ALTER TABLE service_payment_events ADD COLUMN opennode_bitcoin jsonb
     AND jsonb_typeof(opennode_bitcoin->'price_satoshis')='number'
     AND (opennode_bitcoin->>'price_satoshis')::numeric BETWEEN 1 AND 2100000000000000
     AND trunc((opennode_bitcoin->>'price_satoshis')::numeric)=(opennode_bitcoin->>'price_satoshis')::numeric));
+
+ALTER TABLE service_payment_refunds ADD COLUMN amount_satoshis bigint
+ CHECK(amount_satoshis IS NULL OR (provider='opennode' AND amount_satoshis BETWEEN 1 AND 2100000000000000));

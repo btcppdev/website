@@ -19,6 +19,9 @@ type VerifiedServiceRefund struct {
 	Currency                                               string
 	RefundedAt                                             time.Time
 	Reason                                                 string
+	// AmountSatoshis is verified original-asset evidence for Bitcoin refunds.
+	// Nil means unknown, never zero and never a USD conversion at today's rate.
+	AmountSatoshis *int64
 }
 
 // RecordServiceRefund serializes against settlement and other refunds for the
@@ -26,6 +29,9 @@ type VerifiedServiceRefund struct {
 // Product reversal delivery is a separate step; no provider route calls this yet.
 func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund VerifiedServiceRefund) error {
 	if refund.AttemptID == "" || (refund.Provider != "stripe" && refund.Provider != "opennode") || len(refund.PaymentReference) < 1 || len(refund.PaymentReference) > 255 || len(refund.RefundReference) < 1 || len(refund.RefundReference) > 255 || refund.AmountCents <= 0 || refund.Currency != "USD" || refund.RefundedAt.IsZero() || len(refund.Reason) > 1000 {
+		return ErrServiceRefund
+	}
+	if refund.AmountSatoshis != nil && (refund.Provider != "opennode" || *refund.AmountSatoshis <= 0 || *refund.AmountSatoshis > 2_100_000_000_000_000) {
 		return ErrServiceRefund
 	}
 	tx, err := app.DB.Begin(ctx)
@@ -49,7 +55,7 @@ func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund Ver
 		return err
 	}
 	var same bool
-	err = tx.QueryRow(ctx, `SELECT attempt_id=$3 AND payment_reference=$4 AND amount_cents=$5 AND currency=$6 AND refunded_at=$7 AND reason=$8 FROM service_payment_refunds WHERE provider=$1 AND refund_reference=$2`, refund.Provider, refund.RefundReference, refund.AttemptID, refund.PaymentReference, refund.AmountCents, refund.Currency, refund.RefundedAt, refund.Reason).Scan(&same)
+	err = tx.QueryRow(ctx, `SELECT attempt_id=$3 AND payment_reference=$4 AND amount_cents=$5 AND currency=$6 AND refunded_at=$7 AND reason=$8 AND amount_satoshis IS NOT DISTINCT FROM $9::bigint FROM service_payment_refunds WHERE provider=$1 AND refund_reference=$2`, refund.Provider, refund.RefundReference, refund.AttemptID, refund.PaymentReference, refund.AmountCents, refund.Currency, refund.RefundedAt, refund.Reason, refund.AmountSatoshis).Scan(&same)
 	if err == nil {
 		if !same {
 			return ErrServiceRefund
@@ -67,7 +73,24 @@ func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund Ver
 		(refunded == 0 && status != "paid") || (refunded > 0 && refunded < total && status != "partially_refunded") {
 		return ErrServiceRefund
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO service_payment_refunds(provider,refund_reference,attempt_id,payment_reference,amount_cents,currency,refunded_at,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, refund.Provider, refund.RefundReference, refund.AttemptID, refund.PaymentReference, refund.AmountCents, refund.Currency, refund.RefundedAt, refund.Reason)
+	if refund.AmountSatoshis != nil {
+		var original, largest, unknownPayments, previous, unknownRefunds int64
+		err = tx.QueryRow(ctx, `SELECT coalesce(min((opennode_bitcoin->>'price_satoshis')::bigint),0),
+ coalesce(max((opennode_bitcoin->>'price_satoshis')::bigint),0),count(*) FILTER(WHERE opennode_bitcoin IS NULL)
+ FROM service_payment_events WHERE attempt_id=$1`, refund.AttemptID).Scan(&original, &largest, &unknownPayments)
+		if err != nil {
+			return err
+		}
+		err = tx.QueryRow(ctx, `SELECT coalesce(sum(amount_satoshis),0),count(*) FILTER(WHERE amount_satoshis IS NULL)
+ FROM service_payment_refunds WHERE attempt_id=$1`, refund.AttemptID).Scan(&previous, &unknownRefunds)
+		if err != nil {
+			return err
+		}
+		if original <= 0 || original != largest || unknownPayments != 0 || unknownRefunds != 0 || previous > original || *refund.AmountSatoshis > original-previous {
+			return ErrServiceRefund
+		}
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO service_payment_refunds(provider,refund_reference,attempt_id,payment_reference,amount_cents,currency,refunded_at,reason,amount_satoshis) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, refund.Provider, refund.RefundReference, refund.AttemptID, refund.PaymentReference, refund.AmountCents, refund.Currency, refund.RefundedAt, refund.Reason, refund.AmountSatoshis)
 	if err != nil {
 		return err
 	}

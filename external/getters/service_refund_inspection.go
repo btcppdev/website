@@ -16,6 +16,7 @@ type ServiceRefundInspection struct {
 	Provider                string     `json:"provider"`
 	RefundReference         string     `json:"refund_reference"`
 	AmountCents             int64      `json:"amount_cents"`
+	AmountSatoshis          *int64     `json:"amount_satoshis"`
 	Currency                string     `json:"currency"`
 	RecordedAt              time.Time  `json:"recorded_at"`
 	AccessAction            string     `json:"access_action,omitempty"`
@@ -35,7 +36,7 @@ type ServiceRefundInspection struct {
 // jobs first. Ordering is stable, and no provider or delivery calls are made.
 func ListServiceRefunds(ctx context.Context, app *config.AppContext, attemptID string) ([]ServiceRefundInspection, error) {
 	rows, err := app.DB.Query(ctx, `SELECT f.attempt_id::text,o.public_id,r.quote_snapshot->>'product_code',
-	 f.provider,f.refund_reference,f.amount_cents,f.currency,f.recorded_at,
+	 f.provider,f.refund_reference,f.amount_cents,f.amount_satoshis,f.currency,f.recorded_at,
 	 coalesce(d.action,''),coalesce(d.actor_id::text,''),d.decided_at,
 	 j.state,j.revision,j.attempts,j.next_attempt_at,j.lease_until,
 	 coalesce(original.state,'not_queued'),
@@ -55,7 +56,7 @@ func ListServiceRefunds(ctx context.Context, app *config.AppContext, attemptID s
 	result := make([]ServiceRefundInspection, 0)
 	for rows.Next() {
 		var item ServiceRefundInspection
-		if err := rows.Scan(&item.AttemptID, &item.OrderPublicID, &item.ProductCode, &item.Provider, &item.RefundReference, &item.AmountCents, &item.Currency, &item.RecordedAt, &item.AccessAction, &item.DecisionActor, &item.DecisionAt, &item.State, &item.Revision, &item.Attempts, &item.NextAttemptAt, &item.LeaseUntil, &item.OriginalSettlementState, &item.EarlierRefundPending); err != nil {
+		if err := rows.Scan(&item.AttemptID, &item.OrderPublicID, &item.ProductCode, &item.Provider, &item.RefundReference, &item.AmountCents, &item.AmountSatoshis, &item.Currency, &item.RecordedAt, &item.AccessAction, &item.DecisionActor, &item.DecisionAt, &item.State, &item.Revision, &item.Attempts, &item.NextAttemptAt, &item.LeaseUntil, &item.OriginalSettlementState, &item.EarlierRefundPending); err != nil {
 			return nil, err
 		}
 		result = append(result, item)
