@@ -141,6 +141,11 @@ dependency. Pinning upstream `v0.0.0-20260928115942-58e4c715304e` resolved it; t
 full Insider race suite now passes with PostgreSQL and pointer checks enabled
 (`/private/tmp/insider-full-race-20260929.log`). The local Nix package build also
 passes. Insider website `main` now contains this integration at `d73c83b`, brought
-in via rebase. The separate `codex/insider-commerce-converged` backend worktree
-still needs reconciliation with this shared branch. No deployed integration or
-actual message/payment delivery is claimed.
+in via rebase. The `codex/insider-commerce-converged` backend worktree was also
+rebased onto this shared implementation on September 29. Its full fresh-database
+acceptance suite passes with race detection and randomized order:
+`/private/tmp/insider-backend-convergence-20260929.log`. The original `a1669b33`
+tip remains on `archive/insider-commerce-before-shared-20260929`.
+The website still needs its old campaign relay transport replaced with direct
+mailer delivery, and verified manual payout recording remains unfinished.
+No deployed integration or actual message/payment delivery is claimed.
