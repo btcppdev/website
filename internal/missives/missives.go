@@ -42,6 +42,9 @@ func ParseSubscribeToken(sec []byte, token string) (*SubToken, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(timeB) != 8 {
+		return nil, fmt.Errorf("invalid token timestamp")
+	}
 	timestamp := binary.LittleEndian.Uint64(timeB)
 	hash, _ := helpers.GetSubscribeToken(sec, string(emailB), string(subB), timestamp)
 	if hash != parts[0] {

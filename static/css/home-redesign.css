@@ -1072,6 +1072,16 @@ body.btcpp-home:has(.archive-rain) {
 
 .home-subscribe form {
   display: flex;
+  flex-wrap: wrap;
+}
+
+#home-newsletter-result {
+  flex-basis: 100%;
+  max-width: 430px;
+}
+
+#home-newsletter-result:empty {
+  display: none;
 }
 
 .home-subscribe input {

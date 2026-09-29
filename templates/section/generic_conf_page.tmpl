@@ -643,7 +643,7 @@
       <h2>Don't miss a <span>thing.</span></h2>
       <p>Join the list for ticket drops, agenda updates, speaker announcements, and field notes from {{ .Conf.Location }}.</p>
     </div>
-    <form hx-post="/newsletter/subscribe" hx-target="#newsletter-subscribe-result" hx-swap="innerHTML">
+    <form method="post" action="/newsletter/subscribe" hx-post="/newsletter/subscribe" hx-target="#newsletter-subscribe-result" hx-swap="innerHTML">
       <label for="newsletter-email" class="rebrand-newsletter__sr">Email address</label>
       <input id="newsletter-email"
         type="email"

@@ -6,7 +6,7 @@
             <h2 class="mx-auto max-w-3xl text-center text-4xl font-semibold tracking-tight text-white sm:text-5xl">Don't miss a single ✨ moment</h2>
       <p class="mx-auto mt-6 max-w-lg text-center text-lg text-gray-300">Join our mailing list and don't miss a moment of what's happening at the frontier of bitcoin.</p>
       <div id="news_subscribe_result" class="mt-4 mx-auto max-w-md text-sm text-gray-300"></div>
-      <form class="mx-auto mt-4 flex max-w-md gap-x-4">
+      <form method="post" action="/newsletter/subscribe" hx-post="/newsletter/subscribe" hx-target="#news_subscribe_result" hx-swap="innerHTML" class="mx-auto mt-4 flex max-w-md gap-x-4">
         <label for="newsletter-email" class="sr-only">Email address</label>
         <input id="newsletter-email" 
 	type="email" 
@@ -20,11 +20,6 @@
 	autocomplete="email" 
 	class="min-w-0 flex-auto rounded-md bg-white/4 px-3.5 py-2 text-base text-gray-800 outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-white sm:text-sm/6" />
         <button type="submit" 
-	 hx-post="/newsletter/subscribe"
-	 hx-include="#newsletter-email"
-	 hx-trigger="click"
-	 hx-target="#news_subscribe_result"
-	 hx-on::before-request="document.querySelector('#newsletter-email').value='';document.querySelector('#em-post-result').remove()"
 	class="flex-none rounded-md bg-white px-3.5 py-2.5 text-sm font-semibold text-gray-900 shadow-xs hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Join list</button>
       </form>
       <div class="mx-auto mt-2 max-w-md text-sm text-gray-300">By subscribing you agree to receive updates from bitcoin++. No spam, just the good stuff.</div>

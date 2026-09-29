@@ -174,52 +174,17 @@ func ConfirmEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		return
 	}
 
-	/* Add to email list */
-	subscriber, err := getters.FindSubscriber(ctx, subToken.Email)
+	// Persist membership before scheduling follow-up mail. Scheduling can be
+	// retried by reopening the link; the mailer deduplicates missive job keys.
+	subscriber, err := getters.SubscribeEmail(ctx, subToken.Email, subToken.Newsletter)
 	if err != nil {
-		ctx.Infos.Printf("Subscribe failed for newsletter confirmation request %s: %s", subToken.Email, err)
-		/* FIXME: show an error banner or something */
-		/* Return the homepage page */
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		ctx.Err.Printf("Subscription confirmation failed: %s", err)
+		http.Error(w, "Unable to save your subscription. Please retry this link.", http.StatusServiceUnavailable)
 		return
 	}
-
-	if subscriber == nil {
-		subscriber, err = getters.SubscribeEmail(ctx, subToken.Email, subToken.Newsletter)
-		if err != nil {
-			ctx.Infos.Printf("Subscribe failed for newsletter confirmation request %s: %s", subToken.Email, err)
-			/* FIXME: show an error banner or something */
-			/* Return the homepage page */
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-	}
-
-	changed := subscriber.AddSubscription(subToken.Newsletter)
-	if changed {
-		/* Send Subscriptions (if any) */
-		err = NewSubscriberMissives(ctx, subscriber, subToken.Newsletter)
-		if err != nil {
-			ctx.Infos.Printf("Missive subscribe failed for newsletter confirmation %s: %s", subToken.Email, err)
-			/* FIXME: show an error banner or something */
-			/* Return the homepage page */
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-		err = getters.UpdateSubs(ctx, subscriber)
-		if err != nil {
-			ctx.Infos.Printf("Subscribe failed for newsletter confirmation request %s: %s", subToken.Email, err)
-			/* FIXME: show an error banner or something */
-			/* Return the homepage page */
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-	}
-
-	if err != nil {
-		ctx.Err.Printf("Subscribe failed for newsletter confirmation request %s: %s", subToken.Email, err)
-		/* Return the homepage page */
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+	if err = NewSubscriberMissives(ctx, subscriber, subToken.Newsletter); err != nil {
+		ctx.Err.Printf("Subscription follow-up scheduling failed: %s", err)
+		http.Error(w, "Your subscription is saved, but follow-up emails could not be scheduled. Please retry this link.", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -266,24 +231,19 @@ func UnsubscribeEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		return
 	}
 
-	changed := subscriber.RmSubscription(subToken.Newsletter)
-	if changed {
-
-		/* Update subscriber preferences */
-		err := getters.UpdateSubs(ctx, subscriber)
-		if err != nil {
-			ctx.Infos.Printf("subscriber update error: unsubscribing %s from %s: %s", subscriber.Email, subToken.Newsletter, err)
+	if subscriber.RmSubscription(subToken.Newsletter) {
+		if err := getters.UpdateSubs(ctx, subscriber); err != nil {
+			ctx.Err.Printf("Unsubscribe save failed: %s", err)
+			http.Error(w, "Unable to save your unsubscribe request. Please retry this link.", http.StatusServiceUnavailable)
+			return
 		}
-
-		/* Update with mailer */
-		err = emails.SendSubDeleteRequest(ctx, subToken.Email, subToken.Newsletter)
-		if err != nil {
-			ctx.Infos.Printf("mailer error: unsubscribing %s from %s: %s", subscriber.Email, subToken.Newsletter, err)
-		} else {
-			ctx.Infos.Printf("Unsubscribed %s from %s", subscriber.Email, subToken.Newsletter)
-		}
-	} else {
-		ctx.Infos.Printf("Subscriber %s already unsubscribed from %s", subscriber.Email, subToken.Newsletter)
+	}
+	// Always retry cancellation, even when a previous attempt saved the
+	// preference but could not reach the mailer.
+	if err := emails.SendSubDeleteRequest(ctx, subToken.Email, subToken.Newsletter); err != nil {
+		ctx.Err.Printf("Unsubscribe cancellation failed: %s", err)
+		http.Error(w, "Your subscription has been removed, but queued emails could not be cancelled. Please retry this link.", http.StatusServiceUnavailable)
+		return
 	}
 
 	// Render the template with the data

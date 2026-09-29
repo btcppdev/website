@@ -244,9 +244,10 @@
             <h2>Don't miss a single <span class="home-serif" style="color:var(--home-accent)">moment.</span></h2>
             <p>Event announcements and Insider dispatches, direct to your inbox.</p>
           </div>
-          <form hx-post="/subscribe" hx-swap="outerHTML">
-            <input type="email" name="email" placeholder="hello@example.com" aria-label="Email address">
+          <form method="post" action="/newsletter/subscribe" hx-post="/newsletter/subscribe" hx-target="#home-newsletter-result" hx-swap="innerHTML">
+            <input type="email" name="newsletter-email" required autocomplete="email" placeholder="hello@example.com" aria-label="Email address">
             <button type="submit">Subscribe</button>
+            <div id="home-newsletter-result" role="status" aria-live="polite"></div>
           </form>
         </section>
 

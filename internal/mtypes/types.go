@@ -283,7 +283,9 @@ func (l *Letter) Missive() string {
 func (s *Subscriber) AddSublist(subs []string) bool {
 	changed := false
 	for _, sub := range subs {
-		changed = changed || s.AddSubscription(sub)
+		if s.AddSubscription(sub) {
+			changed = true
+		}
 	}
 	return changed
 }

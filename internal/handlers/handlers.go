@@ -5103,8 +5103,21 @@ func SponsorPage(w http.ResponseWriter, r *http.Request, ctx *config.AppContext)
 			// Don't fail the whole submission for a copy failure
 		}
 
+		if r.PostFormValue("Subscribe") == "on" {
+			_, token := helpers.GetSubscribeToken(ctx.Env.HMACKey[:], email, "newsletter", uint64(time.Now().UnixNano()))
+			if _, err := emails.SendNewsletterSubEmail(ctx, email, token, "newsletter"); err != nil {
+				ctx.Err.Printf("Sponsor newsletter confirmation failed: %s", err)
+				w.Write([]byte(helpers.SuccessApp("Your sponsor inquiry has been sent, but the newsletter confirmation could not be sent. Please use the newsletter signup form to try again.")))
+				return
+			}
+		}
+
 		ctx.Infos.Printf("Sponsor inquiry from %s (%s) at %s", name, email, org)
-		w.Write([]byte(helpers.SuccessApp("Your sponsor inquiry has been sent! We'll get back to you soon.")))
+		message := "Your sponsor inquiry has been sent! We'll get back to you soon."
+		if r.PostFormValue("Subscribe") == "on" {
+			message += " Please check your email to confirm your newsletter subscription."
+		}
+		w.Write([]byte(helpers.SuccessApp(message)))
 		return
 	}
 }
@@ -7793,7 +7806,9 @@ func runScheduledFlow(ctx *config.AppContext, vol *types.Volunteer, conf *types.
 		return fmt.Errorf("add ticket: %w", err)
 	}
 
-	err = missives.NewTicketSub(ctx, vol.Email, conf.Tag, tixType, true)
+	// General newsletter consent is handled when the application is confirmed.
+	// Scheduling a shift must not override an opt-out or later unsubscribe.
+	err = missives.NewTicketSub(ctx, vol.Email, conf.Tag, tixType, false)
 	if err != nil {
 		failures = append(failures, fmt.Errorf("newsletter: %w", err))
 		ctx.Err.Printf("scheduled flow: newsletter sub failed for %s: %s", vol.Email, err)
