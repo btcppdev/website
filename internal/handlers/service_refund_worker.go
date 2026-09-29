@@ -27,6 +27,13 @@ func buildInsiderRefund(original []byte, person string, job *getters.ServiceRefu
 		job.Refund.AmountCents <= 0 || job.Refund.AmountCents > event.AmountCents || job.Refund.RefundReference == "" {
 		return insiderSettlementEvent{}, getters.ErrServiceRefund
 	}
+	if job.Refund.AmountSatoshis != nil {
+		amount := *job.Refund.AmountSatoshis
+		if event.Provider != "opennode" || amount <= 0 || amount > 2_100_000_000_000_000 || (event.SettledSats > 0 && amount > event.SettledSats) {
+			return insiderSettlementEvent{}, getters.ErrServiceRefund
+		}
+		event.AdjustmentAmountSatoshis = amount
+	}
 	event.ReversesEventID = event.EventID
 	event.EventID = "refund:" + job.Refund.Provider + ":" + job.Refund.RefundReference
 	event.EventKind = "reversed"

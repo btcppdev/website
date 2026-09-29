@@ -217,6 +217,10 @@ func recordServicePayment(app *config.AppContext, payment VerifiedServicePayment
 		if payment.Provider != "opennode" || !payment.OpenNodeBitcoin.valid() {
 			return ErrServicePayment
 		}
+		if payment.SettledSats != 0 && payment.SettledSats != payment.OpenNodeBitcoin.PriceSatoshis {
+			return ErrServicePayment
+		}
+		payment.SettledSats = payment.OpenNodeBitcoin.PriceSatoshis
 		var err error
 		bitcoinEvidence, err = json.Marshal(payment.OpenNodeBitcoin)
 		if err != nil {

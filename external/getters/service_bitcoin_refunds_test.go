@@ -125,6 +125,12 @@ func TestBitcoinClosurePlanPostgres(t *testing.T) {
 			if plan.ProductCode != product {
 				t.Fatal("preview changed product identity", plan.ProductCode)
 			}
+			if product == "insider.membership.annual" {
+				var settledSats int64
+				if err := app.DB.QueryRow(ctx, `SELECT (payment->>'SettledSats')::bigint FROM service_fulfillment_jobs WHERE attempt_id=$1`, refund.AttemptID).Scan(&settledSats); err != nil || settledSats != 1001 {
+					t.Fatal("shared Bitcoin evidence not copied to receipt facts", settledSats, err)
+				}
+			}
 			if records, err := ListServiceRefunds(ctx, app, refund.AttemptID); err != nil || len(records) != 0 {
 				t.Fatal("preview recorded a refund", records, err)
 			}

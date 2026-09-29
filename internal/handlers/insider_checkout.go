@@ -55,6 +55,7 @@ type insiderSettlementEvent struct {
 	ReversesEventID           string          `json:"reverses_event_id,omitempty"`
 	AdjustmentReference       string          `json:"adjustment_reference,omitempty"`
 	AdjustmentAmountCents     int64           `json:"adjustment_amount_cents,omitempty"`
+	AdjustmentAmountSatoshis  int64           `json:"adjustment_amount_satoshis,omitempty"`
 	AdjustmentReason          string          `json:"adjustment_reason,omitempty"`
 	EventID                   string          `json:"event_id"`
 	EventKind                 string          `json:"event_kind"`

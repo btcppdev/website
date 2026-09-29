@@ -113,6 +113,21 @@ func TestBuildInsiderRefundRejectsMismatchedEvidence(t *testing.T) {
 	}
 }
 
+func TestBuildInsiderBitcoinRefundPreservesSharedAmounts(t *testing.T) {
+	original := insiderSettlementEvent{EventKind: "settled", EventID: "opennode:paid", ProductCode: "insider.membership.annual", PersonID: "reader", Provider: "opennode", ProviderReference: "charge", AmountCents: 21000, SettledSats: 100001, Currency: "USD"}
+	satoshis := int64(33333)
+	job := getters.ServiceRefundJob{AccessAction: "retain", Refund: getters.VerifiedServiceRefund{Provider: "opennode", PaymentReference: "charge", RefundReference: "verified-wallet-payout", AmountCents: 7000, Currency: "USD", AmountSatoshis: &satoshis, RefundedAt: time.Now()}}
+	raw, _ := json.Marshal(original)
+	event, err := buildInsiderRefund(raw, "reader", &job)
+	if err != nil || event.AdjustmentAmountSatoshis != satoshis || event.SettledSats != original.SettledSats || event.AdjustmentAmountCents != 7000 || event.AccessAction != "retain" {
+		t.Fatal("shared refund facts changed", event, err)
+	}
+	satoshis = 100002
+	if _, err := buildInsiderRefund(raw, "reader", &job); err == nil {
+		t.Fatal("Bitcoin refund exceeds original payment")
+	}
+}
+
 func TestBuildInsiderArticleRefundPreservesReceipt(t *testing.T) {
 	original := insiderSettlementEvent{EventKind: "settled", EventID: "stripe:article-paid", ProductCode: "insider.article", ResourceID: "article-one", PersonID: "reader", Provider: "stripe", ProviderReference: "cs_article", AmountCents: 227, TaxCents: 17, Currency: "USD", MerchantName: "Original merchant", SourceReference: "service-purchase:article"}
 	raw, _ := json.Marshal(original)

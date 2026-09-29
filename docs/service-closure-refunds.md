@@ -123,10 +123,21 @@ floor-rounding/prior-refund/expiry cases for `alerts.repository-slots` and
 (`/private/tmp/shared-insider-closure-20260925.log`). Product access handling and
 receipt branding remain separate from these shared financial facts.
 
-Insider already has reversal handling, access decisions and adjustment receipts.
-Its current adjustment event and receipt model carry USD cents, but do not yet
-carry the newly recorded refunded-satoshi amount. That field must be propagated
-through the shared dispatch and Insider receipt storage/rendering. The separate
-`codex/insider-commerce-converged` worktree is also behind this shared branch;
-reconcile via rebase and connected tests before claiming deployed integration.
-No separate Insider payment/refund ledger should be introduced.
+September 29 integration: shared dispatch now carries
+`adjustment_amount_satoshis` and original settlement satoshis from the verified
+OpenNode evidence. Insider's `codex/shared-refund-receipts` branch stores those
+adjustments, rejects changed replays and renders the amount in email/account
+receipts. It also now honors the existing shared `access_action` decision for
+membership/article refunds; the prior website checkout rejected that field.
+Receipt storage is presentation data, not a second provider refund ledger.
+
+The shared getters, handlers and servicebilling race suites pass. Insider's
+focused memory/PostgreSQL/HTTP receipt tests pass, including retain/revoke,
+Bitcoin balance limits, email output, account receipt output and replay conflicts.
+Logs: `/private/tmp/shared-bitcoin-receipts-20260929.log` and
+`/private/tmp/insider-bitcoin-receipts-focused-20260929.log`.
+The full Insider race run hit a pointer-check panic in its existing Nostr signing
+dependency (`fiatjaf.com/nostr`, `event.go:245`); it is not a passing full-suite run.
+The separate `codex/insider-commerce-converged` backend worktree still needs
+reconciliation with this shared branch, and the website branch needs integration.
+No deployed integration or actual message/payment delivery is claimed.
