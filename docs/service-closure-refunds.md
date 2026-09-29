@@ -136,8 +136,11 @@ focused memory/PostgreSQL/HTTP receipt tests pass, including retain/revoke,
 Bitcoin balance limits, email output, account receipt output and replay conflicts.
 Logs: `/private/tmp/shared-bitcoin-receipts-20260929.log` and
 `/private/tmp/insider-bitcoin-receipts-focused-20260929.log`.
-The full Insider race run hit a pointer-check panic in its existing Nostr signing
-dependency (`fiatjaf.com/nostr`, `event.go:245`); it is not a passing full-suite run.
-The separate `codex/insider-commerce-converged` backend worktree still needs
-reconciliation with this shared branch, and the website branch needs integration.
-No deployed integration or actual message/payment delivery is claimed.
+The initial full Insider race run hit a pointer-check panic in its Nostr signing
+dependency. Pinning upstream `v0.0.0-20260928115942-58e4c715304e` resolved it; the
+full Insider race suite now passes with PostgreSQL and pointer checks enabled
+(`/private/tmp/insider-full-race-20260929.log`). The local Nix package build also
+passes. Insider website `main` now contains this integration at `d73c83b`, brought
+in via rebase. The separate `codex/insider-commerce-converged` backend worktree
+still needs reconciliation with this shared branch. No deployed integration or
+actual message/payment delivery is claimed.
