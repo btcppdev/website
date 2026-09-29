@@ -585,6 +585,9 @@ func replaceCompetitionScheduleSegmentsPostgres(ctx *config.AppContext, competit
 			return fmt.Errorf("delete schedule segment %s: %w", segment.ID, err)
 		}
 	}
+	if err := attachCompetitionManagers(ctx, competitionID); err != nil {
+		return err
+	}
 	return reorderCompetitionScheduleSegmentsBySchedulePostgres(ctx, competitionID)
 }
 

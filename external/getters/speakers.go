@@ -598,16 +598,25 @@ func SetSpeakerRole(ctx *config.AppContext, speakerID, scope, position string, e
 		return fmt.Errorf("person, scope, and role are required")
 	}
 	if enabled {
-		_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
-			INSERT INTO people_roles (person_id, scope, position)
-			VALUES ($1::uuid, $2, $3)
-			ON CONFLICT DO NOTHING
-		`, speakerID, scope, position)
+		tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 		if err != nil {
+			return err
+		}
+		defer tx.Rollback(ctx.DatabaseContext())
+		if _, err := tx.Exec(ctx.DatabaseContext(), `
+			INSERT INTO people_roles (person_id, scope, position)
+			VALUES ($1::uuid, $2, $3) ON CONFLICT DO NOTHING
+		`, speakerID, scope, position); err != nil {
 			return fmt.Errorf("add person role: %w", err)
 		}
-		return nil
+		if position == "hackathon" {
+			if err := attachHackathonManagerProposals(ctx, tx, speakerID, ""); err != nil {
+				return err
+			}
+		}
+		return tx.Commit(ctx.DatabaseContext())
 	}
+
 	if _, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 		DELETE FROM people_roles
 		WHERE person_id = $1::uuid AND scope = $2 AND position = $3
@@ -651,6 +660,11 @@ func MoveSpeakerRoleScope(ctx *config.AppContext, speakerID, fromScope, toScope,
 		WHERE person_id = $1::uuid AND scope = $2 AND position = $3
 	`, speakerID, fromScope, position); err != nil {
 		return fmt.Errorf("remove previous person role: %w", err)
+	}
+	if position == "hackathon" {
+		if err := attachHackathonManagerProposals(ctx, tx, speakerID, ""); err != nil {
+			return err
+		}
 	}
 	if err := tx.Commit(dbctx); err != nil {
 		return fmt.Errorf("commit person role scope update: %w", err)
