@@ -47,27 +47,39 @@ func TestShopCheckoutDetailsFromRequestPreservesAndNormalizesValues(t *testing.T
 	}
 }
 
-func TestShopEventPickupClosesSevenDaysBeforeEvent(t *testing.T) {
-	loc, err := time.LoadLocation("America/Toronto")
+func TestShopEventPickupClosesWithTicketSales(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
 		t.Fatal(err)
 	}
-	start := time.Date(2026, time.July, 22, 9, 0, 0, 0, loc)
-	conf := &types.Conf{
-		Ref:               "conference-123",
-		PublicationStatus: "published",
-		Timezone:          "America/Toronto",
-		StartDate:         start,
+	start := time.Date(2026, time.October, 1, 11, 0, 0, 0, loc)
+	cutoff := time.Date(2026, time.October, 10, 5, 0, 0, 0, loc)
+	conf := &types.Conf{Ref: "berlin", PublicationStatus: "published", StartDate: start,
+		Tickets: types.ConfTickets{
+			{SalesEndAt: cutoff}, nil, {SalesEndAt: start.AddDate(0, -1, 0)}, {},
+		},
 	}
-	cutoff := time.Date(2026, time.July, 15, 9, 0, 0, 0, loc)
-	if !shopEventPickupOpenAt(conf, cutoff.Add(-time.Second)) {
-		t.Fatal("pickup should remain open immediately before the cutoff")
+	for _, at := range []time.Time{start.AddDate(0, 0, -1), start, cutoff.Add(-time.Second).UTC()} {
+		if !shopEventPickupOpenAt(conf, at) {
+			t.Fatalf("pickup closed before final ticket deadline: %v", at)
+		}
 	}
-	if shopEventPickupOpenAt(conf, cutoff) {
-		t.Fatal("pickup should close exactly seven days before the event")
+	for _, at := range []time.Time{cutoff, cutoff.Add(time.Second)} {
+		if shopEventPickupOpenAt(conf, at) {
+			t.Fatalf("pickup open after ticket deadline: %v", at)
+		}
 	}
-	if shopEventPickupOpenAt(conf, cutoff.Add(time.Second)) {
-		t.Fatal("pickup should remain closed after the cutoff")
+	conf.PublicationStatus = "draft"
+	if shopEventPickupOpenAt(conf, start) {
+		t.Fatal("draft event allows pickup")
+	}
+	conf.PublicationStatus = "published"
+	conf.Tickets = types.ConfTickets{nil, {}}
+	if shopEventPickupOpenAt(conf, start) {
+		t.Fatal("missing ticket deadlines allow pickup")
+	}
+	if shopEventPickupOpenAt(nil, start) {
+		t.Fatal("nil conference allows pickup")
 	}
 }
 

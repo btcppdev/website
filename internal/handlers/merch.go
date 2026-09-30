@@ -40,7 +40,6 @@ const shopActiveCheckoutSessionKey = "shop_active_checkout_v1"
 const shopShippingRatesSessionKey = "shop_shipping_rates_v1"
 
 const shopShippingRatesTTL = 20 * time.Minute
-const shopEventPickupCloseDays = 7
 
 var errShopShippingRatesExpired = errors.New("shipping services expired")
 
@@ -2601,14 +2600,19 @@ func shopEventPickupOpenAt(conf *types.Conf, now time.Time) bool {
 	if conf == nil || !conf.IsPublished() || conf.StartDate.IsZero() {
 		return false
 	}
-	loc := conf.Loc()
-	cutoff := conf.StartDate.In(loc).AddDate(0, 0, -shopEventPickupCloseDays)
-	return now.In(loc).Before(cutoff)
+	// Pickup remains open until the final ticket sales deadline, including
+	// during the event. Missing deadlines do not enable pickup indefinitely.
+	for _, ticket := range conf.Tickets {
+		if ticket != nil && !ticket.SalesEndAt.IsZero() && now.Before(ticket.SalesEndAt) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateShopPickupSelection(conf *types.Conf, selectedConfID string) error {
 	if conf == nil {
-		return fmt.Errorf("Event pickup closes seven days before the event. Please choose shipping.")
+		return fmt.Errorf("Event pickup closes when ticket sales close. Please choose shipping.")
 	}
 	if strings.TrimSpace(selectedConfID) == "" || strings.TrimSpace(selectedConfID) != conf.Ref {
 		return fmt.Errorf("That event pickup option is no longer available. Please review the current delivery options.")
@@ -2699,7 +2703,7 @@ func createTicketAddOnOrder(ctx *config.AppContext, conf *types.Conf, tix *types
 		return nil, nil
 	}
 	if !shopEventPickupOpenAt(conf, time.Now()) {
-		return nil, fmt.Errorf("event pickup closes seven days before the event")
+		return nil, fmt.Errorf("event pickup closes when ticket sales close")
 	}
 	ticketUnitCents := form.DiscountPrice * 100
 	if paymentMethod == "card" {
