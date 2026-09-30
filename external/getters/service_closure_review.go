@@ -20,6 +20,23 @@ type BitcoinClosureReview struct {
 	CreatedAt time.Time           `json:"created_at"`
 }
 
+// InspectBitcoinClosureReview reads the immutable audit record. It does not
+// revalidate it or authorize payment. Intended for trusted operator tooling.
+func InspectBitcoinClosureReview(ctx context.Context, app *config.AppContext, reviewID string) (*BitcoinClosureReview, error) {
+	if id, err := uuid.Parse(reviewID); err != nil || id.String() != reviewID {
+		return nil, ErrServiceRefund
+	}
+	review := &BitcoinClosureReview{ID: reviewID}
+	var raw []byte
+	if err := app.DB.QueryRow(ctx, `SELECT actor_id::text,reason,basis,created_at FROM service_bitcoin_closure_reviews WHERE id=$1`, reviewID).Scan(&review.ActorID, &review.Reason, &raw, &review.CreatedAt); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(raw, &review.Basis); err != nil {
+		return nil, err
+	}
+	return review, nil
+}
+
 // ReviewBitcoinClosureRefund freezes the amount the authenticated global admin
 // actually reviewed, calculated again under the settlement/refund order lock.
 // It does not reserve funds, initiate a payout, or record a verified refund.

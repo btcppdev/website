@@ -32,6 +32,10 @@ func TestBitcoinClosureReviewPostgres(t *testing.T) {
 			if err != nil || first.Basis.ProductCode != product || *first.Basis.RemainingRefundSatoshis != 500 {
 				t.Fatalf("review: %+v %v", first, err)
 			}
+			inspected, err := InspectBitcoinClosureReview(ctx, app, reviewID)
+			if err != nil || inspected.ActorID != actor || inspected.Basis.AttemptID != refund.AttemptID || *inspected.Basis.RemainingRefundSatoshis != 500 || !inspected.CreatedAt.Equal(first.CreatedAt) {
+				t.Fatalf("inspect review: %+v %v", inspected, err)
+			}
 			replay, err := ReviewBitcoinClosureRefund(ctx, app, actor, reviewID, refund.AttemptID, closure, 500, "Reviewed closure")
 			if err != nil || !replay.CreatedAt.Equal(first.CreatedAt) {
 				t.Fatalf("review replay: %+v %v", replay, err)

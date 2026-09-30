@@ -12,8 +12,9 @@ Confirmed v1 payout type: on-chain Bitcoin. An admin sends the payment from our
 wallet; the shared system verifies and records the transaction output (transaction
 ID and output index), destination, and satoshi amount against the reviewed refund.
 Lightning payouts are outside v1. Output allocation must prevent the same payout
-from being credited twice. Confirmation and reorganization handling remain to be
-implemented before this workflow is ready to use.
+from being credited twice. Initial confirmation verification is implemented below;
+durable allocation, ongoing reorganization monitoring and financial recording
+remain to be implemented before this workflow is ready to use.
 
 `servicebilling.EstimateBitcoinClosureRefund` computes the unused proportion for
 one funded service period. It returns both floor and ceiling satoshi amounts,
@@ -84,7 +85,7 @@ amount, closure date, original payment basis and prior refunds. It recalculates
 under the same order lock used by settlement and refunds, rejects stale expected
 amounts, and records the authenticated global admin and reason. A review neither
 reserves funds nor records a payout. Execution must revalidate the review against
-intervening refunds before authorizing payment; the payout verifier is unfinished.
+intervening refunds before authorizing payment; payout recording is unfinished.
 
 September 30: the full fresh-database acceptance suite passes with race detection
 and randomized test order, including admin review tests for Alerts and Insider,
@@ -132,6 +133,59 @@ floor rounding, previous closure refunds and expired periods. Log:
 The actual CLI was also run against its synthetic 1,001-satoshi payment at the
 period midpoint: 500 satoshis unused, minus 200 already refunded, leaves 300.
 No real payment, refund, access change or message was issued.
+
+## Read-only on-chain verification
+
+`internal/bitcoinpayout` checks a payout through an explicitly configured, trusted
+Bitcoin Core node. It verifies the network, initial-sync status, header/block
+agreement and tip freshness; checks the address script and exact integer satoshi
+amount at the specified output; then requires six confirmations at an unchanged
+node tip. Six confirmations is the initial operational setting, not a claim of
+irreversibility. A changing tip fails the observation and requires a retry.
+Already-spent outputs remain verifiable. Coinbase outputs are rejected.
+
+The RPC contract follows Core's
+[getrawtransaction](https://bitcoincore.org/en/doc/30.0.0/rpc/rawtransactions/getrawtransaction/),
+[validateaddress](https://bitcoincore.org/en/doc/30.0.0/rpc/util/validateaddress/),
+[getblockheader](https://bitcoincore.org/en/doc/30.0.0/rpc/blockchain/getblockheader/)
+and [getblockchaininfo](https://bitcoincore.org/en/doc/30.0.0/rpc/blockchain/getblockchaininfo/).
+The containing block is required, so a transaction index is unnecessary; the node
+must still have that block available (a pruned-away block cannot be verified).
+RPC access should be restricted to these read-only methods. Use a local connection
+or authenticated TLS; never configure a user-provided endpoint. Credentials come
+from `BITCOIN_RPC_USER` and `BITCOIN_RPC_PASSWORD`, with `BITCOIN_RPC_URL` for the
+endpoint. Redirects are refused and remote error text/credentials are not logged.
+
+Build with `make build-ops`, then inspect an existing immutable review:
+
+```sh
+target/service-bitcoin-verify -review REVIEW_UUID -txid TRANSACTION_ID \
+  -block CONTAINING_BLOCK_HASH -vout OUTPUT_INDEX -destination RECIPIENT_ADDRESS
+```
+
+The command uses the shared commerce database and defaults to Bitcoin mainnet.
+It rejects a review whose calculation has changed, uses its saved satoshi amount,
+and prints the review and node evidence with `recorded: false`. The destination
+is operator input here, not proof of recipient ownership. This command does not
+reserve an output or funds, record a refund, change access or send mail. The final
+recording transaction must bind an approved recipient destination, revalidate the
+review, enforce unique output allocation and update the shared financial ledger
+atomically. USD/tax allocation (including sub-cent refunds), admin UI/commands for
+destination approval, and reorg reconciliation after recording remain outstanding.
+
+September 30 verification: the race suite passes against an isolated Bitcoin Core
+31.1 regtest node, with no external peers or real coins. It tests an actual payment,
+one-versus-six confirmations, incorrect amount/destination, spending the payout,
+invalidating its block and reconsidering it. HTTP fixtures also cover stale/wrong
+network nodes, missing fields, tip changes, exact decimal arithmetic and failure
+redaction. Log: `/private/tmp/bitcoin-payout-verification-20260930.log`.
+Run it with `BITCOINPAYOUT_REGTEST_BINARY=/path/to/bitcoind go test -race
+./internal/bitcoinpayout`; without that variable the real-node test is skipped.
+
+The full fresh-database acceptance suite also passes with race detection,
+randomized test order and the regtest binary enabled:
+`/private/tmp/bitcoin-payout-acceptance-20260930.log`. The operator binary builds
+and its `-help` command runs without opening the database or contacting a node.
 
 ## Reuse with Insider
 
