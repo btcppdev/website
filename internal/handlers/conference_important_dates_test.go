@@ -27,15 +27,14 @@ func TestBuildConferenceImportantDatesCombinesConfiguredAndOperationalDates(t *t
 	}
 
 	dates := buildConferenceImportantDates(conf, custom, start.AddDate(0, 0, -60))
-	if len(dates) != 6 {
-		t.Fatalf("got %d important dates, want 6", len(dates))
+	if len(dates) != 5 {
+		t.Fatalf("got %d important dates, want 5", len(dates))
 	}
 	wantLabels := []string{
 		"Tickets go on sale",
 		"Talk applications open",
 		"Talk applications close",
 		"Ticket price increases",
-		"Ticket sales close",
 		"Conference begins",
 	}
 	for _, want := range wantLabels {

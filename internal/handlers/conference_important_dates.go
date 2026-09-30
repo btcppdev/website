@@ -57,9 +57,7 @@ func buildConferenceImportantDates(conf *types.Conf, custom []*types.ConferenceM
 			next := tickets[index+1]
 			detail := fmt.Sprintf("%s → %s", conferenceTicketPriceLabel(ticket), conferenceTicketPriceLabel(next))
 			add("Ticket price increases", detail, "tickets", "#tickets", ticket.SalesEndAt)
-			continue
 		}
-		add("Ticket sales close", "Last chance to register", "tickets", "#tickets", ticket.SalesEndAt)
 	}
 
 	if !conf.StartDate.IsZero() {
