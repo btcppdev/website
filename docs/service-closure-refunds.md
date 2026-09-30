@@ -160,18 +160,45 @@ Build with `make build-ops`, then inspect an existing immutable review:
 
 ```sh
 target/service-bitcoin-verify -review REVIEW_UUID -txid TRANSACTION_ID \
-  -block CONTAINING_BLOCK_HASH -vout OUTPUT_INDEX -destination RECIPIENT_ADDRESS
+  -block CONTAINING_BLOCK_HASH -vout OUTPUT_INDEX
 ```
 
 The command uses the shared commerce database and defaults to Bitcoin mainnet.
 It rejects a review whose calculation has changed, uses its saved satoshi amount,
-and prints the review and node evidence with `recorded: false`. The destination
-is operator input here, not proof of recipient ownership. This command does not
+and prints the review, destination approval and node evidence with `recorded: false`.
+The destination comes exclusively from the immutable approval; the command cannot
+override it. This command does not
 reserve an output or funds, record a refund, change access or send mail. The final
 recording transaction must bind an approved recipient destination, revalidate the
 review, enforce unique output allocation and update the shared financial ledger
 atomically. USD/tax allocation (including sub-cent refunds), admin UI/commands for
 destination approval, and reorg reconciliation after recording remain outstanding.
+
+`ApproveBitcoinClosureDestination` freezes the address, node-validated script and
+network, authenticated global admin, reason and timestamp against one immutable
+review. The admin must confirm recipient ownership separately; an on-chain address
+check cannot establish that. Production rejects test-network destinations. The
+function checks authorization before RPC and again under lock, then recalculates
+the review under the same order lock as settlements/refunds. A stale amount cannot
+receive a new approval. Matching retries return the original audit record; a
+changed address, admin or reason is rejected. A new address needs a new review.
+An existing approval is historical evidence and must be revalidated before payout
+recording; it does not reserve funds or make a stale review executable. Account
+merges cannot reassign its approver. No public write route is enabled yet.
+
+The September 30 destination-approval acceptance run passed the complete race
+suite with fresh PostgreSQL and a real regtest node enabled. Both Alerts and
+Insider tests cover unauthorized approval, invalid addresses, production/testnet
+separation, competing destination approvals, immutable matching/conflicting
+replays and stale reviews after intervening refunds. Log:
+`/private/tmp/bitcoin-destination-acceptance-20260930.log`.
+
+Small payout policy is pending: normal wallet/relay rules impose dust thresholds
+depending on the output script and configured fee policy (see
+[Core's dust calculation](https://github.com/bitcoin/bitcoin/blob/v31.1/src/policy/policy.cpp)).
+A floor-rounded obligation may fall below that threshold. Do not silently waive
+it, deduct fees from it, or change its rounded amount. Whether bitcoin++ adds a
+separately recorded top-up or holds it for combination needs a product decision.
 
 September 30 verification: the race suite passes against an isolated Bitcoin Core
 31.1 regtest node, with no external peers or real coins. It tests an actual payment,

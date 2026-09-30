@@ -44,6 +44,43 @@ type Evidence struct {
 	VerifiedAt            time.Time `json:"verified_at"`
 }
 
+type Destination struct {
+	Chain        string `json:"chain"`
+	Address      string `json:"address"`
+	ScriptPubKey string `json:"script_pub_key"`
+}
+
+// ValidateDestination checks the configured network and returns the canonical
+// address/script to freeze in an approval. It does not prove who owns the address.
+func (c *Client) ValidateDestination(ctx context.Context, destination string) (*Destination, error) {
+	if len(destination) == 0 || len(destination) > 128 || strings.TrimSpace(destination) != destination {
+		return nil, ErrUnverified
+	}
+	var info chainInfo
+	if err := c.call(ctx, "getblockchaininfo", []any{}, &info); err != nil {
+		return nil, err
+	}
+	if !c.chainReady(info) {
+		return nil, fmt.Errorf("%w: node network or synchronization", ErrUnverified)
+	}
+	return c.validateAddress(ctx, destination)
+}
+
+func (c *Client) validateAddress(ctx context.Context, destination string) (*Destination, error) {
+	var address struct {
+		Valid   bool   `json:"isvalid"`
+		Address string `json:"address"`
+		Script  string `json:"scriptPubKey"`
+	}
+	if err := c.call(ctx, "validateaddress", []any{destination}, &address); err != nil {
+		return nil, err
+	}
+	if !address.Valid || address.Address != destination || !validHex(address.Script, 0) {
+		return nil, fmt.Errorf("%w: destination", ErrUnverified)
+	}
+	return &Destination{Chain: c.chain, Address: address.Address, ScriptPubKey: address.Script}, nil
+}
+
 type Client struct {
 	endpoint, username, password, chain string
 	http                                *http.Client
@@ -177,16 +214,9 @@ func (c *Client) Verify(ctx context.Context, req Request) (*Evidence, error) {
 	if !c.chainReady(before) {
 		return nil, fmt.Errorf("%w: node network or synchronization", ErrUnverified)
 	}
-	var address struct {
-		Valid   bool   `json:"isvalid"`
-		Address string `json:"address"`
-		Script  string `json:"scriptPubKey"`
-	}
-	if err := c.call(ctx, "validateaddress", []any{req.Destination}, &address); err != nil {
+	address, err := c.validateAddress(ctx, req.Destination)
+	if err != nil {
 		return nil, err
-	}
-	if !address.Valid || address.Address != req.Destination || !validHex(address.Script, 0) {
-		return nil, fmt.Errorf("%w: destination", ErrUnverified)
 	}
 	var tx struct {
 		TxID      string `json:"txid"`
@@ -221,7 +251,7 @@ func (c *Client) Verify(ctx context.Context, req Request) (*Evidence, error) {
 	}
 	output := tx.Vout[req.Vout]
 	sats, err := decimalSatoshis(output.Value)
-	if err != nil || sats != req.Satoshis || output.Script.Hex != address.Script {
+	if err != nil || sats != req.Satoshis || output.Script.Hex != address.ScriptPubKey {
 		return nil, fmt.Errorf("%w: output amount or destination", ErrUnverified)
 	}
 	var header struct {
@@ -242,5 +272,5 @@ func (c *Client) Verify(ctx context.Context, req Request) (*Evidence, error) {
 	if !c.chainReady(after) || after.Tip != before.Tip || *after.Blocks != *before.Blocks {
 		return nil, fmt.Errorf("%w: chain changed; retry verification", ErrUnverified)
 	}
-	return &Evidence{Request: req, Chain: c.chain, ScriptPubKey: address.Script, BlockHeight: *header.Height, Confirmations: header.Confirmations, RequiredConfirmations: RequiredConfirmations, ObservedTip: after.Tip, VerifiedAt: c.now().UTC()}, nil
+	return &Evidence{Request: req, Chain: c.chain, ScriptPubKey: address.ScriptPubKey, BlockHeight: *header.Height, Confirmations: header.Confirmations, RequiredConfirmations: RequiredConfirmations, ObservedTip: after.Tip, VerifiedAt: c.now().UTC()}, nil
 }

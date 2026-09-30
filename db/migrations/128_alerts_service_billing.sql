@@ -923,3 +923,17 @@ CREATE TABLE service_bitcoin_closure_reviews (
 CREATE INDEX service_bitcoin_closure_reviews_attempt ON service_bitcoin_closure_reviews(attempt_id,created_at);
 CREATE TRIGGER service_bitcoin_closure_reviews_immutable BEFORE UPDATE OR DELETE ON service_bitcoin_closure_reviews
 FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+
+-- One approved recipient per immutable review. A new destination requires a new
+-- review; existing approval evidence is never rewritten by a retry or account merge.
+CREATE TABLE service_bitcoin_closure_destinations (
+ review_id uuid PRIMARY KEY REFERENCES service_bitcoin_closure_reviews(id),
+ actor_id uuid NOT NULL REFERENCES people(id),
+ chain text NOT NULL CHECK(chain IN ('main','regtest','signet','test','testnet4')),
+ destination text NOT NULL CHECK(length(destination) BETWEEN 1 AND 128),
+ script_pub_key text NOT NULL CHECK(length(script_pub_key) BETWEEN 2 AND 20000 AND script_pub_key ~ '^([0-9a-f]{2})+$'),
+ reason text NOT NULL CHECK(length(reason) BETWEEN 1 AND 1000),
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TRIGGER service_bitcoin_closure_destinations_immutable BEFORE UPDATE OR DELETE ON service_bitcoin_closure_destinations
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();

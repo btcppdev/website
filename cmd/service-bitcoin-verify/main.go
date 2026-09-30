@@ -33,7 +33,6 @@ func run(args []string, out io.Writer) error {
 	txid := f.String("txid", "", "paid transaction ID (required)")
 	block := f.String("block", "", "containing block hash (required)")
 	vout := f.Int64("vout", -1, "recipient output index (required, including zero)")
-	destination := f.String("destination", "", "recipient address confirmed by the operator (required)")
 	chain := f.String("chain", "main", "expected Bitcoin Core network; defaults to main")
 	if err := f.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -41,8 +40,8 @@ func run(args []string, out io.Writer) error {
 		}
 		return err
 	}
-	if f.NArg() != 0 || *reviewID == "" || *txid == "" || *block == "" || *vout < 0 || *vout > math.MaxUint32 || *destination == "" {
-		return fmt.Errorf("-review, -txid, -block, -vout and -destination are required; use -help")
+	if f.NArg() != 0 || *reviewID == "" || *txid == "" || *block == "" || *vout < 0 || *vout > math.MaxUint32 {
+		return fmt.Errorf("-review, -txid, -block and -vout are required; use -help")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -67,6 +66,13 @@ func run(args []string, out io.Writer) error {
 	if review.Basis == nil || review.Basis.RemainingRefundSatoshis == nil {
 		return fmt.Errorf("review has no executable amount")
 	}
+	destination, err := getters.InspectBitcoinClosureDestination(ctx, app, *reviewID)
+	if err != nil {
+		return fmt.Errorf("review requires an approved recipient destination")
+	}
+	if destination.Destination.Chain != *chain {
+		return fmt.Errorf("approved destination network does not match configured network")
+	}
 	plan, err := getters.PlanBitcoinClosureRefund(ctx, app, review.Basis.AttemptID, review.Basis.ClosureAt)
 	if err != nil {
 		return fmt.Errorf("could not recheck closure basis")
@@ -76,15 +82,19 @@ func run(args []string, out io.Writer) error {
 	if !bytes.Equal(before, current) {
 		return fmt.Errorf("closure review is stale; review current refund basis before proceeding")
 	}
-	evidence, err := node.Verify(ctx, bitcoinpayout.Request{TxID: *txid, Vout: uint32(*vout), BlockHash: *block, Destination: *destination, Satoshis: *review.Basis.RemainingRefundSatoshis})
+	evidence, err := node.Verify(ctx, bitcoinpayout.Request{TxID: *txid, Vout: uint32(*vout), BlockHash: *block, Destination: destination.Destination.Address, Satoshis: *review.Basis.RemainingRefundSatoshis})
 	if err != nil {
 		return err
 	}
 	encoder := json.NewEncoder(out)
+	if evidence.ScriptPubKey != destination.Destination.ScriptPubKey || evidence.Chain != destination.Destination.Chain {
+		return fmt.Errorf("verified output does not match approved destination")
+	}
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(struct {
-		Review   *getters.BitcoinClosureReview `json:"review"`
-		Evidence *bitcoinpayout.Evidence       `json:"evidence"`
-		Recorded bool                          `json:"recorded"`
-	}{review, evidence, false})
+		Review      *getters.BitcoinClosureReview      `json:"review"`
+		Evidence    *bitcoinpayout.Evidence            `json:"evidence"`
+		Destination *getters.BitcoinClosureDestination `json:"destination_approval"`
+		Recorded    bool                               `json:"recorded"`
+	}{review, evidence, destination, false})
 }
