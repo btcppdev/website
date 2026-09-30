@@ -106,11 +106,7 @@
             </label>
             {{ else }}
             <label>DISPLAY NAME
-              {{ if .IsAdmin }}
               <input id="Name" name="Name" type="text" required value="{{ .Speaker.Name }}">
-              {{ else }}
-              <span class="profile-edit-locked">{{ .Speaker.Name }}</span>
-              {{ end }}
             </label>
             <label>EMAIL
               <span class="profile-edit-locked">{{ .Speaker.Email }}</span>
@@ -119,6 +115,20 @@
               {{ end }}
             </label>
             {{ end }}
+
+            <label class="profile-edit-wide">COMPANY / ORGANIZATION
+              <input id="Company" name="Company" type="text" value="{{ if .Speaker }}{{ .Speaker.Company }}{{ end }}" placeholder="e.g. alloc init">
+              <small>Shown on your public profile. Leave blank to remove it.</small>
+            </label>
+
+            <label class="profile-edit-wide">ORGANIZATION LOGO
+              <input id="OrgLogoFile" name="OrgLogoFile" type="file" accept="image/*">
+              {{ if and .Speaker .Speaker.OrgLogo }}<img class="profile-edit-org-logo" src="{{ spacesURL (printf "sponsors/%s" .Speaker.OrgLogo) }}" alt="Current organization logo"><small>Upload a new image to replace this logo.</small>{{ end }}
+              <small>Optional. Leave empty to keep your current logo.</small>
+            </label>
+            <input type="hidden" name="HiringFieldsSet" value="1">
+            <label><span><input type="checkbox" name="AvailToHire" value="on" {{ if and .Speaker .Speaker.AvailToHire }}checked{{ end }}> AVAILABLE FOR HIRE</span></label>
+            <label><span><input type="checkbox" name="LookingToHire" value="on" {{ if and .Speaker .Speaker.LookingToHire }}checked{{ end }}> I'M HIRING</span></label>
 
             <label class="profile-edit-wide">BIO
               <textarea id="Bio" name="Bio" rows="5" maxlength="1200" placeholder="Who are you, what are you working on, and what should people ask you about?">{{ if .Speaker }}{{ .Speaker.Bio }}{{ end }}</textarea>

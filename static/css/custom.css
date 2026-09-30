@@ -1845,6 +1845,21 @@
 	outline: none;
 }
 
+.profile-edit-fields input[type="checkbox"] {
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	margin-right: 8px;
+	vertical-align: middle;
+	accent-color: #F57247;
+}
+
+.profile-edit-org-logo {
+	max-width: 180px;
+	max-height: 80px;
+	object-fit: contain;
+}
+
 .profile-edit-fields textarea {
 	min-height: 128px;
 	line-height: 1.5;

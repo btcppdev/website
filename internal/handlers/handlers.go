@@ -10056,21 +10056,34 @@ func adminCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Photo upload failed.")), http.StatusSeeOther)
 		return
 	}
+	logoRaw, logoContentType, logoExt, logoErr := readMultipartLogoFile(r, "OrgLogoFile")
+	if logoErr != nil && logoErr != http.ErrMissingFile {
+		http.Error(w, "Invalid organization logo. Please upload an image up to 10 MB.", http.StatusBadRequest)
+		return
+	}
+	logoPath := ""
+	if len(logoRaw) > 0 {
+		logoPath = imgproc.ShortID(logoRaw) + logoExt
+	}
 	in := getters.SpeakerInput{
-		Name:      name,
-		Email:     email,
-		Phone:     strings.TrimSpace(r.FormValue("Phone")),
-		Signal:    strings.TrimSpace(r.FormValue("Signal")),
-		Telegram:  strings.TrimSpace(r.FormValue("Telegram")),
-		Twitter:   strings.TrimSpace(r.FormValue("Twitter")),
-		Nostr:     strings.TrimSpace(r.FormValue("Nostr")),
-		Github:    strings.TrimSpace(r.FormValue("Github")),
-		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
-		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
-		LeetCode:  strings.TrimSpace(r.FormValue("LeetCode")),
-		Website:   strings.TrimSpace(r.FormValue("Website")),
-		Bio:       strings.TrimSpace(r.FormValue("Bio")),
-		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
+		OrgLogo:       logoPath,
+		AvailToHire:   r.FormValue("AvailToHire") == "on",
+		LookingToHire: r.FormValue("LookingToHire") == "on",
+		Company:       strings.TrimSpace(r.FormValue("Company")),
+		Name:          name,
+		Email:         email,
+		Phone:         strings.TrimSpace(r.FormValue("Phone")),
+		Signal:        strings.TrimSpace(r.FormValue("Signal")),
+		Telegram:      strings.TrimSpace(r.FormValue("Telegram")),
+		Twitter:       strings.TrimSpace(r.FormValue("Twitter")),
+		Nostr:         strings.TrimSpace(r.FormValue("Nostr")),
+		Github:        strings.TrimSpace(r.FormValue("Github")),
+		Instagram:     strings.TrimSpace(r.FormValue("Instagram")),
+		LinkedIn:      strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:      strings.TrimSpace(r.FormValue("LeetCode")),
+		Website:       strings.TrimSpace(r.FormValue("Website")),
+		Bio:           strings.TrimSpace(r.FormValue("Bio")),
+		TShirt:        validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
 	if hasNewPic {
 		in.Photo = imgproc.ShortID(picRaw) + picExt
@@ -10080,6 +10093,9 @@ func adminCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		ctx.Err.Printf("/%s/admin/speakers/new create %s: %s", conf.Tag, email, err)
 		http.Redirect(w, r, fmt.Sprintf("/%s/admin/speakers/new?flash=%s", conf.Tag, url.QueryEscape("Create failed: "+err.Error())), http.StatusSeeOther)
 		return
+	}
+	if len(logoRaw) > 0 {
+		go newPhotoPipeline(ctx).mirrorOrgLogoToSpaces(logoRaw, logoContentType, logoExt)
 	}
 	if hasNewPic {
 		go newPhotoPipeline(ctx).mirrorPicToSpaces(picRaw, picContentType, picExt)
@@ -10156,21 +10172,36 @@ func adminUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Name is required."), http.StatusSeeOther)
 		return
 	}
+	logoRaw, logoContentType, logoExt, logoErr := readMultipartLogoFile(r, "OrgLogoFile")
+	if logoErr != nil && logoErr != http.ErrMissingFile {
+		http.Error(w, "Invalid organization logo. Please upload an image up to 10 MB.", http.StatusBadRequest)
+		return
+	}
+	logoPath := ""
+	if len(logoRaw) > 0 {
+		logoPath = imgproc.ShortID(logoRaw) + logoExt
+	}
 	up := getters.SpeakerUpdate{
-		Name:      name,
-		Phone:     strings.TrimSpace(r.FormValue("Phone")),
-		Signal:    strings.TrimSpace(r.FormValue("Signal")),
-		Telegram:  strings.TrimSpace(r.FormValue("Telegram")),
-		Twitter:   strings.TrimSpace(r.FormValue("Twitter")),
-		Nostr:     strings.TrimSpace(r.FormValue("Nostr")),
-		Github:    strings.TrimSpace(r.FormValue("Github")),
-		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
-		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
-		LeetCode:  strings.TrimSpace(r.FormValue("LeetCode")),
-		Website:   strings.TrimSpace(r.FormValue("Website")),
-		Bio:       strings.TrimSpace(r.FormValue("Bio")),
-		BioSet:    true,
-		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
+		OrgLogo:         logoPath,
+		AvailToHire:     r.FormValue("AvailToHire") == "on",
+		LookingToHire:   r.FormValue("LookingToHire") == "on",
+		HiringFieldsSet: r.PostForm.Has("HiringFieldsSet"),
+		Company:         strings.TrimSpace(r.FormValue("Company")),
+		CompanySet:      r.PostForm.Has("Company"),
+		Name:            name,
+		Phone:           strings.TrimSpace(r.FormValue("Phone")),
+		Signal:          strings.TrimSpace(r.FormValue("Signal")),
+		Telegram:        strings.TrimSpace(r.FormValue("Telegram")),
+		Twitter:         strings.TrimSpace(r.FormValue("Twitter")),
+		Nostr:           strings.TrimSpace(r.FormValue("Nostr")),
+		Github:          strings.TrimSpace(r.FormValue("Github")),
+		Instagram:       strings.TrimSpace(r.FormValue("Instagram")),
+		LinkedIn:        strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:        strings.TrimSpace(r.FormValue("LeetCode")),
+		Website:         strings.TrimSpace(r.FormValue("Website")),
+		Bio:             strings.TrimSpace(r.FormValue("Bio")),
+		BioSet:          true,
+		TShirt:          validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
 	if hasNewPic {
 		up.Photo = imgproc.ShortID(picRaw) + picExt
@@ -10179,6 +10210,9 @@ func adminUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.
 		ctx.Err.Printf("/%s/admin/speakers/%s/edit update: %s", conf.Tag, sp.ID, err)
 		http.Redirect(w, r, backURL+"?flash="+url.QueryEscape("Update failed: "+err.Error()), http.StatusSeeOther)
 		return
+	}
+	if len(logoRaw) > 0 {
+		go newPhotoPipeline(ctx).mirrorOrgLogoToSpaces(logoRaw, logoContentType, logoExt)
 	}
 	invalidateWhoIsDirectoryCache()
 	if hasNewPic {

@@ -46,6 +46,10 @@ type SpeakerUpdate struct {
 	LeetCode         string
 	Website          string
 	Company          string
+	CompanySet       bool // Explicit profile edits may clear the company.
+	AvailToHire      bool
+	LookingToHire    bool
+	HiringFieldsSet  bool
 	Bio              string
 	BioSet           bool
 	OrgLogo          string
@@ -479,18 +483,20 @@ func UpdateSpeaker(ctx *config.AppContext, speakerID string, up SpeakerUpdate) e
 			linkedin = CASE WHEN $10 <> '' THEN $10 ELSE linkedin END,
 			leetcode = CASE WHEN $11 <> '' THEN $11 ELSE leetcode END,
 			website_url = CASE WHEN $12 <> '' THEN $12 ELSE website_url END,
-			company = CASE WHEN $13 <> '' THEN $13 ELSE company END,
+			company = CASE WHEN $22 OR $13 <> '' THEN $13 ELSE company END,
 			org_logo_path = CASE WHEN $14 <> '' THEN $14 ELSE org_logo_path END,
 			tshirt = CASE WHEN $15 <> '' THEN $15 ELSE tshirt END,
 			name = CASE WHEN $16 <> '' THEN $16 ELSE name END,
 			bio = CASE WHEN $17 THEN $18 ELSE bio END,
 			lightning_address = CASE WHEN $19 THEN $20 ELSE lightning_address END,
-			bitcoin_address = CASE WHEN $19 THEN $21 ELSE bitcoin_address END
+			bitcoin_address = CASE WHEN $19 THEN $21 ELSE bitcoin_address END,
+			avail_to_hire = CASE WHEN $23 THEN $24 ELSE avail_to_hire END,
+			looking_to_hire = CASE WHEN $23 THEN $25 ELSE looking_to_hire END
 		WHERE id = $1::uuid
 	`, speakerID, up.Photo, up.Phone, up.Signal, up.Telegram, up.Twitter,
 		up.Nostr, up.Github, up.Instagram, up.LinkedIn, up.LeetCode, up.Website, up.Company,
 		up.OrgLogo, up.TShirt, up.Name, up.BioSet, up.Bio,
-		up.PayoutFieldsSet, up.LightningAddress, up.BitcoinAddress)
+		up.PayoutFieldsSet, up.LightningAddress, up.BitcoinAddress, up.CompanySet, up.HiringFieldsSet, up.AvailToHire, up.LookingToHire)
 	if err != nil {
 		return fmt.Errorf("update person %s: %w", speakerID, err)
 	}

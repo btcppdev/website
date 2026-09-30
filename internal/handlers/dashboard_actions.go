@@ -918,11 +918,7 @@ func DashboardClaimHackathonTicket(w http.ResponseWriter, r *http.Request, ctx *
 	http.Redirect(w, r, "/dashboard/tickets?flash="+url.QueryEscape("Conference ticket claimed. Your ticket will arrive by email and is now on your dashboard."), http.StatusSeeOther)
 }
 
-// handleUpdateSpeakerPOST applies the form fields to the existing
-// Speaker row via the sparse SpeakerUpdate API. Empty fields are
-// passed through, but the Notion library treats them as no-ops via
-// speakerUpdateProps which builds the property map from non-empty
-// strings + booleans.
+// handleUpdateSpeakerPOST updates the authenticated person's shared profile.
 func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, sp *types.Speaker, encHMAC, encEmail string) {
 	nextURL := safeReturnTo(r.FormValue("next"))
 	picRaw, picContentType, picExt, picErr := readMultipartFile(r, "PicFile")
@@ -934,7 +930,28 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			http.StatusSeeOther)
 		return
 	}
+	logoRaw, logoContentType, logoExt, logoErr := readMultipartLogoFile(r, "OrgLogoFile")
+	if logoErr != nil && logoErr != http.ErrMissingFile {
+		http.Error(w, "Invalid organization logo. Please upload an image up to 10 MB.", http.StatusBadRequest)
+		return
+	}
+	logoPath := ""
+	if len(logoRaw) > 0 {
+		logoPath = imgproc.ShortID(logoRaw) + logoExt
+	}
+	name := strings.TrimSpace(r.FormValue("Name"))
+	if name == "" {
+		http.Error(w, "Display name is required.", http.StatusBadRequest)
+		return
+	}
 	up := getters.SpeakerUpdate{
+		OrgLogo:          logoPath,
+		AvailToHire:      r.FormValue("AvailToHire") == "on",
+		LookingToHire:    r.FormValue("LookingToHire") == "on",
+		HiringFieldsSet:  r.PostForm.Has("HiringFieldsSet"),
+		Name:             name,
+		Company:          strings.TrimSpace(r.FormValue("Company")),
+		CompanySet:       r.PostForm.Has("Company"),
 		Phone:            strings.TrimSpace(r.FormValue("Phone")),
 		Signal:           strings.TrimSpace(r.FormValue("Signal")),
 		Telegram:         strings.TrimSpace(r.FormValue("Telegram")),
@@ -961,6 +978,9 @@ func handleUpdateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, "Update failed: "+err.Error()),
 			http.StatusSeeOther)
 		return
+	}
+	if len(logoRaw) > 0 {
+		go newPhotoPipeline(ctx).mirrorOrgLogoToSpaces(logoRaw, logoContentType, logoExt)
 	}
 	if uploaded, err := savePersonTaxFormFromRequest(ctx, r, sp); err != nil {
 		ctx.Err.Printf("/dashboard/profile tax form %s: %s", sp.ID, err)
@@ -1051,21 +1071,34 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 	}
 	// Account setup requires a name, Signal contact and profile photo.
 	// Phone numbers are optional; retain one when the person provides it.
+	logoRaw, logoContentType, logoExt, logoErr := readMultipartLogoFile(r, "OrgLogoFile")
+	if logoErr != nil && logoErr != http.ErrMissingFile {
+		http.Error(w, "Invalid organization logo. Please upload an image up to 10 MB.", http.StatusBadRequest)
+		return
+	}
+	logoPath := ""
+	if len(logoRaw) > 0 {
+		logoPath = imgproc.ShortID(logoRaw) + logoExt
+	}
 	in := getters.SpeakerInput{
-		Name:      name,
-		Email:     email,
-		Phone:     strings.TrimSpace(r.FormValue("Phone")),
-		Signal:    strings.TrimSpace(r.FormValue("Signal")),
-		Telegram:  strings.TrimSpace(r.FormValue("Telegram")),
-		Twitter:   strings.TrimSpace(r.FormValue("Twitter")),
-		Nostr:     strings.TrimSpace(r.FormValue("Nostr")),
-		Github:    strings.TrimSpace(r.FormValue("Github")),
-		Instagram: strings.TrimSpace(r.FormValue("Instagram")),
-		LinkedIn:  strings.TrimSpace(r.FormValue("LinkedIn")),
-		LeetCode:  strings.TrimSpace(r.FormValue("LeetCode")),
-		Website:   strings.TrimSpace(r.FormValue("Website")),
-		Bio:       strings.TrimSpace(r.FormValue("Bio")),
-		TShirt:    validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
+		OrgLogo:       logoPath,
+		AvailToHire:   r.FormValue("AvailToHire") == "on",
+		LookingToHire: r.FormValue("LookingToHire") == "on",
+		Company:       strings.TrimSpace(r.FormValue("Company")),
+		Name:          name,
+		Email:         email,
+		Phone:         strings.TrimSpace(r.FormValue("Phone")),
+		Signal:        strings.TrimSpace(r.FormValue("Signal")),
+		Telegram:      strings.TrimSpace(r.FormValue("Telegram")),
+		Twitter:       strings.TrimSpace(r.FormValue("Twitter")),
+		Nostr:         strings.TrimSpace(r.FormValue("Nostr")),
+		Github:        strings.TrimSpace(r.FormValue("Github")),
+		Instagram:     strings.TrimSpace(r.FormValue("Instagram")),
+		LinkedIn:      strings.TrimSpace(r.FormValue("LinkedIn")),
+		LeetCode:      strings.TrimSpace(r.FormValue("LeetCode")),
+		Website:       strings.TrimSpace(r.FormValue("Website")),
+		Bio:           strings.TrimSpace(r.FormValue("Bio")),
+		TShirt:        validShirtCode(strings.TrimSpace(r.FormValue("TShirt"))),
 	}
 	if !strings.HasPrefix(nextURL, "/sponsor-invites/") {
 		if missing := firstMissingProfileField(in.Signal, hasNewPic); missing != "" {
@@ -1085,6 +1118,9 @@ func handleCreateSpeakerPOST(w http.ResponseWriter, r *http.Request, ctx *config
 			dashboardProfileURLWithFlash(encHMAC, encEmail, nextURL, "Create failed: "+err.Error()),
 			http.StatusSeeOther)
 		return
+	}
+	if len(logoRaw) > 0 {
+		go newPhotoPipeline(ctx).mirrorOrgLogoToSpaces(logoRaw, logoContentType, logoExt)
 	}
 	flash := "Profile created."
 	// Only the signup form's opt-in can subscribe the authenticated email.
