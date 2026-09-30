@@ -906,3 +906,20 @@ ALTER TABLE service_payment_events ADD COLUMN opennode_bitcoin jsonb
 
 ALTER TABLE service_payment_refunds ADD COLUMN amount_satoshis bigint
  CHECK(amount_satoshis IS NULL OR (provider='opennode' AND amount_satoshis BETWEEN 1 AND 2100000000000000));
+
+-- A reviewed quote is an immutable audit record, not an executed refund or
+-- permission to send a stale payout. Execution must revalidate its full basis.
+CREATE TABLE service_bitcoin_closure_reviews (
+ id uuid PRIMARY KEY,
+ attempt_id uuid NOT NULL REFERENCES service_payment_attempts(id),
+ actor_id uuid NOT NULL REFERENCES people(id),
+ closure_at timestamptz NOT NULL,
+ amount_satoshis bigint NOT NULL CHECK(amount_satoshis BETWEEN 1 AND 2100000000000000),
+ rounding text NOT NULL DEFAULT 'floor_satoshi' CHECK(rounding='floor_satoshi'),
+ basis jsonb NOT NULL CHECK(jsonb_typeof(basis)='object'),
+ reason text NOT NULL CHECK(length(reason) BETWEEN 1 AND 1000),
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX service_bitcoin_closure_reviews_attempt ON service_bitcoin_closure_reviews(attempt_id,created_at);
+CREATE TRIGGER service_bitcoin_closure_reviews_immutable BEFORE UPDATE OR DELETE ON service_bitcoin_closure_reviews
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();

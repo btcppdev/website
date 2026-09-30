@@ -8,6 +8,12 @@ original payment. Use `FloorSatoshis` from the calculator for this rule.
 Confirmed payout flow: an admin reviews the amounts and pays from our wallet;
 shared Bitcoin++ commerce records verified payout evidence. V1 does not initiate
 OpenNode withdrawals. This recording flow must be shared with Insider.
+Confirmed v1 payout type: on-chain Bitcoin. An admin sends the payment from our
+wallet; the shared system verifies and records the transaction output (transaction
+ID and output index), destination, and satoshi amount against the reviewed refund.
+Lightning payouts are outside v1. Output allocation must prevent the same payout
+from being credited twice. Confirmation and reorganization handling remain to be
+implemented before this workflow is ready to use.
 
 `servicebilling.EstimateBitcoinClosureRefund` computes the unused proportion for
 one funded service period. It returns both floor and ceiling satoshi amounts,
@@ -72,6 +78,19 @@ Provider calls used local fixtures; no real payment or refund was made.
 - Rehearse provider-backed completion before treating closure refunds as shipped.
 
 ## Prior refunds and operator preview
+
+`ReviewBitcoinClosureRefund` adds an immutable admin review of the calculated
+amount, closure date, original payment basis and prior refunds. It recalculates
+under the same order lock used by settlement and refunds, rejects stale expected
+amounts, and records the authenticated global admin and reason. A review neither
+reserves funds nor records a payout. Execution must revalidate the review against
+intervening refunds before authorizing payment; the payout verifier is unfinished.
+
+September 30: the full fresh-database acceptance suite passes with race detection
+and randomized test order, including admin review tests for Alerts and Insider,
+immutable audit records, matching/conflicting replays and intervening refunds.
+The person-merge manifest treats reviewer attribution as immutable. Log:
+`/private/tmp/shared-closure-review-acceptance-20260930.log`.
 
 `VerifiedServiceRefund.AmountSatoshis` records a verified Bitcoin refund alongside
 its USD accounting amount. Unknown amounts remain null. The ledger serializes on

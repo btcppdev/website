@@ -150,6 +150,7 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "person_pgp_keys", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "fingerprint"}, DuplicateKey: []string{"fingerprint"}, Label: "public PGP keys"},
 	{Table: "service_stripe_checkouts", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "Stripe checkout records", Immutable: true},
 	{Table: "service_checkout_quotes", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "service checkout quotes", Immutable: true},
+	{Table: "service_bitcoin_closure_reviews", PersonColumn: "actor_id", PrimaryKey: []string{"id"}, Label: "Bitcoin closure refund reviewers", Immutable: true},
 	{Table: "service_purchase_requests", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "service purchase records", Immutable: true},
 	{Table: "service_entitlements", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "purchased service access", Immutable: true},
 	{Table: "newsletter_consent_requests", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "request_key"}, Label: "newsletter consent records", Immutable: true},
