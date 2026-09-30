@@ -15,6 +15,62 @@ func bitcoinRefundFixture(t *testing.T, evidence *OpenNodeBitcoinEvidence) (*con
 	return bitcoinRefundProductFixture(t, evidence, "alerts.repository-slots")
 }
 
+func TestSubCentBitcoinRefundPostgres(t *testing.T) {
+	for _, product := range []string{"alerts.repository-slots", "insider.membership.annual"} {
+		t.Run(product, func(t *testing.T) {
+			ctx := context.Background()
+			zero := int64(0)
+			app, refund, closure := bitcoinRefundProductFixture(t, &OpenNodeBitcoinEvidence{PriceSatoshis: 1001, OverpaidSatoshis: &zero}, product)
+			refund.AmountCents = 0
+			if err := RecordServiceRefund(ctx, app, refund); !errors.Is(err, ErrServiceRefund) {
+				t.Fatalf("empty refund accepted: %v", err)
+			}
+			one := int64(1)
+			refund.AmountSatoshis = &one
+			for i := 0; i < 2; i++ {
+				if err := RecordServiceRefund(ctx, app, refund); err != nil {
+					t.Fatal("sub-cent refund/replay", err)
+				}
+			}
+			refund.RefundReference += "-second"
+			if err := RecordServiceRefund(ctx, app, refund); err != nil {
+				t.Fatal("second sub-cent refund", err)
+			}
+			plan, err := PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure)
+			if err != nil || *plan.PreviouslyRefundedSatoshis != 2 || *plan.RemainingRefundSatoshis != 498 {
+				t.Fatalf("sub-cent balance: %+v %v", plan, err)
+			}
+			var person, publicID string
+			if err = app.DB.QueryRow(ctx, `SELECT r.person_id::text,o.public_id FROM service_payment_attempts a JOIN service_purchase_requests r ON r.id=a.purchase_id JOIN shop_orders o ON o.id=r.order_id WHERE a.id=$1`, refund.AttemptID).Scan(&person, &publicID); err != nil {
+				t.Fatal(err)
+			}
+			view, err := ServiceOrderForPerson(ctx, app, person, publicID)
+			if err != nil || view.Status != "partially_refunded" || view.RefundedCents != 0 || view.RefundedSatoshis != 2 {
+				t.Fatalf("sub-cent receipt view: %+v %v", view, err)
+			}
+			items, err := ListServiceRefunds(ctx, app, refund.AttemptID)
+			if err != nil || len(items) != 2 || items[0].AmountCents != 0 || *items[0].AmountSatoshis != 1 {
+				t.Fatalf("refund inspection: %+v %v", items, err)
+			}
+			refund.RefundReference += "-positive"
+			refund.AmountCents = 100
+			if err = RecordServiceRefund(ctx, app, refund); err != nil {
+				t.Fatal("ordinary refund after sub-cent refunds", err)
+			}
+			refund.RefundReference += "-overflow"
+			refund.AmountCents = 0
+			tooMuch := int64(1000)
+			refund.AmountSatoshis = &tooMuch
+			if err = RecordServiceRefund(ctx, app, refund); !errors.Is(err, ErrServiceRefund) {
+				t.Fatalf("sub-cent over-refund accepted: %v", err)
+			}
+			if _, err = app.DB.Exec(ctx, `INSERT INTO service_payment_refunds(provider,refund_reference,attempt_id,payment_reference,amount_cents,currency,refunded_at,reason) VALUES('opennode',$1,$2,$3,0,'USD',now(),'invalid')`, uuid.NewString(), refund.AttemptID, refund.PaymentReference); err == nil {
+				t.Fatal("database accepted an empty refund")
+			}
+		})
+	}
+}
+
 func bitcoinRefundProductFixture(t *testing.T, evidence *OpenNodeBitcoinEvidence, product string) (*config.AppContext, VerifiedServiceRefund, time.Time) {
 	t.Helper()
 	app := databaseSmokeContext(t)

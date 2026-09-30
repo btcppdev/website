@@ -24,7 +24,7 @@ func buildInsiderRefund(original []byte, person string, job *getters.ServiceRefu
 		(event.ProductCode == "insider.article" && event.ResourceID == "") ||
 		event.ContributionPublicationID != "" || event.Provider != job.Refund.Provider ||
 		event.ProviderReference != job.Refund.PaymentReference || event.Currency != job.Refund.Currency ||
-		job.Refund.AmountCents <= 0 || job.Refund.AmountCents > event.AmountCents || job.Refund.RefundReference == "" {
+		job.Refund.AmountCents < 0 || (job.Refund.AmountCents == 0 && (job.Refund.AmountSatoshis == nil || event.SettledSats <= 0)) || job.Refund.AmountCents > event.AmountCents || job.Refund.RefundReference == "" {
 		return insiderSettlementEvent{}, getters.ErrServiceRefund
 	}
 	if job.Refund.AmountSatoshis != nil {

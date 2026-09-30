@@ -28,7 +28,7 @@ type VerifiedServiceRefund struct {
 // order. The original quote, payment event, and settled amount remain immutable.
 // Product reversal delivery is a separate step; no provider route calls this yet.
 func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund VerifiedServiceRefund) error {
-	if refund.AttemptID == "" || (refund.Provider != "stripe" && refund.Provider != "opennode") || len(refund.PaymentReference) < 1 || len(refund.PaymentReference) > 255 || len(refund.RefundReference) < 1 || len(refund.RefundReference) > 255 || refund.AmountCents <= 0 || refund.Currency != "USD" || refund.RefundedAt.IsZero() || len(refund.Reason) > 1000 {
+	if refund.AttemptID == "" || (refund.Provider != "stripe" && refund.Provider != "opennode") || len(refund.PaymentReference) < 1 || len(refund.PaymentReference) > 255 || len(refund.RefundReference) < 1 || len(refund.RefundReference) > 255 || refund.AmountCents < 0 || (refund.AmountCents == 0 && refund.AmountSatoshis == nil) || refund.Currency != "USD" || refund.RefundedAt.IsZero() || len(refund.Reason) > 1000 {
 		return ErrServiceRefund
 	}
 	if refund.AmountSatoshis != nil && (refund.Provider != "opennode" || *refund.AmountSatoshis <= 0 || *refund.AmountSatoshis > 2_100_000_000_000_000) {
@@ -65,12 +65,14 @@ func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund Ver
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
-	var refunded int64
-	if err = tx.QueryRow(ctx, `SELECT coalesce(sum(amount_cents),0) FROM service_payment_refunds WHERE attempt_id=$1`, refund.AttemptID).Scan(&refunded); err != nil {
+	// A previous Bitcoin refund may have zero USD cents. Status follows the
+	// presence of ledger records, not whether their USD total is positive.
+	var refunded, refundCount int64
+	if err = tx.QueryRow(ctx, `SELECT coalesce(sum(amount_cents),0),count(*) FROM service_payment_refunds WHERE attempt_id=$1`, refund.AttemptID).Scan(&refunded, &refundCount); err != nil {
 		return err
 	}
 	if refund.RefundedAt.Before(settled) || refunded > total || refund.AmountCents > total-refunded ||
-		(refunded == 0 && status != "paid") || (refunded > 0 && refunded < total && status != "partially_refunded") {
+		(refundCount == 0 && status != "paid") || (refundCount > 0 && status != "partially_refunded") {
 		return ErrServiceRefund
 	}
 	if refund.AmountSatoshis != nil {

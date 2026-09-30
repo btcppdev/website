@@ -147,7 +147,7 @@ CREATE TABLE service_payment_refunds (
  refund_reference text NOT NULL CHECK(length(refund_reference) BETWEEN 1 AND 255),
  attempt_id uuid NOT NULL REFERENCES service_payment_attempts(id) ON DELETE RESTRICT,
  payment_reference text NOT NULL CHECK(length(payment_reference) BETWEEN 1 AND 255),
- amount_cents bigint NOT NULL CHECK(amount_cents>0),
+ amount_cents bigint NOT NULL CHECK(amount_cents>=0),
  currency text NOT NULL CHECK(currency='USD'),
  refunded_at timestamptz NOT NULL,
  reason text NOT NULL CHECK(length(reason)<=1000),
@@ -906,6 +906,8 @@ ALTER TABLE service_payment_events ADD COLUMN opennode_bitcoin jsonb
 
 ALTER TABLE service_payment_refunds ADD COLUMN amount_satoshis bigint
  CHECK(amount_satoshis IS NULL OR (provider='opennode' AND amount_satoshis BETWEEN 1 AND 2100000000000000));
+ALTER TABLE service_payment_refunds ADD CONSTRAINT service_refund_has_value
+ CHECK(amount_cents>0 OR (provider='opennode' AND amount_satoshis IS NOT NULL AND amount_satoshis>0));
 
 -- A reviewed quote is an immutable audit record, not an executed refund or
 -- permission to send a stale payout. Execution must revalidate its full basis.

@@ -103,8 +103,8 @@ func TestRefundReceiptSeparatesMoneyFromAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, refunded := range []int64{300, 500} {
-		page := serviceOrderPresentation(&getters.ServiceOrderView{PublicID: "refund-receipt", Status: "partially_refunded", AccessState: "pending", PaymentVerified: true, TotalCents: 500, TaxCents: 20, RefundedCents: refunded})
+	for _, refunded := range []int64{0, 300, 500} {
+		page := serviceOrderPresentation(&getters.ServiceOrderView{PublicID: "refund-receipt", Status: "partially_refunded", AccessState: "pending", PaymentVerified: true, TotalCents: 500, TaxCents: 20, RefundedCents: refunded, RefundedSatoshis: 2})
 		var out bytes.Buffer
 		if err = tmpl.Execute(&out, page); err != nil {
 			t.Fatal(err)
@@ -113,6 +113,12 @@ func TestRefundReceiptSeparatesMoneyFromAccess(t *testing.T) {
 			t.Fatal("incomplete or misleading refund receipt", out.String())
 		}
 		want := "$2.00"
+		if refunded == 0 {
+			want = "$5.00"
+			if !strings.Contains(out.String(), "2 sats") {
+				t.Fatal("sub-cent Bitcoin refund hidden", out.String())
+			}
+		}
 		if refunded == 500 {
 			want = "$0.00"
 		}

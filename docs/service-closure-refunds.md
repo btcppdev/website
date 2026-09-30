@@ -119,9 +119,23 @@ a payment provider. The manual payout workflow must revalidate and reserve under
 the same order lock, freeze the reviewed closure time, and reconcile payout
 evidence before recording completion. A transaction ID alone is not sufficient
 to establish the paid amount and its allocation to an order.
-USD/tax accounting for actual Bitcoin refunds—including amounts below one USD
-cent—still needs implementation before payout execution; the current generic
-refund recorder requires a positive USD accounting amount.
+USD/tax allocation for actual Bitcoin refunds still needs implementation before
+payout execution. The shared ledger, refund worker and Insider receipts now allow
+a zero USD-cent accounting amount when a positive Bitcoin refund is backed by known
+original Bitcoin settlement evidence. Empty refunds and zero-cent card refunds
+remain invalid. Both asset balances, immutable replays and per-order serialization
+still apply. Counting prior refund records (rather than their USD sum) permits
+multiple sub-cent refunds without treating the order as never refunded. Shared
+order receipts also show the refunded satoshis when the USD amount is zero.
+This does not calculate an exchange rate, refund tax or settle a wallet payout.
+
+September 30: the complete fresh-database shared acceptance suite passes with
+race detection and randomized order. Tests cover successive zero-cent Bitcoin
+refunds, replay deduplication, satoshi over-refund rejection, database rejection of
+empty refunds, worker payloads and visible satoshi amounts on shared receipts.
+Log: `/private/tmp/shared-subcent-refund-acceptance-20260930.log`. Insider's full
+race suite also passes with fresh PostgreSQL and the queue-only mailer fixture:
+`/private/tmp/insider-subcent-refunds-20260930.log`.
 
 Verification (September 25): the complete fresh-database acceptance suite passed
 with race detection and randomized order after these changes. Tests cover

@@ -126,6 +126,22 @@ func TestBuildInsiderBitcoinRefundPreservesSharedAmounts(t *testing.T) {
 	if _, err := buildInsiderRefund(raw, "reader", &job); err == nil {
 		t.Fatal("Bitcoin refund exceeds original payment")
 	}
+	satoshis = 1
+	job.Refund.AmountCents = 0
+	event, err = buildInsiderRefund(raw, "reader", &job)
+	if err != nil || event.AdjustmentAmountCents != 0 || event.AdjustmentAmountSatoshis != 1 {
+		t.Fatal("sub-cent refund lost", event, err)
+	}
+	job.Refund.AmountSatoshis = nil
+	if _, err := buildInsiderRefund(raw, "reader", &job); err == nil {
+		t.Fatal("empty refund accepted")
+	}
+	job.Refund.AmountSatoshis = &satoshis
+	original.SettledSats = 0
+	raw, _ = json.Marshal(original)
+	if _, err := buildInsiderRefund(raw, "reader", &job); err == nil {
+		t.Fatal("sub-cent refund without original Bitcoin evidence accepted")
+	}
 }
 
 func TestBuildInsiderArticleRefundPreservesReceipt(t *testing.T) {
