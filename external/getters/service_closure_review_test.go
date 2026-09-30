@@ -54,6 +54,7 @@ func TestBitcoinClosureReviewPostgres(t *testing.T) {
 			}
 			paid := int64(200)
 			refund.AmountSatoshis = &paid
+			refund.AmountCents = 199
 			if err := RecordServiceRefund(ctx, app, refund); err != nil {
 				t.Fatal(err)
 			}

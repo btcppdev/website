@@ -20,7 +20,7 @@ func TestSubCentBitcoinRefundPostgres(t *testing.T) {
 		t.Run(product, func(t *testing.T) {
 			ctx := context.Background()
 			zero := int64(0)
-			app, refund, closure := bitcoinRefundProductFixture(t, &OpenNodeBitcoinEvidence{PriceSatoshis: 1001, OverpaidSatoshis: &zero}, product)
+			app, refund, closure := bitcoinRefundProductFixture(t, &OpenNodeBitcoinEvidence{PriceSatoshis: 1000000, OverpaidSatoshis: &zero}, product)
 			refund.AmountCents = 0
 			if err := RecordServiceRefund(ctx, app, refund); !errors.Is(err, ErrServiceRefund) {
 				t.Fatalf("empty refund accepted: %v", err)
@@ -37,7 +37,7 @@ func TestSubCentBitcoinRefundPostgres(t *testing.T) {
 				t.Fatal("second sub-cent refund", err)
 			}
 			plan, err := PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure)
-			if err != nil || *plan.PreviouslyRefundedSatoshis != 2 || *plan.RemainingRefundSatoshis != 498 {
+			if err != nil || plan.RemainingRefundSatoshis == nil || *plan.PreviouslyRefundedSatoshis != 2 || *plan.RemainingRefundSatoshis != 499998 {
 				t.Fatalf("sub-cent balance: %+v %v", plan, err)
 			}
 			var person, publicID string
@@ -59,7 +59,7 @@ func TestSubCentBitcoinRefundPostgres(t *testing.T) {
 			}
 			refund.RefundReference += "-overflow"
 			refund.AmountCents = 0
-			tooMuch := int64(1000)
+			tooMuch := int64(1000000)
 			refund.AmountSatoshis = &tooMuch
 			if err = RecordServiceRefund(ctx, app, refund); !errors.Is(err, ErrServiceRefund) {
 				t.Fatalf("sub-cent over-refund accepted: %v", err)
@@ -178,6 +178,9 @@ func TestBitcoinClosurePlanPostgres(t *testing.T) {
 			if err != nil || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 500 || len(plan.ReviewReasons) != 0 {
 				t.Fatal("floor estimate", plan, err)
 			}
+			if plan.USDAllocation == nil || plan.USDAllocation.AmountCents != 499 || plan.USDAllocation.OriginalTotalCents != 1000 {
+				t.Fatal("original USD allocation missing", plan)
+			}
 			if plan.ProductCode != product {
 				t.Fatal("preview changed product identity", plan.ProductCode)
 			}
@@ -192,6 +195,7 @@ func TestBitcoinClosurePlanPostgres(t *testing.T) {
 			}
 			amount := int64(200)
 			refund.AmountSatoshis = &amount
+			refund.AmountCents = 199
 			if err := RecordServiceRefund(ctx, app, refund); err != nil {
 				t.Fatal(err)
 			}
@@ -199,11 +203,44 @@ func TestBitcoinClosurePlanPostgres(t *testing.T) {
 			if err != nil || plan.PreviouslyRefundedSatoshis == nil || *plan.PreviouslyRefundedSatoshis != 200 || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 300 {
 				t.Fatal("prior closure refund not deducted", plan, err)
 			}
+			if plan.USDAllocation == nil || plan.USDAllocation.AmountCents != 300 || plan.USDAllocation.CumulativeRefundedCents != 499 {
+				t.Fatal("prior USD allocation missing", plan)
+			}
 			plan, err = PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure.AddDate(2, 0, 0))
 			if err != nil || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 0 {
 				t.Fatal("expired refund", plan, err)
 			}
 		})
+	}
+}
+
+func TestBitcoinClosureAccountingRequiresReviewPostgres(t *testing.T) {
+	for _, product := range []string{"alerts.repository-slots", "insider.membership.annual"} {
+		for _, mode := range []string{"prior underallocation", "prior overallocation", "changed order amount"} {
+			t.Run(product+"/"+mode, func(t *testing.T) {
+				ctx := context.Background()
+				zero := int64(0)
+				app, refund, closure := bitcoinRefundProductFixture(t, &OpenNodeBitcoinEvidence{PriceSatoshis: 1001, OverpaidSatoshis: &zero}, product)
+				if mode == "changed order amount" {
+					if _, err := app.DB.Exec(ctx, `UPDATE shop_orders o SET total_cents=total_cents+1 FROM service_purchase_requests r,service_payment_attempts a WHERE o.id=r.order_id AND a.purchase_id=r.id AND a.id=$1`, refund.AttemptID); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					sats := int64(200)
+					refund.AmountSatoshis = &sats
+					if mode == "prior overallocation" {
+						refund.AmountCents = 200
+					}
+					if err := RecordServiceRefund(ctx, app, refund); err != nil {
+						t.Fatal(err)
+					}
+				}
+				plan, err := PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure)
+				if err != nil || len(plan.ReviewReasons) == 0 || plan.USDAllocation != nil || plan.RemainingRefundSatoshis != nil {
+					t.Fatalf("inconsistent accounting executable: %+v %v", plan, err)
+				}
+			})
+		}
 	}
 }
 

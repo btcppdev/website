@@ -119,15 +119,41 @@ a payment provider. The manual payout workflow must revalidate and reserve under
 the same order lock, freeze the reviewed closure time, and reconcile payout
 evidence before recording completion. A transaction ID alone is not sufficient
 to establish the paid amount and its allocation to an order.
-USD/tax allocation for actual Bitcoin refunds still needs implementation before
-payout execution. The shared ledger, refund worker and Insider receipts now allow
+The preview now includes `usd_allocation`, based on the original tax-inclusive
+USD total and original Bitcoin payment. It floors the cumulative refunded share
+of that USD total, then subtracts previously recorded refund cents. This preserves
+sub-cent amounts across split payouts and allocates the exact original USD total
+when all original satoshis have been returned. Arithmetic uses integers, with no
+current exchange rate. The policy identifier is `original_usd_cumulative_floor_v1`.
+Earlier USD amounts must match this cumulative allocation; otherwise the preview
+flags the payment for review and cannot authorize a new refund. A changed order
+total/tax amount that no longer matches the immutable quote also blocks the plan.
+Admin reviews freeze this allocation as part of their complete basis.
+
+September 30 verification: integer/race tests cover sub-cent credits, crossing a
+cent boundary, full repayment, split-payment invariance, invalid prior allocations
+and multiplication overflow. The full fresh-database acceptance suite passes with
+race detection and randomized test order for both products:
+`/private/tmp/bitcoin-refund-usd-allocation-20260930.log`.
+The actual `service-refunds` binary was run against synthetic Insider evidence:
+original payment 1,001 sats / $10.00, prior refund 200 sats / $1.99, next closure
+refund 300 sats / $3.00, cumulative refund $4.99. No provider operation was issued.
+
+`original_tax_cents` is the original included tax, not a completed tax credit.
+Provider tax reporting still needs an idempotent reversal of the original Stripe
+Tax transaction using the allocated gross refund amount. Stripe supports a
+[tax-inclusive flat reversal amount](https://docs.stripe.com/api/tax/transactions/create_reversal).
+Do not label the local allocation as a verified provider tax reversal or recompute
+tax using current rates. Payout recording and tax reversal remain unfinished.
+
+The shared ledger, refund worker and Insider receipts now allow
 a zero USD-cent accounting amount when a positive Bitcoin refund is backed by known
 original Bitcoin settlement evidence. Empty refunds and zero-cent card refunds
 remain invalid. Both asset balances, immutable replays and per-order serialization
 still apply. Counting prior refund records (rather than their USD sum) permits
 multiple sub-cent refunds without treating the order as never refunded. Shared
 order receipts also show the refunded satoshis when the USD amount is zero.
-This does not calculate an exchange rate, refund tax or settle a wallet payout.
+This does not refund tax or settle a wallet payout.
 
 September 30: the complete fresh-database shared acceptance suite passes with
 race detection and randomized order. Tests cover successive zero-cent Bitcoin

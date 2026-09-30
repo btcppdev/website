@@ -15,14 +15,16 @@ import (
 // executor must reserve the amount and revalidate under the same order lock used
 // by settlement/refunds before contacting a provider.
 type BitcoinClosurePlan struct {
-	AttemptID                  string                                 `json:"attempt_id"`
-	OrderPublicID              string                                 `json:"order_public_id"`
-	ProductCode                string                                 `json:"product_code"`
-	ClosureAt                  time.Time                              `json:"closure_at"`
-	Estimate                   *servicebilling.BitcoinClosureEstimate `json:"estimate"`
-	PreviouslyRefundedSatoshis *int64                                 `json:"previously_refunded_satoshis"`
-	RemainingRefundSatoshis    *int64                                 `json:"remaining_refund_satoshis"`
-	ReviewReasons              []string                               `json:"review_reasons"`
+	AttemptID                  string                                     `json:"attempt_id"`
+	OrderPublicID              string                                     `json:"order_public_id"`
+	ProductCode                string                                     `json:"product_code"`
+	ClosureAt                  time.Time                                  `json:"closure_at"`
+	Estimate                   *servicebilling.BitcoinClosureEstimate     `json:"estimate"`
+	PreviouslyRefundedSatoshis *int64                                     `json:"previously_refunded_satoshis"`
+	RemainingRefundSatoshis    *int64                                     `json:"remaining_refund_satoshis"`
+	USDAllocation              *servicebilling.BitcoinRefundUSDAllocation `json:"usd_allocation"`
+	OriginalTaxCents           int64                                      `json:"original_tax_cents"`
+	ReviewReasons              []string                                   `json:"review_reasons"`
 }
 
 // PlanBitcoinClosureRefund reads the immutable purchased period and original
@@ -41,23 +43,26 @@ func planBitcoinClosureRefund(ctx context.Context, query interface {
 	}
 	plan := &BitcoinClosurePlan{AttemptID: attemptID, ClosureAt: closure.UTC(), ReviewReasons: []string{}}
 	var quoteBytes, paymentBytes, refundBytes []byte
+	var orderMatchesQuote bool
 	// A single statement sees one consistent PostgreSQL snapshot, including any
 	// concurrent refund. It does not reserve funds or prevent future changes.
 	err := query.QueryRow(ctx, `SELECT o.public_id,r.quote_snapshot,
+ o.currency='USD' AND o.total_cents=(r.quote_snapshot->>'total_cents')::bigint AND o.sales_tax_amount_cents=(r.quote_snapshot->>'tax_cents')::bigint,
  coalesce((SELECT jsonb_agg(e.opennode_bitcoin) FROM service_payment_events e WHERE e.attempt_id=a.id),'[]'::jsonb),
- coalesce((SELECT jsonb_agg(jsonb_build_object('satoshis',f.amount_satoshis,'reason',f.reason)) FROM service_payment_refunds f WHERE f.attempt_id=a.id),'[]'::jsonb)
+ coalesce((SELECT jsonb_agg(jsonb_build_object('satoshis',f.amount_satoshis,'reason',f.reason,'amount_cents',f.amount_cents)) FROM service_payment_refunds f WHERE f.attempt_id=a.id),'[]'::jsonb)
  FROM service_payment_attempts a JOIN service_purchase_requests r ON r.id=a.purchase_id JOIN shop_orders o ON o.id=r.order_id
  WHERE a.id=$1 AND a.provider='opennode' AND a.settled_at IS NOT NULL
  AND o.payment_provider=a.provider AND o.payment_provider_id=a.provider_reference
- AND o.status IN ('paid','partially_refunded','refunded')`, attemptID).Scan(&plan.OrderPublicID, &quoteBytes, &paymentBytes, &refundBytes)
+ AND o.status IN ('paid','partially_refunded','refunded')`, attemptID).Scan(&plan.OrderPublicID, &quoteBytes, &orderMatchesQuote, &paymentBytes, &refundBytes)
 	if err != nil {
 		return nil, err
 	}
 	var quote ServiceQuote
 	var payments []*OpenNodeBitcoinEvidence
 	var refunds []struct {
-		Satoshis *int64 `json:"satoshis"`
-		Reason   string `json:"reason"`
+		Satoshis    *int64 `json:"satoshis"`
+		Reason      string `json:"reason"`
+		AmountCents int64  `json:"amount_cents"`
 	}
 	if err := json.Unmarshal(quoteBytes, &quote); err != nil {
 		return nil, err
@@ -69,6 +74,11 @@ func planBitcoinClosureRefund(ctx context.Context, query interface {
 		return nil, err
 	}
 	plan.ProductCode = quote.ProductCode
+	plan.OriginalTaxCents = quote.TaxCents
+	if !orderMatchesQuote || quote.TotalCents <= 0 || quote.TaxCents < 0 || quote.TaxCents > quote.TotalCents {
+		plan.ReviewReasons = append(plan.ReviewReasons, "original_usd_accounting_requires_review")
+		return plan, nil
+	}
 	if quote.Provider != "opennode" || quote.PeriodStart == nil || quote.PeriodEnd == nil {
 		plan.ReviewReasons = append(plan.ReviewReasons, "no_prepaid_service_period")
 		return plan, nil
@@ -99,7 +109,7 @@ func planBitcoinClosureRefund(ctx context.Context, query interface {
 		return nil, err
 	}
 	plan.Estimate = &estimate
-	var refunded int64
+	var refunded, refundedCents int64
 	for _, refund := range refunds {
 		if refund.Satoshis == nil {
 			plan.ReviewReasons = append(plan.ReviewReasons, "prior_refund_bitcoin_amount_unknown")
@@ -110,6 +120,11 @@ func planBitcoinClosureRefund(ctx context.Context, query interface {
 			return plan, nil
 		}
 		refunded += *refund.Satoshis
+		if refund.AmountCents < 0 || refund.AmountCents > quote.TotalCents-refundedCents {
+			plan.ReviewReasons = append(plan.ReviewReasons, "prior_refund_usd_amount_requires_review")
+			return plan, nil
+		}
+		refundedCents += refund.AmountCents
 		if refund.Reason != "permanent_closure" {
 			plan.ReviewReasons = append(plan.ReviewReasons, "prior_refund_allocation_requires_review")
 		}
@@ -117,6 +132,12 @@ func planBitcoinClosureRefund(ctx context.Context, query interface {
 	plan.PreviouslyRefundedSatoshis = &refunded
 	if len(plan.ReviewReasons) == 0 {
 		remaining := max(int64(0), estimate.FloorSatoshis-refunded)
+		allocation, err := servicebilling.AllocateBitcoinRefundUSD(original, quote.TotalCents, refunded, refundedCents, remaining)
+		if err != nil {
+			plan.ReviewReasons = append(plan.ReviewReasons, "prior_refund_usd_allocation_requires_review")
+			return plan, nil
+		}
+		plan.USDAllocation = allocation
 		plan.RemainingRefundSatoshis = &remaining
 	}
 	return plan, nil
