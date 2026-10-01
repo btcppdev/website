@@ -65,6 +65,15 @@ func RecoverAlertsStripeIncrease(ctx context.Context, app *config.AppContext, pe
 			if observed.Status == "void" {
 				return false, ResolveVoidedAlertsStripeIncrease(ctx, app, person, quoteID, client)
 			}
+			if observed.Status == "open" {
+				salesErr := checkServiceSales(ctx, app.DB, "alerts")
+				if errors.Is(salesErr, ErrServiceSalesClosed) {
+					return false, resolveAlertsStripeIncrease(ctx, app, person, quoteID, client, true)
+				}
+				if salesErr != nil {
+					return false, salesErr
+				}
+			}
 			if observed.Status != "paid" {
 				return false, nil
 			}

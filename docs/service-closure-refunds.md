@@ -864,3 +864,34 @@ paid settlement), and shared worker dispatch tests pass. Logs:
 `/private/tmp/service-oneoff-lookup-worker.log`, and
 `/private/tmp/service-oneoff-lookup-dispatch.log`. These use provider fixtures;
 no live Stripe session was queried or expired. No migration was added.
+
+## Cancel unpaid pending Alerts upgrades during closure
+
+After an audited Alerts sales stop, upgrade recovery can now void the reviewed
+open invoice for an attempted pending upgrade. It requires the saved invoice
+identity, original subscription quantity/period, exact pending quantity change,
+latest-invoice match and absence of a conflicting schedule. It uses a stable
+quote-based Stripe idempotency key and refuses paid or partially paid invoices.
+The existing account lock and submission-lease check fence concurrent local work.
+
+After the void action it reads the invoice and subscription again. The existing
+immutable expiration evidence and local expired state are recorded only after
+Stripe reports the invoice void, the original quantity retained, and no pending
+update or schedule. A lost response leaves the local instruction pending; retry
+observes the completed provider action without another void. Late successful
+payments remain eligible for normal settlement and refund review.
+
+This follows Stripe's documented pending-update cancellation:
+https://docs.stripe.com/billing/subscriptions/pending-updates
+Voiding requires the audited service sales stop. Background execution uses the
+existing Stripe worker opt-in; authenticated recovery uses the same coordinator.
+Unsubmitted reservations, ambiguous provider state, conflicting schedules, and
+final access cutoff remain separate closure work.
+
+Adapter race tests and PostgreSQL upgrade reservation/payment tests pass, including
+no action during active sales or a live submission lease, paid/partial/conflicting
+provider state, lost responses, durable retry and late settlement. Shared handler
+recovery-dispatch checks also pass. Logs:
+`/private/tmp/service-closure-upgrade-unit.log` and
+`/private/tmp/service-closure-upgrade-postgres.log`. No migration was added and no
+real invoice was voided.

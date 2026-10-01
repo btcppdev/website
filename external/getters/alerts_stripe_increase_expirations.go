@@ -5,12 +5,17 @@ import (
 	"btcpp-web/internal/config"
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
 // ResolveVoidedAlertsStripeIncrease releases a confirmation only after fresh
 // provider reads. A live submission lease prevents racing a charge attempt.
 func ResolveVoidedAlertsStripeIncrease(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client) error {
+	return resolveAlertsStripeIncrease(ctx, app, person, id, client, false)
+}
+
+func resolveAlertsStripeIncrease(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client, closing bool) error {
 	quote, err := AlertsStripeIncreaseQuoteForPerson(ctx, app, person, id)
 	if err != nil {
 		return err
@@ -42,7 +47,20 @@ func ResolveVoidedAlertsStripeIncrease(ctx context.Context, app *config.AppConte
 	if json.Unmarshal(raw, &b) != nil || b.PersonID != person || b.IntentID != quote.CheckoutID {
 		return alertsstripe.ErrSubscription
 	}
+	if closing {
+		if err := checkServiceSales(ctx, tx, "alerts"); !errors.Is(err, ErrServiceSalesClosed) {
+			if err != nil {
+				return err
+			}
+			return ErrServiceQuote
+		}
+	}
 	b.PaidSlots = quote.Preview.PreviousSlots
+	if closing {
+		if err := client.VoidPendingIncrease(ctx, reference, b, alertsstripe.IncreaseIntent{ID: id, Preview: quote.Preview}); err != nil {
+			return err
+		}
+	}
 	observed, err := client.VoidedIncrease(ctx, reference, b, alertsstripe.IncreaseIntent{ID: id, Preview: quote.Preview})
 	if err != nil {
 		return err

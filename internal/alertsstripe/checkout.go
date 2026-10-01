@@ -33,6 +33,7 @@ type Intent struct {
 }
 
 type Client struct {
+	VoidInvoice        func(string, *stripe.InvoiceVoidInvoiceParams) (*stripe.Invoice, error)
 	ListCheckouts      func(*stripe.CheckoutSessionListParams) (*stripe.CheckoutSessionList, error)
 	Expire             func(string, *stripe.CheckoutSessionExpireParams) (*stripe.CheckoutSession, error)
 	ReleaseSchedule    func(string, *stripe.SubscriptionScheduleReleaseParams) (*stripe.SubscriptionSchedule, error)
@@ -51,7 +52,7 @@ type Client struct {
 }
 
 func NewClient(live bool) Client {
-	return Client{ListCheckouts: listCheckoutPage, Expire: checkout.Expire, ReleaseSchedule: stripeSchedule.Release, Schedule: stripeSchedule.Get, UpdateSchedule: stripeSchedule.Update, CreateSchedule: stripeSchedule.New, PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
+	return Client{VoidInvoice: stripeInvoice.VoidInvoice, ListCheckouts: listCheckoutPage, Expire: checkout.Expire, ReleaseSchedule: stripeSchedule.Release, Schedule: stripeSchedule.Get, UpdateSchedule: stripeSchedule.Update, CreateSchedule: stripeSchedule.New, PreviewInvoice: stripeInvoice.CreatePreview, UpdateSubscription: stripeSubscription.Update, Create: checkout.New, Retrieve: checkout.Get, Invoice: stripeInvoice.Get, Price: stripePrice.Get, Subscription: stripeSubscription.Get, Live: live, ListInvoices: func(params *stripe.InvoiceListParams) (*stripe.InvoiceList, error) {
 		params.Single = true
 		iter := stripeInvoice.List(params)
 		for iter.Next() {

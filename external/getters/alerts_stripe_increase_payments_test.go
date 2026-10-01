@@ -164,7 +164,14 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	if _, e := AlertsStripeIncreasePaymentLink(ctx, app, "00000000-0000-0000-0000-000000000000", q.ID, upgradeClient); e == nil {
 		t.Fatal("foreign payment handoff")
 	}
-	if recovered, e := RecoverAlertsStripeIncrease(ctx, app, person, q.ID, upgradeClient); e != nil || recovered {
+	recovered, e := RecoverAlertsStripeIncrease(ctx, app, person, q.ID, upgradeClient)
+	if refundAction == "sales-closed" {
+		// This fixture has no void adapter or verified pending update. Closure
+		// must remain unresolved; a later successful payment is still recorded.
+		if recovered || !errors.Is(e, alertsstripe.ErrReconcile) {
+			t.Fatal("unverified closure accepted", recovered, e)
+		}
+	} else if e != nil || recovered {
 		t.Fatal("unpaid invoice fulfilled", recovered, e)
 	}
 	upgradeInvoice.Status = "paid"

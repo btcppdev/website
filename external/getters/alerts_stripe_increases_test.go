@@ -284,4 +284,67 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	if _, err = app.DB.Exec(ctx, `DELETE FROM alerts_stripe_increase_expirations WHERE quote_id=$1`, ambiguousID); err == nil {
 		t.Fatal("expiry evidence deleted")
 	}
+	// Closure cancels an open, attempted upgrade only after its submission lease
+	// expires, and persists resolution after a lost provider response.
+	var closureID string
+	if err = app.DB.QueryRow(ctx, `INSERT INTO alerts_stripe_increase_quotes(checkout_id,revision,preview,created_at,expires_at) VALUES($1,2,$2,$3,$4) RETURNING id::text`, id, expiredRaw, now.Add(-11*time.Minute), expired.ExpiresAt).Scan(&closureID); err != nil {
+		t.Fatal(err)
+	}
+	invoice.ID = "in_closure_" + closureID
+	invoice.Status = "open"
+	invoice.AmountRemaining = invoice.Total
+	sub.LatestInvoice = &stripe.Invoice{ID: invoice.ID}
+	sub.CollectionMethod = "charge_automatically"
+	sub.PendingUpdate = &stripe.SubscriptionPendingUpdate{SubscriptionItems: []*stripe.SubscriptionItem{{ID: expired.SubscriptionItemID, Quantity: expired.PaidSlots, Price: price}}}
+	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_increases(quote_id,checkout_id) VALUES($1,$2)`, closureID, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_increase_submissions(quote_id,invoice_id,lease_until) VALUES($1,$2,now()+interval '1 minute')`, closureID, invoice.ID); err != nil {
+		t.Fatal(err)
+	}
+	voidCalls := 0
+	client.VoidInvoice = func(ref string, p *stripe.InvoiceVoidInvoiceParams) (*stripe.Invoice, error) {
+		voidCalls++
+		if ref != invoice.ID || p.IdempotencyKey == nil || *p.IdempotencyKey != "alerts-closure-void-increase:"+closureID {
+			t.Fatal("incorrect void")
+		}
+		invoice.Status = "void"
+		invoice.AmountRemaining = 0
+		sub.PendingUpdate = nil
+		return nil, errors.New("lost void response")
+	}
+	if _, err = RecoverAlertsStripeIncrease(ctx, app, person, closureID, client); err != nil || voidCalls != 0 {
+		t.Fatal("active sales voided invoice", err, voidCalls)
+	}
+	if _, err = app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
+		t.Fatal(err)
+	}
+	if err = StopServiceSales(ctx, app, person, "alerts", "Permanent closure fixture"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := app.DB.Exec(ctx, `TRUNCATE service_sales_closures`); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err = RecoverAlertsStripeIncrease(ctx, app, person, closureID, client); !errors.Is(err, alertsstripe.ErrReconcile) || voidCalls != 0 {
+		t.Fatal("live submission voided", err, voidCalls)
+	}
+	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increase_submissions SET lease_until=now()-interval '1 second' WHERE quote_id=$1`, closureID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = RecoverAlertsStripeIncrease(ctx, app, person, closureID, client); err == nil || voidCalls != 1 {
+		t.Fatal("lost response accepted", err, voidCalls)
+	}
+	var resolved string
+	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, closureID).Scan(&resolved); err != nil || resolved != "pending" {
+		t.Fatal("premature local resolution", resolved, err)
+	}
+	if _, err = RecoverAlertsStripeIncrease(ctx, app, person, closureID, client); err != nil || voidCalls != 1 {
+		t.Fatal("void recovery", err, voidCalls)
+	}
+	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, closureID).Scan(&resolved); err != nil || resolved != "expired" {
+		t.Fatal("missing local resolution", resolved, err)
+	}
+
 }
