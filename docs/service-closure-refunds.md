@@ -525,3 +525,35 @@ suite then passed against that acceptance database in
 `/private/tmp/service-refund-access-ui-getters-fixed-20261001.log`. Explicit-choice
 form tests also pass. Run database-sharing packages sequentially via the acceptance
 script; an earlier concurrent run had service-terms fixture interference.
+
+## Recorded-payout follow-up
+
+With `SERVICE_PAYMENT_RECONCILIATION_ENABLED=true` and valid Bitcoin Core RPC
+configuration, the shared worker rechecks recorded payout outputs. It checks up
+to 20 due records per batch, using leased jobs so multiple replicas can cooperate.
+Successful checks are due again in six hours; failures become `unverified` and are
+retried after fifteen minutes. A reclaimed lease prevents an old worker from
+replacing a newer observation. Existing payouts are included automatically.
+
+The check repeats verification of the saved transaction, original containing
+block, exact recipient output, amount and required confirmations. The closure
+review page displays the latest result and its time separately from immutable
+original payout evidence. An unavailable/pruned node, changed chain tip, missing
+block or reorg can all prevent verification. `unverified` is an investigation
+signal, not a finding that the recipient was unpaid. Neither the ledger nor
+product access changes, and the worker never creates a replacement payment.
+If a transaction moves to another block, verifying and approving its new inclusion
+still requires an operator reconciliation workflow; original evidence is retained.
+
+Metrics include `btcpp_web_bitcoin_payout_checks{state="pending|confirmed|unverified"}`
+and `btcpp_web_bitcoin_payout_oldest_due_timestamp_seconds`. Missing check jobs
+count as pending, so a disabled worker is visible. Load
+`ops/bitcoin-payout-alerts.yml` for sustained-unverified and overdue-check warnings;
+these require fresh, successful metric collection and export no payout identifiers.
+
+The fresh-database race acceptance suite passed in
+`/private/tmp/bitcoin-payout-followup-20261001.log`. Follow-up tests exercise the
+worker with local RPC fixtures, expired/replaced leases, failed verification,
+recovery and immutable financial evidence. Promtool rule tests pass for warning
+thresholds, resolution, stale data and failed collection. Installation on the
+monitoring service and live-node/operator rehearsal remain deployment work.

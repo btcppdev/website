@@ -1,0 +1,26 @@
+groups:
+  - name: btcpp-bitcoin-payout-checks
+    rules:
+      - alert: BitcoinPlusPlusPayoutUnverified
+        expr: |
+          (btcpp_web_bitcoin_payout_checks{state="unverified"} > 0)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Recorded Bitcoin payout cannot be reverified
+          description: Inspect the saved closure review and node chain status. Unverified may mean node outage, missing blocks or reorg; do not send another payment.
+      - alert: BitcoinPlusPlusPayoutChecksStalled
+        expr: |
+          (btcpp_web_bitcoin_payout_oldest_due_timestamp_seconds > 0)
+          and (time() - btcpp_web_bitcoin_payout_oldest_due_timestamp_seconds > 900)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Bitcoin payout follow-up is overdue by more than fifteen minutes
+          description: Check SERVICE_PAYMENT_RECONCILIATION_ENABLED and the configured Bitcoin Core connection. Original payout records remain unchanged.

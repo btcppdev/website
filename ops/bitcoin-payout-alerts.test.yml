@@ -1,0 +1,87 @@
+rule_files:
+  - bitcoin-payout-alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_bitcoin_payout_checks{job="btcpp",instance="stale",state="unverified"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_bitcoin_payout_oldest_due_timestamp_seconds{job="btcpp",instance="stale"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="stale"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="stale"}'
+        values: '0+0x40'
+      - series: 'btcpp_web_bitcoin_payout_oldest_due_timestamp_seconds{job="btcpp",instance="empty"}'
+        values: '0+0x40'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="empty"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="empty"}'
+        values: '0+60x40'
+    alert_rule_test:
+      - eval_time: 21m
+        alertname: BitcoinPlusPlusPayoutUnverified
+        exp_alerts: []
+      - eval_time: 21m
+        alertname: BitcoinPlusPlusPayoutChecksStalled
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_bitcoin_payout_checks{job="btcpp",instance="web",state="unverified"}'
+        values: '1+0x19 0+0x10'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '1+0x30'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x30'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: BitcoinPlusPlusPayoutUnverified
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: BitcoinPlusPlusPayoutUnverified
+        exp_alerts:
+          - exp_labels:
+              job: btcpp
+              instance: web
+              state: unverified
+              severity: warning
+            exp_annotations:
+              summary: Recorded Bitcoin payout cannot be reverified
+              description: Inspect the saved closure review and node chain status. Unverified may mean node outage, missing blocks or reorg; do not send another payment.
+      - eval_time: 20m
+        alertname: BitcoinPlusPlusPayoutUnverified
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_bitcoin_payout_checks{job="btcpp",instance="web",state="unverified"}'
+        values: '1+0x20'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '0+0x20'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: BitcoinPlusPlusPayoutUnverified
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_bitcoin_payout_oldest_due_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: BitcoinPlusPlusPayoutChecksStalled
+        exp_alerts: []
+      - eval_time: 21m
+        alertname: BitcoinPlusPlusPayoutChecksStalled
+        exp_alerts:
+          - exp_labels:
+              job: btcpp
+              instance: web
+              severity: warning
+            exp_annotations:
+              summary: Bitcoin payout follow-up is overdue by more than fifteen minutes
+              description: Check SERVICE_PAYMENT_RECONCILIATION_ENABLED and the configured Bitcoin Core connection. Original payout records remain unchanged.

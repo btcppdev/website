@@ -29,6 +29,7 @@ type serviceClosurePage struct {
 	Destination                      *getters.BitcoinClosureDestination
 	Payout                           *getters.BitcoinClosurePayout
 	CurrentBasis, NodeConfigured     bool
+	PayoutCheck                      *getters.BitcoinPayoutCheck
 }
 
 func AdminServiceClosure(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
@@ -119,6 +120,13 @@ func serveAdminServiceClosure(w http.ResponseWriter, r *http.Request, app *confi
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, "Unable to load payout record", 500)
 			return
+		}
+		if page.Payout != nil {
+			page.PayoutCheck, err = getters.InspectBitcoinPayoutCheck(r.Context(), app, reviewID)
+			if err != nil {
+				http.Error(w, "Unable to load payout follow-up", 500)
+				return
+			}
 		}
 		if page.Payout == nil && page.Plan != nil {
 			current, checkErr := getters.PlanBitcoinClosureRefund(r.Context(), app, page.Plan.AttemptID, page.Plan.ClosureAt)

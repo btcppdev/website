@@ -16,6 +16,20 @@ func StartServicePaymentReconciliation(app *config.AppContext) {
 	if os.Getenv("SERVICE_PAYMENT_RECONCILIATION_ENABLED") != "true" || app.Env == nil {
 		return
 	}
+	if node, err := closureBitcoinNode(app); err == nil {
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+				count, err := getters.RecheckDueBitcoinPayouts(ctx, app, node)
+				cancel()
+				if err != nil {
+					app.Err.Printf("Bitcoin payout follow-up checked=%d: %v", count, err)
+				}
+			}
+		}()
+	}
 	if strings.TrimSpace(app.Env.StripeKey) != "" {
 		go func() {
 			ticker := time.NewTicker(time.Minute)

@@ -24,6 +24,8 @@ type businessCollector struct {
 	lastSuccessful time.Time
 	lastSuccess    bool
 
+	bitcoinPayoutChecks               *prometheus.Desc
+	bitcoinPayoutDue                  *prometheus.Desc
 	tickets                           *prometheus.Desc
 	ticketCheckins                    *prometheus.Desc
 	speakerApplications               *prometheus.Desc
@@ -50,6 +52,8 @@ type businessCollector struct {
 
 func newBusinessCollector(namespace string, loader BusinessMetricsLoader) *businessCollector {
 	return &businessCollector{
+		bitcoinPayoutChecks:               prometheus.NewDesc(namespace+"_bitcoin_payout_checks", "Latest verification state of recorded Bitcoin payouts.", []string{"state"}, nil),
+		bitcoinPayoutDue:                  prometheus.NewDesc(namespace+"_bitcoin_payout_oldest_due_timestamp_seconds", "Earliest next verification time of recorded Bitcoin payouts; zero when none exist.", nil, nil),
 		alertsCheckoutJobs:                prometheus.NewDesc(namespace+"_alerts_checkout_recovery_jobs", "Open Alerts checkouts by recovery state.", []string{"state"}, nil),
 		alertsCheckoutDue:                 prometheus.NewDesc(namespace+"_alerts_checkout_oldest_due_timestamp_seconds", "Earliest scheduled reconciliation among open Alerts checkouts; zero when none exist.", nil, nil),
 		alertsCheckoutUnresolved:          prometheus.NewDesc(namespace+"_alerts_checkout_oldest_unresolved_timestamp_seconds", "Creation time of the oldest unbound Alerts checkout; zero when none exist.", nil, nil),
@@ -77,6 +81,8 @@ func newBusinessCollector(namespace string, loader BusinessMetricsLoader) *busin
 }
 
 func (c *businessCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.bitcoinPayoutChecks
+	ch <- c.bitcoinPayoutDue
 	ch <- c.alertsCheckoutJobs
 	ch <- c.alertsCheckoutDue
 	ch <- c.alertsCheckoutUnresolved
@@ -112,10 +118,10 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 		if count.Metric == "ticket_checkins" {
 			labels = []string{count.Conference}
 		}
-		if count.Metric == "alerts_checkout_recovery_jobs" || count.Metric == "account_deletion_cancellation_jobs" || count.Metric == "account_deletion_delivery_jobs" || count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_refund_jobs" || count.Metric == "service_refund_tax_jobs" {
+		if count.Metric == "bitcoin_payout_checks" || count.Metric == "alerts_checkout_recovery_jobs" || count.Metric == "account_deletion_cancellation_jobs" || count.Metric == "account_deletion_delivery_jobs" || count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_refund_jobs" || count.Metric == "service_refund_tax_jobs" {
 			labels = []string{count.State}
 		}
-		if count.Metric == "alerts_checkout_oldest_due_timestamp_seconds" || count.Metric == "alerts_checkout_oldest_unresolved_timestamp_seconds" || count.Metric == "account_deletion_cancellation_oldest_pending_timestamp_seconds" || count.Metric == "account_deletion_delivery_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_tax_oldest_pending_timestamp_seconds" {
+		if count.Metric == "bitcoin_payout_oldest_due_timestamp_seconds" || count.Metric == "alerts_checkout_oldest_due_timestamp_seconds" || count.Metric == "alerts_checkout_oldest_unresolved_timestamp_seconds" || count.Metric == "account_deletion_cancellation_oldest_pending_timestamp_seconds" || count.Metric == "account_deletion_delivery_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_tax_oldest_pending_timestamp_seconds" {
 			labels = nil
 		}
 		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, count.Count, labels...)
@@ -132,6 +138,10 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 
 func (c *businessCollector) metricDesc(metric string) *prometheus.Desc {
 	switch metric {
+	case "bitcoin_payout_checks":
+		return c.bitcoinPayoutChecks
+	case "bitcoin_payout_oldest_due_timestamp_seconds":
+		return c.bitcoinPayoutDue
 	case "alerts_checkout_recovery_jobs":
 		return c.alertsCheckoutJobs
 	case "alerts_checkout_oldest_due_timestamp_seconds":

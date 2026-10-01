@@ -1020,3 +1020,16 @@ CREATE TABLE service_refund_tax_reviews (
 );
 CREATE TRIGGER service_refund_tax_reviews_immutable BEFORE UPDATE OR DELETE ON service_refund_tax_reviews
 FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+
+-- Current observation only; the original payout proof remains immutable.
+CREATE TABLE service_bitcoin_payout_checks (
+ review_id uuid PRIMARY KEY REFERENCES service_bitcoin_closure_payouts(review_id),
+ state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','confirmed','unverified')),
+ checked_at timestamptz,
+ evidence jsonb CHECK(evidence IS NULL OR jsonb_typeof(evidence)='object'),
+ next_check_at timestamptz NOT NULL DEFAULT now(),
+ lease_until timestamptz NOT NULL DEFAULT now(),
+ lease_token uuid,
+ CHECK(state<>'confirmed' OR (checked_at IS NOT NULL AND evidence IS NOT NULL))
+);
+CREATE INDEX service_bitcoin_payout_checks_due ON service_bitcoin_payout_checks(next_check_at);

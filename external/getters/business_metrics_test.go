@@ -20,7 +20,7 @@ func TestDatabaseSmokeBusinessMetrics(t *testing.T) {
 		"volunteer_applications": true, "recording_broadcasts": true,
 	}
 	for _, count := range counts {
-		if strings.HasPrefix(count.Metric, "service_refund_tax_") || strings.HasPrefix(count.Metric, "alerts_checkout_") || strings.HasPrefix(count.Metric, "account_deletion_") || count.Metric == "service_refund_jobs" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_jobs" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" {
+		if strings.HasPrefix(count.Metric, "bitcoin_payout_") || strings.HasPrefix(count.Metric, "service_refund_tax_") || strings.HasPrefix(count.Metric, "alerts_checkout_") || strings.HasPrefix(count.Metric, "account_deletion_") || count.Metric == "service_refund_jobs" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_jobs" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" {
 			if count.Conference != "" || count.Count < 0 {
 				t.Fatalf("invalid receipt aggregate: %+v", count)
 			}
