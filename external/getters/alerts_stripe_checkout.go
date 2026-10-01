@@ -42,6 +42,9 @@ func ReserveAlertsStripeCheckoutWithPolicy(app *config.AppContext, person, key s
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	if err = requireServiceSales(ctx, tx, "alerts"); err != nil {
+		return nil, err
+	}
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+person); err != nil {
 		return nil, err
 	}
@@ -125,6 +128,9 @@ func AlertsStripeCheckoutForPerson(app *config.AppContext, person, id string) (*
 }
 
 func OpenAlertsStripeCheckout(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client) (string, error) {
+	if err := checkServiceSales(ctx, app.DB, "alerts"); err != nil {
+		return "", err
+	}
 	stored, err := AlertsStripeCheckoutForPerson(app, person, id)
 	if err != nil {
 		return "", err
@@ -160,6 +166,9 @@ func OpenAlertsStripeCheckout(ctx context.Context, app *config.AppContext, perso
 	}
 	if occupied {
 		return "", ErrAlertsStripeCheckoutConflict
+	}
+	if err := checkServiceSales(ctx, app.DB, "alerts"); err != nil {
+		return "", err
 	}
 	return destination, nil
 }

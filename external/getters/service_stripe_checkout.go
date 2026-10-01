@@ -36,6 +36,9 @@ func ReserveServiceStripeCheckout(app *config.AppContext, person, key string, te
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	if err = requireServiceSales(ctx, tx, terms.ProductCode); err != nil {
+		return nil, err
+	}
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+person); err != nil {
 		return nil, err
 	}
@@ -108,6 +111,9 @@ func ServiceStripeCheckoutForPerson(app *config.AppContext, person, id, product 
 }
 
 func OpenServiceStripeCheckout(ctx context.Context, app *config.AppContext, person, id, product string, client servicestripe.CheckoutClient) (string, error) {
+	if err := checkServiceSales(ctx, app.DB, product); err != nil {
+		return "", err
+	}
 	stored, err := ServiceStripeCheckoutForPerson(app, person, id, product)
 	if err != nil {
 		return "", err
@@ -127,6 +133,9 @@ func OpenServiceStripeCheckout(ctx context.Context, app *config.AppContext, pers
 	}
 	if providerErr != nil {
 		return "", providerErr
+	}
+	if err := checkServiceSales(ctx, app.DB, product); err != nil {
+		return "", err
 	}
 	return destination, nil
 }

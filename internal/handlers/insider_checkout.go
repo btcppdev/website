@@ -156,6 +156,10 @@ func CreateInsiderCheckout(w http.ResponseWriter, r *http.Request, app *config.A
 			return
 		}
 	}
+	if err := getters.ServiceSalesAvailable(r.Context(), app, quote.ProductCode); err != nil {
+		writeInsiderServiceError(w, http.StatusServiceUnavailable, "Insider is not accepting new purchases.")
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(insiderCheckoutResponse{CheckoutURL: checkoutURL, OrderID: purchase.PublicID})
 }

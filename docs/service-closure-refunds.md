@@ -649,3 +649,38 @@ flows. Connected admin HTTP tests additionally passed with top-up approval,
 negative/fractional/duplicate-field rejection, payout recording and new-block
 reconciliation. Local logs: `/private/tmp/service-closure-topups-20261001.log` and
 `/private/tmp/service-closure-topup-http-20261001.log`. No real payout was sent.
+
+## Stop new sales before closure
+
+`service-sales -service alerts` (or `insider`) inspects the recorded sales-stop
+state without changing it. The first operational closure step is an explicit,
+permanent stop authorized by an active global admin:
+
+```sh
+service-sales -service alerts -actor ADMIN_UUID -reason 'Approved permanent closure' -confirm-stop-sales
+```
+
+Run this only after a reviewed closure decision. The record is immutable, with
+actor, reason and stop time; matching retries return the same decision. There is
+no automatic reopen. New prepaid purchases, payment attempts and both services'
+Stripe checkout reservations are blocked under a shared database lock. Checkout
+openers recheck after provider I/O and persist any returned provider reference for
+reconciliation before withholding the link. Provider webhook settlement, refund
+recording and operational recovery remain enabled.
+
+This is the first closure step, not complete shutdown orchestration. Existing
+payment links may still work at the provider, and an already-started provider
+request can race the local stop. Inventory and explicitly expire/cancel those
+provider sessions, stop recurring renewals, reconcile in-flight payments, then
+rerun the Bitcoin obligation inventory. Coordinate the product's access cutoff
+separately. No closure date or provider cancellation is implied by this command.
+
+
+October 1 sales-stop verification: the full shared race acceptance suite passed
+on fresh schema 128. After final changes, getter and handler race suites passed
+again, including service isolation, active-admin checks, immutable/idempotent
+closure decisions, blocked checkout paths, and settlement of an in-flight payment
+after sales stopped. The operator binary builds; its read-only status command was
+checked against the local fixture. Logs: `/private/tmp/service-sales-closure-20261001.log`
+and `/private/tmp/service-sales-final-20261001.log`. No service was closed outside
+the disposable test database; no provider sessions were changed.

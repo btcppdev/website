@@ -95,6 +95,9 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	if err = requireServiceSales(ctx, tx, quote.ProductCode); err != nil {
+		return nil, err
+	}
 	// Serialize requests per account, including concurrent attempts with one key.
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+personID); err != nil {
 		return nil, err

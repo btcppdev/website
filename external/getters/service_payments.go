@@ -124,6 +124,9 @@ func BeginServicePayment(app *config.AppContext, personID, orderID string) (*Ser
 	if err = json.Unmarshal(raw, &quote); err != nil {
 		return nil, err
 	}
+	if err = requireServiceSales(ctx, tx, quote.ProductCode); err != nil {
+		return nil, err
+	}
 	var attempt ServicePaymentAttempt
 	if status == "pending" && quote.ExpiresAt.After(time.Now()) {
 		// Freeze line edits while checking the order against its immutable quote.

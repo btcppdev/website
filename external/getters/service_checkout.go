@@ -27,6 +27,15 @@ func openNodeServiceCheckout(ctx context.Context, app *config.AppContext, person
 	if charge.Status != "unpaid" && charge.Status != "underpaid" {
 		return "", ErrServiceChargeReconciliation
 	}
+	// Save/reconcile the provider charge even when closure happened during I/O,
+	// but do not hand out a fresh payment link after the sales stop.
+	var product string
+	if err := app.DB.QueryRow(ctx, `SELECT r.quote_snapshot->>'product_code' FROM service_purchase_requests r WHERE r.order_id=$1 AND r.person_id=$2`, orderID, personID).Scan(&product); err != nil {
+		return "", err
+	}
+	if err := checkServiceSales(ctx, app.DB, product); err != nil {
+		return "", err
+	}
 	return safeOpenNodeHostedCheckout(charge.HostedCheckoutURL, id, app.Env.Prod)
 }
 

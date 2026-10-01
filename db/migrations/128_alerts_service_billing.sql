@@ -1054,3 +1054,13 @@ FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
 ALTER TABLE service_bitcoin_payout_checks ADD COLUMN reconciliation_id uuid;
 ALTER TABLE service_bitcoin_payout_checks ADD FOREIGN KEY(reconciliation_id,review_id)
  REFERENCES service_bitcoin_payout_reconciliations(id,review_id);
+
+-- Stop new purchases independently of settlement and refund processing.
+CREATE TABLE service_sales_closures (
+ service text PRIMARY KEY CHECK(service IN ('alerts','insider')),
+ actor_id uuid NOT NULL REFERENCES people(id),
+ reason text NOT NULL CHECK(length(reason) BETWEEN 1 AND 1000),
+ stopped_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TRIGGER service_sales_closures_immutable BEFORE UPDATE OR DELETE ON service_sales_closures
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
