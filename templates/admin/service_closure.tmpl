@@ -23,9 +23,23 @@
 {{ with .USDAllocation }}<dt>Original USD accounting adjustment</dt><dd>{{ .AmountCents }} cents (tax inclusive)</dd>{{ end }}</dl>
 {{ if .ReviewReasons }}<h3>Resolve before reviewing</h3><ul>{{ range .ReviewReasons }}<li>{{ . }}</li>{{ end }}</ul>{{ end }}</section>{{ end }}
 {{ if .CanReview }}<form method="post">
-<input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="review" value="{{ .ReviewID }}"><input type="hidden" name="attempt" value="{{ .Attempt }}"><input type="hidden" name="closure" value="{{ .Closure }}"><input type="hidden" name="amount" value="{{ .Plan.RemainingRefundSatoshis }}">
+<input type="hidden" name="action" value="review"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="review" value="{{ .ReviewID }}"><input type="hidden" name="attempt" value="{{ .Attempt }}"><input type="hidden" name="closure" value="{{ .Closure }}"><input type="hidden" name="amount" value="{{ .Plan.RemainingRefundSatoshis }}">
 <label>Review reason <textarea name="reason" maxlength="1000" required></textarea></label>
 <label><input type="checkbox" name="confirmed" value="yes" required> I reviewed the payment, closure time and calculated amount.</label>
 <button class="shop-button" type="submit">Record calculation review</button>
 </form>{{ else }}{{ if .Plan }}{{ if not .Review }}<p>No calculation review can be recorded until the amount is positive and all issues are resolved.</p>{{ end }}{{ end }}{{ end }}
+{{ if .Review }}
+{{ with .Destination }}<section><h2>Approved destination</h2><dl><dt>Address</dt><dd><code>{{ .Destination.Address }}</code></dd><dt>Network</dt><dd>{{ .Destination.Chain }}</dd><dt>Approved by</dt><dd><code>{{ .ActorID }}</code></dd><dt>Reason</dt><dd>{{ .Reason }}</dd></dl></section>{{ end }}
+{{ if .Payout }}<section><h2>Payout recorded</h2><p>This records the verification at the time shown, not the current confirmation count.</p><dl>
+<dt>Transaction</dt><dd><code>{{ .Payout.Evidence.TxID }}</code></dd><dt>Output index</dt><dd>{{ .Payout.Evidence.Vout }}</dd><dt>Amount</dt><dd>{{ .Payout.Refund.AmountSatoshis }} satoshis</dd><dt>Recorded at (UTC)</dt><dd>{{ .Payout.RecordedAt.UTC.Format "2006-01-02 15:04:05" }}</dd></dl><a class="shop-button" href="/admin/service-refunds?attempt={{ .Plan.AttemptID }}">Inspect refund delivery and tax status</a></section>
+{{ else if not .CurrentBasis }}<p>The payment basis has changed or cannot be verified. Create a fresh calculation review before proceeding.</p>
+{{ else if not .NodeConfigured }}<p>Bitcoin Core verification is not configured. An operator must configure the connection before destination approval or payout recording.</p>
+{{ else if not .Destination }}<section><h2>Approve recipient address</h2><p>Confirm the address with the recipient. Bitcoin Core validates the address and network; it cannot verify who owns the address.</p><form method="post">
+<input type="hidden" name="action" value="destination"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="review" value="{{ .Review.ID }}">
+<label>Bitcoin address <input name="address" required maxlength="128" autocomplete="off" spellcheck="false"></label><label>Approval reason <textarea name="reason" required maxlength="1000"></textarea></label>
+<label><input type="checkbox" name="confirmed" value="yes" required> I confirmed this address belongs to the refund recipient.</label><button class="shop-button" type="submit">Verify and approve address</button></form></section>
+{{ else }}<section><h2>Record an on-chain payout</h2><p>Enter the payment already sent from our wallet to the approved address for the exact reviewed amount. Verification requires six confirmations. This form does not send funds.</p><form method="post">
+<input type="hidden" name="action" value="payout"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="review" value="{{ .Review.ID }}">
+<label>Transaction ID <input name="txid" required minlength="64" maxlength="64" spellcheck="false"></label><label>Containing block hash <input name="block" required minlength="64" maxlength="64" spellcheck="false"></label><label>Recipient output index (starts at zero) <input name="vout" type="number" min="0" max="4294967295" step="1" required></label>
+<label><input type="checkbox" name="confirmed" value="yes" required> I verified these details identify the recipient's refund payment.</label><button class="shop-button" type="submit">Verify and record payout</button></form></section>{{ end }}{{ end }}
 </main></body></html>

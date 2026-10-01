@@ -296,7 +296,7 @@ observation, including containing block and observed tip, remains in the audit.
 No signing, broadcast or withdrawal method exists in this path. The queued refund
 still needs the reviewed product-access decision. Service closure/renewal shutdown,
 provider rehearsal and ongoing reorg handling remain unfinished operations.
-The public operator write route is not yet enabled.
+The authenticated admin route now exposes destination approval and verified payout recording, as described below.
 
 Verification: the full fresh-database race suite passes, with the isolated Core
 regtest verifier enabled: `/private/tmp/bitcoin-payout-booking-acceptance-20260930.log`.
@@ -444,5 +444,34 @@ Handler and template race checks pass in
 `/private/tmp/service-closure-admin-20261001.log` and
 `/private/tmp/service-closure-admin-template-20261001.log`. Tests cover role and
 CSRF rejection, UTC normalization, unsupported timestamp precision, blocked and
-saved states, amount rendering and escaped admin notes. Destination approval and
-payout recording still need admin pages; visual/browser rehearsal remains open.
+saved states, amount rendering and escaped admin notes. Destination approval and payout-recording forms have since been added; visual/browser rehearsal remains open.
+
+## Destination approval and payout recording UI
+
+A saved `/admin/service-closure?review=...` page now loads the immutable address
+approval and payout record. Before offering another action, it compares the saved
+basis with the current plan. Stale/unavailable plans and missing node configuration
+hide write forms; the shared getters repeat all authoritative checks on POST.
+
+The destination form requires recipient-ownership confirmation and an approval
+reason. Its address is validated through the operator-configured Bitcoin Core
+connection. The payout form accepts only transaction ID, containing block and
+output index, with explicit confirmation. Address and amount come exclusively from
+the saved approval and reviewed basis. Successful verification records the payout
+and shared refund atomically, then redirects to immutable evidence with a link to
+refund delivery/tax status. It does not send funds or decide product access.
+
+Configure `BITCOIN_RPC_URL`, `BITCOIN_RPC_USER` and `BITCOIN_RPC_PASSWORD` in the
+web service environment. `BITCOIN_RPC_CHAIN` defaults to `main`; other networks are
+accepted only with an explicitly non-production application configuration. RPC
+credentials and network are never accepted from request fields. POST verification
+has a 45-second overall timeout. Use a trusted node with the necessary blocks;
+verification requires six confirmations and a synced chain.
+
+Handler race tests pass in `/private/tmp/service-closure-payout-ui-final-20261001.log`.
+They cover stale/missing-config/recorded UI states, escaped addresses, confirmation
+requirements, production network enforcement and credential requirements. Existing
+shared getter tests cover concurrency, stale basis and atomic rollback. No live
+payout, network verification or provider operation was performed in this UI pass.
+Browser/operator rehearsal, ongoing reorg reconciliation and closure orchestration
+remain outstanding.
