@@ -939,3 +939,24 @@ CREATE TABLE service_bitcoin_closure_destinations (
 );
 CREATE TRIGGER service_bitcoin_closure_destinations_immutable BEFORE UPDATE OR DELETE ON service_bitcoin_closure_destinations
 FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+
+-- A transaction may pay multiple recipients, but one network/outpoint can belong
+-- to only one reviewed refund across every service. Evidence and the ordinary
+-- refund/job records are inserted in the same transaction.
+CREATE TABLE service_bitcoin_closure_payouts (
+ review_id uuid PRIMARY KEY REFERENCES service_bitcoin_closure_destinations(review_id),
+ actor_id uuid NOT NULL REFERENCES people(id),
+ chain text NOT NULL CHECK(chain IN ('main','regtest','signet','test','testnet4')),
+ txid text NOT NULL CHECK(txid ~ '^[0-9a-f]{64}$'),
+ vout bigint NOT NULL CHECK(vout BETWEEN 0 AND 4294967295),
+ block_hash text NOT NULL CHECK(block_hash ~ '^[0-9a-f]{64}$'),
+ provider text NOT NULL DEFAULT 'opennode' CHECK(provider='opennode'),
+ refund_reference text NOT NULL,
+ evidence jsonb NOT NULL CHECK(jsonb_typeof(evidence)='object'),
+ recorded_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(chain,txid,vout),
+ UNIQUE(provider,refund_reference),
+ FOREIGN KEY(provider,refund_reference) REFERENCES service_payment_refunds(provider,refund_reference)
+);
+CREATE TRIGGER service_bitcoin_closure_payouts_immutable BEFORE UPDATE OR DELETE ON service_bitcoin_closure_payouts
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();

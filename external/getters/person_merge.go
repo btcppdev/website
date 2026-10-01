@@ -152,6 +152,7 @@ var personMergeRelationshipSpecs = []mergeRelationshipSpec{
 	{Table: "service_checkout_quotes", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "service checkout quotes", Immutable: true},
 	{Table: "service_bitcoin_closure_reviews", PersonColumn: "actor_id", PrimaryKey: []string{"id"}, Label: "Bitcoin closure refund reviewers", Immutable: true},
 	{Table: "service_bitcoin_closure_destinations", PersonColumn: "actor_id", PrimaryKey: []string{"review_id"}, Label: "Bitcoin refund destination approvers", Immutable: true},
+	{Table: "service_bitcoin_closure_payouts", PersonColumn: "actor_id", PrimaryKey: []string{"review_id"}, Label: "Bitcoin refund payout recorders", Immutable: true},
 	{Table: "service_purchase_requests", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "service purchase records", Immutable: true},
 	{Table: "service_entitlements", PersonColumn: "person_id", PrimaryKey: []string{"id"}, Label: "purchased service access", Immutable: true},
 	{Table: "newsletter_consent_requests", PersonColumn: "person_id", PrimaryKey: []string{"person_id", "request_key"}, Label: "newsletter consent records", Immutable: true},

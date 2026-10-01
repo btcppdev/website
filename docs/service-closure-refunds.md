@@ -13,8 +13,9 @@ wallet; the shared system verifies and records the transaction output (transacti
 ID and output index), destination, and satoshi amount against the reviewed refund.
 Lightning payouts are outside v1. Output allocation must prevent the same payout
 from being credited twice. Initial confirmation verification is implemented below;
-durable allocation, ongoing reorganization monitoring and financial recording
-remain to be implemented before this workflow is ready to use.
+durable output allocation and financial recording are now implemented in the shared
+backend. The operator interface, closure orchestration, tax reporting and ongoing
+reorganization monitoring remain before the workflow is ready to use.
 
 `servicebilling.EstimateBitcoinClosureRefund` computes the unused proportion for
 one funded service period. It returns both floor and ceiling satoshi amounts,
@@ -68,9 +69,8 @@ Provider calls used local fixtures; no real payment or refund was made.
   fields in its [charge webhook guide](https://developers.opennode.com/docs/charges-webhooks);
   the authenticated [charge lookup](https://developers.opennode.com/reference/charge-info)
   must establish the refund basis. A callback alone is insufficient evidence.
-- Resolve refund timing and implement verified recording of admin wallet payouts;
-  persist the confirmed rounding rule and
-  closure timestamp used for an executable refund plan.
+- Resolve refund timing and expose the shared verified wallet-payout recorder
+  through an authenticated operator flow.
 - Verify the original-asset refund ledger and closure preview against provider
   refund evidence before issuing payouts. Preview output is not a payout instruction.
 - Provide durable per-order approval/allocation, stop renewals, terminate access
@@ -85,7 +85,7 @@ amount, closure date, original payment basis and prior refunds. It recalculates
 under the same order lock used by settlement and refunds, rejects stale expected
 amounts, and records the authenticated global admin and reason. A review neither
 reserves funds nor records a payout. Execution must revalidate the review against
-intervening refunds before authorizing payment; payout recording is unfinished.
+intervening refunds before authorizing payment; recording now does so under lock.
 
 September 30: the full fresh-database acceptance suite passes with race detection
 and randomized test order, including admin review tests for Alerts and Insider,
@@ -144,7 +144,8 @@ Provider tax reporting still needs an idempotent reversal of the original Stripe
 Tax transaction using the allocated gross refund amount. Stripe supports a
 [tax-inclusive flat reversal amount](https://docs.stripe.com/api/tax/transactions/create_reversal).
 Do not label the local allocation as a verified provider tax reversal or recompute
-tax using current rates. Payout recording and tax reversal remain unfinished.
+tax using current rates. Provider tax reversal remains unfinished, including
+recovery when the original tax transaction was not recorded before the refund.
 
 The shared ledger, refund worker and Insider receipts now allow
 a zero USD-cent accounting amount when a positive Bitcoin refund is backed by known
@@ -208,11 +209,11 @@ It rejects a review whose calculation has changed, uses its saved satoshi amount
 and prints the review, destination approval and node evidence with `recorded: false`.
 The destination comes exclusively from the immutable approval; the command cannot
 override it. This command does not
-reserve an output or funds, record a refund, change access or send mail. The final
-recording transaction must bind an approved recipient destination, revalidate the
-review, enforce unique output allocation and update the shared financial ledger
-atomically. USD/tax allocation (including sub-cent refunds), admin UI/commands for
-destination approval, and reorg reconciliation after recording remain outstanding.
+reserve an output or funds, record a refund, change access or send mail. The
+recording function below binds the approved recipient, revalidates the review,
+enforces unique output allocation and updates the shared financial ledger atomically.
+The operator interface, provider tax reversals, small-payout policy and reorg
+reconciliation after recording remain outstanding.
 
 `ApproveBitcoinClosureDestination` freezes the address, node-validated script and
 network, authenticated global admin, reason and timestamp against one immutable
@@ -254,6 +255,43 @@ randomized test order and the regtest binary enabled:
 `/private/tmp/bitcoin-payout-acceptance-20260930.log`. The operator binary builds
 and its `-help` command runs without opening the database or contacting a node.
 
+## Atomic wallet-payout recording
+
+`RecordBitcoinClosurePayout` receives authenticated admin identity and a review ID,
+transaction ID, output index and containing block. It takes the recipient and
+amount from the saved review/approval, verifies through the configured Core node,
+then locks the order/payment and rechecks admin authority and the complete review
+basis. Node evidence older than one minute is rejected before a new record commits.
+The network must match the approval; production cannot record test-network payouts.
+
+The transaction inserts the normal shared refund and delivery job together with
+immutable node evidence and an output allocation. `(chain, txid, vout)` is unique
+across services, and each review can record one exact payout. Other outputs in the
+same transaction can fund other reviewed refunds. Every error rolls back the
+allocation, ledger, job and order status together. Matching retries return the
+original record even if node RPC is temporarily unavailable; changed replay inputs
+are rejected. A replay is historical evidence, not a fresh confirmation check.
+
+The refund reference is `onchain:{chain}:{txid}:{vout}`. Its `opennode` provider
+links to the original payment; it does not claim OpenNode sent the wallet refund.
+The refund timestamp records when payout verification succeeded. The complete node
+observation, including containing block and observed tip, remains in the audit.
+No signing, broadcast or withdrawal method exists in this path. The queued refund
+still needs the reviewed product-access decision. Service closure/renewal shutdown,
+provider tax reversal and ongoing reorg handling are separate unfinished operations.
+The public operator write route is not yet enabled.
+
+Verification: the full fresh-database race suite passes, with the isolated Core
+regtest verifier enabled: `/private/tmp/bitcoin-payout-booking-acceptance-20260930.log`.
+PostgreSQL tests cover both products, matching concurrent retries, stale reviews
+and removed admin authority during RPC, immutable evidence, cross-service output
+reuse and injected failure after ledger insertion. Additional race tests prove one
+winner when different orders compete for an output and two successful allocations
+for distinct outputs of one transaction:
+`/private/tmp/bitcoin-payout-booking-concurrency-20260930.log`.
+Booking tests use local RPC fixtures; the independent node verifier uses actual
+regtest transactions. No real payment, provider reversal or message was sent.
+
 ## Reuse with Insider
 
 Alerts and Insider use the same central service orders, settlement evidence,
@@ -286,6 +324,7 @@ rebased onto this shared implementation on September 29. Its full fresh-database
 acceptance suite passes with race detection and randomized order:
 `/private/tmp/insider-backend-convergence-20260929.log`. The original `a1669b33`
 tip remains on `archive/insider-commerce-before-shared-20260929`.
-The website still needs its old campaign relay transport replaced with direct
-mailer delivery, and verified manual payout recording remains unfinished.
+At that checkpoint, the website still needed its old campaign relay replaced with direct
+mailer delivery at that checkpoint. Direct mailer delivery and shared payout
+recording have since been implemented; operator and provider launch work remains.
 No deployed integration or actual message/payment delivery is claimed.

@@ -28,21 +28,30 @@ type VerifiedServiceRefund struct {
 // order. The original quote, payment event, and settled amount remain immutable.
 // Product reversal delivery is a separate step; no provider route calls this yet.
 func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund VerifiedServiceRefund) error {
+	tx, err := app.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err = recordServiceRefund(ctx, tx, refund); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// recordServiceRefund lets verified wallet evidence, output allocation and the
+// normal shared refund/job ledger commit or roll back together.
+func recordServiceRefund(ctx context.Context, tx pgx.Tx, refund VerifiedServiceRefund) error {
 	if refund.AttemptID == "" || (refund.Provider != "stripe" && refund.Provider != "opennode") || len(refund.PaymentReference) < 1 || len(refund.PaymentReference) > 255 || len(refund.RefundReference) < 1 || len(refund.RefundReference) > 255 || refund.AmountCents < 0 || (refund.AmountCents == 0 && refund.AmountSatoshis == nil) || refund.Currency != "USD" || refund.RefundedAt.IsZero() || len(refund.Reason) > 1000 {
 		return ErrServiceRefund
 	}
 	if refund.AmountSatoshis != nil && (refund.Provider != "opennode" || *refund.AmountSatoshis <= 0 || *refund.AmountSatoshis > 2_100_000_000_000_000) {
 		return ErrServiceRefund
 	}
-	tx, err := app.DB.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
 	var order, status string
 	var total int64
 	var settled time.Time
-	err = tx.QueryRow(ctx, `SELECT o.id::text,o.status,o.total_cents,a.settled_at
+	err := tx.QueryRow(ctx, `SELECT o.id::text,o.status,o.total_cents,a.settled_at
  FROM service_payment_attempts a JOIN service_purchase_requests r ON r.id=a.purchase_id JOIN shop_orders o ON o.id=r.order_id
  WHERE a.id=$1 AND a.provider=$2 AND a.provider_reference=$3 AND a.settled_at IS NOT NULL
  AND o.payment_provider=a.provider AND o.payment_provider_id=a.provider_reference AND o.currency=$4
@@ -60,7 +69,7 @@ func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund Ver
 		if !same {
 			return ErrServiceRefund
 		}
-		return tx.Commit(ctx)
+		return nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return err
@@ -107,5 +116,5 @@ func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund Ver
 	if _, err = tx.Exec(ctx, `UPDATE shop_orders SET status=$2 WHERE id=$1`, order, status); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
