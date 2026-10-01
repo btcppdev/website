@@ -342,4 +342,13 @@ func TestServiceStripeCheckoutPostgres(t *testing.T) {
 		t.Fatal("accepted event reopened")
 	}
 
+	sub.Customer = session.Customer
+	assertClosureRenewal(t, app, person, first.Intent.ID, terms.ProductCode, sub, &subscriptions.UpdateSubscription,
+		func() error {
+			return RefreshServiceStripeSubscription(ctx, app, person, first.Intent.ID, terms.ProductCode, subscriptions)
+		},
+		func(request string) (string, error) {
+			return ProcessServiceStripeCancellation(ctx, app, person, request, terms.ProductCode, subscriptions)
+		})
+
 }

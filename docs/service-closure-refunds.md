@@ -725,3 +725,36 @@ references, lost expiration responses, ownership mismatch and completed-session
 handoff. After fixing fixture cleanup, the full race acceptance suite passed on
 a fresh database: `/private/tmp/service-sales-expiration-acceptance-20261001.log`.
 No Stripe account or live session was contacted by these fixture tests.
+
+
+### Stop recurring renewals
+
+For a stopped service, the Stripe reconciliation worker now refreshes verified
+subscription state and reuses the shared durable cancellation flow to schedule
+cancellation at the current period end. Existing paid periods remain unchanged.
+The command itself does not contact Stripe, but its persisted sales-stop decision
+now authorizes this background operation when reconciliation is enabled.
+
+A deterministic intent ID binds each closure cancellation to its product, checkout
+and period end. Existing pending cancellation instructions are reconciled first.
+An ambiguous response remains retryable and a later verified cancellation confirms
+it without repeating the provider mutation. Provider changes discovered after a
+confirmed cancellation, expired/mismatched period instructions and unresolved
+review-state instructions require operator review; they do not silently authorize
+another mutation. Pending upgrade/decrease conflicts retain their existing guards
+and also need resolution. The worker reports failures; complete closure still
+requires checking the affected subscriptions and resolving every exception.
+
+This prevents subsequent renewal for successfully confirmed cancellations. It does
+not shorten access to an earlier service shutdown date, void outstanding upgrade
+invoices or cover one-off provider sessions/OpenNode links. Those remain separate
+closure steps. Do not treat the local sales-stop timestamp as proof that all
+provider billing has stopped.
+
+October 1 renewal-shutdown verification: both products' existing PostgreSQL/Stripe
+fixture flows now exercise sales-stop cancellation, a lost provider response,
+retry confirmation without duplicate mutation, unchanged paid entitlements and
+operator-review rejection after provider-side reactivation. The full shared race
+acceptance suite passed on a fresh database:
+`/private/tmp/service-closure-renewals-acceptance-20261001.log`.
+No live subscription was changed.

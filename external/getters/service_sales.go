@@ -12,8 +12,9 @@ import (
 
 var ErrServiceSalesClosed = errors.New("this service is no longer accepting purchases")
 
-// StopServiceSales is the first permanent-closure step. It does not cancel
-// provider sessions/renewals or end access. Callers must authenticate the actor.
+// StopServiceSales records permanent-closure intent used by purchase guards and
+// background checkout/renewal shutdown. It does not call providers or end access
+// synchronously. Callers must authenticate the actor.
 // The immutable record deliberately has no implicit reopen operation.
 func StopServiceSales(ctx context.Context, app *config.AppContext, actor, service, reason string) error {
 	reason = strings.TrimSpace(reason)

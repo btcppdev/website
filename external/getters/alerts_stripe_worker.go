@@ -22,7 +22,13 @@ func ReconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppConte
 		if err != nil || handled {
 			return err
 		}
-		return RecoverAlertsStripePayments(ctx, app, person, id, client)
+		recoverErr := RecoverAlertsStripePayments(ctx, app, person, id, client)
+		cancelErr := cancelStoppedServiceRenewal(ctx, app, person, id, "alerts.repository-slots",
+			func() error { return RefreshAlertsStripeSubscription(ctx, app, person, id, client) },
+			func(request string) (string, error) {
+				return ProcessAlertsStripeCancellation(ctx, app, person, request, client)
+			})
+		return errors.Join(recoverErr, cancelErr)
 	})
 }
 

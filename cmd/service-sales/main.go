@@ -1,5 +1,6 @@
 // service-sales records the first step of permanent service closure. It does not
-// call providers, cancel renewals, end access or send notifications.
+// call providers itself; reconciliation workers expire checkouts and stop renewals.
+// Paid access and notifications are not ended by this command.
 package main
 
 import (
@@ -20,7 +21,7 @@ func main() {
 	service := flag.String("service", "", "alerts or insider")
 	actor := flag.String("actor", "", "active global admin UUID authorizing the closure")
 	reason := flag.String("reason", "", "permanent closure reason")
-	stop := flag.Bool("confirm-stop-sales", false, "permanently stop new purchases; does not cancel existing provider sessions or renewals")
+	stop := flag.Bool("confirm-stop-sales", false, "permanently stop new purchases and request background checkout expiration and term-end renewal cancellation")
 	flag.Parse()
 	if flag.NArg() != 0 || (*service != "alerts" && *service != "insider") || (!*stop && (*actor != "" || *reason != "")) {
 		log.Fatal("provide -service alerts|insider; writes additionally require -confirm-stop-sales -actor -reason")

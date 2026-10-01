@@ -19,7 +19,13 @@ func ReconcileDueServiceStripeCheckouts(ctx context.Context, app *config.AppCont
 		if err != nil || handled {
 			return err
 		}
-		return RecoverServiceStripePayments(ctx, app, person, id, product, checkout, invoices, subscriptions)
+		recoverErr := RecoverServiceStripePayments(ctx, app, person, id, product, checkout, invoices, subscriptions)
+		cancelErr := cancelStoppedServiceRenewal(ctx, app, person, id, product,
+			func() error { return RefreshServiceStripeSubscription(ctx, app, person, id, product, subscriptions) },
+			func(request string) (string, error) {
+				return ProcessServiceStripeCancellation(ctx, app, person, request, product, subscriptions)
+			})
+		return errors.Join(recoverErr, cancelErr)
 	})
 }
 

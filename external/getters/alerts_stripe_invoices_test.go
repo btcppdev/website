@@ -348,4 +348,10 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 	if rows.Err() != nil || count < 2 {
 		t.Fatal("missing renewal coverage", count, rows.Err())
 	}
+	assertClosureRenewal(t, app, person, reserved.Intent.ID, "alerts.repository-slots", sub, &client.UpdateSubscription,
+		func() error { return RefreshAlertsStripeSubscription(ctx, app, person, reserved.Intent.ID, client) },
+		func(request string) (string, error) {
+			return ProcessAlertsStripeCancellation(ctx, app, person, request, client)
+		})
+
 }
