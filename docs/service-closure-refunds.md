@@ -945,3 +945,27 @@ retry, unchanged paid allowance and successful reservation of subsequent
 term-end cancellation. Logs: `/private/tmp/service-closure-schedules.log` and
 `/private/tmp/service-closure-schedules-final.log`. No migration was added and no
 real Stripe schedule was changed.
+
+## Fence pending decrease creation at sales stop
+
+Both decrease attachment and phase-configuration claims now acquire the existing
+shared sales lock before the account lock. Once permanent sales stop commits,
+new claims fail with `ErrServiceSalesClosed`, including direct calls outside the
+recovery coordinator. Operations already claimed before sales stop may still be
+in flight; their evidence remains available for reconciliation.
+
+The pending-decrease coordinator expires a reservation locally only if neither
+an attachment nor a phase-configuration attempt exists. Concurrent retries
+increment its account revision once and preserve the provider observation time.
+Any attempted change remains pending with `ErrServiceClosureCancellationReview`;
+the closure path does not create or reconfigure a provider schedule to resolve
+that uncertainty. Previously verified scheduled decreases continue through the
+release path described above.
+
+PostgreSQL decrease race tests pass, covering both claim guards, foreign ownership,
+five concurrent recovery calls, never-submitted expiry, preservation of an
+attempt without a saved provider reference, and unchanged provider timestamps.
+Log: `/private/tmp/service-closure-pending-schedules.log`. Provider inspection and
+operator resolution of ambiguous schedule attempts remain outstanding; this
+change does not declare those attempts closed. No migration or live provider
+mutation was performed.

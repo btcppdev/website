@@ -30,6 +30,9 @@ func claimAlertsStripeDecreaseSchedule(ctx context.Context, app *config.AppConte
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	if err = requireServiceSales(ctx, tx, "alerts"); err != nil {
+		return nil, err
+	}
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+person); err != nil {
 		return nil, err
 	}

@@ -451,6 +451,59 @@ func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 		if status, err := ReserveAlertsStripeCancellation(ctx, app, person, id, uuid.NewString(), revision, end.Unix()); err != nil || status == nil || status.State != "pending" {
 			t.Fatal("released schedule blocks renewal cancellation", status, err)
 		}
+		for _, attempted := range []bool{false, true} {
+			var pendingID string
+			if err = app.DB.QueryRow(ctx, `INSERT INTO alerts_stripe_decrease_quotes(checkout_id,revision,preview,expires_at) SELECT checkout_id,revision,preview,expires_at FROM alerts_stripe_decrease_quotes WHERE id=$1 RETURNING id::text`, q.ID).Scan(&pendingID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_decreases(quote_id,checkout_id) VALUES($1,$2)`, pendingID, id); err != nil {
+				t.Fatal(err)
+			}
+			if attempted {
+				if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_decrease_attachments(quote_id,lease_until) VALUES($1,now()-interval '1 second')`, pendingID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err = claimAlertsStripeDecreaseAttachment(ctx, app, person, pendingID); !errors.Is(err, ErrServiceSalesClosed) {
+				t.Fatal("new attachment after closure", err)
+			}
+			if _, err = claimAlertsStripeDecreaseSchedule(ctx, app, person, pendingID); !errors.Is(err, ErrServiceSalesClosed) {
+				t.Fatal("new phases after closure", err)
+			}
+			if err = ProcessAlertsStripeDecrease(ctx, app, uuid.NewString(), pendingID, alertsstripe.Client{}); !errors.Is(err, pgx.ErrNoRows) {
+				t.Fatal("foreign closure", err)
+			}
+			var before, after int64
+			var observedBefore, observedAfter time.Time
+			if err = app.DB.QueryRow(ctx, `SELECT revision,observed_at FROM alerts_stripe_subscription_state WHERE checkout_id=$1`, id).Scan(&before, &observedBefore); err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < 5; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					e := ProcessAlertsStripeDecrease(ctx, app, person, pendingID, alertsstripe.Client{})
+					if attempted {
+						if !errors.Is(e, ErrServiceClosureCancellationReview) {
+							t.Error("ambiguous attempt lost", e)
+						}
+					} else if e != nil {
+						t.Error(e)
+					}
+				}()
+			}
+			wg.Wait()
+			expected, increment := "expired", int64(1)
+			if attempted {
+				expected, increment = "pending", 0
+			}
+			if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_decreases WHERE quote_id=$1`, pendingID).Scan(&state); err != nil || state != expected {
+				t.Fatal("closure pending state", state, err)
+			}
+			if err = app.DB.QueryRow(ctx, `SELECT revision,observed_at FROM alerts_stripe_subscription_state WHERE checkout_id=$1`, id).Scan(&after, &observedAfter); err != nil || after != before+increment || !observedAfter.Equal(observedBefore) {
+				t.Fatal("closure revision", before, after, err)
+			}
+		}
 		return
 	}
 	if _, err = ReserveAlertsStripeDecreaseWithdrawal(ctx, app, uuid.NewString(), q.ID); !errors.Is(err, pgx.ErrNoRows) {

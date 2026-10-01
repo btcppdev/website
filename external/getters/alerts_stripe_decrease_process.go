@@ -34,6 +34,9 @@ func ProcessAlertsStripeDecrease(ctx context.Context, app *config.AppContext, pe
 	}
 	switch state {
 	case "pending":
+		if handled, err := closePendingStoppedAlertsDecrease(ctx, app, person, id); err != nil || handled {
+			return err
+		}
 		if _, err := AttachAlertsStripeDecrease(ctx, app, person, id, client); err != nil {
 			return err
 		}
