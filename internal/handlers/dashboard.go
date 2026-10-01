@@ -47,6 +47,12 @@ func Dashboard(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	if resolvedIdentity != nil {
 		personID = resolvedIdentity.PersonID
 	}
+	if personID == "" {
+		// Email verification can precede profile creation. Send that pending
+		// identity to setup instead of presenting links that require a profile.
+		http.Redirect(w, r, dashboardProfileURLWithFlash("", "", "/dashboard", "Create your profile to finish setting up your account."), http.StatusSeeOther)
+		return
+	}
 
 	dashStart := time.Now()
 	reqID := requestID(r)

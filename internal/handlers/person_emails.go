@@ -784,6 +784,12 @@ func requirePersonIdentity(w http.ResponseWriter, r *http.Request, ctx *config.A
 		ctx.Err.Printf("%s resolve person: %s", r.URL.Path, err)
 	}
 	if id == nil || id.PersonID == "" || id.Speaker == nil {
+		if err == nil && r.Method == http.MethodGet && (id == nil || id.PersonID == "") {
+			if email, pendingErr := validatedSessionEmail(r, ctx, true); pendingErr == nil && email != "" {
+				http.Redirect(w, r, dashboardProfileURLWithFlash("", "", r.URL.RequestURI(), "Create your profile to finish setting up your account."), http.StatusSeeOther)
+				return nil
+			}
+		}
 		http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
 		return nil
 	}
