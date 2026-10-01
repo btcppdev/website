@@ -960,3 +960,50 @@ CREATE TABLE service_bitcoin_closure_payouts (
 );
 CREATE TRIGGER service_bitcoin_closure_payouts_immutable BEFORE UPDATE OR DELETE ON service_bitcoin_closure_payouts
 FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+
+CREATE TABLE service_refund_tax_jobs (
+ provider text NOT NULL CHECK(provider='opennode'),
+ refund_reference text NOT NULL,
+ state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','accepted','review')),
+ original_transaction text,
+ first_attempt_at timestamptz,
+ next_attempt_at timestamptz NOT NULL DEFAULT now(),
+ lease_until timestamptz NOT NULL DEFAULT now(),
+ lease_token uuid,
+ attempts bigint NOT NULL DEFAULT 0 CHECK(attempts>=0),
+ review_reason text NOT NULL DEFAULT '',
+ created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(provider,refund_reference),
+ FOREIGN KEY(provider,refund_reference) REFERENCES service_payment_refunds(provider,refund_reference)
+);
+CREATE INDEX service_refund_tax_due ON service_refund_tax_jobs(next_attempt_at) WHERE state='pending';
+CREATE TABLE service_refund_tax_records (
+ provider text NOT NULL,
+ refund_reference text NOT NULL,
+ original_transaction text NOT NULL,
+ reversal_transaction text UNIQUE,
+ amount_cents bigint NOT NULL CHECK(amount_cents>=0),
+ tax_cents bigint NOT NULL CHECK(tax_cents>=0 AND tax_cents<=amount_cents),
+ evidence jsonb NOT NULL CHECK(jsonb_typeof(evidence)='object'),
+ recorded_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(provider,refund_reference),
+ FOREIGN KEY(provider,refund_reference) REFERENCES service_refund_tax_jobs(provider,refund_reference),
+ CHECK((amount_cents=0 AND tax_cents=0 AND reversal_transaction IS NULL) OR (amount_cents>0 AND reversal_transaction IS NOT NULL))
+);
+CREATE TRIGGER service_refund_tax_records_immutable BEFORE UPDATE OR DELETE ON service_refund_tax_records
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+CREATE FUNCTION protect_service_refund_tax_job() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='DELETE' OR NEW.provider IS DISTINCT FROM OLD.provider
+ OR NEW.refund_reference IS DISTINCT FROM OLD.refund_reference
+ OR NEW.created_at IS DISTINCT FROM OLD.created_at OR NEW.attempts<OLD.attempts
+ OR (OLD.original_transaction IS NOT NULL AND NEW.original_transaction IS DISTINCT FROM OLD.original_transaction)
+ OR (OLD.first_attempt_at IS NOT NULL AND NEW.first_attempt_at IS DISTINCT FROM OLD.first_attempt_at)
+ OR (OLD.state='accepted' AND NEW.state<>'accepted') THEN
+  RAISE EXCEPTION 'Refund tax evidence cannot be rewritten' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$$;
+CREATE TRIGGER service_refund_tax_jobs_protected BEFORE UPDATE OR DELETE ON service_refund_tax_jobs
+FOR EACH ROW EXECUTE FUNCTION protect_service_refund_tax_job();

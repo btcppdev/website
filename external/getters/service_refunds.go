@@ -113,6 +113,12 @@ func recordServiceRefund(ctx context.Context, tx pgx.Tx, refund VerifiedServiceR
 	if refunded+refund.AmountCents == total {
 		status = "refunded"
 	}
+	if refund.Provider == "opennode" {
+		if _, err = tx.Exec(ctx, `INSERT INTO service_refund_tax_jobs(provider,refund_reference)
+ SELECT $1,$2 WHERE EXISTS(SELECT 1 FROM tax_quotes WHERE order_id=$3 AND sales_tax_provider='stripe')`, refund.Provider, refund.RefundReference, order); err != nil {
+			return err
+		}
+	}
 	if _, err = tx.Exec(ctx, `UPDATE shop_orders SET status=$2 WHERE id=$1`, order, status); err != nil {
 		return err
 	}

@@ -295,7 +295,7 @@ The refund timestamp records when payout verification succeeded. The complete no
 observation, including containing block and observed tip, remains in the audit.
 No signing, broadcast or withdrawal method exists in this path. The queued refund
 still needs the reviewed product-access decision. Service closure/renewal shutdown,
-provider tax reversal and ongoing reorg handling are separate unfinished operations.
+provider rehearsal and ongoing reorg handling remain unfinished operations.
 The public operator write route is not yet enabled.
 
 Verification: the full fresh-database race suite passes, with the isolated Core
@@ -345,3 +345,30 @@ At that checkpoint, the website still needed its old campaign relay replaced wit
 mailer delivery at that checkpoint. Direct mailer delivery and shared payout
 recording have since been implemented; operator and provider launch work remains.
 No deployed integration or actual message/payment delivery is claimed.
+
+## Bitcoin refund tax recording
+
+Verified OpenNode-funded refunds enqueue a shared Stripe Tax adjustment in the
+same transaction as the refund ledger entry. Alerts and Insider use this queue.
+The existing `SERVICE_PAYMENT_RECONCILIATION_ENABLED` worker processes it when a
+Stripe key is configured. It waits for the original tax transaction, preserves
+refund order and submits a partial, tax-inclusive flat-amount reversal. A refund
+with zero allocated USD cents is recorded locally without a Stripe request.
+
+Retries retain the same reference, idempotency key and first-submission timestamp.
+After 23 hours of unresolved submission ambiguity, the job requires review rather
+than resubmission. Mismatched provider responses also require review. Completed
+records are immutable and retain financial evidence without customer addresses.
+`service-refunds` exposes tax state, review reason and reversal reference; its
+unscoped view includes unfinished tax jobs even after receipt delivery completes.
+
+This is tax reporting for an already recorded refund, not a provider payout.
+Stripe test-mode rehearsal and an operator flow to reconcile ambiguous responses
+by verified provider transaction remain required before launch. No live reversal
+or customer payment was executed during development.
+
+Validation: the fresh-database acceptance suite passed with race detection and
+randomized test order (`/private/tmp/service-refund-tax-acceptance-fixed-20261001.log`).
+An additional PostgreSQL race test verifies ordered cumulative reversals
+(`/private/tmp/service-refund-tax-order-20261001.log`). Provider responses are
+local fixtures; these checks do not substitute for the Stripe test-mode rehearsal.
