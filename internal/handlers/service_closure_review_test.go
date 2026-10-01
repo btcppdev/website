@@ -154,7 +154,7 @@ func TestClosurePayoutTemplateStates(t *testing.T) {
 }
 
 func TestClosurePayoutRequiresConfirmation(t *testing.T) {
-	for _, action := range []string{"destination", "payout", "unknown"} {
+	for _, action := range []string{"destination", "payout", "reconcile", "unknown"} {
 		manager := scs.New()
 		form := "csrf=expected&action=" + action + "&review=00000000-0000-0000-0000-000000000001&address=address&reason=reason&txid=txid&block=block&vout=0"
 		r := httptest.NewRequest("POST", "/admin/service-closure", strings.NewReader(form))

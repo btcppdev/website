@@ -30,6 +30,7 @@ type serviceClosurePage struct {
 	Payout                           *getters.BitcoinClosurePayout
 	CurrentBasis, NodeConfigured     bool
 	PayoutCheck                      *getters.BitcoinPayoutCheck
+	ReconciliationID                 string
 }
 
 func AdminServiceClosure(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
@@ -68,7 +69,7 @@ func serveAdminServiceClosure(w http.ResponseWriter, r *http.Request, app *confi
 			return
 		}
 		action := r.PostForm.Get("action")
-		if action == "destination" || action == "payout" {
+		if action == "destination" || action == "payout" || action == "reconcile" {
 			serveClosurePayoutAction(w, r, app, id, action)
 			return
 		}
@@ -122,6 +123,7 @@ func serveAdminServiceClosure(w http.ResponseWriter, r *http.Request, app *confi
 			return
 		}
 		if page.Payout != nil {
+			page.ReconciliationID = uuid.NewString()
 			page.PayoutCheck, err = getters.InspectBitcoinPayoutCheck(r.Context(), app, reviewID)
 			if err != nil {
 				http.Error(w, "Unable to load payout follow-up", 500)
@@ -192,6 +194,8 @@ func serveClosurePayoutAction(w http.ResponseWriter, r *http.Request, app *confi
 	required := []string{"review", "confirmed"}
 	if action == "destination" {
 		required = append(required, "address", "reason")
+	} else if action == "reconcile" {
+		required = append(required, "block", "reason", "reconciliation")
 	} else {
 		required = append(required, "txid", "block", "vout")
 	}
@@ -215,6 +219,8 @@ func serveClosurePayoutAction(w http.ResponseWriter, r *http.Request, app *confi
 	defer cancel()
 	if action == "destination" {
 		_, err = getters.ApproveBitcoinClosureDestination(ctx, app, node, id.PersonID, review.String(), strings.TrimSpace(r.PostForm.Get("address")), r.PostForm.Get("reason"))
+	} else if action == "reconcile" {
+		err = getters.ReconcileBitcoinPayoutBlock(ctx, app, node, id.PersonID, r.PostForm.Get("reconciliation"), review.String(), strings.TrimSpace(r.PostForm.Get("block")), r.PostForm.Get("reason"))
 	} else {
 		vout, parseErr := strconv.ParseUint(r.PostForm.Get("vout"), 10, 32)
 		if parseErr != nil {

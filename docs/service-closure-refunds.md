@@ -542,8 +542,8 @@ original payout evidence. An unavailable/pruned node, changed chain tip, missing
 block or reorg can all prevent verification. `unverified` is an investigation
 signal, not a finding that the recipient was unpaid. Neither the ledger nor
 product access changes, and the worker never creates a replacement payment.
-If a transaction moves to another block, verifying and approving its new inclusion
-still requires an operator reconciliation workflow; original evidence is retained.
+If a transaction moves to another block, the admin reconciliation workflow below
+verifies and approves its new inclusion while retaining original evidence.
 
 Metrics include `btcpp_web_bitcoin_payout_checks{state="pending|confirmed|unverified"}`
 and `btcpp_web_bitcoin_payout_oldest_due_timestamp_seconds`. Missing check jobs
@@ -557,3 +557,33 @@ worker with local RPC fixtures, expired/replaced leases, failed verification,
 recovery and immutable financial evidence. Promtool rule tests pass for warning
 thresholds, resolution, stale data and failed collection. Installation on the
 monitoring service and live-node/operator rehearsal remain deployment work.
+
+## Reconcile a different containing block
+
+The saved payout page accepts a new containing block hash, explicit confirmation
+and an admin reason. Its transaction ID, output index, recipient script and amount
+are fixed by the existing payout. Bitcoin Core must verify that exact output in
+the proposed block with at least six confirmations on the configured chain.
+
+A successful reconciliation inserts an immutable record linking the previous and
+new block, evidence, actor and reason. Only the follow-up target is updated; the
+original payout proof and refund remain unchanged. Subsequent checks use the newly
+approved block. The page displays the monitored block and latest admin attribution.
+An existing worker lease is invalidated so a late result for the old block cannot
+replace the accepted observation. A concurrent reconciliation that changed the
+baseline requires fresh review. Matching request IDs replay without new RPC;
+changed requests conflict. Admin authority is checked before RPC and locked and
+checked again before recording the result.
+
+This operation cannot change the transaction/output or create a second refund.
+It does not resolve a permanently missing payment by issuing a replacement.
+Node failures remain `unverified` and require investigation, not automatic payment.
+
+Verification: the fresh-database race acceptance suite passed in
+`/private/tmp/bitcoin-payout-reconcile-20261001.log`. Connected HTTP/database
+checks and follow-up target tests passed in
+`/private/tmp/bitcoin-payout-reconcile-connected-20261001.log`, including both
+products, idempotent replay, changed replay rejection, stale-worker rejection,
+revoked authority during RPC and preserving one original refund. UI state tests
+passed in `/private/tmp/bitcoin-payout-reconcile-ui-20261001.log`. RPC responses
+are local fixtures; live-node/operator and browser rehearsal remain open.

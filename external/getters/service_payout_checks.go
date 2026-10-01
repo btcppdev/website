@@ -13,14 +13,19 @@ import (
 )
 
 type BitcoinPayoutCheck struct {
-	State       string     `json:"state"`
-	CheckedAt   *time.Time `json:"checked_at"`
-	NextCheckAt time.Time  `json:"next_check_at"`
+	BlockHash            string     `json:"block_hash,omitempty"`
+	ReconciliationID     string     `json:"reconciliation_id,omitempty"`
+	State                string     `json:"state"`
+	CheckedAt            *time.Time `json:"checked_at"`
+	NextCheckAt          time.Time  `json:"next_check_at"`
+	ReconciledBy         string     `json:"reconciled_by,omitempty"`
+	ReconciliationReason string     `json:"reconciliation_reason,omitempty"`
+	ReconciledAt         *time.Time `json:"reconciled_at,omitempty"`
 }
 
 func InspectBitcoinPayoutCheck(ctx context.Context, app *config.AppContext, review string) (*BitcoinPayoutCheck, error) {
 	out := &BitcoinPayoutCheck{}
-	err := app.DB.QueryRow(ctx, `SELECT state,checked_at,next_check_at FROM service_bitcoin_payout_checks WHERE review_id=$1`, review).Scan(&out.State, &out.CheckedAt, &out.NextCheckAt)
+	err := app.DB.QueryRow(ctx, `SELECT c.state,c.checked_at,c.next_check_at,coalesce(r.block_hash,p.block_hash),coalesce(c.reconciliation_id::text,''),coalesce(r.actor_id::text,''),coalesce(r.reason,''),r.created_at FROM service_bitcoin_payout_checks c JOIN service_bitcoin_closure_payouts p USING(review_id) LEFT JOIN service_bitcoin_payout_reconciliations r ON r.id=c.reconciliation_id WHERE c.review_id=$1`, review).Scan(&out.State, &out.CheckedAt, &out.NextCheckAt, &out.BlockHash, &out.ReconciliationID, &out.ReconciledBy, &out.ReconciliationReason, &out.ReconciledAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &BitcoinPayoutCheck{State: "pending"}, nil
 	}
@@ -69,8 +74,8 @@ func claimBitcoinPayoutCheck(ctx context.Context, app *config.AppContext, now ti
 	err := app.DB.QueryRow(ctx, `WITH due AS (
  SELECT review_id FROM service_bitcoin_payout_checks WHERE next_check_at<=$1 AND lease_until<=$1 ORDER BY next_check_at,review_id LIMIT 1 FOR UPDATE SKIP LOCKED
  ), claimed AS (
- UPDATE service_bitcoin_payout_checks c SET lease_token=$2,lease_until=$1::timestamptz+interval '2 minutes' FROM due WHERE c.review_id=due.review_id RETURNING c.review_id
- ) SELECT p.review_id::text,p.evidence FROM claimed c JOIN service_bitcoin_closure_payouts p USING(review_id)`, now, job.Token).Scan(&job.Review, &raw)
+ UPDATE service_bitcoin_payout_checks c SET lease_token=$2,lease_until=$1::timestamptz+interval '2 minutes' FROM due WHERE c.review_id=due.review_id RETURNING c.review_id,c.reconciliation_id
+ ) SELECT p.review_id::text,coalesce(r.evidence,p.evidence) FROM claimed c JOIN service_bitcoin_closure_payouts p USING(review_id) LEFT JOIN service_bitcoin_payout_reconciliations r ON r.id=c.reconciliation_id`, now, job.Token).Scan(&job.Review, &raw)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

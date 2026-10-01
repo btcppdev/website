@@ -220,6 +220,21 @@ func TestClosureAdminHTTPPostgres(t *testing.T) {
 			if err != nil || record.ActorID != person || record.Refund.AmountCents != 499 || *record.Refund.AmountSatoshis != 500 {
 				t.Fatal("wrong financial record", record, err)
 			}
+			newBlock := strings.Repeat("e", 64)
+			reconciliation := url.Values{"action": {"reconcile"}, "csrf": {hidden(body, "csrf")}, "review": {form.Get("review")}, "reconciliation": {hidden(body, "reconciliation")}, "block": {newBlock}, "reason": {"New inclusion checked"}, "confirmed": {"yes"}}
+			code, body, _ = call("/admin/service-closure", reconciliation)
+			if code != 303 {
+				t.Fatal("block reconciliation", code, body)
+			}
+			callsBefore := calls.Load()
+			code, body, _ = call("/admin/service-closure", reconciliation)
+			if code != 303 || calls.Load() != callsBefore {
+				t.Fatal("block replay", code, body)
+			}
+			code, body, _ = call(location, nil)
+			if code != 200 || !strings.Contains(body, newBlock) || !strings.Contains(body, "Block being monitored") {
+				t.Fatal("new monitored block not shown", code, body)
+			}
 			refundPath := "/admin/service-refunds?attempt=" + attempt.ID
 			code, body, _ = call(refundPath, nil)
 			if code != 200 || !strings.Contains(body, "Record access decision") {

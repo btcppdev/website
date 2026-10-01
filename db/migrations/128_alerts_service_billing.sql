@@ -1033,3 +1033,21 @@ CREATE TABLE service_bitcoin_payout_checks (
  CHECK(state<>'confirmed' OR (checked_at IS NOT NULL AND evidence IS NOT NULL))
 );
 CREATE INDEX service_bitcoin_payout_checks_due ON service_bitcoin_payout_checks(next_check_at);
+
+CREATE TABLE service_bitcoin_payout_reconciliations (
+ id uuid PRIMARY KEY,
+ review_id uuid NOT NULL REFERENCES service_bitcoin_closure_payouts(review_id),
+ actor_id uuid NOT NULL REFERENCES people(id),
+ previous_block text NOT NULL CHECK(previous_block ~ '^[0-9a-f]{64}$'),
+ block_hash text NOT NULL CHECK(block_hash ~ '^[0-9a-f]{64}$'),
+ evidence jsonb NOT NULL CHECK(jsonb_typeof(evidence)='object'),
+ reason text NOT NULL CHECK(length(btrim(reason)) BETWEEN 1 AND 1000),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(id,review_id),
+ CHECK(previous_block<>block_hash)
+);
+CREATE TRIGGER service_bitcoin_payout_reconciliations_immutable BEFORE UPDATE OR DELETE ON service_bitcoin_payout_reconciliations
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+ALTER TABLE service_bitcoin_payout_checks ADD COLUMN reconciliation_id uuid;
+ALTER TABLE service_bitcoin_payout_checks ADD FOREIGN KEY(reconciliation_id,review_id)
+ REFERENCES service_bitcoin_payout_reconciliations(id,review_id);
