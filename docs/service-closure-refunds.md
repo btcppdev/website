@@ -969,3 +969,35 @@ Log: `/private/tmp/service-closure-pending-schedules.log`. Provider inspection a
 operator resolution of ambiguous schedule attempts remain outstanding; this
 change does not declare those attempts closed. No migration or live provider
 mutation was performed.
+
+## Inspect unresolved subscription instructions
+
+```sh
+service-sales -service alerts -subscription-actions
+service-sales -service insider -subscription-actions
+service-sales -service alerts -subscription-actions -after NEXT_CURSOR
+```
+
+This read-only JSON report pages through unbound, unclosed Stripe checkouts;
+pending/review upgrades; pending/scheduled/review decreases; pending/review
+schedule withdrawals; and pending/review term-end cancellations. Each item
+includes its kind, durable ID, checkout ID, product, local state, creation time
+and saved provider reference when available. A decrease and its withdrawal can
+both appear because they are separate outstanding instructions.
+
+The cursor binds the service and report type and pages by kind plus UUID, up to
+100 items per page. Do not combine this mode with `-unsettled-payments` or
+`-confirm-stop-sales`. Restart pagination after concurrent recovery activity.
+
+An empty page is not closure approval: this report does not inspect Stripe,
+prove confirmed cancellations remain effective, enumerate active subscriptions
+without a pending instruction, replace deleted-account recovery, or coordinate
+access cutoff. Use it alongside the payment and Bitcoin obligation reports and
+provider verification. No provider request or database mutation is performed.
+
+PostgreSQL race tests pass for all five instruction kinds, two-item pagination,
+resolved/closed exclusions, cross-service and cross-report cursor rejection, and
+page limits. The actual CLI ran against the disposable acceptance database and
+returned valid JSON with all five kinds. Logs:
+`/private/tmp/service-subscription-actions-report.log` and
+`/private/tmp/service-subscription-actions-cli.log`.
