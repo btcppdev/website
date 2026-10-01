@@ -55,6 +55,9 @@ func RecoverAlertsStripeIncreaseReference(ctx context.Context, app *config.AppCo
 
 // Account-owned handoff: callers cannot substitute another invoice or terms.
 func AlertsStripeIncreasePaymentLink(ctx context.Context, app *config.AppContext, person, id string, client alertsstripe.Client) (string, error) {
+	if err := checkServiceSales(ctx, app.DB, "alerts"); err != nil {
+		return "", err
+	}
 	b, intent, reference, err := alertsIncreaseReference(ctx, app, person, id)
 	if err != nil {
 		return "", err
@@ -62,5 +65,12 @@ func AlertsStripeIncreasePaymentLink(ctx context.Context, app *config.AppContext
 	if reference == "" {
 		return "", alertsstripe.ErrReconcile
 	}
-	return client.IncreasePaymentLink(ctx, reference, b, intent)
+	link, err := client.IncreasePaymentLink(ctx, reference, b, intent)
+	if err != nil {
+		return "", err
+	}
+	if err := checkServiceSales(ctx, app.DB, "alerts"); err != nil {
+		return "", err
+	}
+	return link, nil
 }

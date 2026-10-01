@@ -39,6 +39,9 @@ func SaveAlertsStripeIncreaseQuote(ctx context.Context, app *config.AppContext, 
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	if err = requireServiceSales(ctx, tx, "alerts"); err != nil {
+		return nil, err
+	}
 	if err = lockAlertsIncrease(ctx, tx, person, checkout, revision, preview); err != nil {
 		return nil, err
 	}
@@ -110,6 +113,9 @@ func ReserveAlertsStripeIncreaseWithPolicy(ctx context.Context, app *config.AppC
 		return "", err
 	}
 	defer tx.Rollback(ctx)
+	if err = requireServiceSales(ctx, tx, "alerts"); err != nil {
+		return "", err
+	}
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-purchase:"+person); err != nil {
 		return "", err
 	}

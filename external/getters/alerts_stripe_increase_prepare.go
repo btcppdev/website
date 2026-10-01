@@ -13,6 +13,9 @@ import (
 // PrepareAlertsStripeIncrease performs read-only provider work and saves review
 // evidence. It neither confirms the change nor attempts payment.
 func PrepareAlertsStripeIncrease(ctx context.Context, app *config.AppContext, person, checkout string, slots int64, client alertsstripe.Client) (*AlertsStripeIncreaseQuote, error) {
+	if err := checkServiceSales(ctx, app.DB, "alerts"); err != nil {
+		return nil, err
+	}
 	if _, err := AlertsStripeCheckoutForPerson(app, person, checkout); err != nil {
 		return nil, err
 	}

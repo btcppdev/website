@@ -684,3 +684,13 @@ after sales stopped. The operator binary builds; its read-only status command wa
 checked against the local fixture. Logs: `/private/tmp/service-sales-closure-20261001.log`
 and `/private/tmp/service-sales-final-20261001.log`. No service was closed outside
 the disposable test database; no provider sessions were changed.
+
+The sales stop also covers existing Alerts Stripe subscriptions' purchase-increase
+path: preview creation, durable customer approval, new submission claims and
+hosted invoice payment-link handoffs. These cannot be used to bypass a stopped
+checkout. Read-only invoice recovery and recording an already-paid upgrade remain
+active; cancellation and decrease paths are unchanged. A provider request already
+in flight at the stop still requires reconciliation and provider-side cleanup.
+The getter race suite passes, including stopped-sales upgrade rejection followed
+by recovery/accounting of an already-paid invoice. Verification log:
+`/private/tmp/service-sales-upgrades-final-20261001.log`.

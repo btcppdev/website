@@ -3,6 +3,7 @@ package getters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -13,7 +14,7 @@ import (
 )
 
 func TestAlertsStripeIncreasePaymentPostgres(t *testing.T) {
-	for _, action := range []string{"none", "retain", "revoke", "unreviewed", "late-upgrade-revoke"} {
+	for _, action := range []string{"none", "retain", "revoke", "unreviewed", "late-upgrade-revoke", "sales-closed"} {
 		t.Run(action, func(t *testing.T) { testAlertsStripeIncreasePayment(t, action) })
 	}
 }
@@ -68,6 +69,34 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	defer app.DB.Exec(ctx, `DELETE FROM service_legal_current WHERE product_code=$1`, policy.ProductCode)
 	if _, err = ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, q.ID, policy.Version); err != nil {
 		t.Fatal(err)
+	}
+	if refundAction == "sales-closed" {
+		if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
+			t.Fatal(err)
+		}
+		if err := StopServiceSales(ctx, app, person, "alerts", "Permanent closure"); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if _, err := app.DB.Exec(ctx, `TRUNCATE service_sales_closures`); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := SaveAlertsStripeIncreaseQuote(ctx, app, person, id, 1, q.Preview); !errors.Is(err, ErrServiceSalesClosed) {
+			t.Fatal("new upgrade quote", err)
+		}
+		if _, err := ReserveAlertsStripeIncreaseWithPolicy(ctx, app, person, q.ID, policy.Version); !errors.Is(err, ErrServiceSalesClosed) {
+			t.Fatal("upgrade consent", err)
+		}
+		if _, err := PrepareAlertsStripeIncrease(ctx, app, person, id, 6, alertsstripe.Client{}); !errors.Is(err, ErrServiceSalesClosed) {
+			t.Fatal("upgrade prepare", err)
+		}
+		if _, err := SubmitAlertsStripeIncrease(ctx, app, person, q.ID, alertsstripe.Client{}); !errors.Is(err, ErrServiceSalesClosed) {
+			t.Fatal("upgrade submission", err)
+		}
+		if _, err := AlertsStripeIncreasePaymentLink(ctx, app, person, q.ID, alertsstripe.Client{}); !errors.Is(err, ErrServiceSalesClosed) {
+			t.Fatal("upgrade payment link", err)
+		}
 	}
 	if _, err = recordAlertsStripeIncreasePayment(ctx, app, person, paid); err == nil {
 		t.Fatal("unpaid base granted upgrade")
@@ -124,7 +153,12 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	if observed, e := RecoverAlertsStripeIncreaseReference(ctx, app, person, q.ID, upgradeClient); e != nil || observed == nil || observed.Status != "open" {
 		t.Fatal("unpaid reference recovery", observed, e)
 	}
-	if link, e := AlertsStripeIncreasePaymentLink(ctx, app, person, q.ID, upgradeClient); e != nil || link != upgradeInvoice.HostedInvoiceURL {
+	link, e := AlertsStripeIncreasePaymentLink(ctx, app, person, q.ID, upgradeClient)
+	if refundAction == "sales-closed" {
+		if link != "" || !errors.Is(e, ErrServiceSalesClosed) {
+			t.Fatal("closed sales payment handoff", link, e)
+		}
+	} else if e != nil || link != upgradeInvoice.HostedInvoiceURL {
 		t.Fatal("account payment handoff", link, e)
 	}
 	if _, e := AlertsStripeIncreasePaymentLink(ctx, app, "00000000-0000-0000-0000-000000000000", q.ID, upgradeClient); e == nil {
@@ -225,7 +259,7 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	sub.Items.Data[0].CurrentPeriodStart = end.Unix()
 	sub.Items.Data[0].CurrentPeriodEnd = nextEnd.Unix()
 
-	if refundAction != "none" && refundAction != "late-upgrade-revoke" {
+	if refundAction != "none" && refundAction != "late-upgrade-revoke" && refundAction != "sales-closed" {
 		if _, err = app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
 			t.Fatal(err)
 		}
