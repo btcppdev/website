@@ -109,6 +109,9 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	if handled, err := expireUnsubmittedStoppedAlertsIncrease(ctx, app, person, quote.ID); err != nil || handled {
+		t.Fatal("unsubmitted upgrade released before closure", handled, err)
+	}
 	var raw []byte
 	if err := app.DB.QueryRow(ctx, `SELECT legal_acceptance FROM alerts_stripe_increases WHERE quote_id=$1`, quote.ID).Scan(&raw); err != nil {
 		t.Fatal(err)
@@ -319,6 +322,11 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	if _, err = app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
 		t.Fatal(err)
 	}
+	// Even an expired quote must remain pending during ordinary operation;
+	// this helper is only authorized by the permanent sales-stop record.
+	if handled, err := expireUnsubmittedStoppedAlertsIncrease(ctx, app, person, closureID); err != nil || handled {
+		t.Fatal("active sales release", handled, err)
+	}
 	if err = StopServiceSales(ctx, app, person, "alerts", "Permanent closure fixture"); err != nil {
 		t.Fatal(err)
 	}
@@ -327,6 +335,9 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 			t.Error(err)
 		}
 	})
+	if handled, err := expireUnsubmittedStoppedAlertsIncrease(ctx, app, person, closureID); err != nil || handled {
+		t.Fatal("attempted upgrade released locally", handled, err)
+	}
 	if _, err = RecoverAlertsStripeIncrease(ctx, app, person, closureID, client); !errors.Is(err, alertsstripe.ErrReconcile) || voidCalls != 0 {
 		t.Fatal("live submission voided", err, voidCalls)
 	}
@@ -345,6 +356,47 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	}
 	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, closureID).Scan(&resolved); err != nil || resolved != "expired" {
 		t.Fatal("missing local resolution", resolved, err)
+	}
+
+	// A reserved instruction that never reached the submission claim is safe to
+	// release without provider I/O. Concurrent recovery increments revision once.
+	var unsubmitted string
+	if err = app.DB.QueryRow(ctx, `INSERT INTO alerts_stripe_increase_quotes(checkout_id,revision,preview,created_at,expires_at) VALUES($1,2,$2,$3,$4) RETURNING id::text`, id, expiredRaw, now.Add(-11*time.Minute), expired.ExpiresAt).Scan(&unsubmitted); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_increases(quote_id,checkout_id) VALUES($1,$2)`, unsubmitted, id); err != nil {
+		t.Fatal(err)
+	}
+	if err = ProcessAlertsStripeIncrease(ctx, app, uuid.NewString(), unsubmitted, alertsstripe.Client{}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatal("foreign reservation released", err)
+	}
+	var revisionBefore, revisionAfter int64
+	var observedBefore, observedAfter time.Time
+	if err = app.DB.QueryRow(ctx, `SELECT revision,observed_at FROM alerts_stripe_subscription_state WHERE checkout_id=$1`, id).Scan(&revisionBefore, &observedBefore); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := ProcessAlertsStripeIncrease(ctx, app, person, unsubmitted, alertsstripe.Client{}); err != nil {
+				t.Error(err)
+			}
+		}()
+	}
+	wg.Wait()
+	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, unsubmitted).Scan(&resolved); err != nil || resolved != "expired" {
+		t.Fatal("unsubmitted closure", resolved, err)
+	}
+	if err = app.DB.QueryRow(ctx, `SELECT revision,observed_at FROM alerts_stripe_subscription_state WHERE checkout_id=$1`, id).Scan(&revisionAfter, &observedAfter); err != nil || revisionAfter != revisionBefore+1 || !observedAfter.Equal(observedBefore) {
+		t.Fatal("revision/provider timestamp", revisionBefore, revisionAfter, observedBefore, observedAfter, err)
+	}
+	if _, err = claimAlertsStripeIncreaseSubmission(ctx, app, person, unsubmitted); !errors.Is(err, ErrServiceSalesClosed) {
+		t.Fatal("closed reservation resubmitted", err)
+	}
+	var providerEvidence int
+	if err = app.DB.QueryRow(ctx, `SELECT count(*) FROM alerts_stripe_increase_expirations WHERE quote_id=$1`, unsubmitted).Scan(&providerEvidence); err != nil || providerEvidence != 0 {
+		t.Fatal("fabricated provider evidence", providerEvidence, err)
 	}
 
 }

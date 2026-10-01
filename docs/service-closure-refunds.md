@@ -895,3 +895,26 @@ recovery-dispatch checks also pass. Logs:
 `/private/tmp/service-closure-upgrade-unit.log` and
 `/private/tmp/service-closure-upgrade-postgres.log`. No migration was added and no
 real invoice was voided.
+
+## Release upgrades that were never submitted
+
+Alerts upgrade processing now checks for permanent sales stop before attempting
+provider recovery. Under the existing account lock, it can expire a pending
+reservation only when no submission row exists. A submission without an invoice
+reference still counts as an ambiguous provider attempt and requires recovery.
+The existing submission claim commits before provider I/O and uses the same lock;
+the sales-stop guard also prevents new claims after closure.
+
+Local release increments the account revision once, including concurrent retry,
+and preserves the provider observation timestamp. It creates no provider-expiration
+evidence and neither charges nor refunds the user. Existing paid access is unchanged.
+This removes an unsubmitted upgrade as an obstacle to the separate term-end renewal
+cancellation. Conflicting schedules, ambiguous provider attempts and final access
+cutoff still need closure handling.
+
+PostgreSQL upgrade race tests pass, covering active-sales protection, foreign
+ownership, attempted-versus-unsubmitted instructions, five concurrent recoveries,
+exactly one revision increment, preserved provider timestamp and rejection of
+resubmission after closure. Log:
+`/private/tmp/service-closure-unsubmitted-final.log`. Migration-prefix and diff
+checks pass; no migration or live provider operation was needed.

@@ -21,6 +21,9 @@ func ProcessAlertsStripeIncrease(ctx context.Context, app *config.AppContext, pe
 	if state != "pending" {
 		return nil
 	}
+	if handled, err := expireUnsubmittedStoppedAlertsIncrease(ctx, app, person, id); err != nil || handled {
+		return err
+	}
 	recovered, err := RecoverAlertsStripeIncrease(ctx, app, person, id, client)
 	if err != nil {
 		return err
