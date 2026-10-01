@@ -23,7 +23,7 @@ func main() {
 	reason := flag.String("reason", "", "permanent closure reason")
 	stop := flag.Bool("confirm-stop-sales", false, "permanently stop new purchases and request background checkout expiration and term-end renewal cancellation")
 	payments := flag.Bool("unsettled-payments", false, "read-only page of unresolved one-off/prepaid payment attempts; does not cover subscription checkouts")
-	actions := flag.Bool("subscription-actions", false, "read-only page of unresolved local subscription instructions")
+	actions := flag.Bool("subscription-actions", false, "read-only page of unresolved subscription instructions and potentially renewing subscriptions")
 	after := flag.String("after", "", "next cursor from the selected report")
 	flag.Parse()
 	if flag.NArg() != 0 || (*service != "alerts" && *service != "insider") || (!*stop && (*actor != "" || *reason != "")) || ((*payments || *actions) && *stop) || (*payments && *actions) || (*after != "" && !*payments && !*actions) {

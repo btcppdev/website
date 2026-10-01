@@ -980,20 +980,35 @@ service-sales -service alerts -subscription-actions -after NEXT_CURSOR
 
 This read-only JSON report pages through unbound, unclosed Stripe checkouts;
 pending/review upgrades; pending/scheduled/review decreases; pending/review
-schedule withdrawals; and pending/review term-end cancellations. Each item
+schedule withdrawals; pending/review term-end cancellations; and bound
+subscriptions whose stored provider state does not establish that renewals have
+ended or are scheduled to end at the current term boundary. Each item
 includes its kind, durable ID, checkout ID, product, local state, creation time
 and saved provider reference when available. A decrease and its withdrawal can
 both appear because they are separate outstanding instructions.
+
+A `subscription` item uses the checkout ID as its durable ID and shows the saved
+Stripe subscription reference. Its state is the last verified provider status,
+or `unknown` if unavailable. `observed_at`, when present, shows when that status
+was checked; an old observation is not current provider evidence. These items
+include active, unpaid and paused subscriptions even if an earlier cancellation
+instruction was confirmed. Terminal `canceled`/`incomplete_expired` subscriptions
+and consistent term-end cancellation observations are omitted. Unknown states
+and conflicting cancellation dates remain visible.
 
 The cursor binds the service and report type and pages by kind plus UUID, up to
 100 items per page. Do not combine this mode with `-unsettled-payments` or
 `-confirm-stop-sales`. Restart pagination after concurrent recovery activity.
 
 An empty page is not closure approval: this report does not inspect Stripe,
-prove confirmed cancellations remain effective, enumerate active subscriptions
-without a pending instruction, replace deleted-account recovery, or coordinate
+prove confirmed cancellations remain effective, replace deleted-account recovery, or coordinate
 access cutoff. Use it alongside the payment and Bitcoin obligation reports and
 provider verification. No provider request or database mutation is performed.
+
+Bound-subscription PostgreSQL race tests cover both services, missing and stale
+observations, a confirmed cancellation followed by an active provider snapshot,
+terminal states, consistent/conflicting cancellation dates and two-item pagination.
+Log: `/private/tmp/closure-subscription-inventory.log`.
 
 PostgreSQL race tests pass for all five instruction kinds, two-item pagination,
 resolved/closed exclusions, cross-service and cross-report cursor rejection, and
