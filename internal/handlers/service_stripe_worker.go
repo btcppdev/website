@@ -34,7 +34,7 @@ func StartServiceStripeReconciliation(app *config.AppContext) {
 					return getters.ReconcileDueAlertsStripeCheckouts(ctx, app, client)
 				}},
 				{"one-off-closure", func(ctx context.Context) (int, error) {
-					return getters.ReconcileStoppedServicePaymentCheckouts(ctx, app, servicestripe.CheckoutClient{Retrieve: client.Retrieve, Expire: client.Expire, Live: live})
+					return getters.ReconcileStoppedServicePaymentCheckouts(ctx, app, servicestripe.CheckoutClient{Retrieve: client.Retrieve, Expire: client.Expire, List: client.ListCheckouts, Live: live})
 				}},
 				{"insider", func(ctx context.Context) (int, error) {
 					return getters.ReconcileDueServiceStripeCheckouts(ctx, app, servicestripe.CheckoutClient{Retrieve: client.Retrieve, Expire: client.Expire, List: client.ListCheckouts, Live: live}, servicestripe.InvoiceClient{Invoice: client.Invoice, Price: client.Price, ListInvoices: client.ListInvoices, Live: live}, servicestripe.SubscriptionClient{Subscription: client.Subscription, UpdateSubscription: client.UpdateSubscription, Live: live})

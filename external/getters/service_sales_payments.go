@@ -9,14 +9,14 @@ import (
 	"btcpp-web/internal/servicestripe"
 )
 
-// ReconcileStoppedServicePaymentCheckouts expires only known one-off Stripe
-// sessions. Unknown references and payment-bearing sessions need recovery/review;
+// ReconcileStoppedServicePaymentCheckouts recovers missing references and expires
+// verified unpaid one-off Stripe sessions. Payment-bearing sessions need review;
 // no absence of provider evidence is treated as proof that no payment occurred.
 func ReconcileStoppedServicePaymentCheckouts(ctx context.Context, app *config.AppContext, client servicestripe.CheckoutClient) (int, error) {
 	rows, err := app.DB.Query(ctx, `WITH due AS (
  SELECT a.id FROM service_payment_attempts a JOIN service_purchase_requests r ON r.id=a.purchase_id
  JOIN service_sales_closures c ON c.service=split_part(r.quote_snapshot->>'product_code','.',1)
- WHERE a.provider='stripe' AND a.provider_reference LIKE 'cs_%' AND a.settled_at IS NULL AND a.next_reconcile_at<=now()
+ WHERE a.provider='stripe' AND (a.provider_reference IS NULL OR a.provider_reference LIKE 'cs_%') AND a.settled_at IS NULL AND a.next_reconcile_at<=now()
  AND NOT EXISTS(SELECT 1 FROM service_payment_checkout_expirations e WHERE e.attempt_id=a.id)
  ORDER BY a.next_reconcile_at,a.id LIMIT 20 FOR UPDATE OF a SKIP LOCKED
  ) UPDATE service_payment_attempts a SET next_reconcile_at=now()+interval '15 minutes' FROM due WHERE a.id=due.id RETURNING a.id::text`)
@@ -51,12 +51,23 @@ func ReconcileStoppedServicePaymentCheckouts(ctx context.Context, app *config.Ap
 
 func expireStoppedServicePaymentCheckout(ctx context.Context, app *config.AppContext, id string, client servicestripe.CheckoutClient) error {
 	var in servicestripe.PaymentCheckout
-	err := app.DB.QueryRow(ctx, `SELECT a.id::text,o.id::text,a.provider_reference,o.total_cents FROM service_payment_attempts a
+	var createdAt, expiresAt time.Time
+	err := app.DB.QueryRow(ctx, `SELECT a.id::text,o.id::text,coalesce(a.provider_reference,''),o.total_cents,a.created_at,(r.quote_snapshot->>'expires_at')::timestamptz FROM service_payment_attempts a
  JOIN service_purchase_requests r ON r.id=a.purchase_id JOIN shop_orders o ON o.id=r.order_id
  JOIN service_sales_closures c ON c.service=split_part(r.quote_snapshot->>'product_code','.',1)
- WHERE a.id=$1 AND a.provider='stripe' AND a.settled_at IS NULL AND o.currency='USD' AND o.status='pending' AND r.quote_snapshot->>'provider'='stripe' AND o.total_cents=(r.quote_snapshot->>'total_cents')::bigint`, id).Scan(&in.AttemptID, &in.OrderID, &in.Reference, &in.TotalCents)
+ WHERE a.id=$1 AND a.provider='stripe' AND a.settled_at IS NULL AND o.currency='USD' AND o.status='pending' AND r.quote_snapshot->>'provider'='stripe' AND o.total_cents=(r.quote_snapshot->>'total_cents')::bigint`, id).Scan(&in.AttemptID, &in.OrderID, &in.Reference, &in.TotalCents, &createdAt, &expiresAt)
 	if err != nil {
 		return err
+	}
+	if in.Reference == "" {
+		reference, err := client.FindPaymentCheckout(ctx, in, createdAt, expiresAt)
+		if err != nil {
+			return err
+		}
+		if err := BindServicePayment(app, in.AttemptID, "stripe", reference); err != nil {
+			return err
+		}
+		in.Reference = reference
 	}
 	evidence, err := client.ExpirePaymentCheckout(ctx, in)
 	if err != nil {

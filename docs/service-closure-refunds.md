@@ -838,3 +838,29 @@ The PostgreSQL race test covers pagination, cross-service cursor rejection,
 missing references, known Stripe/OpenNode attempts and exclusion of settled or
 verified-expired attempts. It passed along with the CLI package check; log:
 `/private/tmp/service-unsettled-report-20261001.log`.
+
+## Recover missing one-off Stripe checkout references
+
+The stopped-service Stripe worker now includes attempts whose provider reference
+was lost before it could be saved. It lists authenticated Stripe Checkout sessions
+within the saved attempt/quote time window, using at most 100 pages of 100 sessions
+and a 30-second deadline. It accepts only a complete scan with one matching attempt,
+order, payment mode, currency, total and live/test environment. It saves the
+reference using the existing conflict-checked binding, then applies the existing
+provider retrieval and unpaid-session expiration checks.
+
+An empty, truncated, failed or ambiguous scan does not mark an attempt closed and
+does not create a replacement checkout. A recovered paid session stays available
+for settlement/review; it is never expired by this path. The durable scheduling
+continues retrying unresolved attempts, and they remain in the unsettled inventory.
+This does not complete closure orchestration or prove that all provider activity
+has stopped. Access cutoff, payment-bearing sessions, upgrade invoices and OpenNode
+handling still need their separate closure steps.
+
+Local validation: the servicestripe race suite, PostgreSQL stopped-one-off tests
+(including missing-reference worker selection, lost expiration responses and
+paid settlement), and shared worker dispatch tests pass. Logs:
+`/private/tmp/service-oneoff-lookup-unit.log`,
+`/private/tmp/service-oneoff-lookup-worker.log`, and
+`/private/tmp/service-oneoff-lookup-dispatch.log`. These use provider fixtures;
+no live Stripe session was queried or expired. No migration was added.

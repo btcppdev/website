@@ -3,6 +3,7 @@ package getters
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,8 +13,10 @@ import (
 )
 
 func TestStoppedOneOffCheckoutPostgres(t *testing.T) {
-	for _, paid := range []bool{false, true} {
-		t.Run(map[bool]string{false: "expire", true: "paid"}[paid], func(t *testing.T) {
+	for _, scenario := range []string{"expire", "paid", "missing expire", "missing paid"} {
+		t.Run(scenario, func(t *testing.T) {
+			paid := strings.Contains(scenario, "paid")
+			missing := strings.HasPrefix(scenario, "missing")
 			ctx := context.Background()
 			app := databaseSmokeContext(t)
 			var person string
@@ -40,12 +43,16 @@ func TestStoppedOneOffCheckoutPostgres(t *testing.T) {
 				t.Fatal(err)
 			}
 			reference := "cs_" + attempt.ID
-			if err := BindServicePayment(app, attempt.ID, "stripe", reference); err != nil {
-				t.Fatal(err)
+			if !missing {
+				if err := BindServicePayment(app, attempt.ID, "stripe", reference); err != nil {
+					t.Fatal(err)
+				}
 			}
-			session := &stripe.CheckoutSession{ID: reference, Mode: "payment", Status: "open", PaymentStatus: "unpaid", Currency: "usd", AmountTotal: 200, Metadata: map[string]string{"checkout-kind": "service", "service-attempt-id": attempt.ID, "service-order-id": purchase.OrderID}}
+			session := &stripe.CheckoutSession{Created: time.Now().Unix(), ID: reference, Mode: "payment", Status: "open", PaymentStatus: "unpaid", Currency: "usd", AmountTotal: 200, Metadata: map[string]string{"checkout-kind": "service", "service-attempt-id": attempt.ID, "service-order-id": purchase.OrderID}}
 			calls := 0
-			client := servicestripe.CheckoutClient{Retrieve: func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }, Expire: func(string, *stripe.CheckoutSessionExpireParams) (*stripe.CheckoutSession, error) {
+			client := servicestripe.CheckoutClient{List: func(*stripe.CheckoutSessionListParams) (*stripe.CheckoutSessionList, error) {
+				return &stripe.CheckoutSessionList{Data: []*stripe.CheckoutSession{session}}, nil
+			}, Retrieve: func(string, *stripe.CheckoutSessionParams) (*stripe.CheckoutSession, error) { return session, nil }, Expire: func(string, *stripe.CheckoutSessionExpireParams) (*stripe.CheckoutSession, error) {
 				calls++
 				session.Status = "expired"
 				return nil, errors.New("lost expiration response")
@@ -60,8 +67,19 @@ func TestStoppedOneOffCheckoutPostgres(t *testing.T) {
 				session.Status = "complete"
 				session.PaymentStatus = "paid"
 			}
-			if err := expireStoppedServicePaymentCheckout(ctx, app, attempt.ID, client); err == nil {
+			if missing {
+				if _, err := app.DB.Exec(ctx, `UPDATE service_payment_attempts SET next_reconcile_at='2000-01-01' WHERE id=$1`, attempt.ID); err != nil {
+					t.Fatal(err)
+				}
+				if count, err := ReconcileStoppedServicePaymentCheckouts(ctx, app, client); err == nil || count < 1 {
+					t.Fatal("missing-reference worker", count, err)
+				}
+			} else if err := expireStoppedServicePaymentCheckout(ctx, app, attempt.ID, client); err == nil {
 				t.Fatal("unverified result")
+			}
+			var bound string
+			if err := app.DB.QueryRow(ctx, `SELECT coalesce(provider_reference,'') FROM service_payment_attempts WHERE id=$1`, attempt.ID).Scan(&bound); err != nil || bound != reference {
+				t.Fatal("reference recovery", bound, err)
 			}
 			var count int
 			if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_payment_checkout_expirations WHERE attempt_id=$1`, attempt.ID).Scan(&count); err != nil || count != 0 {
