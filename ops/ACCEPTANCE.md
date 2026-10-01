@@ -45,3 +45,40 @@ These tests exercise local mocks, not real Stripe/OpenNode payments, mailer
 inbox delivery, Telegram or Nostr publishing. Optional tests with other explicit
 fixture flags remain separate. A passing run does not complete browser,
 production deployment, monitoring or backup/restore launch checks.
+
+## Release build and Bitcoin payout configuration
+
+`make build build-ops` builds the web server and all five shared-service operator
+commands. The Dockerfile invokes those same targets. Local `.env` and `.env.*`
+files are excluded from the Docker build context; supply runtime values through
+the deployment's secret environment rather than baking them into the image.
+
+Recorded Bitcoin payouts use these runtime settings:
+
+| Setting | Purpose |
+| --- | --- |
+| `BITCOIN_RPC_URL` | Trusted Bitcoin Core RPC endpoint, with credentials supplied separately. |
+| `BITCOIN_RPC_USER` | RPC username. |
+| `BITCOIN_RPC_PASSWORD` | RPC password, provided through the deployment secret store. |
+| `BITCOIN_RPC_CHAIN` | Defaults to `main`; production rejects any other chain. |
+| `SERVICE_PAYMENT_RECONCILIATION_ENABLED` | Set to `true` to run payment, refund-tax and payout follow-up workers. |
+
+The admin verification forms need RPC configuration even when the background
+worker is disabled. Follow-up monitoring starts only when the shared worker is
+enabled and node configuration is valid. Stripe Tax also requires `STRIPE_KEY`;
+OpenNode payment recovery requires `OPENNODE_KEY`. Refund access/receipt delivery
+continues to use the separate shared fulfillment configuration.
+
+Install both `ops/service-refund-tax-alerts.yml` and
+`ops/bitcoin-payout-alerts.yml` alongside the existing refund-delivery rules on
+the monitoring service. Confirm scrape freshness and route warnings to operators.
+A compiled binary and passing local rules are not proof that these deployment
+settings or alert routes are installed.
+
+October 1 build checkpoint: `make build build-ops` passed
+(`/private/tmp/btcpp-service-release-build-20261001.log`). The same six commands
+also compiled with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64`; `file` confirmed all
+six outputs under `target/release-linux-amd64/` are statically linked Linux x86-64
+executables (`/private/tmp/btcpp-service-linux-build-20261001.log`). These are
+local build artifacts, not a deployed release. Docker is unavailable in this
+session, so the image build and container startup remain unverified.

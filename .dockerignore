@@ -10,6 +10,8 @@ media
 config.prod
 config.staging
 credentials.json
+.env
+.env.*
 sessions.bolt
 tokens.bolt
 
