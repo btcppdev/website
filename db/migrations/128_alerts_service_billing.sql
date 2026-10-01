@@ -1074,3 +1074,15 @@ CREATE TABLE service_payment_checkout_expirations (
 );
 CREATE TRIGGER service_payment_checkout_expirations_immutable BEFORE UPDATE OR DELETE ON service_payment_checkout_expirations
 FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+
+-- Reviewed closure time is separate from stopping new sales and from payouts.
+-- Product consumers must acknowledge/enforce this plan before shutdown is complete.
+CREATE TABLE service_closure_plans (
+ service text PRIMARY KEY REFERENCES service_sales_closures(service),
+ actor_id uuid NOT NULL REFERENCES people(id),
+ closes_at timestamptz NOT NULL,
+ reason text NOT NULL CHECK(length(reason) BETWEEN 1 AND 1000),
+ recorded_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TRIGGER service_closure_plans_immutable BEFORE UPDATE OR DELETE ON service_closure_plans
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();

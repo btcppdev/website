@@ -1001,3 +1001,39 @@ page limits. The actual CLI ran against the disposable acceptance database and
 returned valid JSON with all five kinds. Logs:
 `/private/tmp/service-subscription-actions-report.log` and
 `/private/tmp/service-subscription-actions-cli.log`.
+
+## Record the reviewed closure time
+
+`service-closure-plan -service alerts|insider` reads the shared reviewed date.
+After stopping sales, an active global admin can record the immutable plan:
+
+```sh
+service-closure-plan -service alerts -record -actor ADMIN_UUID \
+  -closes-at 2030-01-01T00:00:00Z -reason 'Reviewed permanent closure'
+```
+
+The date must include a timezone, use whole seconds, and not precede the audited
+sales stop. Identical retries preserve the original record; changed dates,
+reasons or actors are rejected. The plan is separate from the purchased periods
+and financial ledger, which remain unchanged for refunds and receipts.
+
+This command records timing only. It does not yet distribute or enforce the date
+in Alerts or Insider, cancel providers, stop delivery, or pay refunds. Product
+cutoff propagation (including Alerts cached allowance and renewal grace, and
+Insider's locally persisted fulfillment grants) remains required before this can
+be treated as operational shutdown. Do not infer closure completion from a saved
+plan or use it as a substitute for provider reconciliation.
+
+The table is part of the existing unshipped migration 128. Fixtures now explicitly
+clear both closure tables together; no migration hook is bypassed.
+
+Fresh migration validation used
+`commerce_account_deletion_acceptance_20261001205012_80850`. The full acceptance
+run found a missing account-merge manifest entry for the new audit author; the
+entry now preserves that immutable attribution. All other packages passed, and
+the complete PostgreSQL getters race suite then passed with randomized order.
+The CLI read path returned `{"service":"alerts","plan":null}` after fixture
+cleanup. Logs: `/private/tmp/shared-closure-plan-acceptance-20261001.log` and
+`/private/tmp/shared-closure-plan-final-20261001.log`. Tests cover admin/deleted-admin
+checks, required sales stop, date validation, concurrent idempotency, conflicts,
+service isolation and database immutability. No live closure was scheduled.

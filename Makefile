@@ -54,6 +54,7 @@ build-ops:
 	$(GO_ENV) go build -v -o target/service-checkouts ./cmd/service-checkouts
 	$(GO_ENV) go build -v -o target/service-refunds ./cmd/service-refunds
 	$(GO_ENV) go build -v -o target/service-sales ./cmd/service-sales
+	$(GO_ENV) go build -v -o target/service-closure-plan ./cmd/service-closure-plan
 	$(GO_ENV) go build -v -o target/service-bitcoin-verify ./cmd/service-bitcoin-verify
 	$(GO_ENV) go build -v -o target/service-account-cancellations ./cmd/service-account-cancellations
 

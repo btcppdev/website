@@ -331,7 +331,7 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if _, err := app.DB.Exec(ctx, `TRUNCATE service_sales_closures`); err != nil {
+		if _, err := app.DB.Exec(ctx, `TRUNCATE service_closure_plans,service_sales_closures`); err != nil {
 			t.Error(err)
 		}
 	})

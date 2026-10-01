@@ -18,7 +18,7 @@ func TestServiceSalesClosurePostgres(t *testing.T) {
 	// Only the dedicated local test DB is modified; remove fixture-wide service
 	// state afterwards so other acceptance tests remain independent.
 	t.Cleanup(func() {
-		if _, err := app.DB.Exec(ctx, `TRUNCATE service_sales_closures`); err != nil {
+		if _, err := app.DB.Exec(ctx, `TRUNCATE service_closure_plans,service_sales_closures`); err != nil {
 			t.Error(err)
 		}
 	})
