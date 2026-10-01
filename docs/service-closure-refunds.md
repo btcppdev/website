@@ -587,3 +587,36 @@ products, idempotent replay, changed replay rejection, stale-worker rejection,
 revoked authority during RPC and preserving one original refund. UI state tests
 passed in `/private/tmp/bitcoin-payout-reconcile-ui-20261001.log`. RPC responses
 are local fixtures; live-node/operator and browser rehearsal remain open.
+
+## Service-wide Bitcoin inventory
+
+The read-only operator command can enumerate settled Bitcoin payment attempts for
+one service without requiring each payment ID up front:
+
+```sh
+service-refunds -closure-service alerts -closure-at 2030-01-01T00:00:00Z
+service-refunds -closure-service insider -closure-at 2030-01-01T00:00:00Z
+# Continue with the same service and closure timestamp:
+service-refunds -closure-service alerts -closure-at 2030-01-01T00:00:00Z -after NEXT_CURSOR
+```
+
+Each page contains at most 100 plans and an optional `next` cursor. This inventory
+includes expired and already-refunded payments (which may owe zero), prepaid
+upgrades, and review-required payments. Missing Bitcoin evidence and inconsistent
+settlement/order records remain visible with review reasons. Calculation/database
+errors fail the page rather than silently omitting a payment. Product scoping uses
+its stored `alerts.` or `insider.` prefix. Stripe payments are not included.
+
+Every page reads a consistent, read-only database snapshot; pagination uses stable
+payment IDs and binds its cursor to the service and closure timestamp. Pages are
+not one cross-page snapshot. Stop new purchases, resolve in-flight settlements and
+rerun the complete inventory before treating it as the final list; concurrent
+settlements or refunds can change the result. This command does not stop checkout,
+cancel renewals, end access, create reviews, reserve amounts or send funds. Each
+positive obligation still needs the existing admin review, approved destination
+and verified on-chain payout flow. Unknown/review-required amounts must be resolved
+before totaling obligations; a missing amount is not zero.
+
+PostgreSQL tests cover Alerts and Insider inclusion, bounded pagination, cursor
+scope/date rejection, missing-evidence visibility and absence of review creation.
+Production service-closure orchestration remains separate outstanding work.
