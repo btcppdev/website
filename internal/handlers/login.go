@@ -93,7 +93,7 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			return
 		}
 		if !allowAuthAttempt(ctx, r, strings.ToLower(email), 10, time.Minute) {
-			http.Redirect(w, r, "/login?flash="+url.QueryEscape("Check your inbox — if that address can sign in, a login link is on its way."), http.StatusSeeOther)
+			http.Redirect(w, r, "/login?next="+url.QueryEscape(next)+"&flash="+url.QueryEscape("Check your inbox — if that address can sign in, a login link is on its way."), http.StatusSeeOther)
 			return
 		}
 		link := auth.MagicLink(ctx, email, next)
@@ -108,7 +108,7 @@ func Login(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			return
 		}
 		http.Redirect(w, r,
-			"/login?flash="+url.QueryEscape("Check your inbox — we sent you a login link."),
+			"/login?next="+url.QueryEscape(next)+"&flash="+url.QueryEscape("Check your inbox — we sent you a login link."),
 			http.StatusSeeOther)
 		return
 	}
@@ -177,12 +177,13 @@ func MagicLinkResend(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		http.Error(w, "Unable to resend that login link", http.StatusInternalServerError)
 		return
 	}
+	next = auth.SafeNext(next, "/dashboard")
 	genericMessage := "If that link belonged to an email address, a fresh login link is on its way."
 	if !found || !allowAuthAttempt(ctx, r, strings.ToLower(email), 5, 15*time.Minute) {
-		http.Redirect(w, r, "/login?flash="+url.QueryEscape(genericMessage), http.StatusSeeOther)
+		http.Redirect(w, r, "/login?next="+url.QueryEscape(next)+"&flash="+url.QueryEscape(genericMessage), http.StatusSeeOther)
 		return
 	}
-	link := auth.MagicLink(ctx, email, auth.SafeNext(next, "/dashboard"))
+	link := auth.MagicLink(ctx, email, next)
 	if link == "" {
 		ctx.Err.Printf("/auth/resend create magic link")
 		http.Error(w, "Unable to resend that login link", http.StatusInternalServerError)
@@ -193,7 +194,7 @@ func MagicLinkResend(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 		http.Error(w, "Unable to resend that login link", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/login?flash="+url.QueryEscape(genericMessage), http.StatusSeeOther)
+	http.Redirect(w, r, "/login?next="+url.QueryEscape(next)+"&flash="+url.QueryEscape(genericMessage), http.StatusSeeOther)
 }
 
 func renderMagicLinkPage(w http.ResponseWriter, ctx *config.AppContext, page *MagicLinkPage) {
