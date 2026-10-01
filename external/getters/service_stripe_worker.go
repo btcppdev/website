@@ -15,6 +15,10 @@ import (
 // one-minute attempt deadline shorter than the minimum fifteen-minute lease.
 func ReconcileDueServiceStripeCheckouts(ctx context.Context, app *config.AppContext, checkout servicestripe.CheckoutClient, invoices servicestripe.InvoiceClient, subscriptions servicestripe.SubscriptionClient) (int, error) {
 	return reconcileDueServiceStripeCheckouts(ctx, app, func(ctx context.Context, person, id, product string) error {
+		handled, err := expireStoppedServiceStripeCheckout(ctx, app, person, id, product, checkout)
+		if err != nil || handled {
+			return err
+		}
 		return RecoverServiceStripePayments(ctx, app, person, id, product, checkout, invoices, subscriptions)
 	})
 }
@@ -28,7 +32,7 @@ func reconcileDueServiceStripeCheckouts(ctx context.Context, app *config.AppCont
 		var person, id, product string
 		err := app.DB.QueryRow(ctx, `WITH due AS (
  SELECT c.id FROM service_stripe_checkouts c
- WHERE c.product_family='insider' AND c.person_id IS NOT NULL AND c.stripe_session_id IS NOT NULL
+ WHERE c.product_family='insider' AND c.person_id IS NOT NULL AND (c.stripe_session_id IS NOT NULL OR EXISTS(SELECT 1 FROM service_sales_closures x WHERE x.service=c.product_family))
  AND c.closed_at IS NULL AND c.next_reconcile_at<=now()
  ORDER BY c.next_reconcile_at,c.id LIMIT 1 FOR UPDATE OF c SKIP LOCKED
 ) UPDATE service_stripe_checkouts c SET next_reconcile_at=now()+CASE

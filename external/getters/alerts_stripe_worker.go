@@ -77,7 +77,12 @@ func expireConflictingAlertsCheckout(ctx context.Context, app *config.AppContext
 	if err := app.DB.QueryRow(ctx, alertsStripePurchaseConflictSQL, person).Scan(&conflict); err != nil {
 		return false, err
 	}
-	if !conflict {
+	salesErr := checkServiceSales(ctx, app.DB, "alerts")
+	stopped := errors.Is(salesErr, ErrServiceSalesClosed)
+	if salesErr != nil && !stopped {
+		return false, salesErr
+	}
+	if !conflict && !stopped {
 		return false, nil
 	}
 	stored, err := AlertsStripeCheckoutForPerson(app, person, id)
@@ -89,6 +94,9 @@ func expireConflictingAlertsCheckout(ctx context.Context, app *config.AppContext
 	}
 	if err = client.ExpireConflictingCheckout(ctx, stored.Intent, stored.Reference); err != nil {
 		if errors.Is(err, alertsstripe.ErrReconcile) {
+			if stopped {
+				return false, nil
+			} // Completed payment: continue normal recovery.
 			return true, ErrAlertsStripeCheckoutConflict
 		}
 		return true, err

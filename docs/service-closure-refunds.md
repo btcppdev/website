@@ -694,3 +694,34 @@ in flight at the stop still requires reconciliation and provider-side cleanup.
 The getter race suite passes, including stopped-sales upgrade rejection followed
 by recovery/accounting of an already-paid invoice. Verification log:
 `/private/tmp/service-sales-upgrades-final-20261001.log`.
+
+
+### Expire unpaid Stripe subscription checkouts
+
+With `SERVICE_STRIPE_RECONCILIATION_ENABLED=true`, the existing recovery worker
+now expires unbound, unpaid subscription checkout sessions for a service whose
+sales have stopped. It verifies provider ownership/product metadata and expiration
+before recording local closure. A lost expiration response leaves the local row
+open until a later read confirms expiration; the stable provider idempotency key
+is reused. A completed session falls through to normal settlement recovery, and
+an already-bound subscription is never expired by this path.
+
+Alerts retains its existing lost-session-reference discovery. Stopped Insider
+sales now also make missing-reference reservations eligible for discovery through
+a bounded authenticated Stripe listing. No match remains retryable, because an
+in-flight creation may still finish. Discovery never creates a replacement session.
+The shared worker is wired with retrieval, listing and expiration capabilities.
+
+This runs on the existing reconciliation schedule, not synchronously in the
+sales-stop command. It covers the Alerts and Insider recurring-checkout tables;
+one-off Insider purchase sessions, OpenNode payment links, upgrade invoices and
+recurring subscription cancellation still require closure handling. Follow-up must
+confirm every affected provider object, not infer completion from the sales flag.
+Stripe permits expiration of open sessions; see
+https://docs.stripe.com/api/checkout/sessions/expire.
+
+October 1 verification: PostgreSQL cases for both services cover lost creation
+references, lost expiration responses, ownership mismatch and completed-session
+handoff. After fixing fixture cleanup, the full race acceptance suite passed on
+a fresh database: `/private/tmp/service-sales-expiration-acceptance-20261001.log`.
+No Stripe account or live session was contacted by these fixture tests.
