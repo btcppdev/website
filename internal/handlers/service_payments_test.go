@@ -77,3 +77,11 @@ func TestServiceRefundReviewFormProtection(t *testing.T) {
 		}
 	}
 }
+
+func TestServiceRefundReviewInvalidPage(t *testing.T) {
+	w := httptest.NewRecorder()
+	serveAdminServiceRefunds(w, httptest.NewRequest("GET", "/admin/service-refunds?after=invalid", nil), &config.AppContext{}, &auth.Identity{Roles: auth.ParseRoles([]string{"global-admin"})})
+	if w.Code != 400 {
+		t.Fatal("bad page reached database", w.Code)
+	}
+}

@@ -77,6 +77,8 @@ type shopPage struct {
 	PaymentReview             *getters.ServicePaymentReviewPage
 	RefundReview              []getters.ServiceRefundInspection
 	RefundCSRF                string
+	RefundNext                string
+	RefundAttempt             string
 	Title                     string
 	Year                      int
 	ArchiveRain               []*HomeArchiveRainItem

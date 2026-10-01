@@ -14,10 +14,10 @@
 <main class="shop-admin shop-admin--wide">
 <section class="shop-admin__intro">
 <p class="shop-kicker">§ billing admin</p><h1>Service refunds.</h1>
-<p>Up to 100 unresolved refunds, oldest first. Filter by payment attempt to include completed records.</p>
+<p>Unresolved refunds, oldest first, 100 per page. Filter by payment attempt to include completed records.</p>
 <p>Tax recovery verifies an existing Stripe reversal. It does not send a payment or change access.</p>
 <a class="shop-button" href="/admin/service-payments">Service payments</a>
-<form method="get"><label>Payment attempt UUID <input name="attempt" placeholder="All unresolved refunds"></label><button class="shop-button" type="submit">Inspect</button></form>
+<form method="get"><label>Payment attempt UUID <input name="attempt" value="{{ .RefundAttempt }}" placeholder="All unresolved refunds"></label><button class="shop-button" type="submit">Inspect</button></form>
 </section>
 <section class="shop-admin-table-wrap"><table class="shop-admin-table">
 <thead><tr><th>Order / product</th><th>Refund</th><th>Delivery / access</th><th>Tax adjustment</th></tr></thead><tbody>
@@ -34,4 +34,5 @@
 </form>{{ end }}</td></tr>
 {{ else }}<tr><td colspan="4">No refunds to review.</td></tr>{{ end }}
 </tbody></table></section>
+{{ if .RefundNext }}<a class="shop-button" href="{{ .RefundNext }}">Next page</a>{{ end }}
 </main></body></html>

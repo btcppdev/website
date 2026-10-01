@@ -17,6 +17,7 @@ import (
 
 func main() {
 	attempt := flag.String("attempt", "", "payment attempt UUID; omit to list oldest unresolved refunds (up to 100)")
+	after := flag.String("after", "", "refund page cursor returned in next; retain the same -attempt filter")
 	closureAt := flag.String("closure-at", "", "preview one Bitcoin prepaid closure refund at RFC3339 timestamp; requires -attempt, never pays")
 	flag.Parse()
 	if flag.NArg() != 0 {
@@ -26,8 +27,8 @@ func main() {
 	if *closureAt != "" {
 		var err error
 		closure, err = time.Parse(time.RFC3339, *closureAt)
-		if err != nil || *attempt == "" {
-			log.Fatal("-closure-at requires an RFC3339 timestamp and -attempt")
+		if err != nil || *attempt == "" || *after != "" {
+			log.Fatal("-closure-at requires an RFC3339 timestamp and -attempt; it cannot be combined with -after")
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -46,7 +47,7 @@ func main() {
 	if *closureAt != "" {
 		items, err = getters.PlanBitcoinClosureRefund(ctx, app, *attempt, closure)
 	} else {
-		items, err = getters.ListServiceRefunds(ctx, app, *attempt)
+		items, err = getters.PageServiceRefunds(ctx, app, *attempt, *after)
 	}
 	if err != nil {
 		log.Fatal(err)

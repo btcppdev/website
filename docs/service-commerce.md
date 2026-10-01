@@ -715,6 +715,7 @@ Operators can inspect this ledger with the read-only `cmd/service-refunds` tool:
 ```sh
 go run ./cmd/service-refunds
 go run ./cmd/service-refunds -attempt PAYMENT_ATTEMPT_UUID
+go run ./cmd/service-refunds -attempt PAYMENT_ATTEMPT_UUID -after NEXT_CURSOR
 ```
 
 Use the deployment's database configuration (`DATABASE_URL`, optionally `.env`).
@@ -924,3 +925,9 @@ recorded payment facts before taking any separate recovery action.
 `service-refunds`, and `service-account-cancellations`; the Docker build invokes
 that target. Local builds, command help, a read-only empty lookup, and PostgreSQL
 inspection regressions pass. Container runtime verification remains open.
+
+Refund inspection returns `{ "items": [...], "next": "..." }`. Each page contains
+up to 100 records. Pass `next` as `-after` with the same attempt filter; no `next`
+means the final page. The admin Refund review page offers the same Next page link.
+The immutable record cursor avoids skipping later refunds when earlier jobs are
+resolved. Attempt-filtered inspection includes completed refund records.

@@ -71,11 +71,14 @@ func TestLoadTemplates(t *testing.T) {
 		t.Fatal("unescaped payment reference")
 	}
 	var refundReview bytes.Buffer
-	if err := reviewTemplates.ExecuteTemplate(&refundReview, "admin/service_refunds.tmpl", &shopPage{Admin: true, RefundCSRF: "safe-token", RefundReview: []getters.ServiceRefundInspection{{RefundReference: "<script>alert(1)</script>", TaxState: "review"}}}); err != nil {
+	if err := reviewTemplates.ExecuteTemplate(&refundReview, "admin/service_refunds.tmpl", &shopPage{Admin: true, RefundCSRF: "safe-token", RefundAttempt: "00000000-0000-0000-0000-000000000001", RefundNext: "/admin/service-refunds?after=cursor&attempt=00000000-0000-0000-0000-000000000001", RefundReview: []getters.ServiceRefundInspection{{RefundReference: "<script>alert(1)</script>", TaxState: "review"}}}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(refundReview.String(), "<script>alert(1)</script>") || !strings.Contains(refundReview.String(), "Verify and record reversal") || !strings.Contains(refundReview.String(), "safe-token") {
 		t.Fatal("unsafe or incomplete refund review form")
+	}
+	if !strings.Contains(refundReview.String(), "Next page") || !strings.Contains(refundReview.String(), `value="00000000-0000-0000-0000-000000000001"`) {
+		t.Fatal("refund pagination lost filter")
 	}
 	navTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {

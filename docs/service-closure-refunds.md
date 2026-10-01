@@ -395,3 +395,10 @@ anonymous/scoped-role denial, missing/wrong/duplicate CSRF tokens and escaped
 provider references (`/private/tmp/service-refund-review-handlers-20261001.log`).
 Provider responses remain fixtures; real Stripe test-mode verification and a
 browser/operator rehearsal are still launch work.
+
+Refund review now has cursor pagination in both the admin page and operator CLI.
+The PostgreSQL test walks 102 refunds, verifies a scope-bound cursor and confirms
+that resolving earlier jobs cannot skip later records. Getters and handler race
+suites pass (`/private/tmp/service-refund-pagination-getters-20261001.log` and
+`/private/tmp/service-refund-pagination-handlers-20261001.log`). Browser execution
+was unavailable in this session; visual/operator rehearsal remains outstanding.

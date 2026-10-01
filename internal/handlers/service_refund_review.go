@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -66,7 +68,11 @@ func serveAdminServiceRefunds(w http.ResponseWriter, r *http.Request, app *confi
 			return
 		}
 	}
-	rows, err := getters.ListServiceRefunds(r.Context(), app, attempt)
+	page, err := getters.PageServiceRefunds(r.Context(), app, attempt, r.URL.Query().Get("after"))
+	if errors.Is(err, getters.ErrServiceRefundCursor) {
+		http.Error(w, "Invalid page cursor", 400)
+		return
+	}
 	if err != nil {
 		http.Error(w, "Unable to load refunds", 500)
 		return
@@ -76,5 +82,9 @@ func serveAdminServiceRefunds(w http.ResponseWriter, r *http.Request, app *confi
 		http.Error(w, "Unable to prepare review", 500)
 		return
 	}
-	renderShopTemplate(w, r, app, "admin/service_refunds.tmpl", &shopPage{Title: "Service refunds", Admin: true, Year: time.Now().Year(), RefundReview: rows, RefundCSRF: csrf})
+	next := ""
+	if page.Next != "" {
+		next = "/admin/service-refunds?" + url.Values{"attempt": {attempt}, "after": {page.Next}}.Encode()
+	}
+	renderShopTemplate(w, r, app, "admin/service_refunds.tmpl", &shopPage{Title: "Service refunds", Admin: true, Year: time.Now().Year(), RefundReview: page.Items, RefundCSRF: csrf, RefundNext: next, RefundAttempt: attempt})
 }

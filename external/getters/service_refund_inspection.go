@@ -3,6 +3,10 @@ package getters
 import (
 	"btcpp-web/internal/config"
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"github.com/google/uuid"
 	"strings"
 	"time"
 )
@@ -34,10 +38,51 @@ type ServiceRefundInspection struct {
 	EarlierRefundPending    bool       `json:"earlier_refund_pending"`
 }
 
-// ListServiceRefunds is a read-only operator query. Scope by attempt to inspect
-// its complete sequence (up to 100 rows); otherwise show the oldest unresolved
-// jobs first. Ordering is stable, and no provider or delivery calls are made.
+var ErrServiceRefundCursor = errors.New("invalid refund page cursor")
+
+type ServiceRefundPage struct {
+	Items []ServiceRefundInspection `json:"items"`
+	Next  string                    `json:"next,omitempty"`
+}
+
+type serviceRefundCursor struct {
+	At       time.Time `json:"at"`
+	Attempt  string    `json:"attempt"`
+	Revision int64     `json:"revision"`
+	Scope    string    `json:"scope"`
+}
+
+// ListServiceRefunds retains the first-page interface for existing callers.
 func ListServiceRefunds(ctx context.Context, app *config.AppContext, attemptID string) ([]ServiceRefundInspection, error) {
+	page, err := PageServiceRefunds(ctx, app, attemptID, "")
+	if err != nil {
+		return nil, err
+	}
+	return page.Items, nil
+}
+
+// PageServiceRefunds uses immutable record ordering, so resolving an earlier job
+// while paging cannot cause later jobs to be skipped as it would with offsets.
+func PageServiceRefunds(ctx context.Context, app *config.AppContext, attemptID, after string) (*ServiceRefundPage, error) {
+	attemptID = strings.TrimSpace(attemptID)
+	if attemptID != "" {
+		if id, err := uuid.Parse(attemptID); err != nil || id.String() != attemptID {
+			return nil, ErrServiceRefundCursor
+		}
+	}
+	cursor := serviceRefundCursor{}
+	if after != "" {
+		if len(after) > 2048 {
+			return nil, ErrServiceRefundCursor
+		}
+		raw, err := base64.RawURLEncoding.DecodeString(after)
+		if err != nil || len(raw) > 1024 || json.Unmarshal(raw, &cursor) != nil || cursor.At.IsZero() || cursor.Revision < 1 || cursor.Scope != attemptID {
+			return nil, ErrServiceRefundCursor
+		}
+		if id, err := uuid.Parse(cursor.Attempt); err != nil || id.String() != cursor.Attempt {
+			return nil, ErrServiceRefundCursor
+		}
+	}
 	rows, err := app.DB.Query(ctx, `SELECT f.attempt_id::text,o.public_id,r.quote_snapshot->>'product_code',
 	 f.provider,f.refund_reference,f.amount_cents,f.amount_satoshis,f.currency,f.recorded_at,
 	 coalesce(d.action,''),coalesce(d.actor_id::text,''),d.decided_at,
@@ -53,8 +98,9 @@ func ListServiceRefunds(ctx context.Context, app *config.AppContext, attemptID s
 	 LEFT JOIN service_fulfillment_jobs original ON original.attempt_id=f.attempt_id
 	 LEFT JOIN service_refund_tax_jobs taxjob ON taxjob.provider=f.provider AND taxjob.refund_reference=f.refund_reference
  LEFT JOIN service_refund_tax_records taxrecord ON taxrecord.provider=f.provider AND taxrecord.refund_reference=f.refund_reference
- WHERE ($1='' AND (j.state<>'accepted' OR taxjob.state<>'accepted')) OR f.attempt_id::text=$1
-	 ORDER BY f.recorded_at,f.attempt_id,j.revision LIMIT 100`, strings.TrimSpace(attemptID))
+ WHERE (($1='' AND (j.state<>'accepted' OR taxjob.state<>'accepted')) OR f.attempt_id::text=$1)
+ AND ($2='' OR (f.recorded_at,f.attempt_id::text,j.revision)>($3,$4,$5))
+ ORDER BY f.recorded_at,f.attempt_id::text,j.revision LIMIT 101`, attemptID, after, cursor.At, cursor.Attempt, cursor.Revision)
 	if err != nil {
 		return nil, err
 	}
@@ -67,5 +113,18 @@ func ListServiceRefunds(ctx context.Context, app *config.AppContext, attemptID s
 		}
 		result = append(result, item)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	page := &ServiceRefundPage{Items: result}
+	if len(result) > 100 {
+		page.Items = result[:100]
+		last := page.Items[99]
+		raw, err := json.Marshal(serviceRefundCursor{At: last.RecordedAt, Attempt: last.AttemptID, Revision: last.Revision, Scope: attemptID})
+		if err != nil {
+			return nil, err
+		}
+		page.Next = base64.RawURLEncoding.EncodeToString(raw)
+	}
+	return page, nil
 }
