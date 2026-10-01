@@ -63,7 +63,9 @@ func cancelStoppedServiceRenewal(ctx context.Context, app *config.AppContext, pe
 	if err := json.Unmarshal(raw, &state); err != nil {
 		return err
 	}
-	if state.State == "cancelled" || (state.CancelAtPeriodEnd && (state.CancelAt == 0 || state.CancelAt == state.PeriodEnd)) {
+	// Access classifications retain failure/dispute reasons after cancellation.
+	// Use verified provider status to determine whether renewals have ended.
+	if state.ProviderStatus == "canceled" || state.ProviderStatus == "incomplete_expired" || (state.CancelAtPeriodEnd && (state.CancelAt == 0 || state.CancelAt == state.PeriodEnd)) {
 		return nil
 	}
 	id := uuid.NewSHA1(uuid.NameSpaceURL, []byte("btcpp:closure-cancel:"+product+":"+checkout+":"+strconv.FormatInt(state.PeriodEnd, 10))).String()

@@ -79,4 +79,18 @@ func assertClosureRenewal(t *testing.T, app *config.AppContext, person, checkout
 	if err := run(); !errors.Is(err, ErrServiceClosureCancellationReview) || calls != 1 {
 		t.Fatal("reactivation not flagged", err, calls)
 	}
+	// Terminal provider status means no renewals remain, even when the access
+	// classification preserves a failed-payment or dispute reason.
+	for _, reason := range []string{"payment_failed", "payment_disputed", "cancellation_requested"} {
+		sub.Status = stripe.SubscriptionStatusCanceled
+		sub.CancellationDetails = &stripe.SubscriptionCancellationDetails{Reason: stripe.SubscriptionCancellationDetailsReason(reason)}
+		if err := run(); err != nil || calls != 1 {
+			t.Fatal("terminal subscription cancellation", reason, err, calls)
+		}
+	}
+	sub.Status = stripe.SubscriptionStatusIncompleteExpired
+	sub.CancellationDetails = nil
+	if err := run(); err != nil || calls != 1 {
+		t.Fatal("expired initial subscription", err, calls)
+	}
 }
