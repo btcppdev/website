@@ -918,3 +918,30 @@ exactly one revision increment, preserved provider timestamp and rejection of
 resubmission after closure. Log:
 `/private/tmp/service-closure-unsubmitted-final.log`. Migration-prefix and diff
 checks pass; no migration or live provider operation was needed.
+
+## Release verified future decrease schedules
+
+After audited Alerts sales stop, recovery now reserves and processes the existing
+durable schedule-withdrawal operation for a verified scheduled decrease that has
+not reached its effective date. The adapter verifies ownership, frozen phases,
+current quantity and period before releasing the schedule with its cancellation
+date preserved. It does not cancel the subscription or shorten paid access.
+
+Lost responses retain the pending withdrawal and its lease. Retry verifies the
+released schedule and subscription, records the existing immutable evidence,
+and marks the decrease cancelled. Ordinary term-end cancellation can then proceed.
+While sales remain active, scheduled decreases retain their ordinary behavior.
+Near-boundary changes, foreign/changed schedules and unresolved withdrawals remain
+errors/review; an already-effective decrease still goes through transition recovery.
+This follows https://docs.stripe.com/api/subscription_schedules/release .
+
+Pending schedule attachment/configuration attempts and schedules already beyond
+the reviewed period still need closure coordination. Releasing a schedule alone
+does not prove renewal cancellation or whole-service closure is complete.
+
+Local race tests pass for decrease reservation/renewal and the schedule-release
+adapter. The closure scenario verifies a lost release response, durable lease
+retry, unchanged paid allowance and successful reservation of subsequent
+term-end cancellation. Logs: `/private/tmp/service-closure-schedules.log` and
+`/private/tmp/service-closure-schedules-final.log`. No migration was added and no
+real Stripe schedule was changed.

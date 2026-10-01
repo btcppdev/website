@@ -15,6 +15,12 @@ import (
 )
 
 func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
+	for _, closing := range []bool{false, true} {
+		t.Run(map[bool]string{false: "normal", true: "closure"}[closing], func(t *testing.T) { testAlertsStripeDecreaseReservation(t, closing) })
+	}
+}
+
+func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 	app := databaseSmokeContext(t)
 	ctx := context.Background()
 	var person string
@@ -381,6 +387,71 @@ func TestAlertsStripeDecreaseReservationPostgres(t *testing.T) {
 	})
 	if _, err = ReserveAlertsStripeIncrease(ctx, app, person, up.ID); !errors.Is(err, alertsstripe.ErrSubscription) {
 		t.Fatal("scheduled decrease overwritten", err)
+	}
+
+	if closing {
+		if _, err = app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
+			t.Fatal(err)
+		}
+		if err = StopServiceSales(ctx, app, person, "alerts", "Close scheduled decrease fixture"); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if _, err := app.DB.Exec(ctx, `TRUNCATE service_sales_closures`); err != nil {
+				t.Error(err)
+			}
+		})
+		price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+		sub := &stripe.Subscription{ID: b.SubscriptionID, Customer: provider.Customer, Status: "active", Metadata: map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}, Schedule: &stripe.SubscriptionSchedule{ID: provider.ID}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{ID: "si_test", Price: price, Quantity: 3, CurrentPeriodStart: preview.PeriodStart, CurrentPeriodEnd: preview.EffectiveAt}}}}
+		calls := 0
+		client := alertsstripe.Client{
+			Schedule: func(string, *stripe.SubscriptionScheduleParams) (*stripe.SubscriptionSchedule, error) {
+				return provider, nil
+			},
+			Subscription: func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) { return sub, nil },
+			ReleaseSchedule: func(ref string, p *stripe.SubscriptionScheduleReleaseParams) (*stripe.SubscriptionSchedule, error) {
+				calls++
+				if ref != provider.ID || p.PreserveCancelDate == nil || !*p.PreserveCancelDate {
+					t.Fatal("unsafe release")
+				}
+				provider.Status = "released"
+				provider.ReleasedSubscription = provider.Subscription
+				provider.Subscription = nil
+				provider.CurrentPhase = nil
+				provider.ReleasedAt = time.Now().Unix()
+				sub.Schedule = nil
+				return nil, errors.New("lost release response")
+			},
+		}
+		if err = ProcessAlertsStripeDecrease(ctx, app, person, q.ID, client); err == nil || calls != 1 {
+			t.Fatal("lost release accepted", err, calls)
+		}
+		var state string
+		if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_decreases WHERE quote_id=$1`, q.ID).Scan(&state); err != nil || state != "scheduled" {
+			t.Fatal("premature resolution", state, err)
+		}
+		if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_decrease_withdrawals SET lease_until=now()-interval '1 second' WHERE quote_id=$1`, q.ID); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 2; i++ {
+			if err = ProcessAlertsStripeDecrease(ctx, app, person, q.ID, client); err != nil || calls != 1 {
+				t.Fatal("closure release retry", err, calls)
+			}
+		}
+		if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_decreases WHERE quote_id=$1`, q.ID).Scan(&state); err != nil || state != "cancelled" {
+			t.Fatal("closure release missing", state, err)
+		}
+		grants, err = ActiveServiceEntitlements(app, person, now)
+		if err != nil || len(grants) != 1 || grants[0].Quantity != 3 || !grants[0].EndsAt.Equal(end) {
+			t.Fatal("closure release changed paid access", grants, err)
+		}
+		if err = app.DB.QueryRow(ctx, `SELECT revision FROM alerts_stripe_subscription_state WHERE checkout_id=$1`, id).Scan(&revision); err != nil {
+			t.Fatal(err)
+		}
+		if status, err := ReserveAlertsStripeCancellation(ctx, app, person, id, uuid.NewString(), revision, end.Unix()); err != nil || status == nil || status.State != "pending" {
+			t.Fatal("released schedule blocks renewal cancellation", status, err)
+		}
+		return
 	}
 	if _, err = ReserveAlertsStripeDecreaseWithdrawal(ctx, app, uuid.NewString(), q.ID); !errors.Is(err, pgx.ErrNoRows) {
 		t.Fatal("foreign withdrawal", err)
