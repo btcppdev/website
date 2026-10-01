@@ -784,3 +784,33 @@ PostgreSQL race test passed again
 recovery, immutable evidence, paid-session preservation and unchanged accounting
 status. These use local provider fixtures; live Stripe behavior remains a launch
 rehearsal requirement.
+
+### Outstanding OpenNode charges
+
+OpenNode's published [create-charge API](https://developers.opennode.com/reference/create-charge)
+supports a checkout lifetime of 10 to 4,320 minutes. Our service adapter already
+requests `ttl: 10`. The published API index reviewed on October 1, 2026 did not
+expose a charge-cancellation operation; do not invent a cancellation call or mark
+an issued charge cancelled locally. This is a documentation finding, not provider
+confirmation that previously issued payment destinations can be disabled.
+
+Sales stop blocks new charges and further checkout-link access through bitcoin++.
+It cannot retract a hosted link or on-chain address the customer already has.
+Continue authenticated charge reconciliation and webhook handling after sales
+stop, including after an `expired` observation. The [webhook documentation](https://developers.opennode.com/docs/charges-webhooks)
+distinguishes expiration from paid settlement; elapsed TTL is not evidence that
+no money was received. An authenticated later paid observation must still preserve
+the original Bitcoin amount and enter the refund inventory where applicable.
+
+Sales stop is separate from the actual access cutoff: existing fulfillment still
+records the purchased term. Coordinate that cutoff before permanent closure.
+Provider confirmation about old payment destinations, unresolved charge creation,
+underpayments and late payments remains an operational closure requirement. Do
+not declare the refund inventory final merely because ten minutes have elapsed.
+
+Local verification: `TestOpenNodeServiceLookupPostgres` now runs both active-sales
+and stopped-sales flows. It verifies checkout access is blocked after sales stop,
+non-final statuses do not settle, and a later paid observation records one payment
+and the original purchased term despite concurrent retries. The PostgreSQL race
+test passed (`/private/tmp/service-opennode-closure-20261001.log`). Provider responses
+are local HTTP fixtures, not a live OpenNode cancellation or settlement rehearsal.

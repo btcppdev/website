@@ -3,6 +3,7 @@ package getters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -29,6 +30,14 @@ func TestOpenNodeOriginalAmount(t *testing.T) {
 }
 
 func TestOpenNodeServiceLookupPostgres(t *testing.T) {
+	for _, closed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "active", true: "sales-stopped"}[closed], func(t *testing.T) {
+			testOpenNodeServiceLookup(t, closed)
+		})
+	}
+}
+
+func testOpenNodeServiceLookup(t *testing.T, closed bool) {
 	app := databaseSmokeContext(t)
 	ctx := context.Background()
 	var person string
@@ -110,6 +119,24 @@ func TestOpenNodeServiceLookupPostgres(t *testing.T) {
 	if err := app.DB.QueryRow(ctx, `SELECT provider_reference FROM service_payment_attempts WHERE id=$1`, attempt.ID).Scan(&bound); err != nil || bound != chargeID {
 		t.Fatal("uncertain creation not reconciled", err)
 	}
+	if closed {
+		if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, person); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if _, err := app.DB.Exec(ctx, `TRUNCATE service_sales_closures`); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := StopServiceSales(ctx, app, person, "alerts", "Permanent closure fixture"); err != nil {
+			t.Fatal(err)
+		}
+		if link, err := openNodeServiceCheckout(ctx, app, person, purchase.OrderID, server.Client()); !errors.Is(err, ErrServiceSalesClosed) || link != "" {
+			t.Fatal("closed service exposed checkout", link, err)
+		}
+	}
+	// Expiry does not erase an issued on-chain address. A later authenticated
+	// paid observation must still enter accounting after the sales stop.
 	for _, pending := range []string{"unpaid", "processing", "underpaid", "expired"} {
 		status = pending
 		if paid, err := reconcileOpenNodeServiceCharge(ctx, app, chargeID, server.Client()); err != nil || paid {
