@@ -18,6 +18,9 @@ func expireStoppedServiceStripeCheckout(ctx context.Context, app *config.AppCont
 	if !errors.Is(err, ErrServiceSalesClosed) {
 		return false, err
 	}
+	if closed, err := closeUnsubmittedStoppedServiceCheckout(ctx, app, person, id, product); err != nil || closed {
+		return closed, err
+	}
 	var bound bool
 	if err := app.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM service_stripe_subscriptions WHERE checkout_id=$1)`, id).Scan(&bound); err != nil {
 		return false, err

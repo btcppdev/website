@@ -268,6 +268,9 @@ CREATE TABLE service_stripe_checkouts (
  request_key text NOT NULL CHECK(length(request_key) BETWEEN 16 AND 128),
  intent jsonb NOT NULL CHECK(jsonb_typeof(intent)='object'),
  stripe_session_id text UNIQUE CHECK(stripe_session_id LIKE 'cs_%'),
+ -- Default conservatively treats imports/older writers as potentially submitted.
+ -- Only the reservation code explicitly proves a request has not started.
+ provider_started_at timestamptz DEFAULT now(),
  created_at timestamptz NOT NULL DEFAULT now(),
  closed_at timestamptz,
  UNIQUE(person_id,product_family,request_key)
@@ -283,6 +286,7 @@ BEGIN
   OR NEW.intent IS DISTINCT FROM OLD.intent OR NEW.created_at IS DISTINCT FROM OLD.created_at
   OR (NEW.person_id IS DISTINCT FROM OLD.person_id AND NEW.person_id IS NOT NULL)
   OR (OLD.stripe_session_id IS NOT NULL AND NEW.stripe_session_id IS DISTINCT FROM OLD.stripe_session_id)
+  OR (OLD.provider_started_at IS NOT NULL AND NEW.provider_started_at IS DISTINCT FROM OLD.provider_started_at)
   OR (OLD.closed_at IS NOT NULL AND NEW.closed_at IS DISTINCT FROM OLD.closed_at)
  THEN
   RAISE EXCEPTION 'Stripe checkout identity cannot be rewritten' USING ERRCODE='23514';

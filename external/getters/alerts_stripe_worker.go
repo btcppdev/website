@@ -15,6 +15,9 @@ import (
 // one-minute attempt deadline shorter than the minimum two-minute lease.
 func ReconcileDueAlertsStripeCheckouts(ctx context.Context, app *config.AppContext, client alertsstripe.Client) (int, error) {
 	return reconcileDueAlertsStripeCheckouts(ctx, app, func(ctx context.Context, person, id string) error {
+		if closed, err := closeUnsubmittedStoppedServiceCheckout(ctx, app, person, id, "alerts.repository-slots"); err != nil || closed {
+			return err
+		}
 		if _, err := recoverAlertsStripeCheckoutReference(ctx, app, person, id, client); err != nil {
 			return err
 		}

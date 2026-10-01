@@ -51,6 +51,9 @@ func TestStoppedSalesExpireCheckoutPostgres(t *testing.T) {
 					}
 					id = stored.Intent.ID
 				}
+				if err := markServiceStripeCheckoutStarted(ctx, app, person, id, product); err != nil {
+					t.Fatal(err)
+				}
 				session := &stripe.CheckoutSession{ID: "cs_" + id, Created: time.Now().Unix(), Mode: "subscription", Status: "open", PaymentStatus: "unpaid", ClientReferenceID: id, Metadata: map[string]string{"account_id": person, "checkout_intent": id, "product": product}}
 				if mode != "lost-creation-reference" {
 					if _, err := app.DB.Exec(ctx, `UPDATE `+table+` SET stripe_session_id=$2 WHERE id=$1`, id, session.ID); err != nil {

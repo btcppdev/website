@@ -104,7 +104,7 @@ func ReserveAlertsStripeCheckoutWithPolicy(app *config.AppContext, person, key s
 	if err != nil {
 		return nil, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_checkouts(id,person_id,request_key,intent) VALUES($1,$2,$3,$4)`, out.Intent.ID, person, key, raw)
+	_, err = tx.Exec(ctx, `INSERT INTO alerts_stripe_checkouts(id,person_id,request_key,intent,provider_started_at) VALUES($1,$2,$3,$4,NULL)`, out.Intent.ID, person, key, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +144,9 @@ func OpenAlertsStripeCheckout(ctx context.Context, app *config.AppContext, perso
 	}
 	if occupied {
 		return "", ErrAlertsStripeCheckoutConflict
+	}
+	if err := markServiceStripeCheckoutStarted(ctx, app, person, id, "alerts.repository-slots"); err != nil {
+		return "", err
 	}
 	reference, destination, providerErr := client.Open(ctx, stored.Intent, stored.Reference, time.Now().UTC())
 	if reference != "" {

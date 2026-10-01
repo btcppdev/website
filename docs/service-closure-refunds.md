@@ -1072,3 +1072,33 @@ plans, private-field exclusion, server-owned time, invalid stored plans and
 provider-independent errors. Log: `/private/tmp/service-closure-status-api.log`.
 This publishes reviewed timing only; product persistence, polling and cutoff
 execution are still needed. No production endpoint was deployed.
+
+## Reservations that never reached Stripe
+
+Alerts and Insider subscription reservations explicitly start with no
+`provider_started_at` timestamp. Before opening or recovering a session through
+the checkout handoff, the application commits that timestamp under the sales-stop
+lock. A failed request or process crash retains it; retries cannot erase or change
+it. This records that a request may have happened, not that Stripe accepted it.
+
+During permanent closure, reconciliation closes a reservation locally only if it
+has no submission timestamp, no Stripe session reference and no bound subscription.
+The row update serializes with submission claims. A claim racing sales stop either
+commits first (requiring provider reconciliation) or is rejected before provider
+I/O. Closed reservations cannot later claim submission.
+
+The column defaults to a timestamp for inserts from older writers/imports that do
+not explicitly establish the unsubmitted state. Those records remain uncertain
+and cannot be cleared locally. This applies to subscription checkout reservations;
+one-off/prepaid attempts and already-submitted sessions retain their existing
+provider verification requirements. No provider absence is treated as cancellation
+proof. The change is folded into the single unshipped migration 128; local databases
+with an older copy of that migration must be rebuilt for this backend version.
+
+Verification: a fresh database migrated successfully. The shared acceptance run
+passed all packages except a new legacy-fixture SQL cast, which was corrected;
+the complete getters package then passed with race detection and shuffled order.
+Coverage includes both products, submission replay/immutability, foreign ownership,
+known references, conservative defaults and a claim racing permanent sales stop.
+Logs: `/private/tmp/checkout-submission-acceptance.log` and
+`/private/tmp/checkout-submission-getters-final.log`. No live provider calls occurred.

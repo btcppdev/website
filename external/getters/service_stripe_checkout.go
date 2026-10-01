@@ -82,7 +82,7 @@ func ReserveServiceStripeCheckout(app *config.AppContext, person, key string, te
 	if err != nil {
 		return nil, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO service_stripe_checkouts(id,person_id,request_key,product_code,intent) VALUES($1,$2,$3,$4,$5)`, terms.ID, person, key, terms.ProductCode, raw)
+	_, err = tx.Exec(ctx, `INSERT INTO service_stripe_checkouts(id,person_id,request_key,product_code,intent,provider_started_at) VALUES($1,$2,$3,$4,$5,NULL)`, terms.ID, person, key, terms.ProductCode, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +120,9 @@ func OpenServiceStripeCheckout(ctx context.Context, app *config.AppContext, pers
 	}
 	if stored.Closed {
 		return "", ErrServiceStripeCheckoutConflict
+	}
+	if err := markServiceStripeCheckoutStarted(ctx, app, person, id, product); err != nil {
+		return "", err
 	}
 	reference, destination, providerErr := client.Open(ctx, stored.Intent, stored.Reference, time.Now().UTC())
 	if reference != "" {
