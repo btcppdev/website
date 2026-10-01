@@ -1064,3 +1064,13 @@ CREATE TABLE service_sales_closures (
 );
 CREATE TRIGGER service_sales_closures_immutable BEFORE UPDATE OR DELETE ON service_sales_closures
 FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();
+
+-- Expiration is provider evidence, not deletion or settlement of an order.
+CREATE TABLE service_payment_checkout_expirations (
+ attempt_id uuid PRIMARY KEY REFERENCES service_payment_attempts(id),
+ provider_reference text NOT NULL UNIQUE CHECK(provider_reference LIKE 'cs_%'),
+ evidence jsonb NOT NULL CHECK(jsonb_typeof(evidence)='object'),
+ recorded_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TRIGGER service_payment_checkout_expirations_immutable BEFORE UPDATE OR DELETE ON service_payment_checkout_expirations
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();

@@ -758,3 +758,29 @@ operator-review rejection after provider-side reactivation. The full shared race
 acceptance suite passed on a fresh database:
 `/private/tmp/service-closure-renewals-acceptance-20261001.log`.
 No live subscription was changed.
+
+### Known one-off Stripe checkout sessions
+
+The shared Stripe worker also inspects unsettled one-off service payment attempts
+with a known `cs_` session reference after sales stop. It expires only a matching
+payment-mode session with the saved attempt/order metadata, exact original amount,
+USD currency, expected live/test mode, and unpaid status without a payment intent,
+invoice or subscription. A verified expiration creates immutable normalized
+`service_payment_checkout_expirations` evidence. It does not settle, refund or
+cancel the accounting order, and later verified payment evidence remains recordable.
+
+A lost expiration response leaves no closure record; retry reads Stripe before
+considering another expiration. Completed/paid sessions or sessions with payment
+activity are left for settlement/review, not cancelled. Missing session references
+still require discovery/operator recovery. The worker claims bounded batches on a
+15-minute durable retry schedule and skips attempts with recorded expiration.
+This does not expire OpenNode payment addresses or void upgrade invoices.
+
+October 1 one-off checkout verification: the full shared race acceptance suite
+passed on a fresh database (`/private/tmp/service-oneoff-closure-20261001.log`).
+After adding the original quote/order-total consistency check, the targeted
+PostgreSQL race test passed again
+(`/private/tmp/service-oneoff-closure-final-20261001.log`). Tests cover lost-response
+recovery, immutable evidence, paid-session preservation and unchanged accounting
+status. These use local provider fixtures; live Stripe behavior remains a launch
+rehearsal requirement.
