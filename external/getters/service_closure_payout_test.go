@@ -268,3 +268,55 @@ func TestBitcoinClosureConcurrentOutputAllocationPostgres(t *testing.T) {
 		})
 	}
 }
+
+func TestBitcoinClosureTopUpPostgres(t *testing.T) {
+	for _, product := range []string{"alerts.repository-slots", "insider.membership.annual"} {
+		t.Run(product, func(t *testing.T) {
+			ctx := context.Background()
+			zero := int64(0)
+			app, refund, closure := bitcoinRefundProductFixture(t, &OpenNodeBitcoinEvidence{PriceSatoshis: 3, OverpaidSatoshis: &zero}, product)
+			var actor string
+			if err := app.DB.QueryRow(ctx, `INSERT INTO people(name) VALUES('Top-up administrator') RETURNING id::text`).Scan(&actor); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, actor); err != nil {
+				t.Fatal(err)
+			}
+			review := uuid.NewString()
+			if _, err := ReviewBitcoinClosureRefund(ctx, app, actor, review, refund.AttemptID, closure, 1, "Closure review"); err != nil {
+				t.Fatal(err)
+			}
+			var calls atomic.Int64
+			node := closurePayoutNode(t, nil, &calls)
+			for _, bad := range []int64{-1, 2100000000000000} {
+				if _, err := ApproveBitcoinClosureDestinationWithTopUp(ctx, app, node, actor, review, payoutAddress, "Small output", bad); !errors.Is(err, ErrServiceRefund) {
+					t.Fatal("invalid top-up", bad, err)
+				}
+			}
+			approval, err := ApproveBitcoinClosureDestinationWithTopUp(ctx, app, node, actor, review, payoutAddress, "Small output funded by bitcoin++", 499)
+			if err != nil || approval.TopUpSatoshis != 499 || approval.PayoutSatoshis != 500 {
+				t.Fatal(approval, err)
+			}
+			if _, err := ApproveBitcoinClosureDestinationWithTopUp(ctx, app, node, actor, review, payoutAddress, "Small output funded by bitcoin++", 498); !errors.Is(err, ErrServiceRefund) {
+				t.Fatal("changed replay", err)
+			}
+			req := BitcoinClosurePayoutRequest{ReviewID: review, TxID: strings.ReplaceAll(uuid.NewString()+uuid.NewString(), "-", ""), BlockHash: strings.Repeat("b", 64)}
+			payout, err := RecordBitcoinClosurePayout(ctx, app, node, actor, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if payout.TopUpSatoshis != 499 || payout.Evidence.Satoshis != 500 || *payout.Refund.AmountSatoshis != 1 || payout.Refund.AmountCents != 333 {
+				t.Fatalf("expense/refund mixed: %+v", payout)
+			}
+			before := calls.Load()
+			replay, err := RecordBitcoinClosurePayout(ctx, app, node, actor, req)
+			if err != nil || replay.TopUpSatoshis != 499 || calls.Load() != before {
+				t.Fatal("replay", replay, err)
+			}
+			plan, err := PlanBitcoinClosureRefund(ctx, app, refund.AttemptID, closure)
+			if err != nil || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis != 0 || *plan.PreviouslyRefundedSatoshis != 1 {
+				t.Fatal("remaining balance", plan, err)
+			}
+		})
+	}
+}

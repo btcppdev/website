@@ -15,11 +15,13 @@ import (
 )
 
 type BitcoinClosureDestination struct {
-	ReviewID    string                    `json:"review_id"`
-	ActorID     string                    `json:"actor_id"`
-	Destination bitcoinpayout.Destination `json:"destination"`
-	Reason      string                    `json:"reason"`
-	CreatedAt   time.Time                 `json:"created_at"`
+	TopUpSatoshis  int64                     `json:"top_up_satoshis"`
+	PayoutSatoshis int64                     `json:"payout_satoshis"`
+	ReviewID       string                    `json:"review_id"`
+	ActorID        string                    `json:"actor_id"`
+	Destination    bitcoinpayout.Destination `json:"destination"`
+	Reason         string                    `json:"reason"`
+	CreatedAt      time.Time                 `json:"created_at"`
 }
 
 func InspectBitcoinClosureDestination(ctx context.Context, app *config.AppContext, reviewID string) (*BitcoinClosureDestination, error) {
@@ -33,7 +35,7 @@ func inspectBitcoinClosureDestination(ctx context.Context, query interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }, reviewID string) (*BitcoinClosureDestination, error) {
 	out := &BitcoinClosureDestination{ReviewID: reviewID}
-	err := query.QueryRow(ctx, `SELECT actor_id::text,chain,destination,script_pub_key,reason,created_at FROM service_bitcoin_closure_destinations WHERE review_id=$1`, reviewID).Scan(&out.ActorID, &out.Destination.Chain, &out.Destination.Address, &out.Destination.ScriptPubKey, &out.Reason, &out.CreatedAt)
+	err := query.QueryRow(ctx, `SELECT actor_id::text,chain,destination,script_pub_key,reason,created_at,top_up_satoshis,payout_satoshis FROM service_bitcoin_closure_destinations WHERE review_id=$1`, reviewID).Scan(&out.ActorID, &out.Destination.Chain, &out.Destination.Address, &out.Destination.ScriptPubKey, &out.Reason, &out.CreatedAt, &out.TopUpSatoshis, &out.PayoutSatoshis)
 	if err != nil {
 		return nil, err
 	}
@@ -45,13 +47,19 @@ func inspectBitcoinClosureDestination(ctx context.Context, query interface {
 // validity/network, not ownership. Caller identity must come from server auth.
 // Approval is immutable and does not reserve funds, authorize sending, or pay.
 func ApproveBitcoinClosureDestination(ctx context.Context, app *config.AppContext, node *bitcoinpayout.Client, actor, reviewID, address, reason string) (*BitcoinClosureDestination, error) {
+	return ApproveBitcoinClosureDestinationWithTopUp(ctx, app, node, actor, reviewID, address, reason, 0)
+}
+
+// ApproveBitcoinClosureDestinationWithTopUp records the separate bitcoin++ expense
+// before payment. It never reduces the refund owed or increases its tax reversal.
+func ApproveBitcoinClosureDestinationWithTopUp(ctx context.Context, app *config.AppContext, node *bitcoinpayout.Client, actor, reviewID, address, reason string, topUp int64) (*BitcoinClosureDestination, error) {
 	reason = strings.TrimSpace(reason)
 	for _, value := range []string{actor, reviewID} {
 		if id, err := uuid.Parse(value); err != nil || id.String() != value {
 			return nil, ErrServiceRefund
 		}
 	}
-	if node == nil || reason == "" || len(reason) > 1000 {
+	if topUp < 0 || topUp > 2100000000000000 || node == nil || reason == "" || len(reason) > 1000 {
 		return nil, ErrServiceRefund
 	}
 	// Check authorization before network I/O, then lock/recheck it before writing.
@@ -93,7 +101,7 @@ func ApproveBitcoinClosureDestination(ctx context.Context, app *config.AppContex
 	}
 	prior, err := inspectBitcoinClosureDestination(ctx, tx, reviewID)
 	if err == nil {
-		if prior.ActorID != actor || prior.Reason != reason || prior.Destination != *destination {
+		if prior.TopUpSatoshis != topUp || prior.ActorID != actor || prior.Reason != reason || prior.Destination != *destination {
 			return nil, ErrServiceRefund
 		}
 		return prior, tx.Commit(ctx)
@@ -114,8 +122,12 @@ func ApproveBitcoinClosureDestination(ctx context.Context, app *config.AppContex
 	if len(plan.ReviewReasons) != 0 || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis <= 0 || !bytes.Equal(before, current) {
 		return nil, ErrServiceRefund
 	}
-	out := &BitcoinClosureDestination{ReviewID: reviewID, ActorID: actor, Destination: *destination, Reason: reason}
-	err = tx.QueryRow(ctx, `INSERT INTO service_bitcoin_closure_destinations(review_id,actor_id,chain,destination,script_pub_key,reason) VALUES($1,$2,$3,$4,$5,$6) RETURNING created_at`, reviewID, actor, destination.Chain, destination.Address, destination.ScriptPubKey, reason).Scan(&out.CreatedAt)
+	if topUp > 2100000000000000-*plan.RemainingRefundSatoshis {
+		return nil, ErrServiceRefund
+	}
+	payout := *plan.RemainingRefundSatoshis + topUp
+	out := &BitcoinClosureDestination{ReviewID: reviewID, ActorID: actor, Destination: *destination, Reason: reason, TopUpSatoshis: topUp, PayoutSatoshis: payout}
+	err = tx.QueryRow(ctx, `INSERT INTO service_bitcoin_closure_destinations(review_id,actor_id,chain,destination,script_pub_key,reason,top_up_satoshis,payout_satoshis) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING created_at`, reviewID, actor, destination.Chain, destination.Address, destination.ScriptPubKey, reason, topUp, payout).Scan(&out.CreatedAt)
 	if err != nil {
 		return nil, err
 	}

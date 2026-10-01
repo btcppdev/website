@@ -935,6 +935,8 @@ CREATE TABLE service_bitcoin_closure_destinations (
  destination text NOT NULL CHECK(length(destination) BETWEEN 1 AND 128),
  script_pub_key text NOT NULL CHECK(length(script_pub_key) BETWEEN 2 AND 20000 AND script_pub_key ~ '^([0-9a-f]{2})+$'),
  reason text NOT NULL CHECK(length(reason) BETWEEN 1 AND 1000),
+ top_up_satoshis bigint NOT NULL DEFAULT 0 CHECK(top_up_satoshis>=0),
+ payout_satoshis bigint NOT NULL CHECK(payout_satoshis>top_up_satoshis AND payout_satoshis<=2100000000000000),
  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TRIGGER service_bitcoin_closure_destinations_immutable BEFORE UPDATE OR DELETE ON service_bitcoin_closure_destinations
@@ -953,6 +955,7 @@ CREATE TABLE service_bitcoin_closure_payouts (
  provider text NOT NULL DEFAULT 'opennode' CHECK(provider='opennode'),
  refund_reference text NOT NULL,
  evidence jsonb NOT NULL CHECK(jsonb_typeof(evidence)='object'),
+ top_up_satoshis bigint NOT NULL DEFAULT 0 CHECK(top_up_satoshis>=0 AND top_up_satoshis<(evidence->>'satoshis')::bigint),
  recorded_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(chain,txid,vout),
  UNIQUE(provider,refund_reference),

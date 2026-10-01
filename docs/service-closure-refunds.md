@@ -620,3 +620,32 @@ before totaling obligations; a missing amount is not zero.
 PostgreSQL tests cover Alerts and Insider inclusion, bounded pagination, cursor
 scope/date rejection, missing-evidence visibility and absence of review creation.
 Production service-closure orchestration remains separate outstanding work.
+
+## Small-output top-ups
+
+bitcoin++ funds any top-up needed to make a small on-chain refund payable. The
+admin destination approval now records the top-up in whole satoshis, its reason
+and the total recipient output before payment. Choose the amount using the sending
+wallet's output requirements and recipient address; the application does not assume
+one universal dust threshold. Zero means no top-up. A positive refund remains
+required; zero-refund plans do not become payout obligations.
+
+The saved approval displays refund owed plus top-up as the exact output to send.
+Wallet transaction fees are additional bitcoin++ expenses, never deducted from the
+recipient output. Verification requires that exact approved total. The immutable
+payout record stores the top-up separately; the refund ledger and USD/tax allocation
+contain only the refund owed. Top-ups can exceed the original customer payment
+without exceeding that payment's refundable balance, because they are not refunds
+of customer funds. Changed approval replays are rejected. The recorded output,
+including its top-up, remains subject to six-confirmation and periodic/new-block
+verification. This is still manual wallet payment; no funds are sent by the app.
+
+This schema change is part of unshipped migration 128; use a fresh development
+acceptance database rather than applying it to an already-migrated local fixture.
+
+October 1 verification: the full shared acceptance suite passed with race detection
+on a fresh PostgreSQL schema, including both products and existing zero-top-up
+flows. Connected admin HTTP tests additionally passed with top-up approval,
+negative/fractional/duplicate-field rejection, payout recording and new-block
+reconciliation. Local logs: `/private/tmp/service-closure-topups-20261001.log` and
+`/private/tmp/service-closure-topup-http-20261001.log`. No real payout was sent.

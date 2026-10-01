@@ -218,7 +218,20 @@ func serveClosurePayoutAction(w http.ResponseWriter, r *http.Request, app *confi
 	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
 	if action == "destination" {
-		_, err = getters.ApproveBitcoinClosureDestination(ctx, app, node, id.PersonID, review.String(), strings.TrimSpace(r.PostForm.Get("address")), r.PostForm.Get("reason"))
+		var topUp int64
+		if len(r.PostForm["topup"]) > 1 {
+			http.Error(w, "Invalid top-up", 400)
+			return
+		}
+		if raw := r.PostForm.Get("topup"); raw != "" {
+			var parseErr error
+			topUp, parseErr = strconv.ParseInt(raw, 10, 64)
+			if parseErr != nil || topUp < 0 {
+				http.Error(w, "Enter a nonnegative whole-satoshi top-up", 400)
+				return
+			}
+		}
+		_, err = getters.ApproveBitcoinClosureDestinationWithTopUp(ctx, app, node, id.PersonID, review.String(), strings.TrimSpace(r.PostForm.Get("address")), r.PostForm.Get("reason"), topUp)
 	} else if action == "reconcile" {
 		err = getters.ReconcileBitcoinPayoutBlock(ctx, app, node, id.PersonID, r.PostForm.Get("reconciliation"), review.String(), strings.TrimSpace(r.PostForm.Get("block")), r.PostForm.Get("reason"))
 	} else {

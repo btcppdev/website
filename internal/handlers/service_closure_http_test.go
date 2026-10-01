@@ -115,7 +115,7 @@ func TestClosureAdminHTTPPostgres(t *testing.T) {
 					var txid, block string
 					json.Unmarshal(req.Params[0], &txid)
 					json.Unmarshal(req.Params[2], &block)
-					result = map[string]any{"txid": txid, "blockhash": block, "in_active_chain": true, "vin": []any{map[string]any{"txid": strings.Repeat("d", 64)}}, "vout": []any{map[string]any{"n": 0, "value": json.Number("0.00000500"), "scriptPubKey": map[string]any{"hex": script}}}}
+					result = map[string]any{"txid": txid, "blockhash": block, "in_active_chain": true, "vin": []any{map[string]any{"txid": strings.Repeat("d", 64)}}, "vout": []any{map[string]any{"n": 0, "value": json.Number("0.00000520"), "scriptPubKey": map[string]any{"hex": script}}}}
 				default:
 					t.Error("unexpected node operation", req.Method)
 				}
@@ -192,7 +192,15 @@ func TestClosureAdminHTTPPostgres(t *testing.T) {
 			if code != 200 || !strings.Contains(body, "Verify and approve address") {
 				t.Fatal(code, body)
 			}
-			destination := url.Values{"action": {"destination"}, "csrf": {hidden(body, "csrf")}, "review": {form.Get("review")}, "address": {address}, "reason": {"Confirmed recipient"}, "confirmed": {"yes"}}
+			destination := url.Values{"action": {"destination"}, "csrf": {hidden(body, "csrf")}, "review": {form.Get("review")}, "address": {address}, "reason": {"Confirmed recipient and top-up"}, "topup": {"20"}, "confirmed": {"yes"}}
+			for _, bad := range [][]string{{"-1"}, {"0.5"}, {"20", "21"}} {
+				destination["topup"] = bad
+				code, body, _ = call("/admin/service-closure", destination)
+				if code != 400 {
+					t.Fatal("invalid top-up accepted", bad, code, body)
+				}
+			}
+			destination["topup"] = []string{"20"}
 			code, body, _ = call("/admin/service-closure", destination)
 			if code != 303 {
 				t.Fatal(code, body)
@@ -217,7 +225,7 @@ func TestClosureAdminHTTPPostgres(t *testing.T) {
 				t.Fatal(code, body)
 			}
 			record, err := getters.InspectBitcoinClosurePayout(ctx, app, form.Get("review"))
-			if err != nil || record.ActorID != person || record.Refund.AmountCents != 499 || *record.Refund.AmountSatoshis != 500 {
+			if err != nil || record.ActorID != person || record.TopUpSatoshis != 20 || record.Evidence.Satoshis != 520 || record.Refund.AmountCents != 499 || *record.Refund.AmountSatoshis != 500 {
 				t.Fatal("wrong financial record", record, err)
 			}
 			newBlock := strings.Repeat("e", 64)

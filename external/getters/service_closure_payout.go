@@ -23,11 +23,12 @@ type BitcoinClosurePayoutRequest struct {
 }
 
 type BitcoinClosurePayout struct {
-	ReviewID   string                  `json:"review_id"`
-	ActorID    string                  `json:"actor_id"`
-	Evidence   *bitcoinpayout.Evidence `json:"evidence"`
-	Refund     VerifiedServiceRefund   `json:"refund"`
-	RecordedAt time.Time               `json:"recorded_at"`
+	TopUpSatoshis int64                   `json:"top_up_satoshis"`
+	ReviewID      string                  `json:"review_id"`
+	ActorID       string                  `json:"actor_id"`
+	Evidence      *bitcoinpayout.Evidence `json:"evidence"`
+	Refund        VerifiedServiceRefund   `json:"refund"`
+	RecordedAt    time.Time               `json:"recorded_at"`
 }
 
 func InspectBitcoinClosurePayout(ctx context.Context, app *config.AppContext, reviewID string) (*BitcoinClosurePayout, error) {
@@ -39,7 +40,7 @@ func inspectBitcoinClosurePayout(ctx context.Context, query interface {
 }, reviewID string) (*BitcoinClosurePayout, error) {
 	out := &BitcoinClosurePayout{ReviewID: reviewID}
 	var raw []byte
-	err := query.QueryRow(ctx, `SELECT p.actor_id::text,p.evidence,p.recorded_at,f.attempt_id::text,f.provider,f.payment_reference,f.refund_reference,f.amount_cents,f.currency,f.refunded_at,f.reason,f.amount_satoshis FROM service_bitcoin_closure_payouts p JOIN service_payment_refunds f ON f.provider=p.provider AND f.refund_reference=p.refund_reference WHERE p.review_id=$1`, reviewID).Scan(&out.ActorID, &raw, &out.RecordedAt, &out.Refund.AttemptID, &out.Refund.Provider, &out.Refund.PaymentReference, &out.Refund.RefundReference, &out.Refund.AmountCents, &out.Refund.Currency, &out.Refund.RefundedAt, &out.Refund.Reason, &out.Refund.AmountSatoshis)
+	err := query.QueryRow(ctx, `SELECT p.actor_id::text,p.evidence,p.recorded_at,p.top_up_satoshis,f.attempt_id::text,f.provider,f.payment_reference,f.refund_reference,f.amount_cents,f.currency,f.refunded_at,f.reason,f.amount_satoshis FROM service_bitcoin_closure_payouts p JOIN service_payment_refunds f ON f.provider=p.provider AND f.refund_reference=p.refund_reference WHERE p.review_id=$1`, reviewID).Scan(&out.ActorID, &raw, &out.RecordedAt, &out.TopUpSatoshis, &out.Refund.AttemptID, &out.Refund.Provider, &out.Refund.PaymentReference, &out.Refund.RefundReference, &out.Refund.AmountCents, &out.Refund.Currency, &out.Refund.RefundedAt, &out.Refund.Reason, &out.Refund.AmountSatoshis)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +97,7 @@ func RecordBitcoinClosurePayout(ctx context.Context, app *config.AppContext, nod
 	if review.Basis == nil || review.Basis.RemainingRefundSatoshis == nil || review.Basis.USDAllocation == nil || (destination.Destination.Chain != "main" && (app.Env == nil || app.Env.Prod)) {
 		return nil, ErrServiceRefund
 	}
-	evidence, err := node.Verify(ctx, bitcoinpayout.Request{TxID: req.TxID, Vout: req.Vout, BlockHash: req.BlockHash, Destination: destination.Destination.Address, Satoshis: *review.Basis.RemainingRefundSatoshis})
+	evidence, err := node.Verify(ctx, bitcoinpayout.Request{TxID: req.TxID, Vout: req.Vout, BlockHash: req.BlockHash, Destination: destination.Destination.Address, Satoshis: destination.PayoutSatoshis})
 	if err != nil {
 		return nil, err
 	}
@@ -151,14 +152,14 @@ func recordVerifiedBitcoinClosurePayout(ctx context.Context, app *config.AppCont
 	if !bytes.Equal(expected, current) || len(plan.ReviewReasons) != 0 || plan.RemainingRefundSatoshis == nil || *plan.RemainingRefundSatoshis <= 0 || plan.USDAllocation == nil {
 		return nil, ErrServiceRefund
 	}
-	if evidence == nil || evidence.TxID != req.TxID || evidence.Vout != req.Vout || evidence.BlockHash != req.BlockHash || evidence.Satoshis != *plan.RemainingRefundSatoshis || evidence.Chain != destination.Destination.Chain || evidence.Destination != destination.Destination.Address || evidence.ScriptPubKey != destination.Destination.ScriptPubKey || evidence.Confirmations < bitcoinpayout.RequiredConfirmations || evidence.RequiredConfirmations != bitcoinpayout.RequiredConfirmations || evidence.VerifiedAt.IsZero() {
+	if evidence == nil || evidence.TxID != req.TxID || evidence.Vout != req.Vout || evidence.BlockHash != req.BlockHash || evidence.Satoshis != destination.PayoutSatoshis || evidence.Satoshis-destination.TopUpSatoshis != *plan.RemainingRefundSatoshis || evidence.Chain != destination.Destination.Chain || evidence.Destination != destination.Destination.Address || evidence.ScriptPubKey != destination.Destination.ScriptPubKey || evidence.Confirmations < bitcoinpayout.RequiredConfirmations || evidence.RequiredConfirmations != bitcoinpayout.RequiredConfirmations || evidence.VerifiedAt.IsZero() {
 		return nil, ErrServiceRefund
 	}
 	age := time.Since(evidence.VerifiedAt)
 	if age < 0 || age > time.Minute || (evidence.Chain != "main" && (app.Env == nil || app.Env.Prod)) {
 		return nil, ErrServiceRefund
 	}
-	refund := VerifiedServiceRefund{AttemptID: attempt, Provider: "opennode", PaymentReference: reference, RefundReference: fmt.Sprintf("onchain:%s:%s:%d", evidence.Chain, evidence.TxID, evidence.Vout), AmountCents: plan.USDAllocation.AmountCents, Currency: "USD", RefundedAt: evidence.VerifiedAt.UTC().Truncate(time.Microsecond), Reason: "permanent_closure", AmountSatoshis: &evidence.Satoshis}
+	refund := VerifiedServiceRefund{AttemptID: attempt, Provider: "opennode", PaymentReference: reference, RefundReference: fmt.Sprintf("onchain:%s:%s:%d", evidence.Chain, evidence.TxID, evidence.Vout), AmountCents: plan.USDAllocation.AmountCents, Currency: "USD", RefundedAt: evidence.VerifiedAt.UTC().Truncate(time.Microsecond), Reason: "permanent_closure", AmountSatoshis: plan.RemainingRefundSatoshis}
 	if err = recordServiceRefund(ctx, tx, refund); err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) && pgerr.Code == "23505" {
@@ -170,7 +171,7 @@ func recordVerifiedBitcoinClosurePayout(ctx context.Context, app *config.AppCont
 	if err != nil {
 		return nil, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO service_bitcoin_closure_payouts(review_id,actor_id,chain,txid,vout,block_hash,provider,refund_reference,evidence) VALUES($1,$2,$3,$4,$5,$6,'opennode',$7,$8::jsonb)`, req.ReviewID, actor, evidence.Chain, evidence.TxID, evidence.Vout, evidence.BlockHash, refund.RefundReference, raw)
+	_, err = tx.Exec(ctx, `INSERT INTO service_bitcoin_closure_payouts(review_id,actor_id,chain,txid,vout,block_hash,provider,refund_reference,evidence,top_up_satoshis) VALUES($1,$2,$3,$4,$5,$6,'opennode',$7,$8::jsonb,$9)`, req.ReviewID, actor, evidence.Chain, evidence.TxID, evidence.Vout, evidence.BlockHash, refund.RefundReference, raw, destination.TopUpSatoshis)
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) && pgerr.Code == "23505" {
