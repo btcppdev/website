@@ -22,7 +22,7 @@
 <section class="shop-admin-table-wrap"><table class="shop-admin-table">
 <thead><tr><th>Order / product</th><th>Refund</th><th>Delivery / access</th><th>Tax adjustment</th></tr></thead><tbody>
 {{ range .RefundReview }}
-<tr><td><code>{{ .OrderPublicID }}</code><br>{{ .ProductCode }}<br><a href="/admin/service-refunds?attempt={{ .AttemptID }}">Inspect payment</a></td>
+<tr><td><code>{{ .OrderPublicID }}</code><br>{{ .ProductCode }}<br><a href="/admin/service-refunds?attempt={{ .AttemptID }}">Inspect payment</a>{{ if eq .Provider "opennode" }}<br><a href="/admin/service-closure?attempt={{ .AttemptID }}">Preview closure refund</a>{{ end }}</td>
 <td><code>{{ .RefundReference }}</code><br>{{ .AmountCents }} USD cents{{ if .AmountSatoshis }}<br>{{ .AmountSatoshis }} satoshis{{ end }}</td>
 <td>{{ .State }}{{ if .AccessAction }}<br>{{ .AccessAction }}{{ end }}</td>
 <td>{{ .TaxState }}{{ if .TaxReviewReason }}<br>{{ .TaxReviewReason }}{{ end }}{{ if .TaxReversalReference }}<br><code>{{ .TaxReversalReference }}</code>{{ end }}

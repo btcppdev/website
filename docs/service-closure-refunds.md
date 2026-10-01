@@ -424,3 +424,25 @@ PostgreSQL aggregate and collector privacy race tests pass
 `promtool test rules ops/service-refund-tax-alerts.test.yml` checks for firing,
 resolution, empty queues, stale data and failed collection. Rules have not been
 installed on metrics.btcpp.dev or routed to an operator destination yet.
+
+## Calculation review page
+
+Global admins can open `/admin/service-closure` from Service payments or from an
+OpenNode refund's review row. Enter a settled payment attempt and the permanent
+closure timestamp, including its timezone. The preview displays the product,
+order, previous Bitcoin refunds, remaining satoshis and original USD accounting
+adjustment. Unknown or inconsistent evidence appears as blocking review reasons.
+
+For a positive, unblocked amount, the admin confirms the preview and supplies a
+reason. The POST uses the authenticated admin identity, session CSRF token,
+expected satoshi amount and a stable review UUID. The shared getter recalculates
+under the order lock before inserting the immutable review. Successful submission
+redirects to the saved review, which remains read-only and explicitly requires
+revalidation before later destination approval and payout recording.
+
+Handler and template race checks pass in
+`/private/tmp/service-closure-admin-20261001.log` and
+`/private/tmp/service-closure-admin-template-20261001.log`. Tests cover role and
+CSRF rejection, UTC normalization, unsupported timestamp precision, blocked and
+saved states, amount rendering and escaped admin notes. Destination approval and
+payout recording still need admin pages; visual/browser rehearsal remains open.

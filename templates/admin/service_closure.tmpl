@@ -1,0 +1,31 @@
+<!doctype html><html lang="en"><head>
+<title>Bitcoin closure refund · bitcoin++</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/static/css/site-chrome.css?v=20260904-1"><link rel="stylesheet" href="/static/css/btcpp-redesign.css"><link rel="stylesheet" href="/static/css/shop.css?v=shipping-queue-1"><link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
+</head><body class="shop-page shop-admin-page">
+{{ template "mainnav" . }}
+<main class="shop-admin"><section class="shop-admin__intro">
+<p class="shop-kicker">§ billing admin</p><h1>Bitcoin closure refund.</h1>
+<p>Unused prepaid time is refunded as a proportion of the original Bitcoin payment, rounded down to a satoshi.</p>
+<p>This review records the calculation. An admin pays from our wallet after destination approval; payout verification records the refund separately.</p>
+<a class="shop-button" href="/admin/service-payments">Service payments</a>
+</section>
+{{ if .Review }}
+<section><h2>Review recorded</h2><dl><dt>Review ID</dt><dd><code>{{ .Review.ID }}</code></dd><dt>Reviewed by</dt><dd><code>{{ .Review.ActorID }}</code></dd><dt>Recorded at (UTC)</dt><dd>{{ .Review.CreatedAt.UTC.Format "2006-01-02 15:04:05" }}</dd><dt>Reason</dt><dd>{{ .Review.Reason }}</dd></dl>
+<p>This is the saved calculation. The current payment balance must be checked again before destination approval and payout recording.</p></section>
+{{ else }}
+<form method="get"><label>Payment attempt UUID <input name="attempt" value="{{ .Attempt }}" required></label><label>Permanent closure time (RFC3339, with timezone) <input name="closure" value="{{ .Closure }}" placeholder="2030-01-01T00:00:00Z" required></label><button class="shop-button" type="submit">Preview refund</button></form>
+{{ end }}
+{{ with .Plan }}<section><h2>Calculation</h2><dl>
+<dt>Order</dt><dd><code>{{ .OrderPublicID }}</code></dd><dt>Product</dt><dd>{{ .ProductCode }}</dd><dt>Payment attempt</dt><dd><code>{{ .AttemptID }}</code></dd><dt>Closure time (UTC)</dt><dd>{{ .ClosureAt.UTC.Format "2006-01-02T15:04:05.999999Z07:00" }}</dd>
+<dt>Previous refunds</dt><dd>{{ if ne .PreviouslyRefundedSatoshis nil }}{{ .PreviouslyRefundedSatoshis }} satoshis{{ else }}Unknown{{ end }}</dd>
+<dt>Remaining closure refund</dt><dd>{{ if ne .RemainingRefundSatoshis nil }}{{ .RemainingRefundSatoshis }} satoshis{{ else }}Requires investigation{{ end }}</dd>
+{{ with .USDAllocation }}<dt>Original USD accounting adjustment</dt><dd>{{ .AmountCents }} cents (tax inclusive)</dd>{{ end }}</dl>
+{{ if .ReviewReasons }}<h3>Resolve before reviewing</h3><ul>{{ range .ReviewReasons }}<li>{{ . }}</li>{{ end }}</ul>{{ end }}</section>{{ end }}
+{{ if .CanReview }}<form method="post">
+<input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="review" value="{{ .ReviewID }}"><input type="hidden" name="attempt" value="{{ .Attempt }}"><input type="hidden" name="closure" value="{{ .Closure }}"><input type="hidden" name="amount" value="{{ .Plan.RemainingRefundSatoshis }}">
+<label>Review reason <textarea name="reason" maxlength="1000" required></textarea></label>
+<label><input type="checkbox" name="confirmed" value="yes" required> I reviewed the payment, closure time and calculated amount.</label>
+<button class="shop-button" type="submit">Record calculation review</button>
+</form>{{ else }}{{ if .Plan }}{{ if not .Review }}<p>No calculation review can be recorded until the amount is positive and all issues are resolved.</p>{{ end }}{{ end }}{{ end }}
+</main></body></html>

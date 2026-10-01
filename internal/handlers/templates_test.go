@@ -80,6 +80,10 @@ func TestLoadTemplates(t *testing.T) {
 	if !strings.Contains(refundReview.String(), "Next page") || !strings.Contains(refundReview.String(), `value="00000000-0000-0000-0000-000000000001"`) {
 		t.Fatal("refund pagination lost filter")
 	}
+	var closurePreview bytes.Buffer
+	if err := reviewTemplates.ExecuteTemplate(&closurePreview, "admin/service_closure.tmpl", &serviceClosurePage{shopPage: shopPage{Admin: true}}); err != nil {
+		t.Fatalf("closure preview template: %v", err)
+	}
 	navTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {
 		t.Fatal(err)
