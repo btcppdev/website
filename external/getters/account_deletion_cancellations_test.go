@@ -131,6 +131,16 @@ func TestDeletedAccountCancellationPostgres(t *testing.T) {
 					if ok, err := RecoverAccountDeletionCancellation(ctx, app, id, 1, outsider, "retry"); ok || !errors.Is(err, ErrAccountCancellationAdmin) {
 						t.Fatal("non-admin recovery", ok, err)
 					}
+					// A retained role on a deleted account must not authorize recovery.
+					if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, outsider); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := app.DB.Exec(ctx, `UPDATE people SET is_deleted_account=true WHERE id=$1`, outsider); err != nil {
+						t.Fatal(err)
+					}
+					if ok, err := RecoverAccountDeletionCancellation(ctx, app, id, 1, outsider, "retry"); ok || !errors.Is(err, ErrAccountCancellationAdmin) {
+						t.Fatal("deleted admin recovery", ok, err)
+					}
 					if _, err := app.DB.Exec(ctx, `UPDATE account_deletion_cancellations SET lease_until=now()+interval '1 hour' WHERE checkout_id=$1`, id); err != nil {
 						t.Fatal(err)
 					}
