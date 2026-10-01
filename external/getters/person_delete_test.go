@@ -310,6 +310,20 @@ func TestDatabaseSmokeDeletePersonGuardsAndRollback(t *testing.T) {
 	if err := DeletePerson(app, source, actor); err == nil {
 		t.Fatal("non-admin deletion allowed")
 	}
+	deletedAdmin := insertSmokePerson(t, app, "Deleted admin with retained role")
+	if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, deletedAdmin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE people SET is_deleted_account=true WHERE id=$1`, deletedAdmin); err != nil {
+		t.Fatal(err)
+	}
+	if err := DeletePerson(app, source, deletedAdmin); err == nil || err.Error() != "global administrator required" {
+		t.Fatal("deleted admin authorized deletion", err)
+	}
+	var sourceIntact bool
+	if err := app.DB.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM people WHERE id=$1 AND NOT is_deleted_account)`, source).Scan(&sourceIntact); err != nil || !sourceIntact {
+		t.Fatal("unauthorized deletion changed source", err)
+	}
 	if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, actor); err != nil {
 		t.Fatal(err)
 	}

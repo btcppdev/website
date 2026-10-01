@@ -73,12 +73,15 @@ func DeletePerson(app *config.AppContext, personID, actorID string) error {
 	if deleted {
 		return fmt.Errorf("this is already a deleted account")
 	}
-	var admin bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM people_roles WHERE person_id=$1::uuid AND scope='global' AND position='admin')`, actorID).Scan(&admin); err != nil {
-		return err
-	}
-	if !admin {
+	var admin int
+	err = tx.QueryRow(ctx, `SELECT 1 FROM people_roles r JOIN people p ON p.id=r.person_id
+	 WHERE r.person_id=$1::uuid AND r.scope='global' AND r.position='admin' AND NOT p.is_deleted_account
+	 FOR SHARE OF r,p`, actorID).Scan(&admin)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("global administrator required")
+	}
+	if err != nil {
+		return err
 	}
 	var conflicts bool
 	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM person_email_conflicts WHERE person_id=$1::uuid)`, personID).Scan(&conflicts); err != nil {
