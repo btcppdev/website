@@ -344,6 +344,25 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increase_submissions SET lease_until=now()-interval '1 second' WHERE quote_id=$1`, closureID); err != nil {
 		t.Fatal(err)
 	}
+	// A successful cancellation acknowledgement with an invoice that is still
+	// payable must leave the durable instruction pending and create no expiry
+	// evidence. Recovery can retry once the provider state becomes definitive.
+	ackClient := client
+	ackCalls := 0
+	ackClient.VoidInvoice = func(string, *stripe.InvoiceVoidInvoiceParams) (*stripe.Invoice, error) {
+		ackCalls++
+		ack := *invoice
+		ack.Status = "void"
+		ack.AmountRemaining = 0
+		return &ack, nil
+	}
+	if _, err = RecoverAlertsStripeIncrease(ctx, app, person, closureID, ackClient); err == nil || ackCalls != 1 {
+		t.Fatal("unverified acknowledgement accepted", err, ackCalls)
+	}
+	var pendingAfterAck bool
+	if err = app.DB.QueryRow(ctx, `SELECT state='pending' AND NOT EXISTS(SELECT 1 FROM alerts_stripe_increase_expirations e WHERE e.quote_id=i.quote_id) FROM alerts_stripe_increases i WHERE quote_id=$1`, closureID).Scan(&pendingAfterAck); err != nil || !pendingAfterAck {
+		t.Fatal("unverified cancellation changed local accounting", pendingAfterAck, err)
+	}
 	if _, err = RecoverAlertsStripeIncrease(ctx, app, person, closureID, client); err == nil || voidCalls != 1 {
 		t.Fatal("lost response accepted", err, voidCalls)
 	}

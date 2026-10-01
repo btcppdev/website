@@ -10,7 +10,7 @@ import (
 )
 
 func TestVoidPendingIncrease(t *testing.T) {
-	for _, scenario := range []string{"void", "lost response", "paid", "partial", "different latest", "different quantity", "applied", "scheduled", "foreign", "still pending"} {
+	for _, scenario := range []string{"void", "lost response", "paid", "partial", "different latest", "different quantity", "applied", "scheduled", "foreign", "still pending", "paid during void", "open after acknowledgement", "read failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			c, b, sub, _, invoice, now, _ := increaseFixture(t)
 			q, err := c.PreviewIncrease(context.Background(), b, 3, now)
@@ -22,7 +22,13 @@ func TestVoidPendingIncrease(t *testing.T) {
 			invoice.Status = "open"
 			invoice.StatusTransitions = nil
 			invoice.AmountRemaining = invoice.Total
-			c.Invoice = func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { return invoice, nil }
+			failRead := false
+			c.Invoice = func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) {
+				if failRead {
+					return nil, errors.New("provider unavailable after acknowledgement")
+				}
+				return invoice, nil
+			}
 			sub.LatestInvoice = &stripe.Invoice{ID: invoice.ID}
 			sub.PendingUpdate = &stripe.SubscriptionPendingUpdate{SubscriptionItems: []*stripe.SubscriptionItem{{ID: q.SubscriptionItemID, Quantity: q.PaidSlots, Price: sub.Items.Data[0].Price}}}
 			calls := 0
@@ -30,6 +36,27 @@ func TestVoidPendingIncrease(t *testing.T) {
 				calls++
 				if id != invoice.ID || p.IdempotencyKey == nil || *p.IdempotencyKey != "alerts-closure-void-increase:"+intent.ID || p.Context == nil {
 					t.Fatal("unfenced void")
+				}
+				// A successful action response is not proof of the final state.
+				// Return a separate acknowledgement while subsequent reads observe
+				// payment winning the race, unchanged state, or an outage.
+				ack := *invoice
+				ack.Status = "void"
+				ack.AmountRemaining = 0
+				switch scenario {
+				case "paid during void":
+					invoice.Status = "paid"
+					invoice.AmountPaid = invoice.Total
+					invoice.AmountRemaining = 0
+					invoice.StatusTransitions = &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}
+					sub.PendingUpdate = nil
+					sub.Items.Data[0].Quantity = q.PaidSlots
+					return &ack, nil
+				case "open after acknowledgement":
+					return &ack, nil
+				case "read failure":
+					failRead = true
+					return &ack, nil
 				}
 				invoice.Status = "void"
 				invoice.AmountRemaining = 0
@@ -68,12 +95,22 @@ func TestVoidPendingIncrease(t *testing.T) {
 			} else if err == nil {
 				t.Fatal("unsafe closure accepted")
 			}
+			if scenario == "paid during void" {
+				observed, readErr := c.InspectIncreaseInvoice(context.Background(), invoice.ID, b, intent)
+				if readErr != nil || observed.Status != "paid" {
+					t.Fatal("payment race did not leave valid paid evidence", observed, readErr)
+				}
+			}
 			if scenario == "lost response" {
 				if err = c.VoidPendingIncrease(context.Background(), invoice.ID, b, intent); err != nil || calls != 1 {
 					t.Fatal("lost-response recovery", err, calls)
 				}
 				if _, err = c.VoidedIncrease(context.Background(), invoice.ID, b, intent); err != nil {
 					t.Fatal(err)
+				}
+			} else if scenario == "paid during void" || scenario == "open after acknowledgement" || scenario == "read failure" {
+				if calls != 1 {
+					t.Fatal("post-submission failure not exercised", calls)
 				}
 			} else if scenario != "void" && scenario != "still pending" && calls != 0 {
 				t.Fatal("unsafe invoice voided")
