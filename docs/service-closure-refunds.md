@@ -814,3 +814,27 @@ non-final statuses do not settle, and a later paid observation records one payme
 and the original purchased term despite concurrent retries. The PostgreSQL race
 test passed (`/private/tmp/service-opennode-closure-20261001.log`). Provider responses
 are local HTTP fixtures, not a live OpenNode cancellation or settlement rehearsal.
+
+### Unsettled payment inventory
+
+Run `service-sales -service alerts -unsettled-payments` (or `-service insider`)
+to list up to 100 unresolved prepaid/one-off payment attempts from local accounting.
+Pass the returned `next` token as `-after TOKEN` until it is absent. The token is
+bound to the selected service. This mode is read-only and cannot be combined with
+`-confirm-stop-sales`.
+
+Each item includes the attempt ID, public order ID, product, provider, saved
+reference when present, creation time and a review reason. Missing references
+remain visible. Settled attempts and attempts with recorded verified Stripe
+checkout expiration are excluded. No expiry is inferred from elapsed time.
+
+The report does not query providers or cover subscription checkout intents,
+upgrade invoices, renewal cancellations or refund obligations. An empty page
+therefore does not establish that closure is complete. Pagination is a changing
+local view; restart from the beginning after concurrent settlements or new
+attempts. Use the separate Bitcoin closure report for settled refund obligations.
+
+The PostgreSQL race test covers pagination, cross-service cursor rejection,
+missing references, known Stripe/OpenNode attempts and exclusion of settled or
+verified-expired attempts. It passed along with the CLI package check; log:
+`/private/tmp/service-unsettled-report-20261001.log`.

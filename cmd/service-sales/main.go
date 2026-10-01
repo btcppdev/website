@@ -22,8 +22,10 @@ func main() {
 	actor := flag.String("actor", "", "active global admin UUID authorizing the closure")
 	reason := flag.String("reason", "", "permanent closure reason")
 	stop := flag.Bool("confirm-stop-sales", false, "permanently stop new purchases and request background checkout expiration and term-end renewal cancellation")
+	payments := flag.Bool("unsettled-payments", false, "read-only page of unresolved one-off/prepaid payment attempts; does not cover subscription checkouts")
+	after := flag.String("after", "", "next cursor from an unsettled-payments page")
 	flag.Parse()
-	if flag.NArg() != 0 || (*service != "alerts" && *service != "insider") || (!*stop && (*actor != "" || *reason != "")) {
+	if flag.NArg() != 0 || (*service != "alerts" && *service != "insider") || (!*stop && (*actor != "" || *reason != "")) || (*payments && *stop) || (*after != "" && !*payments) {
 		log.Fatal("provide -service alerts|insider; writes additionally require -confirm-stop-sales -actor -reason")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -38,6 +40,16 @@ func main() {
 	}
 	defer pool.Close()
 	app := &config.AppContext{DB: pool, Env: env}
+	if *payments {
+		report, err := getters.PageUnsettledServicePayments(ctx, app, *service, *after)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if *stop {
 		if err := getters.StopServiceSales(ctx, app, *actor, *service, *reason); err != nil {
 			log.Fatal(err)
