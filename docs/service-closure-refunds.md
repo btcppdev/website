@@ -808,12 +808,17 @@ Provider confirmation about old payment destinations, unresolved charge creation
 underpayments and late payments remains an operational closure requirement. Do
 not declare the refund inventory final merely because ten minutes have elapsed.
 
-Local verification: `TestOpenNodeServiceLookupPostgres` now runs both active-sales
-and stopped-sales flows. It verifies checkout access is blocked after sales stop,
+Local verification: `TestOpenNodeServiceLookupPostgres` runs both active-sales
+and stopped-sales flows for Alerts and Insider annual memberships. It verifies checkout access is blocked after sales stop,
 non-final statuses do not settle, and a later paid observation records one payment
 and the original purchased term despite concurrent retries. The PostgreSQL race
 test passed (`/private/tmp/service-opennode-closure-20261001.log`). Provider responses
 are local HTTP fixtures, not a live OpenNode cancellation or settlement rehearsal.
+The expanded shared test passes (`/private/tmp/shared-opennode-closure.log`):
+concurrent late-payment retries create one Alerts entitlement or one pending
+Insider fulfillment job. The Insider job retains the original Bitcoin payment
+evidence; the saved purchase retains the original term. This verifies the shared
+accounting/outbox boundary, not delivery to a deployed Insider instance.
 
 ### Unsettled payment inventory
 

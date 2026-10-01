@@ -30,14 +30,16 @@ func TestOpenNodeOriginalAmount(t *testing.T) {
 }
 
 func TestOpenNodeServiceLookupPostgres(t *testing.T) {
-	for _, closed := range []bool{false, true} {
-		t.Run(map[bool]string{false: "active", true: "sales-stopped"}[closed], func(t *testing.T) {
-			testOpenNodeServiceLookup(t, closed)
-		})
+	for _, product := range []string{"alerts.repository-slots", "insider.membership.annual"} {
+		for _, closed := range []bool{false, true} {
+			t.Run(product+"/"+map[bool]string{false: "active", true: "sales-stopped"}[closed], func(t *testing.T) {
+				testOpenNodeServiceLookup(t, product, closed)
+			})
+		}
 	}
 }
 
-func testOpenNodeServiceLookup(t *testing.T, closed bool) {
+func testOpenNodeServiceLookup(t *testing.T, product string, closed bool) {
 	app := databaseSmokeContext(t)
 	ctx := context.Background()
 	var person string
@@ -49,7 +51,7 @@ func testOpenNodeServiceLookup(t *testing.T, closed bool) {
 	}
 	starts := time.Now().UTC().Truncate(time.Microsecond)
 	ends := starts.AddDate(1, 0, 0)
-	quote := ServiceQuote{ProductCode: "alerts.repository-slots", ResourceID: "lookup-test", Name: "Service item", Provider: "opennode", Quantity: 1, UnitCents: 1234, TotalCents: 1234, PeriodStart: &starts, PeriodEnd: &ends, ExpiresAt: time.Now().Add(time.Hour)}
+	quote := ServiceQuote{ProductCode: product, ResourceID: "lookup-test", Name: "Service item", Provider: "opennode", Quantity: 1, UnitCents: 1234, TotalCents: 1234, PeriodStart: &starts, PeriodEnd: &ends, ExpiresAt: time.Now().Add(time.Hour)}
 	purchase, err := CreateServicePurchase(app, person, "lookup-purchase-test", quote)
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +130,11 @@ func testOpenNodeServiceLookup(t *testing.T, closed bool) {
 				t.Error(err)
 			}
 		})
-		if err := StopServiceSales(ctx, app, person, "alerts", "Permanent closure fixture"); err != nil {
+		service := "alerts"
+		if product == "insider.membership.annual" {
+			service = "insider"
+		}
+		if err := StopServiceSales(ctx, app, person, service, "Permanent closure fixture"); err != nil {
 			t.Fatal(err)
 		}
 		if link, err := openNodeServiceCheckout(ctx, app, person, purchase.OrderID, server.Client()); !errors.Is(err, ErrServiceSalesClosed) || link != "" {
@@ -186,26 +192,50 @@ func testOpenNodeServiceLookup(t *testing.T, closed bool) {
 	if err := app.DB.QueryRow(ctx, `SELECT count(*),min(time_source),min(paid_at) FROM service_payment_events WHERE attempt_id=$1`, attempt.ID).Scan(&events, &source, &paidAt); err != nil || events != 1 || source != "first_verified_observation" || paidAt.IsZero() {
 		t.Fatal("settlement evidence", events, source, err)
 	}
-	if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_entitlements e JOIN service_purchase_requests r ON r.id=e.purchase_id WHERE r.order_id=$1`, purchase.OrderID).Scan(&grants); err != nil || grants != 1 {
-		t.Fatal("duplicate or missing grant", grants, err)
-	}
 	if err := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, purchase.OrderID).Scan(&orderStatus); err != nil || orderStatus != "paid" {
 		t.Fatal("order not settled", err)
 	}
-	entitlements, err := ActiveServiceEntitlements(app, person, starts.Add(time.Minute))
-	if err != nil || len(entitlements) != 1 {
-		t.Fatal("missing paid allowance", err)
+	wantAccess := "active"
+	if product == "alerts.repository-slots" {
+		if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_entitlements e JOIN service_purchase_requests r ON r.id=e.purchase_id WHERE r.order_id=$1`, purchase.OrderID).Scan(&grants); err != nil || grants != 1 {
+			t.Fatal("duplicate or missing grant", grants, err)
+		}
+		entitlements, err := ActiveServiceEntitlements(app, person, starts.Add(time.Minute))
+		if err != nil || len(entitlements) != 1 {
+			t.Fatal("missing paid allowance", err)
+		}
+		grant := entitlements[0]
+		if grant.ProductCode != "alerts.repository-slots" || grant.Quantity != 1 || grant.StartsAt == nil || grant.EndsAt == nil || !grant.StartsAt.Equal(starts) || !grant.EndsAt.Equal(ends) {
+			t.Fatal("purchased access changed", grant)
+		}
+		expired, err := ActiveServiceEntitlements(app, person, ends)
+		if err != nil || len(expired) != 0 {
+			t.Fatal("access extended beyond purchased term", err)
+		}
+	} else {
+		wantAccess = "pending"
+		if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_entitlements e JOIN service_purchase_requests r ON r.id=e.purchase_id WHERE r.order_id=$1`, purchase.OrderID).Scan(&grants); err != nil || grants != 0 {
+			t.Fatal("Insider payment created local Alerts grant", grants, err)
+		}
+		var jobs int
+		if err := app.DB.QueryRow(ctx, `SELECT count(*) FROM service_fulfillment_jobs WHERE attempt_id=$1 AND state='pending'`, attempt.ID).Scan(&jobs); err != nil || jobs != 1 {
+			t.Fatal("missing or duplicate Insider fulfillment", jobs, err)
+		}
+		var payment VerifiedServicePayment
+		var raw []byte
+		if err := app.DB.QueryRow(ctx, `SELECT payment FROM service_fulfillment_jobs WHERE attempt_id=$1`, attempt.ID).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &payment); err != nil || payment.AttemptID != attempt.ID || payment.Reference != chargeID || payment.TotalCents != quote.TotalCents || payment.OpenNodeBitcoin == nil || payment.OpenNodeBitcoin.PriceSatoshis != 25000 {
+			t.Fatal("Insider handoff lost original payment", payment, err)
+		}
 	}
-	grant := entitlements[0]
-	if grant.ProductCode != "alerts.repository-slots" || grant.Quantity != 1 || grant.StartsAt == nil || grant.EndsAt == nil || !grant.StartsAt.Equal(starts) || !grant.EndsAt.Equal(ends) {
-		t.Fatal("purchased access changed", grant)
-	}
-	expired, err := ActiveServiceEntitlements(app, person, ends)
-	if err != nil || len(expired) != 0 {
-		t.Fatal("access extended beyond purchased term", err)
-	}
+
 	view, err = ServiceOrderForPerson(ctx, app, person, purchase.PublicID)
-	if err != nil || !view.PaymentVerified || view.Status != "paid" || view.AccessState != "active" || view.TotalCents != quote.TotalCents {
+	if err != nil || !view.PaymentVerified || view.Status != "paid" || view.AccessState != wantAccess || view.TotalCents != quote.TotalCents {
 		t.Fatal("paid order view", view, err)
+	}
+	if view.Quote.ProductCode != product || view.Quote.PeriodStart == nil || view.Quote.PeriodEnd == nil || !view.Quote.PeriodStart.Equal(starts) || !view.Quote.PeriodEnd.Equal(ends) {
+		t.Fatal("original purchased term changed", view.Quote)
 	}
 }
