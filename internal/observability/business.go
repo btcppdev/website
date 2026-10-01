@@ -35,6 +35,8 @@ type businessCollector struct {
 	accountDeletionCancellationJobs   *prometheus.Desc
 	accountDeletionCancellationOldest *prometheus.Desc
 	serviceRefundJobs                 *prometheus.Desc
+	serviceRefundTaxJobs              *prometheus.Desc
+	serviceRefundTaxOldest            *prometheus.Desc
 	serviceFulfillmentOldest          *prometheus.Desc
 	serviceRefundOldest               *prometheus.Desc
 	serviceReceiptJobs                *prometheus.Desc
@@ -52,6 +54,8 @@ func newBusinessCollector(namespace string, loader BusinessMetricsLoader) *busin
 		alertsCheckoutDue:                 prometheus.NewDesc(namespace+"_alerts_checkout_oldest_due_timestamp_seconds", "Earliest scheduled reconciliation among open Alerts checkouts; zero when none exist.", nil, nil),
 		alertsCheckoutUnresolved:          prometheus.NewDesc(namespace+"_alerts_checkout_oldest_unresolved_timestamp_seconds", "Creation time of the oldest unbound Alerts checkout; zero when none exist.", nil, nil),
 		loader:                            loader,
+		serviceRefundTaxJobs:              prometheus.NewDesc(namespace+"_service_refund_tax_jobs", "Current Bitcoin refund tax adjustments by state.", []string{"state"}, nil),
+		serviceRefundTaxOldest:            prometheus.NewDesc(namespace+"_service_refund_tax_oldest_pending_timestamp_seconds", "Creation timestamp of oldest pending Bitcoin refund tax adjustment; zero when none are pending.", nil, nil),
 		accountDeletionCancellationJobs:   prometheus.NewDesc(namespace+"_account_deletion_cancellation_jobs", "Current account deletion jobs by state.", []string{"state"}, nil),
 		accountDeletionCancellationOldest: prometheus.NewDesc(namespace+"_account_deletion_cancellation_oldest_pending_timestamp_seconds", "Request timestamp of oldest pending account deletion job; zero when none are pending.", nil, nil),
 		accountDeletionDeliveryJobs:       prometheus.NewDesc(namespace+"_account_deletion_delivery_jobs", "Current account deletion jobs by state.", []string{"state"}, nil),
@@ -86,6 +90,8 @@ func (c *businessCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.accountDeletionDeliveryOldest
 	ch <- c.accountDeletionCancellationJobs
 	ch <- c.accountDeletionCancellationOldest
+	ch <- c.serviceRefundTaxJobs
+	ch <- c.serviceRefundTaxOldest
 	ch <- c.serviceRefundJobs
 	ch <- c.serviceFulfillmentOldest
 	ch <- c.serviceRefundOldest
@@ -106,10 +112,10 @@ func (c *businessCollector) Collect(ch chan<- prometheus.Metric) {
 		if count.Metric == "ticket_checkins" {
 			labels = []string{count.Conference}
 		}
-		if count.Metric == "alerts_checkout_recovery_jobs" || count.Metric == "account_deletion_cancellation_jobs" || count.Metric == "account_deletion_delivery_jobs" || count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_refund_jobs" {
+		if count.Metric == "alerts_checkout_recovery_jobs" || count.Metric == "account_deletion_cancellation_jobs" || count.Metric == "account_deletion_delivery_jobs" || count.Metric == "service_receipt_jobs" || count.Metric == "service_fulfillment_jobs" || count.Metric == "service_refund_jobs" || count.Metric == "service_refund_tax_jobs" {
 			labels = []string{count.State}
 		}
-		if count.Metric == "alerts_checkout_oldest_due_timestamp_seconds" || count.Metric == "alerts_checkout_oldest_unresolved_timestamp_seconds" || count.Metric == "account_deletion_cancellation_oldest_pending_timestamp_seconds" || count.Metric == "account_deletion_delivery_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" {
+		if count.Metric == "alerts_checkout_oldest_due_timestamp_seconds" || count.Metric == "alerts_checkout_oldest_unresolved_timestamp_seconds" || count.Metric == "account_deletion_cancellation_oldest_pending_timestamp_seconds" || count.Metric == "account_deletion_delivery_oldest_pending_timestamp_seconds" || count.Metric == "service_receipt_oldest_pending_timestamp_seconds" || count.Metric == "service_fulfillment_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_oldest_pending_timestamp_seconds" || count.Metric == "service_refund_tax_oldest_pending_timestamp_seconds" {
 			labels = nil
 		}
 		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, count.Count, labels...)
@@ -140,6 +146,10 @@ func (c *businessCollector) metricDesc(metric string) *prometheus.Desc {
 		return c.accountDeletionDeliveryJobs
 	case "account_deletion_delivery_oldest_pending_timestamp_seconds":
 		return c.accountDeletionDeliveryOldest
+	case "service_refund_tax_jobs":
+		return c.serviceRefundTaxJobs
+	case "service_refund_tax_oldest_pending_timestamp_seconds":
+		return c.serviceRefundTaxOldest
 	case "service_refund_jobs":
 		return c.serviceRefundJobs
 	case "service_refund_oldest_pending_timestamp_seconds":

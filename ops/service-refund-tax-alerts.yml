@@ -1,0 +1,26 @@
+groups:
+  - name: btcpp-service-refund-taxes
+    rules:
+      - alert: BitcoinPlusPlusRefundTaxNeedsReview
+        expr: |
+          (btcpp_web_service_refund_tax_jobs{state="review"} > 0)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Bitcoin refund tax recording needs operator review
+          description: Open /admin/service-refunds and verify the existing Stripe tax reversal before recording recovery. Do not resubmit an ambiguous reversal.
+      - alert: BitcoinPlusPlusRefundTaxQueueStalled
+        expr: |
+          (btcpp_web_service_refund_tax_oldest_pending_timestamp_seconds > 0)
+          and (time() - btcpp_web_service_refund_tax_oldest_pending_timestamp_seconds > 900)
+          and on(job, instance) (btcpp_web_business_metrics_collection_success == 1)
+          and on(job, instance) (time() - btcpp_web_business_metrics_last_success_timestamp_seconds < 300)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Bitcoin refund tax recording has been pending for more than fifteen minutes
+          description: Check SERVICE_PAYMENT_RECONCILIATION_ENABLED, Stripe availability, original tax recording and earlier refund adjustments in /admin/service-refunds.

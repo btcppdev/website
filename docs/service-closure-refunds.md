@@ -402,3 +402,25 @@ that resolving earlier jobs cannot skip later records. Getters and handler race
 suites pass (`/private/tmp/service-refund-pagination-getters-20261001.log` and
 `/private/tmp/service-refund-pagination-handlers-20261001.log`). Browser execution
 was unavailable in this session; visual/operator rehearsal remains outstanding.
+
+## Operational monitoring
+
+The shared collector exports `btcpp_web_service_refund_tax_jobs` with only the
+bounded `state` label (`pending`, `accepted`, `review`) and
+`btcpp_web_service_refund_tax_oldest_pending_timestamp_seconds` (zero when empty).
+These cover both Alerts and Insider. No account, refund, provider transaction or
+address identifiers appear in these metrics.
+
+Load `ops/service-refund-tax-alerts.yml` into the monitoring deployment alongside
+existing refund-delivery rules. It warns after ten minutes in review, or when a
+pending adjustment is older than fifteen minutes for five minutes. Both require
+a successful metrics refresh within the last five minutes. A stalled job can be
+waiting for original tax recording or an earlier refund; inspect
+`/admin/service-refunds` before taking action. Review recovery retrieves an
+existing Stripe transaction and must not be replaced by blind resubmission.
+
+PostgreSQL aggregate and collector privacy race tests pass
+(`/private/tmp/service-refund-tax-metrics-20261001.log`), as do
+`promtool test rules ops/service-refund-tax-alerts.test.yml` checks for firing,
+resolution, empty queues, stale data and failed collection. Rules have not been
+installed on metrics.btcpp.dev or routed to an operator destination yet.

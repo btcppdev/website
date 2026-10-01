@@ -114,6 +114,15 @@ func ListBusinessMetricCounts(ctx *config.AppContext) ([]types.BusinessMetricCou
         FROM service_refund_jobs WHERE state='pending'
 
  UNION ALL
+ SELECT 'service_refund_tax_jobs', '', states.state, count(j.refund_reference)::float8
+ FROM (VALUES ('pending'), ('accepted'), ('review')) states(state)
+ LEFT JOIN service_refund_tax_jobs j ON j.state=states.state GROUP BY states.state
+ UNION ALL
+ SELECT 'service_refund_tax_oldest_pending_timestamp_seconds', '', '',
+ coalesce(extract(epoch FROM min(created_at)),0)::float8
+ FROM service_refund_tax_jobs WHERE state='pending'
+
+ UNION ALL
  SELECT 'account_deletion_delivery_jobs', '', states.state, count(j.person_id)::float8
  FROM (VALUES ('pending'), ('accepted')) states(state)
  LEFT JOIN account_deletion_deliveries j ON j.state=states.state GROUP BY states.state

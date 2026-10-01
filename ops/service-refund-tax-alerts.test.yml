@@ -1,0 +1,87 @@
+rule_files:
+  - service-refund-tax-alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_refund_tax_jobs{job="btcpp",instance="stale",state="review"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_service_refund_tax_oldest_pending_timestamp_seconds{job="btcpp",instance="stale"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="stale"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="stale"}'
+        values: '0+0x40'
+      - series: 'btcpp_web_service_refund_tax_oldest_pending_timestamp_seconds{job="btcpp",instance="empty"}'
+        values: '0+0x40'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="empty"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="empty"}'
+        values: '0+60x40'
+    alert_rule_test:
+      - eval_time: 21m
+        alertname: BitcoinPlusPlusRefundTaxNeedsReview
+        exp_alerts: []
+      - eval_time: 21m
+        alertname: BitcoinPlusPlusRefundTaxQueueStalled
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_refund_tax_jobs{job="btcpp",instance="web",state="review"}'
+        values: '1+0x19 0+0x10'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '1+0x30'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x30'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: BitcoinPlusPlusRefundTaxNeedsReview
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: BitcoinPlusPlusRefundTaxNeedsReview
+        exp_alerts:
+          - exp_labels:
+              job: btcpp
+              instance: web
+              state: review
+              severity: warning
+            exp_annotations:
+              summary: Bitcoin refund tax recording needs operator review
+              description: Open /admin/service-refunds and verify the existing Stripe tax reversal before recording recovery. Do not resubmit an ambiguous reversal.
+      - eval_time: 20m
+        alertname: BitcoinPlusPlusRefundTaxNeedsReview
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_refund_tax_jobs{job="btcpp",instance="web",state="review"}'
+        values: '1+0x20'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '0+0x20'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: BitcoinPlusPlusRefundTaxNeedsReview
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'btcpp_web_service_refund_tax_oldest_pending_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_collection_success{job="btcpp",instance="web"}'
+        values: '1+0x40'
+      - series: 'btcpp_web_business_metrics_last_success_timestamp_seconds{job="btcpp",instance="web"}'
+        values: '0+60x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: BitcoinPlusPlusRefundTaxQueueStalled
+        exp_alerts: []
+      - eval_time: 21m
+        alertname: BitcoinPlusPlusRefundTaxQueueStalled
+        exp_alerts:
+          - exp_labels:
+              job: btcpp
+              instance: web
+              severity: warning
+            exp_annotations:
+              summary: Bitcoin refund tax recording has been pending for more than fifteen minutes
+              description: Check SERVICE_PAYMENT_RECONCILIATION_ENABLED, Stripe availability, original tax recording and earlier refund adjustments in /admin/service-refunds.
