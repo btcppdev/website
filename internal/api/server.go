@@ -33,6 +33,7 @@ import (
 const publicCacheControl = "public, max-age=60, stale-while-revalidate=300"
 
 type server struct {
+	loadServiceClosure          func(context.Context, string) (*getters.ServiceClosurePlan, error)
 	listVerifiedPGPKeys         func(string) ([]*types.PersonPGPKey, error)
 	app                         *config.AppContext
 	source                      dataSource
@@ -85,6 +86,9 @@ type principalContextKey struct{}
 // Register installs API v1 before the website's broad conference routes.
 func Register(root *mux.Router, app *config.AppContext) {
 	s := &server{
+		loadServiceClosure: func(ctx context.Context, service string) (*getters.ServiceClosurePlan, error) {
+			return getters.GetServiceClosurePlan(ctx, app, service)
+		},
 		listAccountAccess: func(ctx context.Context, person string, at time.Time) (*getters.AccountAccessSnapshot, error) {
 			return getters.AccountAccess(ctx, app, person, at)
 		},
@@ -190,6 +194,7 @@ func (s *server) register(r *mux.Router) {
 		s.writeError(w, req, http.StatusMethodNotAllowed, "method_not_allowed", "That method is not supported for this resource.")
 	})
 
+	r.HandleFunc("/services/{service}/closure", s.serviceClosure).Methods(http.MethodGet)
 	r.HandleFunc("/bootstrap", s.bootstrap).Methods(http.MethodGet)
 	r.HandleFunc("/openapi.json", s.openAPISpec).Methods(http.MethodGet)
 	r.HandleFunc("/conferences", s.conferences).Methods(http.MethodGet)

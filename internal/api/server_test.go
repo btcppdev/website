@@ -962,6 +962,7 @@ func TestOpenAPIContractListsEveryV1RouteAndNoTranscriptSurface(t *testing.T) {
 		t.Fatalf("parse OpenAPI contract as JSON: %v", err)
 	}
 	for _, path := range []string{
+		"/services/{service}/closure",
 		"/openapi.json",
 		"/bootstrap",
 		"/conferences",

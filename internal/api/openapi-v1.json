@@ -11,6 +11,82 @@
     }
   ],
   "paths": {
+    "/services/{service}/closure": {
+  "get": {
+    "operationId": "getServiceClosure",
+    "summary": "Read the reviewed closure date for Alerts or Insider",
+    "description": "Public service status; no account token required. Null closesAt means no recorded closure plan, not a guarantee of uptime. Responses are no-store and include server time. Consumers must validate freshness and retain a previously learned cutoff across outages. This endpoint does not enforce product shutdown or prove provider cancellation.",
+    "security": [],
+    "parameters": [
+      {
+        "name": "service",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "alerts",
+            "insider"
+          ]
+        }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Closure timing without private audit author or reason",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "data"
+              ],
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": [
+                    "service",
+                    "asOf",
+                    "closesAt"
+                  ],
+                  "properties": {
+                    "service": {
+                      "type": "string",
+                      "enum": [
+                        "alerts",
+                        "insider"
+                      ]
+                    },
+                    "asOf": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "closesAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Unknown service"
+      },
+      "500": {
+        "description": "Status could not be read; do not erase a stored cutoff"
+      },
+      "503": {
+        "description": "Status reader unavailable"
+      }
+    }
+  }
+},
     "/me/entitlements": {
   "get": {
     "operationId": "getMyEntitlements",

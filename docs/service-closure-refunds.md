@@ -1037,3 +1037,18 @@ cleanup. Logs: `/private/tmp/shared-closure-plan-acceptance-20261001.log` and
 `/private/tmp/shared-closure-plan-final-20261001.log`. Tests cover admin/deleted-admin
 checks, required sales stop, date validation, concurrent idempotency, conflicts,
 service isolation and database immutability. No live closure was scheduled.
+
+## Public closure timing contract
+
+`GET /api/v1/services/{alerts|insider}/closure` now exposes only `service`, server
+`asOf`, and nullable `closesAt` inside the standard `data` envelope. It requires no
+account token, so product-wide closure can be learned independently of paid-user
+billing sync. Admin identity, private reason and audit details are omitted.
+Responses are no-store and do not use ETags/304. An unknown service returns 404;
+a database error returns an error response, never an empty/open status.
+
+The OpenAPI contract and API race suite cover both services, absent/future/past
+plans, private-field exclusion, server-owned time, invalid stored plans and
+provider-independent errors. Log: `/private/tmp/service-closure-status-api.log`.
+This publishes reviewed timing only; product persistence, polling and cutoff
+execution are still needed. No production endpoint was deployed.
