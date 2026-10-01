@@ -21,10 +21,10 @@ func reconcileDueOpenNodeServices(ctx context.Context, app *config.AppContext, r
 		JOIN service_purchase_requests r ON r.id=a.purchase_id
 		JOIN shop_orders o ON o.id=r.order_id
 		WHERE a.provider='opennode' AND a.provider_reference IS NOT NULL AND a.next_reconcile_at<=now()
-		AND (a.settled_at IS NULL OR (o.status='paid' AND (NOT EXISTS (
-			SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id)
-			OR (EXISTS(SELECT 1 FROM tax_quotes t WHERE t.order_id=o.id AND t.sales_tax_provider='stripe')
-			AND NOT EXISTS(SELECT 1 FROM tax_transactions t WHERE t.order_id=o.id AND t.provider='stripe' AND t.status='recorded')))))
+		AND (a.settled_at IS NULL OR (o.status='paid' AND r.quote_snapshot->>'product_code'='alerts.repository-slots' AND NOT EXISTS (
+			SELECT 1 FROM service_entitlements e WHERE e.purchase_id=r.id))
+			OR (o.status IN ('paid','partially_refunded','refunded') AND EXISTS(SELECT 1 FROM tax_quotes t WHERE t.order_id=o.id AND t.sales_tax_provider='stripe')
+			AND NOT EXISTS(SELECT 1 FROM tax_transactions t WHERE t.order_id=o.id AND t.provider='stripe' AND t.status='recorded')))
 		ORDER BY a.next_reconcile_at,a.id LIMIT 20 FOR UPDATE OF a SKIP LOCKED
 	) UPDATE service_payment_attempts a SET next_reconcile_at=now()+CASE
 		WHEN a.created_at<now()-interval '7 days' THEN interval '1 day' ELSE interval '15 minutes' END

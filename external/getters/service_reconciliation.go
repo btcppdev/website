@@ -41,7 +41,7 @@ func ReviewServicePayments(app *config.AppContext, after string, asOf time.Time)
 			WHEN a.settled_at IS NOT NULL AND o.status NOT IN ('refunded','partially_refunded') AND NOT `+serviceItemsMatchQuoteSQL+` THEN 'order_item_mismatch'
 			WHEN a.settled_at IS NOT NULL AND o.status='pending' THEN 'settlement_not_applied'
 			WHEN a.settled_at IS NOT NULL AND o.status='paid' AND r.person_id IS NULL THEN 'paid_account_removed'
-			WHEN a.settled_at IS NOT NULL AND o.status='paid'
+			WHEN a.settled_at IS NOT NULL AND o.status IN ('paid','partially_refunded','refunded')
 			AND EXISTS(SELECT 1 FROM tax_quotes t WHERE t.order_id=o.id AND t.sales_tax_provider='stripe')
 			AND NOT EXISTS(SELECT 1 FROM tax_transactions t WHERE t.order_id=o.id AND t.provider='stripe' AND t.status='recorded')
 			THEN 'tax_transaction_missing'

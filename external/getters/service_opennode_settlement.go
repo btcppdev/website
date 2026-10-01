@@ -3,6 +3,7 @@ package getters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"btcpp-web/internal/config"
@@ -41,9 +42,41 @@ func reconcileOpenNodeServiceCharge(ctx context.Context, app *config.AppContext,
 	if err != nil {
 		return false, err
 	}
-	_, err = FulfillServicePurchase(app, orderID)
-	if err != nil {
+	return finishVerifiedServiceSettlement(ctx, app, orderID, FinalizeServiceTax)
+}
+
+// Tax recovery must not depend on granting access. Insider grants are delivered
+// by its existing fulfillment outbox; refunded orders must never gain new access.
+func finishVerifiedServiceSettlement(ctx context.Context, app *config.AppContext, orderID string, finalize func(context.Context, *config.AppContext, string) error) (bool, error) {
+	var status, product string
+	if err := app.DB.QueryRow(ctx, `SELECT o.status,r.quote_snapshot->>'product_code' FROM shop_orders o JOIN service_purchase_requests r ON r.order_id=o.id WHERE o.id=$1`, orderID).Scan(&status, &product); err != nil {
 		return false, err
 	}
-	return true, FinalizeServiceTax(ctx, app, orderID)
+	if status != "paid" && status != "partially_refunded" && status != "refunded" {
+		return false, ErrServiceFulfillment
+	}
+	switch product {
+	case "alerts.repository-slots":
+		if status == "paid" {
+			if _, err := FulfillServicePurchase(app, orderID); err != nil {
+				if !errors.Is(err, ErrServiceFulfillment) {
+					return false, err
+				}
+				// A refund may commit between the status read and the fulfillment
+				// lock. Only that state transition permits skipping the grant.
+				if check := app.DB.QueryRow(ctx, `SELECT status FROM shop_orders WHERE id=$1`, orderID).Scan(&status); check != nil {
+					return false, check
+				}
+				if status != "partially_refunded" && status != "refunded" {
+					return false, err
+				}
+			}
+		}
+	case "insider.membership.monthly", "insider.membership.annual", "insider.article":
+		// recordServicePayment atomically queues Insider delivery, including on
+		// settlement replays; there is no local Alerts entitlement to create.
+	default:
+		return false, ErrServiceFulfillment
+	}
+	return true, finalize(ctx, app, orderID)
 }

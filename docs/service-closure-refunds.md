@@ -144,8 +144,25 @@ Provider tax reporting still needs an idempotent reversal of the original Stripe
 Tax transaction using the allocated gross refund amount. Stripe supports a
 [tax-inclusive flat reversal amount](https://docs.stripe.com/api/tax/transactions/create_reversal).
 Do not label the local allocation as a verified provider tax reversal or recompute
-tax using current rates. Provider tax reversal remains unfinished, including
-recovery when the original tax transaction was not recorded before the refund.
+tax using current rates. Provider tax reversal remains unfinished. Recovery of the
+original tax transaction now includes partially and fully refunded orders.
+
+The recovery scheduler and operator review keep missing original tax transactions
+visible after a refund. Finalization verifies the settled provider/reference and
+records the original sale using the original quote and payment date, with the same
+per-order idempotency key. Refunded orders skip access fulfillment. Paid Insider
+orders use their existing fulfillment outbox, rather than the Alerts grant function;
+once tax recording finishes, the absence of a local Alerts grant no longer causes
+endless Insider polling. Existing refund statuses are preserved. Recording the
+original sale is distinct from recording its later tax reversal.
+
+October 1 verification: the full fresh-database acceptance suite passes with race
+detection and randomized test order. New tests exercise paid, partially refunded
+and fully refunded Alerts and Insider purchases through the actual recovery
+selection query and finalization code with local Stripe responses. They verify
+original totals/date/idempotency, one tax record, no new access after a refund,
+unchanged order status, and no repeated selection after completed refund recovery.
+Log: `/private/tmp/service-tax-refund-recovery-20261001.log`.
 
 The shared ledger, refund worker and Insider receipts now allow
 a zero USD-cent accounting amount when a positive Bitcoin refund is backed by known

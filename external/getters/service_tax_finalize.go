@@ -39,7 +39,8 @@ func finalizeServiceTax(ctx context.Context, app *config.AppContext, orderID str
 	var paidAt time.Time
 	err = tx.QueryRow(ctx, `SELECT r.quote_snapshot,a.settled_at FROM shop_orders o
 		JOIN service_purchase_requests r ON r.order_id=o.id JOIN service_payment_attempts a ON a.purchase_id=r.id
-		WHERE o.id=$1 AND o.status='paid' AND a.settled_at IS NOT NULL FOR UPDATE OF o`, orderID).Scan(&raw, &paidAt)
+		WHERE o.id=$1 AND o.status IN ('paid','partially_refunded','refunded') AND a.settled_at IS NOT NULL
+		AND a.provider=o.payment_provider AND a.provider_reference=o.payment_provider_id FOR UPDATE OF o`, orderID).Scan(&raw, &paidAt)
 	if err != nil {
 		return err
 	}
