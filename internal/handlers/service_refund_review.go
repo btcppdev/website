@@ -40,7 +40,7 @@ func serveAdminServiceRefunds(w http.ResponseWriter, r *http.Request, app *confi
 			http.Error(w, "Reload this page and try again", 403)
 			return
 		}
-		for _, field := range []string{"refund_reference", "reversal", "reason"} {
+		for _, field := range []string{"action", "refund_reference", "reason"} {
 			if len(r.PostForm[field]) != 1 {
 				http.Error(w, "Invalid form", 400)
 				return
@@ -48,9 +48,32 @@ func serveAdminServiceRefunds(w http.ResponseWriter, r *http.Request, app *confi
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		err := getters.ReconcileServiceRefundTax(ctx, app, id.PersonID, r.PostForm.Get("refund_reference"), strings.TrimSpace(r.PostForm.Get("reversal")), r.PostForm.Get("reason"))
+		var err error
+		switch r.PostForm.Get("action") {
+		case "tax":
+			if len(r.PostForm["reversal"]) != 1 {
+				http.Error(w, "Invalid form", 400)
+				return
+			}
+			err = getters.ReconcileServiceRefundTax(ctx, app, id.PersonID, r.PostForm.Get("refund_reference"), strings.TrimSpace(r.PostForm.Get("reversal")), r.PostForm.Get("reason"))
+		case "access":
+			for _, field := range []string{"provider", "access", "confirmed"} {
+				if len(r.PostForm[field]) != 1 {
+					http.Error(w, "Invalid form", 400)
+					return
+				}
+			}
+			if r.PostForm.Get("confirmed") != "yes" || (r.PostForm.Get("access") != "retain" && r.PostForm.Get("access") != "revoke") || (r.PostForm.Get("provider") != "stripe" && r.PostForm.Get("provider") != "opennode") {
+				http.Error(w, "Select and confirm the access decision", 400)
+				return
+			}
+			err = getters.RecordServiceRefundAccessDecision(ctx, app, id.PersonID, r.PostForm.Get("provider"), r.PostForm.Get("refund_reference"), r.PostForm.Get("access"), r.PostForm.Get("reason"))
+		default:
+			http.Error(w, "Invalid action", 400)
+			return
+		}
 		if err != nil {
-			http.Error(w, "Could not verify this reversal. The refund remains available for inspection; check the provider reference and reload before retrying.", 409)
+			http.Error(w, "Could not record this review. Reload the refund and verify its current evidence and any existing decision before retrying.", 409)
 			return
 		}
 		http.Redirect(w, r, "/admin/service-refunds", http.StatusSeeOther)

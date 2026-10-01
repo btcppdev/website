@@ -171,3 +171,21 @@ func TestRefundAccessDecisionPostgres(t *testing.T) {
 		})
 	}
 }
+
+func TestDeletedAdminCannotDecideRefundAccessPostgres(t *testing.T) {
+	app := databaseSmokeContext(t)
+	ctx := context.Background()
+	var actor string
+	if err := app.DB.QueryRow(ctx, `INSERT INTO people(name,is_deleted_account) VALUES('Deleted admin fixture',false) RETURNING id::text`).Scan(&actor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.DB.Exec(ctx, `INSERT INTO people_roles(person_id,scope,position) VALUES($1,'global','admin')`, actor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.DB.Exec(ctx, `UPDATE people SET is_deleted_account=true WHERE id=$1`, actor); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordServiceRefundAccessDecision(ctx, app, actor, "opennode", "unused-reference", "retain", "reason"); !errors.Is(err, ErrServiceRefundAdmin) {
+		t.Fatal("deleted admin reached refund lookup", err)
+	}
+}

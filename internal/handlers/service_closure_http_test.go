@@ -48,6 +48,13 @@ func TestClosureAdminHTTPPostgres(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			refundTemplate, err := os.ReadFile("../../templates/admin/service_refunds.tmpl")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = app.TemplateCache.New("admin/service_refunds.tmpl").Parse(string(refundTemplate)); err != nil {
+				t.Fatal(err)
+			}
 			var person string
 			if err := pool.QueryRow(ctx, `INSERT INTO people(name) VALUES('Closure HTTP fixture') RETURNING id::text`).Scan(&person); err != nil {
 				t.Fatal(err)
@@ -127,6 +134,7 @@ func TestClosureAdminHTTPPostgres(t *testing.T) {
 				w.WriteHeader(204)
 			})
 			mux.HandleFunc("/admin/service-closure", func(w http.ResponseWriter, r *http.Request) { AdminServiceClosure(w, r, app) })
+			mux.HandleFunc("/admin/service-refunds", func(w http.ResponseWriter, r *http.Request) { AdminServiceRefunds(w, r, app) })
 			server := httptest.NewServer(app.Session.LoadAndSave(mux))
 			defer server.Close()
 			jar, _ := cookiejar.New(nil)
@@ -211,6 +219,39 @@ func TestClosureAdminHTTPPostgres(t *testing.T) {
 			record, err := getters.InspectBitcoinClosurePayout(ctx, app, form.Get("review"))
 			if err != nil || record.ActorID != person || record.Refund.AmountCents != 499 || *record.Refund.AmountSatoshis != 500 {
 				t.Fatal("wrong financial record", record, err)
+			}
+			refundPath := "/admin/service-refunds?attempt=" + attempt.ID
+			code, body, _ = call(refundPath, nil)
+			if code != 200 || !strings.Contains(body, "Record access decision") {
+				t.Fatal(code, body)
+			}
+			access := "retain"
+			if product == "insider.membership.annual" {
+				access = "revoke"
+			}
+			decision := url.Values{"action": {"access"}, "provider": {"opennode"}, "refund_reference": {record.Refund.RefundReference}, "csrf": {hidden(body, "csrf")}, "access": {access}, "reason": {"Reviewed product access"}, "confirmed": {"yes"}, "actor_id": {uuid.NewString()}}
+			for i := 0; i < 2; i++ {
+				code, body, _ = call("/admin/service-refunds", decision)
+				if code != 303 {
+					t.Fatal("decision/replay", code, body)
+				}
+			}
+			if access == "retain" {
+				decision.Set("access", "revoke")
+			} else {
+				decision.Set("access", "retain")
+			}
+			code, _, _ = call("/admin/service-refunds", decision)
+			if code != 409 {
+				t.Fatal("changed decision accepted", code)
+			}
+			code, body, _ = call(refundPath, nil)
+			if code != 200 || strings.Contains(body, "Record access decision") || !strings.Contains(body, "Reviewed product access") {
+				t.Fatal("saved decision presentation", code, body)
+			}
+			var actor, storedAction string
+			if err := pool.QueryRow(ctx, `SELECT actor_id::text,action FROM service_refund_access_decisions WHERE provider='opennode' AND refund_reference=$1`, record.Refund.RefundReference).Scan(&actor, &storedAction); err != nil || actor != person || storedAction != access {
+				t.Fatal("untrusted decision attribution", actor, storedAction, err)
 			}
 			var count int
 			if err := pool.QueryRow(ctx, `SELECT count(*) FROM service_payment_refunds WHERE attempt_id=$1`, attempt.ID).Scan(&count); err != nil || count != 1 {

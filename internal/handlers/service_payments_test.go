@@ -85,3 +85,21 @@ func TestServiceRefundReviewInvalidPage(t *testing.T) {
 		t.Fatal("bad page reached database", w.Code)
 	}
 }
+
+func TestRefundAccessDecisionRequiresExplicitChoice(t *testing.T) {
+	for _, extra := range []string{"", "&access=retain", "&access=invalid&confirmed=yes", "&access=retain&access=revoke&confirmed=yes"} {
+		manager := scs.New()
+		r := httptest.NewRequest("POST", "/admin/service-refunds", strings.NewReader("csrf=expected&action=access&provider=opennode&refund_reference=fixture&reason=reviewed"+extra))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		ctx, err := manager.Load(r.Context(), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager.Put(ctx, authMethodsCSRFKey, "expected")
+		w := httptest.NewRecorder()
+		serveAdminServiceRefunds(w, r.WithContext(ctx), &config.AppContext{Session: manager}, &auth.Identity{Roles: auth.ParseRoles([]string{"global-admin"})})
+		if w.Code != 400 {
+			t.Fatal("unconfirmed choice reached database", extra, w.Code)
+		}
+	}
+}

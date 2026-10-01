@@ -494,3 +494,34 @@ is stubbed in this HTTP fixture; separate template tests load the real navigatio
 This proves HTTP/session/form/database wiring, not browser rendering or a live
 payment. Node responses are local fixtures, complementing the separate real
 Bitcoin Core regtest verifier tests. Browser/operator rehearsal remains open.
+
+## Refund access decision UI
+
+`/admin/service-refunds` now exposes the existing shared retain/revoke decision
+for a recorded refund that has no decision yet. There is no preselected action:
+the global admin chooses whether to retain the original paid access or end access
+funded by that purchase, enters a reason and confirms. This neither initiates a
+refund nor cancels future renewals. Permanent-closure access changes still need to
+be coordinated with the closure date and renewal shutdown.
+
+The server uses authenticated identity rather than form-supplied actor data,
+locks and verifies a non-deleted global admin, and preserves the existing immutable
+and idempotent decision semantics. Saved decisions show their actor and reason
+instead of another form. Tax recovery has a separate action and retains its
+existing provider verification. Both actions require session CSRF protection.
+
+The connected closure HTTP test now follows the recorded payout into refund review,
+records retain for Alerts and revoke for Insider, checks matching retries and
+rejects a changed decision. It also verifies that a forged actor field cannot
+change attribution. The shared getter rejects deleted administrators before
+looking up a refund. Browser rendering and product-receiver deployment checks
+remain separate launch work.
+
+Verification: the connected HTTP and handler tests passed in the fresh-database
+acceptance run `/private/tmp/service-refund-access-ui-acceptance-20261001.log`.
+That run exposed a test-fixture ordering error (granting a role after deletion),
+which was corrected to grant first, then delete. The full randomized getters race
+suite then passed against that acceptance database in
+`/private/tmp/service-refund-access-ui-getters-fixed-20261001.log`. Explicit-choice
+form tests also pass. Run database-sharing packages sequentially via the acceptance
+script; an earlier concurrent run had service-terms fixture interference.

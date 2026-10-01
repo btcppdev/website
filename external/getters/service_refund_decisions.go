@@ -25,7 +25,7 @@ func RecordServiceRefundAccessDecision(ctx context.Context, app *config.AppConte
 	}
 	defer tx.Rollback(ctx)
 	var role int
-	err = tx.QueryRow(ctx, `SELECT 1 FROM people_roles WHERE person_id=$1 AND scope='global' AND position='admin' FOR SHARE`, actor).Scan(&role)
+	err = tx.QueryRow(ctx, `SELECT 1 FROM people_roles r JOIN people p ON p.id=r.person_id WHERE r.person_id=$1 AND r.scope='global' AND r.position='admin' AND NOT p.is_deleted_account FOR SHARE OF r,p`, actor).Scan(&role)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrServiceRefundAdmin
 	}

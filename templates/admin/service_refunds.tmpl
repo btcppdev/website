@@ -24,10 +24,18 @@
 {{ range .RefundReview }}
 <tr><td><code>{{ .OrderPublicID }}</code><br>{{ .ProductCode }}<br><a href="/admin/service-refunds?attempt={{ .AttemptID }}">Inspect payment</a>{{ if eq .Provider "opennode" }}<br><a href="/admin/service-closure?attempt={{ .AttemptID }}">Preview closure refund</a>{{ end }}</td>
 <td><code>{{ .RefundReference }}</code><br>{{ .AmountCents }} USD cents{{ if .AmountSatoshis }}<br>{{ .AmountSatoshis }} satoshis{{ end }}</td>
-<td>{{ .State }}{{ if .AccessAction }}<br>{{ .AccessAction }}{{ end }}</td>
+<td>{{ .State }}{{ if .AccessAction }}<br>{{ .AccessAction }}<br>Decided by <code>{{ .DecisionActor }}</code><br>{{ .DecisionReason }}{{ else }}
+<form method="post" action="/admin/service-refunds">
+<input type="hidden" name="action" value="access"><input type="hidden" name="csrf" value="{{ $.RefundCSRF }}"><input type="hidden" name="provider" value="{{ .Provider }}"><input type="hidden" name="refund_reference" value="{{ .RefundReference }}">
+<label>Access after this refund <select name="access" required><option value="">Choose an action</option><option value="retain">Retain the original paid access</option><option value="revoke">End access funded by this purchase</option></select></label>
+<p>Retaining access keeps its original expiry. Ending access does not cancel recurring renewals. For permanent closure, coordinate access changes with the closure date.</p>
+<label>Decision reason <textarea name="reason" required maxlength="1000"></textarea></label>
+<label><input type="checkbox" name="confirmed" value="yes" required> I confirm this access decision. It will be recorded permanently.</label>
+<button class="shop-button" type="submit">Record access decision</button>
+</form>{{ end }}</td>
 <td>{{ .TaxState }}{{ if .TaxReviewReason }}<br>{{ .TaxReviewReason }}{{ end }}{{ if .TaxReversalReference }}<br><code>{{ .TaxReversalReference }}</code>{{ end }}
 {{ if eq .TaxState "review" }}<form method="post" action="/admin/service-refunds">
-<input type="hidden" name="csrf" value="{{ $.RefundCSRF }}"><input type="hidden" name="refund_reference" value="{{ .RefundReference }}">
+<input type="hidden" name="action" value="tax"><input type="hidden" name="csrf" value="{{ $.RefundCSRF }}"><input type="hidden" name="refund_reference" value="{{ .RefundReference }}">
 <label>Existing Stripe tax reversal ID <input name="reversal" required maxlength="255" placeholder="tax_…"></label>
 <label>Review reason <textarea name="reason" required maxlength="1000"></textarea></label>
 <button class="shop-button" type="submit">Verify and record reversal</button>

@@ -11,9 +11,10 @@ import (
 	"time"
 )
 
-// ServiceRefundInspection exposes operational facts, never the delivery payload,
-// recipient address, provider credentials, or an ability to issue a refund.
+// ServiceRefundInspection exposes operational facts and the admin decision note,
+// never the delivery payload, provider credentials, or an ability to issue a refund.
 type ServiceRefundInspection struct {
+	DecisionReason          string     `json:"decision_reason,omitempty"`
 	TaxState                string     `json:"tax_state"`
 	TaxReviewReason         string     `json:"tax_review_reason,omitempty"`
 	TaxReversalReference    string     `json:"tax_reversal_reference,omitempty"`
@@ -85,7 +86,7 @@ func PageServiceRefunds(ctx context.Context, app *config.AppContext, attemptID, 
 	}
 	rows, err := app.DB.Query(ctx, `SELECT f.attempt_id::text,o.public_id,r.quote_snapshot->>'product_code',
 	 f.provider,f.refund_reference,f.amount_cents,f.amount_satoshis,f.currency,f.recorded_at,
-	 coalesce(d.action,''),coalesce(d.actor_id::text,''),d.decided_at,
+	 coalesce(d.action,''),coalesce(d.actor_id::text,''),d.decided_at,coalesce(d.reason,''),
 	 j.state,j.revision,j.attempts,j.next_attempt_at,j.lease_until,
 	 coalesce(original.state,'not_queued'),
  coalesce(taxjob.state,'not_queued'),coalesce(taxjob.review_reason,''),coalesce(taxrecord.reversal_transaction,''),
@@ -108,7 +109,7 @@ func PageServiceRefunds(ctx context.Context, app *config.AppContext, attemptID, 
 	result := make([]ServiceRefundInspection, 0)
 	for rows.Next() {
 		var item ServiceRefundInspection
-		if err := rows.Scan(&item.AttemptID, &item.OrderPublicID, &item.ProductCode, &item.Provider, &item.RefundReference, &item.AmountCents, &item.AmountSatoshis, &item.Currency, &item.RecordedAt, &item.AccessAction, &item.DecisionActor, &item.DecisionAt, &item.State, &item.Revision, &item.Attempts, &item.NextAttemptAt, &item.LeaseUntil, &item.OriginalSettlementState, &item.TaxState, &item.TaxReviewReason, &item.TaxReversalReference, &item.EarlierRefundPending); err != nil {
+		if err := rows.Scan(&item.AttemptID, &item.OrderPublicID, &item.ProductCode, &item.Provider, &item.RefundReference, &item.AmountCents, &item.AmountSatoshis, &item.Currency, &item.RecordedAt, &item.AccessAction, &item.DecisionActor, &item.DecisionAt, &item.DecisionReason, &item.State, &item.Revision, &item.Attempts, &item.NextAttemptAt, &item.LeaseUntil, &item.OriginalSettlementState, &item.TaxState, &item.TaxReviewReason, &item.TaxReversalReference, &item.EarlierRefundPending); err != nil {
 			return nil, err
 		}
 		result = append(result, item)
