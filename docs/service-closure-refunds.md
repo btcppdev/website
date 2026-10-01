@@ -475,3 +475,22 @@ shared getter tests cover concurrency, stale basis and atomic rollback. No live
 payout, network verification or provider operation was performed in this UI pass.
 Browser/operator rehearsal, ongoing reorg reconciliation and closure orchestration
 remain outstanding.
+
+## Connected admin HTTP verification
+
+`TestClosureAdminHTTPPostgres` exercises the full HTTP flow for both Alerts and
+Insider with real session cookies, the admin authorization wrapper, rendered form
+fields and PostgreSQL. It starts with an authenticated settled Bitcoin purchase,
+previews the floor-rounded amount, records the calculation review, approves the
+recipient address, verifies the payout through a local Bitcoin Core RPC fixture,
+and checks the saved financial record. Repeated payout submission returns the
+same record without another node call or a duplicate refund. The recorded USD
+allocation and satoshi amount are checked against the original purchase.
+
+The focused test and randomized full handler race suite pass:
+`/private/tmp/service-closure-admin-http-20261001.log` and
+`/private/tmp/service-closure-admin-http-handlers-20261001.log`. Navigation chrome
+is stubbed in this HTTP fixture; separate template tests load the real navigation.
+This proves HTTP/session/form/database wiring, not browser rendering or a live
+payment. Node responses are local fixtures, complementing the separate real
+Bitcoin Core regtest verifier tests. Browser/operator rehearsal remains open.
