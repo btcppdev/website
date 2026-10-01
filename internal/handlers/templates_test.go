@@ -70,6 +70,13 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(serviceReview.String(), "<script>alert(1)</script>") {
 		t.Fatal("unescaped payment reference")
 	}
+	var refundReview bytes.Buffer
+	if err := reviewTemplates.ExecuteTemplate(&refundReview, "admin/service_refunds.tmpl", &shopPage{Admin: true, RefundCSRF: "safe-token", RefundReview: []getters.ServiceRefundInspection{{RefundReference: "<script>alert(1)</script>", TaxState: "review"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(refundReview.String(), "<script>alert(1)</script>") || !strings.Contains(refundReview.String(), "Verify and record reversal") || !strings.Contains(refundReview.String(), "safe-token") {
+		t.Fatal("unsafe or incomplete refund review form")
+	}
 	navTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {
 		t.Fatal(err)

@@ -1928,6 +1928,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin/merch/orders", func(w http.ResponseWriter, r *http.Request) {
 		AdminMerchOrders(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/service-refunds", func(w http.ResponseWriter, r *http.Request) {
+		AdminServiceRefunds(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/admin/service-payments", func(w http.ResponseWriter, r *http.Request) {
 		AdminServicePayments(w, r, app)
 	}).Methods("GET")

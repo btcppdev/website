@@ -162,9 +162,20 @@ func recordServiceRefundTax(ctx context.Context, app *config.AppContext, job *se
 		return err
 	}
 	defer tx.Rollback(ctx)
+	err = recordServiceRefundTaxTx(ctx, tx, job, result, now)
+	if err != nil && !errors.Is(err, ErrServiceRefundTax) {
+		return err
+	}
+	if commitErr := tx.Commit(ctx); commitErr != nil {
+		return commitErr
+	}
+	return err
+}
+
+func recordServiceRefundTaxTx(ctx context.Context, tx pgx.Tx, job *serviceRefundTaxJob, result *stripe.TaxTransaction, now time.Time) error {
 	var token *string
 	var state string
-	err = tx.QueryRow(ctx, `SELECT lease_token::text,state FROM service_refund_tax_jobs WHERE provider=$1 AND refund_reference=$2 FOR UPDATE`, job.Provider, job.Reference).Scan(&token, &state)
+	err := tx.QueryRow(ctx, `SELECT lease_token::text,state FROM service_refund_tax_jobs WHERE provider=$1 AND refund_reference=$2 FOR UPDATE`, job.Provider, job.Reference).Scan(&token, &state)
 	if err != nil {
 		return err
 	}
@@ -196,9 +207,6 @@ func recordServiceRefundTax(ctx context.Context, app *config.AppContext, job *se
 		if _, err = tx.Exec(ctx, `UPDATE service_refund_tax_jobs SET state='review',review_reason='provider_response_mismatch',lease_token=NULL WHERE provider=$1 AND refund_reference=$2`, job.Provider, job.Reference); err != nil {
 			return err
 		}
-		if err = tx.Commit(ctx); err != nil {
-			return err
-		}
 		return ErrServiceRefundTax
 	}
 	// Store only financial evidence, not Stripe's customer/address payload.
@@ -214,5 +222,5 @@ func recordServiceRefundTax(ctx context.Context, app *config.AppContext, job *se
 	if err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }

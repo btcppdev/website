@@ -363,8 +363,7 @@ records are immutable and retain financial evidence without customer addresses.
 unscoped view includes unfinished tax jobs even after receipt delivery completes.
 
 This is tax reporting for an already recorded refund, not a provider payout.
-Stripe test-mode rehearsal and an operator flow to reconcile ambiguous responses
-by verified provider transaction remain required before launch. No live reversal
+Stripe test-mode rehearsal remains required before launch. No live reversal
 or customer payment was executed during development.
 
 Validation: the fresh-database acceptance suite passed with race detection and
@@ -372,3 +371,27 @@ randomized test order (`/private/tmp/service-refund-tax-acceptance-fixed-2026100
 An additional PostgreSQL race test verifies ordered cumulative reversals
 (`/private/tmp/service-refund-tax-order-20261001.log`). Provider responses are
 local fixtures; these checks do not substitute for the Stripe test-mode rehearsal.
+
+## Admin recovery of an existing tax reversal
+
+`/admin/service-refunds`, linked from Service payments, lists unresolved refund
+and tax jobs. An attempt filter includes completed records. For a tax job in
+review, a global admin enters an existing Stripe Tax reversal ID and a reason.
+The server retrieves that transaction using its own Stripe credentials and
+reuses the worker's original-reference, amount, currency, tax and cumulative
+balance validations. This flow never creates a new provider reversal or payout.
+
+Authorization is checked before retrieval and locked/rechecked before writing.
+A successful recovery atomically records the tax adjustment and an immutable
+admin audit, preserving the original submission clock. A mismatch or database
+failure leaves the review unchanged. Exact repeated submissions are accepted;
+changed audit data is rejected. The form requires a session CSRF token.
+
+The fresh-database race acceptance suite passed:
+`/private/tmp/service-refund-tax-review-20261001.log`. Tests cover both products,
+lost provider acknowledgment, revoked authority during retrieval, changed replays,
+wrong amounts and rollback after a staged financial record. Handler tests check
+anonymous/scoped-role denial, missing/wrong/duplicate CSRF tokens and escaped
+provider references (`/private/tmp/service-refund-review-handlers-20261001.log`).
+Provider responses remain fixtures; real Stripe test-mode verification and a
+browser/operator rehearsal are still launch work.

@@ -1007,3 +1007,16 @@ END;
 $$;
 CREATE TRIGGER service_refund_tax_jobs_protected BEFORE UPDATE OR DELETE ON service_refund_tax_jobs
 FOR EACH ROW EXECUTE FUNCTION protect_service_refund_tax_job();
+
+CREATE TABLE service_refund_tax_reviews (
+ provider text NOT NULL,
+ refund_reference text NOT NULL,
+ actor_id uuid NOT NULL REFERENCES people(id),
+ reversal_transaction text NOT NULL,
+ reason text NOT NULL CHECK(length(btrim(reason)) BETWEEN 1 AND 1000),
+ reviewed_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(provider,refund_reference),
+ FOREIGN KEY(provider,refund_reference) REFERENCES service_refund_tax_records(provider,refund_reference)
+);
+CREATE TRIGGER service_refund_tax_reviews_immutable BEFORE UPDATE OR DELETE ON service_refund_tax_reviews
+FOR EACH ROW EXECUTE FUNCTION protect_service_payment_event();

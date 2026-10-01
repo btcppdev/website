@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Service refunds · bitcoin++</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/static/css/site-chrome.css?v=20260904-1">
+<link rel="stylesheet" href="/static/css/btcpp-redesign.css">
+<link rel="stylesheet" href="/static/css/shop.css?v=shipping-queue-1">
+<link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
+</head>
+<body class="shop-page shop-admin-page">
+{{ template "mainnav" . }}
+<main class="shop-admin shop-admin--wide">
+<section class="shop-admin__intro">
+<p class="shop-kicker">§ billing admin</p><h1>Service refunds.</h1>
+<p>Up to 100 unresolved refunds, oldest first. Filter by payment attempt to include completed records.</p>
+<p>Tax recovery verifies an existing Stripe reversal. It does not send a payment or change access.</p>
+<a class="shop-button" href="/admin/service-payments">Service payments</a>
+<form method="get"><label>Payment attempt UUID <input name="attempt" placeholder="All unresolved refunds"></label><button class="shop-button" type="submit">Inspect</button></form>
+</section>
+<section class="shop-admin-table-wrap"><table class="shop-admin-table">
+<thead><tr><th>Order / product</th><th>Refund</th><th>Delivery / access</th><th>Tax adjustment</th></tr></thead><tbody>
+{{ range .RefundReview }}
+<tr><td><code>{{ .OrderPublicID }}</code><br>{{ .ProductCode }}<br><a href="/admin/service-refunds?attempt={{ .AttemptID }}">Inspect payment</a></td>
+<td><code>{{ .RefundReference }}</code><br>{{ .AmountCents }} USD cents{{ if .AmountSatoshis }}<br>{{ .AmountSatoshis }} satoshis{{ end }}</td>
+<td>{{ .State }}{{ if .AccessAction }}<br>{{ .AccessAction }}{{ end }}</td>
+<td>{{ .TaxState }}{{ if .TaxReviewReason }}<br>{{ .TaxReviewReason }}{{ end }}{{ if .TaxReversalReference }}<br><code>{{ .TaxReversalReference }}</code>{{ end }}
+{{ if eq .TaxState "review" }}<form method="post" action="/admin/service-refunds">
+<input type="hidden" name="csrf" value="{{ $.RefundCSRF }}"><input type="hidden" name="refund_reference" value="{{ .RefundReference }}">
+<label>Existing Stripe tax reversal ID <input name="reversal" required maxlength="255" placeholder="tax_…"></label>
+<label>Review reason <textarea name="reason" required maxlength="1000"></textarea></label>
+<button class="shop-button" type="submit">Verify and record reversal</button>
+</form>{{ end }}</td></tr>
+{{ else }}<tr><td colspan="4">No refunds to review.</td></tr>{{ end }}
+</tbody></table></section>
+</main></body></html>

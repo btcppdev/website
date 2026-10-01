@@ -75,6 +75,8 @@ type shopPage struct {
 	CanvasCSRF                string
 	SelectedCanvasBadge       *types.BadgeCanvas
 	PaymentReview             *getters.ServicePaymentReviewPage
+	RefundReview              []getters.ServiceRefundInspection
+	RefundCSRF                string
 	Title                     string
 	Year                      int
 	ArchiveRain               []*HomeArchiveRainItem
