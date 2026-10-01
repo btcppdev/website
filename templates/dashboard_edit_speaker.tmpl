@@ -132,7 +132,7 @@
 
             <label class="profile-edit-wide">BIO
               <textarea id="Bio" name="Bio" rows="5" maxlength="1200" placeholder="Who are you, what are you working on, and what should people ask you about?">{{ if .Speaker }}{{ .Speaker.Bio }}{{ end }}</textarea>
-              <small>Public on your profile. The mockup suggests 280 chars; the site currently allows up to 1200.</small>
+              <small>Public on your profile. Up to 1,200 characters.</small>
             </label>
 
             <label>WEBSITE
@@ -282,17 +282,6 @@
         </div>
       </section>
     </form>
-
-    <section class="profile-edit-add">
-      <p class="profile-edit-tag">§ ADD TO YOUR PROFILE</p>
-      <div>
-        <button type="button" disabled><span>◆</span><b>Event badges</b><em>Not configurable yet</em></button>
-        <button type="button" disabled><span>⬡</span><b>Hackathon projects</b><em>Hackathon backend later</em></button>
-        <button type="button" disabled><span>★</span><b>Awards</b><em>No awards model yet</em></button>
-        <button type="button" disabled><span>✍</span><b>Technical writing</b><em>No linked writing sources yet</em></button>
-        <button type="button" disabled><span>✓</span><b>Credentials</b><em>No credentials model yet</em></button>
-      </div>
-    </section>
 
     <div class="profile-edit-actions">
       {{ if and (eq .Mode "create") (not .IsAdmin) }}
