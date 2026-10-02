@@ -400,7 +400,7 @@
 {{ $s := .Session }}
 {{ $type := agendaTypeClass $s.Type }}
 {{ $dialogID := printf "agenda-dialog-%s" $s.AnchorTag }}
-<button id="{{ $s.AnchorTag }}" type="button" class="session-card btcpp-session-card" data-agenda-dialog-open="{{ $dialogID }}"{{ if $s.TalkPhoto }} style="top: {{ printf "%.0f" (agendaSessionTop .Day $s) }}px; height: {{ printf "%.0f" (agendaSessionHeight $s) }}px; background-image: linear-gradient(180deg, rgba(3, 4, 31, 0.42), rgba(2, 2, 18, 0.9)), url('{{ talkClipart $s.TalkPhoto }}');"{{ else }} style="top: {{ printf "%.0f" (agendaSessionTop .Day $s) }}px; height: {{ printf "%.0f" (agendaSessionHeight $s) }}px;"{{ end }}>
+<button id="{{ $s.AnchorTag }}" type="button" class="session-card btcpp-session-card" data-agenda-dialog-open="{{ $dialogID }}"{{ if $s.TalkPhoto }} style="top: {{ printf "%.0f" (agendaSessionTop .Day $s) }}px; height: {{ printf "%.0f" (agendaSessionHeight .Day $s) }}px; background-image: linear-gradient(180deg, rgba(3, 4, 31, 0.42), rgba(2, 2, 18, 0.9)), url('{{ talkClipart $s.TalkPhoto }}');"{{ else }} style="top: {{ printf "%.0f" (agendaSessionTop .Day $s) }}px; height: {{ printf "%.0f" (agendaSessionHeight .Day $s) }}px;"{{ end }}>
   <div class="session-grid btcpp-session-grid">
     <div class="btcpp-session-title">
       {{ if $s.Sched }}<div class="btcpp-session-time">{{ $s.Sched.Start.Format "3:04 PM" }}</div>{{ end }}

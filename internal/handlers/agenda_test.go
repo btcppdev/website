@@ -13,7 +13,7 @@ func TestAgendaSessionHeightTracksScheduledDuration(t *testing.T) {
 	session := &types.Session{Sched: &types.Times{Start: start, End: &end}}
 
 	want := 45 * agendaPixelsPerMinute
-	if got := agendaSessionHeight(session); got != want {
+	if got := agendaSessionHeight(&AgendaDay{All: []*types.Session{session}}, session); got != want {
 		t.Fatalf("agendaSessionHeight() = %.1f, want %.1f", got, want)
 	}
 }
@@ -23,7 +23,7 @@ func TestAgendaSessionHeightKeepsShortSessionsUsable(t *testing.T) {
 	end := start.Add(15 * time.Minute)
 	session := &types.Session{Sched: &types.Times{Start: start, End: &end}}
 
-	if got := agendaSessionHeight(session); got != agendaMinSessionHeight {
+	if got := agendaSessionHeight(&AgendaDay{All: []*types.Session{session}}, session); got != agendaMinSessionHeight {
 		t.Fatalf("agendaSessionHeight() = %.1f, want minimum %.1f", got, agendaMinSessionHeight)
 	}
 }
@@ -81,5 +81,32 @@ func TestAgendaDayIndexAcrossDST(t *testing.T) {
 				t.Fatalf("date %s: got day %d want %d", date, got, i+1)
 			}
 		}
+	}
+}
+
+func TestAgendaMatchingEndTimesAlignAcrossRooms(t *testing.T) {
+	start := time.Date(2026, time.October, 2, 14, 0, 0, 0, time.UTC)
+	halfPast := start.Add(30 * time.Minute)
+	lunch := start.Add(45 * time.Minute)
+	first := &types.Session{Venue: "one", Sched: &types.Times{Start: start, End: &halfPast}}
+	short := &types.Session{Venue: "one", Sched: &types.Times{Start: halfPast, End: &lunch}}
+	parallel := &types.Session{Venue: "two", Sched: &types.Times{Start: start, End: &lunch}}
+	day := &AgendaDay{All: []*types.Session{first, parallel, short}}
+	bottom := func(s *types.Session) float64 { return agendaSessionTop(day, s) + agendaSessionHeight(day, s) }
+	if bottom(short) != bottom(parallel) {
+		t.Fatalf("2:45pm ends differ: short=%v parallel=%v", bottom(short), bottom(parallel))
+	}
+	if bottom(first) != agendaSessionTop(day, short) {
+		t.Fatal("back-to-back sessions overlap or leave a gap")
+	}
+	if agendaSessionHeight(day, short) < agendaMinSessionHeight {
+		t.Fatal("short talk no longer has room for its preview")
+	}
+	if agendaDayHeight(day) != 60*agendaDayPixelsPerMinute(day) {
+		t.Fatal("day extent uses a different time scale")
+	}
+	marks := agendaHourMarks(day)
+	if len(marks) != 2 || marks[1].Top != agendaDayHeight(day) {
+		t.Fatalf("hour labels do not share session time scale: %+v", marks)
 	}
 }

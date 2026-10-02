@@ -305,7 +305,22 @@ func agendaDayHeight(day *AgendaDay) float64 {
 	if minutes < 60 {
 		minutes = 60
 	}
-	return float64(minutes) * agendaPixelsPerMinute
+	return float64(minutes) * agendaDayPixelsPerMinute(day)
+}
+
+// Expand the entire day's timeline to fit its shortest session. Expanding
+// individual cards instead would make equal end times land at different heights.
+func agendaDayPixelsPerMinute(day *AgendaDay) float64 {
+	scale := agendaPixelsPerMinute
+	for _, session := range agendaAllSessions(day) {
+		if session == nil || session.Sched == nil {
+			continue
+		}
+		if needed := agendaMinSessionHeight / agendaSessionMinutes(session); needed > scale {
+			scale = needed
+		}
+	}
+	return scale
 }
 
 func agendaSessionTop(day *AgendaDay, session *types.Session) float64 {
@@ -313,16 +328,16 @@ func agendaSessionTop(day *AgendaDay, session *types.Session) float64 {
 		return 0
 	}
 	start := session.Sched.Start.Hour()*60 + session.Sched.Start.Minute()
-	top := float64(start-agendaDayStartMinute(day)) * agendaPixelsPerMinute
+	top := float64(start-agendaDayStartMinute(day)) * agendaDayPixelsPerMinute(day)
 	if top < 0 {
 		return 0
 	}
 	return top
 }
 
-func agendaSessionHeight(session *types.Session) float64 {
+func agendaSessionMinutes(session *types.Session) float64 {
 	if session == nil || session.Sched == nil {
-		return agendaMinSessionHeight
+		return 45
 	}
 	end := session.Sched.Start.Add(45 * time.Minute)
 	if session.Sched.End != nil {
@@ -332,11 +347,11 @@ func agendaSessionHeight(session *types.Session) float64 {
 	if minutes <= 0 {
 		minutes = 45
 	}
-	height := minutes * agendaPixelsPerMinute
-	if height < agendaMinSessionHeight {
-		return agendaMinSessionHeight
-	}
-	return height
+	return minutes
+}
+
+func agendaSessionHeight(day *AgendaDay, session *types.Session) float64 {
+	return agendaSessionMinutes(session) * agendaDayPixelsPerMinute(day)
 }
 
 func agendaHourMarks(day *AgendaDay) []agendaHourMark {
@@ -348,7 +363,7 @@ func agendaHourMarks(day *AgendaDay) []agendaHourMark {
 		t := time.Date(2000, 1, 1, minute/60, minute%60, 0, 0, time.Local)
 		marks = append(marks, agendaHourMark{
 			Label: t.Format("3PM"),
-			Top:   float64(minute-start) * agendaPixelsPerMinute,
+			Top:   float64(minute-start) * agendaDayPixelsPerMinute(day),
 		})
 	}
 	return marks

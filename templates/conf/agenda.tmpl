@@ -88,7 +88,7 @@
 {{ define "public_conf_agenda_grid_session" }}
 {{ $s := .Session }}
 {{ $dialogID := printf "agenda-dialog-%s" $s.AnchorTag }}
-<div id="{{ $s.AnchorTag }}" class="rebrand-schedule-card" style="top: {{ printf "%.0f" (agendaSessionTop .Day $s) }}px; height: {{ printf "%.0f" (agendaSessionHeight $s) }}px;">
+<div id="{{ $s.AnchorTag }}" class="rebrand-schedule-card" style="top: {{ printf "%.0f" (agendaSessionTop .Day $s) }}px; height: {{ printf "%.0f" (agendaSessionHeight .Day $s) }}px;">
   <button type="button" class="rebrand-schedule-card__open" data-agenda-dialog-open="{{ $dialogID }}">
     <span class="rebrand-schedule-card__time">{{ if $s.Sched }}{{ $s.Sched.Start.Format "3:04 PM" }}{{ if $s.Sched.End }} – {{ $s.Sched.End.Format "3:04 PM" }}{{ end }}{{ else }}{{ $s.StartTime }}{{ end }}</span>
     <strong>{{ $s.Name }}</strong>
