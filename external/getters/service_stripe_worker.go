@@ -38,7 +38,7 @@ func reconcileDueServiceStripeCheckouts(ctx context.Context, app *config.AppCont
 		var person, id, product string
 		err := app.DB.QueryRow(ctx, `WITH due AS (
  SELECT c.id FROM service_stripe_checkouts c
- WHERE c.product_family='insider' AND c.person_id IS NOT NULL AND (c.stripe_session_id IS NOT NULL OR EXISTS(SELECT 1 FROM service_sales_closures x WHERE x.service=c.product_family))
+ WHERE c.product_family='insider' AND c.person_id IS NOT NULL AND (c.stripe_session_id IS NOT NULL OR c.provider_started_at IS NOT NULL OR EXISTS(SELECT 1 FROM service_sales_closures x WHERE x.service=c.product_family))
  AND c.closed_at IS NULL AND c.next_reconcile_at<=now()
  ORDER BY c.next_reconcile_at,c.id LIMIT 1 FOR UPDATE OF c SKIP LOCKED
 ) UPDATE service_stripe_checkouts c SET next_reconcile_at=now()+CASE

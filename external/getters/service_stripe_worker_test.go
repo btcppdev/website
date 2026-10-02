@@ -22,7 +22,7 @@ func TestServiceStripeRecoverySchedulePostgres(t *testing.T) {
 			}
 		}
 	}()
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 6; i++ {
 		var person string
 		if err := app.DB.QueryRow(ctx, `INSERT INTO people(name) VALUES('Stripe recovery queue fixture') RETURNING id::text`).Scan(&person); err != nil {
 			t.Fatal(err)
@@ -38,6 +38,11 @@ func TestServiceStripeRecoverySchedulePostgres(t *testing.T) {
 		ids = append(ids, stored.Intent.ID)
 		if i < 3 || i == 4 {
 			if _, err = app.DB.Exec(ctx, `UPDATE service_stripe_checkouts SET stripe_session_id=$2 WHERE id=$1`, stored.Intent.ID, "cs_"+stored.Intent.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if i == 5 {
+			if err := markServiceStripeCheckoutStarted(ctx, app, person, stored.Intent.ID, stored.Intent.ProductCode); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -82,7 +87,7 @@ func TestServiceStripeRecoverySchedulePostgres(t *testing.T) {
 		go func() { defer wg.Done(); _, _ = reconcileDueServiceStripeCheckouts(ctx, app, recover) }()
 	}
 	wg.Wait()
-	if seen[ids[0]] != 1 || seen[ids[1]] != 1 || seen[ids[2]] != 0 || seen[ids[3]] != 0 || seen[ids[4]] != 0 || seen[alert.Intent.ID] != 0 {
+	if seen[ids[0]] != 1 || seen[ids[1]] != 1 || seen[ids[2]] != 0 || seen[ids[3]] != 0 || seen[ids[4]] != 0 || seen[ids[5]] != 1 || seen[alert.Intent.ID] != 0 {
 		t.Fatal("duplicate or ineligible work", seen)
 	}
 	if _, err := reconcileDueServiceStripeCheckouts(ctx, app, recover); err != nil {

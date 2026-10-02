@@ -1102,3 +1102,22 @@ Coverage includes both products, submission replay/immutability, foreign ownersh
 known references, conservative defaults and a claim racing permanent sales stop.
 Logs: `/private/tmp/checkout-submission-acceptance.log` and
 `/private/tmp/checkout-submission-getters-final.log`. No live provider calls occurred.
+
+## Recover lost Insider checkout responses while sales are open
+
+Insider's recurring-checkout worker now selects submitted attempts even when no
+session reference was saved. Recovery uses a bounded provider scan for the frozen
+account/product/intent, requires one complete matching result, and persists the
+reference without replacing a concurrent binding. It does not create another
+checkout. Missing or ambiguous results remain retryable. Proven-unsubmitted
+reservations remain outside normal recovery; closure handles them separately.
+
+The same discovery helper serves active-sale recovery and permanent-closure
+expiration, so closure no longer has a separate copy of reference binding.
+Regression tests reproduce both the skipped worker row and failed recovery on
+the previous implementation. The full PostgreSQL getters and handler suites pass
+with race detection and randomized test order. Logs:
+`/private/tmp/insider-discovery-before.log`,
+`/private/tmp/insider-checkout-discovery.log`, and
+`/private/tmp/insider-discovery-final.log`. Provider responses are local fixtures;
+real Stripe checkout/settlement verification remains outstanding.
