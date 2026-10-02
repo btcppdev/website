@@ -34,6 +34,27 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
+	var purchases bytes.Buffer
+	purchaseTemplates, err := ctx.TemplateCache.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := purchaseTemplates.ExecuteTemplate(&purchases, "dashboard_purchases.tmpl", accountPurchasesPage{Next: 2, Purchases: []getters.AccountPurchase{
+		{Kind: "order", Reference: "paid-order", Description: "Alerts subscription", Status: "paid", Amount: "2.00", Currency: "USD"},
+		{Kind: "order", Reference: "pending-order", Description: "<script>test</script>", Status: "pending", Amount: "3.00", Currency: "USD"},
+		{Kind: "pos", Reference: "sale", Description: "Conference merch", Status: "paid", Amount: "50000", Currency: "sats"},
+		{Kind: "ticket", Reference: "legacy", Description: "Older ticket", Status: "Ticket revoked", Amount: "20.00", Currency: "EUR"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Alerts subscription", "50000 sats", "Ticket revoked", "paid-order/receipt", "pos-purchases/sale", "page=2", "/dashboard/subscriptions", "&lt;script&gt;"} {
+		if !strings.Contains(purchases.String(), want) {
+			t.Fatalf("purchase history missing %q", want)
+		}
+	}
+	if strings.Contains(purchases.String(), "pending-order/receipt") || strings.Contains(purchases.String(), "<script>test</script>") {
+		t.Fatal("unsafe purchase history")
+	}
 	var subscriptions bytes.Buffer
 	subscriptionsTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {

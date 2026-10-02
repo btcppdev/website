@@ -6,7 +6,7 @@
 </head>
 <body class="btcpp-profile-edit-page account-settings-page">
   {{ block "mainnav" . }} {{ end }}
-  {{ template "dashboard_tabs" (dict "Active" "subscriptions" "ShowHackathons" .HasHackathonProjects "ShowSponsors" .ShowSponsors "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
+  {{ template "dashboard_tabs" (dict "Active" "billing" "ShowHackathons" .HasHackathonProjects "ShowSponsors" .ShowSponsors "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
   <main class="profile-edit-shell person-emails-page">
     <header class="profile-edit-hero account-settings-hero">
       <div class="account-settings-hero__copy">
@@ -15,6 +15,7 @@
         <p>Alerts and Insider Edition, together in your bitcoin++ account. Open either service to manage your plan, payments, and delivery preferences.</p>
       </div>
     </header>
+    {{ template "billing_tabs" "subscriptions" }}
     {{ range .Subscriptions }}
     <section class="profile-edit-section is-open" aria-label="{{ .Name }} subscription">
       <div class="profile-edit-section__index">{{ if eq .Name "Alerts" }}01{{ else }}02{{ end }}</div>

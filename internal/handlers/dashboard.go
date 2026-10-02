@@ -697,42 +697,8 @@ func dashboardTicketEntitlements(ctx *config.AppContext, people []*types.Speaker
 	return out, nil
 }
 
-func DashboardOrders(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
-	email, encodedEmail, encodedHMAC, ok := dashboardRequestIdentity(w, r, ctx)
-	if !ok {
-		return
-	}
-	id, resolveErr := auth.Resolve(r, ctx)
-	if resolveErr != nil || id == nil {
-		http.Redirect(w, r, "/dashboard?error="+url.QueryEscape("A person profile is required to view orders."), http.StatusSeeOther)
-		return
-	}
-	orders, err := getters.ListShopOrdersForPerson(ctx, id.PersonID, 100)
-	if err != nil {
-		ctx.Err.Printf("/dashboard/orders for %s: %s", email, err)
-		http.Error(w, "Unable to load orders", http.StatusInternalServerError)
-		return
-	}
-	posPurchases, err := getters.POSPurchasesForPerson(ctx, id.PersonID, 100)
-	if err != nil {
-		http.Error(w, "Unable to load purchases", 500)
-		return
-	}
-	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_orders.tmpl", &DashboardPage{
-		Name:         email,
-		Email:        encodedEmail,
-		HMAC:         encodedHMAC,
-		ShopOrders:   orders,
-		POSPurchases: posPurchases,
-		BaseURI:      ctx.Env.GetURI(),
-		Year:         helpers.CurrentYear(),
-	}); err != nil {
-		ctx.Err.Printf("/dashboard/orders render: %s", err)
-		http.Error(w, "Unable to load orders", http.StatusInternalServerError)
-	}
-}
-
 func DashboardOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	email, encodedEmail, encodedHMAC, ok := dashboardRequestIdentity(w, r, ctx)
 	if !ok {
 		return
@@ -768,6 +734,7 @@ func DashboardOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 }
 
 func DashboardOrderReceipt(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	email, encodedEmail, encodedHMAC, ok := dashboardRequestIdentity(w, r, ctx)
 	if !ok {
 		return
@@ -779,7 +746,13 @@ func DashboardOrderReceipt(w http.ResponseWriter, r *http.Request, ctx *config.A
 		http.NotFound(w, r)
 		return
 	}
-	if !strings.EqualFold(strings.TrimSpace(order.BuyerEmail), strings.TrimSpace(email)) {
+	identity, resolveErr := auth.Resolve(r, ctx)
+	if resolveErr != nil || identity == nil {
+		http.NotFound(w, r)
+		return
+	}
+	owns, ownErr := getters.PersonOwnsShopOrder(ctx, identity.PersonID, order.ID)
+	if ownErr != nil || !owns {
 		http.Error(w, "receipt not found", http.StatusNotFound)
 		return
 	}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Purchases &amp; billing · bitcoin++</title>{{ block "header" . }}{{ end }}</head>
+<body class="btcpp-profile-edit-page account-settings-page">
+{{ block "mainnav" . }}{{ end }}
+{{ template "dashboard_tabs" (dict "Active" "billing" "ShowHackathons" .HasHackathonProjects "ShowSponsors" .ShowSponsors "ShowAdmin" .IsGlobalAdmin "PendingOrgInviteCount" .PendingOrgInviteCount) }}
+<main class="profile-edit-shell person-emails-page">
+<header class="profile-edit-hero account-settings-hero"><div class="account-settings-hero__copy">
+<p class="profile-edit-tag">§ YOUR ACCOUNT</p><h1>Purchases <span>&amp; billing.</span></h1>
+<p>Your tickets, merchandise, and subscription payments in one place.</p>
+</div></header>
+{{ template "billing_tabs" "history" }}
+<section class="dashboard-purchase-ledger dashboard-purchase-ledger--full" aria-label="Purchase history">
+<div class="dashboard-purchase-ledger__head"><h2>Purchase history</h2></div>
+<p>Amounts show original purchase totals. Refunds are noted in the payment status.</p>
+<div class="dashboard-purchase-ledger__rows">
+{{ range .Purchases }}
+<article class="dashboard-purchase-row">
+<div class="dashboard-purchase-row__main"><strong>{{ .Description }}</strong>
+<span>{{ .CreatedAt.Format "Jan 2, 2006" }} · {{ .StatusLabel }}{{ if .Provider }} · {{ .PaymentMethod }}{{ end }}</span>
+</div><div class="dashboard-purchase-row__side"><strong>{{ .Amount }} {{ .Currency }}</strong>
+{{ if eq .Kind "order" }}<a href="/dashboard/orders/{{ .Reference }}">View details</a>
+{{ if or (eq .Status "paid") (eq .Status "fulfilled") (eq .Status "refunded") (eq .Status "partially_refunded") }}<a href="/dashboard/orders/{{ .Reference }}/receipt">Download receipt</a>{{ end }}
+{{ else if eq .Kind "pos" }}<a href="/dashboard/pos-purchases/{{ .Reference }}">View receipt</a>
+{{ else }}<a href="/dashboard">View event tickets</a>{{ end }}
+</div></article>
+{{ else }}<p>No purchases on this page. Purchases linked to this account will appear here.</p>{{ end }}
+</div></section>
+<nav aria-label="Purchase history pages">{{ if .Previous }}<a href="/dashboard/orders?page={{ .Previous }}">← Newer purchases</a>{{ end }} {{ if .Next }}<a href="/dashboard/orders?page={{ .Next }}">Older purchases →</a>{{ end }}</nav>
+</main>{{ block "footer" . }}{{ end }}</body></html>

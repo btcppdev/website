@@ -27,13 +27,14 @@
       <section class="receipt__paper">
         <div class="receipt__top">
           <div>
-            <h1>{{ if eq .ShopOrder.CheckoutKind "merch" }}Order{{ else }}Ticket{{ end }}<br>Received</h1>
-            <p>{{ if eq .ShopOrder.CheckoutKind "merch" }}Merch receipt{{ else if eq .ShopOrder.CheckoutKind "mixed" }}Ticket + merch receipt{{ else }}Ticket receipt{{ end }}</p>
+            <h1>{{ if eq .ShopOrder.CheckoutKind "ticket" }}Ticket{{ else }}Order{{ end }}<br>Received</h1>
+            <p>{{ if eq .ShopOrder.CheckoutKind "merch" }}Merch receipt{{ else if eq .ShopOrder.CheckoutKind "mixed" }}Ticket + merch receipt{{ else if eq .ShopOrder.CheckoutKind "service" }}Subscription payment receipt{{ else }}Ticket receipt{{ end }}</p>
           </div>
           <div class="receipt__meta">
             <div>bitcoin++</div>
             <div>{{ .ShopOrder.PublicID }}</div>
             <div>{{ .ShopOrder.CreatedAt.Format "Jan 2, 2006" }}</div>
+            <div>Status: {{ .ShopOrder.Status }}</div>
             <div>{{ .ShopOrder.BuyerEmail }}</div>
           </div>
         </div>
