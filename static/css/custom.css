@@ -14748,8 +14748,14 @@ border-bottom: 1px solid var(--hack-ink);
 }
 
 /* Cohesive dashboard and account-settings polish. */
+.btcpp-admin-page .admin-event-dashboard-shell,
 .btcpp-dashboard-page:not(.sponsor-dashboard-page) .dashboard-shell {
 	width: min(1080px, calc(100% - 48px));
+}
+
+.btcpp-admin-page .admin-event-dashboard-shell {
+	margin: 0 auto;
+	padding: 48px 0;
 }
 
 .btcpp-dashboard-page .dashboard-topline {
@@ -14909,6 +14915,7 @@ border-bottom: 1px solid var(--hack-ink);
 		padding: 24px 0 44px;
 	}
 
+	.btcpp-admin-page .admin-event-dashboard-shell,
 	.btcpp-dashboard-page:not(.sponsor-dashboard-page) .dashboard-shell {
 		width: min(100% - 28px, 1080px);
 	}
