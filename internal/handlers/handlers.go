@@ -2063,6 +2063,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/settings", func(w http.ResponseWriter, r *http.Request) {
 		DashboardPersonEmails(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/dashboard/subscriptions", func(w http.ResponseWriter, r *http.Request) {
+		DashboardSubscriptions(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/dashboard/insider", func(w http.ResponseWriter, r *http.Request) {
 		DashboardInsiderPreferences(w, r, app)
 	}).Methods("GET")

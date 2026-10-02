@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -32,6 +33,22 @@ func TestLoadTemplates(t *testing.T) {
 	ctx := &config.AppContext{Env: &types.EnvConfig{}}
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
+	}
+	var subscriptions bytes.Buffer
+	subscriptionsTemplates, err := ctx.TemplateCache.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := subscriptionsTemplates.ExecuteTemplate(&subscriptions, "dashboard_subscriptions.tmpl", accountSubscriptionsPage{Subscriptions: []accountSubscription{
+		{Name: "Alerts", Status: "3 free + 2 paid projects", Periods: []string{"2 additional paid projects through 2 Nov 2026"}, URL: "https://alerts.btcpp.dev/alerts"},
+		{Name: "Insider Edition", Status: "Paid membership", BillingStatus: "Cancellation scheduled", URL: insiderAccountURL},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"/dashboard/subscriptions", "3 free + 2 paid projects", "2 Nov 2026", "Paid membership", "Cancellation scheduled", insiderAccountURL} {
+		if !strings.Contains(html.UnescapeString(subscriptions.String()), want) {
+			t.Fatalf("subscriptions missing %q", want)
+		}
 	}
 	now := time.Now()
 	conf := &types.Conf{Tag: "toronto", Desc: "Toronto"}
