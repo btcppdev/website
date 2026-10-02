@@ -720,6 +720,10 @@ func DashboardOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		http.Error(w, "order not found", http.StatusNotFound)
 		return
 	}
+	if order.CheckoutKind == "service" || order.CheckoutKind == "digital" {
+		http.Redirect(w, r, "/services/orders/"+url.PathEscape(order.PublicID), http.StatusSeeOther)
+		return
+	}
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "dashboard_order.tmpl", &DashboardPage{
 		Name:      email,
 		Email:     encodedEmail,
@@ -754,6 +758,10 @@ func DashboardOrderReceipt(w http.ResponseWriter, r *http.Request, ctx *config.A
 	owns, ownErr := getters.PersonOwnsShopOrder(ctx, identity.PersonID, order.ID)
 	if ownErr != nil || !owns {
 		http.Error(w, "receipt not found", http.StatusNotFound)
+		return
+	}
+	if order.CheckoutKind == "service" || order.CheckoutKind == "digital" {
+		http.Redirect(w, r, "/services/orders/"+url.PathEscape(order.PublicID), http.StatusSeeOther)
 		return
 	}
 	var html bytes.Buffer

@@ -19,7 +19,8 @@
 <div class="dashboard-purchase-row__main"><strong>{{ .Description }}</strong>
 <span>{{ .CreatedAt.Format "Jan 2, 2006" }} · {{ .StatusLabel }}{{ if .Provider }} · {{ .PaymentMethod }}{{ end }}</span>
 </div><div class="dashboard-purchase-row__side"><strong>{{ .Amount }} {{ .Currency }}</strong>
-{{ if eq .Kind "order" }}<a href="/dashboard/orders/{{ .Reference }}">View details</a>
+{{ if eq .Kind "service" }}<a href="/services/orders/{{ .Reference }}">View payment &amp; receipt</a>
+{{ else if eq .Kind "order" }}<a href="/dashboard/orders/{{ .Reference }}">View details</a>
 {{ if or (eq .Status "paid") (eq .Status "fulfilled") (eq .Status "refunded") (eq .Status "partially_refunded") }}<a href="/dashboard/orders/{{ .Reference }}/receipt">Download receipt</a>{{ end }}
 {{ else if eq .Kind "pos" }}<a href="/dashboard/pos-purchases/{{ .Reference }}">View receipt</a>
 {{ else }}<a href="/dashboard">View event tickets</a>{{ end }}

@@ -20,9 +20,13 @@ func TestAccountPurchasesPostgres(t *testing.T) {
 	}
 	t.Cleanup(func() { exec(`DELETE FROM people WHERE id IN ($1,$2)`, owner, other) })
 	refs := map[string]bool{}
-	for _, kind := range []string{"merch", "ticket", "mixed", "service"} {
+	serviceRefs := map[string]bool{}
+	for _, kind := range []string{"merch", "ticket", "mixed", "service", "digital"} {
 		ref := uuid.NewString()
 		refs[ref] = true
+		if kind == "service" || kind == "digital" {
+			serviceRefs[ref] = true
+		}
 		exec(`INSERT INTO shop_orders(public_id,buyer_email,buyer_person_id,checkout_kind,total_cents,status,payment_provider,payment_provider_id) VALUES($1,'purchase@example.test',$2,$3,1234,'paid','stripe',$1)`, ref, owner, kind)
 		if kind == "ticket" {
 			exec(`INSERT INTO registrations(ref_id,checkout_id,person_id,email,amount_paid,currency) VALUES($1,$2,$3,'purchase@example.test',12.34,'USD')`, uuid.NewString(), ref, owner)
@@ -37,7 +41,7 @@ func TestAccountPurchasesPostgres(t *testing.T) {
 	refs[sale] = true
 	exec(`INSERT INTO conference_pos_sales(id,conference_id,request_id,operator_id,total_sats,currency,local_per_btc,buyer_person_id,status) VALUES($1,$2,$3,'test',50000,'EUR',80000,$4,'paid')`, sale, conf, uuid.NewString(), owner)
 	got, more, err := AccountPurchases(app, owner, 1)
-	if err != nil || more || len(got) != 6 {
+	if err != nil || more || len(got) != 7 {
 		t.Fatalf("history: %+v more=%v %v", got, more, err)
 	}
 	for _, p := range got {
@@ -45,6 +49,9 @@ func TestAccountPurchasesPostgres(t *testing.T) {
 			t.Fatalf("foreign or duplicate row: %+v", p)
 		}
 		delete(refs, p.Reference)
+		if serviceRefs[p.Reference] && p.Kind != "service" {
+			t.Fatalf("service sent to generic receipt: %+v", p)
+		}
 		if p.Kind == "order" && (p.Amount != "12.34" || p.Currency != "USD") {
 			t.Fatal(p)
 		}
@@ -63,7 +70,7 @@ func TestAccountPurchasesPostgres(t *testing.T) {
 		t.Fatal(len(first), more, err)
 	}
 	second, more, err := AccountPurchases(app, owner, 2)
-	if err != nil || more || len(second) != 7 {
+	if err != nil || more || len(second) != 8 {
 		t.Fatal(len(second), more, err)
 	}
 	seen := map[string]bool{}

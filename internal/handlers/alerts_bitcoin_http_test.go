@@ -135,6 +135,8 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 	router.HandleFunc("/services/alerts/prepay", func(w http.ResponseWriter, r *http.Request) { AlertsBitcoinStart(w, r, app) })
 	router.HandleFunc("/services/quotes/{quote}", func(w http.ResponseWriter, r *http.Request) { ServiceQuoteReview(w, r, app) }).Methods("GET")
 	router.HandleFunc("/services/quotes/{quote}/confirm", func(w http.ResponseWriter, r *http.Request) { ServiceQuoteConfirm(w, r, app) }).Methods("POST")
+	router.HandleFunc("/dashboard/orders/{order}", func(w http.ResponseWriter, r *http.Request) { DashboardOrder(w, r, app) }).Methods("GET")
+	router.HandleFunc("/dashboard/orders/{order}/receipt", func(w http.ResponseWriter, r *http.Request) { DashboardOrderReceipt(w, r, app) }).Methods("GET")
 	router.HandleFunc("/services/orders/{order}", func(w http.ResponseWriter, r *http.Request) { ServiceOrder(w, r, app) }).Methods("GET")
 	router.HandleFunc("/services/orders/{order}/pay", func(w http.ResponseWriter, r *http.Request) { ServiceOrderPay(w, r, app) }).Methods("POST")
 	router.HandleFunc("/callback/services/opennode", func(w http.ResponseWriter, r *http.Request) { ServiceOpenNodeCallback(w, r, app) }).Methods("POST")
@@ -236,6 +238,14 @@ func TestAlertsBitcoinHTTPPostgres(t *testing.T) {
 	code, body, orderPath := call(quotePath+"/confirm", confirm)
 	if code != 303 || !strings.HasPrefix(orderPath, "/services/orders/") {
 		t.Fatal("confirm", code, body, orderPath)
+	}
+	// Pending service orders must reach the verified service view, not a generic
+	// shop PDF that could imply payment was received.
+	for _, suffix := range []string{"", "/receipt"} {
+		path := strings.Replace(orderPath, "/services/orders/", "/dashboard/orders/", 1) + suffix
+		if code, _, location := call(path, nil); code != 303 || location != orderPath {
+			t.Fatal("service receipt routing", code, location)
+		}
 	}
 	if code, _, repeat := call(quotePath+"/confirm", confirm); code != 303 || repeat != orderPath {
 		t.Fatal("repeat confirmation", code, repeat)

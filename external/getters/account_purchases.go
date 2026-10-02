@@ -18,7 +18,7 @@ func AccountPurchases(app *config.AppContext, person string, page int) ([]Accoun
 		return nil, false, fmt.Errorf("invalid purchase page")
 	}
 	rows, err := app.DB.Query(app.DatabaseContext(), `WITH purchases AS (
- SELECT 'order'::text kind,o.public_id reference,
+ SELECT CASE WHEN o.checkout_kind IN ('service','digital') THEN 'service' ELSE 'order' END kind,o.public_id reference,
  coalesce((SELECT string_agg(i.product_name_snapshot, ', ' ORDER BY i.created_at,i.id) FROM shop_order_items i WHERE i.order_id=o.id),
  CASE o.checkout_kind WHEN 'ticket' THEN 'Event tickets' WHEN 'mixed' THEN 'Tickets and merchandise' WHEN 'service' THEN 'Subscription payment' ELSE 'Merchandise' END) description,
  o.status,o.payment_provider provider,(o.total_cents::numeric/100)::numeric(20,2)::text amount,upper(o.currency) currency,o.created_at
