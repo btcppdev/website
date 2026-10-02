@@ -3678,12 +3678,40 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-agenda__browser-link {
-  display: block;
-  margin-top: 14px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 14px 22px;
+  border: 1px solid var(--rebrand-ink);
+  background: var(--rebrand-accent);
   color: var(--rebrand-ink);
+  font-size: 15px;
   font-weight: 800;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-decoration: none;
+}
+
+.rebrand-agenda__browser-link:hover {
+  background: var(--rebrand-ink);
+  color: var(--rebrand-paper);
+}
+
+.rebrand-agenda__browser-link:focus-visible {
+  outline: 3px solid var(--rebrand-ink);
+  outline-offset: 4px;
+}
+
+.rebrand-agenda__note p {
+  margin: 16px 0 0;
+}
+
+@media (max-width: 900px) {
+  .rebrand-agenda__browser-link {
+    width: 100%;
+  }
 }
 
 .rebrand-agenda-tabs__menu {
