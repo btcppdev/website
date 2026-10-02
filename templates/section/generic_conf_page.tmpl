@@ -485,11 +485,9 @@
         {{ range .Speakers }}
         {{ $profile := speakerPublicPath . }}
         <div class="btcpp-agenda-dialog__speaker">
-          {{ if $profile }}<a href="{{ $profile }}">{{ end }}
           <img src="{{ speakerPhoto .Photo }}" alt="{{ .Name }}">
-          {{ if $profile }}</a>{{ end }}
           <div>
-            <div class="btcpp-agenda-dialog__speaker-name">{{ if $profile }}<a href="{{ $profile }}">{{ .Name }}</a>{{ else }}{{ .Name }}{{ end }}</div>
+            <div class="btcpp-agenda-dialog__speaker-name">{{ if $profile }}<a class="btcpp-agenda-dialog__speaker-profile" href="{{ $profile }}">{{ .Name }}</a>{{ else }}{{ .Name }}{{ end }}</div>
             {{ if .Company }}<div class="btcpp-agenda-dialog__speaker-company">{{ .Company }}</div>{{ end }}
             {{ template "generic_conf_agenda_speaker_links" . }}
           </div>

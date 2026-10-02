@@ -7695,3 +7695,25 @@ body.btcpp-agenda-dialog-open {
     line-height: 1.1;
   }
 }
+
+/* The profile link covers the card; social links stay separate above it. */
+.btcpp-agenda-dialog__speaker {
+  position: relative;
+}
+
+.btcpp-agenda-dialog__speaker-profile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.btcpp-agenda-dialog__speaker-links a {
+  position: relative;
+  z-index: 1;
+}
+
+.btcpp-agenda-dialog__speaker:has(.btcpp-agenda-dialog__speaker-profile:hover),
+.btcpp-agenda-dialog__speaker:has(.btcpp-agenda-dialog__speaker-profile:focus-visible) {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

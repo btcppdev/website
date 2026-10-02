@@ -23,7 +23,7 @@ func TestAgendaTalkPermalinks(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		start := time.Date(2028, time.October, i, 14, 0, 0, 0, time.UTC)
 		end := start.Add(45 * time.Minute)
-		session := &types.Session{Name: fmt.Sprintf("Talk %d: Building a Bitcoin POS With Merchants, Not For Them", i), Type: "talk", Speakers: []*types.Speaker{{Name: "Dhananjay Purohit"}, {Name: "Walter Maffione"}, {Name: "Steven Roose"}}, AnchorTag: fmt.Sprintf("talk-%d", i), ConfTag: "berlin26", Venue: "one", Sched: &types.Times{Start: start.Add(30 * time.Minute), End: &end}, Description: "A shareable talk."}
+		session := &types.Session{Name: fmt.Sprintf("Talk %d: Building a Bitcoin POS With Merchants, Not For Them", i), Type: "talk", Speakers: []*types.Speaker{{Name: "Example Speaker", Twitter: types.Twitter{Handle: "example"}, Github: "example", Website: "https://example.org", Nostr: "npub1example", LinkedIn: "https://www.linkedin.com/in/example", Instagram: "example", LeetCode: "example"}, {Name: "Walter Maffione"}, {Name: "Steven Roose"}}, AnchorTag: fmt.Sprintf("talk-%d", i), ConfTag: "berlin26", Venue: "one", Sched: &types.Times{Start: start.Add(30 * time.Minute), End: &end}, Description: "A shareable talk."}
 		days = append(days, &AgendaDay{Idx: i, Date: start, Active: i == 1, Info: &types.ConfInfo{Venues: []string{"one", "two"}}, All: []*types.Session{session, {Name: "Scaling Bitcoin with Swap Service Providers", AnchorTag: fmt.Sprintf("parallel-%d", i), ConfTag: "berlin26", Venue: "two", Sched: &types.Times{Start: start, End: &end}, Type: "panel", Speakers: session.Speakers}}})
 	}
 	for _, tc := range []struct{ name, dayTemplate string }{
