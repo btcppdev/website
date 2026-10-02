@@ -52,14 +52,6 @@
 
 {{ define "public_conf_agenda_grid_day" }}
 <div id="agenda-day-{{ .Idx }}" class="rebrand-schedule-panel w-tab-pane {{ if .Active }}w--tab-active{{ end }}" data-agenda-panel="{{ .Idx }}">
-  {{ if .Info }}
-  <div class="rebrand-agenda-strip">
-    {{ if .Info.Doors }}<div><span>Doors</span><strong>{{ formatTime .Info.Doors.Start }}</strong></div>{{ end }}
-    {{ if .Info.Breakfast }}<div><span>Breakfast</span><strong>{{ formatTime .Info.Breakfast.Start }}</strong></div>{{ end }}
-    {{ if .Info.Lunch }}<div><span>Lunch</span><strong>{{ formatTime .Info.Lunch.Start }}</strong></div>{{ end }}
-    {{ if .Info.Coffee }}<div><span>Coffee</span><strong>{{ formatTime .Info.Coffee.Start }}</strong></div>{{ end }}
-  </div>
-  {{ end }}
   {{ if and .Info .Info.Venues }}
   <div class="rebrand-schedule-scroll">
     <div class="rebrand-schedule-grid" style="grid-template-columns: 76px repeat({{ len .Info.Venues }}, minmax(220px, 1fr)); min-width: calc(76px + {{ len .Info.Venues }} * 220px);">

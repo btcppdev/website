@@ -318,15 +318,6 @@
 
 {{ define "generic_conf_agenda_day_rows" }}
 <div id="agenda-day-{{ .Idx }}" class="rebrand-agenda-panel w-tab-pane {{ if .Active }}w--tab-active{{ end }}" data-agenda-panel="{{ .Idx }}">
-  {{ if .Info }}
-  <div class="rebrand-agenda-strip">
-    {{ if .Info.Doors }}<div><span>Doors</span><strong>{{ formatTime .Info.Doors.Start }}</strong></div>{{ end }}
-    {{ if .Info.Breakfast }}<div><span>Breakfast</span><strong>{{ formatTime .Info.Breakfast.Start }}</strong></div>{{ end }}
-    {{ if .Info.Lunch }}<div><span>Lunch</span><strong>{{ formatTime .Info.Lunch.Start }}</strong></div>{{ end }}
-    {{ if .Info.Coffee }}<div><span>Coffee</span><strong>{{ formatTime .Info.Coffee.Start }}</strong></div>{{ end }}
-    {{ if .Info.Venues }}<div><span>Rooms</span><strong>{{ len .Info.Venues }}</strong></div>{{ end }}
-  </div>
-  {{ end }}
   <div class="rebrand-agenda-rows">
     {{ range .All }}
       {{ template "generic_conf_agenda_row" . }}

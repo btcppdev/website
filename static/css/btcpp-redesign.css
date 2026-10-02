@@ -3754,36 +3754,6 @@ body.btcpp-rebrand-page {
   display: block;
 }
 
-.rebrand-agenda-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  margin-bottom: 32px;
-  border-top: 1px solid var(--rebrand-ink);
-  border-left: 1px solid var(--rebrand-ink);
-}
-
-.rebrand-agenda-strip > div {
-  border-right: 1px solid var(--rebrand-ink);
-  border-bottom: 1px solid var(--rebrand-ink);
-  padding: 16px;
-}
-
-.rebrand-agenda-strip span {
-  display: block;
-  color: var(--rebrand-muted);
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-}
-
-.rebrand-agenda-strip strong {
-  display: block;
-  margin-top: 4px;
-  font-size: 22px;
-  line-height: 1;
-}
-
 .rebrand-agenda-rows {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
@@ -5038,8 +5008,7 @@ body.btcpp-rebrand-page {
 
   .rebrand-glance,
   .rebrand-venue-grid,
-  .rebrand-agenda-tabs__menu,
-  .rebrand-agenda-strip {
+  .rebrand-agenda-tabs__menu {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -5391,7 +5360,6 @@ body.btcpp-rebrand-page {
 
   .rebrand-venue-grid,
   .rebrand-agenda-tabs__menu,
-  .rebrand-agenda-strip,
   .btcpp-rebrand-page .event-redesign-ticket__features {
     grid-template-columns: 1fr;
   }
