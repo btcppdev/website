@@ -494,6 +494,17 @@ func loadTemplates(ctx *config.AppContext) error {
 		"navConfs": func() NavConfList {
 			return buildNavConfList(ctx)
 		},
+		"conferenceIsLive": func(conf *types.Conf) bool {
+			if conf == nil || ctx == nil || ctx.DB == nil {
+				return false
+			}
+			broadcast, err := getters.GetConferenceBroadcast(ctx, conf.Ref)
+			if err != nil {
+				ctx.Err.Printf("/%s navigation broadcast lookup failed: %s", conf.Tag, err)
+				return false
+			}
+			return broadcast != nil && recordingBroadcastIsLive(&broadcast.RecordingBroadcast, time.Now())
+		},
 		"sponsorTiers": func(conf *types.Conf) []*SponsorTier {
 			if conf == nil {
 				return nil

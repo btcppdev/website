@@ -46,6 +46,13 @@ func ConferenceLive(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	if !ok {
 		return
 	}
+	talks, err := getters.GetTalksFor(ctx, page.Conf.Tag)
+	if err != nil {
+		ctx.Err.Printf("/%s live navigation talks lookup failed: %s", page.Conf.Tag, err)
+		http.Error(w, "Unable to load conference navigation", http.StatusInternalServerError)
+		return
+	}
+	page.Conf = publicHackathonNavConference(ctx, page.Conf, talks)
 	w.Header().Set("Cache-Control", "no-store")
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "watch.tmpl", page); err != nil {
 		ctx.Err.Printf("conference live template: %s", err)
