@@ -28,7 +28,7 @@ const agendaMinSessionHeight = 80.0
 type AgendaDay struct {
 	Idx       int              // 1-based day index (Day 1 = conf.StartDate)
 	Date      time.Time        // for the "Sat, Nov 15th" day header
-	Active    bool             // first rendered day; may not be Idx==1 for legacy imports
+	Active    bool             // current event day, otherwise first rendered day
 	Info      *types.ConfInfo  // doors / breakfast / lunch / coffee — nil ok
 	Morning   []*types.Session // before Lunch (or all-day if no Lunch info)
 	Afternoon []*types.Session // between Lunch and Coffee
@@ -82,16 +82,37 @@ func buildAgendaDays(ctx *config.AppContext, conf *types.Conf, talks []*types.Ta
 		}
 
 		ad := &AgendaDay{
-			Idx:    idx,
-			Date:   startDate.AddDate(0, 0, idx-1),
-			Active: len(out) == 0,
-			Info:   infosByDay[idx],
-			All:    sessions,
+			Idx:  idx,
+			Date: startDate.AddDate(0, 0, idx-1),
+			Info: infosByDay[idx],
+			All:  sessions,
 		}
 		bucketByBreaks(ad, sessions)
 		out = append(out, ad)
 	}
+	selectActiveAgendaDay(conf, out, time.Now())
 	return out
+}
+
+// Use the event's local calendar dates, including its entire final day: some
+// conferences store EndDate at midnight. Sparse historical agendas fall back
+// to the first available day when day 1 or today's schedule is absent.
+func selectActiveAgendaDay(conf *types.Conf, days []*AgendaDay, now time.Time) {
+	active := 0
+	if conf != nil && !conf.StartDate.IsZero() && !conf.EndDate.IsZero() {
+		today := dayStart(now, conf.Loc())
+		if !today.Before(dayStart(conf.StartDate, conf.Loc())) && today.Before(conf.FinalDayEndsAt()) {
+			for i, day := range days {
+				if dayStart(day.Date, conf.Loc()).Equal(today) {
+					active = i
+					break
+				}
+			}
+		}
+	}
+	for i, day := range days {
+		day.Active = i == active
+	}
 }
 
 // dayStart returns the midnight at the start of t in loc. We compare
@@ -106,8 +127,11 @@ func dayStart(t time.Time, loc *time.Location) time.Time {
 // dayIndex returns the 1-based day index of when within the conf:
 // Day 1 = conf start date, Day N = N-1 calendar days later.
 func dayIndex(confStart, when time.Time, loc *time.Location) int {
-	w := dayStart(when, loc)
-	return int(w.Sub(confStart).Hours()/24) + 1
+	start, day := confStart.In(loc), when.In(loc)
+	// Compare calendar dates without DST making a local day 23 or 25 hours.
+	s := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	w := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)
+	return int(w.Sub(s).Hours()/24) + 1
 }
 
 // sortTalksForAgenda orders talks by Sched.Start, then by venue rank
