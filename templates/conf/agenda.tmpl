@@ -54,7 +54,7 @@
 <div id="agenda-day-{{ .Idx }}" class="rebrand-schedule-panel w-tab-pane {{ if .Active }}w--tab-active{{ end }}" data-agenda-panel="{{ .Idx }}">
   {{ if and .Info .Info.Venues }}
   <div class="rebrand-schedule-scroll">
-    <div class="rebrand-schedule-grid" style="grid-template-columns: 76px repeat({{ len .Info.Venues }}, minmax(220px, 1fr)); min-width: calc(76px + {{ len .Info.Venues }} * 220px);">
+    <div class="rebrand-schedule-grid" style="--agenda-venue-count: {{ len .Info.Venues }};">
       <div class="rebrand-schedule-head rebrand-schedule-head--time">Time</div>
       {{ range .Info.Venues }}
       <div class="rebrand-schedule-head">{{ mapVenue . }}</div>

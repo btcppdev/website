@@ -4248,7 +4248,11 @@ body.btcpp-rebrand-page {
 }
 
 .rebrand-schedule-grid {
+  --agenda-time-width: 76px;
+  --agenda-venue-width: 220px;
   display: grid;
+  grid-template-columns: var(--agenda-time-width) repeat(var(--agenda-venue-count), minmax(var(--agenda-venue-width), 1fr));
+  min-width: calc(var(--agenda-time-width) + var(--agenda-venue-count) * var(--agenda-venue-width));
   align-items: stretch;
   border-bottom: 1px solid var(--rebrand-ink);
 }
@@ -7568,4 +7572,96 @@ body.btcpp-agenda-dialog-open {
   .organization-public-mark { width: min(180px, 55vw); }
   .organization-public-section-head { display: grid; align-items: start; }
   .organization-public-badge-grid { grid-template-columns: 1fr; }
+}
+
+/* Keep simultaneous sessions aligned, with compact previews on phones. */
+@media (max-width: 900px) {
+  .rebrand-schedule-grid {
+    --agenda-time-width: 40px;
+    --agenda-venue-width: 128px;
+  }
+
+  .rebrand-schedule-head {
+    padding: 12px 6px;
+    font-size: 10px;
+    letter-spacing: .3px;
+    overflow-wrap: anywhere;
+  }
+
+  .rebrand-schedule-hour {
+    right: 5px;
+    font-size: 10px;
+  }
+
+  .rebrand-schedule-card {
+    left: 3px;
+    right: 3px;
+    padding: 6px;
+  }
+
+  .rebrand-schedule-card__open {
+    grid-template-rows: 12px minmax(0, 1fr) 12px;
+    gap: 3px;
+  }
+
+  .rebrand-schedule-card__time {
+    color: var(--rebrand-ink);
+    font-size: 10px;
+    line-height: 12px;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rebrand-schedule-card strong {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    align-self: start;
+    max-height: 30px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    line-height: 15px;
+  }
+
+  .rebrand-schedule-card__speakers {
+    font-size: 11px;
+    line-height: 12px;
+  }
+
+  .rebrand-schedule-card__type,
+  .rebrand-schedule-card__watch {
+    display: none;
+  }
+
+  .rebrand-schedule-card:has(.rebrand-schedule-card__watch) .rebrand-schedule-card__open {
+    padding-bottom: 0;
+  }
+
+  .rebrand-schedule-tabs > .rebrand-agenda-tabs__menu {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .rebrand-schedule-tabs > .rebrand-agenda-tabs__menu > .rebrand-agenda-tab {
+    flex: 1 0 100px;
+    padding: 16px 12px;
+  }
+
+  .rebrand-schedule-tabs .rebrand-agenda-tab strong {
+    font-size: 18px;
+    line-height: 1.3;
+  }
+
+  .rebrand-agenda-browser__intro {
+    gap: 20px;
+    padding: 32px 20px;
+  }
+
+  .rebrand-agenda-browser__intro h1 {
+    font-size: clamp(30px, 7vw, 44px);
+    line-height: 1.1;
+  }
 }
