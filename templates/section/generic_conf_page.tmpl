@@ -454,8 +454,9 @@
         {{ if .Len }}<div><dt>Duration</dt><dd>{{ .Len }}</dd></div>{{ end }}
       </dl>
       {{ $showCal := and .Sched .AnchorTag (isFuture .Sched.Start) }}
-      {{ if or $showCal .RecordingID .SlidesURL .GithubRepoURL }}
+      {{ if or .AnchorTag $showCal .RecordingID .SlidesURL .GithubRepoURL }}
       <div class="btcpp-agenda-dialog__actions">
+        {{ if .AnchorTag }}<a class="btcpp-agenda-dialog__resource" href="/{{ .ConfTag }}#{{ .AnchorTag }}" data-agenda-share aria-live="polite">Copy link</a>{{ end }}
         {{ if $showCal }}
         {{ template "cal_picker" (dict
           "Title"    .Name
