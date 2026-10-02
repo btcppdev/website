@@ -518,6 +518,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__prize-callout {
+  container-type: inline-size;
   display: flex;
   min-width: 0;
   align-items: flex-start;
@@ -543,15 +544,16 @@ body.btcpp-rebrand-page {
   display: block;
   margin: 10px 0 4px;
   color: var(--rebrand-paper);
-  font-size: clamp(96px, 13vw, 190px);
+  font-size: min(190px, 30cqi);
   font-weight: 700;
   letter-spacing: -.08em;
   line-height: .82;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .btcpp-rebrand-page .conf-hackathon-redesign__prize-callout strong.is-coming-soon {
-  font-size: clamp(72px, 10vw, 142px);
+  font-size: min(142px, 30cqi);
   letter-spacing: -.06em;
 }
 
@@ -5248,7 +5250,7 @@ body.btcpp-rebrand-page {
 
   .btcpp-rebrand-page .conf-hackathon-redesign__prize-callout strong,
   .btcpp-rebrand-page .conf-hackathon-redesign__prize-callout strong.is-coming-soon {
-    font-size: clamp(64px, 24vw, 96px);
+    font-size: min(96px, 30cqi);
   }
 
   .rebrand-hero,

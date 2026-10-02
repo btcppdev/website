@@ -1,4 +1,40 @@
 (function () {
+  document.querySelectorAll(".conf-hackathon-redesign__prize-callout strong").forEach(function (amount) {
+    const callout = amount.parentElement;
+    let lastWidth = 0;
+
+    function fitPrizeAmount() {
+      const box = getComputedStyle(callout);
+      const available = callout.clientWidth - parseFloat(box.paddingLeft) - parseFloat(box.paddingRight);
+      if (available <= 0) return;
+      // Reset to the responsive CSS size before measuring, so growing the
+      // container (or shortening the amount) can enlarge the text again.
+      amount.style.fontSize = "";
+      const size = parseFloat(getComputedStyle(amount).fontSize);
+      const range = document.createRange();
+      range.selectNodeContents(amount);
+      const width = range.getBoundingClientRect().width;
+      if (width > available) {
+        amount.style.fontSize = (Math.floor(size * available / width * 10) / 10) + "px";
+      }
+    }
+
+    fitPrizeAmount();
+    if (window.ResizeObserver) {
+      new ResizeObserver(function (entries) {
+        const width = entries[0].contentRect.width;
+        if (width !== lastWidth) {
+          lastWidth = width;
+          fitPrizeAmount();
+        }
+      }).observe(callout);
+    } else {
+      window.addEventListener("resize", fitPrizeAmount);
+    }
+    new MutationObserver(fitPrizeAmount).observe(amount, { childList: true, characterData: true, subtree: true });
+    if (document.fonts) document.fonts.ready.then(fitPrizeAmount);
+  });
+
   const rebrandNav = document.querySelector(".rebrand-nav");
   const rebrandToggle = document.querySelector("[data-rebrand-menu-toggle]");
 
