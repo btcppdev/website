@@ -34,7 +34,7 @@ func TestAgendaTalkPermalinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = templates.New("agenda_link_preview").Parse(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/static/css/btcpp-redesign.css"><script defer src="/static/js/btcpp-redesign.js"></script></head><body class="btcpp-rebrand-page"><section id="agenda"><div class="tabs"><div role="tablist">{{range .}}<a href="#agenda-day-{{.Idx}}" data-agenda-tab="{{.Idx}}">Day {{.Idx}}</a>{{end}}</div>{{range .}}{{template "` + tc.dayTemplate + `" .}}{{end}}</div></section></body></html>`)
+		_, err = templates.New("agenda_link_preview").Parse(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/static/css/btcpp-redesign.css"><link rel="stylesheet" href="/static/css/cal-picker.css"><script defer src="/static/js/cal-picker.js"></script><script defer src="/static/js/btcpp-redesign.js"></script></head><body class="btcpp-rebrand-page"><section id="agenda"><div class="tabs"><div role="tablist">{{range .}}<a href="#agenda-day-{{.Idx}}" data-agenda-tab="{{.Idx}}">Day {{.Idx}}</a>{{end}}</div>{{range .}}{{template "` + tc.dayTemplate + `" .}}{{end}}</div></section></body></html>`)
 		if err != nil {
 			t.Fatal(err)
 		}

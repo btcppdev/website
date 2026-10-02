@@ -59,7 +59,8 @@
     var menus = document.querySelectorAll('.cal-picker-menu');
     for (var i = 0; i < menus.length; i++) {
       if (menus[i] !== except) {
-        menus[i].classList.add('hidden');
+        menus[i].hidden = true;
+        menus[i].parentElement.querySelector('[data-cal-trigger]').setAttribute('aria-expanded', 'false');
         menus[i].style.top = '';
         menus[i].style.right = '';
         menus[i].style.left = '';
@@ -74,9 +75,14 @@
   // in place if the user scrolls — close-on-scroll covers that.
   function positionMenu(trigger, menu) {
     var rect = trigger.getBoundingClientRect();
-    menu.style.top = (rect.bottom + 4) + 'px';
-    menu.style.right = (window.innerWidth - rect.right) + 'px';
-    menu.style.left = 'auto';
+    var width = menu.offsetWidth;
+    var height = menu.offsetHeight;
+    var left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+    var top = rect.bottom + 4;
+    if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 4);
+    menu.style.top = top + 'px';
+    menu.style.left = left + 'px';
+    menu.style.right = 'auto';
   }
 
   document.addEventListener('click', function (e) {
@@ -90,7 +96,7 @@
       var wrapper = trigger.parentElement;
       var menu = wrapper.querySelector('.cal-picker-menu');
       if (!menu) return;
-      var willOpen = menu.classList.contains('hidden');
+      var willOpen = menu.hidden;
       closeAllMenus(willOpen ? menu : null);
       if (willOpen) {
         var urls = buildURLs(trigger);
@@ -99,8 +105,9 @@
           var link = menu.querySelector('[data-cal-target="' + keys[i] + '"]');
           if (link) link.href = urls[keys[i]];
         }
+        menu.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
         positionMenu(trigger, menu);
-        menu.classList.remove('hidden');
       }
       return;
     }
@@ -117,6 +124,13 @@
 
   // ESC closes any open menu — keyboard accessibility.
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closeAllMenus(null);
-  });
+    if (e.key !== 'Escape') return;
+    var openMenu = document.querySelector('.cal-picker-menu:not([hidden])');
+    if (!openMenu) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var trigger = openMenu.parentElement.querySelector('[data-cal-trigger]');
+    closeAllMenus(null);
+    trigger.focus();
+  }, true);
 })();

@@ -1,0 +1,51 @@
+.cal-picker { position: relative; display: inline-block; }
+.cal-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: #0d9488;
+  color: #fff;
+  font: 500 12px/1.5 sans-serif;
+  cursor: pointer;
+}
+.cal-picker-trigger:hover { background: #0f766e; }
+.cal-picker-trigger--icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 2px 6px #0002;
+}
+.cal-picker-trigger--icon:hover { background: #f3f4f6; }
+.cal-picker-menu {
+  position: fixed;
+  z-index: 10000;
+  width: 192px;
+  max-width: calc(100vw - 16px);
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 20px #0003;
+  text-align: left;
+}
+.cal-picker-menu[hidden] { display: none; }
+.cal-picker-menu a {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 5px;
+  color: #374151;
+  font: 400 12px/1.5 sans-serif;
+  text-decoration: none;
+}
+.cal-picker-menu a:hover, .cal-picker-menu a:focus-visible { background: #f3f4f6; }
+.cal-picker-menu a[data-cal-target="ics"] { border-top: 1px solid #e5e7eb; }
+.cal-picker-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (max-width: 639px) {
+  .cal-picker-label--compact { display: none; }
+}

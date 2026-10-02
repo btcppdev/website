@@ -19,9 +19,11 @@
   current button uses today.
 */}}
 {{ define "cal_picker" }}
-<div class="relative inline-block cal-picker">
+<div class="cal-picker">
   <button type="button"
           data-cal-trigger
+          aria-expanded="false"
+          aria-label="Add to calendar"
           title="Add to calendar"
           data-cal-title="{{ .Title }}"
           data-cal-start="{{ .StartISO }}"
@@ -29,14 +31,10 @@
           data-cal-description="{{ .Description }}"
           data-cal-location="{{ .Location }}"
           data-cal-ics="{{ .ICSURL }}"
-          {{ if .IconOnly }}
-          class="inline-flex items-center justify-center size-7 rounded-full bg-white/90 text-gray-900 hover:bg-white shadow-md ring-1 ring-black/5">
-          {{ else }}
-          class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-teal-600 text-white hover:bg-teal-700">
-          {{ end }}
+          class="cal-picker-trigger{{ if .IconOnly }} cal-picker-trigger--icon{{ end }}">
     <span aria-hidden="true"{{ if .IconOnly }} class="text-sm leading-none"{{ end }}>&#128197;</span>
     {{ if not .IconOnly }}
-    <span{{ if .Compact }} class="hidden sm:inline"{{ end }}>Add to calendar</span>
+    <span{{ if .Compact }} class="cal-picker-label--compact"{{ end }}>Add to calendar</span>
     {{ end }}
   </button>
   {{/*
@@ -45,15 +43,11 @@
     clips the rounded corners). JS computes top/right from the
     trigger's bounding rect on open and clears them on close.
   */}}
-  <div class="cal-picker-menu hidden fixed w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 text-left">
-    <a href="#" data-cal-target="google" target="_blank" rel="noopener noreferrer"
-       class="block px-3 py-2 text-xs text-gray-700 hover:bg-gray-100 rounded-t-md">Google Calendar</a>
-    <a href="#" data-cal-target="outlook" target="_blank" rel="noopener noreferrer"
-       class="block px-3 py-2 text-xs text-gray-700 hover:bg-gray-100">Outlook.com</a>
-    <a href="#" data-cal-target="office365" target="_blank" rel="noopener noreferrer"
-       class="block px-3 py-2 text-xs text-gray-700 hover:bg-gray-100">Office 365</a>
-    <a href="#" data-cal-target="ics"
-       class="block px-3 py-2 text-xs text-gray-700 hover:bg-gray-100 rounded-b-md border-t border-gray-100">Apple / .ics download</a>
+  <div class="cal-picker-menu" hidden>
+    <a href="#" data-cal-target="google" target="_blank" rel="noopener noreferrer">Google Calendar</a>
+    <a href="#" data-cal-target="outlook" target="_blank" rel="noopener noreferrer">Outlook.com</a>
+    <a href="#" data-cal-target="office365" target="_blank" rel="noopener noreferrer">Office 365</a>
+    <a href="#" data-cal-target="ics">Apple / .ics download</a>
   </div>
 </div>
 {{ end }}

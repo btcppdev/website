@@ -3995,7 +3995,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-rebrand-page .btcpp-agenda-dialog.is-open .btcpp-agenda-dialog__panel {
-  transform: translateY(0) scale(1);
+  transform: none;
 }
 
 .btcpp-rebrand-page .btcpp-agenda-dialog__close {
@@ -5176,7 +5176,7 @@ body.btcpp-rebrand-page {
   }
 
   .btcpp-rebrand-page .btcpp-agenda-dialog.is-open .btcpp-agenda-dialog__panel {
-    transform: translateY(0);
+    transform: none;
   }
 
   .btcpp-rebrand-page .btcpp-agenda-dialog__body {
@@ -6850,7 +6850,7 @@ body.btcpp-rebrand-page {
 }
 
 .btcpp-event-page .btcpp-agenda-dialog.is-open .btcpp-agenda-dialog__panel {
-  transform: translateY(0) scale(1);
+  transform: none;
 }
 
 .btcpp-event-page .btcpp-agenda-dialog__close {
@@ -7190,7 +7190,7 @@ body.btcpp-agenda-dialog-open {
   }
 
   .btcpp-event-page .btcpp-agenda-dialog.is-open .btcpp-agenda-dialog__panel {
-    transform: translateY(0);
+    transform: none;
   }
 
   .btcpp-event-page .btcpp-agenda-dialog__body {
