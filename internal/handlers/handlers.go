@@ -1623,6 +1623,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 		r.URL.RawQuery = query.Encode()
 		AdminSponsorReport(w, r, app)
 	}).Methods("GET", "POST")
+	r.HandleFunc("/admin/antarctica/preview", func(w http.ResponseWriter, r *http.Request) {
+		AdminAntarcticaPreview(w, r, app)
+	}).Methods("GET")
 	r.HandleFunc("/admin/reports", func(w http.ResponseWriter, r *http.Request) {
 		AdminSponsorReport(w, r, app)
 	}).Methods("GET", "POST")
@@ -4769,6 +4772,11 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 				}
 			}
 		}
+	}
+
+	if conf.Tag == "antarctica" || conf.Tag == "antarctica27" {
+		renderAntarcticaConference(w, ctx, conf)
+		return
 	}
 
 	talks, err := getters.GetTalksFor(ctx, conf.Tag)
