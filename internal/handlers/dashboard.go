@@ -1248,10 +1248,32 @@ func buildEventBlocks(
 		return eb
 	}
 
+	// A person can have multiple speaker records for the same event. Combine
+	// their proposals for display without modifying the source records.
+	seenProposals := make(map[string]map[string]bool)
 	for _, sc := range speakerConfs {
-		conf := speakerConfConf(sc)
-		if eb := block(conf); eb != nil {
-			eb.SpeakerConf = sc
+		if sc == nil {
+			continue
+		}
+		for _, proposal := range sc.Proposals {
+			if proposal == nil || proposal.ScheduleFor == nil {
+				continue
+			}
+			eb := block(proposal.ScheduleFor)
+			if eb.SpeakerConf == nil {
+				copySC := *sc
+				copySC.Proposals = nil
+				eb.SpeakerConf = &copySC
+				eb.SpeakerConfIDs = make(map[string]bool)
+				seenProposals[eb.Conf.Tag] = make(map[string]bool)
+			}
+			eb.SpeakerConfIDs[sc.ID] = true
+			seen := seenProposals[eb.Conf.Tag]
+			if proposal.ID != "" && seen[proposal.ID] {
+				continue
+			}
+			seen[proposal.ID] = true
+			eb.SpeakerConf.Proposals = append(eb.SpeakerConf.Proposals, proposal)
 		}
 	}
 

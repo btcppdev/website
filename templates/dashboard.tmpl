@@ -386,7 +386,7 @@
                        alt="{{ .Speaker.Name }}"
                        class="dashboard-speaker-chip__avatar" />
                   <span>{{ .Speaker.Name }}</span>
-                  {{ if and $canEditSpeakers (and $multi (ne .ID $eb.SpeakerConf.ID)) }}
+                  {{ if and $canEditSpeakers (and $multi (not (index $eb.SpeakerConfIDs .ID))) }}
                   <form method="POST" action="/dashboard/talks/{{ $proposal.ID }}/speakers/{{ .ID }}/remove" class="inline-flex">
                     <button type="submit"
                             title="Remove {{ .Speaker.Name }} from this talk"

@@ -955,6 +955,7 @@ type ScheduleProposal struct {
 type EventBlock struct {
 	Conf            *types.Conf
 	SpeakerConf     *types.SpeakerConf // nil = not a speaker at this conf
+	SpeakerConfIDs  map[string]bool    // all of this person's speaker records for the event
 	VolApp          *types.Volunteer   // nil = not a volunteer at this conf
 	VolInfo         *types.VolInfo     // orientation info (when VolApp != nil)
 	Tickets         []*types.Registration
