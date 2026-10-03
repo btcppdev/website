@@ -12205,6 +12205,27 @@ display: grid;
 	color: #333;
 	font-size: 19px;
 	line-height: 1.6;
+	overflow-wrap: anywhere;
+}
+
+.hack-project-file__body > article,
+.hack-project-file__body > aside {
+	min-width: 0;
+}
+
+.hack-project-file__copy pre {
+	white-space: pre-wrap;
+}
+
+.hack-project-file__copy img {
+	max-width: 100%;
+	height: auto;
+}
+
+.hack-project-file__copy table {
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
 }
 
 .hack-project-file__copy > :first-child {
