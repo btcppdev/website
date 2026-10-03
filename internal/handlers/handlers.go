@@ -1565,6 +1565,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminDashboard(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/reports/preview", func(w http.ResponseWriter, r *http.Request) {
+		AdminSponsorReportPreview(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/{conf}/admin/report", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		query.Set("event", mux.Vars(r)["conf"])
+		r.URL.RawQuery = query.Encode()
+		AdminSponsorReport(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/admin/reports", func(w http.ResponseWriter, r *http.Request) {
 		AdminSponsorReport(w, r, app)
 	}).Methods("GET", "POST")

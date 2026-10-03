@@ -8,7 +8,14 @@
     "Timezone": "Africa/Nairobi",
     "Start": "2026-06-17T09:00:00+03:00",
     "End": "2026-06-19T18:00:00+03:00",
-    "Period": "17–19 June 2026"
+    "Period": "17–19 June 2026",
+    "LeadImage": "/static/img/nairobi/leading.avif",
+    "VenueImages": [
+      "/static/img/nairobi/one.jpg",
+      "/static/img/nairobi/two.jpg",
+      "/static/img/nairobi/three.jpg",
+      "/static/img/nairobi/four.jpg"
+    ]
   },
   "Generated": "16 September 2026 · public-source draft; private metrics not loaded",
   "Message": "Nairobi draft from public program and results. Attendance, payout, delivery, and popularity figures await verification.",

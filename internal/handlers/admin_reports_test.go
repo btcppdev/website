@@ -24,6 +24,11 @@ func TestReportAnonymousDenied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	w := httptest.NewRecorder()
+	AdminSponsorReportPreview(w, httptest.NewRequest("POST", "/admin/reports/preview", nil).WithContext(ctx), &config.AppContext{Session: session})
+	if w.Code != 303 {
+		t.Fatalf("anonymous preview: %d", w.Code)
+	}
 	for _, method := range []string{"GET", "POST"} {
 		w := httptest.NewRecorder()
 		AdminSponsorReport(w, httptest.NewRequest(method, "/admin/reports", nil).WithContext(ctx), &config.AppContext{Session: session})
@@ -208,6 +213,9 @@ func TestReportMetricsPostgres(t *testing.T) {
 	page := sponsorReportPage{Event: reportEvent{ID: "event", Tag: "nairobi", Timezone: "Africa/Nairobi"}}
 	if err = loadEventReport(ctx, &config.AppContext{DB: db}, &page); err != nil {
 		t.Fatal(err)
+	}
+	if len(page.TeamSizes) != 6 || page.TeamSizes[1].Value != 1 || page.TeamSizes[2].Value != 1 || page.TeamSizes[0].Value != 0 {
+		t.Fatal("team-size distribution lost project membership or included drafts")
 	}
 	if page.Attendees != 2 || page.Registrations != 4 || page.Teams != 2 || page.Participants != 2 || page.Challenges != 1 || page.Sats != 300 || page.Volunteers != 1 || page.Proposals != 2 {
 		t.Fatalf("bad metrics: %+v", page)

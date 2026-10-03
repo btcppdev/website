@@ -18,6 +18,8 @@ import (
 
 type reportSection struct{ Key, Title, Text string }
 type reportEvent struct {
+	LeadImage                                            string
+	VenueImages                                          []string
 	ID, Tag, Title, Location, Period, Timezone, DateDesc string
 	Start, End                                           *time.Time
 }
@@ -41,7 +43,7 @@ type reportDay struct {
 }
 type reportMetric struct{ Label, Value, Note string }
 type sponsorReportPage struct {
-	Preview, ProgramReviewed                                                               bool
+	Preview, ProgramReviewed, Synthetic                                                    bool
 	Event                                                                                  reportEvent
 	Options                                                                                []reportEvent
 	Scope, CSRF, Generated, Message                                                        string
@@ -51,6 +53,7 @@ type sponsorReportPage struct {
 	Sessions, Popular, Panels                                                              []reportSession
 	Winners                                                                                []reportWinner
 	Days                                                                                   []reportDay
+	TeamSizes                                                                              []reportBar
 	Metrics                                                                                []reportMetric
 	Saved                                                                                  map[string]string
 	Registrations, Attendees, Teams, Participants, Challenges, Sats, Volunteers, Proposals int64
@@ -73,10 +76,11 @@ func eventReportSections(event reportEvent) []reportSection {
 		{"closing", "What this gathering made possible", "[Close with an event-specific win, a lesson, and the next step for participants or projects. Recognize local collaborators and volunteers.]"},
 	}
 	if strings.Contains(strings.ToLower(event.Location+" "+event.Tag), "nairobi") {
-		sections[1].Text = "Nairobi’s Open Source Edition put contributing in public at the center of the program. The editorial speaker selection below offers a starting point for the recap; it is not a ranking by audience size.\n\nProgram source: https://btcpp.dev/nairobi"
+		sections[1].Text = "Nairobi’s Open Source Edition put contributing in public at the center of the program. The selected speakers connect Bitcoin protocol development, developer education, and tools for using bitcoin in everyday life. Together, these themes offer sponsors a view of the different kinds of work that sustain the ecosystem.\n\nSpeaker highlights are editorial selections from the published program."
 		sections[2].Text = "The selected panels frame questions about building open-source organizations, sustaining Bitcoin development, and growing developer communities. Add the strongest takeaways after reviewing the discussions.\n\nProgram source: https://btcpp.dev/nairobi"
-		sections[3].Text = "Nairobi’s three overall winners took the open-source brief in different directions. Follow their project links to explore the work and its next steps.\n\nResults source: https://btcpp.dev/nairobi/hackathon"
+		sections[3].Text = "Nairobi’s three overall winners explored cross-border payments, a first step into open-source contribution, and permissionless ridesharing. These prototypes show the range of problems builders brought to the event; their longer-term impact will depend on continued development and use.\n\nResults source: https://btcpp.dev/nairobi/hackathon"
 		sections[4].Text = "The public hackathon page lists the judges pictured below. Their names and affiliations are reproduced from the event’s profiles; individual contributions and approved quotes can be added in the editor.\n\nJudge roster: https://btcpp.dev/nairobi/hackathon"
+		sections[5].Text = "Nairobi brought the open-source conversation to Africa, with a program spanning protocol work, contributor communities, and practical applications. The winning projects give sponsors concrete work to explore beyond the event.\n\nOur proposed follow-up: ask teams what they shipped next, identify where contributors need mentorship, and make recordings and workshop materials easier to find. These are priorities for the next chapter, not outcomes we have measured yet.\n\nThank you to our speakers, judges, volunteers, and partners for helping make this gathering possible."
 	}
 	return sections
 }
@@ -205,7 +209,7 @@ func serveSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppC
 			}
 			return
 		}
-		http.Redirect(w, r, "/admin/reports?event="+url.QueryEscape(event)+"&saved=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/"+url.PathEscape(event)+"/admin/report?saved=1", http.StatusSeeOther)
 		return
 	}
 	hydrateEventReport(&page)
@@ -384,6 +388,12 @@ func eventReportForm(form url.Values, page *sponsorReportPage, now time.Time) (m
 	return saved, nil
 }
 func hydrateEventReport(page *sponsorReportPage) {
+	if page.Event.LeadImage == "" {
+		page.Event.LeadImage = confImagePath(page.Event.Tag, "leading")
+	}
+	if len(page.Event.VenueImages) == 0 {
+		page.Event.VenueImages = confVenueImages(page.Event.Tag)
+	}
 	for i := range page.Sections {
 		if value, ok := page.Saved[page.Sections[i].Key]; ok {
 			page.Sections[i].Text = value
@@ -460,6 +470,11 @@ func hydrateEventReport(page *sponsorReportPage) {
 		{"Submitted project teams", display(page.Teams), "One team entry per submitted/advanced project."},
 		{"Hackathon participants", display(page.Participants), "Unique members of submitted/advanced projects."},
 		{"Sponsor challenges", display(page.Challenges), "Published sponsor-backed challenges."},
-		{"Sats distributed", display(page.Sats), "Sats distributions recorded as sent or claimed."},
+		{"Sats distributed", func() string {
+			if page.Preview {
+				return "—"
+			}
+			return compactReportSats(page.Sats)
+		}(), "Sats distributions recorded as sent or claimed."},
 	}
 }

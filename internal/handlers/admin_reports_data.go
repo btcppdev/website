@@ -18,6 +18,14 @@ const eventReportMetricsSQL = `SELECT
  (SELECT count(DISTINCT coalesce(v.person_id::text,v.id::text)) FROM work_shifts_volunteers wv JOIN work_shifts w ON w.id=wv.shift_id JOIN volunteers v ON v.id=wv.volunteer_id WHERE w.conference_id=$1),
  (SELECT count(*) FROM proposals WHERE conference_id=$1 AND lower(talk_type) IN ('talk','keynote','workshop','panel'))`
 
+// One row per project, counting distinct members before grouping into size buckets.
+const eventReportTeamSizesSQL = `WITH sizes AS (
+ SELECT p.id,count(DISTINCT m.person_id) AS members
+ FROM projects p JOIN competitions k ON k.id=p.competition_id
+ LEFT JOIN project_members m ON m.project_id=p.id
+ WHERE k.conference_id=$1 AND p.status IN ('submitted','advanced') GROUP BY p.id
+) SELECT least(members,5),count(*) FROM sizes GROUP BY least(members,5) ORDER BY 1`
+
 const eventReportSessionsSQL = `SELECT t.id::text,p.title,lower(p.talk_type),t.scheduled_start,t.scheduled_end,
  coalesce((SELECT string_agg(DISTINCT person.name,', ' ORDER BY person.name) FROM proposals_speaker_confs ps JOIN speaker_confs sc ON sc.id=ps.speaker_conf_id JOIN people person ON person.id=sc.speaker_id WHERE ps.proposal_id=p.id),''),coalesce(r.youtube_url,''),coalesce(r.x_url,'')
  FROM conf_talks t JOIN proposals p ON p.id=t.proposal_id LEFT JOIN recordings r ON r.conf_talk_id=t.id
@@ -46,7 +54,26 @@ func loadEventReport(ctx context.Context, app *config.AppContext, page *sponsorR
 	if err = tx.QueryRow(ctx, eventReportMetricsSQL, page.Event.ID).Scan(&page.Registrations, &page.Attendees, &page.Teams, &page.Participants, &page.Challenges, &page.Sats, &page.Volunteers, &page.Proposals); err != nil {
 		return err
 	}
-	rows, err := tx.Query(ctx, eventReportSessionsSQL, page.Event.ID)
+	rows, err := tx.Query(ctx, eventReportTeamSizesSQL, page.Event.ID)
+	if err != nil {
+		return err
+	}
+	page.TeamSizes = []reportBar{{Label: "No members"}, {Label: "1"}, {Label: "2"}, {Label: "3"}, {Label: "4"}, {Label: "5+"}}
+	for rows.Next() {
+		var bucket int
+		var count int64
+		if err = rows.Scan(&bucket, &count); err != nil {
+			rows.Close()
+			return err
+		}
+		page.TeamSizes[bucket].Value = count
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	rows, err = tx.Query(ctx, eventReportSessionsSQL, page.Event.ID)
 	if err != nil {
 		return err
 	}
