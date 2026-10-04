@@ -113,6 +113,13 @@
               {{ end }}
             </div>
           </div>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+          <button type="button" data-personal-invite-person="{{ .Speaker.ID }}"
+                  data-personal-invite-url="/{{ $.Conf.Tag }}/admin/proposal/{{ $.Proposal.ID }}/edit"
+                  data-personal-invite-csrf="{{ $.ResourcesCSRF }}"
+                  class="inline-flex items-center rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-indigo-700">
+            Copy personal invite link
+          </button>
           <form method="POST"
                 action="/{{ $.Conf.Tag }}/admin/proposal/{{ $.Proposal.ID }}/speakers/{{ .ID }}/remove?return=/{{ $.Conf.Tag }}/admin/proposal/{{ $.Proposal.ID }}/edit"
                 class="shrink-0">
@@ -122,6 +129,7 @@
               Remove
             </button>
           </form>
+          </div>
           </div>
           {{ template "admin_speakerconf_details" (dict "Conf" $.Conf "SpeakerConf" .) }}
         </li>
@@ -319,6 +327,38 @@
         if (!picker.contains(e.target)) results.classList.add('hidden');
       });
     })();
+
+    document.querySelectorAll('[data-personal-invite-person]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var label = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Preparing link…';
+        try {
+          var response = await fetch(btn.dataset.personalInviteUrl, {
+            method: 'POST', credentials: 'same-origin',
+            body: new URLSearchParams({ Action: 'personal-invite', PersonID: btn.dataset.personalInvitePerson, csrf: btn.dataset.personalInviteCsrf })
+          });
+          if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) {
+            throw new Error('Unable to create the invitation. Refresh the page and try again.');
+          }
+          var result = await response.json();
+          if (!result.url) throw new Error('No invitation link was returned.');
+          try {
+            await navigator.clipboard.writeText(result.url);
+            btn.textContent = 'Copied!';
+          } catch (_) {
+            window.prompt('Copy this personal invitation link:', result.url);
+            btn.textContent = label;
+          }
+        } catch (error) {
+          window.alert(error.message);
+          btn.textContent = label;
+        } finally {
+          btn.disabled = false;
+          setTimeout(function () { btn.textContent = label; }, 1500);
+        }
+      });
+    });
 
     // Copy invite link to clipboard. Mirrors the dashboard's
     // affiliate-share button click handler, scoped to this page

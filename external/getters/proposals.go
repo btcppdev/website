@@ -466,6 +466,19 @@ func UpdateProposalStatus(ctx *config.AppContext, proposalID, status string) err
 	return nil
 }
 
+// EnsureProposalInviteToken preserves existing links, including concurrent requests.
+func EnsureProposalInviteToken(ctx *config.AppContext, proposalID, candidate string) (string, error) {
+	if ctx == nil || ctx.DB == nil || candidate == "" {
+		return "", fmt.Errorf("database and invite token are required")
+	}
+	var token string
+	err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
+		UPDATE proposals SET invite_token = COALESCE(NULLIF(invite_token, ''), $2)
+		WHERE id = $1 RETURNING invite_token
+	`, proposalID, candidate).Scan(&token)
+	return token, err
+}
+
 func SetProposalInviteToken(ctx *config.AppContext, proposalID, token string) error {
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")

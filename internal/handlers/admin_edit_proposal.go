@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -111,6 +112,29 @@ func AdminEditProposal(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		limitRequestBody(w, r, maxFormBodyBytes)
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		if r.PostForm.Get("Action") == "personal-invite" {
+			if !secureTokenEqual(resourcesCSRF, r.PostForm.Get("csrf")) {
+				http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+				return
+			}
+			personID := r.PostForm.Get("PersonID")
+			_, err := findSpeakerInviteRecipient(proposal.SpeakerConfRefs, personID, func(ref string) (*types.SpeakerConf, error) {
+				return getters.GetSpeakerConfByID(ctx, ref)
+			})
+			if err != nil {
+				http.Error(w, "Unable to verify attached speaker", http.StatusBadRequest)
+				return
+			}
+			token, err := getters.EnsureProposalInviteToken(ctx, proposal.ID, helpers.MintInviteToken())
+			if err != nil {
+				http.Error(w, "Unable to create invitation link", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Cache-Control", "no-store")
+			_ = json.NewEncoder(w).Encode(map[string]string{"url": helpers.SpeakerInviteLink(ctx, proposal.ID, token, personID)})
 			return
 		}
 		desiredDur, _ := strconv.Atoi(r.PostForm.Get("DesiredDuration"))

@@ -24,8 +24,8 @@ func TestAdminProposalSpeakerDetails(t *testing.T) {
 	conf := &types.Conf{Tag: "preview26", Desc: "Proposal preview", StartDate: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)}
 	proposal := &types.Proposal{ID: "proposal-one", Title: "Payment security panel", Status: "Waitlisted", TalkType: "panel"}
 	speakers := []*types.SpeakerConf{
-		{ID: "speaker-one", Speaker: &types.Speaker{Name: "First panelist", Email: "first@example.test"}, Availability: []string{"10/01/2026"}, ComingFrom: "Berlin", Company: "First company", RecordOK: "NoRecord", Visa: "No"},
-		{ID: "speaker-two", Speaker: &types.Speaker{Name: "Second panelist", Email: "second@example.test"}, Availability: []string{"10/02/2026", "10/03/2026"}, ComingFrom: "Paris", Company: "Second <company>", RecordOK: "AudioOnly", Visa: "IDK", DinnerRSVP: true, Sponsor: true},
+		{ID: "speaker-one", Speaker: &types.Speaker{ID: "person-one", Name: "First panelist", Email: "first@example.test"}, Availability: []string{"10/01/2026"}, ComingFrom: "Berlin", Company: "First company", RecordOK: "NoRecord", Visa: "No"},
+		{ID: "speaker-two", Speaker: &types.Speaker{ID: "person-two", Name: "Second panelist", Email: "second@example.test"}, Availability: []string{"10/02/2026", "10/03/2026"}, ComingFrom: "Paris", Company: "Second <company>", RecordOK: "AudioOnly", Visa: "IDK", DinnerRSVP: true, Sponsor: true},
 	}
 	edit := &AdminEditProposalPage{Conf: conf, Proposal: proposal, Speakers: speakers, TalkTypes: adminTalkTypes("panel"), Durations: adminTalkDurations, ReturnURL: "/preview26/admin/applicants"}
 	review := &ReviewProposalPage{Conf: conf, Current: proposal, Speakers: speakers}
@@ -33,6 +33,13 @@ func TestAdminProposalSpeakerDetails(t *testing.T) {
 		var b bytes.Buffer
 		if err := app.TemplateCache.ExecuteTemplate(&b, name, page); err != nil {
 			t.Fatal(err)
+		}
+		if name == "admin/edit_proposal.tmpl" {
+			for _, want := range []string{`data-personal-invite-person="person-one"`, `data-personal-invite-person="person-two"`, `data-personal-invite-url="/preview26/admin/proposal/proposal-one/edit"`, "Copy personal invite link"} {
+				if !strings.Contains(b.String(), want) {
+					t.Errorf("personal invitation control missing %q", want)
+				}
+			}
 		}
 		for _, want := range []string{"First panelist", "Second panelist", "Thu. Oct 1, 2026", "Fri. Oct 2, 2026", "Sat. Oct 3, 2026", "Do not record", "Audio only", "Second &lt;company&gt;", "speakerconfs/speaker-one/edit", "speakerconfs/speaker-two/edit"} {
 			if !strings.Contains(b.String(), want) {
