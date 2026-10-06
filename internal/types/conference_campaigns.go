@@ -71,6 +71,41 @@ type ConferenceEmailOccurrence struct {
 	LastError     string
 }
 
+// ConferenceAudienceList names the event-specific subscription scope.
+// Campaign delivery still resolves recipients from conference registrations and roles.
+func ConferenceAudienceList(tag, audience string) string {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return ""
+	}
+	var role string
+	switch audience {
+	case "speakers":
+		role = "speaker"
+	case "attendees":
+		role = "genpop"
+	case "volunteers":
+		role = "volunteer"
+	default:
+		return ""
+	}
+	return tag + "-" + role
+}
+
+func (c *ConferenceEmailCampaign) AudienceList(tag string) string {
+	if c == nil {
+		return ""
+	}
+	return ConferenceAudienceList(tag, c.Audience)
+}
+
+func (o *ConferenceEmailOccurrence) AudienceList() string {
+	if o == nil {
+		return ""
+	}
+	return ConferenceAudienceList(o.ConferenceTag, o.Audience)
+}
+
 type ConferenceEmailDelivery struct {
 	ID           string
 	OccurrenceID string

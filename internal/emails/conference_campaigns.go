@@ -38,9 +38,9 @@ func SendConferenceCampaignDraftReview(ctx *config.AppContext, conf *types.Conf,
 	link := fmt.Sprintf("%s/%s/admin/missives/occurrences/%s", ctx.Env.GetURI(), conf.Tag, occurrence.ID)
 	sendLabel := occurrence.SendAt.In(conf.Loc()).Format("Monday, January 2 at 3:04 PM MST")
 	textBody := fmt.Sprintf("A draft for %s is ready for review.\n\nScheduled send: %s\nAudience: %s\n\nView or edit: %s\n",
-		conf.Desc, sendLabel, occurrence.Audience, link)
+		conf.Desc, sendLabel, occurrence.AudienceList(), link)
 	htmlBody := fmt.Sprintf(`<p>A draft for <strong>%s</strong> is ready for review.</p><p>Scheduled send: %s<br>Audience: %s</p><p><a href="%s">View or edit MISS-%d</a></p>`,
-		html.EscapeString(conf.Desc), html.EscapeString(sendLabel), html.EscapeString(occurrence.Audience), html.EscapeString(link), letter.UID)
+		html.EscapeString(conf.Desc), html.EscapeString(sendLabel), html.EscapeString(occurrence.AudienceList()), html.EscapeString(link), letter.UID)
 	return ComposeAndSendMail(ctx, &Mail{
 		JobKey:  "conference-email-review-" + occurrence.ID,
 		Missive: letter.Missive(), Email: "inbox@btcpp.dev",

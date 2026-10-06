@@ -238,10 +238,10 @@
               <input type="date" name="Expiry" value="{{ .Form.Expiry }}" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
             </label>{{ else if .IsCampaign }}
             {{ if .Campaign }}<label class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700"><input type="checkbox" name="enabled" value="1" {{ if .CampaignEnabled }}checked{{ end }} class="rounded border-gray-300 text-indigo-600"> Campaign enabled</label>
-            <p class="text-xs text-gray-500">Audience: {{ .Campaign.Audience }} · {{ .Campaign.Kind }} · sends at {{ .Campaign.SendTime }} local</p>{{ else }}
+            <p class="text-xs text-gray-500">Audience: {{ .Campaign.AudienceList .Conf.Tag }} · {{ .Campaign.Kind }} · sends at {{ .Campaign.SendTime }} local</p>{{ else }}
             <p class="text-xs text-gray-500">Global source template. Existing event-specific copies remain unchanged when this is saved.</p>{{ end }}
             {{ else }}
-            <p class="text-xs text-gray-500">Audience: {{ .Occurrence.Audience }} · {{ .Occurrence.CampaignKind }} · sends {{ .Occurrence.SendLabel }}</p>
+            <p class="text-xs text-gray-500">Audience: {{ .Occurrence.AudienceList }} · {{ .Occurrence.CampaignKind }} · sends {{ .Occurrence.SendLabel }}</p>
             {{ end }}
           </section>
 

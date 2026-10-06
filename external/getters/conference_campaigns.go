@@ -284,6 +284,10 @@ func CreateConferenceOccurrenceDraft(ctx *config.AppContext, occurrence *types.C
 	if occurrence == nil {
 		return nil, fmt.Errorf("conference email occurrence is required")
 	}
+	audienceList := occurrence.AudienceList()
+	if audienceList == "" {
+		return nil, fmt.Errorf("conference email draft requires a valid event and audience")
+	}
 	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
 	if err != nil {
 		return nil, fmt.Errorf("begin conference email draft: %w", err)
@@ -299,7 +303,7 @@ func CreateConferenceOccurrenceDraft(ctx *config.AppContext, occurrence *types.C
 		RETURNING id::text, public_uid, title, newsletters, only_for, markdown,
 			send_at_expr, sent_at, expiry
 	`, strings.TrimSpace(title), markdown, occurrence.SendAt.Format(time.RFC3339),
-		occurrence.ConferenceTag, mtypes.OnlyForTemplated, expiry, dedupeKey, occurrence.ConferenceID)
+		audienceList, mtypes.OnlyForTemplated, expiry, dedupeKey, occurrence.ConferenceID)
 	letter, err := scanLetterPostgres(row)
 	if err != nil {
 		return nil, fmt.Errorf("insert conference email draft: %w", err)
@@ -754,12 +758,13 @@ func ListConferenceEmailOccurrences(ctx *config.AppContext, confID string) ([]*t
 	}
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
 		SELECT o.id::text, o.campaign_id::text, c.kind, c.title, c.audience,
-			c.conference_id::text, o.occurrence_key, o.build_at, o.send_at,
+			c.conference_id::text, conf.tag, o.occurrence_key, o.build_at, o.send_at,
 			coalesce(o.missive_id::text, ''), coalesce(m.public_uid, 0),
 			o.target_key, coalesce(o.target_email::text, ''), o.status, c.enabled,
 			o.built_at, o.queued_at, o.sent_at, o.skipped_at, o.last_error
 		FROM conference_email_occurrences o
 		JOIN conference_email_campaigns c ON c.id = o.campaign_id
+		JOIN conferences conf ON conf.id = c.conference_id
 		LEFT JOIN missives m ON m.id = o.missive_id
 		WHERE c.conference_id = $1::uuid
 		ORDER BY o.send_at, c.kind, o.target_email
@@ -774,7 +779,7 @@ func ListConferenceEmailOccurrences(ctx *config.AppContext, confID string) ([]*t
 		var builtAt, queuedAt, sentAt, skippedAt pgtype.Timestamptz
 		if err := rows.Scan(&occurrence.ID, &occurrence.CampaignID, &occurrence.CampaignKind,
 			&occurrence.CampaignTitle, &occurrence.Audience, &occurrence.ConferenceID,
-			&occurrence.OccurrenceKey, &occurrence.BuildAt, &occurrence.SendAt,
+			&occurrence.ConferenceTag, &occurrence.OccurrenceKey, &occurrence.BuildAt, &occurrence.SendAt,
 			&occurrence.MissiveID, &occurrence.MissiveUID, &occurrence.TargetKey,
 			&occurrence.TargetEmail, &occurrence.Status, &occurrence.Enabled,
 			&builtAt, &queuedAt, &sentAt, &skippedAt, &occurrence.LastError); err != nil {

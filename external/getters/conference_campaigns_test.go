@@ -3,6 +3,7 @@ package getters
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -161,6 +162,41 @@ func TestConferenceCampaignPersistenceIsIdempotent(t *testing.T) {
 	draft, err := CreateConferenceOccurrenceDraft(ctx, buildTarget, "Generated test", "Generated body", &end)
 	if err != nil {
 		t.Fatalf("CreateConferenceOccurrenceDraft: %v", err)
+	}
+	if len(draft.Newsletters) != 1 || draft.Newsletters[0] != buildTarget.AudienceList() {
+		t.Fatalf("draft audience = %v, want only %s", draft.Newsletters, buildTarget.AudienceList())
+	}
+	// Exercise the repair in a rolled-back transaction, including sent-mail preservation.
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx.DatabaseContext())
+	migration, err := os.ReadFile("../../db/migrations/116_conference_missive_audiences.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sent := range []bool{false, true} {
+		if _, err := tx.Exec(ctx.DatabaseContext(), `UPDATE missives SET newsletters = ARRAY['speakers'], sent_at = CASE WHEN $2 THEN now() ELSE NULL END WHERE id = $1::uuid`, draft.PageID, sent); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx.DatabaseContext(), string(migration)); err != nil {
+			t.Fatal(err)
+		}
+		var lists []string
+		if err := tx.QueryRow(ctx.DatabaseContext(), `SELECT newsletters FROM missives WHERE id = $1::uuid`, draft.PageID).Scan(&lists); err != nil {
+			t.Fatal(err)
+		}
+		want := buildTarget.AudienceList()
+		if sent {
+			want = "speakers"
+		}
+		if len(lists) != 1 || lists[0] != want {
+			t.Fatalf("repair sent=%v: %v, want %s", sent, lists, want)
+		}
+	}
+	if err := tx.Rollback(ctx.DatabaseContext()); err != nil {
+		t.Fatal(err)
 	}
 	standardLetters, err := GetLetters(ctx, conf.Tag)
 	if err != nil {
