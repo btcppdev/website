@@ -471,7 +471,7 @@ type OnlyForTicket struct {
 // emitting test ticket emails wants images sourced from
 // https://btcpp.dev so they actually render in the recipient's
 // inbox. Pass "" to use ctx.Env.GetURI() (the normal cron path).
-func SendOnlyForTicket(ctx *config.AppContext, conf *types.Conf, email string, pdf []byte, ticketID, uriOverride string) error {
+func SendOnlyForTicket(ctx *config.AppContext, conf *types.Conf, email string, pdf []byte, ticketID, uriOverride string, locales ...string) error {
 	if conf == nil {
 		return fmt.Errorf("SendOnlyForTicket: nil conf")
 	}
@@ -511,6 +511,17 @@ func SendOnlyForTicket(ctx *config.AppContext, conf *types.Conf, email string, p
 	if title == "" {
 		title = fmt.Sprintf("[%s] Your Conference Pass is Here!", conf.Desc)
 	}
+
+	language := "en"
+	if len(locales) == 1 {
+		language = types.RegistrationLocale(locales[0])
+	}
+	bilingual, err := registrationEmailBody(language, "ticket", conf, data.DashboardLink, uri, confCopy.DoorsOpen, buf.Bytes())
+	if err != nil {
+		return err
+	}
+	buf.Reset()
+	buf.Write(bilingual)
 
 	htmlBody, err := BuildHTMLEmail(ctx, buf.Bytes())
 	if err != nil {

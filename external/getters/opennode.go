@@ -24,6 +24,7 @@ func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uin
 	}
 
 	metadata := &types.OpenNodeMetadata{
+		Locale:      types.RegistrationLocale(locale),
 		Email:       email,
 		Quantity:    float64(count),
 		ConfRef:     conf.Ref,

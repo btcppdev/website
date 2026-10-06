@@ -147,7 +147,7 @@ func SendMail(ctx *config.AppContext, rez *types.Registration) error {
 	if conf == nil {
 		return fmt.Errorf("SendMail: no conf for ref %s", rez.ConfRef)
 	}
-	return SendOnlyForTicket(ctx, conf, rez.Email, pdf, rez.RefID, "")
+	return SendOnlyForTicket(ctx, conf, rez.Email, pdf, rez.RefID, "", rez.Locale)
 }
 
 func TicketCheck(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {

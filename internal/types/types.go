@@ -640,6 +640,7 @@ type (
 	}
 
 	Registration struct {
+		Locale       string
 		RefID        string
 		CheckoutID   string
 		ConfRef      string
@@ -685,6 +686,7 @@ type (
 	}
 
 	Entry struct {
+		Locale      string
 		ID          string
 		ConfRef     string
 		Total       int64

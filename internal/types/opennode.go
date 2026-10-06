@@ -29,6 +29,7 @@ type (
 	}
 
 	OpenNodeMetadata struct {
+		Locale      string  `json:"locale,omitempty"`
 		Email       string  `json:"email"`
 		Quantity    float64 `json:"quantity"`
 		ConfRef     string  `json:"conf-ref"`

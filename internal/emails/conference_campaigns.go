@@ -13,6 +13,7 @@ import (
 )
 
 type ConferenceCampaignData struct {
+	Locale                 string
 	Conf                   *types.Conf
 	CampaignTitle          string
 	Email                  string
@@ -58,6 +59,12 @@ func SendConferenceCampaign(ctx *config.AppContext, letter *mtypes.Letter, data 
 	if err := executeMissiveTemplate(ctx, letter, &body, data); err != nil {
 		return fmt.Errorf("render conference campaign %s: %w", letter.Missive(), err)
 	}
+	bilingual, err := registrationEmailBody(data.Locale, "reminder", data.Conf, data.DashboardLink, data.URI, data.DoorsOpen, body.Bytes())
+	if err != nil {
+		return err
+	}
+	body.Reset()
+	body.Write(bilingual)
 	htmlBody, _, err := BuildTemplatedNewsletterEmailAt(ctx, letter.ImgRef(), body.Bytes(), "", data.SendAt)
 	if err != nil {
 		return fmt.Errorf("build conference campaign html: %w", err)
@@ -77,6 +84,12 @@ func RenderConferenceCampaignPreview(ctx *config.AppContext, letter *mtypes.Lett
 	if err := executeMissiveTemplate(ctx, letter, &body, data); err != nil {
 		return nil, fmt.Errorf("render conference campaign preview: %w", err)
 	}
+	bilingual, err := registrationEmailBody(data.Locale, "reminder", data.Conf, data.DashboardLink, data.URI, data.DoorsOpen, body.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	body.Reset()
+	body.Write(bilingual)
 	htmlBody, _, err := BuildTemplatedNewsletterEmailAt(ctx, letter.ImgRef(), body.Bytes(), "", data.SendAt)
 	return htmlBody, err
 }

@@ -319,7 +319,7 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 	sql := `
 		SELECT r.ref_id, r.checkout_id, coalesce(r.conference_id::text, ''), r.type,
 			r.email::text, r.item_bought, coalesce(r.amount_paid, 0),
-			r.currency, r.platform, r.registered_at, r.revoked, r.checked_in_at
+			r.currency, r.platform, r.registered_at, r.revoked, r.checked_in_at, r.locale
 		FROM registrations r
 	`
 	args := []any{}
@@ -372,6 +372,7 @@ func queryRegistrationsPostgres(ctx *config.AppContext, filter string, value str
 			&registeredAt,
 			&registration.Revoked,
 			&checkedInAt,
+			&registration.Locale,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan registration: %w", err)
@@ -411,13 +412,13 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 		_, err := ctx.DB.Exec(ctx.DatabaseContext(), `
 			INSERT INTO registrations (
 				ref_id, checkout_id, conference_id, discount_id, type, email, person_id,
-				item_bought, amount_paid, currency, platform, registered_at, revoked
+				item_bought, amount_paid, currency, platform, registered_at, revoked, locale
 			)
 			VALUES (
 				$1, $2, $3::uuid,
 				NULLIF($4, '')::uuid,
 				$5, $6, (SELECT person_id FROM person_emails WHERE email = $6::citext),
-				$7, $8, $9, $10, $11, false
+				$7, $8, $9, $10, $11, false, $12
 			)
 			ON CONFLICT (ref_id) DO UPDATE SET
 				checkout_id = EXCLUDED.checkout_id,
@@ -431,10 +432,11 @@ func AddTickets(ctx *config.AppContext, entry *types.Entry, src string) error {
 				currency = EXCLUDED.currency,
 				platform = EXCLUDED.platform,
 				registered_at = EXCLUDED.registered_at,
+				locale = EXCLUDED.locale,
 				revoked = false
 			WHERE registrations.revoked_before_account_deletion IS NULL
 		`, refID, entry.ID, entry.ConfRef, entry.DiscountRef, item.Type, email,
-			item.Desc, amountPaid, entry.Currency, src, entry.Created)
+			item.Desc, amountPaid, entry.Currency, src, entry.Created, types.RegistrationLocale(entry.Locale))
 		if err != nil {
 			return fmt.Errorf("upsert registration %q: %w", refID, err)
 		}

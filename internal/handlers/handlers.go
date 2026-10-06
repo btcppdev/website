@@ -6180,6 +6180,7 @@ func OpenNodeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppCon
 		Created:     time.Unix(int64(charge.CreatedAt), 0),
 		Email:       charge.Metadata.Email,
 		DiscountRef: charge.Metadata.DiscountRef,
+		Locale:      types.RegistrationLocale(charge.Metadata.Locale),
 	}
 
 	tixType := types.TicketTypeGeneral
@@ -6752,6 +6753,7 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 	}
 	metadata := make(map[string]string)
 	metadata["conf-tag"] = conf.Tag
+	metadata["locale"] = language
 	metadata["conf-ref"] = conf.Ref
 	metadata["tix-id"] = tix.ID
 	metadata["discount-ref"] = form.DiscountRef
@@ -7098,6 +7100,7 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 
 		entry := types.Entry{
 			ID:          checkout.ID,
+			Locale:      types.RegistrationLocale(checkout.Metadata["locale"]),
 			ConfRef:     conf.Ref,
 			Total:       checkout.AmountTotal,
 			Currency:    string(checkout.Currency),

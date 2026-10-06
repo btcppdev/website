@@ -73,9 +73,30 @@ payment calculations are unchanged.
 Stripe receives the selected locale and returns to the localized confirmation.
 OpenNode receives the localized return URL; its hosted payment interface remains
 provider-controlled and may appear in English. Korean instructions explain the
-handoff before payment. Ticket emails remain in English. Third-party receipt
+handoff before payment. Ticket emails include Korean guidance followed by the complete English organizer
+message when the registration explicitly selected Korean. Third-party receipt
 emails remain provider-controlled. Merch titles/descriptions retain their catalog copy.
 
 Run checkout checks with `go test ./internal/i18n ./internal/handlers
 ./external/getters -run 'Test(Catalog|EventCatalog|Localized|Checkout|TicketCheckout|InitOpenNodeCheckout|ValidateCheckoutDiscountPrice)'`.
 The provider tests use mocked HTTP transports and do not create real payments.
+
+## Registration and reminder emails
+
+Apply migration `115_registration_locale.sql` before deploying this version.
+Registrations store an explicit `locale` from verified Stripe/OpenNode metadata.
+Existing rows, absent metadata, invalid values, manual/complimentary registrations,
+and sends with no registration context default to English. Locale is never inferred
+from the event's country or the recipient's address.
+
+Ticket mail (including later sends through the registration mailer) uses that
+registration's locale. Attendee reminders require all associated active registrations
+to agree on Korean; mixed or unknown preferences use English. Speaker/volunteer
+campaigns without registration context remain English.
+
+Korean emails prepend catalog-backed event/ticket essentials and links to the
+complete organizer-edited English message. The Korean section is an orientation,
+not an automatic translation of arbitrary editor updates. It explicitly directs
+readers to the English original for additional/latest information. Both HTML and
+plain text carry both sections. Attachments and delivery deduplication are unchanged;
+there is one shared ticket PDF per ticket, not a duplicate per language.

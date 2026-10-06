@@ -243,5 +243,9 @@
   "confirmation.delivered": "Ticket delivered by email",
   "confirmation.qr": "Ticket QR code for {{.ID}}",
   "checkout.provider_description": "{{.Count}} ticket(s) for {{.Event}}",
-  "checkout.sales_tax": "Sales tax"
+  "checkout.sales_tax": "Sales tax",
+  "email.ticket.intro": "## Ticket information\n\nThank you for registering for {{.Event}}.\n\n- Dates: {{.Date}}\n- Venue: {{.Venue}} · {{.Location}}\n\nYour ticket PDF is attached. Show its QR code at the registration desk to receive your badge.\n\n[View your ticket in the dashboard (English)]({{.Dashboard}})\n\n[Event information]({{.EventURL}})",
+  "email.reminder.intro": "## Event reminder\n\nWe look forward to seeing you at {{.Event}}.\n\n- Dates: {{.Date}}\n- Venue: {{.Venue}} · {{.Location}}\n\nKeep your ticket QR code ready for check-in. Your tickets and registration details are available in your dashboard.\n\n[Open your dashboard (English)]({{.Dashboard}})\n\n[Event information]({{.EventURL}})",
+  "email.doors": "Doors open (event local time): {{.Time}}",
+  "email.english_follows": "The complete English organizer message follows, including the latest updates."
 }

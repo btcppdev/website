@@ -849,6 +849,7 @@ func conferenceCampaignRecipientData(ctx *config.AppContext, conf *types.Conf, r
 	}
 	data := &emails.ConferenceCampaignData{
 		Conf: conf, Email: recipient.Email, Name: recipient.Name, URI: ctx.Env.GetURI(),
+		Locale:                 types.ReminderLocale(recipient.Registrations),
 		DashboardLink:          helpers.EmailLink(ctx, recipient.Email, "/dashboard"),
 		AffiliateDashboardLink: helpers.EmailLink(ctx, recipient.Email, "/dashboard/affiliate"),
 		DoorsOpen:              emails.DoorsOpenDesc(ctx, conf), BreakfastStart: emails.BreakfastStartDesc(ctx, conf), SpeakerDinnerLocation: dinnerLocation,

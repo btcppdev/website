@@ -111,6 +111,9 @@ func TestLocalizedStripeCheckout(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if form.Get("metadata[locale]") != "ko" {
+			t.Error("Stripe registration locale missing")
+		}
 		if form.Get("locale") != "ko" {
 			t.Errorf("Stripe locale %q", form.Get("locale"))
 		}

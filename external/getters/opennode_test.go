@@ -27,6 +27,9 @@ func TestInitOpenNodeCheckoutAcceptsCreatedAndPreservesTicketSubtotal(t *testing
 		if payload.Amount != 165.00 {
 			t.Fatalf("sandbox charge amount = %v, want 165.00", payload.Amount)
 		}
+		if payload.Metadata.Locale != "ko" {
+			t.Fatal("registration locale missing")
+		}
 		if payload.Currency != "USD" {
 			t.Fatalf("charge currency = %q, want USD", payload.Currency)
 		}
