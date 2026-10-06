@@ -123,7 +123,7 @@ func WeeklyNewsletterUpdates(ctx *config.AppContext, issueSendAt time.Time) (*We
 	if err != nil {
 		return nil, err
 	}
-	updates.SponsorChallenges, err = weeklyNewsletterSponsorChallenges(ctx, talkStart, talkEnd)
+	updates.SponsorChallenges, err = weeklyNewsletterSponsorChallenges(ctx, talkStart, talkEnd, issueSendAt)
 	if err != nil {
 		return nil, err
 	}
@@ -553,8 +553,13 @@ func weeklyNewsletterHackathonWinners(ctx *config.AppContext, start, end time.Ti
 		JOIN awards ON awards.competition_id = competitions.id AND awards.archived_at IS NULL
 		JOIN project_awards ON project_awards.award_id = awards.id
 		JOIN projects ON projects.id = project_awards.project_id
-		WHERE competitions.results_finalized_at >= $1
-			AND competitions.results_finalized_at < $2
+		WHERE c.end_date >= $1 AND c.end_date < $2
+			AND c.end_date <= now()
+			AND competitions.results_finalized_at < LEAST($2, now())
+			AND awards.award_rank BETWEEN 1 AND 3
+			AND awards.sponsored_by_org_id IS NULL
+			AND awards.award_type = 'normal'
+			AND awards.status IN ('available', 'unawarded', 'awarded')
 			AND competitions.visibility = 'public'
 			AND competitions.public_gallery_enabled
 			AND (competitions.public_gallery_at IS NULL OR competitions.public_gallery_at <= $2)
@@ -562,10 +567,8 @@ func weeklyNewsletterHackathonWinners(ctx *config.AppContext, start, end time.Ti
 			AND projects.status IN ('submitted', 'advanced')
 		GROUP BY c.tag, competitions.id, competitions.title, projects.id,
 			projects.title, projects.project_number, competitions.results_finalized_at
-		ORDER BY coalesce(min(awards.award_rank), 2147483647),
-			count(DISTINCT awards.id) DESC, competitions.results_finalized_at DESC,
-			competitions.title, projects.project_number NULLS LAST, projects.title
-		LIMIT 3
+		ORDER BY c.tag, competitions.id, min(awards.award_rank),
+			projects.project_number NULLS LAST, projects.title, projects.id
 	`, start, end)
 	if err != nil {
 		return nil, fmt.Errorf("query weekly newsletter hackathon winners: %w", err)
@@ -671,7 +674,7 @@ func weeklyNewsletterSupportingSponsors(ctx *config.AppContext, issueSendAt time
 }
 
 // Challenges use first availability, not draft creation or the last edit.
-func weeklyNewsletterSponsorChallenges(ctx *config.AppContext, start, end time.Time) ([]WeeklyNewsletterChallenge, error) {
+func weeklyNewsletterSponsorChallenges(ctx *config.AppContext, start, end, issueSendAt time.Time) ([]WeeklyNewsletterChallenge, error) {
 	rows, err := ctx.DB.Query(ctx.DatabaseContext(), `
   SELECT c.tag, h.title, a.id::text, a.public_slug, a.title, o.name, a.published_at
   FROM awards a
@@ -683,8 +686,10 @@ func weeklyNewsletterSponsorChallenges(ctx *config.AppContext, start, end time.T
    AND a.status IN ('available', 'unawarded', 'awarded')
    AND a.published_at >= $1 AND a.published_at < $2
    AND h.visibility = 'public' AND c.publication_status = 'published'
+   AND (c.end_date IS NULL OR c.end_date >= $3)
+   AND h.results_finalized_at IS NULL
   ORDER BY a.published_at, c.tag, a.title, a.id
- `, start, end)
+ `, start, end, issueSendAt)
 	if err != nil {
 		return nil, fmt.Errorf("query weekly newsletter sponsor challenges: %w", err)
 	}

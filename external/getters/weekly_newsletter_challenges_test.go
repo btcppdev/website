@@ -16,7 +16,7 @@ func TestWeeklyNewsletterSponsorChallenges(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	exec(`UPDATE conferences SET publication_status='published' WHERE id=$1`, confID)
+	exec(`UPDATE conferences SET publication_status='published', end_date=now()+interval '30 days' WHERE id=$1`, confID)
 	var orgID, competitionID string
 	if err := app.DB.QueryRow(ctx, `INSERT INTO organizations(name) VALUES('Newsletter sponsor') RETURNING id::text`).Scan(&orgID); err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestWeeklyNewsletterSponsorChallenges(t *testing.T) {
 	exec(`UPDATE awards SET archived_at=now() WHERE id=$1`, archived)
 	check := func(start, end time.Time, want int) {
 		t.Helper()
-		items, err := weeklyNewsletterSponsorChallenges(app, start, end)
+		items, err := weeklyNewsletterSponsorChallenges(app, start, end, end)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,6 +80,15 @@ func TestWeeklyNewsletterSponsorChallenges(t *testing.T) {
 		t.Fatalf("publication date changed: %v %v", again, err)
 	}
 	check(published, published.Add(time.Hour), 1)
+	exec(`UPDATE conferences SET end_date=$2 WHERE id=$1`, confID, published.Add(-time.Hour))
+	check(published, published.Add(time.Hour), 0)
+	// An event ending after draft build but before send must also be excluded.
+	exec(`UPDATE conferences SET end_date=$2 WHERE id=$1`, confID, published.Add(30*time.Minute))
+	check(published, published.Add(time.Hour), 0)
+	exec(`UPDATE conferences SET end_date=$2 WHERE id=$1`, confID, published.AddDate(0, 0, 30))
+	exec(`UPDATE competitions SET results_finalized_at=$2 WHERE id=$1`, competitionID, published)
+	check(published, published.Add(time.Hour), 0)
+	exec(`UPDATE competitions SET results_finalized_at=NULL WHERE id=$1`, competitionID)
 	exec(`UPDATE competitions SET visibility='hidden' WHERE id=$1`, competitionID)
 	check(published, published.Add(time.Hour), 0)
 	exec(`UPDATE competitions SET visibility='public' WHERE id=$1`, competitionID)

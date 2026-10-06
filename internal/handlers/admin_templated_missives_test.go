@@ -551,7 +551,7 @@ func TestWeeklyNewsletterBroadcastsListsThreeMostRecentPublishedTalks(t *testing
 	}
 }
 
-func TestWeeklyNewsletterUpdatesCapsSpeakersAndHackathonItems(t *testing.T) {
+func TestWeeklyNewsletterUpdatesCapsSpeakersButIncludesMultipleHackathons(t *testing.T) {
 	updates := &getters.WeeklyNewsletterUpdateBundle{
 		SpeakerGroups: []getters.WeeklyNewsletterSpeakerGroup{{
 			ConfTag: "dev26", ConfTitle: "bitcoin++ Local Dev",
@@ -564,11 +564,11 @@ func TestWeeklyNewsletterUpdatesCapsSpeakersAndHackathonItems(t *testing.T) {
 			{ConfTag: "dev26", Competition: "Hack", ProjectID: "one", ProjectTitle: "Project One", Awards: "First"},
 			{ConfTag: "dev26", Competition: "Hack", ProjectID: "two", ProjectTitle: "Project Two", Awards: "Second"},
 			{ConfTag: "dev26", Competition: "Hack", ProjectID: "three", ProjectTitle: "Project Three", Awards: "Third"},
-			{ConfTag: "dev26", Competition: "Hack", ProjectID: "four", ProjectTitle: "Project Four", Awards: "Fourth"},
+			{ConfTag: "other26", Competition: "Other Hack", ProjectID: "other-winner", ProjectTitle: "Other Winner", Awards: "First"},
 		},
 	}
 	markdown := weeklyNewsletterUpdatesMarkdown(updates)
-	for _, want := range []string{"    - One of One Co. [x.com](https://x.com/one)", "    - Five.", "Project One", "Project Three"} {
+	for _, want := range []string{"    - One of One Co. [x.com](https://x.com/one)", "    - Five.", "Project One", "Project Three", "Other Winner"} {
 		if !strings.Contains(markdown, want) {
 			t.Errorf("weekly updates missing %q: %s", want, markdown)
 		}
