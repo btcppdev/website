@@ -40,10 +40,12 @@
           </div>
           <h1 id="hackathon-title">{{ .Competition.Title }}</h1>
           <p class="hack-control__deck">Build something real. Find collaborators, choose a challenge, ship your project, and put it in front of the bitcoin++ community.</p>
+          {{ if not .ResultsFinalized }}
           <div class="hack-actions hack-control__actions">
             {{ template "hackathon_primary_action" . }}
             <a href="#participate" class="hack-button hack-button--light">How to participate ↓</a>
           </div>
+          {{ end }}
         </div>
         <aside class="hack-control__prize" aria-label="Hackathon at a glance">
           <div class="hack-control__prize-mark" aria-hidden="true">★</div>
@@ -69,6 +71,8 @@
     <div class="mx-6 mt-6 border border-red-700 bg-red-50 px-4 py-3 text-sm text-red-900">{{ .FlashError }}</div>
     {{ end }}
     <section data-hackathon-tab-panel="overview" class="hack-panel" id="overview">
+      {{ if .ResultsFinalized }}{{ template "hackathon_featured_projects" . }}{{ end }}
+      {{ if not .ResultsFinalized }}
       <section class="hack-participation" id="participate" aria-labelledby="participate-title">
         <div class="hack-participation__intro">
           <div class="hack-label">§ Start here</div>
@@ -122,6 +126,7 @@
         </div>
         {{ end }}
       </section>
+      {{ end }}
 
       {{ if .HackathonPlaceRows }}
       <section class="hack-prizes" aria-label="Ranked prizes">
@@ -274,23 +279,7 @@
         {{ end }}
       </section>
 
-      {{ $featuredProjects := .FeaturedProjects }}
-      {{ if $featuredProjects }}
-      <section class="hack-featured-projects" aria-label="Featured hackathon projects">
-        <div class="hack-section__head">
-          <div>
-            <div class="hack-label">§ Featured builds</div>
-            <h2>Built in <span class="hack-serif">public.</span></h2>
-          </div>
-          <div class="hack-section__deck">Winning and featured projects from this hackathon. <a href="#projects">Explore the full gallery →</a></div>
-        </div>
-        <div class="hack-card-grid">
-          {{ range $project := $featuredProjects }}
-          {{ template "hackathon_project_card" (dict "Page" $ "Project" $project "ShowManage" false "Compact" true "Featured" true) }}
-          {{ end }}
-        </div>
-      </section>
-      {{ end }}
+      {{ if not .ResultsFinalized }}{{ template "hackathon_featured_projects" . }}{{ end }}
 
       {{ if .CanCreate }}
       <section id="submit" class="hack-submit">
@@ -613,16 +602,25 @@
 {{ $page := .Page }}
 {{ $project := .Project }}
 {{ $winningAwards := $page.ProjectWinningAwards $project }}
-<article id="{{ if .Featured }}featured-{{ else }}project-{{ end }}{{ $project.ID }}" class="hack-card hack-card--project{{ if not .ShowManage }} hack-card--clickable{{ end }}" {{ if not .ShowManage }}data-project-card-url="{{ $page.ProjectURL $project }}" tabindex="0" role="link"{{ end }}>
+<article id="{{ if .Featured }}featured-{{ else }}project-{{ end }}{{ $project.ID }}" class="hack-card hack-card--project{{ if $winningAwards }} hack-card--winner{{ end }}{{ with .PodiumRank }} hack-card--podium hack-card--podium-{{ . }}{{ end }}{{ if not .ShowManage }} hack-card--clickable{{ end }}" {{ if not .ShowManage }}data-project-card-url="{{ $page.ProjectURL $project }}" tabindex="0" role="link"{{ end }}>
   <div class="hack-card__media" data-initials="++" {{ if $project.ImageURL }}data-has-image="true"{{ end }}>
     {{ if $project.ImageURL }}<img src="{{ $project.ImageURL }}" alt="" loading="lazy">{{ end }}
-    {{ if $winningAwards }}
-    <div class="hack-card__award-badges">
-      {{ range $winningAwards }}<span class="hack-badge">★ {{ $page.AwardWinnerBadgeLabel . }}</span>{{ end }}
-    </div>
-    {{ end }}
   </div>
   <div class="hack-card__body">
+    {{ if $winningAwards }}
+    <ul class="hack-project-awards" aria-label="Awards won">
+      {{ range $winningAwards }}
+      {{ $rank := $page.AwardPodiumRank . }}{{ if $page.AwardIsChallenge . }}{{ $rank = 0 }}{{ end }}
+      <li class="hack-project-award{{ if $rank }} hack-project-award--{{ $rank }}{{ end }}">
+        <span class="hack-award-medal" aria-hidden="true"><span>{{ if $rank }}{{ $rank }}{{ else }}★{{ end }}</span></span>
+        <span class="hack-project-award__copy">
+          <span class="hack-project-award__eyebrow">{{ if $rank }}Overall winner{{ else if $page.AwardHasSponsor . }}Sponsor award{{ else }}Award winner{{ end }}</span>
+          <strong>{{ $page.AwardWinnerBadgeLabel . }}</strong>
+        </span>
+      </li>
+      {{ end }}
+    </ul>
+    {{ end }}
     <div class="hack-card__top">
       <h3>{{ $project.Title }}</h3>
       <div class="hack-card__number">{{ $page.ProjectNumberLabel $project }}</div>
@@ -659,4 +657,44 @@
     </div>
   </div>
 </article>
+{{ end }}
+
+{{ define "hackathon_featured_projects" }}
+      {{ $featuredProjects := .FeaturedProjects }}
+      {{ if $featuredProjects }}
+      <section class="hack-featured-projects" aria-label="Featured hackathon projects">
+        <div class="hack-section__head">
+          <div>
+            <div class="hack-label">§ Featured builds</div>
+            <h2>Built in <span class="hack-serif">public.</span></h2>
+          </div>
+          <div class="hack-section__deck">Winning and featured projects from this hackathon. <a href="#projects">Explore the full gallery →</a></div>
+        </div>
+        {{ if .ResultsFinalized }}
+        {{ with .PodiumProjects }}
+        <div class="hack-project-podium" aria-label="Overall winners">
+          {{ range $project := . }}
+          {{ template "hackathon_project_card" (dict "Page" $ "Project" $project "ShowManage" false "Featured" true "PodiumRank" ($.ProjectPodiumRank $project)) }}
+          {{ end }}
+        </div>
+        {{ end }}
+        {{ with .OtherWinningProjects }}
+        <div class="hack-section__head hack-winning-projects__head">
+          <div><div class="hack-label">§ More winning builds</div><h3>Honorable mentions &amp; sponsor prizes</h3></div>
+        </div>
+        <div class="hack-card-grid">
+          {{ range $project := . }}
+          {{ template "hackathon_project_card" (dict "Page" $ "Project" $project "ShowManage" false "Compact" true "Featured" true) }}
+          {{ end }}
+        </div>
+        {{ end }}
+        {{ else }}
+        <div class="hack-card-grid">
+          {{ range $project := $featuredProjects }}
+          {{ template "hackathon_project_card" (dict "Page" $ "Project" $project "ShowManage" false "Compact" true "Featured" true) }}
+          {{ end }}
+        </div>
+        {{ end }}
+      </section>
+      {{ end }}
 {{ end }}

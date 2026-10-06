@@ -716,7 +716,6 @@ func (p *HackathonPage) GalleryProjects() []*types.HackathonProject {
 		return nil
 	}
 	source := p.Projects
-	competition := p.Competition
 	projects := make([]*types.HackathonProject, 0, len(source))
 	for _, project := range source {
 		if project == nil || project.Status == getters.ProjectStatusCreated || project.Status == getters.ProjectStatusHidden {
@@ -724,46 +723,113 @@ func (p *HackathonPage) GalleryProjects() []*types.HackathonProject {
 		}
 		projects = append(projects, project)
 	}
-	if competition == nil || competition.ResultsFinalizedAt == nil {
+	if !p.ResultsFinalized() {
 		return projects
 	}
-	projectAwardRank := func(project *types.HackathonProject) (bool, int64) {
-		var finalistsOnly bool
-		var totalValue int64
+	type resultOrder struct {
+		tier         int // podium 1–3, honorable mentions, cash, non-cash, other winners, remaining
+		cash, inKind int64
+	}
+	ranks := make(map[string]resultOrder, len(projects))
+	for _, project := range projects {
+		rank := resultOrder{tier: 8}
 		for _, award := range p.ProjectWinningAwards(project) {
-			if award == nil {
-				continue
+			tier := 7
+			if podium := p.AwardPodiumRank(award); podium > 0 && !p.AwardIsChallenge(award) {
+				tier = podium
+			} else if !p.AwardHasSponsor(award) && !p.AwardIsChallenge(award) {
+				title := strings.ToLower(award.Title)
+				if strings.Contains(title, "honorable mention") || strings.Contains(title, "honourable mention") {
+					tier = 4
+				}
 			}
-			finalistsOnly = finalistsOnly || award.FinalistsOnly
 			for _, prize := range p.AwardPrizes(award) {
-				totalValue += prizeValueSats(prize)
+				if prize == nil {
+					continue
+				}
+				switch strings.TrimSpace(prize.PrizeType) {
+				case "", getters.PrizeTypeSats, getters.PrizeTypePooled:
+					rank.cash += prizeValueSats(prize)
+				default:
+					rank.inKind += prizeValueSats(prize)
+				}
+			}
+			if tier < rank.tier {
+				rank.tier = tier
 			}
 		}
-		return finalistsOnly, totalValue
+		if rank.cash > 0 && rank.tier > 5 {
+			rank.tier = 5
+		} else if rank.inKind > 0 && rank.tier > 6 {
+			rank.tier = 6
+		}
+		ranks[project.ID] = rank
 	}
 	sort.SliceStable(projects, func(i, j int) bool {
-		aFinalist, aValue := projectAwardRank(projects[i])
-		bFinalist, bValue := projectAwardRank(projects[j])
-		if aFinalist != bFinalist {
-			return aFinalist
+		a, b := ranks[projects[i].ID], ranks[projects[j].ID]
+		if a.tier != b.tier {
+			return a.tier < b.tier
 		}
-		if aValue != bValue {
-			return aValue > bValue
+		if a.cash != b.cash {
+			return a.cash > b.cash
 		}
-		return false
+		return a.inKind > b.inKind
 	})
 	return projects
+}
+
+// ResultsFinalized is the publication gate, independent of the scheduled ceremony.
+func (p *HackathonPage) ResultsFinalized() bool {
+	return p != nil && p.Competition != nil && p.Competition.ResultsFinalizedAt != nil
 }
 
 func (p *HackathonPage) ProjectGalleryOpen() bool {
 	return p != nil && p.Competition != nil && p.Competition.PublicGalleryEnabled
 }
 
+// ProjectPodiumRank returns the best overall placement, excluding sponsor challenges.
+func (p *HackathonPage) ProjectPodiumRank(project *types.HackathonProject) int {
+	best := 0
+	for _, award := range p.ProjectWinningAwards(project) {
+		if p.AwardIsChallenge(award) {
+			continue
+		}
+		if rank := p.AwardPodiumRank(award); rank > 0 && (best == 0 || rank < best) {
+			best = rank
+		}
+	}
+	return best
+}
+
+func (p *HackathonPage) PodiumProjects() []*types.HackathonProject {
+	var projects []*types.HackathonProject
+	for _, project := range p.FeaturedProjects() {
+		if p.ProjectPodiumRank(project) > 0 {
+			projects = append(projects, project)
+		}
+	}
+	return projects
+}
+
+func (p *HackathonPage) OtherWinningProjects() []*types.HackathonProject {
+	var projects []*types.HackathonProject
+	for _, project := range p.FeaturedProjects() {
+		if p.ProjectPodiumRank(project) == 0 {
+			projects = append(projects, project)
+		}
+	}
+	return projects
+}
+
 func (p *HackathonPage) FeaturedProjects() []*types.HackathonProject {
 	if p == nil {
 		return nil
 	}
-	const limit = 3
+	gallery := p.GalleryProjects()
+	limit := 3
+	if p.ResultsFinalized() {
+		limit = len(gallery)
+	}
 	featured := make([]*types.HackathonProject, 0, limit)
 	seen := make(map[string]bool, limit)
 	appendProject := func(project *types.HackathonProject) {
@@ -773,13 +839,15 @@ func (p *HackathonPage) FeaturedProjects() []*types.HackathonProject {
 		seen[project.ID] = true
 		featured = append(featured, project)
 	}
-	for _, project := range p.GalleryProjects() {
+	for _, project := range gallery {
 		if len(p.ProjectWinningAwards(project)) > 0 {
 			appendProject(project)
 		}
 	}
-	for _, project := range p.GalleryProjects() {
-		appendProject(project)
+	if !p.ResultsFinalized() {
+		for _, project := range gallery {
+			appendProject(project)
+		}
 	}
 	return featured
 }

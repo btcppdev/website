@@ -11796,17 +11796,7 @@ body.btcpp-checkout-page {
 	display: none;
 }
 
-.hack-card__award-badges {
-	position: absolute;
-	top: 12px;
-	left: 12px;
-	z-index: 1;
-	display: flex;
-	max-width: calc(100% - 24px);
-	align-items: flex-start;
-	flex-direction: column;
-	gap: 6px;
-}
+
 
 .hack-card__body {
 display: flex;
@@ -16211,3 +16201,141 @@ button.organization-review-action.is-secondary {
 
 /* Prize fields follow the selected reward type. */
 .sponsor-prize-form [hidden] { display: none !important; }
+
+
+/* Published hackathon results: overall podium before the remaining winners. */
+.hack-project-podium {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	border-left: 1px solid var(--hack-ink);
+}
+.hack-project-podium .hack-card--podium {
+	min-width: 0;
+	max-height: none;
+}
+.hack-project-podium .hack-card--podium-1 {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+	background: #fff2cd;
+}
+.hack-card--podium-1 .hack-card__media {
+	height: 100%;
+	min-height: 340px;
+	border-bottom: 0;
+	border-right: 1px solid var(--hack-ink);
+}
+.hack-card--podium-1 .hack-card__body {
+	justify-content: center;
+	padding: clamp(24px, 4vw, 56px);
+}
+.hack-card--podium-1 h3 {
+	font-size: clamp(32px, 4vw, 60px);
+	line-height: 1.05;
+}
+.hack-card--podium .hack-card__body,
+.hack-card--podium .hack-card__top {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.hack-card--podium .hack-card__media { flex-shrink: 0; }
+.hack-winning-projects__head { border-top: 1px solid var(--hack-ink); }
+.hack-winning-projects__head h3 {
+	margin: 8px 0 0;
+	font-size: clamp(22px, 3vw, 32px);
+	line-height: 1.15;
+}
+@media (max-width: 700px) {
+	.hack-project-podium,
+	.hack-project-podium .hack-card--podium-1 { grid-template-columns: minmax(0, 1fr); }
+	.hack-card--podium-1 .hack-card__media {
+		height: 240px;
+		min-height: 0;
+		border-right: 0;
+		border-bottom: 1px solid var(--hack-ink);
+	}
+}
+
+
+/* Award ribbons stay on solid card backgrounds, clear of project artwork. */
+.hack-card--winner { max-height: none; }
+.hack-card--winner .hack-card__media { flex-shrink: 0; }
+.hack-project-awards {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.hack-project-award {
+	--award-metal: #f5dfad;
+	--award-edge: #856321;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	min-width: 0;
+	padding: 14px 16px;
+	border: 1px solid #cfbf9d;
+	border-left: 4px solid var(--award-edge);
+	background: #fffaf0;
+	color: #282016;
+	box-shadow: 3px 3px 0 rgba(40, 32, 22, 0.08);
+}
+.hack-project-award--1 { --award-metal: #f6cb55; --award-edge: #8b6211; background: #fff3c6; }
+.hack-project-award--2 { --award-metal: #e0e6ed; --award-edge: #596877; background: #f2f5f8; border-color: #b2beca; }
+.hack-project-award--3 { --award-metal: #e9b68d; --award-edge: #885433; background: #fcf0e5; border-color: #cba888; }
+.hack-award-medal {
+	position: relative;
+	isolation: isolate;
+	display: grid;
+	flex: 0 0 52px;
+	width: 52px;
+	height: 52px;
+	margin-bottom: 8px;
+	place-items: center;
+	border: 2px solid var(--award-edge);
+	border-radius: 50%;
+	background: var(--award-metal);
+	box-shadow: inset 0 0 0 3px #fff8;
+	color: #282016;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 26px;
+	font-weight: 700;
+}
+.hack-award-medal::after {
+	content: "";
+	position: absolute;
+	z-index: -1;
+	top: 40px;
+	width: 34px;
+	height: 22px;
+	background: var(--award-edge);
+	clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 73%, 0 100%);
+}
+.hack-award-medal > span { line-height: 1; }
+.hack-project-award__copy { min-width: 0; overflow-wrap: anywhere; }
+.hack-project-award__eyebrow {
+	display: block;
+	margin-bottom: 4px;
+	color: #554c3e;
+	font-family: "IBM Plex Mono", ui-monospace, monospace;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.hack-project-award__copy strong {
+	display: block;
+	font-size: 18px;
+	font-weight: 700;
+	line-height: 1.25;
+}
+.hack-card--podium-1 .hack-project-award--1 .hack-award-medal {
+	flex-basis: 64px;
+	width: 64px;
+	height: 64px;
+	font-size: 34px;
+}
+.hack-card--podium-1 .hack-project-award--1 .hack-award-medal::after { top: 52px; }
+.hack-card--podium-1 .hack-project-award--1 strong { font-size: 24px; }

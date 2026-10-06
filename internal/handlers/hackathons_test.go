@@ -1040,7 +1040,7 @@ func TestSortPublicHackathonAwardsFinalistsFirstThenValue(t *testing.T) {
 	}
 }
 
-func TestPublishedProjectGalleryOrdersFinalistAwardsThenPrizeValue(t *testing.T) {
+func TestPublishedProjectGalleryOrdersUnrankedAwardsByPrizeValue(t *testing.T) {
 	finalizedAt := time.Now()
 	finalSmall := &types.Award{ID: "final-small", Title: "Final Small", FinalistsOnly: true}
 	finalLarge := &types.Award{ID: "final-large", Title: "Final Large", FinalistsOnly: true}
@@ -1068,7 +1068,7 @@ func TestPublishedProjectGalleryOrdersFinalistAwardsThenPrizeValue(t *testing.T)
 	}
 
 	got := page.GalleryProjects()
-	want := []string{"final-large-project", "final-small-project", "general", "unawarded"}
+	want := []string{"general", "final-large-project", "final-small-project", "unawarded"}
 	for i, project := range got {
 		if project == nil || project.ID != want[i] {
 			t.Fatalf("GalleryProjects()[%d] = %+v, want %s; all=%+v", i, project, want[i], got)
