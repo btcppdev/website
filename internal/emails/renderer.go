@@ -442,7 +442,7 @@ a { color: inherit; }
 .btcpp-inner table { border-collapse: collapse; }
 .btcpp-content { overflow-wrap: break-word; word-wrap: break-word; }
 .btcpp-shell { background: %s; }
-.btcpp-inner { width: 100%%; max-width: 640px; table-layout: fixed; background: %s; color: #1C1C1E; border: 1px solid #1C1C1E; font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; }
+.btcpp-inner { width: 100%%; max-width: 640px; table-layout: fixed; background: %s; color: #1C1C1E; border: 0; font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif; }
 .btcpp-row { padding: 24px 32px; border-bottom: 1px solid #1C1C1E; }
 .btcpp-ticker { max-width: 0; overflow: hidden; white-space: nowrap; }
 .btcpp-ticker-window { width: 100%%; height: 14px; max-height: 14px; overflow: hidden; white-space: nowrap; }

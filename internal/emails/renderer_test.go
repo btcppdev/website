@@ -298,10 +298,10 @@ Body.
 	}
 }
 
-func TestRebrandEmailCSSRemovesOuterBorderOnMobile(t *testing.T) {
+func TestRebrandEmailCSSRemovesOuterBorderOnDesktopAndMobile(t *testing.T) {
 	css := string(rebrandEmailCSS("signal"))
-	if !strings.Contains(css, ".btcpp-inner { width: 100%; max-width: 640px; table-layout: fixed;") || !strings.Contains(css, "border: 1px solid #1C1C1E;") {
-		t.Fatalf("desktop newsletter border missing: %s", css)
+	if !strings.Contains(css, ".btcpp-inner { width: 100%; max-width: 640px; table-layout: fixed;") || !strings.Contains(css, "table-layout: fixed; background: #FDFBF4; color: #1C1C1E; border: 0;") {
+		t.Fatalf("desktop newsletter should have no outer border: %s", css)
 	}
 	if !strings.Contains(css, "@media only screen and (max-width: 680px)") || !strings.Contains(css, ".btcpp-inner { width: 100% !important; border: 0 !important; }") {
 		t.Fatalf("mobile newsletter border override missing: %s", css)
