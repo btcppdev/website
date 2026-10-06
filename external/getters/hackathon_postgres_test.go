@@ -108,6 +108,13 @@ func TestHackathonResultsFinalizationLocksAwardRecipients(t *testing.T) {
 	if err := AssignProjectAward(ctx, awardID, projectID); err != nil {
 		t.Fatalf("AssignProjectAward before finalization: %v", err)
 	}
+	if err := SubmitProject(ctx, projectID); err != nil {
+		t.Fatalf("SubmitProject: %v", err)
+	}
+	project := &types.HackathonProject{ID: projectID, CompetitionID: competitionID, Status: ProjectStatusSubmitted}
+	if projectIsPublicPostgres(ctx, project) {
+		t.Fatal("project should be private before gallery publication")
+	}
 	if err := FinalizeCompetitionResults(ctx, competitionID, personID); err != nil {
 		t.Fatalf("FinalizeCompetitionResults: %v", err)
 	}
@@ -117,6 +124,15 @@ func TestHackathonResultsFinalizationLocksAwardRecipients(t *testing.T) {
 	}
 	if competition.ResultsFinalizedAt == nil || competition.ResultsFinalizedBy != personID || competition.ResultsFinalizedName == "" {
 		t.Fatalf("finalization metadata mismatch: %+v", competition)
+	}
+	if !competition.PublicGalleryEnabled || !projectIsPublicPostgres(ctx, project) {
+		t.Fatal("finalizing results must open the gallery and make submitted projects public")
+	}
+	for _, status := range []string{ProjectStatusCreated, ProjectStatusHidden} {
+		privateProject := &types.HackathonProject{CompetitionID: competitionID, Status: status}
+		if projectIsPublicPostgres(ctx, privateProject) {
+			t.Fatalf("finalizing exposed a %s project", status)
+		}
 	}
 	var entitlementCount int
 	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `
@@ -142,6 +158,9 @@ func TestHackathonResultsFinalizationLocksAwardRecipients(t *testing.T) {
 	competition, err = GetCompetitionByID(ctx, competitionID)
 	if err != nil {
 		t.Fatalf("GetCompetitionByID reopened: %v", err)
+	}
+	if !competition.PublicGalleryEnabled {
+		t.Fatal("reopening results should not hide the published gallery")
 	}
 	if competition.ResultsFinalizedAt != nil || competition.ResultsFinalizedBy != "" {
 		t.Fatalf("reopened finalization metadata = %+v, want unpublished", competition)

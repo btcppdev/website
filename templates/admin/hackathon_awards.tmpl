@@ -88,9 +88,9 @@
     <section class="mb-6 flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-sm font-semibold text-amber-950">Winner assignments are private</h2>
-        <p class="mt-1 text-sm text-amber-900">You can continue assigning awards. Finalizing publishes all recipients and winner badges, then locks recipient changes.</p>
+        <p class="mt-1 text-sm text-amber-900">You can continue assigning awards. Finalizing opens the project gallery, publishes all recipients and winner badges, then locks recipient changes. Draft and hidden projects stay private.</p>
       </div>
-      <form method="POST" action="{{ .ResultsURL .Competition }}/finalize" onsubmit="return confirm('Finalize and publish these results? All assigned winners will become public and recipient changes will be locked.');">
+      <form method="POST" action="{{ .ResultsURL .Competition }}/finalize" onsubmit="return confirm('Finalize and publish these results? The project gallery will open, all assigned winners will become public, and recipient changes will be locked. Draft and hidden projects stay private.');">
         <input type="hidden" name="ReturnTo" value="awards">
         <button type="submit" class="rounded-md bg-amber-900 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-800">Finalize and publish results</button>
       </form>

@@ -229,7 +229,8 @@ func setCompetitionResultsFinalizedPostgres(ctx *config.AppContext, competitionI
 	if finalized {
 		err = tx.QueryRow(dbctx, `
 			UPDATE competitions
-			SET results_finalized_at = now(), results_finalized_by = $2::uuid
+			SET results_finalized_at = now(), results_finalized_by = $2::uuid,
+			    public_gallery_enabled = true
 			WHERE id::text = $1 AND results_finalized_at IS NULL
 			RETURNING id::text
 		`, competitionID, personID).Scan(&changedID)

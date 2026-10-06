@@ -2797,7 +2797,7 @@ func HackathonAdminFinalizeResults(w http.ResponseWriter, r *http.Request, ctx *
 		http.Redirect(w, r, dest+"?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	flash := "Results finalized and winners published"
+	flash := "Results finalized, project gallery opened, and winners published"
 	if sent, failed := sendFinalizedAwardNotifications(r, ctx, competitionID); failed > 0 {
 		flash += fmt.Sprintf("; sent %d result notifications, %d failed", sent, failed)
 	} else if sent > 0 {

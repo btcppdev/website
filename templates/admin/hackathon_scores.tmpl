@@ -44,7 +44,7 @@
         <h2 class="text-sm font-semibold text-amber-950">Winner assignments are private</h2>
         <p class="mt-1 text-sm text-amber-900">Finalize only when judging is complete. This publishes every assigned recipient and locks award changes.</p>
       </div>
-      <form method="POST" action="{{ .ResultsURL .Competition }}/finalize" onsubmit="return confirm('Finalize and publish these results? All assigned winners will become public and recipient changes will be locked.');">
+      <form method="POST" action="{{ .ResultsURL .Competition }}/finalize" onsubmit="return confirm('Finalize and publish these results? The project gallery will open, all assigned winners will become public, and recipient changes will be locked. Draft and hidden projects stay private.');">
         <input type="hidden" name="ReturnTo" value="scores">
         <button type="submit" class="rounded-md bg-amber-900 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-800">Finalize and publish results</button>
       </form>
