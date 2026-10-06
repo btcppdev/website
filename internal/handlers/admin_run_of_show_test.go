@@ -497,6 +497,56 @@ func TestRowsFromShiftRepeatsVolunteersOnEndRow(t *testing.T) {
 	}
 }
 
+func TestShiftMatchesVenueAbbreviatedTitles(t *testing.T) {
+	for _, tc := range []struct {
+		name, venue string
+		want        bool
+	}{
+		{"Showrunner, Main PM (3)", "one", true},
+		{"Showrunner, Main PM (3)", "two", false},
+		{"Showrunner, Talks PM (3)", "two", true},
+		{"Showrunner, Talks PM (3)", "one", false},
+		{"A/V Monitor — Main Stage (PM, day 3)", "one", true},
+		{"Showrunner, ONE PM (3)", "one", true},
+		{"Showrunner, Main-Stage PM (3)", "Main Stage", true},
+		{"Someone on call", "one", false},
+		{"Maintenance PM (3)", "one", false},
+		{"Showrunner PM (3)", "one", false},
+		{"Showrunner, Main PM (3)", "", false},
+	} {
+		t.Run(tc.name+"/"+tc.venue, func(t *testing.T) {
+			if got := shiftMatchesVenue("berlin26", &types.WorkShift{Name: tc.name}, tc.venue); got != tc.want {
+				t.Fatalf("shiftMatchesVenue(%q, %q) = %t, want %t", tc.name, tc.venue, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStageCrewForBerlinSaturdayAfternoon(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 10, 3, 15, 0, 0, 0, loc)
+	end := start.Add(2 * time.Hour)
+	shifts := []*types.WorkShift{
+		{Name: "Showrunner, Main PM (3)", Type: &types.JobType{Tag: "showrunner"}, ShiftTime: &types.Times{Start: start, End: &end}, AssigneesRef: []string{"talip"}},
+		{Name: "A/V Monitor — Main Stage (PM, day 3)", Type: &types.JobType{Tag: "avdesk"}, ShiftTime: &types.Times{Start: start, End: &end}, AssigneesRef: []string{"bobbi"}},
+	}
+	vols := map[string]*types.Volunteer{"talip": {Name: "Talip"}, "bobbi": {Name: "Bobbi Li"}}
+	for _, minutes := range []int{0, 30, 75} {
+		talk := &types.Talk{Venue: "one", Sched: &types.Times{Start: start.Add(time.Duration(minutes) * time.Minute)}}
+		crew := stageCrewForTalk("berlin26", talk, shifts, vols)
+		if len(crew) != 2 || crew[0].Label != "Stage Manager" || crew[0].Names != "Talip" || crew[1].Names != "Bobbi Li" {
+			t.Fatalf("crew at %s = %+v", talk.Sched.Start, crew)
+		}
+	}
+	// Abbreviated names must not bypass the shift's time window.
+	if crew := stageCrewForTalk("berlin26", &types.Talk{Venue: "one", Sched: &types.Times{Start: end}}, shifts, vols); len(crew) != 0 {
+		t.Fatalf("crew after shift ended: %+v", crew)
+	}
+}
+
 func TestStageCrewForTalkMatchesVenueAndRoles(t *testing.T) {
 	start := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
 	end := start.Add(30 * time.Minute)

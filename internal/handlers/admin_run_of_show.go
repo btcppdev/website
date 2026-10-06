@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/external/spaces"
@@ -952,12 +953,30 @@ func shiftMatchesRole(s *types.WorkShift, tags []string) bool {
 }
 
 func shiftMatchesVenue(confTag string, s *types.WorkShift, venue string) bool {
+	venue = strings.TrimSpace(venue)
 	if s == nil || venue == "" {
 		return false
 	}
-	name := strings.ToLower(s.Name)
-	return strings.Contains(name, strings.ToLower(venue)) ||
-		strings.Contains(name, strings.ToLower(venueLabel(confTag, venue)))
+	// Shift titles may abbreviate "Main Stage" as "Main PM (3)".
+	// Match whole words so "one" does not also match "someone", or
+	// "Main" match "Maintenance".
+	normalize := func(value string) string {
+		return strings.Join(strings.FieldsFunc(strings.ToLower(value), func(r rune) bool {
+			return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+		}), " ")
+	}
+	label := normalize(venueLabel(confTag, venue))
+	aliases := []string{normalize(venue), label}
+	if strings.HasSuffix(label, " stage") {
+		aliases = append(aliases, strings.TrimSuffix(label, " stage"))
+	}
+	name := " " + normalize(s.Name) + " "
+	for _, alias := range aliases {
+		if alias != "" && strings.Contains(name, " "+alias+" ") {
+			return true
+		}
+	}
+	return false
 }
 
 func shiftVolunteerRefs(s *types.WorkShift) []string {
