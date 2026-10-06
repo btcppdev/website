@@ -281,7 +281,7 @@
 
       {{ if not .ResultsFinalized }}{{ template "hackathon_featured_projects" . }}{{ end }}
 
-      {{ if .CanCreate }}
+      {{ if .ShowSubmissionForm }}
       <section id="submit" class="hack-submit">
         <div class="hack-submit__copy">
           <div class="hack-label">§ Submit</div>

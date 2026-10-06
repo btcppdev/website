@@ -605,6 +605,23 @@ func (p *HackathonPage) PrimaryProjectAction() HackathonPrimaryAction {
 	return HackathonPrimaryAction{Label: "Submissions closed", Disabled: true}
 }
 
+// ShowSubmissionForm hides the public entry form at the deadline even when
+// organizers still permit late submissions through the dedicated project page.
+func (p *HackathonPage) ShowSubmissionForm() bool {
+	if p == nil || !p.CanCreate || p.Competition == nil || p.ResultsFinalized() {
+		return false
+	}
+	switch p.Competition.LifecycleOverride {
+	case getters.CompetitionLifecycleSubmissionsClosed, getters.CompetitionLifecycleClosed:
+		return false
+	}
+	window := hackathonSubmissionWindowForCompetition(p.Competition, p.ScheduleEventList)
+	if window.CloseAt != nil && !window.CloseAt.After(time.Now()) {
+		return false
+	}
+	return competitionAcceptsProjects(p.Competition, p.ScheduleEventList)
+}
+
 func (p *HackathonPage) ProjectCreateURL() string {
 	if p == nil {
 		return ""

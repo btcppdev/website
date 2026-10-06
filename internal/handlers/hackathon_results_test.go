@@ -137,3 +137,53 @@ func TestHackathonFinalizedResultsLayout(t *testing.T) {
 		}
 	}
 }
+
+func TestHackathonSubmissionFormVisibility(t *testing.T) {
+	t.Chdir(findRepoRoot(t))
+	ctx := &config.AppContext{Env: &types.EnvConfig{}}
+	if err := loadTemplates(ctx); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	past, future := now.Add(-time.Hour), now.Add(time.Hour)
+	for _, tc := range []struct {
+		name                                           string
+		closeAt                                        *time.Time
+		override                                       string
+		late, finalized, scheduled, noPermission, want bool
+	}{
+		{name: "open", closeAt: &future, want: true},
+		{name: "deadline passed", closeAt: &past},
+		{name: "late submissions allowed", closeAt: &past, late: true},
+		{name: "open override after deadline", closeAt: &past, override: getters.CompetitionLifecycleOpen},
+		{name: "manually closed", closeAt: &future, override: getters.CompetitionLifecycleSubmissionsClosed, late: true},
+		{name: "finalized", closeAt: &future, finalized: true},
+		{name: "scheduled deadline", closeAt: &future, scheduled: true, late: true},
+		{name: "ineligible viewer", closeAt: &future, noPermission: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			page := &HackathonPage{
+				Conf:      &types.Conf{Tag: "berlin26"},
+				CanCreate: !tc.noPermission,
+				Competition: &types.HackathonCompetition{
+					Title: "Hackathon", Visibility: getters.CompetitionVisibilityPublic,
+					SubmissionsOpenAt: &past, SubmissionsCloseAt: tc.closeAt,
+					LifecycleOverride: tc.override, AllowLateSubmissions: tc.late,
+				},
+			}
+			if tc.finalized {
+				page.Competition.ResultsFinalizedAt = &past
+			}
+			if tc.scheduled {
+				page.ScheduleEventList = []HackathonScheduleEvent{{SegmentType: getters.JudgeTypeExpo, Time: &past}}
+			}
+			var out bytes.Buffer
+			if err := ctx.TemplateCache.ExecuteTemplate(&out, "hackathon.tmpl", page); err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Contains(out.String(), `id="submit" class="hack-submit"`); got != tc.want {
+				t.Fatalf("submission form visible = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
