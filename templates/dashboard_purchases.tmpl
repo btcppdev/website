@@ -9,7 +9,7 @@
 <p class="profile-edit-tag">§ YOUR ACCOUNT</p><h1>Purchases <span>&amp; billing.</span></h1>
 <p>Your tickets, merchandise, and subscription payments in one place.</p>
 </div></header>
-{{ template "billing_tabs" "history" }}
+{{ template "billing_tabs" (dict "Active" "history" "ShowServices" .IsGlobalAdmin) }}
 <section class="dashboard-purchase-ledger dashboard-purchase-ledger--full" aria-label="Purchase history">
 <div class="dashboard-purchase-ledger__head"><h2>Purchase history</h2></div>
 <p>Amounts show original purchase totals. Refunds are noted in the payment status.</p>

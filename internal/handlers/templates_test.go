@@ -39,7 +39,7 @@ func TestLoadTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := purchaseTemplates.ExecuteTemplate(&purchases, "dashboard_purchases.tmpl", accountPurchasesPage{Next: 2, Purchases: []getters.AccountPurchase{
+	if err := purchaseTemplates.ExecuteTemplate(&purchases, "dashboard_purchases.tmpl", accountPurchasesPage{InsiderPreferencesPage: InsiderPreferencesPage{IsGlobalAdmin: true}, Next: 2, Purchases: []getters.AccountPurchase{
 		{Kind: "service", Reference: "paid-service", Description: "Alerts subscription", Status: "paid", Amount: "2.00", Currency: "USD"},
 		{Kind: "order", Reference: "pending-order", Description: "<script>test</script>", Status: "pending", Amount: "3.00", Currency: "USD"},
 		{Kind: "pos", Reference: "sale", Description: "Conference merch", Status: "paid", Amount: "50000", Currency: "sats"},
@@ -55,12 +55,26 @@ func TestLoadTemplates(t *testing.T) {
 	if strings.Contains(purchases.String(), "paid-service/receipt") || strings.Contains(purchases.String(), "/dashboard/orders/paid-service") || strings.Contains(purchases.String(), "pending-order/receipt") || strings.Contains(purchases.String(), "<script>test</script>") {
 		t.Fatal("unsafe purchase history")
 	}
+	// Product discovery is staged for global admins; ordinary customers still
+	// retain purchase history and links to payments they already own.
+	var ordinaryPurchases bytes.Buffer
+	if err := purchaseTemplates.ExecuteTemplate(&ordinaryPurchases, "dashboard_purchases.tmpl", accountPurchasesPage{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, hidden := range []string{`href="/dashboard/subscriptions"`, `href="/dashboard/insider"`} {
+		if strings.Contains(ordinaryPurchases.String(), hidden) {
+			t.Fatalf("non-admin navigation exposes %s", hidden)
+		}
+		if !strings.Contains(purchases.String(), hidden) {
+			t.Fatalf("global-admin navigation missing %s", hidden)
+		}
+	}
 	var subscriptions bytes.Buffer
 	subscriptionsTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := subscriptionsTemplates.ExecuteTemplate(&subscriptions, "dashboard_subscriptions.tmpl", accountSubscriptionsPage{Subscriptions: []accountSubscription{
+	if err := subscriptionsTemplates.ExecuteTemplate(&subscriptions, "dashboard_subscriptions.tmpl", accountSubscriptionsPage{InsiderPreferencesPage: InsiderPreferencesPage{IsGlobalAdmin: true}, Subscriptions: []accountSubscription{
 		{Name: "Alerts", Status: "3 free + 2 paid projects", Periods: []string{"2 additional paid projects through 2 Nov 2026"}, URL: "https://alerts.btcpp.dev/alerts"},
 		{Name: "Insider Edition", Status: "Paid membership", BillingStatus: "Cancellation scheduled", URL: insiderAccountURL},
 	}}); err != nil {

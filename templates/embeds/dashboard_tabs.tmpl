@@ -12,7 +12,9 @@
   <a href="/admin" class="dashboard-tab{{ if eq .Active "admin" }} is-active{{ end }}"{{ if eq .Active "admin" }} aria-current="page"{{ end }}>/admin</a>
   {{ end }}
   <a href="/dashboard/orders" class="dashboard-tab{{ if eq .Active "billing" }} is-active{{ end }}"{{ if eq .Active "billing" }} aria-current="page"{{ end }}>/purchases &amp; billing</a>
+  {{ if .ShowAdmin }}
   <a href="/dashboard/insider" class="dashboard-tab{{ if eq .Active "insider" }} is-active{{ end }}"{{ if eq .Active "insider" }} aria-current="page"{{ end }}>/insider</a>
+  {{ end }}
   <a href="/dashboard/settings" class="dashboard-tab{{ if eq .Active "settings" }} is-active{{ end }}"{{ if eq .Active "settings" }} aria-current="page"{{ end }}>/settings</a>
 </nav>
 {{ end }}

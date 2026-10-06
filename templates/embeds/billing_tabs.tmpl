@@ -1,6 +1,8 @@
 {{ define "billing_tabs" }}
 <nav class="dashboard-tabs" aria-label="Purchases and billing views">
-<a class="dashboard-tab{{ if eq . "history" }} is-active{{ end }}" href="/dashboard/orders"{{ if eq . "history" }} aria-current="page"{{ end }}>Purchase history</a>
-<a class="dashboard-tab{{ if eq . "subscriptions" }} is-active{{ end }}" href="/dashboard/subscriptions"{{ if eq . "subscriptions" }} aria-current="page"{{ end }}>Subscriptions</a>
+<a class="dashboard-tab{{ if eq .Active "history" }} is-active{{ end }}" href="/dashboard/orders"{{ if eq .Active "history" }} aria-current="page"{{ end }}>Purchase history</a>
+{{ if .ShowServices }}
+<a class="dashboard-tab{{ if eq .Active "subscriptions" }} is-active{{ end }}" href="/dashboard/subscriptions"{{ if eq .Active "subscriptions" }} aria-current="page"{{ end }}>Subscriptions</a>
+{{ end }}
 </nav>
 {{ end }}
