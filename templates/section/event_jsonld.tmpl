@@ -9,7 +9,8 @@
   only when EventSpeakers is non-empty.
 
   String fields go through {{ jsonStr }} (JSON encode + quote);
-  timestamps go through {{ jsonDate }} (RFC 3339 or `null`).
+  session timestamps go through {{ jsonDate }}. Conference date-only
+  values stay date-only; unknown conference dates are omitted.
 */}}
 {{ define "event_jsonld" }}
 <script type="application/ld+json">
@@ -17,19 +18,26 @@
   "@context": "https://schema.org",
   "@type": "Event",
   "name": {{ jsonStr .Conf.Desc }},
-  "description": {{ jsonStr .Conf.OGFlavor }},
-  "startDate": {{ jsonDate .Conf.StartDate }},
-  "endDate": {{ jsonDate .Conf.EndDate }},
+  "description": {{ jsonStr (conferenceSEODescription .Conf) }},
+  {{ if not .Conf.StartDate.IsZero }}"startDate": {{ jsonStr (eventSEODate .Conf .Conf.StartDate) }},{{ end }}
+  {{ if not .Conf.EndDate.IsZero }}"endDate": {{ jsonStr (eventSEODate .Conf .Conf.EndDate) }},{{ end }}
   "eventStatus": "https://schema.org/EventScheduled",
   "eventAttendanceMode": "https://schema.org/OfflineEventAttendanceMode",
   "location": {
     "@type": "Place",
     "name": {{ jsonStr .Conf.Venue }},
-    "address": {{ jsonStr .Conf.Location }}{{ if .Conf.VenueWebsite }},
+    "address": {{ if and .Conf.PickupAddressLine1 .Conf.PickupAddressCountry }}{
+      "@type": "PostalAddress",
+      "streetAddress": {{ jsonStr .Conf.PickupAddressLine1 }},
+      "addressLocality": {{ jsonStr .Conf.PickupAddressCity }},
+      "addressRegion": {{ jsonStr .Conf.PickupAddressRegion }},
+      "postalCode": {{ jsonStr .Conf.PickupAddressPostalCode }},
+      "addressCountry": {{ jsonStr .Conf.PickupAddressCountry }}
+    }{{ else }}{{ jsonStr .Conf.Location }}{{ end }}{{ if .Conf.VenueWebsite }},
     "url": {{ jsonStr .Conf.VenueWebsite }}{{ end }}
   },
   "image": {{ jsonStr (absoluteSEOURL (conferenceSocialCard .Conf)) }},
-  "url": {{ jsonStr (printf "https://btcpp.dev/%s" .Conf.Tag) }},
+  "url": {{ jsonStr (absoluteSEOURL (localeURL (printf "/%s" .Conf.Tag))) }},
   "organizer": {
     "@type": "Organization",
     "name": "bitcoin++",
@@ -37,7 +45,7 @@
   }{{ if .Tix }},
   "offers": {
     "@type": "Offer",
-    "url": {{ jsonStr (printf "https://btcpp.dev/tix/%s/checkout" .Tix.ID) }},
+    "url": {{ jsonStr (absoluteSEOURL (localeURL (printf "/%s#tickets" .Conf.Tag))) }},
     "price": {{ .Tix.StandardPrice }},
     "priceCurrency": {{ jsonStr (or .Tix.Currency "USD") }},
     "availability": "https://schema.org/{{ if gt .TixLeft 0 }}InStock{{ else }}SoldOut{{ end }}"

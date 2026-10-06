@@ -1,12 +1,19 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/i18n"
+	"btcpp-web/internal/types"
 )
 
 // staticCache wraps an http.Handler with a 1-hour Cache-Control
@@ -78,10 +85,30 @@ func shouldNoIndexPath(path string) bool {
 	}
 	switch parts[0] {
 	case "admin", "api", "auth", "callback", "check-in", "conf-reload",
-		"dashboard", "i", "invite-speaker", "live", "login", "media", "navigation", "sendcal",
+		"dashboard", "reauth", "signer", "i", "invite-speaker", "live", "login", "media", "navigation", "sendcal",
 		"ticket", "tix", "logout", "trial-cal-invite", "trial-email", "vols",
 		"webhook", "welcome-email":
 		return true
+	}
+	if len(parts) >= 2 && parts[0] == "shop" {
+		switch parts[1] {
+		case "cart", "checkout", "success", "orders", "tax-quote":
+			return true
+		}
+	}
+	if len(parts) >= 2 && parts[1] == "hackathon" {
+		if len(parts) >= 3 {
+			switch parts[2] {
+			case "judging", "ballot", "invites", "edit":
+				return true
+			}
+		}
+		if len(parts) >= 4 && parts[2] == "projects" && parts[3] == "new" {
+			return true
+		}
+		if len(parts) >= 5 && parts[2] == "projects" {
+			return true
+		}
 	}
 	if len(parts) >= 2 {
 		switch parts[1] {
@@ -126,8 +153,8 @@ func Robots(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 // Sitemap serves /sitemap.xml — rebuilt on each request from the
 // conference list so newly-published event pages are discoverable quickly.
 // Published past confs stay in the map because their public pages
-// are still useful archives; active upcoming confs get a higher
-// priority so crawl budget skews to current campaigns.
+// are still useful archives. Priority/frequency hints are optional; Google
+// ignores these fields and decides its own crawl schedule.
 //
 // Conf-agenda page (`/{tag}/agenda`) is only included when at
 // least one of the conf's talks is Status=Scheduled — same gate as
@@ -139,11 +166,30 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		http.Error(w, "Unable to load confs", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+	competitions, err := getters.ListCompetitions(ctx)
+	if err != nil {
+		ctx.Err.Printf("sitemap competitions: %s", err)
+		http.Error(w, "Sitemap temporarily unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	byConf := map[string]*types.HackathonCompetition{}
+	for _, competition := range competitions {
+		if competition != nil && competition.Visibility == getters.CompetitionVisibilityPublic {
+			byConf[competition.ConferenceID] = competition
+		}
+	}
+	projectsByConf, err := getters.PublicProjectSitemapURLs(ctx)
+	if err != nil {
+		ctx.Err.Printf("sitemap projects: %s", err)
+		http.Error(w, "Sitemap temporarily unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	// Buffer the complete map: database failures must not publish a partial 200.
+	var output bytes.Buffer
+	sitemapWriter := &output
 
-	fmt.Fprintln(w, `<?xml version="1.0" encoding="UTF-8"?>`)
-	fmt.Fprintln(w, `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
+	fmt.Fprintln(sitemapWriter, `<?xml version="1.0" encoding="UTF-8"?>`)
+	fmt.Fprintln(sitemapWriter, `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">`)
 
 	// Evergreen public pages — homepage + apply / contact / legal.
 	static := []struct {
@@ -151,6 +197,8 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	}{
 		{"/", "weekly", "1.0"},
 		{"/events", "weekly", "0.8"},
+		{"/shop", "weekly", "0.6"},
+		{"/whois", "weekly", "0.6"},
 		{"/talk", "monthly", "0.7"},
 		{"/volunteer", "monthly", "0.7"},
 		{"/sponsor", "monthly", "0.6"},
@@ -160,7 +208,7 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 		{"/terms", "yearly", "0.2"},
 	}
 	for _, s := range static {
-		writeSitemapURL(w, SEOHost+s.Path, "", s.Freq, s.Prio)
+		writeSitemapURL(sitemapWriter, SEOHost+s.Path, "", s.Freq, s.Prio)
 	}
 
 	for _, c := range confs {
@@ -173,30 +221,90 @@ func Sitemap(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 			prio = "0.9"
 			freq = "daily"
 		}
-		writeSitemapURL(w, SEOHost+"/"+c.Tag, "", freq, prio)
+		landing := "/" + url.PathEscape(c.Tag)
+		languages := conferenceCatalog.Languages(c.Tag, "en")
+		if len(languages) == 0 {
+			writeSitemapURL(sitemapWriter, SEOHost+landing, "", freq, prio)
+		} else {
+			alternates := append(append([]i18n.LanguageLink(nil), languages...), i18n.LanguageLink{Locale: "x-default", URL: landing})
+			for _, language := range languages {
+				writeSitemapURL(sitemapWriter, absoluteSEOURL(language.URL), "", freq, prio, alternates...)
+			}
+		}
 		// Agenda page is gated on Conf.HasAgenda — populated at
 		// render time, not on the cached Conf, so compute it here
 		// against the live talks slice.
-		talks, _ := getters.GetTalksFor(ctx, c.Tag)
+		talks, err := getters.GetTalksFor(ctx, c.Tag)
+		if err != nil {
+			ctx.Err.Printf("sitemap talks %s: %s", c.Tag, err)
+			http.Error(w, "Sitemap temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if len(acceptedSpeakersForConf(ctx, c, talks)) > 0 {
+			writeSitemapURL(sitemapWriter, SEOHost+landing+"/speakers", "", freq, "0.6")
+		}
+		if competition := byConf[c.Ref]; competition != nil {
+			writeSitemapURL(sitemapWriter, SEOHost+landing+"/hackathon", "", freq, "0.6")
+			for _, projectID := range projectsByConf[c.Ref] {
+				writeSitemapURL(sitemapWriter, SEOHost+landing+"/hackathon/projects/"+url.PathEscape(projectID), "", "monthly", "0.5")
+			}
+		}
 		if anyScheduledTalk(c, talks) {
-			writeSitemapURL(w, SEOHost+"/"+c.Tag+"/agenda", "", freq, "0.6")
+			writeSitemapURL(sitemapWriter, SEOHost+landing+"/agenda", "", freq, "0.6")
 		}
 	}
 
-	fmt.Fprintln(w, `</urlset>`)
+	fmt.Fprintln(sitemapWriter, `</urlset>`)
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	_, _ = w.Write(output.Bytes())
 }
 
-func writeSitemapURL(w http.ResponseWriter, loc, lastmod, changefreq, priority string) {
-	fmt.Fprintln(w, `  <url>`)
-	fmt.Fprintf(w, "    <loc>%s</loc>\n", loc)
-	if lastmod != "" {
-		fmt.Fprintf(w, "    <lastmod>%s</lastmod>\n", lastmod)
+type sitemapAlternate struct {
+	XMLName  xml.Name `xml:"xhtml:link"`
+	Rel      string   `xml:"rel,attr"`
+	Language string   `xml:"hreflang,attr"`
+	Href     string   `xml:"href,attr"`
+}
+
+type sitemapEntry struct {
+	XMLName    xml.Name `xml:"url"`
+	Loc        string   `xml:"loc"`
+	Lastmod    string   `xml:"lastmod,omitempty"`
+	Changefreq string   `xml:"changefreq,omitempty"`
+	Priority   string   `xml:"priority,omitempty"`
+	Alternates []sitemapAlternate
+}
+
+func writeSitemapURL(w io.Writer, loc, lastmod, changefreq, priority string, languages ...i18n.LanguageLink) {
+	entry := sitemapEntry{Loc: loc, Lastmod: lastmod, Changefreq: changefreq, Priority: priority}
+	for _, language := range languages {
+		entry.Alternates = append(entry.Alternates, sitemapAlternate{Rel: "alternate", Language: language.Locale, Href: absoluteSEOURL(language.URL)})
 	}
-	if changefreq != "" {
-		fmt.Fprintf(w, "    <changefreq>%s</changefreq>\n", changefreq)
+	data, _ := xml.MarshalIndent(entry, "  ", "  ")
+	fmt.Fprintln(w, string(data))
+}
+
+// Dates entered without a time must not advertise a midnight event start.
+func eventSEODate(conf *types.Conf, value time.Time) string {
+	if value.IsZero() {
+		return ""
 	}
-	if priority != "" {
-		fmt.Fprintf(w, "    <priority>%s</priority>\n", priority)
+	if conf != nil {
+		value = value.In(conf.Loc())
 	}
-	fmt.Fprintln(w, `  </url>`)
+	if value.Hour() == 0 && value.Minute() == 0 && value.Second() == 0 {
+		return value.Format("2006-01-02")
+	}
+	return value.Format(time.RFC3339)
+}
+
+func conferenceSEODescription(conf *types.Conf) string {
+	if conf == nil {
+		return "Bitcoin developer conferences, workshops, and hackathons from bitcoin++."
+	}
+	if description := strings.TrimSpace(conf.OGFlavor); description != "" {
+		return description
+	}
+	return fmt.Sprintf("%s · %s · %s. Explore the program, speakers, venue, and tickets.", conf.Desc, conf.DateDesc, conf.Location)
 }

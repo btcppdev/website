@@ -320,6 +320,8 @@ func loadTemplates(ctx *config.AppContext) error {
 		// type="application/ld+json"> block. template.JS bypasses
 		// html/template's JS-context escaping; the JSON itself is
 		// already script-safe.
+		"eventSEODate":             eventSEODate,
+		"conferenceSEODescription": conferenceSEODescription,
 		"jsonStr": func(s string) template.JS {
 			b, _ := json.Marshal(s)
 			return template.JS(b)

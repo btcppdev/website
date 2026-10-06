@@ -1,4 +1,4 @@
 {{ define "conf_seo" }}
-    {{ template "site_seo" (dict "Title" (printf "%s · %s" .Conf.Desc .Conf.DateDesc) "Description" .Conf.OGFlavor "Path" (localeURL (printf "/%s" .Conf.Tag)) "Image" (conferenceSocialCard .Conf) "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
+    {{ template "site_seo" (dict "Title" (printf "%s · %s" .Conf.Desc .Conf.DateDesc) "Description" (conferenceSEODescription .Conf) "Path" (localeURL (printf "/%s" .Conf.Tag)) "Image" (conferenceSocialCard .Conf) "ImageType" "image/jpeg" "ImageWidth" 1200 "ImageHeight" 630) }}
     {{ block "event_jsonld" . }} {{ end }}
 {{ end }}
