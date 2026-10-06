@@ -22,6 +22,7 @@ type GlobalAdminDashboardPage struct {
 	Year                   uint
 	CanAssignAccountsAdmin bool
 	IsAccountsAdmin        bool
+	IsAlertsAdmin          bool
 	FeaturedSpeakerSlots   []*types.Speaker
 	SubscriberSummary      getters.AdminSubscriberSummary
 	SubscriberStatsReady   bool
@@ -118,6 +119,7 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		Year:                   helpers.CurrentYear(),
 		CanAssignAccountsAdmin: canAssignAccountsAdmin(id),
 		IsAccountsAdmin:        id.IsAccountsAdmin(),
+		IsAlertsAdmin:          id.IsAlertsAdmin(),
 		FeaturedSpeakerSlots:   slots,
 		SubscriberSummary:      subscriberSummary,
 		SubscriberStatsReady:   subscriberErr == nil,

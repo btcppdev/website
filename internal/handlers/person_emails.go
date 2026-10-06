@@ -129,6 +129,7 @@ func renderAccountSettings(w http.ResponseWriter, r *http.Request, ctx *config.A
 		NewOAuthClientSecret:  newOAuthClientSecret,
 		IsGlobalAdmin:         id.IsGlobalAdmin(),
 		IsAccountsAdmin:       id.IsAccountsAdmin(),
+		IsAlertsAdmin:         id.IsAlertsAdmin(),
 		HasHackathonProjects:  hasHackathonProjects,
 		ShowSponsors:          hasManagedSponsorOrganization(ctx, id.PersonID, "/dashboard/settings"),
 		PendingOrgInviteCount: pendingOrganizationInviteCount(ctx, id.PersonID, "/dashboard/settings"),

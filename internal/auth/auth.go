@@ -82,7 +82,9 @@ const (
 	GlobalScope = "global"
 	// AccountsScope is reserved for the standalone accounts.btcpp.dev
 	// permission. It is deliberately not covered by global-admin.
-	AccountsScope = "accts"
+	AccountsScope  = "accts"
+	AlertsScope    = "alerts"
+	AlertsAdminTag = AlertsScope + "-" + RoleAdmin
 	// AccountsAdminTag is the persisted role tag granted to people who may use
 	// the accounting workspace. Like every person role, it can coexist with any
 	// other profile roles.
@@ -146,6 +148,9 @@ func (id *Identity) Satisfies(spec Spec) bool {
 		return false
 	}
 	for _, r := range id.Roles {
+		if r.Scope == AlertsScope {
+			continue
+		}
 		if !covers(r.Name, spec.Role) {
 			continue
 		}
@@ -170,6 +175,9 @@ func (id *Identity) AdminConfTags() (confs []string, globalAdmin, globalVolcoord
 	}
 	seen := make(map[string]bool)
 	for _, r := range id.Roles {
+		if r.Scope == AlertsScope {
+			continue
+		}
 		if r.Name != RoleAdmin && r.Name != RoleVolcoord {
 			continue
 		}
@@ -203,6 +211,9 @@ func (id *Identity) HasExactRoleForConf(confTag, role string) bool {
 		return false
 	}
 	for _, r := range id.Roles {
+		if r.Scope == AlertsScope {
+			continue
+		}
 		if r.Name == role && (r.Scope == GlobalScope || r.Scope == confTag) {
 			return true
 		}
@@ -226,6 +237,20 @@ func (id *Identity) IsAccountsAdmin() bool {
 	}
 	for _, role := range id.Roles {
 		if role.Scope == AccountsScope && role.Name == RoleAdmin {
+			return true
+		}
+	}
+	return false
+}
+
+// IsAlertsAdmin checks the explicit service permission; global-admin does not
+// implicitly grant access to the standalone Alerts service.
+func (id *Identity) IsAlertsAdmin() bool {
+	if id == nil {
+		return false
+	}
+	for _, role := range id.Roles {
+		if role.Scope == AlertsScope && role.Name == RoleAdmin {
 			return true
 		}
 	}

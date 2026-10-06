@@ -352,7 +352,7 @@ func TestRecordingBroadcastPlansRequireGlobalAdminAndUseIncrementalCursor(t *tes
 func TestIdentityReturnsOnlyMinimalAccountAndCurrentRoles(t *testing.T) {
 	person := &types.Speaker{
 		ID: "person-1", Name: "Mara", Email: "private@example.test", Phone: "private-phone",
-		Bio: "private biography", Roles: []string{"dev26-admin", "global-admin", auth.AccountsAdminTag},
+		Bio: "private biography", Roles: []string{"dev26-admin", "global-admin", auth.AccountsAdminTag, auth.AlertsAdminTag},
 	}
 	router := protectedTestRouter(&types.PersonAPIToken{
 		PersonID: person.ID, Scopes: []string{"identity:self:read"},
@@ -365,10 +365,16 @@ func TestIdentityReturnsOnlyMinimalAccountAndCurrentRoles(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
 	body := response.Body.String()
-	for _, expected := range []string{`"id":"person-1"`, `"name":"Mara"`, `"global-admin"`, `"dev26-admin"`, `"accts-admin"`} {
+	for _, expected := range []string{`"id":"person-1"`, `"name":"Mara"`, `"global-admin"`, `"dev26-admin"`, `"accts-admin"`, `"alerts-admin"`} {
 		if !strings.Contains(body, expected) {
 			t.Fatalf("identity response omitted %s: %s", expected, body)
 		}
+	}
+	person.Roles = []string{"global-admin"}
+	revoked := httptest.NewRecorder()
+	router.ServeHTTP(revoked, request.Clone(request.Context()))
+	if revoked.Code != http.StatusOK || strings.Contains(revoked.Body.String(), "alerts-admin") {
+		t.Fatal("identity retained a revoked Alerts role", revoked.Body.String())
 	}
 	for _, private := range []string{"private@example.test", "also-private@example.test", "private-phone", "private biography"} {
 		if strings.Contains(body, private) {

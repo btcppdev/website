@@ -1112,6 +1112,7 @@ type PersonEmailsPage struct {
 	NewOAuthClientSecret  string
 	IsGlobalAdmin         bool
 	IsAccountsAdmin       bool
+	IsAlertsAdmin         bool
 	HasHackathonProjects  bool
 	ShowSponsors          bool
 	PendingOrgInviteCount int

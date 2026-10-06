@@ -9,7 +9,8 @@ type adminRoleOption struct {
 
 func adminRoleOptions(confs []*types.Conf) []adminRoleOption {
 	out := []adminRoleOption{
-		{"global-admin", "Global administrator", "Manage the whole website and assign roles. Accounts administration is granted separately.", false},
+		{"global-admin", "Global administrator", "Manage the whole website and assign roles. Accounts and Alerts administration are granted separately.", false},
+		{"alerts-admin", "Alerts administrator", "Manage the release catalog, delivery retries and service health at alerts.btcpp.dev.", false},
 		{"merch-admin", "Merch administrator", "Manage products, stock, orders, fulfillment and refunds. Receive new merch-sale emails.", false},
 		{"accts-admin", "Accounts administrator", "Access accounts.btcpp.dev. Only nifty@btcpp.dev can grant this role.", true},
 		{"global-volcoord", "Volunteer coordinator · all events", "Manage volunteer operations across all conferences.", false},

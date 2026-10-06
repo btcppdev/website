@@ -22,7 +22,7 @@ func TestAdminRoleOptions(t *testing.T) {
 			t.Fatal("accounts grant restriction missing")
 		}
 	}
-	for _, tag := range []string{"merch-admin", "global-admin", "accts-admin", "berlin26-admin", "berlin26-staff", "berlin26-volcoord", "berlin26-hackathon"} {
+	for _, tag := range []string{"alerts-admin", "merch-admin", "global-admin", "accts-admin", "berlin26-admin", "berlin26-staff", "berlin26-volcoord", "berlin26-hackathon"} {
 		if !seen[tag] {
 			t.Fatal("missing option", tag)
 		}

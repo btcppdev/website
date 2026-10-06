@@ -247,3 +247,28 @@ func TestAccountsAdminIsExplicitAndAdditive(t *testing.T) {
 		}
 	}
 }
+
+func TestAlertsAdminIsExplicitAndIsolated(t *testing.T) {
+	id := &Identity{Roles: ParseRoles([]string{AlertsAdminTag})}
+	if !id.IsAlertsAdmin() || id.IsGlobalAdmin() || id.IsAccountsAdmin() {
+		t.Fatal("Alerts role must not grant global or accounting administration")
+	}
+	for _, scope := range []string{"", "global", "berlin", "alerts"} {
+		if id.HasRoleForConf(scope, RoleAdmin) || id.HasExactRoleForConf(scope, RoleAdmin) {
+			t.Fatal("service role leaked into conference authorization", scope)
+		}
+	}
+	confs, global, coordinator := id.AdminConfTags()
+	if len(confs) != 0 || global || coordinator {
+		t.Fatal("service role appeared as a conference")
+	}
+	for _, roles := range [][]string{nil, {"global-admin"}, {"berlin-admin"}, {AccountsAdminTag}} {
+		if (&Identity{Roles: ParseRoles(roles)}).IsAlertsAdmin() {
+			t.Fatal("implicit Alerts access", roles)
+		}
+	}
+	var anonymous *Identity
+	if anonymous.IsAlertsAdmin() {
+		t.Fatal("anonymous operator")
+	}
+}

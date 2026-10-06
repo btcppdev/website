@@ -931,3 +931,18 @@ up to 100 records. Pass `next` as `-after` with the same attempt filter; no `nex
 means the final page. The admin Refund review page offers the same Next page link.
 The immutable record cursor avoids skipping later refunds when earlier jobs are
 resolved. Attempt-filtered inspection includes completed refund records.
+
+## Alerts administration
+
+The global administrator role manager offers `alerts-admin`. Assigning it adds
+`people_roles(scope='alerts', position='admin')`; removing it revokes that
+permission. No migration or automatic assignment is required. This role grants
+no global, accounts or conference administration. Only global administrators
+can edit roles through the existing CSRF-protected role manager.
+
+The existing identity API returns current roles with `identity:self:read`.
+Alerts uses that response on every privileged request and requires the exact
+`alerts-admin` tag. Deploy the corresponding Alerts update before relying on
+this role for its admin interface. The account settings page links authorized
+users to https://alerts.btcpp.dev/admin. Newly granted administrators sign in
+again to establish the short-lived, encrypted identity session.
