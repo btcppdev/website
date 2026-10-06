@@ -83,7 +83,7 @@
   <em>NEXT</em><b>•</b>
   {{ if .Upcoming }}
     {{ $next := index .Upcoming 0 }}
-    <strong>{{ $next.Desc }}</strong><b>•</b><em>{{ $next.DateDesc }}</em><b>•</b><a href="/{{ $next.Tag }}#tickets">GET TICKETS</a>
+    <strong>{{ $next.Desc }}</strong><b>•</b><em>{{ $next.DateDesc }}</em><b>•</b><a href="/{{ $next.Tag }}#tickets">{{ msg "nav.get_tickets" }}</a>
   {{ else }}
     <em>WATCH FOR THE NEXT EDITION</em>
   {{ end }}

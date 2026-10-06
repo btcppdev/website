@@ -41,42 +41,42 @@
 {{ end }}
 {{ template "site_ticker" $nav }}
 <header class="site-nav{{ if $conf }} site-nav--conference{{ end }}">
-  <nav class="site-nav__inner" aria-label="Primary navigation">
+  <nav class="site-nav__inner" aria-label="{{ msg "nav.primary" }}">
     <a href="/" class="site-nav__brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
-    <input class="site-nav__toggle" type="checkbox" id="site-nav-toggle" aria-label="Toggle navigation">
+    <input class="site-nav__toggle" type="checkbox" id="site-nav-toggle" aria-label="{{ msg "nav.toggle" }}">
     <div class="site-nav__links">
-      <a href="/">/home</a>
+      <a href="/">{{ msg "nav.home" }}</a>
       <details class="site-nav__events-menu">
-        <summary>/events <i aria-hidden="true">⌄</i></summary>
+        <summary>{{ msg "nav.events" }} <i aria-hidden="true">⌄</i></summary>
         <div class="site-nav__events-popover">
-          <a href="/events">/attend</a>
-          <a href="/talk">/speak</a>
-          <a href="/sponsor">/sponsor</a>
-          <a href="/volunteer">/volunteer</a>
+          <a href="/events">{{ msg "nav.attend" }}</a>
+          <a href="/talk">{{ msg "nav.speak" }}</a>
+          <a href="/sponsor">{{ msg "nav.sponsor" }}</a>
+          <a href="/volunteer">{{ msg "nav.volunteer" }}</a>
         </div>
       </details>
-      <a href="/whois">/whois</a>
-      <a href="/shop">/shop</a>
-      <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">/insider</a>
+      <a href="/whois">{{ msg "nav.whois" }}</a>
+      <a href="/shop">{{ msg "nav.shop" }}</a>
+      <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">{{ msg "nav.insider" }}</a>
       <div class="site-account site-account--mobile" data-site-account>
-        <a class="site-account__signin" href="/login">sign in</a>
+        <a class="site-account__signin" href="/login">{{ msg "nav.sign_in" }}</a>
       </div>
     </div>
     <div class="site-nav__controls">
       {{ if and $page (isShopPage $page) }}
         <a class="site-button is-accent site-nav__cta" href="/shop/cart">cart</a>
       {{ else if $conf }}
-        <a class="site-button is-accent site-nav__cta" href="/{{ $conf.Tag }}#tickets">GET TICKETS</a>
+        <a class="site-button is-accent site-nav__cta" href="{{ localeURL (printf "/%s#tickets" $conf.Tag) }}">{{ msg "nav.get_tickets" }}</a>
       {{ else if $nav.Upcoming }}
         {{ $next := index $nav.Upcoming 0 }}
-        <a class="site-button is-accent site-nav__cta" href="/{{ $next.Tag }}#tickets">GET TICKETS</a>
+        <a class="site-button is-accent site-nav__cta" href="/{{ $next.Tag }}#tickets">{{ msg "nav.get_tickets" }}</a>
       {{ else }}
-        <a class="site-button is-accent site-nav__cta" href="/events">GET TICKETS</a>
+        <a class="site-button is-accent site-nav__cta" href="/events">{{ msg "nav.get_tickets" }}</a>
       {{ end }}
       <div class="site-account site-account--desktop" data-site-account>
-        <a class="site-account__signin" href="/login">sign in</a>
+        <a class="site-account__signin" href="/login">{{ msg "nav.sign_in" }}</a>
       </div>
-      <label class="site-nav__menu" for="site-nav-toggle" aria-label="Toggle navigation">
+      <label class="site-nav__menu" for="site-nav-toggle" aria-label="{{ msg "nav.toggle" }}">
         <span></span><span></span><span></span>
       </label>
     </div>
@@ -86,19 +86,19 @@
 <nav class="site-conf-nav{{ if $hackathon }} site-conf-nav--hackathon{{ end }}" aria-label="{{ if $hackathon }}{{ $hackathon.Competition.Title }} navigation{{ else }}{{ $conf.Desc }} navigation{{ end }}">
   {{ if $hackathon }}
   <a class="site-conf-nav__identity site-conf-nav__identity--back" href="{{ $hackathon.ConferenceURL }}">
-    <span>← THIS EVENT</span>
+    <span>{{ msg "nav.back_event" }}</span>
     <strong>{{ $hackathon.ConferenceLabel }}</strong>
   </a>
   <div class="site-conf-nav__context" aria-hidden="true">
-    <span>Current area</span>
-    <strong>Hackathon</strong>
+    <span>{{ msg "nav.current_area" }}</span>
+    <strong>{{ msg "hackathon.name" }}</strong>
   </div>
   <div class="site-conf-nav__links">
     {{ template "hackathon_nav_links" $hackathon }}
   </div>
   {{ else }}
-  <a class="site-conf-nav__identity" href="/{{ $conf.Tag }}">
-    <span>THIS EVENT</span>
+  <a class="site-conf-nav__identity" href="{{ localeURL (printf "/%s" $conf.Tag) }}">
+    <span>{{ msg "nav.this_event" }}</span>
     <strong>{{ if $conf.Desc }}{{ $conf.Desc }}{{ else }}{{ $conf.Tag }}{{ end }}</strong>
   </a>
   <div class="site-conf-nav__links">
@@ -256,16 +256,16 @@
 {{ end }}
 
 {{ define "conference_nav_links" }}
-  <a href="/{{ .Tag }}#about">/about</a>
-  {{ if conferenceIsLive . }}<a href="/{{ .Tag }}/live">/live</a>{{ end }}
-  <a href="/{{ .Tag }}#dates">/dates</a>
-  {{ if .ShowHackathon }}<a href="/{{ .Tag }}#hackathon">/hackathon</a>{{ end }}
-  <a href="/{{ .Tag }}#speakers">/speakers</a>
-  {{ if .HasSchedule }}<a href="/{{ .Tag }}#schedule">/schedule</a>{{ end }}
-  {{ if .HasAgenda }}<a href="/{{ .Tag }}#agenda">/agenda</a>{{ end }}
-  <a href="/{{ .Tag }}#venue">/venue</a>
-  <a href="/{{ .Tag }}#satellites">/satellites</a>
-  <a href="/{{ .Tag }}#sponsors">/sponsors</a>
+  <a href="{{ localeURL (printf "/%s#about" .Tag) }}">{{ msg "nav.about" }}</a>
+  {{ if conferenceIsLive . }}<a href="/{{ .Tag }}/live">{{ msg "nav.live" }}</a>{{ end }}
+  <a href="{{ localeURL (printf "/%s#dates" .Tag) }}">{{ msg "nav.dates" }}</a>
+  {{ if .ShowHackathon }}<a href="{{ localeURL (printf "/%s#hackathon" .Tag) }}">{{ msg "nav.hackathon" }}</a>{{ end }}
+  <a href="{{ localeURL (printf "/%s#speakers" .Tag) }}">{{ msg "nav.speakers" }}</a>
+  {{ if .HasSchedule }}<a href="{{ localeURL (printf "/%s#schedule" .Tag) }}">{{ msg "nav.schedule" }}</a>{{ end }}
+  {{ if .HasAgenda }}<a href="{{ localeURL (printf "/%s#agenda" .Tag) }}">{{ msg "nav.agenda" }}</a>{{ end }}
+  <a href="{{ localeURL (printf "/%s#venue" .Tag) }}">{{ msg "nav.venue" }}</a>
+  <a href="{{ localeURL (printf "/%s#satellites" .Tag) }}">{{ msg "nav.satellites" }}</a>
+  <a href="{{ localeURL (printf "/%s#sponsors" .Tag) }}">{{ msg "nav.sponsors" }}</a>
 {{ end }}
 
 {{ define "hackathon_nav_links" }}
@@ -273,7 +273,7 @@
   <a href="{{ .HackathonURL }}" data-hackathon-tab="overview" data-active-exact>/start</a>
   <a href="{{ .HackathonURL }}#projects" data-hackathon-tab="projects" data-active-prefix="{{ .HackathonURL }}/projects">/projects</a>
   <a href="{{ .HackathonURL }}#awards" data-hackathon-tab="awards">/prizes</a>
-  <a href="{{ .ScheduleURL }}" data-active-prefix="{{ .ScheduleURL }}">/schedule</a>
+  <a href="{{ .ScheduleURL }}" data-active-prefix="{{ .ScheduleURL }}">{{ msg "nav.schedule" }}</a>
   {{ if or .Competition.PublicTablesEnabled .CanAdminEdit }}<a href="{{ .HackathonURL }}#tables" data-hackathon-tab="tables">/tables</a>{{ end }}
   {{ if .CanJudge }}<a href="{{ .JudgingURL }}" data-active-prefix="{{ .JudgingURL }}">/judging</a>{{ end }}
   {{ if .CanAdminEdit }}<a href="{{ .AdminEditURL }}" data-active-prefix="{{ .AdminEditURL }}">/edit</a>{{ end }}
@@ -308,5 +308,5 @@
 {{ end }}
 
 {{ define "site_account_anonymous" }}
-<a class="site-account__signin" href="/login">sign in</a>
+<a class="site-account__signin" href="/login">{{ msg "nav.sign_in" }}</a>
 {{ end }}

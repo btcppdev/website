@@ -3,10 +3,10 @@
   <div class="rebrand-satellites__inner">
     <div class="rebrand-satellites__intro">
       <div>
-        <p class="rebrand-section-label">§05 · Satellites</p>
-        <h2>Satellite Events</h2>
+        <p class="rebrand-section-label">{{ msg "satellites.section" }}</p>
+        <h2>{{ msg "satellites.title" }}</h2>
       </div>
-      <p>Other bitcoin events happening around {{ .Conf.Location }}. Additional ticket or registration may be necessary.</p>
+      <p>{{ msg "satellites.intro" (dict "Location" .Conf.Location) }}</p>
     </div>
 
     <div class="rebrand-satellites__content">
@@ -43,7 +43,7 @@
                 {{ if .HostLogoURL }}<img src="{{ spacesURL .HostLogoURL }}" alt="">{{ end }}
                 {{ if .HostName }}
                 <p>
-                  <span>Hosted by</span>
+                  <span>{{ msg "satellites.hosted" }}</span>
                   {{ if .HostURL }}
                   <a target="_blank" href="{{ safeURL .HostURL }}">{{ .HostName }}</a>
                   {{ else }}
@@ -64,7 +64,7 @@
 
       {{ if .Conf.Active }}
       <div class="rebrand-satellites__cta">
-        <a href="/{{ .Conf.Tag }}/satellites/new">Suggest a satellite event</a>
+        <a href="/{{ .Conf.Tag }}/satellites/new">{{ msg "satellites.suggest" }}</a>
       </div>
       {{ end }}
     </div>

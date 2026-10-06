@@ -52,9 +52,13 @@ func TestLoadTemplates(t *testing.T) {
 			t.Fatalf("conference live=%v rendered incorrect player state", live)
 		}
 	}
-	mainNav, err := os.ReadFile("templates/section/main_nav.tmpl")
+	navTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {
-		t.Fatalf("read global navigation: %v", err)
+		t.Fatal(err)
+	}
+	var mainNav bytes.Buffer
+	if err := navTemplates.ExecuteTemplate(&mainNav, "mainnav", nil); err != nil {
+		t.Fatal(err)
 	}
 	for _, expected := range []string{
 		`<details class="site-nav__events-menu">`,
@@ -64,7 +68,7 @@ func TestLoadTemplates(t *testing.T) {
 		`<a href="/sponsor">/sponsor</a>`,
 		`<a href="/volunteer">/volunteer</a>`,
 	} {
-		if !strings.Contains(string(mainNav), expected) {
+		if !strings.Contains(mainNav.String(), expected) {
 			t.Fatalf("global navigation omitted %q", expected)
 		}
 	}

@@ -19,12 +19,13 @@ type AppContext struct {
 	Env *types.EnvConfig
 	DB  *pgxpool.Pool
 
-	InProduction  bool
-	Err           *log.Logger
-	Infos         *log.Logger
-	Session       *scs.SessionManager
-	TemplateCache *htmltemplate.Template
-	EmailCache    map[string]*texttemplate.Template
+	InProduction       bool
+	Err                *log.Logger
+	Infos              *log.Logger
+	Session            *scs.SessionManager
+	TemplateCache      *htmltemplate.Template
+	LocalizedTemplates map[string]*htmltemplate.Template
+	EmailCache         map[string]*texttemplate.Template
 }
 
 // DatabaseContext bounds both pool acquisition and query execution. Most of

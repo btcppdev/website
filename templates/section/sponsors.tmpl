@@ -12,20 +12,20 @@
 <section id="sponsors" class="rebrand-sponsors">
   <div class="rebrand-sponsors__intro">
     <div>
-      <p class="rebrand-section-label">§06 · Sponsors</p>
-      <h2>Who’s backing us</h2>
+      <p class="rebrand-section-label">{{ msg "sponsors.section" }}</p>
+      <h2>{{ msg "sponsors.title" }}</h2>
     </div>
     <div class="rebrand-sponsors__copy">
-      <p>bitcoin++ is proud to be supported by a wide range of companies and individuals from across the bitcoin ecosystem. Check out what they're up to, both here online as well as at the conference.</p>
-      <a href="/sponsor" class="rebrand-sponsors__cta">Become a sponsor →</a>
+      <p>{{ msg "sponsors.intro" }}</p>
+      <a href="/sponsor" class="rebrand-sponsors__cta">{{ msg "sponsors.become" }}</a>
     </div>
   </div>
   <div class="rebrand-sponsor-tiers">
     {{ range $idx, $tier := $tiers }}
-    <section class="rebrand-sponsor-tier rebrand-sponsor-tier--rank-{{ sponsorDisplayRank $tier.Level }}" aria-label="{{ $tier.Label }}">
+    <section class="rebrand-sponsor-tier rebrand-sponsor-tier--rank-{{ sponsorDisplayRank $tier.Level }}" aria-label="{{ eventText $.Conf.Tag $tier.Label }}">
       <div class="rebrand-sponsor-tier__label">
-        <h3>{{ $tier.Label }}</h3>
-        <span>{{ len $tier.Sponsors }} supporter{{ if ne (len $tier.Sponsors) 1 }}s{{ end }}</span>
+        <h3>{{ eventText $.Conf.Tag $tier.Label }}</h3>
+        <span>{{ msg "sponsors.count" (dict "Count" (len $tier.Sponsors)) }}</span>
       </div>
       <div class="rebrand-sponsor-grid">
         {{ range $tier.Sponsors }}

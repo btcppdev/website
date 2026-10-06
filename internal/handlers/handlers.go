@@ -33,6 +33,7 @@ import (
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/emails"
 	"btcpp-web/internal/helpers"
+	"btcpp-web/internal/i18n"
 	"btcpp-web/internal/ics"
 	"btcpp-web/internal/imgproc"
 	"btcpp-web/internal/missives"
@@ -583,8 +584,25 @@ func loadTemplates(ctx *config.AppContext) error {
 			return t.After(time.Now())
 		},
 	}
+	for key, value := range localeTemplateFunctions("en") {
+		funcMap[key] = value
+	}
 	ctx.TemplateCache, err = findAndParseTemplates("templates", funcMap)
-	return err
+	if err != nil {
+		return err
+	}
+	ctx.LocalizedTemplates = map[string]*template.Template{}
+	for language := range conferenceCatalog.Messages {
+		if language == "en" {
+			continue
+		}
+		localized, err := ctx.TemplateCache.Clone()
+		if err != nil {
+			return err
+		}
+		ctx.LocalizedTemplates[language] = localized.Funcs(localeTemplateFunctions(language))
+	}
+	return nil
 }
 
 func contains(list []string, item string) bool {
@@ -2504,6 +2522,13 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/{conf}/speakers", func(w http.ResponseWriter, r *http.Request) {
 		RenderConfSpeakers(w, r, app)
 	}).Methods("GET")
+	for _, translation := range conferenceCatalog.Events {
+		event, language := translation.Event, translation.Locale
+		r.HandleFunc("/"+language+"/"+event, func(w http.ResponseWriter, r *http.Request) {
+			r = mux.SetURLVars(r, map[string]string{"conf": event, "locale": language})
+			RenderConf(w, r, app)
+		}).Methods("GET")
+	}
 	r.HandleFunc("/{conf}", func(w http.ResponseWriter, r *http.Request) {
 		RenderConf(w, r, app)
 	}).Methods("GET")
@@ -3911,12 +3936,12 @@ func RenderConfSuccess(w http.ResponseWriter, r *http.Request, ctx *config.AppCo
 		ctx.Session.Remove(r.Context(), checkoutEmailSessionKey(conf.Tag))
 	}
 
-	err = ctx.TemplateCache.ExecuteTemplate(w, "success.tmpl", &SuccessPage{
+	err = renderCheckout(w, r, ctx, "success.tmpl", &SuccessPage{
 		Conf:      conf,
 		Ticket:    ticket,
 		Sponsored: sponsored,
 		Year:      helpers.CurrentYear(),
-	})
+	}, conf)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s/success ExecuteTemplate failed ! %s", conf.Tag, err.Error())
@@ -4848,7 +4873,7 @@ func RenderConf(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) 
 		HackathonCanAdmin:       hackathonCanAdmin,
 		Year:                    helpers.CurrentYear(),
 	}
-	err = ctx.TemplateCache.ExecuteTemplate(w, tmplTag, confPage)
+	err = renderLocalizedConference(w, r, ctx, tmplTag, confPage)
 	if err != nil {
 		http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
 		ctx.Err.Printf("/%s ExecuteTemplate failed ! %s", conf.Tag, err.Error())
@@ -6407,7 +6432,7 @@ func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 				affiliateCode = ""
 				discountPrice = tixPrice
 			} else {
-				errStr = err.Error()
+				errStr = checkoutMessage(r, conf, "checkout.discount_error")
 			}
 		}
 	} else {
@@ -6415,7 +6440,7 @@ func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	err = ctx.TemplateCache.ExecuteTemplate(w, "tix_details.tmpl", &TixFormPage{
+	err = renderCheckout(w, r, ctx, "tix_details.tmpl", &TixFormPage{
 		Conf:            conf,
 		Tix:             tix,
 		TixSlug:         tixSlug,
@@ -6432,10 +6457,10 @@ func HandleDiscount(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		HMAC:            calcTixHMAC(ctx, conf, tixPrice, discountPrice, effectiveCode),
 		Count:           count,
 		Year:            helpers.CurrentYear(),
-	})
+	}, conf)
 
 	if err != nil {
-		http.Error(w, "Unable to load template, please try again later", http.StatusInternalServerError)
+		http.Error(w, checkoutMessage(r, conf, "checkout.load_error"), http.StatusInternalServerError)
 		ctx.Err.Printf("/tix/%s/apply-discount templ exec failed %s", tixSlug, err.Error())
 		return
 	}
@@ -6504,7 +6529,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 					affiliateCode = ""
 					discountPrice = tixPrice
 				} else {
-					errStr = err.Error()
+					errStr = checkoutMessage(r, conf, "checkout.discount_error")
 				}
 			}
 			if discount != nil {
@@ -6533,9 +6558,9 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		if quoteErr := populateTicketCheckoutAddOns(r.Context(), ctx, page); quoteErr != nil {
 			ctx.Err.Printf("/tix/%s/checkout add-on FX quote unavailable: %s", tixSlug, quoteErr)
 		}
-		err = ctx.TemplateCache.ExecuteTemplate(w, "collect-email.tmpl", page)
+		err = renderCheckout(w, r, ctx, "collect-email.tmpl", page, conf)
 		if err != nil {
-			http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
+			http.Error(w, checkoutMessage(r, conf, "checkout.load_error"), http.StatusInternalServerError)
 			ctx.Err.Printf("/tix/%s/checkout templ exec failed %s", tixSlug, err.Error())
 			return
 		}
@@ -6550,13 +6575,13 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		var form types.TixForm
 		err = dec.Decode(&form, r.PostForm)
 		if err != nil {
-			http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
+			http.Error(w, checkoutMessage(r, conf, "checkout.load_error"), http.StatusInternalServerError)
 			ctx.Err.Printf("/tix/%s/checkout unable to decode form %s", tixSlug, err)
 			return
 		}
 
 		if form.Email == "" || form.Count < 1 {
-			http.Redirect(w, r, fmt.Sprintf("/tix/%s/checkout", tixSlug), http.StatusSeeOther)
+			http.Redirect(w, r, i18n.CheckoutURL(checkoutLocale(r, conf), fmt.Sprintf("/tix/%s/checkout", tixSlug)), http.StatusSeeOther)
 			return
 		}
 
@@ -6594,7 +6619,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 				DiscountRef:     "",
 				TicketKind:      ticketKind,
 				SponsorCheckout: ticketKind == types.TicketTypeSponsored,
-				Err:             err.Error(),
+				Err:             checkoutMessage(r, conf, "checkout.price_changed"),
 				HMAC:            calcTixHMAC(ctx, conf, tixPrice, currentDiscountPrice, effectiveCode),
 				Count:           form.Count,
 				Year:            helpers.CurrentYear(),
@@ -6603,9 +6628,9 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			if quoteErr := populateTicketCheckoutAddOns(r.Context(), ctx, page); quoteErr != nil {
 				ctx.Err.Printf("/tix/%s/checkout refreshed add-on FX quote unavailable: %s", tixSlug, quoteErr)
 			}
-			err = ctx.TemplateCache.ExecuteTemplate(w, "collect-email.tmpl", page)
+			err = renderCheckout(w, r, ctx, "collect-email.tmpl", page, conf)
 			if err != nil {
-				http.Error(w, "Unable to load page, please try again later", http.StatusInternalServerError)
+				http.Error(w, checkoutMessage(r, conf, "checkout.load_error"), http.StatusInternalServerError)
 				ctx.Err.Printf("/tix/%s/checkout stale discount templ exec failed %s", tixSlug, err.Error())
 			}
 			return
@@ -6620,7 +6645,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		addOns, addOnTotalCents, addOnQuote, addOnErr := selectedTicketAddOns(ctx, conf, tix, r)
 		if addOnErr != nil {
 			ctx.Err.Printf("/tix/%s/checkout add-on pricing failed: %s", tixSlug, addOnErr)
-			http.Error(w, "Add-on prices have expired. Refresh the checkout and try again.", http.StatusUnprocessableEntity)
+			http.Error(w, checkoutMessage(r, conf, "checkout.addons_expired"), http.StatusUnprocessableEntity)
 			return
 		}
 		var shopOrderID string
@@ -6629,14 +6654,14 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 			taxQuote, taxErr := ticketCheckoutTaxQuote(ctx, conf, tix.Currency, addOns)
 			if taxErr != nil {
 				ctx.Err.Printf("/tix/%s/checkout calculate add-on tax failed: %s", tixSlug, taxErr)
-				http.Error(w, "Unable to calculate sales tax for event pickup", http.StatusUnprocessableEntity)
+				http.Error(w, checkoutMessage(r, conf, "checkout.tax_error"), http.StatusUnprocessableEntity)
 				return
 			}
 			addOnTaxCents = taxQuote.SalesTaxAmountCents
 			order, err := createTicketAddOnOrder(ctx, conf, tix, &form, ticketKind, form.PaymentMethod, addOns, addOnTotalCents, addOnTaxCents)
 			if err != nil {
 				ctx.Err.Printf("/tix/%s/checkout create mixed add-on order failed: %s", tixSlug, err)
-				http.Error(w, "Unable to create add-on order", http.StatusInternalServerError)
+				http.Error(w, checkoutMessage(r, conf, "checkout.order_error"), http.StatusInternalServerError)
 				return
 			}
 			if order != nil {
@@ -6645,7 +6670,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 				if err := getters.CreateTaxQuote(ctx, *taxQuote); err != nil {
 					ctx.Err.Printf("/tix/%s/checkout persist add-on tax failed: %s", tixSlug, err)
 					_ = getters.CancelShopOrder(ctx, order.ID, "", "ticket add-on tax quote could not be saved")
-					http.Error(w, "Unable to save sales tax calculation", http.StatusInternalServerError)
+					http.Error(w, checkoutMessage(r, conf, "checkout.tax_error"), http.StatusInternalServerError)
 					return
 				}
 			}
@@ -6665,7 +6690,7 @@ func HandleCheckout(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 }
 
 func OpenNodeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext, conf *types.Conf, tix *types.ConfTicket, tixPrice, preDiscountPrice uint, tixForm *types.TixForm, ticketKind string, addOnTotalCents uint, shopOrderID string) {
-	payment, err := getters.InitOpenNodeCheckout(ctx, tixPrice, preDiscountPrice, tix, conf, ticketKind, tixForm.Count, tixForm.Email, tixForm.DiscountRef, tixForm.Subscribe, addOnTotalCents, shopOrderID)
+	payment, err := getters.InitOpenNodeCheckout(ctx, tixPrice, preDiscountPrice, tix, conf, ticketKind, tixForm.Count, tixForm.Email, tixForm.DiscountRef, tixForm.Subscribe, addOnTotalCents, shopOrderID, checkoutLocale(r, conf))
 
 	if err != nil {
 		if shopOrderID != "" {
@@ -6673,7 +6698,7 @@ func OpenNodeInit(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 				ctx.Err.Printf("release mixed OpenNode order %s: %s", shopOrderID, cancelErr)
 			}
 		}
-		http.Error(w, "unable to init btc payment", http.StatusInternalServerError)
+		http.Error(w, checkoutMessage(r, conf, "checkout.payment_error"), http.StatusInternalServerError)
 		ctx.Err.Printf("opennode payment init failed: %s", err.Error())
 		return
 	}
@@ -6717,8 +6742,14 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 		ticketKind = types.TicketTypeGeneral
 	}
 	domain := ctx.Env.GetURI()
+	language := checkoutLocale(r, conf)
 	priceAsCents := int64(tixPrice * 100)
-	confDesc := fmt.Sprintf("%d ticket(s) for %s", form.Count, conf.Desc)
+	eventName := conferenceCatalog.Content(conf.Tag, language, conf.Desc)
+	confDesc, messageErr := conferenceCatalog.Message(language, "checkout.provider_description", map[string]any{"Count": form.Count, "Event": eventName})
+	if messageErr != nil {
+		http.Error(w, checkoutMessage(r, conf, "checkout.payment_error"), http.StatusInternalServerError)
+		return
+	}
 	metadata := make(map[string]string)
 	metadata["conf-tag"] = conf.Tag
 	metadata["conf-ref"] = conf.Ref
@@ -6764,7 +6795,7 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 			PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
 				ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
 					Description: stripe.String(confDesc),
-					Name:        stripe.String(conf.Desc),
+					Name:        stripe.String(eventName),
 					Metadata:    ticketProductMetadata,
 					TaxCode:     stripe.String(ticketStripeTaxCode(tix)),
 				},
@@ -6803,8 +6834,8 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 		lineItems = append(lineItems, &stripe.CheckoutSessionLineItemParams{
 			PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
 				ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-					Name:        stripe.String("Sales tax"),
-					Description: stripe.String("Calculated for event pickup"),
+					Name:        stripe.String(checkoutMessage(r, conf, "checkout.sales_tax")),
+					Description: stripe.String(checkoutMessage(r, conf, "checkout.tax_done")),
 					Metadata:    map[string]string{"line-kind": "tax", "shop-order-id": shopOrderID},
 				},
 				UnitAmount: stripe.Int64(int64(salesTaxCents)),
@@ -6818,8 +6849,9 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 		LineItems:     lineItems,
 		Metadata:      metadata,
 		Mode:          stripe.String(string(stripe.CheckoutSessionModePayment)),
-		SuccessURL:    stripe.String(domain + "/" + conf.Tag + "/success?session_id={CHECKOUT_SESSION_ID}"),
-		CancelURL:     stripe.String(domain + "/" + conf.Tag),
+		SuccessURL:    stripe.String(domain + "/" + conf.Tag + "/success?lang=" + language + "&session_id={CHECKOUT_SESSION_ID}"),
+		CancelURL:     stripe.String(domain + conferenceCatalog.URL(language, "/"+conf.Tag)),
+		Locale:        stripe.String(language),
 		AutomaticTax:  &stripe.CheckoutSessionAutomaticTaxParams{Enabled: stripe.Bool(false)},
 		ExpiresAt:     stripe.Int64(time.Now().Add(types.ShopCheckoutSessionTTL).Unix()),
 	}
@@ -6831,7 +6863,7 @@ func StripeInitWithDiscount(w http.ResponseWriter, r *http.Request, ctx *config.
 			}
 		}
 		ctx.Err.Printf("!!! Unable to create stripe session: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, checkoutMessage(r, conf, "checkout.payment_error"), http.StatusInternalServerError)
 		return
 	}
 

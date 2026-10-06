@@ -1,9 +1,9 @@
 {{ define "conf_hackathon_section" }}
 {{ if .Hackathon }}
-{{ $sectionLabel := .Conf.HackathonSectionLabel }}{{ if not $sectionLabel }}{{ $sectionLabel = "§ The hackathon" }}{{ end }}
-{{ $headline := .Conf.HackathonHeadline }}{{ if not $headline }}{{ $headline = "Don't just talk. <span>Build.</span>" }}{{ end }}
-{{ $judgesNote := "Judges coming soon" }}
-{{ $proofLabel := .Conf.HackathonProofLabel }}{{ if not $proofLabel }}{{ $proofLabel = "Last edition · 37 projects · 90 hackers" }}{{ end }}
+{{ $sectionLabel := .Conf.HackathonSectionLabel }}{{ if not $sectionLabel }}{{ $sectionLabel = msg "hackathon.section" }}{{ end }}
+{{ $headline := .Conf.HackathonHeadline }}{{ if not $headline }}{{ $headline = msg "hackathon.headline" }}{{ end }}
+{{ $judgesNote := msg "hackathon.judges_soon" }}
+{{ $proofLabel := .Conf.HackathonProofLabel }}{{ if not $proofLabel }}{{ $proofLabel = msg "hackathon.proof" }}{{ end }}
 {{ $prizePool := .HackathonPrizePoolValue }}
 <section id="hackathon" class="conf-hackathon-redesign">
   {{ if .CommunityPool }}{{ template "community_pool_tracker" .CommunityPool }}{{ else }}
@@ -12,15 +12,15 @@
       <img src="/static/img/rebrand/hackathon-trophy.jpg" alt="An orange championship trophy" loading="lazy">
     </div>
     <div class="conf-hackathon-redesign__prize-callout">
-      <p>Hackathon prize pool</p>
+      <p>{{ msg "hackathon.pool" }}</p>
       {{ if $prizePool }}
       <strong>{{ $prizePool }}</strong>
-      <span>Sats up for grabs</span>
+      <span>{{ msg "hackathon.sats" }}</span>
       {{ else }}
-      <strong class="is-coming-soon">Prizes</strong>
-      <span>Coming soon</span>
+      <strong class="is-coming-soon">{{ msg "hackathon.prizes" }}</strong>
+      <span>{{ msg "common.coming_soon" }}</span>
       {{ end }}
-      <a href="{{ .HackathonURL }}#awards">See what you can win →</a>
+      <a href="{{ .HackathonURL }}#awards">{{ msg "hackathon.awards" }}</a>
     </div>
   </div>
   {{ end }}
@@ -33,18 +33,18 @@
         {{ if .Hackathon.Description }}
         {{ hackathonDescription .Hackathon.Description .Hackathon.DescriptionFormat }}
         {{ else }}
-        Build and submit projects tied to {{ .Conf.Desc }}.
+        {{ msg "hackathon.build_event" (dict "Event" .Conf.Desc) }}
         {{ end }}
       </div>
       <div class="conf-hackathon-redesign__actions">
-        <a href="{{ .HackathonURL }}" class="rebrand-button">Explore the hackathon →</a>
-        <a href="{{ .HackathonURL }}#projects" class="rebrand-button is-secondary">Project gallery →</a>
+        <a href="{{ .HackathonURL }}" class="rebrand-button">{{ msg "hackathon.explore" }}</a>
+        <a href="{{ .HackathonURL }}#projects" class="rebrand-button is-secondary">{{ msg "hackathon.gallery" }}</a>
       </div>
       <div class="conf-hackathon-redesign__judges" aria-label="Hackathon judges">
         {{ if .HackathonJudgesArePast }}
         <div class="conf-hackathon-redesign__past-judges-note">
-          <strong>PAST JUDGES</strong>
-          <span>{{ .HackathonJudgesLabel }} · This event’s panel is coming soon</span>
+          <strong>{{ msg "hackathon.past_judges" }}</strong>
+          <span>{{ .HackathonJudgesLabel }} {{ msg "hackathon.panel_soon" }}</span>
         </div>
         {{ end }}
         {{ if .HackathonJudges }}
@@ -85,13 +85,13 @@
         <a href="{{ .HackathonURL }}#awards" class="conf-hackathon-redesign__row">
           <span class="conf-hackathon-redesign__place">★</span>
           <span class="conf-hackathon-redesign__project">
-            <strong>Prize places coming soon</strong>
-            <em>Ranked rewards will appear here once configured.</em>
+            <strong>{{ msg "hackathon.prizes_soon" }}</strong>
+            <em>{{ msg "hackathon.prizes_note" }}</em>
           </span>
         </a>
         {{ end }}
       </div>
-      <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__all">See all projects →</a>
+      <a href="{{ .HackathonURL }}#projects" class="conf-hackathon-redesign__all">{{ msg "hackathon.all_projects" }}</a>
     </aside>
   </div>
 </section>

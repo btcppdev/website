@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="{{ locale }}">
   <head>
-    <title>bitcoin++ | You're going</title>
+    <title>bitcoin++ | {{ msg "confirmation.title" }}</title>
     {{ block "checkout_header" . }}{{ end }}
   </head>
   <body class="btcpp-checkout-page">
@@ -13,53 +13,53 @@
         </picture>
         <div class="checkout-hero__shade"></div>
         <div class="checkout-hero__content">
-          <a href="/{{ .Conf.Tag }}" class="checkout-brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
+          <a href="{{ localeURL (printf "/%s" .Conf.Tag) }}" class="checkout-brand"><img src="/static/img/logo_blk.svg" alt="bitcoin++"></a>
           <div>
-            <p class="checkout-kicker">Payment received</p>
-            <h1>{{ .Conf.Desc }}</h1>
-            <p>{{ .Conf.DateDesc }} · {{ .Conf.Location }}</p>
+            <p class="checkout-kicker">{{ msg "confirmation.received" }}</p>
+            <h1>{{ eventText .Conf.Tag .Conf.Desc }}</h1>
+            <p>{{ eventText .Conf.Tag .Conf.DateDesc }} · {{ eventText .Conf.Tag .Conf.Location }}</p>
           </div>
         </div>
       </aside>
 
       <section class="checkout-panel">
-        <nav class="checkout-steps" aria-label="Checkout steps" data-step="04/04" data-current="confirmed">
-          <span class="is-complete"><b>01</b> register</span>
-          <span class="is-complete"><b>02</b> add-ons</span>
-          <span class="is-complete"><b>03</b> pay</span>
-          <span class="is-active"><b>04</b> confirmed</span>
+        <nav class="checkout-steps" aria-label="{{ msg "checkout.steps" }}" data-step="04/04" data-current="confirmed" data-current-label="{{ msg "checkout.confirmed" }}">
+          <span class="is-complete"><b>01</b> {{ msg "checkout.register" }}</span>
+          <span class="is-complete"><b>02</b> {{ msg "checkout.addons" }}</span>
+          <span class="is-complete"><b>03</b> {{ msg "checkout.pay" }}</span>
+          <span class="is-active"><b>04</b> {{ msg "checkout.confirmed" }}</span>
         </nav>
 
         <div class="checkout-form checkout-confirmation">
           <div class="checkout-copy">
             {{ if .Sponsored }}
-            <p class="checkout-confirmation__status">✓ Sponsorship received</p>
-            <h2>Builder pass funded.</h2>
-            <p>Thanks for helping another builder attend <span class="font-bitcoin">bitcoin++</span>. The team will distribute sponsored passes before the event and follow up if we need anything else.</p>
+            <p class="checkout-confirmation__status">{{ msg "confirmation.sponsor_received" }}</p>
+            <h2>{{ msg "confirmation.sponsor_title" }}</h2>
+            <p>{{ msg "confirmation.sponsor_note" }}</p>
             {{ else }}
-            <p class="checkout-confirmation__status">✓ Ticket received</p>
-            <h2>You're in.</h2>
-            <p>Your ticket for the upcoming <span class="font-bitcoin">bitcoin++</span> conference is on its way to your email. Keep an eye on spam if it does not arrive within a few minutes.</p>
+            <p class="checkout-confirmation__status">{{ msg "confirmation.ticket_received" }}</p>
+            <h2>{{ msg "confirmation.ticket_title" }}</h2>
+            <p>{{ msg "confirmation.ticket_note" }}</p>
             {{ end }}
           </div>
 
           <div class="checkout-ticket-stub">
             <div>
               {{ if .Sponsored }}
-              <span>Sponsored builder pass · bitcoin++</span>
-              <strong>{{ .Conf.Desc }}</strong>
-              <small>{{ .Conf.DateDesc }} · {{ .Conf.Location }}</small>
+              <span>{{ msg "confirmation.sponsor_stub" }}</span>
+              <strong>{{ eventText .Conf.Tag .Conf.Desc }}</strong>
+              <small>{{ eventText .Conf.Tag .Conf.DateDesc }} · {{ eventText .Conf.Tag .Conf.Location }}</small>
               {{ else }}
-              <span>Admit one · bitcoin++</span>
-              <strong>{{ .Conf.Desc }}</strong>
-              <small>{{ .Conf.DateDesc }} · {{ .Conf.Location }}</small>
+              <span>{{ msg "confirmation.ticket_stub" }}</span>
+              <strong>{{ eventText .Conf.Tag .Conf.Desc }}</strong>
+              <small>{{ eventText .Conf.Tag .Conf.DateDesc }} · {{ eventText .Conf.Tag .Conf.Location }}</small>
               {{ end }}
             </div>
             <div class="checkout-ticket-stub__mark">
               {{ if and .Ticket .Ticket.QRCodeURI }}
-              <img class="checkout-ticket-stub__qr" src="{{ .Ticket.QRCodeURI | safeURL }}" width="120" height="120" alt="Ticket QR code for {{ .Ticket.RefID }}">
+              <img class="checkout-ticket-stub__qr" src="{{ .Ticket.QRCodeURI | safeURL }}" width="120" height="120" alt="{{ msg "confirmation.qr" (dict "ID" .Ticket.RefID) }}">
               {{ else if .Sponsored }}
-              funded
+              {{ msg "confirmation.funded" }}
               {{ else }}
               ++
               {{ end }}
@@ -67,15 +67,15 @@
           </div>
 
           <div class="checkout-actions">
-            <a href="/{{ .Conf.Tag }}" class="checkout-actions__primary">Back to conference</a>
-            <a href="/dashboard">Go to dashboard</a>
-            <a href="/{{ .Conf.Tag }}#tickets">Buy another</a>
+            <a href="{{ localeURL (printf "/%s" .Conf.Tag) }}" class="checkout-actions__primary">{{ msg "confirmation.back" }}</a>
+            <a href="/dashboard">{{ msg "confirmation.dashboard" }}</a>
+            <a href="{{ localeURL (printf "/%s#tickets" .Conf.Tag) }}">{{ msg "confirmation.another" }}</a>
           </div>
         </div>
 
         <footer class="checkout-footer">
-          <span>Ticket delivered by email</span>
-          <a href="mailto:hello@btcpp.dev">Questions? hello@btcpp.dev</a>
+          <span>{{ msg "confirmation.delivered" }}</span>
+          <a href="mailto:hello@btcpp.dev">{{ msg "checkout.contact" }}</a>
         </footer>
       </section>
     </main>

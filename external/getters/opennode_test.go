@@ -21,6 +21,9 @@ func TestInitOpenNodeCheckoutAcceptsCreatedAndPreservesTicketSubtotal(t *testing
 		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 			t.Fatalf("decode request: %s", err)
 		}
+		if payload.SuccessURL != "https://checkout.example.test/dev26/success?lang=ko" {
+			t.Fatalf("locale lost in return URL: %s", payload.SuccessURL)
+		}
 		if payload.Amount != 165.00 {
 			t.Fatalf("sandbox charge amount = %v, want 165.00", payload.Amount)
 		}
@@ -53,7 +56,7 @@ func TestInitOpenNodeCheckoutAcceptsCreatedAndPreservesTicketSubtotal(t *testing
 	ticket := &types.ConfTicket{Currency: "usd"}
 	conf := &types.Conf{Ref: "conf-ref", Tag: "dev26", Desc: "DEV26"}
 
-	charge, err := InitOpenNodeCheckout(ctx, 30, 40, ticket, conf, types.TicketTypeGeneral, 2, "buyer@example.test", "", false, 10500, "shop-order")
+	charge, err := InitOpenNodeCheckout(ctx, 30, 40, ticket, conf, types.TicketTypeGeneral, 2, "buyer@example.test", "", false, 10500, "shop-order", "ko")
 	if err != nil {
 		t.Fatalf("InitOpenNodeCheckout: %s", err)
 	}

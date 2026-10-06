@@ -1,0 +1,29 @@
+{
+  "event": "seoul",
+  "locale": "ko",
+  "language": "한국어",
+  "content": {
+    "bitcoin++ goes dark": "bitcoin++, 프라이버시를 탐구하다",
+    "bitcoin++ Seoul, privacy edition": "bitcoin++ 서울, 프라이버시 에디션",
+    "Join us in Seoul for our first Korean conference. We’ll be focusing on the dark side of transacting with bitcoin": "한국에서 처음 열리는 bitcoin++에 함께하세요. 서울에서 비트코인 거래의 프라이버시를 깊이 탐구합니다.",
+    "Seoul, South Korea": "대한민국 서울",
+    "Nov 5 - 6, 2026": "2026년 11월 5–6일",
+    "Hackathon": "해커톤",
+    "In Seoul, we‘re going underground to make privacy on bitcoin a reality. Compete to build the most private bitcoin solution (protocol, application, payments, etc). You won’t want to miss this one.": "서울에서 비트코인 프라이버시를 현실로 만들어 봅시다. 프로토콜, 애플리케이션, 결제 등 다양한 분야에서 프라이버시를 지키는 비트코인 솔루션을 만들어 경쟁하세요. 놓치지 마세요!",
+    "Modern Hotel": "모던 호텔",
+    "Affordable Hotel": "합리적인 가격의 호텔",
+    "Luxury Stay": "럭셔리 호텔",
+    "4-star hotel, 1-minute walk from the venue. From $190 USD a night.": "행사장에서 도보 1분 거리의 4성급 호텔. 1박 미화 190달러부터.",
+    "An affordable hotel in the Myeong Dong district that's a 10-minute walk from the venue. From $77 USD a night.": "행사장에서 도보 10분 거리에 있는 명동의 합리적인 가격의 호텔. 1박 미화 77달러부터.",
+    "Luxury stay that's a 10-minute walk from the venue. From $450 USD a night.": "행사장에서 도보 10분 거리의 럭셔리 호텔. 1박 미화 450달러부터.",
+    "Ticket price increases": "티켓 가격 인상",
+    "Talk applications close": "발표 신청 마감",
+    "Final proposals due": "최종 발표 제안 마감",
+    "Conference begins": "컨퍼런스 시작",
+    "Passed": "종료",
+    "Up next": "다음 일정",
+    "Upcoming": "예정",
+    "goes dark": "프라이버시를 탐구하다",
+    "<span class=\"font-bitcoin\">bitcoin++</span> goes dark": "<span class=\"font-bitcoin\">bitcoin++</span> 프라이버시를 탐구하다"
+  }
+}

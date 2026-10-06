@@ -1,0 +1,14 @@
+.conference-language-switch { display:flex; justify-content:flex-end; gap:20px; padding:14px 24px; background:#ececec; color:#111; font:600 16px system-ui,sans-serif; border-bottom:1px solid #111; }
+.conference-language-switch a[aria-current=page] { text-decoration:underline; text-underline-offset:5px; }
+.conference-language-note { margin:0; padding:16px 24px; background:#f6f1e8; color:#333; font:14px/1.65 system-ui,sans-serif; }
+html:lang(ko) .btcpp-rebrand-page { font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif; word-break:keep-all; overflow-wrap:anywhere; }
+html:lang(ko) .btcpp-rebrand-page :is(h1,h2,h3,p,a,button,span) { font-family:inherit; }
+html:lang(ko) .btcpp-rebrand-page h1 { line-height:1.12; letter-spacing:-.035em; }
+html:lang(ko) .btcpp-rebrand-page h2 { line-height:1.2; letter-spacing:-.02em; }
+html:lang(ko) .rebrand-hero__deck { line-height:1.65; max-width:740px; }
+html:lang(ko) .btcpp-rebrand-page .font-bitcoin { font-family:Ubuntu,sans-serif; font-weight:700; font-style:italic; }
+@media(max-width:700px) { html:lang(ko) .rebrand-hero h1 { font-size:clamp(40px,10vw,70px); } }
+html:lang(ko) .btcpp-checkout-page { font-family:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif; word-break:keep-all; overflow-wrap:anywhere; }
+html:lang(ko) .btcpp-checkout-page :is(h1,h2,p,a,button,span,small,label) { font-family:inherit; }
+html:lang(ko) .btcpp-checkout-page .checkout-copy h2 { line-height:1.2; letter-spacing:-.03em; }
+.checkout-payment-instructions { font-size:13px; line-height:1.65; color:#555; margin:0 0 16px; }

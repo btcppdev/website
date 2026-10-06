@@ -9973,7 +9973,7 @@ body.btcpp-checkout-page {
 	}
 
 	.checkout-steps::before {
-		content: attr(data-step) " " attr(data-current);
+		content: attr(data-step) " " attr(data-current-label);
 		color: #0a0a0a;
 		font-size: 12px;
 		font-weight: 700;

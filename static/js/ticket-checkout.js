@@ -4,6 +4,15 @@
   var form = document.querySelector("[data-checkout-flow]");
   if (!form) return;
 
+  var messages = JSON.parse(document.getElementById("checkout-messages").textContent);
+  function message(key, values) {
+    return messages[key].replace(/\{(\w+)\}/g, function (_, name) { return String(values[name]); });
+  }
+  function ticketLabel(count) {
+    var noun = form.getAttribute("data-sponsored") === "true" ? "pass" : "ticket";
+    return message(noun + (count === 1 ? "_one" : "_many"), { Count: count });
+  }
+
   var panels = form.querySelectorAll("[data-checkout-step]");
   var nav = document.querySelector(".checkout-steps");
   var navItems = nav ? nav.querySelectorAll("[data-checkout-nav]") : [];
@@ -19,7 +28,7 @@
   form.classList.add("is-enhanced");
 
   function money(cents) {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(document.documentElement.lang || "en", {
       style: "currency",
       currency: checkoutCurrency
     }).format(cents / 100);
@@ -37,6 +46,7 @@
     if (nav) {
       nav.setAttribute("data-step", step === "addons" ? "02/04" : "01/04");
       nav.setAttribute("data-current", step);
+      nav.setAttribute("data-current-label", messages[step]);
     }
     var heading = form.querySelector('[data-checkout-step="' + step + '"] h2');
     if (heading) {
@@ -83,7 +93,10 @@
     if (!price) return;
     var selected = form.querySelector('[name="PaymentMethod"]:checked');
     var cardSelected = selected && selected.value === "card";
-    price.querySelector("[data-payment-price-label]").textContent = cardSelected ? "Card price" : "Bitcoin price";
+    form.querySelectorAll("[data-payment-instructions]").forEach(function (note) {
+      note.hidden = note.getAttribute("data-payment-instructions") !== (cardSelected ? "card" : "btc");
+    });
+    price.querySelector("[data-payment-price-label]").textContent = cardSelected ? messages.card_price : messages.bitcoin_price;
     price.querySelector("[data-payment-price-amount]").textContent = price.getAttribute(
       cardSelected ? "data-card-price" : "data-bitcoin-price"
     );
@@ -99,8 +112,7 @@
     var selected = [];
 
     if (countLabel) {
-      var noun = countLabel.getAttribute("data-ticket-noun") || "ticket";
-      countLabel.textContent = ticketCount + " " + noun + (ticketCount === 1 ? "" : "s");
+      countLabel.textContent = ticketLabel(ticketCount);
     }
 
     form.querySelectorAll("[data-checkout-addon]").forEach(function (addon) {
@@ -119,7 +131,8 @@
     if (!selected.length) {
       var empty = document.createElement("div");
       empty.className = "is-empty";
-      empty.innerHTML = "<span>No add-ons—that's fine too</span><strong></strong>";
+      empty.innerHTML = "<span></span><strong></strong>";
+      empty.querySelector("span").textContent = messages.no_addons;
       empty.querySelector("strong").textContent = money(0);
       lines.appendChild(empty);
     } else {
@@ -136,9 +149,7 @@
     }
 
     totalElement.textContent = money(ticketTotalCents() + merchTotal + taxCents);
-    submitButton.textContent = "Continue — " + ticketCount + " " +
-      (ticketCount === 1 ? "ticket" : "tickets") + " · " +
-      money(ticketTotalCents() + merchTotal + taxCents) + " →";
+    submitButton.textContent = message("continue", { Tickets: ticketLabel(ticketCount), Total: money(ticketTotalCents() + merchTotal + taxCents) });
   }
 
   function selectedAddOnQuantity() {
@@ -154,35 +165,35 @@
     if (!selectedAddOnQuantity()) {
       taxCents = 0;
       if (taxElement) taxElement.textContent = money(0);
-      if (taxStatus) taxStatus.textContent = "No taxable add-ons selected.";
+      if (taxStatus) taxStatus.textContent = messages.tax_none;
       submitButton.disabled = false;
       updateSummary();
       return;
     }
 
     submitButton.disabled = true;
-    if (taxStatus) taxStatus.textContent = "Calculating tax for event pickup…";
-    fetch(window.location.pathname.replace(/\/(collect-email|checkout)$/, "/tax-quote"), {
+    if (taxStatus) taxStatus.textContent = messages.tax_loading;
+    fetch(form.getAttribute("data-tax-url"), {
       method: "POST",
       body: new FormData(form),
       credentials: "same-origin"
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (body) {
-        if (!response.ok) throw new Error(body.error || "Sales tax could not be calculated.");
+        if (!response.ok) throw new Error(messages.tax_error);
         return body;
       });
     }).then(function (body) {
       if (sequence !== taxRequestSequence) return;
       taxCents = Number(body.tax_cents || 0);
       if (taxElement) taxElement.textContent = money(taxCents);
-      if (taxStatus) taxStatus.textContent = "Calculated from the event pickup location.";
+      if (taxStatus) taxStatus.textContent = messages.tax_done;
       submitButton.disabled = false;
       updateSummary();
     }).catch(function (error) {
       if (sequence !== taxRequestSequence) return;
       taxCents = 0;
       if (taxElement) taxElement.textContent = "—";
-      if (taxStatus) taxStatus.textContent = error.message;
+      if (taxStatus) taxStatus.textContent = messages.tax_error;
       submitButton.disabled = true;
       updateSummary();
     });

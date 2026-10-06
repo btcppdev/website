@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/i18n"
 	"btcpp-web/internal/types"
 )
 
@@ -17,7 +18,7 @@ const CHARGES_ENDPOINT = "/charges"
 
 var openNodeHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
-func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uint, tix *types.ConfTicket, conf *types.Conf, ticketKind string, count uint, email string, discountRef string, subNewsletter bool, addOnCents uint, shopOrderID string) (*types.OpenNodePayment, error) {
+func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uint, tix *types.ConfTicket, conf *types.Conf, ticketKind string, count uint, email string, discountRef string, subNewsletter bool, addOnCents uint, shopOrderID string, locale string) (*types.OpenNodePayment, error) {
 	if ticketKind == "" {
 		ticketKind = types.TicketTypeGeneral
 	}
@@ -47,7 +48,7 @@ func InitOpenNodeCheckout(ctx *config.AppContext, tixPrice, preDiscountPrice uin
 		Description:   conf.Desc,
 		Currency:      strings.ToUpper(strings.TrimSpace(tix.Currency)),
 		CallbackURL:   domain + "/callback/opennode",
-		SuccessURL:    domain + "/" + conf.Tag + "/success",
+		SuccessURL:    i18n.CheckoutURL(locale, domain+"/"+conf.Tag+"/success"),
 		AutoSettle:    false,
 		TTL:           uint(types.ShopCheckoutSessionTTL / time.Minute),
 		Metadata:      metadata,

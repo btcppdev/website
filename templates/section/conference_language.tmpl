@@ -1,0 +1,8 @@
+{{ define "conference_language_head" }}
+{{ range languages .Tag }}<link rel="alternate" hreflang="{{ .Locale }}" href="{{ absoluteSEOURL .URL }}">{{ end }}
+{{ if languages .Tag }}<link rel="alternate" hreflang="x-default" href="{{ absoluteSEOURL (printf "/%s" .Tag) }}"><link rel="stylesheet" href="/static/css/conference-localization.css">{{ end }}
+{{ end }}
+{{ define "conference_language_switch" }}
+{{ if languages .Tag }}<nav class="conference-language-switch" aria-label="{{ msg "language.choose" }}">{{ range languages .Tag }}<a href="{{ .URL }}" lang="{{ .Locale }}" hreflang="{{ .Locale }}" {{ if .Current }}aria-current="page"{{ end }}>{{ .Label }}</a>{{ end }}</nav>{{ end }}
+{{ with msg "language.scope_note" }}<p class="conference-language-note">{{ . }}</p>{{ end }}
+{{ end }}

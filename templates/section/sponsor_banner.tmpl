@@ -15,7 +15,7 @@
 {{ if $sponsors }}
 <section id="sponsor-banner" class="sponsor-banner bg-white border-y border-gray-100 py-6 overflow-hidden">
   <p class="sponsor-banner__label mx-auto max-w-7xl px-6 lg:px-8 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">
-    Supported by
+    {{ msg "sponsors.supported" }}
   </p>
   {{ template "sponsor_marquee" (dict "Sponsors" $sponsors "IncludeBrands" false) }}
 </section>
