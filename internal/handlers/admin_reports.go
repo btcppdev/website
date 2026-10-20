@@ -24,18 +24,20 @@ type reportEvent struct {
 	Start, End                                           *time.Time
 }
 type reportPerson struct {
-	ID, Name, Photo, Company, Role, Note string
-	Highlight                            bool
+	ID, Name, Photo, Company, Role, Note, ComingFrom string
+	Highlight                                        bool
 }
 type reportSession struct {
-	ID, Title, Kind, Speakers, YouTube, X, Note, WatchURL string
-	Start, End                                            *time.Time
-	Delivered, Core                                       bool
-	Views                                                 *int64
+	ID, Title, Kind, Speakers, YouTube, X, Note, WatchURL, Venue string
+	Start, End                                                   *time.Time
+	Delivered, Core                                              bool
+	Views                                                        *int64
 }
 type reportWinner struct {
 	ID, Title, Description, Awards, Members, Image, GitHub, Demo string
 	Sats                                                         int64
+	AwardedSats                                                  int64
+	Significance                                                 string
 }
 type reportDay struct {
 	Date  string
@@ -43,7 +45,10 @@ type reportDay struct {
 }
 type reportMetric struct{ Label, Value, Note string }
 type sponsorReportPage struct {
-	Preview, ProgramReviewed, Synthetic                                                    bool
+	PublicEvidence                                                                         []reportEvidence
+	EvidenceDate                                                                           string
+	PublicProgramSource, PublicVideoSource                                                 string
+	Preview, ProgramReviewed, Synthetic, DemoAttendance                                    bool
 	Event                                                                                  reportEvent
 	Options                                                                                []reportEvent
 	Scope, CSRF, Generated, Message                                                        string
@@ -51,7 +56,7 @@ type sponsorReportPage struct {
 	Sections                                                                               []reportSection
 	Speakers, Judges                                                                       []reportPerson
 	Sessions, Popular, Panels                                                              []reportSession
-	Winners                                                                                []reportWinner
+	Winners, Projects                                                                      []reportWinner
 	Days                                                                                   []reportDay
 	TeamSizes                                                                              []reportBar
 	Metrics                                                                                []reportMetric
@@ -63,9 +68,9 @@ type sponsorReportPage struct {
 }
 
 func eventReportSections(event reportEvent) []reportSection {
-	note := "To our partners at NYDIG, HRF, and Btrust,\n\nThank you for helping make this bitcoin++ gathering possible. This report brings together the people, technical conversations, and projects at the heart of the event.\n\n[Add what made this event special: a conversation that stayed with you, a builder’s breakthrough, or something you were proud to help make happen.]\n\nThank you for supporting the people building Bitcoin’s future.\n\nnifty"
+	note := "To our partners,\n\nThank you for helping make this bitcoin++ gathering possible. This report brings together the people, technical conversations, and projects at the heart of the event.\n\n[Add what made this event special: a conversation that stayed with you, a builder’s breakthrough, or something you were proud to help make happen.]\n\nThank you for supporting the people building Bitcoin’s future.\n\nnifty"
 	if strings.Contains(strings.ToLower(event.Location+" "+event.Tag), "nairobi") {
-		note = "To our partners at NYDIG, HRF, and Btrust,\n\nBringing bitcoin++ to Africa is one of the things I’m proudest of this year. Nairobi deserves a report of its own: a chance to look closely at the people who came together, the ideas they exchanged, and the projects they built.\n\nSome of what I value most about bitcoin++ happens in conversation. I’m proud of the conversations we help spark around the globe, and excited to make room for more people to take part in shaping Bitcoin’s technical future.\n\nThe pages that follow bring this gathering into focus: speakers and panel discussions, talks and workshops, hackathon teams and winning projects, and the judges and volunteers who helped make it possible.\n\nThank you for supporting bitcoin++ and for being part of this step into Africa.\n\nnifty"
+		note = "To our partners,\n\nBringing bitcoin++ to Africa is one of the things I’m proudest of this year. Nairobi deserves a report of its own: a chance to look closely at the people who came together, the ideas they exchanged, and the projects they built.\n\nSome of what I value most about bitcoin++ happens in conversation. I’m proud of the conversations we help spark around the globe, and excited to make room for more people to take part in shaping Bitcoin’s technical future.\n\nThe pages that follow bring this gathering into focus: speakers and panel discussions, talks and workshops, hackathon teams and winning projects, and the judges and volunteers who helped make it possible.\n\nThank you for supporting bitcoin++ and for being part of this step into Africa.\n\nnifty"
 	}
 	sections := []reportSection{
 		{"note", "A note from nifty", note},
@@ -82,6 +87,13 @@ func eventReportSections(event reportEvent) []reportSection {
 		sections[4].Text = "The public hackathon page lists the judges pictured below. Their names and affiliations are reproduced from the event’s profiles; individual contributions and approved quotes can be added in the editor.\n\nJudge roster: https://btcpp.dev/nairobi/hackathon"
 		sections[5].Text = "Nairobi brought the open-source conversation to Africa, with a program spanning protocol work, contributor communities, and practical applications. The winning projects give sponsors concrete work to explore beyond the event.\n\nOur proposed follow-up: ask teams what they shipped next, identify where contributors need mentorship, and make recordings and workshop materials easier to find. These are priorities for the next chapter, not outcomes we have measured yet.\n\nThank you to our speakers, judges, volunteers, and partners for helping make this gathering possible."
 	}
+	sections = append(sections,
+		reportSection{"speakers_intro", "Speaker mosaic introduction", "The published program’s speakers, panelists and workshop presenters. Names and affiliations as listed; this roster is not a check-in record."},
+		reportSection{"timeline_intro", "Program timeline introduction", "The published schedule, in time order. Matching times across stages show parallel sessions. Colors distinguish talks/keynotes, workshops and panels; the schedule alone does not confirm delivery."},
+		reportSection{"projects_intro", "Project gallery introduction", "A gallery of the event’s prototypes, using the builders’ published descriptions and artwork. Explore each entry to see its team and work. These are submissions, not claims of production readiness."},
+		reportSection{"geography_intro", "Speaker map introduction", "Where speakers said they would be traveling from, using their event-specific speaker forms. Both hemispheres are shown so every mapped origin can appear."},
+		reportSection{"reach_intro", "Online reach introduction", "How far did the event’s talks, workshops and conversations travel? These figures track the event’s published videos and posts, with each platform reported separately."},
+	)
 	return sections
 }
 
@@ -164,6 +176,10 @@ func serveSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppC
 		page.Saved = map[string]string{}
 	}
 	if len(content) == 0 && strings.Contains(strings.ToLower(page.Event.Tag+" "+page.Event.Location), "nairobi") {
+		if err := applyNairobiReportDefaults(&page); err != nil {
+			http.Error(w, "Unable to load Nairobi report defaults", 500)
+			return
+		}
 		for _, p := range page.Speakers {
 			switch p.Name {
 			case "Fabian Jahr", "Naiyoma", "Femi Longe", "Sabina Waithira Gitau", "Rita Anene", "Sy⚡":
@@ -294,6 +310,9 @@ func reportOptionalCount(raw string) (*int64, error) {
 }
 func eventReportForm(form url.Values, page *sponsorReportPage, now time.Time) (map[string]string, error) {
 	saved := map[string]string{}
+	if err := saveReportReach(form, saved, now); err != nil {
+		return nil, err
+	}
 	textField := func(key string) error {
 		value := strings.TrimSpace(form.Get(key))
 		if len(value) > 12000 {
@@ -302,12 +321,15 @@ func eventReportForm(form url.Values, page *sponsorReportPage, now time.Time) (m
 		saved[key] = value
 		return nil
 	}
+	if len(strings.TrimSpace(form.Get("prepared_for"))) > 200 {
+		return nil, fmt.Errorf("prepared-for organization must be at most 200 bytes")
+	}
 	for _, s := range page.Sections {
 		if err := textField(s.Key); err != nil {
 			return nil, err
 		}
 	}
-	for _, key := range []string{"attendance_source", "applications_source", "analytics_source", "analytics_period", "analytics_metric", "analytics_date"} {
+	for _, key := range []string{"prepared_for", "attendance_source", "applications_source", "analytics_source", "analytics_period", "analytics_metric", "analytics_date"} {
 		if err := textField(key); err != nil {
 			return nil, err
 		}
@@ -376,6 +398,9 @@ func eventReportForm(form url.Values, page *sponsorReportPage, now time.Time) (m
 		}
 	}
 	for _, p := range page.Speakers {
+		if err := saveReportSpeakerLocation(form, saved, p.ID); err != nil {
+			return nil, err
+		}
 		if form.Get("speaker_"+p.ID) == "yes" {
 			saved["speaker_"+p.ID] = "yes"
 		}

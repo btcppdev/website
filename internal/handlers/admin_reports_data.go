@@ -8,9 +8,11 @@ import (
 )
 
 // Aggregate relationships separately so team size cannot multiply prizes.
-const eventReportMetricsSQL = `SELECT
+const eventReportAttendanceSQL = `SELECT
  (SELECT count(*) FROM registrations WHERE conference_id=$1 AND NOT coalesce(revoked_before_account_deletion,revoked)),
- (SELECT count(DISTINCT coalesce('person:'||coalesce(r.person_id,pe.person_id)::text,'email:'||lower(trim(r.email::text)))) FROM registrations r LEFT JOIN person_emails pe ON pe.email=r.email WHERE r.conference_id=$1 AND NOT coalesce(r.revoked_before_account_deletion,r.revoked) AND r.checked_in_at IS NOT NULL),
+ (SELECT count(DISTINCT coalesce('person:'||coalesce(r.person_id,pe.person_id)::text,'email:'||lower(trim(r.email::text)))) FROM registrations r LEFT JOIN person_emails pe ON pe.email=r.email WHERE r.conference_id=$1 AND NOT coalesce(r.revoked_before_account_deletion,r.revoked) AND r.checked_in_at IS NOT NULL)`
+
+const eventReportMetricsSQL = eventReportAttendanceSQL + `,
  (SELECT count(*) FROM projects p JOIN competitions k ON k.id=p.competition_id WHERE k.conference_id=$1 AND p.status IN ('submitted','advanced')),
  (SELECT count(DISTINCT m.person_id) FROM project_members m JOIN projects p ON p.id=m.project_id JOIN competitions k ON k.id=p.competition_id WHERE k.conference_id=$1 AND p.status IN ('submitted','advanced')),
  (SELECT count(*) FROM awards a JOIN competitions k ON k.id=a.competition_id WHERE k.conference_id=$1 AND a.award_type='challenge' AND a.sponsored_by_org_id IS NOT NULL AND a.status<>'draft' AND a.archived_at IS NULL),
@@ -27,13 +29,14 @@ const eventReportTeamSizesSQL = `WITH sizes AS (
 ) SELECT least(members,5),count(*) FROM sizes GROUP BY least(members,5) ORDER BY 1`
 
 const eventReportSessionsSQL = `SELECT t.id::text,p.title,lower(p.talk_type),t.scheduled_start,t.scheduled_end,
- coalesce((SELECT string_agg(DISTINCT person.name,', ' ORDER BY person.name) FROM proposals_speaker_confs ps JOIN speaker_confs sc ON sc.id=ps.speaker_conf_id JOIN people person ON person.id=sc.speaker_id WHERE ps.proposal_id=p.id),''),coalesce(r.youtube_url,''),coalesce(r.x_url,'')
+ coalesce((SELECT string_agg(DISTINCT person.name,', ' ORDER BY person.name) FROM proposals_speaker_confs ps JOIN speaker_confs sc ON sc.id=ps.speaker_conf_id JOIN people person ON person.id=sc.speaker_id WHERE ps.proposal_id=p.id),''),coalesce(r.youtube_url,''),coalesce(r.x_url,''),coalesce(t.venue,'')
  FROM conf_talks t JOIN proposals p ON p.id=t.proposal_id LEFT JOIN recordings r ON r.conf_talk_id=t.id
  WHERE t.conference_id=$1 AND t.archived_at IS NULL AND p.status IN ('Accepted','Scheduled') AND lower(p.talk_type) IN ('talk','keynote','panel','workshop')
  ORDER BY t.scheduled_start NULLS LAST,p.title,t.id`
-const eventReportSpeakersSQL = `SELECT DISTINCT person.id::text,person.name,person.norm_photo_path,person.company
+const eventReportSpeakersSQL = `SELECT person.id::text,person.name,person.norm_photo_path,person.company,
+ coalesce(string_agg(DISTINCT nullif(trim(sc.coming_from),''),' / ' ORDER BY nullif(trim(sc.coming_from),'')) FILTER (WHERE lower(trim(sc.coming_from)) NOT IN ('unknown','n/a','not provided')),'')
  FROM conf_talks t JOIN proposals p ON p.id=t.proposal_id JOIN proposals_speaker_confs ps ON ps.proposal_id=p.id JOIN speaker_confs sc ON sc.id=ps.speaker_conf_id JOIN people person ON person.id=sc.speaker_id
- WHERE t.conference_id=$1 AND t.archived_at IS NULL AND p.status IN ('Accepted','Scheduled') AND lower(p.talk_type) IN ('talk','keynote','panel','workshop') ORDER BY person.name,person.id::text`
+ WHERE t.conference_id=$1 AND t.archived_at IS NULL AND p.status IN ('Accepted','Scheduled') AND lower(p.talk_type) IN ('talk','keynote','panel','workshop') GROUP BY person.id,person.name,person.norm_photo_path,person.company ORDER BY person.name,person.id::text`
 const eventReportJudgesSQL = `WITH assignments AS (
  SELECT j.person_id,coalesce(nullif(j.public_label_override,''),j.judge_type) AS role FROM competition_judges j JOIN competitions k ON k.id=j.competition_id WHERE k.conference_id=$1
  UNION SELECT j.person_id,'Sponsor challenge judge' FROM award_judges j JOIN awards a ON a.id=j.award_id JOIN competitions k ON k.id=a.competition_id WHERE k.conference_id=$1 AND a.archived_at IS NULL AND a.status<>'draft'
@@ -79,7 +82,7 @@ func loadEventReport(ctx context.Context, app *config.AppContext, page *sponsorR
 	}
 	page.Sessions, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (reportSession, error) {
 		var s reportSession
-		err := row.Scan(&s.ID, &s.Title, &s.Kind, &s.Start, &s.End, &s.Speakers, &s.YouTube, &s.X)
+		err := row.Scan(&s.ID, &s.Title, &s.Kind, &s.Start, &s.End, &s.Speakers, &s.YouTube, &s.X, &s.Venue)
 		return s, err
 	})
 	if err != nil {
@@ -91,7 +94,7 @@ func loadEventReport(ctx context.Context, app *config.AppContext, page *sponsorR
 	}
 	page.Speakers, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (reportPerson, error) {
 		var p reportPerson
-		err := row.Scan(&p.ID, &p.Name, &p.Photo, &p.Company)
+		err := row.Scan(&p.ID, &p.Name, &p.Photo, &p.Company, &p.ComingFrom)
 		p.Photo = SpeakerPhotoURL(app, p.Photo)
 		return p, err
 	})
@@ -118,6 +121,18 @@ func loadEventReport(ctx context.Context, app *config.AppContext, page *sponsorR
 	page.Winners, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (reportWinner, error) {
 		var p reportWinner
 		err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Image, &p.GitHub, &p.Demo, &p.Awards, &p.Members, &p.Sats)
+		return p, err
+	})
+	if err != nil {
+		return err
+	}
+	rows, err = tx.Query(ctx, `SELECT p.id::text,p.title,p.short_description,p.image_url FROM projects p JOIN competitions c ON c.id=p.competition_id WHERE c.conference_id=$1 AND p.status IN ('submitted','advanced') ORDER BY lower(p.title),p.id`, page.Event.ID)
+	if err != nil {
+		return err
+	}
+	page.Projects, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (reportWinner, error) {
+		var p reportWinner
+		err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Image)
 		return p, err
 	})
 	if err != nil {

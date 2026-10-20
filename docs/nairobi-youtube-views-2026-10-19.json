@@ -1,0 +1,266 @@
+{
+  "retrieved_at": "2026-10-19T18:29:39Z",
+  "source": "YouTube Data API videos.list \u00b7 linked Nairobi recordings",
+  "unique_videos": 43,
+  "total_views": 2811,
+  "videos": [
+    {
+      "session_id": "nairobi_conference_24bb",
+      "title": "Conference Kickoff",
+      "video_id": "Mn18G9EZPMQ",
+      "views": 48
+    },
+    {
+      "session_id": "nairobi_helping_058e",
+      "title": "Be Robin: A path into Bitcoin Open Source",
+      "video_id": "DcjC_ik09Cs",
+      "views": 76
+    },
+    {
+      "session_id": "nairobi_reviewing",
+      "title": "Reviewing PRS",
+      "video_id": "9RGxDarlFtk",
+      "views": 45
+    },
+    {
+      "session_id": "nairobi_hackable_41e7",
+      "title": "Hackable by Default: Software that's Really Open Source",
+      "video_id": "PO1lggcj-Ic",
+      "views": 53
+    },
+    {
+      "session_id": "nairobi_femi_4013",
+      "title": "Built Here, Used Everywhere: Closing the African Open Source Founder Gap",
+      "video_id": "S4MgvYoQsTk",
+      "views": 15
+    },
+    {
+      "session_id": "nairobi_help",
+      "title": "Can AI Help Bitcoin? Responsible Practices for Open-Source Development",
+      "video_id": "sQOCW6hPgeU",
+      "views": 28
+    },
+    {
+      "session_id": "nairobi_cognitive_9c26",
+      "title": "The Cognitive Cost of AI-Assisted Open Source",
+      "video_id": "plWa3v-mBnw",
+      "views": 27
+    },
+    {
+      "session_id": "nairobi_is_dead",
+      "title": "Open Source is Dead",
+      "video_id": "w7KQl6qh4yM",
+      "views": 280
+    },
+    {
+      "session_id": "nairobi_trust_84a8",
+      "title": "Don't Trust Your Node: Policy-Based Signing for Secure Lightning Infrastructure",
+      "video_id": "ClBlvQcZPHg",
+      "views": 77
+    },
+    {
+      "session_id": "nairobi_nostr_4e74",
+      "title": "Nostr, an open source database?",
+      "video_id": "TAIiCTeeuWk",
+      "views": 82
+    },
+    {
+      "session_id": "nairobi_trust_4978",
+      "title": "Don't Trust, Attest: Enclaves as a Trust-Minimization Tool for Bitcoin Apps",
+      "video_id": "madMR2gzfEI",
+      "views": 91
+    },
+    {
+      "session_id": "nairobi_modern",
+      "title": "Modern Testing and Fuzzing in Bitcoin Core",
+      "video_id": "gJlDTCHQnZY",
+      "views": 82
+    },
+    {
+      "session_id": "nairobi_anti-fee-sniping_b5a5",
+      "title": "Anti-Fee-Sniping and Privacy for Taproot Transactions",
+      "video_id": "w0DBR-YdqfM",
+      "views": 29
+    },
+    {
+      "session_id": "nairobi_lnurl_96c5",
+      "title": "LNURL in the Real World: Improving Payment Communication for Africa",
+      "video_id": "hzqXoXWsqs4",
+      "views": 38
+    },
+    {
+      "session_id": "nairobi_workshop_ea4d",
+      "title": "Workshop: Building Nostr apps with open source AI tools",
+      "video_id": "7hKPXRN3Qgo",
+      "views": 170
+    },
+    {
+      "session_id": "nairobi_ldk_rbf",
+      "title": "Implementing Replace-By-Fee (BIP 125) in LDK Node",
+      "video_id": "4X1jX-xUYZ0",
+      "views": 163
+    },
+    {
+      "session_id": "nairobi_lightning_63f9",
+      "title": "Lightning as Bitcoin\u2019s Translation Layer",
+      "video_id": "JBqpdx4ew6g",
+      "views": 73
+    },
+    {
+      "session_id": "nairobi_anatomy_614f",
+      "title": "Anatomy of a Bark VTXO",
+      "video_id": "iuTZz75iKl8",
+      "views": 95
+    },
+    {
+      "session_id": "nairobi_cross-platform_a1b9",
+      "title": "Cross-Platform Bitcoin Wallets with Flutter & BDK-Dart",
+      "video_id": "NNRYKSTh18U",
+      "views": 34
+    },
+    {
+      "session_id": "nairobi_future_cfb5",
+      "title": "The Future of Bitcoin Mining is Open",
+      "video_id": "UTj2XOr5NAg",
+      "views": 43
+    },
+    {
+      "session_id": "nairobi_pontmore_4699",
+      "title": "Defining an Open (Human) Agent Network for Bitcoin On/Off-Ramps",
+      "video_id": "c98ToUT2wKc",
+      "views": 15
+    },
+    {
+      "session_id": "nairobi_working_b877",
+      "title": "Working on Bitcoin",
+      "video_id": "50lR0Ww4C_A",
+      "views": 45
+    },
+    {
+      "session_id": "nairobi_hadi_fda1",
+      "title": "Proto Fleet",
+      "video_id": "0eLVYHU0n7o",
+      "views": 38
+    },
+    {
+      "session_id": "nairobi_beyond_f118",
+      "title": "\"Beyond the Barrier: Female African Developers Reimagining Bitcoin Innovation\"",
+      "video_id": "a17gFhXyglE",
+      "views": 77
+    },
+    {
+      "session_id": "nairobi_bitcoin_54f3",
+      "title": "Bitcoin Transfer",
+      "video_id": "er5eGwUjzzs",
+      "views": 29
+    },
+    {
+      "session_id": "nairobi_african_766a",
+      "title": "Why African Designers +Bitcoin = The Future",
+      "video_id": "UIcsBHLm3G8",
+      "views": 69
+    },
+    {
+      "session_id": "nairobi_plugins_df01",
+      "title": "Plugins, Not Forks: Extending BTCPay Server Without Compromising the Core",
+      "video_id": "wUFlzqWxuag",
+      "views": 26
+    },
+    {
+      "session_id": "nairobi_ai-powered_3d55",
+      "title": "AI-Powered Product Design for Bitcoin Experiences",
+      "video_id": "r-3Cy5-k4dY",
+      "views": 29
+    },
+    {
+      "session_id": "nairobi_mining_7fcb",
+      "title": "Mining Illustrated feat. Mujina Open-Source Firmware",
+      "video_id": "_rdBMP1vXD4",
+      "views": 64
+    },
+    {
+      "session_id": "nairobi_tbd_ff64",
+      "title": "Stratumv2",
+      "video_id": "mZzAzgselC8",
+      "views": 41
+    },
+    {
+      "session_id": "nairobi_open_4034",
+      "title": "Towards Better Privacy Reasoning",
+      "video_id": "pIYlayuzuug",
+      "views": 25
+    },
+    {
+      "session_id": "nairobi_lightning_7440",
+      "title": "Lightning + Mobile Money: Bridging Two Financial Worlds",
+      "video_id": "qYMVjeax3FM",
+      "views": 81
+    },
+    {
+      "session_id": "nairobi_foundation_0ac8",
+      "title": "The 256 Foundation's Open-Source Mining Stack",
+      "video_id": "ZJP1pFQvVYk",
+      "views": 68
+    },
+    {
+      "session_id": "nairobi_ln_edu",
+      "title": "Lightning Education as Infrastructure: Scaling Technical Capacity Across Multiple Countries",
+      "video_id": "VVmj7uJCfU8",
+      "views": 23
+    },
+    {
+      "session_id": "nairobi_trust",
+      "title": "Don\u2019t Trust, Verify. Reproducible Builds in Bitcoin",
+      "video_id": "OcEHW56J88c",
+      "views": 45
+    },
+    {
+      "session_id": "nairobi_panel_4d9e",
+      "title": "Open Sourcing Developer Community",
+      "video_id": "y3KOe326vns",
+      "views": 42
+    },
+    {
+      "session_id": "nairobi_building_f2a1",
+      "title": "Building Tapnob: Connecting Lightning to Real-World Payments in Africa",
+      "video_id": "WnplgdUrU9A",
+      "views": 39
+    },
+    {
+      "session_id": "nairobi_cashu_a055",
+      "title": "Cashu ecash protocol",
+      "video_id": "3uQTSN07kqQ",
+      "views": 101
+    },
+    {
+      "session_id": "nairobi_last_0a08",
+      "title": "Bitcoin, Demystified: A Live Walkthrough from M-Pesa to Self-Custody",
+      "video_id": "wWayWuDQmUA",
+      "views": 64
+    },
+    {
+      "session_id": "nairobi_bearer_b4d7",
+      "title": "Bearer Tokens for Bitcoin: A Look at Cashu",
+      "video_id": "LZPon56L088",
+      "views": 170
+    },
+    {
+      "session_id": "nairobi_gating_9732",
+      "title": "Gating APIs with Lightning: A Hands-On L402 Workshop Using Aperture",
+      "video_id": "VK2v7Rbqqj8",
+      "views": 35
+    },
+    {
+      "session_id": "nairobi_sending",
+      "title": "Sending and Receiving silent payment transactions with bdk-sp",
+      "video_id": "cRoWe8zGJKI",
+      "views": 90
+    },
+    {
+      "session_id": "nairobi_building_b80c",
+      "title": "Building contributor-friendly repositories with Devenv",
+      "video_id": "WhTZmtiLH0A",
+      "views": 46
+    }
+  ]
+}

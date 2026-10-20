@@ -1,0 +1,208 @@
+{
+  "Saved": {
+    "note": "To our partners,\n\nBringing bitcoin++ to Africa is one of the things I’m proudest of this year. Nairobi put the people building Bitcoin in the same room, with space to learn from one another and to make something together.\n\nI’m especially proud of the conversations we helped spark. An event’s value is not only what happens on stage, but the connections that can turn an idea into a project or a first contribution.\n\nThis edition looks at what we can already point to: the published program, the builders’ projects, and the people who helped judge them. Thank you for helping make this step into Africa possible.\n\nnifty",
+    "program": "Nairobi’s Open Source Edition brought protocol contributors, educators and application builders into the same program. Three questions connect the selected discussions: how people enter open source, how they sustain the work, and how local communities help them keep going.",
+    "panels": "These are editorial selections from the published program. The questions below explain their relevance; they are not quotations or claims of consensus.",
+    "hackathon": "The overall winners approached three different problems: moving value across local payment rails, helping new contributors get started, and coordinating a permissionless marketplace. Together, they make the technical range of this edition tangible.",
+    "judges": "The public roster brings together people from protocol development, community organizations and application teams. Their participation connects the projects to the people who can question assumptions, examine a demo and help builders see the next step.",
+    "closing": "Nairobi is a starting point for follow-through. The next step is to ask the winning teams what they have shipped since the event, where they need help, and whether new contributors stayed involved.\n\nFor the next edition, we propose a short post-event project check-in, a clearer path from workshop material to a first contribution, and a consistent record of attendance, prizes and recording reach. These are proposed improvements, not measured outcomes.\n\nOur persistent reporting challenge is continuity: a program and a prototype are visible now; sustained contribution takes follow-up. We want our sponsors to be able to see both.\n\nThank you to our speakers, judges, volunteers, local collaborators and partners for making room for this work.",
+    "reach_youtube_views": "2811",
+    "reach_youtube_source": "YouTube Data API videos.list · linked Nairobi recordings",
+    "reach_youtube_period": "Lifetime through 19 October 2026",
+    "reach_youtube_date": "2026-10-19",
+    "reach_youtube_coverage": "43 distinct public YouTube videos matched to 43 of 44 scheduled sessions. Excludes X, Spaces playback and unlinked videos.",
+    "analytics_metric": "YouTube views",
+    "analytics_source": "YouTube Data API videos.list · linked Nairobi recordings",
+    "analytics_period": "Lifetime through 19 October 2026; 43 matched videos",
+    "analytics_date": "2026-10-19",
+    "prepared_for": "Btrust"
+  },
+  "Videos": [
+    {
+      "ID": "Mn18G9EZPMQ",
+      "Views": 48
+    },
+    {
+      "ID": "DcjC_ik09Cs",
+      "Views": 76
+    },
+    {
+      "ID": "9RGxDarlFtk",
+      "Views": 45
+    },
+    {
+      "ID": "PO1lggcj-Ic",
+      "Views": 53
+    },
+    {
+      "ID": "S4MgvYoQsTk",
+      "Views": 15
+    },
+    {
+      "ID": "sQOCW6hPgeU",
+      "Views": 28
+    },
+    {
+      "ID": "plWa3v-mBnw",
+      "Views": 27
+    },
+    {
+      "ID": "w7KQl6qh4yM",
+      "Views": 280
+    },
+    {
+      "ID": "ClBlvQcZPHg",
+      "Views": 77
+    },
+    {
+      "ID": "TAIiCTeeuWk",
+      "Views": 82
+    },
+    {
+      "ID": "madMR2gzfEI",
+      "Views": 91
+    },
+    {
+      "ID": "gJlDTCHQnZY",
+      "Views": 82
+    },
+    {
+      "ID": "w0DBR-YdqfM",
+      "Views": 29
+    },
+    {
+      "ID": "hzqXoXWsqs4",
+      "Views": 38
+    },
+    {
+      "ID": "7hKPXRN3Qgo",
+      "Views": 170
+    },
+    {
+      "ID": "4X1jX-xUYZ0",
+      "Views": 163
+    },
+    {
+      "ID": "JBqpdx4ew6g",
+      "Views": 73
+    },
+    {
+      "ID": "iuTZz75iKl8",
+      "Views": 95
+    },
+    {
+      "ID": "NNRYKSTh18U",
+      "Views": 34
+    },
+    {
+      "ID": "UTj2XOr5NAg",
+      "Views": 43
+    },
+    {
+      "ID": "c98ToUT2wKc",
+      "Views": 15
+    },
+    {
+      "ID": "50lR0Ww4C_A",
+      "Views": 45
+    },
+    {
+      "ID": "0eLVYHU0n7o",
+      "Views": 38
+    },
+    {
+      "ID": "a17gFhXyglE",
+      "Views": 77
+    },
+    {
+      "ID": "er5eGwUjzzs",
+      "Views": 29
+    },
+    {
+      "ID": "UIcsBHLm3G8",
+      "Views": 69
+    },
+    {
+      "ID": "wUFlzqWxuag",
+      "Views": 26
+    },
+    {
+      "ID": "r-3Cy5-k4dY",
+      "Views": 29
+    },
+    {
+      "ID": "_rdBMP1vXD4",
+      "Views": 64
+    },
+    {
+      "ID": "mZzAzgselC8",
+      "Views": 41
+    },
+    {
+      "ID": "pIYlayuzuug",
+      "Views": 25
+    },
+    {
+      "ID": "qYMVjeax3FM",
+      "Views": 81
+    },
+    {
+      "ID": "ZJP1pFQvVYk",
+      "Views": 68
+    },
+    {
+      "ID": "VVmj7uJCfU8",
+      "Views": 23
+    },
+    {
+      "ID": "OcEHW56J88c",
+      "Views": 45
+    },
+    {
+      "ID": "y3KOe326vns",
+      "Views": 42
+    },
+    {
+      "ID": "WnplgdUrU9A",
+      "Views": 39
+    },
+    {
+      "ID": "3uQTSN07kqQ",
+      "Views": 101
+    },
+    {
+      "ID": "wWayWuDQmUA",
+      "Views": 64
+    },
+    {
+      "ID": "LZPon56L088",
+      "Views": 170
+    },
+    {
+      "ID": "VK2v7Rbqqj8",
+      "Views": 35
+    },
+    {
+      "ID": "cRoWe8zGJKI",
+      "Views": 90
+    },
+    {
+      "ID": "WhTZmtiLH0A",
+      "Views": 46
+    }
+  ],
+  "Panels": [
+    {
+      "Title": "Built Here, Used Everywhere: Closing the African Open Source Founder Gap",
+      "Note": "The question: what would help more African contributors become founders of open-source projects used around the world? For sponsors, it connects developer support to the capacity to start and sustain projects."
+    },
+    {
+      "Title": "Working on Bitcoin",
+      "Note": "The question: how does someone find a useful role in Bitcoin development? This discussion offers a way into contribution, review and the practical work behind a shared codebase."
+    },
+    {
+      "Title": "Open Sourcing Developer Community",
+      "Note": "The question: what helps a developer community keep learning together? Local groups can provide the relationships and feedback that a repository alone cannot."
+    }
+  ]
+}

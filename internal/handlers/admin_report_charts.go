@@ -52,7 +52,7 @@ func (c reportChart) Donut() []reportSlice {
 	}
 	var rows []reportBar
 	switch c.Kind {
-	case "program":
+	case "program", "published-prizes":
 		rows = c.Rows
 	case "teams":
 		if len(c.Rows) != 2 || c.Rows[1].Value > c.Rows[0].Value {
@@ -96,7 +96,7 @@ func (p sponsorReportPage) Charts() []reportChart {
 	}
 	popular := reportChart{Title: "Conversations reaching further", Unit: p.Saved["analytics_metric"], Kind: "views", Empty: "Awaiting comparable, sourced session view counts."}
 	popular.Note = fmt.Sprintf("Top five among sessions with supplied analytics · %s · exported %s · Source: %s. Views do not measure in-room popularity.", p.Saved["analytics_period"], p.Saved["analytics_date"], p.Saved["analytics_source"])
-	if !p.Preview && popular.Unit != "" && p.Saved["analytics_source"] != "" && p.Saved["analytics_period"] != "" && p.Saved["analytics_date"] != "" {
+	if (!p.Preview || p.PublicVideoSource != "") && popular.Unit != "" && p.Saved["analytics_source"] != "" && p.Saved["analytics_period"] != "" && p.Saved["analytics_date"] != "" {
 		for _, s := range p.Popular {
 			if s.Views != nil {
 				link := s.WatchURL

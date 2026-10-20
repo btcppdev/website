@@ -111,3 +111,20 @@ Global administrators can open **Sponsor report** from `/{event}/admin` or event
 The authenticated, CSRF-protected `/admin/reports/preview` endpoint renders Markdown with the same HTML allowlist used for saved reports; raw HTML and unsafe link protocols are not enabled. Previews are debounced and stale responses cannot overwrite newer text. Printing is blocked while a preview is pending or failed.
 
 The local synthetic demo exposes the same editor and renderer on loopback for previewing only; its Save buttons are disabled. It never writes editorial changes to the real application database.
+
+## Recipient and text editing
+
+Use **Edit report** to open the editor. **Prepared for** accepts NYDIG, HRF,
+Btrust, or a custom organization name (up to 200 bytes). It updates the cover
+and acknowledgments in both formats immediately and saves with the event
+report draft. Empty recipients render as “Our partners”. Each event currently
+has one saved draft, not independent per-organization versions: export the PDF
+for one recipient before preparing the next. Review the letter for custom
+sponsor references; changing the recipient does not rewrite your prose.
+
+The opening, closing, program, panels, hackathon, judges, speaker mosaic,
+timeline, project gallery, map and online reach introductions are Markdown
+sections with live preview. Counts and source definitions remain generated.
+The local preview is intentionally read-only for persistence; narrative edits
+and recipient changes are temporary there. Use **Save event draft** in the
+connected admin report to keep changes.

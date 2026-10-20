@@ -17,44 +17,272 @@
       "/static/img/nairobi/four.jpg"
     ]
   },
-  "Generated": "16 September 2026 · public-source draft; private metrics not loaded",
-  "Message": "Nairobi draft from public program and results. Attendance, payout, delivery, and popularity figures await verification.",
+  "Generated": "19 October 2026 · public program and results snapshot",
+  "Message": "Editorial review · Real public results, no synthetic metrics. Attendance, payout reconciliation and social analytics remain in the editor checklist.",
   "Speakers": [
     {
-      "ID": "public-0",
+      "ID": "/whois/niftynei",
+      "Name": "niftynei",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/nifty.jpg",
+      "Company": "bitcoin++"
+    },
+    {
+      "ID": "/whois/fjahr",
       "Name": "Fabian Jahr",
-      "Company": "Brink",
-      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/fabian.png"
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/fabian.png",
+      "Company": "Brink"
     },
     {
-      "ID": "public-1",
+      "ID": "/whois/naiyoma",
       "Name": "Naiyoma",
-      "Company": "bitcoin-core contributor ",
-      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/e8b34251b476-400.avif"
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/e8b34251b476-400.avif",
+      "Company": "bitcoin-core contributor"
     },
     {
-      "ID": "public-2",
+      "ID": "/whois/xyzshantaram",
+      "Name": "shantaram",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/b78c27a599a7-400.avif",
+      "Company": "Soapbox Technology LLC"
+    },
+    {
+      "ID": "/whois/longesson",
       "Name": "Femi Longe",
-      "Company": "HRF",
-      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/9f78009c465f-400.avif"
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/9f78009c465f-400.avif",
+      "Company": "HRF"
     },
     {
-      "ID": "public-3",
-      "Name": "Sabina Waithira Gitau",
-      "Company": "Tando LTD",
-      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/sabina.png"
+      "ID": "/whois/sherlockwisdom",
+      "Name": "Wisdom Nji",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/cf805d3f8c63.jpg",
+      "Company": ""
     },
     {
-      "ID": "public-4",
+      "ID": "/whois/takinbrrrr",
+      "Name": "takinbrrrr",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/0997ff92acd2.jpg",
+      "Company": ""
+    },
+    {
+      "ID": "/whois/okjodom",
+      "Name": "Jodom",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/238d87ec09c8.jpg",
+      "Company": "Minmo"
+    },
+    {
+      "ID": "/whois/kelvinator07",
+      "Name": "Kelvin Isievwore",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/41743cd9cfb9-400.avif",
+      "Company": "Btrust"
+    },
+    {
+      "ID": "/whois/sadeeqrabiu",
+      "Name": "Sadiq Rabiu",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/c6d043844bee-400.avif",
+      "Company": "OSGuild"
+    },
+    {
+      "ID": "/whois/alexgleasonator",
+      "Name": "Alex Gleason",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/gleason.png",
+      "Company": "Soapbox"
+    },
+    {
+      "ID": "/whois/sulaimanaminub2",
+      "Name": "Sulaiman Aminu Barkindo",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/f077997423bf-400.avif",
+      "Company": "BTrust — Contributing to Validating Lightning Signer (VLS)"
+    },
+    {
+      "ID": "/whois/samthomson",
+      "Name": "sam",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/f3b525108af2.png",
+      "Company": "soapbox"
+    },
+    {
+      "ID": "/whois/aruokhai",
+      "Name": "Joshua Aruokhai",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/6184b999624b-400.avif",
+      "Company": "Arklabs"
+    },
+    {
+      "ID": "/whois/abdulkbk",
+      "Name": "Abdullahi",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/f9692e412d31-400.avif",
+      "Company": "Btrust"
+    },
+    {
+      "ID": "/whois/frankomosh",
+      "Name": "frankomosh",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/31092b73d3f2-400.avif",
+      "Company": "Btrust"
+    },
+    {
+      "ID": "/whois/aagbotemi",
+      "Name": "Abiodun Awoyemi",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/c8caa49df81f-400.avif",
+      "Company": "Btrust"
+    },
+    {
+      "ID": "/whois/extheoisah",
+      "Name": "Theophilus Isah",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/0066ed2a34f7.jpg",
+      "Company": "Mavapay"
+    },
+    {
+      "ID": "/whois/kngako",
+      "Name": "Kgothatso Ngako",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/e992bfefff2c.jpg",
+      "Company": "Machankura"
+    },
+    {
+      "ID": "/whois/mkay-fain",
+      "Name": "Mary Kate Fain",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/8e07ceb648b7-400.avif",
+      "Company": "Soapbox"
+    },
+    {
+      "ID": "/whois/camillarhi",
       "Name": "Rita Anene",
-      "Company": "Btrust",
-      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/279a864abfa0-400.avif"
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/279a864abfa0-400.avif",
+      "Company": "Btrust"
     },
     {
-      "ID": "public-5",
+      "ID": "/whois/tando-me",
+      "Name": "Sabina Waithira Gitau",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/sabina.png",
+      "Company": "Tando LTD"
+    },
+    {
+      "ID": "/whois/matthewvuk2",
+      "Name": "Matthew Vuk",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/61f5782c8ab1.jpg",
+      "Company": "Second"
+    },
+    {
+      "ID": "/whois/johnosezele",
+      "Name": "John Osezele",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/0412babd3a80-400.avif",
+      "Company": "Btrust"
+    },
+    {
+      "ID": "/whois/gio-galt",
+      "Name": "Gio Galt",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/d9dc05611eae-400.avif",
+      "Company": "Tether"
+    },
+    {
+      "ID": "/whois/marvin-charles",
+      "Name": "Marvin Charles",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/2688a0a7fe16.jpg",
+      "Company": "Block"
+    },
+    {
+      "ID": "/whois/hadi-alamdar",
+      "Name": "Hadi Alamdar",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/f3917d69e098-400.avif",
+      "Company": "Block Inc."
+    },
+    {
+      "ID": "/whois/wandiamugo",
+      "Name": "Wandia Mugo",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/30ea990a9006-400.avif",
+      "Company": "Dada Devs"
+    },
+    {
+      "ID": "/whois/wuorbhang",
+      "Name": "WUOR BHANG",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/466bad98bb09-400.avif",
+      "Company": "Bitcoin Nairobi"
+    },
+    {
+      "ID": "/whois/a-iyanu",
+      "Name": "Matthew",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/b9f10e184cc9-400.avif",
+      "Company": "Bitdesigners Africa"
+    },
+    {
+      "ID": "/whois/tchukwuleta",
+      "Name": "Tobses",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/048c9897d45b-400.avif",
+      "Company": "BTCPay Server"
+    },
+    {
+      "ID": "/whois/elizabethmusanga",
+      "Name": "Elizabeth Musanga",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/d95a5ff084a2-400.avif",
+      "Company": "N/A"
+    },
+    {
+      "ID": "/whois/rkuester",
+      "Name": "Ryan Kuester",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/036e27d7eccb-400.avif",
+      "Company": "256 Foundation"
+    },
+    {
+      "ID": "/whois/xyephy",
       "Name": "Sy⚡",
-      "Company": "BTrust",
-      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/1b186b8c0f94.jpg"
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/1b186b8c0f94.jpg",
+      "Company": "BTrust"
+    },
+    {
+      "ID": "/whois/mshehu5",
+      "Name": "Shehu",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/04fbb8dbcfa6-400.avif",
+      "Company": "Btrust/Payjoin"
+    },
+    {
+      "ID": "/whois/brytelitty",
+      "Name": "Bright Kportiklah",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/5838939e6e58.jpg",
+      "Company": "BitSpenda"
+    },
+    {
+      "ID": "/whois/megasley",
+      "Name": "Megasley",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/90dfa722e434-400.avif",
+      "Company": "Africa Free Routing"
+    },
+    {
+      "ID": "/whois/ojokne",
+      "Name": "Ojok Emmanuel Nsubuga",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/4fe8fc224339-400.avif",
+      "Company": "Btrust"
+    },
+    {
+      "ID": "/whois/mubarak23",
+      "Name": "Mubarak",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/41762053c899-400.avif",
+      "Company": "Tapnob"
+    },
+    {
+      "ID": "/whois/satscode",
+      "Name": "Martin Arts",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/4278187d79ca-400.avif",
+      "Company": "Satoshipay.me"
+    },
+    {
+      "ID": "/whois/fideltodayy",
+      "Name": "Fidel Otieno",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/fa0792fa8df5-400.avif",
+      "Company": "Bitika"
+    },
+    {
+      "ID": "/whois/kvngmikey",
+      "Name": "Mikey",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/7a0d08cb61ae-400.avif",
+      "Company": "Cashu"
+    },
+    {
+      "ID": "/whois/sdmg15",
+      "Name": "Sonkeng Maldini",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/c15a9e8295bb-400.avif",
+      "Company": "Btrust"
+    },
+    {
+      "ID": "/whois/gotcha",
+      "Name": "Godefroid Chapelle",
+      "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/6d9b8612507d-400.avif",
+      "Company": "BubbleNet"
     }
   ],
   "Judges": [
@@ -145,7 +373,9 @@
       "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/westtoeast/05df5ac5212b.avif",
       "Members": "nourou4them Nourou",
       "GitHub": "",
-      "Demo": "https://btcpp.dev/nairobi/hackathon/projects/0907cf92-a330-4088-8d6a-3c352eed3356"
+      "Demo": "https://btcpp.dev/nairobi/hackathon/projects/0907cf92-a330-4088-8d6a-3c352eed3356",
+      "AwardedSats": 2500000,
+      "Significance": "Local payment rails are part of the Bitcoin developer story. This prototype connects Lightning and LNURL to a concrete cross-border payment problem."
     },
     {
       "ID": "featured-3082d770-2dbd-4e71-9b9c-645fcf79d630",
@@ -155,7 +385,9 @@
       "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/way2foss/8c916ef4da99.avif",
       "Members": "Fidel Otieno, Chris Oketch",
       "GitHub": "https://github.com/itschrisoketch/Robin",
-      "Demo": "https://btcpp.dev/nairobi/hackathon/projects/3082d770-2dbd-4e71-9b9c-645fcf79d630"
+      "Demo": "https://btcpp.dev/nairobi/hackathon/projects/3082d770-2dbd-4e71-9b9c-645fcf79d630",
+      "AwardedSats": 1500000,
+      "Significance": "Getting a first contribution right is a developer-experience problem. Robin approaches that barrier through practice before a first pull request."
     },
     {
       "ID": "featured-d45fff28-4ea9-4721-a541-ddbdad3bef15",
@@ -165,36 +397,494 @@
       "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/nairobi2/78f01a78886e.avif",
       "Members": "Anon Ym",
       "GitHub": "https://github.com/f321x/nairobi2",
-      "Demo": "https://btcpp.dev/nairobi/hackathon/projects/d45fff28-4ea9-4721-a541-ddbdad3bef15"
+      "Demo": "https://btcpp.dev/nairobi/hackathon/projects/d45fff28-4ea9-4721-a541-ddbdad3bef15",
+      "AwardedSats": 1000000,
+      "Significance": "Bitcoin can also be a coordination primitive. This prototype explores how notarization can support an open marketplace beyond a payment alone."
     }
   ],
   "Sessions": [
+    {
+      "ID": "nairobi_conference_24bb",
+      "Title": "Conference Kickoff",
+      "Kind": "keynote",
+      "Speakers": "niftynei",
+      "WatchURL": "https://btcpp.dev/watch/2fa64f27-98d3-4957-bc9a-0d591b6485d5",
+      "YouTube": "https://youtu.be/Mn18G9EZPMQ",
+      "Start": "2026-06-17T09:45:00+03:00",
+      "End": "2026-06-17T10:00:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_helping_058e",
+      "Title": "Be Robin: A path into Bitcoin Open Source",
+      "Kind": "talk",
+      "Speakers": "Fabian Jahr",
+      "WatchURL": "https://btcpp.dev/watch/61df14ae-0af2-4c69-acf9-b12c3c1f3a5f",
+      "YouTube": "https://youtu.be/DcjC_ik09Cs",
+      "Start": "2026-06-17T10:00:00+03:00",
+      "End": "2026-06-17T10:30:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_reviewing",
+      "Title": "Reviewing PRS",
+      "Kind": "talk",
+      "Speakers": "Naiyoma",
+      "WatchURL": "https://btcpp.dev/watch/530d887f-4a7c-4d78-b6f9-73a6b4a296d9",
+      "YouTube": "https://youtu.be/9RGxDarlFtk",
+      "Start": "2026-06-17T10:30:00+03:00",
+      "End": "2026-06-17T11:00:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_hackable_41e7",
+      "Title": "Hackable by Default: Software that's Really Open Source",
+      "Kind": "talk",
+      "Speakers": "shantaram",
+      "WatchURL": "https://btcpp.dev/watch/9a7895b0-23ea-4b5b-92c9-032f00019fee",
+      "YouTube": "https://youtu.be/PO1lggcj-Ic",
+      "Start": "2026-06-17T11:00:00+03:00",
+      "End": "2026-06-17T11:45:00+03:00",
+      "Venue": "Main Stage"
+    },
     {
       "ID": "nairobi_femi_4013",
       "Title": "Built Here, Used Everywhere: Closing the African Open Source Founder Gap",
       "Kind": "panel",
       "Speakers": "Femi Longe, Wisdom Nji, takinbrrrr, Jodom",
+      "WatchURL": "https://btcpp.dev/watch/c6941a45-7127-4b8f-bd2d-8d1aa1e0267f",
+      "YouTube": "https://youtu.be/S4MgvYoQsTk",
       "Start": "2026-06-17T11:45:00+03:00",
       "End": "2026-06-17T12:30:00+03:00",
-      "WatchURL": "https://btcpp.dev/watch/c6941a45-7127-4b8f-bd2d-8d1aa1e0267f"
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_help",
+      "Title": "Can AI Help Bitcoin? Responsible Practices for Open-Source Development",
+      "Kind": "talk",
+      "Speakers": "Kelvin Isievwore",
+      "WatchURL": "https://btcpp.dev/watch/30e3a27a-a22c-4c6a-afa5-a99735f11cec",
+      "YouTube": "https://youtu.be/sQOCW6hPgeU",
+      "Start": "2026-06-17T13:30:00+03:00",
+      "End": "2026-06-17T14:00:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_cognitive_9c26",
+      "Title": "The Cognitive Cost of AI-Assisted Open Source",
+      "Kind": "talk",
+      "Speakers": "Sadiq Rabiu",
+      "WatchURL": "https://btcpp.dev/watch/e77c71f0-47cf-4c3d-9647-8e87511600c7",
+      "YouTube": "https://youtu.be/plWa3v-mBnw",
+      "Start": "2026-06-17T14:00:00+03:00",
+      "End": "2026-06-17T14:30:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_is_dead",
+      "Title": "Open Source is Dead",
+      "Kind": "talk",
+      "Speakers": "Alex Gleason",
+      "WatchURL": "https://btcpp.dev/watch/a730d79c-659d-4c85-9d32-8637e0b3cac0",
+      "YouTube": "https://youtu.be/w7KQl6qh4yM",
+      "Start": "2026-06-17T14:30:00+03:00",
+      "End": "2026-06-17T15:00:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_trust_84a8",
+      "Title": "Don't Trust Your Node: Policy-Based Signing for Secure Lightning Infrastructure",
+      "Kind": "talk",
+      "Speakers": "Sulaiman Aminu Barkindo",
+      "WatchURL": "https://btcpp.dev/watch/a149dcc7-343a-40e1-8fd7-9eb117cd3b15",
+      "YouTube": "https://youtu.be/ClBlvQcZPHg",
+      "Start": "2026-06-17T11:00:00+03:00",
+      "End": "2026-06-17T11:45:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_nostr_4e74",
+      "Title": "Nostr, an open source database?",
+      "Kind": "talk",
+      "Speakers": "sam",
+      "WatchURL": "https://btcpp.dev/watch/56561ce7-196e-421e-8580-41d38ca7442c",
+      "YouTube": "https://youtu.be/TAIiCTeeuWk",
+      "Start": "2026-06-17T11:45:00+03:00",
+      "End": "2026-06-17T12:30:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_trust_4978",
+      "Title": "Don't Trust, Attest: Enclaves as a Trust-Minimization Tool for Bitcoin Apps",
+      "Kind": "talk",
+      "Speakers": "Joshua Aruokhai",
+      "WatchURL": "https://btcpp.dev/watch/750c9a9d-d36f-4964-afe0-c1e3bfdf722a",
+      "YouTube": "https://youtu.be/madMR2gzfEI",
+      "Start": "2026-06-17T13:30:00+03:00",
+      "End": "2026-06-17T14:00:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_onion_38f5",
+      "Title": "Onion Messages: How Lightning Learned to Talk Beyond Payments",
+      "Kind": "talk",
+      "Speakers": "Abdullahi",
+      "WatchURL": "https://btcpp.dev/watch/ae8f2243-ae99-40d5-8cb2-eae043c3671f",
+      "Start": "2026-06-17T14:00:00+03:00",
+      "End": "2026-06-17T14:30:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_modern",
+      "Title": "Modern Testing and Fuzzing in Bitcoin Core",
+      "Kind": "talk",
+      "Speakers": "frankomosh",
+      "WatchURL": "https://btcpp.dev/watch/fe0f5f98-38d3-4c01-a06b-90d3ea9da643",
+      "YouTube": "https://youtu.be/gJlDTCHQnZY",
+      "Start": "2026-06-17T14:30:00+03:00",
+      "End": "2026-06-17T15:00:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_anti-fee-sniping_b5a5",
+      "Title": "Anti-Fee-Sniping and Privacy for Taproot Transactions",
+      "Kind": "talk",
+      "Speakers": "Abiodun Awoyemi",
+      "WatchURL": "https://btcpp.dev/watch/bb3deba0-89da-4307-ba19-26fe6e1e5c79",
+      "YouTube": "https://youtu.be/w0DBR-YdqfM",
+      "Start": "2026-06-17T11:00:00+03:00",
+      "End": "2026-06-17T11:45:00+03:00",
+      "Venue": "Workshops Stage"
+    },
+    {
+      "ID": "nairobi_lnurl_96c5",
+      "Title": "LNURL in the Real World: Improving Payment Communication for Africa",
+      "Kind": "workshop",
+      "Speakers": "Theophilus Isah, Kgothatso Ngako",
+      "WatchURL": "https://btcpp.dev/watch/84964b2d-e9e7-4ac2-971f-d4f554113b8e",
+      "YouTube": "https://youtu.be/hzqXoXWsqs4",
+      "Start": "2026-06-17T11:45:00+03:00",
+      "End": "2026-06-17T12:30:00+03:00",
+      "Venue": "Workshops Stage"
+    },
+    {
+      "ID": "nairobi_workshop_ea4d",
+      "Title": "Workshop: Building Nostr apps with open source AI tools",
+      "Kind": "workshop",
+      "Speakers": "Mary Kate Fain",
+      "WatchURL": "https://btcpp.dev/watch/223b9d0f-d3e3-4d3e-93f2-84edd4b234f1",
+      "YouTube": "https://youtu.be/7hKPXRN3Qgo",
+      "Start": "2026-06-17T13:30:00+03:00",
+      "End": "2026-06-17T14:30:00+03:00",
+      "Venue": "Workshops Stage"
+    },
+    {
+      "ID": "nairobi_ldk_rbf",
+      "Title": "Implementing Replace-By-Fee (BIP 125) in LDK Node",
+      "Kind": "talk",
+      "Speakers": "Rita Anene",
+      "WatchURL": "https://btcpp.dev/watch/696acc6e-faf0-496c-b316-33a68fe355ce",
+      "YouTube": "https://youtu.be/4X1jX-xUYZ0",
+      "Start": "2026-06-17T14:30:00+03:00",
+      "End": "2026-06-17T15:00:00+03:00",
+      "Venue": "Workshops Stage"
+    },
+    {
+      "ID": "nairobi_lightning_63f9",
+      "Title": "Lightning as Bitcoin’s Translation Layer",
+      "Kind": "talk",
+      "Speakers": "Sabina Waithira Gitau",
+      "WatchURL": "https://btcpp.dev/watch/1400a384-8ef6-4c00-9309-8087f1323d5c",
+      "YouTube": "https://youtu.be/JBqpdx4ew6g",
+      "Start": "2026-06-18T10:00:00+03:00",
+      "End": "2026-06-18T10:30:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_anatomy_614f",
+      "Title": "Anatomy of a Bark VTXO",
+      "Kind": "talk",
+      "Speakers": "Matthew Vuk",
+      "WatchURL": "https://btcpp.dev/watch/f4cc5799-41e6-4279-ac23-7438c1555e20",
+      "YouTube": "https://youtu.be/iuTZz75iKl8",
+      "Start": "2026-06-18T10:30:00+03:00",
+      "End": "2026-06-18T11:00:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_cross-platform_a1b9",
+      "Title": "Cross-Platform Bitcoin Wallets with Flutter & BDK-Dart",
+      "Kind": "talk",
+      "Speakers": "John Osezele",
+      "WatchURL": "https://btcpp.dev/watch/b44f95f6-5a55-4292-9032-c41a76093d95",
+      "YouTube": "https://youtu.be/NNRYKSTh18U",
+      "Start": "2026-06-18T11:00:00+03:00",
+      "End": "2026-06-18T11:15:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_future_cfb5",
+      "Title": "The Future of Bitcoin Mining is Open",
+      "Kind": "talk",
+      "Speakers": "Gio Galt",
+      "WatchURL": "https://btcpp.dev/watch/4f3f78a2-c1e9-4cf2-9871-1cc81521160b",
+      "YouTube": "https://youtu.be/UTj2XOr5NAg",
+      "Start": "2026-06-18T11:15:00+03:00",
+      "End": "2026-06-18T11:45:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_pontmore_4699",
+      "Title": "Defining an Open (Human) Agent Network for Bitcoin On/Off-Ramps",
+      "Kind": "workshop",
+      "Speakers": "Jodom",
+      "WatchURL": "https://btcpp.dev/watch/01cc6c01-17f0-43d9-b607-3a35b6530147",
+      "YouTube": "https://youtu.be/c98ToUT2wKc",
+      "Start": "2026-06-18T11:45:00+03:00",
+      "End": "2026-06-18T12:30:00+03:00",
+      "Venue": "Main Stage"
     },
     {
       "ID": "nairobi_working_b877",
       "Title": "Working on Bitcoin",
       "Kind": "panel",
       "Speakers": "niftynei, Naiyoma, Fabian Jahr",
+      "WatchURL": "https://btcpp.dev/watch/723ee3b1-573b-4a7b-a227-31ddef0a80b7",
+      "YouTube": "https://youtu.be/50lR0Ww4C_A",
       "Start": "2026-06-18T16:00:00+03:00",
       "End": "2026-06-18T17:00:00+03:00",
-      "WatchURL": "https://btcpp.dev/watch/723ee3b1-573b-4a7b-a227-31ddef0a80b7"
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_hadi_fda1",
+      "Title": "Proto Fleet",
+      "Kind": "talk",
+      "Speakers": "Marvin Charles, Hadi Alamdar",
+      "WatchURL": "https://btcpp.dev/watch/079c0896-7cc4-464f-97c7-6c54a233d8e2",
+      "YouTube": "https://youtu.be/0eLVYHU0n7o",
+      "Start": "2026-06-18T10:00:00+03:00",
+      "End": "2026-06-18T10:30:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_beyond_f118",
+      "Title": "\"Beyond the Barrier: Female African Developers Reimagining Bitcoin Innovation\"",
+      "Kind": "talk",
+      "Speakers": "Wandia Mugo",
+      "WatchURL": "https://btcpp.dev/watch/fec4b253-1ae3-4046-a5f5-c9004d07c314",
+      "YouTube": "https://youtu.be/a17gFhXyglE",
+      "Start": "2026-06-18T10:30:00+03:00",
+      "End": "2026-06-18T11:00:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_bitcoin_54f3",
+      "Title": "Bitcoin Transfer",
+      "Kind": "talk",
+      "Speakers": "WUOR BHANG",
+      "WatchURL": "https://btcpp.dev/watch/27560d61-485b-4e20-8e78-78020dfce9d4",
+      "YouTube": "https://youtu.be/er5eGwUjzzs",
+      "Start": "2026-06-18T11:00:00+03:00",
+      "End": "2026-06-18T11:15:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_african_766a",
+      "Title": "Why African Designers +Bitcoin = The Future",
+      "Kind": "talk",
+      "Speakers": "Matthew",
+      "WatchURL": "https://btcpp.dev/watch/77d3efd6-8fd8-4686-85c3-ee44a9d0c883",
+      "YouTube": "https://youtu.be/UIcsBHLm3G8",
+      "Start": "2026-06-18T11:15:00+03:00",
+      "End": "2026-06-18T11:45:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_plugins_df01",
+      "Title": "Plugins, Not Forks: Extending BTCPay Server Without Compromising the Core",
+      "Kind": "workshop",
+      "Speakers": "Tobses",
+      "WatchURL": "https://btcpp.dev/watch/b0db9933-5566-4484-9687-551947867a98",
+      "YouTube": "https://youtu.be/wUFlzqWxuag",
+      "Start": "2026-06-18T11:45:00+03:00",
+      "End": "2026-06-18T12:30:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_ai-powered_3d55",
+      "Title": "AI-Powered Product Design for Bitcoin Experiences",
+      "Kind": "workshop",
+      "Speakers": "Elizabeth Musanga",
+      "WatchURL": "https://btcpp.dev/watch/f8cdf5d0-070b-4e7c-94fa-f6bb2f203279",
+      "YouTube": "https://youtu.be/r-3Cy5-k4dY",
+      "Start": "2026-06-18T10:00:00+03:00",
+      "End": "2026-06-18T11:00:00+03:00",
+      "Venue": "Workshops Stage"
+    },
+    {
+      "ID": "nairobi_mining_7fcb",
+      "Title": "Mining Illustrated feat. Mujina Open-Source Firmware",
+      "Kind": "workshop",
+      "Speakers": "Ryan Kuester",
+      "WatchURL": "https://btcpp.dev/watch/f8245ddd-e0b4-4ee9-81fc-f9b963df3496",
+      "YouTube": "https://youtu.be/_rdBMP1vXD4",
+      "Start": "2026-06-18T11:00:00+03:00",
+      "End": "2026-06-18T12:30:00+03:00",
+      "Venue": "Workshops Stage"
+    },
+    {
+      "ID": "nairobi_tbd_ff64",
+      "Title": "Stratumv2",
+      "Kind": "talk",
+      "Speakers": "Sy⚡",
+      "WatchURL": "https://btcpp.dev/watch/6e1572da-8af4-45bd-b165-7bea5055f45c",
+      "YouTube": "https://youtu.be/mZzAzgselC8",
+      "Start": "2026-06-19T10:00:00+03:00",
+      "End": "2026-06-19T10:30:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_open_4034",
+      "Title": "Towards Better Privacy Reasoning",
+      "Kind": "talk",
+      "Speakers": "Shehu",
+      "WatchURL": "https://btcpp.dev/watch/23d29fd8-766c-4c42-9832-c62bfeb61192",
+      "YouTube": "https://youtu.be/pIYlayuzuug",
+      "Start": "2026-06-19T10:30:00+03:00",
+      "End": "2026-06-19T11:00:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_lightning_7440",
+      "Title": "Lightning + Mobile Money: Bridging Two Financial Worlds",
+      "Kind": "talk",
+      "Speakers": "Bright Kportiklah",
+      "WatchURL": "https://btcpp.dev/watch/b86a4921-50fd-4e08-a70a-b55a58f1dc23",
+      "YouTube": "https://youtu.be/qYMVjeax3FM",
+      "Start": "2026-06-19T11:00:00+03:00",
+      "End": "2026-06-19T11:45:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_foundation_0ac8",
+      "Title": "The 256 Foundation's Open-Source Mining Stack",
+      "Kind": "talk",
+      "Speakers": "Ryan Kuester",
+      "WatchURL": "https://btcpp.dev/watch/d3f6575c-c0be-4ac8-942f-c5d315dfe75a",
+      "YouTube": "https://youtu.be/ZJP1pFQvVYk",
+      "Start": "2026-06-19T11:45:00+03:00",
+      "End": "2026-06-19T12:30:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_ln_edu",
+      "Title": "Lightning Education as Infrastructure: Scaling Technical Capacity Across Multiple Countries",
+      "Kind": "talk",
+      "Speakers": "Megasley",
+      "WatchURL": "https://btcpp.dev/watch/38b14134-ddc5-4023-929e-97493a24f84e",
+      "YouTube": "https://youtu.be/VVmj7uJCfU8",
+      "Start": "2026-06-19T13:30:00+03:00",
+      "End": "2026-06-19T14:00:00+03:00",
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_trust",
+      "Title": "Don’t Trust, Verify. Reproducible Builds in Bitcoin",
+      "Kind": "talk",
+      "Speakers": "Ojok Emmanuel Nsubuga",
+      "WatchURL": "https://btcpp.dev/watch/7c02c7bd-7612-4a51-92d6-5df926872db9",
+      "YouTube": "https://youtu.be/OcEHW56J88c",
+      "Start": "2026-06-19T14:00:00+03:00",
+      "End": "2026-06-19T14:30:00+03:00",
+      "Venue": "Main Stage"
     },
     {
       "ID": "nairobi_panel_4d9e",
       "Title": "Open Sourcing Developer Community",
       "Kind": "panel",
       "Speakers": "Mubarak, Bright Kportiklah, Sadiq Rabiu, Sy⚡",
+      "WatchURL": "https://btcpp.dev/watch/541dbfcb-0ed3-4db3-b69a-ad0557a7f24d",
+      "YouTube": "https://youtu.be/y3KOe326vns",
       "Start": "2026-06-19T16:00:00+03:00",
       "End": "2026-06-19T17:00:00+03:00",
-      "WatchURL": "https://btcpp.dev/watch/541dbfcb-0ed3-4db3-b69a-ad0557a7f24d"
+      "Venue": "Main Stage"
+    },
+    {
+      "ID": "nairobi_building_f2a1",
+      "Title": "Building Tapnob: Connecting Lightning to Real-World Payments in Africa",
+      "Kind": "talk",
+      "Speakers": "Mubarak",
+      "WatchURL": "https://btcpp.dev/watch/63c5326b-6fb8-4819-9499-938514b3ef20",
+      "YouTube": "https://youtu.be/WnplgdUrU9A",
+      "Start": "2026-06-19T10:00:00+03:00",
+      "End": "2026-06-19T10:30:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_cashu_a055",
+      "Title": "Cashu ecash protocol",
+      "Kind": "talk",
+      "Speakers": "Martin Arts",
+      "WatchURL": "https://btcpp.dev/watch/8aab023d-e0cd-4e54-a868-116dcfd77399",
+      "YouTube": "https://youtu.be/3uQTSN07kqQ",
+      "Start": "2026-06-19T10:30:00+03:00",
+      "End": "2026-06-19T11:00:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_last_0a08",
+      "Title": "Bitcoin, Demystified: A Live Walkthrough from M-Pesa to Self-Custody",
+      "Kind": "talk",
+      "Speakers": "Fidel Otieno",
+      "WatchURL": "https://btcpp.dev/watch/d28eddda-104b-42a3-84d1-46996841f443",
+      "YouTube": "https://youtu.be/wWayWuDQmUA",
+      "Start": "2026-06-19T11:00:00+03:00",
+      "End": "2026-06-19T11:45:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_bearer_b4d7",
+      "Title": "Bearer Tokens for Bitcoin: A Look at Cashu",
+      "Kind": "talk",
+      "Speakers": "Mikey",
+      "WatchURL": "https://btcpp.dev/watch/d0f460e2-cc02-46fc-8704-3c82ec33213f",
+      "YouTube": "https://youtu.be/LZPon56L088",
+      "Start": "2026-06-19T13:30:00+03:00",
+      "End": "2026-06-19T14:00:00+03:00",
+      "Venue": "Talks Stage"
+    },
+    {
+      "ID": "nairobi_gating_9732",
+      "Title": "Gating APIs with Lightning: A Hands-On L402 Workshop Using Aperture",
+      "Kind": "workshop",
+      "Speakers": "Abdullahi",
+      "WatchURL": "https://btcpp.dev/watch/c1e29faa-777f-4f98-ad8d-5be85a9988fc",
+      "YouTube": "https://youtu.be/VK2v7Rbqqj8",
+      "Start": "2026-06-19T10:00:00+03:00",
+      "End": "2026-06-19T11:00:00+03:00",
+      "Venue": "Workshops Stage"
+    },
+    {
+      "ID": "nairobi_sending",
+      "Title": "Sending and Receiving silent payment transactions with bdk-sp",
+      "Kind": "workshop",
+      "Speakers": "Sonkeng Maldini",
+      "WatchURL": "https://btcpp.dev/watch/9c2a760a-b804-4185-8d74-6b8f80695dc4",
+      "YouTube": "https://youtu.be/cRoWe8zGJKI",
+      "Start": "2026-06-19T11:00:00+03:00",
+      "End": "2026-06-19T11:45:00+03:00",
+      "Venue": "Workshops Stage"
+    },
+    {
+      "ID": "nairobi_building_b80c",
+      "Title": "Building contributor-friendly repositories with Devenv",
+      "Kind": "workshop",
+      "Speakers": "Godefroid Chapelle",
+      "WatchURL": "https://btcpp.dev/watch/75cc59e4-dde2-4a09-9b77-4b4efc076418",
+      "YouTube": "https://youtu.be/WhTZmtiLH0A",
+      "Start": "2026-06-19T11:45:00+03:00",
+      "End": "2026-06-19T12:30:00+03:00",
+      "Venue": "Workshops Stage"
     }
   ],
   "Saved": {
@@ -207,8 +897,319 @@
     "panel_nairobi_femi_4013": "yes",
     "panel_nairobi_working_b877": "yes",
     "panel_nairobi_panel_4d9e": "yes",
-    "session_note_nairobi_femi_4013": "A question for the recap: what would help more African open-source contributors become founders of projects used around the world?",
-    "session_note_nairobi_working_b877": "A question for the recap: what does contributing to Bitcoin look like in practice, and how can new contributors find a useful place to start?",
-    "session_note_nairobi_panel_4d9e": "A question for the recap: how can local communities help builders learn together and stay involved in open-source development?"
-  }
+    "session_note_nairobi_femi_4013": "The question: what would help more African contributors become founders of open-source projects used around the world? For sponsors, it connects developer support to the capacity to start and sustain projects.",
+    "session_note_nairobi_working_b877": "The question: how does someone find a useful role in Bitcoin development? This discussion offers a way into contribution, review and the practical work behind a shared codebase.",
+    "session_note_nairobi_panel_4d9e": "The question: what helps a developer community keep learning together? Local groups can provide the relationships and feedback that a repository alone cannot.",
+    "note": "To our partners,\n\nBringing bitcoin++ to Africa is one of the things I’m proudest of this year. Nairobi put the people building Bitcoin in the same room, with space to learn from one another and to make something together.\n\nI’m especially proud of the conversations we helped spark. An event’s value is not only what happens on stage, but the connections that can turn an idea into a project or a first contribution.\n\nThis edition looks at what we can already point to: the published program, the builders’ projects, and the people who helped judge them. Thank you for helping make this step into Africa possible.\n\nnifty",
+    "program": "Nairobi’s Open Source Edition brought protocol contributors, educators and application builders into the same program. Three questions connect the selected discussions: how people enter open source, how they sustain the work, and how local communities help them keep going.",
+    "panels": "These are editorial selections from the published program. The questions below explain their relevance; they are not quotations or claims of consensus.",
+    "hackathon": "The overall winners approached three different problems: moving value across local payment rails, helping new contributors get started, and coordinating a permissionless marketplace. Together, they make the technical range of this edition tangible.",
+    "judges": "The public roster brings together people from protocol development, community organizations and application teams. Their participation connects the projects to the people who can question assumptions, examine a demo and help builders see the next step.",
+    "closing": "Nairobi is a starting point for follow-through. The next step is to ask the winning teams what they have shipped since the event, where they need help, and whether new contributors stayed involved.\n\nFor the next edition, we propose a short post-event project check-in, a clearer path from workshop material to a first contribution, and a consistent record of attendance, prizes and recording reach. These are proposed improvements, not measured outcomes.\n\nOur persistent reporting challenge is continuity: a program and a prototype are visible now; sustained contribution takes follow-up. We want our sponsors to be able to see both.\n\nThank you to our speakers, judges, volunteers, local collaborators and partners for making room for this work.",
+    "speaker_/whois/fjahr": "yes",
+    "speaker_/whois/naiyoma": "yes",
+    "speaker_/whois/longesson": "yes",
+    "speaker_/whois/camillarhi": "yes",
+    "speaker_/whois/tando-me": "yes",
+    "speaker_/whois/xyephy": "yes",
+    "views_nairobi_conference_24bb": "48",
+    "views_nairobi_helping_058e": "76",
+    "views_nairobi_reviewing": "45",
+    "views_nairobi_hackable_41e7": "53",
+    "views_nairobi_femi_4013": "15",
+    "views_nairobi_help": "28",
+    "views_nairobi_cognitive_9c26": "27",
+    "views_nairobi_is_dead": "280",
+    "views_nairobi_trust_84a8": "77",
+    "views_nairobi_nostr_4e74": "82",
+    "views_nairobi_trust_4978": "91",
+    "views_nairobi_modern": "82",
+    "views_nairobi_anti-fee-sniping_b5a5": "29",
+    "views_nairobi_lnurl_96c5": "38",
+    "views_nairobi_workshop_ea4d": "170",
+    "views_nairobi_ldk_rbf": "163",
+    "views_nairobi_lightning_63f9": "73",
+    "views_nairobi_anatomy_614f": "95",
+    "views_nairobi_cross-platform_a1b9": "34",
+    "views_nairobi_future_cfb5": "43",
+    "views_nairobi_pontmore_4699": "15",
+    "views_nairobi_working_b877": "45",
+    "views_nairobi_hadi_fda1": "38",
+    "views_nairobi_beyond_f118": "77",
+    "views_nairobi_bitcoin_54f3": "29",
+    "views_nairobi_african_766a": "69",
+    "views_nairobi_plugins_df01": "26",
+    "views_nairobi_ai-powered_3d55": "29",
+    "views_nairobi_mining_7fcb": "64",
+    "views_nairobi_tbd_ff64": "41",
+    "views_nairobi_open_4034": "25",
+    "views_nairobi_lightning_7440": "81",
+    "views_nairobi_foundation_0ac8": "68",
+    "views_nairobi_ln_edu": "23",
+    "views_nairobi_trust": "45",
+    "views_nairobi_panel_4d9e": "42",
+    "views_nairobi_building_f2a1": "39",
+    "views_nairobi_cashu_a055": "101",
+    "views_nairobi_last_0a08": "64",
+    "views_nairobi_bearer_b4d7": "170",
+    "views_nairobi_gating_9732": "35",
+    "views_nairobi_sending": "90",
+    "views_nairobi_building_b80c": "46",
+    "reach_youtube_views": "2811",
+    "reach_youtube_source": "YouTube Data API videos.list · linked Nairobi recordings",
+    "reach_youtube_period": "Lifetime through 19 October 2026",
+    "reach_youtube_date": "2026-10-19",
+    "reach_youtube_coverage": "43 distinct public YouTube videos matched to 43 of 44 scheduled sessions. Excludes X, Spaces playback and unlinked videos.",
+    "analytics_metric": "YouTube views",
+    "analytics_source": "YouTube Data API videos.list · linked Nairobi recordings",
+    "analytics_period": "Lifetime through 19 October 2026; 43 matched videos",
+    "analytics_date": "2026-10-19"
+  },
+  "EvidenceDate": "19 October 2026",
+  "PublicEvidence": [
+    {
+      "Value": "36",
+      "Label": "projects in the public gallery",
+      "Note": "Listed projects; not a verified participant count.",
+      "Source": "https://btcpp.dev/nairobi/hackathon"
+    },
+    {
+      "Value": "3",
+      "Label": "overall winning projects",
+      "Note": "Published 1st, 2nd and 3rd place.",
+      "Source": "https://btcpp.dev/nairobi/hackathon"
+    },
+    {
+      "Value": "11",
+      "Label": "judges on the public roster",
+      "Note": "Ranked and sponsor-award judge listings.",
+      "Source": "https://btcpp.dev/nairobi/hackathon"
+    },
+    {
+      "Value": "5M",
+      "Label": "sats in overall prize awards",
+      "Note": "2.5M + 1.5M + 1M sats awarded; settlement not verified.",
+      "Source": "https://btcpp.dev/nairobi/hackathon"
+    }
+  ],
+  "PublicProgramSource": "https://btcpp.dev/nairobi/agenda",
+  "PublicVideoSource": "YouTube Data API videos.list · linked Nairobi recordings",
+  "Projects": [
+    {
+      "ID": "20dad52b-e690-44c9-a492-984114e89737",
+      "Title": "Akiba",
+      "Description": "Most savings apps route through a custodian. Akiba doesn't. Set a weekly KES target, get matched with a peer over Pontmore, pay via M-Pesa, confirm, sats land in your wallet. No custodian.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/akiba/8c916ef4da99.avif"
+    },
+    {
+      "ID": "f4a393ae-9728-475a-8593-defdd1359201",
+      "Title": "Akiba - WhatsApp Bitcoin Savings",
+      "Description": "Save Bitcoin by texting WhatsApp. Pay with M-Pesa or card; real sats land in your own wallet — no app, no jargon, no bank. Open-source and portable to any chat or payment rail.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/akiba-chat/95b5e8df7582.avif"
+    },
+    {
+      "ID": "6415a5e6-8e67-44c6-9b2c-1350ff9e9fe9",
+      "Title": "BitFund",
+      "Description": "BitFund is an open innovation network where Bitcoin ideas are discovered, refined by the community, funded transparently, and transformed into real-world impact.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/bitfund-ja06n4/8c916ef4da99.avif"
+    },
+    {
+      "ID": "bd268371-a658-4c51-bc8f-5ecec3817b90",
+      "Title": "BitSpam",
+      "Description": "BitSpam is a GitHub App and maintainer triage tool for detecting low-quality spam pull requests without blocking serious contributors.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/bitspam/96f1cd2567c8.avif"
+    },
+    {
+      "ID": "ec816034-bfb3-4adb-bcdd-15b2896d2bd7",
+      "Title": "CoinIt",
+      "Description": "Complete. Verify. Earn. CoinIt turns coding challenges, bootcamp tasks, and open-source contributions into instant Lightning rewards.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/coinit-dk9niw/8c916ef4da99.avif"
+    },
+    {
+      "ID": "30251b33-563d-4cb4-8263-d6e79f3e1223",
+      "Title": "ContributorEscrowGate",
+      "Description": "This platforms helps maintainer filtering spammers to their projects",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/contributorescrowgate/8c916ef4da99.avif"
+    },
+    {
+      "ID": "b5cf3f10-273f-4f7e-af09-beb80825af32",
+      "Title": "Core-gate",
+      "Description": "Core-Gate gives Bitcoin Core maintainers their time back -> automatically triaging every PR by quality, risk, and contribution standards before a human reads a single line.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/core-code/8eb494f142fa.avif"
+    },
+    {
+      "ID": "a1b1911f-10bb-412d-bc31-c49a9eeaf9b8",
+      "Title": "Dishi Fresh",
+      "Description": "Utaipenda!",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/dishi-fresh/8c916ef4da99.avif"
+    },
+    {
+      "ID": "cd4c81fb-9524-4ea6-9fbd-db4a805ad261",
+      "Title": "Filter",
+      "Description": "Filter is an opensource PR spam checker that flags low-quality and AI-generated pull request spam.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/filter-s3bjhv/98e041ef0178.avif"
+    },
+    {
+      "ID": "c80a1635-d375-43c0-ad93-cec64ade436b",
+      "Title": "HashGuard",
+      "Description": "HashGuard stops AI PR spam with a CPU-driven Proof-of-Work tollbooth. We bankrupt botnets by forcing them to compute hashes, while keeping open-source free for human devs.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/hashguard/8c916ef4da99.avif"
+    },
+    {
+      "ID": "8e379473-c06b-4506-ac39-6afe7f93fe74",
+      "Title": "Hodlr",
+      "Description": "Your future self will thank you. Holdr lets you lock Bitcoin to a date you choose, 3 years, 10 years, 30 and walk away. No early withdrawal. Just you, your keys, and time doing the compounding.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/hodlr/3353fb3393ee.avif"
+    },
+    {
+      "ID": "23b7e400-306a-4808-8205-5a327634e118",
+      "Title": "KwachaBridge",
+      "Description": "Malawi's cards fail abroad. KwachaBridge lets agents swap kwacha for Bitcoin via Lightning on Pontmore rails, then spend it globally via virtual card. No bank needed.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/kwachabridge/8c916ef4da99.avif"
+    },
+    {
+      "ID": "eeff6e79-a443-4c7a-983d-d9d4d26a172b",
+      "Title": "Lightning Resilience Protocol",
+      "Description": "Lightning channels that stay online even when nodes crash - using threshold signatures to eliminate single points of failure",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/lightning-resilience-protocol/8c916ef4da99.avif"
+    },
+    {
+      "ID": "f6057740-afa4-4df6-afc8-d88061afd120",
+      "Title": "LNpesa",
+      "Description": "Bitcoin on any phone. No app, no smartphone. Dial a code, become a Pontmore agent in 30 seconds. We built the door for the billion without smartphones.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/lnpesa/8c916ef4da99.avif"
+    },
+    {
+      "ID": "0bf56f71-e816-4f9f-b9ca-68c76b23e652",
+      "Title": "MindfulSats",
+      "Description": "Where your goals meet real accountability",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/mindfulsats/dea06bfbc047.avif"
+    },
+    {
+      "ID": "77691f64-3f12-4851-b3f1-605fb49c6072",
+      "Title": "Moutstr",
+      "Description": "Decentralized AI marketplace , pay per message with Cashu, no API keys, no KYC",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/moutstr/3eb2489798e6.avif"
+    },
+    {
+      "ID": "d3bc54fd-0a40-4910-954e-67d1716916a7",
+      "Title": "Mt. Kenya Sats (MKS)",
+      "Description": "Sovereign Money for the Highlands: A completely client-side, zero-backend, protocol-native community hub built via Shakespeare for the Mt. Kenya Bitcoin builder ecosystem",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/opentransit-terminal-pos/8c916ef4da99.avif"
+    },
+    {
+      "ID": "d45fff28-4ea9-4721-a541-ddbdad3bef15",
+      "Title": "nairobi2",
+      "Description": "Permissionless ridesharing app with market based price discovery and Sybil protection through verifiable Bitcoin notarization",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/nairobi2/78f01a78886e.avif"
+    },
+    {
+      "ID": "e766d18a-d018-4d03-91b9-b304efc6192f",
+      "Title": "Ngao",
+      "Description": "Open source is drowning in AI spam PRs. We fight it with Bitcoin's own weapon — Proof of Work. Solve a hash, get reviewed. Can't? Get blocked.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/ngao-13cgwt/8c916ef4da99.avif"
+    },
+    {
+      "ID": "cf0ba475-d484-4a4d-8ff0-1379fec686f6",
+      "Title": "Orange Ticket",
+      "Description": "Orange Ticket makes Bitcoin IRL. To send: create a voucher - a card with a random secret inside and a two-word phrase you write. To receive: tear card, scan barcode, enter passphrase, sweep funds.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/orange-ticket/8c916ef4da99.avif"
+    },
+    {
+      "ID": "ccbcc0f8-d1c9-4561-a992-11b80e7f33e5",
+      "Title": "OSGuild",
+      "Description": "OSGuild simplifies the path into Bitcoin open source for new developers. Contributors practice on forked real world projects, earn points for their work, and receive feedback from maintainers.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/osguild/8c916ef4da99.avif"
+    },
+    {
+      "ID": "ac67d16f-7924-4dd5-b5a3-de36a4912f2a",
+      "Title": "P2Pesa",
+      "Description": "Kenya's P2P crypto is a \"trust me bro\" gamble. P2Pesa uses Nostr and Zap-backed reviews so you can actually trust agents. You pay to vouch, making fake reputations too expensive for scammers to buy.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/p2pesa/8c916ef4da99.avif"
+    },
+    {
+      "ID": "9c7f76f7-4e2d-474d-a615-e0d582906c98",
+      "Title": "Pontswap",
+      "Description": "A Nostr-native coordination layer for Bitcoin ⇄ fiat swaps.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/pontswap/8c916ef4da99.avif"
+    },
+    {
+      "ID": "21cb4c1e-6d32-4339-ab5b-d44cf6953f11",
+      "Title": "PoWR - System",
+      "Description": "Stop Guessing. Start verifying.Whether you are building reputation or hiring talent.PoWR gives you the reciepts.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/powr-system/725b2ab81650.avif"
+    },
+    {
+      "ID": "3082d770-2dbd-4e71-9b9c-645fcf79d630",
+      "Title": "Robin",
+      "Description": "Learn how to contribute to open source before making a pr",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/way2foss/8c916ef4da99.avif"
+    },
+    {
+      "ID": "b0aaf000-6403-4cd1-a195-46b726e33d2a",
+      "Title": "Sabi credits",
+      "Description": "Sabi gives every mobile money agent a professional-grade Bitcoin swap desk in a single PWA that works on any phone including offline.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/sabi-credits/8c916ef4da99.avif"
+    },
+    {
+      "ID": "ee01f7c9-12c9-4965-b2a5-01907dfcbcfc",
+      "Title": "SatGate",
+      "Description": "Contributors stake sats to claim a GitHub issue, refunded on merge, forfeited if abandoned, plus a diff-quality gate that flags AI-spam PRs before maintainers waste review time.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/satgate/8c916ef4da99.avif"
+    },
+    {
+      "ID": "9c1b4612-055f-4a40-8340-416fe4dd95d2",
+      "Title": "sats-stamp",
+      "Description": "Put your money where your PR is!",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/sats-stamp/8c916ef4da99.avif"
+    },
+    {
+      "ID": "f0aa41ab-4db4-4c39-8b09-a9672fe06531",
+      "Title": "SiriScore",
+      "Description": "Pre-broadcast Bitcoin transaction privacy scorer. Know what a chain analyst sees before you sign.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/siriscore/92e677a9354d.avif"
+    },
+    {
+      "ID": "2df1f58b-9c49-45ed-ba53-52c230c2de8c",
+      "Title": "SquadSync",
+      "Description": "Deterministic team builder for hackathons featuring NIP-98 auth, AI role normalization, and live NIP-47 Nostr Wallet Connect (NWC) instant prize splitting to winners' Lightning addresses.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/squadsync-8gnw6d/445d58270a96.avif"
+    },
+    {
+      "ID": "9c61138b-aaac-4b5f-8333-56edb58b53aa",
+      "Title": "Tando's Ark",
+      "Description": "\"Tando's Ark\" upgrades Tando with Bark (Second's Ark implementation) eliminating its Lightning channel and inbound-liquidity overhead while unlocking 0-fee Ark payments into M-PESA.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/tando-s-ark/8c916ef4da99.avif"
+    },
+    {
+      "ID": "b2fd9634-99b1-4953-8cba-737d7eceefb9",
+      "Title": "UTXOracle BTC Calculator",
+      "Description": "A Bitcoin price calculator powered by your own node. Using UTXOracle, the price is derived on-chain — not from any exchange. Built with nix-bitcoin and Shakespeare.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/utxoracle-btc-calculator/12bbc25ab520.avif"
+    },
+    {
+      "ID": "0907cf92-a330-4088-8d6a-3c352eed3356",
+      "Title": "WestToEast",
+      "Description": "XOF, XAF, GNF <> KES bridge, using the lightning network and LNURL, through the new Tando feature.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/westtoeast/05df5ac5212b.avif"
+    },
+    {
+      "ID": "9d217b82-063f-4790-bd51-b74be9416608",
+      "Title": "ZapQR",
+      "Description": "Scan. Zap. Settled.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/zapqr/692a44203910.avif"
+    },
+    {
+      "ID": "7745498e-c7b7-41b6-85be-275920f5a8c5",
+      "Title": "Zaptip",
+      "Description": "Zaptip is a Chrome extension that adds a Zap button to GitHub profiles and repos. Drop your Lightning address in your bio, anyone with the extension can tip you in Bitcoin instantly.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/zaptip/8c916ef4da99.avif"
+    },
+    {
+      "ID": "6ba04f86-503d-4666-9097-f61c7cb466e3",
+      "Title": "Zawadi",
+      "Description": "Zawadi turns any event into a tipping culture. Organizers add their speakers in minutes; the whole room tips anyone in one tap — sats straight to their wallet.",
+      "Image": "https://btcpp.nyc3.digitaloceanspaces.com/hackathons/nairobi/projects/zawadi-1r9tlf/00a1b6b17ac3.avif"
+    }
+  ]
 }

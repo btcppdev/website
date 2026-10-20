@@ -60,7 +60,7 @@ func TestReportDemo(t *testing.T) {
 	saved := map[string]string{"program_reviewed": "yes", "applications": "84", "applications_source": "Synthetic CFP fixture — not a real intake export", "analytics_metric": "YouTube views", "analytics_source": "Synthetic fixture — not a YouTube export", "analytics_period": "Illustrative lifetime totals", "analytics_date": "2026-09-20"}
 	for i, p := range fixture.Speakers {
 		exec(`INSERT INTO people VALUES($1,$2,$3,$4) ON CONFLICT(id) DO NOTHING`, p.ID, p.Name, p.Photo, p.Company)
-		exec(`INSERT INTO speaker_confs VALUES($1,$2)`, fmt.Sprint("speaker-", i), p.ID)
+		exec(`INSERT INTO speaker_confs(id,speaker_id) VALUES($1,$2)`, fmt.Sprint("speaker-", i), p.ID)
 		saved["speaker_"+p.ID] = "yes"
 	}
 	for _, p := range fixture.Judges {
@@ -82,7 +82,7 @@ func TestReportDemo(t *testing.T) {
 			title = titles[i-1]
 		}
 		exec(`INSERT INTO proposals VALUES($1,'event',$2,$3,'Scheduled')`, id, title, kind)
-		exec(`INSERT INTO conf_talks VALUES($1,'event',$1,'2026-06-17T10:00:00+03','2026-06-17T10:30:00+03',NULL)`, id)
+		exec(`INSERT INTO conf_talks(id,conference_id,proposal_id,scheduled_start,scheduled_end,archived_at) VALUES($1,'event',$1,'2026-06-17T10:00:00+03','2026-06-17T10:30:00+03',NULL)`, id)
 		exec(`INSERT INTO proposals_speaker_confs VALUES($1,$2)`, id, fmt.Sprint("speaker-", (i-1)%len(fixture.Speakers)))
 		saved["delivered_"+id] = "yes"
 		if i <= 5 {

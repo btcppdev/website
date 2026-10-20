@@ -77,9 +77,27 @@ func TestReportRender(t *testing.T) {
 	}
 	if os.Getenv("REPORT_PREVIEW") == "1" {
 		page = reportFixturePage(t)
+		loadAttendance := reportPreviewAttendance(t)
 		mux := http.NewServeMux()
 		mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("../../static"))))
-		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { tmpl.Execute(w, page) })
+		mux.HandleFunc("/admin/reports/preview", renderReportMarkdownPreview)
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// Re-read the checked-in public snapshot and template for design review.
+			current := reportFixturePage(t)
+			if err := loadAttendance(&current); err != nil {
+				http.Error(w, "Local attendance preview unavailable", 500)
+				return
+			}
+			currentTemplate, err := template.ParseFiles("../../templates/admin/reports.tmpl")
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			if err := currentTemplate.Execute(w, current); err != nil {
+				t.Log(err)
+			}
+		})
 		addr := os.Getenv("REPORT_PREVIEW_ADDR")
 		if addr == "" {
 			addr = "127.0.0.1:8102"
@@ -109,6 +127,8 @@ func TestReportRender(t *testing.T) {
 }
 func TestReportCountsAndProvenance(t *testing.T) {
 	page := reportFixturePage(t)
+	end := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
+	page.Sessions = []reportSession{{ID: "test-panel", Title: "Test panel", Kind: "panel", End: &end}}
 	now := time.Date(2026, 9, 16, 12, 0, 0, 0, time.UTC)
 	form := url.Values{"applications": {"-1"}}
 	if _, err := eventReportForm(form, &page, now); err == nil {
@@ -233,6 +253,12 @@ func TestReportMetricsPostgres(t *testing.T) {
 	if len(page.Sessions) != 1 || len(page.Speakers) != 1 || len(page.Judges) != 1 || len(page.Winners) != 1 {
 		t.Fatalf("bad content counts: sessions %d speakers %d judges %d winners %d", len(page.Sessions), len(page.Speakers), len(page.Judges), len(page.Winners))
 	}
+	if page.Speakers[0].ComingFrom != "Nairobi, Kenya" || page.SpeakerLocations()[0].Place != "Nairobi, Kenya" {
+		t.Fatal("event speaker form travel origin was not loaded into report")
+	}
+	if len(page.Projects) != 2 {
+		t.Fatal("project wall must include submitted/advanced projects and exclude drafts")
+	}
 	if page.Winners[0].Sats != 300 {
 		t.Fatal("duplicate awards multiplied payouts")
 	}
@@ -299,10 +325,10 @@ CREATE TEMP TABLE project_awards(project_id text,award_id text);
 CREATE TEMP TABLE award_distributions(competition_id text,project_id text,amount_sats bigint,distribution_type text,status text);
 CREATE TEMP TABLE people(id text PRIMARY KEY,name text,norm_photo_path text,company text);
 CREATE TEMP TABLE proposals(id text,conference_id text,title text,talk_type text,status text);
-CREATE TEMP TABLE conf_talks(id text,conference_id text,proposal_id text,scheduled_start timestamptz,scheduled_end timestamptz,archived_at timestamptz);
+CREATE TEMP TABLE conf_talks(id text,conference_id text,proposal_id text,scheduled_start timestamptz,scheduled_end timestamptz,archived_at timestamptz,venue text NOT NULL DEFAULT '');
 CREATE TEMP TABLE recordings(conf_talk_id text,youtube_url text,x_url text);
 CREATE TEMP TABLE proposals_speaker_confs(proposal_id text,speaker_conf_id text);
-CREATE TEMP TABLE speaker_confs(id text,speaker_id text);
+CREATE TEMP TABLE speaker_confs(id text,speaker_id text,coming_from text NOT NULL DEFAULT '');
 CREATE TEMP TABLE competition_judges(competition_id text,person_id text,public_label_override text,judge_type text);
 CREATE TEMP TABLE award_judges(award_id text,person_id text);
 CREATE TEMP TABLE volunteers(id text,person_id text);
@@ -318,9 +344,9 @@ INSERT INTO project_awards VALUES ('project1','award1'),('project1','award2');
 INSERT INTO award_distributions VALUES ('competition','project1',100,'sats','sent'),('competition','project1',200,'sats','claimed'),('competition','project1',500,'sats','pending'),('competition','project1',500,'sats','cancelled'),('competition','project1',900,'tickets','sent');
 INSERT INTO people VALUES ('person1','Speaker Judge','','Org'),('person2','Teammate','','');
 INSERT INTO proposals VALUES ('proposal1','event','Talk','talk','Scheduled'),('proposal2','event','Declined','workshop','Declined'),('proposal3','event','Hacking','hackathon','Scheduled');
-INSERT INTO conf_talks VALUES ('session1','event','proposal1','2026-06-17T10:00:00+03','2026-06-17T11:00:00+03',NULL),('archived','event','proposal1',now(),now(),now()),('declined','event','proposal2',now(),now(),NULL);
+INSERT INTO conf_talks(id,conference_id,proposal_id,scheduled_start,scheduled_end,archived_at) VALUES ('session1','event','proposal1','2026-06-17T10:00:00+03','2026-06-17T11:00:00+03',NULL),('archived','event','proposal1',now(),now(),now()),('declined','event','proposal2',now(),now(),NULL);
 INSERT INTO proposals_speaker_confs VALUES ('proposal1','speakerconf');
-INSERT INTO speaker_confs VALUES ('speakerconf','person1');
+INSERT INTO speaker_confs VALUES ('speakerconf','person1','Nairobi, Kenya');
 INSERT INTO competition_judges VALUES ('competition','person1','','expo'),('competition','person1','','finals');
 INSERT INTO award_judges VALUES ('award2','person1');
 INSERT INTO volunteers VALUES ('volunteer1','person1'),('volunteer2','person1');

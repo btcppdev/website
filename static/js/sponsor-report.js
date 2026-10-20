@@ -1,6 +1,20 @@
 "use strict";
 const printButton = document.getElementById("report-print");
 if (printButton) printButton.addEventListener("click", () => window.print());
+const editButton = document.getElementById("report-edit");
+if (editButton) editButton.addEventListener("click", () => {
+  const editor = document.querySelector(".report-editor");
+  if (!editor) return;
+  editor.open = true;
+  editor.scrollIntoView({behavior: "smooth", block: "start"});
+});
+const recipientInput = document.getElementById("report-recipient");
+if (recipientInput) recipientInput.addEventListener("input", () => {
+  for (const target of document.querySelectorAll("[data-report-recipient]")) {
+    target.textContent = recipientInput.value.trim() || "Our partners";
+    styleReportWordmarks(target);
+  }
+});
 const layoutSelect = document.getElementById("report-layout");
 if (layoutSelect) {
   const requested = new URL(window.location.href).searchParams.get("layout");
@@ -108,8 +122,8 @@ if (reportForm) {
   const pending = new Set();
   const markDirty = () => {
     dirty = true;
-    saveStatus.textContent = document.querySelector(".synthetic-banner")
-      ? "Demo preview updated — changes are not saved."
+    saveStatus.textContent = (document.querySelector(".synthetic-banner") || document.body.dataset.readonly === "true")
+      ? "Preview updated — changes are not saved."
       : "Unsaved changes — click Save event draft to keep them.";
   };
   reportForm.addEventListener("input", markDirty);
@@ -121,7 +135,7 @@ if (reportForm) {
     const key = input.dataset.reportSection;
     const preview = document.getElementById("preview-" + key);
     const status = document.getElementById("preview-status-" + key);
-    const story = document.querySelector('[data-section="' + key + '"] .story-text');
+    const stories = document.querySelectorAll('[data-section="' + key + '"] .story-text');
     let timer, controller, version = 0;
     input.addEventListener("input", () => {
       clearTimeout(timer);
@@ -142,9 +156,9 @@ if (reportForm) {
           if (current !== version) return;
           // Only insert HTML from our authenticated, allowlisted Markdown renderer.
           preview.innerHTML = html;
-          if (story) { story.innerHTML = html; story.classList.add("report-markdown"); }
+          for (const story of stories) { story.innerHTML = html; story.classList.add("report-markdown"); styleReportWordmarks(story); }
           styleReportWordmarks(preview);
-          styleReportWordmarks(story);
+
           status.textContent = "Preview up to date · not saved";
           pending.delete(key);
         } catch (error) {

@@ -4,6 +4,7 @@ import (
 	"btcpp-web/internal/config"
 	"html/template"
 	"net/http"
+	"strings"
 )
 
 // Saved narrative and live preview share the existing allowlisted Markdown renderer.
@@ -49,4 +50,11 @@ func renderReportMarkdownPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(hackathonMarkdownHTML(text)))
+}
+
+func (p sponsorReportPage) PreparedFor() string {
+	if name := strings.TrimSpace(p.Saved["prepared_for"]); name != "" {
+		return name
+	}
+	return "Our partners"
 }
