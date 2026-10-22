@@ -88,7 +88,7 @@ and pending account-provisioning records.
    Migration 129 backfills central addresses/memberships, preserving known opt-outs
    and leaving unknown legacy consent timestamps unset. Both migrations are atomic.
 3. Configure the distinct service credentials in each root `.env` and deploy Insider
-   (including migration 002) and Alerts. Verify successful synchronization before
+   (using its consolidated initial schema) and Alerts. Verify successful synchronization before
    enabling production campaign/release delivery.
 4. Exercise real signup, management-link delivery, scoped unsubscribe, queued-mail
    cancellation and account deletion with test accounts before launch.
