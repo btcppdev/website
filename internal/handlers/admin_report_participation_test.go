@@ -46,7 +46,7 @@ func TestReportSpeakerLocationValidation(t *testing.T) {
 func TestReportSpeakerOriginDefaultsFromEventForm(t *testing.T) {
 	p := sponsorReportPage{Speakers: []reportPerson{{ID: "one", ComingFrom: "Lagos, Nigeria"}, {ID: "two", ComingFrom: "unknown"}}}
 	l := p.SpeakerLocations()[0]
-	if l.Place != "Lagos, Nigeria" || l.Source != "Speaker's event form · traveling from" || l.Mapped || len(p.ReportedSpeakerLocations()) != 1 {
+	if l.Place != "Lagos, Nigeria" || l.Source != "Speaker's event form · traveling from · approximate city centre (GeoNames)" || !l.Mapped || len(p.ReportedSpeakerLocations()) != 1 {
 		t.Fatal("event form origin not used correctly")
 	}
 	f := url.Values{"speaker_location_one_place": {l.Place}, "speaker_location_one_source": {l.Source}}
@@ -58,5 +58,21 @@ func TestReportSpeakerOriginDefaultsFromEventForm(t *testing.T) {
 	p.Saved["speaker_location_one_place"] = "Abuja, Nigeria"
 	if p.SpeakerLocations()[0].Place != "Abuja, Nigeria" {
 		t.Fatal("report correction ignored")
+	}
+}
+
+func TestReportSpeakerAutomaticMapAndOverrides(t *testing.T) {
+	p := sponsorReportPage{Speakers: []reportPerson{{ID: "one", ComingFrom: "Nairobi, Kenya"}, {ID: "two", ComingFrom: "Springfield"}, {ID: "three", ComingFrom: "Nairobi / London"}}}
+	if len(p.MappedSpeakers()) != 1 || len(p.ReportedSpeakerLocations()) != 3 {
+		t.Fatal("automatic mapping or unresolved coverage incorrect")
+	}
+	p.Saved = map[string]string{"speaker_location_one_place": "Nairobi, Kenya", "speaker_location_one_source": "Admin correction", "speaker_location_one_lat": "1", "speaker_location_one_lon": "2"}
+	l := p.SpeakerLocations()[0]
+	if l.Latitude != "1" || l.Longitude != "2" || l.Source != "Admin correction" {
+		t.Fatal("manual coordinates overwritten")
+	}
+	p.Saved["speaker_location_one_lat"] = ""
+	if p.SpeakerLocations()[0].Mapped {
+		t.Fatal("partial coordinates silently replaced")
 	}
 }

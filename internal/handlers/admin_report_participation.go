@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"btcpp-web/internal/reportgeo"
 	"fmt"
 	"math"
 	"net/url"
@@ -71,6 +72,13 @@ func (p sponsorReportPage) SpeakerLocations() []reportSpeakerLocation {
 			l.Source = "Speaker's event form · traveling from"
 			// Old coordinates must not attach to a changed/defaulted place.
 			l.Latitude, l.Longitude = "", ""
+		}
+		if l.Place != "" && l.Source != "" && l.Latitude == "" && l.Longitude == "" {
+			if point, ok := reportgeo.Lookup(l.Place); ok {
+				l.Latitude = strconv.FormatFloat(point.Latitude, 'f', -1, 64)
+				l.Longitude = strconv.FormatFloat(point.Longitude, 'f', -1, 64)
+				l.Source += " · approximate city centre (GeoNames)"
+			}
 		}
 		lat, e1 := strconv.ParseFloat(l.Latitude, 64)
 		lon, e2 := strconv.ParseFloat(l.Longitude, 64)
