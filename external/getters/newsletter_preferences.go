@@ -19,7 +19,7 @@ var ErrNewsletterConflict = errors.New("idempotency key was already used with a 
 var ErrNewsletterInput = errors.New("invalid newsletter preference")
 
 func ListNewsletterPreferences(app *config.AppContext, personID string) ([]NewsletterPreference, error) {
-	rows, err := app.DB.Query(app.DatabaseContext(), `SELECT pe.email::text,n.name,EXISTS(SELECT 1 FROM subscribers s JOIN subscriber_subscriptions ss ON ss.subscriber_id=s.id WHERE s.email=pe.email AND ss.name=n.name) FROM person_emails pe CROSS JOIN (VALUES ('newsletter'),('insider')) n(name) WHERE pe.person_id=$1 AND pe.verified_at IS NOT NULL ORDER BY pe.is_primary DESC,pe.email,n.name`, personID)
+	rows, err := app.DB.Query(app.DatabaseContext(), `SELECT pe.email::text,n.name,EXISTS(SELECT 1 FROM subscribers s JOIN subscriber_subscriptions ss ON ss.subscriber_id=s.id WHERE s.email=pe.email AND ss.name=n.name) FROM person_emails pe CROSS JOIN (VALUES ('newsletter')) n(name) WHERE pe.person_id=$1 AND pe.verified_at IS NOT NULL ORDER BY pe.is_primary DESC,pe.email,n.name`, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func ListNewsletterPreferences(app *config.AppContext, personID string) ([]Newsl
 
 func SetNewsletterPreference(app *config.AppContext, personID, clientID, key string, p NewsletterPreference) error {
 	p.Email = strings.TrimSpace(p.Email)
-	if (p.Newsletter != "newsletter" && p.Newsletter != "insider") || len(key) < 16 || len(key) > 128 || len(p.Email) > 320 || p.Email == "" || len(clientID) > 200 {
+	if p.Newsletter != "newsletter" || len(key) < 16 || len(key) > 128 || len(p.Email) > 320 || p.Email == "" || len(clientID) > 200 {
 		return ErrNewsletterInput
 	}
 	tx, err := app.DB.Begin(app.DatabaseContext())

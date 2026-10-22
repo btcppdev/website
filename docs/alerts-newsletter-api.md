@@ -12,9 +12,12 @@ The account API exposes `GET /api/v1/me/newsletters` with
 enabling the integration. Apply migration 101 before serving these endpoints.
 This worktree has not been deployed.
 
-GET returns the standard private `data`/`meta` envelope. Data contains both
-`newsletter` (Bitcoin++ news) and `insider` (Insider Edition) preferences for each
+GET returns the standard private `data`/`meta` envelope. Data contains only
+`newsletter` (Bitcoin++ news) preferences for each
 verified account email, including unsubscribed choices. Responses are not cached.
+
+The retired central `insider` list cannot be modified through this API.
+Insider Edition manages its own newsletter preferences.
 
 PUT accepts exactly `email`, `newsletter`, and boolean `subscribed`. The email
 must belong to the authenticated account and be verified. There is no caller

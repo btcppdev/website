@@ -25,13 +25,13 @@ func TestNewsletterAuthorizationAndChoices(t *testing.T) {
 		{name: "write does not imply read", method: "GET", authenticated: true, scope: "newsletters:self:write", status: 403},
 		{name: "read", method: "GET", authenticated: true, scope: "newsletters:self:read", status: 200, calls: 1},
 		{name: "read cannot write", method: "PUT", authenticated: true, scope: "newsletters:self:read", status: 403},
-		{name: "missing choice", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"insider"}`, key: "request-key-0001", status: 422},
-		{name: "missing key", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"insider","subscribed":true}`, status: 422},
-		{name: "cannot select another account", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"person_id":"someone-else","email":"me@example.com","newsletter":"insider","subscribed":true}`, key: "request-key-0001", status: 400},
-		{name: "subscribe", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"insider","subscribed":true}`, key: "request-key-0001", status: 200, calls: 1},
-		{name: "unsubscribe is explicit false", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"insider","subscribed":false}`, key: "request-key-0001", status: 200, calls: 1},
-		{name: "unverified email", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"insider","subscribed":true}`, key: "request-key-0001", storeErr: getters.ErrNewsletterEmail, status: 403, calls: 1},
-		{name: "key conflict", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"insider","subscribed":true}`, key: "request-key-0001", storeErr: getters.ErrNewsletterConflict, status: 409, calls: 1},
+		{name: "missing choice", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"newsletter"}`, key: "request-key-0001", status: 422},
+		{name: "missing key", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"newsletter","subscribed":true}`, status: 422},
+		{name: "cannot select another account", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"person_id":"someone-else","email":"me@example.com","newsletter":"newsletter","subscribed":true}`, key: "request-key-0001", status: 400},
+		{name: "subscribe", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"newsletter","subscribed":true}`, key: "request-key-0001", status: 200, calls: 1},
+		{name: "unsubscribe is explicit false", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"newsletter","subscribed":false}`, key: "request-key-0001", status: 200, calls: 1},
+		{name: "unverified email", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"newsletter","subscribed":true}`, key: "request-key-0001", storeErr: getters.ErrNewsletterEmail, status: 403, calls: 1},
+		{name: "key conflict", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"newsletter","subscribed":true}`, key: "request-key-0001", storeErr: getters.ErrNewsletterConflict, status: 409, calls: 1},
 		{name: "invalid newsletter", method: "PUT", authenticated: true, scope: "newsletters:self:write", body: `{"email":"me@example.com","newsletter":"other","subscribed":true}`, key: "request-key-0001", storeErr: getters.ErrNewsletterInput, status: 422, calls: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestNewsletterAuthorizationAndChoices(t *testing.T) {
 					if id != "owner" {
 						t.Fatalf("account = %s", id)
 					}
-					return []getters.NewsletterPreference{{Email: "me@example.com", Newsletter: "insider", Subscribed: true}}, nil
+					return []getters.NewsletterPreference{{Email: "me@example.com", Newsletter: "newsletter", Subscribed: true}}, nil
 				},
 				setNewsletter: func(id, client, key string, p getters.NewsletterPreference) error {
 					calls++
@@ -80,7 +80,7 @@ func TestNewsletterAuthorizationAndChoices(t *testing.T) {
 			if rec.Code == http.StatusOK && !strings.Contains(rec.Header().Get("Cache-Control"), "no-store") {
 				t.Fatal("private response must not be cached")
 			}
-			if tc.method == "GET" && rec.Code == 200 && !strings.Contains(rec.Body.String(), `"newsletter":"insider"`) {
+			if tc.method == "GET" && rec.Code == 200 && !strings.Contains(rec.Body.String(), `"newsletter":"newsletter"`) {
 				t.Fatalf("preferences missing: %s", rec.Body.String())
 			}
 		})

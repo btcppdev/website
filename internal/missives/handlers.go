@@ -96,6 +96,10 @@ type TextData struct {
 func SubscribeEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	params := mux.Vars(r)
 	newsletter := params["newsletter"]
+	if err := getters.ValidateCentralNewsletterTargets([]string{newsletter}); err != nil {
+		http.Error(w, err.Error(), http.StatusGone)
+		return
+	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := r.ParseForm(); err != nil {
@@ -171,6 +175,11 @@ func ConfirmEmail(w http.ResponseWriter, r *http.Request, ctx *config.AppContext
 		ctx.Infos.Printf("Email subscribe token validation failed. %s", err)
 		/* Return the homepage page */
 		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	if err := getters.ValidateCentralNewsletterTargets([]string{subToken.Newsletter}); err != nil {
+		http.Error(w, err.Error(), http.StatusGone)
 		return
 	}
 

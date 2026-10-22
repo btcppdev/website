@@ -59,7 +59,7 @@ type (
 var sublists []string = []string{
 	"newsletter",
 	"test-news",
-	"insider",
+	"insider", // Historical classification: preserve unsubscribe links for old mail.
 	"volunteer",
 	"sponsor",
 	"speaker",

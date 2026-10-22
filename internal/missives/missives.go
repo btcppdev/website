@@ -155,6 +155,9 @@ func startMissiveSchedule(uid uint64, run func()) bool {
 }
 
 func scheduleMissive(ctx *config.AppContext, subscribers []*mtypes.Subscriber, letter *mtypes.Letter, isPreview bool) ([]byte, mtypes.SendStatus, error) {
+	if err := getters.ValidateCentralNewsletterTargets(letter.Newsletters); err != nil {
+		return nil, mtypes.ErrO, err
+	}
 
 	if !letter.Sendable() {
 		return nil, mtypes.Skipped, nil

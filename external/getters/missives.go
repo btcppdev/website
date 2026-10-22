@@ -10,6 +10,17 @@ import (
 	"time"
 )
 
+// ValidateCentralNewsletterTargets prevents reintroducing the retired Insider
+// list, including exclusions whose removal would silently widen an audience.
+func ValidateCentralNewsletterTargets(names []string) error {
+	for _, name := range names {
+		if strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "!")) == "insider" {
+			return fmt.Errorf("the central insider mailing list is retired; manage Insider delivery in Insider Edition")
+		}
+	}
+	return nil
+}
+
 type MissiveInput struct {
 	Title        string
 	Markdown     string
@@ -214,6 +225,9 @@ func FindSubscriber(ctx *config.AppContext, email string) (*mtypes.Subscriber, e
 }
 
 func ListSubscribersFor(ctx *config.AppContext, newsletters []string) ([]*mtypes.Subscriber, error) {
+	if err := ValidateCentralNewsletterTargets(newsletters); err != nil {
+		return nil, err
+	}
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
@@ -280,6 +294,9 @@ func NewSubscriber(ctx *config.AppContext, email, newsletter string) (*mtypes.Su
 }
 
 func NewSubscriberList(ctx *config.AppContext, email string, newsletters []string) (*mtypes.Subscriber, error) {
+	if err := ValidateCentralNewsletterTargets(newsletters); err != nil {
+		return nil, err
+	}
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
@@ -307,6 +324,9 @@ func NewSubscriberList(ctx *config.AppContext, email string, newsletters []strin
 }
 
 func SubscribeEmailList(ctx *config.AppContext, email string, newsletters []string) (*mtypes.Subscriber, error) {
+	if err := ValidateCentralNewsletterTargets(newsletters); err != nil {
+		return nil, err
+	}
 	subscriber, err := FindSubscriber(ctx, email)
 	if err != nil {
 		return nil, err
@@ -503,6 +523,9 @@ func CreateTemplatedMissive(ctx *config.AppContext, in MissiveInput) (*mtypes.Le
 // Markdown gives future issues reliable no-repeat and diversity signals while
 // leaving the draft copy fully editable.
 func CreateWeeklyNewsletterMissive(ctx *config.AppContext, in MissiveInput, featuredTalkID string) (*mtypes.Letter, error) {
+	if err := ValidateCentralNewsletterTargets(in.Newsletters); err != nil {
+		return nil, err
+	}
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
@@ -562,6 +585,9 @@ func GetTemplatedLetterByDedupeKey(ctx *config.AppContext, dedupeKey string) (*m
 }
 
 func UpdateTemplatedMissive(ctx *config.AppContext, pageID string, in MissiveInput) error {
+	if err := ValidateCentralNewsletterTargets(in.Newsletters); err != nil {
+		return err
+	}
 	if ctx == nil || ctx.DB == nil {
 		return fmt.Errorf("database is not configured")
 	}
@@ -802,6 +828,9 @@ func listLettersByOnlyForPostgres(ctx *config.AppContext, condition string) ([]*
 }
 
 func insertMissivePostgres(ctx *config.AppContext, in MissiveInput) (*mtypes.Letter, error) {
+	if err := ValidateCentralNewsletterTargets(in.Newsletters); err != nil {
+		return nil, err
+	}
 	if ctx == nil || ctx.DB == nil {
 		return nil, fmt.Errorf("database is not configured")
 	}
