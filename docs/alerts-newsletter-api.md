@@ -9,7 +9,7 @@ do not rewrite their recorded migration checksums.
 The account API exposes `GET /api/v1/me/newsletters` with
 `newsletters:self:read` and `PUT /api/v1/me/newsletters` with
 `newsletters:self:write`. Register those scopes on the Alerts OAuth client before
-enabling the integration. Apply migration 101 before serving these endpoints.
+enabling the integration. Apply migrations 128–130 before serving these endpoints.
 This worktree has not been deployed.
 
 GET returns the standard private `data`/`meta` envelope. Data contains only
@@ -17,7 +17,8 @@ GET returns the standard private `data`/`meta` envelope. Data contains only
 verified account email, including unsubscribed choices. Responses are not cached.
 
 The retired central `insider` list cannot be modified through this API.
-Insider Edition manages its own newsletter preferences.
+Insider Edition uses the shared contact/preference API described in
+[email-directory.md](email-directory.md); it does not reuse that retired list.
 
 PUT accepts exactly `email`, `newsletter`, and boolean `subscribed`. The email
 must belong to the authenticated account and be verified. There is no caller

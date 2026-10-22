@@ -66,18 +66,21 @@ suffix before creating a fresh one.
 
 ## Insider account, delivery, and membership
 
-Insider owns newsletter consent, stream/cadence choices, access grants,
-purchases, and every reader-facing management screen. `btcpp.dev` provides
-OAuth identity plus shared payment and mail transport. Its private
+bitcoin++ owns central email contacts and scoped newsletter preferences. Insider
+owns content, access grants, campaigns and a synchronized preference projection.
+Signup stays on Insider and creates or links a bitcoin++ account after mailbox
+verification. bitcoin++ also provides OAuth identity, shared payments and
+passwordless email-preference management; see [the directory integration](docs/email-directory.md). Its private
 `/dashboard/insider` page shows only Insider's versioned `none`/`free`/`paid`
 tier and coarse subscribed/not-subscribed projection, then links back to
 `https://insider.btcpp.dev/account`. Public profile recognition is handled by
 separately issued and accepted organization badges; the projection is never
 rendered directly on `/whois`.
 
-All internal Insider endpoints use `INSIDER_SERVICE_TOKEN` (falling back to
-`MAILER_SECRET`). Insider resolves stream consent and freezes each campaign's
-recipient list. The shared mailer applies global suppression and transports
+Commerce and account projection endpoints use `INSIDER_SERVICE_TOKEN` (falling
+back to `MAILER_SECRET`). The email-directory API uses its own separate
+`EMAIL_DIRECTORY_INSIDER_TOKEN`. Insider synchronizes central stream consent,
+freezes each campaign's recipient list and rechecks central consent before sending. The shared mailer applies global suppression and transports
 that explicit list; it does not own or reinterpret Insider preferences.
 
 Shared service checkout is configuration-gated:

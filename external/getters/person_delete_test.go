@@ -131,6 +131,10 @@ func TestDatabaseSmokeDeletePersonPreservesHistory(t *testing.T) {
 	if err := DeletePerson(app, source, actor); err != nil {
 		t.Fatal(err)
 	}
+	if got := scalar(`SELECT count(*)::text FROM email_contacts WHERE email=$1`, email); got != "0" {
+		t.Fatal("deleted address retained in central directory")
+	}
+
 	if got := scalar(`SELECT count(*)::text FROM account_deletion_cancellations j JOIN service_stripe_checkouts c ON c.id=j.checkout_id WHERE j.person_id=$1 AND j.actor_id=$2 AND j.state='pending' AND c.person_id IS NULL`, source, actor); got != "3" {
 		t.Fatal("recurring cancellation intent lost", got)
 	}

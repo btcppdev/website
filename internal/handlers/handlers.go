@@ -967,6 +967,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 
 	// Register the versioned API before broad conference and catch-all routes.
 	api.Register(r, app)
+	registerEmailDirectory(r, app)
 	r.HandleFunc("/api/internal/insider/subscriber-projections", func(w http.ResponseWriter, r *http.Request) {
 		ApplyInsiderSubscriberProjection(w, r, app)
 	}).Methods(http.MethodPost)

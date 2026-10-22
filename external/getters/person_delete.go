@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"btcpp-web/internal/config"
@@ -221,6 +222,23 @@ func DeletePerson(app *config.AppContext, personID, actorID string) error {
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM people WHERE id=$1::uuid`, personID); err != nil {
 		return fmt.Errorf("delete account: %w", err)
+	}
+	// Erase authoritative contact addresses while retaining pseudonymous opt-out
+	// history. Queue cancellation snapshots are cleared after acknowledgment.
+	for _, q := range []string{
+		`UPDATE email_memberships SET status='unsubscribed',source='account-deletion',unsubscribed_at=coalesce(unsubscribed_at,now()),version=version+1,updated_at=now() WHERE contact_id IN(SELECT id FROM email_contacts WHERE lower(email::text)=ANY($1::text[])) AND status<>'unsubscribed'`,
+		`DELETE FROM email_management_tokens WHERE contact_id IN(SELECT id FROM email_contacts WHERE lower(email::text)=ANY($1::text[]))`,
+		`SELECT set_config('btcpp.contact_erasure','yes',true)`,
+		`UPDATE email_contacts SET email='erased-'||id::text||'@invalid.invalid',erased_at=now() WHERE lower(email::text)=ANY($1::text[])`,
+	} {
+		if strings.Contains(q, "$1") {
+			_, err = tx.Exec(ctx, q, emails)
+		} else {
+			_, err = tx.Exec(ctx, q)
+		}
+		if err != nil {
+			return fmt.Errorf("erase email directory contact: %w", err)
+		}
 	}
 	return tx.Commit(ctx)
 }

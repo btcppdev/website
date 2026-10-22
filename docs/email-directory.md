@@ -1,76 +1,105 @@
-# Central email directory
+# Central email directory and product integration
 
-## Implemented: foundation (migration 129)
+## Ownership and signup
 
-`email_contacts` gives each normalized address an immutable UUID independent of
-accounts. `person_emails.contact_id` preserves the existing account ownership,
-verification and primary-address model. `subscribers.contact_id` connects the
-mailing system to the same directory. Case and surrounding whitespace are
-normalized; plus tags and dots are not removed.
+bitcoin++ owns address identity (`email_contacts`), account associations
+(`person_emails.contact_id`), and service/newsletter preferences
+(`email_memberships`). A contact ID identifies an address, not a person. Existing
+addresses may have no account, but new product signups create or link an account.
 
-`email_memberships` identifies preferences by `(contact_id, service, newsletter)`.
-It retains explicit unsubscribed states. `email_preference_events` records each
-transition and a monotonically increasing membership version. Existing memberships
-have source `legacy-import` and no invented consent timestamp. Available opt-out
-records are recovered from `newsletter_consent_requests`. The retired central
-`insider` list is excluded, including its consent history. No new Insider stream
-subscriptions are inferred from it.
+Insider signup stays on Insider. A single-use mailbox confirmation queues a durable
+verified-account request to bitcoin++, which creates the account or returns its
+existing owner. New accounts receive the existing default avatar and a placeholder
+name; passwords and profile completion are not required. Signup selects only the
+requested newsletter. Account provisioning retries after outages and delivery waits
+for synchronization. Alerts continues using the existing bitcoin++ OAuth signup/login
+flow; it never creates a separate identity database.
 
-During this additive transition, existing address columns remain compatibility
-mirrors and legacy subscription writes are the only writers of `btcpp` memberships.
-Database triggers ensure new account and subscriber rows acquire matching contacts
-atomically. A one-way membership bridge maintains the directory in the same
-transaction as existing subscribe/unsubscribe operations. Do not write `btcpp`
-memberships directly until the legacy writers are replaced. The newsletter API
-reads preferences through contact IDs. Unchanged selections create no new events.
+The public `/email-preferences` page is **management without signing in**, not an
+accountless signup path. It emails a single-use 30-minute link, exchanged on POST for
+a restricted 30-minute HttpOnly session. GET previews cannot change preferences.
+Forms use CSRF protection and expected membership versions. Unknown addresses and
+rate-limited requests receive the same message. Legacy contacts can use it too.
 
-Account registration does not reset an opt-out. An account address change references
-a different contact; it does not rewrite the shared address. Changing a subscriber
-address is rejected until an explicit preference-transfer flow exists. Account-link
-deletions retain independent contacts and preferences. Contact erasure and account
-deletion integration must be completed before deployment.
+## Shared API
 
-## Read-only audit
+Service credentials are independent from OAuth, commerce and mailer secrets:
 
-From this checkout, with `DATABASE_URL` in the root `.env` or environment:
+- bitcoin++ `.env`: `EMAIL_DIRECTORY_INSIDER_TOKEN`, `EMAIL_DIRECTORY_ALERTS_TOKEN`
+- Insider `.env`: `EMAIL_DIRECTORY_TOKEN` matching the Insider credential;
+  `BTCPP_BASE_URL` identifies the bitcoin++ origin.
+- Alerts `.env`: `EMAIL_DIRECTORY_TOKEN` matching the Alerts credential;
+  `BTCPP_OAUTH_BASE_URL` defaults to `https://btcpp.dev`.
 
-```
-go run ./cmd/email-directory-audit
-```
+Use distinct random values of at least 32 characters. Production email delivery
+requires the product credential. Clients require HTTPS outside loopback, bound
+request timeouts, limit response sizes and refuse redirects with credentials.
 
-This command runs a read-only repeatable-read transaction and prints counts only.
-It works before migration 129, including databases without the new consent API
-table from migration 128. Exit 0 means no detected address or preference conflicts;
-exit 2 means conflicting addresses/preferences or empty addresses require review; exit 1 means the audit
-could not run. No addresses or database credentials are printed. The migration
-also rejects those conflicts rather than assigning ambiguous account ownership.
+Authenticated endpoints beneath `/api/internal/email-directory/{service}`:
 
-This report covers the central database, not Insider's separate database or the
-mailer suppression store. `can_migrate` checks address normalization and active memberships conflicting with
-the latest explicit opt-out; it is not launch approval.
-Receipt, order, invitation and historical audit addresses remain snapshots; they
-are not interpreted as newsletter consent. Do not deploy this foundation as the
-completed cross-service directory.
+| Method/path | Purpose |
+| --- | --- |
+| `POST /resolve` | Resolve/create address identity; grants no consent or ownership |
+| `GET /contacts/{id}` | Read contact and only this service's memberships |
+| `PUT /contacts/{id}` | Idempotent batch of scoped preference changes |
+| `POST /verified-account` | Insider-only mailbox-verification attestation; create/link an account |
 
-## Remaining rollout
+A preference change supplies `newsletter`, `subscribed`, `expected_version`,
+`delivery_mode`, optional `paused_until`, and an `Idempotency-Key` header.
+`import_only=true` seeds missing memberships without replacing existing choices.
+A successful replay never reapplies an earlier opt-in. Version conflicts reject
+stale writes. Services cannot select another service's preference scope. The account
+endpoint requires the private service credential and a stable confirmation proof ID;
+it is not a public email-to-account lookup and returns no bitcoin++ login token.
 
-1. Inventory the remaining current delivery-address sources and historical snapshots.
-   Import Insider contacts and stream preferences with a reviewed dry-run report;
-   set Insider's existing `shared_contact_id` and preserve pauses/delivery modes.
-2. Build the scoped contact/preference service, idempotent change requests and a
-   durable delivery outbox. Replace legacy writers, then remove the one-way bridge
-   and duplicate editable address columns. Keep old unsubscribe links working.
-3. Add account-free preference management with hashed, expiring tokens, limited
-   contact sessions, request throttling and non-enumerating responses. Use the same
-   central membership writes for signed-in and account-free changes.
-4. Connect Alerts and Insider delivery workers to current contact eligibility and
-   preference events. A scoped unsubscribe affects only its service/newsletter;
-   it does not cancel billing or disable Telegram. Reject stale updates and cancel
-   queued sends where supported.
-5. Integrate authenticated mailer outcomes, address-wide suppression, bounce history,
-   recovery, account deletion, contact erasure and explicit verified email transfers.
-6. Reconcile imports and test unsubscribe propagation, outages and retries before
-   production deployment. No production directory audit or migration has run yet.
+## Delivery and synchronization
 
-The existing legacy list retirement is separate from Insider the product: public
-Insider pages, billing and the new stream subscriptions remain supported.
+Alerts release email uses `alerts / releases`. Insider uses its existing stream IDs
+under service `insider`. Other central lists use `btcpp / {list}`. The retired central
+`insider` list is ignored; it is never imported as a new Insider stream.
+
+Each product stores a projection and durable outbound changes in its own database.
+Workers reconcile central choices, with compare-and-swap versions and request keys.
+Projection writes cannot generate another outgoing change. Stale opt-ins lose to
+central decisions; conflicting explicit opt-outs are retried against the current
+version. Contacts are imported lazily as the workers encounter existing subscribers.
+Local unsubscribe paths continue to stop local delivery during central outages.
+
+Release/campaign workers check central consent before passing each message to the
+mailer. An outage or unsynchronized choice holds delivery for retry. Polling central
+choices also queues cancellation of accepted mail using the existing mailer workers.
+bitcoin++ runs a durable cancellation worker for its own newsletter queue. Messages
+already being delivered cannot be recalled. Transactional receipts/account messages,
+Telegram settings, project selections and paid access remain separate.
+
+Old preference and unsubscribe links remain usable. Insider preference forms reject
+stale full-form submissions rather than restoring other stream choices accidentally.
+Account deletion erases the authoritative address, revokes management tokens and
+retains pseudonymous opt-out history. Cancellation address snapshots are cleared
+when the mailer acknowledges cancellation. Product deletion removes directory links
+and pending account-provisioning records.
+
+## Migration and rollout
+
+1. Run `go run ./cmd/email-directory-audit` from bitcoin++ with `DATABASE_URL` in
+   root `.env` or the environment. It prints counts only in a read-only transaction.
+   Exit 2 indicates address/consent conflicts needing review; exit 1 is an audit error.
+2. Deploy bitcoin++ migrations 129 and 130 and its API before updating product workers.
+   Migration 129 backfills central addresses/memberships, preserving known opt-outs
+   and leaving unknown legacy consent timestamps unset. Both migrations are atomic.
+3. Configure the distinct service credentials in each root `.env` and deploy Insider
+   (including migration 002) and Alerts. Verify successful synchronization before
+   enabling production campaign/release delivery.
+4. Exercise real signup, management-link delivery, scoped unsubscribe, queued-mail
+   cancellation and account deletion with test accounts before launch.
+
+The central audit does not inspect the separate Insider database or the mailer's
+suppression store. Product workers seed existing product preferences without
+superseding central opt-outs. Duplicate editable legacy address columns remain
+compatibility mirrors while the old bitcoin++ account/newsletter callers still use
+them; contact IDs are the integration identity. Receipts retain historical address
+snapshots. Bounce/suppression outcomes continue to be enforced by the mailer; a
+central bounce-event history is a separate follow-up.
+
+No production migration, import, real-email rehearsal or deployment has been run
+as part of this implementation.
