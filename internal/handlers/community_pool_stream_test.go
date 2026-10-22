@@ -55,7 +55,9 @@ func TestCommunityStreamPushAndReconnect(t *testing.T) {
 	var total atomic.Int64
 	total.Store(100)
 	var failed atomic.Bool
+	finished := make(chan struct{}, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() { finished <- struct{}{} }()
 		serveCommunityStream(w, r, changes, func() (string, error) {
 			if failed.Load() {
 				return "", errors.New("listener disconnected")
@@ -107,6 +109,13 @@ func TestCommunityStreamPushAndReconnect(t *testing.T) {
 		t.Fatal(event, data)
 	}
 	response.Body.Close()
+	// Both simulated connections share a channel; let the old consumer exit
+	// before reconnecting so it cannot steal the new connection's notification.
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("disconnected stream did not exit")
+	}
 	total.Store(300)
 	response, scanner = open()
 	event, data = read(scanner)

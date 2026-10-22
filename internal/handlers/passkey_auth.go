@@ -123,7 +123,7 @@ func PasskeyRegisterChallenge(w http.ResponseWriter, r *http.Request, ctx *confi
 	creation, session, err := rp.BeginRegistration(user,
 		webauthn.WithAuthenticatorSelection(selection),
 		webauthn.WithExclusions(webauthn.Credentials(user.WebAuthnCredentials()).CredentialDescriptors()),
-		webauthn.WithExtensions(protocol.AuthenticationExtensions{"credProps": true}),
+		webauthn.WithExtensions(webauthn.WithExtensionCredProps()),
 	)
 	if err != nil {
 		ctx.Err.Printf("begin passkey registration: %s", err)

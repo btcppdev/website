@@ -18,8 +18,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chromedp/cdproto/emulation"
-	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 )
 
@@ -422,31 +420,21 @@ func MakeSocialCardJPEG(data []byte, productName, productPrice string) ([]byte, 
 	defer cancelBrowser()
 
 	pageURL := (&url.URL{Scheme: "file", Path: htmlName}).String()
-	var imageLoaded bool
-	var screenshot []byte
-	err = chromedp.Run(browserCtx,
-		emulation.SetDeviceMetricsOverride(SocialCardWidth, SocialCardHeight, 1, false),
+	err = chromedp.Do(browserCtx,
+		chromedp.EmulateViewport(SocialCardWidth, SocialCardHeight),
 		chromedp.Navigate(pageURL),
-		chromedp.Evaluate(`(() => {
-			const image = document.getElementById("product-image");
-			return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
-		})()`, &imageLoaded),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			var captureErr error
-			screenshot, captureErr = page.CaptureScreenshot().
-				WithFormat(page.CaptureScreenshotFormatPng).
-				WithFromSurface(true).
-				WithClip(&page.Viewport{
-					X:      0,
-					Y:      0,
-					Width:  SocialCardWidth,
-					Height: SocialCardHeight,
-					Scale:  1,
-				}).
-				Do(ctx)
-			return captureErr
-		}),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("navigate social card HTML: %w", err)
+	}
+	imageLoaded, err := chromedp.Run(browserCtx, chromedp.Evaluate[bool](`(() => {
+		const image = document.getElementById("product-image");
+		return Boolean(image && image.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
+	})()`))
+	if err != nil {
+		return nil, fmt.Errorf("check social card image: %w", err)
+	}
+	screenshot, err := chromedp.Run(browserCtx, chromedp.CaptureScreenshot())
 	if err != nil {
 		return nil, fmt.Errorf("render social card HTML: %w", err)
 	}
@@ -506,21 +494,15 @@ func MakeSiteSocialCardJPEG(card SiteSocialCard) ([]byte, error) {
 	defer cancelBrowser()
 
 	pageURL := (&url.URL{Scheme: "file", Path: htmlName}).String()
-	var screenshot []byte
-	err = chromedp.Run(browserCtx,
-		emulation.SetDeviceMetricsOverride(SocialCardWidth, SocialCardHeight, 1, false),
+	err = chromedp.Do(browserCtx,
+		chromedp.EmulateViewport(SocialCardWidth, SocialCardHeight),
 		chromedp.Navigate(pageURL),
-		chromedp.WaitVisible(`[data-card-ready="true"]`, chromedp.ByQuery),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			var captureErr error
-			screenshot, captureErr = page.CaptureScreenshot().
-				WithFormat(page.CaptureScreenshotFormatPng).
-				WithFromSurface(true).
-				WithClip(&page.Viewport{Width: SocialCardWidth, Height: SocialCardHeight, Scale: 1}).
-				Do(ctx)
-			return captureErr
-		}),
+		chromedp.WaitVisible(chromedp.CSS(`[data-card-ready="true"]`)),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("navigate site social card HTML: %w", err)
+	}
+	screenshot, err := chromedp.Run(browserCtx, chromedp.CaptureScreenshot())
 	if err != nil {
 		return nil, fmt.Errorf("render site social card HTML: %w", err)
 	}

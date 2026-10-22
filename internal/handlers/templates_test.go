@@ -141,7 +141,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render combined signer authorization: %v", err)
 	}
-	for _, expected := range []string{"Connect and sign in to Badge Studio?", "Connect Badge Studio", "Sign in once", "https://badges.example/api/auth/session", "exact connection request hash", "connect Badge Studio and sign in", "Connect &amp; sign in →"} {
+	for _, expected := range []string{"Connect and sign in to Badge Studio?", "Connect Badge Studio", "Sign in once", "https://badges.example/api/auth/session", "This approval cannot sign in to another website or authorize later badge actions.", "connect Badge Studio and sign in", "Connect &amp; sign in →"} {
 		if !strings.Contains(combinedLogin.String(), expected) {
 			t.Fatalf("combined signer authorization omitted %q: %s", expected, combinedLogin.String())
 		}
@@ -1196,7 +1196,7 @@ func TestLoadTemplates(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("render event sponsorships: %v", err)
 	}
-	for _, want := range []string{`name="TicketAllocation"`, `value="24"`, `>Tickets</th>`, `name="SponsorAwardLimit"`, `value="3"`, `name="ManagerPersonID"`, `name="ManagerName"`, `name="ManagerEmail"`, "secure 72-hour login link", "Manager access belongs to the organization, not this event", "current and future sponsorships", `data-search-url="/dev26/admin/sponsors/people/search"`, `name="CanEditOrganization"`, "Can edit organization"} {
+	for _, want := range []string{`name="TicketAllocation"`, `value="24"`, `>Tickets</th>`, `name="SponsorAwardLimit"`, `value="3"`, `name="ManagerPersonID"`, `name="ManagerName"`, `name="ManagerEmail"`, "secure 14-day login link", "Manager access belongs to the organization, not this event", "current and future sponsorships", `data-search-url="/dev26/admin/sponsors/people/search"`, `name="CanEditOrganization"`, "Can edit organization"} {
 		if !strings.Contains(sponsorEvents.String(), want) {
 			t.Fatalf("event sponsorships omitted %q: %s", want, sponsorEvents.String())
 		}
@@ -1219,6 +1219,7 @@ func TestLoadTemplates(t *testing.T) {
 		}
 	}
 
+	inviteExpires := time.Now().UTC().Add(14 * 24 * time.Hour)
 	var orgDetail bytes.Buffer
 	if err := ctx.TemplateCache.ExecuteTemplate(&orgDetail, "sponsors/detail.tmpl", &OrgDetailPage{
 		Org: &types.Org{Ref: "org-id", Name: "Signet Systems"},
@@ -1228,14 +1229,14 @@ func TestLoadTemplates(t *testing.T) {
 		},
 		PendingInvites: []*types.OrganizationMemberInvite{{
 			ID: "pending-invite-id", Email: "pending@example.test", Role: getters.OrganizationRoleManager,
-			ExpiresAt: time.Date(2026, time.September, 6, 12, 0, 0, 0, time.UTC),
+			ExpiresAt: inviteExpires,
 		}},
 		InviteLink:  "http://localhost:8888/sponsor-invites/replacement-token",
 		InviteEmail: "pending@example.test",
 	}); err != nil {
 		t.Fatalf("render organization detail: %v", err)
 	}
-	for _, want := range []string{"Organization members", "current and future sponsor workspaces", "Mara Manager", "mara@example.test", "Owen Owner", "Pending invitations", "pending@example.test", "Expires Sep 6, 2026", "Add an existing account", "Invite by email", `data-person-picker-search-url="/api/people/search"`, `action="/admin/orgs/org-id/members"`, `action="/admin/orgs/org-id/members/manager-id/role"`, `action="/admin/orgs/org-id/members/manager-id/remove"`, `action="/admin/orgs/org-id/invites"`, `action="/admin/orgs/org-id/invites/pending-invite-id/role"`, `action="/admin/orgs/org-id/invites/pending-invite-id/replace"`, `action="/admin/orgs/org-id/invites/pending-invite-id/revoke"`, "Create new link", "http://localhost:8888/sponsor-invites/replacement-token", "shown once", "Show in organization directory", `name="DirectoryVisible"`, "hidden from dashboard discovery and search"} {
+	for _, want := range []string{"Organization members", "current and future sponsor workspaces", "Mara Manager", "mara@example.test", "Owen Owner", "Pending invitations", "pending@example.test", "Expires " + inviteExpires.Format("Jan 2, 2006"), "Add an existing account", "Invite by email", `data-person-picker-search-url="/api/people/search"`, `action="/admin/orgs/org-id/members"`, `action="/admin/orgs/org-id/members/manager-id/role"`, `action="/admin/orgs/org-id/members/manager-id/remove"`, `action="/admin/orgs/org-id/invites"`, `action="/admin/orgs/org-id/invites/pending-invite-id/role"`, `action="/admin/orgs/org-id/invites/pending-invite-id/replace"`, `action="/admin/orgs/org-id/invites/pending-invite-id/revoke"`, "Create new link", "http://localhost:8888/sponsor-invites/replacement-token", "shown once", "Show in organization directory", `name="DirectoryVisible"`, "hidden from dashboard discovery and search"} {
 		if !strings.Contains(orgDetail.String(), want) {
 			t.Fatalf("organization detail omitted %q: %s", want, orgDetail.String())
 		}
@@ -1296,7 +1297,7 @@ func TestHackathonDescriptionHTML(t *testing.T) {
 	for _, want := range []string{
 		"<strong>bold</strong>",
 		`<a href="https://example.com" rel="noopener noreferrer">link</a>`,
-		"&amp;lt;script&amp;gt;bad()&amp;lt;/script&amp;gt;",
+		"&lt;script&gt;bad()&lt;/script&gt;",
 	} {
 		if !strings.Contains(markdown, want) {
 			t.Fatalf("markdown description missing %q in %q", want, markdown)

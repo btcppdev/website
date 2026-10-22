@@ -52,7 +52,7 @@ Read this week's updates, meet the builders, and find your next event.
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`class="btcpp-inner" style="width:100%;max-width:640px;`,
+		`class="btcpp-inner" border="0" style="width:100%;max-width:640px;`,
 		`class="btcpp-cta"`, `class="btcpp-cta-title"`, `class="btcpp-stat"`,
 		`class="btcpp-news-cell btcpp-news-tag"`, `class="btcpp-header-cell btcpp-issue"`,
 		`padding-left: 16px !important`, `font-size: 32px !important`,
