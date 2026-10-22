@@ -25,10 +25,10 @@ func TestListAdminSubscribers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListAdminSubscribers before: %v", err)
 	}
-	if _, err := NewSubscriberList(ctx, emails[0], []string{"newsletter", "insider"}); err != nil {
+	if _, err := NewSubscriberList(ctx, emails[0], []string{"newsletter", "test-news"}); err != nil {
 		t.Fatalf("create newsletter subscriber: %v", err)
 	}
-	if _, err := NewSubscriberList(ctx, emails[1], []string{"insider"}); err != nil {
+	if _, err := NewSubscriberList(ctx, emails[1], []string{"test-news"}); err != nil {
 		t.Fatalf("create active subscriber: %v", err)
 	}
 	if _, err := NewSubscriberList(ctx, emails[2], nil); err != nil {

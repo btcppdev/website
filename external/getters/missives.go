@@ -365,7 +365,15 @@ func UpdateSubs(ctx *config.AppContext, sub *mtypes.Subscriber) error {
 	}
 	defer tx.Rollback(ctx.DatabaseContext())
 
-	if _, err := tx.Exec(ctx.DatabaseContext(), `DELETE FROM subscriber_subscriptions WHERE subscriber_id = $1`, subscriberID); err != nil {
+	// Delete only removed choices: replacing the whole set fabricates opt-out/
+	// opt-in events for unchanged memberships in the central directory.
+	names := []string{}
+	for _, subscription := range sub.Subs {
+		if subscription != nil && strings.TrimSpace(subscription.Name) != "" {
+			names = append(names, strings.TrimSpace(subscription.Name))
+		}
+	}
+	if _, err := tx.Exec(ctx.DatabaseContext(), `DELETE FROM subscriber_subscriptions WHERE subscriber_id = $1 AND NOT(name=ANY($2::text[]))`, subscriberID, names); err != nil {
 		return fmt.Errorf("clear subscriber subscriptions %q: %w", sub.Email, err)
 	}
 	for _, subscription := range sub.Subs {

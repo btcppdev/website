@@ -19,7 +19,7 @@ var ErrNewsletterConflict = errors.New("idempotency key was already used with a 
 var ErrNewsletterInput = errors.New("invalid newsletter preference")
 
 func ListNewsletterPreferences(app *config.AppContext, personID string) ([]NewsletterPreference, error) {
-	rows, err := app.DB.Query(app.DatabaseContext(), `SELECT pe.email::text,n.name,EXISTS(SELECT 1 FROM subscribers s JOIN subscriber_subscriptions ss ON ss.subscriber_id=s.id WHERE s.email=pe.email AND ss.name=n.name) FROM person_emails pe CROSS JOIN (VALUES ('newsletter')) n(name) WHERE pe.person_id=$1 AND pe.verified_at IS NOT NULL ORDER BY pe.is_primary DESC,pe.email,n.name`, personID)
+	rows, err := app.DB.Query(app.DatabaseContext(), `SELECT c.email::text,n.name,EXISTS(SELECT 1 FROM email_memberships m WHERE m.contact_id=pe.contact_id AND m.service='btcpp' AND m.newsletter=n.name AND m.status='subscribed') FROM person_emails pe JOIN email_contacts c ON c.id=pe.contact_id CROSS JOIN (VALUES ('newsletter')) n(name) WHERE pe.person_id=$1 AND pe.verified_at IS NOT NULL ORDER BY pe.is_primary DESC,pe.email,n.name`, personID)
 	if err != nil {
 		return nil, err
 	}
