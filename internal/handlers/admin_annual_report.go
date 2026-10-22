@@ -41,6 +41,8 @@ type annualReportPage struct {
 	Events                                                                  []annualEvent
 	Editions                                                                []annualEditionLink
 	UniqueAttendees, ReturningAttendees, UniqueSpeakers, UniqueParticipants int64
+	UniqueRegistrants, RepeatRegistrants                                    int64
+	RegistrationBased                                                       bool
 	Preview                                                                 bool
 }
 
@@ -95,13 +97,16 @@ func (p annualReportPage) URL() string {
 func (p annualReportPage) Scope() string {
 	return fmt.Sprintf("annual-v1/%d/%s", p.Year, strings.ToLower(p.Recipient))
 }
-func (p annualReportPage) AttendanceChart() reportChart  { return p.chart("attendance") }
-func (p annualReportPage) ProjectChart() reportChart     { return p.chart("projects") }
-func (p annualReportPage) ParticipantChart() reportChart { return p.chart("participants") }
+func (p annualReportPage) ParticipationChart() reportChart { return p.chart("attendance") }
+func (p annualReportPage) ProjectChart() reportChart       { return p.chart("projects") }
+func (p annualReportPage) ParticipantChart() reportChart   { return p.chart("participants") }
 func (p annualReportPage) chart(kind string) reportChart {
 	c := reportChart{}
 	for _, e := range p.Included() {
 		n := e.Attendees
+		if p.RegistrationBased {
+			n = e.Registrations
+		}
 		if kind != "attendance" && !e.HackKnown() {
 			continue
 		}
@@ -133,12 +138,19 @@ func (p annualReportPage) ProgramChart() reportChart {
 	return c
 }
 func (p annualReportPage) ReturningChart() reportChart {
+	if p.RegistrationBased {
+		return reportChart{Kind: "program", Rows: []reportBar{{Label: "Registered for one included event", Value: p.UniqueRegistrants - p.RepeatRegistrants}, {Label: "Registered for multiple included events", Value: p.RepeatRegistrants}}}
+	}
 	return reportChart{Kind: "program", Rows: []reportBar{{Label: "Attended one included event", Value: p.UniqueAttendees - p.ReturningAttendees}, {Label: "Attended multiple included events", Value: p.ReturningAttendees}}}
 }
-func (p annualReportPage) Attendances() int64 {
+func (p annualReportPage) ParticipationTotal() int64 {
 	var n int64
 	for _, e := range p.Included() {
-		n += e.Attendees
+		if p.RegistrationBased {
+			n += e.Registrations
+		} else {
+			n += e.Attendees
+		}
 	}
 	return n
 }

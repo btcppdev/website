@@ -22,12 +22,12 @@ import (
 )
 
 func annualFixture() annualReportPage {
-	p := annualReportPage{Year: 2026, Recipient: "NYDIG", Cutoff: "2026-10-19", Generated: "2026-10-19T20:00:00Z", Saved: map[string]string{}, UniqueAttendees: 790, ReturningAttendees: 95, UniqueSpeakers: 178, UniqueParticipants: 150, Preview: true}
+	p := annualReportPage{Year: 2026, Recipient: "NYDIG", Cutoff: "2026-10-19", Generated: "2026-10-19T20:00:00Z", Saved: map[string]string{}, RegistrationBased: true, UniqueRegistrants: 1090, RepeatRegistrants: 115, UniqueSpeakers: 178, UniqueParticipants: 150, Preview: true}
 	p.Sections = annualSections(p.Year, p.Recipient)
 	for i, city := range []string{"Floripa", "Vienna", "Las Vegas", "Nairobi", "Toronto", "Berlin"} {
 		start := time.Date(2026, time.Month(i+4), 12, 0, 0, 0, 0, time.UTC)
 		end := start.AddDate(0, 0, 2)
-		e := annualEvent{Event: reportEvent{ID: fmt.Sprintf("00000000-0000-4000-8000-%012d", i+1), Tag: strings.ToLower(strings.ReplaceAll(city, " ", "")), Location: city, Title: "Illustrative event", Start: &start, End: &end, Timezone: "UTC"}, Included: true, Eligible: true, Attendees: int64(100 + i*20), Talks: int64(20 + i*3), Workshops: int64(4 + i), Panels: 3, HackCoverage: "records", Projects: int64(10 + i*4), Participants: int64(25 + i*8), Winners: 3, Challenges: 4, Sats: 5000000}
+		e := annualEvent{Event: reportEvent{ID: fmt.Sprintf("00000000-0000-4000-8000-%012d", i+1), Tag: strings.ToLower(strings.ReplaceAll(city, " ", "")), Location: city, Title: "Illustrative event", Start: &start, End: &end, Timezone: "UTC"}, Included: true, Eligible: true, Attendees: int64(100 + i*20), Registrations: int64(150 + i*25), Talks: int64(20 + i*3), Workshops: int64(4 + i), Panels: 3, HackCoverage: "records", Projects: int64(10 + i*4), Participants: int64(25 + i*8), Winners: 3, Challenges: 4, Sats: 5000000}
 		e.Event.Period = reportEventPeriod(e.Event)
 		if i == 1 || i == 2 {
 			e.HackCoverage = "none"
@@ -64,7 +64,7 @@ func TestAnnualReportRender(t *testing.T) {
 			t.Fatal(err)
 		}
 		body := out.String()
-		for _, want := range []string{"Showing up.", "No hackathon", "Data not yet reconciled", "Annual export not supplied", "Illustrative winning project", "<strong>Technical conversations</strong>", "/nairobi/hackathon/projects/demo"} {
+		for _, want := range []string{"Registrations by event", "No hackathon", "Data not yet reconciled", "Annual export not supplied", "Illustrative winning project", "<strong>Technical conversations</strong>", "/nairobi/hackathon/projects/demo"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("missing %q", want)
 			}
@@ -94,11 +94,11 @@ func TestAnnualReportBoundaries(t *testing.T) {
 		t.Fatal("unknown end must not count as completed")
 	}
 	p := annualFixture()
-	if len(p.ProjectChart().Rows) != 3 || len(p.AttendanceChart().Rows) != 6 {
+	if len(p.ProjectChart().Rows) != 3 || len(p.ParticipationChart().Rows) != 6 {
 		t.Fatal("unreviewed/no-hackathon events included in hackathon bars")
 	}
-	if p.ReturningChart().DonutTotal() != p.UniqueAttendees {
-		t.Fatal("attendance donut double counts")
+	if p.ReturningChart().DonutTotal() != p.UniqueRegistrants {
+		t.Fatal("registration donut double counts")
 	}
 	form := url.Values{"action": {"save"}, "cutoff": {"2026-10-19"}, "note": {"Different sponsor letter"}}
 	if err := annualReportForm(&p, form, time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)); err != nil {
@@ -225,7 +225,7 @@ INSERT INTO recordings VALUES ('session1','https://youtube.com/watch?v=one',''),
 	if err = loadAnnualReport(ctx, app, &p); err != nil {
 		t.Fatal(err)
 	}
-	if p.UniqueAttendees != 3 || p.ReturningAttendees != 1 || p.Attendances() != 4 || p.UniqueSpeakers != 1 || p.UniqueParticipants != 2 {
+	if p.UniqueRegistrants != 4 || p.RepeatRegistrants != 1 || p.ParticipationTotal() != 5 || p.UniqueSpeakers != 1 || p.UniqueParticipants != 2 {
 		t.Fatalf("incorrect annual deduplication: %+v", p)
 	}
 	if len(p.Included()) != 2 || len(p.Upcoming()) != 1 || p.ProgramChart().DonutTotal() != 2 {
@@ -243,7 +243,7 @@ INSERT INTO recordings VALUES ('session1','https://youtube.com/watch?v=one',''),
 	}
 	p.Revision = 1
 	p.Saved["note"] = "Updated live draft"
-	p.UniqueAttendees = 999
+	p.UniqueRegistrants = 999
 	if _, err = saveAnnualReport(ctx, app, p, false); err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +255,7 @@ INSERT INTO recordings VALUES ('session1','https://youtube.com/watch?v=one',''),
 	if err = json.Unmarshal(data, &frozen); err != nil {
 		t.Fatal(err)
 	}
-	if frozen.UniqueAttendees != 3 || frozen.Saved["note"] != "Original letter" || frozen.CSRF != "" {
+	if frozen.UniqueRegistrants != 4 || frozen.Saved["note"] != "Original letter" || frozen.CSRF != "" {
 		t.Fatal("frozen edition changed or stored a CSRF token")
 	}
 	p.Recipient = "HRF"
@@ -299,4 +299,29 @@ func TestAnnualReportPreview(t *testing.T) {
 	})
 	t.Log("Annual preview: http://127.0.0.1:8140/admin/reports/annual")
 	t.Fatal(http.ListenAndServe("127.0.0.1:8140", mux))
+}
+
+func TestAnnualReportLegacyFrozenParticipation(t *testing.T) {
+	p := annualFixture()
+	p.RegistrationBased = false
+	p.Frozen = "2026-10-19"
+	p.UniqueAttendees, p.ReturningAttendees = 790, 95
+	if p.ParticipationChart().Rows[0].Value != p.Events[0].Attendees || p.ReturningChart().DonutTotal() != 790 {
+		t.Fatal("legacy snapshot metrics were changed")
+	}
+	tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, p); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Check-ins by event") || strings.Contains(out.String(), "Registrations by event") {
+		t.Fatal("legacy snapshot was relabeled")
+	}
+	p.RegistrationBased = true
+	if p.ParticipationChart().Rows[0].Value != p.Events[0].Registrations || p.ReturningChart().DonutTotal() != p.UniqueRegistrants {
+		t.Fatal("registration charts used check-ins")
+	}
 }

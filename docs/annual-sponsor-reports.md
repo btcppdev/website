@@ -14,10 +14,10 @@ Open **Admin → Annual sponsor reports**, or `/admin/reports/annual?year=2026&r
 ## Definitions and limits
 
 - The cutoff selects events, not a historical database snapshot. Figures reflect records at collection time. All annual event metrics and deduplicated totals are read in a single repeatable-read transaction.
-- Attendance bars count distinct check-ins per event. Annual identities are deduplicated by person, falling back to email. The donut compares people at one included event against those at multiple included events; it does not claim first-ever attendance. Incomplete check-in records and account changes limit historical comparisons.
+- Registration bars count distinct registered people per event, including paid and complimentary registrations without requiring a check-in. Revoked registrations are excluded, while valid historical registrations survive account deletion. Annual identities are deduplicated by person, falling back to email. The donut compares registration at one included event against multiple events; it does not claim first-ever participation, payment, or attendance. Older frozen editions retain their original check-in basis.
 - Program counts are accepted, non-archived scheduled entries, deduplicated across multiple recordings. They do not claim confirmed delivery. Speakers are distinct profile identities across programs.
 - Projects are submitted/advanced entries, not necessarily distinct teams. Participants are distinct project members across reviewed events. Winning projects require finalized results. Sats are sent/claimed distribution records, not announced prizes or independently verified settlement.
-- The map uses approximate city centres for recognized event cities, with check-in-sized circles. Its coverage label identifies how many events were mapped; all selected events appear in the adjacent timeline.
+- The map uses approximate city centres for recognized event cities, with registration-sized circles. Its coverage label identifies how many events were mapped; all selected events appear in the adjacent timeline.
 - A frozen edition stores text and aggregate/event evidence, never attendee emails, and clears the CSRF token. It does not pin CSS/fonts or external project destinations; retain the exported PDF for exact visual archival.
 - No new migration is required beyond `111_sponsor_reports.sql`. Annual drafts use `annual-v1/<year>/<recipient>` and immutable editions append `/frozen/<uuid>`. Draft updates use optimistic revision checks, and draft-save plus snapshot-insert are atomic.
 

@@ -14,10 +14,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const annualAttendanceSQL = `WITH visits AS (
+// Deduplicate each person within an event, including those without a check-in.
+const annualRegistrationsSQL = `WITH visits AS (
  SELECT DISTINCT r.conference_id,coalesce('person:'||coalesce(r.person_id,pe.person_id)::text,'email:'||lower(trim(r.email::text))) AS identity
  FROM registrations r LEFT JOIN person_emails pe ON pe.email=r.email
- WHERE r.conference_id::text=ANY($1::text[]) AND NOT coalesce(r.revoked_before_account_deletion,r.revoked) AND r.checked_in_at IS NOT NULL
+ WHERE r.conference_id::text=ANY($1::text[]) AND NOT coalesce(r.revoked_before_account_deletion,r.revoked)
 ), people AS (SELECT identity,count(*) AS events FROM visits GROUP BY identity)
 SELECT count(*),count(*) FILTER(WHERE events>1) FROM people`
 
@@ -50,6 +51,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 	if err != nil {
 		return err
 	}
+	p.RegistrationBased = true
 	var ids, hackIDs []string
 	speakers := map[string]bool{}
 	for _, event := range roster {
@@ -67,7 +69,11 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 			if err := loadEventReportTx(ctx, app, tx, &data); err != nil {
 				return fmt.Errorf("%s: %w", event.Tag, err)
 			}
-			e.Registrations, e.Attendees = data.Registrations, data.Attendees
+			e.Attendees = data.Attendees
+			var repeated int64
+			if err := tx.QueryRow(ctx, annualRegistrationsSQL, []string{event.ID}).Scan(&e.Registrations, &repeated); err != nil {
+				return err
+			}
 			e.Projects, e.Participants, e.Challenges, e.Sats = data.Teams, data.Participants, data.Challenges, data.Sats
 			e.Winners = int64(len(data.Winners))
 			e.WinningProjects = data.Winners
@@ -128,7 +134,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 	}
 	p.UniqueSpeakers = int64(len(speakers))
 	if len(ids) > 0 {
-		if err = tx.QueryRow(ctx, annualAttendanceSQL, ids).Scan(&p.UniqueAttendees, &p.ReturningAttendees); err != nil {
+		if err = tx.QueryRow(ctx, annualRegistrationsSQL, ids).Scan(&p.UniqueRegistrants, &p.RepeatRegistrants); err != nil {
 			return err
 		}
 	}
@@ -167,7 +173,11 @@ func (p annualReportPage) MapPoints() []annualMapPoint {
 		if math.Cos((lon-center)*math.Pi/180) < 0 {
 			center, cx = -150, 540
 		}
-		points = append(points, annualMapPoint{e.Event.Location, e.Event.Tag, cx + 155*math.Cos(lat*math.Pi/180)*math.Sin((lon-center)*math.Pi/180), 175 - 155*math.Sin(lat*math.Pi/180), 4 + math.Min(13, math.Sqrt(float64(e.Attendees))/2)})
+		size := e.Attendees
+		if p.RegistrationBased {
+			size = e.Registrations
+		}
+		points = append(points, annualMapPoint{e.Event.Location, e.Event.Tag, cx + 155*math.Cos(lat*math.Pi/180)*math.Sin((lon-center)*math.Pi/180), 175 - 155*math.Sin(lat*math.Pi/180), 4 + math.Min(13, math.Sqrt(float64(size))/2)})
 	}
 	return points
 }
