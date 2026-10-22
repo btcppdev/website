@@ -95,6 +95,26 @@ func TestPasswordlessPreferenceFlow(t *testing.T) {
 		handler.ServeHTTP(w, r)
 		return w
 	}
+	// Knowing a contact UUID must not make its address public. Neither an
+	// arbitrary cookie nor the service name supplies authentication.
+	for _, endpoint := range []struct{ method, path string }{
+		{"GET", "/api/internal/email-directory/insider/contacts/" + c.ID},
+		{"GET", "/api/internal/email-directory/alerts/contacts/" + c.ID},
+		{"POST", "/api/internal/email-directory/insider/resolve"},
+		{"POST", "/api/internal/email-directory/insider/verified-account"},
+		{"PUT", "/api/internal/email-directory/insider/contacts/" + c.ID},
+		{"GET", "/email-preferences/manage?contact_id=" + c.ID},
+	} {
+		for _, cookie := range []*http.Cookie{nil, {Name: "email_preferences", Value: c.ID}} {
+			response := request(endpoint.method, endpoint.path, "", cookie)
+			if response.Code != http.StatusUnauthorized || strings.Contains(response.Body.String(), c.Email) {
+				t.Fatalf("unauthenticated contact exposure at %s: status %d", endpoint.path, response.Code)
+			}
+			if response.Header().Get("Cache-Control") != "private, no-store" {
+				t.Fatal("contact response may be cached")
+			}
+		}
+	}
 	known := request("POST", "/email-preferences", "email=reader%40example.test", nil)
 	unknown := request("POST", "/email-preferences", "email=nobody%40example.test", nil)
 	select {
