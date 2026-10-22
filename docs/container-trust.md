@@ -34,7 +34,7 @@ roots. The guard also accepted all 118 certificates in Alpine v3.22's published
 After deployment, use the App Platform console to confirm:
 
 ```
-apk info -v ca-certificates ca-certificates-bundle
+apk info -v | grep -E '^ca-certificates(-bundle)?-[0-9]'
 GO111MODULE=off GOTOOLCHAIN=local go run /tmp/container-trust.go verify /etc/ssl/certs
 ```
 

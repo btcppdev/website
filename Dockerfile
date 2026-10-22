@@ -21,6 +21,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     && mkdir -p static/security \
     && printf 'System CA trust policy: 2026-10-22\n' > static/security/container-trust.txt \
     && GO111MODULE=off GOTOOLCHAIN=local go run /tmp/container-trust.go verify /etc/ssl/certs >> static/security/container-trust.txt \
-    && apk info -v ca-certificates ca-certificates-bundle >> static/security/container-trust.txt
+    && apk info -v | grep -E '^ca-certificates(-bundle)?-[0-9]' >> static/security/container-trust.txt
 
 CMD [ "./target/btcpp-web" ]
