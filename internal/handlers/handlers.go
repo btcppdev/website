@@ -1565,6 +1565,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/admin", func(w http.ResponseWriter, r *http.Request) {
 		GlobalAdminDashboard(w, r, app)
 	}).Methods("GET")
+	r.HandleFunc("/admin/reports/annual", func(w http.ResponseWriter, r *http.Request) {
+		AdminAnnualSponsorReport(w, r, app)
+	}).Methods("GET", "POST")
 	r.HandleFunc("/admin/reports/preview", func(w http.ResponseWriter, r *http.Request) {
 		AdminSponsorReportPreview(w, r, app)
 	}).Methods("POST")

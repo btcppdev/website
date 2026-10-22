@@ -124,7 +124,7 @@ if (reportForm) {
     dirty = true;
     saveStatus.textContent = (document.querySelector(".synthetic-banner") || document.body.dataset.readonly === "true")
       ? "Preview updated — changes are not saved."
-      : "Unsaved changes — click Save event draft to keep them.";
+      : `Unsaved changes — click ${reportForm.dataset.saveLabel || "Save event draft"} to keep them.`;
   };
   reportForm.addEventListener("input", markDirty);
   reportForm.addEventListener("submit", () => { submitting = true; });

@@ -54,6 +54,15 @@ func loadEventReport(ctx context.Context, app *config.AppContext, page *sponsorR
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err := loadEventReportTx(ctx, app, tx, page); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// Shared by annual reports so every event and deduplicated total uses one snapshot.
+func loadEventReportTx(ctx context.Context, app *config.AppContext, tx pgx.Tx, page *sponsorReportPage) error {
+	var err error
 	if err = tx.QueryRow(ctx, eventReportMetricsSQL, page.Event.ID).Scan(&page.Registrations, &page.Attendees, &page.Teams, &page.Participants, &page.Challenges, &page.Sats, &page.Volunteers, &page.Proposals); err != nil {
 		return err
 	}
@@ -151,5 +160,5 @@ func loadEventReport(ctx context.Context, app *config.AppContext, page *sponsorR
 	if len(page.Days) == 0 {
 		page.Days = eventReportDays(page.Event)
 	}
-	return tx.Commit(ctx)
+	return nil
 }
