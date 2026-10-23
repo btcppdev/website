@@ -109,6 +109,25 @@ func TestAlertsStripeInvoiceActivationPostgres(t *testing.T) {
 		}
 		first = out
 	}
+	// Receipt and formal invoice must use the provider's recorded inclusive tax.
+	view, err := ServiceOrderForPerson(ctx, app, person, first.PublicID)
+	if err != nil || !view.PaymentVerified || view.TotalCents != 4800 || view.TaxCents != 36 {
+		t.Fatalf("verified receipt amounts: %+v, %v", view, err)
+	}
+	var queued int
+	if err := app.DB.QueryRow(ctx, "SELECT count(*) FROM service_receipt_jobs WHERE order_id=$1 AND state='pending'", first.OrderID).Scan(&queued); err != nil || queued != 1 {
+		t.Fatalf("expected one receipt after duplicate invoice callbacks: %d, %v", queued, err)
+	}
+	invoice, err := IssuePurchaseInvoice(ctx, app, person, first.PublicID, InvoiceBuyer{Name: "Invoice fixture", Address: "123 Example Street", City: "Austin", PostalCode: "78702", Country: "US"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = app.DB.Exec(context.Background(), "DELETE FROM purchase_invoices WHERE order_id=$1", first.OrderID)
+	})
+	if invoice.Snapshot.Total != 4800 || invoice.Snapshot.Tax != 36 || invoice.Snapshot.Subtotal != 4764 {
+		t.Fatalf("formal invoice lost provider tax: %+v", invoice.Snapshot)
+	}
 	grants, err = ActiveServiceEntitlements(app, person, now)
 	if err != nil || len(grants) != 1 || grants[0].Quantity != 2 || !grants[0].EndsAt.Equal(end) {
 		t.Fatal("paid allowance", grants, err)

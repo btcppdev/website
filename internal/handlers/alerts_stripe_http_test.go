@@ -227,7 +227,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	}
 	returnPath := "/services/alerts/checkout/" + intent
 	code, body, _ := call(returnPath+"?result=returned&paid=true", nil)
-	if code != 200 || !strings.Contains(body, "Awaiting payment confirmation") {
+	if code != 200 || !strings.Contains(body, "Continue checkout") || strings.Contains(body, "Payment confirmed") {
 		t.Fatal("redirect claimed payment", code, body)
 	}
 	var grants int

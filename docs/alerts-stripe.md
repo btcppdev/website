@@ -715,3 +715,46 @@ verified against the isolated database. This command does not start a web server
 poll releases or send mail. Docker is unavailable in the development environment,
 so container build/runtime verification and a production recovery exercise remain
 outstanding.
+
+
+### Production activation checklist (October 23, 2026)
+
+The production audit found a live Stripe key and active Stripe Tax settings.
+There is no sample-tax fallback: receipts and formal invoices use the verified
+provider invoice's recorded tax and total. The preview files are not application data.
+Tax registration coverage must be maintained in Stripe for the seller's actual obligations;
+the audit is not a determination of where registration is required.
+
+The checked-in App Platform specification now enables
+`SERVICE_RECEIPTS_ENABLED=true` and
+`SERVICE_STRIPE_RECONCILIATION_ENABLED=true`.
+For the existing app, merge these two runtime variables into its current specification
+or set them in App Platform settings; do not replace the live specification wholesale
+with this historical checked-in specification. Deploying source alone does not
+necessarily synchronize App Platform environment settings.
+
+The existing signed Stripe endpoint `https://btcpp.dev/callback/stripe` must retain
+its existing subscriptions and also receive:
+- `checkout.session.completed`
+- `checkout.session.expired`
+- `invoice.paid`
+- `invoice.payment_failed`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `customer.subscription.paused`
+- `customer.subscription.resumed`
+
+Update the existing endpoint rather than replacing its signing secret. Verify that
+its event API version supplies the invoice parent/subscription metadata expected by
+the installed Stripe SDK. Before changing an existing endpoint's API version, verify
+the merchandise and ticket callback fixtures too.
+
+The audit found no queued receipt jobs. Enabling the receipt worker will send any
+eligible jobs present at activation time, then future verified payment receipts.
+Do not send an unpaid-checkout email or invent tax amounts to test the live path.
+After an authorized real purchase, verify the signed `invoice.paid` callback, one
+paid order with the provider's total and tax, one receipt job accepted by the mailer,
+and an account-owned downloadable invoice. Check `service-receipts` and metrics
+for failures; acceptance by the mailer is not proof of inbox delivery.
+
+Production settings/webhook updates require explicit rollout authorization.
