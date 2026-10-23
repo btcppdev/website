@@ -24,11 +24,18 @@ import (
 func annualFixture() annualReportPage {
 	p := annualReportPage{Year: 2026, Recipient: "NYDIG", Cutoff: "2026-10-19", Generated: "2026-10-19T20:00:00Z", Saved: map[string]string{}, RegistrationBased: true, UniqueRegistrants: 1090, RepeatRegistrants: 115, UniqueSpeakers: 178, UniqueParticipants: 150, Preview: true}
 	p.Sections = annualSections(p.Year, p.Recipient)
-	for i, city := range []string{"Floripa", "Vienna", "Las Vegas", "Nairobi", "Toronto", "Berlin"} {
+	for i, city := range []string{"Floripa", "Las Vegas", "Vienna", "Nairobi", "Toronto", "Berlin"} {
 		start := time.Date(2026, time.Month(i+4), 12, 0, 0, 0, 0, time.UTC)
 		end := start.AddDate(0, 0, 2)
 		e := annualEvent{Event: reportEvent{ID: fmt.Sprintf("00000000-0000-4000-8000-%012d", i+1), Tag: strings.ToLower(strings.ReplaceAll(city, " ", "")), Location: city, Title: "Illustrative event", Start: &start, End: &end, Timezone: "UTC"}, Included: true, Eligible: true, Attendees: int64(100 + i*20), Registrations: int64(150 + i*25), Talks: int64(20 + i*3), Workshops: int64(4 + i), Panels: 3, HackCoverage: "records", Projects: int64(10 + i*4), Participants: int64(25 + i*8), Winners: 3, Challenges: 4, Sats: 5000000}
+		e.Proposals = int64(90 + i*20)
 		e.Event.Period = reportEventPeriod(e.Event)
+		imageTags := []string{"floripa26", "vegas", "vienna", "nairobi", "toronto", "berlin26"}
+		e.Event.Tag = imageTags[i]
+		e.Event.LeadImage = "/static/img/" + imageTags[i] + "/leading.avif"
+		if i == 0 {
+			e.Event.LeadImage = "/static/img/floripa26/leading.png"
+		}
 		if i == 1 || i == 2 {
 			e.HackCoverage = "none"
 			e.Projects = 0
@@ -44,11 +51,14 @@ func annualFixture() annualReportPage {
 		}
 		p.Events = append(p.Events, e)
 	}
+	seoulStart := time.Date(2026, time.November, 5, 0, 0, 0, 0, time.UTC)
+	seoulEnd := seoulStart.AddDate(0, 0, 1)
+	p.Events = append(p.Events, annualEvent{Event: reportEvent{ID: "00000000-0000-4000-8000-000000000007", Tag: "seoul", Location: "Seoul", Title: "Privacy edition", Period: "5–6 November 2026", Start: &seoulStart, End: &seoulEnd, Timezone: "Asia/Seoul", LeadImage: "/static/img/seoul/leading.png"}, HackCoverage: "unknown"})
 	return p
 }
 
 func TestAnnualReportRender(t *testing.T) {
-	tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl")
+	tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl", "../../templates/admin/reports.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +74,7 @@ func TestAnnualReportRender(t *testing.T) {
 			t.Fatal(err)
 		}
 		body := out.String()
-		for _, want := range []string{"Registrations by event", "No hackathon", "Data not yet reconciled", "Annual export not supplied", "Illustrative winning project", "<strong>Technical conversations</strong>", "/nairobi/hackathon/projects/demo"} {
+		for _, want := range []string{"Selected projects have finalized awards", "Illustrative winning project", "<strong>Technical conversations</strong>", "/nairobi/hackathon/projects/demo"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("missing %q", want)
 			}
@@ -168,6 +178,9 @@ CREATE TEMP TABLE sponsor_report_drafts(scope text PRIMARY KEY,content jsonb NOT
 		t.Fatal(err)
 	}
 	tmpl, err := template.New("admin/annual_report.tmpl").Parse(string(source))
+	if err == nil {
+		_, err = tmpl.ParseFiles("../../templates/admin/reports.tmpl")
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +301,7 @@ func TestAnnualReportPreview(t *testing.T) {
 			p.Recipient = "HRF"
 			p.Sections = annualSections(p.Year, p.Recipient)
 		}
-		tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl")
+		tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl", "../../templates/admin/reports.tmpl")
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -309,7 +322,7 @@ func TestAnnualReportLegacyFrozenParticipation(t *testing.T) {
 	if p.ParticipationChart().Rows[0].Value != p.Events[0].Attendees || p.ReturningChart().DonutTotal() != 790 {
 		t.Fatal("legacy snapshot metrics were changed")
 	}
-	tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl")
+	tmpl, err := template.ParseFiles("../../templates/admin/annual_report.tmpl", "../../templates/admin/reports.tmpl")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +330,7 @@ func TestAnnualReportLegacyFrozenParticipation(t *testing.T) {
 	if err := tmpl.Execute(&out, p); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "Check-ins by event") || strings.Contains(out.String(), "Registrations by event") {
+	if !strings.Contains(out.String(), "event attendances</span>") || strings.Contains(out.String(), "registrations</span>") {
 		t.Fatal("legacy snapshot was relabeled")
 	}
 	p.RegistrationBased = true

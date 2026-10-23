@@ -28,6 +28,10 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 		return err
 	}
 	defer tx.Rollback(ctx)
+	postLibrary, err := loadReportPosts(ctx, tx, p.Year)
+	if err != nil {
+		return err
+	}
 	// Fetch the roster first and close it before opening reading each event.
 	rows, err := tx.Query(ctx, `SELECT id::text,tag,coalesce(nullif(description,''),tag),location,timezone,date_desc,start_date,end_date FROM conferences WHERE publication_status='published' ORDER BY start_date,tag`)
 	if err != nil {
@@ -41,6 +45,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 		}
 		if e.Start != nil && e.Start.In(reportEventLocation(e)).Year() == p.Year {
 			e.Period = reportEventPeriod(e)
+			e.LeadImage = confImagePath(e.Tag, "leading")
 			roster = append(roster, e)
 		}
 	}
@@ -100,6 +105,11 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 					return err
 				}
 			}
+			e.Proposals = data.Proposals
+			e.Applications = verifiedReportApplications(data.Saved)
+			data.PostLibrary = postLibrary
+			e.Posts = data.ApprovedPosts()
+			e.Media = data.Media()
 			for _, platform := range data.ReachPlatforms() {
 				if platform.Ready() {
 					e.Reach = append(e.Reach, platform)

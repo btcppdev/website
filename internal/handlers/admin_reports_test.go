@@ -230,9 +230,15 @@ func TestReportMetricsPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err = db.Exec(ctx, `UPDATE people SET norm_photo_path='https://example.test/winner.jpg' WHERE id='person1'`); err != nil {
+		t.Fatal(err)
+	}
 	page := sponsorReportPage{Event: reportEvent{ID: "event", Tag: "nairobi", Timezone: "Africa/Nairobi"}}
 	if err = loadEventReport(ctx, &config.AppContext{DB: db}, &page); err != nil {
 		t.Fatal(err)
+	}
+	if len(page.Winners) != 1 || len(page.Winners[0].Portraits) != 2 || page.Winners[0].Portraits[0].Photo != "https://example.test/winner.jpg" {
+		t.Fatal("winner team duplicated across awards or missing member profiles")
 	}
 	if len(page.TeamSizes) != 6 || page.TeamSizes[1].Value != 1 || page.TeamSizes[2].Value != 1 || page.TeamSizes[0].Value != 0 {
 		t.Fatal("team-size distribution lost project membership or included drafts")
@@ -249,6 +255,16 @@ func TestReportMetricsPostgres(t *testing.T) {
 	}
 	if anonymized.Attendees != page.Attendees || anonymized.Registrations != page.Registrations {
 		t.Fatal("deletion changed historical attendance totals")
+	}
+	if len(page.ProposalStatuses) != 2 || page.Proposals != 2 {
+		t.Fatalf("proposal breakdown includes non-speaking sessions: %+v", page.ProposalStatuses)
+	}
+	var proposalSum int64
+	for _, row := range page.ProposalStatuses {
+		proposalSum += row.Value
+	}
+	if proposalSum != page.Proposals {
+		t.Fatal("proposal status breakdown multiplied records")
 	}
 	if len(page.Sessions) != 1 || len(page.Speakers) != 1 || len(page.Judges) != 1 || len(page.Winners) != 1 {
 		t.Fatalf("bad content counts: sessions %d speakers %d judges %d winners %d", len(page.Sessions), len(page.Speakers), len(page.Judges), len(page.Winners))
@@ -325,7 +341,7 @@ CREATE TEMP TABLE project_awards(project_id text,award_id text);
 CREATE TEMP TABLE award_distributions(competition_id text,project_id text,amount_sats bigint,distribution_type text,status text);
 CREATE TEMP TABLE people(id text PRIMARY KEY,name text,norm_photo_path text,company text);
 CREATE TEMP TABLE proposals(id text,conference_id text,title text,talk_type text,status text);
-CREATE TEMP TABLE conf_talks(id text,conference_id text,proposal_id text,scheduled_start timestamptz,scheduled_end timestamptz,archived_at timestamptz,venue text NOT NULL DEFAULT '');
+CREATE TEMP TABLE conf_talks(id text,conference_id text,proposal_id text,scheduled_start timestamptz,scheduled_end timestamptz,archived_at timestamptz,venue text NOT NULL DEFAULT '',social_card_path text NOT NULL DEFAULT '');
 CREATE TEMP TABLE recordings(conf_talk_id text,youtube_url text,x_url text);
 CREATE TEMP TABLE proposals_speaker_confs(proposal_id text,speaker_conf_id text);
 CREATE TEMP TABLE speaker_confs(id text,speaker_id text,coming_from text NOT NULL DEFAULT '');

@@ -1,0 +1,37 @@
+{
+  "account": "btcplusplus",
+  "retrieved_at": "2026-10-23T16:13:13.541872+00:00",
+  "from": "2026-01-01",
+  "through": "2026-10-23",
+  "post_count": 774,
+  "impressions": 1160550,
+  "source": "X account analytics · authenticated contentPageQuery",
+  "coverage": "Account-wide organic lifetime impressions for posts published in 2026 through collection; 774 available posts. One unavailable May post omitted. Includes upcoming-event promotion.",
+  "top_posts": [
+    {
+      "url": "https://x.com/btcplusplus/status/2088227389918581098",
+      "text": "NOW LIVE 🎥: Tail Emissions and Demurrage\n\nFeaturing: Peter Todd (@peterktodd)\n\nhttps://t.co/Ol7Mqrk9k2 https://t.co/bs0sUiUAHx",
+      "impressions": 124379
+    },
+    {
+      "url": "https://x.com/btcplusplus/status/2081788116000518640",
+      "text": "We're live now! \n\nhttps://t.co/obpnbz58i7",
+      "impressions": 62072
+    },
+    {
+      "url": "https://x.com/btcplusplus/status/2027816355773526467",
+      "text": "running his localsploits project to evict other peers off the network using a firefox ports bug; @0xB10C at the @btcplusplus exploits hackathon finals in Floripa https://t.co/adghqn5Cgo",
+      "impressions": 17069
+    },
+    {
+      "url": "https://x.com/btcplusplus/status/2008584819081703482",
+      "text": "Bitcoin isn't private by default 🥲\n\nExchanges, merchants, donation pages etc are often re-using bitcoin addresses\n\nSo how can we make bitcoin private?\n\nVia Silent Payments 👀\n\nIn this talk Dana Wallet creator 'cygnet3' explains how bitcoiners can regain privacy! 🔥 https://t.co/pp5Cdl1mbm",
+      "impressions": 16676
+    },
+    {
+      "url": "https://x.com/btcplusplus/status/2047792777786970156",
+      "text": "Peter Todd (@peterktodd) joins us to discuss The Case for Tail Emissions. He claims that if Satoshi had implemented a constant emission, we’d be talking about how the predictability of the supply is really great https://t.co/sUzJqwWuHo",
+      "impressions": 16007
+    }
+  ]
+}

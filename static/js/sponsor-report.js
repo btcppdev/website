@@ -120,7 +120,8 @@ if (reportForm) {
   let submitting = false;
   const saveStatus = document.getElementById("report-save-status");
   const pending = new Set();
-  const markDirty = () => {
+  const markDirty = (event) => {
+    if (event?.target?.id === "report-post-search" || event?.target?.id === "report-post-filter") return;
     dirty = true;
     saveStatus.textContent = (document.querySelector(".synthetic-banner") || document.body.dataset.readonly === "true")
       ? "Preview updated — changes are not saved."
@@ -188,3 +189,19 @@ if (reportForm) {
     }
   }, true);
 }
+
+// Attribution is saved server-side; filters never alter or drop form controls.
+const postSearch = document.getElementById("report-post-search");
+const postFilter = document.getElementById("report-post-filter");
+function filterReportPosts() {
+  const query = (postSearch?.value || "").toLowerCase();
+  const filter = postFilter?.value || "all";
+  document.querySelectorAll(".report-post-review").forEach(row => {
+    const choice = row.querySelector("select").value;
+    const matches = filter === "all" || (filter === "suggested" && row.dataset.suggested === "true") || (filter === "included" && choice === "include") || (filter === "pending" && choice === "");
+    row.hidden = !matches || !row.textContent.toLowerCase().includes(query);
+  });
+}
+postSearch?.addEventListener("input", filterReportPosts);
+postFilter?.addEventListener("change", filterReportPosts);
+document.querySelector(".report-post-review-list")?.addEventListener("change", filterReportPosts);
