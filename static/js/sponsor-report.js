@@ -13,6 +13,7 @@ if (recipientInput) recipientInput.addEventListener("input", () => {
   const option = recipientInput.selectedOptions[0];
   const name = option.dataset.name || (option.value === "legacy" ? option.textContent.replace(" · previous recipient", "") : "Our partners");
   for (const target of document.querySelectorAll("[data-report-recipient]")) target.textContent = name;
+  for (const fallback of document.querySelectorAll("[data-report-recipient-fallback]")) fallback.hidden = !!option.dataset.logo;
   for (const logo of document.querySelectorAll("[data-report-recipient-logo]")) {
     logo.hidden = !option.dataset.logo;
     if (option.dataset.logo) logo.src = option.dataset.logo; else logo.removeAttribute("src");

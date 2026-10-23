@@ -338,6 +338,8 @@ body:has(.synthetic-banner) .report-editor{display:block}
 @media(max-width:800px){.narrative-columns{grid-template-columns:1fr}}
 @media print{body:has(.synthetic-banner) .report-editor{display:none!important}body[data-layout=slides] .story-text.report-markdown{font-size:12px}.report-markdown a{overflow-wrap:anywhere}}
 
-.report-recipient-logo { display:block; width:180px; max-width:100%; height:65px; object-fit:contain; object-position:left center; margin:10px 0; padding:8px; background:#fff; border-radius:4px; }
+.report-recipient-logo { display:block; width:180px; max-width:100%; height:65px; object-fit:contain; object-position:left center; margin:10px 0; padding:0; background:transparent; border-radius:0; }
 .report-recipient-logo[hidden] { display:none; }
 @media print { .report-recipient-logo { width:42mm; height:16mm; } }
+
+[data-report-recipient-fallback][hidden] { display:none; }
