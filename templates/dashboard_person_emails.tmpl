@@ -218,20 +218,23 @@
         <form method="POST" action="/dashboard/settings/oauth-clients" class="person-email-add oauth-client-form mt-3">
           <input type="hidden" name="csrf" value="{{ .AuthMethodsCSRF }}">
           <label>APPLICATION NAME<input type="text" name="name" required maxlength="100" placeholder="My bitcoin++ app"></label>
-          <label>CLIENT TYPE<select name="client_type"><option value="public" selected>Public — native or browser app</option><option value="confidential">Confidential — server backend</option></select></label>
+          <label>CLIENT TYPE<select name="client_type" required><option value="" disabled selected>Choose a client type</option><option value="public">Public — native or browser app</option><option value="confidential">Confidential — server backend</option></select></label>
           <label class="oauth-client-form__callbacks">CALLBACK URLS <small>Enter one URL per line.</small><textarea name="redirect_uris" required rows="3" placeholder="https://app.example.com/oauth/callback&#10;myapp://oauth/callback"></textarea></label>
           <fieldset class="credential-permissions"><legend>ALLOWED PERMISSIONS</legend>
             <div class="credential-permissions__list">
-              <label for="oauth-scope-identity-read"><input id="oauth-scope-identity-read" type="checkbox" name="scopes" value="identity:self:read" checked><span><code>identity:self:read</code> Read account identity and current roles</span></label>
-              <label for="oauth-scope-organizations-read"><input id="oauth-scope-organizations-read" type="checkbox" name="scopes" value="organizations:self:read" checked><span><code>organizations:self:read</code> Read organization memberships and managed member rosters</span></label>
-              <label for="oauth-scope-profile-read"><input id="oauth-scope-profile-read" type="checkbox" name="scopes" value="profile:self:read" checked><span><code>profile:self:read</code> Read private profile</span></label>
+              <label for="oauth-scope-identity-read"><input id="oauth-scope-identity-read" type="checkbox" name="scopes" value="identity:self:read"><span><code>identity:self:read</code> Read account identity and current roles</span></label>
+              <label for="oauth-scope-organizations-read"><input id="oauth-scope-organizations-read" type="checkbox" name="scopes" value="organizations:self:read"><span><code>organizations:self:read</code> Read organization memberships and managed member rosters</span></label>
+              <label for="oauth-scope-profile-read"><input id="oauth-scope-profile-read" type="checkbox" name="scopes" value="profile:self:read"><span><code>profile:self:read</code> Read private profile</span></label>
               <label for="oauth-scope-profile-write"><input id="oauth-scope-profile-write" type="checkbox" name="scopes" value="profile:self:write"><span><code>profile:self:write</code> Update profile</span></label>
-              <label for="oauth-scope-talks-read"><input id="oauth-scope-talks-read" type="checkbox" name="scopes" value="talks:read" checked><span><code>talks:read</code> Read talks</span></label>
+              <label for="oauth-scope-talks-read"><input id="oauth-scope-talks-read" type="checkbox" name="scopes" value="talks:read"><span><code>talks:read</code> Read talks</span></label>
               <label for="oauth-scope-talks-write"><input id="oauth-scope-talks-write" type="checkbox" name="scopes" value="talks:write"><span><code>talks:write</code> Update talks</span></label>
               <label for="oauth-scope-schedule-write"><input id="oauth-scope-schedule-write" type="checkbox" name="scopes" value="schedule:write"><span><code>schedule:write</code> Manage schedules <small>Requires a current admin role.</small></span></label>
               <label for="oauth-scope-recordings-write"><input id="oauth-scope-recordings-write" type="checkbox" name="scopes" value="recordings:write"><span><code>recordings:write</code> Manage recordings <small>Requires a current admin role.</small></span></label>
               <label for="oauth-scope-shop-accounting-read"><input id="oauth-scope-shop-accounting-read" type="checkbox" name="scopes" value="shop:accounting:read"><span><code>shop:accounting:read</code> Read PII-free shop inventory and sales <small>Requires the current user to have <code>accts-admin</code>.</small></span></label>
-              <label for="oauth-scope-offline-access"><input id="oauth-scope-offline-access" type="checkbox" name="scopes" value="offline_access" checked><span><code>offline_access</code> Issue rotating refresh tokens</span></label>
+              <label for="oauth-scope-entitlements-read"><input id="oauth-scope-entitlements-read" type="checkbox" name="scopes" value="entitlements:self:read"><span><code>entitlements:self:read</code> Read purchased service and article access</span></label>
+              <label for="oauth-scope-newsletters-read"><input id="oauth-scope-newsletters-read" type="checkbox" name="scopes" value="newsletters:self:read"><span><code>newsletters:self:read</code> Read newsletter preferences for verified email addresses</span></label>
+              <label for="oauth-scope-newsletters-write"><input id="oauth-scope-newsletters-write" type="checkbox" name="scopes" value="newsletters:self:write"><span><code>newsletters:self:write</code> Change newsletter subscriptions for verified email addresses</span></label>
+              <label for="oauth-scope-offline-access"><input id="oauth-scope-offline-access" type="checkbox" name="scopes" value="offline_access"><span><code>offline_access</code> Issue rotating refresh tokens</span></label>
             </div>
           </fieldset>
           <button type="submit">Register OAuth application</button>

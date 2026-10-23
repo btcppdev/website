@@ -364,9 +364,10 @@ func DashboardOAuthClientCreate(w http.ResponseWriter, r *http.Request, ctx *con
 	redirects, validRedirects := parseOAuthRedirectURIs(r.FormValue("redirect_uris"))
 	scopes := r.Form["scopes"]
 	allowedScopes, validScopes := allowedOAuthScopes(strings.Join(scopes, " "), append(append([]string{}, types.APITokenScopes...), "offline_access"))
-	confidential := r.FormValue("client_type") == "confidential"
-	if name == "" || len(name) > 100 || !validRedirects || !validScopes {
-		http.Redirect(w, r, "/dashboard/settings?error="+url.QueryEscape("Application name, valid redirect URIs, and at least one valid scope are required."), http.StatusSeeOther)
+	clientType := r.FormValue("client_type")
+	confidential := clientType == "confidential"
+	if name == "" || len(name) > 100 || !validRedirects || !validScopes || (clientType != "public" && clientType != "confidential") {
+		http.Redirect(w, r, "/dashboard/settings?error="+url.QueryEscape("Application name, client type, valid redirect URIs, and at least one valid scope are required."), http.StatusSeeOther)
 		return
 	}
 	clientID, secret, secretHash, err := auth.GenerateOAuthClientCredentials(confidential)
