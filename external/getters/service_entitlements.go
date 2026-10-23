@@ -141,3 +141,22 @@ func queryServiceEntitlements(ctx context.Context, reader serviceAccessReader, p
 	}
 	return out, rows.Err()
 }
+
+// Scheduled Alerts grants are explicit, separately named future access. Older
+// clients ignore this field; no consumer may treat these as active immediately.
+func queryScheduledAlertsEntitlements(ctx context.Context, reader serviceAccessReader, person string, at time.Time) ([]ServiceEntitlement, error) {
+	rows, err := reader.Query(ctx, `SELECT e.id::text,e.product_code,e.resource_id,e.quantity,e.starts_at,e.ends_at FROM service_entitlements e JOIN service_purchase_requests r ON r.id=e.purchase_id JOIN shop_orders o ON o.id=r.order_id WHERE e.person_id=$1 AND r.person_id=e.person_id AND e.product_code='alerts.repository-slots' AND e.revoked_at IS NULL AND (`+servicePurchaseAccessSQL+`) AND e.starts_at>$2 AND e.ends_at>e.starts_at ORDER BY e.starts_at,e.id`, person, at)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ServiceEntitlement{}
+	for rows.Next() {
+		var e ServiceEntitlement
+		if err = rows.Scan(&e.ID, &e.ProductCode, &e.ResourceID, &e.Quantity, &e.StartsAt, &e.EndsAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}

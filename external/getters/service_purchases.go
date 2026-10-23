@@ -22,7 +22,9 @@ var ErrServiceBuyer = errors.New("service buyer needs a verified account email")
 type ServiceQuote struct {
 	LegalAcceptance *servicebilling.LegalAcceptance `json:"legal_acceptance,omitempty"`
 	// RecurringInvoice preserves provider-verified billing boundaries on fulfillment.
-	RecurringInvoice bool `json:"recurring_invoice,omitempty"`
+	RecurringInvoice   bool   `json:"recurring_invoice,omitempty"`
+	AlertsSwitchID     string `json:"alerts_switch_id,omitempty"`
+	AlertsRenewOrderID string `json:"alerts_renew_order_id,omitempty"`
 	// Alerts account evidence captured by the server during quote preparation.
 	BaseOrderID     string     `json:"base_order_id,omitempty"`
 	BillingMonths   int        `json:"billing_months,omitempty"`
@@ -158,7 +160,15 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_checkouts WHERE person_id=$1 AND closed_at IS NULL)`, personID).Scan(&stripePending); err != nil {
 			return nil, err
 		}
-		if stripePending {
+		if quote.AlertsSwitchID != "" {
+			if err = validateAlertsSwitchPurchase(ctx, tx, personID, quote); err != nil {
+				return nil, err
+			}
+		} else if quote.AlertsRenewOrderID != "" {
+			if err = validateAlertsRenewalPurchase(ctx, tx, personID, quote); err != nil {
+				return nil, err
+			}
+		} else if stripePending {
 			return nil, ErrAlertsStripeCheckoutConflict
 		}
 	}
@@ -238,6 +248,11 @@ func createServicePurchase(app *config.AppContext, personID, key string, quote S
 	if tax != nil {
 		_, err = tx.Exec(ctx, `INSERT INTO tax_quotes(order_id,sales_tax_provider,provider_quote_id,sales_tax_amount_cents,destination_country,destination_region,destination_postal_code,raw_tax_response,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9)`, purchase.OrderID, tax.Provider, tax.ProviderQuoteID, int64(tax.SalesTaxAmountCents), tax.DestinationCountry, tax.DestinationRegion, tax.DestinationPostalCode, tax.RawResponse, tax.ExpiresAt)
 		if err != nil {
+			return nil, err
+		}
+	}
+	if quote.AlertsSwitchID != "" {
+		if _, err = tx.Exec(ctx, `UPDATE alerts_bitcoin_switches SET purchase_id=$2 WHERE id=$1`, quote.AlertsSwitchID, purchase.PurchaseID); err != nil {
 			return nil, err
 		}
 	}

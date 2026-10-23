@@ -135,6 +135,7 @@ func main() {
 	handlers.StartServiceReceipts(&app)
 	handlers.StartAntarcticaWaitlist(&app)
 	handlers.StartExpeditionLifecycle(&app)
+	handlers.StartAlertsPrepaidReminders(&app)
 	handlers.StartEmailDirectoryCancellation(&app)
 	handlers.StartServiceFulfillment(&app)
 	handlers.StartServiceLifecycle(&app)

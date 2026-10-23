@@ -5,6 +5,7 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -24,6 +25,11 @@ type alertsStripeManagePage struct {
 	Revision, PeriodEnd                           int64
 	CanCancel                                     bool
 	CanDecrease                                   bool
+	CanIncrease                                   bool
+	Account                                       string
+	CanUpdateCard, CanSwitchBitcoin               bool
+	BitcoinSwitchPath                             string
+	MinIncrease, MaxIncrease                      int64
 	PaidSlots, MaxDecrease                        int64
 	DecreasePath                                  string
 }
@@ -202,8 +208,29 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 			return
 		}
 		page.PaidSlots = binding.PaidSlots
+		page.CanUpdateCard = state.ProviderStatus != "canceled" && state.ProviderStatus != "incomplete_expired"
+		page.CanSwitchBitcoin = page.CanCancel && state.State == "active" && app.Env.OpenNode.Key != ""
+		var switchID string
+		err = app.DB.QueryRow(r.Context(), `SELECT id::text FROM alerts_bitcoin_switches WHERE checkout_id=$1 AND state<>'withdrawn'`, page.Checkout).Scan(&switchID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, "Unable to read payment settings", 503)
+			return
+		}
+		if switchID != "" {
+			page.BitcoinSwitchPath = "/services/alerts/payment-method?switch=" + switchID
+			page.CanSwitchBitcoin = false
+		}
+		page.Account = identity.PersonID
+		page.MinIncrease = binding.PaidSlots + 1
+		page.MaxIncrease = 2147483647 / servicebilling.AlertsAnnualSlotCents
+		page.CanIncrease = page.CanCancel && state.State == "active" && page.MinIncrease <= page.MaxIncrease && outcome != "pending" && outcome != "review"
 		page.MaxDecrease = binding.PaidSlots - 1
 		page.CanDecrease = page.CanCancel && state.State == "active" && binding.PaidSlots > 1 && outcome != "pending" && outcome != "review"
+		if switchID != "" {
+			page.CanIncrease = false
+			page.CanDecrease = false
+			page.CanCancel = false
+		}
 		var decreaseID, decreaseState string
 		err = app.DB.QueryRow(r.Context(), `SELECT quote_id::text,state FROM alerts_stripe_decreases WHERE checkout_id=$1 AND state IN ('pending','scheduled','review')`, page.Checkout).Scan(&decreaseID, &decreaseState)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -211,6 +238,8 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 			return
 		}
 		if decreaseID != "" {
+			page.CanSwitchBitcoin = false
+			page.CanIncrease = false
 			page.CanDecrease = false
 			page.CanCancel = false
 			page.DecreasePath = "/services/alerts/decrease/" + decreaseID
@@ -229,7 +258,7 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 				page.Message = "Your subscription change needs review. Contact support before submitting another change."
 			}
 		}
-		if page.CanCancel || page.CanDecrease {
+		if page.CanCancel || page.CanDecrease || page.CanUpdateCard {
 			page.Key = uuid.NewString()
 			page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 			if err != nil {

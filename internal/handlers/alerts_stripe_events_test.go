@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"btcpp-web/internal/alertsstripe"
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -48,5 +50,15 @@ func TestUnsignedAlertsStripeInvoiceCannotReachDatabase(t *testing.T) {
 	StripeCallback(out, req, app)
 	if out.Code != 400 {
 		t.Fatal("unsigned invoice accepted", out.Code)
+	}
+}
+
+func TestAlertsCardSetupEventsNeverFulfillPurchases(t *testing.T) {
+	for _, kind := range []stripe.EventType{"checkout.session.completed", "checkout.session.expired"} {
+		event := stripe.Event{Type: kind, Data: &stripe.EventData{Raw: json.RawMessage(`{"id":"cs_setup","mode":"setup","metadata":{"purpose":"alerts-card-update"}}`)}}
+		handled, err := processAlertsStripeEvent(context.Background(), nil, event, alertsstripe.Client{})
+		if !handled || err != nil {
+			t.Fatal(handled, err)
+		}
 	}
 }

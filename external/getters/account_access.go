@@ -17,10 +17,11 @@ type AlertsRenewalAccess struct {
 	RenewalURL string    `json:"renewalUrl"`
 }
 type AccountAccessSnapshot struct {
-	AccountID    string                `json:"accountId"`
-	AsOf         time.Time             `json:"asOf"`
-	Entitlements []ServiceEntitlement  `json:"entitlements"`
-	Renewals     []AlertsRenewalAccess `json:"renewals"`
+	AccountID             string                `json:"accountId"`
+	AsOf                  time.Time             `json:"asOf"`
+	Entitlements          []ServiceEntitlement  `json:"entitlements"`
+	ScheduledEntitlements []ServiceEntitlement  `json:"scheduledEntitlements,omitempty"`
+	Renewals              []AlertsRenewalAccess `json:"renewals"`
 }
 
 // Access and renewal state share a consistent database snapshot, including when
@@ -33,6 +34,10 @@ func AccountAccess(ctx context.Context, app *config.AppContext, person string, a
 	defer tx.Rollback(ctx)
 	out := &AccountAccessSnapshot{AccountID: person, AsOf: at, Renewals: []AlertsRenewalAccess{}}
 	out.Entitlements, err = queryServiceEntitlements(ctx, tx, person, at)
+	if err != nil {
+		return nil, err
+	}
+	out.ScheduledEntitlements, err = queryScheduledAlertsEntitlements(ctx, tx, person, at)
 	if err != nil {
 		return nil, err
 	}

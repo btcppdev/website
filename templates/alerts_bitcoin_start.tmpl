@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><title>Prepay for Alerts · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=3"></head>
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=4"></head>
 <body class="shop-page">{{ block "mainnav" . }}{{ end }}
-<main class="service-checkout"><section>
+<main class="service-checkout service-checkout--account">
+<nav class="service-account-nav" aria-label="Breadcrumb"><ol><li><a href="/dashboard">Dashboard</a></li><li><a href="/dashboard/subscriptions">Subscriptions</a></li><li><a href="/services/alerts/manage">Alerts billing</a></li><li><span aria-current="page">Bitcoin payment</span></li></ol></nav>
+<section>
 <header class="service-checkout__head"><span class="service-kicker">BITCOIN++ ALERTS</span><h1>Pay with Bitcoin</h1><p>Your first three repositories are free. A new {{ .Months }}-month term for {{ .Slots }} additional repositories costs {{ .Total }}, including applicable tax.</p></header>
-<p>No automatic renewal. If you already have a prepaid plan, the next page shows the prorated price for added repositories through your existing paid-through date.</p>
+{{if .RenewOrderID}}<p>This annual renewal covers {{.Starts}} through {{.Ends}}. No automatic renewal.</p>{{else if .SwitchID}}<p>Your card renewal is off. This Bitcoin payment covers {{.Starts}} through {{.Ends}}. It does not replace or shorten your already-paid card period.</p>{{else}}<p>No automatic renewal. If you already have a prepaid plan, the next page shows the prorated price for added repositories through your existing paid-through date.</p>{{end}}
 {{ if .Enabled }}<form method="post" action="/services/alerts/prepay" class="alerts-billing-address">
-<input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="months" value="{{ .Months }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
+{{if .RenewOrderID}}<input type="hidden" name="renew" value="{{.RenewOrderID}}">{{end}}{{if .SwitchID}}<input type="hidden" name="switch" value="{{.SwitchID}}">{{end}}<input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="months" value="{{ .Months }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
 <p class="alerts-billing-address__wide">Your billing address determines the tax included in the price.</p>
 <label class="alerts-billing-address__wide">Street address<input name="line1" autocomplete="address-line1" maxlength="200" required></label>
 <label class="alerts-billing-address__wide">Apartment or suite (optional)<input name="line2" autocomplete="address-line2" maxlength="200"></label>

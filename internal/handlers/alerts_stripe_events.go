@@ -21,6 +21,14 @@ func handleAlertsStripeEvent(ctx context.Context, app *config.AppContext, event 
 }
 
 func processAlertsStripeEvent(ctx context.Context, app *config.AppContext, event stripe.Event, client alertsstripe.Client) (bool, error) {
+	// Setup sessions save a card, not a ticket or service purchase. The signed-in
+	// confirmation flow verifies the SetupIntent before applying it to Alerts.
+	if event.Data != nil && (event.Type == "checkout.session.completed" || event.Type == "checkout.session.expired") {
+		var setup stripe.CheckoutSession
+		if json.Unmarshal(event.Data.Raw, &setup) == nil && setup.Mode == "setup" && setup.Metadata["purpose"] == "alerts-card-update" {
+			return true, nil
+		}
+	}
 	intent, sessionID, invoiceID, handled, err := alertsStripeEventReferences(event)
 	if !handled || err != nil {
 		return handled, err

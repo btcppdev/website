@@ -10,7 +10,15 @@
 {{ if .Period }}<p>Current billing period ends {{ .Period }}.</p>{{ end }}
 <p>After paid access ends, your three free projects remain active. Your other subscriptions and notification settings stay saved.</p>
 {{ if .PaidSlots }}<p>Current paid project allowance: <strong>{{ .PaidSlots }}</strong>, plus three free projects.</p>{{ end }}
+{{ if .CanUpdateCard }}<section class="alerts-upgrade-action"><h2>Payment method</h2><form method="post" action="/services/alerts/payment-method"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="checkout" value="{{.Checkout}}"><input type="hidden" name="change" value="{{.Key}}"><input type="hidden" name="action" value="card"><p>Update the saved card used for Alerts renewals and upgrades securely through Stripe.</p><button class="service-primary">Update saved card</button></form></section>{{end}}
+{{if .BitcoinSwitchPath}}<p><a href="{{.BitcoinSwitchPath}}">Manage your switch to Bitcoin</a></p>{{end}}
+{{if .CanSwitchBitcoin}}<details class="alerts-upgrade-action"><summary>Switch to annual Bitcoin payments</summary><p>Stop card renewal at the end of your current period, then prepay for 12 months with Bitcoin. Your current access stays available. No automatic Bitcoin renewal or failed-renewal grace period applies.</p><form method="post" action="/services/alerts/payment-method"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="checkout" value="{{.Checkout}}"><input type="hidden" name="change" value="{{.Key}}"><input type="hidden" name="revision" value="{{.Revision}}"><input type="hidden" name="periodEnd" value="{{.PeriodEnd}}"><input type="hidden" name="action" value="bitcoin"><button class="service-primary">Stop card renewal and switch to Bitcoin</button></form></details>{{end}}
 {{ if .DecreasePath }}<p><a href="{{ .DecreasePath }}">View subscription change</a></p>{{ end }}
+{{ if .CanIncrease }}<form method="get" action="/services/alerts/subscribe" class="alerts-upgrade-action alerts-quantity-form">
+<input type="hidden" name="account" value="{{ .Account }}">
+<label for="increased-paid-projects">New total paid projects</label><input id="increased-paid-projects" name="slots" type="number" min="{{ .MinIncrease }}" max="{{ .MaxIncrease }}" value="{{ .MinIncrease }}" required>
+<p>Your three free projects are separate. Additional paid projects cost $24/year each, including applicable tax. Review the prorated charge for the rest of your current billing period before confirming.</p>
+<button type="submit" class="service-primary">Review increase</button></form>{{ end }}
 {{ if .CanDecrease }}<form method="post" action="/services/alerts/manage" class="alerts-upgrade-action alerts-quantity-form">
 <input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="decrease">
 <label for="paid-projects">Paid projects after renewal</label><input id="paid-projects" name="slots" type="number" min="1" max="{{ .MaxDecrease }}" value="{{ .MaxDecrease }}" required>

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"btcpp-web/external/getters"
+	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/servicebilling"
@@ -18,10 +19,11 @@ import (
 )
 
 type alertsBitcoinStartPage struct {
-	Account, CSRF, Total string
-	Slots                int64
-	Months               int
-	Enabled              bool
+	Account, CSRF, Total                 string
+	SwitchID, RenewOrderID, Starts, Ends string
+	Slots                                int64
+	Months                               int
+	Enabled                              bool
 }
 
 func alertsBitcoinSelection(values url.Values) (string, int64, int, error) {
@@ -86,7 +88,14 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 			http.Error(w, "Sign in before preparing checkout", 401)
 			return
 		}
-		next := "/services/alerts/prepay?" + url.Values{"account": {account}, "slots": {strconv.FormatInt(slots, 10)}, "months": {strconv.Itoa(months)}}.Encode()
+		nextValues := url.Values{"account": {account}, "slots": {strconv.FormatInt(slots, 10)}, "months": {strconv.Itoa(months)}}
+		for _, name := range []string{"switch", "renew"} {
+			if len(values[name]) == 1 {
+				nextValues.Set(name, values.Get(name))
+			}
+		}
+		next := "/services/alerts/prepay?" + nextValues.Encode()
+
 		http.Redirect(w, r, "/login?next="+url.QueryEscape(next), 303)
 		return
 	}
@@ -95,6 +104,49 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 		return
 	}
 	enabled := app.Env != nil && strings.TrimSpace(app.Env.OpenNode.Key) != "" && strings.TrimSpace(app.Env.StripeKey) != ""
+	switchID := values.Get("switch")
+	renewOrder := values.Get("renew")
+	var switchStart time.Time
+	if switchID != "" {
+		if len(values["switch"]) != 1 || months != 12 {
+			http.Error(w, "Invalid Bitcoin switch", 400)
+			return
+		}
+		sw, e := getters.AlertsBitcoinSwitchForPerson(r.Context(), app, account, switchID)
+		if e != nil || sw.State != "scheduled" || sw.CancellationState != "confirmed" || sw.Quantity != slots || sw.PurchaseID != "" {
+			http.Error(w, "Return to payment settings to review this switch", 409)
+			return
+		}
+		if !enabled {
+			http.Error(w, "Bitcoin checkout is unavailable", 503)
+			return
+		}
+		client := alertsstripe.NewClient(strings.HasPrefix(app.Env.StripeKey, "sk_live_") || strings.HasPrefix(app.Env.StripeKey, "rk_live_"))
+		if e = getters.RefreshAlertsStripeSubscription(r.Context(), app, account, sw.CheckoutID, client); e != nil {
+			http.Error(w, "Unable to verify card cancellation", 503)
+			return
+		}
+		switchStart = time.Unix(sw.PeriodEnd, 0).UTC()
+		if switchStart.Before(time.Now()) {
+			switchStart = time.Now().UTC().Truncate(time.Second)
+		}
+	}
+
+	if renewOrder != "" {
+		if switchID != "" || len(values["renew"]) != 1 || months != 12 {
+			http.Error(w, "Invalid renewal", 400)
+			return
+		}
+		quantity, end, e := getters.AlertsPrepaidRenewal(r.Context(), app, account, renewOrder)
+		if e != nil || quantity != slots {
+			http.Error(w, "Your prepaid plan changed. Return to billing to review it.", 409)
+			return
+		}
+		switchStart = end
+		if switchStart.Before(time.Now()) {
+			switchStart = time.Now().UTC().Truncate(time.Second)
+		}
+	}
 	if r.Method == http.MethodPost {
 		if len(values["csrf"]) != 1 || !secureTokenEqual(app.Session.GetString(r.Context(), authMethodsCSRFKey), values.Get("csrf")) {
 			http.Error(w, "Reload checkout and try again", 403)
@@ -109,7 +161,20 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 			http.Error(w, "Enter a complete billing address with a two-letter country code", 422)
 			return
 		}
-		quote, tax, err := PrepareAlertsCheckout(r.Context(), app, account, "opennode", slots, months, address)
+		var quote *getters.ServiceQuote
+		var tax *getters.TaxQuoteInput
+		if switchID != "" || renewOrder != "" {
+			quote, tax, err = AlertsTermTaxQuote(r.Context(), "opennode", slots, 12, switchStart, address)
+			if err == nil {
+				quote.AccountRevision, err = getters.AlertsBillingRevision(app, account)
+				quote.AlertsSwitchID = switchID
+				quote.AlertsRenewOrderID = renewOrder
+				quote.BillingMonths = 12
+			}
+		} else {
+			quote, tax, err = PrepareAlertsCheckout(r.Context(), app, account, "opennode", slots, months, address)
+		}
+
 		if errors.Is(err, ErrAlertsPendingPurchase) || errors.Is(err, ErrAlertsPlanReview) || errors.Is(err, ErrAlertsRenewalChange) || errors.Is(err, ErrAlertsZeroCharge) {
 			http.Error(w, "Your existing Alerts plan needs review before this purchase. Return to My alerts to check your billing.", 409)
 			return
@@ -133,7 +198,15 @@ func AlertsBitcoinStart(w http.ResponseWriter, r *http.Request, app *config.AppC
 	}
 	total := slots * servicebilling.AlertsMonthlySlotCents * int64(months)
 	page := alertsBitcoinStartPage{Account: account, CSRF: csrf, Slots: slots, Months: months, Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Enabled: enabled}
+	if switchID != "" || renewOrder != "" {
+		page.SwitchID = switchID
+		page.RenewOrderID = renewOrder
+		page.Starts = switchStart.Format("January 2, 2006")
+		term, _ := servicebilling.AlertsTerm("opennode", slots, 12, switchStart)
+		page.Ends = term.End.Format("January 2, 2006")
+	}
 	var html bytes.Buffer
+
 	if err = app.TemplateCache.ExecuteTemplate(&html, "alerts_bitcoin_start.tmpl", page); err != nil {
 		http.Error(w, "Unable to show checkout", 500)
 		return

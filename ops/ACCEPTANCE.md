@@ -82,3 +82,39 @@ six outputs under `target/release-linux-amd64/` are statically linked Linux x86-
 executables (`/private/tmp/btcpp-service-linux-build-20261001.log`). These are
 local build artifacts, not a deployed release. Docker is unavailable in this
 session, so the image build and container startup remain unverified.
+
+## Alerts payment settings
+
+The payment-settings update adds migrations 133 and 134. Apply these with the
+normal database migration command before starting the updated bitcoin++ app.
+The matching Alerts update accepts the new optional `scheduledEntitlements`
+field and enforces its start dates locally, avoiding a polling gap at renewal.
+Deploy Alerts before or alongside bitcoin++; older clients safely ignore the
+optional field and continue polling. No new OAuth scope is required.
+`SERVICE_RECEIPTS_ENABLED=true` and the existing mailer configuration also
+start prepaid renewal reminders (seven days and one day before access expires).
+
+Local verification uses an isolated migrated PostgreSQL database and mocked
+provider HTTP, never production charges:
+
+- Update saved card: Stripe Checkout setup mode, followed by an owned,
+  CSRF-protected confirmation. Verify that only the Alerts subscription's default
+  payment method changes; quantity, period, and cancellation stay unchanged.
+- Card setup completion/expiry webhooks are acknowledged separately from tickets
+  and subscription purchases. They grant no access and do not apply a card.
+- Switch to Bitcoin: confirm cancellation, wait for verified Stripe cancellation,
+  and purchase a 12-month term beginning at the current card period boundary.
+  If the previous period already ended, a fresh quote begins now.
+- A switch can be withdrawn before payment is initiated. An unstarted order is
+  canceled transactionally; an initiated or paid OpenNode charge blocks automatic
+  card resumption and needs support review to avoid overlapping payments.
+- An expired, unstarted Bitcoin order can be canceled and requoted. Initiated
+  charges reuse the existing order/reconciliation flow, never a second charge.
+- Unpaid expiry falls back to three projects without renewal-failure grace.
+  Verified future-dated grants do not become active before their start date.
+- Prepaid renewal reminders link back to account-owned checkout. Renewals retain
+  the prepaid boundary; duplicate clicks return the existing purchase. Reminders
+  stop once a subsequent term is funded. The mailer job key is stable on retry.
+
+Before production release, exercise one Stripe test-mode card update and one
+OpenNode sandbox switch payment, including returning after browser interruption.
