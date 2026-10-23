@@ -29,3 +29,13 @@
 .service-checkout .alerts-billing-address label{display:grid;gap:8px;font-size:14px}
 .service-checkout .alerts-billing-address input{width:100%;padding:12px;border:1px solid #b7b0a6;background:#fff;font:inherit}
 @media(max-width:760px){.service-checkout{grid-template-columns:1fr;gap:32px;margin:32px auto 64px;padding:0 20px}.service-summary{grid-row:1}.service-summary img{max-height:170px;object-fit:cover}.service-summary__body{padding:20px}.service-checkout .alerts-billing-address{grid-template-columns:1fr}.service-checkout .alerts-billing-address__wide{grid-column:auto}}
+.service-checkout--status>section{min-width:0}
+.service-checkout .service-status-message{border-left:3px solid #e95742;padding:4px 0 4px 20px}
+.service-checkout-actions{display:grid;gap:14px;margin:32px 0}
+.service-checkout .service-checkout-actions form{margin:0}
+.service-checkout-actions>a{justify-self:start;padding:8px 0}
+.service-checkout button.service-secondary{background:transparent;color:#171717}
+.service-checkout button.service-secondary:hover{background:#e8e1d7}
+.service-checkout-reference{display:grid;gap:12px;border-top:1px solid #d6d0c7;margin:32px 0;padding-top:24px}
+.service-checkout-reference code{font-size:13px;line-height:1.6;overflow-wrap:anywhere;user-select:all}
+@media(max-width:760px){.service-checkout--status .service-summary{grid-row:auto}}
