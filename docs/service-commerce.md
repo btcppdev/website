@@ -953,3 +953,16 @@ Alerts uses that response on every privileged request and requires the exact
 this role for its admin interface. The account settings page links authorized
 users to https://alerts.btcpp.dev/admin. Newly granted administrators sign in
 again to establish the short-lived, encrypted identity session.
+
+### Alerts global-admin operational recipients
+
+`GET /api/internal/email-directory/alerts/operators` is restricted to the Alerts
+email-directory bearer token. It returns current global-admin account IDs and a
+verified email, preferring the primary address. Deleted accounts and erased
+contacts are excluded. Admins without a verified email remain in the response
+so Alerts can notify their linked Telegram chat. Insider credentials and
+anonymous callers cannot retrieve the directory. The response is private and
+uncacheable; ordinary Alerts users have no access to it.
+
+This endpoint supports immediate and hourly repository-health notices sent by
+Alerts. No database migration or new secret is required on bitcoin++.

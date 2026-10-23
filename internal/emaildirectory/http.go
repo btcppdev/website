@@ -31,6 +31,7 @@ type Handler struct {
 
 func (h *Handler) Routes() http.Handler {
 	m := http.NewServeMux()
+	m.HandleFunc("GET /api/internal/email-directory/{service}/operators", h.operators)
 	m.HandleFunc("POST /api/internal/email-directory/{service}/resolve", h.resolve)
 	m.HandleFunc("POST /api/internal/email-directory/{service}/verified-account", h.verifiedAccount)
 	m.HandleFunc("GET /api/internal/email-directory/{service}/contacts/{id}", h.contact)
