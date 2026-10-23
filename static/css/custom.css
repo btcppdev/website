@@ -6569,6 +6569,12 @@ button.dashboard-volunteer-button.is-primary:focus-visible {
 	margin-top: 0;
 }
 
+.dashboard-purchase-ledger__notice {
+	margin: 0;
+	padding: 16px 22px;
+	line-height: 1.5;
+}
+
 .dashboard-purchase-ledger__head {
 	align-items: baseline;
 	border-bottom: 1px solid #0a0a0a;

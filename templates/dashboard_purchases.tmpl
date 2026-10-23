@@ -12,7 +12,7 @@
 {{ template "billing_tabs" (dict "Active" "history" "ShowServices" .IsGlobalAdmin) }}
 <section class="dashboard-purchase-ledger dashboard-purchase-ledger--full" aria-label="Purchase history">
 <div class="dashboard-purchase-ledger__head"><h2>Purchase history</h2></div>
-<p>Amounts show original purchase totals. Refunds are noted in the payment status.</p>
+<p class="dashboard-purchase-ledger__notice">Amounts show original purchase totals. Refunds are noted in the payment status.</p>
 <div class="dashboard-purchase-ledger__rows">
 {{ range .Purchases }}
 <article class="dashboard-purchase-row">
