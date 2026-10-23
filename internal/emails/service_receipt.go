@@ -2,6 +2,7 @@ package emails
 
 import (
 	"bytes"
+	_ "embed"
 	"errors"
 	"fmt"
 	"html/template"
@@ -13,18 +14,10 @@ import (
 	"btcpp-web/external/getters"
 )
 
-var serviceReceiptTemplate = template.Must(template.New("service-receipt").Parse(`<!doctype html><html lang="en"><body>
-<h1>Payment received</h1>
-<p>Your Bitcoin++ service payment is confirmed. Keep this receipt for your records.</p>
-<dl><dt>Order number</dt><dd>{{.ID}}</dd><dt>Purchased</dt><dd>{{.Name}}</dd>
-<dt>Quantity</dt><dd>{{.Quantity}}</dd><dt>Total (USD, including tax)</dt><dd>{{.Total}}</dd>
-<dt>Included tax</dt><dd>{{.Tax}}</dd>
-{{if .Start}}<dt>Access starts (UTC)</dt><dd>{{.Start}}</dd>{{end}}
-{{if .End}}<dt>Access ends (UTC)</dt><dd>{{.End}}</dd>{{end}}</dl>
-<p><a href="{{.ReceiptURL}}">View or print your receipt</a> (sign in to your Bitcoin++ account).</p>
-{{if .Alerts}}<p><a href="https://alerts.btcpp.dev/alerts">Manage your Alerts subscriptions</a>.</p>{{end}}
-<p>This is a payment receipt, separate from release notifications and newsletters.</p>
-</body></html>`))
+//go:embed service_receipt.html
+var serviceReceiptHTML string
+
+var serviceReceiptTemplate = template.Must(template.New("service-receipt").Parse(serviceReceiptHTML))
 
 // ServiceReceiptMail prepares a transactional receipt without sending it. The
 // caller must obtain the recipient from the immutable, account-owned order and
@@ -50,10 +43,10 @@ func ServiceReceiptMail(order *getters.ServiceOrderView, recipient, baseURI stri
 		return value.UTC().Format("January 2, 2006, 15:04")
 	}
 	data := struct {
-		ID, Name, Total, Tax, Start, End, ReceiptURL string
-		Quantity                                     int64
-		Alerts                                       bool
-	}{order.PublicID, order.Quote.Name, money(order.TotalCents), money(order.TaxCents), format(order.Quote.PeriodStart), format(order.Quote.PeriodEnd), receiptURL, order.Quote.Quantity, order.Quote.ProductCode == "alerts.repository-slots"}
+		ID, Name, Total, Tax, Start, End, ReceiptURL, LogoURL string
+		Quantity                                              int64
+		Alerts                                                bool
+	}{order.PublicID, order.Quote.Name, money(order.TotalCents), money(order.TaxCents), format(order.Quote.PeriodStart), format(order.Quote.PeriodEnd), receiptURL, strings.TrimRight(base.String(), "/") + "/static/img/receipt-wordmark.png", order.Quote.Quantity, order.Quote.ProductCode == "alerts.repository-slots"}
 	var html bytes.Buffer
 	if err = serviceReceiptTemplate.Execute(&html, data); err != nil {
 		return nil, err

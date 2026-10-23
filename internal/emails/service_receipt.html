@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Your bitcoin++ receipt</title></head>
+<body style="margin:0;padding:0;background:#f6f3ee;color:#171717;font-family:Arial,Helvetica,sans-serif">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f3ee"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#fffdf8;border:1px solid #d9d2c8">
+<tr><td style="padding:28px 28px 20px;border-bottom:4px solid #e95742"><img src="{{.LogoURL}}" alt="bitcoin++" width="150" style="display:block;width:150px;max-width:100%;height:auto;border:0"></td></tr>
+<tr><td style="padding:28px">
+<p style="margin:0 0 12px;font-size:11px;letter-spacing:2px;color:#65605a">PAYMENT RECEIPT</p>
+<h1 style="margin:0 0 16px;font-size:30px;line-height:1.2;letter-spacing:-1px">Payment received.</h1>
+<p style="margin:0 0 28px;font-size:16px;line-height:1.6">Your {{if .Alerts}}Alerts{{else}}bitcoin++ service{{end}} payment is confirmed. Keep this receipt for your records.</p>
+<table width="100%" cellspacing="0" cellpadding="0" style="font-size:14px;line-height:1.6;border-collapse:collapse">
+<tr><th scope="row" align="left" style="padding:14px 12px 14px 0;border-top:1px solid #ded8cf;font-weight:normal;color:#65605a">Order number</th><td align="right" style="padding:14px 0;border-top:1px solid #ded8cf;overflow-wrap:anywhere">{{.ID}}</td></tr>
+<tr><th scope="row" align="left" style="padding:14px 12px 14px 0;border-top:1px solid #ded8cf;font-weight:normal;color:#65605a">Purchased</th><td align="right" style="padding:14px 0;border-top:1px solid #ded8cf">{{.Name}}</td></tr>
+<tr><th scope="row" align="left" style="padding:14px 12px 14px 0;border-top:1px solid #ded8cf;font-weight:normal;color:#65605a">Quantity</th><td align="right" style="padding:14px 0;border-top:1px solid #ded8cf">{{.Quantity}}</td></tr>
+{{if .Start}}<tr><th scope="row" align="left" style="padding:14px 12px 14px 0;border-top:1px solid #ded8cf;font-weight:normal;color:#65605a">Access starts (UTC)</th><td align="right" style="padding:14px 0;border-top:1px solid #ded8cf">{{.Start}}</td></tr>{{end}}
+{{if .End}}<tr><th scope="row" align="left" style="padding:14px 12px 14px 0;border-top:1px solid #ded8cf;font-weight:normal;color:#65605a">Access ends (UTC)</th><td align="right" style="padding:14px 0;border-top:1px solid #ded8cf">{{.End}}</td></tr>{{end}}
+<tr><th scope="row" align="left" style="padding:18px 12px 8px 0;border-top:2px solid #171717;font-size:18px">Total paid</th><td align="right" style="padding:18px 0 8px;border-top:2px solid #171717;font-size:24px;font-weight:bold">{{.Total}}</td></tr>
+<tr><td colspan="2" align="right" style="padding:0 0 24px;color:#65605a;font-size:12px">USD · includes {{.Tax}} tax</td></tr>
+</table>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" bgcolor="#171717" style="background:#171717"><a href="{{.ReceiptURL}}" style="display:block;padding:17px 20px;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;line-height:1.5">View or print your receipt</a></td></tr></table>
+<p style="margin:12px 0 24px;color:#65605a;font-size:12px;line-height:1.6">Sign in to your bitcoin++ account to view this purchase.</p>
+{{if .Alerts}}<p style="margin:0 0 20px;font-size:14px;line-height:1.6"><a href="https://alerts.btcpp.dev/alerts" style="color:#171717;text-decoration:underline">Manage your Alerts subscriptions</a></p>{{end}}
+<p style="margin:0;padding-top:20px;border-top:1px solid #ded8cf;font-size:12px;line-height:1.7;color:#65605a">Questions about this payment? <a href="mailto:inbox@btcpp.dev" style="color:#171717">inbox@btcpp.dev</a><br>This receipt is separate from release notifications and newsletters.</p>
+</td></tr></table>
+</td></tr></table>
+</body></html>
