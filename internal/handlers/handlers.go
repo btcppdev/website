@@ -148,6 +148,7 @@ func loadTemplates(ctx *config.AppContext) error {
 
 	var err error
 	funcMap := template.FuncMap{
+		"insiderVisible": func() bool { return insiderVisible(ctx) },
 		"safeURL": func(s string) template.URL {
 			u := strings.TrimSpace(s)
 			switch {
@@ -2077,6 +2078,7 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/settings/api-tokens/revoke", func(w http.ResponseWriter, r *http.Request) {
 		DashboardAPITokenRevoke(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/site-features", func(w http.ResponseWriter, r *http.Request) { AdminSiteFeatures(w, r, app) }).Methods("GET", "POST")
 	r.HandleFunc("/dashboard/settings/oauth-clients", func(w http.ResponseWriter, r *http.Request) {
 		DashboardOAuthClientCreate(w, r, app)
 	}).Methods("POST")

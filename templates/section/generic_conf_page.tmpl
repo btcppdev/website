@@ -676,7 +676,7 @@
         <div class="redesign-footer__menu-title">{{ msg "footer.connect" }}</div>
         <a href="/contact">{{ msg "footer.contact" }}</a>
         <a href="/developers/api">{{ msg "footer.api" }}</a>
-        <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">{{ msg "footer.insider" }}</a>
+{{ if insiderVisible }}        <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">{{ msg "footer.insider" }}</a>{{ end }}
         <a href="https://www.youtube.com/@btcplusplus/playlists" target="_blank" rel="noopener noreferrer">{{ msg "footer.archive" }}</a>
       </div>
       <div class="redesign-footer__menu">

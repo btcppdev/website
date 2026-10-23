@@ -54,11 +54,14 @@ func DashboardSubscriptions(w http.ResponseWriter, r *http.Request, app *config.
 		http.Error(w, "Unable to load subscriptions", 500)
 		return
 	}
-	projection, err := getters.GetInsiderSubscriberProjection(app, identity.PersonID)
-	if err != nil {
-		app.Err.Printf("subscriptions Insider: %s", err)
-		http.Error(w, "Unable to load subscriptions", 500)
-		return
+	showInsider := insiderVisible(app)
+	var projection *getters.InsiderSubscriberProjection
+	if showInsider {
+		projection, err = getters.GetInsiderSubscriberProjection(app, identity.PersonID)
+		if err != nil {
+			http.Error(w, "Unable to load subscriptions", 500)
+			return
+		}
 	}
 	cards, err := getters.AccountCardSubscriptions(app, identity.PersonID)
 	if err != nil {
@@ -92,10 +95,16 @@ func DashboardSubscriptions(w http.ResponseWriter, r *http.Request, app *config.
 		}
 		insider.CheckedAt = projection.AsOf.UTC().Format("2 Jan 2006, 15:04 UTC")
 	}
-	items := []accountSubscription{alerts, insider}
+	items := []accountSubscription{alerts}
+	if showInsider {
+		items = append(items, insider)
+	}
 	for _, card := range cards {
 		index := 0
 		if card.Service == "insider" {
+			if !showInsider {
+				continue
+			}
 			index = 1
 		} else if card.Service != "alerts" {
 			continue

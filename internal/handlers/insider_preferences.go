@@ -26,6 +26,11 @@ type InsiderPreferencesPage struct {
 // projection. Billing, purchases, grants, newsletter consent, pauses, and
 // delivery cadence remain owned and managed by the Insider application.
 func DashboardInsiderPreferences(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	if !insiderVisible(ctx) {
+		http.NotFound(w, r)
+		return
+	}
 	identity := requirePersonIdentity(w, r, ctx)
 	if identity == nil {
 		return

@@ -31,10 +31,10 @@
               <h1>Developing the <span class="home-serif">frontier</span> of bitcoin.</h1>
             </div>
             <div>
-              <p class="home-deck">Join the builders shaping Bitcoin's next chapter. Attend live, or get the insider's view: stories, updates, and signals from the frontier.</p>
+              <p class="home-deck">Join the builders shaping Bitcoin's next chapter. Meet them at bitcoin++ events around the world.</p>
               <div class="home-actions">
                 <a href="/#events" class="home-button">Upcoming events</a>
-                <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer" class="home-button is-outline">Read insider</a>
+{{ if insiderVisible }}                <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer" class="home-button is-outline">Read insider</a>{{ end }}
               </div>
             </div>
           </div>
@@ -182,6 +182,7 @@
           </div>
         </section>
 
+{{ if insiderVisible }}
         <section id="insider" class="home-split is-dark">
           <div>
             <p class="home-section-label">§06 · Insider edition</p>
@@ -191,6 +192,7 @@
           </div>
           <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer" class="home-split__media"><img src="/static/img/home/insider.avif" alt="bitcoin++ Insider Edition"></a>
         </section>
+{{ end }}
 
         <section class="home-shop">
           <div class="home-section-head">
@@ -242,7 +244,7 @@
         <section class="home-subscribe">
           <div>
             <h2>Don't miss a single <span class="home-serif" style="color:var(--home-accent)">moment.</span></h2>
-            <p>Event announcements and Insider dispatches, direct to your inbox.</p>
+            <p>Event announcements{{ if insiderVisible }} and Insider dispatches{{ end }}, direct to your inbox.</p>
           </div>
           <form method="post" action="/newsletter/subscribe" hx-post="/newsletter/subscribe" hx-target="#home-newsletter-result" hx-swap="innerHTML">
             <input type="email" name="newsletter-email" required autocomplete="email" placeholder="hello@example.com" aria-label="Email address">

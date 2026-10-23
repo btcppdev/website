@@ -1,0 +1,9 @@
+<!doctype html><html lang="en"><head><title>Site visibility · bitcoin++</title>{{ block "header" . }}{{ end }}</head>
+<body class="btcpp-profile-edit-page account-settings-page"><main class="profile-edit-shell person-emails-page">
+<p><a href="/admin">← Administration</a></p><h1>Site visibility</h1>
+{{ if .Saved }}<p role="status">Visibility saved.</p>{{ end }}
+<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}">
+<label><input type="checkbox" name="insider" {{ if .Enabled }}checked{{ end }}> Show Insider Edition</label>
+<p>Show Insider dashboard navigation, its subscription card, and promotional links. Leave off until Insider launches. Existing accounts, purchase records, and service integrations are preserved.</p>
+<button type="submit" class="purchase-invoice-button">Save visibility</button></form>
+</main>{{ block "footer" . }}{{ end }}</body></html>

@@ -57,7 +57,7 @@
       </details>
       <a href="/whois">{{ msg "nav.whois" }}</a>
       <a href="/shop">{{ msg "nav.shop" }}</a>
-      <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">{{ msg "nav.insider" }}</a>
+{{ if insiderVisible }}      <a href="https://insider.btcpp.dev/" target="_blank" rel="noopener noreferrer">{{ msg "nav.insider" }}</a>{{ end }}
       <div class="site-account site-account--mobile" data-site-account>
         <a class="site-account__signin" href="/login">{{ msg "nav.sign_in" }}</a>
       </div>
