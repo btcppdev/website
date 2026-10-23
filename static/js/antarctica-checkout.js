@@ -229,13 +229,10 @@
     if (step < 3) { step++; if (step === 2 && form.dataset.live === 'true') step++; showStep(); return; }
     if (form.dataset.live !== 'true') return;
     if (!form.querySelector('[name=terms_accepted]')?.checked) { error.textContent = 'Please read and accept the booking terms.'; return; }
-    const invalid = [...form.querySelectorAll('.checkout-billing input')].find(el => !el.checkValidity());
-    if (invalid) { invalid.reportValidity(); return; }
     const plan = form.querySelector('[name=plan]:checked').value;
     const provider = form.querySelector('[name=provider]:checked').value;
     const expected = allocations.reduce((sum, a) => sum + a.quantity * (plan === 'full' && provider === 'opennode' ? Math.round(fare[a.type].cents * 95 / 100) : fare[a.type].cents), 0);
-    const field = name => form.querySelector(`[name=billing-${name}]`).value.trim();
-    const payload = { csrf: form.dataset.csrf, key: form.dataset.requestKey, spots: Number(party.value), selections: allocations.map(a => ({ berth: a.type, quantity: a.quantity, preference: a.preference })), plan, provider, terms_version: form.querySelector('[name=terms_version]').value, accepted: true, expected_total: expected, address: { Line1: field('line1'), City: field('city'), Region: field('region'), PostalCode: field('postal'), Country: field('country').toUpperCase() } };
+    const payload = { csrf: form.dataset.csrf, key: form.dataset.requestKey, spots: Number(party.value), selections: allocations.map(a => ({ berth: a.type, quantity: a.quantity, preference: a.preference })), plan, provider, terms_version: form.querySelector('[name=terms_version]').value, accepted: true, expected_total: expected };
     // Freeze this attempt after submission: uncertain responses must retry the
     // same reservation, never silently create another hold or charge.
     try { sessionStorage.setItem('antarctica-pending-checkout', JSON.stringify(payload)); } catch (_) {}
@@ -276,7 +273,6 @@
         allocations = pending.selections.map(a => ({ type: a.berth, quantity: a.quantity, preference: a.preference }));
         party.value = String(pending.spots);
         form.elements.plan.value = pending.plan; form.elements.provider.value = 'opennode';
-        for (const [field, key] of Object.entries({ line1: 'Line1', city: 'City', region: 'Region', postal: 'PostalCode', country: 'Country' })) form.querySelector(`[name=billing-${field}]`).value = pending.address[key] || '';
         step = 3; showStep();
         error.textContent = 'Your previous checkout is ready to retry. Review the details and accept the terms to continue.';
       }

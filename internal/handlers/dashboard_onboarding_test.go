@@ -39,7 +39,7 @@ func TestPendingEmailDashboardOnboardingPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer enableAntarcticaSalesForTest(t, app)()
-	app.Env.StripeKey = "sk_test_fixture"
+	app.Env.OpenNode.Key = "local-fixture"
 	checkout := httptest.NewRequest(http.MethodGet, "/expeditions/antarctica/checkout", nil).WithContext(ctx)
 	checkoutResponse := httptest.NewRecorder()
 	AntarcticaCheckout(checkoutResponse, checkout, app)

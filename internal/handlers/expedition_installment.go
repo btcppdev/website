@@ -7,19 +7,17 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/expedition"
-	"btcpp-web/internal/types"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
-var installmentPageTemplate = template.Must(template.New("installment").Parse(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your expedition installment</title><link rel="stylesheet" href="/static/css/antarctica.css"><link rel="stylesheet" href="/static/css/antarctica-checkout.css"></head><body class="antarctica expedition-checkout"><header><a class="wordmark" href="/">bitcoin<span>++</span></a><a href="/dashboard/orders">Your dashboard</a></header><main class="checkout-shell"><p class="eyebrow">Cold Storage Edition</p><h1>Payment {{.Number}} of 5.</h1><p><strong>{{.Amount}} USD · due {{.Due}}</strong></p><p>Pay in Bitcoin. The full due date is available in Texas time (America/Chicago). This payment applies to your existing booking.</p><form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="key" value="{{.Key}}"><input type="hidden" name="version" value="{{.Version}}"><fieldset class="checkout-billing"><legend>Billing address</legend><p>Used to calculate tax included in this installment.</p><label>Street address<input name="line1" autocomplete="billing address-line1" required maxlength="200"></label><label>City<input name="city" autocomplete="billing address-level2" required maxlength="100"></label><label>State / region<input name="region" autocomplete="billing address-level1" maxlength="100"></label><label>Postal code<input name="postal" autocomplete="billing postal-code" maxlength="30"></label><label>Country (two-letter code)<input name="country" autocomplete="billing country" required pattern="[A-Za-z]{2}" maxlength="2"></label></fieldset><details><summary>Terms for this payment · {{.Version}}</summary><div class="policy-text">{{.Terms}}</div><h2>Privacy</h2><div class="policy-text">{{.Privacy}}</div></details><label class="checkout-check"><input type="checkbox" name="accepted" value="yes" required><span>I agree to these payment terms and acknowledge the privacy policy.</span></label><button type="submit" class="button">Continue to Bitcoin payment →</button></form><p><a href="{{.BookingURL}}">Back to your booking</a> · <a href="mailto:inbox@btcpp.dev">Get help</a></p></main></body></html>`))
+var installmentPageTemplate = template.Must(template.New("installment").Parse(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your expedition installment</title><link rel="stylesheet" href="/static/css/antarctica.css"><link rel="stylesheet" href="/static/css/antarctica-checkout.css"></head><body class="antarctica expedition-checkout"><header><a class="wordmark" href="/">bitcoin<span>++</span></a><a href="/dashboard/orders">Your dashboard</a></header><main class="checkout-shell"><p class="eyebrow">Cold Storage Edition</p><h1>Payment {{.Number}} of 5.</h1><p><strong>{{.Amount}} USD · due {{.Due}}</strong></p><p>Pay in Bitcoin. The full due date is available in Texas time (America/Chicago). This payment applies to your existing booking.</p><form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="key" value="{{.Key}}"><input type="hidden" name="version" value="{{.Version}}"><p>Need a company invoice? You can add billing details after payment.</p><details><summary>Terms for this payment · {{.Version}}</summary><div class="policy-text">{{.Terms}}</div><h2>Privacy</h2><div class="policy-text">{{.Privacy}}</div></details><label class="checkout-check"><input type="checkbox" name="accepted" value="yes" required><span>I agree to these payment terms and acknowledge the privacy policy.</span></label><button type="submit" class="button">Continue to Bitcoin payment →</button></form><p><a href="{{.BookingURL}}">Back to your booking</a> · <a href="mailto:inbox@btcpp.dev">Get help</a></p></main></body></html>`))
 
 func ExpeditionInstallment(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
 	w.Header().Set("Cache-Control", "private, no-store")
@@ -43,7 +41,7 @@ func ExpeditionInstallment(w http.ResponseWriter, r *http.Request, app *config.A
 		http.NotFound(w, r)
 		return
 	}
-	if !antarcticaCheckoutReady(app) || !antarcticaPaymentProviderAllowed(app, booking.Provider) || booking.Provider != expedition.Bitcoin {
+	if !antarcticaPaymentsReady(app) || !antarcticaPaymentProviderAllowed(app, booking.Provider) || booking.Provider != expedition.Bitcoin {
 		http.Error(w, "Installment checkout is unavailable. Contact inbox@btcpp.dev.", 503)
 		return
 	}
@@ -115,17 +113,8 @@ func ExpeditionInstallment(w http.ResponseWriter, r *http.Request, app *config.A
 		http.Error(w, "Invalid payment key", 400)
 		return
 	}
-	address := types.ShopAddress{Line1: r.PostForm.Get("line1"), City: r.PostForm.Get("city"), Region: r.PostForm.Get("region"), PostalCode: r.PostForm.Get("postal"), Country: strings.ToUpper(r.PostForm.Get("country"))}
-	if !validExpeditionBillingAddress(&address) {
-		http.Error(w, "Enter a complete billing address", 400)
-		return
-	}
-	tax, err := expeditionTaxQuote(r.Context(), app, charge, &address)
-	if err != nil {
-		http.Error(w, "Unable to calculate tax. Please retry.", 503)
-		return
-	}
-	purchase, err := getters.CreateExpeditionInstallmentPurchase(app, id.PersonID, booking.ID, number, charge.Key+":"+key.String(), *tax, policy.Version)
+	tax := getters.ExpeditionConferenceTaxQuote(charge.ExpiresAt)
+	purchase, err := getters.CreateExpeditionInstallmentPurchase(app, id.PersonID, booking.ID, number, charge.Key+":"+key.String(), tax, policy.Version)
 	if err != nil {
 		if existing, e := getters.ExpeditionInstallmentOrder(r.Context(), app, id.PersonID, booking.ID, number); e == nil && existing != "" {
 			http.Redirect(w, r, "/services/orders/"+url.PathEscape(existing), 303)

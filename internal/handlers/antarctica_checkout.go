@@ -13,18 +13,21 @@ import (
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
 	"btcpp-web/internal/expedition"
-	"btcpp-web/internal/types"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 // Sales are controlled by global admin. Passage uses the conference-ticket tax
-// classification; shared billing still records a provider tax calculation.
+// classification; shared billing retains the classification with each order.
 func antarcticaCheckoutReady(app *config.AppContext) bool {
-	return app != nil && app.DB != nil && app.Env != nil && antarcticaSalesEnabled(app) && app.Env.StripeKey != ""
+	return antarcticaPaymentsReady(app) && antarcticaSalesEnabled(app)
 }
 
-// Stripe checkout is off for launch; Stripe Tax remains available for Bitcoin orders.
+func antarcticaPaymentsReady(app *config.AppContext) bool {
+	return app != nil && app.DB != nil && app.Env != nil && strings.TrimSpace(app.Env.OpenNode.Key) != ""
+}
+
+// Stripe checkout is off for launch.
 func antarcticaPaymentProviderAllowed(app *config.AppContext, provider string) bool {
 	return provider == expedition.Bitcoin || (provider == expedition.Stripe && app != nil && app.Env != nil && app.Env.AntarcticaStripeCheckoutEnabled)
 }
@@ -49,7 +52,6 @@ type antarcticaCheckoutRequest struct {
 	TermsVersion  string                      `json:"terms_version"`
 	Accepted      bool                        `json:"accepted"`
 	ExpectedTotal int64                       `json:"expected_total"`
-	Address       types.ShopAddress           `json:"address"`
 }
 
 func AntarcticaCheckout(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
@@ -177,10 +179,6 @@ func AntarcticaCheckout(w http.ResponseWriter, r *http.Request, app *config.AppC
 		http.Error(w, "Your fare or cabin selection has changed. Reload checkout and review it.", 422)
 		return
 	}
-	if !validExpeditionBillingAddress(&request.Address) {
-		http.Error(w, "Enter a complete billing address and two-letter country code.", 400)
-		return
-	}
 	var reservation expedition.Reservation
 	if beta {
 		reservation, err = (&expedition.Store{DB: app.DB}).ReserveBetaParty(r.Context(), identity.PersonID, request.Key, request.Selections)
@@ -206,16 +204,11 @@ func AntarcticaCheckout(w http.ResponseWriter, r *http.Request, app *config.AppC
 		http.Error(w, "This reservation has expired or needs review. Check your booking before starting again.", 409)
 		return
 	}
-	tax, err := expeditionTaxQuote(r.Context(), app, charge, &request.Address)
+	tax := getters.ExpeditionConferenceTaxQuote(charge.ExpiresAt)
+	purchase, err := getters.CreateExpeditionPurchase(app, identity.PersonID, reservation.ID, 1, tax, request.TermsVersion)
 	if err != nil {
-		app.Err.Printf("expedition checkout tax: %v", err)
-		http.Error(w, "Unable to prepare tax and payment. Retry this checkout; your reservation is temporarily held.", 503)
-		return
-	}
-	purchase, err := getters.CreateExpeditionPurchase(app, identity.PersonID, reservation.ID, 1, *tax, request.TermsVersion)
-	if err != nil {
-		// Concurrent retries may calculate different tax IDs; only the first stored
-		// calculation/order wins. Never replace its financial or legal snapshot.
+		// Concurrent retries return the first stored order. Never replace its
+		// financial or legal snapshot.
 		if existing, lookupErr := expeditionExistingOrder(r, app, identity.PersonID, reservation.ID); lookupErr == nil {
 			writeExpeditionOrder(w, existing)
 			return
@@ -235,8 +228,4 @@ func expeditionExistingOrder(r *http.Request, app *config.AppContext, buyer, res
 func writeExpeditionOrder(w http.ResponseWriter, publicID string) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"url": "/services/orders/" + url.PathEscape(publicID)})
-}
-func validExpeditionBillingAddress(a *types.ShopAddress) bool {
-	country := strings.ToUpper(strings.TrimSpace(a.Country))
-	return len(country) == 2 && country[0] >= 'A' && country[0] <= 'Z' && country[1] >= 'A' && country[1] <= 'Z' && strings.TrimSpace(a.Line1) != "" && strings.TrimSpace(a.City) != "" && len(a.Line1) <= 200 && len(a.City) <= 100 && len(a.Region) <= 100 && len(a.PostalCode) <= 30
 }

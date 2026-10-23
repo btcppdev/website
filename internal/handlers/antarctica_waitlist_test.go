@@ -58,7 +58,7 @@ func TestAntarcticaWaitlistPostgres(t *testing.T) {
 	app.DB = pool
 	app.Session = scs.New()
 	defer enableAntarcticaSalesForTest(t, app)()
-	app.Env.StripeKey = "sk_test_fixture"
+	app.Env.OpenNode.Key = "local-fixture"
 	app.Env.MailEndpoint = "http://never-contacted.invalid"
 	app.Env.Host = "localhost"
 	policy := getters.ServiceLegalPolicy{ProductCode: expedition.ProductCode, Version: uuid.NewString(), TermsText: "Fixture", PrivacyText: "Fixture", EffectiveAt: time.Now().UTC().Truncate(time.Microsecond)}

@@ -47,9 +47,6 @@ func antarcticaLaunchBlockers(app *config.AppContext) []string {
 	if !serviceReceiptMailReady(app) {
 		blockers = append(blockers, "Configure transactional email delivery for confirmations and reminders.")
 	}
-	if app.Env == nil || app.Env.StripeKey == "" {
-		blockers = append(blockers, "Configure the shared Stripe credential for tax calculation.")
-	}
 	if app.Env == nil || app.Env.OpenNode.Key == "" {
 		blockers = append(blockers, "Configure the shared OpenNode payment credential.")
 	}

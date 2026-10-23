@@ -22,7 +22,6 @@ import (
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/expedition"
-	"btcpp-web/internal/types"
 	"github.com/alexedwards/scs/v2"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -60,7 +59,6 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	}
 	app := antarcticaTestTemplates(t)
 	beta := amount == 1
-	taxCents := int64(0)
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, uri)
 	if err != nil {
@@ -72,7 +70,9 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	defer enableAntarcticaSalesForTest(t, app)()
 	app.Env.AntarcticaStripeCheckoutEnabled = paymentProvider == "stripe"
 	app.Env.OpenNode.Key = "local-fixture"
-	app.Env.StripeKey = "sk_test_fixture"
+	if paymentProvider == "stripe" {
+		app.Env.StripeKey = "sk_test_fixture"
+	}
 	var buyer string
 	if err = pool.QueryRow(ctx, `INSERT INTO people(name) VALUES('Expedition HTTP fixture') RETURNING id::text`).Scan(&buyer); err != nil {
 		t.Fatal(err)
@@ -122,18 +122,12 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	var sessionResponse map[string]any
 	taxCalls, creates := 0, 0
 	chargeID := uuid.NewString()
-	calculationID := "taxcalc_" + uuid.NewString()
 	var attemptID atomic.Value
 	var paid atomic.Bool
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		r.ParseForm()
 		switch {
-		case r.URL.Path == "/v1/tax/transactions/create_from_calculation":
-			if r.Form.Get("calculation") != calculationID || r.Header.Get("Idempotency-Key") == "" {
-				t.Error("invalid tax finalization", r.Form)
-			}
-			json.NewEncoder(w).Encode(map[string]any{"id": "tax_" + strings.ReplaceAll(buyer, "-", ""), "type": "transaction", "currency": "usd", "reference": r.Form.Get("reference"), "line_items": map[string]any{"data": []any{map[string]any{"amount": amount, "amount_tax": taxCents, "quantity": 1, "reference": expedition.ProductCode, "tax_behavior": "inclusive"}}}})
 		case r.URL.Path == "/v1/charges" && r.Method == "POST":
 			creates++
 			var payload map[string]any
@@ -151,12 +145,10 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 				status = "paid"
 			}
 			json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": chargeID, "order_id": attemptID.Load(), "status": status, "currency": "USD", "source_fiat_value": float64(amount) / 100, "price": amount, "fee": 0, "missing_amt": 0, "hosted_checkout_url": "https://checkout.opennode.com/" + chargeID}})
-		case r.URL.Path == "/v1/tax/calculations":
+		case strings.HasPrefix(r.URL.Path, "/v1/tax/"):
 			taxCalls++
-			if r.Form.Get("line_items[0][amount]") != strconv.FormatInt(amount, 10) || r.Form.Get("line_items[0][reference]") != expedition.ProductCode || r.Form.Get("line_items[0][tax_code]") != types.StripeTaxCodeNontaxable {
-				t.Error("wrong tax request", r.Form)
-			}
-			json.NewEncoder(w).Encode(map[string]any{"id": calculationID, "currency": "usd", "amount_total": amount, "tax_amount_inclusive": taxCents, "expires_at": time.Now().Add(time.Hour).Unix(), "line_items": map[string]any{"data": []any{map[string]any{"amount": amount, "amount_tax": taxCents, "quantity": 1, "reference": expedition.ProductCode, "tax_behavior": "inclusive", "tax_code": types.StripeTaxCodeNontaxable}}}})
+			t.Errorf("conference checkout must not call Stripe Tax: %s", r.URL.Path)
+			http.Error(w, "unexpected tax request", 500)
 		case r.URL.Path == "/v1/checkout/sessions" && r.Method == "POST":
 			creates++
 			if r.Header.Get("Idempotency-Key") == "" || r.Form.Get("payment_method_types[0]") != "card" || r.Form.Get("line_items[0][price_data][unit_amount]") != "1670000" {
@@ -225,11 +217,6 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	if plan == "installments" {
 		request.ExpectedTotal = 1670000
 	}
-	request.Address.Line1 = "123 Test Street"
-	request.Address.City = "Austin"
-	request.Address.Country = "US"
-	request.Address.Region = "TX"
-	request.Address.PostalCode = "78701"
 	post := func(q antarcticaCheckoutRequest) (int, string) {
 		t.Helper()
 		b, _ := json.Marshal(q)
@@ -289,7 +276,7 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	var result map[string]string
 	json.Unmarshal([]byte(body), &result)
 	code, retry := post(request)
-	if code != 200 || retry != body || taxCalls != 1 {
+	if code != 200 || retry != body || taxCalls != 0 {
 		t.Fatal("order retry", code, retry, taxCalls)
 	}
 	if beta {
@@ -383,6 +370,14 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	}
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_payment_events e JOIN service_payment_attempts a ON a.id=e.attempt_id JOIN service_purchase_requests p ON p.id=a.purchase_id WHERE p.order_id=$1`, orderID).Scan(&count); err != nil || count != 1 {
 		t.Fatal("duplicate settlement", count, err)
+	}
+	var taxProvider, destination string
+	var taxAmount int
+	if err := pool.QueryRow(ctx, `SELECT sales_tax_provider,sales_tax_amount_cents,destination_country FROM tax_quotes WHERE order_id=$1`, orderID).Scan(&taxProvider, &taxAmount, &destination); err != nil || taxProvider != "conference_ticket" || taxAmount != 0 || destination != "" {
+		t.Fatalf("address-free tax policy evidence: %s %d %s %v", taxProvider, taxAmount, destination, err)
+	}
+	if code, body := get(result["url"]); code != 200 || !strings.Contains(body, "/invoice") {
+		t.Fatal("paid order missing optional invoice link", code)
 	}
 	app.Env.MailEndpoint = "http://never-contacted.invalid"
 	app.Env.LocalExternal = "https://btcpp.dev"

@@ -150,7 +150,6 @@ func TestAntarcticaAdminPostgres(t *testing.T) {
 		t.Setenv(key, "true")
 	}
 	app.Env.MailEndpoint = "http://never-contacted.invalid"
-	app.Env.StripeKey = "fixture"
 	app.Env.OpenNode.Key = "fixture"
 	if w := request(admin, "test-csrf", action("inventory")); w.Code != 303 {
 		t.Fatalf("inventory %d", w.Code)
@@ -166,6 +165,9 @@ func TestAntarcticaAdminPostgres(t *testing.T) {
 	}
 	if antarcticaCheckoutReady(app) {
 		t.Fatal("paused checkout ready")
+	}
+	if !antarcticaPaymentsReady(app) {
+		t.Fatal("pausing new sales must not block installment payments")
 	}
 	r := httptest.NewRequest("GET", "/admin/antarctica", nil)
 	ctx, err := app.Session.Load(r.Context(), "")

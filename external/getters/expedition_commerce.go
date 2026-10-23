@@ -18,8 +18,8 @@ func expeditionPeriod() (time.Time, time.Time) {
 }
 
 // CreateExpeditionPurchase uses persisted party pricing, shared tax evidence and
-// shared legal acceptance. A reviewed current policy and tax quote are mandatory;
-// this adapter never guesses the voyage's tax treatment or bypasses those gates.
+// shared legal acceptance. Tax evidence is either the explicit conference-ticket
+// policy or a preserved provider quote; no customer address is invented.
 func CreateExpeditionPurchase(app *config.AppContext, buyer, reservation string, number int, tax TaxQuoteInput, acceptedVersion string) (*ServicePurchase, error) {
 	// Return the exact original order on retries even after it has been fulfilled.
 	key := fmt.Sprintf("expedition:%s:%d", reservation, number)

@@ -1064,3 +1064,22 @@ Shared billing still obtains and retains a Stripe Tax calculation for payment
 and refund accounting. A response containing nonzero tax is rejected rather than
 silently changing the approved fare. Shared Stripe credentials remain necessary,
 even though checkout is Bitcoin-only. Historical tax evidence is not rewritten.
+
+### Optional invoice details — October 24, 2026
+
+Passage checkout and installment payments no longer collect a billing address.
+The conference-ticket treatment is recorded as organizer policy evidence in
+`tax_quotes` (`sales_tax_provider=conference_ticket`, zero sales tax, no destination
+or external quote ID). No Stripe Tax API call or Stripe credential is needed for
+Bitcoin passage. Shared tax validation limits this path to this expedition, zero
+tax, exact policy evidence and the payment expiry. Existing Stripe tax records and
+refund processing remain unchanged; new policy-only payments do not fabricate a
+Stripe calculation or tax transaction.
+
+Paid receipts link to the existing owner-only invoice workflow at
+`/dashboard/orders/{public-order-id}/invoice`. Invoice creation is optional;
+buyers who need one can supply company/name/address/tax ID there. The ordinary
+receipt remains available without those details. Issued invoice snapshots do not
+change the payment amount, tax treatment or account profile.
+
+Pausing new sales no longer blocks payments toward confirmed installment plans.

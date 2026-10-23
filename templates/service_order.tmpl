@@ -36,7 +36,7 @@
 <details><summary>Privacy Policy shown for this order</summary><div style="white-space:pre-wrap">{{ .PrivacyText }}</div></details>
 {{ end }}
 <div class="receipt-actions">
-{{ if .Order.PaymentVerified }}<button type="button" class="service-primary" onclick="window.print()">Print or save receipt</button>{{ end }}
+{{ if .Order.PaymentVerified }}<button type="button" class="service-primary" onclick="window.print()">Print or save receipt</button><a class="service-primary" href="/dashboard/orders/{{ .Order.PublicID }}/invoice">Add billing details / download invoice</a>{{ end }}
 {{ if .CanPay }}
 <form method="post" action="/services/orders/{{ .Order.PublicID }}/pay">
 <input type="hidden" name="csrf" value="{{ .CSRF }}">
