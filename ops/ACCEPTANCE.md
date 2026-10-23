@@ -85,7 +85,7 @@ session, so the image build and container startup remain unverified.
 
 ## Alerts payment settings
 
-The payment-settings update adds migrations 133 and 134. Apply these with the
+The payment-settings update adds migrations 144 and 145. Apply these with the
 normal database migration command before starting the updated bitcoin++ app.
 The matching Alerts update accepts the new optional `scheduledEntitlements`
 field and enforces its start dates locally, avoiding a polling gap at renewal.
@@ -121,7 +121,7 @@ OpenNode sandbox switch payment, including returning after browser interruption.
 
 ### Stripe service refunds
 
-Apply migration `135_service_stripe_refund_sync.sql`. Add `refund.created`,
+Apply migration `146_service_stripe_refund_sync.sql`. Add `refund.created`,
 `refund.updated`, `refund.failed`, and `charge.refunded` to the existing signed
 Stripe webhook. Keep `SERVICE_PAYMENT_RECONCILIATION_ENABLED=true` and the
 production Stripe key configured for missed-event recovery. The integration
