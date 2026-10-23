@@ -9,7 +9,7 @@ import (
 	"btcpp-web/internal/types"
 )
 
-const insiderAccountURL = "https://insider.btcpp.dev/account"
+const insiderAccountURL = "https://beta.btcpp.dev/account"
 
 type InsiderPreferencesPage struct {
 	Speaker               *types.Speaker
@@ -24,7 +24,7 @@ type InsiderPreferencesPage struct {
 
 // DashboardInsiderPreferences exposes only Insider's coarse, read-only account
 // projection. Billing, purchases, grants, newsletter consent, pauses, and
-// delivery cadence remain owned and managed by insider.btcpp.dev.
+// delivery cadence remain owned and managed by the Insider application.
 func DashboardInsiderPreferences(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
 	identity := requirePersonIdentity(w, r, ctx)
 	if identity == nil {
