@@ -46,7 +46,7 @@ func ListOAuthClients(ctx *config.AppContext) ([]*types.OAuthClient, error) {
 		SELECT id::text, client_id, name, redirect_uris, allowed_scopes,
 			token_endpoint_auth_method, coalesce(created_by_person_id::text, ''),
 			created_at, revoked_at, client_secret_hash
-		FROM oauth_clients ORDER BY created_at DESC, id
+		FROM oauth_clients WHERE revoked_at IS NULL ORDER BY created_at DESC, id
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("list OAuth clients: %w", err)
