@@ -28,12 +28,14 @@ type reportPerson struct {
 	Highlight                                        bool
 }
 type reportSession struct {
-	ID, Title, Kind, Speakers, YouTube, X, Note, WatchURL, Venue string
-	Start, End                                                   *time.Time
-	Delivered, Core                                              bool
-	Views                                                        *int64
+	ID, Title, Kind, Speakers, YouTube, X, Note, WatchURL, Venue, SocialCard string
+	Start, End                                                               *time.Time
+	Delivered, Core                                                          bool
+	Views                                                                    *int64
 }
 type reportWinner struct {
+	Rank                                                         int
+	Portraits                                                    []reportPerson
 	ID, Title, Description, Awards, Members, Image, GitHub, Demo string
 	Sats                                                         int64
 	AwardedSats                                                  int64
@@ -45,6 +47,10 @@ type reportDay struct {
 }
 type reportMetric struct{ Label, Value, Note string }
 type sponsorReportPage struct {
+	Sponsors                                                                               []reportSponsor
+	DemoApplications                                                                       bool
+	ProposalStatuses                                                                       []reportBar
+	PostLibrary                                                                            reportPostLibrary
 	PublicEvidence                                                                         []reportEvidence
 	EvidenceDate                                                                           string
 	PublicProgramSource, PublicVideoSource                                                 string
@@ -106,7 +112,7 @@ func AdminSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppC
 }
 
 func serveSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 	if app.DB == nil {
 		http.Error(w, "Report database unavailable", 503)
@@ -154,6 +160,10 @@ func serveSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppC
 		http.Error(w, "Published event not found", 404)
 		return
 	}
+	if err = loadReportSponsors(ctx, app, &page); err != nil {
+		http.Error(w, "Unable to load event sponsors", 503)
+		return
+	}
 	// Preserve existing annual drafts under their original keys.
 	page.Scope = "event-v2/" + page.Event.ID
 	page.Sections = eventReportSections(page.Event)
@@ -192,6 +202,11 @@ func serveSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppC
 			}
 		}
 	}
+	page.PostLibrary, err = loadReportPosts(ctx, app.DB, reportPostYear(page.Event))
+	if err != nil {
+		http.Error(w, "Unable to load X post analytics", 503)
+		return
+	}
 	page.CSRF, err = ensureAuthMethodsCSRF(app, r)
 	if err != nil {
 		http.Error(w, "Unable to prepare editor", 500)
@@ -217,6 +232,16 @@ func serveSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppC
 			http.Error(w, e.Error(), 400)
 			return
 		}
+		if r.PostForm.Get("action") == "refresh_media" {
+			refreshReportMedia(ctx, app, &page, saved)
+		}
+		if r.PostForm.Get("action") == "refresh_x_posts" {
+			if err := refreshReportPosts(ctx, app, reportPostYear(page.Event)); err != nil {
+				saved["x_posts_status"] = "X post refresh unavailable; previous snapshot retained. Check the session and retry."
+			} else {
+				saved["x_posts_status"] = "X post analytics refreshed. Review the suggested event matches below."
+			}
+		}
 		if e = saveEventReportDraft(ctx, app, page.Scope, revision, saved); e != nil {
 			if errors.Is(e, errReportConflict) {
 				http.Error(w, e.Error(), 409)
@@ -230,7 +255,7 @@ func serveSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppC
 	}
 	hydrateEventReport(&page)
 	if r.URL.Query().Get("saved") == "1" {
-		page.Message = "Event draft saved. Print / Save as PDF preserves this edition."
+		page.Message = "Event draft saved. Print / Save as PDF preserves this edition. " + page.Saved["media_status"] + " " + page.Saved["x_posts_status"]
 	}
 	renderSponsorReport(w, app, page)
 }
@@ -310,6 +335,12 @@ func reportOptionalCount(raw string) (*int64, error) {
 }
 func eventReportForm(form url.Values, page *sponsorReportPage, now time.Time) (map[string]string, error) {
 	saved := map[string]string{}
+	if err := saveReportPostChoices(form, saved, page); err != nil {
+		return nil, err
+	}
+	if err := saveReportMediaFields(form, saved, page.Saved); err != nil {
+		return nil, err
+	}
 	if err := saveReportReach(form, saved, now); err != nil {
 		return nil, err
 	}
@@ -334,18 +365,18 @@ func eventReportForm(form url.Values, page *sponsorReportPage, now time.Time) (m
 			return nil, err
 		}
 	}
+	if err := saveReportRecipient(form, page, saved); err != nil {
+		return nil, err
+	}
 	countField := func(key string) (*int64, error) {
 		value := strings.TrimSpace(form.Get(key))
 		n, err := reportOptionalCount(value)
 		saved[key] = value
 		return n, err
 	}
-	n, err := countField("applications")
+	_, err := countField("applications")
 	if err != nil {
 		return nil, err
-	}
-	if n != nil && saved["applications_source"] == "" {
-		return nil, fmt.Errorf("add a source for the verified application count")
 	}
 	hasAttendance := false
 	for _, d := range page.Days {

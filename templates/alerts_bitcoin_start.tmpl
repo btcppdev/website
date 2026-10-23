@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><title>Prepay for Alerts · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/login-layout.css?v=3"></head>
-<body class="btcpp-login-page">{{ block "mainnav" . }}{{ end }}
-<main class="auth-shell auth-shell--simple"><section class="auth-card">
-<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>Pay with Bitcoin</h1><p>Your first three repositories are free. A new {{ .Months }}-month term for {{ .Slots }} additional repositories costs {{ .Total }}, including applicable tax.</p></header>
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=3"></head>
+<body class="shop-page">{{ block "mainnav" . }}{{ end }}
+<main class="service-checkout"><section>
+<header class="service-checkout__head"><span class="service-kicker">BITCOIN++ ALERTS</span><h1>Pay with Bitcoin</h1><p>Your first three repositories are free. A new {{ .Months }}-month term for {{ .Slots }} additional repositories costs {{ .Total }}, including applicable tax.</p></header>
 <p>No automatic renewal. If you already have a prepaid plan, the next page shows the prorated price for added repositories through your existing paid-through date.</p>
-{{ if .Enabled }}<form method="post" action="/services/alerts/prepay" class="auth-form alerts-billing-address">
+{{ if .Enabled }}<form method="post" action="/services/alerts/prepay" class="alerts-billing-address">
 <input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="months" value="{{ .Months }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
 <p class="alerts-billing-address__wide">Your billing address determines the tax included in the price.</p>
 <label class="alerts-billing-address__wide">Street address<input name="line1" autocomplete="address-line1" maxlength="200" required></label>
@@ -15,8 +15,19 @@
 <label>State or region<input name="region" autocomplete="address-level1" maxlength="200"></label>
 <label>Postal code<input name="postal" autocomplete="postal-code" maxlength="200"></label>
 <label>Country code<input name="country" autocomplete="country" placeholder="US" pattern="[A-Za-z]{2}" minlength="2" maxlength="2" required></label>
-<button type="submit" class="auth-primary alerts-billing-address__wide">Review your quote</button></form>
+<button type="submit" class="service-primary alerts-billing-address__wide">Review your quote</button></form>
 {{ else }}<p role="status">Bitcoin checkout is not configured here yet.</p>{{ end }}
 <p><a href="https://alerts.btcpp.dev/terms">Terms</a> · <a href="https://alerts.btcpp.dev/privacy">Privacy</a></p>
 <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
-</section></main></body></html>
+</section><aside class="service-summary" aria-label="Order summary">
+<img src="/static/img/alerts-checkout.svg" alt="" width="640" height="360">
+<div class="service-summary__body">
+<h2><span class="service-wordmark">bitcoin++</span> Alerts</h2>
+<p class="service-note">Software release notifications, delivered by email and Telegram.</p>
+<dl>
+<div><dt>Free projects</dt><dd>3 included</dd></div>
+<div><dt>Additional projects</dt><dd>{{ .Slots }}</dd></div>
+<div><dt>Prepaid term</dt><dd>{{ .Months }} months</dd></div>
+<div class="service-total"><dt>New term total</dt><dd>{{ .Total }}</dd></div>
+</dl><p class="service-note">USD · applicable tax included.</p>
+</div></aside></main></body></html>

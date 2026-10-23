@@ -67,14 +67,14 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	start := now.Add(-time.Hour)
-	end := start.AddDate(0, 1, 0)
-	price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	end := start.AddDate(1, 0, 0)
+	price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 	meta := map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}
 	sub := &stripe.Subscription{ID: b.SubscriptionID, Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: meta, Status: "active", CollectionMethod: "charge_automatically", LatestInvoice: &stripe.Invoice{ID: "in_base_" + id}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{ID: "si_" + id, Quantity: 2, Price: price, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
 	line := func(quantity, amount, at int64, proration bool) *stripe.InvoiceLineItem {
 		return &stripe.InvoiceLineItem{Currency: "usd", Quantity: quantity, Amount: amount, Period: &stripe.Period{Start: at, End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: b.SubscriptionID, SubscriptionItem: "si_" + id, Proration: proration}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: b.ProductID}}}
 	}
-	base := &stripe.Invoice{ID: sub.LatestInvoice.ID, Status: "paid", Currency: "usd", Customer: sub.Customer, BillingReason: "subscription_create", Total: 400, AmountPaid: 400, AmountDue: 400, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: start.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{line(2, 400, start.Unix(), false)}}}
+	base := &stripe.Invoice{ID: sub.LatestInvoice.ID, Status: "paid", Currency: "usd", Customer: sub.Customer, BillingReason: "subscription_create", Total: 4800, AmountPaid: 4800, AmountDue: 4800, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: start.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{line(2, 4800, start.Unix(), false)}}}
 	var lock sync.Mutex
 	var upgrade *stripe.Invoice
 	var reviewed int64
@@ -211,7 +211,7 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 		t.Fatal("prepare upgrade", code, body, path)
 	}
 	code, body, _ = call(path, nil)
-	if code != 200 || !strings.Contains(body, "$1.95") || !strings.Contains(body, "$6.00") {
+	if code != 200 || !strings.Contains(body, "$1.95") || !strings.Contains(body, "$72.00") {
 		t.Fatal("review", code, body)
 	}
 	if !strings.Contains(body, "Upgrade &lt;terms&gt;") || !strings.Contains(body, `name="accept_terms" value="yes" required`) {
@@ -298,7 +298,7 @@ func TestAlertsStripeUpgradeHTTPPostgres(t *testing.T) {
 		t.Fatal("second upgrade prepare", code, body, secondPath)
 	}
 	code, body, _ = call(secondPath, nil)
-	if code != 200 || !strings.Contains(body, "$8.00") {
+	if code != 200 || !strings.Contains(body, "$96.00") {
 		t.Fatal("second review", code, body)
 	}
 	token = regexp.MustCompile(`name="csrf" value="([^"]+)"`).FindStringSubmatch(body)

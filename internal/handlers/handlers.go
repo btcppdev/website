@@ -48,6 +48,7 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
+	stripeInvoice "github.com/stripe/stripe-go/v86/invoice"
 	"github.com/stripe/stripe-go/v86/webhook"
 )
 
@@ -148,6 +149,7 @@ func loadTemplates(ctx *config.AppContext) error {
 
 	var err error
 	funcMap := template.FuncMap{
+		"insiderVisible": func() bool { return insiderVisible(ctx) },
 		"safeURL": func(s string) template.URL {
 			u := strings.TrimSpace(s)
 			switch {
@@ -2080,11 +2082,15 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/settings/api-tokens/revoke", func(w http.ResponseWriter, r *http.Request) {
 		DashboardAPITokenRevoke(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/admin/site-features", func(w http.ResponseWriter, r *http.Request) { AdminSiteFeatures(w, r, app) }).Methods("GET", "POST")
 	r.HandleFunc("/dashboard/settings/oauth-clients", func(w http.ResponseWriter, r *http.Request) {
 		DashboardOAuthClientCreate(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/settings/oauth-consents/revoke", func(w http.ResponseWriter, r *http.Request) {
 		DashboardOAuthConsentRevoke(w, r, app)
+	}).Methods("POST")
+	r.HandleFunc("/dashboard/settings/oauth-clients/permissions", func(w http.ResponseWriter, r *http.Request) {
+		DashboardOAuthClientPermissions(w, r, app)
 	}).Methods("POST")
 	r.HandleFunc("/dashboard/settings/oauth-clients/revoke", func(w http.ResponseWriter, r *http.Request) {
 		DashboardOAuthClientRevoke(w, r, app)
@@ -7119,7 +7125,14 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
+	event, err = normalizeStripeInvoiceEvent(r.Context(), event, stripeInvoice.Get)
+	if err != nil {
+		ctx.Err.Printf("Stripe invoice event %s needs lookup retry", event.ID)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 	if handled, err := handleServiceStripeEvent(r.Context(), ctx, event); handled {
+
 		if err != nil {
 			ctx.Err.Printf("Service Stripe event %s requires retry", event.ID)
 			w.WriteHeader(http.StatusServiceUnavailable)

@@ -104,7 +104,7 @@ func TestDecreaseKeepsCurrentQuantityUntilRenewal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if q.PreviousSlots != 2 || q.PaidSlots != 1 || q.MonthlyCents != 200 {
+	if q.PreviousSlots != 2 || q.PaidSlots != 1 || q.AnnualCents != 2400 {
 		t.Fatal(q)
 	}
 	id := uuid.NewString()
@@ -116,7 +116,7 @@ func TestDecreaseKeepsCurrentQuantityUntilRenewal(t *testing.T) {
 		t.Fatal(p)
 	}
 	current, next := p.Phases[0], p.Phases[1]
-	if *current.Items[0].Quantity != 2 || *next.Items[0].Quantity != 1 || *current.EndDate != q.EffectiveAt || *next.StartDate != q.EffectiveAt || *next.Duration.Interval != "month" || *next.Duration.IntervalCount != 1 {
+	if *current.Items[0].Quantity != 2 || *next.Items[0].Quantity != 1 || *current.EndDate != q.EffectiveAt || *next.StartDate != q.EffectiveAt || *next.Duration.Interval != "year" || *next.Duration.IntervalCount != 1 {
 		t.Fatal(current, next)
 	}
 	for _, phase := range p.Phases {
@@ -125,7 +125,7 @@ func TestDecreaseKeepsCurrentQuantityUntilRenewal(t *testing.T) {
 		}
 	}
 	zero, err := c.PreviewDecrease(context.Background(), b, 0, now)
-	if err != nil || zero.MonthlyCents != 0 {
+	if err != nil || zero.AnnualCents != 0 {
 		t.Fatal(zero, err)
 	}
 	if _, err = decreaseScheduleParams(context.Background(), b, id, *zero, now); err == nil {

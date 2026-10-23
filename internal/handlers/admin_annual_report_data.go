@@ -28,6 +28,10 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 		return err
 	}
 	defer tx.Rollback(ctx)
+	postLibrary, err := loadReportPosts(ctx, tx, p.Year)
+	if err != nil {
+		return err
+	}
 	// Fetch the roster first and close it before opening reading each event.
 	rows, err := tx.Query(ctx, `SELECT id::text,tag,coalesce(nullif(description,''),tag),location,timezone,date_desc,start_date,end_date FROM conferences WHERE publication_status='published' ORDER BY start_date,tag`)
 	if err != nil {
@@ -41,6 +45,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 		}
 		if e.Start != nil && e.Start.In(reportEventLocation(e)).Year() == p.Year {
 			e.Period = reportEventPeriod(e)
+			e.LeadImage = confImagePath(e.Tag, "leading")
 			roster = append(roster, e)
 		}
 	}
@@ -56,6 +61,9 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 	speakers := map[string]bool{}
 	for _, event := range roster {
 		e := annualEvent{Event: event, Eligible: annualEligible(event, p.Year, p.Cutoff) && event.End != nil && !event.End.After(time.Now()), HackCoverage: p.Saved["hack_"+event.ID]}
+		if p.Year == 2026 && event.Tag == "floripa26" && (e.HackCoverage == "" || e.HackCoverage == "unknown") {
+			e.HackCoverage = "incomplete"
+		}
 		if e.HackCoverage == "" {
 			e.HackCoverage = "unknown"
 			// Confirmed by the organizer: these 2026 editions had no hackathon.
@@ -77,6 +85,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 			e.Projects, e.Participants, e.Challenges, e.Sats = data.Teams, data.Participants, data.Challenges, data.Sats
 			e.Winners = int64(len(data.Winners))
 			e.WinningProjects = data.Winners
+			e.detectHackathonRecords()
 			e.Speakers = int64(data.SpeakerCount())
 			for _, s := range data.Speakers {
 				speakers[s.ID] = true
@@ -100,6 +109,11 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 					return err
 				}
 			}
+			e.Proposals = data.Proposals
+			e.Applications = verifiedReportApplications(data.Saved)
+			data.PostLibrary = postLibrary
+			e.Posts = data.ApprovedPosts()
+			e.Media = data.Media()
 			for _, platform := range data.ReachPlatforms() {
 				if platform.Ready() {
 					e.Reach = append(e.Reach, platform)

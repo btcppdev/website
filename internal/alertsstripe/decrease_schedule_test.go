@@ -44,7 +44,7 @@ func TestSetDecreaseSchedule(t *testing.T) {
 				if got != scheduleID || *p.IdempotencyKey != "alerts-decrease-update:"+id || *p.ProrationBehavior != "none" || *p.EndBehavior != "release" || p.DefaultSettings != nil || len(p.Phases) != 2 {
 					t.Fatal(p)
 				}
-				if *p.Phases[0].Items[0].Quantity != 2 || *p.Phases[1].Items[0].Quantity != 1 || *p.Phases[0].EndDate != q.EffectiveAt || *p.Phases[1].StartDate != q.EffectiveAt || *p.Phases[1].Duration.Interval != "month" || *p.Phases[1].Duration.IntervalCount != 1 {
+				if *p.Phases[0].Items[0].Quantity != 2 || *p.Phases[1].Items[0].Quantity != 1 || *p.Phases[0].EndDate != q.EffectiveAt || *p.Phases[1].StartDate != q.EffectiveAt || *p.Phases[1].Duration.Interval != "year" || *p.Phases[1].Duration.IntervalCount != 1 {
 					t.Fatal(p.Phases)
 				}
 				s.Metadata = p.Metadata

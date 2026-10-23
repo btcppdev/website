@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"html/template"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -25,6 +26,7 @@ func TestTickerWidgets(t *testing.T) {
 	if err := loadTemplates(app); err != nil {
 		t.Fatal(err)
 	}
+	app.TemplateCache.Funcs(template.FuncMap{"insiderVisible": func() bool { return true }})
 	page := tickerWidgetPage{SponsorsMode: true, Sponsors: []*types.Sponsorship{{Org: &types.Org{Name: "Example sponsor", LogoLight: "https://example.com/logo.png"}}}}
 	rr := httptest.NewRecorder()
 	renderTickerWidget(rr, httptest.NewRequest("GET", "/widgets/berlin26/sponsors", nil), app, page)

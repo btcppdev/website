@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><title>Your order · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/login-layout.css?v=2">
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=3">
 <link rel="stylesheet" href="/static/css/service-receipt.css?v=1">
 </head>
-<body class="btcpp-login-page service-order-page">
+<body class="shop-page service-order-page">
 {{ block "mainnav" . }}{{ end }}
-<main class="auth-shell auth-shell--simple">
-<section class="auth-card">
-<header class="auth-card__head"><span class="receipt-brand">bitcoin<span class="receipt-plus">++</span></span><span class="auth-kicker">{{ if .Order.PaymentVerified }}PAYMENT RECEIPT{{ else }}YOUR ORDER · NOT A PAYMENT RECEIPT{{ end }}</span><h1>{{ .Heading }}</h1><p role="status">{{ .Message }}</p></header>
+<main class="service-checkout">
+<section class="service-checkout-content">
+<header class="service-checkout__head"><span class="receipt-brand">bitcoin<span class="receipt-plus">++</span></span><span class="service-kicker">{{ if .Order.PaymentVerified }}PAYMENT RECEIPT{{ else }}YOUR ORDER · NOT A PAYMENT RECEIPT{{ end }}</span><h1>{{ .Heading }}</h1><p role="status">{{ .Message }}</p></header>
 <dl class="receipt-details">
 <dt>Order number</dt><dd>{{ .Order.PublicID }}</dd>
 {{ if not .Order.CreatedAt.IsZero }}<dt>Order placed (UTC)</dt><dd>{{ .Order.CreatedAt.UTC.Format "January 2, 2006, 15:04" }}</dd>{{ end }}
@@ -34,19 +34,19 @@
 <details><summary>Privacy Policy shown for this order</summary><div style="white-space:pre-wrap">{{ .PrivacyText }}</div></details>
 {{ end }}
 <div class="receipt-actions">
-{{ if .Order.PaymentVerified }}<button type="button" class="auth-primary" onclick="window.print()">Print or save receipt</button>{{ end }}
+{{ if .Order.PaymentVerified }}<button type="button" class="service-primary" onclick="window.print()">Print or save receipt</button>{{ end }}
 {{ if .CanPay }}
 <form method="post" action="/services/orders/{{ .Order.PublicID }}/pay">
 <input type="hidden" name="csrf" value="{{ .CSRF }}">
-<button type="submit" class="auth-primary">Pay {{ .Total }} with Bitcoin →</button>
+<button type="submit" class="service-primary">Pay {{ .Total }} with Bitcoin →</button>
 <p>Continue to OpenNode to pay with Lightning or on-chain Bitcoin.</p>
 </form>
 {{ end }}
 <p><a href="/services/orders/{{ .Order.PublicID }}">Refresh payment status</a></p>
-{{ if .ReturnURL }}<p><a class="auth-primary" href="{{ .ReturnURL }}">Go to My alerts →</a></p>{{ end }}
+{{ if .ReturnURL }}<p><a class="service-primary" href="{{ .ReturnURL }}">Go to My alerts →</a></p>{{ end }}
 <p><a href="/dashboard/orders">View all your orders</a></p>
 </div>
 </section>
-</main>
+<aside class="service-summary" aria-label="Order summary">{{ if eq .Order.Quote.ProductCode "alerts.repository-slots" }}<img src="/static/img/alerts-checkout.svg" alt="" width="640" height="360">{{ end }}<div class="service-summary__body"><h2><span class="service-wordmark">bitcoin++</span></h2><p class="service-note">{{ .Order.Quote.Name }}</p><dl><div><dt>Quantity</dt><dd>{{ .Order.Quote.Quantity }}</dd></div><div><dt>Original order total</dt><dd>{{ .Total }}</dd></div><div><dt>Included tax</dt><dd>{{ .Tax }}</dd></div></dl></div></aside></main>
 </body>
 </html>

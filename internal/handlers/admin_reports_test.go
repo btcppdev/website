@@ -135,8 +135,11 @@ func TestReportCountsAndProvenance(t *testing.T) {
 		t.Fatal("negative accepted")
 	}
 	form.Set("applications", "0")
-	if _, err := eventReportForm(form, &page, now); err == nil {
-		t.Fatal("unsourced count accepted")
+	for _, action := range []string{"save", "refresh_media", "refresh_x_posts"} {
+		form.Set("action", action)
+		if saved, err := eventReportForm(form, &page, now); err != nil || saved["applications"] != "0" {
+			t.Fatalf("optional note blocked %s: %v", action, err)
+		}
 	}
 	form.Set("applications_source", "CFP export")
 	form.Set("day_2026-06-17", "100")
@@ -230,9 +233,15 @@ func TestReportMetricsPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err = db.Exec(ctx, `UPDATE people SET norm_photo_path='https://example.test/winner.jpg' WHERE id='person1'`); err != nil {
+		t.Fatal(err)
+	}
 	page := sponsorReportPage{Event: reportEvent{ID: "event", Tag: "nairobi", Timezone: "Africa/Nairobi"}}
 	if err = loadEventReport(ctx, &config.AppContext{DB: db}, &page); err != nil {
 		t.Fatal(err)
+	}
+	if len(page.Winners) != 1 || len(page.Winners[0].Portraits) != 2 || page.Winners[0].Portraits[0].Photo != "https://example.test/winner.jpg" {
+		t.Fatal("winner team duplicated across awards or missing member profiles")
 	}
 	if len(page.TeamSizes) != 6 || page.TeamSizes[1].Value != 1 || page.TeamSizes[2].Value != 1 || page.TeamSizes[0].Value != 0 {
 		t.Fatal("team-size distribution lost project membership or included drafts")
@@ -249,6 +258,16 @@ func TestReportMetricsPostgres(t *testing.T) {
 	}
 	if anonymized.Attendees != page.Attendees || anonymized.Registrations != page.Registrations {
 		t.Fatal("deletion changed historical attendance totals")
+	}
+	if len(page.ProposalStatuses) != 2 || page.Proposals != 2 {
+		t.Fatalf("proposal breakdown includes non-speaking sessions: %+v", page.ProposalStatuses)
+	}
+	var proposalSum int64
+	for _, row := range page.ProposalStatuses {
+		proposalSum += row.Value
+	}
+	if proposalSum != page.Proposals {
+		t.Fatal("proposal status breakdown multiplied records")
 	}
 	if len(page.Sessions) != 1 || len(page.Speakers) != 1 || len(page.Judges) != 1 || len(page.Winners) != 1 {
 		t.Fatalf("bad content counts: sessions %d speakers %d judges %d winners %d", len(page.Sessions), len(page.Speakers), len(page.Judges), len(page.Winners))
@@ -315,17 +334,20 @@ func TestReportFormCSRFPostgres(t *testing.T) {
 }
 
 const reportFixtureSQL = `
+CREATE TEMP TABLE organizations(id text,name text,logo_light_url text,logo_dark_url text);
+CREATE TEMP TABLE sponsorships(id text,organization_id text,archived_at timestamptz);
+CREATE TEMP TABLE sponsorships_conferences(sponsorship_id text,conference_id text);
 CREATE TEMP TABLE registrations(conference_id text,revoked boolean,checked_in_at timestamptz,person_id text,email text,revoked_before_account_deletion boolean);
 CREATE TEMP TABLE person_emails(person_id text,email text UNIQUE);
 CREATE TEMP TABLE competitions(id text,conference_id text,results_finalized_at timestamptz);
 CREATE TEMP TABLE projects(id text PRIMARY KEY,competition_id text,status text,title text,short_description text,image_url text,github_url text,demo_url text);
 CREATE TEMP TABLE project_members(project_id text,person_id text);
-CREATE TEMP TABLE awards(id text,competition_id text,award_type text,sponsored_by_org_id text,status text,archived_at timestamptz,title text);
+CREATE TEMP TABLE awards(id text,competition_id text,award_type text,sponsored_by_org_id text,status text,archived_at timestamptz,title text,award_rank integer);
 CREATE TEMP TABLE project_awards(project_id text,award_id text);
 CREATE TEMP TABLE award_distributions(competition_id text,project_id text,amount_sats bigint,distribution_type text,status text);
 CREATE TEMP TABLE people(id text PRIMARY KEY,name text,norm_photo_path text,company text);
 CREATE TEMP TABLE proposals(id text,conference_id text,title text,talk_type text,status text);
-CREATE TEMP TABLE conf_talks(id text,conference_id text,proposal_id text,scheduled_start timestamptz,scheduled_end timestamptz,archived_at timestamptz,venue text NOT NULL DEFAULT '');
+CREATE TEMP TABLE conf_talks(id text,conference_id text,proposal_id text,scheduled_start timestamptz,scheduled_end timestamptz,archived_at timestamptz,venue text NOT NULL DEFAULT '',social_card_path text NOT NULL DEFAULT '');
 CREATE TEMP TABLE recordings(conf_talk_id text,youtube_url text,x_url text);
 CREATE TEMP TABLE proposals_speaker_confs(proposal_id text,speaker_conf_id text);
 CREATE TEMP TABLE speaker_confs(id text,speaker_id text,coming_from text NOT NULL DEFAULT '');
@@ -339,7 +361,7 @@ INSERT INTO person_emails VALUES ('person1','alias@example.test');
 INSERT INTO competitions VALUES ('competition','event',now());
 INSERT INTO projects VALUES ('project1','competition','submitted','Winner','Useful build','','https://example.test/repo',''),('project2','competition','advanced','Other','','','',''),('draft','competition','created','Draft','','','','');
 INSERT INTO project_members VALUES ('project1','person1'),('project1','person2'),('project2','person1'),('draft','person3');
-INSERT INTO awards VALUES ('award1','competition','normal','org','awarded',NULL,'First place'),('award2','competition','challenge','org','awarded',NULL,'Sponsor prize'),('draftaward','competition','challenge','org','draft',NULL,'Draft');
+INSERT INTO awards(id,competition_id,award_type,sponsored_by_org_id,status,archived_at,title) VALUES ('award1','competition','normal','org','awarded',NULL,'First place'),('award2','competition','challenge','org','awarded',NULL,'Sponsor prize'),('draftaward','competition','challenge','org','draft',NULL,'Draft');
 INSERT INTO project_awards VALUES ('project1','award1'),('project1','award2');
 INSERT INTO award_distributions VALUES ('competition','project1',100,'sats','sent'),('competition','project1',200,'sats','claimed'),('competition','project1',500,'sats','pending'),('competition','project1',500,'sats','cancelled'),('competition','project1',900,'tickets','sent');
 INSERT INTO people VALUES ('person1','Speaker Judge','','Org'),('person2','Teammate','','');

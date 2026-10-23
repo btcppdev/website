@@ -36,7 +36,7 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	}
 	id := checkout.Intent.ID
 	now := time.Now().UTC().Truncate(time.Second)
-	preview := alertsstripe.IncreasePreview{SubscriptionItemID: "si_test", PreviousSlots: 2, PaidSlots: 3, PeriodStart: now.Add(-time.Hour).Unix(), PeriodEnd: now.AddDate(0, 1, 0).Unix(), ProrationDate: now.Unix(), TotalCents: 195, TaxCents: 15, ExpiresAt: now.Add(10 * time.Minute)}
+	preview := alertsstripe.IncreasePreview{SubscriptionItemID: "si_test", PreviousSlots: 2, PaidSlots: 3, PeriodStart: now.Add(-time.Hour).Unix(), PeriodEnd: now.AddDate(1, 0, 0).Unix(), ProrationDate: now.Unix(), TotalCents: 195, TaxCents: 15, ExpiresAt: now.Add(10 * time.Minute)}
 	b, _ := json.Marshal(alertsstripe.Binding{IntentID: id, PersonID: person, SubscriptionID: "sub_" + id, CustomerID: "cus_" + id, PriceID: "price_" + id, ProductID: "prod_" + id, PaidSlots: 2})
 	s, _ := json.Marshal(alertsstripe.SubscriptionState{State: "active", ProviderStatus: "active", PeriodStart: preview.PeriodStart, PeriodEnd: preview.PeriodEnd})
 	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3)`, id, "sub_"+id, b); err != nil {
@@ -254,7 +254,7 @@ func TestAlertsStripeIncreaseReservationPostgres(t *testing.T) {
 	if err = app.DB.QueryRow(ctx, `SELECT state FROM alerts_stripe_increases WHERE quote_id=$1`, ambiguousID).Scan(&expiredState); err != nil || expiredState != "pending" {
 		t.Fatal("ambiguous operation released", expiredState, err)
 	}
-	price := &stripe.Price{ID: "price_" + id, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_" + id, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	price := &stripe.Price{ID: "price_" + id, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_" + id, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 	meta := map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}
 	invoice := &stripe.Invoice{ID: "in_void_" + ambiguousID, Status: "void", Currency: "usd", Customer: &stripe.Customer{ID: "cus_" + id}, BillingReason: "subscription_update", Total: 195, AmountDue: 195, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, TotalTaxes: []*stripe.InvoiceTotalTax{{Amount: 15, TaxBehavior: "inclusive"}}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: "sub_" + id}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{}}
 	for _, line := range []struct{ quantity, amount int64 }{{2, -200}, {3, 395}} {

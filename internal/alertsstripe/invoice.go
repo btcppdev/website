@@ -23,13 +23,13 @@ type PaidPeriod = servicestripe.PaidPeriod
 func serviceBinding(b Binding) servicestripe.Binding {
 	return servicestripe.Binding{IntentID: b.IntentID, PersonID: b.PersonID, SubscriptionID: b.SubscriptionID, CustomerID: b.CustomerID, PriceID: b.PriceID, ProductID: b.ProductID, Quantity: b.PaidSlots, Live: b.Live, ProductCode: servicebilling.AlertsProduct, TaxCode: servicebilling.AlertsStripeTaxCode}
 }
-func VerifyMonthlyInvoice(in *stripe.Invoice, price *stripe.Price, b Binding) (*PaidPeriod, error) {
+func VerifyAnnualInvoice(in *stripe.Invoice, price *stripe.Price, b Binding) (*PaidPeriod, error) {
 	return servicestripe.VerifyPaidInvoice(in, price, serviceBinding(b))
 }
-func verifyMonthlyInvoiceTerms(in *stripe.Invoice, price *stripe.Price, b Binding) (*PaidPeriod, error) {
+func verifyAnnualInvoiceTerms(in *stripe.Invoice, price *stripe.Price, b Binding) (*PaidPeriod, error) {
 	return servicestripe.VerifyInvoiceTerms(in, price, serviceBinding(b))
 }
-func validMonthlyPrice(price *stripe.Price, b Binding) bool {
+func validAnnualPrice(price *stripe.Price, b Binding) bool {
 	return servicestripe.ValidPrice(price, serviceBinding(b))
 }
 

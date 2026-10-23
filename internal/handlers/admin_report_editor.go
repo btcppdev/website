@@ -53,6 +53,9 @@ func renderReportMarkdownPreview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p sponsorReportPage) PreparedFor() string {
+	if sponsor := p.SelectedSponsor(); sponsor.ID != "" {
+		return sponsor.Name
+	}
 	if name := strings.TrimSpace(p.Saved["prepared_for"]); name != "" {
 		return name
 	}

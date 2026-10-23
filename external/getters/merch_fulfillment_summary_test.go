@@ -39,3 +39,28 @@ func TestPopulateShopOrderFulfillmentSummaryDoesNotQueuePendingShipping(t *testi
 		t.Fatalf("pending order entered shipping queue: %d %q", order.UnfulfilledShippingQuantity, order.UnfulfilledShippingSummary)
 	}
 }
+
+func TestShopOrderFulfillmentDisplay(t *testing.T) {
+	for _, tc := range []struct {
+		name, status string
+		items        []*types.ShopOrderItem
+		want         string
+		remaining    uint
+	}{
+		{"unfulfilled", types.ShopOrderStatusPaid, []*types.ShopOrderItem{{VariantID: "variant", Quantity: 2, FulfillmentMethod: types.ShopFulfillmentShip}}, "unfulfilled", 2},
+		{"mixed", types.ShopOrderStatusPaid, []*types.ShopOrderItem{{VariantID: "variant", Quantity: 2, FulfilledQuantity: 1, FulfillmentMethod: types.ShopFulfillmentEventPickup}}, "partial", 1},
+		{"complete", types.ShopOrderStatusPaid, []*types.ShopOrderItem{{VariantID: "variant", Quantity: 2, FulfilledQuantity: 2, Status: types.ShopItemStatusFulfilled, FulfillmentMethod: types.ShopFulfillmentPOSTakeaway}}, "fulfilled", 0},
+		{"unpaid", types.ShopOrderStatusPending, []*types.ShopOrderItem{{VariantID: "variant", Quantity: 1, FulfillmentMethod: types.ShopFulfillmentShip}}, "awaiting_payment", 1},
+		{"ticket only", types.ShopOrderStatusPaid, nil, "not_required", 0},
+		{"refunded", types.ShopOrderStatusRefunded, []*types.ShopOrderItem{{VariantID: "variant", Quantity: 1, FulfillmentMethod: types.ShopFulfillmentShip}}, "not_required", 1},
+		{"partial refund", types.ShopOrderStatusPartiallyRefunded, []*types.ShopOrderItem{{VariantID: "variant", Quantity: 2, FulfilledQuantity: 1, RefundedQuantity: 1, FulfillmentMethod: types.ShopFulfillmentShip}}, "fulfilled", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			order := &types.ShopOrder{Status: tc.status, Items: tc.items}
+			populateShopOrderFulfillmentSummary(order)
+			if order.FulfillmentStatus() != tc.want || order.FulfillmentRemaining != tc.remaining {
+				t.Fatalf("got %s, %d remaining", order.FulfillmentStatus(), order.FulfillmentRemaining)
+			}
+		})
+	}
+}

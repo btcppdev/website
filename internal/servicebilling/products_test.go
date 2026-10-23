@@ -12,7 +12,7 @@ func TestProductTermsKeepPricingAndCapacitySeparate(t *testing.T) {
 		quantity, cents             int64
 		end                         string
 	}{
-		{AlertsProduct, "stripe", "alerts", "inclusive", 4, 200, "2028-02-29"},
+		{AlertsProduct, "stripe", "alerts", "inclusive", 4, 2400, "2029-01-31"},
 		{InsiderMonthlyProduct, "stripe", "insider", "exclusive", 1, 2100, "2028-02-29"},
 		{InsiderAnnualProduct, "stripe", "insider", "exclusive", 1, 21000, "2029-01-31"},
 		{InsiderAnnualProduct, "opennode", "insider", "exclusive", 1, 21000, "2029-01-31"},
@@ -41,7 +41,7 @@ func TestProductTermsKeepPricingAndCapacitySeparate(t *testing.T) {
 	p, _ := LookupProductPlan(AlertsProduct)
 	p.UnitCents = 1
 	again, _ := LookupProductPlan(AlertsProduct)
-	if again.UnitCents != 200 {
+	if again.UnitCents != 2400 {
 		t.Fatal("caller modified server pricing")
 	}
 }

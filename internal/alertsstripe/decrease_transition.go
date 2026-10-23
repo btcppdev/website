@@ -24,7 +24,7 @@ func (c Client) ObserveDecreaseTransition(ctx context.Context, b Binding, id, sc
 	if _, err := uuid.Parse(id); err != nil {
 		return nil, ErrSubscription
 	}
-	if c.Schedule == nil || c.Subscription == nil || c.Live != b.Live || !strings.HasPrefix(scheduleID, "sub_sched_") || q.PreviousSlots != b.PaidSlots || q.PaidSlots < 1 || q.PaidSlots >= q.PreviousSlots || q.MonthlyCents != q.PaidSlots*servicebilling.AlertsMonthlySlotCents || q.PeriodStart <= 0 || q.EffectiveAt <= q.PeriodStart || now.Unix() < q.EffectiveAt {
+	if c.Schedule == nil || c.Subscription == nil || c.Live != b.Live || !strings.HasPrefix(scheduleID, "sub_sched_") || q.PreviousSlots != b.PaidSlots || q.PaidSlots < 1 || q.PaidSlots >= q.PreviousSlots || q.AnnualCents != q.PaidSlots*servicebilling.AlertsAnnualSlotCents || q.PeriodStart <= 0 || q.EffectiveAt <= q.PeriodStart || now.Unix() < q.EffectiveAt {
 		return nil, ErrSubscription
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)

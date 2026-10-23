@@ -155,6 +155,9 @@ type ShopOrder struct {
 	ShippingAddress             *ShopAddress
 	Items                       []*ShopOrderItem
 	Shipments                   []*Shipment
+	FulfillmentRemaining        uint
+	FulfillmentCompleted        uint
+	FulfillmentItems            uint
 	UnfulfilledShippingQuantity uint
 	UnfulfilledShippingSummary  string
 	EventPickupQuantity         uint
@@ -387,4 +390,45 @@ type ShopEvent struct {
 	ConferenceID string
 	Metadata     string
 	CreatedAt    time.Time
+}
+
+// Fulfillment is independent of payment, and counts physical merch only.
+func (o ShopOrder) FulfillmentStatus() string {
+	if o.Status == ShopOrderStatusPending {
+		return "awaiting_payment"
+	}
+	if o.Status == ShopOrderStatusCancelled || o.Status == ShopOrderStatusRefunded {
+		return "not_required"
+	}
+	if o.Status != ShopOrderStatusPaid && o.Status != ShopOrderStatusPartiallyRefunded {
+		return "not_required"
+	}
+	if o.FulfillmentItems == 0 {
+		return "not_required"
+	}
+	if o.FulfillmentRemaining == 0 {
+		return "fulfilled"
+	}
+	if o.FulfillmentCompleted > 0 {
+		return "partial"
+	}
+	return "unfulfilled"
+}
+func (o ShopOrder) FulfillmentLabel() string {
+	switch o.FulfillmentStatus() {
+	case "awaiting_payment":
+		return "Awaiting payment"
+	case "not_required":
+		return "No fulfillment required"
+	case "fulfilled":
+		return "Fulfilled"
+	case "partial":
+		return "Partially fulfilled"
+	default:
+		return "Awaiting fulfillment"
+	}
+}
+func (o ShopOrder) NeedsFulfillment() bool {
+	s := o.FulfillmentStatus()
+	return s == "partial" || s == "unfulfilled"
 }

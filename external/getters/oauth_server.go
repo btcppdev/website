@@ -46,7 +46,7 @@ func ListOAuthClients(ctx *config.AppContext) ([]*types.OAuthClient, error) {
 		SELECT id::text, client_id, name, redirect_uris, allowed_scopes,
 			token_endpoint_auth_method, coalesce(created_by_person_id::text, ''),
 			created_at, revoked_at, client_secret_hash
-		FROM oauth_clients ORDER BY created_at DESC, id
+		FROM oauth_clients WHERE revoked_at IS NULL ORDER BY created_at DESC, id
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("list OAuth clients: %w", err)
@@ -198,6 +198,14 @@ func RedeemOAuthAuthorizationCode(ctx *config.AppContext, codeHash []byte, clien
 		return nil, fmt.Errorf("begin OAuth code exchange: %w", err)
 	}
 	defer tx.Rollback(ctx.DatabaseContext())
+	var allowedScopes []string
+	if err := tx.QueryRow(ctx.DatabaseContext(), "SELECT allowed_scopes FROM oauth_clients WHERE id = $1::uuid AND revoked_at IS NULL FOR SHARE", clientDBID).Scan(&allowedScopes); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
 	var personID, storedClientID, storedRedirect, storedChallenge string
 	var scopes []string
 	var expiresAt time.Time
@@ -215,6 +223,12 @@ func RedeemOAuthAuthorizationCode(ctx *config.AppContext, codeHash []byte, clien
 	if storedClientID != clientDBID || storedRedirect != redirectURI || !bytes.Equal([]byte(storedChallenge), []byte(verifierChallenge)) {
 		return nil, nil
 	}
+	for _, scope := range scopes {
+		if !oauthScopePresent(allowedScopes, scope) {
+			return nil, nil
+		}
+	}
+
 	grant := &OAuthTokenGrant{PersonID: personID, ClientDBID: storedClientID, Scopes: scopes}
 	familyID := ""
 	if len(issue.RefreshHash) > 0 && oauthScopePresent(scopes, "offline_access") {
@@ -259,7 +273,7 @@ func FindActiveOAuthAccessToken(ctx *config.AppContext, selector string) (*types
 		FROM oauth_access_tokens token
 		JOIN oauth_clients client ON client.id = token.client_id
 		WHERE token.selector = $1 AND token.revoked_at IS NULL
-			AND token.expires_at > now() AND client.revoked_at IS NULL
+			AND token.expires_at > now() AND client.revoked_at IS NULL AND token.scopes <@ client.allowed_scopes
 	`, selector).Scan(&token.ID, &token.ClientDBID, &token.ClientID, &token.PersonID,
 		&token.Scopes, &token.CreatedAt, &token.ExpiresAt, &token.LastUsedAt, &hash)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -288,6 +302,14 @@ func RotateOAuthRefreshToken(ctx *config.AppContext, refreshHash []byte, clientD
 		return nil, fmt.Errorf("begin OAuth refresh: %w", err)
 	}
 	defer tx.Rollback(ctx.DatabaseContext())
+	var allowedScopes []string
+	if err := tx.QueryRow(ctx.DatabaseContext(), "SELECT allowed_scopes FROM oauth_clients WHERE id = $1::uuid AND revoked_at IS NULL FOR SHARE", clientDBID).Scan(&allowedScopes); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
 	var oldID, familyID, storedClientID, personID string
 	var scopes []string
 	var expiresAt time.Time
@@ -312,6 +334,12 @@ func RotateOAuthRefreshToken(ctx *config.AppContext, refreshHash []byte, clientD
 	if revokedAt != nil || expiresAt.Before(time.Now()) || storedClientID != clientDBID {
 		return nil, nil
 	}
+	for _, scope := range scopes {
+		if !oauthScopePresent(allowedScopes, scope) {
+			return nil, nil
+		}
+	}
+
 	grant := &OAuthTokenGrant{PersonID: personID, ClientDBID: storedClientID, Scopes: scopes}
 	err = tx.QueryRow(ctx.DatabaseContext(), `
 		INSERT INTO oauth_access_tokens (selector, token_hash, client_id, person_id, scopes, refresh_family_id, expires_at)
@@ -402,4 +430,39 @@ func oauthScopePresent(scopes []string, wanted string) bool {
 		}
 	}
 	return false
+}
+
+// UpdateOAuthClientPermissions preserves credentials and never expands existing grants.
+func UpdateOAuthClientPermissions(ctx *config.AppContext, clientID string, scopes []string) error {
+	if ctx == nil || ctx.DB == nil || len(scopes) == 0 {
+		return fmt.Errorf("client and permissions are required")
+	}
+	seen := map[string]bool{}
+	for _, scope := range scopes {
+		if seen[scope] || (scope != "offline_access" && !oauthScopePresent(types.APITokenScopes, scope)) {
+			return fmt.Errorf("invalid OAuth permission")
+		}
+		seen[scope] = true
+	}
+	tx, err := ctx.DB.Begin(ctx.DatabaseContext())
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx.DatabaseContext())
+	var id string
+	if err := tx.QueryRow(ctx.DatabaseContext(), "SELECT id::text FROM oauth_clients WHERE id = $1::uuid AND revoked_at IS NULL FOR UPDATE", clientID).Scan(&id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx.DatabaseContext(), "UPDATE oauth_clients SET allowed_scopes = $2 WHERE id = $1::uuid", id, scopes); err != nil {
+		return err
+	}
+	for _, table := range []string{"oauth_access_tokens", "oauth_refresh_tokens", "oauth_consents"} {
+		if _, err := tx.Exec(ctx.DatabaseContext(), "UPDATE "+table+" SET revoked_at = coalesce(revoked_at, now()) WHERE client_id = $1::uuid AND NOT (scopes <@ $2::text[])", id, scopes); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(ctx.DatabaseContext(), "DELETE FROM oauth_authorization_codes WHERE client_id = $1::uuid AND NOT (scopes <@ $2::text[])", id, scopes); err != nil {
+		return err
+	}
+	return tx.Commit(ctx.DatabaseContext())
 }

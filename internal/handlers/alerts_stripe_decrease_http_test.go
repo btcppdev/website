@@ -68,11 +68,11 @@ func TestAlertsStripeDecreaseHTTPPostgres(t *testing.T) {
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	start := now.Add(-time.Hour)
-	end := start.AddDate(0, 1, 0)
-	price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	end := start.AddDate(1, 0, 0)
+	price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 	meta := map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}
 	sub := &stripe.Subscription{ID: b.SubscriptionID, Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: meta, Status: "active", CollectionMethod: "charge_automatically", LatestInvoice: &stripe.Invoice{ID: "in_base_" + id}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{ID: "si_" + id, Quantity: 2, Price: price, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
-	base := &stripe.Invoice{ID: sub.LatestInvoice.ID, Status: "paid", Currency: "usd", Customer: sub.Customer, BillingReason: "subscription_create", Total: 400, AmountPaid: 400, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: start.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Quantity: 2, Amount: 400, Period: &stripe.Period{Start: start.Unix(), End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: b.SubscriptionID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: b.ProductID}}}}}}
+	base := &stripe.Invoice{ID: sub.LatestInvoice.ID, Status: "paid", Currency: "usd", Customer: sub.Customer, BillingReason: "subscription_create", Total: 4800, AmountPaid: 4800, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: start.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Quantity: 2, Amount: 4800, Period: &stripe.Period{Start: start.Unix(), End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: b.SubscriptionID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: b.ProductID}}}}}}
 	var mu sync.Mutex
 	var schedule *stripe.SubscriptionSchedule
 	creates, updates, releases, cancellations := 0, 0, 0, 0
@@ -106,7 +106,7 @@ func TestAlertsStripeDecreaseHTTPPostgres(t *testing.T) {
 		case r.Method == "POST" && r.URL.Path == "/v1/subscription_schedules/"+sid:
 			updates++
 			quote := r.Form.Get("metadata[alerts_decrease]")
-			if r.Header.Get("Idempotency-Key") != "alerts-decrease-update:"+quote || r.Form.Get("proration_behavior") != "none" || r.Form.Get("end_behavior") != "release" || r.Form.Get("phases[0][items][0][quantity]") != "2" || r.Form.Get("phases[1][items][0][quantity]") != "1" || r.Form.Get("phases[0][end_date]") != strconv.FormatInt(end.Unix(), 10) || r.Form.Get("phases[1][start_date]") != strconv.FormatInt(end.Unix(), 10) || r.Form.Get("phases[1][duration][interval]") != "month" {
+			if r.Header.Get("Idempotency-Key") != "alerts-decrease-update:"+quote || r.Form.Get("proration_behavior") != "none" || r.Form.Get("end_behavior") != "release" || r.Form.Get("phases[0][items][0][quantity]") != "2" || r.Form.Get("phases[1][items][0][quantity]") != "1" || r.Form.Get("phases[0][end_date]") != strconv.FormatInt(end.Unix(), 10) || r.Form.Get("phases[1][start_date]") != strconv.FormatInt(end.Unix(), 10) || r.Form.Get("phases[1][duration][interval]") != "year" {
 				t.Error("unsafe phases", r.Form)
 			}
 			schedule.Metadata = map[string]string{"alerts_decrease": quote, "account_id": person, "checkout_intent": id}
@@ -120,7 +120,7 @@ func TestAlertsStripeDecreaseHTTPPostgres(t *testing.T) {
 				at, until := start.Unix(), end.Unix()
 				if i == 1 {
 					at = end.Unix()
-					until = end.AddDate(0, 1, 0).Unix()
+					until = end.AddDate(1, 0, 0).Unix()
 				}
 				schedule.Phases = append(schedule.Phases, &stripe.SubscriptionSchedulePhase{StartDate: at, EndDate: until, Currency: "usd", CollectionMethod: &method, AutomaticTax: &stripe.SubscriptionAutomaticTax{Enabled: true}, ProrationBehavior: "none", Metadata: meta, Items: []*stripe.SubscriptionSchedulePhaseItem{{Price: price, Quantity: quantity}}})
 			}
@@ -199,7 +199,7 @@ func TestAlertsStripeDecreaseHTTPPostgres(t *testing.T) {
 	}
 	call("/fixture/login", nil)
 	code, body, _ := call("/services/alerts/manage", nil)
-	if code != 200 || !strings.Contains(body, "Review lower monthly total") {
+	if code != 200 || !strings.Contains(body, "Review lower annual total") {
 		t.Fatal(code, body)
 	}
 	code, body, path := call("/services/alerts/manage", url.Values{"csrf": {field(body, "csrf")}, "checkout": {id}, "action": {"decrease"}, "slots": {"1"}})
@@ -207,7 +207,7 @@ func TestAlertsStripeDecreaseHTTPPostgres(t *testing.T) {
 		t.Fatal(code, body, path)
 	}
 	code, body, _ = call(path, nil)
-	if code != 200 || !strings.Contains(body, "$2.00") {
+	if code != 200 || !strings.Contains(body, "$24.00") {
 		t.Fatal(code, body)
 	}
 	csrf := field(body, "csrf")
@@ -229,13 +229,22 @@ func TestAlertsStripeDecreaseHTTPPostgres(t *testing.T) {
 	if code != 200 || !strings.Contains(body, "View subscription change") || strings.Contains(body, "Cancel future renewals") {
 		t.Fatal(code, body)
 	}
+	quote, err := getters.AlertsStripeDecreaseQuoteForPerson(ctx, app, person, quoteID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"decrease from 2 to 1 on " + time.Unix(quote.Preview.EffectiveAt, 0).UTC().Format("January 2, 2006"), "new annual total will be $24.00", "three free projects remain included"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("scheduled change missing %q: %s", want, body)
+		}
+	}
 	for i := 0; i < 2; i++ {
 		if code, body, location := call(path, url.Values{"csrf": {csrf}, "action": {"withdraw"}}); code != 303 || location != path {
 			t.Fatal(code, body, location)
 		}
 	}
 	code, body, _ = call(path, nil)
-	if code != 200 || !strings.Contains(body, "planned decrease was withdrawn") || !strings.Contains(body, "$4.00") {
+	if code != 200 || !strings.Contains(body, "planned decrease was withdrawn") || !strings.Contains(body, "$48.00") {
 		t.Fatal(code, body)
 	}
 	code, body, _ = call("/services/alerts/manage", nil)

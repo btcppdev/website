@@ -12,12 +12,12 @@
       <div class="account-settings-hero__copy">
         <p class="profile-edit-tag">§ YOUR ACCOUNT</p>
         <h1>Your <span>subscriptions.</span></h1>
-        <p>Alerts and Insider Edition, together in your bitcoin++ account. Open either service to manage your plan, payments, and delivery preferences.</p>
+        <p>Manage your subscriptions, payments, and delivery preferences from your bitcoin++ account.</p>
       </div>
     </header>
     {{ template "billing_tabs" (dict "Active" "subscriptions" "ShowServices" .IsGlobalAdmin) }}
     {{ range .Subscriptions }}
-    <section class="profile-edit-section is-open" aria-label="{{ .Name }} subscription">
+    <section class="profile-edit-section is-open dashboard-subscription-card" aria-label="{{ .Name }} subscription">
       <div class="profile-edit-section__index">{{ if eq .Name "Alerts" }}01{{ else }}02{{ end }}</div>
       <div class="profile-edit-section__body">
         <div class="profile-edit-section__head"><div><h2>{{ .Name }}</h2><p>{{ .Description }}</p></div></div>
@@ -25,7 +25,10 @@
         {{ range .Periods }}<p>{{ . }}</p>{{ end }}
         {{ if .CheckedAt }}<p>Membership last updated {{ .CheckedAt }}. See Insider for your membership dates, including prepaid and complimentary access.</p>{{ end }}
         {{ if .BillingStatus }}<p>{{ .BillingStatus }}</p>{{ end }}
-        <p><a href="{{ .URL }}">Manage {{ .Name }} →</a></p>
+        {{ if .BillingURL }}
+        <p><a href="{{ .BillingURL }}">Manage subscription →</a></p>
+        <p><a href="{{ .URL }}">My alerts →</a></p>
+        {{ else }}<p><a href="{{ .URL }}">Manage {{ .Name }} →</a></p>{{ end }}
       </div>
     </section>
     {{ end }}

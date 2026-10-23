@@ -18,6 +18,10 @@ import (
 )
 
 type annualEvent struct {
+	Proposals                                                                   int64
+	Applications                                                                *int64
+	Posts                                                                       []reportPost
+	Media                                                                       []reportMedia
 	Event                                                                       reportEvent
 	Included, Eligible                                                          bool
 	Registrations, Attendees, Projects, Participants, Challenges, Sats, Winners int64
@@ -29,7 +33,9 @@ type annualEvent struct {
 
 func (e annualEvent) Sessions() int64     { return e.Talks + e.Workshops + e.Panels }
 func (e annualEvent) SatsDisplay() string { return compactReportSats(e.Sats) }
-func (e annualEvent) HackKnown() bool     { return e.HackCoverage == "records" }
+func (e annualEvent) HackKnown() bool {
+	return e.HackCoverage == "records" || e.HackCoverage == "automatic"
+}
 
 type annualEditionLink struct{ URL, Date string }
 type annualReportPage struct {
@@ -51,12 +57,16 @@ func annualSections(year int, recipient string) []reportSection {
 	if year != 2026 {
 		note = fmt.Sprintf("To our friends at %s,\n\n[Add your opening letter for %d.]\n\nnifty", recipient, year)
 	}
+	program := "[Highlight three technical questions that ran through this year’s talks and workshops. Link to recordings and explain why the work matters beyond the event.]"
+	if year == 2026 {
+		program = "Our first economics edition brought developers into conversation with the people who say ‘developers don’t understand economics’. Making space for that exchange was one of this year’s highlights.\n\nThe featured recordings in this review offer a way back into the technical work and conversations from our events."
+	}
 	return []reportSection{
 		{"note", "A note from nifty", note},
 		{"community", "The people who make it happen", "Each gathering creates space for builders to meet, share their work and find people working on related problems. The counts below describe participation in our events, not the size of the entire Bitcoin development community.\n\n[Add a specific collaboration or participant story, with permission.]"},
-		{"program", "The technical conversation", "[Highlight three technical questions that ran through this year’s talks and workshops. Link to recordings and explain why the work matters beyond the event.]"},
+		{"program", "The technical conversation", program},
 		{"building", "From conversation to code", "The hackathons give participants time to turn ideas into prototypes and get feedback from other builders. A submitted project is a starting point, not proof of adoption.\n\n[Add the strongest project follow-up stories and explain what teams shipped next.]"},
-		{"reach", "Beyond the room", "Recordings let people take part after the gathering ends. Platform figures below keep their original source, period and coverage; views and impressions are not unique people."},
+		{"reach", "Beyond the room", ""},
 		{"lessons", "What expansion taught us", "[Add the biggest lesson from expanding, the current team size, and the headwinds that still need attention. Be specific about what was hard and what you changed.]"},
 		{"next", "Where we go next", "[Describe the experiments planned for next year, what you want to improve, and how you will know whether it worked.]\n\nThank you for supporting the people building Bitcoin’s future."},
 	}
@@ -172,7 +182,7 @@ func AdminAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 }
 
 func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
-	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 110*time.Second)
 	defer cancel()
 	if app.DB == nil {
 		http.Error(w, "Report database unavailable", 503)
@@ -246,6 +256,10 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 			http.Error(w, "Invalid form token", 403)
 			return
 		}
+		if action := r.PostForm.Get("action"); action == "refresh_annual_event" || action == "refresh_annual_posts" {
+			refreshAnnualSource(ctx, w, r, app, &p)
+			return
+		}
 		rev, e := strconv.ParseInt(r.PostForm.Get("revision"), 10, 64)
 		if e != nil || rev != p.Revision {
 			http.Error(w, errReportConflict.Error(), 409)
@@ -316,7 +330,7 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 }
 
 func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
-	if f.Get("action") != "save" && f.Get("action") != "freeze" {
+	if f.Get("action") != "save" && f.Get("action") != "freeze" && f.Get("action") != "include_all" {
 		return fmt.Errorf("invalid report action")
 	}
 	cutoff, err := time.Parse("2006-01-02", f.Get("cutoff"))
@@ -324,6 +338,9 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 		return fmt.Errorf("choose a cutoff in the report year, not in the future")
 	}
 	saved := map[string]string{"cutoff": f.Get("cutoff"), "selection_saved": "yes"}
+	if f.Get("action") == "include_all" {
+		saved["selection_saved"] = "no"
+	}
 	for _, s := range annualSections(p.Year, p.Recipient) {
 		v := strings.TrimSpace(f.Get(s.Key))
 		if len(v) > 12000 {
@@ -337,12 +354,27 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 		}
 		saved["include_"+id] = "yes"
 	}
+	// Retain recaps when saving an older form that did not render these fields.
+	for key, value := range p.Saved {
+		if strings.HasPrefix(key, "event_highlight_") {
+			saved[key] = value
+		}
+	}
 	for key, values := range f {
+		if strings.HasPrefix(key, "event_highlight_") {
+			if _, err := uuid.Parse(strings.TrimPrefix(key, "event_highlight_")); err != nil {
+				return fmt.Errorf("invalid event highlight")
+			}
+			if len(values) != 1 || len(values[0]) > 2000 {
+				return fmt.Errorf("event highlights must be at most 2,000 bytes")
+			}
+			saved[key] = strings.TrimSpace(values[0])
+		}
 		if strings.HasPrefix(key, "hack_") && len(values) == 1 {
 			if _, err := uuid.Parse(strings.TrimPrefix(key, "hack_")); err != nil {
 				return fmt.Errorf("invalid event coverage")
 			}
-			if values[0] != "unknown" && values[0] != "none" && values[0] != "records" {
+			if values[0] != "unknown" && values[0] != "none" && values[0] != "records" && values[0] != "incomplete" {
 				return fmt.Errorf("invalid hackathon coverage")
 			}
 			saved[key] = values[0]
@@ -358,6 +390,15 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 
 // Saving a draft and creating its immutable data snapshot is one transaction.
 func saveAnnualReport(ctx context.Context, app *config.AppContext, p annualReportPage, freeze bool) (string, error) {
+	// Persist default recaps too, so a frozen edition does not pick up future copy changes.
+	saved := make(map[string]string, len(p.Saved)+len(p.Events))
+	for key, value := range p.Saved {
+		saved[key] = value
+	}
+	for _, h := range p.EventHighlightEditors() {
+		saved[h.Copy.Key] = h.Copy.Text
+	}
+	p.Saved = saved
 	tx, err := app.DB.Begin(ctx)
 	if err != nil {
 		return "", err

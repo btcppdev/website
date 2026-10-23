@@ -216,3 +216,107 @@ body[data-layout=paper] main { max-width:850px; margin:32px auto; background:tra
  .paper-project-wall .project-wall p { font-size:9px;line-height:1.4;margin:0 }
  .paper-project-wall .project-wall { gap:19px 17px }
 }
+
+/* Shared recording spreads: thumbnails remain useful in both PDF and screen editions. */
+.report-media-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
+.report-media-card { min-width:0; break-inside:avoid; border-top:2px solid currentColor; padding-top:12px; }
+.report-media-card img { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }
+.report-media-card h3 { font-size:20px; line-height:1.2; margin:12px 0; overflow-wrap:anywhere; }
+.report-media-card a { color:inherit; }
+.report-media-count strong { font-size:32px; }
+.report-media-card .paper-source { font-size:10px; overflow-wrap:anywhere; }
+@media screen and (max-width:600px) { .report-media-grid { grid-template-columns:1fr; } }
+
+.report-topline-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:32px; margin:40px 0; text-align:center; }
+.report-topline-grid article { flex:1; min-width:220px; max-width:320px; }
+.report-topline-circle { border:18px solid #c8b3f5; border-radius:50%; aspect-ratio:1; display:flex; flex-direction:column; justify-content:center; padding:15px; }
+.report-topline-grid article:nth-child(2) .report-topline-circle { border-color:#f7b500; }
+.report-topline-circle strong { font-size:clamp(36px,5vw,64px); line-height:1.1; letter-spacing:-.05em; }
+.report-topline-circle span { font-size:16px; margin-top:10px; }
+
+.paper-sheet .report-prize-amount,.report-prize-amount { color:#67517c; font-size:12px; margin:10px 0 14px; }
+.report-prize-amount strong { font:650 32px/1.1 Archivo,Arial,sans-serif; letter-spacing:-1px; }
+.paper-project h3 a { color:inherit; text-decoration:none; }
+
+.report-winner-team { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; align-items:flex-start; }
+.report-winner-team figure { width:82px; margin:0; text-align:center; break-inside:avoid; }
+.paper-project .report-winner-team img,.winner-card .report-winner-team img,.report-winner-team img,.report-team-initials { display:flex; width:72px; height:72px; aspect-ratio:1; border-radius:50%; object-fit:cover; margin:0 auto 7px; }
+.report-team-initials { background:#e6dcef; color:#67517c; align-items:center; justify-content:center; font:600 24px Archivo,sans-serif; }
+.report-winner-team figcaption { font:500 11px/1.3 Archivo,sans-serif; color:#242124; overflow-wrap:anywhere; }
+
+.report-post-review-list { max-height:600px; overflow:auto; }
+.report-post-review { padding:18px; border-bottom:1px solid #b9aacb; }
+.report-post-review p { white-space:pre-wrap; overflow-wrap:anywhere; }
+.report-post-review[hidden] { display:none; }
+.report-post-cards { display:grid; gap:22px; margin-top:30px; }
+.report-post-cards article { background:#eee5fa; padding:24px; border-left:5px solid #f7b500; break-inside:avoid; }
+.report-post-cards p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:17px; line-height:1.5; margin:0 0 16px; }
+@media print { .report-post-cards article { padding:6mm; } .report-post-cards p { font-size:11pt; } }
+
+.report-stage-demand { display:flex; align-items:center; gap:24px; margin:24px 0; padding:16px 24px; background:#eee5fa; break-inside:avoid; }
+.report-demand-circle { flex:none; width:120px; height:120px; border:9px solid #f7b500; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:8px; box-sizing:content-box; }
+.report-demand-circle strong { font:650 34px/1 Archivo,sans-serif; }
+.report-demand-circle span { font-size:12px; line-height:1.25; margin-top:6px; }
+.report-stage-demand h3 { margin:0 0 10px; }
+.report-stage-demand p { margin:6px 0; }
+@media print { .report-stage-demand { padding:3mm 5mm; gap:5mm; margin:4mm 0; } .report-demand-circle { width:24mm; height:24mm; padding:1mm; border-width:2mm; } .report-demand-circle strong { font-size:24px; } .report-demand-circle span { font-size:9px; } }
+
+.report-podium { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:18px 0; }
+.report-podium-card { min-width:0; padding:14px; background:#e8def1; border-top:4px solid #b69bd1; break-inside:avoid; }
+.report-podium-place-1 { background:#fff0c2; border-color:#efb600; }
+.report-place-badge { display:inline-block; border:1px solid currentColor; border-radius:24px; padding:5px 12px; font-size:13px; font-weight:700; margin-bottom:12px; }
+.report-podium-art { width:100%; height:90px; object-fit:cover; }
+.report-podium-card h3 { font-size:21px; line-height:1.12; margin:12px 0; overflow-wrap:anywhere; }
+.report-podium-card a { color:inherit; text-decoration:none; }
+.report-podium-card .report-prize-amount { font-size:10px; margin:8px 0; }
+.report-podium-card .report-prize-amount strong { font-size:26px; }
+.report-podium-description { font-size:11px; line-height:1.4; }
+.report-podium-card .report-winner-team { gap:6px; margin:10px 0; }
+.report-podium-card .report-winner-team figure { width:48px; }
+.report-podium-card .report-winner-team img,.report-podium-card .report-team-initials { width:36px; height:36px; font-size:12px; margin-bottom:3px; }
+.report-podium-card .report-winner-team figcaption { font-size:8px; }
+.report-project-link { font-size:10px; }
+.report-other-heading { font-size:19px; margin:16px 0 8px; }
+.report-other-winners { display:grid; grid-template-columns:1fr 1fr; gap:0 20px; }
+.report-other-winners article { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-top:1px solid #c9bbd6; break-inside:avoid; min-width:0; }
+.report-other-winners h4 { margin:0 0 4px; font-size:13px; overflow-wrap:anywhere; }
+.report-other-winners a { color:inherit; text-decoration:none; }
+.report-other-winners p { margin:0; font-size:9px; line-height:1.35; }
+.report-other-winners article>p { text-align:right; flex-shrink:0; }
+.report-other-winners strong { display:block; font-size:17px; }
+.report-other-winners span { display:block; font-size:8px; }
+@media print {
+ .paper-builds h2 { font-size:34px; margin-bottom:12px; }
+ .paper-builds .paper-deck { font-size:11px; line-height:1.4; }
+ .report-podium { gap:3mm; margin:3mm 0; }
+ .report-podium-card { padding:3mm; }
+ .report-podium-art { height:20mm; }
+ .report-podium-card h3 { font-size:18px; }
+ .report-podium-card .report-prize-amount strong { font-size:23px; }
+ .report-podium-description { font-size:10px; }
+ .report-other-winners article { padding:2mm 0; }
+}
+@media screen and (max-width:650px) { .report-podium,.report-other-winners { grid-template-columns:1fr; } }
+
+/* Keep portrait crops square before applying a circular mask, at every breakpoint. */
+.paper-speakers img { width:86px; max-width:100%; }
+.paper-speakers img,
+.paper-judges img,
+.speaker-mosaic img,
+.mosaic-no-photo,
+.report-winner-team img,
+.report-team-initials,
+.paper-project .report-winner-team img,
+.winner-card .report-winner-team img,
+.report-podium-card .report-winner-team img,
+.report-podium-card .report-team-initials,
+body[data-layout] .person-card img,
+body[data-layout] .portrait-missing {
+ height:auto;
+ max-height:none;
+ aspect-ratio:1 / 1;
+ border-radius:50%;
+ object-fit:cover;
+ flex-shrink:0;
+ box-sizing:border-box;
+}

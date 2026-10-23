@@ -1,16 +1,69 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><title>Alerts checkout · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/login-layout.css?v=2">
+<head>
+  <title>Alerts checkout · bitcoin++</title>
+  {{ block "header" . }}{{ end }}
+  <link rel="stylesheet" href="/static/css/shop.css?v=20260718-11">
+  <link rel="stylesheet" href="/static/css/service-checkout.css?v=3">
 </head>
-<body class="btcpp-login-page">
+<body class="shop-page">
 {{ block "mainnav" . }}{{ end }}
-<main class="auth-shell auth-shell--simple"><section class="auth-card">
-<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>{{ .Heading }}</h1><p role="status">{{ .Message }}</p></header>
-<dl><dt>Additional repositories</dt><dd>{{ .Slots }}</dd><dt>Monthly price (USD, including applicable tax)</dt><dd>{{ .Total }}</dd><dt>Checkout reference</dt><dd>{{ .ID }}</dd></dl>
-{{ if .CanPay }}<form method="post" action="/services/alerts/checkout/{{ .ID }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button type="submit" class="auth-primary">Continue with card</button></form><p>Renews monthly. Cancel future renewals through billing management; your paid allowance continues until the current period ends. Cancellation does not refund that period.</p>{{ end }}
-<p><a href="/services/alerts/checkout/{{ .ID }}">Refresh payment status</a></p>
-{{ if .CanCheck }}<form method="post" action="/services/alerts/checkout/{{ .ID }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="check"><button type="submit">Check with Stripe</button></form>{{ end }}
-<p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
-</section></main>
-</body></html>
+<main class="service-checkout service-checkout--status">
+  <section aria-labelledby="checkout-heading">
+    <header class="service-checkout__head">
+      <span class="service-kicker">CHECKOUT STATUS</span>
+      <h1 id="checkout-heading">{{ .Heading }}</h1>
+      <p class="service-status-message" role="status">{{ .Message }}</p>
+    </header>
+    {{ if .CheckMessage }}<p class="service-status-message" role="status">{{ .CheckMessage }}</p>{{ end }}
+    <div class="service-checkout-actions">
+      {{ if .CanPay }}
+      <form method="post" action="/services/alerts/checkout/{{ .ID }}">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <button type="submit">Continue to Stripe</button>
+      </form>
+      {{ end }}
+      {{ if .CanCheck }}
+      <form method="post" action="/services/alerts/checkout/{{ .ID }}">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}">
+        <input type="hidden" name="action" value="check">
+        <button type="submit"{{ if .CanPay }} class="service-secondary"{{ end }}>Check payment status</button>
+      </form>
+      {{ else }}
+      <a href="/services/alerts/checkout/{{ .ID }}">Refresh payment status</a>
+      {{ end }}
+    </div>
+    {{ if .CanCancel }}
+    <form method="post" action="/services/alerts/checkout/{{ .ID }}" class="service-checkout-actions">
+      <input type="hidden" name="csrf" value="{{ .CSRF }}">
+      <input type="hidden" name="action" value="cancel">
+      <button type="submit" class="service-secondary">Cancel checkout</button>
+    </form>
+    <p class="service-note">Cancel this unpaid checkout to change your selection. Your projects stay saved in My alerts.</p>
+    {{ end }}
+    {{ if .CanPay }}
+    <p class="service-note">Renews annually. Cancel future renewals through billing management; your paid allowance continues until the current period ends. Cancellation does not refund that period.</p>
+    {{ end }}
+    <div class="service-checkout-reference">
+      <span class="service-kicker">Checkout reference</span>
+      <code>{{ .ID }}</code>
+    </div>
+    <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
+  </section>
+  <aside class="service-summary" aria-label="Order summary">
+    <img src="/static/img/alerts-checkout.svg" alt="" width="640" height="360">
+    <div class="service-summary__body">
+      <h2><span class="service-wordmark">bitcoin++</span> Alerts</h2>
+      <p class="service-note">Software release notifications, delivered by email and Telegram.</p>
+      <dl>
+        <div><dt>Free projects</dt><dd>3 included</dd></div>
+        <div><dt>Additional projects</dt><dd>{{ .Slots }}</dd></div>
+        <div><dt>Billing period</dt><dd>Yearly</dd></div>
+        <div class="service-total"><dt>Annual total</dt><dd>{{ .Total }}</dd></div>
+      </dl>
+      <p class="service-note">USD · applicable tax included.</p>
+    </div>
+  </aside>
+</main>
+</body>
+</html>

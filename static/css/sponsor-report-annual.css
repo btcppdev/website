@@ -60,3 +60,308 @@
  .annual-globe { max-height:245px }
  .annual-table tr { break-inside:avoid }
 }
+
+/* A four-page editorial brief, with detail kept in the admin editor. */
+.annual-brief .paper-sheet { min-height:1120px; }
+.annual-brief .paper-running { margin-bottom:25px; }
+.annual-brief h1 { font:650 62px/1.02 Archivo,Arial,sans-serif; letter-spacing:-2.6px; margin:12px 0 24px; }
+.annual-brief h1 em { color:#67517c; font-weight:450; }
+.brief-stats { display:flex; gap:20px; margin:0 0 26px; }
+.brief-stats article { width:150px; aspect-ratio:1; border:10px solid #c8b3f5; border-radius:50%; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:10px; }
+.brief-stats article:nth-child(2) { border-color:#f7b500; }
+.brief-stats article:nth-child(3) { border-color:#e5bed7; }
+.brief-stats strong { font:650 34px Archivo,sans-serif; letter-spacing:-1px; }
+.brief-stats span { font-size:11px; }
+.annual-brief .story-text p { font-size:13px; line-height:1.55; margin-bottom:12px; }
+.brief-community { border-left:3px solid #b391d6; padding-left:16px; margin:6px 0 16px; }
+.brief-program { display:grid; grid-template-columns:1.2fr 1fr; gap:30px; align-items:center; }
+.brief-program .annual-donut { width:140px; margin:0 auto; }
+.brief-program .annual-legend { margin-bottom:8px; }
+.brief-reach { display:flex; gap:20px; margin:16px 0; }
+.brief-reach article { flex:1; background:#e6dcef; padding:15px 20px; }
+.brief-reach strong,.brief-build-stats strong { display:block; font:650 36px Archivo,sans-serif; }
+.brief-reach span,.brief-build-stats span { display:block; font-size:12px; }
+.brief-reach small { display:block; font:8px 'Space Mono',monospace; margin-top:8px; }
+.brief-recordings { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin:18px 0; }
+.brief-recordings img { width:100%; height:125px; object-fit:cover; }
+.brief-recordings h3 { font-size:17px; margin:8px 0; }
+.brief-recordings a,.brief-projects a { color:inherit; font-size:11px; }
+.brief-recordings .paper-kicker { font-size:9px; margin-bottom:6px; }
+.brief-export { font-size:12px; margin-bottom:10px; }
+.brief-build-stats { display:flex; gap:25px; border-top:2px solid #b391d6; padding:18px 0; margin:10px 0 20px; }
+.brief-build-stats article { flex:1; }
+.brief-projects article { display:flex; gap:20px; border-top:1px solid #ccc5d0; padding:20px 0; break-inside:avoid; }
+.brief-projects img { width:110px; height:110px; object-fit:cover; }
+.brief-projects article>div { min-width:0; }
+.brief-projects .paper-kicker { font-size:9px; margin-bottom:7px; }
+.brief-projects p { font-size:12px; }
+.brief-closing-copy { display:grid; grid-template-columns:1fr 1fr; gap:32px; }
+.brief-closing .annual-globe { max-height:275px; }
+.brief-places { display:flex; gap:10px 20px; flex-wrap:wrap; margin:0 0 30px; }
+.brief-places a { color:inherit; font-size:12px; }
+.annual-brief .brief-thanks { font:500 28px/1.25 Archivo,sans-serif; color:#67517c; margin:10px 0 28px; }
+@media screen and (max-width:650px) {
+ .annual-brief .paper-sheet { min-height:0; }
+ .annual-brief h1 { font-size:43px; }
+ .brief-stats { gap:8px; }
+ .brief-stats article { width:31%; border-width:6px; padding:5px; }
+ .brief-stats strong { font-size:26px; }
+ .brief-program,.brief-closing-copy { grid-template-columns:1fr; }
+ .brief-recordings img { height:100px; }
+}
+@media print {
+ .annual-brief .paper-sheet { min-height:297mm; }
+ .annual-brief h1 { font-size:51px; }
+ .annual-brief h2 { font-size:36px; }
+ .brief-stats article { width:35mm; }
+ .brief-recordings img { height:29mm; }
+ .brief-closing .annual-globe { max-height:65mm; }
+}
+@media print {
+ .brief-projects article { padding:12px 0; gap:16px; }
+ .brief-projects img { width:85px; height:85px; }
+ .brief-projects p { font-size:11px; margin-bottom:8px; }
+ .brief-projects .report-prize-amount { margin:6px 0 8px; }
+ .brief-projects .report-prize-amount strong { font-size:28px; }
+ .brief-build-stats { padding:12px 0; margin:6px 0 12px; }
+}
+
+/* Seven-page annual review: each spread has one principal visual. */
+.annual-impact .paper-sheet { min-height:1120px; }
+.impact-opening-art { display:flex; height:120px; overflow:hidden; margin:0 -52px 24px; gap:0; }
+.impact-opening-art i { flex:0 0 38%; border:30px solid #c8b3f5; border-radius:50%; height:240px; margin-top:-95px; }
+.impact-opening-art i:nth-child(2) { border-color:#f7b500; margin-left:-35px; margin-top:-20px; }
+.impact-opening-art i:nth-child(3) { border-color:#e5bed7; margin-left:-35px; }
+.impact-community .report-topline-grid { margin:10px 0 15px; gap:35px; }
+.impact-community .report-topline-grid article { max-width:245px; min-width:180px; }
+.impact-community .report-topline-circle { border-width:15px; }
+.impact-community .annual-globe { max-height:245px; margin:12px 0; }
+.impact-places { display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 22px; align-items:center; }
+.impact-places strong { font-size:22px; margin-right:10px; }
+.impact-places a { color:inherit; font-size:12px; }
+.impact-program-grid { display:grid; grid-template-columns:1fr 1fr; gap:36px; align-items:center; margin:0 0 18px; }
+.impact-program-donut .annual-donut { width:260px; margin:5px auto 15px; }
+.impact-speakers>strong { display:block; font:650 76px/1 Archivo,sans-serif; color:#67517c; letter-spacing:-3px; }
+.impact-speakers>span { display:block; font-size:13px; margin:10px 0 20px; }
+.impact-program-bars .annual-bar-row { margin:12px 0; }
+.impact-program-bars .annual-stack { height:22px; }
+.impact-reach-heroes { display:flex; gap:24px; margin:15px 0 25px; }
+.impact-reach-heroes article { flex:1; padding:24px; background:#e6dcef; }
+.impact-reach-heroes article:nth-child(2) { background:#f9e6b6; }
+.impact-reach-heroes strong { display:block; font:650 64px/1 Archivo,sans-serif; letter-spacing:-3px; }
+.impact-reach-heroes span { display:block; font-size:16px; margin:12px 0; }
+.impact-reach .brief-recordings { margin:20px 0 30px; }
+.impact-reach .brief-recordings img { height:185px; }
+.impact-reach .brief-recordings h3 { font-size:22px; }
+.impact-funding-chart { max-width:480px; width:100%; margin:0 auto 15px; }
+.impact-funding-chart svg { display:block; height:360px; width:100%; }
+.impact-funding-chart .funding-total { font:650 27px Archivo,sans-serif; fill:#242124; }
+.impact-funding-chart .funding-unit { font:6px Archivo,sans-serif; fill:#67517c; }
+.impact-funding-chart .annual-legend { display:flex; justify-content:center; gap:15px; flex-wrap:wrap; }
+.impact-funding-chart .annual-legend li { margin:5px 0; }
+.impact-funding .brief-build-stats { justify-content:center; gap:40px; text-align:center; border:0; margin:10px 0 25px; }
+.impact-funding .brief-build-stats strong { font-size:52px; }
+.impact-winner-gallery>article { display:grid; grid-template-columns:180px 1fr; gap:24px; padding:16px 0; border-top:1px solid #ccc5d0; break-inside:avoid; }
+.impact-winner-gallery>article:not(:has(>figure)) { grid-template-columns:1fr; }
+.impact-winner-gallery figure { margin:0; }
+.impact-winner-gallery>article>figure>img { width:100%; height:170px; object-fit:cover; }
+.impact-winner-gallery figcaption { font:8px 'Space Mono',monospace; color:#67517c; margin-top:5px; }
+.impact-winner-gallery h3 { font-size:25px; }
+.impact-winner-gallery p { font-size:12px; margin-bottom:8px; }
+.impact-winner-gallery .paper-kicker { font-size:9px; }
+.impact-winner-gallery .report-prize-amount { margin:8px 0; }
+.impact-winner-gallery a { font-size:11px; color:inherit; }
+.impact-winner-portraits { display:flex; gap:10px; margin:8px 0; flex-wrap:wrap; }
+.impact-winner-portraits figure { width:52px; }
+.impact-winner-portraits img { width:44px; height:44px; border-radius:50%; object-fit:cover; }
+.impact-winner-portraits figcaption { font-size:7px; }
+.annual-impact .closing-art { height:270px; margin-top:45px; margin-bottom:45px; }
+.annual-impact .closing-art i { height:380px; margin-top:20px; border-width:45px; }
+.annual-impact .closing-art i:nth-child(2) { margin-top:-80px; }
+@media screen and (max-width:650px) {
+ .annual-impact .paper-sheet { min-height:0; }
+ .impact-program-grid { grid-template-columns:1fr; }
+ .impact-reach-heroes { flex-wrap:wrap; }
+ .impact-winner-gallery>article { grid-template-columns:100px 1fr; gap:15px; }
+ .impact-winner-gallery>article>figure>img { height:110px; }
+ .impact-reach .brief-recordings img { height:110px; }
+}
+@media print {
+ .annual-impact .paper-sheet { min-height:297mm; }
+ .impact-community .report-topline-grid article { max-width:57mm; }
+ .impact-community .annual-globe { max-height:58mm; }
+ .impact-program-donut .annual-donut { width:58mm; }
+ .impact-reach-heroes strong { font-size:52px; }
+ .impact-reach .brief-recordings img { height:40mm; }
+ .impact-funding-chart svg { height:83mm; }
+ .impact-winner-gallery>article { grid-template-columns:37mm 1fr; padding:12px 0; gap:18px; }
+ .impact-winner-gallery>article>figure>img { height:37mm; }
+ .impact-winner-gallery h3 { font-size:22px; }
+ .impact-winner-gallery .report-prize-amount strong { font-size:28px; }
+}
+.impact-winner-gallery>article:has(>.impact-winner-visuals) { grid-template-columns:180px 1fr; }
+.impact-winner-visuals>figure>img { width:100%; height:130px; object-fit:cover; }
+.impact-winner-visuals .report-winner-team { gap:8px; justify-content:center; margin:10px 0 0; }
+.impact-winner-visuals .report-winner-team figure { width:82px; }
+.impact-winner-visuals .report-winner-team figcaption { font:500 11px/1.3 Archivo,sans-serif; color:#242124; }
+@media print {
+ .impact-winner-gallery>article:has(>.impact-winner-visuals) { grid-template-columns:37mm 1fr; }
+ .impact-winner-visuals>figure>img { height:26mm; }
+ .impact-winner-visuals .report-winner-team { gap:6px; }
+ .impact-winner-visuals .report-winner-team figure { width:62px; }
+ .impact-winner-visuals .report-winner-team img,.impact-winner-visuals .report-team-initials { width:54px; height:54px; }
+ .impact-winner-visuals .report-winner-team figcaption { font-size:9px; }
+}
+@media screen and (max-width:650px) { .impact-winner-gallery>article:has(>.impact-winner-visuals) { grid-template-columns:100px 1fr; } }
+
+/* Dedicated front cover; decorative rings carry no statistical meaning. */
+.annual-impact .impact-cover { background:#c8b3f5; color:#242124; overflow:hidden; isolation:isolate; }
+.impact-cover-masthead { display:flex; justify-content:space-between; align-items:center; position:relative; z-index:1; }
+.impact-cover-masthead>span:first-child { font:700 italic 31px Ubuntu,Arial,sans-serif; }
+.impact-cover-masthead>span:last-child { font:10px 'Space Mono',monospace; letter-spacing:1px; }
+.annual-impact .impact-cover-year { font:650 166px/.9 Archivo,Arial,sans-serif; letter-spacing:-10px; margin:62px 0 26px; position:relative; z-index:1; }
+.annual-impact .impact-cover h1 { font-size:76px; line-height:1; margin:0 0 25px; position:relative; z-index:1; }
+.annual-impact .impact-cover h1 em { color:#513762; }
+.annual-impact .impact-cover-deck { font-size:17px; line-height:1.5; position:relative; z-index:1; }
+.impact-cover-rings { position:absolute; inset:0; z-index:0; pointer-events:none; }
+.impact-cover-rings i { position:absolute; display:block; width:570px; height:570px; border:80px solid #f7b500; border-radius:50%; right:-310px; bottom:90px; }
+.impact-cover-rings i:nth-child(2) { width:410px; height:410px; border:55px solid #f3f0e9; right:-205px; bottom:170px; }
+.impact-cover-recipient { position:relative; z-index:1; margin-top:auto; padding-top:35px; }
+.impact-cover-recipient span { font:10px 'Space Mono',monospace; letter-spacing:1px; display:block; margin-bottom:10px; }
+.impact-cover-recipient strong { font:650 38px Archivo,Arial,sans-serif; }
+.impact-cover-footer { position:relative; z-index:1; display:flex; justify-content:space-between; gap:20px; border-top:1px solid #67517c66; padding-top:18px; margin-top:30px; font:9px 'Space Mono',monospace; }
+@media screen and (max-width:650px) {
+ .annual-impact .impact-cover { min-height:820px; }
+ .annual-impact .impact-cover-year { font-size:120px; margin-top:45px; }
+ .annual-impact .impact-cover h1 { font-size:58px; }
+ .impact-cover-masthead>span:last-child { font-size:8px; text-align:right; }
+ .impact-cover-rings { opacity:.55; }
+}
+@media print {
+ .annual-impact .impact-cover-year { font-size:145px; margin-top:45px; }
+ .annual-impact .impact-cover h1 { font-size:66px; }
+ .impact-cover-rings i { right:-330px; bottom:80px; }
+ .impact-cover-rings i:nth-child(2) { right:-225px; bottom:160px; }
+}
+
+/* The year's own event artwork forms the front cover. */
+.annual-impact .impact-cover-year { font-size:104px; margin:28px 0 12px; letter-spacing:-6px; }
+.annual-impact .impact-cover h1 { font-size:57px; margin-bottom:14px; }
+.annual-impact .impact-cover-deck { font-size:15px; margin-bottom:22px; }
+.impact-cover-events { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; position:relative; z-index:1; }
+.impact-cover-events figure { margin:0; background:#f3f0e9; min-width:0; }
+.impact-cover-events img { width:100%; height:135px; object-fit:cover; display:block; }
+.impact-cover-events figcaption { padding:9px 10px; display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px; align-items:center; font:11px Archivo,sans-serif; }
+.impact-cover-events figcaption span { font:8px 'Space Mono',monospace; text-transform:uppercase; color:#513762; }
+.impact-cover-events figure:nth-child(7):last-child { grid-column:span 2; }
+.annual-impact .impact-cover-art-note { font:8px/1.5 'Space Mono',monospace; margin-top:10px; }
+.impact-cover-recipient { padding-top:22px; }
+.annual-forthcoming { margin:35px 0 25px; }
+.annual-forthcoming article { display:grid; grid-template-columns:1.25fr 1fr; gap:26px; align-items:center; margin:20px 0; }
+.annual-forthcoming img { width:100%; height:230px; object-fit:cover; }
+.annual-forthcoming a { color:inherit; font-size:12px; }
+@media screen and (max-width:650px) {
+ .impact-cover-events { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .annual-impact .impact-cover-year { font-size:84px; }
+ .annual-impact .impact-cover h1 { font-size:42px; }
+ .annual-forthcoming article { grid-template-columns:1fr; }
+}
+@media print {
+ .annual-impact .impact-cover-year { font-size:90px; margin-top:20px; }
+ .annual-impact .impact-cover h1 { font-size:48px; }
+ .impact-cover-events img { height:31mm; }
+ .annual-forthcoming img { height:55mm; }
+}
+
+/* Supporting metadata belongs beneath titles, without eyebrow styling. */
+.annual-impact .report-card-detail { font-size:12px; line-height:1.5; margin:6px 0 10px; }
+
+.annual-post-highlight { margin:20px 0; padding:16px 20px; background:#eee5fa; border-left:4px solid #f7b500; font-size:14px; }
+.annual-post-highlight p { margin:0 0 8px; }
+@media print {
+ .impact-program .impact-program-donut .annual-donut { width:46mm; margin-bottom:3mm; }
+ .impact-program .impact-program-grid { margin-bottom:2mm; gap:6mm; }
+ .impact-program .impact-speakers>strong { font-size:60px; }
+ .impact-program .report-stage-demand { margin:3mm 0; padding:2mm 5mm; }
+ .impact-program .impact-program-bars .annual-bar-row { margin:7px 0; }
+ .impact-program .impact-program-bars .annual-stack { height:14px; }
+}
+
+.annual-recap-list { display:grid; gap:24px; flex:1; grid-template-rows:repeat(3,minmax(0,1fr)); }
+.annual-event-recap { display:grid; grid-template-columns:190px 1fr; gap:28px; align-items:center; padding:18px 0; border-bottom:1px solid #c9b8d8; break-inside:avoid; }
+.annual-event-recap:last-child { border-bottom:0; }
+.annual-event-recap>img { width:100%; height:220px; object-fit:cover; }
+.annual-impact .annual-event-recap h2 { font-size:32px; margin:0 0 6px; line-height:1.1; }
+.annual-recap-edition { font-weight:600; font-size:15px; margin:0 0 5px; }
+.annual-recap-date { font-size:12px; margin:0 0 12px; }
+.annual-event-recap .story-text { font-size:14px; line-height:1.5; }
+.annual-recap-link { display:block; font-size:12px; margin-top:10px; }
+@media(max-width:650px) { .annual-event-recap { grid-template-columns:100px 1fr; gap:15px; } .annual-event-recap>img { height:140px; } }
+@media print {
+ .annual-recap-list { gap:4mm; }
+ .annual-event-recap { grid-template-columns:43mm 1fr; gap:6mm; padding:3mm 0; }
+ .annual-event-recap>img { height:55mm; }
+ .annual-impact .annual-event-recap h2 { font-size:26px; }
+ .annual-event-recap .story-text { font-size:11px; line-height:1.45; }
+ .annual-recap-edition { font-size:12px; }
+ .annual-recap-date,.annual-recap-link { font-size:10px; }
+}
+
+/* Reusable, three-counter event signature: circular badges, not progress rings. */
+.annual-recap-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:12px 0 0; padding:0; }
+.annual-recap-stat { display:flex; align-items:center; gap:7px; min-width:0; }
+.annual-recap-stat dd { display:flex; flex:0 0 49px; height:49px; align-items:center; justify-content:center; border:2px solid #29232e; border-radius:50%; margin:0; font-size:16px; font-weight:700; letter-spacing:-.6px; background:#d6c3ef; }
+.annual-recap-stat--views dd { background:#f5c400; }
+.annual-recap-stat--prizes dd { background:#29232e; color:#fff4cf; }
+.annual-recap-stat dt { font-size:10px; line-height:1.2; max-width:70px; }
+.annual-event-recap .annual-recap-link { margin-top:7px; }
+@media(max-width:650px) {
+ .annual-recap-stat { flex-direction:column; align-items:flex-start; }
+ .annual-recap-stat dd { flex-basis:auto; width:43px; height:43px; font-size:14px; }
+}
+@media print {
+ .annual-recap-stats { margin-top:2mm; gap:2mm; }
+ .annual-recap-stat { gap:1.5mm; }
+ .annual-recap-stat dd { flex-basis:11mm; height:11mm; font-size:13px; border-width:1.5px; }
+ .annual-recap-stat dt { font-size:9px; }
+ .annual-recap-date { margin-bottom:2mm; }
+ .annual-event-recap .annual-recap-link { margin-top:1.5mm; }
+}
+
+/* A funding spread with a clear total, builder counters and event destinations. */
+.annual-funding-overview { display:grid; grid-template-columns:1.35fr 1fr; align-items:center; gap:24px; margin:0 0 26px; background:#e6dcef; padding:20px; }
+.annual-funding-overview .impact-funding-chart { margin:0; }
+.annual-funding-overview .impact-funding-chart svg { height:300px; }
+.impact-funding .annual-funding-overview .brief-build-stats { display:grid; gap:24px; text-align:left; margin:0; padding:0; }
+.annual-funding-overview .brief-build-stats article { padding:0 0 18px; border-bottom:1px solid #baabc7; }
+.annual-funding-overview .brief-build-stats article:last-child { border:0; padding-bottom:0; }
+.annual-funding-overview .brief-build-stats span { display:block; font-size:13px; margin-top:6px; }
+.annual-funding-events { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin-bottom:24px; }
+.annual-funding-events article { background:#fffaf0; border-bottom:5px solid #c8b3f5; break-inside:avoid; }
+.annual-funding-events article:nth-child(3n+2) { border-color:#f7b500; }
+.annual-funding-events article:nth-child(3n) { border-color:#f6b9dc; }
+.annual-funding-events img { display:block; width:100%; height:110px; object-fit:cover; }
+.annual-funding-events article>div { padding:15px; }
+.annual-impact .annual-funding-events h3 { font-size:23px; margin:0 0 12px; }
+.annual-funding-award { font-size:11px; margin:0 0 12px; }
+.annual-funding-award strong { display:block; font:650 34px/1 Archivo,sans-serif; margin-bottom:5px; }
+.annual-funding-projects { font-size:11px; }
+.annual-funding-projects strong { font-size:17px; }
+.annual-funding-events a { display:block; font-size:10px; margin-top:12px; }
+@media screen and (max-width:650px) {
+ .annual-funding-overview { grid-template-columns:1fr; }
+ .impact-funding .annual-funding-overview .brief-build-stats { grid-template-columns:1fr 1fr; }
+ .annual-funding-events { grid-template-columns:1fr; }
+}
+@media print {
+ .annual-funding-overview { gap:5mm; padding:4mm; margin-bottom:5mm; }
+ .annual-funding-overview .impact-funding-chart svg { height:70mm; }
+ .annual-funding-events { gap:4mm; margin-bottom:5mm; }
+ .annual-funding-events img { height:38mm; }
+ .annual-funding-events article>div { padding:3mm; }
+ .annual-impact .annual-funding-events h3 { font-size:21px; }
+ .annual-funding-award strong { font-size:30px; }
+}
+
+.annual-recipient-logo { display:block; width:220px; height:68px; max-width:100%; object-fit:contain; object-position:left center; }
+@media print { .annual-recipient-logo { width:52mm; height:16mm; } }

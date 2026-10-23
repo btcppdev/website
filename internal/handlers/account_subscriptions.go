@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"btcpp-web/external/getters"
@@ -10,8 +11,8 @@ import (
 )
 
 type accountSubscription struct {
-	Name, Description, Status, URL, BillingStatus, CheckedAt string
-	Periods                                                  []string
+	Name, Description, Status, URL, BillingURL, BillingStatus, CheckedAt string
+	Periods                                                              []string
 }
 
 type accountSubscriptionsPage struct {
@@ -54,11 +55,14 @@ func DashboardSubscriptions(w http.ResponseWriter, r *http.Request, app *config.
 		http.Error(w, "Unable to load subscriptions", 500)
 		return
 	}
-	projection, err := getters.GetInsiderSubscriberProjection(app, identity.PersonID)
-	if err != nil {
-		app.Err.Printf("subscriptions Insider: %s", err)
-		http.Error(w, "Unable to load subscriptions", 500)
-		return
+	showInsider := insiderVisible(app)
+	var projection *getters.InsiderSubscriberProjection
+	if showInsider {
+		projection, err = getters.GetInsiderSubscriberProjection(app, identity.PersonID)
+		if err != nil {
+			http.Error(w, "Unable to load subscriptions", 500)
+			return
+		}
 	}
 	cards, err := getters.AccountCardSubscriptions(app, identity.PersonID)
 	if err != nil {
@@ -67,6 +71,7 @@ func DashboardSubscriptions(w http.ResponseWriter, r *http.Request, app *config.
 		return
 	}
 	alerts := accountSubscription{Name: "Alerts", Description: "Software release notifications by email and Telegram.", Status: "3 free projects", URL: "https://alerts.btcpp.dev/alerts"}
+	alerts.BillingURL = "/services/alerts/manage?" + url.Values{"account": {identity.PersonID}}.Encode()
 	var quantity int64
 	for _, grant := range grants {
 		if grant.ProductCode != "alerts.repository-slots" {
@@ -92,10 +97,16 @@ func DashboardSubscriptions(w http.ResponseWriter, r *http.Request, app *config.
 		}
 		insider.CheckedAt = projection.AsOf.UTC().Format("2 Jan 2006, 15:04 UTC")
 	}
-	items := []accountSubscription{alerts, insider}
+	items := []accountSubscription{alerts}
+	if showInsider {
+		items = append(items, insider)
+	}
 	for _, card := range cards {
 		index := 0
 		if card.Service == "insider" {
+			if !showInsider {
+				continue
+			}
 			index = 1
 		} else if card.Service != "alerts" {
 			continue

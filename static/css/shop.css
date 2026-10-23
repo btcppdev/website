@@ -1109,3 +1109,6 @@
 .shop-admin--editor .shop-button { box-sizing: border-box; max-width: 100%; white-space: normal; }
 .shop-admin--editor > *, .shop-admin--editor form > *, .shop-admin--editor .shop-form-grid > *, .shop-admin--editor .shop-merch-image-create > * { min-width: 0; }
 .shop-admin--editor input, .shop-admin--editor select { min-width: 0; }
+
+.shop-status-pill.is-unfulfilled, .shop-status-pill.is-partial { background:#fff0c2; color:#704b00; border-color:#d69b22; }
+.shop-status-pill.is-awaiting_payment, .shop-status-pill.is-not_required { background:#eee; color:#555; }

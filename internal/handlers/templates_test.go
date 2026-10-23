@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"html"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -34,6 +35,7 @@ func TestLoadTemplates(t *testing.T) {
 	if err := loadTemplates(ctx); err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
+	ctx.TemplateCache.Funcs(template.FuncMap{"insiderVisible": func() bool { return true }})
 	var purchases bytes.Buffer
 	purchaseTemplates, err := ctx.TemplateCache.Clone()
 	if err != nil {

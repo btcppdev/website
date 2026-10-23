@@ -36,12 +36,12 @@
         <table class="shop-admin-table">
           <thead>
             <tr>
-              <th>Status</th>
+              <th>Payment status</th>
               <th>Order</th>
               <th>Buyer</th>
               <th>Fulfillment</th>
               <th>Type</th>
-              <th>Payment</th>
+              <th>Provider</th>
               <th>Total</th>
               <th>Created</th>
               <th></th>
@@ -49,7 +49,7 @@
           </thead>
           <tbody>
         {{ range .Orders }}
-            <tr class="{{ if .UnfulfilledShippingQuantity }}needs-shipping{{ end }}">
+            <tr class="{{ if .NeedsFulfillment }}needs-shipping{{ end }}">
               <td><span class="shop-status-pill is-{{ .Status }}">{{ .Status }}</span></td>
               <td><a class="shop-admin-table__order" href="/admin/merch/orders/{{ .PublicID }}">{{ .PublicID }}</a></td>
               <td>
@@ -57,17 +57,10 @@
                 {{ if and .BuyerName .BuyerEmail }}<span>{{ .BuyerEmail }}</span>{{ end }}
               </td>
               <td class="shop-admin-table__fulfillment">
-                {{ if .UnfulfilledShippingQuantity }}
-                <span class="shop-status-pill is-needs-shipping">Ship {{ .UnfulfilledShippingQuantity }}</span>
-                <span>{{ .UnfulfilledShippingSummary }}</span>
-                {{ else if .EventPickupQuantity }}
-                <span class="shop-status-pill is-muted">Event pickup {{ .EventPickupQuantity }}</span>
-                <span>{{ .EventPickupSummary }}{{ if eq .Status "pending" }} · awaiting payment confirmation{{ end }}</span>
-                {{ else if eq .Status "paid" }}
-                <span class="shop-status-pill is-muted">Nothing to ship</span>
-                {{ else }}
-                <span class="shop-status-pill is-muted">Not ready</span>
-                {{ end }}
+                <span class="shop-status-pill is-{{ .FulfillmentStatus }}">{{ .FulfillmentLabel }}</span>
+                {{ if .NeedsFulfillment }}<strong>{{ .FulfillmentRemaining }} item(s) remaining</strong>{{ end }}
+                {{ if .UnfulfilledShippingQuantity }}<span>To ship: {{ .UnfulfilledShippingSummary }}</span>{{ end }}
+                {{ if and .EventPickupQuantity .NeedsFulfillment }}<span>To collect: {{ .EventPickupSummary }}</span>{{ end }}
               </td>
               <td><span class="shop-status-pill is-muted">{{ .CheckoutKind }}</span></td>
               <td>{{ .PaymentProvider }}</td>

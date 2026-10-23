@@ -42,7 +42,7 @@ func (c Client) PreviewIncrease(ctx context.Context, b Binding, slots int64, now
 	if c.PreviewInvoice == nil || c.Subscription == nil || c.Live != b.Live || slots <= b.PaidSlots {
 		return nil, ErrSubscription
 	}
-	if _, err := servicebilling.AlertsTerm("stripe", slots, 1, now); err != nil {
+	if _, err := servicebilling.AlertsTerm("stripe", slots, 12, now); err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -124,10 +124,10 @@ func verifyIncreaseTerms(in *stripe.Invoice, b Binding, out *IncreasePreview) er
 	if in == nil || in.Livemode != b.Live || in.Currency != "usd" || in.Customer == nil || in.Customer.ID != b.CustomerID || in.Parent == nil || in.Parent.Type != "subscription_details" || in.Parent.SubscriptionDetails == nil || in.Parent.SubscriptionDetails.Subscription == nil || in.Parent.SubscriptionDetails.Subscription.ID != b.SubscriptionID || in.BillingReason != "subscription_update" {
 		return ErrInvoice
 	}
-	if in.AutomaticTax == nil || !in.AutomaticTax.Enabled || in.AutomaticTax.Status != "complete" || len(in.Discounts) != 0 || in.StartingBalance != 0 || in.EndingBalance != 0 || in.AmountPaidOffStripe != 0 || in.PrePaymentCreditNotesAmount != 0 || in.PostPaymentCreditNotesAmount != 0 || in.AmountDue != in.Total || in.Total < 0 || in.Total > (out.PaidSlots-out.PreviousSlots)*servicebilling.AlertsMonthlySlotCents {
+	if in.AutomaticTax == nil || !in.AutomaticTax.Enabled || in.AutomaticTax.Status != "complete" || len(in.Discounts) != 0 || in.StartingBalance != 0 || in.EndingBalance != 0 || in.AmountPaidOffStripe != 0 || in.PrePaymentCreditNotesAmount != 0 || in.PostPaymentCreditNotesAmount != 0 || in.AmountDue != in.Total || in.Total < 0 || in.Total > (out.PaidSlots-out.PreviousSlots)*servicebilling.AlertsAnnualSlotCents {
 		return ErrInvoice
 	}
-	// This entry point accepts a single licensed monthly item with a credit for
+	// This entry point accepts a single licensed annual item with a credit for
 	// the old quantity and debit for the replacement. Additional invoice items,
 	// discounts, future renewals or incomplete pages need explicit reconciliation.
 	if in.Lines == nil || in.Lines.HasMore || len(in.Lines.Data) != 2 {
@@ -140,9 +140,9 @@ func verifyIncreaseTerms(in *stripe.Invoice, b Binding, out *IncreasePreview) er
 			return ErrInvoice
 		}
 		switch {
-		case line.Quantity == out.PreviousSlots && line.Amount <= 0 && !credit && line.Amount >= -out.PreviousSlots*servicebilling.AlertsMonthlySlotCents:
+		case line.Quantity == out.PreviousSlots && line.Amount <= 0 && !credit && line.Amount >= -out.PreviousSlots*servicebilling.AlertsAnnualSlotCents:
 			credit = true
-		case line.Quantity == out.PaidSlots && line.Amount >= 0 && !debit && line.Amount <= out.PaidSlots*servicebilling.AlertsMonthlySlotCents:
+		case line.Quantity == out.PaidSlots && line.Amount >= 0 && !debit && line.Amount <= out.PaidSlots*servicebilling.AlertsAnnualSlotCents:
 			debit = true
 		default:
 			return ErrInvoice

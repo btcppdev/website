@@ -17,7 +17,7 @@ type FailedRenewal struct {
 // The current subscription must separately be verified as renewal_unpaid before
 // this evidence can grant grace. Retry count never shifts the original due time.
 func VerifyFailedRenewal(in *stripe.Invoice, price *stripe.Price, b Binding, previous PaidPeriod, now time.Time) (*FailedRenewal, error) {
-	period, err := verifyMonthlyInvoiceTerms(in, price, b)
+	period, err := verifyAnnualInvoiceTerms(in, price, b)
 	if err != nil {
 		return nil, err
 	}

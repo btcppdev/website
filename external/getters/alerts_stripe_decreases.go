@@ -22,7 +22,7 @@ type AlertsStripeDecreaseQuote struct {
 // existing end-of-period cancellation flow instead of creating a schedule.
 func SaveAlertsStripeDecreaseQuote(ctx context.Context, app *config.AppContext, person, checkout string, revision int64, p alertsstripe.DecreasePreview) (*AlertsStripeDecreaseQuote, error) {
 	now := time.Now().UTC()
-	if p.PaidSlots < 1 || p.PaidSlots >= p.PreviousSlots || p.PreviousSlots > 2147483647/servicebilling.AlertsMonthlySlotCents || p.MonthlyCents != p.PaidSlots*servicebilling.AlertsMonthlySlotCents || p.PeriodStart <= 0 || p.PeriodStart > now.Unix() || p.EffectiveAt <= now.Unix() || !p.ExpiresAt.After(now) || p.ExpiresAt.After(now.Add(10*time.Minute)) || p.ExpiresAt.Unix() > p.EffectiveAt {
+	if p.PaidSlots < 1 || p.PaidSlots >= p.PreviousSlots || p.PreviousSlots > 2147483647/servicebilling.AlertsAnnualSlotCents || p.AnnualCents != p.PaidSlots*servicebilling.AlertsAnnualSlotCents || p.PeriodStart <= 0 || p.PeriodStart > now.Unix() || p.EffectiveAt <= now.Unix() || !p.ExpiresAt.After(now) || p.ExpiresAt.After(now.Add(10*time.Minute)) || p.ExpiresAt.Unix() > p.EffectiveAt {
 		return nil, alertsstripe.ErrSubscription
 	}
 	tx, err := app.DB.Begin(ctx)

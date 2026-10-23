@@ -375,7 +375,13 @@
       "GitHub": "",
       "Demo": "https://btcpp.dev/nairobi/hackathon/projects/0907cf92-a330-4088-8d6a-3c352eed3356",
       "AwardedSats": 2500000,
-      "Significance": "Local payment rails are part of the Bitcoin developer story. This prototype connects Lightning and LNURL to a concrete cross-border payment problem."
+      "Significance": "Local payment rails are part of the Bitcoin developer story. This prototype connects Lightning and LNURL to a concrete cross-border payment problem.",
+      "Portraits": [
+        {
+          "Name": "nourou4them Nourou",
+          "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/a699ccf2ed27-400.avif"
+        }
+      ]
     },
     {
       "ID": "featured-3082d770-2dbd-4e71-9b9c-645fcf79d630",
@@ -387,7 +393,17 @@
       "GitHub": "https://github.com/itschrisoketch/Robin",
       "Demo": "https://btcpp.dev/nairobi/hackathon/projects/3082d770-2dbd-4e71-9b9c-645fcf79d630",
       "AwardedSats": 1500000,
-      "Significance": "Getting a first contribution right is a developer-experience problem. Robin approaches that barrier through practice before a first pull request."
+      "Significance": "Getting a first contribution right is a developer-experience problem. Robin approaches that barrier through practice before a first pull request.",
+      "Portraits": [
+        {
+          "Name": "Fidel Otieno",
+          "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/fa0792fa8df5-400.avif"
+        },
+        {
+          "Name": "Chris Oketch",
+          "Photo": "https://btcpp.nyc3.digitaloceanspaces.com/speakers/fc0186e30875-400.avif"
+        }
+      ]
     },
     {
       "ID": "featured-d45fff28-4ea9-4721-a541-ddbdad3bef15",
@@ -399,7 +415,13 @@
       "GitHub": "https://github.com/f321x/nairobi2",
       "Demo": "https://btcpp.dev/nairobi/hackathon/projects/d45fff28-4ea9-4721-a541-ddbdad3bef15",
       "AwardedSats": 1000000,
-      "Significance": "Bitcoin can also be a coordination primitive. This prototype explores how notarization can support an open marketplace beyond a payment alone."
+      "Significance": "Bitcoin can also be a coordination primitive. This prototype explores how notarization can support an open marketplace beyond a payment alone.",
+      "Portraits": [
+        {
+          "Name": "Anon Ym",
+          "Photo": ""
+        }
+      ]
     }
   ],
   "Sessions": [

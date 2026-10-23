@@ -66,6 +66,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	sessionID := "cs_fixture_" + strings.ReplaceAll(people[0], "-", "")
 	var lock sync.Mutex
 	creates, reads := 0, 0
+	expires := 0
 	var session map[string]any
 	var managed *stripe.Subscription
 	cancellations := 0
@@ -93,11 +94,18 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 			if err := r.ParseForm(); err != nil {
 				t.Error(err)
 			}
-			if r.Form.Get("line_items[0][quantity]") != "2" || r.Form.Get("line_items[0][price_data][unit_amount]") != "200" || r.Form.Get("line_items[0][price_data][tax_behavior]") != "inclusive" || r.Header.Get("Idempotency-Key") == "" {
+			if r.Form.Get("line_items[0][quantity]") != "2" || r.Form.Get("line_items[0][price_data][unit_amount]") != "2400" || r.Form.Get("line_items[0][price_data][tax_behavior]") != "inclusive" || r.Header.Get("Idempotency-Key") == "" {
 				t.Error("incorrect Stripe request", r.Form)
 			}
 			intent := r.Form.Get("client_reference_id")
 			session = map[string]any{"id": sessionID, "object": "checkout.session", "mode": "subscription", "status": "open", "livemode": false, "expires_at": time.Now().Add(time.Hour).Unix(), "client_reference_id": intent, "metadata": map[string]string{"account_id": people[0], "checkout_intent": intent, "product": "alerts.repository-slots"}, "url": "https://checkout.stripe.com/c/pay/" + sessionID}
+		} else if r.Method == "POST" && r.URL.Path == "/v1/checkout/sessions/"+sessionID+"/expire" {
+			expires++
+			if r.Header.Get("Idempotency-Key") == "" {
+				t.Error("missing expiration idempotency key")
+			}
+			session["status"] = "expired"
+			session["payment_status"] = "unpaid"
 		} else if r.Method == "GET" && r.URL.Path == "/v1/checkout/sessions/"+sessionID {
 			reads++
 		} else {
@@ -227,22 +235,56 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	}
 	returnPath := "/services/alerts/checkout/" + intent
 	code, body, _ := call(returnPath+"?result=returned&paid=true", nil)
-	if code != 200 || !strings.Contains(body, "Awaiting payment confirmation") {
+	if code != 200 || !strings.Contains(body, "Continue checkout") || strings.Contains(body, "Payment confirmed") {
 		t.Fatal("redirect claimed payment", code, body)
+	}
+	// A status check must explain an unpaid checkout without creating another one.
+	code, html, _ = call(returnPath, nil)
+	if code != 200 {
+		t.Fatal(code, html)
+	}
+	statusForm := url.Values{"action": {"check"}, "csrf": {field("csrf")}}
+	if code, body, location := call(returnPath, statusForm); code != 303 || location != returnPath {
+		t.Fatal("status check redirect", code, body, location)
+	}
+	if code, body, _ := call(returnPath, nil); code != 200 || !strings.Contains(body, "Status checked. No verified payment") || !strings.Contains(body, "Continue to Stripe") || !strings.Contains(body, "Check payment status") {
+		t.Fatal("missing unpaid checkout feedback", code, body)
+	}
+	if code, body, _ := call(returnPath, nil); code != 200 || strings.Contains(body, "Status checked.") {
+		t.Fatal("status feedback was not consumed", code, body)
+	}
+	lock.Lock()
+	gotCreates = creates
+	lock.Unlock()
+	if gotCreates != 1 {
+		t.Fatal("status check created another checkout", gotCreates)
 	}
 	var grants int
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_entitlements WHERE person_id=$1`, people[0]).Scan(&grants); err != nil || grants != 0 {
 		t.Fatal(grants, err)
 	}
 	form.Set("slots", "3")
-	if code, _, _ := call("/services/alerts/subscribe", form); code != 409 {
-		t.Fatal("changed checkout quantity", code)
+	if code, _, location := call("/services/alerts/subscribe", form); code != 303 || location != returnPath {
+		t.Fatal("changed selection did not recover existing checkout", code, location)
+	}
+	var savedSlots int64
+	if err := pool.QueryRow(ctx, `SELECT (intent->>'PaidSlots')::bigint FROM alerts_stripe_checkouts WHERE id=$1`, intent).Scan(&savedSlots); err != nil || savedSlots != 2 {
+		t.Fatal("recovery changed the existing purchase", savedSlots, err)
+	}
+	lock.Lock()
+	gotCreates = creates
+	lock.Unlock()
+	if gotCreates != 1 {
+		t.Fatal("recovery created another Stripe session", gotCreates)
 	}
 	if code, body, _ := call("/fixture/login/"+people[1], nil); code != 204 {
 		t.Fatal(code, body)
 	}
 	if code, _, _ := call(returnPath, nil); code != 404 {
 		t.Fatal("cross-account checkout visible", code)
+	}
+	if code, _, _ := call(returnPath, url.Values{"action": {"cancel"}, "csrf": {form.Get("csrf")}}); code != 404 {
+		t.Fatal("cross-account cancellation allowed", code)
 	}
 	lock.Lock()
 	session["status"] = "expired"
@@ -286,6 +328,49 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	if code, body, _ := call(returnPath, nil); code != 200 || !strings.Contains(body, "Checkout closed") {
 		t.Fatal(code, body)
 	}
+	// Cancel an open session, reject missing CSRF, and permit a new selection.
+	// The old fixture reference is unique in storage, so use a new provider ID.
+	sessionID += "_replacement"
+	code, html, _ = call(path, nil)
+	if code != 200 {
+		t.Fatal(code, html)
+	}
+	form.Set("slots", "2")
+	form.Set("key", field("key"))
+	if code, body, _ := call("/services/alerts/subscribe", form); code != 303 {
+		t.Fatal(code, body)
+	}
+	var cancelID string
+	if err := pool.QueryRow(ctx, `SELECT id::text FROM alerts_stripe_checkouts WHERE person_id=$1 AND closed_at IS NULL`, people[0]).Scan(&cancelID); err != nil {
+		t.Fatal(err)
+	}
+	cancelPath := "/services/alerts/checkout/" + cancelID
+	code, html, _ = call(cancelPath, nil)
+	if code != 200 || !strings.Contains(html, "Cancel checkout") {
+		t.Fatal("missing cancel action", code, html)
+	}
+	abandonForm := url.Values{"action": {"cancel"}, "csrf": {"wrong"}}
+	if code, _, _ := call(cancelPath, abandonForm); code != 403 {
+		t.Fatal("cancel CSRF", code)
+	}
+	abandonForm.Set("csrf", field("csrf"))
+	lock.Lock()
+	session["payment_status"] = "unpaid"
+	lock.Unlock()
+	for i := 0; i < 2; i++ {
+		if code, body, location := call(cancelPath, abandonForm); code != 303 || location != "https://alerts.btcpp.dev/alerts" {
+			t.Fatal("cancel failed", code, body, location)
+		}
+	}
+	lock.Lock()
+	gotExpires := expires
+	lock.Unlock()
+	if gotExpires != 1 {
+		t.Fatal("duplicate provider expiration", gotExpires)
+	}
+	if _, err := getters.ReserveAlertsStripeCheckoutWithPolicy(app, people[0], "after-cancel-new-selection", 3, app.Env.GetURI(), policyVersion); err != nil {
+		t.Fatal("cancellation did not release purchase lock", err)
+	}
 	// A separate, account-owned subscription exercises the management flow.
 	saved, e := getters.ReserveAlertsStripeCheckoutWithPolicy(app, people[1], "management-checkout-fixture", 2, "https://btcpp.dev", policyVersion)
 	if e != nil {
@@ -300,7 +385,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	lock.Lock()
-	managed = &stripe.Subscription{ID: b.SubscriptionID, Status: "active", Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: map[string]string{"account_id": b.PersonID, "checkout_intent": b.IntentID, "product": "alerts.repository-slots"}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 2, CurrentPeriodStart: time.Now().Add(-time.Hour).Unix(), CurrentPeriodEnd: time.Now().Add(24 * time.Hour).Unix(), Price: &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}}}}}
+	managed = &stripe.Subscription{ID: b.SubscriptionID, Status: "active", Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: map[string]string{"account_id": b.PersonID, "checkout_intent": b.IntentID, "product": "alerts.repository-slots"}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 2, CurrentPeriodStart: time.Now().Add(-time.Hour).Unix(), CurrentPeriodEnd: time.Now().Add(24 * time.Hour).Unix(), Price: &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}}}}}
 	lock.Unlock()
 	if code, _, _ := call("/fixture/login/"+people[1], nil); code != 204 {
 		t.Fatal(code)
@@ -316,7 +401,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	upgradePath := "/services/alerts/upgrade/" + quote.ID
-	decrease, e := getters.SaveAlertsStripeDecreaseQuote(ctx, app, people[1], b.IntentID, 1, alertsstripe.DecreasePreview{PreviousSlots: 2, PaidSlots: 1, MonthlyCents: 200, PeriodStart: managed.Items.Data[0].CurrentPeriodStart, EffectiveAt: managed.Items.Data[0].CurrentPeriodEnd, ExpiresAt: now.Add(10 * time.Minute)})
+	decrease, e := getters.SaveAlertsStripeDecreaseQuote(ctx, app, people[1], b.IntentID, 1, alertsstripe.DecreasePreview{PreviousSlots: 2, PaidSlots: 1, AnnualCents: 2400, PeriodStart: managed.Items.Data[0].CurrentPeriodStart, EffectiveAt: managed.Items.Data[0].CurrentPeriodEnd, ExpiresAt: now.Add(10 * time.Minute)})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -341,7 +426,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal("decrease selection csrf", code)
 	}
 	code, html, _ = call(decreasePath+"?state=scheduled&total=1&slots=99", nil)
-	if code != 200 || !strings.Contains(html, "$2.00") || !strings.Contains(html, "2 → 1") || !strings.Contains(html, "Confirm decrease") || strings.Contains(html, "Your decrease is scheduled") {
+	if code != 200 || !strings.Contains(html, "$24.00") || !strings.Contains(html, "2 → 1") || !strings.Contains(html, "Confirm decrease") || strings.Contains(html, "Your decrease is scheduled") {
 		t.Fatal("decrease review", code, html)
 	}
 	if code, _, _ = call(decreasePath, url.Values{"csrf": {"wrong"}, "action": {"confirm"}}); code != 403 {
@@ -392,7 +477,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	code, html, _ = call(withdrawPath, nil)
-	if code != 200 || !strings.Contains(html, "Continuing monthly total") || !strings.Contains(html, "$4.00") || strings.Contains(html, "2 → 1") {
+	if code != 200 || !strings.Contains(html, "Continuing annual total") || !strings.Contains(html, "$48.00") || strings.Contains(html, "2 → 1") {
 		t.Fatal("withdrawn plan summary", code, html)
 	}
 	if code, _, location := call(withdrawPath, url.Values{"csrf": {cancelForm.Get("csrf")}, "action": {"withdraw"}}); code != 303 || location != withdrawPath {
@@ -407,7 +492,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal("already covered selection", code, location)
 	}
 	code, html, _ = call(upgradePath+"?paid=true&total=1", nil)
-	if code != 200 || !strings.Contains(html, "$1.95") || !strings.Contains(html, "$0.15") || !strings.Contains(html, "$6.00") || !strings.Contains(html, "Confirm upgrade") || strings.Contains(html, "Payment verified") {
+	if code != 200 || !strings.Contains(html, "$1.95") || !strings.Contains(html, "$0.15") || !strings.Contains(html, "$72.00") || !strings.Contains(html, "Confirm upgrade") || strings.Contains(html, "Payment verified") {
 		t.Fatal("upgrade review", code, html)
 	}
 	if code, _, _ := call(upgradePath, url.Values{"csrf": {"wrong"}, "action": {"confirm"}}); code != 403 {

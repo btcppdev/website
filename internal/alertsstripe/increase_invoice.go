@@ -11,7 +11,7 @@ import (
 )
 
 // PaidIncrease covers only the additional slots for the remaining billing period.
-// It is not a replacement full-month grant. Fulfillment must atomically record
+// It is not a replacement full-year grant. Fulfillment must atomically record
 // this evidence, the invoice's uniqueness, and the resulting quantity revision.
 type PaidIncrease struct {
 	QuoteID, InvoiceID, SubscriptionID        string
@@ -63,10 +63,10 @@ func verifyReviewedIncreaseInvoice(in *stripe.Invoice, price *stripe.Price, b Bi
 	if _, err := uuid.Parse(intent.ID); err != nil {
 		return ErrInvoice
 	}
-	if b.IntentID == "" || b.PersonID == "" || !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(q.SubscriptionItemID, "si_") || b.PaidSlots < 1 || q.PreviousSlots != b.PaidSlots || q.PaidSlots <= q.PreviousSlots || q.PeriodStart <= 0 || q.ProrationDate < q.PeriodStart || q.ProrationDate >= q.PeriodEnd || !validMonthlyPrice(price, b) {
+	if b.IntentID == "" || b.PersonID == "" || !strings.HasPrefix(b.SubscriptionID, "sub_") || !strings.HasPrefix(b.CustomerID, "cus_") || !strings.HasPrefix(q.SubscriptionItemID, "si_") || b.PaidSlots < 1 || q.PreviousSlots != b.PaidSlots || q.PaidSlots <= q.PreviousSlots || q.PeriodStart <= 0 || q.ProrationDate < q.PeriodStart || q.ProrationDate >= q.PeriodEnd || !validAnnualPrice(price, b) {
 		return ErrInvoice
 	}
-	if _, err := servicebilling.AlertsTerm("stripe", q.PaidSlots, 1, time.Unix(q.ProrationDate, 0)); err != nil {
+	if _, err := servicebilling.AlertsTerm("stripe", q.PaidSlots, 12, time.Unix(q.ProrationDate, 0)); err != nil {
 		return ErrInvoice
 	}
 	if in == nil || !strings.HasPrefix(in.ID, "in_") {

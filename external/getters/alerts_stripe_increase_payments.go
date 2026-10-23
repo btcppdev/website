@@ -76,7 +76,7 @@ func recordAlertsStripeIncreasePayment(ctx context.Context, app *config.AppConte
 	period := alertsstripe.PaidPeriod{InvoiceID: paid.InvoiceID, SubscriptionID: paid.SubscriptionID, Quantity: paid.AdditionalSlots, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, Start: paid.Start, End: paid.End, PaidAt: paid.PaidAt}
 	// Stripe prorates the old and replacement quantities independently. The net
 	// total need not divide evenly by the added slot count; retain the exact total.
-	serviceQuote := ServiceQuote{LegalAcceptance: acceptance, ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts prorated additional repositories", Provider: "stripe", Quantity: paid.AdditionalSlots, UnitCents: paid.TotalCents / paid.AdditionalSlots, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 1}
+	serviceQuote := ServiceQuote{LegalAcceptance: acceptance, ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts prorated additional repositories", Provider: "stripe", Quantity: paid.AdditionalSlots, UnitCents: paid.TotalCents / paid.AdditionalSlots, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 12}
 	if err = recordStripeServicePayment(ctx, tx, person, email, period, serviceQuote, out); err != nil {
 		return nil, err
 	}

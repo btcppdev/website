@@ -18,7 +18,7 @@ func TestPrepareAlertsCheckout(t *testing.T) {
 	for _, term := range []struct {
 		provider string
 		months   int
-	}{{"stripe", 1}, {"opennode", 12}, {"opennode", 24}, {"opennode", 120}} {
+	}{{"stripe", 12}, {"opennode", 12}, {"opennode", 24}, {"opennode", 120}} {
 		t.Run(fmt.Sprintf("%s-%d", term.provider, term.months), func(t *testing.T) {
 			now := time.Now().UTC().Truncate(time.Second)
 			calls := 0

@@ -3,6 +3,7 @@ package handlers
 import (
 	"btcpp-web/internal/config"
 	"context"
+	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	"sort"
 )
@@ -29,7 +30,7 @@ const eventReportTeamSizesSQL = `WITH sizes AS (
 ) SELECT least(members,5),count(*) FROM sizes GROUP BY least(members,5) ORDER BY 1`
 
 const eventReportSessionsSQL = `SELECT t.id::text,p.title,lower(p.talk_type),t.scheduled_start,t.scheduled_end,
- coalesce((SELECT string_agg(DISTINCT person.name,', ' ORDER BY person.name) FROM proposals_speaker_confs ps JOIN speaker_confs sc ON sc.id=ps.speaker_conf_id JOIN people person ON person.id=sc.speaker_id WHERE ps.proposal_id=p.id),''),coalesce(r.youtube_url,''),coalesce(r.x_url,''),coalesce(t.venue,'')
+ coalesce((SELECT string_agg(DISTINCT person.name,', ' ORDER BY person.name) FROM proposals_speaker_confs ps JOIN speaker_confs sc ON sc.id=ps.speaker_conf_id JOIN people person ON person.id=sc.speaker_id WHERE ps.proposal_id=p.id),''),coalesce(r.youtube_url,''),coalesce(r.x_url,''),coalesce(t.venue,''),coalesce(t.social_card_path,'')
  FROM conf_talks t JOIN proposals p ON p.id=t.proposal_id LEFT JOIN recordings r ON r.conf_talk_id=t.id
  WHERE t.conference_id=$1 AND t.archived_at IS NULL AND p.status IN ('Accepted','Scheduled') AND lower(p.talk_type) IN ('talk','keynote','panel','workshop')
  ORDER BY t.scheduled_start NULLS LAST,p.title,t.id`
@@ -43,7 +44,11 @@ const eventReportJudgesSQL = `WITH assignments AS (
  ) SELECT p.id::text,p.name,p.norm_photo_path,p.company,string_agg(DISTINCT a.role,', ' ORDER BY a.role) FROM assignments a JOIN people p ON p.id=a.person_id GROUP BY p.id,p.name,p.norm_photo_path,p.company ORDER BY p.name,p.id`
 const eventReportWinnersSQL = `SELECT p.id::text,p.title,p.short_description,p.image_url,p.github_url,p.demo_url,string_agg(DISTINCT a.title,' · ' ORDER BY a.title),
  coalesce((SELECT string_agg(DISTINCT person.name,', ' ORDER BY person.name) FROM project_members m JOIN people person ON person.id=m.person_id WHERE m.project_id=p.id),''),
- (SELECT coalesce(sum(d.amount_sats),0)::bigint FROM award_distributions d WHERE d.project_id=p.id AND d.competition_id=p.competition_id AND d.distribution_type='sats' AND d.status IN ('sent','claimed'))
+ (SELECT coalesce(sum(d.amount_sats),0)::bigint FROM award_distributions d WHERE d.project_id=p.id AND d.competition_id=p.competition_id AND d.distribution_type='sats' AND d.status IN ('sent','claimed')),
+ coalesce((SELECT jsonb_agg(jsonb_build_object('Name',person.name,'Photo',coalesce(person.norm_photo_path,'')) ORDER BY person.name)
+ FROM project_members m JOIN people person ON person.id=m.person_id
+ WHERE m.project_id=p.id),'[]'::jsonb),
+ coalesce(min(coalesce(a.award_rank,CASE WHEN lower(a.title) ~ '(1st|first)' THEN 1 WHEN lower(a.title) ~ '(2nd|second)' THEN 2 WHEN lower(a.title) ~ '(3rd|third)' THEN 3 END)) FILTER (WHERE a.award_type='normal'),-1)
  FROM projects p JOIN project_awards pa ON pa.project_id=p.id JOIN awards a ON a.id=pa.award_id AND a.competition_id=p.competition_id JOIN competitions k ON k.id=p.competition_id
  WHERE k.conference_id=$1 AND k.results_finalized_at IS NOT NULL AND p.status IN ('submitted','advanced') AND a.status='awarded' AND a.archived_at IS NULL
  GROUP BY p.id,p.title,p.short_description,p.image_url,p.github_url,p.demo_url,p.competition_id ORDER BY p.title,p.id`
@@ -64,6 +69,18 @@ func loadEventReport(ctx context.Context, app *config.AppContext, page *sponsorR
 func loadEventReportTx(ctx context.Context, app *config.AppContext, tx pgx.Tx, page *sponsorReportPage) error {
 	var err error
 	if err = tx.QueryRow(ctx, eventReportMetricsSQL, page.Event.ID).Scan(&page.Registrations, &page.Attendees, &page.Teams, &page.Participants, &page.Challenges, &page.Sats, &page.Volunteers, &page.Proposals); err != nil {
+		return err
+	}
+	statusRows, err := tx.Query(ctx, `SELECT coalesce(nullif(status,''),'Unclassified'),count(*) FROM proposals WHERE conference_id=$1 AND lower(talk_type) IN ('talk','keynote','workshop','panel') GROUP BY status ORDER BY status`, page.Event.ID)
+	if err != nil {
+		return err
+	}
+	page.ProposalStatuses, err = pgx.CollectRows(statusRows, func(row pgx.CollectableRow) (reportBar, error) {
+		var b reportBar
+		err := row.Scan(&b.Label, &b.Value)
+		return b, err
+	})
+	if err != nil {
 		return err
 	}
 	rows, err := tx.Query(ctx, eventReportTeamSizesSQL, page.Event.ID)
@@ -91,7 +108,7 @@ func loadEventReportTx(ctx context.Context, app *config.AppContext, tx pgx.Tx, p
 	}
 	page.Sessions, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (reportSession, error) {
 		var s reportSession
-		err := row.Scan(&s.ID, &s.Title, &s.Kind, &s.Start, &s.End, &s.Speakers, &s.YouTube, &s.X, &s.Venue)
+		err := row.Scan(&s.ID, &s.Title, &s.Kind, &s.Start, &s.End, &s.Speakers, &s.YouTube, &s.X, &s.Venue, &s.SocialCard)
 		return s, err
 	})
 	if err != nil {
@@ -129,7 +146,14 @@ func loadEventReportTx(ctx context.Context, app *config.AppContext, tx pgx.Tx, p
 	}
 	page.Winners, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (reportWinner, error) {
 		var p reportWinner
-		err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Image, &p.GitHub, &p.Demo, &p.Awards, &p.Members, &p.Sats)
+		var portraits []byte
+		err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Image, &p.GitHub, &p.Demo, &p.Awards, &p.Members, &p.Sats, &portraits, &p.Rank)
+		if err == nil {
+			err = json.Unmarshal(portraits, &p.Portraits)
+		}
+		for i := range p.Portraits {
+			p.Portraits[i].Photo = SpeakerPhotoURL(app, p.Portraits[i].Photo)
+		}
 		return p, err
 	})
 	if err != nil {

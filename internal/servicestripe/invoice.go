@@ -111,5 +111,25 @@ func ValidPrice(price *stripe.Price, b Binding) bool {
 	if plan.Months == 12 {
 		interval = "year"
 	}
-	return price != nil && price.ID == b.PriceID && price.Livemode == b.Live && string(price.Currency) == plan.Currency && price.UnitAmount == plan.UnitCents && string(price.TaxBehavior) == plan.TaxBehavior && price.Type == "recurring" && price.Recurring != nil && string(price.Recurring.Interval) == interval && price.Recurring.IntervalCount == 1 && price.Product != nil && price.Product.ID == b.ProductID && price.Product.TaxCode != nil && price.Product.TaxCode.ID == b.TaxCode
+	return price != nil && price.ID == b.PriceID && price.Livemode == b.Live && string(price.Currency) == plan.Currency && price.UnitAmount == plan.UnitCents && string(price.TaxBehavior) == plan.TaxBehavior && price.Type == "recurring" && price.Recurring != nil && string(price.Recurring.Interval) == interval && price.Recurring.IntervalCount == 1 && price.Product != nil && price.Product.ID == b.ProductID && productTaxCodeMatches(price.Product, b.TaxCode)
+}
+
+// Stripe's newer API returns tax_details.tax_code rather than tax_code.
+// Require authenticated product evidence in either shape; conflicting values
+// must never pass by falling back to the expected plan or account default.
+func productTaxCodeMatches(product *stripe.Product, expected string) bool {
+	if product == nil || expected == "" {
+		return false
+	}
+	code := ""
+	if product.TaxCode != nil {
+		code = product.TaxCode.ID
+	}
+	if product.TaxDetails != nil && product.TaxDetails.TaxCode != "" {
+		if code != "" && code != product.TaxDetails.TaxCode {
+			return false
+		}
+		code = product.TaxDetails.TaxCode
+	}
+	return code == expected
 }

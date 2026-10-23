@@ -10,12 +10,12 @@ import (
 
 func invoiceFixture(t *testing.T) (*stripe.Invoice, *stripe.Price, Binding) {
 	t.Helper()
-	raw := `{"id":"in_test","status":"paid","currency":"usd","customer":"cus_test","billing_reason":"subscription_cycle","total":400,"amount_paid":400,"automatic_tax":{"enabled":true,"status":"complete"},"status_transitions":{"paid_at":1772323200},"parent":{"type":"subscription_details","subscription_details":{"subscription":"sub_test","metadata":{"product":"alerts.repository-slots","account_id":"account","checkout_intent":"intent"}}},"total_taxes":[{"amount":36,"tax_behavior":"inclusive"}],"lines":{"has_more":false,"data":[{"currency":"usd","amount":400,"quantity":2,"period":{"start":1772323200,"end":1775001600},"parent":{"type":"subscription_item_details","subscription_item_details":{"subscription":"sub_test","proration":false}},"pricing":{"price_details":{"price":"price_test","product":"prod_test"}}}]}}`
+	raw := `{"id":"in_test","status":"paid","currency":"usd","customer":"cus_test","billing_reason":"subscription_cycle","total":4800,"amount_paid":4800,"automatic_tax":{"enabled":true,"status":"complete"},"status_transitions":{"paid_at":1772323200},"parent":{"type":"subscription_details","subscription_details":{"subscription":"sub_test","metadata":{"product":"alerts.repository-slots","account_id":"account","checkout_intent":"intent"}}},"total_taxes":[{"amount":36,"tax_behavior":"inclusive"}],"lines":{"has_more":false,"data":[{"currency":"usd","amount":4800,"quantity":2,"period":{"start":1772323200,"end":1803859200},"parent":{"type":"subscription_item_details","subscription_item_details":{"subscription":"sub_test","proration":false}},"pricing":{"price_details":{"price":"price_test","product":"prod_test"}}}]}}`
 	var inv stripe.Invoice
 	if err := json.Unmarshal([]byte(raw), &inv); err != nil {
 		t.Fatal(err)
 	}
-	price := &stripe.Price{ID: "price_test", Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_test", TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	price := &stripe.Price{ID: "price_test", Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: "prod_test", TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 	return &inv, price, Binding{IntentID: "intent", PersonID: "account", CustomerID: "cus_test", SubscriptionID: "sub_test", PriceID: "price_test", ProductID: "prod_test", Quantity: 2, ProductCode: servicebilling.AlertsProduct, TaxCode: servicebilling.AlertsStripeTaxCode}
 }
 
@@ -38,6 +38,9 @@ func insiderInvoice(t *testing.T, code string) (*stripe.Invoice, *stripe.Price, 
 	price.UnitAmount = plan.UnitCents
 	price.TaxBehavior = "exclusive"
 	price.Product.TaxCode.ID = b.TaxCode
+	price.Recurring.Interval = "month"
+	start := time.Unix(inv.Lines.Data[0].Period.Start, 0).UTC()
+	inv.Lines.Data[0].Period.End = start.AddDate(0, 1, 0).Unix()
 	if plan.Months == 12 {
 		price.Recurring.Interval = "year"
 		start := time.Unix(inv.Lines.Data[0].Period.Start, 0).UTC()
@@ -86,6 +89,41 @@ func TestRejectCrossProductAndAlteredInvoices(t *testing.T) {
 			mutate(inv, price, &b)
 			if _, err := VerifyPaidInvoice(inv, price, b); err == nil {
 				t.Fatal("accepted altered invoice")
+			}
+		})
+	}
+}
+
+func TestInvoiceProductTaxCodeShapes(t *testing.T) {
+	for _, tc := range []struct {
+		name, legacy, current string
+		valid                 bool
+	}{
+		{"legacy", "txcd_10103000", "", true},
+		{"current", "", "txcd_10103000", true},
+		{"both", "txcd_10103000", "txcd_10103000", true},
+		{"missing", "", "", false},
+		{"wrong current", "", "txcd_wrong", false},
+		{"conflicting current", "txcd_10103000", "txcd_wrong", false},
+		{"conflicting legacy", "txcd_wrong", "txcd_10103000", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inv, price, b := invoiceFixture(t)
+			raw := `{"id":"prod_test"`
+			if tc.legacy != "" {
+				raw += `,"tax_code":"` + tc.legacy + `"`
+			}
+			if tc.current != "" {
+				raw += `,"tax_details":{"tax_code":"` + tc.current + `"}`
+			}
+			raw += `}`
+			price.Product = &stripe.Product{}
+			if err := json.Unmarshal([]byte(raw), price.Product); err != nil {
+				t.Fatal(err)
+			}
+			_, err := VerifyPaidInvoice(inv, price, b)
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v error=%v", tc.valid, err)
 			}
 		})
 	}

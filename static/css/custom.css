@@ -16359,3 +16359,8 @@ button.organization-review-action.is-secondary {
 .purchase-invoice-button:hover { background: #333; }
 .purchase-invoice-button:focus-visible { outline: 3px solid #f44; outline-offset: 3px; }
 @media (max-width: 600px) { .purchase-invoice-page .purchase-invoice-form { grid-template-columns: 1fr; padding: 18px; } }
+
+/* Keep space below the subscription management link at every viewport size. */
+.account-settings-page .person-emails-page .dashboard-subscription-card .profile-edit-section__body {
+	padding-bottom: 24px;
+}

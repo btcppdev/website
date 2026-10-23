@@ -227,6 +227,95 @@ func TestDatabaseSmokeOAuthAuthorizationCodeAndRefreshRotation(t *testing.T) {
 	}
 }
 
+func TestDatabaseSmokeOAuthPermissionEditing(t *testing.T) {
+	ctx := databaseSmokeContext(t)
+	var oauthSchemaPresent bool
+	if err := ctx.DB.QueryRow(ctx.DatabaseContext(), `SELECT to_regclass('public.oauth_clients') IS NOT NULL`).Scan(&oauthSchemaPresent); err != nil {
+		t.Fatal(err)
+	}
+	if !oauthSchemaPresent {
+		t.Skip("OAuth server migration is not applied to this development database")
+	}
+	suffix := databaseSmokeSuffix()
+	personID, err := CreateSpeaker(ctx, SpeakerInput{Name: "OAuth Smoke " + suffix, Email: "oauth-" + suffix + "@example.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &types.OAuthClient{
+		ClientID: "smoke-client-" + suffix, Name: "Smoke App", RedirectURIs: []string{"https://app.example/callback"},
+		AllowedScopes: []string{"profile:self:read", "offline_access"}, TokenEndpointAuthMethod: "client_secret_basic", ClientSecretHash: []byte("preserved-secret-hash"), CreatedByPersonID: personID,
+	}
+	if err := CreateOAuthClient(ctx, client); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM oauth_clients WHERE id = $1::uuid`, client.ID)
+		_, _ = ctx.DB.Exec(context.Background(), `DELETE FROM people WHERE id = $1::uuid`, personID)
+	})
+	codeHash := []byte("01234567890123456789012345678901")
+	if err := StoreOAuthAuthorizationCode(ctx, codeHash, &types.OAuthAuthorizationCode{
+		ClientDBID: client.ID, PersonID: personID, RedirectURI: client.RedirectURIs[0], Scopes: client.AllowedScopes,
+		CodeChallenge: "challenge", ExpiresAt: time.Now().Add(time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	grant, err := RedeemOAuthAuthorizationCode(ctx, codeHash, client.ID, client.RedirectURIs[0], "challenge", OAuthTokenIssue{
+		AccessSelector: "access-" + suffix, AccessHash: []byte("access-hash"), RefreshHash: []byte("refresh-hash-1"),
+		AccessTTL: time.Hour, RefreshTTL: 24 * time.Hour,
+	})
+	if err != nil || grant == nil || grant.RefreshTokenID == "" {
+		t.Fatalf("grant=%+v err=%v", grant, err)
+	}
+	if repeated, err := RedeemOAuthAuthorizationCode(ctx, codeHash, client.ID, client.RedirectURIs[0], "challenge", OAuthTokenIssue{}); err != nil || repeated != nil {
+		t.Fatalf("authorization code reused: grant=%+v err=%v", repeated, err)
+	}
+	expanded := append(append([]string{}, client.AllowedScopes...), "newsletters:self:read", "newsletters:self:write")
+	if err := UpdateOAuthClientPermissions(ctx, client.ID, expanded); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := GetOAuthClient(ctx, client.ClientID)
+	if err != nil || updated == nil || updated.ID != client.ID || string(updated.ClientSecretHash) != string(client.ClientSecretHash) || updated.TokenEndpointAuthMethod != client.TokenEndpointAuthMethod || len(updated.AllowedScopes) != 4 || updated.RedirectURIs[0] != client.RedirectURIs[0] {
+		t.Fatalf("updated client = %+v, error=%v", updated, err)
+	}
+	active, _, err := FindActiveOAuthAccessToken(ctx, "access-"+suffix)
+	if err != nil || active == nil || len(active.Scopes) != 2 {
+		t.Fatalf("permission expansion changed existing grant: %+v, %v", active, err)
+	}
+
+	rotated, err := RotateOAuthRefreshToken(ctx, []byte("refresh-hash-1"), client.ID, OAuthTokenIssue{
+		AccessSelector: "access-next-" + suffix, AccessHash: []byte("access-hash-next"), RefreshHash: []byte("refresh-hash-2"),
+		AccessTTL: time.Hour, RefreshTTL: 24 * time.Hour,
+	})
+	if err != nil || rotated == nil || rotated.RefreshTokenID == grant.RefreshTokenID {
+		t.Fatalf("rotated=%+v err=%v", rotated, err)
+	}
+	if len(rotated.Scopes) != 2 {
+		t.Fatal("refresh expanded permissions without consent")
+	}
+	if err := UpdateOAuthClientPermissions(ctx, client.ID, []string{"identity:self:read"}); err != nil {
+		t.Fatal(err)
+	}
+	if active, _, err := FindActiveOAuthAccessToken(ctx, "access-next-"+suffix); err != nil || active != nil {
+		t.Fatalf("scope removal did not revoke access: %+v, %v", active, err)
+	}
+	if refreshed, err := RotateOAuthRefreshToken(ctx, []byte("refresh-hash-2"), client.ID, OAuthTokenIssue{}); err != nil || refreshed != nil {
+		t.Fatalf("removed scopes refreshed: %+v, %v", refreshed, err)
+	}
+	if err := RevokeOAuthClient(ctx, client.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := UpdateOAuthClientPermissions(ctx, client.ID, expanded); err == nil {
+		t.Fatal("updated revoked app")
+	}
+
+	if replayed, err := RotateOAuthRefreshToken(ctx, []byte("refresh-hash-1"), client.ID, OAuthTokenIssue{}); err != nil || replayed != nil {
+		t.Fatalf("refresh replay accepted: grant=%+v err=%v", replayed, err)
+	}
+	if active, _, err := FindActiveOAuthAccessToken(ctx, "access-next-"+suffix); err != nil || active != nil {
+		t.Fatalf("refresh replay did not revoke family access token: token=%+v err=%v", active, err)
+	}
+}
+
 func TestDatabaseSmokeNostrIdentityLookup(t *testing.T) {
 	ctx := databaseSmokeContext(t)
 	suffix := databaseSmokeSuffix()

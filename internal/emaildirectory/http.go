@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -21,6 +22,7 @@ import (
 )
 
 type Handler struct {
+	Account  func(*http.Request) (personID, csrf string, err error)
 	Store    Store
 	Tokens   map[string]string
 	Origin   string
@@ -29,11 +31,14 @@ type Handler struct {
 
 func (h *Handler) Routes() http.Handler {
 	m := http.NewServeMux()
+	m.HandleFunc("GET /api/internal/email-directory/{service}/operators", h.operators)
 	m.HandleFunc("POST /api/internal/email-directory/{service}/resolve", h.resolve)
 	m.HandleFunc("POST /api/internal/email-directory/{service}/verified-account", h.verifiedAccount)
 	m.HandleFunc("GET /api/internal/email-directory/{service}/contacts/{id}", h.contact)
 	m.HandleFunc("PUT /api/internal/email-directory/{service}/contacts/{id}", h.change)
 	m.HandleFunc("GET /email-preferences", h.requestPage)
+	m.HandleFunc("GET /dashboard/email-subscriptions", h.accountManage)
+	m.HandleFunc("POST /dashboard/email-subscriptions", h.accountSave)
 	m.HandleFunc("POST /email-preferences", h.requestLink)
 	m.HandleFunc("POST /email-preferences/open", h.openLink)
 	m.HandleFunc("GET /email-preferences/manage", h.manage)
@@ -42,7 +47,7 @@ func (h *Handler) Routes() http.Handler {
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		if h.Store.DB == nil {
 			http.Error(w, "Email preferences temporarily unavailable", 503)
 			return
@@ -144,11 +149,16 @@ func (h *Handler) sameOrigin(r *http.Request) bool {
 	return origin == "" || origin == strings.TrimRight(h.Origin, "/")
 }
 
-var preferencesPage = template.Must(template.New("preferences").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Email preferences · bitcoin++</title><style>body{font:16px system-ui;background:#111;color:#eee;max-width:720px;margin:3rem auto;padding:1rem}a{color:#ff7777}fieldset{margin:1rem 0;padding:1rem;border:1px solid #555}button,input{font:inherit;padding:.6rem}button{cursor:pointer}small{display:block;color:#bbb}</style><h1>Email preferences</h1>{{if .Notice}}<p>{{.Notice}}</p>{{end}}{{if .Token}}<p>Open email preferences without signing in.</p><form method="post" action="/email-preferences/open"><input type="hidden" name="token" value="{{.Token}}"><button>Manage my subscriptions</button></form>{{else if .Contact}}<p>{{.Contact.Email}}</p><p>Changes apply only to the selected newsletter. Billing and Telegram are managed separately.</p>{{range .Contact.Memberships}}<fieldset><legend>{{.Service}} / {{.Newsletter}}</legend><form method="post" action="/email-preferences/manage"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="key" value="{{$.Key}}-{{.Service}}-{{.Newsletter}}"><input type="hidden" name="service" value="{{.Service}}"><input type="hidden" name="newsletter" value="{{.Newsletter}}"><input type="hidden" name="version" value="{{.Version}}"><input type="hidden" name="mode" value="{{.DeliveryMode}}"><p>Status: {{.Status}}{{if .PausedUntil}} (paused until {{.PausedUntil}}){{end}}</p>{{if eq .Status "subscribed"}}<button name="subscribed" value="false">Unsubscribe</button>{{else}}<button name="subscribed" value="true">Subscribe</button>{{end}}</form></fieldset>{{else}}<p>No email subscriptions are recorded for this address.</p>{{end}}{{else}}<p>Get a private link to see and manage email subscriptions. No sign-in needed.</p><form method="post" action="/email-preferences"><label>Email <input name="email" type="email" required maxlength="320"></label><button>Send management link</button></form>{{end}}</html>`))
+//go:embed preferences.html
+var preferencesHTML string
+
+var preferencesPage = template.Must(template.New("preferences").Parse(preferencesHTML))
 
 type page struct {
 	Notice, Token, CSRF, Key string
 	Contact                  *Contact
+	Contacts                 []*Contact
+	AccountPage              bool
 }
 
 func render(w http.ResponseWriter, p page) {
@@ -156,7 +166,19 @@ func render(w http.ResponseWriter, p page) {
 	preferencesPage.Execute(w, p)
 }
 func (h *Handler) requestPage(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("token") == "" && h.Account != nil {
+		person, _, err := h.Account(r)
+		if err != nil {
+			http.Error(w, "Unable to load account", 500)
+			return
+		}
+		if person != "" {
+			http.Redirect(w, r, "/dashboard/email-subscriptions", http.StatusSeeOther)
+			return
+		}
+	}
 	raw := r.URL.Query().Get("token")
+
 	if len(raw) > 100 {
 		raw = ""
 	}
@@ -271,6 +293,10 @@ func (h *Handler) save(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Request a new management link.", 401)
 		return
 	}
+	h.savePreferences(w, r, id, csrf, "/email-preferences/manage")
+}
+
+func (h *Handler) savePreferences(w http.ResponseWriter, r *http.Request, id, csrf, destination string) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	r.ParseForm()
 	if !h.sameOrigin(r) || subtle.ConstantTimeCompare([]byte(csrf), []byte(r.FormValue("csrf"))) != 1 {
@@ -309,7 +335,7 @@ func (h *Handler) save(w http.ResponseWriter, r *http.Request) {
 		respond(w, nil, err)
 		return
 	}
-	http.Redirect(w, r, "/email-preferences/manage", http.StatusSeeOther)
+	http.Redirect(w, r, destination, http.StatusSeeOther)
 }
 
 func (h *Handler) verifiedAccount(w http.ResponseWriter, r *http.Request) {

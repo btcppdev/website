@@ -18,7 +18,7 @@ func TestReportPaperUsesPublicEvidenceWithoutInventedMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	html := out.String()
-	for _, value := range []string{"36", "5M", "WestToEast", "Robin", "nairobi2", "Published overall awards only", "paper-chart", "Sources & reading this report"} {
+	for _, value := range []string{"36", "5M", "WestToEast", "Robin", "nairobi2", "sats awarded", "paper-chart", "Sources & reading this report"} {
 		if !strings.Contains(html, value) {
 			t.Errorf("missing %q", value)
 		}
@@ -28,8 +28,8 @@ func TestReportPaperUsesPublicEvidenceWithoutInventedMetrics(t *testing.T) {
 			t.Errorf("public report contains %q", forbidden)
 		}
 	}
-	if got := strings.Count(html, `class="paper-sheet`); got != 14 {
-		t.Fatalf("paper sections=%d, want 14", got)
+	if got := strings.Count(html, `class="paper-sheet`); got != 11 {
+		t.Fatalf("paper sections=%d, want 11", got)
 	}
 	chart := p.PublishedPrizeChart()
 	if chart == nil || chart.DonutTotal() != 5000000 {

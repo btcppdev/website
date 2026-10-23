@@ -132,9 +132,9 @@ func TestIncreasePreviewRejectsUnrelatedInvoiceAmounts(t *testing.T) {
 			case "failed tax":
 				in.AutomaticTax.Status = "failed"
 			case "overcharge":
-				in.Total = 201
-				in.AmountDue = 201
-				in.Lines.Data[1].Amount = 401
+				in.Total = 2401
+				in.AmountDue = 2401
+				in.Lines.Data[1].Amount = 2601
 			}
 			if q, err := c.PreviewIncrease(context.Background(), b, 3, now); err == nil || q != nil {
 				t.Fatal(q, err)

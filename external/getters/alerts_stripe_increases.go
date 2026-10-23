@@ -28,10 +28,10 @@ func SaveAlertsStripeIncreaseQuote(ctx context.Context, app *config.AppContext, 
 	if !strings.HasPrefix(preview.SubscriptionItemID, "si_") || preview.PreviousSlots < 1 || preview.PaidSlots <= preview.PreviousSlots || preview.PeriodStart <= 0 || preview.ProrationDate < preview.PeriodStart || preview.ProrationDate >= preview.PeriodEnd || preview.ProrationDate > now.Add(time.Minute).Unix() || now.Unix()-preview.ProrationDate > 600 || !preview.ExpiresAt.After(now) || preview.ExpiresAt.Unix() > preview.ProrationDate+600 || preview.ExpiresAt.Unix() > preview.PeriodEnd || preview.TotalCents < 0 || preview.TaxCents < 0 || preview.TaxCents > preview.TotalCents {
 		return nil, alertsstripe.ErrSubscription
 	}
-	if _, err := servicebilling.AlertsTerm("stripe", preview.PaidSlots, 1, now); err != nil {
+	if _, err := servicebilling.AlertsTerm("stripe", preview.PaidSlots, 12, now); err != nil {
 		return nil, err
 	}
-	if preview.TotalCents > (preview.PaidSlots-preview.PreviousSlots)*servicebilling.AlertsMonthlySlotCents {
+	if preview.TotalCents > (preview.PaidSlots-preview.PreviousSlots)*servicebilling.AlertsAnnualSlotCents {
 		return nil, alertsstripe.ErrSubscription
 	}
 	tx, err := app.DB.Begin(ctx)

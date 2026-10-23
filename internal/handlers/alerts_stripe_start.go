@@ -33,7 +33,7 @@ func alertsStripeSelection(values url.Values) (string, int64, error) {
 		return "", 0, errors.New("invalid account")
 	}
 	slots, err := strconv.ParseInt(values.Get("slots"), 10, 64)
-	if err != nil || len(values["slots"]) != 1 || slots < 1 || slots > 2147483647/servicebilling.AlertsMonthlySlotCents {
+	if err != nil || len(values["slots"]) != 1 || slots < 1 || slots > 2147483647/servicebilling.AlertsAnnualSlotCents {
 		return "", 0, errors.New("invalid repository count")
 	}
 	return account, slots, nil
@@ -156,6 +156,18 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 			return
 		}
 		if errors.Is(err, getters.ErrAlertsStripeCheckoutConflict) {
+			// A different selection must not overwrite an existing checkout or
+			// create a second subscription. Give the buyer its recovery page.
+			var existing string
+			recoveryErr := app.DB.QueryRow(r.Context(), `SELECT id::text FROM alerts_stripe_checkouts WHERE person_id=$1 AND closed_at IS NULL ORDER BY created_at DESC LIMIT 1`, account).Scan(&existing)
+			if recoveryErr == nil {
+				http.Redirect(w, r, "/services/alerts/checkout/"+existing, http.StatusSeeOther)
+				return
+			}
+			if !errors.Is(recoveryErr, pgx.ErrNoRows) {
+				http.Error(w, "Unable to load your existing checkout. Please try again shortly.", http.StatusServiceUnavailable)
+				return
+			}
 			http.Error(w, "An existing Alerts purchase needs attention. Return to My alerts before starting another subscription.", 409)
 			return
 		}
@@ -187,7 +199,7 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 		http.Error(w, "Unable to prepare checkout", 500)
 		return
 	}
-	total := slots * servicebilling.AlertsMonthlySlotCents
+	total := slots * servicebilling.AlertsAnnualSlotCents
 	page := alertsStripeStartPage{Policy: policy, Account: account, Slots: slots, CSRF: csrf, Key: uuid.NewString(), Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Enabled: enabled}
 	var html bytes.Buffer
 	if err = app.TemplateCache.ExecuteTemplate(&html, "alerts_stripe_start.tmpl", page); err != nil {

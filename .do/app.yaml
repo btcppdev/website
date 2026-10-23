@@ -17,6 +17,12 @@ region: nyc
 services:
 - environment_slug: go
   envs:
+  - key: SERVICE_RECEIPTS_ENABLED
+    scope: RUN_TIME
+    value: "true"
+  - key: SERVICE_STRIPE_RECONCILIATION_ENABLED
+    scope: RUN_TIME
+    value: "true"
   - key: GOOGLE_KEY
     scope: RUN_AND_BUILD_TIME
     type: SECRET
