@@ -48,6 +48,7 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/checkout/session"
+	stripeInvoice "github.com/stripe/stripe-go/v86/invoice"
 	"github.com/stripe/stripe-go/v86/webhook"
 )
 
@@ -7112,7 +7113,14 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
+	event, err = normalizeStripeInvoiceEvent(r.Context(), event, stripeInvoice.Get)
+	if err != nil {
+		ctx.Err.Printf("Stripe invoice event %s needs lookup retry", event.ID)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 	if handled, err := handleServiceStripeEvent(r.Context(), ctx, event); handled {
+
 		if err != nil {
 			ctx.Err.Printf("Service Stripe event %s requires retry", event.ID)
 			w.WriteHeader(http.StatusServiceUnavailable)
