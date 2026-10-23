@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<title>Email preferences · bitcoin++</title>
+<style>
+@font-face{font-family:Ubuntu;src:url('/static/fonts/Ubuntu-BoldItalic.ttf') format('truetype');font-weight:700;font-style:italic;font-display:swap}
+*{box-sizing:border-box}body{margin:0;background:#f7f5ef;color:#1c1c1e;font:16px/1.6 system-ui,-apple-system,sans-serif}a{color:inherit;text-underline-offset:4px}
+header,footer{max-width:1040px;margin:auto;padding:24px clamp(20px,5vw,48px);display:flex;align-items:center;justify-content:space-between;gap:24px}
+header{border-bottom:1px solid #dedbd2}.wordmark{font:italic 700 32px/1 Ubuntu,sans-serif;text-decoration:none;white-space:nowrap}.pluses{letter-spacing:-.16em;margin-right:.16em}header>a:last-child{font-size:13px}
+main{max-width:640px;margin:clamp(32px,7vw,80px) auto;padding:0 20px}.eyebrow{font:600 11px/1.5 ui-monospace,monospace;letter-spacing:2px;text-transform:uppercase;color:#68655c;margin:0 0 14px}h1{font-size:clamp(32px,6vw,44px);line-height:1.12;letter-spacing:-1.7px;margin:0 0 20px}p{margin:0 0 20px}.intro{color:#625f56;max-width:48ch}
+.card{background:#fff;border:1px solid #dedbd2;border-top:3px solid #f7931a;padding:clamp(20px,5vw,32px);border-radius:4px}label{display:block;font-size:14px;font-weight:600;margin-bottom:8px}
+input[type=email]{width:100%;min-width:0;padding:13px 14px;border:1px solid #aaa69b;border-radius:4px;background:#fff;font:inherit;margin-bottom:16px}
+button{font:600 14px/1.5 system-ui,sans-serif;padding:13px 20px;border:1px solid #1c1c1e;border-radius:4px;background:#1c1c1e;color:white;cursor:pointer}button:hover{background:#363633}.full{width:100%}
+:focus-visible{outline:3px solid #bf6410;outline-offset:3px}.help{font-size:13px;color:#68655c;margin:16px 0 0}.notice{padding:16px 20px;background:#edf5ed;border:1px solid #bdcfbd;border-radius:4px;margin-bottom:24px}
+.address{font-weight:600;overflow-wrap:anywhere}.memberships{margin-top:24px}fieldset{min-width:0;border:1px solid #dedbd2;border-radius:4px;padding:20px;margin:0 0 20px;background:#fff}legend{padding:0 8px;font-weight:600;font-size:15px;overflow-wrap:anywhere}fieldset p{color:#625f56;font-size:14px;margin-bottom:14px}fieldset button{background:transparent;color:#1c1c1e}fieldset button:hover{background:#f7f5ef}
+footer{border-top:1px solid #dedbd2;font-size:12px;color:#68655c;flex-wrap:wrap}footer p{margin:0}.footer-links{display:flex;gap:20px}
+</style>
+</head>
+<body>
+<header><a class="wordmark" href="/" aria-label="bitcoin++ home">bitcoin<span class="pluses">++</span></a><a href="/dashboard">Your account</a></header>
+<main>
+<p class="eyebrow">Your inbox. Your choice.</p>
+<h1>Email preferences</h1>
+{{if .Notice}}<p class="notice" role="status">{{.Notice}}</p>{{end}}
+{{if .Token}}
+<p class="intro">Choose which emails you receive from bitcoin++. You don’t need to sign in.</p>
+<div class="card"><form method="post" action="/email-preferences/open">
+<input type="hidden" name="token" value="{{.Token}}">
+<button class="full">Manage my subscriptions</button>
+</form><p class="help">This private link gives you access to the email preferences for your address.</p></div>
+{{else if .Contact}}
+<p class="address">{{.Contact.Email}}</p>
+<p class="intro">Choose the emails you want to receive. Each change applies only to that subscription.</p>
+<div class="memberships">
+{{range .Contact.Memberships}}
+<fieldset><legend>{{.Service}} / {{.Newsletter}}</legend>
+<form method="post" action="/email-preferences/manage">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<input type="hidden" name="key" value="{{$.Key}}-{{.Service}}-{{.Newsletter}}">
+<input type="hidden" name="service" value="{{.Service}}">
+<input type="hidden" name="newsletter" value="{{.Newsletter}}">
+<input type="hidden" name="version" value="{{.Version}}">
+<input type="hidden" name="mode" value="{{.DeliveryMode}}">
+<p>{{if eq .Status "subscribed"}}Receiving emails{{else}}Status: {{.Status}}{{end}}{{if .PausedUntil}} · Paused until {{.PausedUntil}}{{end}}</p>
+{{if eq .Status "subscribed"}}<button name="subscribed" value="false">Unsubscribe</button>{{else}}<button name="subscribed" value="true">Subscribe</button>{{end}}
+</form></fieldset>
+{{else}}
+<div class="card"><p>No email subscriptions are recorded for this address.</p></div>
+{{end}}
+</div>
+<p class="help">Turning off emails doesn’t cancel a paid plan or change Telegram delivery. Manage those settings in your account or the relevant service.</p>
+{{else}}
+<p class="intro">Get a private link to manage the emails you receive from bitcoin++. No password or sign-in needed.</p>
+<div class="card"><form method="post" action="/email-preferences">
+<label for="email">Email address</label>
+<input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required maxlength="320" aria-describedby="email-help">
+<button class="full">Email me a private link</button>
+</form><p class="help" id="email-help">The link expires after 30 minutes. Only someone with access to your inbox can use it.</p></div>
+{{end}}
+</main>
+<footer><p>Stay in control of what reaches your inbox.</p><div class="footer-links"><a href="/">bitcoin++ home</a><a href="mailto:inbox@btcpp.dev">Get help</a></div></footer>
+</body>
+</html>

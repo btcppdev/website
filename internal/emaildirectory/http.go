@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -144,7 +145,10 @@ func (h *Handler) sameOrigin(r *http.Request) bool {
 	return origin == "" || origin == strings.TrimRight(h.Origin, "/")
 }
 
-var preferencesPage = template.Must(template.New("preferences").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Email preferences · bitcoin++</title><style>body{font:16px system-ui;background:#111;color:#eee;max-width:720px;margin:3rem auto;padding:1rem}a{color:#ff7777}fieldset{margin:1rem 0;padding:1rem;border:1px solid #555}button,input{font:inherit;padding:.6rem}button{cursor:pointer}small{display:block;color:#bbb}</style><h1>Email preferences</h1>{{if .Notice}}<p>{{.Notice}}</p>{{end}}{{if .Token}}<p>Open email preferences without signing in.</p><form method="post" action="/email-preferences/open"><input type="hidden" name="token" value="{{.Token}}"><button>Manage my subscriptions</button></form>{{else if .Contact}}<p>{{.Contact.Email}}</p><p>Changes apply only to the selected newsletter. Billing and Telegram are managed separately.</p>{{range .Contact.Memberships}}<fieldset><legend>{{.Service}} / {{.Newsletter}}</legend><form method="post" action="/email-preferences/manage"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="key" value="{{$.Key}}-{{.Service}}-{{.Newsletter}}"><input type="hidden" name="service" value="{{.Service}}"><input type="hidden" name="newsletter" value="{{.Newsletter}}"><input type="hidden" name="version" value="{{.Version}}"><input type="hidden" name="mode" value="{{.DeliveryMode}}"><p>Status: {{.Status}}{{if .PausedUntil}} (paused until {{.PausedUntil}}){{end}}</p>{{if eq .Status "subscribed"}}<button name="subscribed" value="false">Unsubscribe</button>{{else}}<button name="subscribed" value="true">Subscribe</button>{{end}}</form></fieldset>{{else}}<p>No email subscriptions are recorded for this address.</p>{{end}}{{else}}<p>Get a private link to see and manage email subscriptions. No sign-in needed.</p><form method="post" action="/email-preferences"><label>Email <input name="email" type="email" required maxlength="320"></label><button>Send management link</button></form>{{end}}</html>`))
+//go:embed preferences.html
+var preferencesHTML string
+
+var preferencesPage = template.Must(template.New("preferences").Parse(preferencesHTML))
 
 type page struct {
 	Notice, Token, CSRF, Key string
