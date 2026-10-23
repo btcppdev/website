@@ -1,6 +1,13 @@
 @font-face{font-family:ServiceUbuntu;src:url("/static/fonts/Ubuntu-BoldItalic.ttf") format("truetype");font-weight:700;font-style:italic;font-display:swap}
 .service-checkout{max-width:1100px;margin:64px auto 96px;padding:0 28px;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,1fr);gap:64px;align-items:start}
 .service-checkout *{box-sizing:border-box}
+.service-checkout--account{row-gap:28px}
+.service-account-nav{grid-column:1/-1;font-size:14px;line-height:1.6;border-bottom:1px solid #d6d0c7;padding-bottom:20px}
+.service-account-nav ol{display:flex;flex-wrap:wrap;gap:8px 12px;list-style:none;margin:0;padding:0}
+.service-account-nav li{display:flex;align-items:center;gap:12px}
+.service-account-nav li+li:before{content:"/";color:#777}
+.service-account-nav a{color:inherit;text-underline-offset:4px}
+.service-account-nav [aria-current]{color:#555}
 .service-checkout h1{font-size:clamp(32px,4vw,48px);line-height:1.08;letter-spacing:-.04em;margin:16px 0 24px}
 .service-checkout h2{font-size:24px;margin:0 0 8px}
 .service-checkout p{line-height:1.65;margin:0 0 24px}

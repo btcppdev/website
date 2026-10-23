@@ -25,7 +25,10 @@
         {{ range .Periods }}<p>{{ . }}</p>{{ end }}
         {{ if .CheckedAt }}<p>Membership last updated {{ .CheckedAt }}. See Insider for your membership dates, including prepaid and complimentary access.</p>{{ end }}
         {{ if .BillingStatus }}<p>{{ .BillingStatus }}</p>{{ end }}
-        <p><a href="{{ .URL }}">Manage {{ .Name }} →</a></p>
+        {{ if .BillingURL }}
+        <p><a href="{{ .BillingURL }}">Manage subscription →</a></p>
+        <p><a href="{{ .URL }}">My alerts →</a></p>
+        {{ else }}<p><a href="{{ .URL }}">Manage {{ .Name }} →</a></p>{{ end }}
       </div>
     </section>
     {{ end }}

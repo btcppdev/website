@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="en"><head><title>Manage Alerts billing · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=3"></head>
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=4"></head>
 <body class="shop-page alerts-upgrade-page alerts-manage-page">{{ block "mainnav" . }}{{ end }}
-<main class="service-checkout"><section class="service-checkout-content">
+<main class="service-checkout service-checkout--account">
+<nav class="service-account-nav" aria-label="Breadcrumb"><ol><li><a href="/dashboard">Dashboard</a></li><li><a href="/dashboard/subscriptions">Subscriptions</a></li><li><span aria-current="page">Alerts billing</span></li></ol></nav>
+<section class="service-checkout-content">
 <header class="service-checkout__head"><span class="service-kicker">bitcoin++ Alerts</span><h1>{{ .Heading }}</h1></header>
 <p role="status">{{ .Message }}</p>
 {{ if .Period }}<p>Current billing period ends {{ .Period }}.</p>{{ end }}
@@ -18,5 +20,5 @@
 <p>Cancellation stops future renewals. Your paid allowance continues through the current period, with no refund for that period.</p>
 <input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="revision" value="{{ .Revision }}"><input type="hidden" name="periodEnd" value="{{ .PeriodEnd }}">
 <button type="submit" class="service-primary">Cancel future renewals</button></form>{{ end }}
-<p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>
+<p><a href="/dashboard/subscriptions">Back to subscriptions</a> · <a href="https://alerts.btcpp.dev/alerts">My alerts</a></p>
 </section><aside class="service-summary" aria-label="Order summary"><img src="/static/img/alerts-checkout.svg" alt="" width="640" height="360"><div class="service-summary__body"><h2><span class="service-wordmark">bitcoin++</span> Alerts</h2><dl><div><dt>Paid project allowance</dt><dd>{{ .PaidSlots }}</dd></div><div><dt>Free projects</dt><dd>3 included</dd></div>{{ if .Period }}<div><dt>Current period ends</dt><dd>{{ .Period }}</dd></div>{{ end }}</dl></div></aside></main></body></html>

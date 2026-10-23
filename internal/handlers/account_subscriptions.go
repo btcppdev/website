@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"btcpp-web/external/getters"
@@ -10,8 +11,8 @@ import (
 )
 
 type accountSubscription struct {
-	Name, Description, Status, URL, BillingStatus, CheckedAt string
-	Periods                                                  []string
+	Name, Description, Status, URL, BillingURL, BillingStatus, CheckedAt string
+	Periods                                                              []string
 }
 
 type accountSubscriptionsPage struct {
@@ -70,6 +71,7 @@ func DashboardSubscriptions(w http.ResponseWriter, r *http.Request, app *config.
 		return
 	}
 	alerts := accountSubscription{Name: "Alerts", Description: "Software release notifications by email and Telegram.", Status: "3 free projects", URL: "https://alerts.btcpp.dev/alerts"}
+	alerts.BillingURL = "/services/alerts/manage?" + url.Values{"account": {identity.PersonID}}.Encode()
 	var quantity int64
 	for _, grant := range grants {
 		if grant.ProductCode != "alerts.repository-slots" {
