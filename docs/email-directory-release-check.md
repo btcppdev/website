@@ -41,3 +41,16 @@ Before pushing master:
    and service API authorization. Test actual delivery with approved test recipients.
 
 Alerts and Insider OAuth setup and product deployment remain separate work.
+
+## Production rehearsal — 2026-10-23
+
+Refreshed `btcpp` operator credentials restored app console and database access.
+The read-only production audit passed: 1,072 account addresses, 2,778 subscriber
+addresses, 3,026 unique contacts, 824 shared contacts and 9,883 memberships;
+normalization, empty-address and consent conflict counts were all zero.
+Production was at migration 116. Managed backup dated 2026-10-22 23:43 UTC exists.
+A fresh private snapshot was restored into an isolated local PostgreSQL database.
+Migrations 128–130 applied successfully, repeat startup was a no-op, and the
+post-upgrade audit preserved all reported counts. No application workers ran
+against the restored copy and no test emails were sent. Authentication, API,
+handler and missive tests passed again. Production rollout follows this rehearsal.
