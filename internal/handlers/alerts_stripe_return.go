@@ -19,10 +19,10 @@ import (
 )
 
 type alertsStripeReturnPage struct {
-	ID, Heading, Message, Total, CSRF string
-	Slots                             int64
-	CanPay                            bool
-	CanCheck                          bool
+	ID, Heading, Message, Total, CSRF, CheckMessage string
+	Slots                                           int64
+	CanPay                                          bool
+	CanCheck                                        bool
 }
 
 func alertsStripeReturnPresentation(stored *getters.AlertsStripeCheckout, bound, enabled bool, now time.Time) alertsStripeReturnPage {
@@ -36,13 +36,13 @@ func alertsStripeReturnPresentation(stored *getters.AlertsStripeCheckout, bound,
 	} else if !stored.Intent.CreatedAt.Add(2 * time.Hour).After(now) {
 		page.Heading, page.Message = "Checkout needs review", "This checkout can no longer be resumed here. If you paid, confirmation may still arrive. Contact support with the checkout reference below before starting another purchase."
 		if page.CanCheck {
-			page.Message = "This checkout can no longer be resumed here. Use Check with Stripe to verify whether payment completed or the checkout expired."
+			page.Message = "This checkout can no longer be resumed here. Use Check payment status to verify whether payment completed or the checkout expired."
 		}
 	} else {
 		page.CanPay = enabled && (stored.Reference != "" || !now.After(stored.Intent.CreatedAt.Add(90*time.Minute)))
-		page.Heading, page.Message = "Continue checkout", "Continue with card to open your saved Stripe checkout. If you already paid, use Check with Stripe to verify its status."
+		page.Heading, page.Message = "Continue checkout", "Continue to Stripe to open your saved checkout. If you already paid, use Check payment status."
 		if stored.Reference == "" {
-			page.Heading, page.Message = "Checkout could not open", "We could not open Stripe checkout. Your selection is saved. Try Continue with card again; it resumes the same checkout."
+			page.Heading, page.Message = "Checkout could not open", "We could not open Stripe checkout. Your selection is saved. Try Continue to Stripe again; it resumes the same checkout."
 			if !page.CanPay {
 				page.Heading, page.Message = "Checkout needs review", "We could not confirm whether Stripe created your checkout. Contact support with the checkout reference below before starting another purchase."
 			}
@@ -133,6 +133,7 @@ func AlertsStripeReturn(w http.ResponseWriter, r *http.Request, app *config.AppC
 				http.Error(w, "Unable to verify payment status. Your checkout is saved; please try again shortly.", 503)
 				return
 			}
+			app.Session.Put(r.Context(), "alerts_stripe_status_checked", stored.Intent.ID)
 			http.Redirect(w, r, r.URL.Path, 303)
 			return
 		}
@@ -160,6 +161,13 @@ func AlertsStripeReturn(w http.ResponseWriter, r *http.Request, app *config.AppC
 		}
 		http.Redirect(w, r, destination, 303)
 		return
+	}
+	if app.Session.GetString(r.Context(), "alerts_stripe_status_checked") == stored.Intent.ID {
+		app.Session.Remove(r.Context(), "alerts_stripe_status_checked")
+		page.CheckMessage = "Status checked. No verified payment has been recorded for this checkout yet."
+		if stored.Closed {
+			page.CheckMessage = "Status checked. This checkout is closed."
+		}
 	}
 	if page.CanPay || page.CanCheck {
 		page.CSRF, err = ensureAuthMethodsCSRF(app, r)

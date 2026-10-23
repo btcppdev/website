@@ -15,21 +15,23 @@
       <h1 id="checkout-heading">{{ .Heading }}</h1>
       <p class="service-status-message" role="status">{{ .Message }}</p>
     </header>
+    {{ if .CheckMessage }}<p class="service-status-message" role="status">{{ .CheckMessage }}</p>{{ end }}
     <div class="service-checkout-actions">
       {{ if .CanPay }}
       <form method="post" action="/services/alerts/checkout/{{ .ID }}">
         <input type="hidden" name="csrf" value="{{ .CSRF }}">
-        <button type="submit">Continue with card</button>
+        <button type="submit">Continue to Stripe</button>
       </form>
       {{ end }}
       {{ if .CanCheck }}
       <form method="post" action="/services/alerts/checkout/{{ .ID }}">
         <input type="hidden" name="csrf" value="{{ .CSRF }}">
         <input type="hidden" name="action" value="check">
-        <button type="submit"{{ if .CanPay }} class="service-secondary"{{ end }}>Check with Stripe</button>
+        <button type="submit"{{ if .CanPay }} class="service-secondary"{{ end }}>Check payment status</button>
       </form>
-      {{ end }}
+      {{ else }}
       <a href="/services/alerts/checkout/{{ .ID }}">Refresh payment status</a>
+      {{ end }}
     </div>
     {{ if .CanPay }}
     <p class="service-note">Renews annually. Cancel future renewals through billing management; your paid allowance continues until the current period ends. Cancellation does not refund that period.</p>

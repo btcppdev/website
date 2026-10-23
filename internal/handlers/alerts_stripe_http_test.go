@@ -230,6 +230,27 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 	if code != 200 || !strings.Contains(body, "Continue checkout") || strings.Contains(body, "Payment confirmed") {
 		t.Fatal("redirect claimed payment", code, body)
 	}
+	// A status check must explain an unpaid checkout without creating another one.
+	code, html, _ = call(returnPath, nil)
+	if code != 200 {
+		t.Fatal(code, html)
+	}
+	statusForm := url.Values{"action": {"check"}, "csrf": {field("csrf")}}
+	if code, body, location := call(returnPath, statusForm); code != 303 || location != returnPath {
+		t.Fatal("status check redirect", code, body, location)
+	}
+	if code, body, _ := call(returnPath, nil); code != 200 || !strings.Contains(body, "Status checked. No verified payment") || !strings.Contains(body, "Continue to Stripe") || !strings.Contains(body, "Check payment status") {
+		t.Fatal("missing unpaid checkout feedback", code, body)
+	}
+	if code, body, _ := call(returnPath, nil); code != 200 || strings.Contains(body, "Status checked.") {
+		t.Fatal("status feedback was not consumed", code, body)
+	}
+	lock.Lock()
+	gotCreates = creates
+	lock.Unlock()
+	if gotCreates != 1 {
+		t.Fatal("status check created another checkout", gotCreates)
+	}
 	var grants int
 	if err = pool.QueryRow(ctx, `SELECT count(*) FROM service_entitlements WHERE person_id=$1`, people[0]).Scan(&grants); err != nil || grants != 0 {
 		t.Fatal(grants, err)
