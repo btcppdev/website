@@ -205,6 +205,25 @@
                 <p>Permissions</p>
                 <ul>{{ range .AllowedScopes }}<li><code>{{ . }}</code></li>{{ end }}</ul>
               </div>
+              {{ if not .RevokedAt }}
+              {{ $client := . }}
+              <details class="mt-3">
+                <summary>Edit permissions</summary>
+                <form method="POST" action="/dashboard/settings/oauth-clients/permissions" class="oauth-client-form mt-3">
+                  <input type="hidden" name="csrf" value="{{ $.AuthMethodsCSRF }}">
+                  <input type="hidden" name="client_id" value="{{ .ID }}">
+                  <p>Your client ID and secret stay the same. New permissions require user authorization. Removing permissions revokes grants that include them; affected users must sign in again.</p>
+                  <fieldset class="credential-permissions"><legend>ALLOWED PERMISSIONS</legend>
+                    <div class="credential-permissions__list">
+                      {{ range .PermissionOptions }}
+                      <label><input type="checkbox" name="scopes" value="{{ . }}" {{ if $client.AllowsScope . }}checked{{ end }}><span><code>{{ . }}</code></span></label>
+                      {{ end }}
+                    </div>
+                  </fieldset>
+                  <button type="submit">Save permissions</button>
+                </form>
+              </details>
+              {{ end }}
             </div>
             {{ if not .RevokedAt }}
             <div class="person-email-actions"><form method="POST" action="/dashboard/settings/oauth-clients/revoke">

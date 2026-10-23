@@ -606,3 +606,35 @@ func oauthContainsString(values []string, wanted string) bool {
 	}
 	return false
 }
+
+func DashboardOAuthClientPermissions(w http.ResponseWriter, r *http.Request, ctx *config.AppContext) {
+	viewer := requireGlobalAdmin(w, r, ctx)
+	if viewer == nil {
+		return
+	}
+	if err := r.ParseForm(); err != nil || !secureTokenEqual(ctx.Session.GetString(r.Context(), authMethodsCSRFKey), r.FormValue("csrf")) {
+		http.Error(w, "Invalid form submission.", http.StatusBadRequest)
+		return
+	}
+	if !recentAuthentication(viewer) {
+		http.Redirect(w, r, "/dashboard/settings?error="+url.QueryEscape("Sign in again before editing OAuth permissions."), http.StatusSeeOther)
+		return
+	}
+	scopes, valid := allowedOAuthScopes(strings.Join(r.Form["scopes"], " "), append(append([]string{}, types.APITokenScopes...), "offline_access"))
+	clientID := strings.TrimSpace(r.FormValue("client_id"))
+	if !valid || clientID == "" {
+		http.Error(w, "Choose at least one valid permission for an existing application.", http.StatusBadRequest)
+		return
+	}
+	if err := getters.UpdateOAuthClientPermissions(ctx, clientID, scopes); err != nil {
+		ctx.Err.Printf("update OAuth permissions: %s", err)
+		http.Error(w, "Unable to update OAuth application permissions.", http.StatusBadRequest)
+		return
+	}
+	_ = getters.RecordAuthAuditEvent(ctx, &types.AuthAuditEvent{
+		PersonID: viewer.PersonID, Method: "session", Event: "oauth_client_permissions_updated",
+		RemoteAddress: r.RemoteAddr, UserAgent: r.UserAgent(),
+		Metadata: map[string]any{"client_id": clientID, "scopes": scopes},
+	})
+	http.Redirect(w, r, "/dashboard/settings?flash="+url.QueryEscape("OAuth permissions saved. Sign in to the application again to authorize newly requested permissions."), http.StatusSeeOther)
+}

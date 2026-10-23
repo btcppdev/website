@@ -2085,6 +2085,9 @@ func Routes(app *config.AppContext) (http.Handler, error) {
 	r.HandleFunc("/dashboard/settings/oauth-consents/revoke", func(w http.ResponseWriter, r *http.Request) {
 		DashboardOAuthConsentRevoke(w, r, app)
 	}).Methods("POST")
+	r.HandleFunc("/dashboard/settings/oauth-clients/permissions", func(w http.ResponseWriter, r *http.Request) {
+		DashboardOAuthClientPermissions(w, r, app)
+	}).Methods("POST")
 	r.HandleFunc("/dashboard/settings/oauth-clients/revoke", func(w http.ResponseWriter, r *http.Request) {
 		DashboardOAuthClientRevoke(w, r, app)
 	}).Methods("POST")

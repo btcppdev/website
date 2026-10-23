@@ -43,3 +43,16 @@ type OAuthConsent struct {
 	GrantedAt  time.Time
 	UpdatedAt  time.Time
 }
+
+func (c *OAuthClient) PermissionOptions() []string {
+	return append(append([]string{}, APITokenScopes...), "offline_access")
+}
+
+func (c *OAuthClient) AllowsScope(scope string) bool {
+	for _, allowed := range c.AllowedScopes {
+		if allowed == scope {
+			return true
+		}
+	}
+	return false
+}
