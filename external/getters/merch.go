@@ -1021,11 +1021,15 @@ func ListShopOrders(ctx *config.AppContext, limit uint) ([]*types.ShopOrder, err
 			so.created_at, so.updated_at,
 			CASE WHEN so.status IN ('paid', 'partially_refunded') THEN coalesce(f.unfulfilled_quantity, 0) ELSE 0 END,
 			CASE WHEN so.status IN ('paid', 'partially_refunded') THEN coalesce(f.item_summary, '') ELSE '' END,
-			coalesce(f.event_pickup_quantity, 0), coalesce(f.event_pickup_summary, '')
+			coalesce(f.event_pickup_quantity, 0), coalesce(f.event_pickup_summary, ''),
+ coalesce(f.remaining,0),coalesce(f.completed,0),coalesce(f.items,0)
 		FROM shop_orders so
 		LEFT JOIN (
 			SELECT
 				soi.order_id,
+                coalesce(sum(CASE WHEN soi.status='fulfilled' THEN 0 ELSE greatest(soi.quantity::bigint-soi.fulfilled_quantity::bigint-soi.refunded_quantity::bigint,0) END) FILTER(WHERE soi.variant_id IS NOT NULL AND soi.fulfillment_method IN ('ship','event_pickup','pos_takeaway') AND soi.status NOT IN ('cancelled','refunded')),0) AS remaining,
+                coalesce(sum(soi.fulfilled_quantity) FILTER(WHERE soi.variant_id IS NOT NULL AND soi.fulfillment_method IN ('ship','event_pickup','pos_takeaway') AND soi.status NOT IN ('cancelled','refunded')),0) AS completed,
+                count(*) FILTER(WHERE soi.variant_id IS NOT NULL AND soi.fulfillment_method IN ('ship','event_pickup','pos_takeaway') AND soi.status NOT IN ('cancelled','refunded') AND soi.quantity>soi.refunded_quantity) AS items,
 				coalesce(sum(greatest(soi.quantity::bigint - soi.fulfilled_quantity::bigint - soi.refunded_quantity::bigint, 0))
 					FILTER (WHERE soi.fulfillment_method = 'ship' AND soi.status NOT IN ('cancelled', 'refunded', 'fulfilled')), 0) AS unfulfilled_quantity,
 				string_agg(
@@ -1075,6 +1079,7 @@ func scanShopOrderSummary(row shopOrderScanner) (*types.ShopOrder, error) {
 		&order.ImportTaxAmountCents, &order.TotalCents, &order.PaidAt, &order.CancelledAt, &order.CheckoutExpiresAt,
 		&order.CreatedAt, &order.UpdatedAt, &order.UnfulfilledShippingQuantity, &order.UnfulfilledShippingSummary,
 		&order.EventPickupQuantity, &order.EventPickupSummary,
+		&order.FulfillmentRemaining, &order.FulfillmentCompleted, &order.FulfillmentItems,
 	); err != nil {
 		return nil, fmt.Errorf("scan shop order summary: %w", err)
 	}
@@ -1084,6 +1089,22 @@ func scanShopOrderSummary(row shopOrderScanner) (*types.ShopOrder, error) {
 func populateShopOrderFulfillmentSummary(order *types.ShopOrder) {
 	if order == nil {
 		return
+	}
+	order.FulfillmentRemaining, order.FulfillmentCompleted, order.FulfillmentItems = 0, 0, 0
+	for _, item := range order.Items {
+		if item == nil || item.VariantID == "" || item.Status == types.ShopItemStatusCancelled || item.Status == types.ShopItemStatusRefunded {
+			continue
+		}
+		if item.FulfillmentMethod != types.ShopFulfillmentShip && item.FulfillmentMethod != types.ShopFulfillmentEventPickup && item.FulfillmentMethod != types.ShopFulfillmentPOSTakeaway {
+			continue
+		}
+		if item.Quantity > item.RefundedQuantity {
+			order.FulfillmentItems++
+		}
+		order.FulfillmentCompleted += item.FulfilledQuantity
+		if item.Status != types.ShopItemStatusFulfilled && item.Quantity > item.FulfilledQuantity+item.RefundedQuantity {
+			order.FulfillmentRemaining += item.Quantity - item.FulfilledQuantity - item.RefundedQuantity
+		}
 	}
 	order.UnfulfilledShippingQuantity = 0
 	order.UnfulfilledShippingSummary = ""
