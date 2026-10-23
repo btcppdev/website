@@ -34,8 +34,8 @@ func TestPaidIncreaseInvoice(t *testing.T) {
 	if paid.AdditionalSlots != 1 || paid.PaidSlots != 3 || paid.PreviousSlots != 2 || paid.TotalCents != 100 || paid.TaxCents != 9 || paid.QuoteID != in.ID || paid.Start.Unix() != q.ProrationDate || paid.End.Unix() != q.PeriodEnd || paid.PaidAt.Unix() != invoice.StatusTransitions.PaidAt {
 		t.Fatal(paid)
 	}
-	if _, err = VerifyMonthlyInvoice(invoice, sub.Items.Data[0].Price, b); err == nil {
-		t.Fatal("upgrade accepted as full month")
+	if _, err = VerifyAnnualInvoice(invoice, sub.Items.Data[0].Price, b); err == nil {
+		t.Fatal("upgrade accepted as full year")
 	}
 	if _, err = c.PaidIncreaseInvoice(context.Background(), "in_other", b, in); err == nil {
 		t.Fatal("wrong lookup accepted")

@@ -27,7 +27,7 @@ func TestCheckoutTermsAndStableRetry(t *testing.T) {
 		t.Fatal("retry changed provider request")
 	}
 	item := first.LineItems[0]
-	if *first.Mode != "subscription" || *item.Quantity != 2 || *item.PriceData.UnitAmount != 200 || *item.PriceData.TaxBehavior != "inclusive" || *item.PriceData.Recurring.Interval != "month" || *item.PriceData.ProductData.TaxCode != "txcd_10103000" || !*first.AutomaticTax.Enabled || *first.AllowPromotionCodes || *first.BillingAddressCollection != "required" {
+	if *first.Mode != "subscription" || *item.Quantity != 2 || *item.PriceData.UnitAmount != 2400 || *item.PriceData.TaxBehavior != "inclusive" || *item.PriceData.Recurring.Interval != "year" || *item.PriceData.ProductData.TaxCode != "txcd_10103000" || !*first.AutomaticTax.Enabled || *first.AllowPromotionCodes || *first.BillingAddressCollection != "required" {
 		t.Fatal("wrong recurring tax-inclusive checkout terms")
 	}
 	if _, err = checkoutParams(ctx, in, in.CreatedAt.Add(90*time.Minute)); !errors.Is(err, ErrReconcile) {

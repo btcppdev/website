@@ -42,9 +42,9 @@ func TestAlertsStripeDecreaseRenewalHTTPPostgres(t *testing.T) {
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	due := now.Add(-time.Hour)
-	start := due.AddDate(0, -1, 0)
-	end := due.AddDate(0, 1, 0)
-	prior := alertsstripe.PaidPeriod{InvoiceID: "in_prior_" + id, SubscriptionID: b.SubscriptionID, Quantity: 2, TotalCents: 400, Start: start, End: due, PaidAt: start}
+	start := due.AddDate(-1, 0, 0)
+	end := due.AddDate(1, 0, 0)
+	prior := alertsstripe.PaidPeriod{InvoiceID: "in_prior_" + id, SubscriptionID: b.SubscriptionID, Quantity: 2, TotalCents: 4800, Start: start, End: due, PaidAt: start}
 	receipt, err := recordAlertsStripeInvoice(app, b, prior)
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestAlertsStripeDecreaseRenewalHTTPPostgres(t *testing.T) {
 	}
 	quote := uuid.NewString()
 	sid := "sub_sched_" + id
-	q := alertsstripe.DecreasePreview{PreviousSlots: 2, PaidSlots: 1, MonthlyCents: 200, PeriodStart: start.Unix(), EffectiveAt: due.Unix(), ExpiresAt: due.Add(-time.Hour)}
+	q := alertsstripe.DecreasePreview{PreviousSlots: 2, PaidSlots: 1, AnnualCents: 2400, PeriodStart: start.Unix(), EffectiveAt: due.Unix(), ExpiresAt: due.Add(-time.Hour)}
 	raw, _ = json.Marshal(q)
 	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_decrease_quotes(id,checkout_id,revision,preview,created_at,expires_at) VALUES($1,$2,1,$3,$4,$5)`, quote, id, raw, q.ExpiresAt.Add(-10*time.Minute), q.ExpiresAt); err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestAlertsStripeDecreaseRenewalHTTPPostgres(t *testing.T) {
 	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_decrease_attachments(quote_id,schedule_id,lease_until) VALUES($1,$2,now())`, quote, sid); err != nil {
 		t.Fatal(err)
 	}
-	price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 	meta := map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}
 	method := stripe.SubscriptionCollectionMethod("charge_automatically")
 	schedule := &stripe.SubscriptionSchedule{ID: sid, Status: "active", EndBehavior: "release", Customer: &stripe.Customer{ID: b.CustomerID}, Subscription: &stripe.Subscription{ID: b.SubscriptionID}, CurrentPhase: &stripe.SubscriptionScheduleCurrentPhase{StartDate: start.Unix(), EndDate: due.Unix()}, Metadata: map[string]string{"account_id": person, "checkout_intent": id, "alerts_decrease": quote}}
@@ -85,13 +85,13 @@ func TestAlertsStripeDecreaseRenewalHTTPPostgres(t *testing.T) {
 	}
 	schedule.CurrentPhase = &stripe.SubscriptionScheduleCurrentPhase{StartDate: due.Unix(), EndDate: end.Unix()}
 	makeInvoice := func(id string, quantity int64, from, to time.Time) *stripe.Invoice {
-		return &stripe.Invoice{ID: id, Status: "paid", Currency: "usd", Customer: &stripe.Customer{ID: b.CustomerID}, BillingReason: "subscription_cycle", Total: quantity * 200, AmountPaid: quantity * 200, CollectionMethod: "charge_automatically", Attempted: true, AttemptCount: 1, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: from.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Quantity: quantity, Amount: quantity * 200, Period: &stripe.Period{Start: from.Unix(), End: to.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: b.SubscriptionID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: b.ProductID}}}}}}
+		return &stripe.Invoice{ID: id, Status: "paid", Currency: "usd", Customer: &stripe.Customer{ID: b.CustomerID}, BillingReason: "subscription_cycle", Total: quantity * 2400, AmountPaid: quantity * 2400, CollectionMethod: "charge_automatically", Attempted: true, AttemptCount: 1, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: from.Unix()}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Quantity: quantity, Amount: quantity * 2400, Period: &stripe.Period{Start: from.Unix(), End: to.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: b.SubscriptionID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: b.ProductID}}}}}}
 	}
 	base := makeInvoice(prior.InvoiceID, 2, start, due)
 	renewal := makeInvoice("in_renewal_"+id, 1, due, end)
 	renewal.Status = "open"
 	renewal.AmountPaid = 0
-	renewal.AmountRemaining = 200
+	renewal.AmountRemaining = 2400
 	renewal.StatusTransitions = nil
 	sub := &stripe.Subscription{ID: b.SubscriptionID, Status: "past_due", Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: meta, Schedule: &stripe.SubscriptionSchedule{ID: sid}, CollectionMethod: "charge_automatically", LatestInvoice: &stripe.Invoice{ID: renewal.ID}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 1, Price: price, CurrentPeriodStart: due.Unix(), CurrentPeriodEnd: end.Unix()}}}}
 	var mu sync.Mutex
@@ -153,7 +153,7 @@ func TestAlertsStripeDecreaseRenewalHTTPPostgres(t *testing.T) {
 	}
 	mu.Lock()
 	renewal.Status = "paid"
-	renewal.AmountPaid = 200
+	renewal.AmountPaid = 2400
 	renewal.AmountRemaining = 0
 	renewal.StatusTransitions = &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}
 	sub.Status = "active"

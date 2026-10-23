@@ -93,7 +93,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 			if err := r.ParseForm(); err != nil {
 				t.Error(err)
 			}
-			if r.Form.Get("line_items[0][quantity]") != "2" || r.Form.Get("line_items[0][price_data][unit_amount]") != "200" || r.Form.Get("line_items[0][price_data][tax_behavior]") != "inclusive" || r.Header.Get("Idempotency-Key") == "" {
+			if r.Form.Get("line_items[0][quantity]") != "2" || r.Form.Get("line_items[0][price_data][unit_amount]") != "2400" || r.Form.Get("line_items[0][price_data][tax_behavior]") != "inclusive" || r.Header.Get("Idempotency-Key") == "" {
 				t.Error("incorrect Stripe request", r.Form)
 			}
 			intent := r.Form.Get("client_reference_id")
@@ -300,7 +300,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	lock.Lock()
-	managed = &stripe.Subscription{ID: b.SubscriptionID, Status: "active", Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: map[string]string{"account_id": b.PersonID, "checkout_intent": b.IntentID, "product": "alerts.repository-slots"}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 2, CurrentPeriodStart: time.Now().Add(-time.Hour).Unix(), CurrentPeriodEnd: time.Now().Add(24 * time.Hour).Unix(), Price: &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}}}}}
+	managed = &stripe.Subscription{ID: b.SubscriptionID, Status: "active", Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: map[string]string{"account_id": b.PersonID, "checkout_intent": b.IntentID, "product": "alerts.repository-slots"}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{Quantity: 2, CurrentPeriodStart: time.Now().Add(-time.Hour).Unix(), CurrentPeriodEnd: time.Now().Add(24 * time.Hour).Unix(), Price: &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}}}}}
 	lock.Unlock()
 	if code, _, _ := call("/fixture/login/"+people[1], nil); code != 204 {
 		t.Fatal(code)
@@ -316,7 +316,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	upgradePath := "/services/alerts/upgrade/" + quote.ID
-	decrease, e := getters.SaveAlertsStripeDecreaseQuote(ctx, app, people[1], b.IntentID, 1, alertsstripe.DecreasePreview{PreviousSlots: 2, PaidSlots: 1, MonthlyCents: 200, PeriodStart: managed.Items.Data[0].CurrentPeriodStart, EffectiveAt: managed.Items.Data[0].CurrentPeriodEnd, ExpiresAt: now.Add(10 * time.Minute)})
+	decrease, e := getters.SaveAlertsStripeDecreaseQuote(ctx, app, people[1], b.IntentID, 1, alertsstripe.DecreasePreview{PreviousSlots: 2, PaidSlots: 1, AnnualCents: 2400, PeriodStart: managed.Items.Data[0].CurrentPeriodStart, EffectiveAt: managed.Items.Data[0].CurrentPeriodEnd, ExpiresAt: now.Add(10 * time.Minute)})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -341,7 +341,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal("decrease selection csrf", code)
 	}
 	code, html, _ = call(decreasePath+"?state=scheduled&total=1&slots=99", nil)
-	if code != 200 || !strings.Contains(html, "$2.00") || !strings.Contains(html, "2 → 1") || !strings.Contains(html, "Confirm decrease") || strings.Contains(html, "Your decrease is scheduled") {
+	if code != 200 || !strings.Contains(html, "$24.00") || !strings.Contains(html, "2 → 1") || !strings.Contains(html, "Confirm decrease") || strings.Contains(html, "Your decrease is scheduled") {
 		t.Fatal("decrease review", code, html)
 	}
 	if code, _, _ = call(decreasePath, url.Values{"csrf": {"wrong"}, "action": {"confirm"}}); code != 403 {
@@ -392,7 +392,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal(e)
 	}
 	code, html, _ = call(withdrawPath, nil)
-	if code != 200 || !strings.Contains(html, "Continuing monthly total") || !strings.Contains(html, "$4.00") || strings.Contains(html, "2 → 1") {
+	if code != 200 || !strings.Contains(html, "Continuing annual total") || !strings.Contains(html, "$48.00") || strings.Contains(html, "2 → 1") {
 		t.Fatal("withdrawn plan summary", code, html)
 	}
 	if code, _, location := call(withdrawPath, url.Values{"csrf": {cancelForm.Get("csrf")}, "action": {"withdraw"}}); code != 303 || location != withdrawPath {
@@ -407,7 +407,7 @@ func TestAlertsStripeHTTPPostgres(t *testing.T) {
 		t.Fatal("already covered selection", code, location)
 	}
 	code, html, _ = call(upgradePath+"?paid=true&total=1", nil)
-	if code != 200 || !strings.Contains(html, "$1.95") || !strings.Contains(html, "$0.15") || !strings.Contains(html, "$6.00") || !strings.Contains(html, "Confirm upgrade") || strings.Contains(html, "Payment verified") {
+	if code != 200 || !strings.Contains(html, "$1.95") || !strings.Contains(html, "$0.15") || !strings.Contains(html, "$72.00") || !strings.Contains(html, "Confirm upgrade") || strings.Contains(html, "Payment verified") {
 		t.Fatal("upgrade review", code, html)
 	}
 	if code, _, _ := call(upgradePath, url.Values{"csrf": {"wrong"}, "action": {"confirm"}}); code != 403 {

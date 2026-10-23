@@ -5,6 +5,7 @@ import (
 	"btcpp-web/internal/alertsstripe"
 	"btcpp-web/internal/auth"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicebilling"
 	"bytes"
 	"context"
 	"errors"
@@ -18,10 +19,10 @@ import (
 )
 
 type alertsStripeDecreasePage struct {
-	CSRF, Monthly, Period, Message string
-	Previous, Desired              int64
-	CanConfirm                     bool
-	CanWithdraw, Retained          bool
+	CSRF, Annual, Period, Message string
+	Previous, Desired             int64
+	CanConfirm                    bool
+	CanWithdraw, Retained         bool
 }
 
 func AlertsStripeDecrease(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
@@ -122,7 +123,7 @@ func AlertsStripeDecrease(w http.ResponseWriter, r *http.Request, app *config.Ap
 		return
 	}
 	q := quote.Preview
-	page := alertsStripeDecreasePage{Previous: q.PreviousSlots, Desired: q.PaidSlots, Monthly: fmt.Sprintf("$%d.%02d", q.MonthlyCents/100, q.MonthlyCents%100), Period: time.Unix(q.EffectiveAt, 0).UTC().Format("January 2, 2006 at 15:04 UTC"), Message: "Your current allowance stays available until renewal. There is no charge or refund today."}
+	page := alertsStripeDecreasePage{Previous: q.PreviousSlots, Desired: q.PaidSlots, Annual: fmt.Sprintf("$%d.%02d", q.AnnualCents/100, q.AnnualCents%100), Period: time.Unix(q.EffectiveAt, 0).UTC().Format("January 2, 2006 at 15:04 UTC"), Message: "Your current allowance stays available until renewal. There is no charge or refund today."}
 	switch state {
 	case "":
 		page.CanConfirm = time.Now().Before(q.ExpiresAt)
@@ -156,9 +157,9 @@ func AlertsStripeDecrease(w http.ResponseWriter, r *http.Request, app *config.Ap
 		case "pending":
 			page.Message = "Your request to keep your current plan is saved. We are waiting for Stripe to confirm it."
 		case "released":
-			page.Message = "The planned decrease was withdrawn. Your existing monthly plan continues. You can manage or cancel future renewals from billing."
+			page.Message = "The planned decrease was withdrawn. Your existing annual plan continues. You can manage or cancel future renewals from billing."
 			page.Retained = true
-			page.Monthly = fmt.Sprintf("$%d.00", q.PreviousSlots*2)
+			page.Annual = fmt.Sprintf("$%d.00", q.PreviousSlots*servicebilling.AlertsAnnualSlotCents/100)
 		default:
 			page.Message = "Your withdrawal request needs review. Contact support before submitting another billing change."
 		}

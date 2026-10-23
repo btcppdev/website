@@ -33,7 +33,7 @@ func alertsStripeSelection(values url.Values) (string, int64, error) {
 		return "", 0, errors.New("invalid account")
 	}
 	slots, err := strconv.ParseInt(values.Get("slots"), 10, 64)
-	if err != nil || len(values["slots"]) != 1 || slots < 1 || slots > 2147483647/servicebilling.AlertsMonthlySlotCents {
+	if err != nil || len(values["slots"]) != 1 || slots < 1 || slots > 2147483647/servicebilling.AlertsAnnualSlotCents {
 		return "", 0, errors.New("invalid repository count")
 	}
 	return account, slots, nil
@@ -187,7 +187,7 @@ func AlertsStripeStart(w http.ResponseWriter, r *http.Request, app *config.AppCo
 		http.Error(w, "Unable to prepare checkout", 500)
 		return
 	}
-	total := slots * servicebilling.AlertsMonthlySlotCents
+	total := slots * servicebilling.AlertsAnnualSlotCents
 	page := alertsStripeStartPage{Policy: policy, Account: account, Slots: slots, CSRF: csrf, Key: uuid.NewString(), Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Enabled: enabled}
 	var html bytes.Buffer
 	if err = app.TemplateCache.ExecuteTemplate(&html, "alerts_stripe_start.tmpl", page); err != nil {

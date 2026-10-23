@@ -28,7 +28,7 @@ type ProductPlan struct {
 func LookupProductPlan(code string) (ProductPlan, error) {
 	switch code {
 	case AlertsProduct:
-		return ProductPlan{Code: code, Family: "alerts", Name: "Bitcoin++ Alerts additional repositories", Currency: "usd", TaxBehavior: "inclusive", Months: 1, UnitCents: AlertsMonthlySlotCents, MaxQuantity: maxOrderCents / AlertsMonthlySlotCents, StripeTaxCode: AlertsStripeTaxCode}, nil
+		return ProductPlan{Code: code, Family: "alerts", Name: "Bitcoin++ Alerts additional repositories", Currency: "usd", TaxBehavior: "inclusive", Months: 12, UnitCents: AlertsAnnualSlotCents, MaxQuantity: maxOrderCents / AlertsAnnualSlotCents, StripeTaxCode: AlertsStripeTaxCode}, nil
 	case InsiderMonthlyProduct:
 		return ProductPlan{Code: code, Family: "insider", Name: "Bitcoin++ Insider one-month membership", Currency: "usd", TaxBehavior: "exclusive", Months: 1, UnitCents: InsiderMonthlyCents, MaxQuantity: 1}, nil
 	case InsiderAnnualProduct:

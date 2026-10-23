@@ -33,7 +33,7 @@ func ReserveAlertsStripeCheckout(app *config.AppContext, person, key string, slo
 
 // acceptedVersion is supplied only after authenticated, CSRF-checked confirmation.
 func ReserveAlertsStripeCheckoutWithPolicy(app *config.AppContext, person, key string, slots int64, returnBase, acceptedVersion string) (*AlertsStripeCheckout, error) {
-	if _, err := uuid.Parse(person); err != nil || len(key) < 16 || len(key) > 128 || slots < 1 || slots > 2147483647/servicebilling.AlertsMonthlySlotCents {
+	if _, err := uuid.Parse(person); err != nil || len(key) < 16 || len(key) > 128 || slots < 1 || slots > 2147483647/servicebilling.AlertsAnnualSlotCents {
 		return nil, ErrServiceQuote
 	}
 	ctx := app.DatabaseContext()

@@ -35,7 +35,7 @@ func TestAlertsStripeReturnStates(t *testing.T) {
 				stored.Reference = "cs_test"
 			}
 			page := alertsStripeReturnPresentation(stored, tc.bound, tc.enabled, now)
-			if page.CanPay != tc.pay || page.Heading != tc.heading || page.Total != "$4.00" {
+			if page.CanPay != tc.pay || page.Heading != tc.heading || page.Total != "$48.00" {
 				t.Fatal(page)
 			}
 			if strings.Contains(page.Heading, "Payment confirmed") {
@@ -56,7 +56,7 @@ func TestAlertsStripeReturnTemplate(t *testing.T) {
 	}
 	for _, pay := range []bool{true, false} {
 		var out bytes.Buffer
-		if err = tmpl.Execute(&out, alertsStripeReturnPage{ID: "checkout", Heading: "Awaiting payment confirmation", Message: "<script>bad()</script>", CSRF: "secret", Total: "$4.00", CanPay: pay}); err != nil {
+		if err = tmpl.Execute(&out, alertsStripeReturnPage{ID: "checkout", Heading: "Awaiting payment confirmation", Message: "<script>bad()</script>", CSRF: "secret", Total: "$48.00", CanPay: pay}); err != nil {
 			t.Fatal(err)
 		}
 		html := out.String()

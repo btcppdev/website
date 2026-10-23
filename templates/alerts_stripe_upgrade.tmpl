@@ -8,7 +8,7 @@
 <dl class="alerts-upgrade-summary"><div><dt>Paid project subscriptions</dt><dd>{{ .Previous }} → {{ .Desired }}<small>Plus your three free projects</small></dd></div>
 <div><dt>Prorated upgrade charge</dt><dd>{{ .Charge }}<small>Through {{ .Period }}</small></dd></div>
 <div><dt>Included tax</dt><dd>{{ .Tax }}</dd></div>
-<div><dt>New monthly total</dt><dd>{{ .Monthly }}<small>Including applicable tax</small></dd></div></dl>
+<div><dt>New annual total</dt><dd>{{ .Annual }}<small>Including applicable tax</small></dd></div></dl>
 {{ if .CanConfirm }}<p>Confirming authorizes the prorated charge using your saved payment method. Additional authentication may be required.</p>
 <form method="post" class="alerts-upgrade-action"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="confirm">{{ with .Policy }}
 <details><summary>Read the Terms of Service · {{ .Version }}</summary><div style="white-space:pre-wrap">{{ .TermsText }}</div></details>

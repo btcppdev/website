@@ -169,7 +169,7 @@ func AlertsStripeManage(w http.ResponseWriter, r *http.Request, app *config.AppC
 		}
 		page.PeriodEnd = state.PeriodEnd
 		page.Period = time.Unix(state.PeriodEnd, 0).UTC().Format("January 2, 2006 at 15:04 UTC")
-		page.Message = "Your card plan renews monthly. Canceling stops future renewals; it does not refund or remove access you have already paid for."
+		page.Message = "Your card plan renews annually. Canceling stops future renewals; it does not refund or remove access you have already paid for."
 		page.CanCancel = !state.CancelAtPeriodEnd && state.CancelAt == 0 && state.PeriodEnd > time.Now().Unix() && (state.ProviderStatus == "active" || state.ProviderStatus == "trialing" || state.ProviderStatus == "past_due" || state.ProviderStatus == "unpaid" || state.ProviderStatus == "paused")
 		if state.CancelAtPeriodEnd || state.CancelAt > 0 {
 			page.Message = "Your subscription is scheduled to stop renewing. Access you have already paid for remains available."

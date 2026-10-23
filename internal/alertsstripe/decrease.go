@@ -14,7 +14,7 @@ import (
 type DecreasePreview struct {
 	PreviousSlots, PaidSlots int64
 	PeriodStart, EffectiveAt int64
-	MonthlyCents             int64
+	AnnualCents              int64
 	ExpiresAt                time.Time
 }
 
@@ -100,7 +100,7 @@ func (c Client) PreviewDecrease(ctx context.Context, b Binding, slots int64, now
 		return nil, ErrSubscription
 	}
 	now = now.UTC().Truncate(time.Second)
-	out := &DecreasePreview{PreviousSlots: b.PaidSlots, PaidSlots: slots, PeriodStart: state.PeriodStart, EffectiveAt: state.PeriodEnd, MonthlyCents: slots * servicebilling.AlertsMonthlySlotCents, ExpiresAt: now.Add(10 * time.Minute)}
+	out := &DecreasePreview{PreviousSlots: b.PaidSlots, PaidSlots: slots, PeriodStart: state.PeriodStart, EffectiveAt: state.PeriodEnd, AnnualCents: slots * servicebilling.AlertsAnnualSlotCents, ExpiresAt: now.Add(10 * time.Minute)}
 	if end := time.Unix(state.PeriodEnd, 0).UTC(); out.ExpiresAt.After(end) {
 		out.ExpiresAt = end
 	}
@@ -114,7 +114,7 @@ func decreaseScheduleParams(ctx context.Context, b Binding, id string, q Decreas
 	if _, err := uuid.Parse(id); err != nil {
 		return nil, ErrSubscription
 	}
-	if q.PreviousSlots != b.PaidSlots || q.PaidSlots < 1 || q.PaidSlots >= b.PaidSlots || q.MonthlyCents != q.PaidSlots*servicebilling.AlertsMonthlySlotCents || q.PeriodStart <= 0 || q.PeriodStart > now.Unix() || q.EffectiveAt <= now.Unix() || !now.Before(q.ExpiresAt) || q.ExpiresAt.Unix() > q.EffectiveAt {
+	if q.PreviousSlots != b.PaidSlots || q.PaidSlots < 1 || q.PaidSlots >= b.PaidSlots || q.AnnualCents != q.PaidSlots*servicebilling.AlertsAnnualSlotCents || q.PeriodStart <= 0 || q.PeriodStart > now.Unix() || q.EffectiveAt <= now.Unix() || !now.Before(q.ExpiresAt) || q.ExpiresAt.Unix() > q.EffectiveAt {
 		return nil, ErrSubscription
 	}
 	phase := func(slots int64) *stripe.SubscriptionSchedulePhaseParams {
@@ -130,7 +130,7 @@ func decreaseScheduleParams(ctx context.Context, b Binding, id string, q Decreas
 	current.StartDate = stripe.Int64(q.PeriodStart)
 	current.EndDate = stripe.Int64(q.EffectiveAt)
 	next.StartDate = stripe.Int64(q.EffectiveAt)
-	next.Duration = &stripe.SubscriptionSchedulePhaseDurationParams{Interval: stripe.String("month"), IntervalCount: stripe.Int64(1)}
+	next.Duration = &stripe.SubscriptionSchedulePhaseDurationParams{Interval: stripe.String("year"), IntervalCount: stripe.Int64(1)}
 	p := &stripe.SubscriptionScheduleParams{EndBehavior: stripe.String("release"), ProrationBehavior: stripe.String("none"), Phases: []*stripe.SubscriptionSchedulePhaseParams{current, next}, Metadata: map[string]string{"account_id": b.PersonID, "checkout_intent": b.IntentID, "alerts_decrease": id}}
 	p.Context = ctx
 	p.SetIdempotencyKey("alerts-decrease-update:" + id)

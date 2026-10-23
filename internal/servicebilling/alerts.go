@@ -10,6 +10,7 @@ import (
 
 const AlertsFreeRepositories int64 = 3
 const AlertsMonthlySlotCents int64 = 200
+const AlertsAnnualSlotCents int64 = 12 * AlertsMonthlySlotCents
 
 // Hosted SaaS for personal use; confirmed product classification for Alerts.
 const AlertsStripeTaxCode = "txcd_10103000"
@@ -28,7 +29,7 @@ type AlertsPrice struct {
 	End        time.Time
 }
 
-// AlertsTerm prices a recurring Stripe month or a supported OpenNode prepaid
+// AlertsTerm prices a recurring Stripe year or a supported OpenNode prepaid
 // term. Account entitlement state determines slots; clients cannot supply prices.
 func AlertsTerm(provider string, slots int64, months int, start time.Time) (AlertsPrice, error) {
 	if !validTerm(provider, months) || start.IsZero() || start.Year() < 1 || start.Year() > 9800 {
@@ -65,7 +66,7 @@ func AlertsIncrease(provider string, addedSlots int64, months int, periodStart, 
 }
 
 func validTerm(provider string, months int) bool {
-	return provider == "stripe" && months == 1 || provider == "opennode" && (months == 12 || months == 24 || months == 120)
+	return provider == "stripe" && months == 12 || provider == "opennode" && (months == 12 || months == 24 || months == 120)
 }
 
 // Derive each boundary from the original anchor. Jan 31 + one month clamps to

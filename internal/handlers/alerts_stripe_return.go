@@ -26,7 +26,7 @@ type alertsStripeReturnPage struct {
 }
 
 func alertsStripeReturnPresentation(stored *getters.AlertsStripeCheckout, bound, enabled bool, now time.Time) alertsStripeReturnPage {
-	total := stored.Intent.PaidSlots * servicebilling.AlertsMonthlySlotCents
+	total := stored.Intent.PaidSlots * servicebilling.AlertsAnnualSlotCents
 	page := alertsStripeReturnPage{ID: stored.Intent.ID, Slots: stored.Intent.PaidSlots, Total: fmt.Sprintf("$%d.%02d", total/100, total%100), Heading: "Awaiting payment confirmation", Message: "Payment has not yet been verified. If you just paid, refresh this page shortly to check again."}
 	page.CanCheck = enabled && stored.Reference != "" && !stored.Closed
 	if stored.Closed {

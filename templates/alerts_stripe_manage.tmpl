@@ -12,8 +12,8 @@
 {{ if .CanDecrease }}<form method="post" action="/services/alerts/manage" class="alerts-upgrade-action alerts-quantity-form">
 <input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="decrease">
 <label for="paid-projects">Paid projects after renewal</label><input id="paid-projects" name="slots" type="number" min="1" max="{{ .MaxDecrease }}" value="{{ .MaxDecrease }}" required>
-<p>Each paid project costs $2/month including applicable tax. Your current allowance stays available until renewal.</p>
-<button type="submit" class="auth-primary">Review lower monthly total</button></form>{{ end }}
+<p>Each paid project costs $24/year including applicable tax. Your current allowance stays available until renewal.</p>
+<button type="submit" class="auth-primary">Review lower annual total</button></form>{{ end }}
 {{ if .CanCancel }}<form method="post" action="/services/alerts/manage" class="alerts-cancel-form">
 <p>Cancellation stops future renewals. Your paid allowance continues through the current period, with no refund for that period.</p>
 <input type="hidden" name="checkout" value="{{ .Checkout }}"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="revision" value="{{ .Revision }}"><input type="hidden" name="periodEnd" value="{{ .PeriodEnd }}">

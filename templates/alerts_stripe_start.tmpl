@@ -4,8 +4,8 @@
 <link rel="stylesheet" href="/static/css/login-layout.css?v=2"></head>
 <body class="btcpp-login-page">{{ block "mainnav" . }}{{ end }}
 <main class="auth-shell auth-shell--simple"><section class="auth-card">
-<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>Review your monthly plan</h1><p>Your first three repositories are free. Add {{ .Slots }} more for {{ .Total }} per month.</p></header>
-<p>USD, including applicable tax. Renews monthly until canceled. Your selections activate after payment is verified.</p>
+<header class="auth-card__head"><span class="auth-kicker">BITCOIN++ ALERTS</span><h1>Review your annual plan</h1><p>Your first three repositories are free. Add {{ .Slots }} more for {{ .Total }} per year.</p></header>
+<p>USD, including applicable tax. Renews annually until canceled. Your selections activate after payment is verified.</p>
 <p>Cancel future renewals through billing management. Your paid allowance continues until the current period ends; cancellation does not refund that period.</p>
 {{ if .Enabled }}<form method="post" action="/services/alerts/subscribe">
 <input type="hidden" name="account" value="{{ .Account }}"><input type="hidden" name="slots" value="{{ .Slots }}"><input type="hidden" name="key" value="{{ .Key }}"><input type="hidden" name="csrf" value="{{ .CSRF }}">
@@ -15,7 +15,7 @@
 <input type="hidden" name="legal_version" value="{{ .Version }}">
 <label><input type="checkbox" name="accept_terms" value="yes" required> I agree to these Terms of Service and acknowledge the Privacy Policy.</label>
 {{ end }}
-<button type="submit" class="auth-primary">Continue with card · {{ .Total }}/month</button></form>
+<button type="submit" class="auth-primary">Continue with card · {{ .Total }}/year</button></form>
 {{ else }}<p role="status">Card checkout is not configured here yet.</p>{{ end }}
 <p><a href="https://alerts.btcpp.dev/terms">Terms</a> · <a href="https://alerts.btcpp.dev/privacy">Privacy</a></p>
 <p><a href="https://alerts.btcpp.dev/alerts">Return to My alerts</a></p>

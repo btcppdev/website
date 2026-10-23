@@ -42,7 +42,7 @@ func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 	id := checkout.Intent.ID
 	now := time.Now().UTC().Truncate(time.Second)
 	start := now.Add(-time.Hour)
-	end := start.AddDate(0, 1, 0)
+	end := start.AddDate(1, 0, 0)
 	b := alertsstripe.Binding{IntentID: id, PersonID: person, SubscriptionID: "sub_" + id, CustomerID: "cus_" + id, PriceID: "price_" + id, ProductID: "prod_" + id, PaidSlots: 3}
 	raw, _ := json.Marshal(b)
 	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3)`, id, b.SubscriptionID, raw); err != nil {
@@ -52,10 +52,10 @@ func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_subscription_state(checkout_id,revision,snapshot) VALUES($1,1,$2)`, id, state); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = recordAlertsStripeInvoice(app, b, alertsstripe.PaidPeriod{InvoiceID: "in_decrease_base_" + id, SubscriptionID: b.SubscriptionID, Quantity: 3, TotalCents: 600, Start: start, End: end, PaidAt: start}); err != nil {
+	if _, err = recordAlertsStripeInvoice(app, b, alertsstripe.PaidPeriod{InvoiceID: "in_decrease_base_" + id, SubscriptionID: b.SubscriptionID, Quantity: 3, TotalCents: 7200, Start: start, End: end, PaidAt: start}); err != nil {
 		t.Fatal(err)
 	}
-	preview := alertsstripe.DecreasePreview{PreviousSlots: 3, PaidSlots: 1, MonthlyCents: 200, PeriodStart: start.Unix(), EffectiveAt: end.Unix(), ExpiresAt: now.Add(10 * time.Minute)}
+	preview := alertsstripe.DecreasePreview{PreviousSlots: 3, PaidSlots: 1, AnnualCents: 2400, PeriodStart: start.Unix(), EffectiveAt: end.Unix(), ExpiresAt: now.Add(10 * time.Minute)}
 	q, err := SaveAlertsStripeDecreaseQuote(ctx, app, person, id, 1, preview)
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	priceForReview := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	priceForReview := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 	subForReview := &stripe.Subscription{ID: b.SubscriptionID, Status: "active", CollectionMethod: "charge_automatically", Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{ID: "si_review", Quantity: 3, Price: priceForReview, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
 	reads := 0
 	readClient := alertsstripe.Client{Subscription: func(got string, p *stripe.SubscriptionParams) (*stripe.Subscription, error) {
@@ -78,7 +78,7 @@ func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 		t.Fatal("foreign review reached provider", err, reads)
 	}
 	fresh, err := PrepareAlertsStripeDecrease(ctx, app, person, id, 2, readClient)
-	if err != nil || fresh.Preview.PaidSlots != 2 || fresh.Preview.MonthlyCents != 400 || fresh.Preview.EffectiveAt != end.Unix() {
+	if err != nil || fresh.Preview.PaidSlots != 2 || fresh.Preview.AnnualCents != 4800 || fresh.Preview.EffectiveAt != end.Unix() {
 		t.Fatal(fresh, err)
 	}
 	repeat, err := PrepareAlertsStripeDecrease(ctx, app, person, id, 2, readClient)
@@ -251,7 +251,7 @@ func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 	provider.Phases[0].StartDate = preview.PeriodStart
 	provider.Phases[0].EndDate = preview.EffectiveAt
 	provider.Phases[1].StartDate = preview.EffectiveAt
-	provider.Phases[1].EndDate = end.AddDate(0, 1, 0).Unix()
+	provider.Phases[1].EndDate = end.AddDate(1, 0, 0).Unix()
 	if err = recordAlertsStripeDecreaseSchedule(ctx, app, phaseClaim, provider); !errors.Is(err, alertsstripe.ErrReconcile) {
 		t.Fatal("stale phase response", err)
 	}
@@ -300,7 +300,7 @@ func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 		}
 		next := b
 		next.PaidSlots = 1
-		observation := alertsstripe.DecreaseTransition{Binding: next, ScheduleID: schedule, EffectiveAt: preview.EffectiveAt, State: alertsstripe.SubscriptionState{State: "active", ProviderStatus: "active", PeriodStart: end.Unix(), PeriodEnd: end.AddDate(0, 1, 0).Unix()}}
+		observation := alertsstripe.DecreaseTransition{Binding: next, ScheduleID: schedule, EffectiveAt: preview.EffectiveAt, State: alertsstripe.SubscriptionState{State: "active", ProviderStatus: "active", PeriodStart: end.Unix(), PeriodEnd: end.AddDate(1, 0, 0).Unix()}}
 		previous := alertsstripe.PaidPeriod{InvoiceID: "in_decrease_base_" + id, SubscriptionID: b.SubscriptionID, Quantity: 3, Start: start, End: end, PaidAt: start}
 		if _, e = alertsStripeRenewalPreviousQuantity(ctx, tx, next, previous); !errors.Is(e, alertsstripe.ErrInvoice) {
 			t.Fatal("unapplied decrease supplied grace", e)
@@ -336,12 +336,12 @@ func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 		}
 		var current, original int64
 		invoiceID := "in_decreased_renewal_" + id
-		invoiceJSON := fmt.Sprintf(`{"id":%q,"status":"open","currency":"usd","customer":%q,"billing_reason":"subscription_cycle","total":200,"amount_paid":0,"amount_remaining":200,"attempted":true,"attempt_count":1,"collection_method":"charge_automatically","automatic_tax":{"enabled":true,"status":"complete"},"parent":{"type":"subscription_details","subscription_details":{"subscription":%q,"metadata":{"product":"alerts.repository-slots","account_id":%q,"checkout_intent":%q}}},"lines":{"data":[{"currency":"usd","amount":200,"quantity":1,"period":{"start":%d,"end":%d},"parent":{"type":"subscription_item_details","subscription_item_details":{"subscription":%q,"proration":false}},"pricing":{"price_details":{"price":%q,"product":%q}}}]}}`, invoiceID, b.CustomerID, b.SubscriptionID, person, id, end.Unix(), end.AddDate(0, 1, 0).Unix(), b.SubscriptionID, b.PriceID, b.ProductID)
+		invoiceJSON := fmt.Sprintf(`{"id":%q,"status":"open","currency":"usd","customer":%q,"billing_reason":"subscription_cycle","total":2400,"amount_paid":0,"amount_remaining":2400,"attempted":true,"attempt_count":1,"collection_method":"charge_automatically","automatic_tax":{"enabled":true,"status":"complete"},"parent":{"type":"subscription_details","subscription_details":{"subscription":%q,"metadata":{"product":"alerts.repository-slots","account_id":%q,"checkout_intent":%q}}},"lines":{"data":[{"currency":"usd","amount":2400,"quantity":1,"period":{"start":%d,"end":%d},"parent":{"type":"subscription_item_details","subscription_item_details":{"subscription":%q,"proration":false}},"pricing":{"price_details":{"price":%q,"product":%q}}}]}}`, invoiceID, b.CustomerID, b.SubscriptionID, person, id, end.Unix(), end.AddDate(1, 0, 0).Unix(), b.SubscriptionID, b.PriceID, b.ProductID)
 		var invoice stripe.Invoice
 		if e = json.Unmarshal([]byte(invoiceJSON), &invoice); e != nil {
 			t.Fatal(e)
 		}
-		price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+		price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 		client := alertsstripe.Client{Invoice: func(got string, p *stripe.InvoiceParams) (*stripe.Invoice, error) {
 			if got != invoiceID {
 				t.Fatal(got)
@@ -401,7 +401,7 @@ func testAlertsStripeDecreaseReservation(t *testing.T, closing bool) {
 				t.Error(err)
 			}
 		})
-		price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+		price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 		sub := &stripe.Subscription{ID: b.SubscriptionID, Customer: provider.Customer, Status: "active", Metadata: map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}, Schedule: &stripe.SubscriptionSchedule{ID: provider.ID}, Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{ID: "si_test", Price: price, Quantity: 3, CurrentPeriodStart: preview.PeriodStart, CurrentPeriodEnd: preview.EffectiveAt}}}}
 		calls := 0
 		client := alertsstripe.Client{

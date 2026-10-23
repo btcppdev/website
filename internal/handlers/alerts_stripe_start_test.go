@@ -41,11 +41,11 @@ func TestAlertsStripeStartTemplate(t *testing.T) {
 	}
 	for _, enabled := range []bool{false, true} {
 		var out bytes.Buffer
-		if err = tmpl.Execute(&out, alertsStripeStartPage{Account: "account", Slots: 2, Total: "$4.00", CSRF: `"><script>bad()</script>`, Key: "key", Enabled: enabled}); err != nil {
+		if err = tmpl.Execute(&out, alertsStripeStartPage{Account: "account", Slots: 2, Total: "$48.00", CSRF: `"><script>bad()</script>`, Key: "key", Enabled: enabled}); err != nil {
 			t.Fatal(err)
 		}
 		html := out.String()
-		if strings.Contains(html, "<script>bad()") || strings.Contains(html, `method="post"`) != enabled || !strings.Contains(html, "$4.00") {
+		if strings.Contains(html, "<script>bad()") || strings.Contains(html, `method="post"`) != enabled || !strings.Contains(html, "$48.00") {
 			t.Fatal("incorrect checkout rendering")
 		}
 	}

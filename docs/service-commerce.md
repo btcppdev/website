@@ -1,5 +1,11 @@
 # Shared service commerce
 
+Alerts card subscriptions renew annually at $24 per additional repository, tax
+inclusive, with three free repositories. Increases are prorated and decreases
+apply at annual renewal. Deploy this pricing change together with the Alerts UI
+before enabling checkout; existing local monthly test subscriptions are not
+converted. Insider pricing and Bitcoin prepaid term lengths are unchanged.
+
 Migration note: the incremental, unpublished Alerts migrations described in the
 implementation history below are consolidated into `128_alerts_service_billing.sql`.
 Deploy this migration after the existing bitcoin++ master migrations. Development
@@ -175,8 +181,9 @@ Retention and anonymization of financial history still need final policy review.
 
 ## Alerts pricing
 
-`internal/servicebilling` now calculates gross USD prices for monthly Stripe
-slots and 12/24/120-month OpenNode terms, at 200 cents per paid slot per month.
+`internal/servicebilling` now calculates gross USD prices for annual Stripe
+slots ($24 per year, tax inclusive) and 12/24/120-month OpenNode terms
+($24/$48/$240 per paid slot).
 Its slot input excludes the three free repositories. Amounts are checked against
 the existing order schema's integer range before multiplication.
 

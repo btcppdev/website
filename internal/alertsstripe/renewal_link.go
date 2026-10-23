@@ -32,7 +32,7 @@ func (c Client) RenewalLink(ctx context.Context, id string, b Binding) (string, 
 	if err != nil {
 		return "", err
 	}
-	if _, err = verifyMonthlyInvoiceTerms(inv, price, b); err != nil {
+	if _, err = verifyAnnualInvoiceTerms(inv, price, b); err != nil {
 		return "", err
 	}
 	if inv.BillingReason != "subscription_cycle" || (inv.Status != "open" && inv.Status != "paid") {

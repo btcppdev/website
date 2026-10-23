@@ -41,7 +41,7 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	id := checkout.Intent.ID
 	now := time.Now().UTC().Truncate(time.Second)
 	start := now.Add(-time.Hour)
-	end := start.AddDate(0, 1, 0)
+	end := start.AddDate(1, 0, 0)
 	b := alertsstripe.Binding{IntentID: id, PersonID: person, SubscriptionID: "sub_" + id, CustomerID: "cus_" + id, PriceID: "price_" + id, ProductID: "prod_" + id, PaidSlots: 2}
 	raw, _ := json.Marshal(b)
 	if _, err = app.DB.Exec(ctx, `INSERT INTO alerts_stripe_subscriptions(checkout_id,subscription_id,binding) VALUES($1,$2,$3)`, id, b.SubscriptionID, raw); err != nil {
@@ -101,7 +101,7 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	if _, err = recordAlertsStripeIncreasePayment(ctx, app, person, paid); err == nil {
 		t.Fatal("unpaid base granted upgrade")
 	}
-	if _, err = recordAlertsStripeInvoice(app, b, alertsstripe.PaidPeriod{InvoiceID: "in_base_" + id, SubscriptionID: b.SubscriptionID, Quantity: 2, TotalCents: 400, TaxCents: 30, Start: start, End: end, PaidAt: start}); err != nil {
+	if _, err = recordAlertsStripeInvoice(app, b, alertsstripe.PaidPeriod{InvoiceID: "in_base_" + id, SubscriptionID: b.SubscriptionID, Quantity: 2, TotalCents: 4800, TaxCents: 30, Start: start, End: end, PaidAt: start}); err != nil {
 		t.Fatal(err)
 	}
 	next := policy
@@ -124,7 +124,7 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	if err != nil || len(grants) != 1 || grants[0].Quantity != 2 {
 		t.Fatal("failed transaction leaked grant", grants, err)
 	}
-	upgradePrice := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	upgradePrice := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 	upgradeInvoice := &stripe.Invoice{ID: paid.InvoiceID, Status: "paid", Currency: "usd", Customer: &stripe.Customer{ID: b.CustomerID}, BillingReason: "subscription_update", Total: 295, AmountDue: 295, AmountPaid: 295, StatusTransitions: &stripe.InvoiceStatusTransitions{PaidAt: now.Unix()}, AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, TotalTaxes: []*stripe.InvoiceTotalTax{{Amount: 25, TaxBehavior: "inclusive"}}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}}}, Lines: &stripe.InvoiceLineItemList{}}
 	for _, line := range []struct{ quantity, amount int64 }{{2, -200}, {5, 495}} {
 		upgradeInvoice.Lines.Data = append(upgradeInvoice.Lines.Data, &stripe.InvoiceLineItem{Currency: "usd", Quantity: line.quantity, Amount: line.amount, Period: &stripe.Period{Start: now.Unix(), End: end.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: b.SubscriptionID, SubscriptionItem: "si_test", Proration: true}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: upgradePrice, Product: b.ProductID}}})
@@ -251,15 +251,15 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	if _, err = app.DB.Exec(ctx, `UPDATE alerts_stripe_increase_payments SET binding='{}' WHERE quote_id=$1`, q.ID); err == nil {
 		t.Fatal("mutable payment evidence")
 	}
-	price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 200, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "month", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
+	price := &stripe.Price{ID: b.PriceID, Currency: "usd", UnitAmount: 2400, TaxBehavior: "inclusive", Type: "recurring", Recurring: &stripe.PriceRecurring{Interval: "year", IntervalCount: 1}, Product: &stripe.Product{ID: b.ProductID, TaxCode: &stripe.TaxCode{ID: "txcd_10103000"}}}
 	meta := map[string]string{"account_id": person, "checkout_intent": id, "product": "alerts.repository-slots"}
 	sub := &stripe.Subscription{ID: b.SubscriptionID, Customer: &stripe.Customer{ID: b.CustomerID}, Metadata: meta, Status: "active", Items: &stripe.SubscriptionItemList{Data: []*stripe.SubscriptionItem{{ID: "si_test", Quantity: 5, Price: price, CurrentPeriodStart: start.Unix(), CurrentPeriodEnd: end.Unix()}}}}
 	client := alertsstripe.Client{Subscription: func(string, *stripe.SubscriptionParams) (*stripe.Subscription, error) { return sub, nil }, Price: func(string, *stripe.PriceParams) (*stripe.Price, error) { return price, nil }}
 	if err = RefreshAlertsStripeSubscription(ctx, app, person, id, client); err != nil {
 		t.Fatal("refresh after upgrade", err)
 	}
-	nextEnd := end.AddDate(0, 1, 0)
-	inv := &stripe.Invoice{ID: "in_renewal_" + id, Status: "open", Currency: "usd", Customer: sub.Customer, BillingReason: "subscription_cycle", Total: 1000, AmountRemaining: 1000, Attempted: true, AttemptCount: 1, CollectionMethod: "charge_automatically", AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Amount: 1000, Quantity: 5, Period: &stripe.Period{Start: end.Unix(), End: nextEnd.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: b.SubscriptionID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: b.ProductID}}}}}}
+	nextEnd := end.AddDate(1, 0, 0)
+	inv := &stripe.Invoice{ID: "in_renewal_" + id, Status: "open", Currency: "usd", Customer: sub.Customer, BillingReason: "subscription_cycle", Total: 12000, AmountRemaining: 12000, Attempted: true, AttemptCount: 1, CollectionMethod: "charge_automatically", AutomaticTax: &stripe.InvoiceAutomaticTax{Enabled: true, Status: "complete"}, Parent: &stripe.InvoiceParent{Type: "subscription_details", SubscriptionDetails: &stripe.InvoiceParentSubscriptionDetails{Subscription: &stripe.Subscription{ID: b.SubscriptionID}, Metadata: meta}}, Lines: &stripe.InvoiceLineItemList{Data: []*stripe.InvoiceLineItem{{Currency: "usd", Amount: 12000, Quantity: 5, Period: &stripe.Period{Start: end.Unix(), End: nextEnd.Unix()}, Parent: &stripe.InvoiceLineItemParent{Type: "subscription_item_details", SubscriptionItemDetails: &stripe.InvoiceLineItemParentSubscriptionItemDetails{Subscription: b.SubscriptionID}}, Pricing: &stripe.InvoiceLineItemPricing{PriceDetails: &stripe.InvoiceLineItemPricingPriceDetails{Price: price, Product: b.ProductID}}}}}}
 	client.Invoice = func(string, *stripe.InvoiceParams) (*stripe.Invoice, error) { return inv, nil }
 	sub.Status = "past_due"
 	sub.LatestInvoice = &stripe.Invoice{ID: inv.ID}
@@ -336,7 +336,7 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 		}
 	}
 	inv.Status = "paid"
-	inv.AmountPaid = 1000
+	inv.AmountPaid = 12000
 	inv.AmountRemaining = 0
 	inv.StatusTransitions = &stripe.InvoiceStatusTransitions{PaidAt: end.Add(time.Hour).Unix()}
 	if _, err = ReconcileAlertsStripeInvoice(ctx, app, person, id, inv.ID, client); err != nil {
@@ -348,12 +348,12 @@ func testAlertsStripeIncreasePayment(t *testing.T, refundAction string) {
 	}
 	// Replay an original pre-upgrade invoice through the authenticated lookup.
 	inv.ID = "in_base_" + id
-	inv.Total = 400
-	inv.AmountPaid = 400
+	inv.Total = 4800
+	inv.AmountPaid = 4800
 	inv.BillingReason = "subscription_create"
 	inv.StatusTransitions.PaidAt = start.Unix()
 	inv.TotalTaxes = []*stripe.InvoiceTotalTax{{Amount: 30, TaxBehavior: "inclusive"}}
-	inv.Lines.Data[0].Amount = 400
+	inv.Lines.Data[0].Amount = 4800
 	inv.Lines.Data[0].Quantity = 2
 	inv.Lines.Data[0].Period = &stripe.Period{Start: start.Unix(), End: end.Unix()}
 	if _, err = ReconcileAlertsStripeInvoice(ctx, app, person, id, inv.ID, client); err != nil {

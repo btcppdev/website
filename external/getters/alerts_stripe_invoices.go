@@ -148,8 +148,8 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 	if !currentBinding {
 		return nil, alertsstripe.ErrInvoice
 	}
-	// Full-month invoices for this subscription cannot overlap. Upgrade invoices
-	// use a separate quantity-change path and cannot pass the monthly verifier.
+	// Full-year invoices for this subscription cannot overlap. Upgrade invoices
+	// use a separate quantity-change path and cannot pass the annual verifier.
 	var overlaps bool
 	err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM alerts_stripe_invoices WHERE checkout_id=$1 AND starts_at<$3 AND ends_at>$2)`, b.IntentID, paid.Start, paid.End).Scan(&overlaps)
 	if err != nil {
@@ -158,7 +158,7 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 	if overlaps {
 		return nil, alertsstripe.ErrInvoice
 	}
-	quote := ServiceQuote{LegalAcceptance: intent.LegalAcceptance, ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts additional repositories", Provider: "stripe", Quantity: paid.Quantity, UnitCents: servicebilling.AlertsMonthlySlotCents, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 1}
+	quote := ServiceQuote{LegalAcceptance: intent.LegalAcceptance, ProductCode: "alerts.repository-slots", Name: "Bitcoin++ Alerts additional repositories", Provider: "stripe", Quantity: paid.Quantity, UnitCents: servicebilling.AlertsAnnualSlotCents, TotalCents: paid.TotalCents, TaxCents: paid.TaxCents, PeriodStart: &paid.Start, PeriodEnd: &paid.End, ExpiresAt: paid.End, BillingMonths: 12}
 	if err = recordStripeServicePayment(ctx, tx, b.PersonID, email, paid, quote, out); err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func recordAlertsStripeInvoice(app *config.AppContext, b alertsstripe.Binding, p
 }
 
 // recordStripeServicePayment shares the existing receipt and entitlement ledger
-// between monthly renewals and prorations. The caller owns verification,
+// between subscription renewals and prorations. The caller owns verification,
 // serialization, invoice deduplication and the transaction commit.
 func recordStripeServicePayment(ctx context.Context, tx pgx.Tx, person, email string, paid alertsstripe.PaidPeriod, quote ServiceQuote, out *ServicePurchase) error {
 	external := quote.ProductCode == servicebilling.InsiderMonthlyProduct || quote.ProductCode == servicebilling.InsiderAnnualProduct
