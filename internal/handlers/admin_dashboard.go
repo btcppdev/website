@@ -16,6 +16,8 @@ import (
 )
 
 type GlobalAdminDashboardPage struct {
+	AntarcticaEnabled      bool
+	AntarcticaStateError   bool
 	RoleOptions            []adminRoleOption
 	RoleCSRF               string
 	FlashMessage           string
@@ -111,9 +113,12 @@ func GlobalAdminDashboard(w http.ResponseWriter, r *http.Request, ctx *config.Ap
 		http.Error(w, "Unable to prepare role editor", 500)
 		return
 	}
+	antarcticaEnabled, antarcticaErr := antarcticaSalesState(ctx)
 	w.Header().Set("Cache-Control", "private, no-store")
 	if err := ctx.TemplateCache.ExecuteTemplate(w, "admin/dashboard.tmpl", &GlobalAdminDashboardPage{
 		RoleOptions:            adminRoleOptions(confs),
+		AntarcticaEnabled:      antarcticaEnabled,
+		AntarcticaStateError:   antarcticaErr != nil,
 		RoleCSRF:               csrf,
 		FlashMessage:           r.URL.Query().Get("flash"),
 		Year:                   helpers.CurrentYear(),

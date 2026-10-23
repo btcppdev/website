@@ -38,7 +38,7 @@ func TestPendingEmailDashboardOnboardingPostgres(t *testing.T) {
 	if err := auth.LoginEmail(app, req, email); err != nil {
 		t.Fatal(err)
 	}
-	app.Env.AntarcticaCheckoutEnabled = true
+	defer enableAntarcticaSalesForTest(t, app)()
 	app.Env.AntarcticaTaxMode = "billing-inclusive"
 	app.Env.AntarcticaStripeTaxCode = "txcd_fixture"
 	app.Env.StripeKey = "sk_test_fixture"

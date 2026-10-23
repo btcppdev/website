@@ -87,7 +87,6 @@ func fromEnv(defaultMailOff bool) *types.EnvConfig {
 		InsiderServiceToken:             firstNonEmpty(os.Getenv("INSIDER_SERVICE_TOKEN"), os.Getenv("MAILER_SECRET")),
 		InsiderFulfillmentEndpoint:      os.Getenv("INSIDER_FULFILLMENT_ENDPOINT"),
 		InsiderLifecycleEndpoint:        os.Getenv("INSIDER_LIFECYCLE_ENDPOINT"),
-		AntarcticaCheckoutEnabled:       os.Getenv("ANTARCTICA_CHECKOUT_ENABLED") == "true",
 		AntarcticaStripeCheckoutEnabled: os.Getenv("ANTARCTICA_STRIPE_CHECKOUT_ENABLED") == "true",
 		AntarcticaStripeTaxCode:         strings.TrimSpace(os.Getenv("ANTARCTICA_STRIPE_TAX_CODE")),
 		AntarcticaTaxMode:               strings.TrimSpace(os.Getenv("ANTARCTICA_TAX_MODE")),

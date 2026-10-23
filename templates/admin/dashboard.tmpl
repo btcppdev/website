@@ -33,6 +33,10 @@
         <h2 class="text-sm font-semibold text-gray-900">Admin tools</h2>
  {{ if .IsAlertsAdmin }}<a href="https://alerts.btcpp.dev/admin">Alerts administration ↗</a>{{ end }}
  <p class="mt-4"><a href="/admin/site-features">Site visibility →</a></p>
+ <div class="mt-4 rounded-md border border-gray-200 p-4"><h3>Antarctica reservations</h3>
+ {{ if .AntarcticaStateError }}<p>Unable to load checkout status.</p>{{ else }}<p>{{ if .AntarcticaEnabled }}Open{{ else }}Paused{{ end }}</p>
+ <form method="post" action="/admin/antarctica"><input type="hidden" name="csrf" value="{{ .RoleCSRF }}"><button class="purchase-invoice-button" name="action" value="{{ if .AntarcticaEnabled }}pause{{ else }}open{{ end }}">{{ if .AntarcticaEnabled }}Pause Antarctica checkout{{ else }}Open Antarctica checkout{{ end }}</button></form>{{ end }}
+ <p><a href="/admin/antarctica">Booking policy and launch settings →</a></p></div>
  {{ if .IsAccountsAdmin }}<p class="mt-4"><a href="/admin/node-config">Lightning node configuration →</a></p>{{ end }}
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
           <a href="/admin/reports/annual" class="block rounded-md border border-gray-200 px-4 py-3 hover:border-indigo-300 hover:bg-indigo-50"><div class="text-sm font-medium text-gray-900">Annual sponsor reports</div><div class="text-xs text-gray-500">NYDIG and HRF editions · all events</div></a>

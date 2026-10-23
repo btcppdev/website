@@ -796,7 +796,7 @@ Reference: https://docs.stripe.com/payments/payment-methods/dynamic-payment-meth
 - Newsletter signup is removed. Real checkout currently sells passage only;
   hats remain in the design preview pending stock, tax and fulfillment wiring.
 - Sales remain closed by default. Opening requires **all** of:
-  `ANTARCTICA_CHECKOUT_ENABLED=true`, `ANTARCTICA_STRIPE_TAX_CODE` set to a
+  checkout enabled in `/admin`, `ANTARCTICA_STRIPE_TAX_CODE` set to a
   reviewed Stripe tax code, and `ANTARCTICA_TAX_MODE=billing-inclusive` only if
   that tax location/treatment has been approved for this voyage. There is no
   default tax exemption or assumption that Texas is the place of supply. A
@@ -1024,3 +1024,29 @@ Cancellation requests received before 12:00 a.m. on October 1, 2027, in America/
 Bitcoin payments are valued in USD at their value on the day each payment was received. Refund entitlement is calculated from those recorded USD amounts, less the non-refundable deposit. A refund paid in Bitcoin is converted from the refundable USD amount at the exchange rate when the refund is sent; the number of satoshis returned may differ from the number originally paid.
 
 Final guest payment remains due at the end of October 1, 2027, Texas time; this is distinct from the start-of-day refund cutoff. These terms describe voluntary cancellation, not overdue abandonment. Customer policy activation and the administrative cancellation/refund execution remain separate deployment requirements.
+
+### Admin-controlled launch and policy publication — October 24, 2026
+
+New purchases are controlled by the Open/Pause Antarctica checkout button on
+`/admin`, backed by `site_features.antarctica_checkout`. Missing state defaults to
+paused. Changes apply without a redeploy. The previous checkout environment flag
+has been removed. Pausing does not interrupt existing installments or bookings.
+
+Use `/admin/antarctica` to review and publish a new immutable terms/privacy
+version. Prepared defaults are embedded in `internal/expedition/policy/` and used
+by the public policy page until a version is published. Publication activates the
+shared checkout snapshot and its America/Chicago lifecycle registration in one
+transaction. Earlier accepted versions remain unchanged. Reusing a version for
+different text or moving the effective date backward is rejected.
+
+The admin screen checks tax/provider configuration, transactional mail, worker
+settings, inventory sales windows and policy registration before opening sales.
+The production app specification enables shared fulfillment/reconciliation and
+the expedition lifecycle/waitlist workers. Provider credentials and approved tax
+configuration must still be present on the deployed service; no tax exemption is
+assumed. Configured does not prove successful provider communication: verify a
+real purchase and receipt before announcing the launch.
+
+The inventory initialization button inserts only missing category rows (18/3/4),
+with one-hour unpaid holds and a January 1, 2027 00:00 UTC signup cutoff. Existing
+rows and the configured staff reserve are preserved. It does not reset bookings.

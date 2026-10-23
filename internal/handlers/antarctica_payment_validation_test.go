@@ -71,7 +71,7 @@ func TestExpeditionTaxValidation(t *testing.T) {
 }
 
 func TestExpeditionBitcoinOnlyLaunch(t *testing.T) {
-	app := &config.AppContext{Env: &types.EnvConfig{StripeKey: "sk_test_fixture", AntarcticaCheckoutEnabled: true}}
+	app := &config.AppContext{Env: &types.EnvConfig{StripeKey: "sk_test_fixture"}}
 	if !antarcticaPaymentProviderAllowed(app, expedition.Bitcoin) {
 		t.Fatal("Bitcoin must remain available")
 	}

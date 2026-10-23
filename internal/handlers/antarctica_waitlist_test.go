@@ -57,7 +57,7 @@ func TestAntarcticaWaitlistPostgres(t *testing.T) {
 	defer pool.Close()
 	app.DB = pool
 	app.Session = scs.New()
-	app.Env.AntarcticaCheckoutEnabled = true
+	defer enableAntarcticaSalesForTest(t, app)()
 	app.Env.AntarcticaTaxMode = "billing-inclusive"
 	app.Env.AntarcticaStripeTaxCode = "txcd_fixture"
 	app.Env.StripeKey = "sk_test_fixture"

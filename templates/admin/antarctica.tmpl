@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><title>Antarctica checkout · bitcoin++</title>{{ block "header" . }}{{ end }}</head>
+<body class="btcpp-profile-edit-page account-settings-page"><main class="profile-edit-shell person-emails-page">
+<p><a href="/admin">← Administration</a></p><h1>Antarctica checkout</h1>
+{{ if .Flash }}<p role="status">{{ .Flash }}</p>{{ end }}
+<section><h2>Reservations: {{ if .Enabled }}open{{ else }}paused{{ end }}</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="purchase-invoice-button" name="action" value="{{ if .Enabled }}pause{{ else }}open{{ end }}" {{ if and (not .Enabled) .Blockers }}disabled{{ end }}>{{ if .Enabled }}Pause Antarctica checkout{{ else }}Open Antarctica checkout{{ end }}</button></form>
+<p>This controls new purchases immediately. Existing bookings, payment history and installment payments remain available. The expedition stays unlisted on the main site.</p>
+{{ if .Blockers }}<h3>Needed before opening</h3><ul>{{ range .Blockers }}<li>{{ . }}</li>{{ end }}</ul>{{ else }}<p>Checkout prerequisites are configured. Complete a real payment and verify the confirmation email before announcing the launch.</p>{{ end }}
+<p><a href="/antarctica">View expedition →</a> · <a href="/expeditions/antarctica/terms">View published booking terms →</a></p></section>
+<section><h2>Booking policy</h2>{{ with .Current }}<p>Current version: <strong>{{ .Version }}</strong> · Effective {{ .EffectiveAt.UTC.Format "January 2, 2006 15:04 MST" }}</p>{{ else }}<p>No policy has been published. The fields below contain the prepared expedition terms and privacy information for review.</p>{{ end }}
+<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="publish">
+<label>New policy version<input name="version" value="{{ .Version }}" maxlength="200" required></label>
+<label>Effective date (UTC)<input name="effective" value="{{ .Effective }}" required></label>
+<label>Booking terms<textarea name="terms" rows="28" style="width:100%;white-space:pre-wrap" required maxlength="262144">{{ .Terms }}</textarea></label>
+<label>Privacy policy<textarea name="privacy" rows="18" style="width:100%;white-space:pre-wrap" required maxlength="262144">{{ .Privacy }}</textarea></label>
+<label><input type="checkbox" name="reviewed" value="yes" required> I have reviewed these terms and privacy information and approve them for new bookings, including reminders and abandonment after 30 days overdue in America/Chicago time.</label>
+<p>Publishing preserves this exact text with its version. Existing purchasers retain the policy they accepted. Changed text requires a new version.</p>
+<button class="purchase-invoice-button" type="submit">Publish booking policy</button></form></section>
+<section><h2>Inventory setup</h2><p>Initialize missing categories only: 18 twin berths, 3 triple berths and 4 quad berths. The existing global staff reserve remains in effect. New booking windows end January 1, 2027 at 00:00 UTC, when the first scheduled installment falls due. Unpaid checkout holds last one hour. Existing inventory settings and bookings are preserved.</p>
+<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="purchase-invoice-button" name="action" value="inventory">Initialize missing inventory</button></form></section>
+</main>{{ block "footer" . }}{{ end }}</body></html>

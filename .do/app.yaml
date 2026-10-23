@@ -17,6 +17,18 @@ region: nyc
 services:
 - environment_slug: go
   envs:
+  - key: SERVICE_FULFILLMENT_ENABLED
+    scope: RUN_TIME
+    value: "true"
+  - key: SERVICE_PAYMENT_RECONCILIATION_ENABLED
+    scope: RUN_TIME
+    value: "true"
+  - key: ANTARCTICA_INSTALLMENT_LIFECYCLE_ENABLED
+    scope: RUN_TIME
+    value: "true"
+  - key: ANTARCTICA_WAITLIST_NOTIFICATIONS_ENABLED
+    scope: RUN_TIME
+    value: "true"
   - key: SERVICE_RECEIPTS_ENABLED
     scope: RUN_TIME
     value: "true"

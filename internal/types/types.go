@@ -83,7 +83,6 @@ type (
 		InsiderServiceToken             string
 		InsiderFulfillmentEndpoint      string
 		InsiderLifecycleEndpoint        string
-		AntarcticaCheckoutEnabled       bool
 		AntarcticaStripeCheckoutEnabled bool
 		AntarcticaStripeTaxCode         string
 		AntarcticaTaxMode               string

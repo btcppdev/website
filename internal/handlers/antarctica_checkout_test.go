@@ -71,7 +71,7 @@ func testAntarcticaCheckoutHTTP(t *testing.T, paymentProvider, plan string, amou
 	defer pool.Close()
 	app.DB = pool
 	app.Session = scs.New()
-	app.Env.AntarcticaCheckoutEnabled = true
+	defer enableAntarcticaSalesForTest(t, app)()
 	app.Env.AntarcticaStripeCheckoutEnabled = paymentProvider == "stripe"
 	app.Env.OpenNode.Key = "local-fixture"
 	app.Env.AntarcticaStripeTaxCode = "txcd_99999999"

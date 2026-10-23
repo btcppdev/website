@@ -1,0 +1,65 @@
+This Privacy Policy describes what information bitcoin++ (btcplusplus LLC) collects, how we use it, and the (very short) list of situations in which we share it with anyone outside the organization.
+
+1. What we collect
+
+Ticket purchasers: name, email address, payment metadata (handled by Stripe or our Lightning / on-chain payment processor — we never see your raw card or wallet details), the ticket tier you bought, and the amount paid.
+
+Speaker applicants: the information you submit on the talk-application form — name, email, talk title, abstract, prior speaking experience, optional social handles, photo, dietary preferences, dinner RSVP, hometown / travel-from city.
+
+Volunteer applicants: name, email, availability, work preferences, optional emergency contact for on-site coverage.
+
+Newsletter subscribers: email address and which event you subscribed from. No tracking pixels.
+
+Website analytics: standard server logs (IP address, user agent, page path, timestamp). No third-party analytics scripts; no fingerprinting; no ad network embeds.
+
+2. How we use it
+
+We use the information you give us to run the event: issue tickets, send calendar invites, confirm logistics, coordinate speaker travel, and follow up after the conference. Newsletter subscribers receive event announcements until they unsubscribe.
+
+3. What we share — and what we don't
+
+We do not sell, rent, or otherwise distribute attendee email addresses. Sponsors and partners do not receive the general attendee email list. Except for the specific hackathon-project disclosures below, sponsor messages are mediated through bitcoin++ without disclosing attendee addresses.
+
+Submitting a hackathon project permits us to share each team member's verified email with that event's Headline and Hackathon sponsors. We disclose this in the submission review so project owners can make every teammate aware before submitting. Participants may separately allow contact from other event sponsors or sponsors whose prizes their project enters; those additional choices apply only to that hackathon and can be changed later. Judges and organizers may also use contact details when necessary to administer submissions and prizes.
+
+We also share information with the third-party service providers we depend on to run the site:
+
+Stripe — fiat payment processing. Stripe receives the payment fields it needs to charge your card and issue receipts.
+
+OpenNode — Lightning / on-chain bitcoin payment processing.
+
+Postgres — backing database for our ticketing, application, and operations data.
+
+DigitalOcean Spaces — file storage (ticket PDFs, speaker photos, event imagery).
+
+Our mail relay — outbound transactional + newsletter emails.
+
+We may also disclose information if compelled by law (a valid subpoena or court order), but we'll push back on anything we think exceeds the law's scope.
+
+4. Recordings and public materials
+
+Talks are typically recorded and published publicly on our YouTube channel and similar platforms. Speakers can opt out at application time. Speaker names, talk titles, abstracts, photos, and affiliations are listed on the event website once a talk is confirmed.
+
+5. Cookies and session state
+
+We use a single session cookie to remember whether you're signed in to the speaker / volunteer dashboard. Session cookies are HTTP-only, same-site, and expire when the session does. We do not set tracking or advertising cookies.
+
+6. Data retention
+
+We retain ticketing data for as long as needed for tax, accounting, and refund-dispute purposes (typically 7 years per US business norms). Applicant data (talks, volunteer apps) is retained indefinitely so we can recognize repeat applicants and pre-fill future application forms — you can request deletion at any time via the contact below.
+
+7. Your rights
+
+You can request a copy of the data we hold about you, ask us to correct inaccurate fields, or ask us to delete your records (subject to the retention obligations above) by emailing inbox@btcpp.dev. We'll respond within 30 days.
+
+8. Changes
+
+We may update this policy at any time. The "Last updated" date above reflects the most recent revision. Material changes (e.g. new categories of data, new sharing relationships) will be announced via the newsletter and on the homepage.
+
+9. Contact
+
+Privacy questions, deletion requests, and general feedback: inbox@btcpp.dev. See also our Terms of Service.
+
+Expedition bookings
+
+For the Antarctica expedition, we also process billing addresses, berth and roommate preferences, installment schedules, booking status, accepted terms and payment/refund records. We use this information to manage your trip, payments and service communications. Necessary traveler details are shared with Oceanwide Expeditions to arrange passage. Complete sensitive medical information through the operator’s designated forms; do not send it through the checkout. Booking and payment emails are service communications, not a newsletter subscription. Payment processors and tax services receive the information needed to process payments and calculate taxes. Contact inbox@btcpp.dev for expedition privacy requests.

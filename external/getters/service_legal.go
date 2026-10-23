@@ -61,15 +61,22 @@ func ActivateServiceLegalPolicy(app *config.AppContext, product, version string)
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "service-policy:"+product); err != nil {
 		return err
 	}
+	if err = activateServiceLegalPolicyTx(ctx, tx, product, version); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func activateServiceLegalPolicyTx(ctx context.Context, tx pgx.Tx, product, version string) error {
 	var effective time.Time
-	if err = tx.QueryRow(ctx, `SELECT effective_at FROM service_legal_revisions WHERE product_code=$1 AND version=$2`, product, version).Scan(&effective); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT effective_at FROM service_legal_revisions WHERE product_code=$1 AND version=$2`, product, version).Scan(&effective); err != nil {
 		return err
 	}
 	if effective.After(time.Now()) {
 		return ErrServiceLegalReview
 	}
 	var previous time.Time
-	err = tx.QueryRow(ctx, `SELECT r.effective_at FROM service_legal_current c JOIN service_legal_revisions r USING(product_code,version) WHERE c.product_code=$1`, product).Scan(&previous)
+	err := tx.QueryRow(ctx, `SELECT r.effective_at FROM service_legal_current c JOIN service_legal_revisions r USING(product_code,version) WHERE c.product_code=$1`, product).Scan(&previous)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
@@ -79,7 +86,7 @@ func ActivateServiceLegalPolicy(app *config.AppContext, product, version string)
 	if _, err = tx.Exec(ctx, `INSERT INTO service_legal_current(product_code,version) VALUES($1,$2) ON CONFLICT(product_code) DO UPDATE SET version=excluded.version`, product, version); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func CurrentServiceLegalPolicy(app *config.AppContext, product string) (*ServiceLegalPolicy, error) {
