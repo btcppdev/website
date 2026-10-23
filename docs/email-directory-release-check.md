@@ -54,3 +54,17 @@ Migrations 128–130 applied successfully, repeat startup was a no-op, and the
 post-upgrade audit preserved all reported counts. No application workers ran
 against the restored copy and no test emails were sent. Authentication, API,
 handler and missive tests passed again. Production rollout follows this rehearsal.
+
+## Production activation — 2026-10-23
+
+Commit `248197a3` deployed successfully as DigitalOcean deployment
+`a46e10ea-fe57-4ce5-ae5a-c179b76893e7` (ACTIVE). Production startup applied
+128 at 13:38:05 UTC and 129–130 at 13:38:06 UTC. Post-migration audit passed
+with the same counts as the rehearsal. Live home, login and email-preferences
+pages return 200; anonymous management, directory-contact and newsletter-self
+API requests return 401. Preference responses are private/no-store.
+The temporary workstation firewall rule was removed and the local production
+snapshot/database deleted. No test email or payment was submitted.
+Authenticated end-to-end signup/delivery and product credentials/OAuth activation
+remain for the Alerts/Insider launch; their opt-in service worker flags were not
+enabled by this deployment.
