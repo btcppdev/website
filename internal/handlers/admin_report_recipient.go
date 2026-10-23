@@ -23,7 +23,7 @@ func loadReportSponsors(ctx context.Context, app *config.AppContext, p *sponsorR
 		if err = rows.Scan(&s.ID, &s.Name, &s.Logo); err != nil {
 			return err
 		}
-		s.Logo = reportSponsorLogo(s.Logo)
+		s.Logo = reportRecipientLogo(s)
 		p.Sponsors = append(p.Sponsors, s)
 	}
 	return rows.Err()
@@ -50,7 +50,14 @@ func (p sponsorReportPage) SelectedSponsor() reportSponsor {
 	}
 	return reportSponsor{}
 }
-func (p sponsorReportPage) RecipientLogo() string { return reportSponsorLogo(p.SelectedSponsor().Logo) }
+func reportRecipientLogo(s reportSponsor) string {
+	// Btrust's bundled mark is white; use its dark counterpart on report paper.
+	if strings.EqualFold(strings.TrimSpace(s.Name), "Btrust") {
+		return "/static/img/sponsors/btrust-dark.svg"
+	}
+	return reportSponsorLogo(s.Logo)
+}
+func (p sponsorReportPage) RecipientLogo() string { return reportRecipientLogo(p.SelectedSponsor()) }
 func saveReportRecipient(form url.Values, p *sponsorReportPage, saved map[string]string) error {
 	if !form.Has("prepared_for_org_id") {
 		saved["prepared_for_org_id"] = p.Saved["prepared_for_org_id"]

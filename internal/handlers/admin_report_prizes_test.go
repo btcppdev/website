@@ -69,3 +69,14 @@ func TestReportWinnerTeamMixedPhotos(t *testing.T) {
 		t.Fatal("missing photo replaced with an image")
 	}
 }
+
+func TestReportPodiumOrder(t *testing.T) {
+	p := sponsorReportPage{Winners: []reportWinner{{Title: "Third", Rank: 3}, {Title: "Sponsor first prize", Rank: -1, Awards: "First prize"}, {Title: "Second", Rank: 2}, {Title: "First", Rank: 1}, {Title: "Mention", Rank: 4}}}
+	podium := p.PodiumWinners()
+	if len(podium) != 3 || podium[0].Title != "First" || podium[1].Title != "Second" || podium[2].Title != "Third" {
+		t.Fatal("incorrect podium", podium)
+	}
+	if len(p.OtherWinners()) != 2 {
+		t.Fatal("other winners lost")
+	}
+}

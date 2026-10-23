@@ -1,6 +1,9 @@
 package handlers
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // AwardedSats is a sourced award amount; Sats is the independently recorded
 // sent/claimed payout sum. Do not turn pending prizes into paid amounts.
@@ -39,4 +42,50 @@ func (p reportPerson) Initials() string {
 		}
 	}
 	return strings.ToUpper(string(letters))
+}
+
+func (w reportWinner) PlaceRank() int {
+	if w.Rank != 0 {
+		return w.Rank
+	}
+	// Compatibility for the reviewed historical report fixtures.
+	switch strings.ToLower(strings.TrimSpace(w.Awards)) {
+	case "1st overall", "first place", "1st place":
+		return 1
+	case "2nd overall", "second place", "2nd place":
+		return 2
+	case "3rd overall", "third place", "3rd place":
+		return 3
+	}
+	return -1
+}
+func (w reportWinner) PlaceLabel() string {
+	switch w.PlaceRank() {
+	case 1:
+		return "1st place"
+	case 2:
+		return "2nd place"
+	case 3:
+		return "3rd place"
+	}
+	return ""
+}
+func (p sponsorReportPage) PodiumWinners() []reportWinner {
+	var out []reportWinner
+	for _, w := range p.Winners {
+		if r := w.PlaceRank(); r >= 1 && r <= 3 {
+			out = append(out, w)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].PlaceRank() < out[j].PlaceRank() })
+	return out
+}
+func (p sponsorReportPage) OtherWinners() []reportWinner {
+	var out []reportWinner
+	for _, w := range p.Winners {
+		if r := w.PlaceRank(); r < 1 || r > 3 {
+			out = append(out, w)
+		}
+	}
+	return out
 }

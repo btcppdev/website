@@ -34,6 +34,7 @@ type reportSession struct {
 	Views                                                                    *int64
 }
 type reportWinner struct {
+	Rank                                                         int
 	Portraits                                                    []reportPerson
 	ID, Title, Description, Awards, Members, Image, GitHub, Demo string
 	Sats                                                         int64

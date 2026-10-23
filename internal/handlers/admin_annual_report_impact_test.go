@@ -22,3 +22,25 @@ func TestAnnualReportFundingScope(t *testing.T) {
 		}
 	}
 }
+
+func TestAnnualReportAutomaticallyIncludesAvailableHackathonRecords(t *testing.T) {
+	e := annualEvent{Included: true, HackCoverage: "unknown", Projects: 12, Participants: 25, Winners: 3, Sats: 5000000}
+	e.detectHackathonRecords()
+	if e.HackCoverage != "automatic" || !e.HackKnown() {
+		t.Fatal("existing records still require manual review")
+	}
+	p := annualReportPage{Events: []annualEvent{e}}
+	if len(p.FundingChart().Rows) != 1 || len(p.BuildingMetrics()) == 0 {
+		t.Fatal("automatic records missing from annual totals")
+	}
+	empty := annualEvent{HackCoverage: "unknown"}
+	empty.detectHackathonRecords()
+	if empty.HackKnown() {
+		t.Fatal("missing external results treated as complete")
+	}
+	none := annualEvent{HackCoverage: "none", Projects: 1}
+	none.detectHackathonRecords()
+	if none.HackCoverage != "none" {
+		t.Fatal("explicit no-hackathon setting silently overridden")
+	}
+}

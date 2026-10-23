@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>bitcoin++ · {{if .Event.Tag}}{{.Event.Location}} · {{end}}Event report</title><link rel="stylesheet" href="/static/css/sponsor-report.css?v=recipient-logo1"><link rel="stylesheet" href="/static/css/sponsor-report-paper.css?v=20261023-demand"><script src="/static/js/sponsor-report.js?v=recipient-logo1" defer></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>bitcoin++ · {{if .Event.Tag}}{{.Event.Location}} · {{end}}Event report</title><link rel="stylesheet" href="/static/css/sponsor-report.css?v=recipient-logo1"><link rel="stylesheet" href="/static/css/sponsor-report-paper.css?v=20261023-round-avatars"><script src="/static/js/sponsor-report.js?v=recipient-logo1" defer></script></head>
 <body data-layout="paper" data-readonly="{{.Preview}}">
 {{if .DemoAttendance}}<div class="synthetic-banner">LOCAL DEMO · Attendance and registrations are sample data · Program and YouTube figures are sourced snapshots</div>{{end}}
 {{if .Synthetic}}<div class="synthetic-banner">SYNTHETIC DEMO DATA · Layout testing only · Not actual event statistics</div>{{end}}
@@ -108,12 +108,15 @@
   <div class="paper-running"><span>03 / What got built</span><span>From an idea to a prototype</span></div>
   <h2>The winning projects.<br><em>Built to stand out.</em></h2>
   <div data-section="hackathon"><div class="story-text report-markdown paper-deck">{{(.Section "hackathon").Markdown}}</div></div>
-  <div class="paper-winners">{{range $i,$w := .Winners}}<article class="paper-project {{if eq $i 0}}paper-project-lead{{end}}">
-    {{if .Image}}<img src="{{.Image}}" alt="{{.Title}} project artwork" loading="lazy">{{end}}
-    <div><p class="paper-kicker">{{.Awards}}</p>{{with .PrizeFigure}}<p class="report-prize-amount"><strong>{{.Value}}</strong> {{.Label}}</p>{{end}}<h3><a href="https://btcpp.dev/{{$.Event.Tag}}/hackathon/projects/{{.PublicID}}">{{.Title}}</a></h3><p>{{.Description}}</p>{{with .Significance}}<p class="paper-meaning">{{.}}</p>{{end}}{{template "report_winner_team" .}}<div class="report-links">{{if .Demo}}<a href="{{.Demo}}">Explore project ↗</a>{{end}}{{if .GitHub}}<a href="{{.GitHub}}">Source code ↗</a>{{end}}</div></div>
+  <div class="report-podium">{{range .PodiumWinners}}<article class="report-podium-card report-podium-place-{{.PlaceRank}}">
+    <div class="report-place-badge">{{.PlaceLabel}}</div>{{if .Image}}<img class="report-podium-art" src="{{.Image}}" alt="{{.Title}} project artwork">{{end}}
+    <h3><a href="https://btcpp.dev/{{$.Event.Tag}}/hackathon/projects/{{.PublicID}}">{{.Title}}</a></h3>
+    {{with .PrizeFigure}}<p class="report-prize-amount"><strong>{{.Value}}</strong> {{.Label}}</p>{{end}}
+    <p class="report-podium-description">{{.ShortDescription}}</p>{{template "report_winner_team" .}}
+    <a class="report-project-link" href="https://btcpp.dev/{{$.Event.Tag}}/hackathon/projects/{{.PublicID}}">Explore project ↗</a>
   </article>{{end}}</div>
-  {{with .WinnerAwardTotal}}<p class="paper-source">{{.}} sats in published overall awards across the projects shown. Awarded amounts are not confirmation of payment.</p>{{end}}
-  {{with .ChartFor "teams"}}{{template "paper_chart" .}}{{end}}
+  {{if .OtherWinners}}<h3 class="report-other-heading">More award-winning work</h3><div class="report-other-winners">{{range .OtherWinners}}<article><div><h4><a href="https://btcpp.dev/{{$.Event.Tag}}/hackathon/projects/{{.PublicID}}">{{.Title}} ↗</a></h4><p>{{.Awards}}</p>{{with .Members}}<p class="report-other-team">{{.}}</p>{{end}}</div>{{with .PrizeFigure}}<p><strong>{{.Value}}</strong><span>{{.Label}}</span></p>{{end}}</article>{{end}}</div>{{end}}
+  {{if not .Winners}}<p>No finalized winning projects found.</p>{{end}}
   <footer class="paper-folio"><span>Prototypes shown · subsequent adoption not measured</span><a href="https://btcpp.dev/{{.Event.Tag}}/hackathon">Published results ↗</a></footer>
 </section>
 

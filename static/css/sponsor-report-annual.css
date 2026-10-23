@@ -362,3 +362,6 @@
  .annual-impact .annual-funding-events h3 { font-size:21px; }
  .annual-funding-award strong { font-size:30px; }
 }
+
+.annual-recipient-logo { display:block; width:220px; height:68px; max-width:100%; object-fit:contain; object-position:left center; }
+@media print { .annual-recipient-logo { width:52mm; height:16mm; } }

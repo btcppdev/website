@@ -47,7 +47,8 @@ const eventReportWinnersSQL = `SELECT p.id::text,p.title,p.short_description,p.i
  (SELECT coalesce(sum(d.amount_sats),0)::bigint FROM award_distributions d WHERE d.project_id=p.id AND d.competition_id=p.competition_id AND d.distribution_type='sats' AND d.status IN ('sent','claimed')),
  coalesce((SELECT jsonb_agg(jsonb_build_object('Name',person.name,'Photo',coalesce(person.norm_photo_path,'')) ORDER BY person.name)
  FROM project_members m JOIN people person ON person.id=m.person_id
- WHERE m.project_id=p.id),'[]'::jsonb)
+ WHERE m.project_id=p.id),'[]'::jsonb),
+ coalesce(min(coalesce(a.award_rank,CASE WHEN lower(a.title) ~ '(1st|first)' THEN 1 WHEN lower(a.title) ~ '(2nd|second)' THEN 2 WHEN lower(a.title) ~ '(3rd|third)' THEN 3 END)) FILTER (WHERE a.award_type='normal'),-1)
  FROM projects p JOIN project_awards pa ON pa.project_id=p.id JOIN awards a ON a.id=pa.award_id AND a.competition_id=p.competition_id JOIN competitions k ON k.id=p.competition_id
  WHERE k.conference_id=$1 AND k.results_finalized_at IS NOT NULL AND p.status IN ('submitted','advanced') AND a.status='awarded' AND a.archived_at IS NULL
  GROUP BY p.id,p.title,p.short_description,p.image_url,p.github_url,p.demo_url,p.competition_id ORDER BY p.title,p.id`
@@ -146,7 +147,7 @@ func loadEventReportTx(ctx context.Context, app *config.AppContext, tx pgx.Tx, p
 	page.Winners, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (reportWinner, error) {
 		var p reportWinner
 		var portraits []byte
-		err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Image, &p.GitHub, &p.Demo, &p.Awards, &p.Members, &p.Sats, &portraits)
+		err := row.Scan(&p.ID, &p.Title, &p.Description, &p.Image, &p.GitHub, &p.Demo, &p.Awards, &p.Members, &p.Sats, &portraits, &p.Rank)
 		if err == nil {
 			err = json.Unmarshal(portraits, &p.Portraits)
 		}

@@ -49,7 +49,7 @@ func TestReportDemo(t *testing.T) {
  INSERT INTO competitions VALUES('competition','event','2026-06-19');
  INSERT INTO projects SELECT 'project-'||n,'competition','submitted',CASE n WHEN 1 THEN 'Demo: Lightning Bridge' WHEN 2 THEN 'Demo: Contributor Compass' WHEN 3 THEN 'Demo: Community Wallet' ELSE 'Demo project '||n END,'Synthetic prototype for report layout testing.','','','' FROM generate_series(1,32) n;
  INSERT INTO project_members SELECT 'project-'||n,'builder-'||row_number() OVER(ORDER BY n,m) FROM generate_series(1,32) n CROSS JOIN LATERAL generate_series(1,CASE WHEN n<=4 THEN 1 WHEN n<=12 THEN 2 WHEN n<=20 THEN 3 WHEN n<=28 THEN 4 ELSE 5 END) m;
- INSERT INTO awards SELECT 'award-'||n,'competition','challenge','demo-org','awarded',NULL,'Demo challenge '||n FROM generate_series(1,6) n;
+ INSERT INTO awards(id,competition_id,award_type,sponsored_by_org_id,status,archived_at,title) SELECT 'award-'||n,'competition','challenge','demo-org','awarded',NULL,'Demo challenge '||n FROM generate_series(1,6) n;
  INSERT INTO project_awards SELECT 'project-'||((n-1)%3+1),'award-'||n FROM generate_series(1,6) n;
  INSERT INTO award_distributions VALUES('competition','project-1',2500000,'sats','sent'),('competition','project-2',1500000,'sats','claimed'),('competition','project-3',1000000,'sats','sent');
  INSERT INTO people SELECT 'builder-'||n,'Demo builder '||n,'','' FROM generate_series(1,96) n;

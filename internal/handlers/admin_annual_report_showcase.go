@@ -32,3 +32,15 @@ func (p annualReportPage) CoverEvents() []annualShowcaseEvent {
 	}
 	return append(out, p.Forthcoming()...)
 }
+
+// Annual editions currently support these two partners; use their light-background artwork.
+func (p annualReportPage) RecipientLogo() string {
+	switch p.Recipient {
+	case "NYDIG":
+		return "/static/img/sponsors/nydig_dark.svg"
+	case "HRF":
+		return "/static/img/hrf.svg"
+	default:
+		return ""
+	}
+}

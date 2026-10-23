@@ -18,7 +18,7 @@ func TestReportPaperUsesPublicEvidenceWithoutInventedMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	html := out.String()
-	for _, value := range []string{"36", "5M", "WestToEast", "Robin", "nairobi2", "published overall awards", "paper-chart", "Sources & reading this report"} {
+	for _, value := range []string{"36", "5M", "WestToEast", "Robin", "nairobi2", "sats awarded", "paper-chart", "Sources & reading this report"} {
 		if !strings.Contains(html, value) {
 			t.Errorf("missing %q", value)
 		}

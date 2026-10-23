@@ -82,6 +82,7 @@ func loadAnnualReport(ctx context.Context, app *config.AppContext, p *annualRepo
 			e.Projects, e.Participants, e.Challenges, e.Sats = data.Teams, data.Participants, data.Challenges, data.Sats
 			e.Winners = int64(len(data.Winners))
 			e.WinningProjects = data.Winners
+			e.detectHackathonRecords()
 			e.Speakers = int64(data.SpeakerCount())
 			for _, s := range data.Speakers {
 				speakers[s.ID] = true

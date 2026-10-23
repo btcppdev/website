@@ -33,7 +33,9 @@ type annualEvent struct {
 
 func (e annualEvent) Sessions() int64     { return e.Talks + e.Workshops + e.Panels }
 func (e annualEvent) SatsDisplay() string { return compactReportSats(e.Sats) }
-func (e annualEvent) HackKnown() bool     { return e.HackCoverage == "records" }
+func (e annualEvent) HackKnown() bool {
+	return e.HackCoverage == "records" || e.HackCoverage == "automatic"
+}
 
 type annualEditionLink struct{ URL, Date string }
 type annualReportPage struct {
@@ -328,7 +330,7 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 }
 
 func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
-	if f.Get("action") != "save" && f.Get("action") != "freeze" {
+	if f.Get("action") != "save" && f.Get("action") != "freeze" && f.Get("action") != "include_all" {
 		return fmt.Errorf("invalid report action")
 	}
 	cutoff, err := time.Parse("2006-01-02", f.Get("cutoff"))
@@ -336,6 +338,9 @@ func annualReportForm(p *annualReportPage, f url.Values, now time.Time) error {
 		return fmt.Errorf("choose a cutoff in the report year, not in the future")
 	}
 	saved := map[string]string{"cutoff": f.Get("cutoff"), "selection_saved": "yes"}
+	if f.Get("action") == "include_all" {
+		saved["selection_saved"] = "no"
+	}
 	for _, s := range annualSections(p.Year, p.Recipient) {
 		v := strings.TrimSpace(f.Get(s.Key))
 		if len(v) > 12000 {

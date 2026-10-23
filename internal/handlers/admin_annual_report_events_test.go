@@ -91,3 +91,14 @@ func TestAnnualReportEventStats(t *testing.T) {
 		t.Fatal("upcoming event has completed-event stats")
 	}
 }
+
+func TestAnnualReportIncludeAllAction(t *testing.T) {
+	p := annualFixture()
+	f := url.Values{"action": {"include_all"}, "cutoff": {"2026-10-19"}}
+	if err := annualReportForm(&p, f, time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if p.Saved["selection_saved"] == "yes" {
+		t.Fatal("include all still restricted to old selection")
+	}
+}

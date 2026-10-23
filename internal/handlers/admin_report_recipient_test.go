@@ -106,3 +106,14 @@ func TestReportSponsorEventScope(t *testing.T) {
 		t.Fatalf("wrong event sponsors: %+v", p.Sponsors)
 	}
 }
+
+func TestReportBtrustDarkLogo(t *testing.T) {
+	s := reportSponsor{ID: "btrust", Name: "Btrust", Logo: "/static/img/sponsors/btrust.svg"}
+	if reportRecipientLogo(s) != "/static/img/sponsors/btrust-dark.svg" {
+		t.Fatal("Btrust report mark must be dark on light paper")
+	}
+	p := sponsorReportPage{Sponsors: []reportSponsor{s}, Saved: map[string]string{"prepared_for_org_id": "btrust"}}
+	if p.RecipientLogo() != reportRecipientLogo(s) {
+		t.Fatal("selected recipient used wrong logo")
+	}
+}

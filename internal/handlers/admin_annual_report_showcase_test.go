@@ -49,3 +49,11 @@ func TestAnnualReportUpcomingShowcase(t *testing.T) {
 		t.Fatal("next year's event included")
 	}
 }
+
+func TestAnnualReportRecipientLogo(t *testing.T) {
+	for _, tc := range []struct{ name, path string }{{"NYDIG", "/static/img/sponsors/nydig_dark.svg"}, {"HRF", "/static/img/hrf.svg"}, {"Unknown", ""}} {
+		if got := (annualReportPage{Recipient: tc.name}).RecipientLogo(); got != tc.path {
+			t.Fatalf("%s logo = %q", tc.name, got)
+		}
+	}
+}
