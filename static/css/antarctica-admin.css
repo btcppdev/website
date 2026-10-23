@@ -1,0 +1,57 @@
+body.expedition-admin { margin: 0; background: #f4f6f7; color: #19333b; font-family: 'Ubuntu', system-ui, sans-serif; font-size: 15px; line-height: 1.6; }
+.expedition-admin *, .expedition-admin *::before, .expedition-admin *::after { box-sizing: border-box; }
+.expedition-admin__shell { width: min(1160px, calc(100% - 64px)); margin: 0 auto; padding: 36px 0 72px; }
+.expedition-admin a { color: #17616b; text-underline-offset: 4px; }
+.expedition-admin a:hover { text-decoration: underline; }
+.expedition-admin__back { display: inline-block; margin-bottom: 28px; font-weight: 500; }
+.expedition-admin__hero { display: flex; gap: 24px; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+.expedition-admin .expedition-admin__eyebrow { margin: 0 0 10px; color: #597078; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.expedition-admin h1 { margin: 0 0 10px; font-size: clamp(30px, 4vw, 44px); line-height: 1.15; font-weight: 700; letter-spacing: -.035em; }
+.expedition-admin h2 { margin: 0; font-size: 22px; line-height: 1.3; font-weight: 700; }
+.expedition-admin h3 { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
+.expedition-admin p { margin: 0 0 16px; }
+.expedition-admin__hero p:last-child { margin: 0; color: #566971; }
+.expedition-admin__overview { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 24px; align-items: start; margin-bottom: 24px; }
+.ea-card { min-width: 0; padding: 28px; background: #fff; border: 1px solid #dce3e6; border-radius: 12px; box-shadow: 0 2px 4px #19333b04; }
+.ea-card__heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+.ea-card__heading > a { font-size: 14px; font-weight: 500; }
+.ea-status { display: inline-flex; padding: 4px 12px; border-radius: 30px; background: #eef0f2; color: #53616c; font-size: 12px; font-weight: 700; }
+.ea-status--open { background: #e4f3eb; color: #236044; }
+.ea-notice { margin-bottom: 24px; padding: 16px 20px; border: 1px solid #c8dce2; border-left: 4px solid #307480; border-radius: 8px; background: #edf5f7; overflow-wrap: anywhere; }
+.ea-readiness { margin: 22px 0; padding: 18px 20px; border: 1px solid #edddbc; border-radius: 8px; background: #fffbf2; color: #6b4a20; }
+.ea-readiness p { margin-bottom: 12px; font-size: 14px; }
+.ea-readiness ul { margin: 0; padding-left: 20px; list-style: disc; }
+.ea-readiness li { margin-top: 10px; padding-left: 3px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.ea-readiness--ready { background: #f0f8f3; border-color: #cfe2d5; color: #236044; }
+.ea-readiness--ready p { margin: 0; }
+.expedition-admin .ea-help { color: #617078; font-size: 13px; line-height: 1.6; }
+.ea-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 16px; padding-top: 20px; border-top: 1px solid #e5eaec; margin-top: 24px; }
+.ea-actions .ea-help { flex: 1 1 200px; margin: 0; }
+.expedition-admin .ea-button { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 11px 18px; border: 1px solid #123e48; border-radius: 7px; background: #123e48; color: #fff; font: inherit; font-size: 14px; font-weight: 700; line-height: 1.45; text-align: center; cursor: pointer; text-decoration: none; }
+.expedition-admin .ea-button:hover { background: #205765; text-decoration: none; }
+.expedition-admin .ea-button--secondary { background: #fff; color: #244c57; border-color: #bacbd0; }
+.expedition-admin .ea-button--secondary:hover { background: #f2f7f8; }
+.expedition-admin :is(a,button,input,textarea,summary):focus-visible { outline: 3px solid #498d9d; outline-offset: 3px; }
+.ea-inventory { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); padding: 18px 0; margin: 8px 0 16px; border-block: 1px solid #e5eaec; gap: 12px; }
+.ea-inventory dt { color: #617078; font-size: 12px; }
+.ea-inventory dd { font-size: 30px; font-weight: 700; line-height: 1.3; margin: 4px 0 0; }
+.ea-details summary { cursor: pointer; color: #17616b; font-size: 14px; font-weight: 500; }
+.ea-details > div { padding-top: 12px; font-size: 13px; color: #617078; }
+.ea-policy-current { display: flex; align-items: center; gap: 14px; padding: 16px 18px; margin-bottom: 24px; background: #f5f8f9; border-radius: 8px; overflow-wrap: anywhere; }
+.ea-policy-current p { margin: 2px 0 0; color: #617078; font-size: 13px; }
+.ea-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 24px 0; }
+.ea-field { min-width: 0; }
+.ea-field > label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 700; }
+.ea-field input, .ea-field textarea { display: block; width: 100%; max-width: 100%; padding: 12px 14px; border: 1px solid #bbcbd0; border-radius: 6px; background: #fff; color: #203b43; font: inherit; font-size: 15px; line-height: 1.6; box-shadow: none; }
+.ea-field .ea-help { margin: 8px 0 0; }
+.ea-field textarea { min-height: 240px; resize: vertical; white-space: pre-wrap; }
+.ea-editor { border: 1px solid #dce3e6; border-radius: 8px; margin-top: 18px; overflow: hidden; }
+.ea-editor summary { padding: 17px 20px; background: #f7f9fa; cursor: pointer; font-size: 16px; font-weight: 700; }
+.ea-editor summary span { float: right; font-size: 12px; color: #617078; font-weight: 400; }
+.ea-editor .ea-field { padding: 18px; border-top: 1px solid #dce3e6; }
+.ea-publish { margin-top: 26px; padding: 22px; border-radius: 8px; background: #f6f8f9; }
+.ea-review { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; line-height: 1.6; cursor: pointer; }
+.ea-review input { flex: 0 0 18px; width: 18px; height: 18px; margin: 3px 0 0; accent-color: #123e48; }
+.ea-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 800px) { .expedition-admin__overview { grid-template-columns: 1fr; } .expedition-admin__hero { align-items: flex-start; } }
+@media (max-width: 560px) { .expedition-admin__shell { width: calc(100% - 28px); padding: 22px 0 40px; } .expedition-admin__hero { flex-direction: column; gap: 18px; margin-bottom: 24px; } .ea-card { padding: 20px; } .ea-form-grid { grid-template-columns: 1fr; gap: 18px; } .ea-actions { align-items: stretch; flex-direction: column; } .ea-actions .ea-help { flex-basis: auto; } .ea-button { width: 100%; } .ea-readiness { padding: 15px; } .ea-publish { padding: 16px; } .ea-editor .ea-field { padding: 10px; } .ea-editor summary { padding: 14px; } .ea-policy-current { align-items: flex-start; } }

@@ -99,6 +99,16 @@ func TestAntarcticaDemo(t *testing.T) {
 	app := antarcticaTestTemplates(t)
 	app.Session = scs.New()
 	mux := http.NewServeMux()
+	mux.HandleFunc("/admin/antarctica", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Local layout demonstration only", http.StatusMethodNotAllowed)
+			return
+		}
+		page := antarcticaAdminPage{Version: "antarctica-20261024-120000", Effective: "2026-10-24T12:00:00Z", Terms: expedition.BookingTerms, Privacy: expedition.BookingPrivacy, Flash: "Layout demonstration — no settings are changed.", Blockers: []string{"Configure the approved expedition tax code and billing-inclusive tax treatment.", "Publish the expedition booking terms and privacy policy below."}}
+		if err := app.TemplateCache.ExecuteTemplate(w, "admin/antarctica.tmpl", page); err != nil {
+			t.Log(err)
+		}
+	})
 	mux.HandleFunc("/expeditions/antarctica/billing-preview", func(w http.ResponseWriter, r *http.Request) {
 		booking := sampleExpeditionBooking()
 		booking.ID = "sample-booking"

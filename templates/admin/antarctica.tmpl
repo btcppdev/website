@@ -1,22 +1,60 @@
-<!doctype html><html lang="en"><head><title>Antarctica checkout · bitcoin++</title>{{ block "header" . }}{{ end }}</head>
-<body class="btcpp-profile-edit-page account-settings-page"><main class="profile-edit-shell person-emails-page">
-<p><a href="/admin">← Administration</a></p><h1>Antarctica checkout</h1>
-{{ if .Flash }}<p role="status">{{ .Flash }}</p>{{ end }}
-<section><h2>Reservations: {{ if .Enabled }}open{{ else }}paused{{ end }}</h2>
-{{ if .Blockers }}<div role="status" style="padding:1rem;margin:1rem 0;border:1px solid #b45309;background:#fffbeb"><h3>Needed before opening</h3><p>Inventory setup does not automatically open checkout. Resolve these items, then click Open Antarctica checkout to check again.</p><ul>{{ range .Blockers }}<li>{{ . }}</li>{{ end }}</ul></div>{{ else }}<p>Checkout prerequisites are configured. Complete a real payment and verify the confirmation email before announcing the launch.</p>{{ end }}
-<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="purchase-invoice-button" name="action" value="{{ if .Enabled }}pause{{ else }}open{{ end }}">{{ if .Enabled }}Pause Antarctica checkout{{ else }}Open Antarctica checkout{{ end }}</button></form>
-<p>This controls new purchases immediately. Existing bookings, payment history and installment payments remain available. The expedition stays unlisted on the main site.</p>
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Antarctica checkout · bitcoin++</title>
+  {{ block "header" . }}{{ end }}
+  {{ template "admin_favicon" "" }}
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/css/antarctica-admin.css?v=20261024">
+</head>
+<body class="expedition-admin">
+  <main class="expedition-admin__shell">
+    <a class="expedition-admin__back" href="/admin">← Global administration</a>
+    <header class="expedition-admin__hero">
+      <div><p class="expedition-admin__eyebrow">Cold Storage Edition · January 24–February 5, 2028</p><h1>Antarctica checkout</h1><p>Manage reservations, booking terms and launch readiness.</p></div>
+      <a class="ea-button ea-button--secondary" href="/antarctica">View expedition ↗</a>
+    </header>
+    {{ if .Flash }}<div class="ea-notice" role="status">{{ .Flash }}</div>{{ end }}
 
-<p><a href="/antarctica">View expedition →</a> · <a href="/expeditions/antarctica/terms">View published booking terms →</a></p></section>
-<section><h2>Booking policy</h2>{{ with .Current }}<p>Current version: <strong>{{ .Version }}</strong> · Effective {{ .EffectiveAt.UTC.Format "January 2, 2006 15:04 MST" }}</p>{{ else }}<p>No policy has been published. The fields below contain the prepared expedition terms and privacy information for review.</p>{{ end }}
-<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="publish">
-<label>New policy version<input name="version" value="{{ .Version }}" maxlength="200" required></label>
-<label>Effective date (UTC)<input name="effective" value="{{ .Effective }}" required></label>
-<label>Booking terms<textarea name="terms" rows="28" style="width:100%;white-space:pre-wrap" required maxlength="262144">{{ .Terms }}</textarea></label>
-<label>Privacy policy<textarea name="privacy" rows="18" style="width:100%;white-space:pre-wrap" required maxlength="262144">{{ .Privacy }}</textarea></label>
-<label><input type="checkbox" name="reviewed" value="yes" required> I have reviewed these terms and privacy information and approve them for new bookings, including reminders and abandonment after 30 days overdue in America/Chicago time.</label>
-<p>Publishing preserves this exact text with its version. Existing purchasers retain the policy they accepted. Changed text requires a new version.</p>
-<button class="purchase-invoice-button" type="submit">Publish booking policy</button></form></section>
-<section><h2>Inventory setup</h2><p>Initialize missing categories only: 18 twin berths, 3 triple berths and 4 quad berths. The existing global staff reserve remains in effect. New booking windows end January 1, 2027 at 00:00 UTC, when the first scheduled installment falls due. Unpaid checkout holds last one hour. Existing inventory settings and bookings are preserved.</p>
-<form method="post"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="purchase-invoice-button" name="action" value="inventory">Initialize missing inventory</button></form></section>
-</main>{{ block "footer" . }}{{ end }}</body></html>
+    <div class="expedition-admin__overview">
+      <section class="ea-card" aria-labelledby="reservations-title">
+        <div class="ea-card__heading"><h2 id="reservations-title">Reservations</h2><span class="ea-status {{ if .Enabled }}ea-status--open{{ end }}">{{ if .Enabled }}Open{{ else }}Paused{{ end }}</span></div>
+        <p>Control new purchases. Existing bookings and installment payments remain available when checkout is paused.</p>
+        {{ if .Blockers }}
+        <div class="ea-readiness" role="status"><h3>Needed before opening</h3><p>Resolve these items, then check again using the button below.</p><ul>{{ range .Blockers }}<li>{{ . }}</li>{{ end }}</ul></div>
+        {{ else }}
+        <div class="ea-readiness ea-readiness--ready"><h3>Ready to open checkout</h3><p>Complete a real payment and check the confirmation email before announcing the launch.</p></div>
+        {{ end }}
+        <form method="post" class="ea-actions"><input type="hidden" name="csrf" value="{{ .CSRF }}"><span class="ea-help">The expedition remains unlisted on the main site.</span><button class="ea-button" name="action" value="{{ if .Enabled }}pause{{ else }}open{{ end }}">{{ if .Enabled }}Pause Antarctica checkout{{ else }}Open Antarctica checkout{{ end }}</button></form>
+      </section>
+
+      <section class="ea-card" aria-labelledby="inventory-title">
+        <div class="ea-card__heading"><h2 id="inventory-title">Inventory setup</h2></div>
+        <p>Initialize missing berth categories using the approved allocation.</p>
+        <dl class="ea-inventory"><div><dt>Twin berths</dt><dd>18</dd></div><div><dt>Triple berths</dt><dd>3</dd></div><div><dt>Quad berths</dt><dd>4</dd></div></dl>
+        <p class="ea-help">These are setup defaults, not remaining availability. Existing settings, staff reserves and bookings are preserved.</p>
+        <details class="ea-details"><summary>Sales window &amp; unpaid holds</summary><div><p>New booking windows end January 1, 2027 at 00:00 UTC, when the first scheduled installment falls due. Unpaid checkout holds last one hour.</p></div></details>
+        <form method="post" class="ea-actions"><input type="hidden" name="csrf" value="{{ .CSRF }}"><button class="ea-button ea-button--secondary" name="action" value="inventory">Initialize missing inventory</button></form>
+      </section>
+    </div>
+
+    <section class="ea-card ea-policy" aria-labelledby="policy-title">
+      <div class="ea-card__heading"><h2 id="policy-title">Booking policy</h2><a href="/expeditions/antarctica/terms" target="_blank" rel="noopener">View public terms ↗</a></div>
+      {{ with .Current }}<div class="ea-policy-current"><span class="ea-status ea-status--open">Published</span><div><strong>{{ .Version }}</strong><p>Effective {{ .EffectiveAt.UTC.Format "January 2, 2006 · 15:04 MST" }}</p></div></div>{{ else }}<p>No policy has been published. Review the prepared terms and privacy information below, then publish them for new bookings.</p>{{ end }}
+      <form method="post" class="ea-policy-form">
+        <input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="publish">
+        <div class="ea-form-grid">
+          <div class="ea-field"><label for="policy-version">New policy version</label><input id="policy-version" name="version" value="{{ .Version }}" maxlength="200" required><p class="ea-help">Use a new version whenever the text changes.</p></div>
+          <div class="ea-field"><label for="policy-effective">Effective date · UTC</label><input id="policy-effective" name="effective" value="{{ .Effective }}" required aria-describedby="effective-help"><p class="ea-help" id="effective-help">ISO format, for example 2026-10-24T12:00:00Z. Must not be in the future.</p></div>
+        </div>
+        <details class="ea-editor" open><summary>Booking terms <span>Review &amp; edit</span></summary><div class="ea-field"><label class="ea-sr-only" for="policy-terms">Booking terms</label><textarea id="policy-terms" name="terms" rows="16" required maxlength="262144">{{ .Terms }}</textarea></div></details>
+        <details class="ea-editor"><summary>Privacy policy <span>Review &amp; edit</span></summary><div class="ea-field"><label class="ea-sr-only" for="policy-privacy">Privacy policy</label><textarea id="policy-privacy" name="privacy" rows="14" required maxlength="262144">{{ .Privacy }}</textarea></div></details>
+        <div class="ea-publish">
+          <label class="ea-review"><input type="checkbox" name="reviewed" value="yes" required><span>I have reviewed these terms and privacy information and approve them for new bookings, including reminders and abandonment after 30 days overdue in America/Chicago time.</span></label>
+          <div class="ea-actions"><p class="ea-help">Publishing saves this exact text and version. Existing purchasers keep the policy they accepted.</p><button class="ea-button" type="submit">Publish booking policy</button></div>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
