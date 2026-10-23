@@ -84,6 +84,35 @@ func TestServiceRefundLedgerPostgres(t *testing.T) {
 	if err := RecordServiceRefund(ctx, app, wrong); !errors.Is(err, ErrServiceRefund) {
 		t.Fatal("foreign payment refund accepted", err)
 	}
+	syncClient := servicestripe.RefundSyncClient{Verify: client,
+		References: func(context.Context, string) ([]string, error) { return []string{reference}, nil },
+		RefundIDs:  func(context.Context, string, string) ([]string, error) { return []string{refund.RefundReference}, nil },
+	}
+	// A provider timeout cannot update local accounting.
+	broken := syncClient
+	broken.RefundIDs = func(context.Context, string, string) ([]string, error) { return nil, errors.New("offline") }
+	if err := SyncServiceStripePaymentRefunds(ctx, app, attempt.ID, reference, broken); err == nil {
+		t.Fatal("provider failure lost")
+	}
+	for _, state := range []stripe.RefundStatus{"pending", "failed", "canceled"} {
+		providerRefund.Status = state
+		if err := ImportServiceStripeRefund(ctx, app, refund.RefundReference, syncClient); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if summary, err := ServiceOrderRefunds(ctx, app, purchase.OrderID); err != nil || summary.RefundedCents != 0 {
+		t.Fatal("uncompleted refund changed accounting", summary, err)
+	}
+	providerRefund.Status = "succeeded"
+	if err := ImportServiceStripeRefund(ctx, app, refund.RefundReference, syncClient); err != nil {
+		t.Fatal("webhook import", err)
+	}
+	if err := SyncServiceStripePaymentRefunds(ctx, app, attempt.ID, reference, syncClient); err != nil {
+		t.Fatal("poll replay", err)
+	}
+	if summary, err := ServiceOrderRefunds(ctx, app, purchase.OrderID); err != nil || !summary.IsService || summary.RefundedCents != 300 || summary.RemainingCents != 200 || summary.AttemptID != attempt.ID {
+		t.Fatal("admin summary", summary, err)
+	}
 	var wg sync.WaitGroup
 	results := make(chan error, 2)
 	for i := 0; i < 2; i++ {

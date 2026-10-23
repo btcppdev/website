@@ -118,3 +118,35 @@ provider HTTP, never production charges:
 
 Before production release, exercise one Stripe test-mode card update and one
 OpenNode sandbox switch payment, including returning after browser interruption.
+
+### Stripe service refunds
+
+Apply migration `135_service_stripe_refund_sync.sql`. Add `refund.created`,
+`refund.updated`, `refund.failed`, and `charge.refunded` to the existing signed
+Stripe webhook. Keep `SERVICE_PAYMENT_RECONCILIATION_ENABLED=true` and the
+production Stripe key configured for missed-event recovery. The integration
+only reads Stripe; it never initiates refunds.
+
+The worker starts at application startup, claims up to 20 settled service
+payments per pass, and runs every minute. Successful checks are scheduled one
+hour later; errors retry after five minutes and abandoned claims expire after
+ten minutes. Historical settled payments are included without relying on Stripe
+webhook retention. Recorded full refunds are excluded from polling. Webhooks
+and polling use the same verified, idempotent ledger.
+
+Pending, failed, or canceled refunds do not change accounting. Successful
+partial/full refunds update order status and totals. This covers Alerts and
+Insider service payments; merch and ticket refund accounting remain separate.
+Admin service-order pages display refunded/remaining amounts and link to refund
+review. The merch refund form is hidden and rejected server-side for services.
+
+Existing access policy applies: Alerts does not count refunded purchases until
+an admin records a retain-access decision; retention preserves original expiry.
+Insider reversal delivery waits for an access decision and original settlement
+acknowledgment. Refunds do not cancel recurring subscriptions.
+
+Before rollout, rehearse a partial refund followed by a full refund in Stripe
+test mode, repeated webhooks, pending-to-successful transitions, and recovery
+with webhook delivery absent. Verify original totals remain unchanged and each
+refund is counted once. Local automated tests use mocked Stripe with PostgreSQL;
+no real refund has been initiated during development.

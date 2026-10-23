@@ -26,7 +26,7 @@ type VerifiedServiceRefund struct {
 
 // RecordServiceRefund serializes against settlement and other refunds for the
 // order. The original quote, payment event, and settled amount remain immutable.
-// Product reversal delivery is a separate step; no provider route calls this yet.
+// Product reversal delivery and access decisions are separate steps.
 func RecordServiceRefund(ctx context.Context, app *config.AppContext, refund VerifiedServiceRefund) error {
 	tx, err := app.DB.Begin(ctx)
 	if err != nil {

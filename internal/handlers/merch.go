@@ -66,6 +66,7 @@ type shopCartItem struct {
 }
 
 type shopPage struct {
+	ServiceRefunds            getters.ServiceOrderRefundSummary
 	ActiveCategory            string
 	CollectionHeading         string
 	CollectionDescription     string
@@ -1553,6 +1554,11 @@ func AdminMerchOrder(w http.ResponseWriter, r *http.Request, ctx *config.AppCont
 	page := baseShopPage(ctx, r, "merch order")
 	page.Admin = true
 	page.Order = order
+	page.ServiceRefunds, err = getters.ServiceOrderRefunds(r.Context(), ctx, order.ID)
+	if err != nil {
+		http.Error(w, "Unable to load refund accounting", http.StatusServiceUnavailable)
+		return
+	}
 	for _, shipment := range order.Shipments {
 		if shipment != nil && shipment.Provider == types.ShippingProviderEasyship && shipment.Status != "cancelled" {
 			page.EasyshipShipment = shipment
@@ -1829,6 +1835,13 @@ func adminCreateEasyshipLabel(requestContext context.Context, ctx *config.AppCon
 func adminRefundShopOrder(ctx *config.AppContext, order *types.ShopOrder, actorEmail string, r *http.Request) error {
 	if order == nil {
 		return fmt.Errorf("order is required")
+	}
+	summary, err := getters.ServiceOrderRefunds(r.Context(), ctx, order.ID)
+	if err != nil {
+		return err
+	}
+	if summary.IsService {
+		return fmt.Errorf("service refunds must be issued in Stripe or through the service refund workflow")
 	}
 	itemID := strings.TrimSpace(r.FormValue("item_id"))
 	quantity := uint(parseIntForm(r.FormValue("quantity"), 0))

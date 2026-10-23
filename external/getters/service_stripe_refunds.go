@@ -11,7 +11,7 @@ import (
 
 // ReconcileServiceStripeRefund reads saved payment identity before querying
 // Stripe. It never trusts a callback's amount, payment reference or account.
-// Callers must keep ingestion disabled until product refund delivery is ready.
+// Both signed webhook imports and background reconciliation use this verifier.
 func ReconcileServiceStripeRefund(ctx context.Context, app *config.AppContext, attemptID, refundID string, client servicestripe.RefundClient) error {
 	var reference string
 	var total int64

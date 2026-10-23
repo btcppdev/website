@@ -7136,6 +7136,15 @@ func StripeCallback(w http.ResponseWriter, r *http.Request, ctx *config.AppConte
 		return
 	}
 
+	if handled, refundErr := handleServiceStripeRefundEvent(r.Context(), ctx, event); handled {
+		if refundErr != nil {
+			ctx.Err.Printf("Stripe refund event %s requires retry", event.ID)
+			w.WriteHeader(http.StatusServiceUnavailable)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+		return
+	}
 	event, err = normalizeStripeInvoiceEvent(r.Context(), event, stripeInvoice.Get)
 	if err != nil {
 		ctx.Err.Printf("Stripe invoice event %s needs lookup retry", event.ID)

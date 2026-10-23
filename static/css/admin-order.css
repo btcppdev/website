@@ -1,0 +1,66 @@
+/* Order detail only: keep the shared catalog and checkout layouts unchanged. */
+.shop-admin--order {
+  display: block; max-width: 1200px; margin: 0 auto;
+  padding: 36px 32px 80px;
+}
+.shop-admin--order *, .shop-admin--order *::before, .shop-admin--order *::after { box-sizing: border-box; }
+.order-breadcrumb { display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px; color: #68645d; margin-bottom: 28px; }
+.order-breadcrumb a { color: inherit; text-underline-offset: 4px; }
+.order-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 28px; margin-bottom: 28px; border-bottom: 1px solid #cfc8bc; }
+.order-heading h1 { font-size: clamp(28px, 3vw, 40px); line-height: 1.15; margin: 8px 0 12px; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.order-heading .shop-kicker { margin: 0; }
+.order-reference { margin: 0; font-size: 13px; line-height: 1.6; color: #68645d; }
+.order-reference code { font-size: 12px; overflow-wrap: anywhere; }
+.order-heading__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; flex-shrink: 0; }
+.order-status { display: inline-flex; align-items: center; padding: 7px 12px; border: 1px solid #d5cebf; background: #ece8df; font: 600 12px "IBM Plex Mono", monospace; text-transform: capitalize; }
+.order-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
+.order-main, .order-sidebar { display: grid; gap: 24px; min-width: 0; }
+.shop-admin--order .shop-admin-form, .shop-admin--order .shop-order-card { padding: 24px; border: 1px solid #d5cebf; background: #fff; min-width: 0; }
+.shop-admin--order .shop-admin-form h2, .shop-admin--order .order-section-title { font-size: 18px; line-height: 1.3; margin: 0 0 20px; letter-spacing: -.02em; }
+.shop-admin--order .shop-admin-list { gap: 16px; }
+.shop-admin--order .order-section-title { margin: 0; }
+.shop-admin--order .shop-admin-product__head { align-items: start; gap: 20px; padding-bottom: 16px; }
+.shop-admin--order .shop-admin-product__head h2 { font-size: 22px; line-height: 1.3; margin: 8px 0 0; overflow-wrap: anywhere; }
+.shop-admin--order .shop-admin-product__head > strong { white-space: nowrap; font-size: 20px; }
+.shop-admin--order .shop-order-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 14px 0; border-top: 1px solid #eee9e0; color: #625e57; font-size: 12px; overflow-wrap: anywhere; }
+.shop-admin--order .shop-refund-details { margin-top: 8px; padding-top: 18px; }
+.shop-admin--order .shop-refund-details summary { padding: 4px 0; line-height: 1.5; }
+.shop-admin--order .shop-refund-details[open] summary { margin-bottom: 20px; }
+.shop-admin--order .shop-form-grid { gap: 18px; }
+.shop-admin--order label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; line-height: 1.5; }
+.shop-admin--order input:not([type=checkbox]), .shop-admin--order textarea { min-width: 0; width: 100%; max-width: 100%; font-size: 14px; }
+.shop-admin--order .shop-checkbox { flex-direction: row; align-items: center; }
+.shop-admin--order .shop-button { min-height: 42px; padding: 11px 16px; max-width: 100%; white-space: normal; line-height: 1.4; }
+.shop-admin--order .shop-form-grid > .shop-button { justify-self: start; align-self: end; }
+.shop-admin--order .shop-admin-form p, .shop-admin--order address { font-size: 14px; line-height: 1.65; }
+.shop-admin--order address { font-style: normal; }
+.order-facts { margin: 0; display: grid; gap: 18px; }
+.order-facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #68645d; margin-bottom: 5px; }
+.order-facts dd { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.order-facts a { color: inherit; text-underline-offset: 3px; }
+.shop-admin--order .shop-order-totals { font-size: 13px; gap: 14px 18px; }
+.shop-admin--order .shop-order-totals > :nth-last-child(-n+2) { border-top: 1px solid #d5cebf; padding-top: 18px; margin-top: 4px; font-weight: 700; }
+.shop-admin--order .shop-order-totals strong { text-align: right; }
+.shop-admin--order .shop-admin-form textarea { margin: 8px 0 16px; resize: vertical; }
+.shop-admin--order .shop-flash { margin: 0 0 24px; }
+.shop-admin--order :is(a,button,input,textarea,summary):focus-visible { outline: 2px solid #c9233b; outline-offset: 3px; }
+@media(max-width: 900px) {
+  .order-layout { grid-template-columns: minmax(0, 1fr); }
+  .order-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .order-heading { align-items: flex-start; }
+  .order-heading__actions { flex-shrink: 1; }
+}
+@media(max-width: 600px) {
+  .shop-admin--order { padding: 24px 16px 56px; }
+  .order-heading { flex-direction: column; gap: 18px; margin-bottom: 24px; padding-bottom: 24px; }
+  .order-heading__actions { justify-content: flex-start; }
+  .order-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .shop-admin--order .shop-admin-form, .shop-admin--order .shop-order-card { padding: 20px; }
+  .shop-admin--order .shop-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .shop-admin--order .shop-admin-product__head { flex-wrap: wrap; }
+}
+.shop-admin--order .shop-admin-form { gap: 0; }
+.shop-admin--order .shop-admin-form > h2 { margin-bottom: 20px; }
+.shop-admin--order .shop-admin-form > form { display: grid; gap: 12px; }
+.shop-admin--order .shop-admin-form > form > .shop-button { justify-self: start; }
+.shop-admin--order .shop-admin-form textarea { margin: 0; }

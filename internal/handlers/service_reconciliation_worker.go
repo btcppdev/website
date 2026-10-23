@@ -8,6 +8,7 @@ import (
 
 	"btcpp-web/external/getters"
 	"btcpp-web/internal/config"
+	"btcpp-web/internal/servicestripe"
 )
 
 // Explicit opt-in keeps developer previews and unrelated deployments from
@@ -31,6 +32,22 @@ func StartServicePaymentReconciliation(app *config.AppContext) {
 		}()
 	}
 	if strings.TrimSpace(app.Env.StripeKey) != "" {
+		go func() {
+			ticker := time.NewTicker(time.Minute)
+			defer ticker.Stop()
+			live := strings.HasPrefix(app.Env.StripeKey, "sk_live_") || strings.HasPrefix(app.Env.StripeKey, "rk_live_")
+			client := servicestripe.NewRefundSyncClient(live)
+			for {
+				ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+				count, err := getters.ReconcileDueServiceStripeRefunds(ctx, app, client)
+				cancel()
+				if err != nil {
+					app.Err.Printf("Stripe service refund reconciliation checked=%d: %v", count, err)
+				}
+				<-ticker.C
+			}
+		}()
+
 		go func() {
 			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()

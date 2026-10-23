@@ -1,57 +1,30 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>merch order</title>
+    <title>Order {{ .Order.PublicID }} · bitcoin++</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/site-chrome.css?v=20260910-1">
     <link rel="stylesheet" href="/static/css/btcpp-redesign.css">
     <link rel="stylesheet" href="/static/css/shop.css?v=refund-contact-1">
     <link rel="stylesheet" href="/static/css/site-navigation.css?v=20260904-1">
+    <link rel="stylesheet" href="/static/css/admin-order.css?v=1">
   </head>
   <body class="shop-page shop-admin-page">
     {{ template "mainnav" . }}
-    {{ template "shop_header" . }}
-    <main class="shop-admin">
-      <section class="shop-admin__intro">
-        <p class="shop-kicker">§ order {{ .Order.Status }}</p>
-        <h1>{{ .Order.PublicID }}</h1>
-        <p>{{ .Order.BuyerName }} {{ .Order.BuyerEmail }} / {{ .Order.CheckoutKind }} / {{ .Order.PaymentProvider }}</p>
-        <div class="shop-admin-actions">
-          <a class="shop-button" href="/admin/merch/orders">&larr; Orders</a>
-          <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/receipt">
-            <button class="shop-button" type="submit">Resend receipt</button>
-          </form>
+
+    <main class="shop-admin shop-admin--order">
+      <nav class="order-breadcrumb" aria-label="Breadcrumb"><a href="/admin">Admin</a><span aria-hidden="true">/</span><a href="/admin/merch/orders">Orders</a><span aria-hidden="true">/</span><span aria-current="page">Order details</span></nav>
+      <header class="order-heading">
+        <div><p class="shop-kicker">ORDER DETAILS</p><h1>{{ if .Order.BuyerName }}{{ .Order.BuyerName }}{{ else }}Customer order{{ end }}</h1><p class="order-reference">Order <code>{{ .Order.PublicID }}</code></p></div>
+        <div class="order-heading__actions"><span class="order-status">{{ .Order.Status }}</span>
+          <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/receipt"><button class="shop-button" type="submit">Resend receipt</button></form>
         </div>
-        {{ if .Flash }}<p class="shop-flash is-success">{{ .Flash }}</p>{{ end }}
-        {{ if .Error }}<p class="shop-flash is-error">{{ .Error }}</p>{{ end }}
-      </section>
-      {{ with .Order.ShippingAddress }}
-      <section class="shop-admin-form">
-        <h2>Shipping address</h2>
-        <address>
-          <strong>{{ .Name }}</strong><br>
-          {{ .Line1 }}{{ if .Line2 }}<br>{{ .Line2 }}{{ end }}<br>
-          {{ .City }}{{ if .Region }}, {{ .Region }}{{ end }} {{ .PostalCode }}<br>
-          {{ .Country }}{{ if .Phone }} · {{ .Phone }}{{ end }}
-        </address>
-      </section>
-      {{ end }}
-      {{ if .ManualRefund }}
-      <section class="shop-admin-form shop-manual-refund">
-        <p class="shop-kicker">Manual refund contact</p>
-        <h2>Request a Bitcoin refund address</h2>
-        <p>Contact the buyer and send the refund outside this app. “Record manual refund” only updates the order after you have sent it.</p>
-        <div class="shop-refund-contact">
-          <div><span>Email</span><strong><a href="mailto:{{ .Order.BuyerEmail }}">{{ .Order.BuyerEmail }}</a></strong></div>
-          {{ with .RefundContact }}
-          {{ if .Signal }}<div><span>Signal</span><strong>{{ .Signal }}</strong></div>{{ end }}
-          {{ if .Telegram }}<div><span>Telegram</span><strong>{{ .Telegram }}</strong></div>{{ end }}
-          {{ if and (not .Signal) (not .Telegram) }}<div><span>Messaging</span><strong>No Signal or Telegram saved</strong></div>{{ end }}
-          {{ end }}
-        </div>
-      </section>
-      {{ end }}
-      <section class="shop-admin-list">
+      </header>
+      {{ if .Flash }}<p class="shop-flash is-success" role="status">{{ .Flash }}</p>{{ end }}
+      {{ if .Error }}<p class="shop-flash is-error" role="alert">{{ .Error }}</p>{{ end }}
+      <div class="order-layout">
+      <div class="order-main">
+      <section class="shop-admin-list" aria-label="Order items"><h2 class="order-section-title">Order items</h2>
         {{ range .Order.Items }}
         <article class="shop-admin-product shop-order-card">
           <div class="shop-admin-product__head">
@@ -83,14 +56,14 @@
             <button class="shop-button is-primary" type="submit">Mark picked up</button>
           </form>
           {{ end }}
-          {{ if ne .Status "refunded" }}
+          {{ if and (not $.ServiceRefunds.IsService) (ne .Status "refunded") }}
           <details class="shop-refund-details">
             <summary>{{ if $.ManualRefund }}Record manual refund{{ else }}Issue refund{{ end }}</summary>
             <form method="POST" action="/admin/merch/orders/{{ $.Order.PublicID }}/refund" class="shop-form-grid" {{ if $.ManualRefund }}onsubmit="return confirm('Record this manual refund? This does not send Bitcoin.');"{{ else }}onsubmit="return confirm('Issue this refund through Stripe?');"{{ end }}>
               <input type="hidden" name="item_id" value="{{ .ID }}">
-              <label>quantity<input type="number" name="quantity" min="1" max="{{ .Quantity }}" value="1"></label>
-              <label>amount cents<input type="number" name="amount_cents" min="1" max="{{ .LineTotalCents }}" value="{{ .LineTotalCents }}"></label>
-              <label>reason<input name="reason" placeholder="requested by customer"></label>
+              <label>Quantity<input type="number" name="quantity" min="1" max="{{ .Quantity }}" value="1"></label>
+              <label>Amount (cents)<input type="number" name="amount_cents" min="1" max="{{ .LineTotalCents }}" value="{{ .LineTotalCents }}"></label>
+              <label>Reason<input name="reason" placeholder="requested by customer"></label>
               {{ if $.ManualRefund }}<label>refund transaction ID / reference <span>optional</span><input name="provider_refund_id" placeholder="txid, Lightning reference, or note"></label>{{ end }}
               <label class="shop-checkbox"><input type="checkbox" name="restock" checked> restock inventory</label>
               <button class="shop-button" type="submit">{{ if $.ManualRefund }}Record manual refund{{ else }}Issue refund{{ end }}</button>
@@ -100,6 +73,22 @@
         </article>
         {{ end }}
       </section>
+      {{ if .ManualRefund }}
+      <section class="shop-admin-form shop-manual-refund">
+        <p class="shop-kicker">Manual refund contact</p>
+        <h2>Request a Bitcoin refund address</h2>
+        <p>Contact the buyer and send the refund outside this app. “Record manual refund” only updates the order after you have sent it.</p>
+        <div class="shop-refund-contact">
+          <div><span>Email</span><strong><a href="mailto:{{ .Order.BuyerEmail }}">{{ .Order.BuyerEmail }}</a></strong></div>
+          {{ with .RefundContact }}
+          {{ if .Signal }}<div><span>Signal</span><strong>{{ .Signal }}</strong></div>{{ end }}
+          {{ if .Telegram }}<div><span>Telegram</span><strong>{{ .Telegram }}</strong></div>{{ end }}
+          {{ if and (not .Signal) (not .Telegram) }}<div><span>Messaging</span><strong>No Signal or Telegram saved</strong></div>{{ end }}
+          {{ end }}
+        </div>
+      </section>
+      {{ end }}
+      {{ if or .Order.Shipments (shopOrderHasFulfillment .Order "ship") (shopOrderHasFulfillment .Order "event_pickup") (shopOrderHasFulfillment .Order "pos_takeaway") }}
       <section class="shop-admin-form">
         <h2>Fulfillment</h2>
         <div class="shop-fulfillment-summary">
@@ -179,23 +168,7 @@
         <div class="shop-empty">No mailed items on this order.</div>
         {{ end }}
       </section>
-      <section class="shop-admin-form">
-        <h2>Admin notes</h2>
-        <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/notes">
-          <textarea name="admin_notes" rows="5">{{ .Order.AdminNotes }}</textarea>
-          <button class="shop-button" type="submit">Save notes</button>
-        </form>
-      </section>
-      <section class="shop-admin-form">
-        <h2>Totals</h2>
-        <div class="shop-order-totals">
-          <span>Subtotal</span><strong>{{ merchMoney .Order.SubtotalCents nil }}</strong>
-          <span>Discount</span><strong>{{ merchMoney .Order.DiscountAmountCents nil }}</strong>
-          <span>Shipping</span><strong>{{ merchMoney .Order.ShippingAmountCents nil }}</strong>
-          <span>Tax</span><strong>{{ merchMoney .Order.SalesTaxAmountCents nil }}</strong>
-          <span>Total</span><strong>{{ merchMoney .Order.TotalCents nil }}</strong>
-        </div>
-      </section>
+      {{ end }}
       {{ if eq .Order.Status "pending" }}
       <section class="shop-admin-form">
         <h2>Cancel order</h2>
@@ -205,6 +178,43 @@
         </form>
       </section>
       {{ end }}
+      <section class="shop-admin-form">
+        <h2>Admin notes</h2>
+        <form method="POST" action="/admin/merch/orders/{{ .Order.PublicID }}/notes">
+          <label for="order-admin-notes" class="order-notes-label">Internal notes</label>
+          <textarea id="order-admin-notes" name="admin_notes" rows="5">{{ .Order.AdminNotes }}</textarea>
+          <button class="shop-button" type="submit">Save notes</button>
+        </form>
+      </section>
+      </div>
+      <aside class="order-sidebar" aria-label="Order summary">
+      {{ if .ServiceRefunds.IsService }}<section class="shop-admin-form"><h2>Service refunds</h2><p>Issue card refunds in Stripe. Review recorded refunds here to decide whether purchased access should be retained. Refunding does not cancel future renewals.</p>{{ if .ServiceRefunds.AttemptID }}<a class="shop-button" href="/admin/service-refunds?attempt={{ .ServiceRefunds.AttemptID }}">Review refunds</a>{{ end }}</section>{{ end }}
+      <section class="shop-admin-form">
+        <h2>Order total</h2>
+        {{ if .ServiceRefunds.IsService }}<p class="order-refund-note">Original purchase amounts are shown below. Stripe refunds are synchronized separately; pending refunds appear after Stripe confirms completion.</p>{{ end }}
+        <div class="shop-order-totals">
+          <span>Subtotal</span><strong>{{ merchMoney .Order.SubtotalCents nil }}</strong>
+          <span>Discount</span><strong>{{ merchMoney .Order.DiscountAmountCents nil }}</strong>
+          <span>Shipping</span><strong>{{ merchMoney .Order.ShippingAmountCents nil }}</strong>
+          <span>Tax</span><strong>{{ merchMoney .Order.SalesTaxAmountCents nil }}</strong>
+          <span>Total</span><strong>{{ merchMoney .Order.TotalCents nil }}</strong>
+          {{ if .ServiceRefunds.IsService }}<span>Refunded</span><strong>{{ merchMoney .ServiceRefunds.RefundedCents nil }}</strong><span>Not refunded</span><strong>{{ merchMoney .ServiceRefunds.RemainingCents nil }}</strong>{{ end }}
+        </div>
+      </section>
+      <section class="shop-admin-form"><h2>Customer &amp; payment</h2><dl class="order-facts"><div><dt>Customer</dt><dd>{{ .Order.BuyerName }}</dd></div><div><dt>Email</dt><dd><a href="mailto:{{ .Order.BuyerEmail }}">{{ .Order.BuyerEmail }}</a></dd></div><div><dt>Order type</dt><dd>{{ .Order.CheckoutKind }}</dd></div><div><dt>Payment method</dt><dd>{{ .Order.PaymentProvider }}</dd></div></dl></section>
+      {{ with .Order.ShippingAddress }}
+      <section class="shop-admin-form">
+        <h2>Shipping address</h2>
+        <address>
+          <strong>{{ .Name }}</strong><br>
+          {{ .Line1 }}{{ if .Line2 }}<br>{{ .Line2 }}{{ end }}<br>
+          {{ .City }}{{ if .Region }}, {{ .Region }}{{ end }} {{ .PostalCode }}<br>
+          {{ .Country }}{{ if .Phone }} · {{ .Phone }}{{ end }}
+        </address>
+      </section>
+      {{ end }}
+      </aside>
+      </div>
     </main>
   </body>
 </html>
