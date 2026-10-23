@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="en"><head><title>Change Alerts subscription · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=3"></head>
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=4"></head>
 <body class="shop-page alerts-upgrade-page">{{ block "mainnav" . }}{{ end }}
-<main class="service-checkout"><section class="service-checkout-content">
+<main class="service-checkout service-checkout--account">
+<nav class="service-account-nav" aria-label="Breadcrumb"><ol><li><a href="/dashboard">Dashboard</a></li><li><a href="/dashboard/subscriptions">Subscriptions</a></li><li><a href="/services/alerts/manage">Alerts billing</a></li><li><span aria-current="page">Reduce subscription</span></li></ol></nav>
+<section class="service-checkout-content">
 <header class="service-checkout__head"><span class="service-kicker">bitcoin++ Alerts</span><h1>{{ if .Retained }}Your current plan{{ else }}Reduce your subscription{{ end }}</h1></header>
 <p role="status">{{ .Message }}</p>
 

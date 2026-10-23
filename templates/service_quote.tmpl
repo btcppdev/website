@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><title>Review your Alerts plan · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=3">
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=4">
 </head>
 <body class="shop-page">
 {{ block "mainnav" . }}{{ end }}
-<main class="service-checkout"><section class="service-checkout-content">
+<main class="service-checkout service-checkout--account">
+<nav class="service-account-nav" aria-label="Breadcrumb"><ol><li><a href="/dashboard">Dashboard</a></li><li><a href="/dashboard/subscriptions">Subscriptions</a></li><li><a href="/services/alerts/manage">Alerts billing</a></li><li><span aria-current="page">Review plan</span></li></ol></nav>
+<section class="service-checkout-content">
 <header class="service-checkout__head"><span class="service-kicker">BITCOIN++ ALERTS</span><h1>Review your plan</h1><p role="status">{{ .Message }}</p></header>
 
 {{ if eq .Stored.Quote.Provider "opennode" }}<p>Bitcoin payment via OpenNode. This is prepaid access with no automatic renewal.</p>{{ end }}

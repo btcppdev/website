@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><title>Your order · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=3">
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=4">
 <link rel="stylesheet" href="/static/css/service-receipt.css?v=1">
 </head>
 <body class="shop-page service-order-page">
 {{ block "mainnav" . }}{{ end }}
-<main class="service-checkout">
+<main class="service-checkout service-checkout--account">
+<nav class="service-account-nav" aria-label="Breadcrumb"><ol><li><a href="/dashboard">Dashboard</a></li><li><a href="/dashboard/subscriptions">Subscriptions</a></li>{{ if eq .Order.Quote.ProductCode "alerts.repository-slots" }}<li><a href="/services/alerts/manage">Alerts billing</a></li>{{ end }}<li><span aria-current="page">Order details</span></li></ol></nav>
+
 <section class="service-checkout-content">
 <header class="service-checkout__head"><span class="receipt-brand">bitcoin<span class="receipt-plus">++</span></span><span class="service-kicker">{{ if .Order.PaymentVerified }}PAYMENT RECEIPT{{ else }}YOUR ORDER · NOT A PAYMENT RECEIPT{{ end }}</span><h1>{{ .Heading }}</h1><p role="status">{{ .Message }}</p></header>
 <dl class="receipt-details">

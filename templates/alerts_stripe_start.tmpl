@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><title>Subscribe to Alerts · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=3"></head>
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=4"></head>
 <body class="shop-page">{{ block "mainnav" . }}{{ end }}
-<main class="service-checkout"><section>
+<main class="service-checkout service-checkout--account">
+<nav class="service-account-nav" aria-label="Breadcrumb"><ol><li><a href="/dashboard">Dashboard</a></li><li><a href="/dashboard/subscriptions">Subscriptions</a></li><li><a href="/services/alerts/manage">Alerts billing</a></li><li><span aria-current="page">Annual card plan</span></li></ol></nav>
+<section>
 <header class="service-checkout__head"><span class="service-kicker">BITCOIN++ ALERTS</span><h1>Review your annual plan</h1><p>Your first three repositories are free. Add {{ .Slots }} more for {{ .Total }} per year.</p></header>
 <p>USD, including applicable tax. Renews annually until canceled. Your selections activate after payment is verified.</p>
 {{ if .Enabled }}<form method="post" action="/services/alerts/subscribe">
