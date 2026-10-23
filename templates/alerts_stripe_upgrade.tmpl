@@ -1,21 +1,21 @@
 <!DOCTYPE html>
 <html lang="en"><head><title>Upgrade Alerts · bitcoin++</title>{{ block "header" . }}{{ end }}
-<link rel="stylesheet" href="/static/css/login-layout.css?v=4"></head>
-<body class="btcpp-login-page alerts-upgrade-page">{{ block "mainnav" . }}{{ end }}
-<main class="auth-shell auth-shell--simple"><section class="auth-card">
-<header class="auth-card__head"><span class="auth-kicker">bitcoin++ Alerts</span><h1>Upgrade your alerts</h1></header>
+<link rel="stylesheet" href="/static/css/shop.css?v=20260718-11"><link rel="stylesheet" href="/static/css/service-checkout.css?v=3"></head>
+<body class="shop-page alerts-upgrade-page">{{ block "mainnav" . }}{{ end }}
+<main class="service-checkout"><section class="service-checkout-content">
+<header class="service-checkout__head"><span class="service-kicker">bitcoin++ Alerts</span><h1>Upgrade your alerts</h1></header>
 <p role="status">{{ .Message }}</p>
-<dl class="alerts-upgrade-summary"><div><dt>Paid project subscriptions</dt><dd>{{ .Previous }} → {{ .Desired }}<small>Plus your three free projects</small></dd></div>
-<div><dt>Prorated upgrade charge</dt><dd>{{ .Charge }}<small>Through {{ .Period }}</small></dd></div>
-<div><dt>Included tax</dt><dd>{{ .Tax }}</dd></div>
-<div><dt>New annual total</dt><dd>{{ .Annual }}<small>Including applicable tax</small></dd></div></dl>
+
 {{ if .CanConfirm }}<p>Confirming authorizes the prorated charge using your saved payment method. Additional authentication may be required.</p>
 <form method="post" class="alerts-upgrade-action"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="confirm">{{ with .Policy }}
 <details><summary>Read the Terms of Service · {{ .Version }}</summary><div style="white-space:pre-wrap">{{ .TermsText }}</div></details>
 <details><summary>Read the Privacy Policy · {{ .Version }}</summary><div style="white-space:pre-wrap">{{ .PrivacyText }}</div></details>
 <input type="hidden" name="legal_version" value="{{ .Version }}">
 <label><input type="checkbox" name="accept_terms" value="yes" required> I agree to these Terms of Service and acknowledge the Privacy Policy.</label>
-{{ end }}<button type="submit" class="auth-primary">Confirm upgrade · {{ .Charge }}</button></form>{{ end }}
-{{ if .CanPay }}<form method="post" class="alerts-upgrade-action"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="pay"><button type="submit" class="auth-primary">Complete payment with Stripe</button></form>{{ end }}
+{{ end }}<button type="submit" class="service-primary">Confirm upgrade · {{ .Charge }}</button></form>{{ end }}
+{{ if .CanPay }}<form method="post" class="alerts-upgrade-action"><input type="hidden" name="csrf" value="{{ .CSRF }}"><input type="hidden" name="action" value="pay"><button type="submit" class="service-primary">Complete payment with Stripe</button></form>{{ end }}
 <p class="alerts-upgrade-links"><a href="/services/alerts/manage">Manage billing</a> · <a href="https://alerts.btcpp.dev/alerts">My alerts</a></p>
-</section></main></body></html>
+</section><aside class="service-summary" aria-label="Order summary"><img src="/static/img/alerts-checkout.svg" alt="" width="640" height="360"><div class="service-summary__body"><h2><span class="service-wordmark">bitcoin++</span> Alerts</h2><dl class="alerts-upgrade-summary"><div><dt>Paid project subscriptions</dt><dd>{{ .Previous }} → {{ .Desired }}<small>Plus your three free projects</small></dd></div>
+<div><dt>Prorated upgrade charge</dt><dd>{{ .Charge }}<small>Through {{ .Period }}</small></dd></div>
+<div><dt>Included tax</dt><dd>{{ .Tax }}</dd></div>
+<div><dt>New annual total</dt><dd>{{ .Annual }}<small>Including applicable tax</small></dd></div></dl></div></aside></main></body></html>
