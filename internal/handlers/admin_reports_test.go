@@ -135,8 +135,11 @@ func TestReportCountsAndProvenance(t *testing.T) {
 		t.Fatal("negative accepted")
 	}
 	form.Set("applications", "0")
-	if _, err := eventReportForm(form, &page, now); err == nil {
-		t.Fatal("unsourced count accepted")
+	for _, action := range []string{"save", "refresh_media", "refresh_x_posts"} {
+		form.Set("action", action)
+		if saved, err := eventReportForm(form, &page, now); err != nil || saved["applications"] != "0" {
+			t.Fatalf("optional note blocked %s: %v", action, err)
+		}
 	}
 	form.Set("applications_source", "CFP export")
 	form.Set("day_2026-06-17", "100")
@@ -331,6 +334,9 @@ func TestReportFormCSRFPostgres(t *testing.T) {
 }
 
 const reportFixtureSQL = `
+CREATE TEMP TABLE organizations(id text,name text,logo_light_url text,logo_dark_url text);
+CREATE TEMP TABLE sponsorships(id text,organization_id text,archived_at timestamptz);
+CREATE TEMP TABLE sponsorships_conferences(sponsorship_id text,conference_id text);
 CREATE TEMP TABLE registrations(conference_id text,revoked boolean,checked_in_at timestamptz,person_id text,email text,revoked_before_account_deletion boolean);
 CREATE TEMP TABLE person_emails(person_id text,email text UNIQUE);
 CREATE TEMP TABLE competitions(id text,conference_id text,results_finalized_at timestamptz);

@@ -8,8 +8,8 @@ func TestReportStageDemand(t *testing.T) {
 		t.Fatal("unverified proposals presented as applications", d)
 	}
 	p.Saved["applications"] = "10"
-	if d := p.StageDemand(); d.Label != "program proposals" {
-		t.Fatal("unattributed override accepted")
+	if d := p.StageDemand(); d == nil || d.Count != 10 || d.Label != "speaking applications" {
+		t.Fatal("manual count without optional note was ignored")
 	}
 	p.Saved["applications_source"] = "Reviewed CFP export, excluding invitations"
 	if d := p.StageDemand(); d.Count != 10 || d.Ratio != "5.0 applications per program session" {

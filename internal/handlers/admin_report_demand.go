@@ -3,7 +3,6 @@ package handlers
 import (
 	"fmt"
 	"strconv"
-	"strings"
 )
 
 type reportStageDemand struct {
@@ -13,9 +12,6 @@ type reportStageDemand struct {
 
 func (d reportStageDemand) Display() string { return compactReportSats(d.Count) }
 func verifiedReportApplications(saved map[string]string) *int64 {
-	if strings.TrimSpace(saved["applications_source"]) == "" {
-		return nil
-	}
 	n, err := reportOptionalCount(saved["applications"])
 	if err != nil {
 		return nil

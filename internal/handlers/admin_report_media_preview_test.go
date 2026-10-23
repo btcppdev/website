@@ -81,6 +81,7 @@ func TestReportMediaPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := reportFixturePage(t)
+	p.Sponsors = []reportSponsor{{ID: "demo-btrust", Name: "Btrust", Logo: "/static/img/sponsors/btrust.svg"}, {ID: "demo-nydig", Name: "NYDIG", Logo: "/static/img/sponsors/nydig_dark.svg"}}
 	snapshot, _ := json.Marshal(media)
 	p.Saved["media_snapshot"] = string(snapshot)
 	p.PostLibrary = defaultReportPosts(2026)

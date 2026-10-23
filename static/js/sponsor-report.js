@@ -10,10 +10,15 @@ if (editButton) editButton.addEventListener("click", () => {
 });
 const recipientInput = document.getElementById("report-recipient");
 if (recipientInput) recipientInput.addEventListener("input", () => {
-  for (const target of document.querySelectorAll("[data-report-recipient]")) {
-    target.textContent = recipientInput.value.trim() || "Our partners";
-    styleReportWordmarks(target);
+  const option = recipientInput.selectedOptions[0];
+  const name = option.dataset.name || (option.value === "legacy" ? option.textContent.replace(" · previous recipient", "") : "Our partners");
+  for (const target of document.querySelectorAll("[data-report-recipient]")) target.textContent = name;
+  for (const logo of document.querySelectorAll("[data-report-recipient-logo]")) {
+    logo.hidden = !option.dataset.logo;
+    if (option.dataset.logo) logo.src = option.dataset.logo; else logo.removeAttribute("src");
+    logo.alt = name + " logo";
   }
+  for (const target of document.querySelectorAll("[data-report-recipient]")) styleReportWordmarks(target);
 });
 const layoutSelect = document.getElementById("report-layout");
 if (layoutSelect) {
@@ -128,6 +133,7 @@ if (reportForm) {
       : `Unsaved changes — click ${reportForm.dataset.saveLabel || "Save event draft"} to keep them.`;
   };
   reportForm.addEventListener("input", markDirty);
+  reportForm.addEventListener("report-saved", () => { dirty = false; saveStatus.textContent = "Draft saved."; });
   reportForm.addEventListener("submit", () => { submitting = true; });
   window.addEventListener("beforeunload", event => {
     if (dirty && !submitting) { event.preventDefault(); event.returnValue = ""; }
@@ -205,3 +211,41 @@ function filterReportPosts() {
 postSearch?.addEventListener("input", filterReportPosts);
 postFilter?.addEventListener("change", filterReportPosts);
 document.querySelector(".report-post-review-list")?.addEventListener("change", filterReportPosts);
+
+const annualRefresh = document.getElementById("annual-refresh-all");
+annualRefresh?.addEventListener("click", async () => {
+  const form = document.getElementById("report-edit-form");
+  const status = document.getElementById("annual-refresh-status");
+  const data = new FormData(form);
+  data.set("action", "save");
+  const events = Array.from(form.querySelectorAll('input[name="event"]:checked:not(:disabled)')).map(input => ({id:input.value, name:input.closest("label").textContent.trim()}));
+  status.replaceChildren();
+  function note(text) { const p = document.createElement("p"); p.textContent = text; status.append(p); return p; }
+  const controls = Array.from(form.elements).filter(el => !el.disabled);
+  controls.forEach(el => el.disabled = true);
+  try {
+    note("Saving the annual draft…");
+    const save = await fetch(location.href, {method:"POST", body:data});
+    if (!save.ok || save.url.includes("/login")) throw new Error("Could not save the draft. Reload and check your session before retrying.");
+    const html = new DOMParser().parseFromString(await save.text(), "text/html");
+    const revision = html.querySelector('input[name="revision"]');
+    if (!revision) throw new Error("Unexpected save response. Reload before retrying.");
+    form.querySelector('input[name="revision"]').value = revision.value;
+    form.dispatchEvent(new Event("report-saved"));
+    const jobs = events.map(event => ({action:"refresh_annual_event", id:event.id, name:event.name}));
+    jobs.push({action:"refresh_annual_posts", id:"", name:"X post analytics"});
+    for (const job of jobs) {
+      const row = note(job.name + ": refreshing…");
+      const body = new FormData();
+      body.set("csrf", data.get("csrf")); body.set("action",job.action); body.set("event_id",job.id);
+      try {
+        const response = await fetch(location.href,{method:"POST",body});
+        if (response.redirected) throw new Error("Session expired; sign in again.");
+        const message = await response.text();
+        row.textContent = job.name + ": " + (response.ok ? "" : "Needs attention — ") + (message.startsWith("<") ? "Server error; retry this refresh." : message);
+      } catch (error) { row.textContent = job.name + ": " + error.message; }
+    }
+    const link = document.createElement("a"); link.href = location.href; link.textContent = "Reload report to see updated figures →"; status.append(link);
+  } catch(error) { note(error.message); }
+  finally { controls.forEach(el => el.disabled = false); }
+});

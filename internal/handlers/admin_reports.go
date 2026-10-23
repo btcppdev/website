@@ -46,6 +46,7 @@ type reportDay struct {
 }
 type reportMetric struct{ Label, Value, Note string }
 type sponsorReportPage struct {
+	Sponsors                                                                               []reportSponsor
 	DemoApplications                                                                       bool
 	ProposalStatuses                                                                       []reportBar
 	PostLibrary                                                                            reportPostLibrary
@@ -156,6 +157,10 @@ func serveSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppC
 	}
 	if page.Event.ID == "" {
 		http.Error(w, "Published event not found", 404)
+		return
+	}
+	if err = loadReportSponsors(ctx, app, &page); err != nil {
+		http.Error(w, "Unable to load event sponsors", 503)
 		return
 	}
 	// Preserve existing annual drafts under their original keys.
@@ -359,18 +364,18 @@ func eventReportForm(form url.Values, page *sponsorReportPage, now time.Time) (m
 			return nil, err
 		}
 	}
+	if err := saveReportRecipient(form, page, saved); err != nil {
+		return nil, err
+	}
 	countField := func(key string) (*int64, error) {
 		value := strings.TrimSpace(form.Get(key))
 		n, err := reportOptionalCount(value)
 		saved[key] = value
 		return n, err
 	}
-	n, err := countField("applications")
+	_, err := countField("applications")
 	if err != nil {
 		return nil, err
-	}
-	if n != nil && saved["applications_source"] == "" {
-		return nil, fmt.Errorf("add a source for the verified application count")
 	}
 	hasAttendance := false
 	for _, d := range page.Days {

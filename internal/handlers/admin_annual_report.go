@@ -180,7 +180,7 @@ func AdminAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 }
 
 func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *config.AppContext) {
-	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 110*time.Second)
 	defer cancel()
 	if app.DB == nil {
 		http.Error(w, "Report database unavailable", 503)
@@ -252,6 +252,10 @@ func serveAnnualSponsorReport(w http.ResponseWriter, r *http.Request, app *confi
 		}
 		if !secureTokenEqual(p.CSRF, r.PostForm.Get("csrf")) {
 			http.Error(w, "Invalid form token", 403)
+			return
+		}
+		if action := r.PostForm.Get("action"); action == "refresh_annual_event" || action == "refresh_annual_posts" {
+			refreshAnnualSource(ctx, w, r, app, &p)
 			return
 		}
 		rev, e := strconv.ParseInt(r.PostForm.Get("revision"), 10, 64)

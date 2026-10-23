@@ -196,7 +196,19 @@ CREATE TEMP TABLE sponsor_report_drafts(scope text PRIMARY KEY,content jsonb NOT
 	if w := post(); w.Code != 403 {
 		t.Fatalf("CSRF accepted: %d", w.Code)
 	}
+	for _, action := range []string{"refresh_annual_event", "refresh_annual_posts"} {
+		form.Set("action", action)
+		if w := post(); w.Code != 403 {
+			t.Fatalf("refresh bypassed CSRF: %d", w.Code)
+		}
+	}
 	form.Set("csrf", "annual-csrf")
+	form.Set("action", "refresh_annual_event")
+	form.Set("event_id", "00000000-0000-4000-8000-000000000001")
+	if w := post(); w.Code != 400 {
+		t.Fatalf("refresh accepted unselected event: %d %s", w.Code, w.Body.String())
+	}
+	form.Set("action", "freeze")
 	w := post()
 	if w.Code != 303 || !strings.Contains(w.Header().Get("Location"), "edition=") {
 		t.Fatalf("freeze failed: %d %s", w.Code, w.Body.String())
